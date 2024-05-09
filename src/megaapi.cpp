@@ -6947,6 +6947,10 @@ void MegaSearchFilter::byCategory(int /*mimeType*/)
 {
 }
 
+void MegaSearchFilter::byFavourite(bool /*excludeNonFavourites*/)
+{
+}
+
 void MegaSearchFilter::bySensitivity(bool /*excludeSensitive*/)
 {
 }
@@ -6988,6 +6992,11 @@ int MegaSearchFilter::byNodeType() const
 int MegaSearchFilter::byCategory() const
 {
     return MegaApi::FILE_TYPE_DEFAULT;
+}
+
+bool MegaSearchFilter::byFavourite() const
+{
+    return false;
 }
 
 bool MegaSearchFilter::bySensitivity() const

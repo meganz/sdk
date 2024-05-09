@@ -1598,7 +1598,8 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, int o
                                               " OR mimetype = ?8))) "
                                  "AND (?11 = 0 OR (name REGEXP ?9)) "
                                  "AND (?14 = 0 OR isContained(?15, description)) "
-                                 "AND (?16 = 0 OR matchTag(?17, tags))"
+                                 "AND (?16 = 0 OR matchTag(?17, tags)) "
+                                 "AND (?18 = 0 OR ?18 = fav)"
                                  // Leading and trailing '*' will be added to argument '?' so we are looking for substrings containing name
                                  // Our REGEXP implementation is case insensitive
 
@@ -1622,7 +1623,8 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, int o
         (sqlResult = sqlite3_bind_int64(stmt, 5, filter.byCreationTimeUpperLimit())) == SQLITE_OK &&
         (sqlResult = sqlite3_bind_int64(stmt, 6, filter.byModificationTimeLowerLimit())) == SQLITE_OK &&
         (sqlResult = sqlite3_bind_int64(stmt, 7, filter.byModificationTimeUpperLimit())) == SQLITE_OK &&
-        (sqlResult = sqlite3_bind_int(stmt, 8, filter.byCategory())) == SQLITE_OK)
+        (sqlResult = sqlite3_bind_int(stmt, 8, filter.byCategory())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int(stmt, 18, filter.byFavourite())) == SQLITE_OK)
     {
         const string& nameFilter = filter.byName();
         bool matchWildcard = std::any_of(nameFilter.begin(), nameFilter.end(), [](const char& c) { return c != '*'; });
@@ -1725,7 +1727,8 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
                          " OR mimetype = ?8))) \n"
             "AND (?13 = 0 OR (name REGEXP ?9)) \n"
             "AND (?17 = 0 OR isContained(?18, description)) \n"
-            "AND (?19 = 0 OR matchTag(?20, tags))";
+            "AND (?19 = 0 OR matchTag(?20, tags)) \n"
+            "AND (?21 = 0 OR ?21 = fav) \n";
             // Leading and trailing '*' will be added to argument '?' so we are looking for substrings containing name
             // Our REGEXP implementation is case insensitive
 
@@ -1769,7 +1772,8 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
         (sqlResult = sqlite3_bind_int64(stmt, 5, filter.byModificationTimeLowerLimit())) == SQLITE_OK &&
         (sqlResult = sqlite3_bind_int64(stmt, 6, filter.byModificationTimeUpperLimit())) == SQLITE_OK &&
         (sqlResult = sqlite3_bind_int(stmt, 7, filter.includedShares())) == SQLITE_OK &&
-        (sqlResult = sqlite3_bind_int(stmt, 8, filter.byCategory())) == SQLITE_OK)
+        (sqlResult = sqlite3_bind_int(stmt, 8, filter.byCategory())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int(stmt, 21, filter.byFavourite())) == SQLITE_OK)
     {
         assert(filter.byAncestorHandles().size() >= 3); // support at least 3 ancestors
         const string& byName = filter.byName();

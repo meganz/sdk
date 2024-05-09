@@ -6059,6 +6059,11 @@ void MegaSearchFilterPrivate::byCategory(int mimeType)
     mMimeCategory = mimeType;
 }
 
+void MegaSearchFilterPrivate::byFavourite(bool excludeNonFavourites)
+{
+    mExcludeNonFavourite = excludeNonFavourites;
+}
+
 void MegaSearchFilterPrivate::bySensitivity(bool excludeSensitive)
 {
     mExcludeSensitive = excludeSensitive;

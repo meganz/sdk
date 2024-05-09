@@ -479,3 +479,23 @@ TEST_F(SdkTestFilter, SdkGetNodesInOrder)
     EXPECT_THAT(toNamesVector(*searchResults), ContainsInOrder(expected))
         << "Unexpected sorting for ORDER_FAV_DESC";
 }
+
+TEST_F(SdkTestFilter, SdkGetFilteredNodes)
+{
+    using testing::NotNull;
+    using testing::UnorderedElementsAreArray;
+
+    // By fav
+    std::unique_ptr<MegaSearchFilter> filteringInfo(getDefaultfilter());
+    filteringInfo->byFavourite(true);
+    std::vector<std::string_view> expected = {
+        "Dir1", // fav
+        "testFile2", // fav
+        "testFile5", // fav
+        "testFile6", // fav
+    };
+    std::unique_ptr<MegaNodeList> searchResults(megaApi[0]->search(filteringInfo.get()));
+    ASSERT_THAT(searchResults, NotNull()) << "serach() returned a nullptr";
+    EXPECT_THAT(toNamesVector(*searchResults), UnorderedElementsAreArray(expected))
+        << "Unexpected filtering reusults for byFavourite()";
+}

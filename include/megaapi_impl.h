@@ -2805,6 +2805,7 @@ public:
     void byName(const char* searchString) override;
     void byNodeType(int nodeType) override;
     void byCategory(int mimeType) override;
+    void byFavourite(bool excludeNonFavourites) override;
     void bySensitivity(bool excludeSensitive) override;
     void byLocationHandle(MegaHandle ancestorHandle) override;
     void byLocation(int locationType) override;
@@ -2816,6 +2817,7 @@ public:
     const char* byName() const override { return mNameFilter.c_str(); }
     int byNodeType() const override { return mNodeType; }
     int byCategory() const override { return mMimeCategory; }
+    bool byFavourite() const override { return mExcludeNonFavourite; }
     bool bySensitivity() const override { return mExcludeSensitive; }
     MegaHandle byLocationHandle() const override { return mLocationHandle; }
     int byLocation() const override { return mLocationType; }
@@ -2830,6 +2832,7 @@ private:
     std::string mNameFilter;
     int mNodeType = MegaNode::TYPE_UNKNOWN;
     int mMimeCategory = MegaApi::FILE_TYPE_DEFAULT;
+    bool mExcludeNonFavourite = false;
     bool mExcludeSensitive = false;
     MegaHandle mLocationHandle = INVALID_HANDLE;
     int mLocationType = MegaApi::SEARCH_TARGET_ALL;

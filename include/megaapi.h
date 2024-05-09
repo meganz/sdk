@@ -9546,6 +9546,14 @@ public:
     virtual void byCategory(int mimeType);
 
     /**
+     * @brief Set option for filtering out non favourite nodes.
+     * If not set or set to false, non favourite nodes will also be considered in searches.
+     *
+     * @param excludeNonFavourites Set to true to filter out non favourite nodes
+     */
+    virtual void byFavourite(bool excludeNonFavourites);
+
+    /**
      * @brief Set option for filtering out sensitive nodes.
      * If not set, sensitive nodes will also be considered in searches.
      *
@@ -9642,6 +9650,13 @@ public:
      * @return predefined category set for filtering, or FILE_TYPE_DEFAULT if not set
      */
     virtual int byCategory() const;
+
+    /**
+     * @brief Return the option for filtering out non favourite nodes.
+     *
+     * @return option set for filtering out favourite nodes, or false if not set
+     */
+    virtual bool byFavourite() const;
 
     /**
      * @brief Return the option for filtering out sensitive nodes.
@@ -13699,6 +13714,11 @@ class MegaApi
          * @param node Node and its children that will be searched for favourites. Search all nodes if null
          * @param count if count is zero return all favourite nodes, otherwise return only 'count' favourite nodes
          * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated use alternatives instead:
+         * - for recursive searches use search(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
+         * - for non-recursive searches use getChildren(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
+         * Remember to call the filter->byFavourite(true) to get only nodes labelled as fav
          */
         void getFavourites(MegaNode* node, int count, MegaRequestListener* listener = nullptr);
 
