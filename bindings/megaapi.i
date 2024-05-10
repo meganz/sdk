@@ -438,6 +438,7 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 
 %newobject mega::MegaNode::PasswordNodeData::createInstance;
 %newobject mega::MegaNode::unserialize;
+%newobject mega::MegaNode::getTags;
 
 typedef long long time_t;
 typedef long long uint64_t;
