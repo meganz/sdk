@@ -3350,10 +3350,12 @@ bool StandardClient::recursiveConfirm(Model::ModelNode* mn, LocalNode* n, int& d
         if (n->syncedCloudNodeHandle.isUndef())
         {
             EXPECT_TRUE(!n->syncedCloudNodeHandle.isUndef()) << "expected synced non-undef handle at localnode: " << n->getLocalPath().toPath(false);
+            return false;
         }
         if (!client.nodeByHandle(n->syncedCloudNodeHandle))
         {
             EXPECT_TRUE(!!client.nodeByHandle(n->syncedCloudNodeHandle)) << "expected synced handle that looks up node at localnode: " << n->getLocalPath().toPath(false);
+            return false;
         }
     }
     std::shared_ptr<Node> syncedNode = client.nodeByHandle(n->syncedCloudNodeHandle);
@@ -10143,7 +10145,7 @@ struct TwoWaySyncSymmetryCase
     {
         if (shouldRecreateOnResume())
         {
-            SetupTwoWaySync();
+            ASSERT_NO_FATAL_FAILURE(SetupTwoWaySync());
         }
     }
 
@@ -10679,9 +10681,9 @@ struct TwoWaySyncSymmetryCase
                     && client.recursiveConfirm(remoteModel.findnode("outside"), client.drillchildnodebyname(client.gettestbasenode(), remoteTestBasePath + "/outside").get(), descendents2, name(), 0, reported2, true, false);
         };
 
-        state.resumeClient.waitFor(remoteIsReady, maxWaitSeconds, checkInterval);
-        state.steadyClient.waitFor(remoteIsReady, maxWaitSeconds, checkInterval);
-        state.nonsyncClient.waitFor(remoteIsReady, maxWaitSeconds, checkInterval);
+        EXPECT_TRUE(state.resumeClient.waitFor(remoteIsReady, maxWaitSeconds, checkInterval));
+        EXPECT_TRUE(state.steadyClient.waitFor(remoteIsReady, maxWaitSeconds, checkInterval));
+        EXPECT_TRUE(state.nonsyncClient.waitFor(remoteIsReady, maxWaitSeconds, checkInterval));
     }
 
     // Two-way sync is stable again after the change.  Check the results.
@@ -10973,19 +10975,19 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
     out() << "Creating initial local files/folders for " << cases.size() << " sync test cases";
     for (auto& testcase : cases)
     {
-        testcase.second.SetupForSync();
+        ASSERT_NO_FATAL_FAILURE(testcase.second.SetupForSync());
     }
 
     out() << "Waiting intial state to be ready and clients are updated with actionpackets";
     for (auto& testcase : cases)
     {
-        testcase.second.WaitSetup();
+        ASSERT_NO_FATAL_FAILURE(testcase.second.WaitSetup());
     }
 
     out() << "Setting up each sub-test's Two-way sync of 'f'";
     for (auto& testcase : cases)
     {
-        testcase.second.SetupTwoWaySync();
+        ASSERT_NO_FATAL_FAILURE(testcase.second.SetupTwoWaySync());
     }
 
     out() << "Letting all " << cases.size() << " Two-way syncs run";
@@ -10997,16 +10999,16 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
     out() << "Checking intial state";
     for (auto& testcase : cases)
     {
-        testcase.second.CheckSetup(allstate, true);
+        ASSERT_NO_FATAL_FAILURE(testcase.second.CheckSetup(allstate, true));
     }
 
     // make changes in destination to set up test
     for (auto& testcase : cases)
     {
-        testcase.second.Modify(TwoWaySyncSymmetryCase::Prepare);
+        ASSERT_NO_FATAL_FAILURE(testcase.second.Modify(TwoWaySyncSymmetryCase::Prepare));
     }
 
-    CatchupClients(&clientA1Steady, &clientA1Resume, &clientA2);
+    ASSERT_NO_FATAL_FAILURE(CatchupClients(&clientA1Steady, &clientA1Resume, &clientA2));
 
     out() << "Letting all " << cases.size() << " Two-way syncs run";
     waitonsyncs(std::chrono::seconds(15), &clientA1Steady, &clientA1Resume, &clientA2);
@@ -11014,7 +11016,7 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
     out() << "Checking Two-way source is unchanged";
     for (auto& testcase : cases)
     {
-        testcase.second.CheckSetup(allstate, false);
+        ASSERT_NO_FATAL_FAILURE(testcase.second.CheckSetup(allstate, false));
     }
 
     auto backupsAreMonitoring = [&cases]() {
@@ -11079,7 +11081,7 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
         testcase.second.Modify(TwoWaySyncSymmetryCase::MainAction);
     }
     waitonsyncs(std::chrono::seconds(15), &clientA1Steady, &clientA2);   // leave out clientA1Resume as it's 'paused' (locallogout'd) for now
-    CatchupClients(&clientA1Steady, &clientA2);
+    ASSERT_NO_FATAL_FAILURE(CatchupClients(&clientA1Steady, &clientA2));
     waitonsyncs(std::chrono::seconds(15), &clientA1Steady, &clientA2);   // leave out clientA1Resume as it's 'paused' (locallogout'd) for now
 
     // resume A1R session (with sync), see if A2 nodes and localnodes get in sync again
@@ -11096,7 +11098,7 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
     {
         if (testcase.second.pauseDuringAction)
         {
-            testcase.second.ResumeTwoWaySync();
+            ASSERT_NO_FATAL_FAILURE(testcase.second.ResumeTwoWaySync());
             ++resumed;
         }
     }
@@ -11113,7 +11115,7 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
 
     waitonsyncs(std::chrono::seconds(15), &clientA1Steady, &clientA1Resume, &clientA2);
 
-    CatchupClients(&clientA1Steady, &clientA1Resume, &clientA2);
+    ASSERT_NO_FATAL_FAILURE(CatchupClients(&clientA1Steady, &clientA1Resume, &clientA2));
     waitonsyncs(std::chrono::seconds(15), &clientA1Steady, &clientA1Resume, &clientA2);
 
     out() << "Checking Backups are Monitoring";
