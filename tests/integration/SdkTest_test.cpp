@@ -20,7 +20,7 @@
  */
 
 #include "sdk_test_utils.h"
-#include "stdfs.h"
+#include "../stdfs.h"
 #include "SdkTest_test.h"
 #include "gtest_common.h"
 #include "mega/types.h"
@@ -54,6 +54,7 @@ static const string IMAGEFILE   = "logo.png";
 static const string IMAGEFILE_C = "logo.encrypted.png";
 static const string THUMBNAIL   = "logo_thumbnail.png";
 static const string PREVIEW     = "logo_preview.png";
+static const string PUBLIC_IMAGE_URL = "/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns"; //gitleaks:allow
 
 
 MegaFileSystemAccess fileSystemAccess;
@@ -1379,8 +1380,8 @@ bool SdkTest::synchronousTransfer(unsigned apiIndex, int type, std::function<voi
     f();
     auto result = waitForResponse(&flag, timeout);
     EXPECT_TRUE(result) << "Transfer (type " << type << ") not finished yet after " << timeout << " seconds";
-    if (!result) mApi[apiIndex].lastError = -999; // local timeout
-    if (!result) mApi[apiIndex].lastTransferError = -999; // local timeout    TODO: switch all transfer code to use lastTransferError .  Some still uses lastError
+    if (!result) mApi[apiIndex].lastError = LOCAL_ETIMEOUT; // local timeout
+    if (!result) mApi[apiIndex].lastTransferError = LOCAL_ETIMEOUT; // local timeout    TODO: switch all transfer code to use lastTransferError .  Some still uses lastError
     return result;
 }
 
@@ -1391,7 +1392,7 @@ bool SdkTest::synchronousRequest(unsigned apiIndex, int type, std::function<void
     f();
     auto result = waitForResponse(&flag, timeout);
     EXPECT_TRUE(result) << "Request (type " << type << ") failed after " << timeout << " seconds";
-    if (!result) mApi[apiIndex].lastError = -999;
+    if (!result) mApi[apiIndex].lastError = LOCAL_ETIMEOUT;
     return result;
 }
 
@@ -1946,7 +1947,7 @@ string SdkTest::createPublicLink(unsigned apiIndex, MegaNode *n, m_time_t expire
     }
     else
     {
-        bool res = API_OK != rt.result && rt.result != -999;
+        bool res = API_OK != rt.result && rt.result != LOCAL_ETIMEOUT;
         EXPECT_TRUE(res) << "Public link creation with expire time on free account (" << mApi[apiIndex].email << ") succeed, and it mustn't";
     }
 
@@ -2165,7 +2166,7 @@ bool SdkTest::getFileFromURL(const std::string& url, const fs::path& dstPath)
     // Open file to save downloaded data
     std::ofstream ofs(dstPath, std::ios::binary | std::ios::out);
     if (!ofs) {
-        LOG_err << "Error opening file for writing:" << dstPath;
+        LOG_err << "Error opening file for writing:" << dstPath.u8string();
         return false;
     }
 
@@ -2183,11 +2184,11 @@ bool SdkTest::getFileFromURL(const std::string& url, const fs::path& dstPath)
     ofs.close();
     if (!ofs)
     {
-        LOG_verbose << "Error closing file:" << dstPath;
+        LOG_verbose << "Error closing file:" << dstPath.u8string();
         return false;
     }
 
-    LOG_verbose << "File " << dstPath << " downloaded successfully";
+    LOG_verbose << "File " << dstPath.u8string() << " downloaded successfully";
     return true;
 }
 
@@ -6603,7 +6604,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
 
     std::unique_ptr<MegaNode> rootnode(megaApi[0]->getRootNode());
 
-    auto importHandle = importPublicLink(0, MegaClient::MEGAURL+"/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", rootnode.get());
+    auto importHandle = importPublicLink(0, MegaClient::MEGAURL+PUBLIC_IMAGE_URL, rootnode.get());
     MegaHandle imported_file_handle = importHandle;
 
     std::unique_ptr<MegaNode> nimported(megaApi[0]->getNodeByHandle(imported_file_handle));
@@ -6784,7 +6785,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
 
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
 
-    auto importHandle = importPublicLink(0, MegaClient::MEGAURL+"/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", rootnode.get());
+    auto importHandle = importPublicLink(0, MegaClient::MEGAURL+PUBLIC_IMAGE_URL, rootnode.get());
     std::unique_ptr<MegaNode> nimported{megaApi[0]->getNodeByHandle(importHandle)};
 
 
@@ -6900,7 +6901,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
 
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
 
-    auto importHandle = importPublicLink(0, MegaClient::MEGAURL+"/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", rootnode.get());
+    auto importHandle = importPublicLink(0, MegaClient::MEGAURL+PUBLIC_IMAGE_URL, rootnode.get());
     std::unique_ptr<MegaNode> nimported{megaApi[0]->getNodeByHandle(importHandle)};
 
 
@@ -6966,7 +6967,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferResume)
     //  3. Check download resumption
 
     //  1. Download raided file, with speed limit
-    auto importRaidHandle = importPublicLink(0, MegaClient::MEGAURL + "/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", rootnode.get());
+    auto importRaidHandle = importPublicLink(0, MegaClient::MEGAURL +PUBLIC_IMAGE_URL, rootnode.get());
     std::unique_ptr<MegaNode> cloudRaidNode{ megaApi[0]->getNodeByHandle(importRaidHandle) };
 
     // prerequisite for having smaller (thus more) raid chunks, for increasing the chances of having
@@ -7145,7 +7146,7 @@ TEST_F(SdkTest, SdkTestOverquotaCloudraid)
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
-    auto importHandle = importPublicLink(0, MegaClient::MEGAURL+"/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns",
+    auto importHandle = importPublicLink(0, MegaClient::MEGAURL+PUBLIC_IMAGE_URL,
                                          std::unique_ptr<MegaNode>(megaApi[0]->getRootNode()).get());
     std::unique_ptr<MegaNode> nimported(megaApi[0]->getNodeByHandle(importHandle));
 
@@ -7319,7 +7320,7 @@ TEST_F(SdkTest, SdkTestCloudraidStreamingSoakTest)
 #endif
 
     // ensure we have our standard raid test file
-    auto importHandle = importPublicLink(0, MegaClient::MEGAURL+"/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get());
+    auto importHandle = importPublicLink(0, MegaClient::MEGAURL+PUBLIC_IMAGE_URL, std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get());
     MegaNode *nimported = megaApi[0]->getNodeByHandle(importHandle);
 
     MegaNode *rootnode = megaApi[0]->getRootNode();
@@ -7986,6 +7987,53 @@ TEST_F(SdkTest, SdkFavouriteNodes)
     ASSERT_EQ(mApi[0].getFavNodeCount(), 1u) << "synchronousGetFavourites failed...";
     unique_ptr<MegaNode> favNode(megaApi[0]->getNodeByHandle(mApi[0].getFavNode(0)));
     ASSERT_EQ(favNode->getName(), subFolder) << "synchronousGetFavourites failed with node passed nullptr";
+
+
+    LOG_debug << "\t# Set versioned node as favourite";
+    std::set<std::string> tmpFileNames = {"n1", "n2", "n3", "n4"};
+    MegaHandle fileHandle = INVALID_HANDLE;
+    std::for_each(std::begin(tmpFileNames), std::end(tmpFileNames),
+       [this, &fileHandle, folder = std::unique_ptr<MegaNode>(megaApi[0]->getRootNode())]
+       (const auto& localFileName)
+    {
+        static int vNum = 1;
+        createFile(localFileName, false, std::to_string(vNum++));
+
+        const auto prevHandle = fileHandle;
+        ASSERT_EQ(MegaError::API_OK,
+                  doStartUpload(0,
+                                &fileHandle,
+                                localFileName.c_str(),
+                                folder.get(),
+                                "versionedFileName.txt",
+                                ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                nullptr /*appData*/,
+                                false /*isSourceTemporary*/,
+                                false /*startFirst*/,
+                                nullptr /*cancelToken*/))
+            << "Cannot upload test file version #" << vNum;
+        if (prevHandle == INVALID_HANDLE)
+        {
+            ASSERT_NE(fileHandle, INVALID_HANDLE) << "Invalid handle retrieved for newly uploaded file";
+        }
+        else
+        {
+            ASSERT_NE(fileHandle, prevHandle) << "Already existing handle received";
+        }
+
+        deleteFile(localFileName);
+    });
+    unique_ptr<MegaNode> versionedFileNode(megaApi[0]->getNodeByHandle(fileHandle));
+    ASSERT_TRUE(versionedFileNode);
+    unique_ptr<MegaNodeList> allVersions(megaApi[0]->getVersions(versionedFileNode.get()));
+    ASSERT_EQ(allVersions->size(), tmpFileNames.size());
+
+    ASSERT_EQ(MegaError::API_OK, synchronousSetNodeFavourite(0, versionedFileNode.get(), true))
+        << "Setting favourite attribute for versioned file failed";
+
+    const int howMany = 0; // all nodes
+    ASSERT_EQ(MegaError::API_OK, synchronousGetFavourites(0, nullptr /*from Root*/, howMany));
+    ASSERT_EQ(mApi[0].getFavNodeCount(), 3u) << "Error counting new versioned node set as favourite";
 }
 
 // tests for Sensntive files flag on files and folders
@@ -16539,6 +16587,8 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
     }
 }
 
+#ifdef ENABLE_SYNC
+
 /**
  * @brief TEST_F SdkTestMoveToSyncDebris
  *   - add syncs with folder and file
@@ -16605,6 +16655,8 @@ TEST_F(SdkTest, SdkTestMoveToSyncDebris)
 
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), base));
 }
+
+#endif // ENABLE_SYNC
 
 /**
  * @brief SdkTesResumeSessionInFolderLinkDeleted
@@ -18777,4 +18829,82 @@ TEST_F(SdkTest, SdkNodeTag)
     ASSERT_EQ(addTag(mh, tag4Lowercase), API_EEXIST);
 
     deleteFile(filename);
+}
+
+/**
+ * @brief Test returned value by MegaApi::getNumNodesAtCacheLRU
+ * Steps:
+ *  - Check intial number of nodes at LRU cache
+ *  - Set cache LRU limit 500
+ *  - Add a new file and create 100 copies
+ *  - Check number of nodes at cache LRU
+ *  - Reduce size at cache LRU
+ *  - Check number of nodes at cache LRU
+ *  - Increase cache LRU size (60)
+ *  - Check number of nodes at cache LRU
+ *  - Copy same node 20 times more
+ *  - Check number of nodes at cache LRU
+ */
+TEST_F(SdkTest, SdkCacheLRU)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    LOG_info << "___TEST SdkCacheLRU___";
+
+    unique_ptr<MegaNode> rootnodeA(megaApi[0]->getRootNode());
+    ASSERT_TRUE(rootnodeA);
+
+    uint64_t initialNumberNodes = megaApi[0]->getNumNodesAtCacheLRU();
+
+    string filename = "test.txt";
+    createFile(filename, false);
+    MegaHandle mh = 0;
+    ASSERT_EQ(MegaError::API_OK,
+              doStartUpload(0,
+                            &mh,
+                            filename.data(),
+                            rootnodeA.get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << "Cannot upload a test file";
+
+    std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByHandle(mh));
+
+    megaApi[0]->setLRUCacheSize(500);
+
+    int numberOfCopies = 100;
+    for (int i = 0; i < numberOfCopies; ++i)
+    {
+        MegaHandle newNodeHandle;
+        std::string newName{filename + std::to_string(i)};
+        ASSERT_EQ(API_OK, doCopyNode(0, &newNodeHandle, node.get(), rootnodeA.get(), newName.c_str()));
+    }
+
+    uint64_t numNodeCacheLRU = megaApi[0]->getNumNodesAtCacheLRU();
+    ASSERT_EQ(numNodeCacheLRU, numberOfCopies + 1 + initialNumberNodes);  // 101 -> initial node + 100 copies
+
+    uint64_t cacheLRUSize = 50;
+    megaApi[0]->setLRUCacheSize(cacheLRUSize);
+
+    numNodeCacheLRU = megaApi[0]->getNumNodesAtCacheLRU();
+    ASSERT_EQ(numNodeCacheLRU, cacheLRUSize);
+
+    uint64_t cacheLRUNewSize = 60;
+    megaApi[0]->setLRUCacheSize(cacheLRUNewSize);
+
+    numNodeCacheLRU = megaApi[0]->getNumNodesAtCacheLRU();
+    ASSERT_EQ(numNodeCacheLRU, cacheLRUSize);
+
+    for (int i = 0; i < 20; ++i)
+    {
+        MegaHandle newNodeHandle;
+        std::string newName{filename + std::to_string(numberOfCopies + i)};
+        ASSERT_EQ(API_OK, doCopyNode(0, &newNodeHandle, node.get(), rootnodeA.get(), newName.c_str()));
+    }
+
+    numNodeCacheLRU = megaApi[0]->getNumNodesAtCacheLRU();
+    ASSERT_EQ(numNodeCacheLRU, cacheLRUNewSize);
 }

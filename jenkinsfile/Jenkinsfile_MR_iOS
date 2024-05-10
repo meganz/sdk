@@ -84,7 +84,7 @@ pipeline {
                             }
                             post{
                                 failure {
-                                    node { label 'linux' } { // We need an agent able to download logs from Jenkins.
+                                    node('linux') { // We need an agent able to download logs from Jenkins.
                                         script {
                                             commentFailedBuild()
                                         }
@@ -106,7 +106,7 @@ pipeline {
                             }
                             post{
                                 failure {
-                                    node { label 'linux' } { // We need an agent able to download logs from Jenkins.
+                                    node('linux') { // We need an agent able to download logs from Jenkins.
                                         script {
                                             commentFailedBuild()
                                         }
@@ -128,7 +128,7 @@ pipeline {
                             }
                             post{
                                 failure {
-                                    node { label 'linux' } { // We need an agent able to download logs from Jenkins.
+                                    node('linux') { // We need an agent able to download logs from Jenkins.
                                         script {
                                             commentFailedBuild()
                                         }
@@ -235,7 +235,7 @@ pipeline {
                     }
                 }
                 failure {
-                    node { label 'linux' } { // We need an agent able to download logs from Jenkins.
+                    node('linux') { // We need an agent able to download logs from Jenkins.
                         script {
                             commentFailedBuild()
                         }

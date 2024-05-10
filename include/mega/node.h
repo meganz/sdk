@@ -208,6 +208,10 @@ private:
 // filesystem node
 struct MEGA_API Node : public NodeCore, FileFingerprint
 {
+    static const std::string BLANK;
+    static const std::string CRYPTO_ERROR;
+    static const std::string NO_KEY;
+
     MegaClient* client = nullptr;
 
     // supplies the nodekey (which is private to ensure we track changes to it)

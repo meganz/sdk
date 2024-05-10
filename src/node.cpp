@@ -37,6 +37,10 @@ namespace mega {
 
 const vector<string> Node::attributesToCopyIntoPreviousVersions{ "fav", "lbl", "sen" };
 
+const std::string Node::BLANK("BLANK");
+const std::string Node::CRYPTO_ERROR("CRYPTO_ERROR");
+const std::string Node::NO_KEY("NO_KEY");
+
 Node::Node(MegaClient& cclient, NodeHandle h, NodeHandle ph,
            nodetype_t t, m_off_t s, handle u, const char* fa, m_time_t ts)
     : client(&cclient)
@@ -788,11 +792,11 @@ void Node::parseattr(byte *bufattr, AttrMap &attrs, m_off_t size, m_time_t &mtim
     attr_map::iterator it = attrs.map.find('n');   // filename
     if (it == attrs.map.end())
     {
-        fileName = "CRYPTO_ERROR";
+        fileName = CRYPTO_ERROR;
     }
     else if (it->second.empty())
     {
-        fileName = "BLANK";
+        fileName = BLANK;
     }
 
     it = attrs.map.find('c');   // checksum
@@ -1018,8 +1022,8 @@ const char* Node::displayname() const
     // not yet decrypted
     if (attrstring)
     {
-        LOG_debug << "NO_KEY " << type << " " << size << " " << Base64Str<MegaClient::NODEHANDLE>(nodehandle);
-        return "NO_KEY";
+        LOG_debug << NO_KEY << " " << type << " " << size << " " << Base64Str<MegaClient::NODEHANDLE>(nodehandle);
+        return NO_KEY.c_str();
     }
 
     attr_map::const_iterator it;
@@ -1030,15 +1034,15 @@ const char* Node::displayname() const
     {
         if (type < ROOTNODE || type > RUBBISHNODE)
         {
-            LOG_debug << "CRYPTO_ERROR " << type << " " << size << " " << nodehandle;
+            LOG_debug << CRYPTO_ERROR << " " << type << " " << size << " " << nodehandle;
         }
-        return "CRYPTO_ERROR";
+        return CRYPTO_ERROR.c_str();
     }
 
     if (!it->second.size())
     {
-        LOG_debug << "BLANK " << type << " " << size << " " << nodehandle;
-        return "BLANK";
+        LOG_debug << BLANK << " " << type << " " << size << " " << nodehandle;
+        return BLANK.c_str();
     }
 
     return it->second.c_str();

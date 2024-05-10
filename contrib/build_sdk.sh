@@ -61,6 +61,7 @@ openssl_cross_option=""
 status_dir=""
 persistent_path="/opt/persistent"
 warning_as_error=0
+build_fuse=0
 build_gtest=0
 build_tests=0
 
@@ -1035,13 +1036,57 @@ already_built()
     local file=$status_dir/$name.success
 
     test $incremental -eq 1 \
-         -a "$(cat $file)" = "$hash" \
+         -a "$(cat $file 2> /dev/null)" = "$hash" \
       && echo "$name already built" \
       && return
 
     rm -f $file
 
     false
+}
+
+fuse_pkg()
+{
+  local build_debug=$3
+  local build_directory=$1
+  local hash="23009734faca2f62d337e3a59be4c280"
+  local install_directory=$2
+  local name="fuse"
+  local version="2.9.9"
+  local file="$name-$version.tar.gz"
+  local directory="libfuse-${file%.tar.gz}"
+  local uri="https://github.com/libfuse/lib$name/archive/refs/tags/$file"
+
+  already_built $name $hash && return
+
+  package_download $name $uri $file $hash
+
+  test $download_only -eq 1 && return
+
+  package_extract $name $file $directory
+
+  # libfuse provides makeconf.sh instead of autogen.sh.
+  ln -fs $build_directory/$directory/makeconf.sh \
+         $build_directory/$directory/autogen.sh
+
+  # Assume that we'll be linking dynamically.
+  local flags="--disable-static --enable-shared"
+
+  # User wants to static link.
+  test "$use_dynamic" -eq 0 && flags="--disable-shared --enable-static"
+
+  # No need for the examples.
+  flags+=" --disable-example"
+
+  # Utilities aren't necessary and don't build.
+  flags+=" --disable-util"
+
+  # Configure, build and install.
+  package_configure $name $directory $install_dir "$flags"
+
+  package_build $name $directory
+
+  package_install $name $directory $install_dir $hash
 }
 
 gtest_pkg() {
@@ -1092,6 +1137,7 @@ build_sdk() {
     local static_flags=""
     local readline_flags=""
     local freeimage_flags=""
+    local fuse_flags=""
     local libuv_flags=""
     local libraw_flags=""
     local megaapi_flags=""
@@ -1118,6 +1164,9 @@ build_sdk() {
     else
         static_flags="--disable-shared --enable-static"
     fi
+
+    # Enable FUSE functionality.
+    test $build_fuse -eq 0 && fuse_flags="--enable-fuse --with-fuse=$install_dir"
 
     # disable freeimage
     if [ $disable_freeimage -eq 0 ]; then
@@ -1193,6 +1242,7 @@ build_sdk() {
             --with-cares=$install_dir \
             --with-curl=$install_dir \
             $freeimage_flags \
+            $fuse_flags \
             $libuv_flags \
             $libraw_flags \
             $readline_flags \
@@ -1298,6 +1348,7 @@ display_help() {
     echo " -E : Treat compiler warnings as errors for the SDK code)"
     echo " -G : Build GoogleTest (if CMake is present)"
     echo " -T : Build integration tests"
+    echo " -F : Enable FUSE support (libfuse)"
     echo ""
 }
 
@@ -1311,7 +1362,7 @@ main() {
     local_dir=$work_dir
     status_dir=$work_dir
 
-    while getopts ":habcdefgiIlLm:nNo:p:rRsS:tuvyx:XC:O:wWqz0EGT" opt; do
+    while getopts ":habcdefgiIlLm:nNo:p:rRsS:tuvyx:XC:O:wWqz0EGTF" opt; do
         case $opt in
             h)
                 display_help $0
@@ -1465,6 +1516,9 @@ main() {
                 build_gtest=1
                 build_tests=1
                 ;;
+            F)
+                build_fuse=1
+                ;;
             *)
                 display_help $0
                 exit 1
@@ -1582,6 +1636,8 @@ main() {
             echo "Can't build gtest as cmake isn't present.";
         fi
     fi
+
+    test $build_fuse -eq 1 && fuse_pkg $build_dir $install_dir "$debug"
 
     test $build_gtest -eq 1 && gtest_pkg $build_dir $install_dir "$debug"
 

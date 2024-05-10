@@ -29,7 +29,12 @@
 #include <chrono>
 
 #ifdef _WIN32
-#include "windows.h"
+#pragma push_macro("NOMINMAX")
+#ifndef NOMINMAX
+    #define NOMINMAX
+#endif
+#include <windows.h>
+#pragma pop_macro("NOMINMAX")
 #endif
 
 namespace mega {

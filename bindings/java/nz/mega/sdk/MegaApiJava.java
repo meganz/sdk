@@ -652,7 +652,7 @@ public class MegaApiJava {
     }
 
     /**
-     * @brief Check if the logged in account is considered new
+     * Check if the logged in account is considered new
      *
      * This function will NOT return a valid value until the callback onEvent with
      * type MegaApi::EVENT_MISC_FLAGS_READY is received. You can also rely on the completion of
@@ -4787,6 +4787,32 @@ public class MegaApiJava {
     }
 
     /**
+     * Set node description as a node attribute
+     *
+     * To remove node description, set description to NULL
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node that received the attribute
+     * - MegaRequest::getFlag - Returns true (official attribute)
+     * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_DESCRIPTION
+     * - MegaRequest::getText - Returns node description
+     *
+     * If the size of the description is greater than MAX_NODE_DESCRIPTION_SIZE, onRequestFinish will be
+     * called with the error code MegaError::API_EARGS.
+     *
+     * If the MEGA account is a business account and its status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param node Node that will receive the information.
+     * @param description Node description
+     * @param listener MegaRequestListener to track this request
+     */
+    public void setNodeDescription(MegaNode node, String description, MegaRequestListenerInterface listener){
+        megaApi.setNodeDescription(node, description, createDelegateRequestListener(listener));
+    }
+
+    /**
      * Generate a public link of a file/folder in MEGA
      * <p>
      * The associated request type with this request is MegaRequest::TYPE_EXPORT
@@ -6578,7 +6604,7 @@ public class MegaApiJava {
     }
 
     /**
-     * @brief Generate a new pseudo-randomly characters-based password
+     * Generate a new pseudo-randomly characters-based password
      *
      * You take ownership of the returned value.
      * Use delete[] to free it.
@@ -8199,7 +8225,7 @@ public class MegaApiJava {
     }
 
     /**
-     * @brief Get children of a particular parent or a predefined location, and allow filtering
+     * Get children of a particular parent or a predefined location, and allow filtering
      * the results. @see MegaSearchFilter
      * The look-up is case-insensitive.
      * For invalid filtering options, this function returns an empty list.
@@ -9240,7 +9266,7 @@ public class MegaApiJava {
     }
 
     /**
-     * @brief Search nodes and allow filtering the results.
+     * Search nodes and allow filtering the results.
      * The search is case-insensitive.
      *
      * You take the ownership of the returned value.
@@ -9296,7 +9322,7 @@ public class MegaApiJava {
     }
 
     /**
-     * @brief Search nodes and allow filtering the results.
+     * Search nodes and allow filtering the results.
      * The search is case-insensitive.
      *
      * You take the ownership of the returned value.
@@ -12513,7 +12539,7 @@ public class MegaApiJava {
     }
 
     /**
-     * @brief Start a Sync or Backup between a local folder and a folder in MEGA
+     * Start a Sync or Backup between a local folder and a folder in MEGA
      *
      * This function should be used to add a new synchronization/backup task for the MegaApi.
      * To resume a previously configured task folder, use MegaApi::enableSync.
@@ -12584,7 +12610,7 @@ public class MegaApiJava {
     }
 
     /**
-     * @brief Get all configured syncs
+     * Get all configured syncs
      *
      * You take the ownership of the returned value
      *
@@ -12595,7 +12621,7 @@ public class MegaApiJava {
     }
 
     /**
-     * @brief De-configure the sync/backup of a folder
+     * De-configure the sync/backup of a folder
      *
      * The folder will stop being synced. No files in the local nor in the remote folder
      * will be deleted due to the usage of this function.
@@ -12905,7 +12931,7 @@ public class MegaApiJava {
     }
 
     /**
-     * @brief Find out if the syncs need User intervention for some files/folders
+     * Find out if the syncs need User intervention for some files/folders
      *
      * use getMegaSyncStallList() to find out what needs attention.
      *
@@ -12933,7 +12959,7 @@ public class MegaApiJava {
     }
 
     /**
-     * @brief Check if it's possible to start synchronizing a folder node. Return SyncError errors.
+     * Check if it's possible to start synchronizing a folder node. Return SyncError errors.
      *
      * Possible return values for this function are:
      * - MegaError::API_OK if the folder is syncable
@@ -12955,4 +12981,5 @@ public class MegaApiJava {
     public MegaError isNodeSyncableWithError(MegaNode megaNode) {
         return megaApi.isNodeSyncableWithError(megaNode);
     }
+
 }

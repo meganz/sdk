@@ -1113,6 +1113,132 @@ int icuLikeCompare(const uint8_t* zPattern, /* LIKE pattern */
 // Get the current process ID
 unsigned long getCurrentPid();
 
+// Convenience.
+template<typename T>
+struct IsStringType : std::false_type { };
+
+template<>
+struct IsStringType<std::string> : std::true_type { };
+
+template<>
+struct IsStringType<std::wstring> : std::true_type { };
+
+// Retrieve a file's extension.
+template<typename StringType>
+auto extensionOf(const StringType& path, std::string& extension)
+  -> typename std::enable_if<IsStringType<StringType>::value, bool>::type;
+
+template<typename StringType>
+auto extensionOf(const StringType& path)
+  -> typename std::enable_if<IsStringType<StringType>::value, std::string>::type;
+
+// Translate a character representing a hexadecimal digit to an integer.
+template<typename T>
+auto fromHex(char character)
+  -> typename std::enable_if<std::is_integral<T>::value,
+                             std::pair<T, bool>
+                            >::type
+{
+    // Ensure the character's in lowercase.
+    character |= ' ';
+
+    // Character's a decimal digit.
+    if (character >= '0' && character <= '9')
+        return std::make_pair(static_cast<T>(character - '0'), true);
+
+    // Character's a hexadecimal digit.
+    if (character >= 'a' && character <= 'f')
+        return std::make_pair(static_cast<T>(character - 'W'), true);
+
+    // Character's not a valid hexadecimal digit.
+    return std::make_pair(0, false);
+}
+
+// Translate a string of hexadecimal digits to an integer.
+//
+// NOTE: The string should be trimmed of any whitespace.
+template<typename T>
+auto fromHex(const char* current, const char* end)
+  -> typename std::enable_if<std::is_integral<T>::value,
+                             std::pair<T, bool>
+                            >::type
+{
+    // What's the largest value that T can represent?
+    constexpr auto maximum = std::numeric_limits<T>::max();
+
+    // Convenience.
+    constexpr auto undefined = std::make_pair(T{}, false);
+
+    // An empty string doesn't contain a valid hex number.
+    if (current == end)
+        return undefined;
+
+    // Our accumulated value.
+    T value{};
+
+    for ( ; current != end; ++current)
+    {
+        // Try and convert the current character to an integer.
+        auto result = fromHex<T>(*current);
+
+        // Character wasn't a valid hexadecimal digit.
+        if (!result.second)
+            return undefined;
+
+        // Make sure we don't wrap.
+        if (value && maximum / value < 16)
+            return undefined;
+
+        // Scale the value by 16.
+        value *= 16;
+
+        // Again, make sure we don't wrap.
+        if (maximum - value < result.first)
+            return undefined;
+
+        // Include the new digit in our running total.
+        value += result.first;
+    }
+
+    // Return value to caller.
+    return std::make_pair(value, true);
+}
+
+template<typename T>
+auto fromHex(const char* begin, std::size_t size)
+  -> typename std::enable_if<std::is_integral<T>::value,
+                             std::pair<T, bool>
+                            >::type
+{
+    return fromHex<T>(begin, begin + size);
+}
+
+// Translate a string of hexadecimal digits to an integer.
+//
+// NOTE: The string should be trimmed of any whitespace.
+template<typename T>
+auto fromHex(const std::string& value)
+  -> typename std::enable_if<std::is_integral<T>::value,
+                             std::pair<T, bool>
+                            >::type
+{
+    return fromHex<T>(value.data(), value.size());
+}
+
+// Convenience.
+using SplitFragment =
+  std::pair<const char*, std::size_t>;
+
+using SplitResult =
+  std::pair<SplitFragment, SplitFragment>;
+
+// Split a string into two halves around a specific delimiter.
+//
+// NOTE: The second half includes the delimiter, if present.
+SplitResult split(const char* begin, const char* end, char delimiter);
+SplitResult split(const char* begin, const std::size_t size, char delimiter);
+SplitResult split(const std::string& value, char delimiter);
+
 } // namespace mega
 
 #endif // MEGA_UTILS_H

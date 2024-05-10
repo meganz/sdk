@@ -1424,6 +1424,10 @@ void NodeManager::notifyPurge()
         }
 
         LockGuard g(mMutex);
+		
+        // Let FUSE know that nodes have been updated.
+        mClient.mFuseClientAdapter.updated(nodesToReport);
+
         TransferDbCommitter committer(mClient.tctable);
 
         unsigned removed = 0;
@@ -1752,6 +1756,7 @@ void NodeManager::setCacheLRUMaxSize(uint64_t cacheLRUMaxSize)
 
 uint64_t NodeManager::getNumNodesAtCacheLRU() const
 {
+    LockGuard g(mMutex);
     return mCacheLRU.size();
 }
 

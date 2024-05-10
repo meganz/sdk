@@ -19,6 +19,8 @@
  * program.
  */
 
+#include <mega/fuse/common/service.h>
+
 #include "mega.h"
 #include "megaapi.h"
 #include "megaapi_impl.h"
@@ -1460,6 +1462,11 @@ int MegaError::getErrorCode() const
     return errorCode;
 }
 
+int MegaError::getMountResult() const
+{
+    return MegaMount::SUCCESS;
+}
+
 int MegaError::getSyncError() const
 {
     return syncError;
@@ -1915,6 +1922,26 @@ void MegaListener::onChatsUpdate(MegaApi *api, MegaTextChatList *chats)
 #endif
 
 MegaListener::~MegaListener() {}
+
+void MegaListener::onMountAdded(MegaApi*, const char*, int)
+{
+}
+
+void MegaListener::onMountChanged(MegaApi*, const char*, int)
+{
+}
+
+void MegaListener::onMountDisabled(MegaApi*, const char*, int)
+{
+}
+
+void MegaListener::onMountEnabled(MegaApi*, const char*, int)
+{
+}
+
+void MegaListener::onMountRemoved(MegaApi*, const char*, int)
+{
+}
 
 bool MegaTreeProcessor::processMegaNode(MegaNode*)
 { return false; /* Stops the processing */ }
@@ -4593,6 +4620,11 @@ void MegaApi::setLRUCacheSize(unsigned long long size)
     pImpl->setLRUCacheSize(size);
 }
 
+unsigned long long MegaApi::getNumNodesAtCacheLRU() const
+{
+    return pImpl->getNumNodesAtCacheLRU();
+}
+
 long long MegaApi::getTotalDownloadedBytes()
 {
     return pImpl->getTotalDownloadedBytes();
@@ -5854,6 +5886,110 @@ void MegaApi::enableRequestStatusMonitor(bool enable)
 bool MegaApi::requestStatusMonitorEnabled()
 {
     return pImpl->requestStatusMonitorEnabled();
+}
+
+void MegaApi::addMount(const MegaMount* mount, MegaRequestListener* listener)
+{
+    assert(listener);
+    assert(mount);
+
+    pImpl->addMount(mount, listener);
+}
+
+void MegaApi::disableMount(const char* path,
+                           MegaRequestListener* listener,
+                           bool remember)
+{
+    assert(listener);
+    assert(path);
+
+    pImpl->disableMount(path, listener, remember);
+}
+
+void MegaApi::enableMount(const char* path,
+                          MegaRequestListener* listener,
+                          bool remember)
+{
+    assert(listener);
+    assert(path);
+
+    pImpl->enableMount(path, listener, remember);
+}
+
+MegaFuseFlags* MegaApi::getFUSEFlags()
+{
+    return pImpl->getFUSEFlags();
+}
+
+MegaMountFlags* MegaApi::getMountFlags(const char* path)
+{
+    assert(path);
+
+    return pImpl->getMountFlags(path);
+}
+
+MegaMount* MegaApi::getMountInfo(const char* path)
+{
+    assert(path);
+
+    return pImpl->getMountInfo(path);
+}
+
+MegaStringList* MegaApi::getMountPaths(const char* name)
+{
+    assert(name);
+
+    return pImpl->getMountPaths(name);
+}
+
+MegaMountList* MegaApi::listMounts(bool enabled)
+{
+    return pImpl->listMounts(enabled);
+}
+
+bool MegaApi::isCachedByPath(const char* path)
+{
+    assert(path);
+
+    return pImpl->isCached(path);
+}
+
+bool MegaApi::isFUSESupported()
+{
+    return pImpl->isFUSESupported();
+}
+
+bool MegaApi::isMountEnabled(const char* path)
+{
+    assert(path);
+
+    return pImpl->isMountEnabled(path);
+}
+
+void MegaApi::removeMount(const char* path, MegaRequestListener* listener)
+{
+    assert(listener);
+    assert(path);
+
+    pImpl->removeMount(path, listener);
+}
+
+void MegaApi::setFUSEFlags(const MegaFuseFlags* flags)
+{
+    assert(flags);
+
+    pImpl->setFUSEFlags(*flags);
+}
+
+void MegaApi::setMountFlags(const MegaMountFlags* flags,
+                            const char* path,
+                            MegaRequestListener* listener)
+{
+    assert(flags);
+    assert(path);
+    assert(listener);
+
+    pImpl->setMountFlags(flags, path, listener);
 }
 
 void MegaApi::getVpnRegions(MegaRequestListener* listener)
@@ -7813,7 +7949,6 @@ MegaCurrency *MegaCurrency::copy()
     return nullptr;
 }
 
-
 /* MegaVpnCredentials BEGIN */
 MegaVpnCredentials::MegaVpnCredentials()
 {
@@ -7912,5 +8047,51 @@ MegaGfxProvider* MegaGfxProvider::createInternalInstance()
 {
     return MegaGfxProviderPrivate::createInternalInstance().release();
 }
+
+MegaFuseExecutorFlags::MegaFuseExecutorFlags() = default;
+
+MegaFuseExecutorFlags::~MegaFuseExecutorFlags() = default;
+
+MegaFuseFlags::MegaFuseFlags() = default;
+
+MegaFuseFlags::~MegaFuseFlags() = default;
+
+MegaFuseFlags* MegaFuseFlags::create()
+{
+    return new MegaFuseFlagsPrivate(fuse::ServiceFlags());
+}
+
+MegaFuseInodeCacheFlags::MegaFuseInodeCacheFlags() = default;
+
+MegaFuseInodeCacheFlags::~MegaFuseInodeCacheFlags() = default;
+
+MegaMount::MegaMount() = default;
+
+MegaMount::~MegaMount() = default;
+
+MegaMount* MegaMount::create()
+{
+    return new MegaMountPrivate();
+}
+
+const char* MegaMount::getResultString(int result)
+{
+    assert(result >= ABORTED && result <= UNSUPPORTED);
+
+    return fuse::toString(static_cast<fuse::MountResult>(result));
+}
+
+MegaMountFlags::MegaMountFlags() = default;
+
+MegaMountFlags::~MegaMountFlags() = default;
+
+MegaMountFlags* MegaMountFlags::create()
+{
+    return new MegaMountFlagsPrivate();
+}
+
+MegaMountList::MegaMountList() = default;
+
+MegaMountList::~MegaMountList() = default;
 
 }

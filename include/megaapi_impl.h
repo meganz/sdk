@@ -50,6 +50,11 @@
 #include "mega/gfx/GfxProcCG.h"
 #endif
 
+// FUSE
+#include <mega/fuse/common/mount_flags.h>
+#include <mega/fuse/common/mount_result.h>
+#include <mega/fuse/common/service_flags.h>
+
 ////////////////////////////// SETTINGS //////////////////////////////
 ////////// Support for threads and mutexes
 //Choose one of these options.
@@ -135,10 +140,12 @@ public:
     MegaErrorPrivate(int errorCode, long long value);
 
     MegaErrorPrivate(const Error &err);
+    MegaErrorPrivate(fuse::MountResult result);
     MegaErrorPrivate(const MegaError &megaError);
     ~MegaErrorPrivate() override;
     MegaError* copy() const override;
     int getErrorCode() const override;
+    int getMountResult() const override;
     long long getValue() const override;
     bool hasExtraInfo() const override;
     long long getUserStatus() const override;
@@ -152,6 +159,7 @@ private:
     long long mValue = 0;
     long long mUserStatus = MegaError::UserErrorCode::USER_ETD_UNKNOWN;
     long long mLinkStatus = MegaError::LinkErrorCode::LINK_UNKNOWN;
+    fuse::MountResult mMountResult = fuse::MOUNT_SUCCESS;
 };
 
 class MegaTransferPrivate;
@@ -290,7 +298,7 @@ class MegaFolderUploadController : public MegaRecursiveOperation, public std::en
 {
 public:
     MegaFolderUploadController(MegaApiImpl *megaApi, MegaTransferPrivate *transfer);
-    virtual ~MegaFolderUploadController();
+    ~MegaFolderUploadController() override;
 
     // ---- MegaRecursiveOperation methods ---
     void start(MegaNode* node) override;
@@ -370,7 +378,7 @@ class MegaScheduledCopyController : public MegaScheduledCopy, public MegaRequest
 public:
     MegaScheduledCopyController(MegaApiImpl *megaApi, int tag, int folderTransferTag, handle parenthandle, const char *filename, bool attendPastBackups, const char *speriod, int64_t period=-1, int maxBackups = 10);
     MegaScheduledCopyController(MegaScheduledCopyController *backup);
-    ~MegaScheduledCopyController();
+    ~MegaScheduledCopyController() override;
 
     void update();
     void start(bool skip = false);
@@ -510,7 +518,7 @@ class MegaFolderDownloadController : public MegaRecursiveOperation, public std::
 {
 public:
     MegaFolderDownloadController(MegaApiImpl *megaApi, MegaTransferPrivate *transfer);
-    virtual ~MegaFolderDownloadController();
+    ~MegaFolderDownloadController() override;
 
     // ---- MegaRecursiveOperation methods ---
     void start(MegaNode *node) override;
@@ -954,7 +962,7 @@ class MegaHandleListPrivate : public MegaHandleList
 public:
     MegaHandleListPrivate();
     MegaHandleListPrivate(const MegaHandleListPrivate *hList);
-    virtual ~MegaHandleListPrivate();
+    ~MegaHandleListPrivate() override;
     MegaHandleListPrivate(const vector<handle> &handles);
 
     MegaHandleList *copy() const override;
@@ -973,7 +981,7 @@ public:
     MegaIntegerListPrivate(const vector<int8_t>& bytesList);
     MegaIntegerListPrivate(const vector<int64_t>& integerList);
     MegaIntegerListPrivate(const vector<uint32_t>& integerList);
-    virtual ~MegaIntegerListPrivate();
+    ~MegaIntegerListPrivate() override;
     MegaSmallIntVector* toByteList() const;
     MegaIntegerList *copy() const override;
     void add(long long i) override;
@@ -989,14 +997,14 @@ class MegaSharePrivate : public MegaShare
 {
 	public:
         static MegaShare *fromShare(MegaHandle nodeMegaHandle, Share *share, bool verified);
-        virtual MegaShare *copy();
-        virtual ~MegaSharePrivate();
-        virtual const char *getUser();
-        virtual MegaHandle getNodeHandle();
-        virtual int getAccess();
-        virtual int64_t getTimestamp();
-        virtual bool isPending();
-        virtual bool isVerified();
+        MegaShare *copy() override;
+        ~MegaSharePrivate() override;
+        const char *getUser() override;
+        MegaHandle getNodeHandle() override;
+        int getAccess() override;
+        int64_t getTimestamp() override;
+        bool isPending() override;
+        bool isVerified() override;
 
 	protected:
         MegaSharePrivate(MegaHandle nodehandle, Share *share, bool verified);
@@ -1072,7 +1080,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
 	public:
         MegaTransferPrivate(int type, MegaTransferListener *listener = NULL);
         MegaTransferPrivate(const MegaTransferPrivate *transfer);
-        virtual ~MegaTransferPrivate();
+        ~MegaTransferPrivate() override;
 
         MegaTransfer *copy() override;
 	    Transfer *getTransfer() const;
@@ -1265,15 +1273,15 @@ public:
     MegaTransferDataPrivate(TransferList *transferList, long long notificationNumber);
     MegaTransferDataPrivate(const MegaTransferDataPrivate *transferData);
 
-    virtual ~MegaTransferDataPrivate();
-    virtual MegaTransferData *copy() const;
-    virtual int getNumDownloads() const;
-    virtual int getNumUploads() const;
-    virtual int getDownloadTag(int i) const;
-    virtual int getUploadTag(int i) const;
-    virtual unsigned long long getDownloadPriority(int i) const;
-    virtual unsigned long long getUploadPriority(int i) const;
-    virtual long long getNotificationNumber() const;
+    ~MegaTransferDataPrivate() override;
+    MegaTransferData *copy() const override;
+    int getNumDownloads() const override;
+    int getNumUploads() const override;
+    int getDownloadTag(int i) const override;
+    int getUploadTag(int i) const override;
+    unsigned long long getDownloadPriority(int i) const override;
+    unsigned long long getUploadPriority(int i) const override;
+    long long getNotificationNumber() const override;
 
 protected:
     int numDownloads;
@@ -1291,15 +1299,15 @@ public:
     MegaFolderInfoPrivate(int numFiles, int numFolders, int numVersions, long long currentSize, long long versionsSize);
     MegaFolderInfoPrivate(const MegaFolderInfoPrivate *folderData);
 
-    virtual ~MegaFolderInfoPrivate();
+    ~MegaFolderInfoPrivate() override;
 
-    virtual MegaFolderInfo *copy() const;
+    MegaFolderInfo *copy() const override;
 
-    virtual int getNumVersions() const;
-    virtual int getNumFiles() const;
-    virtual int getNumFolders() const;
-    virtual long long getCurrentSize() const;
-    virtual long long getVersionsSize() const;
+    int getNumVersions() const override;
+    int getNumFiles() const override;
+    int getNumFolders() const override;
+    long long getCurrentSize() const override;
+    long long getVersionsSize() const override;
 
 protected:
     int numFiles;
@@ -1315,13 +1323,13 @@ public:
     MegaTimeZoneDetailsPrivate(vector<string>* timeZones, vector<int> *timeZoneOffsets, int defaultTimeZone);
     MegaTimeZoneDetailsPrivate(const MegaTimeZoneDetailsPrivate *timeZoneDetails);
 
-    virtual ~MegaTimeZoneDetailsPrivate();
-    virtual MegaTimeZoneDetails *copy() const;
+    ~MegaTimeZoneDetailsPrivate() override;
+    MegaTimeZoneDetails *copy() const override;
 
-    virtual int getNumTimeZones() const;
-    virtual const char *getTimeZone(int index) const;
-    virtual int getTimeOffset(int index) const;
-    virtual int getDefault() const;
+    int getNumTimeZones() const override;
+    const char *getTimeZone(int index) const override;
+    int getTimeOffset(int index) const override;
+    int getDefault() const override;
 
 protected:
     int defaultTimeZone;
@@ -1339,7 +1347,7 @@ public:
     std::string generateJson() const;
     bool isValid() const;
 
-    virtual ~MegaPushNotificationSettingsPrivate();
+    ~MegaPushNotificationSettingsPrivate() override;
     MegaPushNotificationSettings *copy() const override;
 
 private:
@@ -1403,20 +1411,20 @@ class MegaContactRequestPrivate : public MegaContactRequest
 public:
     MegaContactRequestPrivate(PendingContactRequest *request);
     MegaContactRequestPrivate(const MegaContactRequest *request);
-    virtual ~MegaContactRequestPrivate();
+    ~MegaContactRequestPrivate() override;
 
     static MegaContactRequest *fromContactRequest(PendingContactRequest *request);
-    virtual MegaContactRequest *copy() const;
+    MegaContactRequest *copy() const override;
 
-    virtual MegaHandle getHandle() const;
-    virtual char* getSourceEmail() const;
-    virtual char* getSourceMessage() const;
-    virtual char* getTargetEmail() const;
-    virtual int64_t getCreationTime() const;
-    virtual int64_t getModificationTime() const;
-    virtual int getStatus() const;
-    virtual bool isOutgoing() const;
-    virtual bool isAutoAccepted() const;
+    MegaHandle getHandle() const override;
+    char* getSourceEmail() const override;
+    char* getSourceMessage() const override;
+    char* getTargetEmail() const override;
+    int64_t getCreationTime() const override;
+    int64_t getModificationTime() const override;
+    int getStatus() const override;
+    bool isOutgoing() const override;
+    bool isAutoAccepted() const override;
 
 protected:
     MegaHandle handle;
@@ -1438,7 +1446,7 @@ public:
     MegaSyncPrivate(const SyncConfig& config, MegaClient* client);
     MegaSyncPrivate(MegaSyncPrivate *sync);
 
-    virtual ~MegaSyncPrivate();
+    ~MegaSyncPrivate() override;
 
     MegaSync *copy() override;
 
@@ -1503,7 +1511,7 @@ class MegaSyncListPrivate : public MegaSyncList
         MegaSyncListPrivate();
         MegaSyncListPrivate(MegaSyncPrivate **newlist, int size);
         MegaSyncListPrivate(const MegaSyncListPrivate *syncList);
-        virtual ~MegaSyncListPrivate();
+        ~MegaSyncListPrivate() override;
         MegaSyncList *copy() const override;
         MegaSync* get(int i) const override;
         int size() const override;
@@ -1536,7 +1544,7 @@ class MegaRequestPrivate : public MegaRequest
         // See fireOnRequestFinish
         std::function<void()> performFireOnRequestFinish;
 
-        virtual ~MegaRequestPrivate();
+        ~MegaRequestPrivate() override;
         MegaRequest *copy() override;
         void setNodeHandle(MegaHandle nodeHandle);
         void setLink(const char* link);
@@ -1785,17 +1793,17 @@ class MegaAccountSessionPrivate : public MegaAccountSession
 {
 public:
     static MegaAccountSession *fromAccountSession(const AccountSession *session);
-    virtual ~MegaAccountSessionPrivate() ;
-    virtual MegaAccountSession* copy();
+    ~MegaAccountSessionPrivate() override;
+    MegaAccountSession* copy();
 
-    virtual int64_t getCreationTimestamp() const override;
-    virtual int64_t getMostRecentUsage() const;
-    virtual char *getUserAgent() const;
-    virtual char *getIP() const;
-    virtual char *getCountry() const;
-    virtual bool isCurrent() const;
-    virtual bool isAlive() const;
-    virtual MegaHandle getHandle() const;
+    int64_t getCreationTimestamp() const override;
+    int64_t getMostRecentUsage() const override;
+    char *getUserAgent() const override;
+    char *getIP() const override;
+    char *getCountry() const override;
+    bool isCurrent() const override;
+    bool isAlive() const override;
+    MegaHandle getHandle() const override;
     char *getDeviceId() const override;
 
 private:
@@ -2024,7 +2032,7 @@ public:
     MegaTextChatPrivate(const MegaTextChat *);
     MegaTextChatPrivate(const TextChat *);
 
-    virtual ~MegaTextChatPrivate();
+    ~MegaTextChatPrivate() override;
     MegaTextChat *copy() const override;
 
     MegaHandle getHandle() const override;
@@ -2151,7 +2159,7 @@ public:
     MegaIntegerMapPrivate();
     MegaIntegerMapPrivate(const std::multimap<int8_t, int8_t>& bytesMap);
     MegaIntegerMapPrivate(const std::multimap<int64_t, int64_t>& integerMap);
-    virtual ~MegaIntegerMapPrivate();
+    ~MegaIntegerMapPrivate() override;
     MegaSmallIntMap* toByteMap() const;
     MegaIntegerMap* copy() const override;
     MegaIntegerList* getKeys() const override;
@@ -2169,7 +2177,7 @@ class MegaStringListPrivate : public MegaStringList
 public:
     MegaStringListPrivate() = default;
     MegaStringListPrivate(string_vector&&); // takes ownership
-    virtual ~MegaStringListPrivate() = default;
+    ~MegaStringListPrivate() override = default;
     MegaStringList *copy() const override;
     const char* get(int i) const override;
     int size() const override;
@@ -2223,7 +2231,7 @@ class MegaNodeListPrivate : public MegaNodeList
         MegaNodeListPrivate(const MegaNodeListPrivate *nodeList, bool copyChildren = false);
         MegaNodeListPrivate(sharedNode_vector& v);
         MegaNodeListPrivate(sharedNode_list& l);
-        virtual ~MegaNodeListPrivate();
+        ~MegaNodeListPrivate() override;
         MegaNodeList *copy() const override;
         MegaNode* get(int i) const override;
         int size() const override;
@@ -2244,9 +2252,9 @@ class MegaChildrenListsPrivate : public MegaChildrenLists
         MegaChildrenListsPrivate();
         MegaChildrenListsPrivate(MegaChildrenLists*);
         MegaChildrenListsPrivate(unique_ptr<MegaNodeListPrivate> folderList, unique_ptr<MegaNodeListPrivate> fileList);
-        virtual MegaChildrenLists *copy();
-        virtual MegaNodeList* getFolderList();
-        virtual MegaNodeList* getFileList();
+        MegaChildrenLists *copy() override;
+        MegaNodeList* getFolderList() override;
+        MegaNodeList* getFileList() override;
 
     protected:
         unique_ptr<MegaNodeList> folders;
@@ -2258,10 +2266,10 @@ class MegaUserListPrivate : public MegaUserList
 	public:
         MegaUserListPrivate();
         MegaUserListPrivate(User** newlist, int size);
-        virtual ~MegaUserListPrivate();
-        virtual MegaUserList *copy();
-        virtual MegaUser* get(int i);
-        virtual int size();
+        ~MegaUserListPrivate() override;
+        MegaUserList *copy() override;
+        MegaUser* get(int i) override;
+        int size() override;
 
 	protected:
         MegaUserListPrivate(MegaUserListPrivate *userList);
@@ -2274,9 +2282,9 @@ class MegaShareListPrivate : public MegaShareList
 	public:
         MegaShareListPrivate();
         MegaShareListPrivate(Share** newlist, MegaHandle *MegaHandlelist, byte *verified, int size);
-        virtual ~MegaShareListPrivate();
-        virtual MegaShare* get(int i);
-        virtual int size();
+        ~MegaShareListPrivate() override;
+        MegaShare* get(int i) override;
+        int size() override;
 
 	protected:
 		MegaShare** list;
@@ -2288,9 +2296,9 @@ class MegaTransferListPrivate : public MegaTransferList
 	public:
         MegaTransferListPrivate();
         MegaTransferListPrivate(MegaTransfer** newlist, int size);
-        virtual ~MegaTransferListPrivate();
-        virtual MegaTransfer* get(int i);
-        virtual int size();
+        ~MegaTransferListPrivate() override;
+        MegaTransfer* get(int i) override;
+        int size() override;
 
 	protected:
 		MegaTransfer** list;
@@ -2302,10 +2310,10 @@ class MegaContactRequestListPrivate : public MegaContactRequestList
     public:
         MegaContactRequestListPrivate();
         MegaContactRequestListPrivate(PendingContactRequest ** newlist, int size);
-        virtual ~MegaContactRequestListPrivate();
-        virtual MegaContactRequestList *copy();
-        virtual MegaContactRequest* get(int i);
-        virtual int size();
+        ~MegaContactRequestListPrivate() override;
+        MegaContactRequestList *copy() override;
+        MegaContactRequest* get(int i) override;
+        int size() override;
 
     protected:
         MegaContactRequestListPrivate(MegaContactRequestListPrivate *requestList);
@@ -2319,11 +2327,11 @@ public:
     MegaUserAlertListPrivate();
     MegaUserAlertListPrivate(UserAlert::Base** newlist, int size, MegaClient* mc);
     MegaUserAlertListPrivate(const MegaUserAlertListPrivate &userList);
-    virtual ~MegaUserAlertListPrivate();
-    virtual MegaUserAlertList *copy() const;
-    virtual MegaUserAlert* get(int i) const;
-    virtual int size() const;
-    virtual void clear();
+    ~MegaUserAlertListPrivate() override;
+    MegaUserAlertList *copy() const override;
+    MegaUserAlert* get(int i) const override;
+    int size() const override;
+    void clear() override;
 
 protected:
     MegaUserAlertListPrivate(MegaUserAlertListPrivate *userList);
@@ -2336,14 +2344,14 @@ class MegaRecentActionBucketPrivate : public MegaRecentActionBucket
 public:
     MegaRecentActionBucketPrivate(recentaction& ra, MegaClient* mc);
     MegaRecentActionBucketPrivate(int64_t timestamp, const string& user, handle parent, bool update, bool media, MegaNodeList*);
-    virtual ~MegaRecentActionBucketPrivate();
-    virtual MegaRecentActionBucket *copy() const;
-    virtual int64_t getTimestamp() const;
-    virtual const char* getUserEmail() const;
-    virtual MegaHandle getParentHandle() const;
-    virtual bool isUpdate() const;
-    virtual bool isMedia() const;
-    virtual const MegaNodeList* getNodes() const;
+    ~MegaRecentActionBucketPrivate() override;
+    MegaRecentActionBucket *copy() const override;
+    int64_t getTimestamp() const override;
+    const char* getUserEmail() const override;
+    MegaHandle getParentHandle() const override;
+    bool isUpdate() const override;
+    bool isMedia() const override;
+    const MegaNodeList* getNodes() const override;
 
 private:
     int64_t timestamp;
@@ -2359,10 +2367,10 @@ public:
     MegaRecentActionBucketListPrivate();
     MegaRecentActionBucketListPrivate(recentactions_vector& v, MegaClient* mc);
     MegaRecentActionBucketListPrivate(const MegaRecentActionBucketListPrivate &userList);
-    virtual ~MegaRecentActionBucketListPrivate();
-    virtual MegaRecentActionBucketList *copy() const;
-    virtual MegaRecentActionBucket* get(int i) const;
-    virtual int size() const;
+    ~MegaRecentActionBucketListPrivate() override;
+    MegaRecentActionBucketList *copy() const override;
+    MegaRecentActionBucket* get(int i) const override;
+    int size() const override;
 
 protected:
     MegaRecentActionBucketPrivate** list;
@@ -2483,6 +2491,7 @@ class RequestQueue
     public:
         RequestQueue();
         void push(MegaRequestPrivate *request);
+        void push(std::unique_ptr<MegaRequestPrivate> request);
         void push_front(MegaRequestPrivate *request);
         MegaRequestPrivate * pop();
         MegaRequestPrivate * front();
@@ -3173,6 +3182,65 @@ class MegaApiImpl : public MegaApp
         MegaTransferList *getChildTransfers(int transferTag);
         MegaTransferList *getTansfersByFolderTag(int folderTransferTag);
 
+        // FUSE
+        using FuseEventHandler =
+          void (MegaListener::*)(MegaApi*, const char*, int);
+
+        // Add a new mount.
+        void addMount(const MegaMount* mount, MegaRequestListener* listener);
+
+        // Disable an enabled mount.
+        void disableMount(const char* path,
+                          MegaRequestListener* listener,
+                          bool remember);
+
+        // Enable a disabled mount.
+        void enableMount(const char* path,
+                         MegaRequestListener* listener,
+                         bool remember);
+
+        // Retrieve FUSE flags.
+        MegaFuseFlags* getFUSEFlags();
+
+        // Broadcast a mount event.
+        void fireOnFuseEvent(FuseEventHandler handler,
+                             const fuse::MountEvent& event);
+
+        // Retrieve a mount's flags.
+        MegaMountFlags* getMountFlags(const char* path);
+
+        // Retrieve a mount's description.
+        MegaMount* getMountInfo(const char* path);
+
+        // Retrieve the path of all mounts associated with a given name.
+        MegaStringList* getMountPaths(const char* name);
+
+        // Retrieve a list of all (enabled) mounts.
+        MegaMountList* listMounts(bool enabled);
+
+        // Called when FUSE wants to broadcast a mount event.
+        void onFuseEvent(const fuse::MountEvent& event) override;
+
+        // Query whether a file is in FUSE's file cache.
+        bool isCached(const char* path);
+
+        // Query whether FUSE is supported on this platform.
+        bool isFUSESupported();
+
+        // Query whether a mount is enabled.
+        bool isMountEnabled(const char* path);
+
+        // Remove a disabled mount.
+        void removeMount(const char* path, MegaRequestListener* listener);
+
+        // Update FUSE flags.
+        void setFUSEFlags(const MegaFuseFlags& flags);
+
+        // Update a mount's flags.
+        void setMountFlags(const MegaMountFlags* flags,
+                           const char* path,
+                           MegaRequestListener* listener);
+
         //Sets and Elements
         void putSet(MegaHandle sid, int optionFlags, const char* name, MegaHandle cover,
                     int type, MegaRequestListener* listener = nullptr);
@@ -3267,7 +3335,7 @@ class MegaApiImpl : public MegaApp
         void update();
         int isWaiting();
         bool isSyncStalled();
-        bool isSyncStalledChanged();
+        bool isSyncStalledChanged() override;
 
         //Statistics
         int getNumPendingUploads();
@@ -3278,6 +3346,7 @@ class MegaApiImpl : public MegaApp
         void resetTotalUploads();
         void updateStats();
         void setLRUCacheSize(unsigned long long size);
+        unsigned long long getNumNodesAtCacheLRU() const;
         unsigned long long getNumNodes();
         unsigned long long getAccurateNumNodes();
         long long getTotalDownloadedBytes();
@@ -4256,8 +4325,8 @@ class ExternalInputStream : public InputStreamAccess
 
 public:
     ExternalInputStream(MegaInputStream *inputStream);
-    virtual m_off_t size();
-    virtual bool read(byte *buffer, unsigned size);
+    m_off_t size() override;
+    bool read(byte *buffer, unsigned size) override;
 };
 
 #ifdef HAVE_LIBUV
@@ -5090,6 +5159,169 @@ public:
 private:
     vector<MegaNotificationPrivate> mNotifications;
 };
+
+class MegaFuseExecutorFlagsPrivate
+  : public MegaFuseExecutorFlags
+{
+    fuse::TaskExecutorFlags& mFlags;
+
+public:
+    MegaFuseExecutorFlagsPrivate(fuse::TaskExecutorFlags& flags);
+
+    size_t getMinThreadCount() const override;
+
+    size_t getMaxThreadCount() const override;
+
+    size_t getMaxThreadIdleTime() const override;
+
+    bool setMaxThreadCount(size_t max) override;
+
+    void setMinThreadCount(size_t min) override;
+
+    void setMaxThreadIdleTime(size_t max) override;
+}; // MegaFuseExecutorFlagsPrivate
+
+class MegaFuseInodeCacheFlagsPrivate
+  : public MegaFuseInodeCacheFlags
+{
+    fuse::InodeCacheFlags& mFlags;
+
+public:
+    explicit MegaFuseInodeCacheFlagsPrivate(fuse::InodeCacheFlags& flags);
+
+    size_t getCleanAgeThreshold() const override;
+
+    size_t getCleanInterval() const override;
+
+    size_t getCleanSizeThreshold() const override;
+
+    size_t getMaxSize() const override;
+
+    void setCleanAgeThreshold(std::size_t seconds) override;
+
+    void setCleanInterval(std::size_t seconds) override;
+
+    void setCleanSizeThreshold(std::size_t size) override;
+
+    void setMaxSize(std::size_t size) override;
+}; // MegaFuseExecutorFlagsPrivate
+
+class MegaFuseFlagsPrivate
+  : public MegaFuseFlags
+{
+    fuse::ServiceFlags mFlags;
+    MegaFuseInodeCacheFlagsPrivate mInodeCacheFlags;
+    MegaFuseExecutorFlagsPrivate mMountExecutorFlags;
+    MegaFuseExecutorFlagsPrivate mSubsystemExecutorFlags;
+
+public:
+    MegaFuseFlagsPrivate(const fuse::ServiceFlags& flags);
+
+    MegaFuseFlags* copy() const override;
+
+    const fuse::ServiceFlags& getFlags() const;
+
+    size_t getFlushDelay() const override;
+
+    int getLogLevel() const override;
+
+    MegaFuseInodeCacheFlags* getInodeCacheFlags() override;
+
+    MegaFuseExecutorFlags* getMountExecutorFlags() override;
+
+    MegaFuseExecutorFlags* getSubsystemExecutorFlags() override;
+
+    void setFlushDelay(size_t seconds) override;
+
+    void setLogLevel(int level) override;
+}; // MegaFuseFlagsPrivate
+
+using MegaMountFlagsPtr = std::unique_ptr<MegaMountFlags>;
+using MegaMountPtr = std::unique_ptr<MegaMount>;
+using MegaMountPtrVector = std::vector<MegaMountPtr>;
+
+class MegaMountPrivate
+  : public MegaMount
+{
+    MegaMountFlagsPtr mFlags;
+    MegaHandle mHandle;
+    std::string mPath;
+
+public:
+    MegaMountPrivate();
+
+    MegaMountPrivate(const fuse::MountInfo& info);
+
+    MegaMountPrivate(const MegaMountPrivate& other);
+
+    fuse::MountInfo asInfo() const;
+
+    MegaMount* copy() const override;
+
+    MegaMountFlags* getFlags() const override;
+
+    MegaHandle getHandle() const override;
+
+    const char* getPath() const override;
+
+    void setFlags(const MegaMountFlags* flags) override;
+
+    void setHandle(MegaHandle handle) override;
+    
+    void setPath(const char* path) override;
+}; // MegaMountPrivate
+
+class MegaMountFlagsPrivate
+  : public MegaMountFlags
+{
+    fuse::MountFlags mFlags;
+
+public:
+    MegaMountFlagsPrivate() = default;
+
+    MegaMountFlagsPrivate(const fuse::MountFlags& flags);
+
+    MegaMountFlagsPrivate(const MegaMountFlagsPrivate& other) = default;
+
+    MegaMountFlags* copy() const override;
+
+    bool getEnableAtStartup() const override;
+
+    const fuse::MountFlags& getFlags() const;
+
+    const char* getName() const override;
+
+    bool getPersistent() const override;
+
+    bool getReadOnly() const override;
+
+    void setEnableAtStartup(bool enable) override;
+
+    void setName(const char* name) override;
+
+    void setPersistent(bool persistent) override;
+
+    void setReadOnly(bool readOnly) override;
+
+}; // MegaMountFlagsPrivate
+
+class MegaMountListPrivate
+  : public MegaMountList
+{
+    MegaMountPtrVector mMounts;
+
+public:
+    MegaMountListPrivate(fuse::MountInfoVector&& mounts);
+
+    MegaMountListPrivate(const MegaMountListPrivate& other);
+
+    MegaMountList* copy() const override;
+
+    const MegaMount* get(size_t index) const override;
+
+    size_t size() const override;
+}; // MegaMountListPrivate
+
 }
 
 #endif //MEGAAPI_IMPL_H

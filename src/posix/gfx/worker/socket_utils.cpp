@@ -1,6 +1,7 @@
 #include "mega/posix/gfx/worker/socket_utils.h"
 #include "mega/logging.h"
 #include "mega/scoped_timer.h"
+#include <sys/poll.h>
 
 #include <cassert>
 #include <filesystem>
@@ -40,7 +41,7 @@ error_code poll(std::vector<struct pollfd> fds, milliseconds timeout)
     int                           ret = 0;
     do
     {
-        ret = ::poll(fds.data(), fds.size(), static_cast<int>(timeout.count()));
+        ret = ::poll(fds.data(), static_cast<nfds_t>(fds.size()), static_cast<int>(timeout.count()));
         remaining -= duration_cast<milliseconds>(timer.passedTime());
     } while (ret < 0 && errno == EINTR && remaining > milliseconds{0});
 
