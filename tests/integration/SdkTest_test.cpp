@@ -4142,7 +4142,7 @@ void SdkTestShares::getInshare(MegaHandle hfolder)
     };
     ASSERT_TRUE(WaitFor(descryptedPred, 60 * 1000));
 
-    const std::unique_ptr<MegaUser> contact(mShareeApi->getContact(mSharer->email.c_str()));
+    const std::unique_ptr<MegaUser> contact{mShareeApi->getContact(mSharer->email.c_str())};
     const std::unique_ptr<MegaNodeList> inshareNodes{mShareeApi->getInShares(contact.get())};
     ASSERT_EQ(1, inshareNodes->size()) << "Incoming share not received in auxiliar account";
     const auto thisInshareNode = inshareNodes->get(0);
@@ -4188,10 +4188,10 @@ void SdkTestShares::importPublicLink(const std::string& nodeLink)
     ASSERT_NO_FATAL_FAILURE(fetchnodes(mGuestIndex));
 
     // Authorize the node
-    std::unique_ptr<MegaNode> folderNodeToImport(mGuestApi->getRootNode());
+    std::unique_ptr<MegaNode> folderNodeToImport{mGuestApi->getRootNode()};
     ASSERT_TRUE(folderNodeToImport) << "Failed to get folder node to import from link " << nodeLink;
-    std::unique_ptr<MegaNode> authorizedFolderNode(
-        mGuestApi->authorizeNode(folderNodeToImport.get()));
+    std::unique_ptr<MegaNode> authorizedFolderNode{
+        mGuestApi->authorizeNode(folderNodeToImport.get())};
     ASSERT_TRUE(authorizedFolderNode) << "Failed to authorize folder node from link " << nodeLink;
 
     // Logout the folder
@@ -4203,12 +4203,12 @@ void SdkTestShares::importPublicLink(const std::string& nodeLink)
     ASSERT_NO_FATAL_FAILURE(fetchnodes(mGuestIndex));
 
     // Copy(import) the public folder (authorized) to the root of the account
-    std::unique_ptr<MegaNode> rootNode(mGuestApi->getRootNode());
-    RequestTracker nodeCopyTracker(mGuestApi);
+    std::unique_ptr<MegaNode> rootNode{mGuestApi->getRootNode()};
+    RequestTracker nodeCopyTracker{mGuestApi};
     mGuestApi->copyNode(authorizedFolderNode.get(), rootNode.get(), nullptr, &nodeCopyTracker);
     ASSERT_EQ(nodeCopyTracker.waitForResult(), API_OK) << "Failed to copy node to import";
-    std::unique_ptr<MegaNode> importedNode(
-        mGuestApi->getNodeByPath(authorizedFolderNode->getName(), rootNode.get()));
+    std::unique_ptr<MegaNode> importedNode{
+        mGuestApi->getNodeByPath(authorizedFolderNode->getName(), rootNode.get())};
     ASSERT_TRUE(importedNode) << "Imported node not found";
 }
 
@@ -4242,7 +4242,7 @@ void SdkTestShares::revokeOutShares(MegaHandle hfolder)
 void SdkTestShares::revokePublicLink(MegaHandle hfolder)
 {
     // Remove
-    std::unique_ptr<MegaNode> node(mSharerApi->getNodeByHandle(hfolder));
+    std::unique_ptr<MegaNode> node{mSharerApi->getNodeByHandle(hfolder)};
     ASSERT_TRUE(node);
     const MegaHandle removedLinkHandle = removePublicLink(mSharerIndex, node.get());
 
