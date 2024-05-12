@@ -4052,12 +4052,12 @@ void SdkTestShares::verifyCredentials(unsigned sharerIndex,
 
     if (!areCredentialsVerified(sharerIndex, sharee->email))
     {
-        SdkTest::verifyCredentials(sharerIndex, sharee->email);
+        ASSERT_NO_FATAL_FAILURE(SdkTest::verifyCredentials(sharerIndex, sharee->email));
     }
 
     if (!areCredentialsVerified(shareeIndex, sharer->email))
     {
-        SdkTest::verifyCredentials(shareeIndex, sharer->email);
+        ASSERT_NO_FATAL_FAILURE(SdkTest::verifyCredentials(shareeIndex, sharer->email));
     }
 }
 
@@ -4070,20 +4070,20 @@ void SdkTestShares::createNewContactAndVerify()
                                           mSharee->email,
                                           message,
                                           MegaContactRequest::INVITE_ACTION_ADD));
-    EXPECT_TRUE(waitForResponse(&mSharee->contactRequestUpdated, 10u))
+    ASSERT_TRUE(waitForResponse(&mSharee->contactRequestUpdated, 10u))
         << "Contact request creation not received by the sharee after 10 seconds";
 
     // Get the the contact request
-    EXPECT_NO_FATAL_FAILURE(getContactRequest(mShareeIndex, false));
+    ASSERT_NO_FATAL_FAILURE(getContactRequest(mShareeIndex, false));
 
     // Accept the request
     mSharer->contactRequestUpdated = false;
     mSharer->contactRequestUpdated = false;
-    EXPECT_NO_FATAL_FAILURE(
+    ASSERT_NO_FATAL_FAILURE(
         replyContact(mSharee->cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT));
-    EXPECT_TRUE(waitForResponse(&mSharee->contactRequestUpdated, 10u))
+    ASSERT_TRUE(waitForResponse(&mSharee->contactRequestUpdated, 10u))
         << "Contact request creation not received by the sharee after 10 seconds";
-    EXPECT_TRUE(waitForResponse(&mSharer->contactRequestUpdated, 10u))
+    ASSERT_TRUE(waitForResponse(&mSharer->contactRequestUpdated, 10u))
         << "Contact request creation not received by the sharer after 10 seconds";
     mSharer->cr.reset();
 
@@ -4094,6 +4094,7 @@ void SdkTestShares::createNewContactAndVerify()
 void SdkTestShares::createOutgoingShare(MegaHandle hfolder)
 {
     std::unique_ptr<MegaNode> node{mSharerApi->getNodeByHandle(hfolder)};
+    ASSERT_TRUE(node);
 
     // Create a new outgoing share
     bool inshareCheck = false;
@@ -4158,6 +4159,7 @@ void SdkTestShares::getInshare(MegaHandle hfolder)
 void SdkTestShares::createOnePublicLink(MegaHandle hfolder, std::string& nodeLink)
 {
     std::unique_ptr<MegaNode> nfolder{mSharerApi->getNodeByHandle(hfolder)};
+    ASSERT_TRUE(nfolder);
     const bool isFreeAccount =
         mSharer->accountDetails->getProLevel() == MegaAccountDetails::ACCOUNT_TYPE_FREE;
 
@@ -4166,6 +4168,7 @@ void SdkTestShares::createOnePublicLink(MegaHandle hfolder, std::string& nodeLin
 
     // Get a fresh snapshot of the node and check it's actually exported
     nfolder.reset(mSharerApi->getNodeByHandle(hfolder));
+    ASSERT_TRUE(nfolder);
     ASSERT_TRUE(nfolder->isExported()) << "Node is not exported, must be exported";
     ASSERT_FALSE(nfolder->isTakenDown()) << "Public link is taken down, it mustn't";
     ASSERT_STREQ(nodeLink.c_str(), std::unique_ptr<char[]>(nfolder->getPublicLink()).get())
@@ -4192,7 +4195,7 @@ void SdkTestShares::importPublicLink(const std::string& nodeLink)
     ASSERT_TRUE(authorizedFolderNode) << "Failed to authorize folder node from link " << nodeLink;
 
     // Logout the folder
-    logout(mGuestIndex, false, 20);
+    ASSERT_NO_FATAL_FAILURE(logout(mGuestIndex, false, 20));
 
     // Login with guest and fetch nodes
     auto loginTracker = asyncRequestLogin(mGuestIndex, mGuestEmail.c_str(), mGuestPass.c_str());
@@ -4203,16 +4206,17 @@ void SdkTestShares::importPublicLink(const std::string& nodeLink)
     std::unique_ptr<MegaNode> rootNode(mGuestApi->getRootNode());
     RequestTracker nodeCopyTracker(mGuestApi);
     mGuestApi->copyNode(authorizedFolderNode.get(), rootNode.get(), nullptr, &nodeCopyTracker);
-    EXPECT_EQ(nodeCopyTracker.waitForResult(), API_OK) << "Failed to copy node to import";
+    ASSERT_EQ(nodeCopyTracker.waitForResult(), API_OK) << "Failed to copy node to import";
     std::unique_ptr<MegaNode> importedNode(
         mGuestApi->getNodeByPath(authorizedFolderNode->getName(), rootNode.get()));
-    EXPECT_TRUE(importedNode) << "Imported node not found";
+    ASSERT_TRUE(importedNode) << "Imported node not found";
 }
 
 // Revoke access to an outgoing shares
 void SdkTestShares::revokeOutShares(MegaHandle hfolder)
 {
     const std::unique_ptr<MegaNode> node{mSharerApi->getNodeByHandle(hfolder)};
+    ASSERT_TRUE(node);
     bool inshareCheck = false;
     bool outshareCheck = false;
     mSharer->mOnNodesUpdateCompletion =
@@ -4239,10 +4243,12 @@ void SdkTestShares::revokePublicLink(MegaHandle hfolder)
 {
     // Remove
     std::unique_ptr<MegaNode> node(mSharerApi->getNodeByHandle(hfolder));
+    ASSERT_TRUE(node);
     const MegaHandle removedLinkHandle = removePublicLink(mSharerIndex, node.get());
 
     // Get a fresh node and check
     node.reset(mSharerApi->getNodeByHandle(removedLinkHandle));
+    ASSERT_TRUE(node);
     ASSERT_FALSE(node->isPublic()) << "Public link removal failed (still public)";
 }
 
