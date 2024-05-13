@@ -82,26 +82,20 @@ doc/Doxyfile
 doc/example/lsmega
 
 # Editor and IDE stuff
+*.user
 *~
 .project
 .cproject
 .settings
 .vs
 *.vscode
-*~
 Debug
 Release
 /build-x??-*-mega*/
 /contrib/QtCreator/build-*
-/contrib/QtCreator/MEGAsdk.pro.user
-/contrib/QtCreator/MEGAcli/MEGAcli.pro.user
-/contrib/QtCreator/MEGAtests/MEGAtests.pro.user
-/contrib/QtCreator/MEGAsymplesync/MEGAsymplesync.pro.user
-/contrib/QtCreator/megacli.creator.user
 /contrib/build-MEGAsdk-Desktop-*
 /contrib/cmake/cmake-build-*
 /contrib/build-cmake-Desktop-*
-/contrib/cmake/CMakeLists.txt.user
 /contrib/cmake/.idea
 /contrib/cmake/build
 /contrib/cmake/build3rdParty/build
@@ -113,7 +107,6 @@ megaclient_statecache*
 # Building stuff
 build-*Debug
 build-*Release
-*.pro.user*
 
 # Mega SDK runtime
 *.db-journal
