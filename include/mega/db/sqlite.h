@@ -318,17 +318,12 @@ private:
     // functionality for adding columns to existing table, and copying data to them
     struct NewColumn
     {
-        NewColumn(string&& n,
-                  string&& t,
-                  int id,
-                  std::function<bool(NodeData&, std::vector<std::unique_ptr<MigrateType>>&)>
-                      migrateOperation);
         string name;
         string type;
         int migrationId;
         // Method to extract info from NodeData and add it to vector
         std::function<bool(NodeData&, std::vector<std::unique_ptr<MigrateType>>&)>
-            mMigrateOperation;
+            migrateOperation;
 
         template<typename T>
         static bool extractDataFromNodeData(NodeData& nd,

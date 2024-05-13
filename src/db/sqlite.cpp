@@ -21,6 +21,8 @@
 
 #include "mega.h"
 
+#include <numeric>
+
 #ifdef USE_SQLITE
 namespace mega {
 
@@ -161,17 +163,27 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
     // Add following columns to existing 'nodes' table that might not have them, and populate them if needed:
     vector<NewColumn> newCols{
         {"mtime",
-         "int64 DEFAULT 0",                                       NodeData::COMPONENT_MTIME,
-         NewColumn::extractDataFromNodeData<MTimeType>                                                                                         },
+         "int64 DEFAULT 0",
+         NodeData::COMPONENT_MTIME,
+         NewColumn::extractDataFromNodeData<MTimeType>      },
         {"label",
-         "tinyint DEFAULT 0",                                     NodeData::COMPONENT_LABEL,
-         NewColumn::extractDataFromNodeData<LabelType>                                                                                         },
-        {"mimetype",    "tinyint AS (getmimetype(name)) VIRTUAL", NodeData::COMPONENT_NONE,        nullptr                                     },
+         "tinyint DEFAULT 0",
+         NodeData::COMPONENT_LABEL,
+         NewColumn::extractDataFromNodeData<LabelType>      },
+        {"mimetype",
+         "tinyint AS (getmimetype(name)) VIRTUAL",
+         NodeData::COMPONENT_NONE,
+         nullptr                                            },
         {"description",
-         "text",                                                  NodeData::COMPONENT_DESCRIPTION,
-         NewColumn::extractDataFromNodeData<DescriptionType>                                                                                   },
-        {"tags",        "text",                                   NodeData::COMPONENT_TAGS,        NewColumn::extractDataFromNodeData<TagsType>},
-    };
+         "text",
+         NodeData::COMPONENT_DESCRIPTION,
+         NewColumn::extractDataFromNodeData<DescriptionType>},
+        {"tags",
+         "text",
+         NodeData::COMPONENT_TAGS,
+         NewColumn::extractDataFromNodeData<TagsType>       },
+        };
+
 
     if (!addAndPopulateColumns(db, std::move(newCols)))
     {
@@ -434,14 +446,14 @@ bool SqliteDbAccess::migrateDataToColumns(sqlite3* db, vector<NewColumn>&& cols)
 {
     if (cols.empty()) return true;
 
-    LOG_info << "Migrating Data base - populating new columns";
-
     // identify data pieces to copy to new columns
     std::map<int, int> dataToMigrate;
     cols.erase(std::remove_if(cols.begin(), cols.end(),
         [](const NewColumn& c) { return c.migrationId == NodeData::COMPONENT_NONE; }), cols.end());
 
     if (cols.empty()) return true;
+
+    LOG_info << "Migrating Data base - populating new columns";
 
     // get existing data
     sqlite3_stmt* stmt = nullptr;
@@ -464,14 +476,17 @@ bool SqliteDbAccess::migrateDataToColumns(sqlite3* db, vector<NewColumn>&& cols)
 
         std::vector<std::unique_ptr<MigrateType>> migrateElement;
         migrateElement.reserve(cols.size());
-        bool hasValues = false;
-        std::for_each(cols.begin(),
-                      cols.end(),
-                      [&migrateElement, &nd, &hasValues](const NewColumn& c)
-                      {
-                          assert(c.mMigrateOperation);
-                          hasValues = c.mMigrateOperation(nd, migrateElement) || hasValues;
-                      });
+        bool hasValues = std::transform_reduce(
+            cols.begin(),
+            cols.end(),
+            false,
+            std::logical_or{},
+            [&migrateElement, &nd](const NewColumn& c) -> bool
+            {
+                assert(c.migrateOperation);
+                return c.migrateOperation(nd, migrateElement);
+            });
+
 
         ++numRows;
 
@@ -2701,17 +2716,6 @@ bool SqliteDbAccess::TagsType::hasValidValue() const
 {
     return mValue.size();
 }
-
-SqliteDbAccess::NewColumn::NewColumn(
-    string&& n,
-    string&& t,
-    int id,
-    std::function<bool(NodeData&, std::vector<std::unique_ptr<MigrateType>>&)> migrateOperation):
-    name(std::move(n)),
-    type(std::move(t)),
-    migrationId(id),
-    mMigrateOperation(migrateOperation)
-{}
 
 } // namespace
 
