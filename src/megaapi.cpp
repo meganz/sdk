@@ -6486,7 +6486,7 @@ const char *MegaCurrency::getLocalCurrencyName()
     return nullptr;
 }
 
-unsigned int MegaPricing::getTestCategory(int)
+unsigned int MegaPricing::getTestCategory(int) const
 {
     return 0;
 }

@@ -1960,7 +1960,7 @@ public:
     unsigned int getLocalPricePerTransfer(int productIndex) override;
     int getGBPerTransfer(int productIndex) override;
     MegaStringIntegerMap* getFeatures(int productIndex) const override;
-    unsigned int getTestCategory(int productIndex) override;
+    unsigned int getTestCategory(int productIndex) const override;
 
     void addProduct(unsigned int type, handle product, int proLevel, int gbStorage, int gbTransfer,
                     int months, int amount, int amountMonth, unsigned localPrice,

@@ -24378,7 +24378,7 @@ public:
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
      * @return test category bitmap
      */
-    virtual unsigned int getTestCategory(int productIndex);
+    virtual unsigned int getTestCategory(int productIndex) const;
 
 };
 

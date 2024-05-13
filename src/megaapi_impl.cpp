@@ -28334,10 +28334,12 @@ MegaStringIntegerMap* MegaPricingPrivate::getFeatures(int productIndex) const
     return returnFeatures;
 }
 
-unsigned int MegaPricingPrivate::getTestCategory(int productIndex)
+unsigned int MegaPricingPrivate::getTestCategory(int productIndex) const
 {
-    if((unsigned)productIndex < mTestCategory.size())
+    if ((unsigned)productIndex < mTestCategory.size())
+    {
         return mTestCategory[productIndex];
+    }
 
     return 0;
 }
