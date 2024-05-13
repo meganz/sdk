@@ -447,7 +447,6 @@ bool SqliteDbAccess::migrateDataToColumns(sqlite3* db, vector<NewColumn>&& cols)
     if (cols.empty()) return true;
 
     // identify data pieces to copy to new columns
-    std::map<int, int> dataToMigrate;
     cols.erase(std::remove_if(cols.begin(), cols.end(),
         [](const NewColumn& c) { return c.migrationId == NodeData::COMPONENT_NONE; }), cols.end());
 
@@ -510,6 +509,7 @@ bool SqliteDbAccess::migrateDataToColumns(sqlite3* db, vector<NewColumn>&& cols)
     }
 
     // Calculate index for query parameters
+    std::map<int, int> dataToMigrate;
     int bindIdx = 0;
     for (const auto& c: cols)
     {
