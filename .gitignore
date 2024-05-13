@@ -101,7 +101,7 @@ Release
 /contrib/build-MEGAsdk-Desktop-*
 /contrib/cmake/cmake-build-*
 /contrib/build-cmake-Desktop-*
-/contrib/cmake/CMakeLists.txt.user
+CMakeLists.txt.user
 /contrib/cmake/.idea
 /contrib/cmake/build
 /contrib/cmake/build3rdParty/build
