@@ -5,9 +5,7 @@ set(VCPKG_CMAKE_SYSTEM_NAME Darwin)
 set(VCPKG_OSX_ARCHITECTURES x86_64)
 set(VCPKG_OSX_DEPLOYMENT_TARGET 10.13)
 
-if(PORT MATCHES "curl" OR
-   PORT MATCHES "ffmpeg" OR
-   PORT MATCHES "c-ares")
+if(PORT MATCHES "ffmpeg")
     # build this library as dynamic (usually because it is LGPL licensed)
     set(VCPKG_LIBRARY_LINKAGE dynamic)
 else()
