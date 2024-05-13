@@ -3,10 +3,11 @@
  * @brief This file defines some tests for the sorting of the results from the search command
  */
 
-#include "gmock/gmock.h"
 #include "megaapi.h"
 #include "sdk_test_utils.h"
 #include "SdkTest_test.h"
+
+#include <gmock/gmock.h>
 
 #include <optional>
 
@@ -46,7 +47,7 @@ struct FileNodeInfo: public NodeCommonInfo
 
 struct DirNodeInfo;
 
-typedef std::variant<FileNodeInfo, DirNodeInfo> NodeInfo;
+using NodeInfo = std::variant<FileNodeInfo, DirNodeInfo>;
 
 struct DirNodeInfo: public NodeCommonInfo
 {
@@ -86,10 +87,12 @@ void processNodeName(const NodeInfo& node, std::vector<std::string>& names)
  */
 void processDirChildName(const DirNodeInfo& dir, std::vector<std::string>& names)
 {
-    for (const auto& child: dir.childs)
-    {
-        processNodeName(child, names);
-    }
+    std::for_each(dir.childs.begin(),
+                  dir.childs.end(),
+                  [&names](const auto& child)
+                  {
+                      processNodeName(child, names);
+                  });
 }
 
 /**
@@ -113,7 +116,7 @@ std::vector<std::string> toNamesVector(const MegaNodeList& nodes)
     result.reserve(static_cast<size_t>(nodes.size()));
     for (int i = 0; i < nodes.size(); ++i)
     {
-        result.push_back(nodes.get(i)->getName());
+        result.emplace_back(nodes.get(i)->getName());
     }
     return result;
 }
