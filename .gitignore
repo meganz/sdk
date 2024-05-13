@@ -89,7 +89,6 @@ doc/example/lsmega
 .settings
 .vs
 *.vscode
-*~
 Debug
 Release
 /build-x??-*-mega*/
