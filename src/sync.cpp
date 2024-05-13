@@ -6751,7 +6751,17 @@ bool SyncRow::isNoName() const
         return cloudClashingNames.front()->name.empty();
 
     // Could be a no-name triplet if we have a cloud node.
-    return cloudNode && cloudNode->name.empty();
+    if (cloudNode && cloudNode->name.empty())
+    {
+        if (fsNode || syncNode)
+        {
+            LOG_debug << "Considering a cloudNode to be NO_NAME with either a fsNode or syncNode: "
+                    << "fsNode: " << string(fsNode ? "true" : "false")
+                    << "fsNode: " << string(syncNode ? "true" : "false");
+        }
+        return true;
+    }
+    return false;
 }
 
 void Sync::combineTripletSet(vector<SyncRow>::iterator a, vector<SyncRow>::iterator b) const
@@ -6857,7 +6867,7 @@ void Sync::combineTripletSet(vector<SyncRow>::iterator a, vector<SyncRow>::itera
         }
         if (i->cloudNode)
         {
-            if (!targetrow->cloudNode || !targetrow->cloudNode->name.empty())
+            if (!targetrow->cloudNode || !targetrow->cloudNode->name.empty()) // Avoid NO_NAME nodes to be considered
             {
             if (targetrow->cloudNode &&
                 !(targetrow->syncNode &&
@@ -7748,9 +7758,6 @@ bool Sync::syncItem_checkMoves(SyncRow& row, SyncRow& parentRow, SyncPath& fullP
                   << "No name triplets here. "
                   << "Excluding this triplet from sync for now. "
                   << logTriplet(row, fullPath);
-
-        //row.itemProcessed = true;
-        //row.suppressRecursion = true;
 
         return true;
     }
@@ -8984,7 +8991,6 @@ bool Sync::resolve_makeSyncNode_fromCloud(SyncRow& row, SyncRow& parentRow, Sync
 
     if (row.cloudNode->type == FILENODE)
     {
-        //assert(row.cloudNode->fingerprint.isvalid); // todo: move inside considerSynced?
         row.syncNode->syncedFingerprint = row.cloudNode->fingerprint;
     }
     row.syncNode->init(row.cloudNode->type, parentRow.syncNode, fullPath.localPath, nullptr);
@@ -9006,6 +9012,7 @@ bool Sync::resolve_makeSyncNode_fromCloud(SyncRow& row, SyncRow& parentRow, Sync
 
     if (considerSynced)
     {
+        assert(row.cloudNode->fingerprint.isvalid);
         row.syncNode->setSyncedNodeHandle(row.cloudNode->handle);
     }
     if (row.syncNode->type > FILENODE)
