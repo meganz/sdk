@@ -9482,6 +9482,14 @@ protected:
     MegaSearchFilter();
 
 public:
+    // A helper enum for filtering boolean fields
+    enum
+    {
+        BOOL_FILTER_ALL = 0,
+        BOOL_FILTER_ONLY_TRUE,
+        BOOL_FILTER_ONLY_FALSE,
+    };
+
     /**
      * @brief Creates a new instance of MegaSearchFilter
      * @return A pointer of current type, a superclass of the private object
@@ -9547,11 +9555,15 @@ public:
 
     /**
      * @brief Set option for filtering out non favourite nodes.
-     * If not set or set to false, non favourite nodes will also be considered in searches.
+     * If not set, it will behave as if BOOL_FILTER_ALL was used.
      *
-     * @param excludeNonFavourites Set to true to filter out non favourite nodes
+     * @param boolFilterOption Kind of boolean filter to apply.
+     * Valid values for this parameter are (invalid values will be ignored):
+     * - MegaSearchFilter::BOOL_FILTER_ALL = 0 --> Both favourites and non favourites are considered
+     * - MegaSearchFilter::BOOL_FILTER_ONLY_TRUE = 1 --> Only favourites
+     * - MegaSearchFilter::BOOL_FILTER_ONLY_FALSE = 2 --> Only non favourites
      */
-    virtual void byFavourite(bool excludeNonFavourites);
+    virtual void byFavourite(int boolFilterOption);
 
     /**
      * @brief Set option for filtering out sensitive nodes.
@@ -9654,9 +9666,9 @@ public:
     /**
      * @brief Return the option for filtering out non favourite nodes.
      *
-     * @return option set for filtering out favourite nodes, or false if not set
+     * @return option set for filtering out favourite nodes, or BOOL_FILTER_ALL if not set
      */
-    virtual bool byFavourite() const;
+    virtual int byFavourite() const;
 
     /**
      * @brief Return the option for filtering out sensitive nodes.

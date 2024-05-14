@@ -6947,7 +6947,7 @@ void MegaSearchFilter::byCategory(int /*mimeType*/)
 {
 }
 
-void MegaSearchFilter::byFavourite(bool /*excludeNonFavourites*/)
+void MegaSearchFilter::byFavourite(int /*boolFilterOption*/)
 {
 }
 
@@ -6994,9 +6994,9 @@ int MegaSearchFilter::byCategory() const
     return MegaApi::FILE_TYPE_DEFAULT;
 }
 
-bool MegaSearchFilter::byFavourite() const
+int MegaSearchFilter::byFavourite() const
 {
-    return false;
+    return MegaSearchFilter::BOOL_FILTER_ALL;
 }
 
 bool MegaSearchFilter::bySensitivity() const

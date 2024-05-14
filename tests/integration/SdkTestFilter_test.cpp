@@ -485,17 +485,46 @@ TEST_F(SdkTestFilter, SdkGetFilteredNodes)
     using testing::NotNull;
     using testing::UnorderedElementsAreArray;
 
-    // By fav
+    const auto allNodesNames = getAllNodesNames();
+
+    // By fav: All
     std::unique_ptr<MegaSearchFilter> filteringInfo(getDefaultfilter());
-    filteringInfo->byFavourite(true);
-    std::vector<std::string_view> expected = {
+    filteringInfo->byFavourite(MegaSearchFilter::BOOL_FILTER_ALL);
+    std::unique_ptr<MegaNodeList> searchResults(megaApi[0]->search(filteringInfo.get()));
+    ASSERT_THAT(searchResults, NotNull()) << "serach() returned a nullptr";
+    EXPECT_THAT(toNamesVector(*searchResults), UnorderedElementsAreArray(allNodesNames))
+        << "Unexpected filtering reusults for byFavourite(BOOL_FILTER_ALL)";
+
+    // By fav: Only favs
+    filteringInfo = getDefaultfilter();
+    filteringInfo->byFavourite(MegaSearchFilter::BOOL_FILTER_ONLY_TRUE);
+    std::vector<std::string> expectedFavs = {
         "Dir1", // fav
         "testFile2", // fav
         "testFile5", // fav
         "testFile6", // fav
     };
-    std::unique_ptr<MegaNodeList> searchResults(megaApi[0]->search(filteringInfo.get()));
+    searchResults.reset(megaApi[0]->search(filteringInfo.get()));
     ASSERT_THAT(searchResults, NotNull()) << "serach() returned a nullptr";
-    EXPECT_THAT(toNamesVector(*searchResults), UnorderedElementsAreArray(expected))
-        << "Unexpected filtering reusults for byFavourite()";
+    EXPECT_THAT(toNamesVector(*searchResults), UnorderedElementsAreArray(expectedFavs))
+        << "Unexpected filtering reusults for byFavourite(BOOL_FILTER_ONLY_TRUE)";
+
+    // By fav: Only not favs (non-favs + favs = all)
+    filteringInfo = getDefaultfilter();
+    filteringInfo->byFavourite(MegaSearchFilter::BOOL_FILTER_ONLY_FALSE);
+    searchResults.reset(megaApi[0]->search(filteringInfo.get()));
+    ASSERT_THAT(searchResults, NotNull()) << "serach() returned a nullptr";
+    auto obtainedNonFavs = toNamesVector(*searchResults);
+    EXPECT_EQ(obtainedNonFavs.size() + expectedFavs.size(), allNodesNames.size())
+        << "The number of non fav nodes + fav nodes is different from the total number of nodes";
+    std::for_each(obtainedNonFavs.begin(),
+                  obtainedNonFavs.end(),
+                  [&allFavs = std::as_const(expectedFavs),
+                   &all = std::as_const(allNodesNames)](const auto& noFav)
+                  {
+                      EXPECT_THAT(all, testing::Contains(noFav))
+                          << "byFavourite(BOOL_FILTER_ONLY_FALSE) gave an unexpected";
+                      EXPECT_THAT(allFavs, testing::Not(testing::Contains(noFav)))
+                          << "byFavourite(BOOL_FILTER_ONLY_FALSE) gave a favourite node as result";
+                  });
 }

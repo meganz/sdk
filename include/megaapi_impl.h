@@ -2805,7 +2805,7 @@ public:
     void byName(const char* searchString) override;
     void byNodeType(int nodeType) override;
     void byCategory(int mimeType) override;
-    void byFavourite(bool excludeNonFavourites) override;
+    void byFavourite(int boolFilterOption) override;
     void bySensitivity(bool excludeSensitive) override;
     void byLocationHandle(MegaHandle ancestorHandle) override;
     void byLocation(int locationType) override;
@@ -2817,7 +2817,7 @@ public:
     const char* byName() const override { return mNameFilter.c_str(); }
     int byNodeType() const override { return mNodeType; }
     int byCategory() const override { return mMimeCategory; }
-    bool byFavourite() const override { return mExcludeNonFavourite; }
+    int byFavourite() const override { return mFavouriteFilterOption; }
     bool bySensitivity() const override { return mExcludeSensitive; }
     MegaHandle byLocationHandle() const override { return mLocationHandle; }
     int byLocation() const override { return mLocationType; }
@@ -2832,7 +2832,7 @@ private:
     std::string mNameFilter;
     int mNodeType = MegaNode::TYPE_UNKNOWN;
     int mMimeCategory = MegaApi::FILE_TYPE_DEFAULT;
-    bool mExcludeNonFavourite = false;
+    int mFavouriteFilterOption = MegaSearchFilter::BOOL_FILTER_ALL;
     bool mExcludeSensitive = false;
     MegaHandle mLocationHandle = INVALID_HANDLE;
     int mLocationType = MegaApi::SEARCH_TARGET_ALL;
@@ -2842,6 +2842,16 @@ private:
     int64_t mModificationUpperLimit = 0;
     std::string mDescriptionFilter;
     std::string mTag;
+
+    /**
+     * @brief Checks if the input value is:
+     *  0 -> MegaSearchFilter::BOOL_FILTER_ALL
+     *  1 -> MegaSearchFilter::BOOL_FILTER_ONLY_TRUE
+     *  2 -> MegaSearchFilter::BOOL_FILTER_ONLY_FALSE
+     *
+     * If it is out of range, 0 is returned and a warning message is log
+     */
+    static int validateBoolFilterOption(const int value);
 };
 
 class MegaSearchPagePrivate : public MegaSearchPage
