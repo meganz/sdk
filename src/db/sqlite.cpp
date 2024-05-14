@@ -2600,8 +2600,7 @@ bool SqliteDbAccess::MTimeType::bindToDb(sqlite3_stmt* stmt,
 
 std::unique_ptr<SqliteDbAccess::MigrateType> SqliteDbAccess::MTimeType::fromNodeData(NodeData& nd)
 {
-    std::unique_ptr<SqliteDbAccess::MigrateType> migrateType(new MTimeType(nd.getMtime()));
-    return migrateType;
+    return std::make_unique<MTimeType>(nd.getMtime());
 }
 
 bool SqliteDbAccess::MTimeType::hasValidValue() const
@@ -2628,8 +2627,7 @@ bool SqliteDbAccess::LabelType::bindToDb(sqlite3_stmt* stmt,
 
 std::unique_ptr<SqliteDbAccess::MigrateType> SqliteDbAccess::LabelType::fromNodeData(NodeData& nd)
 {
-    std::unique_ptr<SqliteDbAccess::MigrateType> migrateType(new LabelType(nd.getLabel()));
-    return migrateType;
+    return std::make_unique<LabelType>(nd.getLabel());
 }
 
 bool SqliteDbAccess::LabelType::hasValidValue() const
@@ -2668,9 +2666,7 @@ bool SqliteDbAccess::DescriptionType::bindToDb(sqlite3_stmt* stmt,
 std::unique_ptr<SqliteDbAccess::MigrateType>
     SqliteDbAccess::DescriptionType::fromNodeData(NodeData& nd)
 {
-    std::unique_ptr<SqliteDbAccess::MigrateType> migrateType(
-        new DescriptionType(nd.getDescription()));
-    return migrateType;
+    return std::make_unique<DescriptionType>(nd.getDescription());
 }
 
 bool SqliteDbAccess::DescriptionType::hasValidValue() const
@@ -2708,8 +2704,7 @@ bool SqliteDbAccess::TagsType::bindToDb(sqlite3_stmt* stmt,
 
 std::unique_ptr<SqliteDbAccess::MigrateType> SqliteDbAccess::TagsType::fromNodeData(NodeData& nd)
 {
-    std::unique_ptr<SqliteDbAccess::MigrateType> migrateType(new TagsType(nd.getTags()));
-    return migrateType;
+    return std::make_unique<TagsType>(nd.getTags());;
 }
 
 bool SqliteDbAccess::TagsType::hasValidValue() const
