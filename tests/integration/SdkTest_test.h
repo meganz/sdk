@@ -659,7 +659,7 @@ public:
                             const int clientType = MegaApi::CLIENT_TYPE_DEFAULT);
     void configureTestInstance(unsigned index,
                                const std::string& email,
-                               const std::string pass,
+                               const std::string& pass,
                                bool checkCredentials = true,
                                const int clientType = MegaApi::CLIENT_TYPE_DEFAULT);
     void releaseMegaApi(unsigned int apiIndex);
