@@ -17,4 +17,6 @@ clang-format:
   stage: lint
   image: ubuntu:22.04
   script:
-    - echo "Run clang-format"
+    - apt-get update
+    - apt-get install -y clang-format
+    - clang-format --version
