@@ -3,11 +3,10 @@ variables:
   GIT_DEPTH: "0"
 
 stages:
-  - scan
-  - clang-format
+  - lint
 
-scan:
-  stage: scan
+gitleaks:
+  stage: lint
   image:
     name: mega-docker.artifactory.developers.mega.co.nz:8443/gitleaks:v8.18.2-mega-1.0
     entrypoint: [""]
@@ -15,6 +14,6 @@ scan:
     - gitleaks detect -v --redact -c .gitleaks/gitleaks.toml
 
 clang-format:
-  stage: clang-format
+  stage: lint
   script:
     - echo "Run clang-format"
