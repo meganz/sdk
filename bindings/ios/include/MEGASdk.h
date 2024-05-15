@@ -306,6 +306,12 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
     AdsFlagIgnoreRollout    = 0x4000  // Ignore the rollout logic which only servers ads to 10% of users based on their IP.
 };
 
+typedef NS_ENUM(NSInteger, MEGAClientType) {
+    MEGAClientTypeDefault = 0, // Cloud storage
+    MEGAClientTypeVPN = 1, // VPN
+    MEGAClientTypePasswordManager = 2  // Password Manager
+};
+
 /**
  * @brief Allows to control a MEGA account or a public folder.
  *
@@ -609,6 +615,23 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  *
  */
 - (nullable instancetype)initWithAppKey:(NSString *)appKey userAgent:(nullable NSString *)userAgent basePath:(nullable NSString *)basePath;
+
+/**
+ * @brief Constructor suitable for most applications.
+ * @param appKey AppKey of your application.
+ * You can generate your AppKey for free here:
+ * - https://mega.co.nz/#sdk
+ *
+ * @param userAgent User agent to use in network requests.
+ * If you pass nil to this parameter, a default user agent will be used.
+ *
+ * @param basePath Base path to store the local cache.
+ * If you pass nil to this parameter, the SDK won't use any local cache.
+ *
+ * @param clientType The client type of the application: Default (Cloud Storage), VPN or Password Manager.
+ *
+ */
+- (nullable instancetype)initWithAppKey:(NSString *)appKey userAgent:(nullable NSString *)userAgent basePath:(nullable NSString *)basePath clientType:(MEGAClientType)clientType;
 
 /**
  * @brief Delete MegaApi object
