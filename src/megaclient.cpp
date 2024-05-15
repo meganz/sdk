@@ -4425,6 +4425,7 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     mNewLinkFormat = false;
     mCookieBannerEnabled = false;
     mABTestFlags.clear();
+    mFeatureFlags.clear();
     mProFlexi = false;
     mSmsVerificationState = SMS_STATE_UNKNOWN;
     mSmsVerifiedPhone.clear();
@@ -10227,6 +10228,20 @@ error MegaClient::readmiscflags(JSON *json)
                 {
                     LOG_err << "[MegaClient::readmiscflags] Invalid value for A/B Test flag";
                     assert(value >= 0 && "A/B test value must be greater or equal to 0");
+                }
+            }
+            else if (fieldName.rfind("ff_", 0) == 0) // Starting with "ff_"
+            {
+                string tag = fieldName.substr(3); // The string after "ff_" prefix
+                int64_t value = json->getint();
+                if (value >= 0)
+                {
+                    mFeatureFlags[tag] = static_cast<uint32_t>(value);
+                }
+                else
+                {
+                    LOG_err << "[MegaClient::readmiscflags] Invalid value for Feature flag";
+                    assert(value >= 0 && "Feature flag value must be greater or equal to 0");
                 }
             }
             else if (!json->storeobject())
@@ -20545,6 +20560,35 @@ std::string MegaClient::generatePasswordChars(const bool useUpper,
 void MegaClient::getNotifications(CommandGetNotifications::ResultFunc onResult)
 {
     reqs.add(new CommandGetNotifications(this, onResult));
+}
+
+std::pair<uint32_t, uint32_t> MegaClient::getFlag(const char* flagName, bool commit)
+{
+    enum : uint32_t // 1:1 with enum values from public interface
+    {
+        FLAG_TYPE_INVALID = 0,
+        FLAG_TYPE_AB_TEST = 1,
+        FLAG_TYPE_FEATURE = 2,
+    };
+
+    if (!flagName)
+    {
+        return {FLAG_TYPE_INVALID, 0};
+    }
+
+    auto ab = mABTestFlags.find(flagName);
+    if (ab != mABTestFlags.end())
+    {
+        return {FLAG_TYPE_AB_TEST, ab->second};
+    }
+
+    auto f = mFeatureFlags.find(flagName);
+    if (f != mFeatureFlags.end())
+    {
+        return {FLAG_TYPE_FEATURE, f->second};
+    }
+
+    return {FLAG_TYPE_INVALID, 0};
 }
 
 FetchNodesStats::FetchNodesStats()

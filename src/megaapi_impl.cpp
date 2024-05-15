@@ -27325,6 +27325,23 @@ error MegaApiImpl::getLastActionedBanner_getua_result(byte* data, unsigned len, 
     return e;
 }
 
+MegaFlagPrivate* MegaApiImpl::getFlag(const char* flagName, bool commit, MegaRequestListener* listener)
+{
+    std::pair<uint32_t, uint32_t> flag;
+
+    {
+        SdkMutexGuard g(sdkMutex);
+        flag = client->getFlag(flagName, commit);
+    }
+
+    if (flag.first == static_cast<decltype(flag.first)>(MegaFlag::FLAG_TYPE_AB_TEST) && commit)
+    {
+        sendABTestActive(flagName, listener);
+    }
+
+    return new MegaFlagPrivate(flag.first, flag.second);
+}
+
 /* END MEGAAPIIMPL */
 
 int TransferQueue::getLastPushedTag() const
