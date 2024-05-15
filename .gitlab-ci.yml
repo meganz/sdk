@@ -4,6 +4,7 @@ variables:
 
 stages:
   - scan
+  - clang-format
 
 scan:
   stage: scan
@@ -12,3 +13,8 @@ scan:
     entrypoint: [""]
   script:
     - gitleaks detect -v --redact -c .gitleaks/gitleaks.toml
+
+clang-format:
+  stage: clang-format
+  script:
+    - echo "Run clang-format"
