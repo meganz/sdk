@@ -1,5 +1,5 @@
 from gitlab import Gitlab  # python-gitlab
-from gitlab.v4.objects import Project, ProjectMergeRequest
+from gitlab.v4.objects import Project, ProjectLabel, ProjectMergeRequest, ProjectTag
 import time
 from typing import cast
 
@@ -48,7 +48,8 @@ class GitLabRepository:  # use gitlab API
             print(
                 f"WARNING: Label {label_name} did not exist. Attempting to create it..."
             )
-            self._project.labels.create({"name": label_name, "color": "#8899aa"})
+            l = self._project.labels.create({"name": label_name, "color": "#8899aa"})
+            assert l is ProjectLabel
 
     def _get_id_of_open_mr(self, mr_title: str, mr_source: str, mr_target: str) -> int:
         mrs = self._project.mergerequests.list(
@@ -136,3 +137,9 @@ class GitLabRepository:  # use gitlab API
 
     def delete_tag(self, name: str):
         self._project.tags.delete(name)
+
+    def get_tag_url(self, tag_name: str) -> str:
+        tag: ProjectTag = self._project.tags.get(tag_name)
+        commit_url = tag.commit["web_url"]
+        tag_url = commit_url.replace(f"/commit/{tag.target}", f"/commits/{tag.name}")
+        return tag_url
