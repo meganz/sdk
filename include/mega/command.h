@@ -844,11 +844,12 @@ class MEGA_API CommandGetUserQuota : public Command
     bool mStorage;
     bool mTransfer;
     bool mPro;
+    std::function<void(std::shared_ptr<AccountDetails>, Error)> mCompletion;
 
 public:
     bool procresult(Result, JSON&) override;
 
-    CommandGetUserQuota(MegaClient*, std::shared_ptr<AccountDetails>, bool, bool, bool, int source);
+    CommandGetUserQuota(MegaClient*, std::shared_ptr<AccountDetails>, bool, bool, bool, int, std::function<void(std::shared_ptr<AccountDetails>, Error)> = {});
 };
 
 class MEGA_API CommandQueryTransferQuota : public Command
@@ -1924,22 +1925,6 @@ public:
 private:
     CommandFetchCreditCardCompletion mCompletion;
 };
-
-// Convenience command for retrieving storage statistics.
-//
-// Motivated by the desire for a simpler interface to CommandGetUserQuota.
-struct CommandGetStorageInfo
-  : public Command
-{
-    using Completion = std::function<void(const StorageInfo&, Error)>;
-
-    CommandGetStorageInfo(MegaClient& client, Completion completion);
-
-    bool procresult(Result result, JSON& json) override;
-
-private:
-    Completion mCompletion;
-}; // CommandGetStorageInfo
 
 class MEGA_API CommandCreatePasswordManagerBase : public Command
 {
