@@ -15,5 +15,6 @@ gitleaks:
 
 clang-format:
   stage: lint
+  image: ubuntu:22.04
   script:
     - echo "Run clang-format"
