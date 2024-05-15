@@ -317,22 +317,33 @@ protected:
  * in the same order.
  *
  * Example:
- *     std::vector a {1, 5, 7, 8};
- *     ASSERT_THAT(a, ContainsInOrder(std::vector {1, 7, 8}));
- *     ASSERT_THAT(a, testing::Not(ContainsInOrder(std::vector {1, 7, 5})));
+ *     std::vector arg {1, 5, 7, 8};
+ *     ASSERT_THAT(arg, ContainsInOrder(std::vector {1, 7, 8}));
+ *     ASSERT_THAT(arg, testing::Not(ContainsInOrder(std::vector {1, 7, 5})));
+ *     ASSERT_THAT(arg, testing::Not(ContainsInOrder(std::vector {1, 7, 7, 8})));
+ *
  */
 MATCHER_P(ContainsInOrder, elements, "")
 {
+    if (elements.size() > arg.size())
+    {
+        return false;
+    }
     return std::all_of(
         elements.begin(),
         elements.end(),
-        [currentEntry = arg.begin(), &allEntries = std::as_const(arg)](const auto& element) mutable
+        [currentEntry = arg.begin(), allEntriesEnd = arg.cend()](const auto& element) mutable
         {
-            while (currentEntry != allEntries.end() && *currentEntry != element)
+            while (currentEntry != allEntriesEnd && *currentEntry != element)
             {
                 ++currentEntry;
             }
-            return currentEntry != allEntries.end();
+            if (currentEntry == allEntriesEnd)
+            {
+                return false;
+            }
+            ++currentEntry;
+            return true;
         });
 }
 
