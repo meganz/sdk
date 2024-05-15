@@ -67,6 +67,11 @@ parser.add_argument(
     "--chat-channel",
     help="Chat channel where release notes will be posted (i.e. sdk_devs). Print to console if missing",
 )
+parser.add_argument(
+    "-q",
+    "--rc-number",
+    help="Optional. Custom number for rc. Default is 1 when missing",
+)
 args = parser.parse_args()
 
 if not args.no_file_update:
@@ -126,7 +131,8 @@ release_branch = release.create_release_branch()
 
 
 # STEP 5: Create rc tag "vX.Y.Z-rc.1" from branch "release/vX.Y.Z"
-release.create_rc_tag()
+rc = int(args.rc_number) if args.rc_number is not None else 1
+release.create_rc_tag(rc)
 
 
 # STEP 6: Open MR from branch "release/vX.Y.Z" to public branch (don't merge)

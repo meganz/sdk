@@ -166,11 +166,11 @@ class ReleaseProcess:
         print("v Created branch", self._release_branch)
 
     # STEP 5: Create rc tag "vX.Y.Z-rc.1" from branch "release/vX.Y.Z"
-    def create_rc_tag(self):
+    def create_rc_tag(self, rc_num:int):
         assert self._remote_private_repo is not None
         assert self._version_v_prefixed is not None
         assert self._release_branch is not None
-        self._rc_tag = f"{self._version_v_prefixed}-rc.1"
+        self._rc_tag = f"{self._version_v_prefixed}-rc.{rc_num}"
 
         print("Creating tag", self._rc_tag, flush=True)
         try:
