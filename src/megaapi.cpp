@@ -6084,6 +6084,11 @@ void MegaApi::getLastActionedBanner(MegaRequestListener* listener)
     pImpl->getLastActionedBanner(listener);
 }
 
+MegaFlag* MegaApi::getFlag(const char* flagName, bool commit, MegaRequestListener* listener)
+{
+    return pImpl->getFlag(flagName, commit, listener);
+}
+
 /* END MEGAAPI */
 
 MegaHashSignature::MegaHashSignature(const char *base64Key)
