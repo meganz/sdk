@@ -63,7 +63,7 @@ struct MEGA_API AccountTransaction
 
 struct MEGA_API AccountFeature
 {
-    m_time_t expiryTs = 0;
+    m_time_t expiryTimestamp = 0;
     string featureId;
 };
 
@@ -124,8 +124,8 @@ struct MEGA_API AccountDetails
     vector<AccountTransaction> transactions;
 
     // Features
-    vector<AccountFeature> features;
-    m_off_t slevel = 0;  // feature account level for feature related subscriptions
+    vector<AccountFeature> activeFeatures;
+    int64_t slevel = 0;  // feature account level for feature related subscriptions
     map<string, uint32_t> sfeatures; // subscription features, populated when slevel > 0
 };
 
