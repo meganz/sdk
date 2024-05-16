@@ -13342,6 +13342,7 @@ void MegaClient::getstorageinfo(std::function<void(const StorageInfo&, Error)> c
             // Latch the account's capacity.
             if (result == API_OK)
             {
+                assert(details);
                 info.mCapacity = details->storage_max;
                 info.mUsed = details->storage_used;
                 if (info.mCapacity >= info.mUsed)
@@ -13362,11 +13363,12 @@ void MegaClient::getstorageinfo(std::function<void(const StorageInfo&, Error)> c
                              std::placeholders::_2);
 
         std::shared_ptr<AccountDetails> ad;
-        const bool STORAGE = true;
-        const bool TRANSFER = false;
-        const bool PRO = false;
-        const int SOURCE = -1;
-        return reqs.add(new CommandGetUserQuota(this, ad, STORAGE, TRANSFER, PRO, SOURCE, std::move(callback)));
+        return reqs.add(new CommandGetUserQuota(this, ad,
+                                                true  /* storage */,
+                                                false /* transfer */,
+                                                false /* pro */,
+                                                -1 /* source */,
+                                                std::move(callback)));
     }
 
     // Ask the NM for our root node's storage info.
