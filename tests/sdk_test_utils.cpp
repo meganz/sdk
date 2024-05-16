@@ -1,5 +1,7 @@
 #include "sdk_test_utils.h"
 
+#include "mega/logging.h"
+
 #include <fstream>
 #include <vector>
 
@@ -37,12 +39,14 @@ void copyFileFromTestData(fs::path filename, fs::path destination)
 }
 
 LocalTempFile::LocalTempFile(const fs::path& _filePath, const unsigned int fileSizeBytes):
-    filePath(_filePath)
+    mFilePath(_filePath)
 {
-    std::ofstream outFile(filePath, std::ios::binary);
+    std::ofstream outFile(mFilePath, std::ios::binary);
     if (!outFile.is_open())
     {
-        throw std::runtime_error("Can't open the file: " + _filePath.string());
+        const auto msg = "Can't open the file: " + _filePath.string();
+        LOG_err << msg;
+        throw std::runtime_error(msg);
     }
     std::vector<char> buffer(fileSizeBytes, 0);
     outFile.write(buffer.data(), static_cast<std::streamsize>(buffer.size()));
@@ -50,9 +54,6 @@ LocalTempFile::LocalTempFile(const fs::path& _filePath, const unsigned int fileS
 
 LocalTempFile::~LocalTempFile()
 {
-    if (fs::exists(filePath))
-    {
-        fs::remove(filePath);
-    }
+    fs::remove(mFilePath);
 }
 }

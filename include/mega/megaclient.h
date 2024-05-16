@@ -543,6 +543,8 @@ public:
     // AB Test flags
     std::map<string, uint32_t> mABTestFlags;
 
+    std::map<string, uint32_t> mFeatureFlags;
+
 private:
     // Pro Flexi plan is enabled
     bool mProFlexi = false;
@@ -2702,6 +2704,7 @@ public:
     void setEnabledNotifications(std::vector<uint32_t>&& notifs) { mEnabledNotifications = std::move(notifs); }
     const std::vector<uint32_t>& getEnabledNotifications() const { return mEnabledNotifications; }
     void getNotifications(CommandGetNotifications::ResultFunc onResult);
+    std::pair<uint32_t, uint32_t> getFlag(const char* flagName, bool commit);
 
     // FUSE client adapter.
     fuse::ClientAdapter mFuseClientAdapter;

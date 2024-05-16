@@ -3,12 +3,16 @@
  * @brief This file defines some tests for the sorting of the results from the search command
  */
 
-#include "gmock/gmock.h"
 #include "megaapi.h"
 #include "sdk_test_utils.h"
 #include "SdkTest_test.h"
 
+#include <gmock/gmock.h>
+
+#include <chrono>
 #include <optional>
+
+using namespace std::chrono_literals;
 
 namespace
 {
@@ -46,7 +50,7 @@ struct FileNodeInfo: public NodeCommonInfo
 
 struct DirNodeInfo;
 
-typedef std::variant<FileNodeInfo, DirNodeInfo> NodeInfo;
+using NodeInfo = std::variant<FileNodeInfo, DirNodeInfo>;
 
 struct DirNodeInfo: public NodeCommonInfo
 {
@@ -86,10 +90,12 @@ void processNodeName(const NodeInfo& node, std::vector<std::string>& names)
  */
 void processDirChildName(const DirNodeInfo& dir, std::vector<std::string>& names)
 {
-    for (const auto& child: dir.childs)
-    {
-        processNodeName(child, names);
-    }
+    std::for_each(dir.childs.begin(),
+                  dir.childs.end(),
+                  [&names](const auto& child)
+                  {
+                      processNodeName(child, names);
+                  });
 }
 
 /**
@@ -113,7 +119,7 @@ std::vector<std::string> toNamesVector(const MegaNodeList& nodes)
     result.reserve(static_cast<size_t>(nodes.size()));
     for (int i = 0; i < nodes.size(); ++i)
     {
-        result.push_back(nodes.get(i)->getName());
+        result.emplace_back(nodes.get(i)->getName());
     }
     return result;
 }
@@ -131,7 +137,7 @@ std::vector<std::string> toNamesVector(const MegaNodeList& nodes)
 class SdkTestFilter: public SdkTest
 {
 private:
-    unique_ptr<MegaNode> rootTestDirNode;
+    std::unique_ptr<MegaNode> rootTestDirNode;
 
 public:
     static constexpr std::string_view ROOT_TEST_NODE_DIR = "SDK_TEST_FILTER_AUX_DIR";
@@ -155,8 +161,8 @@ public:
     void SetUp() override
     {
         SdkTest::SetUp();
-        getAccountsForTest(1);
-        createRootTestDir();
+        ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+        ASSERT_NO_FATAL_FAILURE(createRootTestDir());
         createNodes(ELEMENTS, rootTestDirNode.get());
     }
 
@@ -192,8 +198,10 @@ protected:
      */
     void createRootTestDir()
     {
-        const unique_ptr<MegaNode> rootnode(megaApi[0]->getRootNode());
+        const std::unique_ptr<MegaNode> rootnode(megaApi[0]->getRootNode());
         rootTestDirNode = createRemoteDir(std::string(ROOT_TEST_NODE_DIR), rootnode.get());
+        ASSERT_NE(rootTestDirNode, nullptr)
+            << "Unable to create root node at " + std::string(ROOT_TEST_NODE_DIR);
     }
 
     /**
@@ -206,7 +214,7 @@ protected:
     {
         for (const auto& element: elements)
         {
-            this_thread::sleep_for(1s); // Make sure creation time is different
+            std::this_thread::sleep_for(1s); // Make sure creation time is different
             std::visit(
                 [this, rootnode](const auto& nodeInfo)
                 {
@@ -225,7 +233,7 @@ protected:
         mApi[0].mOnNodesUpdateCompletion =
             createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check);
         sdk_test::LocalTempFile localFile(fileInfo.name, fileInfo.size);
-        MegaHandle file1Handle = 0;
+        MegaHandle file1Handle = INVALID_HANDLE;
         ASSERT_EQ(MegaError::API_OK,
                   doStartUpload(0,
                                 &file1Handle,
@@ -242,7 +250,7 @@ protected:
         waitForResponse(&check);
         // important to reset
         resetOnNodeUpdateCompletionCBs();
-        unique_ptr<MegaNode> nodeFile(megaApi[0]->getNodeByHandle(file1Handle));
+        std::unique_ptr<MegaNode> nodeFile(megaApi[0]->getNodeByHandle(file1Handle));
         ASSERT_NE(nodeFile, nullptr)
             << "Cannot get the node for the updated file (error: " << mApi[0].lastError << ")";
         setNodeAdditionalAttributes(fileInfo, nodeFile);
@@ -261,6 +269,9 @@ protected:
 
     /**
      * @brief Aux method to create a directory node with the given name inside the given rootnode
+     *
+     * NOTE: You must check that the output value is not a nullptr. If it is, there was a failure in
+     * the creation.
      */
     std::unique_ptr<MegaNode> createRemoteDir(const std::string& dirName, MegaNode* rootnode)
     {
@@ -268,12 +279,12 @@ protected:
         mApi[0].mOnNodesUpdateCompletion =
             createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check);
         auto folderHandle = createFolder(0, dirName.c_str(), rootnode);
-        if (folderHandle == UNDEF)
+        if (folderHandle == INVALID_HANDLE)
         {
             return {};
         }
         waitForResponse(&check);
-        unique_ptr<MegaNode> dirNode(megaApi[0]->getNodeByHandle(folderHandle));
+        std::unique_ptr<MegaNode> dirNode(megaApi[0]->getNodeByHandle(folderHandle));
         resetOnNodeUpdateCompletionCBs();
         return dirNode;
     }
@@ -284,10 +295,7 @@ protected:
     void setNodeAdditionalAttributes(const NodeCommonInfo& nodeInfo,
                                      const std::unique_ptr<MegaNode>& node)
     {
-        if (!node)
-        {
-            return;
-        }
+        ASSERT_NE(node, nullptr) << "Trying to set attributes of an invalide node pointer.";
 
         ASSERT_EQ(API_OK, synchronousSetNodeFavourite(0, node.get(), nodeInfo.fav))
             << "Error setting fav";
@@ -309,25 +317,34 @@ protected:
  * in the same order.
  *
  * Example:
- *     std::vector a {1, 5, 7, 8};
- *     ASSERT_THAT(a, ContainsInOrder(std::vector {1, 7, 8}));
- *     ASSERT_THAT(a, testing::Not(ContainsInOrder(std::vector {1, 7, 5})));
+ *     std::vector arg {1, 5, 7, 8};
+ *     ASSERT_THAT(arg, ContainsInOrder(std::vector {1, 7, 8}));
+ *     ASSERT_THAT(arg, testing::Not(ContainsInOrder(std::vector {1, 7, 5})));
+ *     ASSERT_THAT(arg, testing::Not(ContainsInOrder(std::vector {1, 7, 7, 8})));
+ *
  */
 MATCHER_P(ContainsInOrder, elements, "")
 {
-    auto currentEntry = arg.begin();
-    for (const auto& exp: elements)
+    if (elements.size() > arg.size())
     {
-        while (currentEntry != arg.end() && *currentEntry != exp)
-        {
-            ++currentEntry;
-        }
-        if (currentEntry == arg.end())
-        {
-            return false;
-        }
+        return false;
     }
-    return true;
+    return std::all_of(
+        elements.begin(),
+        elements.end(),
+        [currentEntry = arg.begin(), allEntriesEnd = arg.cend()](const auto& element) mutable
+        {
+            while (currentEntry != allEntriesEnd && *currentEntry != element)
+            {
+                ++currentEntry;
+            }
+            if (currentEntry == allEntriesEnd)
+            {
+                return false;
+            }
+            ++currentEntry;
+            return true;
+        });
 }
 
 /**

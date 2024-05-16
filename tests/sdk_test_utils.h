@@ -38,7 +38,15 @@ public:
     LocalTempFile(const fs::path& _filePath, const unsigned int fileSizeBytes);
     ~LocalTempFile();
 
+    // Delete copy constructors -> Don't allow many objects to remove the same file
+    LocalTempFile(const LocalTempFile&) = delete;
+    LocalTempFile& operator=(const LocalTempFile&) = delete;
+
+    // Allow move operations
+    LocalTempFile(LocalTempFile&&) noexcept = default;
+    LocalTempFile& operator=(LocalTempFile&&) noexcept = default;
+
 private:
-    fs::path filePath;
+    fs::path mFilePath;
 };
 }
