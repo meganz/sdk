@@ -2499,45 +2499,42 @@ void SqliteAccountState::userIsContained(sqlite3_context* context, int argc, sql
 
 std::string OrderByClause::get(int order, int sqlParamIndex)
 {
-    std::string criteria1 =
-        "WHEN " + std::to_string(DEFAULT_ASC)  + " THEN type \n"  // folders first
-        "WHEN " + std::to_string(DEFAULT_DESC) + " THEN type \n"  // files first
-        "WHEN " + std::to_string(SIZE_ASC)  + " THEN size \n"
-        "WHEN " + std::to_string(SIZE_DESC) + " THEN size \n"
-        "WHEN " + std::to_string(CTIME_ASC)  + " THEN ctime \n"
-        "WHEN " + std::to_string(CTIME_DESC) + " THEN ctime \n"
-        "WHEN " + std::to_string(MTIME_ASC)  + " THEN mtime \n"
-        "WHEN " + std::to_string(MTIME_DESC) + " THEN mtime \n"
-        "WHEN " + std::to_string(LABEL_ASC)  + " THEN type \n"    // folders first
-        "WHEN " + std::to_string(LABEL_DESC) + " THEN type \n"    // folders first
-        "WHEN " + std::to_string(FAV_ASC)  + " THEN type \n"      // folders first
-        "WHEN " + std::to_string(FAV_DESC) + " THEN type \n";     // folders first
-    std::string criteria2 =
-        "WHEN " + std::to_string(DEFAULT_ASC)  + " THEN name \n"
-        "WHEN " + std::to_string(DEFAULT_DESC) + " THEN name \n"
-        "WHEN " + std::to_string(LABEL_ASC)  + " THEN label \n"
-        "WHEN " + std::to_string(LABEL_DESC) + " THEN label \n"
-        "WHEN " + std::to_string(FAV_ASC)  + " THEN fav \n"
-        "WHEN " + std::to_string(FAV_DESC) + " THEN fav \n";
+    // clang-format off
+    // First sorting field
+    static const std::string fieldToSort1 =
+        "WHEN " + std::to_string(DEFAULT_ASC)  + " THEN type \n"   // folders first
+        "WHEN " + std::to_string(DEFAULT_DESC) + " THEN type \n"   // folders first
+        "WHEN " + std::to_string(SIZE_ASC)     + " THEN size \n"
+        "WHEN " + std::to_string(SIZE_DESC)    + " THEN size \n"
+        "WHEN " + std::to_string(CTIME_ASC)    + " THEN ctime \n"
+        "WHEN " + std::to_string(CTIME_DESC)   + " THEN ctime \n"
+        "WHEN " + std::to_string(MTIME_ASC)    + " THEN mtime \n"
+        "WHEN " + std::to_string(MTIME_DESC)   + " THEN mtime \n"
+        "WHEN " + std::to_string(LABEL_ASC)    + " THEN type \n"   // folders first
+        "WHEN " + std::to_string(LABEL_DESC)   + " THEN type \n"   // folders first
+        "WHEN " + std::to_string(FAV_ASC)      + " THEN type \n"   // folders first
+        "WHEN " + std::to_string(FAV_DESC)     + " THEN type \n";  // folders first
+    // Second sorting field
+    static const std::string fieldToSort2 =
+        "WHEN " + std::to_string(DEFAULT_ASC)  + " THEN name COLLATE NOCASE \n"
+        "WHEN " + std::to_string(DEFAULT_DESC) + " THEN name COLLATE NOCASE \n"
+        "WHEN " + std::to_string(LABEL_ASC)    + " THEN label \n"
+        "WHEN " + std::to_string(LABEL_DESC)   + " THEN label \n"
+        "WHEN " + std::to_string(FAV_ASC)      + " THEN fav \n"
+        "WHEN " + std::to_string(FAV_DESC)     + " THEN fav \n";
+    // Third sorting field: always sort by PK last, to get the same order for identical queries
+    static const std::string fieldToSort3 = "nodehandle ";
+    // clang-format on
 
-    std::bitset<3> dirs = getDescendingDirs(order);
-    std::string direction1 = dirs[0] ? "DESC" : "";
-    std::string direction2 = dirs[1] ? "DESC" : "";
-    std::string direction3 = dirs[2] ? "DESC" : "";
+    const std::bitset<3> dirs = getDescendingDirs(order);
+    const std::string x = '?' + std::to_string(sqlParamIndex) + ' ';
 
-    std::string x = '?' + std::to_string(sqlParamIndex) + ' ';
-
-    std::string clause =
-        "CASE " + x +
-        criteria1 +
-        "END " + direction1 + ", \n"
-        "CASE " + x +
-        criteria2 +
-        "END " + direction2 + ", \n"
-        // always order by PK last, to get the same order for identical queries
-        "nodehandle " + direction3;
-
-    return clause;
+    // clang-format off
+    static const std::array<std::string, 2> boolToDesc {"", "DESC"};
+    return "CASE " + x + fieldToSort1 + "END " + boolToDesc[dirs[0]] + ", \n" +
+           "CASE " + x + fieldToSort2 + "END " + boolToDesc[dirs[1]] + ", \n" +
+           fieldToSort3 + boolToDesc[dirs[2]];
+    // clang-format on
 }
 
 size_t OrderByClause::getId(int order)
@@ -2550,34 +2547,43 @@ size_t OrderByClause::getId(int order)
 std::bitset<3> OrderByClause::getDescendingDirs(int order)
 {
     std::bitset<3> dirs;
+    // dirs[0] -> type (if directories must go first always) | attr (size, ctime, mtime)
+    // dirs[1] -> attr (if directories must go first always)
+    // dirs[2] -> PK (always)
 
     switch (order)
     {
-    case SIZE_DESC:
-    case CTIME_DESC:
-    case MTIME_DESC:
-        dirs[2] = true; // DESC, by PK
-        [[fallthrough]];
-    case DEFAULT_ASC:
-    case LABEL_ASC:
-    case FAV_ASC:
-        dirs[0] = true; break;
-    case DEFAULT_DESC:
-        dirs[1] = true;
-        dirs[2] = true; // DESC, by PK
-        break;
-    case LABEL_DESC:
-    case FAV_DESC:
-        dirs[0] = true;
-        dirs[1] = true;
-        dirs[2] = true; // DESC, by PK
-        break;
-    case SIZE_ASC:
-    case CTIME_ASC:
-    case MTIME_ASC:
-        break;
+        //// Non directory special criteria (size, creation and modification)
+        case SIZE_ASC:
+        case CTIME_ASC:
+        case MTIME_ASC:
+            break;
+        case SIZE_DESC:
+        case CTIME_DESC:
+        case MTIME_DESC:
+            dirs[0] = true;
+            dirs[2] = true;
+            break;
+        //// Directories first (dirs[0] = true)
+        case DEFAULT_ASC:
+            dirs[0] = true;
+            break;
+        case DEFAULT_DESC:
+            dirs[0] = true;
+            dirs[1] = true;
+            dirs[2] = true;
+            break;
+        case LABEL_ASC:
+        case FAV_ASC:
+            dirs[0] = true;
+            dirs[1] = true;
+            break;
+        case LABEL_DESC:
+        case FAV_DESC:
+            dirs[0] = true;
+            dirs[2] = true;
+            break;
     }
-
     return dirs;
 }
 

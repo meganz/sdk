@@ -9,6 +9,7 @@ target_sources(test_integration
     env_var_accounts.cpp
     main.cpp
     SdkTest_test.cpp
+    SdkTestFilter_test.cpp
     Sync_test.cpp
 )
 
