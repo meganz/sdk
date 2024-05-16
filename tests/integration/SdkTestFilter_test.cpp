@@ -326,24 +326,17 @@ protected:
 MATCHER_P(ContainsInOrder, elements, "")
 {
     if (elements.size() > arg.size())
-    {
         return false;
-    }
+
     return std::all_of(
         elements.begin(),
         elements.end(),
         [currentEntry = arg.begin(), allEntriesEnd = arg.cend()](const auto& element) mutable
         {
             while (currentEntry != allEntriesEnd && *currentEntry != element)
-            {
                 ++currentEntry;
-            }
-            if (currentEntry == allEntriesEnd)
-            {
-                return false;
-            }
-            ++currentEntry;
-            return true;
+
+            return currentEntry++ != allEntriesEnd;
         });
 }
 
@@ -534,14 +527,15 @@ TEST_F(SdkTestFilter, SdkGetFilteredNodes)
     auto obtainedNonFavs = toNamesVector(*searchResults);
     EXPECT_EQ(obtainedNonFavs.size() + expectedFavs.size(), allNodesNames.size())
         << "The number of non fav nodes + fav nodes is different from the total number of nodes";
-    std::for_each(obtainedNonFavs.begin(),
-                  obtainedNonFavs.end(),
-                  [&allFavs = std::as_const(expectedFavs),
-                   &all = std::as_const(allNodesNames)](const auto& noFav)
-                  {
-                      EXPECT_THAT(all, testing::Contains(noFav))
-                          << "byFavourite(BOOL_FILTER_ONLY_FALSE) gave an unexpected";
-                      EXPECT_THAT(allFavs, testing::Not(testing::Contains(noFav)))
-                          << "byFavourite(BOOL_FILTER_ONLY_FALSE) gave a favourite node as result";
-                  });
+    std::for_each(
+        obtainedNonFavs.begin(),
+        obtainedNonFavs.end(),
+        [&allFavs = std::as_const(expectedFavs),
+         &all = std::as_const(allNodesNames)](const auto& noFav)
+        {
+            EXPECT_THAT(all, testing::Contains(noFav))
+                << "byFavourite(BOOL_FILTER_ONLY_FALSE) gave an node that should not exist";
+            EXPECT_THAT(allFavs, testing::Not(testing::Contains(noFav)))
+                << "byFavourite(BOOL_FILTER_ONLY_FALSE) gave a favourite node as result";
+        });
 }

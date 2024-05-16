@@ -1691,7 +1691,7 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
             "AND (?13 = 0 OR (name REGEXP ?9)) \n"
             "AND (?17 = 0 OR isContained(?18, description)) \n"
             "AND (?19 = 0 OR matchTag(?20, tags)) \n"
-            "AND (?21 = 0 OR ?22 = fav) \n";
+            "AND (?21 = 0 OR ?22 = fav)";
             // Leading and trailing '*' will be added to argument '?' so we are looking for substrings containing name
             // Our REGEXP implementation is case insensitive
 

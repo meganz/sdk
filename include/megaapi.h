@@ -13765,7 +13765,7 @@ class MegaApi
          * @deprecated use alternatives instead:
          * - for recursive searches use search(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
          * - for non-recursive searches use getChildren(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
-         * Remember to call the filter->byFavourite(true) to get only nodes labelled as fav
+         * Remember to call the filter->byFavourite(true) to get only nodes marked as favourite
          */
         void getFavourites(MegaNode* node, int count, MegaRequestListener* listener = nullptr);
 

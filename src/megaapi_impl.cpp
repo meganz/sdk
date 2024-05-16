@@ -6121,7 +6121,7 @@ int MegaSearchFilterPrivate::validateBoolFilterOption(const int value)
         value != MegaSearchFilter::BOOL_FILTER_ONLY_TRUE &&
         value != MegaSearchFilter::BOOL_FILTER_ONLY_FALSE)
     {
-        LOG_warn << "Invalid value for a boolean filtering option";
+        LOG_warn << "Invalid value for a boolean filtering option: " << value;
         return MegaSearchFilter::BOOL_FILTER_ALL;
     }
     return value;

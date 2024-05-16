@@ -2849,7 +2849,7 @@ private:
      *  1 -> MegaSearchFilter::BOOL_FILTER_ONLY_TRUE
      *  2 -> MegaSearchFilter::BOOL_FILTER_ONLY_FALSE
      *
-     * If it is out of range, 0 is returned and a warning message is log
+     * If it is out of range, 0 is returned and a warning message is logged
      */
     static int validateBoolFilterOption(const int value);
 };
