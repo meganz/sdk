@@ -752,7 +752,7 @@ public:
     void getaccountdetails(std::shared_ptr<AccountDetails>, bool, bool, bool, bool, bool, bool, int source = -1);
 
     // Get user storage information.
-    void getstorageinfo(CommandGetStorageInfo::Completion completion);
+    void getstorageinfo(std::function<void(const StorageInfo&, Error)> completion);
 
     // check if the available bandwidth quota is enough to transfer an amount of bytes
     void querytransferquota(m_off_t size);

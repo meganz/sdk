@@ -13343,31 +13343,47 @@ void MegaClient::getaccountdetails(std::shared_ptr<AccountDetails> ad, bool stor
     }
 }
 
-void MegaClient::getstorageinfo(CommandGetStorageInfo::Completion completion)
+void MegaClient::getstorageinfo(std::function<void(const StorageInfo&, Error)> completion)
 {
     assert(completion);
 
     // Haven't cached any info from the cloud.
     if (mLastKnownCapacity < 0)
     {
-        auto wrapper = [this](CommandGetStorageInfo::Completion& completion,
-                              const StorageInfo& info,
+        auto wrapper = [this](std::function<void(const StorageInfo&, Error)>& completion,
+                              const std::shared_ptr<AccountDetails> details,
                               Error result) {
+            StorageInfo info;
             // Latch the account's capacity.
             if (result == API_OK)
+            {
+                assert(details);
+                info.mCapacity = details->storage_max;
+                info.mUsed = details->storage_used;
+                if (info.mCapacity >= info.mUsed)
+                {
+                    info.mAvailable = info.mCapacity - info.mUsed;
+                }
                 mLastKnownCapacity = info.mCapacity;
+            }
 
             // Forward result to user callback.
             completion(info, result);
         }; // wrapper
 
-        completion = std::bind(std::move(wrapper),
-                               std::move(completion),
-                               std::placeholders::_1,
-                               std::placeholders::_2);
+        std::function<void(std::shared_ptr<AccountDetails>, Error)> callback;
+        callback = std::bind(std::move(wrapper),
+                             std::move(completion),
+                             std::placeholders::_1,
+                             std::placeholders::_2);
 
-
-        return reqs.add(new CommandGetStorageInfo(*this, std::move(completion)));
+        std::shared_ptr<AccountDetails> ad;
+        return reqs.add(new CommandGetUserQuota(this, ad,
+                                                true  /* storage */,
+                                                false /* transfer */,
+                                                false /* pro */,
+                                                -1 /* source */,
+                                                std::move(callback)));
     }
 
     // Ask the NM for our root node's storage info.
