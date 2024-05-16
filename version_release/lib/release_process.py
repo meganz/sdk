@@ -166,7 +166,7 @@ class ReleaseProcess:
         print("v Created branch", self._release_branch)
 
     # STEP 5: Create rc tag "vX.Y.Z-rc.1" from branch "release/vX.Y.Z"
-    def create_rc_tag(self, rc_num:int):
+    def create_rc_tag(self, rc_num: int):
         assert self._remote_private_repo is not None
         assert self._version_v_prefixed is not None
         assert self._release_branch is not None
@@ -175,9 +175,9 @@ class ReleaseProcess:
         print("Creating tag", self._rc_tag, flush=True)
         try:
             self._remote_private_repo.create_tag(self._rc_tag, self._release_branch)
-        except Exception:
+        except Exception as e:
             self._remote_private_repo.delete_branch(self._release_branch)
-            raise
+            raise e
         print("v Created tag", self._rc_tag)
 
     # STEP 6: Open MR to merge branch "release/vX.Y.Z" into public branch (don't merge)
@@ -221,14 +221,14 @@ class ReleaseProcess:
 
     # STEP 8: Post release notes to Slack
     def post_notes(self, apps: list[str]):
-        print("Generating release notes", flush=True)
+        print("Generating release notes...", flush=True)
         assert self._rc_tag is not None
         assert self._jira is not None
         tag_url = self._remote_private_repo.get_tag_url(self._rc_tag)
 
         notes = self._jira.get_release_notes(self._rc_tag, tag_url, apps)
         if self._slack is None:
-            print("\n" + notes, flush=True)
+            print("Enjoy:\n\n" + notes, flush=True)
         else:
             self._slack.post_message(self._slack_channel, notes)
             print(f"v Posted release notes to #{self._slack_channel}", flush=True)

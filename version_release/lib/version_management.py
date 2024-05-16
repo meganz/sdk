@@ -1,3 +1,4 @@
+from collections import defaultdict
 from jira import JIRA
 from jira.resources import Issue, Version
 from requests import Response
@@ -64,14 +65,14 @@ class JiraProject:
             fields="issuetype, key, summary, ",
             maxResults=200,
         )
-        issues: dict[str, list[list[str]]] = {}
+        issues: dict[str, list[tuple[str, str, str]]] = defaultdict(list)
         for i in issues_found:
             assert isinstance(i, Issue)
-            i_url = i.permalink()
             i_type = i.get_field("issuetype").name
-            i_summary = i.get_field("summary")
-            issues.setdefault(i_type, [])
-            issues[i_type].append([i_url, i.key, i_summary])
+            i_url = i.permalink()
+            i_summary = str(i.get_field("summary"))
+            issues[i_type].append((i_url, i.key, i_summary))
+
 
         # build notes
         notes: str = (
@@ -80,9 +81,9 @@ class JiraProject:
         for k, vs in issues.items():
             notes += f"{k}\n"
             for p in vs:
-                notes += f"• [<{p[0]}|{p[1]}>] - {p[2]}\n"
+                notes += f"\U00002022 [<{p[0]}|{p[1]}>] - {p[2]}\n"
             notes += "\n"
         notes += "*Target apps*\n"
         for a in apps:
-            notes += f"• *{a}*\n"
+            notes += f"\U00002022 *{a}*\n"
         return notes

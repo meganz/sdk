@@ -66,11 +66,15 @@ parser.add_argument(
     "-c",
     "--chat-channel",
     help="Chat channel where release notes will be posted (i.e. sdk_devs). Print to console if missing",
+    type=str,
+    default="",
 )
 parser.add_argument(
     "-q",
     "--rc-number",
     help="Optional. Custom number for rc. Default is 1 when missing",
+    type=int,
+    default=1,
 )
 args = parser.parse_args()
 
@@ -86,11 +90,9 @@ mega_env_vars = get_mega_env_vars(
 )
 
 slack_token = ""
-slack_channel = ""
-if args.chat_channel is None:
+if args.chat_channel == "":
     print("Release notes will be printed to console. Post them yourself.", flush=True)
 else:
-    slack_channel = args.chat_channel
     slack_token = get_mega_env_var("MEGA_SLACK_TOKEN")
     if slack_token == "":
         print("MEGA_SLACK_TOKEN env var missing")
@@ -106,7 +108,7 @@ release = ReleaseProcess(
     args.private_git_develop_branch,
     args.release_version,
     slack_token,
-    slack_channel,
+    args.chat_channel,
 )
 
 
@@ -131,8 +133,7 @@ release_branch = release.create_release_branch()
 
 
 # STEP 5: Create rc tag "vX.Y.Z-rc.1" from branch "release/vX.Y.Z"
-rc = int(args.rc_number) if args.rc_number is not None else 1
-release.create_rc_tag(rc)
+release.create_rc_tag(args.rc_number)
 
 
 # STEP 6: Open MR from branch "release/vX.Y.Z" to public branch (don't merge)
