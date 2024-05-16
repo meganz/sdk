@@ -6869,29 +6869,29 @@ void Sync::combineTripletSet(vector<SyncRow>::iterator a, vector<SyncRow>::itera
         {
             if (!targetrow->cloudNode || !targetrow->cloudNode->name.empty()) // Avoid NO_NAME nodes to be considered
             {
-            if (targetrow->cloudNode &&
-                !(targetrow->syncNode &&
-                targetrow->syncNode->syncedCloudNodeHandle
-                == targetrow->cloudNode->handle))
-            {
-                LOG_debug << syncname << "Conflicting cloud name: "
-                    << targetrow->cloudNode->name;
-                targetrow->cloudClashingNames.push_back(targetrow->cloudNode);
-                targetrow->cloudNode = nullptr;
-            }
-            if (targetrow->cloudNode ||
-                !targetrow->cloudClashingNames.empty())
-            {
-                LOG_debug << syncname << "Conflicting cloud name: "
-                    << i->cloudNode->name;
-                targetrow->cloudClashingNames.push_back(i->cloudNode);
-                i->cloudNode = nullptr;
-            }
-            if (!targetrow->cloudNode &&
-                targetrow->cloudClashingNames.empty())
-            {
-                std::swap(targetrow->cloudNode, i->cloudNode);
-            }
+                if (targetrow->cloudNode &&
+                    !(targetrow->syncNode &&
+                    targetrow->syncNode->syncedCloudNodeHandle
+                    == targetrow->cloudNode->handle))
+                {
+                    LOG_debug << syncname << "Conflicting cloud name: "
+                        << targetrow->cloudNode->name;
+                    targetrow->cloudClashingNames.push_back(targetrow->cloudNode);
+                    targetrow->cloudNode = nullptr;
+                }
+                if (targetrow->cloudNode ||
+                    !targetrow->cloudClashingNames.empty())
+                {
+                    LOG_debug << syncname << "Conflicting cloud name: "
+                        << i->cloudNode->name;
+                    targetrow->cloudClashingNames.push_back(i->cloudNode);
+                    i->cloudNode = nullptr;
+                }
+                if (!targetrow->cloudNode &&
+                    targetrow->cloudClashingNames.empty())
+                {
+                    std::swap(targetrow->cloudNode, i->cloudNode);
+                }
             }
         }
     }
