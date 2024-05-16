@@ -6,31 +6,28 @@ pipeline {
     }
 
     environment {
-        BUILD_OPTIONS = ''
-        TESTS_PARALLEL = ''
-        APIURL_TO_TEST = ''
-        GTEST_REPEAT = ''
-        GTEST_FILTER = ''
+        BUILD_OPTIONS = ' '
+        APIURL_TO_TEST = ' '
     }
 
     stages {
-        stage('Update Gitlab commit status') {
+        stage('Update Gitlab commitStatus') {
             agent any
             steps {
-                updateGitlabCommitStatus(name: 'build & test linux', state: 'running')
+                updateGitlabCommitStatus(name: 'Build & test MEGAchat', state: 'running')
             }
         }
-        stage('Build'){
-            agent { label 'linux && amd64' }
+        stage('Build') {
+            agent { label 'ci-debian-11-64-5' }
             stages {
                 stage('clean previous runs'){
                     steps{
                         deleteDir()
                     }
                 }
-                stage('Get parameters'){
+                stage('Get build parameters'){
                     parallel{
-                        stage('Get build and run paramters'){
+                        stage('Get build options'){
                             steps {
                                 script{
                                     BUILD_OPTIONS = sh(script: 'echo "$gitlabTriggerPhrase" | grep BUILD_OPTIONS | awk -F "BUILD_OPTIONS="  \'{print \$2}\' | cut -d"\\"" -f2 || :', returnStdout: true).trim()
@@ -48,6 +45,28 @@ pipeline {
                                     script{
                                         if (currentBuild.currentResult == 'FAILURE'){
                                             addGitLabMRComment(comment: ":red_circle: ${env.JOB_NAME} FAILURE when getting the additional build parameters :worried:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}" )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        stage('Get MEGAchat branch'){
+                            steps {
+                                script{
+                                    env.MEGACHAT_BRANCH = sh(script: 'echo "$gitlabMergeRequestDescription" | grep MEGACHAT_BRANCH_TO_TEST | awk -F "MEGACHAT_BRANCH_TO_TEST="  \'{print \$2}\' | cut -d" " -f1', returnStdout: true).trim()
+                                    if (MEGACHAT_BRANCH == ""){
+                                        echo "MEGACHAT_BRANCH was not found on description so develop will be used by default"
+                                        env.MEGACHAT_BRANCH = "develop"
+                                    }
+                                    println MEGACHAT_BRANCH
+                                }
+                            }
+                            post{
+                                always {
+                                    script{
+                                        if (currentBuild.currentResult == 'FAILURE'){
+                                            addGitLabMRComment(comment: ":red_circle: ${env.JOB_NAME} FAILURE when getting the MEGAchat branch :worried:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}" )
                                         }
                                     }
                                 }
@@ -76,56 +95,67 @@ pipeline {
                                 }
                             }
                         }
-
                     }
                 }
 
-                stage('Checkout Linux'){
+
+                stage('Checkout SDK and MEGAchat'){
                     steps {
+                        //Clone MEGAchat
+                        sh "echo Cloning MEGAchat branch ${MEGACHAT_BRANCH}"
                         checkout([
                             $class: 'GitSCM',
-                            branches: [[name: "origin/${env.gitlabSourceBranch}"]],
-                            userRemoteConfigs: [[ url: "${env.GIT_URL_SDK}", credentialsId: "12492eb8-0278-4402-98f0-4412abfb65c1" ]],
+                            branches: [[name: "origin/${MEGACHAT_BRANCH}"]],
+                            userRemoteConfigs: [[ url: "${env.GIT_URL_MEGACHAT}", credentialsId: "12492eb8-0278-4402-98f0-4412abfb65c1" ]],
                             extensions: [
-                                [$class: "UserIdentity",name: "jenkins", email: "jenkins@jenkins"],
-                                [$class: 'PreBuildMerge', options: [fastForwardMode: 'FF', mergeRemote: "origin", mergeStrategy: 'DEFAULT', mergeTarget: "${env.gitlabTargetBranch}"]]
+                                [$class: "UserIdentity",name: "jenkins", email: "jenkins@jenkins"]
                                 ]
                         ])
+                        dir('third-party/mega'){
+                            //Clone SDK (with PreBuildMerge)
+                            checkout([
+                                $class: 'GitSCM',
+                                branches: [[name: "origin/${env.gitlabSourceBranch}"]],
+                                userRemoteConfigs: [[ url: "${env.GIT_URL_SDK}", credentialsId: "12492eb8-0278-4402-98f0-4412abfb65c1" ]],
+                                extensions: [
+                                    [$class: "UserIdentity",name: "jenkins", email: "jenkins@jenkins"],
+                                    [$class: 'PreBuildMerge', options: [fastForwardMode: 'FF', mergeRemote: "origin", mergeStrategy: 'DEFAULT', mergeTarget: "${env.gitlabTargetBranch}"]]
+                                    ]
+                            ])
+                        }
                         script{
-                            linux_sources_workspace = WORKSPACE
-                            //linux_build_agent = "${NODE_NAME}"
+                            megachat_sources_workspace = WORKSPACE
+                            sdk_sources_workspace = "${megachat_sources_workspace}/third-party/mega"
                         }
                     }
                 }
-                stage('Build Linux'){
-                    options{
-                        timeout(time: 120, unit: 'MINUTES')
-                    }
+
+                stage('Build MEGAchat'){
                     environment{
                         VCPKGPATH = "/opt/vcpkg"
                         BUILD_DIR = "build_dir"
                     }
+                    options{
+                        timeout(time: 150, unit: 'MINUTES')
+                    }
                     steps{
-                        dir("${linux_sources_workspace}") {
-                            sh "rm -rf ${BUILD_DIR}; mkdir ${BUILD_DIR}"
-                            //Build SDK
-                            sh "echo Building SDK"
-                            sh "cmake -DENABLE_SDKLIB_WERROR=ON -DENABLE_CHAT=ON -DWITH_FUSE=1 -DCMAKE_BUILD_TYPE=Debug -DVCPKG_ROOT=${VCPKGPATH} ${BUILD_OPTIONS} -DCMAKE_VERBOSE_MAKEFILE=ON \
-                            -S ${linux_sources_workspace} -B ${linux_sources_workspace}/${BUILD_DIR}"
-                            sh "cmake --build ${linux_sources_workspace}/${BUILD_DIR} -j2"
+                        dir(megachat_sources_workspace){
+                            sh "echo Building MEGAchat"
+                            sh "cmake -DENABLE_CHATLIB_WERROR=ON -DCMAKE_BUILD_TYPE=Debug -DVCPKG_ROOT=${VCPKGPATH} ${BUILD_OPTIONS} -DCMAKE_VERBOSE_MAKEFILE=ON \
+                            -S ${megachat_sources_workspace} -B ${megachat_sources_workspace}/${BUILD_DIR}"
+                            sh "cmake --build ${megachat_sources_workspace}/${BUILD_DIR} -j2"
                         }
                     }
                 }
-                stage('Run Linux tests'){
-                    options{
-                        timeout(time: 250, unit: 'MINUTES')
-                    }
+                stage('Run MEGAchat tests'){
                     environment {
-                        MEGA_PWD = credentials('MEGA_PWD_DEFAULT')
-                        MEGA_PWD_AUX = credentials('MEGA_PWD_DEFAULT')
-                        MEGA_PWD_AUX2 = credentials('MEGA_PWD_DEFAULT')
-                        MEGA_REAL_PWD=credentials('MEGA_REAL_PWD_TEST')
+                        MEGA_PWD0 = credentials('MEGA_PWD_DEFAULT')
+                        MEGA_PWD1 = credentials('MEGA_PWD_DEFAULT')
+                        MEGA_PWD2 = credentials('MEGA_PWD_DEFAULT')
                         BUILD_DIR = "build_dir"
+                    }
+                    options{
+                        timeout(time: 300, unit: 'MINUTES')
                     }
                     steps{
                         script {
@@ -136,57 +166,41 @@ pipeline {
                                 lockLabel = 'SDK_Concurrent_Test_Accounts_Staging'
                             }
                             lock(label: lockLabel, variable: 'ACCOUNTS_COMBINATION', quantity: 1, resource: null){
-                                dir("${linux_sources_workspace}") {
+                                dir("${megachat_sources_workspace}"){
                                     script{
-                                        env.MEGA_EMAIL = "${env.ACCOUNTS_COMBINATION}"
+                                        env.MEGA_EMAIL0 = "${env.ACCOUNTS_COMBINATION}"
                                         echo "${env.ACCOUNTS_COMBINATION}"
+
                                     }
-                                    sh "echo Running tests"
                                     sh """#!/bin/bash
-                                    set -x
-                                    ulimit -c unlimited
-
-                                    ${env.BUILD_DIR}/tests/unit/test_unit || FAILED=1
-
-                                    if [ -z \"\$FAILED\" ]; then
-                                        GFXWORKER_TEST_DIR=${env.BUILD_DIR}/tools/gfxworker/tests/integration/
-                                        GFXWORKER_TEST_NAME=gfxworker_test_integration
-                                        GFXWORKER_TEST_PATH=\"\$GFXWORKER_TEST_DIR\$GFXWORKER_TEST_NAME\"
-                                        if [ -f \"\$GFXWORKER_TEST_PATH\" ]; then
-                                            \$GFXWORKER_TEST_PATH || FAILED=2
-                                        fi
-                                    fi
-
-                                    if [ -z \"\$FAILED\" ]; then
+                                        set -x
+                                        ulimit -c unlimited
                                         if [ -z \"${TESTS_PARALLEL}\" ]; then
                                             # Sequential run
-                                            ${env.BUILD_DIR}/tests/integration/test_integration --CI --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} ${GTEST_FILTER} ${GTEST_REPEAT} &
+                                            ${env.BUILD_DIR}/tests/sdk_test/megachat_tests --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} ${GTEST_FILTER} ${GTEST_REPEAT} &
                                             pid=\$!
-                                            wait \$pid || FAILED=3
+                                            wait \$pid || FAILED=1
                                         else
                                             # Parallel run
-                                            ${env.BUILD_DIR}/tests/integration/test_integration --CI --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} ${GTEST_FILTER} ${GTEST_REPEAT} ${TESTS_PARALLEL} 2>&1 | tee tests.stdout
-                                            [ \"\${PIPESTATUS[0]}\" != \"0\" ] && FAILED=3
+                                            ${env.BUILD_DIR}/tests/sdk_test/megachat_tests --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} ${GTEST_FILTER} ${GTEST_REPEAT} ${TESTS_PARALLEL} 2>&1 | tee tests.stdout
+                                            [ \"\${PIPESTATUS[0]}\" != \"0\" ] && FAILED=1
                                         fi
-                                    fi
-                                    if [ -n \"\$FAILED\" ]; then
-                                        if [ \"\$FAILED\" -le 2 ]; then
-                                            coreFiles=core
-                                        else # FAILED=3
+
+                                        if [ -n "\$FAILED" ]; then
                                             if [ -z \"${TESTS_PARALLEL}\" ]; then
                                                 # Sequential run
-                                                coreFiles=\"pid_\$pid/core\"
+                                                coreFiles=\"test_pid_\$pid/core\"
                                             else
                                                 # Parallel run
                                                 procFailed=`grep \"<< PROCESS\" tests.stdout | sed 's/.*PID:\\([0-9]*\\).*/\\1/'`
                                                 if [ -n \"\$procFailed\" ]; then
-                                                    # Parallel run
                                                     for i in \$procFailed; do
-                                                        coreFiles=\"\$coreFiles pid_\$i/core\"
+                                                        coreFiles=\"\$coreFiles test_pid_\$i/core\"
                                                     done
                                                 fi
                                             fi
                                         fi
+
                                         if [ -n \"\$coreFiles\" ]; then
                                             maxTime=10
                                             startTime=`date +%s`
@@ -198,12 +212,12 @@ pipeline {
                                                 sleep 1
                                                 for i in \$coreFiles; do
                                                     if [ -e \"\$i\" ] && [ -z \"\$( lsof \$i 2>/dev/null )\" ]; then
-                                                        echo \"Processing core dump \$i :: \$(grep `echo \$i | sed 's#pid_\\([0-9].*\\)/core#\\1#'` tests.stdout)\"
+                                                        echo
+                                                        echo
+                                                        echo \"Processing core dump \$i :: \$(grep `echo \$i | sed 's#test_pid_\\([0-9].*\\)/core#\\1#'` tests.stdout)\"
                                                         echo thread apply all bt > backtrace
                                                         echo quit >> backtrace
-                                                        [ \"\$FAILED\" = \"1\" ] && gdb -q ${env.BUILD_DIR}/tests/unit/test_unit \$i -x backtrace
-                                                        [ \"\$FAILED\" = \"2\" ] && gdb -q \$GFXWORKER_TEST_PATH \$i -x backtrace
-                                                        [ \"\$FAILED\" = \"3\" ] && gdb -q ${env.BUILD_DIR}/tests/integration/test_integration \$i -x backtrace
+                                                        gdb -q ${env.BUILD_DIR}/tests/sdk_test/megachat_tests \$i -x backtrace
                                                         tar rf core.tar \$i
                                                         coresProcessed=`expr \$coresProcessed + 1`
                                                         coreFiles=`echo \$coreFiles | sed -e \"s#\$i##\"`
@@ -211,54 +225,42 @@ pipeline {
                                                 done
                                             done
                                             if [ -e core.tar ]; then
-                                                [ \"\$FAILED\" = \"1\" ] && tar rf core.tar -C ${env.BUILD_DIR}/tests/unit/ test_unit
-                                                [ \"\$FAILED\" = \"2\" ] && tar rf core.tar -C \$GFXWORKER_TEST_DIR \$GFXWORKER_TEST_NAME
-                                                [ \"\$FAILED\" = \"3\" ] && tar rf core.tar -C ${env.BUILD_DIR}/tests/integration/ test_integration
+                                                tar rf core.tar -C ${env.BUILD_DIR}/tests/sdk_test/ megachat_tests
                                                 gzip core.tar
                                             fi
                                         fi
-                                    fi
 
-                                    gzip -c test_integration.log > test_integration_${BUILD_ID}.log.gz || :
-                                    rm test_integration.log || :
-                                    if [ -n \"\$FAILED\" ]; then
-                                        exit \"\$FAILED\"
-                                    fi
+                                        gzip -c test.log > test_${BUILD_ID}.log.gz || :
+                                        rm test.log || :
+                                        if [ ! -z "\$FAILED" ]; then
+                                            false
+                                        fi
                                     """
                                 }
                             }
                         }
                     }
-
-                    post {
-                        always {
-                            dir("${env.WORKSPACE}/src/fuse/supported/posix/scripts") {
-                                println "Attempting to clean up any stale MEGA-FS mounts"
-                                sh "./cleanup.sh '${env.WORKSPACE}'"
-                            }
-                        } 
-                    }
                 }
             }
             post{
                 always {
-                    archiveArtifacts artifacts: 'test_integration*, core.tar.gz', fingerprint: true
+                    archiveArtifacts artifacts: 'test*.log*, core.tar.gz', fingerprint: true
                     script{
                         if (currentBuild.currentResult == 'SUCCESS'){
-                            updateGitlabCommitStatus(name: 'build & test linux', state: 'success')
-                            addGitLabMRComment(comment: ":white_check_mark: ${currentBuild.projectName} :penguin: <b>Linux</b> SUCCEEDED :muscle:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}" )
+                            updateGitlabCommitStatus(name: 'Build & test MEGAchat', state: 'success')
+                            addGitLabMRComment(comment: ":white_check_mark: ${currentBuild.projectName} :penguin: <b>MEGAchat</b> SUCCEEDED :muscle:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}" )
                         }
                         if (currentBuild.currentResult == 'FAILURE'){
-                            updateGitlabCommitStatus(name: 'build & test linux', state: 'failed')
-                            addGitLabMRComment(comment: ":red_circle: ${currentBuild.projectName} :penguin: <b>Linux</b> FAILURE  :worried:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}" )
+                            updateGitlabCommitStatus(name: 'Build & test MEGAchat', state: 'failed')
+                            addGitLabMRComment(comment: ":red_circle: ${currentBuild.projectName} :penguin: <b>MEGAchat</b> FAILURE  :worried:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}" )
                         }
                         if (currentBuild.currentResult == 'ABORTED'){
-                            updateGitlabCommitStatus(name: 'build & test linux', state: 'canceled')
-                            addGitLabMRComment(comment: ":interrobang: ${currentBuild.projectName} :penguin: <b>Linux</b> ABORTED  :confused:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}" )
+                            updateGitlabCommitStatus(name: 'Build & test MEGAchat', state: 'canceled')
+                            addGitLabMRComment(comment: ":interrobang: ${currentBuild.projectName} :penguin: <b>MEGAchat</b> ABORTED  :confused:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}" )
                         }
                         if (currentBuild.currentResult == 'UNSTABLE'){
-                            updateGitlabCommitStatus(name: 'build & test linux', state: 'failed')
-                            addGitLabMRComment(comment: ":interrobang: ${currentBuild.projectName} :penguin: <b>Linux</b> UNSTABLE  :confused:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}" )
+                            updateGitlabCommitStatus(name: 'Build & test MEGAchat', state: 'failed')
+                            addGitLabMRComment(comment: ":interrobang: ${currentBuild.projectName} :penguin: <b>MEGAchat</b> UNSTABLE  :confused:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}" )
                         }
                     }
                 }

@@ -145,8 +145,7 @@ public:
 
     GfxProviderIsolatedProcess(std::unique_ptr<GfxIsolatedProcess> process);
 
-    std::vector<std::string> generateImages(FileSystemAccess* fa,
-                                            const LocalPath& localfilepath,
+    std::vector<std::string> generateImages(const LocalPath& localfilepath,
                                             const std::vector<GfxDimension>& dimensions) override;
 
     const char* supportedformats() override;

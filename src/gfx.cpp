@@ -238,8 +238,7 @@ int GfxProc::checkevents(Waiter *)
     return needexec ? Waiter::NEEDEXEC : 0;
 }
 
-std::vector<std::string> IGfxLocalProvider::generateImages(FileSystemAccess* fa,
-                                                           const LocalPath& localfilepath,
+std::vector<std::string> IGfxLocalProvider::generateImages(const LocalPath& localfilepath,
                                                            const std::vector<GfxDimension>& dimensions)
 {
     std::vector<std::string> images(dimensions.size());
@@ -250,7 +249,7 @@ std::vector<std::string> IGfxLocalProvider::generateImages(FileSystemAccess* fa,
         0,
         [](int max, const GfxDimension& d) { return std::max(max, std::max(d.w(), d.h())); });
 
-    if (readbitmap(fa, localfilepath, maxDimension))
+    if (readbitmap(localfilepath, maxDimension))
     {
         for (unsigned int i = 0; i < dimensions.size(); ++i)
         {
@@ -322,7 +321,7 @@ void IGfxLocalProvider::transform(int& w, int& h, int& rw, int& rh, int& px, int
 }
 
 // load bitmap image, generate all designated sizes, attach to specified upload/node handle
-int GfxProc::gendimensionsputfa(FileAccess* /*fa*/, const LocalPath& localfilename, NodeOrUploadHandle th, SymmCipher* key, int missing)
+int GfxProc::gendimensionsputfa(const LocalPath& localfilename, NodeOrUploadHandle th, SymmCipher* key, int missing)
 {
     LOG_debug << "Creating thumb/preview for " << localfilename;
 
@@ -355,13 +354,13 @@ int GfxProc::gendimensionsputfa(FileAccess* /*fa*/, const LocalPath& localfilena
 std::vector<std::string> GfxProc::generateImages(const LocalPath& localfilepath, const std::vector<GfxDimension>& dimensions)
 {
     std::lock_guard<std::mutex> g(mutex);
-    return mGfxProvider->generateImages(client->fsaccess.get(), localfilepath, dimensions);
+    return mGfxProvider->generateImages(localfilepath, dimensions);
 }
 
 std::string GfxProc::generateOneImage(const LocalPath& localfilepath, const GfxDimension& dimension)
 {
     std::lock_guard<std::mutex> g(mutex);
-    auto images = mGfxProvider->generateImages(client->fsaccess.get(), localfilepath, std::vector<GfxDimension>{ dimension });
+    auto images = mGfxProvider->generateImages(localfilepath, std::vector<GfxDimension>{ dimension });
     return images[0];
 }
 
