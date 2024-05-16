@@ -2530,22 +2530,22 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                     buf = json.getvalue();
                     JSON::copystring(&description, buf);
                     break;
-                case 'f': // i.e. "f": { "vpn": 1 }
+                case 'f': // e.g. "f": { "vpn": 1 }
                 {
                     if (!json.enterobject())
                     {
-                        LOG_err << "Failed to parse Feature-plans response, enter `f` object";
+                        LOG_err << "Failed to parse Enumerate-quota-items response, enter `f` object";
                         client->app->enumeratequotaitems_result(API_EINTERNAL);
                         return false;
                     }
                     string key, value;
                     while (json.storeKeyValueFromObject(key, value))
                     {
-                        features[key] = std::stoul(value);
+                        features[key] = static_cast<unsigned>(std::stoul(value));
                     }
                     if (!json.leaveobject())
                     {
-                        LOG_err << "Failed to parse Feature-plans response, leave `f` object";
+                        LOG_err << "Failed to parse Enumerate-quota-items response, leave `f` object";
                         client->app->enumeratequotaitems_result(API_EINTERNAL);
                         return false;
                     }
