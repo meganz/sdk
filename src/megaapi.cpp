@@ -7001,7 +7001,7 @@ int MegaSearchFilter::byCategory() const
 
 int MegaSearchFilter::byFavourite() const
 {
-    return MegaSearchFilter::BOOL_FILTER_ALL;
+    return MegaSearchFilter::BOOL_FILTER_DISABLED;
 }
 
 bool MegaSearchFilter::bySensitivity() const

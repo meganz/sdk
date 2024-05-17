@@ -9485,7 +9485,7 @@ public:
     // A helper enum for filtering boolean fields
     enum
     {
-        BOOL_FILTER_ALL = 0,
+        BOOL_FILTER_DISABLED = 0,
         BOOL_FILTER_ONLY_TRUE,
         BOOL_FILTER_ONLY_FALSE,
     };
@@ -9555,11 +9555,11 @@ public:
 
     /**
      * @brief Set option for filtering out non favourite nodes.
-     * If not set, it will behave as if BOOL_FILTER_ALL was used.
+     * If not set, it will behave as if BOOL_FILTER_DISABLED was used.
      *
      * @param boolFilterOption Kind of boolean filter to apply.
      * Valid values for this parameter are (invalid values will be ignored):
-     * - MegaSearchFilter::BOOL_FILTER_ALL = 0 --> Both favourites and non favourites are considered
+     * - MegaSearchFilter::BOOL_FILTER_DISABLED = 0 --> Both favourites and non favourites are considered
      * - MegaSearchFilter::BOOL_FILTER_ONLY_TRUE = 1 --> Only favourites
      * - MegaSearchFilter::BOOL_FILTER_ONLY_FALSE = 2 --> Only non favourites
      */
@@ -9666,7 +9666,7 @@ public:
     /**
      * @brief Return the option for filtering out non favourite nodes.
      *
-     * @return option set for filtering out favourite nodes, or BOOL_FILTER_ALL if not set
+     * @return option set for filtering out favourite nodes, or BOOL_FILTER_DISABLED if not set
      */
     virtual int byFavourite() const;
 

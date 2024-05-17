@@ -499,11 +499,11 @@ TEST_F(SdkTestFilter, SdkGetFilteredNodes)
 
     // By fav: All
     std::unique_ptr<MegaSearchFilter> filteringInfo(getDefaultfilter());
-    filteringInfo->byFavourite(MegaSearchFilter::BOOL_FILTER_ALL);
+    filteringInfo->byFavourite(MegaSearchFilter::BOOL_FILTER_DISABLED);
     std::unique_ptr<MegaNodeList> searchResults(megaApi[0]->search(filteringInfo.get()));
     ASSERT_THAT(searchResults, NotNull()) << "serach() returned a nullptr";
     EXPECT_THAT(toNamesVector(*searchResults), UnorderedElementsAreArray(allNodesNames))
-        << "Unexpected filtering reusults for byFavourite(BOOL_FILTER_ALL)";
+        << "Unexpected filtering reusults for byFavourite(BOOL_FILTER_DISABLED)";
 
     // By fav: Only favs
     filteringInfo = getDefaultfilter();

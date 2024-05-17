@@ -1585,9 +1585,7 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, int o
         (sqlResult = sqlite3_bind_int64(stmt, 5, filter.byCreationTimeUpperLimit())) == SQLITE_OK &&
         (sqlResult = sqlite3_bind_int64(stmt, 6, filter.byModificationTimeLowerLimit())) == SQLITE_OK &&
         (sqlResult = sqlite3_bind_int64(stmt, 7, filter.byModificationTimeUpperLimit())) == SQLITE_OK &&
-        (sqlResult = sqlite3_bind_int(stmt, 8, filter.byCategory())) == SQLITE_OK &&
-        (sqlResult = sqlite3_bind_int(stmt, 18, filter.byFavourite())) == SQLITE_OK &&
-        (sqlResult = sqlite3_bind_int(stmt, 19, filter.byFavourite() == 1)) == SQLITE_OK)
+        (sqlResult = sqlite3_bind_int(stmt, 8, filter.byCategory())) == SQLITE_OK)
     {
         const string& nameFilter = filter.byName();
         bool matchWildcard = std::any_of(nameFilter.begin(), nameFilter.end(), [](const char& c) { return c != '*'; });
@@ -1600,7 +1598,9 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, int o
             (sqlResult = sqlite3_bind_int(stmt, 14, static_cast<int>(filter.byDescription().size()))) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_text(stmt, 15, filter.byDescription().c_str(), static_cast<int>(filter.byDescription().size()), SQLITE_STATIC)) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_int(stmt, 16, static_cast<int>(filter.byTag().size()))) == SQLITE_OK &&
-            (sqlResult = sqlite3_bind_text(stmt, 17, filter.byTag().c_str(), static_cast<int>(filter.byTag().size()), SQLITE_STATIC)) == SQLITE_OK)
+            (sqlResult = sqlite3_bind_text(stmt, 17, filter.byTag().c_str(), static_cast<int>(filter.byTag().size()), SQLITE_STATIC)) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int(stmt, 18, filter.byFavourite())) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int(stmt, 19, filter.byFavourite() == 1)) == SQLITE_OK)
         {
             result = processSqlQueryNodes(stmt, children);
         }
@@ -1735,9 +1735,7 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
         (sqlResult = sqlite3_bind_int64(stmt, 5, filter.byModificationTimeLowerLimit())) == SQLITE_OK &&
         (sqlResult = sqlite3_bind_int64(stmt, 6, filter.byModificationTimeUpperLimit())) == SQLITE_OK &&
         (sqlResult = sqlite3_bind_int(stmt, 7, filter.includedShares())) == SQLITE_OK &&
-        (sqlResult = sqlite3_bind_int(stmt, 8, filter.byCategory())) == SQLITE_OK &&
-        (sqlResult = sqlite3_bind_int(stmt, 21, filter.byFavourite())) == SQLITE_OK &&
-        (sqlResult = sqlite3_bind_int(stmt, 22, filter.byFavourite() == 1)) == SQLITE_OK)
+        (sqlResult = sqlite3_bind_int(stmt, 8, filter.byCategory())) == SQLITE_OK)
     {
         assert(filter.byAncestorHandles().size() >= 3); // support at least 3 ancestors
         const string& byName = filter.byName();
@@ -1754,7 +1752,9 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
             (sqlResult = sqlite3_bind_int(stmt, 17, static_cast<int>(filter.byDescription().size()))) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_text(stmt, 18, filter.byDescription().c_str(), static_cast<int>(filter.byDescription().size()), SQLITE_STATIC)) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_int(stmt, 19, static_cast<int>(filter.byTag().size()))) == SQLITE_OK &&
-            (sqlResult = sqlite3_bind_text(stmt, 20, filter.byTag().c_str(), static_cast<int>(filter.byTag().size()), SQLITE_STATIC)) == SQLITE_OK)
+            (sqlResult = sqlite3_bind_text(stmt, 20, filter.byTag().c_str(), static_cast<int>(filter.byTag().size()), SQLITE_STATIC)) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int(stmt, 21, filter.byFavourite())) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int(stmt, 22, filter.byFavourite() == 1)) == SQLITE_OK)
         {
             result = processSqlQueryNodes(stmt, nodes);
         }

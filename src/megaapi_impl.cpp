@@ -6117,12 +6117,12 @@ MegaSearchFilterPrivate* MegaSearchFilterPrivate::copy() const
 
 int MegaSearchFilterPrivate::validateBoolFilterOption(const int value)
 {
-    if (value != MegaSearchFilter::BOOL_FILTER_ALL &&
+    if (value != MegaSearchFilter::BOOL_FILTER_DISABLED &&
         value != MegaSearchFilter::BOOL_FILTER_ONLY_TRUE &&
         value != MegaSearchFilter::BOOL_FILTER_ONLY_FALSE)
     {
         LOG_warn << "Invalid value for a boolean filtering option: " << value;
-        return MegaSearchFilter::BOOL_FILTER_ALL;
+        return MegaSearchFilter::BOOL_FILTER_DISABLED;
     }
     return value;
 }

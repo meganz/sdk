@@ -2832,7 +2832,7 @@ private:
     std::string mNameFilter;
     int mNodeType = MegaNode::TYPE_UNKNOWN;
     int mMimeCategory = MegaApi::FILE_TYPE_DEFAULT;
-    int mFavouriteFilterOption = MegaSearchFilter::BOOL_FILTER_ALL;
+    int mFavouriteFilterOption = MegaSearchFilter::BOOL_FILTER_DISABLED;
     bool mExcludeSensitive = false;
     MegaHandle mLocationHandle = INVALID_HANDLE;
     int mLocationType = MegaApi::SEARCH_TARGET_ALL;
@@ -2845,7 +2845,7 @@ private:
 
     /**
      * @brief Checks if the input value is:
-     *  0 -> MegaSearchFilter::BOOL_FILTER_ALL
+     *  0 -> MegaSearchFilter::BOOL_FILTER_DISABLED
      *  1 -> MegaSearchFilter::BOOL_FILTER_ONLY_TRUE
      *  2 -> MegaSearchFilter::BOOL_FILTER_ONLY_FALSE
      *
