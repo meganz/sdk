@@ -19,4 +19,4 @@ clang-format:
   script:
     - apt-get update
     - apt-get install -y git clang-format
-    - clang-format --version
+    - git clang-format
