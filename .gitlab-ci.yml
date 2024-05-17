@@ -18,5 +18,5 @@ clang-format:
   image: ubuntu:22.04
   script:
     - apt-get update
-    - apt-get install -y clang-format
+    - apt-get install -y git clang-format
     - clang-format --version
