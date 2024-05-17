@@ -233,11 +233,11 @@ TEST(MegaApi, MegaApiImpl_calcRecommendedProLevel)
     addTestProducts(MegaAccountDetails::ACCOUNT_TYPE_PROIII, 16384, 2999);
     addTestProducts(MegaAccountDetails::ACCOUNT_TYPE_BUSINESS, -1, 0);
     addTestProducts(MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI, -1, 0);
-    pricing.addProduct(1000, 1000000, MegaAccountDetails::ACCOUNT_TYPE_STARTER, 50, 50, 1, 1, 10, 100, "monthly", "ios id", "android id", std::make_unique<BusinessPlan>()); // only monthly
-    pricing.addProduct(1000, 1000000, MegaAccountDetails::ACCOUNT_TYPE_BASIC, 100, 100, 1, 2, 10, 100, "monthly", "ios id", "android id", std::make_unique<BusinessPlan>());
-    pricing.addProduct(1000, 1000000, MegaAccountDetails::ACCOUNT_TYPE_BASIC, 100, 100 * 12, 12, 2 * 12, 10, 100, "yearly", "ios id", "android id", std::make_unique<BusinessPlan>());
-    pricing.addProduct(1000, 1000000, MegaAccountDetails::ACCOUNT_TYPE_ESSENTIAL, 200, 200, 1, 3, 10, 100, "monthly", "ios id", "android id", std::make_unique<BusinessPlan>());
-    pricing.addProduct(1000, 1000000, MegaAccountDetails::ACCOUNT_TYPE_ESSENTIAL, 200, 200 * 12, 12, 3 * 12, 10, 100, "yearly", "ios id", "android id", std::make_unique<BusinessPlan>());
+    pricing.addProduct(1000, 1000000, MegaAccountDetails::ACCOUNT_TYPE_STARTER, 50, 50, 1, 1, 10, 100, "monthly", "ios id", "android id", ::mega::make_unique<BusinessPlan>()); // only monthly
+    pricing.addProduct(1000, 1000000, MegaAccountDetails::ACCOUNT_TYPE_BASIC, 100, 100, 1, 2, 10, 100, "monthly", "ios id", "android id", ::mega::make_unique<BusinessPlan>());
+    pricing.addProduct(1000, 1000000, MegaAccountDetails::ACCOUNT_TYPE_BASIC, 100, 100 * 12, 12, 2 * 12, 10, 100, "yearly", "ios id", "android id", ::mega::make_unique<BusinessPlan>());
+    pricing.addProduct(1000, 1000000, MegaAccountDetails::ACCOUNT_TYPE_ESSENTIAL, 200, 200, 1, 3, 10, 100, "monthly", "ios id", "android id", ::mega::make_unique<BusinessPlan>());
+    pricing.addProduct(1000, 1000000, MegaAccountDetails::ACCOUNT_TYPE_ESSENTIAL, 200, 200 * 12, 12, 3 * 12, 10, 100, "yearly", "ios id", "android id", ::mega::make_unique<BusinessPlan>());
 
     std::function<int(int, int)> test = [&](int level, int gb)
     {
