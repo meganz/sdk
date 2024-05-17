@@ -1967,6 +1967,13 @@ public:
                     std::unique_ptr<BusinessPlan>);
 
 private:
+    enum PlanType : unsigned
+    {
+        PRO_LEVEL,
+        BUSINESS,
+        FEATURE,
+    };
+
     bool isType(int productIndex, unsigned t) const;
 
     vector<unsigned int> type;

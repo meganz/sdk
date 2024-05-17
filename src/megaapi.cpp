@@ -6461,7 +6461,7 @@ int MegaPricing::getGBPerTransfer(int)
     return 0;
 }
 
-MegaStringIntegerMap* MegaPricing::getFeatures(int productIndex) const
+MegaStringIntegerMap* MegaPricing::getFeatures(int) const
 {
     return nullptr;
 }
