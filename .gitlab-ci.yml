@@ -16,7 +16,8 @@ gitleaks:
 clang-format:
   stage: lint
   image: ubuntu:22.04
-  script:
+  before_script:
     - apt-get update
     - apt-get install -y git clang-format
+  script:
     - git clang-format
