@@ -577,7 +577,7 @@ if (USE_THIRDPARTY_FROM_VCPKG)
         ENDIF(USE_SQLITE)
 
         IF(USE_LIBUV)
-            ImportStdVcpkgLibrary(uv       libuv libuv libuv libuv)
+            ImportStdVcpkgLibrary(uv       uv_a uv_a libuv libuv)
         ENDIF(USE_LIBUV)
 
         IF(USE_PCRE)
