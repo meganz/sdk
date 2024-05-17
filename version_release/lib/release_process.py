@@ -1,4 +1,5 @@
 import re
+from lib.chat import Slack
 from lib.local_repository import LocalRepository
 from lib.private_repository import GitLabRepository
 from lib.sign_commits import setup_gpg_signing
@@ -14,6 +15,8 @@ class ReleaseProcess:
         private_host_url: str,
         private_branch: str,
         new_version: str,
+        slack_token: str,
+        slack_channel: str,
     ):
         self._private_branch = private_branch
         self._local_repo: LocalRepository | None = None
@@ -22,6 +25,10 @@ class ReleaseProcess:
         )
         self._project_name = project_name
         self._new_version = new_version
+        self._slack = (
+            Slack(slack_token) if slack_token != "" and slack_channel != "" else None
+        )
+        self._slack_channel = slack_channel
 
     # STEP 3: update version in local file
     def update_version_in_local_file(
@@ -126,11 +133,16 @@ class ReleaseProcess:
         if mr_id == 0:
             self._remote_private_repo.delete_branch(new_branch)
             raise ValueError("Failed to open MR with local changes")
-        print(f"v MR {mr_id} opened (version upgrade):\n  {mr_url}", flush=True)
-
-        # TODO: send message to chat for MR approval
+        print(f"v MR {mr_id} opened (version upgrade):\n  {mr_url}")
         print("  **** Release process will continue after the MR has been approved.")
         print("       Cancel by manually closing the MR.", flush=True)
+
+        # Send message to chat for MR approval
+        if self._slack is not None:
+            self._slack.post_message(
+                "sdk_devs_only",
+                f"Hello @channel,\n\nPlease approve the MR for the new `{self._project_name}` release `{self._new_version}`:\n{mr_url}",
+            )
 
         # MR not approved within the waiting interval will be closed and
         # the process aborted. To abort earlier just close the MR manually.
@@ -154,18 +166,18 @@ class ReleaseProcess:
         print("v Created branch", self._release_branch)
 
     # STEP 5: Create rc tag "vX.Y.Z-rc.1" from branch "release/vX.Y.Z"
-    def create_rc_tag(self):
+    def create_rc_tag(self, rc_num: int):
         assert self._remote_private_repo is not None
         assert self._version_v_prefixed is not None
         assert self._release_branch is not None
-        self._rc_tag = f"{self._version_v_prefixed}-rc.1"
+        self._rc_tag = f"{self._version_v_prefixed}-rc.{rc_num}"
 
         print("Creating tag", self._rc_tag, flush=True)
         try:
             self._remote_private_repo.create_tag(self._rc_tag, self._release_branch)
-        except Exception:
+        except Exception as e:
             self._remote_private_repo.delete_branch(self._release_branch)
-            raise ValueError(f"Failed to create tag {self._rc_tag}")
+            raise e
         print("v Created tag", self._rc_tag)
 
     # STEP 6: Open MR to merge branch "release/vX.Y.Z" into public branch (don't merge)
@@ -206,3 +218,17 @@ class ReleaseProcess:
         )
 
         self._jira.create_new_version()
+
+    # STEP 8: Post release notes to Slack
+    def post_notes(self, apps: list[str]):
+        print("Generating release notes...", flush=True)
+        assert self._rc_tag is not None
+        assert self._jira is not None
+        tag_url = self._remote_private_repo.get_tag_url(self._rc_tag)
+
+        notes = self._jira.get_release_notes(self._rc_tag, tag_url, apps)
+        if self._slack is None:
+            print("Enjoy:\n\n" + notes, flush=True)
+        else:
+            self._slack.post_message(self._slack_channel, notes)
+            print(f"v Posted release notes to #{self._slack_channel}", flush=True)

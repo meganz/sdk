@@ -1,7 +1,6 @@
 import argparse
 from lib.release_process import ReleaseProcess
-from lib.version_management import JiraProject
-from lib.utils import get_mega_env_vars
+from lib.utils import get_mega_env_vars, get_mega_env_var
 
 # runtime arguments
 parser = argparse.ArgumentParser()
@@ -49,7 +48,7 @@ parser.add_argument(
 parser.add_argument(
     "-u",
     "--private-git-remote-url",
-    help="URL of private repository's git remote (i.e. git@foo.bar:proj:proj.git). Ignored if -n was given",
+    help="URL of private repository's git remote (i.e. git@foo.bar:proj/proj.git). Ignored if -n was given",
 )
 parser.add_argument(
     "-j",
@@ -61,6 +60,21 @@ parser.add_argument(
     "-t",
     "--target-apps",
     help='Apps and versions that use this release (i.e. "Android 1.0.1 / iOS 1.2 / MEGAsync 9.9.9")',
+    required=True,
+)
+parser.add_argument(
+    "-c",
+    "--chat-channel",
+    help="Chat channel where release notes will be posted (i.e. sdk_devs). Print to console if missing",
+    type=str,
+    default="",
+)
+parser.add_argument(
+    "-q",
+    "--rc-number",
+    help="Optional. Custom number for rc. Default is 1 when missing",
+    type=int,
+    default=1,
 )
 args = parser.parse_args()
 
@@ -75,6 +89,16 @@ mega_env_vars = get_mega_env_vars(
     "MEGA_JIRA_PASSWORD",
 )
 
+slack_token = ""
+if args.chat_channel == "":
+    print("Release notes will be printed to console. Post them yourself.", flush=True)
+else:
+    slack_token = get_mega_env_var("MEGA_SLACK_TOKEN")
+    if slack_token == "":
+        print("MEGA_SLACK_TOKEN env var missing")
+        print(
+            "Release notes will be printed to console. Post them yourself.", flush=True
+        )
 
 # start Release process
 release = ReleaseProcess(
@@ -83,6 +107,8 @@ release = ReleaseProcess(
     args.private_git_host_url,
     args.private_git_develop_branch,
     args.release_version,
+    slack_token,
+    args.chat_channel,
 )
 
 
@@ -107,7 +133,7 @@ release_branch = release.create_release_branch()
 
 
 # STEP 5: Create rc tag "vX.Y.Z-rc.1" from branch "release/vX.Y.Z"
-release.create_rc_tag()
+release.create_rc_tag(args.rc_number)
 
 
 # STEP 6: Open MR from branch "release/vX.Y.Z" to public branch (don't merge)
@@ -121,3 +147,8 @@ release.manage_versions(
     mega_env_vars["MEGA_JIRA_PASSWORD"],
     args.target_apps.strip('"'),
 )
+
+
+# STEP 8: Post release notes to Slack
+apps = [a.strip() for a in args.target_apps.strip('"').split("/")]
+release.post_notes(apps)

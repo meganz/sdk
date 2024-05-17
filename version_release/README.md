@@ -20,27 +20,31 @@ For Jira
 export MEGA_JIRA_USER=Fred     # Jira user
 export MEGA_JIRA_PASSWORD=Thud # Jira password
 ```
+For Slack (optional)
+```sh
+export MEGA_SLACK_TOKEN=Qux    # Slack authentication token
+```
 
 From current directory run one of the following:
 
 \# will edit [../include/mega/version.h](../include/mega/version.h) to update the version
 ```sh
-python3 ./make_release.py -r <release-version> -p <project-name> -l <private-git-host-url> -o <private-git-remote-name> -u <private-git-remote-url> -d <private-git-develop-branch> -m <public-git-target-branch> -j <project-management-url> -t <target-apps>
+python3 ./make_release.py -r <release-version> -p <project-name> -l <private-git-host-url> -o <private-git-remote-name> -u <private-git-remote-url> -d <private-git-develop-branch> -m <public-git-target-branch> -j <project-management-url> -t <target-apps> -c <chat-channel> -q <rc-number>
 ```
 
 \# no source file will be edited (so less mandatory args, and dealing with gpg stuff not required)
 ```sh
-python3 ./make_release.py -r <release-version> -p <project-name> -l <private-git-host-url> -n -d <private-git-develop-branch> -m <public-git-target-branch> -j <project-management-url> -t <target-apps>
+python3 ./make_release.py -r <release-version> -p <project-name> -l <private-git-host-url> -n -d <private-git-develop-branch> -m <public-git-target-branch> -j <project-management-url> -t <target-apps> -c <chat-channel> -q <rc-number>
 ```
 
 Example:
 
 ```sh
 # will edit source file(s) to update the version
-python3 ./make_release.py -r 1.0.0 -p SDK -l https://code.foo.bar -o origin -u https://foo.bar/sdk/sdk.git -d develop -m master -j https://jira.foo.bar -t "Android 1.0.1 / iOS 1.2 / MEGAsync 9.9.9"
+python3 ./make_release.py -r 1.0.0 -p SDK -l https://code.foo.bar -o origin -u https://foo.bar/sdk/sdk.git -d develop -m master -j https://jira.foo.bar -t "Android 1.0.1 / iOS 1.2 / MEGAsync 9.9.9" -c sdk_devs_only -q 1
 
 # no source file will be edited (so less mandatory args, and dealing with gpg stuff not required)
-python3 ./make_release.py -r 1.0.0 -p MEGAchat -l https://code.foo.bar -n -d develop -m master -j https://jira.foo.bar -t "Android 1.0.1 / iOS 1.2 / MEGAsync 9.9.9"
+python3 ./make_release.py -r 1.0.0 -p MEGAchat -l https://code.foo.bar -n -d develop -m master -j https://jira.foo.bar -t "Android 1.0.1 / iOS 1.2 / MEGAsync 9.9.9" -c sdk_devs_only -q 1
 ```
 
 Running the following will also provide complete information:
@@ -57,13 +61,19 @@ These should only be needed once.
 ### python stuff
 * Install `Python 3`. The script was written on top of Python 3.12.2, just in case an older version would fail to run it.
 * Install `pip`. Something like `python3 -m ensurepip --upgrade` should work.
-* Install module `python-gitlab`. It worked with `python3 -m pip install python-gitlab`. For other install methods it didn't see the module.
-* Install module `jira`. It worked directly with `pip install jira`.
+* Install required modules with `pip install -r requirements.txt` (and upgrade all later with `pip install -U -r requirements.txt`).
 
 ### gitlab stuff
 * [Create a personal access token](https://docs.gitlab.com/ee/user/profile/personal_access_tokens.html#create-a-personal-access-token) with scopes `api`, `read_api`, `read_user`, `create_runner`, `read_repository`, `write_repository`.
 * The token created there must be set in `MEGA_GITLAB_TOKEN` env var.
 * Remember to check from time to time that the token has not expired.
+
+### Slack stuff
+* Slack requires an _app_ that will provide a token required for using its API.
+  * Any Slack user can [create an app](https://api.slack.com/start/quickstart#creating), set `chat:write` to `User Token Scopes`, get `User OAuth Token`.
+  * Or reuse a _distributed app_ created by someone else, and get whatever token they provide.
+* Set the token in `MEGA_SLACK_TOKEN` env var.
+* Update the env var when the token has expired.
 
 
 ### gpg stuff

@@ -1,6 +1,6 @@
-import json
+from collections import defaultdict
 from jira import JIRA
-from jira.resources import Version
+from jira.resources import Issue, Version
 from requests import Response
 
 
@@ -9,6 +9,7 @@ class JiraProject:
     Functionality:
     - rename NextRelease to the new version
     - create new NextRelease version
+    - get release notes
     """
 
     _NEXT_RELEASE = "NextRelease"
@@ -36,18 +37,16 @@ class JiraProject:
 
         today = date.today().isoformat()  # YYYY-MM-DD required by the REST api
 
-        json_data = json.dumps(
-            {
-                "name": f"v{to_version}",
-                "startdate": today,
-                "description": f"Version {to_version} - {used_by_apps}",
-            }
-        )
+        version_data = {
+            "name": f"v{to_version}",
+            "startdate": today,
+            "description": f"Version {to_version} - {used_by_apps}",
+        }
 
         # use the logged in session to access the REST API of the plugin
         assert self._jira._session is not None
         r: Response = self._jira._session.put(
-            url=f"{self._version_manager_url}/{self._version_id}", data=json_data
+            url=f"{self._version_manager_url}/{self._version_id}", data=version_data
         )
         r.raise_for_status()
 
@@ -58,3 +57,33 @@ class JiraProject:
             url=self._version_manager_url, data={"name": self._NEXT_RELEASE}
         )
         r.raise_for_status()
+
+    def get_release_notes(self, name: str, tag_url: str, apps: list[str]) -> str:
+        # get issues
+        issues_found = self._jira.search_issues(
+            f"project={self._project_name} AND fixVersion={self._version_id} AND status=Resolved AND resolution=Done",
+            fields="issuetype, key, summary, ",
+            maxResults=200,
+        )
+        issues: dict[str, list[tuple[str, str, str]]] = defaultdict(list)
+        for i in issues_found:
+            assert isinstance(i, Issue)
+            i_type = i.get_field("issuetype").name
+            i_url = i.permalink()
+            i_summary = str(i.get_field("summary"))
+            issues[i_type].append((i_url, i.key, i_summary))
+
+
+        # build notes
+        notes: str = (
+            f"\U0001F4E3 \U0001F4E3 *New SDK version  -->  `{name}`* (<{tag_url}|Link>)\n\n"
+        )
+        for k, vs in issues.items():
+            notes += f"{k}\n"
+            for p in vs:
+                notes += f"\U00002022 [<{p[0]}|{p[1]}>] - {p[2]}\n"
+            notes += "\n"
+        notes += "*Target apps*\n"
+        for a in apps:
+            notes += f"\U00002022 *{a}*\n"
+        return notes
