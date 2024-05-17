@@ -61,9 +61,7 @@ These should only be needed once.
 ### python stuff
 * Install `Python 3`. The script was written on top of Python 3.12.2, just in case an older version would fail to run it.
 * Install `pip`. Something like `python3 -m ensurepip --upgrade` should work.
-* Install module `python-gitlab`. It worked with `python3 -m pip install python-gitlab`. For other install methods it didn't see the module.
-* Install module `jira`. It worked directly with `pip install jira`.
-* Install module `slack_sdk`. It worked directly with `pip install slack_sdk`.
+* Install required modules with `pip install -r requirements.txt` (and upgrade all later with `pip install -U -r requirements.txt`).
 
 ### gitlab stuff
 * [Create a personal access token](https://docs.gitlab.com/ee/user/profile/personal_access_tokens.html#create-a-personal-access-token) with scopes `api`, `read_api`, `read_user`, `create_runner`, `read_repository`, `write_repository`.
