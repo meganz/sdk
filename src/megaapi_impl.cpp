@@ -6059,6 +6059,11 @@ void MegaSearchFilterPrivate::byCategory(int mimeType)
     mMimeCategory = mimeType;
 }
 
+void MegaSearchFilterPrivate::byFavourite(int boolFilterOption)
+{
+    mFavouriteFilterOption = validateBoolFilterOption(boolFilterOption);
+}
+
 void MegaSearchFilterPrivate::bySensitivity(bool excludeSensitive)
 {
     mExcludeSensitive = excludeSensitive;
@@ -6108,6 +6113,18 @@ void MegaSearchFilterPrivate::byTag(const char* searchString)
 MegaSearchFilterPrivate* MegaSearchFilterPrivate::copy() const
 {
     return new MegaSearchFilterPrivate(*this);
+}
+
+int MegaSearchFilterPrivate::validateBoolFilterOption(const int value)
+{
+    if (value != MegaSearchFilter::BOOL_FILTER_DISABLED &&
+        value != MegaSearchFilter::BOOL_FILTER_ONLY_TRUE &&
+        value != MegaSearchFilter::BOOL_FILTER_ONLY_FALSE)
+    {
+        LOG_warn << "Invalid value for a boolean filtering option: " << value;
+        return MegaSearchFilter::BOOL_FILTER_DISABLED;
+    }
+    return value;
 }
 
 std::unique_ptr<MegaGfxProviderPrivate> MegaGfxProviderPrivate::createIsolatedInstance(

@@ -9482,6 +9482,14 @@ protected:
     MegaSearchFilter();
 
 public:
+    // A helper enum for filtering boolean fields
+    enum
+    {
+        BOOL_FILTER_DISABLED = 0,
+        BOOL_FILTER_ONLY_TRUE,
+        BOOL_FILTER_ONLY_FALSE,
+    };
+
     /**
      * @brief Creates a new instance of MegaSearchFilter
      * @return A pointer of current type, a superclass of the private object
@@ -9544,6 +9552,18 @@ public:
      * - MegaApi::FILE_TYPE_OTHERS = 12
      */
     virtual void byCategory(int mimeType);
+
+    /**
+     * @brief Set option for filtering out non favourite nodes.
+     * If not set, it will behave as if BOOL_FILTER_DISABLED was used.
+     *
+     * @param boolFilterOption Kind of boolean filter to apply.
+     * Valid values for this parameter are (invalid values will be ignored):
+     * - MegaSearchFilter::BOOL_FILTER_DISABLED = 0 --> Both favourites and non favourites are considered
+     * - MegaSearchFilter::BOOL_FILTER_ONLY_TRUE = 1 --> Only favourites
+     * - MegaSearchFilter::BOOL_FILTER_ONLY_FALSE = 2 --> Only non favourites
+     */
+    virtual void byFavourite(int boolFilterOption);
 
     /**
      * @brief Set option for filtering out sensitive nodes.
@@ -9642,6 +9662,13 @@ public:
      * @return predefined category set for filtering, or FILE_TYPE_DEFAULT if not set
      */
     virtual int byCategory() const;
+
+    /**
+     * @brief Return the option for filtering out non favourite nodes.
+     *
+     * @return option set for filtering out favourite nodes, or BOOL_FILTER_DISABLED if not set
+     */
+    virtual int byFavourite() const;
 
     /**
      * @brief Return the option for filtering out sensitive nodes.
@@ -13734,6 +13761,11 @@ class MegaApi
          * @param node Node and its children that will be searched for favourites. Search all nodes if null
          * @param count if count is zero return all favourite nodes, otherwise return only 'count' favourite nodes
          * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated use alternatives instead:
+         * - for recursive searches use search(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
+         * - for non-recursive searches use getChildren(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
+         * Remember to call the filter->byFavourite(true) to get only nodes marked as favourite
          */
         void getFavourites(MegaNode* node, int count, MegaRequestListener* listener = nullptr);
 

@@ -326,24 +326,17 @@ protected:
 MATCHER_P(ContainsInOrder, elements, "")
 {
     if (elements.size() > arg.size())
-    {
         return false;
-    }
+
     return std::all_of(
         elements.begin(),
         elements.end(),
         [currentEntry = arg.begin(), allEntriesEnd = arg.cend()](const auto& element) mutable
         {
             while (currentEntry != allEntriesEnd && *currentEntry != element)
-            {
                 ++currentEntry;
-            }
-            if (currentEntry == allEntriesEnd)
-            {
-                return false;
-            }
-            ++currentEntry;
-            return true;
+
+            return currentEntry++ != allEntriesEnd;
         });
 }
 
@@ -495,4 +488,54 @@ TEST_F(SdkTestFilter, SdkGetNodesInOrder)
     ASSERT_THAT(searchResults, NotNull()) << "serach() returned a nullptr";
     EXPECT_THAT(toNamesVector(*searchResults), ContainsInOrder(expected))
         << "Unexpected sorting for ORDER_FAV_DESC";
+}
+
+TEST_F(SdkTestFilter, SdkGetFilteredNodes)
+{
+    using testing::NotNull;
+    using testing::UnorderedElementsAreArray;
+
+    const auto allNodesNames = getAllNodesNames();
+
+    // By fav: All
+    std::unique_ptr<MegaSearchFilter> filteringInfo(getDefaultfilter());
+    filteringInfo->byFavourite(MegaSearchFilter::BOOL_FILTER_DISABLED);
+    std::unique_ptr<MegaNodeList> searchResults(megaApi[0]->search(filteringInfo.get()));
+    ASSERT_THAT(searchResults, NotNull()) << "serach() returned a nullptr";
+    EXPECT_THAT(toNamesVector(*searchResults), UnorderedElementsAreArray(allNodesNames))
+        << "Unexpected filtering reusults for byFavourite(BOOL_FILTER_DISABLED)";
+
+    // By fav: Only favs
+    filteringInfo = getDefaultfilter();
+    filteringInfo->byFavourite(MegaSearchFilter::BOOL_FILTER_ONLY_TRUE);
+    std::vector<std::string> expectedFavs = {
+        "Dir1", // fav
+        "testFile2", // fav
+        "testFile5", // fav
+        "testFile6", // fav
+    };
+    searchResults.reset(megaApi[0]->search(filteringInfo.get()));
+    ASSERT_THAT(searchResults, NotNull()) << "serach() returned a nullptr";
+    EXPECT_THAT(toNamesVector(*searchResults), UnorderedElementsAreArray(expectedFavs))
+        << "Unexpected filtering reusults for byFavourite(BOOL_FILTER_ONLY_TRUE)";
+
+    // By fav: Only not favs (non-favs + favs = all)
+    filteringInfo = getDefaultfilter();
+    filteringInfo->byFavourite(MegaSearchFilter::BOOL_FILTER_ONLY_FALSE);
+    searchResults.reset(megaApi[0]->search(filteringInfo.get()));
+    ASSERT_THAT(searchResults, NotNull()) << "serach() returned a nullptr";
+    auto obtainedNonFavs = toNamesVector(*searchResults);
+    EXPECT_EQ(obtainedNonFavs.size() + expectedFavs.size(), allNodesNames.size())
+        << "The number of non fav nodes + fav nodes is different from the total number of nodes";
+    std::for_each(
+        obtainedNonFavs.begin(),
+        obtainedNonFavs.end(),
+        [&allFavs = std::as_const(expectedFavs),
+         &all = std::as_const(allNodesNames)](const auto& noFav)
+        {
+            EXPECT_THAT(all, testing::Contains(noFav))
+                << "byFavourite(BOOL_FILTER_ONLY_FALSE) gave an node that should not exist";
+            EXPECT_THAT(allFavs, testing::Not(testing::Contains(noFav)))
+                << "byFavourite(BOOL_FILTER_ONLY_FALSE) gave a favourite node as result";
+        });
 }
