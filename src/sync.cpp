@@ -45,8 +45,24 @@ const unsigned Sync::MAX_CLOUD_DEPTH = 64;
 
 const std::chrono::milliseconds Syncs::MIN_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT{100}; // 100 ms
 const std::chrono::milliseconds Syncs::MAX_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT{10000}; // 10 secs
+//const std::chrono::milliseconds Syncs::MIN_DELAY_BETWEEN_SYNC_VERBOSE_LOGS{5000}; // 5 secs
 
-#define SYNC_verbose if (syncs.mDetailedSyncLogging) LOG_verbose
+#define SYNC_verbose if (syncs.mDetailedSyncLogging) SYNC_verbose_NO_ANXIOUS
+#define SSYNC_verbose if (sync.syncs.mDetailedSyncLogging) SYNC_verbose_NO_ANXIOUS
+#define SYNCS_verbose SYNC_verbose_NO_ANXIOUS
+
+
+#define SYNC_verbose_NO_ANXIOUS if (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count() % 5 == 0) LOG_verbose
+
+/*
+#define SYNC_verbose_NO_ANXIOUS \
+    do { \
+        auto now = std::chrono::system_clock::now(); \
+        if (std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count() % 5 == 0) { \
+            LOG_verbose; \
+        } \
+    } while (0)
+*/
 
 bool PerSyncStats::operator==(const PerSyncStats& other)
 {
@@ -1400,7 +1416,7 @@ struct ProgressingMonitor
 
         if (sf.stall.cloud.empty())
         {
-            LOG_debug << sync.syncname << "First sync node cloud-waiting: " << int(e.reason) << " " << sync.logTriplet(sr, sp);
+            SSYNC_verbose << sync.syncname << "First sync node cloud-waiting: " << int(e.reason) << " " << sync.logTriplet(sr, sp);
         }
 
         bool isAddedToCloudMap = sf.stall.waitingCloud(mapKeyPath, move(e));
@@ -1418,7 +1434,7 @@ struct ProgressingMonitor
 
         if (sf.stall.local.empty())
         {
-            LOG_debug << sync.syncname << "First sync node local-waiting: " << int(e.reason) << " " << sync.logTriplet(sr, sp);
+            SSYNC_verbose << sync.syncname << "First sync node local-waiting: " << int(e.reason) << " " << sync.logTriplet(sr, sp);
         }
 
         bool isAddedToLocalMap = sf.stall.waitingLocal(mapKeyPath, move(e));
@@ -1443,7 +1459,7 @@ struct ProgressingMonitor
         {
             if (sf.noProgress)
             {
-                LOG_debug << sync.syncname << "First sync node not progressing: " << sync.logTriplet(sr, sp);
+                SSYNC_verbose << sync.syncname << "First sync node not progressing: " << sync.logTriplet(sr, sp);
             }
             sf.noProgress = false;
             sf.noProgressCount = 0;
@@ -6840,7 +6856,7 @@ void Sync::combineTripletSet(vector<SyncRow>::iterator a, vector<SyncRow>::itera
                 targetrow->syncNode->fsid_lastSynced
                 == targetrow->fsNode->fsid))
             {
-                LOG_debug << syncname << "Conflicting filesystem name: "
+                SYNC_verbose << syncname << "Conflicting filesystem name: "
                     << targetrow->fsNode->localname;
                 targetrow->fsClashingNames.push_back(targetrow->fsNode);
                 targetrow->fsNode = nullptr;
@@ -6848,7 +6864,7 @@ void Sync::combineTripletSet(vector<SyncRow>::iterator a, vector<SyncRow>::itera
             if (targetrow->fsNode ||
                 !targetrow->fsClashingNames.empty())
             {
-                LOG_debug << syncname << "Conflicting filesystem name: "
+                SYNC_verbose << syncname << "Conflicting filesystem name: "
                     << i->fsNode->localname;
                 targetrow->fsClashingNames.push_back(i->fsNode);
                 i->fsNode = nullptr;
@@ -6866,7 +6882,7 @@ void Sync::combineTripletSet(vector<SyncRow>::iterator a, vector<SyncRow>::itera
                 targetrow->syncNode->syncedCloudNodeHandle
                 == targetrow->cloudNode->handle))
             {
-                LOG_debug << syncname << "Conflicting filesystem name: "
+                SYNC_verbose << syncname << "Conflicting filesystem name: "
                     << targetrow->cloudNode->name;
                 targetrow->cloudClashingNames.push_back(targetrow->cloudNode);
                 targetrow->cloudNode = nullptr;
@@ -6874,7 +6890,7 @@ void Sync::combineTripletSet(vector<SyncRow>::iterator a, vector<SyncRow>::itera
             if (targetrow->cloudNode ||
                 !targetrow->cloudClashingNames.empty())
             {
-                LOG_debug << syncname << "Conflicting filesystem name: "
+                SYNC_verbose << syncname << "Conflicting filesystem name: "
                     << i->cloudNode->name;
                 targetrow->cloudClashingNames.push_back(i->cloudNode);
                 i->cloudNode = nullptr;
@@ -7967,7 +7983,7 @@ bool Sync::syncItem_checkFilenameClashes(SyncRow& row, SyncRow& parentRow, SyncP
         //if (isIgnoreFileClash(row))
         //    return false;
 
-        LOG_debug << syncname << "Multiple names clash here.  Excluding this node from sync for now." << logTriplet(row, fullPath);
+        SYNC_verbose << syncname << "Multiple names clash here.  Excluding this node from sync for now." << logTriplet(row, fullPath);
 
         if (row.syncNode)
         {
@@ -12551,9 +12567,9 @@ void Syncs::processSyncStalls()
                 }
             }
 
-            LOG_warn << mClient.clientname << "Stall detected!";
-            for (auto& p : stallReport.cloud) LOG_warn << "stalled node path (" << syncWaitReasonDebugString(p.second.reason) << "): " << p.first;
-            for (auto& p : stallReport.local) LOG_warn << "stalled local path (" << syncWaitReasonDebugString(p.second.reason) << "): " << p.first;
+            SYNCS_verbose << mClient.clientname << "Stall detected!";
+            for (auto& p : stallReport.cloud) SYNCS_verbose << "stalled node path (" << syncWaitReasonDebugString(p.second.reason) << "): " << p.first;
+            for (auto& p : stallReport.local) SYNCS_verbose << "stalled local path (" << syncWaitReasonDebugString(p.second.reason) << "): " << p.first;
         }
     }
 
