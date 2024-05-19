@@ -857,9 +857,9 @@ bool FileSystemAccess::islocalfscompatible(const int character, const FileSystem
     // Filesystem-specific policies.
     switch (type)
     {
-    case FS_APFS:
     case FS_HFS:
         return character != ':' && character != '/';
+    case FS_APFS:
     case FS_EXT:
     case FS_F2FS:
     case FS_XFS:
