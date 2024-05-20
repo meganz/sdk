@@ -6742,6 +6742,8 @@ bool SyncRow::isIgnoreFile() const
 
 bool SyncRow::isNoName() const
 {
+    // TODO: Notify the app about the presence os NoName nodes (the stall issue has been removed after SDK-3859)
+
     // Can't be a no-name triplet if we have clashing filesystem names.
     if (!fsClashingNames.empty())
         return false;
