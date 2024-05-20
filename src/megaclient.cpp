@@ -13377,8 +13377,8 @@ void MegaClient::getstorageinfo(std::function<void(const StorageInfo&, Error)> c
                              std::placeholders::_1,
                              std::placeholders::_2);
 
-        std::shared_ptr<AccountDetails> ad;
-        return reqs.add(new CommandGetUserQuota(this, ad,
+        return reqs.add(new CommandGetUserQuota(this,
+                                                std::make_shared<AccountDetails>(),
                                                 true  /* storage */,
                                                 false /* transfer */,
                                                 false /* pro */,
