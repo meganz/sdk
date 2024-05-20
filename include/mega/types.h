@@ -507,7 +507,7 @@ enum SyncError {
     TOO_MANY_ACTION_PACKETS = 25,           // Too many changes in account, local state discarded
     LOGGED_OUT = 26,                        // Logged out
     //WHOLE_ACCOUNT_REFETCHED = 27,         // obsolete. was: The whole account was reloaded, missed actionpacket changes could not have been applied
-    MISSING_PARENT_NODE = 28,               // Setting a new parent to a parent whose LocalNode is missing its corresponding Node crossref
+    //MISSING_PARENT_NODE = 28,             // obsolete. was: Setting a new parent to a parent whose LocalNode is missing its corresponding Node crossref
     BACKUP_MODIFIED = 29,                   // Backup has been externally modified.
     BACKUP_SOURCE_NOT_BELOW_DRIVE = 30,     // Backup source path not below drive path.
     SYNC_CONFIG_WRITE_FAILURE = 31,         // Unable to write sync config to disk.
