@@ -261,6 +261,16 @@ using namespace mega;
     return self;
 }
 
+- (instancetype)initWithAppKey:(NSString *)appKey userAgent:(NSString *)userAgent basePath:(NSString *)basePath clientType:(MEGAClientType)clientType {
+    self.megaApi = new MegaApi(appKey.UTF8String, basePath.UTF8String, userAgent.UTF8String, 1, (int)clientType);
+
+    if (pthread_mutex_init(&listenerMutex, NULL)) {
+        return nil;
+    }
+
+    return self;
+}
+
 - (void)deleteMegaApi {    
     delete _megaApi;
     _megaApi = nil;
@@ -1810,12 +1820,6 @@ using namespace mega;
 - (void)openShareDialog:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->openShareDialog(node.getCPtr, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
-    }
-}
-
-- (void)setShareSecureFlag:(BOOL)enable {
-    if (self.megaApi) {
-        self.megaApi->setSecureFlag(enable);
     }
 }
 
@@ -3816,13 +3820,7 @@ using namespace mega;
     }
 }
 
-- (void)setDeviceName:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate {
-    if (self.megaApi) {
-        self.megaApi->setDeviceName(name.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
-    }
-}
-
-- (void)renameDevice:(NSString *)deviceId newName:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate {
+- (void)renameDevice:(nullable NSString *)deviceId newName:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->setDeviceName(deviceId.UTF8String, name.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
     }

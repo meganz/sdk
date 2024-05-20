@@ -48,12 +48,15 @@ public:
         mNodeType = static_cast<nodetype_t>(f.byNodeType()); // get it as int
         mMimeCategory = static_cast<MimeType_t>(f.byCategory()); // get it as int
         mExcludeSensitive = f.bySensitivity();
+        mFavouriteFilterOption = f.byFavourite();
         mLocationHandles = {f.byLocationHandle(), UNDEF, UNDEF};
         mIncludedShares = includedShares;
         mCreationLowerLimit = f.byCreationTimeLowerLimit();
         mCreationUpperLimit = f.byCreationTimeUpperLimit();
         mModificationLowerLimit = f.byModificationTimeLowerLimit();
         mModificationUpperLimit = f.byModificationTimeUpperLimit();
+        mDescriptionFilter = f.byDescription();
+        mTagFilter = f.byTag();
     }
 
     void byAncestors(std::vector<handle>&& ancs) { assert(ancs.size() == 3); mLocationHandles.swap(ancs); }
@@ -63,6 +66,7 @@ public:
     nodetype_t byNodeType() const { return mNodeType; }
     void byNodeType(nodetype_t nodeType) { assert(nodeType >= nodetype_t::FILENODE && nodeType <= nodetype_t::FOLDERNODE); mNodeType = nodeType; };
     MimeType_t byCategory() const { return mMimeCategory; }
+    int byFavourite() const { return mFavouriteFilterOption; }
     bool bySensitivity() const { return mExcludeSensitive; }
     void bySensitivity(bool excludeSensitive) { mExcludeSensitive = excludeSensitive; }
 
@@ -80,11 +84,14 @@ public:
 
     int64_t byModificationTimeLowerLimit() const { return mModificationLowerLimit; }
     int64_t byModificationTimeUpperLimit() const { return mModificationUpperLimit; }
+    const std::string& byDescription() const { return mDescriptionFilter; }
+    const std::string& byTag() const { return mTagFilter; }
 
 private:
     std::string mNameFilter;
     nodetype_t mNodeType = TYPE_UNKNOWN;
     MimeType_t mMimeCategory = MIME_TYPE_UNKNOWN;
+    int mFavouriteFilterOption = 0;
     bool mExcludeSensitive = false;
     std::vector<handle> mLocationHandles {UNDEF, UNDEF, UNDEF}; // always contain 3 items
     ShareType_t mIncludedShares = NO_SHARES;
@@ -92,6 +99,8 @@ private:
     int64_t mCreationUpperLimit = 0;
     int64_t mModificationLowerLimit = 0;
     int64_t mModificationUpperLimit = 0;
+    std::string mDescriptionFilter;
+    std::string mTagFilter;
 };
 
 class NodeSearchPage

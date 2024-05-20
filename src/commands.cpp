@@ -1160,9 +1160,11 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
 
         if (!client->loggedIntoWritableFolder())
         {
+            assert(!nn[i].hasZeroKey()); // Add this assert here to avoid extra checks in production -> we will have a check and logs if this fails within CommandPutNode::procresult
             if (nn[i].nodekey.size() <= sizeof key)
             {
                 client->key.ecb_encrypt((byte*)nn[i].nodekey.data(), key, nn[i].nodekey.size());
+                assert(!SymmCipher::isZeroKey(key, FILENODEKEYLENGTH));
                 arg("k", key, int(nn[i].nodekey.size()));
             }
             else
@@ -1255,6 +1257,7 @@ bool CommandPutNodes::procresult(Result r, JSON& json)
         // If the first three nodes failed, the response would be e.g. [-9,-9,-9].  Success is []
         // If the second and third node failed, the response would change to {"1":-9,"2":-9}.
 
+        Error newNodeError(API_OK);
         unsigned arrayIndex = 0;
         for (;;)
         {
@@ -1274,7 +1277,14 @@ bool CommandPutNodes::procresult(Result r, JSON& json)
                 assert(arrayIndex < nn.size());
                 if (arrayIndex < nn.size())
                 {
-                    nn[arrayIndex++].mError = error(json.getint());
+                    nn[arrayIndex].mError = error(json.getint());
+                    if (nn[arrayIndex].mError != API_OK)
+                    {
+                        newNodeError = nn[arrayIndex].mError;
+                        LOG_debug << "[CommandPutNodes] New Node failed with " << newNodeError << " [newnode index = " << arrayIndex << ", NodeHandle = " << nn[arrayIndex].nodeHandle() << "]";
+                        assert(((nn[arrayIndex].mError != API_EKEY) || !nn[arrayIndex].hasZeroKey()) && "New Node which failed with API_EKEY has a zerokey!!!!");
+                    }
+                    arrayIndex++;
                 }
             }
             else
@@ -1322,7 +1332,8 @@ bool CommandPutNodes::procresult(Result r, JSON& json)
         shared_ptr<Node> tempNode = !nn.empty() ? client->nodebyhandle(nn.front().mAddedHandle) : nullptr;
         bool targetOverride = (tempNode.get() && NodeHandle().set6byte(tempNode->parenthandle) != targethandle);
 
-        performAppCallback(emptyResponse ? API_ENOENT : API_OK, nn, targetOverride);
+        performAppCallback(emptyResponse ? ((newNodeError != API_OK) ? static_cast<error>(newNodeError) : API_ENOENT) : // Add last new node error if there is any, otherwise API_ENOENT
+                                            API_OK, nn, targetOverride);
         return true;
     }
     else
@@ -1549,13 +1560,17 @@ bool CommandLogout::procresult(Result r, JSON& json)
     return true;
 }
 
-CommandPrelogin::CommandPrelogin(MegaClient* client, const char* email)
+CommandPrelogin::CommandPrelogin(MegaClient* client, Completion completion, const char* email)
+  : mCompletion(std::move(completion))
+  , email(email)
 {
+    // Sanity.
+    assert(mCompletion);
+
     cmd("us0");
     arg("user", email);
     batchSeparately = true;  // in case the account is blocked (we need to get a sid so we can issue whyamiblocked)
 
-    this->email = email;
     tag = client->reqtag;
 }
 
@@ -1563,7 +1578,7 @@ bool CommandPrelogin::procresult(Result r, JSON& json)
 {
     if (r.wasErrorOrOK())
     {
-        client->app->prelogin_result(0, NULL, NULL, r.errorOrOK());
+        mCompletion(0, NULL, NULL, r.errorOrOK());
         return true;
     }
 
@@ -1584,29 +1599,29 @@ bool CommandPrelogin::procresult(Result r, JSON& json)
                 if (v == 0)
                 {
                     LOG_err << "No version returned";
-                    client->app->prelogin_result(0, NULL, NULL, API_EINTERNAL);
+                    mCompletion(0, NULL, NULL, API_EINTERNAL);
                 }
                 else if (v > 2)
                 {
                     LOG_err << "Version of account not supported";
-                    client->app->prelogin_result(0, NULL, NULL, API_EINTERNAL);
+                    mCompletion(0, NULL, NULL, API_EINTERNAL);
                 }
                 else if (v == 2 && !salt.size())
                 {
                     LOG_err << "No salt returned";
-                    client->app->prelogin_result(0, NULL, NULL, API_EINTERNAL);
+                    mCompletion(0, NULL, NULL, API_EINTERNAL);
                 }
                 else
                 {
                     client->accountversion = v;
                     Base64::atob(salt, client->accountsalt);
-                    client->app->prelogin_result(v, &email, &salt, API_OK);
+                    mCompletion(v, &email, &salt, API_OK);
                 }
                 return true;
             default:
                 if (!json.storeobject())
                 {
-                    client->app->prelogin_result(0, NULL, NULL, API_EINTERNAL);
+                    mCompletion(0, NULL, NULL, API_EINTERNAL);
                     return false;
                 }
         }
@@ -1614,8 +1629,19 @@ bool CommandPrelogin::procresult(Result r, JSON& json)
 }
 
 // login request with user e-mail address and user hash
-CommandLogin::CommandLogin(MegaClient* client, const char* email, const byte *emailhash, int emailhashsize, const byte *sessionkey, int csessionversion, const char *pin)
+CommandLogin::CommandLogin(MegaClient* client,
+                           Completion completion,
+                           const char* email,
+                           const byte *emailhash,
+                           int emailhashsize,
+                           const byte *sessionkey,
+                           int csessionversion,
+                           const char *pin)
+  : mCompletion(std::move(completion))
 {
+    // Sanity.
+    assert(mCompletion);
+
     cmd("us");
     batchSeparately = true;  // in case the account is blocked (we need to get a sid so we can issue whyamiblocked)
 
@@ -1669,7 +1695,7 @@ bool CommandLogin::procresult(Result r, JSON& json)
 {
     if (r.wasErrorOrOK())
     {
-        client->loginResult(r.errorOrOK());
+        client->loginResult(std::move(mCompletion), r.errorOrOK());
         return true;
     }
 
@@ -1733,7 +1759,7 @@ bool CommandLogin::procresult(Result r, JSON& json)
                 {
                     if (ISUNDEF(me) || len_k != sizeof hash)
                     {
-                        client->loginResult(API_EINTERNAL);
+                        client->loginResult(std::move(mCompletion), API_EINTERNAL);
                         return true;
                     }
 
@@ -1760,7 +1786,7 @@ bool CommandLogin::procresult(Result r, JSON& json)
                 {
                     if (len_sek != SymmCipher::KEYLENGTH)
                     {
-                        client->loginResult(API_EINTERNAL);
+                        client->loginResult(std::move(mCompletion), API_EINTERNAL);
                         return true;
                     }
 
@@ -1784,7 +1810,7 @@ bool CommandLogin::procresult(Result r, JSON& json)
                     if (!client->checktsid(sidbuf, len_tsid))
                     {
                         LOG_warn << "Error checking tsid";
-                        client->loginResult(API_ENOENT);
+                        client->loginResult(std::move(mCompletion), API_ENOENT);
                         return true;
                     }
 
@@ -1799,7 +1825,7 @@ bool CommandLogin::procresult(Result r, JSON& json)
                     {
                         if (!checksession)
                         {
-                            client->loginResult(API_EINTERNAL);
+                            client->loginResult(std::move(mCompletion), API_EINTERNAL);
                             return true;
                         }
                         else if (!client->ephemeralSessionPlusPlus && !client->ephemeralSession)
@@ -1819,7 +1845,7 @@ bool CommandLogin::procresult(Result r, JSON& json)
                         if (!client->asymkey.setkey(AsymmCipher::PRIVKEY, privkbuf, len_privk))
                         {
                             LOG_warn << "Error checking private key";
-                            client->loginResult(API_ENOENT);
+                            client->loginResult(std::move(mCompletion), API_ENOENT);
                             return true;
                         }
                     }
@@ -1828,7 +1854,7 @@ bool CommandLogin::procresult(Result r, JSON& json)
                     {
                         if (len_csid < 32)
                         {
-                            client->loginResult(API_EINTERNAL);
+                            client->loginResult(std::move(mCompletion), API_EINTERNAL);
                             return true;
                         }
 
@@ -1840,7 +1866,7 @@ bool CommandLogin::procresult(Result r, JSON& json)
                                 || (Base64::atob((char*)sidbuf + SymmCipher::KEYLENGTH, buf, sizeof buf) != sizeof buf)
                                 || (me != MemAccess::get<handle>((const char*)buf)))
                         {
-                            client->loginResult(API_EINTERNAL);
+                            client->loginResult(std::move(mCompletion), API_EINTERNAL);
                             return true;
                         }
 
@@ -1859,12 +1885,16 @@ bool CommandLogin::procresult(Result r, JSON& json)
                     client->sessionkey.assign((const char *)sek, sizeof(sek));
                 }
 
+                // Initialize FUSE subsystem.
+                client->mFuseClientAdapter.initialize();
+                client->mFuseService.initialize();
+
                 client->openStatusTable(true);
                 client->loadJourneyIdCacheValues();
 
                 { // scope for local variable
                     MegaClient* cl = client; // make a copy, because 'this' will be gone by the time lambda will execute
-                    client->loginResult(API_OK, [cl]()
+                    client->loginResult(std::move(mCompletion), API_OK, [cl]()
                         {
                             cl->getaccountdetails(std::make_shared<AccountDetails>(), false, false, true, false, false, false);
                         }
@@ -1876,48 +1906,11 @@ bool CommandLogin::procresult(Result r, JSON& json)
             default:
                 if (!json.storeobject())
                 {
-                    client->loginResult(API_EINTERNAL);
+                    client->loginResult(std::move(mCompletion), API_EINTERNAL);
                     return false;
                 }
         }
     }
-}
-
-CommandShareKeyUpdate::CommandShareKeyUpdate(MegaClient*, handle sh, const char* uid, const byte* key, int len)
-{
-    cmd("k");
-    beginarray("sr");
-
-    element(sh, MegaClient::NODEHANDLE);
-    element(uid);
-    element(key, len);
-
-    endarray();
-}
-
-CommandShareKeyUpdate::CommandShareKeyUpdate(MegaClient* client, handle_vector* v)
-{
-    shared_ptr<Node> n;
-    byte sharekey[SymmCipher::KEYLENGTH];
-
-    cmd("k");
-    beginarray("sr");
-
-    for (size_t i = v->size(); i--;)
-    {
-        handle h = (*v)[i];
-
-        if ((n = client->nodebyhandle(h)) && n->sharekey)
-        {
-            client->key.ecb_encrypt(n->sharekey->key, sharekey, SymmCipher::KEYLENGTH);
-
-            element(h, MegaClient::NODEHANDLE);
-            element(client->me, MegaClient::USERHANDLE);
-            element(sharekey, SymmCipher::KEYLENGTH);
-        }
-    }
-
-    endarray();
 }
 
 // add/remove share; include node share keys if new share
@@ -1925,8 +1918,6 @@ CommandSetShare::CommandSetShare(MegaClient* client, std::shared_ptr<Node> n, Us
 {
     byte auth[SymmCipher::BLOCKSIZE];
     byte key[SymmCipher::KEYLENGTH];
-    byte asymmkey[AsymmCipher::MAXKEYLENGTH];
-    int t = 0;
 
     tag = ctag;
 
@@ -1956,34 +1947,11 @@ CommandSetShare::CommandSetShare(MegaClient* client, std::shared_ptr<Node> n, Us
 
     if (a != ACCESS_UNKNOWN)
     {
-        if (!client->mKeyManager.isSecure() && !client->mKeyManager.isShareKeyTrusted(n->nodehandle))
-        {
-            // securely store/transmit share key
-            // by creating a symmetrically (for the sharer) and an asymmetrically
-            // (for the sharee) encrypted version
-            memcpy(key, n->sharekey->key, sizeof key);
-            memcpy(asymmkey, key, sizeof key);
-
-            client->key.ecb_encrypt(key);
-            arg("ok", key, sizeof key);
-
-            if (u && u->pubk.isvalid())
-            {
-                t = u->pubk.encrypt(client->rng, asymmkey, SymmCipher::KEYLENGTH, asymmkey, sizeof asymmkey);
-            }
-
-            // outgoing handle authentication
-            client->handleauth(sh, auth);
-            arg("ha", auth, sizeof auth);
-        }
-        else
-        {
-            // TODO: dummy key/handleauth - FIXME: remove when the server allows it
-            memset(key, 0, sizeof key);
-            memset(auth, 0, sizeof auth);
-            arg("ok", key, sizeof key);
-            arg("ha", auth, sizeof auth);
-        }
+        // TODO: dummy key/handleauth - FIXME: remove when the server allows it
+        memset(key, 0, sizeof key);
+        memset(auth, 0, sizeof auth);
+        arg("ok", key, sizeof key);
+        arg("ha", auth, sizeof auth);
     }
 
     beginarray("s");
@@ -1996,11 +1964,6 @@ CommandSetShare::CommandSetShare(MegaClient* client, std::shared_ptr<Node> n, Us
     if (a != ACCESS_UNKNOWN)
     {
         arg("r", a);
-
-        if (!client->mKeyManager.isSecure() && u && u->pubk.isvalid() && t)
-        {
-            arg("k", asymmkey, t);
-        }
     }
 
     endobject();
@@ -2485,7 +2448,7 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                         return false;
                     }
 
-                    currencyData = mega::make_unique<CurrencyData>();
+                    currencyData = std::make_unique<CurrencyData>();
                     readingL = true;
 
                     while (!finished)
@@ -2588,7 +2551,7 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                         return false;
                     }
 
-                    bizPlan = mega::make_unique<BusinessPlan>();
+                    bizPlan = std::make_unique<BusinessPlan>();
 
                     bool readingBd = true;
                     while (readingBd)
@@ -3711,7 +3674,13 @@ bool CommandDelUA::procresult(Result r, JSON& json)
     return true;
 }
 
-CommandSendDevCommand::CommandSendDevCommand(MegaClient *client, const char *command, const char *email, long long q, int bs, int us)
+CommandSendDevCommand::CommandSendDevCommand(MegaClient* client,
+                                             const char* command,
+                                             const char* email,
+                                             long long q,
+                                             int bs,
+                                             int us,
+                                             const char* cp)
 {
     cmd("dev");
 
@@ -3732,6 +3701,13 @@ CommandSendDevCommand::CommandSendDevCommand(MegaClient *client, const char *com
     else if ((strcmp(command, "us") == 0))
     {
         arg("s", us);
+    }
+    else if ((strcmp(command, "abs") == 0))
+    {
+        assert(cp);
+
+        if (cp) arg("c", cp);
+        arg("g", us);
     }
     tag = client->reqtag;
 }
@@ -3793,6 +3769,7 @@ CommandNodeKeyUpdate::CommandNodeKeyUpdate(MegaClient* client, handle_vector* v)
         if ((n = client->nodebyhandle(h)))
         {
             client->key.ecb_encrypt((byte*)n->nodekey().data(), nodekey, n->nodekey().size());
+            assert(!n->hasZeroKey());
 
             element(h, MegaClient::NODEHANDLE);
             element(nodekey, int(n->nodekey().size()));
@@ -5115,13 +5092,10 @@ bool CommandABTestActive::procresult(Result r, JSON&)
     return r.wasErrorOrOK();
 }
 
-CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, std::shared_ptr<AccountDetails> ad, bool storage, bool transfer, bool pro, int source)
-{
-    details = ad;
-    mStorage = storage;
-    mTransfer = transfer;
-    mPro = pro;
 
+CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, std::shared_ptr<AccountDetails> ad, bool storage, bool transfer, bool pro, int source, std::function<void(std::shared_ptr<AccountDetails>, Error)> completion)
+  : details(ad), mStorage(storage), mTransfer(transfer), mPro(pro), mCompletion(std::move(completion))
+{
     cmd("uq");
     if (storage)
     {
@@ -5155,6 +5129,10 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
     if (r.wasErrorOrOK())
     {
         client->app->account_details(details.get(), r.errorOrOK());
+        if(mCompletion)
+        {
+            mCompletion(details, r.errorOrOK());
+        }
         return true;
     }
 
@@ -5456,12 +5434,20 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
                 }
 
                 client->app->account_details(details.get(), mStorage, mTransfer, mPro, false, false, false);
+                if(mCompletion)
+                {
+                    mCompletion(details, API_OK);
+                }
                 return true;
 
             default:
                 if (!json.storeobject())
                 {
                     client->app->account_details(details.get(), API_EINTERNAL);
+                    if(mCompletion)
+                    {
+                        mCompletion(details, API_EINTERNAL);
+                    }
                     return false;
                 }
         }
@@ -10798,49 +10784,61 @@ bool CommandFetchAds::procresult(Command::Result r, JSON& json)
     }
 
     bool error = false;
-
-    while (json.enterobject() && !error)
+    for (auto adUnit = std::begin(mAdUnits); adUnit != std::end(mAdUnits) && !error; ++adUnit)
     {
-        std::string id;
-        std::string iu;
-        bool exit = false;
-        while (!exit)
+        if (json.isnumeric())
         {
-            switch (json.getnameid())
-            {
-                case MAKENAMEID2('i', 'd'):
-                    json.storeobject(&id);
-                    break;
-
-                case MAKENAMEID3('s', 'r', 'c'):
-                    json.storeobject(&iu);
-                    break;
-
-                case EOO:
-                    exit = true;
-                    if (!id.empty() && !iu.empty())
-                    {
-                        result[id] = iu;
-                    }
-                    else
-                    {
-                        error = true;
-                        result.clear();
-                    }
-                    break;
-
-                default:
-                    if (!json.storeobject())
-                    {
-                        result.clear();
-                        mCompletion(API_EINTERNAL, result);
-                        return false;
-                    }
-                    break;
-            }
+            // -9 or any other error for the provided ad unit (error results order must match)
+            result[*adUnit] = std::to_string(json.getint());
         }
+        else if (json.enterobject())
+        {
+            std::string id;
+            std::string iu;
+            bool exit = false;
+            while (!exit)
+            {
+                switch (json.getnameid())
+                {
+                    case MAKENAMEID2('i', 'd'):
+                        json.storeobject(&id);
+                        break;
 
-        json.leaveobject();
+                    case MAKENAMEID3('s', 'r', 'c'):
+                        json.storeobject(&iu);
+                        break;
+
+                    case EOO:
+                        exit = true;
+                        if (!id.empty() && !iu.empty())
+                        {
+                            assert(id == *adUnit);
+                            result[id] = iu;
+                        }
+                        else
+                        {
+                            error = true;
+                            result.clear();
+                        }
+                        break;
+
+                    default:
+                        if (!json.storeobject())
+                        {
+                            result.clear();
+                            mCompletion(API_EINTERNAL, result);
+                            return false;
+                        }
+                        break;
+                }
+            }
+            json.leaveobject();
+        }
+        else
+        {
+            result.clear();
+            error = true;
+        }
     }
 
     mCompletion((error ? API_EINTERNAL : API_OK), result);
@@ -10849,7 +10847,7 @@ bool CommandFetchAds::procresult(Command::Result r, JSON& json)
 }
 
 CommandFetchAds::CommandFetchAds(MegaClient* client, int adFlags, const std::vector<std::string> &adUnits, handle publicHandle, CommandFetchAdsCompletion completion)
-    : mCompletion(completion)
+    : mCompletion(completion), mAdUnits(adUnits)
 {
     cmd("adf");
     arg("ad", adFlags);
@@ -11319,7 +11317,7 @@ bool CommandCreatePasswordManagerBase::procresult(Result r, JSON &json)
             json.storeobject(&key);
             break;
         case 'a':
-            attrString = make_unique<std::string>();
+            attrString = std::make_unique<std::string>();
             json.storeobject(attrString.get());
             break;
         case 't':
@@ -11539,5 +11537,7 @@ bool CommandGetNotifications::readCallToAction(JSON& json, map<string, string>& 
 
     return json.leaveobject();
 }
+
+
 
 } // namespace

@@ -224,8 +224,8 @@ TEST(MegaApi, MegaApiImpl_calcRecommendedProLevel)
     MegaPricingPrivate pricing;
     std::function<void(int, int, int)> addTestProducts = [&](int proLevel, int gb, int pricedollars)
     {
-        pricing.addProduct(1000, 1000000, proLevel, gb, gb == -1 ? -1 : gb * 10, 1, pricedollars, 10, 100, "monthly", "ios id", "android id", ::mega::make_unique<BusinessPlan>());
-        pricing.addProduct(1000, 1000000, proLevel, gb, gb == -1 ? -1 : gb * 10, 12, pricedollars*12, 10, 100, "yearly", "ios id", "android id", ::mega::make_unique<BusinessPlan>());
+        pricing.addProduct(1000, 1000000, proLevel, gb, gb == -1 ? -1 : gb * 10, 1, pricedollars, 10, 100, "monthly", "ios id", "android id", std::make_unique<BusinessPlan>());
+        pricing.addProduct(1000, 1000000, proLevel, gb, gb == -1 ? -1 : gb * 10, 12, pricedollars*12, 10, 100, "yearly", "ios id", "android id", std::make_unique<BusinessPlan>());
     };
     addTestProducts(MegaAccountDetails::ACCOUNT_TYPE_LITE, 400, 499);
     addTestProducts(MegaAccountDetails::ACCOUNT_TYPE_PROI, 2048, 999);
@@ -233,6 +233,11 @@ TEST(MegaApi, MegaApiImpl_calcRecommendedProLevel)
     addTestProducts(MegaAccountDetails::ACCOUNT_TYPE_PROIII, 16384, 2999);
     addTestProducts(MegaAccountDetails::ACCOUNT_TYPE_BUSINESS, -1, 0);
     addTestProducts(MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI, -1, 0);
+    pricing.addProduct(1000, 1000000, MegaAccountDetails::ACCOUNT_TYPE_STARTER, 50, 50, 1, 1, 10, 100, "monthly", "ios id", "android id", std::make_unique<BusinessPlan>()); // only monthly
+    pricing.addProduct(1000, 1000000, MegaAccountDetails::ACCOUNT_TYPE_BASIC, 100, 100, 1, 2, 10, 100, "monthly", "ios id", "android id", std::make_unique<BusinessPlan>());
+    pricing.addProduct(1000, 1000000, MegaAccountDetails::ACCOUNT_TYPE_BASIC, 100, 100 * 12, 12, 2 * 12, 10, 100, "yearly", "ios id", "android id", std::make_unique<BusinessPlan>());
+    pricing.addProduct(1000, 1000000, MegaAccountDetails::ACCOUNT_TYPE_ESSENTIAL, 200, 200, 1, 3, 10, 100, "monthly", "ios id", "android id", std::make_unique<BusinessPlan>());
+    pricing.addProduct(1000, 1000000, MegaAccountDetails::ACCOUNT_TYPE_ESSENTIAL, 200, 200 * 12, 12, 3 * 12, 10, 100, "yearly", "ios id", "android id", std::make_unique<BusinessPlan>());
 
     std::function<int(int, int)> test = [&](int level, int gb)
     {
@@ -243,44 +248,100 @@ TEST(MegaApi, MegaApiImpl_calcRecommendedProLevel)
         return MegaApiImpl::calcRecommendedProLevel(pricing, *details.get());
     };
 
-    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_FREE, 80), MegaAccountDetails::ACCOUNT_TYPE_LITE);
-    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_LITE, 80), MegaAccountDetails::ACCOUNT_TYPE_PROI);
-    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PROI, 80), MegaAccountDetails::ACCOUNT_TYPE_PROII);
-    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PROII, 80), MegaAccountDetails::ACCOUNT_TYPE_PROIII);
-    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PROIII, 80), MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI);
-    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_BUSINESS, 80), MegaAccountDetails::ACCOUNT_TYPE_BUSINESS);
-    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI, 80), MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI);
+    int gb = 30;
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_FREE, gb), MegaAccountDetails::ACCOUNT_TYPE_STARTER);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_STARTER, gb), MegaAccountDetails::ACCOUNT_TYPE_BASIC);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_BASIC, gb), MegaAccountDetails::ACCOUNT_TYPE_ESSENTIAL);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_ESSENTIAL, gb), MegaAccountDetails::ACCOUNT_TYPE_LITE);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_LITE, gb), MegaAccountDetails::ACCOUNT_TYPE_PROI);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PROI, gb), MegaAccountDetails::ACCOUNT_TYPE_PROII);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PROII, gb), MegaAccountDetails::ACCOUNT_TYPE_PROIII);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PROIII, gb), MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_BUSINESS, gb), MegaAccountDetails::ACCOUNT_TYPE_BUSINESS);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI, gb), MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI);
 
-    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_FREE, 500), MegaAccountDetails::ACCOUNT_TYPE_PROI);
-    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_LITE, 500), MegaAccountDetails::ACCOUNT_TYPE_PROI);
-    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PROI, 500), MegaAccountDetails::ACCOUNT_TYPE_PROII);
-    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PROII, 500), MegaAccountDetails::ACCOUNT_TYPE_PROIII);
-    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PROIII, 500), MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI);
-    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_BUSINESS, 500), MegaAccountDetails::ACCOUNT_TYPE_BUSINESS);
-    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI, 500), MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI);
+    gb = 80;
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_FREE, gb), MegaAccountDetails::ACCOUNT_TYPE_BASIC);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_STARTER, gb), MegaAccountDetails::ACCOUNT_TYPE_BASIC);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_BASIC, gb), MegaAccountDetails::ACCOUNT_TYPE_ESSENTIAL);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_ESSENTIAL, gb), MegaAccountDetails::ACCOUNT_TYPE_LITE);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_LITE, gb), MegaAccountDetails::ACCOUNT_TYPE_PROI);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PROI, gb), MegaAccountDetails::ACCOUNT_TYPE_PROII);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PROII, gb), MegaAccountDetails::ACCOUNT_TYPE_PROIII);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PROIII, gb), MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_BUSINESS, gb), MegaAccountDetails::ACCOUNT_TYPE_BUSINESS);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI, gb), MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI);
 
-    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_FREE, 5000), MegaAccountDetails::ACCOUNT_TYPE_PROII);
-    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_LITE, 5000), MegaAccountDetails::ACCOUNT_TYPE_PROII);
-    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PROI, 5000), MegaAccountDetails::ACCOUNT_TYPE_PROII);
-    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PROII, 5000), MegaAccountDetails::ACCOUNT_TYPE_PROIII);
-    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PROIII, 5000), MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI);
-    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_BUSINESS, 5000), MegaAccountDetails::ACCOUNT_TYPE_BUSINESS);
-    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI, 5000), MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI);
+    gb = 120;
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_FREE, gb), MegaAccountDetails::ACCOUNT_TYPE_ESSENTIAL);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_STARTER, gb), MegaAccountDetails::ACCOUNT_TYPE_ESSENTIAL);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_BASIC, gb), MegaAccountDetails::ACCOUNT_TYPE_ESSENTIAL);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_ESSENTIAL, gb), MegaAccountDetails::ACCOUNT_TYPE_LITE);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_LITE, gb), MegaAccountDetails::ACCOUNT_TYPE_PROI);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PROI, gb), MegaAccountDetails::ACCOUNT_TYPE_PROII);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PROII, gb), MegaAccountDetails::ACCOUNT_TYPE_PROIII);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PROIII, gb), MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_BUSINESS, gb), MegaAccountDetails::ACCOUNT_TYPE_BUSINESS);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI, gb), MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI);
 
-    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_FREE, 10000), MegaAccountDetails::ACCOUNT_TYPE_PROIII);
-    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_LITE, 10000), MegaAccountDetails::ACCOUNT_TYPE_PROIII);
-    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PROI, 10000), MegaAccountDetails::ACCOUNT_TYPE_PROIII);
-    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PROII, 10000), MegaAccountDetails::ACCOUNT_TYPE_PROIII);
-    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PROIII, 10000), MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI);
-    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_BUSINESS, 10000), MegaAccountDetails::ACCOUNT_TYPE_BUSINESS);
-    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI, 10000), MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI);
+    gb = 300;
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_FREE, gb), MegaAccountDetails::ACCOUNT_TYPE_LITE);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_STARTER, gb), MegaAccountDetails::ACCOUNT_TYPE_LITE);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_BASIC, gb), MegaAccountDetails::ACCOUNT_TYPE_LITE);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_ESSENTIAL, gb), MegaAccountDetails::ACCOUNT_TYPE_LITE);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_LITE, gb), MegaAccountDetails::ACCOUNT_TYPE_PROI);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PROI, gb), MegaAccountDetails::ACCOUNT_TYPE_PROII);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PROII, gb), MegaAccountDetails::ACCOUNT_TYPE_PROIII);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PROIII, gb), MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_BUSINESS, gb), MegaAccountDetails::ACCOUNT_TYPE_BUSINESS);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI, gb), MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI);
+
+    gb = 500;
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_FREE, gb), MegaAccountDetails::ACCOUNT_TYPE_PROI);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_STARTER, gb), MegaAccountDetails::ACCOUNT_TYPE_PROI);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_BASIC, gb), MegaAccountDetails::ACCOUNT_TYPE_PROI);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_ESSENTIAL, gb), MegaAccountDetails::ACCOUNT_TYPE_PROI);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_LITE, gb), MegaAccountDetails::ACCOUNT_TYPE_PROI);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PROI, gb), MegaAccountDetails::ACCOUNT_TYPE_PROII);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PROII, gb), MegaAccountDetails::ACCOUNT_TYPE_PROIII);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PROIII, gb), MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_BUSINESS, gb), MegaAccountDetails::ACCOUNT_TYPE_BUSINESS);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI, gb), MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI);
+
+    gb = 5000;
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_FREE, gb), MegaAccountDetails::ACCOUNT_TYPE_PROII);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_STARTER, gb), MegaAccountDetails::ACCOUNT_TYPE_PROII);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_BASIC, gb), MegaAccountDetails::ACCOUNT_TYPE_PROII);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_ESSENTIAL, gb), MegaAccountDetails::ACCOUNT_TYPE_PROII);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_LITE, gb), MegaAccountDetails::ACCOUNT_TYPE_PROII);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PROI, gb), MegaAccountDetails::ACCOUNT_TYPE_PROII);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PROII, gb), MegaAccountDetails::ACCOUNT_TYPE_PROIII);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PROIII, gb), MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_BUSINESS, gb), MegaAccountDetails::ACCOUNT_TYPE_BUSINESS);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI, gb), MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI);
+
+    gb = 10000;
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_FREE, gb), MegaAccountDetails::ACCOUNT_TYPE_PROIII);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_STARTER, gb), MegaAccountDetails::ACCOUNT_TYPE_PROIII);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_BASIC, gb), MegaAccountDetails::ACCOUNT_TYPE_PROIII);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_ESSENTIAL, gb), MegaAccountDetails::ACCOUNT_TYPE_PROIII);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_LITE, gb), MegaAccountDetails::ACCOUNT_TYPE_PROIII);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PROI, gb), MegaAccountDetails::ACCOUNT_TYPE_PROIII);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PROII, gb), MegaAccountDetails::ACCOUNT_TYPE_PROIII);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PROIII, gb), MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_BUSINESS, gb), MegaAccountDetails::ACCOUNT_TYPE_BUSINESS);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI, gb), MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI);
 
     // too large - nothing found
-    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_FREE, 20000), MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI);
-    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_LITE, 20000), MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI);
-    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PROI, 20000), MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI);
-    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PROII, 20000), MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI);
-    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PROIII, 20000), MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI);
-    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_BUSINESS, 20000), MegaAccountDetails::ACCOUNT_TYPE_BUSINESS);
-    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI, 20000), MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI);
+    gb = 20000;
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_FREE, gb), MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_STARTER, gb), MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_BASIC, gb), MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_ESSENTIAL, gb), MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_LITE, gb), MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PROI, gb), MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PROII, gb), MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PROIII, gb), MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_BUSINESS, gb), MegaAccountDetails::ACCOUNT_TYPE_BUSINESS);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI, gb), MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI);
 }

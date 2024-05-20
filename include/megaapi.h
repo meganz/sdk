@@ -94,6 +94,12 @@ class MegaIntegerMap;
 class MegaIntegerList;
 class MegaSyncStall;
 class MegaSyncStallList;
+class MegaFuseExecutorFlags;
+class MegaFuseFlags;
+class MegaFuseInodeCacheFlags;
+class MegaMount;
+class MegaMountFlags;
+class MegaMountList;
 class MegaVpnCredentials;
 class MegaNodeTree;
 class MegaCompleteUploadData;
@@ -101,10 +107,8 @@ class MegaNotificationList;
 
 #if defined(SWIG)
     #define MEGA_DEPRECATED
-#elif defined(WIN32)
-    #define MEGA_DEPRECATED [[deprecated]]
 #else
-    #define MEGA_DEPRECATED
+    #define MEGA_DEPRECATED [[deprecated]]
 #endif
 
 /**
@@ -273,12 +277,12 @@ public:
     /**
     * @brief Create a graphics processor that implemented and run in an isolated process.
     *
-    * Note: Currently, only Windows is supported.
+    * Note: Windows, Linux, macOS are supported.
     *
-    * @param pipeName The unique named pipe's name used for communicating with the isolated process.
+    * @param endpointName The unique name used for communicating with the isolated process.
     * @param executable The executable path.
     */
-    static MegaGfxProvider* createIsolatedInstance(const char* pipeName,
+    static MegaGfxProvider* createIsolatedInstance(const char* endpointName,
                                                    const char* executable);
 
     /**
@@ -522,6 +526,8 @@ class MegaNode
             CHANGE_TYPE_COUNTER         = 0x2000,
             CHANGE_TYPE_SENSITIVE       = 0x4000,
             CHANGE_TYPE_PWD             = 0x8000,
+            CHANGE_TYPE_DESCRIPTION     = 0x10000,
+            CHANGE_TYPE_TAGS            = 0x20000,
         };
 
         /**
@@ -814,6 +820,29 @@ class MegaNode
         virtual double getLongitude();
 
         /**
+         * @brief Get the attribute of the node representing the description
+         *
+         * The purpose of this attribute is to store the node description.
+         *
+         * The MegaNode object retains the ownership of the returned string. It will be valid until
+         * the MegaNode object is deleted.
+         *
+         * @return Node description
+         */
+        virtual const char* getDescription();
+
+        /**
+         * @brief Get a list of tags from a node
+         *
+         * These tags are stored as a node attribute
+         *
+         * You take the ownership of the returned value.
+         *
+         * @return List of tags from the node
+         */
+        virtual MegaStringList* getTags();
+
+        /**
          * @brief Returns the handle of this MegaNode in a Base64-encoded string
          *
          * You take the ownership of the returned string.
@@ -1018,6 +1047,12 @@ class MegaNode
          * - MegaNode::CHANGE_TYPE_PWD             = 0x8000
          * Check if any Password Node Data value for this node changed
          *
+         * - MegaNode::CHANGE_TYPE_DESCRIPTION     = 0x10000
+         * Check if description for this node has changed
+         *
+         * - MegaNode::CHANGE_TYPE_TAGS            = 0x20000
+         * Check if tags for this node have changed
+         *
          * @return true if this node has an specific change
          */
         virtual bool hasChanged(uint64_t changeType);
@@ -1074,6 +1109,12 @@ class MegaNode
          *
          * - MegaNode::CHANGE_TYPE_PWD             = 0x8000
          * Check if any Password Node Data value for this node changed
+         *
+         * - MegaNode::CHANGE_TYPE_DESCRIPTION     = 0x10000
+         * Check if description for this node has changed
+         *
+         * - MegaNode::CHANGE_TYPE_TAGS            = 0x20000
+         * Check if tags for this node have changed
          *
          */
         virtual uint64_t getChanges();
@@ -4476,7 +4517,13 @@ class MegaRequest
             TYPE_CREATE_PASSWORD_NODE                                       = 183,
             TYPE_UPDATE_PASSWORD_NODE                                       = 184,
             TYPE_GET_NOTIFICATIONS                                          = 185,
-            TOTAL_OF_REQUEST_TYPES                                          = 186,
+            TYPE_TAG_NODE                                                   = 186,
+            TYPE_ADD_MOUNT                                                  = 187,
+            TYPE_DISABLE_MOUNT                                              = 188,
+            TYPE_ENABLE_MOUNT                                               = 189,
+            TYPE_REMOVE_MOUNT                                               = 190,
+            TYPE_SET_MOUNT_FLAGS                                            = 191,
+            TOTAL_OF_REQUEST_TYPES                                          = 192,
         };
 
         virtual ~MegaRequest();
@@ -6779,6 +6826,7 @@ public:
         FILESYSTEM_FILE_IDS_ARE_UNSTABLE = 45,  // On MAC in particular, the FSID of a file in an exFAT drive can and does change spontaneously and frequently
         FILESYSTEM_ID_UNAVAILABLE = 46,         // Could not get the filesystem's id
         UNABLE_TO_RETRIEVE_DEVICE_ID = 47,      // Unable to retrieve the ID of current device
+        LOCAL_PATH_MOUNTED = 48,                // The local path is a FUSE mount.
     };
 
     enum Warning
@@ -7649,6 +7697,23 @@ public:
 		 * @return Error code, an Errors enum, associated with this MegaError
 		 */
         virtual int getErrorCode() const;
+
+        /**
+         * @brief
+         * Retrieve the result of the last mount operation.
+         *
+         * @return
+         * An element of the MegaMount::Result enumeration.
+         *
+         * @note
+         * This member is only relevant for the following request types:
+         * - TYPE_ADD_MOUNT
+         * - TYPE_DISABLE_MOUNT
+         * - TYPE_ENABLE_MOUNT
+         * - TYPE_REMOVE_MOUNT
+         * - TYPE_SET_MOUNT_FLAGS
+         */
+        virtual int getMountResult() const;
 
         /**
          * @brief Returns the sync error associated with this MegaError
@@ -9167,6 +9232,81 @@ class MegaListener
         virtual void onEvent(MegaApi* api, MegaEvent *event);
 
         virtual ~MegaListener();
+
+        /**
+         * @brief
+         * Called when a mount is being added to the database.
+         *
+         * @param api
+         * The API instance where the mount is being added.
+         *
+         * @param path
+         * A path identifying the mount that was added.
+         *
+         * @param result
+         * An element of the MegaMount::Result enumeration.
+         */
+        virtual void onMountAdded(MegaApi* api, const char* path, int result);
+
+        /**
+         * @brief
+         * Called when a mount's flags are being changed.
+         *
+         * @param api
+         * The API instance where the mount is being added.
+         *
+         * @param path
+         * A path identifying the mount that has changed.
+         *
+         * @param result
+         * An element of the MegaMount::Result enumeration.
+         */
+        virtual void onMountChanged(MegaApi* api, const char* path, int result);
+
+        /**
+         * @brief
+         * Called when a mount is being disabled.
+         *
+         * @param api
+         * The API instance where the mount is being added.
+         *
+         * @param path
+         * A path identifying the mount that has been disabled.
+         *
+         * @param result
+         * An element of the MegaMount::Result enumeration.
+         */
+        virtual void onMountDisabled(MegaApi* api, const char* path, int result);
+
+        /**
+         * @brief
+         * Called when a mount is being enabled.
+         *
+         * @param api
+         * The API instance where the mount is being enabled.
+         *
+         * @param path
+         * A path identifying the mount that has been enabled.
+         *
+         * @param result
+         * An element of the MegaMount::Result enumeration.
+         */
+        virtual void onMountEnabled(MegaApi* api, const char* path, int result);
+
+        /**
+         * @brief
+         * Called when a mount is being removed from the database.
+         *
+         * @param api
+         * The API instance where the mount is being removed.
+         *
+         * @param path
+         * A path identifying the mount that has been removed.
+         *
+         * @param result
+         * An element of the MegaMount::Result enumeration.
+         */
+        virtual void onMountRemoved(MegaApi* api, const char* path, int result);
 };
 
 /**
@@ -9342,6 +9482,14 @@ protected:
     MegaSearchFilter();
 
 public:
+    // A helper enum for filtering boolean fields
+    enum
+    {
+        BOOL_FILTER_DISABLED = 0,
+        BOOL_FILTER_ONLY_TRUE,
+        BOOL_FILTER_ONLY_FALSE,
+    };
+
     /**
      * @brief Creates a new instance of MegaSearchFilter
      * @return A pointer of current type, a superclass of the private object
@@ -9406,6 +9554,18 @@ public:
     virtual void byCategory(int mimeType);
 
     /**
+     * @brief Set option for filtering out non favourite nodes.
+     * If not set, it will behave as if BOOL_FILTER_DISABLED was used.
+     *
+     * @param boolFilterOption Kind of boolean filter to apply.
+     * Valid values for this parameter are (invalid values will be ignored):
+     * - MegaSearchFilter::BOOL_FILTER_DISABLED = 0 --> Both favourites and non favourites are considered
+     * - MegaSearchFilter::BOOL_FILTER_ONLY_TRUE = 1 --> Only favourites
+     * - MegaSearchFilter::BOOL_FILTER_ONLY_FALSE = 2 --> Only non favourites
+     */
+    virtual void byFavourite(int boolFilterOption);
+
+    /**
      * @brief Set option for filtering out sensitive nodes.
      * If not set, sensitive nodes will also be considered in searches.
      *
@@ -9466,6 +9626,23 @@ public:
     virtual void byModificationTime(int64_t lowerLimit, int64_t upperLimit);
 
     /**
+     * @brief Set option for filtering by contains in description.
+     *
+     * @param searchString Contains string to be searched at nodes description
+     */
+    virtual void byDescription(const char* searchString);
+
+    /**
+     * @brief Set option for filtering by tag
+     *
+     * @note ',' is an invalid character, it shouldn't be used as part of searchString. If used,
+     * empty list will be returned
+     *
+     * @param searchString Contains string to be searched at nodes tags
+     */
+    virtual void byTag(const char* searchString);
+
+    /**
      * @brief Return the string used for filtering by name.
      *
      * @return string set for filtering by name, or empty string ("") if not set
@@ -9485,6 +9662,13 @@ public:
      * @return predefined category set for filtering, or FILE_TYPE_DEFAULT if not set
      */
     virtual int byCategory() const;
+
+    /**
+     * @brief Return the option for filtering out non favourite nodes.
+     *
+     * @return option set for filtering out favourite nodes, or BOOL_FILTER_DISABLED if not set
+     */
+    virtual int byFavourite() const;
 
     /**
      * @brief Return the option for filtering out sensitive nodes.
@@ -9534,6 +9718,20 @@ public:
      * @return upper limit modification timestamp set for restricting node search to, or 0 if not set
      */
     virtual int64_t byModificationTimeUpperLimit() const;
+
+    /**
+     * @brief Return the string used for filtering by description.
+     *
+     * @return string set for filtering by description, or empty string ("") if not set
+     */
+    virtual const char* byDescription() const;
+
+    /**
+     * @brief Return the string used for filtering by tag.
+     *
+     * @return string set for filtering by tag, or empty string ("") if not set
+     */
+    virtual const char* byTag() const;
 };
 
 /**
@@ -9593,10 +9791,10 @@ protected:
 
 public:
     virtual ~MegaNodeTree() = default;
-    static MegaNodeTree* createInstance(MegaNodeTree* nodeTreeChild,                      // takes ownership !
-                                        const char* name,                                 // ownership left with the caller
-                                        const char* s4AttributeValue,                     // ownership left with the caller
-                                        const MegaCompleteUploadData* completeUploadData, // takes ownership !
+    static MegaNodeTree* createInstance(const MegaNodeTree* nodeTreeChild,
+                                        const char* name,
+                                        const char* s4AttributeValue,
+                                        const MegaCompleteUploadData* completeUploadData,
                                         MegaHandle sourceHandle = INVALID_HANDLE);
     virtual MegaNodeTree* getNodeTreeChild() const = 0;
     virtual MegaHandle getNodeHandle() const = 0;
@@ -9614,6 +9812,41 @@ public:
                                                   const char* string64UploadToken,
                                                   const char* string64FileKey);
     virtual MegaCompleteUploadData* copy() const = 0;
+};
+
+/**
+ * @brief Store information of an A/B Test or a Feature flag
+ *
+ * @see MegaApi::getFlag.
+ */
+class MegaFlag
+{
+public:
+    virtual ~MegaFlag() = default;
+
+    /**
+     * @brief Possible flag types.
+     */
+    enum // 1:1 with enum values from internal implementation
+    {
+        FLAG_TYPE_INVALID = 0,
+        FLAG_TYPE_AB_TEST = 1,
+        FLAG_TYPE_FEATURE = 2,
+    };
+
+    /**
+     * @brief Get the type of the flag
+     *
+     * @return The type of the flag. Possible values are any of the FLAG_TYPE_x values.
+     */
+    virtual uint32_t getType() const = 0;
+
+    /**
+     * @brief Get the group of the flag
+     *
+     * @return The group of the flag. Any value greater than 0 means the flag is active.
+     */
+    virtual uint32_t getGroup() const = 0;
 };
 
 class MegaApiImpl;
@@ -9778,7 +10011,8 @@ class MegaApi
             NODE_ATTR_LABEL = 3,
             NODE_ATTR_FAV = 4, // "fav"
             NODE_ATTR_S4 = 5,
-            NODE_ATTR_SEN = 6 // "sen"
+            NODE_ATTR_SEN = 6, // "sen"
+            NODE_ATTR_DESCRIPTION = 7,
         };
 
         enum {
@@ -9920,8 +10154,16 @@ class MegaApi
             OPTION_ELEMENT_ORDER        = (1 << 2),
         };
 
+        enum
+        {
+            TAG_NODE_SET             = 0,
+            TAG_NODE_REMOVE          = 1,
+            TAG_NODE_UPDATE          = 2,
+        };
+
         static constexpr int64_t INVALID_CUSTOM_MOD_TIME = -1;
         static constexpr int CHAT_OPTIONS_EMPTY = 0;
+        static constexpr int MAX_NODE_DESCRIPTION_SIZE = 3000;
 
         /**
          * @brief Constructor suitable for most applications
@@ -9969,7 +10211,10 @@ class MegaApi
          *
          * @param clientType Client type (default, VPN or Password Manager) enables SDK to function differently
          *
+         * @deprecated This version of the function is deprecated. Please use MegaGfxProvider::createExternalInstance
+         * and the non-deprecated one below.
          */
+        MEGA_DEPRECATED
         MegaApi(const char *appKey, MegaGfxProcessor* processor, const char *basePath = NULL, const char *userAgent = NULL, unsigned workerThreadCount = 1, int clientType = CLIENT_TYPE_DEFAULT);
 
         /**
@@ -12421,23 +12666,11 @@ class MegaApi
          */
         bool contactVerificationWarningEnabled();
 
-        /**
-         * @brief Allows to change the hardcoded value of the "secure" flag
-         *
-         * With this feature flag set, the client will manage encryption keys exchange for
-         * shared folders in a secure way. Legacy clients won't be able to decrypt
-         * shared folders created with this flag enabled.
-         *
-         * Manual verification of credentials of users (both sharers AND sharees) is
-         * required in order to decrypt shared folders correctly if, also, the
-         * "Manual Verification" flag is set to true.
-         * @see MegaApi::setManualVerification for more information.
-         *
-         * @note This flag should be changed before login+fetchnodes. Otherwise, it may
-         * result on unexpected behavior.
-         *
-         * @param enable New value of the flag
-         */
+       /**
+        * @deprecated This function no longer does anything, and calls to it
+        * can simply be removed
+        */
+        MEGA_DEPRECATED
         void setSecureFlag(bool enable);
 
         /**
@@ -13528,6 +13761,11 @@ class MegaApi
          * @param node Node and its children that will be searched for favourites. Search all nodes if null
          * @param count if count is zero return all favourite nodes, otherwise return only 'count' favourite nodes
          * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated use alternatives instead:
+         * - for recursive searches use search(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
+         * - for non-recursive searches use getChildren(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
+         * Remember to call the filter->byFavourite(true) to get only nodes marked as favourite
          */
         void getFavourites(MegaNode* node, int count, MegaRequestListener* listener = nullptr);
 
@@ -13579,6 +13817,114 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void setUnshareableNodeCoordinates(MegaNode *node, double latitude, double longitude, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Set node description as a node attribute
+         *
+         * To remove node description, set description to NULL
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node that received the attribute
+         * - MegaRequest::getFlag - Returns true (official attribute)
+         * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_DESCRIPTION
+         * - MegaRequest::getText - Returns node description
+         *
+         * If the size of the description is greater than MAX_NODE_DESCRIPTION_SIZE, onRequestFinish will be
+         * called with the error code MegaError::API_EARGS.
+         *
+         * If the MEGA account is a business account and its status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
+         * @param node Node that will receive the information.
+         * @param description Node description
+         * @param listener MegaRequestListener to track this request
+         */
+        void setNodeDescription(MegaNode* node,
+                                const char* description,
+                                MegaRequestListener* listener = NULL);
+
+
+        /**
+         * @brief Add new tag stored as node attribute
+         *
+         * The associated request type with this request is MegaRequest::TYPE_TAG_NODE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node that received the tag
+         * - MegaRequest::getParamType - Returns operation type (0 - Add tag, 1 - Remove tag, 2 - Update tag)
+         * - MegaRequest::getText - Returns tag
+         *
+         * ',' is an invalid character to be used in a tag. If it is contained in the tag,
+         * onRequestFinish will be called with the error code MegaError::API_EARGS.
+         *
+         * If the length of all tags is higher than 3000 onRequestFinish will be called with
+         * the error code MegaError::API_EARGS
+         *
+         * If tag already exists, onRequestFinish will be called with the error code MegaError::API_EEXISTS
+         *
+         * If number of tags exceed the maximum number of tags (10),
+         * onRequestFinish will be called with the error code MegaError::API_ETOOMANY
+         *
+         * If the MEGA account is a business account and its status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
+         * @param node Node that will receive the information.
+         * @param tag New tag
+         * @param listener MegaRequestListener to track this request
+         */
+        void addNodeTag(MegaNode* node, const char* tag, MegaRequestListener* listener = NULL);
+
+        /**
+         * @brief Remove a tag stored as a node attribute
+         *
+         * The associated request type with this request is MegaRequest::TYPE_TAG_NODE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node that received the tag
+         * - MegaRequest::getParamType - Returns operation type (0 - Add tag, 1 - Temove tag, 2 - Update tag)
+         * - MegaRequest::getText - Returns tag
+         *
+         * If tag doesn't exist, onRequestFinish will be called with the error code MegaError::API_ENOENT
+         *
+         * If the MEGA account is a business account and its status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
+         * @param node Node that will receive the information.
+         * @param tag Tag to be removed
+         * @param listener MegaRequestListener to track this request
+         */
+        void removeNodeTag(MegaNode* node, const char* tag, MegaRequestListener* listener = NULL);
+
+        /**
+         * @brief Update a tag stored as a node attribute
+         *
+         * The associated request type with this request is MegaRequest::TYPE_TAG_NODE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node that received the tag
+         * - MegaRequest::getParamType - Returns operation type (0 - Add tag, 1 - Temove tag, 2 - Update tag)
+         * - MegaRequest::getText - Returns new tag
+         * - MegaRequest::getName - Returns old tag
+         *
+         * ',' is an invalid character to be used in a tag. If it is contained in the tag,
+         * onRequestFinish will be called with the error code MegaError::API_EARGS.
+         *
+         * If the length of all tags is higher than 3000 characters onRequestFinish will be called with
+         * the error code MegaError::API_EARGS
+         *
+         * If newTag already exists, onRequestFinish will be called with the error code MegaError::API_EEXISTS
+         * If oldTag doesn't exist, onRequestFinish will be called with the error code MegaError::API_ENOENT
+         *
+         * If the MEGA account is a business account and its status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
+         * @param node Node that will receive the information.
+         * @param newTag New tag value
+         * @param oldTag Old tag value
+         * @param listener MegaRequestListener to track this request
+         */
+        void updateNodeTag(MegaNode* node,
+                           const char* newTag,
+                           const char* oldTag,
+                           MegaRequestListener* listener = NULL);
 
         /**
          * @brief Generate a public link of a file/folder in MEGA
@@ -13872,6 +14218,9 @@ class MegaApi
          *     - MegaAccountDetails::ACCOUNT_TYPE_PROII = 2
          *     - MegaAccountDetails::ACCOUNT_TYPE_PROIII = 3
          *     - MegaAccountDetails::ACCOUNT_TYPE_LITE = 4
+         *     - MegaAccountDetails::ACCOUNT_TYPE_STARTER = 11
+         *     - MegaAccountDetails::ACCOUNT_TYPE_BASIC = 12
+         *     - MegaAccountDetails::ACCOUNT_TYPE_ESSENTIAL = 13
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -15657,8 +16006,7 @@ class MegaApi
         /**
          * @brief Set the maximum download speed in bytes per second
          *
-         * Currently, this method is only available using the cURL-based network layer.
-         * It doesn't work with WinHTTP. You can check if the function will have effect
+         * You can check if the function will have effect
          * by checking the return value. If it's true, the value will be applied. Otherwise,
          * this function returns false.
          *
@@ -15672,8 +16020,7 @@ class MegaApi
         /**
          * @brief Set the maximum upload speed in bytes per second
          *
-         * Currently, this method is only available using the cURL-based network layer.
-         * It doesn't work with WinHTTP. You can check if the function will have effect
+         * You can check if the function will have effect
          * by checking the return value. If it's true, the value will be applied. Otherwise,
          * this function returns false.
          *
@@ -16051,7 +16398,7 @@ class MegaApi
          * - MegaRequest::getLink - Returns the drive root if external backup
          * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
          * - MegaRequest::getNumDetails - If different than NO_SYNC_ERROR, it returns additional info for
-         * the  specific sync error (MegaSync::Error). It could happen both when the request has succeeded (API_OK) and
+         * the specific sync error (MegaSync::Error). It could happen both when the request has succeeded (API_OK) and
          * also in some cases of failure, when the request error is not accurate enough.
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
@@ -16060,7 +16407,7 @@ class MegaApi
          * if the sync was added with no errors
          * - MegaRequest::getParentHandle - Returns the sync backupId
          *
-         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * On the onRequestFinish error, the error code associated to the MegaError (MegaError::getErrorCode()) can be:
          * - MegaError::API_EARGS - If the local folder was not set or is not a folder.
          * - MegaError::API_EACCESS - If the user was invalid, or did not have an attribute for "My Backups" folder,
          * or the attribute was invalid, or "My Backups"/`DEVICE_NAME` existed but was not a folder, or it had the
@@ -16073,6 +16420,9 @@ class MegaApi
          * device name, or the attribute was invalid, or the attribute did not contain a record for the device name,
          * or device name was empty.
          * - MegaError::API_EEXIST - If this is a new device, but a folder with the same device-name already exists.
+         *
+         * The MegaError can also contain a SyncError (MegaError::getSyncError()), with the same value as MegaRequest::getNumDetails()
+         * See MegaApi::isNodeSyncableWithError() for specific SyncError codes depending on the specific MegaError code.
          *
          * @param syncType Type of sync. Currently supported: TYPE_TWOWAY and TYPE_BACKUP.
          * @param localSyncRootFolder Path of the Local folder to sync/backup.
@@ -16371,7 +16721,9 @@ class MegaApi
         int isNodeSyncable(MegaNode *node);
 
         /**
-         * @brief Check if it's possible to start synchronizing a folder node. Return SyncError errors.
+         * @brief Check if it's possible to start synchronizing a folder node.
+         *
+         * Return MegaError codes (MegaError::getErrorCode()) and SyncError codes (MegaError::getSyncError()).
          *
          * Possible return values for this function are:
          * - MegaError::API_OK if the folder is syncable
@@ -16389,7 +16741,6 @@ class MegaApi
          *
          *  @return API_OK if syncable. Error otherwise sets syncError in the returned MegaError
          *          caller must free
-
          */
         MegaError* isNodeSyncableWithError(MegaNode* node);
 
@@ -16753,6 +17104,13 @@ class MegaApi
          */
         void setLRUCacheSize(unsigned long long size);
 
+        /**
+         * @brief Returns number of nodes stored at cache LRU
+         *
+         * @return Number of nodes at cache LRU
+         */
+        unsigned long long getNumNodesAtCacheLRU() const;
+
         enum { ORDER_NONE = 0, ORDER_DEFAULT_ASC, ORDER_DEFAULT_DESC,
             ORDER_SIZE_ASC, ORDER_SIZE_DESC,
             ORDER_CREATION_ASC, ORDER_CREATION_DESC,
@@ -16838,6 +17196,9 @@ class MegaApi
          *
          * @param parent Parent node
          * @param order Order for the returned list
+         *
+         * Note: Folders will always be first except when sorting by size, creation or modification time
+         *
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
          * Undefined order
@@ -16846,7 +17207,7 @@ class MegaApi
          * Folders first in alphabetical order, then files in the same order
          *
          * - MegaApi::ORDER_DEFAULT_DESC = 2
-         * Files first in reverse alphabetical order, then folders in the same order
+         * Folders first in reverse alphabetical order, then files in the same order
          *
          * - MegaApi::ORDER_SIZE_ASC = 3
          * Sort by size, ascending
@@ -16917,6 +17278,9 @@ class MegaApi
          * - have valid ancestor handle (different than INVALID_HANDLE) set by calling byLocationHandle(),
          *   and in consequence it must have default value for location (SEARCH_TARGET_ALL)
          * @param order Order for the returned list
+         *
+         * Note: Folders will always be first except when sorting by size, creation or modification time
+         *
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
          * Undefined order
@@ -16925,7 +17289,7 @@ class MegaApi
          * Folders first in alphabetical order, then files in the same order
          *
          * - MegaApi::ORDER_DEFAULT_DESC = 2
-         * Files first in reverse alphabetical order, then folders in the same order
+         * Folders first in reverse alphabetical order, then files in the same order
          *
          * - MegaApi::ORDER_SIZE_ASC = 3
          * Sort by size, ascending
@@ -16958,6 +17322,7 @@ class MegaApi
          * Sort nodes with favourite attr last. With this order, folders are returned first, then files
          *
          * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
+         * @param searchPage Container for pagination options; if null, all results will be returned
          *
          * @return List with found children as MegaNode objects
          */
@@ -16973,6 +17338,9 @@ class MegaApi
          *
          * @param parentNodes List of parent nodes
          * @param order Order for the returned list
+         *
+         * Note: Folders will always be first except when sorting by size, creation or modification time
+         *
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
          * Undefined order
@@ -16981,7 +17349,7 @@ class MegaApi
          * Folders first in alphabetical order, then files in the same order
          *
          * - MegaApi::ORDER_DEFAULT_DESC = 2
-         * Files first in reverse alphabetical order, then folders in the same order
+         * Folders first in reverse alphabetical order, then files in the same order
          *
          * - MegaApi::ORDER_SIZE_ASC = 3
          * Sort by size, ascending
@@ -17079,6 +17447,9 @@ class MegaApi
          * @param parent Parent node
          * @param type Type of the node.
          * @param order Order for the returned list
+         *
+         * Note: Folders will always be first except when sorting by size, creation or modification time
+         *
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
          * Undefined order
@@ -17087,7 +17458,7 @@ class MegaApi
          * Folders first in alphabetical order, then files in the same order
          *
          * - MegaApi::ORDER_DEFAULT_DESC = 2
-         * Files first in reverse alphabetical order, then folders in the same order
+         * Folders first in reverse alphabetical order, then files in the same order
          *
          * - MegaApi::ORDER_SIZE_ASC = 3
          * Sort by size, ascending
@@ -18022,6 +18393,9 @@ class MegaApi
          *
          * @param filter Container for filtering options, cannot be null
          * @param order Order for the returned list
+         *
+         * Note: Folders will always be first except when sorting by size, creation or modification time
+         *
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
          * Undefined order
@@ -18030,7 +18404,7 @@ class MegaApi
          * Folders first in alphabetical order, then files in the same order
          *
          * - MegaApi::ORDER_DEFAULT_DESC = 2
-         * Files first in reverse alphabetical order, then folders in the same order
+         * Folders first in reverse alphabetical order, then files in the same order
          *
          * - MegaApi::ORDER_SIZE_ASC = 3
          * Sort by size, ascending
@@ -18063,6 +18437,7 @@ class MegaApi
          * Sort nodes with favourite attr last. With this order, folders are returned first, then files
          *
          * @param cancelToken MegaCancelToken to be able to cancel the search at any time.
+         * @param searchPage Container for pagination options; if null, all results will be returned
          *
          * @return List with found nodes as MegaNode objects
          */
@@ -21850,6 +22225,228 @@ class MegaApi
          */
         void getLastActionedBanner(MegaRequestListener* listener = nullptr);
 
+        /**
+         * @brief
+         * Add a new mount to the database.
+         *
+         * @param mount
+         * A description of the new mount.
+         *
+         * @param listener
+         * Who will be notified when the operation completes.
+         *
+         * @note
+         * This call will issue a new request of the type TYPE_ADD_MOUNT.
+         */
+        void addMount(const MegaMount* mount, MegaRequestListener* listener);
+
+        /**
+         * @brief
+         * Disable an active mount.
+         *
+         * @path path
+         * Identifies the mount to be disabled.
+         *
+         * @param listener
+         * Who will be notified when the operation completes.
+         *
+         * @param remember
+         * True if the mount should remain diasbled after application restart.
+         *
+         * If this parameter is true and path specifies a transient mount,
+         * that mount will become persistent.
+         *
+         * This makes sense as remembering something about a mount implies
+         * that it persists for more than a single session.
+         *
+         * @note
+         * This call will issue a new request of the type TYPE_DISABLE_MOUNT.
+         */
+        void disableMount(const char* path,
+                          MegaRequestListener* listener,
+                          bool remember);
+
+        /**
+         * @brief
+         * Enable an inactive mount.
+         *
+         * @param path
+         * Identifies the mount to be enabled.
+         *
+         * @param listener
+         * Who will be notified when the operation completes.
+         *
+         * @param remember
+         * True if the mount should remain enabled after application restart.
+         *
+         * If this parameter is true and path specifies a transient mount,
+         * that mount will become persistent.
+         *
+         * This makes sense as remembering something about a mount implies
+         * that it persists for more than a single session.
+         *
+         * @note
+         * This call will issue a new request of the type TYPE_ENABLE_MOUNT.
+         */
+        void enableMount(const char* path,
+                         MegaRequestListener* listener,
+                         bool remember);
+
+        /**
+         * @brief
+         * Retrieve the FUSE subsystem's current flags.
+         *
+         * @return
+         * The FUSE subsystem's current flags.
+         */
+        MegaFuseFlags* getFUSEFlags();
+
+        /**
+         * @brief
+         * Retrieve an existing mount's flags.
+         *
+         * @param path
+         * Identifies the mount we want to query.
+         *
+         * @return
+         * NULL if no such mount exists.
+         */
+        MegaMountFlags* getMountFlags(const char* path);
+
+        /**
+         * @brief
+         * Retrieve a description of an existing mount.
+         *
+         * @param path
+         * Identifies the mount we want to describe.
+         *
+         * @return
+         * NULL if no such mount exists.
+         */
+        MegaMount* getMountInfo(const char* path);
+
+        /**
+         * @brief
+         * Retrieve the path of all mounts associated with a name.
+         *
+         * @param name
+         * A name of a previously added mount.
+         *
+         * @return
+         * A list containing the paths of each mount associated with name.
+         */
+        MegaStringList* getMountPaths(const char* name);
+
+        /**
+         * @brief
+         * Retrieve a list of known mounts.
+         *
+         * @param enabled
+         * True if only enabled mounts should be returned.
+         *
+         * @return
+         * A list of mount descriptions.
+         */
+        MegaMountList* listMounts(bool enabled);
+
+        /**
+         * @brief
+         * Check whether the specified file is in FUSE's cache.
+         *
+         * @param path
+         * Identifies the file we want to check.
+         *
+         * @return
+         * True if the file is in FUSE's cache.
+         */
+        bool isCachedByPath(const char* path);
+
+        /**
+         * @brief
+         * Query whether FUSE is supported on this platform.
+         *
+         * @return
+         * True if FUSE is supported on this platform.
+         */
+        bool isFUSESupported();
+
+        /**
+         * @brief
+         * Query whether a mount is enabled.
+         *
+         * @param path
+         * Identifies the mount we want to query.
+         *
+         * @return
+         * True if the mount is enabled.
+         */
+        bool isMountEnabled(const char* path);
+
+        /**
+         * @brief
+         * Remove an existing mount from the database.
+         *
+         * @param path
+         * Identifies the mount to be removed.
+         *
+         * @param listener
+         * Who will be notified when the operation completes.
+         *
+         * @note
+         * This call will issue a request of the type TYPE_REMOVE_MOUNT.
+         */
+        void removeMount(const char* path, MegaRequestListener* listener);
+
+        /**
+         * @brief
+         * Update the FUSE subsystem's flags.
+         *
+         * @param flags
+         * The FUSE subsystem's new flags.
+         */
+        void setFUSEFlags(const MegaFuseFlags* flags);
+
+        /**
+         * @brief
+         * Update an exisrting mount's flags.
+         *
+         * You can use this function to change properties such as a mount's
+         * name or writability.
+         *
+         * @param flags
+         * Specifies the new values of a mount's flags.
+         *
+         * @param path
+         * Identifies the mount whose flags we want to update.
+         *
+         * @param listener
+         * Who will be notified when the operation completes.
+         *
+         * @note
+         * This call will issue a request of the type TYPE_SET_MOUNT_FLAGS.
+         */
+        void setMountFlags(const MegaMountFlags* flags,
+                           const char* path,
+                           MegaRequestListener* listener);
+
+        /**
+         * @brief Get the type and value for the flag with the given name,
+         * if present among either A/B Test or Feature flags.
+         *
+         * If found among A/B Test flags and commit was true, also inform the API
+         * that a user has become relevant for that A/B Test flag, in which case
+         * the associated request type with this request is MegaRequest::TYPE_AB_TEST_ACTIVE
+         * and valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getText - Returns the flag passed as parameter
+         *
+         * @param flagName Name or key of the value to be retrieved (and possibly be sent to API as active).
+         * @param commit Determine whether an A/B Test flag will be sent to API as active.
+         * @param listener MegaRequestListener to track this request, ignored if commit was false
+         *
+         * @return A MegaFlag instance with the type and value of the flag.
+         */
+        MegaFlag* getFlag(const char* flagName, bool commit = true, MegaRequestListener* listener = nullptr);
+
  protected:
         MegaApiImpl *pImpl = nullptr;
         friend class MegaApiImpl;
@@ -22289,6 +22886,9 @@ public:
         ACCOUNT_TYPE_PROII = 2,
         ACCOUNT_TYPE_PROIII = 3,
         ACCOUNT_TYPE_LITE = 4,
+        ACCOUNT_TYPE_STARTER = 11,
+        ACCOUNT_TYPE_BASIC = 12,
+        ACCOUNT_TYPE_ESSENTIAL = 13,
         ACCOUNT_TYPE_BUSINESS = 100,
         ACCOUNT_TYPE_PRO_FLEXI = 101    // also known as PRO 4
     };
@@ -22310,6 +22910,9 @@ public:
      * - MegaAccountDetails::ACCOUNT_TYPE_PROII = 2
      * - MegaAccountDetails::ACCOUNT_TYPE_PROIII = 3
      * - MegaAccountDetails::ACCOUNT_TYPE_LITE = 4
+     * - MegaAccountDetails::ACCOUNT_TYPE_STARTER = 11
+     * - MegaAccountDetails::ACCOUNT_TYPE_BASIC = 12
+     * - MegaAccountDetails::ACCOUNT_TYPE_ESSENTIAL = 13
      * - MegaAccountDetails::ACCOUNT_TYPE_BUSINESS = 100
      * - MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI = 101
      */
@@ -22710,6 +23313,9 @@ public:
      * - MegaAccountDetails::ACCOUNT_TYPE_PROII = 2
      * - MegaAccountDetails::ACCOUNT_TYPE_PROIII = 3
      * - MegaAccountDetails::ACCOUNT_TYPE_LITE = 4
+     * - MegaAccountDetails::ACCOUNT_TYPE_STARTER = 11
+     * - MegaAccountDetails::ACCOUNT_TYPE_BASIC = 12
+     * - MegaAccountDetails::ACCOUNT_TYPE_ESSENTIAL = 13
      * - MegaAccountDetails::ACCOUNT_TYPE_BUSINESS = 100
      * - MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI = 101
      */
@@ -23481,6 +24087,484 @@ public:
     virtual MegaNotificationList* copy() const = 0;
     virtual ~MegaNotificationList() = default;
 };
+
+class MegaFuseExecutorFlags
+{
+protected:
+    MegaFuseExecutorFlags();
+
+public:
+    virtual ~MegaFuseExecutorFlags();
+
+    /**
+     * @brief
+     * How many threads is the executor allowed to spawn?
+     *
+     * @return
+     * The maximum number of threads the executor is allowed to spawn.
+     */
+    virtual size_t getMaxThreadCount() const = 0;
+
+    /**
+     * @brief
+     * How long should idle threads be retained?
+     *
+     * @return
+     * How long, in seconds, idle threads are retained.
+     */
+    virtual size_t getMaxThreadIdleTime() const = 0;
+
+    /**
+     * @brief
+     * How many idle threads is the executor allowed to retain.
+     *
+     * @return
+     * The number of idle threads that the executor will retain.
+     */
+    virtual size_t getMinThreadCount() const = 0;
+
+    /**
+     * @brief
+     * Specify how many threads the executor is allowed to spawn.
+     *
+     * @param max
+     * How many threads the executor is allowed to spawn.
+     *
+     * @return
+     * True if max is a non-zero value, false otherwise.
+     */
+    virtual bool setMaxThreadCount(size_t max) = 0;
+
+    /**
+     * @brief
+     * Specify how long an idle thread is retained.
+     *
+     * @param seconds
+     * How long an idle thread should be retained.
+     */
+    virtual void setMaxThreadIdleTime(size_t seconds) = 0;
+
+    /**
+     * @brief
+     * Specify how many idle threads the executor can retain.
+     *
+     * @param min
+     * How many idle threads the executor can retain.
+     */
+    virtual void setMinThreadCount(size_t min) = 0;
+}; // MegaFuseExecutorFlags
+
+class MegaFuseFlags
+{
+protected:
+    MegaFuseFlags();
+
+public:
+    enum LogLevel
+    {
+        // Only emit error messages.
+        LOG_LEVEL_ERROR,
+        // Only emit error messages and warnings.
+        LOG_LEVEL_WARNING,
+        // Only emit error, warning and info messages.
+        LOG_LEVEL_INFO,
+        // Emit all messages.
+        LOG_LEVEL_DEBUG
+    }; // LogLevel
+
+    virtual ~MegaFuseFlags();
+
+    /**
+     * @brief
+     * Create a copy of this instance.
+     *
+     * @return
+     * A copy of this instance.
+     */
+    virtual MegaFuseFlags* copy() const = 0;
+
+    /**
+     * @brief
+     * Create a new instance.
+     *
+     * @return
+     * A new instance.
+     */
+    static MegaFuseFlags* create();
+
+    /**
+     * @brief
+     * How long should we wait until we upload a modified file?
+     *
+     * @return
+     * How long, in seconds, before modified files are uploaded.
+     */
+    virtual size_t getFlushDelay() const = 0;
+
+    /**
+     * @brief
+     * Query the service's log level.
+     *
+     * @return
+     * The service's current log level.
+     */
+    virtual int getLogLevel() const = 0;
+
+    /**
+     * @brief
+     * Retrieve a reference to the inode cache's flags.
+     *
+     * @return
+     * A reference to the inode cache's flags.
+     */
+    virtual MegaFuseInodeCacheFlags* getInodeCacheFlags() = 0;
+
+    /**
+     * @brief
+     * Retrieve a reference to the mount executor flags.
+     *
+     * These flags control how many threads an individual mount is allowed
+     * to create and how long those threads should remain idle before they
+     * are destroyed.
+     *
+     * @return
+     * A reference to the mount executor flags.
+     */
+    virtual MegaFuseExecutorFlags* getMountExecutorFlags() = 0;
+
+    /**
+     * @brief
+     * Retrieve a reference to the subsystem's executor flags.
+     *
+     * These flags control how many threads the FUSE subsystem is allowed to
+     * create for its own internal use and how long those threads should
+     * remain before they are destroyed.
+     *
+     * @return
+     * A reference to the subsystem's executor flags.
+     */
+    virtual MegaFuseExecutorFlags* getSubsystemExecutorFlags() = 0;
+
+    /**
+     * @brief
+     * Specify how long we should wait before uploading a modified file.
+     *
+     * @param seconds
+     * How many seconds before a modified file is uploaded.
+     */
+    virtual void setFlushDelay(size_t seconds) = 0;
+
+    /**
+     * @brief
+     * Specify the service's log level.
+     *
+     * @param level
+     * The service's new log level.
+     */
+    virtual void setLogLevel(int level) = 0;
+}; // MegaFuseFlags
+
+class MegaFuseInodeCacheFlags
+{
+protected:
+    MegaFuseInodeCacheFlags();
+
+public:
+    virtual ~MegaFuseInodeCacheFlags();
+
+    virtual size_t getCleanAgeThreshold() const = 0;
+
+    virtual size_t getCleanInterval() const = 0;
+
+    virtual size_t getCleanSizeThreshold() const = 0;
+
+    virtual size_t getMaxSize() const = 0;
+
+    virtual void setCleanAgeThreshold(std::size_t seconds) = 0;
+
+    virtual void setCleanInterval(std::size_t seconds) = 0;
+
+    virtual void setCleanSizeThreshold(std::size_t size) = 0;
+
+    virtual void setMaxSize(std::size_t size) = 0;
+}; // MegaFuseInodeCacheFlags
+
+class MegaMount
+{
+protected:
+    MegaMount();
+
+public:
+    enum Result
+    {
+        // The operation was aborted due to client shutdown.
+        ABORTED,
+        // FUSE is supported but the backend is not installed.
+        BACKEND_UNAVAILABLE,
+        // The mount's busy and cannot be disabled.
+        BUSY,
+        // A mount's already associated with the target path.
+        EXISTS,
+        // A mount has encountered an expected failure and has been disabled.
+        FAILED,
+        // Mount target already exists.
+        LOCAL_EXISTS,
+        // Mount target doesn't denote a directory.
+        LOCAL_FILE,
+        // Mount target is being synchronized.
+        LOCAL_SYNCING,
+        // Mount target doesn't exist.
+        LOCAL_UNKNOWN,
+        // A mount already exists with a specified name.
+        NAME_TAKEN,
+        // The specified name is too long.
+        NAME_TOO_LONG,
+        // No name has been specified for a mount.
+        NO_NAME,
+        // Mount source doesn't describe a directory.
+        REMOTE_FILE,
+        // Mount source doesn't exist.
+        REMOTE_UNKNOWN,
+        // Mount was successful.
+        SUCCESS,
+        // Encountered an unexpected error while mounting.
+        UNEXPECTED,
+        // No mount is associated with the specified handle or path.
+        UNKNOWN,
+        // FUSE isn't supported on this platform.
+        UNSUPPORTED
+    }; // Result
+
+    virtual ~MegaMount();
+
+    /**
+     * @brief
+     * Copies this instance.
+     *
+     * @return
+     * A copy of this instance.
+     */
+    virtual MegaMount* copy() const = 0;
+
+    /**
+     * @brief
+     * Creates a new instance.
+     *
+     * @return
+     * A new instance.
+     */
+    static MegaMount* create();
+
+    /**
+     * @brief
+     * Retrieves a reference to this mount's flags.
+     *
+     * @return
+     * A mutable reference to this mount's flags.
+     */
+    virtual MegaMountFlags* getFlags() const = 0;
+
+    /**
+     * @brief
+     * Retrieves the handle this mount is associated with.
+     *
+     * @return
+     * The handle this mount is associated with.
+     */
+    virtual MegaHandle getHandle() const = 0;
+
+    /**
+     * @brief
+     * Retrieve this mount's local path.
+     *
+     * @return
+     * This mount's local path.
+     */
+    virtual const char* getPath() const = 0;
+
+    /**
+     * @brief
+     * Translates a result code into a human readable string.
+     *
+     * @param result
+     * The result you want to translate.
+     *
+     * @return
+     * A human-readable version of the result code.
+     */
+    static const char* getResultString(int result);
+
+    /**
+     * @brief
+     * Update this mount's flags.
+     *
+     * @param flags
+     * The flags we want the mount to have.
+     */
+    virtual void setFlags(const MegaMountFlags* flags) = 0;
+
+    /**
+     * @brief
+     * Set the handle this mount should be associated with.
+     *
+     * @param handle
+     * A handle identifying a cloud node.
+     */
+    virtual void setHandle(MegaHandle handle) = 0;
+    
+    /**
+     * @brief
+     * Set this mount's local path.
+     *
+     * @param path
+     * Where the mount should be present on the local filesystem.
+     */
+    virtual void setPath(const char* path) = 0;
+}; // MegaMount
+
+class MegaMountFlags
+{
+protected:
+    MegaMountFlags();
+
+public:
+    virtual ~MegaMountFlags();
+
+    /**
+     * @brief
+     * Copies this instance.
+     *
+     * @return
+     * A copy of this instance.
+     */
+    virtual MegaMountFlags* copy() const = 0;
+
+    /**
+     * @brief
+     * Creates a new instance.
+     *
+     * @return
+     * A new instance.
+     */
+    static MegaMountFlags* create();
+
+    /**
+     * @brief
+     * Query whether the mount will be enabled on startup.
+     *
+     * @return
+     * True if the mount will be enabled at startup.
+     */
+    virtual bool getEnableAtStartup() const = 0;
+
+    /**
+     * @brief
+     * Retrives a mount's name.
+     *
+     * @return
+     * The mount's name.
+     */
+    virtual const char* getName() const = 0;
+
+    /**
+     * @brief
+     * Query whether a mount is persistent.
+     *
+     * @return
+     * True if the mount is persistent.
+     */
+    virtual bool getPersistent() const = 0;
+
+    /**
+     * @brief
+     * Query whether a mount is read only.
+     *
+     * @return
+     * True if the mount is read only.
+     */
+    virtual bool getReadOnly() const = 0;
+
+    /**
+     * Specify whether a mount should be enabled at startup.
+     *
+     * @param enabled
+     * True if the mount should be enabled at startup.
+     *
+     * @note
+     * Altering the value of this flag will make a transient mount
+     * persistent. This makes sense as stating how it should behave
+     * on startup implies that the mount will exist for more than
+     * a single session.
+     */
+    virtual void setEnableAtStartup(bool enable) = 0;
+
+    /**
+     * @brief
+     * Set the mount's name.
+     *
+     * @param name
+     * The name of the mount.
+     */
+    virtual void setName(const char* name) = 0;
+
+    /**
+     * @brief
+     * Specify whether a mount is persistent.
+     *
+     * @param persistent
+     * True if the mount should be persistent.
+     */
+    virtual void setPersistent(bool persistent) = 0;
+
+    /**
+     * @brief
+     * Specify whether a mount is read only.
+     *
+     * @param readOnly
+     * True if the mount should be read only.
+     */
+    virtual void setReadOnly(bool readOnly) = 0;
+}; // MegaMountFlags
+
+class MegaMountList
+{
+protected:
+    MegaMountList();
+
+public:
+    virtual ~MegaMountList();
+
+    /**
+     * @brief
+     * Copies this instance.
+     *
+     * @return
+     * A copy of this instance.
+     */
+    virtual MegaMountList* copy() const = 0;
+
+    /**
+     * @brief
+     * Retrieves an element from the list.
+     *
+     * @param index
+     * The index of the element to retrieve.
+     *
+     * @return
+     * NULL if index is out of range.
+     */
+    virtual const MegaMount* get(size_t index) const = 0;
+
+    /**
+     * @brief
+     * Query how many elements are in this list.
+     *
+     * @return
+     * The number of elements in this list.
+     */
+    virtual size_t size() const = 0;
+}; // MegaMountList
+
 }
 
 #endif //MEGAAPI_H

@@ -306,6 +306,12 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
     AdsFlagIgnoreRollout    = 0x4000  // Ignore the rollout logic which only servers ads to 10% of users based on their IP.
 };
 
+typedef NS_ENUM(NSInteger, MEGAClientType) {
+    MEGAClientTypeDefault = 0, // Cloud storage
+    MEGAClientTypeVPN = 1, // VPN
+    MEGAClientTypePasswordManager = 2  // Password Manager
+};
+
 /**
  * @brief Allows to control a MEGA account or a public folder.
  *
@@ -609,6 +615,23 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  *
  */
 - (nullable instancetype)initWithAppKey:(NSString *)appKey userAgent:(nullable NSString *)userAgent basePath:(nullable NSString *)basePath;
+
+/**
+ * @brief Constructor suitable for most applications.
+ * @param appKey AppKey of your application.
+ * You can generate your AppKey for free here:
+ * - https://mega.co.nz/#sdk
+ *
+ * @param userAgent User agent to use in network requests.
+ * If you pass nil to this parameter, a default user agent will be used.
+ *
+ * @param basePath Base path to store the local cache.
+ * If you pass nil to this parameter, the SDK won't use any local cache.
+ *
+ * @param clientType The client type of the application: Default (Cloud Storage), VPN or Password Manager.
+ *
+ */
+- (nullable instancetype)initWithAppKey:(NSString *)appKey userAgent:(nullable NSString *)userAgent basePath:(nullable NSString *)basePath clientType:(MEGAClientType)clientType;
 
 /**
  * @brief Delete MegaApi object
@@ -4220,23 +4243,6 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * @param delegate Delegate to track this request.
  */
 - (void)openShareDialog:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate;
-
-/**
- * @brief Allows to change the hardcoded value of the "secure" flag
- *
- * With this feature flag set, the client will manage encryption keys for
- * shared folders in a secure way. Legacy clients won't be able to decrypt
- * shared folders created with this flag enabled.
- *
- * Manual verification of credentials of users (both sharers AND sharees) is
- * required in order to decrypt shared folders correctly.
- *
- * @note This flag should be changed before login+fetchnodes. Otherwise, it may
- * result on unexpected behavior.
- *
- * @param enable New value of the flag
- */
-- (void)setShareSecureFlag:(BOOL)enable;
 
 #pragma mark - Attributes Requests
 
@@ -9345,7 +9351,6 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  */
 + (nullable NSString *)mimeTypeByExtension:(NSString *)extension;
 
-#ifdef ENABLE_CHAT
 /**
  * @brief Register a device token for iOS push notifications
  *
@@ -9401,8 +9406,6 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * @param deviceToken NSString representing the device token to be registered.
  */
 - (void)registeriOSVoIPdeviceToken:(NSString *)deviceToken;
-
-#endif
 
 /**
  * @brief Get the MEGA Achievements of the account logged in
@@ -10151,19 +10154,6 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
 - (void)getDeviceName:(nullable NSString *)deviceId delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
- * @brief Sets device name
- *
- * The associated request type with this request is MEGARequestTypeSetAttrUser
- * Valid data in the MEGARequest object received on callbacks:
- * - paramType - Returns the attribute type MEGAUserAttributeDeviceNames
- * - name - Returns device name.
- *
- * @param name String with device name
- * @param delegate MEGARequestDelegate to track this request
- */
-- (void)setDeviceName:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate;
-
-/**
  * @brief Sets name for specific device
  *
  * The associated request type with this request is MEGARequestTypeSetAttrUser
@@ -10176,7 +10166,7 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * @param name String with device name
  * @param delegate MEGARequestDelegate to track this request
  */
-- (void)renameDevice:(NSString *)deviceId newName:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate;
+- (void)renameDevice:(nullable NSString *)deviceId newName:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate;
 
 #pragma mark - Cookie Dialog
 

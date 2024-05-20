@@ -1173,3 +1173,134 @@ TEST_F(SprintfTest, ResizeAndPrint) {
     // sprince = "1.20\0\0\0\..."
     ASSERT_EQ((string)sprice.c_str(), "1.20");
 }
+
+TEST(extensionOf, fails_when_extension_contains_invalid_characters)
+{
+    using ::mega::extensionOf;
+
+    std::string computed;
+
+    // Characters below '.'
+    ASSERT_FALSE(extensionOf(std::string("a.-"), computed));
+    ASSERT_TRUE(computed.empty());
+
+    // Characters above 'z'.
+    ASSERT_FALSE(extensionOf(std::string("a.{"), computed));
+    ASSERT_TRUE(computed.empty());
+}
+
+TEST(extensionOf, fails_when_extension_isnt_present)
+{
+    using ::mega::extensionOf;
+
+    std::string computed;
+
+    // No extension.
+    ASSERT_FALSE(extensionOf(std::string("a"), computed));
+    ASSERT_TRUE(computed.empty());
+
+    // Empty string.
+    ASSERT_FALSE(extensionOf(std::string(), computed));
+    ASSERT_TRUE(computed.empty());
+}
+
+TEST(extensionOf, succeeds)
+{
+    using ::mega::extensionOf;
+
+    std::string computed;
+
+    // Multicharacter extension.
+    ASSERT_TRUE(extensionOf(std::string("a.BcD"), computed));
+    ASSERT_EQ(computed, ".bcd");
+
+    // Single character extension.
+    ASSERT_TRUE(extensionOf(std::wstring(L".a"), computed));
+    ASSERT_EQ(computed, ".a");
+
+    // Empty extension.
+    ASSERT_TRUE(extensionOf(std::string("."), computed));
+    ASSERT_EQ(computed, ".");
+}
+
+TEST(fromHex, fails_when_empty_string)
+{
+    EXPECT_FALSE(fromHex<short>(nullptr, nullptr).second);
+    EXPECT_FALSE(fromHex<short>("").second);
+}
+
+TEST(fromHex, fails_when_invalid_character)
+{
+    EXPECT_FALSE(fromHex<short>('q').second);
+    EXPECT_FALSE(fromHex<short>('_').second);
+}
+
+TEST(fromHex, fails_when_out_of_range)
+{
+    EXPECT_FALSE(fromHex<signed char>("80").second);
+    EXPECT_FALSE(fromHex<short>("8000").second);
+    EXPECT_FALSE(fromHex<unsigned char>("100").second);
+    EXPECT_FALSE(fromHex<unsigned short>("10000").second);
+}
+
+TEST(fromHex, succeeds)
+{
+    auto s8 = fromHex<signed char>("7f");
+    EXPECT_TRUE(s8.second);
+    EXPECT_EQ(s8.first, 0x7f);
+
+    auto s16 = fromHex<short>("7fff");
+    EXPECT_TRUE(s16.second);
+    EXPECT_EQ(s16.first, 0x7fff);
+
+    auto u8 = fromHex<unsigned char>("ff");
+    EXPECT_TRUE(u8.second);
+    EXPECT_EQ(u8.first, 0xff);
+
+    auto u16 = fromHex<unsigned short>("ffff");
+    EXPECT_TRUE(u16.second);
+    EXPECT_EQ(u16.first, 0xffff);
+}
+
+TEST(Split, no_delimiter)
+{
+    auto input  = std::string();
+    auto result = split(input, '.');
+
+    // Empty string.
+    EXPECT_EQ(result.first.first, input.data());
+    EXPECT_FALSE(result.first.second);
+    EXPECT_FALSE(result.second.first);
+    EXPECT_FALSE(result.second.second);
+
+    // No delimiter.
+    input  = "abc";
+    result = split(input, '.');
+
+    EXPECT_EQ(result.first.first, input.data());
+    EXPECT_EQ(result.first.second, input.size());
+    EXPECT_FALSE(result.second.first);
+    EXPECT_FALSE(result.second.second);
+}
+
+TEST(Split, with_delimiter)
+{
+    auto input  = std::string("a.");
+    auto result = split(input, '.');
+
+    // Delimiter only.
+    EXPECT_EQ(result.first.first, input.data());
+    EXPECT_EQ(result.first.second, 1u);
+    EXPECT_EQ(result.second.first, &input[1]);
+    EXPECT_EQ(result.second.second, 1u);
+
+    // Delimiter and tail.
+    input  = "abc.qrs";
+    result = split(input, '.');
+
+    EXPECT_EQ(result.first.first,  input.data());
+    EXPECT_EQ(result.first.second, 3u);
+    EXPECT_EQ(result.second.first, &input[3]);
+    EXPECT_EQ(result.second.second, 4u);
+}
+

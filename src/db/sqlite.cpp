@@ -21,6 +21,8 @@
 
 #include "mega.h"
 
+#include <numeric>
+
 #ifdef USE_SQLITE
 namespace mega {
 
@@ -149,7 +151,7 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
                       "parenthandle int64, name text, fingerprint BLOB, origFingerprint BLOB, "
                       "type tinyint, mimetype tinyint AS (getmimetype(name)) VIRTUAL, size int64, share tinyint, fav tinyint, "
                       "ctime int64, mtime int64 DEFAULT 0, flags int64, counter BLOB NOT NULL, node BLOB NOT NULL, "
-                      "label tinyint DEFAULT 0)";
+                      "label tinyint DEFAULT 0, description text, tags text)";
     int result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
     if (result)
     {
@@ -159,12 +161,29 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
     }
 
     // Add following columns to existing 'nodes' table that might not have them, and populate them if needed:
-    vector<NewColumn> newCols
-    {
-        {"mtime", "int64 DEFAULT 0", NodeData::COMPONENT_MTIME},
-        {"label", "tinyint DEFAULT 0", NodeData::COMPONENT_LABEL},
-        {"mimetype", "tinyint AS (getmimetype(name)) VIRTUAL", NodeData::COMPONENT_NONE},
-    };
+    vector<NewColumn> newCols{
+        {"mtime",
+         "int64 DEFAULT 0",
+         NodeData::COMPONENT_MTIME,
+         NewColumn::extractDataFromNodeData<MTimeType>      },
+        {"label",
+         "tinyint DEFAULT 0",
+         NodeData::COMPONENT_LABEL,
+         NewColumn::extractDataFromNodeData<LabelType>      },
+        {"mimetype",
+         "tinyint AS (getmimetype(name)) VIRTUAL",
+         NodeData::COMPONENT_NONE,
+         nullptr                                            },
+        {"description",
+         "text",
+         NodeData::COMPONENT_DESCRIPTION,
+         NewColumn::extractDataFromNodeData<DescriptionType>},
+        {"tags",
+         "text",
+         NodeData::COMPONENT_TAGS,
+         NewColumn::extractDataFromNodeData<TagsType>       },
+        };
+
 
     if (!addAndPopulateColumns(db, std::move(newCols)))
     {
@@ -188,6 +207,22 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
     if (result)
     {
         LOG_err << "Data base error(sqlite3_create_function userRegexp): " << sqlite3_errmsg(db);
+        sqlite3_close(db);
+        return nullptr;
+    }
+
+    result = sqlite3_create_function(db, "isContained", 2, SQLITE_ANY,0, &SqliteAccountState::userIsContained, 0, 0);
+    if (result)
+    {
+        LOG_err << "Data base error(sqlite3_create_function userIsContained): " << sqlite3_errmsg(db);
+        sqlite3_close(db);
+        return nullptr;
+    }
+
+    result = sqlite3_create_function(db, "matchTag", 2, SQLITE_ANY,0, &SqliteAccountState::userMatchTag, 0, 0);
+    if (result)
+    {
+        LOG_err << "Data base error(sqlite3_create_function userMatchTag): " << sqlite3_errmsg(db);
         sqlite3_close(db);
         return nullptr;
     }
@@ -404,20 +439,12 @@ bool SqliteDbAccess::migrateDataToColumns(sqlite3* db, vector<NewColumn>&& cols)
     if (cols.empty()) return true;
 
     // identify data pieces to copy to new columns
-    std::map<int, int> dataToMigrate;
-    int bindIdx = 0;
-    for (const auto& c : cols)
-    {
-        if (c.migrationId != NodeData::COMPONENT_NONE)
-        {
-            assert(c.migrationId > NodeData::COMPONENT_NONE);
-            dataToMigrate[c.migrationId] = ++bindIdx;
-        }
-    }
     cols.erase(std::remove_if(cols.begin(), cols.end(),
         [](const NewColumn& c) { return c.migrationId == NodeData::COMPONENT_NONE; }), cols.end());
 
     if (cols.empty()) return true;
+
+    LOG_info << "Migrating Data base - populating new columns";
 
     // get existing data
     sqlite3_stmt* stmt = nullptr;
@@ -428,7 +455,9 @@ bool SqliteDbAccess::migrateDataToColumns(sqlite3* db, vector<NewColumn>&& cols)
     }
 
     // extract values to be copied
-    map<handle, map<int /*COMPONENT*/, int64_t>> newValues;
+    map<handle, std::vector<std::unique_ptr<MigrateType>>> newValues;
+    uint64_t numRows = 0;
+    uint64_t affectedRows = 0;
     while (sqlite3_step(stmt) == SQLITE_ROW)
     {
         const char* blob = static_cast<const char*>(sqlite3_column_blob(stmt, 1));
@@ -436,37 +465,48 @@ bool SqliteDbAccess::migrateDataToColumns(sqlite3* db, vector<NewColumn>&& cols)
         handle nh = sqlite3_column_int64(stmt, 0);
         NodeData nd(blob, blobSize, NodeData::COMPONENT_ATTRS);
 
-        m_time_t mtime = 0;
-        int l = LBL_UNKNOWN;
-        // When migrating data, the first non-default value will create the entry for that node,
-        // while other non-default values will avoid the search by reusing the same container.
-        map<int, int64_t>* newNodeValues = nullptr;
-
-        if (dataToMigrate.find(NodeData::COMPONENT_MTIME) != dataToMigrate.end() &&
-            (mtime = nd.getMtime()))
-        {
-            if (!newNodeValues)
+        std::vector<std::unique_ptr<MigrateType>> migrateElement;
+        migrateElement.reserve(cols.size());
+        bool hasValues = std::transform_reduce(
+            cols.begin(),
+            cols.end(),
+            false,
+            std::logical_or{},
+            [&migrateElement, &nd](const NewColumn& c) -> bool
             {
-                newNodeValues = &newValues[nh];
-            }
-            newNodeValues->emplace(NodeData::COMPONENT_MTIME, mtime);
-        }
+                assert(c.migrateOperation);
+                return c.migrateOperation(nd, migrateElement);
+            });
 
-        if (dataToMigrate.find(NodeData::COMPONENT_LABEL) != dataToMigrate.end() &&
-            (l = nd.getLabel()) != LBL_UNKNOWN)
+
+        ++numRows;
+
+        // Only update row in DB if some column has valid data
+        if (hasValues)
         {
-            if (!newNodeValues)
-            {
-                newNodeValues = &newValues[nh];
-            }
-            newNodeValues->emplace(NodeData::COMPONENT_LABEL, l);
+            assert(migrateElement.size() == cols.size());
+            newValues[nh] = std::move(migrateElement);
+            ++affectedRows;
         }
     }
+
+    LOG_info << "Migrating Data base - affected rows: " << affectedRows
+             << "   from total rows: " << numRows;
+
     sqlite3_finalize(stmt);
 
     if (newValues.empty())
     {
         return true;
+    }
+
+    // Calculate index for query parameters
+    std::map<int, int> dataToMigrate;
+    int bindIdx = 0;
+    for (const auto& c: cols)
+    {
+        assert(c.migrationId > NodeData::COMPONENT_NONE);
+        dataToMigrate[c.migrationId] = ++bindIdx;
     }
 
     if (sqlite3_exec(db, "BEGIN", nullptr, nullptr, nullptr) != SQLITE_OK)
@@ -493,14 +533,12 @@ bool SqliteDbAccess::migrateDataToColumns(sqlite3* db, vector<NewColumn>&& cols)
     // run update query for each data entry
     for (const auto& update : newValues)
     {
+        assert(update.second.size() == cols.size());
         for (const auto& values : update.second)
         {
-            if (sqlite3_bind_int64(stmt, dataToMigrate[values.first], values.second) != SQLITE_OK)
-            {
-                LOG_err << "Db error during migration while binding value to column: " << sqlite3_errmsg(db);
-                sqlite3_finalize(stmt);
+            assert(values);
+            if (!values->bindToDb(stmt, dataToMigrate))
                 return false;
-            }
         }
 
         int stepResult;
@@ -1125,8 +1163,8 @@ bool SqliteAccountState::put(Node *node)
     if (!mStmtPutNode)
     {
         sqlResult = sqlite3_prepare_v2(db, "INSERT OR REPLACE INTO nodes (nodehandle, parenthandle, "
-                                           "name, fingerprint, origFingerprint, type, size, share, fav, ctime, mtime, flags, counter, node, label) "
-                                           "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &mStmtPutNode, NULL);
+                                           "name, fingerprint, origFingerprint, type, size, share, fav, ctime, mtime, flags, counter, node, label, description, tags) "
+                                           "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &mStmtPutNode, NULL);
     }
 
     if (sqlResult == SQLITE_OK)
@@ -1175,6 +1213,37 @@ bool SqliteAccountState::put(Node *node)
         auto labelIt = node->attrs.map.find(labelId);
         int label = (labelIt == node->attrs.map.end()) ? LBL_UNKNOWN : std::atoi(labelIt->second.c_str());
         sqlite3_bind_int(mStmtPutNode, 15, label);
+
+        nameid descriptionId = AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_DESCRIPTION);
+        if (auto descriptionIt = node->attrs.map.find(descriptionId);
+            descriptionIt != node->attrs.map.end())
+        {
+            const std::string& description = descriptionIt->second;
+            sqlite3_bind_text(mStmtPutNode,
+                              16,
+                              description.c_str(),
+                              static_cast<int>(description.length()),
+                              SQLITE_STATIC);
+        }
+        else
+        {
+            sqlite3_bind_null(mStmtPutNode, 16);
+        }
+
+        nameid tagId = AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_TAGS);
+        if (auto tagIt = node->attrs.map.find(tagId); tagIt != node->attrs.map.end())
+        {
+            const std::string& tag = tagIt->second;
+            sqlite3_bind_text(mStmtPutNode,
+                              17,
+                              tag.c_str(),
+                              static_cast<int>(tag.length()),
+                              SQLITE_STATIC);
+        }
+        else
+        {
+            sqlite3_bind_null(mStmtPutNode, 17);
+        }
 
         sqlResult = sqlite3_step(mStmtPutNode);
     }
@@ -1387,6 +1456,9 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, int o
                                                                 ',' + std::to_string(MIME_TYPE_SPREADSHEET) + "))"
                                               " OR mimetype = ?8))) "
                                  "AND (?11 = 0 OR (name REGEXP ?9)) "
+                                 "AND (?14 = 0 OR isContained(?15, description)) "
+                                 "AND (?16 = 0 OR matchTag(?17, tags)) "
+                                 "AND (?18 = 0 OR ?19 = fav)"
                                  // Leading and trailing '*' will be added to argument '?' so we are looking for substrings containing name
                                  // Our REGEXP implementation is case insensitive
 
@@ -1419,7 +1491,13 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, int o
             (sqlResult = sqlite3_bind_int(stmt, 10, order)) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_int(stmt, 11, matchWildcard)) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_int64(stmt, 12, page.size() ? static_cast<sqlite3_int64>(page.size()) : -1)) == SQLITE_OK &&
-            (sqlResult = sqlite3_bind_int64(stmt, 13, page.startingOffset())) == SQLITE_OK)
+            (sqlResult = sqlite3_bind_int64(stmt, 13, page.startingOffset())) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int(stmt, 14, static_cast<int>(filter.byDescription().size()))) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_text(stmt, 15, filter.byDescription().c_str(), static_cast<int>(filter.byDescription().size()), SQLITE_STATIC)) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int(stmt, 16, static_cast<int>(filter.byTag().size()))) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_text(stmt, 17, filter.byTag().c_str(), static_cast<int>(filter.byTag().size()), SQLITE_STATIC)) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int(stmt, 18, filter.byFavourite())) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int(stmt, 19, filter.byFavourite() == 1)) == SQLITE_OK)
         {
             result = processSqlQueryNodes(stmt, children);
         }
@@ -1468,7 +1546,7 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
                       " AND nodehandle IN (SELECT nodehandle FROM nodes WHERE share = ?7)))";
 
         string columnsForNodeAndFilters =
-            "nodehandle, parenthandle, flags, name, type, counter, node, size, ctime, mtime, share, mimetype, fav, label";
+            "nodehandle, parenthandle, flags, name, type, counter, node, size, ctime, mtime, share, mimetype, fav, label, description, tags";
 
         string nodesOfShares =
             "nodesOfShares(" + columnsForNodeAndFilters + ") \n"
@@ -1483,7 +1561,7 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
                 "WHERE parenthandle IN (SELECT nodehandle FROM ancestors) \n"
                 "UNION ALL \n"
                 "SELECT N.nodehandle, N.parenthandle, N.flags, N.name, N.type, N.counter, N.node, "
-                "N.size, N.ctime, N.mtime, N.share, N.mimetype, N.fav, N.label \n"
+                "N.size, N.ctime, N.mtime, N.share, N.mimetype, N.fav, N.label, N.description, N.tags \n"
                 "FROM nodes AS N \n"
                 "INNER JOIN nodesCTE AS P \n"
                         "ON (N.parenthandle = P.nodehandle \n"
@@ -1507,7 +1585,10 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
                                            ',' + std::to_string(MIME_TYPE_PRESENTATION) +
                                            ',' + std::to_string(MIME_TYPE_SPREADSHEET) + "))"
                          " OR mimetype = ?8))) \n"
-            "AND (?13 = 0 OR (name REGEXP ?9))";
+            "AND (?13 = 0 OR (name REGEXP ?9)) \n"
+            "AND (?17 = 0 OR isContained(?18, description)) \n"
+            "AND (?19 = 0 OR matchTag(?20, tags)) \n"
+            "AND (?21 = 0 OR ?22 = fav)";
             // Leading and trailing '*' will be added to argument '?' so we are looking for substrings containing name
             // Our REGEXP implementation is case insensitive
 
@@ -1564,7 +1645,13 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
             (sqlResult = sqlite3_bind_int(stmt, 13, matchWildcard)) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_int64(stmt, 14, page.size() ? static_cast<sqlite3_int64>(page.size()) : -1)) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_int64(stmt, 15, page.startingOffset())) == SQLITE_OK &&
-            (sqlResult = sqlite3_bind_int64(stmt, 16, filter.byAncestorHandles()[2])) == SQLITE_OK)
+            (sqlResult = sqlite3_bind_int64(stmt, 16, filter.byAncestorHandles()[2])) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int(stmt, 17, static_cast<int>(filter.byDescription().size()))) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_text(stmt, 18, filter.byDescription().c_str(), static_cast<int>(filter.byDescription().size()), SQLITE_STATIC)) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int(stmt, 19, static_cast<int>(filter.byTag().size()))) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_text(stmt, 20, filter.byTag().c_str(), static_cast<int>(filter.byTag().size()), SQLITE_STATIC)) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int(stmt, 21, filter.byFavourite())) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int(stmt, 22, filter.byFavourite() == 1)) == SQLITE_OK)
         {
             result = processSqlQueryNodes(stmt, nodes);
         }
@@ -1947,138 +2034,12 @@ void SqliteAccountState::userRegexp(sqlite3_context* context, int argc, sqlite3_
     }
 
     const uint8_t* pattern = static_cast<const uint8_t*>(sqlite3_value_text(argv[0]));
-    const uint8_t* dataBaseName = static_cast<const uint8_t*>(sqlite3_value_text(argv[1]));
-    if (dataBaseName && pattern)
+    const uint8_t* nameFromDataBase = static_cast<const uint8_t*>(sqlite3_value_text(argv[1]));
+    if (nameFromDataBase && pattern)
     {
-        int result = SqliteAccountState::icuLikeCompare(pattern, dataBaseName, 0);
+        int result = icuLikeCompare(pattern, nameFromDataBase, 0);
         sqlite3_result_int(context, result);
     }
-}
-
-// This code has been taken from sqlite repository (https://www.sqlite.org/src/file?name=ext/icu/icu.c)
-
-/*
-** This lookup table is used to help decode the first byte of
-** a multi-byte UTF8 character. It is copied here from SQLite source
-** code file utf8.c.
-*/
-static const unsigned char icuUtf8Trans1[] = {
-    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-    0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
-    0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
-    0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f,
-    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-    0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
-    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-    0x00, 0x01, 0x02, 0x03, 0x00, 0x01, 0x00, 0x00,
-};
-
-#define SQLITE_ICU_READ_UTF8(zIn, c)                      \
-    c = *(zIn++);                                         \
-    if (c>=0xc0){                                         \
-    c = icuUtf8Trans1[c-0xc0];                            \
-    while ((*zIn & 0xc0)==0x80){                          \
-    c = (c<<6) + (0x3f & *(zIn++));                       \
-}                                                         \
-}
-
-#define SQLITE_ICU_SKIP_UTF8(zIn)                        \
-    assert(*zIn);                                        \
-    if (*(zIn++)>=0xc0){                                 \
-    while ((*zIn & 0xc0)==0x80){zIn++;}                  \
-}
-
-
-int SqliteAccountState::icuLikeCompare(
-        const uint8_t *zPattern,   // LIKE pattern
-        const uint8_t *zString,    // The UTF-8 string to compare against
-        const UChar32 uEsc)         // The escape character
-{
-    // Define Linux wildcards
-    static const uint32_t MATCH_ONE = (uint32_t)'?';
-    static const uint32_t MATCH_ALL = (uint32_t)'*';
-
-    int prevEscape = 0;     //True if the previous character was uEsc
-
-    while (1)
-    {
-        // Read (and consume) the next character from the input pattern.
-        uint32_t uPattern;
-        SQLITE_ICU_READ_UTF8(zPattern, uPattern);
-        if(uPattern == 0)
-            break;
-
-        /* There are now 4 possibilities:
-        **
-        **     1. uPattern is an unescaped match-all character "*",
-        **     2. uPattern is an unescaped match-one character "?",
-        **     3. uPattern is an unescaped escape character, or
-        **     4. uPattern is to be handled as an ordinary character
-        */
-        if (uPattern == MATCH_ALL && !prevEscape && uPattern != (uint32_t)uEsc)
-        {
-            // Case 1
-            uint8_t c;
-
-            // Skip any MATCH_ALL or MATCH_ONE characters that follow a
-            // MATCH_ALL. For each MATCH_ONE, skip one character in the
-            // test string
-            while ((c = *zPattern) == MATCH_ALL || c == MATCH_ONE)
-            {
-                if (c == MATCH_ONE)
-                {
-                    if (*zString == 0) return 0;
-                    SQLITE_ICU_SKIP_UTF8(zString);
-                }
-
-                zPattern++;
-            }
-
-            if (*zPattern == 0)
-                return 1;
-
-            while (*zString)
-            {
-                if (icuLikeCompare(zPattern, zString, uEsc))
-                {
-                    return 1;
-                }
-
-                SQLITE_ICU_SKIP_UTF8(zString);
-            }
-
-            return 0;
-        }
-        else if (uPattern == MATCH_ONE && !prevEscape && uPattern != (uint32_t)uEsc)
-        {
-            // Case 2
-            if( *zString==0 ) return 0;
-            SQLITE_ICU_SKIP_UTF8(zString);
-
-        }
-        else if (uPattern == (uint32_t)uEsc && !prevEscape)
-        {
-            // Case 3
-            prevEscape = 1;
-
-        }
-        else
-        {
-            // Case 4
-            uint32_t uString;
-            SQLITE_ICU_READ_UTF8(zString, uString);
-            uString = (uint32_t)u_foldCase((UChar32)uString, U_FOLD_CASE_DEFAULT);
-            uPattern = (uint32_t)u_foldCase((UChar32)uPattern, U_FOLD_CASE_DEFAULT);
-            if (uString != uPattern)
-            {
-                return 0;
-            }
-
-            prevEscape = 0;
-        }
-    }
-
-    return *zString == 0;
 }
 
 void SqliteAccountState::userGetMimetype(sqlite3_context* context, int argc, sqlite3_value** argv)
@@ -2098,47 +2059,95 @@ void SqliteAccountState::userGetMimetype(sqlite3_context* context, int argc, sql
     sqlite3_result_int(context, result);
 }
 
+void SqliteAccountState::userIsContained(sqlite3_context* context, int argc, sqlite3_value** argv)
+{
+    if (argc != 2)
+    {
+        LOG_err << "Invalid parameters for userIsContained";
+        assert(false);
+        sqlite3_result_int(context, 0);
+        return;
+    }
+
+    const uint8_t* descriptionToCheck = static_cast<const uint8_t*>(sqlite3_value_text(argv[0]));
+    const uint8_t* descriptionFromDataBase = static_cast<const uint8_t*>(sqlite3_value_text(argv[1]));
+    if (!descriptionFromDataBase || !descriptionToCheck)
+    {
+        sqlite3_result_int(context, 0);
+        return;
+    }
+
+    std::string stringToMatch(reinterpret_cast<const char*>(descriptionToCheck));
+    std::string stringAddingWildcards =
+        WILDCARD_MATCH_ALL + escapeWildCards(stringToMatch) + WILDCARD_MATCH_ALL;
+
+    const uint8_t* pattern = reinterpret_cast<const uint8_t*>(stringAddingWildcards.c_str());
+    int result = icuLikeCompare(pattern, descriptionFromDataBase, ESCAPE_CHARACTER);
+    sqlite3_result_int(context, result);
+}
+
+ void SqliteAccountState::userMatchTag(sqlite3_context* context, int argc, sqlite3_value** argv)
+{
+    if (argc != 2)
+    {
+        LOG_err << "Invalid parameters for userMatchTag";
+        assert(false);
+        sqlite3_result_int(context, 0);
+        return;
+    }
+
+    const uint8_t* tagToCheck = static_cast<const uint8_t*>(sqlite3_value_text(argv[0]));
+    const uint8_t* tagsFromDataBase = static_cast<const uint8_t*>(sqlite3_value_text(argv[1]));
+    if (!tagsFromDataBase || !tagToCheck)
+    {
+        sqlite3_result_int(context, 0);
+        return;
+    }
+
+    std::string tags{reinterpret_cast<const char*>(tagsFromDataBase)};
+    std::set<std::string> tokens = splitString(tags, MegaClient::TAG_DELIMITER);
+    std::string tag{reinterpret_cast<const char*>(tagToCheck)};
+    sqlite3_result_int(context, getTagPosition(tokens, tag) != tokens.end());
+}
+
 std::string OrderByClause::get(int order, int sqlParamIndex)
 {
-    std::string criteria1 =
-        "WHEN " + std::to_string(DEFAULT_ASC)  + " THEN type \n"  // folders first
-        "WHEN " + std::to_string(DEFAULT_DESC) + " THEN type \n"  // files first
-        "WHEN " + std::to_string(SIZE_ASC)  + " THEN size \n"
-        "WHEN " + std::to_string(SIZE_DESC) + " THEN size \n"
-        "WHEN " + std::to_string(CTIME_ASC)  + " THEN ctime \n"
-        "WHEN " + std::to_string(CTIME_DESC) + " THEN ctime \n"
-        "WHEN " + std::to_string(MTIME_ASC)  + " THEN mtime \n"
-        "WHEN " + std::to_string(MTIME_DESC) + " THEN mtime \n"
-        "WHEN " + std::to_string(LABEL_ASC)  + " THEN type \n"    // folders first
-        "WHEN " + std::to_string(LABEL_DESC) + " THEN type \n"    // folders first
-        "WHEN " + std::to_string(FAV_ASC)  + " THEN type \n"      // folders first
-        "WHEN " + std::to_string(FAV_DESC) + " THEN type \n";     // folders first
-    std::string criteria2 =
-        "WHEN " + std::to_string(DEFAULT_ASC)  + " THEN name \n"
-        "WHEN " + std::to_string(DEFAULT_DESC) + " THEN name \n"
-        "WHEN " + std::to_string(LABEL_ASC)  + " THEN label \n"
-        "WHEN " + std::to_string(LABEL_DESC) + " THEN label \n"
-        "WHEN " + std::to_string(FAV_ASC)  + " THEN fav \n"
-        "WHEN " + std::to_string(FAV_DESC) + " THEN fav \n";
+    // clang-format off
+    // First sorting field
+    static const std::string fieldToSort1 =
+        "WHEN " + std::to_string(DEFAULT_ASC)  + " THEN type \n"   // folders first
+        "WHEN " + std::to_string(DEFAULT_DESC) + " THEN type \n"   // folders first
+        "WHEN " + std::to_string(SIZE_ASC)     + " THEN size \n"
+        "WHEN " + std::to_string(SIZE_DESC)    + " THEN size \n"
+        "WHEN " + std::to_string(CTIME_ASC)    + " THEN ctime \n"
+        "WHEN " + std::to_string(CTIME_DESC)   + " THEN ctime \n"
+        "WHEN " + std::to_string(MTIME_ASC)    + " THEN mtime \n"
+        "WHEN " + std::to_string(MTIME_DESC)   + " THEN mtime \n"
+        "WHEN " + std::to_string(LABEL_ASC)    + " THEN type \n"   // folders first
+        "WHEN " + std::to_string(LABEL_DESC)   + " THEN type \n"   // folders first
+        "WHEN " + std::to_string(FAV_ASC)      + " THEN type \n"   // folders first
+        "WHEN " + std::to_string(FAV_DESC)     + " THEN type \n";  // folders first
+    // Second sorting field
+    static const std::string fieldToSort2 =
+        "WHEN " + std::to_string(DEFAULT_ASC)  + " THEN name COLLATE NOCASE \n"
+        "WHEN " + std::to_string(DEFAULT_DESC) + " THEN name COLLATE NOCASE \n"
+        "WHEN " + std::to_string(LABEL_ASC)    + " THEN label \n"
+        "WHEN " + std::to_string(LABEL_DESC)   + " THEN label \n"
+        "WHEN " + std::to_string(FAV_ASC)      + " THEN fav \n"
+        "WHEN " + std::to_string(FAV_DESC)     + " THEN fav \n";
+    // Third sorting field: always sort by PK last, to get the same order for identical queries
+    static const std::string fieldToSort3 = "nodehandle ";
+    // clang-format on
 
-    std::bitset<3> dirs = getDescendingDirs(order);
-    std::string direction1 = dirs[0] ? "DESC" : "";
-    std::string direction2 = dirs[1] ? "DESC" : "";
-    std::string direction3 = dirs[2] ? "DESC" : "";
+    const std::bitset<3> dirs = getDescendingDirs(order);
+    const std::string x = '?' + std::to_string(sqlParamIndex) + ' ';
 
-    std::string x = '?' + std::to_string(sqlParamIndex) + ' ';
-
-    std::string clause =
-        "CASE " + x +
-        criteria1 +
-        "END " + direction1 + ", \n"
-        "CASE " + x +
-        criteria2 +
-        "END " + direction2 + ", \n"
-        // always order by PK last, to get the same order for identical queries
-        "nodehandle " + direction3;
-
-    return clause;
+    // clang-format off
+    static const std::array<std::string, 2> boolToDesc {"", "DESC"};
+    return "CASE " + x + fieldToSort1 + "END " + boolToDesc[dirs[0]] + ", \n" +
+           "CASE " + x + fieldToSort2 + "END " + boolToDesc[dirs[1]] + ", \n" +
+           fieldToSort3 + boolToDesc[dirs[2]];
+    // clang-format on
 }
 
 size_t OrderByClause::getId(int order)
@@ -2151,35 +2160,175 @@ size_t OrderByClause::getId(int order)
 std::bitset<3> OrderByClause::getDescendingDirs(int order)
 {
     std::bitset<3> dirs;
+    // dirs[0] -> type (if directories must go first always) | attr (size, ctime, mtime)
+    // dirs[1] -> attr (if directories must go first always)
+    // dirs[2] -> PK (always)
 
     switch (order)
     {
-    case SIZE_DESC:
-    case CTIME_DESC:
-    case MTIME_DESC:
-        dirs[2] = true; // DESC, by PK
-        [[fallthrough]];
-    case DEFAULT_ASC:
-    case LABEL_ASC:
-    case FAV_ASC:
-        dirs[0] = true; break;
-    case DEFAULT_DESC:
-        dirs[1] = true;
-        dirs[2] = true; // DESC, by PK
-        break;
-    case LABEL_DESC:
-    case FAV_DESC:
-        dirs[0] = true;
-        dirs[1] = true;
-        dirs[2] = true; // DESC, by PK
-        break;
-    case SIZE_ASC:
-    case CTIME_ASC:
-    case MTIME_ASC:
-        break;
+        //// Non directory special criteria (size, creation and modification)
+        case SIZE_ASC:
+        case CTIME_ASC:
+        case MTIME_ASC:
+            break;
+        case SIZE_DESC:
+        case CTIME_DESC:
+        case MTIME_DESC:
+            dirs[0] = true;
+            dirs[2] = true;
+            break;
+        //// Directories first (dirs[0] = true)
+        case DEFAULT_ASC:
+            dirs[0] = true;
+            break;
+        case DEFAULT_DESC:
+            dirs[0] = true;
+            dirs[1] = true;
+            dirs[2] = true;
+            break;
+        case LABEL_ASC:
+        case FAV_ASC:
+            dirs[0] = true;
+            dirs[1] = true;
+            break;
+        case LABEL_DESC:
+        case FAV_DESC:
+            dirs[0] = true;
+            dirs[2] = true;
+            break;
+    }
+    return dirs;
+}
+
+SqliteDbAccess::MTimeType::MTimeType(mega::m_time_t value):
+    mValue(value)
+{}
+
+bool SqliteDbAccess::MTimeType::bindToDb(sqlite3_stmt* stmt,
+                                         const std::map<int, int>& lookupId) const
+{
+    if (sqlite3_bind_int64(stmt, lookupId.at(COMPONENT), mValue) != SQLITE_OK)
+    {
+        LOG_err << "Db error during migration while binding mTime value to column: ";
+        sqlite3_finalize(stmt);
+        return false;
     }
 
-    return dirs;
+    return true;
+}
+
+std::unique_ptr<SqliteDbAccess::MigrateType> SqliteDbAccess::MTimeType::fromNodeData(NodeData& nd)
+{
+    return std::make_unique<MTimeType>(nd.getMtime());
+}
+
+bool SqliteDbAccess::MTimeType::hasValidValue() const
+{
+    return mValue;
+}
+
+SqliteDbAccess::LabelType::LabelType(int value):
+    mValue(value)
+{}
+
+bool SqliteDbAccess::LabelType::bindToDb(sqlite3_stmt* stmt,
+                                         const std::map<int, int>& lookupId) const
+{
+    if (sqlite3_bind_int64(stmt, lookupId.at(COMPONENT), mValue) != SQLITE_OK)
+    {
+        LOG_err << "Db error during migration while binding label value to column: ";
+        sqlite3_finalize(stmt);
+        return false;
+    }
+
+    return true;
+}
+
+std::unique_ptr<SqliteDbAccess::MigrateType> SqliteDbAccess::LabelType::fromNodeData(NodeData& nd)
+{
+    return std::make_unique<LabelType>(nd.getLabel());
+}
+
+bool SqliteDbAccess::LabelType::hasValidValue() const
+{
+    return mValue != LBL_UNKNOWN;
+}
+
+SqliteDbAccess::DescriptionType::DescriptionType(const string& value):
+    mValue(value)
+{}
+
+bool SqliteDbAccess::DescriptionType::bindToDb(sqlite3_stmt* stmt,
+                                               const std::map<int, int>& lookupId) const
+{
+    if (mValue.size())
+    {
+        if (sqlite3_bind_text(stmt,
+                              lookupId.at(COMPONENT),
+                              mValue.c_str(),
+                              static_cast<int>(mValue.length()),
+                              SQLITE_STATIC) != SQLITE_OK)
+        {
+            LOG_err << "Db error during migration while binding description value to column: ";
+            sqlite3_finalize(stmt);
+            return false;
+        }
+    }
+    else
+    {
+        sqlite3_bind_null(stmt, lookupId.at(COMPONENT));
+    }
+
+    return true;
+}
+
+std::unique_ptr<SqliteDbAccess::MigrateType>
+    SqliteDbAccess::DescriptionType::fromNodeData(NodeData& nd)
+{
+    return std::make_unique<DescriptionType>(nd.getDescription());
+}
+
+bool SqliteDbAccess::DescriptionType::hasValidValue() const
+{
+    return mValue.size();
+}
+
+SqliteDbAccess::TagsType::TagsType(const string& value):
+    mValue(value)
+{}
+
+bool SqliteDbAccess::TagsType::bindToDb(sqlite3_stmt* stmt,
+                                        const std::map<int, int>& lookupId) const
+{
+    if (mValue.size())
+    {
+        if (sqlite3_bind_text(stmt,
+                              lookupId.at(COMPONENT),
+                              mValue.c_str(),
+                              static_cast<int>(mValue.length()),
+                              SQLITE_STATIC) != SQLITE_OK)
+        {
+            LOG_err << "Db error during migration while binding tags value to column: ";
+            sqlite3_finalize(stmt);
+            return false;
+        }
+    }
+    else
+    {
+        sqlite3_bind_null(stmt, lookupId.at(COMPONENT));
+    }
+
+    return true;
+}
+
+std::unique_ptr<SqliteDbAccess::MigrateType> SqliteDbAccess::TagsType::fromNodeData(NodeData& nd)
+{
+    return std::make_unique<TagsType>(nd.getTags());;
+}
+
+bool SqliteDbAccess::TagsType::hasValidValue() const
+{
+    return mValue.size();
 }
 
 } // namespace

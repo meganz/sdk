@@ -80,10 +80,6 @@ public:
     {
         throw NotImplemented{__func__};
     }
-    bool getextension(const mega::LocalPath&, std::string&) const override
-    {
-        throw NotImplemented{__func__};
-    }
     bool expanselocalpath(const mega::LocalPath& path, mega::LocalPath& absolutepath) override
     {
         throw NotImplemented{__func__};

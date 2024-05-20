@@ -34,7 +34,7 @@ class GfxProviderExternal : public IGfxLocalProvider
 {
     MegaGfxProcessor *processor;
 
-    bool readbitmap(FileSystemAccess*, const LocalPath&, int) override;
+    bool readbitmap(const LocalPath&, int) override;
     bool resizebitmap(int, int, string* result) override;
     void freebitmap() override;
 
@@ -43,7 +43,6 @@ class GfxProviderExternal : public IGfxLocalProvider
 public:
     GfxProviderExternal() : processor(nullptr) { };
     GfxProviderExternal(MegaGfxProcessor *processor) : processor(processor) {};
-    bool isgfx(string*);
     void setProcessor(MegaGfxProcessor *processor);
 };
 } // namespace

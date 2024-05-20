@@ -19,6 +19,8 @@
  * program.
  */
 
+#include <mega/fuse/common/service.h>
+
 #include "mega.h"
 #include "megaapi.h"
 #include "megaapi_impl.h"
@@ -450,6 +452,16 @@ double MegaNode::getLatitude()
 double MegaNode::getLongitude()
 {
     return INVALID_COORDINATE;
+}
+
+const char* MegaNode::getDescription()
+{
+    return NULL;
+}
+
+MegaStringList* MegaNode::getTags()
+{
+    return NULL;
 }
 
 char *MegaNode::getBase64Handle()
@@ -1450,6 +1462,11 @@ int MegaError::getErrorCode() const
     return errorCode;
 }
 
+int MegaError::getMountResult() const
+{
+    return MegaMount::SUCCESS;
+}
+
 int MegaError::getSyncError() const
 {
     return syncError;
@@ -1905,6 +1922,26 @@ void MegaListener::onChatsUpdate(MegaApi *api, MegaTextChatList *chats)
 #endif
 
 MegaListener::~MegaListener() {}
+
+void MegaListener::onMountAdded(MegaApi*, const char*, int)
+{
+}
+
+void MegaListener::onMountChanged(MegaApi*, const char*, int)
+{
+}
+
+void MegaListener::onMountDisabled(MegaApi*, const char*, int)
+{
+}
+
+void MegaListener::onMountEnabled(MegaApi*, const char*, int)
+{
+}
+
+void MegaListener::onMountRemoved(MegaApi*, const char*, int)
+{
+}
 
 bool MegaTreeProcessor::processMegaNode(MegaNode*)
 { return false; /* Stops the processing */ }
@@ -2598,9 +2635,8 @@ bool MegaApi::contactVerificationWarningEnabled()
     return pImpl->contactVerificationWarningEnabled();
 }
 
-void MegaApi::setSecureFlag(bool enable)
+void MegaApi::setSecureFlag([[maybe_unused]] bool enable)
 {
-    pImpl->setSecureFlag(enable);
 }
 
 void MegaApi::setManualVerificationFlag(bool enable)
@@ -2871,6 +2907,26 @@ void MegaApi::setNodeCoordinates(MegaNode *node, double latitude, double longitu
 void MegaApi::setUnshareableNodeCoordinates(MegaNode *node, double latitude, double longitude, MegaRequestListener *listener)
 {
     pImpl->setNodeCoordinates(node, true, latitude, longitude, listener);
+}
+
+void MegaApi::setNodeDescription(MegaNode* node, const char* description, MegaRequestListener* listener)
+{
+    pImpl->setNodeDescription(node, description, listener);
+}
+
+void MegaApi::addNodeTag(MegaNode* node, const char* tag, MegaRequestListener* listener)
+{
+    pImpl->addNodeTag(node, tag, listener);
+}
+
+void MegaApi::removeNodeTag(MegaNode* node, const char* tag, MegaRequestListener* listener)
+{
+    pImpl->removeNodeTag(node, tag, listener);
+}
+
+void MegaApi::updateNodeTag(MegaNode* node, const char* newTag, const char* oldTag, MegaRequestListener* listener)
+{
+    pImpl->updateNodeTag(node, newTag, oldTag, listener);
 }
 
 void MegaApi::exportNode(MegaNode *node, MegaRequestListener *listener)
@@ -4524,6 +4580,11 @@ void MegaApi::setLRUCacheSize(unsigned long long size)
     pImpl->setLRUCacheSize(size);
 }
 
+unsigned long long MegaApi::getNumNodesAtCacheLRU() const
+{
+    return pImpl->getNumNodesAtCacheLRU();
+}
+
 long long MegaApi::getTotalDownloadedBytes()
 {
     return pImpl->getTotalDownloadedBytes();
@@ -5787,6 +5848,110 @@ bool MegaApi::requestStatusMonitorEnabled()
     return pImpl->requestStatusMonitorEnabled();
 }
 
+void MegaApi::addMount(const MegaMount* mount, MegaRequestListener* listener)
+{
+    assert(listener);
+    assert(mount);
+
+    pImpl->addMount(mount, listener);
+}
+
+void MegaApi::disableMount(const char* path,
+                           MegaRequestListener* listener,
+                           bool remember)
+{
+    assert(listener);
+    assert(path);
+
+    pImpl->disableMount(path, listener, remember);
+}
+
+void MegaApi::enableMount(const char* path,
+                          MegaRequestListener* listener,
+                          bool remember)
+{
+    assert(listener);
+    assert(path);
+
+    pImpl->enableMount(path, listener, remember);
+}
+
+MegaFuseFlags* MegaApi::getFUSEFlags()
+{
+    return pImpl->getFUSEFlags();
+}
+
+MegaMountFlags* MegaApi::getMountFlags(const char* path)
+{
+    assert(path);
+
+    return pImpl->getMountFlags(path);
+}
+
+MegaMount* MegaApi::getMountInfo(const char* path)
+{
+    assert(path);
+
+    return pImpl->getMountInfo(path);
+}
+
+MegaStringList* MegaApi::getMountPaths(const char* name)
+{
+    assert(name);
+
+    return pImpl->getMountPaths(name);
+}
+
+MegaMountList* MegaApi::listMounts(bool enabled)
+{
+    return pImpl->listMounts(enabled);
+}
+
+bool MegaApi::isCachedByPath(const char* path)
+{
+    assert(path);
+
+    return pImpl->isCached(path);
+}
+
+bool MegaApi::isFUSESupported()
+{
+    return pImpl->isFUSESupported();
+}
+
+bool MegaApi::isMountEnabled(const char* path)
+{
+    assert(path);
+
+    return pImpl->isMountEnabled(path);
+}
+
+void MegaApi::removeMount(const char* path, MegaRequestListener* listener)
+{
+    assert(listener);
+    assert(path);
+
+    pImpl->removeMount(path, listener);
+}
+
+void MegaApi::setFUSEFlags(const MegaFuseFlags* flags)
+{
+    assert(flags);
+
+    pImpl->setFUSEFlags(*flags);
+}
+
+void MegaApi::setMountFlags(const MegaMountFlags* flags,
+                            const char* path,
+                            MegaRequestListener* listener)
+{
+    assert(flags);
+    assert(path);
+    assert(listener);
+
+    pImpl->setMountFlags(flags, path, listener);
+}
+
 void MegaApi::getVpnRegions(MegaRequestListener* listener)
 {
     pImpl->getVpnRegions(listener);
@@ -5877,6 +6042,11 @@ void MegaApi::setLastActionedBanner(uint32_t notificationId, MegaRequestListener
 void MegaApi::getLastActionedBanner(MegaRequestListener* listener)
 {
     pImpl->getLastActionedBanner(listener);
+}
+
+MegaFlag* MegaApi::getFlag(const char* flagName, bool commit, MegaRequestListener* listener)
+{
+    return pImpl->getFlag(flagName, commit, listener);
 }
 
 /* END MEGAAPI */
@@ -6742,6 +6912,10 @@ void MegaSearchFilter::byCategory(int /*mimeType*/)
 {
 }
 
+void MegaSearchFilter::byFavourite(int /*boolFilterOption*/)
+{
+}
+
 void MegaSearchFilter::bySensitivity(bool /*excludeSensitive*/)
 {
 }
@@ -6762,6 +6936,14 @@ void MegaSearchFilter::byModificationTime(int64_t /*lowerLimit*/, int64_t /*uppe
 {
 }
 
+void MegaSearchFilter::byDescription(const char* /*searchString*/)
+{
+}
+
+void MegaSearchFilter::byTag(const char* /*searchString*/)
+{
+}
+
 const char* MegaSearchFilter::byName() const
 {
     return nullptr;
@@ -6775,6 +6957,11 @@ int MegaSearchFilter::byNodeType() const
 int MegaSearchFilter::byCategory() const
 {
     return MegaApi::FILE_TYPE_DEFAULT;
+}
+
+int MegaSearchFilter::byFavourite() const
+{
+    return MegaSearchFilter::BOOL_FILTER_DISABLED;
 }
 
 bool MegaSearchFilter::bySensitivity() const
@@ -6810,6 +6997,16 @@ int64_t MegaSearchFilter::byModificationTimeLowerLimit() const
 int64_t MegaSearchFilter::byModificationTimeUpperLimit() const
 {
     return 0;
+}
+
+const char* MegaSearchFilter::byDescription() const
+{
+    return nullptr;
+}
+
+const char* MegaSearchFilter::byTag() const
+{
+    return nullptr;
 }
 
 MegaSearchPage::MegaSearchPage()
@@ -7726,7 +7923,6 @@ MegaCurrency *MegaCurrency::copy()
     return nullptr;
 }
 
-
 /* MegaVpnCredentials BEGIN */
 MegaVpnCredentials::MegaVpnCredentials()
 {
@@ -7777,7 +7973,7 @@ MegaVpnCredentials* MegaVpnCredentials::copy() const
 }
 /* MegaVpnCredentials END */
 
-MegaNodeTree* MegaNodeTree::createInstance(MegaNodeTree* nodeTreeChild,
+MegaNodeTree* MegaNodeTree::createInstance(const MegaNodeTree* nodeTreeChild,
                                            const char* name,
                                            const char* s4AttributeValue,
                                            const MegaCompleteUploadData* completeUploadData,
@@ -7803,12 +7999,15 @@ MegaCompleteUploadData* MegaCompleteUploadData::createInstance(const char* finge
 MegaGfxProvider::~MegaGfxProvider() = default;
 
 MegaGfxProvider* MegaGfxProvider::createIsolatedInstance(
-    const char* pipeName,
+    const char* endpointName,
     const char* executable)
 {
+    if (!endpointName || !executable) return nullptr;
+
     auto provider = MegaGfxProviderPrivate::createIsolatedInstance(
-        std::string(pipeName ? pipeName : ""),
-        std::string(executable ? executable : ""));
+        std::string(endpointName),
+        std::string(executable)
+    );
 
     return provider.release();
 }
@@ -7822,5 +8021,51 @@ MegaGfxProvider* MegaGfxProvider::createInternalInstance()
 {
     return MegaGfxProviderPrivate::createInternalInstance().release();
 }
+
+MegaFuseExecutorFlags::MegaFuseExecutorFlags() = default;
+
+MegaFuseExecutorFlags::~MegaFuseExecutorFlags() = default;
+
+MegaFuseFlags::MegaFuseFlags() = default;
+
+MegaFuseFlags::~MegaFuseFlags() = default;
+
+MegaFuseFlags* MegaFuseFlags::create()
+{
+    return new MegaFuseFlagsPrivate(fuse::ServiceFlags());
+}
+
+MegaFuseInodeCacheFlags::MegaFuseInodeCacheFlags() = default;
+
+MegaFuseInodeCacheFlags::~MegaFuseInodeCacheFlags() = default;
+
+MegaMount::MegaMount() = default;
+
+MegaMount::~MegaMount() = default;
+
+MegaMount* MegaMount::create()
+{
+    return new MegaMountPrivate();
+}
+
+const char* MegaMount::getResultString(int result)
+{
+    assert(result >= ABORTED && result <= UNSUPPORTED);
+
+    return fuse::toString(static_cast<fuse::MountResult>(result));
+}
+
+MegaMountFlags::MegaMountFlags() = default;
+
+MegaMountFlags::~MegaMountFlags() = default;
+
+MegaMountFlags* MegaMountFlags::create()
+{
+    return new MegaMountFlagsPrivate();
+}
+
+MegaMountList::MegaMountList() = default;
+
+MegaMountList::~MegaMountList() = default;
 
 }

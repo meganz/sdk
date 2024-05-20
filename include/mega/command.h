@@ -225,23 +225,39 @@ public:
 
 class MEGA_API CommandPrelogin : public Command
 {
+public:
+    using Completion = std::function<void(int, string*, string*, error)>;
+
+    Completion mCompletion;
     string email;
 
 public:
     bool procresult(Result, JSON&) override;
 
-    CommandPrelogin(MegaClient*, const char*);
+    CommandPrelogin(MegaClient* client, Completion completion, const char* email);
 };
 
 class MEGA_API CommandLogin : public Command
 {
+public:
+    using Completion = std::function<void(error)>;
+
+private:
+    Completion mCompletion;
     bool checksession;
     int sessionversion;
 
 public:
     bool procresult(Result, JSON&) override;
 
-    CommandLogin(MegaClient*, const char*, const byte *, int, const byte* = NULL,  int = 0, const char* = NULL);
+    CommandLogin(MegaClient* client,
+                 Completion completion,
+                 const char* email,
+                 const byte* emailhash,
+                 int emailhashsize,
+                 const byte* sessionkey = NULL,
+                 int csessionversion = 0,
+                 const char* pin = NULL);
 };
 
 class MEGA_API CommandSetMasterKey : public Command
@@ -440,7 +456,13 @@ class MEGA_API CommandSendDevCommand : public Command
 public:
     bool procresult(Result, JSON&) override;
 
-    CommandSendDevCommand(MegaClient*, const char* command, const char* email = NULL, long long = 0, int = 0, int = 0);
+    CommandSendDevCommand(MegaClient*,
+                          const char* command,
+                          const char* email = NULL,
+                          long long = 0,
+                          int = 0,
+                          int = 0,
+                          const char* = nullptr);
 };
 #endif
 
@@ -488,15 +510,6 @@ class MEGA_API CommandNodeKeyUpdate : public Command
 {
 public:
     CommandNodeKeyUpdate(MegaClient*, handle_vector*);
-
-    bool procresult(Result, JSON&) override { return true; }
-};
-
-class MEGA_API CommandShareKeyUpdate : public Command
-{
-public:
-    CommandShareKeyUpdate(MegaClient*, handle, const char*, const byte*, int);
-    CommandShareKeyUpdate(MegaClient*, handle_vector*);
 
     bool procresult(Result, JSON&) override { return true; }
 };
@@ -831,11 +844,12 @@ class MEGA_API CommandGetUserQuota : public Command
     bool mStorage;
     bool mTransfer;
     bool mPro;
+    std::function<void(std::shared_ptr<AccountDetails>, Error)> mCompletion;
 
 public:
     bool procresult(Result, JSON&) override;
 
-    CommandGetUserQuota(MegaClient*, std::shared_ptr<AccountDetails>, bool, bool, bool, int source);
+    CommandGetUserQuota(MegaClient*, std::shared_ptr<AccountDetails>, bool, bool, bool, int, std::function<void(std::shared_ptr<AccountDetails>, Error)> = {});
 };
 
 class MEGA_API CommandQueryTransferQuota : public Command
@@ -1805,6 +1819,7 @@ typedef std::function<void(Error, string_map)> CommandFetchAdsCompletion;
 class MEGA_API CommandFetchAds : public Command
 {
     CommandFetchAdsCompletion mCompletion;
+    std::vector<std::string> mAdUnits;
 public:
     bool procresult(Result, JSON&) override;
 
@@ -1910,7 +1925,6 @@ public:
 private:
     CommandFetchCreditCardCompletion mCompletion;
 };
-
 
 class MEGA_API CommandCreatePasswordManagerBase : public Command
 {

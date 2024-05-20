@@ -37,6 +37,10 @@ namespace mega {
 
 const vector<string> Node::attributesToCopyIntoPreviousVersions{ "fav", "lbl", "sen" };
 
+const std::string Node::BLANK("BLANK");
+const std::string Node::CRYPTO_ERROR("CRYPTO_ERROR");
+const std::string Node::NO_KEY("NO_KEY");
+
 Node::Node(MegaClient& cclient, NodeHandle h, NodeHandle ph,
            nodetype_t t, m_off_t s, handle u, const char* fa, m_time_t ts)
     : client(&cclient)
@@ -761,7 +765,7 @@ byte* Node::decryptattr(SymmCipher* key, const char* attrstring, size_t attrstrl
     if (attrstrlen)
     {
         int l = int(attrstrlen * 3 / 4 + 3);
-        std::unique_ptr<byte[]> buf(new byte[l]); // ::mega::make_unique<> does not support T[] specialisation
+        auto buf = std::make_unique<byte[]>(l);
 
         l = Base64::atob(attrstring, buf.get(), l);
 
@@ -788,11 +792,11 @@ void Node::parseattr(byte *bufattr, AttrMap &attrs, m_off_t size, m_time_t &mtim
     attr_map::iterator it = attrs.map.find('n');   // filename
     if (it == attrs.map.end())
     {
-        fileName = "CRYPTO_ERROR";
+        fileName = CRYPTO_ERROR;
     }
     else if (it->second.empty())
     {
-        fileName = "BLANK";
+        fileName = BLANK;
     }
 
     it = attrs.map.find('c');   // checksum
@@ -835,6 +839,12 @@ void Node::setattr()
 
         const auto pwdNameid = AttrMap::string2nameid(MegaClient::NODE_ATTR_PASSWORD_MANAGER);
         changed.pwd = attrs.hasDifferentValue(pwdNameid, oldAttrs.map);
+
+        const auto descriptionNameid = AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_DESCRIPTION);
+        changed.description = attrs.hasDifferentValue(descriptionNameid, oldAttrs.map);
+
+        const auto tagsNameid = AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_TAGS);
+        changed.tags = attrs.hasDifferentValue(tagsNameid, oldAttrs.map);
 
         setfingerprint();
 
@@ -1012,8 +1022,8 @@ const char* Node::displayname() const
     // not yet decrypted
     if (attrstring)
     {
-        LOG_debug << "NO_KEY " << type << " " << size << " " << Base64Str<MegaClient::NODEHANDLE>(nodehandle);
-        return "NO_KEY";
+        LOG_debug << NO_KEY << " " << type << " " << size << " " << Base64Str<MegaClient::NODEHANDLE>(nodehandle);
+        return NO_KEY.c_str();
     }
 
     attr_map::const_iterator it;
@@ -1024,15 +1034,15 @@ const char* Node::displayname() const
     {
         if (type < ROOTNODE || type > RUBBISHNODE)
         {
-            LOG_debug << "CRYPTO_ERROR " << type << " " << size << " " << nodehandle;
+            LOG_debug << CRYPTO_ERROR << " " << type << " " << size << " " << nodehandle;
         }
-        return "CRYPTO_ERROR";
+        return CRYPTO_ERROR.c_str();
     }
 
     if (!it->second.size())
     {
-        LOG_debug << "BLANK " << type << " " << size << " " << nodehandle;
-        return "BLANK";
+        LOG_debug << BLANK << " " << type << " " << size << " " << nodehandle;
+        return BLANK.c_str();
     }
 
     return it->second.c_str();
@@ -1185,7 +1195,7 @@ bool Node::applykey()
             if (h != me)
             {
                 // this is a share node handle - check if share key is available
-                if (client->mKeyManager.isSecure() && client->mKeyManager.generation())
+                if (client->mKeyManager.generation())
                 {
                     std::string key = client->mKeyManager.getShareKey(h);
                     if (key.size())
@@ -1773,6 +1783,33 @@ int NodeData::getLabel()
     return attrIt == mAttrs.map.end() ? LBL_UNKNOWN : std::atoi(attrIt->second.c_str());
 }
 
+std::string NodeData::getDescription()
+{
+    if (readFailed())
+    {
+        return std::string();
+    }
+
+    static const nameid descriptionId =
+        AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_DESCRIPTION);
+    auto attrIt = mAttrs.map.find(descriptionId);
+
+    return attrIt == mAttrs.map.end() ? std::string() : attrIt->second.c_str();
+}
+
+std::string NodeData::getTags()
+{
+    if (readFailed())
+    {
+        return std::string();
+    }
+
+    static const nameid tagId = AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_TAGS);
+    auto attrIt = mAttrs.map.find(tagId);
+
+    return attrIt == mAttrs.map.end() ? std::string() : attrIt->second.c_str();
+}
+
 handle NodeData::getHandle()
 {
     if (readFailed())
@@ -1791,7 +1828,7 @@ std::unique_ptr<Node> NodeData::createNode(MegaClient& client, bool fromOldCache
         return nullptr;
     }
 
-    unique_ptr<Node> n = mega::make_unique<Node>(client, NodeHandle().set6byte(mHandle), NodeHandle().set6byte(mParentHandle),
+    unique_ptr<Node> n = std::make_unique<Node>(client, NodeHandle().set6byte(mHandle), NodeHandle().set6byte(mParentHandle),
                                                  mType, mSize, mUserHandle, mFileAttributes.c_str(), mCtime);
 
     // read inshare, outshares, or pending shares
@@ -1857,6 +1894,10 @@ std::unique_ptr<Node> NodeData::createNode(MegaClient& client, bool fromOldCache
     return n;
 }
 
+bool NewNode::hasZeroKey() const
+{
+    return Node::hasZeroKey(nodekey);
+}
 
 PublicLink::PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown, const char *authKey)
 {
@@ -3048,7 +3089,7 @@ FSNode LocalNode::getLastSyncedFSDetails() const
 
     FSNode n;
     n.localname = localname;
-    n.shortname = slocalname ? make_unique<LocalPath>(*slocalname): nullptr;
+    n.shortname = slocalname ? std::make_unique<LocalPath>(*slocalname): nullptr;
     n.type = type;
     n.fsid = fsid_lastSynced;
     n.isSymlink = false;  // todo: store localndoes for symlinks but don't use them?
@@ -3062,7 +3103,7 @@ FSNode LocalNode::getScannedFSDetails() const
 {
     FSNode n;
     n.localname = localname;
-    n.shortname = slocalname ? make_unique<LocalPath>(*slocalname): nullptr;
+    n.shortname = slocalname ? std::make_unique<LocalPath>(*slocalname): nullptr;
     n.type = type;
     n.fsid = fsid_asScanned;
     n.isSymlink = false;  // todo: store localndoes for symlinks but don't use them?
@@ -3104,6 +3145,12 @@ void LocalNode::queueClientUpload(shared_ptr<SyncUpload_inClient> upload, Versio
                 if (mc.treatAsIfFileDataEqual(*n, ext1, *upload, ext2))
                 {
                     cloneNode = n.get();
+                    if (cloneNode->hasZeroKey())
+                    {
+                        LOG_warn << "Clone node key is a zero key!! Avoid cloning node to generate a new key [cloneNode path = '" << cloneNode->displaypath() << "', sourceLocalname = '" << upload->sourceLocalname << "']";
+                        mc.sendevent(99486, "Node has a zerokey");
+                        cloneNode = nullptr;
+                    }
                     break;
                 }
             }
@@ -3392,7 +3439,7 @@ bool LocalNodeCore::read(const string& source, uint32_t& parentID)
 
 unique_ptr<LocalNode> LocalNode::unserialize(Sync& sync, const string& source, uint32_t& parentID)
 {
-    auto node = ::mega::make_unique<LocalNode>(&sync);
+    auto node = std::make_unique<LocalNode>(&sync);
 
     if (!node->read(source, parentID))
         return nullptr;

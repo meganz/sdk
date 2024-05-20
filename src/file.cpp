@@ -305,6 +305,28 @@ File *File::unserialize(string *d)
     return file;
 }
 
+bool File::isFuseTransfer() const
+{
+    return false;
+}
+
+void File::logicalPath(LocalPath logicalPath)
+{
+    std::lock_guard<std::mutex> guard(localname_mutex);
+
+    mLogicalPath = std::move(logicalPath);
+}
+
+LocalPath File::logicalPath() const
+{
+    std::lock_guard<std::mutex> guard(localname_mutex);
+
+    if (mLogicalPath.empty())
+        return localname_multithreaded;
+
+    return mLogicalPath;
+}
+
 void File::prepare(FileSystemAccess&)
 {
     transfer->localfilename = getLocalname();
@@ -406,7 +428,10 @@ void File::sendPutnodesOfUpload(MegaClient* client, UploadHandle fileAttrMatchHa
                                              mVersioningOption,
                                              std::move(newnodes),
                                              tag,
-                                             source, nullptr, std::move(completion), canChangeVault));
+                                             source,
+                                             nullptr,
+                                             std::move(completion),
+                                             canChangeVault));
     }
 }
 
@@ -464,7 +489,10 @@ void File::sendPutnodesToCloneNode(MegaClient* client, Node* nodeToClone,
                                              mVersioningOption,
                                              std::move(newnodes),
                                              tag,
-                                             source, nullptr, std::move(completion), canChangeVault));
+                                             source,
+                                             nullptr,
+                                             std::move(completion),
+                                             canChangeVault));
     }
 }
 

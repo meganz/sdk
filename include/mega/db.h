@@ -272,13 +272,20 @@ struct MEGA_API DbAccess
 
     virtual bool checkDbFileAndAdjustLegacy(FileSystemAccess& fsAccess, const string& name, const int flags, LocalPath& dbPath) = 0;
 
+    // Compute the path of a database with this name.
+    virtual LocalPath databasePath(const FileSystemAccess& fsAccess,
+                                   const string& name,
+                                   const int version) const = 0;
+
     virtual DbTable* open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags, DBErrorCallback dBErrorCallBack) = 0;
 
     // use this method to get a `DbTable` that also implements `DbTableNodes` interface
     virtual DbTable* openTableWithNodes(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags, DBErrorCallback dBErrorCallBack) = 0;
 
+    // Check if the specified database exists on disk.
     virtual bool probe(FileSystemAccess& fsAccess, const string& name) const = 0;
 
+    // Where are we storing our databases?
     virtual const LocalPath& rootPath() const = 0;
 
     int currentDbVersion;

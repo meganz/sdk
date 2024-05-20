@@ -235,7 +235,7 @@ bool UserAlert::Base::serialize(string* d) const
 
 unique_ptr<UserAlert::Base::Persistent> UserAlert::Base::readBase(CacheableReader& r)
 {
-    auto p = make_unique<Persistent>();
+    auto p = std::make_unique<Persistent>();
     if (r.unserializecompressedi64(p->timestamp)
         && r.unserializehandle(p->userHandle)
         && r.unserializestring(p->userEmail)
@@ -1063,6 +1063,12 @@ string UserAlert::Payment::getProPlanName()
         return "Business";  // 19530
     case ACCOUNT_TYPE_PRO_FLEXI:
         return "Pro Flexi";
+    case ACCOUNT_TYPE_STARTER:
+        return "Starter";
+    case ACCOUNT_TYPE_BASIC:
+        return "Basic";
+    case ACCOUNT_TYPE_ESSENTIAL:
+        return "Essential";
     case ACCOUNT_TYPE_FREE:
         [[fallthrough]];
     default:

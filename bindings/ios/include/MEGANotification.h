@@ -50,18 +50,12 @@ NS_ASSUME_NONNULL_BEGIN
 /**
  * @brief Get the title of this notification.
  *
- * The caller does not take the ownership of the object.
- * The object is valid as long as the current MEGANotification object is valid too.
- *
  * @return the title of this notification.
  */
 @property (nonatomic, readonly, nullable) NSString *title;
 
 /**
  * @brief Get the description for this notification.
- *
- * The caller does not take the ownership of the object.
- * The object is valid as long as the current MEGANotification object is valid too.
  *
  * @return the description for this notification.
  */
@@ -70,9 +64,6 @@ NS_ASSUME_NONNULL_BEGIN
 /**
  * @brief Get the image name for this notification.
  *
- * The caller does not take the ownership of the object.
- * The object is valid as long as the current MEGANotification object is valid too.
- *
  * @return the image name for this notification.
  */
 @property (nonatomic, readonly, nullable) NSString *imageName;
@@ -80,12 +71,16 @@ NS_ASSUME_NONNULL_BEGIN
 /**
  * @brief Get the default static path of the image associated with this notification.
  *
- * The caller does not take the ownership of the object.
- * The object is valid as long as the current MEGANotification object is valid too.
- *
  * @return the default static path of the image associated with this notification.
  */
 @property (nonatomic, readonly, nullable) NSString *imagePath;
+
+/**
+ * @brief Get the name of the icon for this notification.
+ *
+ * @return the name of the icon for this notification.
+ */
+@property (nonatomic, readonly, nullable) NSString *iconName;
 
 /**
  * @brief Get the date of when the notification became available to the user.
@@ -112,9 +107,6 @@ NS_ASSUME_NONNULL_BEGIN
  * @brief Get metadata for the first call to action, represented by attributes "link" and "text",
  * and their corresponding values.
  *
- * The caller does not take the ownership of the returned object.
- * The returned object is valid as long as the current MEGANotification object is valid too.
- *
  * @return metadata for the first call to action.
  */
 @property (nonatomic, readonly, nullable) NSDictionary<NSString *, NSString *> *firstCallToAction;
@@ -122,9 +114,6 @@ NS_ASSUME_NONNULL_BEGIN
 /**
  * @brief Get metadata for the second call-to-action, represented by attributes "link" and "text",
  * and their corresponding values.
- *
- * The caller does not take the ownership of the returned object.
- * The returned object is valid as long as the current MegaNotification object is valid too.
  *
  * @return metadata for the second call-to-action.
  */

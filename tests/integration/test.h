@@ -19,14 +19,10 @@
 
 #include <mega.h>
 #include <megaapi_impl.h>
-#include "stdfs.h"
+#include "../stdfs.h"
 
 using namespace ::mega;
 using namespace ::std;
-
-
-extern string_vector envVarAccount;
-extern string_vector envVarPass;
 
 std::string logTime();
 void WaitMillisec(unsigned n);
@@ -86,7 +82,6 @@ private:
 extern std::string USER_AGENT;
 extern bool gResumeSessions;
 extern bool gScanOnly;
-extern int gMaxAccounts;
 extern bool gManualVerification;
 
 LogStream out();
@@ -127,113 +122,6 @@ fs::path makeNewTestRoot();
 
 std::unique_ptr<::mega::FileSystemAccess> makeFsAccess();
 fs::path makeReusableClientFolder(const string& subfolder);
-#ifdef ENABLE_SYNC
-
-template<typename T>
-using shared_promise = std::shared_ptr<promise<T>>;
-
-using PromiseBoolSP     = shared_promise<bool>;
-using PromiseErrorSP    = shared_promise<Error>;
-using PromiseHandleSP   = shared_promise<handle>;
-using PromiseStringSP   = shared_promise<string>;
-using PromiseUnsignedSP = shared_promise<unsigned>;
-
-struct Model
-{
-    // records what we think the tree should look like after sync so we can confirm it
-
-    struct ModelNode
-    {
-        enum nodetype { file, folder };
-        nodetype type = folder;
-        string mCloudName;
-        string mFsName;
-        string name;
-        string content;
-        vector<unique_ptr<ModelNode>> kids;
-        ModelNode* parent = nullptr;
-        bool changed = false;
-        bool fsOnly = false;
-
-        ModelNode() = default;
-
-        ModelNode(const ModelNode& other);
-        ModelNode& fsName(const string& name);
-        const string& fsName() const;
-        ModelNode& cloudName(const string& name);
-        const string& cloudName() const;
-        void generate(const fs::path& path, bool force);
-        string path() const;
-        string fsPath() const;
-        ModelNode* addkid();
-        ModelNode* addkid(unique_ptr<ModelNode>&& p);
-        bool typematchesnodetype(nodetype_t nodetype) const;
-        void print(string prefix="");
-        std::unique_ptr<ModelNode> clone();
-    };
-
-    Model();
-    Model(const Model& other);
-    Model& operator=(const Model& rhs);
-    ModelNode* addfile(const string& path, const string& content);
-    ModelNode* addfile(const string& path);
-    ModelNode* addfolder(const string& path);
-    ModelNode* addnode(const string& path, ModelNode::nodetype type);
-    ModelNode* copynode(const string& src, const string& dst);
-    unique_ptr<ModelNode> makeModelSubfolder(const string& utf8Name);
-    unique_ptr<ModelNode> makeModelSubfile(const string& utf8Name, string content = {});
-    unique_ptr<ModelNode> buildModelSubdirs(const string& prefix, int n, int recurselevel, int filesperdir);
-    ModelNode* childnodebyname(ModelNode* n, const std::string& s);
-    ModelNode* findnode(string path, ModelNode* startnode = nullptr);
-    unique_ptr<ModelNode> removenode(const string& path);
-    bool movenode(const string& sourcepath, const string& destpath);
-    bool movetosynctrash(unique_ptr<ModelNode>&& node, const string& syncrootpath);
-    bool movetosynctrash(const string& path, const string& syncrootpath);
-    void ensureLocalDebrisTmpLock(const string& syncrootpath);
-    bool removesynctrash(const string& syncrootpath, const string& subpath = "");
-    void emulate_rename(std::string nodepath, std::string newname);
-    void emulate_move(std::string nodepath, std::string newparentpath);
-    void emulate_copy(std::string nodepath, std::string newparentpath);
-    void emulate_rename_copy(std::string nodepath, std::string newparentpath, std::string newname);
-    void emulate_delete(std::string nodepath);
-    void generate(const fs::path& path, bool force = false);
-    void swap(Model& other);
-    unique_ptr<ModelNode> root;
-};
-
-struct StandardClient;
-
-class CloudItem
-{
-public:
-    CloudItem(const Node* node);
-
-    CloudItem(const Node& node);
-
-    CloudItem(const string& path, bool fromRoot = false);
-
-    CloudItem(const char* path, bool fromRoot = false);
-
-    CloudItem(const NodeHandle& nodeHandle);
-
-    CloudItem(handle nodeHandle);
-
-    std::shared_ptr<Node> resolve(StandardClient& client) const;
-
-private:
-    NodeHandle mNodeHandle;
-    string mPath;
-    bool mFromRoot = false;
-}; // CloudItem
-
-struct SyncOptions
-{
-    string drivePath = string(1, '\0');
-    string excludePath;
-    bool legacyExclusionsEligible = false;
-    bool isBackup = false;
-    bool uploadIgnoreFile = false;
-}; // SyncOptions
 
 class RequestRetryRecorder
 {
@@ -408,6 +296,157 @@ public:
               << toString(mReason);
     }
 }; // RequestRetryTracker
+
+#ifdef ENABLE_SYNC
+
+template<typename T>
+using shared_promise = std::shared_ptr<promise<T>>;
+
+using PromiseBoolSP     = shared_promise<bool>;
+using PromiseErrorSP    = shared_promise<Error>;
+using PromiseHandleSP   = shared_promise<handle>;
+using PromiseStringSP   = shared_promise<string>;
+using PromiseUnsignedSP = shared_promise<unsigned>;
+
+struct Model
+{
+    // records what we think the tree should look like after sync so we can confirm it
+
+    struct ModelNode
+    {
+        enum nodetype { file, folder };
+        nodetype type = folder;
+        string mCloudName;
+        string mFsName;
+        string name;
+        string content;
+        vector<unique_ptr<ModelNode>> kids;
+        ModelNode* parent = nullptr;
+        bool changed = false;
+        bool fsOnly = false;
+
+        ModelNode() = default;
+
+        ModelNode(const ModelNode& other);
+        ModelNode& fsName(const string& name);
+        const string& fsName() const;
+        ModelNode& cloudName(const string& name);
+        const string& cloudName() const;
+        void generate(const fs::path& path, bool force);
+        string path() const;
+        string fsPath() const;
+        ModelNode* addkid();
+        ModelNode* addkid(unique_ptr<ModelNode>&& p);
+        bool typematchesnodetype(nodetype_t nodetype) const;
+        void print(string prefix="");
+        std::unique_ptr<ModelNode> clone();
+    };
+
+    Model();
+    Model(const Model& other);
+    Model& operator=(const Model& rhs);
+    ModelNode* addfile(const string& path, const string& content);
+    ModelNode* addfile(const string& path);
+    ModelNode* addfolder(const string& path);
+    ModelNode* addnode(const string& path, ModelNode::nodetype type);
+    ModelNode* copynode(const string& src, const string& dst);
+    /**
+     * @brief Create a folder-type ModelNode with the specified name.
+     *
+     * @param utf8Name The name of the folder to be created, in UTF-8 encoding
+     * @return The created folder ModelNode
+     */
+    unique_ptr<ModelNode> makeModelSubfolder(const string& utf8Name);
+    /**
+     * @brief Create a file type ModelNode with the specified name.
+     * If content parameter is empty, the content is the specified name,
+     * otherwise it is content itself.
+     *
+     * @param utf8Name The name of the folder to be created, in UTF-8 encoding.
+     * @param content  The content of the file. If it is empty, the content is file name utf8Name.
+     *                 Default value is empty.
+     * @return The created file ModelNode
+     */
+    unique_ptr<ModelNode> makeModelSubfile(const string& utf8Name, string content = {});
+    /**
+     * @brief Create a folder tree whose depth is with a specified depth and its root folder is named prefix.
+     *
+     * The structure is as follows:
+     * - Each folder, except for the leaf folders, has `n` child folders. Child folders are named after
+     * their parent name with the format <parentName>_<index>, starting with index 0.
+     * - Each folder has `filesperdir` number of child files. Child files are named after their parent name
+     * with the format file<index>_<parentName>.
+     *
+     * Examples:
+     *   buildModelSubdirs(f, 2, 2, 1)
+     *   root -- level 1 -- level 2
+     *   f    -- file0_f
+     *        -- f_0     -- file0_f_0
+     *                   -- f_0_0      -- file0_f_0_0
+     *                   -- f_0_1      -- file0_f_0_1
+     *        -- f_1     -- file0_f_1
+     *                   -- f_1_0      -- file0_f_1_0
+     *                   -- f_1_1      -- file0_f_1_1
+     *
+     * @param prefix       The name of the root folder
+     * @param n            The number of child folders under each folder except the leaf folder.
+     * @param recurselevel The depth of folder tree. For example, 0 means only root folder.
+     *                     1 means one level folder under the root.
+     * @param filesperdir  The number of files under each folder
+     * @return the root folder ModelNode
+     */
+    unique_ptr<ModelNode> buildModelSubdirs(const string& prefix, int n, int recurselevel, int filesperdir);
+    ModelNode* childnodebyname(ModelNode* n, const std::string& s);
+    ModelNode* findnode(string path, ModelNode* startnode = nullptr);
+    unique_ptr<ModelNode> removenode(const string& path);
+    bool movenode(const string& sourcepath, const string& destpath);
+    bool movetosynctrash(unique_ptr<ModelNode>&& node, const string& syncrootpath);
+    bool movetosynctrash(const string& path, const string& syncrootpath);
+    void ensureLocalDebrisTmpLock(const string& syncrootpath);
+    bool removesynctrash(const string& syncrootpath, const string& subpath = "");
+    void emulate_rename(std::string nodepath, std::string newname);
+    void emulate_move(std::string nodepath, std::string newparentpath);
+    void emulate_copy(std::string nodepath, std::string newparentpath);
+    void emulate_rename_copy(std::string nodepath, std::string newparentpath, std::string newname);
+    void emulate_delete(std::string nodepath);
+    void generate(const fs::path& path, bool force = false);
+    void swap(Model& other);
+    unique_ptr<ModelNode> root;
+};
+
+struct StandardClient;
+
+class CloudItem
+{
+public:
+    CloudItem(const Node* node);
+
+    CloudItem(const Node& node);
+
+    CloudItem(const string& path, bool fromRoot = false);
+
+    CloudItem(const char* path, bool fromRoot = false);
+
+    CloudItem(const NodeHandle& nodeHandle);
+
+    CloudItem(handle nodeHandle);
+
+    std::shared_ptr<Node> resolve(StandardClient& client) const;
+
+private:
+    NodeHandle mNodeHandle;
+    string mPath;
+    bool mFromRoot = false;
+}; // CloudItem
+
+struct SyncOptions
+{
+    string drivePath = string(1, '\0');
+    string excludePath;
+    bool legacyExclusionsEligible = false;
+    bool isBackup = false;
+    bool uploadIgnoreFile = false;
+}; // SyncOptions
 
 class StandardSyncController
   : public SyncController
@@ -1195,6 +1234,87 @@ bool createFile(const fs::path& path,
                 std::chrono::seconds delta);
 
 std::string randomData(const std::size_t length);
+
+
+#ifndef _WIN32
+// Helper class to handle directory permissions
+class PermissionHandler
+{
+    fs::path mDPath;
+    std::optional<fs::perms> mOriginalPermissions{std::nullopt};
+    bool mPermissionsRemoved{false};
+
+public:
+    explicit PermissionHandler(const std::string& dPath) : mDPath(dPath)
+    {
+        try
+        {
+            // Retrieve and store the current permissions
+            mOriginalPermissions = fs::status(mDPath).permissions();
+        }
+        catch (const fs::filesystem_error& e)
+        {
+            LOG_debug << "Failed to retrieve original permissions for directory: '" << mDPath << "': " << e.what();
+        }
+    }
+
+    ~PermissionHandler() { restorePermissions(); }
+
+    bool removePermissions(fs::perms permissionsToRemove)
+    {
+        if (!mOriginalPermissions)
+        {
+            LOG_debug << "Original permissions needed";
+            return false;
+        }
+        if (mPermissionsRemoved)
+        {
+            LOG_debug << "Permissions were already removed before, they should be restored first";
+            return false;
+        }
+
+        try
+        {
+            fs::permissions(mDPath, *mOriginalPermissions & ~permissionsToRemove, fs::perm_options::replace);
+            mPermissionsRemoved = true;
+            LOG_verbose << "Successfuly removed permissions for directory: " << mDPath;
+        }
+        catch (const fs::filesystem_error& e)
+        {
+            LOG_debug << "Failed to remove permissions for directory: " << mDPath << " with error: " << e.what();
+            mPermissionsRemoved = false;
+        }
+        return mPermissionsRemoved;
+    }
+
+    bool restorePermissions()
+    {
+        if (!mOriginalPermissions)
+        {
+            LOG_debug << "Original permissions needed";
+            return false;
+        }
+        if (!mPermissionsRemoved) return true;
+
+        try
+        {
+            fs::permissions(mDPath, *mOriginalPermissions, fs::perm_options::replace);
+            mPermissionsRemoved = false; // This restores the flag, as the permissions have been restored too.
+            LOG_verbose << "Successfuly restored permissions for directory: " << mDPath;
+        }
+        catch (const fs::filesystem_error& e)
+        {
+            LOG_debug << "Failed to restore permissions for directory: " << mDPath << " with error: " << e.what();
+        }
+        return !mPermissionsRemoved;
+    }
+
+    bool originalPermissionsAvailable() const
+    {
+        return mOriginalPermissions.has_value();
+    }
+};
+#endif
 
 #endif // TEST_H
 

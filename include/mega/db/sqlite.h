@@ -27,9 +27,6 @@
 
 #include <sqlite3.h>
 
-// Include ICU headers
-#include <unicode/uchar.h>
-
 namespace mega {
 
 class MEGA_API SqliteDbTable : public DbTable
@@ -110,14 +107,17 @@ public:
     // If the progress callback returns non-zero, the operation is interrupted
     static int progressHandler(void *);
     static void userRegexp(sqlite3_context* context, int argc, sqlite3_value** argv);
-    static int icuLikeCompare(const uint8_t *zPattern,   /* LIKE pattern */
-            const uint8_t *zString,    /* The UTF-8 string to compare against */
-            const UChar32 uEsc         /* The escape character */
-          );
 
     // Method called when query uses 'getmimetype'
     // Gets the mimetype corresponding to the file extension
     static void userGetMimetype(sqlite3_context* context, int argc, sqlite3_value** argv);
+
+    // Check if string (pattern - argv[0]) is contained at data base column from type text (argv[1])
+    static void userIsContained(sqlite3_context* context, int argc, sqlite3_value** argv);
+
+    // Check if a tag (string - argv[0]) is contained in the stored list of tags
+    //(string with the tags delimited by TAG_DELIMITER - argv[1]).
+    static void userMatchTag(sqlite3_context* context, int argc, sqlite3_value** argv);
 
 private:
     // Iterate over a SQL query row by row and fill the map
@@ -163,7 +163,7 @@ public:
 
     LocalPath databasePath(const FileSystemAccess& fsAccess,
                            const string& name,
-                           const int version) const;
+                           const int version) const override;
 
     // Note: for proper adjustment of legacy versions, 'sctable' should be the first DB to be opened
     // In this way, when it's called with other DB (statusTable, tctable, ...), DbAccess::currentDbVersion has been
@@ -183,15 +183,89 @@ private:
     bool renameDBFiles(mega::FileSystemAccess& fsAccess, mega::LocalPath& legacyPath, mega::LocalPath& dbPath);
     void removeDBFiles(mega::FileSystemAccess& fsAccess, mega::LocalPath& dbPath);
 
+    // We should add new type for every new column that was added to DB
+    // This new type have to inherit from `MigrateType`
+    class MigrateType
+    {
+    public:
+        virtual ~MigrateType() = default;
+        virtual bool bindToDb(sqlite3_stmt* stmt, const std::map<int, int>& lookupId) const = 0;
+        virtual bool hasValidValue() const = 0;
+    };
+
+    class MTimeType: public MigrateType
+    {
+    public:
+        MTimeType(m_time_t value);
+        bool bindToDb(sqlite3_stmt* stmt, const std::map<int, int>& lookupId) const override;
+        static std::unique_ptr<MigrateType> fromNodeData(NodeData& nd);
+        bool hasValidValue() const override;
+        static constexpr auto COMPONENT = NodeData::COMPONENT_MTIME;
+
+    private:
+        m_time_t mValue;
+    };
+
+    class LabelType: public MigrateType
+    {
+    public:
+        LabelType(int value);
+        bool bindToDb(sqlite3_stmt* stmt, const std::map<int, int>& lookupId) const override;
+        static std::unique_ptr<MigrateType> fromNodeData(NodeData& nd);
+        bool hasValidValue() const override;
+        static constexpr auto COMPONENT = NodeData::COMPONENT_LABEL;
+
+    private:
+        int mValue;
+    };
+
+    class DescriptionType: public MigrateType
+    {
+    public:
+        DescriptionType(const std::string& value);
+        bool bindToDb(sqlite3_stmt* stmt, const std::map<int, int>& lookupId) const override;
+        static std::unique_ptr<MigrateType> fromNodeData(NodeData& nd);
+        bool hasValidValue() const override;
+        static constexpr auto COMPONENT = NodeData::COMPONENT_DESCRIPTION;
+
+    private:
+        std::string mValue;
+    };
+
+    class TagsType: public MigrateType
+    {
+    public:
+        TagsType(const std::string& value);
+        bool bindToDb(sqlite3_stmt* stmt, const std::map<int, int>& lookupId) const override;
+        static std::unique_ptr<SqliteDbAccess::MigrateType> fromNodeData(NodeData& nd);
+        bool hasValidValue() const override;
+        static constexpr auto COMPONENT = NodeData::COMPONENT_TAGS;
+
+    private:
+        std::string mValue;
+    };
+
     // functionality for adding columns to existing table, and copying data to them
     struct NewColumn
     {
-        NewColumn(string&& n, string&& t, int id) : name(std::move(n)), type(std::move(t)), migrationId(id) {}
-
         string name;
         string type;
         int migrationId;
+        // Method to extract info from NodeData and add it to vector
+        std::function<bool(NodeData&, std::vector<std::unique_ptr<MigrateType>>&)>
+            migrateOperation;
+
+        template<typename T>
+        static bool extractDataFromNodeData(NodeData& nd,
+                                            std::vector<std::unique_ptr<MigrateType>>& newValues)
+        {
+            std::unique_ptr<MigrateType> val = T::fromNodeData(nd);
+            bool hasValidValue = val->hasValidValue();
+            newValues.push_back(std::move(val));
+            return hasValidValue;
+        }
     };
+
     bool addAndPopulateColumns(sqlite3* db, vector<NewColumn>&& newCols);
     bool stripExistingColumns(sqlite3* db, vector<NewColumn>& cols);
     bool addColumn(sqlite3* db, const string& name, const string& type);

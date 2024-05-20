@@ -11,6 +11,7 @@ set(SDKLIB_HEADERS
     include/megaapi_impl.h
     include/mega/transferslot.h
     include/mega/thread/libuvthread.h
+    include/mega/scoped_timer.h
     include/mega/command.h
     include/mega/thread.h
     include/mega/json.h
@@ -42,12 +43,6 @@ set(SDKLIB_HEADERS
     include/mega/gfx/freeimage.h
     include/mega/gfx/gfx_pdfium.h
     include/mega/gfx/external.h
-    include/mega/gfx/isolatedprocess.h
-    include/mega/gfx/worker/tasks.h
-    include/mega/gfx/worker/commands.h
-    include/mega/gfx/worker/comms.h
-    include/mega/gfx/worker/command_serializer.h
-    include/mega/gfx/worker/client.h
     include/mega/pubkeyaction.h
     include/mega/mega_http_parser.h
     include/mega/waiter.h
@@ -57,6 +52,7 @@ set(SDKLIB_HEADERS
     include/mega/filesystem.h
     include/mega/backofftimer.h
     include/mega/raid.h
+    include/mega/raidproxy.h
     include/mega/logging.h
     include/mega/file.h
     include/mega/sync.h
@@ -98,9 +94,6 @@ set(SDKLIB_SOURCES
     src/gfx/external.cpp
     src/gfx/freeimage.cpp
     src/gfx/gfx_pdfium.cpp
-    src/gfx/worker/client.cpp
-    src/gfx/worker/commands.cpp
-    src/gfx/worker/command_serializer.cpp
     src/http.cpp
     src/json.cpp
     src/logging.cpp
@@ -116,6 +109,7 @@ set(SDKLIB_SOURCES
     src/proxy.cpp
     src/pubkeyaction.cpp
     src/raid.cpp
+    src/raidproxy.cpp
     src/request.cpp
     src/serialize64.cpp
     src/nodemanager.cpp
@@ -151,33 +145,20 @@ target_sources(SDKlib
 # Files should appear only once.
 # If the FLAG is not true for a file, it will be added as non-buildable source despite then the file is added again as a buildable one.
 target_sources_conditional(SDKlib
-    FLAG WIN32 AND USE_CURL
-    PRIVATE
-    include/mega/wincurl/megafs.h # win32/megafs.h
-    include/mega/wincurl/megaconsolewaiter.h # win32/megaconsolewaiter.h
-    include/mega/wincurl/megaconsole.h # win32/megaconsole.h
-    include/mega/wincurl/megawaiter.h # win32/megawaiter.h
-    include/mega/wincurl/meganet.h # posix/meganet.h
-)
-
-target_sources_conditional(SDKlib
-    FLAG WIN32 AND NOT USE_CURL
+    FLAG WIN32
     PRIVATE
     include/mega/win32/megafs.h
     include/mega/win32/megaconsolewaiter.h
     include/mega/win32/megaconsole.h
     include/mega/win32/megawaiter.h
-    include/mega/win32/meganet.h
-)
+    include/mega/win32/megasys.h
+    include/mega/win32/meganet.h # it includes posix/meganet.h
 
-target_sources_conditional(SDKlib
-    FLAG WIN32
-    PRIVATE
-    src/win32/console.cpp
-    src/win32/consolewaiter.cpp
     src/win32/fs.cpp
-    # src/win32/net.cpp # when not using curl. # TODO Remove support for winhttp?
+    src/win32/consolewaiter.cpp
+    src/win32/console.cpp
     src/win32/waiter.cpp
+    src/win32/net.cpp # it includes posix/net.cpp
 )
 
 target_sources_conditional(SDKlib
@@ -185,9 +166,36 @@ target_sources_conditional(SDKlib
     PRIVATE
     include/mega/win32/gfx/worker/comms.h
     include/mega/win32/gfx/worker/comms_client.h
-    src/gfx/isolatedprocess.cpp # only windows ATM
     src/win32/gfx/worker/comms.cpp
     src/win32/gfx/worker/comms_client.cpp
+)
+
+target_sources_conditional(SDKlib
+    FLAG UNIX AND ENABLE_ISOLATED_GFX
+    PRIVATE
+    include/mega/posix/gfx/worker/comms.h
+    include/mega/posix/gfx/worker/comms_client.h
+    include/mega/posix/gfx/worker/socket_utils.h
+    src/posix/gfx/worker/comms.cpp
+    src/posix/gfx/worker/comms_client.cpp
+    src/posix/gfx/worker/socket_utils.cpp
+)
+
+target_sources_conditional(SDKlib
+    FLAG ENABLE_ISOLATED_GFX
+    PRIVATE
+    include/mega/gfx/isolatedprocess.h
+    include/mega/gfx/worker/tasks.h
+    include/mega/gfx/worker/commands.h
+    include/mega/gfx/worker/comms.h
+    include/mega/gfx/worker/command_serializer.h
+    include/mega/gfx/worker/client.h
+    include/mega/gfx/worker/comms_client_common.h
+    include/mega/gfx/worker/comms_client.h
+    src/gfx/isolatedprocess.cpp
+    src/gfx/worker/client.cpp
+    src/gfx/worker/commands.cpp
+    src/gfx/worker/command_serializer.cpp
 )
 
 target_sources_conditional(SDKlib
@@ -199,17 +207,13 @@ target_sources_conditional(SDKlib
     include/mega/posix/megafs.h
     include/mega/posix/megaconsolewaiter.h
     include/mega/posix/meganet.h
+    include/mega/posix/megasys.h
 
     src/posix/waiter.cpp
     src/thread/posixthread.cpp
     src/posix/console.cpp
     src/posix/fs.cpp
     src/posix/consolewaiter.cpp
-)
-
-target_sources_conditional(SDKlib
-    FLAG UNIX OR (WIN32 AND USE_CURL)
-    PRIVATE
     src/posix/net.cpp
 )
 
@@ -280,7 +284,7 @@ target_include_directories(SDKlib
 #    PRIVATE # TODO: Private for SDK core
         $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
         $<$<BOOL:${APPLE}>:${CMAKE_CURRENT_SOURCE_DIR}/include/mega/osx>
-        $<$<BOOL:${WIN32}>:${CMAKE_CURRENT_SOURCE_DIR}/include/mega/$<IF:${USE_CURL},wincurl,win32>>
+        $<$<BOOL:${WIN32}>:${CMAKE_CURRENT_SOURCE_DIR}/include/mega/win32>
         $<$<BOOL:${UNIX}>:${CMAKE_CURRENT_SOURCE_DIR}/include/mega/posix>
     )
 
@@ -292,7 +296,9 @@ if (WIN32)
             _CRT_SECURE_NO_WARNINGS # warning in mega_ccronexpr
             $<$<BOOL:${USE_CPPTHREAD}>:USE_CPPTHREAD>
             UNICODE
-            NOMINMAX # TODO Fix locally
+            # Disable warning C4996: 'inet_ntoa': Use inet_ntop() or InetNtop() instead or define
+            # _WINSOCK_DEPRECATED_NO_WARNINGS to disable deprecated API warnings
+            _WINSOCK_DEPRECATED_NO_WARNINGS
     )
 
     # Increase number of sections in .obj files. (megaapi_impl.cpp, Sync_test.cpp, ...)
@@ -338,8 +344,7 @@ endif()
 
 if(WIN32)
     target_link_libraries(SDKlib PRIVATE
-        ws2_32 winhttp Shlwapi Secur32.lib crypt32.lib
-        $<$<BOOL:${USE_CURL}>:Wldap32.lib>
+        ws2_32 winhttp Shlwapi Secur32.lib crypt32.lib Wldap32.lib
         $<$<BOOL:${USE_LIBUV}>:Kernel32.lib Iphlpapi.lib Userenv.lib Psapi.lib>
         $<$<BOOL:${USE_FFMPEG}>:Mfplat.lib mfuuid.lib strmiids.lib>
         $<$<BOOL:${ENABLE_DRIVE_NOTIFICATIONS}>:wbemuuid>

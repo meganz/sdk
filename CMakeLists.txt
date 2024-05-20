@@ -142,3 +142,7 @@ endif()
 if(ENABLE_SDKLIB_TESTS)
     add_subdirectory(tests)
 endif()
+
+## Load FUSE support.
+include(src/fuse/CMakeLists.txt)
+

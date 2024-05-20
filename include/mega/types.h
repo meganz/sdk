@@ -53,14 +53,8 @@ typedef char __static_check_01__[sizeof(bool) == sizeof(char) ? 1 : -1];
 typedef int64_t m_off_t;
 
 namespace mega {
-
-// within ::mega namespace, byte is unsigned char (avoids ambiguity when std::byte from c++17 and perhaps other defined ::byte are available)
-#if defined(USE_CRYPTOPP) && (CRYPTOPP_VERSION >= 600) && ((__cplusplus >= 201103L) || (__RPCNDR_H_VERSION__ == 500))
-using byte = CryptoPP::byte;
-#elif __RPCNDR_H_VERSION__ != 500
-typedef unsigned char byte;
-
-#endif
+    // within ::mega namespace, byte is unsigned char (avoids ambiguity when std::byte from c++17 and perhaps other defined ::byte are available)
+    using byte = unsigned char;
 }
 
 #ifdef USE_CRYPTOPP
@@ -106,14 +100,19 @@ using std::wstring;
 #endif
 
 // forward declaration
+struct AccountDetails;
+struct AchievementsDetails;
 struct AttrMap;
 class BackoffTimer;
 class Command;
 class CommandPubKeyRequest;
+struct BusinessPlan;
+struct CurrencyData;
 struct DirectRead;
 struct DirectReadNode;
 struct DirectReadSlot;
 struct FileAccess;
+struct FileSystemAccess;
 struct FileAttributeFetch;
 struct FileAttributeFetchChannel;
 struct FileFingerprint;
@@ -138,6 +137,7 @@ struct PendingContactRequest;
 class TransferList;
 struct Achievement;
 class SyncConfig;
+class LocalPath;
 
 namespace UserAlert
 {
@@ -217,6 +217,16 @@ typedef enum ErrorCodes : int
     API_EPAYWALL = -29,             ///< Over Disk Quota Paywall
     LOCAL_ENOSPC = -1000,           ///< Insufficient space
     LOCAL_ETIMEOUT = -1001,         ///< A request timed out.
+    LOCAL_ABANDONED = -1002,        ///< Request abandoned due to local logout.
+
+    API_FUSE_EBADF = -2000,
+    API_FUSE_EISDIR = -2001,
+    API_FUSE_ENAMETOOLONG = -2002,
+    API_FUSE_ENOTDIR = -2003,
+    API_FUSE_ENOTEMPTY = -2004,
+    API_FUSE_ENOTFOUND = -2005,
+    API_FUSE_EPERM = -2006,
+    API_FUSE_EROFS = -2007,
 } error;
 
 class Error
@@ -517,6 +527,7 @@ enum SyncError {
     FILESYSTEM_FILE_IDS_ARE_UNSTABLE = 45,  // On MAC in particular, the FSID of a file in an exFAT drive can and does change spontaneously and frequently
     FILESYSTEM_ID_UNAVAILABLE = 46,         // If we can't get a filesystem's id
     UNABLE_TO_RETRIEVE_DEVICE_ID = 47,      // Unable to retrieve the ID of current device
+    LOCAL_PATH_MOUNTED = 48,                // The local path is a FUSE mount.
 };
 
 enum SyncWarning {
@@ -564,7 +575,6 @@ enum WatchResult
 typedef set<Node*> node_set;
 
 // enumerates a node's children
-// FIXME: switch to forward_list once C++11 becomes more widely available
 typedef list<std::shared_ptr<Node> > sharedNode_list;
 
 // undefined node handle
@@ -858,6 +868,9 @@ typedef enum {
     ACCOUNT_TYPE_PROII = 2,
     ACCOUNT_TYPE_PROIII = 3,
     ACCOUNT_TYPE_LITE = 4,
+    ACCOUNT_TYPE_STARTER = 11,
+    ACCOUNT_TYPE_BASIC = 12,
+    ACCOUNT_TYPE_ESSENTIAL = 13,
     ACCOUNT_TYPE_BUSINESS = 100,
     ACCOUNT_TYPE_PRO_FLEXI = 101
 } AccountType;
@@ -888,16 +901,6 @@ typedef enum {
     REASON_ERROR_DB_FULL            = 3,
     REASON_ERROR_DB_INDEX_OVERFLOW  = 4,
 } ErrorReason;
-
-// inside 'mega' namespace, since use C++11 and can't rely on C++14 yet, provide make_unique for the most common case.
-// This keeps our syntax small, while making sure the compiler ensures the object is deleted when no longer used.
-// Sometimes there will be ambiguity about std::make_unique vs mega::make_unique if cpp files "use namespace std", in which case specify ::mega::.
-// It's better that we use the same one in older and newer compilers so we detect any issues.
-template<class T, class... constructorArgs>
-unique_ptr<T> make_unique(constructorArgs&&... args)
-{
-    return (unique_ptr<T>(new T(std::forward<constructorArgs>(args)...)));
-}
 
 //#define MEGA_MEASURE_CODE   // uncomment this to track time spent in major subsystems, and log it every 2 minutes, with extra control from megacli
 
@@ -1237,7 +1240,12 @@ enum ExclusionState : unsigned char
     ES_UNMATCHED
 }; // ExclusionState
 
-
+struct StorageInfo
+{
+    m_off_t mAvailable = 0;
+    m_off_t mCapacity = 0;
+    m_off_t mUsed = 0;
+}; // StorageInfo
 
 #ifdef ENABLE_CHAT
 
@@ -1258,6 +1266,32 @@ class fsfp_t;
 
 // Convenience.
 using fsfp_ptr_t = std::shared_ptr<fsfp_t>;
+
+// Convenience.
+using FileAccessPtr = std::unique_ptr<FileAccess>;
+using FileAccessSharedPtr = std::shared_ptr<FileAccess>;
+using FileAccessWeakPtr = std::weak_ptr<FileAccess>;
+
+template<typename T>
+using FromNodeHandleMap = std::map<NodeHandle, T>;
+
+using NodeHandleQueue = std::deque<NodeHandle>;
+using NodeHandleSet = std::set<NodeHandle>;
+using NodeHandleVector = std::vector<NodeHandle>;
+
+// For metaprogramming.
+template<typename T>
+struct IsPath;
+
+// Convenience.
+template<typename P, typename T>
+struct EnableIfPath
+  : std::enable_if<IsPath<P>::value, T>
+{
+}; // EnableIfPath<P, T>
+
+template<typename T>
+using FromStringMap = std::map<std::string, T>;
 
 } // namespace mega
 
@@ -1398,14 +1432,10 @@ public:
 
     void unlock()
     {
-        auto id = std::this_thread::get_id();
-
-        assert(mOwner == id);
+        assert(mOwner == std::this_thread::get_id());
 
         mOwner = std::thread::id();
         mMutex.unlock();
-
-        static_cast<void>(id);
     }
 }; // CheckableMutex<T, false>
 
@@ -1468,19 +1498,15 @@ public:
 
     void unlock()
     {
-        auto id = std::this_thread::get_id();
-
         std::lock_guard<Spinlock> guard(mLock);
 
         assert(mCount);
-        assert(mOwner == id);
+        assert(mOwner == std::this_thread::get_id());
 
         if (!--mCount)
             mOwner = std::thread::id();
 
         mMutex.unlock();
-
-        static_cast<void>(id);
     }
 }; // CheckableMutex<T, true>
 

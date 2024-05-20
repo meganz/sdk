@@ -493,6 +493,8 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
         return "Syncing of exFAT, FAT32, FUSE and LIFS file systems is not supported by MEGA on macOS.";
     case FILESYSTEM_ID_UNAVAILABLE:
         return "Could not get the filesystem's ID.";
+    case LOCAL_PATH_MOUNTED:
+        return "Local path is a FUSE mount.";
     default:
         return "Undefined error";
     }
@@ -1913,7 +1915,7 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
 
             // Has the engine completed all pending scans?
             if (problem == PathProblem::NoProblem
-                && !syncs.mSyncFlags->scanningWasComplete)
+                && !mScanningWasComplete)
                 problem = PathProblem::WaitingForScanningToComplete;
 
             LocalNode* other = nullptr;
@@ -2455,6 +2457,63 @@ bool Sync::checkForCompletedCloudMovedToDebris(SyncRow& row, SyncRow& parentRow,
 
     rowResult = false;
     return false;
+}
+
+bool Sync::isSyncScanning() const
+{
+    if (!mUnifiedSync.mConfig.mError &&
+        localroot->scanRequired())
+    {
+        SYNC_verbose << syncname << " scan still required for this sync";
+        return true;
+    }
+    return false;
+}
+
+bool Sync::checkScanningWasComplete()
+{
+    mScanningWasCompletePreviously = mScanningWasComplete && !syncs.mSyncFlags->isInitialPass;
+    mScanningWasComplete = !isSyncScanning();
+    return mScanningWasComplete;
+}
+
+void Sync::unsetScanningWasComplete()
+{
+    mScanningWasComplete = false;
+}
+
+bool Sync::scanningWasComplete() const
+{
+    return mScanningWasComplete;
+}
+
+bool Sync::checkMovesWereComplete()
+{
+    mMovesWereComplete = true;
+    if (!mUnifiedSync.mConfig.mError)
+    {
+        if (!mScanningWasCompletePreviously)
+        {
+            SYNC_verbose << syncname << " scan was not complete previously for this sync -> consider might have moves as true";
+            mMovesWereComplete = false;
+        }
+        else if (localroot->scanRequired())
+        {
+            SYNC_verbose << syncname << " scan still required for this sync -> consider might have moves as true";
+            mMovesWereComplete = false;
+        }
+        else if (localroot->mightHaveMoves())
+        {
+            SYNC_verbose << syncname << " might have pending moves";
+            mMovesWereComplete = false;
+        }
+    }
+    return mMovesWereComplete;
+}
+
+bool Sync::movesWereComplete() const
+{
+    return mMovesWereComplete;
 }
 
 bool Sync::processCompletedUploadFromHere(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult, shared_ptr<SyncUpload_inClient> upload)
@@ -3386,7 +3445,7 @@ bool Sync::movetolocaldebris(const LocalPath& localpath)
     }
 
     // initially try wih the same sequence number as last time, to avoid making large numbers of these when possible
-    targetFolder = localdebris;
+    LocalPath targetFolderWithDate = targetFolder;
     targetFolder.appendWithSeparator(LocalPath::fromRelativePath(
         datetime + std::to_string(mLastDailyDateTimeDebrisCounter)), false);
 
@@ -3406,7 +3465,7 @@ bool Sync::movetolocaldebris(const LocalPath& localpath)
     // if that fails, try with the sequence incremented, that should be a new, empty folder with no filename clash possible
     ++mLastDailyDateTimeDebrisCounter;
 
-    targetFolder = localdebris;
+    targetFolder = targetFolderWithDate;
     targetFolder.appendWithSeparator(LocalPath::fromRelativePath(
         datetime + std::to_string(mLastDailyDateTimeDebrisCounter)), true);
 
@@ -3888,7 +3947,7 @@ void UnifiedSync::changedConfigState(bool save, bool notifyApp)
 Syncs::Syncs(MegaClient& mc)
   : waiter(new WAIT_CLASS)
   , mClient(mc)
-  , fsaccess(::mega::make_unique<FSACCESS_CLASS>())
+  , fsaccess(std::make_unique<FSACCESS_CLASS>())
   , mSyncFlags(new SyncFlags)
   , mScanService(new ScanService())
 {
@@ -4072,12 +4131,9 @@ void Syncs::getSyncStatusInfo(handle backupID,
     // Is it up to the client to call the completion function?
     if (completionInClient)
         completion = [completion, this](SV info) {
-            // Necessary as we can't move-capture before C++14.
-            auto temp = std::make_shared<SV>(std::move(info));
-
             // Delegate to the user's completion function.
-            queueClient([completion, temp](MC&, DBTC&) mutable {
-                completion(std::move(*temp));
+            queueClient([completion, info = std::move(info)](MC&, DBTC&) mutable {
+                completion(std::move(info));
             });
         };
 
@@ -4094,7 +4150,7 @@ void Syncs::getSyncStatusInfoInThread(handle backupID,
     assert(onSyncThread());
 
     // Make sure no one's changing the syncs beneath our feet.
-    lock_guard<mutex> guard(mSyncVecMutex);
+    lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
 
     // Gathers information about a specific sync.
     struct gather
@@ -4168,7 +4224,7 @@ SyncConfigVector Syncs::configsForDrive(const LocalPath& drive) const
 {
     assert(onSyncThread() || !onSyncThread());
 
-    lock_guard<mutex> g(mSyncVecMutex);
+    lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
 
     SyncConfigVector v;
     for (auto& s : mSyncVec)
@@ -4204,7 +4260,7 @@ SyncConfigVector Syncs::getConfigs(bool onlyActive) const
 {
     assert(onSyncThread() || !onSyncThread());
 
-    lock_guard<mutex> g(mSyncVecMutex);
+    lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
 
     SyncConfigVector v;
     for (auto& s : mSyncVec)
@@ -4222,7 +4278,7 @@ handle Syncs::getSyncIdContainingActivePath(const LocalPath& lp) const
 {
     assert(onSyncThread() || !onSyncThread());
 
-    lock_guard<mutex> g(mSyncVecMutex);
+    lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
 
     SyncConfigVector v;
     for (auto& s : mSyncVec)
@@ -4251,7 +4307,7 @@ bool Syncs::configById(handle backupId, SyncConfig& configResult) const
 {
     assert(!onSyncThread());
 
-    lock_guard<mutex> g(mSyncVecMutex);
+    lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
 
     for (auto& s : mSyncVec)
     {
@@ -4389,7 +4445,7 @@ error Syncs::backupOpenDrive_inThread(const LocalPath& drivePath)
         // Create a unified sync for each backup config.
         for (const auto& config : configs)
         {
-            lock_guard<mutex> g(mSyncVecMutex);
+            lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
 
             bool skip = false;
             for (auto& us : mSyncVec)
@@ -4479,7 +4535,7 @@ NodeHandle Syncs::getSyncedNodeForLocalPath(const LocalPath& lp)
     NodeHandle result;
     syncRun([&](){
 
-        lock_guard<mutex> g(mSyncVecMutex);
+        lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
         for (auto& us : mSyncVec)
         {
             if (us->mSync)
@@ -4502,11 +4558,8 @@ treestate_t Syncs::getSyncStateForLocalPath(handle backupId, const LocalPath& lp
     assert(!onSyncThread());
 
     // mLocalNodeChangeMutex must already be locked!!
-
-    // we must lock the sync vec mutex when not on the sync thread
-    // careful of lock ordering to avoid deadlock between threads
     // we never have mSyncVecMutex and then lock mLocalNodeChangeMutex
-    lock_guard<mutex> g(mSyncVecMutex);
+    lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
     for (auto& us : mSyncVec)
     {
         if (us->mConfig.mBackupId == backupId && us->mSync)
@@ -4556,7 +4609,7 @@ void Syncs::moveToSyncDebrisByBackupID(const string& path, handle backupId, std:
     {
         assert(onSyncThread());
 
-        lock_guard<mutex> g(mSyncVecMutex);
+        lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
         Sync* sync = nullptr;
         error e = API_ENOENT;
         for (auto& s : mSyncVec)
@@ -5008,7 +5061,7 @@ void Syncs::importSyncConfigs(const char* data, std::function<void(error)> compl
 
     // Don't import configs that already appear to be present.
     {
-        lock_guard<mutex> guard(mSyncVecMutex);
+        lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
 
         // Checks if two configs have an equivalent mapping.
         auto equivalent = [](const SyncConfig& lhs, const SyncConfig& rhs) {
@@ -5042,7 +5095,7 @@ void Syncs::importSyncConfigs(const char* data, std::function<void(error)> compl
     }
 
     // Create and initialize context.
-    ContextPtr context = make_unique<Context>();
+    ContextPtr context = std::make_unique<Context>();
 
     context->mClient = &mClient;
     context->mCompletion = std::move(completion);
@@ -5593,7 +5646,7 @@ void Syncs::clear_inThread()
     mSyncConfigStore.reset();
     mSyncConfigIOContext.reset();
     {
-        lock_guard<mutex> g(mSyncVecMutex);
+        lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
         mSyncVec.clear();
     }
     mSyncVecIsEmpty = true;
@@ -5709,7 +5762,7 @@ void Syncs::appendNewSync_inThread(const SyncConfig& c, bool startSync, std::fun
     }
 
     {
-        lock_guard<mutex> g(mSyncVecMutex);
+        lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
         mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(*this, c)));
         mSyncVecIsEmpty = false;
     }
@@ -5732,7 +5785,7 @@ Sync* Syncs::runningSyncByBackupIdForTests(handle backupId) const
     assert(!onSyncThread());
     // returning a Sync* is not really thread safe but the tests are using these directly currently.  So long as they only browse the Sync while nothing changes, it should be ok
 
-    lock_guard<mutex> g(mSyncVecMutex);
+    lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
     for (auto& s : mSyncVec)
     {
         if (s->mSync && s->mConfig.mBackupId == backupId)
@@ -5748,7 +5801,7 @@ bool Syncs::syncConfigByBackupId(handle backupId, SyncConfig& c) const
     // returns a copy for thread safety
     assert(!onSyncThread());
 
-    lock_guard<mutex> g(mSyncVecMutex);
+    lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
     for (auto& s : mSyncVec)
     {
         if (s->mConfig.mBackupId == backupId)
@@ -5833,7 +5886,7 @@ void Syncs::renameSync_inThread(handle backupId, const string& newname, std::fun
 {
     assert(onSyncThread());
 
-    lock_guard<mutex> g(mSyncVecMutex);
+    lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
 
     for (auto &i : mSyncVec)
     {
@@ -5931,7 +5984,7 @@ SyncConfigVector Syncs::selectedSyncConfigs(std::function<bool(SyncConfig&, Sync
 {
     SyncConfigVector selected;
 
-    lock_guard<mutex> g(mSyncVecMutex);
+    lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
 
     for (size_t i = 0; i < mSyncVec.size(); ++i)
     {
@@ -6008,7 +6061,7 @@ void Syncs::deregisterThenRemoveSync(handle backupId, std::function<void(Error)>
     {
         // since we are only setting flags, we can actually do this off-thread
         // (but using mSyncVecMutex and hidden inside Syncs class)
-        lock_guard<mutex> g(mSyncVecMutex);
+        lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
         for (size_t i = 0; i < mSyncVec.size(); ++i)
         {
             auto& config = mSyncVec[i]->mConfig;
@@ -6090,7 +6143,7 @@ bool Syncs::unloadSyncByBackupID(handle id, bool newEnabledFlag, SyncConfig& con
             // we don't call sync_removed back since the sync is not deleted
             // we don't unregister from the backup/sync heartbeats as the sync can be resumed later
 
-            lock_guard<mutex> g(mSyncVecMutex);
+            lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
             mSyncVec.erase(mSyncVec.begin() + i);
             mSyncVecIsEmpty = mSyncVec.empty();
             return true;
@@ -6236,8 +6289,6 @@ void Syncs::loadSyncConfigsOnFetchnodesComplete(bool resetSyncConfigStore)
 {
     assert(!onSyncThread());
 
-    // Double check the client only calls us once (per session) for this
-    assert(!mSyncsLoaded);
     if (mSyncsLoaded) return;
     mSyncsLoaded = true;
 
@@ -6285,7 +6336,7 @@ void Syncs::loadSyncConfigsOnFetchnodesComplete_inThread(bool resetSyncConfigSto
     assert(mSyncVec.empty());
 
     {
-        lock_guard<mutex> g(mSyncVecMutex);
+        lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
         for (auto& config : configs)
         {
             mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(*this, config)));
@@ -7809,7 +7860,7 @@ bool Sync::syncItem_checkBackupCloudNameClash(SyncRow& row, SyncRow& parentRow, 
                 {
                     return true;  // concentrate on the delete until that is done
                 }
-                LOG_debug << syncname << "Completed duplicate backup cloud item to cloud sync debris but some dupes remain (" << rn->succeeded << "): " << fullPath.cloudPath << logTriplet(row, fullPath);
+                LOG_debug << syncname << "[Sync::syncItem_checkBackupCloudNameClash] Completed duplicate backup cloud item to cloud sync debris but some dupes remain (" << rn->succeeded << "): " << fullPath.cloudPath << logTriplet(row, fullPath);
                 rn.reset();
             }
         }
@@ -7832,7 +7883,7 @@ bool Sync::syncItem_checkBackupCloudNameClash(SyncRow& row, SyncRow& parentRow, 
         // set up the operation and pass it to the client thread, track the operation by removeNodeHere
         if (cn)
         {
-            LOG_debug << syncname << "Moving duplicate backup cloud item to cloud sync debris: " << cn->handle << " " << cn->name << " " << fullPath.cloudPath << logTriplet(row, fullPath);
+            LOG_debug << syncname << "[Sync::syncItem_checkBackupCloudNameClash] Moving duplicate backup cloud item to cloud sync debris: " << cn->handle << " " << cn->name << " " << fullPath.cloudPath << logTriplet(row, fullPath);
             bool fromInshare = inshare;
             auto debrisNodeHandle = cn->handle;
 
@@ -7846,7 +7897,7 @@ bool Sync::syncItem_checkBackupCloudNameClash(SyncRow& row, SyncRow& parentRow, 
                     {
                         mc.movetosyncdebris(n.get(), fromInshare, [deletePtr](NodeHandle, Error e){
 
-                            LOG_debug << "Sync backup duplicate delete to sync debris completed: " << e << " " << deletePtr->pathDeleting;
+                            LOG_debug << "[Sync::syncItem_checkBackupCloudNameClash] Sync backup duplicate delete to sync debris completed: " << e << " " << deletePtr->pathDeleting;
 
                             if (e) deletePtr->failed = true;
                             else deletePtr->succeeded = true;
@@ -7855,10 +7906,17 @@ bool Sync::syncItem_checkBackupCloudNameClash(SyncRow& row, SyncRow& parentRow, 
                     }
                 });
 
-            // Remember that the delete is going on, so we don't do anything else until that resolves
-            // We will detach the synced-fsid side on final completion of this operation.  If we do so
-            // earier, the logic will evaluate that updated state too soon, perhaps resulting in downsync.
-            row.syncNode->rare().removeNodeHere = deletePtr;
+            if (row.syncNode)
+            {
+                // Remember that the delete is going on, so we don't do anything else until that resolves
+                // We will detach the synced-fsid side on final completion of this operation.  If we do so
+                // earier, the logic will evaluate that updated state too soon, perhaps resulting in downsync.
+                row.syncNode->rare().removeNodeHere = deletePtr;
+            }
+            else
+            {
+                LOG_debug << "[Sync::syncItem_checkBackupCloudNameClash] No row.syncNode -> avoid assigning deletePtr to row.syncNode->rare().removeNodeHere";
+            }
             return true;
         }
     }
@@ -9034,7 +9092,7 @@ bool Sync::resolve_delSyncNode(SyncRow& row, SyncRow& parentRow, SyncPath& fullP
         // we detected a local deletion here, and applied that deletion in the cloud too.  Ok to delete this LocalNode.
         SYNC_verbose << syncname << "Deleting Localnode (deletedFS)" << logTriplet(row, fullPath);
     }
-    else if (syncs.mSyncFlags->movesWereComplete)
+    else if (mMovesWereComplete)
     {
         // Since moves are complete, we can remove this LocalNode now, it can't be part of any move anymore
         // Up to that point, we should not remove it or we won't be able to detect clashing moves of the same node.
@@ -9049,7 +9107,7 @@ bool Sync::resolve_delSyncNode(SyncRow& row, SyncRow& parentRow, SyncPath& fullP
         string fsElsewhereLocation;
         bool sourceFsidExclusionUnknown = false;
 
-        if (!syncs.mSyncFlags->scanningWasComplete)
+        if (!mScanningWasComplete)
         {
             fsNodeIsElsewhere = true;
         }
@@ -9827,7 +9885,7 @@ bool Sync::resolve_cloudNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& ful
         SYNC_verbose << syncname << "FS item already removed: " << logTriplet(row, fullPath);
         monitor.noResult();
     }
-    else if (syncs.mSyncFlags->movesWereComplete)
+    else if (mMovesWereComplete)
     {
         if (isBackup())
         {
@@ -10074,7 +10132,7 @@ bool Syncs::findLocalNodeByNodeHandle(NodeHandle h, LocalNode*& sourceSyncNodeOr
             LOG_verbose << mClient.clientname << "findLocalNodeByNodeHandle - unknown exclusion after fsid lookup";
         }
 
-        if (!sourceSyncNodeCurrent && !mSyncFlags->scanningWasComplete)
+        if (!sourceSyncNodeCurrent && !sourceSyncNodeOriginal->sync->scanningWasComplete())
         {
             unsureDueToIncompleteScanning = true;
         }
@@ -10274,7 +10332,7 @@ bool Sync::resolve_fsNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& fullPa
         }
 
     }
-    else if (!syncs.mSyncFlags->scanningWasComplete &&
+    else if (!mScanningWasComplete &&
              !row.isIgnoreFile())  // ignore files do not participate in move logic
     {
         SYNC_verbose << syncname << "Wait for scanning to finish before confirming fsid " << toHandle(row.syncNode->fsid_lastSynced) << " deleted or moved: " << logTriplet(row, fullPath);
@@ -10286,7 +10344,7 @@ bool Sync::resolve_fsNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& fullPa
             {fullPath.localPath, PathProblem::DeletedOrMovedByUser},
             {}));
     }
-    else if (syncs.mSyncFlags->movesWereComplete ||
+    else if (mMovesWereComplete ||
              row.isIgnoreFile())  // ignore files do not participate in move logic
     {
         if (!row.syncNode->rareRO().removeNodeHere)
@@ -10433,7 +10491,7 @@ std::future<size_t> Syncs::triggerPeriodicScanEarly(handle backupID)
     auto result = notifier->get_future();
 
     queueSync([backupID, indiscriminate, notifier, this]() {
-        lock_guard<mutex> guard(mSyncVecMutex);
+        lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
         size_t count = 0;
 
         for (auto& us : mSyncVec)
@@ -11839,12 +11897,22 @@ void Syncs::syncLoop()
         if (!lastLoopEarlyExit)
         {
             // we need one pass with recursiveSync() after scanning is complete, to be sure there are no moves left.
-            auto scanningCompletePreviously = mSyncFlags->scanningWasComplete && !mSyncFlags->isInitialPass;
-            mSyncFlags->scanningWasComplete = !isAnySyncScanning_inThread();
+            auto scanningWasCompletePreviously = mSyncFlags->scanningWasComplete && !mSyncFlags->isInitialPass;
+            mSyncFlags->scanningWasComplete = checkSyncsScanningWasComplete_inThread();
             mSyncFlags->reachableNodesAllScannedLastPass = mSyncFlags->reachableNodesAllScannedThisPass && !mSyncFlags->isInitialPass;
             mSyncFlags->reachableNodesAllScannedThisPass = true;
-            mSyncFlags->movesWereComplete = scanningCompletePreviously && !mightAnySyncsHaveMoves();
+            auto allSyncsMovesWereComplete = checkSyncsMovesWereComplete();
+            mSyncFlags->movesWereComplete = scanningWasCompletePreviously && allSyncsMovesWereComplete;
             mSyncFlags->noProgress = mSyncFlags->reachableNodesAllScannedLastPass;
+            if (!scanningWasCompletePreviously || !mSyncFlags->scanningWasComplete || !mSyncFlags->reachableNodesAllScannedLastPass || !allSyncsMovesWereComplete || !mSyncFlags->movesWereComplete)
+            {
+                LOG_verbose << "[SyncLoop] scanningWasCompletePreviously = " << scanningWasCompletePreviously
+                            << ", scanningWasComplete = " << mSyncFlags->scanningWasComplete
+                            << ", reachableNodesAllScannedLastPass = " << mSyncFlags->reachableNodesAllScannedLastPass
+                            << ", allSyncsMovesWereComplete = " << allSyncsMovesWereComplete
+                            << ", movesWereComplete = " << mSyncFlags->movesWereComplete
+                            << ", noProgress = " << mSyncFlags->noProgress;
+            }
         }
 
         unsigned skippedForScanning = 0;
@@ -11992,7 +12060,7 @@ void Syncs::syncLoop()
         {
             mTransferPauseFlagsChanged = false;
 
-            lock_guard<mutex> g(mSyncVecMutex);
+            lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
             for (auto& us : mSyncVec)
             {
                 mHeartBeatMonitor->updateOrRegisterSync(*us);
@@ -12005,10 +12073,14 @@ void Syncs::syncLoop()
         lastRecurseMs = unsigned(std::chrono::duration_cast<std::chrono::milliseconds>(
                         std::chrono::high_resolution_clock::now() - recurseStart).count());
 
-        LOG_verbose << "recursiveSync took ms: " << lastRecurseMs
-                    << (skippedForScanning ? " (" + std::to_string(skippedForScanning)+ " skipped due to ongoing scanning)" : "")
-                    << (mSyncFlags->noProgressCount ? " no progress count: " + std::to_string(mSyncFlags->noProgressCount) : "")
-                    << (earlyExit ? " (earlyExit)" : "");
+        const int noProgressCountLoggingFrequency = 500; // Log this every 500 counts
+        if (!skippedForScanning && !earlyExit && mSyncFlags->noProgressCount && (mSyncFlags->noProgressCount % noProgressCountLoggingFrequency == 0))
+        {
+            LOG_verbose << "recursiveSync took ms: " << lastRecurseMs
+                        << (skippedForScanning ? " (" + std::to_string(skippedForScanning)+ " skipped due to ongoing scanning)" : "")
+                        << (mSyncFlags->noProgressCount ? " no progress count: " + std::to_string(mSyncFlags->noProgressCount) : "")
+                        << (earlyExit ? " (earlyExit)" : "");
+        }
 
 
         waiter->bumpds();
@@ -12022,6 +12094,7 @@ void Syncs::syncLoop()
 
         if (earlyExit)
         {
+            unsetSyncsScanningWasComplete_inThread();
             mSyncFlags->scanningWasComplete = false;
             mSyncFlags->reachableNodesAllScannedThisPass = false;
         }
@@ -12065,9 +12138,11 @@ void Syncs::syncLoop()
     }
 }
 
-bool Syncs::isAnySyncSyncing()
+bool Syncs::isAnySyncSyncing() const
 {
     assert(onSyncThread());
+
+    lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
 
     for (auto& us : mSyncVec)
     {
@@ -12085,16 +12160,17 @@ bool Syncs::isAnySyncSyncing()
     return false;
 }
 
-bool Syncs::isAnySyncScanning_inThread()
+bool Syncs::isAnySyncScanning_inThread() const
 {
     assert(onSyncThread());
+
+    lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
 
     for (auto& us : mSyncVec)
     {
         if (Sync* sync = us->mSync.get())
         {
-            if (!us->mConfig.mError &&
-                sync->localroot->scanRequired())
+            if (sync->isSyncScanning())
             {
                 return true;
             }
@@ -12103,23 +12179,53 @@ bool Syncs::isAnySyncScanning_inThread()
     return false;
 }
 
-bool Syncs::mightAnySyncsHaveMoves()
+bool Syncs::checkSyncsScanningWasComplete_inThread()
 {
     assert(onSyncThread());
+
+    lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
+
+    bool allSyncsScanningWereComplete = true;
+    for (auto& us : mSyncVec)
+    {
+        if (Sync* sync = us->mSync.get())
+        {
+            allSyncsScanningWereComplete &= sync->checkScanningWasComplete();
+        }
+    }
+    return allSyncsScanningWereComplete;
+}
+
+void Syncs::unsetSyncsScanningWasComplete_inThread()
+{
+    assert(onSyncThread());
+
+    lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
 
     for (auto& us : mSyncVec)
     {
         if (Sync* sync = us->mSync.get())
         {
-            if (!us->mConfig.mError &&
-                (sync->localroot->mightHaveMoves()
-                    || sync->localroot->scanRequired()))
-            {
-                return true;
-            }
+            sync->unsetScanningWasComplete();
         }
     }
-    return false;
+}
+
+bool Syncs::checkSyncsMovesWereComplete()
+{
+    assert(onSyncThread());
+
+    lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
+
+    bool allSyncsMovesWereComplete = true;
+    for (auto& us : mSyncVec)
+    {
+        if (Sync* sync = us->mSync.get())
+        {
+            allSyncsMovesWereComplete &= sync->checkMovesWereComplete();
+        }
+    }
+    return allSyncsMovesWereComplete;
 }
 
 void Syncs::setSyncsNeedFullSync(bool andFullScan, bool andReFingerprint, handle backupId)

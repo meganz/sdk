@@ -20,6 +20,7 @@
  */
 
 #include "mega/gfx/gfx_pdfium.h"
+#include "mega.h"
 
 #ifdef HAVE_PDFIUM
 
@@ -56,9 +57,9 @@ void PdfiumReader::destroy()
 }
 
 #ifdef _WIN32
-std::unique_ptr<char[]> PdfiumReader::readBitmapFromPdf(int &w, int &h, int &orientation, const LocalPath &path, FileSystemAccess* fa, const LocalPath &workingDirFolder)
+std::unique_ptr<char[]> PdfiumReader::readBitmapFromPdf(int &w, int &h, int &orientation, const LocalPath &path, const LocalPath &workingDirFolder)
 #else
-std::unique_ptr<char[]> PdfiumReader::readBitmapFromPdf(int &w, int &h, int &orientation, const LocalPath &path, FileSystemAccess* fa)
+std::unique_ptr<char[]> PdfiumReader::readBitmapFromPdf(int &w, int &h, int &orientation, const LocalPath &path)
 #endif
 {
 
@@ -70,11 +71,12 @@ std::unique_ptr<char[]> PdfiumReader::readBitmapFromPdf(int &w, int &h, int &ori
     LocalPath tmpFilePath;
     bool removetemporaryfile = false;
     std::unique_ptr<byte[]> buffer;
+    FSACCESS_CLASS fa;
 
     // In Windows it fails if the path has non-ascii chars
     if (pdf_doc == nullptr && FPDF_GetLastError() == FPDF_ERR_FILE)
     {
-        std::unique_ptr<FileAccess> pdfFile = fa->newfileaccess();
+        std::unique_ptr<FileAccess> pdfFile = fa.newfileaccess();
         if (pdfFile->fopen(path, FSLogging::logOnError))
         {
             if (pdfFile->size > MAX_PDF_MEM_SIZE)
@@ -84,7 +86,7 @@ std::unique_ptr<char[]> PdfiumReader::readBitmapFromPdf(int &w, int &h, int &ori
                     LocalPath originPath = path;
                     tmpFilePath = workingDirFolder;
                     tmpFilePath.appendWithSeparator(LocalPath::fromRelativePath(".megapdftmp"),false);
-                    if (fa->copylocal(originPath, tmpFilePath, pdfFile->mtime))
+                    if (fa.copylocal(originPath, tmpFilePath, pdfFile->mtime))
                     {
                         pdf_doc = FPDF_LoadDocument(tmpFilePath.toPath(false).c_str(), nullptr);
                         removetemporaryfile = true;
@@ -135,7 +137,7 @@ std::unique_ptr<char[]> PdfiumReader::readBitmapFromPdf(int &w, int &h, int &ori
 #ifdef _WIN32
                 if (removetemporaryfile)
                 {
-                    fa->unlinklocal(tmpFilePath);
+                    fa.unlinklocal(tmpFilePath);
                 }
 #endif
                     return nullptr;
@@ -152,7 +154,7 @@ std::unique_ptr<char[]> PdfiumReader::readBitmapFromPdf(int &w, int &h, int &ori
 #ifdef _WIN32
                     if (removetemporaryfile)
                     {
-                        fa->unlinklocal(tmpFilePath);
+                        fa.unlinklocal(tmpFilePath);
                     }
 #endif
                     return nullptr;
@@ -166,7 +168,7 @@ std::unique_ptr<char[]> PdfiumReader::readBitmapFromPdf(int &w, int &h, int &ori
 #ifdef _WIN32
                 if (removetemporaryfile)
                 {
-                    fa->unlinklocal(tmpFilePath);
+                    fa.unlinklocal(tmpFilePath);
                 }
 #endif
                 // Needed by Qt: ROTATION_DOWN = 3
@@ -193,7 +195,7 @@ std::unique_ptr<char[]> PdfiumReader::readBitmapFromPdf(int &w, int &h, int &ori
 #ifdef _WIN32
     if (removetemporaryfile)
     {
-        fa->unlinklocal(tmpFilePath);
+        fa.unlinklocal(tmpFilePath);
     }
 #endif
 

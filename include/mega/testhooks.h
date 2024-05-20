@@ -53,6 +53,8 @@ namespace mega {
         std::function<bool(Transfer*, TransferDbCommitter&)> onUploadChunkSucceeded;
         std::function<void(error e)> onDownloadFailed;
         std::function<void(std::unique_ptr<HttpReq>&)> interceptSCRequest;
+        std::function<void(m_off_t&)> onLimitMaxReqSize;
+        std::function<void(int&, unsigned)> onHookNumberOfConnections;
     };
 
     extern MegaTestHooks globalMegaTestHooks;
@@ -76,6 +78,11 @@ namespace mega {
     // watch out for download issues
     #define DEBUG_TEST_HOOK_DOWNLOAD_FAILED(X)  { if (globalMegaTestHooks.onDownloadFailed) globalMegaTestHooks.onDownloadFailed(X); }
 
+    // limit max request size for TransferBufferManager (non-raid) or new RaidReq
+    #define DEBUG_TEST_HOOK_LIMIT_MAX_REQ_SIZE(X) { if (globalMegaTestHooks.onLimitMaxReqSize) globalMegaTestHooks.onLimitMaxReqSize(X); }
+
+    // Ensure new RaidReq number of connections is taken from the client's number of connections
+    #define DEBUG_TEST_HOOK_NUMBER_OF_CONNECTIONS(connectionsInOutVar, clientNumberOfConnections) { if (globalMegaTestHooks.onHookNumberOfConnections) globalMegaTestHooks.onHookNumberOfConnections(connectionsInOutVar, clientNumberOfConnections); }
 
 #else
     #define DEBUG_TEST_HOOK_HTTPREQ_POST(x)
@@ -83,6 +90,8 @@ namespace mega {
     #define DEBUG_TEST_HOOK_UPLOADCHUNK_FAILED(X)
     #define DEBUG_TEST_HOOK_UPLOADCHUNK_SUCCEEDED(transfer, committer)
     #define DEBUG_TEST_HOOK_DOWNLOAD_FAILED(X)
+    #define DEBUG_TEST_HOOK_LIMIT_MAX_REQ_SIZE(X)
+    #define DEBUG_TEST_HOOK_NUMBER_OF_CONNECTIONS(connectionsInOutVar, clientNumberOfConnections)
 #endif
 
 

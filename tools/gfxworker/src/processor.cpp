@@ -21,7 +21,7 @@ const TimeoutMs RequestProcessor::READ_TIMEOUT(5000);
 const TimeoutMs RequestProcessor::WRITE_TIMEOUT(5000);
 
 GfxProcessor::GfxProcessor()
-    : mGfxProvider(::mega::make_unique<GfxProviderFreeImage>())
+    : mGfxProvider(std::make_unique<GfxProviderFreeImage>())
 {
 }
 
@@ -56,9 +56,7 @@ GfxTaskResult GfxProcessor::process(const GfxTask& task)
 
     // generate thumbnails
     LOG_info << "generate for, " << path;
-    auto images = mGfxProvider->generateImages(&mFaccess,
-                                               path,
-                                               sortedDimensions);
+    auto images = mGfxProvider->generateImages(path, sortedDimensions);
 
     // assign back to original order
     for (int i = 0; i < images.size(); ++i)
@@ -198,5 +196,5 @@ void RequestProcessor::processSupportFormats(IEndpoint* endpoint)
     writer.writeCommand(&response, WRITE_TIMEOUT);
 }
 
-} //namespace server
-} //namespace gfx
+} // namespace
+}

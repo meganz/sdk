@@ -60,7 +60,7 @@ std::unique_ptr<std::string> CommandSerializer::serialize(ICommand* command)
 
     writer.serializestring_u32(commandData);
 
-    return ::mega::make_unique<std::string>(std::move(dataToReturn));
+    return std::make_unique<std::string>(std::move(dataToReturn));
 }
 
 bool CommandSerializer::unserializeUInt32(IReader& reader, uint32_t& data, TimeoutMs timeout)

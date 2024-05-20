@@ -230,7 +230,15 @@ public class MegaApiJava {
     public final static int FILE_TYPE_PHOTO = MegaApi.FILE_TYPE_PHOTO;
     public final static int FILE_TYPE_AUDIO = MegaApi.FILE_TYPE_AUDIO;
     public final static int FILE_TYPE_VIDEO = MegaApi.FILE_TYPE_VIDEO;
+    public final static int FILE_TYPE_DOCUMENT = MegaApi.FILE_TYPE_DOCUMENT;
+    public final static int FILE_TYPE_PDF = MegaApi.FILE_TYPE_PDF;
+    public final static int FILE_TYPE_PRESENTATION = MegaApi.FILE_TYPE_PRESENTATION;
+    public final static int FILE_TYPE_ARCHIVE = MegaApi.FILE_TYPE_ARCHIVE;
+    public final static int FILE_TYPE_PROGRAM = MegaApi.FILE_TYPE_PROGRAM;
+    public final static int FILE_TYPE_MISC = MegaApi.FILE_TYPE_MISC;
+    public final static int FILE_TYPE_SPREADSHEET = MegaApi.FILE_TYPE_SPREADSHEET;
     public final static int FILE_TYPE_ALL_DOCS = MegaApi.FILE_TYPE_ALL_DOCS;
+    public final static int FILE_TYPE_OTHERS = MegaApi.FILE_TYPE_OTHERS;
 
     public final static int SEARCH_TARGET_INSHARE = MegaApi.SEARCH_TARGET_INSHARE;
     public final static int SEARCH_TARGET_OUTSHARE = MegaApi.SEARCH_TARGET_OUTSHARE;
@@ -644,7 +652,7 @@ public class MegaApiJava {
     }
 
     /**
-     * @brief Check if the logged in account is considered new
+     * Check if the logged in account is considered new
      *
      * This function will NOT return a valid value until the callback onEvent with
      * type MegaApi::EVENT_MISC_FLAGS_READY is received. You can also rely on the completion of
@@ -3261,24 +3269,6 @@ public class MegaApiJava {
     }
 
     /**
-     * Allows to change the hardcoded value of the "secure" flag
-     * <p>
-     * With this feature flag set, the client will manage encryption keys for
-     * shared folders in a secure way. Legacy clients won't be able to decrypt
-     * shared folders created with this flag enabled.
-     * <p>
-     * Manual verification of credentials of users (both sharers AND sharees) is
-     * required in order to decrypt shared folders correctly.
-     *
-     * @param enable New value of the flag
-     *               Note: This flag should be changed before login+fetchnodes. Otherwise, it may
-     *               result on unexpected behavior.
-     */
-    public void setSecureFlag(boolean enable) {
-        megaApi.setSecureFlag(enable);
-    }
-
-    /**
      * Creates a new share key for the node if there is no share key already created.
      * <p>
      * Call it before starting any new share.
@@ -4794,6 +4784,32 @@ public class MegaApiJava {
      */
     public void setNodeCoordinates(MegaNode node, double latitude, double longitude, MegaRequestListenerInterface listener) {
         megaApi.setNodeCoordinates(node, latitude, longitude, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Set node description as a node attribute
+     *
+     * To remove node description, set description to NULL
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node that received the attribute
+     * - MegaRequest::getFlag - Returns true (official attribute)
+     * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_DESCRIPTION
+     * - MegaRequest::getText - Returns node description
+     *
+     * If the size of the description is greater than MAX_NODE_DESCRIPTION_SIZE, onRequestFinish will be
+     * called with the error code MegaError::API_EARGS.
+     *
+     * If the MEGA account is a business account and its status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param node Node that will receive the information.
+     * @param description Node description
+     * @param listener MegaRequestListener to track this request
+     */
+    public void setNodeDescription(MegaNode node, String description, MegaRequestListenerInterface listener){
+        megaApi.setNodeDescription(node, description, createDelegateRequestListener(listener));
     }
 
     /**
@@ -6588,6 +6604,23 @@ public class MegaApiJava {
     }
 
     /**
+     * Generate a new pseudo-randomly characters-based password
+     *
+     * You take ownership of the returned value.
+     * Use delete[] to free it.
+     *
+     * @param useUpper  boolean indicating if at least 1 upper case letter shall be included
+     * @param useDigit  boolean indicating if at least 1 digit shall be included
+     * @param useSymbol boolean indicating if at least 1 symbol from !@#$%^&*() shall be included
+     * @param length    int with the number of characters that will be included.
+     *                  Minimum valid length is 8 and maximum valid is 64.
+     * @return Null-terminated char string containing the newly generated password.
+     */
+    public static String generateRandomCharsPassword(boolean useUpper, boolean useDigit, boolean useSymbol, int length) {
+        return MegaApi.generateRandomCharsPassword(useUpper, useDigit, useSymbol, length);
+    }
+
+    /**
      * Send events to the stats server
      * <p>
      * The associated request type with this request is MegaRequest::TYPE_SEND_EVENT
@@ -8192,6 +8225,196 @@ public class MegaApiJava {
     }
 
     /**
+     * Get children of a particular parent or a predefined location, and allow filtering
+     * the results. @see MegaSearchFilter
+     * The look-up is case-insensitive.
+     * For invalid filtering options, this function returns an empty list.
+     *
+     * You take the ownership of the returned value
+     *
+     * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
+     * to MegaCancelToken::setCancelFlag(true).
+     *
+     * @param filter Container for filtering options. In order to be considered valid it must
+     * - be not null
+     * - have valid ancestor handle (different than INVALID_HANDLE) set by calling byLocationHandle(),
+     *   and in consequence it must have default value for location (SEARCH_TARGET_ALL)
+     * @param order Order for the returned list
+     * Valid values for this parameter are:
+     * - MegaApi::ORDER_NONE = 0
+     * Undefined order
+     *
+     * - MegaApi::ORDER_DEFAULT_ASC = 1
+     * Folders first in alphabetical order, then files in the same order
+     *
+     * - MegaApi::ORDER_DEFAULT_DESC = 2
+     * Files first in reverse alphabetical order, then folders in the same order
+     *
+     * - MegaApi::ORDER_SIZE_ASC = 3
+     * Sort by size, ascending
+     *
+     * - MegaApi::ORDER_SIZE_DESC = 4
+     * Sort by size, descending
+     *
+     * - MegaApi::ORDER_CREATION_ASC = 5
+     * Sort by creation time in MEGA, ascending
+     *
+     * - MegaApi::ORDER_CREATION_DESC = 6
+     * Sort by creation time in MEGA, descending
+     *
+     * - MegaApi::ORDER_MODIFICATION_ASC = 7
+     * Sort by modification time of the original file, ascending
+     *
+     * - MegaApi::ORDER_MODIFICATION_DESC = 8
+     * Sort by modification time of the original file, descending
+     *
+     * - MegaApi::ORDER_LABEL_ASC = 17
+     * Sort by color label, ascending. With this order, folders are returned first, then files
+     *
+     * - MegaApi::ORDER_LABEL_DESC = 18
+     * Sort by color label, descending. With this order, folders are returned first, then files
+     *
+     * - MegaApi::ORDER_FAV_ASC = 19
+     * Sort nodes with favourite attr first. With this order, folders are returned first, then files
+     *
+     * - MegaApi::ORDER_FAV_DESC = 20
+     * Sort nodes with favourite attr last. With this order, folders are returned first, then files
+     *
+     * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
+     * @param searchPage Container for pagination options; if null, all results will be returned
+     *
+     * @return List with found children as MegaNode objects
+     */
+    public ArrayList<MegaNode> getChildren(MegaSearchFilter filter, int order, MegaCancelToken cancelToken, MegaSearchPage searchPage) {
+        return nodeListToArray(megaApi.getChildren(filter, order, cancelToken, searchPage));
+    }
+
+    /**
+     * Get all children of a MegaNode
+     * <p>
+     * If the parent node doesn't exist or it isn't a folder, this function
+     * returns an empty list
+     * <p>
+     * You take the ownership of the returned value
+     *
+     * @param parent Parent node
+     * @param order  Order for the returned list
+     *               Valid values for this parameter are:
+     *               - MegaApi::ORDER_NONE = 0
+     *               Undefined order
+     *               <p>
+     *               - MegaApi::ORDER_DEFAULT_ASC = 1
+     *               Folders first in alphabetical order, then files in the same order
+     *               <p>
+     *               - MegaApi::ORDER_DEFAULT_DESC = 2
+     *               Files first in reverse alphabetical order, then folders in the same order
+     *               <p>
+     *               - MegaApi::ORDER_SIZE_ASC = 3
+     *               Sort by size, ascending
+     *               <p>
+     *               - MegaApi::ORDER_SIZE_DESC = 4
+     *               Sort by size, descending
+     *               <p>
+     *               - MegaApi::ORDER_CREATION_ASC = 5
+     *               Sort by creation time in MEGA, ascending
+     *               <p>
+     *               - MegaApi::ORDER_CREATION_DESC = 6
+     *               Sort by creation time in MEGA, descending
+     *               <p>
+     *               - MegaApi::ORDER_MODIFICATION_ASC = 7
+     *               Sort by modification time of the original file, ascending
+     *               <p>
+     *               - MegaApi::ORDER_MODIFICATION_DESC = 8
+     *               Sort by modification time of the original file, descending
+     *               <p>
+     *               - MegaApi::ORDER_LABEL_ASC = 17
+     *               Sort by color label, ascending. With this order, folders are returned first, then files
+     *               <p>
+     *               - MegaApi::ORDER_LABEL_DESC = 18
+     *               Sort by color label, descending. With this order, folders are returned first, then files
+     *               <p>
+     *               - MegaApi::ORDER_FAV_ASC = 19
+     *               Sort nodes with favourite attr first. With this order, folders are returned first, then files
+     *               <p>
+     *               - MegaApi::ORDER_FAV_DESC = 20
+     *               Sort nodes with favourite attr last. With this order, folders are returned first, then files
+     * @return List with all child MegaNode objects
+     */
+    public ArrayList<MegaNode> getChildren(MegaNode parent, int order) {
+        return nodeListToArray(megaApi.getChildren(parent, order));
+    }
+
+    /**
+     * Get all children of a list of MegaNodes
+     * <p>
+     * If any parent node doesn't exist or it isn't a folder, that parent
+     * will be skipped.
+     * <p>
+     * You take the ownership of the returned value
+     *
+     * @param parentNodes List of parent nodes
+     * @param order       Order for the returned list
+     *                    Valid values for this parameter are:
+     *                    - MegaApi::ORDER_NONE = 0
+     *                    Undefined order
+     *                    <p>
+     *                    - MegaApi::ORDER_DEFAULT_ASC = 1
+     *                    Folders first in alphabetical order, then files in the same order
+     *                    <p>
+     *                    - MegaApi::ORDER_DEFAULT_DESC = 2
+     *                    Files first in reverse alphabetical order, then folders in the same order
+     *                    <p>
+     *                    - MegaApi::ORDER_SIZE_ASC = 3
+     *                    Sort by size, ascending
+     *                    <p>
+     *                    - MegaApi::ORDER_SIZE_DESC = 4
+     *                    Sort by size, descending
+     *                    <p>
+     *                    - MegaApi::ORDER_CREATION_ASC = 5
+     *                    Sort by creation time in MEGA, ascending
+     *                    <p>
+     *                    - MegaApi::ORDER_CREATION_DESC = 6
+     *                    Sort by creation time in MEGA, descending
+     *                    <p>
+     *                    - MegaApi::ORDER_MODIFICATION_ASC = 7
+     *                    Sort by modification time of the original file, ascending
+     *                    <p>
+     *                    - MegaApi::ORDER_MODIFICATION_DESC = 8
+     *                    Sort by modification time of the original file, descending
+     *                    <p>
+     *                    - MegaApi::ORDER_LABEL_ASC = 17
+     *                    Sort by color label, ascending. With this order, folders are returned first, then files
+     *                    <p>
+     *                    - MegaApi::ORDER_LABEL_DESC = 18
+     *                    Sort by color label, descending. With this order, folders are returned first, then files
+     *                    <p>
+     *                    - MegaApi::ORDER_FAV_ASC = 19
+     *                    Sort nodes with favourite attr first. With this order, folders are returned first, then files
+     *                    <p>
+     *                    - MegaApi::ORDER_FAV_DESC = 20
+     *                    Sort nodes with favourite attr last. With this order, folders are returned first, then files
+     * @return List with all child MegaNode objects
+     */
+    public ArrayList<MegaNode> getChildren(MegaNodeList parentNodes, int order) {
+        return nodeListToArray(megaApi.getChildren(parentNodes, order));
+    }
+
+    /**
+     * Get all children of a MegaNode
+     * <p>
+     * If the parent node doesn't exist or it isn't a folder, this function
+     * returns an empty list
+     * <p>
+     * You take the ownership of the returned value
+     *
+     * @param parent Parent node
+     * @return List with all child MegaNode objects
+     */
+    public ArrayList<MegaNode> getChildren(MegaNode parent) {
+        return nodeListToArray(megaApi.getChildren(parent));
+    }
+
+    /**
      * Get all versions of a file
      *
      * @param node Node to check
@@ -9039,6 +9262,119 @@ public class MegaApiJava {
      */
     public long getBandwidthOverquotaDelay() {
         return megaApi.getBandwidthOverquotaDelay();
+    }
+
+    /**
+     * Search nodes and allow filtering the results.
+     * The search is case-insensitive.
+     *
+     * You take the ownership of the returned value.
+     *
+     * @param filter Container for filtering options, cannot be null
+     * @param order Order for the returned list
+     * Valid values for this parameter are:
+     * - MegaApi::ORDER_NONE = 0
+     * Undefined order
+     *
+     * - MegaApi::ORDER_DEFAULT_ASC = 1
+     * Folders first in alphabetical order, then files in the same order
+     *
+     * - MegaApi::ORDER_DEFAULT_DESC = 2
+     * Files first in reverse alphabetical order, then folders in the same order
+     *
+     * - MegaApi::ORDER_SIZE_ASC = 3
+     * Sort by size, ascending
+     *
+     * - MegaApi::ORDER_SIZE_DESC = 4
+     * Sort by size, descending
+     *
+     * - MegaApi::ORDER_CREATION_ASC = 5
+     * Sort by creation time in MEGA, ascending
+     *
+     * - MegaApi::ORDER_CREATION_DESC = 6
+     * Sort by creation time in MEGA, descending
+     *
+     * - MegaApi::ORDER_MODIFICATION_ASC = 7
+     * Sort by modification time of the original file, ascending
+     *
+     * - MegaApi::ORDER_MODIFICATION_DESC = 8
+     * Sort by modification time of the original file, descending
+     *
+     * - MegaApi::ORDER_LABEL_ASC = 17
+     * Sort by color label, ascending. With this order, folders are returned first, then files
+     *
+     * - MegaApi::ORDER_LABEL_DESC = 18
+     * Sort by color label, descending. With this order, folders are returned first, then files
+     *
+     * - MegaApi::ORDER_FAV_ASC = 19
+     * Sort nodes with favourite attr first. With this order, folders are returned first, then files
+     *
+     * - MegaApi::ORDER_FAV_DESC = 20
+     * Sort nodes with favourite attr last. With this order, folders are returned first, then files
+     *
+     * @param cancelToken MegaCancelToken to be able to cancel the search at any time.
+     *
+     * @return List with found nodes as MegaNode objects
+     */
+    public ArrayList<MegaNode> search(MegaSearchFilter filter, int order, MegaCancelToken cancelToken) {
+        return nodeListToArray(megaApi.search(filter, order, cancelToken));
+    }
+
+    /**
+     * Search nodes and allow filtering the results.
+     * The search is case-insensitive.
+     *
+     * You take the ownership of the returned value.
+     *
+     * @param filter Container for filtering options, cannot be null
+     * @param order Order for the returned list
+     * Valid values for this parameter are:
+     * - MegaApi::ORDER_NONE = 0
+     * Undefined order
+     *
+     * - MegaApi::ORDER_DEFAULT_ASC = 1
+     * Folders first in alphabetical order, then files in the same order
+     *
+     * - MegaApi::ORDER_DEFAULT_DESC = 2
+     * Files first in reverse alphabetical order, then folders in the same order
+     *
+     * - MegaApi::ORDER_SIZE_ASC = 3
+     * Sort by size, ascending
+     *
+     * - MegaApi::ORDER_SIZE_DESC = 4
+     * Sort by size, descending
+     *
+     * - MegaApi::ORDER_CREATION_ASC = 5
+     * Sort by creation time in MEGA, ascending
+     *
+     * - MegaApi::ORDER_CREATION_DESC = 6
+     * Sort by creation time in MEGA, descending
+     *
+     * - MegaApi::ORDER_MODIFICATION_ASC = 7
+     * Sort by modification time of the original file, ascending
+     *
+     * - MegaApi::ORDER_MODIFICATION_DESC = 8
+     * Sort by modification time of the original file, descending
+     *
+     * - MegaApi::ORDER_LABEL_ASC = 17
+     * Sort by color label, ascending. With this order, folders are returned first, then files
+     *
+     * - MegaApi::ORDER_LABEL_DESC = 18
+     * Sort by color label, descending. With this order, folders are returned first, then files
+     *
+     * - MegaApi::ORDER_FAV_ASC = 19
+     * Sort nodes with favourite attr first. With this order, folders are returned first, then files
+     *
+     * - MegaApi::ORDER_FAV_DESC = 20
+     * Sort nodes with favourite attr last. With this order, folders are returned first, then files
+     *
+     * @param cancelToken MegaCancelToken to be able to cancel the search at any time.
+     * @param searchPage Container for pagination options; if null, all results will be returned
+     *
+     * @return List with found nodes as MegaNode objects
+     */
+    public ArrayList<MegaNode> search(MegaSearchFilter filter, int order, MegaCancelToken cancelToken, MegaSearchPage searchPage) {
+        return nodeListToArray(megaApi.search(filter, order, cancelToken, searchPage));
     }
 
     /**
@@ -11512,7 +11848,7 @@ public class MegaApiJava {
     }
 
     /**
-     * @brief Start a Sync or Backup between a local folder and a folder in MEGA
+     * Start a Sync or Backup between a local folder and a folder in MEGA
      *
      * This function should be used to add a new synchronization/backup task for the MegaApi.
      * To resume a previously configured task folder, use MegaApi::enableSync.
@@ -11583,7 +11919,7 @@ public class MegaApiJava {
     }
 
     /**
-     * @brief Get all configured syncs
+     * Get all configured syncs
      *
      * You take the ownership of the returned value
      *
@@ -11594,7 +11930,7 @@ public class MegaApiJava {
     }
 
     /**
-     * @brief De-configure the sync/backup of a folder
+     * De-configure the sync/backup of a folder
      *
      * The folder will stop being synced. No files in the local nor in the remote folder
      * will be deleted due to the usage of this function.
@@ -11904,7 +12240,7 @@ public class MegaApiJava {
     }
 
     /**
-     * @brief Find out if the syncs need User intervention for some files/folders
+     * Find out if the syncs need User intervention for some files/folders
      *
      * use getMegaSyncStallList() to find out what needs attention.
      *
@@ -11930,4 +12266,29 @@ public class MegaApiJava {
     public void pauseSync(long backupId) {
         megaApi.setSyncRunState(backupId, RUNSTATE_SUSPENDED);
     }
+
+    /**
+     * Check if it's possible to start synchronizing a folder node. Return SyncError errors.
+     *
+     * Possible return values for this function are:
+     * - MegaError::API_OK if the folder is syncable
+     * - MegaError::API_ENOENT if the node doesn't exist in the account
+     * - MegaError::API_EARGS if the node is NULL or is not a folder
+     *
+     * - MegaError::API_EACCESS:
+     *              SyncError: SHARE_NON_FULL_ACCESS An ancestor node does not have full access
+     *              SyncError: REMOTE_NODE_INSIDE_RUBBISH
+     * - MegaError::API_EEXIST if there is a conflicting synchronization (nodes can't be synced twice)
+     *              SyncError: ACTIVE_SYNC_BELOW_PATH - There's a synced node below the path to be synced
+     *              SyncError: ACTIVE_SYNC_ABOVE_PATH - There's a synced node above the path to be synced
+     *              SyncError: ACTIVE_SYNC_SAME_PATH - There's a synced node at the path to be synced
+     * - MegaError::API_EINCOMPLETE if the SDK hasn't been built with support for synchronization
+     *
+     *  @return API_OK if syncable. Error otherwise sets syncError in the returned MegaError
+     *          caller must free
+     */
+    public MegaError isNodeSyncableWithError(MegaNode megaNode) {
+        return megaApi.isNodeSyncableWithError(megaNode);
+    }
+
 }

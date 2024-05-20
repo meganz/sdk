@@ -146,5 +146,5 @@ bool NamedPipe::doOverlappedOperation(std::function<bool(OVERLAPPED*)>op,
     return true;
 }
 
-} // end of namespace
+} // namespace
 }
