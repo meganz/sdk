@@ -1149,7 +1149,6 @@ enum class PathProblem : unsigned short {
     IgnoreFileMalformed,
     FilesystemErrorListingFolder,
     FilesystemErrorIdentifyingFolderContent,
-    UndecryptedCloudNode,
     WaitingForScanningToComplete,
     WaitingForAnotherMoveToComplete,
     SourceWasMovedElsewhere,

@@ -7156,7 +7156,6 @@ class MegaSyncStall
             IgnoreFileMalformed,
             FilesystemErrorListingFolder,
             FilesystemErrorIdentifyingFolderContent,
-            UndecryptedCloudNode,
             WaitingForScanningToComplete,
             WaitingForAnotherMoveToComplete,
             SourceWasMovedElsewhere,
