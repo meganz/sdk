@@ -17933,23 +17933,6 @@ bool MegaApiImpl::hasVersions(MegaNode *node)
     return getNumVersions(node) > 1;
 }
 
-MegaNodeList* MegaApiImpl::getChildrenFromType(MegaNode* p, int type, int order, CancelToken cancelToken)
-{
-    if (!p || p->getType() == MegaNode::TYPE_FILE || type < nodetype_t::FILENODE || type > nodetype_t::FOLDERNODE)
-    {
-        return new MegaNodeListPrivate();
-    }
-
-    SdkMutexGuard guard(sdkMutex);
-
-    NodeSearchFilter filter;
-    filter.byAncestors({p->getHandle(), UNDEF, UNDEF});
-    filter.byNodeType(static_cast<nodetype_t>(type));
-    sharedNode_vector childrenNodes = client->mNodeManager.getChildren(filter, order, cancelToken, NodeSearchPage{0, 0});
-
-    return new MegaNodeListPrivate(childrenNodes);
-}
-
 bool MegaApiImpl::hasChildren(MegaNode *parent)
 {
     if (!parent || parent->getType() == MegaNode::TYPE_FILE)

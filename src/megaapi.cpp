@@ -4505,11 +4505,6 @@ void MegaApi::getFolderInfo(MegaNode *node, MegaRequestListener *listener)
     pImpl->getFolderInfo(node, listener);
 }
 
-MegaNodeList* MegaApi::getChildrenFromType(MegaNode* p, int type, int order, MegaCancelToken* cancelToken)
-{
-    return pImpl->getChildrenFromType(p, type, order, convertToCancelToken(cancelToken));
-}
-
 bool MegaApi::hasChildren(MegaNode *parent)
 {
     return pImpl->hasChildren(parent);

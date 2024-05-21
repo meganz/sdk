@@ -3387,8 +3387,6 @@ class MegaApiImpl : public MegaApp
         bool hasVersions(MegaNode *node);
         void getFolderInfo(MegaNode *node, MegaRequestListener *listener);
         bool isSensitiveInherited(MegaNode* node);
-        MEGA_DEPRECATED
-        MegaNodeList* getChildrenFromType(MegaNode* p, int type, int order = 1, CancelToken cancelToken = CancelToken());
         bool hasChildren(MegaNode *parent);
         MegaNode *getChildNode(MegaNode *parent, const char* name);
         MegaNode* getChildNodeOfType(MegaNode *parent, const char *name, int type = TYPE_UNKNOWN);
