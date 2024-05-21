@@ -9851,22 +9851,48 @@ bool Sync::resolve_cloudNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& ful
             return MT_NONE;
         }
 
-        // Is this a NO_NAME ?????
-        if (cloudNode.name.empty())
+        // We need to discard NO_NAME nodes.
+        // Not only the current cloudNode: it could happen that a node has been moved into a undecryptable/NO_NAMEd path. So we must check parents too.
+        const std::string NO_KEY_SUFFIX = "NO_KEY";
+        if (cloudPath.find(NO_KEY_SUFFIX) != std::string::npos)
         {
-            const std::string suffix = "NO_KEY";
-            if (cloudPath.length() >= suffix.length() &&
-                !cloudPath.compare(cloudPath.length() - suffix.length(), suffix.length(), suffix))
+            SYNC_verbose << syncname << "[cloudNodeGone] [isPossibleCloudMoveSource] There is a NO_KEY in the cloud node path. Look for NO_NAMEd nodes [cloudNode.name = '" << cloudNode.name << "', cloudPath = '" << cloudPath << "']";
+            do
             {
-                SYNC_verbose << syncname
-                         << "[cloudNodeGone] Cloud Node is a NO_NAME (undecryptable node), it cannot be a move target!!!! "
-                         << logTriplet(row, fullPath);
-                // Then we know it can't be a move target.
-                return MT_NONE;
-            }
-            SYNC_verbose << syncname
-                         << "[cloudNodeGone] Cloud Node name is empty, but the path does not contain NO_KEY word???? "
-                         << logTriplet(row, fullPath);
+                if (cloudNode.name.empty())
+                {
+                    // Unnamed/undecryptable node, we know it cannot be considered a move target (for our local sync, so we need to discard the moving nodes and move the files to local debris)
+                    assert ((cloudPath.length() >= NO_KEY_SUFFIX.length() &&
+        -                !cloudPath.compare(cloudPath.length() - NO_KEY_SUFFIX.length(), NO_KEY_SUFFIX.length(), NO_KEY_SUFFIX)) && "Cloud node name empty, but the path does not contain NO_KEY word");
+                    SYNC_verbose << syncname
+                                << "[cloudNodeGone] Cloud Node is a NO_NAME/NO_KEY (undecryptable node) or a child of a NO_NAME/NO_KEY, it cannot be a move target!!!! "
+                                << logTriplet(row, fullPath);
+                    return MT_NONE;
+                }
+                if (cloudNode.parentType > FILENODE && !cloudNode.parentHandle.isUndef())
+                {
+                    SYNC_verbose << syncname << "[cloudNodeGone] [isPossibleCloudMoveSource] looking for NO_NAME parents [cloudNode.name = '" << cloudNode.name << "', cloudPath = '" << cloudPath << "']";
+                    found = syncs.lookupCloudNode(cloudNode.parentHandle,
+                                                cloudNode,
+                                                &cloudPath,
+                                                nullptr,
+                                                &active,
+                                                &nodeIsDefinitelyExcluded,
+                                                nullptr,
+                                                Syncs::LATEST_VERSION_ONLY);
+                }
+                else
+                {
+                    found = false;
+                }
+            } while (found && active && !nodeIsDefinitelyExcluded);
+            LOG_warn << "[cloudNodeGone] There is a NO_KEY word in the cloudPath, but no unnamed cloudNode has been found"; // This could happen, for example, we could have a file or folder named MARIANO_KEY
+        }
+        else
+        {
+            // Just in case the NO_KEY word changes
+            LOG_warn << "[cloudNodeGone] There is no NO_KEY word present in the cloudPath, but the cloudNode name is empty!";
+            assert(!cloudNode.name.empty());
         }
 
         // Trim the rare fields.
