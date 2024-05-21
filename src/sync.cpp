@@ -7992,6 +7992,8 @@ bool Sync::syncItem_checkFilenameClashes(SyncRow& row, SyncRow& parentRow, SyncP
 
 bool Sync::syncItem_checkDownloadCompletion(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath)
 {
+    assert(syncs.onSyncThread());
+
     auto downloadPtr = std::dynamic_pointer_cast<SyncDownload_inClient>(row.syncNode->transferSP);
     if (!downloadPtr) return true;
 
@@ -8023,6 +8025,15 @@ bool Sync::syncItem_checkDownloadCompletion(SyncRow& row, SyncRow& parentRow, Sy
         }
         else
         {
+            if (downloadPtr->mError == API_EWRITE)
+            {
+                // This could be due to a problem with the temporary directory. Reset tmpfa to recreate them when restarting the transfer.
+                // This reset shouldn't be problematic even if there are other sync-downloads in flight, because they use threadSafeState::mSyncTmpFolder (and this is the same thread)
+                SYNC_verbose << syncname
+                                << "Download was terminated due to API_EWRITE (problem with the temporary directory?): "
+                                << logTriplet(row, fullPath);
+                tmpfa.reset();
+            }
             // remove the download record so we re-evaluate what to do
             row.syncNode->resetTransfer(nullptr);
         }

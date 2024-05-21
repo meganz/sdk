@@ -5092,13 +5092,10 @@ bool CommandABTestActive::procresult(Result r, JSON&)
     return r.wasErrorOrOK();
 }
 
-CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, std::shared_ptr<AccountDetails> ad, bool storage, bool transfer, bool pro, int source)
-{
-    details = ad;
-    mStorage = storage;
-    mTransfer = transfer;
-    mPro = pro;
 
+CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, std::shared_ptr<AccountDetails> ad, bool storage, bool transfer, bool pro, int source, std::function<void(std::shared_ptr<AccountDetails>, Error)> completion)
+  : details(ad), mStorage(storage), mTransfer(transfer), mPro(pro), mCompletion(std::move(completion))
+{
     cmd("uq");
     if (storage)
     {
@@ -5132,6 +5129,10 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
     if (r.wasErrorOrOK())
     {
         client->app->account_details(details.get(), r.errorOrOK());
+        if(mCompletion)
+        {
+            mCompletion(details, r.errorOrOK());
+        }
         return true;
     }
 
@@ -5433,12 +5434,20 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
                 }
 
                 client->app->account_details(details.get(), mStorage, mTransfer, mPro, false, false, false);
+                if(mCompletion)
+                {
+                    mCompletion(details, API_OK);
+                }
                 return true;
 
             default:
                 if (!json.storeobject())
                 {
                     client->app->account_details(details.get(), API_EINTERNAL);
+                    if(mCompletion)
+                    {
+                        mCompletion(details, API_EINTERNAL);
+                    }
                     return false;
                 }
         }
@@ -11529,78 +11538,6 @@ bool CommandGetNotifications::readCallToAction(JSON& json, map<string, string>& 
     return json.leaveobject();
 }
 
-CommandGetStorageInfo::CommandGetStorageInfo(MegaClient& client, Completion completion)
-  : Command()
-  , mCompletion(std::move(completion))
-{
-    // Request user quota information.
-    cmd("uq");
 
-    arg("src", -1);
-
-    // Only storage statistics.
-    arg("strg", "1", 0);
-
-    // Don't use APIv3 semantics.
-    mV3 = false;
-
-    tag = client.reqtag;
-}
-
-bool CommandGetStorageInfo::procresult(Result result, JSON& json)
-{
-    constexpr auto KEY_CAPACITY = MAKENAMEID5('m', 's', 't', 'r', 'g');
-    constexpr auto KEY_USED = MAKENAMEID5('c', 's', 't', 'r', 'g');
-
-    StorageInfo info;
-    bool gotCapacity = false;
-    bool gotUsed = false;
-
-    // Encountered some unexpected error processing the request.
-    if (result.wasErrorOrOK())
-        return mCompletion(info, result.errorOrOK()), true;
-
-    // Client should've been injected by now.
-    assert(client);
-
-    // Iterate over response, extracting only what we need.
-    while (true)
-    {
-        switch (json.getnameid())
-        {
-        // We've parsed the entire response.
-        case EOO:
-            // Make sure we got both attributes.
-            if (!gotCapacity || !gotUsed)
-                return mCompletion(info, API_EINTERNAL), false;
-
-            // Compute estimate of available space.
-            if (info.mCapacity >= info.mUsed)
-                info.mAvailable = info.mCapacity - info.mUsed;
-
-            // Transmit result to waiter.
-            return mCompletion(info, API_OK), true;
-
-        // Latch attributes of interest.
-        case KEY_CAPACITY:
-            info.mCapacity = json.getint();
-            gotCapacity = true;
-            break;
-
-        case KEY_USED:
-            info.mUsed = json.getint();
-            gotUsed = true;
-            break;
-
-        // Skip attributes we're not interested in.
-        default:
-            // Received malformed JSON.
-            if (!json.storeobject())
-                return mCompletion(info, API_EINTERNAL), false;
-
-            break;
-        }
-    }
-}
 
 } // namespace

@@ -1560,7 +1560,8 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, int o
                                               " OR mimetype = ?8))) "
                                  "AND (?11 = 0 OR (name REGEXP ?9)) "
                                  "AND (?14 = 0 OR isContained(?15, description)) "
-                                 "AND (?16 = 0 OR matchTag(?17, tags))"
+                                 "AND (?16 = 0 OR matchTag(?17, tags)) "
+                                 "AND (?18 = 0 OR ?19 = fav)"
                                  // Leading and trailing '*' will be added to argument '?' so we are looking for substrings containing name
                                  // Our REGEXP implementation is case insensitive
 
@@ -1597,7 +1598,9 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, int o
             (sqlResult = sqlite3_bind_int(stmt, 14, static_cast<int>(filter.byDescription().size()))) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_text(stmt, 15, filter.byDescription().c_str(), static_cast<int>(filter.byDescription().size()), SQLITE_STATIC)) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_int(stmt, 16, static_cast<int>(filter.byTag().size()))) == SQLITE_OK &&
-            (sqlResult = sqlite3_bind_text(stmt, 17, filter.byTag().c_str(), static_cast<int>(filter.byTag().size()), SQLITE_STATIC)) == SQLITE_OK)
+            (sqlResult = sqlite3_bind_text(stmt, 17, filter.byTag().c_str(), static_cast<int>(filter.byTag().size()), SQLITE_STATIC)) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int(stmt, 18, filter.byFavourite())) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int(stmt, 19, filter.byFavourite() == 1)) == SQLITE_OK)
         {
             result = processSqlQueryNodes(stmt, children);
         }
@@ -1687,7 +1690,8 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
                          " OR mimetype = ?8))) \n"
             "AND (?13 = 0 OR (name REGEXP ?9)) \n"
             "AND (?17 = 0 OR isContained(?18, description)) \n"
-            "AND (?19 = 0 OR matchTag(?20, tags))";
+            "AND (?19 = 0 OR matchTag(?20, tags)) \n"
+            "AND (?21 = 0 OR ?22 = fav)";
             // Leading and trailing '*' will be added to argument '?' so we are looking for substrings containing name
             // Our REGEXP implementation is case insensitive
 
@@ -1748,7 +1752,9 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
             (sqlResult = sqlite3_bind_int(stmt, 17, static_cast<int>(filter.byDescription().size()))) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_text(stmt, 18, filter.byDescription().c_str(), static_cast<int>(filter.byDescription().size()), SQLITE_STATIC)) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_int(stmt, 19, static_cast<int>(filter.byTag().size()))) == SQLITE_OK &&
-            (sqlResult = sqlite3_bind_text(stmt, 20, filter.byTag().c_str(), static_cast<int>(filter.byTag().size()), SQLITE_STATIC)) == SQLITE_OK)
+            (sqlResult = sqlite3_bind_text(stmt, 20, filter.byTag().c_str(), static_cast<int>(filter.byTag().size()), SQLITE_STATIC)) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int(stmt, 21, filter.byFavourite())) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int(stmt, 22, filter.byFavourite() == 1)) == SQLITE_OK)
         {
             result = processSqlQueryNodes(stmt, nodes);
         }
@@ -2499,45 +2505,42 @@ void SqliteAccountState::userIsContained(sqlite3_context* context, int argc, sql
 
 std::string OrderByClause::get(int order, int sqlParamIndex)
 {
-    std::string criteria1 =
-        "WHEN " + std::to_string(DEFAULT_ASC)  + " THEN type \n"  // folders first
-        "WHEN " + std::to_string(DEFAULT_DESC) + " THEN type \n"  // files first
-        "WHEN " + std::to_string(SIZE_ASC)  + " THEN size \n"
-        "WHEN " + std::to_string(SIZE_DESC) + " THEN size \n"
-        "WHEN " + std::to_string(CTIME_ASC)  + " THEN ctime \n"
-        "WHEN " + std::to_string(CTIME_DESC) + " THEN ctime \n"
-        "WHEN " + std::to_string(MTIME_ASC)  + " THEN mtime \n"
-        "WHEN " + std::to_string(MTIME_DESC) + " THEN mtime \n"
-        "WHEN " + std::to_string(LABEL_ASC)  + " THEN type \n"    // folders first
-        "WHEN " + std::to_string(LABEL_DESC) + " THEN type \n"    // folders first
-        "WHEN " + std::to_string(FAV_ASC)  + " THEN type \n"      // folders first
-        "WHEN " + std::to_string(FAV_DESC) + " THEN type \n";     // folders first
-    std::string criteria2 =
-        "WHEN " + std::to_string(DEFAULT_ASC)  + " THEN name \n"
-        "WHEN " + std::to_string(DEFAULT_DESC) + " THEN name \n"
-        "WHEN " + std::to_string(LABEL_ASC)  + " THEN label \n"
-        "WHEN " + std::to_string(LABEL_DESC) + " THEN label \n"
-        "WHEN " + std::to_string(FAV_ASC)  + " THEN fav \n"
-        "WHEN " + std::to_string(FAV_DESC) + " THEN fav \n";
+    // clang-format off
+    // First sorting field
+    static const std::string fieldToSort1 =
+        "WHEN " + std::to_string(DEFAULT_ASC)  + " THEN type \n"   // folders first
+        "WHEN " + std::to_string(DEFAULT_DESC) + " THEN type \n"   // folders first
+        "WHEN " + std::to_string(SIZE_ASC)     + " THEN size \n"
+        "WHEN " + std::to_string(SIZE_DESC)    + " THEN size \n"
+        "WHEN " + std::to_string(CTIME_ASC)    + " THEN ctime \n"
+        "WHEN " + std::to_string(CTIME_DESC)   + " THEN ctime \n"
+        "WHEN " + std::to_string(MTIME_ASC)    + " THEN mtime \n"
+        "WHEN " + std::to_string(MTIME_DESC)   + " THEN mtime \n"
+        "WHEN " + std::to_string(LABEL_ASC)    + " THEN type \n"   // folders first
+        "WHEN " + std::to_string(LABEL_DESC)   + " THEN type \n"   // folders first
+        "WHEN " + std::to_string(FAV_ASC)      + " THEN type \n"   // folders first
+        "WHEN " + std::to_string(FAV_DESC)     + " THEN type \n";  // folders first
+    // Second sorting field
+    static const std::string fieldToSort2 =
+        "WHEN " + std::to_string(DEFAULT_ASC)  + " THEN name COLLATE NOCASE \n"
+        "WHEN " + std::to_string(DEFAULT_DESC) + " THEN name COLLATE NOCASE \n"
+        "WHEN " + std::to_string(LABEL_ASC)    + " THEN label \n"
+        "WHEN " + std::to_string(LABEL_DESC)   + " THEN label \n"
+        "WHEN " + std::to_string(FAV_ASC)      + " THEN fav \n"
+        "WHEN " + std::to_string(FAV_DESC)     + " THEN fav \n";
+    // Third sorting field: always sort by PK last, to get the same order for identical queries
+    static const std::string fieldToSort3 = "nodehandle ";
+    // clang-format on
 
-    std::bitset<3> dirs = getDescendingDirs(order);
-    std::string direction1 = dirs[0] ? "DESC" : "";
-    std::string direction2 = dirs[1] ? "DESC" : "";
-    std::string direction3 = dirs[2] ? "DESC" : "";
+    const std::bitset<3> dirs = getDescendingDirs(order);
+    const std::string x = '?' + std::to_string(sqlParamIndex) + ' ';
 
-    std::string x = '?' + std::to_string(sqlParamIndex) + ' ';
-
-    std::string clause =
-        "CASE " + x +
-        criteria1 +
-        "END " + direction1 + ", \n"
-        "CASE " + x +
-        criteria2 +
-        "END " + direction2 + ", \n"
-        // always order by PK last, to get the same order for identical queries
-        "nodehandle " + direction3;
-
-    return clause;
+    // clang-format off
+    static const std::array<std::string, 2> boolToDesc {"", "DESC"};
+    return "CASE " + x + fieldToSort1 + "END " + boolToDesc[dirs[0]] + ", \n" +
+           "CASE " + x + fieldToSort2 + "END " + boolToDesc[dirs[1]] + ", \n" +
+           fieldToSort3 + boolToDesc[dirs[2]];
+    // clang-format on
 }
 
 size_t OrderByClause::getId(int order)
@@ -2550,34 +2553,43 @@ size_t OrderByClause::getId(int order)
 std::bitset<3> OrderByClause::getDescendingDirs(int order)
 {
     std::bitset<3> dirs;
+    // dirs[0] -> type (if directories must go first always) | attr (size, ctime, mtime)
+    // dirs[1] -> attr (if directories must go first always)
+    // dirs[2] -> PK (always)
 
     switch (order)
     {
-    case SIZE_DESC:
-    case CTIME_DESC:
-    case MTIME_DESC:
-        dirs[2] = true; // DESC, by PK
-        [[fallthrough]];
-    case DEFAULT_ASC:
-    case LABEL_ASC:
-    case FAV_ASC:
-        dirs[0] = true; break;
-    case DEFAULT_DESC:
-        dirs[1] = true;
-        dirs[2] = true; // DESC, by PK
-        break;
-    case LABEL_DESC:
-    case FAV_DESC:
-        dirs[0] = true;
-        dirs[1] = true;
-        dirs[2] = true; // DESC, by PK
-        break;
-    case SIZE_ASC:
-    case CTIME_ASC:
-    case MTIME_ASC:
-        break;
+        //// Non directory special criteria (size, creation and modification)
+        case SIZE_ASC:
+        case CTIME_ASC:
+        case MTIME_ASC:
+            break;
+        case SIZE_DESC:
+        case CTIME_DESC:
+        case MTIME_DESC:
+            dirs[0] = true;
+            dirs[2] = true;
+            break;
+        //// Directories first (dirs[0] = true)
+        case DEFAULT_ASC:
+            dirs[0] = true;
+            break;
+        case DEFAULT_DESC:
+            dirs[0] = true;
+            dirs[1] = true;
+            dirs[2] = true;
+            break;
+        case LABEL_ASC:
+        case FAV_ASC:
+            dirs[0] = true;
+            dirs[1] = true;
+            break;
+        case LABEL_DESC:
+        case FAV_DESC:
+            dirs[0] = true;
+            dirs[2] = true;
+            break;
     }
-
     return dirs;
 }
 

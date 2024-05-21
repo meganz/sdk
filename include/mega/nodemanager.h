@@ -48,6 +48,7 @@ public:
         mNodeType = static_cast<nodetype_t>(f.byNodeType()); // get it as int
         mMimeCategory = static_cast<MimeType_t>(f.byCategory()); // get it as int
         mExcludeSensitive = f.bySensitivity();
+        mFavouriteFilterOption = f.byFavourite();
         mLocationHandles = {f.byLocationHandle(), UNDEF, UNDEF};
         mIncludedShares = includedShares;
         mCreationLowerLimit = f.byCreationTimeLowerLimit();
@@ -64,6 +65,7 @@ public:
     const std::string& byName() const { return mNameFilter; }
     nodetype_t byNodeType() const { return mNodeType; }
     MimeType_t byCategory() const { return mMimeCategory; }
+    int byFavourite() const { return mFavouriteFilterOption; }
     bool bySensitivity() const { return mExcludeSensitive; }
 
     // recursive look-ups (searchNodes)
@@ -87,6 +89,7 @@ private:
     std::string mNameFilter;
     nodetype_t mNodeType = TYPE_UNKNOWN;
     MimeType_t mMimeCategory = MIME_TYPE_UNKNOWN;
+    int mFavouriteFilterOption = 0;
     bool mExcludeSensitive = false;
     std::vector<handle> mLocationHandles {UNDEF, UNDEF, UNDEF}; // always contain 3 items
     ShareType_t mIncludedShares = NO_SHARES;
