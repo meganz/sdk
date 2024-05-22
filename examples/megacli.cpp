@@ -5147,6 +5147,8 @@ autocomplete::ACN autocompleteSyntax()
                                     param("name")),
                            sequence(flag("-path"),
                                     localFSFolder("target")))));
+
+    p->Add(exec_getpricing, text("getpricing"));
     return autocompleteTemplate = std::move(p);
 }
 
@@ -9950,14 +9952,42 @@ void DemoApp::setelements_updated(SetElement** el, int count)
     }
 }
 
-void DemoApp::enumeratequotaitems_result(unsigned, handle, unsigned, int, int, unsigned, unsigned, unsigned, unsigned, const char*, const char*, const char*, std::unique_ptr<BusinessPlan>)
+void DemoApp::enumeratequotaitems_result(unsigned type, handle product, unsigned proLevel, int gbStorage,
+                                         int gbTransfer, unsigned months, unsigned amount, unsigned amountMonth,
+                                         unsigned localPrice, const char* description, const char*, const char*,
+                                         std::unique_ptr<BusinessPlan> businessPlan)
 {
-    // FIXME: implement
+    if(type == 0) //Pro level plan
+    {
+        cout << endl << description << ":" << endl;
+        cout << "\tPro level: " << proLevel << endl;
+        cout << "\tStorage: " << gbStorage << endl;
+        cout << "\tTransfer: " << gbTransfer << endl;
+        cout << "\tMonths: " << months << endl;
+        cout << "\tAmount: " << amount << endl;
+        cout << "\tAmount per month: " << amountMonth << endl;
+        cout << "\tLocal price: " << localPrice << endl;
+    }
+    else //Business plan
+    {
+        cout << endl << description << ":" << endl;
+        cout << "\tMinimum users: " << businessPlan->minUsers << endl;
+        cout << "\tStorage per user: " << businessPlan->gbStoragePerUser << endl;
+        cout << "\tTransfer per user: " << businessPlan->gbTransferPerUser << endl;
+        cout << "\tPrice per user: " << businessPlan->pricePerUser << endl;
+        cout << "\tLocal price per user: " << businessPlan->localPricePerUser << endl;
+        cout << "\tPrice per storage: " << businessPlan->pricePerStorage << endl;
+        cout << "\tLocal price per storage: " << businessPlan->localPricePerStorage << endl;
+        cout << "\tGigabytes per storage: " << businessPlan->gbPerStorage << endl;
+        cout << "\tPrice per transfer: " << businessPlan->pricePerTransfer << endl;
+        cout << "\tLocal price per transfer: " << businessPlan->localPricePerTransfer << endl;
+        cout << "\tGigabytes per transfer: " << businessPlan->gbPerTransfer << endl;
+    }
 }
 
 void DemoApp::enumeratequotaitems_result(unique_ptr<CurrencyData> data)
 {
-    cout << "Currency data: " << endl;
+    cout << endl << "Currency data: " << endl;
     cout << "\tName: " << data->currencyName;
     cout << "\tSymbol: " << Base64::atob(data->currencySymbol);
     if (data->localCurrencyName.size())
@@ -9965,11 +9995,15 @@ void DemoApp::enumeratequotaitems_result(unique_ptr<CurrencyData> data)
         cout << "\tName (local): " << data->localCurrencyName;
         cout << "\tSymbol (local): " << Base64::atob(data->localCurrencySymbol);
     }
+    cout << endl;
 }
 
-void DemoApp::enumeratequotaitems_result(error)
+void DemoApp::enumeratequotaitems_result(error e)
 {
-    // FIXME: implement
+    if (e != Error(API_OK))
+    {
+        cout << "Error retrieving pricing plans, error code " << e << endl;
+    }
 }
 
 void DemoApp::additem_result(error)
@@ -13009,4 +13043,10 @@ void exec_nodeTag(autocomplete::ACState& s)
     {
         cout << "None tag is defined\n";
     }
+}
+
+void exec_getpricing(autocomplete::ACState& s)
+{
+    cout << "Getting pricing plans... " << endl;
+    client->purchase_enumeratequotaitems();
 }
