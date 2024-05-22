@@ -111,6 +111,12 @@ int fstat(const FileDescriptor& descriptor, Stat& buffer)
     return ::fstat(descriptor.get(), &buffer);
 }
 
+int fstatvfs(const platform::FileDescriptor& descriptor,
+             struct statvfs& buffer)
+{
+    return ::fstatvfs(descriptor.get(), &buffer);
+}
+
 int fsync(const FileDescriptor& descriptor)
 {
     return ::fsync(descriptor.get());
@@ -217,6 +223,11 @@ int statat(const platform::FileDescriptor& descriptor,
                      path.string().c_str(),
                      &buffer,
                      0);
+}
+
+int statvfs(const Path& path, struct statvfs& buffer)
+{
+    return ::statvfs(path.string().c_str(), &buffer);
 }
 
 int truncate(const Path& path, off_t length)

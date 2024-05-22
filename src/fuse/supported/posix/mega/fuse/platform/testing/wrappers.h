@@ -1,6 +1,7 @@
 #pragma once
 
 #include <sys/stat.h>
+#include <sys/statvfs.h>
 #include <sys/types.h>
 
 #include <dirent.h>
@@ -75,6 +76,9 @@ DirectoryIterator fdopendir(platform::FileDescriptor descriptor);
 
 int fstat(const platform::FileDescriptor& descriptor, Stat& buffer);
 
+int fstatvfs(const platform::FileDescriptor& descriptor,
+             struct statvfs& buffer);
+
 int fsync(const platform::FileDescriptor& descriptor);
 
 int ftruncate(const platform::FileDescriptor& descriptor, off_t length);
@@ -119,6 +123,8 @@ int stat(const Path& path, Stat& buffer);
 int statat(const platform::FileDescriptor& descriptor,
            const Path& path,
            Stat& buffer);
+
+int statvfs(const Path& path, struct statvfs& buffer);
 
 int truncate(const Path& path, off_t length);
 
