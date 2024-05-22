@@ -1545,8 +1545,8 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, int o
         // would be checked before getting here. There's no point in making this query recursive just because of that.
         std::string sqlQuery = "SELECT nodehandle, counter, node "
                                "FROM nodes "
-                               "WHERE (flags & ? = 0) "
-                                 "AND (parenthandle = ?) "
+                               "WHERE (flags & ?1 = 0) " // Versions aren't taken in consideration
+                                 "AND (parenthandle = ?2) "
                                  "AND (?3 = " + std::to_string(TYPE_UNKNOWN) + " OR type = ?3) "
                                  "AND (?4 = 0 OR ?4 < ctime) AND (?5 = 0 OR ctime < ?5) "
                                  "AND (?6 = 0 OR ?6 < mtime) AND (?7 = 0 OR (0 < mtime AND mtime < ?7)) " // mtime is not used (0) for some nodes
@@ -1561,7 +1561,12 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, int o
                                  "AND (?11 = 0 OR (name REGEXP ?9)) "
                                  "AND (?14 = 0 OR isContained(?15, description)) "
                                  "AND (?16 = 0 OR matchTag(?17, tags)) "
-                                 "AND (?18 = 0 OR ?19 = fav)"
+                                 "AND (?18 = " + std::to_string(NodeSearchFilter::FILTER_DISABLED) + " OR ?19 = fav)"
+                                 "AND (?20 = " + std::to_string(NodeSearchFilter::FILTER_DISABLED) +  // Sensitive nodes
+                                     " OR (?20 = " + std::to_string(NodeSearchFilter::FILTER_ONLY_TRUE) +
+                                        " AND (flags & ?21) = 0)"
+                                     " OR (?20 = " + std::to_string(NodeSearchFilter::FILTER_ONLY_FALSE) +
+                                        " AND (flags & ?21) = ?21))" //
                                  // Leading and trailing '*' will be added to argument '?' so we are looking for substrings containing name
                                  // Our REGEXP implementation is case insensitive
 
@@ -1574,11 +1579,11 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, int o
     }
 
     bool result = false;
-    uint64_t flags = (1 << Node::FLAGS_IS_VERSION) | // exclude file versions
-                     (filter.bySensitivity() ? (1 << Node::FLAGS_IS_MARKED_SENSTIVE) : 0); // filter by sensitivity
+    uint64_t versionFlag = (1 << Node::FLAGS_IS_VERSION); // exclude file versions
+    uint64_t senstivityFlag = 1 << Node::FLAGS_IS_MARKED_SENSTIVE; // filter by sensitivity
 
     if (sqlResult == SQLITE_OK &&
-        (sqlResult = sqlite3_bind_int64(stmt, 1, flags)) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int64(stmt, 1, versionFlag)) == SQLITE_OK &&
         (sqlResult = sqlite3_bind_int64(stmt, 2, filter.byParentHandle())) == SQLITE_OK &&
         (sqlResult = sqlite3_bind_int(stmt, 3, filter.byNodeType())) == SQLITE_OK &&
         (sqlResult = sqlite3_bind_int64(stmt, 4, filter.byCreationTimeLowerLimit())) == SQLITE_OK &&
@@ -1600,7 +1605,9 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, int o
             (sqlResult = sqlite3_bind_int(stmt, 16, static_cast<int>(filter.byTag().size()))) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_text(stmt, 17, filter.byTag().c_str(), static_cast<int>(filter.byTag().size()), SQLITE_STATIC)) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_int(stmt, 18, filter.byFavourite())) == SQLITE_OK &&
-            (sqlResult = sqlite3_bind_int(stmt, 19, filter.byFavourite() == 1)) == SQLITE_OK)
+            (sqlResult = sqlite3_bind_int(stmt, 19, filter.byFavourite() == NodeSearchFilter::FILTER_ONLY_TRUE)) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int(stmt, 20, filter.bySensitivity())) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int64(stmt, 21, senstivityFlag)) == SQLITE_OK)
         {
             result = processSqlQueryNodes(stmt, children);
         }
@@ -1668,7 +1675,10 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
                 "FROM nodes AS N \n"
                 "INNER JOIN nodesCTE AS P \n"
                         "ON (N.parenthandle = P.nodehandle \n"
-                       "AND (P.flags & ?1 = 0) \n"
+                       "AND (P.flags & ?1 = 0) \n" // Versions aren't taken in consideration
+                       "AND (?23 != " + std::to_string(NodeSearchFilter::FILTER_ONLY_TRUE) + // Sensitive nodes
+                          " OR ?23 = " + std::to_string(NodeSearchFilter::FILTER_ONLY_TRUE) +
+                          " AND (P.flags & ?24) = 0) "
                        "AND P.type != " + std::to_string(FILENODE) + "))";
 
         string columnsForNodeAndOrderBy =
@@ -1676,7 +1686,7 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
             "type, size, ctime, mtime, name, label, fav"; // for ORDER BY only
 
         string whereClause =
-            "(flags & ?1 = 0) \n"
+            "(flags & ?1 = 0) \n" // Versions aren't taken in consideration
             "AND (?2 = " + std::to_string(TYPE_UNKNOWN) + " OR type = ?2) \n"
             "AND (?3 = 0 OR ?3 < ctime) AND (?4 = 0 OR ctime < ?4) \n"
             "AND (?5 = 0 OR ?5 < mtime) AND (?6 = 0 OR (0 < mtime AND mtime < ?6)) \n" // mtime is not used (0) for some nodes
@@ -1691,7 +1701,12 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
             "AND (?13 = 0 OR (name REGEXP ?9)) \n"
             "AND (?17 = 0 OR isContained(?18, description)) \n"
             "AND (?19 = 0 OR matchTag(?20, tags)) \n"
-            "AND (?21 = 0 OR ?22 = fav)";
+            "AND (?21 = " + std::to_string(NodeSearchFilter::FILTER_DISABLED) + " OR ?22 = fav)"
+            "AND (?23 = " + std::to_string(NodeSearchFilter::FILTER_DISABLED) +   // Sensitive nodes
+                " OR (?23 = " + std::to_string(NodeSearchFilter::FILTER_ONLY_TRUE) +
+                    " AND (flags & ?24) = 0)"
+                " OR (?23 = " + std::to_string(NodeSearchFilter::FILTER_ONLY_FALSE) +
+                    " AND (flags & ?24) = ?24))";
             // Leading and trailing '*' will be added to argument '?' so we are looking for substrings containing name
             // Our REGEXP implementation is case insensitive
 
@@ -1724,11 +1739,11 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
     }
 
     bool result = false;
-    uint64_t excludeFlags = (1 << Node::FLAGS_IS_VERSION) | // exclude file versions
-                            (filter.bySensitivity() ? (1 << Node::FLAGS_IS_MARKED_SENSTIVE) : 0); // filter by sensitivity
+    uint64_t versionFlag = (1 << Node::FLAGS_IS_VERSION); // exclude file versions
+    uint64_t senstivityFlag = 1 << Node::FLAGS_IS_MARKED_SENSTIVE; // filter by sensitivity
 
     if (sqlResult == SQLITE_OK &&
-        (sqlResult = sqlite3_bind_int64(stmt, 1, excludeFlags)) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int64(stmt, 1, versionFlag)) == SQLITE_OK &&
         (sqlResult = sqlite3_bind_int(stmt, 2, filter.byNodeType())) == SQLITE_OK &&
         (sqlResult = sqlite3_bind_int64(stmt, 3, filter.byCreationTimeLowerLimit())) == SQLITE_OK &&
         (sqlResult = sqlite3_bind_int64(stmt, 4, filter.byCreationTimeUpperLimit())) == SQLITE_OK &&
@@ -1754,7 +1769,9 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
             (sqlResult = sqlite3_bind_int(stmt, 19, static_cast<int>(filter.byTag().size()))) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_text(stmt, 20, filter.byTag().c_str(), static_cast<int>(filter.byTag().size()), SQLITE_STATIC)) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_int(stmt, 21, filter.byFavourite())) == SQLITE_OK &&
-            (sqlResult = sqlite3_bind_int(stmt, 22, filter.byFavourite() == 1)) == SQLITE_OK)
+            (sqlResult = sqlite3_bind_int(stmt, 22, filter.byFavourite() == NodeSearchFilter::FILTER_ONLY_TRUE)) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int(stmt, 23, filter.bySensitivity())) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int64(stmt, 24, senstivityFlag)) == SQLITE_OK)
         {
             result = processSqlQueryNodes(stmt, nodes);
         }

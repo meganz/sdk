@@ -6066,7 +6066,12 @@ void MegaSearchFilterPrivate::byFavourite(int boolFilterOption)
 
 void MegaSearchFilterPrivate::bySensitivity(bool excludeSensitive)
 {
-    mExcludeSensitive = excludeSensitive;
+    mExcludeSensitive = validateBoolFilterOption(static_cast<int>(excludeSensitive));
+}
+
+void MegaSearchFilterPrivate::bySensitivity(int boolFilterOption)
+{
+    mExcludeSensitive = validateBoolFilterOption(boolFilterOption);;
 }
 
 void MegaSearchFilterPrivate::byLocationHandle(MegaHandle ancestorHandle)
@@ -6117,14 +6122,16 @@ MegaSearchFilterPrivate* MegaSearchFilterPrivate::copy() const
 
 int MegaSearchFilterPrivate::validateBoolFilterOption(const int value)
 {
-    if (value != MegaSearchFilter::BOOL_FILTER_DISABLED &&
-        value != MegaSearchFilter::BOOL_FILTER_ONLY_TRUE &&
-        value != MegaSearchFilter::BOOL_FILTER_ONLY_FALSE)
+    switch (value)
     {
+    case MegaSearchFilter::BOOL_FILTER_DISABLED:
+    case MegaSearchFilter::BOOL_FILTER_ONLY_TRUE:
+    case MegaSearchFilter::BOOL_FILTER_ONLY_FALSE:
+        return value;
+    default:
         LOG_warn << "Invalid value for a boolean filtering option: " << value;
         return MegaSearchFilter::BOOL_FILTER_DISABLED;
     }
-    return value;
 }
 
 std::unique_ptr<MegaGfxProviderPrivate> MegaGfxProviderPrivate::createIsolatedInstance(

@@ -6960,6 +6960,11 @@ void MegaSearchFilter::bySensitivity(bool /*excludeSensitive*/)
 {
 }
 
+void MegaSearchFilter::bySensitivity(int /*boolFilterOption*/)
+{
+
+}
+
 void MegaSearchFilter::byLocationHandle(MegaHandle /*ancestorHandle*/)
 {
 }
@@ -7004,7 +7009,7 @@ int MegaSearchFilter::byFavourite() const
     return MegaSearchFilter::BOOL_FILTER_DISABLED;
 }
 
-bool MegaSearchFilter::bySensitivity() const
+int MegaSearchFilter::bySensitivity() const
 {
     return false;
 }

@@ -8604,7 +8604,7 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     filterResults.reset(MegaSearchFilter::createInstance());
     filterResults->byName("logo");
     filterResults->byLocationHandle(rootnodeA->getHandle());
-    filterResults->bySensitivity(true);
+    filterResults->bySensitivity(MegaSearchFilter::BOOL_FILTER_ONLY_TRUE);
     list.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
     ASSERT_EQ(list->size(), 0);
 
@@ -8622,7 +8622,7 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     filterResults.reset(MegaSearchFilter::createInstance());
     filterResults->byLocationHandle(rootnodeA->getHandle());
     filterResults->byCategory(MegaApi::FILE_TYPE_PHOTO);
-    filterResults->bySensitivity(true);
+    filterResults->bySensitivity(MegaSearchFilter::BOOL_FILTER_ONLY_TRUE);
     list.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
     ASSERT_EQ(list->size(), 1);
     ASSERT_EQ(list->get(0)->getName(), nsfilename);
@@ -8640,7 +8640,7 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     filterResults.reset(MegaSearchFilter::createInstance());
     filterResults->byLocation(MegaApi::SEARCH_TARGET_ROOTNODE);
     filterResults->byCategory(MegaApi::FILE_TYPE_PHOTO);
-    filterResults->bySensitivity(true);
+    filterResults->bySensitivity(MegaSearchFilter::BOOL_FILTER_ONLY_TRUE);
     list.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
     ASSERT_EQ(list->size(), 1); // non sensitive files (recursive exclude)
     ASSERT_EQ(list->get(0)->getName(), nsfilename);
@@ -8648,7 +8648,7 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     filterResults.reset(MegaSearchFilter::createInstance());
     filterResults->byLocation(MegaApi::SEARCH_TARGET_ROOTNODE);
     filterResults->byCategory(MegaApi::FILE_TYPE_AUDIO);
-    filterResults->bySensitivity(true);
+    filterResults->bySensitivity(MegaSearchFilter::BOOL_FILTER_ONLY_TRUE);
     list.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
     ASSERT_EQ(list->size(), 0);
 
@@ -8667,7 +8667,7 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     filterResults->byName("a");
     filterResults->byLocation(MegaApi::SEARCH_TARGET_ROOTNODE);
     filterResults->byCategory(MegaApi::FILE_TYPE_PHOTO);
-    filterResults->bySensitivity(true);
+    filterResults->bySensitivity(MegaSearchFilter::BOOL_FILTER_ONLY_TRUE);
     list.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
     ASSERT_EQ(list->size(), 1); // non sensitive files (recursive exclude)
     ASSERT_EQ(list->get(0)->getName(), nsfilename);
@@ -8687,7 +8687,7 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     filterResults->byName("a");
     filterResults->byLocationHandle(folderA->getHandle());
     filterResults->byCategory(MegaApi::FILE_TYPE_PHOTO);
-    filterResults->bySensitivity(true);
+    filterResults->bySensitivity(MegaSearchFilter::BOOL_FILTER_ONLY_TRUE);
     list.reset(megaApi[0]->getChildren(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
     ASSERT_EQ(list->size(), 1); // non sensitive files (recursive exclude)
     ASSERT_EQ(list->get(0)->getName(), nsfilename);
@@ -8706,7 +8706,7 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     filterResults->byName("a");
     filterResults->byLocationHandle(subFolderA->getHandle());
     filterResults->byCategory(MegaApi::FILE_TYPE_PHOTO);
-    filterResults->bySensitivity(true);
+    filterResults->bySensitivity(MegaSearchFilter::BOOL_FILTER_ONLY_TRUE);
     list.reset(megaApi[0]->getChildren(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
     ASSERT_EQ(list->size(), 0); // non sensitive files (recursive exclude)
 
@@ -8725,7 +8725,7 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     filterResults->byName("a");
     filterResults->byLocation(MegaApi::SEARCH_TARGET_INSHARE);
     filterResults->byCategory(MegaApi::FILE_TYPE_PHOTO);
-    filterResults->bySensitivity(true);
+    filterResults->bySensitivity(MegaSearchFilter::BOOL_FILTER_ONLY_TRUE);
     list.reset(megaApi[1]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
     ASSERT_EQ(list->size(), 1); // non sensitive files (recursive exclude)
     ASSERT_EQ(list->get(0)->getName(), nsfilename);
@@ -8745,7 +8745,7 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     filterResults->byName("a");
     filterResults->byLocation(MegaApi::SEARCH_TARGET_OUTSHARE);
     filterResults->byCategory(MegaApi::FILE_TYPE_PHOTO);
-    filterResults->bySensitivity(true);
+    filterResults->bySensitivity(MegaSearchFilter::BOOL_FILTER_ONLY_TRUE);
     list.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
     ASSERT_EQ(list->size(), 1); // non sensitive files (recursive exclude)
     ASSERT_EQ(list->get(0)->getName(), nsfilename);
@@ -8754,6 +8754,30 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     filterResults->byCategory(MegaApi::FILE_TYPE_OTHERS);
     list.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
     ASSERT_EQ(list->size(), 0);
+
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->bySensitivity(MegaSearchFilter::BOOL_FILTER_ONLY_FALSE);
+    filterResults->byLocationHandle(subFolderA->getHandle());
+    list.reset(megaApi[0]->getChildren(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
+    ASSERT_EQ(list->size(), 0);
+
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->bySensitivity(MegaSearchFilter::BOOL_FILTER_ONLY_FALSE);
+    filterResults->byLocationHandle(folderA->getHandle());
+    list.reset(megaApi[0]->getChildren(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
+    ASSERT_EQ(list->size(), 2);
+
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byLocation(MegaApi::SEARCH_TARGET_ROOTNODE);
+    filterResults->bySensitivity(MegaSearchFilter::BOOL_FILTER_ONLY_FALSE);
+    list.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
+    ASSERT_EQ(list->size(), 2);
+
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byLocationHandle(folderA->getHandle());
+    filterResults->bySensitivity(MegaSearchFilter::BOOL_FILTER_ONLY_TRUE);
+    list.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
+    ASSERT_EQ(list->size(), 1);
 }
 
 TEST_F(SdkTest, SdkDeviceNames)

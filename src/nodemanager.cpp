@@ -398,7 +398,7 @@ sharedNode_vector NodeManager::getChildren_internal(const NodeSearchFilter& filt
     }
 
     // small optimization to possibly skip the db look-up
-    if (filter.bySensitivity())
+    if (filter.bySensitivity() == NodeSearchFilter::FILTER_ONLY_TRUE)
     {
         shared_ptr<Node> node = getNodeByHandle_internal(NodeHandle().set6byte(filter.byParentHandle()));
         if (!node || node->isSensitiveInherited())
