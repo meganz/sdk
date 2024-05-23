@@ -42,6 +42,12 @@ struct FUSEPlatformTests
     {
         ASSERT_TRUE(DoSetUp(GetParam()));
     }
+
+    // Are we performing a test with shares?
+    bool isShareTest() const
+    {
+        return GetParam().mClients.mReadWrite == &Test::ClientS;
+    }
 }; // FUSEPlatformTests
 
 } // testing
