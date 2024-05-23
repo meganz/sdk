@@ -1498,9 +1498,7 @@ struct ProgressingMonitor
     SyncFlags& sf;
     SyncRow& sr;
     SyncPath& sp;
-    ProgressingMonitor(Sync& s, SyncRow& row, SyncPath& fullPath) : sync(s), sf(*s.syncs.mSyncFlags), sr(row), sp(fullPath) {
-        LOG_debug << "[ProgressingMonitor::ProgressingMonitor()] Constructor [resolved = " << resolved << "] [sf.noProgress = " << sf.noProgress << "] [sf.noProgressCount = " << sf.noProgressCount << "] [BackupId = " << sync.getConfig().mBackupId << "] [this = " << this << "]";
-    }
+    ProgressingMonitor(Sync& s, SyncRow& row, SyncPath& fullPath) : sync(s), sf(*s.syncs.mSyncFlags), sr(row), sp(fullPath) {}
 
     void waitingCloud(const string& mapKeyPath, SyncStallEntry&& e)
     {
@@ -1510,16 +1508,10 @@ struct ProgressingMonitor
 
         if (sf.stall.empty())
         {
-            LOG_debug << sync.syncname << "First sync node cloud-waiting: " << int(e.reason) << " " << sync.logTriplet(sr, sp);
+            LOG_verbose << sync.syncname << "First sync node cloud-waiting: " << int(e.reason) << " " << sync.logTriplet(sr, sp);
         }
 
         sf.stall.waitingCloud(sync.getConfig().mBackupId, mapKeyPath, move(e));
-#ifndef NDEBUG
-        auto syncStallInfoMapPair = sf.stall.syncStallInfoMaps.find(sync.getConfig().mBackupId);
-        assert(syncStallInfoMapPair != sf.stall.syncStallInfoMaps.end());
-        auto& syncStallInfoMap = syncStallInfoMapPair->second;
-        LOG_debug << "[ProgressingMonitor::waitingCloud()] waitingCloud [resolved = " << resolved << "] [syncStallInfoMap.noProgress = " << syncStallInfoMap.noProgress << "] [syncStallInfoMap.noProgressCount = " << syncStallInfoMap.noProgressCount << "] [cloudSize = " << syncStallInfoMap.cloud.size() << ", localSize = " << syncStallInfoMap.local.size() << "] [BackupId = " << sync.getConfig().mBackupId << "] [this = " << this << "]";
-#endif
     }
 
     void waitingLocal(const LocalPath& mapKeyPath, SyncStallEntry&& e)
@@ -1530,33 +1522,14 @@ struct ProgressingMonitor
 
         if (sf.stall.empty())
         {
-            LOG_debug << sync.syncname << "First sync node local-waiting: " << int(e.reason) << " " << sync.logTriplet(sr, sp);
+            LOG_verbose << sync.syncname << "First sync node local-waiting: " << int(e.reason) << " " << sync.logTriplet(sr, sp);
         }
 
         sf.stall.waitingLocal(sync.getConfig().mBackupId, mapKeyPath, move(e));
-
-#ifndef NDEBUG
-        auto syncStallInfoMapPair = sf.stall.syncStallInfoMaps.find(sync.getConfig().mBackupId);
-        assert(syncStallInfoMapPair != sf.stall.syncStallInfoMaps.end());
-        auto& syncStallInfoMap = syncStallInfoMapPair->second;
-        LOG_debug << "[ProgressingMonitor::waitingLocal()] waitingLocal [resolved = " << resolved << "] [syncStallInfoMap.noProgress = " << syncStallInfoMap.noProgress << "] [syncStallInfoMap.noProgressCount = " << syncStallInfoMap.noProgressCount << "] [cloudSize = " << syncStallInfoMap.cloud.size() << ", localSize = " << syncStallInfoMap.local.size() << "] [BackupId = " << sync.getConfig().mBackupId << "] [this = " << this << "]";
-#endif
     }
 
     void noResult()
     {
-#ifndef NDEBUG
-        auto syncStallInfoMapPair = sf.stall.syncStallInfoMaps.find(sync.getConfig().mBackupId);
-        if (syncStallInfoMapPair != sf.stall.syncStallInfoMaps.end())
-        {
-            auto& syncStallInfoMap = syncStallInfoMapPair->second;
-            LOG_debug << "[ProgressingMonitor::noResult()] noResult -> set resolved to true [resolved = " << resolved << "] [syncStallInfoMap.noProgress = " << syncStallInfoMap.noProgress << "] [syncStallInfoMap.noProgressCount = " << syncStallInfoMap.noProgressCount << "] [cloudSize = " << syncStallInfoMap.cloud.size() << ", localSize = " << syncStallInfoMap.local.size() << "] [BackupId = " << sync.getConfig().mBackupId << "] [this = " << this << "]";
-        }
-        else
-        {
-            LOG_debug << "[ProgressingMonitor::noResult()] noResult -> set resolved to true [resolved = " << resolved << "] [BackupId = " << sync.getConfig().mBackupId << "] [this = " << this << "]";
-        }
-#endif
         // call this if we are still waiting but for something certain to complete
         // and for which we don't need to report a path
         resolved = true;
@@ -1566,18 +1539,12 @@ struct ProgressingMonitor
     // the destructor records that we are progressing (ie, not stalled).
     ~ProgressingMonitor()
     {
-        LOG_debug << "[ProgressingMonitor::~ProgressingMonitor()] Destructor [resolved = " << resolved << "] [syncStallInfoMaps.size = " << sf.stall.syncStallInfoMaps.size() << "] [BackupId = " << sync.getConfig().mBackupId << "] [this = " << this << "]";
         if (!resolved)
         {
             auto syncStallInfoMapPair = sf.stall.syncStallInfoMaps.find(sync.getConfig().mBackupId);
             if (syncStallInfoMapPair != sf.stall.syncStallInfoMaps.end())
             {
                 auto& syncStallInfoMap = syncStallInfoMapPair->second;
-                if (syncStallInfoMap.noProgress)
-                {
-                    LOG_debug << sync.syncname << "[ProgressingMonitor::~ProgressingMonitor()] Sync node not progressing: " << sync.logTriplet(sr, sp);
-                }
-                LOG_debug << "[ProgressingMonitor::~ProgressingMonitor()] Destructor -> resolved false -> reset progress [resolved = " << resolved << "] [syncStallInfoMap.noProgress = " << syncStallInfoMap.noProgress << "] [syncStallInfoMap.noProgressCount = " << syncStallInfoMap.noProgressCount << "] [cloudSize = " << syncStallInfoMap.cloud.size() << ", localSize = " << syncStallInfoMap.local.size() << "] [BackupId = " << sync.getConfig().mBackupId << "] [this = " << this << "]";
                 syncStallInfoMap.resetNoProgress();
             }
         }
