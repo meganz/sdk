@@ -21,8 +21,20 @@ macro(load_sdklib_libraries)
         target_link_libraries(SDKlib PRIVATE ICU::uc ICU::data)
 
         if(USE_OPENSSL)
-            find_package(OpenSSL REQUIRED)
-            target_link_libraries(SDKlib PRIVATE OpenSSL::SSL OpenSSL::Crypto)
+            if(USE_WEBRTC) # Defined in MEGAchat.
+                # find_package(OpenSSL) works for BoringSSL but it does not load the flags from the .pc files. find_package() has
+                # its own way to prepare the OpenSSL needed flags and configurations.
+                # Linking gfxworker when using BoringSSL from WebRTC requires the -lX11 flag for WebRTC, despite we only need
+                # the BoringSSL symbols.
+                # Using pkg-config in that specific case, honors the "OpenSSL" .pc files used as a way to impersonate OpenSSL/BoringSSL
+                # using the one contained in WebRTC library.
+                find_package(PkgConfig REQUIRED)
+                pkg_check_modules(openssl REQUIRED IMPORTED_TARGET openssl)
+                target_link_libraries(SDKlib PRIVATE PkgConfig::openssl)
+            else()
+                find_package(OpenSSL REQUIRED)
+                target_link_libraries(SDKlib PRIVATE OpenSSL::SSL OpenSSL::Crypto)
+            endif()
         endif()
 
         if(USE_MEDIAINFO)

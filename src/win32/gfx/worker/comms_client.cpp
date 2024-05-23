@@ -1,14 +1,29 @@
 #include "mega/logging.h"
 #include "mega/win32/gfx/worker/comms_client.h"
 #include "mega/gfx/worker/comms.h"
+#include "mega/win32/gfx/worker/comms.h"
 
 namespace mega {
 namespace gfx {
 
-CommError WinGfxCommunicationsClient::doConnect(LPCTSTR pipeName, HANDLE &hPipe)
+class ClientNamedPipe : public NamedPipe
+{
+public:
+    ClientNamedPipe(HANDLE h) : NamedPipe(h, "client") {}
+
+private:
+    Type type() const { return Type::Client; }
+};
+
+GfxCommunicationsClient::GfxCommunicationsClient(const std::string& pipeName)
+    : mPipeName(pipeName)
+{
+}
+
+std::pair<CommError, HANDLE> GfxCommunicationsClient::doConnect(LPCTSTR pipeName)
 {
     CommError error = CommError::ERR;
-    hPipe = INVALID_HANDLE_VALUE;
+    HANDLE hPipe = INVALID_HANDLE_VALUE;
     while (1)
     {
         hPipe = CreateFile(
@@ -48,19 +63,27 @@ CommError WinGfxCommunicationsClient::doConnect(LPCTSTR pipeName, HANDLE &hPipe)
 
     LOG_verbose << "Connected Handle:" << hPipe << " error: " << static_cast<int>(error);
 
-    return error;
+    return {error, hPipe};
 }
 
-CommError WinGfxCommunicationsClient::connect(std::unique_ptr<IEndpoint>& endpoint)
+std::pair<CommError, std::unique_ptr<IEndpoint>> GfxCommunicationsClient::connect()
 {
     const auto fullPipeName = win_utils::toFullPipeName(mPipeName);
-    HANDLE hPipe = INVALID_HANDLE_VALUE;
-    const CommError error  = doConnect(fullPipeName.c_str(), hPipe);
-    endpoint = hPipe == INVALID_HANDLE_VALUE ? nullptr : mega::make_unique<ClientNamedPipe>(hPipe);
-    return error;
+
+    auto [error, hPipe] = doConnect(fullPipeName.c_str());
+
+    // Error
+    if (error != CommError::OK)
+    {
+        return {error, nullptr};
+    }
+
+    // Success
+    assert(hPipe != INVALID_HANDLE_VALUE);
+    return {CommError::OK, std::make_unique<ClientNamedPipe>(hPipe)};
 }
 
-CommError WinGfxCommunicationsClient::toCommError(DWORD winError) const
+CommError GfxCommunicationsClient::toCommError(DWORD winError) const
 {
     switch (winError) {
     case ERROR_SUCCESS:

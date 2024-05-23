@@ -20,8 +20,6 @@
  */
 
 // Many of these tests are still being worked on.
-// The file uses some C++17 mainly for the very convenient std::filesystem library, though the main SDK must still build with C++11 (and prior)
-
 
 #include "test.h"
 #include "gtest_common.h"
@@ -250,11 +248,7 @@ bool createFile(const fs::path& path, const void* data, const size_t data_length
 
 bool createFile(const fs::path &path, const void *data, const size_t data_length)
 {
-#if (__cplusplus >= 201700L)
     ofstream ostream(path, ios::binary);
-#else
-    ofstream ostream(path.u8string(), ios::binary);
-#endif
 
     LOG_verbose << "Creating local data file at " << path.u8string() << ", length " << data_length;
 
@@ -373,7 +367,7 @@ string Model::ModelNode::fsPath() const
 
 Model::ModelNode* Model::ModelNode::addkid()
 {
-    return addkid(::mega::make_unique<ModelNode>());
+    return addkid(std::make_unique<ModelNode>());
 }
 
 Model::ModelNode* Model::ModelNode::addkid(unique_ptr<ModelNode>&& p)
@@ -406,7 +400,7 @@ void Model::ModelNode::print(string prefix)
 
 std::unique_ptr<Model::ModelNode> Model::ModelNode::clone()
 {
-    return ::mega::make_unique<ModelNode>(*this);
+    return std::make_unique<ModelNode>(*this);
 }
 
 Model::Model()
@@ -1017,7 +1011,7 @@ private:
     bool read(DbTable& db, SymmCipher& key)
     {
         // Convenience.
-        using ::mega::make_unique;
+        using std::make_unique;
         using std::swap;
 
         // Parent-child relationships.
@@ -1041,7 +1035,7 @@ private:
         // Read and deserialize metadata from the state cache.
         while (db.next(&id, &metadata, &key))
         {
-            auto node = make_unique<StateCacheNode>();
+            auto node = std::make_unique<StateCacheNode>();
 
             // Try and deserialize the node.
             if (!node->read(metadata, node->parentID))
@@ -1138,8 +1132,6 @@ std::shared_ptr<Node> CloudItem::resolve(StandardClient& client) const
     return client.drillchildnodebyname(root, mPath);
 }
 
-std::set<string> declaredTestAccounts;
-
 StandardClientInUse ClientManager::getCleanStandardClient(int loginIndex, fs::path workingFolder)
 {
     EXPECT_GE(loginIndex, 0) << "ClientManager::getCleanStandardClient(): negative client index requested";
@@ -1160,13 +1152,6 @@ StandardClientInUse ClientManager::getCleanStandardClient(int loginIndex, fs::pa
     fs::path localAccountRoot = makeReusableClientFolder(clientname);
     shared_ptr<StandardClient> c(
             new StandardClient(localAccountRoot, "client" + clientname, workingFolder));
-
-    string user = getenv(envVarAccount[loginIndex].c_str());
-    if (declaredTestAccounts.find(user) == declaredTestAccounts.end())
-    {
-        LOG_debug << "Using test account " << loginIndex << " " << user;
-        declaredTestAccounts.insert(user);
-    }
 
     clients[loginIndex].push_back(StandardClientInUseEntry(false, c, clientname, loginIndex));
     c->login_reset(envVarAccount[loginIndex], envVarPass[loginIndex], false, false);
@@ -1330,7 +1315,7 @@ StandardClient::StandardClient(const fs::path& basepath, const string& name, con
     :
       waiter(new WAIT_CLASS),
 #ifdef GFX_CLASS
-      gfx(::mega::make_unique<GFX_CLASS>()),
+      gfx(std::make_unique<GFX_CLASS>()),
 #endif
       client_dbaccess_path(ensureDir(basepath / name))
     , httpio(new HTTPIO_CLASS)
@@ -1892,13 +1877,13 @@ void StandardClient::threadloop()
         int r;
 
         client.waiter->bumpds();
-        dstime t1 = client.waiter->ds;
+        dstime t1 = client.waiter->ds.load();
 
         {
             std::lock_guard<std::recursive_mutex> lg(clientMutex);
 
             client.waiter->bumpds();
-            dstime t1a = client.waiter->ds;
+            dstime t1a = client.waiter->ds.load();
             if (t1a - t1 > 20) LOG_debug << "lock for preparewait took ds: " << t1a - t1;
 
             r = client.preparewait();
@@ -1906,7 +1891,7 @@ void StandardClient::threadloop()
         assert(r == 0 || r == Waiter::NEEDEXEC);
 
         client.waiter->bumpds();
-        dstime t2 = client.waiter->ds;
+        dstime t2 = client.waiter->ds.load();
         if (t2 - t1 > 20) LOG_debug << "lock and preparewait took ds: " << t2 - t1;
 
 
@@ -1917,25 +1902,25 @@ void StandardClient::threadloop()
         }
 
         client.waiter->bumpds();
-        dstime t3 = client.waiter->ds;
+        dstime t3 = client.waiter->ds.load();
         if (t3 - t2 > 20) LOG_debug << "dowait took ds: " << t3 - t2;
 
         std::lock_guard<std::recursive_mutex> lg(clientMutex);
 
         client.waiter->bumpds();
-        dstime t3a = client.waiter->ds;
+        dstime t3a = client.waiter->ds.load();
         if (t3a - t3 > 20) LOG_debug << "lock for exec took ds: " << t3a - t3;
 
         r |= client.checkevents();
         assert(r == 0 || r == Waiter::NEEDEXEC);
 
         client.waiter->bumpds();
-        dstime t4 = client.waiter->ds;
+        dstime t4 = client.waiter->ds.load();
         if (t4 - t3a > 20) LOG_debug << "checkevents took ds: " << t4 - t3a;
 
         {
             client.waiter->bumpds();
-            auto start = client.waiter->ds;
+            auto start = client.waiter->ds.load();
             std::lock_guard<mutex> g(functionDoneMutex);
             string sourcefile;
             int sourceline = -1;
@@ -1962,7 +1947,7 @@ void StandardClient::threadloop()
                 r |= Waiter::NEEDEXEC;
             }
             client.waiter->bumpds();
-            auto end = client.waiter->ds;
+            auto end = client.waiter->ds.load();
             if (end - start > 200)
             {
                 // note that in Debug builds (for windows at least), prep for logging in can take 15 seconds in pbkdf2.DeriveKey
@@ -2495,7 +2480,7 @@ void StandardClient::uploadFile(const fs::path& sourcePath,
         return completion(API_ENOENT);
 
     // Create a file to represent and track our upload.
-    auto file = ::mega::make_unique<Put>();
+    auto file = std::make_unique<Put>();
 
     // Populate necessary fields.
     file->h = parentNode->nodeHandle();
@@ -5559,8 +5544,8 @@ public:
     {
         testRootFolder = makeNewTestRoot();
 
-        client0 = ::mega::make_unique<StandardClient>(testRootFolder, "c0");
-        client1 = ::mega::make_unique<StandardClient>(testRootFolder, "c1");
+        client0 = std::make_unique<StandardClient>(testRootFolder, "c0");
+        client1 = std::make_unique<StandardClient>(testRootFolder, "c1");
 
         client0->logcb = true;
         client1->logcb = true;
@@ -5929,7 +5914,7 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolderPlain)
     // just so we are exercising most of that code path somewhere
     clientA1->fetchnodes(false, false, true);
 
-    clientA1->waitFor([&](StandardClient& sc) { return sc.client.actionpacketsCurrent; }, std::chrono::seconds(60));
+    clientA1->waitFor([&](StandardClient& sc) { return sc.client.actionpacketsCurrent.load(); }, std::chrono::seconds(60));
 
     ASSERT_TRUE(CatchupClients(clientA1, clientA2));
 
@@ -6681,7 +6666,7 @@ TEST_F(SyncTest, BasicSync_SyncDuplicateNames)
 TEST_F(SyncTest, BasicSync_RemoveLocalNodeBeforeSessionResume)
 {
     fs::path localtestroot = makeNewTestRoot();
-    auto pclientA1 = ::mega::make_unique<StandardClient>(localtestroot, "clientA1");   // user 1 client 1
+    auto pclientA1 = std::make_unique<StandardClient>(localtestroot, "clientA1");   // user 1 client 1
     // don't use client manager as this client gets replaced
     StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
 
@@ -9197,7 +9182,7 @@ TEST_F(SyncTest, FilesystemWatchesPresentAfterResume)
     const auto TESTROOT = makeNewTestRoot();
     const auto TIMEOUT  = chrono::seconds(4);
 
-    auto c = ::mega::make_unique<StandardClient>(TESTROOT, "c");
+    auto c = std::make_unique<StandardClient>(TESTROOT, "c");
 
     // Log callbacks.
     c->logcb = true;

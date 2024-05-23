@@ -218,7 +218,7 @@ private:
 };
 
 
-std::string getLogFileName(size_t useIdx = SIZE_MAX, const std::string& useDescription = std::string());
+std::string getLogFileName(size_t useIdx = SIZE_MAX, std::string useDescription = std::string());
 
 std::string getCurrentTimestamp(bool includeDate = false);
 

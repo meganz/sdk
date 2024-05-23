@@ -32,6 +32,9 @@
 #include "mega/mega_utf8proc.h"
 #undef SSIZE_MAX
 
+// Include ICU headers
+#include <unicode/uchar.h>
+
 namespace mega {
 // convert 1...8 character ID to int64 integer (endian agnostic)
 #define MAKENAMEID1(a) (nameid)(a)
@@ -256,8 +259,6 @@ struct MEGA_API MemAccess
 };
 
 #ifdef _WIN32
-int mega_snprintf(char *s, size_t n, const char *format, ...);
-
 // get the Windows error message in UTF-8
 std::string winErrorMessage(DWORD error);
 
@@ -490,9 +491,6 @@ public:
     static void setenv(const std::string& key, const std::string& value);
     static void unsetenv(const std::string& key);
 };
-
-// for pre-c++11 where this version is not defined yet.
-long long abs(long long n);
 
 extern m_time_t m_time(m_time_t* tt = NULL);
 extern struct tm* m_localtime(m_time_t, struct tm *dt);
@@ -935,7 +933,7 @@ public:
             return false;
         }
 
-        (void)get();
+        get();
 
         return true;
     }
@@ -1079,8 +1077,167 @@ const char* toString(retryreason_t reason);
 bool is_space(unsigned int ch);
 bool is_digit(unsigned int ch);
 
+std::set<std::string> splitString(const std::string& str, char delimiter);
+
+template<typename Iter>
+std::string joinStrings(const Iter begin, const Iter end, const std::string& separator)
+{
+    Iter position = begin;
+    std::string result;
+    if (position != end)
+    {
+        result += *position++;
+    }
+
+    while (position != end)
+    {
+        result += separator + *position++;
+    }
+    return result;
+}
+
+static constexpr char WILDCARD_MATCH_ONE = '?';
+static constexpr char WILDCARD_MATCH_ALL = '*';
+static constexpr char ESCAPE_CHARACTER = '\\';
+
+std::string escapeWildCards(const std::string& pattern);
+
+std::set<std::string>::iterator getTagPosition(std::set<std::string>& tokens, const std::string& tag);
+
+// Check if two string (possible multibyte characters) are equal without take account if they are lower or higher case
+// 1 if they are equal
+int icuLikeCompare(const uint8_t* zPattern, /* LIKE pattern */
+                   const uint8_t* zString, /* The UTF-8 string to compare against */
+                   const UChar32 uEsc); /* The escape character */
+
 // Get the current process ID
 unsigned long getCurrentPid();
+
+// Convenience.
+template<typename T>
+struct IsStringType : std::false_type { };
+
+template<>
+struct IsStringType<std::string> : std::true_type { };
+
+template<>
+struct IsStringType<std::wstring> : std::true_type { };
+
+// Retrieve a file's extension.
+template<typename StringType>
+auto extensionOf(const StringType& path, std::string& extension)
+  -> typename std::enable_if<IsStringType<StringType>::value, bool>::type;
+
+template<typename StringType>
+auto extensionOf(const StringType& path)
+  -> typename std::enable_if<IsStringType<StringType>::value, std::string>::type;
+
+// Translate a character representing a hexadecimal digit to an integer.
+template<typename T>
+auto fromHex(char character)
+  -> typename std::enable_if<std::is_integral<T>::value,
+                             std::pair<T, bool>
+                            >::type
+{
+    // Ensure the character's in lowercase.
+    character |= ' ';
+
+    // Character's a decimal digit.
+    if (character >= '0' && character <= '9')
+        return std::make_pair(static_cast<T>(character - '0'), true);
+
+    // Character's a hexadecimal digit.
+    if (character >= 'a' && character <= 'f')
+        return std::make_pair(static_cast<T>(character - 'W'), true);
+
+    // Character's not a valid hexadecimal digit.
+    return std::make_pair(0, false);
+}
+
+// Translate a string of hexadecimal digits to an integer.
+//
+// NOTE: The string should be trimmed of any whitespace.
+template<typename T>
+auto fromHex(const char* current, const char* end)
+  -> typename std::enable_if<std::is_integral<T>::value,
+                             std::pair<T, bool>
+                            >::type
+{
+    // What's the largest value that T can represent?
+    constexpr auto maximum = std::numeric_limits<T>::max();
+
+    // Convenience.
+    constexpr auto undefined = std::make_pair(T{}, false);
+
+    // An empty string doesn't contain a valid hex number.
+    if (current == end)
+        return undefined;
+
+    // Our accumulated value.
+    T value{};
+
+    for ( ; current != end; ++current)
+    {
+        // Try and convert the current character to an integer.
+        auto result = fromHex<T>(*current);
+
+        // Character wasn't a valid hexadecimal digit.
+        if (!result.second)
+            return undefined;
+
+        // Make sure we don't wrap.
+        if (value && maximum / value < 16)
+            return undefined;
+
+        // Scale the value by 16.
+        value *= 16;
+
+        // Again, make sure we don't wrap.
+        if (maximum - value < result.first)
+            return undefined;
+
+        // Include the new digit in our running total.
+        value += result.first;
+    }
+
+    // Return value to caller.
+    return std::make_pair(value, true);
+}
+
+template<typename T>
+auto fromHex(const char* begin, std::size_t size)
+  -> typename std::enable_if<std::is_integral<T>::value,
+                             std::pair<T, bool>
+                            >::type
+{
+    return fromHex<T>(begin, begin + size);
+}
+
+// Translate a string of hexadecimal digits to an integer.
+//
+// NOTE: The string should be trimmed of any whitespace.
+template<typename T>
+auto fromHex(const std::string& value)
+  -> typename std::enable_if<std::is_integral<T>::value,
+                             std::pair<T, bool>
+                            >::type
+{
+    return fromHex<T>(value.data(), value.size());
+}
+
+// Convenience.
+using SplitFragment =
+  std::pair<const char*, std::size_t>;
+
+using SplitResult =
+  std::pair<SplitFragment, SplitFragment>;
+
+// Split a string into two halves around a specific delimiter.
+//
+// NOTE: The second half includes the delimiter, if present.
+SplitResult split(const char* begin, const char* end, char delimiter);
+SplitResult split(const char* begin, const std::size_t size, char delimiter);
+SplitResult split(const std::string& value, char delimiter);
 
 } // namespace mega
 

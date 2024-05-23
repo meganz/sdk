@@ -224,8 +224,8 @@ TEST(MegaApi, MegaApiImpl_calcRecommendedProLevel)
     MegaPricingPrivate pricing;
     std::function<void(int, int, int)> addTestProducts = [&](int proLevel, int gb, int pricedollars)
     {
-        pricing.addProduct(1000, 1000000, proLevel, gb, gb == -1 ? -1 : gb * 10, 1, pricedollars, 10, 100, "monthly", "ios id", "android id", ::mega::make_unique<BusinessPlan>());
-        pricing.addProduct(1000, 1000000, proLevel, gb, gb == -1 ? -1 : gb * 10, 12, pricedollars*12, 10, 100, "yearly", "ios id", "android id", ::mega::make_unique<BusinessPlan>());
+        pricing.addProduct(1000, 1000000, proLevel, gb, gb == -1 ? -1 : gb * 10, 1, pricedollars, 10, 100, "monthly", "ios id", "android id", std::make_unique<BusinessPlan>());
+        pricing.addProduct(1000, 1000000, proLevel, gb, gb == -1 ? -1 : gb * 10, 12, pricedollars*12, 10, 100, "yearly", "ios id", "android id", std::make_unique<BusinessPlan>());
     };
     addTestProducts(MegaAccountDetails::ACCOUNT_TYPE_LITE, 400, 499);
     addTestProducts(MegaAccountDetails::ACCOUNT_TYPE_PROI, 2048, 999);

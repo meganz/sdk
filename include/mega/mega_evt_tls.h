@@ -22,15 +22,9 @@ extern "C" {
 #endif
 
 
-#ifdef _WIN32
-#pragma warning( disable : 4191) // Disable warning for Windows. Starting on OpenSSL 3
-#endif
 #include <openssl/err.h>
 #include <openssl/ssl.h>
 #include <openssl/conf.h>
-#ifdef _WIN32
-#pragma warning( default : 4191) // // Restore default bahaviour
-#endif
 #include "mega_evt_queue.h"
 
 #ifdef _WIN32

@@ -43,7 +43,6 @@ class GfxProviderExternal : public IGfxLocalProvider
 public:
     GfxProviderExternal() : processor(nullptr) { };
     GfxProviderExternal(MegaGfxProcessor *processor) : processor(processor) {};
-    bool isgfx(string*);
     void setProcessor(MegaGfxProcessor *processor);
 };
 } // namespace

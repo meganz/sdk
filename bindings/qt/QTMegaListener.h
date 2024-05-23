@@ -10,9 +10,11 @@
 #endif
 
 #include "megaapi.h"
+#include "QTMegaEvent.h"
 
 namespace mega
 {
+
 class QTMegaListener : public QObject, public MegaListener
 {
 	Q_OBJECT
@@ -45,10 +47,26 @@ public:
     void onGlobalSyncStateChanged(MegaApi* api) override;
 #endif
 
+    void onMountAdded(MegaApi* api, const char* path, int result) override;
+    void onMountChanged(MegaApi* api, const char* path, int result) override;
+    void onMountDisabled(MegaApi* api, const char* path, int result) override;
+    void onMountEnabled(MegaApi* api, const char* path, int result) override;
+    void onMountRemoved(MegaApi* api, const char* path, int result) override;
+
 protected:
     void customEvent(QEvent * event) override;
 
+    using FuseEventHandler =
+      void (MegaListener::*)(MegaApi*, const char*, int);
+
+    void onMountEvent(FuseEventHandler handler, const QTMegaEvent& event);
+
+    void postMountEvent(QTMegaEvent::MegaType eventType,
+                        MegaApi *api,
+                        const std::string& path,
+                        int result);
+
     MegaApi *megaApi;
-	MegaListener *listener;
+    MegaListener *listener;
 };
 }

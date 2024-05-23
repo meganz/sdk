@@ -272,7 +272,7 @@ void MediaFileInfo::sendOrQueueMediaPropertiesFileAttributesForExistingFile(Medi
     {
         LOG_debug << "Sending media attributes";
         std::string mediafileattributes = vp.convertMediaPropertyFileAttributes(fakey, client->mediaFileInfo);
-        client->reqs.add(new CommandAttachFA(client, fileHandle.as8byte(), fa_media, mediafileattributes.c_str(), 0));
+        client->putFileAttributes(fileHandle.as8byte(), fa_media, mediafileattributes.c_str(), 0);
     }
 }
 

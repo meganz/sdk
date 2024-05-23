@@ -27,9 +27,6 @@
 
 #include <sqlite3.h>
 
-// Include ICU headers
-#include <unicode/uchar.h>
-
 namespace mega {
 
 class MEGA_API SqliteDbTable : public DbTable
@@ -158,10 +155,6 @@ public:
     // If the progress callback returns non-zero, the operation is interrupted
     static int progressHandler(void *);
     static void userRegexp(sqlite3_context* context, int argc, sqlite3_value** argv);
-    static int icuLikeCompare(const uint8_t *zPattern,   /* LIKE pattern */
-            const uint8_t *zString,    /* The UTF-8 string to compare against */
-            const UChar32 uEsc         /* The escape character */
-          );
 
     // Method called when query use method 'ismimetype'
     // It checks if received mimetype is the same as extension extracted from file name
@@ -170,6 +163,13 @@ public:
     // Method called when query uses 'getmimetype'
     // Gets the mimetype corresponding to the file extension
     static void userGetMimetype(sqlite3_context* context, int argc, sqlite3_value** argv);
+
+    // Check if string (pattern - argv[0]) is contained at data base column from type text (argv[1])
+    static void userIsContained(sqlite3_context* context, int argc, sqlite3_value** argv);
+
+    // Check if a tag (string - argv[0]) is contained in the stored list of tags
+    //(string with the tags delimited by TAG_DELIMITER - argv[1]).
+    static void userMatchTag(sqlite3_context* context, int argc, sqlite3_value** argv);
 
 private:
     // Iterate over a SQL query row by row and fill the map
@@ -233,7 +233,7 @@ public:
 
     LocalPath databasePath(const FileSystemAccess& fsAccess,
                            const string& name,
-                           const int version) const;
+                           const int version) const override;
 
     // Note: for proper adjustment of legacy versions, 'sctable' should be the first DB to be opened
     // In this way, when it's called with other DB (statusTable, tctable, ...), DbAccess::currentDbVersion has been
