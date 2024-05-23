@@ -1742,19 +1742,23 @@ MegaSyncStallListPrivate::MegaSyncStallListPrivate(SyncProblems&& sp, AddressedS
         }
     }
 
-    for(auto& stall : sp.mStalls.cloud)
+    for (auto& stalledSyncMapPair : sp.mStalls.syncStallInfoMaps)
     {
-        if (!filter.addressedCloudStall(stall.first))
+        auto& stalledSyncMap = stalledSyncMapPair.second;
+        for(auto& stall : stalledSyncMap.cloud)
         {
-            mStalls.push_back(std::make_shared<MegaSyncStallPrivate>(stall.second));
+            if (!filter.addressedCloudStall(stall.first))
+            {
+                mStalls.push_back(std::make_shared<MegaSyncStallPrivate>(stall.second));
+            }
         }
-    }
 
-    for(auto& stall : sp.mStalls.local)
-    {
-        if (!filter.addressedLocalStall(stall.first))
+        for(auto& stall : stalledSyncMap.local)
         {
-            mStalls.push_back(std::make_shared<MegaSyncStallPrivate>(stall.second));
+            if (!filter.addressedLocalStall(stall.first))
+            {
+                mStalls.push_back(std::make_shared<MegaSyncStallPrivate>(stall.second));
+            }
         }
     }
 }
