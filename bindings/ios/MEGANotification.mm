@@ -73,6 +73,10 @@ using namespace mega;
     return self.megaNotification ? [[NSString alloc] initWithUTF8String:self.megaNotification->getImagePath()] : nil;
 }
 
+- (nullable NSString *)iconName {
+    return self.megaNotification ? [[NSString alloc] initWithUTF8String:self.megaNotification->getIconName()] : nil;
+}
+
 - (nullable NSDate *)startDate {
     return self.megaNotification ? [[NSDate alloc] initWithTimeIntervalSince1970:self.megaNotification->getStart()] : nil;
 }

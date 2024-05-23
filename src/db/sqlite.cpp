@@ -21,6 +21,8 @@
 
 #include "mega.h"
 
+#include <variant>
+
 #ifdef USE_SQLITE
 namespace mega {
 
@@ -149,7 +151,7 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
                       "parenthandle int64, name text, fingerprint BLOB, origFingerprint BLOB, "
                       "type tinyint, mimetype tinyint AS (getmimetype(name)) VIRTUAL, size int64, share tinyint, fav tinyint, "
                       "ctime int64, mtime int64 DEFAULT 0, flags int64, counter BLOB NOT NULL, node BLOB NOT NULL, "
-                      "label tinyint DEFAULT 0)";
+                      "label tinyint DEFAULT 0, description text, tags text)";
     int result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
     if (result)
     {
@@ -164,6 +166,8 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
         {"mtime", "int64 DEFAULT 0", NodeData::COMPONENT_MTIME},
         {"label", "tinyint DEFAULT 0", NodeData::COMPONENT_LABEL},
         {"mimetype", "tinyint AS (getmimetype(name)) VIRTUAL", NodeData::COMPONENT_NONE},
+        {"description", "text", NodeData::COMPONENT_DESCRIPTION},
+        {"tags", "text", NodeData::COMPONENT_TAGS},
     };
 
     if (!addAndPopulateColumns(db, std::move(newCols)))
@@ -196,6 +200,22 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
     if (result)
     {
         LOG_err << "Data base error(sqlite3_create_function userIsMimetype): " << sqlite3_errmsg(db);
+        sqlite3_close(db);
+        return nullptr;
+    }
+
+    result = sqlite3_create_function(db, "isContained", 2, SQLITE_ANY,0, &SqliteAccountState::userIsContained, 0, 0);
+    if (result)
+    {
+        LOG_err << "Data base error(sqlite3_create_function userIsContained): " << sqlite3_errmsg(db);
+        sqlite3_close(db);
+        return nullptr;
+    }
+
+    result = sqlite3_create_function(db, "matchTag", 2, SQLITE_ANY,0, &SqliteAccountState::userMatchTag, 0, 0);
+    if (result)
+    {
+        LOG_err << "Data base error(sqlite3_create_function userMatchTag): " << sqlite3_errmsg(db);
         sqlite3_close(db);
         return nullptr;
     }
@@ -436,7 +456,7 @@ bool SqliteDbAccess::migrateDataToColumns(sqlite3* db, vector<NewColumn>&& cols)
     }
 
     // extract values to be copied
-    map<handle, map<int /*COMPONENT*/, int64_t>> newValues;
+    map<handle, map<int /*COMPONENT*/, std::variant<int64_t, std::string>>> newValues;
     while (sqlite3_step(stmt) == SQLITE_ROW)
     {
         const char* blob = static_cast<const char*>(sqlite3_column_blob(stmt, 1));
@@ -448,7 +468,7 @@ bool SqliteDbAccess::migrateDataToColumns(sqlite3* db, vector<NewColumn>&& cols)
         int l = LBL_UNKNOWN;
         // When migrating data, the first non-default value will create the entry for that node,
         // while other non-default values will avoid the search by reusing the same container.
-        map<int, int64_t>* newNodeValues = nullptr;
+        map<int, std::variant<int64_t, std::string>>* newNodeValues = nullptr;
 
         if (dataToMigrate.find(NodeData::COMPONENT_MTIME) != dataToMigrate.end() &&
             (mtime = nd.getMtime()))
@@ -468,6 +488,27 @@ bool SqliteDbAccess::migrateDataToColumns(sqlite3* db, vector<NewColumn>&& cols)
                 newNodeValues = &newValues[nh];
             }
             newNodeValues->emplace(NodeData::COMPONENT_LABEL, l);
+        }
+
+        std::string description = nd.getDescription();
+        if (dataToMigrate.find(NodeData::COMPONENT_DESCRIPTION) != dataToMigrate.end() &&
+            description.size())
+        {
+            if (!newNodeValues)
+            {
+                newNodeValues = &newValues[nh];
+            }
+            newNodeValues->emplace(NodeData::COMPONENT_DESCRIPTION, description);
+        }
+
+        std::string tags = nd.getTags();
+        if (dataToMigrate.find(NodeData::COMPONENT_TAGS) != dataToMigrate.end() && tags.size())
+        {
+            if (!newNodeValues)
+            {
+                newNodeValues = &newValues[nh];
+            }
+            newNodeValues->emplace(NodeData::COMPONENT_TAGS, tags);
         }
     }
     sqlite3_finalize(stmt);
@@ -503,11 +544,46 @@ bool SqliteDbAccess::migrateDataToColumns(sqlite3* db, vector<NewColumn>&& cols)
     {
         for (const auto& values : update.second)
         {
-            if (sqlite3_bind_int64(stmt, dataToMigrate[values.first], values.second) != SQLITE_OK)
+            if (values.first == NodeData::COMPONENT_MTIME ||
+                values.first == NodeData::COMPONENT_LABEL)
             {
-                LOG_err << "Db error during migration while binding value to column: " << sqlite3_errmsg(db);
-                sqlite3_finalize(stmt);
-                return false;
+                const int64_t* value = std::get_if<int64_t>(&values.second);
+                if (!value)
+                {
+                    LOG_err << "Unexpectect type at std::variant, it should be int64_t";
+                    assert(false);
+                    return false;
+                }
+
+                if (sqlite3_bind_int64(stmt, dataToMigrate[values.first], *value) != SQLITE_OK)
+                {
+                    LOG_err << "Db error during migration while binding value to column: "
+                            << sqlite3_errmsg(db);
+                    sqlite3_finalize(stmt);
+                    return false;
+                }
+            }
+            else if (values.first == NodeData::COMPONENT_DESCRIPTION ||
+                     values.first == NodeData::COMPONENT_TAGS)
+            {
+                const std::string* text = std::get_if<std::string>(&values.second);
+                if (!text)
+                {
+                    LOG_err << "Unexpectect type at std::variant, it should be std::string";
+                    assert(false);
+                    return false;
+                }
+                if (sqlite3_bind_text(stmt,
+                                      dataToMigrate[values.first],
+                                      text->c_str(),
+                                      static_cast<int>(text->length()),
+                                      SQLITE_STATIC) != SQLITE_OK)
+                {
+                    LOG_err << "Db error during migration while binding value to column: "
+                            << sqlite3_errmsg(db);
+                    sqlite3_finalize(stmt);
+                    return false;
+                }
             }
         }
 
@@ -1148,8 +1224,8 @@ bool SqliteAccountState::put(Node *node)
     if (!mStmtPutNode)
     {
         sqlResult = sqlite3_prepare_v2(db, "INSERT OR REPLACE INTO nodes (nodehandle, parenthandle, "
-                                           "name, fingerprint, origFingerprint, type, size, share, fav, ctime, mtime, flags, counter, node, label) "
-                                           "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &mStmtPutNode, NULL);
+                                           "name, fingerprint, origFingerprint, type, size, share, fav, ctime, mtime, flags, counter, node, label, description, tags) "
+                                           "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &mStmtPutNode, NULL);
     }
 
     if (sqlResult == SQLITE_OK)
@@ -1198,6 +1274,37 @@ bool SqliteAccountState::put(Node *node)
         auto labelIt = node->attrs.map.find(labelId);
         int label = (labelIt == node->attrs.map.end()) ? LBL_UNKNOWN : std::atoi(labelIt->second.c_str());
         sqlite3_bind_int(mStmtPutNode, 15, label);
+
+        nameid descriptionId = AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_DESCRIPTION);
+        if (auto descriptionIt = node->attrs.map.find(descriptionId);
+            descriptionIt != node->attrs.map.end())
+        {
+            const std::string& description = descriptionIt->second;
+            sqlite3_bind_text(mStmtPutNode,
+                              16,
+                              description.c_str(),
+                              static_cast<int>(description.length()),
+                              SQLITE_STATIC);
+        }
+        else
+        {
+            sqlite3_bind_null(mStmtPutNode, 16);
+        }
+
+        nameid tagId = AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_TAGS);
+        if (auto tagIt = node->attrs.map.find(tagId); tagIt != node->attrs.map.end())
+        {
+            const std::string& tag = tagIt->second;
+            sqlite3_bind_text(mStmtPutNode,
+                              17,
+                              tag.c_str(),
+                              static_cast<int>(tag.length()),
+                              SQLITE_STATIC);
+        }
+        else
+        {
+            sqlite3_bind_null(mStmtPutNode, 17);
+        }
 
         sqlResult = sqlite3_step(mStmtPutNode);
     }
@@ -1490,6 +1597,8 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, int o
                                                                 ',' + std::to_string(MIME_TYPE_SPREADSHEET) + "))"
                                               " OR mimetype = ?8))) "
                                  "AND (?11 = 0 OR (name REGEXP ?9)) "
+                                 "AND (?14 = 0 OR isContained(?15, description)) "
+                                 "AND (?16 = 0 OR matchTag(?17, tags))"
                                  // Leading and trailing '*' will be added to argument '?' so we are looking for substrings containing name
                                  // Our REGEXP implementation is case insensitive
 
@@ -1522,7 +1631,11 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, int o
             (sqlResult = sqlite3_bind_int(stmt, 10, order)) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_int(stmt, 11, matchWildcard)) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_int64(stmt, 12, page.size() ? static_cast<sqlite3_int64>(page.size()) : -1)) == SQLITE_OK &&
-            (sqlResult = sqlite3_bind_int64(stmt, 13, page.startingOffset())) == SQLITE_OK)
+            (sqlResult = sqlite3_bind_int64(stmt, 13, page.startingOffset())) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int(stmt, 14, static_cast<int>(filter.byDescription().size()))) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_text(stmt, 15, filter.byDescription().c_str(), static_cast<int>(filter.byDescription().size()), SQLITE_STATIC)) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int(stmt, 16, static_cast<int>(filter.byTag().size()))) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_text(stmt, 17, filter.byTag().c_str(), static_cast<int>(filter.byTag().size()), SQLITE_STATIC)) == SQLITE_OK)
         {
             result = processSqlQueryNodes(stmt, children);
         }
@@ -1571,7 +1684,7 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
                       " AND nodehandle IN (SELECT nodehandle FROM nodes WHERE share = ?7)))";
 
         string columnsForNodeAndFilters =
-            "nodehandle, parenthandle, flags, name, type, counter, node, size, ctime, mtime, share, mimetype, fav, label";
+            "nodehandle, parenthandle, flags, name, type, counter, node, size, ctime, mtime, share, mimetype, fav, label, description, tags";
 
         string nodesOfShares =
             "nodesOfShares(" + columnsForNodeAndFilters + ") \n"
@@ -1586,7 +1699,7 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
                 "WHERE parenthandle IN (SELECT nodehandle FROM ancestors) \n"
                 "UNION ALL \n"
                 "SELECT N.nodehandle, N.parenthandle, N.flags, N.name, N.type, N.counter, N.node, "
-                "N.size, N.ctime, N.mtime, N.share, N.mimetype, N.fav, N.label \n"
+                "N.size, N.ctime, N.mtime, N.share, N.mimetype, N.fav, N.label, N.description, N.tags \n"
                 "FROM nodes AS N \n"
                 "INNER JOIN nodesCTE AS P \n"
                         "ON (N.parenthandle = P.nodehandle \n"
@@ -1610,7 +1723,9 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
                                            ',' + std::to_string(MIME_TYPE_PRESENTATION) +
                                            ',' + std::to_string(MIME_TYPE_SPREADSHEET) + "))"
                          " OR mimetype = ?8))) \n"
-            "AND (?13 = 0 OR (name REGEXP ?9))";
+            "AND (?13 = 0 OR (name REGEXP ?9)) \n"
+            "AND (?17 = 0 OR isContained(?18, description)) \n"
+            "AND (?19 = 0 OR matchTag(?20, tags))";
             // Leading and trailing '*' will be added to argument '?' so we are looking for substrings containing name
             // Our REGEXP implementation is case insensitive
 
@@ -1667,7 +1782,11 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
             (sqlResult = sqlite3_bind_int(stmt, 13, matchWildcard)) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_int64(stmt, 14, page.size() ? static_cast<sqlite3_int64>(page.size()) : -1)) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_int64(stmt, 15, page.startingOffset())) == SQLITE_OK &&
-            (sqlResult = sqlite3_bind_int64(stmt, 16, filter.byAncestorHandles()[2])) == SQLITE_OK)
+            (sqlResult = sqlite3_bind_int64(stmt, 16, filter.byAncestorHandles()[2])) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int(stmt, 17, static_cast<int>(filter.byDescription().size()))) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_text(stmt, 18, filter.byDescription().c_str(), static_cast<int>(filter.byDescription().size()), SQLITE_STATIC)) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int(stmt, 19, static_cast<int>(filter.byTag().size()))) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_text(stmt, 20, filter.byTag().c_str(), static_cast<int>(filter.byTag().size()), SQLITE_STATIC)) == SQLITE_OK)
         {
             result = processSqlQueryNodes(stmt, nodes);
         }
@@ -2315,138 +2434,12 @@ void SqliteAccountState::userRegexp(sqlite3_context* context, int argc, sqlite3_
     }
 
     const uint8_t* pattern = static_cast<const uint8_t*>(sqlite3_value_text(argv[0]));
-    const uint8_t* dataBaseName = static_cast<const uint8_t*>(sqlite3_value_text(argv[1]));
-    if (dataBaseName && pattern)
+    const uint8_t* nameFromDataBase = static_cast<const uint8_t*>(sqlite3_value_text(argv[1]));
+    if (nameFromDataBase && pattern)
     {
-        int result = SqliteAccountState::icuLikeCompare(pattern, dataBaseName, 0);
+        int result = icuLikeCompare(pattern, nameFromDataBase, 0);
         sqlite3_result_int(context, result);
     }
-}
-
-// This code has been taken from sqlite repository (https://www.sqlite.org/src/file?name=ext/icu/icu.c)
-
-/*
-** This lookup table is used to help decode the first byte of
-** a multi-byte UTF8 character. It is copied here from SQLite source
-** code file utf8.c.
-*/
-static const unsigned char icuUtf8Trans1[] = {
-    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-    0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
-    0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
-    0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f,
-    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-    0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
-    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-    0x00, 0x01, 0x02, 0x03, 0x00, 0x01, 0x00, 0x00,
-};
-
-#define SQLITE_ICU_READ_UTF8(zIn, c)                      \
-    c = *(zIn++);                                         \
-    if (c>=0xc0){                                         \
-    c = icuUtf8Trans1[c-0xc0];                            \
-    while ((*zIn & 0xc0)==0x80){                          \
-    c = (c<<6) + (0x3f & *(zIn++));                       \
-}                                                         \
-}
-
-#define SQLITE_ICU_SKIP_UTF8(zIn)                        \
-    assert(*zIn);                                        \
-    if (*(zIn++)>=0xc0){                                 \
-    while ((*zIn & 0xc0)==0x80){zIn++;}                  \
-}
-
-
-int SqliteAccountState::icuLikeCompare(
-        const uint8_t *zPattern,   // LIKE pattern
-        const uint8_t *zString,    // The UTF-8 string to compare against
-        const UChar32 uEsc)         // The escape character
-{
-    // Define Linux wildcards
-    static const uint32_t MATCH_ONE = (uint32_t)'?';
-    static const uint32_t MATCH_ALL = (uint32_t)'*';
-
-    int prevEscape = 0;     //True if the previous character was uEsc
-
-    while (1)
-    {
-        // Read (and consume) the next character from the input pattern.
-        uint32_t uPattern;
-        SQLITE_ICU_READ_UTF8(zPattern, uPattern);
-        if(uPattern == 0)
-            break;
-
-        /* There are now 4 possibilities:
-        **
-        **     1. uPattern is an unescaped match-all character "*",
-        **     2. uPattern is an unescaped match-one character "?",
-        **     3. uPattern is an unescaped escape character, or
-        **     4. uPattern is to be handled as an ordinary character
-        */
-        if (uPattern == MATCH_ALL && !prevEscape && uPattern != (uint32_t)uEsc)
-        {
-            // Case 1
-            uint8_t c;
-
-            // Skip any MATCH_ALL or MATCH_ONE characters that follow a
-            // MATCH_ALL. For each MATCH_ONE, skip one character in the
-            // test string
-            while ((c = *zPattern) == MATCH_ALL || c == MATCH_ONE)
-            {
-                if (c == MATCH_ONE)
-                {
-                    if (*zString == 0) return 0;
-                    SQLITE_ICU_SKIP_UTF8(zString);
-                }
-
-                zPattern++;
-            }
-
-            if (*zPattern == 0)
-                return 1;
-
-            while (*zString)
-            {
-                if (icuLikeCompare(zPattern, zString, uEsc))
-                {
-                    return 1;
-                }
-
-                SQLITE_ICU_SKIP_UTF8(zString);
-            }
-
-            return 0;
-        }
-        else if (uPattern == MATCH_ONE && !prevEscape && uPattern != (uint32_t)uEsc)
-        {
-            // Case 2
-            if( *zString==0 ) return 0;
-            SQLITE_ICU_SKIP_UTF8(zString);
-
-        }
-        else if (uPattern == (uint32_t)uEsc && !prevEscape)
-        {
-            // Case 3
-            prevEscape = 1;
-
-        }
-        else
-        {
-            // Case 4
-            uint32_t uString;
-            SQLITE_ICU_READ_UTF8(zString, uString);
-            uString = (uint32_t)u_foldCase((UChar32)uString, U_FOLD_CASE_DEFAULT);
-            uPattern = (uint32_t)u_foldCase((UChar32)uPattern, U_FOLD_CASE_DEFAULT);
-            if (uString != uPattern)
-            {
-                return 0;
-            }
-
-            prevEscape = 0;
-        }
-    }
-
-    return *zString == 0;
 }
 
 void SqliteAccountState::userIsMimetype(sqlite3_context* context, int argc, sqlite3_value** argv)
@@ -2465,7 +2458,8 @@ void SqliteAccountState::userIsMimetype(sqlite3_context* context, int argc, sqli
     if (name.size() && mimetype)
     {
         std::string ext;
-        result = Node::getExtension(ext, name) &&
+        result = ((!Node::getExtension(ext, name) || ext.empty()) &&
+                  mimetype == MimeType_t::MIME_TYPE_OTHERS) ||
                  Node::isOfMimetype(static_cast<MimeType_t>(mimetype), ext);
 
     }
@@ -2486,8 +2480,59 @@ void SqliteAccountState::userGetMimetype(sqlite3_context* context, int argc, sql
     const char* fileName = reinterpret_cast<const char*>(sqlite3_value_text(argv[0]));
     string ext;
     int result = (fileName && *fileName && Node::getExtension(ext, fileName) && !ext.empty()) ?
-                 Node::getMimetype(ext) : MimeType_t::MIME_TYPE_UNKNOWN;
+                 Node::getMimetype(ext) : MimeType_t::MIME_TYPE_OTHERS;
     sqlite3_result_int(context, result);
+}
+
+void SqliteAccountState::userIsContained(sqlite3_context* context, int argc, sqlite3_value** argv)
+{
+    if (argc != 2)
+    {
+        LOG_err << "Invalid parameters for userIsContained";
+        assert(false);
+        sqlite3_result_int(context, 0);
+        return;
+    }
+
+    const uint8_t* descriptionToCheck = static_cast<const uint8_t*>(sqlite3_value_text(argv[0]));
+    const uint8_t* descriptionFromDataBase = static_cast<const uint8_t*>(sqlite3_value_text(argv[1]));
+    if (!descriptionFromDataBase || !descriptionToCheck)
+    {
+        sqlite3_result_int(context, 0);
+        return;
+    }
+
+    std::string stringToMatch(reinterpret_cast<const char*>(descriptionToCheck));
+    std::string stringAddingWildcards =
+        WILDCARD_MATCH_ALL + escapeWildCards(stringToMatch) + WILDCARD_MATCH_ALL;
+
+    const uint8_t* pattern = reinterpret_cast<const uint8_t*>(stringAddingWildcards.c_str());
+    int result = icuLikeCompare(pattern, descriptionFromDataBase, ESCAPE_CHARACTER);
+    sqlite3_result_int(context, result);
+}
+
+ void SqliteAccountState::userMatchTag(sqlite3_context* context, int argc, sqlite3_value** argv)
+{
+    if (argc != 2)
+    {
+        LOG_err << "Invalid parameters for userMatchTag";
+        assert(false);
+        sqlite3_result_int(context, 0);
+        return;
+    }
+
+    const uint8_t* tagToCheck = static_cast<const uint8_t*>(sqlite3_value_text(argv[0]));
+    const uint8_t* tagsFromDataBase = static_cast<const uint8_t*>(sqlite3_value_text(argv[1]));
+    if (!tagsFromDataBase || !tagToCheck)
+    {
+        sqlite3_result_int(context, 0);
+        return;
+    }
+
+    std::string tags{reinterpret_cast<const char*>(tagsFromDataBase)};
+    std::set<std::string> tokens = splitString(tags, MegaClient::TAG_DELIMITER);
+    std::string tag{reinterpret_cast<const char*>(tagToCheck)};
+    sqlite3_result_int(context, getTagPosition(tokens, tag) != tokens.end());
 }
 
 std::string OrderByClause::get(int order, int sqlParamIndex)

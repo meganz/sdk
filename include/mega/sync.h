@@ -539,6 +539,20 @@ public:
     bool processCompletedUploadFromHere(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult, shared_ptr<SyncUpload_inClient>);
     bool checkForCompletedFolderCreateHere(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult);
     bool checkForCompletedCloudMovedToDebris(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult);
+    // Whether the local root node has a scan required.
+    bool isSyncScanning() const;
+    // Check if the current sync is scanning, and set the scanningWasComplete depending on it.
+    // Also sets scanningWasCompletePreviously if scanningWasComplete is true and it is not the initial pass for syncs.
+    bool checkScanningWasComplete();
+    // Clear scanningWasComplete flag without any further checks.
+    void unsetScanningWasComplete();
+    bool scanningWasComplete() const;
+    // Sets movesWereComplete flag if:
+    // mScanningWasCompletePreviously flag is false
+    // The local root node does not have a scan required
+    // The local root node does not have pending moves.
+    bool checkMovesWereComplete();
+    bool movesWereComplete() const;
 
     void recursiveCollectNameConflicts(SyncRow& row, SyncPath& fullPath, list<NameConflict>* ncs, size_t& count, size_t& limit);
     void recursiveCollectNameConflicts(list<NameConflict>* conflicts, size_t* count = nullptr, size_t* limit = nullptr);
@@ -561,6 +575,9 @@ public:
 private:
     string mLastDailyDateTimeDebrisName;
     unsigned mLastDailyDateTimeDebrisCounter = 0;
+    bool mScanningWasComplete{};
+    bool mScanningWasCompletePreviously{};
+    bool mMovesWereComplete{};
 
 public:
     // does the filesystem have stable IDs? (FAT does not)
@@ -1249,9 +1266,11 @@ private:
 
     void proclocaltree(LocalNode* n, LocalTreeProc* tp);
 
-    bool mightAnySyncsHaveMoves();
-    bool isAnySyncSyncing();
-    bool isAnySyncScanning_inThread();
+    bool checkSyncsMovesWereComplete(); // Iterate through syncs, calling Sync::checkMovesgWereComplete(). Returns false if any sync returns false.
+    bool isAnySyncSyncing() const;
+    bool isAnySyncScanning_inThread() const;
+    bool checkSyncsScanningWasComplete_inThread(); // Iterate through syncs, calling Sync::checkScanningWasComplete(). Returns false if any sync returns false.
+    void unsetSyncsScanningWasComplete_inThread(); // Unset scanningWasComplete flag for every sync.
 
     // actually start the sync (on sync thread)
     void startSync_inThread(UnifiedSync& us, const string& debris, const LocalPath& localdebris,
@@ -1318,7 +1337,7 @@ private:
         // Sanity.
         assert(onSyncThread());
 
-        lock_guard<mutex> guard(mSyncVecMutex);
+        lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
 
         for (auto& i : mSyncVec)
         {
@@ -1444,7 +1463,7 @@ private:
     unique_ptr<SyncConfigIOContext> mSyncConfigIOContext;
 
     // Sometimes the Client needs a list of the sync configs, we provide it by copy (mutex for thread safety of course)
-    mutable mutex mSyncVecMutex;
+    mutable std::recursive_mutex mSyncVecMutex;
     vector<unique_ptr<UnifiedSync>> mSyncVec;
 
     // unload the Sync (remove from RAM and data structures), its config will be flushed to disk
@@ -1568,6 +1587,27 @@ public:
     SyncControllerPtr syncController() const;
 
     bool isSyncStalled(handle backupId) const;
+
+    // Check if any active syncs match the specified predicate.
+    template<typename Predicate>
+    bool anySyncMatching(Predicate&& predicate)
+    {
+        // Already on sync thread so just perform the query.
+        if (onSyncThread())
+            return syncMatching(predicate);
+
+        // So we can wait for the engine's result.
+        std::promise<bool> notifier;
+
+        // Ask the sync engine to perform our query.
+        queueSync([&]() {
+            // Check if any syncs match our predicate.
+            notifier.set_value(syncMatching(predicate));
+        }, "anySyncMatching");
+
+        // Let the caller know if any syncs match our predicate.
+        return notifier.get_future().get();
+    }
 };
 
 class OverlayIconCachedPaths

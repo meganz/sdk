@@ -69,9 +69,9 @@ private:
 class HelloBeater
 {
 public:
-    HelloBeater(const std::chrono::seconds& period, const std::string& pipeName)
+    HelloBeater(const std::chrono::seconds& period, const std::string& endpointName)
         : mPeriod(period)
-        , mPipeName(pipeName)
+        , mEndpointName(endpointName)
     {
         mThread = std::thread(&HelloBeater::beat, this);
     }
@@ -91,32 +91,48 @@ private:
 
     std::chrono::seconds mPeriod;
 
-    std::string mPipeName;
+    std::string mEndpointName;
 };
 
 // This lauches the process and keep it running using beater
 class GfxIsolatedProcess
 {
 public:
-    // Notes: beatIntervalSeconds would be set to minimum 3 if not
-    GfxIsolatedProcess(const std::string& pipeName,
-                       const std::string& executable,
-                       unsigned int beatIntervalSeconds);
+    class Params
+    {
+    public:
+        //
+        // keepAliveInSeconds default 10 seconds. It also ensure the minimum MIN_ALIVE_SECONDS
+        //
+        Params(const std::string& endpointName,
+               const std::string& executable,
+               std::chrono::seconds keepAliveInSeconds  = std::chrono::seconds(10));
 
-    GfxIsolatedProcess(const std::string& pipeName,
+        // Convert to args used to launch isolated process
+        std::vector<std::string> toArgs() const;
+
+        // The pipe name in Windows or the unix domain socket name in UNIX
+        std::string  endpointName;
+
+        // The executable file path
+        std::string  executable;
+
+        // The interval in seconds to keep the server alive
+        std::chrono::seconds keepAliveInSeconds;
+    private:
+
+        static constexpr std::chrono::seconds MIN_ALIVE_SECONDS{3};
+    };
+
+    GfxIsolatedProcess(const Params& params);
+
+    GfxIsolatedProcess(const std::string& endpointName,
                        const std::string& executable);
 
-    const std::string& pipeName() const { return mPipeName; }
+    const std::string& endpointName() const { return mEndpointName; }
 private:
-    // this hide the detail of the isolated process command options and also provides the default value that callers
-    // don't need to supply
-    static std::vector<std::string> formatArguments(const std::string& pipeName,
-                                                    const std::string& executable,
-                                                    unsigned int keepAliveInSeconds);
 
-    static const unsigned int MIN_ALIVE_SECONDS;
-
-    std::string mPipeName;
+    std::string mEndpointName;
 
     AutoStartLauncher mLauncher;
 
@@ -137,6 +153,8 @@ public:
 
     const char* supportedvideoformats() override;
 
+    static std::unique_ptr<GfxProviderIsolatedProcess> create(const std::string& endpointName,
+                                                              const std::string& executable);
 private:
 
     // thread safe formats accessor
@@ -168,7 +186,7 @@ private:
 
     std::unique_ptr<GfxIsolatedProcess> mProcess;
 
-    std::string mPipeName;
+    std::string mEndpointName;
 };
 
 }

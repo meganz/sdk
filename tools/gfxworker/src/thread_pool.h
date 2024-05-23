@@ -3,6 +3,8 @@
 #include <functional>
 #include <mutex>
 #include <deque>
+#include <condition_variable>
+#include <thread>
 
 namespace mega
 {
@@ -42,5 +44,5 @@ private:
     bool mDone = false;
 };
 
-} // end of namespace
+} // namespace
 }

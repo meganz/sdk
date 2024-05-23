@@ -10,6 +10,9 @@
 #include "sdk_test_utils.h"
 #include "test.h"
 
+#include <mega/fuse/common/mount_result.h>
+#include <mega/fuse/common/service.h>
+
 // If running in Jenkins, we use its working folder.  But for local manual testing, use a convenient location
 #define LOCAL_TEST_FOLDER_NAME "mega_tests"
 #ifdef WIN32
@@ -493,6 +496,51 @@ protected:
     }
 };
 
+// Make sure any megafs mounts are nuked before and after a run.
+class ScopedAbortMounts
+{
+    // Nuke all megafs mounts on this machine.
+    void abort()
+    {
+        // Convenience.
+        using namespace ::mega::fuse;
+
+        // Where would our mounts be mounted?
+        auto workspace = TestFS::GetBaseFolder().u8string();
+
+        // Nuke everything.
+        auto result = Service::abort([&](const std::string& path) {
+            // Make sure path is present under the workspace.
+            return path.size() > workspace.size()
+                   && !path.compare(0, workspace.size(), workspace);
+        });
+
+        // The mounts have been nuked.
+        if (result == MOUNT_SUCCESS)
+            return;
+
+        // Couldn't nuke the mounts.
+        LOG_warn << "Couldn't abort FUSE mounts: "
+                 << toString(result);
+    }
+
+    // Whether we should abort any mounts.
+    bool mAbort;
+
+public:
+    // Nuke the mounts when our tests start.
+    ScopedAbortMounts(bool abort)
+      : mAbort(abort)
+    {
+    }
+
+    // And just before they end.
+    ~ScopedAbortMounts()
+    {
+        if (mAbort)
+            abort();
+    }
+}; // ScopedAbortMounts
 
 int main (int argc, char *argv[])
 {
@@ -523,6 +571,9 @@ int main (int argc, char *argv[])
     gLogName = argVals.getLog(); // set accordingly for worker or main process
 
     remove(gLogName.c_str());
+
+    // Abort any stale mounts.
+    ScopedAbortMounts abort(!argVals.isWorker());
 
     if (argVals.isMainProcWithWorkers())
     {

@@ -281,7 +281,7 @@ void BackupMonitor::updateOrRegisterSync(UnifiedSync& us)
                 mc.reqs.add(new CommandBackupPut(&mc, currentInfo, nullptr));
             });
     }
-    us.mBackupInfo = ::mega::make_unique<BackupInfoSync>(currentInfo);
+    us.mBackupInfo = std::make_unique<BackupInfoSync>(currentInfo);
 }
 
 bool BackupInfoSync::operator==(const BackupInfoSync& o) const

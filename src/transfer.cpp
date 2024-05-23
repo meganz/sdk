@@ -450,11 +450,10 @@ void Transfer::failed(const Error& e, TransferDbCommitter& committer, dstime tim
     {
         // Remove files with foreign targets, if transfer failed with a (foreign) storage overquota
         if (e == API_EOVERQUOTA
-                && !timeleft
-                && client->isForeignNode((*it)->h))
+            && ((*it)->isFuseTransfer()
+                || (!timeleft && client->isForeignNode((*it)->h))))
         {
-            File *f = (*it++);
-            removeTransferFile(API_EOVERQUOTA, f, &committer);
+            removeTransferFile(e, *it++, &committer);
             continue;
         }
 
@@ -1269,7 +1268,7 @@ void DirectReadNode::cmdresult(const Error &e, dstime timeleft)
                 // DirectRead starting
                 m_off_t streamingMaxReqSize = dr->drMaxReqSize();
                 LOG_debug << "Direct read node size = " << dr->drn->size << ", streaming max request size: " << streamingMaxReqSize;
-                dr->drbuf.setIsRaid(dr->drn->tempurls, dr->offset, dr->offset + dr->count, dr->drn->size, streamingMaxReqSize);
+                dr->drbuf.setIsRaid(dr->drn->tempurls, dr->offset, dr->offset + dr->count, dr->drn->size, streamingMaxReqSize, false);
             }
             else
             {
@@ -1581,7 +1580,7 @@ bool DirectReadSlot::watchOverDirectReadPerformance()
 bool DirectReadSlot::doio()
 {
     bool isRaid = mDr->drbuf.isRaid();
-    unsigned numParts = isRaid ? (RAIDPARTS-1) : 1;
+    unsigned numParts = isRaid ? EFFECTIVE_RAIDPARTS : 1;
     unsigned minSpeedPerConnection = mDr->drn->client->minstreamingrate < 0 ? // Default limit
                                         (MIN_BYTES_PER_SECOND / numParts) :
                                      mDr->drn->client->minstreamingrate > 0 ? // Custom limit
@@ -1768,7 +1767,7 @@ bool DirectReadSlot::doio()
 
                         if (!req)
                         {
-                            mReqs[connectionNum] = make_unique<HttpReq>(true);
+                            mReqs[connectionNum] = std::make_unique<HttpReq>(true);
                         }
 
                         if (!mDr->drbuf.isRaid())
@@ -1859,8 +1858,8 @@ void DirectRead::abort()
 m_off_t DirectRead::drMaxReqSize() const
 {
     m_off_t numParts = drn->tempurls.size() == RAIDPARTS ?
-                                    (RAIDPARTS - 1) :
-                                    drn->tempurls.size();
+                                    static_cast<m_off_t>(EFFECTIVE_RAIDPARTS) :
+                                    static_cast<m_off_t>(drn->tempurls.size());
     return std::max(drn->size / numParts, TransferSlot::MAX_REQ_SIZE);
 }
 
@@ -1885,7 +1884,7 @@ DirectRead::DirectRead(DirectReadNode* cdrn, m_off_t ccount, m_off_t coffset, in
         // we already have tempurl(s): queue for immediate fetching
         m_off_t streamingMaxReqSize = drMaxReqSize();
         LOG_debug << "Direct read start -> direct read node size = " << drn->size << ", streaming max request size: " << streamingMaxReqSize;
-        drbuf.setIsRaid(drn->tempurls, offset, offset + count, drn->size, streamingMaxReqSize);
+        drbuf.setIsRaid(drn->tempurls, offset, offset + count, drn->size, streamingMaxReqSize, false);
         drq_it = drn->client->drq.insert(drn->client->drq.end(), this);
     }
     else
@@ -1952,7 +1951,7 @@ DirectReadSlot::DirectReadSlot(DirectRead* cdr)
     assert(mDr->drbuf.isRaid() ? (numReqs == RAIDPARTS) : 1);
     for (size_t i = numReqs; i--; )
     {
-        mReqs.push_back(make_unique<HttpReq>(true));
+        mReqs.push_back(std::make_unique<HttpReq>(true));
         mReqs.back()->status = REQ_READY;
         mReqs.back()->type = REQ_BINARY;
     }
@@ -1974,7 +1973,7 @@ DirectReadSlot::DirectReadSlot(DirectRead* cdr)
 
     mDr->drn->partiallen = 0;
     mDr->drn->partialstarttime = Waiter::ds;
-    mMaxChunkSize = static_cast<unsigned>(static_cast<unsigned>(DirectReadSlot::MAX_DELIVERY_CHUNK) / (mReqs.size() == static_cast<unsigned>(RAIDPARTS) ? (static_cast<unsigned>(RAIDPARTS-1)) : mReqs.size()));
+    mMaxChunkSize = static_cast<unsigned>(static_cast<unsigned>(DirectReadSlot::MAX_DELIVERY_CHUNK) / (mReqs.size() == static_cast<unsigned>(RAIDPARTS) ? (static_cast<unsigned>(EFFECTIVE_RAIDPARTS)) : mReqs.size()));
     if (mDr->drbuf.isRaid())
     {
         mMaxChunkSize -= mMaxChunkSize % RAIDSECTOR;

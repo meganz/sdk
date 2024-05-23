@@ -148,13 +148,24 @@ struct MEGA_API File: public FileFingerprint
     // set the token true to cause cancellation of this transfer (this file of the transfer)
     CancelToken cancelToken;
 
+    // True if this is a FUSE transfer.
+    virtual bool isFuseTransfer() const;
+
     // relevant only for downloads (GET); do not override anywhere else
     virtual bool undelete() const { return false; }
 
+    // Set this file's logical path.
+    void logicalPath(LocalPath logicalPath);
+
+    // Retrieve this file's logical path.
+    LocalPath logicalPath() const;
+
 private:
     CollisionResolution mCollisionResolution;
-};
 
+    // The file's logical path.
+    LocalPath mLogicalPath;
+};
 
 class SyncThreadsafeState;
 struct CloudNode;

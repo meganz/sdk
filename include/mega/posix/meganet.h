@@ -25,13 +25,7 @@
 #include "mega.h"
 
 #ifdef USE_OPENSSL
-#ifdef _WIN32
-#pragma warning( disable : 4191) // Disable warning for Windows. Starting on OpenSSL 3
-#endif
 #include <openssl/ssl.h>
-#ifdef _WIN32
-#pragma warning( default : 4191) // // Restore default bahaviour
-#endif
 #endif
 
 #include <curl/curl.h>

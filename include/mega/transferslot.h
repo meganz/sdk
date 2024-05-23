@@ -22,6 +22,7 @@
 #ifndef MEGA_TRANSFERSLOT_H
 #define MEGA_TRANSFERSLOT_H 1
 
+
 #include "http.h"
 #include "node.h"
 #include "backofftimer.h"
@@ -68,6 +69,15 @@ struct MEGA_API TransferSlot
     // max request size for downloads and uploads
     static const m_off_t MAX_REQ_SIZE;
 
+    // max request size per raid part for each connection
+    static const m_off_t MAX_REQ_SIZE_NEW_RAID;
+
+    // min file size to use new raid engine
+    static const m_off_t UPPER_FILESIZE_LIMIT_FOR_SMALLER_CHUNKS;
+
+    // min file size for multiple connections in transfer slot
+    static const m_off_t MIN_FILESIZE_FOR_MULTIPLE_CONNECTIONS;
+
     // maximum gap between chunks for uploads
     static const m_off_t MAX_GAP_SIZE;
 
@@ -78,9 +88,6 @@ struct MEGA_API TransferSlot
     m_time_t lastprogressreport;
 
     dstime starttime, lastdata;
-
-    SpeedController speedController;
-    m_off_t speed, meanSpeed;
 
     // number of consecutive errors
     unsigned errorcount;
@@ -96,12 +103,19 @@ struct MEGA_API TransferSlot
     // Keep track of transfer network speed per channel, and overall
     vector<SpeedController> mReqSpeeds;
     SpeedController mTransferSpeed;
+    m_off_t speed, meanSpeed;
 
     // only swap channels twice for speed issues, to prevent endless non-progress (counter is reset if we make overall progress, ie data reassembled)
     unsigned mRaidChannelSwapsForSlowness = 0;
 
     // Manage download input buffers and file output buffers for file download.  Raid-aware, and automatically performs decryption and mac.
     TransferBufferManager transferbuf;
+
+    bool initCloudRaid(MegaClient* client);
+    shared_ptr<CloudRaid> getcloudRaidPtr()
+    {
+        return cloudRaid;
+    }
 
     // async IO operations
     AsyncIOContext** asyncIO;
@@ -118,11 +132,18 @@ struct MEGA_API TransferSlot
     // dstime: the backoff for the transfer->failed() call. This value doesn't shadow the backoff param, as it can be different and used on different parts of the code.
     std::pair<error, dstime> processRequestFailure(MegaClient* client, const std::shared_ptr<HttpReqXfer>& httpReq, dstime& backoff, int channel);
 
+    // Process CloudRaid Request
+    std::pair<error, dstime> processRaidReq(size_t connection, m_off_t& raidReqProgress);
+
     // helper for doio to delay connection creation until we know if it's raid or non-raid
     bool createconnectionsonce();
 
     // disconnect and reconnect all open connections for this transfer
     void disconnect();
+
+    // disconnect and reconnect one connection for this transfer
+    void disconnect(unsigned connectionNum);
+    void disconnect(const std::shared_ptr<HttpReqXfer>& req);
 
     // indicate progress
     void progress();
@@ -144,10 +165,15 @@ struct MEGA_API TransferSlot
     // transfer failure flag. MegaClient will increment the transfer->errorcount when it sees this set.
     bool failure;
 
+    std::chrono::time_point<std::chrono::system_clock> downloadStartTime;
+
     TransferSlot(Transfer*);
     ~TransferSlot();
 
 private:
+    // New CloudRaid Proxy
+    std::shared_ptr<CloudRaid> cloudRaid;
+
     void toggleport(HttpReqXfer* req);
     bool checkDownloadTransferFinished(TransferDbCommitter& committer, MegaClient* client);
     bool checkMetaMacWithMissingLateEntries();
@@ -156,6 +182,7 @@ private:
     // returns true if connection haven't received data recently (set incrementErrors) or if slower than other connections (reset incrementErrors)
     bool testForSlowRaidConnection(unsigned connectionNum, bool& incrementErrors);
 };
+
 } // namespace
 
 #endif

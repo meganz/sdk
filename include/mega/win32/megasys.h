@@ -73,8 +73,14 @@
 #endif
 
 #include <specstrings.h>
+
+#pragma push_macro("NOMINMAX")
+#ifndef NOMINMAX
+    #define NOMINMAX
+#endif
 #include <winsock2.h>
 #include <windows.h>
+#pragma pop_macro("NOMINMAX")
 
 #ifdef __MINGW32__
  //#include <wincrypt.h> // x509 define clashes with webrtc
@@ -85,7 +91,6 @@
 #include <shellapi.h>
 
 #define atoll _atoi64
-#define snprintf mega_snprintf
 #define strncasecmp _strnicmp
 #define strtoull _strtoui64
 #if _MSC_VER <= 1800 && !defined (__MINGW32__)// Visual Studio 2013
