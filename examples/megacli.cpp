@@ -9952,35 +9952,46 @@ void DemoApp::setelements_updated(SetElement** el, int count)
     }
 }
 
-void DemoApp::enumeratequotaitems_result(unsigned type, handle product, unsigned proLevel, int gbStorage,
-                                         int gbTransfer, unsigned months, unsigned amount, unsigned amountMonth,
-                                         unsigned localPrice, const char* description, const char*, const char*,
+void DemoApp::enumeratequotaitems_result(unsigned type,
+                                         handle product,
+                                         unsigned proLevel,
+                                         int gbStorage,
+                                         int gbTransfer,
+                                         unsigned months,
+                                         unsigned amount,
+                                         unsigned amountMonth,
+                                         unsigned localPrice,
+                                         const char* description,
+                                         const char* iosId,
+                                         const char* androidId,
                                          std::unique_ptr<BusinessPlan> businessPlan)
 {
-    if(type == 0) //Pro level plan
+    if (type == 0) // Pro level plan
     {
-        cout << endl << description << ":" << endl;
-        cout << "\tPro level: " << proLevel << endl;
-        cout << "\tStorage: " << gbStorage << endl;
-        cout << "\tTransfer: " << gbTransfer << endl;
-        cout << "\tMonths: " << months << endl;
-        cout << "\tAmount: " << amount << endl;
-        cout << "\tAmount per month: " << amountMonth << endl;
-        cout << "\tLocal price: " << localPrice << endl;
+        cout << "\n" << description << ":\n";
+        cout << "\tPro level: " << proLevel << "\n";
+        cout << "\tStorage: " << gbStorage << "\n";
+        cout << "\tTransfer: " << gbTransfer << "\n";
+        cout << "\tMonths: " << months << "\n";
+        cout << "\tAmount: " << amount << "\n";
+        cout << "\tAmount per month: " << amountMonth << "\n";
+        cout << "\tLocal price: " << localPrice << "\n";
+        cout << "\tiOS ID: " << iosId << "\n";
+        cout << "\tAndroid ID: " << androidId << endl;
     }
-    else //Business plan
+    else // Business plan
     {
-        cout << endl << description << ":" << endl;
-        cout << "\tMinimum users: " << businessPlan->minUsers << endl;
-        cout << "\tStorage per user: " << businessPlan->gbStoragePerUser << endl;
-        cout << "\tTransfer per user: " << businessPlan->gbTransferPerUser << endl;
-        cout << "\tPrice per user: " << businessPlan->pricePerUser << endl;
-        cout << "\tLocal price per user: " << businessPlan->localPricePerUser << endl;
-        cout << "\tPrice per storage: " << businessPlan->pricePerStorage << endl;
-        cout << "\tLocal price per storage: " << businessPlan->localPricePerStorage << endl;
-        cout << "\tGigabytes per storage: " << businessPlan->gbPerStorage << endl;
-        cout << "\tPrice per transfer: " << businessPlan->pricePerTransfer << endl;
-        cout << "\tLocal price per transfer: " << businessPlan->localPricePerTransfer << endl;
+        cout << "\n" << description << ":\n";
+        cout << "\tMinimum users: " << businessPlan->minUsers << "\n";
+        cout << "\tStorage per user: " << businessPlan->gbStoragePerUser << "\n";
+        cout << "\tTransfer per user: " << businessPlan->gbTransferPerUser << "\n";
+        cout << "\tPrice per user: " << businessPlan->pricePerUser << "\n";
+        cout << "\tLocal price per user: " << businessPlan->localPricePerUser << "\n";
+        cout << "\tPrice per storage: " << businessPlan->pricePerStorage << "\n";
+        cout << "\tLocal price per storage: " << businessPlan->localPricePerStorage << "\n";
+        cout << "\tGigabytes per storage: " << businessPlan->gbPerStorage << "\n";
+        cout << "\tPrice per transfer: " << businessPlan->pricePerTransfer << "\n";
+        cout << "\tLocal price per transfer: " << businessPlan->localPricePerTransfer << "\n";
         cout << "\tGigabytes per transfer: " << businessPlan->gbPerTransfer << endl;
     }
 }
@@ -10000,7 +10011,7 @@ void DemoApp::enumeratequotaitems_result(unique_ptr<CurrencyData> data)
 
 void DemoApp::enumeratequotaitems_result(error e)
 {
-    if (e != Error(API_OK))
+    if (e != API_OK)
     {
         cout << "Error retrieving pricing plans, error code " << e << endl;
     }
@@ -12355,7 +12366,7 @@ void exec_getvpncredentials(autocomplete::ACState& s)
         {
             slotID = std::stoi(slotIDstr);
         }
-        catch (std::exception const &ex)
+        catch (const std::exception& ex)
         {
             cout << "Could not convert param SlotID(" << slotIDstr << ") to integer. Exception: " << ex.what() << endl;
             return;
