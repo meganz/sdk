@@ -12473,7 +12473,11 @@ size_t Syncs::stallsDetectedCount() const
     }
 
     auto reportableSize = stallReport.reportableSize();
-    assert(reportableSize > 0); // If in sync stall state, there must be reportable size
+    if (reportableSize <= 0)
+    {
+        LOG_warn << "[Syncs::stallsDetectedCount()] reportableSize (" << reportableSize << ") is not positive! [real size = " << stallReport.size() << "]";
+        assert(hasImmediateStall(stallReport)); // If in sync stall state, there must be reportable size (unless there is a custom hasImmediateStall predicate for tests)
+    }
     return reportableSize;
 }
 

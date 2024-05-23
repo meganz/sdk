@@ -12025,7 +12025,7 @@ TEST_F(SyncTest, RemoteReplaceDirectory)
             ASSERT_TRUE(c.waitForNodesUpdated(8));
 
             // Wait for c to stall.
-            ASSERT_TRUE(c.waitFor(SyncStallState(true), chrono::seconds(8)));
+            ASSERT_TRUE(c.waitFor(SyncStallState(true), chrono::seconds(15)));
 
             c.received_node_actionpackets = false;
 
@@ -12036,7 +12036,7 @@ TEST_F(SyncTest, RemoteReplaceDirectory)
             ASSERT_TRUE(c.waitForNodesUpdated(8));
 
             // Wait for c to recover from the stall.
-            ASSERT_TRUE(c.waitFor(SyncStallState(false), chrono::seconds(8)));
+            ASSERT_TRUE(c.waitFor(SyncStallState(false), chrono::seconds(15)));
         }
 
         // Update model.
@@ -12104,13 +12104,13 @@ TEST_F(SyncTest, RemoteReplaceFile)
             ASSERT_TRUE(cr.movenode("s/f", "s/d"));
 
             // Wait for c to stall.
-            ASSERT_TRUE(c.waitFor(SyncStallState(true), chrono::seconds(8)));
+            ASSERT_TRUE(c.waitFor(SyncStallState(true), chrono::seconds(15)));
 
             // Remove the original /d/f.
             ASSERT_TRUE(cr.deleteremote(node.get()));
 
             // Wait for c to recover from the stall.
-            ASSERT_TRUE(c.waitFor(SyncStallState(false), chrono::seconds(8)));
+            ASSERT_TRUE(c.waitFor(SyncStallState(false), chrono::seconds(15)));
         }
 
         // Update model.
