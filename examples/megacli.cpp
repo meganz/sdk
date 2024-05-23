@@ -9998,7 +9998,7 @@ void DemoApp::enumeratequotaitems_result(unsigned type,
 
 void DemoApp::enumeratequotaitems_result(unique_ptr<CurrencyData> data)
 {
-    cout << endl << "Currency data: " << endl;
+    cout << "\nCurrency data: " << endl;
     cout << "\tName: " << data->currencyName;
     cout << "\tSymbol: " << Base64::atob(data->currencySymbol);
     if (data->localCurrencyName.size())
