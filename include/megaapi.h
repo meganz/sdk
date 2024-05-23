@@ -9587,7 +9587,7 @@ public:
      * - MegaSearchFilter::BOOL_FILTER_ONLY_TRUE = 1 --> Returns nodes no marked as sensitive (nodes
      * with property set or if any of their ancestors have it are considered sensitive)
      * - MegaSearchFilter::BOOL_FILTER_ONLY_FALSE = 2 --> Retruns nodes with property set to true
-     * (regardless of their children))
+     * (regardless of their children)
      */
     virtual void bySensitivity(int boolFilterOption);
 

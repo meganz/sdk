@@ -7011,7 +7011,7 @@ int MegaSearchFilter::byFavourite() const
 
 int MegaSearchFilter::bySensitivity() const
 {
-    return false;
+    return BOOL_FILTER_DISABLED;
 }
 
 MegaHandle MegaSearchFilter::byLocationHandle() const
