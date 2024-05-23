@@ -21,7 +21,7 @@ const TimeoutMs RequestProcessor::READ_TIMEOUT(5000);
 const TimeoutMs RequestProcessor::WRITE_TIMEOUT(5000);
 
 GfxProcessor::GfxProcessor()
-    : mGfxProvider(::mega::make_unique<GfxProviderFreeImage>())
+    : mGfxProvider(std::make_unique<GfxProviderFreeImage>())
 {
 }
 
@@ -198,5 +198,5 @@ void RequestProcessor::processSupportFormats(IEndpoint* endpoint)
     writer.writeCommand(&response, WRITE_TIMEOUT);
 }
 
-} //namespace server
-} //namespace gfx
+} // namespace
+}

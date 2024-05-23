@@ -54,6 +54,8 @@ public:
         mCreationUpperLimit = f.byCreationTimeUpperLimit();
         mModificationLowerLimit = f.byModificationTimeLowerLimit();
         mModificationUpperLimit = f.byModificationTimeUpperLimit();
+        mDescriptionFilter = f.byDescription();
+        mTagFilter = f.byTag();
     }
 
     void byAncestors(std::vector<handle>&& ancs) { assert(ancs.size() == 3); mLocationHandles.swap(ancs); }
@@ -78,6 +80,8 @@ public:
 
     int64_t byModificationTimeLowerLimit() const { return mModificationLowerLimit; }
     int64_t byModificationTimeUpperLimit() const { return mModificationUpperLimit; }
+    const std::string& byDescription() const { return mDescriptionFilter; }
+    const std::string& byTag() const { return mTagFilter; }
 
 private:
     std::string mNameFilter;
@@ -90,6 +94,8 @@ private:
     int64_t mCreationUpperLimit = 0;
     int64_t mModificationLowerLimit = 0;
     int64_t mModificationUpperLimit = 0;
+    std::string mDescriptionFilter;
+    std::string mTagFilter;
 };
 
 class NodeSearchPage

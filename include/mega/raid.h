@@ -22,14 +22,17 @@
 #ifndef MEGA_RAID_H
 #define MEGA_RAID_H 1
 
+#define ISNEWRAID_DEFVALUE 1
+
 #include "http.h"
 #include "utils.h"
 
 namespace mega {
 
     enum { RAIDPARTS = 6 };
+    enum { EFFECTIVE_RAIDPARTS = 5 }; // A file is divided by 5 parts plus parity part (to assemble the other parts if one of them is missing)
     enum { RAIDSECTOR = 16 };
-    enum { RAIDLINE = ((RAIDPARTS - 1)*RAIDSECTOR) };
+    enum { RAIDLINE = (EFFECTIVE_RAIDPARTS * RAIDSECTOR) };
 
 
     // Holds the latest download data received.   Raid-aware.   Suitable for file transfers, or direct streaming.
@@ -77,10 +80,13 @@ namespace mega {
         void disableAvoidSmallLastRequest();
 
         // call this before starting a transfer. Extracts the vector content
-        void setIsRaid(const std::vector<std::string>& tempUrls, m_off_t resumepos, m_off_t readtopos, m_off_t filesize, m_off_t maxDownloadRequestSize);
+        void setIsRaid(const std::vector<std::string>& tempUrls, m_off_t resumepos, m_off_t readtopos, m_off_t filesize, m_off_t maxDownloadRequestSize, bool isNewRaid = ISNEWRAID_DEFVALUE);
 
         // indicate if the file is raid or not.  Most variation due to raid/non-raid is captured in this class
         bool isRaid() const;
+
+        // indicate if the file is new raid (CloudRaidProxy) or not
+        bool isNewRaid() const;
 
         // Is this the connection we are not using
         bool isUnusedRaidConection(unsigned connectionNum) const;
@@ -147,6 +153,7 @@ namespace mega {
         enum { RaidReadAheadChunksUnpausePoint = 4 };
 
         bool is_raid;
+        bool is_newRaid;
         bool raidKnown;
         m_off_t deliverlimitpos;   // end of the data that the client requested
         m_off_t acquirelimitpos;   // end of the data that we need to deliver that (can be up to the next raidline boundary)
@@ -171,7 +178,7 @@ namespace mega {
         // for raid, the http requested data before combining
         std::deque<FilePiece*> raidinputparts[RAIDPARTS];
 
-        // the data to output currently, per connection, raid or non-raid.  re-accessible in case retries are needed
+        // the data to output currently, per connection, raid or non-raid. Re-accessible in case retries are needed
         std::map<unsigned, std::shared_ptr<FilePiece>> asyncoutputbuffers;
 
         // piece to carry over to the next combine operation, when we don't get pieces that match the chunkceil boundaries
@@ -219,7 +226,7 @@ namespace mega {
     {
     public:
         // call this before starting a transfer. Extracts the vector content
-        void setIsRaid(Transfer* transfer, const std::vector<std::string> &tempUrls, m_off_t resumepos, m_off_t maxDownloadRequestSize);
+        void setIsRaid(Transfer* transfer, const std::vector<std::string> &tempUrls, m_off_t resumepos, m_off_t maxDownloadRequestSize, bool isNewRaid = ISNEWRAID_DEFVALUE);
 
         // Track the progress of http requests sent.  For raid download, tracks the parts.  Otherwise, uses the full file position in the Transfer object, as it used to prior to raid.
         m_off_t& transferPos(unsigned connectionNum) override;
@@ -261,7 +268,45 @@ namespace mega {
         friend class DebugTestHook;
     };
 
+    class MEGA_API CloudRaid
+    {
+    private:
+        class CloudRaidImpl;
+        const CloudRaidImpl* mPimpl() const { return m_pImpl.get(); }
+        CloudRaidImpl* mPimpl() { return m_pImpl.get(); }
 
+        std::unique_ptr<CloudRaidImpl> m_pImpl{};
+        bool mShown{};
+
+    public:
+        CloudRaid();
+        CloudRaid(TransferSlot* tslot, MegaClient* client, int connections);
+        ~CloudRaid();
+
+        /* Instance control functionality */
+        bool isShown() const;
+
+        /* TransferSlot functionality for RaidProxy */
+        bool disconnect(const std::shared_ptr<HttpReqXfer>& req);
+        bool prepareRequest(const std::shared_ptr<HttpReqXfer>& req, const string& tempURL, m_off_t pos, m_off_t npos);
+        bool post(const std::shared_ptr<HttpReqXfer>& req);
+        bool onRequestFailure(const std::shared_ptr<HttpReqXfer>& req, uint8_t part, dstime& backoff);
+        bool setTransferFailure(::mega::error e = API_EAGAIN, dstime backoff = 0);
+        std::pair<::mega::error, dstime> checkTransferFailure();
+        bool setUnusedRaidConnection(uint8_t part, bool addToFaultyServers);
+        uint8_t getUnusedRaidConnection() const;
+        m_off_t transferred(const std::shared_ptr<HttpReqXfer>& req) const;
+
+        /* RaidProxy functionality for TransferSlot */
+        bool init(TransferSlot* tslot, MegaClient* client, int connections);
+        bool balancedRequest(int connection, const std::vector<std::string>& tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen);
+        bool removeRaidReq(int connection);
+        bool resumeAllConnections();
+        bool raidReqDoio(int connection);
+        bool stop();
+        m_off_t progress() const;
+        m_off_t readData(int connection, byte* buf, m_off_t len);
+    };
 
 } // namespace
 

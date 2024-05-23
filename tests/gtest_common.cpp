@@ -26,7 +26,7 @@ bool ProcessWithInterceptedOutput::run(const vector<string>& args, const unorder
     }
 
     // clean-up for previous run
-    mProc = make_unique<Process>();
+    mProc = std::make_unique<Process>();
     mOutBuffer.clear();
     mErrBuffer.clear();
     mExitReported = false;
@@ -171,6 +171,16 @@ void GTestListProc::onOutLine(string&& line)
     {
         std::cerr << "ERROR: Test suite name should have been present until now" << std::endl;
         return;
+    }
+
+    // Remove parameterized test suffix.
+    {
+        // Does this test have a suffix?
+        auto i = line.find_first_of('#');
+
+        // Test has a suffix.
+        if (i != std::string::npos)
+            line.erase(i);
     }
 
     string testCase = Utils::trim(line);
@@ -896,10 +906,20 @@ void GTestParallelRunner::summary()
 }
 
 
-std::string getLogFileName(size_t useIdx, const std::string& useDescription)
+std::string getLogFileName(size_t useIdx, std::string useDescription)
 {
-    return useDescription.empty() ? getDefaultLogName() :
-           Utils::replace(getDefaultLogName(), ".", '.' + std::to_string(useIdx) + '.' + useDescription + '.');
+    if (useDescription.empty())
+        return getDefaultLogName();
+
+    std::replace(useDescription.begin(), useDescription.end(), '/', '_');
+
+    return Utils::replace(getDefaultLogName(),
+                          ".",
+                          '.'
+                          + std::to_string(useIdx)
+                          + '.'
+                          + std::move(useDescription)
+                          + '.');
 }
 
 std::string getCurrentTimestamp(bool includeDate)

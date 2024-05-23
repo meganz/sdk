@@ -78,10 +78,8 @@ pipeline {
                     def lockLabel = ''
                     if ("${APIURL_TO_TEST}" == 'https://g.api.mega.co.nz/') {
                         lockLabel = 'SDK_Concurrent_Test_Accounts'
-                    } else if ("${APIURL_TO_TEST}" == 'https://staging.api.mega.co.nz/') {
+                    } else  {
                         lockLabel = 'SDK_Concurrent_Test_Accounts_Staging'
-                    } else {
-                        error("Wrong APIURL: ${APIURL_TO_TEST}")                        
                     }
                     lock(label: lockLabel, variable: 'ACCOUNTS_COMBINATION', quantity: 1, resource: null){
                         dir("${megachat_sources_workspace}/build/subfolder"){
@@ -130,5 +128,10 @@ pipeline {
                 }
             }
         }
-    }     
+    }
+    post {
+        always {
+            archiveArtifacts artifacts: '*.log.gz', fingerprint: true
+        }
+    }
 }

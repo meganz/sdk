@@ -21,7 +21,7 @@
 
 #include "mega.h"
 #include "megaapi.h"
-#include <windows.h>
+
 #include <conio.h>
 #include <fstream>
 #include <iomanip>
@@ -37,23 +37,6 @@ namespace mega {
 using namespace std;
 
 #ifdef NO_READLINE
-template<class T>
-static T clamp(T v, T lo, T hi)
-{
-    // todo: switch to c++17 std version when we can
-    if (v < lo)
-    {
-        return lo;
-    }
-    else if (v > hi)
-    {
-        return hi;
-    }
-    else
-    {
-        return v;
-    }
-}
 
 std::string WinConsole::toUtf8String(const std::wstring& ws, UINT codepage)
 {
@@ -179,7 +162,7 @@ struct Utf8Rdbuf : public streambuf
 
 void ConsoleModel::addInputChar(wchar_t c)
 {
-    insertPos = clamp<size_t>(insertPos, 0, buffer.size());
+    insertPos = std::clamp<size_t>(insertPos, 0, buffer.size());
     if (c == 13)
     {
         buffer.push_back(c);
@@ -217,7 +200,7 @@ void ConsoleModel::getHistory(int index, int offset)
     }
     else
     {
-        index = clamp<int>(index, 0, (int)inputHistory.size() - 1) + (enteredHistory ? offset : (offset == -1 ? -1 : 0));
+        index = std::clamp<int>(index, 0, (int)inputHistory.size() - 1) + (enteredHistory ? offset : (offset == -1 ? -1 : 0));
         if (index < 0 || index >= (int)inputHistory.size())
         {
             return;
@@ -288,10 +271,9 @@ void ConsoleModel::deleteHistorySearchChars(size_t n)
 
 void ConsoleModel::redrawInputLine(int p)
 {
-    insertPos = clamp<int>(p, 0, (int)buffer.size());
+    insertPos = std::clamp<size_t>(p, 0, buffer.size());
     redrawInputLineNeeded = true;
 }
-
 void ConsoleModel::autoComplete(bool forwards, unsigned consoleWidth)
 {   
 #ifdef HAVE_AUTOCOMPLETE
@@ -324,7 +306,7 @@ void ConsoleModel::autoComplete(bool forwards, unsigned consoleWidth)
         buffer = WinConsole::toUtf16String(autocompleteState.line);
         newlinesBuffered = false;
         size_t u16InsertPos = WinConsole::toUtf16String(autocompleteState.line.substr(0, autocompleteState.wordPos.second)).size();
-        insertPos = clamp<size_t>(u16InsertPos, 0, buffer.size());
+        insertPos = std::clamp<size_t>(u16InsertPos, 0, buffer.size());
         redrawInputLineNeeded = true;
     }
 #endif
@@ -337,7 +319,7 @@ static bool isWordBoundary(size_t i, const std::wstring s)
 
 int ConsoleModel::detectWordBoundary(int start, bool forward)
 {
-    start = clamp<int>(start, 0, (int)buffer.size());
+    start = static_cast<int>(std::clamp<size_t>(start, 0, buffer.size()));
     do
     {
         start += (forward ? 1 : -1);
@@ -347,8 +329,8 @@ int ConsoleModel::detectWordBoundary(int start, bool forward)
 
 void ConsoleModel::deleteCharRange(int start, int end)
 {
-    start = clamp<int>(start, 0, (int)buffer.size());
-    end = clamp<int>(end, 0, (int)buffer.size());
+    start = static_cast<int>(std::clamp<size_t>(start, 0, buffer.size()));
+    end = static_cast<int>(std::clamp<size_t>(end, 0, buffer.size()));
     if (start < end)
     {
         buffer.erase(start, end - start);
@@ -370,8 +352,8 @@ void ConsoleModel::performLineEditingAction(lineEditAction action, unsigned cons
         searchingHistory = false;
     }
 
-    int pos = (int)insertPos;
-    int bufSize = (int)buffer.size();
+    int pos = static_cast<int>(insertPos);
+    int bufSize = static_cast<int>(buffer.size());
 
     switch (action)
     {
@@ -428,7 +410,7 @@ bool ConsoleModel::checkForCompletedInputLine(std::wstring& ws)
 
 std::wstring ConsoleModel::getInputLineToCursor()
 {
-    insertPos = clamp<size_t>(insertPos, 0, buffer.size());
+    insertPos = std::clamp<size_t>(insertPos, 0, buffer.size());
     return buffer.substr(0, insertPos);
 }
 #endif

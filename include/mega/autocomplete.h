@@ -181,7 +181,8 @@ namespace autocomplete {
     struct MEGA_API WholeNumber : public ACNode
     {
         size_t defaultvalue;
-        WholeNumber(size_t def_val);
+        std::string description;
+        WholeNumber(const std::string& description, size_t defaultValue);
         bool addCompletions(ACState& s) override;
         std::ostream& describe(std::ostream& s) const override;
         bool match(ACState& s) const override;
@@ -290,6 +291,7 @@ namespace autocomplete {
     ACN opt(ACN n);
     ACN repeat(ACN n);
     ACN exportedLink(bool file = true, bool folder = true);
+    ACN wholenumber(const std::string& description, size_t defaultValue);
     ACN wholenumber(size_t defaultvalue);
     ACN localFSPath(const std::string descriptionPrefix = "");
     ACN localFSFile(const std::string descriptionPrefix = "");

@@ -242,7 +242,7 @@ namespace mega {
             return nullptr;
         }
 
-        auto s = ::mega::make_unique<Set>(id, publicId, std::move(k), u, std::move(attrs), t);
+        auto s = std::make_unique<Set>(id, publicId, std::move(k), u, std::move(attrs), t);
         s->setTs(ts);
         s->setCTs(cts);
 
@@ -369,7 +369,7 @@ namespace mega {
             return nullptr;
         }
 
-        auto el = ::mega::make_unique<SetElement>(sid, h, eid, std::move(k), std::move(attrs));
+        auto el = std::make_unique<SetElement>(sid, h, eid, std::move(k), std::move(attrs));
         el->setOrder(o);
         el->setTs(ts);
 

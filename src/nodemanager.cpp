@@ -341,7 +341,7 @@ sharedNode_list NodeManager::getChildren_internal(const Node *parent, CancelToke
 
         if (!nodesFromTable.empty() && !parent->mNodePosition->second.mChildren)
         {
-            parent->mNodePosition->second.mChildren = ::mega::make_unique<std::map<NodeHandle, NodeManagerNode*>>();
+            parent->mNodePosition->second.mChildren = std::make_unique<std::map<NodeHandle, NodeManagerNode*>>();
         }
 
         for (const auto& nodeSerializedIt : nodesFromTable)
@@ -1424,6 +1424,10 @@ void NodeManager::notifyPurge()
         }
 
         LockGuard g(mMutex);
+		
+        // Let FUSE know that nodes have been updated.
+        mClient.mFuseClientAdapter.updated(nodesToReport);
+
         TransferDbCommitter committer(mClient.tctable);
 
         unsigned removed = 0;
@@ -1752,6 +1756,7 @@ void NodeManager::setCacheLRUMaxSize(uint64_t cacheLRUMaxSize)
 
 uint64_t NodeManager::getNumNodesAtCacheLRU() const
 {
+    LockGuard g(mMutex);
     return mCacheLRU.size();
 }
 
@@ -2013,7 +2018,7 @@ void NodeManager::addChild_internal(NodeHandle parent, NodeHandle child, Node* n
     // The NodeManagerNode could have been added in add node, only update the child
     if (!pair.first->second.mChildren)
     {
-        pair.first->second.mChildren = ::mega::make_unique<std::map<NodeHandle,  NodeManagerNode*>>();
+        pair.first->second.mChildren = std::make_unique<std::map<NodeHandle,  NodeManagerNode*>>();
     }
 
     NodeManagerNode *nodeManagerNode = nullptr;

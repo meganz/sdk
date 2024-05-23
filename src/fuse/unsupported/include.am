@@ -1,0 +1,7 @@
+src_libmega_la_CXXFLAGS += \
+    -I$(abs_srcdir)/src/fuse/unsupported
+
+src_libmega_la_SOURCES += \
+    src/fuse/unsupported/service_context.cpp \
+    src/fuse/unsupported/service.cpp
+

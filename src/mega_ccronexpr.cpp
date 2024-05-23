@@ -112,9 +112,8 @@ void* cronMalloc(size_t n);
 void cronFree(void* p);
 #endif
 
-struct tm* cron_time(time_t* date, struct tm* out) {
+struct tm* cron_time(time_t* date, [[maybe_unused]] struct tm* out) {
 #ifdef __MINGW32__
-    (void)(out); /* To avoid unused warning */
     return gmtime(date);
 #else /* __MINGW32__ */
 #ifdef _WIN32

@@ -1,16 +1,16 @@
 
 # Extact a link from an email.
 # Used by sdk/test/integration test SdkTest.SdkTestCreateAccount
+import time
+SCRIPT_EXECUTION_TIME = time.time()
 
 import email
 import imaplib
 import os
 import sys
-import time
 
 
 class EmailProcessor:
-    mail = None
     debug = False
 
     def __init__(self, user, password, host='mail.mega.co.nz', port=993):
@@ -18,10 +18,12 @@ class EmailProcessor:
         self.mail.login(user, password)
         self.mail.select('Inbox')
 
-    def get_validation_link_from_email(self, to, intent, delta=360):
+    def get_validation_link_from_email(self, to, intent, ref_time=None, delta=360.):
         """Get validation link from email."""
         link = None
-        messages = self.get_message_from_email(to, delta)
+        if ref_time is None:
+            ref_time = time.time()
+        messages = self.get_message_from_email(to, ref_time, delta)
         if not messages:
             return None
         for message in messages:
@@ -40,9 +42,8 @@ class EmailProcessor:
         self.mail.logout()
         return link
 
-    def get_message_from_email(self, to, delta=360):
+    def get_message_from_email(self, to, ref_time, delta=360.):
         """Get message from email."""
-
         # sort all emails sent to the right address, newest first
         result, data = self.mail.sort('REVERSE DATE', 'UTF-8', '(To "{}")'.format(to))
         if len(data[0]) == 0:
@@ -64,9 +65,10 @@ class EmailProcessor:
                     break
             else:
                 assert dt, 'timestamp not found from email header'
-            elapsed = time.time() - float(dt)
+            elapsed = ref_time - float(dt)
             if elapsed > delta:
-                continue
+                # Emails are sorted by time so no need to continue processing
+                break
             for m in msg.walk():
                 content_type = m.get_content_type()
                 if content_type == 'text/plain':
@@ -95,6 +97,6 @@ if intent == "delete":
 delta = float(sys.argv[5])
 
 ep = EmailProcessor(user, password)
-link = ep.get_validation_link_from_email(to, intent, delta)
+link = ep.get_validation_link_from_email(to, intent, SCRIPT_EXECUTION_TIME, delta)
 if link:
     print(link, end = '')
