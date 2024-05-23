@@ -6071,7 +6071,7 @@ void MegaSearchFilterPrivate::bySensitivity(bool excludeSensitive)
 
 void MegaSearchFilterPrivate::bySensitivity(int boolFilterOption)
 {
-    mExcludeSensitive = validateBoolFilterOption(boolFilterOption);;
+    mExcludeSensitive = validateBoolFilterOption(boolFilterOption);
 }
 
 void MegaSearchFilterPrivate::byLocationHandle(MegaHandle ancestorHandle)
