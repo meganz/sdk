@@ -1813,12 +1813,6 @@ using namespace mega;
     }
 }
 
-- (void)setShareSecureFlag:(BOOL)enable {
-    if (self.megaApi) {
-        self.megaApi->setSecureFlag(enable);
-    }
-}
-
 #pragma mark - Attributes Requests
 
 - (void)getThumbnailNode:(MEGANode *)node destinationFilePath:(NSString *)destinationFilePath delegate:(id<MEGARequestDelegate>)delegate {
@@ -4129,6 +4123,14 @@ using namespace mega;
         MegaNode::PasswordNodeData *passwordNodeData = MegaNode::PasswordNodeData::createInstance(newData.password.UTF8String, newData.notes.UTF8String, newData.url.UTF8String, newData.userName.UTF8String);
         self.megaApi->updatePasswordNode(node, passwordNodeData, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
     }
+}
+
++ (nullable NSString *)generateRandomPasswordWithCapitalLetters:(BOOL)includeCapitalLetters digits:(BOOL)includeDigits symbols:(BOOL)includeSymbols length:(int)length {
+    const char *result = MegaApi::generateRandomCharsPassword(includeCapitalLetters, includeDigits, includeSymbols, length);
+    if (!result) return nil;
+    NSString *password = [NSString stringWithUTF8String:result];
+    delete [] result;
+    return password;
 }
 
 @end

@@ -31,6 +31,11 @@
 #include "FreeImageConfig.h"  // for FREEIMAGE_LIB setting
 #endif
 
+/* Define to enable isolated GFX process. */
+#ifndef ENABLE_ISOLATED_GFX
+#cmakedefine ENABLE_ISOLATED_GFX 1
+#endif
+
 /* Define to indicate AIO presence in librt */
 #cmakedefine HAVE_AIO_RT 1
 

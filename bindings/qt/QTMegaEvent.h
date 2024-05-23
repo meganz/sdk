@@ -42,12 +42,17 @@ public:
         OnSyncDeleted,
         OnGlobalSyncStateChanged,
 #endif
+        OnMountAdded,
+        OnMountChanged,
+        OnMountDisabled,
+        OnMountEnabled,
+        OnMountRemoved
     };
 
     QTMegaEvent(MegaApi *megaApi, Type type);
     ~QTMegaEvent() override;
 
-    MegaApi *getMegaApi();
+    MegaApi *getMegaApi() const;
     MegaRequest* getRequest();
     MegaTransfer* getTransfer();
     MegaError* getError();
@@ -75,6 +80,12 @@ public:
     void setNewState(int newState);
 #endif
 
+    const std::string& getMountPath() const;
+    int getMountResult() const;
+
+    void setMountPath(const std::string& path);
+    void setMountResult(int result);
+
 private:
     MegaApi *megaApi;
     MegaRequest *request;
@@ -91,6 +102,9 @@ private:
     std::string* localPath;
     int newState;
 #endif
+
+    std::string mMountPath;
+    int mMountResult;
 };
 
 }

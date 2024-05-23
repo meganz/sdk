@@ -38,8 +38,7 @@ void commentFailedBuild() {
 }
 
 pipeline {
-    agent { label 'linux && amd64 && android' }
-
+    agent none
     options {
         buildDiscarder(logRotator(numToKeepStr: '135', daysToKeepStr: '21'))
         gitLabConnection('GitLabConnectionJenkins')
@@ -47,317 +46,327 @@ pipeline {
 
     environment {
         BUILD_OPTIONS = ' '
-        UPLOAD_THIRD_PARTY_SOURCES = ' ' 
+        UPLOAD_THIRD_PARTY_SOURCES = ' '
         UPLOAD_THIRD_PARTY_SOURCES_EXAMPLE = ' '
         THIRD_PARTY_SOURCES_ANDROID_PATH = "sdk/src/main/jni"
         THIRD_PARTY_SOURCES_EXAMPLE_PATH = "examples/android/ExampleApp/app/src/main/jni"
     }
 
     stages {
-        stage('clean previous runs and update gitlab commit status'){
-            steps{
-                deleteDir()
+        stage('Update Gitlab commitStatus') {
+        agent any
+            steps {
                 updateGitlabCommitStatus(name: 'Build Android', state: 'running')
             }
         }
-        stage('Get build parameters'){
-            parallel{
-                stage('Get build options and run parameters'){
-                    steps {
-                        script{
-                            BUILD_OPTIONS = sh(script: 'echo "$gitlabTriggerPhrase" | grep BUILD_OPTIONS | awk -F "BUILD_OPTIONS="  \'{print \$2}\' | cut -d"\\"" -f2 || :', returnStdout: true).trim()
-                            UPLOAD_THIRD_PARTY_SOURCES = sh(script: 'echo "$gitlabTriggerPhrase" | grep "\\-\\-upload_android" >/dev/null 2>&1 && echo "true" || echo "false"', returnStdout: true).trim()
-                            UPLOAD_THIRD_PARTY_SOURCES_EXAMPLE = sh(script: 'echo "$gitlabTriggerPhrase" | grep "\\-\\-upload_example" >/dev/null 2>&1 && echo "true" || echo "false"', returnStdout: true).trim()
-                            println BUILD_OPTIONS
-                            println UPLOAD_THIRD_PARTY_SOURCES
-                            println UPLOAD_THIRD_PARTY_SOURCES_EXAMPLE
-                        }
-                    }
-                    post{
-                        failure {
-                            node ('ci-debian-11-64') { // We need and agent able to download logs from Jenkins. This one is allowed.
-                                script {
-                                    commentFailedBuild() 
-                                }
-                            }
-                        }
+        stage('Build') {
+            agent { label 'linux && amd64 && android' }
+            stages {
+                stage('clean previous runs'){
+                    steps{
+                        deleteDir()
                     }
                 }
-
-                stage('Get MEGAchat branch'){
-                    steps {
-                        script{
-                            env.MEGACHAT_BRANCH = sh(script: 'echo "$gitlabMergeRequestDescription" | grep MEGACHAT_BRANCH_TO_TEST | awk -F "MEGACHAT_BRANCH_TO_TEST="  \'{print \$2}\' | cut -d" " -f1', returnStdout: true).trim()
-                            if (MEGACHAT_BRANCH == ""){
-                                echo "MEGACHAT_BRANCH was not found on description so develop will be used by default"
-                                env.MEGACHAT_BRANCH = "develop"
-                            }
-                            println MEGACHAT_BRANCH
-                        }
-                    }
-                    post{
-                        failure {
-                            node ('ci-debian-11-64') { // We need and agent able to download logs from Jenkins. This one is allowed.
-                                script {
-                                    commentFailedBuild() 
-                                }
-                            }
-                        }
-                    }
-                }
-
-                stage('Get Android branch'){
-                    steps {
-                        script{
-                            env.ANDROID_BRANCH = sh(script: 'echo "$gitlabMergeRequestDescription" | grep ANDROID_BRANCH_TO_TEST | awk -F "ANDROID_BRANCH_TO_TEST="  \'{print \$2}\' | cut -d" " -f1', returnStdout: true).trim()
-                            if (ANDROID_BRANCH == ""){
-                                echo "ANDROID_BRANCH was not found on description so develop will be used by default"
-                                env.ANDROID_BRANCH = "develop"
-                            }
-                            println ANDROID_BRANCH
-                        }
-                    }
-                    post{
-                        failure {
-                            node ('ci-debian-11-64') { // We need and agent able to download logs from Jenkins. This one is allowed.
-                                script {
-                                    commentFailedBuild() 
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        stage('Build Android'){
-            parallel{
-                stage('Android SDK example'){
-                    options{
-                        timeout(time: 200, unit: 'MINUTES')
-                    }
-                    stages {
-                        stage('Checkout SDK'){
+                stage('Get build parameters'){
+                    parallel{
+                        stage('Get build options and run parameters'){
                             steps {
-                                checkout([
-                                    $class: 'GitSCM',
-                                    branches: [[name: "${env.gitlabSourceBranch}"]],
-                                    userRemoteConfigs: [[ url: "${env.GIT_URL_SDK}", credentialsId: "12492eb8-0278-4402-98f0-4412abfb65c1" ]],
-                                    extensions: [
-                                        [$class: "UserIdentity",name: "jenkins", email: "jenkins@jenkins"],
-                                        [$class: 'PreBuildMerge', options: [fastForwardMode: 'FF', mergeRemote: "origin", mergeStrategy: 'DEFAULT', mergeTarget: "${env.gitlabTargetBranch}"]]
-                                        ]
-                                ])
-                            }
-                        }
-
-                        stage('Download prebuilt third-party-sources for example'){
-                            steps {
-                                dir("${env.THIRD_PARTY_SOURCES_EXAMPLE_PATH}"){
-                                    sh "pwd"
-                                    sh "jf rt download third-party-sources-sdk/3rdparty-sdk-android-example.tar.gz ."
-                                    sh "tar -xf 3rdparty-sdk-android-example.tar.gz --skip-old-files"
-                                    sh "rm 3rdparty-sdk-android-example.tar.gz"
-                                }
-                            }
-                        }
-                        
-                        stage('Build SDK and exampleApp'){
-                            environment{
-                                BUILD_ARCHS = "arm64-v8a"
-                                ANDROID_HOME = "/home/jenkins/android-cmdlinetools/"
-                                ANDROID_NDK_HOME ="/home/jenkins/android-ndk/"
-                            }
-                            steps{
-                                dir("examples/android/ExampleApp") {
-                                    script{
-                                        env.PATH="${env.PATH}:${env.ANDROID_HOME}/cmdline-tools/tools/bin/"
-                                    }
-                                    //Clean
-                                    sh "./gradlew --no-daemon --max-workers=1 clean"
-                                    dir("app/src/main/jni/"){
-                                        sh "sed -i 's#JOBS=.*#JOBS=1#' build.sh"
-                                        sh "sed -i 's#LOG_FILE=/dev/null#LOG_FILE=/dev/stdout#g' build.sh"
-                                        sh "rm -rf ../java/nz/mega/sdk"
-                                        //Build SDK and libs
-                                        sh "bash -x ./build.sh all"
-                                        script {
-                                            if ("${UPLOAD_THIRD_PARTY_SOURCES_EXAMPLE}" == "true"){
-                                                sh "rm curl/crashlytics.h.ready"
-                                                sh "tar -czf 3rdparty-sdk-android-example.tar.gz cryptopp curl icu libuv mediainfo openssl sodium sqlite"
-                                                sh "jf rt upload 3rdparty-sdk-android-example.tar.gz third-party-sources-sdk/"
-                                                sh "rm 3rdparty-sdk-android-example.tar.gz"
-                                            }                                        
-                                        }
-                                    }
-                                    //Build Example App
-                                    sh "./gradlew --no-daemon --max-workers=1 build"
-                                    sh "rm examples-*.tar.gz || :"
-                                    sh "tar czf examples-${BUILD_ID}.tar.gz -C app/build/outputs apk"
-                                }
-                            }
-                        }
-                    }
-                    post{
-                        always{
-                             archiveArtifacts artifacts: 'examples/android/ExampleApp/examples-*.tar.gz', fingerprint: true
-                        }
-                    }
-                }
-                stage('SDK and Android crosscompilation'){
-                    options{
-                        timeout(time: 300, unit: 'MINUTES')
-                    }
-                    agent { label 'linux && amd64 && android' }
-                    stages {
-                        stage('Checkout SDK MEGAchat and Android'){
-                            steps {
-                                deleteDir()
-                                //Clone Android
-                                sh "echo Cloning android branch ${ANDROID_BRANCH}"
-                                checkout([
-                                    $class: 'GitSCM',
-                                    branches: [[name: "origin/${ANDROID_BRANCH}"]],
-                                    userRemoteConfigs: [[ url: "${env.GIT_URL_ANDROID}", credentialsId: "12492eb8-0278-4402-98f0-4412abfb65c1" ]],
-                                    extensions: [
-                                        [$class: "UserIdentity",name: "jenkins", email: "jenkins@jenkins"]
-                                        ]
-                                ])
-                                dir("sdk/src/main/jni/megachat/sdk"){
-                                    //Clone MEGAchat branch
-                                    sh "echo Cloning megachat branch ${MEGACHAT_BRANCH}"
-                                    checkout([
-                                        $class: 'GitSCM',
-                                        branches: [[name: "origin/${MEGACHAT_BRANCH}"]],
-                                        userRemoteConfigs: [[ url: "${env.GIT_URL_MEGACHAT}", credentialsId: "12492eb8-0278-4402-98f0-4412abfb65c1" ]],
-                                        extensions: [
-                                            [$class: "UserIdentity",name: "jenkins", email: "jenkins@jenkins"]
-                                            ]
-                                    ])
-                                    script{
-                                        megachat_sources_workspace = WORKSPACE
-                                    }
-                                }
-                                dir('sdk/src/main/jni/mega/sdk'){
-                                    //Clone SDK (with PreBuildMerge)
-                                    checkout([
-                                        $class: 'GitSCM',
-                                        branches: [[name: "origin/${env.gitlabSourceBranch}"]],
-                                        userRemoteConfigs: [[ url: "${env.GIT_URL_SDK}", credentialsId: "12492eb8-0278-4402-98f0-4412abfb65c1" ]],
-                                        extensions: [
-                                            [$class: "UserIdentity",name: "jenkins", email: "jenkins@jenkins"],
-                                            [$class: 'PreBuildMerge', options: [fastForwardMode: 'FF', mergeRemote: "origin", mergeStrategy: 'DEFAULT', mergeTarget: "${env.gitlabTargetBranch}"]]
-                                            ]
-                                    ])
-                                    script{
-                                        sdk_sources_workspace = WORKSPACE
-                                    }
-                                }
                                 script{
-                                    android_sources_workspace = WORKSPACE
-                                    sdk_sources_workspace = "${megachat_sources_workspace}/third-party/mega"
+                                    BUILD_OPTIONS = sh(script: 'echo "$gitlabTriggerPhrase" | grep BUILD_OPTIONS | awk -F "BUILD_OPTIONS="  \'{print \$2}\' | cut -d"\\"" -f2 || :', returnStdout: true).trim()
+                                    UPLOAD_THIRD_PARTY_SOURCES = sh(script: 'echo "$gitlabTriggerPhrase" | grep "\\-\\-upload_android" >/dev/null 2>&1 && echo "true" || echo "false"', returnStdout: true).trim()
+                                    UPLOAD_THIRD_PARTY_SOURCES_EXAMPLE = sh(script: 'echo "$gitlabTriggerPhrase" | grep "\\-\\-upload_example" >/dev/null 2>&1 && echo "true" || echo "false"', returnStdout: true).trim()
+                                    println BUILD_OPTIONS
+                                    println UPLOAD_THIRD_PARTY_SOURCES
+                                    println UPLOAD_THIRD_PARTY_SOURCES_EXAMPLE
                                 }
                             }
-                        }
-
-                        stage('Download prebuilt third-party-sources'){
-                            steps {
-                                dir("${env.THIRD_PARTY_SOURCES_ANDROID_PATH}"){
-                                    sh "jf rt download third-party-sources-sdk/3rdparty-sdk.tar.gz ."
-                                    sh "tar -xf 3rdparty-sdk.tar.gz --skip-old-files"
-                                    sh "rm 3rdparty-sdk.tar.gz"
-                                }
-                            }
-                        }
-
-                        stage('Build SDK and Android App'){
-                            environment{
-                                BUILD_ARCHS = "arm64-v8a"
-                                ANDROID_HOME = "/home/jenkins/android-cmdlinetools/"
-                                ANDROID_NDK_HOME ="/home/jenkins/android-ndk/"
-                                DEFAULT_GOOGLE_MAPS_API_PATH = "/home/jenkins/android-default_google_maps_api"
-                                ANDROID_WEBRTC="/home/jenkins/android-webrtc"
-                                USE_PREBUILT_SDK = false
-                                ARTIFACTORY_BASE_URL = "${env.REPOSITORY_URL}"
-                            }
-                            steps{
-                                //build SDK
-                                dir("${env.THIRD_PARTY_SOURCES_ANDROID_PATH}"){
-                                    script{
-                                        env.PATH="${env.PATH}:${env.ANDROID_HOME}/cmdline-tools/tools/bin/"
-                                    }
-                                    sh "ln -sfrT ${ANDROID_WEBRTC} megachat/webrtc"
-                                    sh "sed -i 's#JOBS=.*#JOBS=1#' build.sh"
-                                    sh "sed -i 's#LOG_FILE=/dev/null#LOG_FILE=/dev/stdout#g' build.sh"
-                                    sh "./build.sh all"
-                                    script {
-                                        if ("${UPLOAD_THIRD_PARTY_SOURCES}" == "true"){
-                                            sh "rm curl/crashlytics.h.ready"
-                                            sh "tar -czf 3rdparty-sdk.tar.gz cryptopp curl icu libuv libwebsockets mediainfo pdfviewer sodium sqlite"
-                                            sh "jf rt upload 3rdparty-sdk.tar.gz third-party-sources-sdk/"
-                                            sh "rm 3rdparty-sdk.tar.gz"
-                                        }                                        
-                                    }
-                                }
-                                sh "cp -r ${DEFAULT_GOOGLE_MAPS_API_PATH}/* app/src/"
-                                script {
-                                    withCredentials([
-                                            string(credentialsId: 'ARTIFACTORY_USER', variable: 'ARTIFACTORY_USER'),
-                                            string(credentialsId: 'ARTIFACTORY_ACCESS_TOKEN', variable: 'ARTIFACTORY_ACCESS_TOKEN'),
-                                    ]){
-                                        withEnv([
-                                            "ARTIFACTORY_USER=${ARTIFACTORY_USER}",
-                                            "ARTIFACTORY_ACCESS_TOKEN=${ARTIFACTORY_ACCESS_TOKEN}"
-                                        ]){
-                                            sh "./gradlew --no-daemon --max-workers=1 assembleGmsDebug"
-                                            sh "./gradlew --no-daemon --max-workers=1 assembleGmsQa"
+                            post{
+                                failure {
+                                    node('linux') { // We need and agent able to download logs from Jenkins.
+                                        script {
+                                            commentFailedBuild()
                                         }
                                     }
                                 }
                             }
                         }
 
-                        stage ('Android Unit Tests'){
-                            environment{
-                                BUILD_ARCHS = "arm64-v8a"
-                                ANDROID_HOME = "/home/jenkins/android-cmdlinetools/"
-                                ANDROID_NDK_HOME ="/home/jenkins/android-ndk/"
-                                DEFAULT_GOOGLE_MAPS_API_PATH = "/home/jenkins/android-default_google_maps_api"
-                                ANDROID_WEBRTC="/home/jenkins/android-webrtc"
-                                USE_PREBUILT_SDK = false
-                                ARTIFACTORY_BASE_URL = "${env.REPOSITORY_URL}"
+                        stage('Get MEGAchat branch'){
+                            steps {
+                                script{
+                                    env.MEGACHAT_BRANCH = sh(script: 'echo "$gitlabMergeRequestDescription" | grep MEGACHAT_BRANCH_TO_TEST | awk -F "MEGACHAT_BRANCH_TO_TEST="  \'{print \$2}\' | cut -d" " -f1', returnStdout: true).trim()
+                                    if (MEGACHAT_BRANCH == ""){
+                                        echo "MEGACHAT_BRANCH was not found on description so develop will be used by default"
+                                        env.MEGACHAT_BRANCH = "develop"
+                                    }
+                                    println MEGACHAT_BRANCH
+                                }
                             }
-                            steps{
-                                sh "./gradlew --no-daemon --max-workers=1 data:testGmsDebugUnitTestCoverage"
+                            post{
+                                failure {
+                                    node('linux') { // We need and agent able to download logs from Jenkins.
+                                        script {
+                                            commentFailedBuild()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        stage('Get Android branch'){
+                            steps {
+                                script{
+                                    env.ANDROID_BRANCH = sh(script: 'echo "$gitlabMergeRequestDescription" | grep ANDROID_BRANCH_TO_TEST | awk -F "ANDROID_BRANCH_TO_TEST="  \'{print \$2}\' | cut -d" " -f1', returnStdout: true).trim()
+                                    if (ANDROID_BRANCH == ""){
+                                        echo "ANDROID_BRANCH was not found on description so develop will be used by default"
+                                        env.ANDROID_BRANCH = "develop"
+                                    }
+                                    println ANDROID_BRANCH
+                                }
+                            }
+                            post{
+                                failure {
+                                    node('linux') { // We need and agent able to download logs from Jenkins.
+                                        script {
+                                            commentFailedBuild()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                stage('Build Android'){
+                    parallel{
+                        stage('Android SDK example'){
+                            options{
+                                timeout(time: 200, unit: 'MINUTES')
+                            }
+                            stages {
+                                stage('Checkout SDK'){
+                                    steps {
+                                        checkout([
+                                            $class: 'GitSCM',
+                                            branches: [[name: "${env.gitlabSourceBranch}"]],
+                                            userRemoteConfigs: [[ url: "${env.GIT_URL_SDK}", credentialsId: "12492eb8-0278-4402-98f0-4412abfb65c1" ]],
+                                            extensions: [
+                                                [$class: "UserIdentity",name: "jenkins", email: "jenkins@jenkins"],
+                                                [$class: 'PreBuildMerge', options: [fastForwardMode: 'FF', mergeRemote: "origin", mergeStrategy: 'DEFAULT', mergeTarget: "${env.gitlabTargetBranch}"]]
+                                                ]
+                                        ])
+                                    }
+                                }
+
+                                stage('Download prebuilt third-party-sources for example'){
+                                    steps {
+                                        dir("${env.THIRD_PARTY_SOURCES_EXAMPLE_PATH}"){
+                                            sh "pwd"
+                                            sh "jf rt download third-party-sources-sdk/3rdparty-sdk-android-example.tar.gz ."
+                                            sh "tar -xf 3rdparty-sdk-android-example.tar.gz --skip-old-files"
+                                            sh "rm 3rdparty-sdk-android-example.tar.gz"
+                                        }
+                                    }
+                                }
+
+                                stage('Build SDK and exampleApp'){
+                                    environment{
+                                        BUILD_ARCHS = "arm64-v8a"
+                                        ANDROID_HOME = "/home/jenkins/android-cmdlinetools/"
+                                        ANDROID_NDK_HOME ="/home/jenkins/android-ndk/"
+                                    }
+                                    steps{
+                                        dir("examples/android/ExampleApp") {
+                                            script{
+                                                env.PATH="${env.PATH}:${env.ANDROID_HOME}/cmdline-tools/tools/bin/"
+                                            }
+                                            //Clean
+                                            sh "./gradlew --no-daemon --max-workers=1 clean"
+
+                                            dir("app/src/main/jni/"){
+                                                sh "sed -i 's#JOBS=.*#JOBS=1#' build.sh"
+                                                sh "sed -i 's#LOG_FILE=/dev/null#LOG_FILE=/dev/stdout#g' build.sh"
+                                                sh "rm -rf ../java/nz/mega/sdk"
+                                                //Build SDK and libs
+                                                sh "bash -x ./build.sh all"
+                                                script {
+                                                    if ("${UPLOAD_THIRD_PARTY_SOURCES_EXAMPLE}" == "true"){
+                                                        sh "rm curl/crashlytics.h.ready"
+                                                        sh "tar -czf 3rdparty-sdk-android-example.tar.gz cryptopp curl icu libuv mediainfo openssl sodium sqlite"
+                                                        sh "jf rt upload 3rdparty-sdk-android-example.tar.gz third-party-sources-sdk/"
+                                                        sh "rm 3rdparty-sdk-android-example.tar.gz"
+                                                    }
+                                                }
+                                            }
+                                            //Build Example App
+                                            sh "./gradlew --no-daemon --max-workers=1 build"
+                                            sh "rm examples-*.tar.gz || :"
+                                            sh "tar czf examples-${BUILD_ID}.tar.gz -C app/build/outputs apk"
+                                        }
+                                    }
+                                }
+                            }
+                            post{
+                                always{
+                                     archiveArtifacts artifacts: 'examples/android/ExampleApp/examples-*.tar.gz', fingerprint: true
+                                }
+                            }
+                        }
+                        stage('SDK and Android crosscompilation'){
+                            agent { label 'linux && amd64 && android' }
+                            options{
+                                timeout(time: 300, unit: 'MINUTES')
+                            }
+                            stages {
+                                stage('Checkout SDK MEGAchat and Android'){
+                                    steps {
+                                        deleteDir()
+                                        //Clone Android
+                                        sh "echo Cloning android branch ${ANDROID_BRANCH}"
+                                        checkout([
+                                            $class: 'GitSCM',
+                                            branches: [[name: "origin/${ANDROID_BRANCH}"]],
+                                            userRemoteConfigs: [[ url: "${env.GIT_URL_ANDROID}", credentialsId: "12492eb8-0278-4402-98f0-4412abfb65c1" ]],
+                                            extensions: [
+                                                [$class: "UserIdentity",name: "jenkins", email: "jenkins@jenkins"]
+                                                ]
+                                        ])
+                                        dir("sdk/src/main/jni/megachat/sdk"){
+                                            //Clone MEGAchat branch
+                                            sh "echo Cloning megachat branch ${MEGACHAT_BRANCH}"
+                                            checkout([
+                                                $class: 'GitSCM',
+                                                branches: [[name: "origin/${MEGACHAT_BRANCH}"]],
+                                                userRemoteConfigs: [[ url: "${env.GIT_URL_MEGACHAT}", credentialsId: "12492eb8-0278-4402-98f0-4412abfb65c1" ]],
+                                                extensions: [
+                                                    [$class: "UserIdentity",name: "jenkins", email: "jenkins@jenkins"]
+                                                    ]
+                                            ])
+                                            script{
+                                                megachat_sources_workspace = WORKSPACE
+                                            }
+                                        }
+                                        dir('sdk/src/main/jni/mega/sdk'){
+                                            //Clone SDK (with PreBuildMerge)
+                                            checkout([
+                                                $class: 'GitSCM',
+                                                branches: [[name: "origin/${env.gitlabSourceBranch}"]],
+                                                userRemoteConfigs: [[ url: "${env.GIT_URL_SDK}", credentialsId: "12492eb8-0278-4402-98f0-4412abfb65c1" ]],
+                                                extensions: [
+                                                    [$class: "UserIdentity",name: "jenkins", email: "jenkins@jenkins"],
+                                                    [$class: 'PreBuildMerge', options: [fastForwardMode: 'FF', mergeRemote: "origin", mergeStrategy: 'DEFAULT', mergeTarget: "${env.gitlabTargetBranch}"]]
+                                                    ]
+                                            ])
+                                            script{
+                                                sdk_sources_workspace = WORKSPACE
+                                            }
+                                        }
+                                        script{
+                                            android_sources_workspace = WORKSPACE
+                                            sdk_sources_workspace = "${megachat_sources_workspace}/third-party/mega"
+                                        }
+                                    }
+                                }
+
+                                stage('Download prebuilt third-party-sources'){
+                                    steps {
+                                        dir("${env.THIRD_PARTY_SOURCES_ANDROID_PATH}"){
+                                            sh "jf rt download third-party-sources-sdk/3rdparty-sdk.tar.gz ."
+                                            sh "tar -xf 3rdparty-sdk.tar.gz --skip-old-files"
+                                            sh "rm 3rdparty-sdk.tar.gz"
+                                        }
+                                    }
+                                }
+
+                                stage('Build SDK and Android App'){
+                                    environment{
+                                        BUILD_ARCHS = "arm64-v8a"
+                                        ANDROID_HOME = "/home/jenkins/android-cmdlinetools/"
+                                        ANDROID_NDK_HOME ="/home/jenkins/android-ndk/"
+                                        DEFAULT_GOOGLE_MAPS_API_PATH = "/home/jenkins/android-default_google_maps_api"
+                                        ANDROID_WEBRTC="/home/jenkins/android-webrtc"
+                                        USE_PREBUILT_SDK = false
+                                        ARTIFACTORY_BASE_URL = "${env.REPOSITORY_URL}"
+                                    }
+                                    steps{
+                                        //build SDK
+                                        dir("${env.THIRD_PARTY_SOURCES_ANDROID_PATH}"){
+                                            script{
+                                                env.PATH="${env.PATH}:${env.ANDROID_HOME}/cmdline-tools/tools/bin/"
+                                            }
+                                            sh "ln -sfrT ${ANDROID_WEBRTC} megachat/webrtc"
+                                            sh "sed -i 's#JOBS=.*#JOBS=1#' build.sh"
+                                            sh "sed -i 's#LOG_FILE=/dev/null#LOG_FILE=/dev/stdout#g' build.sh"
+                                            sh "./build.sh all"
+                                            script {
+                                                if ("${UPLOAD_THIRD_PARTY_SOURCES}" == "true"){
+                                                    sh "rm curl/crashlytics.h.ready"
+                                                    sh "tar -czf 3rdparty-sdk.tar.gz cryptopp curl icu libuv libwebsockets mediainfo pdfviewer sodium sqlite"
+                                                    sh "jf rt upload 3rdparty-sdk.tar.gz third-party-sources-sdk/"
+                                                    sh "rm 3rdparty-sdk.tar.gz"
+                                                }
+                                            }
+                                        }
+                                        sh "cp -r ${DEFAULT_GOOGLE_MAPS_API_PATH}/* app/src/"
+                                        script {
+                                            withCredentials([
+                                                    string(credentialsId: 'ARTIFACTORY_USER', variable: 'ARTIFACTORY_USER'),
+                                                    string(credentialsId: 'ARTIFACTORY_ACCESS_TOKEN', variable: 'ARTIFACTORY_ACCESS_TOKEN'),
+                                            ]){
+                                                withEnv([
+                                                    "ARTIFACTORY_USER=${ARTIFACTORY_USER}",
+                                                    "ARTIFACTORY_ACCESS_TOKEN=${ARTIFACTORY_ACCESS_TOKEN}"
+                                                ]){
+                                                    sh "./gradlew --no-daemon --max-workers=1 assembleGmsDebug"
+                                                    sh "./gradlew --no-daemon --max-workers=1 assembleGmsQa"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                stage ('Android Unit Tests'){
+                                    environment{
+                                        BUILD_ARCHS = "arm64-v8a"
+                                        ANDROID_HOME = "/home/jenkins/android-cmdlinetools/"
+                                        ANDROID_NDK_HOME ="/home/jenkins/android-ndk/"
+                                        DEFAULT_GOOGLE_MAPS_API_PATH = "/home/jenkins/android-default_google_maps_api"
+                                        ANDROID_WEBRTC="/home/jenkins/android-webrtc"
+                                        USE_PREBUILT_SDK = false
+                                        ARTIFACTORY_BASE_URL = "${env.REPOSITORY_URL}"
+                                    }
+                                    steps{
+                                        sh "./gradlew --no-daemon --max-workers=1 data:testGmsDebugUnitTestCoverage"
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
-        }
-    }
-
-    post{
-        always {
-            script{
-                if (currentBuild.currentResult == 'SUCCESS'){
-                    addGitLabMRComment(comment: ":white_check_mark: ${currentBuild.projectName} :penguin: <b>Android</b> SUCCEEDED :muscle:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}" )
-                    updateGitlabCommitStatus(name: 'Build Android', state: 'success')
+            post{
+                always {
+                    script{
+                        if (currentBuild.currentResult == 'SUCCESS'){
+                            updateGitlabCommitStatus(name: 'Build Android', state: 'success')
+                            addGitLabMRComment(comment: ":white_check_mark: ${currentBuild.projectName} :penguin: <b>Android</b> SUCCEEDED :muscle:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}" )
+                        }
+                        if (currentBuild.currentResult == 'ABORTED'){
+                            updateGitlabCommitStatus(name: 'Build Android', state: 'canceled')
+                            addGitLabMRComment(comment: ":interrobang: ${currentBuild.projectName} :penguin: <b>Android</b> ABORTED  :confused:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}" )
+                        }
+                        if (currentBuild.currentResult == 'UNSTABLE'){
+                            updateGitlabCommitStatus(name: 'Build Android', state: 'failed')
+                            addGitLabMRComment(comment: ":interrobang: ${currentBuild.projectName} :penguin: <b>Android</b> UNSTABLE  :confused:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}" )
+                        }
+                    }
                 }
-                if (currentBuild.currentResult == 'ABORTED'){
-                    addGitLabMRComment(comment: ":interrobang: ${currentBuild.projectName} :penguin: <b>Android</b> ABORTED  :confused:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}" )
-                    updateGitlabCommitStatus(name: 'Build Android', state: 'canceled')
-                }
-                if (currentBuild.currentResult == 'UNSTABLE'){
-                    addGitLabMRComment(comment: ":interrobang: ${currentBuild.projectName} :penguin: <b>Android</b> UNSTABLE  :confused:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}" )
-                    updateGitlabCommitStatus(name: 'Build Android', state: 'failed')
-                }
-            }
-        }
-        failure {
-            node ('ci-debian-11-64') { // We need and agent able to download logs from Jenkins. This one is allowed.
-                script {
-                    commentFailedBuild() 
+                failure {
+                    node('linux') { // We need and agent able to download logs from Jenkins. This one is allowed.
+                        script {
+                            commentFailedBuild()
+                        }
+                    }
                 }
             }
         }

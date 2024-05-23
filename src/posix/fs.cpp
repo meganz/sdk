@@ -179,6 +179,18 @@ void FileSystemAccess::setMinimumFilePermissions(int permissions)
     mMinimumFilePermissions = permissions & 07777;
 }
 
+auto LocalPath::asPlatformEncoded(bool) const -> string_type
+{
+    return localpath;
+}
+bool LocalPath::isRootPath() const
+{
+    if (isFromRoot)
+        return localpath.size() == 1 && localpath.back() == '/';
+
+    return false;
+}
+
 int platformCompareUtf(const string& p1, bool unescape1, const string& p2, bool unescape2)
 {
     return compareUtf(p1, unescape1, p2, unescape2, false);
@@ -242,17 +254,7 @@ PosixFileAccess::PosixFileAccess(Waiter *w, int defaultfilepermissions, bool fol
 
 PosixFileAccess::~PosixFileAccess()
 {
-#ifndef HAVE_FDOPENDIR
-    if (dp)
-    {
-        closedir(dp);
-    }
-#endif
-
-    if (fd >= 0)
-    {
-        close(fd);
-    }
+    fclose();
 }
 
 bool PosixFileAccess::sysstat(m_time_t* mtime, m_off_t* size, FSLogging)
@@ -384,7 +386,7 @@ void PosixFileAccess::asyncopfinished(sigval sigev_value)
 }
 #endif
 
-void PosixFileAccess::asyncsysopen(AsyncIOContext *context)
+void PosixFileAccess::asyncsysopen([[maybe_unused]] AsyncIOContext *context)
 {
 #ifdef HAVE_AIO_RT
     context->failed = !fopen(context->openPath, context->access & AsyncIOContext::ACCESS_READ,
@@ -399,12 +401,10 @@ void PosixFileAccess::asyncsysopen(AsyncIOContext *context)
     {
         context->userCallback(context->userData);
     }
-#else
-    (void)context; // avoid unused parameter warning
 #endif
 }
 
-void PosixFileAccess::asyncsysread(AsyncIOContext *context)
+void PosixFileAccess::asyncsysread([[maybe_unused]] AsyncIOContext *context)
 {
 #ifdef HAVE_AIO_RT
     if (!context)
@@ -450,12 +450,10 @@ void PosixFileAccess::asyncsysread(AsyncIOContext *context)
             posixContext->userCallback(posixContext->userData);
         }
     }
-#else
-    (void)context; // avoid unused parameter warning
 #endif
 }
 
-void PosixFileAccess::asyncsyswrite(AsyncIOContext *context)
+void PosixFileAccess::asyncsyswrite([[maybe_unused]] AsyncIOContext *context)
 {
 #ifdef HAVE_AIO_RT
     if (!context)
@@ -502,8 +500,6 @@ void PosixFileAccess::asyncsyswrite(AsyncIOContext *context)
             posixContext->userCallback(posixContext->userData);
         }
     }
-#else
-    (void)context; // avoid unused parameter warning
 #endif
 }
 
@@ -527,6 +523,21 @@ bool PosixFileAccess::sysread(byte* dst, unsigned len, m_off_t pos)
 #endif
 }
 
+void PosixFileAccess::fclose()
+{
+#ifndef HAVE_FDOPENDIR
+    if (dp)
+        closedir(dp);
+
+    dp = nullptr;
+#endif // HAVE_FDOPENDIR
+
+    if (fd >= 0)
+        close(fd);
+
+    fd = -1;
+}
+
 bool PosixFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
 {
     retry = false;
@@ -538,15 +549,39 @@ bool PosixFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
 #endif
 }
 
-bool PosixFileAccess::ftruncate()
+bool PosixFileAccess::fstat(m_time_t& modified, m_off_t& size)
+{
+    struct stat attributes;
+
+    retry = false;
+
+    if (::fstat(fd, &attributes))
+    {
+        errorcode = errno;
+
+        LOG_err << "Unable to stat descriptor: "
+                << fd
+                << ". Error was: "
+                << errorcode;
+
+        return false;
+    }
+
+    modified = attributes.st_mtime;
+    size = static_cast<m_off_t>(attributes.st_size);
+
+    return true;
+}
+
+bool PosixFileAccess::ftruncate(m_off_t size)
 {
     retry = false;
 
     // Truncate the file.
-    if (::ftruncate(fd, 0x0) == 0)
+    if (::ftruncate(fd, size) == 0)
     {
-        // Set the file pointer back to the start.
-        return lseek(fd, 0x0, SEEK_SET) == 0x0;
+        // Set the file pointer to the end.
+        return lseek(fd, size, SEEK_SET) == size;
     }
 
     // Couldn't truncate the file.
@@ -706,7 +741,7 @@ bool PosixFileAccess::fopen(const LocalPath& f, bool read, bool write, FSLogging
 
         if (!statok)
         {
-            statok = !fstat(fd, &statbuf);
+            statok = !::fstat(fd, &statbuf);
         }
 
         if (statok)
@@ -1237,38 +1272,6 @@ bool PosixFileSystemAccess::setmtimelocal(const LocalPath& name, m_time_t mtime)
 bool PosixFileSystemAccess::chdirlocal(LocalPath& name) const
 {
     return !chdir(adjustBasePath(name).c_str());
-}
-
-// return lowercased ASCII file extension, including the . separator
-bool PosixFileSystemAccess::getextension(const LocalPath& filename, std::string &extension) const
-{
-    const std::string* str = &filename.localpath;
-    const char* ptr = str->data() + str->size();
-    char c;
-
-    for (unsigned i = 0; i < str->size(); i++)
-    {
-        if (*--ptr == '.')
-        {
-            extension.reserve(i+1);
-
-            unsigned j = 0;
-            for (; j <= i; j++)
-            {
-                if (*ptr < '.' || *ptr > 'z') return false;
-
-                c = *(ptr++);
-
-                // tolower()
-                if (c >= 'A' && c <= 'Z') c |= ' ';
-
-                extension.push_back(c);
-            }
-            return true;
-        }
-    }
-
-    return false;
 }
 
 bool PosixFileSystemAccess::expanselocalpath(const LocalPath& source, LocalPath& destination)

@@ -1152,6 +1152,17 @@ bool User::isAuthring(attr_t at)
     return (at == ATTR_AUTHRING || at == ATTR_AUTHCU255);
 }
 
+size_t User::getMaxAttributeSize(attr_t at)
+{
+    std::string attributeName = attr2string(at);
+    if (attributeName.size() > 2 && (attributeName[1] == '!' || attributeName[1] == '~'))
+    {
+        return MAX_USER_VAR_SIZE;
+    }
+
+    return MAX_USER_ATTRIBUTE_SIZE;
+}
+
 bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int size, string *newValue)
 {
     if (numDetails == 0)

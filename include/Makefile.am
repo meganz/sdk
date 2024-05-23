@@ -57,14 +57,9 @@ nobase_libmegainclude_HEADERS = \
 	mega/gfx/gfx_pdfium.h \
 	mega/gfx/freeimage.h \
 	mega/gfx/GfxProcCG.h \
-	mega/gfx/isolatedprocess.h \
-	mega/gfx/worker/tasks.h \
-	mega/gfx/worker/commands.h \
-	mega/gfx/worker/comms.h \
-	mega/gfx/worker/command_serializer.h \
-	mega/gfx/worker/client.h \
 	mega/raid.h \
-	mega/mediafileattribute.h
+	mega/mediafileattribute.h \
+	mega/raidproxy.h
 
 if BUILD_MEGAAPI
 nobase_libmegainclude_HEADERS += megaapi.h megaapi_impl.h
@@ -87,9 +82,7 @@ nobase_libmegainclude_HEADERS += \
 	mega/win32/meganet.h \
 	mega/win32/megawaiter.h \
 	mega/win32/megaconsole.h \
-	mega/win32/megaconsolewaiter.h \
-	mega/win32/gfx/worker/comms.h \
-	mega/win32/gfx/worker/comms_client.h
+	mega/win32/megaconsolewaiter.h
 else
 nobase_libmegainclude_HEADERS += \
 	mega/posix/megasys.h \

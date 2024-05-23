@@ -23,7 +23,6 @@
 #include "megawaiter.h"
 
 namespace mega {
-dstime Waiter::ds;
 
 WinWaiter::WinWaiter()
 {

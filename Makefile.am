@@ -59,6 +59,10 @@ include src/include.am
 include examples/include.am
 include tests/include.am
 
+# This needs to come after src, examples and tests as it adds flags
+# and sources to targets they define.
+include src/fuse/include.am
+
 if BUILD_PYTHON
 include bindings/python/include.am
 endif

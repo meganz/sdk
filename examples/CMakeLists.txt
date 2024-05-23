@@ -8,13 +8,6 @@ add_executable(megacli
 # megacli does not use the intermediate layer.
 target_link_libraries(megacli PRIVATE MEGA::SDKlib)
 
-if (WIN32)
-    target_compile_definitions(megacli
-        PRIVATE
-            NOMINMAX # TODO Fix locally
-    )
-endif()
-
 # Adjust compilation flags for warnings and errors
 target_platform_compile_options(
     TARGET megacli

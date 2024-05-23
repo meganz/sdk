@@ -98,7 +98,7 @@ UnicodeCodepointIterator<CharT> skipPrefix(const UnicodeCodepointIterator<CharT>
     {
     case '.':
     case '?':
-        (void)i.get();
+        i.get();
         break;
     default:
         return it;
@@ -979,7 +979,7 @@ std::unique_ptr<LocalPath> FileSystemAccess::fsShortname(const LocalPath& localn
     LocalPath s;
     if (getsname(localname, s))
     {
-        return ::mega::make_unique<LocalPath>(std::move(s));
+        return std::make_unique<LocalPath>(std::move(s));
     }
     return nullptr;
 }
@@ -1050,8 +1050,7 @@ void DirNotify::notify(NotificationDeque& q, LocalNode* l, Notification::ScanReq
 {
     // We may be executing on a thread here so we can't access the LocalNode data structures.  Queue everything, and
     // filter when the notifications are processed.  Also, queueing it here is faster than logging the decision anyway.
-
-    Notification n(immediate ? 0 : Waiter::ds, sr, std::move(path), l);
+    Notification n(immediate ? 0 : Waiter::ds.load(), sr, std::move(path), l);
     q.pushBack(std::move(n));
 }
 
@@ -1143,6 +1142,11 @@ void FileAccess::closef()
     {
         sysclose();
     }
+}
+
+bool FileAccess::fstat()
+{
+    return fstat(mtime, size);
 }
 
 void FileAccess::asyncopfinished(void *param)
@@ -1986,6 +1990,19 @@ bool LocalPath::hasNextPathComponent(size_t index) const
 {
     assert(invariant());
     return index < localpath.size();
+}
+
+bool LocalPath::related(const LocalPath& other) const
+{
+    // Sanity: Compare like for like paths.
+    assert(isFromRoot == other.isFromRoot);
+
+    // This path is shorter: It may contain other.
+    if (localpath.size() <= other.localpath.size())
+        return isContainingPathOf(other);
+
+    // Other is shorter: It may contain this path.
+    return other.isContainingPathOf(*this);
 }
 
 ScopedLengthRestore::ScopedLengthRestore(LocalPath& p)

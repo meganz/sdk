@@ -23,6 +23,8 @@
 
 namespace mega {
 
+std::atomic<dstime> Waiter::ds{};
+
 void Waiter::init(dstime ds)
 {
     maxds = ds;

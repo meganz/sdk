@@ -24,6 +24,7 @@
 #include "mega/transfer.h"
 #include "mega/testhooks.h"
 #include "mega.h" // for thread definitions
+#include "mega/raidproxy.h"
 
 #undef min //avoids issues with std::min
 
@@ -136,6 +137,7 @@ void RaidBufferManager::FilePiece::swap(FilePiece& other)
 
 RaidBufferManager::RaidBufferManager()
     : is_raid(false)
+    , is_newRaid(false)
     , raidKnown(false)
     , raidLinesPerChunk(16 * 1024)
     , unusedRaidConnection(0)
@@ -171,7 +173,7 @@ RaidBufferManager::~RaidBufferManager()
     }
 }
 
-void RaidBufferManager::setIsRaid(const std::vector<std::string>& tempUrls, m_off_t resumepos, m_off_t readtopos, m_off_t filesize, m_off_t maxRequestSize)
+void RaidBufferManager::setIsRaid(const std::vector<std::string>& tempUrls, m_off_t resumepos, m_off_t readtopos, m_off_t filesize, m_off_t maxRequestSize, bool isNewRaid)
 {
     assert(tempUrls.size() == RAIDPARTS || tempUrls.size() == 1);
     assert(0 <= resumepos && resumepos <= readtopos && readtopos <= filesize);
@@ -179,7 +181,17 @@ void RaidBufferManager::setIsRaid(const std::vector<std::string>& tempUrls, m_of
 
     tempurls = tempUrls;
 
-    is_raid = tempurls.size() == RAIDPARTS;
+    if (tempurls.size() == RAIDPARTS)
+    {
+        if (isNewRaid)
+        {
+            is_newRaid = true;
+        }
+        else
+        {
+            is_raid = true;
+        }
+    }
     raidKnown = true;
     fullfilesize = filesize;
     deliverlimitpos = readtopos;
@@ -190,11 +202,11 @@ void RaidBufferManager::setIsRaid(const std::vector<std::string>& tempUrls, m_of
     startfilepos = resumepos;
     if (is_raid)
     {
-        raidpartspos = resumepos / (RAIDPARTS - 1);
+        raidpartspos = resumepos / EFFECTIVE_RAIDPARTS;
         raidpartspos -= raidpartspos % RAIDSECTOR;
-        resumewastedbytes = size_t(outputfilepos - raidpartspos * (RAIDPARTS - 1));
-        outputfilepos -= resumewastedbytes;  // we'll skip over these bytes on the first output
-        for (int i = RAIDPARTS; i--; )
+        resumewastedbytes = size_t(outputfilepos - raidpartspos * EFFECTIVE_RAIDPARTS);
+        outputfilepos -= resumewastedbytes; // we'll skip over these bytes on the first output
+        for (int i = RAIDPARTS; i--;)
         {
             raidrequestpartpos[i] = raidpartspos;
         }
@@ -246,6 +258,12 @@ bool RaidBufferManager::isRaid() const
     return is_raid;
 }
 
+bool RaidBufferManager::isNewRaid() const
+{
+    assert(raidKnown);
+    return is_newRaid;
+}
+
 bool RaidBufferManager::isUnusedRaidConection(unsigned connectionNum) const
 {
     return connectionNum == unusedRaidConnection;
@@ -255,7 +273,6 @@ bool RaidBufferManager::isRaidConnectionProgressBlocked(unsigned connectionNum) 
 {
     return connectionPaused[connectionNum];
 }
-
 
 const std::string& RaidBufferManager::tempURL(unsigned connectionNum)
 {
@@ -452,14 +469,14 @@ m_off_t RaidBufferManager::raidPartSize(unsigned part, m_off_t filesize)
         t = RAIDSECTOR;
     }
 
-    return (filesize - r) / (RAIDPARTS - 1) + t;
+    return (filesize - r) / EFFECTIVE_RAIDPARTS + t;
 }
 
 
 void RaidBufferManager::combineRaidParts(unsigned connectionNum)
 {
     assert(asyncoutputbuffers.find(connectionNum) == asyncoutputbuffers.end() || !asyncoutputbuffers[connectionNum]);
-    assert(raidpartspos * (RAIDPARTS - 1) == outputfilepos + m_off_t(leftoverchunk.buf.datalen()));
+    assert(raidpartspos * EFFECTIVE_RAIDPARTS == outputfilepos + m_off_t(leftoverchunk.buf.datalen()));
 
     size_t partslen = 0x10000000, sumdatalen = 0, xorlen = 0;
     for (unsigned i = RAIDPARTS; i--; )
@@ -482,22 +499,22 @@ void RaidBufferManager::combineRaidParts(unsigned connectionNum)
     m_off_t newdatafilepos = outputfilepos + leftoverchunk.buf.datalen();
     assert(newdatafilepos + m_off_t(sumdatalen) <= acquirelimitpos);
     bool processToEnd =  (newdatafilepos + m_off_t(sumdatalen) == acquirelimitpos)   // data to the end
-              &&  (newdatafilepos / (RAIDPARTS - 1) + m_off_t(xorlen) == raidPartSize(0, acquirelimitpos));  // parity to the end
+              &&  (newdatafilepos / EFFECTIVE_RAIDPARTS + m_off_t(xorlen) == raidPartSize(0, acquirelimitpos));  // parity to the end
 
-    assert(!partslen || !processToEnd || sumdatalen - partslen * (RAIDPARTS - 1) <= RAIDLINE);
+    assert(!partslen || !processToEnd || sumdatalen - partslen * EFFECTIVE_RAIDPARTS <= RAIDLINE);
 
     if (partslen > 0 || processToEnd)
     {
-        m_off_t macchunkpos = calcOutputChunkPos(newdatafilepos + partslen * (RAIDPARTS - 1));
+        m_off_t macchunkpos = calcOutputChunkPos(newdatafilepos + partslen * EFFECTIVE_RAIDPARTS);
 
-        size_t buflen = static_cast<size_t>(processToEnd ? sumdatalen : partslen * (RAIDPARTS - 1));
+        size_t buflen = static_cast<size_t>(processToEnd ? sumdatalen : partslen * EFFECTIVE_RAIDPARTS);
         LOG_debug << "Combining raid parts -> partslen = " << partslen << ", buflen = " << buflen << ", outputfilepos = " << outputfilepos << ", leftoverchunk = " << leftoverchunk.buf.datalen();
         FilePiece* outputrec = combineRaidParts(partslen, buflen, outputfilepos, leftoverchunk);  // includes a bit of extra space for non-full sectors if we are at the end of the file
         rollInputBuffers(partslen);
         raidpartspos += partslen;
-        sumdatalen -= partslen * (RAIDPARTS - 1);
-        outputfilepos += partslen * (RAIDPARTS - 1) + leftoverchunk.buf.datalen();
-        byte* dest = outputrec->buf.datastart() + partslen * (RAIDPARTS - 1) + leftoverchunk.buf.datalen();
+        sumdatalen -= partslen * EFFECTIVE_RAIDPARTS;
+        outputfilepos += partslen * EFFECTIVE_RAIDPARTS + leftoverchunk.buf.datalen();
+        byte* dest = outputrec->buf.datastart() + partslen * EFFECTIVE_RAIDPARTS + leftoverchunk.buf.datalen();
         FilePiece emptyFilePiece;
         leftoverchunk.swap(emptyFilePiece);  // this data is entirely included in the outputrec now, so discard and reset
 
@@ -517,7 +534,7 @@ void RaidBufferManager::combineRaidParts(unsigned connectionNum)
             memcpy(leftoverchunk.buf.datastart(), outputrec->buf.datastart() + outputrec->buf.datalen() - excessdata, excessdata);
             outputrec->buf.end -= excessdata;
             outputfilepos -= excessdata;
-            assert(raidpartspos * (RAIDPARTS - 1) == outputfilepos + m_off_t(leftoverchunk.buf.datalen()));
+            assert(raidpartspos * EFFECTIVE_RAIDPARTS == outputfilepos + m_off_t(leftoverchunk.buf.datalen()));
         }
 
         // discard any excess data that we had to fetch when resuming a file (to align the parts appropriately)
@@ -572,7 +589,7 @@ RaidBufferManager::FilePiece* RaidBufferManager::combineRaidParts(size_t partsle
         }
 
         byte* b = result->buf.datastart() + prevleftoverchunk.buf.datalen();
-        byte* endpos = b + partslen * (RAIDPARTS-1);
+        byte* endpos = b + partslen * EFFECTIVE_RAIDPARTS;
 
         for (unsigned i = 0; b < endpos; i += RAIDSECTOR)
         {
@@ -864,11 +881,10 @@ TransferBufferManager::TransferBufferManager()
 {
 }
 
-void TransferBufferManager::setIsRaid(Transfer* t, const std::vector<std::string>& tempUrls,m_off_t resumepos, m_off_t maxRequestSize)
+void TransferBufferManager::setIsRaid(Transfer* t, const std::vector<std::string>& tempUrls, m_off_t resumepos, m_off_t maxRequestSize, bool isNewRaid)
 {
-    RaidBufferManager::setIsRaid(tempUrls, resumepos, t->size, t->size, maxRequestSize);
-
     transfer = t;
+    RaidBufferManager::setIsRaid(tempUrls, resumepos, t->size, t->size, maxRequestSize, isNewRaid && t->type == GET);
 }
 
 m_off_t& TransferBufferManager::transferPos(unsigned connectionNum)
@@ -915,33 +931,69 @@ std::pair<m_off_t, m_off_t> TransferBufferManager::nextNPosForConnection(unsigne
         }
         else if (transfer->type == GET)
         {
-            maxReqSize = (transfer->size - transfer->progresscompleted) / connectionCount / 2;
-            if (maxReqSize > maxRequestSize)
+            if (isNewRaid())
             {
-                maxReqSize = maxRequestSize;
-            }
+                // We need to adjust the size taking into account that our RaidReqs will be split into 5 requests (one for each part)
+                // Besides, we need that the RaidReqs (except for the last one) are padded to a RAIDLINE
+                m_off_t defaultMaxReqSize = static_cast<m_off_t>((TransferSlot::MAX_REQ_SIZE_NEW_RAID) * EFFECTIVE_RAIDPARTS);
 
-            if (maxReqSize > 0x100000)
-            {
-                m_off_t val = 0x100000;
-                while (val <= maxReqSize)
+                const m_off_t AVERAGE_NUMBER_OF_TRANSFERSLOT_CONNECTIONS = 4; // based on the average number of connections per download (and default value in MEGASync)
+                m_off_t maxReqsSize = defaultMaxReqSize * AVERAGE_NUMBER_OF_TRANSFERSLOT_CONNECTIONS;
+
+                maxReqSize = static_cast<m_off_t>(maxReqsSize / transfer->slot->connections); // divided by the real number of connections
+                maxReqSize = std::max<m_off_t>(maxReqSize, (1 * 1024 * 1024) * EFFECTIVE_RAIDPARTS); // min 1MB for each raidpart
+                DEBUG_TEST_HOOK_LIMIT_MAX_REQ_SIZE(maxReqSize) // Limit max request size if needed
+                maxReqSize = std::min<m_off_t>(maxReqSize, transfer->size); // Not greater than the transfer itself
+                if (transfer->size <= TransferSlot::UPPER_FILESIZE_LIMIT_FOR_SMALLER_CHUNKS)
                 {
-                    val <<= 1;
+                    maxReqSize = transfer->size / AVERAGE_NUMBER_OF_TRANSFERSLOT_CONNECTIONS;
                 }
-                maxReqSize = val >> 1;
-                maxReqSize -= 0x100000;
+
+                m_off_t nextChunk = ChunkedHash::chunkceil(transfer->pos + maxReqSize, transfer->size);
+                while ((nextChunk < transfer->size) && (((nextChunk - transfer->pos) % RAIDLINE) != 0))
+                {
+                    // Needed for expandUnprocessedPiece to return a chunk padded to raid-line (for chunks which are not the last one)
+                    maxReqSize = ChunkedHash::chunkceil(maxReqSize, transfer->size);
+                    nextChunk = ChunkedHash::chunkceil(transfer->pos + maxReqSize, transfer->size);
+                }
+                maxReqSize += 1; // Same as above, needed for expandUnProcessedPiece to return a chunk padded to raid-line
             }
             else
             {
-                maxReqSize = 0;
+                // Non raid
+                maxReqSize = (transfer->size - transfer->progresscompleted) / connectionCount / 2;
+                if (maxReqSize > maxRequestSize)
+                {
+                    maxReqSize = maxRequestSize;
+                }
+
+                if (maxReqSize > 0x100000)
+                {
+                    m_off_t val = 0x100000;
+                    while (val <= maxReqSize)
+                    {
+                        val <<= 1;
+                    }
+                    maxReqSize = val >> 1;
+                    maxReqSize -= 0x100000;
+                }
+                else
+                {
+                    maxReqSize = 0;
+                }
             }
         }
-
         // Calc npos limit depending on the maxReqSize, the next processed piece and the transfer size.
         npos = transfer->chunkmacs.expandUnprocessedPiece(transfer->pos, npos, transfer->size, maxReqSize);
+        if (isNewRaid() && (npos < transfer->size) && ((npos - transfer->pos) % RAIDLINE != 0))
+        {
+            LOG_err << "Wrong chunk size for new raid, not padded to RAIDLINE: pos = " << transfer->pos << ", npos = " << npos << ", size = " << (npos-transfer->pos) << ", RAIDLINE = " << RAIDLINE << ", mod = " << ((npos-transfer->pos)%RAIDLINE);
+            assert(false);
+            return std::make_pair(0, 0);
+        }
         LOG_debug << std::string(transfer->type == PUT ? "Uploading" :
                                 transfer->type == GET ? "Downloading" : "?")
-                    << " chunk of size " << npos - transfer->pos;
+                  << " chunk of size " << npos - transfer->pos;
         assert(npos > transfer->pos);
     }
     return std::make_pair(transfer->pos, npos);
@@ -1003,6 +1055,368 @@ void DirectReadBufferManager::finalize(FilePiece& fp)
         // the buffer has some extra at the end to allow full blocksize decrypt at the end
         directRead->drn->symmcipher.ctr_crypt(fp.buf.datastart() + l, t - l, fp.pos + l, directRead->drn->ctriv, NULL, false);
     }
+}
+
+
+class CloudRaid::CloudRaidImpl
+{
+private:
+    std::vector<std::unique_ptr<RaidProxy::RaidReqPool>> mRaidReqPoolArray;
+    int mConnections;
+    TransferSlot* mTSlot;
+    MegaClient* mClient;
+    bool mStarted;
+    uint8_t mUnusedRaidConnection;
+    std::pair<::mega::error, dstime> mTransferFailed; // Error and backoff to call transfer->failed()
+
+public:
+    CloudRaidImpl(TransferSlot* tslot, MegaClient* client, int connections)
+    : mConnections(connections)
+    , mTSlot(tslot)
+    , mClient(client)
+    , mStarted(false)
+    , mUnusedRaidConnection(RAIDPARTS)
+    {
+        LOG_verbose << "[CloudRaidImpl::CloudRaidImpl] CONSTRUCTOR CALL [this = " << this << "]";
+        assert(mTSlot != nullptr);
+        assert(mClient != nullptr);
+        mTransferFailed = std::make_pair(API_OK, 0);
+        start();
+    }
+
+    ~CloudRaidImpl()
+    {
+        LOG_verbose << "[CloudRaidImpl::~CloudRaidImpl] DESTRUCTOR CALL [this = " << this << "]";
+        stop();
+    }
+
+    /* TransferSlot functionality */
+    bool disconnect(const std::shared_ptr<HttpReqXfer>& req)
+    {
+        if (!mStarted) return false;
+        mTSlot->disconnect(req);
+        return true;
+    }
+
+    bool prepareRequest(const std::shared_ptr<HttpReqXfer>& req, const string& tempURL, m_off_t pos, m_off_t npos)
+    {
+        if (!mStarted) return false;
+        mTSlot->prepareRequest(req, tempURL, pos, npos);
+        return req->status == REQ_PREPARED;
+    }
+
+    bool post(const std::shared_ptr<HttpReqXfer>& req)
+    {
+        if (!mStarted) return false;
+        req->post(mClient);
+        return req->status == REQ_INFLIGHT;
+    }
+
+    bool onRequestFailure(const std::shared_ptr<HttpReqXfer>& req, uint8_t part, dstime& backoff)
+    {
+        if (!mStarted) return false;
+        dstime tslot_backoff = 0;
+        auto failValues = mTSlot->processRequestFailure(mClient, req, tslot_backoff, static_cast<int>(part));
+        backoff = tslot_backoff;
+        if (failValues.first != API_OK)
+        {
+            setTransferFailure(failValues.first, failValues.second);
+        }
+        return true;
+    }
+
+    bool setTransferFailure(::mega::error e, dstime backoff)
+    {
+        if (!mStarted) return false;
+        if (mTransferFailed.first)
+        {
+            LOG_warn << "[CloudRaid::setTransferFailure] Transfer failed values are already set. Previous values: error = " << e << ", backoff = " << backoff;
+        }
+        LOG_debug << "[CloudRaid::setTransferFailure] Transfer failed values set to: error = " << e << ", backoff = " << backoff;
+        mTransferFailed.first = e;
+        mTransferFailed.second = backoff;
+        return true;
+    }
+
+    std::pair<::mega::error, dstime> checkTransferFailure()
+    {
+        if (!mStarted) return std::make_pair(API_OK, 0);
+        return std::make_pair(mTransferFailed.first, mTransferFailed.second);
+    }
+
+    bool setUnusedRaidConnection(uint8_t part, bool addToFaultyServers)
+    {
+        if (!mStarted) return false;
+
+        if (part >= RAIDPARTS)
+        {
+            LOG_warn << "[CloudRaid::setUnusedRaidConnection] Invalid connection index, setting it to 0";
+            assert(false && "Unused raid must be within RAIDPARTS");
+            mUnusedRaidConnection = 0;
+            return false;
+        }
+
+        LOG_debug << "[CloudRaid::setUnusedRaidConnection] Set unused raid connection to " << (int)part << " (clear previous unused connection: " << (int)mUnusedRaidConnection << ") [addToFaultyServers = " << addToFaultyServers << "]";
+        mUnusedRaidConnection = part;
+
+        if (addToFaultyServers)
+        {
+            g_faultyServers.add(mTSlot->transferbuf.tempUrlVector()[part]);
+        }
+        return true;
+    }
+
+    uint8_t getUnusedRaidConnection() const
+    {
+        return mUnusedRaidConnection; // No need to check if mStarted, there is always a default value, and if we stop it with a previous set value it is ok to retrieve it
+    }
+
+    m_off_t transferred(const std::shared_ptr<HttpReqXfer>& req) const
+    {
+        if (!mStarted) return false;
+        return req->transferred(mClient);
+    }
+
+    /* CloudRaid functionality */
+    bool balancedRequest(int connection, const std::vector<std::string> &tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen)
+    {
+        if (!mStarted)
+        {
+            start();
+        }
+        RaidProxy::RaidReq::Params raidReqParams(tempUrls, cfilesize, cstart, creqlen);
+        mRaidReqPoolArray[connection].reset(new RaidProxy::RaidReqPool());
+        mRaidReqPoolArray[connection]->request(raidReqParams, mTSlot->getcloudRaidPtr());
+        return mRaidReqPoolArray[connection]->rr() != nullptr;
+    }
+
+    bool start()
+    {
+        if (mStarted)
+        {
+            return false;
+        }
+        mRaidReqPoolArray.resize(mConnections);
+        mStarted = true;
+        if (mUnusedRaidConnection == RAIDPARTS)
+        {
+            mUnusedRaidConnection = static_cast<uint8_t>(g_faultyServers.selectWorstServer(mTSlot->transferbuf.tempUrlVector()));
+        }
+        LOG_debug << "[CloudRaid::start] CloudRAID started. Initial unused raid connection: " << (int)mUnusedRaidConnection;
+        return true;
+    }
+
+    bool stop()
+    {
+        LOG_verbose << "[CloudRaid::stop] stop CALL [started = " << mStarted << "] [this = " << this << "]";
+        if (!mStarted)
+        {
+            return false;
+        }
+        mRaidReqPoolArray.clear();
+        mStarted = false;
+        return true;
+    }
+
+    bool removeRaidReq(int connection)
+    {
+        LOG_verbose << "[CloudRaid::removeRaidReq] connection = " << connection << " [started = " << mStarted << "] [this = " << this << "]";
+        if (mStarted && mRaidReqPoolArray[connection])
+        {
+            mRaidReqPoolArray[connection].reset();
+            return true;
+        }
+        return false;
+    }
+
+    bool resumeAllConnections()
+    {
+        if (mStarted)
+        {
+            int i = mConnections;
+            while (i-- > 0)
+            {
+                if (mRaidReqPoolArray[i])
+                {
+                    mRaidReqPoolArray[i]->rr()->resumeall();
+                }
+            }
+            return true;
+        }
+        return false;
+    }
+
+    m_off_t readData(int connection, byte* buf, m_off_t len)
+    {
+        m_off_t readData = -1;
+        if (mStarted && mRaidReqPoolArray[connection])
+        {
+            readData = static_cast<m_off_t>(mRaidReqPoolArray[connection]->rr()->readdata(buf, len));
+        }
+        return readData;
+    }
+
+    bool raidReqDoio(int connection)
+    {
+        if (mStarted && mRaidReqPoolArray[connection])
+        {
+            mRaidReqPoolArray[connection]->raidproxyio();
+            return true;
+        }
+        return false;
+    }
+
+    m_off_t progress() const
+    {
+        m_off_t progressCount = 0;
+        if (mStarted)
+        {
+            int i = mConnections;
+            while (i-- > 0)
+            {
+                if (mRaidReqPoolArray[i])
+                {
+                    progressCount += mRaidReqPoolArray[i]->rr()->progress();
+                }
+            }
+        }
+        return progressCount;
+    }
+};
+
+CloudRaid::CloudRaid()
+{
+}
+
+CloudRaid::CloudRaid(TransferSlot* tslot, MegaClient* client, int connections)
+{
+    LOG_verbose << "[CloudRaid::CloudRaid] CONSTRUCTOR CALL [this = " << this << "]";
+    init(tslot, client, connections);
+}
+
+CloudRaid::~CloudRaid() { LOG_verbose << "[CloudRaid::~CloudRaid] DESTRUCTOR CALL [this = " << this << "]"; }
+
+bool CloudRaid::isShown() const
+{
+    return mShown;
+}
+
+/* TransferSlot functionality */
+bool CloudRaid::disconnect(const std::shared_ptr<HttpReqXfer>& req)
+{
+    if (!mShown)
+        return false;
+    return mPimpl()->disconnect(req);
+}
+
+bool CloudRaid::prepareRequest(const std::shared_ptr<HttpReqXfer>& req, const string& tempURL, m_off_t pos, m_off_t npos)
+{
+    if (!mShown)
+        return false;
+    return mPimpl()->prepareRequest(req, tempURL, pos, npos);
+}
+
+bool CloudRaid::post(const std::shared_ptr<HttpReqXfer>& req)
+{
+    if (!mShown)
+        return false;
+    return mPimpl()->post(req);
+}
+
+bool CloudRaid::onRequestFailure(const std::shared_ptr<HttpReqXfer>& req, uint8_t part, dstime& backoff)
+{
+    if (!mShown)
+        return false;
+    return mPimpl()->onRequestFailure(req, part, backoff);
+}
+
+bool CloudRaid::setTransferFailure(::mega::error e, dstime backoff)
+{
+    if (!mShown)
+        return false;
+    return mPimpl()->setTransferFailure(e, backoff);
+}
+
+std::pair<::mega::error, dstime> CloudRaid::checkTransferFailure()
+{
+    if (!mShown)
+        return std::make_pair(API_OK, 0);
+    return mPimpl()->checkTransferFailure();
+}
+
+bool CloudRaid::setUnusedRaidConnection(uint8_t part, bool addToFaultyServers)
+{
+    if (!mShown)
+        return false;
+    return mPimpl()->setUnusedRaidConnection(part, addToFaultyServers);
+}
+
+uint8_t CloudRaid::getUnusedRaidConnection() const
+{
+    return mPimpl()->getUnusedRaidConnection(); // No need to check if mShown, there is always a default value, and if we stop it with a previous set value it is ok to retrieve it
+}
+
+m_off_t CloudRaid::transferred(const std::shared_ptr<HttpReqXfer>& req) const
+{
+    if (!mShown)
+        return 0;
+    return mPimpl()->transferred(req);
+}
+
+bool CloudRaid::init(TransferSlot* tslot, MegaClient* client, int connections)
+{
+    m_pImpl = std::make_unique<CloudRaidImpl>(tslot, client, static_cast<uint8_t>(connections));
+    mShown = m_pImpl != nullptr;
+    return mShown;
+}
+
+bool CloudRaid::balancedRequest(int connection, const std::vector<std::string>& tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen)
+{
+    if (!mShown)
+        return false;
+    return mPimpl()->balancedRequest(connection, tempUrls, cfilesize, cstart, creqlen);
+}
+
+bool CloudRaid::removeRaidReq(int connection)
+{
+    if (!mShown)
+        return false;
+    return mPimpl()->removeRaidReq(connection);
+}
+
+m_off_t CloudRaid::readData(int connection, byte* buf, m_off_t len)
+{
+    if (!mShown)
+        return -1;
+    return mPimpl()->readData(connection, buf, len);
+}
+
+bool CloudRaid::resumeAllConnections()
+{
+    if (!mShown)
+        return false;
+    return mPimpl()->resumeAllConnections();
+}
+
+bool CloudRaid::raidReqDoio(int connection)
+{
+    if (!mShown)
+        return false;
+    return mPimpl()->raidReqDoio(connection);
+}
+
+bool CloudRaid::stop()
+{
+    if (!mShown)
+        return false;
+    return mPimpl()->stop();
+}
+
+m_off_t CloudRaid::progress() const
+{
+    if (!mShown)
+        return 0;
+    return mPimpl()->progress();
 }
 
 }; // namespace
