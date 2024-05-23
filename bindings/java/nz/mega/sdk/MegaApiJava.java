@@ -4813,7 +4813,7 @@ public class MegaApiJava {
     }
 
     /**
-     * @brief Add new tag stored as node attribute
+     * Add new tag stored as node attribute
      *
      * The associated request type with this request is MegaRequest::TYPE_TAG_NODE
      * Valid data in the MegaRequest object received on callbacks:
@@ -4844,7 +4844,7 @@ public class MegaApiJava {
     }
 
     /**
-     * @brief Remove a tag stored as a node attribute
+     * Remove a tag stored as a node attribute
      *
      * The associated request type with this request is MegaRequest::TYPE_TAG_NODE
      * Valid data in the MegaRequest object received on callbacks:
@@ -4866,7 +4866,7 @@ public class MegaApiJava {
     }
 
     /**
-     * @brief Update a tag stored as a node attribute
+     * Update a tag stored as a node attribute
      *
      * The associated request type with this request is MegaRequest::TYPE_TAG_NODE
      * Valid data in the MegaRequest object received on callbacks:
