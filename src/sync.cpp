@@ -12546,7 +12546,9 @@ void Syncs::processSyncStalls()
             {
                 if (lp->sync)
                 {
-                    mSyncFlags->stall.waitingLocal(0, lp->localPath, SyncStallEntry(
+                    auto& affectedBackupId = lp->sync->getConfig().mBackupId;
+                    assert(affectedBackupId != UNDEF);
+                    mSyncFlags->stall.waitingLocal(affectedBackupId, lp->localPath, SyncStallEntry(
                         SyncWaitReason::FileIssue, true, false,
                         {},
                         {},
@@ -12586,9 +12588,12 @@ void Syncs::processSyncStalls()
                     }
                 }
 
+                auto affectedBackupId = sbp->sync ? sbp->sync->getConfig().mBackupId : UNDEF;
+                assert(affectedBackupId != UNDEF);
+
                 if (sbp->folderUnreadable)
                 {
-                    mSyncFlags->stall.waitingLocal(0, sbp->scanBlockedLocalPath, SyncStallEntry(
+                    mSyncFlags->stall.waitingLocal(affectedBackupId, sbp->scanBlockedLocalPath, SyncStallEntry(
                         SyncWaitReason::FileIssue, true, false,
                         {},
                         {},
@@ -12598,7 +12603,7 @@ void Syncs::processSyncStalls()
                 else
                 {
                     assert(sbp->filesUnreadable);
-                    mSyncFlags->stall.waitingLocal(0, sbp->scanBlockedLocalPath, SyncStallEntry(
+                    mSyncFlags->stall.waitingLocal(affectedBackupId, sbp->scanBlockedLocalPath, SyncStallEntry(
                         SyncWaitReason::FileIssue, true, false,
                         {},
                         {},
@@ -12609,6 +12614,8 @@ void Syncs::processSyncStalls()
             }
             else i = scanBlockedPaths.erase(i);
         }
+
+        // Update progress counters
         mSyncFlags->stall.updateNoProgress();
 
         lock_guard<mutex> g(stallReportMutex);
