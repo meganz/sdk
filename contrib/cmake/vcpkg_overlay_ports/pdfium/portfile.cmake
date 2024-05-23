@@ -33,6 +33,7 @@ vcpkg_from_git(
     REF ee44620f2b58999b0d272d58fa0b994d5935f688 # chromium/5247
     PATCHES
         "fix_win_build.patch"
+	"cstdint.patch"
 )
 
 message(STATUS "Working on submodules and other dependencies...")
