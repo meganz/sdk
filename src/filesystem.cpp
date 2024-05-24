@@ -259,8 +259,11 @@ bool fsfp_t::operator!=(const fsfp_t& rhs) const
 
 bool fsfp_t::equivalent(const fsfp_t& rhs) const
 {
-    return mFingerprint == rhs.mFingerprint
-           && (mUUID.empty() || mUUID == rhs.mUUID);
+    // Only compare legacy fingerprints if UUIDs are unavailable.
+    if (mUUID.empty() || rhs.mUUID.empty())
+        return mFingerprint == rhs.mFingerprint;
+
+    return mUUID == rhs.mUUID;
 }
 
 std::uint64_t fsfp_t::fingerprint() const
