@@ -20,7 +20,8 @@ clang-format:
     - apt-get update
     - apt-get install -y git clang-format
   script: |
-    OUTPUT=$(git -c color.ui=always clang-format HEAD~1 --diff)
+    COMMIT=$(git log origin/develop..origin/${CI_COMMIT_REF_NAME} --pretty=format:%H | tail -1)
+    OUTPUT=$(git -c color.ui=always clang-format $COMMIT --diff)
 
     printf '%s\n' "$OUTPUT"
 
