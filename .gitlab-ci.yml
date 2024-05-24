@@ -20,12 +20,29 @@ clang-format:
     - apt-get update
     - apt-get install -y git clang-format
   script: |
-    COMMIT=$(git log origin/develop..origin/${CI_COMMIT_REF_NAME} --pretty=format:%H | tail --lines 1)
-    OUTPUT=$(git -c color.ui=always clang-format $COMMIT --diff)
+    COMMITS=$(git log origin/develop.. --pretty=format:%h)
 
-    printf '%s\n' "$OUTPUT"
+    for COMMIT in $COMMITS
+    do
+        OUTPUT=$(git -c color.ui=always clang-format $COMMIT^ $COMMIT --diff)
 
-    if ! echo $OUTPUT | grep -q 'no modified files to format'
-    then
+        printf '%s\n' "$COMMIT"
+
+        if [ -z "$OUTPUT" ]
+        then
+            continue
+        fi
+
+        if echo $OUTPUT | grep -q 'no modified files to format'
+        then
+            continue
+        fi
+
+        if echo $OUTPUT | grep -q 'clang-format did not modify any files'
+        then
+            continue
+        fi
+
+        printf '%s\n' "$OUTPUT"
         exit 1
-    fi
+    done
