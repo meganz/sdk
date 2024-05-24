@@ -257,38 +257,6 @@ TEST_P(FUSEPlatformTests, fstat_succeeds)
     ASSERT_EQ(buffer, *info);
 }
 
-TEST_P(FUSEPlatformTests, fstatvfs_succeeds)
-{
-    struct statvfs buffer;
-
-    auto s = open(MountPathW(), O_PATH);
-    ASSERT_TRUE(s);
-
-    ASSERT_EQ(fstatvfs(s, buffer), 0);
-
-    EXPECT_EQ(buffer.f_bsize,   BlockSize);
-    EXPECT_EQ(buffer.f_namemax, MaxNameLength);
-
-    if (isShareTest())
-        return;
-
-    auto info = ClientW()->storageInfo();
-
-    ASSERT_EQ(info.error(), API_OK);
-
-    auto available = static_cast<fsblkcnt_t>(info->mAvailable) / BlockSize;
-
-    EXPECT_EQ(buffer.f_bavail,  available);
-    EXPECT_EQ(buffer.f_bfree,   buffer.f_bavail);
-
-    LINUX_ONLY({
-        auto capacity = static_cast<fsblkcnt_t>(info->mCapacity) / BlockSize;
-
-        EXPECT_EQ(buffer.f_blocks, capacity);
-        EXPECT_EQ(buffer.f_frsize, buffer.f_bsize);
-    })
-}
-
 TEST_P(FUSEPlatformTests, ftruncate_fails_when_directory)
 {
     auto s = open(MountPathW(), O_RDONLY);

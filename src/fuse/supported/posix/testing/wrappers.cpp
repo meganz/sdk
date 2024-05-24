@@ -111,12 +111,6 @@ int fstat(const FileDescriptor& descriptor, Stat& buffer)
     return ::fstat(descriptor.get(), &buffer);
 }
 
-int fstatvfs(const platform::FileDescriptor& descriptor,
-             struct statvfs& buffer)
-{
-    return ::fstatvfs(descriptor.get(), &buffer);
-}
-
 int fsync(const FileDescriptor& descriptor)
 {
     return ::fsync(descriptor.get());

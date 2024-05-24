@@ -76,9 +76,6 @@ DirectoryIterator fdopendir(platform::FileDescriptor descriptor);
 
 int fstat(const platform::FileDescriptor& descriptor, Stat& buffer);
 
-int fstatvfs(const platform::FileDescriptor& descriptor,
-             struct statvfs& buffer);
-
 int fsync(const platform::FileDescriptor& descriptor);
 
 int ftruncate(const platform::FileDescriptor& descriptor, off_t length);
