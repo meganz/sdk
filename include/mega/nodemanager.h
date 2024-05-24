@@ -43,9 +43,9 @@ class NodeSearchFilter
 public:
     enum class BoolFilter
     {
-        FILTER_DISABLED = 0,
-        FILTER_ONLY_TRUE,
-        FILTER_ONLY_FALSE,
+        disabled = 0,
+        onlyTrue,
+        onlyFalse,
     };
 
     template<class T>
@@ -96,8 +96,8 @@ private:
     std::string mNameFilter;
     nodetype_t mNodeType = TYPE_UNKNOWN;
     MimeType_t mMimeCategory = MIME_TYPE_UNKNOWN;
-    BoolFilter mFavouriteFilterOption = BoolFilter::FILTER_DISABLED;
-    BoolFilter mExcludeSensitive = BoolFilter::FILTER_DISABLED;
+    BoolFilter mFavouriteFilterOption = BoolFilter::disabled;
+    BoolFilter mExcludeSensitive = BoolFilter::disabled;
     std::vector<handle> mLocationHandles {UNDEF, UNDEF, UNDEF}; // always contain 3 items
     ShareType_t mIncludedShares = NO_SHARES;
     int64_t mCreationLowerLimit = 0;
