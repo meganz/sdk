@@ -1561,11 +1561,11 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, int o
                                  "AND (?11 = 0 OR (name REGEXP ?9)) "
                                  "AND (?14 = 0 OR isContained(?15, description)) "
                                  "AND (?16 = 0 OR matchTag(?17, tags)) "
-                                 "AND (?18 = " + std::to_string(NodeSearchFilter::FILTER_DISABLED) + " OR ?19 = fav)"
-                                 "AND (?20 = " + std::to_string(NodeSearchFilter::FILTER_DISABLED) +  // Sensitive nodes
-                                     " OR (?20 = " + std::to_string(NodeSearchFilter::FILTER_ONLY_TRUE) +
+                                 "AND (?18 = " + std::to_string(static_cast<int>(NodeSearchFilter::BoolFilter::FILTER_DISABLED)) + " OR ?19 = fav)"
+                                 "AND (?20 = " + std::to_string(static_cast<int>(NodeSearchFilter::BoolFilter::FILTER_DISABLED)) +  // Sensitive nodes
+                                     " OR (?20 = " + std::to_string(static_cast<int>(NodeSearchFilter::BoolFilter::FILTER_ONLY_TRUE)) +
                                         " AND (flags & ?21) = 0)"
-                                     " OR (?20 = " + std::to_string(NodeSearchFilter::FILTER_ONLY_FALSE) +
+                                     " OR (?20 = " + std::to_string(static_cast<int>(NodeSearchFilter::BoolFilter::FILTER_ONLY_FALSE)) +
                                         " AND (flags & ?21) = ?21))" //
                                  // Leading and trailing '*' will be added to argument '?' so we are looking for substrings containing name
                                  // Our REGEXP implementation is case insensitive
@@ -1604,9 +1604,9 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, int o
             (sqlResult = sqlite3_bind_text(stmt, 15, filter.byDescription().c_str(), static_cast<int>(filter.byDescription().size()), SQLITE_STATIC)) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_int(stmt, 16, static_cast<int>(filter.byTag().size()))) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_text(stmt, 17, filter.byTag().c_str(), static_cast<int>(filter.byTag().size()), SQLITE_STATIC)) == SQLITE_OK &&
-            (sqlResult = sqlite3_bind_int(stmt, 18, filter.byFavourite())) == SQLITE_OK &&
-            (sqlResult = sqlite3_bind_int(stmt, 19, filter.byFavourite() == NodeSearchFilter::FILTER_ONLY_TRUE)) == SQLITE_OK &&
-            (sqlResult = sqlite3_bind_int(stmt, 20, filter.bySensitivity())) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int(stmt, 18, static_cast<int>(filter.byFavourite()))) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int(stmt, 19, filter.byFavourite() == NodeSearchFilter::BoolFilter::FILTER_ONLY_TRUE)) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int(stmt, 20, static_cast<int>(filter.bySensitivity()))) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_int64(stmt, 21, senstivityFlag)) == SQLITE_OK)
         {
             result = processSqlQueryNodes(stmt, children);
@@ -1676,8 +1676,8 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
                 "INNER JOIN nodesCTE AS P \n"
                         "ON (N.parenthandle = P.nodehandle \n"
                        "AND (P.flags & ?1 = 0) \n" // Versions aren't taken in consideration
-                       "AND (?23 != " + std::to_string(NodeSearchFilter::FILTER_ONLY_TRUE) + // Sensitive nodes
-                          " OR ?23 = " + std::to_string(NodeSearchFilter::FILTER_ONLY_TRUE) +
+                       "AND (?23 != " + std::to_string(static_cast<int>(NodeSearchFilter::BoolFilter::FILTER_ONLY_TRUE)) + // Sensitive nodes
+                          " OR ?23 = " + std::to_string(static_cast<int>(NodeSearchFilter::BoolFilter::FILTER_ONLY_TRUE)) +
                           " AND (P.flags & ?24) = 0) "
                        "AND P.type != " + std::to_string(FILENODE) + "))";
 
@@ -1701,11 +1701,11 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
             "AND (?13 = 0 OR (name REGEXP ?9)) \n"
             "AND (?17 = 0 OR isContained(?18, description)) \n"
             "AND (?19 = 0 OR matchTag(?20, tags)) \n"
-            "AND (?21 = " + std::to_string(NodeSearchFilter::FILTER_DISABLED) + " OR ?22 = fav)"
-            "AND (?23 = " + std::to_string(NodeSearchFilter::FILTER_DISABLED) +   // Sensitive nodes
-                " OR (?23 = " + std::to_string(NodeSearchFilter::FILTER_ONLY_TRUE) +
+            "AND (?21 = " + std::to_string(static_cast<int>(NodeSearchFilter::BoolFilter::FILTER_DISABLED)) + " OR ?22 = fav)"
+            "AND (?23 = " + std::to_string(static_cast<int>(NodeSearchFilter::BoolFilter::FILTER_DISABLED)) +   // Sensitive nodes
+                " OR (?23 = " + std::to_string(static_cast<int>(NodeSearchFilter::BoolFilter::FILTER_ONLY_TRUE)) +
                     " AND (flags & ?24) = 0)"
-                " OR (?23 = " + std::to_string(NodeSearchFilter::FILTER_ONLY_FALSE) +
+                " OR (?23 = " + std::to_string(static_cast<int>(NodeSearchFilter::BoolFilter::FILTER_ONLY_FALSE)) +
                     " AND (flags & ?24) = ?24))";
             // Leading and trailing '*' will be added to argument '?' so we are looking for substrings containing name
             // Our REGEXP implementation is case insensitive
@@ -1768,9 +1768,9 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
             (sqlResult = sqlite3_bind_text(stmt, 18, filter.byDescription().c_str(), static_cast<int>(filter.byDescription().size()), SQLITE_STATIC)) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_int(stmt, 19, static_cast<int>(filter.byTag().size()))) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_text(stmt, 20, filter.byTag().c_str(), static_cast<int>(filter.byTag().size()), SQLITE_STATIC)) == SQLITE_OK &&
-            (sqlResult = sqlite3_bind_int(stmt, 21, filter.byFavourite())) == SQLITE_OK &&
-            (sqlResult = sqlite3_bind_int(stmt, 22, filter.byFavourite() == NodeSearchFilter::FILTER_ONLY_TRUE)) == SQLITE_OK &&
-            (sqlResult = sqlite3_bind_int(stmt, 23, filter.bySensitivity())) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int(stmt, 21, static_cast<int>(filter.byFavourite()))) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int(stmt, 22, filter.byFavourite() == NodeSearchFilter::BoolFilter::FILTER_ONLY_TRUE)) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int(stmt, 23, static_cast<int>(filter.bySensitivity()))) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_int64(stmt, 24, senstivityFlag)) == SQLITE_OK)
         {
             result = processSqlQueryNodes(stmt, nodes);

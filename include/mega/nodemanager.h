@@ -41,12 +41,12 @@ class NodeSerialized;
 class NodeSearchFilter
 {
 public:
-    typedef enum {
+    enum class BoolFilter
+    {
         FILTER_DISABLED = 0,
         FILTER_ONLY_TRUE,
         FILTER_ONLY_FALSE,
-    } BoolFilter;
-
+    };
 
     template<class T>
     void copyFrom(const T& f, ShareType_t includedShares = NO_SHARES)
@@ -96,8 +96,8 @@ private:
     std::string mNameFilter;
     nodetype_t mNodeType = TYPE_UNKNOWN;
     MimeType_t mMimeCategory = MIME_TYPE_UNKNOWN;
-    BoolFilter mFavouriteFilterOption = FILTER_DISABLED;
-    BoolFilter mExcludeSensitive = FILTER_DISABLED;
+    BoolFilter mFavouriteFilterOption = BoolFilter::FILTER_DISABLED;
+    BoolFilter mExcludeSensitive = BoolFilter::FILTER_DISABLED;
     std::vector<handle> mLocationHandles {UNDEF, UNDEF, UNDEF}; // always contain 3 items
     ShareType_t mIncludedShares = NO_SHARES;
     int64_t mCreationLowerLimit = 0;
