@@ -24375,11 +24375,13 @@ public:
 
     /**
      * @brief Get test category bitmap of a product
+     *
+     * The returned value must always be greater than 0
+     *
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
      * @return test category bitmap
      */
     virtual unsigned int getTestCategory(int productIndex) const;
-
 };
 
 /**
