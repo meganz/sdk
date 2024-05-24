@@ -2097,9 +2097,7 @@ static std::string deviceOf(const std::string& database,
     std::size_t score = 0;
 
     // Temporary storage space for mount entries.
-    std::string storage(1, '\x0');
-
-    storage.reserve(3 * PATH_MAX - 1);
+    std::string storage(3 * PATH_MAX, '\x0');
 
     // Try and determine which device contains path.
     for (errno = 0; ; )
@@ -2184,6 +2182,12 @@ static std::string deviceOf(const std::string& database,
         return std::string();
     }
 
+    // Truncate storage down to size.
+    storage.resize(strnlen(storage.c_str(), storage.size()));
+
+    // Sanity.
+    assert(!storage.empty());
+
     // For debugging purposes.
     LOG_verbose << "Path "
                 << path
@@ -2191,7 +2195,7 @@ static std::string deviceOf(const std::string& database,
                 << storage;
 
     // Return device to caller.
-    return storage.c_str();
+    return storage;
 }
 
 static std::string deviceOf(const std::string& path)
@@ -2275,9 +2279,7 @@ static std::string uuidOf(const std::string& device)
     auto size = path.size();
 
     // Temporary storage.
-    std::string storage(1, '\0');
-
-    storage.reserve(PATH_MAX - 1);
+    std::string storage(PATH_MAX, '\0');
 
     // Try and determine which entry references device.
     for (errno = 0; ; )
@@ -2292,17 +2294,29 @@ static std::string uuidOf(const std::string& device)
         // Restore path's size.
         path.resize(size);
 
+        // Extract entry's name.
+        auto name = std::string(entry->d_name);
+
         // Compute path of directory entry.
         path.append(1, '/');
-        path.append(entry->d_name);
+        path.append(name);
 
         // Couldn't resolve link.
         if (!realpath(path.c_str(), &storage[0]))
             continue;
 
+        // Truncate storage down to size.
+        storage.resize(strnlen(storage.c_str(), storage.size()));
+
+        // Sanity.
+        assert(!storage.empty());
+
         // Resolved path matches our device.
-        if (device == &storage[0])
-            return entry->d_name;
+        if (device == storage)
+            return name;
+
+        // Restore storage's size.
+        storage.resize(storage.capacity());
     }
 
     // Couldn't determine device's UUID.
