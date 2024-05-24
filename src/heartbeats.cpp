@@ -79,7 +79,8 @@ void HeartBeatSyncInfo::updateSPHBStatus(UnifiedSync& us)
 {
     SPHBStatus status = CommandBackupPutHeartBeat::INACTIVE;
 
-    if (us.mSync)
+    if (us.mSync &&
+        us.mConfig.mRunState != SyncRunState::Pause)
     {
         if (!us.mConfig.mError)
         {
