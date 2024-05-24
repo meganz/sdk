@@ -892,6 +892,106 @@ error MegaClient::setbackupfolder(const char* foldername, int tag, std::function
     return API_OK;
 }
 
+void MegaClient::updateStateInBC(handle bkpId, CommandBackupPut::SPState newState, std::function<void(const Error&)> finalCompletion)
+{
+    shared_ptr<handle> bkpRoot = std::make_shared<handle>(0);
+
+    // step 4: handle result of setattr()
+    auto setAttrCompletion = [this, bkpId, finalCompletion](NodeHandle, Error setAttrErr)
+    {
+        if (setAttrErr != API_OK)
+        {
+            LOG_err << "Update backup/sync: failed to set 'sds' for " << toHandle(bkpId) << ": " << setAttrErr;
+        }
+        finalCompletion(setAttrErr);
+    };
+
+    // step 3: set sds attribute
+    auto updateSds = [this, bkpId, newState, bkpRoot, setAttrCompletion, finalCompletion](const Error& updateStateErr, handle backupId) mutable
+    {
+        assert(backupId == UNDEF || bkpId == backupId);
+
+        if (updateStateErr != API_OK)
+        {
+            LOG_err << "Update backup/sync: failed to update " << toHandle(bkpId) << ", error: " << error(updateStateErr);
+            // Don't break execution here in case of error. Still try to set 'sds' node attribute.
+        }
+
+        std::shared_ptr<Node> bkpRootNode = nodebyhandle(*bkpRoot);
+        if (!bkpRootNode)
+        {
+            LOG_err << "Update backup/sync: root node not found to set SDS attribute for when updating " << toHandle(bkpId);
+            finalCompletion(API_ENOENT);
+            return;
+        }
+
+        vector<pair<handle, int>> sdsBkps = bkpRootNode->getSdsBackups();
+        sdsBkps.emplace_back(bkpId, newState);
+        const string& sdsValue = Node::toSdsString(sdsBkps);
+        attr_map sdsAttrMap(Node::sdsId(), sdsValue);
+
+        auto e = setattr(bkpRootNode, std::move(sdsAttrMap), setAttrCompletion, true);
+        if (e != API_OK)
+        {
+            LOG_err << "Update backup/sync: failed to set the 'sds' node attribute in client";
+            finalCompletion(e);
+        }
+    };
+
+    // step 1: fetch Backup/sync data from Backup Centre
+    getBackupInfo([this, bkpId, newState, bkpRoot, updateSds, finalCompletion](const Error& e, const vector<CommandBackupSyncFetch::Data>& data)
+        {
+            if (e != API_OK)
+            {
+                LOG_err << "Update backup/sync: getBackupInfo failed with " << e;
+                finalCompletion(e);
+                return;
+            }
+
+            for (auto& d : data)
+            {
+                if (d.backupId == bkpId)
+                {
+                    // allow only Active -> Paused and Paused -> Active
+                    if ((d.syncState == CommandBackupPut::ACTIVE && newState == CommandBackupPut::TEMPORARY_DISABLED) ||
+                        (d.syncState == CommandBackupPut::TEMPORARY_DISABLED && newState == CommandBackupPut::ACTIVE))
+                    {
+                        if (!nodebyhandle(d.rootNode))
+                        {
+                            LOG_err << "Update backup/sync: root node not found to set SDS attribute for, after fetching " << toHandle(bkpId);
+                            finalCompletion(API_ENOENT);
+                            return;
+                        }
+
+                        *bkpRoot = d.rootNode;
+
+                        // step 2: update backup/sync
+                        CommandBackupPut::BackupInfo info;
+                        assert(bkpId == d.backupId);
+                        info.backupId = d.backupId;
+                        info.type = d.backupType;
+                        info.backupName = d.backupName;
+                        info.nodeHandle.set6byte(d.rootNode);
+                        info.localFolder.fromAbsolutePath(d.localFolder);
+                        info.deviceId = d.deviceId;
+                        info.state = newState;
+                        info.subState = d.syncSubstate;
+                        reqs.add(new CommandBackupPut(this, info, updateSds));
+                    }
+                    else
+                    {
+                        LOG_err << "Update backup/sync: state change not allowed: " << d.syncState << " -> " << newState;
+                        finalCompletion(API_EARGS);
+                    }
+                    return;
+                }
+            }
+
+            LOG_err << "Backup/sync to update: " << toHandle(bkpId) << " not returned by 'sr' command";
+            finalCompletion(API_ENOENT);
+        });
+}
+
 void MegaClient::removeFromBC(handle bkpId, handle targetDest, std::function<void(const Error&)> finalCompletion)
 {
     shared_ptr<handle> bkpRoot = std::make_shared<handle>(0);
