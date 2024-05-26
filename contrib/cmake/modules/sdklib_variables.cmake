@@ -1,5 +1,4 @@
 # No configurable values.
-set(USE_CURL 1)
 set(USE_SQLITE 1)
 set(USE_SODIUM 1)
 set(USE_CRYPTOPP 1)

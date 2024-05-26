@@ -847,7 +847,7 @@ void Transfer::complete(TransferDbCommitter& committer)
 
                                 if (missingattr)
                                 {
-                                    client->gfx->gendimensionsputfa(NULL, localname, NodeOrUploadHandle(n->nodeHandle()), n->nodecipher(), missingattr);
+                                    client->gfx->gendimensionsputfa(localname, NodeOrUploadHandle(n->nodeHandle()), n->nodecipher(), missingattr);
                                 }
 
                                 addAnyMissingMediaFileAttributes(n.get(), localname);

@@ -114,7 +114,8 @@ PKG_CONFIG_PATH="$TARGET_DIR/lib/pkgconfig" ./configure --prefix="$TARGET_DIR" \
   --disable-asm \
   --disable-optimizations \
   --disable-shared \
-  --disable-encoders
+  --disable-encoders \
+  --disable-vulkan
 
 PATH="$BIN_DIR:$PATH" make -j $jval
 make install

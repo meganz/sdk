@@ -155,6 +155,7 @@ struct RequestTracker : public ::mega::MegaRequestListener
 
         result = ErrorCodes(e->getErrorCode());
         this->request.reset(request->copy());
+        assert(this->request->getType() != MegaRequest::TYPE_ADD_SYNC || this->request->getNumDetails() <= SyncError::NO_SYNC_ERROR || this->request->getNumDetails() == e->getSyncError());
         finished = true;
         promiseResult.set_value(static_cast<ErrorCodes>(result));
     }
@@ -658,7 +659,7 @@ public:
                             const int clientType = MegaApi::CLIENT_TYPE_DEFAULT);
     void configureTestInstance(unsigned index,
                                const std::string& email,
-                               const std::string pass,
+                               const std::string& pass,
                                bool checkCredentials = true,
                                const int clientType = MegaApi::CLIENT_TYPE_DEFAULT);
     void releaseMegaApi(unsigned int apiIndex);

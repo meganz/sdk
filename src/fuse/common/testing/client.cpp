@@ -20,6 +20,7 @@
 #include <mega/fuse/common/utility.h>
 
 #include <tests/integration/test.h>
+#include <tests/integration/env_var_accounts.h>
 
 namespace mega
 {
@@ -429,19 +430,14 @@ bool Client::isCached(const Path& path) const
 
 Error Client::login(std::size_t accountIndex)
 {
-    const char* email = nullptr;
-    const char* password = nullptr;
+    if (accountIndex >= getEnvVarAccounts().size())
+        return API_EFAILED;
 
-    // Extract email from environment.
-    if (accountIndex < envVarAccount.size())
-        email = std::getenv(envVarAccount[accountIndex].c_str());
-
-    // Extract password from environment.
-    if (accountIndex < envVarPass.size())
-        password = std::getenv(envVarPass[accountIndex].c_str());
+    // Extract email, password from environment.
+    const auto [email, password] = getEnvVarAccounts().getVarValues(accountIndex);
 
     // Email and/or password isn't present.
-    if (!email || !password)
+    if (email.empty() || password.empty())
         return API_EFAILED;
 
     // Try and log the user in.

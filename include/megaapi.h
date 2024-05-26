@@ -14151,6 +14151,9 @@ class MegaApi
          *     - MegaAccountDetails::ACCOUNT_TYPE_PROII = 2
          *     - MegaAccountDetails::ACCOUNT_TYPE_PROIII = 3
          *     - MegaAccountDetails::ACCOUNT_TYPE_LITE = 4
+         *     - MegaAccountDetails::ACCOUNT_TYPE_STARTER = 11
+         *     - MegaAccountDetails::ACCOUNT_TYPE_BASIC = 12
+         *     - MegaAccountDetails::ACCOUNT_TYPE_ESSENTIAL = 13
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -15936,8 +15939,7 @@ class MegaApi
         /**
          * @brief Set the maximum download speed in bytes per second
          *
-         * Currently, this method is only available using the cURL-based network layer.
-         * It doesn't work with WinHTTP. You can check if the function will have effect
+         * You can check if the function will have effect
          * by checking the return value. If it's true, the value will be applied. Otherwise,
          * this function returns false.
          *
@@ -15951,8 +15953,7 @@ class MegaApi
         /**
          * @brief Set the maximum upload speed in bytes per second
          *
-         * Currently, this method is only available using the cURL-based network layer.
-         * It doesn't work with WinHTTP. You can check if the function will have effect
+         * You can check if the function will have effect
          * by checking the return value. If it's true, the value will be applied. Otherwise,
          * this function returns false.
          *
@@ -16330,7 +16331,7 @@ class MegaApi
          * - MegaRequest::getLink - Returns the drive root if external backup
          * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
          * - MegaRequest::getNumDetails - If different than NO_SYNC_ERROR, it returns additional info for
-         * the  specific sync error (MegaSync::Error). It could happen both when the request has succeeded (API_OK) and
+         * the specific sync error (MegaSync::Error). It could happen both when the request has succeeded (API_OK) and
          * also in some cases of failure, when the request error is not accurate enough.
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
@@ -16339,7 +16340,7 @@ class MegaApi
          * if the sync was added with no errors
          * - MegaRequest::getParentHandle - Returns the sync backupId
          *
-         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * On the onRequestFinish error, the error code associated to the MegaError (MegaError::getErrorCode()) can be:
          * - MegaError::API_EARGS - If the local folder was not set or is not a folder.
          * - MegaError::API_EACCESS - If the user was invalid, or did not have an attribute for "My Backups" folder,
          * or the attribute was invalid, or "My Backups"/`DEVICE_NAME` existed but was not a folder, or it had the
@@ -16352,6 +16353,9 @@ class MegaApi
          * device name, or the attribute was invalid, or the attribute did not contain a record for the device name,
          * or device name was empty.
          * - MegaError::API_EEXIST - If this is a new device, but a folder with the same device-name already exists.
+         *
+         * The MegaError can also contain a SyncError (MegaError::getSyncError()), with the same value as MegaRequest::getNumDetails()
+         * See MegaApi::isNodeSyncableWithError() for specific SyncError codes depending on the specific MegaError code.
          *
          * @param syncType Type of sync. Currently supported: TYPE_TWOWAY and TYPE_BACKUP.
          * @param localSyncRootFolder Path of the Local folder to sync/backup.
@@ -16650,7 +16654,9 @@ class MegaApi
         int isNodeSyncable(MegaNode *node);
 
         /**
-         * @brief Check if it's possible to start synchronizing a folder node. Return SyncError errors.
+         * @brief Check if it's possible to start synchronizing a folder node.
+         *
+         * Return MegaError codes (MegaError::getErrorCode()) and SyncError codes (MegaError::getSyncError()).
          *
          * Possible return values for this function are:
          * - MegaError::API_OK if the folder is syncable
@@ -16668,7 +16674,6 @@ class MegaApi
          *
          *  @return API_OK if syncable. Error otherwise sets syncError in the returned MegaError
          *          caller must free
-
          */
         MegaError* isNodeSyncableWithError(MegaNode* node);
 
@@ -23458,6 +23463,9 @@ public:
         ACCOUNT_TYPE_PROII = 2,
         ACCOUNT_TYPE_PROIII = 3,
         ACCOUNT_TYPE_LITE = 4,
+        ACCOUNT_TYPE_STARTER = 11,
+        ACCOUNT_TYPE_BASIC = 12,
+        ACCOUNT_TYPE_ESSENTIAL = 13,
         ACCOUNT_TYPE_BUSINESS = 100,
         ACCOUNT_TYPE_PRO_FLEXI = 101    // also known as PRO 4
     };
@@ -23479,6 +23487,9 @@ public:
      * - MegaAccountDetails::ACCOUNT_TYPE_PROII = 2
      * - MegaAccountDetails::ACCOUNT_TYPE_PROIII = 3
      * - MegaAccountDetails::ACCOUNT_TYPE_LITE = 4
+     * - MegaAccountDetails::ACCOUNT_TYPE_STARTER = 11
+     * - MegaAccountDetails::ACCOUNT_TYPE_BASIC = 12
+     * - MegaAccountDetails::ACCOUNT_TYPE_ESSENTIAL = 13
      * - MegaAccountDetails::ACCOUNT_TYPE_BUSINESS = 100
      * - MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI = 101
      */
@@ -23879,6 +23890,9 @@ public:
      * - MegaAccountDetails::ACCOUNT_TYPE_PROII = 2
      * - MegaAccountDetails::ACCOUNT_TYPE_PROIII = 3
      * - MegaAccountDetails::ACCOUNT_TYPE_LITE = 4
+     * - MegaAccountDetails::ACCOUNT_TYPE_STARTER = 11
+     * - MegaAccountDetails::ACCOUNT_TYPE_BASIC = 12
+     * - MegaAccountDetails::ACCOUNT_TYPE_ESSENTIAL = 13
      * - MegaAccountDetails::ACCOUNT_TYPE_BUSINESS = 100
      * - MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI = 101
      */

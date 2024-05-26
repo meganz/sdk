@@ -145,41 +145,20 @@ target_sources(SDKlib
 # Files should appear only once.
 # If the FLAG is not true for a file, it will be added as non-buildable source despite then the file is added again as a buildable one.
 target_sources_conditional(SDKlib
-    FLAG WIN32 AND USE_CURL
-    PRIVATE
-    include/mega/wincurl/megafs.h # it includes win32/megafs.h
-    include/mega/wincurl/megaconsolewaiter.h # it includes win32/megaconsolewaiter.h
-    include/mega/wincurl/megaconsole.h # it includes win32/megaconsole.h
-    include/mega/wincurl/megawaiter.h # it includes win32/megawaiter.h
-    include/mega/wincurl/meganet.h # it includes posix/meganet.h
-
-    src/wincurl/fs.cpp # it includes win32/fs.cpp
-    src/wincurl/consolewaiter.cpp # it includes win32/consolewaiter.cpp
-    src/wincurl/console.cpp # it includes win32/console.cpp
-    src/wincurl/waiter.cpp # it includes win32/waiter.cpp
-    src/wincurl/net.cpp # it includes posix/net.cpp
-)
-
-target_sources_conditional(SDKlib
-    FLAG WIN32 AND NOT USE_CURL
+    FLAG WIN32
     PRIVATE
     include/mega/win32/megafs.h
     include/mega/win32/megaconsolewaiter.h
     include/mega/win32/megaconsole.h
     include/mega/win32/megawaiter.h
-    include/mega/win32/meganet.h
+    include/mega/win32/megasys.h
+    include/mega/win32/meganet.h # it includes posix/meganet.h
 
     src/win32/fs.cpp
     src/win32/consolewaiter.cpp
     src/win32/console.cpp
     src/win32/waiter.cpp
-    src/win32/net.cpp
-)
-
-target_sources_conditional(SDKlib
-    FLAG WIN32
-    PRIVATE
-    include/mega/win32/megasys.h
+    src/win32/net.cpp # it includes posix/net.cpp
 )
 
 target_sources_conditional(SDKlib
@@ -305,7 +284,7 @@ target_include_directories(SDKlib
 #    PRIVATE # TODO: Private for SDK core
         $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
         $<$<BOOL:${APPLE}>:${CMAKE_CURRENT_SOURCE_DIR}/include/mega/osx>
-        $<$<BOOL:${WIN32}>:${CMAKE_CURRENT_SOURCE_DIR}/include/mega/$<IF:${USE_CURL},wincurl,win32>>
+        $<$<BOOL:${WIN32}>:${CMAKE_CURRENT_SOURCE_DIR}/include/mega/win32>
         $<$<BOOL:${UNIX}>:${CMAKE_CURRENT_SOURCE_DIR}/include/mega/posix>
     )
 
@@ -362,8 +341,7 @@ endif()
 
 if(WIN32)
     target_link_libraries(SDKlib PRIVATE
-        ws2_32 winhttp Shlwapi Secur32.lib crypt32.lib
-        $<$<BOOL:${USE_CURL}>:Wldap32.lib>
+        ws2_32 winhttp Shlwapi Secur32.lib crypt32.lib Wldap32.lib
         $<$<BOOL:${USE_LIBUV}>:Kernel32.lib Iphlpapi.lib Userenv.lib Psapi.lib>
         $<$<BOOL:${USE_FFMPEG}>:Mfplat.lib mfuuid.lib strmiids.lib>
         $<$<BOOL:${ENABLE_DRIVE_NOTIFICATIONS}>:wbemuuid>

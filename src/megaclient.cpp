@@ -3590,11 +3590,7 @@ void MegaClient::dispatchTransfers()
 
         // Define the minimum and maximum size limits
         const int minSize = MIN_MAXTRANSFERS; // Adjusted minimum size
-#if defined(__ANDROID__) || defined(USE_IOS)
-        const int maxSize = static_cast<int>(MAX_RAIDTRANSFERS_FOR_MOBILE); // Maximum limit for the queue size
-#else
         const int maxSize = MAXTRANSFERS;
-#endif
 
         const int threshold = 16500; // Threshold (KB/S) to activate the additional term -> before this threshold, dynamic size grows slowly from minSize to maxSize. After the threshold, it will quickly grow to maxSize.
         if (threshold <= minScalingFactor)
@@ -3605,7 +3601,7 @@ void MegaClient::dispatchTransfers()
         }
 
         // Use an expontential function to obtain a very low growth rate before the threshold
-        m_off_t throughputInKBPerSec = httpio->downloadSpeed / 1024; // KB/s
+        m_off_t throughputInKBPerSec = std::min<m_off_t>(httpio->downloadSpeed / 1024, minScalingFactor); // KB/s
         const double reductiveGrowthMultiplier = 0.12; // This allows us to keep the scaling factor within a very low growth rate
         double scaleFactor = (static_cast<double>(throughputInKBPerSec - minScalingFactor) / (threshold - minScalingFactor)) * reductiveGrowthMultiplier;
         double size = minSize + (maxSize - minSize) * (1 - exp(-scaleFactor));
@@ -3623,12 +3619,18 @@ void MegaClient::dispatchTransfers()
         }
 
         //LOG_verbose << "[calcDynamicQueueSize] customLimit = " << size << " [throughput = " << (throughputInKBPerSec) << " KB/s]";
+#if defined(__ANDROID__) || defined(USE_IOS)
+        return std::min<unsigned>(static_cast<unsigned>(size), MAX_RAIDTRANSFERS_FOR_MOBILE);
+#else
         return static_cast<unsigned>(size);
+#endif
     };
 
-    auto calcTransferWeight = [this, &calcDynamicQueueLimit]() -> double
+    auto calcTransferWeight = [this, &calcDynamicQueueLimit](mega::direction_t transferDirection, bool forceDynamicLimit = false) -> double
     {
-        if (raidTransfersCounter >= MEANINGFUL_PORTION_OF_MAXTRANSFERS_QUEUE_FOR_RAID_PREDICTIVE_SYSTEM) // 1/6 of the hard limit
+        if (transferDirection == GET &&
+            ((raidTransfersCounter >= MEANINGFUL_PORTION_OF_MAXTRANSFERS_QUEUE_FOR_RAID_PREDICTIVE_SYSTEM) // 1/6 of the hard limit
+            || forceDynamicLimit))
         {
             double averageFileSize = 0;
             for (TransferSlot* ts : tslots)
@@ -3661,6 +3663,8 @@ void MegaClient::dispatchTransfers()
     for (TransferSlot* ts : tslots)
     {
         assert(ts->transfer->type == PUT || ts->transfer->type == GET);
+        double transferWeightKnown = 0.0;
+        TransferCategory tc(ts->transfer);
         if (ts->transfer->type == GET)
         {
             if (!ts->transfer->tempurls.empty())
@@ -3670,16 +3674,17 @@ void MegaClient::dispatchTransfers()
                     // Keep the counter within the limit to avoid overrepresentation: 1/6 of max transfers
                     // i.e., if the counter has already reached that value, we don't continue increasing it
                     if (raidTransfersCounter < MEANINGFUL_PORTION_OF_MAXTRANSFERS_QUEUE_FOR_RAID_PREDICTIVE_SYSTEM) raidTransfersCounter += 1;
+                    transferWeightKnown = calcTransferWeight(tc.direction, true); // We already know this transfer is raided, force the dynamic calculation
                 }
                 else // Old raid or non-raid
                 {
                     // As we kept the raid counter within a max limit (1/6), we obtain an accurate representation by decreasing the counter every time we find a non-raid transfer.
                     if (raidTransfersCounter > 1) raidTransfersCounter -= 1;
+                    transferWeightKnown = 1.0; // We alredy know this transfer is non-raided, the weight should be 1.
                 }
             }
         }
-        TransferCategory tc(ts->transfer);
-        auto transferWeight = calcTransferWeight();
+        auto transferWeight = transferWeightKnown != 0.0 ? transferWeightKnown : calcTransferWeight(tc.direction);
         counters[tc.index()].addexisting(ts->transfer->size, ts->progressreported, transferWeight);
         counters[tc.directionIndex()].addexisting(ts->transfer->size, ts->progressreported, transferWeight);
     }
@@ -3731,7 +3736,7 @@ void MegaClient::dispatchTransfers()
                 return false;
             }
 
-            auto transferWeight = calcTransferWeight();
+            auto transferWeight = calcTransferWeight(tc.direction);
             counters[tc.index()].addnew(t->size, transferWeight);
             counters[tc.directionIndex()].addnew(t->size, transferWeight);
 
@@ -3978,7 +3983,7 @@ void MegaClient::dispatchTransfers()
                             if (!gfxdisabled && gfx && gfx->isgfx(nexttransfer->localfilename))
                             {
                                 // we want all imagery to be safely tucked away before completing the upload, so we bump minfa
-                                int bitmask = gfx->gendimensionsputfa(ts->fa, nexttransfer->localfilename, NodeOrUploadHandle(nexttransfer->uploadhandle), nexttransfer->transfercipher(), -1);
+                                int bitmask = gfx->gendimensionsputfa(nexttransfer->localfilename, NodeOrUploadHandle(nexttransfer->uploadhandle), nexttransfer->transfercipher(), -1);
 
                                 if (bitmask & (1 << GfxProc::THUMBNAIL))
                                 {
@@ -18479,7 +18484,6 @@ std::string MegaClient::PerformanceStats::report(bool reset, HttpIO* httpio, Wai
         << " transfer starts/finishes: " << transferStarts << " " << transferFinishes << "\n"
         << " transfer temperror/fails: " << transferTempErrors << " " << transferFails << "\n"
         << " nowait reason: immedate: " << prepwaitImmediate << " zero: " << prepwaitZero << " httpio: " << prepwaitHttpio << " fsaccess: " << prepwaitFsaccess << " nonzero waits: " << nonzeroWait << "\n";
-#ifdef USE_CURL
     if (auto curlhttpio = dynamic_cast<CurlHttpIO*>(httpio))
     {
         s << curlhttpio->countCurlHttpIOAddevents.report(reset) << "\n"
@@ -18492,7 +18496,6 @@ std::string MegaClient::PerformanceStats::report(bool reset, HttpIO* httpio, Wai
 #endif
             << curlhttpio->countProcessCurlEventsCode.report(reset) << "\n";
     }
-#endif
 #ifdef WIN32
     s << " waiter nonzero timeout: " << static_cast<WinWaiter*>(waiter)->performanceStats.waitTimedoutNonzero
       << " zero timeout: " << static_cast<WinWaiter*>(waiter)->performanceStats.waitTimedoutZero

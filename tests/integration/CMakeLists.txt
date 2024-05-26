@@ -2,9 +2,11 @@ add_executable(test_integration)
 
 target_sources(test_integration
     PRIVATE
+    env_var_accounts.h
     SdkTest_test.h
     test.h
 
+    env_var_accounts.cpp
     main.cpp
     SdkTest_test.cpp
     Sync_test.cpp

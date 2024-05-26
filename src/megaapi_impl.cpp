@@ -12192,19 +12192,29 @@ bool MegaApiImpl::isValidTypeNode(const Node *node, int type) const
 }
 
 // map to an ACCOUNT_* value to an int that can be compared:
-// free -> lite -> proi -> proii -> proiii
+// free -> starter -> basic -> essential -> lite -> proi -> proii -> proiii
 // the ACCOUNT_* values are out of order
 // int proLevel is a MegaAccountDetails::ACCOUNT_*
 static inline int orderProLevel(int proLevel)
 {
     switch (proLevel)
     {
-    case MegaAccountDetails::ACCOUNT_TYPE_FREE: // 0
-        return -1;
-    case MegaAccountDetails::ACCOUNT_TYPE_LITE: // 4
-        return 0;
-    default:
-        return proLevel; // 1..3
+        case MegaAccountDetails::ACCOUNT_TYPE_STARTER:
+            return 1;
+        case MegaAccountDetails::ACCOUNT_TYPE_BASIC:
+            return 2;
+        case MegaAccountDetails::ACCOUNT_TYPE_ESSENTIAL:
+            return 3;
+        case MegaAccountDetails::ACCOUNT_TYPE_LITE:
+            return 4;
+        case MegaAccountDetails::ACCOUNT_TYPE_PROI:
+            return 5;
+        case MegaAccountDetails::ACCOUNT_TYPE_PROII:
+            return 6;
+        case MegaAccountDetails::ACCOUNT_TYPE_PROIII:
+            return 7;
+        default:
+            return 0;
     }
 }
 
@@ -12221,9 +12231,9 @@ int MegaApiImpl::calcRecommendedProLevel(MegaPricing& pricing, MegaAccountDetail
     uint64_t bestStorageBytes = UINT64_MAX;
     for (int i = 0; i <= pricing.getNumProducts(); ++i)
     {
-        // only upgrade to lite, pro1, pro2 and pro3
+        // only upgrade to starter, basic, essential, lite, pro1, pro2 and pro3
         int planProLevel = pricing.getProLevel(i);
-        if (planProLevel < MegaAccountDetails::ACCOUNT_TYPE_PROI || planProLevel > MegaAccountDetails::ACCOUNT_TYPE_LITE)
+        if (planProLevel < MegaAccountDetails::ACCOUNT_TYPE_PROI || planProLevel > MegaAccountDetails::ACCOUNT_TYPE_ESSENTIAL)
             continue;
         // only monthly plans
         int planMonths = pricing.getMonths(i);
@@ -12239,7 +12249,7 @@ int MegaApiImpl::calcRecommendedProLevel(MegaPricing& pricing, MegaAccountDetail
         uint64_t planStorageBytes = (uint64_t)planStorageGb * (uint64_t)(1024 * 1024 * 1024);
         if (usedStorageBytes > planStorageBytes)
             continue;
-        // must be an upgrade free->lite->proi->proii->proiii
+        // must be an upgrade free->starter->basic->essential->lite->proi->proii->proiii
         int orderedPlanProLevel = orderProLevel(planProLevel);
         if (orderedCurrProLevel >= orderedPlanProLevel)
             continue;
@@ -23581,7 +23591,7 @@ void MegaApiImpl::setProxySettings(MegaProxy* proxySettings, MegaRequestListener
 
     string localurl;
 
-#if defined(_WIN32) && defined(USE_CURL)
+#if defined(_WIN32)
     localurl = url;
 #else
     LocalPath::path2local(&url, &localurl);
@@ -23597,7 +23607,7 @@ void MegaApiImpl::setProxySettings(MegaProxy* proxySettings, MegaRequestListener
 
         string localusername;
 
-#if defined(_WIN32) && defined(USE_CURL)
+#if defined(_WIN32)
         localusername = username;
 #else
         LocalPath::path2local(&username, &localusername);
@@ -23609,7 +23619,7 @@ void MegaApiImpl::setProxySettings(MegaProxy* proxySettings, MegaRequestListener
 
         string localpassword;
 
-#if defined(_WIN32) && defined(USE_CURL)
+#if defined(_WIN32)
         localpassword = password;
 #else
         LocalPath::path2local(&password, &localpassword);
@@ -25476,13 +25486,13 @@ void MegaApiImpl::addSyncByRequest(MegaRequestPrivate* request, SyncConfig syncC
                 if (revertOnError)
                 {
                     // deletes backup root node, if we created one but then couldn't finish configuring
-                    revertOnError([this, request, e](){
-                        fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
+                    revertOnError([this, request, e, se](){
+                        fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e, se));
                     });
                 }
                 else
                 {
-                    fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
+                    fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e, se));
                 }
             }
             else
@@ -25491,7 +25501,7 @@ void MegaApiImpl::addSyncByRequest(MegaRequestPrivate* request, SyncConfig syncC
 
                 auto sync = std::make_unique<MegaSyncPrivate>(createdConfig, client);
 
-                fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
+                fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e, se));
             }
         }, "", basePath);
 }
@@ -27844,7 +27854,7 @@ MegaErrorPrivate::MegaErrorPrivate(fuse::MountResult result)
 }
 
 MegaErrorPrivate::MegaErrorPrivate(const MegaError &megaError)
-    : MegaError(megaError.getErrorCode())
+    : MegaError(megaError)
     , mValue(megaError.getValue())
     , mUserStatus(megaError.getUserStatus())
     , mLinkStatus(megaError.getLinkStatus())

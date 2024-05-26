@@ -7,6 +7,7 @@
 
 /bindings/ios/ @mobile/iOS
 /bindings/java/ @mobile/Android
+/bindings/megaapi.i @mobile/Android
 /bindings/qt/ @desktop
 /src/gfx/GfxProcCG.mm @mobile/iOS
 /src/osx/osxutils.mm @mobile/iOS @desktop

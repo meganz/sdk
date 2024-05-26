@@ -21,7 +21,7 @@
 
 #include "mega.h"
 
-#include <variant>
+#include <numeric>
 
 #ifdef USE_SQLITE
 namespace mega {
@@ -161,14 +161,29 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
     }
 
     // Add following columns to existing 'nodes' table that might not have them, and populate them if needed:
-    vector<NewColumn> newCols
-    {
-        {"mtime", "int64 DEFAULT 0", NodeData::COMPONENT_MTIME},
-        {"label", "tinyint DEFAULT 0", NodeData::COMPONENT_LABEL},
-        {"mimetype", "tinyint AS (getmimetype(name)) VIRTUAL", NodeData::COMPONENT_NONE},
-        {"description", "text", NodeData::COMPONENT_DESCRIPTION},
-        {"tags", "text", NodeData::COMPONENT_TAGS},
-    };
+    vector<NewColumn> newCols{
+        {"mtime",
+         "int64 DEFAULT 0",
+         NodeData::COMPONENT_MTIME,
+         NewColumn::extractDataFromNodeData<MTimeType>      },
+        {"label",
+         "tinyint DEFAULT 0",
+         NodeData::COMPONENT_LABEL,
+         NewColumn::extractDataFromNodeData<LabelType>      },
+        {"mimetype",
+         "tinyint AS (getmimetype(name)) VIRTUAL",
+         NodeData::COMPONENT_NONE,
+         nullptr                                            },
+        {"description",
+         "text",
+         NodeData::COMPONENT_DESCRIPTION,
+         NewColumn::extractDataFromNodeData<DescriptionType>},
+        {"tags",
+         "text",
+         NodeData::COMPONENT_TAGS,
+         NewColumn::extractDataFromNodeData<TagsType>       },
+        };
+
 
     if (!addAndPopulateColumns(db, std::move(newCols)))
     {
@@ -432,20 +447,12 @@ bool SqliteDbAccess::migrateDataToColumns(sqlite3* db, vector<NewColumn>&& cols)
     if (cols.empty()) return true;
 
     // identify data pieces to copy to new columns
-    std::map<int, int> dataToMigrate;
-    int bindIdx = 0;
-    for (const auto& c : cols)
-    {
-        if (c.migrationId != NodeData::COMPONENT_NONE)
-        {
-            assert(c.migrationId > NodeData::COMPONENT_NONE);
-            dataToMigrate[c.migrationId] = ++bindIdx;
-        }
-    }
     cols.erase(std::remove_if(cols.begin(), cols.end(),
         [](const NewColumn& c) { return c.migrationId == NodeData::COMPONENT_NONE; }), cols.end());
 
     if (cols.empty()) return true;
+
+    LOG_info << "Migrating Data base - populating new columns";
 
     // get existing data
     sqlite3_stmt* stmt = nullptr;
@@ -456,7 +463,9 @@ bool SqliteDbAccess::migrateDataToColumns(sqlite3* db, vector<NewColumn>&& cols)
     }
 
     // extract values to be copied
-    map<handle, map<int /*COMPONENT*/, std::variant<int64_t, std::string>>> newValues;
+    map<handle, std::vector<std::unique_ptr<MigrateType>>> newValues;
+    uint64_t numRows = 0;
+    uint64_t affectedRows = 0;
     while (sqlite3_step(stmt) == SQLITE_ROW)
     {
         const char* blob = static_cast<const char*>(sqlite3_column_blob(stmt, 1));
@@ -464,58 +473,48 @@ bool SqliteDbAccess::migrateDataToColumns(sqlite3* db, vector<NewColumn>&& cols)
         handle nh = sqlite3_column_int64(stmt, 0);
         NodeData nd(blob, blobSize, NodeData::COMPONENT_ATTRS);
 
-        m_time_t mtime = 0;
-        int l = LBL_UNKNOWN;
-        // When migrating data, the first non-default value will create the entry for that node,
-        // while other non-default values will avoid the search by reusing the same container.
-        map<int, std::variant<int64_t, std::string>>* newNodeValues = nullptr;
-
-        if (dataToMigrate.find(NodeData::COMPONENT_MTIME) != dataToMigrate.end() &&
-            (mtime = nd.getMtime()))
-        {
-            if (!newNodeValues)
+        std::vector<std::unique_ptr<MigrateType>> migrateElement;
+        migrateElement.reserve(cols.size());
+        bool hasValues = std::transform_reduce(
+            cols.begin(),
+            cols.end(),
+            false,
+            std::logical_or{},
+            [&migrateElement, &nd](const NewColumn& c) -> bool
             {
-                newNodeValues = &newValues[nh];
-            }
-            newNodeValues->emplace(NodeData::COMPONENT_MTIME, mtime);
-        }
+                assert(c.migrateOperation);
+                return c.migrateOperation(nd, migrateElement);
+            });
 
-        if (dataToMigrate.find(NodeData::COMPONENT_LABEL) != dataToMigrate.end() &&
-            (l = nd.getLabel()) != LBL_UNKNOWN)
-        {
-            if (!newNodeValues)
-            {
-                newNodeValues = &newValues[nh];
-            }
-            newNodeValues->emplace(NodeData::COMPONENT_LABEL, l);
-        }
 
-        std::string description = nd.getDescription();
-        if (dataToMigrate.find(NodeData::COMPONENT_DESCRIPTION) != dataToMigrate.end() &&
-            description.size())
-        {
-            if (!newNodeValues)
-            {
-                newNodeValues = &newValues[nh];
-            }
-            newNodeValues->emplace(NodeData::COMPONENT_DESCRIPTION, description);
-        }
+        ++numRows;
 
-        std::string tags = nd.getTags();
-        if (dataToMigrate.find(NodeData::COMPONENT_TAGS) != dataToMigrate.end() && tags.size())
+        // Only update row in DB if some column has valid data
+        if (hasValues)
         {
-            if (!newNodeValues)
-            {
-                newNodeValues = &newValues[nh];
-            }
-            newNodeValues->emplace(NodeData::COMPONENT_TAGS, tags);
+            assert(migrateElement.size() == cols.size());
+            newValues[nh] = std::move(migrateElement);
+            ++affectedRows;
         }
     }
+
+    LOG_info << "Migrating Data base - affected rows: " << affectedRows
+             << "   from total rows: " << numRows;
+
     sqlite3_finalize(stmt);
 
     if (newValues.empty())
     {
         return true;
+    }
+
+    // Calculate index for query parameters
+    std::map<int, int> dataToMigrate;
+    int bindIdx = 0;
+    for (const auto& c: cols)
+    {
+        assert(c.migrationId > NodeData::COMPONENT_NONE);
+        dataToMigrate[c.migrationId] = ++bindIdx;
     }
 
     if (sqlite3_exec(db, "BEGIN", nullptr, nullptr, nullptr) != SQLITE_OK)
@@ -542,49 +541,12 @@ bool SqliteDbAccess::migrateDataToColumns(sqlite3* db, vector<NewColumn>&& cols)
     // run update query for each data entry
     for (const auto& update : newValues)
     {
+        assert(update.second.size() == cols.size());
         for (const auto& values : update.second)
         {
-            if (values.first == NodeData::COMPONENT_MTIME ||
-                values.first == NodeData::COMPONENT_LABEL)
-            {
-                const int64_t* value = std::get_if<int64_t>(&values.second);
-                if (!value)
-                {
-                    LOG_err << "Unexpectect type at std::variant, it should be int64_t";
-                    assert(false);
-                    return false;
-                }
-
-                if (sqlite3_bind_int64(stmt, dataToMigrate[values.first], *value) != SQLITE_OK)
-                {
-                    LOG_err << "Db error during migration while binding value to column: "
-                            << sqlite3_errmsg(db);
-                    sqlite3_finalize(stmt);
-                    return false;
-                }
-            }
-            else if (values.first == NodeData::COMPONENT_DESCRIPTION ||
-                     values.first == NodeData::COMPONENT_TAGS)
-            {
-                const std::string* text = std::get_if<std::string>(&values.second);
-                if (!text)
-                {
-                    LOG_err << "Unexpectect type at std::variant, it should be std::string";
-                    assert(false);
-                    return false;
-                }
-                if (sqlite3_bind_text(stmt,
-                                      dataToMigrate[values.first],
-                                      text->c_str(),
-                                      static_cast<int>(text->length()),
-                                      SQLITE_STATIC) != SQLITE_OK)
-                {
-                    LOG_err << "Db error during migration while binding value to column: "
-                            << sqlite3_errmsg(db);
-                    sqlite3_finalize(stmt);
-                    return false;
-                }
-            }
+            assert(values);
+            if (!values->bindToDb(stmt, dataToMigrate))
+                return false;
         }
 
         int stepResult;
@@ -2617,6 +2579,137 @@ std::bitset<3> OrderByClause::getDescendingDirs(int order)
     }
 
     return dirs;
+}
+
+SqliteDbAccess::MTimeType::MTimeType(mega::m_time_t value):
+    mValue(value)
+{}
+
+bool SqliteDbAccess::MTimeType::bindToDb(sqlite3_stmt* stmt,
+                                         const std::map<int, int>& lookupId) const
+{
+    if (sqlite3_bind_int64(stmt, lookupId.at(COMPONENT), mValue) != SQLITE_OK)
+    {
+        LOG_err << "Db error during migration while binding mTime value to column: ";
+        sqlite3_finalize(stmt);
+        return false;
+    }
+
+    return true;
+}
+
+std::unique_ptr<SqliteDbAccess::MigrateType> SqliteDbAccess::MTimeType::fromNodeData(NodeData& nd)
+{
+    return std::make_unique<MTimeType>(nd.getMtime());
+}
+
+bool SqliteDbAccess::MTimeType::hasValidValue() const
+{
+    return mValue;
+}
+
+SqliteDbAccess::LabelType::LabelType(int value):
+    mValue(value)
+{}
+
+bool SqliteDbAccess::LabelType::bindToDb(sqlite3_stmt* stmt,
+                                         const std::map<int, int>& lookupId) const
+{
+    if (sqlite3_bind_int64(stmt, lookupId.at(COMPONENT), mValue) != SQLITE_OK)
+    {
+        LOG_err << "Db error during migration while binding label value to column: ";
+        sqlite3_finalize(stmt);
+        return false;
+    }
+
+    return true;
+}
+
+std::unique_ptr<SqliteDbAccess::MigrateType> SqliteDbAccess::LabelType::fromNodeData(NodeData& nd)
+{
+    return std::make_unique<LabelType>(nd.getLabel());
+}
+
+bool SqliteDbAccess::LabelType::hasValidValue() const
+{
+    return mValue != LBL_UNKNOWN;
+}
+
+SqliteDbAccess::DescriptionType::DescriptionType(const string& value):
+    mValue(value)
+{}
+
+bool SqliteDbAccess::DescriptionType::bindToDb(sqlite3_stmt* stmt,
+                                               const std::map<int, int>& lookupId) const
+{
+    if (mValue.size())
+    {
+        if (sqlite3_bind_text(stmt,
+                              lookupId.at(COMPONENT),
+                              mValue.c_str(),
+                              static_cast<int>(mValue.length()),
+                              SQLITE_STATIC) != SQLITE_OK)
+        {
+            LOG_err << "Db error during migration while binding description value to column: ";
+            sqlite3_finalize(stmt);
+            return false;
+        }
+    }
+    else
+    {
+        sqlite3_bind_null(stmt, lookupId.at(COMPONENT));
+    }
+
+    return true;
+}
+
+std::unique_ptr<SqliteDbAccess::MigrateType>
+    SqliteDbAccess::DescriptionType::fromNodeData(NodeData& nd)
+{
+    return std::make_unique<DescriptionType>(nd.getDescription());
+}
+
+bool SqliteDbAccess::DescriptionType::hasValidValue() const
+{
+    return mValue.size();
+}
+
+SqliteDbAccess::TagsType::TagsType(const string& value):
+    mValue(value)
+{}
+
+bool SqliteDbAccess::TagsType::bindToDb(sqlite3_stmt* stmt,
+                                        const std::map<int, int>& lookupId) const
+{
+    if (mValue.size())
+    {
+        if (sqlite3_bind_text(stmt,
+                              lookupId.at(COMPONENT),
+                              mValue.c_str(),
+                              static_cast<int>(mValue.length()),
+                              SQLITE_STATIC) != SQLITE_OK)
+        {
+            LOG_err << "Db error during migration while binding tags value to column: ";
+            sqlite3_finalize(stmt);
+            return false;
+        }
+    }
+    else
+    {
+        sqlite3_bind_null(stmt, lookupId.at(COMPONENT));
+    }
+
+    return true;
+}
+
+std::unique_ptr<SqliteDbAccess::MigrateType> SqliteDbAccess::TagsType::fromNodeData(NodeData& nd)
+{
+    return std::make_unique<TagsType>(nd.getTags());;
+}
+
+bool SqliteDbAccess::TagsType::hasValidValue() const
+{
+    return mValue.size();
 }
 
 } // namespace

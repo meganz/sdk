@@ -69,9 +69,6 @@
 /* Define to use libuv */
 #cmakedefine HAVE_LIBUV 1
 
-/* Define to use CURL */
-#cmakedefine USE_CURL 1
-
 /* Define to not use readline */
 #cmakedefine NO_READLINE 1
 

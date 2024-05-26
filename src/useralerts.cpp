@@ -1063,6 +1063,12 @@ string UserAlert::Payment::getProPlanName()
         return "Business";  // 19530
     case ACCOUNT_TYPE_PRO_FLEXI:
         return "Pro Flexi";
+    case ACCOUNT_TYPE_STARTER:
+        return "Starter";
+    case ACCOUNT_TYPE_BASIC:
+        return "Basic";
+    case ACCOUNT_TYPE_ESSENTIAL:
+        return "Essential";
     case ACCOUNT_TYPE_FREE:
         [[fallthrough]];
     default:
