@@ -1,0 +1,23 @@
+diff --git a/Project/CMake/CMakeLists.txt b/Project/CMake/CMakeLists.txt
+index 173b2a325..7393f79ac 100644
+--- a/Project/CMake/CMakeLists.txt
++++ b/Project/CMake/CMakeLists.txt
+@@ -372,6 +372,18 @@ if(BUILD_ZLIB)
+ endif()
+ 
+ # disable some features. Maybe it should be enabled.
++target_compile_definitions(mediainfo PRIVATE
++    $<$<BOOL:${MEDIAINFO_MINIMAL_YES}>:MEDIAINFO_MINIMAL_YES>
++    $<$<BOOL:${MEDIAINFO_MINIMIZESIZE}>:MEDIAINFO_MINIMIZESIZE>
++    $<$<BOOL:${MEDIAINFO_ADVANCED_YES}>:MEDIAINFO_ADVANCED_YES>
++    $<$<BOOL:${MEDIAINFO_XML_YES}>:MEDIAINFO_XML_YES>
++    $<$<BOOL:${MEDIAINFO_ID3V2_YES}>:MEDIAINFO_ID3V2_YES>
++    $<$<BOOL:${MEDIAINFO_MPEGA_YES}>:MEDIAINFO_MPEGA_YES>
++    $<$<BOOL:${MEDIAINFO_IMAGE_NO}>:MEDIAINFO_IMAGE_NO>
++    $<$<BOOL:${MEDIAINFO_TEXT_NO}>:MEDIAINFO_TEXT_NO>
++    $<$<BOOL:${MEDIAINFO_TAG_NO}>:MEDIAINFO_TAG_NO>
++    $<$<BOOL:${MEDIAINFO_ARCHIVE_NO}>:MEDIAINFO_ARCHIVE_NO>
++)
+ target_compile_definitions(mediainfo PRIVATE MEDIAINFO_LIBMMS_NO PRIVATE MEDIAINFO_GRAPHVIZ_NO)
+ if(NOT CURL_FOUND)
+   target_compile_definitions(mediainfo PRIVATE MEDIAINFO_LIBCURL_NO)

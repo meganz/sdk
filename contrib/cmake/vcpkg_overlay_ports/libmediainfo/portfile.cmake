@@ -9,10 +9,25 @@ vcpkg_from_github(
         msvc-arm.diff
         dependencies.diff
         no-windows-namespace.diff
-        add_config_options_to_setup_h.patch
+        include-definitions.patch
 )
 
 vcpkg_find_acquire_program(PKGCONFIG)
+
+vcpkg_check_features(OUT_FEATURE_OPTIONS FEATURE_OPTIONS
+	FEATURES
+        minsize     MEDIAINFO_MINIMIZESIZE
+        minimal     MEDIAINFO_MINIMAL_YES
+        advanced    MEDIAINFO_ADVANCED_YES
+        xml         MEDIAINFO_XML_YES
+        id3v2       MEDIAINFO_ID3V2_YES
+        mpega       MEDIAINFO_MPEGA_YES
+    INVERTED_FEATURES
+        text        MEDIAINFO_TEXT_NO
+        image       MEDIAINFO_IMAGE_NO
+        archive     MEDIAINFO_ARCHIVE_NO
+        tag         MEDIAINFO_TAG_NO
+)
 
 vcpkg_cmake_configure(
     SOURCE_PATH "${SOURCE_PATH}/Project/CMake"
@@ -22,7 +37,9 @@ vcpkg_cmake_configure(
         "-DPKG_CONFIG_EXECUTABLE=${PKGCONFIG}"
         -DCMAKE_REQUIRE_FIND_PACKAGE_PkgConfig=1
         -DCMAKE_REQUIRE_FIND_PACKAGE_TinyXML=1
+        ${FEATURE_OPTIONS}
 )
+
 vcpkg_cmake_install()
 vcpkg_cmake_config_fixup(PACKAGE_NAME mediainfolib)
 vcpkg_fixup_pkgconfig()

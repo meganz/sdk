@@ -16,5 +16,47 @@
       "host": true
     },
     "zlib"
-  ]
+  ],
+  "features": {
+    "minimal": 
+    {
+      "description" : "Enable minimal management (except parsers)"
+    },
+    "minsize":
+    {
+      "description" : "Enable size optimisations"
+    },
+    "xml":
+    {
+      "description" : "Enable XML parser"
+    },
+    "id3v2":
+    {
+      "description" : "Enable Tag - Id3v2"
+    },
+    "mpega":
+    {
+      "description" : "Enable Audio - MPEG-Audio"
+    },
+    "text":
+    {
+      "description" : "Disable all text parsers"
+    },
+    "image":
+    {
+      "description" : "Disable all image parsers"
+    },
+    "archive":
+    {
+      "description" : "Disable all archive parsers"
+    },
+    "tag":
+    {
+      "description" : "Disable all tag parsers"
+    },
+    "advanced":
+    {
+      "description" : "Disable all tag parsers"
+    }
+  }
 }
