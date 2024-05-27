@@ -4056,6 +4056,13 @@ using namespace mega;
     return self.megaApi->getABTestValue((const char *)flag.UTF8String);
 }
 
+#pragma mark - Remote Feature Flags
+- (NSInteger)getRemoteFeatureFlagValue:(NSString *)flag {
+    if (self.megaApi == nil) return 0;
+    MegaFlag *flagValue = self.megaApi->getFlag((const char *)flag.UTF8String);
+    return flagValue->getGroup();
+}
+
 #pragma mark - Ads
 - (void)fetchAds:(AdsFlag)adFlags adUnits:(MEGAStringList *)adUnits publicHandle:(MEGAHandle)publicHandle delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
