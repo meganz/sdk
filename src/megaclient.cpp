@@ -1030,8 +1030,8 @@ void MegaClient::removeFromBC(handle bkpId, handle targetDest, std::function<voi
         std::shared_ptr<Node> bkpRootNode = nodebyhandle(*bkpRoot);
         if (!bkpRootNode)
         {
-            LOG_err << "Remove backup/sync: root folder not found";
-            finalCompletion(API_ENOENT);
+            LOG_warn << "Remove backup/sync: root folder not found, thus SDS cannot be set; considering it completely removed";
+            finalCompletion(API_OK);
             return;
         }
 

@@ -3990,7 +3990,7 @@ void exec_backupcentre(autocomplete::ACState& s)
             }
             else
             {
-                cout << "Backup Centre - Failed to " << (isBackup ? "remove Backup " : "stop sync") << toHandle(backupId);
+                cout << "Backup Centre - Failed to " << (isBackup ? "remove Backup " : "stop sync ") << toHandle(backupId);
                 if (isBackup)
                 {
                     cout << " and " << (hDest == UNDEF ? "deleted" : "moved") << " its contents";
