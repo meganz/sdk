@@ -1382,7 +1382,15 @@ void SyncStallInfo::StallInfoMaps::clearStalls()
 /* SyncStallInfo BEGIN */
 bool SyncStallInfo::empty() const
 {
-    return syncStallInfoMaps.empty();
+    for (auto& syncStallInfoMapPair : syncStallInfoMaps)
+    {
+        auto& syncStallInfoMap = syncStallInfoMapPair.second;
+        if (!syncStallInfoMap.empty())
+        {
+            return false;
+        }
+    }
+    return true;
 }
 
 bool SyncStallInfo::waitingCloud(handle backupId, const string& mapKeyPath, SyncStallEntry&& e)
