@@ -13020,8 +13020,8 @@ public class MegaApiJava {
      *
      * @return A MegaFlag instance with the type and value of the flag.
      */
-    public MegaFlag getFlag(String flagName, MegaRequestListenerInterface listener) {
-       return megaApi.getFlag(flagName, true, createDelegateRequestListener(listener));
+    public MegaFlag getFlag(String flagName, Boolean commit, MegaRequestListenerInterface listener) {
+       return megaApi.getFlag(flagName, commit, createDelegateRequestListener(listener));
     }
 
     /**
