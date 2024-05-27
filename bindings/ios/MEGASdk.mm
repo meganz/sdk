@@ -3999,6 +3999,7 @@ using namespace mega;
     megaFilter->byNodeType(filter.nodeType);
     megaFilter->byCategory(filter.category);
     megaFilter->bySensitivity(filter.sensitivity);
+    megaFilter->byFavourite(filter.favouriteFilter);
 
     if (filter.didSetLocationType) {
         megaFilter->byLocation(filter.locationType);
