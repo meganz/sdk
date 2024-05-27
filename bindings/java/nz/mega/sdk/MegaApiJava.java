@@ -13005,6 +13005,26 @@ public class MegaApiJava {
     }
 
     /**
+     * Get the type and value for the flag with the given name,
+     * if present among either A/B Test or Feature flags.
+     *
+     * If found among A/B Test flags and commit was true, also inform the API
+     * that a user has become relevant for that A/B Test flag, in which case
+     * the associated request type with this request is MegaRequest::TYPE_AB_TEST_ACTIVE
+     * and valid data in the MegaRequest object received on all callbacks:
+     * - MegaRequest::getText - Returns the flag passed as parameter
+     *
+     * @param flagName Name or key of the value to be retrieved (and possibly be sent to API as active).
+     * @param commit Determine whether an A/B Test flag will be sent to API as active.
+     * @param listener MegaRequestListener to track this request, ignored if commit was false
+     *
+     * @return A MegaFlag instance with the type and value of the flag.
+     */
+    public MegaFlag getFlag(String flagName, Boolean commit, MegaRequestListenerInterface listener) {
+       return megaApi.getFlag(flagName, commit, createDelegateRequestListener(listener));
+    }
+
+    /**
      * Initiate an asynchronous request to receive stalled issues.
      *
      * Use MegaRequestListenerInterface to subscribe for result.
