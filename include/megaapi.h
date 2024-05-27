@@ -17196,35 +17196,36 @@ class MegaApi
          * @param parent Parent node
          * @param order Order for the returned list
          *
-         * Note: Folders will always be first except when sorting by size, creation or modification time
+         * Note: First, the nodes are always sorted by type, being folders always first. Then, the
+         * specified option is applied in each type block
          *
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
          * Undefined order
          *
          * - MegaApi::ORDER_DEFAULT_ASC = 1
-         * Folders first in alphabetical order, then files in the same order
+         * Alphabetical order, e.g. bar, Car, foo
          *
          * - MegaApi::ORDER_DEFAULT_DESC = 2
-         * Folders first in reverse alphabetical order, then files in the same order
+         * Alphabetical inverse order, e.g. foo, Car, bar
          *
          * - MegaApi::ORDER_SIZE_ASC = 3
-         * Sort by size, ascending
+         * Sort by size, small elements first
          *
          * - MegaApi::ORDER_SIZE_DESC = 4
-         * Sort by size, descending
+         * Sort by size, small elements last
          *
          * - MegaApi::ORDER_CREATION_ASC = 5
-         * Sort by creation time in MEGA, ascending
+         * Sort by creation time in MEGA, older elements first
          *
          * - MegaApi::ORDER_CREATION_DESC = 6
-         * Sort by creation time in MEGA, descending
+         * Sort by creation time in MEGA, older elements last
          *
          * - MegaApi::ORDER_MODIFICATION_ASC = 7
-         * Sort by modification time of the original file, ascending
+         * Sort by modification time of the original file, older modification times first
          *
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
-         * Sort by modification time of the original file, descending
+         * Sort by modification time of the original file, older modification times last
          *
          * - deprecated: MegaApi::ORDER_ALPHABETICAL_ASC = 9
          * Same behavior than MegaApi::ORDER_DEFAULT_ASC
@@ -17245,16 +17246,16 @@ class MegaApi
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
-         * Sort by color label, ascending. With this order, folders are returned first, then files
+         * Sort by color label, nodes with colors first
          *
          * - MegaApi::ORDER_LABEL_DESC = 18
-         * Sort by color label, descending. With this order, folders are returned first, then files
+         * Sort by color label, nodes with colors last
          *
          * - MegaApi::ORDER_FAV_ASC = 19
-         * Sort nodes with favourite attr first. With this order, folders are returned first, then files
+         * Sort nodes with favourite attr first
          *
          * - MegaApi::ORDER_FAV_DESC = 20
-         * Sort nodes with favourite attr last. With this order, folders are returned first, then files
+         * Sort nodes with favourite attr last
          *
          * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
          * @return List with all child MegaNode objects
@@ -17278,47 +17279,48 @@ class MegaApi
          *   and in consequence it must have default value for location (SEARCH_TARGET_ALL)
          * @param order Order for the returned list
          *
-         * Note: Folders will always be first except when sorting by size, creation or modification time
+         * Note: First, the nodes are always sorted by type, being folders always first. Then, the
+         * specified option is applied in each type block
          *
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
          * Undefined order
          *
          * - MegaApi::ORDER_DEFAULT_ASC = 1
-         * Folders first in alphabetical order, then files in the same order
+         * Alphabetical order, e.g. bar, Car, foo
          *
          * - MegaApi::ORDER_DEFAULT_DESC = 2
-         * Folders first in reverse alphabetical order, then files in the same order
+         * Alphabetical inverse order, e.g. foo, Car, bar
          *
          * - MegaApi::ORDER_SIZE_ASC = 3
-         * Sort by size, ascending
+         * Sort by size, small elements first
          *
          * - MegaApi::ORDER_SIZE_DESC = 4
-         * Sort by size, descending
+         * Sort by size, small elements last
          *
          * - MegaApi::ORDER_CREATION_ASC = 5
-         * Sort by creation time in MEGA, ascending
+         * Sort by creation time in MEGA, older elements first
          *
          * - MegaApi::ORDER_CREATION_DESC = 6
-         * Sort by creation time in MEGA, descending
+         * Sort by creation time in MEGA, older elements last
          *
          * - MegaApi::ORDER_MODIFICATION_ASC = 7
-         * Sort by modification time of the original file, ascending
+         * Sort by modification time of the original file, older modification times first
          *
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
-         * Sort by modification time of the original file, descending
+         * Sort by modification time of the original file, older modification times last
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
-         * Sort by color label, ascending. With this order, folders are returned first, then files
+         * Sort by color label, nodes with colors first
          *
          * - MegaApi::ORDER_LABEL_DESC = 18
-         * Sort by color label, descending. With this order, folders are returned first, then files
+         * Sort by color label, nodes with colors last
          *
          * - MegaApi::ORDER_FAV_ASC = 19
-         * Sort nodes with favourite attr first. With this order, folders are returned first, then files
+         * Sort nodes with favourite attr first
          *
          * - MegaApi::ORDER_FAV_DESC = 20
-         * Sort nodes with favourite attr last. With this order, folders are returned first, then files
+         * Sort nodes with favourite attr last
          *
          * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
          * @param searchPage Container for pagination options; if null, all results will be returned
@@ -17338,35 +17340,42 @@ class MegaApi
          * @param parentNodes List of parent nodes
          * @param order Order for the returned list
          *
-         * Note: Folders will always be first except when sorting by size, creation or modification time
+         * Note: First, the nodes are always sorted by type, being folders always first. Then, the
+         * specified option is applied in each type block
          *
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
          * Undefined order
          *
          * - MegaApi::ORDER_DEFAULT_ASC = 1
-         * Folders first in alphabetical order, then files in the same order
+         * Alphabetical order, e.g. bar, Car, foo
          *
          * - MegaApi::ORDER_DEFAULT_DESC = 2
-         * Folders first in reverse alphabetical order, then files in the same order
+         * Alphabetical inverse order, e.g. foo, Car, bar
          *
          * - MegaApi::ORDER_SIZE_ASC = 3
-         * Sort by size, ascending
+         * Sort by size, small elements first
          *
          * - MegaApi::ORDER_SIZE_DESC = 4
-         * Sort by size, descending
+         * Sort by size, small elements last
          *
          * - MegaApi::ORDER_CREATION_ASC = 5
-         * Sort by creation time in MEGA, ascending
+         * Sort by creation time in MEGA, older elements first
          *
          * - MegaApi::ORDER_CREATION_DESC = 6
-         * Sort by creation time in MEGA, descending
+         * Sort by creation time in MEGA, older elements last
          *
          * - MegaApi::ORDER_MODIFICATION_ASC = 7
-         * Sort by modification time of the original file, ascending
+         * Sort by modification time of the original file, older modification times first
          *
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
-         * Sort by modification time of the original file, descending
+         * Sort by modification time of the original file, older modification times last
+         *
+         * - deprecated: MegaApi::ORDER_ALPHABETICAL_ASC = 9
+         * Same behavior than MegaApi::ORDER_DEFAULT_ASC
+         *
+         * - deprecated: MegaApi::ORDER_ALPHABETICAL_DESC = 10
+         * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
          * - deprecated: MegaApi::ORDER_PHOTO_ASC = 11
          * Sort with photos first, then by date ascending
@@ -17381,16 +17390,16 @@ class MegaApi
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
-         * Sort by color label, ascending. With this order, folders are returned first, then files
+         * Sort by color label, nodes with colors first
          *
          * - MegaApi::ORDER_LABEL_DESC = 18
-         * Sort by color label, descending. With this order, folders are returned first, then files
+         * Sort by color label, nodes with colors last
          *
          * - MegaApi::ORDER_FAV_ASC = 19
-         * Sort nodes with favourite attr first. With this order, folders are returned first, then files
+         * Sort nodes with favourite attr first
          *
          * - MegaApi::ORDER_FAV_DESC = 20
-         * Sort nodes with favourite attr last. With this order, folders are returned first, then files
+         * Sort nodes with favourite attr last
          *
          * @return List with all child MegaNode objects
          */
@@ -17447,35 +17456,36 @@ class MegaApi
          * @param type Type of the node.
          * @param order Order for the returned list
          *
-         * Note: Folders will always be first except when sorting by size, creation or modification time
+         * Note: First, the nodes are always sorted by type, being folders always first. Then, the
+         * specified option is applied in each type block
          *
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
          * Undefined order
          *
          * - MegaApi::ORDER_DEFAULT_ASC = 1
-         * Folders first in alphabetical order, then files in the same order
+         * Alphabetical order, e.g. bar, Car, foo
          *
          * - MegaApi::ORDER_DEFAULT_DESC = 2
-         * Folders first in reverse alphabetical order, then files in the same order
+         * Alphabetical inverse order, e.g. foo, Car, bar
          *
          * - MegaApi::ORDER_SIZE_ASC = 3
-         * Sort by size, ascending
+         * Sort by size, small elements first
          *
          * - MegaApi::ORDER_SIZE_DESC = 4
-         * Sort by size, descending
+         * Sort by size, small elements last
          *
          * - MegaApi::ORDER_CREATION_ASC = 5
-         * Sort by creation time in MEGA, ascending
+         * Sort by creation time in MEGA, older elements first
          *
          * - MegaApi::ORDER_CREATION_DESC = 6
-         * Sort by creation time in MEGA, descending
+         * Sort by creation time in MEGA, older elements last
          *
          * - MegaApi::ORDER_MODIFICATION_ASC = 7
-         * Sort by modification time of the original file, ascending
+         * Sort by modification time of the original file, older modification times first
          *
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
-         * Sort by modification time of the original file, descending
+         * Sort by modification time of the original file, older modification times last
          *
          * - deprecated: MegaApi::ORDER_PHOTO_ASC = 11
          * Sort with photos first, then by date ascending
@@ -17490,16 +17500,16 @@ class MegaApi
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
-         * Sort by color label, ascending. With this order, folders are returned first, then files
+         * Sort by color label, nodes with colors first
          *
          * - MegaApi::ORDER_LABEL_DESC = 18
-         * Sort by color label, descending. With this order, folders are returned first, then files
+         * Sort by color label, nodes with colors last
          *
          * - MegaApi::ORDER_FAV_ASC = 19
-         * Sort nodes with favourite attr first. With this order, folders are returned first, then files
+         * Sort nodes with favourite attr first
          *
          * - MegaApi::ORDER_FAV_DESC = 20
-         * Sort nodes with favourite attr last. With this order, folders are returned first, then files
+         * Sort nodes with favourite attr last
          *
          * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
          * @return List with all child MegaNode objects
@@ -18392,47 +18402,48 @@ class MegaApi
          * @param filter Container for filtering options, cannot be null
          * @param order Order for the returned list
          *
-         * Note: Folders will always be first except when sorting by size, creation or modification time
+         * Note: First, the nodes are always sorted by type, being folders always first. Then, the
+         * specified option is applied in each type block
          *
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
          * Undefined order
          *
          * - MegaApi::ORDER_DEFAULT_ASC = 1
-         * Folders first in alphabetical order, then files in the same order
+         * Alphabetical order, e.g. bar, Car, foo
          *
          * - MegaApi::ORDER_DEFAULT_DESC = 2
-         * Folders first in reverse alphabetical order, then files in the same order
+         * Alphabetical inverse order, e.g. foo, Car, bar
          *
          * - MegaApi::ORDER_SIZE_ASC = 3
-         * Sort by size, ascending
+         * Sort by size, small elements first
          *
          * - MegaApi::ORDER_SIZE_DESC = 4
-         * Sort by size, descending
+         * Sort by size, small elements last
          *
          * - MegaApi::ORDER_CREATION_ASC = 5
-         * Sort by creation time in MEGA, ascending
+         * Sort by creation time in MEGA, older elements first
          *
          * - MegaApi::ORDER_CREATION_DESC = 6
-         * Sort by creation time in MEGA, descending
+         * Sort by creation time in MEGA, older elements last
          *
          * - MegaApi::ORDER_MODIFICATION_ASC = 7
-         * Sort by modification time of the original file, ascending
+         * Sort by modification time of the original file, older modification times first
          *
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
-         * Sort by modification time of the original file, descending
+         * Sort by modification time of the original file, older modification times last
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
-         * Sort by color label, ascending. With this order, folders are returned first, then files
+         * Sort by color label, nodes with colors first
          *
          * - MegaApi::ORDER_LABEL_DESC = 18
-         * Sort by color label, descending. With this order, folders are returned first, then files
+         * Sort by color label, nodes with colors last
          *
          * - MegaApi::ORDER_FAV_ASC = 19
-         * Sort nodes with favourite attr first. With this order, folders are returned first, then files
+         * Sort nodes with favourite attr first
          *
          * - MegaApi::ORDER_FAV_DESC = 20
-         * Sort nodes with favourite attr last. With this order, folders are returned first, then files
+         * Sort nodes with favourite attr last
          *
          * @param cancelToken MegaCancelToken to be able to cancel the search at any time.
          * @param searchPage Container for pagination options; if null, all results will be returned
@@ -18454,35 +18465,36 @@ class MegaApi
          * False if you want to search in the children of the node only
          * @param order Order for the returned list
          *
-         * Note: Folders will always be first except when sorting by size, creation or modification time
+         * Note: First, the nodes are always sorted by type, being folders always first. Then, the
+         * specified option is applied in each type block
          *
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
          * Undefined order
          *
          * - MegaApi::ORDER_DEFAULT_ASC = 1
-         * Folders first in alphabetical order, then files in the same order
+         * Alphabetical order, e.g. bar, Car, foo
          *
          * - MegaApi::ORDER_DEFAULT_DESC = 2
-         * Folders first in reverse alphabetical order, then files in the same order
+         * Alphabetical inverse order, e.g. foo, Car, bar
          *
          * - MegaApi::ORDER_SIZE_ASC = 3
-         * Sort by size, ascending
+         * Sort by size, small elements first
          *
          * - MegaApi::ORDER_SIZE_DESC = 4
-         * Sort by size, descending
+         * Sort by size, small elements last
          *
          * - MegaApi::ORDER_CREATION_ASC = 5
-         * Sort by creation time in MEGA, ascending
+         * Sort by creation time in MEGA, older elements first
          *
          * - MegaApi::ORDER_CREATION_DESC = 6
-         * Sort by creation time in MEGA, descending
+         * Sort by creation time in MEGA, older elements last
          *
          * - MegaApi::ORDER_MODIFICATION_ASC = 7
-         * Sort by modification time of the original file, ascending
+         * Sort by modification time of the original file, older modification times first
          *
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
-         * Sort by modification time of the original file, descending
+         * Sort by modification time of the original file, older modification times last
          *
          * - deprecated: MegaApi::ORDER_ALPHABETICAL_ASC = 9
          * Same behavior than MegaApi::ORDER_DEFAULT_ASC
@@ -18503,16 +18515,16 @@ class MegaApi
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
-         * Sort by color label, ascending. With this order, folders are returned first, then files
+         * Sort by color label, nodes with colors first
          *
          * - MegaApi::ORDER_LABEL_DESC = 18
-         * Sort by color label, descending. With this order, folders are returned first, then files
+         * Sort by color label, nodes with colors last
          *
          * - MegaApi::ORDER_FAV_ASC = 19
-         * Sort nodes with favourite attr first. With this order, folders are returned first, then files
+         * Sort nodes with favourite attr first
          *
          * - MegaApi::ORDER_FAV_DESC = 20
-         * Sort nodes with favourite attr last. With this order, folders are returned first, then files
+         * Sort nodes with favourite attr last
          *
          * @return List of nodes that contain the desired string in their name
          *
@@ -18540,35 +18552,36 @@ class MegaApi
          * False if you want to search in the children of the node only
          * @param order Order for the returned list
          *
-         * Note: Folders will always be first except when sorting by size, creation or modification time
+         * Note: First, the nodes are always sorted by type, being folders always first. Then, the
+         * specified option is applied in each type block
          *
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
          * Undefined order
          *
          * - MegaApi::ORDER_DEFAULT_ASC = 1
-         * Folders first in alphabetical order, then files in the same order
+         * Alphabetical order, e.g. bar, Car, foo
          *
          * - MegaApi::ORDER_DEFAULT_DESC = 2
-         * Folders first in reverse alphabetical order, then files in the same order
+         * Alphabetical inverse order, e.g. foo, Car, bar
          *
          * - MegaApi::ORDER_SIZE_ASC = 3
-         * Sort by size, ascending
+         * Sort by size, small elements first
          *
          * - MegaApi::ORDER_SIZE_DESC = 4
-         * Sort by size, descending
+         * Sort by size, small elements last
          *
          * - MegaApi::ORDER_CREATION_ASC = 5
-         * Sort by creation time in MEGA, ascending
+         * Sort by creation time in MEGA, older elements first
          *
          * - MegaApi::ORDER_CREATION_DESC = 6
-         * Sort by creation time in MEGA, descending
+         * Sort by creation time in MEGA, older elements last
          *
          * - MegaApi::ORDER_MODIFICATION_ASC = 7
-         * Sort by modification time of the original file, ascending
+         * Sort by modification time of the original file, older modification times first
          *
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
-         * Sort by modification time of the original file, descending
+         * Sort by modification time of the original file, older modification times last
          *
          * - deprecated: MegaApi::ORDER_ALPHABETICAL_ASC = 9
          * Same behavior than MegaApi::ORDER_DEFAULT_ASC
@@ -18589,16 +18602,16 @@ class MegaApi
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
-         * Sort by color label, ascending. With this order, folders are returned first, then files
+         * Sort by color label, nodes with colors first
          *
          * - MegaApi::ORDER_LABEL_DESC = 18
-         * Sort by color label, descending. With this order, folders are returned first, then files
+         * Sort by color label, nodes with colors last
          *
          * - MegaApi::ORDER_FAV_ASC = 19
-         * Sort nodes with favourite attr first. With this order, folders are returned first, then files
+         * Sort nodes with favourite attr first
          *
          * - MegaApi::ORDER_FAV_DESC = 20
-         * Sort nodes with favourite attr last. With this order, folders are returned first, then files
+         * Sort nodes with favourite attr last
          *
          * @return List of nodes that contain the desired string in their name
          *
@@ -18624,35 +18637,36 @@ class MegaApi
          * @param searchString Search string. The search is case-insensitive
          * @param order Order for the returned list
          *
-         * Note: Folders will always be first except when sorting by size, creation or modification time
+         * Note: First, the nodes are always sorted by type, being folders always first. Then, the
+         * specified option is applied in each type block
          *
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
          * Undefined order
          *
          * - MegaApi::ORDER_DEFAULT_ASC = 1
-         * Folders first in alphabetical order, then files in the same order
+         * Alphabetical order, e.g. bar, Car, foo
          *
          * - MegaApi::ORDER_DEFAULT_DESC = 2
-         * Folders first in reverse alphabetical order, then files in the same order
+         * Alphabetical inverse order, e.g. foo, Car, bar
          *
          * - MegaApi::ORDER_SIZE_ASC = 3
-         * Sort by size, ascending
+         * Sort by size, small elements first
          *
          * - MegaApi::ORDER_SIZE_DESC = 4
-         * Sort by size, descending
+         * Sort by size, small elements last
          *
          * - MegaApi::ORDER_CREATION_ASC = 5
-         * Sort by creation time in MEGA, ascending
+         * Sort by creation time in MEGA, older elements first
          *
          * - MegaApi::ORDER_CREATION_DESC = 6
-         * Sort by creation time in MEGA, descending
+         * Sort by creation time in MEGA, older elements last
          *
          * - MegaApi::ORDER_MODIFICATION_ASC = 7
-         * Sort by modification time of the original file, ascending
+         * Sort by modification time of the original file, older modification times first
          *
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
-         * Sort by modification time of the original file, descending
+         * Sort by modification time of the original file, older modification times last
          *
          * - deprecated: MegaApi::ORDER_ALPHABETICAL_ASC = 9
          * Same behavior than MegaApi::ORDER_DEFAULT_ASC
@@ -18673,16 +18687,16 @@ class MegaApi
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
-         * Sort by color label, ascending. With this order, folders are returned first, then files
+         * Sort by color label, nodes with colors first
          *
          * - MegaApi::ORDER_LABEL_DESC = 18
-         * Sort by color label, descending. With this order, folders are returned first, then files
+         * Sort by color label, nodes with colors last
          *
          * - MegaApi::ORDER_FAV_ASC = 19
-         * Sort nodes with favourite attr first. With this order, folders are returned first, then files
+         * Sort nodes with favourite attr first
          *
          * - MegaApi::ORDER_FAV_DESC = 20
-         * Sort nodes with favourite attr last. With this order, folders are returned first, then files
+         * Sort nodes with favourite attr last
          *
          * @return List of nodes that contain the desired string in their name
          *
@@ -18711,35 +18725,36 @@ class MegaApi
          * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
          * @param order Order for the returned list
          *
-         * Note: Folders will always be first except when sorting by size, creation or modification time
+         * Note: First, the nodes are always sorted by type, being folders always first. Then, the
+         * specified option is applied in each type block
          *
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
          * Undefined order
          *
          * - MegaApi::ORDER_DEFAULT_ASC = 1
-         * Folders first in alphabetical order, then files in the same order
+         * Alphabetical order, e.g. bar, Car, foo
          *
          * - MegaApi::ORDER_DEFAULT_DESC = 2
-         * Folders first in reverse alphabetical order, then files in the same order
+         * Alphabetical inverse order, e.g. foo, Car, bar
          *
          * - MegaApi::ORDER_SIZE_ASC = 3
-         * Sort by size, ascending
+         * Sort by size, small elements first
          *
          * - MegaApi::ORDER_SIZE_DESC = 4
-         * Sort by size, descending
+         * Sort by size, small elements last
          *
          * - MegaApi::ORDER_CREATION_ASC = 5
-         * Sort by creation time in MEGA, ascending
+         * Sort by creation time in MEGA, older elements first
          *
          * - MegaApi::ORDER_CREATION_DESC = 6
-         * Sort by creation time in MEGA, descending
+         * Sort by creation time in MEGA, older elements last
          *
          * - MegaApi::ORDER_MODIFICATION_ASC = 7
-         * Sort by modification time of the original file, ascending
+         * Sort by modification time of the original file, older modification times first
          *
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
-         * Sort by modification time of the original file, descending
+         * Sort by modification time of the original file, older modification times last
          *
          * - deprecated: MegaApi::ORDER_ALPHABETICAL_ASC = 9
          * Same behavior than MegaApi::ORDER_DEFAULT_ASC
@@ -18760,16 +18775,16 @@ class MegaApi
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
-         * Sort by color label, ascending. With this order, folders are returned first, then files
+         * Sort by color label, nodes with colors first
          *
          * - MegaApi::ORDER_LABEL_DESC = 18
-         * Sort by color label, descending. With this order, folders are returned first, then files
+         * Sort by color label, nodes with colors last
          *
          * - MegaApi::ORDER_FAV_ASC = 19
-         * Sort nodes with favourite attr first. With this order, folders are returned first, then files
+         * Sort nodes with favourite attr first
          *
          * - MegaApi::ORDER_FAV_DESC = 20
-         * Sort nodes with favourite attr last. With this order, folders are returned first, then files
+         * Sort nodes with favourite attr last
          *
          * @return List of nodes that contain the desired string in their name
          *
@@ -18794,35 +18809,36 @@ class MegaApi
          * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
          * @param order Order for the returned list
          *
-         * Note: Folders will always be first except when sorting by size, creation or modification time
+         * Note: First, the nodes are always sorted by type, being folders always first. Then, the
+         * specified option is applied in each type block
          *
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
          * Undefined order
          *
          * - MegaApi::ORDER_DEFAULT_ASC = 1
-         * Folders first in alphabetical order, then files in the same order
+         * Alphabetical order, e.g. bar, Car, foo
          *
          * - MegaApi::ORDER_DEFAULT_DESC = 2
-         * Folders first in reverse alphabetical order, then files in the same order
+         * Alphabetical inverse order, e.g. foo, Car, bar
          *
          * - MegaApi::ORDER_SIZE_ASC = 3
-         * Sort by size, ascending
+         * Sort by size, small elements first
          *
          * - MegaApi::ORDER_SIZE_DESC = 4
-         * Sort by size, descending
+         * Sort by size, small elements last
          *
          * - MegaApi::ORDER_CREATION_ASC = 5
-         * Sort by creation time in MEGA, ascending
+         * Sort by creation time in MEGA, older elements first
          *
          * - MegaApi::ORDER_CREATION_DESC = 6
-         * Sort by creation time in MEGA, descending
+         * Sort by creation time in MEGA, older elements last
          *
          * - MegaApi::ORDER_MODIFICATION_ASC = 7
-         * Sort by modification time of the original file, ascending
+         * Sort by modification time of the original file, older modification times first
          *
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
-         * Sort by modification time of the original file, descending
+         * Sort by modification time of the original file, older modification times last
          *
          * - deprecated: MegaApi::ORDER_ALPHABETICAL_ASC = 9
          * Same behavior than MegaApi::ORDER_DEFAULT_ASC
@@ -18843,16 +18859,16 @@ class MegaApi
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
-         * Sort by color label, ascending. With this order, folders are returned first, then files
+         * Sort by color label, nodes with colors first
          *
          * - MegaApi::ORDER_LABEL_DESC = 18
-         * Sort by color label, descending. With this order, folders are returned first, then files
+         * Sort by color label, nodes with colors last
          *
          * - MegaApi::ORDER_FAV_ASC = 19
-         * Sort nodes with favourite attr first. With this order, folders are returned first, then files
+         * Sort nodes with favourite attr first
          *
          * - MegaApi::ORDER_FAV_DESC = 20
-         * Sort nodes with favourite attr last. With this order, folders are returned first, then files
+         * Sort nodes with favourite attr last
          *
          * @return List of nodes that contain the desired string in their name
          *
@@ -18877,35 +18893,36 @@ class MegaApi
          * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
          * @param order Order for the returned list
          *
-         * Note: Folders will always be first except when sorting by size, creation or modification time
+         * Note: First, the nodes are always sorted by type, being folders always first. Then, the
+         * specified option is applied in each type block
          *
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
          * Undefined order
          *
          * - MegaApi::ORDER_DEFAULT_ASC = 1
-         * Folders first in alphabetical order, then files in the same order
+         * Alphabetical order, e.g. bar, Car, foo
          *
          * - MegaApi::ORDER_DEFAULT_DESC = 2
-         * Folders first in reverse alphabetical order, then files in the same order
+         * Alphabetical inverse order, e.g. foo, Car, bar
          *
          * - MegaApi::ORDER_SIZE_ASC = 3
-         * Sort by size, ascending
+         * Sort by size, small elements first
          *
          * - MegaApi::ORDER_SIZE_DESC = 4
-         * Sort by size, descending
+         * Sort by size, small elements last
          *
          * - MegaApi::ORDER_CREATION_ASC = 5
-         * Sort by creation time in MEGA, ascending
+         * Sort by creation time in MEGA, older elements first
          *
          * - MegaApi::ORDER_CREATION_DESC = 6
-         * Sort by creation time in MEGA, descending
+         * Sort by creation time in MEGA, older elements last
          *
          * - MegaApi::ORDER_MODIFICATION_ASC = 7
-         * Sort by modification time of the original file, ascending
+         * Sort by modification time of the original file, older modification times first
          *
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
-         * Sort by modification time of the original file, descending
+         * Sort by modification time of the original file, older modification times last
          *
          * - deprecated: MegaApi::ORDER_ALPHABETICAL_ASC = 9
          * Same behavior than MegaApi::ORDER_DEFAULT_ASC
@@ -18926,16 +18943,16 @@ class MegaApi
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
-         * Sort by color label, ascending. With this order, folders are returned first, then files
+         * Sort by color label, nodes with colors first
          *
          * - MegaApi::ORDER_LABEL_DESC = 18
-         * Sort by color label, descending. With this order, folders are returned first, then files
+         * Sort by color label, nodes with colors last
          *
          * - MegaApi::ORDER_FAV_ASC = 19
-         * Sort nodes with favourite attr first. With this order, folders are returned first, then files
+         * Sort nodes with favourite attr first
          *
          * - MegaApi::ORDER_FAV_DESC = 20
-         * Sort nodes with favourite attr last. With this order, folders are returned first, then files
+         * Sort nodes with favourite attr last
          *
          * @return List of nodes that contain the desired string in their name
          *
@@ -18960,35 +18977,36 @@ class MegaApi
          * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
          * @param order Order for the returned list
          *
-         * Note: Folders will always be first except when sorting by size, creation or modification time
+         * Note: First, the nodes are always sorted by type, being folders always first. Then, the
+         * specified option is applied in each type block
          *
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
          * Undefined order
          *
          * - MegaApi::ORDER_DEFAULT_ASC = 1
-         * Folders first in alphabetical order, then files in the same order
+         * Alphabetical order, e.g. bar, Car, foo
          *
          * - MegaApi::ORDER_DEFAULT_DESC = 2
-         * Folders first in reverse alphabetical order, then files in the same order
+         * Alphabetical inverse order, e.g. foo, Car, bar
          *
          * - MegaApi::ORDER_SIZE_ASC = 3
-         * Sort by size, ascending
+         * Sort by size, small elements first
          *
          * - MegaApi::ORDER_SIZE_DESC = 4
-         * Sort by size, descending
+         * Sort by size, small elements last
          *
          * - MegaApi::ORDER_CREATION_ASC = 5
-         * Sort by creation time in MEGA, ascending
+         * Sort by creation time in MEGA, older elements first
          *
          * - MegaApi::ORDER_CREATION_DESC = 6
-         * Sort by creation time in MEGA, descending
+         * Sort by creation time in MEGA, older elements last
          *
          * - MegaApi::ORDER_MODIFICATION_ASC = 7
-         * Sort by modification time of the original file, ascending
+         * Sort by modification time of the original file, older modification times first
          *
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
-         * Sort by modification time of the original file, descending
+         * Sort by modification time of the original file, older modification times last
          *
          * - deprecated: MegaApi::ORDER_ALPHABETICAL_ASC = 9
          * Same behavior than MegaApi::ORDER_DEFAULT_ASC
@@ -19009,16 +19027,16 @@ class MegaApi
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
-         * Sort by color label, ascending. With this order, folders are returned first, then files
+         * Sort by color label, nodes with colors first
          *
          * - MegaApi::ORDER_LABEL_DESC = 18
-         * Sort by color label, descending. With this order, folders are returned first, then files
+         * Sort by color label, nodes with colors last
          *
          * - MegaApi::ORDER_FAV_ASC = 19
-         * Sort nodes with favourite attr first. With this order, folders are returned first, then files
+         * Sort nodes with favourite attr first
          *
          * - MegaApi::ORDER_FAV_DESC = 20
-         * Sort nodes with favourite attr last. With this order, folders are returned first, then files
+         * Sort nodes with favourite attr last
          *
          * @return List of nodes that contain the desired string in their name
          *
@@ -19065,35 +19083,36 @@ class MegaApi
          * False if you want to search in the children of the node only
          * @param order Order for the returned list
          *
-         * Note: Folders will always be first except when sorting by size, creation or modification time
+         * Note: First, the nodes are always sorted by type, being folders always first. Then, the
+         * specified option is applied in each type block
          *
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
          * Undefined order
          *
          * - MegaApi::ORDER_DEFAULT_ASC = 1
-         * Folders first in alphabetical order, then files in the same order
+         * Alphabetical order, e.g. bar, Car, foo
          *
          * - MegaApi::ORDER_DEFAULT_DESC = 2
-         * Folders first in reverse alphabetical order, then files in the same order
+         * Alphabetical inverse order, e.g. foo, Car, bar
          *
          * - MegaApi::ORDER_SIZE_ASC = 3
-         * Sort by size, ascending
+         * Sort by size, small elements first
          *
          * - MegaApi::ORDER_SIZE_DESC = 4
-         * Sort by size, descending
+         * Sort by size, small elements last
          *
          * - MegaApi::ORDER_CREATION_ASC = 5
-         * Sort by creation time in MEGA, ascending
+         * Sort by creation time in MEGA, older elements first
          *
          * - MegaApi::ORDER_CREATION_DESC = 6
-         * Sort by creation time in MEGA, descending
+         * Sort by creation time in MEGA, older elements last
          *
          * - MegaApi::ORDER_MODIFICATION_ASC = 7
-         * Sort by modification time of the original file, ascending
+         * Sort by modification time of the original file, older modification times first
          *
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
-         * Sort by modification time of the original file, descending
+         * Sort by modification time of the original file, older modification times last
          *
          * - deprecated: MegaApi::ORDER_PHOTO_ASC = 11
          * Sort with photos first, then by date ascending
@@ -19108,16 +19127,16 @@ class MegaApi
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
-         * Sort by color label, ascending. With this order, folders are returned first, then files
+         * Sort by color label, nodes with colors first
          *
          * - MegaApi::ORDER_LABEL_DESC = 18
-         * Sort by color label, descending. With this order, folders are returned first, then files
+         * Sort by color label, nodes with colors last
          *
          * - MegaApi::ORDER_FAV_ASC = 19
-         * Sort nodes with favourite attr first. With this order, folders are returned first, then files
+         * Sort nodes with favourite attr first
          *
          * - MegaApi::ORDER_FAV_DESC = 20
-         * Sort nodes with favourite attr last. With this order, folders are returned first, then files
+         * Sort nodes with favourite attr last
          *
          * @param type Type of nodes requested in the search
          * Valid values for this parameter are:
