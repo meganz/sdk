@@ -4059,7 +4059,7 @@ using namespace mega;
 #pragma mark - Remote Feature Flags
 - (NSInteger)getRemoteFeatureFlagValue:(NSString *)flag {
     if (self.megaApi == nil) return 0;
-    MegaFlag *flagValue = self.megaApi->getFlag((const char *)flag.UTF8String);
+    MegaFlag *flagValue = self.megaApi->getFlag(flag.UTF8String);
     return flagValue->getGroup();
 }
 
