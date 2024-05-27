@@ -1295,6 +1295,91 @@ void Sync::createDebrisTmpLockOnce()
     }
 }
 
+/* StallInfoMaps BEGIN */
+void SyncStallInfo::StallInfoMaps::moveFromKeepingProgress(SyncStallInfo::StallInfoMaps& source)
+{
+    cloud = std::move(source.cloud);
+    local = std::move(source.local);
+    noProgress = source.noProgress;
+    noProgressCount = source.noProgressCount;
+}
+
+SyncStallInfo::StallInfoMaps& SyncStallInfo::StallInfoMaps::operator=(SyncStallInfo::StallInfoMaps&& other) noexcept
+{
+    if (this != &other)
+    {
+        moveFromKeepingProgress(other);
+    }
+    return *this;
+}
+
+bool SyncStallInfo::StallInfoMaps::hasProgressLack() const
+{
+    return noProgressCount > MIN_NOPROGRESS_COUNT_FOR_LACK_OF_PROGRESS;
+}
+
+bool SyncStallInfo::StallInfoMaps::empty() const
+{
+    return cloud.empty() && local.empty();
+}
+
+size_t SyncStallInfo::StallInfoMaps::size() const
+{
+    return cloud.size() + local.size();
+}
+
+size_t SyncStallInfo::StallInfoMaps::reportableSize() const
+{
+    if (hasProgressLack())
+    {
+        return size();
+    }
+    size_t totalReportableSize = 0;
+    for (auto& cloudStallEntry: cloud)
+    {
+        if (cloudStallEntry.second.alertUserImmediately)
+        {
+            ++totalReportableSize;
+        }
+    }
+    for (auto& localStallEntry: local)
+    {
+        if (localStallEntry.second.alertUserImmediately)
+        {
+            ++totalReportableSize;
+        }
+    }
+    return totalReportableSize;
+}
+
+void SyncStallInfo::StallInfoMaps::updateNoProgress()
+{
+    if (noProgress && noProgressCount < MAX_NOPROGRESS_COUNT)
+    {
+        ++noProgressCount;
+    }
+}
+
+void SyncStallInfo::StallInfoMaps::setNoProgress()
+{
+    assert((noProgress || noProgressCount == 0) && "noProgressCount is not zero when setting progress");
+    noProgress = true;
+}
+
+void SyncStallInfo::StallInfoMaps::resetNoProgress()
+{
+    noProgress = false;
+    noProgressCount = 0;
+}
+
+void SyncStallInfo::StallInfoMaps::clearStalls()
+{
+    cloud.clear();
+    local.clear();
+}
+/* StallInfoMaps END */
+
+/* SyncStallInfo BEGIN */
 bool SyncStallInfo::empty() const
 {
     return syncStallInfoMaps.empty();
@@ -1490,6 +1575,7 @@ void SyncStallInfo::debug() const
     }
 }
 #endif
+/* SyncStallInfo END */
 
 struct ProgressingMonitor
 {

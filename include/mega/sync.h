@@ -925,129 +925,87 @@ struct SyncStallInfo
 
     struct StallInfoMaps
     {
-        CloudStallInfoMap cloud;
-        LocalStallInfoMap local;
-        static const int MIN_NOPROGRESS_COUNT_FOR_LACK_OF_PROGRESS = 10;
+        CloudStallInfoMap cloud; // Map with cloud-side stalls
+        LocalStallInfoMap local; // Map with local-side stalls
+        static const int MIN_NOPROGRESS_COUNT_FOR_LACK_OF_PROGRESS = 10; // used for hasProgressLack() to report non-immediate stalls
         static const int MAX_NOPROGRESS_COUNT = 1000000; // Prevent overflow
 
+        // There is no progress. This is reset during syncLoop when all sync have completed the scanning round.
         bool noProgress{true};
+        // Count noProgress. This is used by non-immediate stalls.
+        // When there is progress lack (hasProgressLack()), the non-immediate stalls will be reported to the app.
+        // This counter is reset upon destruction of a ProgressMonitor, when no stalls have been added to it.
         int noProgressCount{};
 
+        // Need explicit defaults for the redefinition of operator=
         StallInfoMaps() = default;
         StallInfoMaps(StallInfoMaps&&) = default;
 
-        void moveFromKeepingProgress(StallInfoMaps& source)
-        {
-            cloud = std::move(source.cloud);
-            local = std::move(source.local);
-            noProgress = source.noProgress;
-            noProgressCount = source.noProgressCount;
-        }
+        // Move cloud and local maps, copy source noProgress flag and noProgressCount.
+        void moveFromKeepingProgress(StallInfoMaps& source);
 
-        StallInfoMaps& operator=(StallInfoMaps&& other) noexcept
-        {
-            if (this != &other)
-            {
-                moveFromKeepingProgress(other);
-            }
-            return *this;
-        }
+        // Use moveFromKeepingProgress()
+        StallInfoMaps& operator=(StallInfoMaps&& other) noexcept;
+        // Defaults needed in order to the operator redefinition above to work properly.
         StallInfoMaps(const StallInfoMaps& other) = default;
         StallInfoMaps& operator=(const StallInfoMaps& other) = default;
 
-        bool hasProgressLack() const
-        {
-            return noProgressCount > MIN_NOPROGRESS_COUNT_FOR_LACK_OF_PROGRESS;
-        }
+        // noProgress flag is set and noProgressCount is greater than MIN_NOPROGRESS_COUNT_FOR_LACK_OF_PROGRESS
+        bool hasProgressLack() const;
 
-        bool empty() const
-        {
-            return cloud.empty() && local.empty();
-        }
+        // Cloud and local maps are empty
+        bool empty() const;
 
-        size_t size() const
-        {
-            return cloud.size() + local.size();
-        }
+        // Full size - total number of stalls (cloud + local maps)
+        size_t size() const;
 
-        size_t reportableSize() const
-        {
-            if (hasProgressLack())
-            {
-                return size();
-            }
-            size_t totalReportableSize = 0;
-            for (auto& cloudStallEntry: cloud)
-            {
-                if (cloudStallEntry.second.alertUserImmediately)
-                {
-                    ++totalReportableSize;
-                }
-            }
-            for (auto& localStallEntry: local)
-            {
-                if (localStallEntry.second.alertUserImmediately)
-                {
-                    ++totalReportableSize;
-                }
-            }
-            return totalReportableSize;
-        }
+        // Size taking into account only reportable stalls:
+        // all of them (same as size() if hasProgressLack() is true, otherwise only immediate stalls)
+        size_t reportableSize() const;
 
-        void updateNoProgress()
-        {
-            if (noProgress && noProgressCount < MAX_NOPROGRESS_COUNT)
-            {
-                ++noProgressCount;
-            }
-        }
+        // Update noProgressCount if noProgress is true and the count is smaller than MAX_NOPROGRESS_COUNT.
+        void updateNoProgress();
 
-        void setNoProgress()
-        {
-            assert((noProgress || noProgressCount == 0) && "noProgressCount is not zero when setting progress");
-            noProgress = true;
-        }
+        // Set noProgress flag to true.
+        void setNoProgress();
 
-        void resetNoProgress()
-        {
-            noProgress = false;
-            noProgressCount = 0;
-        }
+        // Set noProgress flag to false and reset noProgressCount.
+        void resetNoProgress();
 
-        void clearStalls()
-        {
-            cloud.clear();
-            local.clear();
-        }
+        // Clear cloud and local stall maps. Keep the noProgress flag and noProgressCount counters.
+        void clearStalls();
     };
 
+    // Map of syncID, struct of <cloud stall map, local stall map, noProgress flag, noProgressCount>
     using SyncIDtoStallInfoMaps = std::map<handle, StallInfoMaps>;
-
     SyncIDtoStallInfoMaps syncStallInfoMaps;
 
-    /* No stalls detected */
+    // No stalls detected
     bool empty() const;
 
+    // Add a cloud-side stall issue
     bool waitingCloud(handle backupId,
                       const string& mapKeyPath,
                       SyncStallEntry&& e);
 
+    // Add a local-side stall issue
     bool waitingLocal(handle backupId,
                       const LocalPath& mapKeyPath,
                       SyncStallEntry&& e);
 
+    // SyncID/BackupID is a key of syncStallInfoMaps
     bool isSyncStalled(handle backupId) const;
 
-    /* Requires user action to resolve */
+    // Requires user action to resolve - immediate stall (noProgress flag and noProgressCount does not have any effect on this stall)
     bool hasImmediateStallReason() const;
 
-    /* At least one StallInfoMaps entry has progress lack */
+    // At least one StallInfoMaps entry has progress lack
     bool hasProgressLackStall() const;
 
-    /* Total stalls entries */
+    // Total stalls entries
     size_t size() const;
 
-    /* Total stalls entries that are either immediate or are part of a sync with progress lack */
+    // Total stalls entries that are either immediate or are part of a sync with progress lack
     size_t reportableSize() const;
 
     void updateNoProgress();
