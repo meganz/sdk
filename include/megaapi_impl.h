@@ -3727,6 +3727,8 @@ public:
         void updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, const char *backupName, int state, int subState, MegaRequestListener* listener = nullptr);
         void removeBackup(MegaHandle backupId, MegaRequestListener *listener = nullptr);
         void removeFromBC(MegaHandle backupId, MegaHandle moveDestination, MegaRequestListener* listener = nullptr);
+        void pauseFromBC(MegaHandle backupId, MegaRequestListener* listener);
+        void resumeFromBC(MegaHandle backupId, MegaRequestListener* listener);
         void getBackupInfo(MegaRequestListener* listener = nullptr);
         void sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode, MegaRequestListener *listener);
 

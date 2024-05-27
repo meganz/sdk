@@ -4523,7 +4523,9 @@ class MegaRequest
             TYPE_ENABLE_MOUNT                                               = 189,
             TYPE_REMOVE_MOUNT                                               = 190,
             TYPE_SET_MOUNT_FLAGS                                            = 191,
-            TOTAL_OF_REQUEST_TYPES                                          = 192,
+            TYPE_BACKUP_PAUSE_MD                                            = 192,
+            TYPE_BACKUP_RESUME_MD                                           = 193,
+            TOTAL_OF_REQUEST_TYPES                                          = 194,
         };
 
         virtual ~MegaRequest();
@@ -21970,6 +21972,32 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
         */
         void removeFromBC(MegaHandle backupId, MegaHandle moveDestination, MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Simulate a backup/sync being paused from the webclient.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_BACKUP_PAUSE_MD
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParentHandle - Returns the backup id
+         * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+         *
+         * @param backupId backup id of the backup to be paused
+         * @param listener MegaRequestListener to track this request
+        */
+        void pauseFromBC(MegaHandle backupId, MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Simulate a backup/sync being resumed from the webclient.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_BACKUP_RESUME_MD
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParentHandle - Returns the backup id
+         * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+         *
+         * @param backupId backup id of the backup to be resumed
+         * @param listener MegaRequestListener to track this request
+        */
+        void resumeFromBC(MegaHandle backupId, MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Fetch information about all registered backups for Backup Centre
