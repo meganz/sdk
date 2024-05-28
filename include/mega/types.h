@@ -1148,7 +1148,7 @@ enum class PathProblem : unsigned short {
     MoveToDebrisFolderFailed,
     IgnoreFileMalformed,
     FilesystemErrorListingFolder,
-    FilesystemErrorIdentifyingFolderContent,
+    FilesystemErrorIdentifyingFolderContent,  // Deprecated after SDK-3206
     WaitingForScanningToComplete,
     WaitingForAnotherMoveToComplete,
     SourceWasMovedElsewhere,

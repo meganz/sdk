@@ -12581,12 +12581,7 @@ void Syncs::processSyncStalls()
                 else
                 {
                     assert(sbp->filesUnreadable);
-                    mSyncFlags->stall.waitingLocal(sbp->scanBlockedLocalPath, SyncStallEntry(
-                        SyncWaitReason::FileIssue, false, false,
-                        {},
-                        {},
-                        {sbp->scanBlockedLocalPath, PathProblem::FilesystemErrorIdentifyingFolderContent},
-                        {}));
+                    LOG_verbose << "Locked file(s) fingerprint inside this path (resulting in scan blocked path): " << sbp->scanBlockedLocalPath;
                 }
                 ++i;
             }

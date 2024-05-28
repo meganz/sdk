@@ -7155,7 +7155,7 @@ class MegaSyncStall
             MoveToDebrisFolderFailed,
             IgnoreFileMalformed,
             FilesystemErrorListingFolder,
-            FilesystemErrorIdentifyingFolderContent,
+            FilesystemErrorIdentifyingFolderContent, // Deprecated after SDK-3206
             WaitingForScanningToComplete,
             WaitingForAnotherMoveToComplete,
             SourceWasMovedElsewhere,
