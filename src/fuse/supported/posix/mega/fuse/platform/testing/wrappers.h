@@ -1,6 +1,7 @@
 #pragma once
 
 #include <sys/stat.h>
+#include <sys/statvfs.h>
 #include <sys/types.h>
 
 #include <dirent.h>
@@ -119,6 +120,8 @@ int stat(const Path& path, Stat& buffer);
 int statat(const platform::FileDescriptor& descriptor,
            const Path& path,
            Stat& buffer);
+
+int statvfs(const Path& path, struct statvfs& buffer);
 
 int truncate(const Path& path, off_t length);
 
