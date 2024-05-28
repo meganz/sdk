@@ -10281,7 +10281,7 @@ typedef NS_ENUM(NSInteger, MEGAClientType) {
 
 #pragma mark - Remote feature flags
 /**
- * @brief Get the type and value for the flag with the given name,
+ * @brief Get the value for the flag with the given name,
  * if present among either A/B Test or Feature flags.
  * @param flag Name or key of the value to be retrieved
  * @return A integer with the value of the flag, value above 0 means feature enabled
