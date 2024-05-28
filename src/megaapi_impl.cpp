@@ -22896,24 +22896,16 @@ void MegaApiImpl::copySyncDataToCache(const char* localFolder, const char* name,
                 syncConfig.mError = syncError;
             }
 
-            client->ensureSyncUserAttributes([this, request, syncConfig](Error e){
-
-                if (e != API_OK)
+            client->copySyncConfig(syncConfig, [this, request](handle backupId, error e)
+            {
+                if (e == API_OK)
                 {
-                    fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
-                    return;
+                    request->setParentHandle(backupId);
                 }
 
-                client->copySyncConfig(syncConfig, [this, request](handle backupId, error e)
-                {
-                    if (e == API_OK)
-                    {
-                        request->setParentHandle(backupId);
-                    }
-
-                    fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
-                });
+                fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
             });
+
             return API_OK;
         };
 

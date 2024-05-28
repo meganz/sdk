@@ -4456,23 +4456,6 @@ bool StandardClient::login_reset_makeremotenodes(const string& user, const strin
     return true;
 }
 
-void StandardClient::ensureSyncUserAttributes(PromiseBoolSP result)
-{
-    auto completion = [result](Error e) { result->set_value(!e); };
-    client.ensureSyncUserAttributes(std::move(completion));
-}
-
-bool StandardClient::ensureSyncUserAttributes()
-{
-    auto result =
-        thread_do<bool>([](StandardClient& client, PromiseBoolSP result)
-                        {
-                            client.ensureSyncUserAttributes(result);
-                        }, __FILE__, __LINE__);
-
-    return result.get();
-}
-
 void StandardClient::copySyncConfig(SyncConfig config, PromiseHandleSP result)
 {
     auto completion =
@@ -7827,9 +7810,6 @@ TEST_F(SyncTest, BasicSync_ClientToSDKConfigMigration)
 
     // Log in the client.
     ASSERT_TRUE(c1.login("MEGA_EMAIL", "MEGA_PWD"));
-
-    // Make sure sync user attributes are present.
-    ASSERT_TRUE(c1.ensureSyncUserAttributes());
 
     // Update configs so they're useful for this client.
     {

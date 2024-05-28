@@ -1038,23 +1038,6 @@ public:
      */
     void importSyncConfigs(const char* configs, std::function<void(error)> completion);
 
-    /**
-     * @brief This method ensures that sync user attributes are available.
-     *
-     * This method calls \c completion function when it finishes, with the
-     * corresponding error if was not possible to ensure the attrs are available.
-     *
-     * Note that it may also need to create certain attributes, like *~jscd, if they
-     * don't exist yet.
-     *
-     * @param completion Function that is called when completed
-     */
-    void ensureSyncUserAttributes(std::function<void(Error)> completion);
-
-private:
-    void ensureSyncUserAttributesCompleted(Error e);
-    std::function<void(Error)> mOnEnsureSyncUserAttributesComplete;
-
 public:
 
 #endif  // ENABLE_SYNC

@@ -16278,98 +16278,6 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
     return API_OK;
 }
 
-void MegaClient::ensureSyncUserAttributes(std::function<void(Error)> completion)
-{
-    // If the attributes are not available yet, we make or get them.
-    // Then the completion function is called.
-
-    // we rely on storing this function to remember that we have an
-    // operation in progress, so we don't allow nullptr
-    assert(!!completion);
-
-    if (User* u = ownuser())
-    {
-        if (u->getattr(ATTR_JSON_SYNC_CONFIG_DATA))
-        {
-            // attributes already exist.
-            completion(API_OK);
-            return;
-        }
-    }
-    else
-    {
-        // If there's no user object, there can't be user attributes
-        completion(API_ENOENT);
-        return;
-    }
-
-    if (!mOnEnsureSyncUserAttributesComplete)
-    {
-        // We haven't sent the request yet - remember what to do when complete
-        mOnEnsureSyncUserAttributesComplete = completion;
-
-        TLVstore store;
-
-        // Authentication key.
-        store.set("ak", rng.genstring(SymmCipher::KEYLENGTH));
-
-        // Cipher key.
-        store.set("ck", rng.genstring(SymmCipher::KEYLENGTH));
-
-        // File name.
-        store.set("fn", rng.genstring(SymmCipher::KEYLENGTH));
-
-        // Generate encrypted payload.
-        unique_ptr<string> payload(
-            store.tlvRecordsToContainer(rng, &key));
-
-        // Persist the new attribute (with potential to be in a race with another client).
-        putua(ATTR_JSON_SYNC_CONFIG_DATA,
-            reinterpret_cast<const byte*>(payload->data()),
-            static_cast<unsigned>(payload->size()),
-            0, UNDEF, 0, 0,
-            [this](Error e){
-
-                if (e == API_EEXPIRED)
-                {
-                    // it may happen that more than one client attempts to create the UA in parallel
-                    // only the first one reaching the API will set the value, the other one should
-                    // fetch the value manually
-                    LOG_warn << "Failed to create JSON config data (already created). Fetching...";
-                    reqs.add(new CommandGetUA(this, uid.c_str(), ATTR_JSON_SYNC_CONFIG_DATA, nullptr, 0,
-                        [this](error e) {                 ensureSyncUserAttributesCompleted(e); },
-                        [this](byte*, unsigned, attr_t) { ensureSyncUserAttributesCompleted(API_OK); },
-                        [this](TLVstore*, attr_t) {       ensureSyncUserAttributesCompleted(API_OK); } ));
-                }
-                else
-                {
-                    LOG_info << "Putua for JSON config data finished: " << error(e);
-
-                    ensureSyncUserAttributesCompleted(e);
-                }
-            });
-     }
-     else
-     {
-        // We already sent the request but it hasn't completed yet
-        // Call all the completion functions when it does complete.
-        auto priorFunction = std::move(mOnEnsureSyncUserAttributesComplete);
-        mOnEnsureSyncUserAttributesComplete = [priorFunction, completion](Error e){
-            priorFunction(e);
-            completion(e);
-        };
-     }
-}
-
-void MegaClient::ensureSyncUserAttributesCompleted(Error e)
-{
-    if (mOnEnsureSyncUserAttributesComplete)
-    {
-        mOnEnsureSyncUserAttributesComplete(e);
-        mOnEnsureSyncUserAttributesComplete = nullptr;
-    }
-}
-
 void MegaClient::copySyncConfig(const SyncConfig& config, std::function<void(handle, error)> completion)
 {
     string deviceIdHash = getDeviceidHash();
@@ -16397,24 +16305,8 @@ void MegaClient::copySyncConfig(const SyncConfig& config, std::function<void(han
 
 void MegaClient::importSyncConfigs(const char* configs, std::function<void(error)> completion)
 {
-    auto onUserAttributesCompleted = std::bind(
-      [configs, this](std::function<void(error)>& completion, Error result)
-      {
-          // Do we have the attributes necessary for the sync config store?
-          if (result != API_OK)
-          {
-              // Nope and we can't proceed without them.
-              completion(result);
-              return;
-          }
-
-          // Kick off the import.
-          syncs.importSyncConfigs(configs, std::move(completion));
-      },
-      std::move(completion), std::placeholders::_1);
-
-    // Make sure we have the attributes necessary for the sync config store.
-    ensureSyncUserAttributes(std::move(onUserAttributesCompleted));
+    // Kick off the import.
+    syncs.importSyncConfigs(configs, std::move(completion));
 }
 
 void MegaClient::addsync(SyncConfig&& config, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath)
