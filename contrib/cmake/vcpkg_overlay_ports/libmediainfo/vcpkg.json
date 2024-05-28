@@ -16,47 +16,5 @@
       "host": true
     },
     "zlib"
-  ],
-  "features": {
-    "minimal": 
-    {
-      "description" : "Enable minimal management (except parsers)"
-    },
-    "minsize":
-    {
-      "description" : "Enable size optimisations"
-    },
-    "xml":
-    {
-      "description" : "Enable XML parser"
-    },
-    "id3v2":
-    {
-      "description" : "Enable Tag - Id3v2"
-    },
-    "jpeg":
-    {
-      "description" : "Enable Image - JPEG"
-    },
-    "text":
-    {
-      "description" : "Disable all text parsers"
-    },
-    "archive":
-    {
-      "description" : "Disable all archive parsers"
-    },
-    "tag":
-    {
-      "description" : "Disable all tag parsers"
-    },
-    "image":
-    {
-      "description" : "Disable all image parsers"
-    },
-    "advanced":
-    {
-      "description" : "Enable advanced features"
-    }
-  }
+  ]
 }

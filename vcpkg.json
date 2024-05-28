@@ -60,11 +60,7 @@
       "libsodium",
       "sqlite3",
       { "name": "curl", "version>=": "8.4.0" },
-      "icu",
-      {
-        "name": "libmediainfo",
-        "features": ["minimal", "minsize", "advanced", "xml", "id3v2", "jpeg"]
-      }
+      "icu"
     ],
     "builtin-baseline" : "7476f0d4e77d3333fbb249657df8251c28c4faae",
     "overrides": [
