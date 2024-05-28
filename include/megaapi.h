@@ -9572,7 +9572,23 @@ public:
      *
      * @param excludeSensitive Set to true to filter out sensitive nodes
      */
+    MEGA_DEPRECATED
     virtual void bySensitivity(bool excludeSensitive);
+
+    /**
+     * @brief Set option for filtering out sensitive nodes.
+     * If not set, it will behave as if BOOL_FILTER_DISABLED was used.
+     *
+     * @param boolFilterOption Kind of tri-state variable to filter to apply.
+     * Valid values for this parameter are (invalid values will be ignored):
+     * - MegaSearchFilter::BOOL_FILTER_DISABLED = 0 --> All nodes are taken in consideration, none
+     * filter is applied
+     * - MegaSearchFilter::BOOL_FILTER_ONLY_TRUE = 1 --> Returns nodes no marked as sensitive (nodes
+     * with property set or if any of their ancestors have it are considered sensitive)
+     * - MegaSearchFilter::BOOL_FILTER_ONLY_FALSE = 2 --> Retruns nodes with property set to true
+     * (regardless of their children)
+     */
+    virtual void bySensitivity(int boolFilterOption);
 
     /**
      * @brief Set option for retrieving nodes below a particular ancestor.
@@ -9672,9 +9688,9 @@ public:
     /**
      * @brief Return the option for filtering out sensitive nodes.
      *
-     * @return option set for filtering out sensitive nodes, or false if not set
+     * @return option set for filtering out sensitive nodes, or BOOL_FILTER_DISABLED if not set
      */
-    virtual bool bySensitivity() const;
+    virtual int bySensitivity() const;
 
     /**
      * @brief Return ancestor handle set for restricting node search to.

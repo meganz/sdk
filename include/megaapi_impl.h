@@ -2807,6 +2807,7 @@ public:
     void byCategory(int mimeType) override;
     void byFavourite(int boolFilterOption) override;
     void bySensitivity(bool excludeSensitive) override;
+    void bySensitivity(int boolFilterOption) override;
     void byLocationHandle(MegaHandle ancestorHandle) override;
     void byLocation(int locationType) override;
     void byCreationTime(int64_t lowerLimit, int64_t upperLimit) override;
@@ -2818,7 +2819,7 @@ public:
     int byNodeType() const override { return mNodeType; }
     int byCategory() const override { return mMimeCategory; }
     int byFavourite() const override { return mFavouriteFilterOption; }
-    bool bySensitivity() const override { return mExcludeSensitive; }
+    int bySensitivity() const override { return mExcludeSensitive; }
     MegaHandle byLocationHandle() const override { return mLocationHandle; }
     int byLocation() const override { return mLocationType; }
     int64_t byCreationTimeLowerLimit() const override { return mCreationLowerLimit; }
@@ -2833,7 +2834,7 @@ private:
     int mNodeType = MegaNode::TYPE_UNKNOWN;
     int mMimeCategory = MegaApi::FILE_TYPE_DEFAULT;
     int mFavouriteFilterOption = MegaSearchFilter::BOOL_FILTER_DISABLED;
-    bool mExcludeSensitive = false;
+    int mExcludeSensitive = MegaSearchFilter::BOOL_FILTER_DISABLED;
     MegaHandle mLocationHandle = INVALID_HANDLE;
     int mLocationType = MegaApi::SEARCH_TARGET_ALL;
     int64_t mCreationLowerLimit = 0;
