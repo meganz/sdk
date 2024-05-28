@@ -21,9 +21,7 @@ vcpkg_cmake_configure(
         "-DPKG_CONFIG_EXECUTABLE=${PKGCONFIG}"
         -DCMAKE_REQUIRE_FIND_PACKAGE_PkgConfig=1
         -DCMAKE_REQUIRE_FIND_PACKAGE_TinyXML=1
-        ${FEATURE_OPTIONS}
 )
-
 vcpkg_cmake_install()
 vcpkg_cmake_config_fixup(PACKAGE_NAME mediainfolib)
 vcpkg_fixup_pkgconfig()
