@@ -10286,7 +10286,7 @@ typedef NS_ENUM(NSInteger, MEGAClientType) {
  * @param flag Name or key of the value to be retrieved
  * @return A integer with the value of the flag, value above 0 means feature enabled
  */
-- (NSInteger)getRemoteFeatureFlagValue:(NSString *)flag;
+- (NSInteger)remoteFeatureFlagValue:(NSString *)flag;
 
 #pragma mark - Ads
 /**
