@@ -1246,6 +1246,18 @@ struct StorageInfo
     m_off_t mUsed = 0;
 }; // StorageInfo
 
+struct JSCDUserAttributes
+{
+    // Verifies that the sync config database hasn't been tampered with.
+    std::string mAuthenticationKey;
+
+    // Used to encipher the sync config database's content.
+    std::string mCipherKey;
+
+    // The name of this user's sync config databases.
+    std::string mFileName;
+}; // JSCDUserAttributes
+
 #ifdef ENABLE_CHAT
 
 class ScheduledFlags;
