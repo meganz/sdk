@@ -2629,7 +2629,7 @@ class MegaSyncStallPrivate : public MegaSyncStall
                    problem == DetectedSymlink ||
                    problem == DetectedSpecialFile ||
                    problem == FilesystemErrorListingFolder ||
-                   problem == FilesystemErrorIdentifyingFolderContent;
+                   problem == FilesystemErrorIdentifyingFolderContent; // Deprecated after SDK-3206
         }
 
         const char* reasonDebugString() const override
