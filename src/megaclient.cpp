@@ -22202,5 +22202,136 @@ ScDbStateRecord ScDbStateRecord::unserialize(const std::string& data)
     return result;
 }
 
+void MegaClient::getJSCDUserAttributes(GetJSCDUserAttributesCallback callback)
+{
+    // Sanity.
+    assert(callback);
+
+    // Try and get our hands on the currently logged in user.
+    auto* user = ownuser();
+
+    // No user? No attributes.
+    if (!user)
+        return callback({}, API_EFAILED);
+
+    // Called if we couldn't retrieve the attributes.
+    auto failed = [callback, this](error result) mutable {
+        JSCDUserAttributesRetrieved(std::move(callback), result, nullptr);
+    }; // failed
+
+    // Called if we could retrieve the attributes.
+    auto retrieved = [callback = std::move(callback), this]
+                     (TLVstore* store, attr_t) mutable {
+        JSCDUserAttributesRetrieved(std::move(callback), API_OK, store);
+    }; // retrieved
+
+    // Try and retrieve the user's JSCD user attributes.
+    getua(user,
+          ATTR_JSON_SYNC_CONFIG_DATA,
+          0,
+          std::move(failed),
+          nullptr,
+          std::move(retrieved));
+}
+
+void MegaClient::createJSCDUserAttributes(GetJSCDUserAttributesCallback callback)
+{
+    // Sanity.
+    assert(callback);
+
+    // Generate the content for the user's JSCD user attributes.
+    auto content = [this]() {
+        // Convenience.
+        constexpr auto Length = SymmCipher::KEYLENGTH;
+
+        // Instantiate a TLV store to contain the JSCD attributes.
+        TLVstore store;
+
+        // Key used to authenticate the sync configuration database.
+        store.set("ak", rng.genstring(Length));
+
+        // Key used to encrypt the sync configuration database.
+        store.set("ck", rng.genstring(Length));
+
+        // The name of the sync configuration database.
+        store.set("fn", rng.genstring(Length));
+
+        // Translate the store into an encrypted binary blob.
+        return std::unique_ptr<std::string>(store.tlvRecordsToContainer(rng, &key));
+    }();
+
+    // Called when the attribute has been created.
+    auto created = [callback = std::move(callback), this](Error result) mutable {
+        JSCDUserAttributesCreated(std::move(callback), result);
+    }; // created
+
+    // Try and create the JSCD user attribute.
+    putua(ATTR_JSON_SYNC_CONFIG_DATA,
+          reinterpret_cast<const byte*>(content->data()),
+          static_cast<unsigned>(content->size()),
+          0,
+          UNDEF,
+          0,
+          0,
+          std::move(created));
+}
+
+void MegaClient::JSCDUserAttributesCreated(GetJSCDUserAttributesCallback callback,
+                                           Error result)
+{
+    // Sanity.
+    assert(callback);
+
+    // Couldn't create attribute and it wasn't created by another client.
+    if (result != API_OK && result != API_EEXPIRED)
+        return callback({}, result);
+
+    // Attribute was created by us or by another client so retrieve it.
+    getJSCDUserAttributes(std::move(callback));
+}
+
+void MegaClient::JSCDUserAttributesRetrieved(GetJSCDUserAttributesCallback callback,
+                                             Error result,
+                                             TLVstore* store)
+{
+    // Sanity.
+    assert(callback);
+
+    // The user doesn't have any JSCD user attributes.
+    if (result == API_ENOENT)
+        return createJSCDUserAttributes(std::move(callback));
+
+    // We weren't able to retrieve the user's JSCD user attributes.
+    if (result != API_OK)
+        return callback({}, result);
+
+    JSCDUserAttributes attributes;
+
+    // Extract JSCD user attributes.
+    store->get("ak", attributes.mAuthenticationKey);
+    store->get("ck", attributes.mCipherKey);
+    store->get("fn", attributes.mFileName);
+
+    // Saves a little typing.
+    auto valid = [](const std::string& attribute) {
+        return attribute.size() == SymmCipher::KEYLENGTH;
+    }; // valid
+
+    // Check validity of JSCD user attributes.
+    if (!valid(attributes.mAuthenticationKey))
+        return callback({}, API_EINTERNAL);
+
+    if (!valid(attributes.mCipherKey))
+        return callback({}, API_EINTERNAL);
+
+    if (!valid(attributes.mFileName))
+        return callback({}, API_EINTERNAL);
+
+    // Translate filename to base64, as expected.
+    attributes.mFileName = Base64::btoa(attributes.mFileName);
+
+    // Pass attributes to callback.
+    callback(std::move(attributes), API_OK);
+}
 
 } // namespace

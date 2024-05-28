@@ -2689,6 +2689,22 @@ public:
     void getNotifications(CommandGetNotifications::ResultFunc onResult);
     std::pair<uint32_t, uint32_t> getFlag(const char* flagName, bool commit);
 
+    using GetJSCDUserAttributesCallback =
+      std::function<void(JSCDUserAttributes, Error)>;
+
+    /**
+     * @brief
+     * This function will retrieve the user's JSCD user attributes and pass
+     * them to the provided callback.
+     *
+     * If the user does not have any JSCD user attributes, this function
+     * will create them and pass them to the provided callback.
+     *
+     * @param callback
+     * The function that should receive the user's JSCD user attributes.
+     */
+    void getJSCDUserAttributes(GetJSCDUserAttributesCallback callback);
+
     // FUSE client adapter.
     fuse::ClientAdapter mFuseClientAdapter;
 
@@ -2696,6 +2712,59 @@ public:
     fuse::Service mFuseService;
 
 private:
+    /**
+     * @brief
+     * This function will create the user's JSCD user attributes. If
+     * successful, the new attributes will be forwarded to the provided
+     * callback. If not, the reason why the attributes couldn't be created
+     * will be forwarded to the provided callback.
+     *
+     * @param callback
+     * The function that should receive the user's JSCD user attributes or
+     * the reason why those attributes couldn't be created.
+     */
+    void createJSCDUserAttributes(GetJSCDUserAttributesCallback callback);
+      
+    /**
+     * @brief
+     * This function is called after the user's JSCD user attributes have
+     * been created. If the attributes were created successfully, their
+     * content is passed to the provided callback. If not, the error
+     * received by this function is passed to the provided callback.
+     *
+     * @param callback
+     * The function that should receive the user's JSCD user attributes or
+     * the reason why those attributes couldn't be created.
+     *
+     * @param result
+     * The result of our attempt to create the user's JSCD user attributes.
+     */
+    void JSCDUserAttributesCreated(GetJSCDUserAttributesCallback callback,
+                                   Error result);
+
+    /**
+     * @brief
+     * This function is called when the user's JSCD user attributes have
+     * been retrieved. If successful, the JSCD user attributes are
+     * destructured and passwed to the provided callback. If not, the reason
+     * why the attributes could not be retrieved is passed to the provided
+     * callback.
+     *
+     * @param callback
+     * The function that receive the user's JSCD user attributes or the
+     * reason why those attributes could not be retrieved.
+     *
+     * @param result
+     * The result of our attempt to retrieve the user's JSCD user
+     * attributes.
+     *
+     * @param store
+     * The TLV store containing the user's JSCD user attributes.
+     */
+    void JSCDUserAttributesRetrieved(GetJSCDUserAttributesCallback callback,
+                                     Error result,
+                                     TLVstore* store);
+
     // Last known capacity retrieved from the cloud.
     m_off_t mLastKnownCapacity = -1;
 };
