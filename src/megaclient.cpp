@@ -14594,7 +14594,9 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
             LOG_info << "Session loaded from local cache. SCSN: " << scsn.text();
 
             assert(mNodeManager.getNodeCount() > 0);   // sometimes this is not true; if you see it, please investigate why (before we alter the db)
-            assert(!mNodeManager.getRootNodeFiles().isUndef());  // we should know this by now - if not, why not, please investigate (before we alter the db)
+            assert(!mNodeManager.getRootNodeFiles().isUndef() ||  // we should know this by now - if
+                   (isClientType(ClientType::PASSWORD_MANAGER) && // not, why not, please investigate
+                    !mNodeManager.getRootNodeVault().isUndef())); // (before we alter the db)
 
             if (loggedIntoWritableFolder())
             {
