@@ -34,17 +34,13 @@
     {
       "description" : "Enable Tag - Id3v2"
     },
-    "mpega":
+    "jpeg":
     {
-      "description" : "Enable Audio - MPEG-Audio"
+      "description" : "Enable Image - JPEG"
     },
     "text":
     {
       "description" : "Disable all text parsers"
-    },
-    "image":
-    {
-      "description" : "Disable all image parsers"
     },
     "archive":
     {
@@ -54,9 +50,13 @@
     {
       "description" : "Disable all tag parsers"
     },
+    "image":
+    {
+      "description" : "Disable all image parsers"
+    },
     "advanced":
     {
-      "description" : "Disable all tag parsers"
+      "description" : "Enable advanced features"
     }
   }
 }

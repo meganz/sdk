@@ -21,12 +21,12 @@ vcpkg_check_features(OUT_FEATURE_OPTIONS FEATURE_OPTIONS
         advanced    MEDIAINFO_ADVANCED_YES
         xml         MEDIAINFO_XML_YES
         id3v2       MEDIAINFO_ID3V2_YES
-        mpega       MEDIAINFO_MPEGA_YES
+        jpeg        MEDIAINFO_JPEG_YES
     INVERTED_FEATURES
         text        MEDIAINFO_TEXT_NO
-        image       MEDIAINFO_IMAGE_NO
         archive     MEDIAINFO_ARCHIVE_NO
         tag         MEDIAINFO_TAG_NO
+        image       MEDIAINFO_IMAGE_NO
 )
 
 vcpkg_cmake_configure(
