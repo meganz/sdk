@@ -1017,6 +1017,15 @@ using IsImmediateStallPredicate =
 using SyncControllerPtr = std::shared_ptr<SyncController>;
 using SyncControllerWeakPtr = std::weak_ptr<SyncController>;
 
+struct SyncSensitiveData
+{
+    // Attributes necessary to manipulate the sync config database.
+    JSCDUserAttributes mJSCDUserAttributes;
+
+    // Key necessary to manipulate the sync's state cache.
+    std::string mStateCacheKey;
+}; // SyncSensitiveData
+
 struct Syncs
 {
     // Retrieve a copy of configured sync settings (thread safe)
