@@ -22308,7 +22308,7 @@ void MegaClient::injectSyncSensitiveData(CommandLogin::Completion callback,
         // Couldn't retrieve JSC data.
         if (result != API_OK)
         {
-            LOG_warn << "Couldn't retrieve or create JSC data: "
+            LOG_warn << "Couldn't retrieve JSC data: "
                      << result;
 
             // This shouldn't prevent the user from logging on, however.
@@ -22344,6 +22344,8 @@ void MegaClient::JSCDataCreated(GetJSCDataCallback& callback,
     // Couldn't create JSCD and it wasn't created by another client.
     if (result != API_OK && result != API_EEXPIRED)
     {
+        LOG_warn << "Couldn't create JSC data: " << result;
+
         return callback({}, result);
     }
 
