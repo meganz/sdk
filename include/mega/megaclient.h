@@ -2724,7 +2724,26 @@ private:
      * the reason why those attributes couldn't be created.
      */
     void createJSCDUserAttributes(GetJSCDUserAttributesCallback callback);
-      
+
+    /**
+     * @brief
+     * The purpose of this function is to sit between the user's provided
+     * login callback so that we can perform some administrative functions
+     * necessary to bootstrap the sync engine.
+     *
+     * One of these duties is to ensure that the user has a set of JSCD user
+     * attributes, another is to safely inject these attributes along with
+     * the client's master key into the sync engine.
+     *
+     * @param callback
+     * The function that should be called when login has completed.
+     *
+     * @param result
+     * The result of our attempt to log the user in.
+     */
+    void injectSyncSensitiveData(CommandLogin::Completion callback,
+                                 Error result);
+
     /**
      * @brief
      * This function is called after the user's JSCD user attributes have

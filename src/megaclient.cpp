@@ -12406,6 +12406,12 @@ void MegaClient::loginResult(CommandLogin::Completion completion,
         return;
     }
 
+    // Wrap the user's completion function so that we also initialize the sync engine.
+    completion = [completion = std::move(completion), this](error result) {
+        // Initialize the sync engine and call the user's completion function.
+        injectSyncSensitiveData(std::move(completion), result);
+    }; // completion
+
     assert(!mV1PswdVault || accountversion == 1);
 
     if (accountversion == 1 && mV1PswdVault)
@@ -22274,6 +22280,47 @@ void MegaClient::createJSCDUserAttributes(GetJSCDUserAttributesCallback callback
           0,
           0,
           std::move(created));
+}
+
+void MegaClient::injectSyncSensitiveData(CommandLogin::Completion callback,
+                                         Error result)
+{
+    // Sanity.
+    assert(callback);
+
+    // Couldn't log the user in.
+    if (result != API_OK)
+        return callback(result);
+
+    // Called when the JSCD user attributes have been retrieved.
+    auto retrieved = [callback = std::move(callback), this]
+                     (JSCDUserAttributes attributes, Error result) {
+        // Couldn't retrieve the JSCD user attributes.
+        if (result != API_OK)
+        {
+            LOG_warn << "Couldn't retrieve or create JSCD user attributes: "
+                     << result;
+
+            // This shouldn't prevent the user from logging on, however.
+            return callback(API_OK);
+        }
+
+        SyncSensitiveData data;
+
+        // Prepare sensitive data for injection.
+        data.mJSCDUserAttributes = std::move(attributes);
+        data.mStateCacheKey.assign(reinterpret_cast<const char*>(key.key),
+                                   sizeof(key.key));
+
+        // Inject sensitive data into the sync engine.
+        syncs.injectSyncSensitiveData(std::move(data));
+
+        // Let the user know that they're logged in.
+        callback(API_OK);
+    }; // retrieved
+
+    // Try and retrieve the JSCD user attributes.
+    getJSCDUserAttributes(std::move(retrieved));
 }
 
 void MegaClient::JSCDUserAttributesCreated(GetJSCDUserAttributesCallback callback,
