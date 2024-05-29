@@ -24,7 +24,7 @@ clang-format:
     - apt-get update
     - apt-get install -y git clang-format
   script: |
-    COMMITS=$(git log origin/develop.. --pretty=format:%h)
+    COMMITS=$(git log origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME..HEAD --pretty=format:%h)
 
     for COMMIT in $COMMITS
     do
