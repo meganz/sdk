@@ -22278,7 +22278,7 @@ void MegaClient::createJSCData(GetJSCDataCallback callback)
         store.set("fn", rng.genstring(Length));
 
         // Translate the store into an encrypted binary blob.
-        return std::unique_ptr<std::string>(store.tlvRecordsToContainer(rng, &key));
+        return unique_ptr<string>(store.tlvRecordsToContainer(rng, &key));
     }();
 
     // Called when the JSCD attribute has been created.
