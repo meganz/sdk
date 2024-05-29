@@ -22260,26 +22260,23 @@ void MegaClient::createJSCData(GetJSCDataCallback callback)
     // Sanity.
     assert(callback);
 
-    // Generate the content for the user's JSC data.
-    auto content = [this]() {
-        // Convenience.
-        constexpr auto Length = SymmCipher::KEYLENGTH;
+    // Convenience.
+    constexpr auto Length = SymmCipher::KEYLENGTH;
 
-        // Instantiate a TLV store to contain the JSC data.
-        TLVstore store;
+    // Instantiate a TLV store to contain the JSC data.
+    TLVstore store;
 
-        // Key used to authenticate the sync configuration database.
-        store.set("ak", rng.genstring(Length));
+    // Key used to authenticate the sync configuration database.
+    store.set("ak", rng.genstring(Length));
 
-        // Key used to encrypt the sync configuration database.
-        store.set("ck", rng.genstring(Length));
+    // Key used to encrypt the sync configuration database.
+    store.set("ck", rng.genstring(Length));
 
-        // The name of the sync configuration database.
-        store.set("fn", rng.genstring(Length));
+    // The name of the sync configuration database.
+    store.set("fn", rng.genstring(Length));
 
-        // Translate the store into an encrypted binary blob.
-        return unique_ptr<string>(store.tlvRecordsToContainer(rng, &key));
-    }();
+    // Translate the store into an encrypted binary blob.
+    unique_ptr<string> content(store.tlvRecordsToContainer(rng, &key));
 
     // Called when the JSCD attribute has been created.
     auto created = [callback = std::move(callback), this](Error result) mutable {
