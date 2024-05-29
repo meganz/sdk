@@ -1249,13 +1249,13 @@ struct StorageInfo
 struct JSCData
 {
     // Verifies that the sync config database hasn't been tampered with.
-    std::string mAuthenticationKey;
+    std::string authenticationKey;
 
     // Used to encipher the sync config database's content.
-    std::string mCipherKey;
+    std::string cipherKey;
 
     // The name of this user's sync config databases.
-    std::string mFileName;
+    std::string fileName;
 }; // JSCData
 
 #ifdef ENABLE_CHAT

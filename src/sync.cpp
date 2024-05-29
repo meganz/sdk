@@ -4261,14 +4261,14 @@ void Syncs::injectSyncSensitiveData(SyncSensitiveData data)
         assert(!mSyncConfigStore);
 
         // Inject state cache key (sync key.)
-        syncKey.setkey(reinterpret_cast<const byte*>(data.mStateCacheKey.data()));
+        syncKey.setkey(reinterpret_cast<const byte*>(data.stateCacheKey.data()));
 
         // Construct IO context.
         mSyncConfigIOContext.reset(
           new SyncConfigIOContext(*fsaccess,
-                                  data.mJSCData.mAuthenticationKey,
-                                  data.mJSCData.mCipherKey,
-                                  data.mJSCData.mFileName,
+                                  data.jscData.authenticationKey,
+                                  data.jscData.cipherKey,
+                                  data.jscData.fileName,
                                   rng));
     }, "injectSyncSensitiveData");
 }

@@ -22325,9 +22325,9 @@ void MegaClient::injectSyncSensitiveData(CommandLogin::Completion callback,
         SyncSensitiveData sensitiveData;
 
         // Prepare sensitive data for injection.
-        sensitiveData.mJSCData = std::move(data);
-        sensitiveData.mStateCacheKey.assign(reinterpret_cast<const char*>(key.key),
-                                            sizeof(key.key));
+        sensitiveData.jscData = std::move(data);
+        sensitiveData.stateCacheKey.assign(reinterpret_cast<const char*>(key.key),
+                                           sizeof(key.key));
 
         // Inject sensitive data into the sync engine.
         syncs.injectSyncSensitiveData(std::move(sensitiveData));
@@ -22374,9 +22374,9 @@ void MegaClient::JSCDataRetrieved(GetJSCDataCallback callback,
     JSCData data;
 
     // Extract JSC data.
-    store->get("ak", data.mAuthenticationKey);
-    store->get("ck", data.mCipherKey);
-    store->get("fn", data.mFileName);
+    store->get("ak", data.authenticationKey);
+    store->get("ck", data.cipherKey);
+    store->get("fn", data.fileName);
 
     // Saves a little typing.
     auto valid = [](const std::string& datum) {
@@ -22384,17 +22384,17 @@ void MegaClient::JSCDataRetrieved(GetJSCDataCallback callback,
     }; // valid
 
     // Check validity of JSC data.
-    if (!valid(data.mAuthenticationKey))
+    if (!valid(data.authenticationKey))
         return callback({}, API_EINTERNAL);
 
-    if (!valid(data.mCipherKey))
+    if (!valid(data.cipherKey))
         return callback({}, API_EINTERNAL);
 
-    if (!valid(data.mFileName))
+    if (!valid(data.fileName))
         return callback({}, API_EINTERNAL);
 
     // Translate filename to base64, as expected.
-    data.mFileName = Base64::btoa(data.mFileName);
+    data.fileName = Base64::btoa(data.fileName);
 
     // Pass attributes to callback.
     callback(std::move(data), API_OK);
