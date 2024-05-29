@@ -7161,6 +7161,7 @@ class MegaSyncStall
             SourceWasMovedElsewhere,
             FilesystemCannotStoreThisName,
             CloudNodeInvalidFingerprint,
+            CloudNodeIsBlocked,
 
             PutnodeDeferredByController,
             PutnodeCompletionDeferredByController,

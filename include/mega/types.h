@@ -1154,6 +1154,7 @@ enum class PathProblem : unsigned short {
     SourceWasMovedElsewhere,
     FilesystemCannotStoreThisName,
     CloudNodeInvalidFingerprint,
+    CloudNodeIsBlocked,
 
     PutnodeDeferredByController,
     PutnodeCompletionDeferredByController,

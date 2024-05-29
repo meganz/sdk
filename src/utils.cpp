@@ -2919,6 +2919,7 @@ const char* syncPathProblemDebugString(PathProblem r)
     case PathProblem::SourceWasMovedElsewhere: return "SourceWasMovedElsewhere";
     case PathProblem::FilesystemCannotStoreThisName: return "FilesystemCannotStoreThisName";
     case PathProblem::CloudNodeInvalidFingerprint: return "CloudNodeInvalidFingerprint";
+    case PathProblem::CloudNodeIsBlocked: return "CloudNodeIsBlocked";
 
     case PathProblem::PutnodeDeferredByController: return "PutnodeDeferredByController";
     case PathProblem::PutnodeCompletionDeferredByController: return "PutnodeCompletionDeferredByController";

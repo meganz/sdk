@@ -8003,7 +8003,6 @@ bool Sync::syncItem_checkDownloadCompletion(SyncRow& row, SyncRow& parentRow, Sy
         if (downloadPtr->mError == API_EKEY)
         {
             // Then report it as a stall.
-
             SYNC_verbose << syncname
                             << "Download was terminated due to MAC verification failure: "
                             << logTriplet(row, fullPath);
@@ -8018,6 +8017,22 @@ bool Sync::syncItem_checkDownloadCompletion(SyncRow& row, SyncRow& parentRow, Sy
             bool keepStalling = row.cloudNode && row.cloudNode->handle == downloadPtr->h;
 
             return !keepStalling;
+        }
+        if (downloadPtr->mError == API_EBLOCKED)
+        {
+            // Report a stall if the file is blocked (taken down)
+            SYNC_verbose << syncname
+                            << "Download was terminated due to file being blocked (taken down because of ToS): "
+                            << logTriplet(row, fullPath);
+
+            monitor.waitingCloud(fullPath.cloudPath, SyncStallEntry(
+                SyncWaitReason::DownloadIssue, true, true,
+                {downloadPtr->h, fullPath.cloudPath, PathProblem::CloudNodeIsBlocked},
+                {},
+                {downloadPtr->getLocalname()},
+                {}));
+
+            return false; // Don't download it again
         }
         else
         {

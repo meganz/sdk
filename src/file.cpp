@@ -556,6 +556,8 @@ string File::displayname()
 
 void SyncTransfer_inClient::terminated(error e)
 {
+    mError = e;
+
     File::terminated(e);
 
     if (e == API_EOVERQUOTA)
@@ -821,15 +823,6 @@ bool SyncDownload_inClient::failed(error e, MegaClient* mc)
     // MAC validation error?
     if (e == API_EKEY)
         mc->sendevent(99433, "Undecryptable file", 0);
-
-    // TODO: this seems wrong, but is probably just carried over from the old sync logic.  Surely we should stall for this case rather than auto-delete?
-    // Blocked file?
-    if (e == API_EBLOCKED)
-    {
-        // Still exists in the cloud?
-        if (auto n = mc->nodeByHandle(h))
-            mc->movetosyncdebris(n.get(), fromInsycShare, nullptr, syncThreadSafeState->mCanChangeVault);
-    }
 
     return false;
 }
