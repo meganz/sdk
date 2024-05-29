@@ -12409,6 +12409,7 @@ void MegaClient::loginResult(CommandLogin::Completion completion,
     // Is the user fully logged on?
     auto isFullyLoggedIn = loggedin() == FULLACCOUNT;
 
+#ifdef ENABLE_SYNC
     // Only generate JSCD and friends for fully logged-in accounts.
     if (isFullyLoggedIn)
     {
@@ -12424,6 +12425,7 @@ void MegaClient::loginResult(CommandLogin::Completion completion,
             injectSyncSensitiveData(std::move(completion), result);
         }; // completion
     }
+#endif // ENABLE_SYNC
 
     assert(!mV1PswdVault || accountversion == 1);
 
@@ -22295,6 +22297,8 @@ void MegaClient::createJSCDUserAttributes(GetJSCDUserAttributesCallback callback
           std::move(created));
 }
 
+#ifdef ENABLE_SYNC
+
 void MegaClient::injectSyncSensitiveData(CommandLogin::Completion callback,
                                          Error result)
 {
@@ -22335,6 +22339,8 @@ void MegaClient::injectSyncSensitiveData(CommandLogin::Completion callback,
     // Try and retrieve the JSCD user attributes.
     getJSCDUserAttributes(std::move(retrieved));
 }
+
+#endif // ENABLE_SYNC
 
 void MegaClient::JSCDUserAttributesCreated(GetJSCDUserAttributesCallback callback,
                                            Error result)

@@ -2725,6 +2725,7 @@ private:
      */
     void createJSCDUserAttributes(GetJSCDUserAttributesCallback callback);
 
+#ifdef ENABLE_SYNC
     /**
      * @brief
      * The purpose of this function is to sit between the user's provided
@@ -2743,6 +2744,7 @@ private:
      */
     void injectSyncSensitiveData(CommandLogin::Completion callback,
                                  Error result);
+#endif // ENABLE_SYNC
 
     /**
      * @brief
