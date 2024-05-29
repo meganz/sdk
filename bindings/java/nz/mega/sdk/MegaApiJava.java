@@ -336,7 +336,7 @@ public class MegaApiJava {
      */
     public MegaApiJava(String appKey, String userAgent, String basePath, MegaGfxProcessor gfxProcessor, int clientType) {
         this.gfxProcessor = gfxProcessor;
-        megaApi = new MegaApi(appKey, gfxProcessor, basePath, userAgent, clientType);
+        megaApi = new MegaApi(appKey, gfxProcessor, basePath, userAgent, 1, clientType);
     }
 
     /**
