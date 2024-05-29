@@ -24,11 +24,11 @@ clang-format:
     - apt-get update
     - apt-get install -y git clang-format
   script: |
-    COMMITS=$(git log origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME..HEAD --pretty=format:%h)
+    COMMITS=$(git log --pretty=format:%H origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME..HEAD)
 
     for COMMIT in $COMMITS
     do
-        OUTPUT=$(git -c color.ui=always clang-format $COMMIT^ $COMMIT --diff)
+        OUTPUT=$(git -c color.ui=always clang-format --diff $COMMIT^ $COMMIT)
 
         printf '%s\n' "$COMMIT"
 
