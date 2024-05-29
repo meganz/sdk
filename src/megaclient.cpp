@@ -22233,7 +22233,9 @@ void MegaClient::getJSCData(GetJSCDataCallback callback)
 
     // No user? No attributes.
     if (!user)
+    {
         return callback({}, API_EFAILED);
+    }
 
     // Called if we couldn't retrieve the attribute.
     auto failed = [callback, this](error result) mutable {
@@ -22304,7 +22306,9 @@ void MegaClient::injectSyncSensitiveData(CommandLogin::Completion callback,
 
     // Couldn't log the user in.
     if (result != API_OK)
+    {
         return callback(result);
+    }
 
     // Called when the JSCD user attributes have been retrieved.
     auto retrieved = [callback = std::move(callback), this]
@@ -22347,7 +22351,9 @@ void MegaClient::JSCDataCreated(GetJSCDataCallback callback,
 
     // Couldn't create JSCD and it wasn't created by another client.
     if (result != API_OK && result != API_EEXPIRED)
+    {
         return callback({}, result);
+    }
 
     // JSCD was created by us or by another client so retrieve it.
     getJSCData(std::move(callback));
@@ -22362,11 +22368,15 @@ void MegaClient::JSCDataRetrieved(GetJSCDataCallback callback,
 
     // The user doesn't have any JSC data.
     if (result == API_ENOENT)
+    {
         return createJSCData(std::move(callback));
+    }
 
     // We weren't able to retrieve the user's JSC data.
     if (result != API_OK)
+    {
         return callback({}, result);
+    }
 
     JSCData data;
 
@@ -22382,13 +22392,19 @@ void MegaClient::JSCDataRetrieved(GetJSCDataCallback callback,
 
     // Check validity of JSC data.
     if (!valid(data.authenticationKey))
+    {
         return callback({}, API_EINTERNAL);
+    }
 
     if (!valid(data.cipherKey))
+    {
         return callback({}, API_EINTERNAL);
+    }
 
     if (!valid(data.fileName))
+    {
         return callback({}, API_EINTERNAL);
+    }
 
     // Translate filename to base64, as expected.
     data.fileName = Base64::btoa(data.fileName);
