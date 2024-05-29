@@ -2728,7 +2728,7 @@ private:
 #ifdef ENABLE_SYNC
     /**
      * @brief
-     * The purpose of this function is to sit between the user's provided
+     * The purpose of this function is to execute before the user's provided
      * login callback so that we can perform some administrative functions
      * necessary to bootstrap the sync engine.
      *
