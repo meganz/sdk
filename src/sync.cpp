@@ -4270,7 +4270,7 @@ void Syncs::injectSyncSensitiveData(SyncSensitiveData data)
                                   data.jscData.cipherKey,
                                   data.jscData.fileName,
                                   rng));
-    }, "injectSyncSensitiveData");
+    }, __func__);
 }
 
 SyncConfigVector Syncs::getConfigs(bool onlyActive) const
