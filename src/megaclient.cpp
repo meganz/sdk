@@ -22237,24 +22237,17 @@ void MegaClient::getJSCData(GetJSCDataCallback callback)
         return callback({}, API_EFAILED);
     }
 
-    // Called if we couldn't retrieve the attribute.
-    auto failed = [callback, this](error result) mutable {
-        JSCDataRetrieved(std::move(callback), result, nullptr);
-    }; // failed
-
-    // Called if we could retrieve the attribute.
-    auto retrieved = [callback = std::move(callback), this]
-                     (TLVstore* store, attr_t) mutable {
-        JSCDataRetrieved(std::move(callback), API_OK, store);
-    }; // retrieved
+    // Convenience.
+    using std::bind;
+    using std::placeholders::_1;
 
     // Try and retrieve the user's JSCD attribute.
     getua(user,
           ATTR_JSON_SYNC_CONFIG_DATA,
           0,
-          std::move(failed),
+          bind(&MegaClient::JSCDataRetrieved, this, callback, _1, nullptr),
           nullptr,
-          std::move(retrieved));
+          bind(&MegaClient::JSCDataRetrieved, this, std::move(callback), API_OK, _1));
 }
 
 void MegaClient::createJSCData(GetJSCDataCallback callback)
@@ -22280,10 +22273,9 @@ void MegaClient::createJSCData(GetJSCDataCallback callback)
     // Translate the store into an encrypted binary blob.
     unique_ptr<string> content(store.tlvRecordsToContainer(rng, &key));
 
-    // Called when the JSCD attribute has been created.
-    auto created = [callback = std::move(callback), this](Error result) mutable {
-        JSCDataCreated(std::move(callback), result);
-    }; // created
+    // Convenience.
+    using std::bind;
+    using std::placeholders::_1;
 
     // Try and create the JSCD attribute.
     putua(ATTR_JSON_SYNC_CONFIG_DATA,
@@ -22293,7 +22285,7 @@ void MegaClient::createJSCData(GetJSCDataCallback callback)
           UNDEF,
           0,
           0,
-          std::move(created));
+          bind(&MegaClient::JSCDataCreated, this, std::move(callback), _1));
 }
 
 #ifdef ENABLE_SYNC
@@ -22343,8 +22335,8 @@ void MegaClient::injectSyncSensitiveData(CommandLogin::Completion callback,
 
 #endif // ENABLE_SYNC
 
-void MegaClient::JSCDataCreated(GetJSCDataCallback callback,
-                                           Error result)
+void MegaClient::JSCDataCreated(GetJSCDataCallback& callback,
+                                Error result)
 {
     // Sanity.
     assert(callback);
@@ -22359,7 +22351,7 @@ void MegaClient::JSCDataCreated(GetJSCDataCallback callback,
     getJSCData(std::move(callback));
 }
 
-void MegaClient::JSCDataRetrieved(GetJSCDataCallback callback,
+void MegaClient::JSCDataRetrieved(GetJSCDataCallback& callback,
                                   Error result,
                                   TLVstore* store)
 {

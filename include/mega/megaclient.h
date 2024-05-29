@@ -2759,7 +2759,7 @@ private:
      * @param result
      * The result of our attempt to create the user's JSCD user attributes.
      */
-    void JSCDataCreated(GetJSCDataCallback callback,
+    void JSCDataCreated(GetJSCDataCallback& callback,
                         Error result);
 
     /**
@@ -2781,7 +2781,7 @@ private:
      * @param store
      * The TLV store containing the user's JSCD user attributes.
      */
-    void JSCDataRetrieved(GetJSCDataCallback callback,
+    void JSCDataRetrieved(GetJSCDataCallback& callback,
                           Error result,
                           TLVstore* store);
 
