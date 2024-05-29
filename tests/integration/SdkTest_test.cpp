@@ -9210,6 +9210,218 @@ TEST_F(SdkTest, SdkBackupMoveOrDelete)
     fs::remove_all(localFolderPath, ec);
 }
 
+TEST_F(SdkTest, SdkBackupPauseResume)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    LOG_info << "___TEST BackupPauseResume___";
+
+    string timestamp = getCurrentTimestamp(true);
+
+    // Set device name if missing
+    string deviceName;
+    if (doGetDeviceName(0, &deviceName, nullptr) != API_OK || deviceName.empty())
+    {
+        string newDeviceName = "Jenkins " + timestamp;
+        ASSERT_EQ(doSetDeviceName(0, nullptr, newDeviceName.c_str()), API_OK)
+            << "Setting device name failed";
+        // make sure Device Name attr was set
+        ASSERT_EQ(doGetDeviceName(0, &deviceName, nullptr), API_OK) << "Getting device name failed";
+        ASSERT_EQ(deviceName, newDeviceName) << "Getting device name failed (wrong value)";
+    }
+    // Make sure My Backups folder was created
+    syncTestMyBackupsRemoteFolder(0);
+
+    // Create local contents
+    vector<fs::path> folders = {fs::current_path() / "LocalFolderPauseResume",
+                                fs::current_path() / "LocalSyncFolder"};
+    for (const auto& localFolder: folders)
+    {
+        std::error_code ec;
+        fs::remove_all(localFolder, ec);
+        ASSERT_FALSE(fs::exists(localFolder));
+        fs::create_directories(localFolder);
+        ASSERT_TRUE(createLocalFile(localFolder, "bkpFile"));
+    }
+    string localBackupFolder = folders[0].u8string();
+    string localSyncFolder = folders[1].u8string();
+
+    // Create a backup, and get its id
+    const string backupNameStr = string("RemoteBackupFolder_") + timestamp;
+    ASSERT_EQ(API_OK,
+              synchronousSyncFolder(0,
+                                    nullptr,
+                                    MegaSync::TYPE_BACKUP,
+                                    localBackupFolder.c_str(),
+                                    backupNameStr.c_str(),
+                                    INVALID_HANDLE,
+                                    nullptr))
+        << "Initial connection: Failed to create a Backup";
+    MegaHandle idOfBackup = mApi[0].lastSyncBackupId;
+    ASSERT_NE(idOfBackup, INVALID_HANDLE) << "Initial connection: invalid Backup id";
+
+    // Create a sync, and get its id
+    unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    MegaHandle syncDest = createFolder(0, "syncDest", rootnode.get());
+    ASSERT_NE(syncDest, INVALID_HANDLE);
+    ASSERT_EQ(API_OK,
+              synchronousSyncFolder(0,
+                                    nullptr,
+                                    MegaSync::TYPE_TWOWAY,
+                                    localSyncFolder.c_str(),
+                                    nullptr,
+                                    syncDest,
+                                    nullptr))
+        << "Initial connection: Failed to create a Sync";
+    MegaHandle idOfSync = mApi[0].lastSyncBackupId;
+    ASSERT_NE(idOfSync, INVALID_HANDLE) << "Initial connection: invalid Sync id";
+
+    auto testRunState = [&apis = megaApi](MegaHandle backupId, int desiredState)
+    {
+        unique_ptr<MegaSync> s(apis[0]->getSyncByBackupId(backupId));
+        return s && s->getRunState() == desiredState;
+    };
+
+    // Wait for the backup to be in RUNNING state
+    ASSERT_TRUE(WaitFor(
+        [idOfBackup, desiredState = MegaSync::RUNSTATE_RUNNING, testRunState]()
+        {
+            return testRunState(idOfBackup, desiredState);
+        },
+        60000))
+        << "Initial connection: backup not Running (started) after 60 seconds";
+
+    // Wait for the sync to be in RUNNING state
+    ASSERT_TRUE(WaitFor(
+        [idOfSync, desiredState = MegaSync::RUNSTATE_RUNNING, testRunState]()
+        {
+            return testRunState(idOfSync, desiredState);
+        },
+        60000))
+        << "Initial connection: sync not Running (started) after 60 seconds";
+
+    // Create a second connection with the same credentials
+    megaApi.emplace_back(newMegaApi(APP_KEY.c_str(),
+                                    megaApiCacheFolder(1).c_str(),
+                                    USER_AGENT.c_str(),
+                                    unsigned(THREADS_PER_MEGACLIENT)));
+    megaApi.back()->addListener(this);
+    PerApi pa; // make a copy
+    pa.email = mApi.back().email;
+    pa.pwd = mApi.back().pwd;
+    mApi.push_back(std::move(pa));
+    auto& differentApiDtls = mApi.back();
+    differentApiDtls.megaApi = megaApi.back().get();
+
+    {
+        bool& fetchNodesDone = mApi[1].requestFlags[MegaRequest::TYPE_FETCH_NODES] = false;
+        unique_ptr<RequestTracker> loginTracker =
+            std::make_unique<RequestTracker>(megaApi[1].get());
+        megaApi[1]->login(differentApiDtls.email.c_str(),
+                          differentApiDtls.pwd.c_str(),
+                          loginTracker.get());
+        ASSERT_EQ(API_OK, loginTracker->waitForResult()) << "Second connection: Failed to login";
+        ASSERT_NO_FATAL_FAILURE(fetchnodes(1))
+            << "Second connection: Failed to request fetch nodes";
+        ASSERT_TRUE(WaitFor(
+            [fetchNodesDone]()
+            {
+                return fetchNodesDone;
+            },
+            60000))
+            << "Second connection: fetch nodes not done after 60 seconds";
+    }
+
+    // Commands for the Backup
+    {
+        // Second connection: Pause backup
+        RequestTracker pauseBackupTracker(megaApi[1].get());
+        megaApi[1]->pauseFromBC(idOfBackup, &pauseBackupTracker);
+        ASSERT_EQ(pauseBackupTracker.waitForResult(), API_OK)
+            << "Second connection: Failed to Pause backup";
+
+        // Initial connection: wait for backup to be Paused
+        ASSERT_TRUE(WaitFor(
+            [idOfBackup, testRunState]()
+            {
+                return testRunState(idOfBackup, MegaSync::RUNSTATE_PAUSED);
+            },
+            120000))
+            << "Initial connection: backup not Paused after 120 seconds";
+
+        // Wait a while (for the sds attr to be updated and propagated).
+        // Without this, resuming will fail sometimes.
+        std::this_thread::sleep_for(std::chrono::seconds{5});
+
+        // Second connection: Resume backup
+        RequestTracker resumeBackupTracker(megaApi[1].get());
+        megaApi[1]->resumeFromBC(idOfBackup, &resumeBackupTracker);
+        ASSERT_EQ(resumeBackupTracker.waitForResult(), API_OK)
+            << "Second connection: Failed to Resume backup";
+
+        // Initial connection: wait for backup to be Resumed
+        ASSERT_TRUE(WaitFor(
+            [idOfBackup, testRunState]()
+            {
+                return testRunState(idOfBackup, MegaSync::RUNSTATE_RUNNING);
+            },
+            120000))
+            << "Initial connection: backup not Running (resumed) after 120 seconds";
+
+        // Clean-up
+        RequestTracker removeBackupTracker(megaApi[0].get());
+        megaApi[0]->removeSync(idOfBackup, &removeBackupTracker);
+        ASSERT_EQ(removeBackupTracker.waitForResult(), API_OK)
+            << "Initial connection: Failed to remove backup";
+    }
+
+    // Commands for the Sync
+    {
+        // Second connection: Pause sync
+        RequestTracker pauseSyncTracker(megaApi[1].get());
+        megaApi[1]->pauseFromBC(idOfSync, &pauseSyncTracker);
+        ASSERT_EQ(pauseSyncTracker.waitForResult(), API_OK)
+            << "Second connection: Failed to Pause sync";
+
+        // Initial connection: wait for sync to be Paused
+        ASSERT_TRUE(WaitFor(
+            [idOfSync, testRunState]()
+            {
+                return testRunState(idOfSync, MegaSync::RUNSTATE_PAUSED);
+            },
+            120000))
+            << "Initial connection: sync not Paused after 120 seconds";
+
+        // Wait a while (for the sds attr to be updated and propagated).
+        // Without this, resuming will fail sometimes.
+        std::this_thread::sleep_for(std::chrono::seconds{5});
+
+        // Second connection: Resume sync
+        RequestTracker resumeSyncTracker(megaApi[1].get());
+        megaApi[1]->resumeFromBC(idOfSync, &resumeSyncTracker);
+        ASSERT_EQ(resumeSyncTracker.waitForResult(), API_OK)
+            << "Second connection: Failed to Resume sync";
+
+        // Initial connection: wait for sync to be Resumed
+        ASSERT_TRUE(WaitFor(
+            [idOfSync, testRunState]()
+            {
+                return testRunState(idOfSync, MegaSync::RUNSTATE_RUNNING);
+            },
+            120000))
+            << "Initial connection: sync not Running (resumed) after 120 seconds";
+
+        // Clean-up
+        RequestTracker removeSyncTracker(megaApi[0].get());
+        megaApi[0]->removeSync(idOfSync, &removeSyncTracker);
+        ASSERT_EQ(removeSyncTracker.waitForResult(), API_OK)
+            << "Initial connection: Failed to remove sync";
+    }
+
+    std::error_code ec;
+    fs::remove_all(folders[0], ec);
+    fs::remove_all(folders[1], ec);
+}
+
 TEST_F(SdkTest, SdkExternalDriveFolder)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
