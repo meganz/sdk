@@ -331,8 +331,8 @@ public class MegaApiJava {
      * @param clientType   Client type (default, VPN or Password Manager) enables SDK to function differently
      *                     Possible values:
      *                     MegaApi::CLIENT_TYPE_DEFAULT = 0
-     *                     MegaApi::CLIENT_TYPE_VPN
-     *                     MegaApi::CLIENT_TYPE_PASSWORD_MANAGER
+     *                     MegaApi::CLIENT_TYPE_VPN = 1
+     *                     MegaApi::CLIENT_TYPE_PASSWORD_MANAGER = 2
      */
     public MegaApiJava(String appKey, String userAgent, String basePath, MegaGfxProcessor gfxProcessor, int clientType) {
         this.gfxProcessor = gfxProcessor;
