@@ -146,7 +146,7 @@ public:
     static const int BLOCKSIZE = CryptoPP::AES::BLOCKSIZE;
     static const int KEYLENGTH = CryptoPP::AES::BLOCKSIZE;
 
-    byte key[KEYLENGTH];
+    byte key[KEYLENGTH] = {};
 
     typedef uint64_t ctr_iv;
 
@@ -447,7 +447,7 @@ public:
     */
     static bool isZeroKey(const byte* key, size_t keySize);
 
-    SymmCipher() { }
+    SymmCipher() { };
     SymmCipher(const SymmCipher& ref);
     SymmCipher& operator=(const SymmCipher& ref);
     SymmCipher(const byte*);
