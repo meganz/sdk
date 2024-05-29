@@ -447,7 +447,7 @@ public:
     */
     static bool isZeroKey(const byte* key, size_t keySize);
 
-    SymmCipher() { };
+    SymmCipher() { }
     SymmCipher(const SymmCipher& ref);
     SymmCipher& operator=(const SymmCipher& ref);
     SymmCipher(const byte*);
