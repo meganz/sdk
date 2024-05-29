@@ -1020,7 +1020,7 @@ using SyncControllerWeakPtr = std::weak_ptr<SyncController>;
 struct SyncSensitiveData
 {
     // Attributes necessary to manipulate the sync config database.
-    JSCDUserAttributes mJSCDUserAttributes;
+    JSCData mJSCData;
 
     // Key necessary to manipulate the sync's state cache.
     std::string mStateCacheKey;

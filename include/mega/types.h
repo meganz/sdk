@@ -1246,7 +1246,7 @@ struct StorageInfo
     m_off_t mUsed = 0;
 }; // StorageInfo
 
-struct JSCDUserAttributes
+struct JSCData
 {
     // Verifies that the sync config database hasn't been tampered with.
     std::string mAuthenticationKey;
@@ -1256,7 +1256,7 @@ struct JSCDUserAttributes
 
     // The name of this user's sync config databases.
     std::string mFileName;
-}; // JSCDUserAttributes
+}; // JSCData
 
 #ifdef ENABLE_CHAT
 

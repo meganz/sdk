@@ -2689,8 +2689,7 @@ public:
     void getNotifications(CommandGetNotifications::ResultFunc onResult);
     std::pair<uint32_t, uint32_t> getFlag(const char* flagName, bool commit);
 
-    using GetJSCDUserAttributesCallback =
-      std::function<void(JSCDUserAttributes, Error)>;
+    using GetJSCDataCallback = std::function<void(JSCData, Error)>;
 
     /**
      * @brief
@@ -2703,7 +2702,7 @@ public:
      * @param callback
      * The function that should receive the user's JSCD user attributes.
      */
-    void getJSCDUserAttributes(GetJSCDUserAttributesCallback callback);
+    void getJSCData(GetJSCDataCallback callback);
 
     // FUSE client adapter.
     fuse::ClientAdapter mFuseClientAdapter;
@@ -2723,7 +2722,7 @@ private:
      * The function that should receive the user's JSCD user attributes or
      * the reason why those attributes couldn't be created.
      */
-    void createJSCDUserAttributes(GetJSCDUserAttributesCallback callback);
+    void createJSCData(GetJSCDataCallback callback);
 
 #ifdef ENABLE_SYNC
     /**
@@ -2760,8 +2759,8 @@ private:
      * @param result
      * The result of our attempt to create the user's JSCD user attributes.
      */
-    void JSCDUserAttributesCreated(GetJSCDUserAttributesCallback callback,
-                                   Error result);
+    void JSCDataCreated(GetJSCDataCallback callback,
+                        Error result);
 
     /**
      * @brief
@@ -2782,9 +2781,9 @@ private:
      * @param store
      * The TLV store containing the user's JSCD user attributes.
      */
-    void JSCDUserAttributesRetrieved(GetJSCDUserAttributesCallback callback,
-                                     Error result,
-                                     TLVstore* store);
+    void JSCDataRetrieved(GetJSCDataCallback callback,
+                          Error result,
+                          TLVstore* store);
 
     // Last known capacity retrieved from the cloud.
     m_off_t mLastKnownCapacity = -1;

@@ -4263,15 +4263,12 @@ void Syncs::injectSyncSensitiveData(SyncSensitiveData data)
         // Inject state cache key (sync key.)
         syncKey.setkey(reinterpret_cast<const byte*>(data.mStateCacheKey.data()));
 
-        // Convenience.
-        auto& attributes = data.mJSCDUserAttributes;
-
         // Construct IO context.
         mSyncConfigIOContext.reset(
           new SyncConfigIOContext(*fsaccess,
-                                  attributes.mAuthenticationKey,
-                                  attributes.mCipherKey,
-                                  attributes.mFileName,
+                                  data.mJSCData.mAuthenticationKey,
+                                  data.mJSCData.mCipherKey,
+                                  data.mJSCData.mFileName,
                                   rng));
     }, "injectSyncSensitiveData");
 }
