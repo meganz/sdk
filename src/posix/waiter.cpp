@@ -117,12 +117,14 @@ int PosixWaiter::wait()
     }
 
 #ifdef USE_POLL
-    int timeoutInMs = ((maxds + 1) // maxds is equal to std::numeric_limits<dstime>::max()
-               || (maxds > static_cast<dstime>(std::numeric_limits<int>::max() / 100) ) // maxds would overflow milliseconds in int
-               ) ?
-                -1  // wait infinite
-              : (100 * maxds); // wait the corresponding milliseconds to maxds deciseconds
-    auto total = rfds.size() +  wfds.size() +  efds.size();
+    // wait infinite (-1) if maxds is max dstime OR it would overflow platform's int
+    int timeoutInMs = -1;
+    if (maxds != std::numeric_limits<dstime>::max() &&
+        maxds <= std::numeric_limits<int>::max() / 100)
+    {
+        timeoutInMs = static_cast<int>(maxds) * 100;
+    }
+    auto total = rfds.size() + wfds.size() + efds.size();
     struct pollfd fds[total];
 
     int polli = 0;
