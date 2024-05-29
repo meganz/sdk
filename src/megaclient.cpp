@@ -12406,6 +12406,12 @@ void MegaClient::loginResult(CommandLogin::Completion completion,
         return;
     }
 
+    // Capture the client's response tag as apps may require it.
+    completion = [completion = std::move(completion), tag = restag, this](error result) {
+        ScopedValue restorer(restag, tag);
+        completion(result);
+    }; // completion
+
     // Wrap the user's completion function so that we also initialize the sync engine.
     completion = [completion = std::move(completion), this](error result) {
         // Initialize the sync engine and call the user's completion function.
