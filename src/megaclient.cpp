@@ -22241,11 +22241,13 @@ void MegaClient::getJSCData(GetJSCDataCallback callback)
     using std::bind;
     using std::placeholders::_1;
 
+    auto failed = bind(&MegaClient::JSCDataRetrieved, this, callback, _1, nullptr);
+
     // Try and retrieve the user's JSCD attribute.
     getua(user,
           ATTR_JSON_SYNC_CONFIG_DATA,
           0,
-          bind(&MegaClient::JSCDataRetrieved, this, callback, _1, nullptr),
+          std::move(failed),
           nullptr,
           bind(&MegaClient::JSCDataRetrieved, this, std::move(callback), API_OK, _1));
 }
