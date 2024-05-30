@@ -363,6 +363,7 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %newobject mega::MegaSync::copy;
 %newobject mega::MegaSyncStats::copy;
 %newobject mega::MegaRecentActionBucket::copy;
+%newobject mega::MegaRecentActionBucketList::copy;
 %newobject mega::MegaContactRequest::copy;
 %newobject mega::MegaContactRequestList::copy;
 %newobject mega::MegaStringList::copy;
@@ -433,6 +434,11 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %newobject mega::MegaRequest::getMegaAchievementsDetails;
 %newobject mega::MegaAccountDetails::getSubscriptionMethod;
 %newobject mega::MegaAccountDetails::getSubscriptionCycle;
+%newobject mega::MegaAccountDetails::copy;
+%newobject mega::MegaAccountDetails::getBalance;
+%newobject mega::MegaAccountDetails::getSession;
+%newobject mega::MegaAccountDetails::getPurchase;
+%newobject mega::MegaAccountDetails::getTransaction;
 
 %newobject mega::MegaApi::getMimeType;
 

@@ -606,6 +606,11 @@ Error Client::replace(CloudPath source,
     return client().replace(sourceHandle, targetHandle);
 }
 
+ErrorOr<StorageInfo> Client::storageInfo()
+{
+    return client().storageInfo();
+}
+
 const Path& Client::storagePath() const
 {
     return mStoragePath;

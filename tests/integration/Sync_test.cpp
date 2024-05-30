@@ -18054,7 +18054,7 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
 
             // Add the contact.
             auto id = client0.opcr(email, OPCA_ADD);
-            ASSERT_NE(id, UNDEF);
+            ASSERT_NE(id, UNDEF) << "Undef id when trying to add the contact! email = '" << email << "'";
 
             // Wait for the contact to receive the request.
             ASSERT_TRUE(client.waitFor(contactRequestReceived(id), DEFAULTWAIT));
@@ -18210,8 +18210,8 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
         ASSERT_TRUE(client1.waitForNodesUpdated(30));
     }
 
-    // Wait for client 1 to stall (due to undecryptable nodes.)
-    ASSERT_TRUE(client1.waitFor(SyncStallState(true), DEFAULTWAIT));
+    // Wait for client 1, it must not generate a stall
+    ASSERT_FALSE(client1.waitFor(SyncStallState(true), DEFAULTWAIT));
 
     // Temporarily log out client 1.
     //
@@ -18243,8 +18243,8 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
     // Give the sync some time to process changes.
     waitonsyncs(DEFAULTWAIT, &client1);
 
-    // Wait for the engine to stall once again.
-    ASSERT_TRUE(client1.waitFor(SyncStallState(true), DEFAULTWAIT));
+    // Wait for the engine once again to ensure it does not generate a stall.
+    ASSERT_FALSE(client1.waitFor(SyncStallState(true), DEFAULTWAIT));
 }
 
 TEST_F(SyncTest, CloudHorizontalMoveChain)

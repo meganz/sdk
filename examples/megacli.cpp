@@ -5147,6 +5147,8 @@ autocomplete::ACN autocompleteSyntax()
                                     param("name")),
                            sequence(flag("-path"),
                                     localFSFolder("target")))));
+
+    p->Add(exec_getpricing, text("getpricing"));
     return autocompleteTemplate = std::move(p);
 }
 
@@ -9950,14 +9952,53 @@ void DemoApp::setelements_updated(SetElement** el, int count)
     }
 }
 
-void DemoApp::enumeratequotaitems_result(unsigned, handle, unsigned, int, int, unsigned, unsigned, unsigned, unsigned, const char*, const char*, const char*, std::unique_ptr<BusinessPlan>)
+void DemoApp::enumeratequotaitems_result(unsigned type,
+                                         handle product,
+                                         unsigned proLevel,
+                                         int gbStorage,
+                                         int gbTransfer,
+                                         unsigned months,
+                                         unsigned amount,
+                                         unsigned amountMonth,
+                                         unsigned localPrice,
+                                         const char* description,
+                                         const char* iosId,
+                                         const char* androidId,
+                                         std::unique_ptr<BusinessPlan> businessPlan)
 {
-    // FIXME: implement
+    if (type == 0) // Pro level plan
+    {
+        cout << "\n" << description << ":\n";
+        cout << "\tPro level: " << proLevel << "\n";
+        cout << "\tStorage: " << gbStorage << "\n";
+        cout << "\tTransfer: " << gbTransfer << "\n";
+        cout << "\tMonths: " << months << "\n";
+        cout << "\tAmount: " << amount << "\n";
+        cout << "\tAmount per month: " << amountMonth << "\n";
+        cout << "\tLocal price: " << localPrice << "\n";
+        cout << "\tiOS ID: " << iosId << "\n";
+        cout << "\tAndroid ID: " << androidId << endl;
+    }
+    else // Business plan
+    {
+        cout << "\n" << description << ":\n";
+        cout << "\tMinimum users: " << businessPlan->minUsers << "\n";
+        cout << "\tStorage per user: " << businessPlan->gbStoragePerUser << "\n";
+        cout << "\tTransfer per user: " << businessPlan->gbTransferPerUser << "\n";
+        cout << "\tPrice per user: " << businessPlan->pricePerUser << "\n";
+        cout << "\tLocal price per user: " << businessPlan->localPricePerUser << "\n";
+        cout << "\tPrice per storage: " << businessPlan->pricePerStorage << "\n";
+        cout << "\tLocal price per storage: " << businessPlan->localPricePerStorage << "\n";
+        cout << "\tGigabytes per storage: " << businessPlan->gbPerStorage << "\n";
+        cout << "\tPrice per transfer: " << businessPlan->pricePerTransfer << "\n";
+        cout << "\tLocal price per transfer: " << businessPlan->localPricePerTransfer << "\n";
+        cout << "\tGigabytes per transfer: " << businessPlan->gbPerTransfer << endl;
+    }
 }
 
 void DemoApp::enumeratequotaitems_result(unique_ptr<CurrencyData> data)
 {
-    cout << "Currency data: " << endl;
+    cout << "\nCurrency data: " << endl;
     cout << "\tName: " << data->currencyName;
     cout << "\tSymbol: " << Base64::atob(data->currencySymbol);
     if (data->localCurrencyName.size())
@@ -9965,11 +10006,15 @@ void DemoApp::enumeratequotaitems_result(unique_ptr<CurrencyData> data)
         cout << "\tName (local): " << data->localCurrencyName;
         cout << "\tSymbol (local): " << Base64::atob(data->localCurrencySymbol);
     }
+    cout << endl;
 }
 
-void DemoApp::enumeratequotaitems_result(error)
+void DemoApp::enumeratequotaitems_result(error e)
 {
-    // FIXME: implement
+    if (e != API_OK)
+    {
+        cout << "Error retrieving pricing plans, error code " << e << endl;
+    }
 }
 
 void DemoApp::additem_result(error)
@@ -12327,7 +12372,7 @@ void exec_getvpncredentials(autocomplete::ACState& s)
         {
             slotID = std::stoi(slotIDstr);
         }
-        catch (std::exception const &ex)
+        catch (const std::exception& ex)
         {
             cout << "Could not convert param SlotID(" << slotIDstr << ") to integer. Exception: " << ex.what() << endl;
             return;
@@ -13015,4 +13060,10 @@ void exec_nodeTag(autocomplete::ACState& s)
     {
         cout << "None tag is defined\n";
     }
+}
+
+void exec_getpricing(autocomplete::ACState& s)
+{
+    cout << "Getting pricing plans... " << endl;
+    client->purchase_enumeratequotaitems();
 }

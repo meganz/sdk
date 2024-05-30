@@ -10279,6 +10279,15 @@ typedef NS_ENUM(NSInteger, MEGAClientType) {
  */
 - (NSInteger)getABTestValue:(NSString*)flag;
 
+#pragma mark - Remote feature flags
+/**
+ * @brief Get the value for the flag with the given name,
+ * if present among either A/B Test or Feature flags.
+ * @param flag Name or key of the value to be retrieved
+ * @return A integer with the value of the flag, value above 0 means feature enabled
+ */
+- (NSInteger)remoteFeatureFlagValue:(NSString *)flag;
+
 #pragma mark - Ads
 /**
  * @brief Fetch ads
