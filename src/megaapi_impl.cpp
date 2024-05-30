@@ -28336,7 +28336,7 @@ MegaStringIntegerMap* MegaPricingPrivate::getFeatures(int productIndex) const
 
 unsigned int MegaPricingPrivate::getTestCategory(int productIndex) const
 {
-    if ((unsigned)productIndex < mTestCategory.size())
+    if (static_cast<decltype(mTestCategory.size())>(productIndex) < mTestCategory.size())
     {
         return mTestCategory[productIndex];
     }
