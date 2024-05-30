@@ -60,35 +60,6 @@ static const string PUBLIC_IMAGE_URL = "/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuD
 
 MegaFileSystemAccess fileSystemAccess;
 
-template<typename T>
-class ScopedValue {
-public:
-    ScopedValue(T& what, T value)
-      : mLastValue(std::move(what))
-      , mWhat(what)
-    {
-        what = std::move(value);
-    }
-
-    ~ScopedValue()
-    {
-        mWhat = std::move(mLastValue);
-    }
-
-    MEGA_DISABLE_COPY(ScopedValue)
-    MEGA_DEFAULT_MOVE(ScopedValue)
-
-private:
-    T mLastValue;
-    T& mWhat;
-}; // ScopedValue<T>
-
-template<typename T>
-ScopedValue<T> makeScopedValue(T& what, T value)
-{
-    return ScopedValue<T>(what, std::move(value));
-}
-
 #ifdef _WIN32
 DWORD ThreadId()
 {

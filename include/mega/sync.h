@@ -1017,8 +1017,19 @@ using IsImmediateStallPredicate =
 using SyncControllerPtr = std::shared_ptr<SyncController>;
 using SyncControllerWeakPtr = std::weak_ptr<SyncController>;
 
+struct SyncSensitiveData
+{
+    // Attributes necessary to manipulate the sync config database.
+    JSCData jscData;
+
+    // Key necessary to manipulate the sync's state cache.
+    std::string stateCacheKey;
+}; // SyncSensitiveData
+
 struct Syncs
 {
+    void injectSyncSensitiveData(SyncSensitiveData data);
+
     // Retrieve a copy of configured sync settings (thread safe)
     SyncConfigVector getConfigs(bool onlyActive) const;
     bool configById(handle backupId, SyncConfig&) const;
@@ -1285,7 +1296,7 @@ private:
     void appendNewSync_inThread(const SyncConfig&, bool startSync, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath = string());
     void removeSyncAfterDeregistration_inThread(handle backupId, std::function<void(Error)> clientCompletion, std::function<void(MegaClient&, TransferDbCommitter&)> clientRemoveSdsEntryFunction);
     void syncConfigStoreAdd_inThread(const SyncConfig& config, std::function<void(error)> completion);
-    void clear_inThread();
+    void clear_inThread(bool reopenStoreAfter);
     void purgeRunningSyncs_inThread();
     void renameSync_inThread(handle backupId, const string& newname, std::function<void(Error e)> result);
     error backupOpenDrive_inThread(const LocalPath& drivePath);

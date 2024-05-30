@@ -892,7 +892,7 @@ void Sync::readstatecache()
     unsigned numLocalNodes = 0;
 
     // bulk-load cached nodes into tmap
-    assert(!memcmp(syncs.syncKey.key, syncs.mClient.key.key, sizeof(syncs.syncKey.key)));
+    assert(!SymmCipher::isZeroKey(syncs.syncKey.key, sizeof(syncs.syncKey.key)));
     while (statecachetable->next(&cid, &cachedata, &syncs.syncKey))
     {
         uint32_t parentID = 0;
@@ -1011,7 +1011,7 @@ void Sync::cachenodes()
                 if ((*it)->parent->dbid || (*it)->parent == localroot.get())
                 {
                     // add once we know the parent dbid so that the parent/child structure is correct in db
-                    assert(!memcmp(syncs.syncKey.key, syncs.mClient.key.key, sizeof(syncs.syncKey.key)));
+                    assert(!SymmCipher::isZeroKey(syncs.syncKey.key, sizeof(syncs.syncKey.key)));
                     statecachetable->put(MegaClient::CACHEDLOCALNODE, *it, &syncs.syncKey);
                     insertq.erase(it++);
                     added = true;
@@ -4252,6 +4252,27 @@ bool SyncController::deferUpload(const LocalPath& path) const
     return true;
 }
 
+void Syncs::injectSyncSensitiveData(SyncSensitiveData data)
+{
+    syncRun([data = std::move(data), this]() {
+        // Nothing should've been injected yet.
+        assert(SymmCipher::isZeroKey(syncKey.key, sizeof(syncKey.key)));
+        assert(!mSyncConfigIOContext);
+        assert(!mSyncConfigStore);
+
+        // Inject state cache key (sync key.)
+        syncKey.setkey(reinterpret_cast<const byte*>(data.stateCacheKey.data()));
+
+        // Construct IO context.
+        mSyncConfigIOContext.reset(
+          new SyncConfigIOContext(*fsaccess,
+                                  data.jscData.authenticationKey,
+                                  data.jscData.cipherKey,
+                                  data.jscData.fileName,
+                                  rng));
+    }, __func__);
+}
+
 SyncConfigVector Syncs::getConfigs(bool onlyActive) const
 {
     assert(onSyncThread() || !onSyncThread());
@@ -5446,69 +5467,6 @@ SyncConfigIOContext* Syncs::syncConfigIOContext()
 {
     assert(onSyncThread());
 
-    // Has a suitable IO context already been created?
-    if (mSyncConfigIOContext)
-    {
-        // Yep, return a reference to it.
-        return mSyncConfigIOContext.get();
-    }
-
-//TODO: User access is not thread safe
-    // Which user are we?
-    User* self = mClient.ownuser();
-    if (!self)
-    {
-        LOG_warn << "syncConfigIOContext: own user not available";
-        return nullptr;
-    }
-
-    // Try and retrieve this user's config data attribute.
-    auto* payload = self->getattr(ATTR_JSON_SYNC_CONFIG_DATA);
-    if (!payload)
-    {
-        // Attribute hasn't been created yet.
-        LOG_warn << "syncConfigIOContext: JSON config data is not available";
-        return nullptr;
-    }
-
-    // Try and decrypt the payload.
-    assert(!memcmp(syncKey.key, mClient.key.key, sizeof(syncKey.key)));
-    unique_ptr<TLVstore> store(
-      TLVstore::containerToTLVrecords(payload, &syncKey));
-
-    if (!store)
-    {
-        // Attribute is malformed.
-        LOG_err << "syncConfigIOContext: JSON config data is malformed";
-        return nullptr;
-    }
-
-    // Convenience.
-    constexpr size_t KEYLENGTH = SymmCipher::KEYLENGTH;
-
-    // Verify payload contents.
-    string authKey;
-    string cipherKey;
-    string name;
-
-    if (!store->get("ak", authKey) || authKey.size() != KEYLENGTH ||
-        !store->get("ck", cipherKey) || cipherKey.size() != KEYLENGTH ||
-        !store->get("fn", name) || name.size() != KEYLENGTH)
-    {
-        // Payload is malformed.
-        LOG_err << "syncConfigIOContext: JSON config data is incomplete";
-        return nullptr;
-    }
-
-    // Create the IO context.
-    mSyncConfigIOContext.reset(
-      new SyncConfigIOContext(*fsaccess,
-                                  std::move(authKey),
-                                  std::move(cipherKey),
-                                  Base64::btoa(name),
-                                  rng));
-
-    // Return a reference to the new IO context.
     return mSyncConfigIOContext.get();
 }
 
@@ -5633,20 +5591,23 @@ LocalNode* Syncs::findMoveFromLocalNode(const shared_ptr<LocalNode::RareFields::
     return nullptr;
 }
 
-void Syncs::clear_inThread()
+void Syncs::clear_inThread(bool reopenStoreAfter)
 {
     assert(onSyncThread());
 
     assert(!mSyncConfigStore);
 
     mSyncConfigStore.reset();
-    mSyncConfigIOContext.reset();
     {
         lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
         mSyncVec.clear();
     }
     mSyncVecIsEmpty = true;
-    syncKey.setkey((byte*)"\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0");
+    if (!reopenStoreAfter)
+    {
+        mSyncConfigIOContext.reset();
+        syncKey.setkey(SymmCipher::zeroiv);
+    }
     stallReport = SyncStallInfo();
     triggerHandles.clear();
     localnodeByScannedFsid.clear();
@@ -6253,12 +6214,11 @@ void Syncs::locallogout_inThread(bool removecaches, bool keepSyncsConfigFile, bo
     // make sure we didn't resurrect the store, singleton style
     assert(!mSyncConfigStore);
 
-    clear_inThread();
+    clear_inThread(reopenStoreAfter);
     mExecutingLocallogout = false;
 
     if (reopenStoreAfter)
     {
-        syncKey.setkey(mClient.key.key);
         SyncConfigVector configs;
         syncConfigStoreLoad(configs);
     }
@@ -11752,9 +11712,6 @@ void Syncs::syncLoop()
         lastRecurseMs = 0;
 
         fsaccess->checkevents(waiter.get());
-
-        // make sure we are using the client key (todo: shall we set it just when the client sets its key? easy to miss one though)
-        syncKey.setkey(mClient.key.key);
 
         // reset flag now, if it gets set then we speed back to processsing syncThreadActions
         mSyncFlags->earlyRecurseExitRequested = false;
