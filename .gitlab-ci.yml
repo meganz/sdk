@@ -15,6 +15,9 @@ gitleaks:
 
 clang-format:
   stage: lint
+  # clang-format 14, which is the latest version available in Ubuntu 22.04, must be used and no
+  # other. Changing the image impacts the installed version of clang-format, which could result in
+  # formatting errors other than those obtained by the devs locally.
   image: ubuntu:22.04
   before_script:
     - apt-get --quiet=2 update
