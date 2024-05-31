@@ -1,6 +1,6 @@
 package nz.mega.sdk;
 
-public class MegaStringMap {
+public class MegaStringMapAndroid {
 
     /**
      * Creates a copy of MegaStringMap required for its usage in the app.
