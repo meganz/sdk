@@ -19,7 +19,9 @@
  * program.
  */
 #import <Foundation/Foundation.h>
+#import "MEGAAccountFeature.h"
 #import "MEGAPaymentMethod.h"
+#import "MEGAStringIntegerMap.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -158,6 +160,35 @@ typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
  *
  */
 @property (readonly, nonatomic) NSInteger numberUsageItems;
+
+/**
+ * @brief Number of active MegaAccountFeature objects associated with the account.
+ */
+@property (readonly, nonatomic) NSInteger numActiveFeatures;
+
+/**
+ * @brief Get feature account level for feature-related subscriptions.
+ *
+ * @return Level for feature-related subscriptions.
+ */
+@property (readonly, nonatomic) int64_t subscriptionLevel;
+
+/**
+ * @brief Returns the active MegaAccountFeature object associated with an index.
+ *
+ * You take the ownership of the returned value.
+ *
+ * @param index Index of the object.
+ * @return MegaAccountFeature object.
+ */
+- (nullable MEGAAccountFeature *)activeFeatureAtIndex:(NSInteger)index;
+
+/**
+ * @brief Subscription features for the account.
+ *
+ * You take the ownership of the returned value.
+ */
+@property (readonly, nonatomic) NSDictionary<NSString *, NSNumber *> *subscriptionFeatures;
 
 /**
  * @brief Get the used storage in for a node.
