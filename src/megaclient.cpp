@@ -9038,6 +9038,11 @@ error MegaClient::rename(std::shared_ptr<Node> n, std::shared_ptr<Node> p, syncd
         }
     }
 
+    if (n && n->owner != me && n->isMarkedSensitive())
+    {
+        LOG_debug << "Removing sen attribute";
+        attrUpdates[AttrMap::string2nameid("sen")] = "";
+    }
     if (newName)
     {
         attrUpdates['n'] = newName;

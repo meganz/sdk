@@ -19915,6 +19915,9 @@ void MegaApiImpl::moveNode(MegaNode* node, MegaNode* newParent, const char* newN
 
                 unsigned nc;
                 TreeProcCopy tc;
+                const bool fullInternalOperation = node && newParent && node->owner == client->me &&
+                                                   client->me == newParent->owner;
+                tc.resetSensitive = !fullInternalOperation;
                 NodeHandle ovhandle;
 
                 if (node->type == FILENODE)
@@ -19973,6 +19976,12 @@ void MegaApiImpl::moveNode(MegaNode* node, MegaNode* newParent, const char* newN
 
                     AttrMap attrs = node->attrs;
                     attrs.map['n'] = newName;
+
+                    // We need to ensure we are not undoing the sensitive reset
+                    if (tc.resetSensitive && attrs.map.erase(AttrMap::string2nameid("sen")))
+                    {
+                        LOG_debug << "Removing sen attribute";
+                    }
 
                     string attrstring;
                     attrs.getjson(&attrstring);
@@ -20191,8 +20200,14 @@ error MegaApiImpl::copyTreeFromOwnedNode(shared_ptr<Node> node, const char* newN
 
     // determine number of nodes to be copied
     TreeProcCopy tc;
+    const bool fullInternalOperation =
+        node && target && node->owner == client->me && client->me == target->owner;
+    tc.resetSensitive = !fullInternalOperation;
     client->proctree(node, &tc, false, !ovhandle.isUndef());
     tc.allocnodes();
+
+    // If the sensitivity was reset, the file didn't exist
+    fileAlreadyExisted = fileAlreadyExisted && !(tc.resetSensitive && node->isMarkedSensitive());
 
     // build new nodes array
     client->proctree(node, &tc, false, !ovhandle.isUndef());
@@ -20215,6 +20230,12 @@ error MegaApiImpl::copyTreeFromOwnedNode(shared_ptr<Node> node, const char* newN
         attrs = node->attrs;
 
         attrs.map['n'] = sname;
+
+        // We need to ensure we are not undoing the sensitive reset
+        if (tc.resetSensitive && attrs.map.erase(AttrMap::string2nameid("sen")))
+        {
+            LOG_debug << "Removing sen attribute";
+        }
 
         attrs.getjson(&attrstring);
         client->makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());

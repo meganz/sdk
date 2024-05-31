@@ -58,6 +58,7 @@ public:
     vector<NewNode> nn;
     unsigned nc = 0;
     bool allocated = false;
+    bool resetSensitive = false;
 
     void allocnodes(void);
 

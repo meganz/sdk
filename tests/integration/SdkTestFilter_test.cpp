@@ -512,7 +512,7 @@ TEST_F(SdkTestFilter, SdkGetFilteredNodes)
     // By fav: Only favs
     filteringInfo = getDefaultfilter();
     filteringInfo->byFavourite(MegaSearchFilter::BOOL_FILTER_ONLY_TRUE);
-    std::vector<std::string> expectedFavs {
+    std::vector<std::string> expectedFavs{
         "Dir1", // fav
         "testFile2", // fav
         "testFile5", // fav
@@ -547,7 +547,7 @@ TEST_F(SdkTestFilter, SdkGetFilteredNodes)
     // NOTE: To get only the nodes marked as sensitive, use BOOL_FILTER_ONLY_FALSE
     // NOTE: To get only the nodes that are not sensitive and do not have any sensitive ancestors
     // use BOOL_FILTER_ONLY_TRUE
-    std::vector<std::string> expectedSens {"testFile2", "Dir2"};
+    std::vector<std::string> expectedSens{"testFile2", "Dir2"};
     filteringInfo = getDefaultfilter();
     filteringInfo->bySensitivity(MegaSearchFilter::BOOL_FILTER_ONLY_FALSE);
     searchResults.reset(megaApi[0]->search(filteringInfo.get()));
