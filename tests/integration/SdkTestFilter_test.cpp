@@ -25,6 +25,7 @@ struct NodeCommonInfo
     std::string name;
     std::optional<unsigned int> label = std::nullopt; // e.g. MegaNode::NODE_LBL_PURPLE
     bool fav = false;
+    bool sensitive = false;
 };
 
 struct FileNodeInfo: public NodeCommonInfo
@@ -36,12 +37,13 @@ struct FileNodeInfo: public NodeCommonInfo
                  const std::optional<unsigned int>& _label = std::nullopt,
                  const bool _fav = false,
                  const unsigned int _size = 0,
-                 const std::chrono::seconds secondsSinceMod = 0s):
-        NodeCommonInfo{_name, _label, _fav},
+                 const std::chrono::seconds _secondsSinceMod = 0s,
+                 const bool _sensitive = false):
+        NodeCommonInfo{_name, _label, _fav, _sensitive},
         size(_size)
     {
         static const auto refTime = m_time();
-        if (auto nSecs = secondsSinceMod.count(); nSecs != 0)
+        if (auto nSecs = _secondsSinceMod.count(); nSecs != 0)
         {
             mtime = refTime - nSecs;
         }
@@ -59,8 +61,9 @@ struct DirNodeInfo: public NodeCommonInfo
     DirNodeInfo(const std::string& _name,
                 const std::vector<NodeInfo>& _childs = {},
                 const std::optional<unsigned int>& _label = std::nullopt,
-                const bool _fav = false):
-        NodeCommonInfo{_name, _label, _fav},
+                const bool _fav = false,
+                const bool _sensitive = false):
+        NodeCommonInfo{_name, _label, _fav, _sensitive},
         childs(_childs)
     {}
 };
@@ -145,7 +148,7 @@ public:
     const std::vector<NodeInfo> ELEMENTS{
         FileNodeInfo("testFile1", MegaNode::NODE_LBL_RED),
         DirNodeInfo("Dir1",
-                    {FileNodeInfo("testFile2", MegaNode::NODE_LBL_ORANGE, true, 15, 100s),
+                    {FileNodeInfo("testFile2", MegaNode::NODE_LBL_ORANGE, true, 15, 100s, true),
                      FileNodeInfo("testFile3", MegaNode::NODE_LBL_YELLOW, false, 35, 500s),
                      DirNodeInfo("Dir11",
                                  {
@@ -153,7 +156,11 @@ public:
                                  })},
                     MegaNode::NODE_LBL_PURPLE,
                     true),
-        DirNodeInfo("Dir2", {FileNodeInfo("testFile5", MegaNode::NODE_LBL_BLUE, true, 20, 200s)}),
+        DirNodeInfo("Dir2",
+                    {FileNodeInfo("testFile5", MegaNode::NODE_LBL_BLUE, true, 20, 200s)},
+                    {},
+                    {},
+                    true),
         FileNodeInfo("testFile6", {}, true, 10, 300s),
         FileNodeInfo("TestFile5Uppercase"),
     };
@@ -308,6 +315,11 @@ protected:
         else
         {
             ASSERT_EQ(API_OK, synchronousResetNodeLabel(0, node.get())) << "Error resetting label";
+        }
+        if (nodeInfo.sensitive)
+        {
+            ASSERT_EQ(API_OK, synchronousSetNodeSensitive(0, node.get(), true))
+                << "Error setting sensitive node";
         }
     }
 };
@@ -500,7 +512,7 @@ TEST_F(SdkTestFilter, SdkGetFilteredNodes)
     // By fav: Only favs
     filteringInfo = getDefaultfilter();
     filteringInfo->byFavourite(MegaSearchFilter::BOOL_FILTER_ONLY_TRUE);
-    std::vector<std::string> expectedFavs = {
+    std::vector<std::string> expectedFavs {
         "Dir1", // fav
         "testFile2", // fav
         "testFile5", // fav
@@ -530,4 +542,33 @@ TEST_F(SdkTestFilter, SdkGetFilteredNodes)
             EXPECT_THAT(allFavs, testing::Not(testing::Contains(noFav)))
                 << "byFavourite(BOOL_FILTER_ONLY_FALSE) gave a favourite node as result";
         });
+
+    // By sensitive
+    // NOTE: To get only the nodes marked as sensitive, use BOOL_FILTER_ONLY_FALSE
+    // NOTE: To get only the nodes that are not sensitive and do not have any sensitive ancestors
+    // use BOOL_FILTER_ONLY_TRUE
+    std::vector<std::string> expectedSens {"testFile2", "Dir2"};
+    filteringInfo = getDefaultfilter();
+    filteringInfo->bySensitivity(MegaSearchFilter::BOOL_FILTER_ONLY_FALSE);
+    searchResults.reset(megaApi[0]->search(filteringInfo.get()));
+    ASSERT_THAT(searchResults, NotNull()) << "serach() returned a nullptr";
+    EXPECT_THAT(toNamesVector(*searchResults), UnorderedElementsAreArray(expectedSens))
+        << "Unexpected filtering reusults for bySensitivity(BOOL_FILTER_ONLY_FALSE)";
+
+    auto expectedNoSens = getAllNodesNames();
+    expectedNoSens.erase(
+        std::remove_if(expectedNoSens.begin(),
+                       expectedNoSens.end(),
+                       [](const auto& e)
+                       {
+                           static const std::array sens{"testFile2", "Dir2", "testFile5"};
+                           return std::find(sens.begin(), sens.end(), e) != sens.end();
+                       }),
+        expectedNoSens.end());
+    filteringInfo = getDefaultfilter();
+    filteringInfo->bySensitivity(MegaSearchFilter::BOOL_FILTER_ONLY_TRUE);
+    searchResults.reset(megaApi[0]->search(filteringInfo.get()));
+    ASSERT_THAT(searchResults, NotNull()) << "serach() returned a nullptr";
+    EXPECT_THAT(toNamesVector(*searchResults), UnorderedElementsAreArray(expectedNoSens))
+        << "Unexpected filtering reusults for bySensitivity(BOOL_FILTER_ONLY_TRUE)";
 }
