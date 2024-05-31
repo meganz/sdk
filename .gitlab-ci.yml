@@ -20,6 +20,9 @@ clang-format:
     - apt-get --quiet=2 update
     - DEBCONF_NOWARNINGS=yes apt-get --quiet=2 install git clang-format 1> /dev/null
   script: |
+    # Get the list of commits from the source branch compared to the repo default branch (develop).
+    # The MR target branch ($CI_MERGE_REQUEST_TARGET_BRANCH_NAME) cannot be obtained as the job does
+    # not run in a MR pipeline because it is incompatible with external pipelines in Jenkins.
     COMMITS=$(git log --pretty=format:%H origin/$CI_DEFAULT_BRANCH..HEAD)
 
     for COMMIT in $COMMITS
