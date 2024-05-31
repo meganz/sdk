@@ -7997,15 +7997,16 @@ bool Sync::syncItem_checkDownloadCompletion(SyncRow& row, SyncRow& parentRow, Sy
 
     if (downloadPtr->wasTerminated)
     {
-        SYNC_verbose << syncname << "Download was terminated " << logTriplet(row, fullPath);
-
         // Did the download fail due to a MAC error?
         if (downloadPtr->mError == API_EKEY)
         {
-            // Then report it as a stall.
-            SYNC_verbose << syncname
-                            << "Download was terminated due to MAC verification failure: "
-                            << logTriplet(row, fullPath);
+            if (!downloadPtr->reasonAlreadyKnown)
+            {
+                // Then report it as a stall.
+                SYNC_verbose << syncname
+                                << "Download was terminated due to MAC verification failure: "
+                                << logTriplet(row, fullPath);
+            }
 
             monitor.waitingLocal(downloadPtr->getLocalname(), SyncStallEntry(
                 SyncWaitReason::DownloadIssue, true, true,
@@ -8020,22 +8021,27 @@ bool Sync::syncItem_checkDownloadCompletion(SyncRow& row, SyncRow& parentRow, Sy
         }
         if (downloadPtr->mError == API_EBLOCKED)
         {
-            // Report a stall if the file is blocked (taken down)
-            SYNC_verbose << syncname
-                            << "Download was terminated due to file being blocked (taken down because of ToS): "
-                            << logTriplet(row, fullPath);
+            if (!downloadPtr->reasonAlreadyKnown)
+            {
+                // Report a stall if the file is blocked (taken down)
+                SYNC_verbose << syncname
+                                << "Download was terminated due to file being blocked (taken down because of ToS): "
+                                << logTriplet(row, fullPath);
+            }
 
             monitor.waitingCloud(fullPath.cloudPath, SyncStallEntry(
                 SyncWaitReason::DownloadIssue, true, true,
                 {downloadPtr->h, fullPath.cloudPath, PathProblem::CloudNodeIsBlocked},
                 {},
-                {downloadPtr->getLocalname()},
+                {},
                 {}));
 
-            return false; // Don't download it again
+            // Keep the transfer intact and let syncItem continue, the transfer could be reset if the remote node is replaced
+            return true;
         }
         else
         {
+            assert(!downloadPtr->reasonAlreadyKnown);
             if (downloadPtr->mError == API_EWRITE)
             {
                 // This could be due to a problem with the temporary directory. Reset tmpfa to recreate them when restarting the transfer.
@@ -8044,6 +8050,10 @@ bool Sync::syncItem_checkDownloadCompletion(SyncRow& row, SyncRow& parentRow, Sy
                                 << "Download was terminated due to API_EWRITE (problem with the temporary directory?): "
                                 << logTriplet(row, fullPath);
                 tmpfa.reset();
+            }
+            else
+            {
+                SYNC_verbose << syncname << "Download was terminated (error: " << downloadPtr->mError << ") " << logTriplet(row, fullPath);
             }
             // remove the download record so we re-evaluate what to do
             row.syncNode->resetTransfer(nullptr);
@@ -9645,10 +9655,10 @@ bool Sync::resolve_downsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath
             {
                 if (!pflsc.alreadyDownloadingCount)
                 {
-                    SYNC_verbose << syncname << "Download already in progress c:"
-                                 << (downloadPtr->wasCompleted ?0:1) << " t:"
-                                 << (downloadPtr->wasTerminated ?0:1) << " ra:"
-                                 << (downloadPtr->wasRequesterAbandoned ?0:1) << logTriplet(row, fullPath);
+                    SYNC_verbose << syncname << "Download already in progress -> completed: "
+                                 << (downloadPtr->wasCompleted ? 1 : 0) << " terminated: "
+                                 << (downloadPtr->wasTerminated ? 1 : 0) << " requester abandoned: "
+                                 << (downloadPtr->wasRequesterAbandoned ? 1 : 0) << logTriplet(row, fullPath);
                 }
                 pflsc.alreadyDownloadingCount += 1;
             }
