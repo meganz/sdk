@@ -18,7 +18,7 @@ clang-format:
   image: ubuntu:22.04
   before_script:
     - apt-get --quiet=2 update
-    - apt-get --quiet=2 install git clang-format
+    - DEBCONF_NOWARNINGS=yes apt-get --quiet=2 install git clang-format 1> /dev/null
   script: |
     COMMITS=$(git log --pretty=format:%H origin/$CI_DEFAULT_BRANCH..HEAD)
 
