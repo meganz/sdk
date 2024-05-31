@@ -17,8 +17,8 @@ clang-format:
   stage: lint
   image: ubuntu:22.04
   before_script:
-    - apt-get update
-    - apt-get install -y git clang-format
+    - apt-get --quiet=2 update
+    - apt-get --quiet=2 install git clang-format
   script: |
     COMMITS=$(git log --pretty=format:%H origin/$CI_DEFAULT_BRANCH..HEAD)
 
