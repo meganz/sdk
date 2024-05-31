@@ -3878,6 +3878,37 @@ void exec_getmybackups(autocomplete::ACState&)
 }
 
 #ifdef ENABLE_SYNC
+void exec_backupcentreUpdateState(const string& backupIdStr, CommandBackupPut::SPState newState)
+{
+    handle backupId = 0;
+    Base64::atob(backupIdStr.c_str(), (byte*)&backupId, MegaClient::BACKUPHANDLE);
+
+    // determine if it's a backup or other type of sync
+    SyncConfig c;
+    bool found = client->syncs.configById(backupId, c);
+    string syncType = found && c.isBackup() ? "backup" : "sync";
+
+    client->updateStateInBC(backupId,
+                            newState,
+                            [newState, syncType, backupId](const Error& e)
+                            {
+                                string newStateStr =
+                                    newState == CommandBackupPut::TEMPORARY_DISABLED ? "pause" :
+                                                                                       "resume";
+                                if (e == API_OK)
+                                {
+                                    cout << "Backup Centre - " << newStateStr << "d " << syncType
+                                         << ' ' << toHandle(backupId) << endl;
+                                }
+                                else
+                                {
+                                    cout << "Backup Centre - Failed to " << newStateStr << ' '
+                                         << syncType << ' ' << toHandle(backupId) << " ("
+                                         << errorstring(e) << ')' << endl;
+                                }
+                            });
+}
+
 void exec_backupcentre(autocomplete::ACState& s)
 {
     bool delFlag = s.extractflag("-del");
@@ -4002,30 +4033,9 @@ void exec_backupcentre(autocomplete::ACState& s)
 
     else if ((pauseFlag || resumeFlag) && s.words.size() == 2) // pause/resume sync (any kind)
     {
-        handle backupId = 0;
-        const string& backupIdStr = s.words[1].s;
-        Base64::atob(backupIdStr.c_str(), (byte*)&backupId, MegaClient::BACKUPHANDLE);
-        CommandBackupPut::SPState newState = pauseFlag ? CommandBackupPut::TEMPORARY_DISABLED : CommandBackupPut::ACTIVE;
-
-        // determine if it's a backup or other type of sync
-        SyncConfig c;
-        bool found = client->syncs.configById(backupId, c);
-        string syncType = found && c.isBackup() ? "backup" : "sync";
-
-        client->updateStateInBC(backupId, newState,
-            [newState, syncType, backupId](const Error& e)
-            {
-                string newStateStr = newState == CommandBackupPut::TEMPORARY_DISABLED ? "pause" : "resume";
-                if (e == API_OK)
-                {
-                    cout << "Backup Centre - " << newStateStr << "d " << syncType << ' ' << toHandle(backupId) << endl;
-                }
-                else
-                {
-                    cout << "Backup Centre - Failed to " << newStateStr << ' ' << syncType << ' ' << toHandle(backupId)
-                        << " (" << errorstring(e) << ')' << endl;
-                }
-            });
+        exec_backupcentreUpdateState(s.words[1].s,
+                                     pauseFlag ? CommandBackupPut::TEMPORARY_DISABLED :
+                                                 CommandBackupPut::ACTIVE);
     }
 }
 #endif

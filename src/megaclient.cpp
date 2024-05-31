@@ -897,7 +897,7 @@ void MegaClient::updateStateInBC(handle bkpId, CommandBackupPut::SPState newStat
     shared_ptr<handle> bkpRoot = std::make_shared<handle>(0);
 
     // step 4: handle result of setattr()
-    auto setAttrCompletion = [this, bkpId, finalCompletion](NodeHandle, Error setAttrErr)
+    auto setAttrCompletion = [bkpId, finalCompletion](NodeHandle, Error setAttrErr)
     {
         if (setAttrErr != API_OK)
         {
@@ -927,7 +927,7 @@ void MegaClient::updateStateInBC(handle bkpId, CommandBackupPut::SPState newStat
 
         vector<pair<handle, int>> sdsBkps = bkpRootNode->getSdsBackups();
         sdsBkps.emplace_back(bkpId, newState);
-        const string& sdsValue = Node::toSdsString(sdsBkps);
+        const string sdsValue = Node::toSdsString(sdsBkps);
         attr_map sdsAttrMap(Node::sdsId(), sdsValue);
 
         auto e = setattr(bkpRootNode, std::move(sdsAttrMap), setAttrCompletion, true);
@@ -948,47 +948,56 @@ void MegaClient::updateStateInBC(handle bkpId, CommandBackupPut::SPState newStat
                 return;
             }
 
-            for (auto& d : data)
+            auto it = std::find_if(data.begin(),
+                                   data.end(),
+                                   [bkpId](const auto& d)
+                                   {
+                                       return d.backupId == bkpId;
+                                   });
+            if (it == data.end())
             {
-                if (d.backupId == bkpId)
-                {
-                    // allow only Active -> Paused and Paused -> Active
-                    if ((d.syncState == CommandBackupPut::ACTIVE && newState == CommandBackupPut::TEMPORARY_DISABLED) ||
-                        (d.syncState == CommandBackupPut::TEMPORARY_DISABLED && newState == CommandBackupPut::ACTIVE))
-                    {
-                        if (!nodebyhandle(d.rootNode))
-                        {
-                            LOG_err << "Update backup/sync: root node not found to set SDS attribute for, after fetching " << toHandle(bkpId);
-                            finalCompletion(API_ENOENT);
-                            return;
-                        }
-
-                        *bkpRoot = d.rootNode;
-
-                        // step 2: update backup/sync
-                        CommandBackupPut::BackupInfo info;
-                        assert(bkpId == d.backupId);
-                        info.backupId = d.backupId;
-                        info.type = d.backupType;
-                        info.backupName = d.backupName;
-                        info.nodeHandle.set6byte(d.rootNode);
-                        info.localFolder.fromAbsolutePath(d.localFolder);
-                        info.deviceId = d.deviceId;
-                        info.state = newState;
-                        info.subState = d.syncSubstate;
-                        reqs.add(new CommandBackupPut(this, info, updateSds));
-                    }
-                    else
-                    {
-                        LOG_err << "Update backup/sync: state change not allowed: " << d.syncState << " -> " << newState;
-                        finalCompletion(API_EARGS);
-                    }
-                    return;
-                }
+                LOG_err << "Backup/sync to update: " << toHandle(bkpId)
+                        << " not returned by 'sr' command";
+                finalCompletion(API_ENOENT);
+                return;
             }
 
-            LOG_err << "Backup/sync to update: " << toHandle(bkpId) << " not returned by 'sr' command";
-            finalCompletion(API_ENOENT);
+            // allow only Active -> Paused and Paused -> Active
+            const auto& d = *it;
+            if ((d.syncState == CommandBackupPut::ACTIVE &&
+                 newState == CommandBackupPut::TEMPORARY_DISABLED) ||
+                (d.syncState == CommandBackupPut::TEMPORARY_DISABLED &&
+                 newState == CommandBackupPut::ACTIVE))
+            {
+                if (!nodebyhandle(d.rootNode))
+                {
+                    LOG_err << "Update backup/sync: root node not found to set SDS attribute for, "
+                               "after fetching "
+                            << toHandle(bkpId);
+                    finalCompletion(API_ENOENT);
+                    return;
+                }
+
+                *bkpRoot = d.rootNode;
+
+                // step 2: update backup/sync
+                CommandBackupPut::BackupInfo info;
+                info.backupId = d.backupId;
+                info.type = d.backupType;
+                info.backupName = d.backupName;
+                info.nodeHandle.set6byte(d.rootNode);
+                info.localFolder.fromAbsolutePath(d.localFolder);
+                info.deviceId = d.deviceId;
+                info.state = newState;
+                info.subState = d.syncSubstate;
+                reqs.add(new CommandBackupPut(this, info, updateSds));
+            }
+            else
+            {
+                LOG_err << "Update backup/sync: state change not allowed: " << d.syncState << " -> "
+                        << newState;
+                finalCompletion(API_EARGS);
+            }
         });
 }
 
