@@ -34,7 +34,7 @@ ExclusiveLogger g_exclusiveLogger;
 Logger *SimpleLogger::logger = &g_externalLogger;
 
 // by the default, display logs with level equal or less than logInfo
-enum LogLevel SimpleLogger::logCurrentLevel = logInfo;
+std::atomic<LogLevel> SimpleLogger::logCurrentLevel{logInfo};
 long long SimpleLogger::maxPayloadLogSize  = 10240;
 
 thread_local bool SimpleLogger::mThreadLocalLoggingDisabled = false;
