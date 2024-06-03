@@ -9656,9 +9656,9 @@ bool Sync::resolve_downsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath
                 if (!pflsc.alreadyDownloadingCount)
                 {
                     SYNC_verbose << syncname << "Download already in progress -> completed: "
-                                 << (downloadPtr->wasCompleted ? 1 : 0) << " terminated: "
-                                 << (downloadPtr->wasTerminated ? 1 : 0) << " requester abandoned: "
-                                 << (downloadPtr->wasRequesterAbandoned ? 1 : 0) << logTriplet(row, fullPath);
+                                 << downloadPtr->wasCompleted << " terminated: "
+                                 << downloadPtr->wasTerminated << " requester abandoned: "
+                                 << downloadPtr->wasRequesterAbandoned << " -> " << logTriplet(row, fullPath);
                 }
                 pflsc.alreadyDownloadingCount += 1;
             }
