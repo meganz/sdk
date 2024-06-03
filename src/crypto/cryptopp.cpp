@@ -61,7 +61,7 @@ SymmCipher::SymmCipher(const byte* key)
     setkey(key);
 }
 
-byte SymmCipher::zeroiv[BLOCKSIZE];
+byte SymmCipher::zeroiv[BLOCKSIZE] = {};
 
 void SymmCipher::setkey(const byte* newkey, int type)
 {

@@ -11,6 +11,7 @@
 #include <mega/fuse/common/testing/client.h>
 #include <mega/fuse/common/testing/cloud_path.h>
 #include <mega/fuse/common/testing/utility.h>
+#include <mega/fuse/platform/constants.h>
 #include <mega/fuse/platform/file_descriptor.h>
 #include <mega/fuse/platform/platform.h>
 #include <mega/fuse/platform/testing/platform_tests.h>
@@ -1340,6 +1341,54 @@ TEST_P(FUSEPlatformTests, stat_succeeds)
     ASSERT_TRUE(info);
     ASSERT_EQ(stat(MountPathW() / "sf0", buffer), 0);
     EXPECT_EQ(buffer, *info);
+}
+
+TEST_P(FUSEPlatformTests, statvfs_fails_when_below_file)
+{
+    struct statvfs buffer;
+
+    ASSERT_NE(statvfs(MountPathW() / "sf0" / "bogus", buffer), 0);
+    ASSERT_EQ(errno, ENOTDIR);
+}
+
+TEST_P(FUSEPlatformTests, statvfs_fails_when_unknown)
+{
+    struct statvfs buffer;
+
+    ASSERT_NE(statvfs(MountPathW() / "bogus", buffer), 0);
+    ASSERT_EQ(errno, ENOENT);
+}
+
+TEST_P(FUSEPlatformTests, statvfs_succeeds)
+{
+    struct statvfs buffer;
+
+    ASSERT_EQ(statvfs(MountPathW() / "sf0", buffer), 0);
+
+    EXPECT_EQ(buffer.f_bsize,   BlockSize);
+    EXPECT_EQ(buffer.f_namemax, MaxNameLength);
+
+    // The MEGA API doesn't allow us to query how much storage space one of
+    // our contact is using so testing the fields below is not meaningfulfor
+    // shares.
+    if (isShareTest())
+        return;
+
+    auto info = ClientW()->storageInfo();
+
+    ASSERT_EQ(info.error(), API_OK);
+
+    auto available = static_cast<fsblkcnt_t>(info->mAvailable) / BlockSize;
+
+    EXPECT_EQ(buffer.f_bavail,  available);
+    EXPECT_EQ(buffer.f_bfree,   buffer.f_bavail);
+
+    LINUX_ONLY({
+        auto capacity = static_cast<fsblkcnt_t>(info->mCapacity) / BlockSize;
+
+        EXPECT_EQ(buffer.f_blocks, capacity);
+        EXPECT_EQ(buffer.f_frsize, buffer.f_bsize);
+    })
 }
 
 TEST_P(FUSEPlatformTests, truncate_fails_when_below_file)

@@ -219,6 +219,11 @@ int statat(const platform::FileDescriptor& descriptor,
                      0);
 }
 
+int statvfs(const Path& path, struct statvfs& buffer)
+{
+    return ::statvfs(path.string().c_str(), &buffer);
+}
+
 int truncate(const Path& path, off_t length)
 {
     return ::truncate(path.string().c_str(), length);

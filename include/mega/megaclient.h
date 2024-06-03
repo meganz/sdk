@@ -1038,23 +1038,6 @@ public:
      */
     void importSyncConfigs(const char* configs, std::function<void(error)> completion);
 
-    /**
-     * @brief This method ensures that sync user attributes are available.
-     *
-     * This method calls \c completion function when it finishes, with the
-     * corresponding error if was not possible to ensure the attrs are available.
-     *
-     * Note that it may also need to create certain attributes, like *~jscd, if they
-     * don't exist yet.
-     *
-     * @param completion Function that is called when completed
-     */
-    void ensureSyncUserAttributes(std::function<void(Error)> completion);
-
-private:
-    void ensureSyncUserAttributesCompleted(Error e);
-    std::function<void(Error)> mOnEnsureSyncUserAttributesComplete;
-
 public:
 
 #endif  // ENABLE_SYNC
@@ -2706,6 +2689,21 @@ public:
     void getNotifications(CommandGetNotifications::ResultFunc onResult);
     std::pair<uint32_t, uint32_t> getFlag(const char* flagName, bool commit);
 
+    using GetJSCDataCallback = std::function<void(JSCData, Error)>;
+
+    /**
+     * @brief
+     * This function will retrieve the user's JSCD user attributes and pass
+     * them to the provided callback.
+     *
+     * If the user does not have any JSCD user attributes, this function
+     * will create them and pass them to the provided callback.
+     *
+     * @param callback
+     * The function that should receive the user's JSCD user attributes.
+     */
+    void getJSCData(GetJSCDataCallback callback);
+
     // FUSE client adapter.
     fuse::ClientAdapter mFuseClientAdapter;
 
@@ -2713,6 +2711,80 @@ public:
     fuse::Service mFuseService;
 
 private:
+    /**
+     * @brief
+     * This function will create the user's JSCD user attributes. If
+     * successful, the new attributes will be forwarded to the provided
+     * callback. If not, the reason why the attributes couldn't be created
+     * will be forwarded to the provided callback.
+     *
+     * @param callback
+     * The function that should receive the user's JSCD user attributes or
+     * the reason why those attributes couldn't be created.
+     */
+    void createJSCData(GetJSCDataCallback callback);
+
+#ifdef ENABLE_SYNC
+    /**
+     * @brief
+     * The purpose of this function is to execute before the user's provided
+     * login callback so that we can perform some administrative functions
+     * necessary to bootstrap the sync engine.
+     *
+     * One of these duties is to ensure that the user has a set of JSCD user
+     * attributes, another is to safely inject these attributes along with
+     * the client's master key into the sync engine.
+     *
+     * @param callback
+     * The function that should be called when login has completed.
+     *
+     * @param result
+     * The result of our attempt to log the user in.
+     */
+    void injectSyncSensitiveData(CommandLogin::Completion callback,
+                                 Error result);
+#endif // ENABLE_SYNC
+
+    /**
+     * @brief
+     * This function is called after the user's JSCD user attributes have
+     * been created. If the attributes were created successfully, their
+     * content is passed to the provided callback. If not, the error
+     * received by this function is passed to the provided callback.
+     *
+     * @param callback
+     * The function that should receive the user's JSCD user attributes or
+     * the reason why those attributes couldn't be created.
+     *
+     * @param result
+     * The result of our attempt to create the user's JSCD user attributes.
+     */
+    void JSCDataCreated(GetJSCDataCallback& callback,
+                        Error result);
+
+    /**
+     * @brief
+     * This function is called when the user's JSCD user attributes have
+     * been retrieved. If successful, the JSCD user attributes are
+     * destructured and passwed to the provided callback. If not, the reason
+     * why the attributes could not be retrieved is passed to the provided
+     * callback.
+     *
+     * @param callback
+     * The function that receive the user's JSCD user attributes or the
+     * reason why those attributes could not be retrieved.
+     *
+     * @param result
+     * The result of our attempt to retrieve the user's JSCD user
+     * attributes.
+     *
+     * @param store
+     * The TLV store containing the user's JSCD user attributes.
+     */
+    void JSCDataRetrieved(GetJSCDataCallback& callback,
+                          Error result,
+                          TLVstore* store);
+
     // Last known capacity retrieved from the cloud.
     m_off_t mLastKnownCapacity = -1;
 };

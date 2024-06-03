@@ -168,4 +168,7 @@ TabWidth: 4
 UseCRLF: false
 UseTab: Never
 #WhitespaceSensitiveMacros:
+---
+Language: Json
+DisableFormat: true
 ...

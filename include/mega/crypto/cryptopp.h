@@ -146,7 +146,7 @@ public:
     static const int BLOCKSIZE = CryptoPP::AES::BLOCKSIZE;
     static const int KEYLENGTH = CryptoPP::AES::BLOCKSIZE;
 
-    byte key[KEYLENGTH];
+    byte key[KEYLENGTH] = {};
 
     typedef uint64_t ctr_iv;
 
