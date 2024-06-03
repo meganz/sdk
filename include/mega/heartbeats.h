@@ -56,7 +56,7 @@ public:
     virtual void setLastSyncedItem(const handle &lastItemUpdated);
 
     bool mModified = false;
-    bool mSending = false;
+    std::atomic<bool> mSending{false};
 
 protected:
     handle mLastItemUpdated = UNDEF; // handle of node most recently updated
