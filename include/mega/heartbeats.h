@@ -42,8 +42,8 @@ class HeartBeatBackupInfo
 {
 public:
     HeartBeatBackupInfo();
-    HeartBeatBackupInfo(HeartBeatBackupInfo&&) = default;
-    HeartBeatBackupInfo& operator=(HeartBeatBackupInfo&&) = default;
+    HeartBeatBackupInfo(HeartBeatBackupInfo&&) = delete;
+    HeartBeatBackupInfo& operator=(HeartBeatBackupInfo&&) = delete;
     virtual ~HeartBeatBackupInfo() = default;
 
     virtual m_time_t lastAction() const;
