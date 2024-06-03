@@ -307,6 +307,7 @@ using PromiseErrorSP    = shared_promise<Error>;
 using PromiseHandleSP   = shared_promise<handle>;
 using PromiseStringSP   = shared_promise<string>;
 using PromiseUnsignedSP = shared_promise<unsigned>;
+using PromiseVoidSP     = shared_promise<void>;
 
 struct Model
 {
@@ -443,6 +444,7 @@ struct SyncOptions
 {
     string drivePath = string(1, '\0');
     string excludePath;
+    string logName;
     bool legacyExclusionsEligible = false;
     bool isBackup = false;
     bool uploadIgnoreFile = false;
@@ -505,6 +507,84 @@ public:
 
     void setDeferUploadCallback(Callback callback);
 }; // StandardSyncController
+
+// Convenience.
+template<typename T>
+class SynchronizedFunction;
+
+template<typename R, typename... P>
+class SynchronizedFunction<R(P...)>
+{
+    using Function = std::function<R(P...)>;
+    using Lock     = std::unique_lock<std::mutex>;
+
+    Function mFunction;
+    mutable std::mutex mLock;
+
+public:
+    SynchronizedFunction(Function function = Function())
+      : mFunction(std::move(function))
+      , mLock()
+    {
+    }
+
+    operator bool() const
+    {
+        return operator!=(nullptr);
+    }
+
+    R operator()(P... arguments)
+    {
+        return ([this]() {
+            Lock guard(mLock);
+            return mFunction;
+        })()(arguments...);
+    }
+
+    SynchronizedFunction& operator=(const SynchronizedFunction& rhs)
+    {
+        if (this == &rhs)
+            return *this;
+
+        Lock l(mLock, std::defer_lock);
+        Lock r(mLock, std::defer_lock);
+
+        std::lock(l, r);
+
+        mFunction = rhs.mFunction;
+
+        return *this;
+    }
+
+    SynchronizedFunction& operator=(Function rhs)
+    {
+        Lock guard(mLock);
+
+        mFunction = std::move(rhs);
+
+        return *this;
+    }
+
+    SynchronizedFunction& operator=(std::nullptr_t)
+    {
+        Lock guard(mLock);
+
+        mFunction = nullptr;
+
+        return *this;
+    }
+
+    bool operator==(std::nullptr_t) const
+    {
+        Lock guard(mLock);
+        return mFunction == nullptr;
+    }
+
+    bool operator!=(std::nullptr_t) const
+    {
+        return !(*this == nullptr);
+    }
+}; // SynchronizedFunction<(R, P...)>
 
 struct StandardClient : public MegaApp
 {
@@ -576,27 +656,27 @@ struct StandardClient : public MegaApp
 
     void onCallback();
 
-    std::function<void(const SyncConfig&)> onAutoResumeResult;
+    SynchronizedFunction<void(const SyncConfig&)> onAutoResumeResult;
 
     void sync_added(const SyncConfig& config) override;
 
-    bool received_syncs_restored = false;
+    std::atomic<bool> received_syncs_restored{false};
     void syncs_restored(SyncError syncError) override;
 
-    bool received_node_actionpackets = false;
+    std::atomic<bool> received_node_actionpackets{false};
     std::condition_variable nodes_updated_cv;
 
     void nodes_updated(sharedNode_vector* nodes, int numNodes) override;
     bool waitForNodesUpdated(unsigned numSeconds);
     void syncupdate_stateconfig(const SyncConfig& config) override;
 
-    bool received_user_alerts = false;
+    std::atomic<bool> received_user_alerts{false};
     std::condition_variable user_alerts_updated_cv;
 
     void useralerts_updated(UserAlert::Base**, int) override;
     bool waitForUserAlertsUpdated(unsigned numSeconds);
 
-    bool received_user_actionpackets = false;
+    std::atomic<bool> received_user_actionpackets{false};
     std::mutex user_actionpackets_mutex;
     std::condition_variable user_updated_cv;
     void users_updated(User**users, int size) override;
@@ -611,7 +691,7 @@ struct StandardClient : public MegaApp
     // Should be called to remove registered lamda
     void removeOnUserUpdateLamda();
 
-    std::function<void(const SyncConfig&)> mOnSyncStateConfig;
+    SynchronizedFunction<void(const SyncConfig&)> mOnSyncStateConfig;
 
     void syncupdate_scanning(bool b) override;
 
@@ -629,7 +709,7 @@ struct StandardClient : public MegaApp
 
 #ifdef DEBUG
     using SyncDebugNotificationHandler =
-        std::function<void(const SyncConfig&, int, const Notification&)>;
+        SynchronizedFunction<void(const SyncConfig&, int, const Notification&)>;
 
     SyncDebugNotificationHandler mOnSyncDebugNotification;
 
@@ -650,14 +730,14 @@ struct StandardClient : public MegaApp
             mOnTransferAdded(*transfer);
     }
 
-    std::function<void(Transfer&)> mOnTransferAdded;
+    SynchronizedFunction<void(Transfer&)> mOnTransferAdded;
 
     void transfer_removed(Transfer*) override { onCallback(); ++transfersRemoved; }
     void transfer_prepare(Transfer*) override { onCallback(); ++transfersPrepared; }
     void transfer_failed(Transfer*,  const Error&, dstime = 0) override { onCallback(); ++transfersFailed; }
     void transfer_update(Transfer*) override { onCallback(); ++transfersUpdated; }
 
-    std::function<void(Transfer*)> onTransferCompleted;
+    SynchronizedFunction<void(Transfer*)> onTransferCompleted;
 
 
     bool waitForAttrDeviceIdIsSet(unsigned numSeconds, bool& updated);
@@ -861,7 +941,7 @@ struct StandardClient : public MegaApp
 
     // mark node as removed and notify
 
-    std::function<void (StandardClient& mc, PromiseBoolSP pb)> onFetchNodes;
+    SynchronizedFunction<void(StandardClient& mc, PromiseBoolSP pb)> onFetchNodes;
 
     void fetchnodes(bool noCache, bool loadSyncs, bool reloadingMidSession, PromiseBoolSP pb);
     bool fetchnodes(bool noCache, bool loadSyncs, bool reloadingMidSession);
@@ -1078,7 +1158,7 @@ struct StandardClient : public MegaApp
             mOnMoveBegin(source, target);
     }
 
-    function<void(const LocalPath&, const LocalPath&)> mOnMoveBegin;
+    SynchronizedFunction<void(const LocalPath&, const LocalPath&)> mOnMoveBegin;
 #endif // ! NDEBUG
 
     void backupOpenDrive(const fs::path& drivePath, PromiseBoolSP result);
@@ -1107,18 +1187,25 @@ struct StandardClient : public MegaApp
 
     void upgradeSecurity(PromiseBoolSP result);
 
-    function<void(File&)> mOnFileAdded;
-    function<void(File&)> mOnFileComplete;
-    function<void(bool)> mOnStall;
-    function<void(bool)> mOnConflictsDetected;
-    function<void(bool)> mOnTotalStallsUpdate;
-    function<void(bool)> mOnTotalConflictsUpdate;
+    SynchronizedFunction<void(File&)> mOnFileAdded;
+    SynchronizedFunction<void(File&)> mOnFileComplete;
+    SynchronizedFunction<void(bool)> mOnStall;
+    SynchronizedFunction<void(bool)> mOnConflictsDetected;
+    SynchronizedFunction<void(bool)> mOnTotalStallsUpdate;
+    SynchronizedFunction<void(bool)> mOnTotalConflictsUpdate;
 
     void setHasImmediateStall(HasImmediateStallPredicate predicate);
 
     void setIsImmediateStall(IsImmediateStallPredicate predicate);
 
     void setSyncController(SyncControllerPtr controller);
+
+    void setDownloadSpeed(m_off_t downloadSpeed);
+
+    void setUploadSpeed(m_off_t uploadSpeed);
+
+    void prepareOneFolder(NewNode* node, std::string name, bool canChangeVault);
+    void prepareOneFolder(NewNode* node, const char* name, bool canChangeVault);
 };
 
 struct ScopedSyncPauser
