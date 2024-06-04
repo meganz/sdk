@@ -2174,10 +2174,11 @@ void LocalNode::init(nodetype_t ctype, LocalNode* cparent, const LocalPath& cful
     sync->threadSafeState->incrementSyncNodeCount(type, 1);
 }
 
-LocalNode::RareFields::ScanBlocked::ScanBlocked(PrnGen &rng, const LocalPath& lp, LocalNode* ln)
+LocalNode::RareFields::ScanBlocked::ScanBlocked(PrnGen &rng, const LocalPath& lp, LocalNode* ln, Sync* s)
     : scanBlockedTimer(rng)
     , scanBlockedLocalPath(lp)
     , localNode(ln)
+    , sync(s)
 {
     scanBlockedTimer.backoff(Sync::SCANNING_DELAY_DS);
 }
@@ -2325,7 +2326,7 @@ void LocalNode::initiateScanBlocked(bool folderBlocked, bool containsFingerprint
     // Setting node as scan-blocked. The main loop will check it regularly by weak_ptr
     if (!rare().scanBlocked)
     {
-        rare().scanBlocked.reset(new RareFields::ScanBlocked(sync->syncs.rng, getLocalPath(), this));
+        rare().scanBlocked.reset(new RareFields::ScanBlocked(sync->syncs.rng, getLocalPath(), this, sync));
         sync->syncs.scanBlockedPaths.push_back(rare().scanBlocked);
     }
 

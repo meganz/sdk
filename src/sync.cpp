@@ -1291,15 +1291,108 @@ void Sync::createDebrisTmpLockOnce()
     }
 }
 
-bool SyncStallInfo::empty() const
+/* StallInfoMaps BEGIN */
+void SyncStallInfo::StallInfoMaps::moveFromKeepingProgress(SyncStallInfo::StallInfoMaps& source)
 {
-    assert(!(cloud.empty() && local.empty()) || stalledSyncs.empty());
+    cloud = std::move(source.cloud);
+    local = std::move(source.local);
+    noProgress = source.noProgress;
+    noProgressCount = source.noProgressCount;
+}
+
+SyncStallInfo::StallInfoMaps& SyncStallInfo::StallInfoMaps::operator=(SyncStallInfo::StallInfoMaps&& other) noexcept
+{
+    if (this != &other)
+    {
+        moveFromKeepingProgress(other);
+    }
+    return *this;
+}
+
+bool SyncStallInfo::StallInfoMaps::hasProgressLack() const
+{
+    return noProgressCount > MIN_NOPROGRESS_COUNT_FOR_LACK_OF_PROGRESS;
+}
+
+bool SyncStallInfo::StallInfoMaps::empty() const
+{
     return cloud.empty() && local.empty();
 }
 
-bool SyncStallInfo::waitingCloud(const string& mapKeyPath, SyncStallEntry&& e)
+size_t SyncStallInfo::StallInfoMaps::size() const
 {
-    for (auto i = cloud.begin(); i != cloud.end(); )
+    return cloud.size() + local.size();
+}
+
+size_t SyncStallInfo::StallInfoMaps::reportableSize() const
+{
+    if (hasProgressLack())
+    {
+        return size();
+    }
+    size_t totalReportableSize = 0;
+    for (auto& cloudStallEntry: cloud)
+    {
+        if (cloudStallEntry.second.alertUserImmediately)
+        {
+            ++totalReportableSize;
+        }
+    }
+    for (auto& localStallEntry: local)
+    {
+        if (localStallEntry.second.alertUserImmediately)
+        {
+            ++totalReportableSize;
+        }
+    }
+    return totalReportableSize;
+}
+
+void SyncStallInfo::StallInfoMaps::updateNoProgress()
+{
+    if (noProgress && noProgressCount < MAX_NOPROGRESS_COUNT)
+    {
+        ++noProgressCount;
+    }
+}
+
+void SyncStallInfo::StallInfoMaps::setNoProgress()
+{
+    assert((noProgress || noProgressCount == 0) && "noProgressCount is not zero when setting progress");
+    noProgress = true;
+}
+
+void SyncStallInfo::StallInfoMaps::resetNoProgress()
+{
+    noProgress = false;
+    noProgressCount = 0;
+}
+
+void SyncStallInfo::StallInfoMaps::clearStalls()
+{
+    cloud.clear();
+    local.clear();
+}
+/* StallInfoMaps END */
+
+/* SyncStallInfo BEGIN */
+bool SyncStallInfo::empty() const
+{
+    for (auto& syncStallInfoMapPair : syncStallInfoMaps)
+    {
+        auto& syncStallInfoMap = syncStallInfoMapPair.second;
+        if (!syncStallInfoMap.empty())
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool SyncStallInfo::waitingCloud(handle backupId, const string& mapKeyPath, SyncStallEntry&& e)
+{
+    auto& syncStallInfoMap = syncStallInfoMaps[backupId];
+    for (auto i = syncStallInfoMap.cloud.begin(); i != syncStallInfoMap.cloud.end(); )
     {
         // No need to add a new entry as we've already reported some parent.
         if (IsContainingCloudPathOf(i->first, mapKeyPath) && e.reason == i->second.reason)
@@ -1308,7 +1401,7 @@ bool SyncStallInfo::waitingCloud(const string& mapKeyPath, SyncStallEntry&& e)
         // Remove entries that are below cloudPath1.
         if (IsContainingCloudPathOf(mapKeyPath, i->first) && e.reason == i->second.reason)
         {
-            i = cloud.erase(i);
+            i = syncStallInfoMap.cloud.erase(i);
             continue;
         }
 
@@ -1317,47 +1410,65 @@ bool SyncStallInfo::waitingCloud(const string& mapKeyPath, SyncStallEntry&& e)
     }
 
     // Add a new entry.
-    cloud.emplace(mapKeyPath, move(e));
+    syncStallInfoMap.cloud.emplace(mapKeyPath, move(e));
     return true;
 }
 
-bool SyncStallInfo::waitingLocal(const LocalPath& mapKeyPath, SyncStallEntry&& e)
+bool SyncStallInfo::waitingLocal(handle backupId, const LocalPath& mapKeyPath, SyncStallEntry&& e)
 {
-    for (auto i = local.begin(); i != local.end(); )
+    auto& syncStallInfoMap = syncStallInfoMaps[backupId];
+    for (auto i = syncStallInfoMap.local.begin(); i != syncStallInfoMap.local.end(); )
     {
         if (i->first.isContainingPathOf(mapKeyPath) && e.reason == i->second.reason)
             return false;
 
         if (mapKeyPath.isContainingPathOf(i->first) && e.reason == i->second.reason)
         {
-            i = local.erase(i);
+            i = syncStallInfoMap.local.erase(i);
             continue;
         }
 
         ++i;
     }
 
-    local.emplace(mapKeyPath, move(e));
+    syncStallInfoMap.local.emplace(mapKeyPath, move(e));
     return true;
 }
 
 bool SyncStallInfo::isSyncStalled(handle backupId) const
 {
-    return stalledSyncs.find(backupId) != stalledSyncs.end();
+    return syncStallInfoMaps.find(backupId) != syncStallInfoMaps.end();
 }
 
 bool SyncStallInfo::hasImmediateStallReason() const
 {
-    for (auto& i : cloud)
+    for (auto& syncStallInfoMapPair : syncStallInfoMaps)
     {
-        if (i.second.alertUserImmediately)
+        auto& syncStallInfoMap = syncStallInfoMapPair.second;
+        for (auto& i : syncStallInfoMap.cloud)
         {
-            return true;
+            if (i.second.alertUserImmediately)
+            {
+                return true;
+            }
+        }
+        for (auto& i : syncStallInfoMap.local)
+        {
+            if (i.second.alertUserImmediately)
+            {
+                return true;
+            }
         }
     }
-    for (auto& i : local)
+    return false;
+}
+
+bool SyncStallInfo::hasProgressLackStall() const
+{
+    for (auto& syncStallInfoMapPair : syncStallInfoMaps)
     {
-        if (i.second.alertUserImmediately)
+        auto& syncStallInfoMap = syncStallInfoMapPair.second;
+        if (syncStallInfoMap.hasProgressLack())
         {
             return true;
         }
@@ -1365,12 +1476,110 @@ bool SyncStallInfo::hasImmediateStallReason() const
     return false;
 }
 
-void SyncStallInfo::clear()
+size_t SyncStallInfo::size() const
 {
-    cloud.clear();
-    local.clear();
-    stalledSyncs.clear();
+    size_t stallInfoSize = 0;
+    for (auto& syncStallInfoMapPair : syncStallInfoMaps)
+    {
+        auto& syncStallInfoMap = syncStallInfoMapPair.second;
+        stallInfoSize += syncStallInfoMap.size();
+    }
+    return stallInfoSize;
 }
+
+size_t SyncStallInfo::reportableSize() const
+{
+    size_t stallInfoReportableSize = 0;
+    for (auto& syncStallInfoMapPair : syncStallInfoMaps)
+    {
+        auto& syncStallInfoMap = syncStallInfoMapPair.second;
+        stallInfoReportableSize += syncStallInfoMap.reportableSize();
+    }
+    return stallInfoReportableSize;
+}
+
+void SyncStallInfo::updateNoProgress()
+{
+    for (auto& syncStallInfoMapPair : syncStallInfoMaps)
+    {
+        auto& syncStallInfoMap = syncStallInfoMapPair.second;
+        syncStallInfoMap.updateNoProgress();
+    }
+}
+
+void SyncStallInfo::setNoProgress()
+{
+    for (auto& syncStallInfoMapPair : syncStallInfoMaps)
+    {
+        auto& syncStallInfoMap = syncStallInfoMapPair.second;
+        syncStallInfoMap.setNoProgress();
+    }
+}
+
+void SyncStallInfo::moveFromButKeepCounters(SyncStallInfo& source)
+{
+    for (auto sourceSyncStallInfoMapIt = source.syncStallInfoMaps.begin(); sourceSyncStallInfoMapIt != source.syncStallInfoMaps.end(); )
+    {
+        auto&& [id, sourceSyncStallInfoMap] = *sourceSyncStallInfoMapIt;
+        if (sourceSyncStallInfoMap.empty())
+        {
+            // if there are no stalls, this key is obsolete: remove entry in the source map and update iterator
+            sourceSyncStallInfoMapIt = source.syncStallInfoMaps.erase(sourceSyncStallInfoMapIt);
+        }
+        else
+        {
+            // Add or update the key by moving the source maps (counters will be kept in the source maps)
+            syncStallInfoMaps[id] = std::move(sourceSyncStallInfoMap);
+            ++sourceSyncStallInfoMapIt;
+        }
+    }
+}
+
+void SyncStallInfo::clearObsoleteKeys(SyncStallInfo& source)
+{
+    // Clear obsolete keys
+    for (auto syncStallInfoMapIt = syncStallInfoMaps.begin(); syncStallInfoMapIt != syncStallInfoMaps.end(); )
+    {
+        if (source.syncStallInfoMaps.find(syncStallInfoMapIt->first) == source.syncStallInfoMaps.end())
+        {
+            syncStallInfoMapIt = syncStallInfoMaps.erase(syncStallInfoMapIt);
+        }
+        else
+        {
+            ++syncStallInfoMapIt;
+        }
+    }
+}
+
+void SyncStallInfo::moveFromButKeepCountersAndClearObsoleteKeys(SyncStallInfo& source)
+{
+    moveFromButKeepCounters(source);
+    clearObsoleteKeys(source);
+}
+
+#ifndef NDEBUG
+void SyncStallInfo::debug() const
+{
+    LOG_debug << "[SyncStallInfo] Num SyncIDs = " << syncStallInfoMaps.size() << "";
+    for (const auto& syncStallInfoMapPair : syncStallInfoMaps)
+    {
+        const auto& syncStallInfoMap = syncStallInfoMapPair.second;
+        LOG_debug << "[SyncID: " << syncStallInfoMapPair.first << "]";
+        LOG_debug << "noProgress: " << syncStallInfoMap.noProgress << ", noProgressCount: " << syncStallInfoMap.noProgressCount << " [HasProgressLack: " << std::string(syncStallInfoMap.hasProgressLack() ? "true" : "false") << "]";
+        LOG_debug << "Num cloud stalls: " << syncStallInfoMap.cloud.size();
+        for (const auto& [stallPath, stallEntry] : syncStallInfoMap.cloud)
+        {
+            LOG_debug << "     Cloud stall reason: " << syncWaitReasonDebugString(stallEntry.reason) << " [path = '" << stallPath << "'] [immediate = " << stallEntry.alertUserImmediately << "]";
+        }
+        LOG_debug << "Num local stalls: " << syncStallInfoMap.local.size();
+        for (const auto& [stallPath, stallEntry] : syncStallInfoMap.local)
+        {
+            LOG_debug << "     Local stall reason: " << syncWaitReasonDebugString(stallEntry.reason) << " [path = '" << stallPath << "'] [immediate = " << stallEntry.alertUserImmediately << "]";
+        }
+    }
+}
+#endif
+/* SyncStallInfo END */
 
 struct ProgressingMonitor
 {
@@ -1381,29 +1590,18 @@ struct ProgressingMonitor
     SyncPath& sp;
     ProgressingMonitor(Sync& s, SyncRow& row, SyncPath& fullPath) : sync(s), sf(*s.syncs.mSyncFlags), sr(row), sp(fullPath) {}
 
-    bool isContainingNodePath(const string& a, const string& b)
-    {
-        return a.size() <= b.size() &&
-            !memcmp(a.c_str(), b.c_str(), a.size()) &&
-            (a.size() == b.size() || b[a.size()] == '/');
-    }
-
     void waitingCloud(const string& mapKeyPath, SyncStallEntry&& e)
     {
         // the caller has a path in the cloud that an operation is in progress for, or can't be dealt with yet.
         // update our list of subtree roots containing such paths
         resolved = true;
 
-        if (sf.stall.cloud.empty())
+        if (sf.stall.empty())
         {
-            LOG_debug << sync.syncname << "First sync node cloud-waiting: " << int(e.reason) << " " << sync.logTriplet(sr, sp);
+            LOG_verbose << sync.syncname << "First sync node cloud-waiting: " << int(e.reason) << " " << sync.logTriplet(sr, sp);
         }
 
-        bool isAddedToCloudMap = sf.stall.waitingCloud(mapKeyPath, move(e));
-        if (isAddedToCloudMap)
-        {
-            sf.stall.stalledSyncs.emplace(sync.getConfig().mBackupId);
-        }
+        sf.stall.waitingCloud(sync.getConfig().mBackupId, mapKeyPath, move(e));
     }
 
     void waitingLocal(const LocalPath& mapKeyPath, SyncStallEntry&& e)
@@ -1412,16 +1610,12 @@ struct ProgressingMonitor
         // update our list of subtree roots containing such paths
         resolved = true;
 
-        if (sf.stall.local.empty())
+        if (sf.stall.empty())
         {
-            LOG_debug << sync.syncname << "First sync node local-waiting: " << int(e.reason) << " " << sync.logTriplet(sr, sp);
+            LOG_verbose << sync.syncname << "First sync node local-waiting: " << int(e.reason) << " " << sync.logTriplet(sr, sp);
         }
 
-        bool isAddedToLocalMap = sf.stall.waitingLocal(mapKeyPath, move(e));
-        if (isAddedToLocalMap)
-        {
-            sf.stall.stalledSyncs.emplace(sync.getConfig().mBackupId);
-        }
+        sf.stall.waitingLocal(sync.getConfig().mBackupId, mapKeyPath, move(e));
     }
 
     void noResult()
@@ -1437,12 +1631,12 @@ struct ProgressingMonitor
     {
         if (!resolved)
         {
-            if (sf.noProgress)
+            auto syncStallInfoMapPair = sf.stall.syncStallInfoMaps.find(sync.getConfig().mBackupId);
+            if (syncStallInfoMapPair != sf.stall.syncStallInfoMaps.end())
             {
-                LOG_debug << sync.syncname << "First sync node not progressing: " << sync.logTriplet(sr, sp);
+                auto& syncStallInfoMap = syncStallInfoMapPair->second;
+                syncStallInfoMap.resetNoProgress();
             }
-            sf.noProgress = false;
-            sf.noProgressCount = 0;
         }
     }
 };
@@ -4054,57 +4248,61 @@ void Syncs::getSyncProblems_inThread(SyncProblems& problems)
         }
     };
 
-    for (auto si = problems.mStalls.local.begin();
-              si != problems.mStalls.local.end();
-              ++si)
+    for (auto& syncStallInfoMapsPair : problems.mStalls.syncStallInfoMaps)
     {
-        if (si->second.reason == SyncWaitReason::MoveOrRenameCannotOccur)
+        auto& syncStallInfoMaps = syncStallInfoMapsPair.second;
+        for (auto si = syncStallInfoMaps.local.begin();
+                si != syncStallInfoMaps.local.end();
+                ++si)
         {
-            auto so = problems.mStalls.local.find(si->second.localPath2.localPath);
-            if (so != problems.mStalls.local.end())
+            if (si->second.reason == SyncWaitReason::MoveOrRenameCannotOccur)
             {
-                if (so != si &&
-                    so->second.reason == SyncWaitReason::MoveOrRenameCannotOccur &&
-                    so->second.localPath1.localPath == si->second.localPath1.localPath &&
-                    so->second.localPath2.localPath == si->second.localPath2.localPath &&
-                    so->second.cloudPath1.cloudPath == si->second.cloudPath1.cloudPath)
+                auto so = syncStallInfoMaps.local.find(si->second.localPath2.localPath);
+                if (so != syncStallInfoMaps.local.end())
                 {
-                    combinePathProblems(so->second, si->second);
-                    if (si->second.cloudPath2.cloudPath.empty())
+                    if (so != si &&
+                        so->second.reason == SyncWaitReason::MoveOrRenameCannotOccur &&
+                        so->second.localPath1.localPath == si->second.localPath1.localPath &&
+                        so->second.localPath2.localPath == si->second.localPath2.localPath &&
+                        so->second.cloudPath1.cloudPath == si->second.cloudPath1.cloudPath)
                     {
-                        // if we know the destination in one, make sure we keep it
-                        si->second.cloudPath2.cloudPath = so->second.cloudPath2.cloudPath;
+                        combinePathProblems(so->second, si->second);
+                        if (si->second.cloudPath2.cloudPath.empty())
+                        {
+                            // if we know the destination in one, make sure we keep it
+                            si->second.cloudPath2.cloudPath = so->second.cloudPath2.cloudPath;
+                        }
+                        // other iterators are not invalidated in std::map
+                        syncStallInfoMaps.local.erase(so);
                     }
-                    // other iterators are not invalidated in std::map
-                    problems.mStalls.local.erase(so);
                 }
             }
         }
-    }
 
-    for (auto si = problems.mStalls.cloud.begin();
-        si != problems.mStalls.cloud.end();
-        ++si)
-    {
-        if (si->second.reason == SyncWaitReason::MoveOrRenameCannotOccur)
+        for (auto si = syncStallInfoMaps.cloud.begin();
+            si != syncStallInfoMaps.cloud.end();
+            ++si)
         {
-            auto so = problems.mStalls.cloud.find(si->second.cloudPath2.cloudPath);
-            if (so != problems.mStalls.cloud.end())
+            if (si->second.reason == SyncWaitReason::MoveOrRenameCannotOccur)
             {
-                if (so != si &&
-                    so->second.reason == SyncWaitReason::MoveOrRenameCannotOccur &&
-                    so->second.cloudPath1.cloudPath == si->second.cloudPath1.cloudPath &&
-                    so->second.cloudPath2.cloudPath == si->second.cloudPath2.cloudPath &&
-                    so->second.localPath1.localPath == si->second.localPath1.localPath)
+                auto so = syncStallInfoMaps.cloud.find(si->second.cloudPath2.cloudPath);
+                if (so != syncStallInfoMaps.cloud.end())
                 {
-                    combinePathProblems(so->second, si->second);
-                    if (si->second.localPath2.localPath.empty())
+                    if (so != si &&
+                        so->second.reason == SyncWaitReason::MoveOrRenameCannotOccur &&
+                        so->second.cloudPath1.cloudPath == si->second.cloudPath1.cloudPath &&
+                        so->second.cloudPath2.cloudPath == si->second.cloudPath2.cloudPath &&
+                        so->second.localPath1.localPath == si->second.localPath1.localPath)
                     {
-                        // if we know the destination in one, make sure we keep it
-                        si->second.localPath2.localPath = so->second.localPath2.localPath;
+                        combinePathProblems(so->second, si->second);
+                        if (si->second.localPath2.localPath.empty())
+                        {
+                            // if we know the destination in one, make sure we keep it
+                            si->second.localPath2.localPath = so->second.localPath2.localPath;
+                        }
+                        // other iterators are not invalidated in std::map
+                        syncStallInfoMaps.cloud.erase(so);
                     }
-                    // other iterators are not invalidated in std::map
-                    problems.mStalls.cloud.erase(so);
                 }
             }
         }
@@ -11935,6 +12133,7 @@ void Syncs::syncLoop()
             auto allSyncsMovesWereComplete = checkSyncsMovesWereComplete();
             mSyncFlags->movesWereComplete = scanningWasCompletePreviously && allSyncsMovesWereComplete;
             mSyncFlags->noProgress = mSyncFlags->reachableNodesAllScannedLastPass;
+            if (mSyncFlags->noProgress) mSyncFlags->stall.setNoProgress();
             if (!scanningWasCompletePreviously || !mSyncFlags->scanningWasComplete || !mSyncFlags->reachableNodesAllScannedLastPass || !allSyncsMovesWereComplete || !mSyncFlags->movesWereComplete)
             {
                 LOG_verbose << "[SyncLoop] scanningWasCompletePreviously = " << scanningWasCompletePreviously
@@ -12132,11 +12331,6 @@ void Syncs::syncLoop()
         else
         {
             mSyncFlags->isInitialPass = false;
-
-            if (mSyncFlags->noProgress)
-            {
-                ++mSyncFlags->noProgressCount;
-            }
 
             // Process name conflicts
             processSyncConflicts();
@@ -12364,26 +12558,33 @@ bool Syncs::stallsDetected(SyncStallInfo& stallInfo)
 {
     assert(onSyncThread());
 
-    // if we're not actually in stall state then don't report things
-    // that we are waiting on that migtht come right, only report definites.
-    for (auto& r: stallReport.cloud)
+    if (syncStallState) // If in stall state, there must be either lack of progress or immediate alerts
     {
-        if (syncStallState || r.second.alertUserImmediately)
+        for (auto& [id, syncStallInfoMap] : stallReport.syncStallInfoMaps)
         {
-            stallInfo.cloud.insert(r);
+            if (syncStallInfoMap.hasProgressLack())
+            {
+                for (auto& r: syncStallInfoMap.cloud) stallInfo.syncStallInfoMaps[id].cloud.insert(r);
+                for (auto& r: syncStallInfoMap.local) stallInfo.syncStallInfoMaps[id].local.insert(r);
+            }
+            else
+            {
+                for (auto& r: syncStallInfoMap.cloud)
+                {
+                    if (r.second.alertUserImmediately) stallInfo.syncStallInfoMaps[id].cloud.insert(r);
+                }
+                for (auto& r: syncStallInfoMap.local)
+                {
+                    if (r.second.alertUserImmediately) stallInfo.syncStallInfoMaps[id].local.insert(r);
+                }
+            }
         }
+        // Update totalSyncStalls just in case it is different since last check
+        totalSyncStalls.store(stallInfo.size());
     }
-    for (auto& r: stallReport.local)
-    {
-        if (syncStallState || r.second.alertUserImmediately)
-        {
-            stallInfo.local.insert(r);
-        }
-    }
+
     // Disable sync stalls update flag
     mClient.app->syncupdate_totalstalls(false);
-    // Update totalSyncStalls just in case it is different since last check
-    totalSyncStalls.store(stallInfo.cloud.size() + stallInfo.local.size());
     return syncStallState;
 }
 
@@ -12391,30 +12592,18 @@ size_t Syncs::stallsDetectedCount() const
 {
     assert(onSyncThread());
 
-    size_t numCloudIssues = 0;
-    size_t numLocalIssues = 0;
-    if (syncStallState)
+    if (!syncStallState)
     {
-        numCloudIssues = stallReport.cloud.size() + stallReport.local.size();
+        return 0;
     }
-    else
+
+    auto reportableSize = stallReport.reportableSize();
+    if (reportableSize <= 0)
     {
-        for (auto& r: stallReport.cloud)
-        {
-            if (r.second.alertUserImmediately)
-            {
-                ++numCloudIssues;
-            }
-        }
-        for (auto& r: stallReport.local)
-        {
-            if (r.second.alertUserImmediately)
-            {
-                ++numLocalIssues;
-            }
-        }
+        LOG_warn << "[Syncs::stallsDetectedCount()] reportableSize (" << reportableSize << ") is not positive! [real size = " << stallReport.size() << "]";
+        assert(hasImmediateStall(stallReport)); // If in sync stall state, there must be reportable size (unless there is a custom hasImmediateStall predicate for tests)
     }
-    return numCloudIssues + numLocalIssues;
+    return reportableSize;
 }
 
 bool Syncs::syncStallDetected(SyncStallInfo& si) const
@@ -12486,7 +12675,9 @@ void Syncs::processSyncStalls()
             {
                 if (lp->sync)
                 {
-                    mSyncFlags->stall.waitingLocal(lp->localPath, SyncStallEntry(
+                    auto& affectedBackupId = lp->sync->getConfig().mBackupId;
+                    assert(affectedBackupId != UNDEF);
+                    mSyncFlags->stall.waitingLocal(affectedBackupId, lp->localPath, SyncStallEntry(
                         SyncWaitReason::FileIssue, true, false,
                         {},
                         {},
@@ -12526,9 +12717,12 @@ void Syncs::processSyncStalls()
                     }
                 }
 
+                auto affectedBackupId = sbp->sync ? sbp->sync->getConfig().mBackupId : UNDEF;
+                assert(affectedBackupId != UNDEF);
+
                 if (sbp->folderUnreadable)
                 {
-                    mSyncFlags->stall.waitingLocal(sbp->scanBlockedLocalPath, SyncStallEntry(
+                    mSyncFlags->stall.waitingLocal(affectedBackupId, sbp->scanBlockedLocalPath, SyncStallEntry(
                         SyncWaitReason::FileIssue, true, false,
                         {},
                         {},
@@ -12545,16 +12739,16 @@ void Syncs::processSyncStalls()
             else i = scanBlockedPaths.erase(i);
         }
 
-        lock_guard<mutex> g(stallReportMutex);
-        stallReport.cloud.swap(mSyncFlags->stall.cloud);
-        stallReport.local.swap(mSyncFlags->stall.local);
-        stallReport.stalledSyncs.swap(mSyncFlags->stall.stalledSyncs);
-        mSyncFlags->stall.cloud.clear();
-        mSyncFlags->stall.local.clear();
-        mSyncFlags->stall.stalledSyncs.clear();
+        // Update progress counters
+        mSyncFlags->stall.updateNoProgress();
 
+        lock_guard<mutex> g(stallReportMutex);
+        // Update stall report with the stalls created during the loop
+        stallReport.moveFromButKeepCountersAndClearObsoleteKeys(mSyncFlags->stall);
+
+        // Check immediate stalls and progress lack stalls
         bool immediateStall = hasImmediateStall(stallReport);
-        bool progressLackStall = mSyncFlags->noProgressCount > 10
+        bool progressLackStall = stallReport.hasProgressLackStall()
                                       && mSyncFlags->reachableNodesAllScannedThisPass;
 
         stalled = !stallReport.empty()
@@ -12562,24 +12756,12 @@ void Syncs::processSyncStalls()
 
         if (stalled)
         {
-            if (immediateStall && !progressLackStall)
+            for (auto& [syncId, syncStallInfoMap] : stallReport.syncStallInfoMaps)
             {
-                // only report immediates, otherwise the volume of reports can be a bit scary, and they will probably come right later anyway after parent nodes are made etc
-                for (auto it = stallReport.cloud.begin(); it != stallReport.cloud.end(); )
-                {
-                    if (isImmediateStall(it->second)) ++it;
-                    else it = stallReport.cloud.erase(it);
-                }
-                for (auto it = stallReport.local.begin(); it != stallReport.local.end(); )
-                {
-                    if (isImmediateStall(it->second)) ++it;
-                    else it = stallReport.local.erase(it);
-                }
+                bool syncProgressLackStall = syncStallInfoMap.hasProgressLack();
+                for (auto& p : syncStallInfoMap.cloud) if (syncProgressLackStall || isImmediateStall(p.second)) { LOG_warn << "Stall detected! stalled node path (" << syncWaitReasonDebugString(p.second.reason) << "): " << p.first << " [backupId = " << syncId << "]"; }
+                for (auto& p : syncStallInfoMap.local) if (syncProgressLackStall || isImmediateStall(p.second)) { LOG_warn << "Stall detected! stalled local path (" << syncWaitReasonDebugString(p.second.reason) << "): " << p.first << " [backupId = " << syncId << "]"; }
             }
-
-            LOG_warn << mClient.clientname << "Stall detected!";
-            for (auto& p : stallReport.cloud) LOG_warn << "stalled node path (" << syncWaitReasonDebugString(p.second.reason) << "): " << p.first;
-            for (auto& p : stallReport.local) LOG_warn << "stalled local path (" << syncWaitReasonDebugString(p.second.reason) << "): " << p.first;
         }
     }
 

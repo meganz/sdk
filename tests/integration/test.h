@@ -448,6 +448,34 @@ struct SyncOptions
     bool uploadIgnoreFile = false;
 }; // SyncOptions
 
+struct SyncStallInfoTests
+{
+    SyncStallInfo::CloudStallInfoMap cloud;
+    SyncStallInfo::LocalStallInfoMap local;
+
+    void extractFrom(SyncStallInfo& stallInfo)
+    {
+        for (auto& syncStallInfoMapPair : stallInfo.syncStallInfoMaps)
+        {
+            auto& syncStallInfoMap = syncStallInfoMapPair.second;
+            for (auto& stallEntry: syncStallInfoMap.cloud) cloud.insert(stallEntry);
+            for (auto& stallEntry: syncStallInfoMap.local) local.insert(stallEntry);
+        }
+    }
+
+    void clear()
+    {
+        cloud.clear();
+        local.clear();
+    }
+
+    bool empty() const
+    {
+        return cloud.empty() && local.empty();
+    }
+
+}; // SyncStallInfoTests
+
 class StandardSyncController
   : public SyncController
 {
@@ -1009,7 +1037,8 @@ struct StandardClient : public MegaApp
     void getpubliclink(Node* n, int del, m_time_t expiry, bool writable, bool megaHosted, promise<Error>& pb);
     void waitonsyncs(chrono::seconds d = chrono::seconds(2));
     bool conflictsDetected(list<NameConflict>& conflicts);
-    bool stallsDetected(SyncStallInfo& stalls);
+    bool stallsDetected(SyncStallInfoTests& stalls);
+    bool syncStallDetected(SyncStallInfoTests& si) const;
     bool login_reset(bool noCache = false);
     bool login_reset(const string& user, const string& pw, bool noCache = false, bool resetBaseCloudFolder = true);
     bool resetBaseFolderMulticlient(StandardClient* c2 = nullptr, StandardClient* c3 = nullptr, StandardClient* c4 = nullptr);

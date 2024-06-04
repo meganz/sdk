@@ -920,29 +920,110 @@ struct SyncStallEntry
 
 struct SyncStallInfo
 {
-    using StalledSyncsSet = std::unordered_set<handle>;
     using CloudStallInfoMap = map<string, SyncStallEntry>;
     using LocalStallInfoMap = map<LocalPath, SyncStallEntry>;
 
-    /** No stalls detected */
+    struct StallInfoMaps
+    {
+        CloudStallInfoMap cloud; // Map with cloud-side stalls
+        LocalStallInfoMap local; // Map with local-side stalls
+        static const int MIN_NOPROGRESS_COUNT_FOR_LACK_OF_PROGRESS = 10; // used for hasProgressLack() to report non-immediate stalls
+        static const int MAX_NOPROGRESS_COUNT = 1000000; // Prevent overflow
+
+        // There is no progress. This is reset during syncLoop when all sync have completed the scanning round.
+        bool noProgress{true};
+        // Count noProgress. This is used by non-immediate stalls.
+        // When there is progress lack (hasProgressLack()), the non-immediate stalls will be reported to the app.
+        // This counter is reset upon destruction of a ProgressMonitor, when no stalls have been added to it.
+        int noProgressCount{};
+
+        // Need explicit defaults for the redefinition of operator=
+        StallInfoMaps() = default;
+        StallInfoMaps(StallInfoMaps&&) = default;
+
+        // Move cloud and local maps, copy source noProgress flag and noProgressCount.
+        void moveFromKeepingProgress(StallInfoMaps& source);
+
+        // Use moveFromKeepingProgress()
+        StallInfoMaps& operator=(StallInfoMaps&& other) noexcept;
+        // Defaults needed in order to the operator redefinition above to work properly.
+        StallInfoMaps(const StallInfoMaps& other) = default;
+        StallInfoMaps& operator=(const StallInfoMaps& other) = default;
+
+        // noProgress flag is set and noProgressCount is greater than MIN_NOPROGRESS_COUNT_FOR_LACK_OF_PROGRESS
+        bool hasProgressLack() const;
+
+        // Cloud and local maps are empty
+        bool empty() const;
+
+        // Full size - total number of stalls (cloud + local maps)
+        size_t size() const;
+
+        // Size taking into account only reportable stalls:
+        // all of them (same as size() if hasProgressLack() is true, otherwise only immediate stalls)
+        size_t reportableSize() const;
+
+        // Update noProgressCount if noProgress is true and the count is smaller than MAX_NOPROGRESS_COUNT.
+        void updateNoProgress();
+
+        // Set noProgress flag to true.
+        void setNoProgress();
+
+        // Set noProgress flag to false and reset noProgressCount.
+        void resetNoProgress();
+
+        // Clear cloud and local stall maps. Keep the noProgress flag and noProgressCount counters.
+        void clearStalls();
+    };
+
+    // Map of syncID, struct of <cloud stall map, local stall map, noProgress flag, noProgressCount>
+    using SyncIDtoStallInfoMaps = std::map<handle, StallInfoMaps>;
+    SyncIDtoStallInfoMaps syncStallInfoMaps;
+
+    // No stalls detected
     bool empty() const;
 
-    bool waitingCloud(const string& mapKeyPath,
+    // Add a cloud-side stall issue
+    bool waitingCloud(handle backupId,
+                      const string& mapKeyPath,
                       SyncStallEntry&& e);
 
-    bool waitingLocal(const LocalPath& mapKeyPath,
+    // Add a local-side stall issue
+    bool waitingLocal(handle backupId,
+                      const LocalPath& mapKeyPath,
                       SyncStallEntry&& e);
 
+    // SyncID/BackupID is a key of syncStallInfoMaps
     bool isSyncStalled(handle backupId) const;
 
-    /** Requires user action to resolve */
+    // Requires user action to resolve - immediate stall (noProgress flag and noProgressCount does not have any effect on this stall)
     bool hasImmediateStallReason() const;
 
-    void clear();
+    // At least one StallInfoMaps entry has progress lack
+    bool hasProgressLackStall() const;
 
-    CloudStallInfoMap cloud;
-    LocalStallInfoMap local;
-    StalledSyncsSet stalledSyncs;
+    // Total stalls entries
+    size_t size() const;
+
+    // Total stalls entries that are either immediate or are part of a sync with progress lack
+    size_t reportableSize() const;
+
+    void updateNoProgress();
+
+    void setNoProgress();
+
+    /* Move all stalls from source, removing obsolete keys in source (no stalls entries) and removing keys not present in source */
+    void moveFromButKeepCountersAndClearObsoleteKeys(SyncStallInfo& source);
+
+private:
+    void moveFromButKeepCounters(SyncStallInfo& other);
+
+    void clearObsoleteKeys(SyncStallInfo& other);
+
+#ifndef NDEBUG
+public:
+    void debug() const;
+#endif
 };
 
 struct SyncProblems
@@ -1404,7 +1485,10 @@ private:
         // Report the load failure as a stall.
         void report(SyncStallInfo& stallInfo)
         {
-            stallInfo.waitingLocal(mPath, SyncStallEntry(
+            if (mBackupID == UNDEF)
+                return;
+
+            stallInfo.waitingLocal(mBackupID, mPath, SyncStallEntry(
                 SyncWaitReason::FileIssue, true, false,
                 {},
                 {},
