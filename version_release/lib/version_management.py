@@ -2,6 +2,7 @@ from collections import defaultdict
 from jira import JIRA
 from jira.resources import Issue, Version
 from requests import Response
+import re
 
 
 class JiraProject:
@@ -53,6 +54,16 @@ class JiraProject:
         )
         r.raise_for_status()
 
+    def update_version_close_release(self):
+        from datetime import date
+
+        today = date.today().isoformat()  # YYYY-MM-DD required by the REST api
+        version_data = {
+            "releasedate": today,
+            "released": True,
+        }
+        self._update_version(version_data)
+
     def _update_version(self, new_data: dict):
         # A Version can be updated only by a project administrator.
         # To allow updating version details by the release captain,
@@ -67,7 +78,18 @@ class JiraProject:
         r.raise_for_status()
 
     def get_release_notes(self, apps: list[str]) -> str:
-        return self._get_notes(apps, True)
+        if len(apps) == 0:
+            assert self._version is not None
+            app_descr: str = self._version.description.partition(" - ")[2]
+            apps = [a.strip() for a in app_descr.split("/")]
+        return self._get_notes(apps, include_urls=True)
+
+    def get_public_release_notes(self) -> str:  # no url-s
+        # get apps from description
+        assert self._version is not None
+        app_descr: str = self._version.description.partition(" - ")[2]
+        apps = [a.strip() for a in app_descr.split("/")]
+        return self._get_notes(apps, include_urls=False)
 
     def _get_notes(self, apps: list[str], include_urls: bool) -> str:
         # get issues
@@ -100,3 +122,28 @@ class JiraProject:
         for a in apps:
             notes += f"\U00002022 *{a}*\n"
         return notes
+
+    def earlier_versions_are_closed(self):
+        assert self._version is not None
+        new_major, new_minor, new_micro = (
+            int(n) for n in self._version.name[1:].split(".")
+        )
+        all_versions = self._jira.project_versions(self._project_name)
+        for v in all_versions:
+            assert isinstance(v, Version)
+            if (
+                not v.archived
+                and not v.released
+                and v.name != self._version.name
+                and re.match(r"v(\d)+\.(\d+)\.(\d+)", v.name)
+            ):
+                old_major, old_minor, old_micro = (
+                    int(n) for n in v.name[1:].split(".")
+                )
+                assert new_major < old_major or (
+                    new_major == old_major
+                    and (
+                        new_minor < old_minor
+                        or (new_minor == old_minor and new_micro < old_micro)
+                    )
+                ), f"Release {v.name} must be closed before continuing"

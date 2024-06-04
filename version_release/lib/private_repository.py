@@ -149,3 +149,15 @@ class GitLabRepository:  # use gitlab API
         commit_url = tag.commit["web_url"]
         tag_url = commit_url.replace(f"/commit/{tag.target}", f"/commits/{tag.name}")
         return tag_url
+
+    def get_last_commit_in_branch(self, branch_name: str) -> str:
+        commits = self._project.commits.list(ref_name=branch_name, per_page=1)
+        assert isinstance(commits, list)
+        assert len(commits) == 1
+        return commits[0].sha
+
+    def create_release(self, name: str, target: str, notes: str):
+        release = self._project.releases.create(
+            {"name": name, "tag_name": target, "description": notes}
+        )
+        assert release is not None
