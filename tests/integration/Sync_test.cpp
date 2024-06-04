@@ -5237,7 +5237,7 @@ void StandardClient::setUploadSpeed(m_off_t uploadSpeed)
     client.setmaxuploadspeed(uploadSpeed);
 }
 
-void StandardClient::prepareOneFolder(NewNode* node, std::string name, bool canChangeVault)
+void StandardClient::prepareOneFolder(NewNode* node, const std::string& name, bool canChangeVault)
 {
     client.putnodes_prepareOneFolder(node, name.c_str(), canChangeVault);
 }

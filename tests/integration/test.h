@@ -1204,7 +1204,7 @@ struct StandardClient : public MegaApp
 
     void setUploadSpeed(m_off_t uploadSpeed);
 
-    void prepareOneFolder(NewNode* node, std::string name, bool canChangeVault);
+    void prepareOneFolder(NewNode* node, const std::string& name, bool canChangeVault);
     void prepareOneFolder(NewNode* node, const char* name, bool canChangeVault);
 };
 
