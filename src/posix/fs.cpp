@@ -2279,7 +2279,7 @@ static std::string uuidOf(const std::string& device)
     auto size = path.size();
 
     // Temporary storage.
-    std::string storage(PATH_MAX, '\0');
+    std::string storage(PATH_MAX, '\x0');
 
     // Try and determine which entry references device.
     for (errno = 0; ; )
