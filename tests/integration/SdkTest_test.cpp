@@ -60,35 +60,6 @@ static const string PUBLIC_IMAGE_URL = "/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuD
 
 MegaFileSystemAccess fileSystemAccess;
 
-template<typename T>
-class ScopedValue {
-public:
-    ScopedValue(T& what, T value)
-      : mLastValue(std::move(what))
-      , mWhat(what)
-    {
-        what = std::move(value);
-    }
-
-    ~ScopedValue()
-    {
-        mWhat = std::move(mLastValue);
-    }
-
-    MEGA_DISABLE_COPY(ScopedValue)
-    MEGA_DEFAULT_MOVE(ScopedValue)
-
-private:
-    T mLastValue;
-    T& mWhat;
-}; // ScopedValue<T>
-
-template<typename T>
-ScopedValue<T> makeScopedValue(T& what, T value)
-{
-    return ScopedValue<T>(what, std::move(value));
-}
-
 #ifdef _WIN32
 DWORD ThreadId()
 {
@@ -2211,27 +2182,33 @@ string getLinkFromMailbox(const string& exe,         // Python
                           const string& intent,      // confirm / delete
                           const chrono::steady_clock::time_point& timeOfEmail)
 {
-    string command = exe + " \"" + script + "\" \"" + realAccount + "\" \"" + realPswd + "\" \"" + toAddr + "\" " + intent;
-    string output;
+    using namespace std::chrono; // Just for this little scope
+
+    std::string command = exe + " \"" + script + "\" \"" + realAccount + "\" \"" + realPswd +
+                          "\" \"" + toAddr + "\" " + intent;
+    std::string output;
 
     // Wait for the link to be sent
-    constexpr int deltaMs = 10000; // 10 s interval to check for the email
-    for (int i = 0; ; i += deltaMs)
+    constexpr seconds delta = 10s;
+    constexpr minutes maxTimeout = 10min;
+    seconds spentTime = 0s;
+    for (; spentTime < maxTimeout && output.empty(); spentTime += delta)
     {
-        WaitMillisec(deltaMs);
+        WaitMillisec(duration_cast<milliseconds>(delta).count());
 
         // get time interval to look for emails, add some seconds to account for delays related to
         // the python script call
-        constexpr int safetyDelaySecs = 5;
-        const auto attemptTime = std::chrono::steady_clock::now();
-        auto timeSinceEmail = std::chrono::duration_cast<std::chrono::seconds>(attemptTime - timeOfEmail).count() + safetyDelaySecs;
-        output = runProgram(command + ' ' + to_string(timeSinceEmail), PROG_OUTPUT_TYPE::TEXT); // Run Python script
-        if (!output.empty() || i > 180000) // 3 minute maximum wait
-            break;
+        constexpr seconds safetyDelay = 5s;
+        const auto attemptTime = steady_clock::now();
+        seconds timeSinceEmail = duration_cast<seconds>(attemptTime - timeOfEmail) + safetyDelay;
+        // Run Python script
+        output =
+            runProgram(command + ' ' + to_string(timeSinceEmail.count()), PROG_OUTPUT_TYPE::TEXT);
     }
+    LOG_debug << "Time spent trying to get the email: " << spentTime.count() << "s";
 
     // Print whatever was fetched from the mailbox
-    LOG_debug << "Link from email (" << intent << "):" << (output.empty() ? "[empty]" : output);
+    LOG_debug << "Link from email (" << intent << "): " << (output.empty() ? "[empty]" : output);
 
     // Validate the link
     constexpr char expectedLinkPrefix[] = "https://";
@@ -2312,6 +2289,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
 
     // create the account
     // ------------------
+    LOG_debug << "SdkTestCreateAccount: Start account creation";
 
     const string realEmail(bufRealEmail); // user@host.domain
     string::size_type pos = realEmail.find('@');
@@ -2329,15 +2307,18 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     // Create an ephemeral session internally and send a confirmation link to email
     ASSERT_EQ(API_OK, synchronousCreateAccount(0, newTestAcc.c_str(), origTestPwd, "MyFirstname", "MyLastname"));
 
+    LOG_debug << "SdkTestCreateAccount: Logout and resume";
     // Logout from ephemeral session and resume session
     ASSERT_NO_FATAL_FAILURE( locallogout() );
     ASSERT_EQ(API_OK, synchronousResumeCreateAccount(0, mApi[0].getSid().c_str()));
 
     // Get confirmation link from the email
     {
+        LOG_debug << "SdkTestCreateAccount: Get confirmation link from email";
         string conformLink = getLinkFromMailbox(pyExe, bufScript.string(), realAccount, bufRealPswd, newTestAcc, MegaClient::confirmLinkPrefix(), timeOfConfirmEmail);
         ASSERT_FALSE(conformLink.empty()) << "Confirmation link was not found.";
 
+        LOG_debug << "SdkTestCreateAccount: Confirm account";
         // create another connection to confirm the account
         megaApi.resize(2);
         mApi.resize(2);
@@ -2356,6 +2337,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
 
     // Login to the new account
     {
+        LOG_debug << "SdkTestCreateAccount: Login to the new account";
         unique_ptr<RequestTracker> loginTracker = std::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->login(newTestAcc.c_str(), origTestPwd, loginTracker.get());
         ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to account " << newTestAcc.c_str();
@@ -2363,6 +2345,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
 
     // fetchnodes // needed internally to fill in user details, including email
     {
+        LOG_debug << "SdkTestCreateAccount: fetch nodes from new account";
         unique_ptr<RequestTracker>  fetchnodesTracker = std::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->fetchNodes(fetchnodesTracker.get());
         ASSERT_EQ(API_OK, fetchnodesTracker->waitForResult()) << " Failed to fetchnodes for account " << newTestAcc.c_str();
@@ -2371,21 +2354,25 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     // test resetting the password
     // ---------------------------
 
+    LOG_debug << "SdkTestCreateAccount: Start reset password";
     chrono::time_point timeOfResetEmail = chrono::steady_clock::now();
     ASSERT_EQ(synchronousResetPassword(0, newTestAcc.c_str(), true), MegaError::API_OK) << "resetPassword failed";
 
     // Get cancel account link from the mailbox
     const char* newTestPwd = "PassAndGotHerPhoneNumber!#$**!";
     {
+        LOG_debug << "SdkTestCreateAccount: Get password reset link from email";
         string recoverink = getLinkFromMailbox(pyExe, bufScript.string(), realAccount, bufRealPswd, newTestAcc, MegaClient::recoverLinkPrefix(), timeOfResetEmail);
         ASSERT_FALSE(recoverink.empty()) << "Recover account link was not found.";
 
+        LOG_debug << "SdkTestCreateAccount: Confirm reset password";
         char* masterKey = megaApi[0]->exportMasterKey();
         ASSERT_EQ(synchronousConfirmResetPassword(0, recoverink.c_str(), newTestPwd, masterKey), MegaError::API_OK) << "confirmResetPassword failed";
     }
 
     // Login using new password
     {
+        LOG_debug << "SdkTestCreateAccount: Login with new password";
         unique_ptr<RequestTracker> loginTracker = std::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->login(newTestAcc.c_str(), newTestPwd, loginTracker.get());
         ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to account after change password with new password " << newTestAcc.c_str();
@@ -2393,6 +2380,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
 
     // fetchnodes - needed internally to fill in user details, to allow cancelAccount() to work
     {
+        LOG_debug << "SdkTestCreateAccount: Fetching nodes";
         unique_ptr<RequestTracker> fetchnodesTracker = std::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->fetchNodes(fetchnodesTracker.get());
         ASSERT_EQ(API_OK, fetchnodesTracker->waitForResult()) << " Failed to fetchnodes after change password for account " << newTestAcc.c_str();
@@ -2401,7 +2389,9 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     // test changing the email (check change with auxiliar instance)
     // -----------------------
 
+    LOG_debug << "SdkTestCreateAccount: Start email change";
     // login with auxiliar instance
+    LOG_debug << "SdkTestCreateAccount: Login auxiliar account";
     megaApi.resize(2);
     mApi.resize(2);
     ASSERT_NO_FATAL_FAILURE(configureTestInstance(1, newTestAcc, newTestPwd));
@@ -2411,20 +2401,24 @@ TEST_F(SdkTest, SdkTestCreateAccount)
         ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to auxiliar account ";
     }
 
+    LOG_debug << "SdkTestCreateAccount: Send change email request";
     const string changedTestAcc = Utils::replace(newTestAcc, "@", "-new@");
     chrono::time_point timeOfChangeEmail = chrono::steady_clock::now();
     ASSERT_EQ(synchronousChangeEmail(0, changedTestAcc.c_str()), MegaError::API_OK) << "changeEmail failed";
 
     {
+        LOG_debug << "SdkTestCreateAccount: Get change email link from email inbox";
         string changelink = getLinkFromMailbox(pyExe, bufScript.string(), realAccount, bufRealPswd, changedTestAcc, MegaClient::verifyLinkPrefix(), timeOfChangeEmail);
         ASSERT_FALSE(changelink.empty()) << "Change email account link was not found.";
 
+        LOG_debug << "SdkTestCreateAccount: Confirm email change";
         ASSERT_STRCASEEQ(newTestAcc.c_str(), std::unique_ptr<char[]>{megaApi[0]->getMyEmail()}.get()) << "email changed prematurely";
         ASSERT_EQ(synchronousConfirmChangeEmail(0, changelink.c_str(), newTestPwd), MegaError::API_OK) << "confirmChangeEmail failed";
     }
 
     {
         // Check if our own email is updated after receive ug at auxiliar instance
+        LOG_debug << "SdkTestCreateAccount: Check email is updated";
         unique_ptr<RequestTracker> userDataTracker = std::make_unique<RequestTracker>(megaApi[1].get());
         megaApi[1]->getUserData(userDataTracker.get());
         ASSERT_EQ(API_OK, userDataTracker->waitForResult()) << " Failed to get user data at auxiliar account";
@@ -2435,6 +2429,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     // Login using new email
     ASSERT_STRCASEEQ(changedTestAcc.c_str(), std::unique_ptr<char[]>{megaApi[0]->getMyEmail()}.get()) << "email not changed correctly";
     {
+        LOG_debug << "SdkTestCreateAccount: Login with new email";
         unique_ptr<RequestTracker> loginTracker = std::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->login(changedTestAcc.c_str(), newTestPwd, loginTracker.get());
         ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to account after change email with new email " << changedTestAcc.c_str();
@@ -2442,6 +2437,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
 
     // fetchnodes - needed internally to fill in user details, to allow cancelAccount() to work
     {
+        LOG_debug << "SdkTestCreateAccount: Fetching nodes";
         unique_ptr<RequestTracker> fetchnodesTracker = std::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->fetchNodes(fetchnodesTracker.get());
         ASSERT_EQ(API_OK, fetchnodesTracker->waitForResult()) << " Failed to fetchnodes after change password for account " << changedTestAcc.c_str();
@@ -2454,8 +2450,10 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     // ------------------
 
     // Request cancel account link
+    LOG_debug << "SdkTestCreateAccount: Start deleting account";
     chrono::time_point timeOfDeleteEmail = chrono::steady_clock::now();
     {
+        LOG_debug << "SdkTestCreateAccount: Request account cancel";
         unique_ptr<RequestTracker> cancelLinkTracker = std::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->cancelAccount(cancelLinkTracker.get());
         ASSERT_EQ(API_OK, cancelLinkTracker->waitForResult()) << " Failed to request cancel link for account " << changedTestAcc.c_str();
@@ -2463,10 +2461,12 @@ TEST_F(SdkTest, SdkTestCreateAccount)
 
     // Get cancel account link from the mailbox
     {
+        LOG_debug << "SdkTestCreateAccount: Get cancel link from email";
         string deleteLink = getLinkFromMailbox(pyExe, bufScript.string(), realAccount, bufRealPswd, changedTestAcc, MegaClient::cancelLinkPrefix(), timeOfDeleteEmail);
         ASSERT_FALSE(deleteLink.empty()) << "Cancel account link was not found.";
 
         // Use cancel account link
+        LOG_debug << "SdkTestCreateAccount: Confirm cancel link";
         unique_ptr<RequestTracker> useCancelLinkTracker = std::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->confirmCancelAccount(deleteLink.c_str(), newTestPwd, useCancelLinkTracker.get());
         // Allow API_ESID beside API_OK, due to the race between sc and cs channels
@@ -8604,7 +8604,7 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     filterResults.reset(MegaSearchFilter::createInstance());
     filterResults->byName("logo");
     filterResults->byLocationHandle(rootnodeA->getHandle());
-    filterResults->bySensitivity(true);
+    filterResults->bySensitivity(MegaSearchFilter::BOOL_FILTER_ONLY_TRUE);
     list.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
     ASSERT_EQ(list->size(), 0);
 
@@ -8622,7 +8622,7 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     filterResults.reset(MegaSearchFilter::createInstance());
     filterResults->byLocationHandle(rootnodeA->getHandle());
     filterResults->byCategory(MegaApi::FILE_TYPE_PHOTO);
-    filterResults->bySensitivity(true);
+    filterResults->bySensitivity(MegaSearchFilter::BOOL_FILTER_ONLY_TRUE);
     list.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
     ASSERT_EQ(list->size(), 1);
     ASSERT_EQ(list->get(0)->getName(), nsfilename);
@@ -8640,7 +8640,7 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     filterResults.reset(MegaSearchFilter::createInstance());
     filterResults->byLocation(MegaApi::SEARCH_TARGET_ROOTNODE);
     filterResults->byCategory(MegaApi::FILE_TYPE_PHOTO);
-    filterResults->bySensitivity(true);
+    filterResults->bySensitivity(MegaSearchFilter::BOOL_FILTER_ONLY_TRUE);
     list.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
     ASSERT_EQ(list->size(), 1); // non sensitive files (recursive exclude)
     ASSERT_EQ(list->get(0)->getName(), nsfilename);
@@ -8648,7 +8648,7 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     filterResults.reset(MegaSearchFilter::createInstance());
     filterResults->byLocation(MegaApi::SEARCH_TARGET_ROOTNODE);
     filterResults->byCategory(MegaApi::FILE_TYPE_AUDIO);
-    filterResults->bySensitivity(true);
+    filterResults->bySensitivity(MegaSearchFilter::BOOL_FILTER_ONLY_TRUE);
     list.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
     ASSERT_EQ(list->size(), 0);
 
@@ -8667,7 +8667,7 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     filterResults->byName("a");
     filterResults->byLocation(MegaApi::SEARCH_TARGET_ROOTNODE);
     filterResults->byCategory(MegaApi::FILE_TYPE_PHOTO);
-    filterResults->bySensitivity(true);
+    filterResults->bySensitivity(MegaSearchFilter::BOOL_FILTER_ONLY_TRUE);
     list.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
     ASSERT_EQ(list->size(), 1); // non sensitive files (recursive exclude)
     ASSERT_EQ(list->get(0)->getName(), nsfilename);
@@ -8687,7 +8687,7 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     filterResults->byName("a");
     filterResults->byLocationHandle(folderA->getHandle());
     filterResults->byCategory(MegaApi::FILE_TYPE_PHOTO);
-    filterResults->bySensitivity(true);
+    filterResults->bySensitivity(MegaSearchFilter::BOOL_FILTER_ONLY_TRUE);
     list.reset(megaApi[0]->getChildren(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
     ASSERT_EQ(list->size(), 1); // non sensitive files (recursive exclude)
     ASSERT_EQ(list->get(0)->getName(), nsfilename);
@@ -8706,7 +8706,7 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     filterResults->byName("a");
     filterResults->byLocationHandle(subFolderA->getHandle());
     filterResults->byCategory(MegaApi::FILE_TYPE_PHOTO);
-    filterResults->bySensitivity(true);
+    filterResults->bySensitivity(MegaSearchFilter::BOOL_FILTER_ONLY_TRUE);
     list.reset(megaApi[0]->getChildren(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
     ASSERT_EQ(list->size(), 0); // non sensitive files (recursive exclude)
 
@@ -8725,7 +8725,7 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     filterResults->byName("a");
     filterResults->byLocation(MegaApi::SEARCH_TARGET_INSHARE);
     filterResults->byCategory(MegaApi::FILE_TYPE_PHOTO);
-    filterResults->bySensitivity(true);
+    filterResults->bySensitivity(MegaSearchFilter::BOOL_FILTER_ONLY_TRUE);
     list.reset(megaApi[1]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
     ASSERT_EQ(list->size(), 1); // non sensitive files (recursive exclude)
     ASSERT_EQ(list->get(0)->getName(), nsfilename);
@@ -8745,7 +8745,7 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     filterResults->byName("a");
     filterResults->byLocation(MegaApi::SEARCH_TARGET_OUTSHARE);
     filterResults->byCategory(MegaApi::FILE_TYPE_PHOTO);
-    filterResults->bySensitivity(true);
+    filterResults->bySensitivity(MegaSearchFilter::BOOL_FILTER_ONLY_TRUE);
     list.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
     ASSERT_EQ(list->size(), 1); // non sensitive files (recursive exclude)
     ASSERT_EQ(list->get(0)->getName(), nsfilename);
@@ -8754,6 +8754,30 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     filterResults->byCategory(MegaApi::FILE_TYPE_OTHERS);
     list.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
     ASSERT_EQ(list->size(), 0);
+
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->bySensitivity(MegaSearchFilter::BOOL_FILTER_ONLY_FALSE);
+    filterResults->byLocationHandle(subFolderA->getHandle());
+    list.reset(megaApi[0]->getChildren(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
+    ASSERT_EQ(list->size(), 0);
+
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->bySensitivity(MegaSearchFilter::BOOL_FILTER_ONLY_FALSE);
+    filterResults->byLocationHandle(folderA->getHandle());
+    list.reset(megaApi[0]->getChildren(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
+    ASSERT_EQ(list->size(), 2);
+
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byLocation(MegaApi::SEARCH_TARGET_ROOTNODE);
+    filterResults->bySensitivity(MegaSearchFilter::BOOL_FILTER_ONLY_FALSE);
+    list.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
+    ASSERT_EQ(list->size(), 2);
+
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byLocationHandle(folderA->getHandle());
+    filterResults->bySensitivity(MegaSearchFilter::BOOL_FILTER_ONLY_TRUE);
+    list.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
+    ASSERT_EQ(list->size(), 1);
 }
 
 TEST_F(SdkTest, SdkDeviceNames)

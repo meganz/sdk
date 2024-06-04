@@ -1545,8 +1545,8 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, int o
         // would be checked before getting here. There's no point in making this query recursive just because of that.
         std::string sqlQuery = "SELECT nodehandle, counter, node "
                                "FROM nodes "
-                               "WHERE (flags & ? = 0) "
-                                 "AND (parenthandle = ?) "
+                               "WHERE (flags & ?1 = 0) " // Versions aren't taken in consideration
+                                 "AND (parenthandle = ?2) "
                                  "AND (?3 = " + std::to_string(TYPE_UNKNOWN) + " OR type = ?3) "
                                  "AND (?4 = 0 OR ?4 < ctime) AND (?5 = 0 OR ctime < ?5) "
                                  "AND (?6 = 0 OR ?6 < mtime) AND (?7 = 0 OR (0 < mtime AND mtime < ?7)) " // mtime is not used (0) for some nodes
@@ -1561,7 +1561,12 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, int o
                                  "AND (?11 = 0 OR (name REGEXP ?9)) "
                                  "AND (?14 = 0 OR isContained(?15, description)) "
                                  "AND (?16 = 0 OR matchTag(?17, tags)) "
-                                 "AND (?18 = 0 OR ?19 = fav)"
+                                 "AND (?18 = " + std::to_string(static_cast<int>(NodeSearchFilter::BoolFilter::disabled)) + " OR ?19 = fav)"
+                                 "AND (?20 = " + std::to_string(static_cast<int>(NodeSearchFilter::BoolFilter::disabled)) +  // Sensitive nodes
+                                     " OR (?20 = " + std::to_string(static_cast<int>(NodeSearchFilter::BoolFilter::onlyTrue)) +
+                                        " AND (flags & ?21) = 0)"
+                                     " OR (?20 = " + std::to_string(static_cast<int>(NodeSearchFilter::BoolFilter::onlyFalse)) +
+                                        " AND (flags & ?21) = ?21))" //
                                  // Leading and trailing '*' will be added to argument '?' so we are looking for substrings containing name
                                  // Our REGEXP implementation is case insensitive
 
@@ -1574,11 +1579,11 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, int o
     }
 
     bool result = false;
-    uint64_t flags = (1 << Node::FLAGS_IS_VERSION) | // exclude file versions
-                     (filter.bySensitivity() ? (1 << Node::FLAGS_IS_MARKED_SENSTIVE) : 0); // filter by sensitivity
+    uint64_t versionFlag = (1 << Node::FLAGS_IS_VERSION); // exclude file versions
+    uint64_t senstivityFlag = 1 << Node::FLAGS_IS_MARKED_SENSTIVE; // filter by sensitivity
 
     if (sqlResult == SQLITE_OK &&
-        (sqlResult = sqlite3_bind_int64(stmt, 1, flags)) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int64(stmt, 1, versionFlag)) == SQLITE_OK &&
         (sqlResult = sqlite3_bind_int64(stmt, 2, filter.byParentHandle())) == SQLITE_OK &&
         (sqlResult = sqlite3_bind_int(stmt, 3, filter.byNodeType())) == SQLITE_OK &&
         (sqlResult = sqlite3_bind_int64(stmt, 4, filter.byCreationTimeLowerLimit())) == SQLITE_OK &&
@@ -1599,8 +1604,10 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, int o
             (sqlResult = sqlite3_bind_text(stmt, 15, filter.byDescription().c_str(), static_cast<int>(filter.byDescription().size()), SQLITE_STATIC)) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_int(stmt, 16, static_cast<int>(filter.byTag().size()))) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_text(stmt, 17, filter.byTag().c_str(), static_cast<int>(filter.byTag().size()), SQLITE_STATIC)) == SQLITE_OK &&
-            (sqlResult = sqlite3_bind_int(stmt, 18, filter.byFavourite())) == SQLITE_OK &&
-            (sqlResult = sqlite3_bind_int(stmt, 19, filter.byFavourite() == 1)) == SQLITE_OK)
+            (sqlResult = sqlite3_bind_int(stmt, 18, static_cast<int>(filter.byFavourite()))) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int(stmt, 19, filter.byFavourite() == NodeSearchFilter::BoolFilter::onlyTrue)) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int(stmt, 20, static_cast<int>(filter.bySensitivity()))) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int64(stmt, 21, senstivityFlag)) == SQLITE_OK)
         {
             result = processSqlQueryNodes(stmt, children);
         }
@@ -1668,7 +1675,10 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
                 "FROM nodes AS N \n"
                 "INNER JOIN nodesCTE AS P \n"
                         "ON (N.parenthandle = P.nodehandle \n"
-                       "AND (P.flags & ?1 = 0) \n"
+                       "AND (P.flags & ?1 = 0) \n" // Versions aren't taken in consideration
+                       "AND (?23 != " + std::to_string(static_cast<int>(NodeSearchFilter::BoolFilter::onlyTrue)) + // Sensitive nodes
+                          " OR ?23 = " + std::to_string(static_cast<int>(NodeSearchFilter::BoolFilter::onlyTrue)) +
+                          " AND (P.flags & ?24) = 0) "
                        "AND P.type != " + std::to_string(FILENODE) + "))";
 
         string columnsForNodeAndOrderBy =
@@ -1676,7 +1686,7 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
             "type, size, ctime, mtime, name, label, fav"; // for ORDER BY only
 
         string whereClause =
-            "(flags & ?1 = 0) \n"
+            "(flags & ?1 = 0) \n" // Versions aren't taken in consideration
             "AND (?2 = " + std::to_string(TYPE_UNKNOWN) + " OR type = ?2) \n"
             "AND (?3 = 0 OR ?3 < ctime) AND (?4 = 0 OR ctime < ?4) \n"
             "AND (?5 = 0 OR ?5 < mtime) AND (?6 = 0 OR (0 < mtime AND mtime < ?6)) \n" // mtime is not used (0) for some nodes
@@ -1691,7 +1701,12 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
             "AND (?13 = 0 OR (name REGEXP ?9)) \n"
             "AND (?17 = 0 OR isContained(?18, description)) \n"
             "AND (?19 = 0 OR matchTag(?20, tags)) \n"
-            "AND (?21 = 0 OR ?22 = fav)";
+            "AND (?21 = " + std::to_string(static_cast<int>(NodeSearchFilter::BoolFilter::disabled)) + " OR ?22 = fav)"
+            "AND (?23 = " + std::to_string(static_cast<int>(NodeSearchFilter::BoolFilter::disabled)) +   // Sensitive nodes
+                " OR (?23 = " + std::to_string(static_cast<int>(NodeSearchFilter::BoolFilter::onlyTrue)) +
+                    " AND (flags & ?24) = 0)"
+                " OR (?23 = " + std::to_string(static_cast<int>(NodeSearchFilter::BoolFilter::onlyFalse)) +
+                    " AND (flags & ?24) = ?24))";
             // Leading and trailing '*' will be added to argument '?' so we are looking for substrings containing name
             // Our REGEXP implementation is case insensitive
 
@@ -1724,11 +1739,11 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
     }
 
     bool result = false;
-    uint64_t excludeFlags = (1 << Node::FLAGS_IS_VERSION) | // exclude file versions
-                            (filter.bySensitivity() ? (1 << Node::FLAGS_IS_MARKED_SENSTIVE) : 0); // filter by sensitivity
+    uint64_t versionFlag = (1 << Node::FLAGS_IS_VERSION); // exclude file versions
+    uint64_t senstivityFlag = 1 << Node::FLAGS_IS_MARKED_SENSTIVE; // filter by sensitivity
 
     if (sqlResult == SQLITE_OK &&
-        (sqlResult = sqlite3_bind_int64(stmt, 1, excludeFlags)) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int64(stmt, 1, versionFlag)) == SQLITE_OK &&
         (sqlResult = sqlite3_bind_int(stmt, 2, filter.byNodeType())) == SQLITE_OK &&
         (sqlResult = sqlite3_bind_int64(stmt, 3, filter.byCreationTimeLowerLimit())) == SQLITE_OK &&
         (sqlResult = sqlite3_bind_int64(stmt, 4, filter.byCreationTimeUpperLimit())) == SQLITE_OK &&
@@ -1753,8 +1768,10 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
             (sqlResult = sqlite3_bind_text(stmt, 18, filter.byDescription().c_str(), static_cast<int>(filter.byDescription().size()), SQLITE_STATIC)) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_int(stmt, 19, static_cast<int>(filter.byTag().size()))) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_text(stmt, 20, filter.byTag().c_str(), static_cast<int>(filter.byTag().size()), SQLITE_STATIC)) == SQLITE_OK &&
-            (sqlResult = sqlite3_bind_int(stmt, 21, filter.byFavourite())) == SQLITE_OK &&
-            (sqlResult = sqlite3_bind_int(stmt, 22, filter.byFavourite() == 1)) == SQLITE_OK)
+            (sqlResult = sqlite3_bind_int(stmt, 21, static_cast<int>(filter.byFavourite()))) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int(stmt, 22, filter.byFavourite() == NodeSearchFilter::BoolFilter::onlyTrue)) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int(stmt, 23, static_cast<int>(filter.bySensitivity()))) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int64(stmt, 24, senstivityFlag)) == SQLITE_OK)
         {
             result = processSqlQueryNodes(stmt, nodes);
         }
@@ -2505,92 +2522,73 @@ void SqliteAccountState::userIsContained(sqlite3_context* context, int argc, sql
 
 std::string OrderByClause::get(int order, int sqlParamIndex)
 {
+    // The sorting is done with this attributes preference:
+    // - type: Folders always first
+    // - attribute: depends on DESC/ASC (inverted for fav and label)
+    // - nodehandle: depends on DESC/ASC
+
     // clang-format off
-    // First sorting field
-    static const std::string fieldToSort1 =
-        "WHEN " + std::to_string(DEFAULT_ASC)  + " THEN type \n"   // folders first
-        "WHEN " + std::to_string(DEFAULT_DESC) + " THEN type \n"   // folders first
+    static const std::string fieldToSort =
+        "WHEN " + std::to_string(DEFAULT_ASC)  + " THEN name COLLATE NOCASE \n"
+        "WHEN " + std::to_string(DEFAULT_DESC) + " THEN name COLLATE NOCASE \n"
         "WHEN " + std::to_string(SIZE_ASC)     + " THEN size \n"
         "WHEN " + std::to_string(SIZE_DESC)    + " THEN size \n"
         "WHEN " + std::to_string(CTIME_ASC)    + " THEN ctime \n"
         "WHEN " + std::to_string(CTIME_DESC)   + " THEN ctime \n"
         "WHEN " + std::to_string(MTIME_ASC)    + " THEN mtime \n"
         "WHEN " + std::to_string(MTIME_DESC)   + " THEN mtime \n"
-        "WHEN " + std::to_string(LABEL_ASC)    + " THEN type \n"   // folders first
-        "WHEN " + std::to_string(LABEL_DESC)   + " THEN type \n"   // folders first
-        "WHEN " + std::to_string(FAV_ASC)      + " THEN type \n"   // folders first
-        "WHEN " + std::to_string(FAV_DESC)     + " THEN type \n";  // folders first
-    // Second sorting field
-    static const std::string fieldToSort2 =
-        "WHEN " + std::to_string(DEFAULT_ASC)  + " THEN name COLLATE NOCASE \n"
-        "WHEN " + std::to_string(DEFAULT_DESC) + " THEN name COLLATE NOCASE \n"
         "WHEN " + std::to_string(LABEL_ASC)    + " THEN label \n"
         "WHEN " + std::to_string(LABEL_DESC)   + " THEN label \n"
         "WHEN " + std::to_string(FAV_ASC)      + " THEN fav \n"
         "WHEN " + std::to_string(FAV_DESC)     + " THEN fav \n";
-    // Third sorting field: always sort by PK last, to get the same order for identical queries
-    static const std::string fieldToSort3 = "nodehandle ";
     // clang-format on
 
-    const std::bitset<3> dirs = getDescendingDirs(order);
     const std::string x = '?' + std::to_string(sqlParamIndex) + ' ';
 
-    // clang-format off
-    static const std::array<std::string, 2> boolToDesc {"", "DESC"};
-    return "CASE " + x + fieldToSort1 + "END " + boolToDesc[dirs[0]] + ", \n" +
-           "CASE " + x + fieldToSort2 + "END " + boolToDesc[dirs[1]] + ", \n" +
-           fieldToSort3 + boolToDesc[dirs[2]];
-    // clang-format on
+    const std::bitset<2> dirs = getDescendingDirs(order);
+    static const std::array<std::string, 2> boolToDesc{"", "DESC"};
+
+    static const std::string typeSort = "type DESC";
+    const std::string attrSort =
+        "CASE ?" + std::to_string(sqlParamIndex) + " " + fieldToSort + "END " + boolToDesc[dirs[0]];
+    const std::string nhSort = "nodehandle " + boolToDesc[dirs[1]];
+    return typeSort + ", \n" + attrSort + ", \n" + nhSort;
 }
 
 size_t OrderByClause::getId(int order)
 {
-    std::bitset<3> dirs = getDescendingDirs(order);
+    std::bitset<2> dirs = getDescendingDirs(order);
     size_t id = dirs.to_ulong();
     return id;
 }
 
-std::bitset<3> OrderByClause::getDescendingDirs(int order)
+bool OrderByClause::isDescOrder(const int order)
 {
-    std::bitset<3> dirs;
-    // dirs[0] -> type (if directories must go first always) | attr (size, ctime, mtime)
-    // dirs[1] -> attr (if directories must go first always)
-    // dirs[2] -> PK (always)
-
     switch (order)
     {
-        //// Non directory special criteria (size, creation and modification)
-        case SIZE_ASC:
-        case CTIME_ASC:
-        case MTIME_ASC:
-            break;
         case SIZE_DESC:
         case CTIME_DESC:
         case MTIME_DESC:
-            dirs[0] = true;
-            dirs[2] = true;
-            break;
-        //// Directories first (dirs[0] = true)
-        case DEFAULT_ASC:
-            dirs[0] = true;
-            break;
-        case DEFAULT_DESC:
-            dirs[0] = true;
-            dirs[1] = true;
-            dirs[2] = true;
-            break;
-        case LABEL_ASC:
-        case FAV_ASC:
-            dirs[0] = true;
-            dirs[1] = true;
-            break;
         case LABEL_DESC:
         case FAV_DESC:
-            dirs[0] = true;
-            dirs[2] = true;
-            break;
+        case DEFAULT_DESC:
+            return true;
+        default:
+            return false;
     }
-    return dirs;
+}
+
+std::bitset<2> OrderByClause::getDescendingDirs(int order)
+{
+    std::bitset<2> directions;
+    directions[0] = directions[1] = isDescOrder(order);
+
+    // For attr [0], fav and label are inverted
+    const bool isLabel = order == LABEL_ASC || order == LABEL_DESC;
+    const bool isFav = order == FAV_ASC || order == FAV_DESC;
+    if (isLabel || isFav)
+        directions[0] = !directions[0];
+    return directions;
 }
 
 SqliteDbAccess::MTimeType::MTimeType(mega::m_time_t value):

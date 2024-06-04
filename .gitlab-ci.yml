@@ -3,12 +3,52 @@ variables:
   GIT_DEPTH: "0"
 
 stages:
-  - scan
+  - lint
 
-scan:
-  stage: scan
+gitleaks:
+  stage: lint
   image:
     name: mega-docker.artifactory.developers.mega.co.nz:8443/gitleaks:v8.18.2-mega-1.0
     entrypoint: [""]
   script:
     - gitleaks detect -v --redact -c .gitleaks/gitleaks.toml
+
+clang-format:
+  stage: lint
+  # clang-format 14, which is the latest version available in Ubuntu 22.04, must be used and no
+  # other. Changing the image impacts the installed version of clang-format, which could result in
+  # formatting errors other than those obtained by the devs locally.
+  image: ubuntu:22.04
+  before_script:
+    - apt-get --quiet=2 update
+    - DEBCONF_NOWARNINGS=yes apt-get --quiet=2 install git clang-format 1> /dev/null
+  script: |
+    # Get the list of commits from the source branch compared to the repo default branch (develop).
+    # The MR target branch ($CI_MERGE_REQUEST_TARGET_BRANCH_NAME) cannot be obtained as the job does
+    # not run in a MR pipeline because it is incompatible with external pipelines in Jenkins.
+    COMMITS=$(git log --pretty=format:%H origin/$CI_DEFAULT_BRANCH..HEAD)
+
+    for COMMIT in $COMMITS
+    do
+        OUTPUT=$(git -c color.ui=always clang-format --diff $COMMIT^ $COMMIT)
+
+        printf '%s\n' "$COMMIT"
+
+        if [ -z "$OUTPUT" ]
+        then
+            continue
+        fi
+
+        if echo $OUTPUT | grep -q 'no modified files to format'
+        then
+            continue
+        fi
+
+        if echo $OUTPUT | grep -q 'clang-format did not modify any files'
+        then
+            continue
+        fi
+
+        printf '%s\n' "$OUTPUT"
+        exit 1
+    done

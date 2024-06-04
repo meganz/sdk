@@ -124,7 +124,7 @@ PackConstructorInitializers: Never
 #PenaltyIndentedWhitespace:
 PenaltyReturnTypeOnItsOwnLine: 100
 PointerAlignment: Left
-QualifierAlignment: Left
+QualifierAlignment: Leave
 #QualifierOrder:
 #RawStringFormats:
 ReferenceAlignment: Left
@@ -168,4 +168,7 @@ TabWidth: 4
 UseCRLF: false
 UseTab: Never
 #WhitespaceSensitiveMacros:
+---
+Language: Json
+DisableFormat: true
 ...

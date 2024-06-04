@@ -1689,8 +1689,7 @@ MegaSyncStallPrivate::pathProblemDebugString(MegaSyncStall::SyncPathProblem reas
     static_assert((int)PathProblem::MoveToDebrisFolderFailed == (int)MegaSyncStall::SyncPathProblem::MoveToDebrisFolderFailed, "");
     static_assert((int)PathProblem::IgnoreFileMalformed == (int)MegaSyncStall::SyncPathProblem::IgnoreFileMalformed, "");
     static_assert((int)PathProblem::FilesystemErrorListingFolder == (int)MegaSyncStall::SyncPathProblem::FilesystemErrorListingFolder, "");
-    static_assert((int)PathProblem::FilesystemErrorIdentifyingFolderContent == (int)MegaSyncStall::SyncPathProblem::FilesystemErrorIdentifyingFolderContent, "");
-    static_assert((int)PathProblem::UndecryptedCloudNode == (int)MegaSyncStall::SyncPathProblem::UndecryptedCloudNode, "");
+    static_assert((int)PathProblem::FilesystemErrorIdentifyingFolderContent == (int)MegaSyncStall::SyncPathProblem::FilesystemErrorIdentifyingFolderContent, "");  // Deprecated after SDK-3206
     static_assert((int)PathProblem::WaitingForScanningToComplete == (int)MegaSyncStall::SyncPathProblem::WaitingForScanningToComplete, "");
     static_assert((int)PathProblem::WaitingForAnotherMoveToComplete == (int)MegaSyncStall::SyncPathProblem::WaitingForAnotherMoveToComplete, "");
     static_assert((int)PathProblem::SourceWasMovedElsewhere == (int)MegaSyncStall::SyncPathProblem::SourceWasMovedElsewhere, "");
@@ -1701,6 +1700,7 @@ MegaSyncStallPrivate::pathProblemDebugString(MegaSyncStall::SyncPathProblem reas
     static_assert((int)PathProblem::PutnodeCompletionPending == (int)MegaSyncStall::SyncPathProblem::PutnodeCompletionPending, "");
     static_assert((int)PathProblem::UploadDeferredByController == (int)MegaSyncStall::SyncPathProblem::UploadDeferredByController, "");
     static_assert((int)PathProblem::DetectedNestedMount == (int)MegaSyncStall::SyncPathProblem::DetectedNestedMount, "");
+    static_assert((int)PathProblem::CloudNodeIsBlocked == (int)MegaSyncStall::SyncPathProblem::CloudNodeIsBlocked, "");
     static_assert((int)PathProblem::PathProblem_LastPlusOne == (int)MegaSyncStall::SyncPathProblem::SyncPathProblem_LastPlusOne, "");
 
     return syncPathProblemDebugString(PathProblem(reason));
@@ -1742,19 +1742,23 @@ MegaSyncStallListPrivate::MegaSyncStallListPrivate(SyncProblems&& sp, AddressedS
         }
     }
 
-    for(auto& stall : sp.mStalls.cloud)
+    for (auto& stalledSyncMapPair : sp.mStalls.syncStallInfoMaps)
     {
-        if (!filter.addressedCloudStall(stall.first))
+        auto& stalledSyncMap = stalledSyncMapPair.second;
+        for(auto& stall : stalledSyncMap.cloud)
         {
-            mStalls.push_back(std::make_shared<MegaSyncStallPrivate>(stall.second));
+            if (!filter.addressedCloudStall(stall.first))
+            {
+                mStalls.push_back(std::make_shared<MegaSyncStallPrivate>(stall.second));
+            }
         }
-    }
 
-    for(auto& stall : sp.mStalls.local)
-    {
-        if (!filter.addressedLocalStall(stall.first))
+        for(auto& stall : stalledSyncMap.local)
         {
-            mStalls.push_back(std::make_shared<MegaSyncStallPrivate>(stall.second));
+            if (!filter.addressedLocalStall(stall.first))
+            {
+                mStalls.push_back(std::make_shared<MegaSyncStallPrivate>(stall.second));
+            }
         }
     }
 }
@@ -6066,7 +6070,12 @@ void MegaSearchFilterPrivate::byFavourite(int boolFilterOption)
 
 void MegaSearchFilterPrivate::bySensitivity(bool excludeSensitive)
 {
-    mExcludeSensitive = excludeSensitive;
+    mExcludeSensitive = validateBoolFilterOption(static_cast<int>(excludeSensitive));
+}
+
+void MegaSearchFilterPrivate::bySensitivity(int boolFilterOption)
+{
+    mExcludeSensitive = validateBoolFilterOption(boolFilterOption);
 }
 
 void MegaSearchFilterPrivate::byLocationHandle(MegaHandle ancestorHandle)
@@ -6117,14 +6126,16 @@ MegaSearchFilterPrivate* MegaSearchFilterPrivate::copy() const
 
 int MegaSearchFilterPrivate::validateBoolFilterOption(const int value)
 {
-    if (value != MegaSearchFilter::BOOL_FILTER_DISABLED &&
-        value != MegaSearchFilter::BOOL_FILTER_ONLY_TRUE &&
-        value != MegaSearchFilter::BOOL_FILTER_ONLY_FALSE)
+    switch (value)
     {
+    case MegaSearchFilter::BOOL_FILTER_DISABLED:
+    case MegaSearchFilter::BOOL_FILTER_ONLY_TRUE:
+    case MegaSearchFilter::BOOL_FILTER_ONLY_FALSE:
+        return value;
+    default:
         LOG_warn << "Invalid value for a boolean filtering option: " << value;
         return MegaSearchFilter::BOOL_FILTER_DISABLED;
     }
-    return value;
 }
 
 std::unique_ptr<MegaGfxProviderPrivate> MegaGfxProviderPrivate::createIsolatedInstance(
@@ -22890,24 +22901,16 @@ void MegaApiImpl::copySyncDataToCache(const char* localFolder, const char* name,
                 syncConfig.mError = syncError;
             }
 
-            client->ensureSyncUserAttributes([this, request, syncConfig](Error e){
-
-                if (e != API_OK)
+            client->copySyncConfig(syncConfig, [this, request](handle backupId, error e)
+            {
+                if (e == API_OK)
                 {
-                    fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
-                    return;
+                    request->setParentHandle(backupId);
                 }
 
-                client->copySyncConfig(syncConfig, [this, request](handle backupId, error e)
-                {
-                    if (e == API_OK)
-                    {
-                        request->setParentHandle(backupId);
-                    }
-
-                    fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
-                });
+                fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
             });
+
             return API_OK;
         };
 

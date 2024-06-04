@@ -29,6 +29,7 @@ NS_ASSUME_NONNULL_BEGIN
                     nodeType:(int)nodeType
                     category:(int)category
                  sensitivity:(bool)sensitivity
+             favouriteFilter:(int)favouriteFilter
                 locationType:(int)locationType
            creationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)creationTimeFrame
        modificationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)modificationTimeFrame {
@@ -40,6 +41,7 @@ NS_ASSUME_NONNULL_BEGIN
         _nodeType = nodeType;
         _category = category;
         _sensitivity = sensitivity;
+        _favouriteFilter = favouriteFilter;
         _locationType = locationType;
         _creationTimeFrame = creationTimeFrame;
         _modificationTimeFrame = modificationTimeFrame;
@@ -53,6 +55,7 @@ NS_ASSUME_NONNULL_BEGIN
                     nodeType:(int)nodeType
                     category:(int)category
                  sensitivity:(bool)sensitivity
+             favouriteFilter:(int)favouriteFilter
            creationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)creationTimeFrame
        modificationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)modificationTimeFrame {
     return [self initWithTerm:term
@@ -60,6 +63,7 @@ NS_ASSUME_NONNULL_BEGIN
                      nodeType:nodeType
                      category:category
                   sensitivity:sensitivity
+              favouriteFilter:favouriteFilter
                  locationType:-1
             creationTimeFrame:creationTimeFrame
             modificationTimeFrame:modificationTimeFrame];
@@ -69,6 +73,7 @@ NS_ASSUME_NONNULL_BEGIN
                     nodeType:(int)nodeType
                     category:(int)category
                  sensitivity:(bool)sensitivity
+             favouriteFilter:(int)favouriteFilter
                 locationType:(int)locationType
            creationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)creationTimeFrame
        modificationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)modificationTimeFrame {
@@ -77,6 +82,7 @@ NS_ASSUME_NONNULL_BEGIN
                      nodeType:nodeType
                      category:category
                   sensitivity:sensitivity
+              favouriteFilter:favouriteFilter
                  locationType:locationType
             creationTimeFrame:creationTimeFrame
         modificationTimeFrame:modificationTimeFrame];

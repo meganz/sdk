@@ -350,8 +350,51 @@ struct Model
     ModelNode* addfolder(const string& path);
     ModelNode* addnode(const string& path, ModelNode::nodetype type);
     ModelNode* copynode(const string& src, const string& dst);
+    /**
+     * @brief Create a folder-type ModelNode with the specified name.
+     *
+     * @param utf8Name The name of the folder to be created, in UTF-8 encoding
+     * @return The created folder ModelNode
+     */
     unique_ptr<ModelNode> makeModelSubfolder(const string& utf8Name);
+    /**
+     * @brief Create a file type ModelNode with the specified name.
+     * If content parameter is empty, the content is the specified name,
+     * otherwise it is content itself.
+     *
+     * @param utf8Name The name of the folder to be created, in UTF-8 encoding.
+     * @param content  The content of the file. If it is empty, the content is file name utf8Name.
+     *                 Default value is empty.
+     * @return The created file ModelNode
+     */
     unique_ptr<ModelNode> makeModelSubfile(const string& utf8Name, string content = {});
+    /**
+     * @brief Create a folder tree whose depth is with a specified depth and its root folder is named prefix.
+     *
+     * The structure is as follows:
+     * - Each folder, except for the leaf folders, has `n` child folders. Child folders are named after
+     * their parent name with the format <parentName>_<index>, starting with index 0.
+     * - Each folder has `filesperdir` number of child files. Child files are named after their parent name
+     * with the format file<index>_<parentName>.
+     *
+     * Examples:
+     *   buildModelSubdirs(f, 2, 2, 1)
+     *   root -- level 1 -- level 2
+     *   f    -- file0_f
+     *        -- f_0     -- file0_f_0
+     *                   -- f_0_0      -- file0_f_0_0
+     *                   -- f_0_1      -- file0_f_0_1
+     *        -- f_1     -- file0_f_1
+     *                   -- f_1_0      -- file0_f_1_0
+     *                   -- f_1_1      -- file0_f_1_1
+     *
+     * @param prefix       The name of the root folder
+     * @param n            The number of child folders under each folder except the leaf folder.
+     * @param recurselevel The depth of folder tree. For example, 0 means only root folder.
+     *                     1 means one level folder under the root.
+     * @param filesperdir  The number of files under each folder
+     * @return the root folder ModelNode
+     */
     unique_ptr<ModelNode> buildModelSubdirs(const string& prefix, int n, int recurselevel, int filesperdir);
     ModelNode* childnodebyname(ModelNode* n, const std::string& s);
     ModelNode* findnode(string path, ModelNode* startnode = nullptr);
@@ -404,6 +447,34 @@ struct SyncOptions
     bool isBackup = false;
     bool uploadIgnoreFile = false;
 }; // SyncOptions
+
+struct SyncStallInfoTests
+{
+    SyncStallInfo::CloudStallInfoMap cloud;
+    SyncStallInfo::LocalStallInfoMap local;
+
+    void extractFrom(SyncStallInfo& stallInfo)
+    {
+        for (auto& syncStallInfoMapPair : stallInfo.syncStallInfoMaps)
+        {
+            auto& syncStallInfoMap = syncStallInfoMapPair.second;
+            for (auto& stallEntry: syncStallInfoMap.cloud) cloud.insert(stallEntry);
+            for (auto& stallEntry: syncStallInfoMap.local) local.insert(stallEntry);
+        }
+    }
+
+    void clear()
+    {
+        cloud.clear();
+        local.clear();
+    }
+
+    bool empty() const
+    {
+        return cloud.empty() && local.empty();
+    }
+
+}; // SyncStallInfoTests
 
 class StandardSyncController
   : public SyncController
@@ -966,7 +1037,8 @@ struct StandardClient : public MegaApp
     void getpubliclink(Node* n, int del, m_time_t expiry, bool writable, bool megaHosted, promise<Error>& pb);
     void waitonsyncs(chrono::seconds d = chrono::seconds(2));
     bool conflictsDetected(list<NameConflict>& conflicts);
-    bool stallsDetected(SyncStallInfo& stalls);
+    bool stallsDetected(SyncStallInfoTests& stalls);
+    bool syncStallDetected(SyncStallInfoTests& si) const;
     bool login_reset(bool noCache = false);
     bool login_reset(const string& user, const string& pw, bool noCache = false, bool resetBaseCloudFolder = true);
     bool resetBaseFolderMulticlient(StandardClient* c2 = nullptr, StandardClient* c3 = nullptr, StandardClient* c4 = nullptr);

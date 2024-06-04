@@ -1134,17 +1134,16 @@ class SprintfTest
 
 TEST_F(SprintfTest, nulTerminateWhenBufferFull)
 {
-    const char* countToSix = "123456";
+    std::string countToSix("123456");
     // g++ detects if we don't use a variable
 
-    char buf[3] = { 'x', 'x', 'x' };
+    std::string buf(countToSix.size(), 'x');
+
     // with macro commented out
-    snprintf(buf, 3, "%s", countToSix);
+    snprintf(buf.data(), 3, "%s", countToSix.data());
     ASSERT_EQ(buf[0], '1');
     ASSERT_EQ(buf[1], '2');
     ASSERT_EQ(buf[2], '\0');
-
-    snprintf(buf, 3, "%s", countToSix);
 }
 
 TEST_F(SprintfTest, Multiple) {
