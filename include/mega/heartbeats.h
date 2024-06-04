@@ -40,6 +40,8 @@ struct Syncs;
 
 class HeartBeatBackupInfo
 {
+    bool mModified = false;
+
 public:
     HeartBeatBackupInfo();
     HeartBeatBackupInfo(HeartBeatBackupInfo&&) = delete;
@@ -55,7 +57,6 @@ public:
     virtual void setLastAction(const m_time_t &lastAction);
     virtual void setLastSyncedItem(const handle &lastItemUpdated);
 
-    bool mModified = false;
     std::atomic<bool> mSending{false};
 
 protected:
