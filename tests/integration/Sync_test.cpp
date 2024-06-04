@@ -5379,7 +5379,7 @@ vector<SyncWaitResult> waitonsyncs(std::function<bool(int64_t millisecNoActivity
                     }
                     else
                     {
-                        any_running_at_all = !mc.client.syncs.mSyncVecIsEmpty.load();
+                        any_running_at_all |= !mc.client.syncs.mSyncVecIsEmpty.load();
 
                         if (mc.client.syncs.syncBusyState)
                         {
