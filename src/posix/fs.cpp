@@ -2107,8 +2107,8 @@ static std::string deviceOf(const std::string& database,
         // Couldn't retrieve mount entry.
         if (!getmntent_r(mounts.get(),
                          &entry,
-                         &storage[0],
-                         static_cast<int>(storage.capacity())))
+                         storage.data(),
+                         static_cast<int>(storage.size())))
             break;
 
         // Where is this device mounted?
@@ -2140,7 +2140,7 @@ static std::string deviceOf(const std::string& database,
         LOG_warn << "Couldn't enumerate mount database: "
                  << database
                  << ". Error was: "
-                 << strerror(error);
+                 << std::strerror(error);
 
         return std::string();
     }
@@ -2169,7 +2169,7 @@ static std::string deviceOf(const std::string& database,
     //
     // This is necessary to correctly handle nodes managed by device-mapper.
     // Say, the user is using LUKS or LVM.
-    if (!realpath(device.c_str(), &storage[0]))
+    if (!realpath(device.c_str(), storage.data()))
     {
         // Latch error.
         auto error = errno;
@@ -2183,7 +2183,7 @@ static std::string deviceOf(const std::string& database,
     }
 
     // Truncate storage down to size.
-    storage.resize(strnlen(storage.c_str(), storage.size()));
+    storage.erase(std::find(storage.begin(), storage.end(), '\x0'));
 
     // Sanity.
     assert(!storage.empty());
