@@ -8103,7 +8103,7 @@ bool Sync::syncItem_checkDownloadCompletion(SyncRow& row, SyncRow& parentRow, Sy
 
             // Let the monitor know what we're up to.
             monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
-                SyncWaitReason::DownloadIssue, false, true,
+                SyncWaitReason::DownloadIssue, true, true,
                 {downloadPtr->h, fullPath.cloudPath},
                 {},
                 {downloadPtr->getLocalname()},
