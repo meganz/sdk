@@ -5239,7 +5239,7 @@ void StandardClient::setUploadSpeed(m_off_t uploadSpeed)
 
 void StandardClient::prepareOneFolder(NewNode* node, const std::string& name, bool canChangeVault)
 {
-    client.putnodes_prepareOneFolder(node, name.c_str(), canChangeVault);
+    prepareOneFolder(node, name.c_str(), canChangeVault);
 }
 
 void StandardClient::prepareOneFolder(NewNode* node, const char* name, bool canChangeVault)
