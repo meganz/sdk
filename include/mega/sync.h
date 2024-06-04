@@ -1326,10 +1326,10 @@ public:
     static const std::chrono::milliseconds MAX_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT;
 
     // for quick lock free reference by MegaApiImpl::syncPathState (don't slow down windows explorer)
-    std::atomic<bool> mSyncVecIsEmpty{false};
+    std::atomic<bool> mSyncVecIsEmpty{true};
 
     // directly accessed flag that makes sync-related logging a lot more detailed
-    std::atomic<bool> mDetailedSyncLogging{false};
+    std::atomic<bool> mDetailedSyncLogging{true};
 
     // total number of LocalNode objects (only updated by syncs thread)
     std::atomic<int32_t> totalLocalNodes{0};
