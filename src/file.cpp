@@ -556,6 +556,8 @@ string File::displayname()
 
 void SyncTransfer_inClient::terminated(error e)
 {
+    mError = e;
+
     File::terminated(e);
 
     if (e == API_EOVERQUOTA)
@@ -563,7 +565,9 @@ void SyncTransfer_inClient::terminated(error e)
         syncThreadSafeState->client()->syncs.disableSyncByBackupId(syncThreadSafeState->backupId(), FOREIGN_TARGET_OVERSTORAGE, false, true, nullptr);
     }
 
+    assert(!wasTerminated || reasonAlreadyKnown);
     wasTerminated = true;
+    reasonAlreadyKnown = true;
     selfKeepAlive.reset();  // deletes this object! (if abandoned by sync)
 }
 
@@ -574,7 +578,9 @@ void SyncTransfer_inClient::completed(Transfer* t, putsource_t source)
     // do not allow the base class to submit putnodes immediately
     //File::completed(t, source);
 
+    assert(!wasCompleted || reasonAlreadyKnown);
     wasCompleted = true;
+    reasonAlreadyKnown = true;
     selfKeepAlive.reset();  // deletes this object! (if abandoned by sync)
 }
 
@@ -821,15 +827,6 @@ bool SyncDownload_inClient::failed(error e, MegaClient* mc)
     // MAC validation error?
     if (e == API_EKEY)
         mc->sendevent(99433, "Undecryptable file", 0);
-
-    // TODO: this seems wrong, but is probably just carried over from the old sync logic.  Surely we should stall for this case rather than auto-delete?
-    // Blocked file?
-    if (e == API_EBLOCKED)
-    {
-        // Still exists in the cloud?
-        if (auto n = mc->nodeByHandle(h))
-            mc->movetosyncdebris(n.get(), fromInsycShare, nullptr, syncThreadSafeState->mCanChangeVault);
-    }
 
     return false;
 }

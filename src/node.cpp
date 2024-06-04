@@ -3232,7 +3232,8 @@ bool LocalNode::transferResetUnlessMatched(direction_t dir, const FileFingerprin
       || transferSP->fingerprint() != fingerprint;
 
     // todo: should we be more accurate than just fingerprint?
-    if (different || (transferSP->wasTerminated && transferSP->mError != API_EKEY))
+    if (different || (transferSP->wasTerminated && transferSP->mError != API_EKEY
+                                                && transferSP->mError != API_EBLOCKED)) // A blocked file causes transfer termination. Avoid retrying the transfer unless unmatched: the node could have been replaced remotely (new version)
     {
         if (uploadPtr && uploadPtr->putnodesStarted)
         {
