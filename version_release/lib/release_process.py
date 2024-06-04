@@ -15,8 +15,8 @@ class ReleaseProcess:
         private_host_url: str,
         private_branch: str,
         new_version: str,
-        slack_token: str,
-        slack_channel: str,
+        slack_token: str = "",
+        slack_channel: str = "",
     ):
         self._private_branch = private_branch
         self._local_repo: LocalRepository | None = None
@@ -40,32 +40,31 @@ class ReleaseProcess:
         new_branch: str,
     ):
         setup_gpg_signing(gpg_keygrip, gpg_password)
-        self._prepare_local_repo(private_remote_name, private_remote_url)
-        self._change_version_in_file(self._new_version)
-        self._push_to_new_branch(self._new_version, new_branch, private_remote_name)
-        self._merge_local_changes(self._new_version, new_branch)
+        assert self._local_repo is None
+        self._local_repo = LocalRepository(private_remote_name, private_remote_url)
+        self._get_branch_locally(private_remote_name, self._private_branch)
+        self._change_version_in_file()
+        self._push_to_new_branch(new_branch, private_remote_name)
+        self._merge_local_changes(new_branch)
 
-    def _prepare_local_repo(
+    def _get_branch_locally(
         self,
         remote_name: str,
-        remote_url: str,
+        branch: str,
     ):
-        self._local_repo = LocalRepository(remote_name, remote_url)
+        assert self._local_repo is not None
         self._local_repo.check_for_uncommitted_changes()
-        self._local_repo.switch_to_branch(self._private_branch)
+        self._local_repo.switch_to_branch(branch)
         self._local_repo.sync_current_branch(remote_name)
 
     # Edit version file
-    def _change_version_in_file(
-        self,
-        new_version: str,
-    ):
-        version = new_version.split(".")
-        assert len(version) == 3, f"Invalid requested version: {new_version}"
+    def _change_version_in_file(self):
+        version = self._new_version.split(".")
+        assert len(version) == 3, f"Invalid requested version: {self._new_version}"
 
         # read old version
         oldMajor = oldMinor = oldMicro = 0
-        assert self._local_repo is not None, "Call _prepare_local_repo() first"
+        assert self._local_repo is not None
         lines = self._local_repo.version_file.read_text().splitlines()
         for i, line in enumerate(lines):
             if result := re.search(
@@ -85,7 +84,7 @@ class ReleaseProcess:
                 lines[i] = result.group(1) + version[2] + result.group(3)
         print(
             f"Updating version: {oldMajor}.{oldMinor}.{oldMicro} -> ",
-            new_version,
+            self._new_version,
             flush=True,
         )
 
@@ -96,21 +95,20 @@ class ReleaseProcess:
         assert (major > oldMajor) or (
             major == oldMajor
             and (minor > oldMinor or (minor == oldMinor and micro > oldMicro))
-        ), f"Invalid version: {oldMajor}.{oldMinor}.{oldMicro} -> {new_version}"
+        ), f"Invalid version: {oldMajor}.{oldMinor}.{oldMicro} -> {self._new_version}"
 
         # write new version
         self._local_repo.version_file.write_text("\n".join(lines))
 
     def _push_to_new_branch(
         self,
-        new_version: str,
         new_branch: str,
         remote_name: str,
     ):
-        assert self._local_repo is not None, "Call _prepare_local_repo() first"
+        assert self._local_repo is not None
         try:
             self._local_repo.commit_changes_to_new_branch(
-                f"Update SDK version to {new_version}", new_branch
+                self._get_mr_title(), new_branch
             )
             print("v Changes committed to", new_branch, flush=True)
             self._local_repo.push_branch(remote_name, new_branch)
@@ -121,14 +119,20 @@ class ReleaseProcess:
 
         self._local_repo.clean_version_changes(new_branch, self._private_branch)
 
+    def _get_mr_title(self) -> str:
+        return f"Update version to {self._new_version}"
+
     # Merge new branch with changes in version file
     def _merge_local_changes(
         self,
-        new_version: str,
         new_branch: str,
     ):
         mr_id, mr_url = self._remote_private_repo.open_mr(
-            f"Update SDK version to {new_version}", new_branch, self._private_branch
+            self._get_mr_title(),
+            new_branch,
+            self._private_branch,
+            remove_source=True,
+            squash=True,
         )
         if mr_id == 0:
             self._remote_private_repo.delete_branch(new_branch)
@@ -190,10 +194,12 @@ class ReleaseProcess:
             flush=True,
         )
         mr_id, _ = self._remote_private_repo.open_mr(
-            f"Update SDK version to {self._new_version}",
+            self._get_mr_title(),
             self._release_branch,
             public_branch,
-            "Release",
+            remove_source=False,
+            squash=False,
+            labels="Release",
         )
         if mr_id == 0:
             self._remote_private_repo.close_mr(mr_id)
@@ -226,7 +232,9 @@ class ReleaseProcess:
         assert self._jira is not None
         tag_url = self._remote_private_repo.get_tag_url(self._rc_tag)
 
-        notes = self._jira.get_release_notes(self._rc_tag, tag_url, apps)
+        notes: str = (
+            f"\U0001F4E3 \U0001F4E3 *New SDK version  -->  `{self._rc_tag}`* (<{tag_url}|Link>)\n\n"
+        ) + self._jira.get_release_notes(apps)
         if self._slack is None:
             print("Enjoy:\n\n" + notes, flush=True)
         else:

@@ -64,7 +64,13 @@ class GitLabRepository:  # use gitlab API
         return 0
 
     def open_mr(
-        self, mr_title: str, mr_source: str, mr_target: str, labels: str | None = None
+        self,
+        mr_title: str,
+        mr_source: str,
+        mr_target: str,
+        remove_source: bool,
+        squash: bool,
+        labels: str | None = None,
     ) -> tuple[int, str]:
         mr_id = self._get_id_of_open_mr(mr_title, mr_source, mr_target)
         if mr_id > 0:
@@ -76,8 +82,8 @@ class GitLabRepository:  # use gitlab API
                 "title": mr_title,
                 "source_branch": mr_source,
                 "target_branch": mr_target,
-                "remove_source_branch": True,
-                "squash": True,
+                "remove_source_branch": remove_source,
+                "squash": squash,
                 "subscribed": True,
                 "labels": labels,
             }
