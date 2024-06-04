@@ -515,16 +515,12 @@ class SynchronizedFunction;
 template<typename R, typename... P>
 class SynchronizedFunction<R(P...)>
 {
-    using Function = std::function<R(P...)>;
-    using Lock     = std::unique_lock<std::mutex>;
-
-    Function mFunction;
+    std::function<R(P...)> mFunction;
     mutable std::mutex mLock;
 
 public:
-    SynchronizedFunction(Function function = Function())
+    SynchronizedFunction(std::function<R(P...)> function = nullptr)
       : mFunction(std::move(function))
-      , mLock()
     {
     }
 
@@ -535,10 +531,14 @@ public:
 
     R operator()(P... arguments)
     {
-        return ([this]() {
-            Lock guard(mLock);
-            return mFunction;
-        })()(arguments...);
+        std::function<R(P...)> function;
+
+        {
+            std::lock_guard guard(mLock);
+            function = mFunction;
+        }
+
+        function(arguments...);
     }
 
     SynchronizedFunction& operator=(const SynchronizedFunction& rhs)
@@ -546,8 +546,8 @@ public:
         if (this == &rhs)
             return *this;
 
-        Lock l(mLock, std::defer_lock);
-        Lock r(mLock, std::defer_lock);
+        std::unique_lock l(mLock, std::defer_lock);
+        std::unique_lock r(mLock, std::defer_lock);
 
         std::lock(l, r);
 
@@ -556,9 +556,9 @@ public:
         return *this;
     }
 
-    SynchronizedFunction& operator=(Function rhs)
+    SynchronizedFunction& operator=(std::function<R(P...)> rhs)
     {
-        Lock guard(mLock);
+        std::lock_guard guard(mLock);
 
         mFunction = std::move(rhs);
 
@@ -567,7 +567,7 @@ public:
 
     SynchronizedFunction& operator=(std::nullptr_t)
     {
-        Lock guard(mLock);
+        std::lock_guard guard(mLock);
 
         mFunction = nullptr;
 
@@ -576,7 +576,8 @@ public:
 
     bool operator==(std::nullptr_t) const
     {
-        Lock guard(mLock);
+        std::lock_guard guard(mLock);
+
         return mFunction == nullptr;
     }
 
