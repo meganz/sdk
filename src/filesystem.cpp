@@ -261,7 +261,9 @@ bool fsfp_t::equivalent(const fsfp_t& rhs) const
 {
     // Only compare legacy fingerprints if UUIDs are unavailable.
     if (mUUID.empty() || rhs.mUUID.empty())
+    {
         return mFingerprint == rhs.mFingerprint;
+    }
 
     return mUUID == rhs.mUUID;
 }
