@@ -2278,9 +2278,6 @@ static std::string uuidOf(const std::string& device)
     // Convenience.
     auto size = path.size();
 
-    // Temporary storage.
-    std::string storage(PATH_MAX, '\x0');
-
     // Try and determine which entry references device.
     for (errno = 0; ; )
     {
@@ -2301,12 +2298,15 @@ static std::string uuidOf(const std::string& device)
         path.append(1, '/');
         path.append(name);
 
+        // Temporary storage.
+        std::string storage(PATH_MAX, '\x0');
+
         // Couldn't resolve link.
-        if (!realpath(path.c_str(), &storage[0]))
+        if (!realpath(path.c_str(), storage.data()))
             continue;
 
         // Truncate storage down to size.
-        storage.resize(strnlen(storage.c_str(), storage.size()));
+        storage.erase(std::find(storage.begin(), storage.end(), '\x0'));
 
         // Sanity.
         assert(!storage.empty());
@@ -2314,9 +2314,6 @@ static std::string uuidOf(const std::string& device)
         // Resolved path matches our device.
         if (device == storage)
             return name;
-
-        // Restore storage's size.
-        storage.resize(storage.capacity());
     }
 
     // Couldn't determine device's UUID.
