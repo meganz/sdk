@@ -13091,7 +13091,7 @@ TEST_F(FilterFailureFixture, TriggersStall)
     Model model;
 
     // Set up the local filesystem.
-    model.addfile(".megaignore", "exclude-larger:4\nexclude-smaller:8\n+sync:.megaignore");
+    model.addfile(".megaignore", "exclude-larger:4\nexclude-smaller:4\n+sync:.megaignore");
     model.generate(root(*cu) / "root");
 
     // Log in the client.
