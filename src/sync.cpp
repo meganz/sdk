@@ -51,18 +51,7 @@ const std::chrono::milliseconds Syncs::MAX_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICT
 #define SSYNC_verbose if (sync.syncs.mDetailedSyncLogging) SYNC_verbose_NO_ANXIOUS
 #define SYNCS_verbose SYNC_verbose_NO_ANXIOUS
 
-
-#define SYNC_verbose_NO_ANXIOUS if (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count() % 5 == 0) LOG_verbose
-
-/*
-#define SYNC_verbose_NO_ANXIOUS \
-    do { \
-        auto now = std::chrono::system_clock::now(); \
-        if (std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count() % 5 == 0) { \
-            LOG_verbose; \
-        } \
-    } while (0)
-*/
+#define SYNC_verbose_NO_ANXIOUS LOG_verbose_timed(std::chrono::seconds(5), std::chrono::seconds(1))
 
 bool PerSyncStats::operator==(const PerSyncStats& other)
 {
