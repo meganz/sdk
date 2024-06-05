@@ -3656,6 +3656,7 @@ bool CommandGetUA::procresult(Result r, JSON& json)
 CommandDelUA::CommandDelUA(MegaClient *client, const char *an)
 {
     this->an = an;
+    mSeqtagArray = true;
 
     cmd("upr");
     arg("ua", an);
