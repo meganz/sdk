@@ -5383,7 +5383,7 @@ vector<SyncWaitResult> waitonsyncs(std::function<bool(int64_t millisecNoActivity
                     }
                     else
                     {
-                        any_running_at_all |= !mc.client.syncs.mSyncVecIsEmpty.load();
+                        any_running_at_all |= mc.client.syncs.mNumSyncsActive > 0;
 
                         if (mc.client.syncs.syncBusyState)
                         {
@@ -11594,7 +11594,7 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
 
             // get the single sync
             SyncConfig config;
-            ASSERT_TRUE(cb.client.syncs.syncConfigByBackupId(id, config)) << "BackupId: " << id << ". SyncVec is empty: " << cb.client.syncs.mSyncVecIsEmpty;
+            ASSERT_TRUE(cb.client.syncs.syncConfigByBackupId(id, config)) << "BackupId: " << id << ". SyncVec is empty: " << (cb.client.syncs.mNumSyncsActive > 0);
 
             // Make sure the sync's in mirroring mode.
             ASSERT_EQ(config.mBackupId, id);

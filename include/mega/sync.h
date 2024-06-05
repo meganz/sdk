@@ -1325,8 +1325,8 @@ public:
     static const std::chrono::milliseconds MIN_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT;
     static const std::chrono::milliseconds MAX_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT;
 
-    // for quick lock free reference by MegaApiImpl::syncPathState (don't slow down windows explorer)
-    std::atomic<bool> mSyncVecIsEmpty{true};
+    // Lock-free count of syncs currently active.
+    std::atomic<unsigned> mNumSyncsActive{0u};
 
     // directly accessed flag that makes sync-related logging a lot more detailed
     std::atomic<bool> mDetailedSyncLogging{true};
