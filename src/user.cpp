@@ -282,7 +282,9 @@ User* User::unserialize(MegaClient* client, string* d)
                 return NULL;
             }
 
-            if (!u->isattrvalid(key))
+            // check it's not loaded by `ug` for own user, and that the
+            // attribute still exists (has not been removed)
+            if (!u->isattrvalid(key) && !u->nonExistingAttribute(key))
             {
                 u->attrs[key].assign(ptr, valueSize);
             }
@@ -300,7 +302,9 @@ User* User::unserialize(MegaClient* client, string* d)
                     return NULL;
                 }
 
-                if (!u->isattrvalid(key))
+                // check it's not loaded by `ug` for own user, and that the
+                // attribute still exists (has not been removed)
+                if (!u->isattrvalid(key) && !u->nonExistingAttribute(key))
                 {
                     u->attrsv[key].assign(ptr,ll);
                 }
@@ -415,7 +419,7 @@ void User::invalidateattr(attr_t at)
     attrsv.erase(at);
 }
 
-void User::removeattr(attr_t at, const string *version)
+void User::removeattr(attr_t at, bool ownUser, const string* version)
 {
     if (isattrvalid(at))
     {
@@ -429,7 +433,10 @@ void User::removeattr(attr_t at, const string *version)
     }
     else
     {
-        attrsv.erase(at);
+        if (ownUser)
+            attrsv[at] = NON_EXISTING; // it allows to avoid fetch from servers
+        else
+            attrsv.erase(at);
     }
 }
 
@@ -457,13 +464,6 @@ bool User::nonExistingAttribute(attr_t at) const
     return false;
 }
 
-void User::setNonExistingAttribute(attr_t at)
-{
-    // Set special value (-9) at attrsv map to indicate that attribute doesn't exist
-    assert(attrs.find(at) == attrs.end());
-    attrsv[at] = NON_EXISTING;
-}
-
 // returns the value if there is value (even if it's invalid by now)
 const string * User::getattr(attr_t at)
 {
@@ -478,7 +478,7 @@ const string * User::getattr(attr_t at)
 
 bool User::isattrvalid(attr_t at)
 {
-    return attrs.count(at) && attrsv.count(at);
+    return attrs.count(at) && attrsv.count(at) && attrsv.find(at)->second != NON_EXISTING;
 }
 
 string User::attr2string(attr_t type)
