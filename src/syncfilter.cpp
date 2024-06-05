@@ -727,9 +727,11 @@ SizeFilter::SizeFilter()
 
 bool SizeFilter::match(const std::uint64_t s) const
 {
-    assert(lower < upper);
+    assert(lower != upper);
 
-    return s >= lower && s <= upper;
+    return (lower < upper) ?
+            (s >= lower && s <= upper) : // smaller than / greater than (valid sizes must be between lower and upper)
+            (s < upper || s > lower); // in-range exclusion (valid sizes must be outside lower and upper)
 }
 
 string SizeFilter::debugDescription() const
@@ -1040,8 +1042,13 @@ bool add(const string& text, SizeFilterPtr& filter)
     }
 
     // Make sure the thresholds the user has set are sane.
-    if (filter->lower >= filter->upper)
+    if (filter->lower == filter->upper)
         return invalidThresholdsError(*filter);
+
+    if (filter->lower > filter->upper)
+    {
+        LOG_debug << "[SizeFilter] Exclusion filter added: excluding files between " << filter->upper << " bytes and " << filter->lower << " bytes";
+    }
 
     return true;
 }
@@ -1254,7 +1261,7 @@ bool invalidThresholdsError(const SizeFilter& filter)
     LOG_verbose << "Invalid size thresholds: "
                 << "Lower bound ("
                 << filter.lower
-                << ") is greater than or equal to upper bound ("
+                << ") is equal to upper bound ("
                 << filter.upper
                 << ")";
 
