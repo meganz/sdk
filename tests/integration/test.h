@@ -596,7 +596,7 @@ struct StandardClient : public MegaApp
 
     string client_dbaccess_path;
     std::unique_ptr<HttpIO> httpio;
-    std::recursive_mutex clientMutex;
+    mutable std::recursive_mutex clientMutex;
     MegaClient client;
     std::atomic<bool> clientthreadexit{false};
     bool fatalerror = false;
@@ -1139,7 +1139,9 @@ struct StandardClient : public MegaApp
     void match(handle id, const Model::ModelNode* source, PromiseBoolSP result);
     bool match(NodeHandle handle, const Model::ModelNode* source);
     void match(NodeHandle handle, const Model::ModelNode* source, PromiseBoolSP result);
-    bool waitFor(std::function<bool(StandardClient&)> predicate, const std::chrono::seconds &timeout, const std::chrono::milliseconds &sleepIncrement);
+    bool waitFor(std::function<bool(StandardClient&)> predicate,
+                 std::chrono::seconds timeout,
+                 std::chrono::milliseconds sleepIncrement = std::chrono::milliseconds(500));
     bool match(const Node& destination, const Model::ModelNode& source) const;
     bool makeremotenodes(const string& prefix, int depth, int fanout);
     bool backupOpenDrive(const fs::path& drivePath);
@@ -1207,6 +1209,10 @@ struct StandardClient : public MegaApp
 
     void prepareOneFolder(NewNode* node, const std::string& name, bool canChangeVault);
     void prepareOneFolder(NewNode* node, const char* name, bool canChangeVault);
+
+    bool requestsCompleted() const;
+
+    bool transfersCompleted(direction_t type) const;
 };
 
 struct ScopedSyncPauser

@@ -4285,6 +4285,20 @@ bool StandardClient::resetBaseFolderMulticlient(StandardClient* c2, StandardClie
     return true;
 }
 
+std::function<bool(StandardClient&)> RequestsCompleted()
+{
+    return [](StandardClient& client) {
+        return client.requestsCompleted();
+    };
+}
+
+std::function<bool(StandardClient&)> TransfersCompleted(direction_t type)
+{
+    return [type](StandardClient& client) {
+        return client.transfersCompleted(type);
+    };
+}
+
 void StandardClient::cleanupForTestReuse(int loginIndex)
 {
     // remove .megaignore.default in case other tests left one lying around
@@ -4418,29 +4432,14 @@ void StandardClient::cleanupForTestReuse(int loginIndex)
         out() << "transfer removal failed";
     }
 
-    // Checks if all transfers of a particular type have completed.
-    auto transfersCompleted = [&](direction_t type) {
-        // Acquire client mutex.
-        std::lock_guard<std::recursive_mutex> guard(clientMutex);
-
-        // Check if transfers have completed.
-        return client.multi_transfers[type].empty();
-    }; // transfersCompleted
-
-    // Wait for all transfers of a particular type to complete.
-    auto waitForTransfersToComplete = [&](direction_t type, int timeoutMs) {
-        while (!transfersCompleted(type) && timeoutMs--)
-            WaitMillisec(1);
-    }; // waitForTransfersToComplete
-
     // wait for completion of ongoing transfers, up to 30s
-    waitForTransfersToComplete(GET, 30000);
-    waitForTransfersToComplete(PUT, 30000);
+    waitFor(TransfersCompleted(GET), std::chrono::seconds(30));
+    waitFor(TransfersCompleted(PUT), std::chrono::seconds(30));
 
     LOG_debug << clientname << "transfers cleaned";
 
     // wait further for reqs to finish if any are queued, up to 30s
-    waitForTransfersToComplete(PUT, 30000);
+    waitFor(TransfersCompleted(PUT), std::chrono::seconds(30));
 
     // check transfers were canceled successfully
     if (transfersCompleted(GET) && transfersCompleted(PUT))
@@ -4454,26 +4453,11 @@ void StandardClient::cleanupForTestReuse(int loginIndex)
                    << " get: " << client.multi_transfers[GET].size();
     }
 
-    // Check if any requests are inflight or queued.
-    auto requestsCompleted = [&]() {
-        // Acquire client mutex.
-        std::lock_guard<std::recursive_mutex> guard(clientMutex);
-
-        // Check if any requests are inflight or queued.
-        return !(client.reqs.cmdsInflight() || client.reqs.readyToSend());
-    }; // requestsCompleted
-
-    // Wait for all requests to be completed.
-    auto waitForRequestsToComplete = [&](int timeoutMs) {
-        while (!requestsCompleted() && timeoutMs--)
-            WaitMillisec(1);
-    }; // waitForRequestsToComplete
-
     // wait for cmds in flight and queued, up to 120s
     if (!requestsCompleted())
     {
         LOG_debug << clientname << "waiting for requests to finish";
-        waitForRequestsToComplete(120000);
+        waitFor(RequestsCompleted(), std::chrono::seconds(120));
     }
 
     // check any pending command was completed
@@ -4651,7 +4635,9 @@ void StandardClient::match(NodeHandle handle, const Model::ModelNode* source, Pr
     result->set_value(node && match(*node, *source));
 }
 
-bool StandardClient::waitFor(std::function<bool(StandardClient&)> predicate, const std::chrono::seconds &timeout, const std::chrono::milliseconds &sleepIncrement = std::chrono::milliseconds(500))
+bool StandardClient::waitFor(std::function<bool(StandardClient&)> predicate,
+                             std::chrono::seconds timeout,
+                             std::chrono::milliseconds sleepIncrement)
 {
     auto total = std::chrono::milliseconds(0);
 
@@ -5246,6 +5232,24 @@ void StandardClient::prepareOneFolder(NewNode* node, const char* name, bool canC
 {
     std::lock_guard<std::recursive_mutex> guard(clientMutex);
     client.putnodes_prepareOneFolder(node, name, canChangeVault);
+}
+
+bool StandardClient::requestsCompleted() const
+{
+    // Acquire client mutex.
+    std::lock_guard guard(clientMutex);
+
+    // Check if any requests are inflight or queued.
+    return !(client.reqs.cmdsInflight() || client.reqs.readyToSend());
+}
+
+bool StandardClient::transfersCompleted(direction_t type) const
+{
+    // Acquire client mutex.
+    std::lock_guard guard(clientMutex);
+
+    // Check if transfers have completed.
+    return client.multi_transfers[type].empty();
 }
 
 using SyncWaitPredicate = std::function<bool(StandardClient&)>;
