@@ -19378,6 +19378,12 @@ TEST_F(SdkTest, SdkTestVPN)
         ASSERT_NO_FATAL_FAILURE(fetchnodes(1));
         ASSERT_TRUE(WaitFor([&fetchnodesDone]() { return fetchnodesDone; }, 60 * 1000))
             << "VPN client: fetchnodesDone not received";
+
+        // test resume-session while at it
+        unique_ptr<char[]> session(dumpSession(1));
+        ASSERT_NO_FATAL_FAILURE(locallogout(1));
+        ASSERT_NO_FATAL_FAILURE(resumeSession(session.get(), 1));
+        ASSERT_NO_FATAL_FAILURE(fetchnodes(1));
     }
 
     // update First Name in default client
