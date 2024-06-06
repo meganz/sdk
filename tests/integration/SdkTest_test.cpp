@@ -9212,16 +9212,16 @@ TEST_F(SdkTest, SdkBackupMoveOrDelete)
 
 TEST_F(SdkTest, SdkBackupPauseResume)
 {
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     LOG_info << "___TEST BackupPauseResume___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
-    string timestamp = getCurrentTimestamp(true);
+    const string timestamp = getCurrentTimestamp(true);
 
     // Set device name if missing
     string deviceName;
     if (doGetDeviceName(0, &deviceName, nullptr) != API_OK || deviceName.empty())
     {
-        string newDeviceName = "Jenkins " + timestamp;
+        const string newDeviceName = "Jenkins " + timestamp;
         ASSERT_EQ(doSetDeviceName(0, nullptr, newDeviceName.c_str()), API_OK)
             << "Setting device name failed";
         // make sure Device Name attr was set
@@ -9229,7 +9229,7 @@ TEST_F(SdkTest, SdkBackupPauseResume)
         ASSERT_EQ(deviceName, newDeviceName) << "Getting device name failed (wrong value)";
     }
     // Make sure My Backups folder was created
-    syncTestMyBackupsRemoteFolder(0);
+    ASSERT_NO_FATAL_FAILURE(syncTestMyBackupsRemoteFolder(0));
 
     // Create local contents
     vector<fs::path> folders = {fs::current_path() / "LocalFolderPauseResume",
@@ -9242,8 +9242,8 @@ TEST_F(SdkTest, SdkBackupPauseResume)
         fs::create_directories(localFolder);
         ASSERT_TRUE(createLocalFile(localFolder, "bkpFile"));
     }
-    string localBackupFolder = folders[0].u8string();
-    string localSyncFolder = folders[1].u8string();
+    const string localBackupFolder = folders[0].u8string();
+    const string localSyncFolder = folders[1].u8string();
 
     // Create a backup, and get its id
     const string backupNameStr = string("RemoteBackupFolder_") + timestamp;

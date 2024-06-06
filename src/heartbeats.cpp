@@ -79,10 +79,11 @@ void HeartBeatSyncInfo::updateSPHBStatus(UnifiedSync& us)
 {
     SPHBStatus status = CommandBackupPutHeartBeat::INACTIVE;
 
-    if (us.mSync &&
-        us.mConfig.mRunState != SyncRunState::Pause)
+    if (us.mSync)
     {
-        if (!us.mConfig.mError)
+        if (!us.mConfig.mError &&
+            // "INACTIVE" status is already accurate for "pause" run state, keep it
+            us.mConfig.mRunState != SyncRunState::Pause)
         {
             if (us.syncs.isSyncStalled(us.mConfig.mBackupId) ||
                 us.mSync->localroot->conflicts != TREE_RESOLVED)
