@@ -1244,9 +1244,9 @@ void SdkTest::logout(unsigned int apiIndex, bool keepSyncConfigs, int timeout)
     EXPECT_EQ(API_OK, mApi[apiIndex].lastError) << "Logout failed (error: " << mApi[apiIndex].lastError << ")";
 }
 
-char* SdkTest::dumpSession()
+char* SdkTest::dumpSession(unsigned apiIndex)
 {
-    return megaApi[0]->dumpSession();
+    return megaApi[apiIndex]->dumpSession();
 }
 
 void SdkTest::locallogout(unsigned apiIndex)
@@ -1255,9 +1255,8 @@ void SdkTest::locallogout(unsigned apiIndex)
     ASSERT_EQ(API_OK, logoutErr) << "Local logout failed (error: " << logoutErr << ")";
 }
 
-void SdkTest::resumeSession(const char *session, int timeout)
+void SdkTest::resumeSession(const char *session, unsigned apiIndex)
 {
-    int apiIndex = 0;
     ASSERT_EQ(API_OK, synchronousFastLogin(apiIndex, session, this)) << "Resume session failed (error: " << mApi[apiIndex].lastError << ")";
 }
 
