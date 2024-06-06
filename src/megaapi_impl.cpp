@@ -15932,8 +15932,15 @@ void MegaApiImpl::getua_completion(TLVstore *tlv, attr_t type, MegaRequestPrivat
 }
 
 #ifdef DEBUG
-void MegaApiImpl::delua_result(error)
+void MegaApiImpl::delua_result(error e)
 {
+    if (requestMap.find(client->restag) == requestMap.end())
+        return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if (!request || (request->getType() != MegaRequest::TYPE_DEL_ATTR_USER))
+        return;
+
+    fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::senddevcommand_result(int value)
@@ -27410,6 +27417,31 @@ MegaFlagPrivate* MegaApiImpl::getFlag(const char* flagName, bool commit, MegaReq
     }
 
     return new MegaFlagPrivate(flag.first, flag.second);
+}
+
+void MegaApiImpl::deleteUserAttribute(int type, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_DEL_ATTR_USER, listener);
+    request->setParamType(type);
+
+    request->performRequest = [this, request]()
+    {
+#ifdef DEBUG
+        attr_t type = static_cast<attr_t>(request->getParamType());
+        string attributeName = MegaApiImpl::userAttributeToString(type);
+        if (attributeName.empty())
+        {
+            return API_EARGS;
+        }
+        client->delua(attributeName.c_str());
+        return API_OK;
+#else
+        return API_EACCESS;
+#endif
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 /* END MEGAAPIIMPL */

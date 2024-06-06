@@ -4569,7 +4569,8 @@ class MegaRequest
             TYPE_ENABLE_MOUNT                                               = 189,
             TYPE_REMOVE_MOUNT                                               = 190,
             TYPE_SET_MOUNT_FLAGS                                            = 191,
-            TOTAL_OF_REQUEST_TYPES                                          = 192,
+            TYPE_DEL_ATTR_USER = 192,
+            TOTAL_OF_REQUEST_TYPES = 193,
         };
 
         virtual ~MegaRequest();
@@ -23229,7 +23230,73 @@ class MegaApi
          */
         MegaFlag* getFlag(const char* flagName, bool commit = true, MegaRequestListener* listener = nullptr);
 
- protected:
+        /**
+         * @brief Delete a user attribute of the current user, for testing
+         *
+         * The associated request type with this request is MegaRequest::TYPE_DEL_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type
+         *
+         * @param type Attribute type
+         *
+         * Valid values are:
+         *
+         * MegaApi::USER_ATTR_FIRSTNAME = 1
+         * Get the firstname of the user (public)
+         * MegaApi::USER_ATTR_LASTNAME = 2
+         * Get the lastname of the user (public)
+         * MegaApi::USER_ATTR_AUTHRING = 3
+         * Get the authentication ring of the user (private)
+         * MegaApi::USER_ATTR_LAST_INTERACTION = 4
+         * Get the last interaction of the contacts of the user (private)
+         * MegaApi::USER_ATTR_ED25519_PUBLIC_KEY = 5
+         * Get the public key Ed25519 of the user (public)
+         * MegaApi::USER_ATTR_CU25519_PUBLIC_KEY = 6
+         * Get the public key Cu25519 of the user (public)
+         * MegaApi::USER_ATTR_KEYRING = 7
+         * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+         * MegaApi::USER_ATTR_SIG_RSA_PUBLIC_KEY = 8
+         * Get the signature of RSA public key of the user (public)
+         * MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY = 9
+         * Get the signature of Cu25519 public key of the user (public)
+         * MegaApi::USER_ATTR_LANGUAGE = 14
+         * Get the preferred language of the user (private, non-encrypted)
+         * MegaApi::USER_ATTR_PWD_REMINDER = 15
+         * Get the password-reminder-dialog information (private, non-encrypted)
+         * MegaApi::USER_ATTR_DISABLE_VERSIONS = 16
+         * Get whether user has versions disabled or enabled (private, non-encrypted)
+         * MegaApi::USER_ATTR_RICH_PREVIEWS = 18
+         * Get whether user generates rich-link messages or not (private)
+         * MegaApi::USER_ATTR_RUBBISH_TIME = 19
+         * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+         * MegaApi::USER_ATTR_STORAGE_STATE = 21
+         * Get the state of the storage (private non-encrypted)
+         * MegaApi::USER_ATTR_GEOLOCATION = 22
+         * Get the user geolocation (private)
+         * MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER = 23
+         * Get the target folder for Camera Uploads (private)
+         * MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER = 24
+         * Get the target folder for My chat files (private)
+         * MegaApi::USER_ATTR_PUSH_SETTINGS = 25
+         * Get whether user has push settings enabled (private)
+         * MegaApi::USER_ATTR_ALIAS = 27
+         * Get the list of the users's aliases (private)
+         * MegaApi::USER_ATTR_DEVICE_NAMES = 30
+         * Get the list of device or external drive names (private)
+         * MegaApi::USER_ATTR_MY_BACKUPS_FOLDER = 31
+         * Get the target folder for My Backups (private)
+         * MegaApi::USER_ATTR_COOKIE_SETTINGS = 33
+         * Get whether user has Cookie Settings enabled
+         * MegaApi::USER_ATTR_JSON_SYNC_CONFIG_DATA = 34
+         * Get name and key to cypher sync-configs file
+         * MegaApi::USER_ATTR_NO_CALLKIT = 36
+         * Get whether user has iOS CallKit disabled or enabled (private, non-encrypted)
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void deleteUserAttribute(int type, MegaRequestListener* listener = NULL);
+
+    protected:
         MegaApiImpl *pImpl = nullptr;
         friend class MegaApiImpl;
 };
@@ -25392,6 +25459,7 @@ public:
      * True if the mount should be read only.
      */
     virtual void setReadOnly(bool readOnly) = 0;
+
 }; // MegaMountFlags
 
 class MegaMountList

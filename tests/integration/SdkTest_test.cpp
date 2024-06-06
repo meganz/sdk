@@ -19434,6 +19434,35 @@ TEST_F(SdkTest, SdkTestVPN)
         ASSERT_THAT(getNameTracker.request->getText(), ::testing::NotNull());
         ASSERT_EQ(origName, getNameTracker.request->getText());
     }
+
+/**
+ * @brief Test checks deleting user attributes
+ * Steps:
+ *  - Set firstname attribute to make sure it exists
+ *  - Delete firstname attribute
+ *  - Get firstname attribute to check it does not exist anymore
+ *  - Try to delete firstname attribute to get ENOENT response
+ */
+TEST_F(SdkTest, SdkDeleteUserAttribute)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    string firstname = "testingName";
+    ASSERT_EQ(API_OK,
+              synchronousSetUserAttribute(0, MegaApi::USER_ATTR_FIRSTNAME, firstname.c_str()));
+
+    RequestTracker deleteAttributeTracker(megaApi[0].get());
+    megaApi[0]->deleteUserAttribute(MegaApi::USER_ATTR_FIRSTNAME, &deleteAttributeTracker);
+    ASSERT_EQ(API_OK, deleteAttributeTracker.waitForResult());
+
+    ASSERT_EQ(API_ENOENT, synchronousGetUserAttribute(0, MegaApi::USER_ATTR_FIRSTNAME));
+
+    RequestTracker secondDeleteAttributeTracker(megaApi[0].get());
+    megaApi[0]->deleteUserAttribute(MegaApi::USER_ATTR_FIRSTNAME, &secondDeleteAttributeTracker);
+    ASSERT_EQ(API_ENOENT, secondDeleteAttributeTracker.waitForResult());
+
+    ASSERT_EQ(API_OK,
+              synchronousSetUserAttribute(0, MegaApi::USER_ATTR_FIRSTNAME, firstname.c_str()));
 }
 
 TEST_F(SdkTest, GetFeaturePlans)
