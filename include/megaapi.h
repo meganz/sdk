@@ -9577,17 +9577,22 @@ public:
     virtual void bySensitivity(bool excludeSensitive);
 
     /**
-     * @brief Set option for filtering out sensitive nodes.
-     * If not set, it will behave as if BOOL_FILTER_DISABLED was used.
+     * @brief Sets the filter option for excluding sensitive nodes.
+     * If not set, it defaults to BOOL_FILTER_DISABLED.
      *
-     * @param boolFilterOption Kind of tri-state variable to filter to apply.
-     * Valid values for this parameter are (invalid values will be ignored):
-     * - MegaSearchFilter::BOOL_FILTER_DISABLED = 0 --> All nodes are taken in consideration, none
-     * filter is applied
-     * - MegaSearchFilter::BOOL_FILTER_ONLY_TRUE = 1 --> Returns nodes no marked as sensitive (nodes
-     * with property set or if any of their ancestors have it are considered sensitive)
-     * - MegaSearchFilter::BOOL_FILTER_ONLY_FALSE = 2 --> Retruns nodes with property set to true
-     * (regardless of their children)
+     * @note Due to compatibility reasons and the nature of the sensitive attribute, the behavior of
+     * this filter may appear counter-intuitive, especially compared to byFavourite. Summary:
+     *     - Use BOOL_FILTER_ONLY_FALSE to get only nodes marked as sensitive.
+     *     - The union of results using BOOL_FILTER_ONLY_TRUE and BOOL_FILTER_ONLY_FALSE
+     *       differs from the results using BOOL_FILTER_DISABLED.
+     *
+     * @param boolFilterOption A tri-state variable determining the filter to apply.
+     * Valid values are (invalid values will be ignored):
+     * - MegaSearchFilter::BOOL_FILTER_DISABLED = 0 --> Considers all nodes.
+     * - MegaSearchFilter::BOOL_FILTER_ONLY_TRUE = 1 --> Returns only nodes not marked as sensitive
+     *   and without any parent directory marked as sensitive.
+     * - MegaSearchFilter::BOOL_FILTER_ONLY_FALSE = 2 --> Returns only nodes marked as sensitive,
+     *   i.e. node->isMarkedSensitive() == true.
      */
     virtual void bySensitivity(int boolFilterOption);
 
