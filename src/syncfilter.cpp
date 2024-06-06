@@ -725,13 +725,21 @@ SizeFilter::SizeFilter()
 {
 }
 
+// check if size is valid (included)
 bool SizeFilter::match(const std::uint64_t s) const
 {
     assert(lower != upper);
 
-    return (lower < upper) ?
-            (s >= lower && s <= upper) : // smaller than / greater than (valid sizes must be between lower and upper)
-            (s < upper || s > lower); // in-range exclusion (valid sizes must be outside lower and upper)
+    if (lower > upper)
+    {
+        // in-range exclusion: [upper, lower]
+        // valid sizes must be outside lower and upper
+        return s < upper || s > lower;
+    }
+
+    // smaller than and/or greater than exclusion: [0, lower), (upper, max]
+    // valid sizes must be between lower and upper
+    return s >= lower && s <= upper;
 }
 
 string SizeFilter::debugDescription() const
