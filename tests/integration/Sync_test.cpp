@@ -14665,7 +14665,8 @@ TEST_F(CloudToLocalFilterFixture, DoesntDownloadIgnoredNodes)
         remoteTree.addfile("du/.megaignore", "exclude-larger:16");
         remoteTree.addfile("du/fe", randomData(17));
         remoteTree.addfile("du/fi", randomData(16));
-        remoteTree.addfile("dr/.megaignore", "exclude-smaller:16\nexclude-larger:8"); // exclude in-range [8-16]
+        remoteTree.addfile("dr/.megaignore",
+                           "exclude-smaller:16\nexclude-larger:8"); // exclude in-range [8-16]
         remoteTree.addfile("dr/fe0", randomData(8));
         remoteTree.addfile("dr/fe1", randomData(16));
         remoteTree.addfile("dr/fe2", randomData(9));
