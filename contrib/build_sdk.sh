@@ -834,9 +834,11 @@ freeimage_pkg() {
     sed -i -e '141d' $freeimage_dir_extract/FreeImage/Source/Plugin.h
     sed -i -e '274d' $freeimage_dir_extract/FreeImage/Source/FreeImage/Plugin.cpp
 
-    sed -i "s#CFLAGS ?=#CFLAGS +=#g" $freeimage_dir_extract/FreeImage/Makefile.gnu
+    sed -i "s#CFLAGS ?=#CFLAGS += -DZ_HAVE_UNISTD_H#g" $freeimage_dir_extract/FreeImage/Makefile.gnu
     #patch to fix problem with newest compilers
     sed -i "s#CXXFLAGS ?=#CXXFLAGS += -std=c++98#g" $freeimage_dir_extract/FreeImage/Makefile.gnu
+    # From: https://github.com/macports/macports-ports/pull/9394/files
+    patch --binary -d $freeimage_dir_extract/FreeImage -p0 < $cwd/contrib/FreeImageC99.diff
 
     #freeimage uses some macros with a dollarsign in the name, and also has some constants that don't fit in a long
     #as gcc building for 32 bit linux has long as 32 bit.  Also some files have the utf-8 BOM which old gcc doesn't like
