@@ -19367,7 +19367,7 @@ TEST_F(SdkTest, SdkTestVPN)
     mApi.resize(2);
     megaApi.resize(2);
     const auto [email, pass] = getEnvVarAccounts().getVarValues(0);
-    configureTestInstance(1, email, pass, true, MegaApi::CLIENT_TYPE_VPN);
+    ASSERT_NO_FATAL_FAILURE(configureTestInstance(1, email, pass, true, MegaApi::CLIENT_TYPE_VPN));
 
     // Login VPN client
     {
