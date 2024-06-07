@@ -1052,8 +1052,8 @@ void SdkTest::onUserAlertsUpdate(MegaApi* api, MegaUserAlertList* alerts)
     int apiIndex = getApiIndex(api);
     if (apiIndex < 0) return;
 
-    mApi[apiIndex].userAlertsUpdated = true;
     mApi[apiIndex].userAlertList.reset(alerts ? alerts->copy() : nullptr);
+    mApi[apiIndex].userAlertsUpdated = true;
 }
 
 #ifdef ENABLE_CHAT
