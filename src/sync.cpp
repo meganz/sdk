@@ -10057,8 +10057,11 @@ bool Sync::resolve_cloudNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& ful
                 if (cloudNode.name.empty())
                 {
                     // Unnamed/undecryptable node, we know it cannot be considered a move target (for our local sync, so we need to discard the moving nodes and move the files to local debris)
-                    assert ((cloudPath.length() >= NO_KEY_SUFFIX.length() &&
-        -                !cloudPath.compare(cloudPath.length() - NO_KEY_SUFFIX.length(), NO_KEY_SUFFIX.length(), NO_KEY_SUFFIX)) && "Cloud node name empty, but the path does not contain NO_KEY word");
+                    assert((cloudPath.length() >= NO_KEY_SUFFIX.length() &&
+                            !cloudPath.compare(cloudPath.length() - NO_KEY_SUFFIX.length(),
+                                               NO_KEY_SUFFIX.length(),
+                                               NO_KEY_SUFFIX)) &&
+                           "Cloud node name empty, but the path does not contain NO_KEY word");
                     SYNC_verbose << syncname
                                 << "[cloudNodeGone] Cloud Node is a NO_NAME/NO_KEY (undecryptable node) or a child of a NO_NAME/NO_KEY, it cannot be a move target!!!! "
                                 << logTriplet(row, fullPath);
@@ -10086,8 +10089,13 @@ bool Sync::resolve_cloudNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& ful
         else
         {
             // Just in case the NO_KEY word changes
-            LOG_warn << "[cloudNodeGone] There is no NO_KEY word present in the cloudPath, but the cloudNode name is empty!";
-            assert(!cloudNode.name.empty());
+            if (cloudNode.name.empty())
+            {
+                LOG_warn << "[cloudNodeGone] There isn't a NO_KEY word present in the cloudPath, "
+                            "but the cloudNode name is empty!";
+                assert(false && "There isn't a NO_KEY word present in the cloudPath, but the "
+                                "cloudNode name is empty!");
+            }
         }
 
         // Trim the rare fields.
