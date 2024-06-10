@@ -10222,7 +10222,7 @@ error MegaClient::readmiscflags(JSON *json)
                 int64_t value = json->getint();
                 if (value >= 0)
                 {
-                    mABTestFlags[tag] = static_cast<uint32_t>(value);
+                    mABTestFlags.set(tag, static_cast<uint32_t>(value));
                 }
                 else
                 {
@@ -10236,7 +10236,7 @@ error MegaClient::readmiscflags(JSON *json)
                 int64_t value = json->getint();
                 if (value >= 0)
                 {
-                    mFeatureFlags[tag] = static_cast<uint32_t>(value);
+                    mFeatureFlags.set(tag, static_cast<uint32_t>(value));
                 }
                 else
                 {
@@ -20493,7 +20493,7 @@ void MegaClient::getNotifications(CommandGetNotifications::ResultFunc onResult)
     reqs.add(new CommandGetNotifications(this, onResult));
 }
 
-std::pair<uint32_t, uint32_t> MegaClient::getFlag(const char* flagName, bool commit)
+std::pair<uint32_t, uint32_t> MegaClient::getFlag(const char* flagName)
 {
     enum : uint32_t // 1:1 with enum values from public interface
     {
@@ -20507,16 +20507,16 @@ std::pair<uint32_t, uint32_t> MegaClient::getFlag(const char* flagName, bool com
         return {FLAG_TYPE_INVALID, 0};
     }
 
-    auto ab = mABTestFlags.find(flagName);
-    if (ab != mABTestFlags.end())
+    unsigned flagValue = mABTestFlags.get(flagName, 0);
+    if (flagValue)
     {
-        return {FLAG_TYPE_AB_TEST, ab->second};
+        return {FLAG_TYPE_AB_TEST, flagValue};
     }
 
-    auto f = mFeatureFlags.find(flagName);
-    if (f != mFeatureFlags.end())
+    flagValue = mFeatureFlags.get(flagName, 0);
+    if (flagValue)
     {
-        return {FLAG_TYPE_FEATURE, f->second};
+        return {FLAG_TYPE_FEATURE, flagValue};
     }
 
     return {FLAG_TYPE_INVALID, 0};

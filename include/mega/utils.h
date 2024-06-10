@@ -26,6 +26,7 @@
 #include <condition_variable>
 #include <thread>
 #include <mutex>
+#include <shared_mutex>
 
 #include "types.h"
 #undef SSIZE_MAX
@@ -777,6 +778,37 @@ public:
         return mNotifications.size();
     }
 
+};
+
+template<class K, class V>
+class ThreadSafeKeyValue
+{
+    // This is a thread-safe key-value container restricted to accepting only numeric values.
+    // Only the needed interfaces were implemented. Add new ones as they become useful.
+public:
+    V get(const K& key, V defaultValue = static_cast<V>(0)) const
+    {
+        std::shared_lock lock(mMtx);
+        auto it = mStorrage.find(key);
+        return it == mStorrage.end() ? defaultValue : it->second;
+    }
+
+    void set(const K& key, const V& value)
+    {
+        std::unique_lock lock(mMtx);
+        mStorrage[key] = value;
+    }
+
+    void clear()
+    {
+        std::unique_lock lock(mMtx);
+        return mStorrage.clear();
+    }
+
+private:
+    mutable std::shared_mutex mMtx;
+    std::map<K, V> mStorrage;
+    static_assert(std::is_arithmetic<V>::value, "Value for this Key-Value container can only be of numeric type");
 };
 
 template<typename CharT>

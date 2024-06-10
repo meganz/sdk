@@ -3804,7 +3804,7 @@ public:
         void getLastReadNotification(MegaRequestListener* listener);
         void setLastActionedBanner(uint32_t notificationId, MegaRequestListener* listener);
         void getLastActionedBanner(MegaRequestListener* listener);
-        MegaFlagPrivate* getFlag(const char* flagName, bool commit, MegaRequestListener* listener);
+        MegaFlagPrivate* getFlag(const char* flagName, bool commit);
 
 private:
         void init(MegaApi *api, const char *appKey, std::unique_ptr<GfxProc> gfxproc, const char *basePath /*= NULL*/, const char *userAgent /*= NULL*/, unsigned clientWorkerThreadCount /*= 1*/, int clientType);
