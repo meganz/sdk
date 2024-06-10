@@ -41,13 +41,21 @@ class NodeSerialized;
 class NodeSearchFilter
 {
 public:
+    enum class BoolFilter
+    {
+        disabled = 0,
+        onlyTrue,
+        onlyFalse,
+    };
+
     template<class T>
     void copyFrom(const T& f, ShareType_t includedShares = NO_SHARES)
     {
         mNameFilter = f.byName() ? f.byName() : std::string(); // get it as const char*
         mNodeType = static_cast<nodetype_t>(f.byNodeType()); // get it as int
         mMimeCategory = static_cast<MimeType_t>(f.byCategory()); // get it as int
-        mExcludeSensitive = f.bySensitivity();
+        mExcludeSensitive = static_cast<BoolFilter>(f.bySensitivity());
+        mFavouriteFilterOption = static_cast<BoolFilter>(f.byFavourite());
         mLocationHandles = {f.byLocationHandle(), UNDEF, UNDEF};
         mIncludedShares = includedShares;
         mCreationLowerLimit = f.byCreationTimeLowerLimit();
@@ -64,7 +72,8 @@ public:
     const std::string& byName() const { return mNameFilter; }
     nodetype_t byNodeType() const { return mNodeType; }
     MimeType_t byCategory() const { return mMimeCategory; }
-    bool bySensitivity() const { return mExcludeSensitive; }
+    BoolFilter byFavourite() const { return mFavouriteFilterOption; }
+    BoolFilter bySensitivity() const { return mExcludeSensitive; }
 
     // recursive look-ups (searchNodes)
     const std::vector<handle>& byAncestorHandles() const { return mLocationHandles; }
@@ -87,7 +96,8 @@ private:
     std::string mNameFilter;
     nodetype_t mNodeType = TYPE_UNKNOWN;
     MimeType_t mMimeCategory = MIME_TYPE_UNKNOWN;
-    bool mExcludeSensitive = false;
+    BoolFilter mFavouriteFilterOption = BoolFilter::disabled;
+    BoolFilter mExcludeSensitive = BoolFilter::disabled;
     std::vector<handle> mLocationHandles {UNDEF, UNDEF, UNDEF}; // always contain 3 items
     ShareType_t mIncludedShares = NO_SHARES;
     int64_t mCreationLowerLimit = 0;

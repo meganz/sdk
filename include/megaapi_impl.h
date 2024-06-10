@@ -2629,7 +2629,7 @@ class MegaSyncStallPrivate : public MegaSyncStall
                    problem == DetectedSymlink ||
                    problem == DetectedSpecialFile ||
                    problem == FilesystemErrorListingFolder ||
-                   problem == FilesystemErrorIdentifyingFolderContent;
+                   problem == FilesystemErrorIdentifyingFolderContent; // Deprecated after SDK-3206
         }
 
         const char* reasonDebugString() const override
@@ -2805,7 +2805,9 @@ public:
     void byName(const char* searchString) override;
     void byNodeType(int nodeType) override;
     void byCategory(int mimeType) override;
+    void byFavourite(int boolFilterOption) override;
     void bySensitivity(bool excludeSensitive) override;
+    void bySensitivity(int boolFilterOption) override;
     void byLocationHandle(MegaHandle ancestorHandle) override;
     void byLocation(int locationType) override;
     void byCreationTime(int64_t lowerLimit, int64_t upperLimit) override;
@@ -2816,7 +2818,8 @@ public:
     const char* byName() const override { return mNameFilter.c_str(); }
     int byNodeType() const override { return mNodeType; }
     int byCategory() const override { return mMimeCategory; }
-    bool bySensitivity() const override { return mExcludeSensitive; }
+    int byFavourite() const override { return mFavouriteFilterOption; }
+    int bySensitivity() const override { return mExcludeSensitive; }
     MegaHandle byLocationHandle() const override { return mLocationHandle; }
     int byLocation() const override { return mLocationType; }
     int64_t byCreationTimeLowerLimit() const override { return mCreationLowerLimit; }
@@ -2830,7 +2833,8 @@ private:
     std::string mNameFilter;
     int mNodeType = MegaNode::TYPE_UNKNOWN;
     int mMimeCategory = MegaApi::FILE_TYPE_DEFAULT;
-    bool mExcludeSensitive = false;
+    int mFavouriteFilterOption = MegaSearchFilter::BOOL_FILTER_DISABLED;
+    int mExcludeSensitive = MegaSearchFilter::BOOL_FILTER_DISABLED;
     MegaHandle mLocationHandle = INVALID_HANDLE;
     int mLocationType = MegaApi::SEARCH_TARGET_ALL;
     int64_t mCreationLowerLimit = 0;
@@ -2839,6 +2843,16 @@ private:
     int64_t mModificationUpperLimit = 0;
     std::string mDescriptionFilter;
     std::string mTag;
+
+    /**
+     * @brief Checks if the input value is:
+     *  0 -> MegaSearchFilter::BOOL_FILTER_DISABLED
+     *  1 -> MegaSearchFilter::BOOL_FILTER_ONLY_TRUE
+     *  2 -> MegaSearchFilter::BOOL_FILTER_ONLY_FALSE
+     *
+     * If it is out of range, 0 is returned and a warning message is logged
+     */
+    static int validateBoolFilterOption(const int value);
 };
 
 class MegaSearchPagePrivate : public MegaSearchPage
@@ -2873,6 +2887,18 @@ public:
 
 private:
     std::unique_ptr<::mega::IGfxProvider> mProvider;
+};
+
+class MegaFlagPrivate : public MegaFlag
+{
+public:
+    MegaFlagPrivate(uint32_t type, uint32_t group) : mType(type), mGroup(group) {}
+    uint32_t getType() const override { return mType; }
+    uint32_t getGroup() const override { return mGroup; }
+
+private:
+    uint32_t mType;
+    uint32_t mGroup;
 };
 
 class MegaApiImpl : public MegaApp
@@ -3778,6 +3804,7 @@ public:
         void getLastReadNotification(MegaRequestListener* listener);
         void setLastActionedBanner(uint32_t notificationId, MegaRequestListener* listener);
         void getLastActionedBanner(MegaRequestListener* listener);
+        MegaFlagPrivate* getFlag(const char* flagName, bool commit, MegaRequestListener* listener);
 
 private:
         void init(MegaApi *api, const char *appKey, std::unique_ptr<GfxProc> gfxproc, const char *basePath /*= NULL*/, const char *userAgent /*= NULL*/, unsigned clientWorkerThreadCount /*= 1*/, int clientType);

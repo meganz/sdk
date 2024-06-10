@@ -451,10 +451,6 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
         return "Too many changes in account, local state invalid";
     case LOGGED_OUT:
         return "Session closed";
-    //case WHOLE_ACCOUNT_REFETCHED:
-    //    return "The whole account was reloaded, missed updates could not have been applied in an orderly fashion";
-    case MISSING_PARENT_NODE:
-        return "Unable to figure out some node correspondence";
     case BACKUP_MODIFIED:
         return "Backup externally modified";
     case BACKUP_SOURCE_NOT_BELOW_DRIVE:
@@ -6742,9 +6738,7 @@ bool SyncRow::isIgnoreFile() const
 
 bool SyncRow::isNoName() const
 {
-    // Can't be a no-name triplet if we've been paired.
-    if (fsNode || syncNode)
-        return false;
+    // TODO: Notify the app about the presence os NoName nodes (the stall issue has been removed after SDK-3859)
 
     // Can't be a no-name triplet if we have clashing filesystem names.
     if (!fsClashingNames.empty())
@@ -6755,7 +6749,17 @@ bool SyncRow::isNoName() const
         return cloudClashingNames.front()->name.empty();
 
     // Could be a no-name triplet if we have a cloud node.
-    return cloudNode && cloudNode->name.empty();
+    if (cloudNode && cloudNode->name.empty())
+    {
+        if (fsNode || syncNode)
+        {
+            LOG_debug << "Considering a cloudNode to be NO_NAME with either a fsNode or syncNode: "
+                    << "fsNode: " << string(fsNode ? "true" : "false")
+                    << "fsNode: " << string(syncNode ? "true" : "false");
+        }
+        return true;
+    }
+    return false;
 }
 
 void Sync::combineTripletSet(vector<SyncRow>::iterator a, vector<SyncRow>::iterator b) const
@@ -6861,28 +6865,31 @@ void Sync::combineTripletSet(vector<SyncRow>::iterator a, vector<SyncRow>::itera
         }
         if (i->cloudNode)
         {
-            if (targetrow->cloudNode &&
-                !(targetrow->syncNode &&
-                targetrow->syncNode->syncedCloudNodeHandle
-                == targetrow->cloudNode->handle))
+            if (!targetrow->cloudNode || !targetrow->cloudNode->name.empty()) // Avoid NO_NAME nodes to be considered
             {
-                LOG_debug << syncname << "Conflicting filesystem name: "
-                    << targetrow->cloudNode->name;
-                targetrow->cloudClashingNames.push_back(targetrow->cloudNode);
-                targetrow->cloudNode = nullptr;
-            }
-            if (targetrow->cloudNode ||
-                !targetrow->cloudClashingNames.empty())
-            {
-                LOG_debug << syncname << "Conflicting filesystem name: "
-                    << i->cloudNode->name;
-                targetrow->cloudClashingNames.push_back(i->cloudNode);
-                i->cloudNode = nullptr;
-            }
-            if (!targetrow->cloudNode &&
-                targetrow->cloudClashingNames.empty())
-            {
-                std::swap(targetrow->cloudNode, i->cloudNode);
+                if (targetrow->cloudNode &&
+                    !(targetrow->syncNode &&
+                    targetrow->syncNode->syncedCloudNodeHandle
+                    == targetrow->cloudNode->handle))
+                {
+                    LOG_debug << syncname << "Conflicting cloud name: "
+                        << targetrow->cloudNode->name;
+                    targetrow->cloudClashingNames.push_back(targetrow->cloudNode);
+                    targetrow->cloudNode = nullptr;
+                }
+                if (targetrow->cloudNode ||
+                    !targetrow->cloudClashingNames.empty())
+                {
+                    LOG_debug << syncname << "Conflicting cloud name: "
+                        << i->cloudNode->name;
+                    targetrow->cloudClashingNames.push_back(i->cloudNode);
+                    i->cloudNode = nullptr;
+                }
+                if (!targetrow->cloudNode &&
+                    targetrow->cloudClashingNames.empty())
+                {
+                    std::swap(targetrow->cloudNode, i->cloudNode);
+                }
             }
         }
     }
@@ -6912,7 +6919,7 @@ void Sync::combineTripletSet(vector<SyncRow>::iterator a, vector<SyncRow>::itera
     // confirm all are empty except target
     for (auto i = a; i != b; ++i)
     {
-        assert(i == targetrow || i->empty());
+        assert(i == targetrow || i->empty() || (i->cloudNode && (i->cloudNode->name.empty())));
     }
 #endif
 }
@@ -7745,24 +7752,12 @@ bool Sync::syncItem_checkMoves(SyncRow& row, SyncRow& parentRow, SyncPath& fullP
     // Are we dealing with a no-name triplet?
     if (row.isNoName())
     {
-        ProgressingMonitor monitor(*this, row, fullPath);
-
-        monitor.waitingCloud(fullPath.cloudPath, SyncStallEntry(
-            SyncWaitReason::FileIssue, true, true,
-            {row.cloudHandleOpt(), fullPath.cloudPath, PathProblem::UndecryptedCloudNode},
-            {},
-            {},
-            {}));
-
         LOG_debug << syncname
                   << "No name triplets here. "
                   << "Excluding this triplet from sync for now. "
                   << logTriplet(row, fullPath);
 
-        row.itemProcessed = true;
-        row.suppressRecursion = true;
-
-        return false;
+        return true;
     }
 
     if (row.fsNode && isDoNotSyncFileName(row.fsNode->toName_of_localname(*syncs.fsaccess)))
@@ -7930,6 +7925,12 @@ bool Sync::syncItem_checkFilenameClashes(SyncRow& row, SyncRow& parentRow, SyncP
     if (!row.fsClashingNames.empty() || !row.cloudClashingNames.empty())
     {
 
+        if (row.isNoName())
+        {
+            LOG_debug << syncname << "no name Multiple names clash here.  Excluding this node from sync for now." << logTriplet(row, fullPath);
+            return false;
+        }
+
         if (syncItem_checkBackupCloudNameClash(row, parentRow, fullPath))
         {
             return false;
@@ -7987,6 +7988,8 @@ bool Sync::syncItem_checkFilenameClashes(SyncRow& row, SyncRow& parentRow, SyncP
 
 bool Sync::syncItem_checkDownloadCompletion(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath)
 {
+    assert(syncs.onSyncThread());
+
     auto downloadPtr = std::dynamic_pointer_cast<SyncDownload_inClient>(row.syncNode->transferSP);
     if (!downloadPtr) return true;
 
@@ -8018,6 +8021,15 @@ bool Sync::syncItem_checkDownloadCompletion(SyncRow& row, SyncRow& parentRow, Sy
         }
         else
         {
+            if (downloadPtr->mError == API_EWRITE)
+            {
+                // This could be due to a problem with the temporary directory. Reset tmpfa to recreate them when restarting the transfer.
+                // This reset shouldn't be problematic even if there are other sync-downloads in flight, because they use threadSafeState::mSyncTmpFolder (and this is the same thread)
+                SYNC_verbose << syncname
+                                << "Download was terminated due to API_EWRITE (problem with the temporary directory?): "
+                                << logTriplet(row, fullPath);
+                tmpfa.reset();
+            }
             // remove the download record so we re-evaluate what to do
             row.syncNode->resetTransfer(nullptr);
         }
@@ -8185,6 +8197,16 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
             {}));
 
         return false;
+    }
+
+    if (row.isNoName())
+    {
+        LOG_debug << syncname
+                  << "[syncItem] No name triplets here. "
+                  << "Excluding this triplet from sync for now. "
+                  << logTriplet(row, fullPath);
+
+        return true;
     }
 
     // Check for files vs folders,  we can't upload a file over a folder etc.
@@ -8495,7 +8517,8 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
         CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemXSF);
 
         if (row.syncNode->type == TYPE_DONOTSYNC ||
-            row.isLocalOnlyIgnoreFile())
+            row.isLocalOnlyIgnoreFile() ||
+            row.isNoName())
         {
             // we do not upload do-not-sync files (eg. system+hidden, on windows)
             return true;
@@ -8977,7 +9000,6 @@ bool Sync::resolve_makeSyncNode_fromCloud(SyncRow& row, SyncRow& parentRow, Sync
 
     if (row.cloudNode->type == FILENODE)
     {
-        assert(row.cloudNode->fingerprint.isvalid); // todo: move inside considerSynced?
         row.syncNode->syncedFingerprint = row.cloudNode->fingerprint;
     }
     row.syncNode->init(row.cloudNode->type, parentRow.syncNode, fullPath.localPath, nullptr);
@@ -8999,6 +9021,7 @@ bool Sync::resolve_makeSyncNode_fromCloud(SyncRow& row, SyncRow& parentRow, Sync
 
     if (considerSynced)
     {
+        assert(row.cloudNode->fingerprint.isvalid);
         row.syncNode->setSyncedNodeHandle(row.cloudNode->handle);
     }
     if (row.syncNode->type > FILENODE)
@@ -9802,6 +9825,13 @@ bool Sync::resolve_cloudNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& ful
             return MT_NONE;
         }
 
+        // Is NO_NAMES ? Then ignore
+        if (row.isNoName())
+        {
+            // Then it's not subject to move processing.
+            return MT_NONE;
+        }
+
         CloudNode cloudNode;
         bool active = false;
         bool nodeIsDefinitelyExcluded = false;
@@ -9826,6 +9856,50 @@ bool Sync::resolve_cloudNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& ful
         {
             // Then we know it can't be a move target.
             return MT_NONE;
+        }
+
+        // We need to discard NO_NAME nodes.
+        // Not only the current cloudNode: it could happen that a node has been moved into a undecryptable/NO_NAMEd path. So we must check parents too.
+        const std::string NO_KEY_SUFFIX = "NO_KEY";
+        if (cloudPath.find(NO_KEY_SUFFIX) != std::string::npos)
+        {
+            SYNC_verbose << syncname << "[cloudNodeGone] [isPossibleCloudMoveSource] There is a NO_KEY in the cloud node path. Look for NO_NAMEd nodes [cloudNode.name = '" << cloudNode.name << "', cloudPath = '" << cloudPath << "']";
+            do
+            {
+                if (cloudNode.name.empty())
+                {
+                    // Unnamed/undecryptable node, we know it cannot be considered a move target (for our local sync, so we need to discard the moving nodes and move the files to local debris)
+                    assert ((cloudPath.length() >= NO_KEY_SUFFIX.length() &&
+        -                !cloudPath.compare(cloudPath.length() - NO_KEY_SUFFIX.length(), NO_KEY_SUFFIX.length(), NO_KEY_SUFFIX)) && "Cloud node name empty, but the path does not contain NO_KEY word");
+                    SYNC_verbose << syncname
+                                << "[cloudNodeGone] Cloud Node is a NO_NAME/NO_KEY (undecryptable node) or a child of a NO_NAME/NO_KEY, it cannot be a move target!!!! "
+                                << logTriplet(row, fullPath);
+                    return MT_NONE;
+                }
+                if (cloudNode.parentType > FILENODE && !cloudNode.parentHandle.isUndef())
+                {
+                    SYNC_verbose << syncname << "[cloudNodeGone] [isPossibleCloudMoveSource] looking for NO_NAME parents [cloudNode.name = '" << cloudNode.name << "', cloudPath = '" << cloudPath << "']";
+                    found = syncs.lookupCloudNode(cloudNode.parentHandle,
+                                                cloudNode,
+                                                &cloudPath,
+                                                nullptr,
+                                                &active,
+                                                &nodeIsDefinitelyExcluded,
+                                                nullptr,
+                                                Syncs::LATEST_VERSION_ONLY);
+                }
+                else
+                {
+                    found = false;
+                }
+            } while (found && active && !nodeIsDefinitelyExcluded);
+            LOG_warn << "[cloudNodeGone] There is a NO_KEY word in the cloudPath, but no unnamed cloudNode has been found"; // This could happen, for example, we could have a file or folder named MARIANO_KEY
+        }
+        else
+        {
+            // Just in case the NO_KEY word changes
+            LOG_warn << "[cloudNodeGone] There is no NO_KEY word present in the cloudPath, but the cloudNode name is empty!";
+            assert(!cloudNode.name.empty());
         }
 
         // Trim the rare fields.
@@ -12507,12 +12581,7 @@ void Syncs::processSyncStalls()
                 else
                 {
                     assert(sbp->filesUnreadable);
-                    mSyncFlags->stall.waitingLocal(sbp->scanBlockedLocalPath, SyncStallEntry(
-                        SyncWaitReason::FileIssue, false, false,
-                        {},
-                        {},
-                        {sbp->scanBlockedLocalPath, PathProblem::FilesystemErrorIdentifyingFolderContent},
-                        {}));
+                    LOG_verbose << "Locked file(s) fingerprint inside this path (resulting in scan blocked path): " << sbp->scanBlockedLocalPath;
                 }
                 ++i;
             }

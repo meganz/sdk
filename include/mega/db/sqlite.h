@@ -358,7 +358,8 @@ private:
         FAV_ASC, FAV_DESC
     };
 
-    static std::bitset<3> getDescendingDirs(int order);
+    static std::bitset<2> getDescendingDirs(int order);
+    static bool isDescOrder(const int order);
 };
 
 } // namespace

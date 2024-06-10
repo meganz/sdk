@@ -4425,6 +4425,7 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     mNewLinkFormat = false;
     mCookieBannerEnabled = false;
     mABTestFlags.clear();
+    mFeatureFlags.clear();
     mProFlexi = false;
     mSmsVerificationState = SMS_STATE_UNKNOWN;
     mSmsVerifiedPhone.clear();
@@ -10229,6 +10230,20 @@ error MegaClient::readmiscflags(JSON *json)
                     assert(value >= 0 && "A/B test value must be greater or equal to 0");
                 }
             }
+            else if (fieldName.rfind("ff_", 0) == 0) // Starting with "ff_"
+            {
+                string tag = fieldName.substr(3); // The string after "ff_" prefix
+                int64_t value = json->getint();
+                if (value >= 0)
+                {
+                    mFeatureFlags[tag] = static_cast<uint32_t>(value);
+                }
+                else
+                {
+                    LOG_err << "[MegaClient::readmiscflags] Invalid value for Feature flag";
+                    assert(value >= 0 && "Feature flag value must be greater or equal to 0");
+                }
+            }
             else if (!json->storeobject())
             {
                 return API_EINTERNAL;
@@ -13328,31 +13343,47 @@ void MegaClient::getaccountdetails(std::shared_ptr<AccountDetails> ad, bool stor
     }
 }
 
-void MegaClient::getstorageinfo(CommandGetStorageInfo::Completion completion)
+void MegaClient::getstorageinfo(std::function<void(const StorageInfo&, Error)> completion)
 {
     assert(completion);
 
     // Haven't cached any info from the cloud.
     if (mLastKnownCapacity < 0)
     {
-        auto wrapper = [this](CommandGetStorageInfo::Completion& completion,
-                              const StorageInfo& info,
+        auto wrapper = [this](std::function<void(const StorageInfo&, Error)>& completion,
+                              const std::shared_ptr<AccountDetails> details,
                               Error result) {
+            StorageInfo info;
             // Latch the account's capacity.
             if (result == API_OK)
+            {
+                assert(details);
+                info.mCapacity = details->storage_max;
+                info.mUsed = details->storage_used;
+                if (info.mCapacity >= info.mUsed)
+                {
+                    info.mAvailable = info.mCapacity - info.mUsed;
+                }
                 mLastKnownCapacity = info.mCapacity;
+            }
 
             // Forward result to user callback.
             completion(info, result);
         }; // wrapper
 
-        completion = std::bind(std::move(wrapper),
-                               std::move(completion),
-                               std::placeholders::_1,
-                               std::placeholders::_2);
+        std::function<void(std::shared_ptr<AccountDetails>, Error)> callback;
+        callback = std::bind(std::move(wrapper),
+                             std::move(completion),
+                             std::placeholders::_1,
+                             std::placeholders::_2);
 
-
-        return reqs.add(new CommandGetStorageInfo(*this, std::move(completion)));
+        return reqs.add(new CommandGetUserQuota(this,
+                                                std::make_shared<AccountDetails>(),
+                                                true  /* storage */,
+                                                false /* transfer */,
+                                                false /* pro */,
+                                                -1 /* source */,
+                                                std::move(callback)));
     }
 
     // Ask the NM for our root node's storage info.
@@ -14563,7 +14594,9 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
             LOG_info << "Session loaded from local cache. SCSN: " << scsn.text();
 
             assert(mNodeManager.getNodeCount() > 0);   // sometimes this is not true; if you see it, please investigate why (before we alter the db)
-            assert(!mNodeManager.getRootNodeFiles().isUndef());  // we should know this by now - if not, why not, please investigate (before we alter the db)
+            assert(!mNodeManager.getRootNodeFiles().isUndef() ||  // we should know this by now - if
+                   (isClientType(ClientType::PASSWORD_MANAGER) && // not, why not, please investigate
+                    !mNodeManager.getRootNodeVault().isUndef())); // (before we alter the db)
 
             if (loggedIntoWritableFolder())
             {
@@ -20545,6 +20578,35 @@ std::string MegaClient::generatePasswordChars(const bool useUpper,
 void MegaClient::getNotifications(CommandGetNotifications::ResultFunc onResult)
 {
     reqs.add(new CommandGetNotifications(this, onResult));
+}
+
+std::pair<uint32_t, uint32_t> MegaClient::getFlag(const char* flagName, bool commit)
+{
+    enum : uint32_t // 1:1 with enum values from public interface
+    {
+        FLAG_TYPE_INVALID = 0,
+        FLAG_TYPE_AB_TEST = 1,
+        FLAG_TYPE_FEATURE = 2,
+    };
+
+    if (!flagName)
+    {
+        return {FLAG_TYPE_INVALID, 0};
+    }
+
+    auto ab = mABTestFlags.find(flagName);
+    if (ab != mABTestFlags.end())
+    {
+        return {FLAG_TYPE_AB_TEST, ab->second};
+    }
+
+    auto f = mFeatureFlags.find(flagName);
+    if (f != mFeatureFlags.end())
+    {
+        return {FLAG_TYPE_FEATURE, f->second};
+    }
+
+    return {FLAG_TYPE_INVALID, 0};
 }
 
 FetchNodesStats::FetchNodesStats()

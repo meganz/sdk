@@ -1689,8 +1689,7 @@ MegaSyncStallPrivate::pathProblemDebugString(MegaSyncStall::SyncPathProblem reas
     static_assert((int)PathProblem::MoveToDebrisFolderFailed == (int)MegaSyncStall::SyncPathProblem::MoveToDebrisFolderFailed, "");
     static_assert((int)PathProblem::IgnoreFileMalformed == (int)MegaSyncStall::SyncPathProblem::IgnoreFileMalformed, "");
     static_assert((int)PathProblem::FilesystemErrorListingFolder == (int)MegaSyncStall::SyncPathProblem::FilesystemErrorListingFolder, "");
-    static_assert((int)PathProblem::FilesystemErrorIdentifyingFolderContent == (int)MegaSyncStall::SyncPathProblem::FilesystemErrorIdentifyingFolderContent, "");
-    static_assert((int)PathProblem::UndecryptedCloudNode == (int)MegaSyncStall::SyncPathProblem::UndecryptedCloudNode, "");
+    static_assert((int)PathProblem::FilesystemErrorIdentifyingFolderContent == (int)MegaSyncStall::SyncPathProblem::FilesystemErrorIdentifyingFolderContent, "");  // Deprecated after SDK-3206
     static_assert((int)PathProblem::WaitingForScanningToComplete == (int)MegaSyncStall::SyncPathProblem::WaitingForScanningToComplete, "");
     static_assert((int)PathProblem::WaitingForAnotherMoveToComplete == (int)MegaSyncStall::SyncPathProblem::WaitingForAnotherMoveToComplete, "");
     static_assert((int)PathProblem::SourceWasMovedElsewhere == (int)MegaSyncStall::SyncPathProblem::SourceWasMovedElsewhere, "");
@@ -6059,9 +6058,19 @@ void MegaSearchFilterPrivate::byCategory(int mimeType)
     mMimeCategory = mimeType;
 }
 
+void MegaSearchFilterPrivate::byFavourite(int boolFilterOption)
+{
+    mFavouriteFilterOption = validateBoolFilterOption(boolFilterOption);
+}
+
 void MegaSearchFilterPrivate::bySensitivity(bool excludeSensitive)
 {
-    mExcludeSensitive = excludeSensitive;
+    mExcludeSensitive = validateBoolFilterOption(static_cast<int>(excludeSensitive));
+}
+
+void MegaSearchFilterPrivate::bySensitivity(int boolFilterOption)
+{
+    mExcludeSensitive = validateBoolFilterOption(boolFilterOption);
 }
 
 void MegaSearchFilterPrivate::byLocationHandle(MegaHandle ancestorHandle)
@@ -6108,6 +6117,20 @@ void MegaSearchFilterPrivate::byTag(const char* searchString)
 MegaSearchFilterPrivate* MegaSearchFilterPrivate::copy() const
 {
     return new MegaSearchFilterPrivate(*this);
+}
+
+int MegaSearchFilterPrivate::validateBoolFilterOption(const int value)
+{
+    switch (value)
+    {
+    case MegaSearchFilter::BOOL_FILTER_DISABLED:
+    case MegaSearchFilter::BOOL_FILTER_ONLY_TRUE:
+    case MegaSearchFilter::BOOL_FILTER_ONLY_FALSE:
+        return value;
+    default:
+        LOG_warn << "Invalid value for a boolean filtering option: " << value;
+        return MegaSearchFilter::BOOL_FILTER_DISABLED;
+    }
 }
 
 std::unique_ptr<MegaGfxProviderPrivate> MegaGfxProviderPrivate::createIsolatedInstance(
@@ -27323,6 +27346,23 @@ error MegaApiImpl::getLastActionedBanner_getua_result(byte* data, unsigned len, 
     request->setNumber(static_cast<long long>(value));
 
     return e;
+}
+
+MegaFlagPrivate* MegaApiImpl::getFlag(const char* flagName, bool commit, MegaRequestListener* listener)
+{
+    std::pair<uint32_t, uint32_t> flag;
+
+    {
+        SdkMutexGuard g(sdkMutex);
+        flag = client->getFlag(flagName, commit);
+    }
+
+    if (flag.first == static_cast<decltype(flag.first)>(MegaFlag::FLAG_TYPE_AB_TEST) && commit)
+    {
+        sendABTestActive(flagName, listener);
+    }
+
+    return new MegaFlagPrivate(flag.first, flag.second);
 }
 
 /* END MEGAAPIIMPL */

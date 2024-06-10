@@ -261,6 +261,16 @@ using namespace mega;
     return self;
 }
 
+- (instancetype)initWithAppKey:(NSString *)appKey userAgent:(NSString *)userAgent basePath:(NSString *)basePath clientType:(MEGAClientType)clientType {
+    self.megaApi = new MegaApi(appKey.UTF8String, basePath.UTF8String, userAgent.UTF8String, 1, (int)clientType);
+
+    if (pthread_mutex_init(&listenerMutex, NULL)) {
+        return nil;
+    }
+
+    return self;
+}
+
 - (void)deleteMegaApi {    
     delete _megaApi;
     _megaApi = nil;
@@ -4044,6 +4054,13 @@ using namespace mega;
 - (NSInteger)getABTestValue:(NSString*)flag {
     if (self.megaApi == nil) return 0;
     return self.megaApi->getABTestValue((const char *)flag.UTF8String);
+}
+
+#pragma mark - Remote Feature Flags
+- (NSInteger)remoteFeatureFlagValue:(NSString *)flag {
+    if (self.megaApi == nil) return 0;
+    MegaFlag *flagValue = self.megaApi->getFlag(flag.UTF8String);
+    return flagValue->getGroup();
 }
 
 #pragma mark - Ads

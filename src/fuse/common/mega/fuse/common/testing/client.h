@@ -279,6 +279,9 @@ public:
                         CloudPath path,
                         accesslevel_t permissions) const = 0;
 
+    // Retrieve storage statistics from the cloud.
+    ErrorOr<StorageInfo> storageInfo();
+
     // Where are we storing our files
     const Path& storagePath() const;
 

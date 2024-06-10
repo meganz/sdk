@@ -296,6 +296,9 @@ if (WIN32)
             _CRT_SECURE_NO_WARNINGS # warning in mega_ccronexpr
             $<$<BOOL:${USE_CPPTHREAD}>:USE_CPPTHREAD>
             UNICODE
+            # Disable warning C4996: 'inet_ntoa': Use inet_ntop() or InetNtop() instead or define
+            # _WINSOCK_DEPRECATED_NO_WARNINGS to disable deprecated API warnings
+            _WINSOCK_DEPRECATED_NO_WARNINGS
     )
 
     # Increase number of sections in .obj files. (megaapi_impl.cpp, Sync_test.cpp, ...)

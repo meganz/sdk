@@ -6084,6 +6084,11 @@ void MegaApi::getLastActionedBanner(MegaRequestListener* listener)
     pImpl->getLastActionedBanner(listener);
 }
 
+MegaFlag* MegaApi::getFlag(const char* flagName, bool commit, MegaRequestListener* listener)
+{
+    return pImpl->getFlag(flagName, commit, listener);
+}
+
 /* END MEGAAPI */
 
 MegaHashSignature::MegaHashSignature(const char *base64Key)
@@ -6947,8 +6952,17 @@ void MegaSearchFilter::byCategory(int /*mimeType*/)
 {
 }
 
+void MegaSearchFilter::byFavourite(int /*boolFilterOption*/)
+{
+}
+
 void MegaSearchFilter::bySensitivity(bool /*excludeSensitive*/)
 {
+}
+
+void MegaSearchFilter::bySensitivity(int /*boolFilterOption*/)
+{
+
 }
 
 void MegaSearchFilter::byLocationHandle(MegaHandle /*ancestorHandle*/)
@@ -6990,9 +7004,14 @@ int MegaSearchFilter::byCategory() const
     return MegaApi::FILE_TYPE_DEFAULT;
 }
 
-bool MegaSearchFilter::bySensitivity() const
+int MegaSearchFilter::byFavourite() const
 {
-    return false;
+    return MegaSearchFilter::BOOL_FILTER_DISABLED;
+}
+
+int MegaSearchFilter::bySensitivity() const
+{
+    return BOOL_FILTER_DISABLED;
 }
 
 MegaHandle MegaSearchFilter::byLocationHandle() const

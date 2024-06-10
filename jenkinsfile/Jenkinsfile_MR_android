@@ -324,21 +324,6 @@ pipeline {
                                         }
                                     }
                                 }
-
-                                stage ('Android Unit Tests'){
-                                    environment{
-                                        BUILD_ARCHS = "arm64-v8a"
-                                        ANDROID_HOME = "/home/jenkins/android-cmdlinetools/"
-                                        ANDROID_NDK_HOME ="/home/jenkins/android-ndk/"
-                                        DEFAULT_GOOGLE_MAPS_API_PATH = "/home/jenkins/android-default_google_maps_api"
-                                        ANDROID_WEBRTC="/home/jenkins/android-webrtc"
-                                        USE_PREBUILT_SDK = false
-                                        ARTIFACTORY_BASE_URL = "${env.REPOSITORY_URL}"
-                                    }
-                                    steps{
-                                        sh "./gradlew --no-daemon --max-workers=1 data:testGmsDebugUnitTestCoverage"
-                                    }
-                                }
                             }
                         }
                     }

@@ -4813,6 +4813,90 @@ public class MegaApiJava {
     }
 
     /**
+     * Add new tag stored as node attribute
+     *
+     * The associated request type with this request is MegaRequest::TYPE_TAG_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node that received the tag
+     * - MegaRequest::getParamType - Returns operation type (0 - Add tag, 1 - Remove tag, 2 - Update tag)
+     * - MegaRequest::getText - Returns tag
+     *
+     * ',' is an invalid character to be used in a tag. If it is contained in the tag,
+     * onRequestFinish will be called with the error code MegaError::API_EARGS.
+     *
+     * If the length of all tags is higher than 3000 onRequestFinish will be called with
+     * the error code MegaError::API_EARGS
+     *
+     * If tag already exists, onRequestFinish will be called with the error code MegaError::API_EEXISTS
+     *
+     * If number of tags exceed the maximum number of tags (10),
+     * onRequestFinish will be called with the error code MegaError::API_ETOOMANY
+     *
+     * If the MEGA account is a business account and its status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param node Node that will receive the information.
+     * @param tag New tag
+     * @param listener MegaRequestListener to track this request
+     */
+    public void addNodeTag(MegaNode node, String tag, MegaRequestListenerInterface listener){
+        megaApi.addNodeTag(node, tag, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Remove a tag stored as a node attribute
+     *
+     * The associated request type with this request is MegaRequest::TYPE_TAG_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node that received the tag
+     * - MegaRequest::getParamType - Returns operation type (0 - Add tag, 1 - Temove tag, 2 - Update tag)
+     * - MegaRequest::getText - Returns tag
+     *
+     * If tag doesn't exist, onRequestFinish will be called with the error code MegaError::API_ENOENT
+     *
+     * If the MEGA account is a business account and its status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param node Node that will receive the information.
+     * @param tag Tag to be removed
+     * @param listener MegaRequestListener to track this request
+     */
+    public void removeNodeTag(MegaNode node, String tag, MegaRequestListenerInterface listener){
+        megaApi.removeNodeTag(node, tag, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Update a tag stored as a node attribute
+     *
+     * The associated request type with this request is MegaRequest::TYPE_TAG_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node that received the tag
+     * - MegaRequest::getParamType - Returns operation type (0 - Add tag, 1 - Temove tag, 2 - Update tag)
+     * - MegaRequest::getText - Returns new tag
+     * - MegaRequest::getName - Returns old tag
+     *
+     * ',' is an invalid character to be used in a tag. If it is contained in the tag,
+     * onRequestFinish will be called with the error code MegaError::API_EARGS.
+     *
+     * If the length of all tags is higher than 3000 characters onRequestFinish will be called with
+     * the error code MegaError::API_EARGS
+     *
+     * If newTag already exists, onRequestFinish will be called with the error code MegaError::API_EEXISTS
+     * If oldTag doesn't exist, onRequestFinish will be called with the error code MegaError::API_ENOENT
+     *
+     * If the MEGA account is a business account and its status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param node Node that will receive the information.
+     * @param newTag New tag value
+     * @param oldTag Old tag value
+     * @param listener MegaRequestListener to track this request
+     */
+    public void updateNodeTag(MegaNode node, String newTag, String oldTag, MegaRequestListenerInterface listener){
+        megaApi.updateNodeTag(node, newTag, oldTag, createDelegateRequestListener(listener));
+    }
+
+    /**
      * Generate a public link of a file/folder in MEGA
      * <p>
      * The associated request type with this request is MegaRequest::TYPE_EXPORT
@@ -12918,6 +13002,26 @@ public class MegaApiJava {
      */
     public void getLastReadNotification(MegaRequestListenerInterface listener) {
         megaApi.getLastReadNotification(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Get the type and value for the flag with the given name,
+     * if present among either A/B Test or Feature flags.
+     *
+     * If found among A/B Test flags and commit was true, also inform the API
+     * that a user has become relevant for that A/B Test flag, in which case
+     * the associated request type with this request is MegaRequest::TYPE_AB_TEST_ACTIVE
+     * and valid data in the MegaRequest object received on all callbacks:
+     * - MegaRequest::getText - Returns the flag passed as parameter
+     *
+     * @param flagName Name or key of the value to be retrieved (and possibly be sent to API as active).
+     * @param commit Determine whether an A/B Test flag will be sent to API as active.
+     * @param listener MegaRequestListener to track this request, ignored if commit was false
+     *
+     * @return A MegaFlag instance with the type and value of the flag.
+     */
+    public MegaFlag getFlag(String flagName, Boolean commit, MegaRequestListenerInterface listener) {
+       return megaApi.getFlag(flagName, commit, createDelegateRequestListener(listener));
     }
 
     /**

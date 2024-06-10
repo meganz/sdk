@@ -543,6 +543,8 @@ public:
     // AB Test flags
     std::map<string, uint32_t> mABTestFlags;
 
+    std::map<string, uint32_t> mFeatureFlags;
+
 private:
     // Pro Flexi plan is enabled
     bool mProFlexi = false;
@@ -750,7 +752,7 @@ public:
     void getaccountdetails(std::shared_ptr<AccountDetails>, bool, bool, bool, bool, bool, bool, int source = -1);
 
     // Get user storage information.
-    void getstorageinfo(CommandGetStorageInfo::Completion completion);
+    void getstorageinfo(std::function<void(const StorageInfo&, Error)> completion);
 
     // check if the available bandwidth quota is enough to transfer an amount of bytes
     void querytransferquota(m_off_t size);
@@ -2702,6 +2704,7 @@ public:
     void setEnabledNotifications(std::vector<uint32_t>&& notifs) { mEnabledNotifications = std::move(notifs); }
     const std::vector<uint32_t>& getEnabledNotifications() const { return mEnabledNotifications; }
     void getNotifications(CommandGetNotifications::ResultFunc onResult);
+    std::pair<uint32_t, uint32_t> getFlag(const char* flagName, bool commit);
 
     // FUSE client adapter.
     fuse::ClientAdapter mFuseClientAdapter;
