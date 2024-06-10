@@ -31,7 +31,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property uint64_t parentNodeHandle;
 @property int nodeType;
 @property int category;
-@property bool sensitivity;
+@property int sensitiveFilter;
 @property int favouriteFilter;
 @property int locationType;
 
@@ -39,7 +39,7 @@ NS_ASSUME_NONNULL_BEGIN
             parentNodeHandle:(uint64_t)parentNodeHandle
                     nodeType:(int)nodeType
                     category:(int)category
-                 sensitivity:(bool)sensitivity
+             sensitiveFilter:(int)sensitiveFilter
              favouriteFilter:(int)favouriteFilter
            creationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)creationTimeFrame
        modificationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)modificationTimeFrame;
@@ -47,7 +47,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (instancetype)initWithTerm:(NSString *)term
                     nodeType:(int)nodeType
                     category:(int)category
-                 sensitivity:(bool)sensitivity
+             sensitiveFilter:(int)sensitiveFilter
              favouriteFilter:(int)favouriteFilter
                 locationType:(int)locationType
            creationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)creationTimeFrame

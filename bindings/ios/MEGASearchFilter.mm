@@ -28,7 +28,7 @@ NS_ASSUME_NONNULL_BEGIN
             parentNodeHandle:(uint64_t)parentNodeHandle
                     nodeType:(int)nodeType
                     category:(int)category
-                 sensitivity:(bool)sensitivity
+             sensitiveFilter:(int)sensitiveFilter
              favouriteFilter:(int)favouriteFilter
                 locationType:(int)locationType
            creationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)creationTimeFrame
@@ -40,7 +40,7 @@ NS_ASSUME_NONNULL_BEGIN
         _parentNodeHandle = parentNodeHandle;
         _nodeType = nodeType;
         _category = category;
-        _sensitivity = sensitivity;
+        _sensitiveFilter = sensitiveFilter;
         _favouriteFilter = favouriteFilter;
         _locationType = locationType;
         _creationTimeFrame = creationTimeFrame;
@@ -54,7 +54,7 @@ NS_ASSUME_NONNULL_BEGIN
             parentNodeHandle: (uint64_t)parentNodeHandle
                     nodeType:(int)nodeType
                     category:(int)category
-                 sensitivity:(bool)sensitivity
+             sensitiveFilter:(int)sensitiveFilter
              favouriteFilter:(int)favouriteFilter
            creationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)creationTimeFrame
        modificationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)modificationTimeFrame {
@@ -62,7 +62,7 @@ NS_ASSUME_NONNULL_BEGIN
              parentNodeHandle:parentNodeHandle
                      nodeType:nodeType
                      category:category
-                  sensitivity:sensitivity
+              sensitiveFilter:sensitiveFilter
               favouriteFilter:favouriteFilter
                  locationType:-1
             creationTimeFrame:creationTimeFrame
@@ -72,7 +72,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (instancetype)initWithTerm: (NSString*)term
                     nodeType:(int)nodeType
                     category:(int)category
-                 sensitivity:(bool)sensitivity
+             sensitiveFilter:(int)sensitiveFilter
              favouriteFilter:(int)favouriteFilter
                 locationType:(int)locationType
            creationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)creationTimeFrame
@@ -81,7 +81,7 @@ NS_ASSUME_NONNULL_BEGIN
              parentNodeHandle:-1
                      nodeType:nodeType
                      category:category
-                  sensitivity:sensitivity
+              sensitiveFilter:sensitiveFilter
               favouriteFilter:favouriteFilter
                  locationType:locationType
             creationTimeFrame:creationTimeFrame

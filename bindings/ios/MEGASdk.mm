@@ -3998,7 +3998,7 @@ using namespace mega;
     megaFilter->byName(filter.term.UTF8String);
     megaFilter->byNodeType(filter.nodeType);
     megaFilter->byCategory(filter.category);
-    megaFilter->bySensitivity(filter.sensitivity);
+    megaFilter->bySensitivity(filter.sensitiveFilter);
     megaFilter->byFavourite(filter.favouriteFilter);
 
     if (filter.didSetLocationType) {
