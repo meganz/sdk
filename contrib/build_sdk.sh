@@ -787,6 +787,10 @@ termcap_pkg() {
     if [ $use_dynamic -eq 0 ]; then
         export CPPFLAGS="$CPPFLAGS -fPIC"
     fi
+
+    sed -i "s#AC_STDC_HEADERS#AC_HEADER_STDC#" $termcap_dir/configure.in
+    sed -i "s/#include <stdlib.h>/#include <stdlib.h>\n#include <unistd.h>/" $termcap_dir/tparam.c
+
     package_configure $name $termcap_dir $install_dir "$termcap_params"
     package_build $name $termcap_dir
 
