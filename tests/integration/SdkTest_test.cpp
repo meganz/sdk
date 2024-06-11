@@ -994,6 +994,10 @@ void SdkTest::onUsersUpdate(MegaApi* api, MegaUserList *users)
                 || u->hasChanged(MegaUser::CHANGE_TYPE_LASTNAME))
         {
             currentPerApi.userUpdated = true;
+            if (u->hasChanged(MegaUser::CHANGE_TYPE_FIRSTNAME))
+            {
+                currentPerApi.userFirstNameUpdated = true;
+            }
         }
         else
         {
@@ -1218,7 +1222,7 @@ void SdkTest::fetchnodes(unsigned int apiIndex, int timeout)
 {
     RequestTracker rt(megaApi[apiIndex].get());
     mApi[apiIndex].megaApi->fetchNodes(&rt);
-    ASSERT_TRUE(API_OK == rt.waitForResult(300)) << "Fetchnodes failed or took more than 5 minutes";
+    ASSERT_EQ(API_OK, rt.waitForResult(300)) << "Fetchnodes failed or took more than 5 minutes";
 }
 
 void SdkTest::logout(unsigned int apiIndex, bool keepSyncConfigs, int timeout)
@@ -1240,9 +1244,9 @@ void SdkTest::logout(unsigned int apiIndex, bool keepSyncConfigs, int timeout)
     EXPECT_EQ(API_OK, mApi[apiIndex].lastError) << "Logout failed (error: " << mApi[apiIndex].lastError << ")";
 }
 
-char* SdkTest::dumpSession()
+char* SdkTest::dumpSession(unsigned apiIndex)
 {
-    return megaApi[0]->dumpSession();
+    return megaApi[apiIndex]->dumpSession();
 }
 
 void SdkTest::locallogout(unsigned apiIndex)
@@ -1251,9 +1255,8 @@ void SdkTest::locallogout(unsigned apiIndex)
     ASSERT_EQ(API_OK, logoutErr) << "Local logout failed (error: " << logoutErr << ")";
 }
 
-void SdkTest::resumeSession(const char *session, int timeout)
+void SdkTest::resumeSession(const char *session, unsigned apiIndex)
 {
-    int apiIndex = 0;
     ASSERT_EQ(API_OK, synchronousFastLogin(apiIndex, session, this)) << "Resume session failed (error: " << mApi[apiIndex].lastError << ")";
 }
 
@@ -19336,4 +19339,91 @@ TEST_F(SdkTest, SdkCacheLRU)
 
     numNodeCacheLRU = megaApi[0]->getNumNodesAtCacheLRU();
     ASSERT_EQ(numNodeCacheLRU, cacheLRUNewSize);
+}
+
+/**
+ * @brief SdkTestVPN
+ *
+ * Test that MEGA VPN app receives Action Packets.
+ */
+TEST_F(SdkTest, SdkTestVPN)
+{
+    LOG_info << "___TEST SdkTestVPN";
+
+    // Login first client
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // get First Name
+    string origName;
+    {
+        RequestTracker getNameTracker(megaApi[0].get());
+        megaApi[0]->getUserAttribute(MegaApi::USER_ATTR_FIRSTNAME, &getNameTracker);
+        ASSERT_EQ(getNameTracker.waitForResult(), API_OK) << "Failed to get First Name";
+        ASSERT_THAT(getNameTracker.request->getText(), ::testing::NotNull());
+        origName = getNameTracker.request->getText();
+    }
+
+    // Prepare VPN client with the same account
+    mApi.resize(2);
+    megaApi.resize(2);
+    const auto [email, pass] = getEnvVarAccounts().getVarValues(0);
+    ASSERT_NO_FATAL_FAILURE(configureTestInstance(1, email, pass, true, MegaApi::CLIENT_TYPE_VPN));
+
+    // Login VPN client
+    {
+        RequestTracker loginTracker(megaApi[1].get());
+        megaApi[1]->login(mApi[1].email.c_str(), mApi[1].pwd.c_str(), &loginTracker);
+        ASSERT_EQ(loginTracker.waitForResult(), API_OK) << "VPN client: failed to login";
+        bool& fetchnodesDone = mApi[1].requestFlags[MegaRequest::TYPE_FETCH_NODES] = false;
+        ASSERT_NO_FATAL_FAILURE(fetchnodes(1));
+        ASSERT_TRUE(WaitFor([&fetchnodesDone]() { return fetchnodesDone; }, 60 * 1000))
+            << "VPN client: fetchnodesDone not received";
+
+        // test resume-session while at it
+        unique_ptr<char[]> session(dumpSession(1));
+        ASSERT_NO_FATAL_FAILURE(locallogout(1));
+        ASSERT_NO_FATAL_FAILURE(resumeSession(session.get(), 1));
+        ASSERT_NO_FATAL_FAILURE(fetchnodes(1));
+    }
+
+    // update First Name in default client
+    string newName = origName + "_upd";
+    bool& nameUpdated = mApi[1].userFirstNameUpdated = false;
+    {
+        RequestTracker setNameTracker(megaApi[0].get());
+        megaApi[0]->setUserAttribute(MegaApi::USER_ATTR_FIRSTNAME, newName.c_str(), &setNameTracker);
+        ASSERT_EQ(setNameTracker.waitForResult(), API_OK) << "Default client: failed to update First Name";
+
+        // wait for VPN client to receive the name update
+        ASSERT_TRUE(WaitFor([&nameUpdated]() { return nameUpdated; }, 60 * 1000))
+            << "VPN client: AP about updated First Name not received";
+
+        // get First Name from VPN client and confirm the update
+        nameUpdated = false; // to be ignored this time; is set after getting UA
+        RequestTracker getNameTracker(megaApi[1].get());
+        megaApi[1]->getUserAttribute(MegaApi::USER_ATTR_FIRSTNAME, &getNameTracker);
+        ASSERT_EQ(getNameTracker.waitForResult(), API_OK) << "VPN client: failed to get updated First Name";
+        ASSERT_THAT(getNameTracker.request->getText(), ::testing::NotNull());
+        ASSERT_EQ(newName, getNameTracker.request->getText());
+        WaitFor([&nameUpdated]() { return nameUpdated; }, 5 * 1000); // to be ignored
+    }
+
+    // reset First Name to original value
+    {
+        nameUpdated = false;
+        RequestTracker setNameTracker(megaApi[0].get());
+        megaApi[0]->setUserAttribute(MegaApi::USER_ATTR_FIRSTNAME, origName.c_str(), &setNameTracker);
+        ASSERT_EQ(setNameTracker.waitForResult(), API_OK) << "Default client: failed to set original First Name";
+
+        // wait for VPN client to receive the name update
+        ASSERT_TRUE(WaitFor([&nameUpdated]() { return nameUpdated; }, 60 * 1000))
+            << "VPN client: AP for reset First Name not received";
+
+        // get First Name from VPN client and confirm the reset
+        RequestTracker getNameTracker(megaApi[1].get());
+        megaApi[1]->getUserAttribute(MegaApi::USER_ATTR_FIRSTNAME, &getNameTracker);
+        ASSERT_EQ(getNameTracker.waitForResult(), API_OK) << "VPN client: failed to get reset First Name";
+        ASSERT_THAT(getNameTracker.request->getText(), ::testing::NotNull());
+        ASSERT_EQ(origName, getNameTracker.request->getText());
+    }
 }

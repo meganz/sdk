@@ -14168,7 +14168,9 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
                     assert(!client->mNodeManager.getRootNodeVault().isUndef());
                     break;
 
-                case MegaClient::ClientType::VPN: // fall-through
+                case MegaClient::ClientType::VPN:
+                    // Allow Fetch nodes for VPN to start receiving Action Packets
+                    break;
                 default:
                 {
                     LOG_err << "Fetch nodes requested for unexpected MegaApi type "
