@@ -12,6 +12,7 @@
 /src/gfx/GfxProcCG.mm @mobile/iOS
 /src/osx/osxutils.mm @mobile/iOS @desktop
 /Package.swift @mobile/iOS
+/examples/Swift @mobile/iOS
 /examples/SwiftUI @mobile/iOS
 
 # Changes to Jenkinsfiles need approval by sdk_devops
