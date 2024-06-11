@@ -58,7 +58,7 @@ public:
     vector<NewNode> nn;
     unsigned nc = 0;
     bool allocated = false;
-    bool resetSensitive = false;
+    bool resetSensitive = false; // Used when importing foreign nodes
 
     void allocnodes(void);
 

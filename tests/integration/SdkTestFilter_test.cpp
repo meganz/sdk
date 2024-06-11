@@ -368,7 +368,7 @@ TEST_F(SdkTestFilter, SdkGetNodesInOrder)
 
     // Default (ORDER_NONE -> Undefined)
     std::unique_ptr<MegaNodeList> searchResults(megaApi[0]->search(filteringInfo.get()));
-    ASSERT_THAT(searchResults, NotNull()) << "serach() returned a nullptr";
+    ASSERT_THAT(searchResults, NotNull()) << "search() returned a nullptr";
     EXPECT_THAT(toNamesVector(*searchResults), UnorderedElementsAreArray(getAllNodesNames()))
         << "Unexpected sorting for ORDER_NONE";
 
@@ -381,7 +381,7 @@ TEST_F(SdkTestFilter, SdkGetNodesInOrder)
                                            "TestFile5Uppercase",
                                            "testFile6"};
     searchResults.reset(megaApi[0]->search(filteringInfo.get(), MegaApi::ORDER_DEFAULT_ASC));
-    ASSERT_THAT(searchResults, NotNull()) << "serach() returned a nullptr";
+    ASSERT_THAT(searchResults, NotNull()) << "search() returned a nullptr";
     EXPECT_THAT(toNamesVector(*searchResults), ContainsInOrder(expected))
         << "Unexpected sorting for ORDER_DEFAULT_ASC";
 
@@ -389,7 +389,7 @@ TEST_F(SdkTestFilter, SdkGetNodesInOrder)
     expected =
         {"Dir2", "Dir11", "Dir1", "testFile6", "TestFile5Uppercase", "testFile5", "testFile1"};
     searchResults.reset(megaApi[0]->search(filteringInfo.get(), MegaApi::ORDER_DEFAULT_DESC));
-    ASSERT_THAT(searchResults, NotNull()) << "serach() returned a nullptr";
+    ASSERT_THAT(searchResults, NotNull()) << "search() returned a nullptr";
     EXPECT_THAT(toNamesVector(*searchResults), ContainsInOrder(expected))
         << "Unexpected sorting for ORDER_DEFAULT_DESC";
 
@@ -403,21 +403,21 @@ TEST_F(SdkTestFilter, SdkGetNodesInOrder)
         "testFile3" // 35
     };
     searchResults.reset(megaApi[0]->search(filteringInfo.get(), MegaApi::ORDER_SIZE_ASC));
-    ASSERT_THAT(searchResults, NotNull()) << "serach() returned a nullptr";
+    ASSERT_THAT(searchResults, NotNull()) << "search() returned a nullptr";
     EXPECT_THAT(toNamesVector(*searchResults), ContainsInOrder(expected))
         << "Unexpected sorting for ORDER_SIZE_ASC";
 
     // By size inverted, dirs first
     std::reverse(expected.begin() + 1, expected.end());
     searchResults.reset(megaApi[0]->search(filteringInfo.get(), MegaApi::ORDER_SIZE_DESC));
-    ASSERT_THAT(searchResults, NotNull()) << "serach() returned a nullptr";
+    ASSERT_THAT(searchResults, NotNull()) << "search() returned a nullptr";
     EXPECT_THAT(toNamesVector(*searchResults), ContainsInOrder(expected))
         << "Unexpected sorting for ORDER_SIZE_DESC";
 
     // By creation time, dirs first
     expected = {"Dir1", "Dir11", "testFile1", "testFile3", "testFile5", "testFile6"};
     searchResults.reset(megaApi[0]->search(filteringInfo.get(), MegaApi::ORDER_CREATION_ASC));
-    ASSERT_THAT(searchResults, NotNull()) << "serach() returned a nullptr";
+    ASSERT_THAT(searchResults, NotNull()) << "search() returned a nullptr";
     EXPECT_THAT(toNamesVector(*searchResults), ContainsInOrder(expected))
         << "Unexpected sorting for ORDER_CREATION_ASC";
 
@@ -425,7 +425,7 @@ TEST_F(SdkTestFilter, SdkGetNodesInOrder)
     std::reverse(expected.begin() + 2, expected.end());
     std::reverse(expected.begin(), expected.begin() + 2);
     searchResults.reset(megaApi[0]->search(filteringInfo.get(), MegaApi::ORDER_CREATION_DESC));
-    ASSERT_THAT(searchResults, NotNull()) << "serach() returned a nullptr";
+    ASSERT_THAT(searchResults, NotNull()) << "search() returned a nullptr";
     EXPECT_THAT(toNamesVector(*searchResults), ContainsInOrder(expected))
         << "Unexpected sorting for ORDER_CREATION_DES";
 
@@ -439,14 +439,14 @@ TEST_F(SdkTestFilter, SdkGetNodesInOrder)
         "testFile1", // Undef (upload time)
     };
     searchResults.reset(megaApi[0]->search(filteringInfo.get(), MegaApi::ORDER_MODIFICATION_ASC));
-    ASSERT_THAT(searchResults, NotNull()) << "serach() returned a nullptr";
+    ASSERT_THAT(searchResults, NotNull()) << "search() returned a nullptr";
     EXPECT_THAT(toNamesVector(*searchResults), ContainsInOrder(expected))
         << "Unexpected sorting for ORDER_MODIFICATION_ASC";
 
     // By modification inverted
     std::reverse(expected.begin() + 1, expected.end());
     searchResults.reset(megaApi[0]->search(filteringInfo.get(), MegaApi::ORDER_MODIFICATION_DESC));
-    ASSERT_THAT(searchResults, NotNull()) << "serach() returned a nullptr";
+    ASSERT_THAT(searchResults, NotNull()) << "search() returned a nullptr";
     EXPECT_THAT(toNamesVector(*searchResults), ContainsInOrder(expected))
         << "Unexpected sorting for ORDER_MODIFICATION_DES";
 
@@ -461,7 +461,7 @@ TEST_F(SdkTestFilter, SdkGetNodesInOrder)
         "testFile6" // Nothing
     };
     searchResults.reset(megaApi[0]->search(filteringInfo.get(), MegaApi::ORDER_LABEL_ASC));
-    ASSERT_THAT(searchResults, NotNull()) << "serach() returned a nullptr";
+    ASSERT_THAT(searchResults, NotNull()) << "search() returned a nullptr";
     EXPECT_THAT(toNamesVector(*searchResults), ContainsInOrder(expected))
         << "Unexpected sorting for ORDER_LABEL_ASC";
 
@@ -469,7 +469,7 @@ TEST_F(SdkTestFilter, SdkGetNodesInOrder)
     std::reverse(expected.begin() + 2, expected.end());
     std::reverse(expected.begin(), expected.begin() + 2);
     searchResults.reset(megaApi[0]->search(filteringInfo.get(), MegaApi::ORDER_LABEL_DESC));
-    ASSERT_THAT(searchResults, NotNull()) << "serach() returned a nullptr";
+    ASSERT_THAT(searchResults, NotNull()) << "search() returned a nullptr";
     EXPECT_THAT(toNamesVector(*searchResults), ContainsInOrder(expected))
         << "Unexpected sorting for ORDER_LABEL_DESC";
 
@@ -481,7 +481,7 @@ TEST_F(SdkTestFilter, SdkGetNodesInOrder)
         "testFile1", // not fav
     };
     searchResults.reset(megaApi[0]->search(filteringInfo.get(), MegaApi::ORDER_FAV_ASC));
-    ASSERT_THAT(searchResults, NotNull()) << "serach() returned a nullptr";
+    ASSERT_THAT(searchResults, NotNull()) << "search() returned a nullptr";
     EXPECT_THAT(toNamesVector(*searchResults), ContainsInOrder(expected))
         << "Unexpected sorting for ORDER_FAV_ASC";
 
@@ -489,7 +489,7 @@ TEST_F(SdkTestFilter, SdkGetNodesInOrder)
     std::reverse(expected.begin() + 2, expected.end());
     std::reverse(expected.begin(), expected.begin() + 2);
     searchResults.reset(megaApi[0]->search(filteringInfo.get(), MegaApi::ORDER_FAV_DESC));
-    ASSERT_THAT(searchResults, NotNull()) << "serach() returned a nullptr";
+    ASSERT_THAT(searchResults, NotNull()) << "search() returned a nullptr";
     EXPECT_THAT(toNamesVector(*searchResults), ContainsInOrder(expected))
         << "Unexpected sorting for ORDER_FAV_DESC";
 }
@@ -505,9 +505,9 @@ TEST_F(SdkTestFilter, SdkGetFilteredNodes)
     std::unique_ptr<MegaSearchFilter> filteringInfo(getDefaultfilter());
     filteringInfo->byFavourite(MegaSearchFilter::BOOL_FILTER_DISABLED);
     std::unique_ptr<MegaNodeList> searchResults(megaApi[0]->search(filteringInfo.get()));
-    ASSERT_THAT(searchResults, NotNull()) << "serach() returned a nullptr";
+    ASSERT_THAT(searchResults, NotNull()) << "search() returned a nullptr";
     EXPECT_THAT(toNamesVector(*searchResults), UnorderedElementsAreArray(allNodesNames))
-        << "Unexpected filtering reusults for byFavourite(BOOL_FILTER_DISABLED)";
+        << "Unexpected filtering results for byFavourite(BOOL_FILTER_DISABLED)";
 
     // By fav: Only favs
     filteringInfo = getDefaultfilter();
@@ -519,15 +519,15 @@ TEST_F(SdkTestFilter, SdkGetFilteredNodes)
         "testFile6", // fav
     };
     searchResults.reset(megaApi[0]->search(filteringInfo.get()));
-    ASSERT_THAT(searchResults, NotNull()) << "serach() returned a nullptr";
+    ASSERT_THAT(searchResults, NotNull()) << "search() returned a nullptr";
     EXPECT_THAT(toNamesVector(*searchResults), UnorderedElementsAreArray(expectedFavs))
-        << "Unexpected filtering reusults for byFavourite(BOOL_FILTER_ONLY_TRUE)";
+        << "Unexpected filtering results for byFavourite(BOOL_FILTER_ONLY_TRUE)";
 
     // By fav: Only not favs (non-favs + favs = all)
     filteringInfo = getDefaultfilter();
     filteringInfo->byFavourite(MegaSearchFilter::BOOL_FILTER_ONLY_FALSE);
     searchResults.reset(megaApi[0]->search(filteringInfo.get()));
-    ASSERT_THAT(searchResults, NotNull()) << "serach() returned a nullptr";
+    ASSERT_THAT(searchResults, NotNull()) << "search() returned a nullptr";
     auto obtainedNonFavs = toNamesVector(*searchResults);
     EXPECT_EQ(obtainedNonFavs.size() + expectedFavs.size(), allNodesNames.size())
         << "The number of non fav nodes + fav nodes is different from the total number of nodes";
@@ -551,9 +551,9 @@ TEST_F(SdkTestFilter, SdkGetFilteredNodes)
     filteringInfo = getDefaultfilter();
     filteringInfo->bySensitivity(MegaSearchFilter::BOOL_FILTER_ONLY_FALSE);
     searchResults.reset(megaApi[0]->search(filteringInfo.get()));
-    ASSERT_THAT(searchResults, NotNull()) << "serach() returned a nullptr";
+    ASSERT_THAT(searchResults, NotNull()) << "search() returned a nullptr";
     EXPECT_THAT(toNamesVector(*searchResults), UnorderedElementsAreArray(expectedSens))
-        << "Unexpected filtering reusults for bySensitivity(BOOL_FILTER_ONLY_FALSE)";
+        << "Unexpected filtering results for bySensitivity(BOOL_FILTER_ONLY_FALSE)";
 
     auto expectedNoSens = getAllNodesNames();
     expectedNoSens.erase(
@@ -568,7 +568,7 @@ TEST_F(SdkTestFilter, SdkGetFilteredNodes)
     filteringInfo = getDefaultfilter();
     filteringInfo->bySensitivity(MegaSearchFilter::BOOL_FILTER_ONLY_TRUE);
     searchResults.reset(megaApi[0]->search(filteringInfo.get()));
-    ASSERT_THAT(searchResults, NotNull()) << "serach() returned a nullptr";
+    ASSERT_THAT(searchResults, NotNull()) << "search() returned a nullptr";
     EXPECT_THAT(toNamesVector(*searchResults), UnorderedElementsAreArray(expectedNoSens))
-        << "Unexpected filtering reusults for bySensitivity(BOOL_FILTER_ONLY_TRUE)";
+        << "Unexpected filtering results for bySensitivity(BOOL_FILTER_ONLY_TRUE)";
 }

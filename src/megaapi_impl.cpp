@@ -20000,6 +20000,11 @@ void MegaApiImpl::moveNode(MegaNode* node, MegaNode* newParent, const char* newN
                     // Add attribute to a copy of old attributes
                     AttrMap attrs = node->attrs;
                     attrs.map[rrname] = rrvalue;
+                    // Again, need to ensure we are not undoing the sensitive reset
+                    if (tc.resetSensitive && attrs.map.erase(AttrMap::string2nameid("sen")))
+                    {
+                        LOG_debug << "Removing sen attribute when moving node to trash";
+                    }
 
                     // Magic incantations for setting attributes
                     string attrstring;
