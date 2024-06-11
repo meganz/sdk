@@ -9343,7 +9343,7 @@ TEST_F(SdkTest, SdkBackupPauseResume)
         ASSERT_TRUE(WaitFor(
             [idOfBackup, testRunState]()
             {
-                return testRunState(idOfBackup, MegaSync::RUNSTATE_PAUSED);
+                return testRunState(idOfBackup, MegaSync::RUNSTATE_SUSPENDED);
             },
             120000))
             << "Initial connection: backup not Paused after 120 seconds";
@@ -9386,7 +9386,7 @@ TEST_F(SdkTest, SdkBackupPauseResume)
         ASSERT_TRUE(WaitFor(
             [idOfSync, testRunState]()
             {
-                return testRunState(idOfSync, MegaSync::RUNSTATE_PAUSED);
+                return testRunState(idOfSync, MegaSync::RUNSTATE_SUSPENDED);
             },
             120000))
             << "Initial connection: sync not Paused after 120 seconds";

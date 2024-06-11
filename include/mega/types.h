@@ -455,7 +455,9 @@ typedef enum { PUTNODES_APP, PUTNODES_SYNC, PUTNODES_SYNCDEBRIS } putsource_t;
 typedef map<pair<UploadHandle, fatype>, pair<handle, int> > fa_map;
 
 
-enum class SyncRunState { Pending, Loading, Run, Pause, Suspend, Disable };
+enum class SyncRunState { Pending, Loading, Run,
+    Pause, /* do not use this state in new code; pausing a sync should actually use Suspend state */
+    Suspend, Disable };
 
 typedef enum
 {

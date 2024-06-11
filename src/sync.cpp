@@ -397,6 +397,7 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
     switch(errorCode)
     {
     case NO_SYNC_ERROR:
+    case UNLOADING_SYNC:
         return "No error";
     case UNKNOWN_ERROR:
         return "Unknown error";
@@ -3613,7 +3614,7 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool setOriginalPath,
                 // it's already running
                 LOG_debug << "Sync with id " << backupId << " is already running";
             }
-            else if (us.mConfig.mRunState == SyncRunState::Pause)
+            else if (us.mConfig.mRunState == SyncRunState::Suspend) // this actually represents "paused" syncs
             {
                 LOG_debug << "Sync with id " << backupId << " switched to running";
                 us.mConfig.mRunState = SyncRunState::Run;
@@ -5965,7 +5966,7 @@ void Syncs::disableSyncByBackupId_inThread(handle backupId, SyncError syncError,
 
         if (config.mBackupId == backupId)
         {
-            if (syncError == NO_SYNC_ERROR && config.mRunState != SyncRunState::Pause)
+            if (syncError == NO_SYNC_ERROR)
             {
                 syncError = UNLOADING_SYNC;
             }
@@ -6093,11 +6094,10 @@ bool Syncs::processPauseResumeSyncBySds(UnifiedSync& us, vector<pair<handle, int
     else if (sdsPauseResumeRequest->second == CommandBackupPut::TEMPORARY_DISABLED)
     {
         // switch to Pause
-        us.mConfig.mRunState = SyncRunState::Pause;
         disableSyncByBackupId_inThread(
             us.mConfig.mBackupId,
             NO_SYNC_ERROR,
-            true, // keep it enabled
+            false,
             true,
             [h = us.mConfig.mBackupId, clientRemoveSdsEntryFunction, this]() mutable
             {

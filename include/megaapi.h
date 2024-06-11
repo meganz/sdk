@@ -6850,7 +6850,7 @@ public:
         RUNSTATE_PENDING,     // Sync config has loaded but we have not attempted to start it yet
         RUNSTATE_LOADING,     // Sync DB is in the process of loading from disk
         RUNSTATE_RUNNING,     // Sync DB is loaded and active
-        RUNSTATE_PAUSED,      // Sync DB is loaded but sync logic is suspended for now (useful for debugging)
+        RUNSTATE_PAUSED,      // (deprecated) Use RUNSTATE_SUSPENDED for paused syncs / backups
         RUNSTATE_SUSPENDED,   // Sync DB is not loaded, but it is on disk with the last known sync state.
         RUNSTATE_DISABLED,    // Sync DB does not exist.  Starting it is like configuring a brand new sync with those settings.
     };
