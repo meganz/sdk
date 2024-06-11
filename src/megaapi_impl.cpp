@@ -4725,6 +4725,8 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CREATE_PASSWORD_NODE: return "CREATE_PASSWORD_NODE";
         case TYPE_UPDATE_PASSWORD_NODE: return "UPDATE_PASSWORD_NODE";
         case TYPE_GET_NOTIFICATIONS: return "GET_NOTIFICATIONS";
+        case TYPE_DEL_ATTR_USER:
+            return "DEL_ATTR_USER";
 
         // FUSE requests.
         case TYPE_ADD_MOUNT:       return "TYPE_ADD_MOUNT";
