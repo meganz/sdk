@@ -19,6 +19,7 @@
  * program.
  */
 #import "MEGASearchFilter.h"
+#import "MEGANode.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -26,10 +27,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (instancetype)initWithTerm:(NSString *)term
             parentNodeHandle:(uint64_t)parentNodeHandle
-                    nodeType:(int)nodeType
-                    category:(int)category
-             sensitiveFilter:(int)sensitiveFilter
-             favouriteFilter:(int)favouriteFilter
+                    nodeType:(MEGANodeType)nodeType
+                    category:(MEGANodeFormatType)category
+             sensitiveFilter:(MEGASearchFilterSensitiveOption)sensitiveFilter
+             favouriteFilter:(MEGASearchFilterFavouriteOption)favouriteFilter
                 locationType:(int)locationType
            creationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)creationTimeFrame
        modificationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)modificationTimeFrame {
@@ -52,10 +53,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (instancetype)initWithTerm:(NSString*)term
             parentNodeHandle: (uint64_t)parentNodeHandle
-                    nodeType:(int)nodeType
-                    category:(int)category
-             sensitiveFilter:(int)sensitiveFilter
-             favouriteFilter:(int)favouriteFilter
+                    nodeType:(MEGANodeType)nodeType
+                    category:(MEGANodeFormatType)category
+             sensitiveFilter:(MEGASearchFilterSensitiveOption)sensitiveFilter
+             favouriteFilter:(MEGASearchFilterFavouriteOption)favouriteFilter
            creationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)creationTimeFrame
        modificationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)modificationTimeFrame {
     return [self initWithTerm:term
@@ -70,10 +71,10 @@ NS_ASSUME_NONNULL_BEGIN
 }
 
 - (instancetype)initWithTerm: (NSString*)term
-                    nodeType:(int)nodeType
-                    category:(int)category
-             sensitiveFilter:(int)sensitiveFilter
-             favouriteFilter:(int)favouriteFilter
+                    nodeType:(MEGANodeType)nodeType
+                    category:(MEGANodeFormatType)category
+             sensitiveFilter:(MEGASearchFilterSensitiveOption)sensitiveFilter
+             favouriteFilter:(MEGASearchFilterFavouriteOption)favouriteFilter
                 locationType:(int)locationType
            creationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)creationTimeFrame
        modificationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)modificationTimeFrame {
@@ -95,6 +96,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)didSetLocationType {
     return _locationType != -1;
 }
+
 
 @end
 

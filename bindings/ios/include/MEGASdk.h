@@ -92,21 +92,6 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
     MEGASortOrderTypeFavouriteDesc
 };
 
-typedef NS_ENUM (NSInteger, MEGANodeFormatType) {
-    MEGANodeFormatTypeUnknown = 0,
-    MEGANodeFormatTypePhoto,
-    MEGANodeFormatTypeAudio,
-    MEGANodeFormatTypeVideo,
-    MEGANodeFormatTypeDocument,
-    MEGANodeFormatTypePdf,
-    MEGANodeFormatTypePresentation,
-    MEGANodeFormatTypeArchive,
-    MEGANodeFormatTypeProgram,
-    MEGANodeFormatTypeMisc,
-    MEGANodeFormatTypeSpreadsheet,
-    MEGANodeFormatTypeAllDocs
-};
-
 typedef NS_ENUM (NSInteger, MEGAFolderTargetType) {
     MEGAFolderTargetTypeInShare = 0,
     MEGAFolderTargetTypeOutShare,

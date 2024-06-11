@@ -3996,10 +3996,10 @@ using namespace mega;
     MegaSearchFilter *megaFilter = MegaSearchFilter::createInstance();
 
     megaFilter->byName(filter.term.UTF8String);
-    megaFilter->byNodeType(filter.nodeType);
-    megaFilter->byCategory(filter.category);
-    megaFilter->bySensitivity(filter.sensitiveFilter);
-    megaFilter->byFavourite(filter.favouriteFilter);
+    megaFilter->byNodeType((int)filter.nodeType);
+    megaFilter->byCategory((int)filter.category);
+    megaFilter->bySensitivity((int)filter.sensitiveFilter);
+    megaFilter->byFavourite((int)filter.favouriteFilter);
 
     if (filter.didSetLocationType) {
         megaFilter->byLocation(filter.locationType);
