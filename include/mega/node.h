@@ -456,7 +456,6 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     static MimeType_t getMimetype(const std::string& ext);
 
     bool isPhotoWithFileAttributes(bool checkPreview) const;
-    bool isVideoWithFileAttributes() const;
 
     bool isPasswordNode() const;
     bool isPasswordNodeFolder() const;

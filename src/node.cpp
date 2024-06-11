@@ -389,41 +389,6 @@ bool Node::isVideo(const std::string& ext)
     return videoExtensions().find(getExtensionNameId(ext)) != videoExtensions().end();
 }
 
-bool Node::isVideoWithFileAttributes() const
-{
-    std::string ext;
-    if (!Node::getExtension(ext, displayname()))
-    {
-        return false;
-    }
-
-    if (Node::hasfileattribute(&fileattrstring, fa_media) && nodekey().size() == FILENODEKEYLENGTH)
-    {
-#ifdef USE_MEDIAINFO
-        if (client->mediaFileInfo.mediaCodecsReceived)
-        {
-            MediaProperties mp = MediaProperties::decodeMediaPropertiesAttributes(fileattrstring, (uint32_t*)(nodekey().data() + FILENODEKEYLENGTH / 2));
-            unsigned videocodec = mp.videocodecid;
-            if (!videocodec && mp.shortformat)
-            {
-                auto& v = client->mediaFileInfo.mediaCodecs.shortformats;
-                if (mp.shortformat < v.size())
-                {
-                    videocodec = v[mp.shortformat].videocodecid;
-                }
-            }
-            // approximation: the webclient has a lot of logic to determine if a particular codec is playable in that browser.  We'll just base our decision on the presence of a video codec.
-            if (!videocodec)
-            {
-                return false; // otherwise double-check by extension
-            }
-        }
-#endif
-    }
-
-    return isVideo(ext);
-}
-
 bool Node::isAudio(const std::string& ext)
 {
     nameid extNameid = getExtensionNameId(ext);

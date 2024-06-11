@@ -30,7 +30,9 @@ clang-format:
 
     for COMMIT in $COMMITS
     do
-        OUTPUT=$(git -c color.ui=always clang-format --diff $COMMIT^ $COMMIT)
+        OUTPUT=$(git -c color.ui=always clang-format --diff \
+        --extensions ".c,.c++,.c++m,.cc,.ccm,.cp,.cpp,.cppm,.cxx,.cxxm,.h,.hh,.hpp,.hxx" \
+        $COMMIT^ $COMMIT)
 
         printf '%s\n' "$COMMIT"
 

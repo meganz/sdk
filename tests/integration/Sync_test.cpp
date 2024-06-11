@@ -13091,7 +13091,7 @@ TEST_F(FilterFailureFixture, TriggersStall)
     Model model;
 
     // Set up the local filesystem.
-    model.addfile(".megaignore", "exclude-larger:4\nexclude-smaller:8\n+sync:.megaignore");
+    model.addfile(".megaignore", "exclude-larger:4\nexclude-smaller:4\n+sync:.megaignore");
     model.generate(root(*cu) / "root");
 
     // Log in the client.
@@ -14650,6 +14650,7 @@ TEST_F(CloudToLocalFilterFixture, DoesntDownloadIgnoredNodes)
         auto rRoot = cu->gettestbasenode();
 
         // Populate filesystem.
+        // (fe = file excluded, fi = file included)
         remoteTree.addfile(".megaignore", "-:f\n+sync:.megaignore");
         remoteTree.addfile("d/f");
         remoteTree.addfile("d/g");
@@ -14664,6 +14665,15 @@ TEST_F(CloudToLocalFilterFixture, DoesntDownloadIgnoredNodes)
         remoteTree.addfile("du/.megaignore", "exclude-larger:16");
         remoteTree.addfile("du/fe", randomData(17));
         remoteTree.addfile("du/fi", randomData(16));
+        remoteTree.addfile("dr/.megaignore",
+                           "exclude-smaller:16\nexclude-larger:8"); // exclude in-range [8-16]
+        remoteTree.addfile("dr/fe0", randomData(8));
+        remoteTree.addfile("dr/fe1", randomData(16));
+        remoteTree.addfile("dr/fe2", randomData(9));
+        remoteTree.addfile("dr/fe3", randomData(15));
+        remoteTree.addfile("dr/fi0", randomData(7));
+        remoteTree.addfile("dr/fi1", randomData(17));
+        remoteTree.addfile("dr/fi2", randomData(0));
         remoteTree.addfile("f");
         remoteTree.addfile("g");
         remoteTree.generate(lRoot);
@@ -14691,6 +14701,8 @@ TEST_F(CloudToLocalFilterFixture, DoesntDownloadIgnoredNodes)
     localFS.removenode("dl/fe");
     localFS.removenode("dr/fe0");
     localFS.removenode("dr/fe1");
+    localFS.removenode("dr/fe2");
+    localFS.removenode("dr/fe3");
     localFS.removenode("du/fe");
     localFS.removenode("f");
 
