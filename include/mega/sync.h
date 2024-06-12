@@ -1324,6 +1324,8 @@ public:
     std::chrono::steady_clock::time_point lastSyncStallsCount{std::chrono::steady_clock::now()};
     static const std::chrono::milliseconds MIN_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT;
     static const std::chrono::milliseconds MAX_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT;
+    static const std::chrono::milliseconds MIN_DELAY_BETWEEN_SYNC_VERBOSE_TIMED; // 5 secs
+    static const std::chrono::milliseconds TIME_WINDOW_FOR_SYNC_VERBOSE_TIMED; // 1 sec
 
     // for quick lock free reference by MegaApiImpl::syncPathState (don't slow down windows explorer)
     bool mSyncVecIsEmpty = true;
