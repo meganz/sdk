@@ -19434,6 +19434,7 @@ TEST_F(SdkTest, SdkTestVPN)
         ASSERT_THAT(getNameTracker.request->getText(), ::testing::NotNull());
         ASSERT_EQ(origName, getNameTracker.request->getText());
     }
+}
 
 /**
  * @brief Test checks deleting user attributes

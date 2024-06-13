@@ -419,7 +419,7 @@ void User::invalidateattr(attr_t at)
     attrsv.erase(at);
 }
 
-void User::removeattr(attr_t at, bool ownUser, const string* version)
+void User::removeattr(attr_t at, bool ownUser)
 {
     if (isattrvalid(at))
     {
@@ -427,17 +427,21 @@ void User::removeattr(attr_t at, bool ownUser, const string* version)
     }
 
     attrs.erase(at);
-    if (version)
-    {
-        attrsv[at] = *version;
-    }
+    if (ownUser)
+        attrsv[at] = NON_EXISTING; // it allows to avoid fetch from servers
     else
+        attrsv.erase(at);
+}
+
+void User::removeattr(attr_t at, const string* version)
+{
+    if (isattrvalid(at))
     {
-        if (ownUser)
-            attrsv[at] = NON_EXISTING; // it allows to avoid fetch from servers
-        else
-            attrsv.erase(at);
+        setChanged(at);
     }
+
+    attrs.erase(at);
+    attrsv[at] = *version;
 }
 
 // updates the user attribute value+version only if different
