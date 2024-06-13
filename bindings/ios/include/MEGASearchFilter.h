@@ -119,6 +119,24 @@ NS_ASSUME_NONNULL_BEGIN
            creationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)creationTimeFrame
        modificationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)modificationTimeFrame;
 
+- (instancetype)initWithTerm:(NSString *)term
+            parentNodeHandle:(uint64_t)parentNodeHandle
+                    nodeType:(int)nodeType
+                    category:(int)category
+                 sensitivity:(bool)sensitivity
+             favouriteFilter:(int)favouriteFilter
+           creationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)creationTimeFrame
+       modificationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)modificationTimeFrame DEPRECATED_ATTRIBUTE;
+
+- (instancetype)initWithTerm:(NSString *)term
+                    nodeType:(int)nodeType
+                    category:(int)category
+                 sensitivity:(bool)sensitivity
+             favouriteFilter:(int)favouriteFilter
+                locationType:(int)locationType
+           creationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)creationTimeFrame
+       modificationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)modificationTimeFrame DEPRECATED_ATTRIBUTE;
+
 - (BOOL)didSetParentNodeHandle;
 - (BOOL)didSetLocationType;
 

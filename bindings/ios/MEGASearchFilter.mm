@@ -89,6 +89,45 @@ NS_ASSUME_NONNULL_BEGIN
         modificationTimeFrame:modificationTimeFrame];
 }
 
+- (instancetype)initWithTerm:(NSString*)term
+            parentNodeHandle: (uint64_t)parentNodeHandle
+                    nodeType:(int)nodeType
+                    category:(int)category
+                 sensitivity:(bool)sensitivity
+             favouriteFilter:(int)favouriteFilter
+           creationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)creationTimeFrame
+       modificationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)modificationTimeFrame {
+    
+    return [self initWithTerm:term
+             parentNodeHandle:parentNodeHandle
+                     nodeType:(MEGANodeType)nodeType
+                     category:(MEGANodeFormatType)category
+              sensitiveFilter:sensitivity? MEGASearchFilterSensitiveOptionNonSensitiveOnly : MEGASearchFilterSensitiveOptionDisabled
+              favouriteFilter:(MEGASearchFilterFavouriteOption)favouriteFilter
+                 locationType:-1
+            creationTimeFrame:creationTimeFrame
+            modificationTimeFrame:modificationTimeFrame];
+}
+
+- (instancetype)initWithTerm: (NSString*)term
+                    nodeType:(int)nodeType
+                    category:(int)category
+                 sensitivity:(bool)sensitivity
+             favouriteFilter:(int)favouriteFilter
+                locationType:(int)locationType
+           creationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)creationTimeFrame
+       modificationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)modificationTimeFrame {
+    return [self initWithTerm:term
+             parentNodeHandle:-1
+                     nodeType:(MEGANodeType)nodeType
+                     category:(MEGANodeFormatType)category
+              sensitiveFilter:sensitivity? MEGASearchFilterSensitiveOptionNonSensitiveOnly : MEGASearchFilterSensitiveOptionDisabled
+              favouriteFilter:(MEGASearchFilterFavouriteOption)favouriteFilter
+                 locationType:locationType
+            creationTimeFrame:creationTimeFrame
+        modificationTimeFrame:modificationTimeFrame];
+}
+
 - (BOOL)didSetParentNodeHandle {
     return _parentNodeHandle != -1;
 }
