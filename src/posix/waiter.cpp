@@ -66,11 +66,7 @@ void PosixWaiter::init(dstime ds)
 // update monotonously increasing timestamp in deciseconds
 void Waiter::bumpds()
 {
-    timespec ts;
-
-    m_clock_getmonotonictime(&ts);
-
-    ds = static_cast<dstime>(ts.tv_sec * 10 + ts.tv_nsec / 100000000);
+    ds = m_clock_getmonotonictimeDS();
 }
 
 // update maxfd for select()

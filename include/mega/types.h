@@ -154,7 +154,7 @@ constexpr m_time_t mega_invalid_timestamp = 0;
 inline bool isValidTimeStamp(m_time_t t) { return t != mega_invalid_timestamp; }
 
 // monotonously increasing time in deciseconds
-typedef uint32_t dstime;
+using dstime = int64_t;
 
 #define NEVER (~(dstime)0)
 #define EVER(ds) ((ds+1))
