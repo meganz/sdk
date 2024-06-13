@@ -23,15 +23,15 @@
 #import "MEGASearchFilterTimeFrame.h"
 
 typedef NS_ENUM (NSInteger, MEGASearchFilterSensitiveOption) {
-       MEGASearchFilterSensitiveOptionDisabled = 0,
-       MEGASearchFilterSensitiveOptionNonSensitiveOnly = 1,
-       MEGASearchFilterSensitiveOptionSensitiveOnly = 2
+    MEGASearchFilterSensitiveOptionDisabled = 0,
+    MEGASearchFilterSensitiveOptionNonSensitiveOnly = 1,
+    MEGASearchFilterSensitiveOptionSensitiveOnly = 2
 };
 
 typedef NS_ENUM (NSInteger, MEGASearchFilterFavouriteOption) {
-       MEGASearchFilterFavouriteOptionDisabled = 0,
-       MEGASearchFilterFavouriteOptionFavouritesOnly = 1,
-       MEGASearchFilterFavouriteOptionNonFavouritesOnly = 2
+    MEGASearchFilterFavouriteOptionDisabled = 0,
+    MEGASearchFilterFavouriteOptionFavouritesOnly = 1,
+    MEGASearchFilterFavouriteOptionNonFavouritesOnly = 2
 };
 
 NS_ASSUME_NONNULL_BEGIN
