@@ -132,7 +132,7 @@ public:
     void invalidateattr(attr_t at);
     bool isattrvalid(attr_t at);
     void removeattr(attr_t at, bool ownUser);
-    void removeattr(attr_t at, const string* version);
+    void removeattr(attr_t at, const string& version);
     int updateattr(attr_t at, string *av, string *v);
 
     // Returns if attribute doesn't exist. Avoid requesting it to server

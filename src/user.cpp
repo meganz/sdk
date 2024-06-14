@@ -433,7 +433,7 @@ void User::removeattr(attr_t at, bool ownUser)
         attrsv.erase(at);
 }
 
-void User::removeattr(attr_t at, const string* version)
+void User::removeattr(attr_t at, const string& version)
 {
     if (isattrvalid(at))
     {
@@ -441,7 +441,7 @@ void User::removeattr(attr_t at, const string* version)
     }
 
     attrs.erase(at);
-    attrsv[at] = *version;
+    attrsv[at] = version;
 }
 
 // updates the user attribute value+version only if different
