@@ -23233,6 +23233,10 @@ class MegaApi
         /**
          * @brief Delete a user attribute of the current user, for testing
          *
+         * This method is for developer use only. It will fail in release mode with API_EACCESS.
+         * If the logged-in account is registered under a non MEGA email, it will fail with
+         * ??? (TBD by API team)
+         *
          * The associated request type with this request is MegaRequest::TYPE_DEL_ATTR_USER
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParamType - Returns the attribute type
