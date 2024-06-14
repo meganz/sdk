@@ -20507,16 +20507,16 @@ std::pair<uint32_t, uint32_t> MegaClient::getFlag(const char* flagName)
         return {FLAG_TYPE_INVALID, 0};
     }
 
-    unsigned flagValue = mABTestFlags.get(flagName, 0);
+    unique_ptr<uint32_t> flagValue = mABTestFlags.get(flagName);
     if (flagValue)
     {
-        return {FLAG_TYPE_AB_TEST, flagValue};
+        return {FLAG_TYPE_AB_TEST, *flagValue};
     }
 
-    flagValue = mFeatureFlags.get(flagName, 0);
+    flagValue = mFeatureFlags.get(flagName);
     if (flagValue)
     {
-        return {FLAG_TYPE_FEATURE, flagValue};
+        return {FLAG_TYPE_FEATURE, *flagValue};
     }
 
     return {FLAG_TYPE_INVALID, 0};

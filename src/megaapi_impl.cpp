@@ -6860,14 +6860,14 @@ bool MegaApiImpl::accountIsNew() const
 
 unsigned int MegaApiImpl::getABTestValue(const char* flag)
 {
-    if (!flag) return 0;
-    unsigned v = client->mABTestFlags.get(flag, 0);
+    if (!flag) return 0u;
+    unique_ptr<uint32_t> v = client->mABTestFlags.get(flag);
     if (v)
     {
         sendABTestActive(flag, nullptr);
     }
 
-    return v;
+    return v ? *v : 0u;
 }
 
 void MegaApiImpl::sendABTestActive(const char* flag, MegaRequestListener* listener)

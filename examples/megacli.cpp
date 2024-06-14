@@ -12198,8 +12198,8 @@ void exec_getABTestValue(autocomplete::ACState &s)
 {
     string flag = s.words[1].s;
 
-    uint32_t v = client->mABTestFlags.get(flag, 0);
-    string value = std::to_string(v) + (v ? "" : " (not set)");
+    unique_ptr<uint32_t> v = client->mABTestFlags.get(flag);
+    string value = v ? std::to_string(*v) : "(not set)";
 
     cout << "[" << flag<< "]:" << value << endl;
 }
