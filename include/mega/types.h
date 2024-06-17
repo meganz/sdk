@@ -156,8 +156,8 @@ inline bool isValidTimeStamp(m_time_t t) { return t != mega_invalid_timestamp; }
 // monotonously increasing time in deciseconds
 using dstime = int64_t;
 
-#define NEVER (~(dstime)0)
-#define EVER(ds) ((ds+1))
+#define NEVER std::numeric_limits<dstime>::max()
+#define EVER(ds) (ds != NEVER)
 
 #define STRINGIFY(x) # x
 #define TOSTRING(x) STRINGIFY(x)
