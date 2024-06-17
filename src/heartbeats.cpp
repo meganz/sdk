@@ -81,9 +81,7 @@ void HeartBeatSyncInfo::updateSPHBStatus(UnifiedSync& us)
 
     if (us.mSync)
     {
-        if (!us.mConfig.mError &&
-            // "INACTIVE" status is already accurate for "pause" state (reflected by SyncRunState::Suspend value !), keep it
-            us.mConfig.mRunState != SyncRunState::Suspend)
+        if (!us.mConfig.mError)
         {
             if (us.syncs.isSyncStalled(us.mConfig.mBackupId) ||
                 us.mSync->localroot->conflicts != TREE_RESOLVED)
