@@ -2927,7 +2927,7 @@ using namespace mega;
     return node ? [[MEGANode alloc] initWithMegaNode:node cMemoryOwn:YES] : nil;
 }
 
-- (MEGANode *)childNodeForParent:(MEGANode *)parent name:(NSString *)name type:(NSInteger)type {
+- (MEGANode *)childNodeForParent:(MEGANode *)parent name:(NSString *)name type:(MEGANodeType)type {
     if (parent == nil || name == nil || self.megaApi == nil) return nil;
     
     MegaNode *node = self.megaApi->getChildNodeOfType(parent.getCPtr, name.UTF8String, (int)type);

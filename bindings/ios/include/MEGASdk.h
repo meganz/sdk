@@ -7642,13 +7642,15 @@ typedef NS_ENUM(NSInteger, MEGAClientType) {
  * @brief Get the child node with the provided name.
  *
  * If the node doesn't exist, this function returns nil.
+ * It's possible to have multiple nodes with the same name.
+ * This function will return one of them.
  *
  * @param parent Parent node.
  * @param name Name of the node.
- * @param type Type of the node.
+ * @param type Type of the node. Allowed types: MEGANodeTypeFile and MEGANodeTypeFolder.
  * @return The MEGANode that has the selected parent, name and type.
  */
-- (nullable MEGANode *)childNodeForParent:(MEGANode *)parent name:(NSString *)name type:(NSInteger)type;
+- (nullable MEGANode *)childNodeForParent:(MEGANode *)parent name:(NSString *)name type:(MEGANodeType)type;
 
 /**
  * @brief Get all versions of a file
