@@ -5406,7 +5406,8 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
                 while (json.enterarray())
                 {
                     int64_t expiryTimestamp = json.getint();
-                    string featurreId = json.getname();
+                    string featurreId;
+                    json.storeobject(&featurreId);
                     details->activeFeatures.push_back({expiryTimestamp, featurreId});
 
                     json.leavearray();
