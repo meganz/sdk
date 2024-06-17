@@ -6993,7 +6993,11 @@ void Sync::combineTripletSet(vector<SyncRow>::iterator a, vector<SyncRow>::itera
     }
 
     // if this fails, please figure out how we got into that state
-    assert(syncNode_nfs_count < 2);
+    if (syncNode_nfs_count >= 2)
+    {
+        LOG_err << "syncNode_nfs_count(" << syncNode_nfs_count << ") >= 2! This should not happen!";
+        assert(false && "syncNode_nfs_count >= 2, please figure out how we got into that state");
+    }
 
     // gather up the remaining into a single row, there may be clashes.
 
@@ -7126,41 +7130,41 @@ auto Sync::computeSyncTriplets(vector<CloudNode>& cloudNodes, const LocalNode& s
             }
             else if (rhs.syncNode)
             {
-                return compareUtf(lhs.cloudNode->name, true, rhs.syncNode->toName_of_localname, true, mCaseInsensitive);
+                return compareUtf(lhs.cloudNode->name, true, rhs.syncNode->toName_of_localname, false, mCaseInsensitive);
             }
             else // rhs.fsNode
             {
-                return compareUtf(lhs.cloudNode->name, true, rhs.fsNode->toName_of_localname(*syncs.fsaccess), true, mCaseInsensitive);
+                return compareUtf(lhs.cloudNode->name, true, rhs.fsNode->toName_of_localname(*syncs.fsaccess), false, mCaseInsensitive);
             }
         }
         else if (lhs.syncNode)
         {
             if (rhs.cloudNode)
             {
-                return compareUtf(lhs.syncNode->toName_of_localname, true, rhs.cloudNode->name, true, mCaseInsensitive);
+                return compareUtf(lhs.syncNode->toName_of_localname, false, rhs.cloudNode->name, true, mCaseInsensitive);
             }
             else if (rhs.syncNode)
             {
-                return compareUtf(lhs.syncNode->toName_of_localname, true, rhs.syncNode->toName_of_localname, true, mCaseInsensitive);
+                return compareUtf(lhs.syncNode->toName_of_localname, false, rhs.syncNode->toName_of_localname, false, mCaseInsensitive);
             }
             else // rhs.fsNode
             {
-                return compareUtf(lhs.syncNode->toName_of_localname, true, rhs.fsNode->toName_of_localname(*syncs.fsaccess), true, mCaseInsensitive);
+                return compareUtf(lhs.syncNode->toName_of_localname, false, rhs.fsNode->toName_of_localname(*syncs.fsaccess), false, mCaseInsensitive);
             }
         }
         else // lhs.fsNode
         {
             if (rhs.cloudNode)
             {
-                return compareUtf(lhs.fsNode->toName_of_localname(*syncs.fsaccess), true, rhs.cloudNode->name, true, mCaseInsensitive);
+                return compareUtf(lhs.fsNode->toName_of_localname(*syncs.fsaccess), false, rhs.cloudNode->name, true, mCaseInsensitive);
             }
             else if (rhs.syncNode)
             {
-                return compareUtf(lhs.fsNode->toName_of_localname(*syncs.fsaccess), true, rhs.syncNode->toName_of_localname, true, mCaseInsensitive);
+                return compareUtf(lhs.fsNode->toName_of_localname(*syncs.fsaccess), false, rhs.syncNode->toName_of_localname, false, mCaseInsensitive);
             }
             else // rhs.fsNode
             {
-                return compareUtf(lhs.fsNode->toName_of_localname(*syncs.fsaccess), true, rhs.fsNode->toName_of_localname(*syncs.fsaccess), true, mCaseInsensitive);
+                return compareUtf(lhs.fsNode->toName_of_localname(*syncs.fsaccess), false, rhs.fsNode->toName_of_localname(*syncs.fsaccess), false, mCaseInsensitive);
             }
         }
     };
