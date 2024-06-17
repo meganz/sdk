@@ -8120,6 +8120,14 @@ TEST_F(SdkTest, SdkGetPricing)
     ASSERT_TRUE(err == API_OK) << "Get pricing failed (error: " << err << ")";
 
     ASSERT_TRUE(strcmp(mApi[0].mMegaCurrency->getCurrencyName(), "EUR") == 0) << "Unexpected currency";
+
+    ASSERT_GT(mApi[0].mMegaPricing->getNumProducts(), 0) << "No products available";
+    for (int i = 0; i < mApi[0].mMegaPricing->getNumProducts(); ++i)
+    {
+        ASSERT_TRUE(mApi[0].mMegaPricing->getDescription(i)) << "Product description is empty";
+        ASSERT_GT(mApi[0].mMegaPricing->getTestCategory(i), 0) << "Invalid value for test category in product \""
+                                                              << mApi[0].mMegaPricing->getDescription(i) << "\"";
+    }
 }
 
 TEST_F(SdkTest, SdkGetBanners)
@@ -19425,5 +19433,64 @@ TEST_F(SdkTest, SdkTestVPN)
         ASSERT_EQ(getNameTracker.waitForResult(), API_OK) << "VPN client: failed to get reset First Name";
         ASSERT_THAT(getNameTracker.request->getText(), ::testing::NotNull());
         ASSERT_EQ(origName, getNameTracker.request->getText());
+    }
+}
+
+TEST_F(SdkTest, GetFeaturePlans)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    LOG_info << "___TEST GetFeaturePlans___";
+
+    int err = synchronousGetPricing(0);
+    ASSERT_EQ(err, API_OK) << "synchronousGetPricing() failed: " << MegaError::getErrorString(err);
+
+    for (int i = 0; i < mApi[0].mMegaPricing->getNumProducts(); ++i)
+    {
+        if (mApi[0].mMegaPricing->isFeaturePlan(i))
+        {
+            ASSERT_NE(mApi[0].mMegaPricing->getHandle(i), INVALID_HANDLE);
+            ASSERT_EQ(mApi[0].mMegaPricing->getProLevel(i), 99999);
+            ASSERT_NE(mApi[0].mMegaPricing->getMonths(i), 0);
+            ASSERT_NE(mApi[0].mMegaPricing->getAmount(i), 0);
+            ASSERT_STRNE(mApi[0].mMegaPricing->getDescription(i), "");
+
+            std::unique_ptr<MegaStringIntegerMap> features{ mApi[0].mMegaPricing->getFeatures(i) };
+            ASSERT_NE(features->size(), 0);
+
+            ASSERT_STRNE(mApi[0].mMegaPricing->getIosID(i), "");
+            ASSERT_STRNE(mApi[0].mMegaPricing->getAndroidID(i), "");
+            ASSERT_NE(mApi[0].mMegaPricing->getAmountMonth(i), 0);
+        }
+    }
+}
+
+/**
+ * @brief GetUserFeatures
+ */
+TEST_F(SdkTest, GetUserFeatures)
+{
+    LOG_info << "___TEST GetUserFeatures___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    RequestTracker accDetailsTracker(megaApi[0].get());
+    megaApi[0]->getAccountDetails(&accDetailsTracker);
+    ASSERT_EQ(accDetailsTracker.waitForResult(), API_OK) << "Failed to get account details";
+
+    std::unique_ptr<MegaAccountDetails> accountDetails(accDetailsTracker.request->getMegaAccountDetails());
+    ASSERT_TRUE(accountDetails) << "Missing account details";
+
+    if (accountDetails->getProLevel() == MegaAccountDetails::ACCOUNT_TYPE_FREE)
+    {
+        ASSERT_EQ(accountDetails->getNumActiveFeatures(), 0);
+        ASSERT_EQ(accountDetails->getSubscriptionLevel(), 0);
+    }
+    else
+    {
+        ASSERT_GT(accountDetails->getNumActiveFeatures(), 0);
+        if (accountDetails->getSubscriptionLevel())
+        {
+            std::unique_ptr<MegaStringIntegerMap> subscriptionFeatures{ accountDetails->getSubscriptionFeatures() };
+            ASSERT_GT(subscriptionFeatures->size(), 0);
+        }
     }
 }

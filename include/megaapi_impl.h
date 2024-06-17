@@ -1568,8 +1568,8 @@ class MegaRequestPrivate : public MegaRequest
         void setTag(int tag);
         void addProduct(unsigned int type, handle product, int proLevel, int gbStorage, int gbTransfer,
                         int months, int amount, int amountMonth, int localPrice,
-                        const char *description, const char *iosid, const char *androidid,
-                        std::unique_ptr<BusinessPlan>);
+                        const char *description, std::map<std::string, uint32_t>&& features, const char *iosid, const char *androidid,
+                        unsigned int testCategory, std::unique_ptr<BusinessPlan>);
         void setCurrency(std::unique_ptr<CurrencyData> currencyData);
         void setProxy(Proxy *proxy);
         Proxy *getProxy();
@@ -1842,6 +1842,19 @@ private:
     AccountTransaction transaction;
 };
 
+class MegaAccountFeaturePrivate : public MegaAccountFeature
+{
+public:
+    static MegaAccountFeaturePrivate* fromAccountFeature(const AccountFeature* feature);
+
+    int64_t getExpiry() const override;
+    char* getId() const override;
+
+private:
+    MegaAccountFeaturePrivate(const AccountFeature* feature);
+    AccountFeature mFeature;
+};
+
 class MegaAccountDetailsPrivate : public MegaAccountDetails
 {
     public:
@@ -1889,6 +1902,11 @@ class MegaAccountDetailsPrivate : public MegaAccountDetails
         long long getTemporalBandwidth() override;
         bool isTemporalBandwidthValid() override;
 
+        int getNumActiveFeatures() const override;
+        MegaAccountFeature* getActiveFeature(int featureIndex) const override;
+        int64_t getSubscriptionLevel() const override;
+        MegaStringIntegerMap* getSubscriptionFeatures() const override;
+
     private:
         MegaAccountDetailsPrivate(AccountDetails *details);
         AccountDetails details;
@@ -1927,6 +1945,7 @@ public:
     const char* getIosID(int productIndex) override;
     const char* getAndroidID(int productIndex) override;
     bool isBusinessType(int productIndex) override;
+    bool isFeaturePlan(int productIndex) const override;
     int getAmountMonth(int productIndex) override;
     MegaPricing *copy() override;
     int getGBStoragePerUser(int productIndex) override;
@@ -1940,13 +1959,24 @@ public:
     unsigned int getPricePerTransfer(int productIndex) override;
     unsigned int getLocalPricePerTransfer(int productIndex) override;
     int getGBPerTransfer(int productIndex) override;
+    MegaStringIntegerMap* getFeatures(int productIndex) const override;
+    unsigned int getTestCategory(int productIndex) const override;
 
     void addProduct(unsigned int type, handle product, int proLevel, int gbStorage, int gbTransfer,
                     int months, int amount, int amountMonth, unsigned localPrice,
-                    const char *description, const char *iosid, const char *androidid,
-                    std::unique_ptr<BusinessPlan>);
+                    const char *description, std::map<std::string, uint32_t>&& features, const char *iosid, const char *androidid,
+                    unsigned int testCategory, std::unique_ptr<BusinessPlan>);
 
 private:
+    enum PlanType : unsigned
+    {
+        PRO_LEVEL,
+        BUSINESS,
+        FEATURE,
+    };
+
+    bool isType(int productIndex, unsigned t) const;
+
     vector<unsigned int> type;
     vector<handle> handles;
     vector<int> proLevel;
@@ -1957,8 +1987,10 @@ private:
     vector<int> amountMonth;
     vector<int> mLocalPrice;
     vector<const char *> description;
+    vector<map<string, uint32_t>> features;
     vector<const char *> iosId;
     vector<const char *> androidId;
+    vector<unsigned int> mTestCategory;
 
     std::vector<std::unique_ptr<BusinessPlan>> mBizPlan;
 };
@@ -2185,6 +2217,23 @@ protected:
 };
 
 bool operator==(const MegaStringList& lhs, const MegaStringList& rhs);
+
+class MegaStringIntegerMapPrivate : public MegaStringIntegerMap
+{
+public:
+    MegaStringIntegerMapPrivate() = default;
+    ~MegaStringIntegerMapPrivate() override = default;
+    MegaStringIntegerMapPrivate* copy() const override { return new MegaStringIntegerMapPrivate(*this); }
+    MegaStringListPrivate* getKeys() const override;
+    MegaIntegerListPrivate* get(const char* key) const override;
+    void set(const char* key, int64_t value) override;
+    void set(const std::string& key, int64_t value);
+    int64_t size() const override { return static_cast<decltype(size())>(mStorage.size()); }
+
+protected:
+    MegaStringIntegerMapPrivate(const MegaStringIntegerMapPrivate& stringIntMap) = default;
+    std::map<std::string, int64_t> mStorage;
+};
 
 class MegaStringListMapPrivate : public MegaStringListMap
 {
@@ -4048,8 +4097,9 @@ private:
         // purchase transactions
         void enumeratequotaitems_result(unsigned type, handle product, unsigned prolevel, int gbstorage, int gbtransfer,
                                         unsigned months, unsigned amount, unsigned amountMonth, unsigned localPrice,
-                                        const char* description, const char* iosid, const char* androidid,
-                                        std::unique_ptr<BusinessPlan>) override;
+                                        const char* description, std::map<std::string, uint32_t>&& features,
+                                        const char* iosid, const char* androidid, 
+                                        unsigned int testCategory, std::unique_ptr<BusinessPlan>) override;
         void enumeratequotaitems_result(unique_ptr<CurrencyData>) override;
         void enumeratequotaitems_result(error e) override;
         void additem_result(error) override;

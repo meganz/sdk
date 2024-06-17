@@ -3602,6 +3602,52 @@ public:
 };
 
 /**
+ * @brief Map of integer values with string keys (map<string, int64_t>)
+ */
+class MegaStringIntegerMap
+{
+public:
+    virtual ~MegaStringIntegerMap() = default;
+    virtual MegaStringIntegerMap* copy() const = 0;
+
+    /**
+     * @brief Returns the list of keys in the MegaStringIntegerMap
+     *
+     * You take the ownership of the returned value
+     *
+     * @return A MegaStringList containing the keys present in the MegaStringIntegerMap
+     */
+    virtual MegaStringList* getKeys() const = 0;
+
+    /**
+     * @brief Returns a list with the value of the provided key
+     *
+     * You take the ownership of the returned value
+     *
+     * @param key Key of the element that you want to get from the map
+     * @return A MegaIntegerList containing the list with the value for the provided key
+     */
+    virtual MegaIntegerList* get(const char* key) const = 0;
+
+    /**
+     * @brief Sets a value in the map for the given key.
+     *
+     * If the key already exists, the value will be overwritten by the
+     * new value.
+     *
+     * @param key The key in the map.
+     * @param value The new value for the key in the map.
+     */
+    virtual void set(const char* key, int64_t value) = 0;
+
+    /**
+     * @brief Returns the number of (string, int64_t) pairs in the map
+     * @return Number of pairs in the map
+     */
+    virtual int64_t size() const = 0;
+};
+
+/**
  * @brief List of strings
  *
  * A MegaStringList has the ownership of the strings that it contains, so they will be
@@ -23610,6 +23656,31 @@ public:
 };
 
 /**
+ * @brief Details about a MEGA feature
+ */
+class MegaAccountFeature
+{
+public:
+    virtual ~MegaAccountFeature() = default;
+
+    /**
+     * @brief Get the expiry timestamp
+     *
+     * @return Expiry timestamp
+     */
+    virtual int64_t getExpiry() const = 0;
+
+    /**
+     * @brief Get the ID of this feature
+     *
+     * You take the ownership of the returned value
+     *
+     * @return ID of this feature
+     */
+    virtual char* getId() const = 0;
+};
+
+/**
  * @brief Details about a MEGA account
  */
 class MegaAccountDetails
@@ -23948,6 +24019,41 @@ public:
      * @return True if the temporal bandwidth is valid, otherwise false
      */
     virtual bool isTemporalBandwidthValid();
+
+    /**
+     * @brief Get the number of active MegaAccountFeature-s in the account
+     *
+     * You can use MegaAccountDetails::getActiveFeature to get each of those objects.
+     *
+     * @return Number of MegaAccountFeature objects
+     */
+    virtual int getNumActiveFeatures() const = 0;
+
+    /**
+     * @brief Returns the MegaAccountFeature object associated with an index
+     *
+     * You take the ownership of the returned value
+     *
+     * @param featureIndex Index of the object
+     * @return MegaAccountFeature object
+     */
+    virtual MegaAccountFeature* getActiveFeature(int featureIndex) const = 0;
+
+    /**
+     * @brief Get feature account level for feature related subscriptions
+     *
+     * @return Level for feature related subscriptions
+     */
+    virtual int64_t getSubscriptionLevel() const = 0;
+
+    /**
+     * @brief Get subscription features for this account
+     *
+     * You take the ownership of the returned value
+     *
+     * @return Subscription features for this account. The value of each feature should be treated as a 32bit unsigned int
+     */
+    virtual MegaStringIntegerMap* getSubscriptionFeatures() const = 0;
 };
 
 class MegaCurrency
@@ -24132,15 +24238,24 @@ public:
     virtual const char* getAndroidID(int productIndex);
 
     /**
-     * @brief Returns if the pricing plan is a business or Pro Flexi plan
+     * @brief Returns true if the pricing plan is a Business plan
      *
      * You can check if the plan is pure buiness or Pro Flexi by calling
      * the method MegaApi::getProLevel
      *
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
-     * @return true if the pricing plan is a business or Pro Flexi plan, otherwise return false
+     * @return true if the pricing plan is a Business plan, otherwise return false
      */
     virtual bool isBusinessType(int productIndex);
+
+    /**
+     * @brief Returns true if the pricing plan is a Feature plan
+     *
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     *
+     * @return true if the pricing plan is a Feature plan, otherwise return false
+     */
+    virtual bool isFeaturePlan(int productIndex) const;
 
     /**
      * @brief Get the monthly price of the product (in cents)
@@ -24250,6 +24365,23 @@ public:
      * @return number of GB of transfer, per block
      */
     virtual int getGBPerTransfer(int productIndex);
+
+    /**
+     * @brief Get the features of this product
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return Features of this product. The value of each feature should be treated as a 32bit unsigned int
+     */
+    virtual MegaStringIntegerMap* getFeatures(int productIndex) const;
+
+    /**
+     * @brief Get test category bitmap of a product
+     *
+     * The returned value must always be greater than 0
+     *
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return test category bitmap
+     */
+    virtual unsigned int getTestCategory(int productIndex) const;
 };
 
 /**
