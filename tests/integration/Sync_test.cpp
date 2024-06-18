@@ -8405,6 +8405,84 @@ TEST_F(SyncTest, DISABLED_RemotesWithEscapesSynchronizeCorrectly)
 
     // Confirm models.
     ASSERT_TRUE(cd->confirmModel_mainthread(model.findnode("x"), backupId1));
+}
+
+// this test contains tests for % being escaped with %25 from cloud->local
+TEST_F(SyncTest, RemotesWithEscapedEscapesSynchronizeCorrectly)
+{
+    const auto TESTROOT = makeNewTestRoot();
+    const auto TIMEOUT = chrono::seconds(4);
+
+    StandardClientInUse cu = g_clientManager->getCleanStandardClient(0, TESTROOT);
+    StandardClientInUse cd = g_clientManager->getCleanStandardClient(0, TESTROOT);
+
+    // Log callbacks.
+    cd->logcb = true;
+    cu->logcb = true;
+
+    // Log in client.
+    ASSERT_TRUE(cu->resetBaseFolderMulticlient(cd));
+    ASSERT_TRUE(cu->makeCloudSubdirs("x", 0, 0));
+    ASSERT_TRUE(CatchupClients(cd, cu));
+
+    // Populate cloud.
+    {
+        // Build test hierarchy.
+        const auto root = cu->fsBasePath / "x";
+
+        // Escapes will not be decoded as we're uploading directly.
+        fs::create_directories(root / "d0");
+        fs::create_directories(root / "d%2530");
+
+        ASSERT_TRUE(createNameFile(root, "f0"));
+        ASSERT_TRUE(createNameFile(root, "f%2530"));
+
+        auto node = cu->drillchildnodebyname(cu->gettestbasenode(), "x");
+        ASSERT_TRUE(!!node);
+
+        // Upload directories.
+        ASSERT_TRUE(cu->uploadFolderTree(root / "d0", node.get()));
+        ASSERT_TRUE(cu->uploadFolderTree(root / "d%2530", node.get()));
+
+        // Upload files.
+        ASSERT_TRUE(cu->uploadFile(root / "f0", node.get()));
+        ASSERT_TRUE(cu->uploadFile(root / "f%2530", node.get()));
+    }
+
+    // Add and start sync.
+    handle backupId1 = cd->setupSync_mainthread("sd", "x", false, false);
+
+    // Wait for initial sync to complete.
+    waitonsyncs(TIMEOUT, cd);
+
+    // Populate and confirm local fs.
+    Model model;
+
+    model.addfolder("x/d0");
+    model.addfolder("x/d%2530");
+    model.addfile("x/f0", "f0");
+    model.addfile("x/f%2530", "f%2530");
+
+    // Needed as we've downloaded files.
+    model.ensureLocalDebrisTmpLock("x");
+
+    ASSERT_TRUE(cd->confirmModel_mainthread(model.findnode("x"), backupId1));
+
+    // Locally remove an escaped node.
+    const auto syncRoot = cd->syncSet(backupId1).localpath;
+
+    fs::remove_all(syncRoot / "d%2530");
+    ASSERT_TRUE(!!model.removenode("x/d%2530"));
+
+    // Remotely remove an escaped file.
+    ASSERT_TRUE(cd->deleteremote("x/f%2530"));
+    ASSERT_TRUE(model.movetosynctrash("x/f%2530", "x"));
+
+    // Wait for sync up to complete.
+    waitonsyncs(TIMEOUT, cd);
+
+    // Confirm models.
+    ASSERT_TRUE(cd->confirmModel_mainthread(model.findnode("x"), backupId1));
 
     // Locally create some files with escapes in their names.
     {
