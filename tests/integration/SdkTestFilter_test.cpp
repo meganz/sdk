@@ -362,8 +362,8 @@ TEST_F(SdkTestFilter, SdkGetNodesInOrder)
 
     // Alphabetical, dirs first
     std::vector<std::string_view> expected{"Dir1",
-                                           "Dir11",
                                            "Dir2",
+                                           "Dir11",
                                            "testFile1",
                                            "testFile5",
                                            "TestFile5Uppercase",
@@ -373,9 +373,9 @@ TEST_F(SdkTestFilter, SdkGetNodesInOrder)
     EXPECT_THAT(toNamesVector(*searchResults), ContainsInOrder(expected))
         << "Unexpected sorting for ORDER_DEFAULT_ASC";
 
-    // Alphabetical inverted, dirs first
-    expected =
-        {"Dir2", "Dir11", "Dir1", "testFile6", "TestFile5Uppercase", "testFile5", "testFile1"};
+    // Alphabetical inverted, dirs first (reverse independently)
+    std::reverse(expected.begin(), expected.begin() + 3);
+    std::reverse(expected.begin() + 3, expected.end());
     searchResults.reset(megaApi[0]->search(filteringInfo.get(), MegaApi::ORDER_DEFAULT_DESC));
     ASSERT_THAT(searchResults, NotNull()) << "serach() returned a nullptr";
     EXPECT_THAT(toNamesVector(*searchResults), ContainsInOrder(expected))
@@ -480,6 +480,53 @@ TEST_F(SdkTestFilter, SdkGetNodesInOrder)
     ASSERT_THAT(searchResults, NotNull()) << "serach() returned a nullptr";
     EXPECT_THAT(toNamesVector(*searchResults), ContainsInOrder(expected))
         << "Unexpected sorting for ORDER_FAV_DESC";
+}
+
+/**
+ * @brief SdkTestFilter.SdkNewOldAPISameOrderResults
+ *
+ * Tests all the sorting options return the same results when calling the new and old implementation
+ */
+TEST_F(SdkTestFilter, SdkNewOldAPISameOrderResults)
+{
+    using testing::ContainerEq;
+    using testing::NotNull;
+
+    std::unique_ptr<MegaSearchFilter> filteringInfo(getDefaultfilter());
+    std::unique_ptr<MegaNode> rootNode(
+        megaApi[0]->getNodeByHandle(filteringInfo->byLocationHandle()));
+
+    // for now, we only fixed default ordering
+    const std::vector<std::pair<int, std::string_view>> ordersToCheck{
+        {MegaApi::ORDER_DEFAULT_ASC,  "ORDER_DEFAULT_ASC" },
+        {MegaApi::ORDER_DEFAULT_DESC, "ORDER_DEFAULT_DESC"},
+ /*
+  {MegaApi::ORDER_SIZE_ASC,          "ORDER_SIZE_ASC"         },
+  {MegaApi::ORDER_SIZE_DESC,         "ORDER_SIZE_DESC"        },
+  {MegaApi::ORDER_CREATION_ASC,      "ORDER_CREATION_ASC"     },
+  {MegaApi::ORDER_CREATION_DESC,     "ORDER_CREATION_DESC"    },
+  {MegaApi::ORDER_MODIFICATION_ASC,  "ORDER_MODIFICATION_ASC" },
+  {MegaApi::ORDER_MODIFICATION_DESC, "ORDER_MODIFICATION_DESC"},
+  {MegaApi::ORDER_LABEL_ASC,         "ORDER_LABEL_ASC"        },
+  {MegaApi::ORDER_LABEL_DESC,        "ORDER_LABEL_DESC"       },
+  {MegaApi::ORDER_FAV_ASC,           "ORDER_FAV_ASC"          },
+  {MegaApi::ORDER_FAV_DESC,          "ORDER_FAV_DESC"         },
+  */
+    };
+
+    std::unique_ptr<MegaNodeList> searchNew;
+    std::unique_ptr<MegaNodeList> searchOld;
+    for (const auto& [orderId, orderName]: ordersToCheck)
+    {
+        searchNew.reset(megaApi[0]->search(filteringInfo.get(), orderId));
+        searchOld.reset(megaApi[0]->search(rootNode.get(), "*", true, orderId));
+        ASSERT_THAT(searchNew, NotNull())
+            << "New API serach() returned a nullptr for order type " << orderName;
+        ASSERT_THAT(searchOld, NotNull())
+            << "Old API serach() returned a nullptr for order type " << orderName;
+        EXPECT_EQ(toNamesVector(*searchNew), toNamesVector(*searchOld))
+            << "Different results for order type " << orderName;
+    }
 }
 
 TEST_F(SdkTestFilter, SdkGetFilteredNodes)
