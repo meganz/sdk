@@ -788,27 +788,26 @@ class ThreadSafeKeyValue
 public:
     std::unique_ptr<V> get(const K& key) const
     {
-        std::shared_lock lock(mMtx);
-        auto it = mStorrage.find(key);
-        return it == mStorrage.end() ? nullptr : std::make_unique<V>(it->second);
+        std::shared_lock lock(mMutex);
+        auto it = mStorage.find(key);
+        return it == mStorage.end() ? nullptr : std::make_unique<V>(it->second);
     }
 
     void set(const K& key, const V& value)
     {
-        std::unique_lock lock(mMtx);
-        mStorrage[key] = value;
+        std::unique_lock lock(mMutex);
+        mStorage[key] = value;
     }
 
     void clear()
     {
-        std::unique_lock lock(mMtx);
-        return mStorrage.clear();
+        std::unique_lock lock(mMutex);
+        return mStorage.clear();
     }
 
 private:
-    mutable std::shared_mutex mMtx;
-    std::map<K, V> mStorrage;
-    static_assert(std::is_arithmetic<V>::value, "Value for this Key-Value container can only be of numeric type");
+    mutable std::shared_mutex mMutex;
+    std::map<K, V> mStorage;
 };
 
 template<typename CharT>
