@@ -2060,9 +2060,9 @@ dstime m_clock_getmonotonictimeDS()
 {
     using namespace std::chrono;
 
-    auto time = duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
+    auto timeMs = duration_cast<milliseconds>(steady_clock::now().time_since_epoch());
 
-    return static_cast<dstime>(time / 100);
+    return duration<dstime, std::milli>(timeMs).count() / 100;
 }
 
 m_time_t m_mktime_UTC(const struct tm *src)
