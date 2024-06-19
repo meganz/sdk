@@ -2058,11 +2058,31 @@ m_time_t m_mktime(struct tm* stm)
 
 dstime m_clock_getmonotonictimeDS()
 {
-    using namespace std::chrono;
+    timespec t;
 
-    auto timeMs = duration_cast<milliseconds>(steady_clock::now().time_since_epoch());
+#ifdef __APPLE__
+    struct timeval now;
+    int rv = gettimeofday(&now, NULL);
+    if (rv)
+    {
+        return rv;
+    }
+    t.tv_sec = now.tv_sec;
+    t.tv_nsec = now.tv_usec * 1000;
+#elif defined(_WIN32) && defined(_MSC_VER)
+    struct __timeb64 tb;
+    _ftime64(&tb);
+    t.tv_sec = tb.time;
+    t.tv_nsec = long(tb.millitm) * 1000000;
+#else
+#ifdef CLOCK_BOOTTIME
+    clock_gettime(CLOCK_BOOTTIME, &t);
+#else
+    clock_gettime(CLOCK_MONOTONIC, &t);
+#endif
+#endif
 
-    return duration<dstime, std::milli>(timeMs).count() / 100;
+    return static_cast<dstime>(t.tv_sec * 10 + t.tv_nsec / 100000000);
 }
 
 m_time_t m_mktime_UTC(const struct tm *src)
