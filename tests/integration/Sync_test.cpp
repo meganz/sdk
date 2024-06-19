@@ -8309,22 +8309,20 @@ TEST_F(SyncTest, RemotesWithControlCharactersSynchronizeCorrectly)
     ASSERT_TRUE(cd->confirmModel_mainthread(model.findnode("x"), backupId1));
 
     // Locally create some files with control escapes in their names.
+#ifdef _WIN32
     ASSERT_TRUE(fs::create_directories(syncRoot / "dd%07"));
     ASSERT_TRUE(createFile(syncRoot / "ff%07", "ff"));
-    ASSERT_TRUE(fs::create_directories(syncRoot / "dd%41"));
-    ASSERT_TRUE(createFile(syncRoot / "ff%41", "ff"));
-
-    cd->triggerPeriodicScanEarly(backupId1);
+#else
+    ASSERT_TRUE(fs::create_directories(syncRoot / "dd\7"));
+    ASSERT_TRUE(createFile(syncRoot / "ff\7", "ff"));
+#endif /* ! _WIN32 */
 
     // Wait for synchronization to complete.
     waitonsyncs(TIMEOUT, cd);
 
     // Update and confirm models.
-    // We decided that control escapes would not be de-escaped if we are creating the cloud file/folder
-    model.addfolder("x/dd%07")->fsName("dd%07");
-    model.addfile("x/ff%07", "ff")->fsName("ff%07");
-    model.addfolder("x/ddA")->fsName("dd%41");
-    model.addfile("x/ffA", "ff")->fsName("ff%41");
+    model.addfolder("x/dd\7")->fsName("dd%07");
+    model.addfile("x/ff\7", "ff")->fsName("ff%07");
 
     ASSERT_TRUE(cd->confirmModel_mainthread(model.findnode("x"), backupId1));
 }
@@ -8399,6 +8397,84 @@ TEST_F(SyncTest, DISABLED_RemotesWithEscapesSynchronizeCorrectly)
     // Remotely remove an escaped file.
     ASSERT_TRUE(cd->deleteremote("x/f%30"));
     ASSERT_TRUE(model.movetosynctrash("x/f%30", "x"));
+
+    // Wait for sync up to complete.
+    waitonsyncs(TIMEOUT, cd);
+
+    // Confirm models.
+    ASSERT_TRUE(cd->confirmModel_mainthread(model.findnode("x"), backupId1));
+}
+
+// this test contains tests for % being escaped with %25 from cloud->local
+TEST_F(SyncTest, RemotesWithEscapedEscapesSynchronizeCorrectly)
+{
+    const auto TESTROOT = makeNewTestRoot();
+    const auto TIMEOUT = chrono::seconds(4);
+
+    StandardClientInUse cu = g_clientManager->getCleanStandardClient(0, TESTROOT);
+    StandardClientInUse cd = g_clientManager->getCleanStandardClient(0, TESTROOT);
+
+    // Log callbacks.
+    cd->logcb = true;
+    cu->logcb = true;
+
+    // Log in client.
+    ASSERT_TRUE(cu->resetBaseFolderMulticlient(cd));
+    ASSERT_TRUE(cu->makeCloudSubdirs("x", 0, 0));
+    ASSERT_TRUE(CatchupClients(cd, cu));
+
+    // Populate cloud.
+    {
+        // Build test hierarchy.
+        const auto root = cu->fsBasePath / "x";
+
+        // Escapes will not be decoded as we're uploading directly.
+        fs::create_directories(root / "d0");
+        fs::create_directories(root / "d%2530");
+
+        ASSERT_TRUE(createNameFile(root, "f0"));
+        ASSERT_TRUE(createNameFile(root, "f%2530"));
+
+        auto node = cu->drillchildnodebyname(cu->gettestbasenode(), "x");
+        ASSERT_TRUE(!!node);
+
+        // Upload directories.
+        ASSERT_TRUE(cu->uploadFolderTree(root / "d0", node.get()));
+        ASSERT_TRUE(cu->uploadFolderTree(root / "d%2530", node.get()));
+
+        // Upload files.
+        ASSERT_TRUE(cu->uploadFile(root / "f0", node.get()));
+        ASSERT_TRUE(cu->uploadFile(root / "f%2530", node.get()));
+    }
+
+    // Add and start sync.
+    handle backupId1 = cd->setupSync_mainthread("sd", "x", false, false);
+
+    // Wait for initial sync to complete.
+    waitonsyncs(TIMEOUT, cd);
+
+    // Populate and confirm local fs.
+    Model model;
+
+    model.addfolder("x/d0");
+    model.addfolder("x/d%2530");
+    model.addfile("x/f0", "f0");
+    model.addfile("x/f%2530", "f%2530");
+
+    // Needed as we've downloaded files.
+    model.ensureLocalDebrisTmpLock("x");
+
+    ASSERT_TRUE(cd->confirmModel_mainthread(model.findnode("x"), backupId1));
+
+    // Locally remove an escaped node.
+    const auto syncRoot = cd->syncSet(backupId1).localpath;
+
+    fs::remove_all(syncRoot / "d%2530");
+    ASSERT_TRUE(!!model.removenode("x/d%2530"));
+
+    // Remotely remove an escaped file.
+    ASSERT_TRUE(cd->deleteremote("x/f%2530"));
+    ASSERT_TRUE(model.movetosynctrash("x/f%2530", "x"));
 
     // Wait for sync up to complete.
     waitonsyncs(TIMEOUT, cd);
