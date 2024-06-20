@@ -119,11 +119,12 @@ class SettingsViewController: UIViewController, MEGARequestDelegate {
             setUserAvatar()
             
         case MEGARequestType.MEGARequestTypeAccountDetails:
-            spaceUsedLabel.text = "\(ByteCountFormatter.string(fromByteCount: request.megaAccountDetails.storageUsed.int64Value, countStyle: ByteCountFormatter.CountStyle.memory)) of \(ByteCountFormatter.string(fromByteCount: request.megaAccountDetails.storageMax.int64Value, countStyle: ByteCountFormatter.CountStyle.memory))"
-            let progress = request.megaAccountDetails.storageUsed.floatValue / request.megaAccountDetails.storageMax.floatValue
+            guard let megaAccountDetails = request.megaAccountDetails else { return }
+            spaceUsedLabel.text = "\(ByteCountFormatter.string(fromByteCount: megaAccountDetails.storageUsed, countStyle: ByteCountFormatter.CountStyle.memory)) of \(ByteCountFormatter.string(fromByteCount: megaAccountDetails.storageMax, countStyle: ByteCountFormatter.CountStyle.memory))"
+            let progress = Float(megaAccountDetails.storageUsed / megaAccountDetails.storageMax)
             spaceUsedProgressView.setProgress(progress, animated: true)
             
-            switch request.megaAccountDetails.type {
+            switch megaAccountDetails.type {
             case MEGAAccountType.free:
                 accountTypeLabel.text = "Account Type: FREE"
                 

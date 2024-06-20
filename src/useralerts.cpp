@@ -1083,8 +1083,8 @@ UserAlert::Payment::Payment(UserAlertRaw& un, unsigned int id)
     planNumber = un.getint('p', 0);
 }
 
-UserAlert::Payment::Payment(bool s, int plan, m_time_t timestamp, unsigned int id)
-    : Base(type_psts, UNDEF, "", timestamp, id)
+UserAlert::Payment::Payment(bool s, int plan, m_time_t timestamp, unsigned int id, nameid paymentType)
+    : Base(paymentType, UNDEF, "", timestamp, id)
 {
     success = s;
     planNumber = plan;
@@ -1117,7 +1117,7 @@ bool UserAlert::Payment::serialize(string* d) const
     return true;
 }
 
-UserAlert::Payment* UserAlert::Payment::unserialize(string* d, unsigned id)
+UserAlert::Payment* UserAlert::Payment::unserialize(string* d, unsigned id, nameid paymentType)
 {
     auto p = Base::unserialize(d);
     if (!p)
@@ -1134,7 +1134,7 @@ UserAlert::Payment* UserAlert::Payment::unserialize(string* d, unsigned id)
         r.unserializeu32(reinterpret_cast<unsigned&>(plan)) &&
         r.unserializeexpansionflags(expF, 0))
     {
-        auto* pmt = new Payment(s, plan, p->timestamp, id);
+        auto* pmt = new Payment(s, plan, p->timestamp, id, paymentType);
         pmt->setRelevant(p->relevant);
         pmt->setSeen(p->seen);
         return pmt;
@@ -1903,6 +1903,7 @@ void UserAlerts::add(UserAlertRaw& un)
         unb = new UpdatedSharedNode(un, nextId());
         break;
     case type_psts:
+    case type_psts_v2:
         unb = new Payment(un, nextId());
         break;
     case type_pses:
@@ -2045,7 +2046,7 @@ void UserAlerts::add(UserAlert::Base* unb)
     }
 
     // check for previous Payment-Reminder to ignore
-    if (!alerts.empty() && unb->type == UserAlert::type_psts && static_cast<UserAlert::Payment*>(unb)->success)
+    if (!alerts.empty() && (unb->type == UserAlert::type_psts || unb->type == UserAlert::type_psts_v2) && static_cast<UserAlert::Payment*>(unb)->success)
     {
         // if a successful payment is made then hide/remove any reminders received
         for (auto& a : alerts)
@@ -2770,7 +2771,8 @@ bool UserAlerts::unserializeAlert(string* d, uint32_t dbid)
         break;
 
     case UserAlert::type_psts:
-        a = UserAlert::Payment::unserialize(d, nextId());
+    case UserAlert::type_psts_v2:
+        a = UserAlert::Payment::unserialize(d, nextId(), type);
         break;
 
     case UserAlert::type_pses:

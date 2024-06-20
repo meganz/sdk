@@ -1513,7 +1513,7 @@ public:
     void sc_fileattr();
     void sc_userattr();
     bool sc_shares();
-    bool sc_upgrade();
+    bool sc_upgrade(nameid paymentType);
     void sc_paymentreminder();
     void sc_opc();
     void sc_ipc();
