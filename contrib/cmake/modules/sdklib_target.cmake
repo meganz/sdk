@@ -314,6 +314,7 @@ target_compile_definitions(SDKlib
     $<$<BOOL:${ENABLE_CHAT}>:ENABLE_CHAT>
     $<$<BOOL:${ENABLE_SYNC}>:ENABLE_SYNC>
     $<$<BOOL:${USE_LIBUV}>:HAVE_LIBUV>
+    $<$<PLATFORM_ID:iOS>:USE_IOS>
 )
 
 set_target_properties(SDKlib PROPERTIES
