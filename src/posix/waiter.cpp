@@ -63,17 +63,6 @@ void PosixWaiter::init(dstime ds)
     MEGA_FD_ZERO(&ignorefds);
 }
 
-// update monotonously increasing timestamp in deciseconds
-void Waiter::bumpds()
-{
-    std::lock_guard<std::mutex> lock(dsMutex);
-    dstime oldDs = ds;
-
-    ds = m_clock_getmonotonictimeDS();
-
-    assert((ds - oldDs) >= 0);
-}
-
 // update maxfd for select()
 void PosixWaiter::bumpmaxfd(int fd)
 {
