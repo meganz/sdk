@@ -1,56 +1,11 @@
 [[_TOC_]]
 
-# MEGA SDK - Automated release process
+# MEGA SDK - Release management
 
+The following processes have been automated:
 
-## Quick run
-
-Provide sensitive information:
-
-```sh
-export MEGA_GITLAB_TOKEN=FOO   # private token required for remote access; always required
-```
-For signing commits, GPG needs the following
-```sh
-export MEGA_GPG_KEYGRIP=BAR    # KEYGRIP of your gpg key (see below how to find it); required only when a source file will be edited
-export MEGA_GPG_PASSWORD=BAZZ  # password corresponding to the KEYGRIP (the one used to sign any commit); required only when a source file will be edited
-```
-For Jira
-```sh
-export MEGA_JIRA_USER=Fred     # Jira user
-export MEGA_JIRA_PASSWORD=Thud # Jira password
-```
-For Slack (optional)
-```sh
-export MEGA_SLACK_TOKEN=Qux    # Slack authentication token
-```
-
-From current directory run one of the following:
-
-\# will edit [../include/mega/version.h](../include/mega/version.h) to update the version
-```sh
-python3 ./make_release.py -r <release-version> -p <project-name> -l <private-git-host-url> -o <private-git-remote-name> -u <private-git-remote-url> -d <private-git-develop-branch> -m <public-git-target-branch> -j <project-management-url> -t <target-apps> -c <chat-channel> -q <rc-number>
-```
-
-\# no source file will be edited (so less mandatory args, and dealing with gpg stuff not required)
-```sh
-python3 ./make_release.py -r <release-version> -p <project-name> -l <private-git-host-url> -n -d <private-git-develop-branch> -m <public-git-target-branch> -j <project-management-url> -t <target-apps> -c <chat-channel> -q <rc-number>
-```
-
-Example:
-
-```sh
-# will edit source file(s) to update the version
-python3 ./make_release.py -r 1.0.0 -p SDK -l https://code.foo.bar -o origin -u https://foo.bar/sdk/sdk.git -d develop -m master -j https://jira.foo.bar -t "Android 1.0.1 / iOS 1.2 / MEGAsync 9.9.9" -c sdk_devs_only -q 1
-
-# no source file will be edited (so less mandatory args, and dealing with gpg stuff not required)
-python3 ./make_release.py -r 1.0.0 -p MEGAchat -l https://code.foo.bar -n -d develop -m master -j https://jira.foo.bar -t "Android 1.0.1 / iOS 1.2 / MEGAsync 9.9.9" -c sdk_devs_only -q 1
-```
-
-Running the following will also provide complete information:
-```sh
-python3 ./make_release.py -h
-```
+* [Create a new Release](README_create_release.md)
+* [Close a new Release](README_close_release.md)
 
 
 ## Prerequisites
@@ -58,14 +13,20 @@ python3 ./make_release.py -h
 These should only be needed once.
 
 
-### python stuff
+### Python stuff
 * Install `Python 3`. The script was written on top of Python 3.12.2, just in case an older version would fail to run it.
 * Install `pip`. Something like `python3 -m ensurepip --upgrade` should work.
 * Install required modules with `pip install -r requirements.txt` (and upgrade all later with `pip install -U -r requirements.txt`).
 
-### gitlab stuff
+### GitLab stuff
 * [Create a personal access token](https://docs.gitlab.com/ee/user/profile/personal_access_tokens.html#create-a-personal-access-token) with scopes `api`, `read_api`, `read_user`, `create_runner`, `read_repository`, `write_repository`.
 * The token created there must be set in `MEGA_GITLAB_TOKEN` env var.
+* Remember to check from time to time that the token has not expired.
+
+### GitHub stuff
+* [Create a personal access token](https://github.com/settings/tokens/new) with scope `repo` and all its sub-scopes.
+  * fill in `Note` and `Expiration` with what feels appropriate
+* The token created there must be set in `MEGA_GITHUB_TOKEN` env var.
 * Remember to check from time to time that the token has not expired.
 
 ### Slack stuff
@@ -75,6 +36,9 @@ These should only be needed once.
 * Set the token in `MEGA_SLACK_TOKEN` env var.
 * Update the env var when the token has expired.
 
+### Confluence stuff
+* This is optional. If Confluence details are not provided, the rotation of Release Captain will not be executed.
+* `wiki-page-id`: open "Release management" page in Confluence, then `...` -> `Page information` -> from the url copy the value after `pageId=`.
 
 ### gpg stuff
 * (Installing git, creating gpg key and other stuff required by any commit are not covered here)
@@ -99,8 +63,7 @@ sub   rsa3072 2021-01-04 [E]
 
 Value `BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB` is the one needed by `MEGA_GPG_KEYGRIP` env var.
 
-
-## Known issues
+#### Known gpg issues
 
 Setting up gpg does not work automatically on Windows.
 In order to run this process on a Windows machine, either be prepared to introduce the passkey when requested by a commit, or run the following setup steps manually in `Git Bash` (!), before starting the release process:

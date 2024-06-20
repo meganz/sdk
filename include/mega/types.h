@@ -1156,6 +1156,7 @@ enum class PathProblem : unsigned short {
     SourceWasMovedElsewhere,
     FilesystemCannotStoreThisName,
     CloudNodeInvalidFingerprint,
+    CloudNodeIsBlocked,
 
     PutnodeDeferredByController,
     PutnodeCompletionDeferredByController,
@@ -1247,6 +1248,18 @@ struct StorageInfo
     m_off_t mCapacity = 0;
     m_off_t mUsed = 0;
 }; // StorageInfo
+
+struct JSCData
+{
+    // Verifies that the sync config database hasn't been tampered with.
+    std::string authenticationKey;
+
+    // Used to encipher the sync config database's content.
+    std::string cipherKey;
+
+    // The name of this user's sync config databases.
+    std::string fileName;
+}; // JSCData
 
 #ifdef ENABLE_CHAT
 

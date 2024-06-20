@@ -8359,7 +8359,11 @@ void exec_alerts(autocomplete::ACState& s)
         }
         else if (s.words[1].s == "test_payment")
         {
-            client->useralerts.add(new UserAlert::Payment(true, 1, time(NULL) + 86000 * 1, client->useralerts.nextId()));
+            client->useralerts.add(new UserAlert::Payment(true, 1, time(NULL) + 86000 * 1, client->useralerts.nextId(), UserAlert::type_psts));
+        }
+        else if (s.words[1].s == "test_payment_v2")
+        {
+            client->useralerts.add(new UserAlert::Payment(true, 1, time(NULL) + 86000 * 1, client->useralerts.nextId(), UserAlert::type_psts_v2));
         }
         else if (atoi(s.words[1].s.c_str()) > 0)
         {
@@ -10002,8 +10006,10 @@ void DemoApp::enumeratequotaitems_result(unsigned type,
                                          unsigned amountMonth,
                                          unsigned localPrice,
                                          const char* description,
+                                         map<string, uint32_t>&& features,
                                          const char* iosId,
                                          const char* androidId,
+                                         unsigned int testCategory,
                                          std::unique_ptr<BusinessPlan> businessPlan)
 {
     if (type == 0) // Pro level plan
@@ -10016,8 +10022,21 @@ void DemoApp::enumeratequotaitems_result(unsigned type,
         cout << "\tAmount: " << amount << "\n";
         cout << "\tAmount per month: " << amountMonth << "\n";
         cout << "\tLocal price: " << localPrice << "\n";
+        cout << "\tFeatures:\n";
+        if (features.empty())
+        {
+            cout << "\t\t[none]\n";
+        }
+        else
+        {
+            for (const auto& f : features)
+            {
+                cout << "\t\t" << f.first << ": " << f.second << '\n';
+            }
+        }
         cout << "\tiOS ID: " << iosId << "\n";
-        cout << "\tAndroid ID: " << androidId << endl;
+        cout << "\tAndroid ID: " << androidId << "\n";
+        cout << "\tTest Category: " << testCategory << endl;
     }
     else // Business plan
     {
@@ -10032,7 +10051,8 @@ void DemoApp::enumeratequotaitems_result(unsigned type,
         cout << "\tGigabytes per storage: " << businessPlan->gbPerStorage << "\n";
         cout << "\tPrice per transfer: " << businessPlan->pricePerTransfer << "\n";
         cout << "\tLocal price per transfer: " << businessPlan->localPricePerTransfer << "\n";
-        cout << "\tGigabytes per transfer: " << businessPlan->gbPerTransfer << endl;
+        cout << "\tGigabytes per transfer: " << businessPlan->gbPerTransfer << "\n";
+        cout << "\tTest Category: " << testCategory << endl;
     }
 }
 
@@ -11428,29 +11448,35 @@ void exec_synclist(autocomplete::ACState& s)
     {
         auto cl = conlock(cout);
         cout << "Stalled (mutually unresolvable changes detected)!" << endl;
-        for (auto& p : stall.cloud)
+        for (auto& syncStallInfoMapPair : stall.syncStallInfoMaps)
         {
-            cout << "stall issue: " << syncWaitReasonDebugString(p.second.reason) << endl;
-            string r1 = p.second.cloudPath1.debugReport();
-            string r2 = p.second.cloudPath2.debugReport();
-            string r3 = p.second.localPath1.debugReport();
-            string r4 = p.second.localPath2.debugReport();
-            if (!r1.empty()) cout << "    MEGA:" << r1 << endl;
-            if (!r2.empty()) cout << "    MEGA:" << r2 << endl;
-            if (!r3.empty()) cout << "    here:" << r3 << endl;
-            if (!r4.empty()) cout << "    here:" << r4 << endl;
-        }
-        for (auto& p : stall.local)
-        {
-            cout << "stall issue: " << syncWaitReasonDebugString(p.second.reason) << endl;
-            string r1 = p.second.cloudPath1.debugReport();
-            string r2 = p.second.cloudPath2.debugReport();
-            string r3 = p.second.localPath1.debugReport();
-            string r4 = p.second.localPath2.debugReport();
-            if (!r1.empty()) cout << "    MEGA:" << r1 << endl;
-            if (!r2.empty()) cout << "    MEGA:" << r2 << endl;
-            if (!r3.empty()) cout << "    here:" << r3 << endl;
-            if (!r4.empty()) cout << "    here:" << r4 << endl;
+            cout << "=== [SyncID: " << syncStallInfoMapPair.first << "]" << endl;
+            auto& syncStallInfoMap = syncStallInfoMapPair.second;
+            cout << "noProgress: " << syncStallInfoMap.noProgress << ", noProgressCount: " << syncStallInfoMap.noProgressCount << " [HasProgressLack: " << std::string(syncStallInfoMap.hasProgressLack() ? "true" : "false") << "]" << endl;
+            for (auto& p : syncStallInfoMap.cloud)
+            {
+                cout << "stall issue: " << syncWaitReasonDebugString(p.second.reason) << endl;
+                string r1 = p.second.cloudPath1.debugReport();
+                string r2 = p.second.cloudPath2.debugReport();
+                string r3 = p.second.localPath1.debugReport();
+                string r4 = p.second.localPath2.debugReport();
+                if (!r1.empty()) cout << "    MEGA:" << r1 << endl;
+                if (!r2.empty()) cout << "    MEGA:" << r2 << endl;
+                if (!r3.empty()) cout << "    here:" << r3 << endl;
+                if (!r4.empty()) cout << "    here:" << r4 << endl;
+            }
+            for (auto& p : syncStallInfoMap.local)
+            {
+                cout << "stall issue: " << syncWaitReasonDebugString(p.second.reason) << endl;
+                string r1 = p.second.cloudPath1.debugReport();
+                string r2 = p.second.cloudPath2.debugReport();
+                string r3 = p.second.localPath1.debugReport();
+                string r4 = p.second.localPath2.debugReport();
+                if (!r1.empty()) cout << "    MEGA:" << r1 << endl;
+                if (!r2.empty()) cout << "    MEGA:" << r2 << endl;
+                if (!r3.empty()) cout << "    here:" << r3 << endl;
+                if (!r4.empty()) cout << "    here:" << r4 << endl;
+            }
         }
     }
 }
@@ -12822,7 +12848,7 @@ void exec_passwordmanager(autocomplete::ACState& s)
         client->senddevcommand("pwmhd", client->ownuser()->email.c_str());
 
         // forced erasing the user attribute and base folder node from Vault
-        client->ownuser()->removeattr(ATTR_PWM_BASE);
+        client->ownuser()->removeattr(ATTR_PWM_BASE, true);
         if (!mnBase) return;  // just in case there was a previous state where the node was deleted
         const bool keepVersions = false;
         const int tag = -1;

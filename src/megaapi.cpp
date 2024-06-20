@@ -6099,6 +6099,11 @@ MegaFlag* MegaApi::getFlag(const char* flagName, bool commit, MegaRequestListene
     return pImpl->getFlag(flagName, commit, listener);
 }
 
+void MegaApi::deleteUserAttribute(int type, MegaRequestListener* listener)
+{
+    return pImpl->deleteUserAttribute(type, listener);
+}
+
 /* END MEGAAPI */
 
 MegaHashSignature::MegaHashSignature(const char *base64Key)
@@ -6401,6 +6406,11 @@ bool MegaPricing::isBusinessType(int)
     return false;
 }
 
+bool MegaPricing::isFeaturePlan(int) const
+{
+    return false;
+}
+
 int MegaPricing::getAmountMonth(int)
 {
     return 0;
@@ -6466,6 +6476,11 @@ int MegaPricing::getGBPerTransfer(int)
     return 0;
 }
 
+MegaStringIntegerMap* MegaPricing::getFeatures(int) const
+{
+    return nullptr;
+}
+
 const char *MegaCurrency::getCurrencySymbol()
 {
     return nullptr;
@@ -6484,6 +6499,11 @@ const char *MegaCurrency::getLocalCurrencySymbol()
 const char *MegaCurrency::getLocalCurrencyName()
 {
     return nullptr;
+}
+
+unsigned int MegaPricing::getTestCategory(int) const
+{
+    return 0;
 }
 
 #ifdef ENABLE_SYNC

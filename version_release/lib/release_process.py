@@ -2,8 +2,10 @@ import re
 from lib.chat import Slack
 from lib.local_repository import LocalRepository
 from lib.private_repository import GitLabRepository
+from lib.public_repository import GitHubRepository
 from lib.sign_commits import setup_gpg_signing
 from lib.version_management import JiraProject
+from atlassian import Confluence
 
 
 class ReleaseProcess:
@@ -15,8 +17,8 @@ class ReleaseProcess:
         private_host_url: str,
         private_branch: str,
         new_version: str,
-        slack_token: str,
-        slack_channel: str,
+        slack_token: str = "",
+        slack_channel: str = "",
     ):
         self._private_branch = private_branch
         self._local_repo: LocalRepository | None = None
@@ -40,32 +42,31 @@ class ReleaseProcess:
         new_branch: str,
     ):
         setup_gpg_signing(gpg_keygrip, gpg_password)
-        self._prepare_local_repo(private_remote_name, private_remote_url)
-        self._change_version_in_file(self._new_version)
-        self._push_to_new_branch(self._new_version, new_branch, private_remote_name)
-        self._merge_local_changes(self._new_version, new_branch)
+        assert self._local_repo is None
+        self._local_repo = LocalRepository(private_remote_name, private_remote_url)
+        self._get_branch_locally(private_remote_name, self._private_branch)
+        self._change_version_in_file()
+        self._push_to_new_branch(new_branch, private_remote_name)
+        self._merge_local_changes(new_branch)
 
-    def _prepare_local_repo(
+    def _get_branch_locally(
         self,
         remote_name: str,
-        remote_url: str,
+        branch: str,
     ):
-        self._local_repo = LocalRepository(remote_name, remote_url)
+        assert self._local_repo is not None
         self._local_repo.check_for_uncommitted_changes()
-        self._local_repo.switch_to_branch(self._private_branch)
+        self._local_repo.switch_to_branch(branch)
         self._local_repo.sync_current_branch(remote_name)
 
     # Edit version file
-    def _change_version_in_file(
-        self,
-        new_version: str,
-    ):
-        version = new_version.split(".")
-        assert len(version) == 3, f"Invalid requested version: {new_version}"
+    def _change_version_in_file(self):
+        version = self._new_version.split(".")
+        assert len(version) == 3, f"Invalid requested version: {self._new_version}"
 
         # read old version
         oldMajor = oldMinor = oldMicro = 0
-        assert self._local_repo is not None, "Call _prepare_local_repo() first"
+        assert self._local_repo is not None
         lines = self._local_repo.version_file.read_text().splitlines()
         for i, line in enumerate(lines):
             if result := re.search(
@@ -85,7 +86,7 @@ class ReleaseProcess:
                 lines[i] = result.group(1) + version[2] + result.group(3)
         print(
             f"Updating version: {oldMajor}.{oldMinor}.{oldMicro} -> ",
-            new_version,
+            self._new_version,
             flush=True,
         )
 
@@ -96,21 +97,20 @@ class ReleaseProcess:
         assert (major > oldMajor) or (
             major == oldMajor
             and (minor > oldMinor or (minor == oldMinor and micro > oldMicro))
-        ), f"Invalid version: {oldMajor}.{oldMinor}.{oldMicro} -> {new_version}"
+        ), f"Invalid version: {oldMajor}.{oldMinor}.{oldMicro} -> {self._new_version}"
 
         # write new version
         self._local_repo.version_file.write_text("\n".join(lines))
 
     def _push_to_new_branch(
         self,
-        new_version: str,
         new_branch: str,
         remote_name: str,
     ):
-        assert self._local_repo is not None, "Call _prepare_local_repo() first"
+        assert self._local_repo is not None
         try:
             self._local_repo.commit_changes_to_new_branch(
-                f"Update SDK version to {new_version}", new_branch
+                self._get_mr_title(), new_branch
             )
             print("v Changes committed to", new_branch, flush=True)
             self._local_repo.push_branch(remote_name, new_branch)
@@ -121,14 +121,20 @@ class ReleaseProcess:
 
         self._local_repo.clean_version_changes(new_branch, self._private_branch)
 
+    def _get_mr_title(self) -> str:
+        return f"Update version to {self._new_version}"
+
     # Merge new branch with changes in version file
     def _merge_local_changes(
         self,
-        new_version: str,
         new_branch: str,
     ):
         mr_id, mr_url = self._remote_private_repo.open_mr(
-            f"Update SDK version to {new_version}", new_branch, self._private_branch
+            self._get_mr_title(),
+            new_branch,
+            self._private_branch,
+            remove_source=True,
+            squash=True,
         )
         if mr_id == 0:
             self._remote_private_repo.delete_branch(new_branch)
@@ -190,10 +196,12 @@ class ReleaseProcess:
             flush=True,
         )
         mr_id, _ = self._remote_private_repo.open_mr(
-            f"Update SDK version to {self._new_version}",
+            self._get_mr_title(),
             self._release_branch,
             public_branch,
-            "Release",
+            remove_source=False,
+            squash=False,
+            labels="Release",
         )
         if mr_id == 0:
             self._remote_private_repo.close_mr(mr_id)
@@ -226,9 +234,157 @@ class ReleaseProcess:
         assert self._jira is not None
         tag_url = self._remote_private_repo.get_tag_url(self._rc_tag)
 
-        notes = self._jira.get_release_notes(self._rc_tag, tag_url, apps)
+        notes: str = (
+            f"\U0001F4E3 \U0001F4E3 *New SDK version  -->  `{self._rc_tag}`* (<{tag_url}|Link>)\n\n"
+        ) + self._jira.get_release_notes(apps)
         if self._slack is None:
             print("Enjoy:\n\n" + notes, flush=True)
         else:
             self._slack.post_message(self._slack_channel, notes)
             print(f"v Posted release notes to #{self._slack_channel}", flush=True)
+
+
+    ####################
+    ##  Close release
+    ####################
+
+    def setup_local_repo(
+        self,
+        private_remote_name: str,
+        private_remote_url: str,
+        public_remote_name: str,
+        public_remote_url: str,
+    ):
+        assert self._local_repo is None
+        self._local_repo = LocalRepository(private_remote_name, private_remote_url)
+        self._local_repo.add_remote(
+            public_remote_name, public_remote_url, fetch_is_optional=True
+        )
+
+    def setup_public_repo(
+        self, public_repo_token: str, public_repo_owner: str, project_name: str
+    ):
+        self._public_repo = GitHubRepository(
+            public_repo_token, public_repo_owner, project_name
+        )
+
+    def setup_project_management(self, url: str, user: str, password: str):
+        assert self._jira is None
+        self._jira = JiraProject(
+            url,
+            user,
+            password,
+            self._project_name,
+            version_name=self._version_v_prefixed,
+        )
+
+    def confirm_all_earlier_versions_are_closed(self):
+        # This could be implemented in multiple ways.
+        # Relying on Jira looked fine as it's the last update done when closing a Release.
+        assert self._jira is not None, "Init Jira connection first"
+        self._jira.earlier_versions_are_closed()
+
+    def setup_wiki(self, url: str, user: str, password: str):
+        if url and user and password:
+            self._wiki = Confluence(url=url, username=user, password=password)
+            user_details = self._wiki.get_user_details_by_username(user)
+            if isinstance(user_details, dict):
+                self._user_key = user_details["userKey"]
+
+    # STEP 1 (close): GitLab: Create tag "vX.Y.Z" from last commit of branch "release/vX.Y.Z"
+    def create_release_tag(self):
+        last_commit = self._remote_private_repo.get_last_commit_in_branch(
+            self._release_branch
+        )
+        print("Creating tag", self._version_v_prefixed, flush=True)
+        self._remote_private_repo.create_tag(self._version_v_prefixed, last_commit)
+        print(
+            "v Created tag",
+            self._version_v_prefixed,
+            "from commit",
+            last_commit,
+            flush=True,
+        )
+
+    # STEP 2 (close): GitLab: Create release "Version X.Y.Z" from tag "vX.Y.Z" plus release notes
+    def create_release_in_private_repo(self):
+        release_name = f"Version {self._new_version}"
+        release_notes = self._jira.get_release_notes([])
+        print("Creating release", release_name, flush=True)
+        self._remote_private_repo.create_release(
+            release_name, self._version_v_prefixed, release_notes
+        )
+        print("v Created release", release_name, flush=True)
+
+    # STEP 3 (close): GitLab: Merge version upgrade MR into public branch (master)
+    def merge_release_changes_into_public_branch(self, public_branch: str):
+        mr_id = self._remote_private_repo._get_id_of_open_mr(
+            self._get_mr_title(), self._release_branch, public_branch
+        )
+        assert mr_id > 0
+        self._remote_private_repo.merge_mr(mr_id, 3600)  # must not delete source branch
+
+    # STEP 4 (close): local git: Push public branch (master) to public remote (github)
+    def push_to_public_repo(
+        self, private_remote_name: str, public_branch: str, public_remote_name: str
+    ):
+        # get "master" branch locally, with latest changes
+        self._get_branch_locally(private_remote_name, public_branch)
+
+        # push stuff to public repo
+        assert self._local_repo is not None
+        self._local_repo.push_branch( # "master" branch
+            public_remote_name, public_branch
+        )
+        self._local_repo.push_branch( # "vX.Y.Z" tag
+            public_remote_name, self._version_v_prefixed
+        )
+
+    # STEP 5 (close): GitHub: Create release in public repo from new tag
+    def create_release_in_public_repo(self, version: str):
+        self._public_repo.create_release(version, self._jira.get_public_release_notes())
+
+    # STEP 6 (close): Jira: mark version as Released, set release date
+    def mark_version_as_released(self, url: str, user: str, password: str):
+        assert self._jira is not None, "Init Jira connection first"
+        self._jira.update_version_close_release()
+
+    # STEP 7 (close): Confluence: Rotate own name to the end of the list of release captains
+    def move_release_captain_last(self, page_id: str):
+        if self._user_key is None:
+            print("Wiki connection not available, rotate Release Captain yourself !")
+        return
+
+        # get page content
+        page = self._wiki.get_page_by_id(page_id, expand="body.storage")
+        if not isinstance(page, dict):
+            print("Wiki page not available, rotate Release Captain yourself !")
+            return
+        content = page["body"]["storage"]["value"]
+
+        # move current user last
+        re_pattern = (
+            "<h[1-6]>Release Captain schedule</h[1-6]>.*"
+            "<ol(\\s.*?)?>"
+            "(<li>.*?</li>)*"
+            '(<li><ac:link><ri:user ri:userkey="' + self._user_key + '" />.*?</li>)'
+            ".*(</ol>)"
+        )
+        match = re.search(re_pattern, content)
+        if match is None:
+            print(
+                "Wiki page content missing current user, rotate Release Captain yourself !"
+            )
+            return
+
+        my_user_start = match.start(3)
+        my_user_end = match.end(3)
+        list_end_tag_start = match.start(4)
+        new_content = (
+            content[:my_user_start]
+            + content[my_user_end:list_end_tag_start]
+            + content[my_user_start:my_user_end]
+            + content[list_end_tag_start:]
+        )
+        self._wiki.update_page(page_id, page["title"], new_content)
+        print("v Release Captain rotated")

@@ -78,6 +78,7 @@ namespace UserAlert
     static const nameid type_d = 'd';                                               // removed shared node
     static const nameid type_u = 'u';                                               // updated shared node
     static const nameid type_psts = MAKENAMEID4('p', 's', 't', 's');                // payment
+    static const nameid type_psts_v2 = MAKENAMEID7('p', 's', 't', 's', '_', 'v', '2'); // payment v2 (VPN)
     static const nameid type_pses = MAKENAMEID4('p', 's', 'e', 's');                // payment reminder
     static const nameid type_ph = MAKENAMEID2('p', 'h');                            // takedown
 #ifdef ENABLE_CHAT
@@ -285,12 +286,12 @@ namespace UserAlert
         int planNumber;
 
         Payment(UserAlertRaw& un, unsigned int id);
-        Payment(bool s, int plan, m_time_t timestamp, unsigned int id);
+        Payment(bool s, int plan, m_time_t timestamp, unsigned int id, nameid paymentType);
         virtual void text(string& header, string& title, MegaClient* mc) override;
         string getProPlanName();
 
         bool serialize(string*) const override;
-        static Payment* unserialize(string*, unsigned id);
+        static Payment* unserialize(string*, unsigned id, nameid paymentType);
     };
 
     struct PaymentReminder : public Base

@@ -191,6 +191,9 @@ struct SyncTransfer_inClient: public File
     bool wasTerminated = false;
     bool wasCompleted = false;
     bool wasRequesterAbandoned = false;
+
+    // Whether the flags above were already set in a previous call (and avoid repeating unnecessary actions)
+    bool reasonAlreadyKnown = false;
 };
 
 struct SyncDownload_inClient: public SyncTransfer_inClient

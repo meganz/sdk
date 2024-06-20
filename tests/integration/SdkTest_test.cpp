@@ -60,35 +60,6 @@ static const string PUBLIC_IMAGE_URL = "/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuD
 
 MegaFileSystemAccess fileSystemAccess;
 
-template<typename T>
-class ScopedValue {
-public:
-    ScopedValue(T& what, T value)
-      : mLastValue(std::move(what))
-      , mWhat(what)
-    {
-        what = std::move(value);
-    }
-
-    ~ScopedValue()
-    {
-        mWhat = std::move(mLastValue);
-    }
-
-    MEGA_DISABLE_COPY(ScopedValue)
-    MEGA_DEFAULT_MOVE(ScopedValue)
-
-private:
-    T mLastValue;
-    T& mWhat;
-}; // ScopedValue<T>
-
-template<typename T>
-ScopedValue<T> makeScopedValue(T& what, T value)
-{
-    return ScopedValue<T>(what, std::move(value));
-}
-
 #ifdef _WIN32
 DWORD ThreadId()
 {
@@ -1023,6 +994,10 @@ void SdkTest::onUsersUpdate(MegaApi* api, MegaUserList *users)
                 || u->hasChanged(MegaUser::CHANGE_TYPE_LASTNAME))
         {
             currentPerApi.userUpdated = true;
+            if (u->hasChanged(MegaUser::CHANGE_TYPE_FIRSTNAME))
+            {
+                currentPerApi.userFirstNameUpdated = true;
+            }
         }
         else
         {
@@ -1081,8 +1056,8 @@ void SdkTest::onUserAlertsUpdate(MegaApi* api, MegaUserAlertList* alerts)
     int apiIndex = getApiIndex(api);
     if (apiIndex < 0) return;
 
-    mApi[apiIndex].userAlertsUpdated = true;
     mApi[apiIndex].userAlertList.reset(alerts ? alerts->copy() : nullptr);
+    mApi[apiIndex].userAlertsUpdated = true;
 }
 
 #ifdef ENABLE_CHAT
@@ -1247,7 +1222,7 @@ void SdkTest::fetchnodes(unsigned int apiIndex, int timeout)
 {
     RequestTracker rt(megaApi[apiIndex].get());
     mApi[apiIndex].megaApi->fetchNodes(&rt);
-    ASSERT_TRUE(API_OK == rt.waitForResult(300)) << "Fetchnodes failed or took more than 5 minutes";
+    ASSERT_EQ(API_OK, rt.waitForResult(300)) << "Fetchnodes failed or took more than 5 minutes";
 }
 
 void SdkTest::logout(unsigned int apiIndex, bool keepSyncConfigs, int timeout)
@@ -1269,9 +1244,9 @@ void SdkTest::logout(unsigned int apiIndex, bool keepSyncConfigs, int timeout)
     EXPECT_EQ(API_OK, mApi[apiIndex].lastError) << "Logout failed (error: " << mApi[apiIndex].lastError << ")";
 }
 
-char* SdkTest::dumpSession()
+char* SdkTest::dumpSession(unsigned apiIndex)
 {
-    return megaApi[0]->dumpSession();
+    return megaApi[apiIndex]->dumpSession();
 }
 
 void SdkTest::locallogout(unsigned apiIndex)
@@ -1280,9 +1255,8 @@ void SdkTest::locallogout(unsigned apiIndex)
     ASSERT_EQ(API_OK, logoutErr) << "Local logout failed (error: " << logoutErr << ")";
 }
 
-void SdkTest::resumeSession(const char *session, int timeout)
+void SdkTest::resumeSession(const char *session, unsigned apiIndex)
 {
-    int apiIndex = 0;
     ASSERT_EQ(API_OK, synchronousFastLogin(apiIndex, session, this)) << "Resume session failed (error: " << mApi[apiIndex].lastError << ")";
 }
 
@@ -8146,6 +8120,14 @@ TEST_F(SdkTest, SdkGetPricing)
     ASSERT_TRUE(err == API_OK) << "Get pricing failed (error: " << err << ")";
 
     ASSERT_TRUE(strcmp(mApi[0].mMegaCurrency->getCurrencyName(), "EUR") == 0) << "Unexpected currency";
+
+    ASSERT_GT(mApi[0].mMegaPricing->getNumProducts(), 0) << "No products available";
+    for (int i = 0; i < mApi[0].mMegaPricing->getNumProducts(); ++i)
+    {
+        ASSERT_TRUE(mApi[0].mMegaPricing->getDescription(i)) << "Product description is empty";
+        ASSERT_GT(mApi[0].mMegaPricing->getTestCategory(i), 0) << "Invalid value for test category in product \""
+                                                              << mApi[0].mMegaPricing->getDescription(i) << "\"";
+    }
 }
 
 TEST_F(SdkTest, SdkGetBanners)
@@ -19577,4 +19559,180 @@ TEST_F(SdkTest, SdkCacheLRU)
 
     numNodeCacheLRU = megaApi[0]->getNumNodesAtCacheLRU();
     ASSERT_EQ(numNodeCacheLRU, cacheLRUNewSize);
+}
+
+/**
+ * @brief SdkTestVPN
+ *
+ * Test that MEGA VPN app receives Action Packets.
+ */
+TEST_F(SdkTest, SdkTestVPN)
+{
+    LOG_info << "___TEST SdkTestVPN";
+
+    // Login first client
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // get First Name
+    string origName;
+    {
+        RequestTracker getNameTracker(megaApi[0].get());
+        megaApi[0]->getUserAttribute(MegaApi::USER_ATTR_FIRSTNAME, &getNameTracker);
+        ASSERT_EQ(getNameTracker.waitForResult(), API_OK) << "Failed to get First Name";
+        ASSERT_THAT(getNameTracker.request->getText(), ::testing::NotNull());
+        origName = getNameTracker.request->getText();
+    }
+
+    // Prepare VPN client with the same account
+    mApi.resize(2);
+    megaApi.resize(2);
+    const auto [email, pass] = getEnvVarAccounts().getVarValues(0);
+    ASSERT_NO_FATAL_FAILURE(configureTestInstance(1, email, pass, true, MegaApi::CLIENT_TYPE_VPN));
+
+    // Login VPN client
+    {
+        RequestTracker loginTracker(megaApi[1].get());
+        megaApi[1]->login(mApi[1].email.c_str(), mApi[1].pwd.c_str(), &loginTracker);
+        ASSERT_EQ(loginTracker.waitForResult(), API_OK) << "VPN client: failed to login";
+        bool& fetchnodesDone = mApi[1].requestFlags[MegaRequest::TYPE_FETCH_NODES] = false;
+        ASSERT_NO_FATAL_FAILURE(fetchnodes(1));
+        ASSERT_TRUE(WaitFor([&fetchnodesDone]() { return fetchnodesDone; }, 60 * 1000))
+            << "VPN client: fetchnodesDone not received";
+
+        // test resume-session while at it
+        unique_ptr<char[]> session(dumpSession(1));
+        ASSERT_NO_FATAL_FAILURE(locallogout(1));
+        ASSERT_NO_FATAL_FAILURE(resumeSession(session.get(), 1));
+        ASSERT_NO_FATAL_FAILURE(fetchnodes(1));
+    }
+
+    // update First Name in default client
+    string newName = origName + "_upd";
+    bool& nameUpdated = mApi[1].userFirstNameUpdated = false;
+    {
+        RequestTracker setNameTracker(megaApi[0].get());
+        megaApi[0]->setUserAttribute(MegaApi::USER_ATTR_FIRSTNAME, newName.c_str(), &setNameTracker);
+        ASSERT_EQ(setNameTracker.waitForResult(), API_OK) << "Default client: failed to update First Name";
+
+        // wait for VPN client to receive the name update
+        ASSERT_TRUE(WaitFor([&nameUpdated]() { return nameUpdated; }, 60 * 1000))
+            << "VPN client: AP about updated First Name not received";
+
+        // get First Name from VPN client and confirm the update
+        nameUpdated = false; // to be ignored this time; is set after getting UA
+        RequestTracker getNameTracker(megaApi[1].get());
+        megaApi[1]->getUserAttribute(MegaApi::USER_ATTR_FIRSTNAME, &getNameTracker);
+        ASSERT_EQ(getNameTracker.waitForResult(), API_OK) << "VPN client: failed to get updated First Name";
+        ASSERT_THAT(getNameTracker.request->getText(), ::testing::NotNull());
+        ASSERT_EQ(newName, getNameTracker.request->getText());
+        WaitFor([&nameUpdated]() { return nameUpdated; }, 5 * 1000); // to be ignored
+    }
+
+    // reset First Name to original value
+    {
+        nameUpdated = false;
+        RequestTracker setNameTracker(megaApi[0].get());
+        megaApi[0]->setUserAttribute(MegaApi::USER_ATTR_FIRSTNAME, origName.c_str(), &setNameTracker);
+        ASSERT_EQ(setNameTracker.waitForResult(), API_OK) << "Default client: failed to set original First Name";
+
+        // wait for VPN client to receive the name update
+        ASSERT_TRUE(WaitFor([&nameUpdated]() { return nameUpdated; }, 60 * 1000))
+            << "VPN client: AP for reset First Name not received";
+
+        // get First Name from VPN client and confirm the reset
+        RequestTracker getNameTracker(megaApi[1].get());
+        megaApi[1]->getUserAttribute(MegaApi::USER_ATTR_FIRSTNAME, &getNameTracker);
+        ASSERT_EQ(getNameTracker.waitForResult(), API_OK) << "VPN client: failed to get reset First Name";
+        ASSERT_THAT(getNameTracker.request->getText(), ::testing::NotNull());
+        ASSERT_EQ(origName, getNameTracker.request->getText());
+    }
+}
+
+/**
+ * @brief Test checks deleting user attributes
+ * Steps:
+ *  - Set firstname attribute to make sure it exists
+ *  - Delete firstname attribute
+ *  - Get firstname attribute to check it does not exist anymore
+ *  - Try to delete firstname attribute to get ENOENT response
+ */
+TEST_F(SdkTest, SdkDeleteUserAttribute)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    string firstname = "testingName";
+    ASSERT_EQ(API_OK,
+              synchronousSetUserAttribute(0, MegaApi::USER_ATTR_FIRSTNAME, firstname.c_str()));
+
+    RequestTracker deleteAttributeTracker(megaApi[0].get());
+    megaApi[0]->deleteUserAttribute(MegaApi::USER_ATTR_FIRSTNAME, &deleteAttributeTracker);
+    ASSERT_EQ(API_OK, deleteAttributeTracker.waitForResult());
+
+    ASSERT_EQ(API_ENOENT, synchronousGetUserAttribute(0, MegaApi::USER_ATTR_FIRSTNAME));
+
+    RequestTracker secondDeleteAttributeTracker(megaApi[0].get());
+    megaApi[0]->deleteUserAttribute(MegaApi::USER_ATTR_FIRSTNAME, &secondDeleteAttributeTracker);
+    ASSERT_EQ(API_ENOENT, secondDeleteAttributeTracker.waitForResult());
+
+    ASSERT_EQ(API_OK,
+              synchronousSetUserAttribute(0, MegaApi::USER_ATTR_FIRSTNAME, firstname.c_str()));
+}
+
+TEST_F(SdkTest, GetFeaturePlans)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    LOG_info << "___TEST GetFeaturePlans___";
+
+    int err = synchronousGetPricing(0);
+    ASSERT_EQ(err, API_OK) << "synchronousGetPricing() failed: " << MegaError::getErrorString(err);
+
+    for (int i = 0; i < mApi[0].mMegaPricing->getNumProducts(); ++i)
+    {
+        if (mApi[0].mMegaPricing->isFeaturePlan(i))
+        {
+            ASSERT_NE(mApi[0].mMegaPricing->getHandle(i), INVALID_HANDLE);
+            ASSERT_EQ(mApi[0].mMegaPricing->getProLevel(i), 99999);
+            ASSERT_NE(mApi[0].mMegaPricing->getMonths(i), 0);
+            ASSERT_NE(mApi[0].mMegaPricing->getAmount(i), 0);
+            ASSERT_STRNE(mApi[0].mMegaPricing->getDescription(i), "");
+
+            std::unique_ptr<MegaStringIntegerMap> features{ mApi[0].mMegaPricing->getFeatures(i) };
+            ASSERT_NE(features->size(), 0);
+
+            ASSERT_STRNE(mApi[0].mMegaPricing->getIosID(i), "");
+            ASSERT_STRNE(mApi[0].mMegaPricing->getAndroidID(i), "");
+            ASSERT_NE(mApi[0].mMegaPricing->getAmountMonth(i), 0);
+        }
+    }
+}
+
+/**
+ * @brief GetUserFeatures
+ */
+TEST_F(SdkTest, GetUserFeatures)
+{
+    LOG_info << "___TEST GetUserFeatures___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    RequestTracker accDetailsTracker(megaApi[0].get());
+    megaApi[0]->getAccountDetails(&accDetailsTracker);
+    ASSERT_EQ(accDetailsTracker.waitForResult(), API_OK) << "Failed to get account details";
+
+    std::unique_ptr<MegaAccountDetails> accountDetails(accDetailsTracker.request->getMegaAccountDetails());
+    ASSERT_TRUE(accountDetails) << "Missing account details";
+
+    if (accountDetails->getProLevel() == MegaAccountDetails::ACCOUNT_TYPE_FREE)
+    {
+        ASSERT_EQ(accountDetails->getNumActiveFeatures(), 0);
+        ASSERT_EQ(accountDetails->getSubscriptionLevel(), 0);
+    }
+    else
+    {
+        ASSERT_GT(accountDetails->getNumActiveFeatures(), 0);
+        if (accountDetails->getSubscriptionLevel())
+        {
+            std::unique_ptr<MegaStringIntegerMap> subscriptionFeatures{ accountDetails->getSubscriptionFeatures() };
+            ASSERT_GT(subscriptionFeatures->size(), 0);
+        }
+    }
 }

@@ -137,7 +137,7 @@ class LoginViewController: UIViewController, MEGARequestDelegate {
     
     func onRequestUpdate(_ api: MEGASdk, request: MEGARequest) {
         if request.type == MEGARequestType.MEGARequestTypeFetchNodes {
-            let progress = request.transferredBytes.floatValue / request.totalBytes.floatValue
+            let progress = Float(request.transferredBytes / request.totalBytes)
             if progress > 0 && progress < 0.99 {
                 informationLabel.text = "Fectching nodes"
                 loginProgressView.setProgress(progress, animated: true)

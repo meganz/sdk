@@ -259,8 +259,13 @@ bool fsfp_t::operator!=(const fsfp_t& rhs) const
 
 bool fsfp_t::equivalent(const fsfp_t& rhs) const
 {
-    return mFingerprint == rhs.mFingerprint
-           && (mUUID.empty() || mUUID == rhs.mUUID);
+    // Only compare legacy fingerprints if UUIDs are unavailable.
+    if (mUUID.empty() || rhs.mUUID.empty())
+    {
+        return mFingerprint == rhs.mFingerprint;
+    }
+
+    return mUUID == rhs.mUUID;
 }
 
 std::uint64_t fsfp_t::fingerprint() const
@@ -929,8 +934,7 @@ void FileSystemAccess::unescapefsincompatible(string *name) const
     for (size_t i = 0; i < name->size(); ++i)
     {
         char c;
-        if (decodeEscape(name->c_str() + i, c) && // it must be a null terminated c-style string passed here
-            !std::iscntrl(c))
+        if (decodeEscape(name->c_str() + i, c)) // it must be a null terminated c-style string passed here
         {
             // Substitute in the decoded character.
             name->replace(i, 3, 1, c);

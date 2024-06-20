@@ -2162,7 +2162,7 @@ m_off_t CurlHttpIO::postpos(void* handle)
 
     if (httpctx->curl)
     {
-        curl_easy_getinfo(httpctx->curl, CURLINFO_SIZE_UPLOAD, &bytes);
+        curl_easy_getinfo(httpctx->curl, CURLINFO_SIZE_UPLOAD_T, &bytes);
     }
 
     return (m_off_t)bytes;

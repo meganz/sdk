@@ -5,7 +5,7 @@ import re, subprocess
 class LocalRepository:  # use raw git commands
     """
     Functionality:
-    - check remote being configured
+    - check private remote being configured
     - check for uncommitted changes
     - switch to a branch
     - update current branch from remote
@@ -14,29 +14,49 @@ class LocalRepository:  # use raw git commands
     - delete a local branch
     """
 
-    def __init__(self, name: str, url: str):
+    def __init__(self, remote_name: str, remote_url: str):
         # confirm remote being correctly configured
+        self.add_remote(remote_name, remote_url, fetch_is_optional=False)
+        self._local_repo_root = Path(__file__).parent.parent.parent
+        self.version_file = self._local_repo_root / "include" / "mega" / "version.h"
+
+    def add_remote(
+        self, remote_name: str, remote_url: str, fetch_is_optional: bool
+    ) -> bool:
+        # add remote or confirm being correctly configured already
         byte_output = subprocess.check_output(
             ["git", "remote", "-v"], stderr=subprocess.STDOUT
         )
         remotes = byte_output.decode("utf-8").splitlines()
         assert isinstance(remotes, list), f"Error:\n  git remote -v\n  {remotes}"
 
-        escaped_url = re.escape(url)
+        escaped_url = re.escape(remote_url)
         remote_push = remote_fetch = False
 
         for r in remotes:
-            if re.match(rf"{name}\s+{escaped_url}\s+\(push\)", r):
+            if re.match(rf"{remote_name}\s+{escaped_url}\s+\(push\)", r):
                 remote_push = True
-            elif re.match(rf"{name}\s+{escaped_url}\s+\(fetch\)", r):
+            elif re.match(rf"{remote_name}\s+{escaped_url}\s+\(fetch\)", r):
                 remote_fetch = True
 
-        assert remote_push, f"{name} {url} (push): NOT FOUND\nfound:\n{remotes}"
+        if remote_push and (remote_fetch or fetch_is_optional):
+            return True
 
-        assert remote_fetch, f"{name} {url} (fetch): NOT FOUND\nfound:\n{remotes}"
+        if not remote_push and not remote_fetch:
+            assert subprocess.run(
+                ["git", "remote", "add", remote_name, remote_url],
+                stdout=subprocess.DEVNULL,
+            ), f"Failed to add remote {remote_name} {remote_url}"
+            print("  Added remote\n  ", remote_name, "\t", remote_url, flush=True)
+            return True
 
-        self._local_repo_root = Path(__file__).parent.parent.parent
-        self.version_file = self._local_repo_root / "include" / "mega" / "version.h"
+        assert (
+            remote_push
+        ), f"{remote_name} {remote_url} (push): NOT FOUND\nfound:\n{remotes}"
+        assert (
+            remote_fetch
+        ), f"{remote_name} {remote_url} (fetch): NOT FOUND\nfound:\n{remotes}"
+        return False
 
     def check_for_uncommitted_changes(self):
         byte_output = subprocess.check_output(["git", "diff", "--shortstat"])
@@ -96,7 +116,6 @@ class LocalRepository:  # use raw git commands
             ), f"Failed to pull from {remote}/{my_branch}"
 
     def commit_changes_to_new_branch(self, commit_message: str, branch_name: str):
-
         # branch should not exist
         assert subprocess.run(
             ["git", "show-ref", "--quiet", f"refs/heads/{branch_name}"],

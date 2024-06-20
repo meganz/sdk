@@ -2097,9 +2097,7 @@ static std::string deviceOf(const std::string& database,
     std::size_t score = 0;
 
     // Temporary storage space for mount entries.
-    std::string storage(1, '\x0');
-
-    storage.reserve(3 * PATH_MAX - 1);
+    std::string storage(3 * PATH_MAX, '\x0');
 
     // Try and determine which device contains path.
     for (errno = 0; ; )
@@ -2109,8 +2107,8 @@ static std::string deviceOf(const std::string& database,
         // Couldn't retrieve mount entry.
         if (!getmntent_r(mounts.get(),
                          &entry,
-                         &storage[0],
-                         static_cast<int>(storage.capacity())))
+                         storage.data(),
+                         static_cast<int>(storage.size())))
             break;
 
         // Where is this device mounted?
@@ -2142,7 +2140,7 @@ static std::string deviceOf(const std::string& database,
         LOG_warn << "Couldn't enumerate mount database: "
                  << database
                  << ". Error was: "
-                 << strerror(error);
+                 << std::strerror(error);
 
         return std::string();
     }
@@ -2171,7 +2169,7 @@ static std::string deviceOf(const std::string& database,
     //
     // This is necessary to correctly handle nodes managed by device-mapper.
     // Say, the user is using LUKS or LVM.
-    if (!realpath(device.c_str(), &storage[0]))
+    if (!realpath(device.c_str(), storage.data()))
     {
         // Latch error.
         auto error = errno;
@@ -2184,6 +2182,12 @@ static std::string deviceOf(const std::string& database,
         return std::string();
     }
 
+    // Truncate storage down to size.
+    storage.erase(std::find(storage.begin(), storage.end(), '\x0'));
+
+    // Sanity.
+    assert(!storage.empty());
+
     // For debugging purposes.
     LOG_verbose << "Path "
                 << path
@@ -2191,7 +2195,7 @@ static std::string deviceOf(const std::string& database,
                 << storage;
 
     // Return device to caller.
-    return storage.c_str();
+    return storage;
 }
 
 static std::string deviceOf(const std::string& path)
@@ -2274,11 +2278,6 @@ static std::string uuidOf(const std::string& device)
     // Convenience.
     auto size = path.size();
 
-    // Temporary storage.
-    std::string storage(1, '\0');
-
-    storage.reserve(PATH_MAX - 1);
-
     // Try and determine which entry references device.
     for (errno = 0; ; )
     {
@@ -2292,17 +2291,29 @@ static std::string uuidOf(const std::string& device)
         // Restore path's size.
         path.resize(size);
 
+        // Extract entry's name.
+        auto name = std::string(entry->d_name);
+
         // Compute path of directory entry.
         path.append(1, '/');
-        path.append(entry->d_name);
+        path.append(name);
+
+        // Temporary storage.
+        std::string storage(PATH_MAX, '\x0');
 
         // Couldn't resolve link.
-        if (!realpath(path.c_str(), &storage[0]))
+        if (!realpath(path.c_str(), storage.data()))
             continue;
 
+        // Truncate storage down to size.
+        storage.erase(std::find(storage.begin(), storage.end(), '\x0'));
+
+        // Sanity.
+        assert(!storage.empty());
+
         // Resolved path matches our device.
-        if (device == &storage[0])
-            return entry->d_name;
+        if (device == storage)
+            return name;
     }
 
     // Couldn't determine device's UUID.
