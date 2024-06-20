@@ -4569,7 +4569,8 @@ class MegaRequest
             TYPE_ENABLE_MOUNT                                               = 189,
             TYPE_REMOVE_MOUNT                                               = 190,
             TYPE_SET_MOUNT_FLAGS                                            = 191,
-            TOTAL_OF_REQUEST_TYPES                                          = 192,
+            TYPE_DEL_ATTR_USER = 192,
+            TOTAL_OF_REQUEST_TYPES = 193,
         };
 
         virtual ~MegaRequest();
@@ -23229,7 +23230,76 @@ class MegaApi
          */
         MegaFlag* getFlag(const char* flagName, bool commit = true, MegaRequestListener* listener = nullptr);
 
- protected:
+        /**
+         * @brief Delete a user attribute of the current user, for testing
+         * This method is for developer use only and it requires to be logged-in into an
+         * account under a MEGA email. Otherwise, it will fail with API_EACCESS (except for
+         * attributes "gmk" and "promocode", which are not supported by SDK, but removed by Webclient).
+         *
+         * The associated request type with this request is MegaRequest::TYPE_DEL_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type
+         *
+         * @param type Attribute type
+         *
+         * Valid values are:
+         *
+         * MegaApi::USER_ATTR_FIRSTNAME = 1
+         * Delete the firstname of the user (public)
+         * MegaApi::USER_ATTR_LASTNAME = 2
+         * Delete the lastname of the user (public)
+         * MegaApi::USER_ATTR_AUTHRING = 3
+         * Delete the authentication ring of the user (private)
+         * MegaApi::USER_ATTR_LAST_INTERACTION = 4
+         * Delete the last interaction of the contacts of the user (private)
+         * MegaApi::USER_ATTR_ED25519_PUBLIC_KEY = 5
+         * Delete the public key Ed25519 of the user (public)
+         * MegaApi::USER_ATTR_CU25519_PUBLIC_KEY = 6
+         * Delete the public key Cu25519 of the user (public)
+         * MegaApi::USER_ATTR_KEYRING = 7
+         * Delete the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+         * MegaApi::USER_ATTR_SIG_RSA_PUBLIC_KEY = 8
+         * Delete the signature of RSA public key of the user (public)
+         * MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY = 9
+         * Delete the signature of Cu25519 public key of the user (public)
+         * MegaApi::USER_ATTR_LANGUAGE = 14
+         * Delete the preferred language of the user (private, non-encrypted)
+         * MegaApi::USER_ATTR_PWD_REMINDER = 15
+         * Delete the password-reminder-dialog information (private, non-encrypted)
+         * MegaApi::USER_ATTR_DISABLE_VERSIONS = 16
+         * Delete whether user has versions disabled or enabled (private, non-encrypted)
+         * MegaApi::USER_ATTR_RICH_PREVIEWS = 18
+         * Delete whether user generates rich-link messages or not (private)
+         * MegaApi::USER_ATTR_RUBBISH_TIME = 19
+         * Delete number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+         * MegaApi::USER_ATTR_STORAGE_STATE = 21
+         * Delete the state of the storage (private non-encrypted)
+         * MegaApi::USER_ATTR_GEOLOCATION = 22
+         * Delete the user geolocation (private)
+         * MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER = 23
+         * Delete the target folder for Camera Uploads (private)
+         * MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER = 24
+         * Delete the target folder for My chat files (private)
+         * MegaApi::USER_ATTR_PUSH_SETTINGS = 25
+         * Delete whether user has push settings enabled (private)
+         * MegaApi::USER_ATTR_ALIAS = 27
+         * Delete the list of the users's aliases (private)
+         * MegaApi::USER_ATTR_DEVICE_NAMES = 30
+         * Delete the list of device or external drive names (private)
+         * MegaApi::USER_ATTR_MY_BACKUPS_FOLDER = 31
+         * Delete the target folder for My Backups (private)
+         * MegaApi::USER_ATTR_COOKIE_SETTINGS = 33
+         * Delete whether user has Cookie Settings enabled
+         * MegaApi::USER_ATTR_JSON_SYNC_CONFIG_DATA = 34
+         * Delete name and key to cypher sync-configs file
+         * MegaApi::USER_ATTR_NO_CALLKIT = 36
+         * Delete whether user has iOS CallKit disabled or enabled (private, non-encrypted)
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void deleteUserAttribute(int type, MegaRequestListener* listener = NULL);
+
+    protected:
         MegaApiImpl *pImpl = nullptr;
         friend class MegaApiImpl;
 };
@@ -25392,6 +25462,7 @@ public:
      * True if the mount should be read only.
      */
     virtual void setReadOnly(bool readOnly) = 0;
+
 }; // MegaMountFlags
 
 class MegaMountList

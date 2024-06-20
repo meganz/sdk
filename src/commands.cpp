@@ -3406,11 +3406,7 @@ bool CommandGetUA::procresult(Result r, JSON& json)
     {
         if (r.wasError(API_ENOENT) && u)
         {
-            u->removeattr(at);
-            if (u->userhandle == client->me)
-            {
-                u->setNonExistingAttribute(at);
-            }
+            u->removeattr(at, u->userhandle == client->me);
         }
 
         mCompletionErr(r.errorOrOK());
@@ -3656,6 +3652,7 @@ bool CommandGetUA::procresult(Result r, JSON& json)
 CommandDelUA::CommandDelUA(MegaClient *client, const char *an)
 {
     this->an = an;
+    mSeqtagArray = true;
 
     cmd("upr");
     arg("ua", an);
@@ -3685,7 +3682,8 @@ bool CommandDelUA::procresult(Result r, JSON& json)
         attr_t at = User::string2attr(an.c_str());
         string version(ptr, (end-ptr));
 
-        u->removeattr(at, &version); // store version to filter corresponding AP in order to avoid double onUsersUpdate()
+        u->removeattr(at, version); // store version to filter corresponding AP in order to
+                                    // avoid double onUsersUpdate()
 
         if (at == ATTR_KEYRING)
         {
@@ -4509,7 +4507,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_LANGUAGE);
+                    u->removeattr(ATTR_LANGUAGE, true);
                 }
 
                 if (birthday.size())
@@ -4518,7 +4516,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_BIRTHDAY);
+                    u->removeattr(ATTR_BIRTHDAY, true);
                 }
 
                 if (birthmonth.size())
@@ -4527,7 +4525,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_BIRTHMONTH);
+                    u->removeattr(ATTR_BIRTHMONTH, true);
                 }
 
                 if (birthyear.size())
@@ -4536,7 +4534,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_BIRTHYEAR);
+                    u->removeattr(ATTR_BIRTHYEAR, true);
                 }
 
                 if (country.size())
@@ -4545,7 +4543,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_COUNTRY);
+                    u->removeattr(ATTR_COUNTRY, true);
                 }
 
                 if (pwdReminderDialog.size())
@@ -4554,7 +4552,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_PWD_REMINDER);
+                    u->removeattr(ATTR_PWD_REMINDER, true);
                 }
 
                 if (pushSetting.size())
@@ -4563,7 +4561,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_PUSH_SETTINGS);
+                    u->removeattr(ATTR_PUSH_SETTINGS, true);
                 }
 
                 if (contactLinkVerification.size())
@@ -4572,7 +4570,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_CONTACT_LINK_VERIFICATION);
+                    u->removeattr(ATTR_CONTACT_LINK_VERIFICATION, true);
                 }
 
                 if (disableVersions.size())
@@ -4594,7 +4592,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 {
                     LOG_info << "File versioning is enabled";
                     client->versions_disabled = false;
-                    u->setNonExistingAttribute(ATTR_DISABLE_VERSIONS);
+                    u->removeattr(ATTR_DISABLE_VERSIONS, true);
                 }
 
                 if (noCallKit.size())
@@ -4605,7 +4603,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 else
                 {
                     LOG_info << "CallKit is enabled [noCallKit.size() == 0]";
-                    u->setNonExistingAttribute(ATTR_NO_CALLKIT);
+                    u->removeattr(ATTR_NO_CALLKIT, true);
                 }
 
                 if (chatFolder.size())
@@ -4624,7 +4622,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_MY_CHAT_FILES_FOLDER);
+                    u->removeattr(ATTR_MY_CHAT_FILES_FOLDER, true);
                 }
 
                 if (cameraUploadFolder.size())
@@ -4643,7 +4641,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_CAMERA_UPLOADS_FOLDER);
+                    u->removeattr(ATTR_CAMERA_UPLOADS_FOLDER, true);
                 }
 
                 if (!myBackupsFolder.empty())
@@ -4652,7 +4650,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_MY_BACKUPS_FOLDER);
+                    u->removeattr(ATTR_MY_BACKUPS_FOLDER, true);
                 }
 
                 if (!appPrefs.empty())
@@ -4661,7 +4659,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_APPS_PREFS);
+                    u->removeattr(ATTR_APPS_PREFS, true);
                 }
 
                 if (!ccPrefs.empty())
@@ -4670,7 +4668,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_CC_PREFS);
+                    u->removeattr(ATTR_CC_PREFS, true);
                 }
 
                 if (aliases.size())
@@ -4689,7 +4687,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_ALIAS);
+                    u->removeattr(ATTR_ALIAS, true);
                 }
 
                 if (unshareableKey.size() == Base64Str<SymmCipher::BLOCKSIZE>::STRLEN)
@@ -4732,7 +4730,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_DEVICE_NAMES);
+                    u->removeattr(ATTR_DEVICE_NAMES, true);
                 }
 
                 if (!cookieSettings.empty())
@@ -4741,7 +4739,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_COOKIE_SETTINGS);
+                    u->removeattr(ATTR_COOKIE_SETTINGS, true);
                 }
 
                 client->setEnabledNotifications(std::move(notifs));
@@ -4752,7 +4750,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_ENABLE_TEST_NOTIFICATIONS);
+                    u->removeattr(ATTR_ENABLE_TEST_NOTIFICATIONS, true);
                 }
 
                 if (!lastReadNotification.empty() || !versionLastReadNotification.empty())
@@ -4761,7 +4759,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_LAST_READ_NOTIFICATION);
+                    u->removeattr(ATTR_LAST_READ_NOTIFICATION, true);
                 }
 
                 if (!lastActionedBanner.empty() || !versionLastActionedBanner.empty())
@@ -4770,7 +4768,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_LAST_ACTIONED_BANNER);
+                    u->removeattr(ATTR_LAST_ACTIONED_BANNER, true);
                 }
 
 #ifdef ENABLE_SYNC
@@ -4783,7 +4781,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_JSON_SYNC_CONFIG_DATA);
+                    u->removeattr(ATTR_JSON_SYNC_CONFIG_DATA, true);
                 }
 #endif // ENABLE_SYNC
 
@@ -4859,7 +4857,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_PWM_BASE);
+                    u->removeattr(ATTR_PWM_BASE, true);
                 }
 
                 if (changes > 0)

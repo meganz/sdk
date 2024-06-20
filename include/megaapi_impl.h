@@ -3855,7 +3855,9 @@ public:
         void getLastActionedBanner(MegaRequestListener* listener);
         MegaFlagPrivate* getFlag(const char* flagName, bool commit, MegaRequestListener* listener);
 
-private:
+        void deleteUserAttribute(int type, MegaRequestListener* listener = NULL);
+
+    private:
         void init(MegaApi *api, const char *appKey, std::unique_ptr<GfxProc> gfxproc, const char *basePath /*= NULL*/, const char *userAgent /*= NULL*/, unsigned clientWorkerThreadCount /*= 1*/, int clientType);
 
         static void *threadEntryPoint(void *param);
