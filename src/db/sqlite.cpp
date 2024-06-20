@@ -2568,8 +2568,8 @@ std::string OrderByClause::get(int order, int sqlParamIndex)
     static const std::string typeSort = "type DESC";
     const std::string attrSort = "CASE ?" + std::to_string(sqlParamIndex) + " " + fieldToSort +
                                  "END " + boolToDesc[directions[0]];
-    const std::string nhSort = "nodehandle " + boolToDesc[directions[1]];
-    return typeSort + ", \n" + attrSort + ", \n" + nhSort;
+    const std::string tiebreaker = nameSort + " " + boolToDesc[directions[1]];
+    return typeSort + ", \n" + attrSort + ", \n" + tiebreaker;
 }
 
 size_t OrderByClause::getId(int order)
@@ -2600,7 +2600,7 @@ std::bitset<2> OrderByClause::getDescendingDirs(int order)
     std::bitset<2> directions;
     directions[0] = directions[1] = isDescOrder(order);
 
-    // For attr [0], fav and label are inverted
+    // For attr [0], fav and label are inverted to show favs/labels first in ASC
     const bool isLabel = order == LABEL_ASC || order == LABEL_DESC;
     const bool isFav = order == FAV_ASC || order == FAV_DESC;
     if (isLabel || isFav)

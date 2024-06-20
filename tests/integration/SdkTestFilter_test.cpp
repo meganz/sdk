@@ -381,10 +381,14 @@ TEST_F(SdkTestFilter, SdkGetNodesInOrder)
     EXPECT_THAT(toNamesVector(*searchResults), ContainsInOrder(expected))
         << "Unexpected sorting for ORDER_DEFAULT_DESC";
 
-    // By size, dirs first (but not relevant order for now as size is 0)
+    // By size, dirs first (but not relevant order for now as size is 0). Ties break by natural
+    // sorting
     expected = {
         "Dir1",
+        "Dir2",
+        "Dir11",
         "testFile1", // 0
+        "TestFile5Uppercase", // 0
         "testFile6", // 10
         "testFile2", // 15
         "testFile5", // 20
@@ -396,7 +400,8 @@ TEST_F(SdkTestFilter, SdkGetNodesInOrder)
         << "Unexpected sorting for ORDER_SIZE_ASC";
 
     // By size inverted, dirs first
-    std::reverse(expected.begin() + 1, expected.end());
+    std::reverse(expected.begin(), expected.begin() + 3);
+    std::reverse(expected.begin() + 3, expected.end());
     searchResults.reset(megaApi[0]->search(filteringInfo.get(), MegaApi::ORDER_SIZE_DESC));
     ASSERT_THAT(searchResults, NotNull()) << "serach() returned a nullptr";
     EXPECT_THAT(toNamesVector(*searchResults), ContainsInOrder(expected))
@@ -417,9 +422,11 @@ TEST_F(SdkTestFilter, SdkGetNodesInOrder)
     EXPECT_THAT(toNamesVector(*searchResults), ContainsInOrder(expected))
         << "Unexpected sorting for ORDER_CREATION_DES";
 
-    // By modification time, dirs first but no special order between them
+    // By modification time, dirs first but ordered naturally
     expected = {
         "Dir1",
+        "Dir2",
+        "Dir11",
         "testFile3", // 500 s ago
         "testFile6", // 300 s ago
         "testFile5", // 200 s ago
@@ -432,20 +439,23 @@ TEST_F(SdkTestFilter, SdkGetNodesInOrder)
         << "Unexpected sorting for ORDER_MODIFICATION_ASC";
 
     // By modification inverted
-    std::reverse(expected.begin() + 1, expected.end());
+    std::reverse(expected.begin(), expected.begin() + 3);
+    std::reverse(expected.begin() + 3, expected.end());
     searchResults.reset(megaApi[0]->search(filteringInfo.get(), MegaApi::ORDER_MODIFICATION_DESC));
     ASSERT_THAT(searchResults, NotNull()) << "serach() returned a nullptr";
     EXPECT_THAT(toNamesVector(*searchResults), ContainsInOrder(expected))
         << "Unexpected sorting for ORDER_MODIFICATION_DES";
 
-    // By label, dirs first
+    // By label, dirs first. Ties broken by natural sort
     expected = {
         "Dir1", // Purple (6)
         "Dir2", // Nothing
+        "Dir11", // Nothing
         "testFile5", // Blue (5)
         "testFile3", // Yellow (3)
         "testFile2", // Orange (2)
         "testFile1", // Red (1)
+        "testFile4", // Nothing
         "testFile6" // Nothing
     };
     searchResults.reset(megaApi[0]->search(filteringInfo.get(), MegaApi::ORDER_LABEL_ASC));
@@ -454,19 +464,22 @@ TEST_F(SdkTestFilter, SdkGetNodesInOrder)
         << "Unexpected sorting for ORDER_LABEL_ASC";
 
     // By label inverted, dirs first
-    std::reverse(expected.begin() + 2, expected.end());
-    std::reverse(expected.begin(), expected.begin() + 2);
+    std::reverse(expected.begin(), expected.begin() + 3);
+    std::reverse(expected.begin() + 3, expected.end());
     searchResults.reset(megaApi[0]->search(filteringInfo.get(), MegaApi::ORDER_LABEL_DESC));
     ASSERT_THAT(searchResults, NotNull()) << "serach() returned a nullptr";
     EXPECT_THAT(toNamesVector(*searchResults), ContainsInOrder(expected))
         << "Unexpected sorting for ORDER_LABEL_DESC";
 
-    // By fav, dirs first
+    // By fav, dirs first. Ties broken by natural sort
     expected = {
         "Dir1", // fav
         "Dir2", // not fav
+        "Dir11", // not fav
+        "testFile5", // fav
         "testFile6", // fav
         "testFile1", // not fav
+        "TestFile5Uppercase", // not fav
     };
     searchResults.reset(megaApi[0]->search(filteringInfo.get(), MegaApi::ORDER_FAV_ASC));
     ASSERT_THAT(searchResults, NotNull()) << "serach() returned a nullptr";
@@ -474,8 +487,8 @@ TEST_F(SdkTestFilter, SdkGetNodesInOrder)
         << "Unexpected sorting for ORDER_FAV_ASC";
 
     // By fav inverted, dirs first
-    std::reverse(expected.begin() + 2, expected.end());
-    std::reverse(expected.begin(), expected.begin() + 2);
+    std::reverse(expected.begin(), expected.begin() + 3);
+    std::reverse(expected.begin() + 3, expected.end());
     searchResults.reset(megaApi[0]->search(filteringInfo.get(), MegaApi::ORDER_FAV_DESC));
     ASSERT_THAT(searchResults, NotNull()) << "serach() returned a nullptr";
     EXPECT_THAT(toNamesVector(*searchResults), ContainsInOrder(expected))
