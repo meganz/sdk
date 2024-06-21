@@ -14725,6 +14725,42 @@ void MegaClient::resetScForFetchnodes()
 
     // prevent the processing of previous sc requests
     pendingsc.reset();
+
+    if (pendingscUserAlerts)
+    {
+        /**
+         * sc50 request is sent after fetchnodes has finished, if we perform multiple fetchnodes in
+         * a short period of time, we could end sending another sc50 request, before we have
+         * received answer for previous one. In that case we first need to discard inflight sc50 req
+         * (that will ignore API response) and then prepare a new one.
+         */
+        LOG_warn << "resetScForFetchnodes: Another sc50 Request is inflight, we'll discard it as "
+                    "it's obsolete";
+        sendevent(99487, "Another sc50 Request is inflight");
+
+        if (!useralerts.begincatchup)
+        {
+            LOG_warn << "resetScForFetchnodes: pendingscUserAlerts is not null (sc50 req in "
+                        "flight) but begincatchup is "
+                        "false";
+        }
+
+        /**
+         * begincatchup is just set true when fetchnodes has finished, before sending sc50 request
+         * if we are going to start a new fetchnodes and we want to discard inflight sc50 request,
+         * we also should reset begincatchup flag. When this fetchnodes finishes begincatchup will
+         * be set true again
+         *
+         * this action will prevent that assert(!fetchingnodes) at Megaclient::exec() fails, as we
+         * have reset begincatchup.
+         *
+         * Be aware of API management of multiple sc50 inflight requests, it may incur into API lock
+         *
+         **/
+        useralerts.begincatchup = false;
+        useralerts.catchupdone = false;
+    }
+
     pendingscUserAlerts.reset();
     jsonsc.pos = NULL;
     scnotifyurl.clear();
