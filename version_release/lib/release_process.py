@@ -50,7 +50,7 @@ class ReleaseProcess:
     def determine_version_for_next_release(self) -> str:
         assert self._jira is not None
         version = self._jira.get_next_version()
-        return ".".join(map(str,version))
+        return ".".join(map(str, version))
 
     # STEP 3: update version in local file
     def update_version_in_local_file(
@@ -164,7 +164,9 @@ class ReleaseProcess:
         print("       Cancel by manually closing the MR.", flush=True)
 
         # Send message to chat for MR approval
-        self._request_mr_approval(f"`{self._project_name}` release `{self._new_version}`:\n{mr_url}")
+        self._request_mr_approval(
+            f"`{self._project_name}` release `{self._new_version}`:\n{mr_url}"
+        )
 
         # MR not approved within the waiting interval will be closed and
         # the process aborted. To abort earlier just close the MR manually.
@@ -178,7 +180,10 @@ class ReleaseProcess:
 
     def _request_mr_approval(self, reason: str):
         if self._slack is None:
-            print(f"You need to request MR approval yourself because chat is not available,\n{reason}", flush=True)
+            print(
+                f"You need to request MR approval yourself because chat is not available,\n{reason}",
+                flush=True,
+            )
         else:
             self._slack.post_message(
                 "sdk-stuff-builders-team",

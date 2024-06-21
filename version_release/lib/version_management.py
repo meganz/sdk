@@ -155,9 +155,17 @@ class JiraProject:
             case "Major":
                 next_version = (highest_existing_version[0] + 1, 0, 0)
             case "Minor":
-                next_version = (highest_existing_version[0], highest_existing_version[1] + 1, 0)
+                next_version = (
+                    highest_existing_version[0],
+                    highest_existing_version[1] + 1,
+                    0,
+                )
             case _:
-                next_version = (highest_existing_version[0], highest_existing_version[1], highest_existing_version[2] + 1)
+                next_version = (
+                    highest_existing_version[0],
+                    highest_existing_version[1],
+                    highest_existing_version[2] + 1,
+                )
         return next_version
 
     def _get_highest_existing_version(self) -> tuple[int, int, int]:
@@ -167,9 +175,7 @@ class JiraProject:
         for v in all_versions:
             assert isinstance(v, Version)
             if re.match(r"^v(\d)+\.(\d+)\.(\d+)$", v.name):
-                major, minor, micro = (
-                    int(n) for n in v.name[1:].split(".")
-                )
+                major, minor, micro = (int(n) for n in v.name[1:].split("."))
                 if major > highest_major:
                     highest_major = major
                     highest_minor = minor
@@ -180,7 +186,7 @@ class JiraProject:
                         highest_micro = micro
                     elif minor == highest_minor and micro > highest_micro:
                         highest_micro = micro
-        return (highest_major ,highest_minor, highest_micro)
+        return (highest_major, highest_minor, highest_micro)
 
     def _get_version_component_to_increment(self) -> str:
         # get id of custom field
