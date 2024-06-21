@@ -107,10 +107,11 @@ release = ReleaseProcess(
     args.private_git_host_url,
     args.private_git_develop_branch,
     args.release_version,
-    slack_token,
-    args.chat_channel,
 )
 
+
+if slack_token and args.chat_channel:
+    release.setup_chat(slack_token, args.chat_channel)
 
 if not args.no_file_update:
     # STEP 3: update version in local file

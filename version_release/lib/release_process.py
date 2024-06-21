@@ -17,8 +17,6 @@ class ReleaseProcess:
         private_host_url: str,
         private_branch: str,
         new_version: str,
-        slack_token: str = "",
-        slack_channel: str = "",
     ):
         self._private_branch = private_branch
         self._local_repo: LocalRepository | None = None
@@ -27,9 +25,13 @@ class ReleaseProcess:
         )
         self._project_name = project_name
         self._new_version = new_version
-        self._slack = (
-            Slack(slack_token) if slack_token != "" and slack_channel != "" else None
-        )
+
+    def setup_chat(
+        self,
+        slack_token: str,
+        slack_channel: str,
+    ):
+        self._slack = Slack(slack_token)
         self._slack_channel = slack_channel
 
     # STEP 3: update version in local file
@@ -144,11 +146,7 @@ class ReleaseProcess:
         print("       Cancel by manually closing the MR.", flush=True)
 
         # Send message to chat for MR approval
-        if self._slack is not None:
-            self._slack.post_message(
-                "sdk_devs_only",
-                f"Hello @channel,\n\nPlease approve the MR for the new `{self._project_name}` release `{self._new_version}`:\n{mr_url}",
-            )
+        self._request_mr_approval(f"`{self._project_name}` release `{self._new_version}`:\n{mr_url}")
 
         # MR not approved within the waiting interval will be closed and
         # the process aborted. To abort earlier just close the MR manually.
@@ -159,6 +157,16 @@ class ReleaseProcess:
             self._remote_private_repo.delete_branch(new_branch)
             raise ValueError("Failed to merge MR with local changes")
         print("v MR merged for version upgrade", flush=True)
+
+    def _request_mr_approval(self, reason: str):
+        if self._slack is None:
+            print(f"You need to request MR approval yourself because chat is not available,\n{reason}", flush=True)
+        else:
+            self._slack.post_message(
+                "sdk-stuff-builders-team",
+                # "sdk_devs_only",
+                f"Hello @channel,\n\nPlease approve the MR for {reason}",
+            )
 
     # STEP 4: Create "release/vX.Y.Z" branch
     def create_release_branch(self):

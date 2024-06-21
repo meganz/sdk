@@ -61,6 +61,13 @@ parser.add_argument(
     required=True,
 )
 parser.add_argument(
+    "-c",
+    "--chat-channel",
+    help="Chat channel where MR announcements will be posted (i.e. sdk_devs). Print to console if missing",
+    type=str,
+    default="",
+)
+parser.add_argument(
     "-v",
     "--public-git-remote-url",
     help="URL of remote for public repository (i.e. git@github.com:owner/proj.git)",
@@ -106,6 +113,7 @@ mega_env_vars = get_mega_env_vars(
 )
 mega_env_vars["MEGA_CONFLUENCE_USER"] = get_mega_env_var("MEGA_CONFLUENCE_USER")
 mega_env_vars["MEGA_CONFLUENCE_PASSWORD"] = get_mega_env_var("MEGA_CONFLUENCE_PASSWORD")
+slack_token = get_mega_env_var("MEGA_SLACK_TOKEN")
 
 # create Release process and do common init
 release = ReleaseProcess(
@@ -132,6 +140,8 @@ release.setup_project_management(
     mega_env_vars["MEGA_JIRA_PASSWORD"],
 )
 release.confirm_all_earlier_versions_are_closed()
+if slack_token and args.chat_channel:
+    release.setup_chat(slack_token, args.chat_channel)
 release.setup_wiki(
     args.wiki_url,
     mega_env_vars["MEGA_CONFLUENCE_USER"],
