@@ -135,7 +135,7 @@ class JiraProject:
                 not v.archived
                 and not v.released
                 and v.name != self._version.name
-                and re.match(r"v(\d)+\.(\d+)\.(\d+)", v.name)
+                and re.match(r"^v(\d)+\.(\d+)\.(\d+)$", v.name)
             ):
                 old_major, old_minor, old_micro = (
                     int(n) for n in v.name[1:].split(".")

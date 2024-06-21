@@ -100,7 +100,7 @@ else:
             "Release notes will be printed to console. Post them yourself.", flush=True
         )
 
-# start Release process
+# create Release process and do common init
 release = ReleaseProcess(
     args.project_name,
     mega_env_vars["MEGA_GITLAB_TOKEN"],
@@ -109,6 +109,12 @@ release = ReleaseProcess(
     args.release_version,
 )
 
+# prerequisites for making a release
+release.setup_project_management(
+    args.project_management_url,
+    mega_env_vars["MEGA_JIRA_USER"],
+    mega_env_vars["MEGA_JIRA_PASSWORD"],
+)
 
 if slack_token and args.chat_channel:
     release.setup_chat(slack_token, args.chat_channel)
@@ -130,7 +136,7 @@ if not args.no_file_update:
 
 
 # STEP 4: Create branch "release/vX.Y.Z"
-release_branch = release.create_release_branch()
+release.create_release_branch()
 
 
 # STEP 5: Create rc tag "vX.Y.Z-rc.1" from branch "release/vX.Y.Z"

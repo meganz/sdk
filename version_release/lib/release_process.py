@@ -26,6 +26,15 @@ class ReleaseProcess:
         self._project_name = project_name
         self._new_version = new_version
 
+    def setup_project_management(self, url: str, user: str, password: str):
+        assert self._jira is None
+        self._jira = JiraProject(
+            url,
+            user,
+            password,
+            self._project_name,
+        )
+
     def setup_chat(
         self,
         slack_token: str,
@@ -212,7 +221,6 @@ class ReleaseProcess:
             labels="Release",
         )
         if mr_id == 0:
-            self._remote_private_repo.close_mr(mr_id)
             self._remote_private_repo.delete_branch(self._release_branch)
             self._remote_private_repo.delete_tag(self._rc_tag)
             raise ValueError(
@@ -226,8 +234,6 @@ class ReleaseProcess:
 
     # STEP 7: Update and rename previous NextRelease version; create new NextRelease version
     def manage_versions(self, url: str, user: str, password: str, apps: str):
-        self._jira = JiraProject(url, user, password, self._project_name)
-
         self._jira.update_current_version(
             self._new_version,  # i.e. "X.Y.Z"
             apps,  # i.e. "iOS A.B / Android C.D / MEGAsync E.F.G"
@@ -276,15 +282,6 @@ class ReleaseProcess:
             public_repo_token, public_repo_owner, project_name
         )
 
-    def setup_project_management(self, url: str, user: str, password: str):
-        assert self._jira is None
-        self._jira = JiraProject(
-            url,
-            user,
-            password,
-            self._project_name,
-            version_name=self._version_v_prefixed,
-        )
 
     def confirm_all_earlier_versions_are_closed(self):
         # This could be implemented in multiple ways.
@@ -353,7 +350,7 @@ class ReleaseProcess:
         self._public_repo.create_release(version, self._jira.get_public_release_notes())
 
     # STEP 6 (close): Jira: mark version as Released, set release date
-    def mark_version_as_released(self, url: str, user: str, password: str):
+    def mark_version_as_released(self):
         assert self._jira is not None, "Init Jira connection first"
         self._jira.update_version_close_release()
 

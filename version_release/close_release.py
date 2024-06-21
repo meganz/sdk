@@ -125,6 +125,12 @@ release = ReleaseProcess(
 )
 
 # prerequisites for closing a release
+release.setup_project_management(
+    args.project_management_url,
+    mega_env_vars["MEGA_JIRA_USER"],
+    mega_env_vars["MEGA_JIRA_PASSWORD"],
+)
+
 release.setup_local_repo(
     args.private_git_remote_name,
     args.private_git_remote_url,
@@ -133,11 +139,6 @@ release.setup_local_repo(
 )
 release.setup_public_repo(
     mega_env_vars["MEGA_GITHUB_TOKEN"], args.public_git_repo_owner, args.project_name
-)
-release.setup_project_management(
-    args.project_management_url,
-    mega_env_vars["MEGA_JIRA_USER"],
-    mega_env_vars["MEGA_JIRA_PASSWORD"],
 )
 release.confirm_all_earlier_versions_are_closed()
 if slack_token and args.chat_channel:
@@ -168,11 +169,7 @@ release.push_to_public_repo(
 release.create_release_in_public_repo(args.release_version)
 
 # STEP 6: Jira: mark version as Released, set release date
-release.mark_version_as_released(
-    args.project_management_url,
-    mega_env_vars["MEGA_JIRA_USER"],
-    mega_env_vars["MEGA_JIRA_PASSWORD"],
-)
+release.mark_version_as_released()
 
 # STEP 7: Confluence: Rotate own name to the end of the list of release captains
 release.move_release_captain_last(args.wiki_page_id)
