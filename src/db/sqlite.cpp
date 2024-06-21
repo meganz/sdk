@@ -130,6 +130,16 @@ SqliteDbTable *SqliteDbAccess::open(PrnGen &rng, FileSystemAccess &fsAccess, con
 
 }
 
+// An adapter around naturalsorting_compare
+static int
+    sqlite_naturalsorting_compare(void*, int size1, const void* data1, int size2, const void* data2)
+{
+    // We need to ensure that the strings to compare are null terminated
+    std::string s1{static_cast<const char*>(data1), static_cast<size_t>(size1)};
+    std::string s2{static_cast<const char*>(data2), static_cast<size_t>(size2)};
+    return naturalsorting_compare(s1.c_str(), s2.c_str());
+}
+
 DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAccess, const string &name, const int flags, DBErrorCallback dBErrorCallBack)
 {
     sqlite3 *db = nullptr;
@@ -142,6 +152,18 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
     if (sqlite3_create_function(db, u8"getmimetype", 1, SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0, &SqliteAccountState::userGetMimetype, 0, 0) != SQLITE_OK)
     {
         LOG_err << "Data base error(sqlite3_create_function userGetMimetype): " << sqlite3_errmsg(db);
+        sqlite3_close(db);
+        return nullptr;
+    }
+
+    if (sqlite3_create_collation(db,
+                                 "NATURALNOCASE",
+                                 SQLITE_UTF8,
+                                 nullptr,
+                                 sqlite_naturalsorting_compare))
+    {
+        LOG_err << "Data base error(sqlite3_create_collation NATURALNOCASE): "
+                << sqlite3_errmsg(db);
         sqlite3_close(db);
         return nullptr;
     }
@@ -2527,10 +2549,11 @@ std::string OrderByClause::get(int order, int sqlParamIndex)
     // - attribute: depends on DESC/ASC (inverted for fav and label)
     // - nodehandle: depends on DESC/ASC
 
+    static const std::string nameSort = "name COLLATE NATURALNOCASE";
     // clang-format off
     static const std::string fieldToSort =
-        "WHEN " + std::to_string(DEFAULT_ASC)  + " THEN name COLLATE NOCASE \n"
-        "WHEN " + std::to_string(DEFAULT_DESC) + " THEN name COLLATE NOCASE \n"
+        "WHEN " + std::to_string(DEFAULT_ASC)  + " THEN "+ nameSort + " \n"
+        "WHEN " + std::to_string(DEFAULT_DESC) + " THEN "+ nameSort + " \n"
         "WHEN " + std::to_string(SIZE_ASC)     + " THEN size \n"
         "WHEN " + std::to_string(SIZE_DESC)    + " THEN size \n"
         "WHEN " + std::to_string(CTIME_ASC)    + " THEN ctime \n"
@@ -2543,16 +2566,14 @@ std::string OrderByClause::get(int order, int sqlParamIndex)
         "WHEN " + std::to_string(FAV_DESC)     + " THEN fav \n";
     // clang-format on
 
-    const std::string x = '?' + std::to_string(sqlParamIndex) + ' ';
-
-    const std::bitset<2> dirs = getDescendingDirs(order);
+    const std::bitset<2> directions = getDescendingDirs(order);
     static const std::array<std::string, 2> boolToDesc{"", "DESC"};
 
     static const std::string typeSort = "type DESC";
-    const std::string attrSort =
-        "CASE ?" + std::to_string(sqlParamIndex) + " " + fieldToSort + "END " + boolToDesc[dirs[0]];
-    const std::string nhSort = "nodehandle " + boolToDesc[dirs[1]];
-    return typeSort + ", \n" + attrSort + ", \n" + nhSort;
+    const std::string attrSort = "CASE ?" + std::to_string(sqlParamIndex) + " " + fieldToSort +
+                                 "END " + boolToDesc[directions[0]];
+    const std::string tiebreaker = nameSort + " " + boolToDesc[directions[1]];
+    return typeSort + ", \n" + attrSort + ", \n" + tiebreaker;
 }
 
 size_t OrderByClause::getId(int order)
@@ -2583,7 +2604,7 @@ std::bitset<2> OrderByClause::getDescendingDirs(int order)
     std::bitset<2> directions;
     directions[0] = directions[1] = isDescOrder(order);
 
-    // For attr [0], fav and label are inverted
+    // For attr [0], fav and label are inverted to show favs/labels first in ASC
     const bool isLabel = order == LABEL_ASC || order == LABEL_DESC;
     const bool isFav = order == FAV_ASC || order == FAV_DESC;
     if (isLabel || isFav)
