@@ -1266,6 +1266,13 @@ ScopedValue<T> makeScopedValue(T& what, T value)
     return ScopedValue<T>(what, std::move(value));
 }
 
+/**
+ * @brief Sorts input char strings using natural sorting ignoring case
+ *
+ * @returns 0 if i==j, +1 if i goes first, -1 if j goes first.
+ */
+int naturalsorting_compare(const char* i, const char* j);
+
 } // namespace mega
 
 #endif // MEGA_UTILS_H
