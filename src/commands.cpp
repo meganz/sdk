@@ -5114,7 +5114,7 @@ CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, std::shared_ptr<Acc
 
     arg("src", source);
 
-    arg("v", 1);
+    arg("v", 2);
 
     tag = client->reqtag;
 }
@@ -5138,14 +5138,8 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
         return true;
     }
 
-    details->pro_level = 0;
-    details->subscription_type = 'O';
-    details->subscription_renew = 0;
-    details->subscription_method.clear();
-    details->subscription_method_id = 0;
-    memset(details->subscription_cycle, 0, sizeof(details->subscription_cycle));
-
-    details->pro_until = 0;
+    details->subscriptions.clear();
+    details->plans.clear();
 
     details->storage_used = 0;
     details->storage_max = 0;
@@ -5295,72 +5289,8 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
                 details->srv_ratio = json.getfloat();
                 break;
 
-            case MAKENAMEID5('u', 't', 'y', 'p', 'e'):
-            // PRO type. 0 means Free; 4 is Pro Lite as it was added late; 100 indicates a business.
-                details->pro_level = (int)json.getint();
-                client->mMyAccount.setProLevel(static_cast<AccountType>(details->pro_level));
-                break;
-
-            case MAKENAMEID5('s', 't', 'y', 'p', 'e'):
-            // Flag indicating if this is a recurring subscription or one-off. "O" is one off, "R" is recurring.
-                const char* ptr;
-                if ((ptr = json.getvalue()))
-                {
-                    details->subscription_type = *ptr;
-                }
-                break;
-
-            case MAKENAMEID6('s', 'c', 'y', 'c', 'l', 'e'):
-                const char* scycle;
-                if ((scycle = json.getvalue()))
-                {
-                    memcpy(details->subscription_cycle, scycle, 3);
-                    details->subscription_cycle[3] = 0;
-                }
-                break;
-
-            case MAKENAMEID6('s', 'r', 'e', 'n', 'e', 'w'):
-            // Only provided for recurring subscriptions to indicate the best estimate of when the subscription will renew
-                if (json.enterarray())
-                {
-                    details->subscription_renew = json.getint();
-                    while(!json.leavearray())
-                    {
-                        json.storeobject();
-                    }
-                }
-                break;
-
-            case MAKENAMEID3('s', 'g', 'w'):
-                if (json.enterarray())
-                {
-                    json.storeobject(&details->subscription_method);
-                    while(!json.leavearray())
-                    {
-                        json.storeobject();
-                    }
-                }
-                break;
-
-            case MAKENAMEID6('s', 'g', 'w', 'i', 'd', 's'):
-                if (json.enterarray())
-                {
-                    details->subscription_method_id = static_cast<int>(json.getint());
-                    while (!json.leavearray())
-                    {
-                        json.storeobject();
-                    }
-                }
-                break;
-
             case MAKENAMEID3('r', 't', 't'):
                 details->transfer_hist_valid = !json.getint();
-                break;
-
-            case MAKENAMEID6('s', 'u', 'n', 't', 'i', 'l'):
-            // Time the last active PRO plan will expire (may be different from current one)
-                details->pro_until = json.getint();
-                client->mMyAccount.setProUntil(static_cast<m_time_t>(details->pro_until));
                 break;
 
             case MAKENAMEID7('b', 'a', 'l', 'a', 'n', 'c', 'e'):
@@ -5419,33 +5349,28 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
                 }
                 break;
 
-            case MAKENAMEID6('s', 'l', 'e', 'v', 'e', 'l'):
-                // feature account level for feature related subscriptions
-                details->slevel = json.getint();
-                break;
-
-            case MAKENAMEID8('s', 'f', 'e', 'a', 't', 'u', 'r', 'e'):
-            // subscription features
+            case MAKENAMEID4('s', 'u', 'b', 's'):
             {
-                if (!json.enterobject())
+                if (!readSubscriptions(&json))
                 {
-                    LOG_err << "Failed to parse GetUserQuota response, enter `sfeature` object";
+                    LOG_err << "Failed to parse `subs` array in GetUserQuota response";
                     client->app->account_details(details.get(), API_EINTERNAL);
                     return false;
                 }
-                string key, value;
-                while (json.storeKeyValueFromObject(key, value))
-                {
-                    details->sfeatures[key] = static_cast<unsigned>(std::stoul(value));
-                }
-                if (!json.leaveobject())
-                {
-                    LOG_err << "Failed to parse GetUserQuota response, leave `sfeature` object";
-                    client->app->account_details(details.get(), API_EINTERNAL);
-                    return false;
-                }
-                break;
             }
+            break;
+
+            case MAKENAMEID5('p', 'l', 'a', 'n', 's'):
+            {
+                if (!readPlans(&json))
+                {
+                    LOG_err << "Failed to parse `plans` array in GetUserQuota response";
+                    client->app->account_details(details.get(), API_EINTERNAL);
+                    return false;
+                }
+            }
+            break;
+
             case EOO:
                 assert(!mStorage || (got_storage && got_storage_used) || client->loggedIntoFolder());
 
@@ -5507,6 +5432,198 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
                 }
         }
     }
+}
+
+bool CommandGetUserQuota::readSubscriptions(JSON* j)
+{
+    vector<AccountSubscription>& subs = details->subscriptions;
+
+    if (!j->enterarray())
+    {
+        return false;
+    }
+
+    while (j->enterobject())
+    {
+        AccountSubscription sub;
+
+        bool finishedSubscription = false;
+        while (!finishedSubscription)
+        {
+            switch (j->getnameid())
+            {
+                case MAKENAMEID2('i', 'd'):
+                    // Encrypted subscription ID
+                    if (!j->storeobject(&sub.id))
+                    {
+                        return false;
+                    }
+                    break;
+
+                case MAKENAMEID4('t', 'y', 'p', 'e'):
+                    // 'S' for active payment provider, 'R' otherwise
+                    {
+                        const char* ptr;
+                        if ((ptr = j->getvalue()))
+                        {
+                            sub.type = *ptr;
+                        }
+                    }
+                    break;
+
+                case MAKENAMEID5('c', 'y', 'c', 'l', 'e'):
+                    // Subscription billing period
+                    if (!j->storeobject(&sub.cycle))
+                    {
+                        return false;
+                    }
+                    break;
+
+                case MAKENAMEID2('g', 'w'):
+                    // Payment provider name
+                    if (!j->storeobject(&sub.paymentMethod))
+                    {
+                        return false;
+                    }
+                    break;
+
+                case MAKENAMEID4('g', 'w', 'i', 'd'):
+                    // Payment provider ID
+                    sub.paymentMethodId = j->getint32();
+                    break;
+
+                case MAKENAMEID4('n', 'e', 'x', 't'):
+                    // Renewal time
+                    sub.renew = j->getint();
+                    break;
+
+                case MAKENAMEID2('a', 'l'):
+                    // Account level
+                    sub.level = j->getint32();
+                    break;
+
+                case MAKENAMEID8('f', 'e', 'a', 't', 'u', 'r', 'e', 's'):
+                    // List of features the subscription grants
+                    {
+                        if (!j->enterobject())
+                        {
+                            return false;
+                        }
+                        string key, value;
+                        while (j->storeKeyValueFromObject(key, value))
+                        {
+                            // Check if enabled (value = 1). Disabled features are usually not
+                            // present.
+                            if (std::stoi(value))
+                            {
+                                sub.features.push_back(std::move(key));
+                            }
+                        }
+                        if (!j->leaveobject())
+                        {
+                            return false;
+                        }
+                    }
+                    break;
+
+                case EOO:
+                    subs.push_back(std::move(sub));
+                    finishedSubscription = true;
+                    break;
+
+                default:
+                    if (!j->storeobject())
+                    {
+                        return false;
+                    }
+            }
+        }
+    }
+
+    return j->leavearray();
+}
+
+bool CommandGetUserQuota::readPlans(JSON* j)
+{
+    vector<AccountPlan>& plans = details->plans;
+
+    if (!j->enterarray())
+    {
+        return false;
+    }
+
+    while (j->enterobject())
+    {
+        AccountPlan plan;
+
+        bool finishedPlan = false;
+        while (!finishedPlan)
+        {
+            switch (j->getnameid())
+            {
+                case MAKENAMEID2('a', 'l'):
+                    // Account level
+                    plan.level = j->getint32();
+                    break;
+
+                case MAKENAMEID8('f', 'e', 'a', 't', 'u', 'r', 'e', 's'):
+                    // List of features the plan grants
+                    {
+                        if (!j->enterobject())
+                        {
+                            return false;
+                        }
+                        string key, value;
+                        while (j->storeKeyValueFromObject(key, value))
+                        {
+                            // Check if enabled (value = 1). Disabled features are usually not
+                            // present.
+                            if (std::stoi(value))
+                            {
+                                plan.features.push_back(std::move(key));
+                            }
+                        }
+                        if (!j->leaveobject())
+                        {
+                            return false;
+                        }
+                    }
+                    break;
+
+                case MAKENAMEID7('e', 'x', 'p', 'i', 'r', 'e', 's'):
+                    // The time the plan expires
+                    plan.expiration = j->getint();
+                    break;
+
+                case MAKENAMEID4('t', 'y', 'p', 'e'):
+                    // Why the plan was granted: payment, achievement, etc.
+                    // Not included for Bussiness/Pro Flexi
+                    plan.type = j->getint32();
+                    break;
+
+                // Encrypted subscription ID
+                case MAKENAMEID5('s', 'u', 'b', 'i', 'd'):
+                    if (!j->storeobject(&plan.subscriptionId))
+                    {
+                        return false;
+                    }
+                    break;
+
+                case EOO:
+                    plans.push_back(std::move(plan));
+                    finishedPlan = true;
+                    break;
+
+                default:
+                    if (!j->storeobject())
+                    {
+                        return false;
+                    }
+            }
+        }
+    }
+
+    return j->leavearray();
 }
 
 CommandQueryTransferQuota::CommandQueryTransferQuota(MegaClient* client, m_off_t size)

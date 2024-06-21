@@ -80,17 +80,31 @@ struct MEGA_API NodeStorage
 
 typedef map<handle, NodeStorage> handlestorage_map;
 
+struct MEGA_API AccountSubscription
+{
+    string id; // Encrypted subscription ID
+    char type = 0; // 'S' for active payment provider, 'R' otherwise
+    string cycle; // Subscription billing period
+    string paymentMethod; // Payment provider name
+    int32_t paymentMethodId = 0; // Payment provider ID
+    m_time_t renew = 0; // Renewal time
+    int32_t level = 0; // Account level
+    vector<string> features; // List of features the subscription grants
+};
+
+struct MEGA_API AccountPlan
+{
+    int32_t level = 0; // Account level
+    vector<string> features; // List of features the plan grants
+    m_time_t expiration = 0; // The time the plan expires
+    int32_t type = 0; // Why the plan was granted: payment, achievement, etc. Not included in
+                      // Bussiness/Pro Flexi
+    string subscriptionId; // The relating subscription ID if the plan relates to a subscription.
+};
+
 struct MEGA_API AccountDetails
 {
-    // subscription information (summarized)
-    int pro_level = 0;
-    char subscription_type = 'O';
-    char subscription_cycle[4];
-    m_time_t subscription_renew = 0;
-    string subscription_method;
-    int subscription_method_id = 0;
-
-    m_time_t pro_until = 0;
+    vector<AccountSubscription> subscriptions;
 
     // quota related to the session account
     m_off_t storage_used = 0;
@@ -125,8 +139,9 @@ struct MEGA_API AccountDetails
 
     // Features
     vector<AccountFeature> activeFeatures;
-    int64_t slevel = 0;  // feature account level for feature related subscriptions
-    map<string, uint32_t> sfeatures; // subscription features, populated when slevel > 0
+
+    // Active plans for the account. Both PRO and feature plans.
+    vector<AccountPlan> plans;
 };
 
 // award classes with the award values the class is supposed to get
