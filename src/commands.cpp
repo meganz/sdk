@@ -5402,10 +5402,55 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
 
                 if (mPro)
                 {
-                    // Pro level can change without a payment (ie. with coupons or by helpdesk)
-                    // and in those cases, the `psts` packet is not triggered. However, the SDK
-                    // should notify the app and resume transfers, etc.
-                    bool changed = client->mCachedStatus.addOrUpdate(CacheableStatus::STATUS_PRO_LEVEL, details->pro_level);
+                    // Inspect plans to detect changes in the account.
+                    bool proPlanReceived = false;
+                    bool featurePlanReceived = false;
+                    bool changed = false;
+                    for (const auto& plan: details->plans)
+                    {
+                        if (plan.level == ACCOUNT_TYPE_FEATURE)
+                        {
+                            changed |= client->mCachedStatus.addOrUpdate(
+                                CacheableStatus::STATUS_FEATURE_LEVEL,
+                                plan.level);
+                            featurePlanReceived = true;
+                        }
+                        else // PRO plans. Only one is expected, if any.
+                        {
+                            changed |=
+                                client->mCachedStatus.addOrUpdate(CacheableStatus::STATUS_PRO_LEVEL,
+                                                                  plan.level);
+                            client->mMyAccount.setProLevel(static_cast<AccountType>(plan.level));
+                            client->mMyAccount.setProUntil(static_cast<m_time_t>(plan.expiration));
+                            proPlanReceived = true;
+                        }
+                    }
+
+                    if (!proPlanReceived)
+                    {
+                        // Check if the PRO plan is no longer active.
+                        changed |=
+                            client->mCachedStatus.addOrUpdate(CacheableStatus::STATUS_PRO_LEVEL,
+                                                              AccountType::ACCOUNT_TYPE_FREE);
+                        if (client->mMyAccount.getProLevel() != AccountType::ACCOUNT_TYPE_FREE)
+                        {
+                            client->mMyAccount.setProLevel(AccountType::ACCOUNT_TYPE_FREE);
+                            client->mMyAccount.setProUntil(-1);
+                        }
+                    }
+
+                    if (!featurePlanReceived)
+                    {
+                        // Check if the feature plan is no longer active.
+                        changed |=
+                            client->mCachedStatus.addOrUpdate(CacheableStatus::STATUS_FEATURE_LEVEL,
+                                                              0);
+                    }
+
+                    // Account level (PRO and features) can change without a payment (ie. with
+                    // coupons or by helpdesk) and in those cases, the `psts` packages
+                    // are not triggered. However, the SDK should notify the app and resume
+                    // transfers, etc.
                     if (changed)
                     {
                         client->app->account_updated();
@@ -5576,8 +5621,8 @@ bool CommandGetUserQuota::readPlans(JSON* j)
                         string key, value;
                         while (j->storeKeyValueFromObject(key, value))
                         {
-                            // Check if enabled (value = 1). Disabled features are usually not
-                            // present.
+                            // Check if enabled (value = 1).
+                            // Disabled features are usually not present.
                             if (std::stoi(value))
                             {
                                 plan.features.push_back(std::move(key));
