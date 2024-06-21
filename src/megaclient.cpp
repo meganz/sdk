@@ -14729,10 +14729,11 @@ void MegaClient::resetScForFetchnodes()
     if (pendingscUserAlerts)
     {
         /**
-         * sc50 request is sent after fetchnodes has finished, if we perform multiple fetchnodes in
-         * a short period of time, we could end sending another sc50 request, before we have
-         * received answer for previous one. In that case we first need to discard inflight sc50 req
-         * (that will ignore API response) and then prepare a new one.
+         * sc50 request is sent after fetchnodes has finished ("f" command + processing of action
+         * packets). If we perform multiple fetchnodes in a short period of time, we may send
+         * another sc50 request before receiving response for the previous one.
+         * In that case we first need to discard the sc50 request currently in-flight (if any),
+         * which will result on ignoring the API response, and then prepare a new one.
          */
         LOG_warn << "resetScForFetchnodes: Another sc50 Request is inflight, we'll discard it as "
                     "it's obsolete";
