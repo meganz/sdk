@@ -3384,6 +3384,8 @@ class MegaApiImpl : public MegaApp
         std::atomic<bool> receivedNameConflictsFlag{false};
         std::atomic<bool> receivedTotalStallsFlag{false};
         std::atomic<bool> receivedTotalNameConflictsFlag{false};
+        std::atomic<bool> receivedScanningStateFlag{false};
+        std::atomic<bool> receivedSyncingStateFlag{false};
 
         MegaSync *getSyncByBackupId(mega::MegaHandle backupId);
         MegaSync *getSyncByNode(MegaNode *node);

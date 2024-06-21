@@ -5828,15 +5828,15 @@ void Syncs::clear_inThread(bool reopenStoreAfter)
     if (syncscanstate)
     {
         assert(onSyncThread());
-        mClient.app->syncupdate_scanning(false);
         syncscanstate = false;
+        mClient.app->syncupdate_scanning(false);
     }
 
     if (syncBusyState)
     {
         assert(onSyncThread());
-        mClient.app->syncupdate_syncing(false);
         syncBusyState = false;
+        mClient.app->syncupdate_syncing(false);
     }
 
     syncStallState = false;
@@ -12411,8 +12411,8 @@ void Syncs::syncLoop()
             if (anySyncScanning != syncscanstate)
             {
                 assert(onSyncThread());
-                mClient.app->syncupdate_scanning(anySyncScanning);
                 syncscanstate = anySyncScanning;
+                mClient.app->syncupdate_scanning(anySyncScanning);
             }
 
             // Process syncing updates
@@ -12420,8 +12420,8 @@ void Syncs::syncLoop()
             if (anySyncBusy != syncBusyState)
             {
                 assert(onSyncThread());
-                mClient.app->syncupdate_syncing(anySyncBusy);
                 syncBusyState = anySyncBusy;
+                mClient.app->syncupdate_syncing(anySyncBusy);
             }
 
             // Process stall issues
