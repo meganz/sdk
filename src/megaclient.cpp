@@ -14742,8 +14742,7 @@ void MegaClient::resetScForFetchnodes()
         if (!useralerts.begincatchup)
         {
             LOG_warn << "resetScForFetchnodes: pendingscUserAlerts is not null (sc50 req in "
-                        "flight) but begincatchup is "
-                        "false";
+                        "flight) but begincatchup is false";
         }
     }
 
