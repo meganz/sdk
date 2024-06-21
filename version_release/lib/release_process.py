@@ -16,7 +16,6 @@ class ReleaseProcess:
         gitlab_token: str,
         private_host_url: str,
         private_branch: str,
-        new_version: str,
     ):
         self._private_branch = private_branch
         self._local_repo: LocalRepository | None = None
@@ -24,7 +23,6 @@ class ReleaseProcess:
             private_host_url, gitlab_token, project_name
         )
         self._project_name = project_name
-        self._new_version = new_version
 
     def setup_project_management(self, url: str, user: str, password: str):
         assert self._jira is None
@@ -35,6 +33,12 @@ class ReleaseProcess:
             self._project_name,
         )
 
+    def set_release_version_to_make(self, version: str):
+        assert not self._new_version
+        self._new_version = version
+        self._version_v_prefixed = f"v{self._new_version}"
+        self._jira.setup_release()
+
     def setup_chat(
         self,
         slack_token: str,
@@ -42,6 +46,11 @@ class ReleaseProcess:
     ):
         self._slack = Slack(slack_token)
         self._slack_channel = slack_channel
+
+    def determine_version_for_next_release(self) -> str:
+        assert self._jira is not None
+        version = self._jira.get_next_version()
+        return ".".join(map(str,version))
 
     # STEP 3: update version in local file
     def update_version_in_local_file(
@@ -282,6 +291,11 @@ class ReleaseProcess:
             public_repo_token, public_repo_owner, project_name
         )
 
+    def set_release_version_to_close(self, version: str):
+        assert not self._new_version
+        self._new_version = version
+        self._version_v_prefixed = f"v{self._new_version}"
+        self._jira.setup_release(self._version_v_prefixed)
 
     def confirm_all_earlier_versions_are_closed(self):
         # This could be implemented in multiple ways.

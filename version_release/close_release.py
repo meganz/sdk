@@ -121,7 +121,6 @@ release = ReleaseProcess(
     mega_env_vars["MEGA_GITLAB_TOKEN"],
     args.private_git_host_url,
     args.private_git_develop_branch,
-    args.release_version,
 )
 
 # prerequisites for closing a release
@@ -130,6 +129,7 @@ release.setup_project_management(
     mega_env_vars["MEGA_JIRA_USER"],
     mega_env_vars["MEGA_JIRA_PASSWORD"],
 )
+release.set_release_version_to_close(args.release_version)
 
 release.setup_local_repo(
     args.private_git_remote_name,
