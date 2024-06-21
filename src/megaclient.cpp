@@ -14745,23 +14745,22 @@ void MegaClient::resetScForFetchnodes()
                         "flight) but begincatchup is "
                         "false";
         }
-
-        /**
-         * begincatchup is just set true when fetchnodes has finished, before sending sc50 request
-         * if we are going to start a new fetchnodes and we want to discard inflight sc50 request,
-         * we also should reset begincatchup flag. When this fetchnodes finishes begincatchup will
-         * be set true again
-         *
-         * this action will prevent that assert(!fetchingnodes) at Megaclient::exec() fails, as we
-         * have reset begincatchup.
-         *
-         * Be aware of API management of multiple sc50 inflight requests, it may incur into API lock
-         *
-         **/
-        useralerts.begincatchup = false;
-        useralerts.catchupdone = false;
     }
 
+    /**
+     * begincatchup is just set true when fetchnodes has finished, before sending sc50 request
+     * if we are going to start a new fetchnodes and we want to discard inflight sc50 request,
+     * we also should reset begincatchup flag. When this fetchnodes finishes begincatchup will
+     * be set true again
+     *
+     * this action will prevent that assert(!fetchingnodes) at Megaclient::exec() fails, as we
+     * have reset begincatchup.
+     *
+     * Be aware of API management of multiple sc50 inflight requests, it may incur into API lock
+     *
+     **/
+    useralerts.begincatchup = false;
+    useralerts.catchupdone = false;
     pendingscUserAlerts.reset();
     jsonsc.pos = NULL;
     scnotifyurl.clear();
