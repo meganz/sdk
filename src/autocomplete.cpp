@@ -666,9 +666,10 @@ std::ostream& LocalFS::describe(std::ostream& s) const
     return s << descPref << (descPref.size() < 10 ? (reportFiles ? (reportFolders ? "localpath" : "localfile") : "localfolder") : "");
 }
 
-MegaFS::MegaFS(bool files, bool folders, MegaClient* c, ::mega::NodeHandle* curDirHandle, const std::string descriptionPrefix)
+MegaFS::MegaFS(bool files, bool folders, MegaClient* c, ::mega::NodeHandle* curDirHandle, const std::string descriptionPrefix, ::mega::NodeHandle* prevDirHandle)
     : client(c)
     , cwd(curDirHandle)
+    , previous_cwd(prevDirHandle)
     , reportFiles(files)
     , reportFolders(folders)
     , descPref(descriptionPrefix)
@@ -772,6 +773,10 @@ bool MegaFS::addCompletions(ACState& s)
                 {
                     n = n->parent;
                 }
+                else if (folderName == "-" && previous_cwd != nullptr)
+                {
+                    n = client->nodeByHandle(*previous_cwd);
+                }
                 else
                 {
                     shared_ptr<Node> nodematch = NULL;
@@ -823,7 +828,7 @@ bool MegaFS::match(ACState& s) const
 {
     if (s.i < s.words.size())
     {
-        if (!s.word().s.empty() && s.word().s[0] != '-' && !ExportedLink::isLink(s.word().s, true, true))
+        if (!s.word().s.empty() && (s.word().s[0] != '-' || s.word().s.size() == 1) && !ExportedLink::isLink(s.word().s, true, true))
         {
             s.i += 1;
             return true;
@@ -1445,8 +1450,9 @@ ACN remoteFSFile(MegaClient* client, ::mega::NodeHandle* cwd, const std::string 
 }
 
 ACN remoteFSFolder(MegaClient* client, ::mega::NodeHandle* cwd, const std::string descriptionPrefix)
+ACN remoteFSFolder(MegaClient* client, ::mega::NodeHandle* cwd, const std::string descriptionPrefix, ::mega::NodeHandle* previous_cwd)
 {
-    return ACN(new MegaFS(false, true, client, cwd, descriptionPrefix));
+    return ACN(new MegaFS(false, true, client, cwd, descriptionPrefix, previous_cwd));
 }
 
 ACN contactEmail(MegaClient* client)

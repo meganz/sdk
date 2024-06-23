@@ -1576,6 +1576,9 @@ static std::shared_ptr<AccountDetails> account = std::make_shared<AccountDetails
 // Current remote directory.
 static NodeHandle cwd;
 
+// Previous remote directory.
+static NodeHandle previous_cwd;
+
 // Where we were on the local filesystem when megacli started.
 static unique_ptr<LocalPath> startDir(new LocalPath);
 
@@ -1869,6 +1872,10 @@ static std::shared_ptr<Node> nodebypath(const char* ptr, string* user = NULL, st
                 {
                     n = n->parent;
                 }
+            }
+            else if (c[l] == "-")
+            {
+                n = client->nodeByHandle(previous_cwd);
             }
             else
             {
@@ -4673,7 +4680,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_session, sequence(text("session"), opt(sequence(text("autoresume"), opt(param("id"))))));
     p->Add(exec_mount, sequence(text("mount")));
     p->Add(exec_ls, sequence(text("ls"), opt(flag("-R")), opt(sequence(flag("-tofile"), param("filename"))), opt(remoteFSFolder(client, &cwd))));
-    p->Add(exec_cd, sequence(text("cd"), opt(remoteFSFolder(client, &cwd))));
+    p->Add(exec_cd, sequence(text("cd"), opt(remoteFSFolder(client, &cwd, "", &previous_cwd))));
     p->Add(exec_pwd, sequence(text("pwd")));
     p->Add(exec_lcd, sequence(text("lcd"), opt(localFSFolder())));
     p->Add(exec_llockfile, sequence(text("llockfile"), opt(flag("-read")), opt(flag("-write")), opt(flag("-unlock")), localFSFile()));
@@ -5482,6 +5489,7 @@ void exec_cd(autocomplete::ACState& s)
             }
             else
             {
+                previous_cwd = cwd;
                 cwd = n->nodeHandle();
             }
         }
@@ -5492,6 +5500,7 @@ void exec_cd(autocomplete::ACState& s)
     }
     else
     {
+        previous_cwd = cwd;
         cwd = client->mNodeManager.getRootNodeFiles();
     }
 }
@@ -9834,6 +9843,7 @@ void DemoApp::nodes_updated(sharedNode_vector* nodes, int count)
     if (cwd.isUndef())
     {
         cwd = client->mNodeManager.getRootNodeFiles();
+        previous_cwd = cwd;
     }
 }
 
