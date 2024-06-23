@@ -1449,7 +1449,6 @@ ACN remoteFSFile(MegaClient* client, ::mega::NodeHandle* cwd, const std::string 
     return ACN(new MegaFS(true, false, client, cwd, descriptionPrefix));
 }
 
-ACN remoteFSFolder(MegaClient* client, ::mega::NodeHandle* cwd, const std::string descriptionPrefix)
 ACN remoteFSFolder(MegaClient* client, ::mega::NodeHandle* cwd, const std::string descriptionPrefix, ::mega::NodeHandle* previous_cwd)
 {
     return ACN(new MegaFS(false, true, client, cwd, descriptionPrefix, previous_cwd));
