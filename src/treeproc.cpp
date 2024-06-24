@@ -127,6 +127,10 @@ void TreeProcCopy::proc(MegaClient* client, std::shared_ptr<mega::Node> n)
                 LOG_debug << "Removing rr attribute";
                 tattrs.map.erase(it);
             }
+            if (resetSensitive && tattrs.map.erase(AttrMap::string2nameid("sen")))
+            {
+                LOG_debug << "Removing sen attribute";
+            }
 
             tattrs.getjson(&attrstring);
             client->makeattr(&key, t->attrstring, attrstring.c_str());

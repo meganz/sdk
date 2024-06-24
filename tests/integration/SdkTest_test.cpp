@@ -3976,11 +3976,31 @@ protected:
 
     void createOnePublicLink(MegaHandle hfolder, std::string& nodeLink);
 
-    void importPublicLink(const std::string& nodeLink);
+    void importPublicLink(const std::string& nodeLink, MegaHandle* importedNodeHandle = nullptr);
 
     void revokeOutShares(MegaHandle hfolder);
 
     void revokePublicLink(MegaHandle hfolder);
+
+    /**
+     * @brief Makes a copy of the node located at the sourceNodePath path in the inshare folder of
+     * the mSharee account and puts it in destNodeName inside the mSharee root node
+     *
+     * NOTE: This method uses ASSERT_* macros
+     * NOTE: This method assumes you have called the getInshare method
+     */
+    void copyNode(const unsigned int accountId,
+                  const MegaHandle sourceNodeHandle,
+                  const MegaHandle destNodeHandle,
+                  const std::string& destName,
+                  MegaHandle* copiedNodeHandle = nullptr);
+
+    /**
+     * @brief Same as copySharedFolderToOwnCloud but invoking move instead of copy on sourceNodePath
+     */
+    void moveNodeToOwnCloud(const std::string& sourceNodePath,
+                            const std::string& destNodeName,
+                            MegaHandle* copiedNodeHandle = nullptr);
 
     std::unordered_map<std::string, MegaHandle> mHandles;
 
@@ -4182,7 +4202,7 @@ void SdkTestShares::createOnePublicLink(MegaHandle hfolder, std::string& nodeLin
         << "Wrong public link after link update";
 }
 
-void SdkTestShares::importPublicLink(const std::string& nodeLink)
+void SdkTestShares::importPublicLink(const std::string& nodeLink, MegaHandle* importedNodeHandle)
 {
     // Login to the folder and fetchnodes
     auto loginFolderTracker = asyncRequestLoginToFolder(mGuestIndex, nodeLink.c_str());
@@ -4213,6 +4233,8 @@ void SdkTestShares::importPublicLink(const std::string& nodeLink)
     std::unique_ptr<MegaNode> importedNode{
         mGuestApi->getNodeByPath(authorizedFolderNode->getName(), rootNode.get())};
     ASSERT_TRUE(importedNode) << "Imported node not found";
+    if (importedNodeHandle)
+        *importedNodeHandle = importedNode->getHandle();
 }
 
 // Revoke access to an outgoing shares
@@ -4253,6 +4275,41 @@ void SdkTestShares::revokePublicLink(MegaHandle hfolder)
     node.reset(mSharerApi->getNodeByHandle(removedLinkHandle));
     ASSERT_TRUE(node);
     ASSERT_FALSE(node->isPublic()) << "Public link removal failed (still public)";
+}
+
+void SdkTestShares::copyNode(const unsigned int accountId,
+                             const MegaHandle sourceNodeHandle,
+                             const MegaHandle destNodeHandle,
+                             const std::string& destName,
+                             MegaHandle* copiedNodeHandle)
+{
+    auto& api = accountId == mShareeIndex ? mShareeApi : mSharerApi;
+    std::unique_ptr<MegaNode> source = std::unique_ptr<MegaNode>(
+        sourceNodeHandle == INVALID_HANDLE ? api->getRootNode() :
+                                             api->getNodeByHandle(sourceNodeHandle));
+    std::unique_ptr<MegaNode> dest = std::unique_ptr<MegaNode>(
+        destNodeHandle == INVALID_HANDLE ? api->getRootNode() :
+                                           api->getNodeByHandle(destNodeHandle));
+
+    auto result =
+        doCopyNode(accountId, copiedNodeHandle, source.get(), dest.get(), destName.c_str());
+    ASSERT_EQ(result, API_OK) << "Error copying file";
+    if (copiedNodeHandle)
+    {
+        ASSERT_NE(*copiedNodeHandle, INVALID_HANDLE)
+            << "The copied file handle was not set properly";
+    }
+}
+
+void SdkTestShares::moveNodeToOwnCloud(const std::string& sourceNodePath,
+                                       const std::string& destNodeName,
+                                       MegaHandle* movedNodeHandle)
+{
+    std::unique_ptr<MegaNode> source{mShareeApi->getNodeByHandle(getHandle(sourceNodePath))};
+    std::unique_ptr<MegaNode> dest{mShareeApi->getRootNode()};
+    auto result =
+        doMoveNode(mShareeIndex, movedNodeHandle, source.get(), dest.get(), destNodeName.c_str());
+    ASSERT_EQ(result, API_OK);
 }
 
 // Initialize a test scenario : create some folders/files to share
@@ -5586,6 +5643,150 @@ TEST_F(SdkTestShares, TestPublicFolderLinksWithShares)
     ASSERT_NO_FATAL_FAILURE(importPublicLink(nodeLink));
 
     ASSERT_NO_FATAL_FAILURE(revokePublicLink(hfolder));
+}
+
+/**
+ * @brief TEST_F SdkTestShares.TestForeingNodeImportRemoveSensitiveFlag
+ *
+ * 1 - User 0 creates node tree and marks one file as sensitive
+ * 2 - User 1 imports that folder via meeting link -> No sensitive expected
+ * 3 - User 0 shares folder with User 1 -> User 1 sees sensitive node
+ * 4 - User 1 copies to own cloud -> No sensitive in the copy
+ * 5 - User 0 copies sensitive file with other name in the shared -> Copy keeps sensitive.
+ * 6 - User 1 does the same -> Copy removes sensitive
+ * 7 - User 1 moves to own cloud -> No sensitive expected
+ * 8 - User 1 tags the moved node as sensitive and copies back to shared -> No sensitive expected
+ *
+ */
+TEST_F(SdkTestShares, TestForeingNodeImportRemoveSensitiveFlag)
+{
+    const auto getSensNodes = [](const auto& api, MegaHandle handle)
+    {
+        std::unique_ptr<MegaSearchFilter> filter(MegaSearchFilter::createInstance());
+        filter->bySensitivity(MegaSearchFilter::BOOL_FILTER_ONLY_FALSE);
+        filter->byLocationHandle(handle);
+        std::unique_ptr<MegaNodeList> sensNodes(api->search(filter.get()));
+        return sensNodes;
+    };
+
+    LOG_info << "___TEST TestForeingNodeImportRemoveSensitiveFlag";
+
+    LOG_debug << "## Creating node tree in user 0 cloud";
+    ASSERT_NO_FATAL_FAILURE(createNodeTrees());
+
+    LOG_debug << "## Marking node as sensitive";
+    // Mark one file as sensitive
+    std::unique_ptr<MegaNode> sensFile{
+        mSharerApi->getNodeByHandle(getHandle("/sharedfolder/file.txt"))};
+    ASSERT_EQ(API_OK, synchronousSetNodeSensitive(mSharerIndex, sensFile.get(), true));
+
+    // We test first the share via public link to ensure we go through the code path where the node
+    // to import is not already in our cloud
+    LOG_debug << "## User 0 creates a public link to share";
+    const MegaHandle hfolder = getHandle("/sharedfolder");
+    ASSERT_EQ(API_OK, synchronousGetSpecificAccountDetails(mSharerIndex, true, true, true))
+        << "Cannot get account details";
+    std::string nodeLink;
+    ASSERT_NO_FATAL_FAILURE(createOnePublicLink(hfolder, nodeLink));
+
+    LOG_debug << "## User 1 imports public link";
+    MegaHandle importedNodeHandle = INVALID_HANDLE;
+    ASSERT_NO_FATAL_FAILURE(importPublicLink(nodeLink, &importedNodeHandle));
+    ASSERT_NE(importedNodeHandle, INVALID_HANDLE);
+
+    // Check there is no sensitive nodes in the imported node
+    LOG_debug << "## Checking user 1 sees no sensitive files in the imported folder";
+    std::unique_ptr<MegaNodeList> sensNodes = getSensNodes(mShareeApi, importedNodeHandle);
+    EXPECT_EQ(sensNodes->size(), 0)
+        << "Got sensitive nodes after importing from public link while this property is expected "
+           "to be cleared in the process";
+
+    LOG_debug << "## Sharing the folder with user 1";
+    ASSERT_NO_FATAL_FAILURE(createNewContactAndVerify());
+    ASSERT_NO_FATAL_FAILURE(createOutgoingShare(hfolder));
+    ASSERT_NO_FATAL_FAILURE(getInshare(hfolder));
+
+    LOG_debug << "## Checking user 1 sees a sensitive file";
+    sensNodes = getSensNodes(mShareeApi, hfolder);
+    ASSERT_EQ(sensNodes->size(), 1);
+    ASSERT_STREQ(sensNodes->get(0)->getName(), "file.txt");
+
+    LOG_debug << "## User 1 copies folder with sensitive file into own cloud";
+    MegaHandle copyHandle = INVALID_HANDLE;
+    ASSERT_NO_FATAL_FAILURE(copyNode(mShareeIndex,
+                                     getHandle("/sharedfolder"),
+                                     INVALID_HANDLE,
+                                     "copied_shared",
+                                     &copyHandle));
+
+    LOG_debug << "## Checking user 1 sees no sensitive files in the copied node";
+    sensNodes = getSensNodes(mShareeApi, copyHandle);
+    EXPECT_EQ(sensNodes->size(), 0)
+        << "Got sensitive nodes after importing from shared folder while this property is expected "
+           "to be cleared in the process";
+
+    LOG_debug << "## User 0 copies the sensitive file into the same folder with different name";
+    MegaHandle sharerCopyHandle = INVALID_HANDLE;
+    ASSERT_NO_FATAL_FAILURE(copyNode(mSharerIndex,
+                                     getHandle("/sharedfolder/file.txt"),
+                                     getHandle("/sharedfolder"),
+                                     "file_copied_by_sharer.txt",
+                                     &sharerCopyHandle));
+
+    LOG_debug << "## Checking the copy keeps the sensitive flag";
+    std::unique_ptr<MegaNode> dest{mSharerApi->getNodeByHandle(sharerCopyHandle)};
+    ASSERT_TRUE(dest->isMarkedSensitive())
+        << "Copying a sensitive node within a shared folder by the owner resets the attribute";
+
+    LOG_debug << "## User 1 copies the sensitive file into the same folder with different name";
+    MegaHandle shareeCopyHandle = INVALID_HANDLE;
+    ASSERT_NO_FATAL_FAILURE(copyNode(mShareeIndex,
+                                     getHandle("/sharedfolder/file.txt"),
+                                     getHandle("/sharedfolder"),
+                                     "file_copied_by_sharee.txt",
+                                     &shareeCopyHandle));
+
+    LOG_debug << "## Checking the copy resets the sensitive flag";
+    dest.reset(mShareeApi->getNodeByHandle(shareeCopyHandle));
+    ASSERT_FALSE(dest->isMarkedSensitive())
+        << "Copying a sensitive node within a shared folder by the sharee must reset sensitive";
+
+    LOG_debug << "## User 1 copies sens to exact same place and name";
+    ASSERT_NO_FATAL_FAILURE(copyNode(mShareeIndex,
+                                     sharerCopyHandle,
+                                     getHandle("/sharedfolder"),
+                                     "file_copied_by_sharer.txt",
+                                     &copyHandle));
+
+    LOG_debug << "## Checking the copy resets the sensitive flag";
+    dest.reset(mShareeApi->getNodeByHandle(shareeCopyHandle));
+    EXPECT_FALSE(dest->isMarkedSensitive())
+        << "Copying a sensitive node to the same place by the sharee must reset sensitive";
+
+    LOG_debug << "## User 1 moves sensitive file from shared folder to own cloud";
+    MegaHandle movedHandle = INVALID_HANDLE;
+    ASSERT_NO_FATAL_FAILURE(
+        moveNodeToOwnCloud("/sharedfolder/file.txt", "moved_file.txt", &movedHandle));
+    ASSERT_NE(movedHandle, INVALID_HANDLE);
+
+    LOG_debug << "## Checking the move resets the sensitive flag";
+    std::unique_ptr<MegaNode> movedNode{mShareeApi->getNodeByHandle(movedHandle)};
+    ASSERT_FALSE(movedNode->isMarkedSensitive())
+        << "Moved node from shared folder kept the sensitive label";
+
+    LOG_debug << "## User 1 marks it again as sensitive and copies it back to the shared folder";
+    ASSERT_EQ(API_OK, synchronousSetNodeSensitive(mShareeIndex, movedNode.get(), true));
+    movedNode.reset(mShareeApi->getNodeByHandle(movedHandle));
+    ASSERT_TRUE(movedNode->isMarkedSensitive()) << "There was an error setting sensitive node";
+    ASSERT_NO_FATAL_FAILURE(copyNode(mShareeIndex,
+                                     movedHandle,
+                                     getHandle("/sharedfolder"),
+                                     "copied_back_sensitive_file.txt",
+                                     &copyHandle));
+    LOG_debug << "## Checking the copy resets the sensitive flag";
+    dest.reset(mShareeApi->getNodeByHandle(copyHandle));
+    ASSERT_FALSE(dest->isMarkedSensitive())
+        << "The copy from sharee cloud to shared folder does nor reset the sensitive attribute";
 }
 
 TEST_F(SdkTest, SdkTestShareKeys)
