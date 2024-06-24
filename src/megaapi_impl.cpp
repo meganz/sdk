@@ -1385,13 +1385,12 @@ MegaError* MegaApiImpl::isNodeSyncableWithError(MegaNode* megaNode) {
 
 bool MegaApiImpl::isScanning()
 {
-    // this flag purposely doesn't need locking
-    return client->syncs.syncscanstate;
+    return receivedScanningStateFlag.load();
 }
 
 bool MegaApiImpl::isSyncing()
 {
-    return client->syncs.syncBusyState;
+    return receivedSyncingStateFlag.load();
 }
 
 MegaSync *MegaApiImpl::getSyncByBackupId(mega::MegaHandle backupId)
@@ -13900,6 +13899,7 @@ void MegaApiImpl::syncupdate_stats(handle backupId, const PerSyncStats& stats)
 
 void MegaApiImpl::syncupdate_scanning(bool scanning)
 {
+    receivedScanningStateFlag.store(scanning);
     fireOnGlobalSyncStateChanged();
 }
 
@@ -13935,6 +13935,7 @@ void MegaApiImpl::syncupdate_totalconflicts(bool totalconflicts)
 
 void MegaApiImpl::syncupdate_syncing(bool syncing)
 {
+    receivedSyncingStateFlag.store(syncing);
     fireOnGlobalSyncStateChanged();
 }
 
@@ -15147,6 +15148,8 @@ void MegaApiImpl::logout_result(error e, MegaRequestPrivate* request)
         receivedNameConflictsFlag.store(false);
         receivedTotalStallsFlag.store(false);
         receivedTotalNameConflictsFlag.store(false);
+        receivedScanningStateFlag.store(false);
+        receivedSyncingStateFlag.store(false);
         mAddressedStallFilter.clear();
 #endif
 
