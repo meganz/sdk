@@ -242,7 +242,9 @@ TEST(MegaApi, MegaApiImpl_calcRecommendedProLevel)
     std::function<int(int, int)> test = [&](int level, int gb)
     {
         AccountDetails accDetails;
-        accDetails.pro_level = level;
+        AccountPlan accPlan;
+        accPlan.level = level;
+        accDetails.plans.push_back(std::move(accPlan));
         accDetails.storage_used = gb * (m_off_t)(1024 * 1024 * 1024);
         unique_ptr<MegaAccountDetails> details(MegaAccountDetailsPrivate::fromAccountDetails(&accDetails));
         return MegaApiImpl::calcRecommendedProLevel(pricing, *details.get());
