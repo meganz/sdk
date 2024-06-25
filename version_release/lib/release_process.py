@@ -44,6 +44,9 @@ class ReleaseProcess:
         slack_token: str,
         slack_channel: str,
     ):
+        # Chat has 2 purposes:
+        # - request approvals for MRs (always in the same channel, only for SDK devs);
+        # - make announcements in the given channel, if any.
         self._slack = Slack(slack_token)
         self._slack_channel = slack_channel
 
@@ -265,7 +268,7 @@ class ReleaseProcess:
         notes: str = (
             f"\U0001F4E3 \U0001F4E3 *New SDK version  -->  `{self._rc_tag}`* (<{tag_url}|Link>)\n\n"
         ) + self._jira.get_release_notes(apps)
-        if self._slack is None:
+        if not self._slack or not self._slack_channel:
             print("Enjoy:\n\n" + notes, flush=True)
         else:
             self._slack.post_message(self._slack_channel, notes)

@@ -129,7 +129,7 @@ next_release_version = (
 )
 release.set_release_version_to_make(next_release_version)
 
-if slack_token and args.chat_channel:
+if slack_token:
     release.setup_chat(slack_token, args.chat_channel)
 
 if not args.no_file_update:

@@ -20,6 +20,10 @@ For Jira
 export MEGA_JIRA_USER=Fred     # Jira user
 export MEGA_JIRA_PASSWORD=Thud # Jira password
 ```
+For Slack (optional)
+```sh
+export MEGA_SLACK_TOKEN=Qux    # Slack authentication token
+```
 For Confluence (optional)
 ```sh
 export MEGA_CONFLUENCE_USER=Alice   # Confluence user
