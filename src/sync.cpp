@@ -745,6 +745,9 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
 
     mCaseInsensitive = determineCaseInsenstivity(false);
     LOG_debug << "Sync case insensitivity for " << mLocalPath << " is " << mCaseInsensitive;
+
+    // Increment counter of active syncs.
+    ++syncs.mNumSyncsActive;
 }
 
 Sync::~Sync()
@@ -767,6 +770,9 @@ Sync::~Sync()
     // This will recursively delete all LocalNodes in the sync.
     // If they have transfers associated, the SyncUpload_inClient and SyncDownload_inClient will have their wasRequesterAbandoned flag set true
     localroot.reset();
+
+    // Decrement counter of active syncs.
+    --syncs.mNumSyncsActive;
 }
 
 bool Sync::isBackup() const
@@ -5809,7 +5815,7 @@ void Syncs::clear_inThread(bool reopenStoreAfter)
         lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
         mSyncVec.clear();
     }
-    mSyncVecIsEmpty = true;
+    mNumSyncsActive = 0;
     if (!reopenStoreAfter)
     {
         mSyncConfigIOContext.reset();
@@ -5928,7 +5934,6 @@ void Syncs::appendNewSync_inThread(const SyncConfig& c, bool startSync, std::fun
     {
         lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
         mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(*this, c)));
-        mSyncVecIsEmpty = false;
     }
 
     saveSyncConfig(c);
@@ -6309,7 +6314,6 @@ bool Syncs::unloadSyncByBackupID(handle id, bool newEnabledFlag, SyncConfig& con
 
             lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
             mSyncVec.erase(mSyncVec.begin() + i);
-            mSyncVecIsEmpty = mSyncVec.empty();
             return true;
         }
     }
@@ -6503,7 +6507,6 @@ void Syncs::loadSyncConfigsOnFetchnodesComplete_inThread(bool resetSyncConfigSto
         for (auto& config : configs)
         {
             mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(*this, config)));
-            mSyncVecIsEmpty = false;
         }
     }
 

@@ -186,7 +186,7 @@ public:
 
 class SimpleLogger
 {
-    enum LogLevel level;
+    LogLevel level;
 
 #ifndef ENABLE_LOG_PERFORMANCE
     std::ostringstream ostr;
@@ -386,7 +386,7 @@ class SimpleLogger
 
     static Logger *logger;
 
-    static enum LogLevel logCurrentLevel;
+    static std::atomic<LogLevel> logCurrentLevel;
 
     static long long maxPayloadLogSize; //above this, the msg will be truncated by [ ... ]
 
@@ -394,7 +394,7 @@ public:
     // flag to turn off logging on the log-output thread, to prevent possible deadlock cycles.
     static thread_local bool mThreadLocalLoggingDisabled;
 
-    SimpleLogger(const enum LogLevel ll, const char* filename, const int line)
+    SimpleLogger(const LogLevel ll, const char* filename, const int line)
     : level{ll}
 #ifdef ENABLE_LOG_PERFORMANCE
     , mBufferIt{mBuffer.begin()}
@@ -480,7 +480,7 @@ public:
 #endif
     }
 
-    static const char *toStr(enum LogLevel ll)
+    static const char *toStr(LogLevel ll)
     {
         switch (ll)
         {
@@ -635,11 +635,11 @@ public:
     }
 
     // set the current log level. all logs which are higher than this level won't be handled
-    static void setLogLevel(enum LogLevel ll)
+    static void setLogLevel(LogLevel ll)
     {
         logCurrentLevel = ll;
     }
-    inline static const LogLevel& getLogLevel()
+    inline static LogLevel getLogLevel()
     {
         return logCurrentLevel;
     }

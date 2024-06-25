@@ -30288,11 +30288,10 @@ void MegaScheduledCopyController::setPeriod(const int64_t &value)
 
     if (value != -1)
     {
-        auto ds = static_cast<int64_t>(Waiter::ds.load());
-
-        offsetds  = m_time(NULL) * 10 - ds;
-        startTime = lastbackuptime ? lastbackuptime + period - offsetds : ds;
-        startTime = std::max(startTime, ds);
+        int64_t ds = Waiter::ds.load();
+        offsetds   = m_time(NULL) * 10 - ds;
+        startTime  = lastbackuptime ? (lastbackuptime + period - offsetds) : ds;
+        startTime  = std::max(startTime, ds);
     }
 }
 

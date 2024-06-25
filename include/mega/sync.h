@@ -1053,7 +1053,7 @@ struct SyncFlags
     bool noProgress = true;
     int noProgressCount = 0;
 
-    bool earlyRecurseExitRequested = false;
+    std::atomic<bool> earlyRecurseExitRequested{false};
 
     // to help with slowing down retries in stall state
     dstime recursiveSyncLastCompletedDs = 0;
@@ -1299,7 +1299,7 @@ public:
 
     // waiter for sync loop on thread
     shared_ptr<Waiter> waiter;
-    bool skipWait = false;
+    std::atomic<bool> skipWait = false;
 
     // These rules are used to generate ignore files for newly added syncs.
     DefaultFilterChain mNewSyncFilterChain;
@@ -1310,10 +1310,10 @@ public:
     std::timed_mutex mLocalNodeChangeMutex;  // needs to be locked when making changes on this thread; or when accessing from another thread
 
     // flags matching the state we have reported to the app via callbacks
-    bool syncscanstate = false;
-    bool syncBusyState = false;
-    bool syncStallState = false;
-    bool syncConflictState = false;
+    std::atomic<bool> syncscanstate{false};
+    std::atomic<bool> syncBusyState{false};
+    std::atomic<bool> syncStallState{false};
+    std::atomic<bool> syncConflictState{false};
 
     bool mSyncsLoaded = false;
     bool mSyncsResumed = false;
@@ -1327,11 +1327,11 @@ public:
     static const std::chrono::milliseconds MIN_DELAY_BETWEEN_SYNC_VERBOSE_TIMED; // 5 secs
     static const std::chrono::milliseconds TIME_WINDOW_FOR_SYNC_VERBOSE_TIMED; // 1 sec
 
-    // for quick lock free reference by MegaApiImpl::syncPathState (don't slow down windows explorer)
-    bool mSyncVecIsEmpty = true;
+    // Lock-free count of syncs currently active.
+    std::atomic<unsigned> mNumSyncsActive{0u};
 
     // directly accessed flag that makes sync-related logging a lot more detailed
-    bool mDetailedSyncLogging = true;
+    std::atomic<bool> mDetailedSyncLogging{true};
 
     // total number of LocalNode objects (only updated by syncs thread)
     std::atomic<int32_t> totalLocalNodes{0};
