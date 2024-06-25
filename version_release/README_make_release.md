@@ -1,6 +1,6 @@
 [[_TOC_]]
 
-# MEGA SDK - Create a new Release
+# MEGA SDK - Make a new Release
 
 
 ## Quick run

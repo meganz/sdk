@@ -4,7 +4,7 @@
 
 The following processes have been automated:
 
-* [Create a new Release](README_create_release.md)
+* [Make a new Release](README_make_release.md)
 * [Close a new Release](README_close_release.md)
 
 
