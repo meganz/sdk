@@ -6856,13 +6856,36 @@ bool CommandCreditCardQuerySubscriptions::procresult(Result r, JSON& json)
     }
 }
 
-CommandCreditCardCancelSubscriptions::CommandCreditCardCancelSubscriptions(MegaClient* client, const char* reason)
+CommandCreditCardCancelSubscriptions::CancelSubscription::CancelSubscription(const char* reason,
+                                                                             const char* id,
+                                                                             int canContact):
+    mReason{reason ? reason : ""},
+    mId{id ? id : ""},
+    mCanContact{canContact == static_cast<int>(CanContact::Yes) ? CanContact::Yes : CanContact::No}
+{}
+
+CommandCreditCardCancelSubscriptions::CommandCreditCardCancelSubscriptions(
+    MegaClient* client,
+    const CancelSubscription& cancelSubscription)
 {
     cmd("cccs");
 
-    if (reason)
+    // Cancel Reason
+    if (!cancelSubscription.mReason.empty())
     {
-        arg("r", reason);
+        arg("r", cancelSubscription.mReason.c_str());
+    }
+
+    // The user can be contacted or not
+    if (cancelSubscription.mCanContact == CanContact::Yes)
+    {
+        arg("cc", static_cast<m_off_t>(CanContact::Yes));
+    }
+
+    // Specific subscription ID
+    if (!cancelSubscription.mId.empty())
+    {
+        arg("sub", cancelSubscription.mId.c_str());
     }
 
     tag = client->reqtag;

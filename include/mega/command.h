@@ -980,9 +980,31 @@ public:
 class MEGA_API CommandCreditCardCancelSubscriptions : public Command
 {
 public:
+    enum class CanContact
+    {
+        No = 0,
+        Yes = 1
+    };
+
+    class CancelSubscription
+    {
+    public:
+        CancelSubscription(const char* reason, const char* id, int canContact);
+
+    private:
+        friend CommandCreditCardCancelSubscriptions;
+
+        // Can be empty
+        std::string mReason;
+        // Can be empty which means all subscriptions
+        std::string mId;
+
+        CanContact mCanContact{CanContact::No};
+    };
+
     bool procresult(Result, JSON&) override;
 
-    CommandCreditCardCancelSubscriptions(MegaClient*, const char* = NULL);
+    CommandCreditCardCancelSubscriptions(MegaClient*, const CancelSubscription& cancelSubscription);
 };
 
 class MEGA_API CommandCopySession : public Command

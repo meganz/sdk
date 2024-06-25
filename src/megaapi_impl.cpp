@@ -23230,17 +23230,26 @@ void MegaApiImpl::creditCardQuerySubscriptions(MegaRequestListener* listener)
     waiter->notify();
 }
 
-void MegaApiImpl::creditCardCancelSubscriptions(const char* reason, MegaRequestListener* listener)
+void MegaApiImpl::creditCardCancelSubscriptions(const char* reason,
+                                                const char* id,
+                                                int canContact,
+                                                MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS, listener);
     request->setText(reason);
+    request->setName(id);
+    request->setNumDetails(canContact);
 
     request->performRequest = [this, request]()
-        {
-            const char* reason = request->getText();
-            client->creditcardcancelsubscriptions(reason);
-            return API_OK;
+    {
+        CommandCreditCardCancelSubscriptions::CancelSubscription cancelSubscription{
+            request->getText(), // reason
+            request->getName(), // id
+            request->getNumDetails(), // canContact
         };
+        client->creditcardcancelsubscriptions(cancelSubscription);
+        return API_OK;
+    };
 
     requestQueue.push(request);
     waiter->notify();

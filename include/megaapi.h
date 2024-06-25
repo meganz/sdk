@@ -10231,6 +10231,12 @@ class MegaApi
             TAG_NODE_UPDATE          = 2,
         };
 
+        enum
+        {
+            CAN_CONTACT_NO = 0,
+            CAN_CONTACT_YES = 1,
+        };
+
         static constexpr int64_t INVALID_CUSTOM_MOD_TIME = -1;
         static constexpr int CHAT_OPTIONS_EMPTY = 0;
         static constexpr int MAX_NODE_DESCRIPTION_SIZE = 3000;
@@ -14519,7 +14525,26 @@ class MegaApi
          * @param reason Reason for the cancellation. It can be NULL.
          * @param listener MegaRequestListener to track this request
          */
+        MEGA_DEPRECATED
         void creditCardCancelSubscriptions(const char* reason, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Cancel the credit card subscriptions of the account
+         *
+         * The associated request type with this request is
+         * MegaRequest::TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS
+         * @param reason The reason for the cancellation. It can be NULL.
+         * @param id The subscription ID for the cancellation. It can be NULL.
+         * @param canContact Whether the user has permitted MEGA to contact them for the
+         * cancellation.
+         *      - MegaApi::CAN_CONTACT_NO = 0
+         *      - MegaApi::CAN_CONTACT_YES = 1
+         * @param listener MegaRequestListener to track this request
+         */
+        void creditCardCancelSubscriptions(const char* reason,
+                                           const char* id,
+                                           int canContact,
+                                           MegaRequestListener* listener = NULL);
 
         /**
          * @brief Get the available payment methods

@@ -12287,9 +12287,10 @@ void MegaClient::creditcardquerysubscriptions()
     reqs.add(new CommandCreditCardQuerySubscriptions(this));
 }
 
-void MegaClient::creditcardcancelsubscriptions(const char* reason)
+void MegaClient::creditcardcancelsubscriptions(
+    const CommandCreditCardCancelSubscriptions::CancelSubscription& cancelSubscription)
 {
-    reqs.add(new CommandCreditCardCancelSubscriptions(this, reason));
+    reqs.add(new CommandCreditCardCancelSubscriptions(this, cancelSubscription));
 }
 
 void MegaClient::getpaymentmethods()

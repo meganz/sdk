@@ -3176,7 +3176,10 @@ class MegaApiImpl : public MegaApp
                              MegaRequestListener *listener = NULL);
 
         void creditCardQuerySubscriptions(MegaRequestListener *listener = NULL);
-        void creditCardCancelSubscriptions(const char* reason, MegaRequestListener *listener = NULL);
+        void creditCardCancelSubscriptions(const char* reason,
+                                           const char* id,
+                                           int canContact,
+                                           MegaRequestListener* listener = NULL);
         void getPaymentMethods(MegaRequestListener *listener = NULL);
 
         char *exportMasterKey();
