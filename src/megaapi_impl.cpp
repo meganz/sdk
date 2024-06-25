@@ -6904,17 +6904,14 @@ bool MegaApiImpl::accountIsNew() const
 
 unsigned int MegaApiImpl::getABTestValue(const char* flag)
 {
-    if (!flag) return 0;
-
-    SdkMutexGuard g(sdkMutex);
-    auto it = client->mABTestFlags.find(flag);
-    if (it != client->mABTestFlags.end())
+    if (!flag) return 0u;
+    unique_ptr<uint32_t> v = client->mABTestFlags.get(flag);
+    if (v)
     {
         sendABTestActive(flag, nullptr);
-        return it->second;
     }
 
-    return 0;
+    return v ? *v : 0u;
 }
 
 void MegaApiImpl::sendABTestActive(const char* flag, MegaRequestListener* listener)
@@ -27330,14 +27327,11 @@ error MegaApiImpl::getLastActionedBanner_getua_result(byte* data, unsigned len, 
     return e;
 }
 
-MegaFlagPrivate* MegaApiImpl::getFlag(const char* flagName, bool commit, MegaRequestListener* listener)
+MegaFlagPrivate* MegaApiImpl::getFlag(const char* flagName,
+                                      bool commit,
+                                      MegaRequestListener* listener)
 {
-    std::pair<uint32_t, uint32_t> flag;
-
-    {
-        SdkMutexGuard g(sdkMutex);
-        flag = client->getFlag(flagName, commit);
-    }
+    std::pair<uint32_t, uint32_t> flag = client->getFlag(flagName);
 
     if (flag.first == static_cast<decltype(flag.first)>(MegaFlag::FLAG_TYPE_AB_TEST) && commit)
     {

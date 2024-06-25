@@ -3855,7 +3855,7 @@ public:
         void getLastReadNotification(MegaRequestListener* listener);
         void setLastActionedBanner(uint32_t notificationId, MegaRequestListener* listener);
         void getLastActionedBanner(MegaRequestListener* listener);
-        MegaFlagPrivate* getFlag(const char* flagName, bool commit, MegaRequestListener* listener);
+        MegaFlagPrivate* getFlag(const char* flagName, bool commit, MegaRequestListener* listener = nullptr);
 
         void deleteUserAttribute(int type, MegaRequestListener* listener = NULL);
 

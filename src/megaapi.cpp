@@ -6089,6 +6089,11 @@ MegaFlag* MegaApi::getFlag(const char* flagName, bool commit, MegaRequestListene
     return pImpl->getFlag(flagName, commit, listener);
 }
 
+MegaFlag* MegaApi::getFlag(const char* flagName, bool commit)
+{
+    return pImpl->getFlag(flagName, commit);
+}
+
 void MegaApi::deleteUserAttribute(int type, MegaRequestListener* listener)
 {
     return pImpl->deleteUserAttribute(type, listener);

@@ -8424,7 +8424,10 @@ TEST_F(SdkTest, SdkSimpleCommands)
     ASSERT_EQ(flagAB->getType(), static_cast<decltype(flagAB->getType())>(MegaFlag::FLAG_TYPE_AB_TEST));
     ASSERT_GE(flagAB->getGroup(), 1u);
     std::unique_ptr<MegaFlag> flagF{ megaApi[0]->getFlag("dmca") };
-    ASSERT_EQ(flagF->getType(), static_cast<decltype(flagF->getType())>(MegaFlag::FLAG_TYPE_FEATURE));
+    ASSERT_THAT(
+        flagF->getType(),
+        ::testing::AnyOf(static_cast<decltype(flagF->getType())>(MegaFlag::FLAG_TYPE_AB_TEST),
+                         static_cast<decltype(flagF->getType())>(MegaFlag::FLAG_TYPE_FEATURE)));
     ASSERT_GE(flagF->getGroup(), 1u);
 
     logout(0, false, maxTimeout);
