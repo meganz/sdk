@@ -5,35 +5,39 @@ from lib.utils import get_mega_env_vars, get_mega_env_var
 # runtime arguments
 parser = argparse.ArgumentParser()
 parser.add_argument(
-    "-r",
-    "--release-version",
-    help="Version to be created and released (i.e. 1.0.0)",
-    type=str,
-    default="",
-)
-parser.add_argument(
     "-p",
     "--project-name",
     help="Project name (i.e. SDK)",
+    type=str,
     required=True,
+)
+parser.add_argument(
+    "-r",
+    "--release-version",
+    help="Version to be created and released (i.e. 1.0.0). Autodetect it if missing.",
+    type=str,
+    default="",
 )
 parser.add_argument(
     "-l",
     "--private-git-host-url",
     help="URL of private repository (i.e. https://code.foo.bar)",
+    type=str,
     required=True,
 )
 parser.add_argument(
     "-d",
     "--private-git-develop-branch",
-    help="Name of private develop branch (i.e. develop)",
-    required=True,
+    help="Name of private develop branch (default: develop)",
+    type=str,
+    default="develop",
 )
 parser.add_argument(
     "-m",
     "--public-git-target-branch",
-    help="Name of public target branch (i.e. master)",
-    required=True,
+    help="Name of public target branch (default: master)",
+    type=str,
+    default="master",
 )
 parser.add_argument(
     "-n",
@@ -44,23 +48,28 @@ parser.add_argument(
 parser.add_argument(
     "-o",
     "--private-git-remote-name",
-    help="Name of private repository's git remote (i.e. origin). Ignored if -n was given",
+    help="Name of private repository's git remote (default: origin). Ignored if -n was given",
+    type=str,
+    default="origin",
 )
 parser.add_argument(
     "-u",
     "--private-git-remote-url",
     help="URL of private repository's git remote (i.e. git@foo.bar:proj/proj.git). Ignored if -n was given",
+    type=str,
 )
 parser.add_argument(
     "-j",
     "--project-management-url",
     help="URL of project management tool (i.e. https://jira.foo.bar)",
+    type=str,
     required=True,
 )
 parser.add_argument(
     "-t",
     "--target-apps",
     help='Apps and versions that use this release (i.e. "Android 1.0.1 / iOS 1.2 / MEGAsync 9.9.9")',
+    type=str,
     required=True,
 )
 parser.add_argument(
@@ -73,7 +82,7 @@ parser.add_argument(
 parser.add_argument(
     "-q",
     "--rc-number",
-    help="Optional. Custom number for rc. Default is 1 when missing",
+    help="Release-candidate number (default: 1)",
     type=int,
     default=1,
 )
