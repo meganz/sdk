@@ -16,9 +16,6 @@ class ReleaseProcess:
         gitlab_token: str,
         private_host_url: str,
         private_branch: str,
-        new_version: str,
-        slack_token: str = "",
-        slack_channel: str = "",
     ):
         self._private_branch = private_branch
         self._local_repo: LocalRepository | None = None
@@ -26,11 +23,34 @@ class ReleaseProcess:
             private_host_url, gitlab_token, project_name
         )
         self._project_name = project_name
-        self._new_version = new_version
-        self._slack = (
-            Slack(slack_token) if slack_token != "" and slack_channel != "" else None
+
+    def setup_project_management(self, url: str, user: str, password: str):
+        assert self._jira is None
+        self._jira = JiraProject(
+            url,
+            user,
+            password,
+            self._project_name,
         )
+
+    def set_release_version_to_make(self, version: str):
+        assert not self._new_version
+        self._new_version = version
+        self._version_v_prefixed = f"v{self._new_version}"
+        self._jira.setup_release()
+
+    def setup_chat(
+        self,
+        slack_token: str,
+        slack_channel: str,
+    ):
+        self._slack = Slack(slack_token)
         self._slack_channel = slack_channel
+
+    def determine_version_for_next_release(self) -> str:
+        assert self._jira is not None
+        version = self._jira.get_next_version()
+        return ".".join(map(str, version))
 
     # STEP 3: update version in local file
     def update_version_in_local_file(
@@ -144,11 +164,9 @@ class ReleaseProcess:
         print("       Cancel by manually closing the MR.", flush=True)
 
         # Send message to chat for MR approval
-        if self._slack is not None:
-            self._slack.post_message(
-                "sdk_devs_only",
-                f"Hello @channel,\n\nPlease approve the MR for the new `{self._project_name}` release `{self._new_version}`:\n{mr_url}",
-            )
+        self._request_mr_approval(
+            f"`{self._project_name}` release `{self._new_version}`:\n{mr_url}"
+        )
 
         # MR not approved within the waiting interval will be closed and
         # the process aborted. To abort earlier just close the MR manually.
@@ -159,6 +177,19 @@ class ReleaseProcess:
             self._remote_private_repo.delete_branch(new_branch)
             raise ValueError("Failed to merge MR with local changes")
         print("v MR merged for version upgrade", flush=True)
+
+    def _request_mr_approval(self, reason: str):
+        if self._slack is None:
+            print(
+                f"You need to request MR approval yourself because chat is not available,\n{reason}",
+                flush=True,
+            )
+        else:
+            self._slack.post_message(
+                "sdk-stuff-builders-team",
+                # "sdk_devs_only",
+                f"Hello @channel,\n\nPlease approve the MR for {reason}",
+            )
 
     # STEP 4: Create "release/vX.Y.Z" branch
     def create_release_branch(self):
@@ -204,7 +235,6 @@ class ReleaseProcess:
             labels="Release",
         )
         if mr_id == 0:
-            self._remote_private_repo.close_mr(mr_id)
             self._remote_private_repo.delete_branch(self._release_branch)
             self._remote_private_repo.delete_tag(self._rc_tag)
             raise ValueError(
@@ -218,8 +248,6 @@ class ReleaseProcess:
 
     # STEP 7: Update and rename previous NextRelease version; create new NextRelease version
     def manage_versions(self, url: str, user: str, password: str, apps: str):
-        self._jira = JiraProject(url, user, password, self._project_name)
-
         self._jira.update_current_version(
             self._new_version,  # i.e. "X.Y.Z"
             apps,  # i.e. "iOS A.B / Android C.D / MEGAsync E.F.G"
@@ -268,15 +296,11 @@ class ReleaseProcess:
             public_repo_token, public_repo_owner, project_name
         )
 
-    def setup_project_management(self, url: str, user: str, password: str):
-        assert self._jira is None
-        self._jira = JiraProject(
-            url,
-            user,
-            password,
-            self._project_name,
-            version_name=self._version_v_prefixed,
-        )
+    def set_release_version_to_close(self, version: str):
+        assert not self._new_version
+        self._new_version = version
+        self._version_v_prefixed = f"v{self._new_version}"
+        self._jira.setup_release(self._version_v_prefixed)
 
     def confirm_all_earlier_versions_are_closed(self):
         # This could be implemented in multiple ways.
@@ -345,7 +369,7 @@ class ReleaseProcess:
         self._public_repo.create_release(version, self._jira.get_public_release_notes())
 
     # STEP 6 (close): Jira: mark version as Released, set release date
-    def mark_version_as_released(self, url: str, user: str, password: str):
+    def mark_version_as_released(self):
         assert self._jira is not None, "Init Jira connection first"
         self._jira.update_version_close_release()
 

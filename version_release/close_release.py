@@ -61,6 +61,13 @@ parser.add_argument(
     required=True,
 )
 parser.add_argument(
+    "-c",
+    "--chat-channel",
+    help="Chat channel where MR announcements will be posted (i.e. sdk_devs). Print to console if missing",
+    type=str,
+    default="",
+)
+parser.add_argument(
     "-v",
     "--public-git-remote-url",
     help="URL of remote for public repository (i.e. git@github.com:owner/proj.git)",
@@ -106,6 +113,7 @@ mega_env_vars = get_mega_env_vars(
 )
 mega_env_vars["MEGA_CONFLUENCE_USER"] = get_mega_env_var("MEGA_CONFLUENCE_USER")
 mega_env_vars["MEGA_CONFLUENCE_PASSWORD"] = get_mega_env_var("MEGA_CONFLUENCE_PASSWORD")
+slack_token = get_mega_env_var("MEGA_SLACK_TOKEN")
 
 # create Release process and do common init
 release = ReleaseProcess(
@@ -113,10 +121,16 @@ release = ReleaseProcess(
     mega_env_vars["MEGA_GITLAB_TOKEN"],
     args.private_git_host_url,
     args.private_git_develop_branch,
-    args.release_version,
 )
 
 # prerequisites for closing a release
+release.setup_project_management(
+    args.project_management_url,
+    mega_env_vars["MEGA_JIRA_USER"],
+    mega_env_vars["MEGA_JIRA_PASSWORD"],
+)
+release.set_release_version_to_close(args.release_version)
+
 release.setup_local_repo(
     args.private_git_remote_name,
     args.private_git_remote_url,
@@ -126,12 +140,9 @@ release.setup_local_repo(
 release.setup_public_repo(
     mega_env_vars["MEGA_GITHUB_TOKEN"], args.public_git_repo_owner, args.project_name
 )
-release.setup_project_management(
-    args.project_management_url,
-    mega_env_vars["MEGA_JIRA_USER"],
-    mega_env_vars["MEGA_JIRA_PASSWORD"],
-)
 release.confirm_all_earlier_versions_are_closed()
+if slack_token and args.chat_channel:
+    release.setup_chat(slack_token, args.chat_channel)
 release.setup_wiki(
     args.wiki_url,
     mega_env_vars["MEGA_CONFLUENCE_USER"],
@@ -158,11 +169,7 @@ release.push_to_public_repo(
 release.create_release_in_public_repo(args.release_version)
 
 # STEP 6: Jira: mark version as Released, set release date
-release.mark_version_as_released(
-    args.project_management_url,
-    mega_env_vars["MEGA_JIRA_USER"],
-    mega_env_vars["MEGA_JIRA_PASSWORD"],
-)
+release.mark_version_as_released()
 
 # STEP 7: Confluence: Rotate own name to the end of the list of release captains
 release.move_release_captain_last(args.wiki_page_id)

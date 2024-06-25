@@ -21,19 +21,19 @@ class JiraProject:
         username: str,
         password: str,
         project: str,
-        version_name: str = _NEXT_RELEASE,
     ):
         self._jira = JIRA(url, basic_auth=(username, password))
         self._project_name = project
+        self._version_manager_url = f"{self._jira.server_url}/rest/versionmanager/1.0/versionmanager/{self._project_name}"
 
+    def setup_release(self, release_name: str = _NEXT_RELEASE):
         # validate version
         self._version: Version | None = self._jira.get_project_version_by_name(
-            self._project_name, version_name
+            self._project_name, release_name
         )
         assert self._version is not None
         assert self._version.released == False
         self._version_id = self._version.id
-        self._version_manager_url = f"{self._jira.server_url}/rest/versionmanager/1.0/versionmanager/{self._project_name}"
 
     def update_current_version(self, to_version: str, used_by_apps: str):
         from datetime import date
@@ -135,7 +135,7 @@ class JiraProject:
                 not v.archived
                 and not v.released
                 and v.name != self._version.name
-                and re.match(r"v(\d)+\.(\d+)\.(\d+)", v.name)
+                and re.match(r"^v(\d)+\.(\d+)\.(\d+)$", v.name)
             ):
                 old_major, old_minor, old_micro = (
                     int(n) for n in v.name[1:].split(".")
@@ -147,3 +147,70 @@ class JiraProject:
                         or (new_minor == old_minor and new_micro < old_micro)
                     )
                 ), f"Release {v.name} must be closed before continuing"
+
+    def get_next_version(self) -> tuple[int, int, int]:
+        highest_existing_version = self._get_highest_existing_version()
+        release_number_affected = self._get_version_component_to_increment()
+        match release_number_affected:
+            case "Major":
+                next_version = (highest_existing_version[0] + 1, 0, 0)
+            case "Minor":
+                next_version = (
+                    highest_existing_version[0],
+                    highest_existing_version[1] + 1,
+                    0,
+                )
+            case _:
+                next_version = (
+                    highest_existing_version[0],
+                    highest_existing_version[1],
+                    highest_existing_version[2] + 1,
+                )
+        return next_version
+
+    def _get_highest_existing_version(self) -> tuple[int, int, int]:
+        # find the highest existing version
+        highest_major = highest_minor = highest_micro = 0
+        all_versions = self._jira.project_versions(self._project_name)
+        for v in all_versions:
+            assert isinstance(v, Version)
+            if re.match(r"^v(\d)+\.(\d+)\.(\d+)$", v.name):
+                major, minor, micro = (int(n) for n in v.name[1:].split("."))
+                if major > highest_major:
+                    highest_major = major
+                    highest_minor = minor
+                    highest_micro = micro
+                elif major == highest_major:
+                    if minor > highest_minor:
+                        highest_minor = minor
+                        highest_micro = micro
+                    elif minor == highest_minor and micro > highest_micro:
+                        highest_micro = micro
+        return (highest_major, highest_minor, highest_micro)
+
+    def _get_version_component_to_increment(self) -> str:
+        # get id of custom field
+        custom_field_id = ""
+        all_the_fields = self._jira.fields()
+        for f in all_the_fields:
+            if f["custom"] and f["name"] == "Release number affected":
+                custom_field_id = f["id"]
+                break
+        assert custom_field_id
+
+        # get relevant issues
+        unreleased_issues = self._jira.search_issues(
+            f"project={self._project_name} AND fixVersion={self._version_id} AND status=Resolved AND resolution=Done",
+            maxResults=200,
+        )
+
+        # get higest Release number affected
+        release_number_affected = "Patch"
+        for i in unreleased_issues:
+            assert isinstance(i, Issue)
+            affected = i.raw["fields"][custom_field_id]["value"]
+            if affected == "Major":
+                return affected
+            if affected == "Minor":
+                release_number_affected = affected
+        return release_number_affected

@@ -8,7 +8,8 @@ parser.add_argument(
     "-r",
     "--release-version",
     help="Version to be created and released (i.e. 1.0.0)",
-    required=True,
+    type=str,
+    default="",
 )
 parser.add_argument(
     "-p",
@@ -100,17 +101,27 @@ else:
             "Release notes will be printed to console. Post them yourself.", flush=True
         )
 
-# start Release process
+# create Release process and do common init
 release = ReleaseProcess(
     args.project_name,
     mega_env_vars["MEGA_GITLAB_TOKEN"],
     args.private_git_host_url,
     args.private_git_develop_branch,
-    args.release_version,
-    slack_token,
-    args.chat_channel,
 )
 
+# prerequisites for making a release
+release.setup_project_management(
+    args.project_management_url,
+    mega_env_vars["MEGA_JIRA_USER"],
+    mega_env_vars["MEGA_JIRA_PASSWORD"],
+)
+next_release_version = (
+    args.release_version or release.determine_version_for_next_release()
+)
+release.set_release_version_to_make(next_release_version)
+
+if slack_token and args.chat_channel:
+    release.setup_chat(slack_token, args.chat_channel)
 
 if not args.no_file_update:
     # STEP 3: update version in local file
@@ -129,7 +140,7 @@ if not args.no_file_update:
 
 
 # STEP 4: Create branch "release/vX.Y.Z"
-release_branch = release.create_release_branch()
+release.create_release_branch()
 
 
 # STEP 5: Create rc tag "vX.Y.Z-rc.1" from branch "release/vX.Y.Z"
