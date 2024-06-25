@@ -9,7 +9,7 @@ Provide sensitive information:
 
 For GitLab
 ```sh
-export MEGA_GITLAB_TOKEN=FOO   # private token required for remote access; always required
+export MEGA_GITLAB_TOKEN=FOO   # GitLab authentication token
 ```
 For signing commits, GPG needs the following
 ```sh

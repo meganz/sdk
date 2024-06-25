@@ -9,11 +9,11 @@ Provide sensitive information:
 
 For GitLab
 ```sh
-export MEGA_GITLAB_TOKEN=FOO   # token required for remote access to private repo
+export MEGA_GITLAB_TOKEN=FOO   # GitLab authentication token
 ```
 For GitHub
 ```sh
-export MEGA_GITHUB_TOKEN=BAR   # token required for remote access to public repo
+export MEGA_GITHUB_TOKEN=BAR   # GitHub authentication token
 ```
 For Jira
 ```sh

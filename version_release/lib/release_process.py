@@ -274,7 +274,6 @@ class ReleaseProcess:
             self._slack.post_message(self._slack_channel, notes)
             print(f"v Posted release notes to #{self._slack_channel}", flush=True)
 
-
     ####################
     ##  Close release
     ####################
@@ -360,10 +359,10 @@ class ReleaseProcess:
 
         # push stuff to public repo
         assert self._local_repo is not None
-        self._local_repo.push_branch( # "master" branch
+        self._local_repo.push_branch(  # "master" branch
             public_remote_name, public_branch
         )
-        self._local_repo.push_branch( # "vX.Y.Z" tag
+        self._local_repo.push_branch(  # "vX.Y.Z" tag
             public_remote_name, self._version_v_prefixed
         )
 
