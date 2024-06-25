@@ -16,6 +16,7 @@ These should only be needed once.
 ### Python stuff
 * Install `Python 3`. The script was written on top of Python 3.12.2, just in case an older version would fail to run it.
 * Install `pip`. Something like `python3 -m ensurepip --upgrade` should work.
+  However, Ubuntu apparently is "special" and Python from its repo comes without `ensurepip`. So try `sudo apt install python3-pip`.
 * Install required modules with `pip install -r requirements.txt` (and upgrade all later with `pip install -U -r requirements.txt`).
 
 ### GitLab stuff
