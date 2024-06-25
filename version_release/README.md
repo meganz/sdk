@@ -31,7 +31,15 @@ These should only be needed once.
 
 ### Slack stuff
 * Slack requires an _app_ that will provide a token required for using its API.
-  * Any Slack user can [create an app](https://api.slack.com/start/quickstart#creating), set `chat:write` to `User Token Scopes`, get `User OAuth Token`.
+  * Any Slack user can create an app, configure the scope for it, and get the necessary token:
+    * [Go to Your Apps](https://api.slack.com/apps)
+      * click **Create New App** -> **From scratch**
+      * set a name for the new app and set **MEGA** workspace for it
+      * click **Create App**.
+    * Go to **OAuth & Permissions** (on the left side, under _Features_)
+      * Find **Scopes** section -> **User Token Scopes** -> click **Add an OAuth Scope** -> choose `chat:write`
+      * Find **OAuth Tokens for Your Workspace** section -> click **Install to Workspace** -> review the permissions listed there -> click **Allow**
+      * From the same **OAuth Tokens for Your Workspace** section -> copy **User OAuth Token**
   * Or reuse a _distributed app_ created by someone else, and get whatever token they provide.
 * Set the token in `MEGA_SLACK_TOKEN` env var.
 * Update the env var when the token has expired.
