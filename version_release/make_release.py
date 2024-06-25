@@ -66,7 +66,7 @@ parser.add_argument(
 parser.add_argument(
     "-c",
     "--chat-channel",
-    help="Chat channel where release notes will be posted (i.e. sdk_devs). Print to console if missing",
+    help="Chat channel where release notes will be posted (i.e. sdk). Print to console if missing",
     type=str,
     default="",
 )
