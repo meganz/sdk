@@ -60,35 +60,6 @@ static const string PUBLIC_IMAGE_URL = "/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuD
 
 MegaFileSystemAccess fileSystemAccess;
 
-template<typename T>
-class ScopedValue {
-public:
-    ScopedValue(T& what, T value)
-      : mLastValue(std::move(what))
-      , mWhat(what)
-    {
-        what = std::move(value);
-    }
-
-    ~ScopedValue()
-    {
-        mWhat = std::move(mLastValue);
-    }
-
-    MEGA_DISABLE_COPY(ScopedValue)
-    MEGA_DEFAULT_MOVE(ScopedValue)
-
-private:
-    T mLastValue;
-    T& mWhat;
-}; // ScopedValue<T>
-
-template<typename T>
-ScopedValue<T> makeScopedValue(T& what, T value)
-{
-    return ScopedValue<T>(what, std::move(value));
-}
-
 #ifdef _WIN32
 DWORD ThreadId()
 {
@@ -1023,6 +994,10 @@ void SdkTest::onUsersUpdate(MegaApi* api, MegaUserList *users)
                 || u->hasChanged(MegaUser::CHANGE_TYPE_LASTNAME))
         {
             currentPerApi.userUpdated = true;
+            if (u->hasChanged(MegaUser::CHANGE_TYPE_FIRSTNAME))
+            {
+                currentPerApi.userFirstNameUpdated = true;
+            }
         }
         else
         {
@@ -1081,8 +1056,8 @@ void SdkTest::onUserAlertsUpdate(MegaApi* api, MegaUserAlertList* alerts)
     int apiIndex = getApiIndex(api);
     if (apiIndex < 0) return;
 
-    mApi[apiIndex].userAlertsUpdated = true;
     mApi[apiIndex].userAlertList.reset(alerts ? alerts->copy() : nullptr);
+    mApi[apiIndex].userAlertsUpdated = true;
 }
 
 #ifdef ENABLE_CHAT
@@ -1247,7 +1222,7 @@ void SdkTest::fetchnodes(unsigned int apiIndex, int timeout)
 {
     RequestTracker rt(megaApi[apiIndex].get());
     mApi[apiIndex].megaApi->fetchNodes(&rt);
-    ASSERT_TRUE(API_OK == rt.waitForResult(300)) << "Fetchnodes failed or took more than 5 minutes";
+    ASSERT_EQ(API_OK, rt.waitForResult(300)) << "Fetchnodes failed or took more than 5 minutes";
 }
 
 void SdkTest::logout(unsigned int apiIndex, bool keepSyncConfigs, int timeout)
@@ -1269,9 +1244,9 @@ void SdkTest::logout(unsigned int apiIndex, bool keepSyncConfigs, int timeout)
     EXPECT_EQ(API_OK, mApi[apiIndex].lastError) << "Logout failed (error: " << mApi[apiIndex].lastError << ")";
 }
 
-char* SdkTest::dumpSession()
+char* SdkTest::dumpSession(unsigned apiIndex)
 {
-    return megaApi[0]->dumpSession();
+    return megaApi[apiIndex]->dumpSession();
 }
 
 void SdkTest::locallogout(unsigned apiIndex)
@@ -1280,9 +1255,8 @@ void SdkTest::locallogout(unsigned apiIndex)
     ASSERT_EQ(API_OK, logoutErr) << "Local logout failed (error: " << logoutErr << ")";
 }
 
-void SdkTest::resumeSession(const char *session, int timeout)
+void SdkTest::resumeSession(const char *session, unsigned apiIndex)
 {
-    int apiIndex = 0;
     ASSERT_EQ(API_OK, synchronousFastLogin(apiIndex, session, this)) << "Resume session failed (error: " << mApi[apiIndex].lastError << ")";
 }
 
@@ -2211,27 +2185,33 @@ string getLinkFromMailbox(const string& exe,         // Python
                           const string& intent,      // confirm / delete
                           const chrono::steady_clock::time_point& timeOfEmail)
 {
-    string command = exe + " \"" + script + "\" \"" + realAccount + "\" \"" + realPswd + "\" \"" + toAddr + "\" " + intent;
-    string output;
+    using namespace std::chrono; // Just for this little scope
+
+    std::string command = exe + " \"" + script + "\" \"" + realAccount + "\" \"" + realPswd +
+                          "\" \"" + toAddr + "\" " + intent;
+    std::string output;
 
     // Wait for the link to be sent
-    constexpr int deltaMs = 10000; // 10 s interval to check for the email
-    for (int i = 0; ; i += deltaMs)
+    constexpr seconds delta = 10s;
+    constexpr minutes maxTimeout = 10min;
+    seconds spentTime = 0s;
+    for (; spentTime < maxTimeout && output.empty(); spentTime += delta)
     {
-        WaitMillisec(deltaMs);
+        WaitMillisec(duration_cast<milliseconds>(delta).count());
 
         // get time interval to look for emails, add some seconds to account for delays related to
         // the python script call
-        constexpr int safetyDelaySecs = 5;
-        const auto attemptTime = std::chrono::steady_clock::now();
-        auto timeSinceEmail = std::chrono::duration_cast<std::chrono::seconds>(attemptTime - timeOfEmail).count() + safetyDelaySecs;
-        output = runProgram(command + ' ' + to_string(timeSinceEmail), PROG_OUTPUT_TYPE::TEXT); // Run Python script
-        if (!output.empty() || i > 180000) // 3 minute maximum wait
-            break;
+        constexpr seconds safetyDelay = 5s;
+        const auto attemptTime = steady_clock::now();
+        seconds timeSinceEmail = duration_cast<seconds>(attemptTime - timeOfEmail) + safetyDelay;
+        // Run Python script
+        output =
+            runProgram(command + ' ' + to_string(timeSinceEmail.count()), PROG_OUTPUT_TYPE::TEXT);
     }
+    LOG_debug << "Time spent trying to get the email: " << spentTime.count() << "s";
 
     // Print whatever was fetched from the mailbox
-    LOG_debug << "Link from email (" << intent << "):" << (output.empty() ? "[empty]" : output);
+    LOG_debug << "Link from email (" << intent << "): " << (output.empty() ? "[empty]" : output);
 
     // Validate the link
     constexpr char expectedLinkPrefix[] = "https://";
@@ -2312,6 +2292,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
 
     // create the account
     // ------------------
+    LOG_debug << "SdkTestCreateAccount: Start account creation";
 
     const string realEmail(bufRealEmail); // user@host.domain
     string::size_type pos = realEmail.find('@');
@@ -2329,15 +2310,18 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     // Create an ephemeral session internally and send a confirmation link to email
     ASSERT_EQ(API_OK, synchronousCreateAccount(0, newTestAcc.c_str(), origTestPwd, "MyFirstname", "MyLastname"));
 
+    LOG_debug << "SdkTestCreateAccount: Logout and resume";
     // Logout from ephemeral session and resume session
     ASSERT_NO_FATAL_FAILURE( locallogout() );
     ASSERT_EQ(API_OK, synchronousResumeCreateAccount(0, mApi[0].getSid().c_str()));
 
     // Get confirmation link from the email
     {
+        LOG_debug << "SdkTestCreateAccount: Get confirmation link from email";
         string conformLink = getLinkFromMailbox(pyExe, bufScript.string(), realAccount, bufRealPswd, newTestAcc, MegaClient::confirmLinkPrefix(), timeOfConfirmEmail);
         ASSERT_FALSE(conformLink.empty()) << "Confirmation link was not found.";
 
+        LOG_debug << "SdkTestCreateAccount: Confirm account";
         // create another connection to confirm the account
         megaApi.resize(2);
         mApi.resize(2);
@@ -2356,6 +2340,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
 
     // Login to the new account
     {
+        LOG_debug << "SdkTestCreateAccount: Login to the new account";
         unique_ptr<RequestTracker> loginTracker = std::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->login(newTestAcc.c_str(), origTestPwd, loginTracker.get());
         ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to account " << newTestAcc.c_str();
@@ -2363,6 +2348,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
 
     // fetchnodes // needed internally to fill in user details, including email
     {
+        LOG_debug << "SdkTestCreateAccount: fetch nodes from new account";
         unique_ptr<RequestTracker>  fetchnodesTracker = std::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->fetchNodes(fetchnodesTracker.get());
         ASSERT_EQ(API_OK, fetchnodesTracker->waitForResult()) << " Failed to fetchnodes for account " << newTestAcc.c_str();
@@ -2371,21 +2357,25 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     // test resetting the password
     // ---------------------------
 
+    LOG_debug << "SdkTestCreateAccount: Start reset password";
     chrono::time_point timeOfResetEmail = chrono::steady_clock::now();
     ASSERT_EQ(synchronousResetPassword(0, newTestAcc.c_str(), true), MegaError::API_OK) << "resetPassword failed";
 
     // Get cancel account link from the mailbox
     const char* newTestPwd = "PassAndGotHerPhoneNumber!#$**!";
     {
+        LOG_debug << "SdkTestCreateAccount: Get password reset link from email";
         string recoverink = getLinkFromMailbox(pyExe, bufScript.string(), realAccount, bufRealPswd, newTestAcc, MegaClient::recoverLinkPrefix(), timeOfResetEmail);
         ASSERT_FALSE(recoverink.empty()) << "Recover account link was not found.";
 
+        LOG_debug << "SdkTestCreateAccount: Confirm reset password";
         char* masterKey = megaApi[0]->exportMasterKey();
         ASSERT_EQ(synchronousConfirmResetPassword(0, recoverink.c_str(), newTestPwd, masterKey), MegaError::API_OK) << "confirmResetPassword failed";
     }
 
     // Login using new password
     {
+        LOG_debug << "SdkTestCreateAccount: Login with new password";
         unique_ptr<RequestTracker> loginTracker = std::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->login(newTestAcc.c_str(), newTestPwd, loginTracker.get());
         ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to account after change password with new password " << newTestAcc.c_str();
@@ -2393,6 +2383,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
 
     // fetchnodes - needed internally to fill in user details, to allow cancelAccount() to work
     {
+        LOG_debug << "SdkTestCreateAccount: Fetching nodes";
         unique_ptr<RequestTracker> fetchnodesTracker = std::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->fetchNodes(fetchnodesTracker.get());
         ASSERT_EQ(API_OK, fetchnodesTracker->waitForResult()) << " Failed to fetchnodes after change password for account " << newTestAcc.c_str();
@@ -2401,7 +2392,9 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     // test changing the email (check change with auxiliar instance)
     // -----------------------
 
+    LOG_debug << "SdkTestCreateAccount: Start email change";
     // login with auxiliar instance
+    LOG_debug << "SdkTestCreateAccount: Login auxiliar account";
     megaApi.resize(2);
     mApi.resize(2);
     ASSERT_NO_FATAL_FAILURE(configureTestInstance(1, newTestAcc, newTestPwd));
@@ -2411,20 +2404,24 @@ TEST_F(SdkTest, SdkTestCreateAccount)
         ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to auxiliar account ";
     }
 
+    LOG_debug << "SdkTestCreateAccount: Send change email request";
     const string changedTestAcc = Utils::replace(newTestAcc, "@", "-new@");
     chrono::time_point timeOfChangeEmail = chrono::steady_clock::now();
     ASSERT_EQ(synchronousChangeEmail(0, changedTestAcc.c_str()), MegaError::API_OK) << "changeEmail failed";
 
     {
+        LOG_debug << "SdkTestCreateAccount: Get change email link from email inbox";
         string changelink = getLinkFromMailbox(pyExe, bufScript.string(), realAccount, bufRealPswd, changedTestAcc, MegaClient::verifyLinkPrefix(), timeOfChangeEmail);
         ASSERT_FALSE(changelink.empty()) << "Change email account link was not found.";
 
+        LOG_debug << "SdkTestCreateAccount: Confirm email change";
         ASSERT_STRCASEEQ(newTestAcc.c_str(), std::unique_ptr<char[]>{megaApi[0]->getMyEmail()}.get()) << "email changed prematurely";
         ASSERT_EQ(synchronousConfirmChangeEmail(0, changelink.c_str(), newTestPwd), MegaError::API_OK) << "confirmChangeEmail failed";
     }
 
     {
         // Check if our own email is updated after receive ug at auxiliar instance
+        LOG_debug << "SdkTestCreateAccount: Check email is updated";
         unique_ptr<RequestTracker> userDataTracker = std::make_unique<RequestTracker>(megaApi[1].get());
         megaApi[1]->getUserData(userDataTracker.get());
         ASSERT_EQ(API_OK, userDataTracker->waitForResult()) << " Failed to get user data at auxiliar account";
@@ -2435,6 +2432,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     // Login using new email
     ASSERT_STRCASEEQ(changedTestAcc.c_str(), std::unique_ptr<char[]>{megaApi[0]->getMyEmail()}.get()) << "email not changed correctly";
     {
+        LOG_debug << "SdkTestCreateAccount: Login with new email";
         unique_ptr<RequestTracker> loginTracker = std::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->login(changedTestAcc.c_str(), newTestPwd, loginTracker.get());
         ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to account after change email with new email " << changedTestAcc.c_str();
@@ -2442,6 +2440,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
 
     // fetchnodes - needed internally to fill in user details, to allow cancelAccount() to work
     {
+        LOG_debug << "SdkTestCreateAccount: Fetching nodes";
         unique_ptr<RequestTracker> fetchnodesTracker = std::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->fetchNodes(fetchnodesTracker.get());
         ASSERT_EQ(API_OK, fetchnodesTracker->waitForResult()) << " Failed to fetchnodes after change password for account " << changedTestAcc.c_str();
@@ -2454,8 +2453,10 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     // ------------------
 
     // Request cancel account link
+    LOG_debug << "SdkTestCreateAccount: Start deleting account";
     chrono::time_point timeOfDeleteEmail = chrono::steady_clock::now();
     {
+        LOG_debug << "SdkTestCreateAccount: Request account cancel";
         unique_ptr<RequestTracker> cancelLinkTracker = std::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->cancelAccount(cancelLinkTracker.get());
         ASSERT_EQ(API_OK, cancelLinkTracker->waitForResult()) << " Failed to request cancel link for account " << changedTestAcc.c_str();
@@ -2463,10 +2464,12 @@ TEST_F(SdkTest, SdkTestCreateAccount)
 
     // Get cancel account link from the mailbox
     {
+        LOG_debug << "SdkTestCreateAccount: Get cancel link from email";
         string deleteLink = getLinkFromMailbox(pyExe, bufScript.string(), realAccount, bufRealPswd, changedTestAcc, MegaClient::cancelLinkPrefix(), timeOfDeleteEmail);
         ASSERT_FALSE(deleteLink.empty()) << "Cancel account link was not found.";
 
         // Use cancel account link
+        LOG_debug << "SdkTestCreateAccount: Confirm cancel link";
         unique_ptr<RequestTracker> useCancelLinkTracker = std::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->confirmCancelAccount(deleteLink.c_str(), newTestPwd, useCancelLinkTracker.get());
         // Allow API_ESID beside API_OK, due to the race between sc and cs channels
@@ -19336,4 +19339,91 @@ TEST_F(SdkTest, SdkCacheLRU)
 
     numNodeCacheLRU = megaApi[0]->getNumNodesAtCacheLRU();
     ASSERT_EQ(numNodeCacheLRU, cacheLRUNewSize);
+}
+
+/**
+ * @brief SdkTestVPN
+ *
+ * Test that MEGA VPN app receives Action Packets.
+ */
+TEST_F(SdkTest, SdkTestVPN)
+{
+    LOG_info << "___TEST SdkTestVPN";
+
+    // Login first client
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // get First Name
+    string origName;
+    {
+        RequestTracker getNameTracker(megaApi[0].get());
+        megaApi[0]->getUserAttribute(MegaApi::USER_ATTR_FIRSTNAME, &getNameTracker);
+        ASSERT_EQ(getNameTracker.waitForResult(), API_OK) << "Failed to get First Name";
+        ASSERT_THAT(getNameTracker.request->getText(), ::testing::NotNull());
+        origName = getNameTracker.request->getText();
+    }
+
+    // Prepare VPN client with the same account
+    mApi.resize(2);
+    megaApi.resize(2);
+    const auto [email, pass] = getEnvVarAccounts().getVarValues(0);
+    ASSERT_NO_FATAL_FAILURE(configureTestInstance(1, email, pass, true, MegaApi::CLIENT_TYPE_VPN));
+
+    // Login VPN client
+    {
+        RequestTracker loginTracker(megaApi[1].get());
+        megaApi[1]->login(mApi[1].email.c_str(), mApi[1].pwd.c_str(), &loginTracker);
+        ASSERT_EQ(loginTracker.waitForResult(), API_OK) << "VPN client: failed to login";
+        bool& fetchnodesDone = mApi[1].requestFlags[MegaRequest::TYPE_FETCH_NODES] = false;
+        ASSERT_NO_FATAL_FAILURE(fetchnodes(1));
+        ASSERT_TRUE(WaitFor([&fetchnodesDone]() { return fetchnodesDone; }, 60 * 1000))
+            << "VPN client: fetchnodesDone not received";
+
+        // test resume-session while at it
+        unique_ptr<char[]> session(dumpSession(1));
+        ASSERT_NO_FATAL_FAILURE(locallogout(1));
+        ASSERT_NO_FATAL_FAILURE(resumeSession(session.get(), 1));
+        ASSERT_NO_FATAL_FAILURE(fetchnodes(1));
+    }
+
+    // update First Name in default client
+    string newName = origName + "_upd";
+    bool& nameUpdated = mApi[1].userFirstNameUpdated = false;
+    {
+        RequestTracker setNameTracker(megaApi[0].get());
+        megaApi[0]->setUserAttribute(MegaApi::USER_ATTR_FIRSTNAME, newName.c_str(), &setNameTracker);
+        ASSERT_EQ(setNameTracker.waitForResult(), API_OK) << "Default client: failed to update First Name";
+
+        // wait for VPN client to receive the name update
+        ASSERT_TRUE(WaitFor([&nameUpdated]() { return nameUpdated; }, 60 * 1000))
+            << "VPN client: AP about updated First Name not received";
+
+        // get First Name from VPN client and confirm the update
+        nameUpdated = false; // to be ignored this time; is set after getting UA
+        RequestTracker getNameTracker(megaApi[1].get());
+        megaApi[1]->getUserAttribute(MegaApi::USER_ATTR_FIRSTNAME, &getNameTracker);
+        ASSERT_EQ(getNameTracker.waitForResult(), API_OK) << "VPN client: failed to get updated First Name";
+        ASSERT_THAT(getNameTracker.request->getText(), ::testing::NotNull());
+        ASSERT_EQ(newName, getNameTracker.request->getText());
+        WaitFor([&nameUpdated]() { return nameUpdated; }, 5 * 1000); // to be ignored
+    }
+
+    // reset First Name to original value
+    {
+        nameUpdated = false;
+        RequestTracker setNameTracker(megaApi[0].get());
+        megaApi[0]->setUserAttribute(MegaApi::USER_ATTR_FIRSTNAME, origName.c_str(), &setNameTracker);
+        ASSERT_EQ(setNameTracker.waitForResult(), API_OK) << "Default client: failed to set original First Name";
+
+        // wait for VPN client to receive the name update
+        ASSERT_TRUE(WaitFor([&nameUpdated]() { return nameUpdated; }, 60 * 1000))
+            << "VPN client: AP for reset First Name not received";
+
+        // get First Name from VPN client and confirm the reset
+        RequestTracker getNameTracker(megaApi[1].get());
+        megaApi[1]->getUserAttribute(MegaApi::USER_ATTR_FIRSTNAME, &getNameTracker);
+        ASSERT_EQ(getNameTracker.waitForResult(), API_OK) << "VPN client: failed to get reset First Name";
+        ASSERT_THAT(getNameTracker.request->getText(), ::testing::NotNull());
+        ASSERT_EQ(origName, getNameTracker.request->getText());
+    }
 }

@@ -456,7 +456,6 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     static MimeType_t getMimetype(const std::string& ext);
 
     bool isPhotoWithFileAttributes(bool checkPreview) const;
-    bool isVideoWithFileAttributes() const;
 
     bool isPasswordNode() const;
     bool isPasswordNodeFolder() const;
@@ -756,8 +755,9 @@ struct MEGA_API LocalNode
             // There is only one shared_ptr so if the node is gone,
             // we can't look this up by weak_ptr.  So this ptr is not dangling
             LocalNode* localNode = nullptr;
+            Sync* sync = nullptr;
 
-            ScanBlocked(PrnGen &rng, const LocalPath& lp, LocalNode* ln);
+            ScanBlocked(PrnGen &rng, const LocalPath& lp, LocalNode* ln, Sync* s);
         };
 
         shared_ptr<ScanBlocked> scanBlocked;

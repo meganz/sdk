@@ -1700,6 +1700,7 @@ MegaSyncStallPrivate::pathProblemDebugString(MegaSyncStall::SyncPathProblem reas
     static_assert((int)PathProblem::PutnodeCompletionPending == (int)MegaSyncStall::SyncPathProblem::PutnodeCompletionPending, "");
     static_assert((int)PathProblem::UploadDeferredByController == (int)MegaSyncStall::SyncPathProblem::UploadDeferredByController, "");
     static_assert((int)PathProblem::DetectedNestedMount == (int)MegaSyncStall::SyncPathProblem::DetectedNestedMount, "");
+    static_assert((int)PathProblem::CloudNodeIsBlocked == (int)MegaSyncStall::SyncPathProblem::CloudNodeIsBlocked, "");
     static_assert((int)PathProblem::PathProblem_LastPlusOne == (int)MegaSyncStall::SyncPathProblem::SyncPathProblem_LastPlusOne, "");
 
     return syncPathProblemDebugString(PathProblem(reason));
@@ -1741,19 +1742,23 @@ MegaSyncStallListPrivate::MegaSyncStallListPrivate(SyncProblems&& sp, AddressedS
         }
     }
 
-    for(auto& stall : sp.mStalls.cloud)
+    for (auto& stalledSyncMapPair : sp.mStalls.syncStallInfoMaps)
     {
-        if (!filter.addressedCloudStall(stall.first))
+        auto& stalledSyncMap = stalledSyncMapPair.second;
+        for(auto& stall : stalledSyncMap.cloud)
         {
-            mStalls.push_back(std::make_shared<MegaSyncStallPrivate>(stall.second));
+            if (!filter.addressedCloudStall(stall.first))
+            {
+                mStalls.push_back(std::make_shared<MegaSyncStallPrivate>(stall.second));
+            }
         }
-    }
 
-    for(auto& stall : sp.mStalls.local)
-    {
-        if (!filter.addressedLocalStall(stall.first))
+        for(auto& stall : stalledSyncMap.local)
         {
-            mStalls.push_back(std::make_shared<MegaSyncStallPrivate>(stall.second));
+            if (!filter.addressedLocalStall(stall.first))
+            {
+                mStalls.push_back(std::make_shared<MegaSyncStallPrivate>(stall.second));
+            }
         }
     }
 }
@@ -14163,7 +14168,9 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
                     assert(!client->mNodeManager.getRootNodeVault().isUndef());
                     break;
 
-                case MegaClient::ClientType::VPN: // fall-through
+                case MegaClient::ClientType::VPN:
+                    // Allow Fetch nodes for VPN to start receiving Action Packets
+                    break;
                 default:
                 {
                     LOG_err << "Fetch nodes requested for unexpected MegaApi type "
@@ -17388,109 +17395,6 @@ bool MegaApiImpl::isFilesystemAvailable()
 {
     SdkMutexGuard g(sdkMutex);
     return client->nodeByHandle(client->mNodeManager.getRootNodeFiles()) != NULL;
-}
-
-// returns 0 if i==j, +1 if i goes first, -1 if j goes first.
-int naturalsorting_compare (const char *i, const char *j)
-{
-    static uint64_t maxNumber = (ULONG_MAX - 57) / 10; // 57 --> ASCII code for '9'
-
-    bool stringMode = true;
-
-    while (*i && *j)
-    {
-        if (stringMode)
-        {
-            char char_i, char_j;
-            while ( (char_i = *i) && (char_j = *j) )
-            {
-                bool char_i_isDigit = is_digit(*i);
-                bool char_j_isDigit = is_digit(*j);
-
-                if (char_i_isDigit && char_j_isDigit)
-                {
-                    stringMode = false;
-                    break;
-                }
-
-                if(char_i_isDigit)
-                {
-                    return -1;
-                }
-
-                if(char_j_isDigit)
-                {
-                    return 1;
-                }
-
-                int difference = strncasecmp((char *)&char_i, (char *)&char_j, 1);
-                if (difference)
-                {
-                    return difference;
-                }
-
-                ++i;
-                ++j;
-            }
-        }
-        else    // we are comparing numbers on both strings
-        {
-            uint64_t number_i = 0;
-            unsigned int i_overflow_count = 0;
-            while (*i && is_digit(*i))
-            {
-                number_i = number_i * 10 + (*i - 48); // '0' ASCII code is 48
-                ++i;
-
-                // check the number won't overflow upon addition of next char
-                if (number_i >= maxNumber)
-                {
-                    number_i -= maxNumber;
-                    i_overflow_count++;
-                }
-            }
-
-            uint64_t number_j = 0;
-            unsigned int j_overflow_count = 0;
-            while (*j && is_digit(*j))
-            {
-                number_j = number_j * 10 + (*j - 48);
-                ++j;
-
-                // check the number won't overflow upon addition of next char
-                if (number_j >= maxNumber)
-                {
-                    number_j -= maxNumber;
-                    j_overflow_count++;
-                }
-            }
-
-            int difference = i_overflow_count - j_overflow_count;
-            if (difference)
-            {
-                return difference;
-            }
-
-            if (number_i != number_j)
-            {
-                return number_i > number_j ? 1 : -1;
-            }
-
-            stringMode = true;
-        }
-    }
-
-    if (*j)
-    {
-        return -1;
-    }
-
-    if (*i)
-    {
-        return 1;
-    }
-
-    return 0;
 }
 
 std::function<bool (Node*, Node*)> MegaApiImpl::getComparatorFunction(int order, MegaClient& mc)
@@ -22896,24 +22800,16 @@ void MegaApiImpl::copySyncDataToCache(const char* localFolder, const char* name,
                 syncConfig.mError = syncError;
             }
 
-            client->ensureSyncUserAttributes([this, request, syncConfig](Error e){
-
-                if (e != API_OK)
+            client->copySyncConfig(syncConfig, [this, request](handle backupId, error e)
+            {
+                if (e == API_OK)
                 {
-                    fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
-                    return;
+                    request->setParentHandle(backupId);
                 }
 
-                client->copySyncConfig(syncConfig, [this, request](handle backupId, error e)
-                {
-                    if (e == API_OK)
-                    {
-                        request->setParentHandle(backupId);
-                    }
-
-                    fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
-                });
+                fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
             });
+
             return API_OK;
         };
 

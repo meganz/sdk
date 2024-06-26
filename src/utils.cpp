@@ -2919,6 +2919,7 @@ const char* syncPathProblemDebugString(PathProblem r)
     case PathProblem::SourceWasMovedElsewhere: return "SourceWasMovedElsewhere";
     case PathProblem::FilesystemCannotStoreThisName: return "FilesystemCannotStoreThisName";
     case PathProblem::CloudNodeInvalidFingerprint: return "CloudNodeInvalidFingerprint";
+    case PathProblem::CloudNodeIsBlocked: return "CloudNodeIsBlocked";
 
     case PathProblem::PutnodeDeferredByController: return "PutnodeDeferredByController";
     case PathProblem::PutnodeCompletionDeferredByController: return "PutnodeCompletionDeferredByController";
@@ -3543,6 +3544,108 @@ SplitResult split(const char* begin, std::size_t size, char delimiter)
 SplitResult split(const std::string& value, char delimiter)
 {
     return split(value.data(), value.size(), delimiter);
+}
+
+int naturalsorting_compare(const char* i, const char* j)
+{
+    static uint64_t maxNumber = (ULONG_MAX - 57) / 10; // 57 --> ASCII code for '9'
+
+    bool stringMode = true;
+
+    while (*i && *j)
+    {
+        if (stringMode)
+        {
+            char char_i, char_j;
+            while ((char_i = *i) && (char_j = *j))
+            {
+                bool char_i_isDigit = is_digit(*i);
+                bool char_j_isDigit = is_digit(*j);
+
+                if (char_i_isDigit && char_j_isDigit)
+                {
+                    stringMode = false;
+                    break;
+                }
+
+                if (char_i_isDigit)
+                {
+                    return -1;
+                }
+
+                if (char_j_isDigit)
+                {
+                    return 1;
+                }
+
+                int difference = strncasecmp((char*)&char_i, (char*)&char_j, 1);
+                if (difference)
+                {
+                    return difference;
+                }
+
+                ++i;
+                ++j;
+            }
+        }
+        else // we are comparing numbers on both strings
+        {
+            uint64_t number_i = 0;
+            unsigned int i_overflow_count = 0;
+            while (*i && is_digit(*i))
+            {
+                number_i = number_i * 10 + (*i - 48); // '0' ASCII code is 48
+                ++i;
+
+                // check the number won't overflow upon addition of next char
+                if (number_i >= maxNumber)
+                {
+                    number_i -= maxNumber;
+                    i_overflow_count++;
+                }
+            }
+
+            uint64_t number_j = 0;
+            unsigned int j_overflow_count = 0;
+            while (*j && is_digit(*j))
+            {
+                number_j = number_j * 10 + (*j - 48);
+                ++j;
+
+                // check the number won't overflow upon addition of next char
+                if (number_j >= maxNumber)
+                {
+                    number_j -= maxNumber;
+                    j_overflow_count++;
+                }
+            }
+
+            int difference = i_overflow_count - j_overflow_count;
+            if (difference)
+            {
+                return difference;
+            }
+
+            if (number_i != number_j)
+            {
+                return number_i > number_j ? 1 : -1;
+            }
+
+            stringMode = true;
+        }
+    }
+
+    if (*j)
+    {
+        return -1;
+    }
+
+    if (*i)
+    {
+        return 1;
+    }
+
+    return 0;
 }
 
 } // namespace mega

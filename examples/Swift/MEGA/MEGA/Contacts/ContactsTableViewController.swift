@@ -34,7 +34,7 @@ class ContactsTableViewController: UITableViewController, MEGARequestDelegate {
         
         users = megaapi.contacts()
         
-        for i in 0  ..< users.size.intValue  {
+        for i in 0  ..< users.size  {
             let user = users.user(at: i)
             if user?.visibility == MEGAUserVisibility.visible {
                 filterUsers.append(user!)
@@ -75,7 +75,7 @@ class ContactsTableViewController: UITableViewController, MEGARequestDelegate {
             megaapi.getAvatarUser(user, destinationFilePath: avatarFilePath, delegate: self)
         }
         
-        let numFilesShares = megaapi.inShares(for: user).size.intValue
+        let numFilesShares = megaapi.inShares(for: user).size
         
         if numFilesShares == 0 {
             cell.shareLabel.text = "No folders shared"

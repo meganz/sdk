@@ -557,21 +557,21 @@ class MegaNode
             /**
              * @brief Set notes attribute value.
              *
-             * @param pwd Value to set
+             * @param n Value to set
              */
             virtual void setNotes(const char* n) = 0;
 
             /**
              * @brief Set URL attribute value.
              *
-             * @param pwd Value to set
+             * @param u Value to set
              */
             virtual void setUrl(const char* u) = 0;
 
             /**
              * @brief Set user name attribute value.
              *
-             * @param pwd Value to set
+             * @param un Value to set
              */
             virtual void setUserName(const char* un) = 0;
 
@@ -7161,6 +7161,7 @@ class MegaSyncStall
             SourceWasMovedElsewhere,
             FilesystemCannotStoreThisName,
             CloudNodeInvalidFingerprint,
+            CloudNodeIsBlocked,
 
             PutnodeDeferredByController,
             PutnodeCompletionDeferredByController,

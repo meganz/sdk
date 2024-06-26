@@ -45,8 +45,12 @@ const unsigned Sync::MAX_CLOUD_DEPTH = 64;
 
 const std::chrono::milliseconds Syncs::MIN_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT{100}; // 100 ms
 const std::chrono::milliseconds Syncs::MAX_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT{10000}; // 10 secs
+const std::chrono::milliseconds Syncs::MIN_DELAY_BETWEEN_SYNC_VERBOSE_TIMED{20000}; // 20 secs
+const std::chrono::milliseconds Syncs::TIME_WINDOW_FOR_SYNC_VERBOSE_TIMED{1000}; // 1 sec
 
 #define SYNC_verbose if (syncs.mDetailedSyncLogging) LOG_verbose
+#define SYNC_verbose_timed if (syncs.mDetailedSyncLogging) SYNCS_verbose_timed
+#define SYNCS_verbose_timed LOG_verbose_timed(Syncs::MIN_DELAY_BETWEEN_SYNC_VERBOSE_TIMED, Syncs::TIME_WINDOW_FOR_SYNC_VERBOSE_TIMED)
 
 bool PerSyncStats::operator==(const PerSyncStats& other)
 {
@@ -892,7 +896,7 @@ void Sync::readstatecache()
     unsigned numLocalNodes = 0;
 
     // bulk-load cached nodes into tmap
-    assert(!memcmp(syncs.syncKey.key, syncs.mClient.key.key, sizeof(syncs.syncKey.key)));
+    assert(!SymmCipher::isZeroKey(syncs.syncKey.key, sizeof(syncs.syncKey.key)));
     while (statecachetable->next(&cid, &cachedata, &syncs.syncKey))
     {
         uint32_t parentID = 0;
@@ -1011,7 +1015,7 @@ void Sync::cachenodes()
                 if ((*it)->parent->dbid || (*it)->parent == localroot.get())
                 {
                     // add once we know the parent dbid so that the parent/child structure is correct in db
-                    assert(!memcmp(syncs.syncKey.key, syncs.mClient.key.key, sizeof(syncs.syncKey.key)));
+                    assert(!SymmCipher::isZeroKey(syncs.syncKey.key, sizeof(syncs.syncKey.key)));
                     statecachetable->put(MegaClient::CACHEDLOCALNODE, *it, &syncs.syncKey);
                     insertq.erase(it++);
                     added = true;
@@ -1291,15 +1295,108 @@ void Sync::createDebrisTmpLockOnce()
     }
 }
 
-bool SyncStallInfo::empty() const
+/* StallInfoMaps BEGIN */
+void SyncStallInfo::StallInfoMaps::moveFromKeepingProgress(SyncStallInfo::StallInfoMaps& source)
 {
-    assert(!(cloud.empty() && local.empty()) || stalledSyncs.empty());
+    cloud = std::move(source.cloud);
+    local = std::move(source.local);
+    noProgress = source.noProgress;
+    noProgressCount = source.noProgressCount;
+}
+
+SyncStallInfo::StallInfoMaps& SyncStallInfo::StallInfoMaps::operator=(SyncStallInfo::StallInfoMaps&& other) noexcept
+{
+    if (this != &other)
+    {
+        moveFromKeepingProgress(other);
+    }
+    return *this;
+}
+
+bool SyncStallInfo::StallInfoMaps::hasProgressLack() const
+{
+    return noProgressCount > MIN_NOPROGRESS_COUNT_FOR_LACK_OF_PROGRESS;
+}
+
+bool SyncStallInfo::StallInfoMaps::empty() const
+{
     return cloud.empty() && local.empty();
 }
 
-bool SyncStallInfo::waitingCloud(const string& mapKeyPath, SyncStallEntry&& e)
+size_t SyncStallInfo::StallInfoMaps::size() const
 {
-    for (auto i = cloud.begin(); i != cloud.end(); )
+    return cloud.size() + local.size();
+}
+
+size_t SyncStallInfo::StallInfoMaps::reportableSize() const
+{
+    if (hasProgressLack())
+    {
+        return size();
+    }
+    size_t totalReportableSize = 0;
+    for (auto& cloudStallEntry: cloud)
+    {
+        if (cloudStallEntry.second.alertUserImmediately)
+        {
+            ++totalReportableSize;
+        }
+    }
+    for (auto& localStallEntry: local)
+    {
+        if (localStallEntry.second.alertUserImmediately)
+        {
+            ++totalReportableSize;
+        }
+    }
+    return totalReportableSize;
+}
+
+void SyncStallInfo::StallInfoMaps::updateNoProgress()
+{
+    if (noProgress && noProgressCount < MAX_NOPROGRESS_COUNT)
+    {
+        ++noProgressCount;
+    }
+}
+
+void SyncStallInfo::StallInfoMaps::setNoProgress()
+{
+    assert((noProgress || noProgressCount == 0) && "noProgressCount is not zero when setting progress");
+    noProgress = true;
+}
+
+void SyncStallInfo::StallInfoMaps::resetNoProgress()
+{
+    noProgress = false;
+    noProgressCount = 0;
+}
+
+void SyncStallInfo::StallInfoMaps::clearStalls()
+{
+    cloud.clear();
+    local.clear();
+}
+/* StallInfoMaps END */
+
+/* SyncStallInfo BEGIN */
+bool SyncStallInfo::empty() const
+{
+    for (auto& syncStallInfoMapPair : syncStallInfoMaps)
+    {
+        auto& syncStallInfoMap = syncStallInfoMapPair.second;
+        if (!syncStallInfoMap.empty())
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool SyncStallInfo::waitingCloud(handle backupId, const string& mapKeyPath, SyncStallEntry&& e)
+{
+    auto& syncStallInfoMap = syncStallInfoMaps[backupId];
+    for (auto i = syncStallInfoMap.cloud.begin(); i != syncStallInfoMap.cloud.end(); )
     {
         // No need to add a new entry as we've already reported some parent.
         if (IsContainingCloudPathOf(i->first, mapKeyPath) && e.reason == i->second.reason)
@@ -1308,7 +1405,7 @@ bool SyncStallInfo::waitingCloud(const string& mapKeyPath, SyncStallEntry&& e)
         // Remove entries that are below cloudPath1.
         if (IsContainingCloudPathOf(mapKeyPath, i->first) && e.reason == i->second.reason)
         {
-            i = cloud.erase(i);
+            i = syncStallInfoMap.cloud.erase(i);
             continue;
         }
 
@@ -1317,47 +1414,65 @@ bool SyncStallInfo::waitingCloud(const string& mapKeyPath, SyncStallEntry&& e)
     }
 
     // Add a new entry.
-    cloud.emplace(mapKeyPath, move(e));
+    syncStallInfoMap.cloud.emplace(mapKeyPath, move(e));
     return true;
 }
 
-bool SyncStallInfo::waitingLocal(const LocalPath& mapKeyPath, SyncStallEntry&& e)
+bool SyncStallInfo::waitingLocal(handle backupId, const LocalPath& mapKeyPath, SyncStallEntry&& e)
 {
-    for (auto i = local.begin(); i != local.end(); )
+    auto& syncStallInfoMap = syncStallInfoMaps[backupId];
+    for (auto i = syncStallInfoMap.local.begin(); i != syncStallInfoMap.local.end(); )
     {
         if (i->first.isContainingPathOf(mapKeyPath) && e.reason == i->second.reason)
             return false;
 
         if (mapKeyPath.isContainingPathOf(i->first) && e.reason == i->second.reason)
         {
-            i = local.erase(i);
+            i = syncStallInfoMap.local.erase(i);
             continue;
         }
 
         ++i;
     }
 
-    local.emplace(mapKeyPath, move(e));
+    syncStallInfoMap.local.emplace(mapKeyPath, move(e));
     return true;
 }
 
 bool SyncStallInfo::isSyncStalled(handle backupId) const
 {
-    return stalledSyncs.find(backupId) != stalledSyncs.end();
+    return syncStallInfoMaps.find(backupId) != syncStallInfoMaps.end();
 }
 
 bool SyncStallInfo::hasImmediateStallReason() const
 {
-    for (auto& i : cloud)
+    for (auto& syncStallInfoMapPair : syncStallInfoMaps)
     {
-        if (i.second.alertUserImmediately)
+        auto& syncStallInfoMap = syncStallInfoMapPair.second;
+        for (auto& i : syncStallInfoMap.cloud)
         {
-            return true;
+            if (i.second.alertUserImmediately)
+            {
+                return true;
+            }
+        }
+        for (auto& i : syncStallInfoMap.local)
+        {
+            if (i.second.alertUserImmediately)
+            {
+                return true;
+            }
         }
     }
-    for (auto& i : local)
+    return false;
+}
+
+bool SyncStallInfo::hasProgressLackStall() const
+{
+    for (auto& syncStallInfoMapPair : syncStallInfoMaps)
     {
-        if (i.second.alertUserImmediately)
+        auto& syncStallInfoMap = syncStallInfoMapPair.second;
+        if (syncStallInfoMap.hasProgressLack())
         {
             return true;
         }
@@ -1365,12 +1480,110 @@ bool SyncStallInfo::hasImmediateStallReason() const
     return false;
 }
 
-void SyncStallInfo::clear()
+size_t SyncStallInfo::size() const
 {
-    cloud.clear();
-    local.clear();
-    stalledSyncs.clear();
+    size_t stallInfoSize = 0;
+    for (auto& syncStallInfoMapPair : syncStallInfoMaps)
+    {
+        auto& syncStallInfoMap = syncStallInfoMapPair.second;
+        stallInfoSize += syncStallInfoMap.size();
+    }
+    return stallInfoSize;
 }
+
+size_t SyncStallInfo::reportableSize() const
+{
+    size_t stallInfoReportableSize = 0;
+    for (auto& syncStallInfoMapPair : syncStallInfoMaps)
+    {
+        auto& syncStallInfoMap = syncStallInfoMapPair.second;
+        stallInfoReportableSize += syncStallInfoMap.reportableSize();
+    }
+    return stallInfoReportableSize;
+}
+
+void SyncStallInfo::updateNoProgress()
+{
+    for (auto& syncStallInfoMapPair : syncStallInfoMaps)
+    {
+        auto& syncStallInfoMap = syncStallInfoMapPair.second;
+        syncStallInfoMap.updateNoProgress();
+    }
+}
+
+void SyncStallInfo::setNoProgress()
+{
+    for (auto& syncStallInfoMapPair : syncStallInfoMaps)
+    {
+        auto& syncStallInfoMap = syncStallInfoMapPair.second;
+        syncStallInfoMap.setNoProgress();
+    }
+}
+
+void SyncStallInfo::moveFromButKeepCounters(SyncStallInfo& source)
+{
+    for (auto sourceSyncStallInfoMapIt = source.syncStallInfoMaps.begin(); sourceSyncStallInfoMapIt != source.syncStallInfoMaps.end(); )
+    {
+        auto&& [id, sourceSyncStallInfoMap] = *sourceSyncStallInfoMapIt;
+        if (sourceSyncStallInfoMap.empty())
+        {
+            // if there are no stalls, this key is obsolete: remove entry in the source map and update iterator
+            sourceSyncStallInfoMapIt = source.syncStallInfoMaps.erase(sourceSyncStallInfoMapIt);
+        }
+        else
+        {
+            // Add or update the key by moving the source maps (counters will be kept in the source maps)
+            syncStallInfoMaps[id] = std::move(sourceSyncStallInfoMap);
+            ++sourceSyncStallInfoMapIt;
+        }
+    }
+}
+
+void SyncStallInfo::clearObsoleteKeys(SyncStallInfo& source)
+{
+    // Clear obsolete keys
+    for (auto syncStallInfoMapIt = syncStallInfoMaps.begin(); syncStallInfoMapIt != syncStallInfoMaps.end(); )
+    {
+        if (source.syncStallInfoMaps.find(syncStallInfoMapIt->first) == source.syncStallInfoMaps.end())
+        {
+            syncStallInfoMapIt = syncStallInfoMaps.erase(syncStallInfoMapIt);
+        }
+        else
+        {
+            ++syncStallInfoMapIt;
+        }
+    }
+}
+
+void SyncStallInfo::moveFromButKeepCountersAndClearObsoleteKeys(SyncStallInfo& source)
+{
+    moveFromButKeepCounters(source);
+    clearObsoleteKeys(source);
+}
+
+#ifndef NDEBUG
+void SyncStallInfo::debug() const
+{
+    LOG_debug << "[SyncStallInfo] Num SyncIDs = " << syncStallInfoMaps.size() << "";
+    for (const auto& syncStallInfoMapPair : syncStallInfoMaps)
+    {
+        const auto& syncStallInfoMap = syncStallInfoMapPair.second;
+        LOG_debug << "[SyncID: " << syncStallInfoMapPair.first << "]";
+        LOG_debug << "noProgress: " << syncStallInfoMap.noProgress << ", noProgressCount: " << syncStallInfoMap.noProgressCount << " [HasProgressLack: " << std::string(syncStallInfoMap.hasProgressLack() ? "true" : "false") << "]";
+        LOG_debug << "Num cloud stalls: " << syncStallInfoMap.cloud.size();
+        for (const auto& [stallPath, stallEntry] : syncStallInfoMap.cloud)
+        {
+            LOG_debug << "     Cloud stall reason: " << syncWaitReasonDebugString(stallEntry.reason) << " [path = '" << stallPath << "'] [immediate = " << stallEntry.alertUserImmediately << "]";
+        }
+        LOG_debug << "Num local stalls: " << syncStallInfoMap.local.size();
+        for (const auto& [stallPath, stallEntry] : syncStallInfoMap.local)
+        {
+            LOG_debug << "     Local stall reason: " << syncWaitReasonDebugString(stallEntry.reason) << " [path = '" << stallPath << "'] [immediate = " << stallEntry.alertUserImmediately << "]";
+        }
+    }
+}
+#endif
+/* SyncStallInfo END */
 
 struct ProgressingMonitor
 {
@@ -1381,29 +1594,18 @@ struct ProgressingMonitor
     SyncPath& sp;
     ProgressingMonitor(Sync& s, SyncRow& row, SyncPath& fullPath) : sync(s), sf(*s.syncs.mSyncFlags), sr(row), sp(fullPath) {}
 
-    bool isContainingNodePath(const string& a, const string& b)
-    {
-        return a.size() <= b.size() &&
-            !memcmp(a.c_str(), b.c_str(), a.size()) &&
-            (a.size() == b.size() || b[a.size()] == '/');
-    }
-
     void waitingCloud(const string& mapKeyPath, SyncStallEntry&& e)
     {
         // the caller has a path in the cloud that an operation is in progress for, or can't be dealt with yet.
         // update our list of subtree roots containing such paths
         resolved = true;
 
-        if (sf.stall.cloud.empty())
+        if (sf.stall.empty())
         {
-            LOG_debug << sync.syncname << "First sync node cloud-waiting: " << int(e.reason) << " " << sync.logTriplet(sr, sp);
+            SYNCS_verbose_timed << sync.syncname << "First sync node cloud-waiting: " << int(e.reason) << " " << sync.logTriplet(sr, sp);
         }
 
-        bool isAddedToCloudMap = sf.stall.waitingCloud(mapKeyPath, move(e));
-        if (isAddedToCloudMap)
-        {
-            sf.stall.stalledSyncs.emplace(sync.getConfig().mBackupId);
-        }
+        sf.stall.waitingCloud(sync.getConfig().mBackupId, mapKeyPath, move(e));
     }
 
     void waitingLocal(const LocalPath& mapKeyPath, SyncStallEntry&& e)
@@ -1412,16 +1614,12 @@ struct ProgressingMonitor
         // update our list of subtree roots containing such paths
         resolved = true;
 
-        if (sf.stall.local.empty())
+        if (sf.stall.empty())
         {
-            LOG_debug << sync.syncname << "First sync node local-waiting: " << int(e.reason) << " " << sync.logTriplet(sr, sp);
+            SYNCS_verbose_timed << sync.syncname << "First sync node local-waiting: " << int(e.reason) << " " << sync.logTriplet(sr, sp);
         }
 
-        bool isAddedToLocalMap = sf.stall.waitingLocal(mapKeyPath, move(e));
-        if (isAddedToLocalMap)
-        {
-            sf.stall.stalledSyncs.emplace(sync.getConfig().mBackupId);
-        }
+        sf.stall.waitingLocal(sync.getConfig().mBackupId, mapKeyPath, move(e));
     }
 
     void noResult()
@@ -1437,12 +1635,12 @@ struct ProgressingMonitor
     {
         if (!resolved)
         {
-            if (sf.noProgress)
+            auto syncStallInfoMapPair = sf.stall.syncStallInfoMaps.find(sync.getConfig().mBackupId);
+            if (syncStallInfoMapPair != sf.stall.syncStallInfoMaps.end())
             {
-                LOG_debug << sync.syncname << "First sync node not progressing: " << sync.logTriplet(sr, sp);
+                auto& syncStallInfoMap = syncStallInfoMapPair->second;
+                syncStallInfoMap.resetNoProgress();
             }
-            sf.noProgress = false;
-            sf.noProgressCount = 0;
         }
     }
 };
@@ -2048,10 +2246,11 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
 
         if (foundSourceCloudNode && foundTargetCloudNode)
         {
-            LOG_debug << syncname << "Move detected by fsid " << toHandle(row.fsNode->fsid) << ". Type: " << sourceSyncNode->type
-                << " new path: " << fullPath.localPath
-                << " old localnode: " << sourceSyncNode->getLocalPath()
-                << logTriplet(row, fullPath);
+            SYNC_verbose_timed << syncname << "Move detected by fsid "
+                               << toHandle(row.fsNode->fsid) << ". Type: " << sourceSyncNode->type
+                               << " new path: " << fullPath.localPath
+                               << " old localnode: " << sourceSyncNode->getLocalPath()
+                               << logTriplet(row, fullPath);
 
             if (sourceNodeUser != targetNodeUser)
             {
@@ -2061,7 +2260,9 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
             }
             else if (belowRemovedCloudNode)
             {
-                LOG_debug << syncname << "Move destination detected for fsid " << toHandle(row.fsNode->fsid) << " but we are belowRemovedCloudNode, must wait for resolution at: " << fullPath.cloudPath << logTriplet(row, fullPath);
+                SYNC_verbose_timed << syncname << "Move destination detected for fsid " << toHandle(row.fsNode->fsid)
+                                   << " but we are belowRemovedCloudNode, must wait for resolution at: "
+                                   << fullPath.cloudPath << logTriplet(row, fullPath);
 
                 monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
                     SyncWaitReason::MoveOrRenameCannotOccur, false, false,
@@ -2328,7 +2529,7 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
             else
             {
                 // eg. cloud parent folder not synced yet (maybe Localnode is created, but not handle matched yet)
-                if (!foundTargetCloudNode) SYNC_verbose << syncname << "Target parent cloud node doesn't exist yet" << logTriplet(row, fullPath);
+                if (!foundTargetCloudNode) SYNC_verbose_timed << syncname << "Target parent cloud node doesn't exist yet" << logTriplet(row, fullPath);
 
                 monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
                     SyncWaitReason::MoveOrRenameCannotOccur, false, false,
@@ -2460,7 +2661,7 @@ bool Sync::isSyncScanning() const
     if (!mUnifiedSync.mConfig.mError &&
         localroot->scanRequired())
     {
-        SYNC_verbose << syncname << " scan still required for this sync";
+        SYNC_verbose_timed << syncname << " scan still required for this sync";
         return true;
     }
     return false;
@@ -2490,17 +2691,17 @@ bool Sync::checkMovesWereComplete()
     {
         if (!mScanningWasCompletePreviously)
         {
-            SYNC_verbose << syncname << " scan was not complete previously for this sync -> consider might have moves as true";
+            SYNC_verbose_timed << syncname << " scan was not complete previously for this sync -> consider might have moves as true";
             mMovesWereComplete = false;
         }
         else if (localroot->scanRequired())
         {
-            SYNC_verbose << syncname << " scan still required for this sync -> consider might have moves as true";
+            SYNC_verbose_timed << syncname << " scan still required for this sync -> consider might have moves as true";
             mMovesWereComplete = false;
         }
         else if (localroot->mightHaveMoves())
         {
-            SYNC_verbose << syncname << " might have pending moves";
+            SYNC_verbose_timed << syncname << " might have pending moves";
             mMovesWereComplete = false;
         }
     }
@@ -2997,7 +3198,9 @@ bool Sync::checkCloudPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
 
         if (belowRemovedFsNode)
         {
-            LOG_debug << syncname << "Move destination detected for node " << row.cloudNode->handle << " but we are belowRemovedFsNode, must wait for resolution at: " << logTriplet(row, fullPath);;
+            SYNC_verbose_timed << syncname << "Move destination detected for node " << row.cloudNode->handle
+                               << " but we are belowRemovedFsNode, must wait for resolution at: "
+                               << logTriplet(row, fullPath);;
 
             monitor.waitingCloud(fullPath.cloudPath, SyncStallEntry(
                 SyncWaitReason::MoveOrRenameCannotOccur, false, true,
@@ -4054,57 +4257,61 @@ void Syncs::getSyncProblems_inThread(SyncProblems& problems)
         }
     };
 
-    for (auto si = problems.mStalls.local.begin();
-              si != problems.mStalls.local.end();
-              ++si)
+    for (auto& syncStallInfoMapsPair : problems.mStalls.syncStallInfoMaps)
     {
-        if (si->second.reason == SyncWaitReason::MoveOrRenameCannotOccur)
+        auto& syncStallInfoMaps = syncStallInfoMapsPair.second;
+        for (auto si = syncStallInfoMaps.local.begin();
+                si != syncStallInfoMaps.local.end();
+                ++si)
         {
-            auto so = problems.mStalls.local.find(si->second.localPath2.localPath);
-            if (so != problems.mStalls.local.end())
+            if (si->second.reason == SyncWaitReason::MoveOrRenameCannotOccur)
             {
-                if (so != si &&
-                    so->second.reason == SyncWaitReason::MoveOrRenameCannotOccur &&
-                    so->second.localPath1.localPath == si->second.localPath1.localPath &&
-                    so->second.localPath2.localPath == si->second.localPath2.localPath &&
-                    so->second.cloudPath1.cloudPath == si->second.cloudPath1.cloudPath)
+                auto so = syncStallInfoMaps.local.find(si->second.localPath2.localPath);
+                if (so != syncStallInfoMaps.local.end())
                 {
-                    combinePathProblems(so->second, si->second);
-                    if (si->second.cloudPath2.cloudPath.empty())
+                    if (so != si &&
+                        so->second.reason == SyncWaitReason::MoveOrRenameCannotOccur &&
+                        so->second.localPath1.localPath == si->second.localPath1.localPath &&
+                        so->second.localPath2.localPath == si->second.localPath2.localPath &&
+                        so->second.cloudPath1.cloudPath == si->second.cloudPath1.cloudPath)
                     {
-                        // if we know the destination in one, make sure we keep it
-                        si->second.cloudPath2.cloudPath = so->second.cloudPath2.cloudPath;
+                        combinePathProblems(so->second, si->second);
+                        if (si->second.cloudPath2.cloudPath.empty())
+                        {
+                            // if we know the destination in one, make sure we keep it
+                            si->second.cloudPath2.cloudPath = so->second.cloudPath2.cloudPath;
+                        }
+                        // other iterators are not invalidated in std::map
+                        syncStallInfoMaps.local.erase(so);
                     }
-                    // other iterators are not invalidated in std::map
-                    problems.mStalls.local.erase(so);
                 }
             }
         }
-    }
 
-    for (auto si = problems.mStalls.cloud.begin();
-        si != problems.mStalls.cloud.end();
-        ++si)
-    {
-        if (si->second.reason == SyncWaitReason::MoveOrRenameCannotOccur)
+        for (auto si = syncStallInfoMaps.cloud.begin();
+            si != syncStallInfoMaps.cloud.end();
+            ++si)
         {
-            auto so = problems.mStalls.cloud.find(si->second.cloudPath2.cloudPath);
-            if (so != problems.mStalls.cloud.end())
+            if (si->second.reason == SyncWaitReason::MoveOrRenameCannotOccur)
             {
-                if (so != si &&
-                    so->second.reason == SyncWaitReason::MoveOrRenameCannotOccur &&
-                    so->second.cloudPath1.cloudPath == si->second.cloudPath1.cloudPath &&
-                    so->second.cloudPath2.cloudPath == si->second.cloudPath2.cloudPath &&
-                    so->second.localPath1.localPath == si->second.localPath1.localPath)
+                auto so = syncStallInfoMaps.cloud.find(si->second.cloudPath2.cloudPath);
+                if (so != syncStallInfoMaps.cloud.end())
                 {
-                    combinePathProblems(so->second, si->second);
-                    if (si->second.localPath2.localPath.empty())
+                    if (so != si &&
+                        so->second.reason == SyncWaitReason::MoveOrRenameCannotOccur &&
+                        so->second.cloudPath1.cloudPath == si->second.cloudPath1.cloudPath &&
+                        so->second.cloudPath2.cloudPath == si->second.cloudPath2.cloudPath &&
+                        so->second.localPath1.localPath == si->second.localPath1.localPath)
                     {
-                        // if we know the destination in one, make sure we keep it
-                        si->second.localPath2.localPath = so->second.localPath2.localPath;
+                        combinePathProblems(so->second, si->second);
+                        if (si->second.localPath2.localPath.empty())
+                        {
+                            // if we know the destination in one, make sure we keep it
+                            si->second.localPath2.localPath = so->second.localPath2.localPath;
+                        }
+                        // other iterators are not invalidated in std::map
+                        syncStallInfoMaps.cloud.erase(so);
                     }
-                    // other iterators are not invalidated in std::map
-                    problems.mStalls.cloud.erase(so);
                 }
             }
         }
@@ -4250,6 +4457,27 @@ bool SyncController::deferPutnodeCompletion(const LocalPath&) const
 bool SyncController::deferUpload(const LocalPath& path) const
 {
     return true;
+}
+
+void Syncs::injectSyncSensitiveData(SyncSensitiveData data)
+{
+    syncRun([data = std::move(data), this]() {
+        // Nothing should've been injected yet.
+        assert(SymmCipher::isZeroKey(syncKey.key, sizeof(syncKey.key)));
+        assert(!mSyncConfigIOContext);
+        assert(!mSyncConfigStore);
+
+        // Inject state cache key (sync key.)
+        syncKey.setkey(reinterpret_cast<const byte*>(data.stateCacheKey.data()));
+
+        // Construct IO context.
+        mSyncConfigIOContext.reset(
+          new SyncConfigIOContext(*fsaccess,
+                                  data.jscData.authenticationKey,
+                                  data.jscData.cipherKey,
+                                  data.jscData.fileName,
+                                  rng));
+    }, __func__);
 }
 
 SyncConfigVector Syncs::getConfigs(bool onlyActive) const
@@ -5446,69 +5674,6 @@ SyncConfigIOContext* Syncs::syncConfigIOContext()
 {
     assert(onSyncThread());
 
-    // Has a suitable IO context already been created?
-    if (mSyncConfigIOContext)
-    {
-        // Yep, return a reference to it.
-        return mSyncConfigIOContext.get();
-    }
-
-//TODO: User access is not thread safe
-    // Which user are we?
-    User* self = mClient.ownuser();
-    if (!self)
-    {
-        LOG_warn << "syncConfigIOContext: own user not available";
-        return nullptr;
-    }
-
-    // Try and retrieve this user's config data attribute.
-    auto* payload = self->getattr(ATTR_JSON_SYNC_CONFIG_DATA);
-    if (!payload)
-    {
-        // Attribute hasn't been created yet.
-        LOG_warn << "syncConfigIOContext: JSON config data is not available";
-        return nullptr;
-    }
-
-    // Try and decrypt the payload.
-    assert(!memcmp(syncKey.key, mClient.key.key, sizeof(syncKey.key)));
-    unique_ptr<TLVstore> store(
-      TLVstore::containerToTLVrecords(payload, &syncKey));
-
-    if (!store)
-    {
-        // Attribute is malformed.
-        LOG_err << "syncConfigIOContext: JSON config data is malformed";
-        return nullptr;
-    }
-
-    // Convenience.
-    constexpr size_t KEYLENGTH = SymmCipher::KEYLENGTH;
-
-    // Verify payload contents.
-    string authKey;
-    string cipherKey;
-    string name;
-
-    if (!store->get("ak", authKey) || authKey.size() != KEYLENGTH ||
-        !store->get("ck", cipherKey) || cipherKey.size() != KEYLENGTH ||
-        !store->get("fn", name) || name.size() != KEYLENGTH)
-    {
-        // Payload is malformed.
-        LOG_err << "syncConfigIOContext: JSON config data is incomplete";
-        return nullptr;
-    }
-
-    // Create the IO context.
-    mSyncConfigIOContext.reset(
-      new SyncConfigIOContext(*fsaccess,
-                                  std::move(authKey),
-                                  std::move(cipherKey),
-                                  Base64::btoa(name),
-                                  rng));
-
-    // Return a reference to the new IO context.
     return mSyncConfigIOContext.get();
 }
 
@@ -5633,20 +5798,23 @@ LocalNode* Syncs::findMoveFromLocalNode(const shared_ptr<LocalNode::RareFields::
     return nullptr;
 }
 
-void Syncs::clear_inThread()
+void Syncs::clear_inThread(bool reopenStoreAfter)
 {
     assert(onSyncThread());
 
     assert(!mSyncConfigStore);
 
     mSyncConfigStore.reset();
-    mSyncConfigIOContext.reset();
     {
         lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
         mSyncVec.clear();
     }
     mSyncVecIsEmpty = true;
-    syncKey.setkey((byte*)"\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0");
+    if (!reopenStoreAfter)
+    {
+        mSyncConfigIOContext.reset();
+        syncKey.setkey(SymmCipher::zeroiv);
+    }
     stallReport = SyncStallInfo();
     triggerHandles.clear();
     localnodeByScannedFsid.clear();
@@ -6253,12 +6421,11 @@ void Syncs::locallogout_inThread(bool removecaches, bool keepSyncsConfigFile, bo
     // make sure we didn't resurrect the store, singleton style
     assert(!mSyncConfigStore);
 
-    clear_inThread();
+    clear_inThread(reopenStoreAfter);
     mExecutingLocallogout = false;
 
     if (reopenStoreAfter)
     {
-        syncKey.setkey(mClient.key.key);
         SyncConfigVector configs;
         syncConfigStoreLoad(configs);
     }
@@ -6844,16 +7011,16 @@ void Sync::combineTripletSet(vector<SyncRow>::iterator a, vector<SyncRow>::itera
                 targetrow->syncNode->fsid_lastSynced
                 == targetrow->fsNode->fsid))
             {
-                LOG_debug << syncname << "Conflicting filesystem name: "
-                    << targetrow->fsNode->localname;
+                SYNC_verbose_timed << syncname << "Conflicting filesystem name: "
+                                   << targetrow->fsNode->localname;
                 targetrow->fsClashingNames.push_back(targetrow->fsNode);
                 targetrow->fsNode = nullptr;
             }
             if (targetrow->fsNode ||
                 !targetrow->fsClashingNames.empty())
             {
-                LOG_debug << syncname << "Conflicting filesystem name: "
-                    << i->fsNode->localname;
+                SYNC_verbose_timed << syncname << "Conflicting filesystem name: "
+                                   << i->fsNode->localname;
                 targetrow->fsClashingNames.push_back(i->fsNode);
                 i->fsNode = nullptr;
             }
@@ -6872,16 +7039,16 @@ void Sync::combineTripletSet(vector<SyncRow>::iterator a, vector<SyncRow>::itera
                     targetrow->syncNode->syncedCloudNodeHandle
                     == targetrow->cloudNode->handle))
                 {
-                    LOG_debug << syncname << "Conflicting cloud name: "
-                        << targetrow->cloudNode->name;
+                    SYNC_verbose_timed << syncname << "Conflicting cloud name: "
+                                       << targetrow->cloudNode->name;
                     targetrow->cloudClashingNames.push_back(targetrow->cloudNode);
                     targetrow->cloudNode = nullptr;
                 }
                 if (targetrow->cloudNode ||
                     !targetrow->cloudClashingNames.empty())
                 {
-                    LOG_debug << syncname << "Conflicting cloud name: "
-                        << i->cloudNode->name;
+                    SYNC_verbose_timed << syncname << "Conflicting cloud name: "
+                                       << i->cloudNode->name;
                     targetrow->cloudClashingNames.push_back(i->cloudNode);
                     i->cloudNode = nullptr;
                 }
@@ -7157,13 +7324,14 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
         return true;
     }
 
-    SYNC_verbose << syncname << (belowRemovedCloudNode ? "belowRemovedCloudNode " : "") << (belowRemovedFsNode ? "belowRemovedFsNode " : "")
-        << "Entering folder with "
-        << row.syncNode->scanAgain  << "-"
-        << row.syncNode->checkMovesAgain << "-"
-        << row.syncNode->syncAgain << " ("
-        << row.syncNode->conflicts << ") at "
-        << fullPath.syncPath;
+    SYNC_verbose_timed << syncname << (belowRemovedCloudNode ? "belowRemovedCloudNode " : "")
+                       << (belowRemovedFsNode ? "belowRemovedFsNode " : "")
+                       << "Entering folder with "
+                       << row.syncNode->scanAgain  << "-"
+                       << row.syncNode->checkMovesAgain << "-"
+                       << row.syncNode->syncAgain << " ("
+                       << row.syncNode->conflicts << ") at "
+                       << fullPath.syncPath;
 
     row.syncNode->propagateAnySubtreeFlags();
 
@@ -7354,7 +7522,7 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
                     string message;
                     if (pflsc.report(message))
                     {
-                        SYNC_verbose << syncname << message << " out of folder items:" << childRows.size();
+                        SYNC_verbose_timed << syncname << message << " out of folder items:" << childRows.size();
                     }
                 }
 
@@ -7656,7 +7824,7 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
     // keep sync overlay icons up to date as we recurse (including the sync root node)
     row.syncNode->checkTreestate(true);
 
-    SYNC_verbose << syncname << (belowRemovedCloudNode ? "belowRemovedCloudNode " : "")
+    SYNC_verbose_timed << syncname << (belowRemovedCloudNode ? "belowRemovedCloudNode " : "")
                 << "Exiting folder with "
                 << row.syncNode->scanAgain  << "-"
                 << row.syncNode->checkMovesAgain << "-"
@@ -7927,7 +8095,8 @@ bool Sync::syncItem_checkFilenameClashes(SyncRow& row, SyncRow& parentRow, SyncP
 
         if (row.isNoName())
         {
-            LOG_debug << syncname << "no name Multiple names clash here.  Excluding this node from sync for now." << logTriplet(row, fullPath);
+            SYNC_verbose_timed << syncname << "no name Multiple name clashes here. Excluding this node from sync for now."
+                               << logTriplet(row, fullPath);
             return false;
         }
 
@@ -7968,7 +8137,8 @@ bool Sync::syncItem_checkFilenameClashes(SyncRow& row, SyncRow& parentRow, SyncP
         //if (isIgnoreFileClash(row))
         //    return false;
 
-        LOG_debug << syncname << "Multiple names clash here.  Excluding this node from sync for now." << logTriplet(row, fullPath);
+        SYNC_verbose_timed << syncname << "Multiple name clashes here. Excluding this node from sync for now."
+                           << logTriplet(row, fullPath);
 
         if (row.syncNode)
         {
@@ -7997,16 +8167,16 @@ bool Sync::syncItem_checkDownloadCompletion(SyncRow& row, SyncRow& parentRow, Sy
 
     if (downloadPtr->wasTerminated)
     {
-        SYNC_verbose << syncname << "Download was terminated " << logTriplet(row, fullPath);
-
         // Did the download fail due to a MAC error?
         if (downloadPtr->mError == API_EKEY)
         {
-            // Then report it as a stall.
-
-            SYNC_verbose << syncname
-                            << "Download was terminated due to MAC verification failure: "
-                            << logTriplet(row, fullPath);
+            if (!downloadPtr->reasonAlreadyKnown)
+            {
+                // Then report it as a stall.
+                SYNC_verbose << syncname
+                                << "Download was terminated due to MAC verification failure: "
+                                << logTriplet(row, fullPath);
+            }
 
             monitor.waitingLocal(downloadPtr->getLocalname(), SyncStallEntry(
                 SyncWaitReason::DownloadIssue, true, true,
@@ -8019,8 +8189,29 @@ bool Sync::syncItem_checkDownloadCompletion(SyncRow& row, SyncRow& parentRow, Sy
 
             return !keepStalling;
         }
+        if (downloadPtr->mError == API_EBLOCKED)
+        {
+            if (!downloadPtr->reasonAlreadyKnown)
+            {
+                // Report a stall if the file is blocked (taken down)
+                SYNC_verbose << syncname
+                                << "Download was terminated due to file being blocked (taken down because of ToS): "
+                                << logTriplet(row, fullPath);
+            }
+
+            monitor.waitingCloud(fullPath.cloudPath, SyncStallEntry(
+                SyncWaitReason::DownloadIssue, true, true,
+                {downloadPtr->h, fullPath.cloudPath, PathProblem::CloudNodeIsBlocked},
+                {},
+                {},
+                {}));
+
+            // Keep the transfer intact and let syncItem continue, the transfer could be reset if the remote node is replaced
+            return true;
+        }
         else
         {
+            assert(!downloadPtr->reasonAlreadyKnown);
             if (downloadPtr->mError == API_EWRITE)
             {
                 // This could be due to a problem with the temporary directory. Reset tmpfa to recreate them when restarting the transfer.
@@ -8029,6 +8220,10 @@ bool Sync::syncItem_checkDownloadCompletion(SyncRow& row, SyncRow& parentRow, Sy
                                 << "Download was terminated due to API_EWRITE (problem with the temporary directory?): "
                                 << logTriplet(row, fullPath);
                 tmpfa.reset();
+            }
+            else
+            {
+                SYNC_verbose << syncname << "Download was terminated (error: " << downloadPtr->mError << ") " << logTriplet(row, fullPath);
             }
             // remove the download record so we re-evaluate what to do
             row.syncNode->resetTransfer(nullptr);
@@ -8139,11 +8334,12 @@ bool Sync::syncItem_checkDownloadCompletion(SyncRow& row, SyncRow& parentRow, Sy
         else
         {
             // (Transient?) error while moving download into place.
-            SYNC_verbose << syncname << "Download complete, but filesystem move error." << logTriplet(row, fullPath);
+            SYNC_verbose_timed << syncname << "Download complete, but filesystem move error."
+                               << logTriplet(row, fullPath);
 
             // Let the monitor know what we're up to.
             monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
-                SyncWaitReason::DownloadIssue, false, true,
+                SyncWaitReason::DownloadIssue, true, true,
                 {downloadPtr->h, fullPath.cloudPath},
                 {},
                 {downloadPtr->getLocalname()},
@@ -8186,7 +8382,8 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
        (row.fsNode->type == TYPE_UNKNOWN || row.fsNode->fsid == UNDEF ||
        (row.fsNode->type == FILENODE && !row.fsNode->fingerprint.isvalid)))
     {
-        SYNC_verbose << "File lost permissions and we can't identify or fingerprint it anymore: " << logTriplet(row, fullPath);
+        SYNC_verbose_timed << "File lost permissions and we can't identify or fingerprint it anymore: "
+                           << logTriplet(row, fullPath);
 
         ProgressingMonitor monitor(*this, row, fullPath);
         monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
@@ -8910,7 +9107,7 @@ bool Sync::resolve_rowMatched(SyncRow& row, SyncRow& parentRow, SyncPath& fullPa
         if (!pflsc.alreadySyncedCount)
         {
             // This line is too verbose when debugging large syncs.  Instead, report the already-synced count in the containing folder
-            SYNC_verbose << syncname << "Row was already synced" << logTriplet(row, fullPath);
+            SYNC_verbose_timed << syncname << "Row was already synced" << logTriplet(row, fullPath);
         }
         pflsc.alreadySyncedCount += 1;
     }
@@ -8942,7 +9139,8 @@ bool Sync::makeSyncNode_fromFS(SyncRow& row, SyncRow& parentRow, SyncPath& fullP
 
     if (row.fsNode->type == FILENODE && !row.fsNode->fingerprint.isvalid)
     {
-        SYNC_verbose << "We can't create a LocalNode yet without a FileFingerprint: " << logTriplet(row, fullPath);
+        SYNC_verbose_timed << "We can't create a LocalNode yet without a FileFingerprint: "
+                           << logTriplet(row, fullPath);
 
         // we couldn't get the file crc yet (opened by another proecess, etc)
         monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
@@ -9047,14 +9245,16 @@ bool Sync::resolve_delSyncNode(SyncRow& row, SyncRow& parentRow, SyncPath& fullP
         if (row.syncNode->rare().moveToHere &&
             row.syncNode->rare().moveToHere->inProgress())
         {
-            SYNC_verbose << syncname << "Not deleting with still-moving/renaming source node to:" << logTriplet(row, fullPath);
+            SYNC_verbose_timed << syncname << "Not deleting with still-moving/renaming source node to:"
+                               << logTriplet(row, fullPath);
             return false;
         }
 
         if (row.syncNode->rare().moveFromHere &&
             !row.syncNode->rare().moveFromHere->syncCodeProcessedResult)
         {
-            SYNC_verbose << syncname << "Not deleting still-moving/renaming source node from:" << logTriplet(row, fullPath);
+            SYNC_verbose_timed << syncname << "Not deleting still-moving/renaming source node from:"
+                               << logTriplet(row, fullPath);
 
             monitor.waitingCloud(fullPath.cloudPath, SyncStallEntry(
                 SyncWaitReason::MoveOrRenameCannotOccur, false, false,
@@ -9156,12 +9356,15 @@ bool Sync::resolve_delSyncNode(SyncRow& row, SyncRow& parentRow, SyncPath& fullP
         if (found && !isInTrash && nodeIsInActiveSync && !nodeIsDefinitelyExcluded)
         {
             cloudNodeIsElsewhere = true;
-            SYNC_verbose << "LocalNode considered for deletion, but cloud Node is elsewhere: " << cloudNodePath << logTriplet(row, fullPath);
+            SYNC_verbose_timed << "LocalNode considered for deletion, but cloud Node is elsewhere: " << cloudNodePath
+                               << logTriplet(row, fullPath);
         }
 
         if (fsNodeIsElsewhere && cloudNodeIsElsewhere && fsElsewhereLocation != cloudNodePath)
         {
-            SYNC_verbose << "LocalNode considered for deletion, but is the source of moves to different locations: " << cloudNodePath << " " << fsElsewhereLocation << logTriplet(row, fullPath);
+            SYNC_verbose_timed << "LocalNode considered for deletion, but it is the source of moves to different locations: " << cloudNodePath
+                               << " " << fsElsewhereLocation
+                               << logTriplet(row, fullPath);
 
             // Moves are not complete yet so we can't be sure this node is not the source of two
             // inconsistent moves, one local and one remote.  Keep for now until all moves are resolved.
@@ -9361,7 +9564,8 @@ bool Sync::resolve_upsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, 
             }
             else
             {
-                SYNC_verbose << syncname << "Parent cloud folder to upload to doesn't exist yet" << logTriplet(row, fullPath);
+                SYNC_verbose_timed << syncname << "Parent cloud folder to upload to doesn't exist yet"
+                                   << logTriplet(row, fullPath);
                 row.syncNode->setSyncAgain(true, false, false);
 
                 monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
@@ -9630,17 +9834,18 @@ bool Sync::resolve_downsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath
             {
                 if (!pflsc.alreadyDownloadingCount)
                 {
-                    SYNC_verbose << syncname << "Download already in progress c:"
-                                 << (downloadPtr->wasCompleted ?0:1) << " t:"
-                                 << (downloadPtr->wasTerminated ?0:1) << " ra:"
-                                 << (downloadPtr->wasRequesterAbandoned ?0:1) << logTriplet(row, fullPath);
+                    SYNC_verbose << syncname << "Download already in progress -> completed: "
+                                 << downloadPtr->wasCompleted << " terminated: "
+                                 << downloadPtr->wasTerminated << " requester abandoned: "
+                                 << downloadPtr->wasRequesterAbandoned << " -> " << logTriplet(row, fullPath);
                 }
                 pflsc.alreadyDownloadingCount += 1;
             }
         }
         else
         {
-            SYNC_verbose << "Delay starting download until parent local folder exists: " << fullPath.cloudPath << logTriplet(row, fullPath);
+            SYNC_verbose_timed << "Delay starting download until parent local folder exists: " << fullPath.cloudPath
+                               << logTriplet(row, fullPath);
             row.syncNode->setSyncAgain(true, false, false);
 
             monitor.waitingCloud(fullPath.cloudPath, SyncStallEntry(
@@ -9736,7 +9941,8 @@ bool Sync::resolve_downsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath
         }
         else
         {
-            SYNC_verbose << "Delay creating local folder until parent local folder exists: " << fullPath.localPath << logTriplet(row, fullPath);
+            SYNC_verbose_timed << "Delay creating local folder until parent local folder exists: " << fullPath.localPath
+                               << logTriplet(row, fullPath);
             row.syncNode->setSyncAgain(true, false, false);
 
             monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
@@ -9781,7 +9987,7 @@ bool Sync::resolve_userIntervention(SyncRow& row, SyncPath& fullPath)
             }
         }
 
-        SYNC_verbose << "both sides mismatch. mtimes: "
+        SYNC_verbose_timed << "both sides mismatch. mtimes: "
                      << row.cloudNode->fingerprint.mtime << " "
                      << row.syncNode->syncedFingerprint.mtime << " "
                      << row.fsNode->fingerprint.mtime << " "
@@ -9869,8 +10075,11 @@ bool Sync::resolve_cloudNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& ful
                 if (cloudNode.name.empty())
                 {
                     // Unnamed/undecryptable node, we know it cannot be considered a move target (for our local sync, so we need to discard the moving nodes and move the files to local debris)
-                    assert ((cloudPath.length() >= NO_KEY_SUFFIX.length() &&
-        -                !cloudPath.compare(cloudPath.length() - NO_KEY_SUFFIX.length(), NO_KEY_SUFFIX.length(), NO_KEY_SUFFIX)) && "Cloud node name empty, but the path does not contain NO_KEY word");
+                    assert((cloudPath.length() >= NO_KEY_SUFFIX.length() &&
+                            !cloudPath.compare(cloudPath.length() - NO_KEY_SUFFIX.length(),
+                                               NO_KEY_SUFFIX.length(),
+                                               NO_KEY_SUFFIX)) &&
+                           "Cloud node name empty, but the path does not contain NO_KEY word");
                     SYNC_verbose << syncname
                                 << "[cloudNodeGone] Cloud Node is a NO_NAME/NO_KEY (undecryptable node) or a child of a NO_NAME/NO_KEY, it cannot be a move target!!!! "
                                 << logTriplet(row, fullPath);
@@ -9898,8 +10107,13 @@ bool Sync::resolve_cloudNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& ful
         else
         {
             // Just in case the NO_KEY word changes
-            LOG_warn << "[cloudNodeGone] There is no NO_KEY word present in the cloudPath, but the cloudNode name is empty!";
-            assert(!cloudNode.name.empty());
+            if (cloudNode.name.empty())
+            {
+                LOG_warn << "[cloudNodeGone] There isn't a NO_KEY word present in the cloudPath, "
+                            "but the cloudNode name is empty!";
+                assert(false && "There isn't a NO_KEY word present in the cloudPath, but the "
+                                "cloudNode name is empty!");
+            }
         }
 
         // Trim the rare fields.
@@ -9933,18 +10147,18 @@ bool Sync::resolve_cloudNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& ful
 
         if (mt == MT_UNDERWAY)
         {
-            SYNC_verbose << syncname
-                         << "Node is a cloud move/rename source, move is under way: "
-                         << logTriplet(row, fullPath);
+            SYNC_verbose_timed << syncname
+                               << "Node is a cloud move/rename source, move is under way: "
+                               << logTriplet(row, fullPath);
             row.suppressRecursion = true;
         }
         else
         {
-            SYNC_verbose << syncname
-                         << "Letting move destination node process this first (cloud node is at "
-			 << cloudPath
-                         << "): "
-                         << logTriplet(row, fullPath);
+            SYNC_verbose_timed << syncname
+                               << "Letting move destination node process this first (cloud node is at "
+			                   << cloudPath
+                               << "): "
+                               << logTriplet(row, fullPath);
         }
 
         monitor.waitingCloud(fullPath.cloudPath, SyncStallEntry(
@@ -9993,7 +10207,8 @@ bool Sync::resolve_cloudNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& ful
     else
     {
         // todo: but, nodes are always current before we call recursiveSync - shortcut this case for nodes?
-        SYNC_verbose << syncname << "Wait for scanning+moving to finish before removing local node: " << logTriplet(row, fullPath);
+        SYNC_verbose_timed << syncname << "Wait for scanning+moving to finish before removing local node: "
+                           << logTriplet(row, fullPath);
         row.syncNode->setSyncAgain(true, false, false); // make sure we revisit (but don't keep checkMoves set)
         if (parentRow.cloudNode)
         {
@@ -10056,7 +10271,9 @@ LocalNode* Syncs::findLocalNodeBySyncedFsid(const fsfp_t& fsfp, mega::handle fsi
         // todo: come back for other matches?
         if (!extraCheck || extraCheck(it->second))
         {
-            LOG_verbose << mClient.clientname << "findLocalNodeBySyncedFsid - found " << toHandle(fsid) << " at: " << it->second->getLocalPath() << " checked from " << originalpath;
+            SYNCS_verbose_timed << mClient.clientname << "findLocalNodeBySyncedFsid - found " << toHandle(fsid)
+                                << " at: " << it->second->getLocalPath()
+                                << " checked from " << originalpath;
             return it->second;
         }
     }
@@ -10111,7 +10328,9 @@ LocalNode* Syncs::findLocalNodeByScannedFsid(const fsfp_t& fsfp, mega::handle fs
         // todo: come back for other matches?
         if (!extraCheck || extraCheck(it->second))
         {
-            LOG_verbose << mClient.clientname << "findLocalNodeByScannedFsid - found " << toHandle(fsid) << " at: " << it->second->getLocalPath() << " checked from " << originalpath;
+            SYNCS_verbose_timed << mClient.clientname << "findLocalNodeByScannedFsid - found " << toHandle(fsid)
+                                << " at: " << it->second->getLocalPath()
+                                << " checked from " << originalpath;
             return it->second;
         }
     }
@@ -10362,7 +10581,8 @@ bool Sync::resolve_fsNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& fullPa
     {
         row.syncNode->setCheckMovesAgain(true, false, false);
 
-        SYNC_verbose << syncname << "This file/folder was probably moved, but the destination is currently exclusion-unknown: " << logTriplet(row, fullPath);
+        SYNC_verbose_timed << syncname << "This file/folder was probably moved, but the destination is currently exclusion-unknown: "
+                           << logTriplet(row, fullPath);
 
         monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
             SyncWaitReason::MoveOrRenameCannotOccur, false, false,
@@ -10386,8 +10606,9 @@ bool Sync::resolve_fsNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& fullPa
         }
         else
         {
-            SYNC_verbose << syncname << "This file/folder was moved, letting destination node at "
-                         << movedLocalNode->getLocalPath() << " process this first: " << logTriplet(row, fullPath);
+            SYNC_verbose_timed << syncname << "This file/folder was moved, letting destination node at "
+                               << movedLocalNode->getLocalPath() << " process this first: "
+                               << logTriplet(row, fullPath);
         }
         // todo: do we need an equivalent to row.recurseToScanforNewLocalNodesOnly = true;  (in resolve_cloudNodeGone)
 
@@ -10409,7 +10630,9 @@ bool Sync::resolve_fsNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& fullPa
     else if (!mScanningWasComplete &&
              !row.isIgnoreFile())  // ignore files do not participate in move logic
     {
-        SYNC_verbose << syncname << "Wait for scanning to finish before confirming fsid " << toHandle(row.syncNode->fsid_lastSynced) << " deleted or moved: " << logTriplet(row, fullPath);
+        SYNC_verbose_timed << syncname << "Wait for scanning to finish before confirming fsid "
+                           << toHandle(row.syncNode->fsid_lastSynced) << " deleted or moved: "
+                           << logTriplet(row, fullPath);
 
         monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
             SyncWaitReason::DeleteOrMoveWaitingOnScanning, false, false,
@@ -10500,7 +10723,9 @@ bool Sync::resolve_fsNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& fullPa
     else
     {
         // in case it's actually a move and we just haven't visted the target node yet
-        SYNC_verbose << syncname << "Wait for moves to finish before confirming fsid " << toHandle(row.syncNode->fsid_lastSynced) << " deleted: " << logTriplet(row, fullPath);
+        SYNC_verbose_timed << syncname << "Wait for moves to finish before confirming fsid "
+                           << toHandle(row.syncNode->fsid_lastSynced)
+                           << " deleted: " << logTriplet(row, fullPath);
 
         monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
             SyncWaitReason::DeleteWaitingOnMoves, false, false,
@@ -11753,9 +11978,6 @@ void Syncs::syncLoop()
 
         fsaccess->checkevents(waiter.get());
 
-        // make sure we are using the client key (todo: shall we set it just when the client sets its key? easy to miss one though)
-        syncKey.setkey(mClient.key.key);
-
         // reset flag now, if it gets set then we speed back to processsing syncThreadActions
         mSyncFlags->earlyRecurseExitRequested = false;
 
@@ -11978,9 +12200,10 @@ void Syncs::syncLoop()
             auto allSyncsMovesWereComplete = checkSyncsMovesWereComplete();
             mSyncFlags->movesWereComplete = scanningWasCompletePreviously && allSyncsMovesWereComplete;
             mSyncFlags->noProgress = mSyncFlags->reachableNodesAllScannedLastPass;
+            if (mSyncFlags->noProgress) mSyncFlags->stall.setNoProgress();
             if (!scanningWasCompletePreviously || !mSyncFlags->scanningWasComplete || !mSyncFlags->reachableNodesAllScannedLastPass || !allSyncsMovesWereComplete || !mSyncFlags->movesWereComplete)
             {
-                LOG_verbose << "[SyncLoop] scanningWasCompletePreviously = " << scanningWasCompletePreviously
+                SYNCS_verbose_timed << "[SyncLoop] scanningWasCompletePreviously = " << scanningWasCompletePreviously
                             << ", scanningWasComplete = " << mSyncFlags->scanningWasComplete
                             << ", reachableNodesAllScannedLastPass = " << mSyncFlags->reachableNodesAllScannedLastPass
                             << ", allSyncsMovesWereComplete = " << allSyncsMovesWereComplete
@@ -12175,11 +12398,6 @@ void Syncs::syncLoop()
         else
         {
             mSyncFlags->isInitialPass = false;
-
-            if (mSyncFlags->noProgress)
-            {
-                ++mSyncFlags->noProgressCount;
-            }
 
             // Process name conflicts
             processSyncConflicts();
@@ -12407,26 +12625,33 @@ bool Syncs::stallsDetected(SyncStallInfo& stallInfo)
 {
     assert(onSyncThread());
 
-    // if we're not actually in stall state then don't report things
-    // that we are waiting on that migtht come right, only report definites.
-    for (auto& r: stallReport.cloud)
+    if (syncStallState) // If in stall state, there must be either lack of progress or immediate alerts
     {
-        if (syncStallState || r.second.alertUserImmediately)
+        for (auto& [id, syncStallInfoMap] : stallReport.syncStallInfoMaps)
         {
-            stallInfo.cloud.insert(r);
+            if (syncStallInfoMap.hasProgressLack())
+            {
+                for (auto& r: syncStallInfoMap.cloud) stallInfo.syncStallInfoMaps[id].cloud.insert(r);
+                for (auto& r: syncStallInfoMap.local) stallInfo.syncStallInfoMaps[id].local.insert(r);
+            }
+            else
+            {
+                for (auto& r: syncStallInfoMap.cloud)
+                {
+                    if (r.second.alertUserImmediately) stallInfo.syncStallInfoMaps[id].cloud.insert(r);
+                }
+                for (auto& r: syncStallInfoMap.local)
+                {
+                    if (r.second.alertUserImmediately) stallInfo.syncStallInfoMaps[id].local.insert(r);
+                }
+            }
         }
+        // Update totalSyncStalls just in case it is different since last check
+        totalSyncStalls.store(stallInfo.size());
     }
-    for (auto& r: stallReport.local)
-    {
-        if (syncStallState || r.second.alertUserImmediately)
-        {
-            stallInfo.local.insert(r);
-        }
-    }
+
     // Disable sync stalls update flag
     mClient.app->syncupdate_totalstalls(false);
-    // Update totalSyncStalls just in case it is different since last check
-    totalSyncStalls.store(stallInfo.cloud.size() + stallInfo.local.size());
     return syncStallState;
 }
 
@@ -12434,30 +12659,18 @@ size_t Syncs::stallsDetectedCount() const
 {
     assert(onSyncThread());
 
-    size_t numCloudIssues = 0;
-    size_t numLocalIssues = 0;
-    if (syncStallState)
+    if (!syncStallState)
     {
-        numCloudIssues = stallReport.cloud.size() + stallReport.local.size();
+        return 0;
     }
-    else
+
+    auto reportableSize = stallReport.reportableSize();
+    if (reportableSize <= 0)
     {
-        for (auto& r: stallReport.cloud)
-        {
-            if (r.second.alertUserImmediately)
-            {
-                ++numCloudIssues;
-            }
-        }
-        for (auto& r: stallReport.local)
-        {
-            if (r.second.alertUserImmediately)
-            {
-                ++numLocalIssues;
-            }
-        }
+        LOG_warn << "[Syncs::stallsDetectedCount()] reportableSize (" << reportableSize << ") is not positive! [real size = " << stallReport.size() << "]";
+        assert(hasImmediateStall(stallReport)); // If in sync stall state, there must be reportable size (unless there is a custom hasImmediateStall predicate for tests)
     }
-    return numCloudIssues + numLocalIssues;
+    return reportableSize;
 }
 
 bool Syncs::syncStallDetected(SyncStallInfo& si) const
@@ -12529,7 +12742,9 @@ void Syncs::processSyncStalls()
             {
                 if (lp->sync)
                 {
-                    mSyncFlags->stall.waitingLocal(lp->localPath, SyncStallEntry(
+                    auto& affectedBackupId = lp->sync->getConfig().mBackupId;
+                    assert(affectedBackupId != UNDEF);
+                    mSyncFlags->stall.waitingLocal(affectedBackupId, lp->localPath, SyncStallEntry(
                         SyncWaitReason::FileIssue, true, false,
                         {},
                         {},
@@ -12569,9 +12784,12 @@ void Syncs::processSyncStalls()
                     }
                 }
 
+                auto affectedBackupId = sbp->sync ? sbp->sync->getConfig().mBackupId : UNDEF;
+                assert(affectedBackupId != UNDEF);
+
                 if (sbp->folderUnreadable)
                 {
-                    mSyncFlags->stall.waitingLocal(sbp->scanBlockedLocalPath, SyncStallEntry(
+                    mSyncFlags->stall.waitingLocal(affectedBackupId, sbp->scanBlockedLocalPath, SyncStallEntry(
                         SyncWaitReason::FileIssue, true, false,
                         {},
                         {},
@@ -12588,16 +12806,16 @@ void Syncs::processSyncStalls()
             else i = scanBlockedPaths.erase(i);
         }
 
-        lock_guard<mutex> g(stallReportMutex);
-        stallReport.cloud.swap(mSyncFlags->stall.cloud);
-        stallReport.local.swap(mSyncFlags->stall.local);
-        stallReport.stalledSyncs.swap(mSyncFlags->stall.stalledSyncs);
-        mSyncFlags->stall.cloud.clear();
-        mSyncFlags->stall.local.clear();
-        mSyncFlags->stall.stalledSyncs.clear();
+        // Update progress counters
+        mSyncFlags->stall.updateNoProgress();
 
+        lock_guard<mutex> g(stallReportMutex);
+        // Update stall report with the stalls created during the loop
+        stallReport.moveFromButKeepCountersAndClearObsoleteKeys(mSyncFlags->stall);
+
+        // Check immediate stalls and progress lack stalls
         bool immediateStall = hasImmediateStall(stallReport);
-        bool progressLackStall = mSyncFlags->noProgressCount > 10
+        bool progressLackStall = stallReport.hasProgressLackStall()
                                       && mSyncFlags->reachableNodesAllScannedThisPass;
 
         stalled = !stallReport.empty()
@@ -12605,24 +12823,12 @@ void Syncs::processSyncStalls()
 
         if (stalled)
         {
-            if (immediateStall && !progressLackStall)
+            for (auto& [syncId, syncStallInfoMap] : stallReport.syncStallInfoMaps)
             {
-                // only report immediates, otherwise the volume of reports can be a bit scary, and they will probably come right later anyway after parent nodes are made etc
-                for (auto it = stallReport.cloud.begin(); it != stallReport.cloud.end(); )
-                {
-                    if (isImmediateStall(it->second)) ++it;
-                    else it = stallReport.cloud.erase(it);
-                }
-                for (auto it = stallReport.local.begin(); it != stallReport.local.end(); )
-                {
-                    if (isImmediateStall(it->second)) ++it;
-                    else it = stallReport.local.erase(it);
-                }
+                bool syncProgressLackStall = syncStallInfoMap.hasProgressLack();
+                for (auto& p : syncStallInfoMap.cloud) if (syncProgressLackStall || isImmediateStall(p.second)) { SYNCS_verbose_timed << "Stall detected! stalled node path (" << syncWaitReasonDebugString(p.second.reason) << "): " << p.first << " [backupId = " << syncId << "]"; }
+                for (auto& p : syncStallInfoMap.local) if (syncProgressLackStall || isImmediateStall(p.second)) { SYNCS_verbose_timed << "Stall detected! stalled local path (" << syncWaitReasonDebugString(p.second.reason) << "): " << p.first << " [backupId = " << syncId << "]"; }
             }
-
-            LOG_warn << mClient.clientname << "Stall detected!";
-            for (auto& p : stallReport.cloud) LOG_warn << "stalled node path (" << syncWaitReasonDebugString(p.second.reason) << "): " << p.first;
-            for (auto& p : stallReport.local) LOG_warn << "stalled local path (" << syncWaitReasonDebugString(p.second.reason) << "): " << p.first;
         }
     }
 

@@ -108,20 +108,21 @@ class DetailsNodeInfoViewController: UIViewController, MEGADelegate, UIAlertView
             saveLabel.isHidden = false
             downloadButton.setImage(UIImage(named: "savedFile"), for: UIControl.State())
             saveLabel.text = "Saved for offline"
-        } else if megaapi.transfers.size.int32Value > 0 {
+        } else if megaapi.transfers.size > 0 {
             downloadProgressView.isHidden = true
             cancelButton.isHidden = true
             
-            for i in 0  ..< megaapi.transfers.size.intValue {
-                let transfer : MEGATransfer = megaapi.transfers.transfer(at: i)
-                if transfer.nodeHandle == node.handle {
-                    downloadProgressView.isHidden = false
-                    cancelButton.isHidden = false
-                    currentTransfer = transfer
-                    
-                    let progress = transfer.transferredBytes.floatValue / transfer.totalBytes.floatValue
-                    downloadProgressView.setProgress(progress, animated: true)
-                    continue
+            for i in 0  ..< megaapi.transfers.size {
+                if let transfer = megaapi.transfers.transfer(at: i) {
+                    if transfer.nodeHandle == node.handle {
+                        downloadProgressView.isHidden = false
+                        cancelButton.isHidden = false
+                        currentTransfer = transfer
+                        
+                        let progress = Float(transfer.transferredBytes / transfer.totalBytes)
+                        downloadProgressView.setProgress(progress, animated: true)
+                        continue
+                    }
                 }
             }
             
@@ -254,7 +255,7 @@ class DetailsNodeInfoViewController: UIViewController, MEGADelegate, UIAlertView
     
     func onTransferUpdate(_ api: MEGASdk, transfer: MEGATransfer) {
         if transfer.nodeHandle == node.handle {
-            let progress = transfer.transferredBytes.floatValue / transfer.totalBytes.floatValue
+            let progress = Float(transfer.transferredBytes / transfer.totalBytes)
             downloadProgressView.setProgress(progress, animated: true)
         } else {
             downloadProgressView.setProgress(0.0, animated: true)

@@ -1238,6 +1238,41 @@ SplitResult split(const char* begin, const char* end, char delimiter);
 SplitResult split(const char* begin, const std::size_t size, char delimiter);
 SplitResult split(const std::string& value, char delimiter);
 
+template<typename T>
+class ScopedValue {
+public:
+    ScopedValue(T& what, T value)
+      : mLastValue(std::move(what))
+      , mWhat(what)
+    {
+        what = std::move(value);
+    }
+
+    ~ScopedValue()
+    {
+        mWhat = std::move(mLastValue);
+    }
+
+    MEGA_DISABLE_COPY_MOVE(ScopedValue)
+
+private:
+    T mLastValue;
+    T& mWhat;
+}; // ScopedValue<T>
+
+template<typename T>
+ScopedValue<T> makeScopedValue(T& what, T value)
+{
+    return ScopedValue<T>(what, std::move(value));
+}
+
+/**
+ * @brief Sorts input char strings using natural sorting ignoring case
+ *
+ * @returns 0 if i==j, +1 if i goes first, -1 if j goes first.
+ */
+int naturalsorting_compare(const char* i, const char* j);
+
 } // namespace mega
 
 #endif // MEGA_UTILS_H

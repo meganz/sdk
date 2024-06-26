@@ -11388,29 +11388,35 @@ void exec_synclist(autocomplete::ACState& s)
     {
         auto cl = conlock(cout);
         cout << "Stalled (mutually unresolvable changes detected)!" << endl;
-        for (auto& p : stall.cloud)
+        for (auto& syncStallInfoMapPair : stall.syncStallInfoMaps)
         {
-            cout << "stall issue: " << syncWaitReasonDebugString(p.second.reason) << endl;
-            string r1 = p.second.cloudPath1.debugReport();
-            string r2 = p.second.cloudPath2.debugReport();
-            string r3 = p.second.localPath1.debugReport();
-            string r4 = p.second.localPath2.debugReport();
-            if (!r1.empty()) cout << "    MEGA:" << r1 << endl;
-            if (!r2.empty()) cout << "    MEGA:" << r2 << endl;
-            if (!r3.empty()) cout << "    here:" << r3 << endl;
-            if (!r4.empty()) cout << "    here:" << r4 << endl;
-        }
-        for (auto& p : stall.local)
-        {
-            cout << "stall issue: " << syncWaitReasonDebugString(p.second.reason) << endl;
-            string r1 = p.second.cloudPath1.debugReport();
-            string r2 = p.second.cloudPath2.debugReport();
-            string r3 = p.second.localPath1.debugReport();
-            string r4 = p.second.localPath2.debugReport();
-            if (!r1.empty()) cout << "    MEGA:" << r1 << endl;
-            if (!r2.empty()) cout << "    MEGA:" << r2 << endl;
-            if (!r3.empty()) cout << "    here:" << r3 << endl;
-            if (!r4.empty()) cout << "    here:" << r4 << endl;
+            cout << "=== [SyncID: " << syncStallInfoMapPair.first << "]" << endl;
+            auto& syncStallInfoMap = syncStallInfoMapPair.second;
+            cout << "noProgress: " << syncStallInfoMap.noProgress << ", noProgressCount: " << syncStallInfoMap.noProgressCount << " [HasProgressLack: " << std::string(syncStallInfoMap.hasProgressLack() ? "true" : "false") << "]" << endl;
+            for (auto& p : syncStallInfoMap.cloud)
+            {
+                cout << "stall issue: " << syncWaitReasonDebugString(p.second.reason) << endl;
+                string r1 = p.second.cloudPath1.debugReport();
+                string r2 = p.second.cloudPath2.debugReport();
+                string r3 = p.second.localPath1.debugReport();
+                string r4 = p.second.localPath2.debugReport();
+                if (!r1.empty()) cout << "    MEGA:" << r1 << endl;
+                if (!r2.empty()) cout << "    MEGA:" << r2 << endl;
+                if (!r3.empty()) cout << "    here:" << r3 << endl;
+                if (!r4.empty()) cout << "    here:" << r4 << endl;
+            }
+            for (auto& p : syncStallInfoMap.local)
+            {
+                cout << "stall issue: " << syncWaitReasonDebugString(p.second.reason) << endl;
+                string r1 = p.second.cloudPath1.debugReport();
+                string r2 = p.second.cloudPath2.debugReport();
+                string r3 = p.second.localPath1.debugReport();
+                string r4 = p.second.localPath2.debugReport();
+                if (!r1.empty()) cout << "    MEGA:" << r1 << endl;
+                if (!r2.empty()) cout << "    MEGA:" << r2 << endl;
+                if (!r3.empty()) cout << "    here:" << r3 << endl;
+                if (!r4.empty()) cout << "    here:" << r4 << endl;
+            }
         }
     }
 }

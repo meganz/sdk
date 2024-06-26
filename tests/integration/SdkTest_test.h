@@ -272,6 +272,7 @@ public:
 
         // flags to monitor the updates of nodes/users/sets/set-elements/PCRs due to actionpackets
         bool userUpdated;
+        bool userFirstNameUpdated = false;
         bool setUpdated;
         bool setElementUpdated;
         bool contactRequestUpdated;
@@ -454,9 +455,9 @@ public:
     //void loginBySessionId(unsigned int apiIndex, const std::string& sessionId, int timeout = maxTimeout);
     void fetchnodes(unsigned int apiIndex, int timeout = maxTimeout);
     void logout(unsigned int apiIndex, bool keepSyncConfigs, int timeout);
-    char* dumpSession();
+    char* dumpSession(unsigned apiIndex = 0);
     void locallogout(unsigned apiIndex = 0);
-    void resumeSession(const char *session, int timeout = maxTimeout);
+    void resumeSession(const char *session, unsigned apiIndex = 0);
 
     void purgeTree(unsigned int apiIndex, MegaNode *p, bool depthfirst = true);
 
