@@ -35,6 +35,8 @@ From current directory run:
 python3 ./close_release.py -p <project-name> -r <release-version> -l <private-git-host-url> -u <private-git-remote-url> -j <project-management-url> -v <public-git-remote-url> -w <wiki-url> -i <wiki-page-id>
 ```
 
+> Note that the value received for `-p <project-name>` is case sensitive!
+
 Example:
 ```sh
 python3 ./close_release.py -p SDK -r 1.0.0 -l https://code.foo.bar -u git@foo.bar:proj/proj.git -j https://jira.foo.bar -v git@github.com:owner/proj.git -w https://confluence.foo.bar -i 1234567

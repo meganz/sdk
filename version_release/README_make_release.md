@@ -38,6 +38,8 @@ python3 ./make_release.py -p <project-name> -l <private-git-host-url> -u <privat
 python3 ./make_release.py -p <project-name> -l <private-git-host-url> -n -j <project-management-url> -t <target-apps> -c <chat-channel>
 ```
 
+> Note that the value received for `-p <project-name>` is case sensitive!
+
 Example:
 
 ```sh
