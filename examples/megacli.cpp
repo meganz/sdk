@@ -3878,11 +3878,44 @@ void exec_getmybackups(autocomplete::ACState&)
 }
 
 #ifdef ENABLE_SYNC
+void exec_backupcentreUpdateState(const string& backupIdStr, CommandBackupPut::SPState newState)
+{
+    handle backupId = 0;
+    Base64::atob(backupIdStr.c_str(), (byte*)&backupId, MegaClient::BACKUPHANDLE);
+
+    // determine if it's a backup or other type of sync
+    SyncConfig c;
+    bool found = client->syncs.configById(backupId, c);
+    string syncType = found && c.isBackup() ? "backup" : "sync";
+
+    client->updateStateInBC(backupId,
+                            newState,
+                            [newState, syncType, backupId](const Error& e)
+                            {
+                                string newStateStr =
+                                    newState == CommandBackupPut::TEMPORARY_DISABLED ? "pause" :
+                                                                                       "resume";
+                                if (e == API_OK)
+                                {
+                                    cout << "Backup Centre - " << newStateStr << "d " << syncType
+                                         << ' ' << toHandle(backupId) << endl;
+                                }
+                                else
+                                {
+                                    cout << "Backup Centre - Failed to " << newStateStr << ' '
+                                         << syncType << ' ' << toHandle(backupId) << " ("
+                                         << errorstring(e) << ')' << endl;
+                                }
+                            });
+}
+
 void exec_backupcentre(autocomplete::ACState& s)
 {
     bool delFlag = s.extractflag("-del");
     bool purgeFlag = s.extractflag("-purge");
     bool stopFlag = s.extractflag("-stop");
+    bool pauseFlag = s.extractflag("-pause");
+    bool resumeFlag = s.extractflag("-resume");
 
     if (s.words.size() == 1)
     {
@@ -3988,7 +4021,7 @@ void exec_backupcentre(autocomplete::ACState& s)
             }
             else
             {
-                cout << "Backup Centre - Failed to " << (isBackup ? "remove Backup " : "stop sync") << toHandle(backupId);
+                cout << "Backup Centre - Failed to " << (isBackup ? "remove Backup " : "stop sync ") << toHandle(backupId);
                 if (isBackup)
                 {
                     cout << " and " << (hDest == UNDEF ? "deleted" : "moved") << " its contents";
@@ -3996,6 +4029,13 @@ void exec_backupcentre(autocomplete::ACState& s)
                 cout << " (" << errorstring(e) << ')' << endl;
             }
         });
+    }
+
+    else if ((pauseFlag || resumeFlag) && s.words.size() == 2) // pause/resume sync (any kind)
+    {
+        exec_backupcentreUpdateState(s.words[1].s,
+                                     pauseFlag ? CommandBackupPut::TEMPORARY_DISABLED :
+                                                 CommandBackupPut::ACTIVE);
     }
 }
 #endif
@@ -4739,7 +4779,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_backupcentre, sequence(text("backupcentre"), opt(either(
                                        sequence(flag("-del"), param("backup_id"), opt(param("move_to_handle"))),
                                        sequence(flag("-purge")),
-                                       sequence(flag("-stop"), param("backup_id"))))));
+                                       sequence(either(flag("-stop"), flag("-pause"), flag("-resume")), param("backup_id"))))));
 
     p->Add(exec_syncadd,
            sequence(text("sync"),

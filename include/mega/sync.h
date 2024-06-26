@@ -1385,7 +1385,9 @@ private:
     error backupOpenDrive_inThread(const LocalPath& drivePath);
     error backupCloseDrive_inThread(LocalPath drivePath);
     void getSyncProblems_inThread(SyncProblems& problems);
-    bool checkSdsCommandsForDelete(UnifiedSync& us, vector<pair<handle, int>>& sdsBackups, std::function<void(MegaClient&, TransferDbCommitter&)>& clientRemoveSdsEntryFunction);
+    std::function<void(MegaClient&, TransferDbCommitter&)>
+        prepareSdsCleanupForBackup(UnifiedSync& us, const vector<pair<handle, int>>& sds);
+    bool processPauseResumeSyncBySds(UnifiedSync& us, vector<pair<handle, int>>& sdsBackups);
     bool processRemovingSyncBySds(UnifiedSync& us, bool foundRootNode, vector<pair<handle, int>>& sdsBackups);
     void deregisterThenRemoveSyncBySds(UnifiedSync& us, std::function<void(MegaClient&, TransferDbCommitter&)> clientRemoveSdsEntryFunction);
     void processSyncConflicts();
