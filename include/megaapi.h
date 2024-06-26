@@ -4570,7 +4570,9 @@ class MegaRequest
             TYPE_REMOVE_MOUNT                                               = 190,
             TYPE_SET_MOUNT_FLAGS                                            = 191,
             TYPE_DEL_ATTR_USER = 192,
-            TOTAL_OF_REQUEST_TYPES = 193,
+            TYPE_BACKUP_PAUSE_MD                                            = 194,
+            TYPE_BACKUP_RESUME_MD                                           = 195,
+            TOTAL_OF_REQUEST_TYPES                                          = 196,
         };
 
         virtual ~MegaRequest();
@@ -6895,7 +6897,7 @@ public:
         RUNSTATE_PENDING,     // Sync config has loaded but we have not attempted to start it yet
         RUNSTATE_LOADING,     // Sync DB is in the process of loading from disk
         RUNSTATE_RUNNING,     // Sync DB is loaded and active
-        RUNSTATE_PAUSED,      // Sync DB is loaded but sync logic is suspended for now (useful for debugging)
+        RUNSTATE_PAUSED,      // (deprecated) Use RUNSTATE_SUSPENDED for paused syncs / backups
         RUNSTATE_SUSPENDED,   // Sync DB is not loaded, but it is on disk with the last known sync state.
         RUNSTATE_DISABLED,    // Sync DB does not exist.  Starting it is like configuring a brand new sync with those settings.
     };
@@ -22023,6 +22025,32 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
         */
         void removeFromBC(MegaHandle backupId, MegaHandle moveDestination, MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Simulate a backup/sync being paused from the webclient.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_BACKUP_PAUSE_MD
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParentHandle - Returns the backup id
+         * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+         *
+         * @param backupId backup id of the backup to be paused
+         * @param listener MegaRequestListener to track this request
+        */
+        void pauseFromBC(MegaHandle backupId, MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Simulate a backup/sync being resumed from the webclient.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_BACKUP_RESUME_MD
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParentHandle - Returns the backup id
+         * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+         *
+         * @param backupId backup id of the backup to be resumed
+         * @param listener MegaRequestListener to track this request
+        */
+        void resumeFromBC(MegaHandle backupId, MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Fetch information about all registered backups for Backup Centre

@@ -25055,6 +25055,40 @@ void MegaApiImpl::removeFromBC(MegaHandle backupId, MegaHandle moveDestination, 
     waiter->notify();
 }
 
+void MegaApiImpl::pauseFromBC(MegaHandle backupId, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_BACKUP_PAUSE_MD, listener);
+    request->setParentHandle(backupId);
+
+    request->performRequest = [this, request]()
+    {
+        auto finalCompletion = [this, request](const Error& e) { fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e)); };
+
+        client->updateStateInBC(request->getParentHandle(), CommandBackupPut::TEMPORARY_DISABLED, finalCompletion);
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::resumeFromBC(MegaHandle backupId, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_BACKUP_RESUME_MD, listener);
+    request->setParentHandle(backupId);
+
+    request->performRequest = [this, request]()
+    {
+        auto finalCompletion = [this, request](const Error& e) { fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e)); };
+
+        client->updateStateInBC(request->getParentHandle(), CommandBackupPut::ACTIVE, finalCompletion);
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::getBackupInfo(MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_BACKUP_INFO, listener);

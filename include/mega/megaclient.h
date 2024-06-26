@@ -2171,6 +2171,9 @@ public:
     // create a new folder with given name and stores its node's handle into the user's attribute ^!bak
     error setbackupfolder(const char* foldername, int tag, std::function<void(Error)> addua_completion);
 
+    // fetch backups and syncs from BC, search bkpId among them, pause/resume the backup or sync, update sds attribute
+    void updateStateInBC(handle bkpId, CommandBackupPut::SPState newState, std::function<void(const Error&)> f);
+
     // fetch backups and syncs from BC, search bkpId among them, disable the backup or sync, update sds attribute, for a backup move or delete its contents
     void removeFromBC(handle bkpId, handle bkpDest, std::function<void(const Error&)> f);
 
