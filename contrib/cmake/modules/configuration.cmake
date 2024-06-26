@@ -25,4 +25,15 @@ else()
     check_include_file(dirent.h HAVE_DIRENT_H)
     check_include_file(glob.h HAVE_GLOB_H)
     check_function_exists(aio_write, HAVE_AIO_RT)
+
+    # Check if our toolchain supports TI emulation mode.
+    try_compile(SUPPORTS_TI_EMULATION_MODE
+                "${CMAKE_BINARY_DIR}"
+                "${CMAKE_CURRENT_LIST_DIR}/checks/supports_ti_emulation_mode.cpp")
+
+    # Toolchain supports TI emulation mode.
+    if (SUPPORTS_TI_EMULATION_MODE)
+        add_compile_definitions(SUPPORTS_TI_EMULATION_MODE=1)
+    endif()
 endif()
+
