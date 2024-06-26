@@ -1,5 +1,11 @@
 from gitlab import Gitlab  # python-gitlab
-from gitlab.v4.objects import Project, ProjectLabel, ProjectMergeRequest, ProjectTag
+from gitlab.v4.objects import (
+    CurrentUser,
+    Project,
+    ProjectLabel,
+    ProjectMergeRequest,
+    ProjectTag,
+)
 import time
 from typing import cast
 
@@ -76,6 +82,7 @@ class GitLabRepository:  # use gitlab API
         if mr_id > 0:
             print(f'MR with title "{mr_title}" was already opened')
             return 0, ""
+        assert isinstance(self._project.manager.gitlab.user, CurrentUser)
 
         mr = self._project.mergerequests.create(
             {
@@ -86,8 +93,10 @@ class GitLabRepository:  # use gitlab API
                 "squash": squash,
                 "subscribed": True,
                 "labels": labels,
+                "assignee_id": self._project.manager.gitlab.user.id,
             }
         )
+        assert isinstance(mr, ProjectMergeRequest)
 
         return mr.iid, mr.web_url
 
@@ -108,6 +117,7 @@ class GitLabRepository:  # use gitlab API
             if go_sleep:
                 time.sleep(sleep_interval)
             mr = self._project.mergerequests.get(mr_id)
+            assert isinstance(mr, ProjectMergeRequest)
             if mr.state != "opened":
                 print("MR waiting for approval not found")
                 return None
@@ -127,6 +137,7 @@ class GitLabRepository:  # use gitlab API
     def close_mr(self, mr_id: int):
         if self._project:
             mr = self._project.mergerequests.get(mr_id)
+            assert isinstance(mr, ProjectMergeRequest)
             mr.state_event = "close"
             mr.save()
 
