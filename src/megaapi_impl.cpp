@@ -27697,8 +27697,7 @@ int MegaAccountDetailsPrivate::getProLevel()
 {
     for (const auto& plan: details.plans)
     {
-        if (plan.level > MegaAccountDetails::ACCOUNT_TYPE_FREE &&
-            plan.level != MegaAccountDetails::ACCOUNT_TYPE_FEATURE)
+        if (plan.isProPlan())
         {
             return plan.level;
         }
@@ -27711,20 +27710,19 @@ int64_t MegaAccountDetailsPrivate::getProExpiration()
 {
     for (const auto& plan: details.plans)
     {
-        if (plan.level > MegaAccountDetails::ACCOUNT_TYPE_FREE &&
-            plan.level != MegaAccountDetails::ACCOUNT_TYPE_FEATURE)
+        if (plan.isProPlan())
         {
             return plan.expiration;
         }
     }
 
-    return 0;
+    return MEGA_INVALID_TIMESTAMP;
 }
 
 int MegaAccountDetailsPrivate::getSubscriptionStatus()
 {
     // Consider only the first subscription
-    if (details.subscriptions.size())
+    if (!details.subscriptions.empty())
     {
         char subType = details.subscriptions.front().type;
 
@@ -27745,18 +27743,18 @@ int MegaAccountDetailsPrivate::getSubscriptionStatus()
 int64_t MegaAccountDetailsPrivate::getSubscriptionRenewTime()
 {
     // Consider only the first subscription
-    if (details.subscriptions.size())
+    if (!details.subscriptions.empty())
     {
         return details.subscriptions.front().renew;
     }
 
-    return 0;
+    return MEGA_INVALID_TIMESTAMP;
 }
 
 char *MegaAccountDetailsPrivate::getSubscriptionMethod()
 {
     // Consider only the first subscription
-    if (details.subscriptions.size())
+    if (!details.subscriptions.empty())
     {
         return MegaApi::strdup(details.subscriptions.front().paymentMethod.c_str());
     }
@@ -27767,18 +27765,18 @@ char *MegaAccountDetailsPrivate::getSubscriptionMethod()
 int MegaAccountDetailsPrivate::getSubscriptionMethodId()
 {
     // Consider only the first subscription
-    if (details.subscriptions.size())
+    if (!details.subscriptions.empty())
     {
         return details.subscriptions.front().paymentMethodId;
     }
 
-    return 0;
+    return MegaAccountDetails::ACCOUNT_TYPE_FREE;
 }
 
 char *MegaAccountDetailsPrivate::getSubscriptionCycle()
 {
     // Consider only the first subscription
-    if (details.subscriptions.size())
+    if (!details.subscriptions.empty())
     {
         return MegaApi::strdup(details.subscriptions.front().cycle.c_str());
     }
@@ -28003,19 +28001,19 @@ MegaAccountFeature* MegaAccountDetailsPrivate::getActiveFeature(int featureIndex
 int64_t MegaAccountDetailsPrivate::getSubscriptionLevel() const
 {
     // Consider only the first subscription
-    if (details.subscriptions.size())
+    if (!details.subscriptions.empty())
     {
         return details.subscriptions.front().level;
     }
 
-    return 0;
+    return MegaAccountDetails::ACCOUNT_TYPE_FREE;
 }
 
 MegaStringIntegerMap* MegaAccountDetailsPrivate::getSubscriptionFeatures() const
 {
     MegaStringIntegerMapPrivate* subscriptionFeatures = new MegaStringIntegerMapPrivate();
     // Consider only the first subscription
-    if (details.subscriptions.size())
+    if (!details.subscriptions.empty())
     {
         for (const auto& f: details.subscriptions.front().features)
         {
@@ -28035,10 +28033,11 @@ int MegaAccountDetailsPrivate::getNumSubscriptions() const
 
 MegaAccountSubscription* MegaAccountDetailsPrivate::getSubscription(int featureIndex) const
 {
-    if (static_cast<size_t>(featureIndex) < details.subscriptions.size())
+    size_t index = static_cast<size_t>(featureIndex);
+    if (index < details.subscriptions.size())
     {
         return MegaAccountSubscriptionPrivate::fromAccountSubscription(
-            &(details.subscriptions[featureIndex]));
+            details.subscriptions[index]);
     }
     return nullptr;
 }
@@ -28050,9 +28049,10 @@ int MegaAccountDetailsPrivate::getNumPlans() const
 
 MegaAccountPlan* MegaAccountDetailsPrivate::getPlan(int featureIndex) const
 {
-    if (static_cast<size_t>(featureIndex) < details.plans.size())
+    size_t index = static_cast<size_t>(featureIndex);
+    if (index < details.plans.size())
     {
-        return MegaAccountPlanPrivate::fromAccountPlan(&(details.plans[featureIndex]));
+        return MegaAccountPlanPrivate::fromAccountPlan(details.plans[index]);
     }
     return nullptr;
 }
@@ -28943,19 +28943,15 @@ char* MegaAccountFeaturePrivate::getId() const
 }
 
 MegaAccountSubscriptionPrivate*
-    MegaAccountSubscriptionPrivate::fromAccountSubscription(const AccountSubscription* subscription)
+    MegaAccountSubscriptionPrivate::fromAccountSubscription(const AccountSubscription& subscription)
 {
     return new MegaAccountSubscriptionPrivate(subscription);
 }
 
 MegaAccountSubscriptionPrivate::MegaAccountSubscriptionPrivate(
-    const AccountSubscription* subscription)
+    const AccountSubscription& subscription)
 {
-    assert(subscription);
-    if (subscription)
-    {
-        mSubscription = *subscription;
-    }
+    mSubscription = subscription;
 }
 
 char* MegaAccountSubscriptionPrivate::getId() const
@@ -29013,18 +29009,14 @@ MegaStringList* MegaAccountSubscriptionPrivate::getFeatures() const
     return subscriptionFeatures;
 }
 
-MegaAccountPlanPrivate* MegaAccountPlanPrivate::fromAccountPlan(const AccountPlan* plan)
+MegaAccountPlanPrivate* MegaAccountPlanPrivate::fromAccountPlan(const AccountPlan& plan)
 {
     return new MegaAccountPlanPrivate(plan);
 }
 
-MegaAccountPlanPrivate::MegaAccountPlanPrivate(const AccountPlan* plan)
+MegaAccountPlanPrivate::MegaAccountPlanPrivate(const AccountPlan& plan)
 {
-    assert(plan);
-    if (plan)
-    {
-        mPlan = *plan;
-    }
+    mPlan = plan;
 }
 
 bool MegaAccountPlanPrivate::isProPlan() const

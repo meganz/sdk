@@ -5408,14 +5408,7 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
                     bool changed = false;
                     for (const auto& plan: details->plans)
                     {
-                        if (plan.level == ACCOUNT_TYPE_FEATURE)
-                        {
-                            changed |= client->mCachedStatus.addOrUpdate(
-                                CacheableStatus::STATUS_FEATURE_LEVEL,
-                                plan.level);
-                            featurePlanReceived = true;
-                        }
-                        else // PRO plans. Only one is expected, if any.
+                        if (plan.isProPlan())
                         {
                             changed |=
                                 client->mCachedStatus.addOrUpdate(CacheableStatus::STATUS_PRO_LEVEL,
@@ -5423,6 +5416,13 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
                             client->mMyAccount.setProLevel(static_cast<AccountType>(plan.level));
                             client->mMyAccount.setProUntil(static_cast<m_time_t>(plan.expiration));
                             proPlanReceived = true;
+                        }
+                        else // Feature plans
+                        {
+                            changed |= client->mCachedStatus.addOrUpdate(
+                                CacheableStatus::STATUS_FEATURE_LEVEL,
+                                plan.level);
+                            featurePlanReceived = true;
                         }
                     }
 
@@ -5444,7 +5444,7 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
                         // Check if the feature plan is no longer active.
                         changed |=
                             client->mCachedStatus.addOrUpdate(CacheableStatus::STATUS_FEATURE_LEVEL,
-                                                              0);
+                                                              ACCOUNT_TYPE_UNKNOWN);
                     }
 
                     // Account level (PRO and features) can change without a payment (ie. with

@@ -23792,7 +23792,6 @@ public:
      *
      * - MegaAccountSubscription::SUBSCRIPTION_STATUS_INVALID = 2
      * A subscription exists, but it uses a payment gateway that is no longer valid
-     *
      */
     virtual int getStatus() const = 0;
 
@@ -23833,8 +23832,6 @@ public:
 
     /**
      * @brief Get the subscription account level
-     *
-     * @return Account level
      *
      * @return Subscription account level
      * Valid values for PRO plan subscriptions:

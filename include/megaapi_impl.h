@@ -1859,7 +1859,7 @@ class MegaAccountSubscriptionPrivate: public MegaAccountSubscription
 {
 public:
     static MegaAccountSubscriptionPrivate*
-        fromAccountSubscription(const AccountSubscription* subscription);
+        fromAccountSubscription(const AccountSubscription& subscription);
 
     char* getId() const override;
     int getStatus() const override;
@@ -1871,14 +1871,14 @@ public:
     MegaStringList* getFeatures() const override;
 
 private:
-    MegaAccountSubscriptionPrivate(const AccountSubscription* subscription);
+    MegaAccountSubscriptionPrivate(const AccountSubscription& subscription);
     AccountSubscription mSubscription;
 };
 
 class MegaAccountPlanPrivate: public MegaAccountPlan
 {
 public:
-    static MegaAccountPlanPrivate* fromAccountPlan(const AccountPlan* subscription);
+    static MegaAccountPlanPrivate* fromAccountPlan(const AccountPlan& plan);
 
     bool isProPlan() const override;
     int32_t getAccountLevel() const override;
@@ -1888,7 +1888,7 @@ public:
     char* getId() const override;
 
 private:
-    MegaAccountPlanPrivate(const AccountPlan* subscription);
+    MegaAccountPlanPrivate(const AccountPlan& plan);
     AccountPlan mPlan;
 };
 

@@ -87,19 +87,24 @@ struct MEGA_API AccountSubscription
     string cycle; // Subscription billing period
     string paymentMethod; // Payment provider name
     int32_t paymentMethodId = 0; // Payment provider ID
-    m_time_t renew = 0; // Renewal time
-    int32_t level = 0; // Account level
+    m_time_t renew = mega_invalid_timestamp; // Renewal time
+    int32_t level = ACCOUNT_TYPE_FREE; // Account level
     vector<string> features; // List of features the subscription grants
 };
 
 struct MEGA_API AccountPlan
 {
-    int32_t level = 0; // Account level
+    int32_t level = ACCOUNT_TYPE_FREE; // Account level
     vector<string> features; // List of features the plan grants
-    m_time_t expiration = 0; // The time the plan expires
+    m_time_t expiration = mega_invalid_timestamp; // The time the plan expires
     int32_t type = 0; // Why the plan was granted: payment, achievement, etc. Not included in
                       // Bussiness/Pro Flexi
     string subscriptionId; // The relating subscription ID if the plan relates to a subscription.
+
+    bool isProPlan() const
+    {
+        return level > ACCOUNT_TYPE_FREE && level != ACCOUNT_TYPE_FEATURE;
+    }
 };
 
 struct MEGA_API AccountDetails
