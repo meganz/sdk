@@ -854,6 +854,7 @@ public:
 private:
     bool readSubscriptions(JSON* j);
     bool readPlans(JSON* j);
+    void processPlans();
 };
 
 class MEGA_API CommandQueryTransferQuota : public Command

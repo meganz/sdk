@@ -2572,6 +2572,8 @@ std::string CacheableStatus::typeToStr(CacheableStatus::Type type)
         return "blocked";
     case STATUS_PRO_LEVEL:
         return "pro-level";
+    case STATUS_FEATURE_LEVEL:
+        return "feature-level";
     default:
         return "undefined";
     }
