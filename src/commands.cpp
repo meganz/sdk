@@ -2405,6 +2405,7 @@ CommandEnumerateQuotaItems::CommandEnumerateQuotaItems(MegaClient* client)
     arg("nf", 3);
     arg("b", 1);    // support for Business accounts
     arg("p", 1);    // support for Pro Flexi
+    arg("ft", 1);   // support for Feature plans
     tag = client->reqtag;
 }
 
@@ -2423,7 +2424,9 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
         handle product = UNDEF;
         int prolevel = -1, gbstorage = -1, gbtransfer = -1, months = -1, type = -1;
         unsigned amount = 0, amountMonth = 0, localPrice = 0;
+        unsigned int testCategory = CommandEnumerateQuotaItems::INVALID_TEST_CATEGORY; // Bitmap. Bit 0 set (int value 1) is standard plan, other bits are defined by API.
         string description;
+        map<string, uint32_t> features;
         string ios_id;
         string android_id;
 
@@ -2498,7 +2501,7 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                     }
                     break;
                 }
-                case MAKENAMEID2('i', 't'): // 0 -> for all Pro level plans; 1 -> for Business plan
+                case MAKENAMEID2('i', 't'): // 0 -> for all Pro level plans; 1 -> for Business plan; 2 -> for Feature plan
                     type = static_cast<int>(json.getint());
                     break;
 //                case MAKENAMEID2('i', 'b'): // for "it":1 (business plans), 0 -> Pro Flexi; 1 -> Business plan
@@ -2528,6 +2531,27 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                     buf = json.getvalue();
                     JSON::copystring(&description, buf);
                     break;
+                case 'f': // e.g. "f": { "vpn": 1 }
+                {
+                    if (!json.enterobject())
+                    {
+                        LOG_err << "Failed to parse Enumerate-quota-items response, enter `f` object";
+                        client->app->enumeratequotaitems_result(API_EINTERNAL);
+                        return false;
+                    }
+                    string key, value;
+                    while (json.storeKeyValueFromObject(key, value))
+                    {
+                        features[key] = static_cast<unsigned>(std::stoul(value));
+                    }
+                    if (!json.leaveobject())
+                    {
+                        LOG_err << "Failed to parse Enumerate-quota-items response, leave `f` object";
+                        client->app->enumeratequotaitems_result(API_EINTERNAL);
+                        return false;
+                    }
+                    break;
+                }
                 case MAKENAMEID3('i', 'o', 's'):
                     buf = json.getvalue();
                     JSON::copystring(&ios_id, buf);
@@ -2727,6 +2751,9 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                     json.leaveobject();
                     break;
                 }
+                case MAKENAMEID2('t', 'c'):
+                    testCategory = json.getuint32();
+                    break;
                 case EOO:
                     if (type < 0
                             || ISUNDEF(product)
@@ -2734,6 +2761,7 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                             || (months < 0)
                             || currency.empty()
                             || description.empty()
+                            || testCategory == CommandEnumerateQuotaItems::INVALID_TEST_CATEGORY
                             // only available for Pro plans, not for Business
                             || (!type && gbstorage < 0)
                             || (!type && gbtransfer < 0)
@@ -2774,8 +2802,8 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
         {
             client->app->enumeratequotaitems_result(type, product, prolevel, gbstorage,
                                                     gbtransfer, months, amount, amountMonth, localPrice,
-                                                    description.c_str(), ios_id.c_str(), android_id.c_str(),
-                                                    std::move(bizPlan));
+                                                    description.c_str(), std::move(features), ios_id.c_str(), android_id.c_str(),
+                                                    testCategory, std::move(bizPlan));
         }
     }
 
@@ -3378,11 +3406,7 @@ bool CommandGetUA::procresult(Result r, JSON& json)
     {
         if (r.wasError(API_ENOENT) && u)
         {
-            u->removeattr(at);
-            if (u->userhandle == client->me)
-            {
-                u->setNonExistingAttribute(at);
-            }
+            u->removeattr(at, u->userhandle == client->me);
         }
 
         mCompletionErr(r.errorOrOK());
@@ -3628,6 +3652,7 @@ bool CommandGetUA::procresult(Result r, JSON& json)
 CommandDelUA::CommandDelUA(MegaClient *client, const char *an)
 {
     this->an = an;
+    mSeqtagArray = true;
 
     cmd("upr");
     arg("ua", an);
@@ -3657,7 +3682,8 @@ bool CommandDelUA::procresult(Result r, JSON& json)
         attr_t at = User::string2attr(an.c_str());
         string version(ptr, (end-ptr));
 
-        u->removeattr(at, &version); // store version to filter corresponding AP in order to avoid double onUsersUpdate()
+        u->removeattr(at, version); // store version to filter corresponding AP in order to
+                                    // avoid double onUsersUpdate()
 
         if (at == ATTR_KEYRING)
         {
@@ -4481,7 +4507,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_LANGUAGE);
+                    u->removeattr(ATTR_LANGUAGE, true);
                 }
 
                 if (birthday.size())
@@ -4490,7 +4516,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_BIRTHDAY);
+                    u->removeattr(ATTR_BIRTHDAY, true);
                 }
 
                 if (birthmonth.size())
@@ -4499,7 +4525,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_BIRTHMONTH);
+                    u->removeattr(ATTR_BIRTHMONTH, true);
                 }
 
                 if (birthyear.size())
@@ -4508,7 +4534,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_BIRTHYEAR);
+                    u->removeattr(ATTR_BIRTHYEAR, true);
                 }
 
                 if (country.size())
@@ -4517,7 +4543,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_COUNTRY);
+                    u->removeattr(ATTR_COUNTRY, true);
                 }
 
                 if (pwdReminderDialog.size())
@@ -4526,7 +4552,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_PWD_REMINDER);
+                    u->removeattr(ATTR_PWD_REMINDER, true);
                 }
 
                 if (pushSetting.size())
@@ -4535,7 +4561,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_PUSH_SETTINGS);
+                    u->removeattr(ATTR_PUSH_SETTINGS, true);
                 }
 
                 if (contactLinkVerification.size())
@@ -4544,7 +4570,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_CONTACT_LINK_VERIFICATION);
+                    u->removeattr(ATTR_CONTACT_LINK_VERIFICATION, true);
                 }
 
                 if (disableVersions.size())
@@ -4566,7 +4592,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 {
                     LOG_info << "File versioning is enabled";
                     client->versions_disabled = false;
-                    u->setNonExistingAttribute(ATTR_DISABLE_VERSIONS);
+                    u->removeattr(ATTR_DISABLE_VERSIONS, true);
                 }
 
                 if (noCallKit.size())
@@ -4577,7 +4603,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 else
                 {
                     LOG_info << "CallKit is enabled [noCallKit.size() == 0]";
-                    u->setNonExistingAttribute(ATTR_NO_CALLKIT);
+                    u->removeattr(ATTR_NO_CALLKIT, true);
                 }
 
                 if (chatFolder.size())
@@ -4596,7 +4622,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_MY_CHAT_FILES_FOLDER);
+                    u->removeattr(ATTR_MY_CHAT_FILES_FOLDER, true);
                 }
 
                 if (cameraUploadFolder.size())
@@ -4615,7 +4641,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_CAMERA_UPLOADS_FOLDER);
+                    u->removeattr(ATTR_CAMERA_UPLOADS_FOLDER, true);
                 }
 
                 if (!myBackupsFolder.empty())
@@ -4624,7 +4650,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_MY_BACKUPS_FOLDER);
+                    u->removeattr(ATTR_MY_BACKUPS_FOLDER, true);
                 }
 
                 if (!appPrefs.empty())
@@ -4633,7 +4659,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_APPS_PREFS);
+                    u->removeattr(ATTR_APPS_PREFS, true);
                 }
 
                 if (!ccPrefs.empty())
@@ -4642,7 +4668,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_CC_PREFS);
+                    u->removeattr(ATTR_CC_PREFS, true);
                 }
 
                 if (aliases.size())
@@ -4661,7 +4687,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_ALIAS);
+                    u->removeattr(ATTR_ALIAS, true);
                 }
 
                 if (unshareableKey.size() == Base64Str<SymmCipher::BLOCKSIZE>::STRLEN)
@@ -4704,7 +4730,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_DEVICE_NAMES);
+                    u->removeattr(ATTR_DEVICE_NAMES, true);
                 }
 
                 if (!cookieSettings.empty())
@@ -4713,7 +4739,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_COOKIE_SETTINGS);
+                    u->removeattr(ATTR_COOKIE_SETTINGS, true);
                 }
 
                 client->setEnabledNotifications(std::move(notifs));
@@ -4724,7 +4750,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_ENABLE_TEST_NOTIFICATIONS);
+                    u->removeattr(ATTR_ENABLE_TEST_NOTIFICATIONS, true);
                 }
 
                 if (!lastReadNotification.empty() || !versionLastReadNotification.empty())
@@ -4733,7 +4759,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_LAST_READ_NOTIFICATION);
+                    u->removeattr(ATTR_LAST_READ_NOTIFICATION, true);
                 }
 
                 if (!lastActionedBanner.empty() || !versionLastActionedBanner.empty())
@@ -4742,7 +4768,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_LAST_ACTIONED_BANNER);
+                    u->removeattr(ATTR_LAST_ACTIONED_BANNER, true);
                 }
 
 #ifdef ENABLE_SYNC
@@ -4755,7 +4781,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_JSON_SYNC_CONFIG_DATA);
+                    u->removeattr(ATTR_JSON_SYNC_CONFIG_DATA, true);
                 }
 #endif // ENABLE_SYNC
 
@@ -4831,7 +4857,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_PWM_BASE);
+                    u->removeattr(ATTR_PWM_BASE, true);
                 }
 
                 if (changes > 0)
@@ -5367,6 +5393,59 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
                 uslw = int(json.getint());
                 break;
 
+            case MAKENAMEID8('f', 'e', 'a', 't', 'u', 'r', 'e', 's'):
+                if (!json.enterarray())
+                {
+                    LOG_err << "Failed to parse GetUserQuota response, enter `features` object";
+                    client->app->account_details(details.get(), API_EINTERNAL);
+                    return false;
+                }
+
+                while (json.enterarray())
+                {
+                    int64_t expiryTimestamp = json.getint();
+                    string featureId;
+                    json.storeobject(&featureId);
+                    details->activeFeatures.push_back({expiryTimestamp, featureId});
+
+                    json.leavearray();
+                }
+
+                if (!json.leavearray())
+                {
+                    LOG_err << "Failed to parse GetUserQuota response, leave `features` object";
+                    client->app->account_details(details.get(), API_EINTERNAL);
+                    return false;
+                }
+                break;
+
+            case MAKENAMEID6('s', 'l', 'e', 'v', 'e', 'l'):
+                // feature account level for feature related subscriptions
+                details->slevel = json.getint();
+                break;
+
+            case MAKENAMEID8('s', 'f', 'e', 'a', 't', 'u', 'r', 'e'):
+            // subscription features
+            {
+                if (!json.enterobject())
+                {
+                    LOG_err << "Failed to parse GetUserQuota response, enter `sfeature` object";
+                    client->app->account_details(details.get(), API_EINTERNAL);
+                    return false;
+                }
+                string key, value;
+                while (json.storeKeyValueFromObject(key, value))
+                {
+                    details->sfeatures[key] = static_cast<unsigned>(std::stoul(value));
+                }
+                if (!json.leaveobject())
+                {
+                    LOG_err << "Failed to parse GetUserQuota response, leave `sfeature` object";
+                    client->app->account_details(details.get(), API_EINTERNAL);
+                    return false;
+                }
+                break;
+            }
             case EOO:
                 assert(!mStorage || (got_storage && got_storage_used) || client->loggedIntoFolder());
 

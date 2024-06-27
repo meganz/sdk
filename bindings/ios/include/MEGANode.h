@@ -58,6 +58,22 @@ typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
     MEGANodeChangeTypeSensitive      = 0x4000
 };
 
+typedef NS_ENUM (NSInteger, MEGANodeFormatType) {
+    MEGANodeFormatTypeUnknown = 0,
+    MEGANodeFormatTypePhoto,
+    MEGANodeFormatTypeAudio,
+    MEGANodeFormatTypeVideo,
+    MEGANodeFormatTypeDocument,
+    MEGANodeFormatTypePdf,
+    MEGANodeFormatTypePresentation,
+    MEGANodeFormatTypeArchive,
+    MEGANodeFormatTypeProgram,
+    MEGANodeFormatTypeMisc,
+    MEGANodeFormatTypeSpreadsheet,
+    MEGANodeFormatTypeAllDocs,
+    MEGANodeFormatTypeOthers
+};
+
 NS_ASSUME_NONNULL_BEGIN
 
 /**

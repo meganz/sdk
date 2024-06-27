@@ -3602,6 +3602,52 @@ public:
 };
 
 /**
+ * @brief Map of integer values with string keys (map<string, int64_t>)
+ */
+class MegaStringIntegerMap
+{
+public:
+    virtual ~MegaStringIntegerMap() = default;
+    virtual MegaStringIntegerMap* copy() const = 0;
+
+    /**
+     * @brief Returns the list of keys in the MegaStringIntegerMap
+     *
+     * You take the ownership of the returned value
+     *
+     * @return A MegaStringList containing the keys present in the MegaStringIntegerMap
+     */
+    virtual MegaStringList* getKeys() const = 0;
+
+    /**
+     * @brief Returns a list with the value of the provided key
+     *
+     * You take the ownership of the returned value
+     *
+     * @param key Key of the element that you want to get from the map
+     * @return A MegaIntegerList containing the list with the value for the provided key
+     */
+    virtual MegaIntegerList* get(const char* key) const = 0;
+
+    /**
+     * @brief Sets a value in the map for the given key.
+     *
+     * If the key already exists, the value will be overwritten by the
+     * new value.
+     *
+     * @param key The key in the map.
+     * @param value The new value for the key in the map.
+     */
+    virtual void set(const char* key, int64_t value) = 0;
+
+    /**
+     * @brief Returns the number of (string, int64_t) pairs in the map
+     * @return Number of pairs in the map
+     */
+    virtual int64_t size() const = 0;
+};
+
+/**
  * @brief List of strings
  *
  * A MegaStringList has the ownership of the strings that it contains, so they will be
@@ -4523,7 +4569,8 @@ class MegaRequest
             TYPE_ENABLE_MOUNT                                               = 189,
             TYPE_REMOVE_MOUNT                                               = 190,
             TYPE_SET_MOUNT_FLAGS                                            = 191,
-            TOTAL_OF_REQUEST_TYPES                                          = 192,
+            TYPE_DEL_ATTR_USER = 192,
+            TOTAL_OF_REQUEST_TYPES = 193,
         };
 
         virtual ~MegaRequest();
@@ -23183,7 +23230,76 @@ class MegaApi
          */
         MegaFlag* getFlag(const char* flagName, bool commit = true, MegaRequestListener* listener = nullptr);
 
- protected:
+        /**
+         * @brief Delete a user attribute of the current user, for testing
+         * This method is for developer use only and it requires to be logged-in into an
+         * account under a MEGA email. Otherwise, it will fail with API_EACCESS (except for
+         * attributes "gmk" and "promocode", which are not supported by SDK, but removed by Webclient).
+         *
+         * The associated request type with this request is MegaRequest::TYPE_DEL_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type
+         *
+         * @param type Attribute type
+         *
+         * Valid values are:
+         *
+         * MegaApi::USER_ATTR_FIRSTNAME = 1
+         * Delete the firstname of the user (public)
+         * MegaApi::USER_ATTR_LASTNAME = 2
+         * Delete the lastname of the user (public)
+         * MegaApi::USER_ATTR_AUTHRING = 3
+         * Delete the authentication ring of the user (private)
+         * MegaApi::USER_ATTR_LAST_INTERACTION = 4
+         * Delete the last interaction of the contacts of the user (private)
+         * MegaApi::USER_ATTR_ED25519_PUBLIC_KEY = 5
+         * Delete the public key Ed25519 of the user (public)
+         * MegaApi::USER_ATTR_CU25519_PUBLIC_KEY = 6
+         * Delete the public key Cu25519 of the user (public)
+         * MegaApi::USER_ATTR_KEYRING = 7
+         * Delete the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+         * MegaApi::USER_ATTR_SIG_RSA_PUBLIC_KEY = 8
+         * Delete the signature of RSA public key of the user (public)
+         * MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY = 9
+         * Delete the signature of Cu25519 public key of the user (public)
+         * MegaApi::USER_ATTR_LANGUAGE = 14
+         * Delete the preferred language of the user (private, non-encrypted)
+         * MegaApi::USER_ATTR_PWD_REMINDER = 15
+         * Delete the password-reminder-dialog information (private, non-encrypted)
+         * MegaApi::USER_ATTR_DISABLE_VERSIONS = 16
+         * Delete whether user has versions disabled or enabled (private, non-encrypted)
+         * MegaApi::USER_ATTR_RICH_PREVIEWS = 18
+         * Delete whether user generates rich-link messages or not (private)
+         * MegaApi::USER_ATTR_RUBBISH_TIME = 19
+         * Delete number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+         * MegaApi::USER_ATTR_STORAGE_STATE = 21
+         * Delete the state of the storage (private non-encrypted)
+         * MegaApi::USER_ATTR_GEOLOCATION = 22
+         * Delete the user geolocation (private)
+         * MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER = 23
+         * Delete the target folder for Camera Uploads (private)
+         * MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER = 24
+         * Delete the target folder for My chat files (private)
+         * MegaApi::USER_ATTR_PUSH_SETTINGS = 25
+         * Delete whether user has push settings enabled (private)
+         * MegaApi::USER_ATTR_ALIAS = 27
+         * Delete the list of the users's aliases (private)
+         * MegaApi::USER_ATTR_DEVICE_NAMES = 30
+         * Delete the list of device or external drive names (private)
+         * MegaApi::USER_ATTR_MY_BACKUPS_FOLDER = 31
+         * Delete the target folder for My Backups (private)
+         * MegaApi::USER_ATTR_COOKIE_SETTINGS = 33
+         * Delete whether user has Cookie Settings enabled
+         * MegaApi::USER_ATTR_JSON_SYNC_CONFIG_DATA = 34
+         * Delete name and key to cypher sync-configs file
+         * MegaApi::USER_ATTR_NO_CALLKIT = 36
+         * Delete whether user has iOS CallKit disabled or enabled (private, non-encrypted)
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void deleteUserAttribute(int type, MegaRequestListener* listener = NULL);
+
+    protected:
         MegaApiImpl *pImpl = nullptr;
         friend class MegaApiImpl;
 };
@@ -23610,6 +23726,31 @@ public:
 };
 
 /**
+ * @brief Details about a MEGA feature
+ */
+class MegaAccountFeature
+{
+public:
+    virtual ~MegaAccountFeature() = default;
+
+    /**
+     * @brief Get the expiry timestamp
+     *
+     * @return Expiry timestamp
+     */
+    virtual int64_t getExpiry() const = 0;
+
+    /**
+     * @brief Get the ID of this feature
+     *
+     * You take the ownership of the returned value
+     *
+     * @return ID of this feature
+     */
+    virtual char* getId() const = 0;
+};
+
+/**
  * @brief Details about a MEGA account
  */
 class MegaAccountDetails
@@ -23948,6 +24089,41 @@ public:
      * @return True if the temporal bandwidth is valid, otherwise false
      */
     virtual bool isTemporalBandwidthValid();
+
+    /**
+     * @brief Get the number of active MegaAccountFeature-s in the account
+     *
+     * You can use MegaAccountDetails::getActiveFeature to get each of those objects.
+     *
+     * @return Number of MegaAccountFeature objects
+     */
+    virtual int getNumActiveFeatures() const = 0;
+
+    /**
+     * @brief Returns the MegaAccountFeature object associated with an index
+     *
+     * You take the ownership of the returned value
+     *
+     * @param featureIndex Index of the object
+     * @return MegaAccountFeature object
+     */
+    virtual MegaAccountFeature* getActiveFeature(int featureIndex) const = 0;
+
+    /**
+     * @brief Get feature account level for feature related subscriptions
+     *
+     * @return Level for feature related subscriptions
+     */
+    virtual int64_t getSubscriptionLevel() const = 0;
+
+    /**
+     * @brief Get subscription features for this account
+     *
+     * You take the ownership of the returned value
+     *
+     * @return Subscription features for this account. The value of each feature should be treated as a 32bit unsigned int
+     */
+    virtual MegaStringIntegerMap* getSubscriptionFeatures() const = 0;
 };
 
 class MegaCurrency
@@ -24132,15 +24308,24 @@ public:
     virtual const char* getAndroidID(int productIndex);
 
     /**
-     * @brief Returns if the pricing plan is a business or Pro Flexi plan
+     * @brief Returns true if the pricing plan is a Business plan
      *
      * You can check if the plan is pure buiness or Pro Flexi by calling
      * the method MegaApi::getProLevel
      *
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
-     * @return true if the pricing plan is a business or Pro Flexi plan, otherwise return false
+     * @return true if the pricing plan is a Business plan, otherwise return false
      */
     virtual bool isBusinessType(int productIndex);
+
+    /**
+     * @brief Returns true if the pricing plan is a Feature plan
+     *
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     *
+     * @return true if the pricing plan is a Feature plan, otherwise return false
+     */
+    virtual bool isFeaturePlan(int productIndex) const;
 
     /**
      * @brief Get the monthly price of the product (in cents)
@@ -24250,6 +24435,23 @@ public:
      * @return number of GB of transfer, per block
      */
     virtual int getGBPerTransfer(int productIndex);
+
+    /**
+     * @brief Get the features of this product
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return Features of this product. The value of each feature should be treated as a 32bit unsigned int
+     */
+    virtual MegaStringIntegerMap* getFeatures(int productIndex) const;
+
+    /**
+     * @brief Get test category bitmap of a product
+     *
+     * The returned value must always be greater than 0
+     *
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return test category bitmap
+     */
+    virtual unsigned int getTestCategory(int productIndex) const;
 };
 
 /**
@@ -25260,6 +25462,7 @@ public:
      * True if the mount should be read only.
      */
     virtual void setReadOnly(bool readOnly) = 0;
+
 }; // MegaMountFlags
 
 class MegaMountList

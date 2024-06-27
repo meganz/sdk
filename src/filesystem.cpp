@@ -934,8 +934,7 @@ void FileSystemAccess::unescapefsincompatible(string *name) const
     for (size_t i = 0; i < name->size(); ++i)
     {
         char c;
-        if (decodeEscape(name->c_str() + i, c) && // it must be a null terminated c-style string passed here
-            !std::iscntrl(c))
+        if (decodeEscape(name->c_str() + i, c)) // it must be a null terminated c-style string passed here
         {
             // Substitute in the decoded character.
             name->replace(i, 3, 1, c);

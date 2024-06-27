@@ -64,7 +64,13 @@ class GitLabRepository:  # use gitlab API
         return 0
 
     def open_mr(
-        self, mr_title: str, mr_source: str, mr_target: str, labels: str | None = None
+        self,
+        mr_title: str,
+        mr_source: str,
+        mr_target: str,
+        remove_source: bool,
+        squash: bool,
+        labels: str | None = None,
     ) -> tuple[int, str]:
         mr_id = self._get_id_of_open_mr(mr_title, mr_source, mr_target)
         if mr_id > 0:
@@ -76,8 +82,8 @@ class GitLabRepository:  # use gitlab API
                 "title": mr_title,
                 "source_branch": mr_source,
                 "target_branch": mr_target,
-                "remove_source_branch": True,
-                "squash": True,
+                "remove_source_branch": remove_source,
+                "squash": squash,
                 "subscribed": True,
                 "labels": labels,
             }
@@ -143,3 +149,15 @@ class GitLabRepository:  # use gitlab API
         commit_url = tag.commit["web_url"]
         tag_url = commit_url.replace(f"/commit/{tag.target}", f"/commits/{tag.name}")
         return tag_url
+
+    def get_last_commit_in_branch(self, branch_name: str) -> str:
+        commits = self._project.commits.list(ref_name=branch_name, per_page=1)
+        assert isinstance(commits, list)
+        assert len(commits) == 1
+        return commits[0].sha
+
+    def create_release(self, name: str, target: str, notes: str):
+        release = self._project.releases.create(
+            {"name": name, "tag_name": target, "description": notes}
+        )
+        assert release is not None

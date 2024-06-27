@@ -19,6 +19,7 @@
  * program.
  */
 #import "MEGASearchFilter.h"
+#import "MEGANode.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -26,10 +27,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (instancetype)initWithTerm:(NSString *)term
             parentNodeHandle:(uint64_t)parentNodeHandle
-                    nodeType:(int)nodeType
-                    category:(int)category
-                 sensitivity:(bool)sensitivity
-             favouriteFilter:(int)favouriteFilter
+                    nodeType:(MEGANodeType)nodeType
+                    category:(MEGANodeFormatType)category
+             sensitiveFilter:(MEGASearchFilterSensitiveOption)sensitiveFilter
+             favouriteFilter:(MEGASearchFilterFavouriteOption)favouriteFilter
                 locationType:(int)locationType
            creationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)creationTimeFrame
        modificationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)modificationTimeFrame {
@@ -40,7 +41,7 @@ NS_ASSUME_NONNULL_BEGIN
         _parentNodeHandle = parentNodeHandle;
         _nodeType = nodeType;
         _category = category;
-        _sensitivity = sensitivity;
+        _sensitiveFilter = sensitiveFilter;
         _favouriteFilter = favouriteFilter;
         _locationType = locationType;
         _creationTimeFrame = creationTimeFrame;
@@ -52,18 +53,57 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (instancetype)initWithTerm:(NSString*)term
             parentNodeHandle: (uint64_t)parentNodeHandle
-                    nodeType:(int)nodeType
-                    category:(int)category
-                 sensitivity:(bool)sensitivity
-             favouriteFilter:(int)favouriteFilter
+                    nodeType:(MEGANodeType)nodeType
+                    category:(MEGANodeFormatType)category
+             sensitiveFilter:(MEGASearchFilterSensitiveOption)sensitiveFilter
+             favouriteFilter:(MEGASearchFilterFavouriteOption)favouriteFilter
            creationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)creationTimeFrame
        modificationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)modificationTimeFrame {
     return [self initWithTerm:term
              parentNodeHandle:parentNodeHandle
                      nodeType:nodeType
                      category:category
-                  sensitivity:sensitivity
+              sensitiveFilter:sensitiveFilter
               favouriteFilter:favouriteFilter
+                 locationType:-1
+            creationTimeFrame:creationTimeFrame
+            modificationTimeFrame:modificationTimeFrame];
+}
+
+- (instancetype)initWithTerm: (NSString*)term
+                    nodeType:(MEGANodeType)nodeType
+                    category:(MEGANodeFormatType)category
+             sensitiveFilter:(MEGASearchFilterSensitiveOption)sensitiveFilter
+             favouriteFilter:(MEGASearchFilterFavouriteOption)favouriteFilter
+                locationType:(int)locationType
+           creationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)creationTimeFrame
+       modificationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)modificationTimeFrame {
+    return [self initWithTerm:term
+             parentNodeHandle:-1
+                     nodeType:nodeType
+                     category:category
+              sensitiveFilter:sensitiveFilter
+              favouriteFilter:favouriteFilter
+                 locationType:locationType
+            creationTimeFrame:creationTimeFrame
+        modificationTimeFrame:modificationTimeFrame];
+}
+
+- (instancetype)initWithTerm:(NSString*)term
+            parentNodeHandle: (uint64_t)parentNodeHandle
+                    nodeType:(int)nodeType
+                    category:(int)category
+                 sensitivity:(bool)sensitivity
+             favouriteFilter:(int)favouriteFilter
+           creationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)creationTimeFrame
+       modificationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)modificationTimeFrame {
+    
+    return [self initWithTerm:term
+             parentNodeHandle:parentNodeHandle
+                     nodeType:(MEGANodeType)nodeType
+                     category:(MEGANodeFormatType)category
+              sensitiveFilter:sensitivity? MEGASearchFilterSensitiveOptionNonSensitiveOnly : MEGASearchFilterSensitiveOptionDisabled
+              favouriteFilter:(MEGASearchFilterFavouriteOption)favouriteFilter
                  locationType:-1
             creationTimeFrame:creationTimeFrame
             modificationTimeFrame:modificationTimeFrame];
@@ -79,10 +119,10 @@ NS_ASSUME_NONNULL_BEGIN
        modificationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)modificationTimeFrame {
     return [self initWithTerm:term
              parentNodeHandle:-1
-                     nodeType:nodeType
-                     category:category
-                  sensitivity:sensitivity
-              favouriteFilter:favouriteFilter
+                     nodeType:(MEGANodeType)nodeType
+                     category:(MEGANodeFormatType)category
+              sensitiveFilter:sensitivity? MEGASearchFilterSensitiveOptionNonSensitiveOnly : MEGASearchFilterSensitiveOptionDisabled
+              favouriteFilter:(MEGASearchFilterFavouriteOption)favouriteFilter
                  locationType:locationType
             creationTimeFrame:creationTimeFrame
         modificationTimeFrame:modificationTimeFrame];
@@ -95,6 +135,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)didSetLocationType {
     return _locationType != -1;
 }
+
 
 @end
 
