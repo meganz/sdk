@@ -1,5 +1,5 @@
 from collections import defaultdict
-from jira import JIRA
+from jira import JIRA, Project
 from jira.resources import Issue, Version
 from requests import Response
 import re
@@ -23,13 +23,28 @@ class JiraProject:
         project: str,
     ):
         self._jira = JIRA(url, basic_auth=(username, password))
-        self._project_name = project
-        self._version_manager_url = f"{self._jira.server_url}/rest/versionmanager/1.0/versionmanager/{self._project_name}"
+        self._project_key = self._get_project_key(project)
+        assert self._project_key, f"No project found with name {project}"
+        self._version_manager_url = f"{self._jira.server_url}/rest/versionmanager/1.0/versionmanager/{self._project_key}"
+
+    def _get_project_key(self, project_name: str) -> str:
+        all_projects = self._jira.projects()
+        # find by name, otherwise by name that starts with the received value
+        temp_key = ""
+        temp_count = 0
+        for p in all_projects:
+            assert isinstance(p, Project)
+            if p.name == project_name:
+                return p.key
+            if p.name.startswith(project_name + " "):
+                temp_count += 1
+                temp_key = p.key
+        return temp_key if temp_count == 1 else ""
 
     def setup_release(self, release_name: str = _NEXT_RELEASE):
         # validate version
         self._version: Version | None = self._jira.get_project_version_by_name(
-            self._project_name, release_name
+            self._project_key, release_name
         )
         assert self._version is not None
         assert self._version.released == False
@@ -94,7 +109,7 @@ class JiraProject:
     def _get_notes(self, apps: list[str], include_urls: bool) -> str:
         # get issues
         issues_found = self._jira.search_issues(
-            f"project={self._project_name} AND fixVersion={self._version_id} AND status=Resolved AND resolution=Done",
+            f"project={self._project_key} AND fixVersion={self._version_id} AND status=Resolved AND resolution=Done",
             fields="issuetype, key, summary, ",
             maxResults=200,
         )
@@ -128,7 +143,7 @@ class JiraProject:
         new_major, new_minor, new_micro = (
             int(n) for n in self._version.name[1:].split(".")
         )
-        all_versions = self._jira.project_versions(self._project_name)
+        all_versions = self._jira.project_versions(self._project_key)
         for v in all_versions:
             assert isinstance(v, Version)
             if (
@@ -171,7 +186,7 @@ class JiraProject:
     def _get_highest_existing_version(self) -> tuple[int, int, int]:
         # find the highest existing version
         highest_major = highest_minor = highest_micro = 0
-        all_versions = self._jira.project_versions(self._project_name)
+        all_versions = self._jira.project_versions(self._project_key)
         for v in all_versions:
             assert isinstance(v, Version)
             if re.match(r"^v(\d)+\.(\d+)\.(\d+)$", v.name):
@@ -200,7 +215,7 @@ class JiraProject:
 
         # get relevant issues
         unreleased_issues = self._jira.search_issues(
-            f"project={self._project_name} AND fixVersion={self._version_id} AND status=Resolved AND resolution=Done",
+            f"project={self._project_key} AND fixVersion={self._version_id} AND status=Resolved AND resolution=Done",
             maxResults=200,
         )
 
