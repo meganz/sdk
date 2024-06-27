@@ -3483,7 +3483,7 @@ WatchResult LocalNode::watch(const LocalPath& path, handle fsid)
     auto result = notifier.addWatch(*this, path, fsid);
 
     // Were we able to add the watch?
-    if (result.second)
+    if (result.second == WatchResult::WR_SUCCESS)
     {
         // Yup so assign the handle.
         mWatchHandle = result.first;
