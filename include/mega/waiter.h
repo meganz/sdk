@@ -51,6 +51,8 @@ struct MEGA_API Waiter
     // set ds to current time
     static void bumpds();
 
+    static std::mutex dsMutex;
+
     // wait ceiling
     std::atomic<dstime> maxds;
 

@@ -24,6 +24,7 @@
 namespace mega {
 
 std::atomic<dstime> Waiter::ds{0};
+std::mutex Waiter::dsMutex;
 
 void Waiter::init(dstime ds)
 {
