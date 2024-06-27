@@ -379,7 +379,7 @@ class ReleaseProcess:
     def move_release_captain_last(self, page_id: str):
         if self._user_key is None:
             print("Wiki connection not available, rotate Release Captain yourself !")
-        return
+            return
 
         # get page content
         page = self._wiki.get_page_by_id(page_id, expand="body.storage")
