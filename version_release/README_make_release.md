@@ -30,7 +30,7 @@ From current directory run one of the following:
 
 \# will edit [../include/mega/version.h](../include/mega/version.h) to update the version
 ```sh
-python3 ./make_release.py -p <project-name> -l <private-git-host-url> -u <private-git-remote-url> -j <project-management-url> -t <target-apps> -c <chat-channel>
+python3 ./make_release.py -p <project-name> -l <private-git-host-url> -j <project-management-url> -t <target-apps> -c <chat-channel>
 ```
 
 \# no source file will be edited (so less mandatory args, and dealing with gpg stuff not required)
@@ -44,7 +44,7 @@ Example:
 
 ```sh
 # will edit source file(s) to update the version
-python3 ./make_release.py -p SDK -l https://code.foo.bar -u git@foo.bar:sdk/sdk.git -j https://jira.foo.bar -t "Android 1.0.1 / iOS 1.2 / MEGAsync 9.9.9" -c sdk
+python3 ./make_release.py -p SDK -l https://code.foo.bar -j https://jira.foo.bar -t "Android 1.0.1 / iOS 1.2 / MEGAsync 9.9.9" -c sdk
 
 # no source file will be edited (so less mandatory args, and dealing with gpg stuff not required)
 python3 ./make_release.py -p MEGAchat -l https://code.foo.bar -n -j https://jira.foo.bar -t "Android 1.0.1 / iOS 1.2 / MEGAsync 9.9.9" -c sdk

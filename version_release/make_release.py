@@ -53,12 +53,6 @@ parser.add_argument(
     default="origin",
 )
 parser.add_argument(
-    "-u",
-    "--private-git-remote-url",
-    help="URL of private repository's git remote (i.e. git@foo.bar:proj/proj.git). Ignored if -n was given",
-    type=str,
-)
-parser.add_argument(
     "-j",
     "--project-management-url",
     help="URL of project management tool (i.e. https://jira.foo.bar)",
@@ -87,10 +81,6 @@ parser.add_argument(
     default=1,
 )
 args = parser.parse_args()
-
-if not args.no_file_update:
-    assert args.private_git_remote_name is not None, "  -o argument missing"
-    assert args.private_git_remote_url is not None, "  -u argument missing"
 
 # environment variables
 mega_env_vars = get_mega_env_vars(
@@ -143,7 +133,6 @@ if not args.no_file_update:
         mega_env_vars["MEGA_GPG_KEYGRIP"],
         mega_env_vars["MEGA_GPG_PASSWORD"],
         args.private_git_remote_name,
-        args.private_git_remote_url,
         "task/update-sdk-version",
     )
 

@@ -61,11 +61,11 @@ class ReleaseProcess:
         gpg_keygrip: str,
         gpg_password: str,
         private_remote_name: str,
-        private_remote_url: str,
         new_branch: str,
     ):
         setup_gpg_signing(gpg_keygrip, gpg_password)
         assert self._local_repo is None
+        private_remote_url = self._remote_private_repo.get_url_to_private_repo()
         self._local_repo = LocalRepository(private_remote_name, private_remote_url)
         self._get_branch_locally(private_remote_name, self._private_branch)
         self._change_version_in_file()
@@ -281,11 +281,11 @@ class ReleaseProcess:
     def setup_local_repo(
         self,
         private_remote_name: str,
-        private_remote_url: str,
         public_remote_name: str,
         public_remote_url: str,
     ):
         assert self._local_repo is None
+        private_remote_url = self._remote_private_repo.get_url_to_private_repo()
         self._local_repo = LocalRepository(private_remote_name, private_remote_url)
         self._local_repo.add_remote(
             public_remote_name, public_remote_url, fetch_is_optional=True
