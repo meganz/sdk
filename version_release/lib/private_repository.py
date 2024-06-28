@@ -69,6 +69,24 @@ class GitLabRepository:  # use gitlab API
                 return mr.iid
         return 0
 
+    def _get_default_mr_description(self) -> str:
+        # Default MR description configured for a GitLab project is apparently
+        # not accessible, and most likely not appropriate for a Release. Use
+        # only the minimum, potentially required by pipelines.
+        description = (
+            "ANDROID_BRANCH_TO_TEST=develop\n\n"
+            "IOS_BRANCH_TO_TEST=develop\n\n"
+            # leave empty to receive default value (can be removed after CID-491):
+            "USE_APIURL_TO_TEST="
+        )
+        specific_description = {
+            "SDK": "MEGACHAT_BRANCH_TO_TEST=develop",
+            "MEGAchat": "SDK_BRANCH_TO_TEST=develop",
+        }
+        if self._project.name in specific_description:
+            description += "\n\n" + specific_description[self._project.name]
+        return description
+
     def open_mr(
         self,
         mr_title: str,
@@ -84,6 +102,10 @@ class GitLabRepository:  # use gitlab API
             return 0, ""
         assert isinstance(self._project.manager.gitlab.user, CurrentUser)
 
+        default_mr_description = self._get_default_mr_description()
+        if not default_mr_description:
+            print("WARN: default MR description not available, pipeline might fail")
+
         mr = self._project.mergerequests.create(
             {
                 "title": mr_title,
@@ -94,6 +116,7 @@ class GitLabRepository:  # use gitlab API
                 "subscribed": True,
                 "labels": labels,
                 "assignee_id": self._project.manager.gitlab.user.id,
+                "description": default_mr_description,
             }
         )
         assert isinstance(mr, ProjectMergeRequest)
