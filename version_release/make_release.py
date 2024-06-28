@@ -40,12 +40,6 @@ parser.add_argument(
     default="master",
 )
 parser.add_argument(
-    "-n",
-    "--no-file-update",
-    action=argparse.BooleanOptionalAction,
-    help="No file update (i.e. for projects that do not store version in a file)",
-)
-parser.add_argument(
     "-o",
     "--private-git-remote-name",
     help="Name of private repository's git remote (default: origin). Ignored if -n was given",
@@ -122,7 +116,7 @@ release.set_release_version_to_make(next_release_version)
 if slack_token:
     release.setup_chat(slack_token, args.chat_channel)
 
-if not args.no_file_update:
+if LocalRepository.has_version_file():
     # STEP 3: update version in local file
     mega_env_vars |= get_mega_env_vars(
         "MEGA_GPG_KEYGRIP",
