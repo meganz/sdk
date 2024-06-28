@@ -14067,6 +14067,8 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getLink - Public link
          * - MegaRequest::getPrivateKey - Authentication token (only if writable=true)
+         * - MegaRequest::getPassword - Returns base64 encryption key used for share-key (only if
+         * writable=true and megaHosted=true)
          *
          * If the MEGA account is a business account and it's status is expired, onRequestFinish will
          * be called with the error code MegaError::API_EBUSINESSPASTDUE.
@@ -14098,6 +14100,8 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getLink - Public link
          * - MegaRequest::getPrivateKey - Authentication token (only if writable=true)
+         * - MegaRequest::getPassword - Returns base64 encryption key used for share-key (only if
+         * writable=true and megaHosted=true)
          *
          * If the MEGA account is a business account and it's status is expired, onRequestFinish will
          * be called with the error code MegaError::API_EBUSINESSPASTDUE.

@@ -20493,7 +20493,7 @@ error MegaApiImpl::performRequest_export(MegaRequestPrivate* request)
             bool megaHosted = request->getTransferTag() != 0;
             // exportnode() will take care of creating a share first, should it be a folder
             return client->exportnode(node, !request->getAccess(), request->getNumber(), writable, megaHosted, request->getTag(),
-                [this, request](Error e, handle h, handle ph)
+                [this, request, megaHosted](Error e, handle h, handle ph, string&& encryptionKey)
             {
                 if (e || !request->getAccess()) // disable export doesn't return h and ph
                 {
@@ -20534,6 +20534,10 @@ error MegaApiImpl::performRequest_export(MegaRequestPrivate* request)
                         if (n->plink && n->plink->mAuthKey.size())
                         {
                             request->setPrivateKey(n->plink->mAuthKey.c_str());
+                            if (megaHosted)
+                            {
+                                request->setPassword(encryptionKey.c_str());
+                            }
                         }
 
                         fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(MegaError::API_OK));

@@ -7985,9 +7985,16 @@ void exec_export(autocomplete::ACState& s)
         cout << "Exporting..." << endl;
 
         error e;
-        if ((e = client->exportnode(n, deltmp, etstmp, writable, megaHosted, gNextClientTag++, [](Error e, handle h, handle ph){
-            exportnode_result(e, h, ph);
-        })))
+        if ((e = client->exportnode(n,
+                                    deltmp,
+                                    etstmp,
+                                    writable,
+                                    megaHosted,
+                                    gNextClientTag++,
+                                    [](Error e, handle h, handle ph, string&&)
+                                    {
+                                        exportnode_result(e, h, ph);
+                                    })))
         {
             cout << s.words[1].s << ": Export rejected (" << errorstring(e) << ")" << endl;
         }

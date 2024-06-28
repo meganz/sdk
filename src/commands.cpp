@@ -5831,16 +5831,22 @@ bool CommandGetUserSessions::procresult(Result r, JSON& json)
     return true;
 }
 
-CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t cets, bool writable, bool megaHosted,
-    int ctag, std::function<void(Error, handle, handle)> f)
+CommandSetPH::CommandSetPH(MegaClient* client,
+                           Node* n,
+                           int del,
+                           m_time_t cets,
+                           bool writable,
+                           bool megaHosted,
+                           int ctag,
+                           CompletionType f)
 {
     mSeqtagArray = true;
 
     h = n->nodehandle;
     ets = cets;
     tag = ctag;
-    completion = std::move(f);
-    assert(completion);
+    mCompletion = std::move(f);
+    assert(mCompletion);
 
     cmd("l");
     arg("n", (byte*)&n->nodehandle, MegaClient::NODEHANDLE);
@@ -5860,13 +5866,35 @@ CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t cets, 
     {
         mWritable = true;
         arg("w", "1");
-    }
 
-    if (megaHosted)
-    {
-        assert(n->sharekey && "attempting to share a key that is not set");
-        arg("sk", n->sharekey->key, SymmCipher::KEYLENGTH);
+        if (megaHosted)
+        {
+            assert(n->sharekey && "attempting to share a key that was not set");
+
+            // generate AES-128 encryption key
+            byte encryptionKeyForShareKey[SymmCipher::KEYLENGTH];
+            client->rng.genblock(encryptionKeyForShareKey, SymmCipher::KEYLENGTH);
+
+            // encrypt share key with it
+            SymmCipher* encrypter =
+                client->getRecycledTemporaryNodeCipher(encryptionKeyForShareKey);
+            byte encryptedShareKey[SymmCipher::KEYLENGTH] = {};
+            encrypter->ecb_encrypt(n->sharekey->key, encryptedShareKey, SymmCipher::KEYLENGTH);
+
+            // send encrypted share key
+            arg("sk", encryptedShareKey, SymmCipher::KEYLENGTH);
+
+            // keep the encryption key until the command has succeeded
+            mEncryptionKeyForShareKey =
+                Base64::btoa(std::string(reinterpret_cast<char*>(encryptionKeyForShareKey),
+                                         SymmCipher::KEYLENGTH));
+        }
     }
+}
+
+void CommandSetPH::completion(Error error, handle nodeHandle, handle publicHandle)
+{
+    mCompletion(error, nodeHandle, publicHandle, std::move(mEncryptionKeyForShareKey));
 }
 
 bool CommandSetPH::procresult(Result r, JSON& json)

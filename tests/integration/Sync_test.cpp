@@ -4044,7 +4044,16 @@ void StandardClient::exportnode(std::shared_ptr<Node> n, int del, m_time_t expir
 {
     resultproc.prepresult(COMPLETION, ++next_request_tag,
         [&](){
-            error e = client.exportnode(n, del, expiry, writable, megaHosted, client.reqtag, [&](Error e, handle, handle){ pb.set_value(e); });
+            error e = client.exportnode(n,
+                                        del,
+                                        expiry,
+                                        writable,
+                                        megaHosted,
+                                        client.reqtag,
+                                        [&](Error e, handle, handle, string&&)
+                                        {
+                                            pb.set_value(e);
+                                        });
             if (e)
             {
                 pb.set_value(e);
@@ -4055,7 +4064,19 @@ void StandardClient::exportnode(std::shared_ptr<Node> n, int del, m_time_t expir
 void StandardClient::getpubliclink(Node* n, int del, m_time_t expiry, bool writable, bool megaHosted, promise<Error>& pb)
 {
     resultproc.prepresult(COMPLETION, ++next_request_tag,
-        [&](){ client.requestPublicLink(n, del, expiry, writable, megaHosted, client.reqtag, [&](Error e, handle, handle){ pb.set_value(e); }); },
+        [&]()
+        {
+            client.requestPublicLink(n,
+                                     del,
+                                     expiry,
+                                     writable,
+                                     megaHosted,
+                                     client.reqtag,
+                                     [&](Error e, handle, handle, string&&)
+                                     {
+                                         pb.set_value(e);
+                                     });
+        },
         nullptr);
 }
 
