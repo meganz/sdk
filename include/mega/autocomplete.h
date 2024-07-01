@@ -203,10 +203,11 @@ namespace autocomplete {
     {
         MegaClient* client;
         ::mega::NodeHandle* cwd;
+        ::mega::NodeHandle* previous_cwd;
         bool reportFiles = true;
         bool reportFolders = true;
         std::string descPref;
-        MegaFS(bool files, bool folders, MegaClient* a, ::mega::NodeHandle* curDirHandle, const std::string descriptionPrefix);
+        MegaFS(bool files, bool folders, MegaClient* a, ::mega::NodeHandle* curDirHandle, const std::string descriptionPrefix, ::mega::NodeHandle* prevDirHandle = nullptr);
         bool addCompletions(ACState& s) override;
         std::ostream& describe(std::ostream& s) const override;
         bool match(ACState& s) const override;
@@ -298,7 +299,7 @@ namespace autocomplete {
     ACN localFSFolder(const std::string descriptionPrefix = "");
     ACN remoteFSPath(MegaClient*, ::mega::NodeHandle*, const std::string descriptionPrefix = "");
     ACN remoteFSFile(MegaClient*, ::mega::NodeHandle*, const std::string descriptionPrefix = "");
-    ACN remoteFSFolder(MegaClient*, ::mega::NodeHandle*, const std::string descriptionPrefix = "");
+    ACN remoteFSFolder(MegaClient*, ::mega::NodeHandle*, const std::string descriptionPrefix = "", ::mega::NodeHandle* previous_pwd = nullptr);
     ACN contactEmail(MegaClient*);
 
 }} //namespaces
