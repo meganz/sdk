@@ -89,8 +89,8 @@ class ReleaseProcess:
 
         # read old version
         oldMajor = oldMinor = oldMicro = 0
-        assert self._local_repo is not None
-        lines = self._local_repo.version_file.read_text().splitlines()
+        assert LocalRepository.has_version_file()
+        lines = LocalRepository.version_file.read_text().splitlines()
         for i, line in enumerate(lines):
             if result := re.search(
                 r"^(#define\s+MEGA_MAJOR_VERSION\s+)(\d+)([.\s]*)", line
@@ -123,7 +123,7 @@ class ReleaseProcess:
         ), f"Invalid version: {oldMajor}.{oldMinor}.{oldMicro} -> {self._new_version}"
 
         # write new version
-        self._local_repo.version_file.write_text("\n".join(lines))
+        LocalRepository.version_file.write_text("\n".join(lines))
 
     def _push_to_new_branch(
         self,
@@ -292,10 +292,10 @@ class ReleaseProcess:
         )
 
     def setup_public_repo(
-        self, public_repo_token: str, public_repo_owner: str, project_name: str
+        self, public_repo_token: str, public_repo_owner: str
     ):
         self._public_repo = GitHubRepository(
-            public_repo_token, public_repo_owner, project_name
+            public_repo_token, public_repo_owner, self._project_name
         )
 
     def set_release_version_to_close(self, version: str):

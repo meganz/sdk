@@ -14,11 +14,15 @@ class LocalRepository:  # use raw git commands
     - delete a local branch
     """
 
+    version_file = Path(__file__).parent.parent.parent / "include" / "mega" / "version.h"
+
     def __init__(self, remote_name: str, remote_url: str):
         # confirm remote being correctly configured
         self.add_remote(remote_name, remote_url, fetch_is_optional=False)
-        self._local_repo_root = Path(__file__).parent.parent.parent
-        self.version_file = self._local_repo_root / "include" / "mega" / "version.h"
+
+    @staticmethod
+    def has_version_file() -> bool:
+        return LocalRepository.version_file.is_file()
 
     def add_remote(
         self, remote_name: str, remote_url: str, fetch_is_optional: bool
