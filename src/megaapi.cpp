@@ -3056,7 +3056,10 @@ void MegaApi::creditCardQuerySubscriptions(MegaRequestListener *listener)
 
 void MegaApi::creditCardCancelSubscriptions(const char* reason, MegaRequestListener *listener)
 {
-    pImpl->creditCardCancelSubscriptions(reason, nullptr, CAN_CONTACT_NO, listener);
+    pImpl->creditCardCancelSubscriptions(reason,
+                                         nullptr,
+                                         CREDIT_CARD_CANCEL_SUBSCRIPTIONS_CAN_CONTACT_NO,
+                                         listener);
 }
 
 void MegaApi::creditCardCancelSubscriptions(const char* reason,

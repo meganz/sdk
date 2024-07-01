@@ -10233,8 +10233,8 @@ class MegaApi
 
         enum
         {
-            CAN_CONTACT_NO = 0,
-            CAN_CONTACT_YES = 1,
+            CREDIT_CARD_CANCEL_SUBSCRIPTIONS_CAN_CONTACT_NO = 0,
+            CREDIT_CARD_CANCEL_SUBSCRIPTIONS_CAN_CONTACT_YES = 1,
         };
 
         static constexpr int64_t INVALID_CUSTOM_MOD_TIME = -1;
@@ -14537,8 +14537,8 @@ class MegaApi
          * @param id The subscription ID for the cancellation. It can be NULL.
          * @param canContact Whether the user has permitted MEGA to contact them for the
          * cancellation.
-         *      - MegaApi::CAN_CONTACT_NO = 0
-         *      - MegaApi::CAN_CONTACT_YES = 1
+         *      - MegaApi::CREDIT_CARD_CANCEL_SUBSCRIPTIONS_CAN_CONTACT_NO = 0
+         *      - MegaApi::CREDIT_CARD_CANCEL_SUBSCRIPTIONS_CAN_CONTACT_YES = 1
          * @param listener MegaRequestListener to track this request
          */
         void creditCardCancelSubscriptions(const char* reason,
