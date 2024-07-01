@@ -292,10 +292,10 @@ class ReleaseProcess:
         )
 
     def setup_public_repo(
-        self, public_repo_token: str, public_repo_owner: str, project_name: str
+        self, public_repo_token: str, public_repo_owner: str
     ):
         self._public_repo = GitHubRepository(
-            public_repo_token, public_repo_owner, project_name
+            public_repo_token, public_repo_owner, self._project_name
         )
 
     def set_release_version_to_close(self, version: str):
