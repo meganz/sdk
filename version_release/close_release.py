@@ -33,13 +33,6 @@ parser.add_argument(
     default="origin",
 )
 parser.add_argument(
-    "-u",
-    "--private-git-remote-url",
-    help="URL of private repository's git remote (i.e. git@foo.bar:proj/proj.git)",
-    type=str,
-    required=True,
-)
-parser.add_argument(
     "-d",
     "--private-git-develop-branch",
     help="Name of private develop branch (default: develop)",
@@ -126,7 +119,6 @@ release.set_release_version_to_close(args.release_version)
 
 release.setup_local_repo(
     args.private_git_remote_name,
-    args.private_git_remote_url,
     args.public_git_remote_name,
     args.public_git_remote_url,
 )
