@@ -35,16 +35,30 @@ set(QT_CREATOR_SKIP_VCPKG_SETUP TRUE CACHE BOOL "")
 # Main modules location
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/modules)
 
-## Configurable options ##
 set(VCPKG_ROOT "" CACHE PATH "If set, it will build and use the VCPKG packages defined in the manifest file")
+
+## Set up CMAKE_SYSTEM_NAME for iOS
+if (VCPKG_ROOT)
+    include(vcpkg_target)
+    check_vcpkg_target_triplet()
+endif()
+
+## Configurable options ##
 include(sdklib_options)
 
 # If PROJECT_NAME is not set before project() we are the main project.
 if(NOT PROJECT_NAME)
-    message(STATUS "[SDKlib] is a top-level project. Install target, examples and tests will be enabled by default.")
+    message(STATUS "[SDKlib] is a top-level project. Install target is enabled by default.")
     set(SDKLIB_STANDALONE 1)
-    option(ENABLE_SDKLIB_EXAMPLES "Example application is built if enabled" ON)
-    option(ENABLE_SDKLIB_TESTS "Integration and unit tests are built if enabled" ON)
+    if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
+        message(STATUS "Examples and tests will not be enabled by default.")
+        option(ENABLE_SDKLIB_EXAMPLES "Example application is built if enabled" OFF)
+        option(ENABLE_SDKLIB_TESTS "Integration and unit tests are built if enabled" OFF)
+    else()
+        message(STATUS "Examples and tests will be enabled by default.")
+        option(ENABLE_SDKLIB_EXAMPLES "Example application is built if enabled" ON)
+        option(ENABLE_SDKLIB_TESTS "Integration and unit tests are built if enabled" ON)
+    endif()
     if (WIN32)
         option(ENABLE_SDKLIB_WERROR "Enable warnings as errors" ON)
     else()
