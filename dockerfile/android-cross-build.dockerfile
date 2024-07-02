@@ -1,7 +1,7 @@
 # Dockerfile for cross-compiling for Android and its different architectures.
 #
 # Build the Docker image:
-#   docker build -t android-build-env -f /path/to/your/sdk/contrib/dockerfile/android-cross-build.dockerfile .
+#   docker build -t android-build-env -f /path/to/your/sdk/dockerfile/android-cross-build.dockerfile .
 #     -t : Tags the built container with a name
 #     -f : Specify dockerfile to be build, replace /path/to/your/sdk with your local path to it
 #
