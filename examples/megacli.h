@@ -244,8 +244,8 @@ struct DemoApp : public MegaApp
     void resetSmsVerifiedPhoneNumber_result(error e) override;
 
     void enumeratequotaitems_result(unsigned, handle, unsigned, int, int, unsigned, unsigned,
-                                    unsigned, unsigned, const char*, const char*, const char*,
-                                    std::unique_ptr<BusinessPlan>) override;
+                                    unsigned, unsigned, const char*, map<string, uint32_t>&&, const char*, const char*,
+                                    unsigned int, std::unique_ptr<BusinessPlan>) override;
     void enumeratequotaitems_result(unique_ptr<CurrencyData>) override;
     void enumeratequotaitems_result(error) override;
     void additem_result(error) override;
@@ -442,3 +442,4 @@ void exec_checkvpncredential(autocomplete::ACState& s);
 void exec_fetchcreditcardinfo(autocomplete::ACState&);
 void exec_passwordmanager(autocomplete::ACState&);
 void exec_generatepassword(autocomplete::ACState&);
+void exec_getpricing(autocomplete::ACState&);

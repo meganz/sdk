@@ -270,6 +270,9 @@ public class MegaApiJava {
     public final static int ADS_IGNORE_PRO = MegaApi.ADS_IGNORE_PRO;
     public final static int ADS_FLAG_IGNORE_ROLLOUT = MegaApi.ADS_FLAG_IGNORE_ROLLOUT;
 
+    public final static int CLIENT_TYPE_DEFAULT = MegaApi.CLIENT_TYPE_DEFAULT;
+    public final static int CLIENT_TYPE_VPN = MegaApi.CLIENT_TYPE_VPN;
+    public final static int CLIENT_TYPE_PASSWORD_MANAGER = MegaApi.CLIENT_TYPE_PASSWORD_MANAGER;
 
     MegaApi getMegaApi() {
         return megaApi;
@@ -307,6 +310,33 @@ public class MegaApiJava {
     public MegaApiJava(String appKey, String userAgent, String basePath, MegaGfxProcessor gfxProcessor) {
         this.gfxProcessor = gfxProcessor;
         megaApi = new MegaApi(appKey, gfxProcessor, basePath, userAgent);
+    }
+
+    /**
+     * MegaApi Constructor that allows use of a custom GFX processor & specify client type.
+     * <p>
+     * The SDK attaches thumbnails and previews to all uploaded images. To generate them, it needs a graphics processor.
+     * You can build the SDK with one of the provided built-in graphics processors. If none are available
+     * in your app, you can implement the MegaGfxProcessor interface to provide a custom processor. Please
+     * read the documentation of MegaGfxProcessor carefully to ensure that your implementation is valid.
+     *
+     * @param appKey       AppKey of your application.
+     *                     Generate an AppKey for free here: https://mega.co.nz/#sdk
+     * @param userAgent    User agent to use in network requests.
+     *                     If you pass null to this parameter, a default user agent will be used.
+     * @param basePath     Base path to store the local cache.
+     *                     If you pass null to this parameter, the SDK won't use any local cache.
+     * @param gfxProcessor Image processor. The SDK will use it to generate previews and thumbnails.
+     *                     If you pass null to this parameter, the SDK will try to use the built-in image processors.
+     * @param clientType   Client type (default, VPN or Password Manager) enables SDK to function differently
+     *                     Possible values:
+     *                     MegaApi::CLIENT_TYPE_DEFAULT = 0
+     *                     MegaApi::CLIENT_TYPE_VPN = 1
+     *                     MegaApi::CLIENT_TYPE_PASSWORD_MANAGER = 2
+     */
+    public MegaApiJava(String appKey, String userAgent, String basePath, MegaGfxProcessor gfxProcessor, int clientType) {
+        this.gfxProcessor = gfxProcessor;
+        megaApi = new MegaApi(appKey, gfxProcessor, basePath, userAgent, 1, clientType);
     }
 
     /**
@@ -4810,6 +4840,90 @@ public class MegaApiJava {
      */
     public void setNodeDescription(MegaNode node, String description, MegaRequestListenerInterface listener){
         megaApi.setNodeDescription(node, description, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Add new tag stored as node attribute
+     *
+     * The associated request type with this request is MegaRequest::TYPE_TAG_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node that received the tag
+     * - MegaRequest::getParamType - Returns operation type (0 - Add tag, 1 - Remove tag, 2 - Update tag)
+     * - MegaRequest::getText - Returns tag
+     *
+     * ',' is an invalid character to be used in a tag. If it is contained in the tag,
+     * onRequestFinish will be called with the error code MegaError::API_EARGS.
+     *
+     * If the length of all tags is higher than 3000 onRequestFinish will be called with
+     * the error code MegaError::API_EARGS
+     *
+     * If tag already exists, onRequestFinish will be called with the error code MegaError::API_EEXISTS
+     *
+     * If number of tags exceed the maximum number of tags (10),
+     * onRequestFinish will be called with the error code MegaError::API_ETOOMANY
+     *
+     * If the MEGA account is a business account and its status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param node Node that will receive the information.
+     * @param tag New tag
+     * @param listener MegaRequestListener to track this request
+     */
+    public void addNodeTag(MegaNode node, String tag, MegaRequestListenerInterface listener){
+        megaApi.addNodeTag(node, tag, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Remove a tag stored as a node attribute
+     *
+     * The associated request type with this request is MegaRequest::TYPE_TAG_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node that received the tag
+     * - MegaRequest::getParamType - Returns operation type (0 - Add tag, 1 - Temove tag, 2 - Update tag)
+     * - MegaRequest::getText - Returns tag
+     *
+     * If tag doesn't exist, onRequestFinish will be called with the error code MegaError::API_ENOENT
+     *
+     * If the MEGA account is a business account and its status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param node Node that will receive the information.
+     * @param tag Tag to be removed
+     * @param listener MegaRequestListener to track this request
+     */
+    public void removeNodeTag(MegaNode node, String tag, MegaRequestListenerInterface listener){
+        megaApi.removeNodeTag(node, tag, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Update a tag stored as a node attribute
+     *
+     * The associated request type with this request is MegaRequest::TYPE_TAG_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node that received the tag
+     * - MegaRequest::getParamType - Returns operation type (0 - Add tag, 1 - Temove tag, 2 - Update tag)
+     * - MegaRequest::getText - Returns new tag
+     * - MegaRequest::getName - Returns old tag
+     *
+     * ',' is an invalid character to be used in a tag. If it is contained in the tag,
+     * onRequestFinish will be called with the error code MegaError::API_EARGS.
+     *
+     * If the length of all tags is higher than 3000 characters onRequestFinish will be called with
+     * the error code MegaError::API_EARGS
+     *
+     * If newTag already exists, onRequestFinish will be called with the error code MegaError::API_EEXISTS
+     * If oldTag doesn't exist, onRequestFinish will be called with the error code MegaError::API_ENOENT
+     *
+     * If the MEGA account is a business account and its status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param node Node that will receive the information.
+     * @param newTag New tag value
+     * @param oldTag Old tag value
+     * @param listener MegaRequestListener to track this request
+     */
+    public void updateNodeTag(MegaNode node, String newTag, String oldTag, MegaRequestListenerInterface listener){
+        megaApi.updateNodeTag(node, newTag, oldTag, createDelegateRequestListener(listener));
     }
 
     /**
@@ -12227,6 +12341,26 @@ public class MegaApiJava {
      */
     public void getLastReadNotification(MegaRequestListenerInterface listener) {
         megaApi.getLastReadNotification(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Get the type and value for the flag with the given name,
+     * if present among either A/B Test or Feature flags.
+     *
+     * If found among A/B Test flags and commit was true, also inform the API
+     * that a user has become relevant for that A/B Test flag, in which case
+     * the associated request type with this request is MegaRequest::TYPE_AB_TEST_ACTIVE
+     * and valid data in the MegaRequest object received on all callbacks:
+     * - MegaRequest::getText - Returns the flag passed as parameter
+     *
+     * @param flagName Name or key of the value to be retrieved (and possibly be sent to API as active).
+     * @param commit Determine whether an A/B Test flag will be sent to API as active.
+     * @param listener MegaRequestListener to track this request, ignored if commit was false
+     *
+     * @return A MegaFlag instance with the type and value of the flag.
+     */
+    public MegaFlag getFlag(String flagName, Boolean commit, MegaRequestListenerInterface listener) {
+       return megaApi.getFlag(flagName, commit, createDelegateRequestListener(listener));
     }
 
     /**

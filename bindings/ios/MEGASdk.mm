@@ -2927,7 +2927,7 @@ using namespace mega;
     return node ? [[MEGANode alloc] initWithMegaNode:node cMemoryOwn:YES] : nil;
 }
 
-- (MEGANode *)childNodeForParent:(MEGANode *)parent name:(NSString *)name type:(NSInteger)type {
+- (MEGANode *)childNodeForParent:(MEGANode *)parent name:(NSString *)name type:(MEGANodeType)type {
     if (parent == nil || name == nil || self.megaApi == nil) return nil;
     
     MegaNode *node = self.megaApi->getChildNodeOfType(parent.getCPtr, name.UTF8String, (int)type);
@@ -3996,9 +3996,10 @@ using namespace mega;
     MegaSearchFilter *megaFilter = MegaSearchFilter::createInstance();
 
     megaFilter->byName(filter.term.UTF8String);
-    megaFilter->byNodeType(filter.nodeType);
-    megaFilter->byCategory(filter.category);
-    megaFilter->bySensitivity(filter.sensitivity);
+    megaFilter->byNodeType((int)filter.nodeType);
+    megaFilter->byCategory((int)filter.category);
+    megaFilter->bySensitivity((int)filter.sensitiveFilter);
+    megaFilter->byFavourite((int)filter.favouriteFilter);
 
     if (filter.didSetLocationType) {
         megaFilter->byLocation(filter.locationType);
@@ -4054,6 +4055,13 @@ using namespace mega;
 - (NSInteger)getABTestValue:(NSString*)flag {
     if (self.megaApi == nil) return 0;
     return self.megaApi->getABTestValue((const char *)flag.UTF8String);
+}
+
+#pragma mark - Remote Feature Flags
+- (NSInteger)remoteFeatureFlagValue:(NSString *)flag {
+    if (self.megaApi == nil) return 0;
+    MegaFlag *flagValue = self.megaApi->getFlag(flag.UTF8String);
+    return flagValue->getGroup();
 }
 
 #pragma mark - Ads

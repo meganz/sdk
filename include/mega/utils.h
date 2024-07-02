@@ -26,6 +26,7 @@
 #include <condition_variable>
 #include <thread>
 #include <mutex>
+#include <shared_mutex>
 
 #include "types.h"
 #undef SSIZE_MAX
@@ -779,6 +780,36 @@ public:
 
 };
 
+template<class K, class V>
+class ThreadSafeKeyValue
+{
+    // This is a thread-safe key-value container restricted to accepting only numeric values.
+    // Only the needed interfaces were implemented. Add new ones as they become useful.
+public:
+    std::unique_ptr<V> get(const K& key) const
+    {
+        std::shared_lock lock(mMutex);
+        auto it = mStorage.find(key);
+        return it == mStorage.end() ? nullptr : std::make_unique<V>(it->second);
+    }
+
+    void set(const K& key, const V& value)
+    {
+        std::unique_lock lock(mMutex);
+        mStorage[key] = value;
+    }
+
+    void clear()
+    {
+        std::unique_lock lock(mMutex);
+        return mStorage.clear();
+    }
+
+private:
+    mutable std::shared_mutex mMutex;
+    std::map<K, V> mStorage;
+};
+
 template<typename CharT>
 struct UnicodeCodepointIteratorTraits;
 
@@ -1237,6 +1268,41 @@ using SplitResult =
 SplitResult split(const char* begin, const char* end, char delimiter);
 SplitResult split(const char* begin, const std::size_t size, char delimiter);
 SplitResult split(const std::string& value, char delimiter);
+
+template<typename T>
+class ScopedValue {
+public:
+    ScopedValue(T& what, T value)
+      : mLastValue(std::move(what))
+      , mWhat(what)
+    {
+        what = std::move(value);
+    }
+
+    ~ScopedValue()
+    {
+        mWhat = std::move(mLastValue);
+    }
+
+    MEGA_DISABLE_COPY_MOVE(ScopedValue)
+
+private:
+    T mLastValue;
+    T& mWhat;
+}; // ScopedValue<T>
+
+template<typename T>
+ScopedValue<T> makeScopedValue(T& what, T value)
+{
+    return ScopedValue<T>(what, std::move(value));
+}
+
+/**
+ * @brief Sorts input char strings using natural sorting ignoring case
+ *
+ * @returns 0 if i==j, +1 if i goes first, -1 if j goes first.
+ */
+int naturalsorting_compare(const char* i, const char* j);
 
 } // namespace mega
 

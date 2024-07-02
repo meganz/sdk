@@ -389,41 +389,6 @@ bool Node::isVideo(const std::string& ext)
     return videoExtensions().find(getExtensionNameId(ext)) != videoExtensions().end();
 }
 
-bool Node::isVideoWithFileAttributes() const
-{
-    std::string ext;
-    if (!Node::getExtension(ext, displayname()))
-    {
-        return false;
-    }
-
-    if (Node::hasfileattribute(&fileattrstring, fa_media) && nodekey().size() == FILENODEKEYLENGTH)
-    {
-#ifdef USE_MEDIAINFO
-        if (client->mediaFileInfo.mediaCodecsReceived)
-        {
-            MediaProperties mp = MediaProperties::decodeMediaPropertiesAttributes(fileattrstring, (uint32_t*)(nodekey().data() + FILENODEKEYLENGTH / 2));
-            unsigned videocodec = mp.videocodecid;
-            if (!videocodec && mp.shortformat)
-            {
-                auto& v = client->mediaFileInfo.mediaCodecs.shortformats;
-                if (mp.shortformat < v.size())
-                {
-                    videocodec = v[mp.shortformat].videocodecid;
-                }
-            }
-            // approximation: the webclient has a lot of logic to determine if a particular codec is playable in that browser.  We'll just base our decision on the presence of a video codec.
-            if (!videocodec)
-            {
-                return false; // otherwise double-check by extension
-            }
-        }
-#endif
-    }
-
-    return isVideo(ext);
-}
-
 bool Node::isAudio(const std::string& ext)
 {
     nameid extNameid = getExtensionNameId(ext);
@@ -2174,10 +2139,11 @@ void LocalNode::init(nodetype_t ctype, LocalNode* cparent, const LocalPath& cful
     sync->threadSafeState->incrementSyncNodeCount(type, 1);
 }
 
-LocalNode::RareFields::ScanBlocked::ScanBlocked(PrnGen &rng, const LocalPath& lp, LocalNode* ln)
+LocalNode::RareFields::ScanBlocked::ScanBlocked(PrnGen &rng, const LocalPath& lp, LocalNode* ln, Sync* s)
     : scanBlockedTimer(rng)
     , scanBlockedLocalPath(lp)
     , localNode(ln)
+    , sync(s)
 {
     scanBlockedTimer.backoff(Sync::SCANNING_DELAY_DS);
 }
@@ -2325,7 +2291,7 @@ void LocalNode::initiateScanBlocked(bool folderBlocked, bool containsFingerprint
     // Setting node as scan-blocked. The main loop will check it regularly by weak_ptr
     if (!rare().scanBlocked)
     {
-        rare().scanBlocked.reset(new RareFields::ScanBlocked(sync->syncs.rng, getLocalPath(), this));
+        rare().scanBlocked.reset(new RareFields::ScanBlocked(sync->syncs.rng, getLocalPath(), this, sync));
         sync->syncs.scanBlockedPaths.push_back(rare().scanBlocked);
     }
 
@@ -3231,7 +3197,8 @@ bool LocalNode::transferResetUnlessMatched(direction_t dir, const FileFingerprin
       || transferSP->fingerprint() != fingerprint;
 
     // todo: should we be more accurate than just fingerprint?
-    if (different || (transferSP->wasTerminated && transferSP->mError != API_EKEY))
+    if (different || (transferSP->wasTerminated && transferSP->mError != API_EKEY
+                                                && transferSP->mError != API_EBLOCKED)) // A blocked file causes transfer termination. Avoid retrying the transfer unless unmatched: the node could have been replaced remotely (new version)
     {
         if (uploadPtr && uploadPtr->putnodesStarted)
         {
@@ -3516,7 +3483,7 @@ WatchResult LocalNode::watch(const LocalPath& path, handle fsid)
     auto result = notifier.addWatch(*this, path, fsid);
 
     // Were we able to add the watch?
-    if (result.second)
+    if (result.second == WatchResult::WR_SUCCESS)
     {
         // Yup so assign the handle.
         mWatchHandle = result.first;
@@ -3941,7 +3908,7 @@ CloudNode::CloudNode(const Node& n)
     , parentType(n.parent ? n.parent->type : TYPE_UNKNOWN)
     , fingerprint(n.fingerprint())
 {
-    assert(fingerprint.isvalid || type != FILENODE);
+    assert(fingerprint.isvalid || type != FILENODE || name.empty()); // Accept NO_NAME nodes to be excluded later
 }
 
 bool CloudNode::isIgnoreFile() const

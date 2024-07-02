@@ -188,9 +188,12 @@ struct SyncTransfer_inClient: public File
     // Why was the transfer failed/terminated?
     error mError = API_OK;
 
-    bool wasTerminated = false;
-    bool wasCompleted = false;
-    bool wasRequesterAbandoned = false;
+    std::atomic<bool> wasTerminated{false};
+    std::atomic<bool> wasCompleted{false};
+    std::atomic<bool> wasRequesterAbandoned{false};
+
+    // Whether the flags above were already set in a previous call (and avoid repeating unnecessary actions)
+    std::atomic<bool> reasonAlreadyKnown{false};
 };
 
 struct SyncDownload_inClient: public SyncTransfer_inClient

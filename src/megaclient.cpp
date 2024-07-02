@@ -892,6 +892,115 @@ error MegaClient::setbackupfolder(const char* foldername, int tag, std::function
     return API_OK;
 }
 
+void MegaClient::updateStateInBC(handle bkpId, CommandBackupPut::SPState newState, std::function<void(const Error&)> finalCompletion)
+{
+    shared_ptr<handle> bkpRoot = std::make_shared<handle>(0);
+
+    // step 4: handle result of setattr()
+    auto setAttrCompletion = [bkpId, finalCompletion](NodeHandle, Error setAttrErr)
+    {
+        if (setAttrErr != API_OK)
+        {
+            LOG_err << "Update backup/sync: failed to set 'sds' for " << toHandle(bkpId) << ": " << setAttrErr;
+        }
+        finalCompletion(setAttrErr);
+    };
+
+    // step 3: set sds attribute
+    auto updateSds = [this, bkpId, newState, bkpRoot, setAttrCompletion, finalCompletion](const Error& updateStateErr, handle backupId) mutable
+    {
+        assert(backupId == UNDEF || bkpId == backupId);
+
+        if (updateStateErr != API_OK)
+        {
+            LOG_err << "Update backup/sync: failed to update " << toHandle(bkpId) << ", error: " << error(updateStateErr);
+            // Don't break execution here in case of error. Still try to set 'sds' node attribute.
+        }
+
+        std::shared_ptr<Node> bkpRootNode = nodebyhandle(*bkpRoot);
+        if (!bkpRootNode)
+        {
+            LOG_err << "Update backup/sync: root node not found to set SDS attribute for when updating " << toHandle(bkpId);
+            finalCompletion(API_ENOENT);
+            return;
+        }
+
+        vector<pair<handle, int>> sdsBkps = bkpRootNode->getSdsBackups();
+        sdsBkps.emplace_back(bkpId, newState);
+        const string sdsValue = Node::toSdsString(sdsBkps);
+        attr_map sdsAttrMap(Node::sdsId(), sdsValue);
+
+        auto e = setattr(bkpRootNode, std::move(sdsAttrMap), setAttrCompletion, true);
+        if (e != API_OK)
+        {
+            LOG_err << "Update backup/sync: failed to set the 'sds' node attribute in client";
+            finalCompletion(e);
+        }
+    };
+
+    // step 1: fetch Backup/sync data from Backup Centre
+    getBackupInfo([this, bkpId, newState, bkpRoot, updateSds, finalCompletion](const Error& e, const vector<CommandBackupSyncFetch::Data>& data)
+        {
+            if (e != API_OK)
+            {
+                LOG_err << "Update backup/sync: getBackupInfo failed with " << e;
+                finalCompletion(e);
+                return;
+            }
+
+            auto it = std::find_if(data.begin(),
+                                   data.end(),
+                                   [bkpId](const auto& d)
+                                   {
+                                       return d.backupId == bkpId;
+                                   });
+            if (it == data.end())
+            {
+                LOG_err << "Backup/sync to update: " << toHandle(bkpId)
+                        << " not returned by 'sr' command";
+                finalCompletion(API_ENOENT);
+                return;
+            }
+
+            // allow only Active -> Paused and Paused -> Active
+            const auto& d = *it;
+            if ((d.syncState == CommandBackupPut::ACTIVE &&
+                 newState == CommandBackupPut::TEMPORARY_DISABLED) ||
+                (d.syncState == CommandBackupPut::TEMPORARY_DISABLED &&
+                 newState == CommandBackupPut::ACTIVE))
+            {
+                if (!nodebyhandle(d.rootNode))
+                {
+                    LOG_err << "Update backup/sync: root node not found to set SDS attribute for, "
+                               "after fetching "
+                            << toHandle(bkpId);
+                    finalCompletion(API_ENOENT);
+                    return;
+                }
+
+                *bkpRoot = d.rootNode;
+
+                // step 2: update backup/sync
+                CommandBackupPut::BackupInfo info;
+                info.backupId = d.backupId;
+                info.type = d.backupType;
+                info.backupName = d.backupName;
+                info.nodeHandle.set6byte(d.rootNode);
+                info.localFolder.fromAbsolutePath(d.localFolder);
+                info.deviceId = d.deviceId;
+                info.state = newState;
+                info.subState = d.syncSubstate;
+                reqs.add(new CommandBackupPut(this, info, updateSds));
+            }
+            else
+            {
+                LOG_err << "Update backup/sync: state change not allowed: " << d.syncState << " -> "
+                        << newState;
+                finalCompletion(API_EARGS);
+            }
+        });
+}
+
 void MegaClient::removeFromBC(handle bkpId, handle targetDest, std::function<void(const Error&)> finalCompletion)
 {
     shared_ptr<handle> bkpRoot = std::make_shared<handle>(0);
@@ -930,8 +1039,8 @@ void MegaClient::removeFromBC(handle bkpId, handle targetDest, std::function<voi
         std::shared_ptr<Node> bkpRootNode = nodebyhandle(*bkpRoot);
         if (!bkpRootNode)
         {
-            LOG_err << "Remove backup/sync: root folder not found";
-            finalCompletion(API_ENOENT);
+            LOG_warn << "Remove backup/sync: root folder not found, thus SDS cannot be set; considering it completely removed";
+            finalCompletion(API_OK);
             return;
         }
 
@@ -2547,7 +2656,8 @@ void MegaClient::exec()
                     if (pendingcs->includesFetchingNodes && !mNodeManager.hasCacheLoaded())
                     {
                         // Currently only fetchnodes requests can take advantage of chunked processing
-                        pendingcs->mChunked = true;
+                        // However VPN client shouldn't need it, because it'll receive a minimal response
+                        pendingcs->mChunked = !isClientType(ClientType::VPN);
                     }
 
                     performanceStats.csRequestWaitTime.start();
@@ -5066,8 +5176,9 @@ bool MegaClient::procsc()
                                 sc_userattr();
                                 break;
 
-                            case MAKENAMEID4('p', 's', 't', 's'):
-                                if (sc_upgrade())
+                            case UserAlert::type_psts:
+                            case UserAlert::type_psts_v2:
+                                if (sc_upgrade(name))
                                 {
                                     app->account_updated();
                                     abortbackoff(true);
@@ -6406,7 +6517,7 @@ bool MegaClient::sc_shares()
     }
 }
 
-bool MegaClient::sc_upgrade()
+bool MegaClient::sc_upgrade(nameid paymentType)
 {
     string result;
     bool success = false;
@@ -6436,7 +6547,7 @@ bool MegaClient::sc_upgrade()
             case EOO:
                 if ((itemclass == 0 || itemclass == 1) && statecurrent)
                 {
-                    useralerts.add(new UserAlert::Payment(success, proNumber, m_time(), useralerts.nextId()));
+                    useralerts.add(new UserAlert::Payment(success, proNumber, m_time(), useralerts.nextId(), paymentType));
                 }
                 return success;
 
@@ -8304,17 +8415,8 @@ shared_ptr<Node> MegaClient::nodeByPath(const char* path, std::shared_ptr<Node> 
                     continue;
                 }
 
-                if (*path == '/' || *path == ':' || !*path)
+                if (*path == '/' || !*path)
                 {
-                    if (*path == ':')
-                    {
-                        if (c.size())
-                        {
-                            return NULL;
-                        }
-                        remote = 1;
-                    }
-
                     if (path > bptr)
                     {
                         s.append(bptr, path - bptr);
@@ -8706,7 +8808,9 @@ error MegaClient::setattr(std::shared_ptr<Node> n, attr_map&& updates, CommandSe
     // Check and delete invalid fav attributes
     if (n->firstancestor()->getShareType() == ShareType_t::IN_SHARES) // Avoid an inshare to be tagged as favourite by the sharee
     {
-        std::vector<nameid> nameIds = { AttrMap::string2nameid("fav"), AttrMap::string2nameid("lbl") };
+        std::vector<nameid> nameIds = {AttrMap::string2nameid("fav"),
+                                       AttrMap::string2nameid("lbl"),
+                                       AttrMap::string2nameid("sen")};
         for (nameid& nameId : nameIds)
         {
             updates.erase(nameId);
@@ -9038,6 +9142,11 @@ error MegaClient::rename(std::shared_ptr<Node> n, std::shared_ptr<Node> p, syncd
         }
     }
 
+    if (n && n->owner != me && n->isMarkedSensitive() &&
+        attrUpdates.erase(AttrMap::string2nameid("sen")))
+    {
+        LOG_debug << "Removing sen attribute";
+    }
     if (newName)
     {
         attrUpdates['n'] = newName;
@@ -10222,7 +10331,7 @@ error MegaClient::readmiscflags(JSON *json)
                 int64_t value = json->getint();
                 if (value >= 0)
                 {
-                    mABTestFlags[tag] = static_cast<uint32_t>(value);
+                    mABTestFlags.set(tag, static_cast<uint32_t>(value));
                 }
                 else
                 {
@@ -10236,7 +10345,7 @@ error MegaClient::readmiscflags(JSON *json)
                 int64_t value = json->getint();
                 if (value >= 0)
                 {
-                    mFeatureFlags[tag] = static_cast<uint32_t>(value);
+                    mFeatureFlags.set(tag, static_cast<uint32_t>(value));
                 }
                 else
                 {
@@ -12406,13 +12515,34 @@ void MegaClient::loginResult(CommandLogin::Completion completion,
         return;
     }
 
+    // Is the user fully logged on?
+    auto isFullyLoggedIn = loggedin() == FULLACCOUNT;
+
+#ifdef ENABLE_SYNC
+    // Only generate JSCD and friends for fully logged-in accounts.
+    if (isFullyLoggedIn)
+    {
+        // Capture the client's response tag as apps may require it.
+        completion = [completion = std::move(completion), tag = restag, this](error result) {
+            ScopedValue restorer(restag, tag);
+            completion(result);
+        }; // completion
+
+        // Wrap the user's completion function so that we also initialize the sync engine.
+        completion = [completion = std::move(completion), this](error result) {
+            // Initialize the sync engine and call the user's completion function.
+            injectSyncSensitiveData(std::move(completion), result);
+        }; // completion
+    }
+#endif // ENABLE_SYNC
+
     assert(!mV1PswdVault || accountversion == 1);
 
     if (accountversion == 1 && mV1PswdVault)
     {
         auto v1PswdVault(std::move(mV1PswdVault));
 
-        if (loggedin() == FULLACCOUNT)
+        if (isFullyLoggedIn)
         {
             // initiate automatic upgrade to V2
             unique_ptr<TLVstore> tlv(TLVstore::containerToTLVrecords(&v1PswdVault->first, &v1PswdVault->second));
@@ -14593,8 +14723,13 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
             scsn.setScsn(cachedscsn);
             LOG_info << "Session loaded from local cache. SCSN: " << scsn.text();
 
-            assert(mNodeManager.getNodeCount() > 0);   // sometimes this is not true; if you see it, please investigate why (before we alter the db)
-            assert(!mNodeManager.getRootNodeFiles().isUndef());  // we should know this by now - if not, why not, please investigate (before we alter the db)
+            assert(isClientType(ClientType::VPN) ||  // minimal fetch for VPN does not receive nodes
+                   mNodeManager.getNodeCount() > 0); // otherwise if you see this please investigate why (before we alter the db)
+
+            assert(isClientType(ClientType::VPN) || // minimal fetch for VPN does not receive nodes
+                   !mNodeManager.getRootNodeFiles().isUndef() ||  // we should know this by now - if
+                   (isClientType(ClientType::PASSWORD_MANAGER) && // not, why not, please investigate
+                    !mNodeManager.getRootNodeVault().isUndef())); // (before we alter the db)
 
             if (loggedIntoWritableFolder())
             {
@@ -14697,6 +14832,41 @@ void MegaClient::resetScForFetchnodes()
 
     // prevent the processing of previous sc requests
     pendingsc.reset();
+
+    if (pendingscUserAlerts)
+    {
+        /**
+         * sc50 request is sent after fetchnodes has finished ("f" command + processing of action
+         * packets). If we perform multiple fetchnodes in a short period of time, we may send
+         * another sc50 request before receiving response for the previous one.
+         * In that case we first need to discard the sc50 request currently in-flight (if any),
+         * which will result on ignoring the API response, and then prepare a new one.
+         */
+        LOG_warn << "resetScForFetchnodes: Another sc50 Request is inflight, we'll discard it as "
+                    "it's obsolete";
+        sendevent(99487, "Another sc50 Request is inflight");
+
+        if (!useralerts.begincatchup)
+        {
+            LOG_warn << "resetScForFetchnodes: pendingscUserAlerts is not null (sc50 req in "
+                        "flight) but begincatchup is false";
+        }
+    }
+
+    /**
+     * begincatchup is just set true when fetchnodes has finished, before sending sc50 request
+     * if we are going to start a new fetchnodes and we want to discard inflight sc50 request,
+     * we also should reset begincatchup flag. When this fetchnodes finishes begincatchup will
+     * be set true again
+     *
+     * this action will prevent that assert(!fetchingnodes) at Megaclient::exec() fails, as we
+     * have reset begincatchup.
+     *
+     * Be aware of API management of multiple sc50 inflight requests, it may incur into API lock
+     *
+     **/
+    useralerts.begincatchup = false;
+    useralerts.catchupdone = false;
     pendingscUserAlerts.reset();
     jsonsc.pos = NULL;
     scnotifyurl.clear();
@@ -16276,98 +16446,6 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
     return API_OK;
 }
 
-void MegaClient::ensureSyncUserAttributes(std::function<void(Error)> completion)
-{
-    // If the attributes are not available yet, we make or get them.
-    // Then the completion function is called.
-
-    // we rely on storing this function to remember that we have an
-    // operation in progress, so we don't allow nullptr
-    assert(!!completion);
-
-    if (User* u = ownuser())
-    {
-        if (u->getattr(ATTR_JSON_SYNC_CONFIG_DATA))
-        {
-            // attributes already exist.
-            completion(API_OK);
-            return;
-        }
-    }
-    else
-    {
-        // If there's no user object, there can't be user attributes
-        completion(API_ENOENT);
-        return;
-    }
-
-    if (!mOnEnsureSyncUserAttributesComplete)
-    {
-        // We haven't sent the request yet - remember what to do when complete
-        mOnEnsureSyncUserAttributesComplete = completion;
-
-        TLVstore store;
-
-        // Authentication key.
-        store.set("ak", rng.genstring(SymmCipher::KEYLENGTH));
-
-        // Cipher key.
-        store.set("ck", rng.genstring(SymmCipher::KEYLENGTH));
-
-        // File name.
-        store.set("fn", rng.genstring(SymmCipher::KEYLENGTH));
-
-        // Generate encrypted payload.
-        unique_ptr<string> payload(
-            store.tlvRecordsToContainer(rng, &key));
-
-        // Persist the new attribute (with potential to be in a race with another client).
-        putua(ATTR_JSON_SYNC_CONFIG_DATA,
-            reinterpret_cast<const byte*>(payload->data()),
-            static_cast<unsigned>(payload->size()),
-            0, UNDEF, 0, 0,
-            [this](Error e){
-
-                if (e == API_EEXPIRED)
-                {
-                    // it may happen that more than one client attempts to create the UA in parallel
-                    // only the first one reaching the API will set the value, the other one should
-                    // fetch the value manually
-                    LOG_warn << "Failed to create JSON config data (already created). Fetching...";
-                    reqs.add(new CommandGetUA(this, uid.c_str(), ATTR_JSON_SYNC_CONFIG_DATA, nullptr, 0,
-                        [this](error e) {                 ensureSyncUserAttributesCompleted(e); },
-                        [this](byte*, unsigned, attr_t) { ensureSyncUserAttributesCompleted(API_OK); },
-                        [this](TLVstore*, attr_t) {       ensureSyncUserAttributesCompleted(API_OK); } ));
-                }
-                else
-                {
-                    LOG_info << "Putua for JSON config data finished: " << error(e);
-
-                    ensureSyncUserAttributesCompleted(e);
-                }
-            });
-     }
-     else
-     {
-        // We already sent the request but it hasn't completed yet
-        // Call all the completion functions when it does complete.
-        auto priorFunction = std::move(mOnEnsureSyncUserAttributesComplete);
-        mOnEnsureSyncUserAttributesComplete = [priorFunction, completion](Error e){
-            priorFunction(e);
-            completion(e);
-        };
-     }
-}
-
-void MegaClient::ensureSyncUserAttributesCompleted(Error e)
-{
-    if (mOnEnsureSyncUserAttributesComplete)
-    {
-        mOnEnsureSyncUserAttributesComplete(e);
-        mOnEnsureSyncUserAttributesComplete = nullptr;
-    }
-}
-
 void MegaClient::copySyncConfig(const SyncConfig& config, std::function<void(handle, error)> completion)
 {
     string deviceIdHash = getDeviceidHash();
@@ -16395,24 +16473,8 @@ void MegaClient::copySyncConfig(const SyncConfig& config, std::function<void(han
 
 void MegaClient::importSyncConfigs(const char* configs, std::function<void(error)> completion)
 {
-    auto onUserAttributesCompleted = std::bind(
-      [configs, this](std::function<void(error)>& completion, Error result)
-      {
-          // Do we have the attributes necessary for the sync config store?
-          if (result != API_OK)
-          {
-              // Nope and we can't proceed without them.
-              completion(result);
-              return;
-          }
-
-          // Kick off the import.
-          syncs.importSyncConfigs(configs, std::move(completion));
-      },
-      std::move(completion), std::placeholders::_1);
-
-    // Make sure we have the attributes necessary for the sync config store.
-    ensureSyncUserAttributes(std::move(onUserAttributesCompleted));
+    // Kick off the import.
+    syncs.importSyncConfigs(configs, std::move(completion));
 }
 
 void MegaClient::addsync(SyncConfig&& config, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath)
@@ -20578,7 +20640,7 @@ void MegaClient::getNotifications(CommandGetNotifications::ResultFunc onResult)
     reqs.add(new CommandGetNotifications(this, onResult));
 }
 
-std::pair<uint32_t, uint32_t> MegaClient::getFlag(const char* flagName, bool commit)
+std::pair<uint32_t, uint32_t> MegaClient::getFlag(const char* flagName)
 {
     enum : uint32_t // 1:1 with enum values from public interface
     {
@@ -20592,16 +20654,16 @@ std::pair<uint32_t, uint32_t> MegaClient::getFlag(const char* flagName, bool com
         return {FLAG_TYPE_INVALID, 0};
     }
 
-    auto ab = mABTestFlags.find(flagName);
-    if (ab != mABTestFlags.end())
+    unique_ptr<uint32_t> flagValue = mABTestFlags.get(flagName);
+    if (flagValue)
     {
-        return {FLAG_TYPE_AB_TEST, ab->second};
+        return {FLAG_TYPE_AB_TEST, *flagValue};
     }
 
-    auto f = mFeatureFlags.find(flagName);
-    if (f != mFeatureFlags.end())
+    flagValue = mFeatureFlags.get(flagName);
+    if (flagValue)
     {
-        return {FLAG_TYPE_FEATURE, f->second};
+        return {FLAG_TYPE_FEATURE, *flagValue};
     }
 
     return {FLAG_TYPE_INVALID, 0};
@@ -22308,5 +22370,190 @@ ScDbStateRecord ScDbStateRecord::unserialize(const std::string& data)
     return result;
 }
 
+void MegaClient::getJSCData(GetJSCDataCallback callback)
+{
+    // Sanity.
+    assert(callback);
+
+    // Try and get our hands on the currently logged in user.
+    auto* user = ownuser();
+
+    // No user? No attributes.
+    if (!user)
+    {
+        return callback({}, API_EFAILED);
+    }
+
+    // Convenience.
+    using std::bind;
+    using std::placeholders::_1;
+
+    auto failed = bind(&MegaClient::JSCDataRetrieved, this, callback, _1, nullptr);
+
+    // Try and retrieve the user's JSCD attribute.
+    getua(user,
+          ATTR_JSON_SYNC_CONFIG_DATA,
+          0,
+          std::move(failed),
+          nullptr,
+          bind(&MegaClient::JSCDataRetrieved, this, std::move(callback), API_OK, _1));
+}
+
+void MegaClient::createJSCData(GetJSCDataCallback callback)
+{
+    // Sanity.
+    assert(callback);
+
+    // Convenience.
+    constexpr auto Length = SymmCipher::KEYLENGTH;
+
+    // Instantiate a TLV store to contain the JSC data.
+    TLVstore store;
+
+    // Key used to authenticate the sync configuration database.
+    store.set("ak", rng.genstring(Length));
+
+    // Key used to encrypt the sync configuration database.
+    store.set("ck", rng.genstring(Length));
+
+    // The name of the sync configuration database.
+    store.set("fn", rng.genstring(Length));
+
+    // Translate the store into an encrypted binary blob.
+    unique_ptr<string> content(store.tlvRecordsToContainer(rng, &key));
+
+    // Convenience.
+    using std::bind;
+    using std::placeholders::_1;
+
+    // Try and create the JSCD attribute.
+    putua(ATTR_JSON_SYNC_CONFIG_DATA,
+          reinterpret_cast<const byte*>(content->data()),
+          static_cast<unsigned>(content->size()),
+          0,
+          UNDEF,
+          0,
+          0,
+          bind(&MegaClient::JSCDataCreated, this, std::move(callback), _1));
+}
+
+#ifdef ENABLE_SYNC
+
+void MegaClient::injectSyncSensitiveData(CommandLogin::Completion callback,
+                                         Error result)
+{
+    // Sanity.
+    assert(callback);
+
+    // Couldn't log the user in.
+    if (result != API_OK)
+    {
+        return callback(result);
+    }
+
+    // Called when the JSCD user attributes have been retrieved.
+    auto retrieved = [callback = std::move(callback), this]
+                     (JSCData data, Error result) {
+        // Couldn't retrieve JSC data.
+        if (result != API_OK)
+        {
+            LOG_warn << "Couldn't retrieve JSC data: "
+                     << result;
+
+            // This shouldn't prevent the user from logging on, however.
+            return callback(API_OK);
+        }
+
+        SyncSensitiveData sensitiveData;
+
+        // Prepare sensitive data for injection.
+        sensitiveData.jscData = std::move(data);
+        sensitiveData.stateCacheKey.assign(reinterpret_cast<const char*>(key.key),
+                                           sizeof(key.key));
+
+        // Inject sensitive data into the sync engine.
+        syncs.injectSyncSensitiveData(std::move(sensitiveData));
+
+        // Let the user know that they're logged in.
+        callback(API_OK);
+    }; // retrieved
+
+    // Try and retrieve the JSC data.
+    getJSCData(std::move(retrieved));
+}
+
+#endif // ENABLE_SYNC
+
+void MegaClient::JSCDataCreated(GetJSCDataCallback& callback,
+                                Error result)
+{
+    // Sanity.
+    assert(callback);
+
+    // Couldn't create JSCD and it wasn't created by another client.
+    if (result != API_OK && result != API_EEXPIRED)
+    {
+        LOG_warn << "Couldn't create JSC data: " << result;
+
+        return callback({}, result);
+    }
+
+    // JSCD was created by us or by another client so retrieve it.
+    getJSCData(std::move(callback));
+}
+
+void MegaClient::JSCDataRetrieved(GetJSCDataCallback& callback,
+                                  Error result,
+                                  TLVstore* store)
+{
+    // Sanity.
+    assert(callback);
+
+    // The user doesn't have any JSC data.
+    if (result == API_ENOENT)
+    {
+        return createJSCData(std::move(callback));
+    }
+
+    // We weren't able to retrieve the user's JSC data.
+    if (result != API_OK)
+    {
+        return callback({}, result);
+    }
+
+    JSCData data;
+
+    // Extract JSC data.
+    store->get("ak", data.authenticationKey);
+    store->get("ck", data.cipherKey);
+    store->get("fn", data.fileName);
+
+    // Saves a little typing.
+    auto valid = [](const std::string& datum) {
+        return datum.size() == SymmCipher::KEYLENGTH;
+    }; // valid
+
+    // Check validity of JSC data.
+    if (!valid(data.authenticationKey))
+    {
+        return callback({}, API_EINTERNAL);
+    }
+
+    if (!valid(data.cipherKey))
+    {
+        return callback({}, API_EINTERNAL);
+    }
+
+    if (!valid(data.fileName))
+    {
+        return callback({}, API_EINTERNAL);
+    }
+
+    // Translate filename to base64, as expected.
+    data.fileName = Base64::btoa(data.fileName);
+
+    // Pass attributes to callback.
+    callback(std::move(data), API_OK);
+}
 
 } // namespace

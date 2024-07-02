@@ -557,21 +557,21 @@ class MegaNode
             /**
              * @brief Set notes attribute value.
              *
-             * @param pwd Value to set
+             * @param n Value to set
              */
             virtual void setNotes(const char* n) = 0;
 
             /**
              * @brief Set URL attribute value.
              *
-             * @param pwd Value to set
+             * @param u Value to set
              */
             virtual void setUrl(const char* u) = 0;
 
             /**
              * @brief Set user name attribute value.
              *
-             * @param pwd Value to set
+             * @param un Value to set
              */
             virtual void setUserName(const char* un) = 0;
 
@@ -3602,6 +3602,52 @@ public:
 };
 
 /**
+ * @brief Map of integer values with string keys (map<string, int64_t>)
+ */
+class MegaStringIntegerMap
+{
+public:
+    virtual ~MegaStringIntegerMap() = default;
+    virtual MegaStringIntegerMap* copy() const = 0;
+
+    /**
+     * @brief Returns the list of keys in the MegaStringIntegerMap
+     *
+     * You take the ownership of the returned value
+     *
+     * @return A MegaStringList containing the keys present in the MegaStringIntegerMap
+     */
+    virtual MegaStringList* getKeys() const = 0;
+
+    /**
+     * @brief Returns a list with the value of the provided key
+     *
+     * You take the ownership of the returned value
+     *
+     * @param key Key of the element that you want to get from the map
+     * @return A MegaIntegerList containing the list with the value for the provided key
+     */
+    virtual MegaIntegerList* get(const char* key) const = 0;
+
+    /**
+     * @brief Sets a value in the map for the given key.
+     *
+     * If the key already exists, the value will be overwritten by the
+     * new value.
+     *
+     * @param key The key in the map.
+     * @param value The new value for the key in the map.
+     */
+    virtual void set(const char* key, int64_t value) = 0;
+
+    /**
+     * @brief Returns the number of (string, int64_t) pairs in the map
+     * @return Number of pairs in the map
+     */
+    virtual int64_t size() const = 0;
+};
+
+/**
  * @brief List of strings
  *
  * A MegaStringList has the ownership of the strings that it contains, so they will be
@@ -4523,7 +4569,10 @@ class MegaRequest
             TYPE_ENABLE_MOUNT                                               = 189,
             TYPE_REMOVE_MOUNT                                               = 190,
             TYPE_SET_MOUNT_FLAGS                                            = 191,
-            TOTAL_OF_REQUEST_TYPES                                          = 192,
+            TYPE_DEL_ATTR_USER = 192,
+            TYPE_BACKUP_PAUSE_MD                                            = 194,
+            TYPE_BACKUP_RESUME_MD                                           = 195,
+            TOTAL_OF_REQUEST_TYPES                                          = 196,
         };
 
         virtual ~MegaRequest();
@@ -6806,7 +6855,7 @@ public:
         TOO_MANY_ACTION_PACKETS = 25, // Too many changes in account, local state discarded
         LOGGED_OUT = 26, // Logged out
         //WHOLE_ACCOUNT_REFETCHED = 27, // obsolete.  was: The whole account was reloaded, missed actionpacket changes could not have been applied
-        MISSING_PARENT_NODE = 28, // Setting a new parent to a parent whose LocalNode is missing its corresponding Node crossref
+        //MISSING_PARENT_NODE = 28, // obsolete. was: Setting a new parent to a parent whose LocalNode is missing its corresponding Node crossref
         BACKUP_MODIFIED = 29, // Backup has been externally modified.
         BACKUP_SOURCE_NOT_BELOW_DRIVE = 30,     // Backup source path not below drive path.
         SYNC_CONFIG_WRITE_FAILURE = 31,         // Unable to write sync config to disk.
@@ -6848,7 +6897,7 @@ public:
         RUNSTATE_PENDING,     // Sync config has loaded but we have not attempted to start it yet
         RUNSTATE_LOADING,     // Sync DB is in the process of loading from disk
         RUNSTATE_RUNNING,     // Sync DB is loaded and active
-        RUNSTATE_PAUSED,      // Sync DB is loaded but sync logic is suspended for now (useful for debugging)
+        RUNSTATE_PAUSED,      // (deprecated) Use RUNSTATE_SUSPENDED for paused syncs / backups
         RUNSTATE_SUSPENDED,   // Sync DB is not loaded, but it is on disk with the last known sync state.
         RUNSTATE_DISABLED,    // Sync DB does not exist.  Starting it is like configuring a brand new sync with those settings.
     };
@@ -7155,13 +7204,13 @@ class MegaSyncStall
             MoveToDebrisFolderFailed,
             IgnoreFileMalformed,
             FilesystemErrorListingFolder,
-            FilesystemErrorIdentifyingFolderContent,
-            UndecryptedCloudNode,
+            FilesystemErrorIdentifyingFolderContent, // Deprecated after SDK-3206
             WaitingForScanningToComplete,
             WaitingForAnotherMoveToComplete,
             SourceWasMovedElsewhere,
             FilesystemCannotStoreThisName,
             CloudNodeInvalidFingerprint,
+            CloudNodeIsBlocked,
 
             PutnodeDeferredByController,
             PutnodeCompletionDeferredByController,
@@ -9573,7 +9622,28 @@ public:
      *
      * @param excludeSensitive Set to true to filter out sensitive nodes
      */
+    MEGA_DEPRECATED
     virtual void bySensitivity(bool excludeSensitive);
+
+    /**
+     * @brief Sets the filter option for excluding sensitive nodes.
+     * If not set, it defaults to BOOL_FILTER_DISABLED.
+     *
+     * @note Due to compatibility reasons and the nature of the sensitive attribute, the behavior of
+     * this filter may appear counter-intuitive, especially compared to byFavourite. Summary:
+     *     - Use BOOL_FILTER_ONLY_FALSE to get only nodes marked as sensitive.
+     *     - The union of results using BOOL_FILTER_ONLY_TRUE and BOOL_FILTER_ONLY_FALSE
+     *       differs from the results using BOOL_FILTER_DISABLED.
+     *
+     * @param boolFilterOption A tri-state variable determining the filter to apply.
+     * Valid values are (invalid values will be ignored):
+     * - MegaSearchFilter::BOOL_FILTER_DISABLED = 0 --> Considers all nodes.
+     * - MegaSearchFilter::BOOL_FILTER_ONLY_TRUE = 1 --> Returns only nodes not marked as sensitive
+     *   and without any parent directory marked as sensitive.
+     * - MegaSearchFilter::BOOL_FILTER_ONLY_FALSE = 2 --> Returns only nodes marked as sensitive,
+     *   i.e. node->isMarkedSensitive() == true.
+     */
+    virtual void bySensitivity(int boolFilterOption);
 
     /**
      * @brief Set option for retrieving nodes below a particular ancestor.
@@ -9673,9 +9743,9 @@ public:
     /**
      * @brief Return the option for filtering out sensitive nodes.
      *
-     * @return option set for filtering out sensitive nodes, or false if not set
+     * @return option set for filtering out sensitive nodes, or BOOL_FILTER_DISABLED if not set
      */
-    virtual bool bySensitivity() const;
+    virtual int bySensitivity() const;
 
     /**
      * @brief Return ancestor handle set for restricting node search to.
@@ -17197,35 +17267,36 @@ class MegaApi
          * @param parent Parent node
          * @param order Order for the returned list
          *
-         * Note: Folders will always be first except when sorting by size, creation or modification time
+         * Note: First, the nodes are always sorted by type, being folders always first. Then, the
+         * specified option is applied in each type block
          *
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
          * Undefined order
          *
          * - MegaApi::ORDER_DEFAULT_ASC = 1
-         * Folders first in alphabetical order, then files in the same order
+         * Alphabetical order, e.g. bar, Car, foo
          *
          * - MegaApi::ORDER_DEFAULT_DESC = 2
-         * Folders first in reverse alphabetical order, then files in the same order
+         * Alphabetical inverse order, e.g. foo, Car, bar
          *
          * - MegaApi::ORDER_SIZE_ASC = 3
-         * Sort by size, ascending
+         * Sort by size, small elements first
          *
          * - MegaApi::ORDER_SIZE_DESC = 4
-         * Sort by size, descending
+         * Sort by size, small elements last
          *
          * - MegaApi::ORDER_CREATION_ASC = 5
-         * Sort by creation time in MEGA, ascending
+         * Sort by creation time in MEGA, older elements first
          *
          * - MegaApi::ORDER_CREATION_DESC = 6
-         * Sort by creation time in MEGA, descending
+         * Sort by creation time in MEGA, older elements last
          *
          * - MegaApi::ORDER_MODIFICATION_ASC = 7
-         * Sort by modification time of the original file, ascending
+         * Sort by modification time of the original file, older modification times first
          *
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
-         * Sort by modification time of the original file, descending
+         * Sort by modification time of the original file, older modification times last
          *
          * - deprecated: MegaApi::ORDER_ALPHABETICAL_ASC = 9
          * Same behavior than MegaApi::ORDER_DEFAULT_ASC
@@ -17246,16 +17317,16 @@ class MegaApi
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
-         * Sort by color label, ascending. With this order, folders are returned first, then files
+         * Sort by color label, nodes with colors first
          *
          * - MegaApi::ORDER_LABEL_DESC = 18
-         * Sort by color label, descending. With this order, folders are returned first, then files
+         * Sort by color label, nodes with colors last
          *
          * - MegaApi::ORDER_FAV_ASC = 19
-         * Sort nodes with favourite attr first. With this order, folders are returned first, then files
+         * Sort nodes with favourite attr first
          *
          * - MegaApi::ORDER_FAV_DESC = 20
-         * Sort nodes with favourite attr last. With this order, folders are returned first, then files
+         * Sort nodes with favourite attr last
          *
          * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
          * @return List with all child MegaNode objects
@@ -17279,47 +17350,48 @@ class MegaApi
          *   and in consequence it must have default value for location (SEARCH_TARGET_ALL)
          * @param order Order for the returned list
          *
-         * Note: Folders will always be first except when sorting by size, creation or modification time
+         * Note: First, the nodes are always sorted by type, being folders always first. Then, the
+         * specified option is applied in each type block
          *
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
          * Undefined order
          *
          * - MegaApi::ORDER_DEFAULT_ASC = 1
-         * Folders first in alphabetical order, then files in the same order
+         * Alphabetical order, e.g. bar, Car, foo
          *
          * - MegaApi::ORDER_DEFAULT_DESC = 2
-         * Folders first in reverse alphabetical order, then files in the same order
+         * Alphabetical inverse order, e.g. foo, Car, bar
          *
          * - MegaApi::ORDER_SIZE_ASC = 3
-         * Sort by size, ascending
+         * Sort by size, small elements first
          *
          * - MegaApi::ORDER_SIZE_DESC = 4
-         * Sort by size, descending
+         * Sort by size, small elements last
          *
          * - MegaApi::ORDER_CREATION_ASC = 5
-         * Sort by creation time in MEGA, ascending
+         * Sort by creation time in MEGA, older elements first
          *
          * - MegaApi::ORDER_CREATION_DESC = 6
-         * Sort by creation time in MEGA, descending
+         * Sort by creation time in MEGA, older elements last
          *
          * - MegaApi::ORDER_MODIFICATION_ASC = 7
-         * Sort by modification time of the original file, ascending
+         * Sort by modification time of the original file, older modification times first
          *
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
-         * Sort by modification time of the original file, descending
+         * Sort by modification time of the original file, older modification times last
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
-         * Sort by color label, ascending. With this order, folders are returned first, then files
+         * Sort by color label, nodes with colors first
          *
          * - MegaApi::ORDER_LABEL_DESC = 18
-         * Sort by color label, descending. With this order, folders are returned first, then files
+         * Sort by color label, nodes with colors last
          *
          * - MegaApi::ORDER_FAV_ASC = 19
-         * Sort nodes with favourite attr first. With this order, folders are returned first, then files
+         * Sort nodes with favourite attr first
          *
          * - MegaApi::ORDER_FAV_DESC = 20
-         * Sort nodes with favourite attr last. With this order, folders are returned first, then files
+         * Sort nodes with favourite attr last
          *
          * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
          * @param searchPage Container for pagination options; if null, all results will be returned
@@ -17339,35 +17411,42 @@ class MegaApi
          * @param parentNodes List of parent nodes
          * @param order Order for the returned list
          *
-         * Note: Folders will always be first except when sorting by size, creation or modification time
+         * Note: First, the nodes are always sorted by type, being folders always first. Then, the
+         * specified option is applied in each type block
          *
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
          * Undefined order
          *
          * - MegaApi::ORDER_DEFAULT_ASC = 1
-         * Folders first in alphabetical order, then files in the same order
+         * Alphabetical order, e.g. bar, Car, foo
          *
          * - MegaApi::ORDER_DEFAULT_DESC = 2
-         * Folders first in reverse alphabetical order, then files in the same order
+         * Alphabetical inverse order, e.g. foo, Car, bar
          *
          * - MegaApi::ORDER_SIZE_ASC = 3
-         * Sort by size, ascending
+         * Sort by size, small elements first
          *
          * - MegaApi::ORDER_SIZE_DESC = 4
-         * Sort by size, descending
+         * Sort by size, small elements last
          *
          * - MegaApi::ORDER_CREATION_ASC = 5
-         * Sort by creation time in MEGA, ascending
+         * Sort by creation time in MEGA, older elements first
          *
          * - MegaApi::ORDER_CREATION_DESC = 6
-         * Sort by creation time in MEGA, descending
+         * Sort by creation time in MEGA, older elements last
          *
          * - MegaApi::ORDER_MODIFICATION_ASC = 7
-         * Sort by modification time of the original file, ascending
+         * Sort by modification time of the original file, older modification times first
          *
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
-         * Sort by modification time of the original file, descending
+         * Sort by modification time of the original file, older modification times last
+         *
+         * - deprecated: MegaApi::ORDER_ALPHABETICAL_ASC = 9
+         * Same behavior than MegaApi::ORDER_DEFAULT_ASC
+         *
+         * - deprecated: MegaApi::ORDER_ALPHABETICAL_DESC = 10
+         * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
          * - deprecated: MegaApi::ORDER_PHOTO_ASC = 11
          * Sort with photos first, then by date ascending
@@ -17382,16 +17461,16 @@ class MegaApi
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
-         * Sort by color label, ascending. With this order, folders are returned first, then files
+         * Sort by color label, nodes with colors first
          *
          * - MegaApi::ORDER_LABEL_DESC = 18
-         * Sort by color label, descending. With this order, folders are returned first, then files
+         * Sort by color label, nodes with colors last
          *
          * - MegaApi::ORDER_FAV_ASC = 19
-         * Sort nodes with favourite attr first. With this order, folders are returned first, then files
+         * Sort nodes with favourite attr first
          *
          * - MegaApi::ORDER_FAV_DESC = 20
-         * Sort nodes with favourite attr last. With this order, folders are returned first, then files
+         * Sort nodes with favourite attr last
          *
          * @return List with all child MegaNode objects
          */
@@ -17489,8 +17568,8 @@ class MegaApi
          * @brief Get the path of a MegaNode
          *
          * If the node doesn't exist, this function returns NULL.
-         * You can recoved the node later using MegaApi::getNodeByPath
-         * except if the path contains names with '/', '\' or ':' characters.
+         * You can recover the node later using MegaApi::getNodeByPath
+         * except if the path contains names with '/' or '\' characters.
          *
          * You take the ownership of the returned value
          *
@@ -17504,7 +17583,7 @@ class MegaApi
          *
          * If the node doesn't exist, this function returns NULL.
          * You can recover the node later using MegaApi::getNodeByPath
-         * except if the path contains names with '/', '\' or ':' characters.
+         * except if the path contains names with '/' or '\' characters.
          *
          * You take the ownership of the returned value
          *
@@ -17521,8 +17600,7 @@ class MegaApi
          * The Vault root node is //in/
          * The Rubbish root node is //bin/
          *
-         * Paths with names containing '/', '\' or ':' aren't compatible
-         * with this function.
+         * Paths with names containing '/' or '\' aren't compatible with this function.
          *
          * It is needed to be logged in and to have successfully completed a fetchNodes
          * request before calling this function. Otherwise, it will return NULL.
@@ -17543,8 +17621,7 @@ class MegaApi
          * The Vault root node is //in/
          * The Rubbish root node is //bin/
          *
-         * Paths with names containing '/', '\' or ':' aren't compatible
-         * with this function.
+         * Paths with names containing '/' or '\' aren't compatible with this function.
          *
          * It is needed to be logged in and to have successfully completed a fetchNodes
          * request before calling this function. Otherwise, it will return NULL.
@@ -17553,7 +17630,8 @@ class MegaApi
          *
          * @param path Path to check
          * @param n Base node if the path is relative
-         * @param type Type of the node to be looked up; valid values: TYPE_FILE, TYPE_FOLDER, TYPE_UNKNOWN (any type, folder has precedence)
+         * @param type Type of the node to be looked up; valid values: TYPE_FILE, TYPE_FOLDER,
+         * TYPE_UNKNOWN (any type, folder has precedence)
          * @return The MegaNode object in the path, otherwise NULL
          */
         MegaNode* getNodeByPathOfType(const char *path, MegaNode *n = nullptr, int type = MegaNode::TYPE_UNKNOWN);
@@ -18317,47 +18395,48 @@ class MegaApi
          * @param filter Container for filtering options, cannot be null
          * @param order Order for the returned list
          *
-         * Note: Folders will always be first except when sorting by size, creation or modification time
+         * Note: First, the nodes are always sorted by type, being folders always first. Then, the
+         * specified option is applied in each type block
          *
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
          * Undefined order
          *
          * - MegaApi::ORDER_DEFAULT_ASC = 1
-         * Folders first in alphabetical order, then files in the same order
+         * Alphabetical order, e.g. bar, Car, foo
          *
          * - MegaApi::ORDER_DEFAULT_DESC = 2
-         * Folders first in reverse alphabetical order, then files in the same order
+         * Alphabetical inverse order, e.g. foo, Car, bar
          *
          * - MegaApi::ORDER_SIZE_ASC = 3
-         * Sort by size, ascending
+         * Sort by size, small elements first
          *
          * - MegaApi::ORDER_SIZE_DESC = 4
-         * Sort by size, descending
+         * Sort by size, small elements last
          *
          * - MegaApi::ORDER_CREATION_ASC = 5
-         * Sort by creation time in MEGA, ascending
+         * Sort by creation time in MEGA, older elements first
          *
          * - MegaApi::ORDER_CREATION_DESC = 6
-         * Sort by creation time in MEGA, descending
+         * Sort by creation time in MEGA, older elements last
          *
          * - MegaApi::ORDER_MODIFICATION_ASC = 7
-         * Sort by modification time of the original file, ascending
+         * Sort by modification time of the original file, older modification times first
          *
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
-         * Sort by modification time of the original file, descending
+         * Sort by modification time of the original file, older modification times last
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
-         * Sort by color label, ascending. With this order, folders are returned first, then files
+         * Sort by color label, nodes with colors first
          *
          * - MegaApi::ORDER_LABEL_DESC = 18
-         * Sort by color label, descending. With this order, folders are returned first, then files
+         * Sort by color label, nodes with colors last
          *
          * - MegaApi::ORDER_FAV_ASC = 19
-         * Sort nodes with favourite attr first. With this order, folders are returned first, then files
+         * Sort nodes with favourite attr first
          *
          * - MegaApi::ORDER_FAV_DESC = 20
-         * Sort nodes with favourite attr last. With this order, folders are returned first, then files
+         * Sort nodes with favourite attr last
          *
          * @param cancelToken MegaCancelToken to be able to cancel the search at any time.
          * @param searchPage Container for pagination options; if null, all results will be returned
@@ -21160,6 +21239,32 @@ class MegaApi
         void removeFromBC(MegaHandle backupId, MegaHandle moveDestination, MegaRequestListener* listener = nullptr);
 
         /**
+         * @brief Simulate a backup/sync being paused from the webclient.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_BACKUP_PAUSE_MD
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParentHandle - Returns the backup id
+         * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+         *
+         * @param backupId backup id of the backup to be paused
+         * @param listener MegaRequestListener to track this request
+        */
+        void pauseFromBC(MegaHandle backupId, MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Simulate a backup/sync being resumed from the webclient.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_BACKUP_RESUME_MD
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParentHandle - Returns the backup id
+         * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+         *
+         * @param backupId backup id of the backup to be resumed
+         * @param listener MegaRequestListener to track this request
+        */
+        void resumeFromBC(MegaHandle backupId, MegaRequestListener* listener = nullptr);
+
+        /**
          * @brief Fetch information about all registered backups for Backup Centre
          *
          * The associated request type with this request is MegaRequest::TYPE_BACKUP_INFO
@@ -22353,24 +22458,95 @@ class MegaApi
                            MegaRequestListener* listener);
 
         /**
-         * @brief Get the type and value for the flag with the given name,
-         * if present among either A/B Test or Feature flags.
+         * @deprecated Use getFlag(const char* flagName, bool commit) instead.
+         */
+        MegaFlag* getFlag(const char* flagName, bool commit, MegaRequestListener* listener);
+
+        /**
+         * @brief Get the type and value for the flag with the given name, if present among either
+         * A/B Test or Feature flags.
          *
-         * If found among A/B Test flags and commit was true, also inform the API
-         * that a user has become relevant for that A/B Test flag, in which case
-         * the associated request type with this request is MegaRequest::TYPE_AB_TEST_ACTIVE
-         * and valid data in the MegaRequest object received on all callbacks:
-         * - MegaRequest::getText - Returns the flag passed as parameter
+         * If found among A/B Test flags and commit was true, also inform the API that a user has become
+         * relevant for that A/B Test flag (via a request of type MegaRequest::TYPE_AB_TEST_ACTIVE,
+         * for which the response is not be relevant for the calling app)
          *
          * @param flagName Name or key of the value to be retrieved (and possibly be sent to API as active).
          * @param commit Determine whether an A/B Test flag will be sent to API as active.
-         * @param listener MegaRequestListener to track this request, ignored if commit was false
          *
          * @return A MegaFlag instance with the type and value of the flag.
          */
-        MegaFlag* getFlag(const char* flagName, bool commit = true, MegaRequestListener* listener = nullptr);
+        MegaFlag* getFlag(const char* flagName, bool commit = true);
 
- protected:
+        /**
+         * @brief Delete a user attribute of the current user, for testing
+         * This method is for developer use only and it requires to be logged-in into an
+         * account under a MEGA email. Otherwise, it will fail with API_EACCESS (except for
+         * attributes "gmk" and "promocode", which are not supported by SDK, but removed by Webclient).
+         *
+         * The associated request type with this request is MegaRequest::TYPE_DEL_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type
+         *
+         * @param type Attribute type
+         *
+         * Valid values are:
+         *
+         * MegaApi::USER_ATTR_FIRSTNAME = 1
+         * Delete the firstname of the user (public)
+         * MegaApi::USER_ATTR_LASTNAME = 2
+         * Delete the lastname of the user (public)
+         * MegaApi::USER_ATTR_AUTHRING = 3
+         * Delete the authentication ring of the user (private)
+         * MegaApi::USER_ATTR_LAST_INTERACTION = 4
+         * Delete the last interaction of the contacts of the user (private)
+         * MegaApi::USER_ATTR_ED25519_PUBLIC_KEY = 5
+         * Delete the public key Ed25519 of the user (public)
+         * MegaApi::USER_ATTR_CU25519_PUBLIC_KEY = 6
+         * Delete the public key Cu25519 of the user (public)
+         * MegaApi::USER_ATTR_KEYRING = 7
+         * Delete the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+         * MegaApi::USER_ATTR_SIG_RSA_PUBLIC_KEY = 8
+         * Delete the signature of RSA public key of the user (public)
+         * MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY = 9
+         * Delete the signature of Cu25519 public key of the user (public)
+         * MegaApi::USER_ATTR_LANGUAGE = 14
+         * Delete the preferred language of the user (private, non-encrypted)
+         * MegaApi::USER_ATTR_PWD_REMINDER = 15
+         * Delete the password-reminder-dialog information (private, non-encrypted)
+         * MegaApi::USER_ATTR_DISABLE_VERSIONS = 16
+         * Delete whether user has versions disabled or enabled (private, non-encrypted)
+         * MegaApi::USER_ATTR_RICH_PREVIEWS = 18
+         * Delete whether user generates rich-link messages or not (private)
+         * MegaApi::USER_ATTR_RUBBISH_TIME = 19
+         * Delete number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+         * MegaApi::USER_ATTR_STORAGE_STATE = 21
+         * Delete the state of the storage (private non-encrypted)
+         * MegaApi::USER_ATTR_GEOLOCATION = 22
+         * Delete the user geolocation (private)
+         * MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER = 23
+         * Delete the target folder for Camera Uploads (private)
+         * MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER = 24
+         * Delete the target folder for My chat files (private)
+         * MegaApi::USER_ATTR_PUSH_SETTINGS = 25
+         * Delete whether user has push settings enabled (private)
+         * MegaApi::USER_ATTR_ALIAS = 27
+         * Delete the list of the users's aliases (private)
+         * MegaApi::USER_ATTR_DEVICE_NAMES = 30
+         * Delete the list of device or external drive names (private)
+         * MegaApi::USER_ATTR_MY_BACKUPS_FOLDER = 31
+         * Delete the target folder for My Backups (private)
+         * MegaApi::USER_ATTR_COOKIE_SETTINGS = 33
+         * Delete whether user has Cookie Settings enabled
+         * MegaApi::USER_ATTR_JSON_SYNC_CONFIG_DATA = 34
+         * Delete name and key to cypher sync-configs file
+         * MegaApi::USER_ATTR_NO_CALLKIT = 36
+         * Delete whether user has iOS CallKit disabled or enabled (private, non-encrypted)
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void deleteUserAttribute(int type, MegaRequestListener* listener = NULL);
+
+    protected:
         MegaApiImpl *pImpl = nullptr;
         friend class MegaApiImpl;
 };
@@ -22797,6 +22973,31 @@ public:
 };
 
 /**
+ * @brief Details about a MEGA feature
+ */
+class MegaAccountFeature
+{
+public:
+    virtual ~MegaAccountFeature() = default;
+
+    /**
+     * @brief Get the expiry timestamp
+     *
+     * @return Expiry timestamp
+     */
+    virtual int64_t getExpiry() const = 0;
+
+    /**
+     * @brief Get the ID of this feature
+     *
+     * You take the ownership of the returned value
+     *
+     * @return ID of this feature
+     */
+    virtual char* getId() const = 0;
+};
+
+/**
  * @brief Details about a MEGA account
  */
 class MegaAccountDetails
@@ -23135,6 +23336,41 @@ public:
      * @return True if the temporal bandwidth is valid, otherwise false
      */
     virtual bool isTemporalBandwidthValid();
+
+    /**
+     * @brief Get the number of active MegaAccountFeature-s in the account
+     *
+     * You can use MegaAccountDetails::getActiveFeature to get each of those objects.
+     *
+     * @return Number of MegaAccountFeature objects
+     */
+    virtual int getNumActiveFeatures() const = 0;
+
+    /**
+     * @brief Returns the MegaAccountFeature object associated with an index
+     *
+     * You take the ownership of the returned value
+     *
+     * @param featureIndex Index of the object
+     * @return MegaAccountFeature object
+     */
+    virtual MegaAccountFeature* getActiveFeature(int featureIndex) const = 0;
+
+    /**
+     * @brief Get feature account level for feature related subscriptions
+     *
+     * @return Level for feature related subscriptions
+     */
+    virtual int64_t getSubscriptionLevel() const = 0;
+
+    /**
+     * @brief Get subscription features for this account
+     *
+     * You take the ownership of the returned value
+     *
+     * @return Subscription features for this account. The value of each feature should be treated as a 32bit unsigned int
+     */
+    virtual MegaStringIntegerMap* getSubscriptionFeatures() const = 0;
 };
 
 class MegaCurrency
@@ -23319,15 +23555,24 @@ public:
     virtual const char* getAndroidID(int productIndex);
 
     /**
-     * @brief Returns if the pricing plan is a business or Pro Flexi plan
+     * @brief Returns true if the pricing plan is a Business plan
      *
      * You can check if the plan is pure buiness or Pro Flexi by calling
      * the method MegaApi::getProLevel
      *
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
-     * @return true if the pricing plan is a business or Pro Flexi plan, otherwise return false
+     * @return true if the pricing plan is a Business plan, otherwise return false
      */
     virtual bool isBusinessType(int productIndex);
+
+    /**
+     * @brief Returns true if the pricing plan is a Feature plan
+     *
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     *
+     * @return true if the pricing plan is a Feature plan, otherwise return false
+     */
+    virtual bool isFeaturePlan(int productIndex) const;
 
     /**
      * @brief Get the monthly price of the product (in cents)
@@ -23437,6 +23682,23 @@ public:
      * @return number of GB of transfer, per block
      */
     virtual int getGBPerTransfer(int productIndex);
+
+    /**
+     * @brief Get the features of this product
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return Features of this product. The value of each feature should be treated as a 32bit unsigned int
+     */
+    virtual MegaStringIntegerMap* getFeatures(int productIndex) const;
+
+    /**
+     * @brief Get test category bitmap of a product
+     *
+     * The returned value must always be greater than 0
+     *
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return test category bitmap
+     */
+    virtual unsigned int getTestCategory(int productIndex) const;
 };
 
 /**
@@ -24447,6 +24709,7 @@ public:
      * True if the mount should be read only.
      */
     virtual void setReadOnly(bool readOnly) = 0;
+
 }; // MegaMountFlags
 
 class MegaMountList

@@ -936,6 +936,7 @@ public:
 
 class MEGA_API CommandEnumerateQuotaItems : public Command
 {
+    static constexpr unsigned int INVALID_TEST_CATEGORY = 0;
 public:
     bool procresult(Result, JSON&) override;
 

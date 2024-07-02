@@ -455,7 +455,9 @@ typedef enum { PUTNODES_APP, PUTNODES_SYNC, PUTNODES_SYNCDEBRIS } putsource_t;
 typedef map<pair<UploadHandle, fatype>, pair<handle, int> > fa_map;
 
 
-enum class SyncRunState { Pending, Loading, Run, Pause, Suspend, Disable };
+enum class SyncRunState { Pending, Loading, Run,
+    Pause, /* do not use this state in new code; pausing a sync should actually use Suspend state */
+    Suspend, Disable };
 
 typedef enum
 {
@@ -507,7 +509,7 @@ enum SyncError {
     TOO_MANY_ACTION_PACKETS = 25,           // Too many changes in account, local state discarded
     LOGGED_OUT = 26,                        // Logged out
     //WHOLE_ACCOUNT_REFETCHED = 27,         // obsolete. was: The whole account was reloaded, missed actionpacket changes could not have been applied
-    MISSING_PARENT_NODE = 28,               // Setting a new parent to a parent whose LocalNode is missing its corresponding Node crossref
+    //MISSING_PARENT_NODE = 28,             // obsolete. was: Setting a new parent to a parent whose LocalNode is missing its corresponding Node crossref
     BACKUP_MODIFIED = 29,                   // Backup has been externally modified.
     BACKUP_SOURCE_NOT_BELOW_DRIVE = 30,     // Backup source path not below drive path.
     SYNC_CONFIG_WRITE_FAILURE = 31,         // Unable to write sync config to disk.
@@ -1148,13 +1150,13 @@ enum class PathProblem : unsigned short {
     MoveToDebrisFolderFailed,
     IgnoreFileMalformed,
     FilesystemErrorListingFolder,
-    FilesystemErrorIdentifyingFolderContent,
-    UndecryptedCloudNode,
+    FilesystemErrorIdentifyingFolderContent,  // Deprecated after SDK-3206
     WaitingForScanningToComplete,
     WaitingForAnotherMoveToComplete,
     SourceWasMovedElsewhere,
     FilesystemCannotStoreThisName,
     CloudNodeInvalidFingerprint,
+    CloudNodeIsBlocked,
 
     PutnodeDeferredByController,
     PutnodeCompletionDeferredByController,
@@ -1246,6 +1248,18 @@ struct StorageInfo
     m_off_t mCapacity = 0;
     m_off_t mUsed = 0;
 }; // StorageInfo
+
+struct JSCData
+{
+    // Verifies that the sync config database hasn't been tampered with.
+    std::string authenticationKey;
+
+    // Used to encipher the sync config database's content.
+    std::string cipherKey;
+
+    // The name of this user's sync config databases.
+    std::string fileName;
+}; // JSCData
 
 #ifdef ENABLE_CHAT
 

@@ -400,7 +400,7 @@ sharedNode_vector NodeManager::getChildren_internal(const NodeSearchFilter& filt
     }
 
     // small optimization to possibly skip the db look-up
-    if (filter.bySensitivity())
+    if (filter.bySensitivity() == NodeSearchFilter::BoolFilter::onlyTrue)
     {
         shared_ptr<Node> node = getNodeByHandle_internal(NodeHandle().set6byte(filter.byParentHandle()));
         if (!node || node->isSensitiveInherited())
@@ -522,12 +522,15 @@ sharedNode_vector NodeManager::searchNodes_internal(const NodeSearchFilter& filt
 
     // small optimization to possibly skip the db look-up
     const vector<handle>& ancestors = filter.byAncestorHandles();
-    if (filter.bySensitivity() && filter.includedShares() == NO_SHARES &&
-        std::all_of(ancestors.begin(), ancestors.end(), [this](handle a)
-        {
-            shared_ptr<Node> node = getNodeByHandle_internal(NodeHandle().set6byte(a));
-            return node && node->isSensitiveInherited();
-        }))
+    if (filter.bySensitivity() == NodeSearchFilter::BoolFilter::onlyTrue &&
+        filter.includedShares() == NO_SHARES &&
+        std::all_of(ancestors.begin(),
+                    ancestors.end(),
+                    [this](handle a)
+                    {
+                        shared_ptr<Node> node = getNodeByHandle_internal(NodeHandle().set6byte(a));
+                        return node && node->isSensitiveInherited();
+                    }))
     {
         return sharedNode_vector();
     }

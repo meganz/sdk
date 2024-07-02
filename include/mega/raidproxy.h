@@ -18,10 +18,12 @@ namespace RaidProxy {
 #define LAGINTERVAL 256                                       // number of readdata() requests until the next interval check is conducted
 #define MAX_ERRORS_FOR_IDLE_GOOD_SOURCE 3                     // Error tolerance to consider a source as a candidate to be switched with a hanging source
 
+#if defined(SUPPORTS_TI_EMULATION_MODE)
 
-#if defined(__GNUC__)
 typedef unsigned int uint128_t __attribute__((mode(TI)));
-#else
+
+#else // SUPPORTS_TI_EMULATION_MODE
+
 struct uint128_t
 {
     uint64_t parts[2];
@@ -40,7 +42,8 @@ struct uint128_t
         return *this;
     }
 };
-#endif
+
+#endif // ! SUPPORTS_TI_EMULATION_MODE
 
 typedef uint128_t raidsector_t;
 using HttpReqType = HttpReqDL;

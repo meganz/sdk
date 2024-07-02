@@ -5650,6 +5650,16 @@ void MegaApi::removeFromBC(MegaHandle backupId, MegaHandle moveDestination, Mega
     pImpl->removeFromBC(backupId, moveDestination, listener);
 }
 
+void MegaApi::pauseFromBC(MegaHandle backupId, MegaRequestListener* listener)
+{
+    pImpl->pauseFromBC(backupId, listener);
+}
+
+void MegaApi::resumeFromBC(MegaHandle backupId, MegaRequestListener* listener)
+{
+    pImpl->resumeFromBC(backupId, listener);
+}
+
 void MegaApi::getBackupInfo(MegaRequestListener* listener)
 {
     pImpl->getBackupInfo(listener);
@@ -6044,6 +6054,16 @@ MegaFlag* MegaApi::getFlag(const char* flagName, bool commit, MegaRequestListene
     return pImpl->getFlag(flagName, commit, listener);
 }
 
+MegaFlag* MegaApi::getFlag(const char* flagName, bool commit)
+{
+    return pImpl->getFlag(flagName, commit);
+}
+
+void MegaApi::deleteUserAttribute(int type, MegaRequestListener* listener)
+{
+    return pImpl->deleteUserAttribute(type, listener);
+}
+
 /* END MEGAAPI */
 
 MegaHashSignature::MegaHashSignature(const char *base64Key)
@@ -6346,6 +6366,11 @@ bool MegaPricing::isBusinessType(int)
     return false;
 }
 
+bool MegaPricing::isFeaturePlan(int) const
+{
+    return false;
+}
+
 int MegaPricing::getAmountMonth(int)
 {
     return 0;
@@ -6411,6 +6436,11 @@ int MegaPricing::getGBPerTransfer(int)
     return 0;
 }
 
+MegaStringIntegerMap* MegaPricing::getFeatures(int) const
+{
+    return nullptr;
+}
+
 const char *MegaCurrency::getCurrencySymbol()
 {
     return nullptr;
@@ -6429,6 +6459,11 @@ const char *MegaCurrency::getLocalCurrencySymbol()
 const char *MegaCurrency::getLocalCurrencyName()
 {
     return nullptr;
+}
+
+unsigned int MegaPricing::getTestCategory(int) const
+{
+    return 0;
 }
 
 #ifdef ENABLE_SYNC
@@ -6915,6 +6950,11 @@ void MegaSearchFilter::bySensitivity(bool /*excludeSensitive*/)
 {
 }
 
+void MegaSearchFilter::bySensitivity(int /*boolFilterOption*/)
+{
+
+}
+
 void MegaSearchFilter::byLocationHandle(MegaHandle /*ancestorHandle*/)
 {
 }
@@ -6959,9 +6999,9 @@ int MegaSearchFilter::byFavourite() const
     return MegaSearchFilter::BOOL_FILTER_DISABLED;
 }
 
-bool MegaSearchFilter::bySensitivity() const
+int MegaSearchFilter::bySensitivity() const
 {
-    return false;
+    return BOOL_FILTER_DISABLED;
 }
 
 MegaHandle MegaSearchFilter::byLocationHandle() const

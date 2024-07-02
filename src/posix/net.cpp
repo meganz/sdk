@@ -39,7 +39,8 @@ extern JavaVM *MEGAjvm;
 
 namespace mega {
 
-bool g_netLoggingOn = false;
+std::atomic<bool> g_netLoggingOn{false};
+
 #define NET_verbose if (g_netLoggingOn) LOG_verbose
 #define NET_debug if (g_netLoggingOn) LOG_debug
 
@@ -2162,7 +2163,7 @@ m_off_t CurlHttpIO::postpos(void* handle)
 
     if (httpctx->curl)
     {
-        curl_easy_getinfo(httpctx->curl, CURLINFO_SIZE_UPLOAD, &bytes);
+        curl_easy_getinfo(httpctx->curl, CURLINFO_SIZE_UPLOAD_T, &bytes);
     }
 
     return (m_off_t)bytes;

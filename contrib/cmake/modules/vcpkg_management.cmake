@@ -44,6 +44,13 @@ macro(process_vcpkg_libraries overlays_path)
 
     if (USE_FFMPEG)
         list(APPEND VCPKG_MANIFEST_FEATURES "use-ffmpeg")
+        # Remove -flto[=n] from CFLAGS if set. It cause link errors in ffmpeg due to assembler code
+        string(REGEX MATCH "-flto[^ \r\n]*" LTO_MATCHES "$ENV{CFLAGS}")
+        if(LTO_MATCHES)
+            message(STATUS "Removing ${LTO_MATCHES} from the environment CFLAGS variable")
+            string(REPLACE "${LTO_MATCHES}" "" NEW_CFLAGS "$ENV{CFLAGS}")
+            set(ENV{CFLAGS} "${NEW_CFLAGS}")
+        endif()
     endif()
 
     if (USE_LIBUV)

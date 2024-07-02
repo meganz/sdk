@@ -1385,13 +1385,12 @@ MegaError* MegaApiImpl::isNodeSyncableWithError(MegaNode* megaNode) {
 
 bool MegaApiImpl::isScanning()
 {
-    // this flag purposely doesn't need locking
-    return client->syncs.syncscanstate;
+    return receivedScanningStateFlag.load();
 }
 
 bool MegaApiImpl::isSyncing()
 {
-    return client->syncs.syncBusyState;
+    return receivedSyncingStateFlag.load();
 }
 
 MegaSync *MegaApiImpl::getSyncByBackupId(mega::MegaHandle backupId)
@@ -1689,8 +1688,7 @@ MegaSyncStallPrivate::pathProblemDebugString(MegaSyncStall::SyncPathProblem reas
     static_assert((int)PathProblem::MoveToDebrisFolderFailed == (int)MegaSyncStall::SyncPathProblem::MoveToDebrisFolderFailed, "");
     static_assert((int)PathProblem::IgnoreFileMalformed == (int)MegaSyncStall::SyncPathProblem::IgnoreFileMalformed, "");
     static_assert((int)PathProblem::FilesystemErrorListingFolder == (int)MegaSyncStall::SyncPathProblem::FilesystemErrorListingFolder, "");
-    static_assert((int)PathProblem::FilesystemErrorIdentifyingFolderContent == (int)MegaSyncStall::SyncPathProblem::FilesystemErrorIdentifyingFolderContent, "");
-    static_assert((int)PathProblem::UndecryptedCloudNode == (int)MegaSyncStall::SyncPathProblem::UndecryptedCloudNode, "");
+    static_assert((int)PathProblem::FilesystemErrorIdentifyingFolderContent == (int)MegaSyncStall::SyncPathProblem::FilesystemErrorIdentifyingFolderContent, "");  // Deprecated after SDK-3206
     static_assert((int)PathProblem::WaitingForScanningToComplete == (int)MegaSyncStall::SyncPathProblem::WaitingForScanningToComplete, "");
     static_assert((int)PathProblem::WaitingForAnotherMoveToComplete == (int)MegaSyncStall::SyncPathProblem::WaitingForAnotherMoveToComplete, "");
     static_assert((int)PathProblem::SourceWasMovedElsewhere == (int)MegaSyncStall::SyncPathProblem::SourceWasMovedElsewhere, "");
@@ -1701,6 +1699,7 @@ MegaSyncStallPrivate::pathProblemDebugString(MegaSyncStall::SyncPathProblem reas
     static_assert((int)PathProblem::PutnodeCompletionPending == (int)MegaSyncStall::SyncPathProblem::PutnodeCompletionPending, "");
     static_assert((int)PathProblem::UploadDeferredByController == (int)MegaSyncStall::SyncPathProblem::UploadDeferredByController, "");
     static_assert((int)PathProblem::DetectedNestedMount == (int)MegaSyncStall::SyncPathProblem::DetectedNestedMount, "");
+    static_assert((int)PathProblem::CloudNodeIsBlocked == (int)MegaSyncStall::SyncPathProblem::CloudNodeIsBlocked, "");
     static_assert((int)PathProblem::PathProblem_LastPlusOne == (int)MegaSyncStall::SyncPathProblem::SyncPathProblem_LastPlusOne, "");
 
     return syncPathProblemDebugString(PathProblem(reason));
@@ -1742,19 +1741,23 @@ MegaSyncStallListPrivate::MegaSyncStallListPrivate(SyncProblems&& sp, AddressedS
         }
     }
 
-    for(auto& stall : sp.mStalls.cloud)
+    for (auto& stalledSyncMapPair : sp.mStalls.syncStallInfoMaps)
     {
-        if (!filter.addressedCloudStall(stall.first))
+        auto& stalledSyncMap = stalledSyncMapPair.second;
+        for(auto& stall : stalledSyncMap.cloud)
         {
-            mStalls.push_back(std::make_shared<MegaSyncStallPrivate>(stall.second));
+            if (!filter.addressedCloudStall(stall.first))
+            {
+                mStalls.push_back(std::make_shared<MegaSyncStallPrivate>(stall.second));
+            }
         }
-    }
 
-    for(auto& stall : sp.mStalls.local)
-    {
-        if (!filter.addressedLocalStall(stall.first))
+        for(auto& stall : stalledSyncMap.local)
         {
-            mStalls.push_back(std::make_shared<MegaSyncStallPrivate>(stall.second));
+            if (!filter.addressedLocalStall(stall.first))
+            {
+                mStalls.push_back(std::make_shared<MegaSyncStallPrivate>(stall.second));
+            }
         }
     }
 }
@@ -2331,6 +2334,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
     }
     break;
     case UserAlert::type_psts:
+    case UserAlert::type_psts_v2:
     {
         UserAlert::Payment* p = static_cast<UserAlert::Payment*>(b);
         type = p->success ? TYPE_PAYMENT_SUCCEEDED : TYPE_PAYMENT_FAILED;
@@ -4396,14 +4400,14 @@ void MegaRequestPrivate::setTag(int tag)
 
 void MegaRequestPrivate::addProduct(unsigned int type, handle product, int proLevel, int gbStorage, int gbTransfer,
                                     int months, int amount, int amountMonth, int localPrice,
-                                    const char* description, const char* iosid, const char* androidid,
-                                    std::unique_ptr<BusinessPlan> bizPlan)
+                                    const char* description, map<string, uint32_t>&& features, const char* iosid, const char* androidid,
+                                    unsigned int testCategory, std::unique_ptr<BusinessPlan> bizPlan)
 {
     if (megaPricing)
     {
         megaPricing->addProduct(type, product, proLevel, gbStorage, gbTransfer,
                                 months, amount, amountMonth, localPrice,
-                                description, iosid, androidid, std::move(bizPlan));
+                                description, std::move(features), iosid, androidid, testCategory, std::move(bizPlan));
     }
 }
 
@@ -4720,6 +4724,8 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CREATE_PASSWORD_NODE: return "CREATE_PASSWORD_NODE";
         case TYPE_UPDATE_PASSWORD_NODE: return "UPDATE_PASSWORD_NODE";
         case TYPE_GET_NOTIFICATIONS: return "GET_NOTIFICATIONS";
+        case TYPE_DEL_ATTR_USER:
+            return "DEL_ATTR_USER";
 
         // FUSE requests.
         case TYPE_ADD_MOUNT:       return "TYPE_ADD_MOUNT";
@@ -5007,6 +5013,48 @@ void MegaIntegerMapPrivate::set(int64_t key, int64_t value)
 const integer_map* MegaIntegerMapPrivate::getMap() const
 {
     return &mIntegerMap;
+}
+
+MegaStringListPrivate* MegaStringIntegerMapPrivate::getKeys() const
+{
+    MegaStringListPrivate* keys = new MegaStringListPrivate();
+    for (const auto& p : mStorage)
+    {
+        keys->add(p.first.c_str());
+    }
+    return keys;
+}
+
+MegaIntegerListPrivate* MegaStringIntegerMapPrivate::get(const char* key) const
+{
+    if (!key)
+    {
+        return nullptr;
+    }
+
+    auto it = mStorage.find(key);
+    if (it == mStorage.end())
+    {
+        return nullptr;
+    }
+
+    MegaIntegerListPrivate* intList = new MegaIntegerListPrivate();
+    intList->add(it->second);
+    return intList;
+}
+
+void MegaStringIntegerMapPrivate::set(const char* key, int64_t value)
+{
+    assert(key);
+    if (key)
+    {
+        mStorage[key] = value;
+    }
+}
+
+void MegaStringIntegerMapPrivate::set(const string& key, int64_t value)
+{
+    mStorage[key] = value;
 }
 
 MegaStringListPrivate::MegaStringListPrivate(string_vector&& v)
@@ -6066,7 +6114,12 @@ void MegaSearchFilterPrivate::byFavourite(int boolFilterOption)
 
 void MegaSearchFilterPrivate::bySensitivity(bool excludeSensitive)
 {
-    mExcludeSensitive = excludeSensitive;
+    mExcludeSensitive = validateBoolFilterOption(static_cast<int>(excludeSensitive));
+}
+
+void MegaSearchFilterPrivate::bySensitivity(int boolFilterOption)
+{
+    mExcludeSensitive = validateBoolFilterOption(boolFilterOption);
 }
 
 void MegaSearchFilterPrivate::byLocationHandle(MegaHandle ancestorHandle)
@@ -6117,14 +6170,16 @@ MegaSearchFilterPrivate* MegaSearchFilterPrivate::copy() const
 
 int MegaSearchFilterPrivate::validateBoolFilterOption(const int value)
 {
-    if (value != MegaSearchFilter::BOOL_FILTER_DISABLED &&
-        value != MegaSearchFilter::BOOL_FILTER_ONLY_TRUE &&
-        value != MegaSearchFilter::BOOL_FILTER_ONLY_FALSE)
+    switch (value)
     {
+    case MegaSearchFilter::BOOL_FILTER_DISABLED:
+    case MegaSearchFilter::BOOL_FILTER_ONLY_TRUE:
+    case MegaSearchFilter::BOOL_FILTER_ONLY_FALSE:
+        return value;
+    default:
         LOG_warn << "Invalid value for a boolean filtering option: " << value;
         return MegaSearchFilter::BOOL_FILTER_DISABLED;
     }
-    return value;
 }
 
 std::unique_ptr<MegaGfxProviderPrivate> MegaGfxProviderPrivate::createIsolatedInstance(
@@ -6849,17 +6904,14 @@ bool MegaApiImpl::accountIsNew() const
 
 unsigned int MegaApiImpl::getABTestValue(const char* flag)
 {
-    if (!flag) return 0;
-
-    SdkMutexGuard g(sdkMutex);
-    auto it = client->mABTestFlags.find(flag);
-    if (it != client->mABTestFlags.end())
+    if (!flag) return 0u;
+    unique_ptr<uint32_t> v = client->mABTestFlags.get(flag);
+    if (v)
     {
         sendABTestActive(flag, nullptr);
-        return it->second;
     }
 
-    return 0;
+    return v ? *v : 0u;
 }
 
 void MegaApiImpl::sendABTestActive(const char* flag, MegaRequestListener* listener)
@@ -13609,6 +13661,7 @@ void MegaApiImpl::syncupdate_stats(handle backupId, const PerSyncStats& stats)
 
 void MegaApiImpl::syncupdate_scanning(bool scanning)
 {
+    receivedScanningStateFlag.store(scanning);
     fireOnGlobalSyncStateChanged();
 }
 
@@ -13644,6 +13697,7 @@ void MegaApiImpl::syncupdate_totalconflicts(bool totalconflicts)
 
 void MegaApiImpl::syncupdate_syncing(bool syncing)
 {
+    receivedSyncingStateFlag.store(syncing);
     fireOnGlobalSyncStateChanged();
 }
 
@@ -13922,7 +13976,9 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
                     assert(!client->mNodeManager.getRootNodeVault().isUndef());
                     break;
 
-                case MegaClient::ClientType::VPN: // fall-through
+                case MegaClient::ClientType::VPN:
+                    // Allow Fetch nodes for VPN to start receiving Action Packets
+                    break;
                 default:
                 {
                     LOG_err << "Fetch nodes requested for unexpected MegaApi type "
@@ -14255,7 +14311,10 @@ void MegaApiImpl::putfa_result(handle h, fatype, error e)
     fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
 }
 
-void MegaApiImpl::enumeratequotaitems_result(unsigned type, handle product, unsigned prolevel, int gbstorage, int gbtransfer, unsigned months, unsigned amount, unsigned amountMonth, unsigned localPrice, const char* description, const char* iosid, const char* androidid, std::unique_ptr<BusinessPlan> bizPlan)
+void MegaApiImpl::enumeratequotaitems_result(unsigned type, handle product, unsigned prolevel,
+    int gbstorage, int gbtransfer, unsigned months, unsigned amount, unsigned amountMonth, unsigned localPrice,
+    const char* description, map<string, uint32_t>&& features, const char* iosid, const char* androidid, 
+    unsigned int testCategory, std::unique_ptr<BusinessPlan> bizPlan)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
@@ -14267,7 +14326,9 @@ void MegaApiImpl::enumeratequotaitems_result(unsigned type, handle product, unsi
         return;
     }
 
-    request->addProduct(type, product, prolevel, gbstorage, gbtransfer, months, amount, amountMonth, localPrice, description, iosid, androidid, std::move(bizPlan));
+    request->addProduct(type, product, prolevel, gbstorage, gbtransfer, months,
+        amount, amountMonth, localPrice, description, std::move(features),
+        iosid, androidid, testCategory, std::move(bizPlan));
 }
 
 void MegaApiImpl::enumeratequotaitems_result(unique_ptr<CurrencyData> currencyData)
@@ -14849,6 +14910,8 @@ void MegaApiImpl::logout_result(error e, MegaRequestPrivate* request)
         receivedNameConflictsFlag.store(false);
         receivedTotalStallsFlag.store(false);
         receivedTotalNameConflictsFlag.store(false);
+        receivedScanningStateFlag.store(false);
+        receivedSyncingStateFlag.store(false);
         mAddressedStallFilter.clear();
 #endif
 
@@ -15636,8 +15699,15 @@ void MegaApiImpl::getua_completion(TLVstore *tlv, attr_t type, MegaRequestPrivat
 }
 
 #ifdef DEBUG
-void MegaApiImpl::delua_result(error)
+void MegaApiImpl::delua_result(error e)
 {
+    if (requestMap.find(client->restag) == requestMap.end())
+        return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if (!request || (request->getType() != MegaRequest::TYPE_DEL_ATTR_USER))
+        return;
+
+    fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::senddevcommand_result(int value)
@@ -17147,109 +17217,6 @@ bool MegaApiImpl::isFilesystemAvailable()
 {
     SdkMutexGuard g(sdkMutex);
     return client->nodeByHandle(client->mNodeManager.getRootNodeFiles()) != NULL;
-}
-
-// returns 0 if i==j, +1 if i goes first, -1 if j goes first.
-int naturalsorting_compare (const char *i, const char *j)
-{
-    static uint64_t maxNumber = (ULONG_MAX - 57) / 10; // 57 --> ASCII code for '9'
-
-    bool stringMode = true;
-
-    while (*i && *j)
-    {
-        if (stringMode)
-        {
-            char char_i, char_j;
-            while ( (char_i = *i) && (char_j = *j) )
-            {
-                bool char_i_isDigit = is_digit(*i);
-                bool char_j_isDigit = is_digit(*j);
-
-                if (char_i_isDigit && char_j_isDigit)
-                {
-                    stringMode = false;
-                    break;
-                }
-
-                if(char_i_isDigit)
-                {
-                    return -1;
-                }
-
-                if(char_j_isDigit)
-                {
-                    return 1;
-                }
-
-                int difference = strncasecmp((char *)&char_i, (char *)&char_j, 1);
-                if (difference)
-                {
-                    return difference;
-                }
-
-                ++i;
-                ++j;
-            }
-        }
-        else    // we are comparing numbers on both strings
-        {
-            uint64_t number_i = 0;
-            unsigned int i_overflow_count = 0;
-            while (*i && is_digit(*i))
-            {
-                number_i = number_i * 10 + (*i - 48); // '0' ASCII code is 48
-                ++i;
-
-                // check the number won't overflow upon addition of next char
-                if (number_i >= maxNumber)
-                {
-                    number_i -= maxNumber;
-                    i_overflow_count++;
-                }
-            }
-
-            uint64_t number_j = 0;
-            unsigned int j_overflow_count = 0;
-            while (*j && is_digit(*j))
-            {
-                number_j = number_j * 10 + (*j - 48);
-                ++j;
-
-                // check the number won't overflow upon addition of next char
-                if (number_j >= maxNumber)
-                {
-                    number_j -= maxNumber;
-                    j_overflow_count++;
-                }
-            }
-
-            int difference = i_overflow_count - j_overflow_count;
-            if (difference)
-            {
-                return difference;
-            }
-
-            if (number_i != number_j)
-            {
-                return number_i > number_j ? 1 : -1;
-            }
-
-            stringMode = true;
-        }
-    }
-
-    if (*j)
-    {
-        return -1;
-    }
-
-    if (*i)
-    {
-        return 1;
-    }
-
-    return 0;
 }
 
 std::function<bool (Node*, Node*)> MegaApiImpl::getComparatorFunction(int order, MegaClient& mc)
@@ -19654,6 +19621,9 @@ void MegaApiImpl::moveNode(MegaNode* node, MegaNode* newParent, const char* newN
 
                 unsigned nc;
                 TreeProcCopy tc;
+                const bool fullInternalOperation = node && newParent && node->owner == client->me &&
+                                                   client->me == newParent->owner;
+                tc.resetSensitive = !fullInternalOperation;
                 NodeHandle ovhandle;
 
                 if (node->type == FILENODE)
@@ -19713,6 +19683,12 @@ void MegaApiImpl::moveNode(MegaNode* node, MegaNode* newParent, const char* newN
                     AttrMap attrs = node->attrs;
                     attrs.map['n'] = newName;
 
+                    // We need to ensure we are not undoing the sensitive reset
+                    if (tc.resetSensitive && attrs.map.erase(AttrMap::string2nameid("sen")))
+                    {
+                        LOG_debug << "Removing sen attribute";
+                    }
+
                     string attrstring;
                     attrs.getjson(&attrstring);
 
@@ -19730,6 +19706,11 @@ void MegaApiImpl::moveNode(MegaNode* node, MegaNode* newParent, const char* newN
                     // Add attribute to a copy of old attributes
                     AttrMap attrs = node->attrs;
                     attrs.map[rrname] = rrvalue;
+                    // Again, need to ensure we are not undoing the sensitive reset
+                    if (tc.resetSensitive && attrs.map.erase(AttrMap::string2nameid("sen")))
+                    {
+                        LOG_debug << "Removing sen attribute when moving node to trash";
+                    }
 
                     // Magic incantations for setting attributes
                     string attrstring;
@@ -19930,8 +19911,14 @@ error MegaApiImpl::copyTreeFromOwnedNode(shared_ptr<Node> node, const char* newN
 
     // determine number of nodes to be copied
     TreeProcCopy tc;
+    const bool fullInternalOperation =
+        node && target && node->owner == client->me && client->me == target->owner;
+    tc.resetSensitive = !fullInternalOperation;
     client->proctree(node, &tc, false, !ovhandle.isUndef());
     tc.allocnodes();
+
+    // If the sensitivity was reset, the file didn't exist
+    fileAlreadyExisted = fileAlreadyExisted && !(tc.resetSensitive && node->isMarkedSensitive());
 
     // build new nodes array
     client->proctree(node, &tc, false, !ovhandle.isUndef());
@@ -19954,6 +19941,12 @@ error MegaApiImpl::copyTreeFromOwnedNode(shared_ptr<Node> node, const char* newN
         attrs = node->attrs;
 
         attrs.map['n'] = sname;
+
+        // We need to ensure we are not undoing the sensitive reset
+        if (tc.resetSensitive && attrs.map.erase(AttrMap::string2nameid("sen")))
+        {
+            LOG_debug << "Removing sen attribute";
+        }
 
         attrs.getjson(&attrstring);
         client->makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
@@ -22640,24 +22633,16 @@ void MegaApiImpl::copySyncDataToCache(const char* localFolder, const char* name,
                 syncConfig.mError = syncError;
             }
 
-            client->ensureSyncUserAttributes([this, request, syncConfig](Error e){
-
-                if (e != API_OK)
+            client->copySyncConfig(syncConfig, [this, request](handle backupId, error e)
+            {
+                if (e == API_OK)
                 {
-                    fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
-                    return;
+                    request->setParentHandle(backupId);
                 }
 
-                client->copySyncConfig(syncConfig, [this, request](handle backupId, error e)
-                {
-                    if (e == API_OK)
-                    {
-                        request->setParentHandle(backupId);
-                    }
-
-                    fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
-                });
+                fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
             });
+
             return API_OK;
         };
 
@@ -24813,6 +24798,40 @@ void MegaApiImpl::removeFromBC(MegaHandle backupId, MegaHandle moveDestination, 
         auto finalCompletion = [this, request](Error e) { fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e)); };
 
         client->removeFromBC(request->getParentHandle(), request->getNodeHandle(), finalCompletion);
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::pauseFromBC(MegaHandle backupId, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_BACKUP_PAUSE_MD, listener);
+    request->setParentHandle(backupId);
+
+    request->performRequest = [this, request]()
+    {
+        auto finalCompletion = [this, request](const Error& e) { fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e)); };
+
+        client->updateStateInBC(request->getParentHandle(), CommandBackupPut::TEMPORARY_DISABLED, finalCompletion);
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::resumeFromBC(MegaHandle backupId, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_BACKUP_RESUME_MD, listener);
+    request->setParentHandle(backupId);
+
+    request->performRequest = [this, request]()
+    {
+        auto finalCompletion = [this, request](const Error& e) { fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e)); };
+
+        client->updateStateInBC(request->getParentHandle(), CommandBackupPut::ACTIVE, finalCompletion);
         return API_OK;
     };
 
@@ -27092,14 +27111,11 @@ error MegaApiImpl::getLastActionedBanner_getua_result(byte* data, unsigned len, 
     return e;
 }
 
-MegaFlagPrivate* MegaApiImpl::getFlag(const char* flagName, bool commit, MegaRequestListener* listener)
+MegaFlagPrivate* MegaApiImpl::getFlag(const char* flagName,
+                                      bool commit,
+                                      MegaRequestListener* listener)
 {
-    std::pair<uint32_t, uint32_t> flag;
-
-    {
-        SdkMutexGuard g(sdkMutex);
-        flag = client->getFlag(flagName, commit);
-    }
+    std::pair<uint32_t, uint32_t> flag = client->getFlag(flagName);
 
     if (flag.first == static_cast<decltype(flag.first)>(MegaFlag::FLAG_TYPE_AB_TEST) && commit)
     {
@@ -27107,6 +27123,31 @@ MegaFlagPrivate* MegaApiImpl::getFlag(const char* flagName, bool commit, MegaReq
     }
 
     return new MegaFlagPrivate(flag.first, flag.second);
+}
+
+void MegaApiImpl::deleteUserAttribute(int type, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_DEL_ATTR_USER, listener);
+    request->setParamType(type);
+
+    request->performRequest = [this, request]()
+    {
+#ifdef DEBUG
+        attr_t type = static_cast<attr_t>(request->getParamType());
+        string attributeName = MegaApiImpl::userAttributeToString(type);
+        if (attributeName.empty())
+        {
+            return API_EARGS;
+        }
+        client->delua(attributeName.c_str());
+        return API_OK;
+#else
+        return API_EACCESS;
+#endif
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 /* END MEGAAPIIMPL */
@@ -27601,6 +27642,35 @@ bool MegaAccountDetailsPrivate::isTemporalBandwidthValid()
     return details.transfer_hist_valid;
 }
 
+int MegaAccountDetailsPrivate::getNumActiveFeatures() const
+{
+    return static_cast<int>(details.activeFeatures.size());
+}
+
+MegaAccountFeature* MegaAccountDetailsPrivate::getActiveFeature(int featureIndex) const
+{
+    if (static_cast<size_t>(featureIndex) < details.activeFeatures.size())
+    {
+        return MegaAccountFeaturePrivate::fromAccountFeature(&(details.activeFeatures[featureIndex]));
+    }
+    return nullptr;
+}
+
+int64_t MegaAccountDetailsPrivate::getSubscriptionLevel() const
+{
+    return details.slevel;
+}
+
+MegaStringIntegerMap* MegaAccountDetailsPrivate::getSubscriptionFeatures() const
+{
+    MegaStringIntegerMapPrivate* subscriptionFeatures = new MegaStringIntegerMapPrivate();
+    for (const auto& f : details.sfeatures)
+    {
+        subscriptionFeatures->set(f.first, f.second);
+    }
+    return subscriptionFeatures;
+}
+
 MegaErrorPrivate::MegaErrorPrivate(int errorCode)
     : MegaError(errorCode)
 {
@@ -27815,8 +27885,18 @@ const char *MegaPricingPrivate::getAndroidID(int productIndex)
 
 bool MegaPricingPrivate::isBusinessType(int productIndex)
 {
-    if((unsigned)productIndex < type.size())
-        return type[productIndex];
+    return isType(productIndex, PlanType::BUSINESS);
+}
+
+bool MegaPricingPrivate::isFeaturePlan(int productIndex) const
+{
+    return isType(productIndex, PlanType::FEATURE);
+}
+
+bool MegaPricingPrivate::isType(int productIndex, unsigned t) const
+{
+    if (static_cast<decltype(type.size())>(productIndex) < type.size())
+        return type[productIndex] == t;
 
     return false;
 }
@@ -27837,17 +27917,17 @@ MegaPricing *MegaPricingPrivate::copy()
         std::unique_ptr<BusinessPlan> bizPlan(mBizPlan[i] ? new BusinessPlan(*mBizPlan[i]) : nullptr);
 
         megaPricing->addProduct(type[i], handles[i], proLevel[i], gbStorage[i], gbTransfer[i],
-                                months[i], amount[i], amountMonth[i],
-                                mLocalPrice[i],
-                                description[i], iosId[i], androidId[i],
-                                std::move(bizPlan));
+                                months[i], amount[i], amountMonth[i], mLocalPrice[i], description[i],
+                                decltype(features)::value_type(features[i]), // make a copy
+                                iosId[i], androidId[i], mTestCategory[i], std::move(bizPlan));
     }
 
     return megaPricing;
 }
 
 void MegaPricingPrivate::addProduct(unsigned int type, handle product, int proLevel, int gbStorage, int gbTransfer, int months, int amount, int amountMonth,
-                                    unsigned localPrice, const char* description, const char* iosid, const char* androidid, std::unique_ptr<BusinessPlan> bizPlan)
+                                    unsigned localPrice, const char* description, map<string, uint32_t>&& features, const char* iosid, const char* androidid, 
+                                    unsigned int testCategory, std::unique_ptr<BusinessPlan> bizPlan)
 {
     this->type.push_back(type);
     this->handles.push_back(product);
@@ -27859,9 +27939,11 @@ void MegaPricingPrivate::addProduct(unsigned int type, handle product, int proLe
     this->amountMonth.push_back(amountMonth);
     mLocalPrice.push_back(localPrice);
     this->description.push_back(MegaApi::strdup(description));
+    this->features.emplace_back(std::move(features));
     this->iosId.push_back(MegaApi::strdup(iosid));
     this->androidId.push_back(MegaApi::strdup(androidid));
     mBizPlan.push_back(std::move(bizPlan));
+    this->mTestCategory.push_back(testCategory);
 }
 
 
@@ -27970,6 +28052,31 @@ int MegaPricingPrivate::getGBPerTransfer(int productIndex)
     if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
     {
         return mBizPlan[productIndex]->gbPerTransfer;
+    }
+
+    return 0;
+}
+
+MegaStringIntegerMap* MegaPricingPrivate::getFeatures(int productIndex) const
+{
+    if (static_cast<decltype(features.size())>(productIndex) >= features.size())
+    {
+        return nullptr;
+    }
+
+    MegaStringIntegerMapPrivate* returnFeatures = new MegaStringIntegerMapPrivate();
+    for (const auto& feature: features[productIndex])
+    {
+        returnFeatures->set(feature.first, feature.second);
+    }
+    return returnFeatures;
+}
+
+unsigned int MegaPricingPrivate::getTestCategory(int productIndex) const
+{
+    if (static_cast<decltype(mTestCategory.size())>(productIndex) < mTestCategory.size())
+    {
+        return mTestCategory[productIndex];
     }
 
     return 0;
@@ -28422,6 +28529,31 @@ double MegaAccountTransactionPrivate::getAmount() const
 MegaAccountTransactionPrivate::MegaAccountTransactionPrivate(const AccountTransaction *transaction)
 {
     this->transaction = *transaction;
+}
+
+
+MegaAccountFeaturePrivate* MegaAccountFeaturePrivate::fromAccountFeature(const AccountFeature* feature)
+{
+    return new MegaAccountFeaturePrivate(feature);
+}
+
+MegaAccountFeaturePrivate::MegaAccountFeaturePrivate(const AccountFeature* feature)
+{
+    assert(feature);
+    if (feature)
+    {
+        mFeature = *feature;
+    }
+}
+
+int64_t MegaAccountFeaturePrivate::getExpiry() const
+{
+    return mFeature.expiryTimestamp;
+}
+
+char* MegaAccountFeaturePrivate::getId() const
+{
+    return MegaApi::strdup(mFeature.featureId.c_str());
 }
 
 
@@ -29934,11 +30066,10 @@ void MegaScheduledCopyController::setPeriod(const int64_t &value)
 
     if (value != -1)
     {
-        auto ds = static_cast<int64_t>(Waiter::ds.load());
-
-        offsetds  = m_time(NULL) * 10 - ds;
-        startTime = lastbackuptime ? lastbackuptime + period - offsetds : ds;
-        startTime = std::max(startTime, ds);
+        int64_t ds = Waiter::ds.load();
+        offsetds   = m_time(NULL) * 10 - ds;
+        startTime  = lastbackuptime ? (lastbackuptime + period - offsetds) : ds;
+        startTime  = std::max(startTime, ds);
     }
 }
 

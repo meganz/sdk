@@ -19,7 +19,20 @@
  * program.
  */
 #import <Foundation/Foundation.h>
+#import "MEGANode.h"
 #import "MEGASearchFilterTimeFrame.h"
+
+typedef NS_ENUM (NSInteger, MEGASearchFilterSensitiveOption) {
+    MEGASearchFilterSensitiveOptionDisabled = 0,
+    MEGASearchFilterSensitiveOptionNonSensitiveOnly = 1,
+    MEGASearchFilterSensitiveOptionSensitiveOnly = 2
+};
+
+typedef NS_ENUM (NSInteger, MEGASearchFilterFavouriteOption) {
+    MEGASearchFilterFavouriteOptionDisabled = 0,
+    MEGASearchFilterFavouriteOptionFavouritesOnly = 1,
+    MEGASearchFilterFavouriteOptionNonFavouritesOnly = 2
+};
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -29,26 +42,100 @@ NS_ASSUME_NONNULL_BEGIN
 @property MEGASearchFilterTimeFrame* _Nullable creationTimeFrame;
 @property MEGASearchFilterTimeFrame* _Nullable modificationTimeFrame;
 @property uint64_t parentNodeHandle;
-@property int nodeType;
-@property int category;
-@property bool sensitivity;
+
+/**
+ * @brief Set option for filtering by predefined node types.
+ *
+ * Valid values for this parameter are (invalid values will be ignored):
+ * - MEGANodeTypeUnknown = -1  --> all types
+ * - MEGANodeTypeFile = 0 --> Returns file nodes only
+ * - MEGANodeTypeFolder = 1 --> Returns folder nodes only
+ */
+@property (readonly, nonatomic) MEGANodeType nodeType;
+
+/**
+ * @brief Set option for filtering by predefined file categories.
+ *
+ * Category of files requested in the search
+ * Valid values for this parameter are (invalid values will be ignored):
+ * - MEGANodeFormatTypeUnknown = 0  --> no particular category, include folders too
+ * - MEGANodeFormatTypePhoto  = 1
+ * - MEGANodeFormatTypeAudio = 2
+ * - MEGANodeFormatTypeVideo = 3
+ * - MEGANodeFormatTypeDocument = 4
+ * - MEGANodeFormatTypePdf = 5
+ * - MEGANodeFormatTypePresentation = 6
+ * - MEGANodeFormatTypeArchive = 7
+ * - MEGANodeFormatTypeProgram = 8
+ * - MEGANodeFormatTypeMisc = 9
+ * - MEGANodeFormatTypeSpreadsheet = 10
+ * - MEGANodeFormatTypeAllDocs = 11  --> any of {DOCUMENT, PDF, PRESENTATION, SPREADSHEET}
+ * - MEGANodeFormatTypeOthers = 12
+ */
+@property (readonly, nonatomic) MEGANodeFormatType category;
+
+/**
+ * @brief Option for filtering out sensitive nodes.
+ * 
+ * Option to determine node inclusion based on sensitive criteria.
+ *
+ * Valid values for this parameter are (invalid values will be ignored):
+ * - MEGASearchFilterSensitiveOptionDisabled = 0 --> All nodes are taken in consideration, no
+ * filter is applied
+ * - MEGASearchFilterSensitiveOptionNonSensitiveOnly = 1 --> Returns nodes not marked as sensitive (nodes
+ * with property set or if any of their ancestors have it are considered sensitive)
+ * - MEGASearchFilterSensitiveOptionSensitiveOnly = 2 --> Returns nodes with property set to true
+ * (regardless of their children)
+ */
+@property (readonly, nonatomic) MEGASearchFilterSensitiveOption sensitiveFilter;
+
+/**
+ * @brief Set option for filtering out nodes based on isFavourite.
+ *
+ * Valid values for this parameter are (invalid values will be ignored):
+ * - MEGASearchFilterFavouriteOptionDisabled = 0 --> Both favourites and non favourites are considered
+ * - MEGASearchFilterFavouriteOptionFavouritesOnly = 1 --> Only favourites
+ * - MEGASearchFilterFavouriteOptionNonFavouritesOnly = 2 --> Only non favourites
+ */
+@property (readonly, nonatomic) MEGASearchFilterFavouriteOption favouriteFilter;
+
 @property int locationType;
+
+- (instancetype)initWithTerm:(NSString *)term
+            parentNodeHandle:(uint64_t)parentNodeHandle
+                    nodeType:(MEGANodeType)nodeType
+                    category:(MEGANodeFormatType)category
+             sensitiveFilter:(MEGASearchFilterSensitiveOption)sensitiveFilter
+             favouriteFilter:(MEGASearchFilterFavouriteOption)favouriteFilter
+           creationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)creationTimeFrame
+       modificationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)modificationTimeFrame;
+
+- (instancetype)initWithTerm:(NSString *)term
+                    nodeType:(MEGANodeType)nodeType
+                    category:(MEGANodeFormatType)category
+             sensitiveFilter:(MEGASearchFilterSensitiveOption)sensitiveFilter
+             favouriteFilter:(MEGASearchFilterFavouriteOption)favouriteFilter
+                locationType:(int)locationType
+           creationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)creationTimeFrame
+       modificationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)modificationTimeFrame;
 
 - (instancetype)initWithTerm:(NSString *)term
             parentNodeHandle:(uint64_t)parentNodeHandle
                     nodeType:(int)nodeType
                     category:(int)category
                  sensitivity:(bool)sensitivity
+             favouriteFilter:(int)favouriteFilter
            creationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)creationTimeFrame
-       modificationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)modificationTimeFrame;
+       modificationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)modificationTimeFrame DEPRECATED_ATTRIBUTE;
 
 - (instancetype)initWithTerm:(NSString *)term
                     nodeType:(int)nodeType
                     category:(int)category
                  sensitivity:(bool)sensitivity
+             favouriteFilter:(int)favouriteFilter
                 locationType:(int)locationType
            creationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)creationTimeFrame
-       modificationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)modificationTimeFrame;
+       modificationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)modificationTimeFrame DEPRECATED_ATTRIBUTE;
 
 - (BOOL)didSetParentNodeHandle;
 - (BOOL)didSetLocationType;

@@ -92,21 +92,6 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
     MEGASortOrderTypeFavouriteDesc
 };
 
-typedef NS_ENUM (NSInteger, MEGANodeFormatType) {
-    MEGANodeFormatTypeUnknown = 0,
-    MEGANodeFormatTypePhoto,
-    MEGANodeFormatTypeAudio,
-    MEGANodeFormatTypeVideo,
-    MEGANodeFormatTypeDocument,
-    MEGANodeFormatTypePdf,
-    MEGANodeFormatTypePresentation,
-    MEGANodeFormatTypeArchive,
-    MEGANodeFormatTypeProgram,
-    MEGANodeFormatTypeMisc,
-    MEGANodeFormatTypeSpreadsheet,
-    MEGANodeFormatTypeAllDocs
-};
-
 typedef NS_ENUM (NSInteger, MEGAFolderTargetType) {
     MEGAFolderTargetTypeInShare = 0,
     MEGAFolderTargetTypeOutShare,
@@ -7657,13 +7642,15 @@ typedef NS_ENUM(NSInteger, MEGAClientType) {
  * @brief Get the child node with the provided name.
  *
  * If the node doesn't exist, this function returns nil.
+ * It's possible to have multiple nodes with the same name.
+ * This function will return one of them.
  *
  * @param parent Parent node.
  * @param name Name of the node.
- * @param type Type of the node.
+ * @param type Type of the node. Allowed types: MEGANodeTypeFile and MEGANodeTypeFolder.
  * @return The MEGANode that has the selected parent, name and type.
  */
-- (nullable MEGANode *)childNodeForParent:(MEGANode *)parent name:(NSString *)name type:(NSInteger)type;
+- (nullable MEGANode *)childNodeForParent:(MEGANode *)parent name:(NSString *)name type:(MEGANodeType)type;
 
 /**
  * @brief Get all versions of a file
@@ -10278,6 +10265,15 @@ typedef NS_ENUM(NSInteger, MEGAClientType) {
  * @return An unsigned integer with the value of the flag.
  */
 - (NSInteger)getABTestValue:(NSString*)flag;
+
+#pragma mark - Remote feature flags
+/**
+ * @brief Get the value for the flag with the given name,
+ * if present among either A/B Test or Feature flags.
+ * @param flag Name or key of the value to be retrieved
+ * @return A integer with the value of the flag, value above 0 means feature enabled
+ */
+- (NSInteger)remoteFeatureFlagValue:(NSString *)flag;
 
 #pragma mark - Ads
 /**

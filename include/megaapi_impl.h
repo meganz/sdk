@@ -1568,8 +1568,8 @@ class MegaRequestPrivate : public MegaRequest
         void setTag(int tag);
         void addProduct(unsigned int type, handle product, int proLevel, int gbStorage, int gbTransfer,
                         int months, int amount, int amountMonth, int localPrice,
-                        const char *description, const char *iosid, const char *androidid,
-                        std::unique_ptr<BusinessPlan>);
+                        const char *description, std::map<std::string, uint32_t>&& features, const char *iosid, const char *androidid,
+                        unsigned int testCategory, std::unique_ptr<BusinessPlan>);
         void setCurrency(std::unique_ptr<CurrencyData> currencyData);
         void setProxy(Proxy *proxy);
         Proxy *getProxy();
@@ -1842,6 +1842,19 @@ private:
     AccountTransaction transaction;
 };
 
+class MegaAccountFeaturePrivate : public MegaAccountFeature
+{
+public:
+    static MegaAccountFeaturePrivate* fromAccountFeature(const AccountFeature* feature);
+
+    int64_t getExpiry() const override;
+    char* getId() const override;
+
+private:
+    MegaAccountFeaturePrivate(const AccountFeature* feature);
+    AccountFeature mFeature;
+};
+
 class MegaAccountDetailsPrivate : public MegaAccountDetails
 {
     public:
@@ -1889,6 +1902,11 @@ class MegaAccountDetailsPrivate : public MegaAccountDetails
         long long getTemporalBandwidth() override;
         bool isTemporalBandwidthValid() override;
 
+        int getNumActiveFeatures() const override;
+        MegaAccountFeature* getActiveFeature(int featureIndex) const override;
+        int64_t getSubscriptionLevel() const override;
+        MegaStringIntegerMap* getSubscriptionFeatures() const override;
+
     private:
         MegaAccountDetailsPrivate(AccountDetails *details);
         AccountDetails details;
@@ -1927,6 +1945,7 @@ public:
     const char* getIosID(int productIndex) override;
     const char* getAndroidID(int productIndex) override;
     bool isBusinessType(int productIndex) override;
+    bool isFeaturePlan(int productIndex) const override;
     int getAmountMonth(int productIndex) override;
     MegaPricing *copy() override;
     int getGBStoragePerUser(int productIndex) override;
@@ -1940,13 +1959,24 @@ public:
     unsigned int getPricePerTransfer(int productIndex) override;
     unsigned int getLocalPricePerTransfer(int productIndex) override;
     int getGBPerTransfer(int productIndex) override;
+    MegaStringIntegerMap* getFeatures(int productIndex) const override;
+    unsigned int getTestCategory(int productIndex) const override;
 
     void addProduct(unsigned int type, handle product, int proLevel, int gbStorage, int gbTransfer,
                     int months, int amount, int amountMonth, unsigned localPrice,
-                    const char *description, const char *iosid, const char *androidid,
-                    std::unique_ptr<BusinessPlan>);
+                    const char *description, std::map<std::string, uint32_t>&& features, const char *iosid, const char *androidid,
+                    unsigned int testCategory, std::unique_ptr<BusinessPlan>);
 
 private:
+    enum PlanType : unsigned
+    {
+        PRO_LEVEL,
+        BUSINESS,
+        FEATURE,
+    };
+
+    bool isType(int productIndex, unsigned t) const;
+
     vector<unsigned int> type;
     vector<handle> handles;
     vector<int> proLevel;
@@ -1957,8 +1987,10 @@ private:
     vector<int> amountMonth;
     vector<int> mLocalPrice;
     vector<const char *> description;
+    vector<map<string, uint32_t>> features;
     vector<const char *> iosId;
     vector<const char *> androidId;
+    vector<unsigned int> mTestCategory;
 
     std::vector<std::unique_ptr<BusinessPlan>> mBizPlan;
 };
@@ -2185,6 +2217,23 @@ protected:
 };
 
 bool operator==(const MegaStringList& lhs, const MegaStringList& rhs);
+
+class MegaStringIntegerMapPrivate : public MegaStringIntegerMap
+{
+public:
+    MegaStringIntegerMapPrivate() = default;
+    ~MegaStringIntegerMapPrivate() override = default;
+    MegaStringIntegerMapPrivate* copy() const override { return new MegaStringIntegerMapPrivate(*this); }
+    MegaStringListPrivate* getKeys() const override;
+    MegaIntegerListPrivate* get(const char* key) const override;
+    void set(const char* key, int64_t value) override;
+    void set(const std::string& key, int64_t value);
+    int64_t size() const override { return static_cast<decltype(size())>(mStorage.size()); }
+
+protected:
+    MegaStringIntegerMapPrivate(const MegaStringIntegerMapPrivate& stringIntMap) = default;
+    std::map<std::string, int64_t> mStorage;
+};
 
 class MegaStringListMapPrivate : public MegaStringListMap
 {
@@ -2629,7 +2678,7 @@ class MegaSyncStallPrivate : public MegaSyncStall
                    problem == DetectedSymlink ||
                    problem == DetectedSpecialFile ||
                    problem == FilesystemErrorListingFolder ||
-                   problem == FilesystemErrorIdentifyingFolderContent;
+                   problem == FilesystemErrorIdentifyingFolderContent; // Deprecated after SDK-3206
         }
 
         const char* reasonDebugString() const override
@@ -2807,6 +2856,7 @@ public:
     void byCategory(int mimeType) override;
     void byFavourite(int boolFilterOption) override;
     void bySensitivity(bool excludeSensitive) override;
+    void bySensitivity(int boolFilterOption) override;
     void byLocationHandle(MegaHandle ancestorHandle) override;
     void byLocation(int locationType) override;
     void byCreationTime(int64_t lowerLimit, int64_t upperLimit) override;
@@ -2818,7 +2868,7 @@ public:
     int byNodeType() const override { return mNodeType; }
     int byCategory() const override { return mMimeCategory; }
     int byFavourite() const override { return mFavouriteFilterOption; }
-    bool bySensitivity() const override { return mExcludeSensitive; }
+    int bySensitivity() const override { return mExcludeSensitive; }
     MegaHandle byLocationHandle() const override { return mLocationHandle; }
     int byLocation() const override { return mLocationType; }
     int64_t byCreationTimeLowerLimit() const override { return mCreationLowerLimit; }
@@ -2833,7 +2883,7 @@ private:
     int mNodeType = MegaNode::TYPE_UNKNOWN;
     int mMimeCategory = MegaApi::FILE_TYPE_DEFAULT;
     int mFavouriteFilterOption = MegaSearchFilter::BOOL_FILTER_DISABLED;
-    bool mExcludeSensitive = false;
+    int mExcludeSensitive = MegaSearchFilter::BOOL_FILTER_DISABLED;
     MegaHandle mLocationHandle = INVALID_HANDLE;
     int mLocationType = MegaApi::SEARCH_TARGET_ALL;
     int64_t mCreationLowerLimit = 0;
@@ -3334,6 +3384,8 @@ class MegaApiImpl : public MegaApp
         std::atomic<bool> receivedNameConflictsFlag{false};
         std::atomic<bool> receivedTotalStallsFlag{false};
         std::atomic<bool> receivedTotalNameConflictsFlag{false};
+        std::atomic<bool> receivedScanningStateFlag{false};
+        std::atomic<bool> receivedSyncingStateFlag{false};
 
         MegaSync *getSyncByBackupId(mega::MegaHandle backupId);
         MegaSync *getSyncByNode(MegaNode *node);
@@ -3719,6 +3771,8 @@ public:
         void updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, const char *backupName, int state, int subState, MegaRequestListener* listener = nullptr);
         void removeBackup(MegaHandle backupId, MegaRequestListener *listener = nullptr);
         void removeFromBC(MegaHandle backupId, MegaHandle moveDestination, MegaRequestListener* listener = nullptr);
+        void pauseFromBC(MegaHandle backupId, MegaRequestListener* listener);
+        void resumeFromBC(MegaHandle backupId, MegaRequestListener* listener);
         void getBackupInfo(MegaRequestListener* listener = nullptr);
         void sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode, MegaRequestListener *listener);
 
@@ -3796,9 +3850,11 @@ public:
         void getLastReadNotification(MegaRequestListener* listener);
         void setLastActionedBanner(uint32_t notificationId, MegaRequestListener* listener);
         void getLastActionedBanner(MegaRequestListener* listener);
-        MegaFlagPrivate* getFlag(const char* flagName, bool commit, MegaRequestListener* listener);
+        MegaFlagPrivate* getFlag(const char* flagName, bool commit, MegaRequestListener* listener = nullptr);
 
-private:
+        void deleteUserAttribute(int type, MegaRequestListener* listener = NULL);
+
+    private:
         void init(MegaApi *api, const char *appKey, std::unique_ptr<GfxProc> gfxproc, const char *basePath /*= NULL*/, const char *userAgent /*= NULL*/, unsigned clientWorkerThreadCount /*= 1*/, int clientType);
 
         static void *threadEntryPoint(void *param);
@@ -4036,8 +4092,9 @@ private:
         // purchase transactions
         void enumeratequotaitems_result(unsigned type, handle product, unsigned prolevel, int gbstorage, int gbtransfer,
                                         unsigned months, unsigned amount, unsigned amountMonth, unsigned localPrice,
-                                        const char* description, const char* iosid, const char* androidid,
-                                        std::unique_ptr<BusinessPlan>) override;
+                                        const char* description, std::map<std::string, uint32_t>&& features,
+                                        const char* iosid, const char* androidid, 
+                                        unsigned int testCategory, std::unique_ptr<BusinessPlan>) override;
         void enumeratequotaitems_result(unique_ptr<CurrencyData>) override;
         void enumeratequotaitems_result(error e) override;
         void additem_result(error) override;

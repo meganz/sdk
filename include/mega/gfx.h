@@ -147,7 +147,7 @@ protected:
 // bitmap graphics processor
 class MEGA_API GfxProc
 {
-    bool finished = false;
+    std::atomic<bool> finished{false};
     WAIT_CLASS waiter;
     std::mutex mutex;
     THREAD_CLASS thread;
