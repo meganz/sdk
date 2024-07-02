@@ -13626,7 +13626,7 @@ TEST_F(SdkTest, SdkNodesOnDemand)
 
     std::unique_ptr<MegaSearchFilter>filterResults(MegaSearchFilter::createInstance());
     filterResults->byLocationHandle(rootnodeA->getHandle());
-    filterResults->byNodeType(FOLDERNODE);
+    filterResults->byNodeType(MegaNode::TYPE_FOLDER);
     std::unique_ptr<MegaNodeList> rootChildrenList(megaApi[0]->getChildren(filterResults.get()));
     ASSERT_EQ(rootChildrenList->size(), numberFolderLevel1);
 
@@ -13789,13 +13789,13 @@ TEST_F(SdkTest, SdkNodesOnDemand)
 
         filterResults.reset(MegaSearchFilter::createInstance());
         filterResults->byLocationHandle(node->getHandle());
-        filterResults->byNodeType(FILENODE);
+        filterResults->byNodeType(MegaNode::TYPE_FILE);
         std::unique_ptr<MegaNodeList> fileChildrenList(megaApi[0]->getChildren(filterResults.get()));
         ASSERT_EQ(fileChildrenList->size(), childrenList->size());
 
         filterResults.reset(MegaSearchFilter::createInstance());
         filterResults->byLocationHandle(node->getHandle());
-        filterResults->byNodeType(FOLDERNODE);
+        filterResults->byNodeType(MegaNode::TYPE_FOLDER);
         std::unique_ptr<MegaNodeList> folderChildrenList(megaApi[0]->getChildren(filterResults.get()));
         ASSERT_EQ(folderChildrenList->size(), 0);
     }
