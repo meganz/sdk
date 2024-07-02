@@ -6,7 +6,7 @@
 #     -f : Specify dockerfile to be build, replace /path/to/your/sdk with your local path to it
 #
 # Run the Docker container and build the project for a specific architecture:
-#   docker run -v /path/to/your/sdk:/mega/sdk -e ARCH=[arm, arm64, x86, x64] -it android-build-env
+#   docker run -v /path/to/your/sdk:/mega/sdk -e ARCH=[armeabi-v7a, arm64-v8a, x86, x86_64] -it android-build-env
 #     -v : Mounts a local directory into the container, replace /path/to/your/sdk with your local path to it
 #     -e : Sets an environment variable, `ARCH` environment variable is used to specify the target architecture
 #     -it : Starts an interactive terminal session inside the container after the cmake project is configured and build
@@ -46,24 +46,24 @@ RUN git clone https://github.com/microsoft/vcpkg.git /mega/vcpkg
 WORKDIR /mega
 
 # Set default architecture
-ARG ARCH=x64
+ARG ARCH=x86_64
 
 # Configure and build CMake command
 CMD arch=${ARCH} && \
     case ${arch} in \
-      arm) \
-        VCPKG_TRIPLET="armeabiv7a-android-mega" && \
+      armeabi-v7a) \
+        VCPKG_TRIPLET="armeabi-v7a-android-mega" && \
         C_COMPILER="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi26-clang" && \
         CXX_COMPILER="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi26-clang++";; \
-      arm64) \
-        VCPKG_TRIPLET="arm64v8a-android-mega" && \
+      arm64-v8a) \
+        VCPKG_TRIPLET="arm64-v8a-android-mega" && \
         C_COMPILER="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang" && \
         CXX_COMPILER="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang++";; \
       x86) \
         VCPKG_TRIPLET="x86-android-mega" && \
         C_COMPILER="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/i686-linux-android26-clang" && \
         CXX_COMPILER="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/i686-linux-android26-clang++";; \
-      x64) \
+      x86_64) \
         VCPKG_TRIPLET="x64-android-mega" && \
         C_COMPILER="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android26-clang" && \
         CXX_COMPILER="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android26-clang++";; \
