@@ -8172,7 +8172,7 @@ typedef NS_ENUM(NSInteger, MEGAClientType) {
  *
  * @return List of nodes that contain the desired string in their name.
  */
-- (MEGANodeList *)searchWith:(MEGASearchFilter *)filter orderType:(MEGASortOrderType)orderType page:(MEGASearchPage *)page cancelToken:(MEGACancelToken *)cancelToken;
+- (MEGANodeList *)searchWith:(MEGASearchFilter *)filter orderType:(MEGASortOrderType)orderType page:(nullable MEGASearchPage *)page cancelToken:(MEGACancelToken *)cancelToken;
 
 /**
  * @brief Search nodes with applied filter non-recursively.
@@ -8186,7 +8186,7 @@ typedef NS_ENUM(NSInteger, MEGAClientType) {
  *
  * @return List of nodes that contain the desired string in their name.
  */
-- (MEGANodeList *)searchNonRecursivelyWith:(MEGASearchFilter *)filter orderType:(MEGASortOrderType)orderType page:(MEGASearchPage *)page cancelToken:(MEGACancelToken *)cancelToken;
+- (MEGANodeList *)searchNonRecursivelyWith:(MEGASearchFilter *)filter orderType:(MEGASortOrderType)orderType page:(nullable MEGASearchPage *)page cancelToken:(MEGACancelToken *)cancelToken;
 
 
 /**

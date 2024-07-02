@@ -3250,14 +3250,14 @@ using namespace mega;
 
 - (MEGANodeList *)searchWith:(MEGASearchFilter *)filter
                    orderType:(MEGASortOrderType)orderType
-                        page:(MEGASearchPage *)page
+                        page:(nullable MEGASearchPage *)page
                  cancelToken:(MEGACancelToken *)cancelToken {
     if (self.megaApi == nil) return nil;
     return [MEGANodeList.alloc initWithNodeList:self.megaApi->search([self generateSearchFilterFrom: filter], (int)orderType, cancelToken.getCPtr, [self generateSearchPageFrom:page]) cMemoryOwn:YES];
 }
 - (MEGANodeList *)searchNonRecursivelyWith:(MEGASearchFilter *)filter
                                  orderType:(MEGASortOrderType)orderType
-                                      page:(MEGASearchPage *)page
+                                      page:(nullable MEGASearchPage *)page
                                cancelToken:(MEGACancelToken *)cancelToken {
 
     if (self.megaApi == nil) return nil;
@@ -4022,7 +4022,8 @@ using namespace mega;
     return megaFilter;
 }
 
--(MegaSearchPage *)generateSearchPageFrom:(MEGASearchPage *)page {
+-(nullable MegaSearchPage *)generateSearchPageFrom:(nullable MEGASearchPage *)page {
+    if(page == nil) return nil;
     return MegaSearchPage::createInstance(page.startingOffset, page.pageSize);
 }
 
