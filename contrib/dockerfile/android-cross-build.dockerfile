@@ -2,14 +2,14 @@
 #
 # Build the Docker image:
 #   docker build -t android-build-env -f /path/to/your/sdk/contrib/dockerfile/android-cross-build.dockerfile .
-#     -t : Tags the built container with a name.
-#     -f : Specify dockerfile to be build, replace /path/to/your/sdk with your local path to it.
+#     -t : Tags the built container with a name
+#     -f : Specify dockerfile to be build, replace /path/to/your/sdk with your local path to it
 #
 # Run the Docker container and build the project for a specific architecture:
 #   docker run -v /path/to/your/sdk:/mega/sdk -e ARCH=[arm, arm64, x86, x64] -it android-build-env
-#     -v : Mounts a local directory into the container, replace /path/to/your/sdk with your local path to it.
-#     -e : Sets an environment variable, `ARCH` environment variable is used to specify the target architecture.
-#     -it : Starts an interactive terminal session inside the container after the cmake project is configured and build.
+#     -v : Mounts a local directory into the container, replace /path/to/your/sdk with your local path to it
+#     -e : Sets an environment variable, `ARCH` environment variable is used to specify the target architecture
+#     -it : Starts an interactive terminal session inside the container after the cmake project is configured and build
 
 # Base image
 FROM ubuntu:22.04
