@@ -1214,7 +1214,7 @@ void SdkTest::onEvent(MegaApi* s, MegaEvent *event)
     if (index >= 0) // it can be -1 when tests are being destroyed
     {
         mApi[index].receiveEvent(event);
-        LOG_debug << "Received event " << event->getType();
+        LOG_debug << index << " Received event " << event->getType();
     }
 }
 
@@ -14906,7 +14906,8 @@ TEST_F(SdkTest, SdkTestSetsAndElementsSetTypes)
     mApi.push_back(std::move(pa));
     differentApiDtlsPtr = &(mApi.back());
     differentApiDtlsPtr->megaApi = differentApiPtr;
-    const int difApiIdx = static_cast<int>(megaApi.size() - 1);
+    const unsigned int difApiIdx = static_cast<unsigned int>(megaApi.size() - 1);
+    differentApiPtr->setLoggingName(to_string(difApiIdx).c_str());
 
     auto loginTracker = asyncRequestLogin(difApiIdx, differentApiDtlsPtr->email.c_str(), differentApiDtlsPtr->pwd.c_str());
     ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to establish a login/session for account " << difApiIdx;
@@ -14963,11 +14964,15 @@ TEST_F(SdkTest, SdkTestSetsAndElementsSetTypes)
     ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
     ASSERT_NO_FATAL_FAILURE(fetchnodes(userIdx)); // load cached Sets
 
-
     LOG_debug << "# U1: Check Sets types loaded from local cache";
+    constexpr std::string_view noLocalDBMsg{"The set was not in the cached memory"};
+
     unique_ptr<MegaSet> reloadedSessionAlbumSet(megaApi[userIdx]->getSet(albumHandle));
+    ASSERT_NE(reloadedSessionAlbumSet, nullptr) << "Photo album: " << noLocalDBMsg;
     ASSERT_EQ(reloadedSessionAlbumSet->type(), setAsPhotoAlbum->type());
+
     unique_ptr<MegaSet> reloadedSessionPlaylistSet(megaApi[userIdx]->getSet(playlistHandle));
+    ASSERT_NE(reloadedSessionPlaylistSet, nullptr) << "Playlist: " << noLocalDBMsg;
     ASSERT_EQ(reloadedSessionPlaylistSet->type(), setAsVideoPlaylist->type());
 
 
