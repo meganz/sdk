@@ -313,6 +313,12 @@ using namespace mega;
     }
 }
 
+- (void)addMEGATransferDelegate:(id<MEGATransferDelegate>)delegate queueType:(ListenerQueueType)queueType {
+    if (self.megaApi) {
+        self.megaApi->addTransferListener([self createDelegateMEGATransferListener:delegate singleListener:NO queueType:queueType]);
+    }
+}
+
 - (void)addMEGAGlobalDelegate:(id<MEGAGlobalDelegate>)delegate {
     [self addMEGAGlobalDelegate:delegate queueType:ListenerQueueTypeMain];
 }
