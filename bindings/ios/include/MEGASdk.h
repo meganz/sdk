@@ -663,6 +663,16 @@ typedef NS_ENUM(NSInteger, MEGAClientType) {
 - (void)addMEGATransferDelegate:(id<MEGATransferDelegate>)delegate;
 
 /**
+ * @brief Register a delegate to receive all events about transfers.
+ *
+ * You can use [MEGASdk removeMEGATransferDelegate:] to stop receiving events.
+ *
+ * @param delegate Delegate that will receive all events about transfers.
+ * @param queueType ListenerQueueType to receive the MEGARequest events on.
+ */
+- (void)addMEGATransferDelegate:(id<MEGATransferDelegate>)delegate queueType:(ListenerQueueType)queueType;
+
+/**
  * @brief Register a delegate to receive global events.
  *
  * You can use [MEGASdk removeMEGAGlobalDelegate:] to stop receiving events.
