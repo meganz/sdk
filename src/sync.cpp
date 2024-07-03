@@ -8826,7 +8826,7 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
                 LOG_warn << "CSF with cloud node change and this is a BACKUP!"
                          << " We will upsync the local file to fix the mismatched cloud node."
                          << " Triplet: " << logTriplet(row, fullPath);
-                assert(!isBackupAndMirroring() &&
+                assert(isBackupAndMirroring() &&
                        "CSF with cloud node change should not happen for a backup!");
             }
             else
@@ -8856,7 +8856,7 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
             LOG_warn << "CSF for a BACKUP with CloudNode != SyncNode != FSNode -> resolve upsync "
                         "to avoid user intervention"
                      << " " << logTriplet(row, fullPath);
-            assert(!isBackupAndMirroring() &&
+            assert(isBackupAndMirroring() &&
                    "CSF with both sides mismatch should not happen for a backup!");
             return resolve_upsync(row, parentRow, fullPath, pflsc);
         }
@@ -8877,6 +8877,12 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
         }
 
         // cloud item absent
+        if (isBackupAndMirroring())
+        {
+            // for backups, we only change the cloud
+            return resolve_upsync(row, parentRow, fullPath, pflsc);
+        }
+
         if (!row.syncNode->syncedCloudNodeHandle.isUndef()
             && row.syncNode->fsid_lastSynced != UNDEF
             && row.syncNode->fsid_lastSynced == row.fsNode->fsid
@@ -8888,17 +8894,15 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
                 // for backups, we only change the cloud
                 LOG_warn << "XSF with cloud node gone when this item was synced before and this is "
                             "a BACKUP!"
-                         << " Local file will be uploaded to the cloud to avoid the mismatch."
+                         << " This will result on the backup being disabled."
                          << " Triplet: " << logTriplet(row, fullPath);
-                assert(!isBackupAndMirroring() && "XSF - cloud item not present for a previously "
-                                                  "synced item should not happen for a backup!");
+                // assert(false && "XSF - cloud item not present for a previously "
+                //                 "synced item should not happen for a backup!");
+                //  ToDo: uncomment this assert (or re-consider it) after SDK-4144
             }
-            else
-            {
-                // used to be fully synced and the fs side still has that version
-                // remove in the fs (if not part of a move)
-                return resolve_cloudNodeGone(row, parentRow, fullPath);
-            }
+            // used to be fully synced and the fs side still has that version
+            // remove in the fs (if not part of a move)
+            return resolve_cloudNodeGone(row, parentRow, fullPath);
         }
 
         // either
@@ -9046,8 +9050,15 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
         if (parentRow.exclusionState(*row.cloudNode) != ES_INCLUDED)
             return true;
 
-        assert(!isBackupAndMirroring() &&
-               "CXX - item exists only in the cloud, this should not happen for a backup!");
+        if (isBackup())
+        {
+            LOG_warn << "CXX with only a cloud node and this is a BACKUP!"
+                    << " This will result on the backup being disabled."
+                    << " Triplet: " << logTriplet(row, fullPath);
+            // assert(isBackupAndMirroring() &&
+            //        "CXX - item exists only in the cloud, this should not happen for a backup!");
+            //  ToDo: uncomment this assert (or re-consider it) after SDK-4144
+        }
 
         // item exists remotely only
         return resolve_makeSyncNode_fromCloud(row, parentRow, fullPath, false);
