@@ -4143,8 +4143,8 @@ void UnifiedSync::changedConfigState(bool save, bool notifyApp)
     {
         LOG_debug << "Sync " << toHandle(mConfig.mBackupId)
                   << " now in runState: " << int(mConfig.mRunState)
-                  << " enabled: " << mConfig.mEnabled
-                  << " error: " << mConfig.mError;
+                  << " enabled: " << mConfig.mEnabled << " error: " << mConfig.mError
+                  << " (isBackup: " << mConfig.isBackup() << ")";
 
         if (save)
         {
