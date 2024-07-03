@@ -850,6 +850,11 @@ public:
     bool procresult(Result, JSON&) override;
 
     CommandGetUserQuota(MegaClient*, std::shared_ptr<AccountDetails>, bool, bool, bool, int, std::function<void(std::shared_ptr<AccountDetails>, Error)> = {});
+
+private:
+    bool readSubscriptions(JSON* j);
+    bool readPlans(JSON* j);
+    void processPlans();
 };
 
 class MEGA_API CommandQueryTransferQuota : public Command

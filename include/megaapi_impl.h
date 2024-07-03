@@ -1855,6 +1855,43 @@ private:
     AccountFeature mFeature;
 };
 
+class MegaAccountSubscriptionPrivate: public MegaAccountSubscription
+{
+public:
+    static MegaAccountSubscriptionPrivate*
+        fromAccountSubscription(const AccountSubscription& subscription);
+
+    char* getId() const override;
+    int getStatus() const override;
+    char* getCycle() const override;
+    char* getPaymentMethod() const override;
+    int32_t getPaymentMethodId() const override;
+    int64_t getRenewTime() const override;
+    int32_t getAccountLevel() const override;
+    MegaStringList* getFeatures() const override;
+
+private:
+    MegaAccountSubscriptionPrivate(const AccountSubscription& subscription);
+    AccountSubscription mSubscription;
+};
+
+class MegaAccountPlanPrivate: public MegaAccountPlan
+{
+public:
+    static MegaAccountPlanPrivate* fromAccountPlan(const AccountPlan& plan);
+
+    bool isProPlan() const override;
+    int32_t getAccountLevel() const override;
+    MegaStringList* getFeatures() const override;
+    int64_t getExpirationTime() const override;
+    int32_t getType() const override;
+    char* getId() const override;
+
+private:
+    MegaAccountPlanPrivate(const AccountPlan& plan);
+    AccountPlan mPlan;
+};
+
 class MegaAccountDetailsPrivate : public MegaAccountDetails
 {
     public:
@@ -1906,6 +1943,10 @@ class MegaAccountDetailsPrivate : public MegaAccountDetails
         MegaAccountFeature* getActiveFeature(int featureIndex) const override;
         int64_t getSubscriptionLevel() const override;
         MegaStringIntegerMap* getSubscriptionFeatures() const override;
+        int getNumSubscriptions() const override;
+        MegaAccountSubscription* getSubscription(int subscriptionsIndex) const override;
+        int getNumPlans() const override;
+        MegaAccountPlan* getPlan(int plansIndex) const override;
 
     private:
         MegaAccountDetailsPrivate(AccountDetails *details);

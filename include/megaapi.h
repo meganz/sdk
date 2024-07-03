@@ -23810,6 +23810,187 @@ public:
 };
 
 /**
+ * @brief Details about a MEGA subscription
+ */
+class MegaAccountSubscription
+{
+public:
+    enum
+    {
+        SUBSCRIPTION_STATUS_NONE = 0,
+        SUBSCRIPTION_STATUS_VALID = 1,
+        SUBSCRIPTION_STATUS_INVALID = 2
+    };
+
+    virtual ~MegaAccountSubscription() = default;
+
+    /**
+     * @brief Get the ID of this subscription
+     *
+     * You take the ownership of the returned value
+     *
+     * @return ID of this subscription
+     */
+    virtual char* getId() const = 0;
+
+    /**
+     * @brief Check if the subscription is active
+     *
+     * If this function returns MegaAccountDetails::SUBSCRIPTION_STATUS_VALID,
+     * the subscription will be automatically renewed.
+     * See MegaAccountSubscription::getRenewTime()
+     *
+     * @return Information about the subscription status
+     *
+     * Valid return values are:
+     * - MegaAccountSubscription::SUBSCRIPTION_STATUS_NONE = 0
+     * There isn't any active subscription
+     *
+     * - MegaAccountSubscription::SUBSCRIPTION_STATUS_VALID = 1
+     * There is an active subscription
+     *
+     * - MegaAccountSubscription::SUBSCRIPTION_STATUS_INVALID = 2
+     * A subscription exists, but it uses a payment gateway that is no longer valid
+     */
+    virtual int getStatus() const = 0;
+
+    /**
+     * @brief Get the subscription cycle
+     *
+     * The return value will show if the subscription will be montly or yearly renewed.
+     * Example return values: "1 M", "1 Y".
+     *
+     * You take the ownership of the returned value
+     *
+     * @return Subscription cycle
+     */
+    virtual char* getCycle() const = 0;
+
+    /**
+     * @brief Get the subscription payment provider name
+     *
+     * You take the ownership of the returned value
+     *
+     * @return Payment provider name
+     */
+    virtual char* getPaymentMethod() const = 0;
+
+    /**
+     * @brief Get the subscription payment provider ID
+     *
+     * @return Payment provider ID
+     */
+    virtual int32_t getPaymentMethodId() const = 0;
+
+    /**
+     * @brief Get the subscription renew timestamp
+     *
+     * @return Renewal timestamp (in seconds since epoch)
+     */
+    virtual int64_t getRenewTime() const = 0;
+
+    /**
+     * @brief Get the subscription account level
+     *
+     * @return Subscription account level
+     * Valid values for PRO plan subscriptions:
+     * - MegaAccountDetails::ACCOUNT_TYPE_FREE = 0
+     * - MegaAccountDetails::ACCOUNT_TYPE_PROI = 1
+     * - MegaAccountDetails::ACCOUNT_TYPE_PROII = 2
+     * - MegaAccountDetails::ACCOUNT_TYPE_PROIII = 3
+     * - MegaAccountDetails::ACCOUNT_TYPE_LITE = 4
+     * - MegaAccountDetails::ACCOUNT_TYPE_STARTER = 11
+     * - MegaAccountDetails::ACCOUNT_TYPE_BASIC = 12
+     * - MegaAccountDetails::ACCOUNT_TYPE_ESSENTIAL = 13
+     * - MegaAccountDetails::ACCOUNT_TYPE_BUSINESS = 100
+     * - MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI = 101
+     *
+     * Valid value for feature plan subscriptions:
+     * - MegaAccountDetails::ACCOUNT_TYPE_FEATURE = 99999
+     */
+    virtual int32_t getAccountLevel() const = 0;
+
+    /**
+     * @brief Get the features granted by this subscription
+     *
+     * You take the ownership of the returned value
+     *
+     * @return Features granted by this subscription.
+     */
+    virtual MegaStringList* getFeatures() const = 0;
+};
+
+class MegaAccountPlan
+{
+public:
+    virtual ~MegaAccountPlan() = default;
+
+    /**
+     * @brief Check if the plan is a PRO plan or a feature plan.
+     *
+     * @return True if the plan is a PRO plan
+     */
+    virtual bool isProPlan() const = 0;
+
+    /**
+     * @brief Get account level of the plan
+     *
+     * @return Plan level of the MEGA account.
+     * Valid values for PRO plans are:
+     * - MegaAccountDetails::ACCOUNT_TYPE_FREE = 0
+     * - MegaAccountDetails::ACCOUNT_TYPE_PROI = 1
+     * - MegaAccountDetails::ACCOUNT_TYPE_PROII = 2
+     * - MegaAccountDetails::ACCOUNT_TYPE_PROIII = 3
+     * - MegaAccountDetails::ACCOUNT_TYPE_LITE = 4
+     * - MegaAccountDetails::ACCOUNT_TYPE_STARTER = 11
+     * - MegaAccountDetails::ACCOUNT_TYPE_BASIC = 12
+     * - MegaAccountDetails::ACCOUNT_TYPE_ESSENTIAL = 13
+     * - MegaAccountDetails::ACCOUNT_TYPE_BUSINESS = 100
+     * - MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI = 101
+     *
+     * Valid value for feature plans is:
+     * - MegaAccountDetails::ACCOUNT_TYPE_FEATURE = 99999
+     */
+    virtual int32_t getAccountLevel() const = 0;
+
+    /**
+     * @brief Get the features granted by this plan
+     *
+     * You take the ownership of the returned value
+     *
+     * @return Features granted by this plan.
+     */
+    virtual MegaStringList* getFeatures() const = 0;
+
+    /**
+     * @brief Get the expiration time for the plan
+     *
+     * @return The time the plan expires
+     */
+    virtual int64_t getExpirationTime() const = 0;
+
+    /**
+     * @brief The type of plan. Why it was granted.
+     *
+     * Not available for Bussiness/Pro Flexi.
+     *
+     * @return Plan type
+     */
+    virtual int32_t getType() const = 0;
+
+    /**
+     * @brief Get the relating subscription ID
+     *
+     * Only available if the plan relates to a subscription.
+     *
+     * You take the ownership of the returned value
+     *
+     * @return ID of this subscription
+     */
+    virtual char* getId() const = 0;
+};
+
+/**
  * @brief Details about a MEGA account
  */
 class MegaAccountDetails
@@ -23826,10 +24007,11 @@ public:
         ACCOUNT_TYPE_BASIC = 12,
         ACCOUNT_TYPE_ESSENTIAL = 13,
         ACCOUNT_TYPE_BUSINESS = 100,
-        ACCOUNT_TYPE_PRO_FLEXI = 101    // also known as PRO 4
+        ACCOUNT_TYPE_PRO_FLEXI = 101, // also known as PRO 4
+        ACCOUNT_TYPE_FEATURE = 99999
     };
 
-    enum
+    enum MEGA_DEPRECATED
     {
         SUBSCRIPTION_STATUS_NONE = 0,
         SUBSCRIPTION_STATUS_VALID = 1,
@@ -23855,8 +24037,8 @@ public:
     virtual int getProLevel();
 
     /**
-     * @brief Get the expiration time for the current PRO status
-     * @return Expiration time for the current PRO status (in seconds since the Epoch)
+     * @brief Get the expiration time for the current PRO plan
+     * @return Expiration time for the current PRO plan (in seconds since the Epoch)
      */
     virtual int64_t getProExpiration();
 
@@ -23880,12 +24062,14 @@ public:
      * A subscription exists, but it uses a payment gateway that is no longer valid
      *
      */
+    MEGA_DEPRECATED
     virtual int getSubscriptionStatus();
 
     /**
      * @brief Get the time when the the PRO account will be renewed
      * @return Renewal time (in seconds since the Epoch)
      */
+    MEGA_DEPRECATED
     virtual int64_t getSubscriptionRenewTime();
 
     /**
@@ -23895,6 +24079,7 @@ public:
      *
      * @return Subscription method. For example "Credit Card".
      */
+    MEGA_DEPRECATED
     virtual char* getSubscriptionMethod();
 
     /**
@@ -23902,6 +24087,7 @@ public:
      *
      * @return Subscription method. For example 16.
      */
+    MEGA_DEPRECATED
     virtual int getSubscriptionMethodId();
 
     /**
@@ -23914,6 +24100,7 @@ public:
      *
      * @return Subscription cycle
      */
+    MEGA_DEPRECATED
     virtual char* getSubscriptionCycle();
 
     /**
@@ -24173,6 +24360,7 @@ public:
      *
      * @return Level for feature related subscriptions
      */
+    MEGA_DEPRECATED
     virtual int64_t getSubscriptionLevel() const = 0;
 
     /**
@@ -24182,7 +24370,46 @@ public:
      *
      * @return Subscription features for this account. The value of each feature should be treated as a 32bit unsigned int
      */
+    MEGA_DEPRECATED
     virtual MegaStringIntegerMap* getSubscriptionFeatures() const = 0;
+
+    /**
+     * @brief Get the number of active subscriptions in the account.
+     *
+     * You can use MegaAccountDetails::getSubscription to get each of those objects.
+     *
+     * @return Number of active subscriptions
+     */
+    virtual int getNumSubscriptions() const = 0;
+
+    /**
+     * @brief Returns the MegaAccountSubscription object associated with an index
+     *
+     * You take the ownership of the returned value
+     *
+     * @param subscriptionsIndex Index of the object
+     * @return MegaAccountSubscription object
+     */
+    virtual MegaAccountSubscription* getSubscription(int subscriptionsIndex) const = 0;
+
+    /**
+     * @brief Get the number of active plans in the account.
+     *
+     * You can use MegaAccountDetails::getPlan to get each of those objects.
+     *
+     * @return Number of active plans
+     */
+    virtual int getNumPlans() const = 0;
+
+    /**
+     * @brief Returns the MegaAccountPlan object associated with an index
+     *
+     * You take the ownership of the returned value
+     *
+     * @param plansIndex Index of the object
+     * @return MegaAccountPlan object
+     */
+    virtual MegaAccountPlan* getPlan(int plansIndex) const = 0;
 };
 
 class MegaCurrency

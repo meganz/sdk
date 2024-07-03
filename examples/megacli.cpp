@@ -10211,8 +10211,53 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
 
     if (pro)
     {
-        cout << "\tPro level: " << ad->pro_level << endl;
-        cout << "\tSubscription type: " << ad->subscription_type << endl;
+        cout << "\tAccount Subscriptions:" << endl;
+        for (const auto& sub: ad->subscriptions)
+        {
+            cout << "\t\t* ID: " << sub.id << endl;
+            cout << "\t\t\t Status(type): ";
+            switch (sub.type)
+            {
+                case 'S':
+                    cout << "VALID";
+                    break;
+                case 'R':
+                    cout << "INVALID";
+                    break;
+                default:
+                    cout << "NONE";
+                    break;
+            }
+            cout << " (" << sub.type << ")" << endl;
+            cout << "\t\t\t Cycle: " << sub.cycle << endl;
+            cout << "\t\t\t Payment Method: " << sub.paymentMethod << endl;
+            cout << "\t\t\t Payment Method ID: " << sub.paymentMethodId << endl;
+            cout << "\t\t\t Renew time: " << sub.renew << endl;
+            cout << "\t\t\t Account level: " << sub.level << endl;
+            cout << "\t\t\t Features: ";
+            for (const auto& f: sub.features)
+            {
+                cout << f << ", ";
+            }
+            cout << endl;
+        }
+
+        cout << "\tAccount Plans:" << endl;
+        for (const auto& plan: ad->plans)
+        {
+            cout << "\t\t* Plan details: " << endl;
+            cout << "\t\t\t Account level: " << plan.level << endl;
+            cout << "\t\t\t Features: ";
+            for (const auto& f: plan.features)
+            {
+                cout << f << ", ";
+            }
+            cout << endl;
+            cout << "\t\t\t Expiration time: " << plan.expiration << endl;
+            cout << "\t\t\t Plan type: " << plan.type << endl;
+            cout << "\t\t\t Related subscription id: " << plan.subscriptionId << endl;
+        }
+
         cout << "\tAccount balance:" << endl;
 
         for (vector<AccountBalance>::iterator it = ad->balances.begin(); it != ad->balances.end(); it++)
