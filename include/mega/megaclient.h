@@ -1120,7 +1120,8 @@ public:
     void creditcardquerysubscriptions();
 
     // cancel credit card subscriptions
-    void creditcardcancelsubscriptions(const char *reason = NULL);
+    void creditcardcancelsubscriptions(
+        const CommandCreditCardCancelSubscriptions::CancelSubscription& cancelSubscription);
 
     // get payment methods
     void getpaymentmethods();
