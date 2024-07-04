@@ -9053,8 +9053,8 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
         if (isBackup())
         {
             LOG_warn << "CXX with only a cloud node and this is a BACKUP!"
-                    << " This will result on the backup being disabled."
-                    << " Triplet: " << logTriplet(row, fullPath);
+                     << " This will result on the backup being disabled."
+                     << " Triplet: " << logTriplet(row, fullPath);
             // assert(isBackupAndMirroring() &&
             //        "CXX - item exists only in the cloud, this should not happen for a backup!");
             //  ToDo: uncomment this assert (or re-consider it) after SDK-4144
