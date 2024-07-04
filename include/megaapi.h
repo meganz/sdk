@@ -17645,8 +17645,8 @@ class MegaApi
          * @brief Get the path of a MegaNode
          *
          * If the node doesn't exist, this function returns NULL.
-         * You can recoved the node later using MegaApi::getNodeByPath
-         * except if the path contains names with '/', '\' or ':' characters.
+         * You can recover the node later using MegaApi::getNodeByPath
+         * except if the path contains names with '/' or '\' characters.
          *
          * You take the ownership of the returned value
          *
@@ -17660,7 +17660,7 @@ class MegaApi
          *
          * If the node doesn't exist, this function returns NULL.
          * You can recover the node later using MegaApi::getNodeByPath
-         * except if the path contains names with '/', '\' or ':' characters.
+         * except if the path contains names with '/' or '\' characters.
          *
          * You take the ownership of the returned value
          *
@@ -17677,8 +17677,7 @@ class MegaApi
          * The Vault root node is //in/
          * The Rubbish root node is //bin/
          *
-         * Paths with names containing '/', '\' or ':' aren't compatible
-         * with this function.
+         * Paths with names containing '/' or '\' aren't compatible with this function.
          *
          * It is needed to be logged in and to have successfully completed a fetchNodes
          * request before calling this function. Otherwise, it will return NULL.
@@ -17699,8 +17698,7 @@ class MegaApi
          * The Vault root node is //in/
          * The Rubbish root node is //bin/
          *
-         * Paths with names containing '/', '\' or ':' aren't compatible
-         * with this function.
+         * Paths with names containing '/' or '\' aren't compatible with this function.
          *
          * It is needed to be logged in and to have successfully completed a fetchNodes
          * request before calling this function. Otherwise, it will return NULL.
@@ -17709,7 +17707,8 @@ class MegaApi
          *
          * @param path Path to check
          * @param n Base node if the path is relative
-         * @param type Type of the node to be looked up; valid values: TYPE_FILE, TYPE_FOLDER, TYPE_UNKNOWN (any type, folder has precedence)
+         * @param type Type of the node to be looked up; valid values: TYPE_FILE, TYPE_FOLDER,
+         * TYPE_UNKNOWN (any type, folder has precedence)
          * @return The MegaNode object in the path, otherwise NULL
          */
         MegaNode* getNodeByPathOfType(const char *path, MegaNode *n = nullptr, int type = MegaNode::TYPE_UNKNOWN);

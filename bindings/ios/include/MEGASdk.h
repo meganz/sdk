@@ -58,6 +58,7 @@
 #import "BackUpSubState.h"
 #import "MEGASearchFilter.h"
 #import "MEGASearchFilterTimeFrame.h"
+#import "MEGASearchPage.h"
 #import "PasswordNodeData.h"
 #import "MEGANotification.h"
 
@@ -661,6 +662,16 @@ typedef NS_ENUM(NSInteger, MEGAClientType) {
  * @param delegate Delegate that will receive all events about transfers.
  */
 - (void)addMEGATransferDelegate:(id<MEGATransferDelegate>)delegate;
+
+/**
+ * @brief Register a delegate to receive all events about transfers.
+ *
+ * You can use [MEGASdk removeMEGATransferDelegate:] to stop receiving events.
+ *
+ * @param delegate Delegate that will receive all events about transfers.
+ * @param queueType ListenerQueueType to receive the MEGARequest events on.
+ */
+- (void)addMEGATransferDelegate:(id<MEGATransferDelegate>)delegate queueType:(ListenerQueueType)queueType;
 
 /**
  * @brief Register a delegate to receive global events.
@@ -8166,13 +8177,12 @@ typedef NS_ENUM(NSInteger, MEGAClientType) {
  * The search is case-insensitive.
  *
  * @param filter Filter we should apply to the current search.
- * @param orderType Order type we should applyto the current search.
- * NO if you want to seach in the children of the node only
+ * @param orderType Order type we should apply to the current search.
+ * @param page Paged criteria for request
  *
  * @return List of nodes that contain the desired string in their name.
  */
-- (MEGANodeList *)searchWith:(MEGASearchFilter *)filter orderType:(MEGASortOrderType)orderType cancelToken:(MEGACancelToken *)cancelToken;
-
+- (MEGANodeList *)searchWith:(MEGASearchFilter *)filter orderType:(MEGASortOrderType)orderType page:(nullable MEGASearchPage *)page cancelToken:(MEGACancelToken *)cancelToken;
 
 /**
  * @brief Search nodes with applied filter non-recursively.
@@ -8180,12 +8190,13 @@ typedef NS_ENUM(NSInteger, MEGAClientType) {
  * The search is case-insensitive.
  *
  * @param filter Filter we should apply to the current search.
- * @param orderType Order type we should applyto the current search.
- * NO if you want to seach in the children of the node only
+ * @param orderType Order type we should apply to the current search.
+ * @param page Paged criteria for request
+ * NO if you want to search in the children of the node only
  *
  * @return List of nodes that contain the desired string in their name.
  */
-- (MEGANodeList *)searchNonRecursivelyWith:(MEGASearchFilter *)filter  orderType:(MEGASortOrderType)orderType cancelToken:(MEGACancelToken *)cancelToken;
+- (MEGANodeList *)searchNonRecursivelyWith:(MEGASearchFilter *)filter orderType:(MEGASortOrderType)orderType page:(nullable MEGASearchPage *)page cancelToken:(MEGACancelToken *)cancelToken;
 
 
 /**

@@ -61,11 +61,11 @@ class ReleaseProcess:
         gpg_keygrip: str,
         gpg_password: str,
         private_remote_name: str,
-        private_remote_url: str,
         new_branch: str,
     ):
         setup_gpg_signing(gpg_keygrip, gpg_password)
         assert self._local_repo is None
+        private_remote_url = self._remote_private_repo.get_url_to_private_repo()
         self._local_repo = LocalRepository(private_remote_name, private_remote_url)
         self._get_branch_locally(private_remote_name, self._private_branch)
         self._change_version_in_file()
@@ -89,8 +89,8 @@ class ReleaseProcess:
 
         # read old version
         oldMajor = oldMinor = oldMicro = 0
-        assert self._local_repo is not None
-        lines = self._local_repo.version_file.read_text().splitlines()
+        assert LocalRepository.has_version_file()
+        lines = LocalRepository.version_file.read_text().splitlines()
         for i, line in enumerate(lines):
             if result := re.search(
                 r"^(#define\s+MEGA_MAJOR_VERSION\s+)(\d+)([.\s]*)", line
@@ -123,7 +123,7 @@ class ReleaseProcess:
         ), f"Invalid version: {oldMajor}.{oldMinor}.{oldMicro} -> {self._new_version}"
 
         # write new version
-        self._local_repo.version_file.write_text("\n".join(lines))
+        LocalRepository.version_file.write_text("\n".join(lines))
 
     def _push_to_new_branch(
         self,
@@ -281,21 +281,21 @@ class ReleaseProcess:
     def setup_local_repo(
         self,
         private_remote_name: str,
-        private_remote_url: str,
         public_remote_name: str,
         public_remote_url: str,
     ):
         assert self._local_repo is None
+        private_remote_url = self._remote_private_repo.get_url_to_private_repo()
         self._local_repo = LocalRepository(private_remote_name, private_remote_url)
         self._local_repo.add_remote(
             public_remote_name, public_remote_url, fetch_is_optional=True
         )
 
     def setup_public_repo(
-        self, public_repo_token: str, public_repo_owner: str, project_name: str
+        self, public_repo_token: str, public_repo_owner: str
     ):
         self._public_repo = GitHubRepository(
-            public_repo_token, public_repo_owner, project_name
+            public_repo_token, public_repo_owner, self._project_name
         )
 
     def set_release_version_to_close(self, version: str):

@@ -7,7 +7,7 @@ class GitHubRepository:  # use github API
     def __init__(self, github_token: str, repo_owner: str, repo_name: str):
         gh = login(token=github_token)
         assert isinstance(gh, GitHub)
-        self._repo = gh.repository("meganz", "sdk")
+        self._repo = gh.repository(repo_owner, repo_name)
         assert isinstance(self._repo, Repository)
 
     def create_release(self, version: str, notes: str):

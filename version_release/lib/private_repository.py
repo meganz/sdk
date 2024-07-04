@@ -57,6 +57,9 @@ class GitLabRepository:  # use gitlab API
             l = self._project.labels.create({"name": label_name, "color": "#8899aa"})
             assert isinstance(l, ProjectLabel)
 
+    def get_url_to_private_repo(self) -> str:
+        return self._project.ssh_url_to_repo
+
     def _get_id_of_open_mr(self, mr_title: str, mr_source: str, mr_target: str) -> int:
         mrs = self._project.mergerequests.list(
             state="opened",

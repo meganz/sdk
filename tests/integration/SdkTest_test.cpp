@@ -1214,7 +1214,7 @@ void SdkTest::onEvent(MegaApi* s, MegaEvent *event)
     if (index >= 0) // it can be -1 when tests are being destroyed
     {
         mApi[index].receiveEvent(event);
-        LOG_debug << "Received event " << event->getType();
+        LOG_debug << index << " Received event " << event->getType();
     }
 }
 
@@ -9783,6 +9783,51 @@ TEST_F(SdkTest, SdkGetCountryCallingCodes)
     ASSERT_EQ(0, strcmp("49", de->get(0)));
 }
 
+TEST_F(SdkTest, SdkGetFileWithColonByPath)
+{
+    LOG_info << "___TEST SdkGetFileWithColonByPath___";
+
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    LOG_debug << "Creating file locally";
+    const char* fname = "test:file.txt";
+    sdk_test::LocalTempFile f(fname, 0);
+
+    LOG_debug << "Uploading the file";
+    MegaHandle fileHandle = INVALID_HANDLE;
+    bool check = false;
+    mApi[0].mOnNodesUpdateCompletion =
+        createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check);
+    unique_ptr<MegaNode> root(megaApi[0]->getRootNode());
+    ASSERT_NE(root, nullptr);
+    ASSERT_EQ(MegaError::API_OK,
+              doStartUpload(0,
+                            &fileHandle,
+                            fname,
+                            root.get() /*rootnode*/,
+                            nullptr /*fileName*/,
+                            0 /*mtime*/,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << "Cannot upload the test file";
+    waitForResponse(&check);
+    resetOnNodeUpdateCompletionCBs();
+
+    LOG_debug << "Ensuring the file is accessible in the cloud by handle";
+    std::unique_ptr<MegaNode> nodeFile(megaApi[0]->getNodeByHandle(fileHandle));
+    ASSERT_NE(nodeFile, nullptr) << "Cannot get the node by handle for the updated file (error: "
+                                 << mApi[0].lastError << ")";
+    ASSERT_STREQ(nodeFile->getName(), fname);
+
+    LOG_debug << "Ensure the file is accessible in the cloud by name";
+    nodeFile.reset(megaApi[0]->getNodeByPath(fname, root.get()));
+    ASSERT_NE(nodeFile, nullptr) << "Cannot get the node by path for the updated file (error: "
+                                 << mApi[0].lastError << ")";
+    ASSERT_STREQ(nodeFile->getName(), fname);
+}
+
 TEST_F(SdkTest, DISABLED_invalidFileNames)
 {
     LOG_info << "___TEST invalidFileNames___";
@@ -14861,7 +14906,8 @@ TEST_F(SdkTest, SdkTestSetsAndElementsSetTypes)
     mApi.push_back(std::move(pa));
     differentApiDtlsPtr = &(mApi.back());
     differentApiDtlsPtr->megaApi = differentApiPtr;
-    const int difApiIdx = static_cast<int>(megaApi.size() - 1);
+    const unsigned int difApiIdx = static_cast<unsigned int>(megaApi.size() - 1);
+    differentApiPtr->setLoggingName(to_string(difApiIdx).c_str());
 
     auto loginTracker = asyncRequestLogin(difApiIdx, differentApiDtlsPtr->email.c_str(), differentApiDtlsPtr->pwd.c_str());
     ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to establish a login/session for account " << difApiIdx;
@@ -14918,11 +14964,15 @@ TEST_F(SdkTest, SdkTestSetsAndElementsSetTypes)
     ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
     ASSERT_NO_FATAL_FAILURE(fetchnodes(userIdx)); // load cached Sets
 
-
     LOG_debug << "# U1: Check Sets types loaded from local cache";
+    constexpr std::string_view noLocalDBMsg{"The set was not in the cached memory"};
+
     unique_ptr<MegaSet> reloadedSessionAlbumSet(megaApi[userIdx]->getSet(albumHandle));
+    ASSERT_NE(reloadedSessionAlbumSet, nullptr) << "Photo album: " << noLocalDBMsg;
     ASSERT_EQ(reloadedSessionAlbumSet->type(), setAsPhotoAlbum->type());
+
     unique_ptr<MegaSet> reloadedSessionPlaylistSet(megaApi[userIdx]->getSet(playlistHandle));
+    ASSERT_NE(reloadedSessionPlaylistSet, nullptr) << "Playlist: " << noLocalDBMsg;
     ASSERT_EQ(reloadedSessionPlaylistSet->type(), setAsVideoPlaylist->type());
 
 

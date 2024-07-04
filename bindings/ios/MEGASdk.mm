@@ -313,6 +313,12 @@ using namespace mega;
     }
 }
 
+- (void)addMEGATransferDelegate:(id<MEGATransferDelegate>)delegate queueType:(ListenerQueueType)queueType {
+    if (self.megaApi) {
+        self.megaApi->addTransferListener([self createDelegateMEGATransferListener:delegate singleListener:NO queueType:queueType]);
+    }
+}
+
 - (void)addMEGAGlobalDelegate:(id<MEGAGlobalDelegate>)delegate {
     [self addMEGAGlobalDelegate:delegate queueType:ListenerQueueTypeMain];
 }
@@ -3249,17 +3255,19 @@ using namespace mega;
 }
 
 - (MEGANodeList *)searchWith:(MEGASearchFilter *)filter
-               orderType:(MEGASortOrderType)orderType
-             cancelToken:(MEGACancelToken *)cancelToken {
+                   orderType:(MEGASortOrderType)orderType
+                        page:(nullable MEGASearchPage *)page
+                 cancelToken:(MEGACancelToken *)cancelToken {
     if (self.megaApi == nil) return nil;
-    return [MEGANodeList.alloc initWithNodeList:self.megaApi->search([self generateSearchFilterFrom: filter], (int)orderType, cancelToken.getCPtr) cMemoryOwn:YES];
+    return [MEGANodeList.alloc initWithNodeList:self.megaApi->search([self generateSearchFilterFrom: filter], (int)orderType, cancelToken.getCPtr, [self generateSearchPageFrom:page]) cMemoryOwn:YES];
 }
-
 - (MEGANodeList *)searchNonRecursivelyWith:(MEGASearchFilter *)filter
-                              orderType:(MEGASortOrderType)orderType
-                            cancelToken:(MEGACancelToken *)cancelToken {
+                                 orderType:(MEGASortOrderType)orderType
+                                      page:(nullable MEGASearchPage *)page
+                               cancelToken:(MEGACancelToken *)cancelToken {
+
     if (self.megaApi == nil) return nil;
-    return [MEGANodeList.alloc initWithNodeList:self.megaApi->getChildren([self generateSearchFilterFrom: filter], (int)orderType, cancelToken.getCPtr) cMemoryOwn:YES];
+    return [MEGANodeList.alloc initWithNodeList:self.megaApi->getChildren([self generateSearchFilterFrom: filter], (int)orderType, cancelToken.getCPtr, [self generateSearchPageFrom:page]) cMemoryOwn:YES];
 }
 
 - (MEGANodeList *)nodeListSearchOnInSharesByString:(NSString *)searchString cancelToken:(MEGACancelToken *)cancelToken order:(MEGASortOrderType)order {
@@ -4018,6 +4026,11 @@ using namespace mega;
     }
 
     return megaFilter;
+}
+
+-(nullable MegaSearchPage *)generateSearchPageFrom:(nullable MEGASearchPage *)page {
+    if(page == nil) return nil;
+    return MegaSearchPage::createInstance(page.startingOffset, page.pageSize);
 }
 
 #pragma mark - Cookie Dialog
