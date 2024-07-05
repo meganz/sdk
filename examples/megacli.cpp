@@ -10012,7 +10012,7 @@ void DemoApp::enumeratequotaitems_result(unsigned type,
                                          unsigned int testCategory,
                                          std::unique_ptr<BusinessPlan> businessPlan)
 {
-    if (type == 0) // Pro level plan
+    if (type != 1) // All plans but Business
     {
         cout << "\n" << description << ":\n";
         cout << "\tPro level: " << proLevel << "\n";
@@ -10038,7 +10038,7 @@ void DemoApp::enumeratequotaitems_result(unsigned type,
         cout << "\tAndroid ID: " << androidId << "\n";
         cout << "\tTest Category: " << testCategory << endl;
     }
-    else // Business plan
+    else // Business plan (type == 1)
     {
         cout << "\n" << description << ":\n";
         cout << "\tMinimum users: " << businessPlan->minUsers << "\n";
