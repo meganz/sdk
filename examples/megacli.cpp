@@ -10010,7 +10010,8 @@ void DemoApp::enumeratequotaitems_result(unsigned type,
                                          const char* iosId,
                                          const char* androidId,
                                          unsigned int testCategory,
-                                         std::unique_ptr<BusinessPlan> businessPlan)
+                                         std::unique_ptr<BusinessPlan> businessPlan,
+                                         unsigned int trialDays)
 {
     if (type != 1) // All plans but Business
     {
@@ -10036,7 +10037,8 @@ void DemoApp::enumeratequotaitems_result(unsigned type,
         }
         cout << "\tiOS ID: " << iosId << "\n";
         cout << "\tAndroid ID: " << androidId << "\n";
-        cout << "\tTest Category: " << testCategory << endl;
+        cout << "\tTest Category: " << testCategory << "\n";
+        cout << "\tTrial Days: " << trialDays << endl;
     }
     else // Business plan (type == 1)
     {

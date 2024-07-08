@@ -2425,6 +2425,7 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
         int prolevel = -1, gbstorage = -1, gbtransfer = -1, months = -1, type = -1;
         unsigned amount = 0, amountMonth = 0, localPrice = 0;
         unsigned int testCategory = CommandEnumerateQuotaItems::INVALID_TEST_CATEGORY; // Bitmap. Bit 0 set (int value 1) is standard plan, other bits are defined by API.
+        unsigned int trialDays = CommandEnumerateQuotaItems::NO_TRIAL_DAYS;
         string description;
         map<string, uint32_t> features;
         string ios_id;
@@ -2754,6 +2755,27 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                 case MAKENAMEID2('t', 'c'):
                     testCategory = json.getuint32();
                     break;
+                case MAKENAMEID5('t', 'r', 'i', 'a', 'l'):
+                {
+                    if (!json.enterobject())
+                    {
+                        LOG_err << "Failed to parse Enumerate-quota-items response,"
+                                << "entering `trials` object";
+                        client->app->enumeratequotaitems_result(API_EINTERNAL);
+                        return false;
+                    }
+                    [[maybe_unused]] string key = json.getname();
+                    assert(key == "days");
+                    trialDays = json.getuint32();
+                    if (!json.leaveobject())
+                    {
+                        LOG_err << "Failed to parse Enumerate-quota-items response,"
+                                << "leaving `trials` object";
+                        client->app->enumeratequotaitems_result(API_EINTERNAL);
+                        return false;
+                    }
+                }
+                break;
                 case EOO:
                     if (type < 0
                             || ISUNDEF(product)
@@ -2800,10 +2822,22 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
         }
         else
         {
-            client->app->enumeratequotaitems_result(type, product, prolevel, gbstorage,
-                                                    gbtransfer, months, amount, amountMonth, localPrice,
-                                                    description.c_str(), std::move(features), ios_id.c_str(), android_id.c_str(),
-                                                    testCategory, std::move(bizPlan));
+            client->app->enumeratequotaitems_result(type,
+                                                    product,
+                                                    prolevel,
+                                                    gbstorage,
+                                                    gbtransfer,
+                                                    months,
+                                                    amount,
+                                                    amountMonth,
+                                                    localPrice,
+                                                    description.c_str(),
+                                                    std::move(features),
+                                                    ios_id.c_str(),
+                                                    android_id.c_str(),
+                                                    testCategory,
+                                                    std::move(bizPlan),
+                                                    trialDays);
         }
     }
 
