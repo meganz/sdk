@@ -5518,6 +5518,11 @@ bool CommandGetUserQuota::readSubscriptions(JSON* j)
                     }
                     break;
 
+                case MAKENAMEID8('i', 's', '_', 't', 'r', 'i', 'a', 'l'):
+                    // Is an active trial
+                    sub.isTrial = j->getbool();
+                    break;
+
                 case EOO:
                     subs.push_back(std::move(sub));
                     finishedSubscription = true;
@@ -5599,6 +5604,11 @@ bool CommandGetUserQuota::readPlans(JSON* j)
                     {
                         return false;
                     }
+                    break;
+
+                case MAKENAMEID8('i', 's', '_', 't', 'r', 'i', 'a', 'l'):
+                    // Is an active trial
+                    plan.isTrial = j->getbool();
                     break;
 
                 case EOO:

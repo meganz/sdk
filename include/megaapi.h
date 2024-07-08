@@ -23918,6 +23918,13 @@ public:
      * @return Features granted by this subscription.
      */
     virtual MegaStringList* getFeatures() const = 0;
+
+    /**
+     * @brief Return if the subscription is related to an active trial
+     *
+     * @return True if the subscription is related to an active trial, otherwise false.
+     */
+    virtual bool isTrial() const = 0;
 };
 
 class MegaAccountPlan
@@ -23988,6 +23995,13 @@ public:
      * @return ID of this subscription
      */
     virtual char* getId() const = 0;
+
+    /**
+     * @brief Return if the plan is related to an active trial
+     *
+     * @return True if the plan is related to an active trial, otherwise false.
+     */
+    virtual bool isTrial() const = 0;
 };
 
 /**
