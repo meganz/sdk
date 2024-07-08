@@ -2014,6 +2014,7 @@ public:
     int getGBPerTransfer(int productIndex) override;
     MegaStringIntegerMap* getFeatures(int productIndex) const override;
     unsigned int getTestCategory(int productIndex) const override;
+    unsigned int getTrialDurationInDays(int productIndex) const override;
 
     void addProduct(unsigned int type,
                     handle product,

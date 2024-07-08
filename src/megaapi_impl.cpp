@@ -28507,6 +28507,17 @@ unsigned int MegaPricingPrivate::getTestCategory(int productIndex) const
     return 0;
 }
 
+unsigned int MegaPricingPrivate::getTrialDurationInDays(int productIndex) const
+{
+    auto index = static_cast<decltype(mTrialDays.size())>(productIndex);
+    if (index < mTrialDays.size())
+    {
+        return mTrialDays[index];
+    }
+
+    return 0;
+}
+
 MegaCurrencyPrivate::~MegaCurrencyPrivate()
 {
 }
