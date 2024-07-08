@@ -874,7 +874,8 @@ typedef enum {
     ACCOUNT_TYPE_BASIC = 12,
     ACCOUNT_TYPE_ESSENTIAL = 13,
     ACCOUNT_TYPE_BUSINESS = 100,
-    ACCOUNT_TYPE_PRO_FLEXI = 101
+    ACCOUNT_TYPE_PRO_FLEXI = 101,
+    ACCOUNT_TYPE_FEATURE = 99999
 } AccountType;
 
 typedef enum
@@ -1018,6 +1019,7 @@ public:
         STATUS_BUSINESS = 2,
         STATUS_BLOCKED = 3,
         STATUS_PRO_LEVEL = 4,
+        STATUS_FEATURE_LEVEL = 5,
     };
 
     CacheableStatus(Type type, int64_t value);
