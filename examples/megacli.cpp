@@ -12379,11 +12379,17 @@ void exec_searchbyname(autocomplete::ACState &s)
         sharedNode_vector nodes;
         if (recursive)
         {
-            nodes = client->mNodeManager.searchNodes(filter, 0 /*Order none*/, CancelToken(), NodeSearchPage{0, 0});
+            nodes = client->mNodeManager.searchNodes(filter,
+                                                     0 /*Order none*/,
+                                                     CancelToken(),
+                                                     NodeSearchPage{0, 0});
         }
         else
         {
-            nodes = client->mNodeManager.getChildren(filter, 0 /*Order none*/, CancelToken(), NodeSearchPage{0, 0});
+            nodes = client->mNodeManager.getChildren(filter,
+                                                     0 /*Order none*/,
+                                                     CancelToken(),
+                                                     NodeSearchPage{0, 0});
         }
 
         for (const auto& node : nodes)

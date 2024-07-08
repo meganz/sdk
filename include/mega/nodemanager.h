@@ -69,7 +69,12 @@ public:
     void byAncestors(std::vector<handle>&& ancs) { assert(ancs.size() == 3); mLocationHandles.swap(ancs); }
     void setIncludedShares(ShareType_t s) { mIncludedShares = s; }
     void byName(const std::string& name) { mNameFilter = name; }
-    void byNodeType(nodetype_t nodeType) { assert(nodeType >= nodetype_t::FILENODE && nodeType <= nodetype_t::FOLDERNODE); mNodeType = nodeType; };
+
+    void byNodeType(nodetype_t nodeType)
+    {
+        assert(nodeType >= nodetype_t::FILENODE && nodeType <= nodetype_t::FOLDERNODE);
+        mNodeType = nodeType;
+    };
     void bySensitivity(BoolFilter excludeSensitive) { mExcludeSensitive = excludeSensitive; }
     const std::string& byName() const { return mNameFilter; }
     nodetype_t byNodeType() const { return mNodeType; }
