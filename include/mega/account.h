@@ -90,6 +90,7 @@ struct MEGA_API AccountSubscription
     m_time_t renew = mega_invalid_timestamp; // Renewal time
     int32_t level = ACCOUNT_TYPE_FREE; // Account level
     vector<string> features; // List of features the subscription grants
+    bool isTrial = false; // If the subscription is related to an active trial
 };
 
 struct MEGA_API AccountPlan
@@ -100,6 +101,7 @@ struct MEGA_API AccountPlan
     int32_t type = 0; // Why the plan was granted: payment, achievement, etc. Not included in
                       // Bussiness/Pro Flexi
     string subscriptionId; // The relating subscription ID if the plan relates to a subscription.
+    bool isTrial = false; // If the plan is related to an active trial
 
     bool isProPlan() const
     {

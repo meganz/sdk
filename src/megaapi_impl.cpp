@@ -28972,6 +28972,11 @@ MegaStringList* MegaAccountSubscriptionPrivate::getFeatures() const
     return subscriptionFeatures;
 }
 
+bool MegaAccountSubscriptionPrivate::isTrial() const
+{
+    return mSubscription.isTrial;
+}
+
 MegaAccountPlanPrivate* MegaAccountPlanPrivate::fromAccountPlan(const AccountPlan& plan)
 {
     return new MegaAccountPlanPrivate(plan);
@@ -29016,6 +29021,11 @@ int32_t MegaAccountPlanPrivate::getType() const
 char* MegaAccountPlanPrivate::getId() const
 {
     return MegaApi::strdup(mPlan.subscriptionId.c_str());
+}
+
+bool MegaAccountPlanPrivate::isTrial() const
+{
+    return mPlan.isTrial;
 }
 
 ExternalInputStream::ExternalInputStream(MegaInputStream *inputStream)

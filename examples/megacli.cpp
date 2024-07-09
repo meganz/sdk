@@ -10234,6 +10234,7 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
             cout << "\t\t\t Payment Method ID: " << sub.paymentMethodId << endl;
             cout << "\t\t\t Renew time: " << sub.renew << endl;
             cout << "\t\t\t Account level: " << sub.level << endl;
+            cout << "\t\t\t Is Trial: " << (sub.isTrial ? "Yes" : "No") << endl;
             cout << "\t\t\t Features: ";
             for (const auto& f: sub.features)
             {
@@ -10247,6 +10248,7 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
         {
             cout << "\t\t* Plan details: " << endl;
             cout << "\t\t\t Account level: " << plan.level << endl;
+            cout << "\t\t\t Is Trial: " << (plan.isTrial ? "Yes" : "No") << endl;
             cout << "\t\t\t Features: ";
             for (const auto& f: plan.features)
             {
