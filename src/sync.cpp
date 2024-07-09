@@ -8824,7 +8824,7 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
             if (isBackup())
             {
                 LOG_warn << "CSF with cloud node change and this is a BACKUP!"
-                         << " We will upsync the local file to fix the mismatched cloud node."
+                         << " Local file will be upsynced to fix the mismatched cloud node."
                          << " Triplet: " << logTriplet(row, fullPath);
                 assert(isBackupAndMirroring() &&
                        "CSF with cloud node change should not happen for a backup!");
@@ -8856,8 +8856,6 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
             LOG_warn << "CSF for a BACKUP with CloudNode != SyncNode != FSNode -> resolve upsync "
                         "to avoid user intervention"
                      << " " << logTriplet(row, fullPath);
-            assert(isBackupAndMirroring() &&
-                   "CSF with both sides mismatch should not happen for a backup!");
             return resolve_upsync(row, parentRow, fullPath, pflsc);
         }
 
@@ -9020,8 +9018,12 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
                          << " A SyncNode will be created from the FSNode so this can be later "
                             "resolved with an upsync."
                          << " Triplet: " << logTriplet(row, fullPath);
-                assert(false && "CXF - sync item not present, but there are a cloud node and "
-                                "FSnode which are different for a backup!");
+                // If the backup was disabled, sync nodes would not exist at this point,
+                // and the backup will start in mirroring mode. So this case could be legit
+                // if we are in mirroring mode.
+                assert(isBackupAndMirroring() &&
+                       "CXF - sync item not present, but there are a cloud node and "
+                       "FSnode which are different for a backup!");
             }
             return resolve_makeSyncNode_fromFS(row, parentRow, fullPath, false);
         }
