@@ -1304,6 +1304,44 @@ ScopedValue<T> makeScopedValue(T& what, T value)
  */
 int naturalsorting_compare(const char* i, const char* j);
 
+/**
+ * @class MrProper
+ *
+ * @brief Ensures execution of a cleanup function when the object goes out of scope.
+ *
+ * It accepts a std::function<void()> during construction, which it executes once upon destruction.
+ * This is useful for resource management and ensuring cleanup in cases of exceptions.
+ *
+ * Example usage:
+ *     void function() {
+ *         MrProper cleaner([](){ std::cout << "Cleanup action executed.\n"; });
+ *         // Any code here that might throw or return early
+ *     }
+ *
+ * The class is non-copyable and non-movable to ensure the cleanup action is tightly bound to the
+ * scope where it is declared.
+ */
+struct MrProper
+{
+    using CleanupFunction = std::function<void()>;
+    CleanupFunction mOnRelease;
+
+    ~MrProper()
+    {
+        mOnRelease();
+    }
+
+    explicit MrProper(std::function<void()> f):
+        mOnRelease(f)
+    {}
+
+    MrProper() = delete;
+    MrProper(const MrProper&) = delete;
+    MrProper(MrProper&&) = delete;
+    MrProper& operator=(const MrProper&) = delete;
+    MrProper& operator=(MrProper&&) = delete;
+};
+
 } // namespace mega
 
 #endif // MEGA_UTILS_H

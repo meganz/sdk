@@ -527,6 +527,39 @@ uint64_t NodeManager::getNodeCount_internal()
     return count;
 }
 
+std::set<std::string> NodeManager::getAllNodeTags(const char* searchString, CancelToken cancelFlag)
+{
+    LockGuard g(mMutex);
+    return getAllNodeTags_internal(searchString, cancelFlag);
+}
+
+std::set<std::string> NodeManager::getAllNodeTags_internal(const char* searchString,
+                                                           CancelToken cancelFlag)
+{
+    assert(mMutex.owns_lock());
+    // validation
+    if (!mTable || mNodes.empty())
+    {
+        LOG_warn
+            << "getAllNodeTags_internal: The database is not opened or there are no nodes loaded";
+        assert(mTable && !mNodes.empty());
+        return {};
+    }
+    const std::string auxSearchString = searchString ? searchString : "";
+    // ',' cannot be in the string
+    if (auxSearchString.find(MegaClient::TAG_DELIMITER) != std::string::npos)
+    {
+        LOG_warn << "getAllNodeTags_internal: The search string (" << auxSearchString
+                 << ") contains an invalid character (,)";
+        return {};
+    }
+    std::set<std::string> result;
+    if (!mTable->getAllNodeTags(auxSearchString, result, cancelFlag))
+        return {};
+
+    return result;
+}
+
 sharedNode_vector NodeManager::searchNodes(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page)
 {
     LockGuard g(mMutex);

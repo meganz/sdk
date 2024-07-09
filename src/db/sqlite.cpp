@@ -927,6 +927,36 @@ int SqliteAccountState::progressHandler(void *param)
     return cancelFlag->isCancelled();
 }
 
+bool SqliteAccountState::processSqlQueryAllNodeTags(
+    sqlite3_stmt* stmt,
+    std::set<std::string>& tags,
+    std::function<bool(const std::string&)> isValidTagF)
+{
+    assert(stmt);
+    int sqlResult = SQLITE_ERROR;
+    while ((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
+    {
+        const void* data = sqlite3_column_blob(stmt, 0);
+        int size = sqlite3_column_bytes(stmt, 0);
+        if (!data || !size)
+        {
+            continue;
+        }
+        std::string allTags(static_cast<const char*>(data), static_cast<size_t>(size));
+        const std::set<std::string> separatedTags = splitString(allTags, MegaClient::TAG_DELIMITER);
+        std::for_each(std::begin(separatedTags),
+                      std::end(separatedTags),
+                      [&tags, &isValidTagF](const std::string& t)
+                      {
+                          if (isValidTagF(t))
+                              tags.insert(t);
+                      });
+    }
+
+    errorHandler(sqlResult, "Process sql query for all node tags", true);
+    return sqlResult == SQLITE_DONE;
+}
+
 bool SqliteAccountState::processSqlQueryNodes(sqlite3_stmt *stmt, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& nodes)
 {
     assert(stmt);
@@ -1644,6 +1674,79 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, int o
     sqlite3_reset(stmt);
 
     return result;
+}
+
+bool SqliteAccountState::getAllNodeTags(const std::string& searchString,
+                                        std::set<std::string>& tags,
+                                        CancelToken cancelFlag)
+{
+    if (!db)
+    {
+        LOG_err << "SqliteAccountState::getAllNodeTags: Invalid db";
+        return false;
+    }
+
+    sqlite3_stmt* stmt;
+    int sqlResult = SQLITE_OK;
+    const MrProper cleanUp(
+        [this, &stmt, &sqlResult]()
+        {
+            // unregister the handler (no-op if not registered)
+            sqlite3_progress_handler(db, -1, nullptr, nullptr);
+            errorHandler(sqlResult, "Get all node tags", true);
+            sqlite3_reset(stmt);
+        });
+
+    if (cancelFlag.exists())
+    {
+        sqlite3_progress_handler(db,
+                                 NUM_VIRTUAL_MACHINE_INSTRUCTIONS,
+                                 SqliteAccountState::progressHandler,
+                                 static_cast<void*>(&cancelFlag));
+    }
+    static const std::string selectStmBase{
+        R"(SELECT DISTINCT tags
+            FROM nodes
+            WHERE tags IS NOT NULL AND tags != '')"};
+
+    // Prepare the statement and set the single tag validator funciton
+    std::function<bool(const std::string&)> tagValidator;
+    if (searchString.empty())
+    {
+        if (SQLITE_OK != sqlite3_prepare_v2(db, selectStmBase.c_str(), -1, &stmt, nullptr))
+            return false;
+        tagValidator = [](const std::string&)
+        {
+            return true;
+        };
+    }
+    else
+    {
+        std::string selectStm = selectStmBase + " AND (tags REGEXP ?1)";
+        if (sqlite3_prepare_v2(db, selectStm.c_str(), -1, &stmt, nullptr) != SQLITE_OK)
+        {
+            return false;
+        }
+        bool matchWildcard = std::any_of(searchString.begin(),
+                                         searchString.end(),
+                                         [](const char& c)
+                                         {
+                                             return c != '*';
+                                         });
+        const string& nameFilter = matchWildcard ? '*' + searchString + '*' : searchString;
+        if (SQLITE_OK != sqlite3_bind_text(stmt,
+                                           1,
+                                           nameFilter.c_str(),
+                                           static_cast<int>(nameFilter.size()),
+                                           SQLITE_STATIC))
+            return false;
+        tagValidator = [nameFilter = std::move(nameFilter)](const std::string tag)
+        {
+            return wildcardMatch(tag, nameFilter);
+        };
+    }
+
+    return processSqlQueryAllNodeTags(stmt, tags, tagValidator);
 }
 
 bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, vector<pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag, const NodeSearchPage& page)

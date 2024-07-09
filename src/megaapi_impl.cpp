@@ -8223,59 +8223,13 @@ void MegaApiImpl::updateNodeTag(MegaNode* node, const char* newTag, const char* 
     CRUDNodeTagOperation(node, MegaApi::TAG_NODE_UPDATE, newTag, oldTag, listener);
 }
 
-static std::string getTags(const Node& node)
-{
-    static const nameid tagId = AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_TAGS);
-    auto attrIt = node.attrs.map.find(tagId);
-    return attrIt == node.attrs.map.end() ? std::string() : attrIt->second.c_str();
-}
-
-static std::set<std::string> getAllDifferentTags(const sharedNode_vector& nodes)
-{
-    const auto reduceOp = [](auto&& accum, auto&& newTags)
-    {
-        accum.insert(std::begin(newTags), std::end(newTags));
-        return accum;
-    };
-    const auto transformOp = [](const std::shared_ptr<Node>& node) -> std::set<std::string>
-    {
-        if (!node)
-        {
-            return {};
-        }
-        return splitString(getTags(*node), MegaClient::TAG_DELIMITER);
-    };
-    return std::transform_reduce(std::begin(nodes),
-                                 std::end(nodes),
-                                 std::set<std::string>(),
-                                 reduceOp,
-                                 transformOp);
-}
-
 MegaStringList* MegaApiImpl::getAllNodeTags(const char* searchString, CancelToken cancelToken)
 {
-    const sharedNode_vector searchResults = std::invoke(
-        [this, searchString, &cancelToken]() -> sharedNode_vector
-        {
-            MegaSearchFilterPrivate filter{};
-            filter.byTag(searchString);
-            SdkMutexGuard g(sdkMutex);
-            const MegaSearchFilter* f = &filter;
-            return searchInNodeManager(f, 0, cancelToken, nullptr);
-        });
-    const std::set<std::string> allDifferentTags = getAllDifferentTags(searchResults);
-    // If search string is provided, additional filter is required. Implementation for exact match
-    if (!searchString)
-    {
-        return new MegaStringListPrivate(
-            std::vector<std::string>(allDifferentTags.begin(), allDifferentTags.end()));
-    }
-    std::string searchStr{searchString};
-    if (allDifferentTags.find(searchStr) != allDifferentTags.end())
-    {
-        return new MegaStringListPrivate({searchStr});
-    }
-    return new MegaStringListPrivate();
+    SdkMutexGuard g(sdkMutex);
+    std::set<std::string> allDifferentTags =
+        client->mNodeManager.getAllNodeTags(searchString, cancelToken);
+    return new MegaStringListPrivate(
+        std::vector<std::string>(allDifferentTags.begin(), allDifferentTags.end()));
 }
 
 void MegaApiImpl::exportNode(MegaNode *node, int64_t expireTime, bool writable, bool megaHosted, MegaRequestListener *listener)

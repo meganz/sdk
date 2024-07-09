@@ -19541,6 +19541,9 @@ TEST_F(SdkTest, SdkNodeDescription)
  *  - Update tag1 to tagUpdated -> API_OK
  *  - Update tag2 to tagUpdated -> API_EEXIST
  *  - Update tag1 to tagUpdated2 -> API_ENOENT
+ *  - Create another file inside a subdir
+ *  - Add some tags to it
+ *  - Get all different node tags
  */
 TEST_F(SdkTest, SdkNodeTag)
 {
@@ -19649,6 +19652,16 @@ TEST_F(SdkTest, SdkNodeTag)
         return (checkTag(node.get(), tag) && !checkTag(node.get(), oldTag)) ? API_OK : API_EEXIST;
     };
 
+    const auto toVector = [](const MegaStringList& l) -> std::vector<std::string>
+    {
+        std::vector<std::string> res;
+        for (int i = 0; i < l.size(); ++i)
+        {
+            res.emplace_back(l.get(i));
+        }
+        return res;
+    };
+
     std::string tag1 = "tag1";
     std::string tag2 = "tag2";
     std::string tag3 = "tag3";
@@ -19735,6 +19748,7 @@ TEST_F(SdkTest, SdkNodeTag)
     ASSERT_EQ(addTag(mh, tag4Lowercase), API_EEXIST);
 
     //// Create a new file in a subdir
+    LOG_debug << "[SdkTest::SdkNodeTag] Creating a subdir";
     bool check = false;
     mApi[0].mOnNodesUpdateCompletion =
         createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check);
@@ -19744,13 +19758,14 @@ TEST_F(SdkTest, SdkNodeTag)
     std::unique_ptr<MegaNode> dirNode(megaApi[0]->getNodeByHandle(folderHandle));
     resetOnNodeUpdateCompletionCBs();
 
+    LOG_debug << "[SdkTest::SdkNodeTag] Creating a file inside the subdir";
     fs::path filename2{"test2.txt"};
     sdk_test::LocalTempFile tempLocalFile2(filename2, 0);
     MegaHandle mh2 = 0;
     ASSERT_EQ(MegaError::API_OK,
               doStartUpload(0,
                             &mh2,
-                            filename2.c_str(),
+                            filename2.u8string().c_str(),
                             dirNode.get(),
                             nullptr /*fileName*/,
                             ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
@@ -19759,29 +19774,30 @@ TEST_F(SdkTest, SdkNodeTag)
                             false /*startFirst*/,
                             nullptr /*cancelToken*/))
         << "Cannot upload a second test file";
+
+    LOG_debug << "[SdkTest::SdkNodeTag] Adding tags to the file";
     std::string subdirtag = "subdirtag";
     std::string subdiraux = "subdiraux";
     ASSERT_EQ(addTag(mh2, subdirtag), API_OK);
     ASSERT_EQ(addTag(mh2, subdiraux), API_OK);
 
-    const auto toVector = [](const MegaStringList& l) -> std::vector<std::string>
-    {
-        std::vector<std::string> res;
-        for (int i = 0; i < l.size(); ++i)
-        {
-            res.emplace_back(l.get(i));
-        }
-        return res;
-    };
+    LOG_debug << "[SdkTest::SdkNodeTag] Testing all tags";
     std::unique_ptr<MegaStringList> allTags(megaApi[0]->getAllNodeTags());
     ASSERT_NE(allTags, nullptr);
     auto allTagsV = toVector(*allTags);
     EXPECT_THAT(allTagsV, testing::UnorderedElementsAreArray({subdirtag, subdiraux, tag3, tag4}));
 
-    allTags.reset(megaApi[0]->getAllNodeTags("subdirtag"));
+    LOG_debug << "[SdkTest::SdkNodeTag] Testing all tags with pattern matching";
+    allTags.reset(megaApi[0]->getAllNodeTags("ub*r"));
     ASSERT_NE(allTags, nullptr);
     allTagsV = toVector(*allTags);
-    EXPECT_THAT(allTagsV, testing::UnorderedElementsAreArray({subdirtag}));
+    EXPECT_THAT(allTagsV, testing::UnorderedElementsAreArray({subdirtag, subdiraux}));
+
+    LOG_debug << "[SdkTest::SdkNodeTag] Testing all tags with exact match";
+    allTags.reset(megaApi[0]->getAllNodeTags(tag4.c_str()));
+    ASSERT_NE(allTags, nullptr);
+    allTagsV = toVector(*allTags);
+    EXPECT_THAT(allTagsV, testing::UnorderedElementsAreArray({tag4}));
 }
 
 /**
