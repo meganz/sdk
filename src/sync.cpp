@@ -2110,7 +2110,7 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
             PathProblem problem = PathProblem::NoProblem;
 
             // Does the overwrite appear legitimate?
-            if (row.syncNode->syncedCloudNodeHandle != row.cloudNode->handle)
+            if ((row.syncNode->syncedCloudNodeHandle != row.cloudNode->handle) && !isBackup())
                 problem = PathProblem::DifferentFileOrFolderIsAlreadyPresent;
 
             // Has the engine completed all pending scans?
@@ -2150,7 +2150,7 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
                 row.recurseBelowRemovedFsNode = true;
 
                 // If there is a different file or folder already present in the cloud side, let the user decide
-                if (problem == PathProblem::DifferentFileOrFolderIsAlreadyPresent && !isBackup())
+                if (problem == PathProblem::DifferentFileOrFolderIsAlreadyPresent)
                     return resolve_userIntervention(row, fullPath);
 
                 // Otherwise, let the engine know why we can't proceed.
