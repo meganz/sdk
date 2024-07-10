@@ -19,7 +19,9 @@
  * program.
  */
 #import "MEGAAccountDetails.h"
+#import "MEGAAccountFeature+init.h"
 #import "megaapi.h"
+#import "MEGAStringIntegerMap+init.h"
 
 using namespace mega;
 
@@ -115,6 +117,37 @@ using namespace mega;
 
 - (NSInteger)numberUsageItems {
     return self.accountDetails ? self.accountDetails->getNumUsageItems(): -1;
+}
+
+- (NSInteger)numActiveFeatures {
+    return self.accountDetails ? self.accountDetails->getNumActiveFeatures() : -1;
+}
+
+- (int64_t)subscriptionLevel {
+    return self.accountDetails ? self.accountDetails->getSubscriptionLevel() : -1;
+}
+
+- (nullable MEGAAccountFeature *)activeFeatureAtIndex:(NSInteger)index {
+    if (!self.accountDetails) {
+        return nil;
+    }
+    MegaAccountFeature *feature = self.accountDetails->getActiveFeature((int)index);
+    if (!feature) {
+        return nil;
+    }
+    return [[MEGAAccountFeature alloc] initWithMegaAccountFeature:feature cMemoryOwn:YES];
+}
+
+- (NSDictionary<NSString *, NSNumber *> *)subscriptionFeatures {
+    if (!self.accountDetails) {
+        return nil;
+    }
+    MegaStringIntegerMap* featuresMap = self.accountDetails->getSubscriptionFeatures();
+    if (!featuresMap) {
+        return nil;
+    }
+    MEGAStringIntegerMap *megaStringIntegerMap = [[MEGAStringIntegerMap alloc] initWithMegaStringIntegerMap:featuresMap cMemoryOwn:YES];
+    return [megaStringIntegerMap toDictionary];
 }
 
 - (long long)storageUsedForHandle:(uint64_t)handle {
