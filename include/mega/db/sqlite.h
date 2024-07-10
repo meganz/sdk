@@ -19,6 +19,8 @@
  * program.
  */
 
+#include "mega/types.h"
+
 #ifdef USE_SQLITE
 #ifndef DBACCESS_CLASS
 #define DBACCESS_CLASS SqliteDbAccess
