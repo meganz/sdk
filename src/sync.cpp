@@ -8947,9 +8947,21 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
             // fs item did not exist before; downsync
             return resolve_downsync(row, parentRow, fullPath, false, pflsc);
         }
-        else if (//!row.syncNode->syncedCloudNodeHandle.isUndef() &&
-                 row.syncNode->syncedCloudNodeHandle != row.cloudNode->handle)
+        else if (row.syncNode->syncedCloudNodeHandle != row.cloudNode->handle)
         {
+            if (isBackup())
+            {
+                // for backups, we only change the cloud,
+                // if there was already a fsNode before,
+                // we likely had an upload before but the sync loop
+                // ended before the syncNode was updated,
+                // and the local file was removed afterwards
+                LOG_warn << "CSX with sync node different from cloud node"
+                            " and this is a backup. Cloud node will be removed."
+                         << " Triplet: " << logTriplet(row, fullPath);
+                return resolve_fsNodeGone(row, parentRow, fullPath);
+            }
+
             // the cloud item has changed too; downsync (this lets users recover from both sides changed state - user deletes the one they don't want anymore)
             return resolve_downsync(row, parentRow, fullPath, false, pflsc);
         }
