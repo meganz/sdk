@@ -8896,7 +8896,7 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
                          << " Triplet: " << logTriplet(row, fullPath);
                 // assert(false && "XSF - cloud item not present for a previously "
                 //                 "synced item should not happen for a backup!");
-                //  ToDo: uncomment this assert (or re-consider it) after SDK-4144
+                //  ToDo: uncomment this assert (or re-consider it) after SDK-4114
             }
             // used to be fully synced and the fs side still has that version
             // remove in the fs (if not part of a move)
@@ -9004,8 +9004,7 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
         // If they are equal then join them with a Localnode. Othewise report to user.
         // The original algorithm would compare mtime, and if that was equal then size/crc
 
-        bool isSyncEqual = syncEqual(*row.cloudNode, *row.fsNode);
-        if (isSyncEqual || isBackup())
+        if (bool isSyncEqual = syncEqual(*row.cloudNode, *row.fsNode); isSyncEqual || isBackup())
         {
             if (!isSyncEqual &&
                 isBackup()) // Given the logic above, if !isSyncEqual then isBackup() is true, but
@@ -9059,7 +9058,7 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
                      << " Triplet: " << logTriplet(row, fullPath);
             // assert(isBackupAndMirroring() &&
             //        "CXX - item exists only in the cloud, this should not happen for a backup!");
-            //  ToDo: uncomment this assert (or re-consider it) after SDK-4144
+            //  ToDo: uncomment this assert (or re-consider it) after SDK-4114
         }
 
         // item exists remotely only
