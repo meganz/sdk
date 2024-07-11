@@ -695,6 +695,30 @@ string RuntimeArgValues::getLog() const
 /// class GTestParallelRunner
 ///
 
+GTestParallelRunner::GTestParallelRunner(RuntimeArgValues&& commonArgs):
+    mCommonArgs(std::move(commonArgs))
+{
+#ifdef WIN32
+    // JobObject to manage the subprocess
+    mJobObject = CreateJobObject(nullptr, nullptr);
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION info = {};
+    // Processes in the job object will be terminated
+    // when the handle is closed
+    info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+    SetInformationJobObject(mJobObject, JobObjectExtendedLimitInformation, &info, sizeof(info));
+#endif
+}
+
+GTestParallelRunner::~GTestParallelRunner()
+{
+#ifdef WIN32
+    if (mJobObject)
+    {
+        CloseHandle(mJobObject);
+    }
+#endif
+}
+
 int GTestParallelRunner::run()
 {
     mFinalResult = 0;
@@ -816,6 +840,15 @@ bool GTestParallelRunner::runTest(size_t workerIdx, string&& name)
     testProcess.hideMemLeaks(mCommonArgs.hidingWorkerMemLeaks());
     bool running = testProcess.run(procArgs, envVars, workerIdx, std::move(name));
 
+#ifdef WIN32
+    // Assign running process to the Job Object
+    HANDLE proc = OpenProcess(PROCESS_SET_QUOTA | PROCESS_TERMINATE, false, testProcess.getPid());
+    if (proc)
+    {
+        AssignProcessToJobObject(mJobObject, proc);
+        CloseHandle(proc);
+    }
+#endif
     return running;
 }
 
