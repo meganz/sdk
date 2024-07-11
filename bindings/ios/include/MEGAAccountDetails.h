@@ -22,6 +22,7 @@
 #import "MEGAAccountFeature.h"
 #import "MEGAPaymentMethod.h"
 #import "MEGAStringIntegerMap.h"
+#import "MEGAAccountPlan.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -246,6 +247,25 @@ typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
 - (long long)numberOfVersionFilesForHandle:(uint64_t)handle;
 
 + (nullable NSString *)stringForAccountType:(MEGAAccountType)accountType;
+
+/**
+ * @brief Get the number of active plans in the account.
+ *
+ * You can use MegaAccountDetails::getPlan to get each of those objects.
+ *
+ * @return Number of active plans
+ */
+int getNumPlans();
+
+/**
+ * @brief Returns the MegaAccountPlan object associated with an index
+ *
+ * You take the ownership of the returned value
+ *
+ * @param plansIndex Index of the object
+ * @return MegaAccountPlan object
+ */
+MEGAAccountPlan* getPlan(int plansIndex);
 
 NS_ASSUME_NONNULL_END
 
