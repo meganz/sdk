@@ -19747,6 +19747,10 @@ TEST_F(SdkTest, SdkNodeTag)
 
     ASSERT_EQ(addTag(mh, tag4Lowercase), API_EEXIST);
 
+    // To prepare for the following block, check natural sorting
+    const std::string tag11 = "tag11";
+    ASSERT_EQ(updateTag(mh, tag11, tag4), API_OK);
+
     //// Create a new file in a subdir
     LOG_debug << "[SdkTest::SdkNodeTag] Creating a subdir";
     bool check = false;
@@ -19785,19 +19789,19 @@ TEST_F(SdkTest, SdkNodeTag)
     std::unique_ptr<MegaStringList> allTags(megaApi[0]->getAllNodeTags());
     ASSERT_NE(allTags, nullptr);
     auto allTagsV = toVector(*allTags);
-    EXPECT_THAT(allTagsV, testing::UnorderedElementsAreArray({subdirtag, subdiraux, tag3, tag4}));
+    EXPECT_THAT(allTagsV, testing::ElementsAreArray({subdiraux, subdirtag, tag3, tag11}));
 
     LOG_debug << "[SdkTest::SdkNodeTag] Testing all tags with pattern matching";
     allTags.reset(megaApi[0]->getAllNodeTags("ub*r"));
     ASSERT_NE(allTags, nullptr);
     allTagsV = toVector(*allTags);
-    EXPECT_THAT(allTagsV, testing::UnorderedElementsAreArray({subdirtag, subdiraux}));
+    EXPECT_THAT(allTagsV, testing::ElementsAreArray({subdiraux, subdirtag}));
 
     LOG_debug << "[SdkTest::SdkNodeTag] Testing all tags with exact match";
-    allTags.reset(megaApi[0]->getAllNodeTags(tag4.c_str()));
+    allTags.reset(megaApi[0]->getAllNodeTags(tag11.c_str()));
     ASSERT_NE(allTags, nullptr);
     allTagsV = toVector(*allTags);
-    EXPECT_THAT(allTagsV, testing::UnorderedElementsAreArray({tag4}));
+    EXPECT_THAT(allTagsV, testing::ElementsAreArray({tag11}));
 }
 
 /**

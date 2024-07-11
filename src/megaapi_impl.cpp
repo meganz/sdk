@@ -8228,8 +8228,13 @@ MegaStringList* MegaApiImpl::getAllNodeTags(const char* searchString, CancelToke
     SdkMutexGuard g(sdkMutex);
     std::set<std::string> allDifferentTags =
         client->mNodeManager.getAllNodeTags(searchString, cancelToken);
-    return new MegaStringListPrivate(
-        std::vector<std::string>(allDifferentTags.begin(), allDifferentTags.end()));
+    std::vector<std::string> result(allDifferentTags.begin(), allDifferentTags.end());
+    const auto compF = [](const std::string& a, const std::string& b) -> bool
+    {
+        return naturalsorting_compare(a.c_str(), b.c_str()) < 0;
+    };
+    std::sort(std::begin(result), std::end(result), compF);
+    return new MegaStringListPrivate(std::move(result));
 }
 
 void MegaApiImpl::exportNode(MegaNode *node, int64_t expireTime, bool writable, bool megaHosted, MegaRequestListener *listener)
