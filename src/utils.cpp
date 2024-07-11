@@ -3650,5 +3650,19 @@ int naturalsorting_compare(const char* i, const char* j)
     return 0;
 }
 
+std::string ensureAsteriskSurround(std::string str)
+{
+    if (str.empty())
+        return "*";
+
+    if (str.front() != '*')
+        str.insert(str.begin(), '*');
+
+    if (str.back() != '*')
+        str.push_back('*');
+
+    return str;
+}
+
 } // namespace mega
 

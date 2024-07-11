@@ -202,6 +202,7 @@ private:
     sqlite3_stmt* mStmtNumChildren = nullptr;
     std::map<size_t, sqlite3_stmt*> mStmtGetChildren;
     std::map<size_t, sqlite3_stmt*> mStmtSearchNodes;
+    sqlite3_stmt* mStmtAllNodeTags = nullptr;
 
     /** @deprecated */
     sqlite3_stmt* mStmtNodeByName = nullptr;

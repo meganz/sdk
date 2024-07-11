@@ -1342,6 +1342,14 @@ struct MrProper
     MrProper& operator=(MrProper&&) = delete;
 };
 
+/**
+ * @brief Ensures the given string has an asterisk in front and back. If the string is empty, "*" is
+ * returned.
+ *
+ * @note The input argument is passed by copy intentionally to operate on it.
+ */
+std::string ensureAsteriskSurround(std::string str);
+
 } // namespace mega
 
 #endif // MEGA_UTILS_H
