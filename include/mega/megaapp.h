@@ -169,9 +169,23 @@ struct MEGA_API MegaApp
     virtual void putfa_result(handle, fatype, error) { }
 
     // purchase transactions
-    virtual void enumeratequotaitems_result(unsigned, handle, unsigned, int, int, unsigned, unsigned,
-                                            unsigned, unsigned, const char*, std::map<std::string, uint32_t>&&,
-                                            const char*, const char*, unsigned int, unique_ptr<BusinessPlan>) { }
+    virtual void enumeratequotaitems_result(unsigned,
+                                            handle product,
+                                            unsigned proLevel,
+                                            int gbStorage,
+                                            int gbTransfer,
+                                            unsigned months,
+                                            unsigned amount,
+                                            unsigned amountMonth,
+                                            unsigned localPrice,
+                                            const char* description,
+                                            map<string, uint32_t>&& features,
+                                            const char* iosId,
+                                            const char* androidId,
+                                            unsigned int testCategory,
+                                            std::unique_ptr<BusinessPlan> businessPlan,
+                                            unsigned int trialDays)
+    {}
     virtual void enumeratequotaitems_result(unique_ptr<CurrencyData>) {}
     virtual void enumeratequotaitems_result(error) { }
     virtual void additem_result(error) { }
