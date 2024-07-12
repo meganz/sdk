@@ -701,11 +701,14 @@ GTestParallelRunner::GTestParallelRunner(RuntimeArgValues&& commonArgs):
 #ifdef WIN32
     // JobObject to manage the subprocess
     mJobObject = CreateJobObject(nullptr, nullptr);
-    JOBOBJECT_EXTENDED_LIMIT_INFORMATION info = {};
-    // Processes in the job object will be terminated
-    // when the handle is closed
-    info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
-    SetInformationJobObject(mJobObject, JobObjectExtendedLimitInformation, &info, sizeof(info));
+    if (mJobObject)
+    {
+        JOBOBJECT_EXTENDED_LIMIT_INFORMATION info = {};
+        // Processes in the job object will be terminated
+        // when the handle is closed
+        info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+        SetInformationJobObject(mJobObject, JobObjectExtendedLimitInformation, &info, sizeof(info));
+    }
 #endif
 }
 
@@ -842,11 +845,15 @@ bool GTestParallelRunner::runTest(size_t workerIdx, string&& name)
 
 #ifdef WIN32
     // Assign running process to the Job Object
-    HANDLE proc = OpenProcess(PROCESS_SET_QUOTA | PROCESS_TERMINATE, false, testProcess.getPid());
-    if (proc)
+    if (mJobObject && running)
     {
-        AssignProcessToJobObject(mJobObject, proc);
-        CloseHandle(proc);
+        HANDLE proc =
+            OpenProcess(PROCESS_SET_QUOTA | PROCESS_TERMINATE, false, testProcess.getPid());
+        if (proc)
+        {
+            AssignProcessToJobObject(mJobObject, proc);
+            CloseHandle(proc);
+        }
     }
 #endif
     return running;
