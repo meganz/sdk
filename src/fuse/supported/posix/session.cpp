@@ -611,10 +611,6 @@ void Session::dispatch(std::string request)
     assert(mChannel);
     assert(mSession);
 
-    // Session's been terminated.
-    if (fuse_session_exited(mSession))
-        return mMount.destroy();
-
     // Sanity.
     assert(!request.empty());
 
@@ -623,6 +619,15 @@ void Session::dispatch(std::string request)
                          request.data(),
                          request.size(),
                          mChannel);
+}
+
+void Session::destroy()
+{
+    // Sanity.
+    assert(mSession);
+    assert(fuse_session_exited(mSession));
+
+    mMount.destroy();
 }
 
 bool Session::exited() const
