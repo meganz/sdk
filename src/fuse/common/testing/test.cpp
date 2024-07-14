@@ -115,6 +115,8 @@ Model Test::mModel;
 
 Path Test::mStoragePath;
 
+Watchdog Test::mWatchdog;
+
 Test::ClientPtrArray Test::mClients;
 
 const std::chrono::seconds Test::mDefaultTimeout(8);
@@ -124,6 +126,10 @@ Test::PathArray Test::mMountPaths;
 Path Test::mScratchPath;
 
 Test::PathArray Test::mSentinelPaths;
+
+// Most tests run for less than 10 seconds so these limits should be fine.
+static constexpr auto MaxTestCleanupTime = std::chrono::minutes(5);
+static constexpr auto MaxTestSetupTime   = std::chrono::minutes(10);
 
 bool Test::DoSetUp(const Parameters& parameters)
 {
@@ -271,6 +277,9 @@ void Test::SetUp()
 
 void Test::SetUpTestSuite()
 {
+    // Arm the watchdog.
+    ScopedWatch watch(mWatchdog, MaxTestSetupTime);
+
     // Compute paths
     {
         auto rootPath = makeNewTestRoot() / fs::u8path("fuse");
@@ -386,9 +395,12 @@ void Test::TearDown()
 
 void Test::TearDownTestSuite()
 {
-    ClientPtrArray clients;
+    // Arm watchdog.
+    ScopedWatch watch(mWatchdog, MaxTestCleanupTime);
 
-    clients = std::move(mClients);
+    // Destroy clients.
+    for (auto& client : mClients)
+        client.reset();
 }
 
 } // testing
