@@ -129,10 +129,14 @@ Test::PathArray Test::mSentinelPaths;
 
 // Most tests run for less than 10 seconds so these limits should be fine.
 static constexpr auto MaxTestCleanupTime = std::chrono::minutes(5);
+static constexpr auto MaxTestRunTime     = std::chrono::minutes(5);
 static constexpr auto MaxTestSetupTime   = std::chrono::minutes(10);
 
 bool Test::DoSetUp(const Parameters& parameters)
 {
+    // Arm the watchdog.
+    ScopedWatch watch(mWatchdog, MaxTestRunTime);
+
     // Make sure the clients are set up.
     allOf(mClients, [&](const ClientPtr& client) {
         auto exists = false;
@@ -211,6 +215,9 @@ bool Test::DoSetUp(const Parameters& parameters)
     if (HasFailure())
         return false;
 
+    // Don't disarm the watchdog.
+    watch.release();
+
     // We're done.
     return true;
 }
@@ -239,6 +246,9 @@ bool Test::DoTearDown()
 
         return empty;
     });
+
+    // Disarm the watchdog.
+    mWatchdog.disarm();
 
     return result;
 }
