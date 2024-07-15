@@ -36,6 +36,7 @@ class LocalTempFile
 {
 public:
     LocalTempFile(const fs::path& _filePath, const unsigned int fileSizeBytes);
+    LocalTempFile(const fs::path& _filePath, const std::string_view contents);
     ~LocalTempFile();
 
     // Delete copy constructors -> Don't allow many objects to remove the same file

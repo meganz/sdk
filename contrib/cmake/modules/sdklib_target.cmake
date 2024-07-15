@@ -74,6 +74,7 @@ set(SDKLIB_HEADERS
     include/mega/mediafileattribute.h
     include/mega/process.h
     include/mega/name_collision.h
+    include/mega/pwm_file_parser.h
 )
 
 set(SDKLIB_SOURCES
@@ -133,6 +134,7 @@ set(SDKLIB_SOURCES
     src/db/sqlite.cpp
     src/process.cpp
     src/name_collision.cpp
+    src/pwm_file_parser.cpp
 )
 
 target_sources(SDKlib
