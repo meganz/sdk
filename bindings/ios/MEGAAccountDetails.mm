@@ -21,6 +21,7 @@
 #import "MEGAAccountDetails.h"
 #import "MEGAAccountPlan+init.h"
 #import "MEGAAccountFeature+init.h"
+#import "MEGAAccountSubscription+init.h"
 #import "megaapi.h"
 #import "MEGAStringIntegerMap+init.h"
 
@@ -184,9 +185,18 @@ using namespace mega;
     return self.accountDetails ? self.accountDetails->getNumPlans(): 0;
 }
 
-- (MEGAAccountPlan*)getPlan:(int) plansIndex {
+- (MEGAAccountPlan*)getPlan:(int)plansIndex {
     MegaAccountPlan* megaAccountPlan = self.accountDetails ? self.accountDetails->getPlan(plansIndex) : nil;
     return [[MEGAAccountPlan alloc] initWithMegaAccountPlan:megaAccountPlan cMemoryOwn:YES];
+}
+
+-(int)getNumSubscriptions {
+    return self.accountDetails ? self.accountDetails->getNumSubscriptions() : 0;
+}
+
+-(MEGAAccountSubscription*)getSubscription:(int)subscriptionsIndex {
+    MegaAccountSubscription* megaAccountSubscription = self.accountDetails ? self.accountDetails->getSubscription(subscriptionsIndex) : nil;
+    return [[MEGAAccountSubscription alloc] initWithMegaAccountSubscription:megaAccountSubscription cMemoryOwn:YES];
 }
 
 + (nullable NSString *)stringForAccountType:(MEGAAccountType)accountType {

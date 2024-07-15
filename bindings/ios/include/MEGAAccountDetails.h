@@ -24,6 +24,7 @@
 #import "MEGAStringIntegerMap.h"
 #import "MEGAAccountPlan.h"
 #import "MEGAAccountFeature.h"
+#import "MEGAAccountSubscription.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -286,6 +287,25 @@ typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
  * @return MegaAccountPlan object
  */
 -(MEGAAccountPlan*)getPlan:(int) plansIndex;
+
+/**
+ * @brief Get the number of active subscriptions in the account.
+ *
+ * You can use MegaAccountDetails::getSubscription to get each of those objects.
+ *
+ * @return Number of active subscriptions
+ */
+-(int)getNumSubscriptions;
+
+/**
+ * @brief Returns the MegaAccountSubscription object associated with an index
+ *
+ * You take the ownership of the returned value
+ *
+ * @param subscriptionsIndex Index of the object
+ * @return MegaAccountSubscription object
+ */
+-(MEGAAccountSubscription*)getSubscription:(int) subscriptionsIndex;
 
 NS_ASSUME_NONNULL_END
 
