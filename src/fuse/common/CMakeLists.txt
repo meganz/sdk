@@ -238,6 +238,7 @@ target_sources(test_integration PRIVATE
                                 ${FUSE_COMMON_TESTING_INC}/test.h
                                 ${FUSE_COMMON_TESTING_INC}/test_base.h
                                 ${FUSE_COMMON_TESTING_INC}/utility.h
+                                ${FUSE_COMMON_TESTING_INC}/watchdog.h
                                 ${FUSE_COMMON_TESTING_SRC}/client.cpp
                                 ${FUSE_COMMON_TESTING_SRC}/cloud_path.cpp
                                 ${FUSE_COMMON_TESTING_SRC}/common_tests.cpp
@@ -254,6 +255,7 @@ target_sources(test_integration PRIVATE
                                 ${FUSE_COMMON_TESTING_SRC}/test.cpp
                                 ${FUSE_COMMON_TESTING_SRC}/test_base.cpp
                                 ${FUSE_COMMON_TESTING_SRC}/utility.cpp
+                                ${FUSE_COMMON_TESTING_SRC}/watchdog.cpp
 )
 
 target_sources(test_unit PRIVATE
