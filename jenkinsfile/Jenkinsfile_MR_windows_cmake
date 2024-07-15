@@ -138,7 +138,7 @@ pipeline {
                             } else  {
                                 lockLabel = 'SDK_Concurrent_Test_Accounts_Staging'
                             }
-                            lock(label: lockLabel, variable: 'ACCOUNTS_COMBINATION', quantity: 1, resource: null){
+                            lock(label: lockLabel, variable: 'ACCOUNTS_COMBINATION', quantity: 1, resourceSelectStrategy: "random", resource: null){
                                 dir("${windows_sources_workspace}") {
                                     script{
                                         env.MEGA_EMAIL = "${env.ACCOUNTS_COMBINATION}"
@@ -169,6 +169,7 @@ pipeline {
             post{
                 always {
                     archiveArtifacts artifacts: 'build_dir/test_integration*log*', fingerprint: true
+                    deleteDir()
                     script{
                         if (currentBuild.currentResult == 'SUCCESS'){
                             updateGitlabCommitStatus(name: 'Build & test windows', state: 'success')

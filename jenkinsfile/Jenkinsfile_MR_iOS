@@ -219,6 +219,7 @@ pipeline {
             }
             post{
                 always {
+                    deleteDir()
                     script{
                         if (currentBuild.currentResult == 'SUCCESS'){
                             updateGitlabCommitStatus(name: 'Build iOS', state: 'success')

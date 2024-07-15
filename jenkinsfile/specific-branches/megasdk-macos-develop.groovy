@@ -50,7 +50,7 @@ pipeline {
                     } else  {
                         lockLabel = 'SDK_Concurrent_Test_Accounts_Staging'
                     }                  
-                    lock(label: lockLabel, variable: 'ACCOUNTS_COMBINATION', quantity: 1, resource: null){
+                    lock(label: lockLabel, variable: 'ACCOUNTS_COMBINATION', quantity: 1, resourceSelectStrategy: "random", resource: null){
                         script{
                             env.MEGA_EMAIL = "${env.ACCOUNTS_COMBINATION}"
                             echo "${env.ACCOUNTS_COMBINATION}"
