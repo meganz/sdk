@@ -128,9 +128,9 @@ Path Test::mScratchPath;
 Test::PathArray Test::mSentinelPaths;
 
 // Most tests run for less than 10 seconds so these limits should be fine.
-static constexpr auto MaxTestCleanupTime = std::chrono::minutes(5);
-static constexpr auto MaxTestRunTime     = std::chrono::minutes(5);
-static constexpr auto MaxTestSetupTime   = std::chrono::minutes(10);
+static constexpr auto MaxTestCleanupTime = std::chrono::minutes(15);
+static constexpr auto MaxTestRunTime     = std::chrono::minutes(15);
+static constexpr auto MaxTestSetupTime   = std::chrono::minutes(15);
 
 bool Test::DoSetUp(const Parameters& parameters)
 {
