@@ -19,6 +19,7 @@
  * program.
  */
 #import "MEGAAccountDetails.h"
+#import "MEGAAccountPlan+init.h"
 #import "MEGAAccountFeature+init.h"
 #import "megaapi.h"
 #import "MEGAStringIntegerMap+init.h"
@@ -168,6 +169,24 @@ using namespace mega;
 
 - (long long)numberOfVersionFilesForHandle:(uint64_t)handle {
     return self.accountDetails ? self.accountDetails->getNumVersionFiles(handle): -1;
+}
+
+-(int)getNumActiveFeatures {
+    return self.accountDetails ? self.accountDetails->getNumActiveFeatures(): 0;
+}
+
+- (MEGAAccountFeature*)getActiveFeature:(int) featureIndex {
+    MegaAccountFeature* megaAccountFeature = self.accountDetails ? self.accountDetails->getActiveFeature(featureIndex) : nil;
+    return [[MEGAAccountFeature alloc] initWithMegaAccountFeature:megaAccountFeature cMemoryOwn:YES];
+}
+
+- (int)getNumPlans {
+    return self.accountDetails ? self.accountDetails->getNumPlans(): 0;
+}
+
+- (MEGAAccountPlan*)getPlan:(int) plansIndex {
+    MegaAccountPlan* megaAccountPlan = self.accountDetails ? self.accountDetails->getPlan(plansIndex) : nil;
+    return [[MEGAAccountPlan alloc] initWithMegaAccountPlan:megaAccountPlan cMemoryOwn:YES];
 }
 
 + (nullable NSString *)stringForAccountType:(MEGAAccountType)accountType {

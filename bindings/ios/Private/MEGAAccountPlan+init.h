@@ -1,6 +1,6 @@
 /**
  * @file MEGAAccountPlan+init.h
- * @brief Private functions of MEGAAccountDetails
+ * @brief Private functions of MEGAAccountPlan
  *
  * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
@@ -23,6 +23,7 @@
 
 @interface MEGAAccountPlan (init)
 
-+ (instancetype)initWithMegaAccountPlan:(mega::MegaAccountPlan *)accountPlan cMemoryOwn:(BOOL)cMemoryOwn;
+- (instancetype)initWithMegaAccountPlan:(mega::MegaAccountPlan *)accountPlan cMemoryOwn:(BOOL)cMemoryOwn;
++ (mega::MegaAccountPlan *)getCPtr;
 
 @end

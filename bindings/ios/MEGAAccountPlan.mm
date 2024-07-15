@@ -1,6 +1,6 @@
 /**
- * @file MEGAAccountDetails.mm
- * @brief Details about a MEGA account
+ * @file MEGAAccountFeature.mm
+ * @brief Details about a MEGA account plan
  *
  * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
@@ -19,6 +19,7 @@
  * program.
  */
 #import "MEGAAccountPlan.h"
+#import "MEGAStringList+init.h"
 #import "megaapi.h"
 
 using namespace mega;
@@ -32,7 +33,7 @@ using namespace mega;
 
 @implementation MEGAAccountPlan
 
-- (instancetype)initWithMegaAccountPlan:(mega::MegaAccountPlan *)accountPlan cMemoryOwn:(BOOL)cMemoryOwn {
+- (instancetype)initWithMegaAccountPlan:(MegaAccountPlan *)accountPlan cMemoryOwn:(BOOL)cMemoryOwn {
     self = [super init];
 
     if (self != nil){
@@ -49,6 +50,10 @@ using namespace mega;
     }
 }
 
+- (nullable MegaAccountPlan *)getCPtr {
+    return self.megaAccountPlan;
+}
+
 -(bool)isProPlan {
     _megaAccountPlan->isProPlan();
 }
@@ -57,6 +62,9 @@ using namespace mega;
     _megaAccountPlan->getAccountLevel();
 }
 
+- (MEGAStringList *)getFeatures {
+    return [MEGAStringList.alloc initWithMegaStringList:_megaAccountPlan->getFeatures() cMemoryOwn:YES];
+}
 
 -(int64_t)getExpirationTime {
      _megaAccountPlan->getExpirationTime();

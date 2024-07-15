@@ -19,9 +19,10 @@
  * program.
  */
 #import <Foundation/Foundation.h>
+#import "MEGAStringList.h"
 
 /**
- * @brief Details about a MEGA account.
+ * @brief Details about a MEGA account plan.
  */
 @interface MEGAAccountPlan : NSObject
 
@@ -68,6 +69,15 @@
  * @return The time the plan expires
  */
 - (int64_t) getExpirationTime;
+
+/**
+ * @brief Get the features granted by this plan
+ *
+ * You take the ownership of the returned value
+ *
+ * @return Features granted by this plan.
+ */
+- (MEGAStringList *) getFeatures;
 
 /**
  * @brief The type of plan. Why it was granted.
