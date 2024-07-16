@@ -11,7 +11,11 @@ namespace testing
 {
 
 Watchdog::Watchdog()
-  : mExecutor(TaskExecutorFlags())
+  : mExecutor([]() {
+        TaskExecutorFlags flags;
+        flags.mMaxWorkers = 1;
+        return flags;
+    }())
 {
 }
 
@@ -21,7 +25,7 @@ void Watchdog::arm(std::chrono::steady_clock::time_point when)
     disarm();
 
     // Re-arm the watchdog.
-    mExecutor.execute([](const Task& task) {
+    mTask = mExecutor.execute([](const Task& task) {
         // Watchdog's being torn down.
         if (task.cancelled())
             return;
