@@ -11,7 +11,11 @@ namespace testing
 {
 
 Watchdog::Watchdog()
-  : mExecutor(TaskExecutorFlags())
+  : mExecutor([]() {
+        TaskExecutorFlags flags;
+        flags.mMaxWorkers = 1;
+        return flags;
+    }())
 {
 }
 
