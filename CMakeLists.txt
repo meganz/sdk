@@ -37,10 +37,10 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/modules)
 
 set(VCPKG_ROOT "" CACHE PATH "If set, it will build and use the VCPKG packages defined in the manifest file")
 
-## Set up CMAKE_SYSTEM_NAME for iOS
+# Set up CMAKE_SYSTEM_NAME for cross compiling
 if (VCPKG_ROOT)
-    include(vcpkg_target)
-    check_vcpkg_target_triplet()
+    include(set_cmake_system_name)
+    set_cmake_system_name()
 endif()
 
 ## Configurable options ##
