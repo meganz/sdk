@@ -19400,6 +19400,8 @@ TEST_F(SdkTest, DynamicMessageNotifs)
  *  - Check description
  *  - Update description
  *  - Remove description
+ *  - Update the contents of the file to create a new version
+ *  - Check the description is retained across versions
  *
  */
 TEST_F(SdkTest, SdkNodeDescription)
@@ -19411,7 +19413,7 @@ TEST_F(SdkTest, SdkNodeDescription)
     ASSERT_TRUE(rootnodeA);
 
     string filename = "test.txt";
-    createFile(filename, false);
+    sdk_test::LocalTempFile testTempFile(filename, 0);
     MegaHandle mh = 0;
     ASSERT_EQ(MegaError::API_OK,
               doStartUpload(0,
@@ -19509,7 +19511,9 @@ TEST_F(SdkTest, SdkNodeDescription)
     // Remove description
     changeNodeDescription(mh, nullptr);
 
-    changeNodeDescription(mh, "This is a description with *stars* to test if it's found correctly");
+    const std::string lastDescription{
+        "This is a description with *stars* to test if it's found correctly"};
+    changeNodeDescription(mh, lastDescription.c_str());
 
     MegaHandle nodeCopiedHandle = UNDEF;
     ASSERT_EQ(API_OK, doCopyNode(0, &nodeCopiedHandle, node.get(), rootnodeA.get(), "test2.txt")) << "Cannot create a copy of a node";
@@ -19524,7 +19528,39 @@ TEST_F(SdkTest, SdkNodeDescription)
     nodeList.reset(megaApi[0]->search(filter.get()));
     ASSERT_EQ(nodeList->size(), 1);
 
-    deleteFile(filename);
+    LOG_debug
+        << "[SdkTest::SdkNodeDescription] Changing the contents of test.txt to force a new version";
+    const std::string newVersionFileName = "test_new_version.txt";
+    sdk_test::LocalTempFile fNewVersion(newVersionFileName, 1);
+    MegaHandle mhNew = INVALID_HANDLE;
+    ASSERT_EQ(MegaError::API_OK,
+              doStartUpload(0,
+                            &mhNew,
+                            newVersionFileName.c_str(),
+                            rootnodeA.get(),
+                            filename.c_str(),
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << "Cannot update the test file";
+    ASSERT_NE(mhNew, INVALID_HANDLE);
+
+    std::unique_ptr<MegaNode> oldNode(megaApi[0]->getNodeByHandle(mh));
+    ASSERT_NE(oldNode, nullptr);
+
+    std::unique_ptr<MegaNode> newNode(megaApi[0]->getNodeByHandle(mhNew));
+    ASSERT_NE(newNode, nullptr);
+
+    // Check there are two versions for the file
+    unique_ptr<MegaNodeList> allVersions(megaApi[0]->getVersions(newNode.get()));
+    ASSERT_EQ(allVersions->size(), 2);
+
+    EXPECT_STREQ(oldNode->getDescription(), newNode->getDescription())
+        << "Description is not maintained after file update";
+    EXPECT_STREQ(oldNode->getDescription(), lastDescription.c_str())
+        << "The description of the old version has changed";
 }
 
 /**
