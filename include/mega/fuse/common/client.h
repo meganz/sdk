@@ -178,17 +178,10 @@ public:
     Error touch(NodeHandle handle, m_time_t modified);
 
     // Upload a file to the cloud.
-    ErrorOr<UploadPtr> upload(BoundCallback callback,
-                              const LocalPath& logicalPath,
-                              const std::string& name,
-                              NodeHandle parent,
-                              const LocalPath& physicalPath);
-
-    virtual ErrorOr<UploadPtr> upload(UploadCallback callback,
-                                      const LocalPath& logicalPath,
-                                      const std::string& name,
-                                      NodeHandle parent,
-                                      const LocalPath& physicalPath) = 0;
+    virtual UploadPtr upload(const LocalPath& logicalPath,
+                             const std::string& name,
+                             NodeHandle parent,
+                             const LocalPath& physicalPath) = 0;
 }; // Client
 
 } // fuse

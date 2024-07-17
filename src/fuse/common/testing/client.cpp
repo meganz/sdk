@@ -119,69 +119,27 @@ void Client::makeDirectory(MakeDirectoryCallback callback,
                            parentHandle);
 }
 
-ErrorOr<UploadPtr> Client::uploadFile(BoundCallback callback,
-                                      const std::string& name,
-                                      NodeHandle parentHandle,
-                                      const Path& path)
-{
-    // Called when our file has been uploaded.
-    auto uploaded = [this](BoundCallback& callback,
-                           ErrorOr<NodeHandle> result) {
-        // Invokes our callback in a safe context.
-        auto wrapper = [](BoundCallback& callback,
-                          ErrorOr<NodeHandle> result,
-                          const Task& task) {
-            // Client's being torn down.
-            if (task.cancelled())
-                return callback(API_EINCOMPLETE);
-
-            // Forward result to user callback.
-            callback(result);
-        }; // wrapper
-
-        // Invoke the callback in a safe context.
-        service().execute(std::bind(std::move(wrapper),
-                                    std::move(callback),
-                                    std::move(result),
-                                    std::placeholders::_1));
-    }; // uploaded
-
-    // Wrap decorated callback.
-    callback = std::bind(std::move(uploaded),
-                         std::move(callback),
-                         std::placeholders::_1);
-
-    // Try and upload the file.
-    return client().upload(std::move(callback),
-                           LocalPath(),
-                           name,
-                           parentHandle,
-                           path);
-}
-
 ErrorOr<NodeHandle> Client::uploadFile(const std::string& name,
                                        NodeHandle parentHandle,
                                        const Path& path)
 {
-    // So we can wait for the upload's result.
-    auto notifier = makeSharedPromise<ErrorOr<NodeHandle>>();
-
-    // Called when our file has been bound.
-    BoundCallback uploaded = [notifier](ErrorOr<NodeHandle> result) {
-        // Broadcast result to our waiter.
-        notifier->set_value(result);
-    }; // uploaded
-
-    // Try and upload the file.
-    auto upload = client().upload(std::move(uploaded),
-                                  LocalPath(),
+    // Create the upload.
+    auto upload = client().upload(LocalPath(),
                                   name,
                                   parentHandle,
                                   path);
 
-    // Couldn't upload the file.
-    if (!upload)
-        return upload.error();
+    // So we can wait for the upload's result.
+    auto notifier = makeSharedPromise<ErrorOr<NodeHandle>>();
+
+    // Called when our file has been bound.
+    BoundCallback bound = [notifier](ErrorOr<NodeHandle> result) {
+        // Broadcast result to our waiter.
+        notifier->set_value(result);
+    }; // bound
+
+    // Try and upload the file.
+    upload->begin(std::move(bound));
 
     // Return the upload's result to the caller.
     return waitFor(notifier->get_future());
@@ -789,24 +747,26 @@ void Client::Uploader::upload(Path path, NodeHandle parentHandle)
     // Acquire lock.
     std::unique_lock<std::mutex> lock(mLock);
 
-    // Try and upload the file.
-    auto upload = mClient.uploadFile(std::bind(&Uploader::uploaded,
-                                               this,
-                                               path,
-                                               std::placeholders::_1),
-                                     path.path().filename().u8string(),
-                                     parentHandle,
-                                     path);
-
-    // Couldn't upload the file.
-    if (!upload)
-        return completed(std::move(lock), upload.error());
+    // Create the upload.
+    auto upload = mClient.client().upload(LocalPath(),
+                                          path.path().filename().u8string(),
+                                          parentHandle,
+                                          path);
 
     // Record that a file is being uploaded.
-    auto i = mPendingFiles.emplace(std::move(path), std::move(*upload));
+    auto i = mPendingFiles.emplace(path, upload);
 
     // Sanity.
     assert(i.second);
+
+    // So we can use our uploaded method as a callback.
+    BoundCallback uploaded = std::bind(&Uploader::uploaded,
+                                       this,
+                                       std::move(path),
+                                       std::placeholders::_1);
+
+    // Try and upload the file.
+    upload->begin(std::move(uploaded));
 
     // Silence compiler.
     static_cast<void>(i);

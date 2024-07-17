@@ -121,6 +121,7 @@ target_sources(${SDK_TARGET} PRIVATE
                              ${FUSE_COMMON_SRC}/task_executor.cpp
                              ${FUSE_COMMON_SRC}/task_queue.cpp
                              ${FUSE_COMMON_SRC}/transaction.cpp
+                             ${FUSE_COMMON_SRC}/upload.cpp
                              ${FUSE_COMMON_SRC}/utility.cpp
 )
 

@@ -365,6 +365,8 @@ Error Client::touch(NodeHandle handle, m_time_t modified)
     return waitFor(notifier->get_future());
 }
 
+#if 0
+
 ErrorOr<UploadPtr> Client::upload(BoundCallback callback,
                                   const LocalPath& logicalPath,
                                   const std::string& name,
@@ -400,6 +402,8 @@ ErrorOr<UploadPtr> Client::upload(BoundCallback callback,
                         parent,
                         physicalPath);
 }
+
+#endif
 
 template ErrorOr<NodeInfo> Client::lookup(const LocalPath&, NodeHandle);
 template ErrorOr<NodeInfo> Client::lookup(const RemotePath&, NodeHandle);

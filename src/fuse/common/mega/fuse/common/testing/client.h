@@ -51,12 +51,6 @@ class Client
                        NodeHandle parentHandle);
 
     // Upload a file to the cloud.
-    ErrorOr<UploadPtr> uploadFile(BoundCallback callback,
-                                  const std::string& name,
-                                  NodeHandle parentHandle,
-                                  const Path& path);
-
-    // Convenience version of the above.
     ErrorOr<NodeHandle> uploadFile(const std::string& name,
                                    NodeHandle parentHandle,
                                    const Path& path);
