@@ -4042,8 +4042,11 @@ void StandardClient::movenodetotrash(string path, PromiseBoolSP pb)
 
 void StandardClient::exportnode(std::shared_ptr<Node> n, int del, m_time_t expiry, bool writable, bool megaHosted, promise<Error>& pb)
 {
-    resultproc.prepresult(COMPLETION, ++next_request_tag,
-        [&](){
+    resultproc.prepresult(
+        COMPLETION,
+        ++next_request_tag,
+        [&]()
+        {
             error e = client.exportnode(n,
                                         del,
                                         expiry,
@@ -4058,12 +4061,15 @@ void StandardClient::exportnode(std::shared_ptr<Node> n, int del, m_time_t expir
             {
                 pb.set_value(e);
             }
-        }, nullptr);  // no need to match callbacks with requests when we use completion functions
+        },
+        nullptr); // no need to match callbacks with requests when we use completion functions
 }
 
 void StandardClient::getpubliclink(Node* n, int del, m_time_t expiry, bool writable, bool megaHosted, promise<Error>& pb)
 {
-    resultproc.prepresult(COMPLETION, ++next_request_tag,
+    resultproc.prepresult(
+        COMPLETION,
+        ++next_request_tag,
         [&]()
         {
             client.requestPublicLink(n,

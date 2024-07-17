@@ -13581,21 +13581,34 @@ error MegaClient::exportnode(
             // deletion of outgoing share also deletes the link automatically
             // need to first remove the link and then the share
             NodeHandle h = n->nodeHandle();
-            requestPublicLink(n.get(), del, ets, writable, false, tag,
+            requestPublicLink(
+                n.get(),
+                del,
+                ets,
+                writable,
+                false,
+                tag,
                 [this, completion, writable, tag, h](Error e, handle, handle, string&&)
-            {
-                std::shared_ptr<Node> n = nodeByHandle(h);
-                if (e || !n)
                 {
-                    completion(e, UNDEF, UNDEF, {});
-                }
-                else
-                {
-                    setshare(n, NULL, ACCESS_UNKNOWN, writable, nullptr, tag, [completion](Error e, bool) {
+                    std::shared_ptr<Node> n = nodeByHandle(h);
+                    if (e || !n)
+                    {
                         completion(e, UNDEF, UNDEF, {});
-                        });
-                }
-            });
+                    }
+                    else
+                    {
+                        setshare(n,
+                                 NULL,
+                                 ACCESS_UNKNOWN,
+                                 writable,
+                                 nullptr,
+                                 tag,
+                                 [completion](Error e, bool)
+                                 {
+                                     completion(e, UNDEF, UNDEF, {});
+                                 });
+                    }
+                });
         }
         else
         {
