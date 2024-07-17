@@ -20021,3 +20021,35 @@ TEST_F(SdkTest, GetActivePlansAndFeatures)
             << "Feature " << featureId << " is not present in any plan";
     }
 }
+
+/**
+ * @brief SdkTestSharesWhenMegaHosted
+ *
+ *  - Create a folder
+ *  - Create a writable, mega-hosted link to the folder
+ *  - Confirm that an encryption-key was used for the share-key (sent via "l"."sk")
+ */
+TEST_F(SdkTest, SdkTestSharesWhenMegaHosted)
+{
+    LOG_info << "___TEST SharesWhenMegaHosted___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // Create some nodes to share
+    //  |--Shared-folder
+
+    std::unique_ptr<MegaNode> rootNode{megaApi[0]->getRootNode()};
+    MegaHandle hFolder = createFolder(0, "Shared-folder", rootNode.get());
+    ASSERT_NE(hFolder, UNDEF);
+    std::unique_ptr<MegaNode> nFolder(megaApi[0]->getNodeByHandle(hFolder));
+    ASSERT_THAT(nFolder, ::testing::NotNull());
+
+    RequestTracker rt(megaApi[0].get());
+    megaApi[0]->exportNode(nFolder.get(), true /*writable*/, true /*megaHosted*/, &rt);
+    ASSERT_EQ(rt.waitForResult(), API_OK);
+
+    // Test that encryption-key was used for "sk" (share-key) sent via "l" command
+    ASSERT_THAT(rt.request->getPassword(), ::testing::NotNull());
+    string b64Key{rt.request->getPassword()};
+    string binKey = Base64::atob(b64Key);
+    ASSERT_FALSE(binKey.empty());
+}
