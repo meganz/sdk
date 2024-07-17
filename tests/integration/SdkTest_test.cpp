@@ -19580,6 +19580,8 @@ TEST_F(SdkTest, SdkNodeDescription)
  *  - Create another file inside a subdir
  *  - Add some tags to it
  *  - Get all different node tags
+ *  - Update file to create a new version
+ *  - Check new version retains the same tags
  */
 TEST_F(SdkTest, SdkNodeTag)
 {
@@ -19595,7 +19597,7 @@ TEST_F(SdkTest, SdkNodeTag)
     ASSERT_EQ(MegaError::API_OK,
               doStartUpload(0,
                             &mh,
-                            filename.string().c_str(),
+                            filename.u8string().c_str(),
                             rootnodeA.get(),
                             nullptr /*fileName*/,
                             ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
@@ -19690,12 +19692,10 @@ TEST_F(SdkTest, SdkNodeTag)
 
     const auto toVector = [](const MegaStringList& l) -> std::vector<std::string>
     {
-        std::vector<std::string> res;
+        std::vector<std::string> r;
         for (int i = 0; i < l.size(); ++i)
-        {
-            res.emplace_back(l.get(i));
-        }
-        return res;
+            r.emplace_back(l.get(i));
+        return r;
     };
 
     std::string tag1 = "tag1";
@@ -19838,6 +19838,40 @@ TEST_F(SdkTest, SdkNodeTag)
     ASSERT_NE(allTags, nullptr);
     allTagsV = toVector(*allTags);
     EXPECT_THAT(allTagsV, testing::ElementsAreArray({tag11}));
+
+    LOG_debug << "[SdkTest::SdkNodeTag] Changing the contents of test.txt to force a new version";
+    sdk_test::LocalTempFile fNewVersion("testnewversion.txt", 1);
+    MegaHandle mhNew = INVALID_HANDLE;
+    ASSERT_EQ(MegaError::API_OK,
+              doStartUpload(0,
+                            &mhNew,
+                            "testnewversion.txt",
+                            rootnodeA.get(),
+                            filename.u8string().c_str(),
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << "Cannot update the test file";
+    ASSERT_NE(mhNew, INVALID_HANDLE);
+
+    std::unique_ptr<MegaNode> oldNode(megaApi[0]->getNodeByHandle(mh));
+    ASSERT_NE(oldNode, nullptr);
+    std::unique_ptr<MegaStringList> oldTags(oldNode->getTags());
+    ASSERT_NE(oldTags, nullptr);
+
+    std::unique_ptr<MegaNode> newNode(megaApi[0]->getNodeByHandle(mhNew));
+    ASSERT_NE(newNode, nullptr);
+    std::unique_ptr<MegaStringList> newTags(newNode->getTags());
+    ASSERT_NE(newTags, nullptr);
+
+    // Check there are two versions for the file
+    unique_ptr<MegaNodeList> allVersions(megaApi[0]->getVersions(newNode.get()));
+    ASSERT_EQ(allVersions->size(), 2);
+
+    EXPECT_THAT(toVector(*oldTags), testing::UnorderedElementsAreArray(toVector(*newTags)))
+        << "Tags are not maintained after file update";
 }
 
 /**
