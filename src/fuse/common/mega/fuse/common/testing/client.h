@@ -21,6 +21,7 @@
 #include <mega/fuse/common/testing/cloud_path_forward.h>
 #include <mega/fuse/common/testing/mount_event_observer_forward.h>
 #include <mega/fuse/common/testing/path.h>
+#include <mega/fuse/common/upload_callbacks.h>
 #include <mega/fuse/common/upload_forward.h>
 
 namespace mega

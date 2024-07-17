@@ -951,8 +951,9 @@ HEADERS += \
     $$FUSE_COMMON_INC/task_queue.h \
     $$FUSE_COMMON_INC/transaction_forward.h \
     $$FUSE_COMMON_INC/transaction.h \
-    $$FUSE_COMMON_INC/upload_forward.h \
     $$FUSE_COMMON_INC/upload.h \
+    $$FUSE_COMMON_INC/upload_callbacks.h \
+    $$FUSE_COMMON_INC/upload_forward.h \
     $$FUSE_COMMON_INC/utility.h
 
 SOURCES += \

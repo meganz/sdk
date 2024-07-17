@@ -14,6 +14,7 @@
 #include <mega/fuse/common/node_info_forward.h>
 #include <mega/fuse/common/normalized_path_forward.h>
 #include <mega/fuse/common/task_queue_forward.h>
+#include <mega/fuse/common/upload_callbacks.h>
 #include <mega/fuse/common/upload_forward.h>
 
 #include <mega/types.h>
