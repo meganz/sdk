@@ -171,9 +171,11 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
     // Create specific table for handle nodes
     std::string sql = "CREATE TABLE IF NOT EXISTS nodes (nodehandle int64 PRIMARY KEY NOT NULL, "
                       "parenthandle int64, name text, fingerprint BLOB, origFingerprint BLOB, "
-                      "type tinyint, mimetype tinyint AS (getmimetype(name)) VIRTUAL, size int64, share tinyint, fav tinyint, "
-                      "ctime int64, mtime int64 DEFAULT 0, flags int64, counter BLOB NOT NULL, node BLOB NOT NULL, "
-                      "label tinyint DEFAULT 0, description text, tags text)";
+                      "type tinyint, mimetypeVirtual tinyint AS (getmimetype(name)) VIRTUAL, size "
+                      "int64, share tinyint, fav tinyint, ctime int64, mtime int64 DEFAULT 0, "
+                      "flags int64, counter BLOB NOT NULL, "
+                      "node BLOB NOT NULL, label tinyint DEFAULT 0, description text, tags text)";
+
     int result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
     if (result)
     {
@@ -192,7 +194,7 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
          "tinyint DEFAULT 0",
          NodeData::COMPONENT_LABEL,
          NewColumn::extractDataFromNodeData<LabelType>      },
-        {"mimetype",
+        {"mimetypeVirtual",
          "tinyint AS (getmimetype(name)) VIRTUAL",
          NodeData::COMPONENT_NONE,
          nullptr                                            },
@@ -1575,11 +1577,11 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, int o
                                  "AND (?8 = " + std::to_string(MIME_TYPE_UNKNOWN) +
                                      " OR (type = " + std::to_string(FILENODE) +
                                          " AND ((?8 = " + std::to_string(MIME_TYPE_ALL_DOCS) +
-                                               " AND mimetype IN (" + std::to_string(MIME_TYPE_DOCUMENT) +
+                                               " AND mimetypeVirtual IN (" + std::to_string(MIME_TYPE_DOCUMENT) +
                                                                 ',' + std::to_string(MIME_TYPE_PDF) +
                                                                 ',' + std::to_string(MIME_TYPE_PRESENTATION) +
                                                                 ',' + std::to_string(MIME_TYPE_SPREADSHEET) + "))"
-                                              " OR mimetype = ?8))) "
+                                              " OR mimetypeVirtual = ?8))) "
                                  "AND (?11 = 0 OR (name REGEXP ?9)) "
                                  "AND (?14 = 0 OR isContained(?15, description)) "
                                  "AND (?16 = 0 OR matchTag(?17, tags)) "
@@ -1678,7 +1680,7 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
                       " AND nodehandle IN (SELECT nodehandle FROM nodes WHERE share = ?7)))";
 
         string columnsForNodeAndFilters =
-            "nodehandle, parenthandle, flags, name, type, counter, node, size, ctime, mtime, share, mimetype, fav, label, description, tags";
+            "nodehandle, parenthandle, flags, name, type, counter, node, size, ctime, mtime, share, mimetypeVirtual, fav, label, description, tags";
 
         string nodesOfShares =
             "nodesOfShares(" + columnsForNodeAndFilters + ") \n"
@@ -1693,7 +1695,7 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
                 "WHERE parenthandle IN (SELECT nodehandle FROM ancestors) \n"
                 "UNION ALL \n"
                 "SELECT N.nodehandle, N.parenthandle, N.flags, N.name, N.type, N.counter, N.node, "
-                "N.size, N.ctime, N.mtime, N.share, N.mimetype, N.fav, N.label, N.description, N.tags \n"
+                "N.size, N.ctime, N.mtime, N.share, N.mimetypeVirtual, N.fav, N.label, N.description, N.tags \n"
                 "FROM nodes AS N \n"
                 "INNER JOIN nodesCTE AS P \n"
                         "ON (N.parenthandle = P.nodehandle \n"
@@ -1715,11 +1717,11 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
             "AND (?8 = " + std::to_string(MIME_TYPE_UNKNOWN) +
                 " OR (type = " + std::to_string(FILENODE) +
                     " AND ((?8 = " + std::to_string(MIME_TYPE_ALL_DOCS) +
-                          " AND mimetype IN (" + std::to_string(MIME_TYPE_DOCUMENT) +
+                          " AND mimetypeVirtual IN (" + std::to_string(MIME_TYPE_DOCUMENT) +
                                            ',' + std::to_string(MIME_TYPE_PDF) +
                                            ',' + std::to_string(MIME_TYPE_PRESENTATION) +
                                            ',' + std::to_string(MIME_TYPE_SPREADSHEET) + "))"
-                         " OR mimetype = ?8))) \n"
+                         " OR mimetypeVirtual = ?8))) \n"
             "AND (?13 = 0 OR (name REGEXP ?9)) \n"
             "AND (?17 = 0 OR isContained(?18, description)) \n"
             "AND (?19 = 0 OR matchTag(?20, tags)) \n"
