@@ -13539,8 +13539,14 @@ void MegaClient::querytransferquota(m_off_t size)
 }
 
 // export node link
-error MegaClient::exportnode(std::shared_ptr<Node> n, int del, m_time_t ets, bool writable, bool megaHosted,
-    int tag, std::function<void(Error, handle, handle)> completion)
+error MegaClient::exportnode(
+    std::shared_ptr<Node> n,
+    int del,
+    m_time_t ets,
+    bool writable,
+    bool megaHosted,
+    int tag,
+    std::function<void(Error, handle, handle, string&& encryptionKey)> completion)
 {
     if (n->plink && !del && !n->plink->takendown
             && (ets == n->plink->ets) && !n->plink->isExpired()
@@ -13553,7 +13559,7 @@ error MegaClient::exportnode(std::shared_ptr<Node> n, int del, m_time_t ets, boo
             return API_EPAYWALL;
         }
         restag = tag;
-        completion(API_OK, n->nodehandle, n->plink->ph);
+        completion(API_OK, n->nodehandle, n->plink->ph, {});
         return API_OK;
     }
 
@@ -13575,19 +13581,34 @@ error MegaClient::exportnode(std::shared_ptr<Node> n, int del, m_time_t ets, boo
             // deletion of outgoing share also deletes the link automatically
             // need to first remove the link and then the share
             NodeHandle h = n->nodeHandle();
-            requestPublicLink(n.get(), del, ets, writable, false, tag, [this, completion, writable, tag, h](Error e, handle, handle){
-                std::shared_ptr<Node> n = nodeByHandle(h);
-                if (e || !n)
+            requestPublicLink(
+                n.get(),
+                del,
+                ets,
+                writable,
+                false,
+                tag,
+                [this, completion, writable, tag, h](Error e, handle, handle, string&&)
                 {
-                    completion(e, UNDEF, UNDEF);
-                }
-                else
-                {
-                    setshare(n, NULL, ACCESS_UNKNOWN, writable, nullptr, tag, [completion](Error e, bool) {
-                        completion(e, UNDEF, UNDEF);
-                        });
-                }
-            });
+                    std::shared_ptr<Node> n = nodeByHandle(h);
+                    if (e || !n)
+                    {
+                        completion(e, UNDEF, UNDEF, {});
+                    }
+                    else
+                    {
+                        setshare(n,
+                                 NULL,
+                                 ACCESS_UNKNOWN,
+                                 writable,
+                                 nullptr,
+                                 tag,
+                                 [completion](Error e, bool)
+                                 {
+                                     completion(e, UNDEF, UNDEF, {});
+                                 });
+                    }
+                });
         }
         else
         {
@@ -13601,7 +13622,7 @@ error MegaClient::exportnode(std::shared_ptr<Node> n, int del, m_time_t ets, boo
             {
                 if (e)
                 {
-                    completion(e, UNDEF, UNDEF);
+                    completion(e, UNDEF, UNDEF, {});
                 }
                 else if (std::shared_ptr<Node> node = nodebyhandle(h))
                 {
@@ -13609,7 +13630,7 @@ error MegaClient::exportnode(std::shared_ptr<Node> n, int del, m_time_t ets, boo
                 }
                 else
                 {
-                    completion(API_ENOENT, UNDEF, UNDEF);
+                    completion(API_ENOENT, UNDEF, UNDEF, {});
                 }
             });
         }
@@ -13622,7 +13643,13 @@ error MegaClient::exportnode(std::shared_ptr<Node> n, int del, m_time_t ets, boo
     return API_OK;
 }
 
-void MegaClient::requestPublicLink(Node* n, int del, m_time_t ets, bool writable, bool megaHosted, int tag, std::function<void(Error, handle, handle)> f)
+void MegaClient::requestPublicLink(Node* n,
+                                   int del,
+                                   m_time_t ets,
+                                   bool writable,
+                                   bool megaHosted,
+                                   int tag,
+                                   CommandSetPH::CompletionType f)
 {
     reqs.add(new CommandSetPH(this, n, del, ets, writable, megaHosted, tag, std::move(f)));
 }

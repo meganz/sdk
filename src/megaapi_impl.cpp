@@ -20492,59 +20492,78 @@ error MegaApiImpl::performRequest_export(MegaRequestPrivate* request)
             bool writable = request->getFlag();
             bool megaHosted = request->getTransferTag() != 0;
             // exportnode() will take care of creating a share first, should it be a folder
-            return client->exportnode(node, !request->getAccess(), request->getNumber(), writable, megaHosted, request->getTag(),
-                [this, request](Error e, handle h, handle ph)
-            {
-                if (e || !request->getAccess()) // disable export doesn't return h and ph
+            return client->exportnode(
+                node,
+                !request->getAccess(),
+                request->getNumber(),
+                writable,
+                megaHosted,
+                request->getTag(),
+                [this, request, megaHosted](Error e, handle h, handle ph, string&& encryptionKey)
                 {
-                    fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
-                }
-                else
-                {
-                    // This block of code used to be inside exportnode_result
-                    if (std::shared_ptr<Node> n = client->nodebyhandle(h))
+                    if (e || !request->getAccess()) // disable export doesn't return h and ph
                     {
-                        char key[FILENODEKEYLENGTH*4/3+3];
-
-                        // the key
-                        if (n->type == FILENODE)
-                        {
-                            if(n->nodekey().size() >= FILENODEKEYLENGTH)
-                            {
-                                Base64::btoa((const byte*)n->nodekey().data(), FILENODEKEYLENGTH, key);
-                            }
-                            else
-                            {
-                                key[0]=0;
-                            }
-                        }
-                        else if (n->sharekey)
-                        {
-                            Base64::btoa(n->sharekey->key, FOLDERNODEKEYLENGTH, key);
-                        }
-                        else
-                        {
-                            fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(MegaError::API_EKEY));
-                            return;
-                        }
-
-                        TypeOfLink lType = client->validTypeForPublicURL(n->type);
-                        string link = client->publicLinkURL(client->mNewLinkFormat, lType, ph, key);
-                        request->setLink(link.c_str());
-                        if (n->plink && n->plink->mAuthKey.size())
-                        {
-                            request->setPrivateKey(n->plink->mAuthKey.c_str());
-                        }
-
-                        fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(MegaError::API_OK));
+                        fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
                     }
                     else
                     {
-                        request->setNodeHandle(UNDEF);
-                        fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(MegaError::API_ENOENT));
+                        // This block of code used to be inside exportnode_result
+                        if (std::shared_ptr<Node> n = client->nodebyhandle(h))
+                        {
+                            char key[FILENODEKEYLENGTH * 4 / 3 + 3];
+
+                            // the key
+                            if (n->type == FILENODE)
+                            {
+                                if (n->nodekey().size() >= FILENODEKEYLENGTH)
+                                {
+                                    Base64::btoa((const byte*)n->nodekey().data(),
+                                                 FILENODEKEYLENGTH,
+                                                 key);
+                                }
+                                else
+                                {
+                                    key[0] = 0;
+                                }
+                            }
+                            else if (n->sharekey)
+                            {
+                                Base64::btoa(n->sharekey->key, FOLDERNODEKEYLENGTH, key);
+                            }
+                            else
+                            {
+                                fireOnRequestFinish(
+                                    request,
+                                    std::make_unique<MegaErrorPrivate>(MegaError::API_EKEY));
+                                return;
+                            }
+
+                            TypeOfLink lType = client->validTypeForPublicURL(n->type);
+                            string link =
+                                client->publicLinkURL(client->mNewLinkFormat, lType, ph, key);
+                            request->setLink(link.c_str());
+                            if (n->plink && n->plink->mAuthKey.size())
+                            {
+                                request->setPrivateKey(n->plink->mAuthKey.c_str());
+                                if (megaHosted)
+                                {
+                                    request->setPassword(encryptionKey.c_str());
+                                }
+                            }
+
+                            fireOnRequestFinish(
+                                request,
+                                std::make_unique<MegaErrorPrivate>(MegaError::API_OK));
+                        }
+                        else
+                        {
+                            request->setNodeHandle(UNDEF);
+                            fireOnRequestFinish(
+                                request,
+                                std::make_unique<MegaErrorPrivate>(MegaError::API_ENOENT));
+                        }
                     }
-                }
-            });
+                });
 }
 
 void MegaApiImpl::fetchNodes(MegaRequestListener* listener)

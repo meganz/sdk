@@ -4042,20 +4042,47 @@ void StandardClient::movenodetotrash(string path, PromiseBoolSP pb)
 
 void StandardClient::exportnode(std::shared_ptr<Node> n, int del, m_time_t expiry, bool writable, bool megaHosted, promise<Error>& pb)
 {
-    resultproc.prepresult(COMPLETION, ++next_request_tag,
-        [&](){
-            error e = client.exportnode(n, del, expiry, writable, megaHosted, client.reqtag, [&](Error e, handle, handle){ pb.set_value(e); });
+    resultproc.prepresult(
+        COMPLETION,
+        ++next_request_tag,
+        [&]()
+        {
+            error e = client.exportnode(n,
+                                        del,
+                                        expiry,
+                                        writable,
+                                        megaHosted,
+                                        client.reqtag,
+                                        [&](Error e, handle, handle, string&&)
+                                        {
+                                            pb.set_value(e);
+                                        });
             if (e)
             {
                 pb.set_value(e);
             }
-        }, nullptr);  // no need to match callbacks with requests when we use completion functions
+        },
+        nullptr); // no need to match callbacks with requests when we use completion functions
 }
 
 void StandardClient::getpubliclink(Node* n, int del, m_time_t expiry, bool writable, bool megaHosted, promise<Error>& pb)
 {
-    resultproc.prepresult(COMPLETION, ++next_request_tag,
-        [&](){ client.requestPublicLink(n, del, expiry, writable, megaHosted, client.reqtag, [&](Error e, handle, handle){ pb.set_value(e); }); },
+    resultproc.prepresult(
+        COMPLETION,
+        ++next_request_tag,
+        [&]()
+        {
+            client.requestPublicLink(n,
+                                     del,
+                                     expiry,
+                                     writable,
+                                     megaHosted,
+                                     client.reqtag,
+                                     [&](Error e, handle, handle, string&&)
+                                     {
+                                         pb.set_value(e);
+                                     });
+        },
         nullptr);
 }
 

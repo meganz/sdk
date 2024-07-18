@@ -938,10 +938,20 @@ public:
     void updatepcr(handle, ipcactions_t, CommandUpdatePendingContact::Completion completion = nullptr);
 
     // export node link or remove existing exported link for this node
-    error exportnode(std::shared_ptr<Node>, int, m_time_t, bool writable, bool megaHosted,
-        int tag, std::function<void(Error, handle, handle)> completion);
-    void requestPublicLink(Node* n, int del, m_time_t ets, bool writable, bool megaHosted,
-	    int tag, std::function<void(Error, handle, handle)> completion); // auxiliar method to add req
+    error exportnode(std::shared_ptr<Node>,
+                     int,
+                     m_time_t,
+                     bool writable,
+                     bool megaHosted,
+                     int tag,
+                     std::function<void(Error, handle, handle, std::string&&)> completion);
+    void requestPublicLink(Node* n,
+                           int del,
+                           m_time_t ets,
+                           bool writable,
+                           bool megaHosted,
+                           int tag,
+                           CommandSetPH::CompletionType completion); // auxiliar method to add req
 
     // add timer
     error addtimer(TimerWithBackoff *twb);
