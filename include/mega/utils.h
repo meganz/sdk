@@ -1350,6 +1350,18 @@ struct MrProper
  */
 std::string ensureAsteriskSurround(std::string str);
 
+/**
+ * @brief Returns the index where the last '.' can be found in the fileName
+ *
+ * If there is not '.' in the input string, fileName.size() is returned
+ *
+ * @note This index is intended to be used with std::string::substr like:
+ * size_t dotPos = fileExtensionDotPosition(fileName);
+ * std::stirng basename = fileName.substr(0, dotPos);
+ * std::stirng extension = fileName.substr(dotPos); // It will contain the '.' if present
+ */
+size_t fileExtensionDotPosition(const std::string& fileName);
+
 } // namespace mega
 
 #endif // MEGA_UTILS_H

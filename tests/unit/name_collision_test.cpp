@@ -4,10 +4,12 @@
  */
 
 #include "mega/name_collision.h"
+#include "mega/utils.h"
 
 #include <gtest/gtest.h>
 
 using namespace mega::ncoll;
+using mega::fileExtensionDotPosition;
 
 TEST(NameCollision, SplitBaseNameKindId)
 {

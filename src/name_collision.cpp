@@ -1,5 +1,7 @@
 #include "mega/name_collision.h"
 
+#include "mega/utils.h"
+
 #include <functional>
 #include <regex>
 
@@ -19,14 +21,6 @@ std::tuple<std::string, ENameType, nameId_t> getBaseNameKindId(const std::string
         return {matches[1].str(), t, identifier};
     }
     return {input, ENameType::baseNameOnly, 0};
-}
-
-size_t fileExtensionDotPosition(const std::string& fileName)
-{
-    if (size_t dotPos = fileName.rfind('.'); dotPos == std::string::npos)
-        return fileName.size();
-    else
-        return dotPos;
 }
 
 void NewFreeIndexProvider::addOccupiedIndex(const ENameType kind, const nameId_t index)

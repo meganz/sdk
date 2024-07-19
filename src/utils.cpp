@@ -3664,5 +3664,13 @@ std::string ensureAsteriskSurround(std::string str)
     return str;
 }
 
+size_t fileExtensionDotPosition(const std::string& fileName)
+{
+    if (size_t dotPos = fileName.rfind('.'); dotPos == std::string::npos)
+        return fileName.size();
+    else
+        return dotPos;
+}
+
 } // namespace mega
 

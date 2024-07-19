@@ -20,7 +20,7 @@ enum class ENameType
 {
     baseNameOnly, // "test"
     withIdNoSpace, // "test(1)"
-    withIdSpace // "test (1)"
+    withIdSpace, // "test (1)"
 };
 
 /**
@@ -42,18 +42,6 @@ enum class ENameType
  * @return a tuple with [base name, the type of the input name, id]
  */
 std::tuple<std::string, ENameType, nameId_t> getBaseNameKindId(const std::string& input);
-
-/**
- * @brief Returns the index where the last '.' can be found in the fileName
- *
- * If there is not '.' in the input string, fileName.size() is returned
- *
- * @note This index is intended to be used with std::string::substr like:
- * size_t dotPos = fileExtensionDotPosition(fileName);
- * std::stirng basename = fileName.substr(0, dotPos);
- * std::stirng extension = fileName.substr(dotPos); // It will contain the '.' if present
- */
-size_t fileExtensionDotPosition(const std::string& fileName);
 
 /**
  * @class NewFreeIndexProvider
