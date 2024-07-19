@@ -1748,7 +1748,10 @@ bool SqliteAccountState::getAllNodeTags(const std::string& searchString,
     {
         const auto tagValidator = [&asteriskSurroundSearch](const std::string& tag)
         {
-            return wildcardMatch(tag, asteriskSurroundSearch);
+            const uint8_t* pattern =
+                reinterpret_cast<const uint8_t*>(asteriskSurroundSearch.c_str());
+            const uint8_t* toMatch = reinterpret_cast<const uint8_t*>(tag.c_str());
+            return static_cast<bool>(icuLikeCompare(pattern, toMatch, 0));
         };
         return processSqlQueryAllNodeTags(mStmtAllNodeTags, tags, tagValidator);
     }
