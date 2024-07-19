@@ -1,7 +1,7 @@
 #include "mega/pwm_file_parser.h"
 
 #if (defined(ANDROID) || defined(__ANDROID__))
-#include "../../third_party/csv.hpp"
+#include "../third_party/csv.hpp"
 #else
 #include <vincentlaucsb-csv-parser/csv.hpp>
 #endif
