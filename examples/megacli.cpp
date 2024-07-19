@@ -5055,27 +5055,33 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_fetchcreditcardinfo, text("cci"));
 
     p->Add(exec_passwordmanager,
-        sequence(text("pwdman"),
-                 either(text("list"),
-                        text("getbase"),
-                        text("createbase"),
-                        text("removebase"),
-                        sequence(text("newfolder"), param("parenthandle"), param("name")),
-                        sequence(text("renamefolder"), param("handle"), param("name")),
-                        sequence(text("removefolder"), param("handle")),
-                        sequence(text("newentry"), param("parenthandle"), param("name"), param("pwd"),
-                                 opt(sequence(flag("-url"), param("url"))),
-                                 opt(sequence(flag("-u"), param("username"))),
-                                 opt(sequence(flag("-n"), param("notes")))),
-                        sequence(text("getentrydata"), param("nodehandle")),
-                        sequence(text("renameentry"), param("nodehandle"), param("name")),
-                        sequence(text("updateentry"), param("nodehandle"),
-                                 opt(sequence(flag("-p"), param("pwd"))),
-                                 opt(sequence(flag("-url"), param("url"))),
-                                 opt(sequence(flag("-u"), param("username"))),
-                                 opt(sequence(flag("-n"), param("note")))),
-                        sequence(text("removeentry"), param("nodehandle"))
-                        )));
+           sequence(text("pwdman"),
+                    either(text("list"),
+                           text("getbase"),
+                           text("createbase"),
+                           text("removebase"),
+                           sequence(text("newfolder"), param("parenthandle"), param("name")),
+                           sequence(text("renamefolder"), param("handle"), param("name")),
+                           sequence(text("removefolder"), param("handle")),
+                           sequence(text("newentry"),
+                                    param("parenthandle"),
+                                    param("name"),
+                                    param("pwd"),
+                                    opt(sequence(flag("-url"), param("url"))),
+                                    opt(sequence(flag("-u"), param("username"))),
+                                    opt(sequence(flag("-n"), param("notes")))),
+                           sequence(text("newentries"),
+                                    param("parenthandle"),
+                                    repeat(sequence(param("name"), param("uname"), param("pwd")))),
+                           sequence(text("getentrydata"), param("nodehandle")),
+                           sequence(text("renameentry"), param("nodehandle"), param("name")),
+                           sequence(text("updateentry"),
+                                    param("nodehandle"),
+                                    opt(sequence(flag("-p"), param("pwd"))),
+                                    opt(sequence(flag("-url"), param("url"))),
+                                    opt(sequence(flag("-u"), param("username"))),
+                                    opt(sequence(flag("-n"), param("note")))),
+                           sequence(text("removeentry"), param("nodehandle")))));
 
     p->Add(exec_generatepassword,
            sequence(text("generatepassword"),
@@ -12971,6 +12977,34 @@ void exec_passwordmanager(autocomplete::ACState& s)
                                      std::move(notes));
 
         client->createPasswordNode(name, std::move(pwdData), nParent, 0);
+    }
+    else if (command == "newentries")
+    {
+        if (s.words.size() <= 3)
+        {
+            cout << "Nothing to do\n";
+            return;
+        }
+        auto ph = getNodeHandleFromParam(2);
+        auto nParent = client->nodeByHandle(ph);
+        if (!nParent)
+        {
+            cout << "Wrong parent handle provided " << toNodeHandle(ph) << "\n";
+            return;
+        }
+        size_t currentReadIndex = 3;
+        const size_t nWords = s.words.size();
+        std::map<std::string, std::unique_ptr<AttrMap>> info;
+        while (currentReadIndex < nWords)
+        {
+            auto name = s.words[currentReadIndex++].s.c_str();
+            auto userName = s.words[currentReadIndex++].s.c_str();
+            auto pwd = s.words[currentReadIndex++].s.c_str();
+            assert(*name && *userName && *pwd);
+            auto pwdData = createPwdData(std::string{pwd}, "", std::string{userName}, "");
+            info[std::move(name)] = std::move(pwdData);
+        }
+        client->createPasswordNodes(std::move(info), nParent, 0);
     }
     else if (command == "getentrydata")
     {
