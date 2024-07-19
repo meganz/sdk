@@ -18,9 +18,6 @@ if (MSVC)
     # Create a separated PDB file with debug symbols.
     add_compile_options($<$<CONFIG:Release>:/Zi>)
 
-    # std::list::erase is very slow with _ITERATOR_DEBUG_LEVEL=2, which is default setting
-    # in MSVC Debug compilation mode.
-    add_compile_definitions($<$<CONFIG:Debug>:_ITERATOR_DEBUG_LEVEL=0>)
 else()
     include(CheckIncludeFile)
     include(CheckFunctionExists)

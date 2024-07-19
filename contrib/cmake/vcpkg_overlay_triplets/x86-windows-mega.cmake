@@ -29,8 +29,3 @@ else()
     # build this library statically (much simpler installation, debugging, etc)
 	set(VCPKG_LIBRARY_LINKAGE static)
 endif()
-
-# std::list::erase is very slow with _ITERATOR_DEBUG_LEVEL=2, which is default setting
-# in MSVC Debug compilation mode.
-set(VCPKG_CXX_FLAGS_DEBUG "${VCPKG_CXX_FLAGS_DEBUG} -D_ITERATOR_DEBUG_LEVEL=0")
-set(VCPKG_C_FLAGS_DEBUG "${VCPKG_C_FLAGS_DEBUG} -D_ITERATOR_DEBUG_LEVEL=0")
