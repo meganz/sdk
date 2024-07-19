@@ -5178,6 +5178,7 @@ bool MegaClient::procsc()
 
                             case UserAlert::type_psts:
                             case UserAlert::type_psts_v2:
+                            case MAKENAMEID3('f', 't', 'r'):
                                 if (sc_upgrade(name))
                                 {
                                     app->account_updated();
@@ -6529,11 +6530,11 @@ bool MegaClient::sc_upgrade(nameid paymentType)
         switch (jsonsc.getnameid())
         {
             case MAKENAMEID2('i', 't'):
-                itemclass = int(jsonsc.getint()); // itemclass
+                itemclass = int(jsonsc.getint()); // itemclass,  0=Pro, 1=Business, 2=Feature
                 break;
 
             case 'p':
-                proNumber = int(jsonsc.getint()); //pro type
+                proNumber = int(jsonsc.getint()); // Account level
                 break;
 
             case 'r':
@@ -6545,7 +6546,9 @@ bool MegaClient::sc_upgrade(nameid paymentType)
                 break;
 
             case EOO:
-                if ((itemclass == 0 || itemclass == 1) && statecurrent)
+                // No User Alert for 'ftr' and features
+                if (paymentType != MAKENAMEID3('f', 't', 'r') &&
+                    (itemclass == 0 || itemclass == 1) && statecurrent)
                 {
                     useralerts.add(new UserAlert::Payment(success, proNumber, m_time(), useralerts.nextId(), paymentType));
                 }

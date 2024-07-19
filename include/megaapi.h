@@ -23922,6 +23922,13 @@ public:
      * @return Features granted by this subscription.
      */
     virtual MegaStringList* getFeatures() const = 0;
+
+    /**
+     * @brief Return if the subscription is related to an active trial
+     *
+     * @return True if the subscription is related to an active trial, otherwise false.
+     */
+    virtual bool isTrial() const = 0;
 };
 
 class MegaAccountPlan
@@ -23992,6 +23999,13 @@ public:
      * @return ID of this subscription
      */
     virtual char* getId() const = 0;
+
+    /**
+     * @brief Return if the plan is related to an active trial
+     *
+     * @return True if the plan is related to an active trial, otherwise false.
+     */
+    virtual bool isTrial() const = 0;
 };
 
 /**
@@ -24742,6 +24756,16 @@ public:
      * @return test category bitmap
      */
     virtual unsigned int getTestCategory(int productIndex) const;
+
+    /**
+     * @brief Get trial duration in days
+     *
+     * The returned value will be 0 if the plan is not elegible for trial.
+     *
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return Trial duration in days
+     */
+    virtual unsigned int getTrialDurationInDays(int productIndex) const = 0;
 };
 
 /**

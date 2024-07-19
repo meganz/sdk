@@ -243,9 +243,22 @@ struct DemoApp : public MegaApp
     void userattr_update(User*, int, const char*) override;
     void resetSmsVerifiedPhoneNumber_result(error e) override;
 
-    void enumeratequotaitems_result(unsigned, handle, unsigned, int, int, unsigned, unsigned,
-                                    unsigned, unsigned, const char*, map<string, uint32_t>&&, const char*, const char*,
-                                    unsigned int, std::unique_ptr<BusinessPlan>) override;
+    void enumeratequotaitems_result(unsigned type,
+                                    handle product,
+                                    unsigned proLevel,
+                                    int gbStorage,
+                                    int gbTransfer,
+                                    unsigned months,
+                                    unsigned amount,
+                                    unsigned amountMonth,
+                                    unsigned localPrice,
+                                    const char* description,
+                                    map<string, uint32_t>&& features,
+                                    const char* iosId,
+                                    const char* androidId,
+                                    unsigned int testCategory,
+                                    std::unique_ptr<BusinessPlan> businessPlan,
+                                    unsigned int trialDays) override;
     void enumeratequotaitems_result(unique_ptr<CurrencyData>) override;
     void enumeratequotaitems_result(error) override;
     void additem_result(error) override;
