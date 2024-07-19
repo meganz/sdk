@@ -107,7 +107,7 @@ CRASHLYTICS_SOURCE_FILE_C=crashlyticsC.h
 CRASHLYTICS_DEST_PATH=mega/sdk/third_party
 
 CSVPARSER=csvparser
-CSVPARSER_DOWNLOAD_URL=https://github.com/vincentlaucsb/csv-parser/blob/9f8a7210c8a6c4bf1ec41543510ad20f55b7f288/single_include/csv.hpp
+CSVPARSER_DOWNLOAD_URL=https://raw.githubusercontent.com/vincentlaucsb/csv-parser/9f8a7210c8a6c4bf1ec41543510ad20f55b7f288/single_include/csv.hpp
 CSVPARSER_SOURCE_FILE=csv.hpp
 CSVPARSER_DEST_PATH=mega/sdk/third_party
 
