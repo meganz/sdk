@@ -6,8 +6,8 @@
 #     -f : Specify dockerfile to be build, replace /path/to/your/sdk with your local path to it
 #
 # Run the Docker container and build the project for a specific architecture:
-#   docker run -v /path/to/your/sdk:/mega/sdk -e ARCH=[armeabi-v7a, arm64-v8a, x86, x86_64] -it android-build-env
-#     -v : Mounts a local directory into the container, replace /path/to/your/sdk with your local path to it
+#   docker run -v /path/to/your/sdk:/mega/sdk -v /path/to/your/vcpkg:/mega/vcpkg -e ARCH=[arm, arm64, x86, x64] -it android-build-env
+#     -v : Mounts a local directory into the container, replace /path/to/your/sdk and /path/to/your/vcpkg with your local paths
 #     -e : Sets an environment variable, `ARCH` environment variable is used to specify the target architecture
 #     -it : Starts an interactive terminal session inside the container after the cmake project is configured and build
 
@@ -15,20 +15,21 @@
 FROM ubuntu:22.04
 
 # Install dependencies
-RUN apt-get update && apt-get install -y \
-    git \
-    cmake \
-    build-essential \
-    curl \
-    zip \
-    unzip \
+RUN apt-get --quiet=2 update && DEBCONF_NOWARNINGS=yes apt-get --quiet=2 install \
     autoconf \
     autoconf-archive \
+    build-essential \
+    cmake \
+    curl \
+    git \
     nasm \
     pkg-config \
-    wget \
     python3 \
-    python3-pip
+    python3-pip \
+    unzip \
+    wget \
+    zip \
+    1> /dev/null
 
 # Download, extract and set the Android NDK
 RUN mkdir -p /mega/android-ndk && \
@@ -39,36 +40,30 @@ RUN mkdir -p /mega/android-ndk && \
 ENV ANDROID_NDK_HOME=/mega/android-ndk/android-ndk-r21d
 ENV PATH=$PATH:$ANDROID_NDK_HOME
 
-# Clone vcpkg
-RUN git clone https://github.com/microsoft/vcpkg.git /mega/vcpkg
-
 # Set up work directory
 WORKDIR /mega
 
 # Set default architecture
-ARG ARCH=x86_64
+ARG ARCH=x64
 
-# Configure and build CMake command
-CMD arch=${ARCH} && \
+# Configure and build CMake command, this will be executed when running the container
+CMD ["sh", "-c", "\
+    arch=${ARCH} && \
     case ${arch} in \
-      armeabi-v7a) \
-        VCPKG_TRIPLET="armeabi-v7a-android-mega" && \
-        C_COMPILER="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi26-clang" && \
-        CXX_COMPILER="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi26-clang++";; \
-      arm64-v8a) \
-        VCPKG_TRIPLET="arm64-v8a-android-mega" && \
-        C_COMPILER="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang" && \
-        CXX_COMPILER="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang++";; \
+      arm) \
+        VCPKG_TRIPLET='arm-android-mega' && \
+        ANDROID_ARCH='armeabi-v7a';; \
+      arm64) \
+        VCPKG_TRIPLET='arm64-android-mega' && \
+        ANDROID_ARCH='arm64-v8a';; \
       x86) \
-        VCPKG_TRIPLET="x86-android-mega" && \
-        C_COMPILER="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/i686-linux-android26-clang" && \
-        CXX_COMPILER="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/i686-linux-android26-clang++";; \
-      x86_64) \
-        VCPKG_TRIPLET="x64-android-mega" && \
-        C_COMPILER="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android26-clang" && \
-        CXX_COMPILER="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android26-clang++";; \
+        VCPKG_TRIPLET='x86-android-mega' && \
+        ANDROID_ARCH='x86';; \
+      x64) \
+        VCPKG_TRIPLET='x64-android-mega' && \
+        ANDROID_ARCH='x86_64';; \
       *) \
-        echo "Unsupported architecture: ${arch}" && exit 1;; \
+        echo 'Unsupported architecture: ${arch}' && exit 1;; \
     esac && \
     cmake -B buildAndroid -S sdk \
         -DVCPKG_ROOT=/mega/vcpkg \
@@ -81,6 +76,9 @@ CMD arch=${ARCH} && \
         -DUSE_LIBUV=ON \
         -DUSE_PDFIUM=OFF \
         -DUSE_READLINE=OFF \
-        -DCMAKE_C_COMPILER=${C_COMPILER} \
-        -DCMAKE_CXX_COMPILER=${CXX_COMPILER} && \
-    cmake --build buildAndroid
+        -DCMAKE_SYSTEM_NAME=Android \
+        -DCMAKE_ANDROID_API=26 \
+        -DCMAKE_ANDROID_ARCH_ABI=${ANDROID_ARCH} \
+        -DCMAKE_ANDROID_NDK=${ANDROID_NDK_HOME} && \
+    cmake --build buildAndroid && \
+    exec /bin/bash"]
