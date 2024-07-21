@@ -11,6 +11,7 @@ target_link_libraries(megacli PRIVATE MEGA::SDKlib)
 # Adjust compilation flags for warnings and errors
 target_platform_compile_options(
     TARGET megacli
+    WINDOWS /we4800 # implicit conversion to boolean
     UNIX $<$<CONFIG:Debug>:-ggdb3> -Wall -Wextra -Wconversion -Wno-unused-parameter
 )
 
