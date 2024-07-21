@@ -73,7 +73,7 @@ public:
 
     operator bool() const
     {
-        return mInstance;
+        return mInstance != nullptr;
     }
 
     Ref& operator=(const Ref& rhs)

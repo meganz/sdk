@@ -1693,7 +1693,7 @@ public:
     {
         // Already on sync thread so just perform the query.
         if (onSyncThread())
-            return syncMatching(predicate);
+            return syncMatching(predicate) != nullptr;
 
         // So we can wait for the engine's result.
         std::promise<bool> notifier;
@@ -1701,7 +1701,7 @@ public:
         // Ask the sync engine to perform our query.
         queueSync([&]() {
             // Check if any syncs match our predicate.
-            notifier.set_value(syncMatching(predicate));
+            notifier.set_value(syncMatching(predicate) != nullptr);
         }, "anySyncMatching");
 
         // Let the caller know if any syncs match our predicate.

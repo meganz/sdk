@@ -130,8 +130,10 @@ bool EdDSA::verifyKey(const unsigned char *pubk, const unsigned long long pubkLe
 
     string signature = sig->substr(8);
 
-    return verify((unsigned char*) message.data(), message.length(),
-                  (unsigned char*) signature.data(), signingPubKey);
+    return verify((unsigned char*)message.data(),
+                  message.length(),
+                  (unsigned char*)signature.data(),
+                  signingPubKey) != 0;
 }
 
 const std::string ECDH::TLV_KEY= "prCu255";

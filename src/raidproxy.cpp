@@ -1398,7 +1398,7 @@ bool RaidReqPool::addDirectio(const HttpReqPtr& req)
 
 bool RaidReqPool::removeio(const HttpReqPtr& req)
 {
-    return mSetHttpReqs.erase(req);
+    return mSetHttpReqs.erase(req) > 0;
 }
 
 void RaidReqPool::raidproxyio()

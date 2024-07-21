@@ -3251,12 +3251,12 @@ const char* toString(retryreason_t reason)
 
 bool is_space(unsigned int ch)
 {
-    return std::isspace(static_cast<unsigned char>(ch));
+    return std::isspace(static_cast<unsigned char>(ch)) != 0;
 }
 
 bool is_digit(unsigned int ch)
 {
-    return std::isdigit(static_cast<unsigned char>(ch));
+    return std::isdigit(static_cast<unsigned char>(ch)) != 0;
 }
 
 std::string escapeWildCards(const std::string& pattern)

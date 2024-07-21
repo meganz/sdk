@@ -100,7 +100,7 @@ BindHandle Field::bindHandle() const
 
 bool Field::boolean() const
 {
-    return uint64();
+    return uint64() > 0;
 }
 
 NodeHandle Field::handle() const

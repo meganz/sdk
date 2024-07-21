@@ -1841,11 +1841,11 @@ bool CommandLogin::procresult(Result r, JSON& json)
                 break;
 
             case MAKENAMEID2('f', 'a'):
-                fa = json.getint();
+                fa = json.getint() != 0;
                 break;
 
             case MAKENAMEID3('a', 'c', 'h'):
-                ach = json.getint();
+                ach = json.getint() != 0;
                 break;
 
             case MAKENAMEID2('s', 'n'):
