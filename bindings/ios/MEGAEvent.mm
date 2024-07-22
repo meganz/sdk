@@ -66,5 +66,9 @@ using namespace mega;
     return self.megaEvent ? self.megaEvent->getNumber() : -1;
 }
 
+- (nullable NSString *)eventString {
+    return self.megaEvent->getEventString() ? [[NSString alloc] initWithUTF8String:self.megaEvent->getEventString()]  : nil;
+}
+
 
 @end
