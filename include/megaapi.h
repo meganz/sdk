@@ -14003,6 +14003,26 @@ class MegaApi
                            MegaRequestListener* listener = NULL);
 
         /**
+         * @brief Retrieve all unique node tags present across all nodes in the account
+         *
+         * @note If the searchString contains invalid characters, such as ',', an empty list will be
+         * returned.
+         *
+         * @note This function allows to cancel the processing at any time by passing a
+         * MegaCancelToken and calling to MegaCancelToken::setCancelFlag(true).
+         *
+         * You take ownership of the returned value.
+         *
+         * @param searchString Optional parameter to filter the tags based on a specific search
+         * string. If set to nullptr, all node tags will be retrieved.
+         * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
+         *
+         * @return All the unique node tags that match the search criteria.
+         */
+        MegaStringList* getAllNodeTags(const char* searchString = nullptr,
+                                       MegaCancelToken* cancelToken = nullptr);
+
+        /**
          * @brief Generate a public link of a file/folder in MEGA
          *
          * The associated request type with this request is MegaRequest::TYPE_EXPORT

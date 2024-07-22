@@ -19,6 +19,7 @@
  * program.
  */
 
+#include <numeric>
 #define _LARGE_FILES
 
 #define _GNU_SOURCE 1
@@ -8245,6 +8246,20 @@ void MegaApiImpl::removeNodeTag(MegaNode* node, const char* tag, MegaRequestList
 void MegaApiImpl::updateNodeTag(MegaNode* node, const char* newTag, const char* oldTag, MegaRequestListener* listener)
 {
     CRUDNodeTagOperation(node, MegaApi::TAG_NODE_UPDATE, newTag, oldTag, listener);
+}
+
+MegaStringList* MegaApiImpl::getAllNodeTags(const char* searchString, CancelToken cancelToken)
+{
+    SdkMutexGuard g(sdkMutex);
+    std::set<std::string> allDifferentTags =
+        client->mNodeManager.getAllNodeTags(searchString, cancelToken);
+    std::vector<std::string> result(allDifferentTags.begin(), allDifferentTags.end());
+    const auto compF = [](const std::string& a, const std::string& b) -> bool
+    {
+        return naturalsorting_compare(a.c_str(), b.c_str()) < 0;
+    };
+    std::sort(std::begin(result), std::end(result), compF);
+    return new MegaStringListPrivate(std::move(result));
 }
 
 void MegaApiImpl::exportNode(MegaNode *node, int64_t expireTime, bool writable, bool megaHosted, MegaRequestListener *listener)

@@ -3229,6 +3229,7 @@ class MegaApiImpl : public MegaApp
                        const char* newTag,
                        const char* oldTag,
                        MegaRequestListener* listener = NULL);
+        MegaStringList* getAllNodeTags(const char* searchString, CancelToken cancelToken);
 
         void exportNode(MegaNode *node, int64_t expireTime, bool writable, bool megaHosted, MegaRequestListener *listener = NULL);
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);

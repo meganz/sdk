@@ -101,6 +101,12 @@ public:
         //throw NotImplemented(__func__);
     }
 
+    bool getAllNodeTags(const std::string&, std::set<std::string>&, mega::CancelToken) override
+    {
+        return false;
+        // throw NotImplemented(__func__);
+    }
+
     /** @deprecated */
     bool searchForNodesByName(const std::string&, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>&, mega::CancelToken cancelFlag) override
     {

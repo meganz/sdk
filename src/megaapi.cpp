@@ -2929,6 +2929,11 @@ void MegaApi::updateNodeTag(MegaNode* node, const char* newTag, const char* oldT
     pImpl->updateNodeTag(node, newTag, oldTag, listener);
 }
 
+MegaStringList* MegaApi::getAllNodeTags(const char* searchString, MegaCancelToken* cancelToken)
+{
+    return pImpl->getAllNodeTags(searchString, convertToCancelToken(cancelToken));
+}
+
 void MegaApi::exportNode(MegaNode *node, MegaRequestListener *listener)
 {
     pImpl->exportNode(node, 0, false, false, listener);
