@@ -61,15 +61,34 @@ struct MEGA_API File: public FileFingerprint
     // update localname
     virtual void updatelocalname() { }
 
-    void sendPutnodesOfUpload(MegaClient* client, UploadHandle fileAttrMatchHandle, const UploadToken& ultoken,
-                      const FileNodeKey& filekey, putsource_t source, NodeHandle ovHandle,
-                      std::function<void(const Error&, targettype_t, vector<NewNode>&, bool targetOverride, int tag)>&& completion,
-                      const m_time_t* overrideMtime, bool canChangeVault);
+    void sendPutnodesOfUpload(
+        MegaClient* client,
+        UploadHandle fileAttrMatchHandle,
+        const UploadToken& ultoken,
+        const FileNodeKey& filekey,
+        putsource_t source,
+        NodeHandle ovHandle,
+        std::function<void(const Error&,
+                           targettype_t,
+                           vector<NewNode>&,
+                           bool targetOverride,
+                           int tag,
+                           const std::map<std::string, std::string>& fileIDs)>&& completion,
+        const m_time_t* overrideMtime,
+        bool canChangeVault);
 
-    void sendPutnodesToCloneNode(MegaClient* client, Node* nodeToClone,
-                      putsource_t source, NodeHandle ovHandle,
-                      std::function<void(const Error&, targettype_t, vector<NewNode>&, bool targetOverride, int tag)>&& completion,
-                      bool canChangeVault);
+    void sendPutnodesToCloneNode(
+        MegaClient* client,
+        Node* nodeToClone,
+        putsource_t source,
+        NodeHandle ovHandle,
+        std::function<void(const Error&,
+                           targettype_t,
+                           vector<NewNode>&,
+                           bool targetOverride,
+                           int tag,
+                           const std::map<std::string, std::string>& fileIDs)>&& completion,
+        bool canChangeVault);
 
     void setCollisionResolution(CollisionResolution collisionResolution) { mCollisionResolution = collisionResolution; }
 

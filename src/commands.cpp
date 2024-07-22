@@ -747,6 +747,7 @@ CommandGetFile::CommandGetFile(MegaClient *client, const byte* key, size_t keySi
     }
 
     mCompletion = std::move(completion);
+    mFileHandle = h;
 }
 
 void CommandGetFile::cancel()
@@ -760,7 +761,7 @@ void CommandGetFile::callFailedCompletion(const Error &e)
     assert(mCompletion);
     if (mCompletion)
     {
-        mCompletion(e, -1, 0, nullptr, nullptr, nullptr, {}, {});
+        mCompletion(e, -1, 0, nullptr, nullptr, nullptr, {}, {}, {});
     }
 }
 
@@ -788,6 +789,7 @@ bool CommandGetFile::procresult(Result r, JSON& json)
     string filefingerprint;
     vector<string> tempurls;
     vector<string> tempips;
+    string fileID;
 
     for (;;)
     {
@@ -841,6 +843,12 @@ bool CommandGetFile::procresult(Result r, JSON& json)
             case MAKENAMEID2('t', 'l'):
                 tl = dstime(json.getint());
                 break;
+
+            case MAKENAMEID2('f', 'h'):
+            {
+                json.storeobject(&fileID);
+                break;
+            }
 
             case EOO:
             {
@@ -900,11 +908,17 @@ bool CommandGetFile::procresult(Result r, JSON& json)
                             break;
 
                         case EOO:
-                            { //succeded, call completion function!
-                                return mCompletion ? mCompletion(e, s, tl,
-                                            &filenamestring, &filefingerprint, &fileattrstring,
-                                            tempurls, tempips) : false;
-                            }
+                            // success, call completion function!
+                            return mCompletion ? mCompletion(e,
+                                                             s,
+                                                             tl,
+                                                             &filenamestring,
+                                                             &filefingerprint,
+                                                             &fileattrstring,
+                                                             tempurls,
+                                                             tempips,
+                                                             fileID) :
+                                                 false;
 
                         default:
                             if (!attrJson.storeobject())
@@ -1047,6 +1061,8 @@ CommandPutNodes::CommandPutNodes(MegaClient* client,
     source = csource;
     mSeqtagArray = true;
     cmd("p");
+
+    arg("v", 4); // include file IDs/handles
 
     if (userhandle)
     {
@@ -1253,102 +1269,22 @@ void CommandPutNodes::removePendingDBRecordsAndTempFiles()
     }
 }
 
-void CommandPutNodes::performAppCallback(Error e, vector<NewNode>& newnodes, bool targetOverride)
+void CommandPutNodes::performAppCallback(Error e,
+                                         vector<NewNode>& newnodes,
+                                         bool targetOverride,
+                                         const map<string, string>& fileIDs)
 {
-    if (mResultFunction) mResultFunction(e, type, newnodes, targetOverride, tag);
-	else client->app->putnodes_result(e, type, newnodes, targetOverride, tag);
+    if (mResultFunction)
+        mResultFunction(e, type, newnodes, targetOverride, tag, fileIDs);
+    else
+        client->app->putnodes_result(e, type, newnodes, targetOverride, tag, fileIDs);
 }
 
 bool CommandPutNodes::procresult(Result r, JSON& json)
 {
     removePendingDBRecordsAndTempFiles();
 
-    if (r.hasJsonArray() || r.hasJsonObject())
-    {
-        // The response is a sparse array indicating the nodes that failed, and the corresponding error code.
-        // If the first three nodes failed, the response would be e.g. [-9,-9,-9].  Success is []
-        // If the second and third node failed, the response would change to {"1":-9,"2":-9}.
-
-        Error newNodeError(API_OK);
-        unsigned arrayIndex = 0;
-        for (;;)
-        {
-            if (r.hasJsonArray())
-            {
-                if (*json.pos == ']')
-                {
-                    break;
-                }
-
-                if (!json.isnumeric())
-                {
-                    performAppCallback(API_EINTERNAL, nn, false);
-                    return false;
-                }
-
-                assert(arrayIndex < nn.size());
-                if (arrayIndex < nn.size())
-                {
-                    nn[arrayIndex].mError = error(json.getint());
-                    if (nn[arrayIndex].mError != API_OK)
-                    {
-                        newNodeError = nn[arrayIndex].mError;
-                        LOG_debug << "[CommandPutNodes] New Node failed with " << newNodeError << " [newnode index = " << arrayIndex << ", NodeHandle = " << nn[arrayIndex].nodeHandle() << "]";
-                        assert(((nn[arrayIndex].mError != API_EKEY) || !nn[arrayIndex].hasZeroKey()) && "New Node which failed with API_EKEY has a zerokey!!!!");
-                    }
-                    arrayIndex++;
-                }
-            }
-            else
-            {
-                string index, errorCode;
-                if (json.storeobject(&index) && *json.pos == ':')
-                {
-                    ++json.pos;
-                    if (json.storeobject(&errorCode))
-                    {
-                        arrayIndex = unsigned(atoi(index.c_str()));
-                        if (arrayIndex < nn.size())
-                        {
-                            nn[arrayIndex].mError = error(atoi(errorCode.c_str()));
-                            continue;
-                        }
-                    }
-                }
-                if (*json.pos != '}')
-                {
-                    performAppCallback(API_EINTERNAL, nn, false);
-                    return false;
-                }
-                break;
-            }
-        }
-
-#ifdef DEBUG
-        if (type != USER_HANDLE)
-        {
-            for (auto& n : nn)
-            {
-                // double check we got a node, or know the error why it didn't get created
-                if (!((n.added && n.mAddedHandle != UNDEF && !n.mError) ||
-                     (!n.added && n.mAddedHandle == UNDEF && n.mError)))
-                {
-                    assert(false);
-                }
-            }
-        }
-#endif
-
-	    // when the target has been removed, the API automatically adds the new node/s
-        // into the rubbish bin
-        shared_ptr<Node> tempNode = !nn.empty() ? client->nodebyhandle(nn.front().mAddedHandle) : nullptr;
-        bool targetOverride = (tempNode.get() && NodeHandle().set6byte(tempNode->parenthandle) != targethandle);
-
-        performAppCallback(emptyResponse ? ((newNodeError != API_OK) ? static_cast<error>(newNodeError) : API_ENOENT) : // Add last new node error if there is any, otherwise API_ENOENT
-                                            API_OK, nn, targetOverride);
-        return true;
-    }
-    else
+    if (!r.succeeded())
     {
         LOG_debug << "Putnodes error " << r.errorOrOK();
         if (r.wasError(API_EOVERQUOTA))
@@ -1359,8 +1295,163 @@ bool CommandPutNodes::procresult(Result r, JSON& json)
             }
         }
 
-        performAppCallback(r.errorOrOK(), nn, false);
+        performAppCallback(r.errorOrOK(), nn, false, {});
         return r.wasErrorOrOK();
+    }
+
+    Error newNodeError(API_OK);
+    map<string, string> fileIDs;
+
+    for (;;)
+    {
+        switch (json.getnameid())
+        {
+            case 'e':
+            {
+                // This element is a sparse array indicating the nodes that failed, and the
+                // corresponding error codes.
+                // If the first three nodes failed, the response would be e.g. [-9,-9,-9].
+                // Success is [].
+                // If the second and third node failed, the response would change to
+                // {"1":-9,"2":-9}.
+
+                bool hasJsonArray = json.enterarray();
+                if (!hasJsonArray && !json.enterobject())
+                {
+                    performAppCallback(API_EINTERNAL, nn, false, fileIDs);
+                    return false;
+                }
+
+                unsigned arrayIndex = 0;
+                for (;;)
+                {
+                    if (hasJsonArray)
+                    {
+                        if (*json.pos == ']')
+                        {
+                            json.leavearray();
+                            break;
+                        }
+
+                        if (!json.isnumeric())
+                        {
+                            performAppCallback(API_EINTERNAL, nn, false, fileIDs);
+                            return false;
+                        }
+
+                        assert(arrayIndex < nn.size());
+                        if (arrayIndex < nn.size())
+                        {
+                            nn[arrayIndex].mError = error(json.getint());
+                            if (nn[arrayIndex].mError != API_OK)
+                            {
+                                newNodeError = nn[arrayIndex].mError;
+                                LOG_debug << "[CommandPutNodes] New Node failed with "
+                                          << newNodeError << " [newnode index = " << arrayIndex
+                                          << ", NodeHandle = " << nn[arrayIndex].nodeHandle()
+                                          << "]";
+                                assert(((nn[arrayIndex].mError != API_EKEY) ||
+                                        !nn[arrayIndex].hasZeroKey()) &&
+                                       "New Node which failed with API_EKEY has a zerokey!!!!");
+                            }
+                            arrayIndex++;
+                        }
+                    }
+                    else
+                    {
+                        string index, errorCode;
+                        if (json.storeobject(&index) && *json.pos == ':')
+                        {
+                            ++json.pos;
+                            if (json.storeobject(&errorCode))
+                            {
+                                arrayIndex = unsigned(atoi(index.c_str()));
+                                if (arrayIndex < nn.size())
+                                {
+                                    nn[arrayIndex].mError = error(atoi(errorCode.c_str()));
+                                    continue;
+                                }
+                            }
+                        }
+
+                        if (!json.leaveobject())
+                        {
+                            performAppCallback(API_EINTERNAL, nn, false, fileIDs);
+                            return false;
+                        }
+                        break;
+                    }
+                }
+
+                break;
+            }
+
+            case MAKENAMEID2('f', 'h'): // ["drEyXKKB:C6-OsdmLX2U","<nodehandle>:<fileid>"]
+                if (!json.enterarray())
+                {
+                    performAppCallback(API_EINTERNAL, nn, false, fileIDs);
+                    return false;
+                }
+
+                for (std::string temp; json.storeobject(&temp);)
+                {
+                    auto separator = temp.find(':');
+                    if (separator != string::npos)
+                    {
+                        fileIDs[temp.substr(0, separator)] = temp.substr(separator + 1);
+                    }
+                }
+
+                if (!json.leavearray())
+                {
+                    performAppCallback(API_EINTERNAL, nn, false, fileIDs);
+                    return false;
+                }
+                break;
+
+            default:
+                if (!json.storeobject())
+                {
+                    performAppCallback(API_EINTERNAL, nn, false, fileIDs);
+                    return false;
+                }
+                break;
+
+            case EOO:
+#ifdef DEBUG
+                if (type != USER_HANDLE)
+                {
+                    for (auto& n: nn)
+                    {
+                        // double check we got a node, or know the error why it didn't get created
+                        if (!((n.added && n.mAddedHandle != UNDEF && !n.mError) ||
+                              (!n.added && n.mAddedHandle == UNDEF && n.mError)))
+                        {
+                            assert(false);
+                        }
+                    }
+                }
+#endif
+
+                // when the target has been removed, the API automatically adds the new node/s
+                // into the rubbish bin
+                shared_ptr<Node> tempNode =
+                    !nn.empty() ? client->nodebyhandle(nn.front().mAddedHandle) : nullptr;
+                bool targetOverride =
+                    (tempNode.get() &&
+                     NodeHandle().set6byte(tempNode->parenthandle) != targethandle);
+
+                const Error& finalStatus =
+                    emptyResponse ?
+                        ((newNodeError != API_OK) ?
+                             // Add last new node error if there is any, otherwise API_ENOENT
+                             newNodeError :
+                             Error(API_ENOENT)) :
+                        Error(API_OK);
+
+                performAppCallback(finalStatus, nn, targetOverride, fileIDs);
+                return true;
+        }
     }
 }
 

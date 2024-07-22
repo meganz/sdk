@@ -452,7 +452,13 @@ void AppFilePut::completed(Transfer* t, putsource_t source)
 
     auto onCompleted_foward = onCompleted;
     sendPutnodesOfUpload(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(),
-        [onCompleted_foward](const Error& e, targettype_t, vector<NewNode>&, bool targetOverride, int tag){
+        [onCompleted_foward](const Error& e,
+                             targettype_t,
+                             vector<NewNode>&,
+                             bool targetOverride,
+                             int tag,
+                             const map<string, string>& /*fileIDs*/)
+        {
 
             if (e)
             {
@@ -1211,7 +1217,12 @@ void DemoApp::fetchnodes_result(const Error& e)
     }
 }
 
-void DemoApp::putnodes_result(const Error& e, targettype_t t, vector<NewNode>& nn, bool targetOverride, int tag)
+void DemoApp::putnodes_result(const Error& e,
+                              targettype_t t,
+                              vector<NewNode>& nn,
+                              bool targetOverride,
+                              int tag,
+                              const map<string, string>& /*fileIDs*/)
 {
     if (t == USER_HANDLE)
     {
@@ -6006,10 +6017,26 @@ void exec_get(autocomplete::ACState& s)
         {
             cout << "Checking link..." << endl;
 
-            client->reqs.add(new CommandGetFile(client, key, FILENODEKEYLENGTH, false, ph, false, nullptr, nullptr, nullptr, false,
-                [key, ph](const Error &e, m_off_t size, dstime /*timeleft*/,
-                   std::string* filename, std::string* fingerprint, std::string* fileattrstring,
-                   const std::vector<std::string> &/*tempurls*/, const std::vector<std::string> &/*ips*/)
+            client->reqs.add(new CommandGetFile(
+                client,
+                key,
+                FILENODEKEYLENGTH,
+                false,
+                ph,
+                false,
+                nullptr,
+                nullptr,
+                nullptr,
+                false,
+                [key, ph](const Error& e,
+                          m_off_t size,
+                          dstime /*timeleft*/,
+                          std::string* filename,
+                          std::string* fingerprint,
+                          std::string* fileattrstring,
+                          const std::vector<std::string>& /*tempurls*/,
+                          const std::vector<std::string>& /*ips*/,
+                          const std::string& /*fileID*/)
                 {
                     if (!fingerprint) // failed processing the command
                     {

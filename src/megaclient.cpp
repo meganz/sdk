@@ -870,7 +870,12 @@ error MegaClient::setbackupfolder(const char* foldername, int tag, std::function
     putnodes_prepareOneFolder(&newNode, foldername, true);
 
     // 2. upon completion of putnodes(), set the user's attribute `^!bak`
-    auto addua = [addua_completion, this](const Error& e, targettype_t handletype, vector<NewNode>& nodes, bool /*targetOverride*/, int tag)
+    auto addua = [addua_completion, this](const Error& e,
+                                          targettype_t handletype,
+                                          vector<NewNode>& nodes,
+                                          bool /*targetOverride*/,
+                                          int tag,
+                                          const map<string, string>& /*fileIDs*/)
     {
         if (e != API_OK)
         {
@@ -4143,14 +4148,32 @@ void MegaClient::dispatchTransfers()
                     }
                     else
                     {
-                        reqs.add((ts->pendingcmd = (nexttransfer->type == PUT)
-                            ? (Command*)new CommandPutFile(this, ts, putmbpscap)
-                            : new CommandGetFile(this, ts->transfer->transferkey.data(), SymmCipher::KEYLENGTH,
-                                                 (!ts->transfer->files.empty() && ts->transfer->files.front()->undelete()),
-                                                 h.as8byte(), hprivate, privauth, pubauth, chatauth, false,
-                            [this, ts, hprivate, h](const Error &e, m_off_t s, dstime tl /*timeleft*/,
-                               std::string* filename, std::string* /*fingerprint*/, std::string* /*fileattrstring*/,
-                               const std::vector<std::string> &tempurls, const std::vector<std::string> &/*ips*/)
+                        reqs.add((
+                            ts->pendingcmd =
+                                (nexttransfer->type == PUT) ?
+                                    (Command*)new CommandPutFile(this, ts, putmbpscap) :
+                                    new CommandGetFile(
+                                        this,
+                                        ts->transfer->transferkey.data(),
+                                        SymmCipher::KEYLENGTH,
+                                        (!ts->transfer->files.empty() &&
+                                         ts->transfer->files.front()->undelete()),
+                                        h.as8byte(),
+                                        hprivate,
+                                        privauth,
+                                        pubauth,
+                                        chatauth,
+                                        false,
+                                        [this, ts, hprivate, h](
+                                            const Error& e,
+                                            m_off_t s,
+                                            dstime tl /*timeleft*/,
+                                            std::string* filename,
+                                            std::string* /*fingerprint*/,
+                                            std::string* /*fileattrstring*/,
+                                            const std::vector<std::string>& tempurls,
+                                            const std::vector<std::string>& /*ips*/,
+                                            const std::string& /*fileID*/)
                         {
                             auto tslot = ts;
                             auto priv = hprivate;
@@ -9016,8 +9039,10 @@ void MegaClient::putnodes(const char* user, vector<NewNode>&& newnodes, int tag,
 {
     if (!finduser(user, 0) && !user)
     {
-        if (completion) completion(API_EARGS, USER_HANDLE, newnodes, false, tag);
-        else app->putnodes_result(API_EARGS, USER_HANDLE, newnodes, false, tag);
+        if (completion)
+            completion(API_EARGS, USER_HANDLE, newnodes, false, tag, {});
+        else
+            app->putnodes_result(API_EARGS, USER_HANDLE, newnodes, false, tag, {});
         return;
     }
 
@@ -16819,7 +16844,8 @@ void MegaClient::preparebackup(SyncConfig sc, std::function<void(Error, SyncConf
                                     targettype_t,
                                     vector<NewNode>& nn,
                                     bool targetOverride,
-                                    int tag)
+                                    int tag,
+                                    const map<string, string>& /*fileIDs*/)
              {
                 if (e)
                 {
@@ -16906,7 +16932,8 @@ void MegaClient::execmovetosyncdebris(Node* requestedNode, std::function<void(No
                                          targettype_t,
                                          vector<NewNode>&,
                                          bool,
-                                         int)
+                                         int,
+                                         const map<string, string>& /*fileIDs*/)
                              {
                                  if (e)
                                  {
@@ -17018,7 +17045,13 @@ std::shared_ptr<Node> MegaClient::getOrCreateSyncdebrisFolder()
     reqs.add(new CommandPutNodes(
         this, binNode->nodeHandle(), NULL, NoVersioning, move(nnVec),
         0, PUTNODES_SYNCDEBRIS, nullptr,
-        [this](const Error&, targettype_t, vector<NewNode>&, bool targetOverride, int tag){
+        [this](const Error&,
+               targettype_t,
+               vector<NewNode>&,
+               bool targetOverride,
+               int tag,
+               const map<string, string>& /*fileIDs*/)
+        {
             syncdebrisadding = false;
             // on completion, send the queued nodes
             LOG_debug << "Daily cloud SyncDebris folder created. Trigger remaining debris moves: " << pendingDebris.size();

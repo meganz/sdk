@@ -437,10 +437,12 @@ void File::sendPutnodesOfUpload(MegaClient* client, UploadHandle fileAttrMatchHa
     }
 }
 
-void File::sendPutnodesToCloneNode(MegaClient* client, Node* nodeToClone,
-                    putsource_t source, NodeHandle ovHandle,
-                    std::function<void(const Error&, targettype_t, vector<NewNode>&, bool targetOverride, int tag)>&& completion,
-                    bool canChangeVault)
+void File::sendPutnodesToCloneNode(MegaClient* client,
+                                   Node* nodeToClone,
+                                   putsource_t source,
+                                   NodeHandle ovHandle,
+                                   CommandPutNodes::Completion&& completion,
+                                   bool canChangeVault)
 {
     vector<NewNode> newnodes(1);
     NewNode* newnode = &newnodes[0];
@@ -617,7 +619,13 @@ void SyncUpload_inClient::sendPutnodesOfUpload(MegaClient* client, NodeHandle ov
         fileNodeKey,
         PUTNODES_SYNC,
         ovHandle,
-        [self, stts, client](const Error& e, targettype_t t, vector<NewNode>& nn, bool targetOverride, int tag){
+        [self, stts, client](const Error& e,
+                             targettype_t t,
+                             vector<NewNode>& nn,
+                             bool targetOverride,
+                             int tag,
+                             const map<string, string>& fileIDs)
+        {
             // Is the originating transfer still alive?
             if (auto s = self.lock())
             {
@@ -649,7 +657,7 @@ void SyncUpload_inClient::sendPutnodesOfUpload(MegaClient* client, NodeHandle ov
 
             // since we used a completion function, putnodes_result is not called.
             // but the intermediate layer still needs that in order to call the client app back:
-            client->app->putnodes_result(e, t, nn, targetOverride, tag);
+            client->app->putnodes_result(e, t, nn, targetOverride, tag, fileIDs);
 
         }, nullptr, syncThreadSafeState->mCanChangeVault);
 }
@@ -662,11 +670,18 @@ void SyncUpload_inClient::sendPutnodesToCloneNode(MegaClient* client, NodeHandle
     // So we know whether it's safe to update putnodesCompleted.
     weak_ptr<SyncUpload_inClient> self = shared_from_this();
 
-    File::sendPutnodesToCloneNode(client,
+    File::sendPutnodesToCloneNode(
+        client,
         nodeToClone,
         PUTNODES_SYNC,
         ovHandle,
-        [self, stts, client](const Error& e, targettype_t t, vector<NewNode>& nn, bool targetOverride, int tag){
+        [self, stts, client](const Error& e,
+                             targettype_t t,
+                             vector<NewNode>& nn,
+                             bool targetOverride,
+                             int tag,
+                             const map<string, string>& /*fileIDs*/)
+        {
             // Is the originating transfer still alive?
             if (auto s = self.lock())
             {
@@ -692,10 +707,11 @@ void SyncUpload_inClient::sendPutnodesToCloneNode(MegaClient* client, NodeHandle
                 }
                 else if (e == API_EOVERQUOTA)
                 {
-                    client->syncs.disableSyncByBackupId(s->backupId(),  FOREIGN_TARGET_OVERSTORAGE, false, true, nullptr);
+                    client->syncs.disableSyncByBackupId(s->backupId(), FOREIGN_TARGET_OVERSTORAGE, false, true, nullptr);
                 }
             }
-        }, syncThreadSafeState->mCanChangeVault);
+        },
+        syncThreadSafeState->mCanChangeVault);
 }
 
 SyncUpload_inClient::SyncUpload_inClient(NodeHandle targetFolder, const LocalPath& fullPath,

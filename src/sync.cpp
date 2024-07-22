@@ -9900,7 +9900,8 @@ bool Sync::resolve_upsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, 
                                                       targettype_t,
                                                       vector<NewNode>& v,
                                                       bool targetOverride,
-                                                      int tag)
+                                                      int tag,
+                                                      const map<string, string>& /*fileIDs*/)
                                     {
                                         if (!e && !v.empty())
                                         {

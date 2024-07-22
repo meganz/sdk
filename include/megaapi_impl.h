@@ -1641,6 +1641,7 @@ class MegaRequestPrivate : public MegaRequest
 #endif
         MegaStringMap *getMegaStringMap() const override;
         void setMegaStringMap(const MegaStringMap *);
+        void setMegaStringMap(const std::map<std::string, std::string>&);
         MegaStringListMap *getMegaStringListMap() const override;
         void setMegaStringListMap(const MegaStringListMap *stringListMap);
         MegaStringTable *getMegaStringTable() const override;
@@ -4169,7 +4170,12 @@ public:
         void downgrade_attack() override;
 
         void fetchnodes_result(const Error&) override;
-        void putnodes_result(const Error&, targettype_t, vector<NewNode>&, bool targetOverride, int tag) override;
+        void putnodes_result(const Error&,
+                             targettype_t,
+                             vector<NewNode>&,
+                             bool targetOverride,
+                             int tag,
+                             const std::map<std::string, std::string>& fileIDs = {}) override;
 
         // contact request results
         void setpcr_result(handle, error, opcactions_t) override;

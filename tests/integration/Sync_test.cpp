@@ -2448,7 +2448,10 @@ void StandardClient::uploadFile(const fs::path& sourcePath,
             auto trampoline = [completion](const Error& result,
                                            targettype_t,
                                            vector<NewNode>&,
-                                           bool, int tag) {
+                                           bool,
+                                           int tag,
+                                           const map<string, string>& /*fileIDs*/)
+            {
                 EXPECT_EQ(result, API_OK);
                 completion(result);
             };
@@ -2763,7 +2766,13 @@ void StandardClient::makeCloudSubdirs(const string& prefix, int depth, int fanou
             nodearray[i] = std::move(*n);
         }
 
-        auto completion = [pb, this](const Error& e, targettype_t, vector<NewNode>& nodes, bool, int tag) {
+        auto completion = [pb, this](const Error& e,
+                                     targettype_t,
+                                     vector<NewNode>& nodes,
+                                     bool,
+                                     int tag,
+                                     const map<string, string>& /*fileIDs*/)
+        {
             lastPutnodesResultFirstHandle = nodes.empty() ? UNDEF : nodes[0].mAddedHandle;
             pb->set_value(!e);
         };
@@ -3899,7 +3908,12 @@ void StandardClient::unlink_result(handle h, error e)
     resultproc.processresult(UNLINK, e, h, client.restag);
 }
 
-void StandardClient::putnodes_result(const Error& e, targettype_t tt, vector<NewNode>& nn, bool targetOverride, int tag)
+void StandardClient::putnodes_result(const Error& e,
+                                     targettype_t tt,
+                                     vector<NewNode>& nn,
+                                     bool targetOverride,
+                                     int tag,
+                                     const map<string, string>& /*fileIDs*/)
 {
     resultproc.processresult(PUTNODES, e, nn.empty() ? UNDEF : nn[0].mAddedHandle, tag);
 }

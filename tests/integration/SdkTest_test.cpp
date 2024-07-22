@@ -18346,6 +18346,23 @@ TEST_F(SdkTest, CreateNodeTreeWithMultipleLevelsOfDirectoriesAndOneFileAtTheEnd)
     ASSERT_THAT(fileNode, ::testing::NotNull());
     ASSERT_STREQ(IMAGEFILE.c_str(), fileNode->getName());
     ASSERT_EQ(fileSize, fileNode->getSize());
+
+    // Check that fileID was populated when file node was created
+    Base64Str<MegaClient::NODEHANDLE> b64FileHandle{fileNode->getHandle()};
+    MegaStringMap* fileIDs = requestTracker.request->getMegaStringMap();
+    ASSERT_THAT(fileIDs, ::testing::NotNull());
+    ASSERT_EQ(fileIDs->size(), 1);
+    ASSERT_THAT(fileIDs->get(b64FileHandle), ::testing::NotNull());
+
+    // Check that fileID was populated when file download url was fetched
+    RequestTracker tracker{megaApi[apiIndex].get()};
+    megaApi[apiIndex]->getDownloadUrl(fileNode.get(), true, &tracker);
+    ASSERT_EQ(API_OK, tracker.waitForResult());
+    MegaStringMap* fileID = tracker.request->getMegaStringMap();
+    ASSERT_THAT(fileID, ::testing::NotNull());
+    ASSERT_EQ(fileID->size(), 1);
+    ASSERT_THAT(fileID->get(b64FileHandle), ::testing::NotNull());
+    ASSERT_STREQ(fileID->get(b64FileHandle), fileIDs->get(b64FileHandle));
 }
 
 /**

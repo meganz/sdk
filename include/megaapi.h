@@ -13057,6 +13057,7 @@ class MegaApi
          * - MegaRequest::getName - Returns semicolon-separated download URL(s) to the file
          * - MegaRequest::getLink - Returns semicolon-separated IPv4 of the server in the URL(s)
          * - MegaRequest::getText - Returns semicolon-separated IPv6 of the server in the URL(s)
+         * - MegaRequest::getMegaHandleList - Returns a list with a single element: the file ID
          *
          * If the MEGA account is a business account and it's status is expired, onRequestFinish will
          * be called with the error code MegaError::API_EBUSINESSPASTDUE.
