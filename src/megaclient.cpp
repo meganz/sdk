@@ -4174,61 +4174,77 @@ void MegaClient::dispatchTransfers()
                                             const std::vector<std::string>& tempurls,
                                             const std::vector<std::string>& /*ips*/,
                                             const std::string& /*fileID*/)
-                        {
-                            auto tslot = ts;
-                            auto priv = hprivate;
+                                        {
+                                            auto tslot = ts;
+                                            auto priv = hprivate;
 
-                            tslot->pendingcmd = nullptr;
+                                            tslot->pendingcmd = nullptr;
 
-                            if (!filename) //failed! (Notice: calls not coming from !callFailedCompletion) will allways have that != nullptr
-                            {
-                                assert(s == -1 && "failing a transfer too soon: coming from a successful mCompletion call");
-                                tslot->transfer->failed(e, *mTctableRequestCommitter);
-                                return true;
-                            }
+                                            if (!filename) // failed! (Notice: calls not coming from
+                                                           // !callFailedCompletion) will allways
+                                                           // have that != nullptr
+                                            {
+                                                assert(s == -1 &&
+                                                       "failing a transfer too soon: coming from a "
+                                                       "successful mCompletion call");
+                                                tslot->transfer->failed(e,
+                                                                        *mTctableRequestCommitter);
+                                                return true;
+                                            }
 
-                            if (s >= 0 && s != tslot->transfer->size)
-                            {
-                                tslot->transfer->size = s;
-                                for (file_list::iterator it = tslot->transfer->files.begin(); it != tslot->transfer->files.end(); it++)
-                                {
-                                    (*it)->size = s;
-                                }
+                                            if (s >= 0 && s != tslot->transfer->size)
+                                            {
+                                                tslot->transfer->size = s;
+                                                for (file_list::iterator it =
+                                                         tslot->transfer->files.begin();
+                                                     it != tslot->transfer->files.end();
+                                                     it++)
+                                                {
+                                                    (*it)->size = s;
+                                                }
 
-                                if (priv)
-                                {
-                                    std::shared_ptr<Node> n = mNodeManager.getNodeByHandle(h);
-                                    if (n)
-                                    {
-                                        n->size = s;
-                                        mNodeManager.notifyNode(n);
-                                    }
-                                }
+                                                if (priv)
+                                                {
+                                                    std::shared_ptr<Node> n =
+                                                        mNodeManager.getNodeByHandle(h);
+                                                    if (n)
+                                                    {
+                                                        n->size = s;
+                                                        mNodeManager.notifyNode(n);
+                                                    }
+                                                }
 
-                                sendevent(99411, "Node size mismatch", 0);
-                            }
+                                                sendevent(99411, "Node size mismatch", 0);
+                                            }
 
-                            tslot->starttime = tslot->lastdata = waiter->ds;
+                                            tslot->starttime = tslot->lastdata = waiter->ds;
 
-                            if ((tempurls.size() == 1 || tempurls.size() == RAIDPARTS) && s >= 0)
-                            {
-                                tslot->transfer->tempurls = tempurls;
-                                tslot->transfer->downloadFileHandle = h;
-                                tslot->transferbuf.setIsRaid(tslot->transfer, tempurls, tslot->transfer->pos, tslot->maxRequestSize);
-                                tslot->progress();
-                                return true;
-                            }
+                                            if ((tempurls.size() == 1 ||
+                                                 tempurls.size() == RAIDPARTS) &&
+                                                s >= 0)
+                                            {
+                                                tslot->transfer->tempurls = tempurls;
+                                                tslot->transfer->downloadFileHandle = h;
+                                                tslot->transferbuf.setIsRaid(tslot->transfer,
+                                                                             tempurls,
+                                                                             tslot->transfer->pos,
+                                                                             tslot->maxRequestSize);
+                                                tslot->progress();
+                                                return true;
+                                            }
 
-                            if (e == API_EOVERQUOTA && tl <= 0)
-                            {
-                                // default retry interval
-                                tl = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS;
-                            }
+                                            if (e == API_EOVERQUOTA && tl <= 0)
+                                            {
+                                                // default retry interval
+                                                tl = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS;
+                                            }
 
-                            tslot->transfer->failed(e, *mTctableRequestCommitter, e == API_EOVERQUOTA ? tl * 10 : 0);
-                            return true;
-
-                        })));
+                                            tslot->transfer->failed(e,
+                                                                    *mTctableRequestCommitter,
+                                                                    e == API_EOVERQUOTA ? tl * 10 :
+                                                                                          0);
+                                            return true;
+                                        })));
                     }
 
                     LOG_debug << "Activating transfer";
@@ -16868,23 +16884,32 @@ void MegaClient::preparebackup(SyncConfig sc, std::function<void(Error, SyncConf
                         completion(API_EEXIST, updatedConfig, nullptr);
                     }
 
-                    // Offer the option to the caller, to remove the new Backup node if a later step fails
-                    UndoFunction undoOnFail = [newBackupNodeHandle, this](std::function<void()> continuation){
+                    // Offer the option to the caller, to remove the new Backup node if a later
+                    // step fails
+                    UndoFunction undoOnFail =
+                         [newBackupNodeHandle, this](std::function<void()> continuation)
+                    {
                         if (std::shared_ptr<Node> n = nodebyhandle(newBackupNodeHandle))
                         {
-                            unlink(n.get(), false, 0, true, [continuation](NodeHandle, Error){
-                                if (continuation) continuation();
-                            });
+                            unlink(n.get(),
+                                   false,
+                                   0,
+                                   true,
+                                   [continuation](NodeHandle, Error)
+                                   {
+                                       if (continuation)
+                                           continuation();
+                                   });
                         }
                         else
                         {
-                            if (continuation) continuation();
+                            if (continuation)
+                                continuation();
                         }
                     };
 
                     completion(API_OK, updatedConfig, undoOnFail);
                 }
-
              });
 }
 
@@ -17043,8 +17068,14 @@ std::shared_ptr<Node> MegaClient::getOrCreateSyncdebrisFolder()
     }
 
     reqs.add(new CommandPutNodes(
-        this, binNode->nodeHandle(), NULL, NoVersioning, move(nnVec),
-        0, PUTNODES_SYNCDEBRIS, nullptr,
+        this,
+        binNode->nodeHandle(),
+        NULL,
+        NoVersioning,
+        move(nnVec),
+        0,
+        PUTNODES_SYNCDEBRIS,
+        nullptr,
         [this](const Error&,
                targettype_t,
                vector<NewNode>&,

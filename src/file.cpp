@@ -613,7 +613,8 @@ void SyncUpload_inClient::sendPutnodesOfUpload(MegaClient* client, NodeHandle ov
     // since we are now sending putnodes, no need to remember puts to inform the client on abandonment
     syncThreadSafeState->client()->transferBackstop.forget(tag);
 
-    File::sendPutnodesOfUpload(client,
+    File::sendPutnodesOfUpload(
+        client,
         uploadHandle,
         uploadToken,
         fileNodeKey,
@@ -658,8 +659,9 @@ void SyncUpload_inClient::sendPutnodesOfUpload(MegaClient* client, NodeHandle ov
             // since we used a completion function, putnodes_result is not called.
             // but the intermediate layer still needs that in order to call the client app back:
             client->app->putnodes_result(e, t, nn, targetOverride, tag, fileIDs);
-
-        }, nullptr, syncThreadSafeState->mCanChangeVault);
+        },
+        nullptr,
+        syncThreadSafeState->mCanChangeVault);
 }
 
 void SyncUpload_inClient::sendPutnodesToCloneNode(MegaClient* client, NodeHandle ovHandle, Node* nodeToClone)
@@ -707,7 +709,11 @@ void SyncUpload_inClient::sendPutnodesToCloneNode(MegaClient* client, NodeHandle
                 }
                 else if (e == API_EOVERQUOTA)
                 {
-                    client->syncs.disableSyncByBackupId(s->backupId(), FOREIGN_TARGET_OVERSTORAGE, false, true, nullptr);
+                    client->syncs.disableSyncByBackupId(s->backupId(),
+                                                        FOREIGN_TARGET_OVERSTORAGE,
+                                                        false,
+                                                        true,
+                                                        nullptr);
                 }
             }
         },

@@ -818,8 +818,7 @@ struct StandardClient : public MegaApp
     public:
         BasicPutNodesCompletion(std::function<void(const Error&)>&& callable)
             : mCallable(std::move(callable))
-        {
-        }
+        {}
 
         void operator()(const Error& e,
                         targettype_t,

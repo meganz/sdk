@@ -451,7 +451,13 @@ void AppFilePut::completed(Transfer* t, putsource_t source)
     assert(t->type == PUT);
 
     auto onCompleted_foward = onCompleted;
-    sendPutnodesOfUpload(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(),
+    sendPutnodesOfUpload(
+        t->client,
+        t->uploadhandle,
+        *t->ultoken,
+        t->filekey,
+        source,
+        NodeHandle(),
         [onCompleted_foward](const Error& e,
                              targettype_t,
                              vector<NewNode>&,
@@ -459,15 +465,15 @@ void AppFilePut::completed(Transfer* t, putsource_t source)
                              int tag,
                              const map<string, string>& /*fileIDs*/)
         {
-
             if (e)
             {
                 cout << "Putnodes error is breaking upload/download cycle: " << e << endl;
             }
-            else if (onCompleted_foward) onCompleted_foward();
-
+            else if (onCompleted_foward)
+                onCompleted_foward();
         },
-        nullptr, false);
+        nullptr,
+        false);
 
     delete this;
 }
@@ -6042,7 +6048,8 @@ void exec_get(autocomplete::ACState& s)
                     {
                         if (e == API_ETOOMANY && e.hasExtraInfo())
                         {
-                             cout << "Link check failed: " << DemoApp::getExtraInfoErrorString(e) << endl;
+                            cout << "Link check failed: " << DemoApp::getExtraInfoErrorString(e)
+                                 << endl;
                         }
                         else
                         {

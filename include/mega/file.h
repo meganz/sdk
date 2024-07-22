@@ -59,7 +59,7 @@ struct MEGA_API File: public FileFingerprint
     virtual bool failed(error, MegaClient*);
 
     // update localname
-    virtual void updatelocalname() { }
+    virtual void updatelocalname() {}
 
     void sendPutnodesOfUpload(
         MegaClient* client,

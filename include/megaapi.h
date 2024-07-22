@@ -13059,8 +13059,8 @@ class MegaApi
          * - MegaRequest::getText - Returns semicolon-separated IPv6 of the server in the URL(s)
          * - MegaRequest::getMegaHandleList - Returns a list with a single element: the file ID
          *
-         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
-         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish
+         * will be called with the error code MegaError::API_EBUSINESSPASTDUE.
          *
          * @param node Node to get the downloads URLs
          * @param singleUrl Always return one URL (even for raided files)
