@@ -65,8 +65,13 @@ nameId_t NewFreeIndexProvider::getNextFreeIndex(ENameType kind, nameId_t minimum
         return *container.insert(startLookIt, minimumAllowed);
 
     // Increase minimumAllowed until a free index is found.
-    while (startLookIt != std::end(container) && ++minimumAllowed == *(++startLookIt))
-    {}
+    while (startLookIt != std::end(container))
+    {
+        if (*startLookIt != minimumAllowed)
+            break;
+        ++minimumAllowed;
+        ++startLookIt;
+    }
     return *container.insert(startLookIt, minimumAllowed);
 }
 
@@ -74,7 +79,7 @@ bool NewFreeIndexProvider::isFree(const ENameType kind, const nameId_t index) co
 {
     if (kind == ENameType::baseNameOnly)
         return !baseNameOccupied;
-    auto& container =
+    const auto& container =
         kind == ENameType::withIdSpace ? occupiedIndicesSpace : occupiedIndicesNoSpace;
     const auto it = std::lower_bound(std::cbegin(container), std::cend(container), index);
     return it == std::cend(container) || *it != index;

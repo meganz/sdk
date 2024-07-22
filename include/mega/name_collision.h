@@ -102,7 +102,7 @@ private:
  * Usage example:
  *     1. Create an object. You can create it with a list of already existing names in a target
  *     destiny.
- *     2. Iterate through the elements in you source list and call the operator() to obtain the
+ *     2. Iterate through the elements in your source list and call the operator() to obtain the
  *     fixed name.
  *
  * Name resolution logic:
