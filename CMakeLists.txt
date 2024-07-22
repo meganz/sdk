@@ -98,9 +98,9 @@ endif()
 message(STATUS "Target System Processor: ${CMAKE_SYSTEM_PROCESSOR}")
 message(STATUS "Host System Processor: ${CMAKE_HOST_SYSTEM_PROCESSOR}")
 
-get_property(isMultiConfig GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+get_property(IS_MULTI_CONFIG GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
 
-if(isMultiConfig)
+if(IS_MULTI_CONFIG)
     if(CMAKE_CONFIGURATION_TYPES)
         message(STATUS "Generated with config types: ${CMAKE_CONFIGURATION_TYPES}")
     else()
