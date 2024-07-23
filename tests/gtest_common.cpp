@@ -933,13 +933,15 @@ std::string getCurrentTimestamp(bool includeDate)
 
     auto millis = transformed % 1000;
 
-    std::time_t tt;
-    tt = system_clock::to_time_t ( currentTime );
-    auto timeinfo = localtime (&tt);
+    m_time_t tt = system_clock::to_time_t ( currentTime );
+    struct tm timeinfo;
+
+    m_localtime(tt, &timeinfo);
+
     string fmt = "%H:%M:%S";
     if (includeDate) fmt = "%Y-%m-%d_" + fmt;
-    size_t timeStrSz = strftime (buffer, buffSz, fmt.c_str(),timeinfo);
-    snprintf(buffer + timeStrSz , buffSz - timeStrSz, ":%03d",(int)millis);
+    size_t timeStrSz = strftime(buffer, buffSz, fmt.c_str(), &timeinfo);
+    snprintf(buffer + timeStrSz, buffSz - timeStrSz, ":%03d", (int)millis);
 
     return std::string(buffer);
 }

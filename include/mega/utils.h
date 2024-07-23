@@ -26,6 +26,7 @@
 #include <condition_variable>
 #include <thread>
 #include <mutex>
+#include <shared_mutex>
 
 #include "types.h"
 #undef SSIZE_MAX
@@ -777,6 +778,36 @@ public:
         return mNotifications.size();
     }
 
+};
+
+template<class K, class V>
+class ThreadSafeKeyValue
+{
+    // This is a thread-safe key-value container restricted to accepting only numeric values.
+    // Only the needed interfaces were implemented. Add new ones as they become useful.
+public:
+    std::unique_ptr<V> get(const K& key) const
+    {
+        std::shared_lock lock(mMutex);
+        auto it = mStorage.find(key);
+        return it == mStorage.end() ? nullptr : std::make_unique<V>(it->second);
+    }
+
+    void set(const K& key, const V& value)
+    {
+        std::unique_lock lock(mMutex);
+        mStorage[key] = value;
+    }
+
+    void clear()
+    {
+        std::unique_lock lock(mMutex);
+        return mStorage.clear();
+    }
+
+private:
+    mutable std::shared_mutex mMutex;
+    std::map<K, V> mStorage;
 };
 
 template<typename CharT>

@@ -39,7 +39,8 @@ extern JavaVM *MEGAjvm;
 
 namespace mega {
 
-bool g_netLoggingOn = false;
+std::atomic<bool> g_netLoggingOn{false};
+
 #define NET_verbose if (g_netLoggingOn) LOG_verbose
 #define NET_debug if (g_netLoggingOn) LOG_debug
 

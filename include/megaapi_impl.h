@@ -1855,6 +1855,43 @@ private:
     AccountFeature mFeature;
 };
 
+class MegaAccountSubscriptionPrivate: public MegaAccountSubscription
+{
+public:
+    static MegaAccountSubscriptionPrivate*
+        fromAccountSubscription(const AccountSubscription& subscription);
+
+    char* getId() const override;
+    int getStatus() const override;
+    char* getCycle() const override;
+    char* getPaymentMethod() const override;
+    int32_t getPaymentMethodId() const override;
+    int64_t getRenewTime() const override;
+    int32_t getAccountLevel() const override;
+    MegaStringList* getFeatures() const override;
+
+private:
+    MegaAccountSubscriptionPrivate(const AccountSubscription& subscription);
+    AccountSubscription mSubscription;
+};
+
+class MegaAccountPlanPrivate: public MegaAccountPlan
+{
+public:
+    static MegaAccountPlanPrivate* fromAccountPlan(const AccountPlan& plan);
+
+    bool isProPlan() const override;
+    int32_t getAccountLevel() const override;
+    MegaStringList* getFeatures() const override;
+    int64_t getExpirationTime() const override;
+    int32_t getType() const override;
+    char* getId() const override;
+
+private:
+    MegaAccountPlanPrivate(const AccountPlan& plan);
+    AccountPlan mPlan;
+};
+
 class MegaAccountDetailsPrivate : public MegaAccountDetails
 {
     public:
@@ -1906,6 +1943,10 @@ class MegaAccountDetailsPrivate : public MegaAccountDetails
         MegaAccountFeature* getActiveFeature(int featureIndex) const override;
         int64_t getSubscriptionLevel() const override;
         MegaStringIntegerMap* getSubscriptionFeatures() const override;
+        int getNumSubscriptions() const override;
+        MegaAccountSubscription* getSubscription(int subscriptionsIndex) const override;
+        int getNumPlans() const override;
+        MegaAccountPlan* getPlan(int plansIndex) const override;
 
     private:
         MegaAccountDetailsPrivate(AccountDetails *details);
@@ -3176,7 +3217,10 @@ class MegaApiImpl : public MegaApp
                              MegaRequestListener *listener = NULL);
 
         void creditCardQuerySubscriptions(MegaRequestListener *listener = NULL);
-        void creditCardCancelSubscriptions(const char* reason, MegaRequestListener *listener = NULL);
+        void creditCardCancelSubscriptions(const char* reason,
+                                           const char* id,
+                                           int canContact,
+                                           MegaRequestListener* listener = NULL);
         void getPaymentMethods(MegaRequestListener *listener = NULL);
 
         char *exportMasterKey();
@@ -3384,6 +3428,8 @@ class MegaApiImpl : public MegaApp
         std::atomic<bool> receivedNameConflictsFlag{false};
         std::atomic<bool> receivedTotalStallsFlag{false};
         std::atomic<bool> receivedTotalNameConflictsFlag{false};
+        std::atomic<bool> receivedScanningStateFlag{false};
+        std::atomic<bool> receivedSyncingStateFlag{false};
 
         MegaSync *getSyncByBackupId(mega::MegaHandle backupId);
         MegaSync *getSyncByNode(MegaNode *node);
@@ -3776,6 +3822,8 @@ public:
         void updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, const char *backupName, int state, int subState, MegaRequestListener* listener = nullptr);
         void removeBackup(MegaHandle backupId, MegaRequestListener *listener = nullptr);
         void removeFromBC(MegaHandle backupId, MegaHandle moveDestination, MegaRequestListener* listener = nullptr);
+        void pauseFromBC(MegaHandle backupId, MegaRequestListener* listener);
+        void resumeFromBC(MegaHandle backupId, MegaRequestListener* listener);
         void getBackupInfo(MegaRequestListener* listener = nullptr);
         void sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode, MegaRequestListener *listener);
 
@@ -3853,7 +3901,7 @@ public:
         void getLastReadNotification(MegaRequestListener* listener);
         void setLastActionedBanner(uint32_t notificationId, MegaRequestListener* listener);
         void getLastActionedBanner(MegaRequestListener* listener);
-        MegaFlagPrivate* getFlag(const char* flagName, bool commit, MegaRequestListener* listener);
+        MegaFlagPrivate* getFlag(const char* flagName, bool commit, MegaRequestListener* listener = nullptr);
 
         void deleteUserAttribute(int type, MegaRequestListener* listener = NULL);
 

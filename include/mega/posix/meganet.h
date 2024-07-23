@@ -35,7 +35,7 @@
 
 namespace mega {
 
-extern bool g_netLoggingOn;
+extern std::atomic<bool> g_netLoggingOn;
 
 struct MEGA_API SockInfo
 {

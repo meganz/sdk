@@ -3056,7 +3056,18 @@ void MegaApi::creditCardQuerySubscriptions(MegaRequestListener *listener)
 
 void MegaApi::creditCardCancelSubscriptions(const char* reason, MegaRequestListener *listener)
 {
-    pImpl->creditCardCancelSubscriptions(reason, listener);
+    pImpl->creditCardCancelSubscriptions(reason,
+                                         nullptr,
+                                         CREDIT_CARD_CANCEL_SUBSCRIPTIONS_CAN_CONTACT_NO,
+                                         listener);
+}
+
+void MegaApi::creditCardCancelSubscriptions(const char* reason,
+                                            const char* id,
+                                            int canContact,
+                                            MegaRequestListener* listener)
+{
+    pImpl->creditCardCancelSubscriptions(reason, id, canContact, listener);
 }
 
 void MegaApi::getPaymentMethods(MegaRequestListener *listener)
@@ -5695,6 +5706,16 @@ void MegaApi::removeFromBC(MegaHandle backupId, MegaHandle moveDestination, Mega
     pImpl->removeFromBC(backupId, moveDestination, listener);
 }
 
+void MegaApi::pauseFromBC(MegaHandle backupId, MegaRequestListener* listener)
+{
+    pImpl->pauseFromBC(backupId, listener);
+}
+
+void MegaApi::resumeFromBC(MegaHandle backupId, MegaRequestListener* listener)
+{
+    pImpl->resumeFromBC(backupId, listener);
+}
+
 void MegaApi::getBackupInfo(MegaRequestListener* listener)
 {
     pImpl->getBackupInfo(listener);
@@ -6087,6 +6108,11 @@ void MegaApi::getLastActionedBanner(MegaRequestListener* listener)
 MegaFlag* MegaApi::getFlag(const char* flagName, bool commit, MegaRequestListener* listener)
 {
     return pImpl->getFlag(flagName, commit, listener);
+}
+
+MegaFlag* MegaApi::getFlag(const char* flagName, bool commit)
+{
+    return pImpl->getFlag(flagName, commit);
 }
 
 void MegaApi::deleteUserAttribute(int type, MegaRequestListener* listener)

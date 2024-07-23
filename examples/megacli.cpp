@@ -3878,11 +3878,44 @@ void exec_getmybackups(autocomplete::ACState&)
 }
 
 #ifdef ENABLE_SYNC
+void exec_backupcentreUpdateState(const string& backupIdStr, CommandBackupPut::SPState newState)
+{
+    handle backupId = 0;
+    Base64::atob(backupIdStr.c_str(), (byte*)&backupId, MegaClient::BACKUPHANDLE);
+
+    // determine if it's a backup or other type of sync
+    SyncConfig c;
+    bool found = client->syncs.configById(backupId, c);
+    string syncType = found && c.isBackup() ? "backup" : "sync";
+
+    client->updateStateInBC(backupId,
+                            newState,
+                            [newState, syncType, backupId](const Error& e)
+                            {
+                                string newStateStr =
+                                    newState == CommandBackupPut::TEMPORARY_DISABLED ? "pause" :
+                                                                                       "resume";
+                                if (e == API_OK)
+                                {
+                                    cout << "Backup Centre - " << newStateStr << "d " << syncType
+                                         << ' ' << toHandle(backupId) << endl;
+                                }
+                                else
+                                {
+                                    cout << "Backup Centre - Failed to " << newStateStr << ' '
+                                         << syncType << ' ' << toHandle(backupId) << " ("
+                                         << errorstring(e) << ')' << endl;
+                                }
+                            });
+}
+
 void exec_backupcentre(autocomplete::ACState& s)
 {
     bool delFlag = s.extractflag("-del");
     bool purgeFlag = s.extractflag("-purge");
     bool stopFlag = s.extractflag("-stop");
+    bool pauseFlag = s.extractflag("-pause");
+    bool resumeFlag = s.extractflag("-resume");
 
     if (s.words.size() == 1)
     {
@@ -3988,7 +4021,7 @@ void exec_backupcentre(autocomplete::ACState& s)
             }
             else
             {
-                cout << "Backup Centre - Failed to " << (isBackup ? "remove Backup " : "stop sync") << toHandle(backupId);
+                cout << "Backup Centre - Failed to " << (isBackup ? "remove Backup " : "stop sync ") << toHandle(backupId);
                 if (isBackup)
                 {
                     cout << " and " << (hDest == UNDEF ? "deleted" : "moved") << " its contents";
@@ -3996,6 +4029,13 @@ void exec_backupcentre(autocomplete::ACState& s)
                 cout << " (" << errorstring(e) << ')' << endl;
             }
         });
+    }
+
+    else if ((pauseFlag || resumeFlag) && s.words.size() == 2) // pause/resume sync (any kind)
+    {
+        exec_backupcentreUpdateState(s.words[1].s,
+                                     pauseFlag ? CommandBackupPut::TEMPORARY_DISABLED :
+                                                 CommandBackupPut::ACTIVE);
     }
 }
 #endif
@@ -4739,7 +4779,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_backupcentre, sequence(text("backupcentre"), opt(either(
                                        sequence(flag("-del"), param("backup_id"), opt(param("move_to_handle"))),
                                        sequence(flag("-purge")),
-                                       sequence(flag("-stop"), param("backup_id"))))));
+                                       sequence(either(flag("-stop"), flag("-pause"), flag("-resume")), param("backup_id"))))));
 
     p->Add(exec_syncadd,
            sequence(text("sync"),
@@ -9972,7 +10012,7 @@ void DemoApp::enumeratequotaitems_result(unsigned type,
                                          unsigned int testCategory,
                                          std::unique_ptr<BusinessPlan> businessPlan)
 {
-    if (type == 0) // Pro level plan
+    if (type != 1) // All plans but Business
     {
         cout << "\n" << description << ":\n";
         cout << "\tPro level: " << proLevel << "\n";
@@ -9998,7 +10038,7 @@ void DemoApp::enumeratequotaitems_result(unsigned type,
         cout << "\tAndroid ID: " << androidId << "\n";
         cout << "\tTest Category: " << testCategory << endl;
     }
-    else // Business plan
+    else // Business plan (type == 1)
     {
         cout << "\n" << description << ":\n";
         cout << "\tMinimum users: " << businessPlan->minUsers << "\n";
@@ -10171,8 +10211,53 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
 
     if (pro)
     {
-        cout << "\tPro level: " << ad->pro_level << endl;
-        cout << "\tSubscription type: " << ad->subscription_type << endl;
+        cout << "\tAccount Subscriptions:" << endl;
+        for (const auto& sub: ad->subscriptions)
+        {
+            cout << "\t\t* ID: " << sub.id << endl;
+            cout << "\t\t\t Status(type): ";
+            switch (sub.type)
+            {
+                case 'S':
+                    cout << "VALID";
+                    break;
+                case 'R':
+                    cout << "INVALID";
+                    break;
+                default:
+                    cout << "NONE";
+                    break;
+            }
+            cout << " (" << sub.type << ")" << endl;
+            cout << "\t\t\t Cycle: " << sub.cycle << endl;
+            cout << "\t\t\t Payment Method: " << sub.paymentMethod << endl;
+            cout << "\t\t\t Payment Method ID: " << sub.paymentMethodId << endl;
+            cout << "\t\t\t Renew time: " << sub.renew << endl;
+            cout << "\t\t\t Account level: " << sub.level << endl;
+            cout << "\t\t\t Features: ";
+            for (const auto& f: sub.features)
+            {
+                cout << f << ", ";
+            }
+            cout << endl;
+        }
+
+        cout << "\tAccount Plans:" << endl;
+        for (const auto& plan: ad->plans)
+        {
+            cout << "\t\t* Plan details: " << endl;
+            cout << "\t\t\t Account level: " << plan.level << endl;
+            cout << "\t\t\t Features: ";
+            for (const auto& f: plan.features)
+            {
+                cout << f << ", ";
+            }
+            cout << endl;
+            cout << "\t\t\t Expiration time: " << plan.expiration << endl;
+            cout << "\t\t\t Plan type: " << plan.type << endl;
+            cout << "\t\t\t Related subscription id: " << plan.subscriptionId << endl;
+        }
+
         cout << "\tAccount balance:" << endl;
 
         for (vector<AccountBalance>::iterator it = ad->balances.begin(); it != ad->balances.end(); it++)
@@ -12218,13 +12303,8 @@ void exec_getABTestValue(autocomplete::ACState &s)
 {
     string flag = s.words[1].s;
 
-    auto it = client->mABTestFlags.find(flag);
-
-    string value = "0 (not set)";
-    if (it != client->mABTestFlags.end())
-    {
-        value = std::to_string(it->second);
-    }
+    unique_ptr<uint32_t> v = client->mABTestFlags.get(flag);
+    string value = v ? std::to_string(*v) : "(not set)";
 
     cout << "[" << flag<< "]:" << value << endl;
 }

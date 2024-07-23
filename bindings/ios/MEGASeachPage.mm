@@ -1,8 +1,8 @@
 /**
- * @file waiterbase.cpp
- * @brief Generic waiter interface
+ * @file MEGASearchFilter.mm
+ * @brief Class which encapsulates all data used for search nodes filtering
  *
- * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
+ * (c) 2023- by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -18,22 +18,23 @@
  * You should have received a copy of the license along with this
  * program.
  */
+#import "MEGASearchPage.h"
 
-#include "mega/waiter.h"
+NS_ASSUME_NONNULL_BEGIN
 
-namespace mega {
+@implementation MEGASearchPage
 
-std::atomic<dstime> Waiter::ds{0};
+- (instancetype)initWithStartingOffset:(size_t)startingOffset pageSize:(size_t)pageSize {
+    self = [super init];
 
-void Waiter::init(dstime ds)
-{
-    maxds = ds;
+    if(self != nil) {
+        _startingOffset = startingOffset;
+        _pageSize = pageSize;
+    }
+
+    return self;
 }
 
-// add events to wakeup criteria
-void Waiter::wakeupby(EventTrigger* et, int flags)
-{
-    et->addevents(this, flags);
-}
+@end
 
-} // namespace
+NS_ASSUME_NONNULL_END

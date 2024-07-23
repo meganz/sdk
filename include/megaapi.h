@@ -4570,7 +4570,9 @@ class MegaRequest
             TYPE_REMOVE_MOUNT                                               = 190,
             TYPE_SET_MOUNT_FLAGS                                            = 191,
             TYPE_DEL_ATTR_USER = 192,
-            TOTAL_OF_REQUEST_TYPES = 193,
+            TYPE_BACKUP_PAUSE_MD                                            = 194,
+            TYPE_BACKUP_RESUME_MD                                           = 195,
+            TOTAL_OF_REQUEST_TYPES                                          = 196,
         };
 
         virtual ~MegaRequest();
@@ -6895,7 +6897,7 @@ public:
         RUNSTATE_PENDING,     // Sync config has loaded but we have not attempted to start it yet
         RUNSTATE_LOADING,     // Sync DB is in the process of loading from disk
         RUNSTATE_RUNNING,     // Sync DB is loaded and active
-        RUNSTATE_PAUSED,      // Sync DB is loaded but sync logic is suspended for now (useful for debugging)
+        RUNSTATE_PAUSED,      // (deprecated) Use RUNSTATE_SUSPENDED for paused syncs / backups
         RUNSTATE_SUSPENDED,   // Sync DB is not loaded, but it is on disk with the last known sync state.
         RUNSTATE_DISABLED,    // Sync DB does not exist.  Starting it is like configuring a brand new sync with those settings.
     };
@@ -9624,17 +9626,22 @@ public:
     virtual void bySensitivity(bool excludeSensitive);
 
     /**
-     * @brief Set option for filtering out sensitive nodes.
-     * If not set, it will behave as if BOOL_FILTER_DISABLED was used.
+     * @brief Sets the filter option for excluding sensitive nodes.
+     * If not set, it defaults to BOOL_FILTER_DISABLED.
      *
-     * @param boolFilterOption Kind of tri-state variable to filter to apply.
-     * Valid values for this parameter are (invalid values will be ignored):
-     * - MegaSearchFilter::BOOL_FILTER_DISABLED = 0 --> All nodes are taken in consideration, none
-     * filter is applied
-     * - MegaSearchFilter::BOOL_FILTER_ONLY_TRUE = 1 --> Returns nodes no marked as sensitive (nodes
-     * with property set or if any of their ancestors have it are considered sensitive)
-     * - MegaSearchFilter::BOOL_FILTER_ONLY_FALSE = 2 --> Retruns nodes with property set to true
-     * (regardless of their children)
+     * @note Due to compatibility reasons and the nature of the sensitive attribute, the behavior of
+     * this filter may appear counter-intuitive, especially compared to byFavourite. Summary:
+     *     - Use BOOL_FILTER_ONLY_FALSE to get only nodes marked as sensitive.
+     *     - The union of results using BOOL_FILTER_ONLY_TRUE and BOOL_FILTER_ONLY_FALSE
+     *       differs from the results using BOOL_FILTER_DISABLED.
+     *
+     * @param boolFilterOption A tri-state variable determining the filter to apply.
+     * Valid values are (invalid values will be ignored):
+     * - MegaSearchFilter::BOOL_FILTER_DISABLED = 0 --> Considers all nodes.
+     * - MegaSearchFilter::BOOL_FILTER_ONLY_TRUE = 1 --> Returns only nodes not marked as sensitive
+     *   and without any parent directory marked as sensitive.
+     * - MegaSearchFilter::BOOL_FILTER_ONLY_FALSE = 2 --> Returns only nodes marked as sensitive,
+     *   i.e. node->isMarkedSensitive() == true.
      */
     virtual void bySensitivity(int boolFilterOption);
 
@@ -10222,6 +10229,12 @@ class MegaApi
             TAG_NODE_SET             = 0,
             TAG_NODE_REMOVE          = 1,
             TAG_NODE_UPDATE          = 2,
+        };
+
+        enum
+        {
+            CREDIT_CARD_CANCEL_SUBSCRIPTIONS_CAN_CONTACT_NO = 0,
+            CREDIT_CARD_CANCEL_SUBSCRIPTIONS_CAN_CONTACT_YES = 1,
         };
 
         static constexpr int64_t INVALID_CUSTOM_MOD_TIME = -1;
@@ -14512,7 +14525,26 @@ class MegaApi
          * @param reason Reason for the cancellation. It can be NULL.
          * @param listener MegaRequestListener to track this request
          */
+        MEGA_DEPRECATED
         void creditCardCancelSubscriptions(const char* reason, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Cancel the credit card subscriptions of the account
+         *
+         * The associated request type with this request is
+         * MegaRequest::TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS
+         * @param reason The reason for the cancellation. It can be NULL.
+         * @param id The subscription ID for the cancellation. It can be NULL.
+         * @param canContact Whether the user has permitted MEGA to contact them for the
+         * cancellation.
+         *      - MegaApi::CREDIT_CARD_CANCEL_SUBSCRIPTIONS_CAN_CONTACT_NO = 0
+         *      - MegaApi::CREDIT_CARD_CANCEL_SUBSCRIPTIONS_CAN_CONTACT_YES = 1
+         * @param listener MegaRequestListener to track this request
+         */
+        void creditCardCancelSubscriptions(const char* reason,
+                                           const char* id,
+                                           int canContact,
+                                           MegaRequestListener* listener = NULL);
 
         /**
          * @brief Get the available payment methods
@@ -17638,8 +17670,8 @@ class MegaApi
          * @brief Get the path of a MegaNode
          *
          * If the node doesn't exist, this function returns NULL.
-         * You can recoved the node later using MegaApi::getNodeByPath
-         * except if the path contains names with '/', '\' or ':' characters.
+         * You can recover the node later using MegaApi::getNodeByPath
+         * except if the path contains names with '/' or '\' characters.
          *
          * You take the ownership of the returned value
          *
@@ -17653,7 +17685,7 @@ class MegaApi
          *
          * If the node doesn't exist, this function returns NULL.
          * You can recover the node later using MegaApi::getNodeByPath
-         * except if the path contains names with '/', '\' or ':' characters.
+         * except if the path contains names with '/' or '\' characters.
          *
          * You take the ownership of the returned value
          *
@@ -17670,8 +17702,7 @@ class MegaApi
          * The Vault root node is //in/
          * The Rubbish root node is //bin/
          *
-         * Paths with names containing '/', '\' or ':' aren't compatible
-         * with this function.
+         * Paths with names containing '/' or '\' aren't compatible with this function.
          *
          * It is needed to be logged in and to have successfully completed a fetchNodes
          * request before calling this function. Otherwise, it will return NULL.
@@ -17692,8 +17723,7 @@ class MegaApi
          * The Vault root node is //in/
          * The Rubbish root node is //bin/
          *
-         * Paths with names containing '/', '\' or ':' aren't compatible
-         * with this function.
+         * Paths with names containing '/' or '\' aren't compatible with this function.
          *
          * It is needed to be logged in and to have successfully completed a fetchNodes
          * request before calling this function. Otherwise, it will return NULL.
@@ -17702,7 +17732,8 @@ class MegaApi
          *
          * @param path Path to check
          * @param n Base node if the path is relative
-         * @param type Type of the node to be looked up; valid values: TYPE_FILE, TYPE_FOLDER, TYPE_UNKNOWN (any type, folder has precedence)
+         * @param type Type of the node to be looked up; valid values: TYPE_FILE, TYPE_FOLDER,
+         * TYPE_UNKNOWN (any type, folder has precedence)
          * @return The MegaNode object in the path, otherwise NULL
          */
         MegaNode* getNodeByPathOfType(const char *path, MegaNode *n = nullptr, int type = MegaNode::TYPE_UNKNOWN);
@@ -22020,6 +22051,32 @@ class MegaApi
         void removeFromBC(MegaHandle backupId, MegaHandle moveDestination, MegaRequestListener* listener = nullptr);
 
         /**
+         * @brief Simulate a backup/sync being paused from the webclient.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_BACKUP_PAUSE_MD
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParentHandle - Returns the backup id
+         * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+         *
+         * @param backupId backup id of the backup to be paused
+         * @param listener MegaRequestListener to track this request
+        */
+        void pauseFromBC(MegaHandle backupId, MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Simulate a backup/sync being resumed from the webclient.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_BACKUP_RESUME_MD
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParentHandle - Returns the backup id
+         * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+         *
+         * @param backupId backup id of the backup to be resumed
+         * @param listener MegaRequestListener to track this request
+        */
+        void resumeFromBC(MegaHandle backupId, MegaRequestListener* listener = nullptr);
+
+        /**
          * @brief Fetch information about all registered backups for Backup Centre
          *
          * The associated request type with this request is MegaRequest::TYPE_BACKUP_INFO
@@ -23213,22 +23270,24 @@ class MegaApi
                            MegaRequestListener* listener);
 
         /**
-         * @brief Get the type and value for the flag with the given name,
-         * if present among either A/B Test or Feature flags.
+         * @deprecated Use getFlag(const char* flagName, bool commit) instead.
+         */
+        MegaFlag* getFlag(const char* flagName, bool commit, MegaRequestListener* listener);
+
+        /**
+         * @brief Get the type and value for the flag with the given name, if present among either
+         * A/B Test or Feature flags.
          *
-         * If found among A/B Test flags and commit was true, also inform the API
-         * that a user has become relevant for that A/B Test flag, in which case
-         * the associated request type with this request is MegaRequest::TYPE_AB_TEST_ACTIVE
-         * and valid data in the MegaRequest object received on all callbacks:
-         * - MegaRequest::getText - Returns the flag passed as parameter
+         * If found among A/B Test flags and commit was true, also inform the API that a user has become
+         * relevant for that A/B Test flag (via a request of type MegaRequest::TYPE_AB_TEST_ACTIVE,
+         * for which the response is not be relevant for the calling app)
          *
          * @param flagName Name or key of the value to be retrieved (and possibly be sent to API as active).
          * @param commit Determine whether an A/B Test flag will be sent to API as active.
-         * @param listener MegaRequestListener to track this request, ignored if commit was false
          *
          * @return A MegaFlag instance with the type and value of the flag.
          */
-        MegaFlag* getFlag(const char* flagName, bool commit = true, MegaRequestListener* listener = nullptr);
+        MegaFlag* getFlag(const char* flagName, bool commit = true);
 
         /**
          * @brief Delete a user attribute of the current user, for testing
@@ -23751,6 +23810,187 @@ public:
 };
 
 /**
+ * @brief Details about a MEGA subscription
+ */
+class MegaAccountSubscription
+{
+public:
+    enum
+    {
+        SUBSCRIPTION_STATUS_NONE = 0,
+        SUBSCRIPTION_STATUS_VALID = 1,
+        SUBSCRIPTION_STATUS_INVALID = 2
+    };
+
+    virtual ~MegaAccountSubscription() = default;
+
+    /**
+     * @brief Get the ID of this subscription
+     *
+     * You take the ownership of the returned value
+     *
+     * @return ID of this subscription
+     */
+    virtual char* getId() const = 0;
+
+    /**
+     * @brief Check if the subscription is active
+     *
+     * If this function returns MegaAccountDetails::SUBSCRIPTION_STATUS_VALID,
+     * the subscription will be automatically renewed.
+     * See MegaAccountSubscription::getRenewTime()
+     *
+     * @return Information about the subscription status
+     *
+     * Valid return values are:
+     * - MegaAccountSubscription::SUBSCRIPTION_STATUS_NONE = 0
+     * There isn't any active subscription
+     *
+     * - MegaAccountSubscription::SUBSCRIPTION_STATUS_VALID = 1
+     * There is an active subscription
+     *
+     * - MegaAccountSubscription::SUBSCRIPTION_STATUS_INVALID = 2
+     * A subscription exists, but it uses a payment gateway that is no longer valid
+     */
+    virtual int getStatus() const = 0;
+
+    /**
+     * @brief Get the subscription cycle
+     *
+     * The return value will show if the subscription will be montly or yearly renewed.
+     * Example return values: "1 M", "1 Y".
+     *
+     * You take the ownership of the returned value
+     *
+     * @return Subscription cycle
+     */
+    virtual char* getCycle() const = 0;
+
+    /**
+     * @brief Get the subscription payment provider name
+     *
+     * You take the ownership of the returned value
+     *
+     * @return Payment provider name
+     */
+    virtual char* getPaymentMethod() const = 0;
+
+    /**
+     * @brief Get the subscription payment provider ID
+     *
+     * @return Payment provider ID
+     */
+    virtual int32_t getPaymentMethodId() const = 0;
+
+    /**
+     * @brief Get the subscription renew timestamp
+     *
+     * @return Renewal timestamp (in seconds since epoch)
+     */
+    virtual int64_t getRenewTime() const = 0;
+
+    /**
+     * @brief Get the subscription account level
+     *
+     * @return Subscription account level
+     * Valid values for PRO plan subscriptions:
+     * - MegaAccountDetails::ACCOUNT_TYPE_FREE = 0
+     * - MegaAccountDetails::ACCOUNT_TYPE_PROI = 1
+     * - MegaAccountDetails::ACCOUNT_TYPE_PROII = 2
+     * - MegaAccountDetails::ACCOUNT_TYPE_PROIII = 3
+     * - MegaAccountDetails::ACCOUNT_TYPE_LITE = 4
+     * - MegaAccountDetails::ACCOUNT_TYPE_STARTER = 11
+     * - MegaAccountDetails::ACCOUNT_TYPE_BASIC = 12
+     * - MegaAccountDetails::ACCOUNT_TYPE_ESSENTIAL = 13
+     * - MegaAccountDetails::ACCOUNT_TYPE_BUSINESS = 100
+     * - MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI = 101
+     *
+     * Valid value for feature plan subscriptions:
+     * - MegaAccountDetails::ACCOUNT_TYPE_FEATURE = 99999
+     */
+    virtual int32_t getAccountLevel() const = 0;
+
+    /**
+     * @brief Get the features granted by this subscription
+     *
+     * You take the ownership of the returned value
+     *
+     * @return Features granted by this subscription.
+     */
+    virtual MegaStringList* getFeatures() const = 0;
+};
+
+class MegaAccountPlan
+{
+public:
+    virtual ~MegaAccountPlan() = default;
+
+    /**
+     * @brief Check if the plan is a PRO plan or a feature plan.
+     *
+     * @return True if the plan is a PRO plan
+     */
+    virtual bool isProPlan() const = 0;
+
+    /**
+     * @brief Get account level of the plan
+     *
+     * @return Plan level of the MEGA account.
+     * Valid values for PRO plans are:
+     * - MegaAccountDetails::ACCOUNT_TYPE_FREE = 0
+     * - MegaAccountDetails::ACCOUNT_TYPE_PROI = 1
+     * - MegaAccountDetails::ACCOUNT_TYPE_PROII = 2
+     * - MegaAccountDetails::ACCOUNT_TYPE_PROIII = 3
+     * - MegaAccountDetails::ACCOUNT_TYPE_LITE = 4
+     * - MegaAccountDetails::ACCOUNT_TYPE_STARTER = 11
+     * - MegaAccountDetails::ACCOUNT_TYPE_BASIC = 12
+     * - MegaAccountDetails::ACCOUNT_TYPE_ESSENTIAL = 13
+     * - MegaAccountDetails::ACCOUNT_TYPE_BUSINESS = 100
+     * - MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI = 101
+     *
+     * Valid value for feature plans is:
+     * - MegaAccountDetails::ACCOUNT_TYPE_FEATURE = 99999
+     */
+    virtual int32_t getAccountLevel() const = 0;
+
+    /**
+     * @brief Get the features granted by this plan
+     *
+     * You take the ownership of the returned value
+     *
+     * @return Features granted by this plan.
+     */
+    virtual MegaStringList* getFeatures() const = 0;
+
+    /**
+     * @brief Get the expiration time for the plan
+     *
+     * @return The time the plan expires
+     */
+    virtual int64_t getExpirationTime() const = 0;
+
+    /**
+     * @brief The type of plan. Why it was granted.
+     *
+     * Not available for Bussiness/Pro Flexi.
+     *
+     * @return Plan type
+     */
+    virtual int32_t getType() const = 0;
+
+    /**
+     * @brief Get the relating subscription ID
+     *
+     * Only available if the plan relates to a subscription.
+     *
+     * You take the ownership of the returned value
+     *
+     * @return ID of this subscription
+     */
+    virtual char* getId() const = 0;
+};
+
+/**
  * @brief Details about a MEGA account
  */
 class MegaAccountDetails
@@ -23767,10 +24007,11 @@ public:
         ACCOUNT_TYPE_BASIC = 12,
         ACCOUNT_TYPE_ESSENTIAL = 13,
         ACCOUNT_TYPE_BUSINESS = 100,
-        ACCOUNT_TYPE_PRO_FLEXI = 101    // also known as PRO 4
+        ACCOUNT_TYPE_PRO_FLEXI = 101, // also known as PRO 4
+        ACCOUNT_TYPE_FEATURE = 99999
     };
 
-    enum
+    enum MEGA_DEPRECATED
     {
         SUBSCRIPTION_STATUS_NONE = 0,
         SUBSCRIPTION_STATUS_VALID = 1,
@@ -23796,8 +24037,8 @@ public:
     virtual int getProLevel();
 
     /**
-     * @brief Get the expiration time for the current PRO status
-     * @return Expiration time for the current PRO status (in seconds since the Epoch)
+     * @brief Get the expiration time for the current PRO plan
+     * @return Expiration time for the current PRO plan (in seconds since the Epoch)
      */
     virtual int64_t getProExpiration();
 
@@ -23821,12 +24062,14 @@ public:
      * A subscription exists, but it uses a payment gateway that is no longer valid
      *
      */
+    MEGA_DEPRECATED
     virtual int getSubscriptionStatus();
 
     /**
      * @brief Get the time when the the PRO account will be renewed
      * @return Renewal time (in seconds since the Epoch)
      */
+    MEGA_DEPRECATED
     virtual int64_t getSubscriptionRenewTime();
 
     /**
@@ -23836,6 +24079,7 @@ public:
      *
      * @return Subscription method. For example "Credit Card".
      */
+    MEGA_DEPRECATED
     virtual char* getSubscriptionMethod();
 
     /**
@@ -23843,6 +24087,7 @@ public:
      *
      * @return Subscription method. For example 16.
      */
+    MEGA_DEPRECATED
     virtual int getSubscriptionMethodId();
 
     /**
@@ -23855,6 +24100,7 @@ public:
      *
      * @return Subscription cycle
      */
+    MEGA_DEPRECATED
     virtual char* getSubscriptionCycle();
 
     /**
@@ -24114,6 +24360,7 @@ public:
      *
      * @return Level for feature related subscriptions
      */
+    MEGA_DEPRECATED
     virtual int64_t getSubscriptionLevel() const = 0;
 
     /**
@@ -24123,7 +24370,46 @@ public:
      *
      * @return Subscription features for this account. The value of each feature should be treated as a 32bit unsigned int
      */
+    MEGA_DEPRECATED
     virtual MegaStringIntegerMap* getSubscriptionFeatures() const = 0;
+
+    /**
+     * @brief Get the number of active subscriptions in the account.
+     *
+     * You can use MegaAccountDetails::getSubscription to get each of those objects.
+     *
+     * @return Number of active subscriptions
+     */
+    virtual int getNumSubscriptions() const = 0;
+
+    /**
+     * @brief Returns the MegaAccountSubscription object associated with an index
+     *
+     * You take the ownership of the returned value
+     *
+     * @param subscriptionsIndex Index of the object
+     * @return MegaAccountSubscription object
+     */
+    virtual MegaAccountSubscription* getSubscription(int subscriptionsIndex) const = 0;
+
+    /**
+     * @brief Get the number of active plans in the account.
+     *
+     * You can use MegaAccountDetails::getPlan to get each of those objects.
+     *
+     * @return Number of active plans
+     */
+    virtual int getNumPlans() const = 0;
+
+    /**
+     * @brief Returns the MegaAccountPlan object associated with an index
+     *
+     * You take the ownership of the returned value
+     *
+     * @param plansIndex Index of the object
+     * @return MegaAccountPlan object
+     */
+    virtual MegaAccountPlan* getPlan(int plansIndex) const = 0;
 };
 
 class MegaCurrency

@@ -1214,7 +1214,7 @@ void SdkTest::onEvent(MegaApi* s, MegaEvent *event)
     if (index >= 0) // it can be -1 when tests are being destroyed
     {
         mApi[index].receiveEvent(event);
-        LOG_debug << "Received event " << event->getType();
+        LOG_debug << index << " Received event " << event->getType();
     }
 }
 
@@ -3976,11 +3976,31 @@ protected:
 
     void createOnePublicLink(MegaHandle hfolder, std::string& nodeLink);
 
-    void importPublicLink(const std::string& nodeLink);
+    void importPublicLink(const std::string& nodeLink, MegaHandle* importedNodeHandle = nullptr);
 
     void revokeOutShares(MegaHandle hfolder);
 
     void revokePublicLink(MegaHandle hfolder);
+
+    /**
+     * @brief Makes a copy of the node located at the sourceNodePath path in the inshare folder of
+     * the mSharee account and puts it in destNodeName inside the mSharee root node
+     *
+     * NOTE: This method uses ASSERT_* macros
+     * NOTE: This method assumes you have called the getInshare method
+     */
+    void copyNode(const unsigned int accountId,
+                  const MegaHandle sourceNodeHandle,
+                  const MegaHandle destNodeHandle,
+                  const std::string& destName,
+                  MegaHandle* copiedNodeHandle = nullptr);
+
+    /**
+     * @brief Same as copySharedFolderToOwnCloud but invoking move instead of copy on sourceNodePath
+     */
+    void moveNodeToOwnCloud(const std::string& sourceNodePath,
+                            const std::string& destNodeName,
+                            MegaHandle* copiedNodeHandle = nullptr);
 
     std::unordered_map<std::string, MegaHandle> mHandles;
 
@@ -4182,7 +4202,7 @@ void SdkTestShares::createOnePublicLink(MegaHandle hfolder, std::string& nodeLin
         << "Wrong public link after link update";
 }
 
-void SdkTestShares::importPublicLink(const std::string& nodeLink)
+void SdkTestShares::importPublicLink(const std::string& nodeLink, MegaHandle* importedNodeHandle)
 {
     // Login to the folder and fetchnodes
     auto loginFolderTracker = asyncRequestLoginToFolder(mGuestIndex, nodeLink.c_str());
@@ -4213,6 +4233,8 @@ void SdkTestShares::importPublicLink(const std::string& nodeLink)
     std::unique_ptr<MegaNode> importedNode{
         mGuestApi->getNodeByPath(authorizedFolderNode->getName(), rootNode.get())};
     ASSERT_TRUE(importedNode) << "Imported node not found";
+    if (importedNodeHandle)
+        *importedNodeHandle = importedNode->getHandle();
 }
 
 // Revoke access to an outgoing shares
@@ -4253,6 +4275,41 @@ void SdkTestShares::revokePublicLink(MegaHandle hfolder)
     node.reset(mSharerApi->getNodeByHandle(removedLinkHandle));
     ASSERT_TRUE(node);
     ASSERT_FALSE(node->isPublic()) << "Public link removal failed (still public)";
+}
+
+void SdkTestShares::copyNode(const unsigned int accountId,
+                             const MegaHandle sourceNodeHandle,
+                             const MegaHandle destNodeHandle,
+                             const std::string& destName,
+                             MegaHandle* copiedNodeHandle)
+{
+    auto& api = accountId == mShareeIndex ? mShareeApi : mSharerApi;
+    std::unique_ptr<MegaNode> source = std::unique_ptr<MegaNode>(
+        sourceNodeHandle == INVALID_HANDLE ? api->getRootNode() :
+                                             api->getNodeByHandle(sourceNodeHandle));
+    std::unique_ptr<MegaNode> dest = std::unique_ptr<MegaNode>(
+        destNodeHandle == INVALID_HANDLE ? api->getRootNode() :
+                                           api->getNodeByHandle(destNodeHandle));
+
+    auto result =
+        doCopyNode(accountId, copiedNodeHandle, source.get(), dest.get(), destName.c_str());
+    ASSERT_EQ(result, API_OK) << "Error copying file";
+    if (copiedNodeHandle)
+    {
+        ASSERT_NE(*copiedNodeHandle, INVALID_HANDLE)
+            << "The copied file handle was not set properly";
+    }
+}
+
+void SdkTestShares::moveNodeToOwnCloud(const std::string& sourceNodePath,
+                                       const std::string& destNodeName,
+                                       MegaHandle* movedNodeHandle)
+{
+    std::unique_ptr<MegaNode> source{mShareeApi->getNodeByHandle(getHandle(sourceNodePath))};
+    std::unique_ptr<MegaNode> dest{mShareeApi->getRootNode()};
+    auto result =
+        doMoveNode(mShareeIndex, movedNodeHandle, source.get(), dest.get(), destNodeName.c_str());
+    ASSERT_EQ(result, API_OK);
 }
 
 // Initialize a test scenario : create some folders/files to share
@@ -5586,6 +5643,150 @@ TEST_F(SdkTestShares, TestPublicFolderLinksWithShares)
     ASSERT_NO_FATAL_FAILURE(importPublicLink(nodeLink));
 
     ASSERT_NO_FATAL_FAILURE(revokePublicLink(hfolder));
+}
+
+/**
+ * @brief TEST_F SdkTestShares.TestForeingNodeImportRemoveSensitiveFlag
+ *
+ * 1 - User 0 creates node tree and marks one file as sensitive
+ * 2 - User 1 imports that folder via meeting link -> No sensitive expected
+ * 3 - User 0 shares folder with User 1 -> User 1 sees sensitive node
+ * 4 - User 1 copies to own cloud -> No sensitive in the copy
+ * 5 - User 0 copies sensitive file with other name in the shared -> Copy keeps sensitive.
+ * 6 - User 1 does the same -> Copy removes sensitive
+ * 7 - User 1 moves to own cloud -> No sensitive expected
+ * 8 - User 1 tags the moved node as sensitive and copies back to shared -> No sensitive expected
+ *
+ */
+TEST_F(SdkTestShares, TestForeingNodeImportRemoveSensitiveFlag)
+{
+    const auto getSensNodes = [](const auto& api, MegaHandle handle)
+    {
+        std::unique_ptr<MegaSearchFilter> filter(MegaSearchFilter::createInstance());
+        filter->bySensitivity(MegaSearchFilter::BOOL_FILTER_ONLY_FALSE);
+        filter->byLocationHandle(handle);
+        std::unique_ptr<MegaNodeList> sensNodes(api->search(filter.get()));
+        return sensNodes;
+    };
+
+    LOG_info << "___TEST TestForeingNodeImportRemoveSensitiveFlag";
+
+    LOG_debug << "## Creating node tree in user 0 cloud";
+    ASSERT_NO_FATAL_FAILURE(createNodeTrees());
+
+    LOG_debug << "## Marking node as sensitive";
+    // Mark one file as sensitive
+    std::unique_ptr<MegaNode> sensFile{
+        mSharerApi->getNodeByHandle(getHandle("/sharedfolder/file.txt"))};
+    ASSERT_EQ(API_OK, synchronousSetNodeSensitive(mSharerIndex, sensFile.get(), true));
+
+    // We test first the share via public link to ensure we go through the code path where the node
+    // to import is not already in our cloud
+    LOG_debug << "## User 0 creates a public link to share";
+    const MegaHandle hfolder = getHandle("/sharedfolder");
+    ASSERT_EQ(API_OK, synchronousGetSpecificAccountDetails(mSharerIndex, true, true, true))
+        << "Cannot get account details";
+    std::string nodeLink;
+    ASSERT_NO_FATAL_FAILURE(createOnePublicLink(hfolder, nodeLink));
+
+    LOG_debug << "## User 1 imports public link";
+    MegaHandle importedNodeHandle = INVALID_HANDLE;
+    ASSERT_NO_FATAL_FAILURE(importPublicLink(nodeLink, &importedNodeHandle));
+    ASSERT_NE(importedNodeHandle, INVALID_HANDLE);
+
+    // Check there is no sensitive nodes in the imported node
+    LOG_debug << "## Checking user 1 sees no sensitive files in the imported folder";
+    std::unique_ptr<MegaNodeList> sensNodes = getSensNodes(mShareeApi, importedNodeHandle);
+    EXPECT_EQ(sensNodes->size(), 0)
+        << "Got sensitive nodes after importing from public link while this property is expected "
+           "to be cleared in the process";
+
+    LOG_debug << "## Sharing the folder with user 1";
+    ASSERT_NO_FATAL_FAILURE(createNewContactAndVerify());
+    ASSERT_NO_FATAL_FAILURE(createOutgoingShare(hfolder));
+    ASSERT_NO_FATAL_FAILURE(getInshare(hfolder));
+
+    LOG_debug << "## Checking user 1 sees a sensitive file";
+    sensNodes = getSensNodes(mShareeApi, hfolder);
+    ASSERT_EQ(sensNodes->size(), 1);
+    ASSERT_STREQ(sensNodes->get(0)->getName(), "file.txt");
+
+    LOG_debug << "## User 1 copies folder with sensitive file into own cloud";
+    MegaHandle copyHandle = INVALID_HANDLE;
+    ASSERT_NO_FATAL_FAILURE(copyNode(mShareeIndex,
+                                     getHandle("/sharedfolder"),
+                                     INVALID_HANDLE,
+                                     "copied_shared",
+                                     &copyHandle));
+
+    LOG_debug << "## Checking user 1 sees no sensitive files in the copied node";
+    sensNodes = getSensNodes(mShareeApi, copyHandle);
+    EXPECT_EQ(sensNodes->size(), 0)
+        << "Got sensitive nodes after importing from shared folder while this property is expected "
+           "to be cleared in the process";
+
+    LOG_debug << "## User 0 copies the sensitive file into the same folder with different name";
+    MegaHandle sharerCopyHandle = INVALID_HANDLE;
+    ASSERT_NO_FATAL_FAILURE(copyNode(mSharerIndex,
+                                     getHandle("/sharedfolder/file.txt"),
+                                     getHandle("/sharedfolder"),
+                                     "file_copied_by_sharer.txt",
+                                     &sharerCopyHandle));
+
+    LOG_debug << "## Checking the copy keeps the sensitive flag";
+    std::unique_ptr<MegaNode> dest{mSharerApi->getNodeByHandle(sharerCopyHandle)};
+    ASSERT_TRUE(dest->isMarkedSensitive())
+        << "Copying a sensitive node within a shared folder by the owner resets the attribute";
+
+    LOG_debug << "## User 1 copies the sensitive file into the same folder with different name";
+    MegaHandle shareeCopyHandle = INVALID_HANDLE;
+    ASSERT_NO_FATAL_FAILURE(copyNode(mShareeIndex,
+                                     getHandle("/sharedfolder/file.txt"),
+                                     getHandle("/sharedfolder"),
+                                     "file_copied_by_sharee.txt",
+                                     &shareeCopyHandle));
+
+    LOG_debug << "## Checking the copy resets the sensitive flag";
+    dest.reset(mShareeApi->getNodeByHandle(shareeCopyHandle));
+    ASSERT_FALSE(dest->isMarkedSensitive())
+        << "Copying a sensitive node within a shared folder by the sharee must reset sensitive";
+
+    LOG_debug << "## User 1 copies sens to exact same place and name";
+    ASSERT_NO_FATAL_FAILURE(copyNode(mShareeIndex,
+                                     sharerCopyHandle,
+                                     getHandle("/sharedfolder"),
+                                     "file_copied_by_sharer.txt",
+                                     &copyHandle));
+
+    LOG_debug << "## Checking the copy resets the sensitive flag";
+    dest.reset(mShareeApi->getNodeByHandle(shareeCopyHandle));
+    EXPECT_FALSE(dest->isMarkedSensitive())
+        << "Copying a sensitive node to the same place by the sharee must reset sensitive";
+
+    LOG_debug << "## User 1 moves sensitive file from shared folder to own cloud";
+    MegaHandle movedHandle = INVALID_HANDLE;
+    ASSERT_NO_FATAL_FAILURE(
+        moveNodeToOwnCloud("/sharedfolder/file.txt", "moved_file.txt", &movedHandle));
+    ASSERT_NE(movedHandle, INVALID_HANDLE);
+
+    LOG_debug << "## Checking the move resets the sensitive flag";
+    std::unique_ptr<MegaNode> movedNode{mShareeApi->getNodeByHandle(movedHandle)};
+    ASSERT_FALSE(movedNode->isMarkedSensitive())
+        << "Moved node from shared folder kept the sensitive label";
+
+    LOG_debug << "## User 1 marks it again as sensitive and copies it back to the shared folder";
+    ASSERT_EQ(API_OK, synchronousSetNodeSensitive(mShareeIndex, movedNode.get(), true));
+    movedNode.reset(mShareeApi->getNodeByHandle(movedHandle));
+    ASSERT_TRUE(movedNode->isMarkedSensitive()) << "There was an error setting sensitive node";
+    ASSERT_NO_FATAL_FAILURE(copyNode(mShareeIndex,
+                                     movedHandle,
+                                     getHandle("/sharedfolder"),
+                                     "copied_back_sensitive_file.txt",
+                                     &copyHandle));
+    LOG_debug << "## Checking the copy resets the sensitive flag";
+    dest.reset(mShareeApi->getNodeByHandle(copyHandle));
+    ASSERT_FALSE(dest->isMarkedSensitive())
+        << "The copy from sharee cloud to shared folder does nor reset the sensitive attribute";
 }
 
 TEST_F(SdkTest, SdkTestShareKeys)
@@ -8223,7 +8424,10 @@ TEST_F(SdkTest, SdkSimpleCommands)
     ASSERT_EQ(flagAB->getType(), static_cast<decltype(flagAB->getType())>(MegaFlag::FLAG_TYPE_AB_TEST));
     ASSERT_GE(flagAB->getGroup(), 1u);
     std::unique_ptr<MegaFlag> flagF{ megaApi[0]->getFlag("dmca") };
-    ASSERT_EQ(flagF->getType(), static_cast<decltype(flagF->getType())>(MegaFlag::FLAG_TYPE_FEATURE));
+    ASSERT_THAT(
+        flagF->getType(),
+        ::testing::AnyOf(static_cast<decltype(flagF->getType())>(MegaFlag::FLAG_TYPE_AB_TEST),
+                         static_cast<decltype(flagF->getType())>(MegaFlag::FLAG_TYPE_FEATURE)));
     ASSERT_GE(flagF->getGroup(), 1u);
 
     logout(0, false, maxTimeout);
@@ -9192,6 +9396,218 @@ TEST_F(SdkTest, SdkBackupMoveOrDelete)
     fs::remove_all(localFolderPath, ec);
 }
 
+TEST_F(SdkTest, SdkBackupPauseResume)
+{
+    LOG_info << "___TEST BackupPauseResume___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    const string timestamp = getCurrentTimestamp(true);
+
+    // Set device name if missing
+    string deviceName;
+    if (doGetDeviceName(0, &deviceName, nullptr) != API_OK || deviceName.empty())
+    {
+        const string newDeviceName = "Jenkins " + timestamp;
+        ASSERT_EQ(doSetDeviceName(0, nullptr, newDeviceName.c_str()), API_OK)
+            << "Setting device name failed";
+        // make sure Device Name attr was set
+        ASSERT_EQ(doGetDeviceName(0, &deviceName, nullptr), API_OK) << "Getting device name failed";
+        ASSERT_EQ(deviceName, newDeviceName) << "Getting device name failed (wrong value)";
+    }
+    // Make sure My Backups folder was created
+    ASSERT_NO_FATAL_FAILURE(syncTestMyBackupsRemoteFolder(0));
+
+    // Create local contents
+    vector<fs::path> folders = {fs::current_path() / "LocalFolderPauseResume",
+                                fs::current_path() / "LocalSyncFolder"};
+    for (const auto& localFolder: folders)
+    {
+        std::error_code ec;
+        fs::remove_all(localFolder, ec);
+        ASSERT_FALSE(fs::exists(localFolder));
+        fs::create_directories(localFolder);
+        ASSERT_TRUE(createLocalFile(localFolder, "bkpFile"));
+    }
+    const string localBackupFolder = folders[0].u8string();
+    const string localSyncFolder = folders[1].u8string();
+
+    // Create a backup, and get its id
+    const string backupNameStr = string("RemoteBackupFolder_") + timestamp;
+    ASSERT_EQ(API_OK,
+              synchronousSyncFolder(0,
+                                    nullptr,
+                                    MegaSync::TYPE_BACKUP,
+                                    localBackupFolder.c_str(),
+                                    backupNameStr.c_str(),
+                                    INVALID_HANDLE,
+                                    nullptr))
+        << "Initial connection: Failed to create a Backup";
+    MegaHandle idOfBackup = mApi[0].lastSyncBackupId;
+    ASSERT_NE(idOfBackup, INVALID_HANDLE) << "Initial connection: invalid Backup id";
+
+    // Create a sync, and get its id
+    unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    MegaHandle syncDest = createFolder(0, "syncDest", rootnode.get());
+    ASSERT_NE(syncDest, INVALID_HANDLE);
+    ASSERT_EQ(API_OK,
+              synchronousSyncFolder(0,
+                                    nullptr,
+                                    MegaSync::TYPE_TWOWAY,
+                                    localSyncFolder.c_str(),
+                                    nullptr,
+                                    syncDest,
+                                    nullptr))
+        << "Initial connection: Failed to create a Sync";
+    MegaHandle idOfSync = mApi[0].lastSyncBackupId;
+    ASSERT_NE(idOfSync, INVALID_HANDLE) << "Initial connection: invalid Sync id";
+
+    auto testRunState = [&apis = megaApi](MegaHandle backupId, int desiredState)
+    {
+        unique_ptr<MegaSync> s(apis[0]->getSyncByBackupId(backupId));
+        return s && s->getRunState() == desiredState;
+    };
+
+    // Wait for the backup to be in RUNNING state
+    ASSERT_TRUE(WaitFor(
+        [idOfBackup, desiredState = MegaSync::RUNSTATE_RUNNING, testRunState]()
+        {
+            return testRunState(idOfBackup, desiredState);
+        },
+        60000))
+        << "Initial connection: backup not Running (started) after 60 seconds";
+
+    // Wait for the sync to be in RUNNING state
+    ASSERT_TRUE(WaitFor(
+        [idOfSync, desiredState = MegaSync::RUNSTATE_RUNNING, testRunState]()
+        {
+            return testRunState(idOfSync, desiredState);
+        },
+        60000))
+        << "Initial connection: sync not Running (started) after 60 seconds";
+
+    // Create a second connection with the same credentials
+    megaApi.emplace_back(newMegaApi(APP_KEY.c_str(),
+                                    megaApiCacheFolder(1).c_str(),
+                                    USER_AGENT.c_str(),
+                                    unsigned(THREADS_PER_MEGACLIENT)));
+    megaApi.back()->addListener(this);
+    PerApi pa; // make a copy
+    pa.email = mApi.back().email;
+    pa.pwd = mApi.back().pwd;
+    mApi.push_back(std::move(pa));
+    auto& differentApiDtls = mApi.back();
+    differentApiDtls.megaApi = megaApi.back().get();
+
+    {
+        bool& fetchNodesDone = mApi[1].requestFlags[MegaRequest::TYPE_FETCH_NODES] = false;
+        unique_ptr<RequestTracker> loginTracker =
+            std::make_unique<RequestTracker>(megaApi[1].get());
+        megaApi[1]->login(differentApiDtls.email.c_str(),
+                          differentApiDtls.pwd.c_str(),
+                          loginTracker.get());
+        ASSERT_EQ(API_OK, loginTracker->waitForResult()) << "Second connection: Failed to login";
+        ASSERT_NO_FATAL_FAILURE(fetchnodes(1))
+            << "Second connection: Failed to request fetch nodes";
+        ASSERT_TRUE(WaitFor(
+            [fetchNodesDone]()
+            {
+                return fetchNodesDone;
+            },
+            60000))
+            << "Second connection: fetch nodes not done after 60 seconds";
+    }
+
+    // Commands for the Backup
+    {
+        // Second connection: Pause backup
+        RequestTracker pauseBackupTracker(megaApi[1].get());
+        megaApi[1]->pauseFromBC(idOfBackup, &pauseBackupTracker);
+        ASSERT_EQ(pauseBackupTracker.waitForResult(), API_OK)
+            << "Second connection: Failed to Pause backup";
+
+        // Initial connection: wait for backup to be Paused
+        ASSERT_TRUE(WaitFor(
+            [idOfBackup, testRunState]()
+            {
+                return testRunState(idOfBackup, MegaSync::RUNSTATE_SUSPENDED);
+            },
+            120000))
+            << "Initial connection: backup not Paused after 120 seconds";
+
+        // Wait a while (for the sds attr to be updated and propagated).
+        // Without this, resuming will fail sometimes.
+        std::this_thread::sleep_for(std::chrono::seconds{5});
+
+        // Second connection: Resume backup
+        RequestTracker resumeBackupTracker(megaApi[1].get());
+        megaApi[1]->resumeFromBC(idOfBackup, &resumeBackupTracker);
+        ASSERT_EQ(resumeBackupTracker.waitForResult(), API_OK)
+            << "Second connection: Failed to Resume backup";
+
+        // Initial connection: wait for backup to be Resumed
+        ASSERT_TRUE(WaitFor(
+            [idOfBackup, testRunState]()
+            {
+                return testRunState(idOfBackup, MegaSync::RUNSTATE_RUNNING);
+            },
+            120000))
+            << "Initial connection: backup not Running (resumed) after 120 seconds";
+
+        // Clean-up
+        RequestTracker removeBackupTracker(megaApi[0].get());
+        megaApi[0]->removeSync(idOfBackup, &removeBackupTracker);
+        ASSERT_EQ(removeBackupTracker.waitForResult(), API_OK)
+            << "Initial connection: Failed to remove backup";
+    }
+
+    // Commands for the Sync
+    {
+        // Second connection: Pause sync
+        RequestTracker pauseSyncTracker(megaApi[1].get());
+        megaApi[1]->pauseFromBC(idOfSync, &pauseSyncTracker);
+        ASSERT_EQ(pauseSyncTracker.waitForResult(), API_OK)
+            << "Second connection: Failed to Pause sync";
+
+        // Initial connection: wait for sync to be Paused
+        ASSERT_TRUE(WaitFor(
+            [idOfSync, testRunState]()
+            {
+                return testRunState(idOfSync, MegaSync::RUNSTATE_SUSPENDED);
+            },
+            120000))
+            << "Initial connection: sync not Paused after 120 seconds";
+
+        // Wait a while (for the sds attr to be updated and propagated).
+        // Without this, resuming will fail sometimes.
+        std::this_thread::sleep_for(std::chrono::seconds{5});
+
+        // Second connection: Resume sync
+        RequestTracker resumeSyncTracker(megaApi[1].get());
+        megaApi[1]->resumeFromBC(idOfSync, &resumeSyncTracker);
+        ASSERT_EQ(resumeSyncTracker.waitForResult(), API_OK)
+            << "Second connection: Failed to Resume sync";
+
+        // Initial connection: wait for sync to be Resumed
+        ASSERT_TRUE(WaitFor(
+            [idOfSync, testRunState]()
+            {
+                return testRunState(idOfSync, MegaSync::RUNSTATE_RUNNING);
+            },
+            120000))
+            << "Initial connection: sync not Running (resumed) after 120 seconds";
+
+        // Clean-up
+        RequestTracker removeSyncTracker(megaApi[0].get());
+        megaApi[0]->removeSync(idOfSync, &removeSyncTracker);
+        ASSERT_EQ(removeSyncTracker.waitForResult(), API_OK)
+            << "Initial connection: Failed to remove sync";
+    }
+
+    std::error_code ec;
+    fs::remove_all(folders[0], ec);
+    fs::remove_all(folders[1], ec);
+}
+
 TEST_F(SdkTest, SdkExternalDriveFolder)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -9365,6 +9781,51 @@ TEST_F(SdkTest, SdkGetCountryCallingCodes)
     ASSERT_NE(nullptr, de);
     ASSERT_EQ(1, de->size());
     ASSERT_EQ(0, strcmp("49", de->get(0)));
+}
+
+TEST_F(SdkTest, SdkGetFileWithColonByPath)
+{
+    LOG_info << "___TEST SdkGetFileWithColonByPath___";
+
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    LOG_debug << "Creating file locally";
+    const char* fname = "test:file.txt";
+    sdk_test::LocalTempFile f(fname, 0);
+
+    LOG_debug << "Uploading the file";
+    MegaHandle fileHandle = INVALID_HANDLE;
+    bool check = false;
+    mApi[0].mOnNodesUpdateCompletion =
+        createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check);
+    unique_ptr<MegaNode> root(megaApi[0]->getRootNode());
+    ASSERT_NE(root, nullptr);
+    ASSERT_EQ(MegaError::API_OK,
+              doStartUpload(0,
+                            &fileHandle,
+                            fname,
+                            root.get() /*rootnode*/,
+                            nullptr /*fileName*/,
+                            0 /*mtime*/,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << "Cannot upload the test file";
+    waitForResponse(&check);
+    resetOnNodeUpdateCompletionCBs();
+
+    LOG_debug << "Ensuring the file is accessible in the cloud by handle";
+    std::unique_ptr<MegaNode> nodeFile(megaApi[0]->getNodeByHandle(fileHandle));
+    ASSERT_NE(nodeFile, nullptr) << "Cannot get the node by handle for the updated file (error: "
+                                 << mApi[0].lastError << ")";
+    ASSERT_STREQ(nodeFile->getName(), fname);
+
+    LOG_debug << "Ensure the file is accessible in the cloud by name";
+    nodeFile.reset(megaApi[0]->getNodeByPath(fname, root.get()));
+    ASSERT_NE(nodeFile, nullptr) << "Cannot get the node by path for the updated file (error: "
+                                 << mApi[0].lastError << ")";
+    ASSERT_STREQ(nodeFile->getName(), fname);
 }
 
 TEST_F(SdkTest, DISABLED_invalidFileNames)
@@ -14445,7 +14906,8 @@ TEST_F(SdkTest, SdkTestSetsAndElementsSetTypes)
     mApi.push_back(std::move(pa));
     differentApiDtlsPtr = &(mApi.back());
     differentApiDtlsPtr->megaApi = differentApiPtr;
-    const int difApiIdx = static_cast<int>(megaApi.size() - 1);
+    const unsigned int difApiIdx = static_cast<unsigned int>(megaApi.size() - 1);
+    differentApiPtr->setLoggingName(to_string(difApiIdx).c_str());
 
     auto loginTracker = asyncRequestLogin(difApiIdx, differentApiDtlsPtr->email.c_str(), differentApiDtlsPtr->pwd.c_str());
     ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to establish a login/session for account " << difApiIdx;
@@ -14502,11 +14964,15 @@ TEST_F(SdkTest, SdkTestSetsAndElementsSetTypes)
     ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
     ASSERT_NO_FATAL_FAILURE(fetchnodes(userIdx)); // load cached Sets
 
-
     LOG_debug << "# U1: Check Sets types loaded from local cache";
+    constexpr std::string_view noLocalDBMsg{"The set was not in the cached memory"};
+
     unique_ptr<MegaSet> reloadedSessionAlbumSet(megaApi[userIdx]->getSet(albumHandle));
+    ASSERT_NE(reloadedSessionAlbumSet, nullptr) << "Photo album: " << noLocalDBMsg;
     ASSERT_EQ(reloadedSessionAlbumSet->type(), setAsPhotoAlbum->type());
+
     unique_ptr<MegaSet> reloadedSessionPlaylistSet(megaApi[userIdx]->getSet(playlistHandle));
+    ASSERT_NE(reloadedSessionPlaylistSet, nullptr) << "Playlist: " << noLocalDBMsg;
     ASSERT_EQ(reloadedSessionPlaylistSet->type(), setAsVideoPlaylist->type());
 
 
@@ -19495,32 +19961,63 @@ TEST_F(SdkTest, GetFeaturePlans)
 }
 
 /**
- * @brief GetUserFeatures
+ * @brief GetActivePlansAndFeatures
  */
-TEST_F(SdkTest, GetUserFeatures)
+TEST_F(SdkTest, GetActivePlansAndFeatures)
 {
-    LOG_info << "___TEST GetUserFeatures___";
+    LOG_info << "___TEST GetActivePlansAndFeaturess___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     RequestTracker accDetailsTracker(megaApi[0].get());
     megaApi[0]->getAccountDetails(&accDetailsTracker);
     ASSERT_EQ(accDetailsTracker.waitForResult(), API_OK) << "Failed to get account details";
 
-    std::unique_ptr<MegaAccountDetails> accountDetails(accDetailsTracker.request->getMegaAccountDetails());
+    std::unique_ptr<MegaAccountDetails> accountDetails(
+        accDetailsTracker.request->getMegaAccountDetails());
     ASSERT_TRUE(accountDetails) << "Missing account details";
 
-    if (accountDetails->getProLevel() == MegaAccountDetails::ACCOUNT_TYPE_FREE)
+    int proLevel = MegaAccountDetails::ACCOUNT_TYPE_FREE;
+    set<string> featuresGranted;
+    for (int i = 0; i < accountDetails->getNumPlans(); ++i)
     {
-        ASSERT_EQ(accountDetails->getNumActiveFeatures(), 0);
-        ASSERT_EQ(accountDetails->getSubscriptionLevel(), 0);
-    }
-    else
-    {
-        ASSERT_GT(accountDetails->getNumActiveFeatures(), 0);
-        if (accountDetails->getSubscriptionLevel())
+        std::unique_ptr<MegaAccountPlan> plan(accountDetails->getPlan(i));
+        std::unique_ptr<MegaStringList> features(plan->getFeatures());
+        for (int j = 0; j < features->size(); ++j)
         {
-            std::unique_ptr<MegaStringIntegerMap> subscriptionFeatures{ accountDetails->getSubscriptionFeatures() };
-            ASSERT_GT(subscriptionFeatures->size(), 0);
+            // Acumulate granted features
+            featuresGranted.emplace(features->get(j));
         }
+
+        if (plan->isProPlan())
+        {
+            ASSERT_EQ(proLevel, MegaAccountDetails::ACCOUNT_TYPE_FREE)
+                << "More than one PRO plan has been received";
+            proLevel = plan->getAccountLevel();
+            ASSERT_GT(proLevel, MegaAccountDetails::ACCOUNT_TYPE_FREE)
+                << "PRO level is ACCOUNT_TYPE_FREE";
+            ASSERT_NE(proLevel, MegaAccountDetails::ACCOUNT_TYPE_FEATURE)
+                << "PRO plan is a feature plan";
+            ASSERT_EQ(proLevel, accountDetails->getProLevel())
+                << "PRO level of the plan does not match the PRO account level";
+        }
+        else // Feature plan
+        {
+            ASSERT_EQ(plan->getAccountLevel(), MegaAccountDetails::ACCOUNT_TYPE_FEATURE)
+                << "Feature plan has not a feature account level";
+            ASSERT_GT(features->size(), 0) << "Feature plan does not grant any feature";
+        }
+    }
+
+    // Compare features contained in the plans with the features received for the account.
+    ASSERT_EQ(featuresGranted.size(), accountDetails->getNumActiveFeatures())
+        << "Features in active plans don't match the number of features of the account";
+    m_time_t currTime = m_time();
+    for (int i = 0; i < accountDetails->getNumActiveFeatures(); ++i)
+    {
+        std::unique_ptr<MegaAccountFeature> feature(accountDetails->getActiveFeature(i));
+        ASSERT_GE(feature->getExpiry(), currTime) << "Received an expired feature";
+        string featureId(std::unique_ptr<const char[]>(feature->getId()).get());
+        ASSERT_NE(featuresGranted.find(featureId), featuresGranted.end())
+            << "Feature " << featureId << " is not present in any plan";
     }
 }

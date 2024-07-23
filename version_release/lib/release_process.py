@@ -16,9 +16,6 @@ class ReleaseProcess:
         gitlab_token: str,
         private_host_url: str,
         private_branch: str,
-        new_version: str,
-        slack_token: str = "",
-        slack_channel: str = "",
     ):
         self._private_branch = private_branch
         self._local_repo: LocalRepository | None = None
@@ -26,11 +23,37 @@ class ReleaseProcess:
             private_host_url, gitlab_token, project_name
         )
         self._project_name = project_name
-        self._new_version = new_version
-        self._slack = (
-            Slack(slack_token) if slack_token != "" and slack_channel != "" else None
+
+    def setup_project_management(self, url: str, user: str, password: str):
+        assert self._jira is None
+        self._jira = JiraProject(
+            url,
+            user,
+            password,
+            self._project_name,
         )
+
+    def set_release_version_to_make(self, version: str):
+        assert not self._new_version
+        self._new_version = version
+        self._version_v_prefixed = f"v{self._new_version}"
+        self._jira.setup_release()
+
+    def setup_chat(
+        self,
+        slack_token: str,
+        slack_channel: str,
+    ):
+        # Chat has 2 purposes:
+        # - request approvals for MRs (always in the same channel, only for SDK devs);
+        # - make announcements in the given channel, if any.
+        self._slack = Slack(slack_token)
         self._slack_channel = slack_channel
+
+    def determine_version_for_next_release(self) -> str:
+        assert self._jira is not None
+        version = self._jira.get_next_version()
+        return ".".join(map(str, version))
 
     # STEP 3: update version in local file
     def update_version_in_local_file(
@@ -38,11 +61,11 @@ class ReleaseProcess:
         gpg_keygrip: str,
         gpg_password: str,
         private_remote_name: str,
-        private_remote_url: str,
         new_branch: str,
     ):
         setup_gpg_signing(gpg_keygrip, gpg_password)
         assert self._local_repo is None
+        private_remote_url = self._remote_private_repo.get_url_to_private_repo()
         self._local_repo = LocalRepository(private_remote_name, private_remote_url)
         self._get_branch_locally(private_remote_name, self._private_branch)
         self._change_version_in_file()
@@ -66,8 +89,8 @@ class ReleaseProcess:
 
         # read old version
         oldMajor = oldMinor = oldMicro = 0
-        assert self._local_repo is not None
-        lines = self._local_repo.version_file.read_text().splitlines()
+        assert LocalRepository.has_version_file()
+        lines = LocalRepository.version_file.read_text().splitlines()
         for i, line in enumerate(lines):
             if result := re.search(
                 r"^(#define\s+MEGA_MAJOR_VERSION\s+)(\d+)([.\s]*)", line
@@ -100,7 +123,7 @@ class ReleaseProcess:
         ), f"Invalid version: {oldMajor}.{oldMinor}.{oldMicro} -> {self._new_version}"
 
         # write new version
-        self._local_repo.version_file.write_text("\n".join(lines))
+        LocalRepository.version_file.write_text("\n".join(lines))
 
     def _push_to_new_branch(
         self,
@@ -144,11 +167,9 @@ class ReleaseProcess:
         print("       Cancel by manually closing the MR.", flush=True)
 
         # Send message to chat for MR approval
-        if self._slack is not None:
-            self._slack.post_message(
-                "sdk_devs_only",
-                f"Hello @channel,\n\nPlease approve the MR for the new `{self._project_name}` release `{self._new_version}`:\n{mr_url}",
-            )
+        self._request_mr_approval(
+            f"`{self._project_name}` release `{self._new_version}`:\n{mr_url}"
+        )
 
         # MR not approved within the waiting interval will be closed and
         # the process aborted. To abort earlier just close the MR manually.
@@ -159,6 +180,19 @@ class ReleaseProcess:
             self._remote_private_repo.delete_branch(new_branch)
             raise ValueError("Failed to merge MR with local changes")
         print("v MR merged for version upgrade", flush=True)
+
+    def _request_mr_approval(self, reason: str):
+        if self._slack is None:
+            print(
+                f"You need to request MR approval yourself because chat is not available,\n{reason}",
+                flush=True,
+            )
+        else:
+            self._slack.post_message(
+                "sdk-stuff-builders-team",
+                # "sdk_devs_only",
+                f"Hello @channel,\n\nPlease approve the MR for {reason}",
+            )
 
     # STEP 4: Create "release/vX.Y.Z" branch
     def create_release_branch(self):
@@ -204,7 +238,6 @@ class ReleaseProcess:
             labels="Release",
         )
         if mr_id == 0:
-            self._remote_private_repo.close_mr(mr_id)
             self._remote_private_repo.delete_branch(self._release_branch)
             self._remote_private_repo.delete_tag(self._rc_tag)
             raise ValueError(
@@ -218,8 +251,6 @@ class ReleaseProcess:
 
     # STEP 7: Update and rename previous NextRelease version; create new NextRelease version
     def manage_versions(self, url: str, user: str, password: str, apps: str):
-        self._jira = JiraProject(url, user, password, self._project_name)
-
         self._jira.update_current_version(
             self._new_version,  # i.e. "X.Y.Z"
             apps,  # i.e. "iOS A.B / Android C.D / MEGAsync E.F.G"
@@ -237,12 +268,11 @@ class ReleaseProcess:
         notes: str = (
             f"\U0001F4E3 \U0001F4E3 *New SDK version  -->  `{self._rc_tag}`* (<{tag_url}|Link>)\n\n"
         ) + self._jira.get_release_notes(apps)
-        if self._slack is None:
+        if not self._slack or not self._slack_channel:
             print("Enjoy:\n\n" + notes, flush=True)
         else:
             self._slack.post_message(self._slack_channel, notes)
             print(f"v Posted release notes to #{self._slack_channel}", flush=True)
-
 
     ####################
     ##  Close release
@@ -251,32 +281,28 @@ class ReleaseProcess:
     def setup_local_repo(
         self,
         private_remote_name: str,
-        private_remote_url: str,
         public_remote_name: str,
         public_remote_url: str,
     ):
         assert self._local_repo is None
+        private_remote_url = self._remote_private_repo.get_url_to_private_repo()
         self._local_repo = LocalRepository(private_remote_name, private_remote_url)
         self._local_repo.add_remote(
             public_remote_name, public_remote_url, fetch_is_optional=True
         )
 
     def setup_public_repo(
-        self, public_repo_token: str, public_repo_owner: str, project_name: str
+        self, public_repo_token: str, public_repo_owner: str
     ):
         self._public_repo = GitHubRepository(
-            public_repo_token, public_repo_owner, project_name
+            public_repo_token, public_repo_owner, self._project_name
         )
 
-    def setup_project_management(self, url: str, user: str, password: str):
-        assert self._jira is None
-        self._jira = JiraProject(
-            url,
-            user,
-            password,
-            self._project_name,
-            version_name=self._version_v_prefixed,
-        )
+    def set_release_version_to_close(self, version: str):
+        assert not self._new_version
+        self._new_version = version
+        self._version_v_prefixed = f"v{self._new_version}"
+        self._jira.setup_release(self._version_v_prefixed)
 
     def confirm_all_earlier_versions_are_closed(self):
         # This could be implemented in multiple ways.
@@ -333,10 +359,10 @@ class ReleaseProcess:
 
         # push stuff to public repo
         assert self._local_repo is not None
-        self._local_repo.push_branch( # "master" branch
+        self._local_repo.push_branch(  # "master" branch
             public_remote_name, public_branch
         )
-        self._local_repo.push_branch( # "vX.Y.Z" tag
+        self._local_repo.push_branch(  # "vX.Y.Z" tag
             public_remote_name, self._version_v_prefixed
         )
 
@@ -345,7 +371,7 @@ class ReleaseProcess:
         self._public_repo.create_release(version, self._jira.get_public_release_notes())
 
     # STEP 6 (close): Jira: mark version as Released, set release date
-    def mark_version_as_released(self, url: str, user: str, password: str):
+    def mark_version_as_released(self):
         assert self._jira is not None, "Init Jira connection first"
         self._jira.update_version_close_release()
 
@@ -353,7 +379,7 @@ class ReleaseProcess:
     def move_release_captain_last(self, page_id: str):
         if self._user_key is None:
             print("Wiki connection not available, rotate Release Captain yourself !")
-        return
+            return
 
         # get page content
         page = self._wiki.get_page_by_id(page_id, expand="body.storage")

@@ -892,6 +892,115 @@ error MegaClient::setbackupfolder(const char* foldername, int tag, std::function
     return API_OK;
 }
 
+void MegaClient::updateStateInBC(handle bkpId, CommandBackupPut::SPState newState, std::function<void(const Error&)> finalCompletion)
+{
+    shared_ptr<handle> bkpRoot = std::make_shared<handle>(0);
+
+    // step 4: handle result of setattr()
+    auto setAttrCompletion = [bkpId, finalCompletion](NodeHandle, Error setAttrErr)
+    {
+        if (setAttrErr != API_OK)
+        {
+            LOG_err << "Update backup/sync: failed to set 'sds' for " << toHandle(bkpId) << ": " << setAttrErr;
+        }
+        finalCompletion(setAttrErr);
+    };
+
+    // step 3: set sds attribute
+    auto updateSds = [this, bkpId, newState, bkpRoot, setAttrCompletion, finalCompletion](const Error& updateStateErr, handle backupId) mutable
+    {
+        assert(backupId == UNDEF || bkpId == backupId);
+
+        if (updateStateErr != API_OK)
+        {
+            LOG_err << "Update backup/sync: failed to update " << toHandle(bkpId) << ", error: " << error(updateStateErr);
+            // Don't break execution here in case of error. Still try to set 'sds' node attribute.
+        }
+
+        std::shared_ptr<Node> bkpRootNode = nodebyhandle(*bkpRoot);
+        if (!bkpRootNode)
+        {
+            LOG_err << "Update backup/sync: root node not found to set SDS attribute for when updating " << toHandle(bkpId);
+            finalCompletion(API_ENOENT);
+            return;
+        }
+
+        vector<pair<handle, int>> sdsBkps = bkpRootNode->getSdsBackups();
+        sdsBkps.emplace_back(bkpId, newState);
+        const string sdsValue = Node::toSdsString(sdsBkps);
+        attr_map sdsAttrMap(Node::sdsId(), sdsValue);
+
+        auto e = setattr(bkpRootNode, std::move(sdsAttrMap), setAttrCompletion, true);
+        if (e != API_OK)
+        {
+            LOG_err << "Update backup/sync: failed to set the 'sds' node attribute in client";
+            finalCompletion(e);
+        }
+    };
+
+    // step 1: fetch Backup/sync data from Backup Centre
+    getBackupInfo([this, bkpId, newState, bkpRoot, updateSds, finalCompletion](const Error& e, const vector<CommandBackupSyncFetch::Data>& data)
+        {
+            if (e != API_OK)
+            {
+                LOG_err << "Update backup/sync: getBackupInfo failed with " << e;
+                finalCompletion(e);
+                return;
+            }
+
+            auto it = std::find_if(data.begin(),
+                                   data.end(),
+                                   [bkpId](const auto& d)
+                                   {
+                                       return d.backupId == bkpId;
+                                   });
+            if (it == data.end())
+            {
+                LOG_err << "Backup/sync to update: " << toHandle(bkpId)
+                        << " not returned by 'sr' command";
+                finalCompletion(API_ENOENT);
+                return;
+            }
+
+            // allow only Active -> Paused and Paused -> Active
+            const auto& d = *it;
+            if ((d.syncState == CommandBackupPut::ACTIVE &&
+                 newState == CommandBackupPut::TEMPORARY_DISABLED) ||
+                (d.syncState == CommandBackupPut::TEMPORARY_DISABLED &&
+                 newState == CommandBackupPut::ACTIVE))
+            {
+                if (!nodebyhandle(d.rootNode))
+                {
+                    LOG_err << "Update backup/sync: root node not found to set SDS attribute for, "
+                               "after fetching "
+                            << toHandle(bkpId);
+                    finalCompletion(API_ENOENT);
+                    return;
+                }
+
+                *bkpRoot = d.rootNode;
+
+                // step 2: update backup/sync
+                CommandBackupPut::BackupInfo info;
+                info.backupId = d.backupId;
+                info.type = d.backupType;
+                info.backupName = d.backupName;
+                info.nodeHandle.set6byte(d.rootNode);
+                info.localFolder.fromAbsolutePath(d.localFolder);
+                info.deviceId = d.deviceId;
+                info.state = newState;
+                info.subState = d.syncSubstate;
+                reqs.add(new CommandBackupPut(this, info, updateSds));
+            }
+            else
+            {
+                LOG_err << "Update backup/sync: state change not allowed: " << d.syncState << " -> "
+                        << newState;
+                finalCompletion(API_EARGS);
+            }
+        });
+}
+
 void MegaClient::removeFromBC(handle bkpId, handle targetDest, std::function<void(const Error&)> finalCompletion)
 {
     shared_ptr<handle> bkpRoot = std::make_shared<handle>(0);
@@ -930,8 +1039,8 @@ void MegaClient::removeFromBC(handle bkpId, handle targetDest, std::function<voi
         std::shared_ptr<Node> bkpRootNode = nodebyhandle(*bkpRoot);
         if (!bkpRootNode)
         {
-            LOG_err << "Remove backup/sync: root folder not found";
-            finalCompletion(API_ENOENT);
+            LOG_warn << "Remove backup/sync: root folder not found, thus SDS cannot be set; considering it completely removed";
+            finalCompletion(API_OK);
             return;
         }
 
@@ -8306,17 +8415,8 @@ shared_ptr<Node> MegaClient::nodeByPath(const char* path, std::shared_ptr<Node> 
                     continue;
                 }
 
-                if (*path == '/' || *path == ':' || !*path)
+                if (*path == '/' || !*path)
                 {
-                    if (*path == ':')
-                    {
-                        if (c.size())
-                        {
-                            return NULL;
-                        }
-                        remote = 1;
-                    }
-
                     if (path > bptr)
                     {
                         s.append(bptr, path - bptr);
@@ -8708,7 +8808,9 @@ error MegaClient::setattr(std::shared_ptr<Node> n, attr_map&& updates, CommandSe
     // Check and delete invalid fav attributes
     if (n->firstancestor()->getShareType() == ShareType_t::IN_SHARES) // Avoid an inshare to be tagged as favourite by the sharee
     {
-        std::vector<nameid> nameIds = { AttrMap::string2nameid("fav"), AttrMap::string2nameid("lbl") };
+        std::vector<nameid> nameIds = {AttrMap::string2nameid("fav"),
+                                       AttrMap::string2nameid("lbl"),
+                                       AttrMap::string2nameid("sen")};
         for (nameid& nameId : nameIds)
         {
             updates.erase(nameId);
@@ -9040,6 +9142,11 @@ error MegaClient::rename(std::shared_ptr<Node> n, std::shared_ptr<Node> p, syncd
         }
     }
 
+    if (n && n->owner != me && n->isMarkedSensitive() &&
+        attrUpdates.erase(AttrMap::string2nameid("sen")))
+    {
+        LOG_debug << "Removing sen attribute";
+    }
     if (newName)
     {
         attrUpdates['n'] = newName;
@@ -10224,7 +10331,7 @@ error MegaClient::readmiscflags(JSON *json)
                 int64_t value = json->getint();
                 if (value >= 0)
                 {
-                    mABTestFlags[tag] = static_cast<uint32_t>(value);
+                    mABTestFlags.set(tag, static_cast<uint32_t>(value));
                 }
                 else
                 {
@@ -10238,7 +10345,7 @@ error MegaClient::readmiscflags(JSON *json)
                 int64_t value = json->getint();
                 if (value >= 0)
                 {
-                    mFeatureFlags[tag] = static_cast<uint32_t>(value);
+                    mFeatureFlags.set(tag, static_cast<uint32_t>(value));
                 }
                 else
                 {
@@ -12180,9 +12287,10 @@ void MegaClient::creditcardquerysubscriptions()
     reqs.add(new CommandCreditCardQuerySubscriptions(this));
 }
 
-void MegaClient::creditcardcancelsubscriptions(const char* reason)
+void MegaClient::creditcardcancelsubscriptions(
+    const CommandCreditCardCancelSubscriptions::CancelSubscription& cancelSubscription)
 {
-    reqs.add(new CommandCreditCardCancelSubscriptions(this, reason));
+    reqs.add(new CommandCreditCardCancelSubscriptions(this, cancelSubscription));
 }
 
 void MegaClient::getpaymentmethods()
@@ -14725,6 +14833,41 @@ void MegaClient::resetScForFetchnodes()
 
     // prevent the processing of previous sc requests
     pendingsc.reset();
+
+    if (pendingscUserAlerts)
+    {
+        /**
+         * sc50 request is sent after fetchnodes has finished ("f" command + processing of action
+         * packets). If we perform multiple fetchnodes in a short period of time, we may send
+         * another sc50 request before receiving response for the previous one.
+         * In that case we first need to discard the sc50 request currently in-flight (if any),
+         * which will result on ignoring the API response, and then prepare a new one.
+         */
+        LOG_warn << "resetScForFetchnodes: Another sc50 Request is inflight, we'll discard it as "
+                    "it's obsolete";
+        sendevent(99487, "Another sc50 Request is inflight");
+
+        if (!useralerts.begincatchup)
+        {
+            LOG_warn << "resetScForFetchnodes: pendingscUserAlerts is not null (sc50 req in "
+                        "flight) but begincatchup is false";
+        }
+    }
+
+    /**
+     * begincatchup is just set true when fetchnodes has finished, before sending sc50 request
+     * if we are going to start a new fetchnodes and we want to discard inflight sc50 request,
+     * we also should reset begincatchup flag. When this fetchnodes finishes begincatchup will
+     * be set true again
+     *
+     * this action will prevent that assert(!fetchingnodes) at Megaclient::exec() fails, as we
+     * have reset begincatchup.
+     *
+     * Be aware of API management of multiple sc50 inflight requests, it may incur into API lock
+     *
+     **/
+    useralerts.begincatchup = false;
+    useralerts.catchupdone = false;
     pendingscUserAlerts.reset();
     jsonsc.pos = NULL;
     scnotifyurl.clear();
@@ -20498,7 +20641,7 @@ void MegaClient::getNotifications(CommandGetNotifications::ResultFunc onResult)
     reqs.add(new CommandGetNotifications(this, onResult));
 }
 
-std::pair<uint32_t, uint32_t> MegaClient::getFlag(const char* flagName, bool commit)
+std::pair<uint32_t, uint32_t> MegaClient::getFlag(const char* flagName)
 {
     enum : uint32_t // 1:1 with enum values from public interface
     {
@@ -20512,16 +20655,16 @@ std::pair<uint32_t, uint32_t> MegaClient::getFlag(const char* flagName, bool com
         return {FLAG_TYPE_INVALID, 0};
     }
 
-    auto ab = mABTestFlags.find(flagName);
-    if (ab != mABTestFlags.end())
+    unique_ptr<uint32_t> flagValue = mABTestFlags.get(flagName);
+    if (flagValue)
     {
-        return {FLAG_TYPE_AB_TEST, ab->second};
+        return {FLAG_TYPE_AB_TEST, *flagValue};
     }
 
-    auto f = mFeatureFlags.find(flagName);
-    if (f != mFeatureFlags.end())
+    flagValue = mFeatureFlags.get(flagName);
+    if (flagValue)
     {
-        return {FLAG_TYPE_FEATURE, f->second};
+        return {FLAG_TYPE_FEATURE, *flagValue};
     }
 
     return {FLAG_TYPE_INVALID, 0};

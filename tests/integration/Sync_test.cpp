@@ -1467,7 +1467,7 @@ bool StandardClient::waitForNodesUpdated(unsigned numSeconds)
     mutex nodes_updated_cv_mutex;
     std::unique_lock<mutex> g(nodes_updated_cv_mutex);
     nodes_updated_cv.wait_for(g, std::chrono::seconds(numSeconds),
-                                [&](){ return received_node_actionpackets; });
+                                [&](){ return received_node_actionpackets.load(); });
     return received_node_actionpackets;
 }
 
@@ -1507,7 +1507,7 @@ bool StandardClient::waitForUserAlertsUpdated(unsigned numSeconds)
     std::unique_lock<std::mutex> guard(mutex);
 
     user_alerts_updated_cv.wait_for(guard, std::chrono::seconds(numSeconds), [&] {
-        return received_user_alerts;
+        return received_user_alerts.load();
     });
 
     return received_user_alerts;
@@ -1548,7 +1548,7 @@ bool StandardClient::waitForUserUpdated(unsigned int numSeconds)
     std::unique_lock<std::mutex> guard(user_actionpackets_mutex);
 
     user_updated_cv.wait_for(guard, std::chrono::seconds(numSeconds), [&] {
-        return received_user_actionpackets;
+        return received_user_actionpackets.load();
     });
 
     return received_user_actionpackets;
@@ -1960,7 +1960,7 @@ void StandardClient::threadloop()
         }
 
         client.waiter->bumpds();
-        dstime t5 = client.waiter->ds;
+        dstime t5 = client.waiter->ds.load();
         if (t5 - t4 > 20) LOG_debug << "injected functions took ds: " << t5 - t4;
 
         if ((r & Waiter::NEEDEXEC))
@@ -1969,7 +1969,7 @@ void StandardClient::threadloop()
         }
 
         client.waiter->bumpds();
-        dstime t6 = client.waiter->ds;
+        dstime t6 = client.waiter->ds.load();
         if (t6 - t5 > 20) LOG_debug << "exec took ds: " << t6 - t5;
 
     }
@@ -3125,9 +3125,16 @@ void StandardClient::setupSync_inThread(const string& rootPath,
                       << config.mExternalDrivePath.toPath(false);
         }
 
+        auto logName = syncOptions.logName;
+
+        if (logName.empty())
+        {
+            logName = rootPath + " ";
+        }
+
         client.addsync(std::move(config),
                        std::move(completion),
-                       rootPath + " ",
+                       logName,
                        excludePath_.u8string());
     };
 
@@ -4278,6 +4285,20 @@ bool StandardClient::resetBaseFolderMulticlient(StandardClient* c2, StandardClie
     return true;
 }
 
+std::function<bool(StandardClient&)> RequestsCompleted()
+{
+    return [](StandardClient& client) {
+        return client.requestsCompleted();
+    };
+}
+
+std::function<bool(StandardClient&)> TransfersCompleted(direction_t type)
+{
+    return [type](StandardClient& client) {
+        return client.transfersCompleted(type);
+    };
+}
+
 void StandardClient::cleanupForTestReuse(int loginIndex)
 {
     // remove .megaignore.default in case other tests left one lying around
@@ -4361,8 +4382,8 @@ void StandardClient::cleanupForTestReuse(int loginIndex)
     client.syncs.mNewSyncFilterChain.reset();
 
     // Make sure any throttles are reset.
-    client.setmaxdownloadspeed(0);
-    client.setmaxuploadspeed(0);
+    setDownloadSpeed(0);
+    setUploadSpeed(0);
 
     // Make sure any event handlers are released.
     // TODO: May require synchronization?
@@ -4411,45 +4432,44 @@ void StandardClient::cleanupForTestReuse(int loginIndex)
         out() << "transfer removal failed";
     }
 
-    // wait for completion of ongoing transfers, up to 60s
-    for (int i = 30000; i-- && !client.multi_transfers[GET].empty(); ) WaitMillisec(1);
-    for (int i = 30000; i-- && !client.multi_transfers[PUT].empty(); ) WaitMillisec(1);
+    // wait for completion of ongoing transfers, up to 30s
+    waitFor(TransfersCompleted(GET), std::chrono::seconds(30));
+    waitFor(TransfersCompleted(PUT), std::chrono::seconds(30));
+
     LOG_debug << clientname << "transfers cleaned";
 
     // wait further for reqs to finish if any are queued, up to 30s
-    for (int i = 30000; i-- && !client.multi_transfers[PUT].empty(); ) WaitMillisec(1);
+    waitFor(TransfersCompleted(PUT), std::chrono::seconds(30));
 
     // check transfers were canceled successfully
-    if (client.multi_transfers[PUT].size() || client.multi_transfers[GET].size())
+    if (transfersCompleted(GET) && transfersCompleted(PUT))
+    {
+        LOG_debug << clientname << "transfers cleaned successfully";
+    }
+    else
     {
         LOG_err << clientname << "Failed to clean transfers at cleanupForTestReuse():"
                    << " put: " << client.multi_transfers[PUT].size()
                    << " get: " << client.multi_transfers[GET].size();
     }
-    else
-    {
-        LOG_debug << clientname << "transfers cleaned successfully";
-    }
-
-    // todo: make these calls to reqs thread safe. Low priority
 
     // wait for cmds in flight and queued, up to 120s
-    if (client.reqs.cmdsInflight() || client.reqs.readyToSend())
+    if (!requestsCompleted())
     {
         LOG_debug << clientname << "waiting for requests to finish";
-        for (int i = 120000; i-- && (client.reqs.readyToSend() || client.reqs.cmdsInflight()); ) WaitMillisec(1);
+        waitFor(RequestsCompleted(), std::chrono::seconds(120));
     }
 
     // check any pending command was completed
-    if (client.reqs.cmdsInflight() || client.reqs.readyToSend())
+    if (requestsCompleted())
+    {
+        LOG_debug << clientname << "requests cleaned successfully";
+    }
+    else
     {
         LOG_err << clientname << "Failed to clean pending commands at cleanupForTestReuse():"
                 << " pending: " << client.reqs.readyToSend()
                 << " inflight: " << client.reqs.cmdsInflight();
-    }
-    else
-    {
-        LOG_debug << clientname << "requests cleaned successfully";
     }
 
 }
@@ -4615,7 +4635,9 @@ void StandardClient::match(NodeHandle handle, const Model::ModelNode* source, Pr
     result->set_value(node && match(*node, *source));
 }
 
-bool StandardClient::waitFor(std::function<bool(StandardClient&)> predicate, const std::chrono::seconds &timeout, const std::chrono::milliseconds &sleepIncrement = std::chrono::milliseconds(500))
+bool StandardClient::waitFor(std::function<bool(StandardClient&)> predicate,
+                             std::chrono::seconds timeout,
+                             std::chrono::milliseconds sleepIncrement)
 {
     auto total = std::chrono::milliseconds(0);
 
@@ -5187,6 +5209,49 @@ void StandardClient::setSyncController(SyncControllerPtr controller)
     client.syncs.setSyncController(std::move(controller));
 }
 
+void StandardClient::setDownloadSpeed(m_off_t downloadSpeed)
+{
+    std::lock_guard<std::recursive_mutex> guard(clientMutex);
+
+    client.setmaxdownloadspeed(downloadSpeed);
+}
+
+void StandardClient::setUploadSpeed(m_off_t uploadSpeed)
+{
+    std::lock_guard<std::recursive_mutex> guard(clientMutex);
+
+    client.setmaxuploadspeed(uploadSpeed);
+}
+
+void StandardClient::prepareOneFolder(NewNode* node, const std::string& name, bool canChangeVault)
+{
+    prepareOneFolder(node, name.c_str(), canChangeVault);
+}
+
+void StandardClient::prepareOneFolder(NewNode* node, const char* name, bool canChangeVault)
+{
+    std::lock_guard<std::recursive_mutex> guard(clientMutex);
+    client.putnodes_prepareOneFolder(node, name, canChangeVault);
+}
+
+bool StandardClient::requestsCompleted() const
+{
+    // Acquire client mutex.
+    std::lock_guard guard(clientMutex);
+
+    // Check if any requests are inflight or queued.
+    return !(client.reqs.cmdsInflight() || client.reqs.readyToSend());
+}
+
+bool StandardClient::transfersCompleted(direction_t type) const
+{
+    // Acquire client mutex.
+    std::lock_guard guard(clientMutex);
+
+    // Check if transfers have completed.
+    return client.multi_transfers[type].empty();
+}
+
 using SyncWaitPredicate = std::function<bool(StandardClient&)>;
 
 // Useful predicates.
@@ -5318,10 +5383,7 @@ vector<SyncWaitResult> waitonsyncs(std::function<bool(int64_t millisecNoActivity
                     }
                     else
                     {
-                        if (mc.client.syncs.getConfigs(true).size())
-                        {
-                            any_running_at_all = true;
-                        }
+                        any_running_at_all |= mc.client.syncs.mNumSyncsActive > 0;
 
                         if (mc.client.syncs.syncBusyState)
                         {
@@ -6599,10 +6661,11 @@ TEST_F(SyncTest, BasicSync_MoveTwiceLocallyButCloudMoveRequestDelayed)
 
     LOG_info << "Preventing move reqs being sent, then making local move for sync code to upsync";
 
-    c->client.reqs.deferRequests = [](Command* c)
-        {
-            return true; // nothing can be sent, same as network disconnected
-        };
+    // nothing can be sent, same as network disconnected
+    c->thread_do<bool>([](StandardClient& client, PromiseBoolSP result) {
+        client.client.reqs.deferRequests = [](Command*) { return true; };
+        result->set_value(true);
+    }, __FILE__, __LINE__).get();
 
     error_code fs_error;
     fs::rename(path1 / "a", path1 / "b" / "a", fs_error);
@@ -6720,7 +6783,7 @@ TEST_F(SyncTest, BasicSync_RemoveLocalNodeBeforeSessionResume)
     ASSERT_TRUE(pclientA1->login_fetchnodesFromSession(session));
 
     // wait for normal sync resumes to complete
-    pclientA1->waitFor([&](StandardClient& sc){ return sc.received_syncs_restored; }, std::chrono::seconds(30));
+    pclientA1->waitFor([&](StandardClient& sc){ return sc.received_syncs_restored.load(); }, std::chrono::seconds(30));
 
     waitonsyncs(std::chrono::seconds(4), pclientA1.get(), &clientA2);
 
@@ -6866,7 +6929,7 @@ TEST_F(SyncTest, BasicSync_ResumeSyncFromSessionAfterNonclashingLocalAndRemoteCh
 
     // wait for normal sync resumes to complete
     // wait bumped to 40 seconds here because we've seen a case where the 2nd client didn't receive actionpackets for 30 seconds
-    pclientA1->waitFor([&](StandardClient& sc){ return sc.received_syncs_restored; }, std::chrono::seconds(40));
+    pclientA1->waitFor([&](StandardClient& sc){ return sc.received_syncs_restored.load(); }, std::chrono::seconds(40));
 
     waitonsyncs(std::chrono::seconds(4), pclientA1.get(), &clientA2);
 
@@ -6925,7 +6988,7 @@ TEST_F(SyncTest, BasicSync_ResumeSyncFromSessionAfterClashingLocalAddRemoteDelet
     ASSERT_EQ(pclientA1->basefolderhandle, clientA2.basefolderhandle);
 
     // wait for normal sync resumes to complete
-    pclientA1->waitFor([&](StandardClient& sc){ return sc.received_syncs_restored; }, std::chrono::seconds(30));
+    pclientA1->waitFor([&](StandardClient& sc){ return sc.received_syncs_restored.load(); }, std::chrono::seconds(30));
 
     waitonsyncs(chrono::seconds(4), pclientA1.get(), &clientA2);
 
@@ -7260,10 +7323,10 @@ TEST_F(SyncTest, PutnodesForMultipleFolders)
     ASSERT_TRUE(CatchupClients(standardclient));
 
     vector<NewNode> newnodes(4);
-    standardclient->client.putnodes_prepareOneFolder(&newnodes[0], "folder1", false);
-    standardclient->client.putnodes_prepareOneFolder(&newnodes[1], "folder2", false);
-    standardclient->client.putnodes_prepareOneFolder(&newnodes[2], "folder2.1", false);
-    standardclient->client.putnodes_prepareOneFolder(&newnodes[3], "folder2.2", false);
+    standardclient->prepareOneFolder(&newnodes[0], "folder1", false);
+    standardclient->prepareOneFolder(&newnodes[1], "folder2", false);
+    standardclient->prepareOneFolder(&newnodes[2], "folder2.1", false);
+    standardclient->prepareOneFolder(&newnodes[3], "folder2.2", false);
 
     newnodes[1].nodehandle = newnodes[2].parenthandle = newnodes[3].parenthandle = 2;
 
@@ -8250,8 +8313,8 @@ TEST_F(SyncTest, RemotesWithControlCharactersSynchronizeCorrectly)
         vector<NewNode> nodes(2);
 
         // Only some platforms will escape BEL.
-        cu->client.putnodes_prepareOneFolder(&nodes[0], "d\7", false);
-        cu->client.putnodes_prepareOneFolder(&nodes[1], "d", false);
+        cu->prepareOneFolder(&nodes[0], "d\7", false);
+        cu->prepareOneFolder(&nodes[1], "d", false);
 
         ASSERT_TRUE(cu->putnodes(node->nodeHandle(), NoVersioning, std::move(nodes)));
 
@@ -9214,7 +9277,7 @@ TEST_F(SyncTest, DownloadedDirectoriesHaveFilesystemWatch)
         vector<NewNode> nodes(1);
 
         // Initialize new node.
-        c->client.putnodes_prepareOneFolder(&nodes[0], "d", false);
+        c->prepareOneFolder(&nodes[0], "d", false);
 
         // Get our hands on the sync root.
         auto root = c->drillchildnodebyname(c->gettestbasenode(), "s");
@@ -10217,13 +10280,15 @@ struct TwoWaySyncSymmetryCase
 
         sourcePath.erase(0, basePath.size() + 1);
 
-        backupId = client1().setupSync_mainthread(sourcePath, targetPath, isBackup(), false, drivePath);
-        ASSERT_NE(backupId, UNDEF);
+        SyncOptions options;
 
-        if (Sync* sync = client1().syncByBackupId(backupId))
-        {
-            sync->syncname += "/" + name() + " ";
-        }
+        options.drivePath = drivePath;
+        options.isBackup = isBackup();
+        options.logName = sourcePath + "/" + name() + " ";
+        options.uploadIgnoreFile = false;
+
+        backupId = client1().setupSync_mainthread(sourcePath, targetPath, options);
+        ASSERT_NE(backupId, UNDEF);
     }
 
     void PauseTwoWaySync()
@@ -11183,7 +11248,7 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
     ASSERT_EQ(clientA1Resume.basefolderhandle, clientA2.basefolderhandle);
 
     // wait for normal sync resumes to complete
-    clientA1Resume.waitFor([&](StandardClient& sc) { return sc.received_syncs_restored; }, std::chrono::seconds(30));
+    clientA1Resume.waitFor([&](StandardClient& sc) { return sc.received_syncs_restored.load(); }, std::chrono::seconds(30));
 
     // now resume remainder - some are external syncs
     int resumed = 0;
@@ -11346,7 +11411,7 @@ TEST_F(SyncTest, ForeignChangesInTheCloudDisablesMonitoringBackup)
         // Create a directory.
         vector<NewNode> node(1);
 
-        cu->client.putnodes_prepareOneFolder(&node[0], "d", false);
+        cu->prepareOneFolder(&node[0], "d", false);
 
         ASSERT_TRUE(cu->putnodes(c->syncSet(id).h, NoVersioning, std::move(node)));
     }
@@ -11460,7 +11525,7 @@ TEST_F(SyncTest, MonitoringExternalBackupRestoresInMirroringMode)
     {
         vector<NewNode> node(1);
 
-        cb.client.putnodes_prepareOneFolder(&node[0], "g", false);
+        cb.prepareOneFolder(&node[0], "g", false);
 
         ASSERT_TRUE(cb.putnodes(rootHandle, NoVersioning, std::move(node)));
     }
@@ -11532,7 +11597,7 @@ TEST_F(SyncTest, MonitoringExternalBackupResumesInMirroringMode)
     {
         vector<NewNode> node(1);
 
-        cb->client.putnodes_prepareOneFolder(&node[0], "g", false);
+        cb->prepareOneFolder(&node[0], "g", false);
 
         auto rootHandle = cb->syncSet(id).h;
         ASSERT_TRUE(cb->putnodes(rootHandle, NoVersioning, std::move(node)));
@@ -11591,7 +11656,7 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
         //
         // This is so that we can disable the sync before it transitions
         // to the monitoring state.
-        cb.client.setmaxuploadspeed(1);
+        cb.setUploadSpeed(1);
 
         // Give the sync something to backup.
         m.addfile("d/f", randomData(16384));
@@ -11605,7 +11670,7 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
 
             // get the single sync
             SyncConfig config;
-            ASSERT_TRUE(cb.client.syncs.syncConfigByBackupId(id, config)) << "BackupId: " << id << ". SyncVec is empty: " << cb.client.syncs.mSyncVecIsEmpty;
+            ASSERT_TRUE(cb.client.syncs.syncConfigByBackupId(id, config)) << "BackupId: " << id << ". SyncVec is empty: " << (cb.client.syncs.mNumSyncsActive > 0);
 
             // Make sure the sync's in mirroring mode.
             ASSERT_EQ(config.mBackupId, id);
@@ -11645,7 +11710,7 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
         // Make some changes to the cloud.
         vector<NewNode> node(1);
 
-        cf->client.putnodes_prepareOneFolder(&node[0], "g", false);
+        cf->prepareOneFolder(&node[0], "g", false);
 
         ASSERT_TRUE(cf->putnodes(rootHandle, NoVersioning, std::move(node)));
 
@@ -11687,8 +11752,8 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
     {
         vector<NewNode> nodes(2);
 
-        cf->client.putnodes_prepareOneFolder(&nodes[0], "h0", false);
-        cf->client.putnodes_prepareOneFolder(&nodes[1], "h1", false);
+        cf->prepareOneFolder(&nodes[0], "h0", false);
+        cf->prepareOneFolder(&nodes[1], "h1", false);
 
         ASSERT_TRUE(cf->putnodes(rootHandle, NoVersioning, std::move(nodes)));
     }
@@ -11800,7 +11865,7 @@ TEST_F(SyncTest, MonitoringInternalBackupResumesInMonitoringMode)
         {
             vector<NewNode> node(1);
 
-            cf->client.putnodes_prepareOneFolder(&node[0], "g", false);
+            cf->prepareOneFolder(&node[0], "g", false);
 
             ASSERT_TRUE(cf->putnodes(rootHandle, NoVersioning, std::move(node)));
         }
@@ -11844,7 +11909,7 @@ TEST_F(SyncTest, MonitoringInternalBackupResumesInMonitoringMode)
     {
         vector<NewNode> node(1);
 
-        cf->client.putnodes_prepareOneFolder(&node[0], "h", false);
+        cf->prepareOneFolder(&node[0], "h", false);
 
         ASSERT_TRUE(cf->putnodes(rootHandle, NoVersioning, std::move(node)));
     }
@@ -12566,7 +12631,7 @@ TEST_F(FilterFixture, FilterChangeWhileDownloading)
     remoteTree = localFS;
 
     // Set download speed limit at 1kbps.
-    cdu->client.setmaxdownloadspeed(1024);
+    cdu->setDownloadSpeed(1024);
 
     // So we know when f has started transferring.
     std::atomic<bool> downloadingf{false};
@@ -12649,7 +12714,7 @@ TEST_F(FilterFixture, FilterChangeWhileUploading)
     ASSERT_TRUE(CatchupClients(cd, cdu, cu));
 
     // Set upload speed limit to 1kbps.
-    cdu->client.setmaxuploadspeed(1024);
+    cdu->setUploadSpeed(1024);
 
     cdu->mOnFileAdded =
       [&](File& file)
@@ -13994,8 +14059,8 @@ TEST_F(LocalToCloudFilterFixture, FilterMovedBetweenSyncs)
         // Will be freed by putnodes_result(...).
         vector<NewNode> nodes(2);
 
-        cdu->client.putnodes_prepareOneFolder(&nodes[0], "s0", false);
-        cdu->client.putnodes_prepareOneFolder(&nodes[1], "s1", false);
+        cdu->prepareOneFolder(&nodes[0], "s0", false);
+        cdu->prepareOneFolder(&nodes[1], "s1", false);
 
         std::shared_ptr<Node> root = cdu->gettestbasenode();
 
@@ -16100,7 +16165,7 @@ TEST_F(CloudToLocalFilterFixture, MoveToIgnoredRubbishesRemote)
 
         vector<NewNode> nodes(1);
 
-        cdu->client.putnodes_prepareOneFolder(&nodes[0], "d", false);
+        cdu->prepareOneFolder(&nodes[0], "d", false);
         ASSERT_TRUE(cdu->putnodes("cdu", NoVersioning, std::move(nodes)));
 
         remoteTree.addfolder("d");
@@ -16330,7 +16395,7 @@ TEST_F(SyncTest, StallsWhenDownloadTargetHasLongName)
     {
         vector<NewNode> node(1);
 
-        c->client.putnodes_prepareOneFolder(&node[0], DIRECTORY_NAME, false);
+        c->prepareOneFolder(&node[0], DIRECTORY_NAME, false);
 
         ASSERT_TRUE(c->putnodes("s", NoVersioning, std::move(node)));
     }
@@ -16806,7 +16871,7 @@ TEST_F(SyncTest, MaximumTreeDepthBehavior)
     {
         vector<NewNode> nodes(Sync::MAX_CLOUD_DEPTH - root->depth() - 2);
 
-        client->client.putnodes_prepareOneFolder(&nodes[0], "00", false);
+        client->prepareOneFolder(&nodes[0], "00", false);
 
         nodes[0].nodehandle = 1;
         nodes[0].parenthandle = UNDEF;
@@ -16820,7 +16885,7 @@ TEST_F(SyncTest, MaximumTreeDepthBehavior)
             remoteRootPath.append(1, '/');
             remoteRootPath.append(buffer);
 
-            client->client.putnodes_prepareOneFolder(&nodes[i], std::move(buffer), false);
+            client->prepareOneFolder(&nodes[i], std::move(buffer), false);
 
             nodes[i].nodehandle = i + 1;
             nodes[i].parenthandle = i;
@@ -17520,7 +17585,7 @@ TEST_F(SyncTest, MovedSyncedFileWhileDownloadInProgress)
 
     // Throttle download speed so that we can move the local file before the
     // engine finishes downloading the latest changes from the cloud.
-    client->client.setmaxdownloadspeed(4);
+    client->setDownloadSpeed(4);
 
     // functor to detect the sync starting moves
     auto onMoveBeginHandler = [&client, &waiter](const LocalPath&, const LocalPath&) {
@@ -17574,7 +17639,7 @@ TEST_F(SyncTest, MovedSyncedFileWhileDownloadInProgress)
               future_status::timeout);
 
     // Remove the throttle, let download and move race each other
-    client->client.setmaxdownloadspeed(0);
+    client->setDownloadSpeed(0);
     waitonsyncs(TIMEOUT, client);
 
     // We expect to find the downloaded file at s/d/f even though
@@ -17590,7 +17655,7 @@ TEST_F(SyncTest, MovedSyncedFileWhileDownloadInProgress)
     // Prep to detect download starting
     waiter = promise<void>();
     client->mOnTransferAdded = detectDownloadStart;
-    client->client.setmaxdownloadspeed(4);
+    client->setDownloadSpeed(4);
 
     // Overwrite s/d/f in the cloud with new file data.
     // (this will trigger the sync to start a download of it)
@@ -17627,7 +17692,7 @@ TEST_F(SyncTest, MovedSyncedFileWhileDownloadInProgress)
     ASSERT_NE(waiter.get_future().wait_for(TIMEOUT), future_status::timeout);
 
     // let the download and the move race each other
-    client->client.setmaxdownloadspeed(0);
+    client->setDownloadSpeed(0);
     waitonsyncs(TIMEOUT, client);
 
     // check the results: new file only at s/f  (checks file content)
@@ -17645,7 +17710,7 @@ TEST_F(SyncTest, MovedSyncedFileWhileDownloadInProgress)
     // Prep to detect download starting
     waiter = promise<void>();
     client->mOnTransferAdded = detectDownloadStart;
-    client->client.setmaxdownloadspeed(4);
+    client->setDownloadSpeed(4);
 
     // Overwrite a new version of s/f in the cloud.
     {
@@ -17692,7 +17757,7 @@ TEST_F(SyncTest, MovedSyncedFileWhileDownloadInProgress)
 
     // Wait for the engine to detect and kick off the mOnMoveBegin.
     ASSERT_NE(waiter.get_future().wait_for(TIMEOUT), future_status::timeout);
-    client->client.setmaxdownloadspeed(0);
+    client->setDownloadSpeed(0);
     waitonsyncs(TIMEOUT, client);
 
     // We should detect a stall:
@@ -18242,7 +18307,7 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
 
             client1.received_node_actionpackets = false;
 
-            client2.client.putnodes_prepareOneFolder(&node[0], "w", false);
+            client2.prepareOneFolder(&node[0], "w", false);
             ASSERT_TRUE(client2.putnodes(xs->nodeHandle(), NoVersioning, std::move(node)));
             ASSERT_TRUE(client1.waitForNodesUpdated(30));
         }

@@ -1,5 +1,11 @@
 from gitlab import Gitlab  # python-gitlab
-from gitlab.v4.objects import Project, ProjectLabel, ProjectMergeRequest, ProjectTag
+from gitlab.v4.objects import (
+    CurrentUser,
+    Project,
+    ProjectLabel,
+    ProjectMergeRequest,
+    ProjectTag,
+)
 import time
 from typing import cast
 
@@ -51,6 +57,9 @@ class GitLabRepository:  # use gitlab API
             l = self._project.labels.create({"name": label_name, "color": "#8899aa"})
             assert isinstance(l, ProjectLabel)
 
+    def get_url_to_private_repo(self) -> str:
+        return self._project.ssh_url_to_repo
+
     def _get_id_of_open_mr(self, mr_title: str, mr_source: str, mr_target: str) -> int:
         mrs = self._project.mergerequests.list(
             state="opened",
@@ -62,6 +71,24 @@ class GitLabRepository:  # use gitlab API
             if mr.title == mr_title:
                 return mr.iid
         return 0
+
+    def _get_default_mr_description(self) -> str:
+        # Default MR description configured for a GitLab project is apparently
+        # not accessible, and most likely not appropriate for a Release. Use
+        # only the minimum, potentially required by pipelines.
+        description = (
+            "ANDROID_BRANCH_TO_TEST=develop\n\n"
+            "IOS_BRANCH_TO_TEST=develop\n\n"
+            # leave empty to receive default value (can be removed after CID-491):
+            "USE_APIURL_TO_TEST="
+        )
+        specific_description = {
+            "SDK": "MEGACHAT_BRANCH_TO_TEST=develop",
+            "MEGAchat": "SDK_BRANCH_TO_TEST=develop",
+        }
+        if self._project.name in specific_description:
+            description += "\n\n" + specific_description[self._project.name]
+        return description
 
     def open_mr(
         self,
@@ -76,6 +103,11 @@ class GitLabRepository:  # use gitlab API
         if mr_id > 0:
             print(f'MR with title "{mr_title}" was already opened')
             return 0, ""
+        assert isinstance(self._project.manager.gitlab.user, CurrentUser)
+
+        default_mr_description = self._get_default_mr_description()
+        if not default_mr_description:
+            print("WARN: default MR description not available, pipeline might fail")
 
         mr = self._project.mergerequests.create(
             {
@@ -86,8 +118,11 @@ class GitLabRepository:  # use gitlab API
                 "squash": squash,
                 "subscribed": True,
                 "labels": labels,
+                "assignee_id": self._project.manager.gitlab.user.id,
+                "description": default_mr_description,
             }
         )
+        assert isinstance(mr, ProjectMergeRequest)
 
         return mr.iid, mr.web_url
 
@@ -108,6 +143,7 @@ class GitLabRepository:  # use gitlab API
             if go_sleep:
                 time.sleep(sleep_interval)
             mr = self._project.mergerequests.get(mr_id)
+            assert isinstance(mr, ProjectMergeRequest)
             if mr.state != "opened":
                 print("MR waiting for approval not found")
                 return None
@@ -127,6 +163,7 @@ class GitLabRepository:  # use gitlab API
     def close_mr(self, mr_id: int):
         if self._project:
             mr = self._project.mergerequests.get(mr_id)
+            assert isinstance(mr, ProjectMergeRequest)
             mr.state_event = "close"
             mr.save()
 

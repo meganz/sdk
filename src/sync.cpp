@@ -401,6 +401,7 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
     switch(errorCode)
     {
     case NO_SYNC_ERROR:
+    case UNLOADING_SYNC:
         return "No error";
     case UNKNOWN_ERROR:
         return "Unknown error";
@@ -745,6 +746,9 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
 
     mCaseInsensitive = determineCaseInsenstivity(false);
     LOG_debug << "Sync case insensitivity for " << mLocalPath << " is " << mCaseInsensitive;
+
+    // Increment counter of active syncs.
+    ++syncs.mNumSyncsActive;
 }
 
 Sync::~Sync()
@@ -767,6 +771,9 @@ Sync::~Sync()
     // This will recursively delete all LocalNodes in the sync.
     // If they have transfers associated, the SyncUpload_inClient and SyncDownload_inClient will have their wasRequesterAbandoned flag set true
     localroot.reset();
+
+    // Decrement counter of active syncs.
+    --syncs.mNumSyncsActive;
 }
 
 bool Sync::isBackup() const
@@ -3816,6 +3823,12 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool setOriginalPath,
                 // it's already running
                 LOG_debug << "Sync with id " << backupId << " is already running";
             }
+            else if (us.mConfig.mRunState == SyncRunState::Suspend) // this actually represents "paused" syncs
+            {
+                LOG_debug << "Sync with id " << backupId << " switched to running";
+                us.mConfig.mRunState = SyncRunState::Run;
+                mClient.app->syncupdate_stateconfig(us.mConfig);
+            }
             else
             {
                 LOG_err << "Sync with id " << backupId << " already exists and should be in SyncRunState::Run(" << static_cast<int>(SyncRunState::Run) << "), however, the actual state is " << static_cast<int>(us.mConfig.mRunState) << " (state will now be set to SyncRunState::Run)";
@@ -5809,7 +5822,7 @@ void Syncs::clear_inThread(bool reopenStoreAfter)
         lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
         mSyncVec.clear();
     }
-    mSyncVecIsEmpty = true;
+    mNumSyncsActive = 0;
     if (!reopenStoreAfter)
     {
         mSyncConfigIOContext.reset();
@@ -5828,15 +5841,15 @@ void Syncs::clear_inThread(bool reopenStoreAfter)
     if (syncscanstate)
     {
         assert(onSyncThread());
-        mClient.app->syncupdate_scanning(false);
         syncscanstate = false;
+        mClient.app->syncupdate_scanning(false);
     }
 
     if (syncBusyState)
     {
         assert(onSyncThread());
-        mClient.app->syncupdate_syncing(false);
         syncBusyState = false;
+        mClient.app->syncupdate_syncing(false);
     }
 
     syncStallState = false;
@@ -5928,7 +5941,6 @@ void Syncs::appendNewSync_inThread(const SyncConfig& c, bool startSync, std::fun
     {
         lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
         mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(*this, c)));
-        mSyncVecIsEmpty = false;
     }
 
     saveSyncConfig(c);
@@ -6161,6 +6173,115 @@ SyncConfigVector Syncs::selectedSyncConfigs(std::function<bool(SyncConfig&, Sync
     return selected;
 }
 
+std::function<void(MegaClient&, TransferDbCommitter&)>
+    Syncs::prepareSdsCleanupForBackup(UnifiedSync& us, const vector<pair<handle, int>>& sds)
+{
+    us.sdsUpdateInProgress.reset(new bool(true));
+
+    LOG_debug << "SDS: preparing sds command attribute for sync/backup "
+              << toHandle(us.mConfig.mBackupId) << " on node " << us.mConfig.mRemoteNode
+              << " for execution after update requested by sds";
+
+    return [remoteNode = us.mConfig.mRemoteNode,
+            backupId = us.mConfig.mBackupId,
+            remainingSds = sds,
+            boolsptr = us.sdsUpdateInProgress](MegaClient& mc, TransferDbCommitter&) mutable
+    {
+        if (std::shared_ptr<Node> node = mc.nodeByHandle(remoteNode))
+        {
+            remainingSds.erase(std::remove_if(remainingSds.begin(),
+                                              remainingSds.end(),
+                                              [&backupId](const pair<handle, int>& sdsRequest)
+                                              {
+                                                  return sdsRequest.first == backupId;
+                                              }));
+
+            mc.setattr(
+                node,
+                attr_map(Node::sdsId(), Node::toSdsString(remainingSds)),
+                [boolsptr](NodeHandle handle, Error result)
+                {
+                    LOG_debug << "SDS: Attribute updated on " << handle << " result: " << result;
+                    *boolsptr = false;
+                },
+                true);
+        }
+    };
+}
+
+bool Syncs::processPauseResumeSyncBySds(UnifiedSync& us, vector<pair<handle, int>>& sdsBackups)
+{
+    assert(onSyncThread());
+
+    if (us.sdsUpdateInProgress && *us.sdsUpdateInProgress)
+    {
+        return false;
+    }
+
+    // find the last SDS request to Pause or Resume current sync
+    auto sdsPauseResumeRequest = std::find_if(
+        sdsBackups.rbegin(),
+        sdsBackups.rend(),
+        [id = us.mConfig.mBackupId](const pair<handle, int>& v)
+        {
+            return v.first == id && (v.second == CommandBackupPut::ACTIVE ||
+                                     v.second == CommandBackupPut::TEMPORARY_DISABLED);
+        });
+
+    if (sdsPauseResumeRequest == sdsBackups.rend())
+    {
+        return false;
+    }
+
+    auto clientRemoveSdsEntryFunction = prepareSdsCleanupForBackup(us, sdsBackups);
+
+    if ((sdsPauseResumeRequest->second == CommandBackupPut::ACTIVE && us.mConfig.mRunState == SyncRunState::Run) ||
+        (sdsPauseResumeRequest->second == CommandBackupPut::TEMPORARY_DISABLED && us.mConfig.mRunState > SyncRunState::Run))
+    {
+        // no need to change state, just do the clean-up
+        queueClient(std::move(clientRemoveSdsEntryFunction));
+    }
+
+    else if (sdsPauseResumeRequest->second == CommandBackupPut::ACTIVE)
+    {
+        // switch to Active
+        enableSyncByBackupId_inThread(
+            us.mConfig.mBackupId,
+            true,
+            [clientRemoveSdsEntryFunction, this](error err, SyncError serr, handle h) mutable
+            {
+                if (err)
+                {
+                    LOG_err << "Failed to set sync/backup " << h << " as Active. Error " << err
+                            << ". SyncError: " << serr;
+                }
+                else
+                {
+                    LOG_info << "Set sync/backup " << h << " as Active.";
+                }
+                queueClient(std::move(clientRemoveSdsEntryFunction)); // do the cleanup
+            },
+            "");
+    }
+
+    else if (sdsPauseResumeRequest->second == CommandBackupPut::TEMPORARY_DISABLED)
+    {
+        // switch to Pause
+        disableSyncByBackupId_inThread(
+            us.mConfig.mBackupId,
+            NO_SYNC_ERROR,
+            false,
+            true,
+            [h = us.mConfig.mBackupId, clientRemoveSdsEntryFunction, this]() mutable
+            {
+                LOG_info << "Set sync/backup " << h << " as Paused.";
+                queueClient(std::move(clientRemoveSdsEntryFunction)); // do the cleanup
+            });
+    }
+
+    return true; // confirm the state update request for the given sync
+}
+
 // process backup is removed by SDS if there is any
 //
 // case 1: Backup is moved from backup center to the cloud node
@@ -6186,10 +6307,17 @@ bool Syncs::processRemovingSyncBySds(UnifiedSync& us, bool foundRootNode, vector
         return true;
     }
 
-    std::function<void(MegaClient&, TransferDbCommitter&)> clientRemoveSdsEntryFunction;
-    if (checkSdsCommandsForDelete(us, sdsBackups, clientRemoveSdsEntryFunction))
+    // find any SDS request to Delete current sync
+    if ((!us.sdsUpdateInProgress || !*us.sdsUpdateInProgress) &&
+        std::find(sdsBackups.begin(),
+                  sdsBackups.end(),
+                  pair{us.mConfig.mBackupId, static_cast<int>(CommandBackupPut::DELETED)}) !=
+            sdsBackups.end())
     {
-        LOG_debug << "SDS command received to stop sync " << toHandle(us.mConfig.mBackupId);
+        LOG_debug << "SDS: command received to stop sync " << toHandle(us.mConfig.mBackupId);
+
+        auto clientRemoveSdsEntryFunction = prepareSdsCleanupForBackup(us, sdsBackups);
+
         deregisterThenRemoveSyncBySds(us, clientRemoveSdsEntryFunction);
         return true;
     }
@@ -6309,7 +6437,6 @@ bool Syncs::unloadSyncByBackupID(handle id, bool newEnabledFlag, SyncConfig& con
 
             lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
             mSyncVec.erase(mSyncVec.begin() + i);
-            mSyncVecIsEmpty = mSyncVec.empty();
             return true;
         }
     }
@@ -6503,7 +6630,6 @@ void Syncs::loadSyncConfigsOnFetchnodesComplete_inThread(bool resetSyncConfigSto
         for (auto& config : configs)
         {
             mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(*this, config)));
-            mSyncVecIsEmpty = false;
         }
     }
 
@@ -11889,53 +12015,6 @@ void SyncConfigIOContext::serialize(const SyncConfig& config,
     writer.endobject();
 }
 
-bool Syncs::checkSdsCommandsForDelete(UnifiedSync& us, vector<pair<handle, int>>& sdsBackups, std::function<void(MegaClient&, TransferDbCommitter&)>& clientRemoveSdsEntryFunction)
-{
-    assert(onSyncThread());
-    if (us.sdsUpdateInProgress && *us.sdsUpdateInProgress) return false;
-
-    bool deleteSync = false;
-
-    // check if any command arrived from backupcentre to stop any syncs
-    for (auto it  = sdsBackups.begin(); it != sdsBackups.end(); )
-    {
-        if (it->first == us.mConfig.mBackupId)
-        {
-            if (it->second == CommandBackupPut::DELETED)
-            {
-                deleteSync = true;
-            }
-            it = sdsBackups.erase(it);
-            us.sdsUpdateInProgress.reset(new bool(true));
-        }
-        else ++it;
-    }
-
-    if (us.sdsUpdateInProgress && *us.sdsUpdateInProgress)
-    {
-        LOG_debug << "SDS: preparing sds command attribute for sync/backup " << toHandle(us.mConfig.mBackupId) << " on node " << us.mConfig.mRemoteNode << " for execution after sync removal";
-
-        auto sdsCopy = sdsBackups;
-        auto remoteNode = us.mConfig.mRemoteNode;
-        auto boolsptr = us.sdsUpdateInProgress;
-        clientRemoveSdsEntryFunction = [remoteNode, sdsCopy, boolsptr](MegaClient& mc, TransferDbCommitter& committer)
-        {
-            if (std::shared_ptr<Node> node = mc.nodeByHandle(remoteNode))
-            {
-                mc.setattr(node,
-                        attr_map(Node::sdsId(), Node::toSdsString(sdsCopy)),
-                        [boolsptr](NodeHandle handle, Error result) {
-                            LOG_debug << "SDS: Attribute updated on " << handle << " result: " << result;
-                            *boolsptr = false;
-                        },
-                        true);
-            }
-        };
-    }
-
-    return deleteSync;
-}
-
 
 void Syncs::syncLoop()
 {
@@ -12057,6 +12136,10 @@ void Syncs::syncLoop()
                                                     &sdsBackups);
 
             if (processRemovingSyncBySds(*us.get(), foundRootNode, sdsBackups))
+            {
+                continue;
+            }
+            else if (foundRootNode && processPauseResumeSyncBySds(*us.get(), sdsBackups))
             {
                 continue;
             }
@@ -12411,8 +12494,8 @@ void Syncs::syncLoop()
             if (anySyncScanning != syncscanstate)
             {
                 assert(onSyncThread());
-                mClient.app->syncupdate_scanning(anySyncScanning);
                 syncscanstate = anySyncScanning;
+                mClient.app->syncupdate_scanning(anySyncScanning);
             }
 
             // Process syncing updates
@@ -12420,8 +12503,8 @@ void Syncs::syncLoop()
             if (anySyncBusy != syncBusyState)
             {
                 assert(onSyncThread());
-                mClient.app->syncupdate_syncing(anySyncBusy);
                 syncBusyState = anySyncBusy;
+                mClient.app->syncupdate_syncing(anySyncBusy);
             }
 
             // Process stall issues

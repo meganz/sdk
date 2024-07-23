@@ -65,7 +65,7 @@
         },
         {
             "name": "curl",
-            "version>=": "8.4.0"
+            "version>=": "8.6.0"
         },
         "icu",
         "libsodium",

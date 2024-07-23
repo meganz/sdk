@@ -40,10 +40,12 @@ struct Syncs;
 
 class HeartBeatBackupInfo
 {
+    bool mModified = false;
+
 public:
     HeartBeatBackupInfo();
-    HeartBeatBackupInfo(HeartBeatBackupInfo&&) = default;
-    HeartBeatBackupInfo& operator=(HeartBeatBackupInfo&&) = default;
+    HeartBeatBackupInfo(HeartBeatBackupInfo&&) = delete;
+    HeartBeatBackupInfo& operator=(HeartBeatBackupInfo&&) = delete;
     virtual ~HeartBeatBackupInfo() = default;
 
     virtual m_time_t lastAction() const;
@@ -55,8 +57,7 @@ public:
     virtual void setLastAction(const m_time_t &lastAction);
     virtual void setLastSyncedItem(const handle &lastItemUpdated);
 
-    bool mModified = false;
-    bool mSending = false;
+    std::atomic<bool> mSending{false};
 
 protected:
     handle mLastItemUpdated = UNDEF; // handle of node most recently updated

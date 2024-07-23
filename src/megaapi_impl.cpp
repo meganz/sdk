@@ -1385,13 +1385,12 @@ MegaError* MegaApiImpl::isNodeSyncableWithError(MegaNode* megaNode) {
 
 bool MegaApiImpl::isScanning()
 {
-    // this flag purposely doesn't need locking
-    return client->syncs.syncscanstate;
+    return receivedScanningStateFlag.load();
 }
 
 bool MegaApiImpl::isSyncing()
 {
-    return client->syncs.syncBusyState;
+    return receivedSyncingStateFlag.load();
 }
 
 MegaSync *MegaApiImpl::getSyncByBackupId(mega::MegaHandle backupId)
@@ -6905,17 +6904,14 @@ bool MegaApiImpl::accountIsNew() const
 
 unsigned int MegaApiImpl::getABTestValue(const char* flag)
 {
-    if (!flag) return 0;
-
-    SdkMutexGuard g(sdkMutex);
-    auto it = client->mABTestFlags.find(flag);
-    if (it != client->mABTestFlags.end())
+    if (!flag) return 0u;
+    unique_ptr<uint32_t> v = client->mABTestFlags.get(flag);
+    if (v)
     {
         sendABTestActive(flag, nullptr);
-        return it->second;
     }
 
-    return 0;
+    return v ? *v : 0u;
 }
 
 void MegaApiImpl::sendABTestActive(const char* flag, MegaRequestListener* listener)
@@ -13900,6 +13896,7 @@ void MegaApiImpl::syncupdate_stats(handle backupId, const PerSyncStats& stats)
 
 void MegaApiImpl::syncupdate_scanning(bool scanning)
 {
+    receivedScanningStateFlag.store(scanning);
     fireOnGlobalSyncStateChanged();
 }
 
@@ -13935,6 +13932,7 @@ void MegaApiImpl::syncupdate_totalconflicts(bool totalconflicts)
 
 void MegaApiImpl::syncupdate_syncing(bool syncing)
 {
+    receivedSyncingStateFlag.store(syncing);
     fireOnGlobalSyncStateChanged();
 }
 
@@ -15147,6 +15145,8 @@ void MegaApiImpl::logout_result(error e, MegaRequestPrivate* request)
         receivedNameConflictsFlag.store(false);
         receivedTotalStallsFlag.store(false);
         receivedTotalNameConflictsFlag.store(false);
+        receivedScanningStateFlag.store(false);
+        receivedSyncingStateFlag.store(false);
         mAddressedStallFilter.clear();
 #endif
 
@@ -19871,6 +19871,9 @@ void MegaApiImpl::moveNode(MegaNode* node, MegaNode* newParent, const char* newN
 
                 unsigned nc;
                 TreeProcCopy tc;
+                const bool fullInternalOperation = node && newParent && node->owner == client->me &&
+                                                   client->me == newParent->owner;
+                tc.resetSensitive = !fullInternalOperation;
                 NodeHandle ovhandle;
 
                 if (node->type == FILENODE)
@@ -19930,6 +19933,12 @@ void MegaApiImpl::moveNode(MegaNode* node, MegaNode* newParent, const char* newN
                     AttrMap attrs = node->attrs;
                     attrs.map['n'] = newName;
 
+                    // We need to ensure we are not undoing the sensitive reset
+                    if (tc.resetSensitive && attrs.map.erase(AttrMap::string2nameid("sen")))
+                    {
+                        LOG_debug << "Removing sen attribute";
+                    }
+
                     string attrstring;
                     attrs.getjson(&attrstring);
 
@@ -19947,6 +19956,11 @@ void MegaApiImpl::moveNode(MegaNode* node, MegaNode* newParent, const char* newN
                     // Add attribute to a copy of old attributes
                     AttrMap attrs = node->attrs;
                     attrs.map[rrname] = rrvalue;
+                    // Again, need to ensure we are not undoing the sensitive reset
+                    if (tc.resetSensitive && attrs.map.erase(AttrMap::string2nameid("sen")))
+                    {
+                        LOG_debug << "Removing sen attribute when moving node to trash";
+                    }
 
                     // Magic incantations for setting attributes
                     string attrstring;
@@ -20147,8 +20161,14 @@ error MegaApiImpl::copyTreeFromOwnedNode(shared_ptr<Node> node, const char* newN
 
     // determine number of nodes to be copied
     TreeProcCopy tc;
+    const bool fullInternalOperation =
+        node && target && node->owner == client->me && client->me == target->owner;
+    tc.resetSensitive = !fullInternalOperation;
     client->proctree(node, &tc, false, !ovhandle.isUndef());
     tc.allocnodes();
+
+    // If the sensitivity was reset, the file didn't exist
+    fileAlreadyExisted = fileAlreadyExisted && !(tc.resetSensitive && node->isMarkedSensitive());
 
     // build new nodes array
     client->proctree(node, &tc, false, !ovhandle.isUndef());
@@ -20171,6 +20191,12 @@ error MegaApiImpl::copyTreeFromOwnedNode(shared_ptr<Node> node, const char* newN
         attrs = node->attrs;
 
         attrs.map['n'] = sname;
+
+        // We need to ensure we are not undoing the sensitive reset
+        if (tc.resetSensitive && attrs.map.erase(AttrMap::string2nameid("sen")))
+        {
+            LOG_debug << "Removing sen attribute";
+        }
 
         attrs.getjson(&attrstring);
         client->makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
@@ -23204,17 +23230,26 @@ void MegaApiImpl::creditCardQuerySubscriptions(MegaRequestListener* listener)
     waiter->notify();
 }
 
-void MegaApiImpl::creditCardCancelSubscriptions(const char* reason, MegaRequestListener* listener)
+void MegaApiImpl::creditCardCancelSubscriptions(const char* reason,
+                                                const char* id,
+                                                int canContact,
+                                                MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS, listener);
     request->setText(reason);
+    request->setName(id);
+    request->setNumDetails(canContact);
 
     request->performRequest = [this, request]()
-        {
-            const char* reason = request->getText();
-            client->creditcardcancelsubscriptions(reason);
-            return API_OK;
+    {
+        CommandCreditCardCancelSubscriptions::CancelSubscription cancelSubscription{
+            request->getText(), // reason
+            request->getName(), // id
+            request->getNumDetails(), // canContact
         };
+        client->creditcardcancelsubscriptions(cancelSubscription);
+        return API_OK;
+    };
 
     requestQueue.push(request);
     waiter->notify();
@@ -23291,7 +23326,7 @@ void MegaApiImpl::sendEvent(int eventType, const char* message, bool addJourneyI
                 { 99600,  100000}, // WebClient range.
                 {100000,  300000}, // API extended range.
                 {500000,  600000}, // WebClient extended range.
-                {700000,  800000}, // API extended range.
+                {750000,  800000}, // API extended range.
                 {900000, INT_MAX}  // Unassigned.
             }; // excluded
 
@@ -25022,6 +25057,40 @@ void MegaApiImpl::removeFromBC(MegaHandle backupId, MegaHandle moveDestination, 
         auto finalCompletion = [this, request](Error e) { fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e)); };
 
         client->removeFromBC(request->getParentHandle(), request->getNodeHandle(), finalCompletion);
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::pauseFromBC(MegaHandle backupId, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_BACKUP_PAUSE_MD, listener);
+    request->setParentHandle(backupId);
+
+    request->performRequest = [this, request]()
+    {
+        auto finalCompletion = [this, request](const Error& e) { fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e)); };
+
+        client->updateStateInBC(request->getParentHandle(), CommandBackupPut::TEMPORARY_DISABLED, finalCompletion);
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::resumeFromBC(MegaHandle backupId, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_BACKUP_RESUME_MD, listener);
+    request->setParentHandle(backupId);
+
+    request->performRequest = [this, request]()
+    {
+        auto finalCompletion = [this, request](const Error& e) { fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e)); };
+
+        client->updateStateInBC(request->getParentHandle(), CommandBackupPut::ACTIVE, finalCompletion);
         return API_OK;
     };
 
@@ -27301,14 +27370,11 @@ error MegaApiImpl::getLastActionedBanner_getua_result(byte* data, unsigned len, 
     return e;
 }
 
-MegaFlagPrivate* MegaApiImpl::getFlag(const char* flagName, bool commit, MegaRequestListener* listener)
+MegaFlagPrivate* MegaApiImpl::getFlag(const char* flagName,
+                                      bool commit,
+                                      MegaRequestListener* listener)
 {
-    std::pair<uint32_t, uint32_t> flag;
-
-    {
-        SdkMutexGuard g(sdkMutex);
-        flag = client->getFlag(flagName, commit);
-    }
+    std::pair<uint32_t, uint32_t> flag = client->getFlag(flagName);
 
     if (flag.first == static_cast<decltype(flag.first)>(MegaFlag::FLAG_TYPE_AB_TEST) && commit)
     {
@@ -27592,47 +27658,93 @@ bool MegaHashSignatureImpl::checkSignature(const char *base64Signature)
 
 int MegaAccountDetailsPrivate::getProLevel()
 {
-    return details.pro_level;
+    for (const auto& plan: details.plans)
+    {
+        if (plan.isProPlan())
+        {
+            return plan.level;
+        }
+    }
+
+    return MegaAccountDetails::ACCOUNT_TYPE_FREE;
 }
 
 int64_t MegaAccountDetailsPrivate::getProExpiration()
 {
-    return details.pro_until;
+    for (const auto& plan: details.plans)
+    {
+        if (plan.isProPlan())
+        {
+            return plan.expiration;
+        }
+    }
+
+    return MEGA_INVALID_TIMESTAMP;
 }
 
 int MegaAccountDetailsPrivate::getSubscriptionStatus()
 {
-    if(details.subscription_type == 'S')
+    // Consider only the first subscription
+    if (!details.subscriptions.empty())
     {
-        return MegaAccountDetails::SUBSCRIPTION_STATUS_VALID;
+        char subType = details.subscriptions.front().type;
+
+        if (subType == 'S')
+        {
+            return MegaAccountSubscription::SUBSCRIPTION_STATUS_VALID;
+        }
+
+        if (subType == 'R')
+        {
+            return MegaAccountSubscription::SUBSCRIPTION_STATUS_INVALID;
+        }
     }
 
-    if(details.subscription_type == 'R')
-    {
-        return MegaAccountDetails::SUBSCRIPTION_STATUS_INVALID;
-    }
-
-    return MegaAccountDetails::SUBSCRIPTION_STATUS_NONE;
+    return MegaAccountSubscription::SUBSCRIPTION_STATUS_NONE;
 }
 
 int64_t MegaAccountDetailsPrivate::getSubscriptionRenewTime()
 {
-    return details.subscription_renew;
+    // Consider only the first subscription
+    if (!details.subscriptions.empty())
+    {
+        return details.subscriptions.front().renew;
+    }
+
+    return MEGA_INVALID_TIMESTAMP;
 }
 
 char *MegaAccountDetailsPrivate::getSubscriptionMethod()
 {
-    return MegaApi::strdup(details.subscription_method.c_str());
+    // Consider only the first subscription
+    if (!details.subscriptions.empty())
+    {
+        return MegaApi::strdup(details.subscriptions.front().paymentMethod.c_str());
+    }
+
+    return new char{'\0'};
 }
 
 int MegaAccountDetailsPrivate::getSubscriptionMethodId()
 {
-    return details.subscription_method_id;
+    // Consider only the first subscription
+    if (!details.subscriptions.empty())
+    {
+        return details.subscriptions.front().paymentMethodId;
+    }
+
+    return MegaAccountDetails::ACCOUNT_TYPE_FREE;
 }
 
 char *MegaAccountDetailsPrivate::getSubscriptionCycle()
 {
-    return MegaApi::strdup(details.subscription_cycle);
+    // Consider only the first subscription
+    if (!details.subscriptions.empty())
+    {
+        return MegaApi::strdup(details.subscriptions.front().cycle.c_str());
+    }
+
+    return new char{'\0'};
 }
 
 long long MegaAccountDetailsPrivate::getStorageMax()
@@ -27851,17 +27963,61 @@ MegaAccountFeature* MegaAccountDetailsPrivate::getActiveFeature(int featureIndex
 
 int64_t MegaAccountDetailsPrivate::getSubscriptionLevel() const
 {
-    return details.slevel;
+    // Consider only the first subscription
+    if (!details.subscriptions.empty())
+    {
+        return details.subscriptions.front().level;
+    }
+
+    return MegaAccountDetails::ACCOUNT_TYPE_FREE;
 }
 
 MegaStringIntegerMap* MegaAccountDetailsPrivate::getSubscriptionFeatures() const
 {
     MegaStringIntegerMapPrivate* subscriptionFeatures = new MegaStringIntegerMapPrivate();
-    for (const auto& f : details.sfeatures)
+    // Consider only the first subscription
+    if (!details.subscriptions.empty())
     {
-        subscriptionFeatures->set(f.first, f.second);
+        for (const auto& f: details.subscriptions.front().features)
+        {
+            // Since all the received features are active, all have a 1.
+            // Hardcoded to keep the interface.
+            subscriptionFeatures->set(f, 1);
+        }
     }
+
     return subscriptionFeatures;
+}
+
+int MegaAccountDetailsPrivate::getNumSubscriptions() const
+{
+    return static_cast<int>(details.subscriptions.size());
+}
+
+MegaAccountSubscription* MegaAccountDetailsPrivate::getSubscription(int featureIndex) const
+{
+    size_t index = static_cast<size_t>(featureIndex);
+    if (index < details.subscriptions.size())
+    {
+        return MegaAccountSubscriptionPrivate::fromAccountSubscription(
+            details.subscriptions[index]);
+    }
+    return nullptr;
+}
+
+int MegaAccountDetailsPrivate::getNumPlans() const
+{
+    return static_cast<int>(details.plans.size());
+}
+
+MegaAccountPlan* MegaAccountDetailsPrivate::getPlan(int featureIndex) const
+{
+    size_t index = static_cast<size_t>(featureIndex);
+    if (index < details.plans.size())
+    {
+        return MegaAccountPlanPrivate::fromAccountPlan(details.plans[index]);
+    }
+    return nullptr;
 }
 
 MegaErrorPrivate::MegaErrorPrivate(int errorCode)
@@ -28749,7 +28905,118 @@ char* MegaAccountFeaturePrivate::getId() const
     return MegaApi::strdup(mFeature.featureId.c_str());
 }
 
+MegaAccountSubscriptionPrivate*
+    MegaAccountSubscriptionPrivate::fromAccountSubscription(const AccountSubscription& subscription)
+{
+    return new MegaAccountSubscriptionPrivate(subscription);
+}
 
+MegaAccountSubscriptionPrivate::MegaAccountSubscriptionPrivate(
+    const AccountSubscription& subscription)
+{
+    mSubscription = subscription;
+}
+
+char* MegaAccountSubscriptionPrivate::getId() const
+{
+    return MegaApi::strdup(mSubscription.id.c_str());
+}
+
+int MegaAccountSubscriptionPrivate::getStatus() const
+{
+    if (mSubscription.type == 'S')
+    {
+        return MegaAccountSubscription::SUBSCRIPTION_STATUS_VALID;
+    }
+
+    if (mSubscription.type == 'R')
+    {
+        return MegaAccountSubscription::SUBSCRIPTION_STATUS_INVALID;
+    }
+
+    return MegaAccountSubscription::SUBSCRIPTION_STATUS_NONE;
+}
+
+char* MegaAccountSubscriptionPrivate::getCycle() const
+{
+    return MegaApi::strdup(mSubscription.cycle.c_str());
+}
+
+char* MegaAccountSubscriptionPrivate::getPaymentMethod() const
+{
+    return MegaApi::strdup(mSubscription.paymentMethod.c_str());
+}
+
+int32_t MegaAccountSubscriptionPrivate::getPaymentMethodId() const
+{
+    return mSubscription.paymentMethodId;
+}
+
+int64_t MegaAccountSubscriptionPrivate::getRenewTime() const
+{
+    return mSubscription.renew;
+}
+
+int32_t MegaAccountSubscriptionPrivate::getAccountLevel() const
+{
+    return mSubscription.level;
+}
+
+MegaStringList* MegaAccountSubscriptionPrivate::getFeatures() const
+{
+    MegaStringListPrivate* subscriptionFeatures = new MegaStringListPrivate();
+    for (const auto& f: mSubscription.features)
+    {
+        subscriptionFeatures->add(f.c_str());
+    }
+    return subscriptionFeatures;
+}
+
+MegaAccountPlanPrivate* MegaAccountPlanPrivate::fromAccountPlan(const AccountPlan& plan)
+{
+    return new MegaAccountPlanPrivate(plan);
+}
+
+MegaAccountPlanPrivate::MegaAccountPlanPrivate(const AccountPlan& plan)
+{
+    mPlan = plan;
+}
+
+bool MegaAccountPlanPrivate::isProPlan() const
+{
+    return (mPlan.level > MegaAccountDetails::ACCOUNT_TYPE_FREE &&
+            mPlan.level != MegaAccountDetails::ACCOUNT_TYPE_FEATURE);
+}
+
+int32_t MegaAccountPlanPrivate::getAccountLevel() const
+{
+    return mPlan.level;
+}
+
+MegaStringList* MegaAccountPlanPrivate::getFeatures() const
+{
+    MegaStringListPrivate* planFeatures = new MegaStringListPrivate();
+    for (const auto& f: mPlan.features)
+    {
+        planFeatures->add(f.c_str());
+    }
+    return planFeatures;
+}
+
+int64_t MegaAccountPlanPrivate::getExpirationTime() const
+{
+    return mPlan.expiration;
+}
+
+int32_t MegaAccountPlanPrivate::getType() const
+{
+    return mPlan.type;
+}
+
+char* MegaAccountPlanPrivate::getId() const
+{
+    return MegaApi::strdup(mPlan.subscriptionId.c_str());
+}
 
 ExternalInputStream::ExternalInputStream(MegaInputStream *inputStream)
 {
@@ -30259,11 +30526,10 @@ void MegaScheduledCopyController::setPeriod(const int64_t &value)
 
     if (value != -1)
     {
-        auto ds = static_cast<int64_t>(Waiter::ds.load());
-
-        offsetds  = m_time(NULL) * 10 - ds;
-        startTime = lastbackuptime ? lastbackuptime + period - offsetds : ds;
-        startTime = std::max(startTime, ds);
+        int64_t ds = Waiter::ds.load();
+        offsetds   = m_time(NULL) * 10 - ds;
+        startTime  = lastbackuptime ? (lastbackuptime + period - offsetds) : ds;
+        startTime  = std::max(startTime, ds);
     }
 }
 

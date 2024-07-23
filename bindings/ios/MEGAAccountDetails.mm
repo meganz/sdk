@@ -65,8 +65,8 @@ using namespace mega;
     return self.accountDetails ? self.accountDetails->getStorageMax(): -1;
 }
 
-- (long long)transferOwnUsed {
-    return self.accountDetails ? self.accountDetails->getTransferOwnUsed(): -1;
+- (long long)transferUsed {
+    return self.accountDetails ? self.accountDetails->getTransferUsed(): -1;
 }
 
 - (long long)transferMax {

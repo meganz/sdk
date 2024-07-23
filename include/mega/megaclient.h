@@ -541,9 +541,9 @@ public:
     bool accountIsNew = false;
 
     // AB Test flags
-    std::map<string, uint32_t> mABTestFlags;
+    ThreadSafeKeyValue<string, uint32_t> mABTestFlags;
 
-    std::map<string, uint32_t> mFeatureFlags;
+    ThreadSafeKeyValue<string, uint32_t> mFeatureFlags;
 
 private:
     // Pro Flexi plan is enabled
@@ -1120,7 +1120,8 @@ public:
     void creditcardquerysubscriptions();
 
     // cancel credit card subscriptions
-    void creditcardcancelsubscriptions(const char *reason = NULL);
+    void creditcardcancelsubscriptions(
+        const CommandCreditCardCancelSubscriptions::CancelSubscription& cancelSubscription);
 
     // get payment methods
     void getpaymentmethods();
@@ -2171,6 +2172,9 @@ public:
     // create a new folder with given name and stores its node's handle into the user's attribute ^!bak
     error setbackupfolder(const char* foldername, int tag, std::function<void(Error)> addua_completion);
 
+    // fetch backups and syncs from BC, search bkpId among them, pause/resume the backup or sync, update sds attribute
+    void updateStateInBC(handle bkpId, CommandBackupPut::SPState newState, std::function<void(const Error&)> f);
+
     // fetch backups and syncs from BC, search bkpId among them, disable the backup or sync, update sds attribute, for a backup move or delete its contents
     void removeFromBC(handle bkpId, handle bkpDest, std::function<void(const Error&)> f);
 
@@ -2687,7 +2691,7 @@ public:
     void setEnabledNotifications(std::vector<uint32_t>&& notifs) { mEnabledNotifications = std::move(notifs); }
     const std::vector<uint32_t>& getEnabledNotifications() const { return mEnabledNotifications; }
     void getNotifications(CommandGetNotifications::ResultFunc onResult);
-    std::pair<uint32_t, uint32_t> getFlag(const char* flagName, bool commit);
+    std::pair<uint32_t, uint32_t> getFlag(const char* flagName);
 
     using GetJSCDataCallback = std::function<void(JSCData, Error)>;
 

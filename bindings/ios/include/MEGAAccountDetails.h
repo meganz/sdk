@@ -63,9 +63,9 @@ typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
 @property (readonly, nonatomic) long long storageMax;
 
 /**
- * @brief Used bandwidth for the account (in bytes).
+ * @brief Used bandwidth allowance including own, free and served to other users (in bytes).
  */
-@property (readonly, nonatomic) long long transferOwnUsed;
+@property (readonly, nonatomic) long long transferUsed;
 
 /**
  * @brief Maximum available bandwidth for the account (in bytes).
