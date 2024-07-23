@@ -48,16 +48,11 @@ Some common development tools should be available in the system to be able to bu
 
 #### Windows
 
-Ensure you have installed Visual Studio, with the necessary components for building C++ sources, and the Windows SDK on your system.
+Ensure you have installed Visual Studio, with the necessary components for building C++ sources, and the Windows SDK on your system:
 
-We recommend using the following version of the above mentioned tools:
- - Visual Studio 2019
+ - [Visual Studio 2019](https://visualstudio.microsoft.com/vs/older-downloads/)
  - MSVC v142
  - Windows 10 SDK (10.0.19041.0)
-
-Other versions could work to compile the project but have not been fully tested
-
-You can download Visual Studio 2019 here: https://visualstudio.microsoft.com/vs/older-downloads/
 
 #### MacOS
 
