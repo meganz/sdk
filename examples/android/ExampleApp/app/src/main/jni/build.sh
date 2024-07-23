@@ -109,7 +109,7 @@ CRASHLYTICS_DEST_PATH=mega/sdk/third_party
 CSVPARSER=csvparser
 CSVPARSER_DOWNLOAD_URL=https://raw.githubusercontent.com/vincentlaucsb/csv-parser/9f8a7210c8a6c4bf1ec41543510ad20f55b7f288/single_include/csv.hpp
 CSVPARSER_SOURCE_FILE=csv.hpp
-CSVPARSER_DEST_PATH=mega/sdk/third_party
+CSVPARSER_DEST_PATH=mega/sdk/third_party/vincentlaucsb-csv-parser
 
 OPENSSL=openssl
 OPENSSL_VERSION="3.1.1"
@@ -490,6 +490,7 @@ echo "* crashlytics is ready"
 
 echo "* Setting up csvparser"
 if [ ! -f ${CURL}/${CSVPARSER_SOURCE_FILE}.ready ]; then
+    mkdir -p ${CSVPARSER_DEST_PATH}
     wget ${CSVPARSER_DOWNLOAD_URL} -O ${CSVPARSER_DEST_PATH}/${CSVPARSER_SOURCE_FILE} &>> ${LOG_FILE} || \
         curl -L -o ${CSVPARSER_DEST_PATH}/${CSVPARSER_SOURCE_FILE} ${CSVPARSER_DOWNLOAD_URL} &>> ${LOG_FILE}
 

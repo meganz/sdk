@@ -4,7 +4,7 @@ CXX=g++
 SWIG=swig
 JAVAC=javac
 
-CPPFLAGS=-Wall -fPIC -g -isystem /usr/include/cryptopp -I /usr/local/include/ -I . -I include
+CPPFLAGS=-Wall -fPIC -g -isystem /usr/include/cryptopp -I /usr/local/include/ -I . -I include -I third_party
 
 CFLAGS_JAVA_LIBRARY= -I /usr/lib/jvm/java/include/ -I /usr/lib/jvm/java/include/linux
 CFLAGS_PYTHON_LIBRARY= -I /usr/include/python2.7
