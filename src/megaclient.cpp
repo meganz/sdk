@@ -20558,29 +20558,53 @@ void MegaClient::createPasswordManagerBase(int rTag, CommandCreatePasswordManage
 error MegaClient::createPasswordNode(const char* name, std::unique_ptr<AttrMap> data,
                                      std::shared_ptr<Node> nParent, int rTag)
 {
-    assert(nParent);
-    assert(name && *name);
+    std::map<std::string, std::unique_ptr<AttrMap>> aux;
+    aux[name] = std::move(data);
+    return createPasswordNodes(std::move(aux), nParent, rTag);
+}
 
-    const bool pwdPresent = data && (data->map.contains(AttrMap::string2nameid(PWM_ATTR_PASSWORD_PWD)));
-    if (!(pwdPresent && nParent->isPasswordNodeFolder()))
+error MegaClient::createPasswordNodes(const std::map<std::string, std::unique_ptr<AttrMap>>& data,
+                                      std::shared_ptr<Node> nParent,
+                                      int rTag)
+{
+    assert(nParent);
+    if (!nParent->isPasswordNodeFolder())
     {
-        LOG_err << "Password Manager: failed Password Node creation wrong paramenters "
-                << (pwdPresent ? "" : "password ")
-                << (nParent->isPasswordNodeFolder() ? "" : "Password Node Folder parent handle");
+        LOG_err << "Password Manager: failed Password Node creation wrong parameters: Password "
+                   "Node Folder parent handle";
         return API_EARGS;
     }
 
-    std::vector<NewNode> nn(1);
-    NewNode& newPasswordNode = nn.front();
-    const auto d = data.get();  // lambda capture initializers are C++14 so can't pass an std::unique_ptr
-    const auto addAttrs = [this, d](AttrMap& attrs) { preparePasswordNodeData(attrs.map, *d); };
+    std::vector<NewNode> nn(data.size());
+    size_t nodeToFillIndex = 0;
     const bool canChangeVault = true;
-    putnodes_prepareOneFolder(&newPasswordNode, name, canChangeVault, addAttrs);
-    // setting newPasswordNode.parenthandle will cause API_EARGS on request response
+    for (const auto& [name, dataAttrMap]: data)
+    {
+        assert(!name.empty() && dataAttrMap);
+        if (const bool pwdPresent =
+                dataAttrMap &&
+                (dataAttrMap->map.contains(AttrMap::string2nameid(PWM_ATTR_PASSWORD_PWD)));
+            !pwdPresent)
+        {
+            LOG_err << "Password Manager: failed Password Node creation wrong parameters: Password "
+                       "missing for entry with name "
+                    << name;
+            return API_EARGS;
+        }
+        const auto addAttrs = [this, d = dataAttrMap.get()](AttrMap& attrs)
+        {
+            preparePasswordNodeData(attrs.map, *d);
+        };
+        NewNode& newPasswordNode = nn[nodeToFillIndex++];
+        putnodes_prepareOneFolder(&newPasswordNode, name, canChangeVault, addAttrs);
+    }
     const char* cauth = nullptr;
-
-    putnodes(nParent->nodeHandle(), VersioningOption::NoVersioning, std::move(nn), cauth, rTag, canChangeVault);
-
+    putnodes(nParent->nodeHandle(),
+             VersioningOption::NoVersioning,
+             std::move(nn),
+             cauth,
+             rTag,
+             canChangeVault);
     return API_OK;
 }
 
