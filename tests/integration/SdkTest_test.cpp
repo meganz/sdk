@@ -19392,6 +19392,8 @@ TEST_F(SdkTest, DynamicMessageNotifs)
  *  - Check description
  *  - Update description
  *  - Remove description
+ *  - Update the contents of the file to create a new version
+ *  - Check the description is retained across versions
  *
  */
 TEST_F(SdkTest, SdkNodeDescription)
@@ -19403,7 +19405,7 @@ TEST_F(SdkTest, SdkNodeDescription)
     ASSERT_TRUE(rootnodeA);
 
     string filename = "test.txt";
-    createFile(filename, false);
+    sdk_test::LocalTempFile testTempFile(filename, 0);
     MegaHandle mh = 0;
     ASSERT_EQ(MegaError::API_OK,
               doStartUpload(0,
@@ -19501,7 +19503,9 @@ TEST_F(SdkTest, SdkNodeDescription)
     // Remove description
     changeNodeDescription(mh, nullptr);
 
-    changeNodeDescription(mh, "This is a description with *stars* to test if it's found correctly");
+    const std::string lastDescription{
+        "This is a description with *stars* to test if it's found correctly"};
+    changeNodeDescription(mh, lastDescription.c_str());
 
     MegaHandle nodeCopiedHandle = UNDEF;
     ASSERT_EQ(API_OK, doCopyNode(0, &nodeCopiedHandle, node.get(), rootnodeA.get(), "test2.txt")) << "Cannot create a copy of a node";
@@ -19516,7 +19520,39 @@ TEST_F(SdkTest, SdkNodeDescription)
     nodeList.reset(megaApi[0]->search(filter.get()));
     ASSERT_EQ(nodeList->size(), 1);
 
-    deleteFile(filename);
+    LOG_debug
+        << "[SdkTest::SdkNodeDescription] Changing the contents of test.txt to force a new version";
+    const std::string newVersionFileName = "test_new_version.txt";
+    sdk_test::LocalTempFile fNewVersion(newVersionFileName, 1);
+    MegaHandle mhNew = INVALID_HANDLE;
+    ASSERT_EQ(MegaError::API_OK,
+              doStartUpload(0,
+                            &mhNew,
+                            newVersionFileName.c_str(),
+                            rootnodeA.get(),
+                            filename.c_str(),
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << "Cannot update the test file";
+    ASSERT_NE(mhNew, INVALID_HANDLE);
+
+    std::unique_ptr<MegaNode> oldNode(megaApi[0]->getNodeByHandle(mh));
+    ASSERT_NE(oldNode, nullptr);
+
+    std::unique_ptr<MegaNode> newNode(megaApi[0]->getNodeByHandle(mhNew));
+    ASSERT_NE(newNode, nullptr);
+
+    // Check there are two versions for the file
+    unique_ptr<MegaNodeList> allVersions(megaApi[0]->getVersions(newNode.get()));
+    ASSERT_EQ(allVersions->size(), 2);
+
+    EXPECT_STREQ(oldNode->getDescription(), newNode->getDescription())
+        << "Description is not maintained after file update";
+    EXPECT_STREQ(oldNode->getDescription(), lastDescription.c_str())
+        << "The description of the old version has changed";
 }
 
 /**
@@ -19533,6 +19569,11 @@ TEST_F(SdkTest, SdkNodeDescription)
  *  - Update tag1 to tagUpdated -> API_OK
  *  - Update tag2 to tagUpdated -> API_EEXIST
  *  - Update tag1 to tagUpdated2 -> API_ENOENT
+ *  - Create another file inside a subdir
+ *  - Add some tags to it
+ *  - Get all different node tags
+ *  - Update file to create a new version
+ *  - Check new version retains the same tags
  */
 TEST_F(SdkTest, SdkNodeTag)
 {
@@ -19542,13 +19583,13 @@ TEST_F(SdkTest, SdkNodeTag)
     unique_ptr<MegaNode> rootnodeA(megaApi[0]->getRootNode());
     ASSERT_TRUE(rootnodeA);
 
-    string filename = "test.txt";
-    createFile(filename, false);
+    fs::path filename{"test.txt"};
+    sdk_test::LocalTempFile tempLocalFile1(filename, 0);
     MegaHandle mh = 0;
     ASSERT_EQ(MegaError::API_OK,
               doStartUpload(0,
                             &mh,
-                            filename.data(),
+                            filename.u8string().c_str(),
                             rootnodeA.get(),
                             nullptr /*fileName*/,
                             ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
@@ -19641,6 +19682,14 @@ TEST_F(SdkTest, SdkNodeTag)
         return (checkTag(node.get(), tag) && !checkTag(node.get(), oldTag)) ? API_OK : API_EEXIST;
     };
 
+    const auto toVector = [](const MegaStringList& l) -> std::vector<std::string>
+    {
+        std::vector<std::string> r;
+        for (int i = 0; i < l.size(); ++i)
+            r.emplace_back(l.get(i));
+        return r;
+    };
+
     std::string tag1 = "tag1";
     std::string tag2 = "tag2";
     std::string tag3 = "tag3";
@@ -19726,7 +19775,95 @@ TEST_F(SdkTest, SdkNodeTag)
 
     ASSERT_EQ(addTag(mh, tag4Lowercase), API_EEXIST);
 
-    deleteFile(filename);
+    // To prepare for the following block, check natural sorting
+    const std::string tag11 = "tag11";
+    ASSERT_EQ(updateTag(mh, tag11, tag4), API_OK);
+
+    //// Create a new file in a subdir
+    LOG_debug << "[SdkTest::SdkNodeTag] Creating a subdir";
+    bool check = false;
+    mApi[0].mOnNodesUpdateCompletion =
+        createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check);
+    auto folderHandle = createFolder(0, "dir1", rootnodeA.get());
+    ASSERT_NE(folderHandle, INVALID_HANDLE) << "Cannot create a directory in the cloud";
+    waitForResponse(&check);
+    std::unique_ptr<MegaNode> dirNode(megaApi[0]->getNodeByHandle(folderHandle));
+    resetOnNodeUpdateCompletionCBs();
+
+    LOG_debug << "[SdkTest::SdkNodeTag] Creating a file inside the subdir";
+    fs::path filename2{"test2.txt"};
+    sdk_test::LocalTempFile tempLocalFile2(filename2, 0);
+    MegaHandle mh2 = 0;
+    ASSERT_EQ(MegaError::API_OK,
+              doStartUpload(0,
+                            &mh2,
+                            filename2.u8string().c_str(),
+                            dirNode.get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << "Cannot upload a second test file";
+
+    LOG_debug << "[SdkTest::SdkNodeTag] Adding tags to the file";
+    std::string subdirtag = "subdirtag";
+    std::string subdiraux = "subdiraux";
+    ASSERT_EQ(addTag(mh2, subdirtag), API_OK);
+    ASSERT_EQ(addTag(mh2, subdiraux), API_OK);
+
+    LOG_debug << "[SdkTest::SdkNodeTag] Testing all tags";
+    std::unique_ptr<MegaStringList> allTags(megaApi[0]->getAllNodeTags());
+    ASSERT_NE(allTags, nullptr);
+    auto allTagsV = toVector(*allTags);
+    EXPECT_THAT(allTagsV, testing::ElementsAreArray({subdiraux, subdirtag, tag3, tag11}));
+
+    LOG_debug << "[SdkTest::SdkNodeTag] Testing all tags with pattern matching";
+    allTags.reset(megaApi[0]->getAllNodeTags("ub*r"));
+    ASSERT_NE(allTags, nullptr);
+    allTagsV = toVector(*allTags);
+    EXPECT_THAT(allTagsV, testing::ElementsAreArray({subdiraux, subdirtag}));
+
+    LOG_debug << "[SdkTest::SdkNodeTag] Testing all tags with exact match";
+    allTags.reset(megaApi[0]->getAllNodeTags(tag11.c_str()));
+    ASSERT_NE(allTags, nullptr);
+    allTagsV = toVector(*allTags);
+    EXPECT_THAT(allTagsV, testing::ElementsAreArray({tag11}));
+
+    LOG_debug << "[SdkTest::SdkNodeTag] Changing the contents of test.txt to force a new version";
+    sdk_test::LocalTempFile fNewVersion("testnewversion.txt", 1);
+    MegaHandle mhNew = INVALID_HANDLE;
+    ASSERT_EQ(MegaError::API_OK,
+              doStartUpload(0,
+                            &mhNew,
+                            "testnewversion.txt",
+                            rootnodeA.get(),
+                            filename.u8string().c_str(),
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << "Cannot update the test file";
+    ASSERT_NE(mhNew, INVALID_HANDLE);
+
+    std::unique_ptr<MegaNode> oldNode(megaApi[0]->getNodeByHandle(mh));
+    ASSERT_NE(oldNode, nullptr);
+    std::unique_ptr<MegaStringList> oldTags(oldNode->getTags());
+    ASSERT_NE(oldTags, nullptr);
+
+    std::unique_ptr<MegaNode> newNode(megaApi[0]->getNodeByHandle(mhNew));
+    ASSERT_NE(newNode, nullptr);
+    std::unique_ptr<MegaStringList> newTags(newNode->getTags());
+    ASSERT_NE(newTags, nullptr);
+
+    // Check there are two versions for the file
+    unique_ptr<MegaNodeList> allVersions(megaApi[0]->getVersions(newNode.get()));
+    ASSERT_EQ(allVersions->size(), 2);
+
+    EXPECT_THAT(toVector(*oldTags), testing::UnorderedElementsAreArray(toVector(*newTags)))
+        << "Tags are not maintained after file update";
 }
 
 /**
@@ -19953,32 +20090,95 @@ TEST_F(SdkTest, GetFeaturePlans)
 }
 
 /**
- * @brief GetUserFeatures
+ * @brief GetActivePlansAndFeatures
  */
-TEST_F(SdkTest, GetUserFeatures)
+TEST_F(SdkTest, GetActivePlansAndFeatures)
 {
-    LOG_info << "___TEST GetUserFeatures___";
+    LOG_info << "___TEST GetActivePlansAndFeaturess___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     RequestTracker accDetailsTracker(megaApi[0].get());
     megaApi[0]->getAccountDetails(&accDetailsTracker);
     ASSERT_EQ(accDetailsTracker.waitForResult(), API_OK) << "Failed to get account details";
 
-    std::unique_ptr<MegaAccountDetails> accountDetails(accDetailsTracker.request->getMegaAccountDetails());
+    std::unique_ptr<MegaAccountDetails> accountDetails(
+        accDetailsTracker.request->getMegaAccountDetails());
     ASSERT_TRUE(accountDetails) << "Missing account details";
 
-    if (accountDetails->getProLevel() == MegaAccountDetails::ACCOUNT_TYPE_FREE)
+    int proLevel = MegaAccountDetails::ACCOUNT_TYPE_FREE;
+    set<string> featuresGranted;
+    for (int i = 0; i < accountDetails->getNumPlans(); ++i)
     {
-        ASSERT_EQ(accountDetails->getNumActiveFeatures(), 0);
-        ASSERT_EQ(accountDetails->getSubscriptionLevel(), 0);
-    }
-    else
-    {
-        ASSERT_GT(accountDetails->getNumActiveFeatures(), 0);
-        if (accountDetails->getSubscriptionLevel())
+        std::unique_ptr<MegaAccountPlan> plan(accountDetails->getPlan(i));
+        std::unique_ptr<MegaStringList> features(plan->getFeatures());
+        for (int j = 0; j < features->size(); ++j)
         {
-            std::unique_ptr<MegaStringIntegerMap> subscriptionFeatures{ accountDetails->getSubscriptionFeatures() };
-            ASSERT_GT(subscriptionFeatures->size(), 0);
+            // Acumulate granted features
+            featuresGranted.emplace(features->get(j));
+        }
+
+        if (plan->isProPlan())
+        {
+            ASSERT_EQ(proLevel, MegaAccountDetails::ACCOUNT_TYPE_FREE)
+                << "More than one PRO plan has been received";
+            proLevel = plan->getAccountLevel();
+            ASSERT_GT(proLevel, MegaAccountDetails::ACCOUNT_TYPE_FREE)
+                << "PRO level is ACCOUNT_TYPE_FREE";
+            ASSERT_NE(proLevel, MegaAccountDetails::ACCOUNT_TYPE_FEATURE)
+                << "PRO plan is a feature plan";
+            ASSERT_EQ(proLevel, accountDetails->getProLevel())
+                << "PRO level of the plan does not match the PRO account level";
+        }
+        else // Feature plan
+        {
+            ASSERT_EQ(plan->getAccountLevel(), MegaAccountDetails::ACCOUNT_TYPE_FEATURE)
+                << "Feature plan has not a feature account level";
+            ASSERT_GT(features->size(), 0) << "Feature plan does not grant any feature";
         }
     }
+
+    // Compare features contained in the plans with the features received for the account.
+    ASSERT_EQ(featuresGranted.size(), accountDetails->getNumActiveFeatures())
+        << "Features in active plans don't match the number of features of the account";
+    m_time_t currTime = m_time();
+    for (int i = 0; i < accountDetails->getNumActiveFeatures(); ++i)
+    {
+        std::unique_ptr<MegaAccountFeature> feature(accountDetails->getActiveFeature(i));
+        ASSERT_GE(feature->getExpiry(), currTime) << "Received an expired feature";
+        string featureId(std::unique_ptr<const char[]>(feature->getId()).get());
+        ASSERT_NE(featuresGranted.find(featureId), featuresGranted.end())
+            << "Feature " << featureId << " is not present in any plan";
+    }
+}
+
+/**
+ * @brief SdkTestSharesWhenMegaHosted
+ *
+ *  - Create a folder
+ *  - Create a writable, mega-hosted link to the folder
+ *  - Confirm that an encryption-key was used for the share-key (sent via "l"."sk")
+ */
+TEST_F(SdkTest, SdkTestSharesWhenMegaHosted)
+{
+    LOG_info << "___TEST SharesWhenMegaHosted___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // Create some nodes to share
+    //  |--Shared-folder
+
+    std::unique_ptr<MegaNode> rootNode{megaApi[0]->getRootNode()};
+    MegaHandle hFolder = createFolder(0, "Shared-folder", rootNode.get());
+    ASSERT_NE(hFolder, UNDEF);
+    std::unique_ptr<MegaNode> nFolder(megaApi[0]->getNodeByHandle(hFolder));
+    ASSERT_THAT(nFolder, ::testing::NotNull());
+
+    RequestTracker rt(megaApi[0].get());
+    megaApi[0]->exportNode(nFolder.get(), true /*writable*/, true /*megaHosted*/, &rt);
+    ASSERT_EQ(rt.waitForResult(), API_OK);
+
+    // Test that encryption-key was used for "sk" (share-key) sent via "l" command
+    ASSERT_THAT(rt.request->getPassword(), ::testing::NotNull());
+    string b64Key{rt.request->getPassword()};
+    string binKey = Base64::atob(b64Key);
+    ASSERT_FALSE(binKey.empty());
 }

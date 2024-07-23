@@ -5585,12 +5585,13 @@ public:
      * For event EVENT_REQSTAT_PROGRESS, this number is the per mil progress of
      * a long-running API operation, or -1 if there isn't any operation in progress.
      *
-     * For event EVENT_ERROR, these values can be taken:
-     *  - REASON_ERROR_FAILURE_UNSERIALIZE_NODE = 0  -> Failure when node is unserialized from DB
-     *  - REASON_ERROR_IO_DB_FAILURE = 1             -> Input/output error at DB
-     *  - REASON_RELOAD_NODE_INCONSISTENCY = 2       -> Node inconsistency detected reading nodes from API
-     *  - REASON_ERROR_DB_FULL = 3                   -> Failure at DB due disk is full
-     *  - REASON_RELOAD_UNKNOWN = 4                  -> Unknown reason
+     * For event EVENT_FATAL_ERROR, these values can be taken:
+     *  - REASON_ERROR_UNKNOWN = -1 -> Unknown reason
+     *  - REASON_ERROR_NO_ERROR = 0 -> No error
+     *  - REASON_ERROR_FAILURE_UNSERIALIZE_NODE = 1 -> Failure when node is unserialized from DB
+     *  - REASON_ERROR_DB_IO_FAILURE = 2 -> Input/output error at DB layer
+     *  - REASON_ERROR_DB_FULL = 3 -> Failure at DB layer because disk is full
+     *  - REASON_ERROR_DB_INDEX_OVERFLOW = 4 -> Index used to primary key at db overflow
      *
      * @return Number relative to this event
      */
@@ -10231,6 +10232,12 @@ class MegaApi
             TAG_NODE_UPDATE          = 2,
         };
 
+        enum
+        {
+            CREDIT_CARD_CANCEL_SUBSCRIPTIONS_CAN_CONTACT_NO = 0,
+            CREDIT_CARD_CANCEL_SUBSCRIPTIONS_CAN_CONTACT_YES = 1,
+        };
+
         static constexpr int64_t INVALID_CUSTOM_MOD_TIME = -1;
         static constexpr int CHAT_OPTIONS_EMPTY = 0;
         static constexpr int MAX_NODE_DESCRIPTION_SIZE = 3000;
@@ -13997,6 +14004,26 @@ class MegaApi
                            MegaRequestListener* listener = NULL);
 
         /**
+         * @brief Retrieve all unique node tags present across all nodes in the account
+         *
+         * @note If the searchString contains invalid characters, such as ',', an empty list will be
+         * returned.
+         *
+         * @note This function allows to cancel the processing at any time by passing a
+         * MegaCancelToken and calling to MegaCancelToken::setCancelFlag(true).
+         *
+         * You take ownership of the returned value.
+         *
+         * @param searchString Optional parameter to filter the tags based on a specific search
+         * string. If set to nullptr, all node tags will be retrieved.
+         * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
+         *
+         * @return All the unique node tags that match the search criteria.
+         */
+        MegaStringList* getAllNodeTags(const char* searchString = nullptr,
+                                       MegaCancelToken* cancelToken = nullptr);
+
+        /**
          * @brief Generate a public link of a file/folder in MEGA
          *
          * The associated request type with this request is MegaRequest::TYPE_EXPORT
@@ -14061,14 +14088,16 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getLink - Public link
          * - MegaRequest::getPrivateKey - Authentication token (only if writable=true)
+         * - MegaRequest::getPassword - Returns base64 encryption key used for share-key (only if
+         * writable=true and megaHosted=true)
          *
-         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
-         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish
+         * will be called with the error code MegaError::API_EBUSINESSPASTDUE.
          *
          * @param node MegaNode to get the public link
          * @param writable if the link should be writable.
-         * @param megaHosted if true, the share key of this specific folder would be shared with MEGA.
-         * This is intended to be used for folders accessible though MEGA's S4 service.
+         * @param megaHosted if true, the share key of this specific folder would be shared with
+         * MEGA. This is intended to be used for folders accessible though MEGA's S4 service.
          * Encryption will occur nonetheless within MEGA's S4 service.
          * @param listener MegaRequestListener to track this request
          *
@@ -14092,9 +14121,11 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getLink - Public link
          * - MegaRequest::getPrivateKey - Authentication token (only if writable=true)
+         * - MegaRequest::getPassword - Returns base64 encryption key used for share-key (only if
+         * writable=true and megaHosted=true)
          *
-         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
-         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish
+         * will be called with the error code MegaError::API_EBUSINESSPASTDUE.
          *
          * @param node MegaNode to get the public link
          * @param expireTime Unix timestamp until the public link will be valid
@@ -14519,7 +14550,26 @@ class MegaApi
          * @param reason Reason for the cancellation. It can be NULL.
          * @param listener MegaRequestListener to track this request
          */
+        MEGA_DEPRECATED
         void creditCardCancelSubscriptions(const char* reason, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Cancel the credit card subscriptions of the account
+         *
+         * The associated request type with this request is
+         * MegaRequest::TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS
+         * @param reason The reason for the cancellation. It can be NULL.
+         * @param id The subscription ID for the cancellation. It can be NULL.
+         * @param canContact Whether the user has permitted MEGA to contact them for the
+         * cancellation.
+         *      - MegaApi::CREDIT_CARD_CANCEL_SUBSCRIPTIONS_CAN_CONTACT_NO = 0
+         *      - MegaApi::CREDIT_CARD_CANCEL_SUBSCRIPTIONS_CAN_CONTACT_YES = 1
+         * @param listener MegaRequestListener to track this request
+         */
+        void creditCardCancelSubscriptions(const char* reason,
+                                           const char* id,
+                                           int canContact,
+                                           MegaRequestListener* listener = NULL);
 
         /**
          * @brief Get the available payment methods
@@ -22998,6 +23048,201 @@ public:
 };
 
 /**
+ * @brief Details about a MEGA subscription
+ */
+class MegaAccountSubscription
+{
+public:
+    enum
+    {
+        SUBSCRIPTION_STATUS_NONE = 0,
+        SUBSCRIPTION_STATUS_VALID = 1,
+        SUBSCRIPTION_STATUS_INVALID = 2
+    };
+
+    virtual ~MegaAccountSubscription() = default;
+
+    /**
+     * @brief Get the ID of this subscription
+     *
+     * You take the ownership of the returned value
+     *
+     * @return ID of this subscription
+     */
+    virtual char* getId() const = 0;
+
+    /**
+     * @brief Check if the subscription is active
+     *
+     * If this function returns MegaAccountDetails::SUBSCRIPTION_STATUS_VALID,
+     * the subscription will be automatically renewed.
+     * See MegaAccountSubscription::getRenewTime()
+     *
+     * @return Information about the subscription status
+     *
+     * Valid return values are:
+     * - MegaAccountSubscription::SUBSCRIPTION_STATUS_NONE = 0
+     * There isn't any active subscription
+     *
+     * - MegaAccountSubscription::SUBSCRIPTION_STATUS_VALID = 1
+     * There is an active subscription
+     *
+     * - MegaAccountSubscription::SUBSCRIPTION_STATUS_INVALID = 2
+     * A subscription exists, but it uses a payment gateway that is no longer valid
+     */
+    virtual int getStatus() const = 0;
+
+    /**
+     * @brief Get the subscription cycle
+     *
+     * The return value will show if the subscription will be montly or yearly renewed.
+     * Example return values: "1 M", "1 Y".
+     *
+     * You take the ownership of the returned value
+     *
+     * @return Subscription cycle
+     */
+    virtual char* getCycle() const = 0;
+
+    /**
+     * @brief Get the subscription payment provider name
+     *
+     * You take the ownership of the returned value
+     *
+     * @return Payment provider name
+     */
+    virtual char* getPaymentMethod() const = 0;
+
+    /**
+     * @brief Get the subscription payment provider ID
+     *
+     * @return Payment provider ID
+     */
+    virtual int32_t getPaymentMethodId() const = 0;
+
+    /**
+     * @brief Get the subscription renew timestamp
+     *
+     * @return Renewal timestamp (in seconds since epoch)
+     */
+    virtual int64_t getRenewTime() const = 0;
+
+    /**
+     * @brief Get the subscription account level
+     *
+     * @return Subscription account level
+     * Valid values for PRO plan subscriptions:
+     * - MegaAccountDetails::ACCOUNT_TYPE_FREE = 0
+     * - MegaAccountDetails::ACCOUNT_TYPE_PROI = 1
+     * - MegaAccountDetails::ACCOUNT_TYPE_PROII = 2
+     * - MegaAccountDetails::ACCOUNT_TYPE_PROIII = 3
+     * - MegaAccountDetails::ACCOUNT_TYPE_LITE = 4
+     * - MegaAccountDetails::ACCOUNT_TYPE_STARTER = 11
+     * - MegaAccountDetails::ACCOUNT_TYPE_BASIC = 12
+     * - MegaAccountDetails::ACCOUNT_TYPE_ESSENTIAL = 13
+     * - MegaAccountDetails::ACCOUNT_TYPE_BUSINESS = 100
+     * - MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI = 101
+     *
+     * Valid value for feature plan subscriptions:
+     * - MegaAccountDetails::ACCOUNT_TYPE_FEATURE = 99999
+     */
+    virtual int32_t getAccountLevel() const = 0;
+
+    /**
+     * @brief Get the features granted by this subscription
+     *
+     * You take the ownership of the returned value
+     *
+     * @return Features granted by this subscription.
+     */
+    virtual MegaStringList* getFeatures() const = 0;
+
+    /**
+     * @brief Return if the subscription is related to an active trial
+     *
+     * @return True if the subscription is related to an active trial, otherwise false.
+     */
+    virtual bool isTrial() const = 0;
+};
+
+class MegaAccountPlan
+{
+public:
+    virtual ~MegaAccountPlan() = default;
+
+    /**
+     * @brief Check if the plan is a PRO plan or a feature plan.
+     *
+     * @return True if the plan is a PRO plan
+     */
+    virtual bool isProPlan() const = 0;
+
+    /**
+     * @brief Get account level of the plan
+     *
+     * @return Plan level of the MEGA account.
+     * Valid values for PRO plans are:
+     * - MegaAccountDetails::ACCOUNT_TYPE_FREE = 0
+     * - MegaAccountDetails::ACCOUNT_TYPE_PROI = 1
+     * - MegaAccountDetails::ACCOUNT_TYPE_PROII = 2
+     * - MegaAccountDetails::ACCOUNT_TYPE_PROIII = 3
+     * - MegaAccountDetails::ACCOUNT_TYPE_LITE = 4
+     * - MegaAccountDetails::ACCOUNT_TYPE_STARTER = 11
+     * - MegaAccountDetails::ACCOUNT_TYPE_BASIC = 12
+     * - MegaAccountDetails::ACCOUNT_TYPE_ESSENTIAL = 13
+     * - MegaAccountDetails::ACCOUNT_TYPE_BUSINESS = 100
+     * - MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI = 101
+     *
+     * Valid value for feature plans is:
+     * - MegaAccountDetails::ACCOUNT_TYPE_FEATURE = 99999
+     */
+    virtual int32_t getAccountLevel() const = 0;
+
+    /**
+     * @brief Get the features granted by this plan
+     *
+     * You take the ownership of the returned value
+     *
+     * @return Features granted by this plan.
+     */
+    virtual MegaStringList* getFeatures() const = 0;
+
+    /**
+     * @brief Get the expiration time for the plan
+     *
+     * @return The time the plan expires
+     */
+    virtual int64_t getExpirationTime() const = 0;
+
+    /**
+     * @brief The type of plan. Why it was granted.
+     *
+     * Not available for Bussiness/Pro Flexi.
+     *
+     * @return Plan type
+     */
+    virtual int32_t getType() const = 0;
+
+    /**
+     * @brief Get the relating subscription ID
+     *
+     * Only available if the plan relates to a subscription.
+     *
+     * You take the ownership of the returned value
+     *
+     * @return ID of this subscription
+     */
+    virtual char* getId() const = 0;
+
+    /**
+     * @brief Return if the plan is related to an active trial
+     *
+     * @return True if the plan is related to an active trial, otherwise false.
+     */
+    virtual bool isTrial() const = 0;
+};
+
+/**
  * @brief Details about a MEGA account
  */
 class MegaAccountDetails
@@ -23014,10 +23259,11 @@ public:
         ACCOUNT_TYPE_BASIC = 12,
         ACCOUNT_TYPE_ESSENTIAL = 13,
         ACCOUNT_TYPE_BUSINESS = 100,
-        ACCOUNT_TYPE_PRO_FLEXI = 101    // also known as PRO 4
+        ACCOUNT_TYPE_PRO_FLEXI = 101, // also known as PRO 4
+        ACCOUNT_TYPE_FEATURE = 99999
     };
 
-    enum
+    enum MEGA_DEPRECATED
     {
         SUBSCRIPTION_STATUS_NONE = 0,
         SUBSCRIPTION_STATUS_VALID = 1,
@@ -23043,8 +23289,8 @@ public:
     virtual int getProLevel();
 
     /**
-     * @brief Get the expiration time for the current PRO status
-     * @return Expiration time for the current PRO status (in seconds since the Epoch)
+     * @brief Get the expiration time for the current PRO plan
+     * @return Expiration time for the current PRO plan (in seconds since the Epoch)
      */
     virtual int64_t getProExpiration();
 
@@ -23068,12 +23314,14 @@ public:
      * A subscription exists, but it uses a payment gateway that is no longer valid
      *
      */
+    MEGA_DEPRECATED
     virtual int getSubscriptionStatus();
 
     /**
      * @brief Get the time when the the PRO account will be renewed
      * @return Renewal time (in seconds since the Epoch)
      */
+    MEGA_DEPRECATED
     virtual int64_t getSubscriptionRenewTime();
 
     /**
@@ -23083,6 +23331,7 @@ public:
      *
      * @return Subscription method. For example "Credit Card".
      */
+    MEGA_DEPRECATED
     virtual char* getSubscriptionMethod();
 
     /**
@@ -23090,6 +23339,7 @@ public:
      *
      * @return Subscription method. For example 16.
      */
+    MEGA_DEPRECATED
     virtual int getSubscriptionMethodId();
 
     /**
@@ -23102,6 +23352,7 @@ public:
      *
      * @return Subscription cycle
      */
+    MEGA_DEPRECATED
     virtual char* getSubscriptionCycle();
 
     /**
@@ -23361,6 +23612,7 @@ public:
      *
      * @return Level for feature related subscriptions
      */
+    MEGA_DEPRECATED
     virtual int64_t getSubscriptionLevel() const = 0;
 
     /**
@@ -23370,7 +23622,46 @@ public:
      *
      * @return Subscription features for this account. The value of each feature should be treated as a 32bit unsigned int
      */
+    MEGA_DEPRECATED
     virtual MegaStringIntegerMap* getSubscriptionFeatures() const = 0;
+
+    /**
+     * @brief Get the number of active subscriptions in the account.
+     *
+     * You can use MegaAccountDetails::getSubscription to get each of those objects.
+     *
+     * @return Number of active subscriptions
+     */
+    virtual int getNumSubscriptions() const = 0;
+
+    /**
+     * @brief Returns the MegaAccountSubscription object associated with an index
+     *
+     * You take the ownership of the returned value
+     *
+     * @param subscriptionsIndex Index of the object
+     * @return MegaAccountSubscription object
+     */
+    virtual MegaAccountSubscription* getSubscription(int subscriptionsIndex) const = 0;
+
+    /**
+     * @brief Get the number of active plans in the account.
+     *
+     * You can use MegaAccountDetails::getPlan to get each of those objects.
+     *
+     * @return Number of active plans
+     */
+    virtual int getNumPlans() const = 0;
+
+    /**
+     * @brief Returns the MegaAccountPlan object associated with an index
+     *
+     * You take the ownership of the returned value
+     *
+     * @param plansIndex Index of the object
+     * @return MegaAccountPlan object
+     */
+    virtual MegaAccountPlan* getPlan(int plansIndex) const = 0;
 };
 
 class MegaCurrency
@@ -23699,6 +23990,16 @@ public:
      * @return test category bitmap
      */
     virtual unsigned int getTestCategory(int productIndex) const;
+
+    /**
+     * @brief Get trial duration in days
+     *
+     * The returned value will be 0 if the plan is not elegible for trial.
+     *
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return Trial duration in days
+     */
+    virtual unsigned int getTrialDurationInDays(int productIndex) const = 0;
 };
 
 /**

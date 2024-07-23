@@ -174,14 +174,38 @@ void MountDB::dispatch()
         lock.unlock();
 
         // Dispatch incoming requests.
-        for (auto* session : mSessions)
+        for (auto i = mSessions.begin(); i != mSessions.end(); )
         {
+            // Convenience.
+            auto j = i++;
+            auto session = *j;
+
+            // Session's been closed.
+            if (session->exited())
+            {
+                // Remove the session from our set.
+                mSessions.erase(j);
+
+                // We're no longer interested in this session's activity.
+                descriptors.remove(*session);
+
+                // Destroy the mount associated with this session.
+                session->destroy();
+
+                // Dispatch the next request.
+                continue;
+            }
+
             // Session hasn't received a request.
             if (!descriptors.set(*session))
                 continue;
 
             // Retrieve the latest request from the session.
             auto request = session->nextRequest();
+
+            // Invalid request.
+            if (request.empty())
+                continue;
 
             // Dispatch the request.
             session->dispatch(std::move(request));
@@ -247,9 +271,11 @@ void MountDB::sessionRemoved(Session& session)
 {
     std::unique_lock<std::mutex> lock(mLock);
 
+    if (!mSessions.count(&session))
+        return;
+
     assert(!mPendingAdds.count(&session));
     assert(!mPendingRemoves.count(&session));
-    assert(mSessions.count(&session));
 
     auto promise = std::promise<void>();
     auto future  = promise.get_future();

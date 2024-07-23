@@ -88,7 +88,11 @@ public:
         return false;
         //throw NotImplemented(__func__);
     }
-
+    bool getAllNodeTags(const std::string&, std::set<std::string>&, mega::CancelToken) override
+    {
+        return false;
+        // throw NotImplemented(__func__);
+    }
     bool getRecentNodes(unsigned maxcount, mega::m_time_t since, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>&) override
     {
         return false;

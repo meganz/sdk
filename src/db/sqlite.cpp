@@ -171,9 +171,11 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
     // Create specific table for handle nodes
     std::string sql = "CREATE TABLE IF NOT EXISTS nodes (nodehandle int64 PRIMARY KEY NOT NULL, "
                       "parenthandle int64, name text, fingerprint BLOB, origFingerprint BLOB, "
-                      "type tinyint, mimetype tinyint AS (getmimetype(name)) VIRTUAL, size int64, share tinyint, fav tinyint, "
-                      "ctime int64, mtime int64 DEFAULT 0, flags int64, counter BLOB NOT NULL, node BLOB NOT NULL, "
-                      "label tinyint DEFAULT 0, description text, tags text)";
+                      "type tinyint, mimetypeVirtual tinyint AS (getmimetype(name)) VIRTUAL, size "
+                      "int64, share tinyint, fav tinyint, ctime int64, mtime int64 DEFAULT 0, "
+                      "flags int64, counter BLOB NOT NULL, "
+                      "node BLOB NOT NULL, label tinyint DEFAULT 0, description text, tags text)";
+
     int result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
     if (result)
     {
@@ -192,7 +194,7 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
          "tinyint DEFAULT 0",
          NodeData::COMPONENT_LABEL,
          NewColumn::extractDataFromNodeData<LabelType>      },
-        {"mimetype",
+        {"mimetypeVirtual",
          "tinyint AS (getmimetype(name)) VIRTUAL",
          NodeData::COMPONENT_NONE,
          nullptr                                            },
@@ -919,6 +921,36 @@ int SqliteAccountState::progressHandler(void *param)
     return cancelFlag->isCancelled();
 }
 
+bool SqliteAccountState::processSqlQueryAllNodeTags(
+    sqlite3_stmt* stmt,
+    std::set<std::string>& tags,
+    std::function<bool(const std::string&)> isValidTagF)
+{
+    assert(stmt);
+    int sqlResult = SQLITE_ERROR;
+    while ((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
+    {
+        const void* data = sqlite3_column_blob(stmt, 0);
+        int size = sqlite3_column_bytes(stmt, 0);
+        if (!data || !size)
+        {
+            continue;
+        }
+        std::string allTags(static_cast<const char*>(data), static_cast<size_t>(size));
+        const std::set<std::string> separatedTags = splitString(allTags, MegaClient::TAG_DELIMITER);
+        std::for_each(std::begin(separatedTags),
+                      std::end(separatedTags),
+                      [&tags, &isValidTagF](const std::string& t)
+                      {
+                          if (isValidTagF(t))
+                              tags.insert(t);
+                      });
+    }
+
+    errorHandler(sqlResult, "Process sql query for all node tags", true);
+    return sqlResult == SQLITE_DONE;
+}
+
 bool SqliteAccountState::processSqlQueryNodes(sqlite3_stmt *stmt, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& nodes)
 {
     assert(stmt);
@@ -1146,6 +1178,9 @@ void SqliteAccountState::finalise()
         sqlite3_finalize(s.second);
     }
     mStmtSearchNodes.clear();
+
+    sqlite3_finalize(mStmtAllNodeTags);
+    mStmtAllNodeTags = nullptr;
 
     sqlite3_finalize(mStmtNodesByFp);
     mStmtNodesByFp = nullptr;
@@ -1472,11 +1507,11 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, int o
                                  "AND (?8 = " + std::to_string(MIME_TYPE_UNKNOWN) +
                                      " OR (type = " + std::to_string(FILENODE) +
                                          " AND ((?8 = " + std::to_string(MIME_TYPE_ALL_DOCS) +
-                                               " AND mimetype IN (" + std::to_string(MIME_TYPE_DOCUMENT) +
+                                               " AND mimetypeVirtual IN (" + std::to_string(MIME_TYPE_DOCUMENT) +
                                                                 ',' + std::to_string(MIME_TYPE_PDF) +
                                                                 ',' + std::to_string(MIME_TYPE_PRESENTATION) +
                                                                 ',' + std::to_string(MIME_TYPE_SPREADSHEET) + "))"
-                                              " OR mimetype = ?8))) "
+                                              " OR mimetypeVirtual = ?8))) "
                                  "AND (?11 = 0 OR (name REGEXP ?9)) "
                                  "AND (?14 = 0 OR isContained(?15, description)) "
                                  "AND (?16 = 0 OR matchTag(?17, tags)) "
@@ -1543,6 +1578,89 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, int o
     return result;
 }
 
+bool SqliteAccountState::getAllNodeTags(const std::string& searchString,
+                                        std::set<std::string>& tags,
+                                        CancelToken cancelFlag)
+{
+    if (!db)
+    {
+        LOG_err << "SqliteAccountState::getAllNodeTags: Invalid db";
+        return false;
+    }
+
+    // When early returning, this gets executed
+    int sqlResult = SQLITE_OK;
+    const MrProper cleanUp(
+        [this, &sqlResult]()
+        {
+            // unregister the handler (no-op if not registered)
+            sqlite3_progress_handler(db, -1, nullptr, nullptr);
+            errorHandler(sqlResult, "Get all node tags", true);
+            sqlite3_reset(mStmtAllNodeTags);
+        });
+
+    if (cancelFlag.exists())
+    {
+        sqlite3_progress_handler(db,
+                                 NUM_VIRTUAL_MACHINE_INSTRUCTIONS,
+                                 SqliteAccountState::progressHandler,
+                                 static_cast<void*>(&cancelFlag));
+    }
+
+    static const std::string selectStmBase{R"(
+        SELECT DISTINCT tags
+            FROM nodes
+            WHERE
+                tags IS NOT NULL AND
+                tags != '' AND
+                (?1 = 0 OR (tags REGEXP ?2))
+    )"};
+
+    // Ensure stmt is valid
+    if (!mStmtAllNodeTags &&
+        (SQLITE_OK !=
+         (sqlResult =
+              sqlite3_prepare_v2(db, selectStmBase.c_str(), -1, &mStmtAllNodeTags, nullptr))))
+    {
+        return false;
+    }
+    // The search string has something different from *?
+    bool therIsSomethingToSearch = std::any_of(searchString.begin(),
+                                               searchString.end(),
+                                               [](const char& c)
+                                               {
+                                                   return c != '*';
+                                               });
+    const std::string asteriskSurroundSearch = ensureAsteriskSurround(searchString);
+
+    if (SQLITE_OK != (sqlResult = sqlite3_bind_int(mStmtAllNodeTags, 1, therIsSomethingToSearch)) ||
+        SQLITE_OK != (sqlResult = sqlite3_bind_text(mStmtAllNodeTags,
+                                                    2,
+                                                    asteriskSurroundSearch.c_str(),
+                                                    static_cast<int>(asteriskSurroundSearch.size()),
+                                                    SQLITE_STATIC)))
+    {
+        return false;
+    }
+
+    if (therIsSomethingToSearch)
+    {
+        const auto tagValidator = [&asteriskSurroundSearch](const std::string& tag)
+        {
+            const uint8_t* pattern =
+                reinterpret_cast<const uint8_t*>(asteriskSurroundSearch.c_str());
+            const uint8_t* toMatch = reinterpret_cast<const uint8_t*>(tag.c_str());
+            return static_cast<bool>(icuLikeCompare(pattern, toMatch, 0));
+        };
+        return processSqlQueryAllNodeTags(mStmtAllNodeTags, tags, tagValidator);
+    }
+    static const auto alwaysTrueF = [](const std::string&)
+    {
+        return true;
+    };
+    return processSqlQueryAllNodeTags(mStmtAllNodeTags, tags, alwaysTrueF);
+}
+
 bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, vector<pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag, const NodeSearchPage& page)
 {
     if (!db)
@@ -1575,7 +1693,7 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
                       " AND nodehandle IN (SELECT nodehandle FROM nodes WHERE share = ?7)))";
 
         string columnsForNodeAndFilters =
-            "nodehandle, parenthandle, flags, name, type, counter, node, size, ctime, mtime, share, mimetype, fav, label, description, tags";
+            "nodehandle, parenthandle, flags, name, type, counter, node, size, ctime, mtime, share, mimetypeVirtual, fav, label, description, tags";
 
         string nodesOfShares =
             "nodesOfShares(" + columnsForNodeAndFilters + ") \n"
@@ -1590,7 +1708,7 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
                 "WHERE parenthandle IN (SELECT nodehandle FROM ancestors) \n"
                 "UNION ALL \n"
                 "SELECT N.nodehandle, N.parenthandle, N.flags, N.name, N.type, N.counter, N.node, "
-                "N.size, N.ctime, N.mtime, N.share, N.mimetype, N.fav, N.label, N.description, N.tags \n"
+                "N.size, N.ctime, N.mtime, N.share, N.mimetypeVirtual, N.fav, N.label, N.description, N.tags \n"
                 "FROM nodes AS N \n"
                 "INNER JOIN nodesCTE AS P \n"
                         "ON (N.parenthandle = P.nodehandle \n"
@@ -1612,11 +1730,11 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
             "AND (?8 = " + std::to_string(MIME_TYPE_UNKNOWN) +
                 " OR (type = " + std::to_string(FILENODE) +
                     " AND ((?8 = " + std::to_string(MIME_TYPE_ALL_DOCS) +
-                          " AND mimetype IN (" + std::to_string(MIME_TYPE_DOCUMENT) +
+                          " AND mimetypeVirtual IN (" + std::to_string(MIME_TYPE_DOCUMENT) +
                                            ',' + std::to_string(MIME_TYPE_PDF) +
                                            ',' + std::to_string(MIME_TYPE_PRESENTATION) +
                                            ',' + std::to_string(MIME_TYPE_SPREADSHEET) + "))"
-                         " OR mimetype = ?8))) \n"
+                         " OR mimetypeVirtual = ?8))) \n"
             "AND (?13 = 0 OR (name REGEXP ?9)) \n"
             "AND (?17 = 0 OR isContained(?18, description)) \n"
             "AND (?19 = 0 OR matchTag(?20, tags)) \n"

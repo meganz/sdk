@@ -224,8 +224,38 @@ TEST(MegaApi, MegaApiImpl_calcRecommendedProLevel)
     MegaPricingPrivate pricing;
     std::function<void(int, int, int)> addTestProducts = [&](int proLevel, int gb, int pricedollars)
     {
-        pricing.addProduct(1000, 1000000, proLevel, gb, gb == -1 ? -1 : gb * 10, 1, pricedollars, 10, 100, "monthly", {}, "ios id", "android id", 1, std::make_unique<BusinessPlan>());
-        pricing.addProduct(1000, 1000000, proLevel, gb, gb == -1 ? -1 : gb * 10, 12, pricedollars*12, 10, 100, "yearly", {}, "ios id", "android id", 1, std::make_unique<BusinessPlan>());
+        pricing.addProduct(1000,
+                           1000000,
+                           proLevel,
+                           gb,
+                           gb == -1 ? -1 : gb * 10,
+                           1,
+                           pricedollars,
+                           10,
+                           100,
+                           "monthly",
+                           {},
+                           "ios id",
+                           "android id",
+                           1,
+                           std::make_unique<BusinessPlan>(),
+                           0);
+        pricing.addProduct(1000,
+                           1000000,
+                           proLevel,
+                           gb,
+                           gb == -1 ? -1 : gb * 10,
+                           12,
+                           pricedollars * 12,
+                           10,
+                           100,
+                           "yearly",
+                           {},
+                           "ios id",
+                           "android id",
+                           1,
+                           std::make_unique<BusinessPlan>(),
+                           0);
     };
     addTestProducts(MegaAccountDetails::ACCOUNT_TYPE_LITE, 400, 499);
     addTestProducts(MegaAccountDetails::ACCOUNT_TYPE_PROI, 2048, 999);
@@ -233,16 +263,93 @@ TEST(MegaApi, MegaApiImpl_calcRecommendedProLevel)
     addTestProducts(MegaAccountDetails::ACCOUNT_TYPE_PROIII, 16384, 2999);
     addTestProducts(MegaAccountDetails::ACCOUNT_TYPE_BUSINESS, -1, 0);
     addTestProducts(MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI, -1, 0);
-    pricing.addProduct(1000, 1000000, MegaAccountDetails::ACCOUNT_TYPE_STARTER, 50, 50, 1, 1, 10, 100, "monthly", {}, "ios id", "android id", 1, std::make_unique<BusinessPlan>()); // only monthly
-    pricing.addProduct(1000, 1000000, MegaAccountDetails::ACCOUNT_TYPE_BASIC, 100, 100, 1, 2, 10, 100, "monthly", {}, "ios id", "android id", 1, std::make_unique<BusinessPlan>());
-    pricing.addProduct(1000, 1000000, MegaAccountDetails::ACCOUNT_TYPE_BASIC, 100, 100 * 12, 12, 2 * 12, 10, 100, "yearly", {}, "ios id", "android id", 1, std::make_unique<BusinessPlan>());
-    pricing.addProduct(1000, 1000000, MegaAccountDetails::ACCOUNT_TYPE_ESSENTIAL, 200, 200, 1, 3, 10, 100, "monthly", {}, "ios id", "android id", 1, std::make_unique<BusinessPlan>());
-    pricing.addProduct(1000, 1000000, MegaAccountDetails::ACCOUNT_TYPE_ESSENTIAL, 200, 200 * 12, 12, 3 * 12, 10, 100, "yearly", {}, "ios id", "android id", 1, std::make_unique<BusinessPlan>());
+    pricing.addProduct(1000,
+                       1000000,
+                       MegaAccountDetails::ACCOUNT_TYPE_STARTER,
+                       50,
+                       50,
+                       1,
+                       1,
+                       10,
+                       100,
+                       "monthly",
+                       {},
+                       "ios id",
+                       "android id",
+                       1,
+                       std::make_unique<BusinessPlan>(),
+                       0); // only monthly
+    pricing.addProduct(1000,
+                       1000000,
+                       MegaAccountDetails::ACCOUNT_TYPE_BASIC,
+                       100,
+                       100,
+                       1,
+                       2,
+                       10,
+                       100,
+                       "monthly",
+                       {},
+                       "ios id",
+                       "android id",
+                       1,
+                       std::make_unique<BusinessPlan>(),
+                       0);
+    pricing.addProduct(1000,
+                       1000000,
+                       MegaAccountDetails::ACCOUNT_TYPE_BASIC,
+                       100,
+                       100 * 12,
+                       12,
+                       2 * 12,
+                       10,
+                       100,
+                       "yearly",
+                       {},
+                       "ios id",
+                       "android id",
+                       1,
+                       std::make_unique<BusinessPlan>(),
+                       0);
+    pricing.addProduct(1000,
+                       1000000,
+                       MegaAccountDetails::ACCOUNT_TYPE_ESSENTIAL,
+                       200,
+                       200,
+                       1,
+                       3,
+                       10,
+                       100,
+                       "monthly",
+                       {},
+                       "ios id",
+                       "android id",
+                       1,
+                       std::make_unique<BusinessPlan>(),
+                       0);
+    pricing.addProduct(1000,
+                       1000000,
+                       MegaAccountDetails::ACCOUNT_TYPE_ESSENTIAL,
+                       200,
+                       200 * 12,
+                       12,
+                       3 * 12,
+                       10,
+                       100,
+                       "yearly",
+                       {},
+                       "ios id",
+                       "android id",
+                       1,
+                       std::make_unique<BusinessPlan>(),
+                       0);
 
     std::function<int(int, int)> test = [&](int level, int gb)
     {
         AccountDetails accDetails;
-        accDetails.pro_level = level;
+        AccountPlan accPlan;
+        accPlan.level = level;
+        accDetails.plans.push_back(std::move(accPlan));
         accDetails.storage_used = gb * (m_off_t)(1024 * 1024 * 1024);
         unique_ptr<MegaAccountDetails> details(MegaAccountDetailsPrivate::fromAccountDetails(&accDetails));
         return MegaApiImpl::calcRecommendedProLevel(pricing, *details.get());

@@ -5055,27 +5055,33 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_fetchcreditcardinfo, text("cci"));
 
     p->Add(exec_passwordmanager,
-        sequence(text("pwdman"),
-                 either(text("list"),
-                        text("getbase"),
-                        text("createbase"),
-                        text("removebase"),
-                        sequence(text("newfolder"), param("parenthandle"), param("name")),
-                        sequence(text("renamefolder"), param("handle"), param("name")),
-                        sequence(text("removefolder"), param("handle")),
-                        sequence(text("newentry"), param("parenthandle"), param("name"), param("pwd"),
-                                 opt(sequence(flag("-url"), param("url"))),
-                                 opt(sequence(flag("-u"), param("username"))),
-                                 opt(sequence(flag("-n"), param("notes")))),
-                        sequence(text("getentrydata"), param("nodehandle")),
-                        sequence(text("renameentry"), param("nodehandle"), param("name")),
-                        sequence(text("updateentry"), param("nodehandle"),
-                                 opt(sequence(flag("-p"), param("pwd"))),
-                                 opt(sequence(flag("-url"), param("url"))),
-                                 opt(sequence(flag("-u"), param("username"))),
-                                 opt(sequence(flag("-n"), param("note")))),
-                        sequence(text("removeentry"), param("nodehandle"))
-                        )));
+           sequence(text("pwdman"),
+                    either(text("list"),
+                           text("getbase"),
+                           text("createbase"),
+                           text("removebase"),
+                           sequence(text("newfolder"), param("parenthandle"), param("name")),
+                           sequence(text("renamefolder"), param("handle"), param("name")),
+                           sequence(text("removefolder"), param("handle")),
+                           sequence(text("newentry"),
+                                    param("parenthandle"),
+                                    param("name"),
+                                    param("pwd"),
+                                    opt(sequence(flag("-url"), param("url"))),
+                                    opt(sequence(flag("-u"), param("username"))),
+                                    opt(sequence(flag("-n"), param("notes")))),
+                           sequence(text("newentries"),
+                                    param("parenthandle"),
+                                    repeat(sequence(param("name"), param("uname"), param("pwd")))),
+                           sequence(text("getentrydata"), param("nodehandle")),
+                           sequence(text("renameentry"), param("nodehandle"), param("name")),
+                           sequence(text("updateentry"),
+                                    param("nodehandle"),
+                                    opt(sequence(flag("-p"), param("pwd"))),
+                                    opt(sequence(flag("-url"), param("url"))),
+                                    opt(sequence(flag("-u"), param("username"))),
+                                    opt(sequence(flag("-n"), param("note")))),
+                           sequence(text("removeentry"), param("nodehandle")))));
 
     p->Add(exec_generatepassword,
            sequence(text("generatepassword"),
@@ -7985,9 +7991,16 @@ void exec_export(autocomplete::ACState& s)
         cout << "Exporting..." << endl;
 
         error e;
-        if ((e = client->exportnode(n, deltmp, etstmp, writable, megaHosted, gNextClientTag++, [](Error e, handle h, handle ph){
-            exportnode_result(e, h, ph);
-        })))
+        if ((e = client->exportnode(n,
+                                    deltmp,
+                                    etstmp,
+                                    writable,
+                                    megaHosted,
+                                    gNextClientTag++,
+                                    [](Error e, handle h, handle ph, string&&)
+                                    {
+                                        exportnode_result(e, h, ph);
+                                    })))
         {
             cout << s.words[1].s << ": Export rejected (" << errorstring(e) << ")" << endl;
         }
@@ -10010,9 +10023,10 @@ void DemoApp::enumeratequotaitems_result(unsigned type,
                                          const char* iosId,
                                          const char* androidId,
                                          unsigned int testCategory,
-                                         std::unique_ptr<BusinessPlan> businessPlan)
+                                         std::unique_ptr<BusinessPlan> businessPlan,
+                                         unsigned int trialDays)
 {
-    if (type == 0) // Pro level plan
+    if (type != 1) // All plans but Business
     {
         cout << "\n" << description << ":\n";
         cout << "\tPro level: " << proLevel << "\n";
@@ -10036,9 +10050,10 @@ void DemoApp::enumeratequotaitems_result(unsigned type,
         }
         cout << "\tiOS ID: " << iosId << "\n";
         cout << "\tAndroid ID: " << androidId << "\n";
-        cout << "\tTest Category: " << testCategory << endl;
+        cout << "\tTest Category: " << testCategory << "\n";
+        cout << "\tTrial Days: " << trialDays << endl;
     }
-    else // Business plan
+    else // Business plan (type == 1)
     {
         cout << "\n" << description << ":\n";
         cout << "\tMinimum users: " << businessPlan->minUsers << "\n";
@@ -10211,8 +10226,55 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
 
     if (pro)
     {
-        cout << "\tPro level: " << ad->pro_level << endl;
-        cout << "\tSubscription type: " << ad->subscription_type << endl;
+        cout << "\tAccount Subscriptions:" << endl;
+        for (const auto& sub: ad->subscriptions)
+        {
+            cout << "\t\t* ID: " << sub.id << endl;
+            cout << "\t\t\t Status(type): ";
+            switch (sub.type)
+            {
+                case 'S':
+                    cout << "VALID";
+                    break;
+                case 'R':
+                    cout << "INVALID";
+                    break;
+                default:
+                    cout << "NONE";
+                    break;
+            }
+            cout << " (" << sub.type << ")" << endl;
+            cout << "\t\t\t Cycle: " << sub.cycle << endl;
+            cout << "\t\t\t Payment Method: " << sub.paymentMethod << endl;
+            cout << "\t\t\t Payment Method ID: " << sub.paymentMethodId << endl;
+            cout << "\t\t\t Renew time: " << sub.renew << endl;
+            cout << "\t\t\t Account level: " << sub.level << endl;
+            cout << "\t\t\t Is Trial: " << (sub.isTrial ? "Yes" : "No") << endl;
+            cout << "\t\t\t Features: ";
+            for (const auto& f: sub.features)
+            {
+                cout << f << ", ";
+            }
+            cout << endl;
+        }
+
+        cout << "\tAccount Plans:" << endl;
+        for (const auto& plan: ad->plans)
+        {
+            cout << "\t\t* Plan details: " << endl;
+            cout << "\t\t\t Account level: " << plan.level << endl;
+            cout << "\t\t\t Is Trial: " << (plan.isTrial ? "Yes" : "No") << endl;
+            cout << "\t\t\t Features: ";
+            for (const auto& f: plan.features)
+            {
+                cout << f << ", ";
+            }
+            cout << endl;
+            cout << "\t\t\t Expiration time: " << plan.expiration << endl;
+            cout << "\t\t\t Plan type: " << plan.type << endl;
+            cout << "\t\t\t Related subscription id: " << plan.subscriptionId << endl;
+        }
+
         cout << "\tAccount balance:" << endl;
 
         for (vector<AccountBalance>::iterator it = ad->balances.begin(); it != ad->balances.end(); it++)
@@ -12943,6 +13005,34 @@ void exec_passwordmanager(autocomplete::ACState& s)
                                      std::move(notes));
 
         client->createPasswordNode(name, std::move(pwdData), nParent, 0);
+    }
+    else if (command == "newentries")
+    {
+        if (s.words.size() <= 3)
+        {
+            cout << "Nothing to do\n";
+            return;
+        }
+        auto ph = getNodeHandleFromParam(2);
+        auto nParent = client->nodeByHandle(ph);
+        if (!nParent)
+        {
+            cout << "Wrong parent handle provided " << toNodeHandle(ph) << "\n";
+            return;
+        }
+        size_t currentReadIndex = 3;
+        const size_t nWords = s.words.size();
+        std::map<std::string, std::unique_ptr<AttrMap>> info;
+        while (currentReadIndex < nWords)
+        {
+            auto name = s.words[currentReadIndex++].s.c_str();
+            auto userName = s.words[currentReadIndex++].s.c_str();
+            auto pwd = s.words[currentReadIndex++].s.c_str();
+            assert(*name && *userName && *pwd);
+            auto pwdData = createPwdData(std::string{pwd}, "", std::string{userName}, "");
+            info[std::move(name)] = std::move(pwdData);
+        }
+        client->createPasswordNodes(std::move(info), nParent, 0);
     }
     else if (command == "getentrydata")
     {

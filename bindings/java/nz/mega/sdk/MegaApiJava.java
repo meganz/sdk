@@ -10799,6 +10799,7 @@ public class MegaApiJava {
 
     void privateFreeRequestListener(DelegateMegaRequestListener listener) {
         activeRequestListeners.remove(listener);
+        megaApi.removeRequestListener(listener);
     }
 
     void privateFreeTransferListener(DelegateMegaTransferListener listener) {

@@ -2572,6 +2572,8 @@ std::string CacheableStatus::typeToStr(CacheableStatus::Type type)
         return "blocked";
     case STATUS_PRO_LEVEL:
         return "pro-level";
+    case STATUS_FEATURE_LEVEL:
+        return "feature-level";
     default:
         return "undefined";
     }
@@ -3646,6 +3648,28 @@ int naturalsorting_compare(const char* i, const char* j)
     }
 
     return 0;
+}
+
+std::string ensureAsteriskSurround(std::string str)
+{
+    if (str.empty())
+        return "*";
+
+    if (str.front() != '*')
+        str.insert(str.begin(), '*');
+
+    if (str.back() != '*')
+        str.push_back('*');
+
+    return str;
+}
+
+size_t fileExtensionDotPosition(const std::string& fileName)
+{
+    if (size_t dotPos = fileName.rfind('.'); dotPos == std::string::npos)
+        return fileName.size();
+    else
+        return dotPos;
 }
 
 } // namespace mega

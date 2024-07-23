@@ -58,6 +58,7 @@
 #import "BackUpSubState.h"
 #import "MEGASearchFilter.h"
 #import "MEGASearchFilterTimeFrame.h"
+#import "MEGASearchPage.h"
 #import "PasswordNodeData.h"
 #import "MEGANotification.h"
 
@@ -153,7 +154,8 @@ typedef NS_ENUM(NSInteger, MEGANodeAttribute) {
     MEGANodeAttributeOriginalFingerprint = 2,
     MEGANodeAttributeLabel = 3,
     MEGANodeAttributeFav = 4,
-    MEGANodeAttributeSen = 6
+    MEGANodeAttributeSen = 6,
+    MEGANodeDescription = 7
 };
 
 typedef NS_ENUM(NSInteger, MEGASetAttribute) {
@@ -661,6 +663,16 @@ typedef NS_ENUM(NSInteger, MEGAClientType) {
  * @param delegate Delegate that will receive all events about transfers.
  */
 - (void)addMEGATransferDelegate:(id<MEGATransferDelegate>)delegate;
+
+/**
+ * @brief Register a delegate to receive all events about transfers.
+ *
+ * You can use [MEGASdk removeMEGATransferDelegate:] to stop receiving events.
+ *
+ * @param delegate Delegate that will receive all events about transfers.
+ * @param queueType ListenerQueueType to receive the MEGARequest events on.
+ */
+- (void)addMEGATransferDelegate:(id<MEGATransferDelegate>)delegate queueType:(ListenerQueueType)queueType;
 
 /**
  * @brief Register a delegate to receive global events.
@@ -3587,6 +3599,25 @@ typedef NS_ENUM(NSInteger, MEGAClientType) {
  * @param sensitive if true set node as sensitive, otherwise remove the attribute
  */
 - (void)setNodeSensitive:(MEGANode *)node sensitive:(BOOL)sensitive;
+
+/**
+ * @brief Set node description as a node attribute
+ *
+ * To remove node description, set description to nil
+ * The associated request type with this request is MEGARequestTypeSetAttrNode
+ * Valid data in the MegaRequest object received on callbacks: 
+ * - [MEGARequest nodeHandle] - Returns the handle of the node that received the attribute
+ * - [MEGARequest flag] - Returns true (official  * attribute)
+ * - MEGARequest paramType]  - Returns MEGANodeDescription
+ * - [MEGARequest getText] - Returns node description
+ * If the size of the description is greater than 3000, onRequestFinish will be called with the error code MEGAErrorTypeApiEArgs.
+ * If the MEGA account is a business account and its status is expired, onRequestFinish will be called with the error code MEGAErrorTypeApiEBusinessPastDue.
+ *
+ * @param description Description of the node. Set nil to remove.
+ * @param node Node that will receive the information.
+ * @param delegate MEGARequestListener to track this request
+ */
+- (void)setDescription:(nullable NSString *)description forNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Get a list of favourite nodes.
@@ -8166,13 +8197,12 @@ typedef NS_ENUM(NSInteger, MEGAClientType) {
  * The search is case-insensitive.
  *
  * @param filter Filter we should apply to the current search.
- * @param orderType Order type we should applyto the current search.
- * NO if you want to seach in the children of the node only
+ * @param orderType Order type we should apply to the current search.
+ * @param page Paged criteria for request
  *
  * @return List of nodes that contain the desired string in their name.
  */
-- (MEGANodeList *)searchWith:(MEGASearchFilter *)filter orderType:(MEGASortOrderType)orderType cancelToken:(MEGACancelToken *)cancelToken;
-
+- (MEGANodeList *)searchWith:(MEGASearchFilter *)filter orderType:(MEGASortOrderType)orderType page:(nullable MEGASearchPage *)page cancelToken:(MEGACancelToken *)cancelToken;
 
 /**
  * @brief Search nodes with applied filter non-recursively.
@@ -8180,12 +8210,13 @@ typedef NS_ENUM(NSInteger, MEGAClientType) {
  * The search is case-insensitive.
  *
  * @param filter Filter we should apply to the current search.
- * @param orderType Order type we should applyto the current search.
- * NO if you want to seach in the children of the node only
+ * @param orderType Order type we should apply to the current search.
+ * @param page Paged criteria for request
+ * NO if you want to search in the children of the node only
  *
  * @return List of nodes that contain the desired string in their name.
  */
-- (MEGANodeList *)searchNonRecursivelyWith:(MEGASearchFilter *)filter  orderType:(MEGASortOrderType)orderType cancelToken:(MEGACancelToken *)cancelToken;
+- (MEGANodeList *)searchNonRecursivelyWith:(MEGASearchFilter *)filter orderType:(MEGASortOrderType)orderType page:(nullable MEGASearchPage *)page cancelToken:(MEGACancelToken *)cancelToken;
 
 
 /**

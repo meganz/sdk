@@ -169,6 +169,8 @@ public:
 
     sharedNode_vector searchNodes(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page);
 
+    std::set<std::string> getAllNodeTags(const char* searchString, CancelToken cancelFlag);
+
     sharedNode_vector getNodesByFingerprint(FileFingerprint& fingerprint);
     sharedNode_vector getNodesByOrigFingerprint(const std::string& fingerprint, Node *parent);
     std::shared_ptr<Node> getNodeByFingerprint(FileFingerprint &fingerprint);
@@ -395,6 +397,8 @@ private:
     sharedNode_vector searchNodes_internal(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page);
     sharedNode_vector processUnserializedNodes(const std::vector<std::pair<NodeHandle, NodeSerialized>>& nodesFromTable, CancelToken cancelFlag);
     sharedNode_vector getChildren_internal(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page);
+
+    std::set<std::string> getAllNodeTags_internal(const char* searchString, CancelToken cancelFlag);
 
     // node temporary in memory, which will be removed upon write to DB
     std::shared_ptr<Node> mNodeToWriteInDb;

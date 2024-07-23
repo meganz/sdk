@@ -1566,10 +1566,22 @@ class MegaRequestPrivate : public MegaRequest
         void setTotalBytes(long long totalBytes);
         void setTransferredBytes(long long transferredBytes);
         void setTag(int tag);
-        void addProduct(unsigned int type, handle product, int proLevel, int gbStorage, int gbTransfer,
-                        int months, int amount, int amountMonth, int localPrice,
-                        const char *description, std::map<std::string, uint32_t>&& features, const char *iosid, const char *androidid,
-                        unsigned int testCategory, std::unique_ptr<BusinessPlan>);
+        void addProduct(unsigned int type,
+                        handle product,
+                        int proLevel,
+                        int gbStorage,
+                        int gbTransfer,
+                        int months,
+                        int amount,
+                        int amountMonth,
+                        int localPrice,
+                        const char* description,
+                        std::map<std::string, uint32_t>&& features,
+                        const char* iosid,
+                        const char* androidid,
+                        unsigned int testCategory,
+                        std::unique_ptr<BusinessPlan>,
+                        unsigned int trialDays);
         void setCurrency(std::unique_ptr<CurrencyData> currencyData);
         void setProxy(Proxy *proxy);
         Proxy *getProxy();
@@ -1855,6 +1867,45 @@ private:
     AccountFeature mFeature;
 };
 
+class MegaAccountSubscriptionPrivate: public MegaAccountSubscription
+{
+public:
+    static MegaAccountSubscriptionPrivate*
+        fromAccountSubscription(const AccountSubscription& subscription);
+
+    char* getId() const override;
+    int getStatus() const override;
+    char* getCycle() const override;
+    char* getPaymentMethod() const override;
+    int32_t getPaymentMethodId() const override;
+    int64_t getRenewTime() const override;
+    int32_t getAccountLevel() const override;
+    MegaStringList* getFeatures() const override;
+    bool isTrial() const override;
+
+private:
+    MegaAccountSubscriptionPrivate(const AccountSubscription& subscription);
+    AccountSubscription mSubscription;
+};
+
+class MegaAccountPlanPrivate: public MegaAccountPlan
+{
+public:
+    static MegaAccountPlanPrivate* fromAccountPlan(const AccountPlan& plan);
+
+    bool isProPlan() const override;
+    int32_t getAccountLevel() const override;
+    MegaStringList* getFeatures() const override;
+    int64_t getExpirationTime() const override;
+    int32_t getType() const override;
+    char* getId() const override;
+    bool isTrial() const override;
+
+private:
+    MegaAccountPlanPrivate(const AccountPlan& plan);
+    AccountPlan mPlan;
+};
+
 class MegaAccountDetailsPrivate : public MegaAccountDetails
 {
     public:
@@ -1906,6 +1957,10 @@ class MegaAccountDetailsPrivate : public MegaAccountDetails
         MegaAccountFeature* getActiveFeature(int featureIndex) const override;
         int64_t getSubscriptionLevel() const override;
         MegaStringIntegerMap* getSubscriptionFeatures() const override;
+        int getNumSubscriptions() const override;
+        MegaAccountSubscription* getSubscription(int subscriptionsIndex) const override;
+        int getNumPlans() const override;
+        MegaAccountPlan* getPlan(int plansIndex) const override;
 
     private:
         MegaAccountDetailsPrivate(AccountDetails *details);
@@ -1961,11 +2016,24 @@ public:
     int getGBPerTransfer(int productIndex) override;
     MegaStringIntegerMap* getFeatures(int productIndex) const override;
     unsigned int getTestCategory(int productIndex) const override;
+    unsigned int getTrialDurationInDays(int productIndex) const override;
 
-    void addProduct(unsigned int type, handle product, int proLevel, int gbStorage, int gbTransfer,
-                    int months, int amount, int amountMonth, unsigned localPrice,
-                    const char *description, std::map<std::string, uint32_t>&& features, const char *iosid, const char *androidid,
-                    unsigned int testCategory, std::unique_ptr<BusinessPlan>);
+    void addProduct(unsigned int type,
+                    handle product,
+                    int proLevel,
+                    int gbStorage,
+                    int gbTransfer,
+                    int months,
+                    int amount,
+                    int amountMonth,
+                    unsigned localPrice,
+                    const char* description,
+                    std::map<std::string, uint32_t>&& features,
+                    const char* iosid,
+                    const char* androidid,
+                    unsigned int testCategory,
+                    std::unique_ptr<BusinessPlan>,
+                    unsigned int trialDays);
 
 private:
     enum PlanType : unsigned
@@ -1991,6 +2059,7 @@ private:
     vector<const char *> iosId;
     vector<const char *> androidId;
     vector<unsigned int> mTestCategory;
+    vector<unsigned int> mTrialDays;
 
     std::vector<std::unique_ptr<BusinessPlan>> mBizPlan;
 };
@@ -3160,6 +3229,7 @@ class MegaApiImpl : public MegaApp
                        const char* newTag,
                        const char* oldTag,
                        MegaRequestListener* listener = NULL);
+        MegaStringList* getAllNodeTags(const char* searchString, CancelToken cancelToken);
 
         void exportNode(MegaNode *node, int64_t expireTime, bool writable, bool megaHosted, MegaRequestListener *listener = NULL);
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
@@ -3176,7 +3246,10 @@ class MegaApiImpl : public MegaApp
                              MegaRequestListener *listener = NULL);
 
         void creditCardQuerySubscriptions(MegaRequestListener *listener = NULL);
-        void creditCardCancelSubscriptions(const char* reason, MegaRequestListener *listener = NULL);
+        void creditCardCancelSubscriptions(const char* reason,
+                                           const char* id,
+                                           int canContact,
+                                           MegaRequestListener* listener = NULL);
         void getPaymentMethods(MegaRequestListener *listener = NULL);
 
         char *exportMasterKey();
@@ -4090,11 +4163,22 @@ public:
 #endif
 
         // purchase transactions
-        void enumeratequotaitems_result(unsigned type, handle product, unsigned prolevel, int gbstorage, int gbtransfer,
-                                        unsigned months, unsigned amount, unsigned amountMonth, unsigned localPrice,
-                                        const char* description, std::map<std::string, uint32_t>&& features,
-                                        const char* iosid, const char* androidid, 
-                                        unsigned int testCategory, std::unique_ptr<BusinessPlan>) override;
+        void enumeratequotaitems_result(unsigned type,
+                                        handle product,
+                                        unsigned prolevel,
+                                        int gbstorage,
+                                        int gbtransfer,
+                                        unsigned months,
+                                        unsigned amount,
+                                        unsigned amountMonth,
+                                        unsigned localPrice,
+                                        const char* description,
+                                        std::map<std::string, uint32_t>&& features,
+                                        const char* iosid,
+                                        const char* androidid,
+                                        unsigned int testCategory,
+                                        std::unique_ptr<BusinessPlan>,
+                                        unsigned int trialDays) override;
         void enumeratequotaitems_result(unique_ptr<CurrencyData>) override;
         void enumeratequotaitems_result(error e) override;
         void additem_result(error) override;

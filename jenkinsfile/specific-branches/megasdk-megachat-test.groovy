@@ -81,7 +81,7 @@ pipeline {
                     } else  {
                         lockLabel = 'SDK_Concurrent_Test_Accounts_Staging'
                     }
-                    lock(label: lockLabel, variable: 'ACCOUNTS_COMBINATION', quantity: 1, resource: null){
+                    lock(label: lockLabel, variable: 'ACCOUNTS_COMBINATION', quantity: 1, resourceSelectStrategy: "random", resource: null){
                         dir("${megachat_sources_workspace}/build/subfolder"){
                             script{
                                 env.MEGA_EMAIL0 = "${env.ACCOUNTS_COMBINATION}"
@@ -132,6 +132,7 @@ pipeline {
     post {
         always {
             archiveArtifacts artifacts: '*.log.gz', fingerprint: true
+            deleteDir()
         }
     }
 }

@@ -19,6 +19,7 @@
  * program.
  */
 
+#include <numeric>
 #define _LARGE_FILES
 
 #define _GNU_SOURCE 1
@@ -4398,16 +4399,41 @@ void MegaRequestPrivate::setTag(int tag)
     this->tag = tag;
 }
 
-void MegaRequestPrivate::addProduct(unsigned int type, handle product, int proLevel, int gbStorage, int gbTransfer,
-                                    int months, int amount, int amountMonth, int localPrice,
-                                    const char* description, map<string, uint32_t>&& features, const char* iosid, const char* androidid,
-                                    unsigned int testCategory, std::unique_ptr<BusinessPlan> bizPlan)
+void MegaRequestPrivate::addProduct(unsigned int type,
+                                    handle product,
+                                    int proLevel,
+                                    int gbStorage,
+                                    int gbTransfer,
+                                    int months,
+                                    int amount,
+                                    int amountMonth,
+                                    int localPrice,
+                                    const char* description,
+                                    map<string, uint32_t>&& features,
+                                    const char* iosid,
+                                    const char* androidid,
+                                    unsigned int testCategory,
+                                    std::unique_ptr<BusinessPlan> bizPlan,
+                                    unsigned int trialDays)
 {
     if (megaPricing)
     {
-        megaPricing->addProduct(type, product, proLevel, gbStorage, gbTransfer,
-                                months, amount, amountMonth, localPrice,
-                                description, std::move(features), iosid, androidid, testCategory, std::move(bizPlan));
+        megaPricing->addProduct(type,
+                                product,
+                                proLevel,
+                                gbStorage,
+                                gbTransfer,
+                                months,
+                                amount,
+                                amountMonth,
+                                localPrice,
+                                description,
+                                std::move(features),
+                                iosid,
+                                androidid,
+                                testCategory,
+                                std::move(bizPlan),
+                                trialDays);
     }
 }
 
@@ -8220,6 +8246,20 @@ void MegaApiImpl::removeNodeTag(MegaNode* node, const char* tag, MegaRequestList
 void MegaApiImpl::updateNodeTag(MegaNode* node, const char* newTag, const char* oldTag, MegaRequestListener* listener)
 {
     CRUDNodeTagOperation(node, MegaApi::TAG_NODE_UPDATE, newTag, oldTag, listener);
+}
+
+MegaStringList* MegaApiImpl::getAllNodeTags(const char* searchString, CancelToken cancelToken)
+{
+    SdkMutexGuard g(sdkMutex);
+    std::set<std::string> allDifferentTags =
+        client->mNodeManager.getAllNodeTags(searchString, cancelToken);
+    std::vector<std::string> result(allDifferentTags.begin(), allDifferentTags.end());
+    const auto compF = [](const std::string& a, const std::string& b) -> bool
+    {
+        return naturalsorting_compare(a.c_str(), b.c_str()) < 0;
+    };
+    std::sort(std::begin(result), std::end(result), compF);
+    return new MegaStringListPrivate(std::move(result));
 }
 
 void MegaApiImpl::exportNode(MegaNode *node, int64_t expireTime, bool writable, bool megaHosted, MegaRequestListener *listener)
@@ -14311,10 +14351,22 @@ void MegaApiImpl::putfa_result(handle h, fatype, error e)
     fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
 }
 
-void MegaApiImpl::enumeratequotaitems_result(unsigned type, handle product, unsigned prolevel,
-    int gbstorage, int gbtransfer, unsigned months, unsigned amount, unsigned amountMonth, unsigned localPrice,
-    const char* description, map<string, uint32_t>&& features, const char* iosid, const char* androidid, 
-    unsigned int testCategory, std::unique_ptr<BusinessPlan> bizPlan)
+void MegaApiImpl::enumeratequotaitems_result(unsigned type,
+                                             handle product,
+                                             unsigned prolevel,
+                                             int gbstorage,
+                                             int gbtransfer,
+                                             unsigned months,
+                                             unsigned amount,
+                                             unsigned amountMonth,
+                                             unsigned localPrice,
+                                             const char* description,
+                                             map<string, uint32_t>&& features,
+                                             const char* iosid,
+                                             const char* androidid,
+                                             unsigned int testCategory,
+                                             std::unique_ptr<BusinessPlan> bizPlan,
+                                             unsigned int trialDays)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
@@ -14326,9 +14378,22 @@ void MegaApiImpl::enumeratequotaitems_result(unsigned type, handle product, unsi
         return;
     }
 
-    request->addProduct(type, product, prolevel, gbstorage, gbtransfer, months,
-        amount, amountMonth, localPrice, description, std::move(features),
-        iosid, androidid, testCategory, std::move(bizPlan));
+    request->addProduct(type,
+                        product,
+                        prolevel,
+                        gbstorage,
+                        gbtransfer,
+                        months,
+                        amount,
+                        amountMonth,
+                        localPrice,
+                        description,
+                        std::move(features),
+                        iosid,
+                        androidid,
+                        testCategory,
+                        std::move(bizPlan),
+                        trialDays);
 }
 
 void MegaApiImpl::enumeratequotaitems_result(unique_ptr<CurrencyData> currencyData)
@@ -20242,59 +20307,78 @@ error MegaApiImpl::performRequest_export(MegaRequestPrivate* request)
             bool writable = request->getFlag();
             bool megaHosted = request->getTransferTag() != 0;
             // exportnode() will take care of creating a share first, should it be a folder
-            return client->exportnode(node, !request->getAccess(), request->getNumber(), writable, megaHosted, request->getTag(),
-                [this, request](Error e, handle h, handle ph)
-            {
-                if (e || !request->getAccess()) // disable export doesn't return h and ph
+            return client->exportnode(
+                node,
+                !request->getAccess(),
+                request->getNumber(),
+                writable,
+                megaHosted,
+                request->getTag(),
+                [this, request, megaHosted](Error e, handle h, handle ph, string&& encryptionKey)
                 {
-                    fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
-                }
-                else
-                {
-                    // This block of code used to be inside exportnode_result
-                    if (std::shared_ptr<Node> n = client->nodebyhandle(h))
+                    if (e || !request->getAccess()) // disable export doesn't return h and ph
                     {
-                        char key[FILENODEKEYLENGTH*4/3+3];
-
-                        // the key
-                        if (n->type == FILENODE)
-                        {
-                            if(n->nodekey().size() >= FILENODEKEYLENGTH)
-                            {
-                                Base64::btoa((const byte*)n->nodekey().data(), FILENODEKEYLENGTH, key);
-                            }
-                            else
-                            {
-                                key[0]=0;
-                            }
-                        }
-                        else if (n->sharekey)
-                        {
-                            Base64::btoa(n->sharekey->key, FOLDERNODEKEYLENGTH, key);
-                        }
-                        else
-                        {
-                            fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(MegaError::API_EKEY));
-                            return;
-                        }
-
-                        TypeOfLink lType = client->validTypeForPublicURL(n->type);
-                        string link = client->publicLinkURL(client->mNewLinkFormat, lType, ph, key);
-                        request->setLink(link.c_str());
-                        if (n->plink && n->plink->mAuthKey.size())
-                        {
-                            request->setPrivateKey(n->plink->mAuthKey.c_str());
-                        }
-
-                        fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(MegaError::API_OK));
+                        fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
                     }
                     else
                     {
-                        request->setNodeHandle(UNDEF);
-                        fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(MegaError::API_ENOENT));
+                        // This block of code used to be inside exportnode_result
+                        if (std::shared_ptr<Node> n = client->nodebyhandle(h))
+                        {
+                            char key[FILENODEKEYLENGTH * 4 / 3 + 3];
+
+                            // the key
+                            if (n->type == FILENODE)
+                            {
+                                if (n->nodekey().size() >= FILENODEKEYLENGTH)
+                                {
+                                    Base64::btoa((const byte*)n->nodekey().data(),
+                                                 FILENODEKEYLENGTH,
+                                                 key);
+                                }
+                                else
+                                {
+                                    key[0] = 0;
+                                }
+                            }
+                            else if (n->sharekey)
+                            {
+                                Base64::btoa(n->sharekey->key, FOLDERNODEKEYLENGTH, key);
+                            }
+                            else
+                            {
+                                fireOnRequestFinish(
+                                    request,
+                                    std::make_unique<MegaErrorPrivate>(MegaError::API_EKEY));
+                                return;
+                            }
+
+                            TypeOfLink lType = client->validTypeForPublicURL(n->type);
+                            string link =
+                                client->publicLinkURL(client->mNewLinkFormat, lType, ph, key);
+                            request->setLink(link.c_str());
+                            if (n->plink && n->plink->mAuthKey.size())
+                            {
+                                request->setPrivateKey(n->plink->mAuthKey.c_str());
+                                if (megaHosted)
+                                {
+                                    request->setPassword(encryptionKey.c_str());
+                                }
+                            }
+
+                            fireOnRequestFinish(
+                                request,
+                                std::make_unique<MegaErrorPrivate>(MegaError::API_OK));
+                        }
+                        else
+                        {
+                            request->setNodeHandle(UNDEF);
+                            fireOnRequestFinish(
+                                request,
+                                std::make_unique<MegaErrorPrivate>(MegaError::API_ENOENT));
+                        }
                     }
-                }
-            });
+                });
 }
 
 void MegaApiImpl::fetchNodes(MegaRequestListener* listener)
@@ -22980,17 +23064,26 @@ void MegaApiImpl::creditCardQuerySubscriptions(MegaRequestListener* listener)
     waiter->notify();
 }
 
-void MegaApiImpl::creditCardCancelSubscriptions(const char* reason, MegaRequestListener* listener)
+void MegaApiImpl::creditCardCancelSubscriptions(const char* reason,
+                                                const char* id,
+                                                int canContact,
+                                                MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS, listener);
     request->setText(reason);
+    request->setName(id);
+    request->setNumDetails(canContact);
 
     request->performRequest = [this, request]()
-        {
-            const char* reason = request->getText();
-            client->creditcardcancelsubscriptions(reason);
-            return API_OK;
+    {
+        CommandCreditCardCancelSubscriptions::CancelSubscription cancelSubscription{
+            request->getText(), // reason
+            request->getName(), // id
+            request->getNumDetails(), // canContact
         };
+        client->creditcardcancelsubscriptions(cancelSubscription);
+        return API_OK;
+    };
 
     requestQueue.push(request);
     waiter->notify();
@@ -23067,7 +23160,7 @@ void MegaApiImpl::sendEvent(int eventType, const char* message, bool addJourneyI
                 { 99600,  100000}, // WebClient range.
                 {100000,  300000}, // API extended range.
                 {500000,  600000}, // WebClient extended range.
-                {700000,  800000}, // API extended range.
+                {750000,  800000}, // API extended range.
                 {900000, INT_MAX}  // Unassigned.
             }; // excluded
 
@@ -27399,47 +27492,93 @@ bool MegaHashSignatureImpl::checkSignature(const char *base64Signature)
 
 int MegaAccountDetailsPrivate::getProLevel()
 {
-    return details.pro_level;
+    for (const auto& plan: details.plans)
+    {
+        if (plan.isProPlan())
+        {
+            return plan.level;
+        }
+    }
+
+    return MegaAccountDetails::ACCOUNT_TYPE_FREE;
 }
 
 int64_t MegaAccountDetailsPrivate::getProExpiration()
 {
-    return details.pro_until;
+    for (const auto& plan: details.plans)
+    {
+        if (plan.isProPlan())
+        {
+            return plan.expiration;
+        }
+    }
+
+    return MEGA_INVALID_TIMESTAMP;
 }
 
 int MegaAccountDetailsPrivate::getSubscriptionStatus()
 {
-    if(details.subscription_type == 'S')
+    // Consider only the first subscription
+    if (!details.subscriptions.empty())
     {
-        return MegaAccountDetails::SUBSCRIPTION_STATUS_VALID;
+        char subType = details.subscriptions.front().type;
+
+        if (subType == 'S')
+        {
+            return MegaAccountSubscription::SUBSCRIPTION_STATUS_VALID;
+        }
+
+        if (subType == 'R')
+        {
+            return MegaAccountSubscription::SUBSCRIPTION_STATUS_INVALID;
+        }
     }
 
-    if(details.subscription_type == 'R')
-    {
-        return MegaAccountDetails::SUBSCRIPTION_STATUS_INVALID;
-    }
-
-    return MegaAccountDetails::SUBSCRIPTION_STATUS_NONE;
+    return MegaAccountSubscription::SUBSCRIPTION_STATUS_NONE;
 }
 
 int64_t MegaAccountDetailsPrivate::getSubscriptionRenewTime()
 {
-    return details.subscription_renew;
+    // Consider only the first subscription
+    if (!details.subscriptions.empty())
+    {
+        return details.subscriptions.front().renew;
+    }
+
+    return MEGA_INVALID_TIMESTAMP;
 }
 
 char *MegaAccountDetailsPrivate::getSubscriptionMethod()
 {
-    return MegaApi::strdup(details.subscription_method.c_str());
+    // Consider only the first subscription
+    if (!details.subscriptions.empty())
+    {
+        return MegaApi::strdup(details.subscriptions.front().paymentMethod.c_str());
+    }
+
+    return new char{'\0'};
 }
 
 int MegaAccountDetailsPrivate::getSubscriptionMethodId()
 {
-    return details.subscription_method_id;
+    // Consider only the first subscription
+    if (!details.subscriptions.empty())
+    {
+        return details.subscriptions.front().paymentMethodId;
+    }
+
+    return MegaAccountDetails::ACCOUNT_TYPE_FREE;
 }
 
 char *MegaAccountDetailsPrivate::getSubscriptionCycle()
 {
-    return MegaApi::strdup(details.subscription_cycle);
+    // Consider only the first subscription
+    if (!details.subscriptions.empty())
+    {
+        return MegaApi::strdup(details.subscriptions.front().cycle.c_str());
+    }
+
+    return new char{'\0'};
 }
 
 long long MegaAccountDetailsPrivate::getStorageMax()
@@ -27658,17 +27797,61 @@ MegaAccountFeature* MegaAccountDetailsPrivate::getActiveFeature(int featureIndex
 
 int64_t MegaAccountDetailsPrivate::getSubscriptionLevel() const
 {
-    return details.slevel;
+    // Consider only the first subscription
+    if (!details.subscriptions.empty())
+    {
+        return details.subscriptions.front().level;
+    }
+
+    return MegaAccountDetails::ACCOUNT_TYPE_FREE;
 }
 
 MegaStringIntegerMap* MegaAccountDetailsPrivate::getSubscriptionFeatures() const
 {
     MegaStringIntegerMapPrivate* subscriptionFeatures = new MegaStringIntegerMapPrivate();
-    for (const auto& f : details.sfeatures)
+    // Consider only the first subscription
+    if (!details.subscriptions.empty())
     {
-        subscriptionFeatures->set(f.first, f.second);
+        for (const auto& f: details.subscriptions.front().features)
+        {
+            // Since all the received features are active, all have a 1.
+            // Hardcoded to keep the interface.
+            subscriptionFeatures->set(f, 1);
+        }
     }
+
     return subscriptionFeatures;
+}
+
+int MegaAccountDetailsPrivate::getNumSubscriptions() const
+{
+    return static_cast<int>(details.subscriptions.size());
+}
+
+MegaAccountSubscription* MegaAccountDetailsPrivate::getSubscription(int featureIndex) const
+{
+    size_t index = static_cast<size_t>(featureIndex);
+    if (index < details.subscriptions.size())
+    {
+        return MegaAccountSubscriptionPrivate::fromAccountSubscription(
+            details.subscriptions[index]);
+    }
+    return nullptr;
+}
+
+int MegaAccountDetailsPrivate::getNumPlans() const
+{
+    return static_cast<int>(details.plans.size());
+}
+
+MegaAccountPlan* MegaAccountDetailsPrivate::getPlan(int featureIndex) const
+{
+    size_t index = static_cast<size_t>(featureIndex);
+    if (index < details.plans.size())
+    {
+        return MegaAccountPlanPrivate::fromAccountPlan(details.plans[index]);
+    }
+    return nullptr;
 }
 
 MegaErrorPrivate::MegaErrorPrivate(int errorCode)
@@ -27916,18 +28099,43 @@ MegaPricing *MegaPricingPrivate::copy()
     {
         std::unique_ptr<BusinessPlan> bizPlan(mBizPlan[i] ? new BusinessPlan(*mBizPlan[i]) : nullptr);
 
-        megaPricing->addProduct(type[i], handles[i], proLevel[i], gbStorage[i], gbTransfer[i],
-                                months[i], amount[i], amountMonth[i], mLocalPrice[i], description[i],
+        megaPricing->addProduct(type[i],
+                                handles[i],
+                                proLevel[i],
+                                gbStorage[i],
+                                gbTransfer[i],
+                                months[i],
+                                amount[i],
+                                amountMonth[i],
+                                mLocalPrice[i],
+                                description[i],
                                 decltype(features)::value_type(features[i]), // make a copy
-                                iosId[i], androidId[i], mTestCategory[i], std::move(bizPlan));
+                                iosId[i],
+                                androidId[i],
+                                mTestCategory[i],
+                                std::move(bizPlan),
+                                mTrialDays[i]);
     }
 
     return megaPricing;
 }
 
-void MegaPricingPrivate::addProduct(unsigned int type, handle product, int proLevel, int gbStorage, int gbTransfer, int months, int amount, int amountMonth,
-                                    unsigned localPrice, const char* description, map<string, uint32_t>&& features, const char* iosid, const char* androidid, 
-                                    unsigned int testCategory, std::unique_ptr<BusinessPlan> bizPlan)
+void MegaPricingPrivate::addProduct(unsigned int type,
+                                    handle product,
+                                    int proLevel,
+                                    int gbStorage,
+                                    int gbTransfer,
+                                    int months,
+                                    int amount,
+                                    int amountMonth,
+                                    unsigned localPrice,
+                                    const char* description,
+                                    map<string, uint32_t>&& features,
+                                    const char* iosid,
+                                    const char* androidid,
+                                    unsigned int testCategory,
+                                    std::unique_ptr<BusinessPlan> bizPlan,
+                                    unsigned int trialDays)
 {
     this->type.push_back(type);
     this->handles.push_back(product);
@@ -27944,6 +28152,7 @@ void MegaPricingPrivate::addProduct(unsigned int type, handle product, int proLe
     this->androidId.push_back(MegaApi::strdup(androidid));
     mBizPlan.push_back(std::move(bizPlan));
     this->mTestCategory.push_back(testCategory);
+    this->mTrialDays.push_back(trialDays);
 }
 
 
@@ -28077,6 +28286,17 @@ unsigned int MegaPricingPrivate::getTestCategory(int productIndex) const
     if (static_cast<decltype(mTestCategory.size())>(productIndex) < mTestCategory.size())
     {
         return mTestCategory[productIndex];
+    }
+
+    return 0;
+}
+
+unsigned int MegaPricingPrivate::getTrialDurationInDays(int productIndex) const
+{
+    auto index = static_cast<decltype(mTrialDays.size())>(productIndex);
+    if (index < mTrialDays.size())
+    {
+        return mTrialDays[index];
     }
 
     return 0;
@@ -28556,7 +28776,128 @@ char* MegaAccountFeaturePrivate::getId() const
     return MegaApi::strdup(mFeature.featureId.c_str());
 }
 
+MegaAccountSubscriptionPrivate*
+    MegaAccountSubscriptionPrivate::fromAccountSubscription(const AccountSubscription& subscription)
+{
+    return new MegaAccountSubscriptionPrivate(subscription);
+}
 
+MegaAccountSubscriptionPrivate::MegaAccountSubscriptionPrivate(
+    const AccountSubscription& subscription)
+{
+    mSubscription = subscription;
+}
+
+char* MegaAccountSubscriptionPrivate::getId() const
+{
+    return MegaApi::strdup(mSubscription.id.c_str());
+}
+
+int MegaAccountSubscriptionPrivate::getStatus() const
+{
+    if (mSubscription.type == 'S')
+    {
+        return MegaAccountSubscription::SUBSCRIPTION_STATUS_VALID;
+    }
+
+    if (mSubscription.type == 'R')
+    {
+        return MegaAccountSubscription::SUBSCRIPTION_STATUS_INVALID;
+    }
+
+    return MegaAccountSubscription::SUBSCRIPTION_STATUS_NONE;
+}
+
+char* MegaAccountSubscriptionPrivate::getCycle() const
+{
+    return MegaApi::strdup(mSubscription.cycle.c_str());
+}
+
+char* MegaAccountSubscriptionPrivate::getPaymentMethod() const
+{
+    return MegaApi::strdup(mSubscription.paymentMethod.c_str());
+}
+
+int32_t MegaAccountSubscriptionPrivate::getPaymentMethodId() const
+{
+    return mSubscription.paymentMethodId;
+}
+
+int64_t MegaAccountSubscriptionPrivate::getRenewTime() const
+{
+    return mSubscription.renew;
+}
+
+int32_t MegaAccountSubscriptionPrivate::getAccountLevel() const
+{
+    return mSubscription.level;
+}
+
+MegaStringList* MegaAccountSubscriptionPrivate::getFeatures() const
+{
+    MegaStringListPrivate* subscriptionFeatures = new MegaStringListPrivate();
+    for (const auto& f: mSubscription.features)
+    {
+        subscriptionFeatures->add(f.c_str());
+    }
+    return subscriptionFeatures;
+}
+
+bool MegaAccountSubscriptionPrivate::isTrial() const
+{
+    return mSubscription.isTrial;
+}
+
+MegaAccountPlanPrivate* MegaAccountPlanPrivate::fromAccountPlan(const AccountPlan& plan)
+{
+    return new MegaAccountPlanPrivate(plan);
+}
+
+MegaAccountPlanPrivate::MegaAccountPlanPrivate(const AccountPlan& plan)
+{
+    mPlan = plan;
+}
+
+bool MegaAccountPlanPrivate::isProPlan() const
+{
+    return (mPlan.level > MegaAccountDetails::ACCOUNT_TYPE_FREE &&
+            mPlan.level != MegaAccountDetails::ACCOUNT_TYPE_FEATURE);
+}
+
+int32_t MegaAccountPlanPrivate::getAccountLevel() const
+{
+    return mPlan.level;
+}
+
+MegaStringList* MegaAccountPlanPrivate::getFeatures() const
+{
+    MegaStringListPrivate* planFeatures = new MegaStringListPrivate();
+    for (const auto& f: mPlan.features)
+    {
+        planFeatures->add(f.c_str());
+    }
+    return planFeatures;
+}
+
+int64_t MegaAccountPlanPrivate::getExpirationTime() const
+{
+    return mPlan.expiration;
+}
+
+int32_t MegaAccountPlanPrivate::getType() const
+{
+    return mPlan.type;
+}
+
+char* MegaAccountPlanPrivate::getId() const
+{
+    return MegaApi::strdup(mPlan.subscriptionId.c_str());
+}
+
+bool MegaAccountPlanPrivate::isTrial() const
+{
+    return mPlan.isTrial;
+}
 
 ExternalInputStream::ExternalInputStream(MegaInputStream *inputStream)
 {

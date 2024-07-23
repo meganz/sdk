@@ -2929,6 +2929,11 @@ void MegaApi::updateNodeTag(MegaNode* node, const char* newTag, const char* oldT
     pImpl->updateNodeTag(node, newTag, oldTag, listener);
 }
 
+MegaStringList* MegaApi::getAllNodeTags(const char* searchString, MegaCancelToken* cancelToken)
+{
+    return pImpl->getAllNodeTags(searchString, convertToCancelToken(cancelToken));
+}
+
 void MegaApi::exportNode(MegaNode *node, MegaRequestListener *listener)
 {
     pImpl->exportNode(node, 0, false, false, listener);
@@ -3056,7 +3061,18 @@ void MegaApi::creditCardQuerySubscriptions(MegaRequestListener *listener)
 
 void MegaApi::creditCardCancelSubscriptions(const char* reason, MegaRequestListener *listener)
 {
-    pImpl->creditCardCancelSubscriptions(reason, listener);
+    pImpl->creditCardCancelSubscriptions(reason,
+                                         nullptr,
+                                         CREDIT_CARD_CANCEL_SUBSCRIPTIONS_CAN_CONTACT_NO,
+                                         listener);
+}
+
+void MegaApi::creditCardCancelSubscriptions(const char* reason,
+                                            const char* id,
+                                            int canContact,
+                                            MegaRequestListener* listener)
+{
+    pImpl->creditCardCancelSubscriptions(reason, id, canContact, listener);
 }
 
 void MegaApi::getPaymentMethods(MegaRequestListener *listener)

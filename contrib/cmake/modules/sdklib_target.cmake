@@ -73,6 +73,7 @@ set(SDKLIB_HEADERS
     include/mega/node.h
     include/mega/mediafileattribute.h
     include/mega/process.h
+    include/mega/name_collision.h
 )
 
 set(SDKLIB_SOURCES
@@ -131,6 +132,7 @@ set(SDKLIB_SOURCES
     src/crypto/sodium.cpp
     src/db/sqlite.cpp
     src/process.cpp
+    src/name_collision.cpp
 )
 
 target_sources(SDKlib

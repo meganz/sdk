@@ -131,6 +131,12 @@ using namespace mega;
     return self.megaNode ? self.megaNode->isMarkedSensitive() : NO;
 }
 
+- (nullable NSString *)description {
+    if(!self.megaNode || !self.megaNode->getDescription()) return nil;
+
+    return [NSString.alloc initWithUTF8String:self.megaNode->getDescription()];
+}
+
 - (MEGANodeLabel)label {
     return (MEGANodeLabel) (self.megaNode ? self.megaNode->getLabel() : 0);
 }

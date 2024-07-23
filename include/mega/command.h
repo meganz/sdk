@@ -850,6 +850,11 @@ public:
     bool procresult(Result, JSON&) override;
 
     CommandGetUserQuota(MegaClient*, std::shared_ptr<AccountDetails>, bool, bool, bool, int, std::function<void(std::shared_ptr<AccountDetails>, Error)> = {});
+
+private:
+    bool readSubscriptions(JSON* j);
+    bool readPlans(JSON* j);
+    void processPlans();
 };
 
 class MEGA_API CommandQueryTransferQuota : public Command
@@ -892,17 +897,33 @@ public:
 
 class MEGA_API CommandSetPH : public Command
 {
+public:
+    using CompletionType = std::function<void(Error,
+                                              handle /*Node handle*/,
+                                              handle /*publicHandle*/,
+                                              std::string&& /*mEncryptionKeyForShareKey*/)>;
+
+private:
     handle h;
     m_time_t ets;
     bool mWritable = false;
     bool mDeleting = false;
-    std::function<void(Error, handle, handle)> completion;
+    std::string mEncryptionKeyForShareKey; // Base64 string
+    CompletionType mCompletion;
+
+    void completion(Error, handle nodhandle, handle);
 
 public:
     bool procresult(Result, JSON&) override;
 
-    CommandSetPH(MegaClient*, Node*, int, m_time_t, bool writable, bool megaHosted,
-        int ctag, std::function<void(Error, handle, handle)> f);
+    CommandSetPH(MegaClient*,
+                 Node*,
+                 int,
+                 m_time_t,
+                 bool writable,
+                 bool megaHosted,
+                 int ctag,
+                 CompletionType f);
 };
 
 class MEGA_API CommandGetPH : public Command
@@ -937,6 +958,8 @@ public:
 class MEGA_API CommandEnumerateQuotaItems : public Command
 {
     static constexpr unsigned int INVALID_TEST_CATEGORY = 0;
+    static constexpr unsigned int NO_TRIAL_DAYS = 0;
+
 public:
     bool procresult(Result, JSON&) override;
 
@@ -980,9 +1003,31 @@ public:
 class MEGA_API CommandCreditCardCancelSubscriptions : public Command
 {
 public:
+    enum class CanContact
+    {
+        No = 0,
+        Yes = 1
+    };
+
+    class CancelSubscription
+    {
+    public:
+        CancelSubscription(const char* reason, const char* id, int canContact);
+
+    private:
+        friend CommandCreditCardCancelSubscriptions;
+
+        // Can be empty
+        std::string mReason;
+        // Can be empty which means all subscriptions
+        std::string mId;
+
+        CanContact mCanContact{CanContact::No};
+    };
+
     bool procresult(Result, JSON&) override;
 
-    CommandCreditCardCancelSubscriptions(MegaClient*, const char* = NULL);
+    CommandCreditCardCancelSubscriptions(MegaClient*, const CancelSubscription& cancelSubscription);
 };
 
 class MEGA_API CommandCopySession : public Command

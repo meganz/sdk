@@ -169,3 +169,6 @@ UseCRLF: false
 UseTab: Never
 #WhitespaceSensitiveMacros:
 ...
+---
+Language: ObjC
+DisableFormat: true
