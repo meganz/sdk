@@ -9889,17 +9889,29 @@ bool Sync::resolve_upsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, 
                     {
                         vector<NewNode> nn(1);
                         mc.putnodes_prepareOneFolder(&nn[0], foldername, canChangeVault);
-                        mc.putnodes(targethandle, NoVersioning, move(nn), nullptr, 0, canChangeVault,
-                            [createFolderPtr](const Error& e, targettype_t, vector<NewNode>& v, bool targetOverride, int tag){
-                                if (!e && !v.empty())
-                                {
-                                    createFolderPtr->succeededHandle.set6byte(v[0].mAddedHandle);
-                                }
-                                if (createFolderPtr->succeededHandle.isUndef())
-                                {
-                                    createFolderPtr->failed = true;
-                                }
-                            });
+                        mc.putnodes(targethandle,
+                                    NoVersioning,
+                                    move(nn),
+                                    nullptr,
+                                    0,
+                                    canChangeVault,
+                                    {}, // customerIpPort
+                                    [createFolderPtr](const Error& e,
+                                                      targettype_t,
+                                                      vector<NewNode>& v,
+                                                      bool targetOverride,
+                                                      int tag)
+                                    {
+                                        if (!e && !v.empty())
+                                        {
+                                            createFolderPtr->succeededHandle.set6byte(
+                                                v[0].mAddedHandle);
+                                        }
+                                        if (createFolderPtr->succeededHandle.isUndef())
+                                        {
+                                            createFolderPtr->failed = true;
+                                        }
+                                    });
 
                     });
             }

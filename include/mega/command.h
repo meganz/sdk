@@ -702,7 +702,17 @@ public:
 
     bool procresult(Result, JSON&) override;
 
-    CommandPutNodes(MegaClient*, NodeHandle, const char*, VersioningOption, vector<NewNode>&&, int, putsource_t, const char *cauth, Completion&&, bool canChangeVault);
+    CommandPutNodes(MegaClient*,
+                    NodeHandle,
+                    const char*,
+                    VersioningOption,
+                    vector<NewNode>&&,
+                    int,
+                    putsource_t,
+                    const char* cauth,
+                    Completion&&,
+                    bool canChangeVault,
+                    const std::string& customerIpPort);
 };
 
 class MEGA_API CommandSetAttr : public Command

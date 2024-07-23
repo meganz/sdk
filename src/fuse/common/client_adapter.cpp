@@ -718,6 +718,7 @@ void ClientAdapter::makeDirectory(MakeDirectoryCallback callback,
                         nullptr,
                         0,
                         false,
+                        {}, // customerIpPort
                         std::bind(std::move(created),
                                   std::move(callback),
                                   std::ref(client),

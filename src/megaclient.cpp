@@ -886,7 +886,14 @@ error MegaClient::setbackupfolder(const char* foldername, int tag, std::function
             -1, UNDEF, 0, 0, addua_completion);
     };
 
-    putnodes(mNodeManager.getRootNodeVault(), NoVersioning, std::move(newnodes), nullptr, tag, true, addua);
+    putnodes(mNodeManager.getRootNodeVault(),
+             NoVersioning,
+             std::move(newnodes),
+             nullptr,
+             tag,
+             true,
+             {}, // customerIpPort
+             addua);
     // Note: this request should not finish until the user's attribute is set successfully
 
     return API_OK;
@@ -8982,9 +8989,26 @@ void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldern
 }
 
 // send new nodes to API for processing
-void MegaClient::putnodes(NodeHandle h, VersioningOption vo, vector<NewNode>&& newnodes, const char *cauth, int tag, bool canChangeVault, CommandPutNodes::Completion&& resultFunction)
+void MegaClient::putnodes(NodeHandle h,
+                          VersioningOption vo,
+                          vector<NewNode>&& newnodes,
+                          const char* cauth,
+                          int tag,
+                          bool canChangeVault,
+                          string customerIpPort,
+                          CommandPutNodes::Completion&& resultFunction)
 {
-    reqs.add(new CommandPutNodes(this, h, NULL, vo, std::move(newnodes), tag, PUTNODES_APP, cauth, std::move(resultFunction), canChangeVault));
+    reqs.add(new CommandPutNodes(this,
+                                 h,
+                                 NULL,
+                                 vo,
+                                 std::move(newnodes),
+                                 tag,
+                                 PUTNODES_APP,
+                                 cauth,
+                                 std::move(resultFunction),
+                                 canChangeVault,
+                                 customerIpPort));
 }
 
 // drop nodes into a user's inbox (must have RSA keypair) - obsolete feature, kept for sending logs to helpdesk
@@ -16785,9 +16809,18 @@ void MegaClient::preparebackup(SyncConfig sc, std::function<void(Error, SyncConf
 
     // create the new node(s)
     putnodes(deviceNameNode ? deviceNameNode->nodeHandle() : myBackupsNode->nodeHandle(),
-             NoVersioning, std::move(newnodes), nullptr, reqtag, true,
-             [completion, sc, this](const Error& e, targettype_t, vector<NewNode>& nn, bool targetOverride, int tag){
-
+             NoVersioning,
+             std::move(newnodes),
+             nullptr,
+             reqtag,
+             true,
+             {}, // customerIpPort
+             [completion, sc, this](const Error& e,
+                                    targettype_t,
+                                    vector<NewNode>& nn,
+                                    bool targetOverride,
+                                    int tag)
+             {
                 if (e)
                 {
                     completion(e, sc, nullptr);
@@ -16862,25 +16895,43 @@ void MegaClient::execmovetosyncdebris(Node* requestedNode, std::function<void(No
                     tc.allocnodes();
                     proctree(n, &tc, false, false);
                     tc.nn[0].parenthandle = UNDEF;
-                    putnodes(debrisTarget->nodeHandle(), NoVersioning, std::move(tc.nn), nullptr, reqtag, rec.mCanChangeVault, [this, rec](const Error&e, targettype_t, vector<NewNode>&, bool, int)
-                    {
-                        if (e)
-                        {
-                            LOG_warn << "Error copying files at SyncDebris folder, continue process (remove them)";
-                        }
+                    putnodes(debrisTarget->nodeHandle(),
+                             NoVersioning,
+                             std::move(tc.nn),
+                             nullptr,
+                             reqtag,
+                             rec.mCanChangeVault,
+                             {}, // customerIpPort
+                             [this, rec](const Error& e,
+                                         targettype_t,
+                                         vector<NewNode>&,
+                                         bool,
+                                         int)
+                             {
+                                 if (e)
+                                 {
+                                     LOG_warn << "Error copying files at SyncDebris folder, "
+                                                 "continue process (remove them)";
+                                 }
 
-                        if (std::shared_ptr<Node> n = nodeByHandle(rec.nodeHandle))
-                        {
-                            unlink(n.get(), false, 0, false, [rec](NodeHandle, Error e)
-                            {
-                                if (rec.completion) rec.completion(rec.nodeHandle, e);
-                            });
-                        }
-                        else
-                        {
-                            if (rec.completion) rec.completion(rec.nodeHandle, API_EEXIST);
-                        }
-                    });
+                                 if (std::shared_ptr<Node> n = nodeByHandle(rec.nodeHandle))
+                                 {
+                                     unlink(n.get(),
+                                            false,
+                                            0,
+                                            false,
+                                            [rec](NodeHandle, Error e)
+                                            {
+                                                if (rec.completion)
+                                                    rec.completion(rec.nodeHandle, e);
+                                            });
+                                 }
+                                 else
+                                 {
+                                     if (rec.completion)
+                                         rec.completion(rec.nodeHandle, API_EEXIST);
+                                 }
+                             });
                 }
             }
             else
@@ -16972,7 +17023,9 @@ std::shared_ptr<Node> MegaClient::getOrCreateSyncdebrisFolder()
             // on completion, send the queued nodes
             LOG_debug << "Daily cloud SyncDebris folder created. Trigger remaining debris moves: " << pendingDebris.size();
             execmovetosyncdebris(nullptr, nullptr, false, false);
-        }, false));
+        },
+        false,
+        {})); // customerIpPort
     return nullptr;
 }
 
