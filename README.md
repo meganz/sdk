@@ -57,6 +57,8 @@ We recommend using the following version of the above mentioned tools:
 
 Other versions could work to compile the project but have not been fully tested
 
+You can download Visual Studio 2019 here: https://visualstudio.microsoft.com/vs/older-downloads/
+
 #### MacOS
 
 Xcode and the Developer tools are needed. To install the
