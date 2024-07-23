@@ -51,6 +51,8 @@ struct MEGA_API Waiter
     // set ds to current time
     static void bumpds();
 
+    // This mutex protects concurrent updates of the value stored by the atomic "ds" 
+    // when multiple threads are in bumpds()
     static std::mutex dsMutex;
 
     // wait ceiling
