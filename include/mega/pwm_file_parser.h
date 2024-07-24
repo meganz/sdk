@@ -1,17 +1,10 @@
 #ifndef INCLUDE_MEGA_PWM_FILE_PARSER_H_
 #define INCLUDE_MEGA_PWM_FILE_PARSER_H_
 
-#include "megaapi_impl.h"
+#include "mega/types.h"
 
 namespace mega::pwm::import
 {
-
-// Error codes when parsing a password entry in a file
-enum class EPassEntryParseError : uint8_t
-{
-    ok = 0,
-    invalidNumOfColumns,
-};
 
 /**
  * @class PassEntryParseResult
@@ -21,39 +14,37 @@ enum class EPassEntryParseError : uint8_t
  */
 struct PassEntryParseResult
 {
+    enum class ErrCode : uint8_t
+    {
+        OK = 0,
+        INVALID_NUM_OF_COLUMN,
+    };
+
     /**
      * @brief An error code associated to a problem that invalidates the parsing of the entry.
      */
-    EPassEntryParseError mErrCode = EPassEntryParseError::ok;
+    ErrCode mErrCode = ErrCode::OK;
 
     /**
-     * @brief The line number in the file associated toe the entry. This can be useful to report the
-     * source of the problems.
+     * @brief The line number of the entry in the file. This can be useful to report the source of
+     * the problems.
      */
     uint32_t mLineNumber{0};
 
     /**
      * @brief The name that labels the password entry.
      *
-     * @note This struct does not force any condition on this member, i.e., empty is a valid value
+     * @note This struct does not force any condition on this member, i.e. empty is a valid value
      */
     std::string mName;
 
     /**
-     * @brief The data stored in the entry. Already in a format to be used in the password node
-     * creation step
+     * @brief Members for the different fields that can be found in an entry
      */
-    mega::MegaNodePrivate::PNDataPrivate mData{nullptr, nullptr, nullptr, nullptr};
-};
-
-// Error codes when parsing a file with passwords
-enum class EPassFileParseError : uint8_t
-{
-    ok = 0,
-    noValidEntries,
-    fileDoesNotExist,
-    cantOpenFile,
-    missingColumn,
+    std::string mUrl;
+    std::string mUserName;
+    std::string mPassword;
+    std::string mNote;
 };
 
 /**
@@ -63,10 +54,19 @@ enum class EPassFileParseError : uint8_t
  */
 struct PassFileParseResult
 {
+    enum class ErrCode : uint8_t
+    {
+        OK = 0,
+        NO_VALID_ENTRIES,
+        FILE_DOES_NOT_EXIST,
+        CANT_OPEN_FILE,
+        MISSING_COLUMN,
+    };
+
     /**
      * @brief An error code associated to a problem that invalidates the file parsing as a whole.
      */
-    EPassFileParseError mErrCode = EPassFileParseError::ok;
+    ErrCode mErrCode = ErrCode::OK;
 
     /**
      * @brief An error messages with additional information useful for logging.
@@ -85,8 +85,8 @@ struct PassFileParseResult
  * application.
  *
  * @param filePath The path to the csv file.
- * @return A PassFileParseResult object containing all the valid and invalid found entries together
- * with handy error codes and messages.
+ * @return A container holding all the valid and invalid entries found together, with handy error
+ * codes and messages.
  */
 PassFileParseResult parseGooglePasswordCSVFile(const std::string& filePath);
 

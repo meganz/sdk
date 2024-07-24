@@ -1,5 +1,6 @@
 #include "mega/pwm_file_parser.h"
 
+// https://github.com/vincentlaucsb/csv-parser
 #include <vincentlaucsb-csv-parser/csv.hpp>
 
 namespace mega::pwm::import
@@ -43,8 +44,8 @@ PassFileParseResult parseGooglePasswordCSVFile(const std::string& filePath)
     PassFileParseResult result;
     if (!fileIsAccessible(filePath))
     {
-        result.mErrCode = EPassFileParseError::cantOpenFile;
-        result.mErrMsg = "File (" + filePath + ") cannot be opened.";
+        result.mErrCode = PassFileParseResult::ErrCode::CANT_OPEN_FILE;
+        result.mErrMsg = "File (" + filePath + ") could not be opened.";
         return result;
     }
 
@@ -62,7 +63,7 @@ PassFileParseResult parseGooglePasswordCSVFile(const std::string& filePath)
     if (unsigned int nMissing = missingNames(colNames, expectedColumnNames, result.mErrMsg);
         nMissing != 0)
     {
-        result.mErrCode = EPassFileParseError::missingColumn;
+        result.mErrCode = PassFileParseResult::ErrCode::MISSING_COLUMN;
         if (nMissing == expectedColumnNames.size())
             result.mErrMsg += "The first line of the .csv file is expected to be a header with the "
                               "column names separated by commas.";
@@ -77,28 +78,23 @@ PassFileParseResult parseGooglePasswordCSVFile(const std::string& filePath)
         entryResult.mLineNumber = ++lineNumber;
         if (row.size() != expectedNumCols)
         {
-            entryResult.mErrCode = EPassEntryParseError::invalidNumOfColumns;
+            entryResult.mErrCode = PassEntryParseResult::ErrCode::INVALID_NUM_OF_COLUMN;
             result.mResults.emplace_back(std::move(entryResult));
             continue;
         }
 
-        if (std::string name = row["name"].get<>(); !name.empty())
-            entryResult.mName = std::move(name);
-        if (std::string url = row["url"].get<>(); !url.empty())
-            entryResult.mData.setUrl(url.c_str());
-        if (std::string username = row["username"].get<>(); !username.empty())
-            entryResult.mData.setUserName(username.c_str());
-        if (std::string password = row["password"].get<>(); !password.empty())
-            entryResult.mData.setPassword(password.c_str());
-        if (std::string note = row["note"].get<>(); !note.empty())
-            entryResult.mData.setNotes(note.c_str());
+        entryResult.mName = row["name"].get();
+        entryResult.mUrl = row["url"].get();
+        entryResult.mUserName = row["username"].get();
+        entryResult.mPassword = row["password"].get();
+        entryResult.mNote = row["note"].get();
 
         result.mResults.emplace_back(std::move(entryResult));
         thereIsAValidEntry = true;
     }
     if (!thereIsAValidEntry)
     {
-        result.mErrCode = EPassFileParseError::noValidEntries;
+        result.mErrCode = PassFileParseResult::ErrCode::NO_VALID_ENTRIES;
         result.mErrMsg = result.mResults.empty() ?
                              "The input file has no entries to read" :
                              "All the entries in the file were wrongly formatted";
