@@ -52,7 +52,7 @@
  * Valid value for feature plans is:
  * - MegaAccountDetails::ACCOUNT_TYPE_FEATURE = 99999
  */
-- (int32_t) getAccountLevel;
+- (int) getAccountLevel;
 
 /**
  * @brief Get the features granted by this plan

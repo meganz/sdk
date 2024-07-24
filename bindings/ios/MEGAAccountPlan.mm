@@ -58,8 +58,9 @@ using namespace mega;
     _megaAccountPlan->isProPlan();
 }
 
--(int32_t)getAccountLevel {
-    _megaAccountPlan->getAccountLevel();
+-(int)getAccountLevel {
+    int accountLevel = _megaAccountPlan->getAccountLevel();
+    return accountLevel;
 }
 
 - (MEGAStringList *)getFeatures {
