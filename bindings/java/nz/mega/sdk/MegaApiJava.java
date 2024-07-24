@@ -4943,8 +4943,8 @@ public class MegaApiJava {
      *
      * @return All the unique node tags that match the search criteria.
      */
-    public void getAllNodeTags(String searchString, MegaCancelToken cancelToken){
-        megaApi.getAllNodeTags(searchString, cancelToken);
+    public MegaStringList getAllNodeTags(String searchString, MegaCancelToken cancelToken){
+        return megaApi.getAllNodeTags(searchString, cancelToken);
     }
 
     /**
