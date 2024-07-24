@@ -107,4 +107,41 @@ interface MegaTransferListenerInterface {
      * Size of the buffer.
      */
     fun onTransferData(api: MegaApiJava, transfer: MegaTransfer, buffer: ByteArray): Boolean
+
+    /**
+     * @brief This function is called to inform about the progress of a folder transfer
+     *
+     * The api object is the one created by the application, it will be valid until
+     * the application deletes it.
+     *
+     * This callback is only made for folder transfers, and only to the listener for that
+     * transfer, not for any globally registered listeners.  The callback is only made
+     * during the scanning phase.
+     *
+     * This function can be used to give feedback to the user as to how scanning is progressing,
+     * since scanning may take a while and the application may be showing a modal dialog during
+     * this time.
+     *
+     * Note that this function could be called from a variety of threads during the
+     * overall operation, so proper thread safety should be observed.
+     *
+     * @param api MEGASdk object that started the transfer
+     * @param transfer Information about the transfer
+     * @param stage MEGATransferStageScan or a later value in that enum
+     * @param folderCount The count of folders scanned so far
+     * @param createdFolderCount The count of folders created so far (only relevant in MEGATransferStageCreateTree)
+     * @param fileCount The count of files scanned (and fingerprinted) so far.  0 if not in scanning stage
+     * @param currentFolder The path of the folder currently being scanned (nil except in the scan stage)
+     * @param currentFileLeafName The leaft name of the file currently being fingerprinted (can be nil for the first call in a new folder, and when not scanning anymore)
+     */
+    fun onFolderTransferUpdate(
+        api: MegaApiJava,
+        transfer: MegaTransfer,
+        stage: Int,
+        folderCount: Int,
+        createdFolderCount: Int,
+        fileCount: Int,
+        currentFolder: String,
+        currentFileLeafName: String,
+    )
 }
