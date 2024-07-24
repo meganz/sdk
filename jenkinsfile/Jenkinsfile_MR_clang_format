@@ -78,15 +78,15 @@ pipeline {
                     script{
                         if (currentBuild.currentResult == 'SUCCESS'){
                             updateGitlabCommitStatus(name: 'clang format', state: 'success')
-                            addGitLabMRComment(comment: ":white_check_mark: ${currentBuild.projectName} :page_with_curl::check_mark: <b>ClangFormat</b> SUCCEEDED :muscle:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}" )
+                            addGitLabMRComment(comment: ":white_check_mark: ${currentBuild.projectName} :page_with_curl: <b>ClangFormat</b> SUCCEEDED :muscle:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}" )
                         }
                         if (currentBuild.currentResult == 'FAILURE'){
                             updateGitlabCommitStatus(name: 'clang format', state: 'failed')
-                            addGitLabMRComment(comment: ":red_circle: ${currentBuild.projectName} :page_with_curl::cross_mark: <b>ClangFormat</b> FAILURE  :worried:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}" )
+                            addGitLabMRComment(comment: ":red_circle: ${currentBuild.projectName} :page_with_curl: <b>ClangFormat</b> FAILURE  :worried:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}" )
                         }
                         if (currentBuild.currentResult == 'ABORTED'){
                             updateGitlabCommitStatus(name: 'clang format', state: 'canceled')
-                            addGitLabMRComment(comment: ":interrobang: ${currentBuild.projectName} :page_with_curl::cross_mark: <b>ClangFormat</b> ABORTED  :confused:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}" )
+                            addGitLabMRComment(comment: ":interrobang: ${currentBuild.projectName} :page_with_curl: <b>ClangFormat</b> ABORTED  :confused:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}" )
                         }
                         if (currentBuild.currentResult == 'UNSTABLE'){
                             updateGitlabCommitStatus(name: 'clang format', state: 'failed')
