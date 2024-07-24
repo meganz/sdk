@@ -78,8 +78,9 @@ using namespace mega;
     _megaAccountSubscription->getRenewTime();
 }
 
--(int32_t)getAccountLevel {
-    _megaAccountSubscription->getAccountLevel();
+-(int)getAccountLevel {
+    int accountLevel = _megaAccountSubscription->getAccountLevel();
+    return accountLevel;
 }
 
 -(MEGAStringList*)getFeatures {

@@ -110,7 +110,7 @@
  * Valid value for feature plan subscriptions:
  * - MegaAccountDetails::ACCOUNT_TYPE_FEATURE = 99999
  */
--(int32_t)getAccountLevel;
+-(int)getAccountLevel;
 
 /**
  * @brief Get the features granted by this subscription
