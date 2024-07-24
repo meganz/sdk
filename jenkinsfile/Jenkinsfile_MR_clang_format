@@ -74,7 +74,6 @@ pipeline {
             }
             post{
                 always {
-                    archiveArtifacts artifacts: 'test_integration*, core.tar.gz', fingerprint: true
                     deleteDir()
                     script{
                         if (currentBuild.currentResult == 'SUCCESS'){
