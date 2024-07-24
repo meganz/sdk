@@ -114,5 +114,5 @@ build-*Release
 /third_party/Makefile
 /third_party/3rdparty
 /third_party/crashlytics*h
-/third_party/csv.hpp
+/third_party/vincentlaucsb-csv-parser/
 version_release/*.toml
