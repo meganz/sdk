@@ -38,9 +38,16 @@ pipeline {
                         }
                     }
                     steps {
-                        sh """
+                        sh """#!/bin/bash
+
                             COMMITS=\$(git log --pretty=format:%H origin/${env.gitlabTargetBranch}..origin/${env.gitlabSourceBranch})
-                            echo \$COMMITS
+
+                            echo "    ######################"
+                            echo "    # ClangFormat output #"
+                            echo "    ######################"
+                            echo ""
+                            echo "    Commits:" \$COMMITS
+                            echo ""
 
                             for COMMIT in \$COMMITS
                             do
@@ -48,7 +55,10 @@ pipeline {
                                     --extensions "c,c++,c++m,cc,ccm,cp,cpp,cppm,cxx,cxxm,h,hh,hpp,hxx" \
                                     \$COMMIT^ \$COMMIT)
 
-                                printf '%s\\n' "\$COMMIT"
+                                echo "    Commit: " "\$COMMIT"
+                                echo "    ClangFormat:"
+                                echo "    \$OUTPUT"
+                                echo ""
 
                                 if [ -z "\$OUTPUT" ]
                                 then
@@ -65,9 +75,15 @@ pipeline {
                                     continue
                                 fi
 
-                                printf '%s\\n' "\$OUTPUT"
+                                printf '%s\\n' "\$OUTPUT" '%s\\n'
+
                                 exit 1
                             done
+
+                            echo "    ############################"
+                            echo "    # End of ClangFormat output #"
+                            echo "    #############################"
+                            echo ""
                         """
                     }
                 }
