@@ -251,32 +251,13 @@ typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
 + (nullable NSString *)stringForAccountType:(MEGAAccountType)accountType;
 
 /**
- * @brief Get the number of active MegaAccountFeature-s in the account
- *
- * You can use MegaAccountDetails::getActiveFeature to get each of those objects.
- *
- * @return Number of MegaAccountFeature objects
- */
--(int)getNumActiveFeatures;
-
-/**
- * @brief Returns the MegaAccountFeature object associated with an index
- *
- * You take the ownership of the returned value
- *
- * @param featureIndex Index of the object
- * @return MegaAccountFeature object
- */
-- (MEGAAccountFeature *)getActiveFeature:(int) featureIndex;
-
-/**
  * @brief Get the number of active plans in the account.
  *
  * You can use MegaAccountDetails::getPlan to get each of those objects.
  *
  * @return Number of active plans
  */
-- (int)getNumPlans;
+- (int)numberOfPlans;
 
 /**
  * @brief Returns the MegaAccountPlan object associated with an index
@@ -286,7 +267,7 @@ typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
  * @param plansIndex Index of the object
  * @return MegaAccountPlan object
  */
-- (nullable MEGAAccountPlan *)getPlan:(int) plansIndex;
+- (nullable MEGAAccountPlan *)plan:(int) plansIndex;
 
 /**
  * @brief Get the number of active subscriptions in the account.
@@ -295,7 +276,7 @@ typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
  *
  * @return Number of active subscriptions
  */
-- (int)getNumSubscriptions;
+- (int)numberOfSubscriptions;
 
 /**
  * @brief Returns the MegaAccountSubscription object associated with an index
@@ -305,7 +286,7 @@ typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
  * @param subscriptionsIndex Index of the object
  * @return MegaAccountSubscription object
  */
-- (nullable MEGAAccountSubscription *)getSubscription:(int) subscriptionsIndex;
+- (nullable MEGAAccountSubscription *)subscription:(int) subscriptionsIndex;
 
 NS_ASSUME_NONNULL_END
 

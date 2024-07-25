@@ -33,7 +33,7 @@
  *
  * @return ID of this subscription
  */
-- (nullable NSString *)getId;
+- (nullable NSString *)subcriptionId;
 
 /**
  * @brief Check if the subscription is active
@@ -54,7 +54,7 @@
  * - MegaAccountSubscription::SUBSCRIPTION_STATUS_INVALID = 2
  * A subscription exists, but it uses a payment gateway that is no longer valid
  */
-- (int)getStatus;
+- (int)status;
 
 /**
  * @brief Get the subscription cycle
@@ -66,7 +66,7 @@
  *
  * @return Subscription cycle
  */
-- (nullable NSString *)getCycle;
+- (nullable NSString *)cycle;
 
 /**
  * @brief Get the subscription payment provider name
@@ -75,21 +75,21 @@
  *
  * @return Payment provider name
  */
-- (nullable NSString *)getPaymentMethod;
+- (nullable NSString *)paymentMethod;
 
 /**
  * @brief Get the subscription payment provider ID
  *
  * @return Payment provider ID
  */
-- (int32_t)getPaymentMethodId;
+- (int32_t)paymentMethodId;
 
 /**
  * @brief Get the subscription renew timestamp
  *
  * @return Renewal timestamp (in seconds since epoch)
  */
-- (int64_t)getRenewTime;
+- (int64_t)renewTime;
 
 /**
  * @brief Get the subscription account level
@@ -110,7 +110,7 @@
  * Valid value for feature plan subscriptions:
  * - MegaAccountDetails::ACCOUNT_TYPE_FEATURE = 99999
  */
-- (int)getAccountLevel;
+- (int)accountLevel;
 
 /**
  * @brief Get the features granted by this subscription
@@ -119,6 +119,6 @@
  *
  * @return Features granted by this subscription.
  */
-- (nullable MEGAStringList *)getFeatures;
+- (nullable MEGAStringList *)features;
 
 @end

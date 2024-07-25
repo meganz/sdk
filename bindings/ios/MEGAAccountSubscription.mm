@@ -54,36 +54,36 @@ using namespace mega;
     return self.megaAccountSubscription;
 }
 
-- (nullable NSString *)getId {
+- (nullable NSString *)subcriptionId {
     return self.megaAccountSubscription ? [NSString stringWithUTF8String: self.megaAccountSubscription->getId()] : nil;
 }
 
-- (int)getStatus {
+- (int)status {
     return self.megaAccountSubscription ? self.megaAccountSubscription->getStatus() : 0;
 }
 
-- (nullable NSString *)getCycle {
+- (nullable NSString *)cycle {
     self.megaAccountSubscription ? [NSString stringWithUTF8String: self.megaAccountSubscription->getCycle()] : nil;
 }
 
-- (nullable NSString *)getPaymentMethod {
+- (nullable NSString *)paymentMethod {
     self.megaAccountSubscription ? [NSString stringWithUTF8String: self.megaAccountSubscription->getPaymentMethod()] : nil;
 }
 
-- (int32_t)getPaymentMethodId {
+- (int32_t)paymentMethodId {
     self.megaAccountSubscription ? self.megaAccountSubscription->getPaymentMethodId() : 0;
 }
 
-- (int64_t)getRenewTime {
+- (int64_t)renewTime {
     self.megaAccountSubscription ? self.megaAccountSubscription->getRenewTime() : 0;
 }
 
-- (int)getAccountLevel {
+- (int)accountLevel {
     int accountLevel = self.megaAccountSubscription ? self.megaAccountSubscription->getAccountLevel() : 0;
     return accountLevel;
 }
 
-- (MEGAStringList *)getFeatures {
+- (MEGAStringList *)features {
     return self.megaAccountSubscription ? [MEGAStringList.alloc initWithMegaStringList:self.megaAccountSubscription->getFeatures() cMemoryOwn:YES] : nil;
 }
 

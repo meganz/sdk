@@ -52,7 +52,7 @@
  * Valid value for feature plans is:
  * - MegaAccountDetails::ACCOUNT_TYPE_FEATURE = 99999
  */
-- (int)getAccountLevel;
+- (int)accountLevel;
 
 /**
  * @brief Get the features granted by this plan
@@ -68,7 +68,7 @@
  *
  * @return The time the plan expires
  */
-- (int64_t)getExpirationTime;
+- (int64_t)expirationTime;
 
 /**
  * @brief Get the features granted by this plan
@@ -77,7 +77,7 @@
  *
  * @return Features granted by this plan.
  */
-- (MEGAStringList *)getFeatures;
+- (nullable MEGAStringList *)features;
 
 /**
  * @brief The type of plan. Why it was granted.
@@ -86,7 +86,7 @@
  *
  * @return Plan type
  */
-- (int32_t)getType;
+- (int32_t)type;
 
 /**
  * @brief Get the relating subscription ID
@@ -97,6 +97,6 @@
  *
  * @return ID of this subscription
  */
-- (NSString *)getId;
+- (nullable NSString *)planId;
 
 @end

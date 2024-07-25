@@ -172,28 +172,19 @@ using namespace mega;
     return self.accountDetails ? self.accountDetails->getNumVersionFiles(handle): -1;
 }
 
--(int)getNumActiveFeatures {
-    return self.accountDetails ? self.accountDetails->getNumActiveFeatures(): 0;
-}
-
-- (MEGAAccountFeature *)getActiveFeature:(int) featureIndex {
-    MegaAccountFeature* megaAccountFeature = self.accountDetails ? self.accountDetails->getActiveFeature(featureIndex) : nil;
-    return [[MEGAAccountFeature alloc] initWithMegaAccountFeature:megaAccountFeature cMemoryOwn:YES];
-}
-
-- (int)getNumPlans {
+- (int)numberOfPlans {
     return self.accountDetails ? self.accountDetails->getNumPlans(): 0;
 }
 
-- (nullable MEGAAccountPlan *)getPlan:(int)plansIndex {
+- (nullable MEGAAccountPlan *)plan:(int)plansIndex {
     return self.accountDetails ? [[MEGAAccountPlan alloc] initWithMegaAccountPlan: self.accountDetails->getPlan(plansIndex) cMemoryOwn:YES] : nil;
 }
 
-- (int)getNumSubscriptions {
+- (int)numberOfSubscriptions {
     return self.accountDetails ? self.accountDetails->getNumSubscriptions() : 0;
 }
 
-- (nullable MEGAAccountSubscription *)getSubscription:(int)subscriptionsIndex {
+- (nullable MEGAAccountSubscription *)subscription:(int)subscriptionsIndex {
     return self.accountDetails ? [[MEGAAccountSubscription alloc] initWithMegaAccountSubscription:self.accountDetails->getSubscription(subscriptionsIndex) cMemoryOwn:YES] : nil;
 }
 

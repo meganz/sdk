@@ -58,24 +58,24 @@ using namespace mega;
     self.megaAccountPlan ? self.megaAccountPlan->isProPlan() : NO;
 }
 
-- (int)getAccountLevel {
+- (int)accountLevel {
     int accountLevel = self.megaAccountPlan ? self.megaAccountPlan->getAccountLevel() : 0;
     return accountLevel;
 }
 
-- (MEGAStringList *)getFeatures {
+- (nullable MEGAStringList *)features {
     return self.megaAccountPlan->getFeatures() ? [MEGAStringList.alloc initWithMegaStringList:self.megaAccountPlan->getFeatures() cMemoryOwn:YES] : nil;
 }
 
-- (int64_t)getExpirationTime {
+- (int64_t)expirationTime {
     self.megaAccountPlan ? self.megaAccountPlan->getExpirationTime() : 0;
 }
 
-- (int32_t)getType {
+- (int32_t)type {
     self.megaAccountPlan ? self.megaAccountPlan->getType() : 0;
 }
 
-- (NSString *)getId {
+- (nullable NSString *)planId {
     self.megaAccountPlan ? [NSString stringWithUTF8String: self.megaAccountPlan->getId()] : nil;
 }
 
