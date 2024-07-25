@@ -13623,6 +13623,12 @@ TEST_F(SdkTest, SdkNodesOnDemand)
     ASSERT_EQ(numberFolderLevel1, megaApi[0]->getNumChildFolders(rootnodeA.get()));
     ASSERT_EQ(numberFolderLevel1, megaApi[1]->getNumChildFolders(rootnodeB.get()));
 
+    std::unique_ptr<MegaSearchFilter> filterResults(MegaSearchFilter::createInstance());
+    filterResults->byLocationHandle(rootnodeA->getHandle());
+    filterResults->byNodeType(MegaNode::TYPE_FOLDER);
+    std::unique_ptr<MegaNodeList> rootChildrenList(megaApi[0]->getChildren(filterResults.get()));
+    ASSERT_EQ(rootChildrenList->size(), numberFolderLevel1);
+
     // --- UserA Check folder info from root node ---
     ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(0, rootnodeA.get())) << "Cannot get Folder Info";
     int numberTotalOfFiles = numberFolderLevel1 * numberFolderLevel2 * numberFiles + initialFolderInfo1->getNumFiles();
@@ -13657,7 +13663,7 @@ TEST_F(SdkTest, SdkNodesOnDemand)
     ASSERT_NE(nodeSameFingerPrint.get(), nullptr);
 
     // --- UserA get node by name ---
-    std::unique_ptr<MegaSearchFilter> filterResults(MegaSearchFilter::createInstance());
+    filterResults.reset(MegaSearchFilter::createInstance());
     filterResults->byName(fileNameToSearch.c_str());
     std::unique_ptr<MegaNodeList> searchList(megaApi[0]->search(filterResults.get()));
     ASSERT_EQ(searchList->size(), 1);
@@ -13779,6 +13785,20 @@ TEST_F(SdkTest, SdkNodesOnDemand)
         {
             ASSERT_NE(childrenHandles.find(childrenList->get(childIndex)->getHandle()), childrenHandles.end());
         }
+
+        filterResults.reset(MegaSearchFilter::createInstance());
+        filterResults->byLocationHandle(node->getHandle());
+        filterResults->byNodeType(MegaNode::TYPE_FILE);
+        std::unique_ptr<MegaNodeList> fileChildrenList(
+            megaApi[0]->getChildren(filterResults.get()));
+        ASSERT_EQ(fileChildrenList->size(), childrenList->size());
+
+        filterResults.reset(MegaSearchFilter::createInstance());
+        filterResults->byLocationHandle(node->getHandle());
+        filterResults->byNodeType(MegaNode::TYPE_FOLDER);
+        std::unique_ptr<MegaNodeList> folderChildrenList(
+            megaApi[0]->getChildren(filterResults.get()));
+        ASSERT_EQ(folderChildrenList->size(), 0);
     }
 
     // --- UserA remove a folder ---
@@ -17264,34 +17284,6 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
     ASSERT_EQ(nodeList->size(), 2);
     ASSERT_EQ(nodeList->get(0)->getHandle(), handleWithoutExtensionFile);
     ASSERT_EQ(nodeList->get(1)->getHandle(), handleUnkownExtensionFile);
-
-    ///
-    /// search using old and deprecated API, to make sure we don't break it in the future
-    nodeList.reset(megaApi[0]->searchByType(nullptr, "", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_SPREADSHEET)); // order Alphabetical asc
-    ASSERT_EQ(nodeList->size(), 1);
-    ASSERT_EQ(nodeList->get(0)->getHandle(), handleSpreadsheetFile);
-
-    nodeList.reset(megaApi[0]->searchByType(rootnode.get(), "", nullptr, false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_ALL_DOCS)); // order Alphabetical asc
-    ASSERT_EQ(nodeList->size(), 5);
-    ASSERT_EQ(nodeList->get(0)->getHandle(), handleDocumentFile);
-    ASSERT_EQ(nodeList->get(1)->getHandle(), handleSpreadsheetFile);
-    ASSERT_EQ(nodeList->get(2)->getHandle(), handleOrgFile);
-    ASSERT_EQ(nodeList->get(3)->getHandle(), handlePdfFile);
-    ASSERT_EQ(nodeList->get(4)->getHandle(), handleTxtFile);
-
-    nodeList.reset(megaApi[0]->searchByType(nullptr, "", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_ALL_DOCS)); // order Alphabetical asc
-    ASSERT_EQ(nodeList->size(), 5);
-    ASSERT_EQ(nodeList->get(0)->getHandle(), handleDocumentFile);
-    ASSERT_EQ(nodeList->get(1)->getHandle(), handleSpreadsheetFile);
-    ASSERT_EQ(nodeList->get(2)->getHandle(), handleOrgFile);
-    ASSERT_EQ(nodeList->get(3)->getHandle(), handlePdfFile);
-    ASSERT_EQ(nodeList->get(4)->getHandle(), handleTxtFile);
-
-    nodeList.reset(megaApi[0]->searchByType(nullptr, "", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_OTHERS));
-    ASSERT_EQ(nodeList->size(), 2);
-    ASSERT_EQ(nodeList->get(0)->getHandle(), handleWithoutExtensionFile);
-    ASSERT_EQ(nodeList->get(1)->getHandle(), handleUnkownExtensionFile);
-
 
     deleteFile(PUBLICFILE);
 }

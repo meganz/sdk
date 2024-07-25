@@ -4326,46 +4326,6 @@ MegaNodeList* MegaApi::search(const MegaSearchFilter* filter, int order, MegaCan
     return pImpl->search(filter, order, convertToCancelToken(cancelToken), searchPage);
 }
 
-MegaNodeList* MegaApi::search(MegaNode* n, const char* searchString, bool recursive, int order)
-{
-    return pImpl->search(n, searchString, CancelToken(), recursive, order);
-}
-
-MegaNodeList *MegaApi::search(MegaNode *n, const char *searchString, MegaCancelToken *cancelToken, bool recursive, int order)
-{
-    return pImpl->search(n, searchString, convertToCancelToken(cancelToken), recursive, order);
-}
-
-MegaNodeList *MegaApi::search(const char *searchString, int order)
-{
-    return pImpl->search(nullptr, searchString, CancelToken(), true, order);
-}
-
-MegaNodeList *MegaApi::search(const char *searchString, MegaCancelToken *cancelToken, int order)
-{
-    return pImpl->search(nullptr, searchString, convertToCancelToken(cancelToken), true, order);
-}
-
-MegaNodeList* MegaApi::searchOnInShares(const char *searchString, MegaCancelToken *cancelToken, int order)
-{
-    return pImpl->search(nullptr, searchString, convertToCancelToken(cancelToken), true, order, MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_INSHARE);
-}
-
-MegaNodeList* MegaApi::searchOnOutShares(const char *searchString, MegaCancelToken *cancelToken, int order)
-{
-    return pImpl->search(nullptr, searchString, convertToCancelToken(cancelToken), true, order, MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_OUTSHARE);
-}
-
-MegaNodeList* MegaApi::searchOnPublicLinks(const char *searchString, MegaCancelToken *cancelToken, int order)
-{
-    return pImpl->search(nullptr, searchString, convertToCancelToken(cancelToken), true, order, MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_PUBLICLINK);
-}
-
-MegaNodeList* MegaApi::searchByType(MegaNode *n, const char *searchString, MegaCancelToken *cancelToken, bool recursive, int order, int mimeType, int target, bool includeSensitive)
-{
-    return pImpl->search(n, searchString, convertToCancelToken(cancelToken), recursive, order, mimeType, target, includeSensitive);
-}
-
 long long MegaApi::getSize(MegaNode *n)
 {
     return pImpl->getSize(n);
@@ -4559,11 +4519,6 @@ bool MegaApi::hasVersions(MegaNode *node)
 void MegaApi::getFolderInfo(MegaNode *node, MegaRequestListener *listener)
 {
     pImpl->getFolderInfo(node, listener);
-}
-
-MegaNodeList* MegaApi::getChildrenFromType(MegaNode* p, int type, int order, MegaCancelToken* cancelToken)
-{
-    return pImpl->getChildrenFromType(p, type, order, convertToCancelToken(cancelToken));
 }
 
 bool MegaApi::hasChildren(MegaNode *parent)

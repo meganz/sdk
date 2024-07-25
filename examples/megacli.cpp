@@ -12432,10 +12432,27 @@ void exec_searchbyname(autocomplete::ACState &s)
             return;
         }
 
-        std::string searchString = s.words[1].s;
-        Node::Flags exclusiveRecuriveFlags;
-        exclusiveRecuriveFlags.set(Node::FLAGS_IS_MARKED_SENSTIVE, noSensitive);
-        sharedNode_vector nodes = client->mNodeManager.search(nodeHandle, searchString.c_str(), recursive, Node::Flags(), Node::Flags(), exclusiveRecuriveFlags, CancelToken());
+        NodeSearchFilter filter;
+        filter.byAncestors({nodeHandle.as8byte(), UNDEF, UNDEF});
+        filter.byName(s.words[1].s);
+        filter.bySensitivity(noSensitive ? NodeSearchFilter::BoolFilter::onlyTrue :
+                                           NodeSearchFilter::BoolFilter::disabled);
+
+        sharedNode_vector nodes;
+        if (recursive)
+        {
+            nodes = client->mNodeManager.searchNodes(filter,
+                                                     0 /*Order none*/,
+                                                     CancelToken(),
+                                                     NodeSearchPage{0, 0});
+        }
+        else
+        {
+            nodes = client->mNodeManager.getChildren(filter,
+                                                     0 /*Order none*/,
+                                                     CancelToken(),
+                                                     NodeSearchPage{0, 0});
+        }
 
         for (const auto& node : nodes)
         {
