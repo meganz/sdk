@@ -106,11 +106,6 @@ CRASHLYTICS_SOURCE_FILE=crashlytics.h
 CRASHLYTICS_SOURCE_FILE_C=crashlyticsC.h
 CRASHLYTICS_DEST_PATH=mega/sdk/third_party
 
-CSVPARSER=csvparser
-CSVPARSER_DOWNLOAD_URL=https://raw.githubusercontent.com/vincentlaucsb/csv-parser/9f8a7210c8a6c4bf1ec41543510ad20f55b7f288/single_include/csv.hpp
-CSVPARSER_SOURCE_FILE=csv.hpp
-CSVPARSER_DEST_PATH=mega/sdk/third_party/vincentlaucsb-csv-parser
-
 OPENSSL=openssl
 OPENSSL_VERSION="3.1.1"
 OPENSSL_SOURCE_FILE=${OPENSSL}-${OPENSSL_VERSION}.tar.gz
@@ -316,7 +311,6 @@ if [ "$1" == "clean" ]; then
     rm -rf ${OPENSSL}/${OPENSSL}
     rm -rf ${CRASHLYTICS_DEST_PATH}/${CRASHLYTICS_SOURCE_FILE}
     rm -rf ${CRASHLYTICS_DEST_PATH}/${CRASHLYTICS_SOURCE_FILE_C}
-    rm -rf ${CSVPARSER_DEST_PATH}/${CSVPARSER_SOURCE_FILE}
     rm -rf ${SODIUM}/${SODIUM_SOURCE_FOLDER}
     rm -rf ${SODIUM}/${SODIUM}
     rm -rf ${LIBUV}/${LIBUV_SOURCE_FOLDER}
@@ -338,7 +332,6 @@ if [ "$1" == "clean" ]; then
     rm -rf ${OPENSSL}/${OPENSSL_SOURCE_FILE}
 	rm -rf ${CURL}/${CURL_SOURCE_FILE}.ready
     rm -rf ${CURL}/${CRASHLYTICS_SOURCE_FILE}.ready
-    rm -rf ${CURL}/${CSVPARSER_SOURCE_FILE}.ready
     rm -rf ${OPENSSL}/${OPENSSL_SOURCE_FILE}.ready
     rm -rf ${SODIUM}/${SODIUM_SOURCE_FILE}
     rm -rf ${SODIUM}/${SODIUM_SOURCE_FILE}.ready
@@ -487,16 +480,6 @@ if [ ! -f ${CURL}/${CRASHLYTICS_SOURCE_FILE}.ready ]; then
     touch ${CURL}/${CRASHLYTICS_SOURCE_FILE}.ready
 fi
 echo "* crashlytics is ready"
-
-echo "* Setting up csvparser"
-if [ ! -f ${CURL}/${CSVPARSER_SOURCE_FILE}.ready ]; then
-    mkdir -p ${CSVPARSER_DEST_PATH}
-    wget ${CSVPARSER_DOWNLOAD_URL} -O ${CSVPARSER_DEST_PATH}/${CSVPARSER_SOURCE_FILE} &>> ${LOG_FILE} || \
-        curl -L -o ${CSVPARSER_DEST_PATH}/${CSVPARSER_SOURCE_FILE} ${CSVPARSER_DOWNLOAD_URL} &>> ${LOG_FILE}
-
-    touch ${CURL}/${CSVPARSER_SOURCE_FILE}.ready
-fi
-echo "* csvparser is ready"
 
 echo "* Setting up OpenSSL"
 if [ ! -f ${OPENSSL}/${OPENSSL_SOURCE_FILE}.ready ]; then

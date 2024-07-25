@@ -90,8 +90,6 @@ macro(load_sdklib_libraries)
         else()
             set(NO_READLINE 1)
         endif()
-        find_package(unofficial-vincentlaucsb-csv-parser CONFIG REQUIRED)
-        target_link_libraries(SDKlib PRIVATE unofficial::vincentlaucsb-csv-parser::csv "--coverage")
 
     else() # No VCPKG usage. Use pkg-config
 

@@ -131,6 +131,7 @@ HEADERS= sdk/include/mega.h \
         sdk/include/mega/textchat.h \
         sdk/include/mega/setandelement.h \
         sdk/include/mega/syncfilter.h \
+        sdk/include/mega/mega_csv.h \
         sdk/include/mega/pwm_file_parser.h
 
 # FUSE (Common headers.)

@@ -73,6 +73,7 @@ set(SDKLIB_HEADERS
     include/mega/node.h
     include/mega/mediafileattribute.h
     include/mega/process.h
+    include/mega/mega_csv.h
     include/mega/name_collision.h
     include/mega/pwm_file_parser.h
 )

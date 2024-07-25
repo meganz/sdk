@@ -1,7 +1,6 @@
 #include "mega/pwm_file_parser.h"
 
-// https://github.com/vincentlaucsb/csv-parser
-#include <vincentlaucsb-csv-parser/csv.hpp>
+#include "mega/mega_csv.h"
 
 namespace mega::pwm::import
 {
