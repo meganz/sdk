@@ -210,10 +210,15 @@ class DelegateMegaTransferListener extends MegaTransferListener {
      * @param currentFolder The path of the folder currently being scanned (nil except in the scan stage)
      * @param currentFileLeafName The leaft name of the file currently being fingerprinted (can be nil for the first call in a new folder, and when not scanning anymore)
      */
-    public void onFolderTransferUpdate(MegaApi api, MegaTransfer transfer, int stage, int folderCount, int createdFolderCount, int fileCount, String currentFolder, String currentFileLeafName) {
+    @Override
+    public void onFolderTransferUpdate(MegaApi api, MegaTransfer transfer, int stage, long folderCount, long createdFolderCount, long fileCount, String currentFolder, String currentFileLeafName) {
         if (listener != null) {
-            final MegaTransfer megaTransfer = transfer.copy();
-            listener.onFolderTransferUpdate(megaApi, megaTransfer, stage, folderCount, createdFolderCount, fileCount, currentFolder, currentFileLeafName);
+            megaApi.runCallback(new Runnable() {
+                public void run() {
+                    final MegaTransfer megaTransfer = transfer.copy();
+                    listener.onFolderTransferUpdate(megaApi, megaTransfer, stage, folderCount, createdFolderCount, fileCount, currentFolder, currentFileLeafName);
+                }
+            });
         }
     }
 }
