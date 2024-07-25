@@ -96,16 +96,16 @@
  *
  * @return Subscription account level
  * Valid values for PRO plan subscriptions:
- * - MegaAccountDetails::ACCOUNT_TYPE_FREE = 0
- * - MegaAccountDetails::ACCOUNT_TYPE_PROI = 1
- * - MegaAccountDetails::ACCOUNT_TYPE_PROII = 2
- * - MegaAccountDetails::ACCOUNT_TYPE_PROIII = 3
- * - MegaAccountDetails::ACCOUNT_TYPE_LITE = 4
- * - MegaAccountDetails::ACCOUNT_TYPE_STARTER = 11
- * - MegaAccountDetails::ACCOUNT_TYPE_BASIC = 12
- * - MegaAccountDetails::ACCOUNT_TYPE_ESSENTIAL = 13
- * - MegaAccountDetails::ACCOUNT_TYPE_BUSINESS = 100
- * - MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI = 101
+ * - MEGAAccountTypeFree = 0
+ * - MEGAAccountTypeProI = 1
+ * - MEGAAccountTypeProII = 2
+ * - MEGAAccountTypeProIII = 3
+ * - MEGAAccountTypeLite = 4
+ * - MEGAAccountTypeStarter = 11
+ * - MEGAAccountTypeBasic = 12
+ * - MEGAAccountTypeEssential = 13
+ * - MEGAAccountTypeBusiness = 100
+ * - MEGAAccountTypeProFlexi = 101
  *
  * Valid value for feature plan subscriptions:
  * - MegaAccountDetails::ACCOUNT_TYPE_FEATURE = 99999
