@@ -2,7 +2,7 @@
  * @file MEGAAccountPlan.h
  * @brief Details about a MEGA account plan
  *
- * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
+ * (c) 2024 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -97,6 +97,6 @@
  *
  * @return ID of this subscription
  */
-- (char*) getId;
+- (NSString *) getId;
 
 @end

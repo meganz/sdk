@@ -2,7 +2,7 @@
  * @file MEGAAccountFeature.mm
  * @brief Details about a MEGA account plan
  *
- * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
+ * (c) 2024 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -75,8 +75,8 @@ using namespace mega;
     _megaAccountPlan->getType();
 }
 
--(char*)getId {
-    _megaAccountPlan->getId();
+-(NSString *)getId {
+    [NSString stringWithUTF8String: _megaAccountPlan->getId()];
 }
 
 @end

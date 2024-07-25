@@ -176,7 +176,7 @@ using namespace mega;
     return self.accountDetails ? self.accountDetails->getNumActiveFeatures(): 0;
 }
 
-- (MEGAAccountFeature*)getActiveFeature:(int) featureIndex {
+- (MEGAAccountFeature *)getActiveFeature:(int) featureIndex {
     MegaAccountFeature* megaAccountFeature = self.accountDetails ? self.accountDetails->getActiveFeature(featureIndex) : nil;
     return [[MEGAAccountFeature alloc] initWithMegaAccountFeature:megaAccountFeature cMemoryOwn:YES];
 }
@@ -185,18 +185,16 @@ using namespace mega;
     return self.accountDetails ? self.accountDetails->getNumPlans(): 0;
 }
 
-- (MEGAAccountPlan*)getPlan:(int)plansIndex {
-    MegaAccountPlan* megaAccountPlan = self.accountDetails ? self.accountDetails->getPlan(plansIndex) : nil;
-    return [[MEGAAccountPlan alloc] initWithMegaAccountPlan:megaAccountPlan cMemoryOwn:YES];
+- (MEGAAccountPlan *)getPlan:(int)plansIndex {
+    return self.accountDetails ? [[MEGAAccountPlan alloc] initWithMegaAccountPlan: self.accountDetails->getPlan(plansIndex) cMemoryOwn:YES] : nil;
 }
 
 -(int)getNumSubscriptions {
     return self.accountDetails ? self.accountDetails->getNumSubscriptions() : 0;
 }
 
--(MEGAAccountSubscription*)getSubscription:(int)subscriptionsIndex {
-    MegaAccountSubscription* megaAccountSubscription = self.accountDetails ? self.accountDetails->getSubscription(subscriptionsIndex) : nil;
-    return [[MEGAAccountSubscription alloc] initWithMegaAccountSubscription:megaAccountSubscription cMemoryOwn:YES];
+-(MEGAAccountSubscription *)getSubscription:(int)subscriptionsIndex {
+    return self.accountDetails ? [[MEGAAccountSubscription alloc] initWithMegaAccountSubscription:self.accountDetails->getSubscription(subscriptionsIndex) cMemoryOwn:YES] : nil;
 }
 
 + (nullable NSString *)stringForAccountType:(MEGAAccountType)accountType {

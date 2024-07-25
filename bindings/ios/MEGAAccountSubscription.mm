@@ -1,8 +1,8 @@
 /**
  * @file MEGAAccountFeature.mm
- * @brief Details about a MEGA account feature
+ * @brief Details about a MEGA account subscription
  *
- * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
+ * (c) 2024 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -50,24 +50,24 @@ using namespace mega;
     }
 }
 
-- (nullable MegaAccountSubscription*)getCPtr {
+- (nullable MegaAccountSubscription *)getCPtr {
     return self.megaAccountSubscription;
 }
 
--(char*)getId {
-    _megaAccountSubscription->getId();
+-(NSString *)getId {
+    return [NSString stringWithUTF8String: _megaAccountSubscription->getId()];
 }
 
 -(int)getStatus {
     _megaAccountSubscription->getStatus();
 }
 
--(char*)getCycle {
-    _megaAccountSubscription->getCycle();
+-(NSString *)getCycle {
+    return [NSString stringWithUTF8String: _megaAccountSubscription->getCycle()];
 }
 
--(char*)getPaymentMethod {
-    _megaAccountSubscription->getId();
+-(NSString *)getPaymentMethod {
+    return [NSString stringWithUTF8String: _megaAccountSubscription->getPaymentMethod()];
 }
 
 -(int32_t)getPaymentMethodId {
@@ -83,7 +83,7 @@ using namespace mega;
     return accountLevel;
 }
 
--(MEGAStringList*)getFeatures {
+-(MEGAStringList *)getFeatures {
     return [MEGAStringList.alloc initWithMegaStringList:_megaAccountSubscription->getFeatures() cMemoryOwn:YES];
 }
 

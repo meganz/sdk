@@ -2,7 +2,7 @@
  * @file MEGAAccountDetails.h
  * @brief Details about a MEGA account
  *
- * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
+ * (c) 2024 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -267,7 +267,7 @@ typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
  * @param featureIndex Index of the object
  * @return MegaAccountFeature object
  */
-- (MEGAAccountFeature*)getActiveFeature:(int) featureIndex;
+- (MEGAAccountFeature *)getActiveFeature:(int) featureIndex;
 
 /**
  * @brief Get the number of active plans in the account.
@@ -286,7 +286,7 @@ typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
  * @param plansIndex Index of the object
  * @return MegaAccountPlan object
  */
--(MEGAAccountPlan*)getPlan:(int) plansIndex;
+-(MEGAAccountPlan *)getPlan:(int) plansIndex;
 
 /**
  * @brief Get the number of active subscriptions in the account.
@@ -305,7 +305,7 @@ typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
  * @param subscriptionsIndex Index of the object
  * @return MegaAccountSubscription object
  */
--(MEGAAccountSubscription*)getSubscription:(int) subscriptionsIndex;
+-(MEGAAccountSubscription *)getSubscription:(int) subscriptionsIndex;
 
 NS_ASSUME_NONNULL_END
 

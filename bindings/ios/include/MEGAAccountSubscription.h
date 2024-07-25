@@ -2,7 +2,7 @@
  * @file MEGAAccountSubscription.h
  * @brief Details about a MEGA account subscription
  *
- * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
+ * (c) 2024 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -33,7 +33,7 @@
  *
  * @return ID of this subscription
  */
--(char*)getId;
+-(NSString *)getId;
 
 /**
  * @brief Check if the subscription is active
@@ -66,7 +66,7 @@
  *
  * @return Subscription cycle
  */
--(char*)getCycle;
+-(NSString *)getCycle;
 
 /**
  * @brief Get the subscription payment provider name
@@ -75,7 +75,7 @@
  *
  * @return Payment provider name
  */
--(char*)getPaymentMethod;
+-(NSString *)getPaymentMethod;
 
 /**
  * @brief Get the subscription payment provider ID
@@ -119,6 +119,6 @@
  *
  * @return Features granted by this subscription.
  */
--(MEGAStringList*) getFeatures;
+-(MEGAStringList *) getFeatures;
 
 @end
