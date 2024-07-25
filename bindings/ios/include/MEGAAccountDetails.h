@@ -167,7 +167,7 @@ typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
 /**
  * @brief Number of active MegaAccountFeature objects associated with the account.
  */
-@property (readonly, nonatomic) NSInteger numActiveFeatures;
+@property (readonly, nonatomic) int numActiveFeatures;
 
 /**
  * @brief Get feature account level for feature-related subscriptions.

@@ -121,8 +121,8 @@ using namespace mega;
     return self.accountDetails ? self.accountDetails->getNumUsageItems(): -1;
 }
 
-- (NSInteger)numActiveFeatures {
-    return self.accountDetails ? self.accountDetails->getNumActiveFeatures() : -1;
+- (int)numActiveFeatures {
+    return self.accountDetails ? (int)self.accountDetails->getNumActiveFeatures() : -1;
 }
 
 - (int64_t)subscriptionLevel {
