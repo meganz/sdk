@@ -18,6 +18,7 @@ class ReleaseProcess:
         private_branch: str,
     ):
         self._private_branch = private_branch
+        self._jira: JiraProject | None = None
         self._local_repo: LocalRepository | None = None
         self._remote_private_repo = GitLabRepository(
             private_host_url, gitlab_token, project_name
@@ -34,10 +35,13 @@ class ReleaseProcess:
         )
 
     def set_release_version_to_make(self, version: str):
-        assert not self._new_version
+        assert self._jira is not None
+        self._jira.setup_release()
+        if not version:
+            v = self._jira.get_next_version()
+            version = ".".join(map(str, v))
         self._new_version = version
         self._version_v_prefixed = f"v{self._new_version}"
-        self._jira.setup_release()
 
     def setup_chat(
         self,
@@ -49,11 +53,6 @@ class ReleaseProcess:
         # - make announcements in the given channel, if any.
         self._slack = Slack(slack_token)
         self._slack_channel = slack_channel
-
-    def determine_version_for_next_release(self) -> str:
-        assert self._jira is not None
-        version = self._jira.get_next_version()
-        return ".".join(map(str, version))
 
     # STEP 3: update version in local file
     def update_version_in_local_file(
