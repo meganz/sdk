@@ -17592,10 +17592,29 @@ bool MegaClient::treatAsIfFileDataEqual(const FileFingerprint& fp1, const string
             isPhotoVideoAudioByName(filenameExtensionLowercaseNoDot1);
 }
 
-recentactions_vector MegaClient::getRecentActions(unsigned maxcount, m_time_t since)
+recentactions_vector MegaClient::getRecentActions(unsigned maxcount,
+                                                  m_time_t since,
+                                                  bool excludeSensitives)
 {
     recentactions_vector rav;
-    sharedNode_vector v = mNodeManager.getRecentNodes(maxcount, since);
+    sharedNode_vector v;
+
+    NodeSearchFilter filter;
+    filter.byAncestors({mNodeManager.getRootNodeFiles().as8byte(),
+                        mNodeManager.getRootNodeVault().as8byte(),
+                        UNDEF});
+
+    filter.byCreationTimeLowerLimitInSecs(since);
+    if (excludeSensitives)
+    {
+        filter.bySensitivity(NodeSearchFilter::BoolFilter::onlyTrue);
+    }
+    filter.byNodeType(FILENODE);
+    filter.setIncludedShares(IN_SHARES);
+    v = mNodeManager.searchNodes(filter,
+                                 OrderByClause::CTIME_DESC,
+                                 CancelToken(),
+                                 NodeSearchPage{0, maxcount});
 
     for (auto i = v.begin(); i != v.end(); )
     {

@@ -4138,7 +4138,15 @@ MegaRecentActionBucketList* MegaApi::getRecentActions()
 
 void MegaApi::getRecentActionsAsync(unsigned days, unsigned maxnodes, MegaRequestListener *listener)
 {
-    return pImpl->getRecentActionsAsync(days, maxnodes, listener);
+    pImpl->getRecentActionsAsync(days, maxnodes, true /*excludeSensitives*/, listener);
+}
+
+void MegaApi::getRecentActionsAsync(unsigned days,
+                                    unsigned maxnodes,
+                                    bool excludeSensitives,
+                                    MegaRequestListener* listener)
+{
+    pImpl->getRecentActionsAsync(days, maxnodes, excludeSensitives, listener);
 }
 
 bool MegaApi::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, bool recursive)

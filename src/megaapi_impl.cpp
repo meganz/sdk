@@ -11766,11 +11766,13 @@ int MegaApiImpl::getAccess(MegaNode* megaNode)
     }
 }
 
-MegaRecentActionBucketList* MegaApiImpl::getRecentActions(unsigned days, unsigned maxnodes)
+MegaRecentActionBucketList* MegaApiImpl::getRecentActions(unsigned days,
+                                                          unsigned maxnodes,
+                                                          bool excludeSensitives)
 {
     SdkMutexGuard g(sdkMutex);
     m_time_t since = m_time() - days * 86400;
-    recentactions_vector v = client->getRecentActions(maxnodes, since);
+    recentactions_vector v = client->getRecentActions(maxnodes, since, excludeSensitives);
     return new MegaRecentActionBucketListPrivate(v, client);
 }
 
@@ -25151,11 +25153,15 @@ void MegaApiImpl::setMyBackupsFolder(const char* localizedName, MegaRequestListe
     waiter->notify();
 }
 
-void MegaApiImpl::getRecentActionsAsync(unsigned days, unsigned maxnodes, MegaRequestListener* listener)
+void MegaApiImpl::getRecentActionsAsync(unsigned days,
+                                        unsigned maxnodes,
+                                        bool excludeSensitives,
+                                        MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_RECENT_ACTIONS, listener);
     request->setNumber(days);
     request->setParamType(maxnodes);
+    request->setFlag(excludeSensitives);
 
     request->performRequest = [this, request]()
         {
@@ -25171,8 +25177,10 @@ void MegaApiImpl::getRecentActionsAsync(unsigned days, unsigned maxnodes, MegaRe
                return API_EARGS;
            }
 
+           bool excludeSensitives = request->getFlag();
+
            m_time_t since = m_time() - days * 86400;
-           recentactions_vector v = client->getRecentActions(maxnodes, since);
+           recentactions_vector v = client->getRecentActions(maxnodes, since, excludeSensitives);
            std::unique_ptr<MegaRecentActionBucketList> recentActions(new MegaRecentActionBucketListPrivate(v, client));
            request->setRecentActions(std::move(recentActions));
            fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
