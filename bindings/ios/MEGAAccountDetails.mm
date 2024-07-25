@@ -185,15 +185,15 @@ using namespace mega;
     return self.accountDetails ? self.accountDetails->getNumPlans(): 0;
 }
 
-- (MEGAAccountPlan *)getPlan:(int)plansIndex {
+- (nullable MEGAAccountPlan *)getPlan:(int)plansIndex {
     return self.accountDetails ? [[MEGAAccountPlan alloc] initWithMegaAccountPlan: self.accountDetails->getPlan(plansIndex) cMemoryOwn:YES] : nil;
 }
 
--(int)getNumSubscriptions {
+- (int)getNumSubscriptions {
     return self.accountDetails ? self.accountDetails->getNumSubscriptions() : 0;
 }
 
--(MEGAAccountSubscription *)getSubscription:(int)subscriptionsIndex {
+- (nullable MEGAAccountSubscription *)getSubscription:(int)subscriptionsIndex {
     return self.accountDetails ? [[MEGAAccountSubscription alloc] initWithMegaAccountSubscription:self.accountDetails->getSubscription(subscriptionsIndex) cMemoryOwn:YES] : nil;
 }
 

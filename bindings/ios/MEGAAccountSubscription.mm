@@ -54,37 +54,37 @@ using namespace mega;
     return self.megaAccountSubscription;
 }
 
--(NSString *)getId {
-    return [NSString stringWithUTF8String: _megaAccountSubscription->getId()];
+- (nullable NSString *)getId {
+    return self.megaAccountSubscription ? [NSString stringWithUTF8String: self.megaAccountSubscription->getId()] : nil;
 }
 
--(int)getStatus {
-    _megaAccountSubscription->getStatus();
+- (int)getStatus {
+    return self.megaAccountSubscription ? self.megaAccountSubscription->getStatus() : 0;
 }
 
--(NSString *)getCycle {
-    return [NSString stringWithUTF8String: _megaAccountSubscription->getCycle()];
+- (nullable NSString *)getCycle {
+    self.megaAccountSubscription ? [NSString stringWithUTF8String: self.megaAccountSubscription->getCycle()] : nil;
 }
 
--(NSString *)getPaymentMethod {
-    return [NSString stringWithUTF8String: _megaAccountSubscription->getPaymentMethod()];
+- (nullable NSString *)getPaymentMethod {
+    self.megaAccountSubscription ? [NSString stringWithUTF8String: self.megaAccountSubscription->getPaymentMethod()] : nil;
 }
 
--(int32_t)getPaymentMethodId {
-    _megaAccountSubscription->getPaymentMethodId();
+- (int32_t)getPaymentMethodId {
+    self.megaAccountSubscription ? self.megaAccountSubscription->getPaymentMethodId() : 0;
 }
 
--(int64_t)getRenewTime {
-    _megaAccountSubscription->getRenewTime();
+- (int64_t)getRenewTime {
+    self.megaAccountSubscription ? self.megaAccountSubscription->getRenewTime() : 0;
 }
 
--(int)getAccountLevel {
-    int accountLevel = _megaAccountSubscription->getAccountLevel();
+- (int)getAccountLevel {
+    int accountLevel = self.megaAccountSubscription ? self.megaAccountSubscription->getAccountLevel() : 0;
     return accountLevel;
 }
 
--(MEGAStringList *)getFeatures {
-    return [MEGAStringList.alloc initWithMegaStringList:_megaAccountSubscription->getFeatures() cMemoryOwn:YES];
+- (MEGAStringList *)getFeatures {
+    return self.megaAccountSubscription ? [MEGAStringList.alloc initWithMegaStringList:self.megaAccountSubscription->getFeatures() cMemoryOwn:YES] : nil;
 }
 
 @end
