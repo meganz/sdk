@@ -91,6 +91,9 @@ Next to the MEGA SDK, clone the VCPKG repository. If you are already using VCPKG
 
 	git clone https://github.com/microsoft/vcpkg
 
+**Note**: VCPKG local repository needs to be updated from time to time. If never done, it will eventually fail to find new dependencies or others updated to versions newer than what it already had.
+The solution is simple: go to VCPKG local repository and run `git pull`.
+
 ### Configuration
 
 The following instructions are for configuring the project from the CLI, but cmake-gui or any editor or IDE
