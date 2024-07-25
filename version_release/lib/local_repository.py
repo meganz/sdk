@@ -63,13 +63,24 @@ class LocalRepository:  # use raw git commands
         return False
 
     def check_for_uncommitted_changes(self):
-        byte_output = subprocess.check_output(["git", "diff", "--shortstat"])
+        path_to_exlude = Path(__file__).parent.parent
+        relative_path_to_exclude = path_to_exlude.relative_to(Path.cwd()).as_posix()
+        byte_output = subprocess.check_output(
+            ["git", "diff", "--shortstat", "--", f":^{relative_path_to_exclude}"]
+        )
         assert (
             len(byte_output) == 0
         ), f'Found unstaged changes:\n{byte_output.decode("utf-8")}'
 
         byte_output = subprocess.check_output(
-            ["git", "diff", "--shortstat", "--cached"]
+            [
+                "git",
+                "diff",
+                "--shortstat",
+                "--cached",
+                "--",
+                f":^{relative_path_to_exclude}",
+            ]
         )
         assert (
             len(byte_output) == 0
