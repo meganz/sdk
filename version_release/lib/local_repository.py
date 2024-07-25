@@ -14,7 +14,9 @@ class LocalRepository:  # use raw git commands
     - delete a local branch
     """
 
-    version_file = Path(__file__).parent.parent.parent / "include" / "mega" / "version.h"
+    version_file = (
+        Path(__file__).parent.parent.parent / "include" / "mega" / "version.h"
+    )
 
     def __init__(self, remote_name: str, remote_url: str):
         # confirm remote being correctly configured

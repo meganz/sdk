@@ -250,6 +250,7 @@ class ReleaseProcess:
 
     # STEP 7: Update and rename previous NextRelease version; create new NextRelease version
     def manage_versions(self, url: str, user: str, password: str, apps: str):
+        assert self._jira is not None
         self._jira.update_current_version(
             self._new_version,  # i.e. "X.Y.Z"
             apps,  # i.e. "iOS A.B / Android C.D / MEGAsync E.F.G"
@@ -290,9 +291,7 @@ class ReleaseProcess:
             public_remote_name, public_remote_url, fetch_is_optional=True
         )
 
-    def setup_public_repo(
-        self, public_repo_token: str, public_repo_owner: str
-    ):
+    def setup_public_repo(self, public_repo_token: str, public_repo_owner: str):
         self._public_repo = GitHubRepository(
             public_repo_token, public_repo_owner, self._project_name
         )
@@ -301,6 +300,7 @@ class ReleaseProcess:
         assert not self._new_version
         self._new_version = version
         self._version_v_prefixed = f"v{self._new_version}"
+        assert self._jira is not None
         self._jira.setup_release(self._version_v_prefixed)
 
     def confirm_all_earlier_versions_are_closed(self):
@@ -334,6 +334,7 @@ class ReleaseProcess:
     # STEP 2 (close): GitLab: Create release "Version X.Y.Z" from tag "vX.Y.Z" plus release notes
     def create_release_in_private_repo(self):
         release_name = f"Version {self._new_version}"
+        assert self._jira is not None
         release_notes = self._jira.get_release_notes([])
         print("Creating release", release_name, flush=True)
         self._remote_private_repo.create_release(
@@ -367,6 +368,7 @@ class ReleaseProcess:
 
     # STEP 5 (close): GitHub: Create release in public repo from new tag
     def create_release_in_public_repo(self, version: str):
+        assert self._jira is not None
         self._public_repo.create_release(version, self._jira.get_public_release_notes())
 
     # STEP 6 (close): Jira: mark version as Released, set release date
