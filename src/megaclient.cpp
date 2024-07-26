@@ -5032,7 +5032,6 @@ bool MegaClient::procsc()
 
                     if (!insca_notlast)
                     {
-                        sc_checkSequenceTag(string());
                         if (mReceivingCatchUp)
                         {
                             mReceivingCatchUp = false;
@@ -5320,6 +5319,11 @@ bool MegaClient::procsc()
             }
             else
             {
+                // No more Actions Packets. Force it to advance and process all the remaining
+                // command responses until a new "st" is found, if any.
+                // It will also process the latest command response associated (by the Sequence Tag)
+                // with the latest AP processed here.
+                sc_checkSequenceTag(string());
                 jsonsc.leavearray();
                 insca = false;
             }
