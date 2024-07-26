@@ -236,21 +236,17 @@ NS_ASSUME_NONNULL_BEGIN
 /**
  * @brief Get the number of active plans in the account.
  *
- * You can use MegaAccountDetails::getPlan to get each of those objects.
- *
  * @return Number of active plans
  */
-- (int)numberOfPlans;
+@property (readonly, nonatomic) NSInteger numberOfPlans;
 
 /**
- * @brief Returns the MegaAccountPlan object associated with an index
- *
- * You take the ownership of the returned value
+ * @brief Returns the MEGAAccountPlan object associated with an index
  *
  * @param plansIndex Index of the object
- * @return MegaAccountPlan object
+ * @return MEGAAccountPlan object
  */
-- (nullable MEGAAccountPlan *)plan:(int) plansIndex;
+- (nullable MEGAAccountPlan *)plan:(int)plansIndex;
 
 /**
  * @brief Get the number of active subscriptions in the account.
@@ -259,17 +255,16 @@ NS_ASSUME_NONNULL_BEGIN
  *
  * @return Number of active subscriptions
  */
-- (int)numberOfSubscriptions;
+@property (readonly, nonatomic) NSInteger numberOfSubscriptions;
 
 /**
- * @brief Returns the MegaAccountSubscription object associated with an index
+ * @brief Returns the MEGAAccountSubscription object associated with an index
  *
- * You take the ownership of the returned value
  *
  * @param subscriptionsIndex Index of the object
- * @return MegaAccountSubscription object
+ * @return MEGAAccountSubscription object
  */
-- (nullable MEGAAccountSubscription *)subscription:(int) subscriptionsIndex;
+- (nullable MEGAAccountSubscription *)subscription:(int)subscriptionsIndex;
 
 NS_ASSUME_NONNULL_END
 

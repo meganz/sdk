@@ -31,11 +31,10 @@
 /**
  * @brief Get the ID of this subscription
  *
- * You take the ownership of the returned value
  *
  * @return ID of this subscription
  */
-- (nullable NSString *)subcriptionId;
+@property (readonly, nonatomic, nullable) NSString *subcriptionId;
 
 /**
  * @brief Check if the subscription is active
@@ -56,7 +55,7 @@
  * - MEGASubscriptionStatusInvalid = 2
  * A subscription exists, but it uses a payment gateway that is no longer valid
  */
-- (MEGASubscriptionStatus)status;
+@property (readonly, nonatomic) MEGASubscriptionStatus status;
 
 /**
  * @brief Get the subscription cycle
@@ -64,7 +63,6 @@
  * The return value will show if the subscription will be montly or yearly renewed.
  * Example return values: "1 M", "1 Y".
  *
- * You take the ownership of the returned value
  *
  * @return Subscription cycle
  */
@@ -73,7 +71,6 @@
 /**
  * @brief Get the subscription payment provider name
  *
- * You take the ownership of the returned value
  *
  * @return Payment provider name
  */
@@ -117,7 +114,6 @@
 /**
  * @brief Get the features granted by this subscription
  *
- * You take the ownership of the returned value
  *
  * @return Features granted by this subscription.
  */

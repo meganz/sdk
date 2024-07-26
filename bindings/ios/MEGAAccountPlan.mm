@@ -54,13 +54,13 @@ using namespace mega;
     return self.megaAccountPlan;
 }
 
-- (bool)isProPlan {
-    self.megaAccountPlan ? self.megaAccountPlan->isProPlan() : NO;
+- (BOOL)isProPlan {
+    return self.megaAccountPlan ? self.megaAccountPlan->isProPlan() : NO;
 }
 
 - (MEGAAccountType)accountType {
     NSInteger accountLevelValue = self.megaAccountPlan ? self.megaAccountPlan->getAccountLevel() : -1;
-    return [MEGAAccountTypeMapper accountTypeFromInteger:accountLevelValue];
+    return (MEGAAccountType)accountLevelValue;
 }
 
 - (nullable MEGAStringList *)features {
@@ -68,15 +68,21 @@ using namespace mega;
 }
 
 - (int64_t)expirationTime {
-    self.megaAccountPlan ? self.megaAccountPlan->getExpirationTime() : 0;
+    return self.megaAccountPlan ? self.megaAccountPlan->getExpirationTime() : 0;
 }
 
 - (int32_t)type {
-    self.megaAccountPlan ? self.megaAccountPlan->getType() : 0;
+    return self.megaAccountPlan ? self.megaAccountPlan->getType() : 0;
 }
 
-- (nullable NSString *)planId {
-    self.megaAccountPlan ? [NSString stringWithUTF8String: self.megaAccountPlan->getId()] : nil;
+- (nullable NSString *)subscriptionId {
+    const char *val = self.megaAccountPlan ? self.megaAccountPlan->getId() : nil;
+    if (!val) return nil;
+
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+
+    delete [] val;
+    return ret;
 }
 
 @end

@@ -30,9 +30,9 @@
 /**
  * @brief Check if the plan is a PRO plan or a feature plan.
  *
- * @return True if the plan is a PRO plan
+ * @return YES if the plan is a PRO plan
  */
-- (bool)isProPlan;
+@property (readonly, nonatomic) BOOL isProPlan;
 
 /**
  * @brief Get account level of the plan
@@ -53,19 +53,18 @@
  * Valid value for feature plans is:
  * - MEGAAccountTypeFeature = 99999
  */
-- (MEGAAccountType)accountType;
+@property (readonly, nonatomic) MEGAAccountType accountType;
 
 /**
  * @brief Get the expiration time for the plan
  *
  * @return The time the plan expires
  */
-- (int64_t)expirationTime;
+@property (readonly, nonatomic) int64_t expirationTime;
 
 /**
  * @brief Get the features granted by this plan
  *
- * You take the ownership of the returned value
  *
  * @return Features granted by this plan.
  */
@@ -78,17 +77,16 @@
  *
  * @return Plan type
  */
-- (int32_t)type;
+@property (readonly, nonatomic) int32_t type;
 
 /**
  * @brief Get the relating subscription ID
  *
  * Only available if the plan relates to a subscription.
  *
- * You take the ownership of the returned value
  *
  * @return ID of this subscription
  */
-- (nullable NSString *)planId;
+@property (readonly, nonatomic, nullable) NSString *subscriptionId;
 
 @end

@@ -34,9 +34,3 @@ typedef NS_ENUM (NSInteger, MEGAAccountType) {
     MEGAAccountTypeProFlexi = 101,
     MEGAAccountTypeFeature = 99999
 };
-
-@interface MEGAAccountTypeMapper : NSObject
-
-+ (MEGAAccountType)accountTypeFromInteger:(NSInteger)value;
-
-@end

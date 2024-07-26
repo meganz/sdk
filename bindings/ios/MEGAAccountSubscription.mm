@@ -55,7 +55,13 @@ using namespace mega;
 }
 
 - (nullable NSString *)subcriptionId {
-    return self.megaAccountSubscription ? [NSString stringWithUTF8String: self.megaAccountSubscription->getId()] : nil;
+    const char *val = self.megaAccountSubscription ? self.megaAccountSubscription->getId() : nil;
+    if (!val) return nil;
+
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+
+    delete [] val;
+    return ret;
 }
 
 - (MEGASubscriptionStatus)status {
@@ -64,11 +70,23 @@ using namespace mega;
 }
 
 - (nullable NSString *)cycle {
-    self.megaAccountSubscription ? [NSString stringWithUTF8String: self.megaAccountSubscription->getCycle()] : nil;
+    const char *val = self.megaAccountSubscription ? self.megaAccountSubscription->getCycle() : nil;
+    if (!val) return nil;
+
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+
+    delete [] val;
+    return ret;
 }
 
 - (nullable NSString *)paymentMethod {
-    self.megaAccountSubscription ? [NSString stringWithUTF8String: self.megaAccountSubscription->getPaymentMethod()] : nil;
+    const char *val = self.megaAccountSubscription ? self.megaAccountSubscription->getPaymentMethod() : nil;
+    if (!val) return nil;
+
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+
+    delete [] val;
+    return ret;
 }
 
 - (int32_t)paymentMethodId {
@@ -76,12 +94,12 @@ using namespace mega;
 }
 
 - (int64_t)renewTime {
-    self.megaAccountSubscription ? self.megaAccountSubscription->getRenewTime() : 0;
+    return self.megaAccountSubscription ? self.megaAccountSubscription->getRenewTime() : 0;
 }
 
 - (MEGAAccountType)accountType {
     NSInteger accountLevelValue = self.megaAccountSubscription ? self.megaAccountSubscription->getAccountLevel() : -1;
-    return [MEGAAccountTypeMapper accountTypeFromInteger:accountLevelValue];
+    return (MEGAAccountType)accountLevelValue;
 }
 
 - (MEGAStringList *)features {

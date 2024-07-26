@@ -172,7 +172,7 @@ using namespace mega;
     return self.accountDetails ? self.accountDetails->getNumVersionFiles(handle): -1;
 }
 
-- (int)numberOfPlans {
+- (NSInteger)numberOfPlans {
     return self.accountDetails ? self.accountDetails->getNumPlans(): 0;
 }
 
@@ -180,7 +180,7 @@ using namespace mega;
     return self.accountDetails ? [[MEGAAccountPlan alloc] initWithMegaAccountPlan: self.accountDetails->getPlan(plansIndex) cMemoryOwn:YES] : nil;
 }
 
-- (int)numberOfSubscriptions {
+- (NSInteger)numberOfSubscriptions {
     return self.accountDetails ? self.accountDetails->getNumSubscriptions() : 0;
 }
 
