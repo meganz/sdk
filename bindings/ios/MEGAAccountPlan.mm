@@ -58,9 +58,9 @@ using namespace mega;
     self.megaAccountPlan ? self.megaAccountPlan->isProPlan() : NO;
 }
 
-- (int)accountLevel {
-    int accountLevel = self.megaAccountPlan ? self.megaAccountPlan->getAccountLevel() : 0;
-    return accountLevel;
+- (MEGAAccountType)accountType {
+    NSInteger accountLevelValue = self.megaAccountPlan ? self.megaAccountPlan->getAccountLevel() : -1;
+    return [MEGAAccountTypeMapper accountTypeFromInteger:accountLevelValue];
 }
 
 - (nullable MEGAStringList *)features {

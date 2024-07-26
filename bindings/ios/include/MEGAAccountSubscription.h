@@ -19,7 +19,9 @@
  * program.
  */
 #import <Foundation/Foundation.h>
+#import "MEGAAccountType.h"
 #import "MEGAStringList.h"
+#import "MEGASubscriptionStatus.h"
 
 /**
  * @brief Details about a MEGA account subscription.
@@ -38,23 +40,23 @@
 /**
  * @brief Check if the subscription is active
  *
- * If this function returns MegaAccountDetails::SUBSCRIPTION_STATUS_VALID,
+ * If this function returns MEGASubscriptionStatusValid
  * the subscription will be automatically renewed.
- * See MegaAccountSubscription::getRenewTime()
+ * See [MEGAAccountSubscription renewTime]
  *
  * @return Information about the subscription status
  *
  * Valid return values are:
- * - MegaAccountSubscription::SUBSCRIPTION_STATUS_NONE = 0
+ * - MEGASubscriptionStatusNone = 0
  * There isn't any active subscription
  *
- * - MegaAccountSubscription::SUBSCRIPTION_STATUS_VALID = 1
+ * - MEGASubscriptionStatusValid = 1
  * There is an active subscription
  *
- * - MegaAccountSubscription::SUBSCRIPTION_STATUS_INVALID = 2
+ * - MEGASubscriptionStatusInvalid = 2
  * A subscription exists, but it uses a payment gateway that is no longer valid
  */
-- (int)status;
+- (MEGASubscriptionStatus)status;
 
 /**
  * @brief Get the subscription cycle
@@ -108,9 +110,9 @@
  * - MEGAAccountTypeProFlexi = 101
  *
  * Valid value for feature plan subscriptions:
- * - MegaAccountDetails::ACCOUNT_TYPE_FEATURE = 99999
+ * - MEGAAccountTypeFeature = 99999
  */
-- (int)accountLevel;
+- (MEGAAccountType)accountType;
 
 /**
  * @brief Get the features granted by this subscription

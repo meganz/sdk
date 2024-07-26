@@ -58,8 +58,9 @@ using namespace mega;
     return self.megaAccountSubscription ? [NSString stringWithUTF8String: self.megaAccountSubscription->getId()] : nil;
 }
 
-- (int)status {
-    return self.megaAccountSubscription ? self.megaAccountSubscription->getStatus() : 0;
+- (MEGASubscriptionStatus)status {
+    int integerStatusValue = self.megaAccountSubscription ? self.megaAccountSubscription->getStatus() : 0;
+    return (MEGASubscriptionStatus)integerStatusValue;
 }
 
 - (nullable NSString *)cycle {
@@ -78,9 +79,9 @@ using namespace mega;
     self.megaAccountSubscription ? self.megaAccountSubscription->getRenewTime() : 0;
 }
 
-- (int)accountLevel {
-    int accountLevel = self.megaAccountSubscription ? self.megaAccountSubscription->getAccountLevel() : 0;
-    return accountLevel;
+- (MEGAAccountType)accountType {
+    NSInteger accountLevelValue = self.megaAccountSubscription ? self.megaAccountSubscription->getAccountLevel() : -1;
+    return [MEGAAccountTypeMapper accountTypeFromInteger:accountLevelValue];
 }
 
 - (MEGAStringList *)features {

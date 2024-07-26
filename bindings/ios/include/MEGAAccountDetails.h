@@ -20,32 +20,15 @@
  */
 #import <Foundation/Foundation.h>
 #import "MEGAAccountFeature.h"
+#import "MEGAAccountFeature.h"
+#import "MEGAAccountPlan.h"
+#import "MEGAAccountSubscription.h"
+#import "MEGASubscriptionStatus.h"
+#import "MEGAAccountType.h"
 #import "MEGAPaymentMethod.h"
 #import "MEGAStringIntegerMap.h"
-#import "MEGAAccountPlan.h"
-#import "MEGAAccountFeature.h"
-#import "MEGAAccountSubscription.h"
 
 NS_ASSUME_NONNULL_BEGIN
-
-typedef NS_ENUM (NSInteger, MEGAAccountType) {
-    MEGAAccountTypeFree = 0,
-    MEGAAccountTypeProI = 1,
-    MEGAAccountTypeProII = 2,
-    MEGAAccountTypeProIII = 3,
-    MEGAAccountTypeLite = 4,
-    MEGAAccountTypeStarter = 11,
-    MEGAAccountTypeBasic = 12,
-    MEGAAccountTypeEssential = 13,
-    MEGAAccountTypeBusiness = 100,
-    MEGAAccountTypeProFlexi = 101
-};
-
-typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
-    MEGASubscriptionStatusNone = 0,
-    MEGASubscriptionStatusValid = 1,
-    MEGASubscriptionStatusInvalid = 2
-};
 
 /**
  * @brief Details about a MEGA account.

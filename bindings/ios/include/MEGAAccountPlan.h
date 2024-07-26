@@ -19,6 +19,7 @@
  * program.
  */
 #import <Foundation/Foundation.h>
+#import "MEGAAccountType.h"
 #import "MEGAStringList.h"
 
 /**
@@ -50,18 +51,9 @@
  * - MEGAAccountTypeProFlexi = 101
  *
  * Valid value for feature plans is:
- * - MegaAccountDetails::ACCOUNT_TYPE_FEATURE = 99999
+ * - MEGAAccountTypeFeature = 99999
  */
-- (int)accountLevel;
-
-/**
- * @brief Get the features granted by this plan
- *
- * You take the ownership of the returned value
- *
- * @return Features granted by this plan.
- */
-//virtual MegaStringList* getFeatures() const = 0;
+- (MEGAAccountType)accountType;
 
 /**
  * @brief Get the expiration time for the plan
