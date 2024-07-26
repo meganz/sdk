@@ -14,7 +14,9 @@ class LocalRepository:  # use raw git commands
     - delete a local branch
     """
 
-    version_file = Path(__file__).parent.parent.parent / "include" / "mega" / "version.h"
+    version_file = (
+        Path(__file__).parent.parent.parent / "include" / "mega" / "version.h"
+    )
 
     def __init__(self, remote_name: str, remote_url: str):
         # confirm remote being correctly configured
@@ -63,13 +65,24 @@ class LocalRepository:  # use raw git commands
         return False
 
     def check_for_uncommitted_changes(self):
-        byte_output = subprocess.check_output(["git", "diff", "--shortstat"])
+        path_to_exlude = Path(__file__).parent.parent
+        relative_path_to_exclude = path_to_exlude.relative_to(Path.cwd()).as_posix()
+        byte_output = subprocess.check_output(
+            ["git", "diff", "--shortstat", "--", f":^{relative_path_to_exclude}"]
+        )
         assert (
             len(byte_output) == 0
         ), f'Found unstaged changes:\n{byte_output.decode("utf-8")}'
 
         byte_output = subprocess.check_output(
-            ["git", "diff", "--shortstat", "--cached"]
+            [
+                "git",
+                "diff",
+                "--shortstat",
+                "--cached",
+                "--",
+                f":^{relative_path_to_exclude}",
+            ]
         )
         assert (
             len(byte_output) == 0

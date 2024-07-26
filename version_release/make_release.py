@@ -20,10 +20,7 @@ release.setup_project_management(
     args["jira_user"],
     args["jira_password"],
 )
-next_release_version = (
-    args["release_version"] or release.determine_version_for_next_release()
-)
-release.set_release_version_to_make(next_release_version)
+release.set_release_version_to_make(args["release_version"])
 
 if args["slack_token"]:
     release.setup_chat(args["slack_token"], args["slack_channel"])
