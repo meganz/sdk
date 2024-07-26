@@ -49,7 +49,8 @@ void BackoffTimer::backoff()
         base = 6000;
     }
 
-    delta = base + (dstime)((base / 2.0) * (rng.genuint32(RAND_MAX)/((double)RAND_MAX)));
+    delta = base + static_cast<dstime>((static_cast<double>(base) / 2.0) *
+                                       (rng.genuint32(RAND_MAX) / (static_cast<double>(RAND_MAX))));
 }
 
 void BackoffTimer::backoff(dstime newdelta)

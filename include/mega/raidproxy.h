@@ -84,7 +84,7 @@ class PartFetcher
 
     void setposrem();                                         // sets the next read position (pos) and the remaining read length (rem/remfeed)
     bool setremfeed(m_off_t);                                 // sets the remfeed depending on the number of bytes param and the remaining (rem) part data
-    int onFailure();                                          // Handle request failures
+    int64_t onFailure(); // Handle request failures
     m_off_t getSocketSpeed() const;                           // Get part throughput in bytes per millisec
 
 public:
@@ -94,10 +94,12 @@ public:
     ~PartFetcher();
 
     bool setsource(const std::string&, RaidReq*, uint8_t);    // Set URL for this source, part start pos and source size
-    int trigger(raidTime = 0, bool = false);                  // Add request for processing in RaidReqPool (with an optional delay). Also checks if this part shouldn't be processed.
+    int64_t trigger(raidTime = 0,
+                    bool = false); // Add request for processing in RaidReqPool (with an optional
+                                   // delay). Also checks if this part shouldn't be processed.
     bool directTrigger(bool = true);                          // Add request for direct processing in RaidReqPool (with no delay)
     void closesocket(bool = false);                           // reset part and optionally disconnect the HttpReq (depending on if it is going to be used)
-    int io();                                                 // process HttpReq
+    int64_t io(); // process HttpReq
     void cont(m_off_t);                                       // request a further chunk of data from the open connection
     bool feedreadahead();                                     // Process available read ahead for this part and send it to RaidReq::procdata
     void resume(bool = false);                                // resume fetching on a parked source that has become eligible again

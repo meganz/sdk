@@ -34,13 +34,6 @@ WinWaiter::~WinWaiter()
     CloseHandle(externalEvent);
 }
 
-// update monotonously increasing timestamp in deciseconds
-// FIXME: restore thread safety for applications using multiple MegaClient objects
-void Waiter::bumpds()
-{
-	ds = dstime(GetTickCount64() / 100);
-}
-
 // wait for events (socket, I/O completion, timeout + application events)
 // ds specifies the maximum amount of time to wait in deciseconds (or ~0 if no
 // timeout scheduled)
@@ -54,7 +47,12 @@ int WinWaiter::wait()
     if (index <= MAXIMUM_WAIT_OBJECTS)
     {
         assert(!handles.empty());
-        DWORD dwWaitResult = WaitForMultipleObjectsEx((DWORD)index, &handles.front(), FALSE, maxds * 100, TRUE);
+        DWORD dwWaitResult = WaitForMultipleObjectsEx(static_cast<DWORD>(index),
+                                                      &handles.front(),
+                                                      FALSE,
+                                                      static_cast<DWORD>(maxds * 100),
+                                                      TRUE);
+
         assert(dwWaitResult != WAIT_FAILED);
 
 #ifdef MEGA_MEASURE_CODE

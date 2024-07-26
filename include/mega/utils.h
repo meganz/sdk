@@ -496,7 +496,7 @@ extern m_time_t m_time(m_time_t* tt = NULL);
 extern struct tm* m_localtime(m_time_t, struct tm *dt);
 extern struct tm* m_gmtime(m_time_t, struct tm *dt);
 extern m_time_t m_mktime(struct tm*);
-extern int m_clock_getmonotonictime(struct timespec *t);
+extern dstime m_clock_getmonotonictimeDS();
 // Similar behaviour to mktime but it receives a struct tm with a date in UTC and return mktime in UTC
 extern m_time_t m_mktime_UTC(const struct tm *src);
 

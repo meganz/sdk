@@ -12923,7 +12923,7 @@ dstime MegaApiImpl::pread_failure(const Error &e, int retry, void* param, dstime
             return 0;
         }
 
-        return (dstime)(1 << (retry - 1));
+        return static_cast<dstime>(1) << (retry - 1);
     }
     else
     {

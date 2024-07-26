@@ -1079,7 +1079,7 @@ void CurlHttpIO::addevents(Waiter* w, int)
             timeoutds++;
         }
 
-        if ((unsigned long)timeoutds < waiter->maxds)
+        if (timeoutds < waiter->maxds)
         {
             waiter->maxds = dstime(timeoutds);
         }
