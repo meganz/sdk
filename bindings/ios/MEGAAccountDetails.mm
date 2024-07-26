@@ -85,15 +85,15 @@ using namespace mega;
     return self.accountDetails ? self.accountDetails->getProExpiration(): -1;
 }
 
-- (MEGASubscriptionStatus)subscriptionStatus __attribute__((deprecated("Use new API version 2 interfaces: https://jira.developers.mega.co.nz/browse/SDK-4141"))) {
+- (MEGASubscriptionStatus)subscriptionStatus __attribute__((deprecated("Use new API version 2 interfaces"))) {
     return (MEGASubscriptionStatus) (self.accountDetails ? self.accountDetails->getSubscriptionStatus(): -1);
 }
 
-- (NSInteger)subscriptionRenewTime __attribute__((deprecated("Use new API version 2 interfaces: https://jira.developers.mega.co.nz/browse/SDK-4141"))) {
+- (NSInteger)subscriptionRenewTime __attribute__((deprecated("Use new API version 2 interfaces"))) {
     return self.accountDetails ? self.accountDetails->getSubscriptionRenewTime(): -1;
 }
 
-- (nullable NSString *)subscriptionMethod __attribute__((deprecated("Use new API version 2 interfaces: https://jira.developers.mega.co.nz/browse/SDK-4141"))) {
+- (nullable NSString *)subscriptionMethod __attribute__((deprecated("Use new API version 2 interfaces"))) {
     const char *val = self.accountDetails ? self.accountDetails->getSubscriptionMethod() : nil;
     if (!val) return nil;
     
@@ -103,7 +103,7 @@ using namespace mega;
     return ret;    
 }
 
-- (MEGAPaymentMethod)subscriptionMethodId __attribute__((deprecated("Use new API version 2 interfaces: https://jira.developers.mega.co.nz/browse/SDK-4141"))) {
+- (MEGAPaymentMethod)subscriptionMethodId __attribute__((deprecated("Use new API version 2 interfaces"))) {
     return (MEGAPaymentMethod) (self.accountDetails ? self.accountDetails->getSubscriptionMethodId(): -1);
 }
 
