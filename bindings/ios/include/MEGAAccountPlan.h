@@ -65,7 +65,6 @@
 /**
  * @brief Get the features granted by this plan
  *
- *
  * @return Features granted by this plan.
  */
 - (nullable MEGAStringList *)features;
@@ -83,7 +82,6 @@
  * @brief Get the relating subscription ID
  *
  * Only available if the plan relates to a subscription.
- *
  *
  * @return ID of this subscription
  */

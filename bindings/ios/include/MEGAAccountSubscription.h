@@ -31,7 +31,6 @@
 /**
  * @brief Get the ID of this subscription
  *
- *
  * @return ID of this subscription
  */
 @property (readonly, nonatomic, nullable) NSString *subcriptionId;
@@ -63,32 +62,30 @@
  * The return value will show if the subscription will be montly or yearly renewed.
  * Example return values: "1 M", "1 Y".
  *
- *
  * @return Subscription cycle
  */
-- (nullable NSString *)cycle;
+@property (readonly, nonatomic, nullable) NSString *cycle;
 
 /**
  * @brief Get the subscription payment provider name
  *
- *
  * @return Payment provider name
  */
-- (nullable NSString *)paymentMethod;
+@property (readonly, nonatomic, nullable) NSString *paymentMethod;
 
 /**
  * @brief Get the subscription payment provider ID
  *
  * @return Payment provider ID
  */
-- (int32_t)paymentMethodId;
+@property (readonly, nonatomic) int32_t paymentMethodId;
 
 /**
  * @brief Get the subscription renew timestamp
  *
  * @return Renewal timestamp (in seconds since epoch)
  */
-- (int64_t)renewTime;
+@property (readonly, nonatomic) int64_t renewTime;
 
 /**
  * @brief Get the subscription account level
@@ -109,11 +106,10 @@
  * Valid value for feature plan subscriptions:
  * - MEGAAccountTypeFeature = 99999
  */
-- (MEGAAccountType)accountType;
+@property (readonly, nonatomic) MEGAAccountType accountType;
 
 /**
  * @brief Get the features granted by this subscription
- *
  *
  * @return Features granted by this subscription.
  */

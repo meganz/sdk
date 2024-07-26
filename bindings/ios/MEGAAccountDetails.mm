@@ -176,16 +176,16 @@ using namespace mega;
     return self.accountDetails ? self.accountDetails->getNumPlans(): 0;
 }
 
-- (nullable MEGAAccountPlan *)plan:(int)plansIndex {
-    return self.accountDetails ? [[MEGAAccountPlan alloc] initWithMegaAccountPlan: self.accountDetails->getPlan(plansIndex) cMemoryOwn:YES] : nil;
+- (nullable MEGAAccountPlan *)planAtIndex:(int)index {
+    return self.accountDetails ? [[MEGAAccountPlan alloc] initWithMegaAccountPlan: self.accountDetails->getPlan(index) cMemoryOwn:YES] : nil;
 }
 
 - (NSInteger)numberOfSubscriptions {
     return self.accountDetails ? self.accountDetails->getNumSubscriptions() : 0;
 }
 
-- (nullable MEGAAccountSubscription *)subscription:(int)subscriptionsIndex {
-    return self.accountDetails ? [[MEGAAccountSubscription alloc] initWithMegaAccountSubscription:self.accountDetails->getSubscription(subscriptionsIndex) cMemoryOwn:YES] : nil;
+- (nullable MEGAAccountSubscription *)subscriptionAtIndex:(int)index {
+    return self.accountDetails ? [[MEGAAccountSubscription alloc] initWithMegaAccountSubscription:self.accountDetails->getSubscription(index) cMemoryOwn:YES] : nil;
 }
 
 + (nullable NSString *)stringForAccountType:(MEGAAccountType)accountType {

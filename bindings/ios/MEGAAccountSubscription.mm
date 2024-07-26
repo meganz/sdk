@@ -1,5 +1,5 @@
 /**
- * @file MEGAAccountFeature.mm
+ * @file MEGAAccountSubscription.mm
  * @brief Details about a MEGA account subscription
  *
  * (c) 2024 by Mega Limited, Auckland, New Zealand
@@ -65,8 +65,7 @@ using namespace mega;
 }
 
 - (MEGASubscriptionStatus)status {
-    int integerStatusValue = self.megaAccountSubscription ? self.megaAccountSubscription->getStatus() : 0;
-    return (MEGASubscriptionStatus)integerStatusValue;
+    return (MEGASubscriptionStatus) (self.megaAccountSubscription ? self.megaAccountSubscription->getStatus() : 0);
 }
 
 - (nullable NSString *)cycle {
@@ -98,12 +97,16 @@ using namespace mega;
 }
 
 - (MEGAAccountType)accountType {
-    NSInteger accountLevelValue = self.megaAccountSubscription ? self.megaAccountSubscription->getAccountLevel() : -1;
-    return (MEGAAccountType)accountLevelValue;
+    return (MEGAAccountType) (self.megaAccountSubscription ? self.megaAccountSubscription->getAccountLevel() : -1);
 }
 
 - (MEGAStringList *)features {
-    return self.megaAccountSubscription ? [MEGAStringList.alloc initWithMegaStringList:self.megaAccountSubscription->getFeatures() cMemoryOwn:YES] : nil;
+    MegaStringList* val = self.megaAccountSubscription ? self.megaAccountSubscription->getFeatures() : nil;
+    if (!val) return nil;
+
+    MEGAStringList* ret = [MEGAStringList.alloc initWithMegaStringList:val cMemoryOwn:YES];
+
+    delete [] val;
 }
 
 @end

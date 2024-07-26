@@ -1,5 +1,5 @@
 /**
- * @file MEGAAccountFeature.mm
+ * @file MEGAAccountPlan.mm
  * @brief Details about a MEGA account plan
  *
  * (c) 2024 by Mega Limited, Auckland, New Zealand
@@ -59,12 +59,16 @@ using namespace mega;
 }
 
 - (MEGAAccountType)accountType {
-    NSInteger accountLevelValue = self.megaAccountPlan ? self.megaAccountPlan->getAccountLevel() : -1;
-    return (MEGAAccountType)accountLevelValue;
+    return (MEGAAccountType) (self.megaAccountPlan ? self.megaAccountPlan->getAccountLevel() : -1);
 }
 
 - (nullable MEGAStringList *)features {
-    return self.megaAccountPlan->getFeatures() ? [MEGAStringList.alloc initWithMegaStringList:self.megaAccountPlan->getFeatures() cMemoryOwn:YES] : nil;
+    MegaStringList* val = self.megaAccountPlan ? self.megaAccountPlan->getFeatures() : nil;
+    if (!val) return nil;
+
+    MEGAStringList* ret = [MEGAStringList.alloc initWithMegaStringList:val cMemoryOwn:YES];
+
+    delete [] val;
 }
 
 - (int64_t)expirationTime {
