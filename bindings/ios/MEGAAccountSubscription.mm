@@ -36,7 +36,7 @@ using namespace mega;
 - (instancetype)initWithMegaAccountSubscription:(MegaAccountSubscription *)accountSubscription cMemoryOwn:(BOOL)cMemoryOwn {
     self = [super init];
 
-    if (self != nil){
+    if (self != nil) {
         _megaAccountSubscription = accountSubscription;
         _cMemoryOwn = cMemoryOwn;
     }

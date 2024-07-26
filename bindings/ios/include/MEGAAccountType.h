@@ -21,6 +21,7 @@
 #import <Foundation/Foundation.h>
 
 typedef NS_ENUM (NSInteger, MEGAAccountType) {
+    MEGAAccountTypeUnknown = -1,
     MEGAAccountTypeFree = 0,
     MEGAAccountTypeProI = 1,
     MEGAAccountTypeProII = 2,
@@ -31,8 +32,7 @@ typedef NS_ENUM (NSInteger, MEGAAccountType) {
     MEGAAccountTypeEssential = 13,
     MEGAAccountTypeBusiness = 100,
     MEGAAccountTypeProFlexi = 101,
-    MEGAAccountTypeFeature = 99999,
-    MEGAAccountTypeUnknown = -1
+    MEGAAccountTypeFeature = 99999
 };
 
 @interface MEGAAccountTypeMapper : NSObject
