@@ -6043,7 +6043,6 @@ bool MegaClient::sc_checkSequenceTag(const string& tag)
 // False: Stop processing Action Packets, wait for cs response.
 bool MegaClient::sc_checkActionPacket(Node* lastAPDeletedNode)
 {
-    string tag;
     nameid cmd = 0;
 
     for (;;)
@@ -6059,8 +6058,11 @@ bool MegaClient::sc_checkActionPacket(Node* lastAPDeletedNode)
             break;
 
         case MAKENAMEID2('s', 't'): // sequence tag
+        {
+            string tag;
             jsonsc.storeobject(&tag);
             return sc_checkSequenceTag(tag);
+        }
 
         default:
             // if we reach any other tag, then 'st' is not present.
@@ -6074,7 +6076,8 @@ bool MegaClient::sc_checkActionPacket(Node* lastAPDeletedNode)
             }
             else
             {
-                return sc_checkSequenceTag(tag);
+                // Action Packet with no Sequence Tag.
+                return sc_checkSequenceTag(string());
             }
         }
 
