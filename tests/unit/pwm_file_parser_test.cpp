@@ -88,7 +88,7 @@ TEST(PWMImportGooglePasswordCSVFile, MissingColumnInEntry)
 {
     constexpr std::string_view fileContents{
         R"(name,url,username,password,note
-https://hello.co/,hello,hello.1234,Description with ñ
+https://hello.co/,hel"lo,hello.1234,Description with ñ
 test.com,https://test.com/,test3,hello.1234,
 )"};
     const std::string fname = "test.csv";
@@ -103,7 +103,7 @@ test.com,https://test.com/,test3,hello.1234,
     // The first is wrong
     const PassEntryParseResult& first = results.mResults[0];
     EXPECT_EQ(first.mErrCode, PassEntryParseResult::ErrCode::INVALID_NUM_OF_COLUMN);
-    EXPECT_EQ(first.mLineNumber, 1);
+    ASSERT_EQ(first.mOriginalContent, "https://hello.co/,hel\"lo,hello.1234,Description with ñ");
 
     const PassEntryParseResult& second = results.mResults[1];
     EXPECT_EQ(second.mErrCode, PassEntryParseResult::ErrCode::OK);
@@ -133,11 +133,11 @@ test.com,https://test.com/,hello.1234,
     // The first is wrong
     const PassEntryParseResult& first = results.mResults[0];
     EXPECT_EQ(first.mErrCode, PassEntryParseResult::ErrCode::INVALID_NUM_OF_COLUMN);
-    EXPECT_EQ(first.mLineNumber, 1);
+    ASSERT_EQ(first.mOriginalContent, "https://hello.co/,hello,hello.1234,Description with ñ");
 
     const PassEntryParseResult& second = results.mResults[1];
     EXPECT_EQ(second.mErrCode, PassEntryParseResult::ErrCode::INVALID_NUM_OF_COLUMN);
-    EXPECT_EQ(second.mLineNumber, 2);
+    ASSERT_EQ(second.mOriginalContent, "test.com,https://test.com/,hello.1234,");
 }
 
 TEST(PWMImportGooglePasswordCSVFile, CompletelyWrongFile)

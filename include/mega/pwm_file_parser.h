@@ -26,10 +26,9 @@ struct PassEntryParseResult
     ErrCode mErrCode = ErrCode::OK;
 
     /**
-     * @brief The line number of the entry in the file. This can be useful to report the source of
-     * the problems.
+     * @brief The contents from the file that was used to create the entry.
      */
-    uint32_t mLineNumber{0};
+    std::string mOriginalContent;
 
     /**
      * @brief The name that labels the password entry.

@@ -38,6 +38,7 @@ target_sources(test_unit
     utils.cpp
     utils_test.cpp
     pwm_file_parser_test.cpp
+    pwm_import_validation.cpp
 )
 
 target_sources_conditional(test_unit
