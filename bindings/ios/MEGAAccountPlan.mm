@@ -62,13 +62,16 @@ using namespace mega;
     return (MEGAAccountType) (self.megaAccountPlan ? self.megaAccountPlan->getAccountLevel() : -1);
 }
 
-- (nullable MEGAStringList *)features {
-    MegaStringList* val = self.megaAccountPlan ? self.megaAccountPlan->getFeatures() : nil;
-    if (!val) return nil;
+- (NSArray<NSString *>*) features {
+    if (!self.megaAccountPlan) return nil;
 
-    MEGAStringList* ret = [MEGAStringList.alloc initWithMegaStringList:val cMemoryOwn:YES];
+    MegaStringList* features = self.megaAccountPlan ? self.megaAccountPlan->getFeatures() : nil;
+    
+    if (!features) return nil;
 
-    return ret;
+    MEGAStringList* megaStringList = [MEGAStringList.alloc initWithMegaStringList:features cMemoryOwn:YES];
+
+    return [megaStringList toStringArray];
 }
 
 - (int64_t)expirationTime {

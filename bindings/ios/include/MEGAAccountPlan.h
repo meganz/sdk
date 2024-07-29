@@ -67,7 +67,7 @@
  *
  * @return Features granted by this plan.
  */
-@property (readonly, nonatomic, nullable) MEGAStringList *features;
+@property (readonly, nonatomic, nullable) NSArray<NSString *> *features;
 
 /**
  * @brief The type of plan. Why it was granted.

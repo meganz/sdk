@@ -100,13 +100,16 @@ using namespace mega;
     return (MEGAAccountType) (self.megaAccountSubscription ? self.megaAccountSubscription->getAccountLevel() : -1);
 }
 
-- (MEGAStringList *)features {
-    MegaStringList* val = self.megaAccountSubscription ? self.megaAccountSubscription->getFeatures() : nil;
-    if (!val) return nil;
+- (NSArray<NSString *>*) features {
+    if (!self.megaAccountSubscription) return nil;
 
-    MEGAStringList* ret = [MEGAStringList.alloc initWithMegaStringList:val cMemoryOwn:YES];
+    MegaStringList* features = self.megaAccountSubscription ? self.megaAccountSubscription->getFeatures() : nil;
+    
+    if (!features) return nil;
 
-    return ret;
+    MEGAStringList* megaStringList = [MEGAStringList.alloc initWithMegaStringList:features cMemoryOwn:YES];
+
+    return [megaStringList toStringArray];
 }
 
 @end

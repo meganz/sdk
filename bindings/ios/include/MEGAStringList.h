@@ -45,6 +45,11 @@ NS_ASSUME_NONNULL_BEGIN
  * @return string at the position index in the list
  */
 - (nullable NSString *)stringAtIndex:(NSInteger)index;
+/**
+ * @brief Returns values from MEGAStringList mapped to a NSString array
+ *
+ */
+- (nullable NSArray<NSString *>*)toStringArray;
 
 NS_ASSUME_NONNULL_END
 

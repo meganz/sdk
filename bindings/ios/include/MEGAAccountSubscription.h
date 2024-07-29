@@ -113,6 +113,6 @@
  *
  * @return Features granted by this subscription.
  */
-@property (readonly, nonatomic, nullable) MEGAStringList *features;
+@property (readonly, nonatomic, nullable) NSArray<NSString *> *features;
 
 @end
