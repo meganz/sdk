@@ -1,3 +1,5 @@
+def REBUILD_IMAGE = false
+
 pipeline {
     agent none
     options {
@@ -25,15 +27,47 @@ pipeline {
                                 [$class: 'PreBuildMerge', options: [fastForwardMode: 'FF', mergeRemote: "origin", mergeStrategy: 'DEFAULT', mergeTarget: "${env.gitlabTargetBranch}"]]
                                 ]
                         ])
+                    }
+                }
+                stage('Get parameters'){
+                    steps {
                         script{
-                            linux_sources_workspace = WORKSPACE
+                            // flag may be `--rebuild-docker` or empty ``
+                            def flag = sh(script: 'echo "$gitlabTriggerPhrase" | grep -o "\\-\\-rebuild-docker\\$" || :', returnStdout: true).trim()
+                            REBUILD_IMAGE = flag == "--rebuild-docker"
+                            echo "REBUILD_IMAGE set to ${REBUILD_IMAGE}"
+                        }
+                    }
+                }
+                stage('Rebuild docker image') {
+                    when {
+                        beforeAgent true
+                        expression { REBUILD_IMAGE }
+                    }
+                    steps {
+                        dir ("dockerfile") {
+                            sh """
+                                docker build \
+                                    -f clang-format.dockerfile \
+                                    -t mega-docker.artifactory.developers.mega.co.nz:8443/clang-format-sdk:latest \
+                                    .
+                            """
+                        }
+                        withCredentials([usernamePassword(credentialsId: 'artifactory-jenkins-docker', usernameVariable: 'ART_USER', passwordVariable: 'ART_PASS')]) {
+                            sh """
+                                echo \$ART_PASS | docker login \
+                                                    -u \$ART_USER \
+                                                    --password-stdin \
+                                                    mega-docker.artifactory.developers.mega.co.nz:8443
+                                docker push mega-docker.artifactory.developers.mega.co.nz:8443/clang-format-sdk:latest
+                            """
                         }
                     }
                 }
                 stage('Clang format'){
                     agent {
                         docker {
-                            image 'mega-docker.artifactory.developers.mega.co.nz:8443/clang-format:latest'
+                            image 'mega-docker.artifactory.developers.mega.co.nz:8443/clang-format-sdk:latest'
                             reuseNode true
                         }
                     }
@@ -80,7 +114,7 @@ pipeline {
                                 exit 1
                             done
 
-                            echo "    ############################"
+                            echo "    #############################"
                             echo "    # End of ClangFormat output #"
                             echo "    #############################"
                             echo ""
