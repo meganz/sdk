@@ -14646,39 +14646,57 @@ void MegaClient::handleDbError(DBError error)
 
 void MegaClient::fatalError(ErrorReason errorReason)
 {
-    if (mLastErrorDetected != errorReason)
+    // Return early for repeated errorReason
+    if (mLastErrorDetected == errorReason)
     {
+        return;
+    }
+
+    // Remember the new errorReason
+    mLastErrorDetected = errorReason;
+
+    // Disable sync.
+    // Sync is not enabled in case of ErrorReason::REASON_ERROR_NO_JSCD,
+    // therefore no need to disable it.
 #ifdef ENABLE_SYNC
+    if (errorReason != ErrorReason::REASON_ERROR_NO_JSCD)
+    {
         syncs.disableSyncs(FAILURE_ACCESSING_PERSISTENT_STORAGE, false, true);
+    }
 #endif
 
-        std::string reason;
-        switch (errorReason)
-        {
-            case ErrorReason::REASON_ERROR_DB_IO:
-                sendevent(99467, "Writing in DB error", 0);
-                reason = "Failed to write to database";
-                break;
-            case ErrorReason::REASON_ERROR_UNSERIALIZE_NODE:
-                reason = "Failed to unserialize a node";
-                sendevent(99468, "Failed to unserialize node", 0);
-                break;
-            case ErrorReason::REASON_ERROR_DB_FULL:
-                reason = "Data base is full";
-                break;
-            case ErrorReason::REASON_ERROR_DB_INDEX_OVERFLOW:
-                reason = "DB index overflow";
-                sendevent(99471, "DB index overflow", 0);
-                break;
-            default:
-                reason = "Unknown reason";
-                break;
-        }
-
-        mLastErrorDetected = errorReason;
-        app->notifyError(reason.c_str(), errorReason);
-        // TODO: maybe it's worth a locallogout
+    // Get Reason and send events
+    std::string reason;
+    switch (errorReason)
+    {
+        case ErrorReason::REASON_ERROR_DB_IO:
+            reason = "Writing in DB error";
+            sendevent(99467, reason.c_str(), 0);
+            break;
+        case ErrorReason::REASON_ERROR_UNSERIALIZE_NODE:
+            reason = "Failed to unserialize node";
+            sendevent(99468, reason.c_str(), 0);
+            break;
+        case ErrorReason::REASON_ERROR_DB_FULL:
+            reason = "Database is full";
+            // No event as we cannot do anything
+            break;
+        case ErrorReason::REASON_ERROR_DB_INDEX_OVERFLOW:
+            reason = "DB index overflow";
+            sendevent(99471, reason.c_str(), 0);
+            break;
+        case ErrorReason::REASON_ERROR_NO_JSCD:
+            reason = "Failed to get JSON SYNC configuration data";
+            sendevent(99488, reason.c_str(), 0);
+            break;
+        default:
+            reason = "Unknown reason";
+            break;
     }
+
+    // Notify
+    app->notifyError(reason.c_str(), errorReason);
+    // TODO: maybe it's worth a locallogout
 }
 
 bool MegaClient::accountShouldBeReloadedOrRestarted() const
@@ -22512,8 +22530,9 @@ void MegaClient::injectSyncSensitiveData(CommandLogin::Completion callback,
         // Couldn't retrieve JSC data.
         if (result != API_OK)
         {
-            LOG_warn << "Couldn't retrieve JSC data: "
-                     << result;
+            LOG_err << "Couldn't retrieve JSC data: " << result;
+
+            fatalError(ErrorReason::REASON_ERROR_NO_JSCD);
 
             // This shouldn't prevent the user from logging on, however.
             return callback(API_OK);
