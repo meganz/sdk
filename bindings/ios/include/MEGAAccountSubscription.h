@@ -113,6 +113,6 @@
  *
  * @return Features granted by this subscription.
  */
-- (nullable MEGAStringList *)features;
+@property (readonly, nonatomic, nullable) MEGAStringList *features;
 
 @end

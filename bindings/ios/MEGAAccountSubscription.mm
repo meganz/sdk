@@ -106,7 +106,7 @@ using namespace mega;
 
     MEGAStringList* ret = [MEGAStringList.alloc initWithMegaStringList:val cMemoryOwn:YES];
 
-    delete [] val;
+    return ret;
 }
 
 @end
