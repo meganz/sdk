@@ -3,6 +3,7 @@
 #include "mega/logging.h"
 
 #include <fstream>
+#include <string_view>
 #include <vector>
 
 namespace sdk_test
@@ -50,6 +51,19 @@ LocalTempFile::LocalTempFile(const fs::path& _filePath, const unsigned int fileS
     }
     std::vector<char> buffer(fileSizeBytes, 0);
     outFile.write(buffer.data(), static_cast<std::streamsize>(buffer.size()));
+}
+
+LocalTempFile::LocalTempFile(const fs::path& _filePath, const std::string_view contents):
+    mFilePath(_filePath)
+{
+    std::ofstream outFile(mFilePath, std::ios::binary);
+    if (!outFile.is_open())
+    {
+        const auto msg = "Can't open the file: " + _filePath.string();
+        LOG_err << msg;
+        throw std::runtime_error(msg);
+    }
+    outFile.write(contents.data(), static_cast<std::streamsize>(contents.size()));
 }
 
 LocalTempFile::~LocalTempFile()
