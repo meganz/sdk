@@ -17,6 +17,7 @@ class ReleaseProcess:
         private_host_url: str,
         private_branch: str,
     ):
+        self._new_version: str | None = None
         self._private_branch = private_branch
         self._jira: JiraProject | None = None
         self._local_repo: LocalRepository | None = None
@@ -83,6 +84,7 @@ class ReleaseProcess:
 
     # Edit version file
     def _change_version_in_file(self):
+        assert self._new_version is not None
         version = self._new_version.split(".")
         assert len(version) == 3, f"Invalid requested version: {self._new_version}"
 
@@ -250,6 +252,7 @@ class ReleaseProcess:
 
     # STEP 7: Update and rename previous NextRelease version; create new NextRelease version
     def manage_versions(self, url: str, user: str, password: str, apps: str):
+        assert self._new_version is not None
         assert self._jira is not None
         self._jira.update_current_version(
             self._new_version,  # i.e. "X.Y.Z"
