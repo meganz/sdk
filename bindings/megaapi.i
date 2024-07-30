@@ -440,6 +440,8 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %newobject mega::MegaAccountDetails::getSession;
 %newobject mega::MegaAccountDetails::getPurchase;
 %newobject mega::MegaAccountDetails::getTransaction;
+%newobject mega::MegaAccountDetails::getPlan;
+%newobject mega::MegaAccountDetails::getSubscription;
 
 %newobject mega::MegaApi::getMimeType;
 
@@ -452,5 +454,6 @@ typedef long long time_t;
 typedef long long uint64_t;
 typedef long long int64_t;
 typedef long long uint32_t;
+typedef long long int32_t;
 
 %include "megaapi.h"
