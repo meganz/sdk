@@ -15,3 +15,7 @@
 
 # Changes to Jenkinsfiles need approval by sdk_devops
 /jenkinsfile/ @SDK/sdk_devops
+
+# Changes to .clang-format need approval by tls-owning-clang-format
+# (it requires 2 approvals, 1 from MEGAsync team, 1 from SDK team)
+/.clang-format @SDK/tls-owning-clang-format [2]
