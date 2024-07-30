@@ -2097,7 +2097,7 @@ static std::string deviceOf(const std::string& database,
     std::size_t score = 0;
 
     // Temporary storage space for mount entries.
-    std::string storage(3 * PATH_MAX, '\x0');
+    std::string storage(3 * PATH_MAX, '\0');
 
     // Try and determine which device contains path.
     for (errno = 0; ; )
@@ -2183,7 +2183,7 @@ static std::string deviceOf(const std::string& database,
     }
 
     // Truncate storage down to size.
-    storage.erase(std::find(storage.begin(), storage.end(), '\x0'));
+    storage.erase(storage.find('\0'));
 
     // Sanity.
     assert(!storage.empty());
@@ -2299,14 +2299,22 @@ static std::string uuidOf(const std::string& device)
         path.append(name);
 
         // Temporary storage.
-        std::string storage(PATH_MAX, '\x0');
+        std::string storage(PATH_MAX, '\0');
 
         // Couldn't resolve link.
         if (!realpath(path.c_str(), storage.data()))
+        {
+            // Latch error.
+            auto error = errno;
+
+            LOG_warn << "[uuidOf] Couldn't resolve path link: '" << storage
+                     << "'. Error was: " << std::strerror(error);
+
             continue;
+        }
 
         // Truncate storage down to size.
-        storage.erase(std::find(storage.begin(), storage.end(), '\x0'));
+        storage.erase(storage.find('\0'));
 
         // Sanity.
         assert(!storage.empty());
