@@ -4955,9 +4955,11 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                     }
                     if (auxts)
                     {
-                        dstime diff = static_cast<dstime>((now - auxts) * 10);
+                        dstime diff = static_cast<dstime>((auxts - now) * 10);
                         dstime current = client->btugexpiration.backoffdelta();
-                        if (current > diff)
+                        // diff < 0 grace period has already expired, ug update is requested one per
+                        // day
+                        if (diff > 0 && current > diff)
                         {
                             client->btugexpiration.backoff(diff);
                         }
