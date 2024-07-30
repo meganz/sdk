@@ -110,7 +110,7 @@ struct TransferTracker : public ::mega::MegaTransferListener
             {
                 mApi->removeTransferListener(this);
             }
-            return static_cast<ErrorCodes>(-999); // local timeout
+            return static_cast<ErrorCodes>(LOCAL_ETIMEOUT); // local timeout
         }
         return futureResult.get();
     }
@@ -155,6 +155,7 @@ struct RequestTracker : public ::mega::MegaRequestListener
 
         result = ErrorCodes(e->getErrorCode());
         this->request.reset(request->copy());
+        assert(this->request->getType() != MegaRequest::TYPE_ADD_SYNC || this->request->getNumDetails() <= SyncError::NO_SYNC_ERROR || this->request->getNumDetails() == e->getSyncError());
         finished = true;
         promiseResult.set_value(static_cast<ErrorCodes>(result));
     }
@@ -168,7 +169,7 @@ struct RequestTracker : public ::mega::MegaRequestListener
             {
                 mApi->removeRequestListener(this);
             }
-            return static_cast<ErrorCodes>(-999); // local timeout
+            return static_cast<ErrorCodes>(LOCAL_ETIMEOUT); // local timeout
         }
         return f.get();
     }
@@ -226,14 +227,24 @@ public:
     MegaApiTest(const char* appKey,
                 const char* basePath = nullptr,
                 const char* userAgent = nullptr,
-                unsigned workerThreadCount = 1):
-        MegaApi(appKey, basePath, userAgent, workerThreadCount)
-    {}
+                unsigned workerThreadCount = 1,
+                const int clientType = MegaApi::CLIENT_TYPE_DEFAULT);
 
-    MegaClient* getClient()
-    {
-        return pImpl->getMegaClient();
-    }
+    MegaApiTest(const std::string& endpointName,
+                const char* appKey,
+                MegaGfxProvider* provider,
+                const char* basePath = nullptr,
+                const char* userAgent = nullptr,
+                unsigned workerThreadCount = 1,
+                const int clientType = MegaApi::CLIENT_TYPE_DEFAULT);
+
+    ~MegaApiTest();
+
+    MegaClient* getClient();
+
+private:
+    // the endpoint name for isolated gfx
+    std::string mEndpointName;
 };
 
 // Fixture class with common code for most of tests
@@ -261,11 +272,15 @@ public:
 
         // flags to monitor the updates of nodes/users/sets/set-elements/PCRs due to actionpackets
         bool userUpdated;
+        bool userFirstNameUpdated = false;
         bool setUpdated;
         bool setElementUpdated;
         bool contactRequestUpdated;
         bool accountUpdated;
         bool nodeUpdated; // flag to check specific updates for a node (upon onNodesUpdate)
+
+        // A map to store custom functions to be called inside callbacks
+        std::map<MegaHandle, std::weak_ptr<std::function<void()>>> customCallbackCheck;
 
         bool userAlertsUpdated;
         std::unique_ptr<MegaUserAlertList> userAlertList;
@@ -285,6 +300,28 @@ public:
         MegaHandle chatid;          // last chat added
         MegaHandle schedId;         // last scheduled meeting added
 #endif
+
+        /**
+         * @brief Ensures that the access to the customCallbackCheck map and the posterior function
+         * call is properly managed.
+         */
+        void callCustomCallbackCheck(const MegaHandle userHandle)
+        {
+            auto it = customCallbackCheck.find(userHandle);
+            if (it == customCallbackCheck.end())
+            {
+                return;
+            }
+            auto funPtr = it->second.lock();
+            if (funPtr)
+            {
+                (*funPtr)();
+            }
+            else
+            {
+                customCallbackCheck.erase(it);
+            }
+        }
 
         void receiveEvent(MegaEvent* e)
         {
@@ -418,9 +455,9 @@ public:
     //void loginBySessionId(unsigned int apiIndex, const std::string& sessionId, int timeout = maxTimeout);
     void fetchnodes(unsigned int apiIndex, int timeout = maxTimeout);
     void logout(unsigned int apiIndex, bool keepSyncConfigs, int timeout);
-    char* dumpSession();
+    char* dumpSession(unsigned apiIndex = 0);
     void locallogout(unsigned apiIndex = 0);
-    void resumeSession(const char *session, int timeout = maxTimeout);
+    void resumeSession(const char *session, unsigned apiIndex = 0);
 
     void purgeTree(unsigned int apiIndex, MegaNode *p, bool depthfirst = true);
 
@@ -468,18 +505,18 @@ public:
 
     // *** USE THESE ONES INSTEAD ***
     // convenience functions - make a request and wait for the result via listener, return the result code.  To add new functions to call, just copy the line
-    template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncQueryAds(unsigned apiIndex, requestArgs... args) { auto rt = ::mega::make_unique<RequestTracker>(megaApi[apiIndex].get()); megaApi[apiIndex]->queryAds(args..., rt.get()); return rt; }
-    template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncFetchAds(unsigned apiIndex, requestArgs... args) { auto rt = ::mega::make_unique<RequestTracker>(megaApi[apiIndex].get()); megaApi[apiIndex]->fetchAds(args..., rt.get()); return rt; }
-    template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestLogin(unsigned apiIndex, requestArgs... args) { auto rt = ::mega::make_unique<RequestTracker>(megaApi[apiIndex].get()); megaApi[apiIndex]->login(args..., rt.get()); return rt; }
-    template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestFastLogin(unsigned apiIndex, requestArgs... args) { auto rt = ::mega::make_unique<RequestTracker>(megaApi[apiIndex].get()); megaApi[apiIndex]->fastLogin(args..., rt.get()); return rt; }
-    template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestFastLogin(int apiIndex, requestArgs... args) { auto rt = ::mega::make_unique<RequestTracker>(megaApi[apiIndex].get()); megaApi[apiIndex]->fastLogin(args..., rt.get()); return rt; }
-    template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestFastLogin(MegaApi *api, requestArgs... args) { auto rt = ::mega::make_unique<RequestTracker>(api); api->fastLogin(args..., rt.get()); return rt; }
-    template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestLoginToFolder(unsigned apiIndex, requestArgs... args) { auto rt = ::mega::make_unique<RequestTracker>(megaApi[apiIndex].get()); megaApi[apiIndex]->loginToFolder(args..., rt.get()); return rt; }
-    template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestLoginToFolder(MegaApi *api, requestArgs... args) { auto rt = ::mega::make_unique<RequestTracker>(api); api->loginToFolder(args..., rt.get()); return rt; }
-    template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestLocalLogout(MegaApi *api, requestArgs... args) { auto rt = ::mega::make_unique<RequestTracker>(api); api->localLogout(args..., rt.get()); return rt; }
-    template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestFetchnodes(unsigned apiIndex, requestArgs... args) { auto rt = ::mega::make_unique<RequestTracker>(megaApi[apiIndex].get()); megaApi[apiIndex]->fetchNodes(args..., rt.get()); return rt; }
-    template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestFetchnodes(MegaApi *api, requestArgs... args) { auto rt = ::mega::make_unique<RequestTracker>(api); api->fetchNodes(args..., rt.get()); return rt; }
-    template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestGetVisibleWelcomeDialog(unsigned apiIndex) { auto rt = ::mega::make_unique<RequestTracker>(megaApi[apiIndex].get()); megaApi[apiIndex]->getVisibleWelcomeDialog(rt.get()); return rt; }
+    template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncQueryAds(unsigned apiIndex, requestArgs... args) { auto rt = std::make_unique<RequestTracker>(megaApi[apiIndex].get()); megaApi[apiIndex]->queryAds(args..., rt.get()); return rt; }
+    template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncFetchAds(unsigned apiIndex, requestArgs... args) { auto rt = std::make_unique<RequestTracker>(megaApi[apiIndex].get()); megaApi[apiIndex]->fetchAds(args..., rt.get()); return rt; }
+    template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestLogin(unsigned apiIndex, requestArgs... args) { auto rt = std::make_unique<RequestTracker>(megaApi[apiIndex].get()); megaApi[apiIndex]->login(args..., rt.get()); return rt; }
+    template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestFastLogin(unsigned apiIndex, requestArgs... args) { auto rt = std::make_unique<RequestTracker>(megaApi[apiIndex].get()); megaApi[apiIndex]->fastLogin(args..., rt.get()); return rt; }
+    template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestFastLogin(int apiIndex, requestArgs... args) { auto rt = std::make_unique<RequestTracker>(megaApi[apiIndex].get()); megaApi[apiIndex]->fastLogin(args..., rt.get()); return rt; }
+    template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestFastLogin(MegaApi *api, requestArgs... args) { auto rt = std::make_unique<RequestTracker>(api); api->fastLogin(args..., rt.get()); return rt; }
+    template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestLoginToFolder(unsigned apiIndex, requestArgs... args) { auto rt = std::make_unique<RequestTracker>(megaApi[apiIndex].get()); megaApi[apiIndex]->loginToFolder(args..., rt.get()); return rt; }
+    template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestLoginToFolder(MegaApi *api, requestArgs... args) { auto rt = std::make_unique<RequestTracker>(api); api->loginToFolder(args..., rt.get()); return rt; }
+    template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestLocalLogout(MegaApi *api, requestArgs... args) { auto rt = std::make_unique<RequestTracker>(api); api->localLogout(args..., rt.get()); return rt; }
+    template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestFetchnodes(unsigned apiIndex, requestArgs... args) { auto rt = std::make_unique<RequestTracker>(megaApi[apiIndex].get()); megaApi[apiIndex]->fetchNodes(args..., rt.get()); return rt; }
+    template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestFetchnodes(MegaApi *api, requestArgs... args) { auto rt = std::make_unique<RequestTracker>(api); api->fetchNodes(args..., rt.get()); return rt; }
+    template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestGetVisibleWelcomeDialog(unsigned apiIndex) { auto rt = std::make_unique<RequestTracker>(megaApi[apiIndex].get()); megaApi[apiIndex]->getVisibleWelcomeDialog(rt.get()); return rt; }
     template<typename ... requestArgs> int doGetDeviceName(unsigned apiIndex, string* dvc, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->getDeviceName(args..., &rt); auto e = rt.waitForResult(); if (dvc && e == API_OK) *dvc = rt.request->getName(); return e; }
     template<typename ... requestArgs> int doSetDeviceName(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->setDeviceName(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int doGetDriveName(unsigned apiIndex, string* drv, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->getDriveName(args..., &rt); auto e = rt.waitForResult(); if (drv && e == API_OK) *drv = rt.request->getName(); return e; }
@@ -525,6 +562,8 @@ public:
     template<typename ... requestArgs> int doExportNode(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->exportNode(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int doDisableExport(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->disableExport(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int synchronousSetNodeFavourite(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get());  megaApi[apiIndex]->setNodeFavourite(args..., &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int synchronousSetNodeLabel(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get());  megaApi[apiIndex]->setNodeLabel(args..., &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int synchronousResetNodeLabel(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get());  megaApi[apiIndex]->resetNodeLabel(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int synchronousGetFavourites(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get());  megaApi[apiIndex]->getFavourites(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int synchronousSetNodeSensitive(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get());  megaApi[apiIndex]->setNodeSensitive(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int synchronousInviteContact(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get());  megaApi[apiIndex]->inviteContact(args..., &rt); return rt.waitForResult(); }
@@ -603,7 +642,9 @@ public:
     template<typename ... requestArgs> int synchronousChangeEmail(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->changeEmail(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int synchronousConfirmChangeEmail(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->confirmChangeEmail(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int syncSendABTestActive(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->sendABTestActive(args..., &rt); return rt.waitForResult(); }
+#ifdef ENABLE_SYNC
     template<typename ... requestArgs> int syncMoveToDebris(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->moveToDebris(args..., &rt); return rt.waitForResult(); }
+#endif // ENABLE_SYNC
     template<typename ... requestArgs> int synchronousSetVisibleWelcomeDialog(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->setVisibleWelcomeDialog(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int synchronousCreateNodeTree(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->createNodeTree(args..., &rt); return rt.waitForResult(); }
 
@@ -615,8 +656,15 @@ public:
     void deleteFile(string filename);
     void deleteFolder(string foldername);
 
-    void getAccountsForTest(unsigned howMany = 1);
-    void configureTestInstance(unsigned index, const std::string& email, const std::string pass, bool checkCredentials = true);
+    void fetchNodesForAccounts(const unsigned howMany);
+    void getAccountsForTest(unsigned howMany = 1,
+                            bool fetchNodes = true,
+                            const int clientType = MegaApi::CLIENT_TYPE_DEFAULT);
+    void configureTestInstance(unsigned index,
+                               const std::string& email,
+                               const std::string& pass,
+                               bool checkCredentials = true,
+                               const int clientType = MegaApi::CLIENT_TYPE_DEFAULT);
     void releaseMegaApi(unsigned int apiIndex);
 
     void inviteTestAccount(const unsigned invitorIndex, const unsigned inviteIndex, const string &message);
@@ -653,7 +701,46 @@ public:
 
 #ifdef ENABLE_CHAT
     void createChat(bool group, MegaTextChatPeerList *peers, int timeout = maxTimeout);
+
+    /**
+     * @brief Creates a chat room from the mApi[creatorIndex] account waiting for all the events to
+     * finish before returning. It uses EXPECT in the implementation to check everything finished
+     * properly and print error messages in case something is wrong. This means you don't need to
+     * call this method with ASSERT_NO_FATAL_FAILURE but you need to check that te return value is
+     * not equal to INVALID_HANDLE.
+     *
+     * @param creatorIndex The index of the account to call the creatChat method from
+     * @param invitedIndices A vector with the indices of the accounts that will be invited to the
+     * chat. creatorIndex should not be inside the vector.
+     * @param group If true a group chat room is created, else a 1on1
+     * @param timeout_sec The max time to wait for each response in seconds. 10 minutes by default
+     * @return The chatId of the created chat room. INVALID_HANDLE if something went wrong.
+     */
+    MegaHandle createChatWithChecks(const unsigned int creatorIndex,
+                                    const std::vector<unsigned int>& invitedIndices,
+                                    const bool group,
+                                    const unsigned int timeout_sec = maxTimeout);
 #endif
+
+    template<typename ... requestArgs> bool doSetMaxConnections(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->setMaxConnections(args..., &rt); return rt.waitForResult(); }
+    /**
+     * @brief Download a file from a URL using cURL
+     *
+     * @param url The URL of the File
+     * @param dstPath The destination file path to write
+     * @return True if the file is downloaded successfully, otherwise false
+     */
+    bool getFileFromURL(const std::string& url, const fs::path& dstPath);
+
+    /**
+     * @brief Download a file from the Artifactory
+     *
+     * @param relativeUrl The relative URL to the base URL
+                          "https://artifactory.developers.mega.co.nz:443/artifactory/sdk/"
+     * @param dstPath The destination file path to write
+     * @return True if the file is downloaded successfully, otherwise false
+     */
+    bool getFileFromArtifactory(const std::string& relativeUrl, const fs::path& dstPath);
 
     /* MegaVpnCredentials */
     template<typename ... requestArgs> int doGetVpnRegions(unsigned apiIndex, unique_ptr<MegaStringList>& vpnRegions, requestArgs... args)

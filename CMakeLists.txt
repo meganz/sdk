@@ -32,36 +32,33 @@ cmake_minimum_required(VERSION 3.18)
 # Qt Creator configures VCPKG automatically. Disable it, we may want to use different tripplets, paths...
 set(QT_CREATOR_SKIP_VCPKG_SETUP TRUE CACHE BOOL "")
 
-## Configurable options ##
+# Main modules location
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/modules)
 
 set(VCPKG_ROOT "" CACHE PATH "If set, it will build and use the VCPKG packages defined in the manifest file")
-option(ENABLE_SYNC "Turns on sync functionality" ON)
-option(ENABLE_CHAT "Turns on chat management functionality" OFF)
-option(ENABLE_LOG_PERFORMANCE "Faster log message generation" OFF)
-option(ENABLE_DRIVE_NOTIFICATIONS "Allows to monitor (external) drives being [dis]connected to the computer" OFF)
-option(USE_MEDIAINFO "Used to determine media properties and set those as node attributes" ON)
-option(USE_FREEIMAGE "Used to create previews/thumbnails for photos/pictures" ON)
-option(USE_FFMPEG "Used to create previews/thumbnails for video files" ON)
-option(USE_LIBUV "Includes the library and turns on internal web and ftp server functionality" OFF)
-option(USE_PDFIUM "Used to create previews/thumbnails for PDF files" ON)
-option(USE_C_ARES "If set, the SDK will manage DNS lookups and ipv4/ipv6 itself, using the c-ares library.  Otherwise we rely on cURL" ON)
-if (WIN32 OR IOS)
-    option(USE_READLINE "Use the readline library for the console" OFF)
-else()
-    option(USE_READLINE "Use the readline library for the console" ON)
+
+# Set up CMAKE_SYSTEM_NAME for cross compiling
+if (VCPKG_ROOT)
+    include(set_cmake_system_name)
+    set_cmake_system_name()
 endif()
-if (APPLE AND NOT IOS)
-    option(USE_OPENSSL "Use the OpenSSL library or a compatible one" OFF)
-else()
-    option(USE_OPENSSL "Use the OpenSSL library or a compatible one" ON)
-endif()
+
+## Configurable options ##
+include(sdklib_options)
 
 # If PROJECT_NAME is not set before project() we are the main project.
 if(NOT PROJECT_NAME)
-    message(STATUS "[SDKlib] is a top-level project. Install target, examples and tests will be enabled by default.")
+    message(STATUS "[SDKlib] is a top-level project. Install target is enabled by default.")
     set(SDKLIB_STANDALONE 1)
-    option(ENABLE_EXAMPLES "Example application is built if enabled" ON)
-    option(ENABLE_TESTS "Integration and unit tests are built if enabled" ON)
+    if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
+        message(STATUS "Examples and tests will not be enabled by default.")
+        option(ENABLE_SDKLIB_EXAMPLES "Example application is built if enabled" OFF)
+        option(ENABLE_SDKLIB_TESTS "Integration and unit tests are built if enabled" OFF)
+    else()
+        message(STATUS "Examples and tests will be enabled by default.")
+        option(ENABLE_SDKLIB_EXAMPLES "Example application is built if enabled" ON)
+        option(ENABLE_SDKLIB_TESTS "Integration and unit tests are built if enabled" ON)
+    endif()
     if (WIN32)
         option(ENABLE_SDKLIB_WERROR "Enable warnings as errors" ON)
     else()
@@ -70,27 +67,14 @@ if(NOT PROJECT_NAME)
 else()
     message(STATUS "[SDKlib] is building under project [${PROJECT_NAME}] Install target, examples and tests will not be enabled by default.")
     set(SDKLIB_STANDALONE 0)
-    option(ENABLE_EXAMPLES "Example application is built if enabled" OFF)
-    option(ENABLE_TESTS "Integration and unit tests are built if enabled" OFF)
+    option(ENABLE_SDKLIB_EXAMPLES "Example application is built if enabled" OFF)
+    option(ENABLE_SDKLIB_TESTS "Integration and unit tests are built if enabled" OFF)
     option(ENABLE_SDKLIB_WERROR "Enable warnings as errors." OFF)
 endif()
 
 ## General configuration
-# Main modules location
-list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/modules)
 
-# No configurable values.
-set(USE_CURL 1)
-set(USE_SQLITE 1)
-set(USE_SODIUM 1)
-set(USE_CRYPTOPP 1)
-
-if (NOT WIN32)
-    set(USE_PTHREAD 1)
-    set(USE_CPPTHREAD 0)
-else()
-    set(USE_CPPTHREAD 1)
-endif()
+include(sdklib_variables)
 
 if(NOT PROJECT_NAME)
     if(VCPKG_ROOT)
@@ -132,9 +116,22 @@ if (NOT CMAKE_BUILD_TYPE)
 else()
     message(STATUS "Build type set to: ${CMAKE_BUILD_TYPE}")
 endif()
+if($ENV{CFLAGS})
+    message(STATUS "Environment CFLAGS: $ENV{CFLAGS}")
+endif()
+if($ENV{CXXFLAGS})
+    message(STATUS "Environment CXXFLAGS: $ENV{CXXFLAGS}")
+endif()
+if($ENV{LDFLAGS})
+    message(STATUS "Environment LDFLAGS: $ENV{LDFLAGS}")
+endif()
 
 if(USE_READLINE AND WIN32)
     message(FATAL_ERROR "Readline is not available in Windows builds. Disable USE_READLINE to continue.")
+endif()
+
+if(ENABLE_ISOLATED_GFX AND NOT USE_FREEIMAGE)
+    message(FATAL_ERROR "USE_FREEIMAGE is required when ENABLE_ISOLATED_GFX is enabled.")
 endif()
 
 message(STATUS "Building SDKlib v${PROJECT_VERSION}")
@@ -151,11 +148,24 @@ include(configuration)
 ## Start loading targets
 include(sdklib_target)
 
+# Load Qt bindings
+if(ENABLE_QT_BINDINGS)
+    add_subdirectory(bindings/qt)
+endif()
+
+if(ENABLE_ISOLATED_GFX)
+    add_subdirectory(tools/gfxworker)
+endif()
+
 ## Load examples and tests
-if(ENABLE_EXAMPLES)
+if(ENABLE_SDKLIB_EXAMPLES)
     add_subdirectory(examples)
 endif()
 
-if(ENABLE_TESTS)
+if(ENABLE_SDKLIB_TESTS)
     add_subdirectory(tests)
 endif()
+
+## Load FUSE support.
+include(src/fuse/CMakeLists.txt)
+

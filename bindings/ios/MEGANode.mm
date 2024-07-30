@@ -20,6 +20,7 @@
  */
 #import "MEGANode.h"
 #import "megaapi.h"
+#import "PasswordNodeData.h"
 
 using namespace mega;
 
@@ -85,6 +86,23 @@ using namespace mega;
     return self.megaNode->getFingerprint() ? [[NSString alloc] initWithUTF8String:self.megaNode->getFingerprint()] : nil;
 }
 
+- (PasswordNodeData *)passwordNodeData {
+    if (!self.megaNode || self.megaNode->getPasswordData() == nil) return nil;
+
+    MegaNode::PasswordNodeData *data = self.megaNode->getPasswordData();
+
+    if (data->password() == nil) return nil;
+
+    NSString *pwd = [NSString stringWithUTF8String:data->password()];
+    NSString *notes = data->notes() ? [NSString stringWithUTF8String:data->notes()] : nil;
+    NSString *url = data->url() ? [NSString stringWithUTF8String:data->url()] : nil;
+    NSString *un = data->userName() ? [NSString stringWithUTF8String:data->userName()] : nil;
+
+    PasswordNodeData *passwordNodeData = [[PasswordNodeData alloc] initWithPassword:pwd notes:notes url:url userName:un];
+
+    return passwordNodeData;
+}
+
 - (NSInteger)duration {
     return self.megaNode ? self.megaNode->getDuration() : -1;
 }
@@ -107,6 +125,16 @@ using namespace mega;
 
 - (BOOL)isFavourite {
     return self.megaNode ? self.megaNode->isFavourite() : NO;
+}
+
+- (BOOL)isMarkedSensitive {
+    return self.megaNode ? self.megaNode->isMarkedSensitive() : NO;
+}
+
+- (nullable NSString *)description {
+    if(!self.megaNode || !self.megaNode->getDescription()) return nil;
+
+    return [NSString.alloc initWithUTF8String:self.megaNode->getDescription()];
 }
 
 - (MEGANodeLabel)label {
@@ -263,6 +291,10 @@ using namespace mega;
 
 - (BOOL)isNodeKeyDecrypted {
     return self.megaNode ? self.megaNode->isNodeKeyDecrypted() : NO;
+}
+
+- (BOOL)isPasswordNode {
+    return self.megaNode ? self.megaNode->isPasswordNode() : NO;
 }
 
 + (NSString *)stringForNodeLabel:(MEGANodeLabel)nodeLabel {

@@ -52,6 +52,8 @@ struct MEGA_API FileFingerprint : public Cacheable
     // Generates a fingerprint by iterating through `is`
     bool genfingerprint(InputStreamAccess* is, m_time_t cmtime, bool ignoremtime = false);
 
+    // Includes CRC and mtime
+    // Be wary that these must be used in pair; do not mix with serialize pair
     void serializefingerprint(string* d) const;
     int unserializefingerprint(const string* d);
 
@@ -60,6 +62,8 @@ struct MEGA_API FileFingerprint : public Cacheable
     FileFingerprint(const FileFingerprint&);
     FileFingerprint& operator=(const FileFingerprint& other);
 
+    // Includes size, CRC, mtime, and isvalid
+    // Be wary that these must be used in pair; do not mix with serializefingerprint pair
     bool serialize(string* d) const override;
     static unique_ptr<FileFingerprint> unserialize(const char*& ptr, const char* end);
 

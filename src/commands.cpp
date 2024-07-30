@@ -979,6 +979,15 @@ const char* CommandSetAttr::getJSON(MegaClient* client)
             mNode.reset();
             generationError = API_EKEY;
         }
+
+        if (at.size() > MAX_NODE_ATTRIBUTE_SIZE)
+        {
+            client->sendevent(99484, "Node attribute exceed maximun size");
+            LOG_err << "Node attribute exceed maximun size";
+            h.setUndef();  // dummy command to generate an error, with no effect
+            mNode.reset();
+            generationError =  API_EARGS;
+        }
     }
     else
     {
@@ -1151,9 +1160,11 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
 
         if (!client->loggedIntoWritableFolder())
         {
+            assert(!nn[i].hasZeroKey()); // Add this assert here to avoid extra checks in production -> we will have a check and logs if this fails within CommandPutNode::procresult
             if (nn[i].nodekey.size() <= sizeof key)
             {
                 client->key.ecb_encrypt((byte*)nn[i].nodekey.data(), key, nn[i].nodekey.size());
+                assert(!SymmCipher::isZeroKey(key, FILENODEKEYLENGTH));
                 arg("k", key, int(nn[i].nodekey.size()));
             }
             else
@@ -1246,6 +1257,7 @@ bool CommandPutNodes::procresult(Result r, JSON& json)
         // If the first three nodes failed, the response would be e.g. [-9,-9,-9].  Success is []
         // If the second and third node failed, the response would change to {"1":-9,"2":-9}.
 
+        Error newNodeError(API_OK);
         unsigned arrayIndex = 0;
         for (;;)
         {
@@ -1265,7 +1277,14 @@ bool CommandPutNodes::procresult(Result r, JSON& json)
                 assert(arrayIndex < nn.size());
                 if (arrayIndex < nn.size())
                 {
-                    nn[arrayIndex++].mError = error(json.getint());
+                    nn[arrayIndex].mError = error(json.getint());
+                    if (nn[arrayIndex].mError != API_OK)
+                    {
+                        newNodeError = nn[arrayIndex].mError;
+                        LOG_debug << "[CommandPutNodes] New Node failed with " << newNodeError << " [newnode index = " << arrayIndex << ", NodeHandle = " << nn[arrayIndex].nodeHandle() << "]";
+                        assert(((nn[arrayIndex].mError != API_EKEY) || !nn[arrayIndex].hasZeroKey()) && "New Node which failed with API_EKEY has a zerokey!!!!");
+                    }
+                    arrayIndex++;
                 }
             }
             else
@@ -1313,7 +1332,8 @@ bool CommandPutNodes::procresult(Result r, JSON& json)
         shared_ptr<Node> tempNode = !nn.empty() ? client->nodebyhandle(nn.front().mAddedHandle) : nullptr;
         bool targetOverride = (tempNode.get() && NodeHandle().set6byte(tempNode->parenthandle) != targethandle);
 
-        performAppCallback(emptyResponse ? API_ENOENT : API_OK, nn, targetOverride);
+        performAppCallback(emptyResponse ? ((newNodeError != API_OK) ? static_cast<error>(newNodeError) : API_ENOENT) : // Add last new node error if there is any, otherwise API_ENOENT
+                                            API_OK, nn, targetOverride);
         return true;
     }
     else
@@ -1540,13 +1560,17 @@ bool CommandLogout::procresult(Result r, JSON& json)
     return true;
 }
 
-CommandPrelogin::CommandPrelogin(MegaClient* client, const char* email)
+CommandPrelogin::CommandPrelogin(MegaClient* client, Completion completion, const char* email)
+  : mCompletion(std::move(completion))
+  , email(email)
 {
+    // Sanity.
+    assert(mCompletion);
+
     cmd("us0");
     arg("user", email);
     batchSeparately = true;  // in case the account is blocked (we need to get a sid so we can issue whyamiblocked)
 
-    this->email = email;
     tag = client->reqtag;
 }
 
@@ -1554,7 +1578,7 @@ bool CommandPrelogin::procresult(Result r, JSON& json)
 {
     if (r.wasErrorOrOK())
     {
-        client->app->prelogin_result(0, NULL, NULL, r.errorOrOK());
+        mCompletion(0, NULL, NULL, r.errorOrOK());
         return true;
     }
 
@@ -1575,29 +1599,29 @@ bool CommandPrelogin::procresult(Result r, JSON& json)
                 if (v == 0)
                 {
                     LOG_err << "No version returned";
-                    client->app->prelogin_result(0, NULL, NULL, API_EINTERNAL);
+                    mCompletion(0, NULL, NULL, API_EINTERNAL);
                 }
                 else if (v > 2)
                 {
                     LOG_err << "Version of account not supported";
-                    client->app->prelogin_result(0, NULL, NULL, API_EINTERNAL);
+                    mCompletion(0, NULL, NULL, API_EINTERNAL);
                 }
                 else if (v == 2 && !salt.size())
                 {
                     LOG_err << "No salt returned";
-                    client->app->prelogin_result(0, NULL, NULL, API_EINTERNAL);
+                    mCompletion(0, NULL, NULL, API_EINTERNAL);
                 }
                 else
                 {
                     client->accountversion = v;
                     Base64::atob(salt, client->accountsalt);
-                    client->app->prelogin_result(v, &email, &salt, API_OK);
+                    mCompletion(v, &email, &salt, API_OK);
                 }
                 return true;
             default:
                 if (!json.storeobject())
                 {
-                    client->app->prelogin_result(0, NULL, NULL, API_EINTERNAL);
+                    mCompletion(0, NULL, NULL, API_EINTERNAL);
                     return false;
                 }
         }
@@ -1605,8 +1629,19 @@ bool CommandPrelogin::procresult(Result r, JSON& json)
 }
 
 // login request with user e-mail address and user hash
-CommandLogin::CommandLogin(MegaClient* client, const char* email, const byte *emailhash, int emailhashsize, const byte *sessionkey, int csessionversion, const char *pin)
+CommandLogin::CommandLogin(MegaClient* client,
+                           Completion completion,
+                           const char* email,
+                           const byte *emailhash,
+                           int emailhashsize,
+                           const byte *sessionkey,
+                           int csessionversion,
+                           const char *pin)
+  : mCompletion(std::move(completion))
 {
+    // Sanity.
+    assert(mCompletion);
+
     cmd("us");
     batchSeparately = true;  // in case the account is blocked (we need to get a sid so we can issue whyamiblocked)
 
@@ -1660,7 +1695,7 @@ bool CommandLogin::procresult(Result r, JSON& json)
 {
     if (r.wasErrorOrOK())
     {
-        client->loginResult(r.errorOrOK());
+        client->loginResult(std::move(mCompletion), r.errorOrOK());
         return true;
     }
 
@@ -1724,7 +1759,7 @@ bool CommandLogin::procresult(Result r, JSON& json)
                 {
                     if (ISUNDEF(me) || len_k != sizeof hash)
                     {
-                        client->loginResult(API_EINTERNAL);
+                        client->loginResult(std::move(mCompletion), API_EINTERNAL);
                         return true;
                     }
 
@@ -1751,7 +1786,7 @@ bool CommandLogin::procresult(Result r, JSON& json)
                 {
                     if (len_sek != SymmCipher::KEYLENGTH)
                     {
-                        client->loginResult(API_EINTERNAL);
+                        client->loginResult(std::move(mCompletion), API_EINTERNAL);
                         return true;
                     }
 
@@ -1775,7 +1810,7 @@ bool CommandLogin::procresult(Result r, JSON& json)
                     if (!client->checktsid(sidbuf, len_tsid))
                     {
                         LOG_warn << "Error checking tsid";
-                        client->loginResult(API_ENOENT);
+                        client->loginResult(std::move(mCompletion), API_ENOENT);
                         return true;
                     }
 
@@ -1790,7 +1825,7 @@ bool CommandLogin::procresult(Result r, JSON& json)
                     {
                         if (!checksession)
                         {
-                            client->loginResult(API_EINTERNAL);
+                            client->loginResult(std::move(mCompletion), API_EINTERNAL);
                             return true;
                         }
                         else if (!client->ephemeralSessionPlusPlus && !client->ephemeralSession)
@@ -1810,7 +1845,7 @@ bool CommandLogin::procresult(Result r, JSON& json)
                         if (!client->asymkey.setkey(AsymmCipher::PRIVKEY, privkbuf, len_privk))
                         {
                             LOG_warn << "Error checking private key";
-                            client->loginResult(API_ENOENT);
+                            client->loginResult(std::move(mCompletion), API_ENOENT);
                             return true;
                         }
                     }
@@ -1819,7 +1854,7 @@ bool CommandLogin::procresult(Result r, JSON& json)
                     {
                         if (len_csid < 32)
                         {
-                            client->loginResult(API_EINTERNAL);
+                            client->loginResult(std::move(mCompletion), API_EINTERNAL);
                             return true;
                         }
 
@@ -1831,7 +1866,7 @@ bool CommandLogin::procresult(Result r, JSON& json)
                                 || (Base64::atob((char*)sidbuf + SymmCipher::KEYLENGTH, buf, sizeof buf) != sizeof buf)
                                 || (me != MemAccess::get<handle>((const char*)buf)))
                         {
-                            client->loginResult(API_EINTERNAL);
+                            client->loginResult(std::move(mCompletion), API_EINTERNAL);
                             return true;
                         }
 
@@ -1850,12 +1885,16 @@ bool CommandLogin::procresult(Result r, JSON& json)
                     client->sessionkey.assign((const char *)sek, sizeof(sek));
                 }
 
+                // Initialize FUSE subsystem.
+                client->mFuseClientAdapter.initialize();
+                client->mFuseService.initialize();
+
                 client->openStatusTable(true);
                 client->loadJourneyIdCacheValues();
 
                 { // scope for local variable
                     MegaClient* cl = client; // make a copy, because 'this' will be gone by the time lambda will execute
-                    client->loginResult(API_OK, [cl]()
+                    client->loginResult(std::move(mCompletion), API_OK, [cl]()
                         {
                             cl->getaccountdetails(std::make_shared<AccountDetails>(), false, false, true, false, false, false);
                         }
@@ -1867,48 +1906,11 @@ bool CommandLogin::procresult(Result r, JSON& json)
             default:
                 if (!json.storeobject())
                 {
-                    client->loginResult(API_EINTERNAL);
+                    client->loginResult(std::move(mCompletion), API_EINTERNAL);
                     return false;
                 }
         }
     }
-}
-
-CommandShareKeyUpdate::CommandShareKeyUpdate(MegaClient*, handle sh, const char* uid, const byte* key, int len)
-{
-    cmd("k");
-    beginarray("sr");
-
-    element(sh, MegaClient::NODEHANDLE);
-    element(uid);
-    element(key, len);
-
-    endarray();
-}
-
-CommandShareKeyUpdate::CommandShareKeyUpdate(MegaClient* client, handle_vector* v)
-{
-    shared_ptr<Node> n;
-    byte sharekey[SymmCipher::KEYLENGTH];
-
-    cmd("k");
-    beginarray("sr");
-
-    for (size_t i = v->size(); i--;)
-    {
-        handle h = (*v)[i];
-
-        if ((n = client->nodebyhandle(h)) && n->sharekey)
-        {
-            client->key.ecb_encrypt(n->sharekey->key, sharekey, SymmCipher::KEYLENGTH);
-
-            element(h, MegaClient::NODEHANDLE);
-            element(client->me, MegaClient::USERHANDLE);
-            element(sharekey, SymmCipher::KEYLENGTH);
-        }
-    }
-
-    endarray();
 }
 
 // add/remove share; include node share keys if new share
@@ -1916,8 +1918,6 @@ CommandSetShare::CommandSetShare(MegaClient* client, std::shared_ptr<Node> n, Us
 {
     byte auth[SymmCipher::BLOCKSIZE];
     byte key[SymmCipher::KEYLENGTH];
-    byte asymmkey[AsymmCipher::MAXKEYLENGTH];
-    int t = 0;
 
     tag = ctag;
 
@@ -1947,34 +1947,11 @@ CommandSetShare::CommandSetShare(MegaClient* client, std::shared_ptr<Node> n, Us
 
     if (a != ACCESS_UNKNOWN)
     {
-        if (!client->mKeyManager.isSecure() && !client->mKeyManager.isShareKeyTrusted(n->nodehandle))
-        {
-            // securely store/transmit share key
-            // by creating a symmetrically (for the sharer) and an asymmetrically
-            // (for the sharee) encrypted version
-            memcpy(key, n->sharekey->key, sizeof key);
-            memcpy(asymmkey, key, sizeof key);
-
-            client->key.ecb_encrypt(key);
-            arg("ok", key, sizeof key);
-
-            if (u && u->pubk.isvalid())
-            {
-                t = u->pubk.encrypt(client->rng, asymmkey, SymmCipher::KEYLENGTH, asymmkey, sizeof asymmkey);
-            }
-
-            // outgoing handle authentication
-            client->handleauth(sh, auth);
-            arg("ha", auth, sizeof auth);
-        }
-        else
-        {
-            // TODO: dummy key/handleauth - FIXME: remove when the server allows it
-            memset(key, 0, sizeof key);
-            memset(auth, 0, sizeof auth);
-            arg("ok", key, sizeof key);
-            arg("ha", auth, sizeof auth);
-        }
+        // TODO: dummy key/handleauth - FIXME: remove when the server allows it
+        memset(key, 0, sizeof key);
+        memset(auth, 0, sizeof auth);
+        arg("ok", key, sizeof key);
+        arg("ha", auth, sizeof auth);
     }
 
     beginarray("s");
@@ -1987,11 +1964,6 @@ CommandSetShare::CommandSetShare(MegaClient* client, std::shared_ptr<Node> n, Us
     if (a != ACCESS_UNKNOWN)
     {
         arg("r", a);
-
-        if (!client->mKeyManager.isSecure() && u && u->pubk.isvalid() && t)
-        {
-            arg("k", asymmkey, t);
-        }
     }
 
     endobject();
@@ -2433,6 +2405,7 @@ CommandEnumerateQuotaItems::CommandEnumerateQuotaItems(MegaClient* client)
     arg("nf", 3);
     arg("b", 1);    // support for Business accounts
     arg("p", 1);    // support for Pro Flexi
+    arg("ft", 1);   // support for Feature plans
     tag = client->reqtag;
 }
 
@@ -2451,7 +2424,10 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
         handle product = UNDEF;
         int prolevel = -1, gbstorage = -1, gbtransfer = -1, months = -1, type = -1;
         unsigned amount = 0, amountMonth = 0, localPrice = 0;
+        unsigned int testCategory = CommandEnumerateQuotaItems::INVALID_TEST_CATEGORY; // Bitmap. Bit 0 set (int value 1) is standard plan, other bits are defined by API.
+        unsigned int trialDays = CommandEnumerateQuotaItems::NO_TRIAL_DAYS;
         string description;
+        map<string, uint32_t> features;
         string ios_id;
         string android_id;
 
@@ -2476,7 +2452,7 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                         return false;
                     }
 
-                    currencyData = mega::make_unique<CurrencyData>();
+                    currencyData = std::make_unique<CurrencyData>();
                     readingL = true;
 
                     while (!finished)
@@ -2526,7 +2502,7 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                     }
                     break;
                 }
-                case MAKENAMEID2('i', 't'): // 0 -> for all Pro level plans; 1 -> for Business plan
+                case MAKENAMEID2('i', 't'): // 0 -> for all Pro level plans; 1 -> for Business plan; 2 -> for Feature plan
                     type = static_cast<int>(json.getint());
                     break;
 //                case MAKENAMEID2('i', 'b'): // for "it":1 (business plans), 0 -> Pro Flexi; 1 -> Business plan
@@ -2556,6 +2532,27 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                     buf = json.getvalue();
                     JSON::copystring(&description, buf);
                     break;
+                case 'f': // e.g. "f": { "vpn": 1 }
+                {
+                    if (!json.enterobject())
+                    {
+                        LOG_err << "Failed to parse Enumerate-quota-items response, enter `f` object";
+                        client->app->enumeratequotaitems_result(API_EINTERNAL);
+                        return false;
+                    }
+                    string key, value;
+                    while (json.storeKeyValueFromObject(key, value))
+                    {
+                        features[key] = static_cast<unsigned>(std::stoul(value));
+                    }
+                    if (!json.leaveobject())
+                    {
+                        LOG_err << "Failed to parse Enumerate-quota-items response, leave `f` object";
+                        client->app->enumeratequotaitems_result(API_EINTERNAL);
+                        return false;
+                    }
+                    break;
+                }
                 case MAKENAMEID3('i', 'o', 's'):
                     buf = json.getvalue();
                     JSON::copystring(&ios_id, buf);
@@ -2579,7 +2576,7 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                         return false;
                     }
 
-                    bizPlan = mega::make_unique<BusinessPlan>();
+                    bizPlan = std::make_unique<BusinessPlan>();
 
                     bool readingBd = true;
                     while (readingBd)
@@ -2755,6 +2752,30 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                     json.leaveobject();
                     break;
                 }
+                case MAKENAMEID2('t', 'c'):
+                    testCategory = json.getuint32();
+                    break;
+                case MAKENAMEID5('t', 'r', 'i', 'a', 'l'):
+                {
+                    if (!json.enterobject())
+                    {
+                        LOG_err << "Failed to parse Enumerate-quota-items response,"
+                                << "entering `trials` object";
+                        client->app->enumeratequotaitems_result(API_EINTERNAL);
+                        return false;
+                    }
+                    [[maybe_unused]] string key = json.getname();
+                    assert(key == "days");
+                    trialDays = json.getuint32();
+                    if (!json.leaveobject())
+                    {
+                        LOG_err << "Failed to parse Enumerate-quota-items response,"
+                                << "leaving `trials` object";
+                        client->app->enumeratequotaitems_result(API_EINTERNAL);
+                        return false;
+                    }
+                }
+                break;
                 case EOO:
                     if (type < 0
                             || ISUNDEF(product)
@@ -2762,6 +2783,7 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                             || (months < 0)
                             || currency.empty()
                             || description.empty()
+                            || testCategory == CommandEnumerateQuotaItems::INVALID_TEST_CATEGORY
                             // only available for Pro plans, not for Business
                             || (!type && gbstorage < 0)
                             || (!type && gbtransfer < 0)
@@ -2800,10 +2822,22 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
         }
         else
         {
-            client->app->enumeratequotaitems_result(type, product, prolevel, gbstorage,
-                                                    gbtransfer, months, amount, amountMonth, localPrice,
-                                                    description.c_str(), ios_id.c_str(), android_id.c_str(),
-                                                    std::move(bizPlan));
+            client->app->enumeratequotaitems_result(type,
+                                                    product,
+                                                    prolevel,
+                                                    gbstorage,
+                                                    gbtransfer,
+                                                    months,
+                                                    amount,
+                                                    amountMonth,
+                                                    localPrice,
+                                                    description.c_str(),
+                                                    std::move(features),
+                                                    ios_id.c_str(),
+                                                    android_id.c_str(),
+                                                    testCategory,
+                                                    std::move(bizPlan),
+                                                    trialDays);
         }
     }
 
@@ -3008,6 +3042,12 @@ void CommandRemoveContact::doComplete(error result)
 
 CommandPutMultipleUAVer::CommandPutMultipleUAVer(MegaClient *client, const userattr_map *attrs, int ctag, std::function<void (Error)> completion)
 {
+    if (attrs->find(ATTR_KEYS) != attrs->end() && client->getClientType() != MegaClient::ClientType::DEFAULT)
+    {
+        LOG_warn << "Invalid Client type (" << static_cast<int>(client->getClientType()) << ") for updating keys in multi-upv.";
+        assert(client->getClientType() == MegaClient::ClientType::DEFAULT);
+    }
+
     mV3 = false;
 
     this->attrs = *attrs;
@@ -3133,6 +3173,12 @@ bool CommandPutMultipleUAVer::procresult(Result r, JSON& json)
 CommandPutUAVer::CommandPutUAVer(MegaClient* client, attr_t at, const byte* av, unsigned avl, int ctag,
                                  std::function<void(Error)> completion)
 {
+    if (at == ATTR_KEYS && client->getClientType() != MegaClient::ClientType::DEFAULT)
+    {
+        LOG_warn << "Invalid Client type (" << static_cast<int>(client->getClientType()) << ") for updating keys in upv.";
+        assert(client->getClientType() == MegaClient::ClientType::DEFAULT);
+    }
+
     mV3 = false;
 
     this->at = at;
@@ -3231,10 +3277,6 @@ bool CommandPutUAVer::procresult(Result r, JSON& json)
             {
                 LOG_info << "Unshareable key successfully created";
                 client->unshareablekey.swap(av);
-            }
-            else if (at == ATTR_JSON_SYNC_CONFIG_DATA)
-            {
-                LOG_info << "JSON config data successfully created.";
             }
 
             client->notifyuser(u);
@@ -3398,11 +3440,7 @@ bool CommandGetUA::procresult(Result r, JSON& json)
     {
         if (r.wasError(API_ENOENT) && u)
         {
-            u->removeattr(at);
-            if (u->userhandle == client->me)
-            {
-                u->setNonExistingAttribute(at);
-            }
+            u->removeattr(at, u->userhandle == client->me);
         }
 
         mCompletionErr(r.errorOrOK());
@@ -3648,6 +3686,7 @@ bool CommandGetUA::procresult(Result r, JSON& json)
 CommandDelUA::CommandDelUA(MegaClient *client, const char *an)
 {
     this->an = an;
+    mSeqtagArray = true;
 
     cmd("upr");
     arg("ua", an);
@@ -3677,7 +3716,8 @@ bool CommandDelUA::procresult(Result r, JSON& json)
         attr_t at = User::string2attr(an.c_str());
         string version(ptr, (end-ptr));
 
-        u->removeattr(at, &version); // store version to filter corresponding AP in order to avoid double onUsersUpdate()
+        u->removeattr(at, version); // store version to filter corresponding AP in order to
+                                    // avoid double onUsersUpdate()
 
         if (at == ATTR_KEYRING)
         {
@@ -3690,7 +3730,13 @@ bool CommandDelUA::procresult(Result r, JSON& json)
     return true;
 }
 
-CommandSendDevCommand::CommandSendDevCommand(MegaClient *client, const char *command, const char *email, long long q, int bs, int us)
+CommandSendDevCommand::CommandSendDevCommand(MegaClient* client,
+                                             const char* command,
+                                             const char* email,
+                                             long long q,
+                                             int bs,
+                                             int us,
+                                             const char* cp)
 {
     cmd("dev");
 
@@ -3711,6 +3757,13 @@ CommandSendDevCommand::CommandSendDevCommand(MegaClient *client, const char *com
     else if ((strcmp(command, "us") == 0))
     {
         arg("s", us);
+    }
+    else if ((strcmp(command, "abs") == 0))
+    {
+        assert(cp);
+
+        if (cp) arg("c", cp);
+        arg("g", us);
     }
     tag = client->reqtag;
 }
@@ -3772,6 +3825,7 @@ CommandNodeKeyUpdate::CommandNodeKeyUpdate(MegaClient* client, handle_vector* v)
         if ((n = client->nodebyhandle(h)))
         {
             client->key.ecb_encrypt((byte*)n->nodekey().data(), nodekey, n->nodekey().size());
+            assert(!n->hasZeroKey());
 
             element(h, MegaClient::NODEHANDLE);
             element(nodekey, int(n->nodekey().size()));
@@ -4011,6 +4065,9 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
     string versionAppPrefs;
     string ccPrefs;
     string versionCcPrefs;
+    string enabledTestNotifications, versionEnabledTestNotifications;
+    string lastReadNotification, versionLastReadNotification;
+    string lastActionedBanner, versionLastActionedBanner;
 #ifdef ENABLE_SYNC
     string jsonSyncConfigData;
     string jsonSyncConfigDataVersion;
@@ -4027,6 +4084,8 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
     string versionVisibleWelcomeDialog;
     string visibleTermsOfService;
     string versionVisibleTermsOfService;
+    string pwmh, pwmhVersion;
+    vector<uint32_t> notifs;
 
     bool uspw = false;
     vector<m_time_t> warningTs;
@@ -4273,6 +4332,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                                             if (!json.storeobject())
                                             {
                                                 mCompletion(NULL, NULL, NULL, API_EINTERNAL);
+                                                json.leavearray();
                                                 return false;
                                             }
                                     }
@@ -4374,6 +4434,41 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
             break;
         }
 
+        case MAKENAMEID4('p', 'w', 'm', 'h'):
+            parseUserAttribute(json, pwmh, pwmhVersion);
+            break;
+
+        case MAKENAMEID6('n', 'o', 't', 'i', 'f', 's'):
+        {
+            if (json.enterarray())
+            {
+                while (json.isnumeric())
+                {
+                    notifs.push_back(json.getuint32());
+                }
+                json.leavearray();
+            }
+            break;
+        }
+
+        case MAKENAMEID8('^', '!', 't', 'n', 'o', 't', 'i', 'f'):
+        {
+            parseUserAttribute(json, enabledTestNotifications, versionEnabledTestNotifications);
+            break;
+        }
+
+        case MAKENAMEID8('^', '!', 'l', 'n', 'o', 't', 'i', 'f'):
+        {
+            parseUserAttribute(json, lastReadNotification, versionLastReadNotification);
+            break;
+        }
+
+        case MAKENAMEID8('^', '!', 'l', 'b', 'a', 'n', 'n', 'r'):
+        {
+            parseUserAttribute(json, lastActionedBanner, versionLastActionedBanner);
+            break;
+        }
+
         case EOO:
         {
             assert(me == client->me);
@@ -4446,7 +4541,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_LANGUAGE);
+                    u->removeattr(ATTR_LANGUAGE, true);
                 }
 
                 if (birthday.size())
@@ -4455,7 +4550,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_BIRTHDAY);
+                    u->removeattr(ATTR_BIRTHDAY, true);
                 }
 
                 if (birthmonth.size())
@@ -4464,7 +4559,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_BIRTHMONTH);
+                    u->removeattr(ATTR_BIRTHMONTH, true);
                 }
 
                 if (birthyear.size())
@@ -4473,7 +4568,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_BIRTHYEAR);
+                    u->removeattr(ATTR_BIRTHYEAR, true);
                 }
 
                 if (country.size())
@@ -4482,7 +4577,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_COUNTRY);
+                    u->removeattr(ATTR_COUNTRY, true);
                 }
 
                 if (pwdReminderDialog.size())
@@ -4491,7 +4586,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_PWD_REMINDER);
+                    u->removeattr(ATTR_PWD_REMINDER, true);
                 }
 
                 if (pushSetting.size())
@@ -4500,7 +4595,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_PUSH_SETTINGS);
+                    u->removeattr(ATTR_PUSH_SETTINGS, true);
                 }
 
                 if (contactLinkVerification.size())
@@ -4509,7 +4604,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_CONTACT_LINK_VERIFICATION);
+                    u->removeattr(ATTR_CONTACT_LINK_VERIFICATION, true);
                 }
 
                 if (disableVersions.size())
@@ -4531,7 +4626,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 {
                     LOG_info << "File versioning is enabled";
                     client->versions_disabled = false;
-                    u->setNonExistingAttribute(ATTR_DISABLE_VERSIONS);
+                    u->removeattr(ATTR_DISABLE_VERSIONS, true);
                 }
 
                 if (noCallKit.size())
@@ -4542,7 +4637,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 else
                 {
                     LOG_info << "CallKit is enabled [noCallKit.size() == 0]";
-                    u->setNonExistingAttribute(ATTR_NO_CALLKIT);
+                    u->removeattr(ATTR_NO_CALLKIT, true);
                 }
 
                 if (chatFolder.size())
@@ -4561,7 +4656,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_MY_CHAT_FILES_FOLDER);
+                    u->removeattr(ATTR_MY_CHAT_FILES_FOLDER, true);
                 }
 
                 if (cameraUploadFolder.size())
@@ -4580,7 +4675,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_CAMERA_UPLOADS_FOLDER);
+                    u->removeattr(ATTR_CAMERA_UPLOADS_FOLDER, true);
                 }
 
                 if (!myBackupsFolder.empty())
@@ -4589,7 +4684,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_MY_BACKUPS_FOLDER);
+                    u->removeattr(ATTR_MY_BACKUPS_FOLDER, true);
                 }
 
                 if (!appPrefs.empty())
@@ -4598,7 +4693,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_APPS_PREFS);
+                    u->removeattr(ATTR_APPS_PREFS, true);
                 }
 
                 if (!ccPrefs.empty())
@@ -4607,7 +4702,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_CC_PREFS);
+                    u->removeattr(ATTR_CC_PREFS, true);
                 }
 
                 if (aliases.size())
@@ -4626,7 +4721,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_ALIAS);
+                    u->removeattr(ATTR_ALIAS, true);
                 }
 
                 if (unshareableKey.size() == Base64Str<SymmCipher::BLOCKSIZE>::STRLEN)
@@ -4669,7 +4764,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_DEVICE_NAMES);
+                    u->removeattr(ATTR_DEVICE_NAMES, true);
                 }
 
                 if (!cookieSettings.empty())
@@ -4678,7 +4773,36 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->setNonExistingAttribute(ATTR_COOKIE_SETTINGS);
+                    u->removeattr(ATTR_COOKIE_SETTINGS, true);
+                }
+
+                client->setEnabledNotifications(std::move(notifs));
+
+                if (!enabledTestNotifications.empty() || !versionEnabledTestNotifications.empty())
+                {
+                    changes += u->updateattr(ATTR_ENABLE_TEST_NOTIFICATIONS, &enabledTestNotifications, &versionEnabledTestNotifications);
+                }
+                else
+                {
+                    u->removeattr(ATTR_ENABLE_TEST_NOTIFICATIONS, true);
+                }
+
+                if (!lastReadNotification.empty() || !versionLastReadNotification.empty())
+                {
+                    changes += u->updateattr(ATTR_LAST_READ_NOTIFICATION, &lastReadNotification, &versionLastReadNotification);
+                }
+                else
+                {
+                    u->removeattr(ATTR_LAST_READ_NOTIFICATION, true);
+                }
+
+                if (!lastActionedBanner.empty() || !versionLastActionedBanner.empty())
+                {
+                    changes += u->updateattr(ATTR_LAST_ACTIONED_BANNER, &lastActionedBanner, &versionLastActionedBanner);
+                }
+                else
+                {
+                    u->removeattr(ATTR_LAST_ACTIONED_BANNER, true);
                 }
 
 #ifdef ENABLE_SYNC
@@ -4691,30 +4815,10 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    // This attribute is set only once. If not received from API,
-                    // it should not exist locally either
-                    assert(u->getattr(ATTR_JSON_SYNC_CONFIG_DATA) == nullptr);
-                    u->setNonExistingAttribute(ATTR_JSON_SYNC_CONFIG_DATA);
-
-                    if (client->loggedin() == EPHEMERALACCOUNTPLUSPLUS)
-                    {
-                        // cannot configure any sync/backupp yet, so it's not needed at this stage.
-                        // It will be created when the account gets confirmed.
-                        // (motivation: speed up the E++ account's setup)
-                        LOG_info << "Skip creation of *~jscd key for E++ account";
-                    }
-                    else
-                    {
-                        client->ensureSyncUserAttributes([](Error e){
-                            if (e != API_OK)
-                            {
-                                LOG_err << "Couldn't create *~jscd user's attribute";
-                            }
-                        });
-                    }
-
+                    u->removeattr(ATTR_JSON_SYNC_CONFIG_DATA, true);
                 }
-#endif
+#endif // ENABLE_SYNC
+
                 if (keys.size())
                 {
                     client->mKeyManager.setKey(client->key);
@@ -4779,6 +4883,15 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 if (sigCu255.size())
                 {
                     changes += u->updateattr(ATTR_SIG_CU255_PUBK, &sigCu255, &versionSigCu255);
+                }
+
+                if (!pwmh.empty())
+                {
+                    changes += u->updateattr(ATTR_PWM_BASE, &pwmh, &pwmhVersion);
+                }
+                else
+                {
+                    u->removeattr(ATTR_PWM_BASE, true);
                 }
 
                 if (changes > 0)
@@ -4969,7 +5082,6 @@ CommandGetMiscFlags::CommandGetMiscFlags(MegaClient *client)
 
     // this one can get the smsve flag when the account is blocked (if it's in a batch by itself)
     batchSeparately = true;
-    suppressSID = true;
 
     tag = client->reqtag;
 }
@@ -5016,13 +5128,10 @@ bool CommandABTestActive::procresult(Result r, JSON&)
     return r.wasErrorOrOK();
 }
 
-CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, std::shared_ptr<AccountDetails> ad, bool storage, bool transfer, bool pro, int source)
-{
-    details = ad;
-    mStorage = storage;
-    mTransfer = transfer;
-    mPro = pro;
 
+CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, std::shared_ptr<AccountDetails> ad, bool storage, bool transfer, bool pro, int source, std::function<void(std::shared_ptr<AccountDetails>, Error)> completion)
+  : details(ad), mStorage(storage), mTransfer(transfer), mPro(pro), mCompletion(std::move(completion))
+{
     cmd("uq");
     if (storage)
     {
@@ -5039,7 +5148,7 @@ CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, std::shared_ptr<Acc
 
     arg("src", source);
 
-    arg("v", 1);
+    arg("v", 2);
 
     tag = client->reqtag;
 }
@@ -5056,17 +5165,15 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
     if (r.wasErrorOrOK())
     {
         client->app->account_details(details.get(), r.errorOrOK());
+        if(mCompletion)
+        {
+            mCompletion(details, r.errorOrOK());
+        }
         return true;
     }
 
-    details->pro_level = 0;
-    details->subscription_type = 'O';
-    details->subscription_renew = 0;
-    details->subscription_method.clear();
-    details->subscription_method_id = 0;
-    memset(details->subscription_cycle, 0, sizeof(details->subscription_cycle));
-
-    details->pro_until = 0;
+    details->subscriptions.clear();
+    details->plans.clear();
 
     details->storage_used = 0;
     details->storage_max = 0;
@@ -5216,72 +5323,8 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
                 details->srv_ratio = json.getfloat();
                 break;
 
-            case MAKENAMEID5('u', 't', 'y', 'p', 'e'):
-            // PRO type. 0 means Free; 4 is Pro Lite as it was added late; 100 indicates a business.
-                details->pro_level = (int)json.getint();
-                client->mMyAccount.setProLevel(static_cast<AccountType>(details->pro_level));
-                break;
-
-            case MAKENAMEID5('s', 't', 'y', 'p', 'e'):
-            // Flag indicating if this is a recurring subscription or one-off. "O" is one off, "R" is recurring.
-                const char* ptr;
-                if ((ptr = json.getvalue()))
-                {
-                    details->subscription_type = *ptr;
-                }
-                break;
-
-            case MAKENAMEID6('s', 'c', 'y', 'c', 'l', 'e'):
-                const char* scycle;
-                if ((scycle = json.getvalue()))
-                {
-                    memcpy(details->subscription_cycle, scycle, 3);
-                    details->subscription_cycle[3] = 0;
-                }
-                break;
-
-            case MAKENAMEID6('s', 'r', 'e', 'n', 'e', 'w'):
-            // Only provided for recurring subscriptions to indicate the best estimate of when the subscription will renew
-                if (json.enterarray())
-                {
-                    details->subscription_renew = json.getint();
-                    while(!json.leavearray())
-                    {
-                        json.storeobject();
-                    }
-                }
-                break;
-
-            case MAKENAMEID3('s', 'g', 'w'):
-                if (json.enterarray())
-                {
-                    json.storeobject(&details->subscription_method);
-                    while(!json.leavearray())
-                    {
-                        json.storeobject();
-                    }
-                }
-                break;
-
-            case MAKENAMEID6('s', 'g', 'w', 'i', 'd', 's'):
-                if (json.enterarray())
-                {
-                    details->subscription_method_id = static_cast<int>(json.getint());
-                    while (!json.leavearray())
-                    {
-                        json.storeobject();
-                    }
-                }
-                break;
-
             case MAKENAMEID3('r', 't', 't'):
                 details->transfer_hist_valid = !json.getint();
-                break;
-
-            case MAKENAMEID6('s', 'u', 'n', 't', 'i', 'l'):
-            // Time the last active PRO plan will expire (may be different from current one)
-                details->pro_until = json.getint();
-                client->mMyAccount.setProUntil(static_cast<m_time_t>(details->pro_until));
                 break;
 
             case MAKENAMEID7('b', 'a', 'l', 'a', 'n', 'c', 'e'):
@@ -5314,6 +5357,54 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
                 uslw = int(json.getint());
                 break;
 
+            case MAKENAMEID8('f', 'e', 'a', 't', 'u', 'r', 'e', 's'):
+                if (!json.enterarray())
+                {
+                    LOG_err << "Failed to parse GetUserQuota response, enter `features` object";
+                    client->app->account_details(details.get(), API_EINTERNAL);
+                    return false;
+                }
+
+                while (json.enterarray())
+                {
+                    int64_t expiryTimestamp = json.getint();
+                    string featureId;
+                    json.storeobject(&featureId);
+                    details->activeFeatures.push_back({expiryTimestamp, featureId});
+
+                    json.leavearray();
+                }
+
+                if (!json.leavearray())
+                {
+                    LOG_err << "Failed to parse GetUserQuota response, leave `features` object";
+                    client->app->account_details(details.get(), API_EINTERNAL);
+                    return false;
+                }
+                break;
+
+            case MAKENAMEID4('s', 'u', 'b', 's'):
+            {
+                if (!readSubscriptions(&json))
+                {
+                    LOG_err << "Failed to parse `subs` array in GetUserQuota response";
+                    client->app->account_details(details.get(), API_EINTERNAL);
+                    return false;
+                }
+            }
+            break;
+
+            case MAKENAMEID5('p', 'l', 'a', 'n', 's'):
+            {
+                if (!readPlans(&json))
+                {
+                    LOG_err << "Failed to parse `plans` array in GetUserQuota response";
+                    client->app->account_details(details.get(), API_EINTERNAL);
+                    return false;
+                }
+            }
+            break;
+
             case EOO:
                 assert(!mStorage || (got_storage && got_storage_used) || client->loggedIntoFolder());
 
@@ -5345,27 +5436,283 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
 
                 if (mPro)
                 {
-                    // Pro level can change without a payment (ie. with coupons or by helpdesk)
-                    // and in those cases, the `psts` packet is not triggered. However, the SDK
-                    // should notify the app and resume transfers, etc.
-                    bool changed = client->mCachedStatus.addOrUpdate(CacheableStatus::STATUS_PRO_LEVEL, details->pro_level);
-                    if (changed)
-                    {
-                        client->app->account_updated();
-                        client->abortbackoff(true);
-                    }
+                    processPlans();
                 }
 
                 client->app->account_details(details.get(), mStorage, mTransfer, mPro, false, false, false);
+                if(mCompletion)
+                {
+                    mCompletion(details, API_OK);
+                }
                 return true;
 
             default:
                 if (!json.storeobject())
                 {
                     client->app->account_details(details.get(), API_EINTERNAL);
+                    if(mCompletion)
+                    {
+                        mCompletion(details, API_EINTERNAL);
+                    }
                     return false;
                 }
         }
+    }
+}
+
+bool CommandGetUserQuota::readSubscriptions(JSON* j)
+{
+    vector<AccountSubscription>& subs = details->subscriptions;
+
+    if (!j->enterarray())
+    {
+        return false;
+    }
+
+    while (j->enterobject())
+    {
+        AccountSubscription sub;
+
+        bool finishedSubscription = false;
+        while (!finishedSubscription)
+        {
+            switch (j->getnameid())
+            {
+                case MAKENAMEID2('i', 'd'):
+                    // Encrypted subscription ID
+                    if (!j->storeobject(&sub.id))
+                    {
+                        return false;
+                    }
+                    break;
+
+                case MAKENAMEID4('t', 'y', 'p', 'e'):
+                    // 'S' for active payment provider, 'R' otherwise
+                    {
+                        const char* ptr;
+                        if ((ptr = j->getvalue()))
+                        {
+                            sub.type = *ptr;
+                        }
+                    }
+                    break;
+
+                case MAKENAMEID5('c', 'y', 'c', 'l', 'e'):
+                    // Subscription billing period
+                    if (!j->storeobject(&sub.cycle))
+                    {
+                        return false;
+                    }
+                    break;
+
+                case MAKENAMEID2('g', 'w'):
+                    // Payment provider name
+                    if (!j->storeobject(&sub.paymentMethod))
+                    {
+                        return false;
+                    }
+                    break;
+
+                case MAKENAMEID4('g', 'w', 'i', 'd'):
+                    // Payment provider ID
+                    sub.paymentMethodId = j->getint32();
+                    break;
+
+                case MAKENAMEID4('n', 'e', 'x', 't'):
+                    // Renewal time
+                    sub.renew = j->getint();
+                    break;
+
+                case MAKENAMEID2('a', 'l'):
+                    // Account level
+                    sub.level = j->getint32();
+                    break;
+
+                case MAKENAMEID8('f', 'e', 'a', 't', 'u', 'r', 'e', 's'):
+                    // List of features the subscription grants
+                    {
+                        if (!j->enterobject())
+                        {
+                            return false;
+                        }
+                        string key, value;
+                        while (j->storeKeyValueFromObject(key, value))
+                        {
+                            // Check if enabled (value = 1). Disabled features are usually not
+                            // present.
+                            if (std::stoi(value))
+                            {
+                                sub.features.push_back(std::move(key));
+                            }
+                        }
+                        if (!j->leaveobject())
+                        {
+                            return false;
+                        }
+                    }
+                    break;
+
+                case MAKENAMEID8('i', 's', '_', 't', 'r', 'i', 'a', 'l'):
+                    // Is an active trial
+                    sub.isTrial = j->getbool();
+                    break;
+
+                case EOO:
+                    subs.push_back(std::move(sub));
+                    finishedSubscription = true;
+                    break;
+
+                default:
+                    if (!j->storeobject())
+                    {
+                        return false;
+                    }
+            }
+        }
+    }
+
+    return j->leavearray();
+}
+
+bool CommandGetUserQuota::readPlans(JSON* j)
+{
+    vector<AccountPlan>& plans = details->plans;
+
+    if (!j->enterarray())
+    {
+        return false;
+    }
+
+    while (j->enterobject())
+    {
+        AccountPlan plan;
+
+        bool finishedPlan = false;
+        while (!finishedPlan)
+        {
+            switch (j->getnameid())
+            {
+                case MAKENAMEID2('a', 'l'):
+                    // Account level
+                    plan.level = j->getint32();
+                    break;
+
+                case MAKENAMEID8('f', 'e', 'a', 't', 'u', 'r', 'e', 's'):
+                    // List of features the plan grants
+                    {
+                        if (!j->enterobject())
+                        {
+                            return false;
+                        }
+                        string key, value;
+                        while (j->storeKeyValueFromObject(key, value))
+                        {
+                            // Check if enabled (value = 1).
+                            // Disabled features are usually not present.
+                            if (std::stoi(value))
+                            {
+                                plan.features.push_back(std::move(key));
+                            }
+                        }
+                        if (!j->leaveobject())
+                        {
+                            return false;
+                        }
+                    }
+                    break;
+
+                case MAKENAMEID7('e', 'x', 'p', 'i', 'r', 'e', 's'):
+                    // The time the plan expires
+                    plan.expiration = j->getint();
+                    break;
+
+                case MAKENAMEID4('t', 'y', 'p', 'e'):
+                    // Why the plan was granted: payment, achievement, etc.
+                    // Not included for Bussiness/Pro Flexi
+                    plan.type = j->getint32();
+                    break;
+
+                // Encrypted subscription ID
+                case MAKENAMEID5('s', 'u', 'b', 'i', 'd'):
+                    if (!j->storeobject(&plan.subscriptionId))
+                    {
+                        return false;
+                    }
+                    break;
+
+                case MAKENAMEID8('i', 's', '_', 't', 'r', 'i', 'a', 'l'):
+                    // Is an active trial
+                    plan.isTrial = j->getbool();
+                    break;
+
+                case EOO:
+                    plans.push_back(std::move(plan));
+                    finishedPlan = true;
+                    break;
+
+                default:
+                    if (!j->storeobject())
+                    {
+                        return false;
+                    }
+            }
+        }
+    }
+
+    return j->leavearray();
+}
+
+void CommandGetUserQuota::processPlans()
+{
+    // Inspect plans to detect changes in the account.
+    bool proPlanReceived = false;
+    bool featurePlanReceived = false;
+    bool changed = false;
+    for (const auto& plan: details->plans)
+    {
+        if (plan.isProPlan())
+        {
+            changed |=
+                client->mCachedStatus.addOrUpdate(CacheableStatus::STATUS_PRO_LEVEL, plan.level);
+            client->mMyAccount.setProLevel(static_cast<AccountType>(plan.level));
+            client->mMyAccount.setProUntil(static_cast<m_time_t>(plan.expiration));
+            proPlanReceived = true;
+        }
+        else // Feature plans
+        {
+            changed |= client->mCachedStatus.addOrUpdate(CacheableStatus::STATUS_FEATURE_LEVEL,
+                                                         plan.level);
+            featurePlanReceived = true;
+        }
+    }
+
+    if (!proPlanReceived)
+    {
+        // Check if the PRO plan is no longer active.
+        changed |= client->mCachedStatus.addOrUpdate(CacheableStatus::STATUS_PRO_LEVEL,
+                                                     AccountType::ACCOUNT_TYPE_FREE);
+        if (client->mMyAccount.getProLevel() != AccountType::ACCOUNT_TYPE_FREE)
+        {
+            client->mMyAccount.setProLevel(AccountType::ACCOUNT_TYPE_FREE);
+            client->mMyAccount.setProUntil(-1);
+        }
+    }
+
+    if (!featurePlanReceived)
+    {
+        // Check if the feature plan is no longer active.
+        changed |= client->mCachedStatus.addOrUpdate(CacheableStatus::STATUS_FEATURE_LEVEL,
+                                                     ACCOUNT_TYPE_UNKNOWN);
+    }
+
+    // Account level (PRO and features) can change without a payment (ie. with
+    // coupons or by helpdesk) and in those cases, the `psts` packages
+    // are not triggered. However, the SDK should notify the app and resume
+    // transfers, etc.
+    if (changed)
+    {
+        client->app->account_updated();
+        client->abortbackoff(true);
     }
 }
 
@@ -5528,16 +5875,22 @@ bool CommandGetUserSessions::procresult(Result r, JSON& json)
     return true;
 }
 
-CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t cets, bool writable, bool megaHosted,
-    int ctag, std::function<void(Error, handle, handle)> f)
+CommandSetPH::CommandSetPH(MegaClient* client,
+                           Node* n,
+                           int del,
+                           m_time_t cets,
+                           bool writable,
+                           bool megaHosted,
+                           int ctag,
+                           CompletionType f)
 {
     mSeqtagArray = true;
 
     h = n->nodehandle;
     ets = cets;
     tag = ctag;
-    completion = std::move(f);
-    assert(completion);
+    mCompletion = std::move(f);
+    assert(mCompletion);
 
     cmd("l");
     arg("n", (byte*)&n->nodehandle, MegaClient::NODEHANDLE);
@@ -5557,13 +5910,35 @@ CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t cets, 
     {
         mWritable = true;
         arg("w", "1");
-    }
 
-    if (megaHosted)
-    {
-        assert(n->sharekey && "attempting to share a key that is not set");
-        arg("sk", n->sharekey->key, SymmCipher::KEYLENGTH);
+        if (megaHosted)
+        {
+            assert(n->sharekey && "attempting to share a key that was not set");
+
+            // generate AES-128 encryption key
+            byte encryptionKeyForShareKey[SymmCipher::KEYLENGTH];
+            client->rng.genblock(encryptionKeyForShareKey, SymmCipher::KEYLENGTH);
+
+            // encrypt share key with it
+            SymmCipher* encrypter =
+                client->getRecycledTemporaryNodeCipher(encryptionKeyForShareKey);
+            byte encryptedShareKey[SymmCipher::KEYLENGTH] = {};
+            encrypter->ecb_encrypt(n->sharekey->key, encryptedShareKey, SymmCipher::KEYLENGTH);
+
+            // send encrypted share key
+            arg("sk", encryptedShareKey, SymmCipher::KEYLENGTH);
+
+            // keep the encryption key until the command has succeeded
+            mEncryptionKeyForShareKey =
+                Base64::btoa(std::string(reinterpret_cast<char*>(encryptionKeyForShareKey),
+                                         SymmCipher::KEYLENGTH));
+        }
     }
+}
+
+void CommandSetPH::completion(Error error, handle nodeHandle, handle publicHandle)
+{
+    mCompletion(error, nodeHandle, publicHandle, std::move(mEncryptionKeyForShareKey));
 }
 
 bool CommandSetPH::procresult(Result r, JSON& json)
@@ -6093,9 +6468,27 @@ bool CommandSetKeyPair::procresult(Result r, JSON& json)
 }
 
 // fetch full node tree
-CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache, bool loadSyncs)
+CommandFetchNodes::CommandFetchNodes(MegaClient* client,
+                                     int tag,
+                                     bool nocache,
+                                     bool loadSyncs,
+                                     const NodeHandle partialFetchRoot)
 {
+    assert(client);
+
     cmd("f");
+
+    // The servers are more efficient with this command when it's the only one in the batch
+    batchSeparately = true;
+
+    this->tag = tag;
+
+    if (client->isClientType(MegaClient::ClientType::VPN))
+    {
+        arg("mc", 1); // the only arg supported by VPN
+        return;
+    }
+
     arg("c", 1);
     arg("r", 1);
 
@@ -6104,13 +6497,14 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache, 
         arg("ca", 1);
     }
 
-    // The servers are more efficient with this command when it's the only one in the batch
-    batchSeparately = true;
+    if (client->isClientType(MegaClient::ClientType::PASSWORD_MANAGER))
+    {
+        arg("n", partialFetchRoot);
+        arg("part", 1);
+    }
 
     // Whether we should (re)load the sync config database on request completion.
     mLoadSyncs = loadSyncs;
-
-    this->tag = tag;
 
     ///////////////////////////////////
     // Filters for parsing in streaming
@@ -6697,13 +7091,36 @@ bool CommandCreditCardQuerySubscriptions::procresult(Result r, JSON& json)
     }
 }
 
-CommandCreditCardCancelSubscriptions::CommandCreditCardCancelSubscriptions(MegaClient* client, const char* reason)
+CommandCreditCardCancelSubscriptions::CancelSubscription::CancelSubscription(const char* reason,
+                                                                             const char* id,
+                                                                             int canContact):
+    mReason{reason ? reason : ""},
+    mId{id ? id : ""},
+    mCanContact{canContact == static_cast<int>(CanContact::Yes) ? CanContact::Yes : CanContact::No}
+{}
+
+CommandCreditCardCancelSubscriptions::CommandCreditCardCancelSubscriptions(
+    MegaClient* client,
+    const CancelSubscription& cancelSubscription)
 {
     cmd("cccs");
 
-    if (reason)
+    // Cancel Reason
+    if (!cancelSubscription.mReason.empty())
     {
-        arg("r", reason);
+        arg("r", cancelSubscription.mReason.c_str());
+    }
+
+    // The user can be contacted or not
+    if (cancelSubscription.mCanContact == CanContact::Yes)
+    {
+        arg("cc", static_cast<m_off_t>(CanContact::Yes));
+    }
+
+    // Specific subscription ID
+    if (!cancelSubscription.mId.empty())
+    {
+        arg("sub", cancelSubscription.mId.c_str());
     }
 
     tag = client->reqtag;
@@ -7822,8 +8239,6 @@ bool CommandChatGrantAccess::procresult(Result r, JSON& json)
 
 CommandChatRemoveAccess::CommandChatRemoveAccess(MegaClient *client, handle chatid, handle h, const char *uid)
 {
-    mV3 = false;
-
     this->client = client;
     this->chatid = chatid;
     this->h = h;
@@ -7915,8 +8330,6 @@ bool CommandChatUpdatePermissions::procresult(Result r, JSON& json)
 
 CommandChatTruncate::CommandChatTruncate(MegaClient *client, handle chatid, handle messageid)
 {
-    mV3 = false;
-
     this->client = client;
     this->chatid = chatid;
 
@@ -8334,8 +8747,6 @@ bool CommandChatLinkURL::procresult(Result r, JSON& json)
 
 CommandChatLinkClose::CommandChatLinkClose(MegaClient *client, handle chatid, const char *title)
 {
-    mV3 = false;
-
     mChatid = chatid;
     mTitle = title ? string(title) : "";
 
@@ -9803,6 +10214,7 @@ CommandPutSet::CommandPutSet(MegaClient* cl, Set&& s, unique_ptr<string> encrAtt
                              std::function<void(Error, const Set*)> completion)
     : mSet(new Set(std::move(s))), mCompletion(completion)
 {
+    mV3 = false;
     cmd("asp");
 
     if (mSet->id() == UNDEF) // create new
@@ -9871,6 +10283,7 @@ bool CommandPutSet::procresult(Result r, JSON& json)
 CommandRemoveSet::CommandRemoveSet(MegaClient* cl, handle id, std::function<void(Error)> completion)
     : mSetId(id), mCompletion(completion)
 {
+    mV3 = false;
     cmd("asr");
     arg("id", (byte*)&id, MegaClient::SETHANDLE);
 
@@ -9903,6 +10316,7 @@ CommandFetchSet::CommandFetchSet(MegaClient* cl,
     std::function<void(Error, Set*, elementsmap_t*)> completion)
     : mCompletion(completion)
 {
+    mV3 = false;
     cmd("aft");
     arg("v", 2);  // version 2: server can supply node metadata
     if(!cl->inPublicSetPreview())
@@ -9964,6 +10378,7 @@ CommandPutSetElements::CommandPutSetElements(MegaClient* cl, vector<SetElement>&
                                                std::function<void(Error, const vector<const SetElement*>*, const vector<int64_t>*)> completion)
     : mElements(new vector<SetElement>(std::move(els))), mCompletion(completion)
 {
+    mV3 = false;
     cmd("aepb");
 
     const byte* setHandleBytes = reinterpret_cast<const byte*>(&mElements->front().set());
@@ -10081,6 +10496,7 @@ CommandPutSetElement::CommandPutSetElement(MegaClient* cl, SetElement&& el, uniq
                                                std::function<void(Error, const SetElement*)> completion)
     : mElement(new SetElement(std::move(el))), mCompletion(completion)
 {
+    mV3 = false;
     cmd("aep");
 
     bool createNew = mElement->id() == UNDEF;
@@ -10148,6 +10564,7 @@ CommandRemoveSetElements::CommandRemoveSetElements(MegaClient* cl, handle sid, v
                                                    std::function<void(Error, const vector<int64_t>*)> completion)
     : mSetId(sid), mElemIds(std::move(eids)), mCompletion(completion)
 {
+    mV3 = false;
     cmd("aerb");
 
     arg("s", reinterpret_cast<const byte*>(&sid), MegaClient::SETHANDLE);
@@ -10237,6 +10654,7 @@ bool CommandRemoveSetElements::procresult(Result r, JSON& json)
 CommandRemoveSetElement::CommandRemoveSetElement(MegaClient* cl, handle sid, handle eid, std::function<void(Error)> completion)
     : mSetId(sid), mElementId(eid), mCompletion(completion)
 {
+    mV3 = false;
     cmd("aer");
     arg("id", (byte*)&eid, MegaClient::SETELEMENTHANDLE);
 
@@ -10270,6 +10688,7 @@ bool CommandRemoveSetElement::procresult(Result r, JSON& json)
 CommandExportSet::CommandExportSet(MegaClient* cl, Set&& s, bool makePublic, std::function<void(Error)> completion)
     : mSet(new Set(std::move(s))), mCompletion(completion)
 {
+    mV3 = false;
     cmd("ass");
     arg("id", (byte*)&mSet->id(), MegaClient::SETHANDLE);
     if (!makePublic) arg("d", 1);
@@ -10693,49 +11112,61 @@ bool CommandFetchAds::procresult(Command::Result r, JSON& json)
     }
 
     bool error = false;
-
-    while (json.enterobject() && !error)
+    for (auto adUnit = std::begin(mAdUnits); adUnit != std::end(mAdUnits) && !error; ++adUnit)
     {
-        std::string id;
-        std::string iu;
-        bool exit = false;
-        while (!exit)
+        if (json.isnumeric())
         {
-            switch (json.getnameid())
-            {
-                case MAKENAMEID2('i', 'd'):
-                    json.storeobject(&id);
-                    break;
-
-                case MAKENAMEID3('s', 'r', 'c'):
-                    json.storeobject(&iu);
-                    break;
-
-                case EOO:
-                    exit = true;
-                    if (!id.empty() && !iu.empty())
-                    {
-                        result[id] = iu;
-                    }
-                    else
-                    {
-                        error = true;
-                        result.clear();
-                    }
-                    break;
-
-                default:
-                    if (!json.storeobject())
-                    {
-                        result.clear();
-                        mCompletion(API_EINTERNAL, result);
-                        return false;
-                    }
-                    break;
-            }
+            // -9 or any other error for the provided ad unit (error results order must match)
+            result[*adUnit] = std::to_string(json.getint());
         }
+        else if (json.enterobject())
+        {
+            std::string id;
+            std::string iu;
+            bool exit = false;
+            while (!exit)
+            {
+                switch (json.getnameid())
+                {
+                    case MAKENAMEID2('i', 'd'):
+                        json.storeobject(&id);
+                        break;
 
-        json.leaveobject();
+                    case MAKENAMEID3('s', 'r', 'c'):
+                        json.storeobject(&iu);
+                        break;
+
+                    case EOO:
+                        exit = true;
+                        if (!id.empty() && !iu.empty())
+                        {
+                            assert(id == *adUnit);
+                            result[id] = iu;
+                        }
+                        else
+                        {
+                            error = true;
+                            result.clear();
+                        }
+                        break;
+
+                    default:
+                        if (!json.storeobject())
+                        {
+                            result.clear();
+                            mCompletion(API_EINTERNAL, result);
+                            return false;
+                        }
+                        break;
+                }
+            }
+            json.leaveobject();
+        }
+        else
+        {
+            result.clear();
+            error = true;
+        }
     }
 
     mCompletion((error ? API_EINTERNAL : API_OK), result);
@@ -10744,7 +11175,7 @@ bool CommandFetchAds::procresult(Command::Result r, JSON& json)
 }
 
 CommandFetchAds::CommandFetchAds(MegaClient* client, int adFlags, const std::vector<std::string> &adUnits, handle publicHandle, CommandFetchAdsCompletion completion)
-    : mCompletion(completion)
+    : mCompletion(completion), mAdUnits(adUnits)
 {
     cmd("adf");
     arg("ad", adFlags);
@@ -11163,5 +11594,278 @@ bool CommandFetchCreditCard::procresult(Command::Result r, JSON& json)
 
     return false;
 }
+
+CommandCreatePasswordManagerBase::CommandCreatePasswordManagerBase(MegaClient* cl, std::unique_ptr<NewNode> nn, int ctag,
+                                                                   CommandCreatePasswordManagerBase::Completion&& cb)
+    : mNewNode(std::move(nn)), mCompletion(std::move(cb))
+{
+    mSeqtagArray = true;
+
+    cmd("pwmp");
+    // APs "t" (for the new node/folder) and "ua" (for the new user attribute) triggered
+
+    assert(mNewNode);
+
+    arg("k", reinterpret_cast<const byte*>(mNewNode->nodekey.data()),
+        static_cast<int>(mNewNode->nodekey.size()));
+    if (mNewNode->attrstring)
+    {
+        arg("at", reinterpret_cast<const byte*>(mNewNode->attrstring->data()),
+            static_cast<int>(mNewNode->attrstring->size()));
+    }
+
+    // although these won't be used, they are updated for integrity
+    tag = ctag;
+    client = cl;
+};
+
+bool CommandCreatePasswordManagerBase::procresult(Result r, JSON &json)
+{
+    // APs will update user data (in v3: wait for APs before returning)
+
+    if (r.wasErrorOrOK())
+    {
+        if (mCompletion) mCompletion(r.errorOrOK(), nullptr);
+        return true;
+    }
+
+    NodeHandle folderHandle;
+    std::string key;
+    std::unique_ptr<std::string> attrString;  // optionals are C++17
+    m_off_t t = 0;
+    for (;;)
+    {
+        // not interested in already-known "k" (user:key), "t", "at", "u", "ts"
+        switch (json.getnameid())
+        {
+        case 'h':
+            folderHandle.set6byte(json.gethandle(MegaClient::NODEHANDLE));
+            break;
+        case 'k':
+            json.storeobject(&key);
+            break;
+        case 'a':
+            attrString = std::make_unique<std::string>();
+            json.storeobject(attrString.get());
+            break;
+        case 't':
+        {
+            t = json.getint();
+            break;
+        }
+        case EOO:
+        {
+            bool sanityChecksFailed = false;
+            const std::string msg {"Password Manager: wrong node type received in command response. Received "};
+            if (FOLDERNODE != static_cast<nodetype_t>(t))
+            {
+                LOG_err << msg << "type " << t << " expected " << FOLDERNODE;
+                sanityChecksFailed = true;
+            }
+
+            const auto keySeparatorPos = key.find(":");
+            auto keyBeginning = keySeparatorPos + 1;
+            if (keySeparatorPos == std::string::npos)
+            {
+                LOG_warn << msg << "unexpected key field value |" << key << "| missing separator ':'."
+                         << " Attempting key value format without separator ':'";
+                keyBeginning = 0;
+            }
+
+            const std::string aux {Base64::btoa(mNewNode->nodekey)};
+            key = key.substr(keyBeginning);
+            if (key != aux)
+            {
+                LOG_err << "node key value |" << key << "| different than expected |" << aux << "|";
+                sanityChecksFailed = true;
+            }
+
+            const auto& at = mNewNode->attrstring;
+            const std::string atAux = at ? Base64::btoa(*(at.get())) : "";
+            if ((!at && attrString) || (at && !attrString) ||  // if only 1 exists
+                (at && attrString && atAux != *attrString))    // or both exist and are different
+            {
+                LOG_err << "node attributes |" << (attrString ? *attrString : "")
+                        << "| different than expected |" << atAux << "|";
+                sanityChecksFailed = true;
+            }
+
+            if (sanityChecksFailed)
+            {
+                if (mCompletion) mCompletion(API_EINTERNAL, nullptr);
+                return true;
+            }
+
+
+            mNewNode->nodehandle = folderHandle.as8byte();
+
+            if (mCompletion) mCompletion(API_OK, std::move(mNewNode));
+            return true;
+        }
+        default:
+            if (!json.storeobject())
+            {
+                LOG_err << "Password Manager: error parsing param";
+                if (mCompletion) mCompletion(API_EINTERNAL, nullptr);
+                return false;
+            }
+        }
+    }
+}
+
+CommandGetNotifications::CommandGetNotifications(MegaClient* client, ResultFunc onResult)
+    : mOnResult(onResult)
+{
+    cmd("gnotif");
+
+    tag = client->reqtag;
+
+    if (!mOnResult)
+    {
+        mOnResult = [](const Error&, vector<DynamicMessageNotification>&&)
+        {
+            LOG_err << "The result of 'gnotif' will be lost";
+        };
+    }
+}
+
+bool CommandGetNotifications::procresult(Result r, JSON& json)
+{
+    if (r.wasErrorOrOK())
+    {
+        LOG_err << "Unexpected response of 'gnotif' command";
+        mOnResult(r.errorOrOK(), {});
+        return true;
+    }
+
+    vector<DynamicMessageNotification> notifications;
+
+    while (json.enterobject())
+    {
+        notifications.emplace_back();
+        DynamicMessageNotification& notification = notifications.back();
+
+        for (nameid nid = json.getnameid(); nid != EOO; nid = json.getnameid())
+        {
+            switch (nid)
+            {
+            case MAKENAMEID2('i', 'd'):
+                notification.id = json.getint();
+                break;
+
+            case 't':
+                json.storeobject(&notification.title);
+                notification.title = Base64::atob(notification.title);
+                break;
+
+            case 'd':
+                json.storeobject(&notification.description);
+                notification.description = Base64::atob(notification.description);
+                break;
+
+            case MAKENAMEID3('i', 'm', 'g'):
+                json.storeobject(&notification.imageName);
+                break;
+
+            case MAKENAMEID4('i', 'c', 'o', 'n'):
+                json.storeobject(&notification.iconName);
+                break;
+
+            case MAKENAMEID3('d', 's', 'p'):
+                json.storeobject(&notification.imagePath);
+                break;
+
+            case 's':
+                notification.start = json.getint();
+                break;
+
+            case 'e':
+                notification.end = json.getint();
+                break;
+
+            case MAKENAMEID2('s', 'b'):
+                notification.showBanner = json.getbool();
+                break;
+
+            case MAKENAMEID4('c', 't', 'a', '1'):
+            {
+                if (!readCallToAction(json, notification.callToAction1))
+                {
+                    LOG_err << "Unable to read 'cta1' in 'gnotif' response";
+                    mOnResult(API_EINTERNAL, {});
+                    return false;
+                }
+                break;
+            }
+
+            case MAKENAMEID4('c', 't', 'a', '2'):
+            {
+                if (!readCallToAction(json, notification.callToAction2))
+                {
+                    LOG_err << "Unable to read 'cta2' in 'gnotif' response";
+                    mOnResult(API_EINTERNAL, {});
+                    return false;
+                }
+                break;
+            }
+
+            default:
+                if (!json.storeobject())
+                {
+                    LOG_err << "Failed to parse 'gnotif' response";
+                    mOnResult(API_EINTERNAL, {});
+                    return false;
+                }
+                break;
+            }
+        }
+
+        if (!json.leaveobject())
+        {
+            LOG_err << "Unable to leave json object in 'gnotif' response";
+            mOnResult(API_EINTERNAL, {});
+            return false;
+        }
+    }
+
+    mOnResult(API_OK, std::move(notifications));
+    return true;
+}
+
+bool CommandGetNotifications::readCallToAction(JSON& json, map<string, string>& action)
+{
+    if (!json.enterobject())
+    {
+        return false;
+    }
+
+    for (nameid nid = json.getnameid(); nid != EOO; nid = json.getnameid())
+    {
+        switch (nid)
+        {
+        case MAKENAMEID4('l', 'i', 'n', 'k'):
+        {
+            json.storeobject(&action["link"]);
+            break;
+        }
+        case MAKENAMEID4('t', 'e', 'x', 't'):
+        {
+            string& t = action["text"];
+            json.storeobject(&t);
+            t = Base64::atob(t);
+            break;
+        }
+        default:
+            if (!json.storeobject())
+            {
+                return false;
+            }
+        }
+    }
+
+    return json.leaveobject();
+}
+
+
 
 } // namespace

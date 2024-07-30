@@ -1,7 +1,6 @@
 CONFIG(debug, debug|release) {
     CONFIG -= debug release
     CONFIG += debug
-    CONFIG += ENABLE_WERROR_COMPILATION
 }
 CONFIG(release, debug|release) {
     CONFIG -= debug release
@@ -44,6 +43,7 @@ else {
 }
 
 SOURCES += \
+../../../../tests/unit/Arguments_test.cpp \
 ../../../../tests/unit/AttrMap_test.cpp \
 ../../../../tests/unit/ChunkMacMap_test.cpp \
 ../../../../tests/unit/Commands_test.cpp \
@@ -80,3 +80,13 @@ HEADERS += \
 macx {
     LIBS += -framework Cocoa
 }
+
+CONFIG(WITH_FUSE) {
+    INCLUDEPATH += $$MEGASDK_BASE_PATH
+
+    FUSE_COMMON_TESTING_SRC = $$MEGASDK_BASE_PATH/src/fuse/common/testing
+
+    SOURCES += \
+        $$FUSE_COMMON_TESTING_SRC/shared_mutex_tests.cpp
+} # WITH_FUSE
+

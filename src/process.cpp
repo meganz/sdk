@@ -38,9 +38,7 @@ Process::EnvironmentChanger::EnvironmentChanger(const unordered_map<string, stri
 {
     for (auto& i : env)
     {
-        bool found = false;
-        string val = Utils::getenv(i.first, &found);
-        if (found) 
+        if (const auto [val, hasValue] = Utils::getenv(i.first); hasValue)
         {
             saved[i.first] = val;
         }
@@ -197,6 +195,10 @@ bool Process::run(const vector<string>& args, const unordered_map<string, string
     // Child process - specific code
     if (childPid == 0)
     {
+        // These belong to the parent now.
+        ::close(readFd);
+        ::close(readErrorFd);
+
         // Redirect streams to the parent process
         // stdout
         ::close(STDOUT_FILENO);
@@ -238,6 +240,10 @@ bool Process::run(const vector<string>& args, const unordered_map<string, string
         exit(1);
     }
 //    else --> parent process
+
+    // These belong to the child now.
+    ::close(childReadFd);
+    ::close(childReadErrorFd);
 
     // Set the read/write from/to child process streams as non-blocking
     // stdout of child process

@@ -61,6 +61,12 @@ struct MEGA_API AccountTransaction
     double delta;
 };
 
+struct MEGA_API AccountFeature
+{
+    m_time_t expiryTimestamp = 0;
+    string featureId;
+};
+
 
 // subtree's total storage footprint (excluding the root folder itself)
 struct MEGA_API NodeStorage
@@ -74,17 +80,38 @@ struct MEGA_API NodeStorage
 
 typedef map<handle, NodeStorage> handlestorage_map;
 
+struct MEGA_API AccountSubscription
+{
+    string id; // Encrypted subscription ID
+    char type = 0; // 'S' for active payment provider, 'R' otherwise
+    string cycle; // Subscription billing period
+    string paymentMethod; // Payment provider name
+    int32_t paymentMethodId = 0; // Payment provider ID
+    m_time_t renew = mega_invalid_timestamp; // Renewal time
+    int32_t level = ACCOUNT_TYPE_FREE; // Account level
+    vector<string> features; // List of features the subscription grants
+    bool isTrial = false; // If the subscription is related to an active trial
+};
+
+struct MEGA_API AccountPlan
+{
+    int32_t level = ACCOUNT_TYPE_FREE; // Account level
+    vector<string> features; // List of features the plan grants
+    m_time_t expiration = mega_invalid_timestamp; // The time the plan expires
+    int32_t type = 0; // Why the plan was granted: payment, achievement, etc. Not included in
+                      // Bussiness/Pro Flexi
+    string subscriptionId; // The relating subscription ID if the plan relates to a subscription.
+    bool isTrial = false; // If the plan is related to an active trial
+
+    bool isProPlan() const
+    {
+        return level > ACCOUNT_TYPE_FREE && level != ACCOUNT_TYPE_FEATURE;
+    }
+};
+
 struct MEGA_API AccountDetails
 {
-    // subscription information (summarized)
-    int pro_level = 0;
-    char subscription_type = 'O';
-    char subscription_cycle[4];
-    m_time_t subscription_renew = 0;
-    string subscription_method;
-    int subscription_method_id = 0;
-
-    m_time_t pro_until = 0;
+    vector<AccountSubscription> subscriptions;
 
     // quota related to the session account
     m_off_t storage_used = 0;
@@ -116,6 +143,12 @@ struct MEGA_API AccountDetails
     vector<AccountSession> sessions;
     vector<AccountPurchase> purchases;
     vector<AccountTransaction> transactions;
+
+    // Features
+    vector<AccountFeature> activeFeatures;
+
+    // Active plans for the account. Both PRO and feature plans.
+    vector<AccountPlan> plans;
 };
 
 // award classes with the award values the class is supposed to get

@@ -3,6 +3,7 @@ libmegaincludedir=$(includedir)
 nobase_libmegainclude_HEADERS = \
 	mega.h \
 	mega/account.h \
+	mega/arguments.h \
 	mega/attrmap.h \
 	mega/backofftimer.h \
 	mega/base64.h \
@@ -57,7 +58,8 @@ nobase_libmegainclude_HEADERS = \
 	mega/gfx/freeimage.h \
 	mega/gfx/GfxProcCG.h \
 	mega/raid.h \
-	mega/mediafileattribute.h
+	mega/mediafileattribute.h \
+	mega/raidproxy.h
 
 if BUILD_MEGAAPI
 nobase_libmegainclude_HEADERS += megaapi.h megaapi_impl.h

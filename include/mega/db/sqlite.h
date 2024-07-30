@@ -19,6 +19,8 @@
  * program.
  */
 
+#include "mega/types.h"
+
 #ifdef USE_SQLITE
 #ifndef DBACCESS_CLASS
 #define DBACCESS_CLASS SqliteDbAccess
@@ -26,9 +28,6 @@
 #include "mega/db.h"
 
 #include <sqlite3.h>
-
-// Include ICU headers
-#include <unicode/uchar.h>
 
 namespace mega {
 
@@ -76,47 +75,16 @@ public:
     bool getNode(mega::NodeHandle nodehandle, NodeSerialized& nodeSerialized) override;
     bool getNodesByOrigFingerprint(const std::string& fingerprint, std::vector<std::pair<NodeHandle, NodeSerialized>> &nodes) override;
     bool getRootNodes(std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) override;
-
-    /**
-     * @deprecated
-     * should be removed along with deprecated MegaApi::search() calls
-     * use searchNodes(const NodeSearchFilter& filter, ...) instead
-     */
     bool getNodesWithSharesOrLink(std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, ShareType_t shareType) override;
 
-    /**
-     * @deprecated
-     * should be removed along with deprecated MegaApi::getChildren() calls
-     * use getChildren(const NodeSearchFilter& filter, ...) instead
-     */
-    bool getChildren(NodeHandle parentHandle, std::vector<std::pair<NodeHandle, NodeSerialized>>& children, CancelToken cancelFlag) override;
-
-    bool getChildrenFromType(NodeHandle parentHandle, nodetype_t nodeType, std::vector<std::pair<NodeHandle, NodeSerialized>>& children, mega::CancelToken cancelFlag) override;
     uint64_t getNumberOfChildren(NodeHandle parentHandle) override;
     // If a cancelFlag is passed, it must be kept alive until this method returns.
-    bool getChildren(const mega::NodeSearchFilter& filter, std::vector<std::pair<NodeHandle, NodeSerialized>>& children, CancelToken cancelFlag) override;
-    bool searchNodes(const mega::NodeSearchFilter& filter, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag) override;
+    bool getChildren(const mega::NodeSearchFilter& filter, int order, std::vector<std::pair<NodeHandle, NodeSerialized>>& children, CancelToken cancelFlag, const NodeSearchPage& page) override;
+    bool searchNodes(const mega::NodeSearchFilter& filter, int order, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag, const NodeSearchPage& page) override;
 
-    /**
-     * @deprecated
-     * should be removed along with deprecated MegaApi::search() calls
-     * use searchNodes(const NodeSearchFilter& filter, ...) instead
-     */
-    bool searchForNodesByName(const std::string& name, std::vector<std::pair<NodeHandle, NodeSerialized>> &nodes, CancelToken cancelFlag) override;
-
-    /**
-     * @deprecated
-     * should be removed along with deprecated MegaApi::getChildren() calls
-     * use getChildren(const NodeSearchFilter& filter, ...) instead
-     */
-    bool searchForNodesByNameNoRecursive(const std::string& name, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, NodeHandle parentHandle, CancelToken cancelFlag) override;
-
-    /**
-     * @deprecated
-     * should be removed along with deprecated MegaApi::search() calls
-     * use searchNodes(const NodeSearchFilter& filter, ...) instead
-     */
-    bool searchInShareOrOutShareByName(const std::string& name, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, ShareType_t shareType, CancelToken cancelFlag) override;
+    bool getAllNodeTags(const std::string& searchString,
+                        std::set<std::string>& tags,
+                        CancelToken cancelFlag) override;
 
     bool getNodesByFingerprint(const std::string& fingerprint, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) override;
     bool getNodeByFingerprint(const std::string& fingerprint, mega::NodeSerialized& node, NodeHandle& handle) override;
@@ -128,19 +96,6 @@ public:
     uint64_t getNumberOfNodes() override;
     uint64_t getNumberOfChildrenByType(NodeHandle parentHandle, nodetype_t nodeType) override;
 
-    /**
-     * @deprecated
-     * should be removed along with deprecated MegaApi::search() calls
-     * use searchNodes(const NodeSearchFilter& filter, ...) instead
-     */
-    bool getNodesByMimetype(MimeType_t mimeType, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized> >& nodes, Node::Flags requiredFlags, Node::Flags excludeFlags, CancelToken cancelFlag) override;
-
-        /**
-     * @deprecated
-     * should be removed along with deprecated MegaApi::getChildren() calls
-     * use getChildren(const NodeSearchFilter& filter, ...) instead
-     */
-    bool getNodesByMimetypeExclusiveRecursive(MimeType_t mimeType, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, NodeHandle anscestorHandle, CancelToken cancelFlag) override;
     bool put(Node* node) override;
     bool remove(mega::NodeHandle nodehandle) override;
     bool removeNodes() override;
@@ -158,23 +113,26 @@ public:
     // If the progress callback returns non-zero, the operation is interrupted
     static int progressHandler(void *);
     static void userRegexp(sqlite3_context* context, int argc, sqlite3_value** argv);
-    static int icuLikeCompare(const uint8_t *zPattern,   /* LIKE pattern */
-            const uint8_t *zString,    /* The UTF-8 string to compare against */
-            const UChar32 uEsc         /* The escape character */
-          );
-
-    // Method called when query use method 'ismimetype'
-    // It checks if received mimetype is the same as extension extracted from file name
-    static void userIsMimetype(sqlite3_context* context, int argc, sqlite3_value** argv);
 
     // Method called when query uses 'getmimetype'
     // Gets the mimetype corresponding to the file extension
     static void userGetMimetype(sqlite3_context* context, int argc, sqlite3_value** argv);
 
+    // Check if string (pattern - argv[0]) is contained at data base column from type text (argv[1])
+    static void userIsContained(sqlite3_context* context, int argc, sqlite3_value** argv);
+
+    // Check if a tag (string - argv[0]) is contained in the stored list of tags
+    //(string with the tags delimited by TAG_DELIMITER - argv[1]).
+    static void userMatchTag(sqlite3_context* context, int argc, sqlite3_value** argv);
+
 private:
     // Iterate over a SQL query row by row and fill the map
     // Allow at least the following containers:
     bool processSqlQueryNodes(sqlite3_stmt *stmt, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& nodes);
+
+    bool processSqlQueryAllNodeTags(sqlite3_stmt* stmt,
+                                    std::set<std::string>& tags,
+                                    std::function<bool(const std::string&)> isValidTagF);
 
     // if add a new sqlite3_stmt update finalise()
     sqlite3_stmt* mStmtPutNode = nullptr;
@@ -184,29 +142,12 @@ private:
     sqlite3_stmt* mStmtGetNode = nullptr;
 
     /** @deprecated */
-    sqlite3_stmt* mStmtChildren = nullptr;
-
-    /** @deprecated */
     sqlite3_stmt* mStmtChildrenFromType = nullptr;
 
     sqlite3_stmt* mStmtNumChildren = nullptr;
-    sqlite3_stmt* mStmtGetChildren = nullptr;
-    sqlite3_stmt* mStmtSearchNodes = nullptr;
-
-    /** @deprecated */
-    sqlite3_stmt* mStmtNodeByName = nullptr;
-
-    /** @deprecated */
-    sqlite3_stmt* mStmtNodeByNameNoRecursive = nullptr;
-
-    /** @deprecated */
-    sqlite3_stmt* mStmtInShareOutShareByName = nullptr;
-
-    /** @deprecated */
-    sqlite3_stmt* mStmtNodeByMimeType = nullptr;
-
-    /** @deprecated */
-    sqlite3_stmt* mStmtNodeByMimeTypeExcludeRecursiveFlags = nullptr;
+    std::map<size_t, sqlite3_stmt*> mStmtGetChildren;
+    std::map<size_t, sqlite3_stmt*> mStmtSearchNodes;
+    sqlite3_stmt* mStmtAllNodeTags = nullptr;
 
     sqlite3_stmt* mStmtNodesByFp = nullptr;
     sqlite3_stmt* mStmtNodeByFp = nullptr;
@@ -233,7 +174,7 @@ public:
 
     LocalPath databasePath(const FileSystemAccess& fsAccess,
                            const string& name,
-                           const int version) const;
+                           const int version) const override;
 
     // Note: for proper adjustment of legacy versions, 'sctable' should be the first DB to be opened
     // In this way, when it's called with other DB (statusTable, tctable, ...), DbAccess::currentDbVersion has been
@@ -252,8 +193,114 @@ private:
     bool openDBAndCreateStatecache(sqlite3 **db, FileSystemAccess& fsAccess, const string& name, mega::LocalPath &dbPath, const int flags);
     bool renameDBFiles(mega::FileSystemAccess& fsAccess, mega::LocalPath& legacyPath, mega::LocalPath& dbPath);
     void removeDBFiles(mega::FileSystemAccess& fsAccess, mega::LocalPath& dbPath);
-    bool ensureColumnIsInNodesTable(sqlite3* db, const string& colName, const string& colType, std::function<bool()> callAfterAdded = nullptr);
-    bool copyMtimeFromFingerprint(sqlite3* db);
+
+    // We should add new type for every new column that was added to DB
+    // This new type have to inherit from `MigrateType`
+    class MigrateType
+    {
+    public:
+        virtual ~MigrateType() = default;
+        virtual bool bindToDb(sqlite3_stmt* stmt, const std::map<int, int>& lookupId) const = 0;
+        virtual bool hasValidValue() const = 0;
+    };
+
+    class MTimeType: public MigrateType
+    {
+    public:
+        MTimeType(m_time_t value);
+        bool bindToDb(sqlite3_stmt* stmt, const std::map<int, int>& lookupId) const override;
+        static std::unique_ptr<MigrateType> fromNodeData(NodeData& nd);
+        bool hasValidValue() const override;
+        static constexpr auto COMPONENT = NodeData::COMPONENT_MTIME;
+
+    private:
+        m_time_t mValue;
+    };
+
+    class LabelType: public MigrateType
+    {
+    public:
+        LabelType(int value);
+        bool bindToDb(sqlite3_stmt* stmt, const std::map<int, int>& lookupId) const override;
+        static std::unique_ptr<MigrateType> fromNodeData(NodeData& nd);
+        bool hasValidValue() const override;
+        static constexpr auto COMPONENT = NodeData::COMPONENT_LABEL;
+
+    private:
+        int mValue;
+    };
+
+    class DescriptionType: public MigrateType
+    {
+    public:
+        DescriptionType(const std::string& value);
+        bool bindToDb(sqlite3_stmt* stmt, const std::map<int, int>& lookupId) const override;
+        static std::unique_ptr<MigrateType> fromNodeData(NodeData& nd);
+        bool hasValidValue() const override;
+        static constexpr auto COMPONENT = NodeData::COMPONENT_DESCRIPTION;
+
+    private:
+        std::string mValue;
+    };
+
+    class TagsType: public MigrateType
+    {
+    public:
+        TagsType(const std::string& value);
+        bool bindToDb(sqlite3_stmt* stmt, const std::map<int, int>& lookupId) const override;
+        static std::unique_ptr<SqliteDbAccess::MigrateType> fromNodeData(NodeData& nd);
+        bool hasValidValue() const override;
+        static constexpr auto COMPONENT = NodeData::COMPONENT_TAGS;
+
+    private:
+        std::string mValue;
+    };
+
+    // functionality for adding columns to existing table, and copying data to them
+    struct NewColumn
+    {
+        string name;
+        string type;
+        int migrationId;
+        // Method to extract info from NodeData and add it to vector
+        std::function<bool(NodeData&, std::vector<std::unique_ptr<MigrateType>>&)>
+            migrateOperation;
+
+        template<typename T>
+        static bool extractDataFromNodeData(NodeData& nd,
+                                            std::vector<std::unique_ptr<MigrateType>>& newValues)
+        {
+            std::unique_ptr<MigrateType> val = T::fromNodeData(nd);
+            bool hasValidValue = val->hasValidValue();
+            newValues.push_back(std::move(val));
+            return hasValidValue;
+        }
+    };
+
+    bool addAndPopulateColumns(sqlite3* db, vector<NewColumn>&& newCols);
+    bool stripExistingColumns(sqlite3* db, vector<NewColumn>& cols);
+    bool addColumn(sqlite3* db, const string& name, const string& type);
+    bool migrateDataToColumns(sqlite3* db, vector<NewColumn>&& cols);
+};
+
+class OrderByClause
+{
+public:
+    static std::string get(int order, int sqlParamIndex);
+    static size_t getId(int order);
+
+private:
+    enum {
+        DEFAULT_ASC = 1, DEFAULT_DESC,
+        SIZE_ASC, SIZE_DESC,
+        CTIME_ASC, CTIME_DESC,
+        MTIME_ASC, MTIME_DESC,
+        LABEL_ASC = 17, LABEL_DESC,
+        FAV_ASC, FAV_DESC
+    };
+
+    static std::bitset<2> getDescendingDirs(int order);
+    static bool isDescOrder(const int order);
 };
 
 } // namespace

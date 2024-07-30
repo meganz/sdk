@@ -282,7 +282,9 @@ User* User::unserialize(MegaClient* client, string* d)
                 return NULL;
             }
 
-            if (!u->isattrvalid(key))
+            // check it's not loaded by `ug` for own user, and that the
+            // attribute still exists (has not been removed)
+            if (!u->isattrvalid(key) && !u->nonExistingAttribute(key))
             {
                 u->attrs[key].assign(ptr, valueSize);
             }
@@ -300,7 +302,9 @@ User* User::unserialize(MegaClient* client, string* d)
                     return NULL;
                 }
 
-                if (!u->isattrvalid(key))
+                // check it's not loaded by `ug` for own user, and that the
+                // attribute still exists (has not been removed)
+                if (!u->isattrvalid(key) && !u->nonExistingAttribute(key))
                 {
                     u->attrsv[key].assign(ptr,ll);
                 }
@@ -415,7 +419,7 @@ void User::invalidateattr(attr_t at)
     attrsv.erase(at);
 }
 
-void User::removeattr(attr_t at, const string *version)
+void User::removeattr(attr_t at, bool ownUser)
 {
     if (isattrvalid(at))
     {
@@ -423,14 +427,21 @@ void User::removeattr(attr_t at, const string *version)
     }
 
     attrs.erase(at);
-    if (version)
-    {
-        attrsv[at] = *version;
-    }
+    if (ownUser)
+        attrsv[at] = NON_EXISTING; // it allows to avoid fetch from servers
     else
-    {
         attrsv.erase(at);
+}
+
+void User::removeattr(attr_t at, const string& version)
+{
+    if (isattrvalid(at))
+    {
+        setChanged(at);
     }
+
+    attrs.erase(at);
+    attrsv[at] = version;
 }
 
 // updates the user attribute value+version only if different
@@ -457,13 +468,6 @@ bool User::nonExistingAttribute(attr_t at) const
     return false;
 }
 
-void User::setNonExistingAttribute(attr_t at)
-{
-    // Set special value (-9) at attrsv map to indicate that attribute doesn't exist
-    assert(attrs.find(at) == attrs.end());
-    attrsv[at] = NON_EXISTING;
-}
-
 // returns the value if there is value (even if it's invalid by now)
 const string * User::getattr(attr_t at)
 {
@@ -478,7 +482,7 @@ const string * User::getattr(attr_t at)
 
 bool User::isattrvalid(attr_t at)
 {
-    return attrs.count(at) && attrsv.count(at);
+    return attrs.count(at) && attrsv.count(at) && attrsv.find(at)->second != NON_EXISTING;
 }
 
 string User::attr2string(attr_t type)
@@ -654,6 +658,22 @@ string User::attr2string(attr_t type)
             attrname = "^!tos";
             break;
 
+        case ATTR_PWM_BASE:
+            attrname = "pwmh";
+            break;
+
+        case ATTR_ENABLE_TEST_NOTIFICATIONS:
+            attrname = "^!tnotif";
+            break;
+
+        case ATTR_LAST_READ_NOTIFICATION:
+            attrname = "^!lnotif";
+            break;
+
+        case ATTR_LAST_ACTIONED_BANNER:
+            attrname = "^!lbannr";
+            break;
+
         case ATTR_UNKNOWN:  // empty string
             break;
     }
@@ -817,13 +837,29 @@ string User::attr2longname(attr_t type)
     case ATTR_CC_PREFS:
         longname = "CC_PREFS";
         break;
-    
+
     case ATTR_VISIBLE_WELCOME_DIALOG:
         longname = "VISIBLE_WELCOME_DIALOG";
         break;
 
     case ATTR_VISIBLE_TERMS_OF_SERVICE:
         longname = "VISIBLE_TERMS_OF_SERVICE";
+        break;
+
+    case ATTR_PWM_BASE:
+        longname = "PWM_BASE";
+        break;
+
+    case ATTR_ENABLE_TEST_NOTIFICATIONS:
+        longname = "ENABLE_TEST_NOTIFICATIONS";
+        break;
+
+    case ATTR_LAST_READ_NOTIFICATION:
+        longname = "LAST_READ_NOTIFICATION";
+        break;
+
+    case ATTR_LAST_ACTIONED_BANNER:
+        longname = "LAST_ACTIONED_BANNER";
         break;
     }
 
@@ -989,6 +1025,18 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_VISIBLE_TERMS_OF_SERVICE;
     }
+    else if(!strcmp(name, "^!tnotif"))
+    {
+        return ATTR_ENABLE_TEST_NOTIFICATIONS;
+    }
+    else if(!strcmp(name, "^!lnotif"))
+    {
+        return ATTR_LAST_READ_NOTIFICATION;
+    }
+    else if(!strcmp(name, "^!lbannr"))
+    {
+        return ATTR_LAST_ACTIONED_BANNER;
+    }
     else
     {
         return ATTR_UNKNOWN;   // attribute not recognized
@@ -1039,6 +1087,9 @@ int User::needversioning(attr_t at)
         case ATTR_CC_PREFS:
         case ATTR_VISIBLE_WELCOME_DIALOG:
         case ATTR_VISIBLE_TERMS_OF_SERVICE:
+        case ATTR_ENABLE_TEST_NOTIFICATIONS:
+        case ATTR_LAST_READ_NOTIFICATION:
+        case ATTR_LAST_ACTIONED_BANNER:
             return 1;
 
         case ATTR_STORAGE_STATE: //putua is forbidden for this attribute
@@ -1089,6 +1140,10 @@ char User::scope(attr_t at)
         case ATTR_KEYS:
         case ATTR_VISIBLE_WELCOME_DIALOG:
         case ATTR_VISIBLE_TERMS_OF_SERVICE:
+        case ATTR_PWM_BASE:
+        case ATTR_ENABLE_TEST_NOTIFICATIONS:
+        case ATTR_LAST_READ_NOTIFICATION:
+        case ATTR_LAST_ACTIONED_BANNER:
             return '^';
 
         default:
@@ -1099,6 +1154,17 @@ char User::scope(attr_t at)
 bool User::isAuthring(attr_t at)
 {
     return (at == ATTR_AUTHRING || at == ATTR_AUTHCU255);
+}
+
+size_t User::getMaxAttributeSize(attr_t at)
+{
+    std::string attributeName = attr2string(at);
+    if (attributeName.size() > 2 && (attributeName[1] == '!' || attributeName[1] == '~'))
+    {
+        return MAX_USER_VAR_SIZE;
+    }
+
+    return MAX_USER_ATTRIBUTE_SIZE;
 }
 
 bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int size, string *newValue)
@@ -1525,6 +1591,18 @@ bool User::setChanged(attr_t at)
 
         case ATTR_CC_PREFS:
             changed.ccPrefs = true;
+            break;
+
+        case ATTR_ENABLE_TEST_NOTIFICATIONS:
+            changed.enableTestNotifications = true;
+            break;
+
+        case ATTR_LAST_READ_NOTIFICATION:
+            changed.lastReadNotification = true;
+            break;
+
+        case ATTR_LAST_ACTIONED_BANNER:
+            changed.lastActionedBanner = true;
             break;
 
         default:

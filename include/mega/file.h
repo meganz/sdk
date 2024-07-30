@@ -148,13 +148,24 @@ struct MEGA_API File: public FileFingerprint
     // set the token true to cause cancellation of this transfer (this file of the transfer)
     CancelToken cancelToken;
 
+    // True if this is a FUSE transfer.
+    virtual bool isFuseTransfer() const;
+
     // relevant only for downloads (GET); do not override anywhere else
     virtual bool undelete() const { return false; }
 
+    // Set this file's logical path.
+    void logicalPath(LocalPath logicalPath);
+
+    // Retrieve this file's logical path.
+    LocalPath logicalPath() const;
+
 private:
     CollisionResolution mCollisionResolution;
-};
 
+    // The file's logical path.
+    LocalPath mLogicalPath;
+};
 
 class SyncThreadsafeState;
 struct CloudNode;
@@ -177,9 +188,12 @@ struct SyncTransfer_inClient: public File
     // Why was the transfer failed/terminated?
     error mError = API_OK;
 
-    bool wasTerminated = false;
-    bool wasCompleted = false;
-    bool wasRequesterAbandoned = false;
+    std::atomic<bool> wasTerminated{false};
+    std::atomic<bool> wasCompleted{false};
+    std::atomic<bool> wasRequesterAbandoned{false};
+
+    // Whether the flags above were already set in a previous call (and avoid repeating unnecessary actions)
+    std::atomic<bool> reasonAlreadyKnown{false};
 };
 
 struct SyncDownload_inClient: public SyncTransfer_inClient

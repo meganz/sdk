@@ -31,6 +31,11 @@
 #include "FreeImageConfig.h"  // for FREEIMAGE_LIB setting
 #endif
 
+/* Define to enable isolated GFX process. */
+#ifndef ENABLE_ISOLATED_GFX
+#cmakedefine ENABLE_ISOLATED_GFX 1
+#endif
+
 /* Define to indicate AIO presence in librt */
 #cmakedefine HAVE_AIO_RT 1
 
@@ -63,9 +68,6 @@
 
 /* Define to use libuv */
 #cmakedefine HAVE_LIBUV 1
-
-/* Define to use CURL */
-#cmakedefine USE_CURL 1
 
 /* Define to not use readline */
 #cmakedefine NO_READLINE 1

@@ -26,14 +26,14 @@
 #include "mega.h"
 
 // bitmap graphics processor
-class MEGA_API GfxProviderCG : public mega::IGfxProvider
+class MEGA_API GfxProviderCG : public mega::IGfxLocalProvider
 {
     dispatch_semaphore_t semaphore;
     CFURLRef sourceURL;
 private: // mega::GfxProc implementations
     const char* supportedformats() override;
     const char* supportedvideoformats() override;
-    bool readbitmap(mega::FileSystemAccess*, const mega::LocalPath&, int) override;
+    bool readbitmap(const mega::LocalPath&, int) override;
     bool resizebitmap(int, int, mega::string*) override;
     void freebitmap() override;
 public:

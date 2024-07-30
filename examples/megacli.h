@@ -243,9 +243,22 @@ struct DemoApp : public MegaApp
     void userattr_update(User*, int, const char*) override;
     void resetSmsVerifiedPhoneNumber_result(error e) override;
 
-    void enumeratequotaitems_result(unsigned, handle, unsigned, int, int, unsigned, unsigned,
-                                    unsigned, unsigned, const char*, const char*, const char*,
-                                    std::unique_ptr<BusinessPlan>) override;
+    void enumeratequotaitems_result(unsigned type,
+                                    handle product,
+                                    unsigned proLevel,
+                                    int gbStorage,
+                                    int gbTransfer,
+                                    unsigned months,
+                                    unsigned amount,
+                                    unsigned amountMonth,
+                                    unsigned localPrice,
+                                    const char* description,
+                                    map<string, uint32_t>&& features,
+                                    const char* iosId,
+                                    const char* androidId,
+                                    unsigned int testCategory,
+                                    std::unique_ptr<BusinessPlan> businessPlan,
+                                    unsigned int trialDays) override;
     void enumeratequotaitems_result(unique_ptr<CurrencyData>) override;
     void enumeratequotaitems_result(error) override;
     void additem_result(error) override;
@@ -352,7 +365,6 @@ void exec_putbps(autocomplete::ACState& s);
 void exec_killsession(autocomplete::ACState& s);
 void exec_whoami(autocomplete::ACState& s);
 void exec_verifycredentials(autocomplete::ACState& s);
-void exec_secure(autocomplete::ACState& s);
 void exec_manualverif(autocomplete::ACState &s);
 void exec_passwd(autocomplete::ACState& s);
 void exec_reset(autocomplete::ACState& s);
@@ -400,10 +412,10 @@ void exec_history(autocomplete::ACState& s);
 void exec_help(autocomplete::ACState& s);
 void exec_quit(autocomplete::ACState& s);
 void exec_find(autocomplete::ACState& s);
-#ifdef USE_FILESYSTEM
+void exec_nodedescription(autocomplete::ACState& s);
+void exec_nodeTag(autocomplete::ACState& s);
 void exec_treecompare(autocomplete::ACState& s);
 void exec_querytransferquota(autocomplete::ACState& s);
-#endif
 void exec_metamac(autocomplete::ACState& s);
 void exec_resetverifiedphonenumber(autocomplete::ACState& s);
 void exec_banner(autocomplete::ACState& s);
@@ -441,3 +453,6 @@ void exec_checkvpncredential(autocomplete::ACState& s);
 /* MEGA VPN commands END */
 
 void exec_fetchcreditcardinfo(autocomplete::ACState&);
+void exec_passwordmanager(autocomplete::ACState&);
+void exec_generatepassword(autocomplete::ACState&);
+void exec_getpricing(autocomplete::ACState&);

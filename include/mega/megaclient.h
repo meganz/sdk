@@ -43,6 +43,10 @@
 #include "setandelement.h"
 #include "nodemanager.h"
 
+// FUSE support.
+#include <mega/fuse/common/client_adapter.h>
+#include <mega/fuse/common/service.h>
+
 namespace mega {
 
 class Logger;
@@ -288,7 +292,6 @@ public:
 
     // --- Getters / Setters ----
 
-    bool isSecure() const { return mSecure; }
     uint32_t generation() const;
     string privEd25519() const;
     string privCu25519() const;
@@ -325,7 +328,7 @@ public:
 
     void loadShareKeys();
 
-    void commit(std::function<void()> applyChanges, std::function<void()> completion = nullptr);
+    void commit(std::function<void()> applyChanges, std::function<void (error e)> completion = nullptr);
     void reset();
 
     // returns a formatted string, for logging purposes
@@ -337,15 +340,15 @@ public:
     // Enable/disable the warnings for shares with non-verified contacts.
     void setContactVerificationWarning(bool enabled);
 
-    // this method allows to change the feature-flag for testing purposes
-    void setSecureFlag(bool enabled) { mSecure = enabled; }
-
     // this method allows to change the manual verification feature-flag for testing purposes
     void setManualVerificationFlag(bool enabled) { mManualVerification = enabled; }
 
+    // query whether manual verification is required.
+    bool getManualVerificationFlag() const { return mManualVerification; }
+
 protected:
-    std::deque<std::pair<std::function<void()>, std::function<void()>>> nextQueue;
-    std::deque<std::pair<std::function<void()>, std::function<void()>>> activeQueue;
+    std::deque<std::pair<std::function<void()>, std::function<void(error e)>>> nextQueue;
+    std::deque<std::pair<std::function<void()>, std::function<void(error e)>>> activeQueue;
 
     void nextCommit();
     void tryCommit(Error e, std::function<void ()> completion);
@@ -390,9 +393,6 @@ private:
 
     // key used to encrypt/decrypt the ^!keys attribute (derived from Master Key)
     SymmCipher mKey;
-
-    // client is considered to exchange keys in a secure way (requires credential's verification)
-    bool mSecure = true;
 
     // true if user needs to manually verify contact's credentials to encrypt/decrypt share keys
     bool mManualVerification = false;
@@ -485,6 +485,20 @@ private:
     bool verificationRequired(handle userHandle);
 };
 
+struct DynamicMessageNotification
+{
+    int64_t id = 0;
+    std::string title;
+    std::string description;
+    std::string imageName; // main notification image
+    std::string iconName;
+    std::string imagePath;
+    int64_t start = 0;
+    int64_t end = 0;
+    bool showBanner = false;
+    std::map<std::string, std::string> callToAction1;
+    std::map<std::string, std::string> callToAction2;
+};
 
 class MEGA_API MegaClient
 {
@@ -527,7 +541,9 @@ public:
     bool accountIsNew = false;
 
     // AB Test flags
-    std::map<string, uint32_t> mABTestFlags;
+    ThreadSafeKeyValue<string, uint32_t> mABTestFlags;
+
+    ThreadSafeKeyValue<string, uint32_t> mFeatureFlags;
 
 private:
     // Pro Flexi plan is enabled
@@ -597,25 +613,27 @@ public:
     void setkeypair();
 
     // prelogin: e-mail
-    void prelogin(const char*);
+    void prelogin(const char* email, CommandPrelogin::Completion completion = nullptr);
 
     // user login: e-mail, pwkey
-    void login(const char*, const byte*, const char* = NULL);
+    void login(const char*, const byte*, const char* = NULL, CommandLogin::Completion completion = nullptr);
 
     // user login: e-mail, password, salt
-    void login2(const char*, const char*, string *, const char* = NULL);
+    void login2(const char*, const char*, const string *, const char* = NULL, CommandLogin::Completion completion = nullptr);
 
     // user login: e-mail, derivedkey, 2FA pin
-    void login2(const char*, const byte*, const char* = NULL);
+    void login2(const char*, const byte*, const char* = NULL, CommandLogin::Completion completion = nullptr);
 
     // user login: e-mail, pwkey, emailhash
-    void fastlogin(const char*, const byte*, uint64_t);
+    void fastlogin(const char*, const byte*, uint64_t, CommandLogin::Completion completion = nullptr);
 
     // session login: binary session, bytecount
-    void login(string session);
+    void login(string session, CommandLogin::Completion completion = nullptr);
 
     // handle login result, and allow further actions when successful
-    void loginResult(error e, std::function<void()> onLoginOk = nullptr);
+    void loginResult(CommandLogin::Completion completion,
+                     error e,
+                     std::function<void()> onLoginOk = nullptr);
 
     // check password
     error validatepwd(const char* pswd);
@@ -733,8 +751,17 @@ public:
     // retrieve user details
     void getaccountdetails(std::shared_ptr<AccountDetails>, bool, bool, bool, bool, bool, bool, int source = -1);
 
+    // Get user storage information.
+    void getstorageinfo(std::function<void(const StorageInfo&, Error)> completion);
+
     // check if the available bandwidth quota is enough to transfer an amount of bytes
     void querytransferquota(m_off_t size);
+
+    static constexpr char NODE_ATTRIBUTE_DESCRIPTION[] = "des";
+    static constexpr char NODE_ATTRIBUTE_TAGS[] = "t";
+    static constexpr char TAG_DELIMITER = ',';
+    static constexpr uint32_t MAX_NUMBER_TAGS = 10;
+    static constexpr uint32_t MAX_TAGS_SIZE = 3000;
 
     // update node attributes
     error setattr(std::shared_ptr<Node>, attr_map&& updates, CommandSetAttr::Completion&& c, bool canChangeVault);
@@ -745,6 +772,11 @@ public:
     // convenience version of the above (frequently we are passing a NodeBase's attrstring)
     static void makeattr(SymmCipher*, const std::unique_ptr<string>&, const char*, int = -1);
 
+    error addTagToNode(std::shared_ptr<Node> node, const std::string& tag, CommandSetAttr::Completion&& c);
+    error removeTagFromNode(std::shared_ptr<Node> node, const std::string& tag, CommandSetAttr::Completion&& c);
+    error updateTagNode(std::shared_ptr<Node>, const std::string& newTag, const std::string& oldTag, CommandSetAttr::Completion&& c);
+
+public:
     // check node access level
     int checkaccess(Node*, accesslevel_t);
 
@@ -761,6 +793,15 @@ public:
 
     // move node to new parent folder
     error rename(std::shared_ptr<Node>, std::shared_ptr<Node>, syncdel_t, NodeHandle prevparenthandle, const char *newName, bool canChangeVault, CommandMoveNode::Completion&& c);
+
+    // create folder node
+    error createFolder(std::shared_ptr<Node> parent, const char* name, int rTag);
+
+    // rename a node (i.e. change the node attribute 'n')
+    error renameNode(NodeHandle nh, const char* newName, CommandSetAttr::Completion&& cbRequest);
+
+    // remove node
+    error removeNode(NodeHandle nh, bool keepVersions, int rTag);
 
     // Queue commands (if needed) to remvoe any outshares (or pending outshares) below the specified node
     void removeOutSharesFromSubtree(std::shared_ptr<Node> n, int tag);
@@ -815,6 +856,8 @@ public:
     // send files/folders to user
     void putnodes(const char*, vector<NewNode>&&, int tag, CommandPutNodes::Completion&& completion = nullptr);
 
+    void putFileAttributes(handle h, fatype t, const std::string& encryptedAttributes, int tag);
+
     // attach file attribute to upload or node handle
     bool putfa(NodeOrUploadHandle, fatype, SymmCipher*, int tag, std::unique_ptr<string>);
 
@@ -863,7 +906,12 @@ public:
     void delua(const char* an);
 
     // send dev command for testing
-    void senddevcommand(const char *command, const char *email, long long q = 0, int bs = 0, int us = 0);
+    void senddevcommand(const char* command,
+                        const char* email,
+                        long long q = 0,
+                        int bs = 0,
+                        int us = 0,
+                        const char* abs_c = nullptr);
 #endif
 
     // delete or block an existing contact
@@ -890,10 +938,20 @@ public:
     void updatepcr(handle, ipcactions_t, CommandUpdatePendingContact::Completion completion = nullptr);
 
     // export node link or remove existing exported link for this node
-    error exportnode(std::shared_ptr<Node>, int, m_time_t, bool writable, bool megaHosted,
-        int tag, std::function<void(Error, handle, handle)> completion);
-    void requestPublicLink(Node* n, int del, m_time_t ets, bool writable, bool megaHosted,
-	    int tag, std::function<void(Error, handle, handle)> completion); // auxiliar method to add req
+    error exportnode(std::shared_ptr<Node>,
+                     int,
+                     m_time_t,
+                     bool writable,
+                     bool megaHosted,
+                     int tag,
+                     std::function<void(Error, handle, handle, std::string&&)> completion);
+    void requestPublicLink(Node* n,
+                           int del,
+                           m_time_t ets,
+                           bool writable,
+                           bool megaHosted,
+                           int tag,
+                           CommandSetPH::CompletionType completion); // auxiliar method to add req
 
     // add timer
     error addtimer(TimerWithBackoff *twb);
@@ -990,23 +1048,6 @@ public:
      */
     void importSyncConfigs(const char* configs, std::function<void(error)> completion);
 
-    /**
-     * @brief This method ensures that sync user attributes are available.
-     *
-     * This method calls \c completion function when it finishes, with the
-     * corresponding error if was not possible to ensure the attrs are available.
-     *
-     * Note that it may also need to create certain attributes, like *~jscd, if they
-     * don't exist yet.
-     *
-     * @param completion Function that is called when completed
-     */
-    void ensureSyncUserAttributes(std::function<void(Error)> completion);
-
-private:
-    void ensureSyncUserAttributesCompleted(Error e);
-    std::function<void(Error)> mOnEnsureSyncUserAttributesComplete;
-
 public:
 
 #endif  // ENABLE_SYNC
@@ -1089,7 +1130,8 @@ public:
     void creditcardquerysubscriptions();
 
     // cancel credit card subscriptions
-    void creditcardcancelsubscriptions(const char *reason = NULL);
+    void creditcardcancelsubscriptions(
+        const CommandCreditCardCancelSubscriptions::CancelSubscription& cancelSubscription);
 
     // get payment methods
     void getpaymentmethods();
@@ -1386,6 +1428,9 @@ private:
     // Request status monitor
     unique_ptr<HttpReq> mReqStatCS;
 
+    // List of Notification IDs that should show in Notification Center
+    std::vector<uint32_t> mEnabledNotifications;
+
 public:
     // notify URL for new server-client commands
     string scnotifyurl;
@@ -1430,6 +1475,16 @@ public:
     // maximum number of concurrent transfers (uploads or downloads)
     static const unsigned MAXTRANSFERS;
 
+    // minimum maximum number of concurrent transfers for dynamic calculation
+    static const unsigned MIN_MAXTRANSFERS;
+
+    // maximum number of concurrent raided transfers for mobile
+    static const unsigned MAX_RAIDTRANSFERS_FOR_MOBILE;
+
+    // meaningful portion of the maximum transfer queue size to consider raid representation
+    // i.e., there must be at least this number of raid transfers to let us predict whether the next download transfer will be raided or non-raided
+    static const unsigned MEANINGFUL_PORTION_OF_MAXTRANSFERS_QUEUE_FOR_RAID_PREDICTIVE_SYSTEM;
+
     // maximum number of queued putfa before halting the upload queue
     static const int MAXQUEUEDFA;
 
@@ -1469,7 +1524,7 @@ public:
     void sc_fileattr();
     void sc_userattr();
     bool sc_shares();
-    bool sc_upgrade();
+    bool sc_upgrade(nameid paymentType);
     void sc_paymentreminder();
     void sc_opc();
     void sc_ipc();
@@ -1602,10 +1657,10 @@ public:
     int fetchnodestag;
 
     // set true after fetchnodes and catching up on actionpackets, stays true after that.
-    bool statecurrent;
+    std::atomic<bool> statecurrent;
 
     // actionpackets are up to date (similar to statecurrent but false if in the middle of spoonfeeding etc)
-    bool actionpacketsCurrent;
+    std::atomic<bool> actionpacketsCurrent;
 
     // This flag is used to ensure we load Syncs just once per user session, even if a fetchnodes reload occurs after the first one
     bool syncsAlreadyLoadedOnStatecurrent = false;
@@ -1768,6 +1823,9 @@ public:
     // transfer tslots
     transferslot_list tslots;
 
+    // raid transfers counter
+    unsigned raidTransfersCounter{};
+
     // keep track of next transfer slot timeout
     BackoffTimerGroupTracker transferSlotsBackoff;
 
@@ -1777,10 +1835,8 @@ public:
     // send updates to app when the storage size changes
     int64_t mNotifiedSumSize = 0;
 
-    // TODO: obsolete if "secure"
     // asymmetric to symmetric key rewriting
     handle_vector nodekeyrewrite;
-    handle_vector sharekeyrewrite;
 
     static const char* const EXPORTEDLINK;
 
@@ -1888,6 +1944,9 @@ public:
 
     // determine if the file is a spreadsheet.
     bool nodeIsSpreadsheet(const Node* n) const;
+
+    // determine if the file is not in any of the other file types.
+    bool nodeIsOtherType(const Node* n) const;
 
     // functions for determining whether we can clone a node instead of upload
     // or whether two files are the same so we can just upload/download the data once
@@ -2088,9 +2147,6 @@ public:
     // apply keys
     void applykeys();
 
-    // send andy key rewrites prepared when keys were applied
-    void sendkeyrewrites();
-
     // symmetric password challenge
     int checktsid(byte* sidbuf, unsigned len);
 
@@ -2125,6 +2181,9 @@ public:
 
     // create a new folder with given name and stores its node's handle into the user's attribute ^!bak
     error setbackupfolder(const char* foldername, int tag, std::function<void(Error)> addua_completion);
+
+    // fetch backups and syncs from BC, search bkpId among them, pause/resume the backup or sync, update sds attribute
+    void updateStateInBC(handle bkpId, CommandBackupPut::SPState newState, std::function<void(const Error&)> f);
 
     // fetch backups and syncs from BC, search bkpId among them, disable the backup or sync, update sds attribute, for a backup move or delete its contents
     void removeFromBC(handle bkpId, handle bkpDest, std::function<void(const Error&)> f);
@@ -2318,7 +2377,14 @@ public:
      */
     dstime overTransferQuotaBackoff(HttpReq* req);
 
-    MegaClient(MegaApp*, shared_ptr<Waiter>, HttpIO*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
+    enum class ClientType
+    {
+        DEFAULT = 0,        // same as MegaApi::CLIENT_TYPE_DEFAULT
+        VPN,
+        PASSWORD_MANAGER,
+    };
+
+    MegaClient(MegaApp*, shared_ptr<Waiter>, HttpIO*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount, ClientType clientType = ClientType::DEFAULT);
     ~MegaClient();
 
 struct MyAccountData
@@ -2372,7 +2438,12 @@ public:
     bool resetCacheAndValues();
 };
 
+    ClientType getClientType() const { return mClientType; }
+    bool isClientType(const ClientType& t) const { return mClientType == t; }
+
 private:
+    ClientType mClientType;
+
     // Since it's quite expensive to create a SymmCipher, this are provided to use for quick operations - just set the key and use.
     SymmCipher tmpnodecipher;
 
@@ -2554,6 +2625,12 @@ private:
     // Generates a key pair (x25519 (Cu) key pair) to use for Vpn Credentials (MegaClient::putVpnCredential)
     StringKeyPair generateVpnKeyPair();
 
+    std::pair<bool, error> checkRenameNodePrecons(std::shared_ptr<Node> n);
+
+    // Password Manager - private
+    void preparePasswordNodeData(attr_map& attrs, const AttrMap& data) const;
+    std::string getPartialAPs();
+
 public:
 
 /* Mega VPN methods */
@@ -2602,6 +2679,145 @@ public:
 
     void fetchCreditCardInfo(CommandFetchCreditCardCompletion completion);
     void setProFlexi(bool newProFlexi);
+
+    // Password Manager
+    static const char* const NODE_ATTR_PASSWORD_MANAGER;
+    static const char* const PWM_ATTR_PASSWORD_NOTES;
+    static const char* const PWM_ATTR_PASSWORD_URL;
+    static const char* const PWM_ATTR_PASSWORD_USERNAME;
+    static const char* const PWM_ATTR_PASSWORD_PWD;
+    NodeHandle getPasswordManagerBase();
+    void createPasswordManagerBase(int rtag, CommandCreatePasswordManagerBase::Completion cbRequest);
+    error createPasswordNode(const char* name, std::unique_ptr<AttrMap> data,
+                             std::shared_ptr<Node> nParent, int rtag);
+    error updatePasswordNode(NodeHandle nh, std::unique_ptr<AttrMap> newData,
+                             CommandSetAttr::Completion&& cb);
+
+    /**
+     * @brief Creates multiple password nodes with a single putnodes call
+     *
+     * @note API_EARGS will be returned if:
+     *     - nParent is not a password node folder
+     *     - If any of the given values in data is invalid, e.g., the password field is missing
+     *
+     * @param data A map with the name of the password entry to create as key and the information of
+     * the password (AttrMap) as values.
+     * @param nParent The parent node that will contain the nodes to be created
+     * @param rTag tag parameter for putnodes call
+     * @return error code (API_OK if succeeded)
+     */
+    error createPasswordNodes(const std::map<std::string, std::unique_ptr<AttrMap>>& data,
+                              std::shared_ptr<Node> nParent,
+                              int rTag);
+
+    static std::string generatePasswordChars(const bool useUpper,
+                                             const bool useDigits,
+                                             const bool useSymbols,
+                                             const unsigned int length);
+
+    void setEnabledNotifications(std::vector<uint32_t>&& notifs) { mEnabledNotifications = std::move(notifs); }
+    const std::vector<uint32_t>& getEnabledNotifications() const { return mEnabledNotifications; }
+    void getNotifications(CommandGetNotifications::ResultFunc onResult);
+    std::pair<uint32_t, uint32_t> getFlag(const char* flagName);
+
+    using GetJSCDataCallback = std::function<void(JSCData, Error)>;
+
+    /**
+     * @brief
+     * This function will retrieve the user's JSCD user attributes and pass
+     * them to the provided callback.
+     *
+     * If the user does not have any JSCD user attributes, this function
+     * will create them and pass them to the provided callback.
+     *
+     * @param callback
+     * The function that should receive the user's JSCD user attributes.
+     */
+    void getJSCData(GetJSCDataCallback callback);
+
+    // FUSE client adapter.
+    fuse::ClientAdapter mFuseClientAdapter;
+
+    // FUSE service.
+    fuse::Service mFuseService;
+
+private:
+    /**
+     * @brief
+     * This function will create the user's JSCD user attributes. If
+     * successful, the new attributes will be forwarded to the provided
+     * callback. If not, the reason why the attributes couldn't be created
+     * will be forwarded to the provided callback.
+     *
+     * @param callback
+     * The function that should receive the user's JSCD user attributes or
+     * the reason why those attributes couldn't be created.
+     */
+    void createJSCData(GetJSCDataCallback callback);
+
+#ifdef ENABLE_SYNC
+    /**
+     * @brief
+     * The purpose of this function is to execute before the user's provided
+     * login callback so that we can perform some administrative functions
+     * necessary to bootstrap the sync engine.
+     *
+     * One of these duties is to ensure that the user has a set of JSCD user
+     * attributes, another is to safely inject these attributes along with
+     * the client's master key into the sync engine.
+     *
+     * @param callback
+     * The function that should be called when login has completed.
+     *
+     * @param result
+     * The result of our attempt to log the user in.
+     */
+    void injectSyncSensitiveData(CommandLogin::Completion callback,
+                                 Error result);
+#endif // ENABLE_SYNC
+
+    /**
+     * @brief
+     * This function is called after the user's JSCD user attributes have
+     * been created. If the attributes were created successfully, their
+     * content is passed to the provided callback. If not, the error
+     * received by this function is passed to the provided callback.
+     *
+     * @param callback
+     * The function that should receive the user's JSCD user attributes or
+     * the reason why those attributes couldn't be created.
+     *
+     * @param result
+     * The result of our attempt to create the user's JSCD user attributes.
+     */
+    void JSCDataCreated(GetJSCDataCallback& callback,
+                        Error result);
+
+    /**
+     * @brief
+     * This function is called when the user's JSCD user attributes have
+     * been retrieved. If successful, the JSCD user attributes are
+     * destructured and passwed to the provided callback. If not, the reason
+     * why the attributes could not be retrieved is passed to the provided
+     * callback.
+     *
+     * @param callback
+     * The function that receive the user's JSCD user attributes or the
+     * reason why those attributes could not be retrieved.
+     *
+     * @param result
+     * The result of our attempt to retrieve the user's JSCD user
+     * attributes.
+     *
+     * @param store
+     * The TLV store containing the user's JSCD user attributes.
+     */
+    void JSCDataRetrieved(GetJSCDataCallback& callback,
+                          Error result,
+                          TLVstore* store);
+
+    // Last known capacity retrieved from the cloud.
+    m_off_t mLastKnownCapacity = -1;
 };
 
 } // namespace

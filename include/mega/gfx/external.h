@@ -30,19 +30,19 @@
 namespace mega {
 
 // bitmap graphics processor
-class GfxProviderExternal : public IGfxProvider
+class GfxProviderExternal : public IGfxLocalProvider
 {
     MegaGfxProcessor *processor;
 
-    bool readbitmap(FileSystemAccess*, const LocalPath&, int) override;
+    bool readbitmap(const LocalPath&, int) override;
     bool resizebitmap(int, int, string* result) override;
     void freebitmap() override;
 
     const char* supportedformats() override;
     const char* supportedvideoformats() override;
 public:
-    GfxProviderExternal();
-    bool isgfx(string*);
+    GfxProviderExternal() : processor(nullptr) { };
+    GfxProviderExternal(MegaGfxProcessor *processor) : processor(processor) {};
     void setProcessor(MegaGfxProcessor *processor);
 };
 } // namespace

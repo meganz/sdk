@@ -98,7 +98,7 @@ UnicodeCodepointIterator<CharT> skipPrefix(const UnicodeCodepointIterator<CharT>
     {
     case '.':
     case '?':
-        (void)i.get();
+        i.get();
         break;
     default:
         return it;
@@ -259,8 +259,13 @@ bool fsfp_t::operator!=(const fsfp_t& rhs) const
 
 bool fsfp_t::equivalent(const fsfp_t& rhs) const
 {
-    return mFingerprint == rhs.mFingerprint
-           && (mUUID.empty() || mUUID == rhs.mUUID);
+    // Only compare legacy fingerprints if UUIDs are unavailable.
+    if (mUUID.empty() || rhs.mUUID.empty())
+    {
+        return mFingerprint == rhs.mFingerprint;
+    }
+
+    return mUUID == rhs.mUUID;
 }
 
 std::uint64_t fsfp_t::fingerprint() const
@@ -857,9 +862,9 @@ bool FileSystemAccess::islocalfscompatible(const int character, const FileSystem
     // Filesystem-specific policies.
     switch (type)
     {
-    case FS_APFS:
     case FS_HFS:
         return character != ':' && character != '/';
+    case FS_APFS:
     case FS_EXT:
     case FS_F2FS:
     case FS_XFS:
@@ -929,8 +934,7 @@ void FileSystemAccess::unescapefsincompatible(string *name) const
     for (size_t i = 0; i < name->size(); ++i)
     {
         char c;
-        if (decodeEscape(name->c_str() + i, c) && // it must be a null terminated c-style string passed here
-            !std::iscntrl(c))
+        if (decodeEscape(name->c_str() + i, c)) // it must be a null terminated c-style string passed here
         {
             // Substitute in the decoded character.
             name->replace(i, 3, 1, c);
@@ -979,7 +983,7 @@ std::unique_ptr<LocalPath> FileSystemAccess::fsShortname(const LocalPath& localn
     LocalPath s;
     if (getsname(localname, s))
     {
-        return ::mega::make_unique<LocalPath>(std::move(s));
+        return std::make_unique<LocalPath>(std::move(s));
     }
     return nullptr;
 }
@@ -1050,8 +1054,7 @@ void DirNotify::notify(NotificationDeque& q, LocalNode* l, Notification::ScanReq
 {
     // We may be executing on a thread here so we can't access the LocalNode data structures.  Queue everything, and
     // filter when the notifications are processed.  Also, queueing it here is faster than logging the decision anyway.
-
-    Notification n(immediate ? 0 : Waiter::ds, sr, std::move(path), l);
+    Notification n(immediate ? 0 : Waiter::ds.load(), sr, std::move(path), l);
     q.pushBack(std::move(n));
 }
 
@@ -1143,6 +1146,11 @@ void FileAccess::closef()
     {
         sysclose();
     }
+}
+
+bool FileAccess::fstat()
+{
+    return fstat(mtime, size);
 }
 
 void FileAccess::asyncopfinished(void *param)
@@ -1919,11 +1927,7 @@ std::atomic<unsigned> LocalPath_tmpNameLocal_counter{};
 LocalPath LocalPath::tmpNameLocal()
 {
     char buf[128];
-#ifdef WIN32
-    snprintf(buf, sizeof(buf), ".getxfer.%lu.%u.mega", (unsigned long)GetCurrentProcessId(), ++LocalPath_tmpNameLocal_counter);
-#else
-    snprintf(buf, sizeof(buf), ".getxfer.%lu.%u.mega", (unsigned long)getpid(), ++LocalPath_tmpNameLocal_counter);
-#endif
+    snprintf(buf, sizeof(buf), ".getxfer.%lu.%u.mega", getCurrentPid(), ++LocalPath_tmpNameLocal_counter);
     return LocalPath::fromRelativePath(buf);
 }
 
@@ -1990,6 +1994,19 @@ bool LocalPath::hasNextPathComponent(size_t index) const
 {
     assert(invariant());
     return index < localpath.size();
+}
+
+bool LocalPath::related(const LocalPath& other) const
+{
+    // Sanity: Compare like for like paths.
+    assert(isFromRoot == other.isFromRoot);
+
+    // This path is shorter: It may contain other.
+    if (localpath.size() <= other.localpath.size())
+        return isContainingPathOf(other);
+
+    // Other is shorter: It may contain this path.
+    return other.isContainingPathOf(*this);
 }
 
 ScopedLengthRestore::ScopedLengthRestore(LocalPath& p)

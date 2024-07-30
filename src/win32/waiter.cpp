@@ -23,24 +23,15 @@
 #include "megawaiter.h"
 
 namespace mega {
-dstime Waiter::ds;
 
 WinWaiter::WinWaiter()
 {
     externalEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
-    pcsHTTP = NULL;
 }
 
 WinWaiter::~WinWaiter()
 {
     CloseHandle(externalEvent);
-}
-
-// update monotonously increasing timestamp in deciseconds
-// FIXME: restore thread safety for applications using multiple MegaClient objects
-void Waiter::bumpds()
-{
-	ds = dstime(GetTickCount64() / 100);
 }
 
 // wait for events (socket, I/O completion, timeout + application events)
@@ -50,20 +41,18 @@ void Waiter::bumpds()
 // network layer)
 int WinWaiter::wait()
 {
-    // only allow interaction of asynccallback() with the main process while
-    // waiting (because WinHTTP is threaded)
-    if (pcsHTTP)
-    {
-        LeaveCriticalSection(pcsHTTP);
-    }
-
     int r = 0;
     addhandle(externalEvent, NEEDEXEC);
 
     if (index <= MAXIMUM_WAIT_OBJECTS)
     {
         assert(!handles.empty());
-        DWORD dwWaitResult = WaitForMultipleObjectsEx((DWORD)index, &handles.front(), FALSE, maxds * 100, TRUE);
+        DWORD dwWaitResult = WaitForMultipleObjectsEx(static_cast<DWORD>(index),
+                                                      &handles.front(),
+                                                      FALSE,
+                                                      static_cast<DWORD>(maxds * 100),
+                                                      TRUE);
+
         assert(dwWaitResult != WAIT_FAILED);
 
 #ifdef MEGA_MEASURE_CODE
@@ -90,11 +79,6 @@ int WinWaiter::wait()
 
     index = 0;
 
-
-    if (pcsHTTP)
-    {
-        EnterCriticalSection(pcsHTTP);
-    }
     return r;
 }
 

@@ -188,7 +188,8 @@ private:
 class GTestParallelRunner
 {
 public:
-    GTestParallelRunner(RuntimeArgValues&& commonArgs) : mCommonArgs(std::move(commonArgs)) {}
+    GTestParallelRunner(RuntimeArgValues&& commonArgs);
+    ~GTestParallelRunner();
 
     int run();
 
@@ -206,6 +207,9 @@ private:
     std::deque<std::string> mTestsToRun;
     std::map<size_t, GTestProc> mRunningGTests;
     int mFinalResult = 0;
+#ifdef WIN32
+    HANDLE mJobObject = nullptr;
+#endif
 
     // summary
     std::chrono::time_point<std::chrono::system_clock> mStartTime;
@@ -218,7 +222,7 @@ private:
 };
 
 
-std::string getLogFileName(size_t useIdx = SIZE_MAX, const std::string& useDescription = std::string());
+std::string getLogFileName(size_t useIdx = SIZE_MAX, std::string useDescription = std::string());
 
 std::string getCurrentTimestamp(bool includeDate = false);
 

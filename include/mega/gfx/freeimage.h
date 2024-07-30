@@ -31,7 +31,7 @@
 
 namespace mega {
 // bitmap graphics processor
-class MEGA_API GfxProviderFreeImage : public IGfxProvider
+class MEGA_API GfxProviderFreeImage : public IGfxLocalProvider
 {
 #ifdef FREEIMAGE_LIB
     static std::mutex libFreeImageInitializedMutex;
@@ -43,7 +43,7 @@ class MEGA_API GfxProviderFreeImage : public IGfxProvider
     FIBITMAP* dib;
 
 public:
-    bool readbitmap(FileSystemAccess*, const LocalPath&, int) override;
+    bool readbitmap(const LocalPath&, int) override;
     bool resizebitmap(int, int, string*) override;
     void freebitmap() override;
 
@@ -56,7 +56,7 @@ public:
 protected:
 
     string sformats;
-    bool readbitmapFreeimage(FileSystemAccess*, const LocalPath&, int);
+    bool readbitmapFreeimage(const LocalPath&, int);
 
 #if defined(HAVE_FFMPEG)  || defined(HAVE_PDFIUM)
     static std::mutex gfxMutex;
@@ -65,13 +65,13 @@ protected:
 #ifdef HAVE_FFMPEG
     const char* supportedformatsFfmpeg();
     bool isFfmpegFile(const string &ext);
-    bool readbitmapFfmpeg(FileSystemAccess*, const LocalPath&, int);
+    bool readbitmapFfmpeg(const LocalPath&, int);
 #endif
 
 #ifdef HAVE_PDFIUM
     const char* supportedformatsPDF();
     bool isPdfFile(const string &ext);
-    bool readbitmapPdf(FileSystemAccess*, const LocalPath&, int);
+    bool readbitmapPdf(const LocalPath&, int);
 #endif
 
 #ifdef USE_MEDIAINFO

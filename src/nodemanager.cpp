@@ -136,6 +136,7 @@ void NodeManager::notifyNode_internal(std::shared_ptr<Node> n, sharedNode_vector
             changed |= n->changed.name << 11;
             changed |= n->changed.favourite << 12;
             changed |= n->changed.sensitive << 13;
+            changed |= n->changed.pwd << 14;
 
             int attrlen = int(n->attrstring->size());
             string base64attrstring;
@@ -331,7 +332,13 @@ sharedNode_list NodeManager::getChildren_internal(const Node *parent, CancelToke
         }
 
         std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
-        mTable->getChildren(parent->nodeHandle(), nodesFromTable, cancelToken);
+        NodeSearchFilter nf;
+        nf.byAncestors({parent->nodehandle, UNDEF, UNDEF});
+        mTable->getChildren(nf,
+                            0 /*Order none*/,
+                            nodesFromTable,
+                            cancelToken,
+                            NodeSearchPage{0, 0});
         if (cancelToken.isCancelled())
         {
             childrenList.clear();
@@ -340,7 +347,7 @@ sharedNode_list NodeManager::getChildren_internal(const Node *parent, CancelToke
 
         if (!nodesFromTable.empty() && !parent->mNodePosition->second.mChildren)
         {
-            parent->mNodePosition->second.mChildren = ::mega::make_unique<std::map<NodeHandle, NodeManagerNode*>>();
+            parent->mNodePosition->second.mChildren = std::make_unique<std::map<NodeHandle, NodeManagerNode*>>();
         }
 
         for (const auto& nodeSerializedIt : nodesFromTable)
@@ -379,30 +386,43 @@ sharedNode_list NodeManager::getChildren_internal(const Node *parent, CancelToke
     return childrenList;
 }
 
-sharedNode_vector NodeManager::getChildrenFromType(const NodeHandle& parent, nodetype_t type, CancelToken cancelToken)
+sharedNode_vector NodeManager::getChildren(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page)
 {
     LockGuard g(mMutex);
-    return getChildrenFromType_internal(parent, type, cancelToken);
+    return getChildren_internal(filter, order, cancelFlag, page);
 }
 
-sharedNode_vector NodeManager::getChildrenFromType_internal(const NodeHandle& parent, nodetype_t type, CancelToken cancelToken)
+sharedNode_vector NodeManager::getChildren_internal(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page)
 {
     assert(mMutex.owns_lock());
 
-    if (!mTable || mNodes.empty())
+    // validation
+    if (filter.byParentHandle() == UNDEF || !mTable || mNodes.empty())
+    {
+        assert(filter.byParentHandle() != UNDEF && mTable && !mNodes.empty());
+        return sharedNode_vector();
+    }
+
+    // small optimization to possibly skip the db look-up
+    if (filter.bySensitivity() == NodeSearchFilter::BoolFilter::onlyTrue)
+    {
+        shared_ptr<Node> node = getNodeByHandle_internal(NodeHandle().set6byte(filter.byParentHandle()));
+        if (!node || node->isSensitiveInherited())
+        {
+            return sharedNode_vector();
+        }
+    }
+
+    // db look-up
+    vector<pair<NodeHandle, NodeSerialized>> nodesFromTable;
+    if (!mTable->getChildren(filter, order, nodesFromTable, cancelFlag, page))
     {
         return sharedNode_vector();
     }
 
-    std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
-    mTable->getChildrenFromType(parent, type, nodesFromTable, cancelToken);
+    sharedNode_vector nodes = processUnserializedNodes(nodesFromTable, cancelFlag);
 
-    if (cancelToken.isCancelled())
-    {
-        return  sharedNode_vector();
-    }
-
-    return processUnserializedNodes(nodesFromTable, NodeHandle(), cancelToken);
+    return nodes;
 }
 
 sharedNode_vector NodeManager::getRecentNodes(unsigned maxcount, m_time_t since)
@@ -454,8 +474,23 @@ uint64_t NodeManager::getNodeCount_internal()
     if (!mClient.loggedIntoFolder() && roots.size())
     {
         // Root nodes aren't taken into consideration as part of node counters
-        count += 3;
-        assert(!rootnodes.files.isUndef() && !rootnodes.vault.isUndef() && !rootnodes.rubbish.isUndef());
+        if (mClient.isClientType(MegaClient::ClientType::DEFAULT))
+        {
+            count += 3;
+            assert(!rootnodes.files.isUndef() && !rootnodes.vault.isUndef() &&
+                   !rootnodes.rubbish.isUndef());
+        }
+        else if (mClient.isClientType(MegaClient::ClientType::PASSWORD_MANAGER))
+        {
+            count += 1;
+            assert(!rootnodes.vault.isUndef());
+        }
+        else
+        {
+            LOG_err << "Unexpected MegaClient type (" << static_cast<int>(mClient.getClientType())
+                    << ") requested nodes count";
+            assert(false);
+        }
     }
 
 #ifndef NDEBUG
@@ -472,13 +507,46 @@ uint64_t NodeManager::getNodeCount_internal()
     return count;
 }
 
-sharedNode_vector NodeManager::searchNodes(const NodeSearchFilter& filter, CancelToken cancelFlag)
+std::set<std::string> NodeManager::getAllNodeTags(const char* searchString, CancelToken cancelFlag)
 {
     LockGuard g(mMutex);
-    return searchNodes_internal(filter, cancelFlag);
+    return getAllNodeTags_internal(searchString, cancelFlag);
 }
 
-sharedNode_vector NodeManager::searchNodes_internal(const NodeSearchFilter& filter, CancelToken cancelFlag)
+std::set<std::string> NodeManager::getAllNodeTags_internal(const char* searchString,
+                                                           CancelToken cancelFlag)
+{
+    assert(mMutex.owns_lock());
+    // validation
+    if (!mTable || mNodes.empty())
+    {
+        LOG_warn
+            << "getAllNodeTags_internal: The database is not opened or there are no nodes loaded";
+        assert(mTable && !mNodes.empty());
+        return {};
+    }
+    const std::string auxSearchString = searchString ? searchString : "";
+    // ',' cannot be in the string
+    if (auxSearchString.find(MegaClient::TAG_DELIMITER) != std::string::npos)
+    {
+        LOG_warn << "getAllNodeTags_internal: The search string (" << auxSearchString
+                 << ") contains an invalid character (,)";
+        return {};
+    }
+    std::set<std::string> result;
+    if (!mTable->getAllNodeTags(auxSearchString, result, cancelFlag))
+        return {};
+
+    return result;
+}
+
+sharedNode_vector NodeManager::searchNodes(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page)
+{
+    LockGuard g(mMutex);
+    return searchNodes_internal(filter, order, cancelFlag, page);
+}
+
+sharedNode_vector NodeManager::searchNodes_internal(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page)
 {
     assert(mMutex.owns_lock());
 
@@ -490,149 +558,54 @@ sharedNode_vector NodeManager::searchNodes_internal(const NodeSearchFilter& filt
     }
 
     // small optimization to possibly skip the db look-up
-    if (filter.bySensitivity() && filter.byLocationHandle() != UNDEF)
-    {
-        shared_ptr<Node> node = getNodeByHandle_internal(NodeHandle().set6byte(filter.byLocationHandle()));
-        if (!node || node->isSensitiveInherited())
-        {
-            return sharedNode_vector();
-        }
-    }
-
-    // db look-up
-    vector<pair<NodeHandle, NodeSerialized>> nodesFromTable;
-    if (!mTable->searchNodes(filter, nodesFromTable, cancelFlag))
+    const vector<handle>& ancestors = filter.byAncestorHandles();
+    if (filter.bySensitivity() == NodeSearchFilter::BoolFilter::onlyTrue &&
+        filter.includedShares() == NO_SHARES &&
+        std::all_of(ancestors.begin(),
+                    ancestors.end(),
+                    [this](handle a)
+                    {
+                        shared_ptr<Node> node = getNodeByHandle_internal(NodeHandle().set6byte(a));
+                        return node && node->isSensitiveInherited();
+                    }))
     {
         return sharedNode_vector();
     }
 
-    sharedNode_vector nodes = processUnserializedNodes(nodesFromTable, filter, cancelFlag);
+    // db look-up
+    vector<pair<NodeHandle, NodeSerialized>> nodesFromTable;
+    if (!mTable->searchNodes(filter, order, nodesFromTable, cancelFlag, page))
+    {
+        return sharedNode_vector();
+    }
+
+    sharedNode_vector nodes = processUnserializedNodes(nodesFromTable, cancelFlag);
 
     return nodes;
 }
 
-
-sharedNode_vector NodeManager::search(NodeHandle ancestorHandle, const char* searchString, bool recursive, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, CancelToken cancelFlag)
+sharedNode_vector NodeManager::getNodesWithInShares()
 {
     LockGuard g(mMutex);
-    return search_internal(ancestorHandle, searchString, recursive, requiredFlags, excludeFlags, excludeRecursiveFlags, cancelFlag);
+    return getNodesWithSharesOrLink_internal(ShareType_t::IN_SHARES);
 }
 
-/** @deprecated */
-sharedNode_vector NodeManager::search_internal(NodeHandle ancestorHandle, const char* searchString, bool recursive, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, CancelToken cancelFlag)
-{
-    assert(mMutex.owns_lock());
-
-    sharedNode_vector nodes;
-    if (!mTable || mNodes.empty())
-    {
-        assert(false);
-        return nodes;
-    }
-
-    std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
-    if (recursive)
-    {
-        mTable->searchForNodesByName(searchString, nodesFromTable, cancelFlag);
-    }
-    else
-    {
-        assert(!ancestorHandle.isUndef());
-        mTable->searchForNodesByNameNoRecursive(searchString, nodesFromTable, ancestorHandle, cancelFlag);
-    }
-
-    nodes = processUnserializedNodes(nodesFromTable, ancestorHandle, cancelFlag);
-    if (requiredFlags.any() || excludeFlags.any() || excludeRecursiveFlags.any())
-    {
-        sharedNode_vector isnodes;
-        for (auto& node : nodes)
-        {
-            if (!node->areFlagsValid(requiredFlags, excludeFlags, excludeRecursiveFlags))
-                continue;
-            isnodes.push_back(node);
-        }
-        return isnodes;
-    }
-
-    return nodes;
-}
-
-/** @deprecated Use searchNodes(const NodeSearchFilter...) instead */
-sharedNode_vector NodeManager::getInSharesWithName(const char* searchString, CancelToken cancelFlag)
+sharedNode_vector NodeManager::getNodesWithOutShares()
 {
     LockGuard g(mMutex);
-    return getInSharesWithName_internal(searchString, cancelFlag);
+    return getNodesWithSharesOrLink_internal(ShareType_t::OUT_SHARES);
 }
 
-/** @deprecated */
-sharedNode_vector NodeManager::getInSharesWithName_internal(const char* searchString, CancelToken cancelFlag)
-{
-    assert(mMutex.owns_lock());
-
-    sharedNode_vector nodes;
-    if (!mTable || mNodes.empty())
-    {
-        assert(false);
-        return nodes;
-    }
-
-    std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
-    mTable->searchInShareOrOutShareByName(searchString, nodesFromTable, ShareType_t::IN_SHARES, cancelFlag);
-    nodes = processUnserializedNodes(nodesFromTable, NodeHandle(), cancelFlag);
-
-    return nodes;
-}
-
-/** @deprecated Use searchNodes(const NodeSearchFilter...) instead */
-sharedNode_vector NodeManager::getOutSharesWithName(const char* searchString, CancelToken cancelFlag)
+sharedNode_vector NodeManager::getNodesWithPendingOutShares()
 {
     LockGuard g(mMutex);
-    return getOutSharesWithName_internal(searchString, cancelFlag);
+    return getNodesWithSharesOrLink_internal(ShareType_t::PENDING_OUTSHARES);
 }
 
-/** @deprecated */
-sharedNode_vector NodeManager::getOutSharesWithName_internal(const char* searchString, CancelToken cancelFlag)
-{
-    assert(mMutex.owns_lock());
-
-    sharedNode_vector nodes;
-    if (!mTable || mNodes.empty())
-    {
-        assert(false);
-        return nodes;
-    }
-
-    std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
-    mTable->searchInShareOrOutShareByName(searchString, nodesFromTable, ShareType_t::OUT_SHARES, cancelFlag);
-    nodes = processUnserializedNodes(nodesFromTable, NodeHandle(), cancelFlag);
-
-    return nodes;
-}
-
-/** @deprecated Use searchNodes(const NodeSearchFilter...) instead */
-sharedNode_vector NodeManager::getPublicLinksWithName(const char* searchString, CancelToken cancelFlag)
+sharedNode_vector NodeManager::getNodesWithLinks()
 {
     LockGuard g(mMutex);
-    return getPublicLinksWithName_internal(searchString, cancelFlag);
-}
-
-/** @deprecated */
-sharedNode_vector NodeManager::getPublicLinksWithName_internal(const char* searchString, CancelToken cancelFlag)
-{
-    assert(mMutex.owns_lock());
-
-    sharedNode_vector nodes;
-    if (!mTable || mNodes.empty())
-    {
-        assert(false);
-        return nodes;
-    }
-
-    std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
-    mTable->searchInShareOrOutShareByName(searchString, nodesFromTable, ShareType_t::LINK, cancelFlag);
-    nodes = processUnserializedNodes(nodesFromTable, NodeHandle(), cancelFlag);
-
-    return nodes;
+    return getNodesWithSharesOrLink_internal(ShareType_t::LINK);
 }
 
 sharedNode_vector NodeManager::getNodesByFingerprint(FileFingerprint &fingerprint)
@@ -855,19 +828,37 @@ sharedNode_vector NodeManager::getRootNodes_internal()
 
     if (mNodes.size()) // nodes already loaded from DB
     {
-        std::shared_ptr<Node> rootNode = rootnodes.mRootNodes[ROOTNODE];
-        assert(rootNode && "Root node should be defined");
-        nodes.push_back(std::move(rootNode));
-
-        if (!mClient.loggedIntoFolder())
+        const auto loadVault = [this, &nodes]() -> void
         {
             std::shared_ptr<Node> inBox = rootnodes.mRootNodes[VAULTNODE];
-            assert(inBox && "Vault node node should be defined (except logged into folder link)");
+            assert(inBox && "Vault node should be defined (except logged into folder link)");
             nodes.push_back(std::move(inBox));
+        };
 
-            std::shared_ptr<Node> rubbish = rootnodes.mRootNodes[RUBBISHNODE];
-            assert(rubbish && "Rubbishbin node node should be defined (except logged into folder link)");
-            nodes.push_back(std::move(rubbish));
+        if (mClient.isClientType(MegaClient::ClientType::DEFAULT))
+        {
+            std::shared_ptr<Node> rootNode = rootnodes.mRootNodes[ROOTNODE];
+            assert(rootNode && "Root node should be defined");
+            nodes.push_back(std::move(rootNode));
+
+            if (!mClient.loggedIntoFolder())
+            {
+                loadVault();
+
+                std::shared_ptr<Node> rubbish = rootnodes.mRootNodes[RUBBISHNODE];
+                assert(rubbish &&
+                       "Rubbishbin node should be defined (except logged into folder link)");
+                nodes.push_back(std::move(rubbish));
+            }
+        }
+        else if (mClient.isClientType(MegaClient::ClientType::PASSWORD_MANAGER))
+        {
+            loadVault();
+        }
+        else
+        {
+            LOG_warn << "Unexpected MegaClient type " << static_cast<int>(mClient.getClientType());
+            assert(false);
         }
     }
     else    // nodes not loaded yet
@@ -910,67 +901,6 @@ sharedNode_vector NodeManager::getRootNodes_internal()
     return nodes;
 }
 
-/** @deprecated Use searchNodes(const NodeSearchFilter...) instead */
-sharedNode_vector NodeManager::getNodesWithInShares()
-{
-    LockGuard g(mMutex);
-    return getNodesWithInShares_internal();
-}
-
-sharedNode_vector NodeManager::getNodesWithInShares_internal()
-{
-    assert(mMutex.owns_lock());
-    return getNodesWithSharesOrLink_internal(ShareType_t::IN_SHARES);
-}
-
-sharedNode_vector NodeManager::getNodesWithOutShares()
-{
-    LockGuard g(mMutex);
-    return getNodesWithSharesOrLink_internal(ShareType_t::OUT_SHARES);
-}
-
-sharedNode_vector NodeManager::getNodesWithPendingOutShares()
-{
-    LockGuard g(mMutex);
-    return getNodesWithSharesOrLink_internal(ShareType_t::PENDING_OUTSHARES);
-}
-
-sharedNode_vector NodeManager::getNodesWithLinks()
-{
-    LockGuard g(mMutex);
-    return getNodesWithSharesOrLink_internal(ShareType_t::LINK);
-}
-
-sharedNode_vector NodeManager::getNodesByMimeType(MimeType_t mimeType, NodeHandle ancestorHandle, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, CancelToken cancelFlag)
-{
-    LockGuard g(mMutex);
-    return getNodesByMimeType_internal(mimeType, ancestorHandle, requiredFlags, excludeFlags, excludeRecursiveFlags, cancelFlag);
-}
-/** @deprecated */
-sharedNode_vector NodeManager::getNodesByMimeType_internal(MimeType_t mimeType, NodeHandle ancestorHandle, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, CancelToken cancelFlag)
-{
-    assert(mMutex.owns_lock());
-
-    if (!mTable || mNodes.empty())
-    {
-        assert(false);
-        return sharedNode_vector();
-    }
-
-    std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
-    if (excludeRecursiveFlags.none())
-    {
-        mTable->getNodesByMimetype(mimeType, nodesFromTable, requiredFlags, excludeFlags, cancelFlag);
-    }
-    else
-    {
-        mTable->getNodesByMimetypeExclusiveRecursive(mimeType, nodesFromTable, requiredFlags, excludeFlags, excludeRecursiveFlags, ancestorHandle, cancelFlag);
-    }
-
-    return processUnserializedNodes(nodesFromTable, ancestorHandle, cancelFlag);
-}
-
-/** @deprecated */
 sharedNode_vector NodeManager::getNodesWithSharesOrLink_internal(ShareType_t shareType)
 {
     assert(mMutex.owns_lock());
@@ -1349,6 +1279,10 @@ void NodeManager::notifyPurge()
         }
 
         LockGuard g(mMutex);
+		
+        // Let FUSE know that nodes have been updated.
+        mClient.mFuseClientAdapter.updated(nodesToReport);
+
         TransferDbCommitter committer(mClient.tctable);
 
         unsigned removed = 0;
@@ -1467,7 +1401,8 @@ bool NodeManager::loadNodes_internal()
 
     sharedNode_vector rootnodes = getRootNodes_internal();
     // We can't base in `user.sharing` because it's set yet. We have to get from DB
-    sharedNode_vector inshares = getNodesWithInShares_internal();  // it includes nested inshares
+    sharedNode_vector inshares =
+        getNodesWithSharesOrLink_internal(ShareType_t::IN_SHARES); // it includes nested inshares
 
     for (auto &node : rootnodes)
     {
@@ -1677,6 +1612,7 @@ void NodeManager::setCacheLRUMaxSize(uint64_t cacheLRUMaxSize)
 
 uint64_t NodeManager::getNumNodesAtCacheLRU() const
 {
+    LockGuard g(mMutex);
     return mCacheLRU.size();
 }
 
@@ -1938,7 +1874,7 @@ void NodeManager::addChild_internal(NodeHandle parent, NodeHandle child, Node* n
     // The NodeManagerNode could have been added in add node, only update the child
     if (!pair.first->second.mChildren)
     {
-        pair.first->second.mChildren = ::mega::make_unique<std::map<NodeHandle,  NodeManagerNode*>>();
+        pair.first->second.mChildren = std::make_unique<std::map<NodeHandle,  NodeManagerNode*>>();
     }
 
     NodeManagerNode *nodeManagerNode = nullptr;
@@ -2003,7 +1939,7 @@ sharedNode_vector NodeManager::getRootNodesAndInshares()
     return rootnodes;
 }
 
-sharedNode_vector NodeManager::processUnserializedNodes(const vector<pair<NodeHandle, NodeSerialized>>& nodesFromTable, const NodeSearchFilter& filter, CancelToken cancelFlag)
+sharedNode_vector NodeManager::processUnserializedNodes(const vector<pair<NodeHandle, NodeSerialized>>& nodesFromTable, CancelToken cancelFlag)
 {
     assert(mMutex.owns_lock());
 
@@ -2015,16 +1951,6 @@ sharedNode_vector NodeManager::processUnserializedNodes(const vector<pair<NodeHa
         if (cancelFlag.isCancelled()) break;
 
         shared_ptr<Node> n = getNodeInRAM(nodeIt.first);
-        NodeHandle ancestorHandle = NodeHandle().set6byte(filter.byLocationHandle());
-
-        if (!ancestorHandle.isUndef())  // filter results by subtree (nodeHandle)
-        {
-            bool skip = n ? !n->isAncestor(ancestorHandle)
-                          : !isAncestor(nodeIt.first, ancestorHandle, cancelFlag);
-
-            if (skip) continue;
-        }
-
         if (!n)
         {
             n = getNodeFromNodeSerialized(nodeIt.second);
@@ -2034,42 +1960,6 @@ sharedNode_vector NodeManager::processUnserializedNodes(const vector<pair<NodeHa
                 return nodes;
             }
         }
-
-        // filter by sensitivity when it was inherited  --  should probably
-        // be [part of] a function passed to the sql query
-        if (filter.bySensitivity() && n->isSensitiveInherited()) continue;
-
-        nodes.push_back(n);
-    }
-
-    return nodes;
-}
-
-sharedNode_vector NodeManager::processUnserializedChildren(const vector<pair<NodeHandle, NodeSerialized>>& childrenFromTable, const NodeSearchFilter& filter, CancelToken cancelFlag)
-{
-    assert(mMutex.owns_lock());
-
-    sharedNode_vector nodes;
-
-    for (const auto& child : childrenFromTable)
-    {
-        // Check pointer and value
-        if (cancelFlag.isCancelled()) break;
-
-        shared_ptr<Node> n = getNodeInRAM(child.first);
-        if (!n)
-        {
-            n = getNodeFromNodeSerialized(child.second);
-            if (!n)
-            {
-                nodes.clear();
-                return nodes;
-            }
-        }
-
-        // filter by sensitivity when it was inherited  --  should probably
-        // be [part of] a function passed to the sql query
-        if (filter.bySensitivity() && n->isSensitiveInherited()) continue;
 
         nodes.push_back(n);
     }

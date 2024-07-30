@@ -26,7 +26,7 @@ bool ProcessWithInterceptedOutput::run(const vector<string>& args, const unorder
     }
 
     // clean-up for previous run
-    mProc = make_unique<Process>();
+    mProc = std::make_unique<Process>();
     mOutBuffer.clear();
     mErrBuffer.clear();
     mExitReported = false;
@@ -171,6 +171,16 @@ void GTestListProc::onOutLine(string&& line)
     {
         std::cerr << "ERROR: Test suite name should have been present until now" << std::endl;
         return;
+    }
+
+    // Remove parameterized test suffix.
+    {
+        // Does this test have a suffix?
+        auto i = line.find_first_of('#');
+
+        // Test has a suffix.
+        if (i != std::string::npos)
+            line.erase(i);
     }
 
     string testCase = Utils::trim(line);
@@ -685,6 +695,33 @@ string RuntimeArgValues::getLog() const
 /// class GTestParallelRunner
 ///
 
+GTestParallelRunner::GTestParallelRunner(RuntimeArgValues&& commonArgs):
+    mCommonArgs(std::move(commonArgs))
+{
+#ifdef WIN32
+    // JobObject to manage the subprocess
+    mJobObject = CreateJobObject(nullptr, nullptr);
+    if (mJobObject)
+    {
+        JOBOBJECT_EXTENDED_LIMIT_INFORMATION info = {};
+        // Processes in the job object will be terminated
+        // when the handle is closed
+        info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+        SetInformationJobObject(mJobObject, JobObjectExtendedLimitInformation, &info, sizeof(info));
+    }
+#endif
+}
+
+GTestParallelRunner::~GTestParallelRunner()
+{
+#ifdef WIN32
+    if (mJobObject)
+    {
+        CloseHandle(mJobObject);
+    }
+#endif
+}
+
 int GTestParallelRunner::run()
 {
     mFinalResult = 0;
@@ -806,6 +843,19 @@ bool GTestParallelRunner::runTest(size_t workerIdx, string&& name)
     testProcess.hideMemLeaks(mCommonArgs.hidingWorkerMemLeaks());
     bool running = testProcess.run(procArgs, envVars, workerIdx, std::move(name));
 
+#ifdef WIN32
+    // Assign running process to the Job Object
+    if (mJobObject && running)
+    {
+        HANDLE proc =
+            OpenProcess(PROCESS_SET_QUOTA | PROCESS_TERMINATE, false, testProcess.getPid());
+        if (proc)
+        {
+            AssignProcessToJobObject(mJobObject, proc);
+            CloseHandle(proc);
+        }
+    }
+#endif
     return running;
 }
 
@@ -896,10 +946,20 @@ void GTestParallelRunner::summary()
 }
 
 
-std::string getLogFileName(size_t useIdx, const std::string& useDescription)
+std::string getLogFileName(size_t useIdx, std::string useDescription)
 {
-    return useDescription.empty() ? getDefaultLogName() :
-           Utils::replace(getDefaultLogName(), ".", '.' + std::to_string(useIdx) + '.' + useDescription + '.');
+    if (useDescription.empty())
+        return getDefaultLogName();
+
+    std::replace(useDescription.begin(), useDescription.end(), '/', '_');
+
+    return Utils::replace(getDefaultLogName(),
+                          ".",
+                          '.'
+                          + std::to_string(useIdx)
+                          + '.'
+                          + std::move(useDescription)
+                          + '.');
 }
 
 std::string getCurrentTimestamp(bool includeDate)
@@ -913,13 +973,15 @@ std::string getCurrentTimestamp(bool includeDate)
 
     auto millis = transformed % 1000;
 
-    std::time_t tt;
-    tt = system_clock::to_time_t ( currentTime );
-    auto timeinfo = localtime (&tt);
+    m_time_t tt = system_clock::to_time_t ( currentTime );
+    struct tm timeinfo;
+
+    m_localtime(tt, &timeinfo);
+
     string fmt = "%H:%M:%S";
     if (includeDate) fmt = "%Y-%m-%d_" + fmt;
-    size_t timeStrSz = strftime (buffer, buffSz, fmt.c_str(),timeinfo);
-    snprintf(buffer + timeStrSz , buffSz - timeStrSz, ":%03d",(int)millis);
+    size_t timeStrSz = strftime(buffer, buffSz, fmt.c_str(), &timeinfo);
+    snprintf(buffer + timeStrSz, buffSz - timeStrSz, ":%03d", (int)millis);
 
     return std::string(buffer);
 }

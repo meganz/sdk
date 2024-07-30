@@ -35,7 +35,16 @@
 
 namespace mega {
 
-const vector<string> Node::attributesToCopyIntoPreviousVersions{ "fav", "lbl", "sen" };
+const vector<string> Node::attributesToCopyIntoPreviousVersions{
+    "fav",
+    "lbl",
+    "sen",
+    MegaClient::NODE_ATTRIBUTE_DESCRIPTION,
+    MegaClient::NODE_ATTRIBUTE_TAGS};
+
+const std::string Node::BLANK("BLANK");
+const std::string Node::CRYPTO_ERROR("CRYPTO_ERROR");
+const std::string Node::NO_KEY("NO_KEY");
 
 Node::Node(MegaClient& cclient, NodeHandle h, NodeHandle ph,
            nodetype_t t, m_off_t s, handle u, const char* fa, m_time_t ts)
@@ -385,41 +394,6 @@ bool Node::isVideo(const std::string& ext)
     return videoExtensions().find(getExtensionNameId(ext)) != videoExtensions().end();
 }
 
-bool Node::isVideoWithFileAttributes() const
-{
-    std::string ext;
-    if (!Node::getExtension(ext, displayname()))
-    {
-        return false;
-    }
-
-    if (Node::hasfileattribute(&fileattrstring, fa_media) && nodekey().size() == FILENODEKEYLENGTH)
-    {
-#ifdef USE_MEDIAINFO
-        if (client->mediaFileInfo.mediaCodecsReceived)
-        {
-            MediaProperties mp = MediaProperties::decodeMediaPropertiesAttributes(fileattrstring, (uint32_t*)(nodekey().data() + FILENODEKEYLENGTH / 2));
-            unsigned videocodec = mp.videocodecid;
-            if (!videocodec && mp.shortformat)
-            {
-                auto& v = client->mediaFileInfo.mediaCodecs.shortformats;
-                if (mp.shortformat < v.size())
-                {
-                    videocodec = v[mp.shortformat].videocodecid;
-                }
-            }
-            // approximation: the webclient has a lot of logic to determine if a particular codec is playable in that browser.  We'll just base our decision on the presence of a video codec.
-            if (!videocodec)
-            {
-                return false; // otherwise double-check by extension
-            }
-        }
-#endif
-    }
-
-    return isVideo(ext);
-}
-
 bool Node::isAudio(const std::string& ext)
 {
     nameid extNameid = getExtensionNameId(ext);
@@ -492,6 +466,12 @@ bool Node::isOfMimetype(MimeType_t mimetype, const string& ext)
         return Node::isSpreadsheet(ext);
     case MimeType_t::MIME_TYPE_ALL_DOCS:
         return Node::isDocument(ext) || Node::isPdf(ext) || Node::isPresentation(ext) || Node::isSpreadsheet(ext);
+    case MimeType_t::MIME_TYPE_OTHERS:
+        return ext.empty() ||
+               !(Node::isPhoto(ext) || Node::isAudio(ext) || Node::isVideo(ext) ||
+                 Node::isDocument(ext) || Node::isPdf(ext) || Node::isPresentation(ext) ||
+                 Node::isArchive(ext) || Node::isProgram(ext) || Node::isMiscellaneous(ext) ||
+                 Node::isSpreadsheet(ext));
     default:
         return false;
     }
@@ -509,7 +489,7 @@ MimeType_t Node::getMimetype(const std::string& ext)
     if (isArchive(ext))       return MimeType_t::MIME_TYPE_ARCHIVE;
     if (isProgram(ext))       return MimeType_t::MIME_TYPE_PROGRAM;
     if (isMiscellaneous(ext)) return MimeType_t::MIME_TYPE_MISC;
-    return MimeType_t::MIME_TYPE_UNKNOWN;
+    return MimeType_t::MIME_TYPE_OTHERS;
 }
 
 nameid Node::getExtensionNameId(const std::string& ext)
@@ -552,294 +532,10 @@ void Node::setKey(const string& key)
     assert(client->mAppliedKeyNodeCount >= 0);
 }
 
-std::shared_ptr<Node> Node::unserialize(MegaClient& client, const std::string *d, bool fromOldCache, std::list<std::unique_ptr<NewShare>>& ownNewshares)
+std::shared_ptr<Node> Node::unserialize(MegaClient& client, const std::string* d, bool fromOldCache, std::list<std::unique_ptr<NewShare>>& ownNewshares)
 {
-    handle h, ph;
-    nodetype_t t;
-    m_off_t s;
-    handle u;
-    string nodekey;
-    const char* fa;
-    m_time_t ts;
-    const byte* skey;
-    const char* ptr = d->data();
-    const char* end = ptr + d->size();
-    unsigned short ll;
-    int i;
-    char isExported = '\0';
-    char hasLinkCreationTs = '\0';
-
-    if (ptr + sizeof s + 2 * MegaClient::NODEHANDLE + MegaClient::USERHANDLE + 2 * sizeof ts + sizeof ll > end)
-    {
-        return NULL;
-    }
-
-    s = MemAccess::get<m_off_t>(ptr);
-    ptr += sizeof s;
-
-    if (s < 0 && s >= -RUBBISHNODE)
-    {
-        t = (nodetype_t)-s;
-    }
-    else
-    {
-        t = FILENODE;
-    }
-
-    h = 0;
-    memcpy((char*)&h, ptr, MegaClient::NODEHANDLE);
-    ptr += MegaClient::NODEHANDLE;
-
-    ph = 0;
-    memcpy((char*)&ph, ptr, MegaClient::NODEHANDLE);
-    ptr += MegaClient::NODEHANDLE;
-
-    if (!ph)
-    {
-        ph = UNDEF;
-    }
-
-    u = 0;
-    memcpy((char*)&u, ptr, MegaClient::USERHANDLE);
-    ptr += MegaClient::USERHANDLE;
-
-    // FIME: use m_time_t / Serialize64 instead
-    ptr += sizeof(time_t);
-
-    ts = (uint32_t)MemAccess::get<time_t>(ptr);
-    ptr += sizeof(time_t);
-
-    if ((t == FILENODE) || (t == FOLDERNODE))
-    {
-        int keylen = ((t == FILENODE) ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH);
-
-        if (ptr + keylen + 8 + sizeof(short) > end)
-        {
-            return NULL;
-        }
-
-        nodekey.assign(ptr, keylen);
-        ptr += keylen;
-    }
-
-    if (t == FILENODE)
-    {
-        ll = MemAccess::get<unsigned short>(ptr);
-        ptr += sizeof ll;
-
-        if (ptr + ll > end)
-        {
-            return NULL;
-        }
-
-        fa = ptr;
-        ptr += ll;
-    }
-    else
-    {
-        fa = NULL;
-    }
-
-    if (ptr + sizeof isExported + sizeof hasLinkCreationTs > end)
-    {
-        return NULL;
-    }
-
-    isExported = MemAccess::get<char>(ptr);
-    ptr += sizeof(isExported);
-
-    hasLinkCreationTs = MemAccess::get<char>(ptr);
-    ptr += sizeof(hasLinkCreationTs);
-
-    auto authKeySize = MemAccess::get<char>(ptr);
-
-    ptr += sizeof authKeySize;
-    const char *authKey = nullptr;
-    if (authKeySize)
-    {
-        authKey = ptr;
-        ptr += authKeySize;
-    }
-
-    if (ptr + (unsigned)*ptr > end)
-    {
-        return nullptr;
-    }
-
-    auto encrypted = *ptr && ptr[1];
-
-    ptr += (unsigned)*ptr + 1;
-
-    for (i = 4; i--;)
-    {
-        if (ptr + (unsigned char)*ptr < end)
-        {
-            ptr += (unsigned char)*ptr + 1;
-        }
-    }
-
-    if (ptr + sizeof(short) > end)
-    {
-        return NULL;
-    }
-
-    short numshares = MemAccess::get<short>(ptr);
-    ptr += sizeof(numshares);
-
-    if (numshares)
-    {
-        if (ptr + SymmCipher::KEYLENGTH > end)
-        {
-            return NULL;
-        }
-
-        skey = (const byte*)ptr;
-        ptr += SymmCipher::KEYLENGTH;
-    }
-    else
-    {
-        skey = NULL;
-    }
-
-    shared_ptr<Node> n = std::make_shared<Node>(client, NodeHandle().set6byte(h), NodeHandle().set6byte(ph), t, s, u, fa, ts);
-
-    // read inshare, outshares, or pending shares
-    while (numshares)   // inshares: -1, outshare/s: num_shares
-    {
-        int direction = (numshares > 0) ? -1 : 0;
-        std::unique_ptr<NewShare> newShare(Share::unserialize(direction, h, skey, &ptr, end));
-
-        if (!newShare)
-        {
-            LOG_err << "Failed to unserialize Share";
-            break;
-        }
-
-        if (fromOldCache)
-        {
-            // mergenewshare should be called when users and pcr are loaded
-            // It's used only when we are migrating the cache
-            // mergenewshares is called when all nodes, user and pcr are loaded (fetchsc)
-            client.newshares.push_back(newShare.release());
-        }
-        else
-        {
-            ownNewshares.push_back(std::move(newShare));
-        }
-
-        if (numshares > 0)  // outshare/s
-        {
-            numshares--;
-        }
-        else    // inshare
-        {
-            break;
-        }
-    }
-
-    ptr = n->attrs.unserialize(ptr, end);
-    if (!ptr)
-    {
-        LOG_err << "Failed to unserialize attrs";
-        assert(false);
-        return NULL;
-    }
-
-    if (fromOldCache)
-    {
-        // It's needed to re-normalize node names because
-        // the updated version of utf8proc doesn't provide
-        // exactly the same output as the previous one that
-        // we were using
-        attr_map::iterator it = n->attrs.map.find('n');
-        if (it != n->attrs.map.end())
-        {
-            LocalPath::utf8_normalize(&(it->second));
-        }
-    }
-    // else from new cache, names has been normalized before to store in DB
-
-    if (isExported)
-    {
-        if (ptr + MegaClient::NODEHANDLE + sizeof(m_time_t) + sizeof(bool) > end)
-        {
-            return NULL;
-        }
-
-        handle ph = 0;
-        memcpy((char*)&ph, ptr, MegaClient::NODEHANDLE);
-        ptr += MegaClient::NODEHANDLE;
-        m_time_t ets = MemAccess::get<m_time_t>(ptr);
-        ptr += sizeof(ets);
-        bool takendown = MemAccess::get<bool>(ptr);
-        ptr += sizeof(takendown);
-
-        m_time_t cts = 0;
-        if (hasLinkCreationTs)
-        {
-            cts = MemAccess::get<m_time_t>(ptr);
-            ptr += sizeof(cts);
-        }
-
-        n->plink.reset(new PublicLink(ph, cts, ets, takendown, authKey ? authKey : ""));
-    }
-
-    if (encrypted)
-    {
-        // Have we encoded the node key data's length?
-        if (ptr + sizeof(uint32_t) > end)
-        {
-            return nullptr;
-        }
-
-        auto length = MemAccess::get<uint32_t>(ptr);
-        ptr += sizeof(length);
-
-        // Have we encoded the node key data?
-        if (ptr + length > end)
-        {
-            return nullptr;
-        }
-
-        nodekey.assign(ptr, length);
-        ptr += length;
-
-        // Have we encoded the length of the attribute string?
-        if (ptr + sizeof(uint32_t) > end)
-        {
-            return nullptr;
-        }
-
-        length = MemAccess::get<uint32_t>(ptr);
-        ptr += sizeof(length);
-
-        // Have we encoded the attribute string?
-        if (ptr + length > end)
-        {
-            return nullptr;
-        }
-
-        n->attrstring.reset(new string(ptr, length));
-        ptr += length;
-    }
-
-    n->setKey(nodekey); // it can be decrypted or encrypted
-
-    if (!encrypted)
-    {
-        // only if the node is not encrypted, we can generate a valid
-        // fingerprint, based on the node's attribute 'c'
-        n->setfingerprint();
-    }
-
-    if (ptr == end)
-    {
-        return n;
-    }
-    else
-    {
-        return NULL;
-    }
+    NodeData nd(d->data(), d->size(), NodeData::COMPONENT_ALL);
+    return nd.createNode(client, fromOldCache, ownNewshares);
 }
 
 // serialize node - nodes with pending or RSA keys are unsupported
@@ -1039,7 +735,7 @@ byte* Node::decryptattr(SymmCipher* key, const char* attrstring, size_t attrstrl
     if (attrstrlen)
     {
         int l = int(attrstrlen * 3 / 4 + 3);
-        std::unique_ptr<byte[]> buf(new byte[l]); // ::mega::make_unique<> does not support T[] specialisation
+        auto buf = std::make_unique<byte[]>(l);
 
         l = Base64::atob(attrstring, buf.get(), l);
 
@@ -1062,24 +758,15 @@ byte* Node::decryptattr(SymmCipher* key, const char* attrstring, size_t attrstrl
 
 void Node::parseattr(byte *bufattr, AttrMap &attrs, m_off_t size, m_time_t &mtime , string &fileName, string &fingerprint, FileFingerprint &ffp)
 {
-    JSON json;
-    nameid name;
-    string *t;
-
-    json.begin((char*)bufattr + 5);
-    while ((name = json.getnameid()) != EOO && json.storeobject((t = &attrs.map[name])))
-    {
-        JSON::unescape(t);
-    }
-
+    attrs.fromjson(reinterpret_cast<char*>(bufattr) + 5);
     attr_map::iterator it = attrs.map.find('n');   // filename
     if (it == attrs.map.end())
     {
-        fileName = "CRYPTO_ERROR";
+        fileName = CRYPTO_ERROR;
     }
     else if (it->second.empty())
     {
-        fileName = "BLANK";
+        fileName = BLANK;
     }
 
     it = attrs.map.find('c');   // checksum
@@ -1109,27 +796,25 @@ void Node::setattr()
 
     if (attrstring && (cipher = nodecipher()) && (buf = decryptattr(cipher, attrstring->c_str(), attrstring->size())))
     {
-        JSON json;
-        nameid name;
-        string* t;
-
         AttrMap oldAttrs(attrs);
         attrs.map.clear();
-        json.begin((char*)buf + 5);
+        attrs.fromjson(reinterpret_cast<char*>(buf) + 5);
 
-        while ((name = json.getnameid()) != EOO && json.storeobject((t = &attrs.map[name])))
-        {
-            JSON::unescape(t);
-
-            if (name == 'n')
-            {
-                LocalPath::utf8_normalize(t);
-            }
-        }
+        auto it = attrs.map.find('n');
+        if (it != std::end(attrs.map)) LocalPath::utf8_normalize(&it->second);
 
         changed.name = attrs.hasDifferentValue('n', oldAttrs.map);
         changed.favourite = attrs.hasDifferentValue(AttrMap::string2nameid("fav"), oldAttrs.map);
         changed.sensitive = attrs.hasDifferentValue(AttrMap::string2nameid("sen"), oldAttrs.map);
+
+        const auto pwdNameid = AttrMap::string2nameid(MegaClient::NODE_ATTR_PASSWORD_MANAGER);
+        changed.pwd = attrs.hasDifferentValue(pwdNameid, oldAttrs.map);
+
+        const auto descriptionNameid = AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_DESCRIPTION);
+        changed.description = attrs.hasDifferentValue(descriptionNameid, oldAttrs.map);
+
+        const auto tagsNameid = AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_TAGS);
+        changed.tags = attrs.hasDifferentValue(tagsNameid, oldAttrs.map);
 
         setfingerprint();
 
@@ -1307,8 +992,8 @@ const char* Node::displayname() const
     // not yet decrypted
     if (attrstring)
     {
-        LOG_debug << "NO_KEY " << type << " " << size << " " << Base64Str<MegaClient::NODEHANDLE>(nodehandle);
-        return "NO_KEY";
+        LOG_debug << NO_KEY << " " << type << " " << size << " " << Base64Str<MegaClient::NODEHANDLE>(nodehandle);
+        return NO_KEY.c_str();
     }
 
     attr_map::const_iterator it;
@@ -1319,15 +1004,15 @@ const char* Node::displayname() const
     {
         if (type < ROOTNODE || type > RUBBISHNODE)
         {
-            LOG_debug << "CRYPTO_ERROR " << type << " " << size << " " << nodehandle;
+            LOG_debug << CRYPTO_ERROR << " " << type << " " << size << " " << nodehandle;
         }
-        return "CRYPTO_ERROR";
+        return CRYPTO_ERROR.c_str();
     }
 
     if (!it->second.size())
     {
-        LOG_debug << "BLANK " << type << " " << size << " " << nodehandle;
-        return "BLANK";
+        LOG_debug << BLANK << " " << type << " " << size << " " << nodehandle;
+        return BLANK.c_str();
     }
 
     return it->second.c_str();
@@ -1399,7 +1084,7 @@ bool Node::isIncludedForMimetype(MimeType_t mimetype, bool checkPreview) const
     std::string extension;
     if (!getExtension(extension, displayname()))
     {
-        return false;
+        return MimeType_t::MIME_TYPE_OTHERS == mimetype;
     }
 
     return Node::isOfMimetype(mimetype, extension);
@@ -1480,7 +1165,7 @@ bool Node::applykey()
             if (h != me)
             {
                 // this is a share node handle - check if share key is available
-                if (client->mKeyManager.isSecure() && client->mKeyManager.generation())
+                if (client->mKeyManager.generation())
                 {
                     std::string key = client->mKeyManager.getShareKey(h);
                     if (key.size())
@@ -1745,6 +1430,443 @@ void Node::setpubliclink(handle ph, m_time_t cts, m_time_t ets, bool takendown, 
         plink->takendown = takendown;
         plink->mAuthKey = authKey;
     }
+}
+
+bool Node::isPasswordNode() const
+{
+    return ((type == FOLDERNODE) &&
+            (attrs.map.contains(AttrMap::string2nameid(MegaClient::NODE_ATTR_PASSWORD_MANAGER))));
+}
+
+bool Node::isPasswordNodeFolder() const
+{
+    assert(client);
+    const auto nhBase = client->getPasswordManagerBase();
+    return ((type == FOLDERNODE) && (nodeHandle() == nhBase || isAncestor(nhBase))) && !isPasswordNode();
+}
+
+
+bool NodeData::readComponents()
+{
+    mReadAttempted = true;
+    const char* ptr = mStart;
+
+    if (!ptr || ptr + sizeof(m_off_t) + MegaClient::NODEHANDLE > mEnd)
+    {
+        return false;
+    }
+
+    /// node type
+    mSize = MemAccess::get<m_off_t>(ptr);
+    ptr += sizeof(m_off_t);
+    mType = (mSize < 0 && mSize >= -RUBBISHNODE) ? (nodetype_t)-mSize : FILENODE;
+    int nodeKeyLen = (mType == FILENODE) ? FILENODEKEYLENGTH : ((mType == FOLDERNODE) ? FOLDERNODEKEYLENGTH : 0);
+
+    /// node handle
+    memcpy((char*)&mHandle, ptr, MegaClient::NODEHANDLE);
+    ptr += MegaClient::NODEHANDLE;
+
+    // size of next data chunk
+    constexpr int lenBeforeNodeKey = MegaClient::NODEHANDLE + MegaClient::USERHANDLE + 2 * sizeof(time_t);
+
+    if (mComp == COMPONENT_ALL)
+    {
+        if (ptr + lenBeforeNodeKey + nodeKeyLen > mEnd)
+        {
+            return false;
+        }
+
+        /// parent handle
+        memcpy((char*)&mParentHandle, ptr, MegaClient::NODEHANDLE);
+        if (!mParentHandle)
+        {
+            mParentHandle = UNDEF;
+        }
+        ptr += MegaClient::NODEHANDLE;
+
+        /// user handle
+        memcpy((char*)&mUserHandle, ptr, MegaClient::USERHANDLE);
+        ptr += MegaClient::USERHANDLE;
+
+        /// ctime
+        ptr += sizeof(time_t); // FIME: use m_time_t / Serialize64 instead
+        mCtime = (uint32_t)MemAccess::get<time_t>(ptr);
+        ptr += sizeof(time_t);
+
+        /// node key
+        if ((mType == FILENODE) || (mType == FOLDERNODE))
+        {
+            if (ptr + nodeKeyLen > mEnd)
+            {
+                return false;
+            }
+
+            mNodeKey.assign(ptr, nodeKeyLen);
+            ptr += nodeKeyLen;
+        }
+    }
+    else
+    {
+        ptr += lenBeforeNodeKey + nodeKeyLen;
+    }
+
+    /// file attributes
+    if (mType == FILENODE)
+    {
+        if (ptr + sizeof(unsigned short) > mEnd)
+        {
+            return false;
+        }
+        unsigned short faLen = MemAccess::get<unsigned short>(ptr);
+        ptr += sizeof(unsigned short);
+
+        if (mComp == COMPONENT_ALL)
+        {
+            if (ptr + faLen > mEnd)
+            {
+                return false;
+            }
+            mFileAttributes.assign(ptr, faLen);
+        }
+        ptr += faLen;
+    }
+
+    if (ptr + 3 > mEnd)
+    {
+        return false;
+    }
+
+    /// is exported
+    mIsExported = ptr[0];
+    /// has link creation Ts
+    char hasLinkCreationTs = ptr[1];
+
+    if (mComp == COMPONENT_ALL)
+    {
+        /// auth key size
+        char authKeySize = ptr[2];
+        ptr += 3;
+
+        if (authKeySize)
+        {
+            /// auth key
+            if (ptr + authKeySize > mEnd)
+            {
+                return false;
+            }
+            mAuthKey.assign(ptr, authKeySize);
+            ptr += authKeySize;
+        }
+    }
+    else
+    {
+        ptr += 3 + ptr[2];
+    }
+
+    /// is encrypted
+    if (ptr + 2 > mEnd)
+    {
+        return false;
+    }
+    mIsEncrypted = ptr[0] && ptr[1];
+    ptr += (unsigned)*ptr + 1;
+
+    /// skip some bytes
+    for (int i = 4; i--;)
+    {
+        if (ptr + 1 > mEnd)
+        {
+            return false;
+        }
+        ptr += (unsigned char)*ptr + 1;
+    }
+
+    /// share count
+    if (ptr + sizeof(short) > mEnd)
+    {
+        return false;
+    }
+    short shareCount = MemAccess::get<short>(ptr);
+    ptr += sizeof(short);
+
+    if (shareCount)
+    {
+        if (mComp == COMPONENT_ALL)
+        {
+            /// share key
+            if (ptr + SymmCipher::KEYLENGTH > mEnd)
+            {
+                return false;
+            }
+            mShareKey.reset(new byte[SymmCipher::KEYLENGTH]);
+            std::copy(ptr, ptr + SymmCipher::KEYLENGTH, mShareKey.get());
+        }
+        ptr += SymmCipher::KEYLENGTH;
+
+        mShareDirection = (shareCount > 0) ? -1 : 0;
+
+        // inshare, outshares, or pending shares
+        for (; shareCount; --shareCount)   // inshares: -1, outshare/s: positive value
+        {
+            // share size, see Share::unserialize()
+            size_t shareSize = sizeof(handle) + sizeof(m_time_t) + 1;
+            if (ptr + shareSize + 1 > mEnd)
+            {
+                return false;
+            }
+            char version_flag = ptr[shareSize];
+            shareSize += 1 + (version_flag >= 1 ? sizeof(handle) : 0);
+
+            if (mComp == COMPONENT_ALL)
+            {
+                if (ptr + shareSize > mEnd)
+                {
+                    return false;
+                }
+                mShares.emplace_back(shareSize);
+                std::copy(ptr, ptr + shareSize, mShares.back().data());
+            }
+
+            ptr += shareSize;
+
+            if (!mShareDirection)    // inshare
+            {
+                break;
+            }
+        }
+    }
+
+    /// node attributes
+    ptr = mAttrs.unserialize(ptr, mEnd);
+    if (!ptr)
+    {
+        LOG_err << "Failed to unserialize attrs";
+        assert(ptr);
+        return false;
+    }
+
+    /// public link
+    if (mIsExported)
+    {
+        if (mComp == COMPONENT_ALL)
+        {
+            if (ptr + MegaClient::NODEHANDLE + sizeof(m_time_t) + sizeof(bool) > mEnd)
+            {
+                return false;
+            }
+
+            memcpy((char*)&mPubLinkHandle, ptr, MegaClient::NODEHANDLE);
+            ptr += MegaClient::NODEHANDLE;
+            mPubLinkEts = MemAccess::get<m_time_t>(ptr);
+            ptr += sizeof(mPubLinkEts);
+            mPubLinkTakenDown = MemAccess::get<bool>(ptr);
+            ptr += sizeof(mPubLinkTakenDown);
+
+            if (hasLinkCreationTs)
+            {
+                mPubLinkCts = MemAccess::get<m_time_t>(ptr);
+                ptr += sizeof(m_time_t);
+            }
+        }
+        else
+        {
+            ptr += MegaClient::NODEHANDLE + sizeof(m_time_t) + sizeof(bool) + (hasLinkCreationTs ? sizeof(m_time_t) : 0);
+        }
+    }
+
+    if (mIsEncrypted)
+    {
+        // Have we encoded the node key data's length?
+        if (ptr + sizeof(uint32_t) > mEnd)
+        {
+            return false;
+        }
+        uint32_t length = MemAccess::get<uint32_t>(ptr);
+        ptr += sizeof(uint32_t);
+
+        if (mComp == COMPONENT_ALL)
+        {
+            // Have we encoded the node key data?
+            if (ptr + length > mEnd)
+            {
+                return false;
+            }
+            mNodeKey.assign(ptr, length);
+        }
+        ptr += length;
+
+        // Have we encoded the length of the attribute string?
+        if (ptr + sizeof(uint32_t) > mEnd)
+        {
+            return false;
+        }
+        length = MemAccess::get<uint32_t>(ptr);
+        ptr += sizeof(uint32_t);
+
+        if (mComp == COMPONENT_ALL)
+        {
+            // Have we encoded the attribute string?
+            if (ptr + length > mEnd)
+            {
+                return false;
+            }
+            mAttrString.assign(ptr, length);
+        }
+        ptr += length;
+    }
+
+    mReadSucceeded = ptr == mEnd;
+
+    return mReadSucceeded;
+}
+
+m_time_t NodeData::getMtime()
+{
+    if (readFailed() || mType != FILENODE)
+    {
+        return 0;
+    }
+
+    auto attrIt = mAttrs.map.find('c');
+    if (attrIt != mAttrs.map.end())
+    {
+        FileFingerprint fp;
+        if (fp.unserializefingerprint(&attrIt->second) && fp.isvalid)
+        {
+            return fp.mtime;
+        }
+    }
+
+    return 0;
+}
+
+int NodeData::getLabel()
+{
+    if (readFailed())
+    {
+        return LBL_UNKNOWN;
+    }
+
+    static const nameid labelId = AttrMap::string2nameid("lbl");
+    auto attrIt = mAttrs.map.find(labelId);
+
+    return attrIt == mAttrs.map.end() ? LBL_UNKNOWN : std::atoi(attrIt->second.c_str());
+}
+
+std::string NodeData::getDescription()
+{
+    if (readFailed())
+    {
+        return std::string();
+    }
+
+    static const nameid descriptionId =
+        AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_DESCRIPTION);
+    auto attrIt = mAttrs.map.find(descriptionId);
+
+    return attrIt == mAttrs.map.end() ? std::string() : attrIt->second.c_str();
+}
+
+std::string NodeData::getTags()
+{
+    if (readFailed())
+    {
+        return std::string();
+    }
+
+    static const nameid tagId = AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_TAGS);
+    auto attrIt = mAttrs.map.find(tagId);
+
+    return attrIt == mAttrs.map.end() ? std::string() : attrIt->second.c_str();
+}
+
+handle NodeData::getHandle()
+{
+    if (readFailed())
+    {
+        return UNDEF;
+    }
+
+    return mHandle;
+}
+
+std::unique_ptr<Node> NodeData::createNode(MegaClient& client, bool fromOldCache, std::list<std::unique_ptr<NewShare>>& ownNewshares)
+{
+    assert(mComp == COMPONENT_ALL);
+    if (readFailed())
+    {
+        return nullptr;
+    }
+
+    unique_ptr<Node> n = std::make_unique<Node>(client, NodeHandle().set6byte(mHandle), NodeHandle().set6byte(mParentHandle),
+                                                 mType, mSize, mUserHandle, mFileAttributes.c_str(), mCtime);
+
+    // read inshare, outshares, or pending shares
+    for (const auto& s : mShares)
+    {
+        const char* ptr = s.data();
+        NewShare* newShare = Share::unserialize(mShareDirection, mHandle, mShareKey.get(), &ptr, ptr + s.size());
+
+        if (!newShare)
+        {
+            LOG_err << "Failed to unserialize Share";
+            break;
+        }
+
+        if (fromOldCache)
+        {
+            // mergenewshare should be called when users and pcr are loaded
+            // It's used only when we are migrating the cache
+            // mergenewshares is called when all nodes, user and pcr are loaded (fetchsc)
+            client.newshares.push_back(newShare);
+        }
+        else
+        {
+            ownNewshares.emplace_back(newShare);
+        }
+    }
+
+    n->attrs = mAttrs;
+
+    if (fromOldCache)
+    {
+        // It's needed to re-normalize node names because
+        // the updated version of utf8proc doesn't provide
+        // exactly the same output as the previous one that
+        // we were using
+        attr_map::iterator it = n->attrs.map.find('n');
+        if (it != n->attrs.map.end())
+        {
+            LocalPath::utf8_normalize(&(it->second));
+        }
+    }
+    // else from new cache, names has been normalized before to store in DB
+
+    if (mIsExported)
+    {
+        n->plink.reset(new PublicLink(mPubLinkHandle, mPubLinkCts, mPubLinkEts, mPubLinkTakenDown, mAuthKey.c_str()));
+    }
+
+    if (mIsEncrypted)
+    {
+        n->attrstring.reset(new string(mAttrString));
+    }
+
+    n->setKey(mNodeKey); // it can be decrypted or encrypted
+
+    if (!mIsEncrypted)
+    {
+        // only if the node is not encrypted, we can generate a valid
+        // fingerprint, based on the node's attribute 'c'
+        n->setfingerprint();
+    }
+
+    return n;
+}
+
+bool NewNode::hasZeroKey() const
+{
+    return Node::hasZeroKey(nodekey);
 }
 
 PublicLink::PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown, const char *authKey)
@@ -2022,10 +2144,11 @@ void LocalNode::init(nodetype_t ctype, LocalNode* cparent, const LocalPath& cful
     sync->threadSafeState->incrementSyncNodeCount(type, 1);
 }
 
-LocalNode::RareFields::ScanBlocked::ScanBlocked(PrnGen &rng, const LocalPath& lp, LocalNode* ln)
+LocalNode::RareFields::ScanBlocked::ScanBlocked(PrnGen &rng, const LocalPath& lp, LocalNode* ln, Sync* s)
     : scanBlockedTimer(rng)
     , scanBlockedLocalPath(lp)
     , localNode(ln)
+    , sync(s)
 {
     scanBlockedTimer.backoff(Sync::SCANNING_DELAY_DS);
 }
@@ -2173,7 +2296,7 @@ void LocalNode::initiateScanBlocked(bool folderBlocked, bool containsFingerprint
     // Setting node as scan-blocked. The main loop will check it regularly by weak_ptr
     if (!rare().scanBlocked)
     {
-        rare().scanBlocked.reset(new RareFields::ScanBlocked(sync->syncs.rng, getLocalPath(), this));
+        rare().scanBlocked.reset(new RareFields::ScanBlocked(sync->syncs.rng, getLocalPath(), this, sync));
         sync->syncs.scanBlockedPaths.push_back(rare().scanBlocked);
     }
 
@@ -2937,7 +3060,7 @@ FSNode LocalNode::getLastSyncedFSDetails() const
 
     FSNode n;
     n.localname = localname;
-    n.shortname = slocalname ? make_unique<LocalPath>(*slocalname): nullptr;
+    n.shortname = slocalname ? std::make_unique<LocalPath>(*slocalname): nullptr;
     n.type = type;
     n.fsid = fsid_lastSynced;
     n.isSymlink = false;  // todo: store localndoes for symlinks but don't use them?
@@ -2951,7 +3074,7 @@ FSNode LocalNode::getScannedFSDetails() const
 {
     FSNode n;
     n.localname = localname;
-    n.shortname = slocalname ? make_unique<LocalPath>(*slocalname): nullptr;
+    n.shortname = slocalname ? std::make_unique<LocalPath>(*slocalname): nullptr;
     n.type = type;
     n.fsid = fsid_asScanned;
     n.isSymlink = false;  // todo: store localndoes for symlinks but don't use them?
@@ -2993,6 +3116,12 @@ void LocalNode::queueClientUpload(shared_ptr<SyncUpload_inClient> upload, Versio
                 if (mc.treatAsIfFileDataEqual(*n, ext1, *upload, ext2))
                 {
                     cloneNode = n.get();
+                    if (cloneNode->hasZeroKey())
+                    {
+                        LOG_warn << "Clone node key is a zero key!! Avoid cloning node to generate a new key [cloneNode path = '" << cloneNode->displaypath() << "', sourceLocalname = '" << upload->sourceLocalname << "']";
+                        mc.sendevent(99486, "Node has a zerokey");
+                        cloneNode = nullptr;
+                    }
                     break;
                 }
             }
@@ -3073,7 +3202,8 @@ bool LocalNode::transferResetUnlessMatched(direction_t dir, const FileFingerprin
       || transferSP->fingerprint() != fingerprint;
 
     // todo: should we be more accurate than just fingerprint?
-    if (different || (transferSP->wasTerminated && transferSP->mError != API_EKEY))
+    if (different || (transferSP->wasTerminated && transferSP->mError != API_EKEY
+                                                && transferSP->mError != API_EBLOCKED)) // A blocked file causes transfer termination. Avoid retrying the transfer unless unmatched: the node could have been replaced remotely (new version)
     {
         if (uploadPtr && uploadPtr->putnodesStarted)
         {
@@ -3281,7 +3411,7 @@ bool LocalNodeCore::read(const string& source, uint32_t& parentID)
 
 unique_ptr<LocalNode> LocalNode::unserialize(Sync& sync, const string& source, uint32_t& parentID)
 {
-    auto node = ::mega::make_unique<LocalNode>(&sync);
+    auto node = std::make_unique<LocalNode>(&sync);
 
     if (!node->read(source, parentID))
         return nullptr;
@@ -3358,7 +3488,7 @@ WatchResult LocalNode::watch(const LocalPath& path, handle fsid)
     auto result = notifier.addWatch(*this, path, fsid);
 
     // Were we able to add the watch?
-    if (result.second)
+    if (result.second == WatchResult::WR_SUCCESS)
     {
         // Yup so assign the handle.
         mWatchHandle = result.first;
@@ -3783,7 +3913,7 @@ CloudNode::CloudNode(const Node& n)
     , parentType(n.parent ? n.parent->type : TYPE_UNKNOWN)
     , fingerprint(n.fingerprint())
 {
-    assert(fingerprint.isvalid || type != FILENODE);
+    assert(fingerprint.isvalid || type != FILENODE || name.empty()); // Accept NO_NAME nodes to be excluded later
 }
 
 bool CloudNode::isIgnoreFile() const

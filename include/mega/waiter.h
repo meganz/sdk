@@ -22,6 +22,8 @@
 #ifndef MEGA_WAITER_H
 #define MEGA_WAITER_H 1
 
+#include <atomic>
+
 #include "types.h"
 
 namespace mega {
@@ -44,13 +46,17 @@ struct MEGA_API EventTrigger
 struct MEGA_API Waiter
 {
     // current time (processwide)
-    static dstime ds;
+    static std::atomic<dstime> ds;
 
     // set ds to current time
     static void bumpds();
 
+    // This mutex protects concurrent updates of the value stored by the atomic "ds" 
+    // when multiple threads are in bumpds()
+    static std::mutex dsMutex;
+
     // wait ceiling
-    dstime maxds;
+    std::atomic<dstime> maxds;
 
     // begin waiting cycle with timeout
     virtual void init(dstime);

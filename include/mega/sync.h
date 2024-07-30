@@ -539,6 +539,20 @@ public:
     bool processCompletedUploadFromHere(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult, shared_ptr<SyncUpload_inClient>);
     bool checkForCompletedFolderCreateHere(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult);
     bool checkForCompletedCloudMovedToDebris(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult);
+    // Whether the local root node has a scan required.
+    bool isSyncScanning() const;
+    // Check if the current sync is scanning, and set the scanningWasComplete depending on it.
+    // Also sets scanningWasCompletePreviously if scanningWasComplete is true and it is not the initial pass for syncs.
+    bool checkScanningWasComplete();
+    // Clear scanningWasComplete flag without any further checks.
+    void unsetScanningWasComplete();
+    bool scanningWasComplete() const;
+    // Sets movesWereComplete flag if:
+    // mScanningWasCompletePreviously flag is false
+    // The local root node does not have a scan required
+    // The local root node does not have pending moves.
+    bool checkMovesWereComplete();
+    bool movesWereComplete() const;
 
     void recursiveCollectNameConflicts(SyncRow& row, SyncPath& fullPath, list<NameConflict>* ncs, size_t& count, size_t& limit);
     void recursiveCollectNameConflicts(list<NameConflict>* conflicts, size_t* count = nullptr, size_t* limit = nullptr);
@@ -561,6 +575,9 @@ public:
 private:
     string mLastDailyDateTimeDebrisName;
     unsigned mLastDailyDateTimeDebrisCounter = 0;
+    bool mScanningWasComplete{};
+    bool mScanningWasCompletePreviously{};
+    bool mMovesWereComplete{};
 
 public:
     // does the filesystem have stable IDs? (FAT does not)
@@ -903,29 +920,110 @@ struct SyncStallEntry
 
 struct SyncStallInfo
 {
-    using StalledSyncsSet = std::unordered_set<handle>;
     using CloudStallInfoMap = map<string, SyncStallEntry>;
     using LocalStallInfoMap = map<LocalPath, SyncStallEntry>;
 
-    /** No stalls detected */
+    struct StallInfoMaps
+    {
+        CloudStallInfoMap cloud; // Map with cloud-side stalls
+        LocalStallInfoMap local; // Map with local-side stalls
+        static const int MIN_NOPROGRESS_COUNT_FOR_LACK_OF_PROGRESS = 10; // used for hasProgressLack() to report non-immediate stalls
+        static const int MAX_NOPROGRESS_COUNT = 1000000; // Prevent overflow
+
+        // There is no progress. This is reset during syncLoop when all sync have completed the scanning round.
+        bool noProgress{true};
+        // Count noProgress. This is used by non-immediate stalls.
+        // When there is progress lack (hasProgressLack()), the non-immediate stalls will be reported to the app.
+        // This counter is reset upon destruction of a ProgressMonitor, when no stalls have been added to it.
+        int noProgressCount{};
+
+        // Need explicit defaults for the redefinition of operator=
+        StallInfoMaps() = default;
+        StallInfoMaps(StallInfoMaps&&) = default;
+
+        // Move cloud and local maps, copy source noProgress flag and noProgressCount.
+        void moveFromKeepingProgress(StallInfoMaps& source);
+
+        // Use moveFromKeepingProgress()
+        StallInfoMaps& operator=(StallInfoMaps&& other) noexcept;
+        // Defaults needed in order to the operator redefinition above to work properly.
+        StallInfoMaps(const StallInfoMaps& other) = default;
+        StallInfoMaps& operator=(const StallInfoMaps& other) = default;
+
+        // noProgress flag is set and noProgressCount is greater than MIN_NOPROGRESS_COUNT_FOR_LACK_OF_PROGRESS
+        bool hasProgressLack() const;
+
+        // Cloud and local maps are empty
+        bool empty() const;
+
+        // Full size - total number of stalls (cloud + local maps)
+        size_t size() const;
+
+        // Size taking into account only reportable stalls:
+        // all of them (same as size() if hasProgressLack() is true, otherwise only immediate stalls)
+        size_t reportableSize() const;
+
+        // Update noProgressCount if noProgress is true and the count is smaller than MAX_NOPROGRESS_COUNT.
+        void updateNoProgress();
+
+        // Set noProgress flag to true.
+        void setNoProgress();
+
+        // Set noProgress flag to false and reset noProgressCount.
+        void resetNoProgress();
+
+        // Clear cloud and local stall maps. Keep the noProgress flag and noProgressCount counters.
+        void clearStalls();
+    };
+
+    // Map of syncID, struct of <cloud stall map, local stall map, noProgress flag, noProgressCount>
+    using SyncIDtoStallInfoMaps = std::map<handle, StallInfoMaps>;
+    SyncIDtoStallInfoMaps syncStallInfoMaps;
+
+    // No stalls detected
     bool empty() const;
 
-    bool waitingCloud(const string& mapKeyPath,
+    // Add a cloud-side stall issue
+    bool waitingCloud(handle backupId,
+                      const string& mapKeyPath,
                       SyncStallEntry&& e);
 
-    bool waitingLocal(const LocalPath& mapKeyPath,
+    // Add a local-side stall issue
+    bool waitingLocal(handle backupId,
+                      const LocalPath& mapKeyPath,
                       SyncStallEntry&& e);
 
+    // SyncID/BackupID is a key of syncStallInfoMaps
     bool isSyncStalled(handle backupId) const;
 
-    /** Requires user action to resolve */
+    // Requires user action to resolve - immediate stall (noProgress flag and noProgressCount does not have any effect on this stall)
     bool hasImmediateStallReason() const;
 
-    void clear();
+    // At least one StallInfoMaps entry has progress lack
+    bool hasProgressLackStall() const;
 
-    CloudStallInfoMap cloud;
-    LocalStallInfoMap local;
-    StalledSyncsSet stalledSyncs;
+    // Total stalls entries
+    size_t size() const;
+
+    // Total stalls entries that are either immediate or are part of a sync with progress lack
+    size_t reportableSize() const;
+
+    void updateNoProgress();
+
+    void setNoProgress();
+
+    /* Move all stalls from source, removing obsolete keys in source (no stalls entries) and removing keys not present in source */
+    void moveFromButKeepCountersAndClearObsoleteKeys(SyncStallInfo& source);
+
+private:
+    void moveFromButKeepCounters(SyncStallInfo& other);
+
+    void clearObsoleteKeys(SyncStallInfo& other);
+
+#ifndef NDEBUG
+public:
+    void debug() const;
+#endif
 };
 
 struct SyncProblems
@@ -955,7 +1053,7 @@ struct SyncFlags
     bool noProgress = true;
     int noProgressCount = 0;
 
-    bool earlyRecurseExitRequested = false;
+    std::atomic<bool> earlyRecurseExitRequested{false};
 
     // to help with slowing down retries in stall state
     dstime recursiveSyncLastCompletedDs = 0;
@@ -1000,8 +1098,19 @@ using IsImmediateStallPredicate =
 using SyncControllerPtr = std::shared_ptr<SyncController>;
 using SyncControllerWeakPtr = std::weak_ptr<SyncController>;
 
+struct SyncSensitiveData
+{
+    // Attributes necessary to manipulate the sync config database.
+    JSCData jscData;
+
+    // Key necessary to manipulate the sync's state cache.
+    std::string stateCacheKey;
+}; // SyncSensitiveData
+
 struct Syncs
 {
+    void injectSyncSensitiveData(SyncSensitiveData data);
+
     // Retrieve a copy of configured sync settings (thread safe)
     SyncConfigVector getConfigs(bool onlyActive) const;
     bool configById(handle backupId, SyncConfig&) const;
@@ -1190,7 +1299,7 @@ public:
 
     // waiter for sync loop on thread
     shared_ptr<Waiter> waiter;
-    bool skipWait = false;
+    std::atomic<bool> skipWait = false;
 
     // These rules are used to generate ignore files for newly added syncs.
     DefaultFilterChain mNewSyncFilterChain;
@@ -1201,10 +1310,10 @@ public:
     std::timed_mutex mLocalNodeChangeMutex;  // needs to be locked when making changes on this thread; or when accessing from another thread
 
     // flags matching the state we have reported to the app via callbacks
-    bool syncscanstate = false;
-    bool syncBusyState = false;
-    bool syncStallState = false;
-    bool syncConflictState = false;
+    std::atomic<bool> syncscanstate{false};
+    std::atomic<bool> syncBusyState{false};
+    std::atomic<bool> syncStallState{false};
+    std::atomic<bool> syncConflictState{false};
 
     bool mSyncsLoaded = false;
     bool mSyncsResumed = false;
@@ -1215,12 +1324,14 @@ public:
     std::chrono::steady_clock::time_point lastSyncStallsCount{std::chrono::steady_clock::now()};
     static const std::chrono::milliseconds MIN_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT;
     static const std::chrono::milliseconds MAX_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT;
+    static const std::chrono::milliseconds MIN_DELAY_BETWEEN_SYNC_VERBOSE_TIMED; // 5 secs
+    static const std::chrono::milliseconds TIME_WINDOW_FOR_SYNC_VERBOSE_TIMED; // 1 sec
 
-    // for quick lock free reference by MegaApiImpl::syncPathState (don't slow down windows explorer)
-    bool mSyncVecIsEmpty = true;
+    // Lock-free count of syncs currently active.
+    std::atomic<unsigned> mNumSyncsActive{0u};
 
     // directly accessed flag that makes sync-related logging a lot more detailed
-    bool mDetailedSyncLogging = true;
+    std::atomic<bool> mDetailedSyncLogging{true};
 
     // total number of LocalNode objects (only updated by syncs thread)
     std::atomic<int32_t> totalLocalNodes{0};
@@ -1249,9 +1360,11 @@ private:
 
     void proclocaltree(LocalNode* n, LocalTreeProc* tp);
 
-    bool mightAnySyncsHaveMoves();
-    bool isAnySyncSyncing();
-    bool isAnySyncScanning_inThread();
+    bool checkSyncsMovesWereComplete(); // Iterate through syncs, calling Sync::checkMovesgWereComplete(). Returns false if any sync returns false.
+    bool isAnySyncSyncing() const;
+    bool isAnySyncScanning_inThread() const;
+    bool checkSyncsScanningWasComplete_inThread(); // Iterate through syncs, calling Sync::checkScanningWasComplete(). Returns false if any sync returns false.
+    void unsetSyncsScanningWasComplete_inThread(); // Unset scanningWasComplete flag for every sync.
 
     // actually start the sync (on sync thread)
     void startSync_inThread(UnifiedSync& us, const string& debris, const LocalPath& localdebris,
@@ -1266,13 +1379,15 @@ private:
     void appendNewSync_inThread(const SyncConfig&, bool startSync, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath = string());
     void removeSyncAfterDeregistration_inThread(handle backupId, std::function<void(Error)> clientCompletion, std::function<void(MegaClient&, TransferDbCommitter&)> clientRemoveSdsEntryFunction);
     void syncConfigStoreAdd_inThread(const SyncConfig& config, std::function<void(error)> completion);
-    void clear_inThread();
+    void clear_inThread(bool reopenStoreAfter);
     void purgeRunningSyncs_inThread();
     void renameSync_inThread(handle backupId, const string& newname, std::function<void(Error e)> result);
     error backupOpenDrive_inThread(const LocalPath& drivePath);
     error backupCloseDrive_inThread(LocalPath drivePath);
     void getSyncProblems_inThread(SyncProblems& problems);
-    bool checkSdsCommandsForDelete(UnifiedSync& us, vector<pair<handle, int>>& sdsBackups, std::function<void(MegaClient&, TransferDbCommitter&)>& clientRemoveSdsEntryFunction);
+    std::function<void(MegaClient&, TransferDbCommitter&)>
+        prepareSdsCleanupForBackup(UnifiedSync& us, const vector<pair<handle, int>>& sds);
+    bool processPauseResumeSyncBySds(UnifiedSync& us, vector<pair<handle, int>>& sdsBackups);
     bool processRemovingSyncBySds(UnifiedSync& us, bool foundRootNode, vector<pair<handle, int>>& sdsBackups);
     void deregisterThenRemoveSyncBySds(UnifiedSync& us, std::function<void(MegaClient&, TransferDbCommitter&)> clientRemoveSdsEntryFunction);
     void processSyncConflicts();
@@ -1318,7 +1433,7 @@ private:
         // Sanity.
         assert(onSyncThread());
 
-        lock_guard<mutex> guard(mSyncVecMutex);
+        lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
 
         for (auto& i : mSyncVec)
         {
@@ -1374,7 +1489,10 @@ private:
         // Report the load failure as a stall.
         void report(SyncStallInfo& stallInfo)
         {
-            stallInfo.waitingLocal(mPath, SyncStallEntry(
+            if (mBackupID == UNDEF)
+                return;
+
+            stallInfo.waitingLocal(mBackupID, mPath, SyncStallEntry(
                 SyncWaitReason::FileIssue, true, false,
                 {},
                 {},
@@ -1444,7 +1562,7 @@ private:
     unique_ptr<SyncConfigIOContext> mSyncConfigIOContext;
 
     // Sometimes the Client needs a list of the sync configs, we provide it by copy (mutex for thread safety of course)
-    mutable mutex mSyncVecMutex;
+    mutable std::recursive_mutex mSyncVecMutex;
     vector<unique_ptr<UnifiedSync>> mSyncVec;
 
     // unload the Sync (remove from RAM and data structures), its config will be flushed to disk
@@ -1568,6 +1686,27 @@ public:
     SyncControllerPtr syncController() const;
 
     bool isSyncStalled(handle backupId) const;
+
+    // Check if any active syncs match the specified predicate.
+    template<typename Predicate>
+    bool anySyncMatching(Predicate&& predicate)
+    {
+        // Already on sync thread so just perform the query.
+        if (onSyncThread())
+            return syncMatching(predicate);
+
+        // So we can wait for the engine's result.
+        std::promise<bool> notifier;
+
+        // Ask the sync engine to perform our query.
+        queueSync([&]() {
+            // Check if any syncs match our predicate.
+            notifier.set_value(syncMatching(predicate));
+        }, "anySyncMatching");
+
+        // Let the caller know if any syncs match our predicate.
+        return notifier.get_future().get();
+    }
 };
 
 class OverlayIconCachedPaths

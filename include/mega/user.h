@@ -88,6 +88,9 @@ struct MEGA_API User : public Cacheable
         bool keys : 1;
         bool aPrefs : 1;    // apps preferences
         bool ccPrefs : 1;   // content consumption preferences
+        bool enableTestNotifications : 1; // list of IDs for enabled notifications
+        bool lastReadNotification : 1; // ID of last read notification
+        bool lastActionedBanner : 1; // ID of last actioner banner
     } changed;
 
     // user's public key
@@ -128,7 +131,8 @@ public:
     const string *getattrversion(attr_t at);
     void invalidateattr(attr_t at);
     bool isattrvalid(attr_t at);
-    void removeattr(attr_t at, const string *version = nullptr);
+    void removeattr(attr_t at, bool ownUser);
+    void removeattr(attr_t at, const string& version);
     int updateattr(attr_t at, string *av, string *v);
 
     // Returns if attribute doesn't exist. Avoid requesting it to server
@@ -142,6 +146,7 @@ public:
     static int needversioning(attr_t at);
     static char scope(attr_t at);
     static bool isAuthring(attr_t at);
+    static size_t getMaxAttributeSize(attr_t at);
 
     enum {
         PWD_LAST_SUCCESS = 0x01,

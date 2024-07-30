@@ -21,6 +21,8 @@
 
 #include "mega/attrmap.h"
 
+#include <mega/json.h>
+
 namespace mega {
 // approximate raw storage size of serialized AttrMap, not taking JSON escaping
 // or name length into account
@@ -275,4 +277,20 @@ void AttrMap::getjson(string* s) const
         }
     }
 }
+
+void AttrMap::fromjson(const char* buf)
+{
+    if (!buf) return;
+
+    JSON json;
+    json.begin(buf);
+    nameid name;
+    string* t;
+
+    while ((name = json.getnameid()) != EOO && json.storeobject((t = &map[name])))
+    {
+        JSON::unescape(t);
+    }
+}
+
 } // namespace

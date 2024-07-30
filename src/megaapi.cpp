@@ -19,6 +19,8 @@
  * program.
  */
 
+#include <mega/fuse/common/service.h>
+
 #include "mega.h"
 #include "megaapi.h"
 #include "megaapi_impl.h"
@@ -452,6 +454,16 @@ double MegaNode::getLongitude()
     return INVALID_COORDINATE;
 }
 
+const char* MegaNode::getDescription()
+{
+    return NULL;
+}
+
+MegaStringList* MegaNode::getTags()
+{
+    return NULL;
+}
+
 char *MegaNode::getBase64Handle()
 {
     return NULL;
@@ -600,6 +612,24 @@ bool MegaNode::isTakenDown()
 bool MegaNode::isForeign()
 {
     return false;
+}
+
+bool MegaNode::isPasswordNode() const
+{
+    return false;
+}
+
+MegaNode::PasswordNodeData* MegaNode::PasswordNodeData::createInstance(const char* pwd,
+                                                                       const char* notes,
+                                                                       const char* url,
+                                                                       const char* userName)
+{
+    return new MegaNodePrivate::PNDataPrivate(pwd, notes, url, userName);
+}
+
+MegaNode::PasswordNodeData* MegaNode::getPasswordData() const
+{
+    return NULL;
 }
 
 string *MegaNode::getNodeKey()
@@ -1166,6 +1196,16 @@ MegaVpnCredentials* MegaRequest::getMegaVpnCredentials() const
     return nullptr;
 }
 
+const MegaNotificationList* MegaRequest::getMegaNotifications() const
+{
+    return nullptr;
+}
+
+const MegaNodeTree* MegaRequest::getMegaNodeTree() const
+{
+    return nullptr;
+}
+
 MegaTransfer::~MegaTransfer() { }
 
 MegaTransfer *MegaTransfer::copy()
@@ -1420,6 +1460,11 @@ MegaError* MegaError::copy() const
 int MegaError::getErrorCode() const
 {
     return errorCode;
+}
+
+int MegaError::getMountResult() const
+{
+    return MegaMount::SUCCESS;
 }
 
 int MegaError::getSyncError() const
@@ -1878,6 +1923,26 @@ void MegaListener::onChatsUpdate(MegaApi *api, MegaTextChatList *chats)
 
 MegaListener::~MegaListener() {}
 
+void MegaListener::onMountAdded(MegaApi*, const char*, int)
+{
+}
+
+void MegaListener::onMountChanged(MegaApi*, const char*, int)
+{
+}
+
+void MegaListener::onMountDisabled(MegaApi*, const char*, int)
+{
+}
+
+void MegaListener::onMountEnabled(MegaApi*, const char*, int)
+{
+}
+
+void MegaListener::onMountRemoved(MegaApi*, const char*, int)
+{
+}
+
 bool MegaTreeProcessor::processMegaNode(MegaNode*)
 { return false; /* Stops the processing */ }
 MegaTreeProcessor::~MegaTreeProcessor()
@@ -1885,14 +1950,19 @@ MegaTreeProcessor::~MegaTreeProcessor()
 
 /* BEGIN MEGAAPI */
 
-MegaApi::MegaApi(const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, unsigned workerThreadCount)
+MegaApi::MegaApi(const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, unsigned workerThreadCount, int clientType)
 {
-    pImpl = new MegaApiImpl(this, appKey, processor, basePath, userAgent, workerThreadCount);
+    pImpl = new MegaApiImpl(this, appKey, processor, basePath, userAgent, workerThreadCount, clientType);
 }
 
-MegaApi::MegaApi(const char *appKey, const char *basePath, const char *userAgent, unsigned workerThreadCount)
+MegaApi::MegaApi(const char *appKey, MegaGfxProvider* provider, const char *basePath, const char *userAgent, unsigned workerThreadCount, int clientType)
 {
-    pImpl = new MegaApiImpl(this, appKey, nullptr, basePath, userAgent, workerThreadCount);
+    pImpl = new MegaApiImpl(this, appKey, provider, basePath, userAgent, workerThreadCount, clientType);
+}
+
+MegaApi::MegaApi(const char *appKey, const char *basePath, const char *userAgent, unsigned workerThreadCount, int clientType)
+{
+    pImpl = new MegaApiImpl(this, appKey, static_cast<MegaGfxProcessor*>(nullptr), basePath, userAgent, workerThreadCount, clientType);
 }
 
 #ifdef HAVE_MEGAAPI_RPC
@@ -2468,6 +2538,28 @@ void MegaApi::createFolder(const char *name, MegaNode *parent, MegaRequestListen
     pImpl->createFolder(name, parent, listener);
 }
 
+void MegaApi::getPasswordManagerBase(MegaRequestListener *listener)
+{
+    pImpl->getPasswordManagerBase(listener);
+}
+
+bool MegaApi::isPasswordNodeFolder(MegaHandle node) const
+{
+    return pImpl->isPasswordNodeFolder(node);
+}
+
+void MegaApi::createPasswordNode(const char* name, const MegaNode::PasswordNodeData* data,
+                                 MegaHandle parent, MegaRequestListener* listener)
+{
+    pImpl->createPasswordNode(name, data, parent, listener);
+}
+
+void MegaApi::updatePasswordNode(MegaHandle node, const MegaNode::PasswordNodeData* newData,
+                                 MegaRequestListener* listener)
+{
+    pImpl->updatePasswordNode(node, newData, listener);
+}
+
 bool MegaApi::createLocalFolder(const char *localPath)
 {
     return pImpl->createLocalFolder(localPath);
@@ -2543,9 +2635,8 @@ bool MegaApi::contactVerificationWarningEnabled()
     return pImpl->contactVerificationWarningEnabled();
 }
 
-void MegaApi::setSecureFlag(bool enable)
+void MegaApi::setSecureFlag([[maybe_unused]] bool enable)
 {
-    pImpl->setSecureFlag(enable);
 }
 
 void MegaApi::setManualVerificationFlag(bool enable)
@@ -2818,6 +2909,31 @@ void MegaApi::setUnshareableNodeCoordinates(MegaNode *node, double latitude, dou
     pImpl->setNodeCoordinates(node, true, latitude, longitude, listener);
 }
 
+void MegaApi::setNodeDescription(MegaNode* node, const char* description, MegaRequestListener* listener)
+{
+    pImpl->setNodeDescription(node, description, listener);
+}
+
+void MegaApi::addNodeTag(MegaNode* node, const char* tag, MegaRequestListener* listener)
+{
+    pImpl->addNodeTag(node, tag, listener);
+}
+
+void MegaApi::removeNodeTag(MegaNode* node, const char* tag, MegaRequestListener* listener)
+{
+    pImpl->removeNodeTag(node, tag, listener);
+}
+
+void MegaApi::updateNodeTag(MegaNode* node, const char* newTag, const char* oldTag, MegaRequestListener* listener)
+{
+    pImpl->updateNodeTag(node, newTag, oldTag, listener);
+}
+
+MegaStringList* MegaApi::getAllNodeTags(const char* searchString, MegaCancelToken* cancelToken)
+{
+    return pImpl->getAllNodeTags(searchString, convertToCancelToken(cancelToken));
+}
+
 void MegaApi::exportNode(MegaNode *node, MegaRequestListener *listener)
 {
     pImpl->exportNode(node, 0, false, false, listener);
@@ -2945,7 +3061,18 @@ void MegaApi::creditCardQuerySubscriptions(MegaRequestListener *listener)
 
 void MegaApi::creditCardCancelSubscriptions(const char* reason, MegaRequestListener *listener)
 {
-    pImpl->creditCardCancelSubscriptions(reason, listener);
+    pImpl->creditCardCancelSubscriptions(reason,
+                                         nullptr,
+                                         CREDIT_CARD_CANCEL_SUBSCRIPTIONS_CAN_CONTACT_NO,
+                                         listener);
+}
+
+void MegaApi::creditCardCancelSubscriptions(const char* reason,
+                                            const char* id,
+                                            int canContact,
+                                            MegaRequestListener* listener)
+{
+    pImpl->creditCardCancelSubscriptions(reason, id, canContact, listener);
 }
 
 void MegaApi::getPaymentMethods(MegaRequestListener *listener)
@@ -3245,6 +3372,11 @@ void MegaApi::invalidateCache()
 int MegaApi::getPasswordStrength(const char *password)
 {
     return pImpl->getPasswordStrength(password);
+}
+
+char* MegaApi::generateRandomCharsPassword(bool uU, bool uD, bool uS, unsigned int l)
+{
+    return MegaApiImpl::generateRandomCharsPassword(uU, uD, uS, l);
 }
 
 void MegaApi::submitFeedback(int rating, const char *comment, MegaRequestListener* listener)
@@ -4189,49 +4321,9 @@ char *MegaApi::base32ToBase64(const char *base32)
     return result;
 }
 
-MegaNodeList* MegaApi::search(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
+MegaNodeList* MegaApi::search(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken, const MegaSearchPage* searchPage)
 {
-    return pImpl->search(filter, order, convertToCancelToken(cancelToken));
-}
-
-MegaNodeList* MegaApi::search(MegaNode* n, const char* searchString, bool recursive, int order)
-{
-    return pImpl->search(n, searchString, CancelToken(), recursive, order);
-}
-
-MegaNodeList *MegaApi::search(MegaNode *n, const char *searchString, MegaCancelToken *cancelToken, bool recursive, int order)
-{
-    return pImpl->search(n, searchString, convertToCancelToken(cancelToken), recursive, order);
-}
-
-MegaNodeList *MegaApi::search(const char *searchString, int order)
-{
-    return pImpl->search(nullptr, searchString, CancelToken(), true, order);
-}
-
-MegaNodeList *MegaApi::search(const char *searchString, MegaCancelToken *cancelToken, int order)
-{
-    return pImpl->search(nullptr, searchString, convertToCancelToken(cancelToken), true, order);
-}
-
-MegaNodeList* MegaApi::searchOnInShares(const char *searchString, MegaCancelToken *cancelToken, int order)
-{
-    return pImpl->search(nullptr, searchString, convertToCancelToken(cancelToken), true, order, MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_INSHARE);
-}
-
-MegaNodeList* MegaApi::searchOnOutShares(const char *searchString, MegaCancelToken *cancelToken, int order)
-{
-    return pImpl->search(nullptr, searchString, convertToCancelToken(cancelToken), true, order, MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_OUTSHARE);
-}
-
-MegaNodeList* MegaApi::searchOnPublicLinks(const char *searchString, MegaCancelToken *cancelToken, int order)
-{
-    return pImpl->search(nullptr, searchString, convertToCancelToken(cancelToken), true, order, MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_PUBLICLINK);
-}
-
-MegaNodeList* MegaApi::searchByType(MegaNode *n, const char *searchString, MegaCancelToken *cancelToken, bool recursive, int order, int mimeType, int target, bool includeSensitive)
-{
-    return pImpl->search(n, searchString, convertToCancelToken(cancelToken), recursive, order, mimeType, target, includeSensitive);
+    return pImpl->search(filter, order, convertToCancelToken(cancelToken), searchPage);
 }
 
 long long MegaApi::getSize(MegaNode *n)
@@ -4394,9 +4486,9 @@ int MegaApi::getNumChildFolders(MegaNode* parent)
 	return pImpl->getNumChildFolders(parent);
 }
 
-MegaNodeList *MegaApi::getChildren(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
+MegaNodeList *MegaApi::getChildren(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken, const MegaSearchPage* searchPage)
 {
-    return pImpl->getChildren(filter, order, convertToCancelToken(cancelToken));
+    return pImpl->getChildren(filter, order, convertToCancelToken(cancelToken), searchPage);
 }
 
 MegaNodeList *MegaApi::getChildren(MegaNode* p, int order, MegaCancelToken* cancelToken)
@@ -4427,11 +4519,6 @@ bool MegaApi::hasVersions(MegaNode *node)
 void MegaApi::getFolderInfo(MegaNode *node, MegaRequestListener *listener)
 {
     pImpl->getFolderInfo(node, listener);
-}
-
-MegaNodeList* MegaApi::getChildrenFromType(MegaNode* p, int type, int order, MegaCancelToken* cancelToken)
-{
-    return pImpl->getChildrenFromType(p, type, order, convertToCancelToken(cancelToken));
 }
 
 bool MegaApi::hasChildren(MegaNode *parent)
@@ -4502,6 +4589,11 @@ unsigned long long MegaApi::getAccurateNumNodes()
 void MegaApi::setLRUCacheSize(unsigned long long size)
 {
     pImpl->setLRUCacheSize(size);
+}
+
+unsigned long long MegaApi::getNumNodesAtCacheLRU() const
+{
+    return pImpl->getNumNodesAtCacheLRU();
 }
 
 long long MegaApi::getTotalDownloadedBytes()
@@ -5574,6 +5666,16 @@ void MegaApi::removeFromBC(MegaHandle backupId, MegaHandle moveDestination, Mega
     pImpl->removeFromBC(backupId, moveDestination, listener);
 }
 
+void MegaApi::pauseFromBC(MegaHandle backupId, MegaRequestListener* listener)
+{
+    pImpl->pauseFromBC(backupId, listener);
+}
+
+void MegaApi::resumeFromBC(MegaHandle backupId, MegaRequestListener* listener)
+{
+    pImpl->resumeFromBC(backupId, listener);
+}
+
 void MegaApi::getBackupInfo(MegaRequestListener* listener)
 {
     pImpl->getBackupInfo(listener);
@@ -5767,6 +5869,110 @@ bool MegaApi::requestStatusMonitorEnabled()
     return pImpl->requestStatusMonitorEnabled();
 }
 
+void MegaApi::addMount(const MegaMount* mount, MegaRequestListener* listener)
+{
+    assert(listener);
+    assert(mount);
+
+    pImpl->addMount(mount, listener);
+}
+
+void MegaApi::disableMount(const char* path,
+                           MegaRequestListener* listener,
+                           bool remember)
+{
+    assert(listener);
+    assert(path);
+
+    pImpl->disableMount(path, listener, remember);
+}
+
+void MegaApi::enableMount(const char* path,
+                          MegaRequestListener* listener,
+                          bool remember)
+{
+    assert(listener);
+    assert(path);
+
+    pImpl->enableMount(path, listener, remember);
+}
+
+MegaFuseFlags* MegaApi::getFUSEFlags()
+{
+    return pImpl->getFUSEFlags();
+}
+
+MegaMountFlags* MegaApi::getMountFlags(const char* path)
+{
+    assert(path);
+
+    return pImpl->getMountFlags(path);
+}
+
+MegaMount* MegaApi::getMountInfo(const char* path)
+{
+    assert(path);
+
+    return pImpl->getMountInfo(path);
+}
+
+MegaStringList* MegaApi::getMountPaths(const char* name)
+{
+    assert(name);
+
+    return pImpl->getMountPaths(name);
+}
+
+MegaMountList* MegaApi::listMounts(bool enabled)
+{
+    return pImpl->listMounts(enabled);
+}
+
+bool MegaApi::isCachedByPath(const char* path)
+{
+    assert(path);
+
+    return pImpl->isCached(path);
+}
+
+bool MegaApi::isFUSESupported()
+{
+    return pImpl->isFUSESupported();
+}
+
+bool MegaApi::isMountEnabled(const char* path)
+{
+    assert(path);
+
+    return pImpl->isMountEnabled(path);
+}
+
+void MegaApi::removeMount(const char* path, MegaRequestListener* listener)
+{
+    assert(listener);
+    assert(path);
+
+    pImpl->removeMount(path, listener);
+}
+
+void MegaApi::setFUSEFlags(const MegaFuseFlags* flags)
+{
+    assert(flags);
+
+    pImpl->setFUSEFlags(*flags);
+}
+
+void MegaApi::setMountFlags(const MegaMountFlags* flags,
+                            const char* path,
+                            MegaRequestListener* listener)
+{
+    assert(flags);
+    assert(path);
+    assert(listener);
+
+    pImpl->setMountFlags(flags, path, listener);
+}
+
 void MegaApi::getVpnRegions(MegaRequestListener* listener)
 {
     pImpl->getVpnRegions(listener);
@@ -5822,6 +6028,56 @@ void MegaApi::createNodeTree(const MegaNode* parentNode,
                              MegaRequestListener* listener)
 {
     pImpl->createNodeTree(parentNode, nodeTree, listener);
+}
+
+MegaIntegerList* MegaApi::getEnabledNotifications()
+{
+    return pImpl->getEnabledNotifications();
+}
+
+void MegaApi::enableTestNotifications(const MegaIntegerList* notificationIds, MegaRequestListener* listener)
+{
+    pImpl->enableTestNotifications(notificationIds, listener);
+}
+
+void MegaApi::getNotifications(MegaRequestListener* listener)
+{
+    pImpl->getNotifications(listener);
+}
+
+void MegaApi::setLastReadNotification(uint32_t notificationId, MegaRequestListener* listener)
+{
+    pImpl->setLastReadNotification(notificationId, listener);
+}
+
+void MegaApi::getLastReadNotification(MegaRequestListener* listener)
+{
+    pImpl->getLastReadNotification(listener);
+}
+
+void MegaApi::setLastActionedBanner(uint32_t notificationId, MegaRequestListener* listener)
+{
+    pImpl->setLastActionedBanner(notificationId, listener);
+}
+
+void MegaApi::getLastActionedBanner(MegaRequestListener* listener)
+{
+    pImpl->getLastActionedBanner(listener);
+}
+
+MegaFlag* MegaApi::getFlag(const char* flagName, bool commit, MegaRequestListener* listener)
+{
+    return pImpl->getFlag(flagName, commit, listener);
+}
+
+MegaFlag* MegaApi::getFlag(const char* flagName, bool commit)
+{
+    return pImpl->getFlag(flagName, commit);
+}
+
+void MegaApi::deleteUserAttribute(int type, MegaRequestListener* listener)
+{
+    return pImpl->deleteUserAttribute(type, listener);
 }
 
 /* END MEGAAPI */
@@ -6126,6 +6382,11 @@ bool MegaPricing::isBusinessType(int)
     return false;
 }
 
+bool MegaPricing::isFeaturePlan(int) const
+{
+    return false;
+}
+
 int MegaPricing::getAmountMonth(int)
 {
     return 0;
@@ -6191,6 +6452,11 @@ int MegaPricing::getGBPerTransfer(int)
     return 0;
 }
 
+MegaStringIntegerMap* MegaPricing::getFeatures(int) const
+{
+    return nullptr;
+}
+
 const char *MegaCurrency::getCurrencySymbol()
 {
     return nullptr;
@@ -6209,6 +6475,11 @@ const char *MegaCurrency::getLocalCurrencySymbol()
 const char *MegaCurrency::getLocalCurrencyName()
 {
     return nullptr;
+}
+
+unsigned int MegaPricing::getTestCategory(int) const
+{
+    return 0;
 }
 
 #ifdef ENABLE_SYNC
@@ -6687,8 +6958,17 @@ void MegaSearchFilter::byCategory(int /*mimeType*/)
 {
 }
 
+void MegaSearchFilter::byFavourite(int /*boolFilterOption*/)
+{
+}
+
 void MegaSearchFilter::bySensitivity(bool /*excludeSensitive*/)
 {
+}
+
+void MegaSearchFilter::bySensitivity(int /*boolFilterOption*/)
+{
+
 }
 
 void MegaSearchFilter::byLocationHandle(MegaHandle /*ancestorHandle*/)
@@ -6707,6 +6987,14 @@ void MegaSearchFilter::byModificationTime(int64_t /*lowerLimit*/, int64_t /*uppe
 {
 }
 
+void MegaSearchFilter::byDescription(const char* /*searchString*/)
+{
+}
+
+void MegaSearchFilter::byTag(const char* /*searchString*/)
+{
+}
+
 const char* MegaSearchFilter::byName() const
 {
     return nullptr;
@@ -6722,9 +7010,14 @@ int MegaSearchFilter::byCategory() const
     return MegaApi::FILE_TYPE_DEFAULT;
 }
 
-bool MegaSearchFilter::bySensitivity() const
+int MegaSearchFilter::byFavourite() const
 {
-    return false;
+    return MegaSearchFilter::BOOL_FILTER_DISABLED;
+}
+
+int MegaSearchFilter::bySensitivity() const
+{
+    return BOOL_FILTER_DISABLED;
 }
 
 MegaHandle MegaSearchFilter::byLocationHandle() const
@@ -6755,6 +7048,44 @@ int64_t MegaSearchFilter::byModificationTimeLowerLimit() const
 int64_t MegaSearchFilter::byModificationTimeUpperLimit() const
 {
     return 0;
+}
+
+const char* MegaSearchFilter::byDescription() const
+{
+    return nullptr;
+}
+
+const char* MegaSearchFilter::byTag() const
+{
+    return nullptr;
+}
+
+MegaSearchPage::MegaSearchPage()
+{
+}
+
+MegaSearchPage* MegaSearchPage::createInstance(size_t startingOffset, size_t size)
+{
+    return new MegaSearchPagePrivate(startingOffset, size);
+}
+
+MegaSearchPage* MegaSearchPage::copy() const
+{
+    return nullptr;
+}
+
+MegaSearchPage::~MegaSearchPage()
+{
+}
+
+size_t MegaSearchPage::startingOffset() const
+{
+    return 0u;
+}
+
+size_t MegaSearchPage::size() const
+{
+    return 0u;
 }
 
 MegaApiLock::MegaApiLock(MegaApiImpl* ptr, bool lock) : api(ptr)
@@ -6798,7 +7129,6 @@ void MegaApiLock::unlockOnce()
         locked = false;
     }
 }
-
 
 #ifdef ENABLE_CHAT
 MegaTextChatPeerList * MegaTextChatPeerList::createInstance()
@@ -7644,7 +7974,6 @@ MegaCurrency *MegaCurrency::copy()
     return nullptr;
 }
 
-
 /* MegaVpnCredentials BEGIN */
 MegaVpnCredentials::MegaVpnCredentials()
 {
@@ -7695,16 +8024,18 @@ MegaVpnCredentials* MegaVpnCredentials::copy() const
 }
 /* MegaVpnCredentials END */
 
-MegaNodeTree* MegaNodeTree::createInstance(MegaNodeTree* nodeTreeChild,
+MegaNodeTree* MegaNodeTree::createInstance(const MegaNodeTree* nodeTreeChild,
                                            const char* name,
                                            const char* s4AttributeValue,
-                                           const MegaCompleteUploadData* completeUploadData)
+                                           const MegaCompleteUploadData* completeUploadData,
+                                           MegaHandle sourceHandle)
 {
     return new MegaNodeTreePrivate(nodeTreeChild,
                                    name ? name : "",
                                    s4AttributeValue ? s4AttributeValue : "",
                                    completeUploadData,
-                                   UNDEF);
+                                   sourceHandle,
+                                   INVALID_HANDLE);
 }
 
 MegaCompleteUploadData* MegaCompleteUploadData::createInstance(const char* fingerprint,
@@ -7715,4 +8046,77 @@ MegaCompleteUploadData* MegaCompleteUploadData::createInstance(const char* finge
                                              string64UploadToken ? string64UploadToken : "",
                                              string64FileKey ? string64FileKey : "");
 }
+
+MegaGfxProvider::~MegaGfxProvider() = default;
+
+MegaGfxProvider* MegaGfxProvider::createIsolatedInstance(
+    const char* endpointName,
+    const char* executable)
+{
+    if (!endpointName || !executable) return nullptr;
+
+    auto provider = MegaGfxProviderPrivate::createIsolatedInstance(
+        std::string(endpointName),
+        std::string(executable)
+    );
+
+    return provider.release();
+}
+
+MegaGfxProvider* MegaGfxProvider::createExternalInstance(MegaGfxProcessor* processor)
+{
+    return MegaGfxProviderPrivate::createExternalInstance(processor).release();
+}
+
+MegaGfxProvider* MegaGfxProvider::createInternalInstance()
+{
+    return MegaGfxProviderPrivate::createInternalInstance().release();
+}
+
+MegaFuseExecutorFlags::MegaFuseExecutorFlags() = default;
+
+MegaFuseExecutorFlags::~MegaFuseExecutorFlags() = default;
+
+MegaFuseFlags::MegaFuseFlags() = default;
+
+MegaFuseFlags::~MegaFuseFlags() = default;
+
+MegaFuseFlags* MegaFuseFlags::create()
+{
+    return new MegaFuseFlagsPrivate(fuse::ServiceFlags());
+}
+
+MegaFuseInodeCacheFlags::MegaFuseInodeCacheFlags() = default;
+
+MegaFuseInodeCacheFlags::~MegaFuseInodeCacheFlags() = default;
+
+MegaMount::MegaMount() = default;
+
+MegaMount::~MegaMount() = default;
+
+MegaMount* MegaMount::create()
+{
+    return new MegaMountPrivate();
+}
+
+const char* MegaMount::getResultString(int result)
+{
+    assert(result >= ABORTED && result <= UNSUPPORTED);
+
+    return fuse::toString(static_cast<fuse::MountResult>(result));
+}
+
+MegaMountFlags::MegaMountFlags() = default;
+
+MegaMountFlags::~MegaMountFlags() = default;
+
+MegaMountFlags* MegaMountFlags::create()
+{
+    return new MegaMountFlagsPrivate();
+}
+
+MegaMountList::MegaMountList() = default;
+
+MegaMountList::~MegaMountList() = default;
+
 }

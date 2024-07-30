@@ -124,7 +124,7 @@ class CloudDriveTableViewController: UITableViewController, MEGADelegate, UIActi
     }
     
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return nodes.size.intValue
+        nodes.size
     }
     
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {

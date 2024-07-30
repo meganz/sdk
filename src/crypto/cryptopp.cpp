@@ -61,7 +61,7 @@ SymmCipher::SymmCipher(const byte* key)
     setkey(key);
 }
 
-byte SymmCipher::zeroiv[BLOCKSIZE];
+byte SymmCipher::zeroiv[BLOCKSIZE] = {};
 
 void SymmCipher::setkey(const byte* newkey, int type)
 {
@@ -177,11 +177,11 @@ bool SymmCipher::cbc_encrypt_pkcs_padding(const string *data, const byte *iv, st
 
         // Create sink.
         unique_ptr<StringSink> sink =
-            mega::make_unique<StringSink>(*result);
+            std::make_unique<StringSink>(*result);
 
         // Create transform.
         unique_ptr<Transformation> xfrm =
-            mega::make_unique<Transformation>(aescbc_e,
+            std::make_unique<Transformation>(aescbc_e,
                 sink.get(),
                 Transformation::PKCS_PADDING);
 
@@ -217,11 +217,11 @@ bool SymmCipher::cbc_decrypt_pkcs_padding(const std::string* data, const byte* i
 
         // Create sink.
         unique_ptr<StringSink> sink =
-          mega::make_unique<StringSink>(*result);
+          std::make_unique<StringSink>(*result);
         
         // Create transform.
         unique_ptr<Transformation> xfrm =
-          mega::make_unique<Transformation>(aescbc_d,
+          std::make_unique<Transformation>(aescbc_d,
                                             sink.get(),
                                             Transformation::PKCS_PADDING);
 
@@ -261,11 +261,11 @@ bool SymmCipher::cbc_decrypt_pkcs_padding(const byte* data,
 
         // Create sink.
         unique_ptr<StringSink> sink =
-          mega::make_unique<StringSink>(*result);
+          std::make_unique<StringSink>(*result);
         
         // Create transform.
         unique_ptr<Transformation> xfrm =
-          mega::make_unique<Transformation>(aescbc_d,
+          std::make_unique<Transformation>(aescbc_d,
                                             sink.get(),
                                             Transformation::PKCS_PADDING);
 
@@ -637,6 +637,36 @@ void SymmCipher::incblock(byte* dst, unsigned len)
             break;
         }
     }
+}
+
+bool SymmCipher::isZeroKey(const byte* key, size_t keySize)
+{
+    if (!key)
+    {
+        // Invalid key pointer, consider it non-zero
+        LOG_warn << "[SymmCipher::isZeroKey] invalid key pointer";
+        assert(false && "[SymmCipher::isZeroKey] invalid key pointer");
+        return false;
+    }
+
+    if (keySize == FILENODEKEYLENGTH) // 32 (filekey, nodekey, etc)
+    {
+        static_assert(FILENODEKEYLENGTH == SymmCipher::BLOCKSIZE * 2);
+        // Check if the lower 16 bytes (0-15) are equal to the higher 16 bytes (16-31)
+        // This will be true either if the key is all zeros or it was generated with a 16-byte zero key (for example, the transferkey was a zerokey).
+        return std::memcmp(key /*key[0-15]*/, key + SymmCipher::BLOCKSIZE /*key[16-31]*/, SymmCipher::BLOCKSIZE) == 0;
+    }
+    else if (keySize == SymmCipher::BLOCKSIZE) // 16 (transfer key, client master key, etc)
+    {
+        // Check if all bytes are zero (zerokey)
+        static const byte zeroKey[SymmCipher::BLOCKSIZE] = {};
+        return std::memcmp(key, zeroKey, SymmCipher::BLOCKSIZE) == 0;
+    }
+
+    // Invalid key size, consider it non-zero
+    LOG_warn << "[SymmCipher::isZeroKey] used a keySize(" << keySize << ") different from 32 and 16 -> function will return false";
+    assert(false && "SymmCipher::isZeroKey used a keySize different from 32 and 16");
+    return false;
 }
 
 SymmCipher::SymmCipher(const SymmCipher &ref)

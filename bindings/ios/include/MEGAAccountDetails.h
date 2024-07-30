@@ -19,7 +19,9 @@
  * program.
  */
 #import <Foundation/Foundation.h>
+#import "MEGAAccountFeature.h"
 #import "MEGAPaymentMethod.h"
+#import "MEGAStringIntegerMap.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -29,6 +31,9 @@ typedef NS_ENUM (NSInteger, MEGAAccountType) {
     MEGAAccountTypeProII = 2,
     MEGAAccountTypeProIII = 3,
     MEGAAccountTypeLite = 4,
+    MEGAAccountTypeStarter = 11,
+    MEGAAccountTypeBasic = 12,
+    MEGAAccountTypeEssential = 13,
     MEGAAccountTypeBusiness = 100,
     MEGAAccountTypeProFlexi = 101
 };
@@ -60,9 +65,9 @@ typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
 @property (readonly, nonatomic) long long storageMax;
 
 /**
- * @brief Used bandwidth for the account (in bytes).
+ * @brief Used bandwidth allowance including own, free and served to other users (in bytes).
  */
-@property (readonly, nonatomic) long long transferOwnUsed;
+@property (readonly, nonatomic) long long transferUsed;
 
 /**
  * @brief Maximum available bandwidth for the account (in bytes).
@@ -78,6 +83,9 @@ typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
  * - MEGAAccountTypeProII = 2
  * - MEGAAccountTypeProIII = 3
  * - MEGAAccountTypeLite = 4
+ * - MEGAAccountTypeStarter = 11
+ * - MEGAAccountTypeBasic = 12
+ * - MEGAAccountTypeEssential = 13
  * - MEGAAccountTypeBusiness = 100
  * - MEGAAccountTypeProFlexi = 101
  */
@@ -152,6 +160,35 @@ typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
  *
  */
 @property (readonly, nonatomic) NSInteger numberUsageItems;
+
+/**
+ * @brief Number of active MegaAccountFeature objects associated with the account.
+ */
+@property (readonly, nonatomic) NSInteger numActiveFeatures;
+
+/**
+ * @brief Get feature account level for feature-related subscriptions.
+ *
+ * @return Level for feature-related subscriptions.
+ */
+@property (readonly, nonatomic) int64_t subscriptionLevel;
+
+/**
+ * @brief Returns the active MegaAccountFeature object associated with an index.
+ *
+ * You take the ownership of the returned value.
+ *
+ * @param index Index of the object.
+ * @return MegaAccountFeature object.
+ */
+- (nullable MEGAAccountFeature *)activeFeatureAtIndex:(NSInteger)index;
+
+/**
+ * @brief Subscription features for the account.
+ *
+ * You take the ownership of the returned value.
+ */
+@property (readonly, nonatomic) NSDictionary<NSString *, NSNumber *> *subscriptionFeatures;
 
 /**
  * @brief Get the used storage in for a node.

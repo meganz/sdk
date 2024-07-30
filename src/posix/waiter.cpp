@@ -27,7 +27,6 @@
 #endif
 
 namespace mega {
-dstime Waiter::ds;
 
 PosixWaiter::PosixWaiter()
 {
@@ -62,16 +61,6 @@ void PosixWaiter::init(dstime ds)
     MEGA_FD_ZERO(&wfds);
     MEGA_FD_ZERO(&efds);
     MEGA_FD_ZERO(&ignorefds);
-}
-
-// update monotonously increasing timestamp in deciseconds
-void Waiter::bumpds()
-{
-    timespec ts;
-
-    m_clock_getmonotonictime(&ts);
-
-    ds = static_cast<dstime>(ts.tv_sec * 10 + ts.tv_nsec / 100000000);
 }
 
 // update maxfd for select()
@@ -117,9 +106,14 @@ int PosixWaiter::wait()
     }
 
 #ifdef USE_POLL
-    dstime ms = 1000 / 10 * maxds;
-
-    auto total = rfds.size() +  wfds.size() +  efds.size();
+    // wait infinite (-1) if maxds is max dstime OR it would overflow platform's int
+    int timeoutInMs = -1;
+    if (maxds != std::numeric_limits<dstime>::max() &&
+        maxds <= std::numeric_limits<int>::max() / 100)
+    {
+        timeoutInMs = static_cast<int>(maxds) * 100;
+    }
+    auto total = rfds.size() + wfds.size() + efds.size();
     struct pollfd fds[total];
 
     int polli = 0;
@@ -143,8 +137,7 @@ int PosixWaiter::wait()
         fds[polli].events = POLLEX_SET;
         polli++;
     }
-
-    numfd = poll(fds, total,  ms);
+    numfd = poll(fds, total, timeoutInMs);
 #else
     numfd = select(maxfd + 1, &rfds, &wfds, &efds, maxds + 1 ? &tv : NULL);
 #endif

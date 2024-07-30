@@ -1,4 +1,6 @@
 
+CONFIG += object_parallel_to_source
+
 MEGASDK_BASE_PATH = $$PWD/../../
 
 # Define MEGA_USE_C_ARES by default. Allow disabling c-ares code
@@ -31,7 +33,8 @@ debug:macx:MI_DEBUG_SUFFIX = "_debug"
 debug:win32:MI_DEBUG_SUFFIX = "d"
 
 VPATH += $$MEGASDK_BASE_PATH
-SOURCES += src/attrmap.cpp \
+SOURCES += src/arguments.cpp \
+    src/attrmap.cpp \
     src/backofftimer.cpp \
     src/base64.cpp \
     src/command.cpp \
@@ -77,6 +80,7 @@ SOURCES += src/attrmap.cpp \
     src/mega_zxcvbn.cpp \
     src/mediafileattribute.cpp \
     src/raid.cpp \
+    src/raidproxy.cpp \
     src/testhooks.cpp \
     src/heartbeats.cpp
 
@@ -192,7 +196,7 @@ CONFIG(USE_LIBUV) {
     vcpkg:INCLUDEPATH_EXTERNAL += $$THIRDPARTY_VCPKG_PATH/include/libuv
     !vcpkg:INCLUDEPATH_EXTERNAL += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/libuv
     win32 {
-        LIBS += -llibuv -lIphlpapi -lUserenv -lpsapi
+        LIBS += -llibuv -lIphlpapi -lUserenv -lpsapi -ldbghelp
     }
 
     unix:!macx {
@@ -200,14 +204,12 @@ CONFIG(USE_LIBUV) {
         LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libuv.a
        }
        else {
-        vcpkg:LIBS += -llibuv
-        else:LIBS += -luv
+        LIBS += -luv
        }
     }
 
     macx {
-        vcpkg:LIBS += -llibuv
-        !vcpkg:LIBS += -luv
+        LIBS += -luv
     }
 }
 
@@ -435,6 +437,7 @@ SOURCES += src/posix/net.cpp  \
 
 HEADERS  += include/mega.h \
             include/mega/account.h \
+            include/mega/arguments.h \
             include/mega/attrmap.h \
             include/mega/backofftimer.h \
             include/mega/base64.h \
@@ -492,9 +495,9 @@ HEADERS  += include/mega.h \
             include/mega/mega_zxcvbn.h \
             include/mega/mediafileattribute.h \
             include/mega/raid.h \
+            include/mega/raidproxy.h \
             include/mega/testhooks.h \
             include/mega/drivenotify.h
-
 CONFIG(USE_MEGAAPI) {
     HEADERS += bindings/qt/QTMegaRequestListener.h \
             bindings/qt/QTMegaTransferListener.h \
@@ -698,7 +701,7 @@ win32 {
      LIBS += -lpcre
     }
 
-    LIBS += -lshlwapi -lws2_32 -luser32 
+    LIBS += -lshlwapi -lws2_32 -luser32
     !vcpkg:LIBS += -lsodium -lcryptopp -lzlibstat
 
     DEFINES += NOMINMAX
@@ -736,7 +739,7 @@ unix:!macx {
     LIBS +=  $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcrypto.a
    }
    else {
-    LIBS += -lcrypto 
+    LIBS += -lcrypto
    }
 
    exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcryptopp.a) {
@@ -787,7 +790,7 @@ macx {
    SOURCES += $$MEGASDK_BASE_PATH/src/osx/fs.cpp
 
    INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/osx
-   INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/posix   
+   INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/posix
 
    OBJECTIVE_SOURCES += $$MEGASDK_BASE_PATH/src/osx/osxutils.mm
 
@@ -806,20 +809,20 @@ macx {
     LIBS += -lpcre
    }
 
-   DEFINES += _DARWIN_FEATURE_64_BIT_INODE CRYPTOPP_DISABLE_ASM
+   DEFINES += _DARWIN_FEATURE_64_BIT_INODE
 
    !vcpkg:LIBS += -L$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/ $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcares.a $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a \
                     $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libsodium.a -lcryptopp
    LIBS += -lz
-   
+
    !vcpkg:CONFIG(USE_OPENSSL) {
     INCLUDEPATH_EXTERNAL += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/openssl
     LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libssl.a $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcrypto.a
    }
 
    LIBS += -framework SystemConfiguration
-   
-   vcpkg:LIBS += -liconv -framework CoreServices -framework CoreFoundation -framework AudioUnit -framework AudioToolbox -framework CoreAudio -framework CoreMedia -framework VideoToolbox -framework ImageIO -framework CoreVideo 
+
+   vcpkg:LIBS += -liconv -framework CoreServices -framework CoreFoundation -framework AudioUnit -framework AudioToolbox -framework CoreAudio -framework CoreMedia -framework VideoToolbox -framework ImageIO -framework CoreVideo
 
     clang {
         COMPILER_VERSION = $$system("$$QMAKE_CXX -dumpversion | cut -d'.' -f1")
@@ -862,3 +865,422 @@ unix {
 } else {
     INCLUDEPATH += $$INCLUDEPATH_EXTERNAL
 }
+
+# So we don't clobber other object files.
+CONFIG += object_parallel_to_source
+
+# Required by all FUSE backends.
+FUSE_COMMON_SRC = $$MEGASDK_BASE_PATH/src/fuse/common
+FUSE_COMMON_INC = $$MEGASDK_BASE_PATH/include/mega/fuse/common
+
+HEADERS += \
+    $$FUSE_COMMON_INC/activity_monitor.h \
+    $$FUSE_COMMON_INC/activity_monitor_forward.h \
+    $$FUSE_COMMON_INC/any_lock.h \
+    $$FUSE_COMMON_INC/any_lock_forward.h \
+    $$FUSE_COMMON_INC/any_lock_set.h \
+    $$FUSE_COMMON_INC/any_lock_set_forward.h \
+    $$FUSE_COMMON_INC/bind_handle.h \
+    $$FUSE_COMMON_INC/bind_handle_forward.h \
+    $$FUSE_COMMON_INC/client_adapter.h \
+    $$FUSE_COMMON_INC/client_callbacks.h \
+    $$FUSE_COMMON_INC/client_forward.h \
+    $$FUSE_COMMON_INC/client.h \
+    $$FUSE_COMMON_INC/database.h \
+    $$FUSE_COMMON_INC/database_forward.h \
+    $$FUSE_COMMON_INC/error_or.h \
+    $$FUSE_COMMON_INC/error_or_forward.h \
+    $$FUSE_COMMON_INC/inode_cache_flags.h \
+    $$FUSE_COMMON_INC/inode_cache_flags_forward.h \
+    $$FUSE_COMMON_INC/inode_id.h \
+    $$FUSE_COMMON_INC/inode_id_forward.h \
+    $$FUSE_COMMON_INC/inode_info.h \
+    $$FUSE_COMMON_INC/inode_info_forward.h \
+    $$FUSE_COMMON_INC/lock.h \
+    $$FUSE_COMMON_INC/lock_forward.h \
+    $$FUSE_COMMON_INC/lockable.h \
+    $$FUSE_COMMON_INC/lockable_forward.h \
+    $$FUSE_COMMON_INC/log_level.h \
+    $$FUSE_COMMON_INC/log_level_forward.h \
+    $$FUSE_COMMON_INC/logger.h \
+    $$FUSE_COMMON_INC/logger_forward.h \
+    $$FUSE_COMMON_INC/logging.h \
+    $$FUSE_COMMON_INC/mount_event_forward.h \
+    $$FUSE_COMMON_INC/mount_event_type_forward.h \
+    $$FUSE_COMMON_INC/mount_event_type.h \
+    $$FUSE_COMMON_INC/mount_event.h \
+    $$FUSE_COMMON_INC/mount_flags_forward.h \
+    $$FUSE_COMMON_INC/mount_flags.h \
+    $$FUSE_COMMON_INC/mount_info_forward.h \
+    $$FUSE_COMMON_INC/mount_info.h \
+    $$FUSE_COMMON_INC/mount_inode_id_forward.h \
+    $$FUSE_COMMON_INC/mount_inode_id.h \
+    $$FUSE_COMMON_INC/mount_result_forward.h \
+    $$FUSE_COMMON_INC/mount_result.h \
+    $$FUSE_COMMON_INC/node_event.h \
+    $$FUSE_COMMON_INC/node_event_forward.h \
+    $$FUSE_COMMON_INC/node_event_observer.h \
+    $$FUSE_COMMON_INC/node_event_observer_forward.h \
+    $$FUSE_COMMON_INC/node_event_queue.h \
+    $$FUSE_COMMON_INC/node_event_queue_forward.h \
+    $$FUSE_COMMON_INC/node_event_type.h \
+    $$FUSE_COMMON_INC/node_event_type_forward.h \
+    $$FUSE_COMMON_INC/node_info.h \
+    $$FUSE_COMMON_INC/node_info_forward.h \
+    $$FUSE_COMMON_INC/normalized_path_forward.h \
+    $$FUSE_COMMON_INC/normalized_path.h \
+    $$FUSE_COMMON_INC/pending_callbacks.h \
+    $$FUSE_COMMON_INC/query_forward.h \
+    $$FUSE_COMMON_INC/query.h \
+    $$FUSE_COMMON_INC/scoped_query_forward.h \
+    $$FUSE_COMMON_INC/scoped_query.h \
+    $$FUSE_COMMON_INC/service_callbacks.h \
+    $$FUSE_COMMON_INC/service_context_forward.h \
+    $$FUSE_COMMON_INC/service_context.h \
+    $$FUSE_COMMON_INC/service_flags_forward.h \
+    $$FUSE_COMMON_INC/service_flags.h \
+    $$FUSE_COMMON_INC/service_forward.h \
+    $$FUSE_COMMON_INC/service.h \
+    $$FUSE_COMMON_INC/shared_mutex_forward.h \
+    $$FUSE_COMMON_INC/shared_mutex.h \
+    $$FUSE_COMMON_INC/task_executor_flags_forward.h \
+    $$FUSE_COMMON_INC/task_executor_flags.h \
+    $$FUSE_COMMON_INC/task_executor_forward.h \
+    $$FUSE_COMMON_INC/task_executor.h \
+    $$FUSE_COMMON_INC/task_queue_forward.h \
+    $$FUSE_COMMON_INC/task_queue.h \
+    $$FUSE_COMMON_INC/transaction_forward.h \
+    $$FUSE_COMMON_INC/transaction.h \
+    $$FUSE_COMMON_INC/upload_forward.h \
+    $$FUSE_COMMON_INC/upload.h \
+    $$FUSE_COMMON_INC/utility.h
+
+SOURCES += \
+    $$FUSE_COMMON_SRC/activity_monitor.cpp \
+    $$FUSE_COMMON_SRC/any_lock_set.cpp \
+    $$FUSE_COMMON_SRC/bind_handle.cpp \
+    $$FUSE_COMMON_SRC/client.cpp \
+    $$FUSE_COMMON_SRC/client_adapter.cpp \
+    $$FUSE_COMMON_SRC/client_adapter_with_sync.cpp \
+    $$FUSE_COMMON_SRC/database.cpp \
+    $$FUSE_COMMON_SRC/inode_id.cpp \
+    $$FUSE_COMMON_SRC/inode_info.cpp \
+    $$FUSE_COMMON_SRC/log_level.cpp \
+    $$FUSE_COMMON_SRC/logger.cpp \
+    $$FUSE_COMMON_SRC/mount_event.cpp \
+    $$FUSE_COMMON_SRC/mount_event_type.cpp \
+    $$FUSE_COMMON_SRC/mount_flags.cpp \
+    $$FUSE_COMMON_SRC/mount_info.cpp \
+    $$FUSE_COMMON_SRC/mount_inode_id.cpp \
+    $$FUSE_COMMON_SRC/mount_result.cpp \
+    $$FUSE_COMMON_SRC/node_event_type.cpp \
+    $$FUSE_COMMON_SRC/normalized_path.cpp \
+    $$FUSE_COMMON_SRC/pending_callbacks.cpp \
+    $$FUSE_COMMON_SRC/query.cpp \
+    $$FUSE_COMMON_SRC/scoped_query.cpp \
+    $$FUSE_COMMON_SRC/service.cpp \
+    $$FUSE_COMMON_SRC/service_context.cpp \
+    $$FUSE_COMMON_SRC/shared_mutex.cpp \
+    $$FUSE_COMMON_SRC/task_executor.cpp \
+    $$FUSE_COMMON_SRC/task_queue.cpp \
+    $$FUSE_COMMON_SRC/transaction.cpp \
+    $$FUSE_COMMON_SRC/utility.cpp
+
+# Required by all concrete backends.
+CONFIG(WITH_FUSE) {
+    HEADERS += \
+        $$FUSE_COMMON_INC/badge_forward.h \
+        $$FUSE_COMMON_INC/badge.h \
+        $$FUSE_COMMON_INC/constants.h \
+        $$FUSE_COMMON_INC/database_builder.h \
+        $$FUSE_COMMON_INC/date_time_forward.h \
+        $$FUSE_COMMON_INC/date_time.h \
+        $$FUSE_COMMON_INC/directory_inode_forward.h \
+        $$FUSE_COMMON_INC/directory_inode_results.h \
+        $$FUSE_COMMON_INC/directory_inode.h \
+        $$FUSE_COMMON_INC/error_or.h \
+        $$FUSE_COMMON_INC/error_or_forward.h \
+        $$FUSE_COMMON_INC/file_cache.h \
+        $$FUSE_COMMON_INC/file_cache_forward.h \
+        $$FUSE_COMMON_INC/file_extension_db.h \
+        $$FUSE_COMMON_INC/file_extension_db_forward.h \
+        $$FUSE_COMMON_INC/file_info.h \
+        $$FUSE_COMMON_INC/file_info_forward.h \
+        $$FUSE_COMMON_INC/file_inode.h \
+        $$FUSE_COMMON_INC/file_inode_forward.h \
+        $$FUSE_COMMON_INC/file_io_context.h \
+        $$FUSE_COMMON_INC/file_io_context_forward.h \
+        $$FUSE_COMMON_INC/inode_cache.h \
+        $$FUSE_COMMON_INC/inode_cache_forward.h \
+        $$FUSE_COMMON_INC/inode_db.h \
+        $$FUSE_COMMON_INC/inode_db_forward.h \
+        $$FUSE_COMMON_INC/inode_forward.h \
+        $$FUSE_COMMON_INC/inode.h \
+        $$FUSE_COMMON_INC/mount_db_forward.h \
+        $$FUSE_COMMON_INC/mount_db.h \
+        $$FUSE_COMMON_INC/mount_forward.h \
+        $$FUSE_COMMON_INC/mount.h \
+        $$FUSE_COMMON_INC/path_adapter_forward.h \
+        $$FUSE_COMMON_INC/path_adapter.h \
+        $$FUSE_COMMON_INC/ref_forward.h \
+        $$FUSE_COMMON_INC/ref.h \
+        $$FUSE_COMMON_INC/tags.h
+
+    SOURCES += \
+        $$FUSE_COMMON_SRC/database_builder.cpp \
+        $$FUSE_COMMON_SRC/date_time.cpp \
+        $$FUSE_COMMON_SRC/directory_inode.cpp \
+        $$FUSE_COMMON_SRC/file_cache.cpp \
+        $$FUSE_COMMON_SRC/file_extension_db.cpp \
+        $$FUSE_COMMON_SRC/file_info.cpp \
+        $$FUSE_COMMON_SRC/file_inode.cpp \
+        $$FUSE_COMMON_SRC/file_io_context.cpp \
+        $$FUSE_COMMON_SRC/inode.cpp \
+        $$FUSE_COMMON_SRC/inode_cache.cpp \
+        $$FUSE_COMMON_SRC/inode_db.cpp \
+        $$FUSE_COMMON_SRC/mount_db.cpp \
+        $$FUSE_COMMON_SRC/mount.cpp
+
+    FUSE_SUPPORTED_SRC = $$MEGASDK_BASE_PATH/src/fuse/supported
+    FUSE_SUPPORTED_INC = $$MEGASDK_BASE_PATH/src/fuse/supported/mega/fuse
+
+    INCLUDEPATH += $$FUSE_SUPPORTED_SRC
+
+    HEADERS += \
+        $$FUSE_SUPPORTED_INC/platform/context_forward.h \
+        $$FUSE_SUPPORTED_INC/platform/context.h \
+        $$FUSE_SUPPORTED_INC/platform/directory_context_forward.h \
+        $$FUSE_SUPPORTED_INC/platform/file_context_forward.h \
+        $$FUSE_SUPPORTED_INC/platform/file_context.h \
+        $$FUSE_SUPPORTED_INC/platform/mount_db_forward.h \
+        $$FUSE_SUPPORTED_INC/platform/mount_forward.h \
+        $$FUSE_SUPPORTED_INC/platform/path_adapter_forward.h \
+        $$FUSE_SUPPORTED_INC/platform/path_adapter.h \
+        $$FUSE_SUPPORTED_INC/platform/service_context_forward.h \
+        $$FUSE_SUPPORTED_INC/platform/service_context.h \
+        $$FUSE_SUPPORTED_INC/platform/unmounter.h
+
+    SOURCES += \
+        $$FUSE_SUPPORTED_SRC/context.cpp \
+        $$FUSE_SUPPORTED_SRC/file_context.cpp \
+        $$FUSE_SUPPORTED_SRC/service_context.cpp \
+        $$FUSE_SUPPORTED_SRC/service.cpp \
+        $$FUSE_SUPPORTED_SRC/unmounter.cpp
+
+    # Sources required by all POSIX backends.
+    unix {
+        FUSE_POSIX_SRC = $$FUSE_SUPPORTED_SRC/posix
+        FUSE_POSIX_INC = $$FUSE_POSIX_SRC/mega/fuse
+
+        INCLUDEPATH += $$FUSE_POSIX_SRC
+
+        HEADERS += \
+            $$FUSE_POSIX_INC/platform/constants.h \
+            $$FUSE_POSIX_INC/platform/directory_context.h \
+            $$FUSE_POSIX_INC/platform/file_descriptor.h \
+            $$FUSE_POSIX_INC/platform/file_descriptor_forward.h \
+            $$FUSE_POSIX_INC/platform/inode_invalidator.h \
+            $$FUSE_POSIX_INC/platform/library.h \
+            $$FUSE_POSIX_INC/platform/mount.h \
+            $$FUSE_POSIX_INC/platform/mount_db.h \
+            $$FUSE_POSIX_INC/platform/path_adapter.h \
+            $$FUSE_POSIX_INC/platform/platform.h \
+            $$FUSE_POSIX_INC/platform/process.h \
+            $$FUSE_POSIX_INC/platform/process_forward.h \
+            $$FUSE_POSIX_INC/platform/request.h \
+            $$FUSE_POSIX_INC/platform/request_forward.h \
+            $$FUSE_POSIX_INC/platform/session.h \
+            $$FUSE_POSIX_INC/platform/session_forward.h \
+            $$FUSE_POSIX_INC/platform/signal.h \
+            $$FUSE_POSIX_INC/platform/utility.h
+
+        SOURCES += \
+            $$FUSE_POSIX_SRC/directory_context.cpp \
+            $$FUSE_POSIX_SRC/constants.cpp \
+            $$FUSE_POSIX_SRC/file_descriptor.cpp \
+            $$FUSE_POSIX_SRC/inode_invalidator.cpp \
+            $$FUSE_POSIX_SRC/mount.cpp \
+            $$FUSE_POSIX_SRC/mount_db.cpp \
+            $$FUSE_POSIX_SRC/request.cpp \
+            $$FUSE_POSIX_SRC/service.cpp \
+            $$FUSE_POSIX_SRC/session.cpp \
+            $$FUSE_POSIX_SRC/signal.cpp \
+            $$FUSE_POSIX_SRC/unmounter.cpp \
+            $$FUSE_POSIX_SRC/utility.cpp
+
+        # User's told us where FUSE should live.
+        !isEmpty(FUSE_PREFIX) {
+            # User hasn't told us where to find FUSE's headers.
+            isEmpty(FUSE_INCLUDE_DIR) {
+                FUSE_INCLUDE_DIR=$$FUSE_PREFIX/include
+            }
+
+            # User hasn't told us where to find FUSE's libraries.
+            isEmpty(FUSE_LIB_DIR) {
+                FUSE_LIB_DIR=$$FUSE_PREFIX/lib
+            }
+        }
+
+        # Make sure header and library paths are sane.
+        isEmpty(FUSE_INCLUDE_DIR) {
+            error("You must specify either FUSE_INCLUDE_DIR or FUSE_PREFIX")
+        }
+
+        isEmpty(FUSE_LIB_DIR) {
+            error("You must specify either FUSE_LIB_DIR or FUSE_PREFIX")
+        }
+
+        # Make sure FUSE's headers are present.
+        !exists($$FUSE_INCLUDE_DIR/fuse/fuse_lowlevel.h) {
+            error("Couldn't find fuse/fuse_lowlevel.h under $$FUSE_INCLUDE_DIR")
+        }
+
+        DEFINES += _FILE_OFFSET_BITS=64
+        INCLUDEPATH += $$FUSE_INCLUDE_DIR
+
+        # Sources required for Linux.
+        !macx {
+            # Make sure the FUSE library is present.
+            !exists($$FUSE_LIB_DIR/libfuse.a) {
+                error("Couldn't find libfuse.a under $$FUSE_LIB_DIR")
+            }
+
+            LIBS += $$FUSE_LIB_DIR/libfuse.a
+
+            FUSE_UNIX_SRC = $$FUSE_POSIX_SRC/linux
+            FUSE_UNIX_INC = $$FUSE_UNIX_SRC/mega/fuse
+        } # !macx
+
+        macx {
+            # Make sure the FUSE library is present.
+            !exists($$FUSE_LIB_DIR/libfuse.dylib) {
+                error("Couldn't find libfuse.dylib under $$FUSE_LIB_DIR")
+            }
+
+            LIBS += $$FUSE_LIB_DIR/libfuse.dylib
+
+            FUSE_UNIX_SRC = $$FUSE_POSIX_SRC/darwin
+            FUSE_UNIX_INC = $$FUSE_UNIX_SRC/mega/fuse
+        } # macx
+
+        isEmpty(FUSE_UNIX_SRC):error("Unsupported UNIX implementation")
+
+        INCLUDEPATH += $$FUSE_UNIX_SRC
+
+        HEADERS += \
+            $$FUSE_UNIX_INC/platform/date-time.h \
+            $$FUSE_UNIX_INC/platform/platform.h
+
+        SOURCES += \
+            $$FUSE_UNIX_SRC/utility.cpp
+    } # unix
+
+    # Sources required by WinFSP backend.
+    win32 {
+        FUSE_WINDOWS_SRC = $$FUSE_SUPPORTED_SRC/windows
+        FUSE_WINDOWS_INC = $$FUSE_WINDOWS_SRC/fuse
+
+        INCLUDEPATH += $$FUSE_WINDOWS_SRC
+
+        HEADERS += \
+            $$FUSE_WINDOWS_INC/platform/constants.h \
+            $$FUSE_WINDOWS_INC/platform/date_time.h \
+            $$FUSE_WINDOWS_INC/platform/directory_context.h \
+            $$FUSE_WINDOWS_INC/platform/dispatcher_forward.h \
+            $$FUSE_WINDOWS_INC/platform/dispatcher.h \
+            $$FUSE_WINDOWS_INC/platform/handle_forward.h \
+            $$FUSE_WINDOWS_INC/platform/handle.h \
+            $$FUSE_WINDOWS_INC/platform/library.h \
+            $$FUSE_WINDOWS_INC/platform/local_pointer.h \
+            $$FUSE_WINDOWS_INC/platform/mount_db.h \
+            $$FUSE_WINDOWS_INC/platform/mount.h \
+            $$FUSE_WINDOWS_INC/platform/path_adapter.h \
+            $$FUSE_WINDOWS_INC/platform/platform.h \
+            $$FUSE_WINDOWS_INC/platform/security_descriptor_forward.h \
+            $$FUSE_WINDOWS_INC/platform/security_descriptor.h \
+            $$FUSE_WINDOWS_INC/platform/security_identifier_forward.h \
+            $$FUSE_WINDOWS_INC/platform/security_identifier.h \
+            $$FUSE_WINDOWS_INC/platform/windows.h \
+            $$FUSE_WINDOWS_INC/utility.h
+
+        SOURCES += \
+            $$FUSE_WINDOWS_SRC/constants.cpp \
+            $$FUSE_WINDOWS_SRC/directory_context.cpp \
+            $$FUSE_WINDOWS_SRC/dispatcher.cpp \
+            $$FUSE_WINDOWS_SRC/local_pointer.cpp \
+            $$FUSE_WINDOWS_SRC/mount.cpp \
+            $$FUSE_WINDOWS_SRC/mount_db.cpp \
+            $$FUSE_WINDOWS_SRC/security_descriptor.cpp \
+            $$FUSE_WINDOWS_SRC/security_identifier.cpp \
+            $$FUSE_WINDOWS_SRC/service.cpp \
+            $$FUSE_WINDOWS_SRC/unmounter.cpp \
+            $$FUSE_WINDOWS_SRC/utility.cpp
+
+        !isEmpty(WINFSP_PREFIX) {
+            # User hasn't specified where to find WinFSP's headers.
+            isEmpty(WINFSP_INCLUDE_DIR) {
+                WINFSP_INCLUDE_DIR=$$WINFSP_PREFIX\inc
+            }
+
+            # User hasn't specified where to find WinFSP's libraries.
+            isEmpty(WINFSP_LIB_DIR) {
+                WINFSP_LIB_DIR=$$WINFSP_PREFIX\lib
+            }
+        }
+
+        # Make sure header and library paths are sane.
+        isEmpty(WINFSP_INCLUDE_DIR) {
+            error("You must specify either WINFSP_INCLUDE_DIR or WINFSP_PREFIX")
+        }
+
+        isEmpty(WINFSP_LIB_DIR) {
+            error("You must specify either WINFSP_LIB_DIR or WINFSP_PREFIX")
+        }
+
+        # Make sure WinFSP's headers are present.
+        !exists($$WINFSP_INCLUDE_DIR/winfsp/winfsp.h) {
+            error("Couldn't find winfsp/winfsp.h under $$WINFSP_INCLUDE_DIR")
+        }
+
+        # Necessary so we don't refine lots of Win32 macros.
+        DEFINES += WIN32_LEAN_AND_MEAN
+
+        # Let the SDK know where it can find WinFSP's headers.
+        INCLUDEPATH += "$$WINFSP_INCLUDE_DIR"
+
+        # Assume we're building a 64bit binary.
+        WINFSP_LIB = winfsp-x64.lib
+
+        # Actually building a 32bit binary.
+        contains(QT_ARCH, i386):WINFSP_LIB = winfsp-x86.lib
+
+        # Make sure the WinFSP library is present.
+        !exists($$WINFSP_LIB_DIR/$$WINFSP_LIB) {
+            error("Couldn't find $$WINFSP_LIB under $$WINFSP_LIB_DIR")
+        }
+
+        # Delay load the WinFSP DLL.
+        QMAKE_LFLAGS += /DELAYLOAD:$$replace(WINFSP_LIB, lib, dll)
+
+        LIBS += delayimp.lib
+
+        # Make sure the SDK is linked against WinFSP.
+        LIBS += "$$WINFSP_LIB_DIR/$$WINFSP_LIB"
+    } # win32
+} # WITH_FUSE
+
+# Required by dummy backend.
+!CONFIG(WITH_FUSE) {
+    FUSE_UNSUPPORTED_SRC = $$MEGASDK_BASE_PATH/src/fuse/unsupported
+    FUSE_UNSUPPORTED_INC = $$MEGASDK_BASE_PATH/src/fuse/unsupported/mega/fuse
+
+    INCLUDEPATH += $$FUSE_UNSUPPORTED_SRC
+
+    HEADERS += \
+        $$FUSE_UNSUPPORTED_INC/platform/service_context.h
+
+    SOURCES += \
+        $$FUSE_UNSUPPORTED_SRC/service_context.cpp \
+        $$FUSE_UNSUPPORTED_SRC/service.cpp
+} # !WITH_FUSE
+

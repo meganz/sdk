@@ -4,8 +4,12 @@ macro(process_vcpkg_libraries overlays_path)
 
     # Use internal VCPKG tools
     set(VCPKG_BOOTSTRAP_OPTIONS "-disableMetrics")
-    list(APPEND VCPKG_OVERLAY_TRIPLETS "${overlays_path}/vcpkg_overlay_triplets")
-    list(APPEND VCPKG_OVERLAY_PORTS "${overlays_path}/vcpkg_overlay_ports")
+    foreach(path IN ITEMS ${overlays_path})
+        list(APPEND VCPKG_OVERLAY_PORTS "${path}/vcpkg_overlay_ports")
+        list(APPEND VCPKG_OVERLAY_TRIPLETS "${path}/vcpkg_overlay_triplets")
+    endforeach()
+    list(REMOVE_DUPLICATES VCPKG_OVERLAY_PORTS)
+    list(REMOVE_DUPLICATES VCPKG_OVERLAY_TRIPLETS)
 
     if(NOT VCPKG_TARGET_TRIPLET)
         # Try to guess the triplet if it is not set.
@@ -40,6 +44,13 @@ macro(process_vcpkg_libraries overlays_path)
 
     if (USE_FFMPEG)
         list(APPEND VCPKG_MANIFEST_FEATURES "use-ffmpeg")
+        # Remove -flto[=n] from CFLAGS if set. It cause link errors in ffmpeg due to assembler code
+        string(REGEX MATCH "-flto[^ \r\n]*" LTO_MATCHES "$ENV{CFLAGS}")
+        if(LTO_MATCHES)
+            message(STATUS "Removing ${LTO_MATCHES} from the environment CFLAGS variable")
+            string(REPLACE "${LTO_MATCHES}" "" NEW_CFLAGS "$ENV{CFLAGS}")
+            set(ENV{CFLAGS} "${NEW_CFLAGS}")
+        endif()
     endif()
 
     if (USE_LIBUV)
@@ -58,11 +69,13 @@ macro(process_vcpkg_libraries overlays_path)
         list(APPEND VCPKG_MANIFEST_FEATURES "use-readline")
     endif()
 
-    if (ENABLE_TESTS)
-        list(APPEND VCPKG_MANIFEST_FEATURES "tests")
+    if (ENABLE_SDKLIB_TESTS)
+        list(APPEND VCPKG_MANIFEST_FEATURES "sdk-tests")
     endif()
 
     set(CMAKE_TOOLCHAIN_FILE ${CMAKE_TOOLCHAIN_FILE} ${VCPKG_TOOLCHAIN_PATH})
     message(STATUS "Using VCPKG dependencies. VCPKG base path: ${VCPKG_ROOT} and tripplet ${VCPKG_TARGET_TRIPLET}")
+    message(STATUS "Overlay for VCPKG ports: ${VCPKG_OVERLAY_PORTS}")
+    message(STATUS "Overlay for VCPKG triplets: ${VCPKG_OVERLAY_TRIPLETS}")
 
 endmacro()

@@ -58,6 +58,9 @@
 #import "BackUpSubState.h"
 #import "MEGASearchFilter.h"
 #import "MEGASearchFilterTimeFrame.h"
+#import "MEGASearchPage.h"
+#import "PasswordNodeData.h"
+#import "MEGANotification.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -88,21 +91,6 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
     MEGASortOrderTypeLabelDesc,
     MEGASortOrderTypeFavouriteAsc,
     MEGASortOrderTypeFavouriteDesc
-};
-
-typedef NS_ENUM (NSInteger, MEGANodeFormatType) {
-    MEGANodeFormatTypeUnknown = 0,
-    MEGANodeFormatTypePhoto,
-    MEGANodeFormatTypeAudio,
-    MEGANodeFormatTypeVideo,
-    MEGANodeFormatTypeDocument,
-    MEGANodeFormatTypePdf,
-    MEGANodeFormatTypePresentation,
-    MEGANodeFormatTypeArchive,
-    MEGANodeFormatTypeProgram,
-    MEGANodeFormatTypeMisc,
-    MEGANodeFormatTypeSpreadsheet,
-    MEGANodeFormatTypeAllDocs
 };
 
 typedef NS_ENUM (NSInteger, MEGAFolderTargetType) {
@@ -157,6 +145,7 @@ typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
     MEGAUserAttributeNoCallKit               = 36, // private - byte array
     MEGAUserAttributeAppsPreferences         = 38, // private - byte array - versioned (apps preferences)
     MEGAUserAttributeContentConsumptionPreferences = 39, // private - byte array - versioned (content consumption preferences)
+    MEGAUserAttributeLastReadNotification    = 44, // private - char array
 };
 
 typedef NS_ENUM(NSInteger, MEGANodeAttribute) {
@@ -164,7 +153,9 @@ typedef NS_ENUM(NSInteger, MEGANodeAttribute) {
     MEGANodeAttributeCoordinates    = 1,
     MEGANodeAttributeOriginalFingerprint = 2,
     MEGANodeAttributeLabel = 3,
-    MEGANodeAttributeFav = 4
+    MEGANodeAttributeFav = 4,
+    MEGANodeAttributeSen = 6,
+    MEGANodeDescription = 7
 };
 
 typedef NS_ENUM(NSInteger, MEGASetAttribute) {
@@ -300,6 +291,12 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
     AdsFlagIgnoreIP         = 0x1000, // Show ads even if the user is on a blacklisted IP (MEGA ips).
     AdsFlagIgnorePRO        = 0x2000, // Show ads even if the current user or file owner is a PRO user.
     AdsFlagIgnoreRollout    = 0x4000  // Ignore the rollout logic which only servers ads to 10% of users based on their IP.
+};
+
+typedef NS_ENUM(NSInteger, MEGAClientType) {
+    MEGAClientTypeDefault = 0, // Cloud storage
+    MEGAClientTypeVPN = 1, // VPN
+    MEGAClientTypePasswordManager = 2  // Password Manager
 };
 
 /**
@@ -607,6 +604,23 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
 - (nullable instancetype)initWithAppKey:(NSString *)appKey userAgent:(nullable NSString *)userAgent basePath:(nullable NSString *)basePath;
 
 /**
+ * @brief Constructor suitable for most applications.
+ * @param appKey AppKey of your application.
+ * You can generate your AppKey for free here:
+ * - https://mega.co.nz/#sdk
+ *
+ * @param userAgent User agent to use in network requests.
+ * If you pass nil to this parameter, a default user agent will be used.
+ *
+ * @param basePath Base path to store the local cache.
+ * If you pass nil to this parameter, the SDK won't use any local cache.
+ *
+ * @param clientType The client type of the application: Default (Cloud Storage), VPN or Password Manager.
+ *
+ */
+- (nullable instancetype)initWithAppKey:(NSString *)appKey userAgent:(nullable NSString *)userAgent basePath:(nullable NSString *)basePath clientType:(MEGAClientType)clientType;
+
+/**
  * @brief Delete MegaApi object
  */
 - (void)deleteMegaApi;
@@ -649,6 +663,16 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * @param delegate Delegate that will receive all events about transfers.
  */
 - (void)addMEGATransferDelegate:(id<MEGATransferDelegate>)delegate;
+
+/**
+ * @brief Register a delegate to receive all events about transfers.
+ *
+ * You can use [MEGASdk removeMEGATransferDelegate:] to stop receiving events.
+ *
+ * @param delegate Delegate that will receive all events about transfers.
+ * @param queueType ListenerQueueType to receive the MEGARequest events on.
+ */
+- (void)addMEGATransferDelegate:(id<MEGATransferDelegate>)delegate queueType:(ListenerQueueType)queueType;
 
 /**
  * @brief Register a delegate to receive global events.
@@ -2647,6 +2671,70 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  */
 - (void)acknowledgeUserAlerts;
 
+#pragma mark - Notifications
+
+/**
+ * @brief Set last read notification for Notification Center
+ *
+ * The type associated with this request is MEGARequestTypeSetAttrUser
+ * 
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeLastReadNotification
+ * - [MEGARequest number] - Returns the ID to be set as last read
+ *
+ * Note that any notifications with ID equal to or less than the given one will be marked as seen
+ * in Notification Center.
+ *
+ * @param notificationId ID of the notification to be set as last read. Value `0` is an invalid ID.
+ * Passing `0` will clear a previously set last read value.
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)setLastReadNotificationWithNotificationId:(uint32_t)notificationId delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get last read notification for Notification Center
+ *
+ * The type associated with this request is MEGARequestTypeSetAttrUser
+ *
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeLastReadNotification
+ *
+ * When onRequestFinish received MEGAErrorTypeApiOk, valid data in the MegaRequest object is:
+ * - [MEGARequest number] - Returns the ID of the last read Notification
+ * Note that when the ID returned here was `0` it means that no ID was set as last read.
+ * Note that the value returned here should be treated like a 32bit unsigned int.
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getLastReadNotificationWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get the list of IDs for enabled notifications
+ *
+ * You take the ownership of the returned value
+ *
+ * @return List of IDs for enabled notifications
+ */
+- (nullable MEGAIntegerList *)getEnabledNotifications;
+
+/**
+ * @brief Get list of available notifications for Notification Center
+ *
+ * The associated request type with this request is MEGARequestTypeGetNotifications
+ *
+ * When onRequestFinish received MEGAErrorTypeApiOk, valid data in the MegaRequest object is:
+ * - [MegaRequest megaNotifications] - Returns the list of notifications
+ *
+ * When onRequestFinish errored, the error code associated to the MegaError can be:
+ * - MEGAErrorTypeApiENoent - No such notifications exist, and MegaRequest::getMegaNotifications
+ *   will return a non-null, empty list.
+ * - MEGAErrorTypeApiEAccess - No user was logged in.
+ * - MEGAErrorTypeApiEInternal - Received answer could not be read.
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getNotificationsWithDelegate:(id<MEGARequestDelegate>)delegate;
+
 #pragma mark - Filesystem changes Requests
 
 /**
@@ -3477,6 +3565,59 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  */
 - (void)setNodeFavourite:(MEGANode *)node favourite:(BOOL)favourite;
 
+/**
+ * @brief Mark a node as sensitive
+ *
+ * @note Descendants will inherit the sensitive property.
+ *
+ * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node that receive the attribute
+ * - [MEGARequest numDetails] - Returns 1 if node is set as favourite, otherwise return 0
+ * - [MEGARequest flag] - Returns YES (official attribute)
+ * - [MEGARequest paramType] - Returns MEGANodeAttributeSen
+ *
+ * @param node Node that will receive the information.
+ * @param sensitive if true set node as sensitive, otherwise remove the attribute
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)setNodeSensitive:(MEGANode *)node sensitive:(BOOL)sensitive delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Mark a node as sensitive
+ *
+ * @note Descendants will inherit the sensitive property.
+ *
+ * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node that receive the attribute
+ * - [MEGARequest numDetails] - Returns 1 if node is set as favourite, otherwise return 0
+ * - [MEGARequest flag] - Returns YES (official attribute)
+ * - [MEGARequest paramType] - Returns MEGANodeAttributeSen
+ *
+ * @param node Node that will receive the information.
+ * @param sensitive if true set node as sensitive, otherwise remove the attribute
+ */
+- (void)setNodeSensitive:(MEGANode *)node sensitive:(BOOL)sensitive;
+
+/**
+ * @brief Set node description as a node attribute
+ *
+ * To remove node description, set description to nil
+ * The associated request type with this request is MEGARequestTypeSetAttrNode
+ * Valid data in the MegaRequest object received on callbacks: 
+ * - [MEGARequest nodeHandle] - Returns the handle of the node that received the attribute
+ * - [MEGARequest flag] - Returns true (official  * attribute)
+ * - MEGARequest paramType]  - Returns MEGANodeDescription
+ * - [MEGARequest getText] - Returns node description
+ * If the size of the description is greater than 3000, onRequestFinish will be called with the error code MEGAErrorTypeApiEArgs.
+ * If the MEGA account is a business account and its status is expired, onRequestFinish will be called with the error code MEGAErrorTypeApiEBusinessPastDue.
+ *
+ * @param description Description of the node. Set nil to remove.
+ * @param node Node that will receive the information.
+ * @param delegate MEGARequestListener to track this request
+ */
+- (void)setDescription:(nullable NSString *)description forNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Get a list of favourite nodes.
@@ -4118,23 +4259,6 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * @param delegate Delegate to track this request.
  */
 - (void)openShareDialog:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate;
-
-/**
- * @brief Allows to change the hardcoded value of the "secure" flag
- *
- * With this feature flag set, the client will manage encryption keys for
- * shared folders in a secure way. Legacy clients won't be able to decrypt
- * shared folders created with this flag enabled.
- *
- * Manual verification of credentials of users (both sharers AND sharees) is
- * required in order to decrypt shared folders correctly.
- *
- * @note This flag should be changed before login+fetchnodes. Otherwise, it may
- * result on unexpected behavior.
- *
- * @param enable New value of the flag
- */
-- (void)setShareSecureFlag:(BOOL)enable;
 
 #pragma mark - Attributes Requests
 
@@ -5765,6 +5889,28 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  *
  */
 - (void)isMasterKeyExported;
+
+/**
+ * @brief Get Terms of Service for VPN visibility.
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest access] - Returns YES if the Terms Of Service should be visible for user
+ *
+ * If the corresponding user attribute is not set yet, the request will fail with the
+ * error code MEGAErrorTypeApiENoent.
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getVisibleTermsOfServiceWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Set Terms of Service for VPN visibility.
+ *
+ * @param visible True to set Terms of Service visibility on, false otherwise.
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)setVisibleTermsOfService:(BOOL)visible delegate:(id<MEGARequestDelegate>)delegate;
 
 #ifdef ENABLE_CHAT
 
@@ -7527,13 +7673,15 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * @brief Get the child node with the provided name.
  *
  * If the node doesn't exist, this function returns nil.
+ * It's possible to have multiple nodes with the same name.
+ * This function will return one of them.
  *
  * @param parent Parent node.
  * @param name Name of the node.
- * @param type Type of the node.
+ * @param type Type of the node. Allowed types: MEGANodeTypeFile and MEGANodeTypeFolder.
  * @return The MEGANode that has the selected parent, name and type.
  */
-- (nullable MEGANode *)childNodeForParent:(MEGANode *)parent name:(NSString *)name type:(NSInteger)type;
+- (nullable MEGANode *)childNodeForParent:(MEGANode *)parent name:(NSString *)name type:(MEGANodeType)type;
 
 /**
  * @brief Get all versions of a file
@@ -8020,19 +8168,13 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
 - (BOOL)isNodeInRubbish:(MEGANode *)node;
 
 /**
- * @brief Search nodes containing a search string in their name.
- *
- * The search is case-insensitive.
- *
- * @param node The parent node of the tree to explore.
- * @param searchString Search string. The search is case-insensitive.
- * @param recursive YES if you want to seach recursively in the node tree.
- * NO if you want to seach in the children of the node only
- *
- * @return List of nodes that contain the desired string in their name.
- */
-- (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString recursive:(BOOL)recursive;
-
+* @brief Ascertain if the node is marked as sensitive or a descendent of such
+*
+* see [MEGANode isMarkedSensitive] to see if the node is sensitive
+*
+* @param node node to inspect
+*/
+-(BOOL)isNodeInheritingSensitivity:(MEGANode *)node;
 
 /**
  * @brief Search nodes with applied filter recursively.
@@ -8040,13 +8182,12 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * The search is case-insensitive.
  *
  * @param filter Filter we should apply to the current search.
- * @param orderType Order type we should applyto the current search.
- * NO if you want to seach in the children of the node only
+ * @param orderType Order type we should apply to the current search.
+ * @param page Paged criteria for request
  *
  * @return List of nodes that contain the desired string in their name.
  */
-- (MEGANodeList *)searchWith:(MEGASearchFilter *)filter orderType:(MEGASortOrderType)orderType cancelToken:(MEGACancelToken *)cancelToken;
-
+- (MEGANodeList *)searchWith:(MEGASearchFilter *)filter orderType:(MEGASortOrderType)orderType page:(nullable MEGASearchPage *)page cancelToken:(MEGACancelToken *)cancelToken;
 
 /**
  * @brief Search nodes with applied filter non-recursively.
@@ -8054,408 +8195,13 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * The search is case-insensitive.
  *
  * @param filter Filter we should apply to the current search.
- * @param orderType Order type we should applyto the current search.
- * NO if you want to seach in the children of the node only
+ * @param orderType Order type we should apply to the current search.
+ * @param page Paged criteria for request
+ * NO if you want to search in the children of the node only
  *
  * @return List of nodes that contain the desired string in their name.
  */
-- (MEGANodeList *)searchNonRecursivelyWith:(MEGASearchFilter *)filter  orderType:(MEGASortOrderType)orderType cancelToken:(MEGACancelToken *)cancelToken;
-
-
-/**
- * @brief Search nodes containing a search string in their name.
- *
- * The search is case-insensitive.
- *
- * @param node The parent node of the tree to explore.
- * @param searchString Search string. The search is case-insensitive.
- * @param cancelToken MEGACancelToken to be able to cancel the processing at any time.
- * @param recursive YES if you want to seach recursively in the node tree.
- * NO if you want to seach in the children of the node only
- * @param order MEGASortOrderType for the returned list.
- * Valid values for this parameter are:
- * - MEGASortOrderTypeNone = 0
- * Undefined order
- *
- * - MEGASortOrderTypeDefaultAsc = 1
- * Folders first in alphabetical order, then files in the same order
- *
- * - MEGASortOrderTypeDefaultDesc = 2
- * Files first in reverse alphabetical order, then folders in the same order
- *
- * - MEGASortOrderTypeSizeAsc = 3
- * Sort by size, ascending
- *
- * - MEGASortOrderTypeSizeDesc = 4
- * Sort by size, descending
- *
- * - MEGASortOrderTypeCreationAsc = 5
- * Sort by creation time in MEGA, ascending
- *
- * - MEGASortOrderTypeCreationDesc = 6
- * Sort by creation time in MEGA, descending
- *
- * - MEGASortOrderTypeModificationAsc = 7
- * Sort by modification time of the original file, ascending
- *
- * - MEGASortOrderTypeModificationDesc = 8
- * Sort by modification time of the original file, descending
- *
- * - MEGASortOrderTypePhotoAsc = 11
- * Sort with photos first, then by date ascending
- *
- * - MEGASortOrderTypePhotoDesc = 12
- * Sort with photos first, then by date descending
- *
- * - MEGASortOrderTypeVideoAsc = 13
- * Sort with videos first, then by date ascending
- *
- * - MEGASortOrderTypeVideoDesc = 14
- * Sort with videos first, then by date descending
- *
- * - MEGASortOrderTypeLinkCreationAsc = 15
- *
- * - MEGASortOrderTypeLinkCreationDesc = 16
- *
- * - MEGASortOrderTypeLabelAsc = 17
- * Sort by color label, ascending. With this order, folders are returned first, then files
- *
- * - MEGASortOrderTypeLabelDesc = 18
- * Sort by color label, descending. With this order, folders are returned first, then files
- *
- * - MEGASortOrderTypeFavouriteAsc = 19
- * Sort nodes with favourite attr first. With this order, folders are returned first, then files
- *
- * - MEGASortOrderTypeFavouriteDesc = 20
- * Sort nodes with favourite attr last. With this order, folders are returned first, then files
- *
- * @return List of nodes that contain the desired string in their name.
- */
-- (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString cancelToken:(MEGACancelToken *)cancelToken recursive:(BOOL)recursive order:(MEGASortOrderType)order;
-
-/**
- * @brief Search nodes containing a search string in their name.
- *
- * The search is case-insensitive.
- *
- * @param node The parent node of the tree to explore.
- * @param searchString Search string. The search is case-insensitive.
- *
- * @return List of nodes that contain the desired string in their name.
- */
-- (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString;
-
-/**
- * @brief Search nodes containing a search string in their name.
- *
- * The search is case-insensitive.
- *
- * @param node The parent node of the tree to explore.
- * @param searchString Search string. The search is case-insensitive.
- * If the search string is not provided but nodeFormatType has any value apart from MEGANodeFormatTypeUnknown
- * this method will return a list that contains nodes of the same type as provided.
- * @param cancelToken MEGACancelToken to be able to cancel the processing at any time.
- * @param recursive YES if you want to seach recursively in the node tree.
- * NO if you want to seach in the children of the node only
- * @param orderType MEGASortOrderType for the returned list.
- * Valid values for this parameter are:
- * - MEGASortOrderTypeNone = 0
- * Undefined order
- *
- * - MEGASortOrderTypeDefaultAsc = 1
- * Folders first in alphabetical order, then files in the same order
- *
- * - MEGASortOrderTypeDefaultDesc = 2
- * Files first in reverse alphabetical order, then folders in the same order
- *
- * - MEGASortOrderTypeSizeAsc = 3
- * Sort by size, ascending
- *
- * - MEGASortOrderTypeSizeDesc = 4
- * Sort by size, descending
- *
- * - MEGASortOrderTypeCreationAsc = 5
- *  Sort by creation time in MEGA, ascending
- *
- * - MEGASortOrderTypeCreationDesc = 6
- * Sort by creation time in MEGA, descending
- *
- * - MEGASortOrderTypeModificationAsc = 7
- * Sort by modification time of the original file, ascending
- *
- * - MEGASortOrderTypeModificationDesc = 8
- * Sort by modification time of the original file, descending
- *
- * - MEGASortOrderTypePhotoAsc = 11
- * Sort with photos first, then by date ascending
- *
- * - MEGASortOrderTypePhotoDesc = 12
- * Sort with photos first, then by date descending
- *
- * - MEGASortOrderTypeVideoAsc = 13
- * Sort with videos first, then by date ascending
- *
- * - MEGASortOrderTypeVideoDesc = 14
- * Sort with videos first, then by date descending
- * 
- * - MEGASortOrderTypeLinkCreationAsc = 15
- *
- * - MEGASortOrderTypeLinkCreationDesc = 16
- *
- * - MEGASortOrderTypeLabelAsc = 17
- * Sort by color label, ascending. With this order, folders are returned first, then files
- *
- * - MEGASortOrderTypeLabelDesc = 18
- * Sort by color label, descending. With this order, folders are returned first, then files
- *
- * - MEGASortOrderTypeFavouriteAsc = 19
- * Sort nodes with favourite attr first. With this order, folders are returned first, then files
- *
- * - MEGASortOrderTypeFavouriteDesc = 20
- * Sort nodes with favourite attr last. With this order, folders are returned first, then files
- *
- * @param nodeFormatType Type of nodes requested in the search
- * Valid values for this parameter are:
- * - MEGANodeFormatTypeUnknown = 0
- * - MEGANodeFormatTypePhoto = 1
- * - MEGANodeFormatTypeAudio = 2
- * - MEGANodeFormatTypeVideo = 3
- * - MEGANodeFormatTypeDocument = 4
- * - MEGANodeFormatTypePdf = 5,
- * - MEGANodeFormatTypePresentation = 6,
- * - MEGANodeFormatTypeArchive = 7,
- * - MEGANodeFormatTypeProgram = 8,
- * - MEGANodeFormatTypeMisc = 9,
- * - MEGANodeFormatTypeSpreadsheet = 10,
- * - MEGANodeFormatTypeAllDocs = 11
- *
- * @param folderTargetType Target type where this method will search
- * Valid values for this parameter are
- * - MEGAFolderTargetTypeInShare = 0
- * - MEGAFolderTargetTypeOutShare = 1
- * - MEGAFolderTargetTypePublicLink = 2
- * - MEGAFolderTargetTypeRootNode = 3
- * - MEGAFolderTargetTypeAll = 4
- *
- * @return List of nodes that contain the desired string in their name.
- */
-- (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node
-                           searchString:(nullable NSString *)searchString
-                            cancelToken:(MEGACancelToken *)cancelToken
-                              recursive:(BOOL)recursive
-                              orderType:(MEGASortOrderType)orderType
-                         nodeFormatType:(MEGANodeFormatType)nodeFormatType
-                       folderTargetType:(MEGAFolderTargetType)folderTargetType;
-
-/**
- * @brief Search nodes in InShares containing a search string in their name.
- *
- * The search is case-insensitive.
- *
- * @param searchString Search string. The search is case-insensitive.
- * If the search string is not provided but nodeFormatType has any value apart from MEGANodeFormatTypeUnknown
- * this method will return a list that contains nodes of the same type as provided.
- * @param cancelToken MEGACancelToken to be able to cancel the processing at any time.
- * @param orderType MEGASortOrderType for the returned list.
- * Valid values for this parameter are:
- * - MEGASortOrderTypeNone = 0
- * Undefined order
- *
- * - MEGASortOrderTypeDefaultAsc = 1
- * Folders first in alphabetical order, then files in the same order
- *
- * - MEGASortOrderTypeDefaultDesc = 2
- * Files first in reverse alphabetical order, then folders in the same order
- *
- * - MEGASortOrderTypeSizeAsc = 3
- * Sort by size, ascending
- *
- * - MEGASortOrderTypeSizeDesc = 4
- * Sort by size, descending
- *
- * - MEGASortOrderTypeCreationAsc = 5
- *  Sort by creation time in MEGA, ascending
- *
- * - MEGASortOrderTypeCreationDesc = 6
- * Sort by creation time in MEGA, descending
- *
- * - MEGASortOrderTypeModificationAsc = 7
- * Sort by modification time of the original file, ascending
- *
- * - MEGASortOrderTypeModificationDesc = 8
- * Sort by modification time of the original file, descending
- *
- * - MEGASortOrderTypePhotoAsc = 11
- * Sort with photos first, then by date ascending
- *
- * - MEGASortOrderTypePhotoDesc = 12
- * Sort with photos first, then by date descending
- *
- * - MEGASortOrderTypeVideoAsc = 13
- * Sort with videos first, then by date ascending
- *
- * - MEGASortOrderTypeVideoDesc = 14
- * Sort with videos first, then by date descending
- *
- * - MEGASortOrderTypeLinkCreationAsc = 15
- *
- * - MEGASortOrderTypeLinkCreationDesc = 16
- *
- * - MEGASortOrderTypeLabelAsc = 17
- * Sort by color label, ascending. With this order, folders are returned first, then files
- *
- * - MEGASortOrderTypeLabelDesc = 18
- * Sort by color label, descending. With this order, folders are returned first, then files
- *
- * - MEGASortOrderTypeFavouriteAsc = 19
- * Sort nodes with favourite attr first. With this order, folders are returned first, then files
- *
- * - MEGASortOrderTypeFavouriteDesc = 20
- * Sort nodes with favourite attr last. With this order, folders are returned first, then files
- *
- * @return List of inShares nodes that contain the desired string in their name.
- */
-- (MEGANodeList *)nodeListSearchOnInSharesByString:(NSString *)searchString cancelToken:(MEGACancelToken *)cancelToken order:(MEGASortOrderType)orderType;
-
-/**
- * @brief Search nodes in OutShares containing a search string in their name.
- *
- * The search is case-insensitive.
- *
- * @param searchString Search string. The search is case-insensitive.
- * If the search string is not provided but nodeFormatType has any value apart from MEGANodeFormatTypeUnknown
- * this method will return a list that contains nodes of the same type as provided.
- * @param cancelToken MEGACancelToken to be able to cancel the processing at any time.
- * @param orderType MEGASortOrderType for the returned list.
- * Valid values for this parameter are:
- * - MEGASortOrderTypeNone = 0
- * Undefined order
- *
- * - MEGASortOrderTypeDefaultAsc = 1
- * Folders first in alphabetical order, then files in the same order
- *
- * - MEGASortOrderTypeDefaultDesc = 2
- * Files first in reverse alphabetical order, then folders in the same order
- *
- * - MEGASortOrderTypeSizeAsc = 3
- * Sort by size, ascending
- *
- * - MEGASortOrderTypeSizeDesc = 4
- * Sort by size, descending
- *
- * - MEGASortOrderTypeCreationAsc = 5
- *  Sort by creation time in MEGA, ascending
- *
- * - MEGASortOrderTypeCreationDesc = 6
- * Sort by creation time in MEGA, descending
- *
- * - MEGASortOrderTypeModificationAsc = 7
- * Sort by modification time of the original file, ascending
- *
- * - MEGASortOrderTypeModificationDesc = 8
- * Sort by modification time of the original file, descending
- *
- * - MEGASortOrderTypePhotoAsc = 11
- * Sort with photos first, then by date ascending
- *
- * - MEGASortOrderTypePhotoDesc = 12
- * Sort with photos first, then by date descending
- *
- * - MEGASortOrderTypeVideoAsc = 13
- * Sort with videos first, then by date ascending
- *
- * - MEGASortOrderTypeVideoDesc = 14
- * Sort with videos first, then by date descending
- *
- * - MEGASortOrderTypeLinkCreationAsc = 15
- *
- * - MEGASortOrderTypeLinkCreationDesc = 16
- *
- * - MEGASortOrderTypeLabelAsc = 17
- * Sort by color label, ascending. With this order, folders are returned first, then files
- *
- * - MEGASortOrderTypeLabelDesc = 18
- * Sort by color label, descending. With this order, folders are returned first, then files
- *
- * - MEGASortOrderTypeFavouriteAsc = 19
- * Sort nodes with favourite attr first. With this order, folders are returned first, then files
- *
- * - MEGASortOrderTypeFavouriteDesc = 20
- * Sort nodes with favourite attr last. With this order, folders are returned first, then files
- *
- * @return List of OutShares nodes that contain the desired string in their name.
- */
-- (MEGANodeList *)nodeListSearchOnOutSharesByString:(NSString *)searchString cancelToken:(MEGACancelToken *)cancelToken order:(MEGASortOrderType)orderType;
-
-/**
- * @brief Search nodes in PublicLinks containing a search string in their name.
- *
- * The search is case-insensitive.
- *
- * @param searchString Search string. The search is case-insensitive.
- * If the search string is not provided but nodeFormatType has any value apart from MEGANodeFormatTypeUnknown
- * this method will return a list that contains nodes of the same type as provided.
- * @param cancelToken MEGACancelToken to be able to cancel the processing at any time.
- * @param orderType MEGASortOrderType for the returned list.
- * Valid values for this parameter are:
- * - MEGASortOrderTypeNone = 0
- * Undefined order
- *
- * - MEGASortOrderTypeDefaultAsc = 1
- * Folders first in alphabetical order, then files in the same order
- *
- * - MEGASortOrderTypeDefaultDesc = 2
- * Files first in reverse alphabetical order, then folders in the same order
- *
- * - MEGASortOrderTypeSizeAsc = 3
- * Sort by size, ascending
- *
- * - MEGASortOrderTypeSizeDesc = 4
- * Sort by size, descending
- *
- * - MEGASortOrderTypeCreationAsc = 5
- *  Sort by creation time in MEGA, ascending
- *
- * - MEGASortOrderTypeCreationDesc = 6
- * Sort by creation time in MEGA, descending
- *
- * - MEGASortOrderTypeModificationAsc = 7
- * Sort by modification time of the original file, ascending
- *
- * - MEGASortOrderTypeModificationDesc = 8
- * Sort by modification time of the original file, descending
- *
- * - MEGASortOrderTypePhotoAsc = 11
- * Sort with photos first, then by date ascending
- *
- * - MEGASortOrderTypePhotoDesc = 12
- * Sort with photos first, then by date descending
- *
- * - MEGASortOrderTypeVideoAsc = 13
- * Sort with videos first, then by date ascending
- *
- * - MEGASortOrderTypeVideoDesc = 14
- * Sort with videos first, then by date descending
- *
- * - MEGASortOrderTypeLinkCreationAsc = 15
- *
- * - MEGASortOrderTypeLinkCreationDesc = 16
- *
- * - MEGASortOrderTypeLabelAsc = 17
- * Sort by color label, ascending. With this order, folders are returned first, then files
- *
- * - MEGASortOrderTypeLabelDesc = 18
- * Sort by color label, descending. With this order, folders are returned first, then files
- *
- * - MEGASortOrderTypeFavouriteAsc = 19
- * Sort nodes with favourite attr first. With this order, folders are returned first, then files
- *
- * - MEGASortOrderTypeFavouriteDesc = 20
- * Sort nodes with favourite attr last. With this order, folders are returned first, then files
- *
- * @return List of PublicLinks nodes that contain the desired string in their name.
- */
-- (MEGANodeList *)nodeListSearchOnPublicLinksByString:(NSString *)searchString cancelToken:(MEGACancelToken *)cancelToken order:(MEGASortOrderType)orderType;
+- (MEGANodeList *)searchNonRecursivelyWith:(MEGASearchFilter *)filter orderType:(MEGASortOrderType)orderType page:(nullable MEGASearchPage *)page cancelToken:(MEGACancelToken *)cancelToken;
 
 /// Get a list of buckets, each bucket containing a list of recently added/modified nodes
 ///
@@ -9212,7 +8958,6 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  */
 + (nullable NSString *)mimeTypeByExtension:(NSString *)extension;
 
-#ifdef ENABLE_CHAT
 /**
  * @brief Register a device token for iOS push notifications
  *
@@ -9268,8 +9013,6 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * @param deviceToken NSString representing the device token to be registered.
  */
 - (void)registeriOSVoIPdeviceToken:(NSString *)deviceToken;
-
-#endif
 
 /**
  * @brief Get the MEGA Achievements of the account logged in
@@ -10018,19 +9761,6 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
 - (void)getDeviceName:(nullable NSString *)deviceId delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
- * @brief Sets device name
- *
- * The associated request type with this request is MEGARequestTypeSetAttrUser
- * Valid data in the MEGARequest object received on callbacks:
- * - paramType - Returns the attribute type MEGAUserAttributeDeviceNames
- * - name - Returns device name.
- *
- * @param name String with device name
- * @param delegate MEGARequestDelegate to track this request
- */
-- (void)setDeviceName:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate;
-
-/**
  * @brief Sets name for specific device
  *
  * The associated request type with this request is MEGARequestTypeSetAttrUser
@@ -10043,7 +9773,7 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * @param name String with device name
  * @param delegate MEGARequestDelegate to track this request
  */
-- (void)renameDevice:(NSString *)deviceId newName:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate;
+- (void)renameDevice:(nullable NSString *)deviceId newName:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate;
 
 #pragma mark - Cookie Dialog
 
@@ -10155,6 +9885,15 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * @return An unsigned integer with the value of the flag.
  */
 - (NSInteger)getABTestValue:(NSString*)flag;
+
+#pragma mark - Remote feature flags
+/**
+ * @brief Get the value for the flag with the given name,
+ * if present among either A/B Test or Feature flags.
+ * @param flag Name or key of the value to be retrieved
+ * @return A integer with the value of the flag, value above 0 means feature enabled
+ */
+- (NSInteger)remoteFeatureFlagValue:(NSString *)flag;
 
 #pragma mark - Ads
 /**
@@ -10313,6 +10052,84 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  */
 - (void)checkVpnCredentialWithUserPubKey:(NSString *)userPubKey delegate:(id<MEGARequestDelegate>)delegate;
 
+#pragma mark - Password Manager
+
+/**
+ * @brief Get Password Manager Base folder node from the MEGA account
+ *
+ * The associated request type with this request is MegaRequest::TYPE_CREATE_PASSWORD_MANAGER_BASE
+ * Valid data in the MegaRequest object received on callbacks:
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MegaError::API_OK:
+ * - MegaRequest::getNodeHandle - Handle of the folder
+ *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getPasswordManagerBaseWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+ /**
+ * @brief Returns true if provided MegaHandle is of a Password Node Folder
+ *
+ * A folder is considered a Password Node Folder if Password Manager Base is its
+ * ancestor.
+ *
+ * @param node MegaHandle of the node to check if it is a Password Node Folder
+ */
+- (BOOL)isPasswordNodeFolderWithHandle:(MEGAHandle)node;
+
+/**
+ * @brief Create a new Password Node in your Password Manager tree
+ *
+ * The associated request type with this request is MegaRequest::TYPE_CREATE_PASSWORD_NODE
+ * Valid data in the MegaRequest object received on callbacks:
+ * - MegaRequest::getParentHandle - Handle of the parent provided as an argument
+ * - MegaRequest::getName - name for the new Password Node provided as an argument
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MegaError::API_OK:
+ * - MegaRequest::getNodeHandle - Handle of the new Password Node
+ *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+ *
+ * @param name Name for the new Password Node
+ * @param data The data of the new Password Node
+ * @param parent Parent folder for the new Password Node
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)createPasswordNodeWithName:(NSString *)name data:(PasswordNodeData *)data parent:(MEGAHandle)parent delegate:(id<MEGARequestDelegate>)delegate;
+
+ /**
+ * @brief Update a Password Node in the MEGA account according to the parameters
+ *
+ * The associated request type with this request is MegaRequest::TYPE_UPDATE_PASSWORD_NODE
+ * Valid data in the MegaRequest object received on callbacks:
+ * - MegaRequest::getNodeHandle - handle provided of the Password Node to update
+ *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+ *
+ * @param node Node to modify
+ * @param newData The new data of the Password Node to update
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)updatePasswordNodeWithHandle:(MEGAHandle)node newData:(PasswordNodeData *)newData delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Generate a new pseudo-randomly characters-based password
+ *
+ * @param includeCapitalLetters indicating if at least 1 upper case letter shall be included
+ * @param includeDigits indicating if at least 1 digit shall be included
+ * @param includeSymbols bool indicating if at least 1 symbol from !@#$%^&*() shall be included
+ * @param length unsigned int with the number of characters that will be included.
+ *        Minimum valid length is 8 and maximum valid is 64.
+ * @return newly generated password string, or nil if the password generation fails due to invalid length parameter.
+ */
++ (nullable NSString *)generateRandomPasswordWithCapitalLetters:(BOOL)includeCapitalLetters digits:(BOOL)includeDigits symbols:(BOOL)includeSymbols length:(int)length;
 
 @end
 

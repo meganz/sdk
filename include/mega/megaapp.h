@@ -22,7 +22,10 @@
 #ifndef MEGA_APP_H
 #define MEGA_APP_H 1
 
-#include "types.h"
+#include <mega/types.h>
+
+// FUSE.
+#include <mega/fuse/common/mount_event_forward.h>
 
 namespace mega {
 
@@ -166,9 +169,23 @@ struct MEGA_API MegaApp
     virtual void putfa_result(handle, fatype, error) { }
 
     // purchase transactions
-    virtual void enumeratequotaitems_result(unsigned, handle, unsigned, int, int, unsigned, unsigned,
-                                            unsigned, unsigned, const char*, const char*, const char*,
-                                            unique_ptr<BusinessPlan>) { }
+    virtual void enumeratequotaitems_result(unsigned,
+                                            handle product,
+                                            unsigned proLevel,
+                                            int gbStorage,
+                                            int gbTransfer,
+                                            unsigned months,
+                                            unsigned amount,
+                                            unsigned amountMonth,
+                                            unsigned localPrice,
+                                            const char* description,
+                                            map<string, uint32_t>&& features,
+                                            const char* iosId,
+                                            const char* androidId,
+                                            unsigned int testCategory,
+                                            std::unique_ptr<BusinessPlan> businessPlan,
+                                            unsigned int trialDays)
+    {}
     virtual void enumeratequotaitems_result(unique_ptr<CurrencyData>) {}
     virtual void enumeratequotaitems_result(error) { }
     virtual void additem_result(error) { }
@@ -434,6 +451,9 @@ struct MEGA_API MegaApp
 
     // External drive notifications
     virtual void drive_presence_changed(bool appeared, const LocalPath& driveRoot) { }
+
+    // Called when a mount has been added, disabled, enabled or removed.
+    virtual void onFuseEvent(const fuse::MountEvent&) { }
 };
 } // namespace
 

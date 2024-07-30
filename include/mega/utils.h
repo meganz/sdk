@@ -26,11 +26,15 @@
 #include <condition_variable>
 #include <thread>
 #include <mutex>
+#include <shared_mutex>
 
 #include "types.h"
 #undef SSIZE_MAX
 #include "mega/mega_utf8proc.h"
 #undef SSIZE_MAX
+
+// Include ICU headers
+#include <unicode/uchar.h>
 
 namespace mega {
 // convert 1...8 character ID to int64 integer (endian agnostic)
@@ -45,6 +49,8 @@ namespace mega {
 
 std::string toNodeHandle(handle nodeHandle);
 std::string toNodeHandle(NodeHandle nodeHandle);
+NodeHandle toNodeHandle(const byte* data);  // consider moving functionality to NodeHandle
+NodeHandle toNodeHandle(const std::string* data);
 std::string toHandle(handle h);
 std::pair<bool, TypeOfLink> toTypeOfLink (nodetype_t type);
 #define LOG_NODEHANDLE(x) toNodeHandle(x)
@@ -254,8 +260,6 @@ struct MEGA_API MemAccess
 };
 
 #ifdef _WIN32
-int mega_snprintf(char *s, size_t n, const char *format, ...);
-
 // get the Windows error message in UTF-8
 std::string winErrorMessage(DWORD error);
 
@@ -481,22 +485,18 @@ public:
     // --- environment functions that work with Unicode UTF-8 on Windows (set/unset/get) ---
 
     static bool hasenv(const std::string& key);
-    // sets *out_found if found
-    static std::string getenv(const std::string& key, bool* out_found);
+    static std::pair<std::string, bool> getenv(const std::string& key);
     // return def if value not found
     static std::string getenv(const std::string& key, const std::string& def);
     static void setenv(const std::string& key, const std::string& value);
     static void unsetenv(const std::string& key);
 };
 
-// for pre-c++11 where this version is not defined yet.
-long long abs(long long n);
-
 extern m_time_t m_time(m_time_t* tt = NULL);
 extern struct tm* m_localtime(m_time_t, struct tm *dt);
 extern struct tm* m_gmtime(m_time_t, struct tm *dt);
 extern m_time_t m_mktime(struct tm*);
-extern int m_clock_getmonotonictime(struct timespec *t);
+extern dstime m_clock_getmonotonictimeDS();
 // Similar behaviour to mktime but it receives a struct tm with a date in UTC and return mktime in UTC
 extern m_time_t m_mktime_UTC(const struct tm *src);
 
@@ -601,6 +601,7 @@ struct CacheableWriter
     void serializecstr(const char* field, bool storeNull);  // may store the '\0' also for backward compatibility. Only use for utf8!  (std::string storing double byte chars will only store 1 byte)
     void serializepstr(const string* field);  // uses string size() not strlen
     void serializestring(const string& field);
+    void serializestring_u32(const string& field); // use uint32_t for the size field
     void serializecompressedu64(uint64_t field);
     void serializecompressedi64(int64_t field) { serializecompressedu64(static_cast<uint64_t>(field)); }
 
@@ -636,6 +637,7 @@ struct CacheableReader
     bool unserializebinary(byte* data, size_t len);
     bool unserializecstr(string& s, bool removeNull); // set removeNull if this field stores the terminating '\0' at the end
     bool unserializestring(string& s);
+    bool unserializestring_u32(string& s);
     bool unserializecompressedu64(uint64_t& field);
     bool unserializecompressedi64(int64_t& field) { return unserializecompressedu64(reinterpret_cast<uint64_t&>(field)); }
 
@@ -776,6 +778,36 @@ public:
         return mNotifications.size();
     }
 
+};
+
+template<class K, class V>
+class ThreadSafeKeyValue
+{
+    // This is a thread-safe key-value container restricted to accepting only numeric values.
+    // Only the needed interfaces were implemented. Add new ones as they become useful.
+public:
+    std::unique_ptr<V> get(const K& key) const
+    {
+        std::shared_lock lock(mMutex);
+        auto it = mStorage.find(key);
+        return it == mStorage.end() ? nullptr : std::make_unique<V>(it->second);
+    }
+
+    void set(const K& key, const V& value)
+    {
+        std::unique_lock lock(mMutex);
+        mStorage[key] = value;
+    }
+
+    void clear()
+    {
+        std::unique_lock lock(mMutex);
+        return mStorage.clear();
+    }
+
+private:
+    mutable std::shared_mutex mMutex;
+    std::map<K, V> mStorage;
 };
 
 template<typename CharT>
@@ -931,7 +963,7 @@ public:
             return false;
         }
 
-        (void)get();
+        get();
 
         return true;
     }
@@ -1074,6 +1106,261 @@ const char* toString(retryreason_t reason);
 // Not considering EOF values
 bool is_space(unsigned int ch);
 bool is_digit(unsigned int ch);
+
+std::set<std::string> splitString(const std::string& str, char delimiter);
+
+template<typename Iter>
+std::string joinStrings(const Iter begin, const Iter end, const std::string& separator)
+{
+    Iter position = begin;
+    std::string result;
+    if (position != end)
+    {
+        result += *position++;
+    }
+
+    while (position != end)
+    {
+        result += separator + *position++;
+    }
+    return result;
+}
+
+static constexpr char WILDCARD_MATCH_ONE = '?';
+static constexpr char WILDCARD_MATCH_ALL = '*';
+static constexpr char ESCAPE_CHARACTER = '\\';
+
+std::string escapeWildCards(const std::string& pattern);
+
+std::set<std::string>::iterator getTagPosition(std::set<std::string>& tokens, const std::string& tag);
+
+// Check if two string (possible multibyte characters) are equal without take account if they are lower or higher case
+// 1 if they are equal
+int icuLikeCompare(const uint8_t* zPattern, /* LIKE pattern */
+                   const uint8_t* zString, /* The UTF-8 string to compare against */
+                   const UChar32 uEsc); /* The escape character */
+
+// Get the current process ID
+unsigned long getCurrentPid();
+
+// Convenience.
+template<typename T>
+struct IsStringType : std::false_type { };
+
+template<>
+struct IsStringType<std::string> : std::true_type { };
+
+template<>
+struct IsStringType<std::wstring> : std::true_type { };
+
+// Retrieve a file's extension.
+template<typename StringType>
+auto extensionOf(const StringType& path, std::string& extension)
+  -> typename std::enable_if<IsStringType<StringType>::value, bool>::type;
+
+template<typename StringType>
+auto extensionOf(const StringType& path)
+  -> typename std::enable_if<IsStringType<StringType>::value, std::string>::type;
+
+// Translate a character representing a hexadecimal digit to an integer.
+template<typename T>
+auto fromHex(char character)
+  -> typename std::enable_if<std::is_integral<T>::value,
+                             std::pair<T, bool>
+                            >::type
+{
+    // Ensure the character's in lowercase.
+    character |= ' ';
+
+    // Character's a decimal digit.
+    if (character >= '0' && character <= '9')
+        return std::make_pair(static_cast<T>(character - '0'), true);
+
+    // Character's a hexadecimal digit.
+    if (character >= 'a' && character <= 'f')
+        return std::make_pair(static_cast<T>(character - 'W'), true);
+
+    // Character's not a valid hexadecimal digit.
+    return std::make_pair(0, false);
+}
+
+// Translate a string of hexadecimal digits to an integer.
+//
+// NOTE: The string should be trimmed of any whitespace.
+template<typename T>
+auto fromHex(const char* current, const char* end)
+  -> typename std::enable_if<std::is_integral<T>::value,
+                             std::pair<T, bool>
+                            >::type
+{
+    // What's the largest value that T can represent?
+    constexpr auto maximum = std::numeric_limits<T>::max();
+
+    // Convenience.
+    constexpr auto undefined = std::make_pair(T{}, false);
+
+    // An empty string doesn't contain a valid hex number.
+    if (current == end)
+        return undefined;
+
+    // Our accumulated value.
+    T value{};
+
+    for ( ; current != end; ++current)
+    {
+        // Try and convert the current character to an integer.
+        auto result = fromHex<T>(*current);
+
+        // Character wasn't a valid hexadecimal digit.
+        if (!result.second)
+            return undefined;
+
+        // Make sure we don't wrap.
+        if (value && maximum / value < 16)
+            return undefined;
+
+        // Scale the value by 16.
+        value *= 16;
+
+        // Again, make sure we don't wrap.
+        if (maximum - value < result.first)
+            return undefined;
+
+        // Include the new digit in our running total.
+        value += result.first;
+    }
+
+    // Return value to caller.
+    return std::make_pair(value, true);
+}
+
+template<typename T>
+auto fromHex(const char* begin, std::size_t size)
+  -> typename std::enable_if<std::is_integral<T>::value,
+                             std::pair<T, bool>
+                            >::type
+{
+    return fromHex<T>(begin, begin + size);
+}
+
+// Translate a string of hexadecimal digits to an integer.
+//
+// NOTE: The string should be trimmed of any whitespace.
+template<typename T>
+auto fromHex(const std::string& value)
+  -> typename std::enable_if<std::is_integral<T>::value,
+                             std::pair<T, bool>
+                            >::type
+{
+    return fromHex<T>(value.data(), value.size());
+}
+
+// Convenience.
+using SplitFragment =
+  std::pair<const char*, std::size_t>;
+
+using SplitResult =
+  std::pair<SplitFragment, SplitFragment>;
+
+// Split a string into two halves around a specific delimiter.
+//
+// NOTE: The second half includes the delimiter, if present.
+SplitResult split(const char* begin, const char* end, char delimiter);
+SplitResult split(const char* begin, const std::size_t size, char delimiter);
+SplitResult split(const std::string& value, char delimiter);
+
+template<typename T>
+class ScopedValue {
+public:
+    ScopedValue(T& what, T value)
+      : mLastValue(std::move(what))
+      , mWhat(what)
+    {
+        what = std::move(value);
+    }
+
+    ~ScopedValue()
+    {
+        mWhat = std::move(mLastValue);
+    }
+
+    MEGA_DISABLE_COPY_MOVE(ScopedValue)
+
+private:
+    T mLastValue;
+    T& mWhat;
+}; // ScopedValue<T>
+
+template<typename T>
+ScopedValue<T> makeScopedValue(T& what, T value)
+{
+    return ScopedValue<T>(what, std::move(value));
+}
+
+/**
+ * @brief Sorts input char strings using natural sorting ignoring case
+ *
+ * @returns 0 if i==j, +1 if i goes first, -1 if j goes first.
+ */
+int naturalsorting_compare(const char* i, const char* j);
+
+/**
+ * @class MrProper
+ *
+ * @brief Ensures execution of a cleanup function when the object goes out of scope.
+ *
+ * It accepts a std::function<void()> during construction, which it executes once upon destruction.
+ * This is useful for resource management and ensuring cleanup in cases of exceptions.
+ *
+ * Example usage:
+ *     void function() {
+ *         MrProper cleaner([](){ std::cout << "Cleanup action executed.\n"; });
+ *         // Any code here that might throw or return early
+ *     }
+ *
+ * The class is non-copyable and non-movable to ensure the cleanup action is tightly bound to the
+ * scope where it is declared.
+ */
+struct MrProper
+{
+    using CleanupFunction = std::function<void()>;
+    CleanupFunction mOnRelease;
+
+    ~MrProper()
+    {
+        mOnRelease();
+    }
+
+    explicit MrProper(std::function<void()> f):
+        mOnRelease(f)
+    {}
+
+    MrProper() = delete;
+    MrProper(const MrProper&) = delete;
+    MrProper(MrProper&&) = delete;
+    MrProper& operator=(const MrProper&) = delete;
+    MrProper& operator=(MrProper&&) = delete;
+};
+
+/**
+ * @brief Ensures the given string has an asterisk in front and back. If the string is empty, "*" is
+ * returned.
+ *
+ * @note The input argument is passed by copy intentionally to operate on it.
+ */
+std::string ensureAsteriskSurround(std::string str);
+
+/**
+ * @brief Returns the index where the last '.' can be found in the fileName
+ *
+ * If there is not '.' in the input string, fileName.size() is returned
+ *
+ * @note This index is intended to be used with std::string::substr like:
+ * size_t dotPos = fileExtensionDotPosition(fileName);
+ * std::stirng basename = fileName.substr(0, dotPos);
+ * std::stirng extension = fileName.substr(dotPos); // It will contain the '.' if present
+ */
+size_t fileExtensionDotPosition(const std::string& fileName);
 
 } // namespace mega
 

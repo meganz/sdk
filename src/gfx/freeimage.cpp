@@ -41,12 +41,6 @@ typedef const char freeimage_filename_char_t;
 
 #ifdef HAVE_FFMPEG
 extern "C" {
-#ifdef _WIN32
-#pragma warning(disable:4996)
-#pragma warning(push)
-#pragma warning(disable:4242)
-#pragma warning(disable:4244)
-#endif
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>
 #include <libswscale/swscale.h>
@@ -54,9 +48,6 @@ extern "C" {
 #include <libavutil/mathematics.h>
 #include <libavutil/display.h>
 #include <libavutil/imgutils.h>
-#ifdef _WIN32
-#pragma warning(pop)
-#endif
 }
 #endif
 
@@ -165,7 +156,7 @@ bool GfxProviderFreeImage::readbitmapMediaInfo(const LocalPath& imagePath)
 }
 #endif
 
-bool GfxProviderFreeImage::readbitmapFreeimage(FileSystemAccess*, const LocalPath& imagePath, int size)
+bool GfxProviderFreeImage::readbitmapFreeimage(const LocalPath& imagePath, int size)
 {
 
     // FIXME: race condition, need to use open file instead of filename
@@ -248,7 +239,7 @@ private:
 template<class F, class P>
 ScopeGuard<F, P> makeScopeGuard(F f, P p){ return ScopeGuard<F, P>(f, p);	}
 
-bool GfxProviderFreeImage::readbitmapFfmpeg(FileSystemAccess* fa, const LocalPath& imagePath, int size)
+bool GfxProviderFreeImage::readbitmapFfmpeg(const LocalPath& imagePath, int size)
 {
 #ifndef DEBUG
     av_log_set_level(AV_LOG_PANIC);
@@ -392,8 +383,8 @@ bool GfxProviderFreeImage::readbitmapFfmpeg(FileSystemAccess* fa, const LocalPat
         seek_target = av_rescale_q(formatContext->duration / 5, av_get_time_base_q(), videoStream->time_base);
     }
 
-    string extension;
-    if (fa->getextension(imagePath, extension)
+    string extension = imagePath.extension();
+    if (!extension.empty()
             && strcmp(extension.c_str(),".mp3") && seek_target > 0
             && av_seek_frame(formatContext, videoStreamIdx, seek_target, AVSEEK_FLAG_BACKWARD) < 0)
     {
@@ -401,8 +392,10 @@ bool GfxProviderFreeImage::readbitmapFfmpeg(FileSystemAccess* fa, const LocalPat
         return false;
     }
 
-    AVPacket packet;
-    av_init_packet(&packet);
+    AVPacket* p = av_packet_alloc();
+    std::unique_ptr<AVPacket*, std::function<void(AVPacket**)>> pCleanup{ &p, [](AVPacket** pkt) { av_packet_free(pkt); } };
+
+    AVPacket& packet = *p;
     packet.data = NULL;
     packet.size = 0;
 
@@ -503,7 +496,7 @@ bool GfxProviderFreeImage::isPdfFile(const string &ext)
     return false;
 }
 
-bool GfxProviderFreeImage::readbitmapPdf(FileSystemAccess* fa, const LocalPath& imagePath, int size)
+bool GfxProviderFreeImage::readbitmapPdf(const LocalPath& imagePath, int size)
 {
     std::lock_guard<std::mutex> g(gfxMutex);
     if (!pdfiumInitialized)
@@ -527,9 +520,9 @@ bool GfxProviderFreeImage::readbitmapPdf(FileSystemAccess* fa, const LocalPath& 
         workingDir = LocalPath::fromPlatformEncodedAbsolute(tmpPath.c_str());
     }
 
-    unique_ptr<char[]> data = PdfiumReader::readBitmapFromPdf(w, h, orientation, imagePath, fa, workingDir);
+    unique_ptr<char[]> data = PdfiumReader::readBitmapFromPdf(w, h, orientation, imagePath, workingDir);
 #else
-    unique_ptr<char[]> data = PdfiumReader::readBitmapFromPdf(w, h, orientation, imagePath, fa);
+    unique_ptr<char[]> data = PdfiumReader::readBitmapFromPdf(w, h, orientation, imagePath);
 #endif
 
     if (!data || !w || !h)
@@ -578,12 +571,11 @@ const char *GfxProviderFreeImage::supportedvideoformats()
     return NULL;
 }
 
-bool GfxProviderFreeImage::readbitmap(FileSystemAccess* fa, const LocalPath& localname, int size)
+bool GfxProviderFreeImage::readbitmap(const LocalPath& localname, int size)
 {
 
     bool bitmapLoaded = false;
-    string extension;
-    if (fa->getextension(localname, extension))
+    if (string extension = localname.extension(); !extension.empty())
     {
 #ifdef USE_MEDIAINFO
         if (MediaProperties::isMediaFilenameExtAudio(extension))
@@ -595,7 +587,7 @@ bool GfxProviderFreeImage::readbitmap(FileSystemAccess* fa, const LocalPath& loc
         if (isFfmpegFile(extension))
         {
             bitmapLoaded = true;
-            if (!readbitmapFfmpeg(fa, localname, size) )
+            if (!readbitmapFfmpeg(localname, size) )
             {
                 return false;
             }
@@ -605,7 +597,7 @@ bool GfxProviderFreeImage::readbitmap(FileSystemAccess* fa, const LocalPath& loc
         if (isPdfFile(extension))
         {
             bitmapLoaded = true;
-            if (!readbitmapPdf(fa, localname, size) )
+            if (!readbitmapPdf(localname, size) )
             {
                 return false;
             }
@@ -614,7 +606,7 @@ bool GfxProviderFreeImage::readbitmap(FileSystemAccess* fa, const LocalPath& loc
     }
     if (!bitmapLoaded)
     {
-        if (!readbitmapFreeimage(fa, localname, size))
+        if (!readbitmapFreeimage(localname, size))
         {
             return false;
         }

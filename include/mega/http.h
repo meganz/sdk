@@ -33,7 +33,7 @@
 #include <sys/socket.h>
 #include <netdb.h>
 #else
-#include <winsock2.h>
+
 #pragma warning(push)
 #pragma warning( disable : 4459 )
 // um\ws2tcpip.h(738,14): warning C4459: declaration of 'Error' hides global declaration
@@ -182,33 +182,60 @@ namespace mega {
 class MEGA_API SpeedController
 {
 public:
+    // Size of the circular buffer used to calculate the circular mean speed (in seconds).
+    static const dstime SPEED_MEAN_CIRCULAR_BUFFER_SIZE_SECONDS = 5;
+    // Constant representing the number of deciseconds in one second.
+    static constexpr dstime DS_PER_SECOND = 10;
+
     SpeedController();
-    m_off_t calculateSpeed(long long numBytes = 0);
-    m_off_t getMeanSpeed();
 
-    // interval to calculate the mean speed (ds)
-    static const int SPEED_MEAN_MAX_INTERVAL_DS = 50;
+    // Calculates and updates the circular mean speed and the total mean speed.
+    // Returns the circular mean speed (same value as getMeanSpeed()).
+    m_off_t calculateSpeed(m_off_t numBytes);
+    // Retrieves the circular mean speed calculated over the time window defined by the circular buffer (SPEED_MEAN_CIRCULAR_BUFFER_SIZE_SECONDS).
+    m_off_t getCircularMeanSpeed() const;
+    // Retrieves the total mean speed calculated over the entire data transfer duration.
+    m_off_t getMeanSpeed() const;
 
+    // Initialize the speed values. If called again, it increments the initial time by the time elapsed since the last update.
     void requestStarted();
+    // Calculates the speed (calls calculateSpeed) using "newPos" as the delta value, and returns the delta (newPos - mRequestPos).
     m_off_t requestProgressed(m_off_t newPos);
-    m_off_t lastRequestSpeed();
-    dstime requestElapsedDs();
+    // Get the last request speed.
+    m_off_t lastRequestMeanSpeed() const;
+    // Time elapsed since the request started in deciseconds.
+    dstime requestElapsedDs() const;
 
-protected:
-    // a circular buffer of bytes received/transmitted per decisecond
-    std::array<m_off_t, SPEED_MEAN_MAX_INTERVAL_DS> mCircularBuf;
-    unsigned mCircularCurrentIndex = 0;
-    unsigned mCircularCurrentTime = 0;
-    m_off_t mCircularCurrentSum = 0;
+private:
+    // Values for the circular mean speed
+    std::array<m_off_t, SPEED_MEAN_CIRCULAR_BUFFER_SIZE_SECONDS> mCircularBuf{}; // Circular buffer of bytes received/transmitted per second.
+    size_t mCircularCurrentIndex{}; // Index of the current entry in the circular buffer.
+    dstime mCircularCurrentTime{}; // Current time for circular buffer updates.
+    m_off_t mCircularCurrentSum{}; // Sum of bytes in the circular buffer.
 
-    m_off_t mMeanSpeed = 0;
-    m_off_t mMeanSpeedSum = 0;
-    dstime mMeanSpeedStart = 0;
-    dstime mLastCalcTime = 0;
+    // Values for the total mean speed
+    m_off_t mTotalSumBytes{}; // Total sum of bytes received/transmitted.
+    dstime mInitialTime{}; // Initial time when the speed controller was started.
+    m_off_t mMeanSpeed{}; // Total mean speed (retrieved with getMeanSpeed()).
 
-    m_off_t mRequestPos = 0;
-    dstime mRequestStart = 0;
-    dstime mLastRequestUpdate = 0;
+    // Values for single requests
+    m_off_t mRequestPos{}; // Position of the single request.
+    dstime mRequestStart{}; // Start time of the single request.
+    dstime mLastRequestUpdate{}; // Last time the single request was updated.
+
+    // Calculate the total mean speed by aggregating progress (from deciseconds to seconds) over the total time period.
+    // Helper method to be called within calculateSpeed(), so the value is assigned to mMeanSpeed, which can be retrieved with getMeanSpeed().
+    m_off_t calculateMeanSpeed();
+    // Helper method to update the circular buffer when the delta time from the previous call is within the circular buffer size (SPEED_MEAN_CIRCULAR_BUFFER_SIZE_SECONDS)
+    void updateCircularBufferWithinLimit(m_off_t delta, dstime deltaTimeFromPreviousCall);
+    // Helper method to update the circular buffer when the delta time from the previous call exceeds the circular buffer size (SPEED_MEAN_CIRCULAR_BUFFER_SIZE_SECONDS)
+    void updateCircularBufferWithWeightedAverageForDeltaExceedingLimit(m_off_t& delta, dstime deltaTimeFromPreviousCall);
+    // Calculate offset in deciseconds for the current second starting from the initial time.
+    dstime calculateCurrentSecondOffsetInDs() const;
+    // Calculate next buffer index.
+    void nextIndex(size_t &currentCircularBufIndex, size_t positionsToAdvance = 1) const;
+    // Aggregate instantaneous delta values over a specified time subperiod to calculate a weighted average.
+    m_off_t aggregateProgressForTimePeriod(dstime timePeriodToAggregate, dstime totalTime, m_off_t bytesToAggregate) const;
 };
 
 extern std::mutex g_APIURL_default_mutex;

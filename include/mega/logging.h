@@ -186,7 +186,7 @@ public:
 
 class SimpleLogger
 {
-    enum LogLevel level;
+    LogLevel level;
 
 #ifndef ENABLE_LOG_PERFORMANCE
     std::ostringstream ostr;
@@ -259,6 +259,12 @@ class SimpleLogger
             logger->log(nullptr, level, nullptr, mBuffer.data());
         }
         mBufferIt = mBuffer.begin();
+    }
+
+    template<typename T>
+    void logValue(const std::atomic<T>& value)
+    {
+        logValue(value.load());
     }
 
     template<typename T>
@@ -380,7 +386,7 @@ class SimpleLogger
 
     static Logger *logger;
 
-    static enum LogLevel logCurrentLevel;
+    static std::atomic<LogLevel> logCurrentLevel;
 
     static long long maxPayloadLogSize; //above this, the msg will be truncated by [ ... ]
 
@@ -388,7 +394,7 @@ public:
     // flag to turn off logging on the log-output thread, to prevent possible deadlock cycles.
     static thread_local bool mThreadLocalLoggingDisabled;
 
-    SimpleLogger(const enum LogLevel ll, const char* filename, const int line)
+    SimpleLogger(const LogLevel ll, const char* filename, const int line)
     : level{ll}
 #ifdef ENABLE_LOG_PERFORMANCE
     , mBufferIt{mBuffer.begin()}
@@ -474,7 +480,7 @@ public:
 #endif
     }
 
-    static const char *toStr(enum LogLevel ll)
+    static const char *toStr(LogLevel ll)
     {
         switch (ll)
         {
@@ -629,11 +635,11 @@ public:
     }
 
     // set the current log level. all logs which are higher than this level won't be handled
-    static void setLogLevel(enum LogLevel ll)
+    static void setLogLevel(LogLevel ll)
     {
         logCurrentLevel = ll;
     }
-    inline static const LogLevel& getLogLevel()
+    inline static LogLevel getLogLevel()
     {
         return logCurrentLevel;
     }
@@ -711,6 +717,43 @@ struct LoggerVoidify
 
 #define LOG_fatal \
     ::mega::SimpleLogger(::mega::logFatal, ::mega::log_file_leafname(__FILE__), __LINE__)
+
+/**
+ * @brief Checks if the current time is within an active time window.
+ *
+ * This function uses static timing to manage cycles of active and rest periods, determining if the
+ * current call is made within an active time span.
+ *
+ * @tparam Duration The type of the chrono duration e.g. std::chrono::seconds, std::chrono::minutes.
+ * @param sleepDuration The duration of the inactivity period.
+ * @param activeDuration The duration of the active period.
+ */
+template<typename TimeUnit>
+inline bool isWithinActivePeriod(const TimeUnit sleepDuration, const TimeUnit activeDuration)
+{
+    using namespace std::chrono;
+    static const auto startTime = steady_clock::now();
+
+    const auto elapsed = duration_cast<TimeUnit>(steady_clock::now() - startTime);
+
+    const TimeUnit period = sleepDuration + activeDuration;
+    const TimeUnit currentPhase = elapsed % period;
+
+    return currentPhase >= sleepDuration && currentPhase < period;
+}
+
+#define LOG_generic_timed(LOG_LEVEL, SLEEP_DUR, ACTIVE_DUR) \
+::mega::SimpleLogger::getLogLevel() < LOG_LEVEL || !isWithinActivePeriod(SLEEP_DUR, ACTIVE_DUR) ? \
+    (void)0 : \
+    ::mega::LoggerVoidify() & \
+        ::mega::SimpleLogger(LOG_LEVEL, ::mega::log_file_leafname(__FILE__), __LINE__)
+
+#define LOG_verbose_timed(SLEEP, ACTIVE) LOG_generic_timed(::mega::logMax, SLEEP, ACTIVE)
+#define LOG_debug_timed(SLEEP, ACTIVE) LOG_generic_timed(::mega::logDebug, SLEEP, ACTIVE)
+#define LOG_info_timed(SLEEP, ACTIVE) LOG_generic_timed(::mega::logInfo, SLEEP, ACTIVE)
+#define LOG_warn_timed(SLEEP, ACTIVE) LOG_generic_timed(::mega::logWarning, SLEEP, ACTIVE)
+#define LOG_err_timed(SLEEP, ACTIVE) LOG_generic_timed(::mega::logError, SLEEP, ACTIVE)
+#define LOG_fatal_timed(SLEEP, ACTIVE) LOG_generic_timed(::mega::logFatal, SLEEP, ACTIVE)
 
 #if (defined(ANDROID) || defined(__ANDROID__))
 inline void crashlytics_log(const char* msg)

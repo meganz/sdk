@@ -48,7 +48,11 @@ Some common development tools should be available in the system to be able to bu
 
 #### Windows
 
-Ensure you have installed Visual Studio, with the necessary components for building C++ sources, and the Windows SDK on your system.
+Ensure you have installed Visual Studio, with the necessary components for building C++ sources, and the Windows SDK on your system:
+
+ - [Visual Studio 2019](https://visualstudio.microsoft.com/vs/older-downloads/)
+ - MSVC v142
+ - Windows 10 SDK (10.0.19041.0)
 
 #### MacOS
 
@@ -87,6 +91,9 @@ Next to the MEGA SDK, clone the VCPKG repository. If you are already using VCPKG
 
 	git clone https://github.com/microsoft/vcpkg
 
+**Note**: VCPKG local repository needs to be updated from time to time. If never done, it will eventually fail to find new dependencies or others updated to versions newer than what it already had.
+The solution is simple: go to VCPKG local repository and run `git pull`.
+
 ### Configuration
 
 The following instructions are for configuring the project from the CLI, but cmake-gui or any editor or IDE
@@ -103,7 +110,8 @@ In the command above, relative paths have been used for simplicity. If you want 
 
 During the configuration of the project, VCPKG will build and configure the necessary libraries for the platform. It may take a while on the first run, but once the libraries are built, VCPKG will retrieve them from the binary cache.
 
-Some options to configure the SDK may be found in the [CMakeLists.txt](CMakeLists.txt), such as ENABLE_TESTS, ENABLE_SYNC or USE_PDFIUM.
+Some options to configure the SDK library can be found in the [sdklib_options.cmake](sdk/contrib/cmake/modules/sdklib_options.cmake) file, like ENABLE_SYNC or USE_PDFIUM.
+The options to manage the examples and tests are in the [CMakeLists.txt](CMakeLists.txt).
 
 ### Building the sources
 

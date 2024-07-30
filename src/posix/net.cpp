@@ -39,7 +39,8 @@ extern JavaVM *MEGAjvm;
 
 namespace mega {
 
-bool g_netLoggingOn = false;
+std::atomic<bool> g_netLoggingOn{false};
+
 #define NET_verbose if (g_netLoggingOn) LOG_verbose
 #define NET_debug if (g_netLoggingOn) LOG_debug
 
@@ -1078,7 +1079,7 @@ void CurlHttpIO::addevents(Waiter* w, int)
             timeoutds++;
         }
 
-        if ((unsigned long)timeoutds < waiter->maxds)
+        if (timeoutds < waiter->maxds)
         {
             waiter->maxds = dstime(timeoutds);
         }
@@ -2162,7 +2163,7 @@ m_off_t CurlHttpIO::postpos(void* handle)
 
     if (httpctx->curl)
     {
-        curl_easy_getinfo(httpctx->curl, CURLINFO_SIZE_UPLOAD, &bytes);
+        curl_easy_getinfo(httpctx->curl, CURLINFO_SIZE_UPLOAD_T, &bytes);
     }
 
     return (m_off_t)bytes;
@@ -2577,7 +2578,7 @@ size_t CurlHttpIO::read_data(void* ptr, size_t size, size_t nmemb, void* source)
         bool isApi = (req->type == REQ_JSON);
         if (!isApi)
         {
-            long maxbytes = long( (httpio->maxspeed[PUT] - httpio->uploadSpeed) * (SpeedController::SPEED_MEAN_MAX_INTERVAL_DS / 10) - httpio->partialdata[PUT] );
+            long maxbytes = long( ((httpio->maxspeed[PUT] - httpio->uploadSpeed) * SpeedController::SPEED_MEAN_CIRCULAR_BUFFER_SIZE_SECONDS) - httpio->partialdata[PUT] );
             if (maxbytes <= 0)
             {
                 httpio->pausedrequests[PUT].insert(httpctx->curl);
@@ -2613,7 +2614,7 @@ size_t CurlHttpIO::write_data(void* ptr, size_t size, size_t nmemb, void* target
             bool isApi = (req->type == REQ_JSON);
             if (!isApi && !isUpload)
             {
-                if ((httpio->downloadSpeed + 10 * (httpio->partialdata[GET] + len) / SpeedController::SPEED_MEAN_MAX_INTERVAL_DS) > httpio->maxspeed[GET])
+                if ((httpio->downloadSpeed + ((httpio->partialdata[GET] + len) / static_cast<m_off_t>(SpeedController::SPEED_MEAN_CIRCULAR_BUFFER_SIZE_SECONDS))) > httpio->maxspeed[GET])
                 {
                     CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
                     httpio->pausedrequests[GET].insert(httpctx->curl);

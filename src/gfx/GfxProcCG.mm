@@ -21,8 +21,11 @@
 
 #include "mega.h"
 #import <AVFoundation/AVFoundation.h>
+#if TARGET_OS_IPHONE
 #import <UIKit/UIImage.h>
-#import <MobileCoreServices/UTType.h>
+#else
+#import <AppKit/NSImage.h>
+#endif
 #import <QuickLookThumbnailing/QuickLookThumbnailing.h>
 
 const CGFloat COMPRESSION_QUALITY = 0.8f;
@@ -54,7 +57,7 @@ const char* GfxProviderCG::supportedvideoformats() {
     return NULL;
 }
 
-bool GfxProviderCG::readbitmap(FileSystemAccess* fa, const LocalPath& path, int size) {
+bool GfxProviderCG::readbitmap(const LocalPath& path, int size) {
     // Convenience.
     using mega::detail::AdjustBasePathResult;
     using mega::detail::adjustBasePath;
@@ -142,6 +145,14 @@ static inline CGRect tileRect(size_t w, size_t h)
     return res;
 }
 
+#if !(TARGET_OS_IPHONE)
+static inline NSData* dataForImage(CGImageRef image) {
+    NSBitmapImageRep *bitmap = [[NSBitmapImageRep alloc] initWithCGImage:image];
+    NSDictionary *properties = @{NSImageCompressionFactor : @(COMPRESSION_QUALITY)};
+    return [bitmap representationUsingType:NSBitmapImageFileTypeJPEG properties:properties];
+}
+#endif
+
 bool GfxProviderCG::resizebitmap(int rw, int rh, string* jpegout) {
     jpegout->clear();
     
@@ -170,12 +181,20 @@ bool GfxProviderCG::resizebitmap(int rw, int rh, string* jpegout) {
         } else {
             if (isThumbnail) {
                 CGImageRef newImage = CGImageCreateWithImageInRect(thumbnail.CGImage, tileRect(CGImageGetWidth(thumbnail.CGImage), CGImageGetHeight(thumbnail.CGImage)));
+#if TARGET_OS_IPHONE
                 data = UIImageJPEGRepresentation([UIImage imageWithCGImage:newImage], COMPRESSION_QUALITY);
                 if (newImage) {
                     CFRelease(newImage);
                 }
+#else
+                data = dataForImage(newImage);
+#endif
             } else {
+#if TARGET_OS_IPHONE
                 data = UIImageJPEGRepresentation(thumbnail.UIImage, COMPRESSION_QUALITY);
+#else
+                data = dataForImage(thumbnail.CGImage);
+#endif
             }
         }
         if (this->semaphore) {
