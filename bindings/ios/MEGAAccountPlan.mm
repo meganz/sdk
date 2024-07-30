@@ -62,7 +62,7 @@ using namespace mega;
     return (MEGAAccountType) (self.megaAccountPlan ? self.megaAccountPlan->getAccountLevel() : -1);
 }
 
-- (NSArray<NSString *>*) features {
+- (NSArray<NSString *>*)features {
     if (!self.megaAccountPlan) return nil;
 
     MegaStringList* features = self.megaAccountPlan ? self.megaAccountPlan->getFeatures() : nil;
