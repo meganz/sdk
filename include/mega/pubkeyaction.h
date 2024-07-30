@@ -22,12 +22,16 @@
 #ifndef MEGA_PUBKEYACTION_H
 #define MEGA_PUBKEYACTION_H 1
 
-#include "mega/megaclient.h"
-#include "mega/user.h"
+#include "mega/command.h"
 #include "mega/node.h"
+#include "mega/user.h"
 
 namespace mega {
 // action to be performed upon arrival of a user's public key
+
+// forward declaration to avoid cyclic include with megaclient.h
+class MegaClient;
+
 class MEGA_API PubKeyAction
 {
 public:
