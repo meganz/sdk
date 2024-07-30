@@ -5585,12 +5585,13 @@ public:
      * For event EVENT_REQSTAT_PROGRESS, this number is the per mil progress of
      * a long-running API operation, or -1 if there isn't any operation in progress.
      *
-     * For event EVENT_ERROR, these values can be taken:
-     *  - REASON_ERROR_FAILURE_UNSERIALIZE_NODE = 0  -> Failure when node is unserialized from DB
-     *  - REASON_ERROR_IO_DB_FAILURE = 1             -> Input/output error at DB
-     *  - REASON_RELOAD_NODE_INCONSISTENCY = 2       -> Node inconsistency detected reading nodes from API
-     *  - REASON_ERROR_DB_FULL = 3                   -> Failure at DB due disk is full
-     *  - REASON_RELOAD_UNKNOWN = 4                  -> Unknown reason
+     * For event EVENT_FATAL_ERROR, these values can be taken:
+     *  - REASON_ERROR_UNKNOWN = -1 -> Unknown reason
+     *  - REASON_ERROR_NO_ERROR = 0 -> No error
+     *  - REASON_ERROR_FAILURE_UNSERIALIZE_NODE = 1 -> Failure when node is unserialized from DB
+     *  - REASON_ERROR_DB_IO_FAILURE = 2 -> Input/output error at DB layer
+     *  - REASON_ERROR_DB_FULL = 3 -> Failure at DB layer because disk is full
+     *  - REASON_ERROR_DB_INDEX_OVERFLOW = 4 -> Index used to primary key at db overflow
      *
      * @return Number relative to this event
      */
@@ -14003,6 +14004,26 @@ class MegaApi
                            MegaRequestListener* listener = NULL);
 
         /**
+         * @brief Retrieve all unique node tags present across all nodes in the account
+         *
+         * @note If the searchString contains invalid characters, such as ',', an empty list will be
+         * returned.
+         *
+         * @note This function allows to cancel the processing at any time by passing a
+         * MegaCancelToken and calling to MegaCancelToken::setCancelFlag(true).
+         *
+         * You take ownership of the returned value.
+         *
+         * @param searchString Optional parameter to filter the tags based on a specific search
+         * string. If set to nullptr, all node tags will be retrieved.
+         * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
+         *
+         * @return All the unique node tags that match the search criteria.
+         */
+        MegaStringList* getAllNodeTags(const char* searchString = nullptr,
+                                       MegaCancelToken* cancelToken = nullptr);
+
+        /**
          * @brief Generate a public link of a file/folder in MEGA
          *
          * The associated request type with this request is MegaRequest::TYPE_EXPORT
@@ -14067,14 +14088,16 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getLink - Public link
          * - MegaRequest::getPrivateKey - Authentication token (only if writable=true)
+         * - MegaRequest::getPassword - Returns base64 encryption key used for share-key (only if
+         * writable=true and megaHosted=true)
          *
-         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
-         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish
+         * will be called with the error code MegaError::API_EBUSINESSPASTDUE.
          *
          * @param node MegaNode to get the public link
          * @param writable if the link should be writable.
-         * @param megaHosted if true, the share key of this specific folder would be shared with MEGA.
-         * This is intended to be used for folders accessible though MEGA's S4 service.
+         * @param megaHosted if true, the share key of this specific folder would be shared with
+         * MEGA. This is intended to be used for folders accessible though MEGA's S4 service.
          * Encryption will occur nonetheless within MEGA's S4 service.
          * @param listener MegaRequestListener to track this request
          *
@@ -14098,9 +14121,11 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getLink - Public link
          * - MegaRequest::getPrivateKey - Authentication token (only if writable=true)
+         * - MegaRequest::getPassword - Returns base64 encryption key used for share-key (only if
+         * writable=true and megaHosted=true)
          *
-         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
-         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish
+         * will be called with the error code MegaError::API_EBUSINESSPASTDUE.
          *
          * @param node MegaNode to get the public link
          * @param expireTime Unix timestamp until the public link will be valid
@@ -23918,6 +23943,13 @@ public:
      * @return Features granted by this subscription.
      */
     virtual MegaStringList* getFeatures() const = 0;
+
+    /**
+     * @brief Return if the subscription is related to an active trial
+     *
+     * @return True if the subscription is related to an active trial, otherwise false.
+     */
+    virtual bool isTrial() const = 0;
 };
 
 class MegaAccountPlan
@@ -23988,6 +24020,13 @@ public:
      * @return ID of this subscription
      */
     virtual char* getId() const = 0;
+
+    /**
+     * @brief Return if the plan is related to an active trial
+     *
+     * @return True if the plan is related to an active trial, otherwise false.
+     */
+    virtual bool isTrial() const = 0;
 };
 
 /**
@@ -24738,6 +24777,16 @@ public:
      * @return test category bitmap
      */
     virtual unsigned int getTestCategory(int productIndex) const;
+
+    /**
+     * @brief Get trial duration in days
+     *
+     * The returned value will be 0 if the plan is not elegible for trial.
+     *
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return Trial duration in days
+     */
+    virtual unsigned int getTrialDurationInDays(int productIndex) const = 0;
 };
 
 /**

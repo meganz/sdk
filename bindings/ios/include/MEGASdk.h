@@ -154,7 +154,8 @@ typedef NS_ENUM(NSInteger, MEGANodeAttribute) {
     MEGANodeAttributeOriginalFingerprint = 2,
     MEGANodeAttributeLabel = 3,
     MEGANodeAttributeFav = 4,
-    MEGANodeAttributeSen = 6
+    MEGANodeAttributeSen = 6,
+    MEGANodeDescription = 7
 };
 
 typedef NS_ENUM(NSInteger, MEGASetAttribute) {
@@ -3598,6 +3599,25 @@ typedef NS_ENUM(NSInteger, MEGAClientType) {
  * @param sensitive if true set node as sensitive, otherwise remove the attribute
  */
 - (void)setNodeSensitive:(MEGANode *)node sensitive:(BOOL)sensitive;
+
+/**
+ * @brief Set node description as a node attribute
+ *
+ * To remove node description, set description to nil
+ * The associated request type with this request is MEGARequestTypeSetAttrNode
+ * Valid data in the MegaRequest object received on callbacks: 
+ * - [MEGARequest nodeHandle] - Returns the handle of the node that received the attribute
+ * - [MEGARequest flag] - Returns true (official  * attribute)
+ * - MEGARequest paramType]  - Returns MEGANodeDescription
+ * - [MEGARequest getText] - Returns node description
+ * If the size of the description is greater than 3000, onRequestFinish will be called with the error code MEGAErrorTypeApiEArgs.
+ * If the MEGA account is a business account and its status is expired, onRequestFinish will be called with the error code MEGAErrorTypeApiEBusinessPastDue.
+ *
+ * @param description Description of the node. Set nil to remove.
+ * @param node Node that will receive the information.
+ * @param delegate MEGARequestListener to track this request
+ */
+- (void)setDescription:(nullable NSString *)description forNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Get a list of favourite nodes.

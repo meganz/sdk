@@ -22,8 +22,6 @@ class Session
                        fuse_ino_t inode,
                        int mask);
 
-    static void destroy(void* context);
-
     static void init(void* context, fuse_conn_info* connection);
 
     static void lookup(fuse_req_t request,
@@ -135,6 +133,9 @@ public:
 
     // Dispatch a request received from FUSE.
     void dispatch(std::string request);
+
+    // Destroy the mount associated with this session.
+    void destroy();
 
     // Has this session exited?
     bool exited() const;

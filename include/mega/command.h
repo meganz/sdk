@@ -897,17 +897,33 @@ public:
 
 class MEGA_API CommandSetPH : public Command
 {
+public:
+    using CompletionType = std::function<void(Error,
+                                              handle /*Node handle*/,
+                                              handle /*publicHandle*/,
+                                              std::string&& /*mEncryptionKeyForShareKey*/)>;
+
+private:
     handle h;
     m_time_t ets;
     bool mWritable = false;
     bool mDeleting = false;
-    std::function<void(Error, handle, handle)> completion;
+    std::string mEncryptionKeyForShareKey; // Base64 string
+    CompletionType mCompletion;
+
+    void completion(Error, handle nodhandle, handle);
 
 public:
     bool procresult(Result, JSON&) override;
 
-    CommandSetPH(MegaClient*, Node*, int, m_time_t, bool writable, bool megaHosted,
-        int ctag, std::function<void(Error, handle, handle)> f);
+    CommandSetPH(MegaClient*,
+                 Node*,
+                 int,
+                 m_time_t,
+                 bool writable,
+                 bool megaHosted,
+                 int ctag,
+                 CompletionType f);
 };
 
 class MEGA_API CommandGetPH : public Command
@@ -942,6 +958,8 @@ public:
 class MEGA_API CommandEnumerateQuotaItems : public Command
 {
     static constexpr unsigned int INVALID_TEST_CATEGORY = 0;
+    static constexpr unsigned int NO_TRIAL_DAYS = 0;
+
 public:
     bool procresult(Result, JSON&) override;
 

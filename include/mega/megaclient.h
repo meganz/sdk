@@ -938,10 +938,20 @@ public:
     void updatepcr(handle, ipcactions_t, CommandUpdatePendingContact::Completion completion = nullptr);
 
     // export node link or remove existing exported link for this node
-    error exportnode(std::shared_ptr<Node>, int, m_time_t, bool writable, bool megaHosted,
-        int tag, std::function<void(Error, handle, handle)> completion);
-    void requestPublicLink(Node* n, int del, m_time_t ets, bool writable, bool megaHosted,
-	    int tag, std::function<void(Error, handle, handle)> completion); // auxiliar method to add req
+    error exportnode(std::shared_ptr<Node>,
+                     int,
+                     m_time_t,
+                     bool writable,
+                     bool megaHosted,
+                     int tag,
+                     std::function<void(Error, handle, handle, std::string&&)> completion);
+    void requestPublicLink(Node* n,
+                           int del,
+                           m_time_t ets,
+                           bool writable,
+                           bool megaHosted,
+                           int tag,
+                           CommandSetPH::CompletionType completion); // auxiliar method to add req
 
     // add timer
     error addtimer(TimerWithBackoff *twb);
@@ -2682,6 +2692,23 @@ public:
                              std::shared_ptr<Node> nParent, int rtag);
     error updatePasswordNode(NodeHandle nh, std::unique_ptr<AttrMap> newData,
                              CommandSetAttr::Completion&& cb);
+
+    /**
+     * @brief Creates multiple password nodes with a single putnodes call
+     *
+     * @note API_EARGS will be returned if:
+     *     - nParent is not a password node folder
+     *     - If any of the given values in data is invalid, e.g., the password field is missing
+     *
+     * @param data A map with the name of the password entry to create as key and the information of
+     * the password (AttrMap) as values.
+     * @param nParent The parent node that will contain the nodes to be created
+     * @param rTag tag parameter for putnodes call
+     * @return error code (API_OK if succeeded)
+     */
+    error createPasswordNodes(const std::map<std::string, std::unique_ptr<AttrMap>>& data,
+                              std::shared_ptr<Node> nParent,
+                              int rTag);
 
     static std::string generatePasswordChars(const bool useUpper,
                                              const bool useDigits,

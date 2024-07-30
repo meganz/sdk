@@ -102,7 +102,8 @@ CONFIG(WITH_FUSE) {
         $$FUSE_COMMON_TESTING_INC/real_client.h \
         $$FUSE_COMMON_TESTING_INC/test_base.h \
         $$FUSE_COMMON_TESTING_INC/test.h \
-        $$FUSE_COMMON_TESTING_INC/utility.h
+        $$FUSE_COMMON_TESTING_INC/utility.h \
+        $$FUSE_COMMON_TESTING_INC/watchdog.h
 
     SOURCES += \
         $$FUSE_COMMON_TESTING_SRC/client.cpp \
@@ -121,7 +122,8 @@ CONFIG(WITH_FUSE) {
         $$FUSE_COMMON_TESTING_SRC/sync_tests.cpp \
         $$FUSE_COMMON_TESTING_SRC/test.cpp \
         $$FUSE_COMMON_TESTING_SRC/test_base.cpp \
-        $$FUSE_COMMON_TESTING_SRC/utility.cpp
+        $$FUSE_COMMON_TESTING_SRC/utility.cpp \
+        $$FUSE_COMMON_TESTING_SRC/watchdog.cpp
 
     FUSE_SUPPORTED_TESTING_INC = \
         $$MEGASDK_BASE_PATH/src/fuse/supported/fuse/platform/testing

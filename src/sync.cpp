@@ -803,9 +803,8 @@ void Sync::setBackupMonitoring()
 
     assert(config.getBackupState() == SYNC_BACKUP_MIRROR);
 
-    LOG_verbose << "Sync "
-                << toHandle(config.mBackupId)
-                << " transitioning to monitoring mode.";
+    LOG_verbose << "Backup Sync " << toHandle(config.mBackupId)
+                << " transitioning to monitoring mode";
 
     config.setBackupState(SYNC_BACKUP_MONITOR);
 
@@ -2111,7 +2110,7 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
             PathProblem problem = PathProblem::NoProblem;
 
             // Does the overwrite appear legitimate?
-            if (row.syncNode->syncedCloudNodeHandle != row.cloudNode->handle)
+            if ((row.syncNode->syncedCloudNodeHandle != row.cloudNode->handle) && !isBackup())
                 problem = PathProblem::DifferentFileOrFolderIsAlreadyPresent;
 
             // Has the engine completed all pending scans?
@@ -3162,7 +3161,7 @@ bool Sync::checkCloudPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
                 parentRow.syncNode->setCheckMovesAgain(false, true, false);
 
                 // If there is a different file or folder already present in the local side, let the user decide
-                if (problem == PathProblem::DifferentFileOrFolderIsAlreadyPresent)
+                if (problem == PathProblem::DifferentFileOrFolderIsAlreadyPresent && !isBackup())
                     return resolve_userIntervention(row, fullPath);
 
                 monitor.waitingCloud(fullPath.cloudPath, SyncStallEntry(
@@ -4035,6 +4034,10 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool setOriginalPath,
         if (firstTime || isExternal || wasDisabled)
         {
             // Then we must come up in mirroring mode.
+            LOG_verbose << "Backup Sync " << toHandle(config.mBackupId)
+                        << " starting in mirroring mode"
+                        << " [firstTime = " << firstTime << ", isExternal = " << isExternal
+                        << ", wasDisabled = " << wasDisabled << "]";
             us.mConfig.mBackupState = SYNC_BACKUP_MIRROR;
         }
     }
@@ -4140,8 +4143,8 @@ void UnifiedSync::changedConfigState(bool save, bool notifyApp)
     {
         LOG_debug << "Sync " << toHandle(mConfig.mBackupId)
                   << " now in runState: " << int(mConfig.mRunState)
-                  << " enabled: " << mConfig.mEnabled
-                  << " error: " << mConfig.mError;
+                  << " enabled: " << mConfig.mEnabled << " error: " << mConfig.mError
+                  << " (isBackup: " << mConfig.isBackup() << ")";
 
         if (save)
         {
@@ -8810,7 +8813,7 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
             return resolve_rowMatched(row, parentRow, fullPath, pflsc);
         }
 
-        if (cloudEqual || isBackupAndMirroring())
+        if (cloudEqual)
         {
             // filesystem changed, put the change
             return resolve_upsync(row, parentRow, fullPath, pflsc);
@@ -8818,8 +8821,19 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
 
         if (fsEqual)
         {
-            // cloud has changed, get the change
-            return resolve_downsync(row, parentRow, fullPath, true, pflsc);
+            if (isBackup())
+            {
+                LOG_warn << "CSF with cloud node change and this is a BACKUP!"
+                         << " Local file will be upsynced to fix the mismatched cloud node."
+                         << " Triplet: " << logTriplet(row, fullPath);
+                assert(isBackupAndMirroring() &&
+                       "CSF with cloud node change should not happen for a backup!");
+            }
+            else
+            {
+                // cloud has changed, get the change
+                return resolve_downsync(row, parentRow, fullPath, true, pflsc);
+            }
         }
 
         if (auto uploadPtr = threadSafeState->isNodeAnExpectedUpload(row.cloudNode->parentHandle, row.cloudNode->name))
@@ -8834,6 +8848,15 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
                 row.syncNode->transferSP.reset();
                 return false;
             }
+        }
+
+        if (isBackup())
+        {
+            // for backups, we only change the cloud
+            LOG_warn << "CSF for a BACKUP with CloudNode != SyncNode != FSNode -> resolve upsync "
+                        "to avoid user intervention"
+                     << " " << logTriplet(row, fullPath);
+            return resolve_upsync(row, parentRow, fullPath, pflsc);
         }
 
         // both changed, so we can't decide without the user's help
@@ -8864,6 +8887,17 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
             // on disk, content could be changed without an fsid change
             && syncEqual(*row.fsNode, *row.syncNode))
         {
+            if (isBackup())
+            {
+                // for backups, we only change the cloud
+                LOG_warn << "XSF with cloud node gone when this item was synced before and this is "
+                            "a BACKUP!"
+                         << " This will result on the backup being disabled."
+                         << " Triplet: " << logTriplet(row, fullPath);
+                // assert(false && "XSF - cloud item not present for a previously "
+                //                 "synced item should not happen for a backup!");
+                //  ToDo: uncomment this assert (or re-consider it) after SDK-4114
+            }
             // used to be fully synced and the fs side still has that version
             // remove in the fs (if not part of a move)
             return resolve_cloudNodeGone(row, parentRow, fullPath);
@@ -8913,9 +8947,21 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
             // fs item did not exist before; downsync
             return resolve_downsync(row, parentRow, fullPath, false, pflsc);
         }
-        else if (//!row.syncNode->syncedCloudNodeHandle.isUndef() &&
-                 row.syncNode->syncedCloudNodeHandle != row.cloudNode->handle)
+        else if (row.syncNode->syncedCloudNodeHandle != row.cloudNode->handle)
         {
+            if (isBackup())
+            {
+                // for backups, we only change the cloud,
+                // if there was already a fsNode before,
+                // we likely had an upload before but the sync loop
+                // ended before the syncNode was updated,
+                // and the local file was removed afterwards
+                LOG_warn << "CSX with sync node different from cloud node"
+                            " and this is a backup. Cloud node will be removed."
+                         << " Triplet: " << logTriplet(row, fullPath);
+                return resolve_fsNodeGone(row, parentRow, fullPath);
+            }
+
             // the cloud item has changed too; downsync (this lets users recover from both sides changed state - user deletes the one they don't want anymore)
             return resolve_downsync(row, parentRow, fullPath, false, pflsc);
         }
@@ -8934,6 +8980,7 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
                 return resolve_fsNodeGone(row, parentRow, fullPath);
             }
             LOG_debug << "interesting case, does it occur?";
+            assert(false && "This case is not expected to happen");
 
             return false;
         }
@@ -8969,8 +9016,26 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
         // If they are equal then join them with a Localnode. Othewise report to user.
         // The original algorithm would compare mtime, and if that was equal then size/crc
 
-        if (syncEqual(*row.cloudNode, *row.fsNode))
+        if (bool isSyncEqual = syncEqual(*row.cloudNode, *row.fsNode); isSyncEqual || isBackup())
         {
+            if (!isSyncEqual &&
+                isBackup()) // Given the logic above, if !isSyncEqual then isBackup() is true, but
+                            // it's better to be sure in case of changes
+            {
+                // for backups, we only change the cloud: we need to first create the syncNode from
+                // the FSnode to do the upsync later
+                LOG_warn << "CXF with no sync node, cloud and local nodes are different and this "
+                            "is a BACKUP!"
+                         << " A SyncNode will be created from the FSNode so this can be later "
+                            "resolved with an upsync."
+                         << " Triplet: " << logTriplet(row, fullPath);
+                // If the backup was disabled, sync nodes would not exist at this point,
+                // and the backup will start in mirroring mode. So this case could be legit
+                // if we are in mirroring mode.
+                assert(isBackupAndMirroring() &&
+                       "CXF - sync item not present, but there are a cloud node and "
+                       "FSnode which are different for a backup!");
+            }
             return resolve_makeSyncNode_fromFS(row, parentRow, fullPath, false);
         }
         else
@@ -8997,6 +9062,16 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
         // Don't create sync nodes unless we know the row is included.
         if (parentRow.exclusionState(*row.cloudNode) != ES_INCLUDED)
             return true;
+
+        if (isBackup())
+        {
+            LOG_warn << "CXX with only a cloud node and this is a BACKUP!"
+                     << " This will result on the backup being disabled."
+                     << " Triplet: " << logTriplet(row, fullPath);
+            // assert(isBackupAndMirroring() &&
+            //        "CXX - item exists only in the cloud, this should not happen for a backup!");
+            //  ToDo: uncomment this assert (or re-consider it) after SDK-4114
+        }
 
         // item exists remotely only
         return resolve_makeSyncNode_fromCloud(row, parentRow, fullPath, false);
@@ -10097,6 +10172,8 @@ bool Sync::resolve_userIntervention(SyncRow& row, SyncPath& fullPath)
     assert(syncs.onSyncThread());
     ProgressingMonitor monitor(*this, row, fullPath);
 
+    assert(!isBackup() && "resolve_userIntervention should never be called for a backup!");
+
     if (row.syncNode)
     {
         bool immediateStall = true;
@@ -10117,11 +10194,15 @@ bool Sync::resolve_userIntervention(SyncRow& row, SyncPath& fullPath)
             }
         }
 
-        SYNC_verbose_timed << "both sides mismatch. mtimes: "
-                     << row.cloudNode->fingerprint.mtime << " "
-                     << row.syncNode->syncedFingerprint.mtime << " "
-                     << row.fsNode->fingerprint.mtime << " "
-                     << " Immediate: " << immediateStall << " at " << logTriplet(row, fullPath);
+        SYNC_verbose_timed << "Both sides mismatch: "
+                           << "Cloud -> mtime: " << row.cloudNode->fingerprint.mtime << ", "
+                           << "size: " << row.cloudNode->fingerprint.size << ". "
+                           << "SyncNode -> mtime: " << row.syncNode->syncedFingerprint.mtime << ", "
+                           << "size: " << row.syncNode->syncedFingerprint.size << ". "
+                           << "Local -> mtime: " << row.fsNode->fingerprint.mtime << ", "
+                           << "size: " << row.fsNode->fingerprint.size << ". "
+                           << "Immediate: " << immediateStall << " at "
+                           << logTriplet(row, fullPath);
 
         monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
             SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose, immediateStall, true,
@@ -10132,6 +10213,13 @@ bool Sync::resolve_userIntervention(SyncRow& row, SyncPath& fullPath)
     }
     else
     {
+        SYNC_verbose_timed << "Both sides unsynced: "
+                           << "Cloud -> mtime: " << row.cloudNode->fingerprint.mtime << ", "
+                           << "size: " << row.cloudNode->fingerprint.size << ". "
+                           << "Local -> mtime: " << row.fsNode->fingerprint.mtime << ", "
+                           << "size: " << row.fsNode->fingerprint.size << ". "
+                           << "At " << logTriplet(row, fullPath);
+
         monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
             SyncWaitReason::LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose, true, true,
             {row.cloudNode->handle, fullPath.cloudPath},

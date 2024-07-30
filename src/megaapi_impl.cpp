@@ -19,6 +19,7 @@
  * program.
  */
 
+#include <numeric>
 #define _LARGE_FILES
 
 #define _GNU_SOURCE 1
@@ -4398,16 +4399,41 @@ void MegaRequestPrivate::setTag(int tag)
     this->tag = tag;
 }
 
-void MegaRequestPrivate::addProduct(unsigned int type, handle product, int proLevel, int gbStorage, int gbTransfer,
-                                    int months, int amount, int amountMonth, int localPrice,
-                                    const char* description, map<string, uint32_t>&& features, const char* iosid, const char* androidid,
-                                    unsigned int testCategory, std::unique_ptr<BusinessPlan> bizPlan)
+void MegaRequestPrivate::addProduct(unsigned int type,
+                                    handle product,
+                                    int proLevel,
+                                    int gbStorage,
+                                    int gbTransfer,
+                                    int months,
+                                    int amount,
+                                    int amountMonth,
+                                    int localPrice,
+                                    const char* description,
+                                    map<string, uint32_t>&& features,
+                                    const char* iosid,
+                                    const char* androidid,
+                                    unsigned int testCategory,
+                                    std::unique_ptr<BusinessPlan> bizPlan,
+                                    unsigned int trialDays)
 {
     if (megaPricing)
     {
-        megaPricing->addProduct(type, product, proLevel, gbStorage, gbTransfer,
-                                months, amount, amountMonth, localPrice,
-                                description, std::move(features), iosid, androidid, testCategory, std::move(bizPlan));
+        megaPricing->addProduct(type,
+                                product,
+                                proLevel,
+                                gbStorage,
+                                gbTransfer,
+                                months,
+                                amount,
+                                amountMonth,
+                                localPrice,
+                                description,
+                                std::move(features),
+                                iosid,
+                                androidid,
+                                testCategory,
+                                std::move(bizPlan),
+                                trialDays);
     }
 }
 
@@ -8220,6 +8246,20 @@ void MegaApiImpl::removeNodeTag(MegaNode* node, const char* tag, MegaRequestList
 void MegaApiImpl::updateNodeTag(MegaNode* node, const char* newTag, const char* oldTag, MegaRequestListener* listener)
 {
     CRUDNodeTagOperation(node, MegaApi::TAG_NODE_UPDATE, newTag, oldTag, listener);
+}
+
+MegaStringList* MegaApiImpl::getAllNodeTags(const char* searchString, CancelToken cancelToken)
+{
+    SdkMutexGuard g(sdkMutex);
+    std::set<std::string> allDifferentTags =
+        client->mNodeManager.getAllNodeTags(searchString, cancelToken);
+    std::vector<std::string> result(allDifferentTags.begin(), allDifferentTags.end());
+    const auto compF = [](const std::string& a, const std::string& b) -> bool
+    {
+        return naturalsorting_compare(a.c_str(), b.c_str()) < 0;
+    };
+    std::sort(std::begin(result), std::end(result), compF);
+    return new MegaStringListPrivate(std::move(result));
 }
 
 void MegaApiImpl::exportNode(MegaNode *node, int64_t expireTime, bool writable, bool megaHosted, MegaRequestListener *listener)
@@ -14546,10 +14586,22 @@ void MegaApiImpl::putfa_result(handle h, fatype, error e)
     fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
 }
 
-void MegaApiImpl::enumeratequotaitems_result(unsigned type, handle product, unsigned prolevel,
-    int gbstorage, int gbtransfer, unsigned months, unsigned amount, unsigned amountMonth, unsigned localPrice,
-    const char* description, map<string, uint32_t>&& features, const char* iosid, const char* androidid, 
-    unsigned int testCategory, std::unique_ptr<BusinessPlan> bizPlan)
+void MegaApiImpl::enumeratequotaitems_result(unsigned type,
+                                             handle product,
+                                             unsigned prolevel,
+                                             int gbstorage,
+                                             int gbtransfer,
+                                             unsigned months,
+                                             unsigned amount,
+                                             unsigned amountMonth,
+                                             unsigned localPrice,
+                                             const char* description,
+                                             map<string, uint32_t>&& features,
+                                             const char* iosid,
+                                             const char* androidid,
+                                             unsigned int testCategory,
+                                             std::unique_ptr<BusinessPlan> bizPlan,
+                                             unsigned int trialDays)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
@@ -14561,9 +14613,22 @@ void MegaApiImpl::enumeratequotaitems_result(unsigned type, handle product, unsi
         return;
     }
 
-    request->addProduct(type, product, prolevel, gbstorage, gbtransfer, months,
-        amount, amountMonth, localPrice, description, std::move(features),
-        iosid, androidid, testCategory, std::move(bizPlan));
+    request->addProduct(type,
+                        product,
+                        prolevel,
+                        gbstorage,
+                        gbtransfer,
+                        months,
+                        amount,
+                        amountMonth,
+                        localPrice,
+                        description,
+                        std::move(features),
+                        iosid,
+                        androidid,
+                        testCategory,
+                        std::move(bizPlan),
+                        trialDays);
 }
 
 void MegaApiImpl::enumeratequotaitems_result(unique_ptr<CurrencyData> currencyData)
@@ -20492,59 +20557,78 @@ error MegaApiImpl::performRequest_export(MegaRequestPrivate* request)
             bool writable = request->getFlag();
             bool megaHosted = request->getTransferTag() != 0;
             // exportnode() will take care of creating a share first, should it be a folder
-            return client->exportnode(node, !request->getAccess(), request->getNumber(), writable, megaHosted, request->getTag(),
-                [this, request](Error e, handle h, handle ph)
-            {
-                if (e || !request->getAccess()) // disable export doesn't return h and ph
+            return client->exportnode(
+                node,
+                !request->getAccess(),
+                request->getNumber(),
+                writable,
+                megaHosted,
+                request->getTag(),
+                [this, request, megaHosted](Error e, handle h, handle ph, string&& encryptionKey)
                 {
-                    fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
-                }
-                else
-                {
-                    // This block of code used to be inside exportnode_result
-                    if (std::shared_ptr<Node> n = client->nodebyhandle(h))
+                    if (e || !request->getAccess()) // disable export doesn't return h and ph
                     {
-                        char key[FILENODEKEYLENGTH*4/3+3];
-
-                        // the key
-                        if (n->type == FILENODE)
-                        {
-                            if(n->nodekey().size() >= FILENODEKEYLENGTH)
-                            {
-                                Base64::btoa((const byte*)n->nodekey().data(), FILENODEKEYLENGTH, key);
-                            }
-                            else
-                            {
-                                key[0]=0;
-                            }
-                        }
-                        else if (n->sharekey)
-                        {
-                            Base64::btoa(n->sharekey->key, FOLDERNODEKEYLENGTH, key);
-                        }
-                        else
-                        {
-                            fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(MegaError::API_EKEY));
-                            return;
-                        }
-
-                        TypeOfLink lType = client->validTypeForPublicURL(n->type);
-                        string link = client->publicLinkURL(client->mNewLinkFormat, lType, ph, key);
-                        request->setLink(link.c_str());
-                        if (n->plink && n->plink->mAuthKey.size())
-                        {
-                            request->setPrivateKey(n->plink->mAuthKey.c_str());
-                        }
-
-                        fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(MegaError::API_OK));
+                        fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
                     }
                     else
                     {
-                        request->setNodeHandle(UNDEF);
-                        fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(MegaError::API_ENOENT));
+                        // This block of code used to be inside exportnode_result
+                        if (std::shared_ptr<Node> n = client->nodebyhandle(h))
+                        {
+                            char key[FILENODEKEYLENGTH * 4 / 3 + 3];
+
+                            // the key
+                            if (n->type == FILENODE)
+                            {
+                                if (n->nodekey().size() >= FILENODEKEYLENGTH)
+                                {
+                                    Base64::btoa((const byte*)n->nodekey().data(),
+                                                 FILENODEKEYLENGTH,
+                                                 key);
+                                }
+                                else
+                                {
+                                    key[0] = 0;
+                                }
+                            }
+                            else if (n->sharekey)
+                            {
+                                Base64::btoa(n->sharekey->key, FOLDERNODEKEYLENGTH, key);
+                            }
+                            else
+                            {
+                                fireOnRequestFinish(
+                                    request,
+                                    std::make_unique<MegaErrorPrivate>(MegaError::API_EKEY));
+                                return;
+                            }
+
+                            TypeOfLink lType = client->validTypeForPublicURL(n->type);
+                            string link =
+                                client->publicLinkURL(client->mNewLinkFormat, lType, ph, key);
+                            request->setLink(link.c_str());
+                            if (n->plink && n->plink->mAuthKey.size())
+                            {
+                                request->setPrivateKey(n->plink->mAuthKey.c_str());
+                                if (megaHosted)
+                                {
+                                    request->setPassword(encryptionKey.c_str());
+                                }
+                            }
+
+                            fireOnRequestFinish(
+                                request,
+                                std::make_unique<MegaErrorPrivate>(MegaError::API_OK));
+                        }
+                        else
+                        {
+                            request->setNodeHandle(UNDEF);
+                            fireOnRequestFinish(
+                                request,
+                                std::make_unique<MegaErrorPrivate>(MegaError::API_ENOENT));
+                        }
                     }
-                }
-            });
+                });
 }
 
 void MegaApiImpl::fetchNodes(MegaRequestListener* listener)
@@ -28265,18 +28349,43 @@ MegaPricing *MegaPricingPrivate::copy()
     {
         std::unique_ptr<BusinessPlan> bizPlan(mBizPlan[i] ? new BusinessPlan(*mBizPlan[i]) : nullptr);
 
-        megaPricing->addProduct(type[i], handles[i], proLevel[i], gbStorage[i], gbTransfer[i],
-                                months[i], amount[i], amountMonth[i], mLocalPrice[i], description[i],
+        megaPricing->addProduct(type[i],
+                                handles[i],
+                                proLevel[i],
+                                gbStorage[i],
+                                gbTransfer[i],
+                                months[i],
+                                amount[i],
+                                amountMonth[i],
+                                mLocalPrice[i],
+                                description[i],
                                 decltype(features)::value_type(features[i]), // make a copy
-                                iosId[i], androidId[i], mTestCategory[i], std::move(bizPlan));
+                                iosId[i],
+                                androidId[i],
+                                mTestCategory[i],
+                                std::move(bizPlan),
+                                mTrialDays[i]);
     }
 
     return megaPricing;
 }
 
-void MegaPricingPrivate::addProduct(unsigned int type, handle product, int proLevel, int gbStorage, int gbTransfer, int months, int amount, int amountMonth,
-                                    unsigned localPrice, const char* description, map<string, uint32_t>&& features, const char* iosid, const char* androidid, 
-                                    unsigned int testCategory, std::unique_ptr<BusinessPlan> bizPlan)
+void MegaPricingPrivate::addProduct(unsigned int type,
+                                    handle product,
+                                    int proLevel,
+                                    int gbStorage,
+                                    int gbTransfer,
+                                    int months,
+                                    int amount,
+                                    int amountMonth,
+                                    unsigned localPrice,
+                                    const char* description,
+                                    map<string, uint32_t>&& features,
+                                    const char* iosid,
+                                    const char* androidid,
+                                    unsigned int testCategory,
+                                    std::unique_ptr<BusinessPlan> bizPlan,
+                                    unsigned int trialDays)
 {
     this->type.push_back(type);
     this->handles.push_back(product);
@@ -28293,6 +28402,7 @@ void MegaPricingPrivate::addProduct(unsigned int type, handle product, int proLe
     this->androidId.push_back(MegaApi::strdup(androidid));
     mBizPlan.push_back(std::move(bizPlan));
     this->mTestCategory.push_back(testCategory);
+    this->mTrialDays.push_back(trialDays);
 }
 
 
@@ -28426,6 +28536,17 @@ unsigned int MegaPricingPrivate::getTestCategory(int productIndex) const
     if (static_cast<decltype(mTestCategory.size())>(productIndex) < mTestCategory.size())
     {
         return mTestCategory[productIndex];
+    }
+
+    return 0;
+}
+
+unsigned int MegaPricingPrivate::getTrialDurationInDays(int productIndex) const
+{
+    auto index = static_cast<decltype(mTrialDays.size())>(productIndex);
+    if (index < mTrialDays.size())
+    {
+        return mTrialDays[index];
     }
 
     return 0;
@@ -28972,6 +29093,11 @@ MegaStringList* MegaAccountSubscriptionPrivate::getFeatures() const
     return subscriptionFeatures;
 }
 
+bool MegaAccountSubscriptionPrivate::isTrial() const
+{
+    return mSubscription.isTrial;
+}
+
 MegaAccountPlanPrivate* MegaAccountPlanPrivate::fromAccountPlan(const AccountPlan& plan)
 {
     return new MegaAccountPlanPrivate(plan);
@@ -29016,6 +29142,11 @@ int32_t MegaAccountPlanPrivate::getType() const
 char* MegaAccountPlanPrivate::getId() const
 {
     return MegaApi::strdup(mPlan.subscriptionId.c_str());
+}
+
+bool MegaAccountPlanPrivate::isTrial() const
+{
+    return mPlan.isTrial;
 }
 
 ExternalInputStream::ExternalInputStream(MegaInputStream *inputStream)

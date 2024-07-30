@@ -1520,6 +1520,19 @@ using namespace mega;
     }
 }
 
+- (void)setDescription:(nullable NSString *)description
+               forNode:(MEGANode *)node
+              delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->setNodeDescription(
+                                         node.getCPtr,
+                                         description.UTF8String,
+                                         [self createDelegateMEGARequestListener:delegate
+                                                                  singleListener:YES
+                                                                       queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
 - (void)favouritesForParent:(nullable MEGANode *)node count:(NSInteger)count delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->getFavourites(node.getCPtr, (int)count, [self createDelegateMEGARequestListener:delegate singleListener:YES]);

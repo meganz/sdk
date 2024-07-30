@@ -2425,6 +2425,7 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
         int prolevel = -1, gbstorage = -1, gbtransfer = -1, months = -1, type = -1;
         unsigned amount = 0, amountMonth = 0, localPrice = 0;
         unsigned int testCategory = CommandEnumerateQuotaItems::INVALID_TEST_CATEGORY; // Bitmap. Bit 0 set (int value 1) is standard plan, other bits are defined by API.
+        unsigned int trialDays = CommandEnumerateQuotaItems::NO_TRIAL_DAYS;
         string description;
         map<string, uint32_t> features;
         string ios_id;
@@ -2754,6 +2755,27 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                 case MAKENAMEID2('t', 'c'):
                     testCategory = json.getuint32();
                     break;
+                case MAKENAMEID5('t', 'r', 'i', 'a', 'l'):
+                {
+                    if (!json.enterobject())
+                    {
+                        LOG_err << "Failed to parse Enumerate-quota-items response,"
+                                << "entering `trials` object";
+                        client->app->enumeratequotaitems_result(API_EINTERNAL);
+                        return false;
+                    }
+                    [[maybe_unused]] string key = json.getname();
+                    assert(key == "days");
+                    trialDays = json.getuint32();
+                    if (!json.leaveobject())
+                    {
+                        LOG_err << "Failed to parse Enumerate-quota-items response,"
+                                << "leaving `trials` object";
+                        client->app->enumeratequotaitems_result(API_EINTERNAL);
+                        return false;
+                    }
+                }
+                break;
                 case EOO:
                     if (type < 0
                             || ISUNDEF(product)
@@ -2800,10 +2822,22 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
         }
         else
         {
-            client->app->enumeratequotaitems_result(type, product, prolevel, gbstorage,
-                                                    gbtransfer, months, amount, amountMonth, localPrice,
-                                                    description.c_str(), std::move(features), ios_id.c_str(), android_id.c_str(),
-                                                    testCategory, std::move(bizPlan));
+            client->app->enumeratequotaitems_result(type,
+                                                    product,
+                                                    prolevel,
+                                                    gbstorage,
+                                                    gbtransfer,
+                                                    months,
+                                                    amount,
+                                                    amountMonth,
+                                                    localPrice,
+                                                    description.c_str(),
+                                                    std::move(features),
+                                                    ios_id.c_str(),
+                                                    android_id.c_str(),
+                                                    testCategory,
+                                                    std::move(bizPlan),
+                                                    trialDays);
         }
     }
 
@@ -5518,6 +5552,11 @@ bool CommandGetUserQuota::readSubscriptions(JSON* j)
                     }
                     break;
 
+                case MAKENAMEID8('i', 's', '_', 't', 'r', 'i', 'a', 'l'):
+                    // Is an active trial
+                    sub.isTrial = j->getbool();
+                    break;
+
                 case EOO:
                     subs.push_back(std::move(sub));
                     finishedSubscription = true;
@@ -5599,6 +5638,11 @@ bool CommandGetUserQuota::readPlans(JSON* j)
                     {
                         return false;
                     }
+                    break;
+
+                case MAKENAMEID8('i', 's', '_', 't', 'r', 'i', 'a', 'l'):
+                    // Is an active trial
+                    plan.isTrial = j->getbool();
                     break;
 
                 case EOO:
@@ -5831,16 +5875,22 @@ bool CommandGetUserSessions::procresult(Result r, JSON& json)
     return true;
 }
 
-CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t cets, bool writable, bool megaHosted,
-    int ctag, std::function<void(Error, handle, handle)> f)
+CommandSetPH::CommandSetPH(MegaClient* client,
+                           Node* n,
+                           int del,
+                           m_time_t cets,
+                           bool writable,
+                           bool megaHosted,
+                           int ctag,
+                           CompletionType f)
 {
     mSeqtagArray = true;
 
     h = n->nodehandle;
     ets = cets;
     tag = ctag;
-    completion = std::move(f);
-    assert(completion);
+    mCompletion = std::move(f);
+    assert(mCompletion);
 
     cmd("l");
     arg("n", (byte*)&n->nodehandle, MegaClient::NODEHANDLE);
@@ -5860,13 +5910,35 @@ CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t cets, 
     {
         mWritable = true;
         arg("w", "1");
-    }
 
-    if (megaHosted)
-    {
-        assert(n->sharekey && "attempting to share a key that is not set");
-        arg("sk", n->sharekey->key, SymmCipher::KEYLENGTH);
+        if (megaHosted)
+        {
+            assert(n->sharekey && "attempting to share a key that was not set");
+
+            // generate AES-128 encryption key
+            byte encryptionKeyForShareKey[SymmCipher::KEYLENGTH];
+            client->rng.genblock(encryptionKeyForShareKey, SymmCipher::KEYLENGTH);
+
+            // encrypt share key with it
+            SymmCipher* encrypter =
+                client->getRecycledTemporaryNodeCipher(encryptionKeyForShareKey);
+            byte encryptedShareKey[SymmCipher::KEYLENGTH] = {};
+            encrypter->ecb_encrypt(n->sharekey->key, encryptedShareKey, SymmCipher::KEYLENGTH);
+
+            // send encrypted share key
+            arg("sk", encryptedShareKey, SymmCipher::KEYLENGTH);
+
+            // keep the encryption key until the command has succeeded
+            mEncryptionKeyForShareKey =
+                Base64::btoa(std::string(reinterpret_cast<char*>(encryptionKeyForShareKey),
+                                         SymmCipher::KEYLENGTH));
+        }
     }
+}
+
+void CommandSetPH::completion(Error error, handle nodeHandle, handle publicHandle)
+{
+    mCompletion(error, nodeHandle, publicHandle, std::move(mEncryptionKeyForShareKey));
 }
 
 bool CommandSetPH::procresult(Result r, JSON& json)

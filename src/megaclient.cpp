@@ -5178,6 +5178,7 @@ bool MegaClient::procsc()
 
                             case UserAlert::type_psts:
                             case UserAlert::type_psts_v2:
+                            case MAKENAMEID3('f', 't', 'r'):
                                 if (sc_upgrade(name))
                                 {
                                     app->account_updated();
@@ -6529,11 +6530,11 @@ bool MegaClient::sc_upgrade(nameid paymentType)
         switch (jsonsc.getnameid())
         {
             case MAKENAMEID2('i', 't'):
-                itemclass = int(jsonsc.getint()); // itemclass
+                itemclass = int(jsonsc.getint()); // itemclass,  0=Pro, 1=Business, 2=Feature
                 break;
 
             case 'p':
-                proNumber = int(jsonsc.getint()); //pro type
+                proNumber = int(jsonsc.getint()); // Account level
                 break;
 
             case 'r':
@@ -6545,7 +6546,9 @@ bool MegaClient::sc_upgrade(nameid paymentType)
                 break;
 
             case EOO:
-                if ((itemclass == 0 || itemclass == 1) && statecurrent)
+                // No User Alert for 'ftr' and features
+                if (paymentType != MAKENAMEID3('f', 't', 'r') &&
+                    (itemclass == 0 || itemclass == 1) && statecurrent)
                 {
                     useralerts.add(new UserAlert::Payment(success, proNumber, m_time(), useralerts.nextId(), paymentType));
                 }
@@ -13539,8 +13542,14 @@ void MegaClient::querytransferquota(m_off_t size)
 }
 
 // export node link
-error MegaClient::exportnode(std::shared_ptr<Node> n, int del, m_time_t ets, bool writable, bool megaHosted,
-    int tag, std::function<void(Error, handle, handle)> completion)
+error MegaClient::exportnode(
+    std::shared_ptr<Node> n,
+    int del,
+    m_time_t ets,
+    bool writable,
+    bool megaHosted,
+    int tag,
+    std::function<void(Error, handle, handle, string&& encryptionKey)> completion)
 {
     if (n->plink && !del && !n->plink->takendown
             && (ets == n->plink->ets) && !n->plink->isExpired()
@@ -13553,7 +13562,7 @@ error MegaClient::exportnode(std::shared_ptr<Node> n, int del, m_time_t ets, boo
             return API_EPAYWALL;
         }
         restag = tag;
-        completion(API_OK, n->nodehandle, n->plink->ph);
+        completion(API_OK, n->nodehandle, n->plink->ph, {});
         return API_OK;
     }
 
@@ -13575,19 +13584,34 @@ error MegaClient::exportnode(std::shared_ptr<Node> n, int del, m_time_t ets, boo
             // deletion of outgoing share also deletes the link automatically
             // need to first remove the link and then the share
             NodeHandle h = n->nodeHandle();
-            requestPublicLink(n.get(), del, ets, writable, false, tag, [this, completion, writable, tag, h](Error e, handle, handle){
-                std::shared_ptr<Node> n = nodeByHandle(h);
-                if (e || !n)
+            requestPublicLink(
+                n.get(),
+                del,
+                ets,
+                writable,
+                false,
+                tag,
+                [this, completion, writable, tag, h](Error e, handle, handle, string&&)
                 {
-                    completion(e, UNDEF, UNDEF);
-                }
-                else
-                {
-                    setshare(n, NULL, ACCESS_UNKNOWN, writable, nullptr, tag, [completion](Error e, bool) {
-                        completion(e, UNDEF, UNDEF);
-                        });
-                }
-            });
+                    std::shared_ptr<Node> n = nodeByHandle(h);
+                    if (e || !n)
+                    {
+                        completion(e, UNDEF, UNDEF, {});
+                    }
+                    else
+                    {
+                        setshare(n,
+                                 NULL,
+                                 ACCESS_UNKNOWN,
+                                 writable,
+                                 nullptr,
+                                 tag,
+                                 [completion](Error e, bool)
+                                 {
+                                     completion(e, UNDEF, UNDEF, {});
+                                 });
+                    }
+                });
         }
         else
         {
@@ -13601,7 +13625,7 @@ error MegaClient::exportnode(std::shared_ptr<Node> n, int del, m_time_t ets, boo
             {
                 if (e)
                 {
-                    completion(e, UNDEF, UNDEF);
+                    completion(e, UNDEF, UNDEF, {});
                 }
                 else if (std::shared_ptr<Node> node = nodebyhandle(h))
                 {
@@ -13609,7 +13633,7 @@ error MegaClient::exportnode(std::shared_ptr<Node> n, int del, m_time_t ets, boo
                 }
                 else
                 {
-                    completion(API_ENOENT, UNDEF, UNDEF);
+                    completion(API_ENOENT, UNDEF, UNDEF, {});
                 }
             });
         }
@@ -13622,7 +13646,13 @@ error MegaClient::exportnode(std::shared_ptr<Node> n, int del, m_time_t ets, boo
     return API_OK;
 }
 
-void MegaClient::requestPublicLink(Node* n, int del, m_time_t ets, bool writable, bool megaHosted, int tag, std::function<void(Error, handle, handle)> f)
+void MegaClient::requestPublicLink(Node* n,
+                                   int del,
+                                   m_time_t ets,
+                                   bool writable,
+                                   bool megaHosted,
+                                   int tag,
+                                   CommandSetPH::CompletionType f)
 {
     reqs.add(new CommandSetPH(this, n, del, ets, writable, megaHosted, tag, std::move(f)));
 }
@@ -20528,29 +20558,53 @@ void MegaClient::createPasswordManagerBase(int rTag, CommandCreatePasswordManage
 error MegaClient::createPasswordNode(const char* name, std::unique_ptr<AttrMap> data,
                                      std::shared_ptr<Node> nParent, int rTag)
 {
-    assert(nParent);
-    assert(name && *name);
+    std::map<std::string, std::unique_ptr<AttrMap>> aux;
+    aux[name] = std::move(data);
+    return createPasswordNodes(std::move(aux), nParent, rTag);
+}
 
-    const bool pwdPresent = data && (data->map.contains(AttrMap::string2nameid(PWM_ATTR_PASSWORD_PWD)));
-    if (!(pwdPresent && nParent->isPasswordNodeFolder()))
+error MegaClient::createPasswordNodes(const std::map<std::string, std::unique_ptr<AttrMap>>& data,
+                                      std::shared_ptr<Node> nParent,
+                                      int rTag)
+{
+    assert(nParent);
+    if (!nParent->isPasswordNodeFolder())
     {
-        LOG_err << "Password Manager: failed Password Node creation wrong paramenters "
-                << (pwdPresent ? "" : "password ")
-                << (nParent->isPasswordNodeFolder() ? "" : "Password Node Folder parent handle");
+        LOG_err << "Password Manager: failed Password Node creation wrong parameters: Password "
+                   "Node Folder parent handle";
         return API_EARGS;
     }
 
-    std::vector<NewNode> nn(1);
-    NewNode& newPasswordNode = nn.front();
-    const auto d = data.get();  // lambda capture initializers are C++14 so can't pass an std::unique_ptr
-    const auto addAttrs = [this, d](AttrMap& attrs) { preparePasswordNodeData(attrs.map, *d); };
+    std::vector<NewNode> nn(data.size());
+    size_t nodeToFillIndex = 0;
     const bool canChangeVault = true;
-    putnodes_prepareOneFolder(&newPasswordNode, name, canChangeVault, addAttrs);
-    // setting newPasswordNode.parenthandle will cause API_EARGS on request response
+    for (const auto& [name, dataAttrMap]: data)
+    {
+        assert(!name.empty() && dataAttrMap);
+        if (const bool pwdPresent =
+                dataAttrMap &&
+                (dataAttrMap->map.contains(AttrMap::string2nameid(PWM_ATTR_PASSWORD_PWD)));
+            !pwdPresent)
+        {
+            LOG_err << "Password Manager: failed Password Node creation wrong parameters: Password "
+                       "missing for entry with name "
+                    << name;
+            return API_EARGS;
+        }
+        const auto addAttrs = [this, d = dataAttrMap.get()](AttrMap& attrs)
+        {
+            preparePasswordNodeData(attrs.map, *d);
+        };
+        NewNode& newPasswordNode = nn[nodeToFillIndex++];
+        putnodes_prepareOneFolder(&newPasswordNode, name, canChangeVault, addAttrs);
+    }
     const char* cauth = nullptr;
-
-    putnodes(nParent->nodeHandle(), VersioningOption::NoVersioning, std::move(nn), cauth, rTag, canChangeVault);
-
+    putnodes(nParent->nodeHandle(),
+             VersioningOption::NoVersioning,
+             std::move(nn),
+             cauth,
+             rTag,
+             canChangeVault);
     return API_OK;
 }
 

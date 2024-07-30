@@ -6,6 +6,7 @@
 #include <mega/fuse/common/testing/model.h>
 #include <mega/fuse/common/testing/parameters_forward.h>
 #include <mega/fuse/common/testing/path.h>
+#include <mega/fuse/common/testing/watchdog.h>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -79,6 +80,9 @@ class Test
 
     // Where will out clients put their local state?
     static Path mStoragePath;
+
+    // Makes sure our tests don't run forever.
+    static Watchdog mWatchdog;
 
 protected:
     // Perform fixture-specific setup.

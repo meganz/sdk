@@ -35,7 +35,12 @@
 
 namespace mega {
 
-const vector<string> Node::attributesToCopyIntoPreviousVersions{ "fav", "lbl", "sen" };
+const vector<string> Node::attributesToCopyIntoPreviousVersions{
+    "fav",
+    "lbl",
+    "sen",
+    MegaClient::NODE_ATTRIBUTE_DESCRIPTION,
+    MegaClient::NODE_ATTRIBUTE_TAGS};
 
 const std::string Node::BLANK("BLANK");
 const std::string Node::CRYPTO_ERROR("CRYPTO_ERROR");

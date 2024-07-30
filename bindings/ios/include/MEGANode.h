@@ -175,6 +175,13 @@ NS_ASSUME_NONNULL_BEGIN
 @property (readonly, nonatomic) BOOL isMarkedSensitive;
 
 /**
+ * @brief Get the attribute of the node representing the description
+ *
+ * @return Node description
+ */
+@property (readonly, nonatomic, nullable) NSString *description;
+
+/**
  * @brief Get the attribute of the node representing its label.
  *
  * @return The label of the node, valid values are:
