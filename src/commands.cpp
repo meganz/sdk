@@ -747,7 +747,6 @@ CommandGetFile::CommandGetFile(MegaClient *client, const byte* key, size_t keySi
     }
 
     mCompletion = std::move(completion);
-    mFileHandle = h;
 }
 
 void CommandGetFile::cancel()

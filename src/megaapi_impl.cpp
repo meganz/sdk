@@ -14251,7 +14251,6 @@ void MegaApiImpl::putnodes_result(const Error& inputErr,
             }
         }
     }
-
     else if (request->getType() == MegaRequest::TYPE_CREATE_NODE_TREE)
     {
         request->setMegaStringMap(fileIDs);

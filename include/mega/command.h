@@ -634,7 +634,6 @@ class MEGA_API CommandGetFile : public Command
 
     byte filekey[FILENODEKEYLENGTH];
     int mFileKeyType; // as expected by SymmCipher::setKey
-    handle mFileHandle = UNDEF;
 
 public:
     // notice: cancelation will entail that mCompletion will not be called
