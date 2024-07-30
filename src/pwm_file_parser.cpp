@@ -40,14 +40,6 @@ inline bool fileIsAccessible(const std::string& fname)
 
 PassFileParseResult parseGooglePasswordCSVFile(const std::string& filePath)
 {
-    PassFileParseResult result;
-    if (!fileIsAccessible(filePath))
-    {
-        result.mErrCode = PassFileParseResult::ErrCode::CANT_OPEN_FILE;
-        result.mErrMsg = "File (" + filePath + ") could not be opened.";
-        return result;
-    }
-
     csv::CSVFormat format;
     format.delimiter(',').header_row(0).variable_columns(true);
 
@@ -59,6 +51,7 @@ PassFileParseResult parseGooglePasswordCSVFile(const std::string& filePath)
                                                               "password",
                                                               "note"};
 
+    PassFileParseResult result;
     if (unsigned int nMissing = missingNames(colNames, expectedColumnNames, result.mErrMsg);
         nMissing != 0)
     {
@@ -101,4 +94,24 @@ PassFileParseResult parseGooglePasswordCSVFile(const std::string& filePath)
     return result;
 }
 
+PassFileParseResult readPasswordImportFile(const std::string& filePath, const FileSource source)
+{
+    // Common validation
+    // TODO: Once C++17 filesystem is allowed, check for existence for a more detailed error report
+    if (!fileIsAccessible(filePath))
+    {
+        PassFileParseResult result;
+        result.mErrCode = PassFileParseResult::ErrCode::CANT_OPEN_FILE;
+        result.mErrMsg = "File (" + filePath + ") could not be opened.";
+        return result;
+    }
+
+    switch (source)
+    {
+        case FileSource::GOOGLE_PASSWORD:
+            return parseGooglePasswordCSVFile(filePath);
+    }
+    assert(false); // All cases should be covered by the switch statement
+    return {};
+}
 }

@@ -160,11 +160,30 @@ so this should trigger some errors.
     ASSERT_THAT(results.mErrMsg, HasSubstr("expected to be a header with the column"));
 }
 
-TEST(PWMImportGooglePasswordCSVFile, FileDoesNotExist)
+TEST(PWMReadImportFile, FileDoesNotExist)
 {
     const std::string fname = "test.csv";
-    auto results = parseGooglePasswordCSVFile(fname);
+    auto results = readPasswordImportFile(fname, FileSource::GOOGLE_PASSWORD);
     // The file existence is checked at higher levels but a cantOpenFile should be triggered
     ASSERT_EQ(results.mErrCode, PassFileParseResult::ErrCode::CANT_OPEN_FILE);
     ASSERT_THAT(results.mErrMsg, HasSubstr("could not be opened"));
+}
+
+TEST(PWMReadImportFile, GooglePassword)
+{
+    const std::string fname = "test.csv";
+
+    constexpr std::string_view fileContents{R"(name,url,username,password,note
+foo.com,https://foo.com/,tx,"hola""""\""\"".,,",
+hello.co,https://hello.co/,hello,hello.1234,Description with ñ
+test.com,https://test.com/,test3,"hello.12,34",
+test.com,https://test.com/,txema,hel\nlo.1234,""
+test2.com,https://test2.com/,test,hello.1234,
+)"};
+    sdk_test::LocalTempFile f{fname, fileContents};
+    auto resultsRead = readPasswordImportFile(fname, FileSource::GOOGLE_PASSWORD);
+    auto resultsDirect = parseGooglePasswordCSVFile(fname);
+    ASSERT_EQ(resultsDirect.mErrMsg, resultsRead.mErrMsg);
+    ASSERT_EQ(resultsDirect.mErrCode, resultsRead.mErrCode);
+    ASSERT_EQ(resultsDirect.mResults.size(), resultsRead.mResults.size());
 }

@@ -90,6 +90,21 @@ struct PassFileParseResult
  */
 PassFileParseResult parseGooglePasswordCSVFile(const std::string& filePath);
 
+enum class FileSource : uint8_t
+{
+    GOOGLE_PASSWORD = 0,
+};
+
+/**
+ * @brief Given the source of the file with passwords to import, decides the parser to apply and
+ * returns the result from parsing the file
+ *
+ * @param filePath The path to the csv file.
+ * @param source The app that was used to export the file
+ * @return A container holding all the valid and invalid entries found together, with handy error
+ * codes and messages.
+ */
+PassFileParseResult readPasswordImportFile(const std::string& filePath, const FileSource source);
 }
 
 #endif // INCLUDE_MEGA_PWM_FILE_PARSER_H_
