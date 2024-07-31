@@ -69,6 +69,24 @@ class JiraProject:
         )
         r.raise_for_status()
 
+    def create_new_version_for_patch(self, name: str, for_apps: str):
+        # use the logged in session to access the REST API of the plugin
+        assert self._jira._session is not None
+
+        from datetime import date
+
+        today = date.today().isoformat()  # YYYY-MM-DD required by the REST api
+
+        r: Response = self._jira._session.post(
+            url=self._version_manager_url,
+            data={
+                "name": name,
+                "releasedate": today,
+                "description": f"Version {name} - {for_apps}",
+            },
+        )
+        r.raise_for_status()
+
     def update_version_close_release(self):
         from datetime import date
 
@@ -129,8 +147,8 @@ class JiraProject:
             notes += self._get_notes_chapter(k, formatting)
             for p in vs:
                 url = p[0] if include_urls else ""
-                notes += bullet + " " + self._get_notes_issue(
-                    p[1], url, p[2], formatting
+                notes += (
+                    bullet + " " + self._get_notes_issue(p[1], url, p[2], formatting)
                 )
             notes += "\n"
         notes += self._get_notes_chapter("Target apps", formatting)
@@ -140,7 +158,7 @@ class JiraProject:
 
     def _get_bullet_placeholder(self, formatting: str) -> str:
         if formatting == "slack":
-            return "\U00002022" # utf8 bullet
+            return "\U00002022"  # utf8 bullet
         return "-"  # "git" and others
 
     def _get_notes_chapter(self, title: str, formatting: str) -> str:
@@ -165,6 +183,17 @@ class JiraProject:
 
         issue = prefix + f" - {description}\n"
         return issue
+
+    def get_version_info(self, version: str) -> tuple[bool, bool, str]:
+        v: Version | None = self._jira.get_project_version_by_name(
+            self._project_key, f"v{version}"
+        )
+        if v is None:
+            return False, False, ""
+        assert not v.archived, f"Archived v{version} version already exists"
+        # get apps from description
+        app_descr: str = v.description.partition(" - ")[2]
+        return True, v.released, app_descr
 
     def earlier_versions_are_closed(self):
         assert self._version is not None
@@ -237,7 +266,7 @@ class JiraProject:
         all_the_fields = self._jira.fields()
         for f in all_the_fields:
             if f["custom"] and f["name"] == "Release number affected":
-                custom_field_id = f["id"]
+                custom_field_id = f["id"]  # 'customfield_10502'
                 break
         assert custom_field_id
 
@@ -257,3 +286,14 @@ class JiraProject:
             if affected == "Minor":
                 release_number_affected = affected
         return release_number_affected
+
+    def add_fix_version_to_tickets(self, tickets: list[str]):
+        assert self._version
+        for t in tickets:
+            issue: Issue = self._jira.issue(t)
+            fixVersions = []
+            for v in issue.fields.fixVersions:
+                if v.name != self._version.name:
+                    fixVersions.append({"name": v.name})
+            fixVersions.append({"name": self._version.name})
+            issue.update({"fixVersions": fixVersions})
