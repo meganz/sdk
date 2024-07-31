@@ -62,12 +62,20 @@ PassFileParseResult parseGooglePasswordCSVFile(const std::string& filePath)
         return result;
     }
     size_t expectedNumCols = colNames.size();
-    uint32_t lineNumber = 0;
     bool thereIsAValidEntry = false;
+    // We will go through the file in parallel to get original content for error reporting
+    std::ifstream openFile(filePath.c_str());
+    if (std::string headerLine; !openFile.good() || !std::getline(openFile, headerLine))
+    {
+        assert(false && "At this point the file should be readable and there must be a header");
+        result.mErrCode = PassFileParseResult::ErrCode::CANT_OPEN_FILE;
+        return result;
+    }
     for (auto& row: reader)
     {
         PassEntryParseResult entryResult;
-        entryResult.mLineNumber = ++lineNumber;
+        // Save the original line
+        std::getline(openFile, entryResult.mOriginalContent);
         if (row.size() != expectedNumCols)
         {
             entryResult.mErrCode = PassEntryParseResult::ErrCode::INVALID_NUM_OF_COLUMN;

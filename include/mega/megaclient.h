@@ -31,9 +31,11 @@
 #include "http.h"
 #include "json.h"
 #include "mediafileattribute.h"
+#include "name_collision.h"
 #include "nodemanager.h"
 #include "pendingcontactrequest.h"
 #include "pubkeyaction.h"
+#include "pwm_file_parser.h"
 #include "request.h"
 #include "setandelement.h"
 #include "sharenodekeys.h"
@@ -2693,6 +2695,11 @@ public:
     error updatePasswordNode(NodeHandle nh, std::unique_ptr<AttrMap> newData,
                              CommandSetAttr::Completion&& cb);
 
+    // Data type to call putnodes and create password nodes
+    using ValidPasswordData = std::map<std::string, std::unique_ptr<AttrMap>>;
+    // Data type to handle wrongly formatted password info. Key: info, val: ErrCode
+    using BadPasswordData = std::map<std::string, PasswordEntryError>;
+
     /**
      * @brief Creates multiple password nodes with a single putnodes call
      *
@@ -2706,9 +2713,44 @@ public:
      * @param rTag tag parameter for putnodes call
      * @return error code (API_OK if succeeded)
      */
-    error createPasswordNodes(const std::map<std::string, std::unique_ptr<AttrMap>>& data,
+    error createPasswordNodes(const ValidPasswordData& data,
                               std::shared_ptr<Node> nParent,
                               int rTag);
+
+    /**
+     * @brief Ensures the given data can be used to create a new password node.
+     *
+     * For instance, the password field is mandatory and must be present.
+     *
+     * @param data The map with the password data
+     * @return The error code for the validation
+     */
+    static PasswordEntryError validatePasswordData(const AttrMap& data);
+
+    /**
+     * @brief Processes the input password entries and splits them into two containers (bad, good).
+     *
+     * This method is designed to process the input entries from the mResults member of the
+     * pwm::import::PassFileParseResult class.
+     *
+     * Entries that have any issues (e.g., problems parsing them, missing mandatory fields) are
+     * returned in the .first member of the return value. This is a map with the original content
+     * that caused the problem as the key and the error code as the value.
+     *
+     * Entries that are ready to create a new password node are placed in the .second container.
+     * This is again a map with the final name of the node (ensuring no name conflicts) as the keys
+     * and the data as the values.
+     *
+     * @param entries A container such as the mResults member of the
+     * pwm::import::PassFileParseResult class.
+     * @param nameValidator The functor that knows the state of the target parent node and handles
+     * name clashing issues. Note: This can be generalized to any object that defines operator()
+     * and takes and returns a std::string.
+     * @return A pair of [badEntries, goodEntries].
+     */
+    static std::pair<BadPasswordData, ValidPasswordData>
+        validatePasswordEntries(std::vector<pwm::import::PassEntryParseResult>&& entries,
+                                ncoll::NameCollisionSolver& nameValidator);
 
     static std::string generatePasswordChars(const bool useUpper,
                                              const bool useDigits,
