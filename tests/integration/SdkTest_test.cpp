@@ -619,7 +619,6 @@ void SdkTest::Cleanup()
 #ifdef ENABLE_SYNC
             purgeVaultTree(nApi, std::unique_ptr<MegaNode>{megaApi[nApi]->getVaultNode()}.get());
 #endif
-
             // Remove pending contact requests
             std::unique_ptr<MegaContactRequestList> crl{megaApi[nApi]->getOutgoingContactRequests()};
             for (int i = 0; i < crl->size(); i++)
@@ -2240,6 +2239,16 @@ string getUniqueAlias()
     return alias;
 }
 
+std::vector<std::string> toNamesVector(const MegaNodeList& nodes)
+{
+    std::vector<std::string> result;
+    result.reserve(static_cast<size_t>(nodes.size()));
+    for (int i = 0; i < nodes.size(); ++i)
+    {
+        result.emplace_back(nodes.get(i)->getName());
+    }
+    return result;
+}
 
 ///////////////////////////__ Tests using SdkTest __//////////////////////////////////
 
@@ -20139,4 +20148,159 @@ TEST_F(SdkTest, SdkTestSharesWhenMegaHosted)
     string b64Key{rt.request->getPassword()};
     string binKey = Base64::atob(b64Key);
     ASSERT_FALSE(binKey.empty());
+}
+
+/**
+ * @brief SdkTestImportPassword
+ *
+ *  - Create a local file to import
+ *  - Get password node base
+ *  - Import google cvs file
+ */
+TEST_F(SdkTest, SdkTestImportPassword)
+{
+    LOG_info << "___TEST SdkTestImportPassword___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1, true, MegaApi::CLIENT_TYPE_PASSWORD_MANAGER));
+
+    LOG_debug << "# Create csv file";
+    constexpr std::string_view fileContents{R"(name,url,username,password,note
+foo.com,https://foo.com/,tx,"hola""""\""\"".,,",
+hello.co,https://hello.co/,hello,hello.1234,Description with ñ
+test.com,https://test.com/,test3,"hello.12,34",
+test.com,https://test.com/,txema,hel\nlo.1234,""
+test2.com,https://test2.com/,test,hello.1234,
+)"};
+
+    const std::string fname = "test.csv";
+    sdk_test::LocalTempFile f{fname, fileContents};
+
+    LOG_debug << "# Get Password Manager Base";
+    RequestTracker rtPasswordManagerBase(megaApi[0].get());
+    megaApi[0]->getPasswordManagerBase(&rtPasswordManagerBase);
+    rtPasswordManagerBase.waitForResult();
+    MegaHandle parentHandle = rtPasswordManagerBase.getNodeHandle();
+    ASSERT_NE(parentHandle, INVALID_HANDLE);
+    std::shared_ptr<MegaNode> parent{megaApi[0]->getNodeByHandle(parentHandle)};
+    ASSERT_TRUE(parent);
+    MrProper cleanup(
+        [parent, this]()
+        {
+            purgeTree(0, parent.get(), false);
+        });
+
+    LOG_debug << "# Import google csv file";
+    RequestTracker rt(megaApi[0].get());
+    megaApi[0]->importPasswordsFromFile(fname.c_str(),
+                                        MegaApi::IMPORT_PASSWORD_SOURCE_GOOGLE,
+                                        parentHandle,
+                                        &rt);
+    ASSERT_EQ(rt.waitForResult(), API_OK);
+    MegaHandleList* handleList = rt.request->getMegaHandleList();
+    ASSERT_TRUE(handleList);
+    ASSERT_EQ(handleList->size(), 5);
+    std::unique_ptr<MegaNodeList> list{megaApi[0]->getChildren(parent.get())};
+    ASSERT_TRUE(list);
+    ASSERT_THAT(toNamesVector(*list),
+                testing::UnorderedElementsAre("foo.com",
+                                              "hello.co",
+                                              "test.com",
+                                              "test.com (1)",
+                                              "test2.com"));
+
+    MegaStringIntegerMap* stringIntegerList = rt.request->getMegaStringIntegerMap();
+    ASSERT_TRUE(stringIntegerList);
+    ASSERT_EQ(stringIntegerList->size(), 0);
+}
+
+/**
+ * @brief SdkTestImportPasswordFails
+ *
+ *  - Try to import password node file with invalid path
+ *  - Try to import password node file from google with empty file
+ *  - Try to import password node file from google with invalid rows
+ */
+TEST_F(SdkTest, SdkTestImportPasswordFails)
+{
+    LOG_info << "___TEST SdkTestImportPasswordFails";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1, true, MegaApi::CLIENT_TYPE_PASSWORD_MANAGER));
+
+    LOG_debug << "# Get Password Manager Base";
+    RequestTracker rtPasswordManagerBase(megaApi[0].get());
+    megaApi[0]->getPasswordManagerBase(&rtPasswordManagerBase);
+    rtPasswordManagerBase.waitForResult();
+    MegaHandle parentHandle = rtPasswordManagerBase.getNodeHandle();
+    ASSERT_NE(parentHandle, INVALID_HANDLE);
+    std::shared_ptr<MegaNode> parent{megaApi[0]->getNodeByHandle(parentHandle)};
+    ASSERT_TRUE(parent);
+
+    {
+        LOG_debug << "# Import google csv file - null path";
+        RequestTracker rt(megaApi[0].get());
+        megaApi[0]->importPasswordsFromFile("",
+                                            MegaApi::IMPORT_PASSWORD_SOURCE_GOOGLE,
+                                            parentHandle,
+                                            &rt);
+        ASSERT_EQ(rt.waitForResult(), API_EREAD);
+    }
+
+    {
+        LOG_debug << "# Import google csv file - empty file";
+        const std::string fname = "test.csv";
+        sdk_test::LocalTempFile f{fname, 0};
+        RequestTracker rt(megaApi[0].get());
+        megaApi[0]->importPasswordsFromFile(fname.c_str(),
+                                            MegaApi::IMPORT_PASSWORD_SOURCE_GOOGLE,
+                                            parentHandle,
+                                            &rt);
+        ASSERT_EQ(rt.waitForResult(), API_EACCESS);
+    }
+
+    {
+        LOG_debug << "# Create csv file";
+        constexpr std::string_view fileContents{R"(name,url,username,password,note
+name,https://foo.com/,username,password,note
+name2,https://foo.com/,username,,note
+name3,username,password,note
+)"};
+
+        const std::string fname = "test.csv";
+        sdk_test::LocalTempFile f{fname, fileContents};
+
+        MrProper cleanup(
+            [parent, this]()
+            {
+                purgeTree(0, parent.get(), false);
+            });
+
+        RequestTracker rt(megaApi[0].get());
+        megaApi[0]->importPasswordsFromFile(fname.c_str(),
+                                            MegaApi::IMPORT_PASSWORD_SOURCE_GOOGLE,
+                                            parentHandle,
+                                            &rt);
+        ASSERT_EQ(rt.waitForResult(), API_OK);
+        MegaHandleList* handleList = rt.request->getMegaHandleList();
+        ASSERT_TRUE(handleList);
+        ASSERT_EQ(handleList->size(), 1);
+
+        MegaStringIntegerMap* stringIntegerList = rt.request->getMegaStringIntegerMap();
+        ASSERT_TRUE(stringIntegerList);
+        ASSERT_EQ(stringIntegerList->size(), 2);
+
+        std::unique_ptr<MegaStringList> keys{stringIntegerList->getKeys()};
+        ASSERT_TRUE(keys);
+
+        for (int i = 0; i < keys->size(); ++i)
+        {
+            ASSERT_TRUE(keys->get(i));
+            std::string key{keys->get(i)};
+            std::unique_ptr<MegaIntegerList> badEntries{stringIntegerList->get(key.c_str())};
+            ASSERT_TRUE(badEntries);
+            ASSERT_EQ(badEntries->size(), 1);
+            std::vector<int64_t> errors{MegaApi::IMPORTED_PASSWORD_ERROR_PARSER,
+                                        MegaApi::IMPORTED_PASSWORD_ERROR_MISSINGPASSWORD};
+            ASSERT_THAT(errors, testing::Contains(badEntries->get(0)));
+
+            ASSERT_NE(fileContents.find(key), std::string::npos);
+        }
+    }
 }

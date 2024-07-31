@@ -187,3 +187,14 @@ test2.com,https://test2.com/,test,hello.1234,
     ASSERT_EQ(resultsDirect.mErrCode, resultsRead.mErrCode);
     ASSERT_EQ(resultsDirect.mResults.size(), resultsRead.mResults.size());
 }
+
+TEST(PWMImportGooglePasswordCSVFile, EmptyFile)
+{
+    const std::string fname = "test.csv";
+    sdk_test::LocalTempFile f{fname, 0};
+
+    auto results = parseGooglePasswordCSVFile(fname);
+
+    ASSERT_EQ(results.mErrCode, PassFileParseResult::ErrCode::INVALID_HEADER);
+    ASSERT_THAT(results.mErrMsg, HasSubstr("File should have at least a header row"));
+}

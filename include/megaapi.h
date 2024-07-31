@@ -4587,7 +4587,8 @@ class MegaRequest
             TYPE_DEL_ATTR_USER = 192,
             TYPE_BACKUP_PAUSE_MD                                            = 194,
             TYPE_BACKUP_RESUME_MD                                           = 195,
-            TOTAL_OF_REQUEST_TYPES                                          = 196,
+            TYPE_IMPORT_PASSWORDS_FROM_FILE = 196,
+            TOTAL_OF_REQUEST_TYPES = 197,
         };
 
         virtual ~MegaRequest();
@@ -4735,7 +4736,8 @@ class MegaRequest
          * - MegaApi::createFolder - Returns the handle of the parent folder
          * - MegaApi::moveNode - Returns the handle of the new parent for the node
          * - MegaApi::copyNode - Returns the handle of the parent for the new node
-         * - MegaApi::importFileLink - Returns the handle of the node that receives the imported file
+         * - MegaApi::importFileLink - Returns the handle of the node that receives the imported
+         * file
          * - MegaApi::inviteToChat - Returns the handle of the user to be invited
          * - MegaApi::removeFromChat - Returns the handle of the user to be removed
          * - MegaApi::grantAccessInchat - Returns the chat identifier
@@ -4747,6 +4749,8 @@ class MegaRequest
          * - MegaApi::copySyncDataToCache - Returns the backupId asociated with the sync
          * - MegaApi::getChatLinkURL - Returns the chatid
          * - MegaApi::sendChatLogs - Returns the callid (if exits)
+         * - MegaApi::createPasswordNode - Returns parent folder for the new Password Node
+         * - MegaApi::importPasswordsFromFile - Returns parent folder for the imported Password Node
          *
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -4967,13 +4971,15 @@ class MegaRequest
          * - MegaApi::setThumbnail - Returns MegaApi::ATTR_TYPE_THUMBNAIL
          * - MegaApi::setPreview - Returns MegaApi::ATTR_TYPE_PREVIEW
          * - MegaApi::reportDebugEvent - Returns MegaApi::EVENT_DEBUG
-         * - MegaApi::cancelTransfers - Returns MegaTransfer::TYPE_DOWNLOAD if downloads are cancelled or MegaTransfer::TYPE_UPLOAD if uploads are cancelled
+         * - MegaApi::cancelTransfers - Returns MegaTransfer::TYPE_DOWNLOAD if downloads are
+         * cancelled or MegaTransfer::TYPE_UPLOAD if uploads are cancelled
          * - MegaApi::setUserAttribute - Returns the attribute type
          * - MegaApi::getUserAttribute - Returns the attribute type
          * - MegaApi::setMaxConnections - Returns the direction of transfers
          * - MegaApi::dismissBanner - Returns the id of the banner
          * - MegaApi::sendBackupHeartbeat - Returns the number of backup files uploaded
          * - MegaApi::getRecentActions - Returns the maximum number of nodes
+         * - MegaApi::importPasswordsFromFile - Returns source of the file provided as an argument
          *
          * @return Type of parameter related to the request
          */
@@ -5375,6 +5381,20 @@ class MegaRequest
          * @return String list
          */
         virtual MegaStringList* getMegaStringList() const;
+
+        /**
+         * @brief Returns a map with string as key and integer as value
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * This value is valid for these requests:
+         * - MegaApi::importPasswordsFromFile - A map with problematic content as key and error code
+         * as value
+         *
+         * @return Map with string as key and integer as value
+         */
+        virtual MegaStringIntegerMap* getMegaStringIntegerMap() const;
 
 #ifdef ENABLE_CHAT
         /**
@@ -10265,6 +10285,17 @@ class MegaApi
             CREDIT_CARD_CANCEL_SUBSCRIPTIONS_CAN_CONTACT_YES = 1,
         };
 
+        enum
+        {
+            IMPORT_PASSWORD_SOURCE_GOOGLE = 0,
+        };
+
+        enum
+        {
+            IMPORTED_PASSWORD_ERROR_PARSER = 1,
+            IMPORTED_PASSWORD_ERROR_MISSINGPASSWORD = 2,
+        };
+
         static constexpr int64_t INVALID_CUSTOM_MOD_TIME = -1;
         static constexpr int CHAT_OPTIONS_EMPTY = 0;
         static constexpr int MAX_NODE_DESCRIPTION_SIZE = 3000;
@@ -12500,6 +12531,49 @@ class MegaApi
          */
         void updatePasswordNode(MegaHandle node, const MegaNode::PasswordNodeData* newData,
                                 MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Import passwords from a file into your Password Manager tree
+         *
+         * The associated request type with this request is
+         * MegaRequest::TYPE_IMPORT_PASSWORDS_FROM_FILE. Valid data in the MegaRequest object
+         * received on callbacks:
+         * - MegaRequest::getFile - Path of the file provided as an argument.
+         * - MegaRequest::getParamType - Source of the file provided as an argument (see
+         * fileSource documentation).
+         * - MegaRequest::getParentHandle - Handle of the parent provided as an argument.
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaHandleList - Handle of the new imported Password Node.
+         * - MegaRequest::getMegaStringIntegerMap - A map with problematic content as key and error
+         * code as value
+         *    Possible error codes are:
+         *       IMPORTED_PASSWORD_ERROR_PARSER = 1
+         *       IMPORTED_PASSWORD_ERROR_MISSINGPASSWORD = 2
+         *
+         * Valid errors:
+         *  - API_EARGS:
+         *      Invalid parent (parent doesn't exist or isn't password node)
+         *      Invalid fileSource
+         *      NULL at filePath
+         *      File with wrong format
+         *  - API_EREAD:
+         *      File can't be opened
+         *  - API_EACESS
+         *      File is empty
+         *
+         * @param filePath Path to the file containing the passwords to import.
+         * @param fileSource Type for the source from where the file was exported.
+         * Valid values are:
+         *  - IMPORT_PASSWORD_SOURCE_GOOGLE = 0
+         * @param parent Parent handle for node that will contain new nodes as children
+         * @param listener MegaRequestListener to track this request.
+         */
+        void importPasswordsFromFile(const char* filePath,
+                                     const int fileSource,
+                                     MegaHandle parent,
+                                     MegaRequestListener* listener = NULL);
 
         /**
          * @brief Create a new empty folder in your local file system

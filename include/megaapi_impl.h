@@ -1624,6 +1624,7 @@ class MegaRequestPrivate : public MegaRequest
         AchievementsDetails *getAchievementsDetails() const;
         MegaTimeZoneDetails *getMegaTimeZoneDetails () const override;
         MegaStringList *getMegaStringList() const override;
+        MegaStringIntegerMap* getMegaStringIntegerMap() const override;
         MegaHandleList* getMegaHandleList() const override;
 
 #ifdef ENABLE_SYNC
@@ -1651,6 +1652,7 @@ class MegaRequestPrivate : public MegaRequest
         MegaBackgroundMediaUpload *getMegaBackgroundMediaUploadPtr() const override;
         void setMegaBackgroundMediaUploadPtr(MegaBackgroundMediaUpload *);  // non-owned pointer
         void setMegaStringList(const MegaStringList* stringList);
+        void setMegaStringIntegerMap(const MegaStringIntegerMap* stringIntegerMap);
         void setMegaHandleList(const MegaHandleList* handles);
         void setMegaHandleList(const vector<handle> &handles);
         void setMegaScheduledMeetingList(const MegaScheduledMeetingList *schedMeetingList);
@@ -1732,6 +1734,7 @@ protected:
         MegaPushNotificationSettings *settings;
         MegaBackgroundMediaUpload* backgroundMediaUpload;  // non-owned pointer
         unique_ptr<MegaStringList> mStringList;
+        std::unique_ptr<MegaStringIntegerMap> mStringIntegerMap;
         unique_ptr<MegaHandleList> mHandleList;
         unique_ptr<MegaRecentActionBucketList> mRecentActions;
 
@@ -3888,6 +3891,10 @@ public:
                                 MegaHandle parent, MegaRequestListener *listener = nullptr);
         void updatePasswordNode(MegaHandle node, const MegaNode::PasswordNodeData* newData,
                                 MegaRequestListener *listener = NULL);
+        void importPasswordsFromFile(const char* filePath,
+                                     const int fileSource,
+                                     MegaHandle parent,
+                                     MegaRequestListener* listener = NULL);
 
         void fetchCreditCardInfo(MegaRequestListener* listener = nullptr);
 

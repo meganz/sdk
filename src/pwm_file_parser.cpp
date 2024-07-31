@@ -43,6 +43,23 @@ PassFileParseResult parseGooglePasswordCSVFile(const std::string& filePath)
     csv::CSVFormat format;
     format.delimiter(',').header_row(0).variable_columns(true);
 
+    // We will go through the file in parallel to get original content for error reporting
+    PassFileParseResult result;
+    std::ifstream openFile(filePath.c_str());
+    if (!openFile.good())
+    {
+        result.mErrCode = PassFileParseResult::ErrCode::CANT_OPEN_FILE;
+        return result;
+    }
+
+    if (std::string headerLine; !std::getline(openFile, headerLine))
+    {
+        // File is empty
+        result.mErrCode = PassFileParseResult::ErrCode::INVALID_HEADER;
+        result.mErrMsg = "File should have at least a header row";
+        return result;
+    }
+
     csv::CSVReader reader{filePath, format};
     const auto colNames = reader.get_col_names();
     static const std::vector<std::string> expectedColumnNames{"name",
@@ -51,7 +68,6 @@ PassFileParseResult parseGooglePasswordCSVFile(const std::string& filePath)
                                                               "password",
                                                               "note"};
 
-    PassFileParseResult result;
     if (unsigned int nMissing = missingNames(colNames, expectedColumnNames, result.mErrMsg);
         nMissing != 0)
     {
@@ -63,14 +79,7 @@ PassFileParseResult parseGooglePasswordCSVFile(const std::string& filePath)
     }
     size_t expectedNumCols = colNames.size();
     bool thereIsAValidEntry = false;
-    // We will go through the file in parallel to get original content for error reporting
-    std::ifstream openFile(filePath.c_str());
-    if (std::string headerLine; !openFile.good() || !std::getline(openFile, headerLine))
-    {
-        assert(false && "At this point the file should be readable and there must be a header");
-        result.mErrCode = PassFileParseResult::ErrCode::CANT_OPEN_FILE;
-        return result;
-    }
+
     for (auto& row: reader)
     {
         PassEntryParseResult entryResult;

@@ -60,6 +60,7 @@ struct PassFileParseResult
         FILE_DOES_NOT_EXIST,
         CANT_OPEN_FILE,
         MISSING_COLUMN,
+        INVALID_HEADER,
     };
 
     /**

@@ -775,3 +775,8 @@ public:
     template<typename ... requestArgs> int doCheckVpnCredential(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->checkVpnCredential(args..., &rt); return rt.waitForResult(); }
     /* MegaVpnCredentials END */
 };
+
+/**
+ * @brief Aux function to get a vector with the names of the nodes in a given MegaNodeList
+ */
+std::vector<std::string> toNamesVector(const MegaNodeList& nodes);

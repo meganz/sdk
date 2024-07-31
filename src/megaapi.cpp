@@ -1162,6 +1162,11 @@ MegaStringList* MegaRequest::getMegaStringList() const
     return nullptr;
 }
 
+MegaStringIntegerMap* MegaRequest::getMegaStringIntegerMap() const
+{
+    return nullptr;
+}
+
 const MegaIntegerList* MegaRequest::getMegaIntegerList() const
 {
     return nullptr;
@@ -2558,6 +2563,14 @@ void MegaApi::updatePasswordNode(MegaHandle node, const MegaNode::PasswordNodeDa
                                  MegaRequestListener* listener)
 {
     pImpl->updatePasswordNode(node, newData, listener);
+}
+
+void MegaApi::importPasswordsFromFile(const char* filePath,
+                                      const int fileSource,
+                                      MegaHandle parent,
+                                      MegaRequestListener* listener)
+{
+    pImpl->importPasswordsFromFile(filePath, fileSource, parent, listener);
 }
 
 bool MegaApi::createLocalFolder(const char *localPath)
