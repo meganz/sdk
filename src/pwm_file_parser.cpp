@@ -71,10 +71,16 @@ PassFileParseResult parseGooglePasswordCSVFile(const std::string& filePath)
     if (unsigned int nMissing = missingNames(colNames, expectedColumnNames, result.mErrMsg);
         nMissing != 0)
     {
-        result.mErrCode = PassFileParseResult::ErrCode::MISSING_COLUMN;
         if (nMissing == expectedColumnNames.size())
+        {
+            result.mErrCode = PassFileParseResult::ErrCode::INVALID_HEADER;
             result.mErrMsg += "The first line of the .csv file is expected to be a header with the "
                               "column names separated by commas.";
+        }
+        else
+        {
+            result.mErrCode = PassFileParseResult::ErrCode::MISSING_COLUMN;
+        }
         return result;
     }
     size_t expectedNumCols = colNames.size();

@@ -12545,29 +12545,30 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getMegaHandleList - Handle of the new imported Password Node.
+         * - MegaRequest::getMegaHandleList - A list with all the handles for all the new imported
+         * Password Nodes.
          * - MegaRequest::getMegaStringIntegerMap - A map with problematic content as key and error
          * code as value
          *    Possible error codes are:
          *       IMPORTED_PASSWORD_ERROR_PARSER = 1
          *       IMPORTED_PASSWORD_ERROR_MISSINGPASSWORD = 2
          *
-         * Valid errors:
-         *  - API_EARGS:
-         *      Invalid parent (parent doesn't exist or isn't password node)
-         *      Invalid fileSource
-         *      NULL at filePath
-         *      File with wrong format
-         *  - API_EREAD:
-         *      File can't be opened
-         *  - API_EACESS
-         *      File is empty
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EARGS:
+         *     + Invalid parent (parent doesn't exist or isn't password node)
+         *     + Invalid fileSource
+         *     + NULL at filePath
+         *     + File with wrong format
+         * - MegaError::API_EREAD:
+         *     + File can't be opened
+         * - MegaError::API_EACESS
+         *     + File is empty
          *
          * @param filePath Path to the file containing the passwords to import.
          * @param fileSource Type for the source from where the file was exported.
          * Valid values are:
          *  - IMPORT_PASSWORD_SOURCE_GOOGLE = 0
-         * @param parent Parent handle for node that will contain new nodes as children
+         * @param parent Parent handle for node that will contain new nodes as children.
          * @param listener MegaRequestListener to track this request.
          */
         void importPasswordsFromFile(const char* filePath,
