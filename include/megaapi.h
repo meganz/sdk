@@ -17623,6 +17623,8 @@ class MegaApi
          * You can recoved the node later using MegaApi::getNodeByPath
          * except if the path contains names with '/', '\' or ':' characters.
          *
+         * Note: inshare paths have following structure "email:path"
+         *
          * You take the ownership of the returned value
          *
          * @param node MegaNode for which the path will be returned
@@ -17636,6 +17638,8 @@ class MegaApi
          * If the node doesn't exist, this function returns NULL.
          * You can recover the node later using MegaApi::getNodeByPath
          * except if the path contains names with '/', '\' or ':' characters.
+         *
+         * Note: inshare paths have following structure "email:path"
          *
          * You take the ownership of the returned value
          *
@@ -17654,6 +17658,8 @@ class MegaApi
          *
          * Paths with names containing '/', '\' or ':' aren't compatible
          * with this function.
+         *
+         * Note: inshare paths have following structure "email:path"
          *
          * It is needed to be logged in and to have successfully completed a fetchNodes
          * request before calling this function. Otherwise, it will return NULL.
@@ -17676,6 +17682,8 @@ class MegaApi
          *
          * Paths with names containing '/', '\' or ':' aren't compatible
          * with this function.
+         *
+         * Note: inshare paths have following structure "email:path"
          *
          * It is needed to be logged in and to have successfully completed a fetchNodes
          * request before calling this function. Otherwise, it will return NULL.
