@@ -270,7 +270,11 @@ void HttpIO::getMEGADNSservers(string *dnsservers, bool getfromnetwork)
         hints.ai_family = AF_UNSPEC;
 
 #ifndef __MINGW32__
+#if defined(__NetBSD__) || defined(__OpenBSD__)
+        hints.ai_flags = AI_ADDRCONFIG;
+#else
         hints.ai_flags = AI_V4MAPPED | AI_ADDRCONFIG;
+#endif
 #endif
 
         if (!getaddrinfo("ns.mega.co.nz", NULL, &hints, &aiList))
