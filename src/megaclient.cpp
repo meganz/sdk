@@ -8418,8 +8418,17 @@ shared_ptr<Node> MegaClient::nodeByPath(const char* path, std::shared_ptr<Node> 
                     continue;
                 }
 
-                if (*path == '/' || !*path)
+                if (*path == '/' || *path == ':' || !*path)
                 {
+                    if (*path == ':')
+                    {
+                        if (c.size())
+                        {
+                            return NULL;
+                        }
+                        remote = 1;
+                    }
+
                     if (path > bptr)
                     {
                         s.append(bptr, path - bptr);
