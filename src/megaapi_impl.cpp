@@ -26812,6 +26812,7 @@ void MegaApiImpl::importPasswordsFromFile(const char* filePath,
         if (parentHandle.isUndef() || !request->getFile() ||
             request->getParamType() != MegaApi::IMPORT_PASSWORD_SOURCE_GOOGLE)
         {
+            LOG_err << "Import password: invalid parmeters";
             return API_EARGS;
         }
 
@@ -26820,6 +26821,7 @@ void MegaApiImpl::importPasswordsFromFile(const char* filePath,
         std::shared_ptr<Node> parent = client->nodeByHandle(parentHandle);
         if (!parent || !parent->isPasswordNodeFolder())
         {
+            LOG_err << "Import password: parent node doesn't exist";
             return API_EARGS;
         }
 
@@ -26830,11 +26832,14 @@ void MegaApiImpl::importPasswordsFromFile(const char* filePath,
                 break;
             case PassFileParseResult::ErrCode::MISSING_COLUMN:
             case PassFileParseResult::ErrCode::NO_VALID_ENTRIES:
+                LOG_err << "Import password: invalid file format";
                 return API_EARGS;
             case PassFileParseResult::ErrCode::FILE_DOES_NOT_EXIST:
             case PassFileParseResult::ErrCode::CANT_OPEN_FILE:
+                LOG_err << "Import password: file can't be opened or doesn't exist";
                 return API_EREAD;
             case PassFileParseResult::ErrCode::INVALID_HEADER:
+                LOG_err << "Import password: Invalid header";
                 return API_EACCESS;
         }
 
@@ -26854,6 +26859,7 @@ void MegaApiImpl::importPasswordsFromFile(const char* filePath,
 
         if (goodEntries.empty())
         {
+            LOG_err << "Import password: none entry is valid";
             return API_EARGS;
         }
 
