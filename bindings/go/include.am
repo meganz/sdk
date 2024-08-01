@@ -1,0 +1,35 @@
+# Output directory for Go bindings
+GOBINDIR = bindings/go
+
+# SWIG command for generating Go bindings
+SWIG_GO = swig
+
+# Go package name
+GOPACKAGE = mega
+
+# SWIG flags for Go bindings
+SWIG_GO_FLAGS = -go -cgo -intgosize 64 -c++
+
+# SWIG generated Go source file
+GO_SOURCE = $(GOBINDIR)/megaapi_wrap.cpp
+
+# Clean Go bindings files
+CLEANFILES += $(GO_SOURCE)
+CLEANFILES += $(GOBINDIR)/megaapi_wrap.h
+CLEANFILES += $(GOBINDIR)/mega.go
+CLEANFILES += $(LIBRARY_PATH)
+
+# Sources for SWIG Go wrapper
+nodist_bindings_go_lib_mega_la_SOURCES = $(GO_SOURCE)
+bindings_go_lib_mega_la_SOURCES = $(top_srcdir)/bindings/megaapi.i
+bindings_go_lib_mega_la_CPPFLAGS = -I$(top_srcdir)/include
+
+$(GO_SOURCE): $(top_srcdir)/bindings/megaapi.i
+	$(SWIG_GO) $(SWIG_GO_FLAGS) -o $@ -outdir $(GOBINDIR) -package $(GOPACKAGE) -I$(top_srcdir)/include $<
+	@sed -i 's,#include "megaapi.h",#include "include/megaapi.h",' $(top_srcdir)/$(GOBINDIR)/megaapi_wrap.cpp
+
+.PHONY: go-bindings
+go-bindings: $(GO_SOURCE) $(LIBRARY_PATH)
+
+# Ensure that the Go bindings and the shared library are built when requested
+all-local: go-bindings
