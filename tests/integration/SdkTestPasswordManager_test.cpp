@@ -68,7 +68,7 @@ TEST_F(SdkTestPasswordManager, SdkTestPasswordManager)
     ASSERT_NE(UNDEF, nhBase) << "Password Manager Base node not set";
 
     LOG_debug << "\t# fetch nodes";
-    fetchNodesForAccounts(totalAccounts);
+    fetchNodesForAccounts(totalAccounts, MegaApi::CLIENT_TYPE_PASSWORD_MANAGER);
     LOG_debug << "\t# get Password Manager Base node by handle";
     std::unique_ptr<MegaNode> mnBase{megaApi[userIdx]->getNodeByHandle(nhBase)};
     ASSERT_NE(nullptr, mnBase.get())

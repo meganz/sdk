@@ -656,7 +656,7 @@ public:
     void deleteFile(string filename);
     void deleteFolder(string foldername);
 
-    void fetchNodesForAccounts(const unsigned howMany);
+    void fetchNodesForAccounts(const unsigned howMany, const int clientType);
     void getAccountsForTest(unsigned howMany = 1,
                             bool fetchNodes = true,
                             const int clientType = MegaApi::CLIENT_TYPE_DEFAULT);

@@ -1433,12 +1433,28 @@ void SdkTest::deleteFolder(string foldername)
     fs::remove_all(p, ignoredEc);
 }
 
-void SdkTest::fetchNodesForAccounts(const unsigned howMany)
+void SdkTest::fetchNodesForAccounts(const unsigned howMany, const int clientType)
 {
     std::vector<std::unique_ptr<RequestTracker>> trackers(howMany);
     // perform parallel fetchnodes for each
     for (unsigned index = 0; index < howMany; ++index)
     {
+        // For apps from type password manager, password manager base should be defined before
+        // calling to fetchnode. In other case, api answers with -11 to 'f' command
+        if (clientType == MegaApi::CLIENT_TYPE_PASSWORD_MANAGER)
+        {
+            // First recieve user attributes calling to 'ug' command.
+            // With user attributes, SDK determines if password base node exists
+            RequestTracker userInfoTracker(megaApi[index].get());
+            megaApi[index]->getUserData(&userInfoTracker);
+            ASSERT_EQ(userInfoTracker.waitForResult(), API_OK);
+
+            // Get password node base, in case it doesn't exist, it creates it
+            RequestTracker passwordManagerBaseTracker(megaApi[index].get());
+            megaApi[index]->getPasswordManagerBase(&passwordManagerBaseTracker);
+            ASSERT_EQ(passwordManagerBaseTracker.waitForResult(), API_OK);
+        }
+
         out() << "Fetching nodes for account " << index;
         trackers[index] = asyncRequestFetchnodes(index);
     }
@@ -1511,7 +1527,8 @@ void SdkTest::getAccountsForTest(unsigned howMany, bool fetchNodes, const int cl
     }
     ASSERT_FALSE(anyLoginFailed);
 
-    if (fetchNodes) fetchNodesForAccounts(howMany);
+    if (fetchNodes)
+        fetchNodesForAccounts(howMany, clientType);
 
     for (unsigned index = 0; index < howMany; ++index)
     {
