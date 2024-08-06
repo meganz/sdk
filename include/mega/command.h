@@ -2024,6 +2024,28 @@ private:
     ResultFunc mOnResult;
 };
 
+class MEGA_API CommandGetActiveSurveyTriggerActions: public Command
+{
+public:
+    using Completion =
+        std::function<void(const Error& /*e*/, const std::vector<uint32_t>& /*triggerActionIds*/)>;
+
+    CommandGetActiveSurveyTriggerActions(MegaClient* client, Completion&& completion);
+
+    bool procresult(Result, JSON&) override;
+
+private:
+    std::vector<uint32_t> parseTriggerActionIds(JSON& json);
+
+    void onCompletion(const Error& e, const std::vector<uint32_t> triggerActionIds)
+    {
+        if (mCompletion)
+            mCompletion(e, triggerActionIds);
+    }
+
+    Completion mCompletion;
+};
+
 } // namespace
 
 #endif

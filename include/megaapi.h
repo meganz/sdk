@@ -4592,7 +4592,8 @@ class MegaRequest
             TYPE_BACKUP_PAUSE_MD                                            = 194,
             TYPE_BACKUP_RESUME_MD                                           = 195,
             TYPE_IMPORT_PASSWORDS_FROM_FILE = 196,
-            TOTAL_OF_REQUEST_TYPES = 197,
+            TYPE_GET_ACTIVE_SURVEY_TRIGGER_ACTIONS = 197,
+            TOTAL_OF_REQUEST_TYPES = 198,
         };
 
         virtual ~MegaRequest();
@@ -22795,6 +22796,26 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void deleteUserAttribute(int type, MegaRequestListener* listener = NULL);
+
+        /**
+         * @brief Retrieve active survey trigger action IDs
+         *
+         * This function fetches all active survey trigger action IDs.
+         *
+         * The associated request type for this function is
+         * MegaRequest::TYPE_GET_ACTIVE_SURVEY_TRIGGER_ACTIONS.
+         *
+         * On successful completion (MegaError::API_OK), the MegaRequest object received in
+         * onRequestFinish contains:
+         * - MegaRequest::getMegaIntegerList: Returns a list of active trigger action IDs.
+         *
+         * If the request fails, the MegaError code in onRequestFinish can be:
+         * - ENOENT: No available trigger actions.
+         * - EINTERNAL: Received response could not be read.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getActiveSurveyTriggerActions(MegaRequestListener* listener = nullptr);
 
     protected:
         MegaApiImpl *pImpl = nullptr;

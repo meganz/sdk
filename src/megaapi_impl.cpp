@@ -4785,6 +4785,8 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_ENABLE_MOUNT:    return "TYPE_ENABLE_MOUNT";
         case TYPE_REMOVE_MOUNT:    return "TYPE_REMOVE_MOUNT";
         case TYPE_SET_MOUNT_FLAGS: return "TYPE_SET_MOUNT_FLAGS";
+        case TYPE_GET_ACTIVE_SURVEY_TRIGGER_ACTIONS:
+            return "TYPE_GET_ACTIVE_SURVEY_TRIGGER_ACTIONS";
     }
     return "UNKNOWN";
 }
@@ -27448,6 +27450,31 @@ void MegaApiImpl::deleteUserAttribute(int type, MegaRequestListener* listener)
 #else
         return API_EACCESS;
 #endif
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getActiveSurveyTriggerActions(MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request =
+        new MegaRequestPrivate(MegaRequest::TYPE_GET_ACTIVE_SURVEY_TRIGGER_ACTIONS, listener);
+
+    request->performRequest = [this, request]()
+    {
+        auto completion = [this, request](const Error& e, const vector<uint32_t>& ids)
+        {
+            if (e == API_OK)
+            {
+                request->setMegaIntegerList(std::make_unique<MegaIntegerListPrivate>(ids));
+            }
+
+            fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
+        };
+
+        client->getActiveSurveyTriggerActions(std::move(completion));
+        return API_OK;
     };
 
     requestQueue.push(request);

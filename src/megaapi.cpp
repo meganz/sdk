@@ -6114,6 +6114,11 @@ void MegaApi::deleteUserAttribute(int type, MegaRequestListener* listener)
     return pImpl->deleteUserAttribute(type, listener);
 }
 
+void MegaApi::getActiveSurveyTriggerActions(MegaRequestListener* listener)
+{
+    return pImpl->getActiveSurveyTriggerActions(listener);
+}
+
 /* END MEGAAPI */
 
 MegaHashSignature::MegaHashSignature(const char *base64Key)

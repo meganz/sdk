@@ -2779,6 +2779,9 @@ public:
     void getNotifications(CommandGetNotifications::ResultFunc onResult);
     std::pair<uint32_t, uint32_t> getFlag(const char* flagName);
 
+    void getActiveSurveyTriggerActions(
+        CommandGetActiveSurveyTriggerActions::Completion&& completion);
+
     using GetJSCDataCallback = std::function<void(JSCData, Error)>;
 
     /**

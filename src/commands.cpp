@@ -11968,6 +11968,54 @@ bool CommandGetNotifications::readCallToAction(JSON& json, map<string, string>& 
     return json.leaveobject();
 }
 
+CommandGetActiveSurveyTriggerActions::CommandGetActiveSurveyTriggerActions(MegaClient* client,
+                                                                           Completion&& completion)
+{
+    cmd("gsur");
+    mCompletion = std::move(completion);
+    tag = client->reqtag;
+}
 
+std::vector<uint32_t> CommandGetActiveSurveyTriggerActions::parseTriggerActionIds(JSON& json)
+{
+    std::vector<uint32_t> ids;
+
+    // Trigger action ID is a small positive integer
+    int id = 0;
+    while (json.isnumeric() && (id = json.getint32()) > 0)
+    {
+        ids.push_back(static_cast<uint32_t>(id));
+    }
+
+    return ids;
+}
+
+bool CommandGetActiveSurveyTriggerActions::procresult(Result r, JSON& json)
+{
+    std::vector<uint32_t> ids;
+    if (r.wasErrorOrOK())
+    {
+        // Preventive: convert API_OK to API_ENOENT
+        Error e = r.wasError(API_OK) ? Error{API_ENOENT} : r.errorOrOK();
+        onCompletion(e, ids);
+        return true;
+    }
+
+    if (!r.hasJsonArray())
+    {
+        assert(true); // not expect to happen
+        onCompletion(API_EINTERNAL, ids);
+        return false;
+    }
+
+    // Inside Json array and parse
+    ids = parseTriggerActionIds(json);
+
+    Error err = ids.empty() ? API_ENOENT : API_OK;
+
+    onCompletion(err, ids);
+
+    return true;
+}
 
 } // namespace

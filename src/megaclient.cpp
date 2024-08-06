@@ -20962,6 +20962,12 @@ void MegaClient::getNotifications(CommandGetNotifications::ResultFunc onResult)
     reqs.add(new CommandGetNotifications(this, onResult));
 }
 
+void MegaClient::getActiveSurveyTriggerActions(
+    CommandGetActiveSurveyTriggerActions::Completion&& completion)
+{
+    reqs.add(new CommandGetActiveSurveyTriggerActions(this, std::move(completion)));
+}
+
 std::pair<uint32_t, uint32_t> MegaClient::getFlag(const char* flagName)
 {
     enum : uint32_t // 1:1 with enum values from public interface
