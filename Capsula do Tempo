@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Baú de Recordações</title>
+  <style>
+    /* Seus estilos aqui */
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Bem-vindo ao nosso Baú de Recordações</h1>
+    <form id="recordForm">
+      <input type="text" id="name" name="name" placeholder="Digite o seu nome" required>
+      <textarea id="message" name="message" placeholder="Deixe-nos uma mensagem" required></textarea>
+      <video id="liveView" autoplay></video>
+      <div id="countdown" style="display: none;">30</div>
+      <div class="button-group">
+        <div>
+          <button type="button" class="button" onclick="takePhoto()">Tire uma Foto</button>
+          <button type="button" class="button" onclick="retryPhoto()" style="display: none;" id="retryPhotoButton">Refazer Foto</button>
+        </div>
+        <div>
+          <button type="button" class="button" onclick="startRecording()">Iniciar Gravação de Vídeo</button>
+          <button type="button" class="button" onclick="retryVideo()" style="display: none;" id="retryVideoButton">Refazer Vídeo</button>
+          <button type="button" class="button" onclick="stopRecording()" style="display: none;" id="stopButton">Parar Gravação</button>
+        </div>
+      </div>
+      <button type="submit" class="button">Envie para os Noivos</button>
+    </form>
+    <video id="videoPreview" controls style="display: none;"></video>
+    <img id="photoPreview" src="" alt="Preview da Foto" style="display: none;">
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mega-sdk/1.0.0/mega.min.js"></script>
+  <script>
+    let mediaRecorder;
+    let recordedChunks = [];
+    let countdownInterval;
+
+    async function setupCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: true
+        });
+        const liveView = document.getElementById('liveView');
+        liveView.srcObject = stream;
+        liveView.play();
+      } catch (error) {
+        console.error('Erro ao acessar a câmera:', error);
+      }
+    }
+
+    async function takePhoto() {
+      try {
+        const video = document.getElementById('liveView');
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const photo = canvas.toBlob(async (blob) => {
+          const photoUrl = URL.createObjectURL(blob);
+          document.getElementById('photoPreview').src = photoUrl;
+          document.getElementById('photoPreview').style.display = 'block';
+          document.getElementById('retryPhotoButton').style.display = 'inline-block';
+          document.getElementById('videoPreview').style.display = 'none';
+          document.getElementById('retryVideoButton').style.display = 'none';
+          await uploadToMega(blob, 'photo.jpg');
+        }, 'image/jpeg');
+      } catch (error) {
+        console.error('Erro ao capturar foto:', error);
+      }
+    }
+
+    async function startRecording() {
+      try {
+        const stream = document.getElementById('liveView').srcObject;
+        mediaRecorder = new MediaRecorder(stream);
+        recordedChunks = [];
+        mediaRecorder.ondataavailable = event => {
+          recordedChunks.push(event.data);
+        };
+        mediaRecorder.start();
+        document.querySelector('[onclick="startRecording()"]').style.display = 'none';
+        document.getElementById('stopButton').style.display = 'inline-block';
+        document.getElementById('retryVideoButton').style.display = 'inline-block';
+        document.getElementById('countdown').style.display = 'block';
+        let timeLeft = 30;
+        document.getElementById('countdown').textContent = timeLeft;
+        countdownInterval = setInterval(() => {
+          timeLeft -= 1;
+          document.getElementById('countdown').textContent = timeLeft;
+          if (timeLeft <= 0) {
+            stopRecording();
+          }
+        }, 1000);
+      } catch (error) {
+        console.error('Erro ao iniciar gravação:', error);
+      }
+    }
+
+    function stopRecording() {
+      if (mediaRecorder) {
+        mediaRecorder.stop();
+        mediaRecorder.stream.getTracks().forEach(track => track.stop());
+        clearInterval(countdownInterval);
+        document.getElementById('countdown').style.display = 'none';
+        const blob = new Blob(recordedChunks, {
+          type: 'video/webm'
+        });
+        const videoUrl = URL.createObjectURL(blob);
+        document.getElementById('videoPreview').src = videoUrl;
+        document.getElementById('videoPreview').style.display = 'block';
+        uploadToMega(blob, 'video.webm');
+        document.getElementById('photoPreview').style.display = 'none';
+        document.getElementById('retryPhotoButton').style.display = 'none';
+        document.querySelector('[onclick="startRecording()"]').style.display = 'inline-block';
+        document.getElementById('stopButton').style.display = 'none';
+        document.getElementById('retryVideoButton').style.display = 'none';
+      }
+    }
+
+    function retryPhoto() {
+      document.getElementById('photoPreview').style.display = 'none';
+      takePhoto();
+    }
+
+    function retryVideo() {
+      document.getElementById('videoPreview').style.display = 'none';
+      startRecording();
+    }
+
+    async function uploadToMega(blob, filename) {
+      try {
+        const user = await loginToMega();
+        mega.upload(blob, '/Cápsula do Tempo do Casamento', filename, function (err, file) {
+          if (err) throw err;
+          console.log(`Arquivo ${filename} enviado com sucesso!`);
+        });
+      } catch (error) {
+        console.error('Erro ao fazer upload para o MEGA:', error);
+      }
+    }
+
+    async function loginToMega() {
+      return new Promise((resolve, reject) => {
+        mega.login(EMAIL, PASSWORD, function (err, user) {
+          if (err) return reject(err);
+          resolve(user);
+        });
+      });
+    }
+
+    document.getElementById('recordForm').addEventListener('submit', function(event) {
+      event.preventDefault();
+      const name = document.getElementById('name').value;
+      const message = document.getElementById('message').value;
+      const textBlob = new Blob([`Nome: ${name}\n
