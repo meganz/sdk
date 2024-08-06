@@ -47,11 +47,14 @@ int WinWaiter::wait()
     if (index <= MAXIMUM_WAIT_OBJECTS)
     {
         assert(!handles.empty());
-        DWORD dwWaitResult = WaitForMultipleObjectsEx(static_cast<DWORD>(index),
-                                                      &handles.front(),
-                                                      FALSE,
-                                                      static_cast<DWORD>(maxds * 100),
-                                                      TRUE);
+        DWORD dwWaitResult = WaitForMultipleObjectsEx(
+            static_cast<DWORD>(index),
+            &handles.front(),
+            FALSE,
+            (maxds > static_cast<dstime>(std::numeric_limits<DWORD>::max() / 100)) ?
+                std::numeric_limits<DWORD>::max() :
+                static_cast<DWORD>(maxds * 100),
+            TRUE);
 
         assert(dwWaitResult != WAIT_FAILED);
 
