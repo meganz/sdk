@@ -20,6 +20,7 @@
  */
 #import <Foundation/Foundation.h>
 #import "MEGAAccountType.h"
+#import "MEGAPaymentMethod.h"
 #import "MEGAStringList.h"
 #import "MEGASubscriptionStatus.h"
 
@@ -76,9 +77,9 @@
 /**
  * @brief Get the subscription payment provider ID
  *
- * @return Payment provider ID
+ * @return Information about the payment provider ID
  */
-@property (readonly, nonatomic) int32_t paymentMethodId;
+@property (readonly, nonatomic) MEGAPaymentMethod paymentMethodId;
 
 /**
  * @brief Get the subscription renew timestamp

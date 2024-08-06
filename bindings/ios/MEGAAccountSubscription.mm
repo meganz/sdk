@@ -88,8 +88,8 @@ using namespace mega;
     return ret;
 }
 
-- (int32_t)paymentMethodId {
-    self.megaAccountSubscription ? self.megaAccountSubscription->getPaymentMethodId() : 0;
+- (MEGAPaymentMethod)paymentMethodId {
+    return (MEGAPaymentMethod) (self.megaAccountSubscription ? self.megaAccountSubscription->getPaymentMethodId() : -1);
 }
 
 - (int64_t)renewTime {
