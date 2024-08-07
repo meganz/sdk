@@ -5823,6 +5823,11 @@ void MegaApi::disableExportSet(MegaHandle sid, MegaRequestListener *listener)
     return pImpl->disableExportSet(sid, listener);
 }
 
+int MegaApi::getSetElementHandleSize()
+{
+    return MegaApiImpl::getSetElementHandleSize();
+}
+
 void MegaApi::fetchPublicSet(const char* publicSetLink, MegaRequestListener* listener)
 {
     pImpl->fetchPublicSet(publicSetLink, listener);

@@ -3396,6 +3396,11 @@ class MegaApiImpl : public MegaApp
         void exportSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
         void disableExportSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
 
+        static int getSetElementHandleSize()
+        {
+            return MegaClient::SETELEMENTHANDLE;
+        }
+
         MegaSetList* getSets();
         MegaSet* getSet(MegaHandle sid);
         MegaHandle getSetCover(MegaHandle sid);

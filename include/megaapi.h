@@ -1401,7 +1401,10 @@ public:
      * @param i Position of the instance that we want to get from the list
      * @return Instance at position i in the list
      */
-    virtual const MegaBackupInfo* get(unsigned int i) const { return nullptr; }
+    virtual const MegaBackupInfo* get(unsigned int /*i*/) const
+    {
+        return nullptr;
+    }
 
     /**
      * @brief Returns the number of MegaBackupInfo instances in the list
@@ -1515,7 +1518,10 @@ public:
      *
      * @return true if this Set has a specific change
      */
-    virtual bool hasChanged(uint64_t changeType) const { return false; }
+    virtual bool hasChanged(uint64_t /*changeType*/) const
+    {
+        return false;
+    }
 
     /**
      * @brief Returns the addition / OR bit-operation of all the MegaSet::CHANGE_TYPE for
@@ -1583,7 +1589,10 @@ public:
      * @param i Position of the MegaSet that we want to get for the list
      * @return MegaSet at the position i in the list
      */
-    virtual const MegaSet* get(unsigned int i) const { return nullptr; }
+    virtual const MegaSet* get(unsigned int /*i*/) const
+    {
+        return nullptr;
+    }
 
     /**
      * @brief Returns the number of MegaSets in the list
@@ -1679,7 +1688,10 @@ public:
      *
      * @return true if this Set has a specific change
      */
-    virtual bool hasChanged(uint64_t changeType) const { return false; }
+    virtual bool hasChanged(uint64_t /*changeType*/) const
+    {
+        return false;
+    }
 
     /**
      * @brief Returns the addition / OR bit-operation of all the MegaSetElement::CHANGE_TYPE for
@@ -1719,16 +1731,19 @@ public:
     /**
      * @brief Returns the MegaSetElement at the position i in the MegaSetElementList
      *
-     * The MegaSetElementList retains the ownership of the returned MegaSetElement. It will be only valid until
-     * the MegaSetElementList is deleted. If you want to retain a MegaSetElement returned by this function,
-     * use MegaSetElement::copy().
+     * The MegaSetElementList retains the ownership of the returned MegaSetElement. It will be only
+     * valid until the MegaSetElementList is deleted. If you want to retain a MegaSetElement
+     * returned by this function, use MegaSetElement::copy().
      *
      * If the index is >= the size of the list, this function returns NULL.
      *
      * @param i Position of the MegaSetElement that we want to get for the list
      * @return MegaSetElement at the position i in the list
      */
-    virtual const MegaSetElement* get(unsigned int i) const { return nullptr; }
+    virtual const MegaSetElement* get(unsigned int /*i*/) const
+    {
+        return nullptr;
+    }
 
     /**
      * @brief Returns the number of MegaSetElements in the list
@@ -21865,6 +21880,12 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void disableExportSet(MegaHandle sid, MegaRequestListener *listener = nullptr);
+
+        /**
+         * @brief gets Set and Elements handle size
+         * @return Set and Elements handle size
+         */
+        static int getSetElementHandleSize();
 
         /**
          * @brief Request to fetch a public/exported Set and its Elements.
