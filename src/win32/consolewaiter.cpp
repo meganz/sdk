@@ -41,8 +41,8 @@ WinConsoleWaiter::WinConsoleWaiter(WinConsole* con)
 }
 
 // wait for events (socket, I/O completion, timeout + application events)
-// ds specifies the maximum amount of time to wait in deciseconds (or ~0 if no
-// timeout scheduled)
+// ds specifies the maximum amount of time to wait in deciseconds (or
+// NEVER if no timeout scheduled)
 int WinConsoleWaiter::wait()
 {
     int r;
