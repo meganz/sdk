@@ -25,6 +25,7 @@
 #include "mega/arguments.h"
 #include "mega/filesystem.h"
 #include "mega/gfx.h"
+#include "mega/pwm_file_parser.h"
 #include "mega/testhooks.h"
 
 #include <bitset>
@@ -5094,6 +5095,9 @@ autocomplete::ACN autocompleteSyntax()
                                     opt(flag("-useDigits")),
                                     opt(flag("-useSymbols")))
                         )));
+
+    p->Add(exec_importpasswordsfromgooglefile,
+           sequence(text("importpasswordsgoogle"), localFSPath("file"), param("parenthandle")));
 
     p->Add(exec_fusedb,
            sequence(text("fuse"),
@@ -13159,6 +13163,66 @@ void exec_generatepassword(autocomplete::ACState& s)
 
         if (pwd.empty()) cout << "Error generating the password. Please check the logs (if active)\n";
         else cout << "Characers-based password successfully generated: " << pwd << "\n";
+    }
+}
+
+void exec_importpasswordsfromgooglefile(autocomplete::ACState& s)
+{
+    auto localname = localPathArg(s.words[1].s);
+    handle nh;
+    Base64::atob(s.words[2].s.c_str(), (byte*)&nh, MegaClient::NODEHANDLE);
+    NodeHandle parentHandle{};
+    parentHandle.set6byte(nh);
+
+    if (parentHandle.isUndef())
+    {
+        cout << "Parent handle is undef" << endl;
+        return;
+    }
+
+    std::shared_ptr<Node> parent = client->mNodeManager.getNodeByHandle(parentHandle);
+    if (!parent || !parent->isPasswordNodeFolder())
+    {
+        cout << "Invalid parent" << endl;
+        return;
+    }
+
+    using namespace pwm::import;
+    PassFileParseResult parserResult =
+        readPasswordImportFile(localname.platformEncoded(), FileSource::GOOGLE_PASSWORD);
+    if (parserResult.mErrCode != PassFileParseResult::ErrCode::OK)
+    {
+        cout << "Error importing file: " << parserResult.mErrMsg << endl;
+        return;
+    }
+
+    sharedNode_list children = client->getChildren(parent.get());
+    std::vector<std::string> childrenNames;
+    std::transform(children.begin(),
+                   children.end(),
+                   std::back_inserter(childrenNames),
+                   [](const std::shared_ptr<Node>& child) -> std::string
+                   {
+                       return child->displayname();
+                   });
+    ncoll::NameCollisionSolver solver{std::move(childrenNames)};
+
+    const auto [badEntries, goodEntries] =
+        MegaClient::validatePasswordEntries(std::move(parserResult.mResults), solver);
+
+    std::cout << "Imported passwords: " << goodEntries.size()
+              << "  Row with Error: " << badEntries.size() << endl;
+
+    client->createPasswordNodes(std::move(goodEntries), parent, 0);
+
+    if (!client->isClientType(MegaClient::ClientType::PASSWORD_MANAGER))
+    {
+        std::cout
+            << "\n*****\n"
+            << "* Password Manager commands executed in a non-Password Manager MegaClient type.\n"
+            << "* Be wary of implications regarding fetch nodes and action packets received.\n"
+            << "* Check megacli help to start it as a Password Manager MegaClient type.\n"
+            << "*****\n\n";
     }
 }
 
