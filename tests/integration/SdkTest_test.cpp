@@ -8189,8 +8189,11 @@ TEST_F(SdkTest, SdkRecentsTest)
 
     synchronousCatchup(0);
 
-
-    std::unique_ptr<MegaRecentActionBucketList> buckets{megaApi[0]->getRecentActions(1, 10)};
+    RequestTracker tracker(megaApi[0].get());
+    megaApi[0]->getRecentActionsAsync(1, 10, true, &tracker);
+    ASSERT_EQ(tracker.waitForResult(), API_OK);
+    std::unique_ptr<MegaRecentActionBucketList> buckets{
+        tracker.request->getRecentActions()->copy()};
     ASSERT_TRUE(buckets != nullptr);
 
     for (int i = 0; i < buckets->size(); ++i)

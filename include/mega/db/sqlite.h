@@ -87,8 +87,9 @@ public:
                         CancelToken cancelFlag) override;
 
     bool getNodesByFingerprint(const std::string& fingerprint, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) override;
-    bool getNodeByFingerprint(const std::string& fingerprint, mega::NodeSerialized& node, NodeHandle& handle) override;
-    bool getRecentNodes(unsigned maxcount, m_time_t since, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) override;
+    bool getNodeByFingerprint(const std::string& fingerprint,
+                              mega::NodeSerialized& node,
+                              NodeHandle& handle) override;
     bool getFavouritesHandles(NodeHandle node, uint32_t count, std::vector<mega::NodeHandle>& nodes) override;
     bool childNodeByNameType(NodeHandle parentHanlde, const std::string& name, nodetype_t nodeType, std::pair<NodeHandle, NodeSerialized>& node) override;
     bool getNodeSizeTypeAndFlags(NodeHandle node, m_off_t& size, nodetype_t& nodeType, uint64_t &oldFlags) override;
@@ -155,7 +156,6 @@ private:
     sqlite3_stmt* mStmtChildNode = nullptr;
     sqlite3_stmt* mStmtIsAncestor = nullptr;
     sqlite3_stmt* mStmtNumChild = nullptr;
-    sqlite3_stmt* mStmtRecents = nullptr;
     sqlite3_stmt* mStmtFavourites = nullptr;
 
     // how many SQLite instructions will be executed between callbacks to the progress handler
@@ -289,7 +289,6 @@ public:
     static std::string get(int order, int sqlParamIndex);
     static size_t getId(int order);
 
-private:
     enum {
         DEFAULT_ASC = 1, DEFAULT_DESC,
         SIZE_ASC, SIZE_DESC,
@@ -299,6 +298,7 @@ private:
         FAV_ASC, FAV_DESC
     };
 
+private:
     static std::bitset<2> getDescendingDirs(int order);
     static bool isDescOrder(const int order);
 };
