@@ -4838,6 +4838,9 @@ bool MegaClient::procsc()
                 case MAKENAMEID2('s', 'n'):
                     // the sn element is guaranteed to be the last in sequence (except for notification requests (c=50))
                     scsn.setScsn(&jsonsc);
+                    // At this point no CurrentSeqtag should be seen. mCurrentSeqtagSeen is set true
+                    // when action package is processed and the seq tag matches with mCurrentSeqtag
+                    assert(!mCurrentSeqtagSeen);
                     notifypurge();
                     if (sctable)
                     {
@@ -6080,9 +6083,7 @@ bool MegaClient::sc_checkActionPacket(Node* lastAPDeletedNode)
                 return sc_checkSequenceTag(string());
             }
         }
-
     }
-    return true;
 }
 
 
