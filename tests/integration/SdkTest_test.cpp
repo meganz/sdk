@@ -1443,7 +1443,7 @@ void SdkTest::fetchNodesForAccounts(const unsigned howMany, const int clientType
         // calling to fetchnode. In other case, api answers with -11 to 'f' command
         if (clientType == MegaApi::CLIENT_TYPE_PASSWORD_MANAGER)
         {
-            // First recieve user attributes calling to 'ug' command.
+            // First receive user attributes calling to 'ug' command.
             // With user attributes, SDK determines if password base node exists
             RequestTracker userInfoTracker(megaApi[index].get());
             megaApi[index]->getUserData(&userInfoTracker);

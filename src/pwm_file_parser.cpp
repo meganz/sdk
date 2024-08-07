@@ -49,6 +49,7 @@ PassFileParseResult parseGooglePasswordCSVFile(const std::string& filePath)
     if (!openFile.good())
     {
         result.mErrCode = PassFileParseResult::ErrCode::CANT_OPEN_FILE;
+        result.mErrMsg = "File can not be opened";
         return result;
     }
 

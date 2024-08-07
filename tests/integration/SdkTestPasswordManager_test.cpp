@@ -31,7 +31,7 @@ class SdkTestPasswordManager: public SdkTest
  *     + 1) plain login
  *     + 2) get Password Manager node handle; it will be created if it didn't exist
  *     + 3) fetch nodes
- * - U1: get Password Manager Base via get user's attribute command
+ * - U1: get Password Manager Base node via get user's attribute command
  * - U1: get Password Manager Base node again; no get user attribute requests expected
  *
  * #2 Password Node CRUD operations

@@ -26812,7 +26812,7 @@ void MegaApiImpl::importPasswordsFromFile(const char* filePath,
         if (parentHandle.isUndef() || !request->getFile() ||
             request->getParamType() != MegaApi::IMPORT_PASSWORD_SOURCE_GOOGLE)
         {
-            LOG_err << "Import password: invalid parmeters";
+            LOG_err << "Import password: invalid parameters";
             return API_EARGS;
         }
 
