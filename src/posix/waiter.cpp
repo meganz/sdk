@@ -109,8 +109,7 @@ int PosixWaiter::wait()
 #ifdef USE_POLL
     // wait infinite (-1) if maxds is max dstime OR it would overflow platform's int
     int timeoutInMs = -1;
-    if (maxds != std::numeric_limits<dstime>::max() &&
-        maxds <= std::numeric_limits<int>::max() / 100)
+    if (EVER(maxds) && maxds <= std::numeric_limits<int>::max() / 100)
     {
         timeoutInMs = static_cast<int>(maxds) * 100;
     }
