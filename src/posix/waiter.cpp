@@ -86,7 +86,7 @@ bool PosixWaiter::fd_filter(int nfds, mega_fd_set_t* fds, mega_fd_set_t* ignoref
 
 // wait for supplied events (sockets, filesystem changes), plus timeout + application events
 // maxds specifies the maximum amount of time to wait in deciseconds (or
-// std::numeric_limits<dstime>::max() if no timeout scheduled) returns application-specific bitmask.
+// NEVER if no timeout scheduled) returns application-specific bitmask.
 // bit 0 set indicates that exec() needs to be called.
 int PosixWaiter::wait()
 {

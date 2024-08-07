@@ -36,7 +36,7 @@ WinWaiter::~WinWaiter()
 
 // wait for events (socket, I/O completion, timeout + application events)
 // ds specifies the maximum amount of time to wait in deciseconds (or
-// std::numeric_limits<dstime>::max() if no timeout scheduled) (this assumes that the second call to
+// NEVER if no timeout scheduled) (this assumes that the second call to
 // addhandle() was coming from the network layer)
 int WinWaiter::wait()
 {
