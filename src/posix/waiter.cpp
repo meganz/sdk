@@ -85,8 +85,9 @@ bool PosixWaiter::fd_filter(int nfds, mega_fd_set_t* fds, mega_fd_set_t* ignoref
 }
 
 // wait for supplied events (sockets, filesystem changes), plus timeout + application events
-// maxds specifies the maximum amount of time to wait in deciseconds (or ~0 if no timeout scheduled)
-// returns application-specific bitmask. bit 0 set indicates that exec() needs to be called.
+// maxds specifies the maximum amount of time to wait in deciseconds (or
+// NEVER if no timeout scheduled) returns application-specific bitmask.
+// bit 0 set indicates that exec() needs to be called.
 int PosixWaiter::wait()
 {
     int numfd = 0;
@@ -97,7 +98,7 @@ int PosixWaiter::wait()
 
     bumpmaxfd(m_pipe[0]);
 
-    if (maxds + 1)
+    if (EVER(maxds))
     {
         dstime us = 1000000 / 10 * maxds;
 
@@ -108,8 +109,7 @@ int PosixWaiter::wait()
 #ifdef USE_POLL
     // wait infinite (-1) if maxds is max dstime OR it would overflow platform's int
     int timeoutInMs = -1;
-    if (maxds != std::numeric_limits<dstime>::max() &&
-        maxds <= std::numeric_limits<int>::max() / 100)
+    if (EVER(maxds) && maxds <= std::numeric_limits<int>::max() / 100)
     {
         timeoutInMs = static_cast<int>(maxds) * 100;
     }
@@ -139,7 +139,7 @@ int PosixWaiter::wait()
     }
     numfd = poll(fds, total, timeoutInMs);
 #else
-    numfd = select(maxfd + 1, &rfds, &wfds, &efds, maxds + 1 ? &tv : NULL);
+    numfd = select(maxfd + 1, &rfds, &wfds, &efds, EVER(maxds) ? &tv : NULL);
 #endif
 
     // empty pipe

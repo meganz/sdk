@@ -222,7 +222,10 @@ struct MEGA_API MegaApp
     virtual void openfilelink_result(handle, const byte*, m_off_t, string*, string*, int) { }
 
     // pread result
-    virtual dstime pread_failure(const Error&, int, void*, dstime) { return ~(dstime)0; }
+    virtual dstime pread_failure(const Error&, int, void*, dstime)
+    {
+        return NEVER;
+    }
     virtual bool pread_data(byte*, m_off_t, m_off_t, m_off_t, m_off_t, void*) { return false; }
 
     // event reporting result

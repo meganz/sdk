@@ -35,10 +35,9 @@ WinWaiter::~WinWaiter()
 }
 
 // wait for events (socket, I/O completion, timeout + application events)
-// ds specifies the maximum amount of time to wait in deciseconds (or ~0 if no
-// timeout scheduled)
-// (this assumes that the second call to addhandle() was coming from the
-// network layer)
+// ds specifies the maximum amount of time to wait in deciseconds (or
+// NEVER if no timeout scheduled) (this assumes that the second call to
+// addhandle() was coming from the network layer)
 int WinWaiter::wait()
 {
     int r = 0;
@@ -47,11 +46,14 @@ int WinWaiter::wait()
     if (index <= MAXIMUM_WAIT_OBJECTS)
     {
         assert(!handles.empty());
-        DWORD dwWaitResult = WaitForMultipleObjectsEx(static_cast<DWORD>(index),
-                                                      &handles.front(),
-                                                      FALSE,
-                                                      static_cast<DWORD>(maxds * 100),
-                                                      TRUE);
+        DWORD dwWaitResult = WaitForMultipleObjectsEx(
+            static_cast<DWORD>(index),
+            &handles.front(),
+            FALSE,
+            (maxds > static_cast<dstime>(std::numeric_limits<DWORD>::max() / 100)) ?
+                std::numeric_limits<DWORD>::max() :
+                static_cast<DWORD>(maxds * 100),
+            TRUE);
 
         assert(dwWaitResult != WAIT_FAILED);
 

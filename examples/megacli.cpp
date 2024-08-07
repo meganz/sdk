@@ -9869,7 +9869,7 @@ dstime DemoApp::pread_failure(const Error &e, int retry, void* /*appdata*/, dsti
             delete pread_file;
             pread_file = NULL;
         }
-        return ~(dstime)0;
+        return NEVER;
     }
 }
 
