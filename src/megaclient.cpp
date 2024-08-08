@@ -4838,6 +4838,9 @@ bool MegaClient::procsc()
                 case MAKENAMEID2('s', 'n'):
                     // the sn element is guaranteed to be the last in sequence (except for notification requests (c=50))
                     scsn.setScsn(&jsonsc);
+                    // At this point no CurrentSeqtag should be seen. mCurrentSeqtagSeen is set true
+                    // when action package is processed and the seq tag matches with mCurrentSeqtag
+                    assert(!mCurrentSeqtagSeen);
                     notifypurge();
                     if (sctable)
                     {
@@ -5032,7 +5035,6 @@ bool MegaClient::procsc()
 
                     if (!insca_notlast)
                     {
-                        sc_checkSequenceTag(string());
                         if (mReceivingCatchUp)
                         {
                             mReceivingCatchUp = false;
@@ -5085,6 +5087,7 @@ bool MegaClient::procsc()
             auto actionpacketStart = jsonsc.pos;
             if (jsonsc.enterobject())
             {
+                // Check if it is ok to process the current action packet.
                 if (!sc_checkActionPacket(lastAPDeletedNode.get()))
                 {
                     // We can't continue actionpackets until we know the next mCurrentSeqtag to match against, wait for the CS request to deliver it.
@@ -5319,6 +5322,11 @@ bool MegaClient::procsc()
             }
             else
             {
+                // No more Actions Packets. Force it to advance and process all the remaining
+                // command responses until a new "st" is found, if any.
+                // It will also process the latest command response associated (by the Sequence Tag)
+                // with the latest AP processed here.
+                sc_checkSequenceTag(string());
                 jsonsc.leavearray();
                 insca = false;
             }
@@ -5925,19 +5933,40 @@ error MegaClient::smsverificationcheck(const std::string &verificationCode)
     return API_OK;
 }
 
+// It evaluates if the sequence tag matches, if it is ahead of the currently
+// expected one for the request or if the expected tag has not arrived yet.
+//
+// When the tag parameter is not empty:
+// It returns true when the tag matches the expected in the request or if the "st" in the AP is
+// below the expected one for the next command response so it is safe to continue.
+// If the tag in the AP is ahead of the expected in the command and it has been seen it calls
+// reqs.continueProcessing(this) to continue processing the commands until the next "st" is found
+// in a command.
+// It returns false when we don't know the next tag yet (no response for request has been received)
+//
+// When the tag parameter is empty:
+// It always returns true.
+// When the expected tag has been already seen, it calls reqs.continueProcessing(this)
+// to continue processing the commands responses. It may find another command with an "st".
+// This may happen while processing an Action Packet with no "st" or when there are no more
+// Action Packets to be processed, so we let the pending command responses to be processed.
 bool MegaClient::sc_checkSequenceTag(const string& tag)
 {
     if (tag.empty())
     {
         if (!mCurrentSeqtag.empty() && mCurrentSeqtagSeen)
         {
+            // Special case to process commands when the current AP has no tag (or there are no
+            // more APs). Needed to process the command associated with the previous Action Packet
+            // or other commands which don't have Sequence Tag.
             LOG_verbose << clientname << "st tag exhausted for " << mCurrentSeqtag;
             reqs.continueProcessing(this);
         }
 
         if (!mLastReceivedScSeqTag.empty())
         {
-            // we've reached the end of a set of actionpackets, with a latest st to report
+            // We've reached the end of a sequence of actionpackets with "st"
+            // Report the latest "st".
             app->sequencetag_update(mLastReceivedScSeqTag);
             LOG_debug << "updated seqtag: " << mLastReceivedScSeqTag;
             mLastReceivedScSeqTag.clear();
@@ -5959,11 +5988,11 @@ bool MegaClient::sc_checkSequenceTag(const string& tag)
 
         for (;;)
         {
-            if (mCurrentSeqtag.empty())
+            if (mCurrentSeqtag.empty()) // No commands are expecting any Sequence Tag
             {
                 if (reqs.cmdsInflight())
                 {
-                    LOG_verbose << clientname << "st tag " << tag << " wait for cs requests";
+                    LOG_verbose << clientname << "st tag " << tag << ". Wait for cs response to arrive";
                     return false;  // we can't tell yet if a command will give us a tag to wait for
                 }
                 else
@@ -5976,18 +6005,23 @@ bool MegaClient::sc_checkSequenceTag(const string& tag)
                     return true;  // nothing pending, process everything
                 }
             }
-            else
+            else // We have received the cs response and we know the current (expected) tag
             {
                 if (tag == mCurrentSeqtag)
                 {
-                    LOG_verbose << clientname << "st tag " << tag << " matched";
+                    // Tag in the Action Packet is the one we are expecting for the command
+                    // response.
+                    LOG_verbose << clientname << "st tag " << tag
+                                << " matched with the next command response.";
                     // there may be more than one, process until a different one arrives
                     mCurrentSeqtagSeen = true;
                     return true;
                 }
                 else if (mCurrentSeqtagSeen)
                 {
-                    LOG_verbose << clientname << "st tag " << tag << " processing for " << mCurrentSeqtag;
+                    // Action Packet tag is ahead of our current expected one, which we have already seen.
+                    // Continue processing command responses until we found a new "st".
+                    LOG_verbose << clientname << "st tag " << tag << ". Processing commands starting at " << mCurrentSeqtag;
                     reqs.continueProcessing(this);
                     continue;   // we may have a new mCurrentSeqtag now
                 }
@@ -6005,9 +6039,13 @@ bool MegaClient::sc_checkSequenceTag(const string& tag)
     }
 }
 
+// Looks for the "st" in the action packet, if any.
+// It calls sc_checkSequenceTag to know if we can continue processing
+// this action packet or if we have to wait.
+// True: Action Packet can be processed.
+// False: Stop processing Action Packets, wait for cs response.
 bool MegaClient::sc_checkActionPacket(Node* lastAPDeletedNode)
 {
-    string tag;
     nameid cmd = 0;
 
     for (;;)
@@ -6023,8 +6061,11 @@ bool MegaClient::sc_checkActionPacket(Node* lastAPDeletedNode)
             break;
 
         case MAKENAMEID2('s', 't'): // sequence tag
+        {
+            string tag;
             jsonsc.storeobject(&tag);
             return sc_checkSequenceTag(tag);
+        }
 
         default:
             // if we reach any other tag, then 'st' is not present.
@@ -6038,12 +6079,11 @@ bool MegaClient::sc_checkActionPacket(Node* lastAPDeletedNode)
             }
             else
             {
-                return sc_checkSequenceTag(tag);
+                // Action Packet with no Sequence Tag.
+                return sc_checkSequenceTag(string());
             }
         }
-
     }
-    return true;
 }
 
 

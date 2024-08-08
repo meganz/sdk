@@ -10216,7 +10216,7 @@ CommandPutSet::CommandPutSet(MegaClient* cl, Set&& s, unique_ptr<string> encrAtt
                              std::function<void(Error, const Set*)> completion)
     : mSet(new Set(std::move(s))), mCompletion(completion)
 {
-    mV3 = false;
+    mSeqtagArray = true;
     cmd("asp");
 
     if (mSet->id() == UNDEF) // create new
@@ -10285,7 +10285,6 @@ bool CommandPutSet::procresult(Result r, JSON& json)
 CommandRemoveSet::CommandRemoveSet(MegaClient* cl, handle id, std::function<void(Error)> completion)
     : mSetId(id), mCompletion(completion)
 {
-    mV3 = false;
     cmd("asr");
     arg("id", (byte*)&id, MegaClient::SETHANDLE);
 
