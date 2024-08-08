@@ -15102,7 +15102,14 @@ TEST_F(SdkTest, SdkUserAlerts)
     bkpAlerts.emplace_back(a->copy());
     bkpSc50Alerts.emplace_back(a->copy());
     ASSERT_FALSE(a->getSeen());
+
+    B1dtls.userAlertsUpdated = false;
+    B1dtls.userAlertList.reset();
     ASSERT_EQ(doAckUserAlerts(B1idx), API_OK);
+    ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
+        << "Alert about contact request creation not received by B1 after " << maxTimeout
+        << " seconds";
+    ASSERT_NE(B1dtls.userAlertList, nullptr) << "IncomingPendingContact  --  request created";
     for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
     {
         if (B1dtls.userAlertList->get(i)->isRemoved()) continue;
@@ -15147,7 +15154,14 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_FALSE(a->isOwnChange()) << "ContactChange  --  contact request accepted";
     ASSERT_EQ(a->getUserHandle(), B1.getMyUserHandleBinary()) << "ContactChange  --  contact request accepted";
     ASSERT_FALSE(a->getSeen());
+
+    A1dtls.userAlertsUpdated = false;
+    A1dtls.userAlertList.reset();
     ASSERT_EQ(doAckUserAlerts(A1idx), API_OK);
+    ASSERT_TRUE(waitForResponse(&A1dtls.userAlertsUpdated))
+        << "Alert about contact request change not received by A1 after " << maxTimeout
+        << " seconds";
+    ASSERT_NE(A1dtls.userAlertList, nullptr) << "Contact change  --  contact request accepted";
     for (int i = 0; i < A1dtls.userAlertList->size(); ++i)
     {
         if (A1dtls.userAlertList->get(i)->isRemoved()) continue;
@@ -15353,7 +15367,13 @@ TEST_F(SdkTest, SdkUserAlerts)
     bkpAlerts.emplace_back(a->copy());
     bkpSc50Alerts.emplace_back(a->copy());
     ASSERT_FALSE(a->getSeen());
+
+    B1dtls.userAlertsUpdated = false;
+    B1dtls.userAlertList.reset();
     ASSERT_EQ(doAckUserAlerts(B1idx), API_OK);
+    ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
+        << "Alert about new share creation not received by B1 after " << maxTimeout << " seconds";
+    ASSERT_NE(B1dtls.userAlertList, nullptr) << "NewShare";
     for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
     {
         if (B1dtls.userAlertList->get(i)->isRemoved()) continue;
@@ -15396,7 +15416,13 @@ TEST_F(SdkTest, SdkUserAlerts)
     //bkpAlerts.emplace_back(a->copy()); // removed internally (combined to "update" later?)
     bkpSc50Alerts.emplace_back(a->copy());
     ASSERT_FALSE(a->getSeen());
+
+    B1dtls.userAlertsUpdated = false;
+    B1dtls.userAlertList.reset();
     ASSERT_EQ(doAckUserAlerts(B1idx), API_OK);
+    ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
+        << "Alert about remove share not received by B1 after " << maxTimeout << " seconds";
+    ASSERT_NE(B1dtls.userAlertList, nullptr) << "RemovedSharedNode";
     for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
     {
         if (B1dtls.userAlertList->get(i)->isRemoved()) continue;
@@ -15458,7 +15484,13 @@ TEST_F(SdkTest, SdkUserAlerts)
     //bkpAlerts.emplace_back(a->copy()); // removed internally (combined to "update" later?)
     bkpSc50Alerts.emplace_back(a->copy());
     ASSERT_FALSE(a->getSeen());
+
+    B1dtls.userAlertsUpdated = false;
+    B1dtls.userAlertList.reset();
     ASSERT_EQ(doAckUserAlerts(B1idx), API_OK);
+    ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
+        << "Alert about new share creation not received by B1 after " << maxTimeout << " seconds";
+    ASSERT_NE(B1dtls.userAlertList, nullptr) << "NewSharedNodes";
     for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
     {
         if (B1dtls.userAlertList->get(i)->isRemoved()) continue;
@@ -15509,7 +15541,13 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_EQ(a->getUserHandle(), A1.getMyUserHandleBinary()) << "UpdatedSharedNode";
     ASSERT_EQ(a->getNumber(0), 1) << "UpdatedSharedNode"; // item count
     ASSERT_FALSE(a->getSeen());
+
+    B1dtls.userAlertsUpdated = false;
+    B1dtls.userAlertList.reset();
     ASSERT_EQ(doAckUserAlerts(B1idx), API_OK);
+    ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
+        << "Alert about update share node not received by B1 after " << maxTimeout << " seconds";
+    ASSERT_NE(B1dtls.userAlertList, nullptr) << "UpdatedSharedNode";
     for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
     {
         if (B1dtls.userAlertList->get(i)->isRemoved()) continue;
@@ -15563,7 +15601,13 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_EQ(a->getNumber(0), 2) << "UpdatedSharedNode (combined)"; // item count
     bkpAlerts.emplace_back(a->copy());
     ASSERT_FALSE(a->getSeen());
+
+    B1dtls.userAlertsUpdated = false;
+    B1dtls.userAlertList.reset();
     ASSERT_EQ(doAckUserAlerts(B1idx), API_OK);
+    ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
+        << "Alert about update share node not received by B1 after " << maxTimeout << " seconds";
+    ASSERT_NE(B1dtls.userAlertList, nullptr) << "UpdatedSharedNode";
     for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
     {
         if (B1dtls.userAlertList->get(i)->isRemoved()) continue;
@@ -15711,7 +15755,13 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_EQ(a->getNumber(0), 1) << "DeletedShare";
     bkpAlerts.emplace_back(a->copy());
     ASSERT_FALSE(a->getSeen());
+
+    B1dtls.userAlertsUpdated = false;
+    B1dtls.userAlertList.reset();
     ASSERT_EQ(doAckUserAlerts(B1idx), API_OK);
+    ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
+        << "Alert about delete share not received by B1 after " << maxTimeout << " seconds";
+    ASSERT_NE(B1dtls.userAlertList, nullptr) << "DeletedShare";
     for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
     {
         if (B1dtls.userAlertList->get(i)->isRemoved()) continue;
@@ -15758,7 +15808,13 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_EQ(a->getUserHandle(), A1.getMyUserHandleBinary()) << "ContactChange  --  contact deleted";
     bkpAlerts.emplace_back(a->copy());
     ASSERT_FALSE(a->getSeen());
+
+    B1dtls.userAlertsUpdated = false;
+    B1dtls.userAlertList.reset();
     ASSERT_EQ(doAckUserAlerts(B1idx), API_OK);
+    ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
+        << "Alert about contact deleted not received by B1 after " << maxTimeout << " seconds";
+    ASSERT_NE(B1dtls.userAlertList, nullptr) << "ContactChange  --  contact deleted";
     for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
     {
         if (B1dtls.userAlertList->get(i)->isRemoved()) continue;
