@@ -2107,6 +2107,7 @@ public:
     static const int SETHANDLE = Set::HANDLESIZE;
     static const int SETELEMENTHANDLE = SetElement::HANDLESIZE;
     static const int PUBLICSETHANDLE = Set::PUBLICHANDLESIZE;
+    static const int SURVEYHANDLE = 8;
 
     // max new nodes per request
     static const int MAX_NEWNODES = 2000;
@@ -2781,6 +2782,8 @@ public:
 
     void getActiveSurveyTriggerActions(
         CommandGetActiveSurveyTriggerActions::Completion&& completion);
+
+    void getSurvey(unsigned int triggerActionId, CommandGetSurvey::Completion&& completion);
 
     using GetJSCDataCallback = std::function<void(JSCData, Error)>;
 

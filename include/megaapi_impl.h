@@ -3955,6 +3955,8 @@ public:
 
         void getActiveSurveyTriggerActions(MegaRequestListener* listener = NULL);
 
+        void getSurvey(unsigned int triggerActionId, MegaRequestListener* listener = NULL);
+
     private:
         void init(MegaApi *api, const char *appKey, std::unique_ptr<GfxProc> gfxproc, const char *basePath /*= NULL*/, const char *userAgent /*= NULL*/, unsigned clientWorkerThreadCount /*= 1*/, int clientType);
 

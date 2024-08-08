@@ -2046,6 +2046,48 @@ private:
     Completion mCompletion;
 };
 
+class MEGA_API CommandGetSurvey: public Command
+{
+public:
+    struct Survey
+    {
+        bool isValid()
+        {
+            return h != UNDEF;
+        };
+
+        // Survey handle
+        handle h{UNDEF};
+
+        // Maximum allowed value in the survey response. A small non negative integer. 0 means
+        // a non integer survey reponse is wanted.
+        unsigned int maxResponse{0};
+
+        // Name of a image to be display, can be empty
+        std::string image;
+
+        // Content of the question
+        std::string content;
+    };
+
+    using Completion = std::function<void(const Error& /*e*/, const Survey& /*survey*/)>;
+
+    CommandGetSurvey(MegaClient* client, unsigned int triggerActionId, Completion&& completion);
+
+    bool procresult(Result, JSON&) override;
+
+private:
+    bool parseSurvey(JSON& json, Survey& survey);
+
+    void onCompletion(const Error& e, const Survey& survey)
+    {
+        if (mCompletion)
+            mCompletion(e, survey);
+    }
+
+    Completion mCompletion;
+};
+
 } // namespace
 
 #endif

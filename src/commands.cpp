@@ -12019,4 +12019,79 @@ bool CommandGetActiveSurveyTriggerActions::procresult(Result r, JSON& json)
     return true;
 }
 
+CommandGetSurvey::CommandGetSurvey(MegaClient* client,
+                                   unsigned int triggerActionId,
+                                   Completion&& completion)
+{
+    cmd("ssur");
+    arg("t", static_cast<m_off_t>(triggerActionId));
+    mCompletion = std::move(completion);
+    tag = client->reqtag;
+}
+
+//
+// Returns true if parsing was successful, false otherwise.
+//
+bool CommandGetSurvey::parseSurvey(JSON& json, Survey& survey)
+{
+    for (;;)
+    {
+        switch (json.getnameid())
+        {
+            case MAKENAMEID1('s'):
+                if ((survey.h = json.gethandle(MegaClient::SURVEYHANDLE)) == UNDEF)
+                    return false;
+                break;
+
+            case MAKENAMEID1('m'):
+                if (auto value = json.getint32(); value < 0)
+                    return false;
+                else
+                    survey.maxResponse = static_cast<unsigned int>(value);
+                break;
+
+            case MAKENAMEID1('i'):
+                if (!json.storeobject(&survey.image))
+                    return false;
+                break;
+
+            case MAKENAMEID1('c'):
+                if (!json.storeobject(&survey.content))
+                    return false;
+                break;
+
+            case EOO:
+                return true;
+                break;
+
+            default:
+                if (!json.storeobject())
+                    return false;
+                break;
+        }
+    }
+}
+
+bool CommandGetSurvey::procresult(Result r, JSON& json)
+{
+    Survey survey{};
+    if (r.wasErrorOrOK())
+    {
+        // Preventive: convert API_OK to API_ENOENT
+        const Error e = r.wasError(API_OK) ? Error{API_ENOENT} : r.errorOrOK();
+
+        onCompletion(e, survey);
+
+        return true;
+    }
+
+    const auto parsedOk = parseSurvey(json, survey);
+
+    const Error e = parsedOk && survey.isValid() ? API_OK : API_EINTERNAL;
+
+    onCompletion(e, survey);
+
+    return parsedOk;
+}
+
 } // namespace

@@ -4593,7 +4593,8 @@ class MegaRequest
             TYPE_BACKUP_RESUME_MD                                           = 195,
             TYPE_IMPORT_PASSWORDS_FROM_FILE = 196,
             TYPE_GET_ACTIVE_SURVEY_TRIGGER_ACTIONS = 197,
-            TOTAL_OF_REQUEST_TYPES = 198,
+            TYPE_GET_SURVEY = 198,
+            TOTAL_OF_REQUEST_TYPES = 199,
         };
 
         virtual ~MegaRequest();
@@ -22816,6 +22817,34 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getActiveSurveyTriggerActions(MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Get a survey
+         *
+         * This function retrieves a survey of the given trigger action for the user to response to.
+         *
+         * The associated request type for this function is MegaRequest::TYPE_GET_SURVEY.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType  - Returns the trigger action ID.
+         *
+         * On successful completion (MegaError::API_OK), the MegaRequest object received in
+         * onRequestFinish contains:
+         * - MegaRequest::getNodeHandle - Returns the survey handle.
+         * - MegaRequest::setNumDetails - Returns the survey's maximum response value.
+         * - MegaRequest::getFile       - Returns the name of the image to be displayed.
+         *                                Note that the returned value may be empty.
+         * - MegaRequest::getText       - Returns the survey's question content.
+         *
+         * If the request fails, the MegaError code in onRequestFinish can be:
+         * - EACCESS   - Invalid user ID
+         * - EARGS     - Invalid trigger action
+         * - ENOENT    - No eligible survey
+         * - EINTERNAL - Received answer could not be read
+         *
+         * @param triggerActionId The trigger action ID
+         * @param listener MegaRequestListener to track this request
+         */
+        void getSurvey(unsigned int triggerActionId, MegaRequestListener* listener = nullptr);
 
     protected:
         MegaApiImpl *pImpl = nullptr;
