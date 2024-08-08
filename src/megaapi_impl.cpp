@@ -17849,6 +17849,7 @@ MegaNodeList *MegaApiImpl::getChildren(const MegaSearchFilter* filter, int order
         return new MegaNodeListPrivate();
     }
 
+    SdkMutexGuard guard(sdkMutex);
     NodeSearchFilter nf;
     nf.copyFrom(*filter);
     const NodeSearchPage& np = searchPage ? NodeSearchPage(searchPage->startingOffset(), searchPage->size()) : NodeSearchPage(0u, 0u);
