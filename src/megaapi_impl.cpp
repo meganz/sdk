@@ -3897,6 +3897,8 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
     this->mMegaVpnCredentials.reset(request->mMegaVpnCredentials ? request->mMegaVpnCredentials->copy() : nullptr);
     this->mMegaNotifications.reset(request->mMegaNotifications ? request->mMegaNotifications->copy() : nullptr);
     this->mMegaNodeTree.reset(request->mMegaNodeTree ? request->mMegaNodeTree->copy() : nullptr);
+    this->mStringIntegerMap.reset(request->mStringIntegerMap ? request->mStringIntegerMap->copy() :
+                                                               nullptr);
 }
 
 std::shared_ptr<AccountDetails> MegaRequestPrivate::getAccountDetails() const
@@ -3926,6 +3928,11 @@ MegaTimeZoneDetails *MegaRequestPrivate::getMegaTimeZoneDetails() const
 MegaStringList *MegaRequestPrivate::getMegaStringList() const
 {
     return mStringList.get();
+}
+
+MegaStringIntegerMap* MegaRequestPrivate::getMegaStringIntegerMap() const
+{
+    return mStringIntegerMap.get();
 }
 
 MegaHandleList* MegaRequestPrivate::getMegaHandleList() const
@@ -4082,6 +4089,16 @@ void MegaRequestPrivate::setMegaStringList(const MegaStringList* stringList)
     if (stringList)
     {
        mStringList = unique_ptr<MegaStringList>(stringList->copy());
+    }
+}
+
+void MegaRequestPrivate::setMegaStringIntegerMap(const MegaStringIntegerMap* stringIntegerMap)
+{
+    mStringIntegerMap.reset();
+
+    if (stringIntegerMap)
+    {
+        mStringIntegerMap = std::unique_ptr<MegaStringIntegerMap>(stringIntegerMap->copy());
     }
 }
 
@@ -4752,6 +4769,8 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_NOTIFICATIONS: return "GET_NOTIFICATIONS";
         case TYPE_DEL_ATTR_USER:
             return "DEL_ATTR_USER";
+        case TYPE_IMPORT_PASSWORDS_FROM_FILE:
+            return "IMPORT_PASSWORDS_FROM_FILE";
 
         // FUSE requests.
         case TYPE_ADD_MOUNT:       return "TYPE_ADD_MOUNT";
@@ -14175,19 +14194,37 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
 
     auto reqIt = requestMap.find(tag);
     MegaRequestPrivate* request = reqIt == requestMap.end() ? nullptr : reqIt->second;
-    if(!request || ((request->getType() != MegaRequest::TYPE_IMPORT_LINK) &&
-                    (request->getType() != MegaRequest::TYPE_CREATE_FOLDER) &&
-                    (request->getType() != MegaRequest::TYPE_CREATE_PASSWORD_NODE) &&
-                    (request->getType() != MegaRequest::TYPE_COPY) &&
-                    (request->getType() != MegaRequest::TYPE_MOVE) &&
-                    (request->getType() != MegaRequest::TYPE_RESTORE) &&
-                    (request->getType() != MegaRequest::TYPE_ADD_SYNC) &&
-                    (request->getType() != MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD))) return;
+    if (!request || ((request->getType() != MegaRequest::TYPE_IMPORT_LINK) &&
+                     (request->getType() != MegaRequest::TYPE_CREATE_FOLDER) &&
+                     (request->getType() != MegaRequest::TYPE_CREATE_PASSWORD_NODE) &&
+                     (request->getType() != MegaRequest::TYPE_COPY) &&
+                     (request->getType() != MegaRequest::TYPE_MOVE) &&
+                     (request->getType() != MegaRequest::TYPE_RESTORE) &&
+                     (request->getType() != MegaRequest::TYPE_ADD_SYNC) &&
+                     (request->getType() != MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD) &&
+                     (request->getType() != MegaRequest::TYPE_IMPORT_PASSWORDS_FROM_FILE)))
+        return;
 
     if (request->getType() == MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD)
     {
         request->setNodeHandle(h);
         request->setFlag(targetOverride);
+        fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
+        return;
+    }
+
+    if (request->getType() == MegaRequest::TYPE_IMPORT_PASSWORDS_FROM_FILE)
+    {
+        std::vector<handle> nodeHandles;
+        std::transform(nn.begin(),
+                       nn.end(),
+                       std::back_inserter(nodeHandles),
+                       [](const NewNode& newNode)
+                       {
+                           assert(newNode.mAddedHandle != UNDEF);
+                           return newNode.mAddedHandle;
+                       });
+        request->setMegaHandleList(nodeHandles);
         fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
         return;
     }
@@ -26750,6 +26787,93 @@ void MegaApiImpl::updatePasswordNode(MegaHandle h, const MegaNode::PasswordNodeD
         };
 
         return client->updatePasswordNode(nhPwdNode, std::move(data), std::move(cbRequest));
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::importPasswordsFromFile(const char* filePath,
+                                          const int fileSource,
+                                          MegaHandle parent,
+                                          MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request =
+        new MegaRequestPrivate(MegaRequest::TYPE_IMPORT_PASSWORDS_FROM_FILE, listener);
+
+    request->setFile(filePath);
+    request->setParamType(fileSource);
+    request->setParentHandle(parent);
+
+    request->performRequest = [this, request]() -> error
+    {
+        using namespace pwm::import;
+        NodeHandle parentHandle = NodeHandle{}.set6byte(request->getParentHandle());
+        if (parentHandle.isUndef() || !request->getFile() ||
+            request->getParamType() != MegaApi::IMPORT_PASSWORD_SOURCE_GOOGLE)
+        {
+            LOG_err << "Import password: invalid parameters";
+            return API_EARGS;
+        }
+
+        std::string filePath{request->getFile()};
+        auto source = static_cast<FileSource>(request->getParamType());
+        std::shared_ptr<Node> parent = client->nodeByHandle(parentHandle);
+        if (!parent || !parent->isPasswordNodeFolder())
+        {
+            LOG_err << "Import password: parent node doesn't exist";
+            return API_EARGS;
+        }
+
+        PassFileParseResult parserResult = readPasswordImportFile(filePath, source);
+        switch (parserResult.mErrCode)
+        {
+            case PassFileParseResult::ErrCode::OK:
+                break;
+            case PassFileParseResult::ErrCode::MISSING_COLUMN:
+            case PassFileParseResult::ErrCode::NO_VALID_ENTRIES:
+                LOG_err << "Import password: invalid file format";
+                return API_EARGS;
+            case PassFileParseResult::ErrCode::FILE_DOES_NOT_EXIST:
+            case PassFileParseResult::ErrCode::CANT_OPEN_FILE:
+                LOG_err << "Import password: file can't be opened or doesn't exist";
+                return API_EREAD;
+            case PassFileParseResult::ErrCode::INVALID_HEADER:
+                LOG_err << "Import password: Invalid header";
+                return API_EACCESS;
+        }
+
+        sharedNode_list children = client->getChildren(parent.get());
+        std::vector<std::string> childrenNames;
+        std::transform(children.begin(),
+                       children.end(),
+                       std::back_inserter(childrenNames),
+                       [](const std::shared_ptr<Node>& child) -> std::string
+                       {
+                           return child->displayname();
+                       });
+        ncoll::NameCollisionSolver solver{std::move(childrenNames)};
+
+        const auto [badEntries, goodEntries] =
+            MegaClient::validatePasswordEntries(std::move(parserResult.mResults), solver);
+
+        if (goodEntries.empty())
+        {
+            LOG_err << "Import password: none entry is valid";
+            return API_EARGS;
+        }
+
+        MegaStringIntegerMapPrivate stringIntegerMap;
+        std::for_each(badEntries.begin(),
+                      badEntries.end(),
+                      [&stringIntegerMap](const std::pair<std::string, PasswordEntryError>& arg)
+                      {
+                          stringIntegerMap.set(arg.first, static_cast<int64_t>(arg.second));
+                      });
+
+        request->setMegaStringIntegerMap(&stringIntegerMap);
+
+        return client->createPasswordNodes(std::move(goodEntries), parent, request->getTag());
     };
 
     requestQueue.push(request);

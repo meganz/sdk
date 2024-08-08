@@ -112,20 +112,6 @@ std::vector<std::string> getNodeNames(const NodeInfo& node)
     processNodeName(node, result);
     return result;
 }
-
-/**
- * @brief Aux function to get a vector with the names of the nodes in a given MegaNodeList
- */
-std::vector<std::string> toNamesVector(const MegaNodeList& nodes)
-{
-    std::vector<std::string> result;
-    result.reserve(static_cast<size_t>(nodes.size()));
-    for (int i = 0; i < nodes.size(); ++i)
-    {
-        result.emplace_back(nodes.get(i)->getName());
-    }
-    return result;
-}
 }
 
 /**

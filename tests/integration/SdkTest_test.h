@@ -656,7 +656,7 @@ public:
     void deleteFile(string filename);
     void deleteFolder(string foldername);
 
-    void fetchNodesForAccounts(const unsigned howMany);
+    void fetchNodesForAccounts(const unsigned howMany, const int clientType);
     void getAccountsForTest(unsigned howMany = 1,
                             bool fetchNodes = true,
                             const int clientType = MegaApi::CLIENT_TYPE_DEFAULT);
@@ -775,3 +775,8 @@ public:
     template<typename ... requestArgs> int doCheckVpnCredential(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->checkVpnCredential(args..., &rt); return rt.waitForResult(); }
     /* MegaVpnCredentials END */
 };
+
+/**
+ * @brief Aux function to get a vector with the names of the nodes in a given MegaNodeList
+ */
+std::vector<std::string> toNamesVector(const MegaNodeList& nodes);

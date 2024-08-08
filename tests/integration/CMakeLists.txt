@@ -10,6 +10,7 @@ target_sources(test_integration
     main.cpp
     SdkTest_test.cpp
     SdkTestFilter_test.cpp
+    SdkTestPasswordManager_test.cpp
     Sync_test.cpp
 )
 
