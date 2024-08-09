@@ -12112,4 +12112,37 @@ bool CommandGetSurvey::procresult(Result r, JSON& json)
     return parsedOk;
 }
 
+CommandAnswerSurvey::CommandAnswerSurvey(MegaClient* client,
+                                         const Answer& answer,
+                                         Completion&& completion)
+{
+    cmd("asur");
+
+    arg("s", Base64Str<MegaClient::SURVEYHANDLE>(answer.mHandle));
+
+    arg("t", static_cast<m_off_t>(answer.mTriggerActionId));
+
+    if (!answer.mResponse.empty())
+        arg("r", answer.mResponse.c_str());
+
+    if (!answer.mComment.empty())
+        arg("c", answer.mComment.c_str());
+
+    mCompletion = std::move(completion);
+
+    tag = client->reqtag;
+}
+
+bool CommandAnswerSurvey::procresult(Result r, JSON& json)
+{
+    if (r.wasErrorOrOK())
+    {
+        onCompletion(r.errorOrOK());
+
+        return true;
+    }
+
+    return false;
+}
+
 } // namespace

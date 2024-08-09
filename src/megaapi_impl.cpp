@@ -4790,6 +4790,8 @@ const char *MegaRequestPrivate::getRequestString() const
             return "TYPE_GET_ACTIVE_SURVEY_TRIGGER_ACTIONS";
         case TYPE_GET_SURVEY:
             return "TYPE_GET_SURVEY";
+        case TYPE_ANSWER_SURVEY:
+            return "TYPE_ANSWER_SURVEY";
     }
     return "UNKNOWN";
 }
@@ -27482,6 +27484,38 @@ void MegaApiImpl::getActiveSurveyTriggerActions(MegaRequestListener* listener)
         };
 
         client->getActiveSurveyTriggerActions(std::move(completion));
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::answerSurvey(MegaHandle surveyHandle,
+                               unsigned int triggerActionId,
+                               const char* response,
+                               const char* comment,
+                               MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_ANSWER_SURVEY, listener);
+    request->setNodeHandle(surveyHandle);
+    request->setParamType(static_cast<int>(triggerActionId));
+    request->setText(response);
+    request->setFile(comment);
+    request->performRequest = [this, request]()
+    {
+        auto completion = [this, request](const Error& e)
+        {
+            fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
+        };
+
+        CommandAnswerSurvey::Answer answer{
+            request->getNodeHandle(), // survey handle
+            static_cast<unsigned int>(request->getParamType()), // triger action ID
+            request->getText(), // response
+            request->getFile()}; // comment
+
+        client->answerSurvey(answer, std::move(completion));
         return API_OK;
     };
 

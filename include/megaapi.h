@@ -4594,7 +4594,8 @@ class MegaRequest
             TYPE_IMPORT_PASSWORDS_FROM_FILE = 196,
             TYPE_GET_ACTIVE_SURVEY_TRIGGER_ACTIONS = 197,
             TYPE_GET_SURVEY = 198,
-            TOTAL_OF_REQUEST_TYPES = 199,
+            TYPE_ANSWER_SURVEY = 199,
+            TOTAL_OF_REQUEST_TYPES = 200,
         };
 
         virtual ~MegaRequest();
@@ -22864,6 +22865,36 @@ class MegaApi
          */
         void enableTestSurveys(const MegaHandleList* surveyHandles,
                                MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Answer a survey
+         *
+         * This function answers a survey that the user has been asked to complete.
+         *
+         * The associated request type for this function is MegaRequest::TYPE_ANSWER_SURVEY.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the survey handle.
+         * - MegaRequest::getParamType  - Returns the trigger action ID.
+         * - MegaRequest::getText       - Returns the survey response.
+         * - MegaRequest::getFile       - Returns the response to tell us more.
+         *
+         * If the request fails, the MegaError code in onRequestFinish can be:
+         * - EACCESS   - Invalid user ID.
+         * - EARGS     - Invalid arguments such as invalid survey handle/invalid trigger action ID.
+         * - ENOENT    - Survey not found, trigger action not found, or survey disabled.
+         * - EINTERNAL - Received answer could not be read.
+         *
+         * @param surveyHandle The survey handle
+         * @param triggerActionId The trigger action ID
+         * @param response The response to the survey
+         * @param comment The response to tell us more
+         * @param listener MegaRequestListener to track this request
+         */
+        void answerSurvey(MegaHandle surveyHandle,
+                          unsigned int triggerActionId,
+                          const char* response,
+                          const char* comment = nullptr,
+                          MegaRequestListener* listener = nullptr);
 
     protected:
         MegaApiImpl *pImpl = nullptr;

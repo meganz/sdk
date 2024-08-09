@@ -2088,6 +2088,51 @@ private:
     Completion mCompletion;
 };
 
+class MEGA_API CommandAnswerSurvey: public Command
+{
+public:
+    class Answer
+    {
+    public:
+        Answer(handle h, unsigned int triggerActionId, const char* response, const char* comment):
+            mHandle{h},
+            mTriggerActionId{triggerActionId},
+            mResponse{response ? response : ""},
+            mComment{comment ? comment : ""}
+        {}
+
+    private:
+        friend class CommandAnswerSurvey;
+
+        // Survey handle
+        handle mHandle{UNDEF};
+
+        // Trigger action id;
+        unsigned int mTriggerActionId{0};
+
+        // the response to the survey
+        std::string mResponse;
+
+        // the response to tell us more
+        std::string mComment;
+    };
+
+    using Completion = std::function<void(const Error& /*e*/)>;
+
+    CommandAnswerSurvey(MegaClient* client, const Answer& answer, Completion&& completion);
+
+    bool procresult(Result, JSON&) override;
+
+private:
+    void onCompletion(const Error& e)
+    {
+        if (mCompletion)
+            mCompletion(e);
+    }
+
+    Completion mCompletion;
+};
+
 } // namespace
 
 #endif

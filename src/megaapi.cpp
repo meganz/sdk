@@ -6129,6 +6129,15 @@ void MegaApi::enableTestSurveys(const MegaHandleList* surveyHandles, MegaRequest
     return pImpl->enableTestSurveys(surveyHandles, listener);
 }
 
+void MegaApi::answerSurvey(MegaHandle surveyHandle,
+                           unsigned int triggerActionId,
+                           const char* response,
+                           const char* comment,
+                           MegaRequestListener* listener)
+{
+    return pImpl->answerSurvey(surveyHandle, triggerActionId, response, comment, listener);
+}
+
 /* END MEGAAPI */
 
 MegaHashSignature::MegaHashSignature(const char *base64Key)

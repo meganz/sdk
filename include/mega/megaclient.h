@@ -2785,6 +2785,9 @@ public:
 
     void getSurvey(unsigned int triggerActionId, CommandGetSurvey::Completion&& completion);
 
+    void answerSurvey(const CommandAnswerSurvey::Answer& answer,
+                      CommandAnswerSurvey::Completion&& completion);
+
     using GetJSCDataCallback = std::function<void(JSCData, Error)>;
 
     /**
