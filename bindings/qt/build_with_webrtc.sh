@@ -17,7 +17,7 @@ if [ ! -d "${WEBRTC_SRC}" ]; then
 fi
 
 if (( $# < 1  || $# > 2)); then
-    echo "Usage: $0 <all | clean> [withExamples]";
+    echo "Usage: $0 <all | clean>";
     exit 0
 fi
 
@@ -170,25 +170,4 @@ if [ ! -L ${CURRENTPATH}/libs ]; then
   ln -sf ../lib/lib* ./
   popd
 fi
-
-if [ "$2" == "withExamples" ]; then
-  if [[ ! -e $QTPATH/build ]]; then
-    mkdir $QTPATH/build
-  fi
-
-  cd $QTPATH/build
-  if [[ $(uname) == 'Darwin' ]]; then
-    qmake $QTPATH/contrib/QtCreator/MEGAchat.pro -spec macx-clang CONFIG+=qml_debug CONFIG+=force_debug_info CONFIG+=separate_debug_info LIBS+="-framework AVFoundation -framework CoreMedia -framework CoreAudio -framework AudioToolbox -framework Foundation -framework Cocoa -framework CoreVideo" && /usr/bin/make qmake_all
-  else
-    qmake $QTPATH/contrib/QtCreator/MEGAchat.pro -spec linux-g++ CONFIG+=qml_debug CONFIG+=force_debug_info CONFIG+=separate_debug_info && /usr/bin/make qmake_all
-  fi
-
-  cd $QTPATH/build/
-  if [[ $(uname) == 'Darwin' ]]; then
-    make -j `sysctl -n hw.physicalcpu`
-  else
-    make -j `nproc`
-  fi
-fi
-
 
