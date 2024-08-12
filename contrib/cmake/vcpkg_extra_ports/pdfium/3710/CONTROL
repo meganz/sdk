@@ -1,6 +1,0 @@
-Source: pdfium
-Version: chromium/3710
-Homepage: https://pdfium.googlesource.com/pdfium/
-Description: Library to render PDF files
-# note that pdfim doens't complain if bzip2 or libpng are missing - but it uses them if present
-Build-Depends: icu, lcms, libjpeg-turbo, openjpeg, bzip2, libpng
