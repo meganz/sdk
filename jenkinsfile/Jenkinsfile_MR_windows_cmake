@@ -16,6 +16,10 @@ pipeline {
             agent any
             steps {
                 updateGitlabCommitStatus(name: 'Build & test windows', state: 'running')
+                script{
+                    COMMIT_ID = env.GIT_COMMIT
+                    println GIT_COMMIT
+                }
             }
         }
         stage('Build') {
@@ -41,15 +45,6 @@ pipeline {
                                     println GTEST_FILTER
                                 }
                             }
-                            post{
-                                always {
-                                    script{
-                                        if (currentBuild.currentResult == 'FAILURE'){
-                                            addGitLabMRComment(comment: ":red_circle: ${env.JOB_NAME} FAILURE when getting the additional build parameters :worried:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}" )
-                                        }
-                                    }
-                                }
-                            }
                         }
 
                         stage('Get API URL'){
@@ -62,15 +57,6 @@ pipeline {
                                         echo "APIURL_TO_TEST was not found on description so ${APIURL_TO_TEST} will be used by default"
                                     }
                                     echo "APIURL_TO_TEST will be ${APIURL_TO_TEST}"
-                                }
-                            }
-                            post{
-                                always {
-                                    script{
-                                        if (currentBuild.currentResult == 'FAILURE'){
-                                            addGitLabMRComment(comment: ":red_circle: ${env.JOB_NAME} FAILURE when getting the SDK branch :worried:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}" )
-                                        }
-                                    }
                                 }
                             }
                         }
@@ -170,26 +156,26 @@ pipeline {
                 always {
                     archiveArtifacts artifacts: 'build_dir/test_integration*log*', fingerprint: true
                     deleteDir()
-                    script{
-                        if (currentBuild.currentResult == 'SUCCESS'){
-                            updateGitlabCommitStatus(name: 'Build & test windows', state: 'success')
-                            addGitLabMRComment(comment: ":white_check_mark: ${currentBuild.projectName} <b>Windows</b> SUCCEEDED :muscle:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}" )
-                        }
-                        if (currentBuild.currentResult == 'FAILURE'){
-                            updateGitlabCommitStatus(name: 'Build & test windows', state: 'failed')
-                            addGitLabMRComment(comment: ":red_circle: ${currentBuild.projectName} <b>Windows</b> FAILURE  :worried:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}" )
-                        }
-                        if (currentBuild.currentResult == 'ABORTED'){
-                            updateGitlabCommitStatus(name: 'Build & test windows', state: 'canceled')
-                            addGitLabMRComment(comment: ":interrobang: ${currentBuild.projectName} <b>Windows</b> ABORTED  :confused:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}" )
-                        }
-                        if (currentBuild.currentResult == 'UNSTABLE'){
-                            updateGitlabCommitStatus(name: 'Build & test windows', state: 'failed')
-                            addGitLabMRComment(comment: ":interrobang: ${currentBuild.projectName} <b>Windows</b> UNSTABLE  :confused:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}" )
-                        }
-                    }
                 }
             }
+        }
+    }
+    post {
+        success {
+            updateGitlabCommitStatus(name: 'Build & test windows', state: 'success')
+            addGitLabMRComment(comment: ":white_check_mark: ${currentBuild.projectName} <b>Windows</b> SUCCEEDED :muscle:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${COMMIT_ID}" )
+        }
+        unstable {
+            updateGitlabCommitStatus(name: 'Build & test windows', state: 'failed')
+            addGitLabMRComment(comment: ":interrobang: ${currentBuild.projectName} <b>Windows</b> UNSTABLE  :confused:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${COMMIT_ID}" )      
+        }
+        aborted {
+            updateGitlabCommitStatus(name: 'Build & test windows', state: 'canceled')
+            addGitLabMRComment(comment: ":interrobang: ${currentBuild.projectName} <b>Windows</b> ABORTED  :confused:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${COMMIT_ID}" )
+        }
+        failure {
+            updateGitlabCommitStatus(name: 'Build & test windows', state: 'failed')
+            addGitLabMRComment(comment: ":red_circle: ${currentBuild.projectName} <b>Windows</b> FAILURE  :worried:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${COMMIT_ID}" )                
         }
     }
 }

@@ -56,7 +56,11 @@ pipeline {
         stage('Update Gitlab commitStatus') {
             agent any
             steps {
-              updateGitlabCommitStatus(name: 'Build iOS', state: 'running')
+                updateGitlabCommitStatus(name: 'Build iOS', state: 'running')
+                script{
+                    COMMIT_ID = env.GIT_COMMIT
+                    println GIT_COMMIT
+                }
             }
         }
         stage('Build'){
@@ -82,15 +86,6 @@ pipeline {
                                     println BUILD_OPTIONS
                                 }
                             }
-                            post{
-                                failure {
-                                    node('linux') { // We need an agent able to download logs from Jenkins.
-                                        script {
-                                            commentFailedBuild()
-                                        }
-                                    }
-                                }
-                            }
                         }
 
                         stage('Get MEGAchat branch'){
@@ -104,15 +99,6 @@ pipeline {
                                     println MEGACHAT_BRANCH
                                 }
                             }
-                            post{
-                                failure {
-                                    node('linux') { // We need an agent able to download logs from Jenkins.
-                                        script {
-                                            commentFailedBuild()
-                                        }
-                                    }
-                                }
-                            }
                         }
 
                         stage('Get iOS branch'){
@@ -124,15 +110,6 @@ pipeline {
                                         env.IOS_BRANCH = "develop"
                                     }
                                     println IOS_BRANCH
-                                }
-                            }
-                            post{
-                                failure {
-                                    node('linux') { // We need an agent able to download logs from Jenkins.
-                                        script {
-                                            commentFailedBuild()
-                                        }
-                                    }
                                 }
                             }
                         }
@@ -220,20 +197,6 @@ pipeline {
             post{
                 always {
                     deleteDir()
-                    script{
-                        if (currentBuild.currentResult == 'SUCCESS'){
-                            updateGitlabCommitStatus(name: 'Build iOS', state: 'success')
-                            addGitLabMRComment(comment: ":white_check_mark: ${currentBuild.projectName} :green_apple: <b>SDK iOS</b> SUCCEEDED :muscle:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}" )
-                        }
-                        if (currentBuild.currentResult == 'ABORTED'){
-                            updateGitlabCommitStatus(name: 'Build iOS', state: 'canceled')
-                            addGitLabMRComment(comment: ":interrobang: ${currentBuild.projectName} :green_apple: <b>SDK iOS</b> ABORTED  :confused:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}" )
-                        }
-                        if (currentBuild.currentResult == 'UNSTABLE'){
-                            updateGitlabCommitStatus(name: 'Build iOS', state: 'failed')
-                            addGitLabMRComment(comment: ":interrobang: ${currentBuild.projectName} :green_apple: <b>SDK iOS</b> UNSTABLE  :confused:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}" )
-                        }
-                    }
                 }
                 failure {
                     node('linux') { // We need an agent able to download logs from Jenkins.
@@ -243,6 +206,20 @@ pipeline {
                     }
                 }
             }
+        }
+    }
+    post {
+        success {
+            updateGitlabCommitStatus(name: 'Build iOS', state: 'success')
+            addGitLabMRComment(comment: ":white_check_mark: ${currentBuild.projectName} :green_apple: <b>SDK iOS</b> SUCCEEDED :muscle:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${COMMIT_ID}" )
+        }
+        unstable {
+            updateGitlabCommitStatus(name: 'Build iOS', state: 'failed')
+            addGitLabMRComment(comment: ":interrobang: ${currentBuild.projectName} :green_apple: <b>SDK iOS</b> UNSTABLE  :confused:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${COMMIT_ID}" )      
+        }
+        aborted {
+            updateGitlabCommitStatus(name: 'Build iOS', state: 'canceled')
+            addGitLabMRComment(comment: ":interrobang: ${currentBuild.projectName} :green_apple: <b>SDK iOS</b> ABORTED  :confused:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${COMMIT_ID}" )
         }
     }
 }
