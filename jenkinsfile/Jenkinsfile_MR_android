@@ -84,15 +84,6 @@ pipeline {
                                     println UPLOAD_THIRD_PARTY_SOURCES_EXAMPLE
                                 }
                             }
-                            post{
-                                failure {
-                                    node('linux') { // We need and agent able to download logs from Jenkins.
-                                        script {
-                                            commentFailedBuild()
-                                        }
-                                    }
-                                }
-                            }
                         }
 
                         stage('Get MEGAchat branch'){
@@ -106,15 +97,6 @@ pipeline {
                                     println MEGACHAT_BRANCH
                                 }
                             }
-                            post{
-                                failure {
-                                    node('linux') { // We need and agent able to download logs from Jenkins.
-                                        script {
-                                            commentFailedBuild()
-                                        }
-                                    }
-                                }
-                            }
                         }
 
                         stage('Get Android branch'){
@@ -126,15 +108,6 @@ pipeline {
                                         env.ANDROID_BRANCH = "develop"
                                     }
                                     println ANDROID_BRANCH
-                                }
-                            }
-                            post{
-                                failure {
-                                    node('linux') { // We need and agent able to download logs from Jenkins.
-                                        script {
-                                            commentFailedBuild()
-                                        }
-                                    }
                                 }
                             }
                         }

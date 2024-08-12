@@ -86,15 +86,6 @@ pipeline {
                                     println BUILD_OPTIONS
                                 }
                             }
-                            post{
-                                failure {
-                                    node('linux') { // We need an agent able to download logs from Jenkins.
-                                        script {
-                                            commentFailedBuild()
-                                        }
-                                    }
-                                }
-                            }
                         }
 
                         stage('Get MEGAchat branch'){
@@ -108,15 +99,6 @@ pipeline {
                                     println MEGACHAT_BRANCH
                                 }
                             }
-                            post{
-                                failure {
-                                    node('linux') { // We need an agent able to download logs from Jenkins.
-                                        script {
-                                            commentFailedBuild()
-                                        }
-                                    }
-                                }
-                            }
                         }
 
                         stage('Get iOS branch'){
@@ -128,15 +110,6 @@ pipeline {
                                         env.IOS_BRANCH = "develop"
                                     }
                                     println IOS_BRANCH
-                                }
-                            }
-                            post{
-                                failure {
-                                    node('linux') { // We need an agent able to download logs from Jenkins.
-                                        script {
-                                            commentFailedBuild()
-                                        }
-                                    }
                                 }
                             }
                         }
