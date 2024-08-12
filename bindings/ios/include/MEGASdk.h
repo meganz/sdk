@@ -5646,6 +5646,17 @@ typedef NS_ENUM(NSInteger, MEGAClientType) {
 - (void)creditCardCancelSubscriptions:(nullable NSString *)reason delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
+ * @brief Cancel credit card subscriptions of the account
+ *
+ * The associated request type with this request is MEGARequestTypeCreditCardCancelSubscriptions
+ * @param reason Reason for the cancellation. It can be nil.
+ * @param subscriptionId The subscription ID for the cancellation. It can be nil.
+ * @param canContact Whether the user has permitted MEGA to contact them for the cancellation.
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)creditCardCancelSubscriptions:(nullable NSString *)reason subscriptionId:(nullable NSString *)subscriptionId canContact:(BOOL)canContact delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
  * @brief Change the password of the MEGA account.
  *
  * The associated request type with this request is MEGARequestTypeChangePassword.
