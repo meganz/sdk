@@ -303,6 +303,7 @@ class ReleaseProcess:
         assert not self._new_version
         self._new_version = version
         self._version_v_prefixed = f"v{self._new_version}"
+        self._release_branch = f"release/{self._version_v_prefixed}"
         assert self._jira is not None
         self._jira.setup_release(self._version_v_prefixed)
 
@@ -325,6 +326,9 @@ class ReleaseProcess:
             self._release_branch
         )
         print("Creating tag", self._version_v_prefixed, flush=True)
+        assert (
+            self._release_branch
+        ), "Check that set_release_version_to_close() was called"
         self._remote_private_repo.create_tag(self._version_v_prefixed, last_commit)
         print(
             "v Created tag",
