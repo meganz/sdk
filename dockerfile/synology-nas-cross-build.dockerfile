@@ -176,6 +176,8 @@ CMD ["sh", "-c", "\
     cmake -B buildSynology -S sdk \
         -DVCPKG_ROOT=/mega/vcpkg \
         -DCMAKE_BUILD_TYPE=Debug \
+        -DENABLE_SDKLIB_EXAMPLES=OFF \
+        -DENABLE_SDKLIB_TESTS=OFF \
         -DVCPKG_CHAINLOAD_TOOLCHAIN_FILE=/mega/${ARCH}.toolchain.cmake \
         -DVCPKG_OVERLAY_TRIPLETS=/mega \
         -DVCPKG_TARGET_TRIPLET=${ARCH} && \
