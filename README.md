@@ -130,19 +130,6 @@ To run the example app `megacli`, go to the `examples` directory in the `build_d
 
 ## How to build the SDK library (Obsolete methods)
 
-### Build the SDK and 3rdParty Dependencies with vcpkg + cmake
-* The steps to build the SDK are already prepared in the build_from_scratch.cmake script.  It contains instructions too.
-* To get started with it, eg for windows, follow these steps:
-	* mkdir mybuild
-	* cd mybuild
-	* git clone https://github.com/meganz/sdk.git
-	* cd sdk\contrib\cmake
-	* <on Win, choose VS version by editing vcpkg_extra_triplets\xNN-windows-mega.cmake>
-	* cmake -DTRIPLET=x64-windows-mega -DEXTRA_ARGS="-DUSE_PDFIUM=0" -P build_from_scratch.cmake
-* Visual Studio solution is generated at mybuild\sdk\build-x64-windows-mega
-* That folder contains Debug and Release subfolders which contain build products
-* Similar steps work for other platforms too (Linux with triplet x64-linux-mega (including WSL), Mac with triplet x64-osx-mega or arm64-osx-mega).
-
 ### Building with POSIX Autotools  (Linux/Darwin/BSD/OSX ...)
 
 For platforms with Autotools, first set up needed libraries and then the generic way to build and install it is:

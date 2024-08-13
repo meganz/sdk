@@ -2,7 +2,6 @@ set(VCPKG_TARGET_ARCHITECTURE x64)
 set(VCPKG_CRT_LINKAGE dynamic)
 
 set(VCPKG_CMAKE_SYSTEM_NAME Linux)
-set(VCPKG_LINUX_ARCHITECTURES x86_64) # unused in build_from_scratch
 
 if(PORT MATCHES "ffmpeg")
     # build this library as dynamic (usually because it is LGPL licensed)
