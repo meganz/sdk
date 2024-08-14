@@ -10379,7 +10379,7 @@ CommandPutSetElements::CommandPutSetElements(MegaClient* cl, vector<SetElement>&
                                                std::function<void(Error, const vector<const SetElement*>*, const vector<int64_t>*)> completion)
     : mElements(new vector<SetElement>(std::move(els))), mCompletion(completion)
 {
-    mV3 = false;
+    mSeqtagArray = true;
     cmd("aepb");
 
     const byte* setHandleBytes = reinterpret_cast<const byte*>(&mElements->front().set());
