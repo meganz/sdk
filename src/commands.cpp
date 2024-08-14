@@ -10689,7 +10689,7 @@ bool CommandRemoveSetElement::procresult(Result r, JSON& json)
 CommandExportSet::CommandExportSet(MegaClient* cl, Set&& s, bool makePublic, std::function<void(Error)> completion)
     : mSet(new Set(std::move(s))), mCompletion(completion)
 {
-    mV3 = false;
+    mSeqtagArray = true;
     cmd("ass");
     arg("id", (byte*)&mSet->id(), MegaClient::SETHANDLE);
     if (!makePublic) arg("d", 1);
