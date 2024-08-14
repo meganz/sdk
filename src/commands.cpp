@@ -10565,7 +10565,6 @@ CommandRemoveSetElements::CommandRemoveSetElements(MegaClient* cl, handle sid, v
                                                    std::function<void(Error, const vector<int64_t>*)> completion)
     : mSetId(sid), mElemIds(std::move(eids)), mCompletion(completion)
 {
-    mV3 = false;
     cmd("aerb");
 
     arg("s", reinterpret_cast<const byte*>(&sid), MegaClient::SETHANDLE);
