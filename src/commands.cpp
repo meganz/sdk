@@ -1283,10 +1283,11 @@ bool CommandPutNodes::procresult(Result r, JSON& json)
 {
     removePendingDBRecordsAndTempFiles();
 
-    if (!r.succeeded())
+    if (r.wasErrorOrOK())
     {
         LOG_debug << "Putnodes error " << r.errorOrOK();
-        if (r.wasError(API_EOVERQUOTA))
+        error e = r.errorOrOK();
+        if (e == API_EOVERQUOTA)
         {
             if (client->isPrivateNode(targethandle))
             {
@@ -1294,8 +1295,8 @@ bool CommandPutNodes::procresult(Result r, JSON& json)
             }
         }
 
-        performAppCallback(r.errorOrOK(), nn, false, {});
-        return r.wasErrorOrOK();
+        performAppCallback((e ? e : API_EINTERNAL), nn, false, {});
+        return true;
     }
 
     Error newNodeError(API_OK);
