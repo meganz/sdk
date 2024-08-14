@@ -12003,7 +12003,8 @@ bool CommandGetActiveSurveyTriggerActions::procresult(Result r, JSON& json)
 
     if (!r.hasJsonArray())
     {
-        assert(true); // not expect to happen
+        // Not expect to happen
+        assert(r.hasJsonArray() && "Unexpected response for gsur command");
         onCompletion(API_EINTERNAL, ids);
         return false;
     }
