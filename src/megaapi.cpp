@@ -4138,7 +4138,7 @@ MegaRecentActionBucketList* MegaApi::getRecentActions()
 
 void MegaApi::getRecentActionsAsync(unsigned days, unsigned maxnodes, MegaRequestListener *listener)
 {
-    pImpl->getRecentActionsAsync(days, maxnodes, true /*excludeSensitives*/, listener);
+    pImpl->getRecentActionsAsync(days, maxnodes, listener);
 }
 
 void MegaApi::getRecentActionsAsync(unsigned days,
