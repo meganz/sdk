@@ -788,7 +788,7 @@ bool CommandGetFile::procresult(Result r, JSON& json)
     string filefingerprint;
     vector<string> tempurls;
     vector<string> tempips;
-    string fileID;
+    string fileHandle;
 
     for (;;)
     {
@@ -845,7 +845,7 @@ bool CommandGetFile::procresult(Result r, JSON& json)
 
             case MAKENAMEID2('f', 'h'):
             {
-                json.storeobject(&fileID);
+                json.storeobject(&fileHandle);
                 break;
             }
 
@@ -916,7 +916,7 @@ bool CommandGetFile::procresult(Result r, JSON& json)
                                                              &fileattrstring,
                                                              tempurls,
                                                              tempips,
-                                                             fileID) :
+                                                             fileHandle) :
                                                  false;
 
                         default:
@@ -1271,12 +1271,12 @@ void CommandPutNodes::removePendingDBRecordsAndTempFiles()
 void CommandPutNodes::performAppCallback(Error e,
                                          vector<NewNode>& newnodes,
                                          bool targetOverride,
-                                         const map<string, string>& fileIDs)
+                                         const map<string, string>& fileHandles)
 {
     if (mResultFunction)
-        mResultFunction(e, type, newnodes, targetOverride, tag, fileIDs);
+        mResultFunction(e, type, newnodes, targetOverride, tag, fileHandles);
     else
-        client->app->putnodes_result(e, type, newnodes, targetOverride, tag, fileIDs);
+        client->app->putnodes_result(e, type, newnodes, targetOverride, tag, fileHandles);
 }
 
 bool CommandPutNodes::procresult(Result r, JSON& json)
@@ -1299,7 +1299,7 @@ bool CommandPutNodes::procresult(Result r, JSON& json)
     }
 
     Error newNodeError(API_OK);
-    map<string, string> fileIDs;
+    map<string, string> fileHandles;
 
     for (;;)
     {
@@ -1317,7 +1317,7 @@ bool CommandPutNodes::procresult(Result r, JSON& json)
                 bool hasJsonArray = json.enterarray();
                 if (!hasJsonArray && !json.enterobject())
                 {
-                    performAppCallback(API_EINTERNAL, nn, false, fileIDs);
+                    performAppCallback(API_EINTERNAL, nn, false, fileHandles);
                     return false;
                 }
 
@@ -1334,7 +1334,7 @@ bool CommandPutNodes::procresult(Result r, JSON& json)
 
                         if (!json.isnumeric())
                         {
-                            performAppCallback(API_EINTERNAL, nn, false, fileIDs);
+                            performAppCallback(API_EINTERNAL, nn, false, fileHandles);
                             return false;
                         }
 
@@ -1375,7 +1375,7 @@ bool CommandPutNodes::procresult(Result r, JSON& json)
 
                         if (!json.leaveobject())
                         {
-                            performAppCallback(API_EINTERNAL, nn, false, fileIDs);
+                            performAppCallback(API_EINTERNAL, nn, false, fileHandles);
                             return false;
                         }
                         break;
@@ -1388,7 +1388,7 @@ bool CommandPutNodes::procresult(Result r, JSON& json)
             case MAKENAMEID2('f', 'h'): // ["drEyXKKB:C6-OsdmLX2U","<nodehandle>:<fileid>"]
                 if (!json.enterarray())
                 {
-                    performAppCallback(API_EINTERNAL, nn, false, fileIDs);
+                    performAppCallback(API_EINTERNAL, nn, false, fileHandles);
                     return false;
                 }
 
@@ -1397,13 +1397,13 @@ bool CommandPutNodes::procresult(Result r, JSON& json)
                     auto separator = temp.find(':');
                     if (separator != string::npos)
                     {
-                        fileIDs[temp.substr(0, separator)] = temp.substr(separator + 1);
+                        fileHandles[temp.substr(0, separator)] = temp.substr(separator + 1);
                     }
                 }
 
                 if (!json.leavearray())
                 {
-                    performAppCallback(API_EINTERNAL, nn, false, fileIDs);
+                    performAppCallback(API_EINTERNAL, nn, false, fileHandles);
                     return false;
                 }
                 break;
@@ -1411,7 +1411,7 @@ bool CommandPutNodes::procresult(Result r, JSON& json)
             default:
                 if (!json.storeobject())
                 {
-                    performAppCallback(API_EINTERNAL, nn, false, fileIDs);
+                    performAppCallback(API_EINTERNAL, nn, false, fileHandles);
                     return false;
                 }
                 break;
@@ -1448,7 +1448,7 @@ bool CommandPutNodes::procresult(Result r, JSON& json)
                              Error(API_ENOENT)) :
                         Error(API_OK);
 
-                performAppCallback(finalStatus, nn, targetOverride, fileIDs);
+                performAppCallback(finalStatus, nn, targetOverride, fileHandles);
                 return true;
         }
     }

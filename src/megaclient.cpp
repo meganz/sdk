@@ -875,7 +875,7 @@ error MegaClient::setbackupfolder(const char* foldername, int tag, std::function
                                           vector<NewNode>& nodes,
                                           bool /*targetOverride*/,
                                           int tag,
-                                          const map<string, string>& /*fileIDs*/)
+                                          const map<string, string>& /*fileHandles*/)
     {
         if (e != API_OK)
         {
@@ -4173,7 +4173,7 @@ void MegaClient::dispatchTransfers()
                                             std::string* /*fileattrstring*/,
                                             const std::vector<std::string>& tempurls,
                                             const std::vector<std::string>& /*ips*/,
-                                            const std::string& /*fileID*/)
+                                            const std::string& /*fileHandle*/)
                                         {
                                             auto tslot = ts;
                                             auto priv = hprivate;
@@ -16861,7 +16861,7 @@ void MegaClient::preparebackup(SyncConfig sc, std::function<void(Error, SyncConf
                                     vector<NewNode>& nn,
                                     bool targetOverride,
                                     int tag,
-                                    const map<string, string>& /*fileIDs*/)
+                                    const map<string, string>& /*fileHandles*/)
              {
                 if (e)
                 {
@@ -16958,7 +16958,7 @@ void MegaClient::execmovetosyncdebris(Node* requestedNode, std::function<void(No
                                          vector<NewNode>&,
                                          bool,
                                          int,
-                                         const map<string, string>& /*fileIDs*/)
+                                         const map<string, string>& /*fileHandles*/)
                              {
                                  if (e)
                                  {
@@ -17081,7 +17081,7 @@ std::shared_ptr<Node> MegaClient::getOrCreateSyncdebrisFolder()
                vector<NewNode>&,
                bool targetOverride,
                int tag,
-               const map<string, string>& /*fileIDs*/)
+               const map<string, string>& /*fileHandles*/)
         {
             syncdebrisadding = false;
             // on completion, send the queued nodes

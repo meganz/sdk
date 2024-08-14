@@ -13057,7 +13057,7 @@ class MegaApi
          * - MegaRequest::getName - Returns semicolon-separated download URL(s) to the file
          * - MegaRequest::getLink - Returns semicolon-separated IPv4 of the server in the URL(s)
          * - MegaRequest::getText - Returns semicolon-separated IPv6 of the server in the URL(s)
-         * - MegaRequest::getMegaStringMap - Returns a {node handle, file ID} pair for the given
+         * - MegaRequest::getMegaStringMap - Returns a {node handle, file handle} pair for the given
          * file node
          *
          * If the MEGA account is a business account and it's status is expired, onRequestFinish
@@ -22324,7 +22324,7 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getParentHandle - Returns the node handle of the parent node in the tree
          * - MegaRequest::getMegaNodeTree - Returns the Node Tree updated after it was created
-         * - MegaRequest::getMegaStringMap - Returns {node handle, file ID} pairs for all newly
+         * - MegaRequest::getMegaStringMap - Returns {node handle, file handle} pairs for all newly
          * created files. So far a single file gets created by this command.
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:

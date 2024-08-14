@@ -183,7 +183,7 @@ struct DemoApp : public MegaApp
                          vector<NewNode>&,
                          bool targetOverride,
                          int tag,
-                         const std::map<std::string, std::string>& fileIDs) override;
+                         const std::map<std::string, std::string>& fileHandles) override;
 
     void setpcr_result(handle, error, opcactions_t) override;
     void updatepcr_result(error, ipcactions_t) override;

@@ -825,7 +825,7 @@ struct StandardClient : public MegaApp
                         vector<NewNode>&,
                         bool,
                         int tag,
-                        const map<string, string>& /*fileIDs*/)
+                        const map<string, string>& /*fileHandles*/)
         {
             mCallable(e);
         }
@@ -909,7 +909,7 @@ struct StandardClient : public MegaApp
                                   vector<NewNode>&,
                                   bool targetOverride,
                                   int tag,
-                                  const std::map<std::string, std::string>& fileIDs)
+                                  const std::map<std::string, std::string>& fileHandles)
                 {
                     if (finalCompletion)
                         finalCompletion(true);
@@ -1089,7 +1089,7 @@ struct StandardClient : public MegaApp
                          vector<NewNode>& nn,
                          bool targetOverride,
                          int tag,
-                         const std::map<std::string, std::string>& fileIDs) override;
+                         const std::map<std::string, std::string>& fileHandles) override;
     void catchup_result() override;
 
     void disableSync(handle id, SyncError error, bool enabled, bool keepSyncDB, PromiseBoolSP result);

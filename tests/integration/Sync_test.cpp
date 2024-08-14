@@ -2450,7 +2450,7 @@ void StandardClient::uploadFile(const fs::path& sourcePath,
                                            vector<NewNode>&,
                                            bool,
                                            int tag,
-                                           const map<string, string>& /*fileIDs*/)
+                                           const map<string, string>& /*fileHandles*/)
             {
                 EXPECT_EQ(result, API_OK);
                 completion(result);
@@ -2771,7 +2771,7 @@ void StandardClient::makeCloudSubdirs(const string& prefix, int depth, int fanou
                                      vector<NewNode>& nodes,
                                      bool,
                                      int tag,
-                                     const map<string, string>& /*fileIDs*/)
+                                     const map<string, string>& /*fileHandles*/)
         {
             lastPutnodesResultFirstHandle = nodes.empty() ? UNDEF : nodes[0].mAddedHandle;
             pb->set_value(!e);
@@ -3913,7 +3913,7 @@ void StandardClient::putnodes_result(const Error& e,
                                      vector<NewNode>& nn,
                                      bool targetOverride,
                                      int tag,
-                                     const map<string, string>& /*fileIDs*/)
+                                     const map<string, string>& /*fileHandles*/)
 {
     resultproc.processresult(PUTNODES, e, nn.empty() ? UNDEF : nn[0].mAddedHandle, tag);
 }

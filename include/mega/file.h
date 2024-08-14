@@ -73,7 +73,7 @@ struct MEGA_API File: public FileFingerprint
                            vector<NewNode>&,
                            bool targetOverride,
                            int tag,
-                           const std::map<std::string, std::string>& fileIDs)>&& completion,
+                           const std::map<std::string, std::string>& fileHandles)>&& completion,
         const m_time_t* overrideMtime,
         bool canChangeVault);
 
@@ -87,7 +87,7 @@ struct MEGA_API File: public FileFingerprint
                            vector<NewNode>&,
                            bool targetOverride,
                            int tag,
-                           const std::map<std::string, std::string>& fileIDs)>&& completion,
+                           const std::map<std::string, std::string>& fileHandles)>&& completion,
         bool canChangeVault);
 
     void setCollisionResolution(CollisionResolution collisionResolution) { mCollisionResolution = collisionResolution; }

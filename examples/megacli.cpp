@@ -463,7 +463,7 @@ void AppFilePut::completed(Transfer* t, putsource_t source)
                              vector<NewNode>&,
                              bool targetOverride,
                              int tag,
-                             const map<string, string>& /*fileIDs*/)
+                             const map<string, string>& /*fileHandles*/)
         {
             if (e)
             {
@@ -1228,7 +1228,7 @@ void DemoApp::putnodes_result(const Error& e,
                               vector<NewNode>& nn,
                               bool targetOverride,
                               int tag,
-                              const map<string, string>& /*fileIDs*/)
+                              const map<string, string>& /*fileHandles*/)
 {
     if (t == USER_HANDLE)
     {
@@ -6042,7 +6042,7 @@ void exec_get(autocomplete::ACState& s)
                           std::string* fileattrstring,
                           const std::vector<std::string>& /*tempurls*/,
                           const std::vector<std::string>& /*ips*/,
-                          const std::string& /*fileID*/)
+                          const std::string& /*fileHandle*/)
                 {
                     if (!fingerprint) // failed processing the command
                     {

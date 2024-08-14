@@ -14138,7 +14138,7 @@ void MegaApiImpl::putnodes_result(const Error& inputErr,
                                   vector<NewNode>& nn,
                                   bool targetOverride,
                                   int tag,
-                                  const map<string, string>& fileIDs)
+                                  const map<string, string>& fileHandles)
 {
     handle h = UNDEF;
     std::shared_ptr<Node> n = NULL;
@@ -14253,7 +14253,7 @@ void MegaApiImpl::putnodes_result(const Error& inputErr,
     }
     else if (request->getType() == MegaRequest::TYPE_CREATE_NODE_TREE)
     {
-        request->setMegaStringMap(fileIDs);
+        request->setMegaStringMap(fileHandles);
     }
 
     if (request->getType() != MegaRequest::TYPE_MOVE)
@@ -20304,7 +20304,7 @@ void MegaApiImpl::getDownloadUrl(MegaNode* node, bool singleUrl, MegaRequestList
                                                       std::string* /*fileattrstring*/,
                                                       const std::vector<std::string>& urls,
                                                       const std::vector<std::string>& ips,
-                                                      const std::string& fileID)
+                                                      const std::string& fileHandle)
                 {
                     if (e == API_OK && urls.size() && ips.size())
                     {
@@ -20331,7 +20331,7 @@ void MegaApiImpl::getDownloadUrl(MegaNode* node, bool singleUrl, MegaRequestList
                         request->setLink(sipsv4.c_str());
                         request->setText(sipsv6.c_str());
                         request->setMegaStringMap({
-                            {Base64Str<MegaClient::NODEHANDLE>(h).chars, fileID}
+                            {Base64Str<MegaClient::NODEHANDLE>(h).chars, fileHandle}
                         });
                     }
 
@@ -27165,7 +27165,7 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
                                               vector<NewNode>& newNodes,
                                               bool,
                                               int,
-                                              const map<string, string>& fileIDs)
+                                              const map<string, string>& fileHandles)
                     {
                         size_t i{};
                         auto tmpNodeTree{dynamic_cast<MegaNodeTreePrivate*>(nodeTree)};
@@ -27180,7 +27180,7 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
                                 dynamic_cast<MegaNodeTreePrivate*>(tmpNodeTree->getNodeTreeChild());
                         }
                         request->setMegaNodeTree(nodeTree);
-                        request->setMegaStringMap(fileIDs);
+                        request->setMegaStringMap(fileHandles);
                         fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(error));
                     }};
 
@@ -29555,7 +29555,7 @@ MegaFolderUploadController::batchResult MegaFolderUploadController::createNextFo
                                          vector<NewNode>&,
                                          bool,
                                          int tag,
-                                         const map<string, string>& /*fileIDs*/)
+                                         const map<string, string>& /*fileHandles*/)
             {
                 // double check our object still exists on request completion
                 if (!weak_this.lock())

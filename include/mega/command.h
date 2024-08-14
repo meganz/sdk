@@ -627,7 +627,7 @@ class MEGA_API CommandGetFile : public Command
                                   std::string* /*fileattrstring*/,
                                   const std::vector<std::string>& /*urls*/,
                                   const std::vector<std::string>& /*ips*/,
-                                  const std::string& /*fileID*/)>;
+                                  const std::string& /*fileHandle*/)>;
     Cb mCompletion;
 
     void callFailedCompletion (const Error& e);
@@ -695,7 +695,7 @@ public:
                                           vector<NewNode>&,
                                           bool targetOverride,
                                           int tag,
-                                          const std::map<std::string, std::string>& fileIDs)>;
+                                          const std::map<std::string, std::string>& fileHandles)>;
 
 private:
     friend class MegaClient;
@@ -710,7 +710,7 @@ private:
     void performAppCallback(Error e,
                             vector<NewNode>&,
                             bool targetOverride = false,
-                            const std::map<std::string, std::string>& fileIDs = {});
+                            const std::map<std::string, std::string>& fileHandles = {});
 
 public:
 

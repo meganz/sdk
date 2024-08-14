@@ -4175,7 +4175,7 @@ public:
                              vector<NewNode>&,
                              bool targetOverride,
                              int tag,
-                             const std::map<std::string, std::string>& fileIDs = {}) override;
+                             const std::map<std::string, std::string>& fileHandles = {}) override;
 
         // contact request results
         void setpcr_result(handle, error, opcactions_t) override;

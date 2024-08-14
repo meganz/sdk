@@ -156,7 +156,7 @@ struct MEGA_API MegaApp
                                  vector<NewNode>&,
                                  bool targetOverride,
                                  int tag,
-                                 const std::map<std::string, std::string>& fileIDs = {})
+                                 const std::map<std::string, std::string>& fileHandles = {})
     {}
 
     // outgoing pending contact result
