@@ -25205,7 +25205,8 @@ void MegaApiImpl::getRecentActionsAsyncInternal(unsigned days,
         {
             v = client->getRecentActions(maxnodes, since);
         }
-        std::unique_ptr<MegaRecentActionBucketList> recentActions(new MegaRecentActionBucketListPrivate(v, client));
+        std::unique_ptr<MegaRecentActionBucketList> recentActions(
+            new MegaRecentActionBucketListPrivate(v, client));
         request->setRecentActions(std::move(recentActions));
         fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
         return API_OK;
