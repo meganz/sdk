@@ -1895,7 +1895,9 @@ bool SqliteAccountState::getNodeByFingerprint(const std::string &fingerprint, me
     return result;
 }
 
-bool SqliteAccountState::getRecentNodes(unsigned maxcount, m_time_t since, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes)
+bool SqliteAccountState::getRecentNodes(unsigned maxcount,
+                                        m_time_t since,
+                                        std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes)
 {
     if (!db)
     {
@@ -1904,10 +1906,13 @@ bool SqliteAccountState::getRecentNodes(unsigned maxcount, m_time_t since, std::
 
     const std::string filenode = std::to_string(FILENODE);
     uint64_t excludeFlags = (1 << Node::FLAGS_IS_VERSION | 1 << Node::FLAGS_IS_IN_RUBBISH);
-    std::string sqlQuery =  "SELECT n1.nodehandle, n1.counter, n1.node "
-                            "FROM nodes n1 "
-                            "WHERE n1.flags & " + std::to_string(excludeFlags) + " = 0 AND n1.ctime >= ? AND n1.type = " + filenode + " "
-                            "ORDER BY n1.ctime DESC LIMIT ?";
+    std::string sqlQuery = "SELECT n1.nodehandle, n1.counter, n1.node "
+                           "FROM nodes n1 "
+                           "WHERE n1.flags & " +
+                           std::to_string(excludeFlags) +
+                           " = 0 AND n1.ctime >= ? AND n1.type = " + filenode +
+                           " "
+                           "ORDER BY n1.ctime DESC LIMIT ?";
 
     int sqlResult = SQLITE_OK;
     if (!mStmtRecents)
@@ -1920,7 +1925,8 @@ bool SqliteAccountState::getRecentNodes(unsigned maxcount, m_time_t since, std::
     {
         if (sqlResult == sqlite3_bind_int64(mStmtRecents, 1, since))
         {
-            // LIMIT expression evaluates to a negative value, then there is no upper bound on the number of rows returned
+            // LIMIT expression evaluates to a negative value, then there is no upper bound on the
+            // number of rows returned
             int64_t nodeCount = (maxcount > 0) ? static_cast<int64_t>(maxcount) : -1;
             if (sqlResult == sqlite3_bind_int64(mStmtRecents, 2, nodeCount))
             {

@@ -90,7 +90,8 @@ public:
     bool getNodeByFingerprint(const std::string& fingerprint,
                               mega::NodeSerialized& node,
                               NodeHandle& handle) override;
-    // getRecentNodes() is for the deprecated method MegaClient::getRecentActions without excludeSensitives flag
+    // getRecentNodes() is for the deprecated method MegaClient::getRecentActions without
+    // excludeSensitives flag
     bool getRecentNodes(unsigned maxcount,
                         m_time_t since,
                         std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) override;

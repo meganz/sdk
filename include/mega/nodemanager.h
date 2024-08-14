@@ -408,7 +408,8 @@ private:
     sharedNode_vector searchNodes_internal(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page);
     sharedNode_vector processUnserializedNodes(const std::vector<std::pair<NodeHandle, NodeSerialized>>& nodesFromTable, CancelToken cancelFlag);
     sharedNode_vector getChildren_internal(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page);
-    sharedNode_vector getRecentNodes_internal(unsigned maxcount, m_time_t since); // Old getRecentNodes functionality
+    sharedNode_vector getRecentNodes_internal(unsigned maxcount,
+                                              m_time_t since); // Old getRecentNodes functionality
 
     std::set<std::string> getAllNodeTags_internal(const char* searchString, CancelToken cancelFlag);
 

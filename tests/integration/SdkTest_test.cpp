@@ -8207,8 +8207,11 @@ void SdkTest::testRecents(const std::string& title, bool useSensitiveExclusion)
     ASSERT_TRUE(buckets != nullptr);
 
     const auto& getRecentActionsEndTime = std::chrono::steady_clock::now();
-    auto getRecentActionsTime = std::chrono::duration_cast<std::chrono::microseconds>(getRecentActionsEndTime - getRecentActionsStartTime).count();
-    LOG_debug << "[SdkTest::testRecents] getRecentActionsTime = " << getRecentActionsTime << " us [buckets->size() = " << buckets->size() << "]";
+    auto getRecentActionsTime = std::chrono::duration_cast<std::chrono::microseconds>(
+                                    getRecentActionsEndTime - getRecentActionsStartTime)
+                                    .count();
+    LOG_debug << "[SdkTest::testRecents] getRecentActionsTime = " << getRecentActionsTime
+              << " us [buckets->size() = " << buckets->size() << "]";
 
     for (int i = 0; i < buckets->size(); ++i)
     {

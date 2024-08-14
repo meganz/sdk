@@ -1917,7 +1917,8 @@ private:
 public:
     // get a vector of recent actions in the account
     recentactions_vector getRecentActions(unsigned maxcount,
-                                          m_time_t since); // Old getRecentActions behavior without newer excludeSensitive functionality
+                                          m_time_t since); // Old getRecentActions behavior without
+                                                           // newer excludeSensitive functionality
 
     recentactions_vector getRecentActions(unsigned maxcount,
                                           m_time_t since,
