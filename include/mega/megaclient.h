@@ -1911,7 +1911,14 @@ public:
     std::shared_ptr<Node> nodebyfingerprint(LocalNode*);
 #endif /* ENABLE_SYNC */
 
+private:
+    // Private helper method for getRecentActions
+    recentactions_vector getRecentActionsFromSharedNodeVector(sharedNode_vector&& v);
+public:
     // get a vector of recent actions in the account
+    recentactions_vector getRecentActions(unsigned maxcount,
+                                          m_time_t since); // Old getRecentActions behavior without newer excludeSensitive functionality
+
     recentactions_vector getRecentActions(unsigned maxcount,
                                           m_time_t since,
                                           bool excludeSensitives);

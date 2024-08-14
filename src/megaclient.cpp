@@ -17620,10 +17620,17 @@ bool MegaClient::treatAsIfFileDataEqual(const FileFingerprint& fp1, const string
 }
 
 recentactions_vector MegaClient::getRecentActions(unsigned maxcount,
+                                                  m_time_t since)
+{
+    sharedNode_vector v = mNodeManager.getRecentNodes(maxcount, since);
+
+    return getRecentActionsFromSharedNodeVector(std::move(v));
+}
+
+recentactions_vector MegaClient::getRecentActions(unsigned maxcount,
                                                   m_time_t since,
                                                   bool excludeSensitives)
 {
-    recentactions_vector rav;
     sharedNode_vector v;
 
     NodeSearchFilter filter;
@@ -17643,6 +17650,12 @@ recentactions_vector MegaClient::getRecentActions(unsigned maxcount,
                                  CancelToken(),
                                  NodeSearchPage{0, maxcount});
 
+    return getRecentActionsFromSharedNodeVector(std::move(v));
+}
+
+recentactions_vector MegaClient::getRecentActionsFromSharedNodeVector(sharedNode_vector&& v)
+{
+    recentactions_vector rav;
     for (auto i = v.begin(); i != v.end(); )
     {
         // find the oldest node, maximum 6h
