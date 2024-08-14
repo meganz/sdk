@@ -4098,18 +4098,17 @@ public:
     virtual void clear();
 };
 
-
 /**
-* @brief Represents a set of files uploaded or updated in MEGA.
-* These are used to display the recent changes to an account.
-*
-* Objects of this class aren't live, they are snapshots of the state
-* in MEGA when the object is created, they are immutable.
-*
-* MegaRecentActionBuckets can be retrieved with MegaApi::getRecentActions
-* and MegaApi::getRecentActionsAsync.
-*
-*/
+ * @brief Represents a set of files uploaded or updated in MEGA.
+ * These are used to display the recent changes to an account.
+ *
+ * Objects of this class aren't live, they are snapshots of the state
+ * in MEGA when the object is created, they are immutable.
+ *
+ * MegaRecentActionBuckets can be retrieved with MegaApi::getRecentActions
+ * and MegaApi::getRecentActionsAsync.
+ *
+ */
 class MegaRecentActionBucket
 {
 public:
@@ -4179,18 +4178,19 @@ public:
 };
 
 /**
-* @brief List of MegaRecentActionBucket objects
-*
-* A MegaRecentActionBucketList has the ownership of the MegaRecentActionBucket objects that it contains, so they will be
-* only valid until the MegaRecentActionBucketList is deleted. If you want to retain a MegaRecentActionBucket returned by
-* a MegaRecentActionBucketList, use MegaRecentActionBucket::copy.
-*
-* Objects of this class are immutable.
-*
-* @see MegaApi::getRecentActions
-* @see MegaApi::getRecentActionsAsync
-*
-*/
+ * @brief List of MegaRecentActionBucket objects
+ *
+ * A MegaRecentActionBucketList has the ownership of the MegaRecentActionBucket objects that it
+ * contains, so they will be only valid until the MegaRecentActionBucketList is deleted. If you want
+ * to retain a MegaRecentActionBucket returned by a MegaRecentActionBucketList, use
+ * MegaRecentActionBucket::copy.
+ *
+ * Objects of this class are immutable.
+ *
+ * @see MegaApi::getRecentActions
+ * @see MegaApi::getRecentActionsAsync
+ *
+ */
 class MegaRecentActionBucketList
 {
 public:
@@ -5037,8 +5037,10 @@ class MegaRequest
          * - MegaApi::moveTransferToLast - Returns MegaTransfer::MOVE_TYPE_BOTTOM
          * - MegaApi::moveTransferToLastByTag - Returns MegaTransfer::MOVE_TYPE_BOTTOM
          * - MegaApi::moveTransferBefore - Returns the tag of the transfer with the target position
-         * - MegaApi::moveTransferBeforeByTag - Returns the tag of the transfer with the target position
-         * - MegaApi::setScheduledCopy - Returns the period between backups in deciseconds (-1 if cron time used)
+         * - MegaApi::moveTransferBeforeByTag - Returns the tag of the transfer with the target
+         * position
+         * - MegaApi::setScheduledCopy - Returns the period between backups in deciseconds (-1 if
+         * cron time used)
          * - MegaApi::abortCurrentScheduledCopy - Returns the tag of the aborted backup
          * - MegaApi::removeScheduledCopy - Returns the tag of the deleted backup
          * - MegaApi::startTimer - Returns the selected period
@@ -5055,7 +5057,8 @@ class MegaRequest
          * - MegaApi::getPaymentMethods - Returns a bitfield with the available payment methods
          * - MegaApi::getCloudStorageUsed - Returns the sum of the sizes of file cloud nodes.
          * - MegaApi::getRecentActions - Returns the number of days since nodes will be considerated
-         * - MegaApi::getRecentActionsAsync - Returns the number of days since nodes will be considerated
+         * - MegaApi::getRecentActionsAsync - Returns the number of days since nodes will be
+         * considered
          *
          * @return Number related to this request
          */

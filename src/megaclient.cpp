@@ -17659,8 +17659,7 @@ bool MegaClient::treatAsIfFileDataEqual(const FileFingerprint& fp1, const string
             isPhotoVideoAudioByName(filenameExtensionLowercaseNoDot1);
 }
 
-recentactions_vector MegaClient::getRecentActions(unsigned maxcount,
-                                                  m_time_t since)
+recentactions_vector MegaClient::getRecentActions(unsigned maxcount, m_time_t since)
 {
     sharedNode_vector v = mNodeManager.getRecentNodes(maxcount, since);
 
