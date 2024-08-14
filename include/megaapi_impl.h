@@ -3595,9 +3595,16 @@ public:
 
         long long getBandwidthOverquotaDelay();
 
-        MegaRecentActionBucketList* getRecentActions(unsigned days = 90,
-                                                     unsigned maxnodes = 500,
-                                                     bool excludeSensitives = true);
+    private:
+        void getRecentActionsAsyncInternal(unsigned days,
+                                           unsigned maxnodes,
+                                           bool* optExcludeSensitives,
+                                           MegaRequestListener* listener = NULL);
+    public:
+        MegaRecentActionBucketList* getRecentActions(unsigned days = 90, unsigned maxnodes = 500);
+        void getRecentActionsAsync(unsigned days,
+                                   unsigned maxnodes,
+                                   MegaRequestListener* listener = NULL);
         void getRecentActionsAsync(unsigned days,
                                    unsigned maxnodes,
                                    bool excludeSensitives,

@@ -411,6 +411,7 @@ protected:
     bool checkAlert(int apiIndex, const string& title, handle h, int64_t n = -1, MegaHandle mh = INVALID_HANDLE);
 
     void testPrefs(const std::string& title, int type);
+    void testRecents(const std::string& title, bool useSensitiveExclusion);
 
 #ifdef ENABLE_CHAT
     void delSchedMeetings();

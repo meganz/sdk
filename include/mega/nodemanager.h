@@ -173,6 +173,11 @@ public:
 
     sharedNode_vector getChildren(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page);
 
+    // get up to "maxcount" nodes, not older than "since", ordered by creation time
+    // Note: nodes are read from DB and loaded in memory
+    // (This is used by deprecated MegaClient::getRecentNodes without exclude sensitive filter)
+    sharedNode_vector getRecentNodes(unsigned maxcount, m_time_t since);
+
     sharedNode_vector searchNodes(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page);
 
     std::set<std::string> getAllNodeTags(const char* searchString, CancelToken cancelFlag);
@@ -403,6 +408,8 @@ private:
     sharedNode_vector searchNodes_internal(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page);
     sharedNode_vector processUnserializedNodes(const std::vector<std::pair<NodeHandle, NodeSerialized>>& nodesFromTable, CancelToken cancelFlag);
     sharedNode_vector getChildren_internal(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page);
+    sharedNode_vector getRecentNodes_internal(unsigned maxcount,
+                                              m_time_t since); // Old getRecentNodes functionality
 
     std::set<std::string> getAllNodeTags_internal(const char* searchString, CancelToken cancelFlag);
 
