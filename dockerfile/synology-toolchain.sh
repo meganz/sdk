@@ -49,11 +49,11 @@ generate_vcpkg_triplet_file()
 to_vcpkg_architecture()
 {
     case "$1" in
-        'arm' | 'arm64')
-            echo $1
-            ;;
         'x86_64')
             echo x64
+            ;;
+        *)
+            echo $1
             ;;
     esac
 }

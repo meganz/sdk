@@ -49,12 +49,8 @@ RUN apt-get --quiet=2 update && DEBCONF_NOWARNINGS=yes apt-get --quiet=2 install
 WORKDIR /mega
 
 # Clone and checkout known pkgscripts baseline
-RUN git clone https://github.com/SynologyOpenSource/pkgscripts-ng.git pkgscripts
-WORKDIR /mega/pkgscripts
-RUN git checkout e1d9f52
-
-# Set up correct workdir again
-WORKDIR /mega
+RUN git clone https://github.com/SynologyOpenSource/pkgscripts-ng.git pkgscripts \
+    git -C ./pkgscripts checkout e1d9f52
 
 # Download and extract toolchain from Synology
 RUN target_arch=${ARCH} && \
