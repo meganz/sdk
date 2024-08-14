@@ -8110,9 +8110,9 @@ TEST_F(SdkTest, SdkTestCloudraidStreamingSoakTest)
 #endif
 }
 
-TEST_F(SdkTest, SdkRecentsTest)
+void SdkTest::testRecents(const std::string& title, bool useSensitiveExclusion)
 {
-    LOG_info << "___TEST SdkRecentsTest___";
+    LOG_info << title;
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     std::unique_ptr<MegaNode> rootnode(megaApi[0]->getRootNode());
@@ -8215,12 +8215,26 @@ TEST_F(SdkTest, SdkRecentsTest)
 
     synchronousCatchup(0);
 
+    const auto& getRecentActionsStartTime = std::chrono::steady_clock::now();
     RequestTracker tracker(megaApi[0].get());
-    megaApi[0]->getRecentActionsAsync(1, 10, true, &tracker);
+    if (useSensitiveExclusion)
+    {
+        // Sensitive exclusion has different code paths than the previous legacy function,
+        // hence why we cannot just pass the parameter with "false".
+        megaApi[0]->getRecentActionsAsync(1, 10, true, &tracker);
+    }
+    else
+    {
+        megaApi[0]->getRecentActionsAsync(1, 10, &tracker);
+    }
     ASSERT_EQ(tracker.waitForResult(), API_OK);
     std::unique_ptr<MegaRecentActionBucketList> buckets{
         tracker.request->getRecentActions()->copy()};
     ASSERT_TRUE(buckets != nullptr);
+
+    const auto& getRecentActionsEndTime = std::chrono::steady_clock::now();
+    auto getRecentActionsTime = std::chrono::duration_cast<std::chrono::microseconds>(getRecentActionsEndTime - getRecentActionsStartTime).count();
+    LOG_debug << "[SdkTest::testRecents] getRecentActionsTime = " << getRecentActionsTime << " us [buckets->size() = " << buckets->size() << "]";
 
     for (int i = 0; i < buckets->size(); ++i)
     {
@@ -8257,6 +8271,16 @@ TEST_F(SdkTest, SdkRecentsTest)
                 (n_1_0->getCreationTime() == n_1_1->getCreationTime() && filename1bkp2 == n_1_1->getName()));
     ASSERT_TRUE(filename1bkp1 == n_1_1->getName() ||
                 (n_1_0->getCreationTime() == n_1_1->getCreationTime() && filename1bkp1 == n_1_0->getName()));
+}
+
+TEST_F(SdkTest, SdkRecentsTestLegacyWithoutSensitiveExclusion)
+{
+    testRecents("___TEST SdkRecentsTestLegacyWithoutSensitiveExclusion___", false);
+}
+
+TEST_F(SdkTest, SdkRecentsTest)
+{
+    testRecents("___TEST SdkRecentsTest___", true);
 }
 
 #if !USE_FREEIMAGE

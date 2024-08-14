@@ -4107,6 +4107,7 @@ public:
 * in MEGA when the object is created, they are immutable.
 *
 * MegaRecentActionBuckets can be retrieved with MegaApi::getRecentActions
+* and MegaApi::getRecentActionsAsync.
 *
 */
 class MegaRecentActionBucket
@@ -4187,6 +4188,7 @@ public:
 * Objects of this class are immutable.
 *
 * @see MegaApi::getRecentActions
+* @see MegaApi::getRecentActionsAsync
 *
 */
 class MegaRecentActionBucketList
@@ -4979,6 +4981,7 @@ class MegaRequest
          * - MegaApi::dismissBanner - Returns the id of the banner
          * - MegaApi::sendBackupHeartbeat - Returns the number of backup files uploaded
          * - MegaApi::getRecentActions - Returns the maximum number of nodes
+         * - MegaApi::getRecentActionsAsync - Returns the maximum number of nodes
          * - MegaApi::importPasswordsFromFile - Returns source of the file provided as an argument
          *
          * @return Type of parameter related to the request
@@ -5052,6 +5055,7 @@ class MegaRequest
          * - MegaApi::getPaymentMethods - Returns a bitfield with the available payment methods
          * - MegaApi::getCloudStorageUsed - Returns the sum of the sizes of file cloud nodes.
          * - MegaApi::getRecentActions - Returns the number of days since nodes will be considerated
+         * - MegaApi::getRecentActionsAsync - Returns the number of days since nodes will be considerated
          *
          * @return Number related to this request
          */
@@ -5093,7 +5097,7 @@ class MegaRequest
          * - MegaApi::getVisibleWelcomeDialog - Returns true if the Welcome dialog is visible
          * - MegaApi::getVisibleTermsOfService - Returns true if the Terms of Service need to be
          * displayed
-         * - MegaApi::getRecentActions - Returns true if exclude sensitives
+         * - MegaApi::getRecentActionsAsync - Returns true if exclude sensitives
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -18613,8 +18617,8 @@ class MegaApi
          *
          * Each bucket contains files that were added/modified in a set, by a single user.
          *
-         * Note: Nodes sensitives are excluded by default. Nodes are considered
-         * sensitive if they have that property set, or one of their ancestors has it
+         * Note: Nodes sensitives are NOT excluded by default. Nodes are considered
+         * sensitive if they have that property set, or one of their ancestors has it.
          *
          * @deprecated use getRecentActionsAsync
          *
@@ -18636,8 +18640,8 @@ class MegaApi
          *
          * You take the ownership of the returned value.
          *
-         * Note: Nodes sensitives are excluded by default. Nodes are considered
-         * sensitive if they have that property set, or one of their ancestors has it
+         * Note: Nodes sensitives are NOT excluded by default. Nodes are considered
+         * sensitive if they have that property set, or one of their ancestors has it.
          *
          * @deprecated use getRecentActionsAsync
          *
@@ -18654,7 +18658,6 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNumber - Returns the number of days since nodes will be considerated
          * - MegaRequest::getParamType - Returns the maximun number of nodes
-         * - MegaRequest::getFlag - Returns true if sensitives are excluded
          *
          * The associated request type with this request is MegaRequest::TYPE_GET_RECENT_ACTIONS
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
@@ -18665,8 +18668,10 @@ class MegaApi
          * The recommended values for the following parameters are to consider
          * interactions during the last 30 days and maximum 500 nodes.
          *
-         * Note: Nodes sensitives are excluded by default. Nodes are considered
-         * sensitive if they have that property set, or one of their ancestors has it
+         * Note: Nodes sensitives are NOT excluded by default. Nodes are considered
+         * sensitive if they have that property set, or one of their ancestors has it.
+         * Use getRecentActionsAsync with explicit excludeSensitives flag
+         * to search for sensitives and filter them depending on the flag value
          *
          * @param days Age of actions since added/modified nodes will be considered (in days)
          * @param maxnodes Maximum amount of nodes to be considered

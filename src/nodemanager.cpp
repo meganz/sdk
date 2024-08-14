@@ -425,6 +425,27 @@ sharedNode_vector NodeManager::getChildren_internal(const NodeSearchFilter& filt
     return nodes;
 }
 
+sharedNode_vector NodeManager::getRecentNodes(unsigned maxcount, m_time_t since)
+{
+    LockGuard g(mMutex);
+    return getRecentNodes_internal(maxcount, since);
+}
+
+sharedNode_vector NodeManager::getRecentNodes_internal(unsigned maxcount, m_time_t since)
+{
+    assert(mMutex.owns_lock());
+
+    if (!mTable || mNodes.empty())
+    {
+        return sharedNode_vector();
+    }
+
+    std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
+    mTable->getRecentNodes(maxcount, since, nodesFromTable);
+
+    return processUnserializedNodes(nodesFromTable);
+}
+
 uint64_t NodeManager::getNodeCount()
 {
     LockGuard g(mMutex);
