@@ -92,7 +92,6 @@ doc/example/lsmega
 Debug
 Release
 /build-x??-*-mega*/
-/contrib/QtCreator/build-*
 megaclient_statecache*
 *.autosave
 
