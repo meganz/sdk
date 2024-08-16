@@ -10497,7 +10497,7 @@ CommandPutSetElement::CommandPutSetElement(MegaClient* cl, SetElement&& el, uniq
                                                std::function<void(Error, const SetElement*)> completion)
     : mElement(new SetElement(std::move(el))), mCompletion(completion)
 {
-    mV3 = false;
+    mSeqtagArray = true;
     cmd("aep");
 
     bool createNew = mElement->id() == UNDEF;
