@@ -34,6 +34,7 @@ generate_cmake_toolchain_file() {
 
     [ -v ToolChainDir64 ] && architecture=64
 
+    arch="ARCH"
     c_compiler="CC$architecture"
     c_compiler_flags="CFLAGS$architecture"
     cxx_compiler="CXX$architecture"
@@ -43,6 +44,7 @@ generate_cmake_toolchain_file() {
 
     (
         printf 'set(CMAKE_SYSTEM_NAME Linux)\n'
+        printf 'set(CMAKE_SYSTEM_PROCESSOR %s)\n' "${!arch}"
         printf 'set(CMAKE_C_COMPILER "%s")\n' "/${!c_compiler/wrap-}"
         printf 'set(CMAKE_C_FLAGS_INIT "%s")\n' "${!c_compiler_flags} -Wno-psabi"
         printf 'set(CMAKE_CXX_COMPILER "%s")\n' "/${!cxx_compiler/wrap-}"

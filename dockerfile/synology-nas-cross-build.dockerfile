@@ -1,15 +1,14 @@
 # Dockerfile for cross-compiling for Synology in its different architectures.
 #
 # Build the Docker image:
-#   docker build -t synology-build-env -f /path/to/your/sdk/dockerfile/synology-nas-cross-build.dockerfile . --build-arg ARCH=architechtureName
+#   docker build -t synology-build-env -f /path/to/your/sdk/dockerfile/synology-nas-cross-build.dockerfile /path/to/your/sdk/dockerfile/ --build-arg ARCH=architechtureName
 #     -t : Tags the built container with a name
 #     -f : Specify dockerfile to be build, replace /path/to/your/sdk with your local path to the sdk
 #     --build-arg : adds an argument to the build, you should select one of the possible architectures
 #
 # Run the Docker container and build the project for a specific architecture:
-#   docker run -v /path/to/your/sdk:/mega/sdk -v /path/to/your/vcpkg:/mega/vcpkg -e ARCH=architechtureName -it synology-build-env
+#   docker run -v /path/to/your/sdk:/mega/sdk -v /path/to/your/vcpkg:/mega/vcpkg -it synology-build-env
 #     -v : Mounts a local directory into the container, replace /path/to/your/sdk and /path/to/your/vcpkg with your local paths
-#     -e : Sets an environment variable, `ARCH` environment variable is used to specify the target architecture
 #     -it : Starts an interactive terminal session inside the container after the cmake project is configured and build
 #
 #     Possible architechtures are: [alpine alpine4k apollolake armada37xx armada38x avoton broadwell broadwellnk broadwellnkv2 broadwellntbap bromolow braswell denverton epyc7002 geminilake grantley kvmcloud kvmx64 monaco purley r1000 rtd1296 rtd1619b v1000]
@@ -19,6 +18,7 @@ FROM ubuntu:22.04
 
 # Set default architecture
 ARG ARCH=alpine
+ENV ARCH=${ARCH}
 
 # Install dependencies
 RUN apt-get --quiet=2 update && DEBCONF_NOWARNINGS=yes apt-get --quiet=2 install \
@@ -48,8 +48,8 @@ RUN git clone https://github.com/SynologyOpenSource/pkgscripts-ng.git pkgscripts
     && git -C ./pkgscripts checkout e1d9f52
 
 # Copy the shell script and configuration files
-COPY ./sdk/dockerfile/synology-toolchain.sh /mega/
-COPY ./sdk/dockerfile/synology-toolchains.conf /mega/
+COPY synology-toolchain.sh /mega/
+COPY synology-toolchains.conf /mega/
 
 # Make the helper shell script executable
 RUN chmod +x /mega/synology-toolchain.sh
