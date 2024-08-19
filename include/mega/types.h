@@ -272,6 +272,13 @@ private:
 // returned by loggedin()
 typedef enum { NOTLOGGEDIN = 0, EPHEMERALACCOUNT, CONFIRMEDACCOUNT, FULLACCOUNT, EPHEMERALACCOUNTPLUSPLUS } sessiontype_t;
 
+enum class PasswordEntryError : uint8_t
+{
+    OK = 0,
+    PARSE_ERROR,
+    MISSING_PASSWORD,
+};
+
 // node/user handles are 8-11 base64 characters, case sensitive, and thus fit
 // in a 64-bit int
 typedef uint64_t handle;

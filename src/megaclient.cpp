@@ -17621,9 +17621,40 @@ bool MegaClient::treatAsIfFileDataEqual(const FileFingerprint& fp1, const string
 
 recentactions_vector MegaClient::getRecentActions(unsigned maxcount, m_time_t since)
 {
-    recentactions_vector rav;
     sharedNode_vector v = mNodeManager.getRecentNodes(maxcount, since);
 
+    return getRecentActionsFromSharedNodeVector(std::move(v));
+}
+
+recentactions_vector MegaClient::getRecentActions(unsigned maxcount,
+                                                  m_time_t since,
+                                                  bool excludeSensitives)
+{
+    sharedNode_vector v;
+
+    NodeSearchFilter filter;
+    filter.byAncestors({mNodeManager.getRootNodeFiles().as8byte(),
+                        mNodeManager.getRootNodeVault().as8byte(),
+                        UNDEF});
+
+    filter.byCreationTimeLowerLimitInSecs(since);
+    if (excludeSensitives)
+    {
+        filter.bySensitivity(NodeSearchFilter::BoolFilter::onlyTrue);
+    }
+    filter.byNodeType(FILENODE);
+    filter.setIncludedShares(IN_SHARES);
+    v = mNodeManager.searchNodes(filter,
+                                 OrderByClause::CTIME_DESC,
+                                 CancelToken(),
+                                 NodeSearchPage{0, maxcount});
+
+    return getRecentActionsFromSharedNodeVector(std::move(v));
+}
+
+recentactions_vector MegaClient::getRecentActionsFromSharedNodeVector(sharedNode_vector&& v)
+{
+    recentactions_vector rav;
     for (auto i = v.begin(); i != v.end(); )
     {
         // find the oldest node, maximum 6h
@@ -20607,15 +20638,20 @@ error MegaClient::createPasswordNodes(const std::map<std::string, std::unique_pt
     const bool canChangeVault = true;
     for (const auto& [name, dataAttrMap]: data)
     {
-        assert(!name.empty() && dataAttrMap);
-        if (const bool pwdPresent =
-                dataAttrMap &&
-                (dataAttrMap->map.contains(AttrMap::string2nameid(PWM_ATTR_PASSWORD_PWD)));
-            !pwdPresent)
+        if (name.empty() || !dataAttrMap)
         {
-            LOG_err << "Password Manager: failed Password Node creation wrong parameters: Password "
-                       "missing for entry with name "
-                    << name;
+            assert(false);
+            continue;
+        }
+        if (auto validCode = validatePasswordData(*dataAttrMap);
+            validCode != PasswordEntryError::OK)
+        {
+            std::string errMsg = "Password Manager: Wrong parameters. Failed Password Node "
+                                 "creation for entry with name \"" +
+                                 name + "\"";
+            if (validCode == PasswordEntryError::MISSING_PASSWORD)
+                errMsg += ": Missing mandatory password field";
+            LOG_err << errMsg;
             return API_EARGS;
         }
         const auto addAttrs = [this, d = dataAttrMap.get()](AttrMap& attrs)
@@ -20633,6 +20669,53 @@ error MegaClient::createPasswordNodes(const std::map<std::string, std::unique_pt
              rTag,
              canChangeVault);
     return API_OK;
+}
+
+PasswordEntryError MegaClient::validatePasswordData(const AttrMap& data)
+{
+    if (const bool pwdPresent = (data.map.contains(AttrMap::string2nameid(PWM_ATTR_PASSWORD_PWD)));
+        !pwdPresent)
+    {
+        return PasswordEntryError::MISSING_PASSWORD;
+    }
+    return PasswordEntryError::OK;
+}
+
+std::pair<MegaClient::BadPasswordData, MegaClient::ValidPasswordData>
+    MegaClient::validatePasswordEntries(std::vector<pwm::import::PassEntryParseResult>&& entries,
+                                        ncoll::NameCollisionSolver& nameValidator)
+{
+    std::pair<BadPasswordData, ValidPasswordData> result;
+    auto& bad = result.first;
+    auto& good = result.second;
+    for (auto& entry: entries)
+    {
+        if (entry.mErrCode != pwm::import::PassEntryParseResult::ErrCode::OK)
+        {
+            bad[std::move(entry.mOriginalContent)] = PasswordEntryError::PARSE_ERROR;
+            continue;
+        }
+
+        auto attrMap = std::make_unique<AttrMap>();
+        auto addField = [&attrMap](std::string&& field, const char* const fieldKey)
+        {
+            if (!field.empty())
+                attrMap->map[AttrMap::string2nameid(fieldKey)] = std::move(field);
+        };
+        addField(std::move(entry.mUrl), PWM_ATTR_PASSWORD_URL);
+        addField(std::move(entry.mUserName), PWM_ATTR_PASSWORD_USERNAME);
+        addField(std::move(entry.mPassword), PWM_ATTR_PASSWORD_PWD);
+        addField(std::move(entry.mNote), PWM_ATTR_PASSWORD_NOTES);
+
+        if (auto validationError = validatePasswordData(*attrMap);
+            validationError != PasswordEntryError::OK)
+        {
+            bad[entry.mOriginalContent] = validationError;
+            continue;
+        }
+        good[nameValidator(entry.mName)] = std::move(attrMap);
+    }
+    return result;
 }
 
 error MegaClient::updatePasswordNode(NodeHandle nh, std::unique_ptr<AttrMap> newData,

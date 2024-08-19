@@ -4138,7 +4138,15 @@ MegaRecentActionBucketList* MegaApi::getRecentActions()
 
 void MegaApi::getRecentActionsAsync(unsigned days, unsigned maxnodes, MegaRequestListener *listener)
 {
-    return pImpl->getRecentActionsAsync(days, maxnodes, listener);
+    pImpl->getRecentActionsAsync(days, maxnodes, listener);
+}
+
+void MegaApi::getRecentActionsAsync(unsigned days,
+                                    unsigned maxnodes,
+                                    bool excludeSensitives,
+                                    MegaRequestListener* listener)
+{
+    pImpl->getRecentActionsAsync(days, maxnodes, excludeSensitives, listener);
 }
 
 bool MegaApi::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, bool recursive)
@@ -5821,6 +5829,11 @@ void MegaApi::exportSet(MegaHandle sid, MegaRequestListener *listener)
 void MegaApi::disableExportSet(MegaHandle sid, MegaRequestListener *listener)
 {
     return pImpl->disableExportSet(sid, listener);
+}
+
+int MegaApi::getSetElementHandleSize()
+{
+    return MegaApiImpl::getSetElementHandleSize();
 }
 
 void MegaApi::fetchPublicSet(const char* publicSetLink, MegaRequestListener* listener)

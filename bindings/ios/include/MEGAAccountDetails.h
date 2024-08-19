@@ -246,7 +246,7 @@ NS_ASSUME_NONNULL_BEGIN
  * @param index Index of the object
  * @return MEGAAccountPlan object
  */
-- (nullable MEGAAccountPlan *)planAtIndex:(int)index;
+- (nullable MEGAAccountPlan *)planAtIndex:(NSInteger)index;
 
 /**
  * @brief Get the number of active subscriptions in the account.
@@ -264,7 +264,7 @@ NS_ASSUME_NONNULL_BEGIN
  * @param index Index of the object
  * @return MEGAAccountSubscription object
  */
-- (nullable MEGAAccountSubscription *)subscriptionAtIndex:(int)index;
+- (nullable MEGAAccountSubscription *)subscriptionAtIndex:(NSInteger)index;
 
 NS_ASSUME_NONNULL_END
 

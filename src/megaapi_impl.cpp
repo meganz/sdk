@@ -17847,6 +17847,7 @@ MegaNodeList *MegaApiImpl::getChildren(const MegaSearchFilter* filter, int order
         return new MegaNodeListPrivate();
     }
 
+    SdkMutexGuard guard(sdkMutex);
     NodeSearchFilter nf;
     nf.copyFrom(*filter);
     const NodeSearchPage& np = searchPage ? NodeSearchPage(searchPage->startingOffset(), searchPage->size()) : NodeSearchPage(0u, 0u);
@@ -25151,33 +25152,65 @@ void MegaApiImpl::setMyBackupsFolder(const char* localizedName, MegaRequestListe
     waiter->notify();
 }
 
-void MegaApiImpl::getRecentActionsAsync(unsigned days, unsigned maxnodes, MegaRequestListener* listener)
+void MegaApiImpl::getRecentActionsAsync(unsigned days,
+                                        unsigned maxnodes,
+                                        MegaRequestListener* listener)
+{
+    getRecentActionsAsyncInternal(days, maxnodes, nullptr, listener);
+}
+
+void MegaApiImpl::getRecentActionsAsync(unsigned days,
+                                        unsigned maxnodes,
+                                        bool excludeSensitives,
+                                        MegaRequestListener* listener)
+{
+    getRecentActionsAsyncInternal(days, maxnodes, &excludeSensitives, listener);
+}
+
+void MegaApiImpl::getRecentActionsAsyncInternal(unsigned days,
+                                                unsigned maxnodes,
+                                                bool* optExcludeSensitives,
+                                                MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_RECENT_ACTIONS, listener);
     request->setNumber(days);
     request->setParamType(maxnodes);
+    if (optExcludeSensitives)
+        request->setFlag(*optExcludeSensitives);
 
-    request->performRequest = [this, request]()
+    request->performRequest =
+        [this, request, withExcludeSensitives = (optExcludeSensitives != nullptr)]()
+    {
+        int maxnodes = request->getParamType();
+        if (maxnodes <= 0)
         {
-           int maxnodes = request->getParamType();
-           if (maxnodes <= 0)
-           {
-               return API_EARGS;
-           }
+            return API_EARGS;
+        }
 
-           int days = static_cast<int>(request->getNumber());
-           if (days <= 0)
-           {
-               return API_EARGS;
-           }
+        int days = static_cast<int>(request->getNumber());
+        if (days <= 0)
+        {
+            return API_EARGS;
+        }
 
-           m_time_t since = m_time() - days * 86400;
-           recentactions_vector v = client->getRecentActions(maxnodes, since);
-           std::unique_ptr<MegaRecentActionBucketList> recentActions(new MegaRecentActionBucketListPrivate(v, client));
-           request->setRecentActions(std::move(recentActions));
-           fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
-           return API_OK;
-        };
+        m_time_t since = m_time() - days * 86400;
+
+        recentactions_vector v;
+        if (withExcludeSensitives)
+        {
+            bool excludeSensitives = request->getFlag();
+            v = client->getRecentActions(maxnodes, since, excludeSensitives);
+        }
+        else
+        {
+            v = client->getRecentActions(maxnodes, since);
+        }
+        std::unique_ptr<MegaRecentActionBucketList> recentActions(
+            new MegaRecentActionBucketListPrivate(v, client));
+        request->setRecentActions(std::move(recentActions));
+        fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
+        return API_OK;
+    };
 
     requestQueue.push(request);
     waiter->notify();

@@ -1401,7 +1401,10 @@ public:
      * @param i Position of the instance that we want to get from the list
      * @return Instance at position i in the list
      */
-    virtual const MegaBackupInfo* get(unsigned int i) const { return nullptr; }
+    virtual const MegaBackupInfo* get(unsigned int /*i*/) const
+    {
+        return nullptr;
+    }
 
     /**
      * @brief Returns the number of MegaBackupInfo instances in the list
@@ -1515,7 +1518,10 @@ public:
      *
      * @return true if this Set has a specific change
      */
-    virtual bool hasChanged(uint64_t changeType) const { return false; }
+    virtual bool hasChanged(uint64_t /*changeType*/) const
+    {
+        return false;
+    }
 
     /**
      * @brief Returns the addition / OR bit-operation of all the MegaSet::CHANGE_TYPE for
@@ -1583,7 +1589,10 @@ public:
      * @param i Position of the MegaSet that we want to get for the list
      * @return MegaSet at the position i in the list
      */
-    virtual const MegaSet* get(unsigned int i) const { return nullptr; }
+    virtual const MegaSet* get(unsigned int /*i*/) const
+    {
+        return nullptr;
+    }
 
     /**
      * @brief Returns the number of MegaSets in the list
@@ -1679,7 +1688,10 @@ public:
      *
      * @return true if this Set has a specific change
      */
-    virtual bool hasChanged(uint64_t changeType) const { return false; }
+    virtual bool hasChanged(uint64_t /*changeType*/) const
+    {
+        return false;
+    }
 
     /**
      * @brief Returns the addition / OR bit-operation of all the MegaSetElement::CHANGE_TYPE for
@@ -1719,16 +1731,19 @@ public:
     /**
      * @brief Returns the MegaSetElement at the position i in the MegaSetElementList
      *
-     * The MegaSetElementList retains the ownership of the returned MegaSetElement. It will be only valid until
-     * the MegaSetElementList is deleted. If you want to retain a MegaSetElement returned by this function,
-     * use MegaSetElement::copy().
+     * The MegaSetElementList retains the ownership of the returned MegaSetElement. It will be only
+     * valid until the MegaSetElementList is deleted. If you want to retain a MegaSetElement
+     * returned by this function, use MegaSetElement::copy().
      *
      * If the index is >= the size of the list, this function returns NULL.
      *
      * @param i Position of the MegaSetElement that we want to get for the list
      * @return MegaSetElement at the position i in the list
      */
-    virtual const MegaSetElement* get(unsigned int i) const { return nullptr; }
+    virtual const MegaSetElement* get(unsigned int /*i*/) const
+    {
+        return nullptr;
+    }
 
     /**
      * @brief Returns the number of MegaSetElements in the list
@@ -4083,17 +4098,17 @@ public:
     virtual void clear();
 };
 
-
 /**
-* @brief Represents a set of files uploaded or updated in MEGA.
-* These are used to display the recent changes to an account.
-*
-* Objects of this class aren't live, they are snapshots of the state
-* in MEGA when the object is created, they are immutable.
-*
-* MegaRecentActionBuckets can be retrieved with MegaApi::getRecentActions
-*
-*/
+ * @brief Represents a set of files uploaded or updated in MEGA.
+ * These are used to display the recent changes to an account.
+ *
+ * Objects of this class aren't live, they are snapshots of the state
+ * in MEGA when the object is created, they are immutable.
+ *
+ * MegaRecentActionBuckets can be retrieved with MegaApi::getRecentActions
+ * and MegaApi::getRecentActionsAsync.
+ *
+ */
 class MegaRecentActionBucket
 {
 public:
@@ -4163,17 +4178,19 @@ public:
 };
 
 /**
-* @brief List of MegaRecentActionBucket objects
-*
-* A MegaRecentActionBucketList has the ownership of the MegaRecentActionBucket objects that it contains, so they will be
-* only valid until the MegaRecentActionBucketList is deleted. If you want to retain a MegaRecentActionBucket returned by
-* a MegaRecentActionBucketList, use MegaRecentActionBucket::copy.
-*
-* Objects of this class are immutable.
-*
-* @see MegaApi::getRecentActions
-*
-*/
+ * @brief List of MegaRecentActionBucket objects
+ *
+ * A MegaRecentActionBucketList has the ownership of the MegaRecentActionBucket objects that it
+ * contains, so they will be only valid until the MegaRecentActionBucketList is deleted. If you want
+ * to retain a MegaRecentActionBucket returned by a MegaRecentActionBucketList, use
+ * MegaRecentActionBucket::copy.
+ *
+ * Objects of this class are immutable.
+ *
+ * @see MegaApi::getRecentActions
+ * @see MegaApi::getRecentActionsAsync
+ *
+ */
 class MegaRecentActionBucketList
 {
 public:
@@ -4959,6 +4976,8 @@ class MegaRequest
          * - MegaApi::dismissBanner - Returns the id of the banner
          * - MegaApi::sendBackupHeartbeat - Returns the number of backup files uploaded
          * - MegaApi::getRecentActions - Returns the maximum number of nodes
+         * - MegaApi::getRecentActionsAsync - Returns the maximum number of nodes
+         * - MegaApi::importPasswordsFromFile - Returns source of the file provided as an argument
          *
          * @return Type of parameter related to the request
          */
@@ -5013,8 +5032,10 @@ class MegaRequest
          * - MegaApi::moveTransferToLast - Returns MegaTransfer::MOVE_TYPE_BOTTOM
          * - MegaApi::moveTransferToLastByTag - Returns MegaTransfer::MOVE_TYPE_BOTTOM
          * - MegaApi::moveTransferBefore - Returns the tag of the transfer with the target position
-         * - MegaApi::moveTransferBeforeByTag - Returns the tag of the transfer with the target position
-         * - MegaApi::setScheduledCopy - Returns the period between backups in deciseconds (-1 if cron time used)
+         * - MegaApi::moveTransferBeforeByTag - Returns the tag of the transfer with the target
+         * position
+         * - MegaApi::setScheduledCopy - Returns the period between backups in deciseconds (-1 if
+         * cron time used)
          * - MegaApi::abortCurrentScheduledCopy - Returns the tag of the aborted backup
          * - MegaApi::removeScheduledCopy - Returns the tag of the deleted backup
          * - MegaApi::startTimer - Returns the selected period
@@ -5031,6 +5052,8 @@ class MegaRequest
          * - MegaApi::getPaymentMethods - Returns a bitfield with the available payment methods
          * - MegaApi::getCloudStorageUsed - Returns the sum of the sizes of file cloud nodes.
          * - MegaApi::getRecentActions - Returns the number of days since nodes will be considerated
+         * - MegaApi::getRecentActionsAsync - Returns the number of days since nodes will be
+         * considered
          *
          * @return Number related to this request
          */
@@ -5041,13 +5064,17 @@ class MegaRequest
          *
          * This value is valid for these requests:
          * - MegaApi::retryPendingConnections - Returns if request are disconnected
-         * - MegaApi::pauseTransfers - Returns true if transfers were paused, false if they were resumed
+         * - MegaApi::pauseTransfers - Returns true if transfers were paused, false if they were
+         * resumed
          * - MegaApi::createChat - Creates a chat for one or more participants
          * - MegaApi::exportNode - Makes the folder writable
-         * - MegaApi::fetchnodes - Return true if logged in into a folder and the provided key is invalid.
+         * - MegaApi::fetchnodes - Return true if logged in into a folder and the provided key is
+         * invalid.
          * - MegaApi::getPublicNode - Return true if the provided key along the link is invalid.
-         * - MegaApi::pauseTransfer - Returns true if the transfer has to be pause or false if it has to be resumed
-         * - MegaApi::pauseTransferByTag - Returns true if the transfer has to be pause or false if it has to be resumed
+         * - MegaApi::pauseTransfer - Returns true if the transfer has to be pause or false if it
+         * has to be resumed
+         * - MegaApi::pauseTransferByTag - Returns true if the transfer has to be pause or false if
+         * it has to be resumed
          * - MegaApi::moveTransferUp - Returns true (it means that it's an automatic move)
          * - MegaApi::moveTransferUpByTag - Returns true (it means that it's an automatic move)
          * - MegaApi::moveTransferDown - Returns true (it means that it's an automatic move)
@@ -5058,16 +5085,22 @@ class MegaRequest
          * - MegaApi::moveTransferToLastByTag - Returns true (it means that it's an automatic move)
          * - MegaApi::moveTransferBefore - Returns false (it means that it's a manual move)
          * - MegaApi::moveTransferBeforeByTag - Returns false (it means that it's a manual move)
-         * - MegaApi::setBackup - Returns if backups that should have happen in the past should be taken care of
-         * - MegaApi::getChatLinkURL - Returns a vector with one element (callid), if call doesn't exit it will be NULL
-         * - MegaApi::setScheduledCopy - Returns if backups that should have happen in the past should be taken care of
+         * - MegaApi::setBackup - Returns if backups that should have happen in the past should be
+         * taken care of
+         * - MegaApi::getChatLinkURL - Returns a vector with one element (callid), if call doesn't
+         * exit it will be NULL
+         * - MegaApi::setScheduledCopy - Returns if backups that should have happen in the past
+         * should be taken care of
          * - MegaApi::sendEvent - Returns true if the JourneyID should be tracked
          * - MegaApi::getVisibleWelcomeDialog - Returns true if the Welcome dialog is visible
-         * - MegaApi::getVisibleTermsOfService - Returns true if the Terms of Service need to be displayed
+         * - MegaApi::getVisibleTermsOfService - Returns true if the Terms of Service need to be
+         * displayed
+         * - MegaApi::getRecentActionsAsync - Returns true if exclude sensitives
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
-         * - MegaApi::queryTransferQuota - True if it is expected to get an overquota error, otherwise false
+         * - MegaApi::queryTransferQuota - True if it is expected to get an overquota error,
+         * otherwise false
          *
          * @return Flag related to the request
          */
@@ -5384,7 +5417,7 @@ class MegaRequest
          * the MegaRequest object is deleted.
          *
          * This value is valid for these requests:
-         * - MegaApi::getRecentActions
+         * - MegaApi::getRecentActionsAsync
          *
          * @return MegaRecentActionBucketList list
          */
@@ -18508,9 +18541,13 @@ class MegaApi
         MegaNodeList* search(const MegaSearchFilter* filter, int order = ORDER_NONE, MegaCancelToken* cancelToken = nullptr, const MegaSearchPage* searchPage = nullptr);
 
         /**
-         * @brief Return a list of buckets, each bucket containing a list of recently added/modified nodes
+         * @brief Return a list of buckets, each bucket containing a list of recently added/modified
+         * nodes
          *
          * Each bucket contains files that were added/modified in a set, by a single user.
+         *
+         * Note: Nodes sensitives are NOT excluded by default. Nodes are considered
+         * sensitive if they have that property set, or one of their ancestors has it.
          *
          * @deprecated use getRecentActionsAsync
          *
@@ -18522,7 +18559,8 @@ class MegaApi
         MegaRecentActionBucketList* getRecentActions(unsigned days, unsigned maxnodes);
 
         /**
-         * @brief Return a list of buckets, each bucket containing a list of recently added/modified nodes
+         * @brief Return a list of buckets, each bucket containing a list of recently added/modified
+         * nodes
          *
          * Each bucket contains files that were added/modified in a set, by a single user.
          *
@@ -18531,15 +18569,18 @@ class MegaApi
          *
          * You take the ownership of the returned value.
          *
+         * Note: Nodes sensitives are NOT excluded by default. Nodes are considered
+         * sensitive if they have that property set, or one of their ancestors has it.
+         *
          * @deprecated use getRecentActionsAsync
          *
          * @return List of buckets containing nodes that were added/modifed as a set
          */
         MegaRecentActionBucketList* getRecentActions();
 
-
         /**
-         * @brief Get a list of buckets, each bucket containing a list of recently added/modified nodes
+         * @brief Get a list of buckets, each bucket containing a list of recently added/modified
+         * nodes
          *
          * Each bucket contains files that were added/modified in a set, by a single user.
          *
@@ -18550,17 +18591,53 @@ class MegaApi
          * The associated request type with this request is MegaRequest::TYPE_GET_RECENT_ACTIONS
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getRecentsBucket - Returns buckets with a list of recently added/modified nodes
+         * - MegaRequest::getRecentActions - Returns buckets with a list of recently added/modified
+         * nodes
+         *
+         * The recommended values for the following parameters are to consider
+         * interactions during the last 30 days and maximum 500 nodes.
+         *
+         * Note: Nodes sensitives are NOT excluded by default. Nodes are considered
+         * sensitive if they have that property set, or one of their ancestors has it.
+         * Use getRecentActionsAsync with explicit excludeSensitives flag
+         * to search for sensitives and filter them depending on the flag value
+         *
+         * @param days Age of actions since added/modified nodes will be considered (in days)
+         * @param maxnodes Maximum amount of nodes to be considered
+         * @param listener MegaRequestListener to track this request
+         */
+        void getRecentActionsAsync(unsigned days, unsigned maxnodes, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get a list of buckets, each bucket containing a list of recently added/modified
+         * nodes
+         *
+         * Each bucket contains files that were added/modified in a set, by a single user.
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNumber - Returns the number of days since nodes will be considerated
+         * - MegaRequest::getParamType - Returns the maximun number of nodes
+         * - MegaRequest::getFlag - Returns true if sensitives are excluded
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_RECENT_ACTIONS
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getRecentActions - Returns buckets with a list of recently added/modified
+         * nodes
          *
          * The recommended values for the following parameters are to consider
          * interactions during the last 30 days and maximum 500 nodes.
          *
          * @param days Age of actions since added/modified nodes will be considered (in days)
          * @param maxnodes Maximum amount of nodes to be considered
-
+         * @param excludeSensitives Set to true to filter out sensitive nodes (Nodes are considered
+         * sensitive if they have that property set, or one of their ancestors has it)
          * @param listener MegaRequestListener to track this request
          */
-        void getRecentActionsAsync(unsigned days, unsigned maxnodes, MegaRequestListener *listener = NULL);
+        void getRecentActionsAsync(unsigned days,
+                                   unsigned maxnodes,
+                                   bool excludeSensitives,
+                                   MegaRequestListener* listener = NULL);
 
         /**
          * @brief Process a node tree using a MegaTreeProcessor implementation
@@ -21865,6 +21942,12 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void disableExportSet(MegaHandle sid, MegaRequestListener *listener = nullptr);
+
+        /**
+         * @brief gets Set and Elements handle size
+         * @return Set and Elements handle size
+         */
+        static int getSetElementHandleSize();
 
         /**
          * @brief Request to fetch a public/exported Set and its Elements.

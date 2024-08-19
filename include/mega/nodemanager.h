@@ -74,8 +74,18 @@ public:
     {
         assert(nodeType >= nodetype_t::FILENODE && nodeType <= nodetype_t::FOLDERNODE);
         mNodeType = nodeType;
-    };
-    void bySensitivity(BoolFilter excludeSensitive) { mExcludeSensitive = excludeSensitive; }
+    }
+
+    void byCreationTimeLowerLimitInSecs(int64_t creationLowerLimit)
+    {
+        mCreationLowerLimit = creationLowerLimit;
+    }
+
+    void bySensitivity(BoolFilter boolFilter)
+    {
+        mExcludeSensitive = boolFilter;
+    }
+
     const std::string& byName() const { return mNameFilter; }
     nodetype_t byNodeType() const { return mNodeType; }
     MimeType_t byCategory() const { return mMimeCategory; }
@@ -165,6 +175,7 @@ public:
 
     // get up to "maxcount" nodes, not older than "since", ordered by creation time
     // Note: nodes are read from DB and loaded in memory
+    // (This is used by deprecated MegaClient::getRecentNodes without exclude sensitive filter)
     sharedNode_vector getRecentNodes(unsigned maxcount, m_time_t since);
 
     sharedNode_vector searchNodes(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page);
@@ -397,6 +408,8 @@ private:
     sharedNode_vector searchNodes_internal(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page);
     sharedNode_vector processUnserializedNodes(const std::vector<std::pair<NodeHandle, NodeSerialized>>& nodesFromTable, CancelToken cancelFlag);
     sharedNode_vector getChildren_internal(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page);
+    sharedNode_vector getRecentNodes_internal(unsigned maxcount,
+                                              m_time_t since); // Old getRecentNodes functionality
 
     std::set<std::string> getAllNodeTags_internal(const char* searchString, CancelToken cancelFlag);
 
@@ -424,8 +437,8 @@ private:
     bool updateNode_internal(Node* node);
 
     std::shared_ptr<Node> getNodeByHandle_internal(NodeHandle handle);
-    sharedNode_list getChildren_internal(const Node *parent, CancelToken cancelToken = CancelToken());
-    sharedNode_vector getRecentNodes_internal(unsigned maxcount, m_time_t since);
+    sharedNode_list getChildren_internal(const Node* parent,
+                                         CancelToken cancelToken = CancelToken());
 
     sharedNode_vector getNodesByFingerprint_internal(FileFingerprint& fingerprint);
     sharedNode_vector getNodesByOrigFingerprint_internal(const std::string& fingerprint, Node *parent);

@@ -3396,6 +3396,11 @@ class MegaApiImpl : public MegaApp
         void exportSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
         void disableExportSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
 
+        static int getSetElementHandleSize()
+        {
+            return MegaClient::SETELEMENTHANDLE;
+        }
+
         MegaSetList* getSets();
         MegaSet* getSet(MegaHandle sid);
         MegaHandle getSetCover(MegaHandle sid);
@@ -3587,8 +3592,20 @@ public:
 
         long long getBandwidthOverquotaDelay();
 
+    private:
+        void getRecentActionsAsyncInternal(unsigned days,
+                                           unsigned maxnodes,
+                                           bool* optExcludeSensitives,
+                                           MegaRequestListener* listener = NULL);
+    public:
         MegaRecentActionBucketList* getRecentActions(unsigned days = 90, unsigned maxnodes = 500);
-        void getRecentActionsAsync(unsigned days, unsigned maxnodes, MegaRequestListener *listener = NULL);
+        void getRecentActionsAsync(unsigned days,
+                                   unsigned maxnodes,
+                                   MegaRequestListener* listener = NULL);
+        void getRecentActionsAsync(unsigned days,
+                                   unsigned maxnodes,
+                                   bool excludeSensitives,
+                                   MegaRequestListener* listener = NULL);
 
         MegaNodeList* search(const MegaSearchFilter* filter, int order, CancelToken cancelToken, const MegaSearchPage* searchPage);
 

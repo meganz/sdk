@@ -19,21 +19,24 @@
  * program.
  */
 
+#include "megacli.h"
+
 #include "mega.h"
 #include "mega/arguments.h"
 #include "mega/filesystem.h"
 #include "mega/gfx.h"
-#include "megacli.h"
+#include "mega/testhooks.h"
+
+#include <bitset>
+#include <charconv>
 #include <chrono>
 #include <exception>
 #include <fstream>
-#include <bitset>
 #include <iostream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 #include <vector>
-#include "mega/testhooks.h"
 
 #if defined(_WIN32) && defined(_DEBUG)
 // so we can delete a secret internal CrytpoPP singleton
@@ -8807,7 +8810,41 @@ void exec_recentnodes(autocomplete::ACState& s)
 {
     if (s.words.size() == 3)
     {
-        sharedNode_vector nv = client->mNodeManager.getRecentNodes(atoi(s.words[2].s.c_str()), m_time() - 60 * 60 * atoi(s.words[1].s.c_str()));
+        int maxElements{};
+        if (auto [ptr, ec] = std::from_chars(s.words[2].s.data(),
+                                             s.words[2].s.data() + s.words[2].s.size(),
+                                             maxElements);
+            ec != std::errc{})
+        {
+            std::cout << "Invalid max elements parameter" << endl;
+            return;
+        }
+
+        int time{};
+        if (auto [ptr, ec] = std::from_chars(s.words[1].s.data(),
+                                             s.words[1].s.data() + s.words[1].s.size(),
+                                             time);
+            ec != std::errc{})
+        {
+            std::cout << "Invalid duration parameter" << endl;
+            return;
+        }
+
+        NodeSearchFilter filter;
+        filter.byAncestors({client->mNodeManager.getRootNodeFiles().as8byte(),
+                            client->mNodeManager.getRootNodeVault().as8byte(),
+                            UNDEF});
+
+        filter.byCreationTimeLowerLimitInSecs(m_time() - 60 * 60 * time);
+        filter.bySensitivity(NodeSearchFilter::BoolFilter::onlyTrue);
+        filter.byNodeType(FILENODE);
+        filter.setIncludedShares(IN_SHARES);
+        sharedNode_vector nv =
+            client->mNodeManager.searchNodes(filter,
+                                             OrderByClause::CTIME_DESC,
+                                             CancelToken(),
+                                             NodeSearchPage{0, static_cast<size_t>(maxElements)});
+
         for (unsigned i = 0; i < nv.size(); ++i)
         {
             cout << nv[i]->displaypath() << endl;
@@ -8835,7 +8872,11 @@ void exec_autocomplete(autocomplete::ACState& s)
 
 void exec_recentactions(autocomplete::ACState& s)
 {
-    recentactions_vector nvv = client->getRecentActions(atoi(s.words[2].s.c_str()), m_time() - 60 * 60 * atoi(s.words[1].s.c_str()));
+    recentactions_vector nvv =
+        client->getRecentActions(atoi(s.words[2].s.c_str()),
+                                 m_time() - 60 * 60 * atoi(s.words[1].s.c_str()),
+                                 true /*exclude sensitives*/);
+
     for (unsigned i = 0; i < nvv.size(); ++i)
     {
         if (i != 0)

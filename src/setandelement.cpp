@@ -268,6 +268,14 @@ namespace mega {
         return changes();
     }
 
+    void Set::setChanged(int changeType)
+    {
+        auto ct = static_cast<uint64_t>(changeType);
+        if (validChangeType(ct, CH_SIZE))
+        {
+            mChanges[ct] = 1;
+        }
+    }
 
     bool SetElement::updateWith(SetElement&& el)
     {
@@ -286,6 +294,15 @@ namespace mega {
         }
 
         return changes();
+    }
+
+    void SetElement::setChanged(int changeType)
+    {
+        auto ct = static_cast<uint64_t>(changeType);
+        if (validChangeType(ct, CH_EL_SIZE))
+        {
+            mChanges[ct] = 1;
+        }
     }
 
     void SetElement::setOrder(int64_t order)
