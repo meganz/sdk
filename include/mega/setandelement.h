@@ -170,7 +170,7 @@ namespace mega {
         bool hasAttrsClearedByLastUpdate() const { return mAttrsClearedByLastUpdate; }
 
         // mark a change to internal parameters (useful for app notifications)
-        void setChanged(int changeType) { if (validChangeType(changeType, CH_EL_SIZE)) mChanges[changeType] = 1; }
+        void setChanged(int changeType);
 
         // reset changes of internal parameters (call after app has been notified)
         void resetChanges() { mChanges = 0; }
@@ -286,7 +286,7 @@ namespace mega {
         void rebaseAttrsOn(const Set& s) { rebaseCommonAttrsOn(s.mAttrs.get()); }
 
         // mark a change to internal parameters (useful for app notifications)
-        void setChanged(int changeType) { if (validChangeType(changeType, CH_SIZE)) mChanges[changeType] = 1; }
+        void setChanged(int changeType);
 
         // reset changes of internal parameters (call after app has been notified)
         void resetChanges() { mChanges = 0; }

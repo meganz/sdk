@@ -1162,6 +1162,11 @@ MegaStringList* MegaRequest::getMegaStringList() const
     return nullptr;
 }
 
+MegaStringIntegerMap* MegaRequest::getMegaStringIntegerMap() const
+{
+    return nullptr;
+}
+
 const MegaIntegerList* MegaRequest::getMegaIntegerList() const
 {
     return nullptr;
@@ -2560,6 +2565,14 @@ void MegaApi::updatePasswordNode(MegaHandle node, const MegaNode::PasswordNodeDa
     pImpl->updatePasswordNode(node, newData, listener);
 }
 
+void MegaApi::importPasswordsFromFile(const char* filePath,
+                                      const int fileSource,
+                                      MegaHandle parent,
+                                      MegaRequestListener* listener)
+{
+    pImpl->importPasswordsFromFile(filePath, fileSource, parent, listener);
+}
+
 bool MegaApi::createLocalFolder(const char *localPath)
 {
     return pImpl->createLocalFolder(localPath);
@@ -2927,6 +2940,11 @@ void MegaApi::removeNodeTag(MegaNode* node, const char* tag, MegaRequestListener
 void MegaApi::updateNodeTag(MegaNode* node, const char* newTag, const char* oldTag, MegaRequestListener* listener)
 {
     pImpl->updateNodeTag(node, newTag, oldTag, listener);
+}
+
+MegaStringList* MegaApi::getAllNodeTags(const char* searchString, MegaCancelToken* cancelToken)
+{
+    return pImpl->getAllNodeTags(searchString, convertToCancelToken(cancelToken));
 }
 
 void MegaApi::exportNode(MegaNode *node, MegaRequestListener *listener)
@@ -4133,7 +4151,15 @@ MegaRecentActionBucketList* MegaApi::getRecentActions()
 
 void MegaApi::getRecentActionsAsync(unsigned days, unsigned maxnodes, MegaRequestListener *listener)
 {
-    return pImpl->getRecentActionsAsync(days, maxnodes, listener);
+    pImpl->getRecentActionsAsync(days, maxnodes, listener);
+}
+
+void MegaApi::getRecentActionsAsync(unsigned days,
+                                    unsigned maxnodes,
+                                    bool excludeSensitives,
+                                    MegaRequestListener* listener)
+{
+    pImpl->getRecentActionsAsync(days, maxnodes, excludeSensitives, listener);
 }
 
 bool MegaApi::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, bool recursive)
@@ -4319,46 +4345,6 @@ char *MegaApi::base32ToBase64(const char *base32)
 MegaNodeList* MegaApi::search(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken, const MegaSearchPage* searchPage)
 {
     return pImpl->search(filter, order, convertToCancelToken(cancelToken), searchPage);
-}
-
-MegaNodeList* MegaApi::search(MegaNode* n, const char* searchString, bool recursive, int order)
-{
-    return pImpl->search(n, searchString, CancelToken(), recursive, order);
-}
-
-MegaNodeList *MegaApi::search(MegaNode *n, const char *searchString, MegaCancelToken *cancelToken, bool recursive, int order)
-{
-    return pImpl->search(n, searchString, convertToCancelToken(cancelToken), recursive, order);
-}
-
-MegaNodeList *MegaApi::search(const char *searchString, int order)
-{
-    return pImpl->search(nullptr, searchString, CancelToken(), true, order);
-}
-
-MegaNodeList *MegaApi::search(const char *searchString, MegaCancelToken *cancelToken, int order)
-{
-    return pImpl->search(nullptr, searchString, convertToCancelToken(cancelToken), true, order);
-}
-
-MegaNodeList* MegaApi::searchOnInShares(const char *searchString, MegaCancelToken *cancelToken, int order)
-{
-    return pImpl->search(nullptr, searchString, convertToCancelToken(cancelToken), true, order, MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_INSHARE);
-}
-
-MegaNodeList* MegaApi::searchOnOutShares(const char *searchString, MegaCancelToken *cancelToken, int order)
-{
-    return pImpl->search(nullptr, searchString, convertToCancelToken(cancelToken), true, order, MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_OUTSHARE);
-}
-
-MegaNodeList* MegaApi::searchOnPublicLinks(const char *searchString, MegaCancelToken *cancelToken, int order)
-{
-    return pImpl->search(nullptr, searchString, convertToCancelToken(cancelToken), true, order, MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_PUBLICLINK);
-}
-
-MegaNodeList* MegaApi::searchByType(MegaNode *n, const char *searchString, MegaCancelToken *cancelToken, bool recursive, int order, int mimeType, int target, bool includeSensitive)
-{
-    return pImpl->search(n, searchString, convertToCancelToken(cancelToken), recursive, order, mimeType, target, includeSensitive);
 }
 
 long long MegaApi::getSize(MegaNode *n)
@@ -4554,11 +4540,6 @@ bool MegaApi::hasVersions(MegaNode *node)
 void MegaApi::getFolderInfo(MegaNode *node, MegaRequestListener *listener)
 {
     pImpl->getFolderInfo(node, listener);
-}
-
-MegaNodeList* MegaApi::getChildrenFromType(MegaNode* p, int type, int order, MegaCancelToken* cancelToken)
-{
-    return pImpl->getChildrenFromType(p, type, order, convertToCancelToken(cancelToken));
 }
 
 bool MegaApi::hasChildren(MegaNode *parent)
@@ -5863,6 +5844,11 @@ void MegaApi::disableExportSet(MegaHandle sid, MegaRequestListener *listener)
     return pImpl->disableExportSet(sid, listener);
 }
 
+int MegaApi::getSetElementHandleSize()
+{
+    return MegaApiImpl::getSetElementHandleSize();
+}
+
 void MegaApi::fetchPublicSet(const char* publicSetLink, MegaRequestListener* listener)
 {
     pImpl->fetchPublicSet(publicSetLink, listener);
@@ -6067,7 +6053,15 @@ void MegaApi::createNodeTree(const MegaNode* parentNode,
                              MegaNodeTree* nodeTree,
                              MegaRequestListener* listener)
 {
-    pImpl->createNodeTree(parentNode, nodeTree, listener);
+    pImpl->createNodeTree(parentNode, nodeTree, nullptr, listener);
+}
+
+void MegaApi::createNodeTree(const MegaNode* parentNode,
+                             MegaNodeTree* nodeTree,
+                             const char* customerIpPort,
+                             MegaRequestListener* listener)
+{
+    pImpl->createNodeTree(parentNode, nodeTree, customerIpPort, listener);
 }
 
 MegaIntegerList* MegaApi::getEnabledNotifications()

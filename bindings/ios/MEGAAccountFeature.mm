@@ -42,7 +42,6 @@ using namespace mega;
 
     return self;
 }
-
 - (void)dealloc {
     if (self.cMemoryOwn) {
         delete _megaAccountFeature;

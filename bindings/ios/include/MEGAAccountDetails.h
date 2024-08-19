@@ -2,7 +2,7 @@
  * @file MEGAAccountDetails.h
  * @brief Details about a MEGA account
  *
- * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
+ * (c) 2024 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -20,29 +20,15 @@
  */
 #import <Foundation/Foundation.h>
 #import "MEGAAccountFeature.h"
+#import "MEGAAccountFeature.h"
+#import "MEGAAccountPlan.h"
+#import "MEGAAccountSubscription.h"
+#import "MEGASubscriptionStatus.h"
+#import "MEGAAccountType.h"
 #import "MEGAPaymentMethod.h"
 #import "MEGAStringIntegerMap.h"
 
 NS_ASSUME_NONNULL_BEGIN
-
-typedef NS_ENUM (NSInteger, MEGAAccountType) {
-    MEGAAccountTypeFree = 0,
-    MEGAAccountTypeProI = 1,
-    MEGAAccountTypeProII = 2,
-    MEGAAccountTypeProIII = 3,
-    MEGAAccountTypeLite = 4,
-    MEGAAccountTypeStarter = 11,
-    MEGAAccountTypeBasic = 12,
-    MEGAAccountTypeEssential = 13,
-    MEGAAccountTypeBusiness = 100,
-    MEGAAccountTypeProFlexi = 101
-};
-
-typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
-    MEGASubscriptionStatusNone = 0,
-    MEGASubscriptionStatusValid = 1,
-    MEGASubscriptionStatusInvalid = 2
-};
 
 /**
  * @brief Details about a MEGA account.
@@ -246,6 +232,39 @@ typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
 - (long long)numberOfVersionFilesForHandle:(uint64_t)handle;
 
 + (nullable NSString *)stringForAccountType:(MEGAAccountType)accountType;
+
+/**
+ * @brief Get the number of active plans in the account.
+ *
+ * @return Number of active plans
+ */
+@property (readonly, nonatomic) NSInteger numberOfPlans;
+
+/**
+ * @brief Returns the MEGAAccountPlan object associated with an index
+ *
+ * @param index Index of the object
+ * @return MEGAAccountPlan object
+ */
+- (nullable MEGAAccountPlan *)planAtIndex:(NSInteger)index;
+
+/**
+ * @brief Get the number of active subscriptions in the account.
+ *
+ * You can use [MEGAAccountDetails subscription] to get each of those objects.
+ *
+ * @return Number of active subscriptions
+ */
+@property (readonly, nonatomic) NSInteger numberOfSubscriptions;
+
+/**
+ * @brief Returns the MEGAAccountSubscription object associated with an index
+ *
+ *
+ * @param index Index of the object
+ * @return MEGAAccountSubscription object
+ */
+- (nullable MEGAAccountSubscription *)subscriptionAtIndex:(NSInteger)index;
 
 NS_ASSUME_NONNULL_END
 

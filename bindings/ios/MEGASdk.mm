@@ -2203,6 +2203,12 @@ using namespace mega;
     }
 }
 
+- (void)creditCardCancelSubscriptions:(nullable NSString *)reason subscriptionId:(nullable NSString *)subscriptionId canContact:(BOOL)canContact delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->creditCardCancelSubscriptions(reason.UTF8String, subscriptionId.UTF8String, canContact, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
 - (void)changePassword:(NSString *)oldPassword newPassword:(NSString *)newPassword delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->changePassword(oldPassword.UTF8String, newPassword.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
@@ -3241,32 +3247,6 @@ using namespace mega;
     return [[MEGAError alloc] initWithMegaError:self.megaApi->checkMoveErrorExtended(node.getCPtr, target.getCPtr) cMemoryOwn:YES];
 }
 
-- (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString recursive:(BOOL)recursive {
-    if (self.megaApi == nil) return nil;
-    return [[MEGANodeList alloc] initWithNodeList:self.megaApi->search(node.getCPtr, searchString.UTF8String, recursive) cMemoryOwn:YES];
-}
-
-- (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString cancelToken:(MEGACancelToken *)cancelToken recursive:(BOOL)recursive order:(MEGASortOrderType)order {
-    if (self.megaApi == nil) return nil;
-    return [MEGANodeList.alloc initWithNodeList:self.megaApi->search(node.getCPtr, searchString.UTF8String, cancelToken.getCPtr, recursive, (int)order) cMemoryOwn:YES];
-}
-
-- (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString {
-    if (self.megaApi == nil) return nil;
-    return [[MEGANodeList alloc] initWithNodeList:self.megaApi->search(node.getCPtr, searchString.UTF8String, YES) cMemoryOwn:YES];
-}
-
-- (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node
-                           searchString:(nullable NSString *)searchString
-                            cancelToken:(MEGACancelToken *)cancelToken
-                              recursive:(BOOL)recursive
-                              orderType:(MEGASortOrderType)orderType
-                         nodeFormatType:(MEGANodeFormatType)nodeFormatType
-                       folderTargetType:(MEGAFolderTargetType)folderTargetType {
-    if (self.megaApi == nil) return nil;
-    return [MEGANodeList.alloc initWithNodeList:self.megaApi->searchByType(node.getCPtr, searchString.UTF8String, cancelToken.getCPtr, recursive, (int)orderType, (int)nodeFormatType, (int)folderTargetType) cMemoryOwn:YES];
-}
-
 - (MEGANodeList *)searchWith:(MEGASearchFilter *)filter
                    orderType:(MEGASortOrderType)orderType
                         page:(nullable MEGASearchPage *)page
@@ -3281,21 +3261,6 @@ using namespace mega;
 
     if (self.megaApi == nil) return nil;
     return [MEGANodeList.alloc initWithNodeList:self.megaApi->getChildren([self generateSearchFilterFrom: filter], (int)orderType, cancelToken.getCPtr, [self generateSearchPageFrom:page]) cMemoryOwn:YES];
-}
-
-- (MEGANodeList *)nodeListSearchOnInSharesByString:(NSString *)searchString cancelToken:(MEGACancelToken *)cancelToken order:(MEGASortOrderType)order {
-    if (self.megaApi == nil) return nil;
-    return [MEGANodeList.alloc initWithNodeList:self.megaApi->searchOnInShares(searchString.UTF8String, cancelToken.getCPtr, (int)order) cMemoryOwn:YES];
-}
-
-- (MEGANodeList *)nodeListSearchOnOutSharesByString:(NSString *)searchString cancelToken:(MEGACancelToken *)cancelToken order:(MEGASortOrderType)order {
-    if (self.megaApi == nil) return nil;
-    return [MEGANodeList.alloc initWithNodeList:self.megaApi->searchOnOutShares(searchString.UTF8String, cancelToken.getCPtr, (int)order) cMemoryOwn:YES];
-}
-
-- (MEGANodeList *)nodeListSearchOnPublicLinksByString:(NSString *)searchString cancelToken:(MEGACancelToken *)cancelToken order:(MEGASortOrderType)order {
-    if (self.megaApi == nil) return nil;
-    return [MEGANodeList.alloc initWithNodeList:self.megaApi->searchOnPublicLinks(searchString.UTF8String, cancelToken.getCPtr, (int)order) cMemoryOwn:YES];
 }
 
 - (void)getRecentActionsAsyncSinceDays:(NSInteger)days maxNodes:(NSInteger)maxNodes delegate:(id<MEGARequestDelegate>)delegate {

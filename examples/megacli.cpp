@@ -19,21 +19,25 @@
  * program.
  */
 
+#include "megacli.h"
+
 #include "mega.h"
 #include "mega/arguments.h"
 #include "mega/filesystem.h"
 #include "mega/gfx.h"
-#include "megacli.h"
+#include "mega/pwm_file_parser.h"
+#include "mega/testhooks.h"
+
+#include <bitset>
+#include <charconv>
 #include <chrono>
 #include <exception>
 #include <fstream>
-#include <bitset>
 #include <iostream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 #include <vector>
-#include "mega/testhooks.h"
 
 #if defined(_WIN32) && defined(_DEBUG)
 // so we can delete a secret internal CrytpoPP singleton
@@ -5055,27 +5059,33 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_fetchcreditcardinfo, text("cci"));
 
     p->Add(exec_passwordmanager,
-        sequence(text("pwdman"),
-                 either(text("list"),
-                        text("getbase"),
-                        text("createbase"),
-                        text("removebase"),
-                        sequence(text("newfolder"), param("parenthandle"), param("name")),
-                        sequence(text("renamefolder"), param("handle"), param("name")),
-                        sequence(text("removefolder"), param("handle")),
-                        sequence(text("newentry"), param("parenthandle"), param("name"), param("pwd"),
-                                 opt(sequence(flag("-url"), param("url"))),
-                                 opt(sequence(flag("-u"), param("username"))),
-                                 opt(sequence(flag("-n"), param("notes")))),
-                        sequence(text("getentrydata"), param("nodehandle")),
-                        sequence(text("renameentry"), param("nodehandle"), param("name")),
-                        sequence(text("updateentry"), param("nodehandle"),
-                                 opt(sequence(flag("-p"), param("pwd"))),
-                                 opt(sequence(flag("-url"), param("url"))),
-                                 opt(sequence(flag("-u"), param("username"))),
-                                 opt(sequence(flag("-n"), param("note")))),
-                        sequence(text("removeentry"), param("nodehandle"))
-                        )));
+           sequence(text("pwdman"),
+                    either(text("list"),
+                           text("getbase"),
+                           text("createbase"),
+                           text("removebase"),
+                           sequence(text("newfolder"), param("parenthandle"), param("name")),
+                           sequence(text("renamefolder"), param("handle"), param("name")),
+                           sequence(text("removefolder"), param("handle")),
+                           sequence(text("newentry"),
+                                    param("parenthandle"),
+                                    param("name"),
+                                    param("pwd"),
+                                    opt(sequence(flag("-url"), param("url"))),
+                                    opt(sequence(flag("-u"), param("username"))),
+                                    opt(sequence(flag("-n"), param("notes")))),
+                           sequence(text("newentries"),
+                                    param("parenthandle"),
+                                    repeat(sequence(param("name"), param("uname"), param("pwd")))),
+                           sequence(text("getentrydata"), param("nodehandle")),
+                           sequence(text("renameentry"), param("nodehandle"), param("name")),
+                           sequence(text("updateentry"),
+                                    param("nodehandle"),
+                                    opt(sequence(flag("-p"), param("pwd"))),
+                                    opt(sequence(flag("-url"), param("url"))),
+                                    opt(sequence(flag("-u"), param("username"))),
+                                    opt(sequence(flag("-n"), param("note")))),
+                           sequence(text("removeentry"), param("nodehandle")))));
 
     p->Add(exec_generatepassword,
            sequence(text("generatepassword"),
@@ -5085,6 +5095,9 @@ autocomplete::ACN autocompleteSyntax()
                                     opt(flag("-useDigits")),
                                     opt(flag("-useSymbols")))
                         )));
+
+    p->Add(exec_importpasswordsfromgooglefile,
+           sequence(text("importpasswordsgoogle"), localFSPath("file"), param("parenthandle")));
 
     p->Add(exec_fusedb,
            sequence(text("fuse"),
@@ -8801,7 +8814,41 @@ void exec_recentnodes(autocomplete::ACState& s)
 {
     if (s.words.size() == 3)
     {
-        sharedNode_vector nv = client->mNodeManager.getRecentNodes(atoi(s.words[2].s.c_str()), m_time() - 60 * 60 * atoi(s.words[1].s.c_str()));
+        int maxElements{};
+        if (auto [ptr, ec] = std::from_chars(s.words[2].s.data(),
+                                             s.words[2].s.data() + s.words[2].s.size(),
+                                             maxElements);
+            ec != std::errc{})
+        {
+            std::cout << "Invalid max elements parameter" << endl;
+            return;
+        }
+
+        int time{};
+        if (auto [ptr, ec] = std::from_chars(s.words[1].s.data(),
+                                             s.words[1].s.data() + s.words[1].s.size(),
+                                             time);
+            ec != std::errc{})
+        {
+            std::cout << "Invalid duration parameter" << endl;
+            return;
+        }
+
+        NodeSearchFilter filter;
+        filter.byAncestors({client->mNodeManager.getRootNodeFiles().as8byte(),
+                            client->mNodeManager.getRootNodeVault().as8byte(),
+                            UNDEF});
+
+        filter.byCreationTimeLowerLimitInSecs(m_time() - 60 * 60 * time);
+        filter.bySensitivity(NodeSearchFilter::BoolFilter::onlyTrue);
+        filter.byNodeType(FILENODE);
+        filter.setIncludedShares(IN_SHARES);
+        sharedNode_vector nv =
+            client->mNodeManager.searchNodes(filter,
+                                             OrderByClause::CTIME_DESC,
+                                             CancelToken(),
+                                             NodeSearchPage{0, static_cast<size_t>(maxElements)});
+
         for (unsigned i = 0; i < nv.size(); ++i)
         {
             cout << nv[i]->displaypath() << endl;
@@ -8829,7 +8876,11 @@ void exec_autocomplete(autocomplete::ACState& s)
 
 void exec_recentactions(autocomplete::ACState& s)
 {
-    recentactions_vector nvv = client->getRecentActions(atoi(s.words[2].s.c_str()), m_time() - 60 * 60 * atoi(s.words[1].s.c_str()));
+    recentactions_vector nvv =
+        client->getRecentActions(atoi(s.words[2].s.c_str()),
+                                 m_time() - 60 * 60 * atoi(s.words[1].s.c_str()),
+                                 true /*exclude sensitives*/);
+
     for (unsigned i = 0; i < nvv.size(); ++i)
     {
         if (i != 0)
@@ -9822,7 +9873,7 @@ dstime DemoApp::pread_failure(const Error &e, int retry, void* /*appdata*/, dsti
             delete pread_file;
             pread_file = NULL;
         }
-        return ~(dstime)0;
+        return NEVER;
     }
 }
 
@@ -12426,10 +12477,27 @@ void exec_searchbyname(autocomplete::ACState &s)
             return;
         }
 
-        std::string searchString = s.words[1].s;
-        Node::Flags exclusiveRecuriveFlags;
-        exclusiveRecuriveFlags.set(Node::FLAGS_IS_MARKED_SENSTIVE, noSensitive);
-        sharedNode_vector nodes = client->mNodeManager.search(nodeHandle, searchString.c_str(), recursive, Node::Flags(), Node::Flags(), exclusiveRecuriveFlags, CancelToken());
+        NodeSearchFilter filter;
+        filter.byAncestors({nodeHandle.as8byte(), UNDEF, UNDEF});
+        filter.byName(s.words[1].s);
+        filter.bySensitivity(noSensitive ? NodeSearchFilter::BoolFilter::onlyTrue :
+                                           NodeSearchFilter::BoolFilter::disabled);
+
+        sharedNode_vector nodes;
+        if (recursive)
+        {
+            nodes = client->mNodeManager.searchNodes(filter,
+                                                     0 /*Order none*/,
+                                                     CancelToken(),
+                                                     NodeSearchPage{0, 0});
+        }
+        else
+        {
+            nodes = client->mNodeManager.getChildren(filter,
+                                                     0 /*Order none*/,
+                                                     CancelToken(),
+                                                     NodeSearchPage{0, 0});
+        }
 
         for (const auto& node : nodes)
         {
@@ -12983,6 +13051,34 @@ void exec_passwordmanager(autocomplete::ACState& s)
 
         client->createPasswordNode(name, std::move(pwdData), nParent, 0);
     }
+    else if (command == "newentries")
+    {
+        if (s.words.size() <= 3)
+        {
+            cout << "Nothing to do\n";
+            return;
+        }
+        auto ph = getNodeHandleFromParam(2);
+        auto nParent = client->nodeByHandle(ph);
+        if (!nParent)
+        {
+            cout << "Wrong parent handle provided " << toNodeHandle(ph) << "\n";
+            return;
+        }
+        size_t currentReadIndex = 3;
+        const size_t nWords = s.words.size();
+        std::map<std::string, std::unique_ptr<AttrMap>> info;
+        while (currentReadIndex < nWords)
+        {
+            auto name = s.words[currentReadIndex++].s.c_str();
+            auto userName = s.words[currentReadIndex++].s.c_str();
+            auto pwd = s.words[currentReadIndex++].s.c_str();
+            assert(*name && *userName && *pwd);
+            auto pwdData = createPwdData(std::string{pwd}, "", std::string{userName}, "");
+            info[std::move(name)] = std::move(pwdData);
+        }
+        client->createPasswordNodes(std::move(info), nParent, 0);
+    }
     else if (command == "getentrydata")
     {
         if (!moreParamsThan(2)) return;
@@ -13067,6 +13163,66 @@ void exec_generatepassword(autocomplete::ACState& s)
 
         if (pwd.empty()) cout << "Error generating the password. Please check the logs (if active)\n";
         else cout << "Characers-based password successfully generated: " << pwd << "\n";
+    }
+}
+
+void exec_importpasswordsfromgooglefile(autocomplete::ACState& s)
+{
+    auto localname = localPathArg(s.words[1].s);
+    handle nh;
+    Base64::atob(s.words[2].s.c_str(), (byte*)&nh, MegaClient::NODEHANDLE);
+    NodeHandle parentHandle{};
+    parentHandle.set6byte(nh);
+
+    if (parentHandle.isUndef())
+    {
+        cout << "Parent handle is undef" << endl;
+        return;
+    }
+
+    std::shared_ptr<Node> parent = client->mNodeManager.getNodeByHandle(parentHandle);
+    if (!parent || !parent->isPasswordNodeFolder())
+    {
+        cout << "Invalid parent" << endl;
+        return;
+    }
+
+    using namespace pwm::import;
+    PassFileParseResult parserResult =
+        readPasswordImportFile(localname.platformEncoded(), FileSource::GOOGLE_PASSWORD);
+    if (parserResult.mErrCode != PassFileParseResult::ErrCode::OK)
+    {
+        cout << "Error importing file: " << parserResult.mErrMsg << endl;
+        return;
+    }
+
+    sharedNode_list children = client->getChildren(parent.get());
+    std::vector<std::string> childrenNames;
+    std::transform(children.begin(),
+                   children.end(),
+                   std::back_inserter(childrenNames),
+                   [](const std::shared_ptr<Node>& child) -> std::string
+                   {
+                       return child->displayname();
+                   });
+    ncoll::NameCollisionSolver solver{std::move(childrenNames)};
+
+    const auto [badEntries, goodEntries] =
+        MegaClient::validatePasswordEntries(std::move(parserResult.mResults), solver);
+
+    std::cout << "Imported passwords: " << goodEntries.size()
+              << "  Row with Error: " << badEntries.size() << endl;
+
+    client->createPasswordNodes(std::move(goodEntries), parent, 0);
+
+    if (!client->isClientType(MegaClient::ClientType::PASSWORD_MANAGER))
+    {
+        std::cout
+            << "\n*****\n"
+            << "* Password Manager commands executed in a non-Password Manager MegaClient type.\n"
+            << "* Be wary of implications regarding fetch nodes and action packets received.\n"
+            << "* Check megacli help to start it as a Password Manager MegaClient type.\n"
+            << "*****\n\n";
     }
 }
 

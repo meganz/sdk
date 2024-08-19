@@ -183,7 +183,7 @@ class MEGA_API SpeedController
 {
 public:
     // Size of the circular buffer used to calculate the circular mean speed (in seconds).
-    static const size_t SPEED_MEAN_CIRCULAR_BUFFER_SIZE_SECONDS = 5;
+    static const dstime SPEED_MEAN_CIRCULAR_BUFFER_SIZE_SECONDS = 5;
     // Constant representing the number of deciseconds in one second.
     static constexpr dstime DS_PER_SECOND = 10;
 

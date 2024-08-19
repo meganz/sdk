@@ -476,15 +476,30 @@ TEST(CacheLRU, searchNode) // processUnserializedNodes
     ASSERT_GT(names.size(), 1);
 
     // No found at LRU
-    mega::sharedNode_vector nodes(client->mNodeManager.search(mega::NodeHandle(), names.front().c_str(), true, mega::Node::Flags(), mega::Node::Flags(), mega::Node::Flags(), mega::CancelToken()));
+    mega::NodeSearchFilter searchFilter;
+    searchFilter.byAncestors({rootNode.nodehandle, mega::UNDEF, mega::UNDEF});
+    searchFilter.byName(names.front());
+    mega::sharedNode_vector nodes(client->mNodeManager.searchNodes(searchFilter,
+                                                                   0 /*order None*/,
+                                                                   mega::CancelToken(),
+                                                                   mega::NodeSearchPage{0, 0}));
     ASSERT_EQ(nodes.size(), 1);
 
     // No found at LRU but in RAM
-    nodes = (client->mNodeManager.search(mega::NodeHandle(), nameNodeInRam.c_str(), true, mega::Node::Flags(), mega::Node::Flags(), mega::Node::Flags(), mega::CancelToken()));
+    searchFilter.byName(nameNodeInRam);
+    nodes = client->mNodeManager.searchNodes(searchFilter,
+                                             0 /*order None*/,
+                                             mega::CancelToken(),
+                                             mega::NodeSearchPage{0, 0});
     ASSERT_EQ(nodes.size(), 1);
 
     //Found at LRU
-    nodes = client->mNodeManager.search(mega::NodeHandle(), names.back().c_str(), true, mega::Node::Flags(), mega::Node::Flags(), mega::Node::Flags(), mega::CancelToken());
+    searchFilter.byName(names.back());
+    nodes = client->mNodeManager.searchNodes(searchFilter,
+                                             0 /*order None*/,
+                                             mega::CancelToken(),
+                                             mega::NodeSearchPage{0, 0});
+    ASSERT_EQ(nodes.size(), 1);
     ASSERT_EQ(nodes.size(), 1);
 }
 

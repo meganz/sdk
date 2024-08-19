@@ -886,7 +886,14 @@ error MegaClient::setbackupfolder(const char* foldername, int tag, std::function
             -1, UNDEF, 0, 0, addua_completion);
     };
 
-    putnodes(mNodeManager.getRootNodeVault(), NoVersioning, std::move(newnodes), nullptr, tag, true, addua);
+    putnodes(mNodeManager.getRootNodeVault(),
+             NoVersioning,
+             std::move(newnodes),
+             nullptr,
+             tag,
+             true,
+             {}, // customerIpPort
+             addua);
     // Note: this request should not finish until the user's attribute is set successfully
 
     return API_OK;
@@ -4838,6 +4845,9 @@ bool MegaClient::procsc()
                 case MAKENAMEID2('s', 'n'):
                     // the sn element is guaranteed to be the last in sequence (except for notification requests (c=50))
                     scsn.setScsn(&jsonsc);
+                    // At this point no CurrentSeqtag should be seen. mCurrentSeqtagSeen is set true
+                    // when action package is processed and the seq tag matches with mCurrentSeqtag
+                    assert(!mCurrentSeqtagSeen);
                     notifypurge();
                     if (sctable)
                     {
@@ -5032,7 +5042,6 @@ bool MegaClient::procsc()
 
                     if (!insca_notlast)
                     {
-                        sc_checkSequenceTag(string());
                         if (mReceivingCatchUp)
                         {
                             mReceivingCatchUp = false;
@@ -5085,6 +5094,7 @@ bool MegaClient::procsc()
             auto actionpacketStart = jsonsc.pos;
             if (jsonsc.enterobject())
             {
+                // Check if it is ok to process the current action packet.
                 if (!sc_checkActionPacket(lastAPDeletedNode.get()))
                 {
                     // We can't continue actionpackets until we know the next mCurrentSeqtag to match against, wait for the CS request to deliver it.
@@ -5319,6 +5329,11 @@ bool MegaClient::procsc()
             }
             else
             {
+                // No more Actions Packets. Force it to advance and process all the remaining
+                // command responses until a new "st" is found, if any.
+                // It will also process the latest command response associated (by the Sequence Tag)
+                // with the latest AP processed here.
+                sc_checkSequenceTag(string());
                 jsonsc.leavearray();
                 insca = false;
             }
@@ -5925,19 +5940,40 @@ error MegaClient::smsverificationcheck(const std::string &verificationCode)
     return API_OK;
 }
 
+// It evaluates if the sequence tag matches, if it is ahead of the currently
+// expected one for the request or if the expected tag has not arrived yet.
+//
+// When the tag parameter is not empty:
+// It returns true when the tag matches the expected in the request or if the "st" in the AP is
+// below the expected one for the next command response so it is safe to continue.
+// If the tag in the AP is ahead of the expected in the command and it has been seen it calls
+// reqs.continueProcessing(this) to continue processing the commands until the next "st" is found
+// in a command.
+// It returns false when we don't know the next tag yet (no response for request has been received)
+//
+// When the tag parameter is empty:
+// It always returns true.
+// When the expected tag has been already seen, it calls reqs.continueProcessing(this)
+// to continue processing the commands responses. It may find another command with an "st".
+// This may happen while processing an Action Packet with no "st" or when there are no more
+// Action Packets to be processed, so we let the pending command responses to be processed.
 bool MegaClient::sc_checkSequenceTag(const string& tag)
 {
     if (tag.empty())
     {
         if (!mCurrentSeqtag.empty() && mCurrentSeqtagSeen)
         {
+            // Special case to process commands when the current AP has no tag (or there are no
+            // more APs). Needed to process the command associated with the previous Action Packet
+            // or other commands which don't have Sequence Tag.
             LOG_verbose << clientname << "st tag exhausted for " << mCurrentSeqtag;
             reqs.continueProcessing(this);
         }
 
         if (!mLastReceivedScSeqTag.empty())
         {
-            // we've reached the end of a set of actionpackets, with a latest st to report
+            // We've reached the end of a sequence of actionpackets with "st"
+            // Report the latest "st".
             app->sequencetag_update(mLastReceivedScSeqTag);
             LOG_debug << "updated seqtag: " << mLastReceivedScSeqTag;
             mLastReceivedScSeqTag.clear();
@@ -5959,11 +5995,11 @@ bool MegaClient::sc_checkSequenceTag(const string& tag)
 
         for (;;)
         {
-            if (mCurrentSeqtag.empty())
+            if (mCurrentSeqtag.empty()) // No commands are expecting any Sequence Tag
             {
                 if (reqs.cmdsInflight())
                 {
-                    LOG_verbose << clientname << "st tag " << tag << " wait for cs requests";
+                    LOG_verbose << clientname << "st tag " << tag << ". Wait for cs response to arrive";
                     return false;  // we can't tell yet if a command will give us a tag to wait for
                 }
                 else
@@ -5976,18 +6012,23 @@ bool MegaClient::sc_checkSequenceTag(const string& tag)
                     return true;  // nothing pending, process everything
                 }
             }
-            else
+            else // We have received the cs response and we know the current (expected) tag
             {
                 if (tag == mCurrentSeqtag)
                 {
-                    LOG_verbose << clientname << "st tag " << tag << " matched";
+                    // Tag in the Action Packet is the one we are expecting for the command
+                    // response.
+                    LOG_verbose << clientname << "st tag " << tag
+                                << " matched with the next command response.";
                     // there may be more than one, process until a different one arrives
                     mCurrentSeqtagSeen = true;
                     return true;
                 }
                 else if (mCurrentSeqtagSeen)
                 {
-                    LOG_verbose << clientname << "st tag " << tag << " processing for " << mCurrentSeqtag;
+                    // Action Packet tag is ahead of our current expected one, which we have already seen.
+                    // Continue processing command responses until we found a new "st".
+                    LOG_verbose << clientname << "st tag " << tag << ". Processing commands starting at " << mCurrentSeqtag;
                     reqs.continueProcessing(this);
                     continue;   // we may have a new mCurrentSeqtag now
                 }
@@ -6005,9 +6046,13 @@ bool MegaClient::sc_checkSequenceTag(const string& tag)
     }
 }
 
+// Looks for the "st" in the action packet, if any.
+// It calls sc_checkSequenceTag to know if we can continue processing
+// this action packet or if we have to wait.
+// True: Action Packet can be processed.
+// False: Stop processing Action Packets, wait for cs response.
 bool MegaClient::sc_checkActionPacket(Node* lastAPDeletedNode)
 {
-    string tag;
     nameid cmd = 0;
 
     for (;;)
@@ -6023,8 +6068,11 @@ bool MegaClient::sc_checkActionPacket(Node* lastAPDeletedNode)
             break;
 
         case MAKENAMEID2('s', 't'): // sequence tag
+        {
+            string tag;
             jsonsc.storeobject(&tag);
             return sc_checkSequenceTag(tag);
+        }
 
         default:
             // if we reach any other tag, then 'st' is not present.
@@ -6038,12 +6086,11 @@ bool MegaClient::sc_checkActionPacket(Node* lastAPDeletedNode)
             }
             else
             {
-                return sc_checkSequenceTag(tag);
+                // Action Packet with no Sequence Tag.
+                return sc_checkSequenceTag(string());
             }
         }
-
     }
-    return true;
 }
 
 
@@ -8418,8 +8465,17 @@ shared_ptr<Node> MegaClient::nodeByPath(const char* path, std::shared_ptr<Node> 
                     continue;
                 }
 
-                if (*path == '/' || !*path)
+                if (*path == '/' || *path == ':' || !*path)
                 {
+                    if (*path == ':')
+                    {
+                        if (c.size())
+                        {
+                            return NULL;
+                        }
+                        remote = 1;
+                    }
+
                     if (path > bptr)
                     {
                         s.append(bptr, path - bptr);
@@ -8933,9 +8989,26 @@ void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldern
 }
 
 // send new nodes to API for processing
-void MegaClient::putnodes(NodeHandle h, VersioningOption vo, vector<NewNode>&& newnodes, const char *cauth, int tag, bool canChangeVault, CommandPutNodes::Completion&& resultFunction)
+void MegaClient::putnodes(NodeHandle h,
+                          VersioningOption vo,
+                          vector<NewNode>&& newnodes,
+                          const char* cauth,
+                          int tag,
+                          bool canChangeVault,
+                          string customerIpPort,
+                          CommandPutNodes::Completion&& resultFunction)
 {
-    reqs.add(new CommandPutNodes(this, h, NULL, vo, std::move(newnodes), tag, PUTNODES_APP, cauth, std::move(resultFunction), canChangeVault));
+    reqs.add(new CommandPutNodes(this,
+                                 h,
+                                 NULL,
+                                 vo,
+                                 std::move(newnodes),
+                                 tag,
+                                 PUTNODES_APP,
+                                 cauth,
+                                 std::move(resultFunction),
+                                 canChangeVault,
+                                 customerIpPort));
 }
 
 // drop nodes into a user's inbox (must have RSA keypair) - obsolete feature, kept for sending logs to helpdesk
@@ -14646,39 +14719,57 @@ void MegaClient::handleDbError(DBError error)
 
 void MegaClient::fatalError(ErrorReason errorReason)
 {
-    if (mLastErrorDetected != errorReason)
+    // Return early for repeated errorReason
+    if (mLastErrorDetected == errorReason)
     {
+        return;
+    }
+
+    // Remember the new errorReason
+    mLastErrorDetected = errorReason;
+
+    // Disable sync.
+    // Sync is not enabled in case of ErrorReason::REASON_ERROR_NO_JSCD,
+    // therefore no need to disable it.
 #ifdef ENABLE_SYNC
+    if (errorReason != ErrorReason::REASON_ERROR_NO_JSCD)
+    {
         syncs.disableSyncs(FAILURE_ACCESSING_PERSISTENT_STORAGE, false, true);
+    }
 #endif
 
-        std::string reason;
-        switch (errorReason)
-        {
-            case ErrorReason::REASON_ERROR_DB_IO:
-                sendevent(99467, "Writing in DB error", 0);
-                reason = "Failed to write to database";
-                break;
-            case ErrorReason::REASON_ERROR_UNSERIALIZE_NODE:
-                reason = "Failed to unserialize a node";
-                sendevent(99468, "Failed to unserialize node", 0);
-                break;
-            case ErrorReason::REASON_ERROR_DB_FULL:
-                reason = "Data base is full";
-                break;
-            case ErrorReason::REASON_ERROR_DB_INDEX_OVERFLOW:
-                reason = "DB index overflow";
-                sendevent(99471, "DB index overflow", 0);
-                break;
-            default:
-                reason = "Unknown reason";
-                break;
-        }
-
-        mLastErrorDetected = errorReason;
-        app->notifyError(reason.c_str(), errorReason);
-        // TODO: maybe it's worth a locallogout
+    // Get Reason and send events
+    std::string reason;
+    switch (errorReason)
+    {
+        case ErrorReason::REASON_ERROR_DB_IO:
+            reason = "Writing in DB error";
+            sendevent(99467, reason.c_str(), 0);
+            break;
+        case ErrorReason::REASON_ERROR_UNSERIALIZE_NODE:
+            reason = "Failed to unserialize node";
+            sendevent(99468, reason.c_str(), 0);
+            break;
+        case ErrorReason::REASON_ERROR_DB_FULL:
+            reason = "Database is full";
+            // No event as we cannot do anything
+            break;
+        case ErrorReason::REASON_ERROR_DB_INDEX_OVERFLOW:
+            reason = "DB index overflow";
+            sendevent(99471, reason.c_str(), 0);
+            break;
+        case ErrorReason::REASON_ERROR_NO_JSCD:
+            reason = "Failed to get JSON SYNC configuration data";
+            sendevent(99488, reason.c_str(), 0);
+            break;
+        default:
+            reason = "Unknown reason";
+            break;
     }
+
+    // Notify
+    app->notifyError(reason.c_str(), errorReason);
+    // TODO: maybe it's worth a locallogout
 }
 
 bool MegaClient::accountShouldBeReloadedOrRestarted() const
@@ -16718,9 +16809,18 @@ void MegaClient::preparebackup(SyncConfig sc, std::function<void(Error, SyncConf
 
     // create the new node(s)
     putnodes(deviceNameNode ? deviceNameNode->nodeHandle() : myBackupsNode->nodeHandle(),
-             NoVersioning, std::move(newnodes), nullptr, reqtag, true,
-             [completion, sc, this](const Error& e, targettype_t, vector<NewNode>& nn, bool targetOverride, int tag){
-
+             NoVersioning,
+             std::move(newnodes),
+             nullptr,
+             reqtag,
+             true,
+             {}, // customerIpPort
+             [completion, sc, this](const Error& e,
+                                    targettype_t,
+                                    vector<NewNode>& nn,
+                                    bool targetOverride,
+                                    int tag)
+             {
                 if (e)
                 {
                     completion(e, sc, nullptr);
@@ -16795,25 +16895,43 @@ void MegaClient::execmovetosyncdebris(Node* requestedNode, std::function<void(No
                     tc.allocnodes();
                     proctree(n, &tc, false, false);
                     tc.nn[0].parenthandle = UNDEF;
-                    putnodes(debrisTarget->nodeHandle(), NoVersioning, std::move(tc.nn), nullptr, reqtag, rec.mCanChangeVault, [this, rec](const Error&e, targettype_t, vector<NewNode>&, bool, int)
-                    {
-                        if (e)
-                        {
-                            LOG_warn << "Error copying files at SyncDebris folder, continue process (remove them)";
-                        }
+                    putnodes(debrisTarget->nodeHandle(),
+                             NoVersioning,
+                             std::move(tc.nn),
+                             nullptr,
+                             reqtag,
+                             rec.mCanChangeVault,
+                             {}, // customerIpPort
+                             [this, rec](const Error& e,
+                                         targettype_t,
+                                         vector<NewNode>&,
+                                         bool,
+                                         int)
+                             {
+                                 if (e)
+                                 {
+                                     LOG_warn << "Error copying files at SyncDebris folder, "
+                                                 "continue process (remove them)";
+                                 }
 
-                        if (std::shared_ptr<Node> n = nodeByHandle(rec.nodeHandle))
-                        {
-                            unlink(n.get(), false, 0, false, [rec](NodeHandle, Error e)
-                            {
-                                if (rec.completion) rec.completion(rec.nodeHandle, e);
-                            });
-                        }
-                        else
-                        {
-                            if (rec.completion) rec.completion(rec.nodeHandle, API_EEXIST);
-                        }
-                    });
+                                 if (std::shared_ptr<Node> n = nodeByHandle(rec.nodeHandle))
+                                 {
+                                     unlink(n.get(),
+                                            false,
+                                            0,
+                                            false,
+                                            [rec](NodeHandle, Error e)
+                                            {
+                                                if (rec.completion)
+                                                    rec.completion(rec.nodeHandle, e);
+                                            });
+                                 }
+                                 else
+                                 {
+                                     if (rec.completion)
+                                         rec.completion(rec.nodeHandle, API_EEXIST);
+                                 }
+                             });
                 }
             }
             else
@@ -16905,7 +17023,9 @@ std::shared_ptr<Node> MegaClient::getOrCreateSyncdebrisFolder()
             // on completion, send the queued nodes
             LOG_debug << "Daily cloud SyncDebris folder created. Trigger remaining debris moves: " << pendingDebris.size();
             execmovetosyncdebris(nullptr, nullptr, false, false);
-        }, false));
+        },
+        false,
+        {})); // customerIpPort
     return nullptr;
 }
 
@@ -17594,9 +17714,40 @@ bool MegaClient::treatAsIfFileDataEqual(const FileFingerprint& fp1, const string
 
 recentactions_vector MegaClient::getRecentActions(unsigned maxcount, m_time_t since)
 {
-    recentactions_vector rav;
     sharedNode_vector v = mNodeManager.getRecentNodes(maxcount, since);
 
+    return getRecentActionsFromSharedNodeVector(std::move(v));
+}
+
+recentactions_vector MegaClient::getRecentActions(unsigned maxcount,
+                                                  m_time_t since,
+                                                  bool excludeSensitives)
+{
+    sharedNode_vector v;
+
+    NodeSearchFilter filter;
+    filter.byAncestors({mNodeManager.getRootNodeFiles().as8byte(),
+                        mNodeManager.getRootNodeVault().as8byte(),
+                        UNDEF});
+
+    filter.byCreationTimeLowerLimitInSecs(since);
+    if (excludeSensitives)
+    {
+        filter.bySensitivity(NodeSearchFilter::BoolFilter::onlyTrue);
+    }
+    filter.byNodeType(FILENODE);
+    filter.setIncludedShares(IN_SHARES);
+    v = mNodeManager.searchNodes(filter,
+                                 OrderByClause::CTIME_DESC,
+                                 CancelToken(),
+                                 NodeSearchPage{0, maxcount});
+
+    return getRecentActionsFromSharedNodeVector(std::move(v));
+}
+
+recentactions_vector MegaClient::getRecentActionsFromSharedNodeVector(sharedNode_vector&& v)
+{
+    recentactions_vector rav;
     for (auto i = v.begin(); i != v.end(); )
     {
         // find the oldest node, maximum 6h
@@ -20558,30 +20709,106 @@ void MegaClient::createPasswordManagerBase(int rTag, CommandCreatePasswordManage
 error MegaClient::createPasswordNode(const char* name, std::unique_ptr<AttrMap> data,
                                      std::shared_ptr<Node> nParent, int rTag)
 {
-    assert(nParent);
-    assert(name && *name);
+    std::map<std::string, std::unique_ptr<AttrMap>> aux;
+    aux[name] = std::move(data);
+    return createPasswordNodes(std::move(aux), nParent, rTag);
+}
 
-    const bool pwdPresent = data && (data->map.contains(AttrMap::string2nameid(PWM_ATTR_PASSWORD_PWD)));
-    if (!(pwdPresent && nParent->isPasswordNodeFolder()))
+error MegaClient::createPasswordNodes(const std::map<std::string, std::unique_ptr<AttrMap>>& data,
+                                      std::shared_ptr<Node> nParent,
+                                      int rTag)
+{
+    assert(nParent);
+    if (!nParent->isPasswordNodeFolder())
     {
-        LOG_err << "Password Manager: failed Password Node creation wrong paramenters "
-                << (pwdPresent ? "" : "password ")
-                << (nParent->isPasswordNodeFolder() ? "" : "Password Node Folder parent handle");
+        LOG_err << "Password Manager: failed Password Node creation wrong parameters: Password "
+                   "Node Folder parent handle";
         return API_EARGS;
     }
 
-    std::vector<NewNode> nn(1);
-    NewNode& newPasswordNode = nn.front();
-    const auto d = data.get();  // lambda capture initializers are C++14 so can't pass an std::unique_ptr
-    const auto addAttrs = [this, d](AttrMap& attrs) { preparePasswordNodeData(attrs.map, *d); };
+    std::vector<NewNode> nn(data.size());
+    size_t nodeToFillIndex = 0;
     const bool canChangeVault = true;
-    putnodes_prepareOneFolder(&newPasswordNode, name, canChangeVault, addAttrs);
-    // setting newPasswordNode.parenthandle will cause API_EARGS on request response
+    for (const auto& [name, dataAttrMap]: data)
+    {
+        if (name.empty() || !dataAttrMap)
+        {
+            assert(false);
+            continue;
+        }
+        if (auto validCode = validatePasswordData(*dataAttrMap);
+            validCode != PasswordEntryError::OK)
+        {
+            std::string errMsg = "Password Manager: Wrong parameters. Failed Password Node "
+                                 "creation for entry with name \"" +
+                                 name + "\"";
+            if (validCode == PasswordEntryError::MISSING_PASSWORD)
+                errMsg += ": Missing mandatory password field";
+            LOG_err << errMsg;
+            return API_EARGS;
+        }
+        const auto addAttrs = [this, d = dataAttrMap.get()](AttrMap& attrs)
+        {
+            preparePasswordNodeData(attrs.map, *d);
+        };
+        NewNode& newPasswordNode = nn[nodeToFillIndex++];
+        putnodes_prepareOneFolder(&newPasswordNode, name, canChangeVault, addAttrs);
+    }
     const char* cauth = nullptr;
-
-    putnodes(nParent->nodeHandle(), VersioningOption::NoVersioning, std::move(nn), cauth, rTag, canChangeVault);
-
+    putnodes(nParent->nodeHandle(),
+             VersioningOption::NoVersioning,
+             std::move(nn),
+             cauth,
+             rTag,
+             canChangeVault);
     return API_OK;
+}
+
+PasswordEntryError MegaClient::validatePasswordData(const AttrMap& data)
+{
+    if (const bool pwdPresent = (data.map.contains(AttrMap::string2nameid(PWM_ATTR_PASSWORD_PWD)));
+        !pwdPresent)
+    {
+        return PasswordEntryError::MISSING_PASSWORD;
+    }
+    return PasswordEntryError::OK;
+}
+
+std::pair<MegaClient::BadPasswordData, MegaClient::ValidPasswordData>
+    MegaClient::validatePasswordEntries(std::vector<pwm::import::PassEntryParseResult>&& entries,
+                                        ncoll::NameCollisionSolver& nameValidator)
+{
+    std::pair<BadPasswordData, ValidPasswordData> result;
+    auto& bad = result.first;
+    auto& good = result.second;
+    for (auto& entry: entries)
+    {
+        if (entry.mErrCode != pwm::import::PassEntryParseResult::ErrCode::OK)
+        {
+            bad[std::move(entry.mOriginalContent)] = PasswordEntryError::PARSE_ERROR;
+            continue;
+        }
+
+        auto attrMap = std::make_unique<AttrMap>();
+        auto addField = [&attrMap](std::string&& field, const char* const fieldKey)
+        {
+            if (!field.empty())
+                attrMap->map[AttrMap::string2nameid(fieldKey)] = std::move(field);
+        };
+        addField(std::move(entry.mUrl), PWM_ATTR_PASSWORD_URL);
+        addField(std::move(entry.mUserName), PWM_ATTR_PASSWORD_USERNAME);
+        addField(std::move(entry.mPassword), PWM_ATTR_PASSWORD_PWD);
+        addField(std::move(entry.mNote), PWM_ATTR_PASSWORD_NOTES);
+
+        if (auto validationError = validatePasswordData(*attrMap);
+            validationError != PasswordEntryError::OK)
+        {
+            bad[entry.mOriginalContent] = validationError;
+            continue;
+        }
+        good[nameValidator(entry.mName)] = std::move(attrMap);
+    }
+    return result;
 }
 
 error MegaClient::updatePasswordNode(NodeHandle nh, std::unique_ptr<AttrMap> newData,
@@ -22488,8 +22715,9 @@ void MegaClient::injectSyncSensitiveData(CommandLogin::Completion callback,
         // Couldn't retrieve JSC data.
         if (result != API_OK)
         {
-            LOG_warn << "Couldn't retrieve JSC data: "
-                     << result;
+            LOG_err << "Couldn't retrieve JSC data: " << result;
+
+            fatalError(ErrorReason::REASON_ERROR_NO_JSCD);
 
             // This shouldn't prevent the user from logging on, however.
             return callback(API_OK);

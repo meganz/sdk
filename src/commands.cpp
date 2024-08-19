@@ -1022,11 +1022,18 @@ void CommandSetAttr::applyUpdatesTo(AttrMap& attrMap) const
 
 // (the result is not processed directly - we rely on the server-client
 // response)
-CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
-                                 const char* userhandle, VersioningOption vo,
-                                 vector<NewNode>&& newnodes, int ctag, putsource_t csource, const char *cauth,
-                                 Completion&& resultFunction, bool canChangeVault)
-  : mResultFunction(resultFunction)
+CommandPutNodes::CommandPutNodes(MegaClient* client,
+                                 NodeHandle th,
+                                 const char* userhandle,
+                                 VersioningOption vo,
+                                 vector<NewNode>&& newnodes,
+                                 int ctag,
+                                 putsource_t csource,
+                                 const char* cauth,
+                                 Completion&& resultFunction,
+                                 bool canChangeVault,
+                                 const string& customerIpPort):
+    mResultFunction(resultFunction)
 {
     byte key[FILENODEKEYLENGTH];
 
@@ -1176,6 +1183,11 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
     }
 
     endarray();
+
+    if (!customerIpPort.empty())
+    {
+        arg("cip", customerIpPort.c_str()); // "IPv4:port" or "[IPv6]:port"
+    }
 
     // add cr element for new nodes, if applicable
     if (type == NODE_HANDLE)
@@ -4955,9 +4967,11 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                     }
                     if (auxts)
                     {
-                        dstime diff = static_cast<dstime>((now - auxts) * 10);
+                        dstime diff = static_cast<dstime>((auxts - now) * 10);
                         dstime current = client->btugexpiration.backoffdelta();
-                        if (current > diff)
+                        // diff < 0 grace period has already expired, ug update is requested one per
+                        // day
+                        if (diff > 0 && current > diff)
                         {
                             client->btugexpiration.backoff(diff);
                         }
@@ -10214,6 +10228,7 @@ CommandPutSet::CommandPutSet(MegaClient* cl, Set&& s, unique_ptr<string> encrAtt
                              std::function<void(Error, const Set*)> completion)
     : mSet(new Set(std::move(s))), mCompletion(completion)
 {
+    mSeqtagArray = true;
     cmd("asp");
 
     if (mSet->id() == UNDEF) // create new
@@ -10314,6 +10329,7 @@ CommandFetchSet::CommandFetchSet(MegaClient* cl,
     std::function<void(Error, Set*, elementsmap_t*)> completion)
     : mCompletion(completion)
 {
+    mV3 = false;
     cmd("aft");
     arg("v", 2);  // version 2: server can supply node metadata
     if(!cl->inPublicSetPreview())
@@ -10375,6 +10391,7 @@ CommandPutSetElements::CommandPutSetElements(MegaClient* cl, vector<SetElement>&
                                                std::function<void(Error, const vector<const SetElement*>*, const vector<int64_t>*)> completion)
     : mElements(new vector<SetElement>(std::move(els))), mCompletion(completion)
 {
+    mV3 = false;
     cmd("aepb");
 
     const byte* setHandleBytes = reinterpret_cast<const byte*>(&mElements->front().set());
@@ -10492,6 +10509,7 @@ CommandPutSetElement::CommandPutSetElement(MegaClient* cl, SetElement&& el, uniq
                                                std::function<void(Error, const SetElement*)> completion)
     : mElement(new SetElement(std::move(el))), mCompletion(completion)
 {
+    mSeqtagArray = true;
     cmd("aep");
 
     bool createNew = mElement->id() == UNDEF;
@@ -10559,6 +10577,7 @@ CommandRemoveSetElements::CommandRemoveSetElements(MegaClient* cl, handle sid, v
                                                    std::function<void(Error, const vector<int64_t>*)> completion)
     : mSetId(sid), mElemIds(std::move(eids)), mCompletion(completion)
 {
+    mV3 = false;
     cmd("aerb");
 
     arg("s", reinterpret_cast<const byte*>(&sid), MegaClient::SETHANDLE);
@@ -10648,6 +10667,7 @@ bool CommandRemoveSetElements::procresult(Result r, JSON& json)
 CommandRemoveSetElement::CommandRemoveSetElement(MegaClient* cl, handle sid, handle eid, std::function<void(Error)> completion)
     : mSetId(sid), mElementId(eid), mCompletion(completion)
 {
+    mV3 = false;
     cmd("aer");
     arg("id", (byte*)&eid, MegaClient::SETELEMENTHANDLE);
 
@@ -10681,6 +10701,7 @@ bool CommandRemoveSetElement::procresult(Result r, JSON& json)
 CommandExportSet::CommandExportSet(MegaClient* cl, Set&& s, bool makePublic, std::function<void(Error)> completion)
     : mSet(new Set(std::move(s))), mCompletion(completion)
 {
+    mV3 = false;
     cmd("ass");
     arg("id", (byte*)&mSet->id(), MegaClient::SETHANDLE);
     if (!makePublic) arg("d", 1);

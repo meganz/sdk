@@ -496,7 +496,7 @@ extern m_time_t m_time(m_time_t* tt = NULL);
 extern struct tm* m_localtime(m_time_t, struct tm *dt);
 extern struct tm* m_gmtime(m_time_t, struct tm *dt);
 extern m_time_t m_mktime(struct tm*);
-extern int m_clock_getmonotonictime(struct timespec *t);
+extern dstime m_clock_getmonotonictimeDS();
 // Similar behaviour to mktime but it receives a struct tm with a date in UTC and return mktime in UTC
 extern m_time_t m_mktime_UTC(const struct tm *src);
 
@@ -1303,6 +1303,64 @@ ScopedValue<T> makeScopedValue(T& what, T value)
  * @returns 0 if i==j, +1 if i goes first, -1 if j goes first.
  */
 int naturalsorting_compare(const char* i, const char* j);
+
+/**
+ * @class MrProper
+ *
+ * @brief Ensures execution of a cleanup function when the object goes out of scope.
+ *
+ * It accepts a std::function<void()> during construction, which it executes once upon destruction.
+ * This is useful for resource management and ensuring cleanup in cases of exceptions.
+ *
+ * Example usage:
+ *     void function() {
+ *         MrProper cleaner([](){ std::cout << "Cleanup action executed.\n"; });
+ *         // Any code here that might throw or return early
+ *     }
+ *
+ * The class is non-copyable and non-movable to ensure the cleanup action is tightly bound to the
+ * scope where it is declared.
+ */
+struct MrProper
+{
+    using CleanupFunction = std::function<void()>;
+    CleanupFunction mOnRelease;
+
+    ~MrProper()
+    {
+        mOnRelease();
+    }
+
+    explicit MrProper(std::function<void()> f):
+        mOnRelease(f)
+    {}
+
+    MrProper() = delete;
+    MrProper(const MrProper&) = delete;
+    MrProper(MrProper&&) = delete;
+    MrProper& operator=(const MrProper&) = delete;
+    MrProper& operator=(MrProper&&) = delete;
+};
+
+/**
+ * @brief Ensures the given string has an asterisk in front and back. If the string is empty, "*" is
+ * returned.
+ *
+ * @note The input argument is passed by copy intentionally to operate on it.
+ */
+std::string ensureAsteriskSurround(std::string str);
+
+/**
+ * @brief Returns the index where the last '.' can be found in the fileName
+ *
+ * If there is not '.' in the input string, fileName.size() is returned
+ *
+ * @note This index is intended to be used with std::string::substr like:
+ * size_t dotPos = fileExtensionDotPosition(fileName);
+ * std::stirng basename = fileName.substr(0, dotPos);
+ * std::stirng extension = fileName.substr(dotPos); // It will contain the '.' if present
+ */
+size_t fileExtensionDotPosition(const std::string& fileName);
 
 } // namespace mega
 

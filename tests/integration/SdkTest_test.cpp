@@ -619,7 +619,6 @@ void SdkTest::Cleanup()
 #ifdef ENABLE_SYNC
             purgeVaultTree(nApi, std::unique_ptr<MegaNode>{megaApi[nApi]->getVaultNode()}.get());
 #endif
-
             // Remove pending contact requests
             std::unique_ptr<MegaContactRequestList> crl{megaApi[nApi]->getOutgoingContactRequests()};
             for (int i = 0; i < crl->size(); i++)
@@ -1434,12 +1433,28 @@ void SdkTest::deleteFolder(string foldername)
     fs::remove_all(p, ignoredEc);
 }
 
-void SdkTest::fetchNodesForAccounts(const unsigned howMany)
+void SdkTest::fetchNodesForAccounts(const unsigned howMany, const int clientType)
 {
     std::vector<std::unique_ptr<RequestTracker>> trackers(howMany);
     // perform parallel fetchnodes for each
     for (unsigned index = 0; index < howMany; ++index)
     {
+        // For apps from type password manager, password manager base should be defined before
+        // calling to fetchnode. In other case, api answers with -11 to 'f' command
+        if (clientType == MegaApi::CLIENT_TYPE_PASSWORD_MANAGER)
+        {
+            // First receive user attributes calling to 'ug' command.
+            // With user attributes, SDK determines if password base node exists
+            RequestTracker userInfoTracker(megaApi[index].get());
+            megaApi[index]->getUserData(&userInfoTracker);
+            ASSERT_EQ(userInfoTracker.waitForResult(), API_OK);
+
+            // Get password node base, in case it doesn't exist, it creates it
+            RequestTracker passwordManagerBaseTracker(megaApi[index].get());
+            megaApi[index]->getPasswordManagerBase(&passwordManagerBaseTracker);
+            ASSERT_EQ(passwordManagerBaseTracker.waitForResult(), API_OK);
+        }
+
         out() << "Fetching nodes for account " << index;
         trackers[index] = asyncRequestFetchnodes(index);
     }
@@ -1512,7 +1527,8 @@ void SdkTest::getAccountsForTest(unsigned howMany, bool fetchNodes, const int cl
     }
     ASSERT_FALSE(anyLoginFailed);
 
-    if (fetchNodes) fetchNodesForAccounts(howMany);
+    if (fetchNodes)
+        fetchNodesForAccounts(howMany, clientType);
 
     for (unsigned index = 0; index < howMany; ++index)
     {
@@ -2240,6 +2256,16 @@ string getUniqueAlias()
     return alias;
 }
 
+std::vector<std::string> toNamesVector(const MegaNodeList& nodes)
+{
+    std::vector<std::string> result;
+    result.reserve(static_cast<size_t>(nodes.size()));
+    for (int i = 0; i < nodes.size(); ++i)
+    {
+        result.emplace_back(nodes.get(i)->getName());
+    }
+    return result;
+}
 
 ///////////////////////////__ Tests using SdkTest __//////////////////////////////////
 
@@ -8084,9 +8110,9 @@ TEST_F(SdkTest, SdkTestCloudraidStreamingSoakTest)
 #endif
 }
 
-TEST_F(SdkTest, SdkRecentsTest)
+void SdkTest::testRecents(const std::string& title, bool useSensitiveExclusion)
 {
-    LOG_info << "___TEST SdkRecentsTest___";
+    LOG_info << title;
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     std::unique_ptr<MegaNode> rootnode(megaApi[0]->getRootNode());
@@ -8189,9 +8215,29 @@ TEST_F(SdkTest, SdkRecentsTest)
 
     synchronousCatchup(0);
 
-
-    std::unique_ptr<MegaRecentActionBucketList> buckets{megaApi[0]->getRecentActions(1, 10)};
+    const auto& getRecentActionsStartTime = std::chrono::steady_clock::now();
+    RequestTracker tracker(megaApi[0].get());
+    if (useSensitiveExclusion)
+    {
+        // Sensitive exclusion has different code paths than the previous legacy function,
+        // hence why we cannot just pass the parameter with "false".
+        megaApi[0]->getRecentActionsAsync(1, 10, true, &tracker);
+    }
+    else
+    {
+        megaApi[0]->getRecentActionsAsync(1, 10, &tracker);
+    }
+    ASSERT_EQ(tracker.waitForResult(), API_OK);
+    std::unique_ptr<MegaRecentActionBucketList> buckets{
+        tracker.request->getRecentActions()->copy()};
     ASSERT_TRUE(buckets != nullptr);
+
+    const auto& getRecentActionsEndTime = std::chrono::steady_clock::now();
+    auto getRecentActionsTime = std::chrono::duration_cast<std::chrono::microseconds>(
+                                    getRecentActionsEndTime - getRecentActionsStartTime)
+                                    .count();
+    LOG_debug << "[SdkTest::testRecents] getRecentActionsTime = " << getRecentActionsTime
+              << " us [buckets->size() = " << buckets->size() << "]";
 
     for (int i = 0; i < buckets->size(); ++i)
     {
@@ -8228,6 +8274,16 @@ TEST_F(SdkTest, SdkRecentsTest)
                 (n_1_0->getCreationTime() == n_1_1->getCreationTime() && filename1bkp2 == n_1_1->getName()));
     ASSERT_TRUE(filename1bkp1 == n_1_1->getName() ||
                 (n_1_0->getCreationTime() == n_1_1->getCreationTime() && filename1bkp1 == n_1_0->getName()));
+}
+
+TEST_F(SdkTest, SdkRecentsTestLegacyWithoutSensitiveExclusion)
+{
+    testRecents("___TEST SdkRecentsTestLegacyWithoutSensitiveExclusion___", false);
+}
+
+TEST_F(SdkTest, SdkRecentsTest)
+{
+    testRecents("___TEST SdkRecentsTest___", true);
 }
 
 #if !USE_FREEIMAGE
@@ -9781,51 +9837,6 @@ TEST_F(SdkTest, SdkGetCountryCallingCodes)
     ASSERT_NE(nullptr, de);
     ASSERT_EQ(1, de->size());
     ASSERT_EQ(0, strcmp("49", de->get(0)));
-}
-
-TEST_F(SdkTest, SdkGetFileWithColonByPath)
-{
-    LOG_info << "___TEST SdkGetFileWithColonByPath___";
-
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-
-    LOG_debug << "Creating file locally";
-    const char* fname = "test:file.txt";
-    sdk_test::LocalTempFile f(fname, 0);
-
-    LOG_debug << "Uploading the file";
-    MegaHandle fileHandle = INVALID_HANDLE;
-    bool check = false;
-    mApi[0].mOnNodesUpdateCompletion =
-        createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check);
-    unique_ptr<MegaNode> root(megaApi[0]->getRootNode());
-    ASSERT_NE(root, nullptr);
-    ASSERT_EQ(MegaError::API_OK,
-              doStartUpload(0,
-                            &fileHandle,
-                            fname,
-                            root.get() /*rootnode*/,
-                            nullptr /*fileName*/,
-                            0 /*mtime*/,
-                            nullptr /*appData*/,
-                            false /*isSourceTemporary*/,
-                            false /*startFirst*/,
-                            nullptr /*cancelToken*/))
-        << "Cannot upload the test file";
-    waitForResponse(&check);
-    resetOnNodeUpdateCompletionCBs();
-
-    LOG_debug << "Ensuring the file is accessible in the cloud by handle";
-    std::unique_ptr<MegaNode> nodeFile(megaApi[0]->getNodeByHandle(fileHandle));
-    ASSERT_NE(nodeFile, nullptr) << "Cannot get the node by handle for the updated file (error: "
-                                 << mApi[0].lastError << ")";
-    ASSERT_STREQ(nodeFile->getName(), fname);
-
-    LOG_debug << "Ensure the file is accessible in the cloud by name";
-    nodeFile.reset(megaApi[0]->getNodeByPath(fname, root.get()));
-    ASSERT_NE(nodeFile, nullptr) << "Cannot get the node by path for the updated file (error: "
-                                 << mApi[0].lastError << ")";
-    ASSERT_STREQ(nodeFile->getName(), fname);
 }
 
 TEST_F(SdkTest, DISABLED_invalidFileNames)
@@ -13623,6 +13634,12 @@ TEST_F(SdkTest, SdkNodesOnDemand)
     ASSERT_EQ(numberFolderLevel1, megaApi[0]->getNumChildFolders(rootnodeA.get()));
     ASSERT_EQ(numberFolderLevel1, megaApi[1]->getNumChildFolders(rootnodeB.get()));
 
+    std::unique_ptr<MegaSearchFilter> filterResults(MegaSearchFilter::createInstance());
+    filterResults->byLocationHandle(rootnodeA->getHandle());
+    filterResults->byNodeType(MegaNode::TYPE_FOLDER);
+    std::unique_ptr<MegaNodeList> rootChildrenList(megaApi[0]->getChildren(filterResults.get()));
+    ASSERT_EQ(rootChildrenList->size(), numberFolderLevel1);
+
     // --- UserA Check folder info from root node ---
     ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(0, rootnodeA.get())) << "Cannot get Folder Info";
     int numberTotalOfFiles = numberFolderLevel1 * numberFolderLevel2 * numberFiles + initialFolderInfo1->getNumFiles();
@@ -13657,7 +13674,7 @@ TEST_F(SdkTest, SdkNodesOnDemand)
     ASSERT_NE(nodeSameFingerPrint.get(), nullptr);
 
     // --- UserA get node by name ---
-    std::unique_ptr<MegaSearchFilter> filterResults(MegaSearchFilter::createInstance());
+    filterResults.reset(MegaSearchFilter::createInstance());
     filterResults->byName(fileNameToSearch.c_str());
     std::unique_ptr<MegaNodeList> searchList(megaApi[0]->search(filterResults.get()));
     ASSERT_EQ(searchList->size(), 1);
@@ -13779,6 +13796,20 @@ TEST_F(SdkTest, SdkNodesOnDemand)
         {
             ASSERT_NE(childrenHandles.find(childrenList->get(childIndex)->getHandle()), childrenHandles.end());
         }
+
+        filterResults.reset(MegaSearchFilter::createInstance());
+        filterResults->byLocationHandle(node->getHandle());
+        filterResults->byNodeType(MegaNode::TYPE_FILE);
+        std::unique_ptr<MegaNodeList> fileChildrenList(
+            megaApi[0]->getChildren(filterResults.get()));
+        ASSERT_EQ(fileChildrenList->size(), childrenList->size());
+
+        filterResults.reset(MegaSearchFilter::createInstance());
+        filterResults->byLocationHandle(node->getHandle());
+        filterResults->byNodeType(MegaNode::TYPE_FOLDER);
+        std::unique_ptr<MegaNodeList> folderChildrenList(
+            megaApi[0]->getChildren(filterResults.get()));
+        ASSERT_EQ(folderChildrenList->size(), 0);
     }
 
     // --- UserA remove a folder ---
@@ -15102,7 +15133,14 @@ TEST_F(SdkTest, SdkUserAlerts)
     bkpAlerts.emplace_back(a->copy());
     bkpSc50Alerts.emplace_back(a->copy());
     ASSERT_FALSE(a->getSeen());
+
+    B1dtls.userAlertsUpdated = false;
+    B1dtls.userAlertList.reset();
     ASSERT_EQ(doAckUserAlerts(B1idx), API_OK);
+    ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
+        << "Alert about contact request creation not received by B1 after " << maxTimeout
+        << " seconds";
+    ASSERT_NE(B1dtls.userAlertList, nullptr) << "IncomingPendingContact  --  request created";
     for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
     {
         if (B1dtls.userAlertList->get(i)->isRemoved()) continue;
@@ -15147,7 +15185,14 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_FALSE(a->isOwnChange()) << "ContactChange  --  contact request accepted";
     ASSERT_EQ(a->getUserHandle(), B1.getMyUserHandleBinary()) << "ContactChange  --  contact request accepted";
     ASSERT_FALSE(a->getSeen());
+
+    A1dtls.userAlertsUpdated = false;
+    A1dtls.userAlertList.reset();
     ASSERT_EQ(doAckUserAlerts(A1idx), API_OK);
+    ASSERT_TRUE(waitForResponse(&A1dtls.userAlertsUpdated))
+        << "Alert about contact request change not received by A1 after " << maxTimeout
+        << " seconds";
+    ASSERT_NE(A1dtls.userAlertList, nullptr) << "Contact change  --  contact request accepted";
     for (int i = 0; i < A1dtls.userAlertList->size(); ++i)
     {
         if (A1dtls.userAlertList->get(i)->isRemoved()) continue;
@@ -15353,7 +15398,13 @@ TEST_F(SdkTest, SdkUserAlerts)
     bkpAlerts.emplace_back(a->copy());
     bkpSc50Alerts.emplace_back(a->copy());
     ASSERT_FALSE(a->getSeen());
+
+    B1dtls.userAlertsUpdated = false;
+    B1dtls.userAlertList.reset();
     ASSERT_EQ(doAckUserAlerts(B1idx), API_OK);
+    ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
+        << "Alert about new share creation not received by B1 after " << maxTimeout << " seconds";
+    ASSERT_NE(B1dtls.userAlertList, nullptr) << "NewShare";
     for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
     {
         if (B1dtls.userAlertList->get(i)->isRemoved()) continue;
@@ -15396,7 +15447,13 @@ TEST_F(SdkTest, SdkUserAlerts)
     //bkpAlerts.emplace_back(a->copy()); // removed internally (combined to "update" later?)
     bkpSc50Alerts.emplace_back(a->copy());
     ASSERT_FALSE(a->getSeen());
+
+    B1dtls.userAlertsUpdated = false;
+    B1dtls.userAlertList.reset();
     ASSERT_EQ(doAckUserAlerts(B1idx), API_OK);
+    ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
+        << "Alert about remove share not received by B1 after " << maxTimeout << " seconds";
+    ASSERT_NE(B1dtls.userAlertList, nullptr) << "RemovedSharedNode";
     for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
     {
         if (B1dtls.userAlertList->get(i)->isRemoved()) continue;
@@ -15458,7 +15515,13 @@ TEST_F(SdkTest, SdkUserAlerts)
     //bkpAlerts.emplace_back(a->copy()); // removed internally (combined to "update" later?)
     bkpSc50Alerts.emplace_back(a->copy());
     ASSERT_FALSE(a->getSeen());
+
+    B1dtls.userAlertsUpdated = false;
+    B1dtls.userAlertList.reset();
     ASSERT_EQ(doAckUserAlerts(B1idx), API_OK);
+    ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
+        << "Alert about new share creation not received by B1 after " << maxTimeout << " seconds";
+    ASSERT_NE(B1dtls.userAlertList, nullptr) << "NewSharedNodes";
     for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
     {
         if (B1dtls.userAlertList->get(i)->isRemoved()) continue;
@@ -15509,7 +15572,13 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_EQ(a->getUserHandle(), A1.getMyUserHandleBinary()) << "UpdatedSharedNode";
     ASSERT_EQ(a->getNumber(0), 1) << "UpdatedSharedNode"; // item count
     ASSERT_FALSE(a->getSeen());
+
+    B1dtls.userAlertsUpdated = false;
+    B1dtls.userAlertList.reset();
     ASSERT_EQ(doAckUserAlerts(B1idx), API_OK);
+    ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
+        << "Alert about update share node not received by B1 after " << maxTimeout << " seconds";
+    ASSERT_NE(B1dtls.userAlertList, nullptr) << "UpdatedSharedNode";
     for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
     {
         if (B1dtls.userAlertList->get(i)->isRemoved()) continue;
@@ -15563,7 +15632,13 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_EQ(a->getNumber(0), 2) << "UpdatedSharedNode (combined)"; // item count
     bkpAlerts.emplace_back(a->copy());
     ASSERT_FALSE(a->getSeen());
+
+    B1dtls.userAlertsUpdated = false;
+    B1dtls.userAlertList.reset();
     ASSERT_EQ(doAckUserAlerts(B1idx), API_OK);
+    ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
+        << "Alert about update share node not received by B1 after " << maxTimeout << " seconds";
+    ASSERT_NE(B1dtls.userAlertList, nullptr) << "UpdatedSharedNode";
     for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
     {
         if (B1dtls.userAlertList->get(i)->isRemoved()) continue;
@@ -15711,7 +15786,13 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_EQ(a->getNumber(0), 1) << "DeletedShare";
     bkpAlerts.emplace_back(a->copy());
     ASSERT_FALSE(a->getSeen());
+
+    B1dtls.userAlertsUpdated = false;
+    B1dtls.userAlertList.reset();
     ASSERT_EQ(doAckUserAlerts(B1idx), API_OK);
+    ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
+        << "Alert about delete share not received by B1 after " << maxTimeout << " seconds";
+    ASSERT_NE(B1dtls.userAlertList, nullptr) << "DeletedShare";
     for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
     {
         if (B1dtls.userAlertList->get(i)->isRemoved()) continue;
@@ -15758,7 +15839,13 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_EQ(a->getUserHandle(), A1.getMyUserHandleBinary()) << "ContactChange  --  contact deleted";
     bkpAlerts.emplace_back(a->copy());
     ASSERT_FALSE(a->getSeen());
+
+    B1dtls.userAlertsUpdated = false;
+    B1dtls.userAlertList.reset();
     ASSERT_EQ(doAckUserAlerts(B1idx), API_OK);
+    ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
+        << "Alert about contact deleted not received by B1 after " << maxTimeout << " seconds";
+    ASSERT_NE(B1dtls.userAlertList, nullptr) << "ContactChange  --  contact deleted";
     for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
     {
         if (B1dtls.userAlertList->get(i)->isRemoved()) continue;
@@ -17265,34 +17352,6 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
     ASSERT_EQ(nodeList->get(0)->getHandle(), handleWithoutExtensionFile);
     ASSERT_EQ(nodeList->get(1)->getHandle(), handleUnkownExtensionFile);
 
-    ///
-    /// search using old and deprecated API, to make sure we don't break it in the future
-    nodeList.reset(megaApi[0]->searchByType(nullptr, "", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_SPREADSHEET)); // order Alphabetical asc
-    ASSERT_EQ(nodeList->size(), 1);
-    ASSERT_EQ(nodeList->get(0)->getHandle(), handleSpreadsheetFile);
-
-    nodeList.reset(megaApi[0]->searchByType(rootnode.get(), "", nullptr, false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_ALL_DOCS)); // order Alphabetical asc
-    ASSERT_EQ(nodeList->size(), 5);
-    ASSERT_EQ(nodeList->get(0)->getHandle(), handleDocumentFile);
-    ASSERT_EQ(nodeList->get(1)->getHandle(), handleSpreadsheetFile);
-    ASSERT_EQ(nodeList->get(2)->getHandle(), handleOrgFile);
-    ASSERT_EQ(nodeList->get(3)->getHandle(), handlePdfFile);
-    ASSERT_EQ(nodeList->get(4)->getHandle(), handleTxtFile);
-
-    nodeList.reset(megaApi[0]->searchByType(nullptr, "", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_ALL_DOCS)); // order Alphabetical asc
-    ASSERT_EQ(nodeList->size(), 5);
-    ASSERT_EQ(nodeList->get(0)->getHandle(), handleDocumentFile);
-    ASSERT_EQ(nodeList->get(1)->getHandle(), handleSpreadsheetFile);
-    ASSERT_EQ(nodeList->get(2)->getHandle(), handleOrgFile);
-    ASSERT_EQ(nodeList->get(3)->getHandle(), handlePdfFile);
-    ASSERT_EQ(nodeList->get(4)->getHandle(), handleTxtFile);
-
-    nodeList.reset(megaApi[0]->searchByType(nullptr, "", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_OTHERS));
-    ASSERT_EQ(nodeList->size(), 2);
-    ASSERT_EQ(nodeList->get(0)->getHandle(), handleWithoutExtensionFile);
-    ASSERT_EQ(nodeList->get(1)->getHandle(), handleUnkownExtensionFile);
-
-
     deleteFile(PUBLICFILE);
 }
 
@@ -18253,7 +18312,10 @@ TEST_F(SdkTest, CreateNodeTreeWithMultipleLevelsOfDirectoriesAndOneFileAtTheEnd)
                                      nullptr)};
 
     RequestTracker requestTracker(megaApi[apiIndex].get());
-    megaApi[apiIndex]->createNodeTree(parentNode.get(), nodeTreeLevel0.get(), &requestTracker);
+    megaApi[apiIndex]->createNodeTree(parentNode.get(),
+                                      nodeTreeLevel0.get(),
+                                      "192.168.0.0:0000", // dummy IP just to test sending "cip"
+                                      &requestTracker);
     nodeTreeLevel0.reset();
     ASSERT_THAT(requestTracker.waitForResult(),
                 ::testing::AnyOf(::testing::Eq(API_OK), ::testing::Eq(API_ENOENT)));
@@ -18327,7 +18389,9 @@ TEST_F(SdkTest, CreateNodeTreeVersionUsingIdenticalUploadData)
         MegaNodeTree::createInstance(nullptr, PUBLICFILE.c_str(), nullptr, uploadData.get()) };
 
     RequestTracker requestTrackerFirstTree(megaApi[apiIndex].get());
-    megaApi[apiIndex]->createNodeTree(parentNode.get(), fileTreeFromData.get(), &requestTrackerFirstTree);
+    megaApi[apiIndex]->createNodeTree(parentNode.get(),
+                                      fileTreeFromData.get(),
+                                      &requestTrackerFirstTree);
     ASSERT_THAT(requestTrackerFirstTree.waitForResult(),
                 ::testing::AnyOf(::testing::Eq(API_OK), ::testing::Eq(API_ENOENT)));
     const MegaNodeTree* resultNodeTree1 = requestTrackerFirstTree.request->getMegaNodeTree();
@@ -18350,7 +18414,9 @@ TEST_F(SdkTest, CreateNodeTreeVersionUsingIdenticalUploadData)
         MegaNodeTree::createInstance(nullptr, PUBLICFILE.c_str(), nullptr, uploadData2.get()) };
 
     RequestTracker requestTrackerSecondTree(megaApi[apiIndex].get());
-    megaApi[apiIndex]->createNodeTree(parentNode.get(), fileTreeFromData2.get(), &requestTrackerSecondTree);
+    megaApi[apiIndex]->createNodeTree(parentNode.get(),
+                                      fileTreeFromData2.get(),
+                                      &requestTrackerSecondTree);
     ASSERT_THAT(requestTrackerSecondTree.waitForResult(),
                 ::testing::AnyOf(::testing::Eq(API_OK), ::testing::Eq(API_ENOENT)));
     const MegaNodeTree* resultNodeTree2 = requestTrackerSecondTree.request->getMegaNodeTree();
@@ -18469,7 +18535,9 @@ TEST_F(SdkTest, CreateNodeTreeVersionUsingDifferentUploadData)
         MegaNodeTree::createInstance(nullptr, PUBLICFILE.c_str(), nullptr, uploadData.get()) };
 
     RequestTracker requestTrackerFirstTree(megaApi[apiIndex].get());
-    megaApi[apiIndex]->createNodeTree(parentNode.get(), fileTreeFromData.get(), &requestTrackerFirstTree);
+    megaApi[apiIndex]->createNodeTree(parentNode.get(),
+                                      fileTreeFromData.get(),
+                                      &requestTrackerFirstTree);
     ASSERT_THAT(requestTrackerFirstTree.waitForResult(),
                 ::testing::AnyOf(::testing::Eq(API_OK), ::testing::Eq(API_ENOENT)));
     const MegaNodeTree* resultNodeTree1 = requestTrackerFirstTree.request->getMegaNodeTree();
@@ -18501,7 +18569,9 @@ TEST_F(SdkTest, CreateNodeTreeVersionUsingDifferentUploadData)
         MegaNodeTree::createInstance(nullptr, PUBLICFILE.c_str(), nullptr, uploadData2.get()) };
 
     RequestTracker requestTrackerSecondTree(megaApi[apiIndex].get());
-    megaApi[apiIndex]->createNodeTree(parentNode.get(), fileTreeFromData2.get(), &requestTrackerSecondTree);
+    megaApi[apiIndex]->createNodeTree(parentNode.get(),
+                                      fileTreeFromData2.get(),
+                                      &requestTrackerSecondTree);
     ASSERT_THAT(requestTrackerSecondTree.waitForResult(),
                 ::testing::AnyOf(::testing::Eq(API_OK), ::testing::Eq(API_ENOENT)));
     const MegaNodeTree* resultNodeTree2 = requestTrackerSecondTree.request->getMegaNodeTree();
@@ -18587,287 +18657,6 @@ TEST_F(SdkTest, CreateNodeTreeVersionUsingDifferentSourceFile)
     ASSERT_EQ(allVersions2->get(1)->getHandle(), upHandle);
     ASSERT_EQ(allVersions2->get(0)->getHandle(), upNodeVersion->getHandle());
     ASSERT_NE(upNodeVersion->getHandle(), upHandle);
-}
-
-/**
- * @brief TEST_F SdkTestPasswordManager
- *
- * Tests MEGA Password Manager functionality.
- *
- * Notes:
- * - Base folder created hangs from Vault root node, and it cannot be deleted
- *
- * Test description:
- * #1 Get Password Manager Base node
- * - U1: special logging in sequence
- *     + 1) plain login
- *     + 2) get Password Manager node handle; it will be created if it didn't exist
- *     + 3) fetch nodes
- * - U1: get Password Manager Base via get user's attribute command
- * - U1: get Password Manager Base node again; no get user attribute requests expected
- *
- * #2 Password Node CRUD operations
- * - U1: create a Password Node
- * - U1: retrieve an existing Password Node
- * - U1: update an existing Password Node
- * - U1: delete an existing Password Node
- *
- * #3 Password Node Folder CRUD operations
- * - U1: create a Password Node Folder
- * - U1: retrieve an existing Password Node Folder
- * - U1: update an existing Password Node Folder
- * - U1: delete an existing Password Node Folder
- *
- * #4 Attempt deletion of Password Manager Base node
- * - U1: try to delete Password Manager Base node
- */
-TEST_F(SdkTest, SdkTestPasswordManager)
-{
-    LOG_info << "___TEST SdkTestPasswordManager";
-
-    LOG_debug << "# U1: special logging in sequence";
-    const unsigned userIdx = 0, totalAccounts = 1;
-    LOG_debug << "\t# log in without fetching nodes";
-    ASSERT_NO_FATAL_FAILURE(
-        getAccountsForTest(totalAccounts, false, MegaApi::CLIENT_TYPE_PASSWORD_MANAGER));
-
-    LOG_debug << "\t# get Password Manager Base node handle; it will be created if it didn't exist";
-    RequestTracker rt2 {megaApi[userIdx].get()};
-    megaApi[userIdx]->getPasswordManagerBase(&rt2);
-    ASSERT_EQ(API_OK, rt2.waitForResult()) << "Getting Password Manager Base node failed";
-    ASSERT_NE(nullptr, rt2.request) << "Missing getPasswordManagerBase request data after finish";
-    const MegaHandle nhBase = rt2.request->getNodeHandle();
-    ASSERT_NE(UNDEF, nhBase) << "Password Manager Base node not set";
-
-    LOG_debug << "\t# fetch nodes";
-    fetchNodesForAccounts(totalAccounts);
-    LOG_debug << "\t# get Password Manager Base node by handle";
-    std::unique_ptr<MegaNode> mnBase {megaApi[userIdx]->getNodeByHandle(nhBase)};
-    ASSERT_NE(nullptr, mnBase.get())
-        << "Error retrieving MegaNode for Password Base with handle " << toNodeHandle(nhBase);
-
-
-    LOG_debug << "# U1: get Password Manager Base via get user's attribute command";
-    RequestTracker rt3 {megaApi[userIdx].get()};
-    megaApi[userIdx]->getUserAttribute(MegaApi::USER_ATTR_PWM_BASE, &rt3);
-    ASSERT_EQ(API_OK, rt3.waitForResult()) << "Unexpected error retrieving pwmh user attribute";
-    ASSERT_NE(nullptr, rt3.request) << "Missing get user attribute pwmh request data after finish";
-    ASSERT_EQ(nhBase, rt3.request->getNodeHandle()) << "Mismatch in user attribute pwmh retrieved";
-
-
-    LOG_debug << "# U1: get Password Manager Base node again; no get user attribute requests expected";
-    RequestTracker rt4 {megaApi[userIdx].get()};
-    megaApi[userIdx]->getPasswordManagerBase(&rt4);
-    ASSERT_EQ(API_OK, rt4.waitForResult()) << "Getting Password Manager Base node through shortcut failed";
-    ASSERT_NE(nullptr, rt4.request);
-    ASSERT_EQ(nhBase, rt4.request->getNodeHandle())
-        << "Wrong Password Manager Base node retrieved through shortcut";
-
-
-    LOG_debug << "# U1: create a new Password Node under Password Manager Base";
-    RequestTracker rtC {megaApi[userIdx].get()};
-    const std::string pwdNodeName = "FirstPwd";
-    std::unique_ptr<MegaNode> existingPwdNode{
-        megaApi[userIdx]->getChildNode(mnBase.get(), pwdNodeName.c_str())};
-    std::unique_ptr<MegaNode::PasswordNodeData> pwdData{
-        MegaNode::PasswordNodeData::createInstance("12},\" '34", "notes", "url", "userName")};
-    bool check1;
-    mApi[userIdx].mOnNodesUpdateCompletion =
-        createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check1);
-    megaApi[userIdx]->createPasswordNode(pwdNodeName.c_str(), pwdData.get(), nhBase, &rtC);
-    ASSERT_EQ(API_OK, rtC.waitForResult()) << "Failure creating Password Node";
-    if (existingPwdNode)
-    {
-        LOG_debug << "Existing Password Node with the same name retrieved";
-    }
-    else
-    {
-        ASSERT_TRUE(waitForResponse(&check1))
-            << "Node creation not received after " << maxTimeout << " seconds";
-    }
-    ASSERT_NE(nullptr, rtC.request);
-    const auto newPwdNodeHandle = rtC.request->getNodeHandle();
-    ASSERT_NE(UNDEF, newPwdNodeHandle) << "Wrong MegaHandle for new Password Node";
-    const std::unique_ptr<MegaNode> newPwdNode {megaApi[userIdx]->getNodeByHandle(newPwdNodeHandle)};
-    ASSERT_NE(newPwdNode.get(), nullptr) << "New node could not be retrieved";
-    ASSERT_TRUE(newPwdNode->isPasswordNode());
-    ASSERT_FALSE(megaApi[userIdx]->isPasswordNodeFolder(newPwdNode->getHandle()));
-    auto aux = newPwdNode->getName(); ASSERT_NE(aux, nullptr);
-    ASSERT_STREQ(aux, newPwdNode->getName());
-    std::unique_ptr<MegaNode::PasswordNodeData> receivedPwdData {newPwdNode->getPasswordData()};
-    ASSERT_NE(nullptr, receivedPwdData);
-    const auto equals = [](const MegaNode::PasswordNodeData* lhs,
-                           const MegaNode::PasswordNodeData* rhs) -> bool
-    {
-        std::string lp = lhs->password() ? lhs->password() : "";
-        std::string rp = rhs->password() ? rhs->password() : "";
-        if (lp != rp) LOG_err << "\tTest: passwords differ |" << lp << "| != |" << rp << "|";
-
-        std::string ln = lhs->notes() ? lhs->notes() : "";
-        std::string rn = rhs->notes() ? rhs->notes() : "";
-        if (ln != rn) LOG_err << "\tTest: notes differ |" << ln << "| != |" << rn << "|";
-
-        std::string lu = lhs->url() ? lhs->url() : "";
-        std::string ru = rhs->url() ? rhs->url() : "";
-        if (lu != ru) LOG_err << "\tTest: urls differ |" << lu << "| != |" << ru << "|";
-
-        std::string lun = lhs->userName() ? lhs->userName() : "";
-        std::string run = rhs->userName() ? rhs->userName() : "";
-        if (lun != run) LOG_err << "\tTest: userNames differ |" << lun << "| != |" << run << "|";
-
-        return (lp == rp && ln == rn && lu == ru && lun == run);
-    };
-    ASSERT_TRUE(equals(pwdData.get(), receivedPwdData.get()));
-    {
-        LOG_debug << "\t# validate & verify copy/cloning capabilities of Password Node Data";
-        std::unique_ptr<MegaNode> clonedNode {newPwdNode->copy()};
-        std::unique_ptr<MegaNode::PasswordNodeData> clonedPwdData{clonedNode->getPasswordData()};
-        ASSERT_NE(nullptr, clonedPwdData);
-        ASSERT_TRUE(equals(clonedPwdData.get(), receivedPwdData.get()));
-    }
-
-    LOG_debug << "\t# U1: attempt creation of new Password Node with same name as existing one";
-    RequestTracker rtCErrorExists {megaApi[userIdx].get()};
-    megaApi[userIdx]->createPasswordNode(pwdNodeName.c_str(), pwdData.get(), nhBase, &rtCErrorExists);
-    ASSERT_EQ(API_EEXIST, rtCErrorExists.waitForResult());
-
-    LOG_debug << "\t# U1: attempt creation of new Password Node with wrong parameters";
-    RequestTracker rtCError {megaApi[userIdx].get()};
-    megaApi[userIdx]->createPasswordNode(nullptr, nullptr, INVALID_HANDLE, &rtCError);
-    ASSERT_EQ(API_EARGS, rtCError.waitForResult());
-
-
-    LOG_debug << "# U1: retrieve Password Node by NodeHandle";
-    std::unique_ptr<MegaNode> retrievedPwdNode {megaApi[userIdx]->getNodeByHandle(newPwdNodeHandle)};
-    ASSERT_NE(nullptr, retrievedPwdNode.get());
-    ASSERT_TRUE(retrievedPwdNode->isPasswordNode());
-    retrievedPwdNode.reset(megaApi[userIdx]->getNodeByHandle(nhBase));
-    ASSERT_NE(nullptr, retrievedPwdNode.get());
-    ASSERT_FALSE(retrievedPwdNode->isPasswordNode());
-
-
-    LOG_debug << "# U1: update Password Node";
-    const char* nName = "SecondPwd";
-    LOG_debug << "\t# rename the Password Node";
-    ASSERT_EQ(API_OK, doRenameNode(userIdx, newPwdNode.get(), nName));
-    retrievedPwdNode.reset(megaApi[userIdx]->getNodeByHandle(newPwdNodeHandle));
-    ASSERT_NE(nullptr, retrievedPwdNode.get());
-    ASSERT_TRUE(retrievedPwdNode->isPasswordNode());
-    aux = retrievedPwdNode->getName(); ASSERT_NE(nullptr, aux);
-    ASSERT_STREQ(nName, aux) << "Password Node name not updated correctly";
-    receivedPwdData.reset(retrievedPwdNode->getPasswordData());
-    ASSERT_NE(nullptr, receivedPwdData);
-    ASSERT_TRUE(equals(pwdData.get(), receivedPwdData.get()));
-
-    LOG_debug << "\t# update only password attribute providing all attributes";
-    const char* nPwd = "5678";
-    pwdData->setPassword(nPwd);
-    check1 = false;
-    mApi[userIdx].mOnNodesUpdateCompletion =
-        createOnNodesUpdateLambda(newPwdNode->getHandle(), MegaNode::CHANGE_TYPE_PWD, check1);
-    RequestTracker rtUpdate {megaApi[userIdx].get()};
-    megaApi[userIdx]->updatePasswordNode(newPwdNodeHandle, pwdData.get(), &rtUpdate);
-    ASSERT_EQ(API_OK, rtUpdate.waitForResult());
-    ASSERT_TRUE(waitForResponse(&check1)) << "Node update not received after " << maxTimeout << " seconds";
-    const auto isExpectedData =
-        [this, &userIdx, &equals](MegaHandle nh, const MegaNode::PasswordNodeData* expectedData)
-    {
-        std::unique_ptr<MegaNode> retrievedNode {megaApi[userIdx]->getNodeByHandle(nh)};
-        ASSERT_TRUE(retrievedNode);
-        ASSERT_TRUE(retrievedNode->isPasswordNode());
-        std::unique_ptr<MegaNode::PasswordNodeData> retrievedData {retrievedNode->getPasswordData()};
-        ASSERT_TRUE(retrievedData);
-        ASSERT_TRUE(equals(expectedData, retrievedData.get()));
-    };
-    ASSERT_NO_FATAL_FAILURE(isExpectedData(newPwdNodeHandle, pwdData.get()));
-
-    LOG_debug << "\t# update only notes attribute (the non-updated attributes should be the same)";
-    const char* newNotes = "Updated Notes";
-    pwdData->setNotes(newNotes);  // expected data
-    std::unique_ptr<MegaNode::PasswordNodeData> updatedData {
-        MegaNode::PasswordNodeData::createInstance(nullptr, newNotes, nullptr, nullptr)};
-    check1 = false;
-    mApi[userIdx].mOnNodesUpdateCompletion =
-        createOnNodesUpdateLambda(newPwdNode->getHandle(), MegaNode::CHANGE_TYPE_PWD, check1);
-    RequestTracker rtUNotes {megaApi[userIdx].get()};
-    megaApi[userIdx]->updatePasswordNode(newPwdNodeHandle, updatedData.get(), &rtUNotes);
-    ASSERT_EQ(API_OK, rtUNotes.waitForResult());
-    ASSERT_TRUE(waitForResponse(&check1)) << "Notes node update not received after " << maxTimeout << " seconds";
-    ASSERT_NO_FATAL_FAILURE(isExpectedData(newPwdNodeHandle, pwdData.get()));
-
-    LOG_debug << "\t# update only url attribute (the non-updated attributes should be the same)";
-    const char* newURL = "Updated url";
-    pwdData->setUrl(newURL);  // expected data
-    updatedData.reset(MegaNode::PasswordNodeData::createInstance(nullptr, nullptr, newURL, nullptr));
-    check1 = false;
-    mApi[userIdx].mOnNodesUpdateCompletion =
-        createOnNodesUpdateLambda(newPwdNode->getHandle(), MegaNode::CHANGE_TYPE_PWD, check1);
-    RequestTracker rtUURL{megaApi[userIdx].get()};
-    megaApi[userIdx]->updatePasswordNode(newPwdNodeHandle, updatedData.get(), &rtUURL);
-    ASSERT_EQ(API_OK, rtUURL.waitForResult());
-    ASSERT_TRUE(waitForResponse(&check1)) << "URL node update not received after " << maxTimeout << " seconds";
-    ASSERT_NO_FATAL_FAILURE(isExpectedData(newPwdNodeHandle, pwdData.get()));
-
-    LOG_debug << "\t# update only user name attribute (the non-updated attributes should be the same)";
-    const char* newUserName = "Updated userName";
-    pwdData->setUserName(newUserName);  // expected data
-    updatedData.reset(MegaNode::PasswordNodeData::createInstance(nullptr, nullptr, nullptr, newUserName));
-    check1 = false;
-    mApi[userIdx].mOnNodesUpdateCompletion =
-        createOnNodesUpdateLambda(newPwdNode->getHandle(), MegaNode::CHANGE_TYPE_PWD, check1);
-    RequestTracker rtUUserName{megaApi[userIdx].get()};
-    megaApi[userIdx]->updatePasswordNode(newPwdNodeHandle, updatedData.get(), &rtUUserName);
-    ASSERT_EQ(API_OK, rtUUserName.waitForResult());
-    ASSERT_TRUE(waitForResponse(&check1)) << "User name node update not received after " << maxTimeout << " seconds";
-    ASSERT_NO_FATAL_FAILURE(isExpectedData(newPwdNodeHandle, pwdData.get()));
-
-    LOG_debug << "\t# update attempt without new data";
-    RequestTracker rtUError1 {megaApi[userIdx].get()};
-    megaApi[userIdx]->updatePasswordNode(newPwdNodeHandle, nullptr, &rtUError1);
-    ASSERT_EQ(API_EARGS, rtUError1.waitForResult());
-
-    LOG_debug << "\t# update attempt with empty new data";
-    pwdData.reset(MegaNode::PasswordNodeData::createInstance(nullptr, nullptr, nullptr, nullptr));
-    RequestTracker rtUError2 {megaApi[userIdx].get()};
-    megaApi[userIdx]->updatePasswordNode(newPwdNodeHandle, pwdData.get(), &rtUError2);
-    ASSERT_EQ(API_EARGS, rtUError2.waitForResult());
-
-
-    LOG_debug << "# U1: delete Password Node";
-    ASSERT_EQ(API_OK, doDeleteNode(userIdx, retrievedPwdNode.get()));
-    retrievedPwdNode.reset(megaApi[userIdx]->getNodeByHandle(newPwdNodeHandle));
-    ASSERT_EQ(nullptr, retrievedPwdNode.get());
-
-
-    LOG_debug << "# U1: create a new Password Node Folder";
-    const char* newFolderName = "NewPasswordNodeFolder";
-    const MegaHandle nhPNFolder = createFolder(userIdx, newFolderName, mnBase.get());
-    ASSERT_NE(INVALID_HANDLE, nhPNFolder);
-
-
-    LOG_debug << "# U1: retrieve newly created Password Node Folder";
-    std::unique_ptr<MegaNode> mnPNFolder {megaApi[userIdx]->getNodeByHandle(nhPNFolder)};
-    ASSERT_NE(nullptr, mnPNFolder);
-    ASSERT_TRUE(megaApi[userIdx]->isPasswordNodeFolder(mnPNFolder->getHandle()));
-    ASSERT_STREQ(newFolderName, mnPNFolder->getName());
-
-
-    LOG_debug << "# U1: update (rename) an existing Password Node Folder";
-    const char* updatedFolderName = "UpdatedPNF";
-    ASSERT_EQ(API_OK, doRenameNode(userIdx, mnPNFolder.get(), updatedFolderName));
-    mnPNFolder.reset(megaApi[userIdx]->getNodeByHandle(nhPNFolder));
-    ASSERT_NE(nullptr, mnPNFolder);
-    ASSERT_TRUE(megaApi[userIdx]->isPasswordNodeFolder(mnPNFolder->getHandle()));
-    ASSERT_STREQ(updatedFolderName, mnPNFolder->getName());
-
-
-    LOG_debug << "# U1: delete an existing Password Node Folder";
-    ASSERT_EQ(API_OK, doDeleteNode(userIdx, mnPNFolder.get()));
-    mnPNFolder.reset(megaApi[userIdx]->getNodeByHandle(nhPNFolder));
-    ASSERT_EQ(nullptr, mnPNFolder);
-
-    LOG_debug << "\t# deletion attempted with Password Manager Base as handle";
-    ASSERT_EQ(API_EARGS, doDeleteNode(userIdx, mnBase.get()));
 }
 
 #ifdef ENABLE_SYNC
@@ -19577,6 +19366,11 @@ TEST_F(SdkTest, SdkNodeDescription)
  *  - Update tag1 to tagUpdated -> API_OK
  *  - Update tag2 to tagUpdated -> API_EEXIST
  *  - Update tag1 to tagUpdated2 -> API_ENOENT
+ *  - Create another file inside a subdir
+ *  - Add some tags to it
+ *  - Get all different node tags
+ *  - Update file to create a new version
+ *  - Check new version retains the same tags
  */
 TEST_F(SdkTest, SdkNodeTag)
 {
@@ -19586,13 +19380,13 @@ TEST_F(SdkTest, SdkNodeTag)
     unique_ptr<MegaNode> rootnodeA(megaApi[0]->getRootNode());
     ASSERT_TRUE(rootnodeA);
 
-    string filename = "test.txt";
-    createFile(filename, false);
+    fs::path filename{"test.txt"};
+    sdk_test::LocalTempFile tempLocalFile1(filename, 0);
     MegaHandle mh = 0;
     ASSERT_EQ(MegaError::API_OK,
               doStartUpload(0,
                             &mh,
-                            filename.data(),
+                            filename.u8string().c_str(),
                             rootnodeA.get(),
                             nullptr /*fileName*/,
                             ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
@@ -19685,6 +19479,14 @@ TEST_F(SdkTest, SdkNodeTag)
         return (checkTag(node.get(), tag) && !checkTag(node.get(), oldTag)) ? API_OK : API_EEXIST;
     };
 
+    const auto toVector = [](const MegaStringList& l) -> std::vector<std::string>
+    {
+        std::vector<std::string> r;
+        for (int i = 0; i < l.size(); ++i)
+            r.emplace_back(l.get(i));
+        return r;
+    };
+
     std::string tag1 = "tag1";
     std::string tag2 = "tag2";
     std::string tag3 = "tag3";
@@ -19770,7 +19572,95 @@ TEST_F(SdkTest, SdkNodeTag)
 
     ASSERT_EQ(addTag(mh, tag4Lowercase), API_EEXIST);
 
-    deleteFile(filename);
+    // To prepare for the following block, check natural sorting
+    const std::string tag11 = "tag11";
+    ASSERT_EQ(updateTag(mh, tag11, tag4), API_OK);
+
+    //// Create a new file in a subdir
+    LOG_debug << "[SdkTest::SdkNodeTag] Creating a subdir";
+    bool check = false;
+    mApi[0].mOnNodesUpdateCompletion =
+        createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check);
+    auto folderHandle = createFolder(0, "dir1", rootnodeA.get());
+    ASSERT_NE(folderHandle, INVALID_HANDLE) << "Cannot create a directory in the cloud";
+    waitForResponse(&check);
+    std::unique_ptr<MegaNode> dirNode(megaApi[0]->getNodeByHandle(folderHandle));
+    resetOnNodeUpdateCompletionCBs();
+
+    LOG_debug << "[SdkTest::SdkNodeTag] Creating a file inside the subdir";
+    fs::path filename2{"test2.txt"};
+    sdk_test::LocalTempFile tempLocalFile2(filename2, 0);
+    MegaHandle mh2 = 0;
+    ASSERT_EQ(MegaError::API_OK,
+              doStartUpload(0,
+                            &mh2,
+                            filename2.u8string().c_str(),
+                            dirNode.get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << "Cannot upload a second test file";
+
+    LOG_debug << "[SdkTest::SdkNodeTag] Adding tags to the file";
+    std::string subdirtag = "subdirtag";
+    std::string subdiraux = "subdiraux";
+    ASSERT_EQ(addTag(mh2, subdirtag), API_OK);
+    ASSERT_EQ(addTag(mh2, subdiraux), API_OK);
+
+    LOG_debug << "[SdkTest::SdkNodeTag] Testing all tags";
+    std::unique_ptr<MegaStringList> allTags(megaApi[0]->getAllNodeTags());
+    ASSERT_NE(allTags, nullptr);
+    auto allTagsV = toVector(*allTags);
+    EXPECT_THAT(allTagsV, testing::ElementsAreArray({subdiraux, subdirtag, tag3, tag11}));
+
+    LOG_debug << "[SdkTest::SdkNodeTag] Testing all tags with pattern matching";
+    allTags.reset(megaApi[0]->getAllNodeTags("ub*r"));
+    ASSERT_NE(allTags, nullptr);
+    allTagsV = toVector(*allTags);
+    EXPECT_THAT(allTagsV, testing::ElementsAreArray({subdiraux, subdirtag}));
+
+    LOG_debug << "[SdkTest::SdkNodeTag] Testing all tags with exact match";
+    allTags.reset(megaApi[0]->getAllNodeTags(tag11.c_str()));
+    ASSERT_NE(allTags, nullptr);
+    allTagsV = toVector(*allTags);
+    EXPECT_THAT(allTagsV, testing::ElementsAreArray({tag11}));
+
+    LOG_debug << "[SdkTest::SdkNodeTag] Changing the contents of test.txt to force a new version";
+    sdk_test::LocalTempFile fNewVersion("testnewversion.txt", 1);
+    MegaHandle mhNew = INVALID_HANDLE;
+    ASSERT_EQ(MegaError::API_OK,
+              doStartUpload(0,
+                            &mhNew,
+                            "testnewversion.txt",
+                            rootnodeA.get(),
+                            filename.u8string().c_str(),
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << "Cannot update the test file";
+    ASSERT_NE(mhNew, INVALID_HANDLE);
+
+    std::unique_ptr<MegaNode> oldNode(megaApi[0]->getNodeByHandle(mh));
+    ASSERT_NE(oldNode, nullptr);
+    std::unique_ptr<MegaStringList> oldTags(oldNode->getTags());
+    ASSERT_NE(oldTags, nullptr);
+
+    std::unique_ptr<MegaNode> newNode(megaApi[0]->getNodeByHandle(mhNew));
+    ASSERT_NE(newNode, nullptr);
+    std::unique_ptr<MegaStringList> newTags(newNode->getTags());
+    ASSERT_NE(newTags, nullptr);
+
+    // Check there are two versions for the file
+    unique_ptr<MegaNodeList> allVersions(megaApi[0]->getVersions(newNode.get()));
+    ASSERT_EQ(allVersions->size(), 2);
+
+    EXPECT_THAT(toVector(*oldTags), testing::UnorderedElementsAreArray(toVector(*newTags)))
+        << "Tags are not maintained after file update";
 }
 
 /**

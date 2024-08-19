@@ -1,16 +1,3 @@
-
-option(OLD_CMAKE "" OFF)
-
-if(OLD_CMAKE)
-    # This file is here in the root folder so it can be opened as a CMake project in Visual Studio, eg in order to debug a Linux build in WSL2.
-    cmake_minimum_required(VERSION 3.13)
-    project(TryWSL)
-    include(${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/CMakeLists.txt)
-
-    # Do not continue with the rest of the CMake file.
-    return()
-endif()
-
 # CMakeLists.txt file to build the SDKlib library.
 #
 # It can be used to build a standalone library or to be included via add_subdirectory.
@@ -35,16 +22,30 @@ set(QT_CREATOR_SKIP_VCPKG_SETUP TRUE CACHE BOOL "")
 # Main modules location
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/modules)
 
-## Configurable options ##
 set(VCPKG_ROOT "" CACHE PATH "If set, it will build and use the VCPKG packages defined in the manifest file")
+
+# Set up CMAKE_SYSTEM_NAME for cross compiling
+if (VCPKG_ROOT)
+    include(set_cmake_system_name)
+    set_cmake_system_name()
+endif()
+
+## Configurable options ##
 include(sdklib_options)
 
 # If PROJECT_NAME is not set before project() we are the main project.
 if(NOT PROJECT_NAME)
-    message(STATUS "[SDKlib] is a top-level project. Install target, examples and tests will be enabled by default.")
+    message(STATUS "[SDKlib] is a top-level project. Install target is enabled by default.")
     set(SDKLIB_STANDALONE 1)
-    option(ENABLE_SDKLIB_EXAMPLES "Example application is built if enabled" ON)
-    option(ENABLE_SDKLIB_TESTS "Integration and unit tests are built if enabled" ON)
+    if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
+        message(STATUS "Examples and tests will not be enabled by default.")
+        option(ENABLE_SDKLIB_EXAMPLES "Example application is built if enabled" OFF)
+        option(ENABLE_SDKLIB_TESTS "Integration and unit tests are built if enabled" OFF)
+    else()
+        message(STATUS "Examples and tests will be enabled by default.")
+        option(ENABLE_SDKLIB_EXAMPLES "Example application is built if enabled" ON)
+        option(ENABLE_SDKLIB_TESTS "Integration and unit tests are built if enabled" ON)
+    endif()
     if (WIN32)
         option(ENABLE_SDKLIB_WERROR "Enable warnings as errors" ON)
     else()
@@ -97,11 +98,23 @@ if(CMAKE_OSX_ARCHITECTURES)
 endif()
 message(STATUS "Target System Processor: ${CMAKE_SYSTEM_PROCESSOR}")
 message(STATUS "Host System Processor: ${CMAKE_HOST_SYSTEM_PROCESSOR}")
-if (NOT CMAKE_BUILD_TYPE)
-    message(STATUS "Generated with config types: ${CMAKE_CONFIGURATION_TYPES}")
+
+get_property(IS_MULTI_CONFIG GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+
+if(IS_MULTI_CONFIG)
+    if(CMAKE_CONFIGURATION_TYPES)
+        message(STATUS "Generated with config types: ${CMAKE_CONFIGURATION_TYPES}")
+    else()
+        message(FATAL_ERROR "You must specify CMAKE_CONFIGURATION_TYPES")
+    endif()
 else()
-    message(STATUS "Build type set to: ${CMAKE_BUILD_TYPE}")
+    if(CMAKE_BUILD_TYPE)
+        message(STATUS "Build type set to: ${CMAKE_BUILD_TYPE}")
+    else()
+        message(FATAL_ERROR "You must specify CMAKE_BUILD_TYPE. For example: -DCMAKE_BUILD_TYPE=Debug")
+    endif()
 endif()
+
 if($ENV{CFLAGS})
     message(STATUS "Environment CFLAGS: $ENV{CFLAGS}")
 endif()

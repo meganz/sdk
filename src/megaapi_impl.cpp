@@ -19,6 +19,7 @@
  * program.
  */
 
+#include <numeric>
 #define _LARGE_FILES
 
 #define _GNU_SOURCE 1
@@ -3896,6 +3897,8 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
     this->mMegaVpnCredentials.reset(request->mMegaVpnCredentials ? request->mMegaVpnCredentials->copy() : nullptr);
     this->mMegaNotifications.reset(request->mMegaNotifications ? request->mMegaNotifications->copy() : nullptr);
     this->mMegaNodeTree.reset(request->mMegaNodeTree ? request->mMegaNodeTree->copy() : nullptr);
+    this->mStringIntegerMap.reset(request->mStringIntegerMap ? request->mStringIntegerMap->copy() :
+                                                               nullptr);
 }
 
 std::shared_ptr<AccountDetails> MegaRequestPrivate::getAccountDetails() const
@@ -3925,6 +3928,11 @@ MegaTimeZoneDetails *MegaRequestPrivate::getMegaTimeZoneDetails() const
 MegaStringList *MegaRequestPrivate::getMegaStringList() const
 {
     return mStringList.get();
+}
+
+MegaStringIntegerMap* MegaRequestPrivate::getMegaStringIntegerMap() const
+{
+    return mStringIntegerMap.get();
 }
 
 MegaHandleList* MegaRequestPrivate::getMegaHandleList() const
@@ -4081,6 +4089,16 @@ void MegaRequestPrivate::setMegaStringList(const MegaStringList* stringList)
     if (stringList)
     {
        mStringList = unique_ptr<MegaStringList>(stringList->copy());
+    }
+}
+
+void MegaRequestPrivate::setMegaStringIntegerMap(const MegaStringIntegerMap* stringIntegerMap)
+{
+    mStringIntegerMap.reset();
+
+    if (stringIntegerMap)
+    {
+        mStringIntegerMap = std::unique_ptr<MegaStringIntegerMap>(stringIntegerMap->copy());
     }
 }
 
@@ -4751,6 +4769,8 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_NOTIFICATIONS: return "GET_NOTIFICATIONS";
         case TYPE_DEL_ATTR_USER:
             return "DEL_ATTR_USER";
+        case TYPE_IMPORT_PASSWORDS_FROM_FILE:
+            return "IMPORT_PASSWORDS_FROM_FILE";
 
         // FUSE requests.
         case TYPE_ADD_MOUNT:       return "TYPE_ADD_MOUNT";
@@ -8245,6 +8265,20 @@ void MegaApiImpl::removeNodeTag(MegaNode* node, const char* tag, MegaRequestList
 void MegaApiImpl::updateNodeTag(MegaNode* node, const char* newTag, const char* oldTag, MegaRequestListener* listener)
 {
     CRUDNodeTagOperation(node, MegaApi::TAG_NODE_UPDATE, newTag, oldTag, listener);
+}
+
+MegaStringList* MegaApiImpl::getAllNodeTags(const char* searchString, CancelToken cancelToken)
+{
+    SdkMutexGuard g(sdkMutex);
+    std::set<std::string> allDifferentTags =
+        client->mNodeManager.getAllNodeTags(searchString, cancelToken);
+    std::vector<std::string> result(allDifferentTags.begin(), allDifferentTags.end());
+    const auto compF = [](const std::string& a, const std::string& b) -> bool
+    {
+        return naturalsorting_compare(a.c_str(), b.c_str()) < 0;
+    };
+    std::sort(std::begin(result), std::end(result), compF);
+    return new MegaStringListPrivate(std::move(result));
 }
 
 void MegaApiImpl::exportNode(MegaNode *node, int64_t expireTime, bool writable, bool megaHosted, MegaRequestListener *listener)
@@ -12213,37 +12247,6 @@ void MegaApiImpl::resumeActionPackets()
     client->scpaused = false;
 }
 
-sharedNode_vector MegaApiImpl::searchInNodeManager(MegaHandle ancestorHandle, const char *searchString, int mimeType, bool recursive, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, CancelToken cancelToken)
-{
-    sharedNode_vector nodeVector;
-
-    if (!searchString || searchString[0] == '\0')
-    {
-        // always recursive
-        assert(mimeType != MegaApi::FILE_TYPE_DEFAULT);
-        nodeVector = client->mNodeManager.getNodesByMimeType(static_cast<MimeType_t>(mimeType), NodeHandle().set6byte(ancestorHandle), requiredFlags, excludeFlags, excludeRecursiveFlags, cancelToken);
-    }
-    else
-    {
-        nodeVector = client->mNodeManager.search(NodeHandle().set6byte(ancestorHandle), searchString, recursive, requiredFlags, excludeFlags, excludeRecursiveFlags, cancelToken);
-
-        auto it = nodeVector.begin();
-        while (it != nodeVector.end() && !cancelToken.isCancelled())
-        {
-            if (!isValidTypeNode(it->get(), mimeType))
-            {
-                it = nodeVector.erase(it);
-            }
-            else
-            {
-                ++it;
-            }
-        }
-    }
-
-    return nodeVector;
-}
-
 bool MegaApiImpl::isValidTypeNode(const Node *node, int type) const
 {
     assert(node);
@@ -12452,210 +12455,6 @@ sharedNode_vector MegaApiImpl::searchInNodeManager(const MegaSearchFilter* filte
     const NodeSearchPage& np = searchPage ? NodeSearchPage(searchPage->startingOffset(), searchPage->size()) : NodeSearchPage(0, 0);
     sharedNode_vector results = client->mNodeManager.searchNodes(nf, order, cancelToken, np);
     return results;
-}
-
-MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, CancelToken cancelToken, bool recursive, int order, int mimeType, int target, bool includeSensitive)
-{
-    Node::Flags requiredFlags;
-    Node::Flags excludeFlags;
-    Node::Flags excludeRecursiveFlags = Node::Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE, !includeSensitive);
-    return searchWithFlags(n, searchString, cancelToken, recursive, order, mimeType, target, requiredFlags, excludeFlags, excludeRecursiveFlags);
-}
-
-MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString, CancelToken cancelToken, bool recursive, int order, int mimeType, int target, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags)
-{
-    if (!n && !searchString && (mimeType < MegaApi::FILE_TYPE_PHOTO || mimeType > MegaApi::FILE_TYPE_LAST))
-    {
-        // If node is not valid, and no search string, and mimeType is not valid
-        return new MegaNodeListPrivate();
-    }
-
-    if (order < MegaApi::ORDER_NONE || order > MegaApi::ORDER_FAV_DESC)
-    {
-        return new MegaNodeListPrivate();
-    }
-
-    if (mimeType != MegaApi::FILE_TYPE_DEFAULT
-            && (order >= /*deprecated*/ MegaApi::ORDER_PHOTO_ASC && order <= /*deprecated*/ MegaApi::ORDER_VIDEO_DESC))
-    {
-        return new MegaNodeListPrivate();
-    }
-
-    if (cancelToken.isCancelled())
-    {
-        return new MegaNodeListPrivate();
-    }
-
-    SdkMutexGuard g(sdkMutex);
-
-    if (cancelToken.isCancelled())
-    {
-        return new MegaNodeListPrivate();
-    }
-
-    MegaNodeList *nodeList = nullptr;
-    if (n)
-    {
-        assert(target == MegaApi::SEARCH_TARGET_ALL); // target ignored if node specified
-
-        // if node is provided, it will be the parent node of the tree to explore
-        std::shared_ptr<Node> node = client->nodebyhandle(n->getHandle());
-        if (!node)
-        {
-            return new MegaNodeListPrivate();
-        }
-
-        // searchString and nodeType (if provided), are considered in search
-        sharedNode_vector result = searchInNodeManager(n->getHandle(), searchString, mimeType, recursive, requiredFlags, excludeFlags, excludeRecursiveFlags, cancelToken);
-
-        sortByComparatorFunction(result, order, *client);
-        nodeList = new MegaNodeListPrivate(result);
-    }
-    else
-    {
-        sharedNode_vector result;
-
-        // Target parameter is only considered if node is not provided
-        if (target < MegaApi::SEARCH_TARGET_INSHARE || target > MegaApi::SEARCH_TARGET_ALL)
-        {
-            return new MegaNodeListPrivate();
-        }
-
-        if (target == MegaApi::SEARCH_TARGET_ALL)
-        {
-            result = searchInNodeManager(UNDEF, searchString, mimeType, recursive, requiredFlags, excludeFlags, excludeRecursiveFlags, cancelToken);
-        }
-        else if (target == MegaApi::SEARCH_TARGET_ROOTNODE)
-        {
-            // Search on rootnode (Cloud and Vault, excludes Rubbish)
-            if (recursive)
-            {
-                std::shared_ptr<Node> node = client->nodeByHandle(client->mNodeManager.getRootNodeFiles());
-                if (!node)
-                {
-                    return new MegaNodeListPrivate();
-                }
-                sharedNode_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, mimeType, true, requiredFlags, excludeFlags, excludeRecursiveFlags, cancelToken);
-                result.insert(result.end(), nodeVector.begin(), nodeVector.end());
-
-                node = client->nodeByHandle(client->mNodeManager.getRootNodeVault());
-                if (node) {
-                    nodeVector = searchInNodeManager(node->nodehandle, searchString, mimeType, true, requiredFlags, excludeFlags, excludeRecursiveFlags, cancelToken);
-                    result.insert(result.end(), nodeVector.begin(), nodeVector.end());
-                }
-            }
-            else
-            {
-                // We kept this case for compatibility with no-NOD version but it doesn't make
-                // sense to search under file root node and vault root node by name
-                assert(false);
-                std::shared_ptr<Node> node = client->nodeByHandle(client->mNodeManager.getRootNodeFiles());
-                if (!node)
-                {
-                    return new MegaNodeListPrivate();
-                }
-                if (node->isIncludedForMimetype(static_cast<MimeType_t>(mimeType)) &&
-                    strcasestr(node->displayname(), searchString) != NULL &&
-                    node->areFlagsValid(requiredFlags, excludeFlags, excludeRecursiveFlags))
-                {
-                        result.push_back(node);
-                }
-
-                node = client->nodeByHandle(client->mNodeManager.getRootNodeVault());
-                if (node &&
-                    node->isIncludedForMimetype(static_cast<MimeType_t>(mimeType)) &&
-                    strcasestr(node->displayname(), searchString) != NULL &&
-                    node->areFlagsValid(requiredFlags, excludeFlags, excludeRecursiveFlags))
-                {
-                        result.push_back(node);
-                }
-            }
-
-        }
-        else if (target == MegaApi::SEARCH_TARGET_INSHARE)
-        {
-            // always recursive
-            assert(recursive);
-
-            // find in-shares themselves
-            sharedNode_vector nodeVector = client->mNodeManager.getInSharesWithName(searchString, cancelToken);
-            result.swap(nodeVector);
-
-            // Search in each inshare
-            unique_ptr<MegaShareList> shares(getInSharesList(MegaApi::ORDER_NONE));
-            for (int i = 0; i < shares->size() && !cancelToken.isCancelled(); i++)
-            {
-                std::shared_ptr<Node> node = client->nodebyhandle(shares->get(i)->getNodeHandle());
-                assert(node);
-                if (node)
-                {
-                    nodeVector = searchInNodeManager(node->nodehandle, searchString, mimeType, true, requiredFlags, excludeFlags, excludeRecursiveFlags, cancelToken);
-                    result.insert(result.end(), nodeVector.begin(), nodeVector.end());
-                }
-            }
-        }
-        else if (target == MegaApi::SEARCH_TARGET_OUTSHARE)
-        {
-            // always recursive
-            assert(recursive);
-
-            // find out-shares themselves
-            sharedNode_vector nodeVector = client->mNodeManager.getOutSharesWithName(searchString, cancelToken);
-            result.swap(nodeVector);
-
-            // Search in each outshare
-            std::set<MegaHandle> outsharesHandles;
-            unique_ptr<MegaShareList> shares(getOutShares(MegaApi::ORDER_NONE));
-            for (int i = 0; i < shares->size() && !cancelToken.isCancelled(); i++)
-            {
-                handle h = shares->get(i)->getNodeHandle();
-                if (outsharesHandles.find(h) != outsharesHandles.end())
-                {
-                    // shares list includes an item per outshare AND per sharee/user
-                    continue;   // avoid duplicates
-                }
-                outsharesHandles.insert(h);
-                std::shared_ptr<Node> node = client->nodebyhandle(shares->get(i)->getNodeHandle());
-                assert(node);
-                if (node)
-                {
-                    sharedNode_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, mimeType, true, requiredFlags, excludeFlags, excludeRecursiveFlags, cancelToken);
-                    result.insert(result.end(), nodeVector.begin(), nodeVector.end());
-                }
-            }
-        }
-        else if (target == MegaApi::SEARCH_TARGET_PUBLICLINK)
-        {
-            // always recursive
-            assert(recursive);
-
-            // find public links themselves
-            sharedNode_vector nodeVector = client->mNodeManager.getPublicLinksWithName(searchString, cancelToken);
-            result.swap(nodeVector);
-
-            // Search under each public link
-            sharedNode_vector publicLinks = client->mNodeManager.getNodesWithLinks();
-            for (const auto& p : publicLinks)
-            {
-                std::shared_ptr<Node> node = client->nodebyhandle(p->nodehandle);
-                assert(node);
-                if (node)
-                {
-                    nodeVector = searchInNodeManager(node->nodehandle, searchString, mimeType, true, requiredFlags, excludeFlags, excludeRecursiveFlags, cancelToken);
-                    result.insert(result.end(), nodeVector.begin(), nodeVector.end());
-                }
-            }
-        }
-        else
-        {
-            assert(!"no start node specified and unknown target");
-        }
-
-        sortByComparatorFunction(result, order, *client);
-        nodeList = new MegaNodeListPrivate(result);
-    }
-
-    return nodeList;
 }
 
 long long MegaApiImpl::getSize(MegaNode *n)
@@ -13143,7 +12942,7 @@ dstime MegaApiImpl::pread_failure(const Error &e, int retry, void* param, dstime
             return 0;
         }
 
-        return (dstime)(1 << (retry - 1));
+        return static_cast<dstime>(1) << (retry - 1);
     }
     else
     {
@@ -14393,19 +14192,37 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
 
     auto reqIt = requestMap.find(tag);
     MegaRequestPrivate* request = reqIt == requestMap.end() ? nullptr : reqIt->second;
-    if(!request || ((request->getType() != MegaRequest::TYPE_IMPORT_LINK) &&
-                    (request->getType() != MegaRequest::TYPE_CREATE_FOLDER) &&
-                    (request->getType() != MegaRequest::TYPE_CREATE_PASSWORD_NODE) &&
-                    (request->getType() != MegaRequest::TYPE_COPY) &&
-                    (request->getType() != MegaRequest::TYPE_MOVE) &&
-                    (request->getType() != MegaRequest::TYPE_RESTORE) &&
-                    (request->getType() != MegaRequest::TYPE_ADD_SYNC) &&
-                    (request->getType() != MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD))) return;
+    if (!request || ((request->getType() != MegaRequest::TYPE_IMPORT_LINK) &&
+                     (request->getType() != MegaRequest::TYPE_CREATE_FOLDER) &&
+                     (request->getType() != MegaRequest::TYPE_CREATE_PASSWORD_NODE) &&
+                     (request->getType() != MegaRequest::TYPE_COPY) &&
+                     (request->getType() != MegaRequest::TYPE_MOVE) &&
+                     (request->getType() != MegaRequest::TYPE_RESTORE) &&
+                     (request->getType() != MegaRequest::TYPE_ADD_SYNC) &&
+                     (request->getType() != MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD) &&
+                     (request->getType() != MegaRequest::TYPE_IMPORT_PASSWORDS_FROM_FILE)))
+        return;
 
     if (request->getType() == MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD)
     {
         request->setNodeHandle(h);
         request->setFlag(targetOverride);
+        fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
+        return;
+    }
+
+    if (request->getType() == MegaRequest::TYPE_IMPORT_PASSWORDS_FROM_FILE)
+    {
+        std::vector<handle> nodeHandles;
+        std::transform(nn.begin(),
+                       nn.end(),
+                       std::back_inserter(nodeHandles),
+                       [](const NewNode& newNode)
+                       {
+                           assert(newNode.mAddedHandle != UNDEF);
+                           return newNode.mAddedHandle;
+                       });
+        request->setMegaHandleList(nodeHandles);
         fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
         return;
     }
@@ -18067,6 +17884,7 @@ MegaNodeList *MegaApiImpl::getChildren(const MegaSearchFilter* filter, int order
         return new MegaNodeListPrivate();
     }
 
+    SdkMutexGuard guard(sdkMutex);
     NodeSearchFilter nf;
     nf.copyFrom(*filter);
     const NodeSearchPage& np = searchPage ? NodeSearchPage(searchPage->startingOffset(), searchPage->size()) : NodeSearchPage(0u, 0u);
@@ -18183,21 +18001,6 @@ int MegaApiImpl::getNumVersions(MegaNode *node)
 bool MegaApiImpl::hasVersions(MegaNode *node)
 {
     return getNumVersions(node) > 1;
-}
-
-MegaNodeList* MegaApiImpl::getChildrenFromType(MegaNode* p, int type, int order, CancelToken cancelToken)
-{
-    if (!p || p->getType() == MegaNode::TYPE_FILE || type < nodetype_t::FILENODE || type > nodetype_t::FOLDERNODE)
-    {
-        return new MegaNodeListPrivate();
-    }
-
-    SdkMutexGuard guard(sdkMutex);
-
-    sharedNode_vector childrenNodes = client->mNodeManager.getChildrenFromType(NodeHandle().set6byte(p->getHandle()), static_cast<nodetype_t>(type), cancelToken);
-    sortByComparatorFunction(childrenNodes, order, *client);
-
-    return new MegaNodeListPrivate(childrenNodes);
 }
 
 bool MegaApiImpl::hasChildren(MegaNode *parent)
@@ -24917,7 +24720,17 @@ error MegaApiImpl::performRequest_completeBackgroundUpload(MegaRequestPrivate* r
                 return e;
             }
 
-            client->reqs.add(new CommandPutNodes(client, parentHandle, NULL, UseLocalVersioningFlag, std::move(newnodes), request->getTag(), PUTNODES_APP, nullptr, nullptr, false));
+            client->reqs.add(new CommandPutNodes(client,
+                                                 parentHandle,
+                                                 NULL,
+                                                 UseLocalVersioningFlag,
+                                                 std::move(newnodes),
+                                                 request->getTag(),
+                                                 PUTNODES_APP,
+                                                 nullptr,
+                                                 nullptr,
+                                                 false,
+                                                 {})); // customerIpPort
             return e;
 }
 
@@ -25386,33 +25199,65 @@ void MegaApiImpl::setMyBackupsFolder(const char* localizedName, MegaRequestListe
     waiter->notify();
 }
 
-void MegaApiImpl::getRecentActionsAsync(unsigned days, unsigned maxnodes, MegaRequestListener* listener)
+void MegaApiImpl::getRecentActionsAsync(unsigned days,
+                                        unsigned maxnodes,
+                                        MegaRequestListener* listener)
+{
+    getRecentActionsAsyncInternal(days, maxnodes, nullptr, listener);
+}
+
+void MegaApiImpl::getRecentActionsAsync(unsigned days,
+                                        unsigned maxnodes,
+                                        bool excludeSensitives,
+                                        MegaRequestListener* listener)
+{
+    getRecentActionsAsyncInternal(days, maxnodes, &excludeSensitives, listener);
+}
+
+void MegaApiImpl::getRecentActionsAsyncInternal(unsigned days,
+                                                unsigned maxnodes,
+                                                bool* optExcludeSensitives,
+                                                MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_RECENT_ACTIONS, listener);
     request->setNumber(days);
     request->setParamType(maxnodes);
+    if (optExcludeSensitives)
+        request->setFlag(*optExcludeSensitives);
 
-    request->performRequest = [this, request]()
+    request->performRequest =
+        [this, request, withExcludeSensitives = (optExcludeSensitives != nullptr)]()
+    {
+        int maxnodes = request->getParamType();
+        if (maxnodes <= 0)
         {
-           int maxnodes = request->getParamType();
-           if (maxnodes <= 0)
-           {
-               return API_EARGS;
-           }
+            return API_EARGS;
+        }
 
-           int days = static_cast<int>(request->getNumber());
-           if (days <= 0)
-           {
-               return API_EARGS;
-           }
+        int days = static_cast<int>(request->getNumber());
+        if (days <= 0)
+        {
+            return API_EARGS;
+        }
 
-           m_time_t since = m_time() - days * 86400;
-           recentactions_vector v = client->getRecentActions(maxnodes, since);
-           std::unique_ptr<MegaRecentActionBucketList> recentActions(new MegaRecentActionBucketListPrivate(v, client));
-           request->setRecentActions(std::move(recentActions));
-           fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
-           return API_OK;
-        };
+        m_time_t since = m_time() - days * 86400;
+
+        recentactions_vector v;
+        if (withExcludeSensitives)
+        {
+            bool excludeSensitives = request->getFlag();
+            v = client->getRecentActions(maxnodes, since, excludeSensitives);
+        }
+        else
+        {
+            v = client->getRecentActions(maxnodes, since);
+        }
+        std::unique_ptr<MegaRecentActionBucketList> recentActions(
+            new MegaRecentActionBucketListPrivate(v, client));
+        request->setRecentActions(std::move(recentActions));
+        fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
+        return API_OK;
+    };
 
     requestQueue.push(request);
     waiter->notify();
@@ -26983,6 +26828,93 @@ void MegaApiImpl::updatePasswordNode(MegaHandle h, const MegaNode::PasswordNodeD
     waiter->notify();
 }
 
+void MegaApiImpl::importPasswordsFromFile(const char* filePath,
+                                          const int fileSource,
+                                          MegaHandle parent,
+                                          MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request =
+        new MegaRequestPrivate(MegaRequest::TYPE_IMPORT_PASSWORDS_FROM_FILE, listener);
+
+    request->setFile(filePath);
+    request->setParamType(fileSource);
+    request->setParentHandle(parent);
+
+    request->performRequest = [this, request]() -> error
+    {
+        using namespace pwm::import;
+        NodeHandle parentHandle = NodeHandle{}.set6byte(request->getParentHandle());
+        if (parentHandle.isUndef() || !request->getFile() ||
+            request->getParamType() != MegaApi::IMPORT_PASSWORD_SOURCE_GOOGLE)
+        {
+            LOG_err << "Import password: invalid parameters";
+            return API_EARGS;
+        }
+
+        std::string filePath{request->getFile()};
+        auto source = static_cast<FileSource>(request->getParamType());
+        std::shared_ptr<Node> parent = client->nodeByHandle(parentHandle);
+        if (!parent || !parent->isPasswordNodeFolder())
+        {
+            LOG_err << "Import password: parent node doesn't exist";
+            return API_EARGS;
+        }
+
+        PassFileParseResult parserResult = readPasswordImportFile(filePath, source);
+        switch (parserResult.mErrCode)
+        {
+            case PassFileParseResult::ErrCode::OK:
+                break;
+            case PassFileParseResult::ErrCode::MISSING_COLUMN:
+            case PassFileParseResult::ErrCode::NO_VALID_ENTRIES:
+                LOG_err << "Import password: invalid file format";
+                return API_EARGS;
+            case PassFileParseResult::ErrCode::FILE_DOES_NOT_EXIST:
+            case PassFileParseResult::ErrCode::CANT_OPEN_FILE:
+                LOG_err << "Import password: file can't be opened or doesn't exist";
+                return API_EREAD;
+            case PassFileParseResult::ErrCode::INVALID_HEADER:
+                LOG_err << "Import password: Invalid header";
+                return API_EACCESS;
+        }
+
+        sharedNode_list children = client->getChildren(parent.get());
+        std::vector<std::string> childrenNames;
+        std::transform(children.begin(),
+                       children.end(),
+                       std::back_inserter(childrenNames),
+                       [](const std::shared_ptr<Node>& child) -> std::string
+                       {
+                           return child->displayname();
+                       });
+        ncoll::NameCollisionSolver solver{std::move(childrenNames)};
+
+        const auto [badEntries, goodEntries] =
+            MegaClient::validatePasswordEntries(std::move(parserResult.mResults), solver);
+
+        if (goodEntries.empty())
+        {
+            LOG_err << "Import password: none entry is valid";
+            return API_EARGS;
+        }
+
+        MegaStringIntegerMapPrivate stringIntegerMap;
+        std::for_each(badEntries.begin(),
+                      badEntries.end(),
+                      [&stringIntegerMap](const std::pair<std::string, PasswordEntryError>& arg)
+                      {
+                          stringIntegerMap.set(arg.first, static_cast<int64_t>(arg.second));
+                      });
+
+        request->setMegaStringIntegerMap(&stringIntegerMap);
+
+        return client->createPasswordNodes(std::move(goodEntries), parent, request->getTag());
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::fetchCreditCardInfo(MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_CREDIT_CARD_INFO, listener);
@@ -27027,11 +26959,13 @@ void MegaApiImpl::setVisibleTermsOfService(bool visible, MegaRequestListener* li
 
 void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
                                  MegaNodeTree* nodeTree,
+                                 const char* customerIpPort,
                                  MegaRequestListener* listener)
 {
     auto request{new MegaRequestPrivate(MegaRequest::TYPE_CREATE_NODE_TREE, listener)};
     request->setParentHandle(parentNode ? parentNode->getHandle() : INVALID_HANDLE);
     request->setMegaNodeTree(nodeTree ? nodeTree->copy() : nullptr);
+    request->setText(customerIpPort);
     request->performRequest = [this, request]()
     {
         if (request->getParentHandle() == INVALID_HANDLE || !request->getMegaNodeTree())
@@ -27219,6 +27153,7 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
                          nullptr,
                          request->getTag(),
                          false,
+                         request->getText() ? request->getText() : string{},
                          result);
         return API_OK;
     };
@@ -29570,8 +29505,19 @@ MegaFolderUploadController::batchResult MegaFolderUploadController::createNextFo
         // use a weak_ptr in case this operation was cancelled, and 'this' object doesn't exist
         // anymore when the request completes
         weak_ptr<MegaFolderUploadController> weak_this = shared_from_this();
-        megaapiThreadClient()->putnodes(NodeHandle().set6byte(tree.megaNode->getHandle()), UseLocalVersioningFlag, std::move(newnodes), nullptr, megaapiThreadClient()->nextreqtag(), false,
-            [this, weak_this, filecount](const Error& e, targettype_t, vector<NewNode>&, bool, int tag)
+        megaapiThreadClient()->putnodes(
+            NodeHandle().set6byte(tree.megaNode->getHandle()),
+            UseLocalVersioningFlag,
+            std::move(newnodes),
+            nullptr,
+            megaapiThreadClient()->nextreqtag(),
+            false,
+            {}, // customerIpPort
+            [this, weak_this, filecount](const Error& e,
+                                         targettype_t,
+                                         vector<NewNode>&,
+                                         bool,
+                                         int tag)
             {
                 // double check our object still exists on request completion
                 if (!weak_this.lock()) return;

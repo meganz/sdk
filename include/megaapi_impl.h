@@ -1624,6 +1624,7 @@ class MegaRequestPrivate : public MegaRequest
         AchievementsDetails *getAchievementsDetails() const;
         MegaTimeZoneDetails *getMegaTimeZoneDetails () const override;
         MegaStringList *getMegaStringList() const override;
+        MegaStringIntegerMap* getMegaStringIntegerMap() const override;
         MegaHandleList* getMegaHandleList() const override;
 
 #ifdef ENABLE_SYNC
@@ -1651,6 +1652,7 @@ class MegaRequestPrivate : public MegaRequest
         MegaBackgroundMediaUpload *getMegaBackgroundMediaUploadPtr() const override;
         void setMegaBackgroundMediaUploadPtr(MegaBackgroundMediaUpload *);  // non-owned pointer
         void setMegaStringList(const MegaStringList* stringList);
+        void setMegaStringIntegerMap(const MegaStringIntegerMap* stringIntegerMap);
         void setMegaHandleList(const MegaHandleList* handles);
         void setMegaHandleList(const vector<handle> &handles);
         void setMegaScheduledMeetingList(const MegaScheduledMeetingList *schedMeetingList);
@@ -1732,6 +1734,7 @@ protected:
         MegaPushNotificationSettings *settings;
         MegaBackgroundMediaUpload* backgroundMediaUpload;  // non-owned pointer
         unique_ptr<MegaStringList> mStringList;
+        std::unique_ptr<MegaStringIntegerMap> mStringIntegerMap;
         unique_ptr<MegaHandleList> mHandleList;
         unique_ptr<MegaRecentActionBucketList> mRecentActions;
 
@@ -3229,6 +3232,7 @@ class MegaApiImpl : public MegaApp
                        const char* newTag,
                        const char* oldTag,
                        MegaRequestListener* listener = NULL);
+        MegaStringList* getAllNodeTags(const char* searchString, CancelToken cancelToken);
 
         void exportNode(MegaNode *node, int64_t expireTime, bool writable, bool megaHosted, MegaRequestListener *listener = NULL);
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
@@ -3395,6 +3399,11 @@ class MegaApiImpl : public MegaApp
         void exportSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
         void disableExportSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
 
+        static int getSetElementHandleSize()
+        {
+            return MegaClient::SETELEMENTHANDLE;
+        }
+
         MegaSetList* getSets();
         MegaSet* getSet(MegaHandle sid);
         MegaHandle getSetCover(MegaHandle sid);
@@ -3511,7 +3520,6 @@ class MegaApiImpl : public MegaApp
         bool hasVersions(MegaNode *node);
         void getFolderInfo(MegaNode *node, MegaRequestListener *listener);
         bool isSensitiveInherited(MegaNode* node);
-        MegaNodeList* getChildrenFromType(MegaNode* p, int type, int order = 1, CancelToken cancelToken = CancelToken());
         bool hasChildren(MegaNode *parent);
         MegaNode *getChildNode(MegaNode *parent, const char* name);
         MegaNode* getChildNodeOfType(MegaNode *parent, const char *name, int type = TYPE_UNKNOWN);
@@ -3587,19 +3595,25 @@ public:
 
         long long getBandwidthOverquotaDelay();
 
+    private:
+        void getRecentActionsAsyncInternal(unsigned days,
+                                           unsigned maxnodes,
+                                           bool* optExcludeSensitives,
+                                           MegaRequestListener* listener = NULL);
+    public:
         MegaRecentActionBucketList* getRecentActions(unsigned days = 90, unsigned maxnodes = 500);
-        void getRecentActionsAsync(unsigned days, unsigned maxnodes, MegaRequestListener *listener = NULL);
+        void getRecentActionsAsync(unsigned days,
+                                   unsigned maxnodes,
+                                   MegaRequestListener* listener = NULL);
+        void getRecentActionsAsync(unsigned days,
+                                   unsigned maxnodes,
+                                   bool excludeSensitives,
+                                   MegaRequestListener* listener = NULL);
 
         MegaNodeList* search(const MegaSearchFilter* filter, int order, CancelToken cancelToken, const MegaSearchPage* searchPage);
 
-        // deprecated
-        MegaNodeList* search(MegaNode *node, const char *searchString, CancelToken cancelToken, bool recursive = true, int order = MegaApi::ORDER_NONE, int mimeType = MegaApi::FILE_TYPE_DEFAULT, int target = MegaApi::SEARCH_TARGET_ALL, bool includeSensitive = true);
-
     private:
         sharedNode_vector searchInNodeManager(const MegaSearchFilter* filter, int order, CancelToken cancelToken, const MegaSearchPage* searchPage);
-
-        // deprecated
-        MegaNodeList* searchWithFlags(MegaNode* node, const char* searchString, CancelToken cancelToken, bool recursive, int order, int mimeType = MegaApi::FILE_TYPE_DEFAULT, int target = MegaApi::SEARCH_TARGET_ALL, Node::Flags requiredFlags = Node::Flags(), Node::Flags excludeFlags = Node::Flags(), Node::Flags excludeRecursiveFlags = Node::Flags());
 
     public:
         bool processMegaTree(MegaNode* node, MegaTreeProcessor* processor, bool recursive = 1);
@@ -3884,6 +3898,10 @@ public:
                                 MegaHandle parent, MegaRequestListener *listener = nullptr);
         void updatePasswordNode(MegaHandle node, const MegaNode::PasswordNodeData* newData,
                                 MegaRequestListener *listener = NULL);
+        void importPasswordsFromFile(const char* filePath,
+                                     const int fileSource,
+                                     MegaHandle parent,
+                                     MegaRequestListener* listener = NULL);
 
         void fetchCreditCardInfo(MegaRequestListener* listener = nullptr);
 
@@ -3916,6 +3934,7 @@ public:
 
         void createNodeTree(const MegaNode* parentNode,
                             MegaNodeTree* nodeTree,
+                            const char* customerIpPort,
                             MegaRequestListener* listener);
 
         void getVisibleTermsOfService(MegaRequestListener* listener = nullptr);
@@ -3972,10 +3991,6 @@ public:
         void processTransferComplete(Transfer *tr, MegaTransferPrivate *transfer);
         void processTransferFailed(Transfer *tr, MegaTransferPrivate *transfer, const Error &e, dstime timeleft);
         void processTransferRemoved(Transfer *tr, MegaTransferPrivate *transfer, const Error &e);
-
-        // deprecated
-        // if seachString == "" type must not be default
-        sharedNode_vector searchInNodeManager(MegaHandle nodeHandle, const char* searchString, int mimeType, bool recursive, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, CancelToken cancelToken);
 
         bool isValidTypeNode(const Node *node, int type) const;
 

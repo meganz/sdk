@@ -22,26 +22,28 @@
 #ifndef MEGACLIENT_H
 #define MEGACLIENT_H 1
 
-#include "json.h"
-#include "db.h"
-#include "gfx.h"
-#include "filefingerprint.h"
-#include "request.h"
-#include "transfer.h"
-#include "treeproc.h"
-#include "sharenodekeys.h"
 #include "account.h"
 #include "backofftimer.h"
-#include "http.h"
-#include "pubkeyaction.h"
-#include "pendingcontactrequest.h"
-#include "mediafileattribute.h"
-#include "useralerts.h"
-#include "user.h"
-#include "sync.h"
+#include "db.h"
 #include "drivenotify.h"
-#include "setandelement.h"
+#include "filefingerprint.h"
+#include "gfx.h"
+#include "http.h"
+#include "json.h"
+#include "mediafileattribute.h"
+#include "name_collision.h"
 #include "nodemanager.h"
+#include "pendingcontactrequest.h"
+#include "pubkeyaction.h"
+#include "pwm_file_parser.h"
+#include "request.h"
+#include "setandelement.h"
+#include "sharenodekeys.h"
+#include "sync.h"
+#include "transfer.h"
+#include "treeproc.h"
+#include "user.h"
+#include "useralerts.h"
 
 // FUSE support.
 #include <mega/fuse/common/client_adapter.h>
@@ -851,7 +853,14 @@ public:
 
     // add nodes to specified parent node (complete upload, copy files, make
     // folders)
-    void putnodes(NodeHandle, VersioningOption vo, vector<NewNode>&&, const char *, int tag, bool canChangeVault, CommandPutNodes::Completion&& completion = nullptr);
+    void putnodes(NodeHandle,
+                  VersioningOption vo,
+                  vector<NewNode>&&,
+                  const char*,
+                  int tag,
+                  bool canChangeVault,
+                  std::string customerIpPort = {},
+                  CommandPutNodes::Completion&& completion = nullptr);
 
     // send files/folders to user
     void putnodes(const char*, vector<NewNode>&&, int tag, CommandPutNodes::Completion&& completion = nullptr);
@@ -1909,8 +1918,18 @@ public:
     std::shared_ptr<Node> nodebyfingerprint(LocalNode*);
 #endif /* ENABLE_SYNC */
 
+private:
+    // Private helper method for getRecentActions
+    recentactions_vector getRecentActionsFromSharedNodeVector(sharedNode_vector&& v);
+public:
     // get a vector of recent actions in the account
-    recentactions_vector getRecentActions(unsigned maxcount, m_time_t since);
+    recentactions_vector getRecentActions(unsigned maxcount,
+                                          m_time_t since); // Old getRecentActions behavior without
+                                                           // newer excludeSensitive functionality
+
+    recentactions_vector getRecentActions(unsigned maxcount,
+                                          m_time_t since,
+                                          bool excludeSensitives);
 
     // determine if the file is a video, photo, or media (video or photo).  If the extension (with trailing .) is not precalculated, pass null
     bool nodeIsMedia(const Node*, bool *isphoto, bool *isvideo) const;
@@ -2692,6 +2711,63 @@ public:
                              std::shared_ptr<Node> nParent, int rtag);
     error updatePasswordNode(NodeHandle nh, std::unique_ptr<AttrMap> newData,
                              CommandSetAttr::Completion&& cb);
+
+    // Data type to call putnodes and create password nodes
+    using ValidPasswordData = std::map<std::string, std::unique_ptr<AttrMap>>;
+    // Data type to handle wrongly formatted password info. Key: info, val: ErrCode
+    using BadPasswordData = std::map<std::string, PasswordEntryError>;
+
+    /**
+     * @brief Creates multiple password nodes with a single putnodes call
+     *
+     * @note API_EARGS will be returned if:
+     *     - nParent is not a password node folder
+     *     - If any of the given values in data is invalid, e.g., the password field is missing
+     *
+     * @param data A map with the name of the password entry to create as key and the information of
+     * the password (AttrMap) as values.
+     * @param nParent The parent node that will contain the nodes to be created
+     * @param rTag tag parameter for putnodes call
+     * @return error code (API_OK if succeeded)
+     */
+    error createPasswordNodes(const ValidPasswordData& data,
+                              std::shared_ptr<Node> nParent,
+                              int rTag);
+
+    /**
+     * @brief Ensures the given data can be used to create a new password node.
+     *
+     * For instance, the password field is mandatory and must be present.
+     *
+     * @param data The map with the password data
+     * @return The error code for the validation
+     */
+    static PasswordEntryError validatePasswordData(const AttrMap& data);
+
+    /**
+     * @brief Processes the input password entries and splits them into two containers (bad, good).
+     *
+     * This method is designed to process the input entries from the mResults member of the
+     * pwm::import::PassFileParseResult class.
+     *
+     * Entries that have any issues (e.g., problems parsing them, missing mandatory fields) are
+     * returned in the .first member of the return value. This is a map with the original content
+     * that caused the problem as the key and the error code as the value.
+     *
+     * Entries that are ready to create a new password node are placed in the .second container.
+     * This is again a map with the final name of the node (ensuring no name conflicts) as the keys
+     * and the data as the values.
+     *
+     * @param entries A container such as the mResults member of the
+     * pwm::import::PassFileParseResult class.
+     * @param nameValidator The functor that knows the state of the target parent node and handles
+     * name clashing issues. Note: This can be generalized to any object that defines operator()
+     * and takes and returns a std::string.
+     * @return A pair of [badEntries, goodEntries].
+     */
+    static std::pair<BadPasswordData, ValidPasswordData>
+        validatePasswordEntries(std::vector<pwm::import::PassEntryParseResult>&& entries,
+                                ncoll::NameCollisionSolver& nameValidator);
 
     static std::string generatePasswordChars(const bool useUpper,
                                              const bool useDigits,

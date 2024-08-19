@@ -48,7 +48,11 @@ Some common development tools should be available in the system to be able to bu
 
 #### Windows
 
-Ensure you have installed Visual Studio, with the necessary components for building C++ sources, and the Windows SDK on your system.
+Ensure you have installed Visual Studio, with the necessary components for building C++ sources, and the Windows SDK on your system:
+
+ - [Visual Studio 2019](https://visualstudio.microsoft.com/vs/older-downloads/)
+ - MSVC v142
+ - Windows 10 SDK (10.0.19041.0)
 
 #### MacOS
 
@@ -87,6 +91,9 @@ Next to the MEGA SDK, clone the VCPKG repository. If you are already using VCPKG
 
 	git clone https://github.com/microsoft/vcpkg
 
+**Note**: VCPKG local repository needs to be updated from time to time. If never done, it will eventually fail to find new dependencies or others updated to versions newer than what it already had.
+The solution is simple: go to VCPKG local repository and run `git pull`.
+
 ### Configuration
 
 The following instructions are for configuring the project from the CLI, but cmake-gui or any editor or IDE
@@ -122,19 +129,6 @@ Once the build is finished, binaries will be available in the `build_dir`
 To run the example app `megacli`, go to the `examples` directory in the `build_dir` and execute the `megacli` binary.
 
 ## How to build the SDK library (Obsolete methods)
-
-### Build the SDK and 3rdParty Dependencies with vcpkg + cmake
-* The steps to build the SDK are already prepared in the build_from_scratch.cmake script.  It contains instructions too.
-* To get started with it, eg for windows, follow these steps:
-	* mkdir mybuild
-	* cd mybuild
-	* git clone https://github.com/meganz/sdk.git
-	* cd sdk\contrib\cmake
-	* <on Win, choose VS version by editing vcpkg_extra_triplets\xNN-windows-mega.cmake>
-	* cmake -DTRIPLET=x64-windows-mega -DEXTRA_ARGS="-DUSE_PDFIUM=0" -P build_from_scratch.cmake
-* Visual Studio solution is generated at mybuild\sdk\build-x64-windows-mega
-* That folder contains Debug and Release subfolders which contain build products
-* Similar steps work for other platforms too (Linux with triplet x64-linux-mega (including WSL), Mac with triplet x64-osx-mega or arm64-osx-mega).
 
 ### Building with POSIX Autotools  (Linux/Darwin/BSD/OSX ...)
 

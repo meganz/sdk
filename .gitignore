@@ -92,14 +92,8 @@ doc/example/lsmega
 Debug
 Release
 /build-x??-*-mega*/
-/contrib/QtCreator/build-*
-/contrib/build-MEGAsdk-Desktop-*
-/contrib/cmake/cmake-build-*
-/contrib/build-cmake-Desktop-*
-/contrib/cmake/.idea
-/contrib/cmake/build
-/contrib/cmake/build3rdParty/build
 megaclient_statecache*
+*.autosave
 
 # clangd index
 .cache

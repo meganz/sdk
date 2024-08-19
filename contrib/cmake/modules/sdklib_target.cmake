@@ -73,6 +73,9 @@ set(SDKLIB_HEADERS
     include/mega/node.h
     include/mega/mediafileattribute.h
     include/mega/process.h
+    include/mega/mega_csv.h
+    include/mega/name_collision.h
+    include/mega/pwm_file_parser.h
 )
 
 set(SDKLIB_SOURCES
@@ -131,6 +134,8 @@ set(SDKLIB_SOURCES
     src/crypto/sodium.cpp
     src/db/sqlite.cpp
     src/process.cpp
+    src/name_collision.cpp
+    src/pwm_file_parser.cpp
 )
 
 target_sources(SDKlib
@@ -314,6 +319,7 @@ target_compile_definitions(SDKlib
     $<$<BOOL:${ENABLE_CHAT}>:ENABLE_CHAT>
     $<$<BOOL:${ENABLE_SYNC}>:ENABLE_SYNC>
     $<$<BOOL:${USE_LIBUV}>:HAVE_LIBUV>
+    $<$<PLATFORM_ID:iOS>:USE_IOS>
 )
 
 set_target_properties(SDKlib PROPERTIES

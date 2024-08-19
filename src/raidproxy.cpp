@@ -185,7 +185,7 @@ bool PartFetcher::setremfeed(m_off_t numBytes)
     return mRemfeed != 0;
 }
 
-int PartFetcher::onFailure()
+int64_t PartFetcher::onFailure()
 {
     auto& httpReq = rr->mHttpReqs[part];
     assert(httpReq != nullptr);
@@ -280,7 +280,7 @@ bool PartFetcher::setsource(const std::string& partUrl, RaidReq* crr, uint8_t cp
 }
 
 // (re)create, set up socket and start (optionally delayed) io on it
-int PartFetcher::trigger(raidTime delay, bool disconnect)
+int64_t PartFetcher::trigger(raidTime delay, bool disconnect)
 {
     if (delay == MAX_DELAY_IN_SECONDS)
     {
@@ -360,7 +360,7 @@ void PartFetcher::closesocket(bool reuseSocket)
 }
 
 // perform I/O on socket (which is assumed to exist)
-int PartFetcher::io()
+int64_t PartFetcher::io()
 {
     // prevent spurious epoll events from triggering a delayed reconnect early
     if (mFinished && rr->mCompleted < rr->mNumLines && (rr->mRem > ((rr->mCompleted * RAIDLINE) - rr->mSkip)))
@@ -1215,7 +1215,7 @@ void RaidReq::dispatchio(const HttpReqPtr& httpReq)
     {
         if (mHttpReqs[i] == httpReq)
         {
-            int t = mFetcher[i].io();
+            int64_t t = mFetcher[i].io();
 
             if (t > 0)
             {

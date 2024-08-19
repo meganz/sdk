@@ -68,6 +68,23 @@ public:
 
     void byAncestors(std::vector<handle>&& ancs) { assert(ancs.size() == 3); mLocationHandles.swap(ancs); }
     void setIncludedShares(ShareType_t s) { mIncludedShares = s; }
+    void byName(const std::string& name) { mNameFilter = name; }
+
+    void byNodeType(nodetype_t nodeType)
+    {
+        assert(nodeType >= nodetype_t::FILENODE && nodeType <= nodetype_t::FOLDERNODE);
+        mNodeType = nodeType;
+    }
+
+    void byCreationTimeLowerLimitInSecs(int64_t creationLowerLimit)
+    {
+        mCreationLowerLimit = creationLowerLimit;
+    }
+
+    void bySensitivity(BoolFilter boolFilter)
+    {
+        mExcludeSensitive = boolFilter;
+    }
 
     const std::string& byName() const { return mNameFilter; }
     nodetype_t byNodeType() const { return mNodeType; }
@@ -156,30 +173,14 @@ public:
 
     sharedNode_vector getChildren(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page);
 
-    // read children from type (folder or file) from DB and load them in memory
-    sharedNode_vector getChildrenFromType(const NodeHandle &parent, nodetype_t type, CancelToken cancelToken);
-
     // get up to "maxcount" nodes, not older than "since", ordered by creation time
     // Note: nodes are read from DB and loaded in memory
+    // (This is used by deprecated MegaClient::getRecentNodes without exclude sensitive filter)
     sharedNode_vector getRecentNodes(unsigned maxcount, m_time_t since);
-
-    // Search nodes containing 'searchString' in its name
-    // Returned nodes are children of 'nodeHandle' (at any level)
-    // If 'nodeHandle' is UNDEF, search includes the whole account
-    // If a cancelFlag is passed, it must be kept alive until this method returns
-
-    /** @deprecated Use searchNodes(const NodeSearchFilter...) instead */
-    sharedNode_vector search(NodeHandle ancestorHandle, const char* searchString, bool recursive, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, CancelToken cancelFlag);
 
     sharedNode_vector searchNodes(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page);
 
-    /** @deprecated Use searchNodes(const NodeSearchFilter...) instead */
-    sharedNode_vector getInSharesWithName(const char *searchString, CancelToken cancelFlag);
-    /** @deprecated Use searchNodes(const NodeSearchFilter...) instead */
-    sharedNode_vector getOutSharesWithName(const char *searchString, CancelToken cancelFlag);
-    /** @deprecated Use searchNodes(const NodeSearchFilter...) instead */
-    sharedNode_vector getPublicLinksWithName(const char *searchString, CancelToken cancelFlag);
-
+    std::set<std::string> getAllNodeTags(const char* searchString, CancelToken cancelFlag);
 
     sharedNode_vector getNodesByFingerprint(FileFingerprint& fingerprint);
     sharedNode_vector getNodesByOrigFingerprint(const std::string& fingerprint, Node *parent);
@@ -195,17 +196,10 @@ public:
     // Load from DB if it's necessary
     sharedNode_vector getRootNodes();
 
-    /** @deprecated Use searchNodes(const NodeSearchFilter...) instead */
     sharedNode_vector getNodesWithInShares(); // both, top-level and nested ones
-    /** @deprecated Use searchNodes(const NodeSearchFilter...) instead */
     sharedNode_vector getNodesWithOutShares();
-
     sharedNode_vector getNodesWithPendingOutShares();
-
-    /** @deprecated Use searchNodes(const NodeSearchFilter...) instead */
     sharedNode_vector getNodesWithLinks();
-    /** @deprecated Use searchNodes(const NodeSearchFilter...) instead */
-    sharedNode_vector getNodesByMimeType(MimeType_t mimeType, NodeHandle ancestorHandle, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, CancelToken cancelFlag);
 
     std::vector<NodeHandle> getFavouritesNodeHandles(NodeHandle node, uint32_t count);
     size_t getNumberOfChildrenFromNode(NodeHandle parentHandle);
@@ -375,7 +369,6 @@ private:
     shared_ptr<Node> getNodeInRAM(NodeHandle handle);
     void saveNodeInRAM(std::shared_ptr<Node> node, bool isRootnode, MissingParentNodes& missingParentNodes);    // takes ownership
 
-    /** @deprecated */
     sharedNode_vector getNodesWithSharesOrLink_internal(ShareType_t shareType);
 
     enum OperationType
@@ -415,6 +408,10 @@ private:
     sharedNode_vector searchNodes_internal(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page);
     sharedNode_vector processUnserializedNodes(const std::vector<std::pair<NodeHandle, NodeSerialized>>& nodesFromTable, CancelToken cancelFlag);
     sharedNode_vector getChildren_internal(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page);
+    sharedNode_vector getRecentNodes_internal(unsigned maxcount,
+                                              m_time_t since); // Old getRecentNodes functionality
+
+    std::set<std::string> getAllNodeTags_internal(const char* searchString, CancelToken cancelFlag);
 
     // node temporary in memory, which will be removed upon write to DB
     std::shared_ptr<Node> mNodeToWriteInDb;
@@ -440,29 +437,14 @@ private:
     bool updateNode_internal(Node* node);
 
     std::shared_ptr<Node> getNodeByHandle_internal(NodeHandle handle);
-    sharedNode_list getChildren_internal(const Node *parent, CancelToken cancelToken = CancelToken());
-    sharedNode_vector getChildrenFromType_internal(const NodeHandle& parent, nodetype_t type, CancelToken cancelToken);
-    sharedNode_vector getRecentNodes_internal(unsigned maxcount, m_time_t since);
-
-    /** @deprecated */
-    sharedNode_vector search_internal(NodeHandle ancestorHandle, const char* searchString, bool recursive, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, CancelToken cancelFlag);
-    /** @deprecated */
-    sharedNode_vector getInSharesWithName_internal(const char *searchString, CancelToken cancelFlag);
-    /** @deprecated */
-    sharedNode_vector getOutSharesWithName_internal(const char *searchString, CancelToken cancelFlag);
-    /** @deprecated */
-    sharedNode_vector getPublicLinksWithName_internal(const char *searchString, CancelToken cancelFlag);
+    sharedNode_list getChildren_internal(const Node* parent,
+                                         CancelToken cancelToken = CancelToken());
 
     sharedNode_vector getNodesByFingerprint_internal(FileFingerprint& fingerprint);
     sharedNode_vector getNodesByOrigFingerprint_internal(const std::string& fingerprint, Node *parent);
     std::shared_ptr<Node> getNodeByFingerprint_internal(FileFingerprint &fingerprint);
     std::shared_ptr<Node> childNodeByNameType_internal(const Node *parent, const std::string& name, nodetype_t nodeType);
     sharedNode_vector getRootNodes_internal();
-
-    /** @deprecated */
-    sharedNode_vector getNodesWithInShares_internal(); // both, top-level and nested ones
-    /** @deprecated */
-    sharedNode_vector getNodesByMimeType_internal(MimeType_t mimeType, NodeHandle ancestorHandle, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, CancelToken cancelFlag);
 
     std::vector<NodeHandle> getFavouritesNodeHandles_internal(NodeHandle node, uint32_t count);
     size_t getNumberOfChildrenFromNode_internal(NodeHandle parentHandle);
