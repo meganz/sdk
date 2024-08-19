@@ -4171,6 +4171,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
     string enabledTestNotifications, versionEnabledTestNotifications;
     string lastReadNotification, versionLastReadNotification;
     string lastActionedBanner, versionLastActionedBanner;
+    string enabledTestSurveys, versionEnabledTestSurveys;
 #ifdef ENABLE_SYNC
     string jsonSyncConfigData;
     string jsonSyncConfigDataVersion;
@@ -4572,6 +4573,12 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
             break;
         }
 
+        case MAKENAMEID5('^', '!', 's', 'u', 'r'):
+        {
+            parseUserAttribute(json, enabledTestSurveys, versionEnabledTestSurveys);
+            break;
+        }
+
         case EOO:
         {
             assert(me == client->me);
@@ -4906,6 +4913,17 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 else
                 {
                     u->removeattr(ATTR_LAST_ACTIONED_BANNER, true);
+                }
+
+                if (!enabledTestSurveys.empty() || !versionEnabledTestSurveys.empty())
+                {
+                    changes += u->updateattr(ATTR_ENABLE_TEST_SURVEYS,
+                                             &enabledTestSurveys,
+                                             &versionEnabledTestSurveys);
+                }
+                else
+                {
+                    u->removeattr(ATTR_ENABLE_TEST_SURVEYS, true);
                 }
 
 #ifdef ENABLE_SYNC

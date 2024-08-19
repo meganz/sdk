@@ -2126,6 +2126,10 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     {
         changed |= MegaUser::CHANGE_CC_PREFS;
     }
+    // Don't need to notify this change
+    // if (user->changed.enableTestSurveys)
+    // {
+    // }
 }
 
 MegaUserPrivate::MegaUserPrivate(MegaUser *user) : MegaUser()
@@ -6926,6 +6930,7 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_ENABLE_TEST_NOTIFICATIONS:
         case MegaApi::USER_ATTR_LAST_READ_NOTIFICATION:
         case MegaApi::USER_ATTR_LAST_ACTIONED_BANNER:
+        case MegaApi::USER_ATTR_ENABLE_TEST_SURVEYS:
             scope = '^';
             break;
 
@@ -21042,6 +21047,10 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                 {
                     performRequest_setLastActionedBanner(request);
                 }
+                else if (type == ATTR_ENABLE_TEST_SURVEYS)
+                {
+                    performRequest_enableTestSurveys(request);
+                }
                 else
                 {
                     return API_EARGS;
@@ -27505,6 +27514,66 @@ void MegaApiImpl::getSurvey(unsigned int triggerActionId, MegaRequestListener* l
         const auto triggerActionId = static_cast<unsigned int>(request->getParamType());
         client->getSurvey(triggerActionId, std::move(completion));
         return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::performRequest_enableTestSurveys(MegaRequestPrivate* request)
+{
+    const MegaHandleList* ids = request->getMegaHandleList();
+    if (!ids)
+    {
+        fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_EARGS));
+        return;
+    }
+
+    const auto joinWithCommaInB64 = [](const MegaHandleList* ids) -> std::string
+    {
+        // No item
+        if (ids->size() == 0)
+            return "";
+
+        // At least one item
+        std::stringstream ss;
+
+        // The first item with open parenthesis
+        ss << std::string{Base64Str<MegaClient::SURVEYHANDLE>(ids->get(0))};
+
+        // Join with Comma
+        for (unsigned int i = 1; i < ids->size(); ++i) // others
+        {
+            ss << "," << std::string{Base64Str<MegaClient::SURVEYHANDLE>(ids->get(i))};
+        }
+
+        return ss.str();
+    };
+
+    const std::string attributeValue{joinWithCommaInB64(ids)};
+    client->putua(ATTR_ENABLE_TEST_SURVEYS,
+                  reinterpret_cast<const byte*>(attributeValue.c_str()),
+                  unsigned(attributeValue.size()),
+                  -1,
+                  UNDEF,
+                  0,
+                  0,
+                  [this, request](Error e)
+                  {
+                      fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
+                  });
+}
+
+void MegaApiImpl::enableTestSurveys(const MegaHandleList* surveyHandles,
+                                    MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_ENABLE_TEST_SURVEYS);
+    request->setMegaHandleList(surveyHandles);
+
+    request->performRequest = [this, request]()
+    {
+        return performRequest_setAttrUser(request);
     };
 
     requestQueue.push(request);

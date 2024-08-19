@@ -10131,6 +10131,8 @@ class MegaApi
             USER_ATTR_ENABLE_TEST_NOTIFICATIONS = 43, // private - non-encrypted - char array - non-versioned
             USER_ATTR_LAST_READ_NOTIFICATION = 44, // private - non-encrypted - char array - non-versioned
             USER_ATTR_LAST_ACTIONED_BANNER = 45, // private - non-encrypted - char array - non-versioned
+            USER_ATTR_ENABLE_TEST_SURVEYS =
+                46, // private - non-encrypted - char array in B64 - versioned
         };
 
         enum {
@@ -22844,6 +22846,24 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getSurvey(unsigned int triggerActionId, MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Enable test surveys
+         *
+         * This function enables the specified surveys for testing purposes. Once enabled, these
+         * surveys can be answered multiple times.
+         *
+         * The type associated with this request is MegaRequest::TYPE_SET_ATTR_USER
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - The attribute type MegaApi::USER_ATTR_ENABLE_TEST_SURVEYS
+         * - MegaRequest::getMegaHandleList - A list of the survey handles to be enabled
+         *
+         * @param surveyHandles The list of handles of the surveys to be enabled.
+         * @param listener MegaRequestListener to track this request
+         */
+        void enableTestSurveys(const MegaHandleList* surveyHandles,
+                               MegaRequestListener* listener = nullptr);
 
     protected:
         MegaApiImpl *pImpl = nullptr;
