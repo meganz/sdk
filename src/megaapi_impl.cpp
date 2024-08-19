@@ -24720,7 +24720,17 @@ error MegaApiImpl::performRequest_completeBackgroundUpload(MegaRequestPrivate* r
                 return e;
             }
 
-            client->reqs.add(new CommandPutNodes(client, parentHandle, NULL, UseLocalVersioningFlag, std::move(newnodes), request->getTag(), PUTNODES_APP, nullptr, nullptr, false));
+            client->reqs.add(new CommandPutNodes(client,
+                                                 parentHandle,
+                                                 NULL,
+                                                 UseLocalVersioningFlag,
+                                                 std::move(newnodes),
+                                                 request->getTag(),
+                                                 PUTNODES_APP,
+                                                 nullptr,
+                                                 nullptr,
+                                                 false,
+                                                 {})); // customerIpPort
             return e;
 }
 
@@ -26949,11 +26959,13 @@ void MegaApiImpl::setVisibleTermsOfService(bool visible, MegaRequestListener* li
 
 void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
                                  MegaNodeTree* nodeTree,
+                                 const char* customerIpPort,
                                  MegaRequestListener* listener)
 {
     auto request{new MegaRequestPrivate(MegaRequest::TYPE_CREATE_NODE_TREE, listener)};
     request->setParentHandle(parentNode ? parentNode->getHandle() : INVALID_HANDLE);
     request->setMegaNodeTree(nodeTree ? nodeTree->copy() : nullptr);
+    request->setText(customerIpPort);
     request->performRequest = [this, request]()
     {
         if (request->getParentHandle() == INVALID_HANDLE || !request->getMegaNodeTree())
@@ -27141,6 +27153,7 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
                          nullptr,
                          request->getTag(),
                          false,
+                         request->getText() ? request->getText() : string{},
                          result);
         return API_OK;
     };
@@ -29492,8 +29505,19 @@ MegaFolderUploadController::batchResult MegaFolderUploadController::createNextFo
         // use a weak_ptr in case this operation was cancelled, and 'this' object doesn't exist
         // anymore when the request completes
         weak_ptr<MegaFolderUploadController> weak_this = shared_from_this();
-        megaapiThreadClient()->putnodes(NodeHandle().set6byte(tree.megaNode->getHandle()), UseLocalVersioningFlag, std::move(newnodes), nullptr, megaapiThreadClient()->nextreqtag(), false,
-            [this, weak_this, filecount](const Error& e, targettype_t, vector<NewNode>&, bool, int tag)
+        megaapiThreadClient()->putnodes(
+            NodeHandle().set6byte(tree.megaNode->getHandle()),
+            UseLocalVersioningFlag,
+            std::move(newnodes),
+            nullptr,
+            megaapiThreadClient()->nextreqtag(),
+            false,
+            {}, // customerIpPort
+            [this, weak_this, filecount](const Error& e,
+                                         targettype_t,
+                                         vector<NewNode>&,
+                                         bool,
+                                         int tag)
             {
                 // double check our object still exists on request completion
                 if (!weak_this.lock()) return;

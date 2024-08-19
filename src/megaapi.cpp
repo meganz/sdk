@@ -6053,7 +6053,15 @@ void MegaApi::createNodeTree(const MegaNode* parentNode,
                              MegaNodeTree* nodeTree,
                              MegaRequestListener* listener)
 {
-    pImpl->createNodeTree(parentNode, nodeTree, listener);
+    pImpl->createNodeTree(parentNode, nodeTree, nullptr, listener);
+}
+
+void MegaApi::createNodeTree(const MegaNode* parentNode,
+                             MegaNodeTree* nodeTree,
+                             const char* customerIpPort,
+                             MegaRequestListener* listener)
+{
+    pImpl->createNodeTree(parentNode, nodeTree, customerIpPort, listener);
 }
 
 MegaIntegerList* MegaApi::getEnabledNotifications()

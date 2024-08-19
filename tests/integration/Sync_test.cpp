@@ -2165,6 +2165,7 @@ void StandardClient::copy(const CloudItem& source,
                     nullptr,
                     0,
                     false,
+                    {}, // customerIpPort
                     BasicPutNodesCompletion(std::move(completion)));
 }
 
@@ -2216,6 +2217,7 @@ void StandardClient::putnodes(const CloudItem& parent,
                     nullptr,
                     0,
                     false,
+                    {}, // customerIpPort
                     std::move(completion));
 }
 
@@ -2254,7 +2256,14 @@ void StandardClient::uploadFolderTree(fs::path p, CloudItem item, PromiseBoolSP 
             vector<NewNode> newnodes;
             handle h = 1;
             uploadFolderTree_recurse(UNDEF, h, p, newnodes);
-            client.putnodes(target->nodeHandle(), NoVersioning, std::move(newnodes), nullptr, 0, false, std::move(completion));
+            client.putnodes(target->nodeHandle(),
+                            NoVersioning,
+                            std::move(newnodes),
+                            nullptr,
+                            0,
+                            false,
+                            {}, // customerIpPort
+                            std::move(completion));
         },
         nullptr);
 }
@@ -2680,7 +2689,7 @@ void StandardClient::ensureTestBaseFolder(bool mayneedmaking, PromiseBoolSP pb)
 
             resultproc.prepresult(PUTNODES, ++next_request_tag,
                 [&](){
-                    client.putnodes(root->nodeHandle(), NoVersioning, std::move(nn), nullptr, client.reqtag, false, nullptr);
+                    client.putnodes(root->nodeHandle(), NoVersioning, std::move(nn), nullptr, client.reqtag, false);
                 },
                 [pb, this](error e){
                     out() << clientname << "ensureTestBaseFolder putnodes completed with: " << e;
@@ -2760,9 +2769,19 @@ void StandardClient::makeCloudSubdirs(const string& prefix, int depth, int fanou
         };
 
         int tag = ++next_request_tag;
-        resultproc.prepresult(COMPLETION, tag,
-            [&]() {
-                client.putnodes(atnode->nodeHandle(), NoVersioning, std::move(nodearray), nullptr, tag, false, std::move(completion));
+        resultproc.prepresult(
+            COMPLETION,
+            tag,
+            [&]()
+            {
+                client.putnodes(atnode->nodeHandle(),
+                                NoVersioning,
+                                std::move(nodearray),
+                                nullptr,
+                                tag,
+                                false,
+                                {}, // customerIpPort
+                                std::move(completion));
             },
             nullptr);
     }

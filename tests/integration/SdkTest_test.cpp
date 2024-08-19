@@ -18312,7 +18312,10 @@ TEST_F(SdkTest, CreateNodeTreeWithMultipleLevelsOfDirectoriesAndOneFileAtTheEnd)
                                      nullptr)};
 
     RequestTracker requestTracker(megaApi[apiIndex].get());
-    megaApi[apiIndex]->createNodeTree(parentNode.get(), nodeTreeLevel0.get(), &requestTracker);
+    megaApi[apiIndex]->createNodeTree(parentNode.get(),
+                                      nodeTreeLevel0.get(),
+                                      "192.168.0.0:0000", // dummy IP just to test sending "cip"
+                                      &requestTracker);
     nodeTreeLevel0.reset();
     ASSERT_THAT(requestTracker.waitForResult(),
                 ::testing::AnyOf(::testing::Eq(API_OK), ::testing::Eq(API_ENOENT)));
@@ -18386,7 +18389,9 @@ TEST_F(SdkTest, CreateNodeTreeVersionUsingIdenticalUploadData)
         MegaNodeTree::createInstance(nullptr, PUBLICFILE.c_str(), nullptr, uploadData.get()) };
 
     RequestTracker requestTrackerFirstTree(megaApi[apiIndex].get());
-    megaApi[apiIndex]->createNodeTree(parentNode.get(), fileTreeFromData.get(), &requestTrackerFirstTree);
+    megaApi[apiIndex]->createNodeTree(parentNode.get(),
+                                      fileTreeFromData.get(),
+                                      &requestTrackerFirstTree);
     ASSERT_THAT(requestTrackerFirstTree.waitForResult(),
                 ::testing::AnyOf(::testing::Eq(API_OK), ::testing::Eq(API_ENOENT)));
     const MegaNodeTree* resultNodeTree1 = requestTrackerFirstTree.request->getMegaNodeTree();
@@ -18409,7 +18414,9 @@ TEST_F(SdkTest, CreateNodeTreeVersionUsingIdenticalUploadData)
         MegaNodeTree::createInstance(nullptr, PUBLICFILE.c_str(), nullptr, uploadData2.get()) };
 
     RequestTracker requestTrackerSecondTree(megaApi[apiIndex].get());
-    megaApi[apiIndex]->createNodeTree(parentNode.get(), fileTreeFromData2.get(), &requestTrackerSecondTree);
+    megaApi[apiIndex]->createNodeTree(parentNode.get(),
+                                      fileTreeFromData2.get(),
+                                      &requestTrackerSecondTree);
     ASSERT_THAT(requestTrackerSecondTree.waitForResult(),
                 ::testing::AnyOf(::testing::Eq(API_OK), ::testing::Eq(API_ENOENT)));
     const MegaNodeTree* resultNodeTree2 = requestTrackerSecondTree.request->getMegaNodeTree();
@@ -18528,7 +18535,9 @@ TEST_F(SdkTest, CreateNodeTreeVersionUsingDifferentUploadData)
         MegaNodeTree::createInstance(nullptr, PUBLICFILE.c_str(), nullptr, uploadData.get()) };
 
     RequestTracker requestTrackerFirstTree(megaApi[apiIndex].get());
-    megaApi[apiIndex]->createNodeTree(parentNode.get(), fileTreeFromData.get(), &requestTrackerFirstTree);
+    megaApi[apiIndex]->createNodeTree(parentNode.get(),
+                                      fileTreeFromData.get(),
+                                      &requestTrackerFirstTree);
     ASSERT_THAT(requestTrackerFirstTree.waitForResult(),
                 ::testing::AnyOf(::testing::Eq(API_OK), ::testing::Eq(API_ENOENT)));
     const MegaNodeTree* resultNodeTree1 = requestTrackerFirstTree.request->getMegaNodeTree();
@@ -18560,7 +18569,9 @@ TEST_F(SdkTest, CreateNodeTreeVersionUsingDifferentUploadData)
         MegaNodeTree::createInstance(nullptr, PUBLICFILE.c_str(), nullptr, uploadData2.get()) };
 
     RequestTracker requestTrackerSecondTree(megaApi[apiIndex].get());
-    megaApi[apiIndex]->createNodeTree(parentNode.get(), fileTreeFromData2.get(), &requestTrackerSecondTree);
+    megaApi[apiIndex]->createNodeTree(parentNode.get(),
+                                      fileTreeFromData2.get(),
+                                      &requestTrackerSecondTree);
     ASSERT_THAT(requestTrackerSecondTree.waitForResult(),
                 ::testing::AnyOf(::testing::Eq(API_OK), ::testing::Eq(API_ENOENT)));
     const MegaNodeTree* resultNodeTree2 = requestTrackerSecondTree.request->getMegaNodeTree();

@@ -3934,6 +3934,7 @@ public:
 
         void createNodeTree(const MegaNode* parentNode,
                             MegaNodeTree* nodeTree,
+                            const char* customerIpPort,
                             MegaRequestListener* listener);
 
         void getVisibleTermsOfService(MegaRequestListener* listener = nullptr);

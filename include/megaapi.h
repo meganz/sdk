@@ -22335,6 +22335,31 @@ class MegaApi
                             MegaRequestListener* listener);
 
         /**
+         * @brief Creates a node tree.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CREATE_NODE_TREE.
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getParentHandle - Returns the node handle of the parent node in the tree
+         * - MegaRequest::getMegaNodeTree - Returns the Node Tree updated after it was created
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EARGS - Parameters are incorrect.
+         *
+         * @param parentNode Parent node from which to create the node tree.
+         * @param nodeTree Node tree to create which is fulfilled with the new node handles.
+         * @param customerIpPort The IP and port number used by current customer. Valid format
+         * for IPv4 is <ip>:<port> (for example 0.0.0.0:12345) and for IPv6 is [<ip>]:<port>
+         * (for example [2001:db8:3333::EEEE:FFFF]:12345).
+         * @param listener Listener to track the request.
+         */
+        void createNodeTree(const MegaNode* parentNode,
+                            MegaNodeTree* nodeTree,
+                            const char* customerIpPort,
+                            MegaRequestListener* listener);
+
+        /**
          * @brief Get Terms of Service for VPN visibility.
          *
          * The type associated with this request is MegaRequest::TYPE_GET_ATTR_USER

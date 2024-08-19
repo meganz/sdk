@@ -424,14 +424,16 @@ void File::sendPutnodesOfUpload(MegaClient* client, UploadHandle fileAttrMatchHa
         }
 
         client->reqs.add(new CommandPutNodes(client,
-                                             th, NULL,
+                                             th,
+                                             NULL,
                                              mVersioningOption,
                                              std::move(newnodes),
                                              tag,
                                              source,
                                              nullptr,
                                              std::move(completion),
-                                             canChangeVault));
+                                             canChangeVault,
+                                             {})); // customerIpPort
     }
 }
 
@@ -485,14 +487,16 @@ void File::sendPutnodesToCloneNode(MegaClient* client, Node* nodeToClone,
         assert(syncxfer);
         newnode->ovhandle = ovHandle;
         client->reqs.add(new CommandPutNodes(client,
-                                             th, NULL,
+                                             th,
+                                             NULL,
                                              mVersioningOption,
                                              std::move(newnodes),
                                              tag,
                                              source,
                                              nullptr,
                                              std::move(completion),
-                                             canChangeVault));
+                                             canChangeVault,
+                                             {})); // customerIpPort
     }
 }
 

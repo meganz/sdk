@@ -1022,11 +1022,18 @@ void CommandSetAttr::applyUpdatesTo(AttrMap& attrMap) const
 
 // (the result is not processed directly - we rely on the server-client
 // response)
-CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
-                                 const char* userhandle, VersioningOption vo,
-                                 vector<NewNode>&& newnodes, int ctag, putsource_t csource, const char *cauth,
-                                 Completion&& resultFunction, bool canChangeVault)
-  : mResultFunction(resultFunction)
+CommandPutNodes::CommandPutNodes(MegaClient* client,
+                                 NodeHandle th,
+                                 const char* userhandle,
+                                 VersioningOption vo,
+                                 vector<NewNode>&& newnodes,
+                                 int ctag,
+                                 putsource_t csource,
+                                 const char* cauth,
+                                 Completion&& resultFunction,
+                                 bool canChangeVault,
+                                 const string& customerIpPort):
+    mResultFunction(resultFunction)
 {
     byte key[FILENODEKEYLENGTH];
 
@@ -1176,6 +1183,11 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
     }
 
     endarray();
+
+    if (!customerIpPort.empty())
+    {
+        arg("cip", customerIpPort.c_str()); // "IPv4:port" or "[IPv6]:port"
+    }
 
     // add cr element for new nodes, if applicable
     if (type == NODE_HANDLE)
