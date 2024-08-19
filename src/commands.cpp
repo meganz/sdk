@@ -12085,7 +12085,7 @@ bool CommandGetSurvey::procresult(Result r, JSON& json)
         return true;
     }
 
-    const auto parsedOk = parseSurvey(json, survey);
+    const bool parsedOk = parseSurvey(json, survey);
 
     const Error e = parsedOk && survey.isValid() ? API_OK : API_EINTERNAL;
 
