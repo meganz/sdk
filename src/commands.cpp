@@ -10329,7 +10329,6 @@ CommandFetchSet::CommandFetchSet(MegaClient* cl,
     std::function<void(Error, Set*, elementsmap_t*)> completion)
     : mCompletion(completion)
 {
-    mV3 = false;
     cmd("aft");
     arg("v", 2);  // version 2: server can supply node metadata
     if(!cl->inPublicSetPreview())
