@@ -22821,7 +22821,7 @@ class MegaApi
         /**
          * @brief Get a survey
          *
-         * This function retrieves a survey of the given trigger action for the user to response to.
+         * This function retrieves the survey of the given trigger action.
          *
          * The associated request type for this function is MegaRequest::TYPE_GET_SURVEY.
          * Valid data in the MegaRequest object received on callbacks:
@@ -22830,7 +22830,7 @@ class MegaApi
          * On successful completion (MegaError::API_OK), the MegaRequest object received in
          * onRequestFinish contains:
          * - MegaRequest::getNodeHandle - Returns the survey handle.
-         * - MegaRequest::setNumDetails - Returns the survey's maximum response value.
+         * - MegaRequest::getNumDetails - Returns the survey's maximum response value.
          * - MegaRequest::getFile       - Returns the name of the image to be displayed.
          *                                Note that the returned value may be empty.
          * - MegaRequest::getText       - Returns the survey's question content.
@@ -22841,7 +22841,7 @@ class MegaApi
          * - ENOENT    - No eligible survey
          * - EINTERNAL - Received answer could not be read
          *
-         * @param triggerActionId The trigger action ID
+         * @param triggerActionId The ID of the trigger action
          * @param listener MegaRequestListener to track this request
          */
         void getSurvey(unsigned int triggerActionId, MegaRequestListener* listener = nullptr);

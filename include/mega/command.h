@@ -2063,7 +2063,7 @@ public:
         // a non integer survey reponse is wanted.
         unsigned int maxResponse{0};
 
-        // Name of a image to be display, can be empty
+        // Name of an image to be display, can be empty
         std::string image;
 
         // Content of the question
