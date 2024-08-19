@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Load the configuration
-source /mega/synology-toolchains.conf
+source /mega/dms-toolchains.conf
 
 # Function to download the toolchain and verify its integrity
 download_toolchain() {
