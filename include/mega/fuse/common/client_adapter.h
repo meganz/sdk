@@ -157,11 +157,10 @@ public:
     void updated(const sharedNode_vector& nodes);
 
     // Upload a file to the cloud.
-    ErrorOr<UploadPtr> upload(UploadCallback callback,
-                              const LocalPath& logicalPath,
-                              const std::string& name,
-                              NodeHandle parent,
-                              const LocalPath& physicalPath) override;
+    UploadPtr upload(const LocalPath& logicalPath,
+                     const std::string& name,
+                     NodeHandle parent,
+                     const LocalPath& physicalPath) override;
 
     // Wraps the provided callback such that it can be cancelled.
     template<typename T, typename U = IsErrorLike<T>>

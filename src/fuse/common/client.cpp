@@ -365,42 +365,6 @@ Error Client::touch(NodeHandle handle, m_time_t modified)
     return waitFor(notifier->get_future());
 }
 
-ErrorOr<UploadPtr> Client::upload(BoundCallback callback,
-                                  const LocalPath& logicalPath,
-                                  const std::string& name,
-                                  NodeHandle parent,
-                                  const LocalPath& physicalPath)
-{
-    // Called when the file's content has been uploaded.
-    auto uploaded = [](BoundCallback& bound,
-                       ErrorOr<UploadResult> result) {
-        // Couldn't upload the file's content.
-        if (!result)
-            return bound(result.error());
-
-        // Extract bind callback.
-        auto bind = std::move(std::get<0>(*result));
-
-        // Sanity.
-        assert(bind);
-
-        // Try and bind a name to our uploaded content.
-        bind(std::move(bound), NodeHandle());
-    }; // uploaded
-
-    UploadCallback wrapper =
-      std::bind(std::move(uploaded),
-                std::move(callback),
-                std::placeholders::_1);
-
-    // Try and upload the file's content.
-    return this->upload(std::move(wrapper),
-                        logicalPath,
-                        name,
-                        parent,
-                        physicalPath);
-}
-
 template ErrorOr<NodeInfo> Client::lookup(const LocalPath&, NodeHandle);
 template ErrorOr<NodeInfo> Client::lookup(const RemotePath&, NodeHandle);
 

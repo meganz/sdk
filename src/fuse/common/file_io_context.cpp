@@ -79,7 +79,7 @@ class FileIOContext::FlushContext
     mutable std::mutex mLock;
 
     // The actual upload used to send content to the cloud.
-    ErrorOr<UploadPtr> mUpload;
+    UploadPtr mUpload;
 
 public:
     FlushContext(FileIOContext& context,
@@ -903,7 +903,14 @@ void FileIOContext::FlushContext::uploaded(ErrorOr<UploadResult> result)
 
     // The file we were uploading has been removed.
     if (mContext.mFile->removed())
-        return (*mUpload)->cancel(), mCV.notify_all();
+    {
+        if (mUpload)
+        {
+            mUpload->cancel();
+        }
+        mCV.notify_all();
+        return;
+    }
 
     // Extract bind callback and bind handle.
     auto bind       = std::move(std::get<0>(*result));
@@ -946,11 +953,6 @@ FileIOContext::FlushContext::FlushContext(FileIOContext& context,
     // Retrieve the content's current name and parent.
     auto info = mContext.mFile->info();
 
-    // Wrap our uploaded(...) method so we can use it as a callback.
-    UploadCallback uploaded = std::bind(&FlushContext::uploaded,
-                                        this,
-                                        std::placeholders::_1);
-
     // Compute the file's path if necessary.
     auto filePath = mContext.mFilePath;
 
@@ -962,12 +964,19 @@ FileIOContext::FlushContext::FlushContext(FileIOContext& context,
     assert(!filePath.empty());
     assert(!logicalPath.empty());
 
-    // Try and upload our content.
-    mUpload = client().upload(std::move(uploaded),
-                              std::move(logicalPath),
+    // Create our upload.
+    mUpload = client().upload(std::move(logicalPath),
                               info.mName,
                               static_cast<NodeHandle>(info.mParentID),
                               std::move(filePath));
+
+    // Wrap our uploaded(...) method so we can use it as a callback.
+    UploadCallback uploaded = std::bind(&FlushContext::uploaded,
+                                        this,
+                                        std::placeholders::_1);
+
+    // Try and upload our content.
+    mUpload->begin(std::move(uploaded));
 }
 
 bool FileIOContext::FlushContext::cancel()
@@ -975,15 +984,11 @@ bool FileIOContext::FlushContext::cancel()
     // Acquire lock.
     std::lock_guard<std::mutex> guard(mLock);
 
-    // Can't cancel an upload that never started.
-    if (!mUpload)
-        return false;
-
     // Try and cancel the upload.
-    (*mUpload)->cancel();
+    mUpload->cancel();
 
     // Let the caller know if the upload was cancelled.
-    return (*mUpload)->cancelled();
+    return mUpload->cancelled();
 }
 
 Error FileIOContext::FlushContext::result() const
@@ -993,17 +998,14 @@ Error FileIOContext::FlushContext::result() const
 
     // Waits for the upload to complete.
     auto uploaded = [&]() {
-        return !mUpload || (*mUpload)->completed();
+        return mUpload->completed();
     }; // completed
 
     // Wait for the upload to complete.
     mCV.wait(lock, std::move(uploaded));
 
     // Return the upload's result to the caller.
-    if (mUpload)
-        return (*mUpload)->result();
-
-    return mUpload.error();
+    return mUpload->result();
 }
 
 } // fuse

@@ -185,8 +185,7 @@ class ClientUpload
     std::atomic<StatusFlags> mStatus;
 
 public:
-    ClientUpload(UploadCallback callback,
-                 ClientAdapter& client,
+    ClientUpload(ClientAdapter& client,
                  const LocalPath& logicalPath,
                  NodeHandle parentHandle,
                  const std::string& name,
@@ -195,7 +194,7 @@ public:
     ~ClientUpload();
 
     // Begin the upload.
-    Error begin();
+    void begin(UploadCallback callback);
 
     // Cancel the upload.
     bool cancel();
@@ -221,6 +220,9 @@ class ClientUploadAdapter
 
 public:
     ClientUploadAdapter(ClientUploadPtr upload);
+
+    // Begin the upload.
+    void begin(UploadCallback callback) override;
 
     // Cancel the upload.
     bool cancel() override;
@@ -1036,21 +1038,18 @@ void ClientAdapter::updated(const sharedNode_vector& nodes)
     mEventObserver->updated(events);
 }
 
-ErrorOr<UploadPtr> ClientAdapter::upload(UploadCallback callback,
-                                         const LocalPath& logicalPath,
-                                         const std::string& name,
-                                         NodeHandle parent,
-                                         const LocalPath& physicalPath)
+UploadPtr ClientAdapter::upload(const LocalPath& logicalPath,
+                                const std::string& name,
+                                NodeHandle parent,
+                                const LocalPath& physicalPath)
 {
     // Sanity.
-    assert(callback);
     assert(!name.empty());
     assert(!parent.isUndef());
     assert(!physicalPath.empty());
 
     // Instantiate an object to perform our upload.
-    auto upload = std::make_shared<ClientUpload>(std::move(callback),
-                                                 *this,
+    auto upload = std::make_shared<ClientUpload>(*this,
                                                  logicalPath,
                                                  parent,
                                                  name,
@@ -1059,14 +1058,7 @@ ErrorOr<UploadPtr> ClientAdapter::upload(UploadCallback callback,
     // Let the upload know about itself.
     upload->inject(upload);
 
-    // Try and start the upload.
-    auto result = upload->begin();
-
-    // Couldn't start the upload.
-    if (result != API_OK)
-        return result;
-
-    // Return an adapter the caller can use the track the upload.
+    // Return the upload to the caller.
     return std::make_shared<ClientUploadAdapter>(std::move(upload));
 }
 
@@ -1498,14 +1490,13 @@ void ClientUpload::terminated(mega::error result)
     mSelf.reset();
 }
 
-ClientUpload::ClientUpload(UploadCallback callback,
-                           ClientAdapter& client,
+ClientUpload::ClientUpload(ClientAdapter& client,
                            const LocalPath& logicalPath,
                            NodeHandle parentHandle,
                            const std::string& name,
                            const LocalPath& physicalPath)
   : ClientTransfer()
-  , mCallback(std::move(callback))
+  , mCallback()
   , mClient(client)
   , mResult(API_OK)
   , mSelf()
@@ -1515,7 +1506,6 @@ ClientUpload::ClientUpload(UploadCallback callback,
     assert(!parentHandle.isUndef());
     assert(!name.empty());
     assert(!physicalPath.empty());
-    assert(mCallback);
 
     // Who will be the parent of our new node?
     h = parentHandle;
@@ -1542,20 +1532,23 @@ ClientUpload::~ClientUpload()
               API_EINCOMPLETE);
 }
 
-Error ClientUpload::begin()
+void ClientUpload::begin(UploadCallback callback)
 {
-    // So we can receive a result from the client.
-    std::promise<Error> waiter;
+    // Make sure the upload hasn't already been started.
+    assert(!mCallback);
+
+    // Squirrel away the upload callback.
+    mCallback = std::move(callback);
 
     // Ask the client to begin the upload.
-    mClient.execute([&](const Task& task) {
+    mClient.execute([this](const Task& task) {
         // Client's being torn down.
         if (task.cancelled())
-            return waiter.set_value(API_EINCOMPLETE);
+            return terminated(API_EINCOMPLETE);
 
         // We've been cancelled.
         if (cancelled())
-            return waiter.set_value(API_EINCOMPLETE);
+            return;
 
         // Convenience.
         auto& client = mClient.client();
@@ -1576,22 +1569,13 @@ Error ClientUpload::begin()
                          &result,
                          client.nextreqtag());
 
+        // Couldn't begin the upload.
+        if (result != API_OK)
+            return terminated(result);
+
         // Let the client know it has work to do.
         client.waiter->notify();
-
-        // Transmit result to waiter.
-        waiter.set_value(result);
     });
-
-    // Latch the result.
-    auto result = waiter.get_future().get();
-
-    // Couldn't begin the upload.
-    if (result != API_OK)
-        mSelf.reset();
-
-    // Return result to caller.
-    return result;
 }
 
 bool ClientUpload::cancel()
@@ -1665,6 +1649,11 @@ ClientUploadAdapter::ClientUploadAdapter(ClientUploadPtr upload)
   : Upload()
   , mUpload(std::move(upload))
 {
+}
+
+void ClientUploadAdapter::begin(UploadCallback callback)
+{
+    return mUpload->begin(std::move(callback));
 }
 
 bool ClientUploadAdapter::cancel()
