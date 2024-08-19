@@ -270,7 +270,7 @@ class ReleaseProcess:
 
         notes: str = (
             f"\U0001F4E3 \U0001F4E3 *New SDK version  -->  `{self._rc_tag}`* (<{tag_url}|Link>)\n\n"
-        ) + self._jira.get_release_notes(apps)
+        ) + self._jira.get_release_notes_for_slack(apps)
         if not self._slack or not self._slack_channel:
             print("Enjoy:\n\n" + notes, flush=True)
         else:
@@ -342,7 +342,7 @@ class ReleaseProcess:
     def create_release_in_private_repo(self):
         release_name = f"Version {self._new_version}"
         assert self._jira is not None
-        release_notes = self._jira.get_release_notes([])
+        release_notes = self._jira.get_release_notes_for_gitlab([])
         print("Creating release", release_name, flush=True)
         self._remote_private_repo.create_release(
             release_name, self._version_v_prefixed, release_notes
@@ -376,7 +376,9 @@ class ReleaseProcess:
     # STEP 5 (close): GitHub: Create release in public repo from new tag
     def create_release_in_public_repo(self, version: str):
         assert self._jira is not None
-        self._public_repo.create_release(version, self._jira.get_public_release_notes())
+        self._public_repo.create_release(
+            version, self._jira.get_release_notes_for_github()
+        )
 
     # STEP 6 (close): Jira: mark version as Released, set release date
     def mark_version_as_released(self):
