@@ -3512,7 +3512,6 @@ class MegaApiImpl : public MegaApp
         bool hasVersions(MegaNode *node);
         void getFolderInfo(MegaNode *node, MegaRequestListener *listener);
         bool isSensitiveInherited(MegaNode* node);
-        MegaNodeList* getChildrenFromType(MegaNode* p, int type, int order = 1, CancelToken cancelToken = CancelToken());
         bool hasChildren(MegaNode *parent);
         MegaNode *getChildNode(MegaNode *parent, const char* name);
         MegaNode* getChildNodeOfType(MegaNode *parent, const char *name, int type = TYPE_UNKNOWN);
@@ -3593,14 +3592,8 @@ public:
 
         MegaNodeList* search(const MegaSearchFilter* filter, int order, CancelToken cancelToken, const MegaSearchPage* searchPage);
 
-        // deprecated
-        MegaNodeList* search(MegaNode *node, const char *searchString, CancelToken cancelToken, bool recursive = true, int order = MegaApi::ORDER_NONE, int mimeType = MegaApi::FILE_TYPE_DEFAULT, int target = MegaApi::SEARCH_TARGET_ALL, bool includeSensitive = true);
-
     private:
         sharedNode_vector searchInNodeManager(const MegaSearchFilter* filter, int order, CancelToken cancelToken, const MegaSearchPage* searchPage);
-
-        // deprecated
-        MegaNodeList* searchWithFlags(MegaNode* node, const char* searchString, CancelToken cancelToken, bool recursive, int order, int mimeType = MegaApi::FILE_TYPE_DEFAULT, int target = MegaApi::SEARCH_TARGET_ALL, Node::Flags requiredFlags = Node::Flags(), Node::Flags excludeFlags = Node::Flags(), Node::Flags excludeRecursiveFlags = Node::Flags());
 
     public:
         bool processMegaTree(MegaNode* node, MegaTreeProcessor* processor, bool recursive = 1);
@@ -3973,10 +3966,6 @@ public:
         void processTransferComplete(Transfer *tr, MegaTransferPrivate *transfer);
         void processTransferFailed(Transfer *tr, MegaTransferPrivate *transfer, const Error &e, dstime timeleft);
         void processTransferRemoved(Transfer *tr, MegaTransferPrivate *transfer, const Error &e);
-
-        // deprecated
-        // if seachString == "" type must not be default
-        sharedNode_vector searchInNodeManager(MegaHandle nodeHandle, const char* searchString, int mimeType, bool recursive, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, CancelToken cancelToken);
 
         bool isValidTypeNode(const Node *node, int type) const;
 

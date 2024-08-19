@@ -20,8 +20,9 @@
  */
 
 #include "mega/pubkeyaction.h"
+
 #include "mega/megaapp.h"
-#include "mega/command.h"
+#include "mega/megaclient.h"
 
 namespace mega {
 PubKeyAction::PubKeyAction()

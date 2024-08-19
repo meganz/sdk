@@ -37,6 +37,7 @@ target_sources(test_unit
     User_test.cpp
     utils.cpp
     utils_test.cpp
+    pwm_file_parser_test.cpp
 )
 
 target_sources_conditional(test_unit
@@ -50,7 +51,7 @@ target_sources_conditional(test_unit
 target_link_libraries(test_unit PRIVATE MEGA::SDKlib)
 
 # Link with the common interface library for the tests.
-target_link_libraries(test_unit PRIVATE MEGA::test_common)
+target_link_libraries(test_unit PRIVATE MEGA::test_tools MEGA::test_common)
 
 # Adjust compilation flags for warnings and errors
 target_platform_compile_options(

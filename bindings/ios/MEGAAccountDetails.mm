@@ -19,7 +19,9 @@
  * program.
  */
 #import "MEGAAccountDetails.h"
+#import "MEGAAccountPlan+init.h"
 #import "MEGAAccountFeature+init.h"
+#import "MEGAAccountSubscription+init.h"
 #import "megaapi.h"
 #import "MEGAStringIntegerMap+init.h"
 
@@ -83,15 +85,15 @@ using namespace mega;
     return self.accountDetails ? self.accountDetails->getProExpiration(): -1;
 }
 
-- (MEGASubscriptionStatus)subscriptionStatus {
+- (MEGASubscriptionStatus)subscriptionStatus __attribute__((deprecated("Use new API version 2 interfaces"))) {
     return (MEGASubscriptionStatus) (self.accountDetails ? self.accountDetails->getSubscriptionStatus(): -1);
 }
 
-- (NSInteger)subscriptionRenewTime {
+- (NSInteger)subscriptionRenewTime __attribute__((deprecated("Use new API version 2 interfaces"))) {
     return self.accountDetails ? self.accountDetails->getSubscriptionRenewTime(): -1;
 }
 
-- (nullable NSString *)subscriptionMethod {
+- (nullable NSString *)subscriptionMethod __attribute__((deprecated("Use new API version 2 interfaces"))) {
     const char *val = self.accountDetails ? self.accountDetails->getSubscriptionMethod() : nil;
     if (!val) return nil;
     
@@ -101,11 +103,11 @@ using namespace mega;
     return ret;    
 }
 
-- (MEGAPaymentMethod)subscriptionMethodId {
+- (MEGAPaymentMethod)subscriptionMethodId __attribute__((deprecated("Use new API version 2 interfaces"))) {
     return (MEGAPaymentMethod) (self.accountDetails ? self.accountDetails->getSubscriptionMethodId(): -1);
 }
 
-- (nullable NSString *)subscriptionCycle {
+- (nullable NSString *)subscriptionCycle __attribute__((deprecated("Use new API version 2 interfaces"))) {
     const char *val = self.accountDetails ? self.accountDetails->getSubscriptionCycle() : nil;
     if (!val) return nil;
     
@@ -123,7 +125,7 @@ using namespace mega;
     return self.accountDetails ? self.accountDetails->getNumActiveFeatures() : -1;
 }
 
-- (int64_t)subscriptionLevel {
+- (int64_t)subscriptionLevel __attribute__((deprecated("Use new API version 2 interfaces"))) {
     return self.accountDetails ? self.accountDetails->getSubscriptionLevel() : -1;
 }
 
@@ -138,7 +140,7 @@ using namespace mega;
     return [[MEGAAccountFeature alloc] initWithMegaAccountFeature:feature cMemoryOwn:YES];
 }
 
-- (NSDictionary<NSString *, NSNumber *> *)subscriptionFeatures {
+- (NSDictionary<NSString *, NSNumber *> *)subscriptionFeatures __attribute__((deprecated("Use new API version 2 interfaces"))) {
     if (!self.accountDetails) {
         return nil;
     }
@@ -168,6 +170,22 @@ using namespace mega;
 
 - (long long)numberOfVersionFilesForHandle:(uint64_t)handle {
     return self.accountDetails ? self.accountDetails->getNumVersionFiles(handle): -1;
+}
+
+- (NSInteger)numberOfPlans {
+    return self.accountDetails ? self.accountDetails->getNumPlans(): 0;
+}
+
+- (nullable MEGAAccountPlan *)planAtIndex:(int)index {
+    return self.accountDetails ? [[MEGAAccountPlan alloc] initWithMegaAccountPlan: self.accountDetails->getPlan(index) cMemoryOwn:YES] : nil;
+}
+
+- (NSInteger)numberOfSubscriptions {
+    return self.accountDetails ? self.accountDetails->getNumSubscriptions() : 0;
+}
+
+- (nullable MEGAAccountSubscription *)subscriptionAtIndex:(int)index {
+    return self.accountDetails ? [[MEGAAccountSubscription alloc] initWithMegaAccountSubscription:self.accountDetails->getSubscription(index) cMemoryOwn:YES] : nil;
 }
 
 + (nullable NSString *)stringForAccountType:(MEGAAccountType)accountType {

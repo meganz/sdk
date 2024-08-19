@@ -1660,8 +1660,6 @@ public:
 
 class CommandSE : public Command // intermediary class to avoid code duplication
 {
-public:
-    CommandSE() { mV3 = false; }
 protected:
     bool procjsonobject(JSON& json, handle& id, m_time_t& ts, handle* u, m_time_t* cts = nullptr,
                         handle* s = nullptr, int64_t* o = nullptr, handle* ph = nullptr,

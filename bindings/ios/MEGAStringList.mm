@@ -62,4 +62,20 @@ using namespace mega;
     return self.megaStringList ? [[NSString alloc] initWithUTF8String:self.megaStringList->get((int)index)] : nil;
 }
 
+- (nullable NSArray<NSString *>*)toStringArray {
+    if (!self.megaStringList) {
+        return nil;
+    }
+
+    int size = self.megaStringList->size();
+
+    NSMutableArray *array = [NSMutableArray arrayWithCapacity:size];
+
+    for (NSUInteger i = 0; i < size; i++) {
+        [array addObject:[self stringAtIndex:i]];
+    }
+
+    return [array copy];
+}
+
 @end

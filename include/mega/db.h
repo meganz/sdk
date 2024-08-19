@@ -130,14 +130,6 @@ public:
     virtual bool getNode(NodeHandle nodehandle, NodeSerialized& nodeSerialized) = 0;
     virtual bool getNodesByOrigFingerprint(const std::string& fingerprint, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) = 0;
 
-    /**
-     * @deprecated
-     * should be removed along with deprecated MegaApi::getChildren() calls
-     * use getChildren(const NodeSearchFilter& filter, ...) instead
-     */
-    virtual bool getChildren(NodeHandle parentHandle, std::vector<std::pair<NodeHandle, NodeSerialized>>& children, CancelToken cancelFlag) = 0;
-
-    virtual bool getChildrenFromType(NodeHandle parentHandle, nodetype_t nodeType, std::vector<std::pair<NodeHandle, NodeSerialized>>& children, CancelToken cancelFlag) = 0;
     virtual uint64_t getNumberOfChildren(NodeHandle parentHandle) = 0;
     virtual bool getChildren(const NodeSearchFilter& filter, int order, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag, const NodeSearchPage& page) = 0;
     virtual bool searchNodes(const NodeSearchFilter& filter, int order, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag, const NodeSearchPage& page) = 0;
@@ -156,55 +148,15 @@ public:
                                 std::set<std::string>& tags,
                                 CancelToken cancelFlag) = 0;
 
-    /**
-     * @deprecated
-     * should be removed along with deprecated MegaApi::search() calls
-     * use searchNodes(const NodeSearchFilter& filter, ...) instead
-     */
-    virtual bool searchForNodesByName(const std::string& name, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag) = 0;
-
-    /**
-     * @deprecated
-     * should be removed along with deprecated MegaApi::getChildren() calls
-     * use getChildren(const NodeSearchFilter& filter, ...) instead
-     */
-    virtual bool searchForNodesByNameNoRecursive(const std::string& name, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, NodeHandle parentHandle, CancelToken cancelFlag) = 0;
-
-    /**
-     * @deprecated
-     * should be removed along with deprecated MegaApi::search() calls
-     * use searchNodes(const NodeSearchFilter& filter, ...) instead
-     */
-    virtual bool searchInShareOrOutShareByName(const std::string& name, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, ShareType_t shareType, CancelToken cancelFlag) = 0;
-
     virtual bool getRecentNodes(unsigned maxcount, m_time_t since, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) = 0;
     virtual bool getNodesByFingerprint(const std::string& fingerprint, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) = 0;
     virtual bool getNodeByFingerprint(const std::string& fingerprint, mega::NodeSerialized& node, NodeHandle& handle) = 0;
     virtual bool getRootNodes(std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) = 0;
 
-    /**
-     * @deprecated
-     * should be removed along with deprecated MegaApi::getChildren() calls
-     * use getChildren(const NodeSearchFilter& filter, ...) instead
-     */
     virtual bool getNodesWithSharesOrLink(std::vector<std::pair<NodeHandle, NodeSerialized>>&, ShareType_t shareType) = 0;
 
     virtual bool getFavouritesHandles(NodeHandle node, uint32_t count, std::vector<mega::NodeHandle>& nodes) = 0;
     virtual bool childNodeByNameType(NodeHandle parentHandle, const std::string& name, nodetype_t nodeType, std::pair<NodeHandle, NodeSerialized>& node) = 0;
-
-    /**
-     * @deprecated
-     * should be removed along with deprecated MegaApi::search() calls
-     * use searchNodes(const NodeSearchFilter& filter, ...) instead
-     */
-    virtual bool getNodesByMimetype(MimeType_t mimeType, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized> >& nodes, Node::Flags requiredFlags, Node::Flags excludeFlags, CancelToken cancelFlag) = 0;
-
-    /**
-     * @deprecated
-     * should be removed along with deprecated MegaApi::getChildren() calls
-     * use getChildren(const NodeSearchFilter& filter, ...) instead
-     */
-    virtual bool getNodesByMimetypeExclusiveRecursive(MimeType_t mimeType, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, NodeHandle anscestorHandle, CancelToken cancelFlag) = 0;
 
     virtual bool isAncestor(NodeHandle node, NodeHandle ancestror, CancelToken cancelFlag) = 0;
 
