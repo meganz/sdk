@@ -22832,7 +22832,6 @@ class MegaApi
          * - MegaRequest::getNodeHandle - Returns the survey handle.
          * - MegaRequest::getNumDetails - Returns the survey's maximum response value.
          * - MegaRequest::getFile       - Returns the name of the image to be displayed.
-         *                                Note that the returned value may be empty.
          * - MegaRequest::getText       - Returns the survey's question content.
          *
          * If the request fails, the MegaError code in onRequestFinish can be:
