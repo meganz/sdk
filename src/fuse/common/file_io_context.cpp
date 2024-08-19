@@ -903,7 +903,14 @@ void FileIOContext::FlushContext::uploaded(ErrorOr<UploadResult> result)
 
     // The file we were uploading has been removed.
     if (mContext.mFile->removed())
-        return mUpload->cancel(), mCV.notify_all();
+    {
+        if (mUpload)
+        {
+            mUpload->cancel();
+        }
+        mCV.notify_all();
+        return;
+    }
 
     // Extract bind callback and bind handle.
     auto bind       = std::move(std::get<0>(*result));
