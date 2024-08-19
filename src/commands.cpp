@@ -10666,7 +10666,7 @@ bool CommandRemoveSetElements::procresult(Result r, JSON& json)
 CommandRemoveSetElement::CommandRemoveSetElement(MegaClient* cl, handle sid, handle eid, std::function<void(Error)> completion)
     : mSetId(sid), mElementId(eid), mCompletion(completion)
 {
-    mV3 = false;
+    mSeqtagArray = true;
     cmd("aer");
     arg("id", (byte*)&eid, MegaClient::SETELEMENTHANDLE);
 
