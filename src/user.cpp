@@ -1077,6 +1077,7 @@ int User::needversioning(attr_t at)
         case ATTR_MY_CHAT_FILES_FOLDER:
         case ATTR_PUSH_SETTINGS:
         case ATTR_COOKIE_SETTINGS:
+        case ATTR_ENABLE_TEST_SURVEYS:
             return 0;
 
         case ATTR_LAST_INT:
@@ -1102,7 +1103,6 @@ int User::needversioning(attr_t at)
         case ATTR_ENABLE_TEST_NOTIFICATIONS:
         case ATTR_LAST_READ_NOTIFICATION:
         case ATTR_LAST_ACTIONED_BANNER:
-        case ATTR_ENABLE_TEST_SURVEYS:
             return 1;
 
         case ATTR_STORAGE_STATE: //putua is forbidden for this attribute

@@ -10132,7 +10132,7 @@ class MegaApi
             USER_ATTR_LAST_READ_NOTIFICATION = 44, // private - non-encrypted - char array - non-versioned
             USER_ATTR_LAST_ACTIONED_BANNER = 45, // private - non-encrypted - char array - non-versioned
             USER_ATTR_ENABLE_TEST_SURVEYS =
-                46, // private - non-encrypted - char array in B64 - versioned
+                46, // private - non-encrypted - char array in B64 - non-versioned
         };
 
         enum {
