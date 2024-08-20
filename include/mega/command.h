@@ -2051,7 +2051,7 @@ class MEGA_API CommandGetSurvey: public Command
 public:
     struct Survey
     {
-        bool isValid()
+        bool isValid() const
         {
             return h != UNDEF;
         };
