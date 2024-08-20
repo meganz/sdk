@@ -75,7 +75,7 @@ class JiraProject:
         today = date.today().isoformat()  # YYYY-MM-DD required by the REST api
         version_data = {
             "releasedate": today,
-            "released": True,
+            "status": "Released",
         }
         self._update_version(version_data)
 
