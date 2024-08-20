@@ -20,8 +20,15 @@ jira_client = JIRA(JIRA_URL, token_auth=JIRA_API_TOKEN)
 slack_client = WebClient(token=SLACK_TOKEN)
 
 
-def fetch_jira_issues(project_key: str) -> ResultList[Issue]:
-    jql_query = f"project = {project_key} AND status = Resolved AND resolution = Done AND fixVersion is EMPTY"
+def get_jira_query_for_issues_missing_fix_version(project_key: str):
+    return f"project = {project_key} AND status = Resolved AND resolution = Done AND fixVersion is EMPTY"
+
+
+def get_jira_query_for_issues_missing_release_number_affected(project_key: str):
+    return f'project = {project_key} AND status = Resolved AND resolution = Done AND "Release number affected" is EMPTY'
+
+
+def fetch_jira_issues(jql_query: str) -> ResultList[Issue]:
     issues = jira_client.search_issues(
         jql_query,
         fields="key, assignee",
@@ -40,7 +47,7 @@ def get_slack_user_id_by_email(email: str) -> str | None:
         return None
 
 
-def post_to_slack(issue_key: str, slack_user_id: str):
+def post_to_slack(issue_key: str, slack_user_id: str, missing_field: str):
     if not slack_user_id:
         user_mention = "<!channel>"
     else:
@@ -48,7 +55,7 @@ def post_to_slack(issue_key: str, slack_user_id: str):
 
     issue_url = f"{JIRA_URL}/browse/{issue_key}"
     message = (
-        f"<{issue_url}|{issue_key}> is marked as *Resolved* but is missing a *Fix Version*.\n"
+        f"<{issue_url}|{issue_key}> is marked as *Resolved* but is missing *{missing_field}*.\n"
         f"CC: {user_mention}"
     )
 
@@ -56,12 +63,33 @@ def post_to_slack(issue_key: str, slack_user_id: str):
     print(message)
 
 
-for project in JIRA_PROJECTS:
-    issues = fetch_jira_issues(project)
-    for issue in issues:
-        issue_key = issue.key
-        assignee = issue.fields.assignee
-        slack_user_id = (
-            get_slack_user_id_by_email(assignee.emailAddress) if assignee else None
+def report_tickets_missing_fix_version():
+    for project in JIRA_PROJECTS:
+        issues = fetch_jira_issues(
+            get_jira_query_for_issues_missing_fix_version(project)
         )
-        post_to_slack(issue_key, slack_user_id)
+        for issue in issues:
+            issue_key = issue.key
+            assignee = issue.fields.assignee
+            slack_user_id = (
+                get_slack_user_id_by_email(assignee.emailAddress) if assignee else None
+            )
+            post_to_slack(issue_key, slack_user_id, "Fix Version")
+
+
+def report_tickets_missing_release_number_affected():
+    for project in JIRA_PROJECTS:
+        issues = fetch_jira_issues(
+            get_jira_query_for_issues_missing_release_number_affected(project)
+        )
+        for issue in issues:
+            issue_key = issue.key
+            assignee = issue.fields.assignee
+            slack_user_id = (
+                get_slack_user_id_by_email(assignee.emailAddress) if assignee else None
+            )
+            post_to_slack(issue_key, slack_user_id, "Release number affected")
+
+
+report_tickets_missing_fix_version()
+report_tickets_missing_release_number_affected()
