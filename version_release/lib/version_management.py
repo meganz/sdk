@@ -124,17 +124,18 @@ class JiraProject:
 
         # build notes
         notes = ""
+        bullet_utf8 = "\U00002022"
         for k, vs in issues.items():
             notes += self._get_notes_chapter(k, formatting)
             for p in vs:
                 url = p[1] if include_urls else ""
-                notes += "\U00002022 " + self._get_notes_issue(
+                notes += bullet_utf8 + " " + self._get_notes_issue(
                     p[0], url, p[2], formatting
                 )
             notes += "\n"
         notes += self._get_notes_chapter("Target apps", formatting)
         for a in apps:
-            notes += f"\U00002022 {a}\n"
+            notes += f"{bullet_utf8} {a}\n"
         return notes
 
     def _get_notes_chapter(self, title: str, formatting: str) -> str:
