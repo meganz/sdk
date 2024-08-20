@@ -1772,15 +1772,17 @@ public:
 class MegaUser
 {
 	public:
-		enum {
-			VISIBILITY_UNKNOWN = -1,
-            VISIBILITY_HIDDEN = 0,
-            VISIBILITY_VISIBLE = 1,
-            VISIBILITY_INACTIVE = 2,
-            VISIBILITY_BLOCKED = 3
-		};
+        enum
+        {
+            VISIBILITY_UNKNOWN = -1, // Unkown visibility
+            VISIBILITY_HIDDEN = 0, // Passive Contact (ex-contacts, or user who owned files in an
+                                   // incoming share from you)
+            VISIBILITY_VISIBLE = 1, // Active contact which is visible for you
+            VISIBILITY_INACTIVE = 2, // User account is Ex-users from MEGA (deleted account)
+            VISIBILITY_BLOCKED = 3 // User account is blocked
+        };
 
-		virtual ~MegaUser();
+        virtual ~MegaUser();
 
         /**
          * @brief Creates a copy of this MegaUser object.
