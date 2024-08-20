@@ -4573,7 +4573,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
             break;
         }
 
-        case MAKENAMEID5('^', '!', 's', 'u', 'r'):
+        case MAKENAMEID6('^', '!', 't', 's', 'u', 'r'):
         {
             parseUserAttribute(json, enabledTestSurveys, versionEnabledTestSurveys);
             break;
