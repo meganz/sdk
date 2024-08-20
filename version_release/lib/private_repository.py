@@ -188,10 +188,12 @@ class GitLabRepository:  # use gitlab API
         return tag_url
 
     def get_last_commit_in_branch(self, branch_name: str) -> str:
-        commits = self._project.commits.list(ref_name=branch_name, per_page=1)
+        commits = self._project.commits.list(
+            ref_name=branch_name, get_all=False, per_page=1
+        )
         assert isinstance(commits, list)
         assert len(commits) == 1
-        return commits[0].sha
+        return commits[0].id
 
     def create_release(self, name: str, target: str, notes: str):
         release = self._project.releases.create(
