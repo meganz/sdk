@@ -25,7 +25,7 @@ def get_jira_query_for_issues_missing_fix_version(project_key: str):
 
 
 def get_jira_query_for_issues_missing_release_number_affected(project_key: str):
-    return f'project = {project_key} AND status = Resolved AND resolution = Done AND "Release number affected" is EMPTY'
+    return f'project = {project_key} AND status = Resolved AND resolution = Done AND fixVersion is not EMPTY AND "Release number affected" is EMPTY'
 
 
 def fetch_jira_issues(jql_query: str) -> ResultList[Issue]:
