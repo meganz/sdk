@@ -12223,6 +12223,11 @@ void printSet(const Set* s)
     cout << "Set " << toHandle(s->id()) << endl;
     cout << "\ttype: " << setTypeToString(s->type()) << endl;
     cout << "\tpublic id: " << toHandle(s->publicId()) << endl;
+    if (s->getPublicLink() && s->getPublicLink()->isTakenDown())
+    {
+        cout << "\t\ttake down reason: "
+             << static_cast<uint8_t>(s->getPublicLink()->getLinkDeletionReason()) << endl;
+    }
     cout << "\tkey: " << Base64::btoa(s->key()) << endl;
     cout << "\tuser: " << toHandle(s->user()) << endl;
     cout << "\tts: " << s->ts() << endl;

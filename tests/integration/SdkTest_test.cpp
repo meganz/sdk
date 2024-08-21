@@ -466,27 +466,37 @@ void SdkTest::Cleanup()
 
     for (auto nApi = unsigned(megaApi.size()); nApi--; )
     {
-        // Remove auxiliar contact
-        std::unique_ptr<MegaUserList> contacts{megaApi[nApi]->getContacts()};
-        for (int i = 0; i < contacts->size(); i++)
+        if (megaApi[nApi])
         {
-            // avoid removing the same contact again in a 2nd client of the same account (actionpackets from the first may not have arrived yet)
-            // or removing via the other account, again the original disconnection may not have arrived by actionpacket yet
-            string email1 = string(std::unique_ptr<char[]>{megaApi[nApi]->getMyEmail()}.get());
-            string email2 = string(contacts->get(i)->getEmail());
-            if (alreadyRemoved.find(email1+email2) != alreadyRemoved.end()) continue;
-            if (alreadyRemoved.find(email2+email1) != alreadyRemoved.end()) continue;
-            alreadyRemoved.insert(email1+email2);
+            // Remove auxiliar contact
+            std::unique_ptr<MegaUserList> contacts{megaApi[nApi]->getContacts()};
+            for (int i = 0; i < contacts->size(); i++)
+            {
+                // avoid removing the same contact again in a 2nd client of the same account
+                // (actionpackets from the first may not have arrived yet) or removing via the other
+                // account, again the original disconnection may not have arrived by actionpacket
+                // yet
+                string email1 = string(std::unique_ptr<char[]>{megaApi[nApi]->getMyEmail()}.get());
+                string email2 = string(contacts->get(i)->getEmail());
+                if (alreadyRemoved.find(email1 + email2) != alreadyRemoved.end())
+                    continue;
+                if (alreadyRemoved.find(email2 + email1) != alreadyRemoved.end())
+                    continue;
+                alreadyRemoved.insert(email1 + email2);
 
-            auto result = synchronousRemoveContact(nApi, contacts->get(i));
-            if (result == API_EARGS)
-            {
-                // let's have a look at which other users the jenkins users have been connected to
-                out() << "Contact " << contacts->get(i)->getEmail() << " of megaapi " << nApi << " already 'invisible'";
-            }
-            else if (result != API_OK)
-            {
-                LOG_err << "Could not remove contact " << i << ": " << contacts->get(i)->getEmail() << " from megaapi " << nApi;
+                auto result = synchronousRemoveContact(nApi, contacts->get(i));
+                if (result == API_EARGS)
+                {
+                    // let's have a look at which other users the jenkins users have been connected
+                    // to
+                    out() << "Contact " << contacts->get(i)->getEmail() << " of megaapi " << nApi
+                          << " already 'invisible'";
+                }
+                else if (result != API_OK)
+                {
+                    LOG_err << "Could not remove contact " << i << ": "
+                            << contacts->get(i)->getEmail() << " from megaapi " << nApi;
+                }
             }
         }
     }
@@ -20395,10 +20405,8 @@ TEST_F(SdkTest, SdkTestRemovePublicLinkSet)
     const MrProper cleanUp(
         [this, secondaryClientIdx]()
         {
-            // remove secondary instance to avoid failure at tear down
-            logout(secondaryClientIdx, false, maxTimeout);
-            mApi.erase(mApi.end() - 1);
-            megaApi.erase(megaApi.end() - 1);
+            // release secondary instance to avoid failure at tear down
+            releaseMegaApi(1);
         });
 
     LOG_debug << "# Create set";
@@ -20443,13 +20451,12 @@ TEST_F(SdkTest, SdkTestRemovePublicLinkSet)
         MegaSet* noExportedSet = megaApi[primaryClientIdx]->getSet(sh);
         ASSERT_FALSE(noExportedSet->isExported());
         ASSERT_EQ(noExportedSet->id(), set->id());
-        ASSERT_TRUE(noExportedSet->getLinkDeletionReason() == MegaSet::DELETION_LINK_BY_USER);
         std::unique_ptr<MegaSet> setSecondAccount{megaApi[secondaryClientIdx]->getSet(sh)};
         ASSERT_TRUE(setSecondAccount);
-        ASSERT_TRUE(setSecondAccount->getLinkDeletionReason() == MegaSet::DELETION_LINK_BY_USER);
+        ASSERT_FALSE(setSecondAccount->isExported());
     };
 
-    auto checkDeletionReasonAfterResumeSession = [this, sh](int deletionReason, int index)
+    auto checkDeletionReasonAfterResumeSession = [this, sh](bool exported, int index)
     {
         PerApi& target = mApi[index];
         target.resetlastEvent();
@@ -20469,7 +20476,7 @@ TEST_F(SdkTest, SdkTestRemovePublicLinkSet)
 
         std::unique_ptr<MegaSet> setPrimaryAccount{megaApi[index]->getSet(sh)};
         ASSERT_TRUE(setPrimaryAccount);
-        ASSERT_EQ(setPrimaryAccount->getLinkDeletionReason(), deletionReason);
+        ASSERT_EQ(setPrimaryAccount->isExported(), exported);
     };
 
     LOG_debug << "# Check if Set is exported (false)";
@@ -20479,17 +20486,17 @@ TEST_F(SdkTest, SdkTestRemovePublicLinkSet)
     ASSERT_NO_FATAL_FAILURE(exportSet(primaryClientIdx, secondaryClientIdx));
 
     LOG_debug << "# Check state after resume session 1";
-    checkDeletionReasonAfterResumeSession(MegaSet::DELETION_LINK_NO_REMOVED, primaryClientIdx);
+    checkDeletionReasonAfterResumeSession(true, primaryClientIdx);
 
     LOG_debug << "# Disable public link";
     ASSERT_NO_FATAL_FAILURE(disableExportSet(primaryClientIdx, secondaryClientIdx));
 
     LOG_debug << "# Check state after resume session 2";
-    checkDeletionReasonAfterResumeSession(MegaSet::DELETION_LINK_BY_USER, primaryClientIdx);
+    checkDeletionReasonAfterResumeSession(false, primaryClientIdx);
 
     LOG_debug << "# Enable Set export again";
     ASSERT_NO_FATAL_FAILURE(exportSet(primaryClientIdx, secondaryClientIdx));
 
     LOG_debug << "# Check state after resume session 3";
-    checkDeletionReasonAfterResumeSession(MegaSet::DELETION_LINK_NO_REMOVED, primaryClientIdx);
+    checkDeletionReasonAfterResumeSession(true, primaryClientIdx);
 }
