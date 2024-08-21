@@ -4763,10 +4763,6 @@ namespace csv {
 #endif
 
     namespace internals {
-        // PAGE_SIZE macro could be already defined by the host system.
-#if defined(PAGE_SIZE)
-#undef PAGE_SIZE
-#endif
 
 // Get operating system specific details
 #if defined(_WIN32)
@@ -4776,14 +4772,12 @@ namespace csv {
             return std::max(sys_info.dwPageSize, sys_info.dwAllocationGranularity);
         }
 
-        const int PAGE_SIZE = getpagesize();
-#elif defined(__linux__) 
-        const int PAGE_SIZE = getpagesize();
+        const int CSV_PAGE_SIZE = getpagesize();
 #else
+        const int CSV_PAGE_SIZE = getpagesize();
         /** Size of a memory page in bytes. Used by
          *  csv::internals::CSVFieldArray when allocating blocks.
          */
-        const int PAGE_SIZE = 4096;
 #endif
 
         /** For functions that lazy load a large CSV, this determines how
@@ -5458,7 +5452,7 @@ namespace csv {
         class CSVFieldList {
         public:
             /** Construct a CSVFieldList which allocates blocks of a certain size */
-            CSVFieldList(size_t single_buffer_capacity = (size_t)(internals::PAGE_SIZE / sizeof(RawCSVField))) :
+            CSVFieldList(size_t single_buffer_capacity = (size_t)(internals::CSV_PAGE_SIZE / sizeof(RawCSVField))) :
                 _single_buffer_capacity(single_buffer_capacity) {
                 this->allocate();
             }

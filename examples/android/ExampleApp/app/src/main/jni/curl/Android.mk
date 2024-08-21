@@ -8,6 +8,7 @@ LOCAL_SRC_FILES := $(LOCAL_PATH)/curl/curl-android-$(TARGET_ARCH_ABI)/lib/libcur
 
 LOCAL_EXPORT_C_INCLUDES := $(LOCAL_PATH)/curl/curl-android-$(TARGET_ARCH_ABI)/include
 
+LOCAL_LDFLAGS += "-Wl,-z,max-page-size=16384"
 
 LOCAL_STATIC_LIBRARIES := ares ssl crypto
 
@@ -23,6 +24,7 @@ LOCAL_SRC_FILES := $(LOCAL_PATH)/ares/ares-android-$(TARGET_ARCH_ABI)/lib/libcar
 LOCAL_EXPORT_C_INCLUDES := $(LOCAL_PATH)/ares/ares-android-$(TARGET_ARCH_ABI)/include
 
 
+LOCAL_LDFLAGS += "-Wl,-z,max-page-size=16384"
 
 
 LOCAL_STATIC_LIBRARIES := crypto ssl
