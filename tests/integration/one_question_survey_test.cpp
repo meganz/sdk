@@ -32,8 +32,6 @@ protected:
 
     void SetUp() override;
 
-    void TearDown() override;
-
     std::unique_ptr<MegaHandleList> toMegaHandleList(const SurveyContainer& surveys) const;
 
     std::pair<ErrorCodes, std::vector<unsigned int>> getActiveSurveyTriggerActions() const;
@@ -210,11 +208,6 @@ void SdkTestOneQuestionSurvey::SetUp()
     SdkTest::SetUp();
 
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-}
-
-void SdkTestOneQuestionSurvey::TearDown()
-{
-    SdkTest::TearDown();
 }
 
 TEST_F(SdkTestOneQuestionSurvey, Test)
