@@ -1108,7 +1108,7 @@ public:
     bool post(const std::shared_ptr<HttpReqXfer>& req)
     {
         if (!mStarted) return false;
-        req->post(mClient);
+        mTSlot->processRequestPost(mClient, req);
         return req->status == REQ_INFLIGHT;
     }
 

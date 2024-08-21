@@ -959,6 +959,23 @@ void SdkTest::onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* 
     LOG_info << "lastError (by transfer) for MegaApi " << apiIndex << ": " << mApi[apiIndex].lastError;
 
     onTranferFinishedCount += 1;
+
+    // Transfer stats.
+    // We need to access the MegaTransferPrivate because the stats
+    // are not part of the public interface so we need to retrieve the Transfer object.
+    if (auto transferPrivate = dynamic_cast<MegaTransferPrivate*>(transfer))
+    {
+        auto internalTransfer = transferPrivate->getTransfer();
+        if (internalTransfer && internalTransfer->slot)
+        {
+            onTransferFinish_transferStats = internalTransfer->slot->tsStats;
+            LOG_debug << "[SdkTest::onTransferFinish] Stats: FailedRequestRatio = "
+                      << onTransferFinish_transferStats.failedRequestRatio
+                      << " [totalRequests = " << onTransferFinish_transferStats.numTotalRequests
+                      << ", failedRequests = " << onTransferFinish_transferStats.numFailedRequests
+                      << "]";
+        }
+    }
 }
 
 void SdkTest::onTransferUpdate(MegaApi *api, MegaTransfer *transfer)
@@ -7457,7 +7474,6 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
                                   false    /* undelete */);
 
         unsigned int transfer_timeout_in_seconds = 180;
-        //unsigned int transfer_timeout_in_seconds = 15;
         ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], transfer_timeout_in_seconds)) << "Cloudraid download with 404 and 403 errors time out (180 seconds)";
         ASSERT_EQ(API_OK, mApi[0].lastError) << "Cannot download the cloudraid file (error: " << mApi[0].lastError << ")";
         const auto& downloadEndTime = std::chrono::system_clock::now();
@@ -7467,8 +7483,13 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
         ASSERT_TRUE(onTransferUpdate_progress == onTransferUpdate_filesize);
         ASSERT_LT(DebugTestHook::countdownTo404, 0);
         ASSERT_LT(DebugTestHook::countdownTo403, 0);
+        ASSERT_EQ(onTransferFinish_transferStats.numFailedRequests, 2); // One 404 and one 403
+        ASSERT_GT(onTransferFinish_transferStats.failedRequestRatio, 0.0);
+        ASSERT_LT(onTransferFinish_transferStats.failedRequestRatio, 1.0);
+        ASSERT_EQ(onTransferFinish_transferStats.numTotalRequests,
+                  35 + 2); // 35 is the calculated number of requests for this file and chunk size
+                           // (+2 after 2 failed requests)
     }
-
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 }
@@ -7574,6 +7595,12 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
         ASSERT_GE(onTransferUpdate_filesize, 0u);
         ASSERT_EQ(onTransferUpdate_progress, onTransferUpdate_filesize);
         ASSERT_LT(DebugTestHook::countdownToTimeout, 0);
+        ASSERT_EQ(onTransferFinish_transferStats.numFailedRequests,
+                  0); // This "timeout" does not imply a request failure because it is detected as a
+                      // hanging source
+        ASSERT_EQ(onTransferFinish_transferStats.failedRequestRatio, 0.0);
+        ASSERT_EQ(onTransferFinish_transferStats.numTotalRequests,
+                  35 + 1); // 35 is the calculated number of requests for this file and chunk size
     }
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 }
