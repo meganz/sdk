@@ -2126,10 +2126,7 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     {
         changed |= MegaUser::CHANGE_CC_PREFS;
     }
-    // Don't need to notify this change
-    // if (user->changed.enableTestSurveys)
-    // {
-    // }
+    // Don't need to notify about user->changed.enableTestSurveys
 }
 
 MegaUserPrivate::MegaUserPrivate(MegaUser *user) : MegaUser()
@@ -27538,7 +27535,7 @@ void MegaApiImpl::performRequest_enableTestSurveys(MegaRequestPrivate* request)
         // At least one item
         std::stringstream ss;
 
-        // The first item with open parenthesis
+        // The first item
         ss << std::string{Base64Str<MegaClient::SURVEYHANDLE>(ids->get(0))};
 
         // Join with Comma

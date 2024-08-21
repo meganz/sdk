@@ -1,7 +1,3 @@
-#include "mega/command.h"
-#include "mega/logging.h"
-#include "mega/types.h"
-#include "megaapi.h"
 #include "SdkTest_test.h"
 
 #include <gtest/gtest.h>
@@ -66,7 +62,7 @@ std::pair<ErrorCodes, SdkTestOneQuestionSurvey::TriggerActionContainer>
         return {e, std::move(triggerActions)};
     }
 
-    const auto* l = tracker.request.get()->getMegaIntegerList();
+    const auto* l = tracker.request->getMegaIntegerList();
 
     // Add trigger actions to container
     for (int i = 0; i < l->size(); ++i)
