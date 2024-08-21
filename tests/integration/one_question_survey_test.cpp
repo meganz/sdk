@@ -30,20 +30,18 @@ protected:
 
     using SurveyContainer = std::vector<Survey>;
 
-    using TriggerActionContainer = std::vector<unsigned int>;
-
     void SetUp() override;
 
     void TearDown() override;
 
     std::unique_ptr<MegaHandleList> toMegaHandleList(const SurveyContainer& surveys) const;
 
-    std::pair<ErrorCodes, TriggerActionContainer> getActiveSurveyTriggerActions() const;
+    std::pair<ErrorCodes, std::vector<unsigned int>> getActiveSurveyTriggerActions() const;
 
     std::pair<ErrorCodes, Survey> getOneActiveSurvey(unsigned int triggerActionId) const;
 
     std::pair<ErrorCodes, SurveyContainer>
-        getAllActiveSurveys(const TriggerActionContainer& triggerActions) const;
+        getAllActiveSurveys(const std::vector<unsigned int>& triggerActions) const;
 
     ErrorCodes enableTestSurveys(const MegaHandleList* surveyHandles) const;
 
@@ -67,10 +65,10 @@ std::unique_ptr<MegaHandleList>
     return handles;
 }
 
-std::pair<ErrorCodes, SdkTestOneQuestionSurvey::TriggerActionContainer>
+std::pair<ErrorCodes, std::vector<unsigned int>>
     SdkTestOneQuestionSurvey::getActiveSurveyTriggerActions() const
 {
-    TriggerActionContainer triggerActions;
+    std::vector<unsigned int> triggerActions;
 
     RequestTracker tracker{megaApi[0].get()};
     megaApi[0]->getActiveSurveyTriggerActions(&tracker);
@@ -117,7 +115,7 @@ std::pair<ErrorCodes, SdkTestOneQuestionSurvey::Survey>
 
 std::pair<ErrorCodes, SdkTestOneQuestionSurvey::SurveyContainer>
     SdkTestOneQuestionSurvey::getAllActiveSurveys(
-        const TriggerActionContainer& triggerActions) const
+        const std::vector<unsigned int>& triggerActions) const
 {
     SurveyContainer surveys;
     ErrorCodes error = API_OK;
