@@ -78,7 +78,7 @@ NS_ASSUME_NONNULL_BEGIN
  *
  * @return timestamp value.
  */
-@property (readonly, nonatomic) NSDate *timestamp;
+@property (readonly, nonatomic, nullable) NSDate *timestamp;
 
 /**
  * @brief Returns name of current Element.
