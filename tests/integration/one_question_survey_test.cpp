@@ -8,7 +8,25 @@
 class SdkTestOneQuestionSurvey: public SdkTest
 {
 protected:
-    using Survey = ::mega::CommandGetSurvey::Survey;
+    struct Survey
+    {
+        bool isValid() const
+        {
+            return h != UNDEF;
+        };
+
+        // Survey handle
+        handle h{UNDEF};
+
+        // Maximum allowed value in the survey response.
+        unsigned int maxResponse{0};
+
+        // Name of an image to be display
+        std::string image;
+
+        // Content of the question
+        std::string content;
+    };
 
     using SurveyContainer = std::vector<Survey>;
 
