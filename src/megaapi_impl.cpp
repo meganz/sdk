@@ -27526,28 +27526,28 @@ void MegaApiImpl::performRequest_enableTestSurveys(MegaRequestPrivate* request)
         return;
     }
 
-    const auto joinWithCommaInB64 = [](const MegaHandleList* ids) -> std::string
+    const auto joinWithCommaInB64 = [](const MegaHandleList* ids) -> string
     {
         // No item
         if (ids->size() == 0)
             return "";
 
         // At least one item
-        std::stringstream ss;
+        ostringstream ss;
 
         // The first item
-        ss << std::string{Base64Str<MegaClient::SURVEYHANDLE>(ids->get(0))};
+        ss << string{Base64Str<MegaClient::SURVEYHANDLE>(ids->get(0))};
 
         // Join with Comma
         for (unsigned int i = 1; i < ids->size(); ++i) // others
         {
-            ss << "," << std::string{Base64Str<MegaClient::SURVEYHANDLE>(ids->get(i))};
+            ss << "," << string{Base64Str<MegaClient::SURVEYHANDLE>(ids->get(i))};
         }
 
         return ss.str();
     };
 
-    const std::string attributeValue{joinWithCommaInB64(ids)};
+    const string attributeValue{joinWithCommaInB64(ids)};
     client->putua(ATTR_ENABLE_TEST_SURVEYS,
                   reinterpret_cast<const byte*>(attributeValue.c_str()),
                   unsigned(attributeValue.size()),
