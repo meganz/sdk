@@ -682,7 +682,7 @@ bool Model::removesynctrash(const string& syncrootpath, const string& subpath)
 {
     if (subpath.empty())
     {
-        return !!removenode(syncrootpath + "/" + DEBRISFOLDER);
+        return removenode(syncrootpath + "/" + DEBRISFOLDER) != nullptr;
     }
     else
     {
@@ -690,7 +690,8 @@ bool Model::removesynctrash(const string& syncrootpath, const string& subpath)
         auto rawtime = time(NULL);
         strftime(today, sizeof today, "%F", localtime(&rawtime));
 
-        return !!removenode(syncrootpath + "/" + DEBRISFOLDER + "/" + today + "/" + subpath);
+        return removenode(syncrootpath + "/" + DEBRISFOLDER + "/" + today + "/" + subpath) !=
+               nullptr;
     }
 }
 
