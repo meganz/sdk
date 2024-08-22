@@ -47,10 +47,6 @@ using namespace mega;
     return self;
 }
 
-- (instancetype)clone {
-    return self.recentActionBucket ? [MEGARecentActionBucket.alloc initWithMegaRecentActionBucket:self.recentActionBucket->copy() cMemoryOwn:YES] : nil;
-}
-
 - (MegaRecentActionBucket *)getCPtr {
     return self.recentActionBucket;
 }

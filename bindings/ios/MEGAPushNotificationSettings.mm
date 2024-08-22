@@ -66,10 +66,6 @@ using namespace mega;
     }
 }
 
-- (instancetype)clone {
-    return self.megaPushNotificationSettings ? [MEGAPushNotificationSettings.alloc initWithMegaPushNotificationSettings:self.megaPushNotificationSettings->copy() cMemoryOwn:YES] : nil;
-}
-
 - (MegaPushNotificationSettings *)getCPtr {
     return self.megaPushNotificationSettings;
 }

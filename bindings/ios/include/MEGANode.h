@@ -321,19 +321,6 @@ NS_ASSUME_NONNULL_BEGIN
 @property (readonly, nonatomic, nullable) PasswordNodeData *passwordNodeData;
 
 /**
- * @brief Creates a copy of this MEGANode object.
- *
- * The resulting object is fully independent of the source MEGANode,
- * it contains a copy of all internal attributes, so it will be valid after
- * the original object is deleted.
- *
- * You are the owner of the returned object.
- *
- * @return Copy of the MEGANode object.
- */
-- (nullable instancetype)clone;
-
-/**
  * @brief Returns a BOOL value that indicates if the node represents a file (type == MEGANodeTypeFile)
  * @return YES if the node represents a file, otherwise NO.
  */
