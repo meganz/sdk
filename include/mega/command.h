@@ -619,9 +619,15 @@ public:
 
 class MEGA_API CommandGetFile : public Command
 {
-    using Cb = std::function<bool(const Error &/*e*/, m_off_t /*size*/,
-    dstime /*timeleft*/, std::string* /*filename*/, std::string* /*fingerprint*/, std::string* /*fileattrstring*/,
-    const std::vector<std::string> &/*urls*/, const std::vector<std::string> &/*ips*/)>;
+    using Cb = std::function<bool(const Error& /*e*/,
+                                  m_off_t /*size*/,
+                                  dstime /*timeleft*/,
+                                  std::string* /*filename*/,
+                                  std::string* /*fingerprint*/,
+                                  std::string* /*fileattrstring*/,
+                                  const std::vector<std::string>& /*urls*/,
+                                  const std::vector<std::string>& /*ips*/,
+                                  const std::string& /*fileHandle*/)>;
     Cb mCompletion;
 
     void callFailedCompletion (const Error& e);
@@ -684,7 +690,12 @@ public:
 class MEGA_API CommandPutNodes : public Command
 {
 public:
-    using Completion = std::function<void(const Error&, targettype_t, vector<NewNode>&, bool targetOverride, int tag)>;
+    using Completion = std::function<void(const Error&,
+                                          targettype_t,
+                                          vector<NewNode>&,
+                                          bool targetOverride,
+                                          int tag,
+                                          const std::map<std::string, std::string>& fileHandles)>;
 
 private:
     friend class MegaClient;
@@ -696,7 +707,10 @@ private:
     Completion mResultFunction;
 
     void removePendingDBRecordsAndTempFiles();
-    void performAppCallback(Error e, vector<NewNode>&, bool targetOverride = false);
+    void performAppCallback(Error e,
+                            vector<NewNode>&,
+                            bool targetOverride = false,
+                            const std::map<std::string, std::string>& fileHandles = {});
 
 public:
 

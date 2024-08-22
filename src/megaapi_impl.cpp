@@ -4012,6 +4012,12 @@ void MegaRequestPrivate::setMegaStringMap(const MegaStringMap *stringMap)
     this->stringMap = stringMap ? stringMap->copy() : NULL;
 }
 
+void MegaRequestPrivate::setMegaStringMap(const map<string, string>& newValues)
+{
+    delete stringMap;
+    stringMap = new MegaStringMapPrivate(&newValues);
+}
+
 MegaStringListMap *MegaRequestPrivate::getMegaStringListMap() const
 {
     return mStringListMap;
@@ -14127,7 +14133,12 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
     }
 }
 
-void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<NewNode>& nn, bool targetOverride, int tag)
+void MegaApiImpl::putnodes_result(const Error& inputErr,
+                                  targettype_t t,
+                                  vector<NewNode>& nn,
+                                  bool targetOverride,
+                                  int tag,
+                                  const map<string, string>& fileHandles)
 {
     handle h = UNDEF;
     std::shared_ptr<Node> n = NULL;
@@ -14239,6 +14250,10 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
                 h = ntmp->nodehandle;
             }
         }
+    }
+    else if (request->getType() == MegaRequest::TYPE_CREATE_NODE_TREE)
+    {
+        request->setMegaStringMap(fileHandles);
     }
 
     if (request->getType() != MegaRequest::TYPE_MOVE)
@@ -20270,11 +20285,26 @@ void MegaApiImpl::getDownloadUrl(MegaNode* node, bool singleUrl, MegaRequestList
                 return API_EARGS;
             }
 
-            client->reqs.add(new CommandGetFile(client, (const byte*)node->nodekey().data(), node->nodekey().size(),
-                false /*undelete*/, node->nodehandle, true, nullptr, nullptr, nullptr, request->getFlag() /*singleUrl*/,
-                [this, request](const Error &e, m_off_t /*size*/, dstime /*timeleft*/,
-                std::string* /*filename*/, std::string* /*fingerprint*/, std::string* /*fileattrstring*/,
-                const std::vector<std::string> &urls, const std::vector<std::string> &ips)
+            client->reqs.add(new CommandGetFile(
+                client,
+                (const byte*)node->nodekey().data(),
+                node->nodekey().size(),
+                false /*undelete*/,
+                node->nodehandle,
+                true,
+                nullptr,
+                nullptr,
+                nullptr,
+                request->getFlag() /*singleUrl*/,
+                [this, request, h = node->nodehandle](const Error& e,
+                                                      m_off_t /*size*/,
+                                                      dstime /*timeleft*/,
+                                                      std::string* /*filename*/,
+                                                      std::string* /*fingerprint*/,
+                                                      std::string* /*fileattrstring*/,
+                                                      const std::vector<std::string>& urls,
+                                                      const std::vector<std::string>& ips,
+                                                      const std::string& fileHandle)
                 {
                     if (e == API_OK && urls.size() && ips.size())
                     {
@@ -20283,14 +20313,16 @@ void MegaApiImpl::getDownloadUrl(MegaNode* node, bool singleUrl, MegaRequestList
                         auto delimFields=";";
                         for (auto &u : urls)
                         {
-                            if (!surls.empty()) surls.append(delimFields);
+                            if (!surls.empty())
+                                surls.append(delimFields);
                             surls.append(u);
                         }
                         bool ipv4 = true;
                         for (auto &ip : ips)
                         {
                             auto &w = ipv4 ? sipsv4 : sipsv6;
-                            if (!w.empty()) w.append(delimFields);
+                            if (!w.empty())
+                                w.append(delimFields);
                             w.append(ip);
                             ipv4 = !ipv4;
                         }
@@ -20298,12 +20330,14 @@ void MegaApiImpl::getDownloadUrl(MegaNode* node, bool singleUrl, MegaRequestList
                         request->setName(surls.c_str());
                         request->setLink(sipsv4.c_str());
                         request->setText(sipsv6.c_str());
+                        request->setMegaStringMap({
+                            {Base64Str<MegaClient::NODEHANDLE>(h).chars, fileHandle}
+                        });
                     }
 
                     fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
                     return true;
-                })
-            );
+                }));
 
             return API_OK;
         };
@@ -27126,26 +27160,29 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
             }
         }
 
-        auto result{
-            [this,
-             request,
-             nodeTree](const Error& error, targettype_t, vector<NewNode>& newNodes, bool, int)
-            {
-                size_t i{};
-                auto tmpNodeTree{dynamic_cast<MegaNodeTreePrivate*>(nodeTree)};
-                while (i < newNodes.size() && tmpNodeTree)
-                {
-                    if (auto node{client->nodebyhandle(newNodes[i].mAddedHandle)})
+        auto result{[this, request, nodeTree](const Error& error,
+                                              targettype_t,
+                                              vector<NewNode>& newNodes,
+                                              bool,
+                                              int,
+                                              const map<string, string>& fileHandles)
                     {
-                        tmpNodeTree->setNodeHandle(node->nodehandle);
-                    }
-                    i++;
-                    tmpNodeTree =
-                        dynamic_cast<MegaNodeTreePrivate*>(tmpNodeTree->getNodeTreeChild());
-                }
-                request->setMegaNodeTree(nodeTree);
-                fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(error));
-            }};
+                        size_t i{};
+                        auto tmpNodeTree{dynamic_cast<MegaNodeTreePrivate*>(nodeTree)};
+                        while (i < newNodes.size() && tmpNodeTree)
+                        {
+                            if (auto node{client->nodebyhandle(newNodes[i].mAddedHandle)})
+                            {
+                                tmpNodeTree->setNodeHandle(node->nodehandle);
+                            }
+                            i++;
+                            tmpNodeTree =
+                                dynamic_cast<MegaNodeTreePrivate*>(tmpNodeTree->getNodeTreeChild());
+                        }
+                        request->setMegaNodeTree(nodeTree);
+                        request->setMegaStringMap(fileHandles);
+                        fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(error));
+                    }};
 
         client->putnodes(NodeHandle().set6byte(request->getParentHandle()),
                          UseLocalVersioningFlag,
@@ -29517,10 +29554,12 @@ MegaFolderUploadController::batchResult MegaFolderUploadController::createNextFo
                                          targettype_t,
                                          vector<NewNode>&,
                                          bool,
-                                         int tag)
+                                         int tag,
+                                         const map<string, string>& /*fileHandles*/)
             {
                 // double check our object still exists on request completion
-                if (!weak_this.lock()) return;
+                if (!weak_this.lock())
+                    return;
                 assert(weak_this.lock().get() == this);
                 assert(mMainThreadId == std::this_thread::get_id());
 
