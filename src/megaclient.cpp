@@ -7527,7 +7527,7 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                 break;
 
             case 'g':
-                group = jsonsc.getint();
+                group = jsonsc.getbool();
                 break;
 
             case MAKENAMEID2('o','u'):
@@ -7544,7 +7544,7 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
 
             case 'm':
                 assert(readingPublicChat);
-                publicchat = jsonsc.getint();
+                publicchat = jsonsc.getbool();
                 break;
 
             case MAKENAMEID2('c','k'):
@@ -7720,12 +7720,12 @@ void MegaClient::sc_chatnode()
         {
             case 'g':
                 // access granted
-                g = jsonsc.getint();
+                g = jsonsc.getbool();
                 break;
 
             case 'r':
                 // access revoked
-                r = jsonsc.getint();
+                r = jsonsc.getbool();
                 break;
 
             case MAKENAMEID2('i','d'):
@@ -13108,7 +13108,7 @@ void MegaClient::procmcf(JSON *j)
                                 break;
 
                             case 'g':
-                                group = j->getint();
+                                group = j->getbool();
                                 break;
 
                             case MAKENAMEID2('c','t'):
@@ -13126,7 +13126,7 @@ void MegaClient::procmcf(JSON *j)
 
                             case 'm':   // operation mode: 1 -> public chat; 0 -> private chat
                                 assert(readingPublicChats);
-                                publicchat = j->getint();
+                                publicchat = j->getbool();
                                 break;
 
                            case MAKENAMEID2('m', 'r'):    // meeting room: 1; no meeting room: 0
@@ -22707,7 +22707,7 @@ bool ScDbStateRecord::serialize(string* s) const
     CacheableWriter w(*s);
     w.serializestring(seqTag);
     w.serializeexpansionflags();
-    return true;
+    return s != nullptr;
 }
 
 ScDbStateRecord ScDbStateRecord::unserialize(const std::string& data)

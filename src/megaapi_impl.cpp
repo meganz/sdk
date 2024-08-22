@@ -1196,7 +1196,7 @@ bool MegaBackgroundMediaUploadPrivate::serialize(string* s)
     w.serializehandle(thumbnailFA);
     w.serializehandle(previewFA);
     w.serializeexpansionflags();  // if/when we add more in future, set the first one true to signal the new set are present.
-    return true;
+    return s != nullptr;
 }
 
 char *MegaBackgroundMediaUploadPrivate::serialize()
@@ -24145,7 +24145,7 @@ void MegaApiImpl::archiveChat(MegaHandle chatid, int archive, MegaRequestListene
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_ARCHIVE, listener);
     request->setNodeHandle(chatid);
-    request->setFlag(archive);
+    request->setFlag(archive != 0);
 
     request->performRequest = [this, request]()
         {
@@ -24269,7 +24269,7 @@ void MegaApiImpl::chatLinkHandle(MegaHandle chatid, bool del, bool createifmissi
         {
             MegaHandle chatid = request->getNodeHandle();
             bool del = request->getFlag();
-            bool createifmissing = request->getAccess();
+            bool createifmissing = request->getAccess() != 0;
             if (del && createifmissing)
             {
                 return API_EARGS;
@@ -38624,7 +38624,7 @@ MegaPushNotificationSettingsPrivate::MegaPushNotificationSettingsPrivate(const s
                 }
                 else if (subname == "an" && jsonChat.isnumeric())
                 {
-                    bool alwaysNotify = jsonChat.getint() != 0;
+                    bool alwaysNotify = jsonChat.getbool();
                     if (alwaysNotify)
                     {
                         mChatAlwaysNotify[chatid] = true;

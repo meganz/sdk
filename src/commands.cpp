@@ -1841,11 +1841,11 @@ bool CommandLogin::procresult(Result r, JSON& json)
                 break;
 
             case MAKENAMEID2('f', 'a'):
-                fa = json.getint() != 0;
+                fa = json.getbool();
                 break;
 
             case MAKENAMEID3('a', 'c', 'h'):
-                ach = json.getint() != 0;
+                ach = json.getbool();
                 break;
 
             case MAKENAMEID2('s', 'n'):
@@ -8011,7 +8011,7 @@ bool CommandChatCreate::procresult(Result r, JSON& json)
                     break;
 
                 case 'g':
-                    group = json.getint();
+                    group = json.getbool();
                     break;
 
                 case MAKENAMEID2('t', 's'):  // actual creation timestamp
