@@ -27526,25 +27526,19 @@ void MegaApiImpl::performRequest_enableTestSurveys(MegaRequestPrivate* request)
         return;
     }
 
+    // Example: Join the elements to form "A,B,C"
     const auto joinWithCommaInB64 = [](const MegaHandleList* ids) -> string
     {
-        // No item
-        if (ids->size() == 0)
-            return "";
-
-        // At least one item
-        ostringstream ss;
-
-        // The first item
-        ss << string{Base64Str<MegaClient::SURVEYHANDLE>(ids->get(0))};
-
-        // Join with Comma
-        for (unsigned int i = 1; i < ids->size(); ++i) // others
+        string result;
+        for (unsigned i = 0; i < ids->size(); ++i)
         {
-            ss << "," << string{Base64Str<MegaClient::SURVEYHANDLE>(ids->get(i))};
+            result += string{Base64Str<MegaClient::SURVEYHANDLE>(ids->get(i))} + ',';
         }
+        // Remove the ending ","
+        if (!result.empty())
+            result.pop_back();
 
-        return ss.str();
+        return result;
     };
 
     const string attributeValue{joinWithCommaInB64(ids)};
