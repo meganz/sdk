@@ -398,6 +398,23 @@ public:
     m_off_t onTransferUpdate_filesize;
     unsigned onTranferFinishedCount = 0;
 
+    struct SdkTestTransferStats
+    {
+        m_off_t numFailedRequests{};
+        m_off_t numTotalRequests{};
+        double failedRequestRatio{};
+
+        SdkTestTransferStats& operator=(const TransferSlotStats& transferSlotStats)
+        {
+            numFailedRequests = transferSlotStats.numFailedRequests;
+            numTotalRequests = transferSlotStats.numTotalRequests;
+            failedRequestRatio = transferSlotStats.failedRequestRatio();
+            return *this;
+        }
+    };
+
+    SdkTestTransferStats onTransferFinish_transferStats{};
+
 protected:
     void SetUp() override;
     void TearDown() override;
