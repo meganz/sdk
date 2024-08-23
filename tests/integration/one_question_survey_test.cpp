@@ -2,18 +2,12 @@
 
 #include <gtest/gtest.h>
 
-#include <algorithm>
-#include <memory>
-
 class SdkTestOneQuestionSurvey: public SdkTest
 {
 protected:
     struct Survey
     {
-        bool isValid() const
-        {
-            return h != UNDEF;
-        };
+        unsigned int triggerActionId;
 
         // Survey handle
         handle h{UNDEF};
@@ -28,193 +22,146 @@ protected:
         std::string content;
     };
 
-    using SurveyContainer = std::vector<Survey>;
-
     void SetUp() override;
 
-    std::unique_ptr<MegaHandleList> toMegaHandleList(const SurveyContainer& surveys) const;
+    std::set<unsigned int> toIntegerSet(const MegaIntegerList* list) const;
 
-    std::pair<ErrorCodes, std::vector<unsigned int>> getActiveSurveyTriggerActions() const;
+    handle toHandle(const char* handleInB64) const;
 
-    std::pair<ErrorCodes, Survey> getOneActiveSurvey(unsigned int triggerActionId) const;
+    std::unique_ptr<MegaHandleList> toMegaHandleList(const std::vector<handle>& handles) const;
 
-    std::pair<ErrorCodes, SurveyContainer>
-        getAllActiveSurveys(const std::vector<unsigned int>& triggerActions) const;
+    void getOneActiveSurvey(unsigned int triggerActionId, Survey& survey) const;
 
-    ErrorCodes enableTestSurveys(const MegaHandleList* surveyHandles) const;
-
-    ErrorCodes clearTestSurveys() const;
-
-    std::pair<ErrorCodes, SurveyContainer> getAllActiveSurveys() const;
-
-    void testGetNotExistSurveyReturnsError();
-
-    void testAnswerSurveysSuccessfully();
+    Survey mTextSurvey;
+    Survey mIntegerSurvey;
 };
 
-std::unique_ptr<MegaHandleList>
-    SdkTestOneQuestionSurvey::toMegaHandleList(const SurveyContainer& surveys) const
-{
-    std::unique_ptr<MegaHandleList> handles{MegaHandleList::createInstance()};
-    for (const auto& survey: surveys)
-    {
-        handles->addMegaHandle(survey.h);
-    }
-    return handles;
-}
-
-std::pair<ErrorCodes, std::vector<unsigned int>>
-    SdkTestOneQuestionSurvey::getActiveSurveyTriggerActions() const
-{
-    std::vector<unsigned int> triggerActions;
-
-    RequestTracker tracker{megaApi[0].get()};
-    megaApi[0]->getActiveSurveyTriggerActions(&tracker);
-    if (auto e = tracker.waitForResult(); e != API_OK)
-    {
-        LOG_err << "getActiveSurveyTriggerActions error: " << e;
-        return {e, std::move(triggerActions)};
-    }
-
-    const auto* l = tracker.request->getMegaIntegerList();
-
-    // Add trigger actions to container
-    for (int i = 0; i < l->size(); ++i)
-    {
-        triggerActions.emplace_back(static_cast<unsigned int>(l->get(i)));
-    }
-
-    return {API_OK, std::move(triggerActions)};
-}
-
-std::pair<ErrorCodes, SdkTestOneQuestionSurvey::Survey>
-    SdkTestOneQuestionSurvey::getOneActiveSurvey(unsigned int triggerActionId) const
-{
-    Survey survey;
-
-    RequestTracker tracker{megaApi[0].get()};
-
-    megaApi[0]->getSurvey(triggerActionId, &tracker);
-
-    if (auto e = tracker.waitForResult(); e != API_OK)
-    {
-        LOG_err << "getSurvey " << triggerActionId << "error: " << e;
-        return {e, std::move(survey)};
-    }
-
-    const auto* request = tracker.request.get();
-    survey.h = request->getNodeHandle();
-    survey.maxResponse = static_cast<unsigned int>(request->getNumDetails());
-    survey.image = request->getFile() ? std::string{request->getFile()} : "";
-    survey.content = request->getText() ? std::string{request->getText()} : "";
-
-    return {API_OK, std::move(survey)};
-}
-
-std::pair<ErrorCodes, SdkTestOneQuestionSurvey::SurveyContainer>
-    SdkTestOneQuestionSurvey::getAllActiveSurveys(
-        const std::vector<unsigned int>& triggerActions) const
-{
-    SurveyContainer surveys;
-    ErrorCodes error = API_OK;
-
-    for (const auto& triggerAction: triggerActions)
-    {
-        if (const auto [e, survey] = getOneActiveSurvey(triggerAction); e != API_OK)
-        {
-            error = e;
-            break;
-        }
-        else
-        {
-            surveys.push_back(std::move(survey));
-        }
-    }
-
-    return {error, std::move(surveys)};
-}
-
-std::pair<ErrorCodes, SdkTestOneQuestionSurvey::SurveyContainer>
-    SdkTestOneQuestionSurvey::getAllActiveSurveys() const
-{
-    if (const auto [e, triggerActions] = getActiveSurveyTriggerActions(); e != API_OK)
-    {
-        return {e, SurveyContainer{}};
-    }
-    else
-    {
-        return getAllActiveSurveys(triggerActions);
-    }
-}
-
-ErrorCodes SdkTestOneQuestionSurvey::clearTestSurveys() const
-{
-    return enableTestSurveys(toMegaHandleList(SurveyContainer{}).get());
-}
-
-ErrorCodes SdkTestOneQuestionSurvey::enableTestSurveys(const MegaHandleList* surveyHandles) const
-{
-    RequestTracker tracker{megaApi[0].get()};
-    megaApi[0]->enableTestSurveys(surveyHandles, &tracker);
-
-    auto e = tracker.waitForResult();
-    if (e != API_OK)
-    {
-        LOG_err << "enableTestSurveys error: " << e;
-    }
-
-    return e;
-}
-
-void SdkTestOneQuestionSurvey::testGetNotExistSurveyReturnsError()
-{
-    LOG_info << "testGetNotExistSurveyReturnsError";
-
-    unsigned int notExistTriggerActionId = 99999;
-    auto [e, survey] = getOneActiveSurvey(notExistTriggerActionId);
-    ASSERT_EQ(e, API_ENOENT);
-}
-
 //
-// At least two pre-configured test surveys are available:
-// one configured for text responses and another for integer responses.
+// To streamline the test case, two pre-configured test surveys should be
+// utilized. These surveys are set up to be returned by the API with priority
+// when they are enabled for testing. The details are as follows:
 //
-void SdkTestOneQuestionSurvey::testAnswerSurveysSuccessfully()
-{
-    LOG_info << "testAnswerSurveysSuccessfully";
-
-    auto [e, surveys] = getAllActiveSurveys();
-    ASSERT_EQ(e, API_OK);
-    ASSERT_GE(surveys.size(), 2); // at least two surveys
-    ASSERT_TRUE(all_of(std::begin(surveys),
-                       std::end(surveys),
-                       [](const Survey& survey)
-                       {
-                           return survey.isValid();
-                       }));
-
-    ASSERT_EQ(clearTestSurveys(), API_OK);
-
-    auto handles = toMegaHandleList(surveys);
-    ASSERT_EQ(enableTestSurveys(handles.get()), API_OK);
-
-    // TODO answer survey
-
-    ASSERT_EQ(clearTestSurveys(), API_OK);
-}
-
+// Text Response Test Survey:
+//   Trigger Action ID: 1
+//   Survey Handle: zqdkqTtOtGc
+// Integer Response Test Survey:
+//   Trigger Action ID: 2
+//   Survey Handle: j-r9sea9qW4
+//
+// Only the trigger action ID and handle need to be tested; other fields can be ignored.
 void SdkTestOneQuestionSurvey::SetUp()
 {
     SdkTest::SetUp();
 
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // A test survey configured for text responses
+    mTextSurvey.triggerActionId = 1;
+    mTextSurvey.h = toHandle("zqdkqTtOtGc");
+
+    // A test survey configured for integer responses
+    mIntegerSurvey.triggerActionId = 2;
+    mIntegerSurvey.h = toHandle("j-r9sea9qW4");
+}
+
+std::set<unsigned int> SdkTestOneQuestionSurvey::toIntegerSet(const MegaIntegerList* list) const
+{
+    set<unsigned int> result;
+    if (!list || list->size() == 0)
+        return result;
+
+    for (int i = 0; i < list->size(); ++i)
+    {
+        result.emplace(list->get(i));
+    }
+
+    return result;
+}
+
+std::unique_ptr<MegaHandleList>
+    SdkTestOneQuestionSurvey::toMegaHandleList(const std::vector<handle>& handles) const
+{
+    std::unique_ptr<MegaHandleList> list{MegaHandleList::createInstance()};
+    for (const auto& handle: handles)
+    {
+        list->addMegaHandle(handle);
+    }
+    return list;
+}
+
+handle SdkTestOneQuestionSurvey::toHandle(const char* handleInB64) const
+{
+    handle surveyHandle{UNDEF};
+    Base64::atob(handleInB64,
+                 reinterpret_cast<::mega::byte*>(&surveyHandle),
+                 MegaClient::SURVEYHANDLE);
+    return surveyHandle;
+}
+
+void SdkTestOneQuestionSurvey::getOneActiveSurvey(unsigned int triggerActionId,
+                                                  SdkTestOneQuestionSurvey::Survey& survey) const
+{
+    RequestTracker tracker{megaApi[0].get()};
+
+    megaApi[0]->getSurvey(triggerActionId, &tracker);
+
+    ASSERT_EQ(tracker.waitForResult(), API_OK) << "Get a survey should succeed";
+
+    const auto& request = tracker.request;
+    survey.triggerActionId = triggerActionId;
+    survey.h = request->getNodeHandle();
+    survey.maxResponse = static_cast<unsigned int>(request->getNumDetails());
+    survey.image = request->getFile() ? std::string{request->getFile()} : "";
+    survey.content = request->getText() ? std::string{request->getText()} : "";
 }
 
 TEST_F(SdkTestOneQuestionSurvey, Test)
 {
     LOG_info << "___TEST SdkTestOneQuestionSurvey::Test";
 
-    ASSERT_NO_FATAL_FAILURE(testGetNotExistSurveyReturnsError());
+    // Attempting to retrieve a survey with a non-existent trigger action ID should fail.
+    RequestTracker notExistTriggerActionIdtracker{megaApi[0].get()};
+    megaApi[0]->getSurvey(99999u, &notExistTriggerActionIdtracker);
+    ASSERT_EQ(notExistTriggerActionIdtracker.waitForResult(), API_ENOENT);
 
-    ASSERT_NO_FATAL_FAILURE(testAnswerSurveysSuccessfully());
+    // Enable testing for two pre-configured surveys
+    RequestTracker enableTestSurveyTracker{megaApi[0].get()};
+    megaApi[0]->enableTestSurveys(
+        toMegaHandleList(std::vector<handle>{mTextSurvey.h, mIntegerSurvey.h}).get(),
+        &enableTestSurveyTracker);
+    ASSERT_EQ(enableTestSurveyTracker.waitForResult(), API_OK)
+        << "Enable testing for surveys should succeed.";
+
+    // Retrieving all active trigger actions should be successful.
+    RequestTracker allTriggersTracker{megaApi[0].get()};
+    megaApi[0]->getActiveSurveyTriggerActions(&allTriggersTracker);
+    ASSERT_EQ(allTriggersTracker.waitForResult(), API_OK);
+    const auto allTriggers = toIntegerSet(allTriggersTracker.request->getMegaIntegerList());
+    ASSERT_GE(allTriggers.size(), 2) << "There must be at least two active trigger actions.";
+    ASSERT_TRUE(allTriggers.count(mTextSurvey.triggerActionId))
+        << "Unable to locate the trigger action ID for the text response survey.";
+    ASSERT_TRUE(allTriggers.count(mIntegerSurvey.triggerActionId))
+        << "Unable to locate the trigger action ID of the integer response survey";
+
+    // Retrieving the text response survey should be successful.
+    Survey textSurvey;
+    ASSERT_NO_FATAL_FAILURE(getOneActiveSurvey(mTextSurvey.triggerActionId, textSurvey));
+    ASSERT_EQ(textSurvey.h, mTextSurvey.h) << "The handle for the text survey is incorrect.";
+    ASSERT_EQ(textSurvey.maxResponse, 0)
+        << "A text response survey should have a maxResponse value of zero.";
+
+    // Retrieving the integer response survey should be successful.
+    Survey integerSurvey;
+    ASSERT_NO_FATAL_FAILURE(getOneActiveSurvey(mIntegerSurvey.triggerActionId, integerSurvey));
+    ASSERT_EQ(integerSurvey.h, mIntegerSurvey.h)
+        << "The handle for the integer survey is incorrect.";
+    ASSERT_GT(integerSurvey.maxResponse, 0)
+        << "An integer response survey should have a positive maxResponse value.";
+
+    // Clearing testing surveys should be successful
+    RequestTracker clearTestSurveyTracker{megaApi[0].get()};
+    megaApi[0]->enableTestSurveys(toMegaHandleList(std::vector<handle>{}).get(),
+                                  &clearTestSurveyTracker);
+    ASSERT_EQ(clearTestSurveyTracker.waitForResult(), API_OK)
+        << "Clearing testing surveys should succeed.";
 }
