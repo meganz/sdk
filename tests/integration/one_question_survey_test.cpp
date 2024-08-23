@@ -72,7 +72,7 @@ std::set<unsigned int> SdkTestOneQuestionSurvey::toIntegerSet(const MegaIntegerL
 
     for (int i = 0; i < list->size(); ++i)
     {
-        result.emplace(list->get(i));
+        result.emplace(static_cast<unsigned int>(list->get(i)));
     }
 
     return result;
