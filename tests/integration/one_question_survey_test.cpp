@@ -2,7 +2,7 @@
 
 #include <gtest/gtest.h>
 
-class SdkTestOneQuestionSurvey: public SdkTest
+class OneQuestionSurveyTest: public SdkTest
 {
 protected:
     struct Survey
@@ -49,7 +49,7 @@ protected:
 //   Survey Handle: j-r9sea9qW4
 //
 // Only the trigger action ID and handle need to be tested; other fields can be ignored.
-void SdkTestOneQuestionSurvey::SetUp()
+void OneQuestionSurveyTest::SetUp()
 {
     SdkTest::SetUp();
 
@@ -64,7 +64,7 @@ void SdkTestOneQuestionSurvey::SetUp()
     mIntegerSurvey.h = toHandle("j-r9sea9qW4");
 }
 
-std::set<unsigned int> SdkTestOneQuestionSurvey::toIntegerSet(const MegaIntegerList* list) const
+std::set<unsigned int> OneQuestionSurveyTest::toIntegerSet(const MegaIntegerList* list) const
 {
     set<unsigned int> result;
     if (!list || list->size() == 0)
@@ -79,7 +79,7 @@ std::set<unsigned int> SdkTestOneQuestionSurvey::toIntegerSet(const MegaIntegerL
 }
 
 std::unique_ptr<MegaHandleList>
-    SdkTestOneQuestionSurvey::toMegaHandleList(const std::vector<handle>& handles) const
+    OneQuestionSurveyTest::toMegaHandleList(const std::vector<handle>& handles) const
 {
     std::unique_ptr<MegaHandleList> list{MegaHandleList::createInstance()};
     for (const auto& handle: handles)
@@ -89,7 +89,7 @@ std::unique_ptr<MegaHandleList>
     return list;
 }
 
-handle SdkTestOneQuestionSurvey::toHandle(const char* handleInB64) const
+handle OneQuestionSurveyTest::toHandle(const char* handleInB64) const
 {
     handle surveyHandle{UNDEF};
     Base64::atob(handleInB64,
@@ -98,8 +98,8 @@ handle SdkTestOneQuestionSurvey::toHandle(const char* handleInB64) const
     return surveyHandle;
 }
 
-void SdkTestOneQuestionSurvey::getOneActiveSurvey(unsigned int triggerActionId,
-                                                  SdkTestOneQuestionSurvey::Survey& survey) const
+void OneQuestionSurveyTest::getOneActiveSurvey(unsigned int triggerActionId,
+                                               OneQuestionSurveyTest::Survey& survey) const
 {
     RequestTracker tracker{megaApi[0].get()};
 
@@ -115,7 +115,7 @@ void SdkTestOneQuestionSurvey::getOneActiveSurvey(unsigned int triggerActionId,
     survey.content = request->getText() ? std::string{request->getText()} : "";
 }
 
-TEST_F(SdkTestOneQuestionSurvey, Test)
+TEST_F(OneQuestionSurveyTest, Test)
 {
     LOG_info << "___TEST SdkTestOneQuestionSurvey::Test";
 
