@@ -41,10 +41,10 @@ protected:
 // utilized. These surveys are set up to be returned by the API with priority
 // when they are enabled for testing. The details are as follows:
 //
-// Text Response Test Survey:
+// Text Response Test Survey (a survey with 0 maxResponse):
 //   Trigger Action ID: 1
 //   Survey Handle: zqdkqTtOtGc
-// Integer Response Test Survey:
+// Integer Response Test Survey (a survey with positive maxResponse):
 //   Trigger Action ID: 2
 //   Survey Handle: j-r9sea9qW4
 //
@@ -115,53 +115,78 @@ void OneQuestionSurveyTest::getOneActiveSurvey(unsigned int triggerActionId,
     survey.content = request->getText() ? std::string{request->getText()} : "";
 }
 
-TEST_F(OneQuestionSurveyTest, Test)
+TEST_F(OneQuestionSurveyTest, RetrieveSurveyWithNonExistentActionIdShouldFail)
 {
-    LOG_info << "___TEST SdkTestOneQuestionSurvey::Test";
+    LOG_info << "___TEST OneQuestionSurveyTest::RetrieveSurveyWithNonExistentActionIdShouldFail";
 
     // Attempting to retrieve a survey with a non-existent trigger action ID should fail.
     RequestTracker notExistTriggerActionIdtracker{megaApi[0].get()};
     megaApi[0]->getSurvey(99999u, &notExistTriggerActionIdtracker);
     ASSERT_EQ(notExistTriggerActionIdtracker.waitForResult(), API_ENOENT);
+}
 
-    // Enable testing for two pre-configured surveys
+TEST_F(OneQuestionSurveyTest, RetrieveTextResponseSurveyShouldSucceed)
+{
+    LOG_info << "___TEST OneQuestionSurveyTest::RetrieveTextResponseSurveyShouldSucceed";
+
+    // Enable testing for pre-configured text response survey should be successfully
     RequestTracker enableTestSurveyTracker{megaApi[0].get()};
-    megaApi[0]->enableTestSurveys(
-        toMegaHandleList(std::vector<handle>{mTextSurvey.h, mIntegerSurvey.h}).get(),
-        &enableTestSurveyTracker);
-    ASSERT_EQ(enableTestSurveyTracker.waitForResult(), API_OK)
-        << "Enable testing for surveys should succeed.";
+    megaApi[0]->enableTestSurveys(toMegaHandleList(std::vector<handle>{mTextSurvey.h}).get(),
+                                  &enableTestSurveyTracker);
+    ASSERT_EQ(enableTestSurveyTracker.waitForResult(), API_OK);
 
     // Retrieving all active trigger actions should be successful.
     RequestTracker allTriggersTracker{megaApi[0].get()};
     megaApi[0]->getActiveSurveyTriggerActions(&allTriggersTracker);
     ASSERT_EQ(allTriggersTracker.waitForResult(), API_OK);
-    const auto allTriggers = toIntegerSet(allTriggersTracker.request->getMegaIntegerList());
-    ASSERT_GE(allTriggers.size(), 2) << "There must be at least two active trigger actions.";
-    ASSERT_TRUE(allTriggers.count(mTextSurvey.triggerActionId))
-        << "Unable to locate the trigger action ID for the text response survey.";
-    ASSERT_TRUE(allTriggers.count(mIntegerSurvey.triggerActionId))
-        << "Unable to locate the trigger action ID of the integer response survey";
 
-    // Retrieving the text response survey should be successful.
+    // Contains the text response survey trigger action ID.
+    const auto allTriggers = toIntegerSet(allTriggersTracker.request->getMegaIntegerList());
+    ASSERT_GE(allTriggers.size(), 1);
+    ASSERT_TRUE(allTriggers.count(mTextSurvey.triggerActionId));
+
+    // Retrieving the text response survey (with 0 maxResponse) should be successful.
     Survey textSurvey;
     ASSERT_NO_FATAL_FAILURE(getOneActiveSurvey(mTextSurvey.triggerActionId, textSurvey));
-    ASSERT_EQ(textSurvey.h, mTextSurvey.h) << "The handle for the text survey is incorrect.";
-    ASSERT_EQ(textSurvey.maxResponse, 0)
-        << "A text response survey should have a maxResponse value of zero.";
-
-    // Retrieving the integer response survey should be successful.
-    Survey integerSurvey;
-    ASSERT_NO_FATAL_FAILURE(getOneActiveSurvey(mIntegerSurvey.triggerActionId, integerSurvey));
-    ASSERT_EQ(integerSurvey.h, mIntegerSurvey.h)
-        << "The handle for the integer survey is incorrect.";
-    ASSERT_GT(integerSurvey.maxResponse, 0)
-        << "An integer response survey should have a positive maxResponse value.";
+    ASSERT_EQ(textSurvey.h, mTextSurvey.h);
+    ASSERT_EQ(textSurvey.maxResponse, 0);
 
     // Clearing testing surveys should be successful
     RequestTracker clearTestSurveyTracker{megaApi[0].get()};
     megaApi[0]->enableTestSurveys(toMegaHandleList(std::vector<handle>{}).get(),
                                   &clearTestSurveyTracker);
-    ASSERT_EQ(clearTestSurveyTracker.waitForResult(), API_OK)
-        << "Clearing testing surveys should succeed.";
+    ASSERT_EQ(clearTestSurveyTracker.waitForResult(), API_OK);
+}
+
+TEST_F(OneQuestionSurveyTest, RetrieveIntegerResponseSurveyShouldSucceed)
+{
+    LOG_info << "___TEST OneQuestionSurveyTest::RetrieveIntegerResponseSurveyShouldSucceed";
+
+    // Enable testing for pre-configured integer response survey should be successfully
+    RequestTracker enableTestSurveyTracker{megaApi[0].get()};
+    megaApi[0]->enableTestSurveys(toMegaHandleList(std::vector<handle>{mIntegerSurvey.h}).get(),
+                                  &enableTestSurveyTracker);
+    ASSERT_EQ(enableTestSurveyTracker.waitForResult(), API_OK);
+
+    // Retrieving all active trigger actions should be successful.
+    RequestTracker allTriggersTracker{megaApi[0].get()};
+    megaApi[0]->getActiveSurveyTriggerActions(&allTriggersTracker);
+    ASSERT_EQ(allTriggersTracker.waitForResult(), API_OK);
+
+    // Contains the integer response survey trigger action ID.
+    const auto allTriggers = toIntegerSet(allTriggersTracker.request->getMegaIntegerList());
+    ASSERT_GE(allTriggers.size(), 1);
+    ASSERT_TRUE(allTriggers.count(mIntegerSurvey.triggerActionId));
+
+    // Retrieving the integer response survey (with positive maxResponse) should be successful.
+    Survey integerSurvey;
+    ASSERT_NO_FATAL_FAILURE(getOneActiveSurvey(mIntegerSurvey.triggerActionId, integerSurvey));
+    ASSERT_EQ(integerSurvey.h, mIntegerSurvey.h);
+    ASSERT_GT(integerSurvey.maxResponse, 0);
+
+    // Clearing testing surveys should be successful
+    RequestTracker clearTestSurveyTracker{megaApi[0].get()};
+    megaApi[0]->enableTestSurveys(toMegaHandleList(std::vector<handle>{}).get(),
+                                  &clearTestSurveyTracker);
+    ASSERT_EQ(clearTestSurveyTracker.waitForResult(), API_OK);
 }
