@@ -38,6 +38,11 @@ protected:
 
     std::unique_ptr<RequestTracker> getActiveSurveyTriggerActions() const;
 
+    std::unique_ptr<RequestTracker> answerSurvey(MegaHandle surveyHandle,
+                                                 unsigned int triggerActionId,
+                                                 const std::string& response,
+                                                 const std::string& comment) const;
+
     Survey mTextSurvey;
 
     Survey mIntegerSurvey;
@@ -138,6 +143,20 @@ std::unique_ptr<RequestTracker> OneQuestionSurveyTest::getActiveSurveyTriggerAct
     return RequestTracker::async(*megaApi[0], &MegaApi::getActiveSurveyTriggerActions);
 }
 
+std::unique_ptr<RequestTracker>
+    OneQuestionSurveyTest::answerSurvey(MegaHandle surveyHandle,
+                                        unsigned int triggerActionId,
+                                        const std::string& response,
+                                        const std::string& comment) const
+{
+    return RequestTracker::async(*megaApi[0],
+                                 &MegaApi::answerSurvey,
+                                 surveyHandle,
+                                 triggerActionId,
+                                 response.c_str(),
+                                 comment.c_str());
+}
+
 TEST_F(OneQuestionSurveyTest, RetrieveSurveyWithNonExistentActionIdShouldFail)
 {
     LOG_info << "___TEST OneQuestionSurveyTest::RetrieveSurveyWithNonExistentActionIdShouldFail";
@@ -187,6 +206,40 @@ TEST_F(OneQuestionSurveyTest, RetrieveIntegerResponseSurveyShouldSucceed)
     ASSERT_NO_FATAL_FAILURE(getOneActiveSurvey(mIntegerSurvey.triggerActionId, integerSurvey));
     ASSERT_EQ(integerSurvey.h, mIntegerSurvey.h);
     ASSERT_GT(integerSurvey.maxResponse, 0);
+
+    // Clearing testing surveys should be successful
+    ASSERT_EQ(enableTestSurveys({})->waitForResult(), API_OK);
+}
+
+TEST_F(OneQuestionSurveyTest, AnswerSurveyUsingWrongTriggerActionIdOrHandleShouldFail)
+{
+    LOG_info
+        << "___TEST OneQuestionSurveyTest::AnswerSurveyUsingWrongTriggerActionIdOrHandleShouldFail";
+
+    // Enable testing for pre-configured integer response survey should be successfully
+    ASSERT_EQ(enableTestSurveys({mIntegerSurvey.h})->waitForResult(), API_OK);
+
+    // Retrieving the integer response survey's trigger action ID should be successful.
+    auto triggersTracker = getActiveSurveyTriggerActions();
+    ASSERT_EQ(triggersTracker->waitForResult(), API_OK);
+    const auto triggers = toIntegerSet(triggersTracker->request->getMegaIntegerList());
+    ASSERT_TRUE(triggers.count(mIntegerSurvey.triggerActionId));
+
+    // Retrieving the integer response survey (with positive maxResponse) should be successful.
+    Survey integerSurvey;
+    ASSERT_NO_FATAL_FAILURE(getOneActiveSurvey(mIntegerSurvey.triggerActionId, integerSurvey));
+    ASSERT_EQ(integerSurvey.h, mIntegerSurvey.h);
+    ASSERT_GT(integerSurvey.maxResponse, 0);
+
+    // Answer using the wrong trigger action ID
+    unsigned int wrongTriggerActionId = mIntegerSurvey.triggerActionId + 1;
+    auto answerTracker = answerSurvey(mIntegerSurvey.h, wrongTriggerActionId, "1", "");
+    ASSERT_EQ(answerTracker->waitForResult(), API_ENOENT);
+
+    // Answer using the wrong handle
+    handle wrongHandle = mIntegerSurvey.h + 1;
+    answerTracker = answerSurvey(wrongHandle, mIntegerSurvey.triggerActionId, "1", "");
+    ASSERT_EQ(answerTracker->waitForResult(), API_EARGS);
 
     // Clearing testing surveys should be successful
     ASSERT_EQ(enableTestSurveys({})->waitForResult(), API_OK);
