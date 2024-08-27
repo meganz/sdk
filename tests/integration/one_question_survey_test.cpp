@@ -123,18 +123,19 @@ void OneQuestionSurveyTest::getOneActiveSurvey(unsigned int triggerActionId,
 std::unique_ptr<RequestTracker>
     OneQuestionSurveyTest::enableTestSurveys(const std::vector<handle>& handles) const
 {
-    return RequestTracker::async<&MegaApi::enableTestSurveys>(megaApi[0].get(),
-                                                              toMegaHandleList(handles).get());
+    return RequestTracker::async(*megaApi[0],
+                                 &MegaApi::enableTestSurveys,
+                                 toMegaHandleList(handles).get());
 }
 
 std::unique_ptr<RequestTracker> OneQuestionSurveyTest::getSurvey(unsigned int triggerActionId) const
 {
-    return RequestTracker::async<&MegaApi::getSurvey>(megaApi[0].get(), triggerActionId);
+    return RequestTracker::async(*megaApi[0], &MegaApi::getSurvey, triggerActionId);
 }
 
 std::unique_ptr<RequestTracker> OneQuestionSurveyTest::getActiveSurveyTriggerActions() const
 {
-    return RequestTracker::async<&MegaApi::getActiveSurveyTriggerActions>(megaApi[0].get());
+    return RequestTracker::async(*megaApi[0], &MegaApi::getActiveSurveyTriggerActions);
 }
 
 TEST_F(OneQuestionSurveyTest, RetrieveSurveyWithNonExistentActionIdShouldFail)

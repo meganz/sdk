@@ -199,12 +199,14 @@ struct RequestTracker : public ::mega::MegaRequestListener
         return request ? request->getFlag() : false;
     }
 
-    // mf is a pointer to MegaApi's member function.
-    template<auto mf, typename... Args>
-    static unique_ptr<RequestTracker> async(MegaApi* api, Args&&... args)
+    template<typename... Args, typename... Params>
+    static unique_ptr<RequestTracker> async(MegaApi& api,
+                                            void (MegaApi::*mf)(Params...),
+                                            Args&&... args)
     {
-        auto rt = std::make_unique<RequestTracker>(api);
-        (api->*mf)(std::forward<Args>(args)..., rt.get());
+        static_assert(sizeof...(Args) + 1 == sizeof...(Params));
+        auto rt = std::make_unique<RequestTracker>(&api);
+        (api.*mf)(std::forward<Args>(args)..., rt.get());
         return rt;
     }
 };
