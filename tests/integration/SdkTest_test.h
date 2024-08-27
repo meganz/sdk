@@ -19,17 +19,17 @@
  * program.
  */
 
-
-#include "mega.h"
 #include "../include/megaapi.h"
 #include "../include/megaapi_impl.h"
 #include "gtest/gtest.h"
+#include "mega.h"
 #include "test.h"
 
-#include <iostream>
+#include <atomic>
 #include <fstream>
 #include <future>
-#include <atomic>
+#include <iostream>
+#include <memory>
 
 using namespace mega;
 using ::testing::Test;
@@ -197,6 +197,15 @@ struct RequestTracker : public ::mega::MegaRequestListener
     bool getFlag()
     {
         return request ? request->getFlag() : false;
+    }
+
+    // mf is a pointer to MegaApi's member function.
+    template<auto mf, typename... Args>
+    static unique_ptr<RequestTracker> async(MegaApi* api, Args&&... args)
+    {
+        auto rt = std::make_unique<RequestTracker>(api);
+        (api->*mf)(std::forward<Args>(args)..., rt.get());
+        return rt;
     }
 };
 
