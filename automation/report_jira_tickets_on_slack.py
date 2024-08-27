@@ -46,7 +46,9 @@ class JiraTicketsReporter:
             print(f"Error fetching Slack user ID for {email}: {e.response['error']}")
             return None
 
-    def post_to_slack(self, issue_key: str, slack_user_id: str, missing_field: str):
+    def post_to_slack(
+        self, issue_key: str, slack_user_id: str | None, missing_field: str
+    ):
         if not slack_user_id:
             user_mention = "<!channel>"
         else:
