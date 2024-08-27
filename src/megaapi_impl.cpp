@@ -17594,12 +17594,6 @@ bool MegaApiImpl::nodeComparatorPublicLinkCreationDESC(Node *i, Node *j)
 
 bool MegaApiImpl::nodeComparatorLabelASC(Node *i, Node *j)
 {
-    int t = typeComparator(i, j);
-    if (t >= 0)
-    {
-        return t;
-    }
-
     nameid labelId = AttrMap::string2nameid("lbl");
     int iLabel = MegaNode::NODE_LBL_UNKNOWN;
     auto iAttrIt = i->attrs.map.find(labelId);
@@ -17628,25 +17622,27 @@ bool MegaApiImpl::nodeComparatorLabelASC(Node *i, Node *j)
         return 1;
     }
 
+    // Inverse order
     if (iLabel < jLabel)
-    {
-        return 1;
-    }
-    if (iLabel > jLabel)
     {
         return 0;
     }
-    return nodeComparatorDefaultASC(i, j);
-}
+    if (iLabel > jLabel)
+    {
+        return 1;
+    }
 
-bool MegaApiImpl::nodeComparatorLabelDESC(Node *i, Node *j)
-{
     int t = typeComparator(i, j);
     if (t >= 0)
     {
         return t;
     }
 
+    return nodeComparatorDefaultASC(i, j);
+}
+
+bool MegaApiImpl::nodeComparatorLabelDESC(Node* i, Node* j)
+{
     nameid labelId = AttrMap::string2nameid("lbl");
     int iLabel = MegaNode::NODE_LBL_UNKNOWN;
     auto iAttrIt = i->attrs.map.find(labelId);
@@ -17675,17 +17671,24 @@ bool MegaApiImpl::nodeComparatorLabelDESC(Node *i, Node *j)
         return 1;
     }
 
+    // Inverse order
     if (iLabel < jLabel)
-    {
-        return 0;
-    }
-    if (iLabel > jLabel)
     {
         return 1;
     }
+    if (iLabel > jLabel)
+    {
+        return 0;
+    }
+
+    int t = typeComparator(i, j);
+    if (t >= 0)
+    {
+        return t;
+    }
+
     return nodeComparatorDefaultASC(i, j);
 }
-
 
 bool MegaApiImpl::nodeComparatorFavASC(Node *i, Node *j)
 {
