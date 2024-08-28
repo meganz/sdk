@@ -17622,14 +17622,13 @@ bool MegaApiImpl::nodeComparatorLabelASC(Node *i, Node *j)
         return 1;
     }
 
-    // Inverse order
     if (iLabel < jLabel)
     {
-        return 0;
+        return 1;
     }
     if (iLabel > jLabel)
     {
-        return 1;
+        return 0;
     }
 
     int t = typeComparator(i, j);
@@ -17671,14 +17670,13 @@ bool MegaApiImpl::nodeComparatorLabelDESC(Node* i, Node* j)
         return 1;
     }
 
-    // Inverse order
     if (iLabel < jLabel)
     {
-        return 1;
+        return 0;
     }
     if (iLabel > jLabel)
     {
-        return 0;
+        return 1;
     }
 
     int t = typeComparator(i, j);

@@ -139,7 +139,8 @@ public:
                      DirNodeInfo("Dir11",
                                  {
                                      FileNodeInfo("testFile4"),
-                                 })},
+                                 },
+                                 MegaNode::NODE_LBL_YELLOW)},
                     MegaNode::NODE_LBL_PURPLE,
                     true),
         DirNodeInfo("Dir2",
@@ -452,15 +453,15 @@ TEST_F(SdkTestFilter, SdkGetNodesInOrder)
     EXPECT_THAT(toNamesVector(*searchResults), ContainsInOrder(expected))
         << "Unexpected sorting for ORDER_MODIFICATION_DES";
 
-    // By label, dirs first. Ties broken by natural sort
+    // By label, dirs and  natural sort
     expected = {
-        "Dir1", // Purple (6)
-        "testFile5", // Blue (5)
-        "testFile3", // Yellow (3)
-        "testFile2", // Orange (2)
         "testFile1", // Red (1)
+        "testFile2", // Orange (2)
+        "Dir11", // Yellow (3)
+        "testFile3", // Yellow (3)
+        "testFile5", // Blue (5)
+        "Dir1", // Purple (6)
         "Dir2", // Nothing
-        "Dir11", // Nothing
         "testFile4", // Nothing
         "testFile6" // Nothing
     };
@@ -470,13 +471,13 @@ TEST_F(SdkTestFilter, SdkGetNodesInOrder)
         << "Unexpected sorting for ORDER_LABEL_ASC";
 
     expected = {
-        "testFile1", // Red (1)
-        "testFile2", // Orange (2)
-        "testFile3", // Yellow (3)
-        "testFile5", // Blue (5)
         "Dir1", // Purple (6)
+        "testFile5", // Blue (5)
+        "Dir11", // Yellow (3)
+        "testFile3", // Yellow (3)
+        "testFile2", // Orange (2)
+        "testFile1", // Red (1)
         "Dir2", // Nothing
-        "Dir11", // Nothing
         "testFile4", // Nothing
         "testFile6" // Nothing
     };
@@ -687,14 +688,15 @@ TEST_F(SdkTestFilter, SdkGetChildrenInOrder)
     EXPECT_THAT(toNamesVector(*children), ContainsInOrder(expected))
         << "Unexpected sorting for ORDER_MODIFICATION_DES";
 
-    // By label, dirs first. Ties broken by natural sort
+    // By label, dirs and  natural sort
     expected = {
-        "Dir1", // Purple (6)
         "testFile1", // Red (1)
+        "Dir1", // Purple (6)
         "Dir2", // Nothing
         "TestFile5Uppercase", // Nothing
-        "testFile6" // Nothing
+        "testFile6", // Nothing
     };
+
     children.reset(megaApi[0]->getChildren(filteringInfo.get(), MegaApi::ORDER_LABEL_ASC));
     ASSERT_THAT(children, NotNull()) << "getChildren() returned a nullptr";
     EXPECT_THAT(toNamesVector(*children), ContainsInOrder(expected))
@@ -706,12 +708,13 @@ TEST_F(SdkTestFilter, SdkGetChildrenInOrder)
         << "Unexpected sorting for ORDER_LABEL_ASC getChildren with parent";
 
     expected = {
-        "testFile1", // Red (1)
         "Dir1", // Purple (6)
+        "testFile1", // Red (1)
         "Dir2", // Nothing
         "TestFile5Uppercase", // Nothing
-        "testFile6", // Nothing
+        "testFile6" // Nothing
     };
+
     children.reset(megaApi[0]->getChildren(filteringInfo.get(), MegaApi::ORDER_LABEL_DESC));
     ASSERT_THAT(children, NotNull()) << "getChildren() returned a nullptr";
     EXPECT_THAT(toNamesVector(*children), ContainsInOrder(expected))
