@@ -9126,6 +9126,9 @@ bool CommandGetMegaAchievements::procresult(Result r, JSON& json)
 
 CommandGetWelcomePDF::CommandGetWelcomePDF(MegaClient *client)
 {
+    // Sanity: Neither password manager nor VPN should mutate the cloud.
+    assert(client->isClientType(MegaClient::ClientType::DEFAULT));
+
     cmd("wpdf");
 
     tag = client->reqtag;
