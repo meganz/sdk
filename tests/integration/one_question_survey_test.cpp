@@ -165,9 +165,9 @@ TEST_F(OneQuestionSurveyTest, RetrieveSurveyWithNonExistentActionIdShouldFail)
     ASSERT_EQ(getSurvey(99999u)->waitForResult(), API_ENOENT);
 }
 
-TEST_F(OneQuestionSurveyTest, RetrieveTextResponseSurveyShouldSucceed)
+TEST_F(OneQuestionSurveyTest, AnswerTextResponseSurveyShouldSucceed)
 {
-    LOG_info << "___TEST OneQuestionSurveyTest::RetrieveTextResponseSurveyShouldSucceed";
+    LOG_info << "___TEST OneQuestionSurveyTest::AnswerResponseSurveyShouldSucceed";
 
     // Enable testing for pre-configured text response survey should be successfully
     ASSERT_EQ(enableTestSurveys({mTextSurvey.h})->waitForResult(), API_OK);
@@ -184,13 +184,20 @@ TEST_F(OneQuestionSurveyTest, RetrieveTextResponseSurveyShouldSucceed)
     ASSERT_EQ(textSurvey.h, mTextSurvey.h);
     ASSERT_EQ(textSurvey.maxResponse, 0);
 
+    // Different answers
+    auto answerTracker = answerSurvey(textSurvey.h, textSurvey.triggerActionId, "Awesome", "");
+    ASSERT_EQ(answerTracker->waitForResult(), API_OK);
+
+    answerTracker = answerSurvey(textSurvey.h, textSurvey.triggerActionId, "6 Star!", "Awesome");
+    ASSERT_EQ(answerTracker->waitForResult(), API_OK);
+
     // Clearing testing surveys should be successful
     ASSERT_EQ(enableTestSurveys({})->waitForResult(), API_OK);
 }
 
-TEST_F(OneQuestionSurveyTest, RetrieveIntegerResponseSurveyShouldSucceed)
+TEST_F(OneQuestionSurveyTest, AnswerIntegerResponseSurveyShouldSucceed)
 {
-    LOG_info << "___TEST OneQuestionSurveyTest::RetrieveIntegerResponseSurveyShouldSucceed";
+    LOG_info << "___TEST OneQuestionSurveyTest::AnswerIntegerResponseSurveyShouldSucceed";
 
     // Enable testing for pre-configured integer response survey should be successfully
     ASSERT_EQ(enableTestSurveys({mIntegerSurvey.h})->waitForResult(), API_OK);
@@ -206,6 +213,16 @@ TEST_F(OneQuestionSurveyTest, RetrieveIntegerResponseSurveyShouldSucceed)
     ASSERT_NO_FATAL_FAILURE(getOneActiveSurvey(mIntegerSurvey.triggerActionId, integerSurvey));
     ASSERT_EQ(integerSurvey.h, mIntegerSurvey.h);
     ASSERT_GT(integerSurvey.maxResponse, 0);
+
+    // Different answers
+    auto answerTracker = answerSurvey(integerSurvey.h, integerSurvey.triggerActionId, "1", "");
+    ASSERT_EQ(answerTracker->waitForResult(), API_OK);
+
+    answerTracker = answerSurvey(mIntegerSurvey.h,
+                                 mIntegerSurvey.triggerActionId,
+                                 std::to_string(integerSurvey.maxResponse),
+                                 "Awesome");
+    ASSERT_EQ(answerTracker->waitForResult(), API_OK);
 
     // Clearing testing surveys should be successful
     ASSERT_EQ(enableTestSurveys({})->waitForResult(), API_OK);
