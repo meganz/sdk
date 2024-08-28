@@ -292,7 +292,7 @@ private:
 class OrderByClause
 {
 public:
-    static std::string get(int order, int sqlParamIndex);
+    static std::string get(int order);
     static size_t getId(int order);
 
     enum {
@@ -303,10 +303,6 @@ public:
         LABEL_ASC = 17, LABEL_DESC,
         FAV_ASC, FAV_DESC
     };
-
-private:
-    static std::bitset<2> getDescendingDirs(int order);
-    static bool isDescOrder(const int order);
 };
 
 } // namespace
