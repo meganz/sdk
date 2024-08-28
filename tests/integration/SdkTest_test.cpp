@@ -19891,6 +19891,18 @@ TEST_F(SdkTest, SdkTestVPN)
 }
 
 /**
+ * @brief TEST_F SdkTestVPNCreateAccount
+ *
+ * Tests account creation for a VPN client.
+ *
+ * See doCreateAccountTest(...).
+ */
+TEST_F(SdkTest, SdkTestVPNCreateAccount)
+{
+    ASSERT_NO_FATAL_FAILURE(doCreateAccountTest("SdkTestVPNCreateAccount", MegaApi::CLIENT_TYPE_VPN));
+}
+
+/**
  * @brief Test checks deleting user attributes
  * Steps:
  *  - Set firstname attribute to make sure it exists
