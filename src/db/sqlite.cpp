@@ -2380,9 +2380,9 @@ std::string OrderByClause::get(int order)
             return "label DESC, " + typeSort + ", " + nameSort;
         // fav have inverse order
         case FAV_ASC:
-            return typeSort + ", " + "fav DESC," + nameSort;
+            return "fav DESC," + typeSort + ", " + nameSort;
         case FAV_DESC:
-            return typeSort + ", " + "fav, " + nameSort + " DESC";
+            return "fav, " + typeSort + ", " + nameSort;
         default:
             return typeSort + ", " + nameSort;
     }
