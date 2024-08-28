@@ -185,11 +185,13 @@ TEST_F(OneQuestionSurveyTest, AnswerTextResponseSurveyShouldSucceed)
     ASSERT_EQ(textSurvey.maxResponse, 0);
 
     // Different answers
-    auto answerTracker = answerSurvey(textSurvey.h, textSurvey.triggerActionId, "Awesome", "");
-    ASSERT_EQ(answerTracker->waitForResult(), API_OK);
+    ASSERT_EQ(
+        answerSurvey(textSurvey.h, textSurvey.triggerActionId, "Awesome", "")->waitForResult(),
+        API_OK);
 
-    answerTracker = answerSurvey(textSurvey.h, textSurvey.triggerActionId, "6 Star!", "Awesome");
-    ASSERT_EQ(answerTracker->waitForResult(), API_OK);
+    ASSERT_EQ(answerSurvey(textSurvey.h, textSurvey.triggerActionId, "6 Star!", "Awesome")
+                  ->waitForResult(),
+              API_OK);
 
     // Clearing testing surveys should be successful
     ASSERT_EQ(enableTestSurveys({})->waitForResult(), API_OK);
@@ -215,14 +217,16 @@ TEST_F(OneQuestionSurveyTest, AnswerIntegerResponseSurveyShouldSucceed)
     ASSERT_GT(integerSurvey.maxResponse, 0);
 
     // Different answers
-    auto answerTracker = answerSurvey(integerSurvey.h, integerSurvey.triggerActionId, "1", "");
-    ASSERT_EQ(answerTracker->waitForResult(), API_OK);
+    ASSERT_EQ(
+        answerSurvey(integerSurvey.h, integerSurvey.triggerActionId, "1", "")->waitForResult(),
+        API_OK);
 
-    answerTracker = answerSurvey(mIntegerSurvey.h,
-                                 mIntegerSurvey.triggerActionId,
-                                 std::to_string(integerSurvey.maxResponse),
-                                 "Awesome");
-    ASSERT_EQ(answerTracker->waitForResult(), API_OK);
+    ASSERT_EQ(answerSurvey(mIntegerSurvey.h,
+                           mIntegerSurvey.triggerActionId,
+                           std::to_string(integerSurvey.maxResponse),
+                           "Awesome")
+                  ->waitForResult(),
+              API_OK);
 
     // Clearing testing surveys should be successful
     ASSERT_EQ(enableTestSurveys({})->waitForResult(), API_OK);
@@ -249,17 +253,17 @@ TEST_F(OneQuestionSurveyTest, AnswerTextSurveyWronglyShouldFail)
 
     // Answer using the wrong trigger action ID
     const unsigned int wrongTriggerActionId = textSurvey.triggerActionId + 1;
-    auto answerTracker = answerSurvey(textSurvey.h, wrongTriggerActionId, "awesome", "");
-    ASSERT_EQ(answerTracker->waitForResult(), API_ENOENT);
+    ASSERT_EQ(answerSurvey(textSurvey.h, wrongTriggerActionId, "awesome", "")->waitForResult(),
+              API_ENOENT);
 
     // Answer using the wrong handle
     const handle wrongHandle = textSurvey.h + 1;
-    answerTracker = answerSurvey(wrongHandle, textSurvey.triggerActionId, "awesome", "");
-    ASSERT_EQ(answerTracker->waitForResult(), API_EARGS);
+    ASSERT_EQ(answerSurvey(wrongHandle, textSurvey.triggerActionId, "awesome", "")->waitForResult(),
+              API_EARGS);
 
     // Answer using empty response
-    answerTracker = answerSurvey(textSurvey.h, textSurvey.triggerActionId, "", "");
-    ASSERT_EQ(answerTracker->waitForResult(), API_EARGS);
+    ASSERT_EQ(answerSurvey(textSurvey.h, textSurvey.triggerActionId, "", "")->waitForResult(),
+              API_EARGS);
 
     // Clearing testing surveys should be successful
     ASSERT_EQ(enableTestSurveys({})->waitForResult(), API_OK);
@@ -286,30 +290,34 @@ TEST_F(OneQuestionSurveyTest, AnswerIntegerSurveyWronglyShouldFail)
 
     // Answer using the wrong trigger action ID
     const unsigned int wrongTriggerActionId = integerSurvey.triggerActionId + 1;
-    auto answerTracker = answerSurvey(integerSurvey.h, wrongTriggerActionId, "1", "");
-    ASSERT_EQ(answerTracker->waitForResult(), API_ENOENT);
+    ASSERT_EQ(answerSurvey(integerSurvey.h, wrongTriggerActionId, "1", "")->waitForResult(),
+              API_ENOENT);
 
     // Answer using the wrong handle
     const handle wrongHandle = integerSurvey.h + 1;
-    answerTracker = answerSurvey(wrongHandle, integerSurvey.triggerActionId, "1", "");
-    ASSERT_EQ(answerTracker->waitForResult(), API_EARGS);
+    ASSERT_EQ(answerSurvey(wrongHandle, integerSurvey.triggerActionId, "1", "")->waitForResult(),
+              API_EARGS);
 
     // Answer using empty response
-    answerTracker = answerSurvey(integerSurvey.h, integerSurvey.triggerActionId, "", "");
-    ASSERT_EQ(answerTracker->waitForResult(), API_EARGS);
+    ASSERT_EQ(answerSurvey(integerSurvey.h, integerSurvey.triggerActionId, "", "")->waitForResult(),
+              API_EARGS);
 
     // Answer using non integer response
-    answerTracker = answerSurvey(integerSurvey.h, integerSurvey.triggerActionId, "nonint", "");
-    ASSERT_EQ(answerTracker->waitForResult(), API_EARGS);
+    ASSERT_EQ(
+        answerSurvey(integerSurvey.h, integerSurvey.triggerActionId, "nonint", "")->waitForResult(),
+        API_EARGS);
 
     // Answer using a response which is out of (0..maxResponse] range
-    answerTracker = answerSurvey(integerSurvey.h, integerSurvey.triggerActionId, "0", "");
-    ASSERT_EQ(answerTracker->waitForResult(), API_EARGS);
-    answerTracker = answerSurvey(integerSurvey.h,
-                                 integerSurvey.triggerActionId,
-                                 std::to_string(integerSurvey.maxResponse + 1),
-                                 "");
-    ASSERT_EQ(answerTracker->waitForResult(), API_EARGS);
+    ASSERT_EQ(
+        answerSurvey(integerSurvey.h, integerSurvey.triggerActionId, "0", "")->waitForResult(),
+        API_EARGS);
+
+    ASSERT_EQ(answerSurvey(integerSurvey.h,
+                           integerSurvey.triggerActionId,
+                           std::to_string(integerSurvey.maxResponse + 1),
+                           "")
+                  ->waitForResult(),
+              API_EARGS);
 
     // Clearing testing surveys should be successful
     ASSERT_EQ(enableTestSurveys({})->waitForResult(), API_OK);
