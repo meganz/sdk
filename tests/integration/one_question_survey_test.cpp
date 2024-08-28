@@ -211,6 +211,43 @@ TEST_F(OneQuestionSurveyTest, RetrieveIntegerResponseSurveyShouldSucceed)
     ASSERT_EQ(enableTestSurveys({})->waitForResult(), API_OK);
 }
 
+TEST_F(OneQuestionSurveyTest, AnswerTextSurveyWronglyShouldFail)
+{
+    LOG_info << "___TEST OneQuestionSurveyTest::AnswerTextSurveyWronglyShouldFail";
+
+    // Enable testing for pre-configured text response survey should be successfully
+    ASSERT_EQ(enableTestSurveys({mTextSurvey.h})->waitForResult(), API_OK);
+
+    // Retrieving the text response survey's trigger action ID should be successful.
+    auto triggersTracker = getActiveSurveyTriggerActions();
+    ASSERT_EQ(triggersTracker->waitForResult(), API_OK);
+    const auto triggers = toIntegerSet(triggersTracker->request->getMegaIntegerList());
+    ASSERT_TRUE(triggers.count(mTextSurvey.triggerActionId));
+
+    // Retrieving the text response survey (with 0 maxResponse) should be successful.
+    Survey textSurvey;
+    ASSERT_NO_FATAL_FAILURE(getOneActiveSurvey(mTextSurvey.triggerActionId, textSurvey));
+    ASSERT_EQ(textSurvey.h, mTextSurvey.h);
+    ASSERT_EQ(textSurvey.maxResponse, 0);
+
+    // Answer using the wrong trigger action ID
+    const unsigned int wrongTriggerActionId = textSurvey.triggerActionId + 1;
+    auto answerTracker = answerSurvey(textSurvey.h, wrongTriggerActionId, "awesome", "");
+    ASSERT_EQ(answerTracker->waitForResult(), API_ENOENT);
+
+    // Answer using the wrong handle
+    const handle wrongHandle = textSurvey.h + 1;
+    answerTracker = answerSurvey(wrongHandle, textSurvey.triggerActionId, "awesome", "");
+    ASSERT_EQ(answerTracker->waitForResult(), API_EARGS);
+
+    // Answer using empty response
+    answerTracker = answerSurvey(textSurvey.h, textSurvey.triggerActionId, "", "");
+    ASSERT_EQ(answerTracker->waitForResult(), API_EARGS);
+
+    // Clearing testing surveys should be successful
+    ASSERT_EQ(enableTestSurveys({})->waitForResult(), API_OK);
+}
+
 TEST_F(OneQuestionSurveyTest, AnswerIntegerSurveyWronglyShouldFail)
 {
     LOG_info << "___TEST OneQuestionSurveyTest::AnswerIntegerSurveyWronglyShouldFail";
