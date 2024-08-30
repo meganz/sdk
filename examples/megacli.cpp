@@ -4782,7 +4782,8 @@ autocomplete::ACN autocompleteSyntax()
            sequence(text("nodedescription"),
                     remoteFSPath(client, &cwd),
                     opt(either(flag("-remove"), sequence(flag("-set"), param("description"))))));
-
+    p->Add(exec_nodesensitive,
+           sequence(text("nodesensitive"), remoteFSPath(client, &cwd), opt(flag("-remove"))));
     p->Add(exec_nodeTag,
            sequence(text("nodetag"),
                     remoteFSPath(client, &cwd),
@@ -13306,6 +13307,37 @@ void exec_nodedescription(autocomplete::ACState& s)
     {
         cout << "Description not set\n";
     }
+}
+
+void exec_nodesensitive(autocomplete::ACState& s)
+{
+    std::shared_ptr<Node> n = nodebypath(s.words[1].s.c_str());
+    if (!n)
+    {
+        cout << s.words[1].s << ": No such file or directory" << endl;
+        return;
+    }
+
+    const bool removeSensitive = s.extractflag("-remove");
+    const auto attrId = AttrMap::string2nameid(MegaClient::NODE_ATTR_SEN);
+
+    AttrMap attrMap;
+    if (removeSensitive)
+        attrMap.map[attrId] = "";
+    else
+        attrMap.map[attrId] = "1";
+
+    client->setattr(
+        n,
+        std::move(attrMap.map),
+        [removeSensitive](NodeHandle h, Error e)
+        {
+            if (e == API_OK)
+                cout << "Node marked as " << (removeSensitive ? "no" : "") << " sensitive" << endl;
+            else
+                cout << "Error setting sensitivity: " << e << "  Node: " << h << endl;
+        },
+        false);
 }
 
 void exec_nodeTag(autocomplete::ACState& s)
