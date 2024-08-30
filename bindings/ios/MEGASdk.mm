@@ -2197,12 +2197,6 @@ using namespace mega;
     }
 }
 
-- (void)creditCardCancelSubscriptions:(nullable NSString *)reason delegate:(id<MEGARequestDelegate>)delegate {
-    if (self.megaApi) {
-        self.megaApi->creditCardCancelSubscriptions(reason.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
-    }
-}
-
 - (void)creditCardCancelSubscriptions:(nullable NSString *)reason subscriptionId:(nullable NSString *)subscriptionId canContact:(BOOL)canContact delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->creditCardCancelSubscriptions(reason.UTF8String, subscriptionId.UTF8String, canContact, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
