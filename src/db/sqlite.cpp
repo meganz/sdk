@@ -142,6 +142,11 @@ static int
 
 DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAccess, const string &name, const int flags, DBErrorCallback dBErrorCallBack)
 {
+    /**
+     * Deprecated columns (WARNING: do not use these names anymore for new columns):
+     * - size: file/folder size in Bytes (replaced by sizeVirtual, calculated from nodeCounter)
+     * - mimetype: node mimetype (replaced by mimetypeVirtual, calculated from node name)
+     */
     sqlite3 *db = nullptr;
     auto dbPath = databasePath(fsAccess, name, DB_VERSION);
     if (!openDBAndCreateStatecache(&db, fsAccess, name, dbPath, flags))
@@ -152,6 +157,21 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
     if (sqlite3_create_function(db, u8"getmimetype", 1, SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0, &SqliteAccountState::userGetMimetype, 0, 0) != SQLITE_OK)
     {
         LOG_err << "Data base error(sqlite3_create_function userGetMimetype): " << sqlite3_errmsg(db);
+        sqlite3_close(db);
+        return nullptr;
+    }
+
+    if (sqlite3_create_function(db,
+                                u8"getSizeFromNodeCounter",
+                                1,
+                                SQLITE_UTF8 | SQLITE_DETERMINISTIC,
+                                0,
+                                &SqliteAccountState::getSizeFromNodeCounter,
+                                0,
+                                0) != SQLITE_OK)
+    {
+        LOG_err << "Data base error(sqlite3_create_function getSizeFromNodeCounter): "
+                << sqlite3_errmsg(db);
         sqlite3_close(db);
         return nullptr;
     }
@@ -171,8 +191,9 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
     // Create specific table for handle nodes
     std::string sql = "CREATE TABLE IF NOT EXISTS nodes (nodehandle int64 PRIMARY KEY NOT NULL, "
                       "parenthandle int64, name text, fingerprint BLOB, origFingerprint BLOB, "
-                      "type tinyint, mimetypeVirtual tinyint AS (getmimetype(name)) VIRTUAL, size "
-                      "int64, share tinyint, fav tinyint, ctime int64, mtime int64 DEFAULT 0, "
+                      "type tinyint, mimetypeVirtual tinyint AS (getmimetype(name)) VIRTUAL, "
+                      "sizeVirtual int64 AS (getSizeFromNodeCounter(counter)) VIRTUAL,"
+                      "share tinyint, fav tinyint, ctime int64, mtime int64 DEFAULT 0, "
                       "flags int64, counter BLOB NOT NULL, "
                       "node BLOB NOT NULL, label tinyint DEFAULT 0, description text, tags text)";
 
@@ -184,30 +205,26 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
         return nullptr;
     }
 
-    // Add following columns to existing 'nodes' table that might not have them, and populate them if needed:
+    // Add following columns to existing 'nodes' table that might not have them, and populate them
+    // if needed:
     vector<NewColumn> newCols{
         {"mtime",
-         "int64 DEFAULT 0",
-         NodeData::COMPONENT_MTIME,
-         NewColumn::extractDataFromNodeData<MTimeType>      },
+         "int64 DEFAULT 0",                                    NodeData::COMPONENT_MTIME,
+         NewColumn::extractDataFromNodeData<MTimeType>                                                                                      },
         {"label",
-         "tinyint DEFAULT 0",
-         NodeData::COMPONENT_LABEL,
-         NewColumn::extractDataFromNodeData<LabelType>      },
+         "tinyint DEFAULT 0",                                  NodeData::COMPONENT_LABEL,
+         NewColumn::extractDataFromNodeData<LabelType>                                                                                      },
         {"mimetypeVirtual",
-         "tinyint AS (getmimetype(name)) VIRTUAL",
-         NodeData::COMPONENT_NONE,
-         nullptr                                            },
+         "tinyint AS (getmimetype(name)) VIRTUAL",             NodeData::COMPONENT_NONE,
+         nullptr                                                                                                                            },
         {"description",
-         "text",
-         NodeData::COMPONENT_DESCRIPTION,
-         NewColumn::extractDataFromNodeData<DescriptionType>},
-        {"tags",
-         "text",
-         NodeData::COMPONENT_TAGS,
-         NewColumn::extractDataFromNodeData<TagsType>       },
-        };
-
+         "text",                                               NodeData::COMPONENT_DESCRIPTION,
+         NewColumn::extractDataFromNodeData<DescriptionType>                                                                                },
+        {"tags",            "text",                            NodeData::COMPONENT_TAGS,        NewColumn::extractDataFromNodeData<TagsType>},
+        {"sizeVirtual",
+         "int64 AS (getSizeFromNodeCounter(counter)) VIRTUAL", NodeData::COMPONENT_NONE,
+         nullptr                                                                                                                            },
+    };
 
     if (!addAndPopulateColumns(db, std::move(newCols)))
     {
@@ -1219,9 +1236,15 @@ bool SqliteAccountState::put(Node *node)
     int sqlResult = SQLITE_OK;
     if (!mStmtPutNode)
     {
-        sqlResult = sqlite3_prepare_v2(db, "INSERT OR REPLACE INTO nodes (nodehandle, parenthandle, "
-                                           "name, fingerprint, origFingerprint, type, size, share, fav, ctime, mtime, flags, counter, node, label, description, tags) "
-                                           "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &mStmtPutNode, NULL);
+        sqlResult =
+            sqlite3_prepare_v2(db,
+                               "INSERT OR REPLACE INTO nodes (nodehandle, parenthandle, "
+                               "name, fingerprint, origFingerprint, type, share, fav, ctime, "
+                               "mtime, flags, counter, node, label, description, tags) "
+                               "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                               -1,
+                               &mStmtPutNode,
+                               NULL);
     }
 
     if (sqlResult == SQLITE_OK)
@@ -1249,27 +1272,34 @@ bool SqliteAccountState::put(Node *node)
         sqlite3_bind_blob(mStmtPutNode, 5, origFingerprint.data(), static_cast<int>(origFingerprint.size()), SQLITE_STATIC);
 
         sqlite3_bind_int(mStmtPutNode, 6, node->type);
-        sqlite3_bind_int64(mStmtPutNode, 7, node->size);
 
         int shareType = node->getShareType();
-        sqlite3_bind_int(mStmtPutNode, 8, shareType);
+        sqlite3_bind_int(mStmtPutNode, 7, shareType);
 
         // node->attrstring has value => node is encrypted
         nameid favId = AttrMap::string2nameid("fav");
         auto favIt = node->attrs.map.find(favId);
         bool fav = (favIt != node->attrs.map.end() && favIt->second == "1"); // test 'fav' attr value (only "1" is valid)
-        sqlite3_bind_int(mStmtPutNode, 9, fav);
-        sqlite3_bind_int64(mStmtPutNode, 10, node->ctime);
-        sqlite3_bind_int64(mStmtPutNode, 11, node->mtime);
-        sqlite3_bind_int64(mStmtPutNode, 12, node->getDBFlags());
+        sqlite3_bind_int(mStmtPutNode, 8, fav);
+        sqlite3_bind_int64(mStmtPutNode, 9, node->ctime);
+        sqlite3_bind_int64(mStmtPutNode, 10, node->mtime);
+        sqlite3_bind_int64(mStmtPutNode, 11, node->getDBFlags());
         std::string nodeCountersBlob = node->getCounter().serialize();
-        sqlite3_bind_blob(mStmtPutNode, 13, nodeCountersBlob.data(), static_cast<int>(nodeCountersBlob.size()), SQLITE_STATIC);
-        sqlite3_bind_blob(mStmtPutNode, 14, nodeSerialized.data(), static_cast<int>(nodeSerialized.size()), SQLITE_STATIC);
+        sqlite3_bind_blob(mStmtPutNode,
+                          12,
+                          nodeCountersBlob.data(),
+                          static_cast<int>(nodeCountersBlob.size()),
+                          SQLITE_STATIC);
+        sqlite3_bind_blob(mStmtPutNode,
+                          13,
+                          nodeSerialized.data(),
+                          static_cast<int>(nodeSerialized.size()),
+                          SQLITE_STATIC);
 
         static nameid labelId = AttrMap::string2nameid("lbl");
         auto labelIt = node->attrs.map.find(labelId);
         int label = (labelIt == node->attrs.map.end()) ? LBL_UNKNOWN : std::atoi(labelIt->second.c_str());
-        sqlite3_bind_int(mStmtPutNode, 15, label);
+        sqlite3_bind_int(mStmtPutNode, 14, label);
 
         nameid descriptionId = AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_DESCRIPTION);
         if (auto descriptionIt = node->attrs.map.find(descriptionId);
@@ -1277,14 +1307,14 @@ bool SqliteAccountState::put(Node *node)
         {
             const std::string& description = descriptionIt->second;
             sqlite3_bind_text(mStmtPutNode,
-                              16,
+                              15,
                               description.c_str(),
                               static_cast<int>(description.length()),
                               SQLITE_STATIC);
         }
         else
         {
-            sqlite3_bind_null(mStmtPutNode, 16);
+            sqlite3_bind_null(mStmtPutNode, 15);
         }
 
         nameid tagId = AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_TAGS);
@@ -1292,14 +1322,14 @@ bool SqliteAccountState::put(Node *node)
         {
             const std::string& tag = tagIt->second;
             sqlite3_bind_text(mStmtPutNode,
-                              17,
+                              16,
                               tag.c_str(),
                               static_cast<int>(tag.length()),
                               SQLITE_STATIC);
         }
         else
         {
-            sqlite3_bind_null(mStmtPutNode, 17);
+            sqlite3_bind_null(mStmtPutNode, 16);
         }
 
         sqlResult = sqlite3_step(mStmtPutNode);
@@ -1731,7 +1761,8 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
                            " AND nodehandle IN (SELECT nodehandle FROM nodes WHERE share = ?7)))";
 
         string columnsForNodeAndFilters =
-            "nodehandle, parenthandle, flags, name, type, counter, node, size, ctime, mtime, share, mimetypeVirtual, fav, label, description, tags";
+            "nodehandle, parenthandle, flags, name, type, counter, node, sizeVirtual, ctime, "
+            "mtime, share, mimetypeVirtual, fav, label, description, tags";
 
         string nodesOfShares =
             "nodesOfShares(" + columnsForNodeAndFilters + ") \n"
@@ -1749,8 +1780,8 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
             "WHERE parenthandle IN (SELECT nodehandle FROM ancestors) \n"
             "UNION ALL \n"
             "SELECT N.nodehandle, N.parenthandle, N.flags, N.name, N.type, N.counter, N.node, "
-            "N.size, N.ctime, N.mtime, N.share, N.mimetypeVirtual, N.fav, N.label, N.description, "
-            "N.tags \n"
+            "N.sizeVirtual, N.ctime, N.mtime, N.share, N.mimetypeVirtual, N.fav, N.label, "
+            "N.description, N.tags \n"
             "FROM nodes AS N \n"
             "INNER JOIN nodesCTE AS P \n"
             "ON (N.parenthandle = P.nodehandle \n"
@@ -1766,7 +1797,7 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
 
         string columnsForNodeAndOrderBy =
             "nodehandle, counter, node, " // for nodes
-            "type, size, ctime, mtime, name, label, fav"; // for ORDER BY only
+            "type, sizeVirtual, ctime, mtime, name, label, fav"; // for ORDER BY only
 
         string whereClause =
             "(flags & ?1 = 0) \n" // Versions aren't taken in consideration
@@ -2121,7 +2152,12 @@ bool SqliteAccountState::getNodeSizeTypeAndFlags(NodeHandle node, m_off_t& size,
     int sqlResult = SQLITE_OK;
     if (!mStmtTypeAndSizeNode)
     {
-        sqlResult = sqlite3_prepare_v2(db, "SELECT type, size, flags FROM nodes WHERE nodehandle = ?", -1, &mStmtTypeAndSizeNode, NULL);
+        sqlResult =
+            sqlite3_prepare_v2(db,
+                               "SELECT type, sizeVirtual, flags FROM nodes WHERE nodehandle = ?",
+                               -1,
+                               &mStmtTypeAndSizeNode,
+                               NULL);
     }
 
     if (sqlResult == SQLITE_OK)
@@ -2283,6 +2319,30 @@ void SqliteAccountState::userRegexp(sqlite3_context* context, int argc, sqlite3_
     }
 }
 
+void SqliteAccountState::getSizeFromNodeCounter(sqlite3_context* context,
+                                                int argc,
+                                                sqlite3_value** argv)
+{
+    if (argc != 1)
+    {
+        LOG_err << "getSizeFromNodeCounter: Invalid parameters for getSizeFromNodeCounter";
+        assert(argc == 1);
+        sqlite3_result_int64(context, -1);
+        return;
+    }
+
+    const auto blob = sqlite3_value_blob(argv[0]);
+    if (!blob)
+    {
+        LOG_err << "getSizeFromNodeCounter: invalid FromNodeCounter blob";
+        return;
+    }
+    const auto blobSize = sqlite3_value_bytes(argv[0]);
+    const std::string nodeCounter(static_cast<const char*>(blob), static_cast<size_t>(blobSize));
+    const NodeCounter nc(nodeCounter);
+    sqlite3_result_int64(context, nc.storage);
+}
+
 void SqliteAccountState::userGetMimetype(sqlite3_context* context, int argc, sqlite3_value** argv)
 {
     if (argc != 1)
@@ -2362,9 +2422,9 @@ std::string OrderByClause::get(int order)
         case DEFAULT_DESC:
             return typeSort + ", " + nameSort + " DESC";
         case SIZE_ASC:
-            return typeSort + ", " + "size, " + nameSort;
+            return typeSort + ", " + "sizeVirtual, " + nameSort;
         case SIZE_DESC:
-            return typeSort + ", " + "size DESC, " + nameSort + " DESC";
+            return typeSort + ", " + "sizeVirtual DESC, " + nameSort + " DESC";
         case CTIME_ASC:
             return typeSort + ", " + "ctime, " + nameSort;
         case CTIME_DESC:

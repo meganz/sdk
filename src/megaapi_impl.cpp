@@ -10078,29 +10078,11 @@ bool MegaApiImpl::userComparatorDefaultASC (User *i, User *j)
     return 0;
 }
 
-m_off_t MegaApiImpl::sizeDifference(Node *i, Node *j)
+m_off_t MegaApiImpl::sizeDifference(Node* i, Node* j)
 {
-    m_off_t iSize = 0;
-    if (i->type == FILENODE)
-    {
-        iSize = i->size;
-    }
-    else
-    {
-        iSize = i->getCounter().storage + i->getCounter().versionStorage;
-    }
-
-    m_off_t jSize = 0;
-    if (i->type == FILENODE)
-    {
-        jSize = j->size;
-    }
-    else
-    {
-        jSize = j->getCounter().storage + j->getCounter().versionStorage;
-    }
-
-    return iSize - jSize;
+    assert(i->type == FOLDERNODE || i->size == i->getCounter().storage);
+    assert(j->type == FOLDERNODE || j->size == j->getCounter().storage);
+    return i->getCounter().storage - j->getCounter().storage;
 }
 
 char *MegaApiImpl::escapeFsIncompatible(const char *filename, const char *dstPath)
