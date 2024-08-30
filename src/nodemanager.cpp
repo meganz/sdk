@@ -425,13 +425,56 @@ sharedNode_vector NodeManager::getChildren_internal(const NodeSearchFilter& filt
     return nodes;
 }
 
-sharedNode_vector NodeManager::getRecentNodes(unsigned maxcount, m_time_t since)
+sharedNode_vector NodeManager::getRecentNodes(unsigned maxcount,
+                                              m_time_t since,
+                                              bool excludeSensitives)
 {
     LockGuard g(mMutex);
-    return getRecentNodes_internal(maxcount, since);
+
+    sharedNode_vector result = getRecentNodes_internal(NodeSearchPage{0, maxcount}, since);
+    if (!excludeSensitives)
+        return result;
+
+    const auto isSensitive = [](const std::shared_ptr<Node>& node) -> bool
+    {
+        return node && node->isSensitiveInherited();
+    };
+    const auto filterSensitives = [&isSensitive](sharedNode_vector& v) -> void
+    {
+        auto it = std::remove_if(std::begin(v), std::end(v), isSensitive);
+        v.erase(it, std::end(v));
+    };
+
+    filterSensitives(result);
+    if (result.size() == maxcount)
+        return result;
+
+    // Keep asking for more no sensitive nodes to the db
+    unsigned start = maxcount;
+    unsigned querySize = maxcount;
+    while (true)
+    {
+        auto moreResults = getRecentNodes_internal(NodeSearchPage{start, querySize}, since);
+        if (moreResults.empty()) // No more potential results
+            return result;
+        filterSensitives(moreResults);
+        if (const auto remaining = maxcount - result.size(); moreResults.size() > remaining)
+        {
+            result.insert(std::end(result),
+                          std::begin(moreResults),
+                          std::begin(moreResults) + static_cast<long>(remaining));
+            return result;
+        }
+        result.insert(std::end(result), std::begin(moreResults), std::end(moreResults));
+
+        start += querySize;
+        constexpr unsigned MAX_QUERY_SIZE = 100000U;
+        if (querySize < MAX_QUERY_SIZE)
+            querySize *= 2;
+    }
 }
 
-sharedNode_vector NodeManager::getRecentNodes_internal(unsigned maxcount, m_time_t since)
+sharedNode_vector NodeManager::getRecentNodes_internal(const NodeSearchPage& page, m_time_t since)
 {
     assert(mMutex.owns_lock());
 
@@ -441,7 +484,7 @@ sharedNode_vector NodeManager::getRecentNodes_internal(unsigned maxcount, m_time
     }
 
     std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
-    mTable->getRecentNodes(maxcount, since, nodesFromTable);
+    mTable->getRecentNodes(page, since, nodesFromTable);
 
     return processUnserializedNodes(nodesFromTable);
 }

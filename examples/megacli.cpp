@@ -4911,7 +4911,11 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_simulatecondition, sequence(text("simulatecondition"), opt(text("ETOOMANY"))));
 #endif
     p->Add(exec_alerts, sequence(text("alerts"), opt(either(text("new"), text("old"), wholenumber(10), text("notify"), text("seen")))));
-    p->Add(exec_recentactions, sequence(text("recentactions"), param("hours"), param("maxcount")));
+    p->Add(exec_recentactions,
+           sequence(text("recentactions"),
+                    param("hours"),
+                    param("maxcount"),
+                    opt(flag("-nosensitive"))));
     p->Add(exec_recentnodes, sequence(text("recentnodes"), param("hours"), param("maxcount")));
 
     p->Add(exec_putbps, sequence(text("putbps"), opt(either(wholenumber(100000), text("auto"), text("none")))));
@@ -8911,10 +8915,15 @@ void exec_autocomplete(autocomplete::ACState& s)
 
 void exec_recentactions(autocomplete::ACState& s)
 {
+    const bool excludeSens = s.extractflag("-nosensitive");
+
+    auto startTime = std::chrono::high_resolution_clock::now();
     recentactions_vector nvv =
-        client->getRecentActions(atoi(s.words[2].s.c_str()),
+        client->getRecentActions(static_cast<unsigned>(atoi(s.words[2].s.c_str())),
                                  m_time() - 60 * 60 * atoi(s.words[1].s.c_str()),
-                                 true /*exclude sensitives*/);
+                                 excludeSens);
+    auto endTime = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double, std::micro> duration = endTime - startTime;
 
     for (unsigned i = 0; i < nvv.size(); ++i)
     {
@@ -8928,6 +8937,8 @@ void exec_recentactions(autocomplete::ACState& s)
             cout << nvv[i].nodes[j]->displaypath() << "  (" << displayTime(nvv[i].nodes[j]->ctime) << ")" << endl;
         }
     }
+
+    std::cout << "Spent time: " << duration.count() << " micro seconds\n";
 }
 
 void exec_setmaxuploadspeed(autocomplete::ACState& s)

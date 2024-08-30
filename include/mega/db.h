@@ -148,7 +148,7 @@ public:
                                 std::set<std::string>& tags,
                                 CancelToken cancelFlag) = 0;
 
-    virtual bool getRecentNodes(unsigned maxcount,
+    virtual bool getRecentNodes(const NodeSearchPage& page,
                                 m_time_t since,
                                 std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) = 0;
     virtual bool getNodesByFingerprint(const std::string& fingerprint, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) = 0;
