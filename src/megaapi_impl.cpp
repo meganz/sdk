@@ -27500,8 +27500,13 @@ void MegaApiImpl::answerSurvey(MegaHandle surveyHandle,
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_ANSWER_SURVEY, listener);
     request->setNodeHandle(surveyHandle);
     request->setParamType(static_cast<int>(triggerActionId));
-    request->setText(response);
-    request->setFile(comment);
+    auto stringList = MegaStringList::createInstance();
+    {
+        stringList->add(response ? response : "");
+        stringList->add(comment ? comment : "");
+    }
+    request->setMegaStringList(stringList);
+
     request->performRequest = [this, request]()
     {
         auto completion = [this, request](const Error& e)
@@ -27512,8 +27517,8 @@ void MegaApiImpl::answerSurvey(MegaHandle surveyHandle,
         CommandAnswerSurvey::Answer answer{
             request->getNodeHandle(), // survey handle
             static_cast<unsigned int>(request->getParamType()), // triger action ID
-            request->getText(), // response
-            request->getFile()}; // comment
+            request->getMegaStringList()->get(MegaRequest::SURVEY_ANSWER_RESPONSE), // response
+            request->getMegaStringList()->get(MegaRequest::SURVEY_ANSWER_COMMENT)}; // comment
 
         client->answerSurvey(answer, std::move(completion));
         return API_OK;
