@@ -4598,12 +4598,6 @@ class MegaRequest
             TOTAL_OF_REQUEST_TYPES = 200,
         };
 
-        enum
-        {
-            SURVEY_ANSWER_RESPONSE = 0,
-            SURVEY_ANSWER_COMMENT = 1,
-        };
-
         virtual ~MegaRequest();
 
         /**
@@ -22881,9 +22875,8 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the survey handle.
          * - MegaRequest::getParamType  - Returns the trigger action ID.
-         * - MegaRequest::getMegaStringList
-         *     Index MegaRequest::SURVEY_ANSWER_RESPONSE - Returns the survey response.
-         *     Index MegaRequest::SURVEY_ANSWER_COMMENT  - Returns the response to tell us more.
+         * - MegaRequest::getText       - Returns the survey response.
+         * - MegaRequest::getFile       - Returns the response to tell us more.
          *
          * If the request fails, the MegaError code in onRequestFinish can be:
          * - EACCESS   - Invalid user ID.
