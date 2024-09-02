@@ -18680,6 +18680,8 @@ class MegaApi
          * Use getRecentActionsAsync with explicit excludeSensitives flag
          * to search for sensitives and filter them depending on the flag value
          *
+         * @deprecated use getRecentActionsAsync(days, maxnodes, excludeSensitives, listener)
+         *
          * @param days Age of actions since added/modified nodes will be considered (in days)
          * @param maxnodes Maximum amount of nodes to be considered
          * @param listener MegaRequestListener to track this request

@@ -8916,14 +8916,10 @@ void exec_autocomplete(autocomplete::ACState& s)
 void exec_recentactions(autocomplete::ACState& s)
 {
     const bool excludeSens = s.extractflag("-nosensitive");
-
-    auto startTime = std::chrono::high_resolution_clock::now();
     recentactions_vector nvv =
         client->getRecentActions(static_cast<unsigned>(atoi(s.words[2].s.c_str())),
                                  m_time() - 60 * 60 * atoi(s.words[1].s.c_str()),
                                  excludeSens);
-    auto endTime = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double, std::micro> duration = endTime - startTime;
 
     for (unsigned i = 0; i < nvv.size(); ++i)
     {
@@ -8937,8 +8933,6 @@ void exec_recentactions(autocomplete::ACState& s)
             cout << nvv[i].nodes[j]->displaypath() << "  (" << displayTime(nvv[i].nodes[j]->ctime) << ")" << endl;
         }
     }
-
-    std::cout << "Spent time: " << duration.count() << " micro seconds\n";
 }
 
 void exec_setmaxuploadspeed(autocomplete::ACState& s)
