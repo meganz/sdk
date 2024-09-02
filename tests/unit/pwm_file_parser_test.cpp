@@ -62,7 +62,7 @@ test2.com,https://test2.com/,test,hello.1234,
     ASSERT_THAT(results.mErrMsg, HasSubstr("column with name: note"));
     ASSERT_THAT(results.mErrMsg, HasSubstr("expected to be a header with the column"));
 
-    ASSERT_EQ(results.mErrCode, PassFileParseResult::ErrCode::MISSING_COLUMN);
+    ASSERT_EQ(results.mErrCode, PassFileParseResult::ErrCode::INVALID_HEADER);
     ASSERT_TRUE(results.mResults.empty());
 }
 
@@ -151,13 +151,24 @@ so this should trigger some errors.
 
     auto results = parseGooglePasswordCSVFile(fname);
 
-    ASSERT_EQ(results.mErrCode, PassFileParseResult::ErrCode::MISSING_COLUMN);
+    ASSERT_EQ(results.mErrCode, PassFileParseResult::ErrCode::INVALID_HEADER);
     ASSERT_THAT(results.mErrMsg, HasSubstr("column with name: name"));
     ASSERT_THAT(results.mErrMsg, HasSubstr("column with name: url"));
     ASSERT_THAT(results.mErrMsg, HasSubstr("column with name: username"));
     ASSERT_THAT(results.mErrMsg, HasSubstr("column with name: password"));
     ASSERT_THAT(results.mErrMsg, HasSubstr("column with name: note"));
     ASSERT_THAT(results.mErrMsg, HasSubstr("expected to be a header with the column"));
+}
+
+TEST(PWMImportGooglePasswordCSVFile, EmptyFile)
+{
+    const std::string fname = "test.csv";
+    sdk_test::LocalTempFile f{fname, 0};
+
+    auto results = parseGooglePasswordCSVFile(fname);
+
+    ASSERT_EQ(results.mErrCode, PassFileParseResult::ErrCode::INVALID_HEADER);
+    ASSERT_THAT(results.mErrMsg, HasSubstr("File should have at least a header row"));
 }
 
 TEST(PWMReadImportFile, FileDoesNotExist)

@@ -57,6 +57,10 @@ pipeline {
         agent any
             steps {
                 updateGitlabCommitStatus(name: 'Build Android', state: 'running')
+                script{
+                    COMMIT_ID = env.GIT_COMMIT
+                    println GIT_COMMIT
+                }
             }
         }
         stage('Build') {
@@ -80,15 +84,6 @@ pipeline {
                                     println UPLOAD_THIRD_PARTY_SOURCES_EXAMPLE
                                 }
                             }
-                            post{
-                                failure {
-                                    node('linux') { // We need and agent able to download logs from Jenkins.
-                                        script {
-                                            commentFailedBuild()
-                                        }
-                                    }
-                                }
-                            }
                         }
 
                         stage('Get MEGAchat branch'){
@@ -102,15 +97,6 @@ pipeline {
                                     println MEGACHAT_BRANCH
                                 }
                             }
-                            post{
-                                failure {
-                                    node('linux') { // We need and agent able to download logs from Jenkins.
-                                        script {
-                                            commentFailedBuild()
-                                        }
-                                    }
-                                }
-                            }
                         }
 
                         stage('Get Android branch'){
@@ -122,15 +108,6 @@ pipeline {
                                         env.ANDROID_BRANCH = "develop"
                                     }
                                     println ANDROID_BRANCH
-                                }
-                            }
-                            post{
-                                failure {
-                                    node('linux') { // We need and agent able to download logs from Jenkins.
-                                        script {
-                                            commentFailedBuild()
-                                        }
-                                    }
                                 }
                             }
                         }
@@ -199,7 +176,7 @@ pipeline {
                                                 }
                                             }
                                             //Build Example App
-                                            sh "./gradlew --no-daemon --max-workers=1 build"
+                                            sh "./gradlew --no-daemon --max-workers=2 build"
                                             sh "rm examples-*.tar.gz || :"
                                             sh "tar czf examples-${BUILD_ID}.tar.gz -C app/build/outputs apk"
                                         }
@@ -295,7 +272,7 @@ pipeline {
                                                 env.PATH="${env.PATH}:${env.ANDROID_HOME}/cmdline-tools/tools/bin/"
                                             }
                                             sh "ln -sfrT ${ANDROID_WEBRTC} megachat/webrtc"
-                                            sh "sed -i 's#JOBS=.*#JOBS=1#' build.sh"
+                                            sh "sed -i 's#JOBS=.*#JOBS=3#' build.sh"
                                             sh "sed -i 's#LOG_FILE=/dev/null#LOG_FILE=/dev/stdout#g' build.sh"
                                             sh "./build.sh all"
                                             script {
@@ -332,20 +309,6 @@ pipeline {
             post{
                 always {
                     deleteDir()
-                    script{
-                        if (currentBuild.currentResult == 'SUCCESS'){
-                            updateGitlabCommitStatus(name: 'Build Android', state: 'success')
-                            addGitLabMRComment(comment: ":white_check_mark: ${currentBuild.projectName} :penguin: <b>Android</b> SUCCEEDED :muscle:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}" )
-                        }
-                        if (currentBuild.currentResult == 'ABORTED'){
-                            updateGitlabCommitStatus(name: 'Build Android', state: 'canceled')
-                            addGitLabMRComment(comment: ":interrobang: ${currentBuild.projectName} :penguin: <b>Android</b> ABORTED  :confused:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}" )
-                        }
-                        if (currentBuild.currentResult == 'UNSTABLE'){
-                            updateGitlabCommitStatus(name: 'Build Android', state: 'failed')
-                            addGitLabMRComment(comment: ":interrobang: ${currentBuild.projectName} :penguin: <b>Android</b> UNSTABLE  :confused:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}" )
-                        }
-                    }
                 }
                 failure {
                     node('linux') { // We need and agent able to download logs from Jenkins. This one is allowed.
@@ -355,6 +318,20 @@ pipeline {
                     }
                 }
             }
+        }
+    }
+    post {
+        success {
+            updateGitlabCommitStatus(name: 'Build Android', state: 'success')
+            addGitLabMRComment(comment: ":white_check_mark: ${currentBuild.projectName} :penguin: <b>Android</b> SUCCEEDED :muscle:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${COMMIT_ID}" )
+        }
+        unstable {
+            updateGitlabCommitStatus(name: 'Build Android', state: 'failed')
+            addGitLabMRComment(comment: ":interrobang: ${currentBuild.projectName} :penguin: <b>Android</b> UNSTABLE  :confused:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${COMMIT_ID}" )      
+        }
+        aborted {
+            updateGitlabCommitStatus(name: 'Build Android', state: 'canceled')
+            addGitLabMRComment(comment: ":interrobang: ${currentBuild.projectName} :penguin: <b>Android</b> ABORTED  :confused:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${COMMIT_ID}" )
         }
     }
 }

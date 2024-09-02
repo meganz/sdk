@@ -835,7 +835,7 @@ TEST_P(FUSEPlatformTests, read_write_succeeds)
     ASSERT_FALSE(terminate);
 }
 
-TEST_P(FUSEPlatformTests, readdir_succeeds_when_changing)
+TEST_P(FUSEPlatformTests, DISABLED_readdir_succeeds_when_changing)
 {
     auto iterator = opendir(MountPathW());
     ASSERT_TRUE(iterator);

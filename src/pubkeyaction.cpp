@@ -57,7 +57,17 @@ void PubKeyActionPutNodes::proc(MegaClient* client, User* u)
             nn[i].nodekey.assign((char*)buf, t);
         }
 
-        client->reqs.add(new CommandPutNodes(client, NodeHandle(), u->uid.c_str(), NoVersioning, std::move(nn), tag, PUTNODES_APP, nullptr, std::move(completion), false));
+        client->reqs.add(new CommandPutNodes(client,
+                                             NodeHandle(),
+                                             u->uid.c_str(),
+                                             NoVersioning,
+                                             std::move(nn),
+                                             tag,
+                                             PUTNODES_APP,
+                                             nullptr,
+                                             std::move(completion),
+                                             false, // canChangeVault
+                                             {})); // customerIpPort
         // 'canChangeVault' is false here because this code path is to write to user's Inbox, which should not require "vw:1"
     }
     else

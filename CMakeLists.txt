@@ -1,16 +1,3 @@
-
-option(OLD_CMAKE "" OFF)
-
-if(OLD_CMAKE)
-    # This file is here in the root folder so it can be opened as a CMake project in Visual Studio, eg in order to debug a Linux build in WSL2.
-    cmake_minimum_required(VERSION 3.13)
-    project(TryWSL)
-    include(${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/CMakeLists.txt)
-
-    # Do not continue with the rest of the CMake file.
-    return()
-endif()
-
 # CMakeLists.txt file to build the SDKlib library.
 #
 # It can be used to build a standalone library or to be included via add_subdirectory.

@@ -12,6 +12,10 @@ pipeline {
             agent any
             steps {
                 updateGitlabCommitStatus(name: 'clang format', state: 'running')
+                script{
+                    COMMIT_ID = env.GIT_COMMIT
+                    println GIT_COMMIT
+                }
             }
         }
         stage('Build'){
@@ -50,7 +54,7 @@ pipeline {
                             sh """
                                 docker build \
                                     -f clang-format.dockerfile \
-                                    -t mega-docker.artifactory.developers.mega.co.nz:8443/clang-format-sdk:latest \
+                                    -t ${env.MEGA_INTERNAL_DOCKER_REGISTRY}:8443/clang-format-sdk:latest \
                                     .
                             """
                         }
@@ -59,8 +63,8 @@ pipeline {
                                 echo \$ART_PASS | docker login \
                                                     -u \$ART_USER \
                                                     --password-stdin \
-                                                    mega-docker.artifactory.developers.mega.co.nz:8443
-                                docker push mega-docker.artifactory.developers.mega.co.nz:8443/clang-format-sdk:latest
+                                                    ${env.MEGA_INTERNAL_DOCKER_REGISTRY}:8443
+                                docker push ${env.MEGA_INTERNAL_DOCKER_REGISTRY}:8443/clang-format-sdk:latest
                             """
                         }
                     }
@@ -68,7 +72,7 @@ pipeline {
                 stage('Clang format'){
                     agent {
                         docker {
-                            image 'mega-docker.artifactory.developers.mega.co.nz:8443/clang-format-sdk:latest'
+                            image "${env.MEGA_INTERNAL_DOCKER_REGISTRY}:8443/clang-format-sdk:latest"
                             reuseNode true
                         }
                     }
@@ -126,26 +130,26 @@ pipeline {
             post{
                 always {
                     deleteDir()
-                    script{
-                        if (currentBuild.currentResult == 'SUCCESS'){
-                            updateGitlabCommitStatus(name: 'clang format', state: 'success')
-                            addGitLabMRComment(comment: ":white_check_mark: ${currentBuild.projectName} :page_with_curl: <b>ClangFormat</b> SUCCEEDED :muscle:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}" )
-                        }
-                        if (currentBuild.currentResult == 'FAILURE'){
-                            updateGitlabCommitStatus(name: 'clang format', state: 'failed')
-                            addGitLabMRComment(comment: ":red_circle: ${currentBuild.projectName} :page_with_curl: <b>ClangFormat</b> FAILURE  :worried:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}" )
-                        }
-                        if (currentBuild.currentResult == 'ABORTED'){
-                            updateGitlabCommitStatus(name: 'clang format', state: 'canceled')
-                            addGitLabMRComment(comment: ":interrobang: ${currentBuild.projectName} :page_with_curl: <b>ClangFormat</b> ABORTED  :confused:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}" )
-                        }
-                        if (currentBuild.currentResult == 'UNSTABLE'){
-                            updateGitlabCommitStatus(name: 'clang format', state: 'failed')
-                            addGitLabMRComment(comment: ":interrobang: ${currentBuild.projectName} :page_with_curl::cross_mark: <b>ClangFormat</b> UNSTABLE  :confused:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}" )
-                        }
-                    }
                 }
             }
+        }
+    }
+    post {
+        success {
+            updateGitlabCommitStatus(name: 'clang format', state: 'success')
+            addGitLabMRComment(comment: ":white_check_mark: ${currentBuild.projectName} :page_with_curl: <b>ClangFormat</b> SUCCEEDED :muscle:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${COMMIT_ID}" )
+        }
+        unstable {
+            updateGitlabCommitStatus(name: 'clang format', state: 'failed')
+            addGitLabMRComment(comment: ":interrobang: ${currentBuild.projectName} :page_with_curl: <b>ClangFormat</b> UNSTABLE  :confused:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${COMMIT_ID}" )      
+        }
+        aborted {
+            updateGitlabCommitStatus(name: 'clang format', state: 'canceled')
+            addGitLabMRComment(comment: ":interrobang: ${currentBuild.projectName} :page_with_curl: <b>ClangFormat</b> ABORTED  :confused:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${COMMIT_ID}" )
+        }
+        failure {
+            updateGitlabCommitStatus(name: 'clang format', state: 'failed')
+            addGitLabMRComment(comment: ":red_circle: ${currentBuild.projectName} :page_with_curl: <b>ClangFormat</b> FAILURE  :worried:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${COMMIT_ID}" )                
         }
     }
 }

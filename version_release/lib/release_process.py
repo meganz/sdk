@@ -270,7 +270,7 @@ class ReleaseProcess:
 
         notes: str = (
             f"\U0001F4E3 \U0001F4E3 *New SDK version  -->  `{self._rc_tag}`* (<{tag_url}|Link>)\n\n"
-        ) + self._jira.get_release_notes(apps)
+        ) + self._jira.get_release_notes_for_slack(apps)
         if not self._slack or not self._slack_channel:
             print("Enjoy:\n\n" + notes, flush=True)
         else:
@@ -303,6 +303,7 @@ class ReleaseProcess:
         assert not self._new_version
         self._new_version = version
         self._version_v_prefixed = f"v{self._new_version}"
+        self._release_branch = f"release/{self._version_v_prefixed}"
         assert self._jira is not None
         self._jira.setup_release(self._version_v_prefixed)
 
@@ -325,6 +326,9 @@ class ReleaseProcess:
             self._release_branch
         )
         print("Creating tag", self._version_v_prefixed, flush=True)
+        assert (
+            self._release_branch
+        ), "Check that set_release_version_to_close() was called"
         self._remote_private_repo.create_tag(self._version_v_prefixed, last_commit)
         print(
             "v Created tag",
@@ -338,7 +342,7 @@ class ReleaseProcess:
     def create_release_in_private_repo(self):
         release_name = f"Version {self._new_version}"
         assert self._jira is not None
-        release_notes = self._jira.get_release_notes([])
+        release_notes = self._jira.get_release_notes_for_gitlab([])
         print("Creating release", release_name, flush=True)
         self._remote_private_repo.create_release(
             release_name, self._version_v_prefixed, release_notes
@@ -372,7 +376,9 @@ class ReleaseProcess:
     # STEP 5 (close): GitHub: Create release in public repo from new tag
     def create_release_in_public_repo(self, version: str):
         assert self._jira is not None
-        self._public_repo.create_release(version, self._jira.get_public_release_notes())
+        self._public_repo.create_release(
+            version, self._jira.get_release_notes_for_github()
+        )
 
     # STEP 6 (close): Jira: mark version as Released, set release date
     def mark_version_as_released(self):

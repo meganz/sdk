@@ -75,7 +75,7 @@ class JiraProject:
         today = date.today().isoformat()  # YYYY-MM-DD required by the REST api
         version_data = {
             "releasedate": today,
-            "released": True,
+            "status": "Released",
         }
         self._update_version(version_data)
 
@@ -92,21 +92,22 @@ class JiraProject:
         )
         r.raise_for_status()
 
-    def get_release_notes(self, apps: list[str]) -> str:
+    def get_release_notes_for_slack(self, apps: list[str]) -> str:
+        return self._get_notes(apps, formatting="slack", include_urls=True)
+
+    def get_release_notes_for_gitlab(self, apps: list[str]) -> str:
+        return self._get_notes(apps, formatting="git", include_urls=True)
+
+    def get_release_notes_for_github(self) -> str:
+        return self._get_notes([], formatting="git", include_urls=False)
+
+    def _get_notes(self, apps: list[str], formatting: str, include_urls: bool) -> str:
         if len(apps) == 0:
+            # get apps from description
             assert self._version is not None
             app_descr: str = self._version.description.partition(" - ")[2]
             apps = [a.strip() for a in app_descr.split("/")]
-        return self._get_notes(apps, include_urls=True)
 
-    def get_public_release_notes(self) -> str:  # no url-s
-        # get apps from description
-        assert self._version is not None
-        app_descr: str = self._version.description.partition(" - ")[2]
-        apps = [a.strip() for a in app_descr.split("/")]
-        return self._get_notes(apps, include_urls=False)
-
-    def _get_notes(self, apps: list[str], include_urls: bool) -> str:
         # get issues
         issues_found = self._jira.search_issues(
             f"project={self._project_key} AND fixVersion={self._version_id} AND status=Resolved AND resolution=Done",
@@ -123,20 +124,42 @@ class JiraProject:
 
         # build notes
         notes = ""
+        bullet_utf8 = "\U00002022"
         for k, vs in issues.items():
-            notes += f"{k}\n"
+            notes += self._get_notes_chapter(k, formatting)
             for p in vs:
-                notes += "\U00002022 ["
-                if include_urls:
-                    notes += f"<{p[0]}|{p[1]}>"
-                else:
-                    notes += p[0]
-                notes += f"] - {p[2]}\n"
+                url = p[1] if include_urls else ""
+                notes += bullet_utf8 + " " + self._get_notes_issue(
+                    p[0], url, p[2], formatting
+                )
             notes += "\n"
-        notes += "*Target apps*\n"
+        notes += self._get_notes_chapter("Target apps", formatting)
         for a in apps:
-            notes += f"\U00002022 *{a}*\n"
+            notes += f"{bullet_utf8} {a}\n"
         return notes
+
+    def _get_notes_chapter(self, title: str, formatting: str) -> str:
+        if formatting == "slack":
+            return f"{title}\n"
+        if formatting == "git":
+            return f"## **{title}**\n\n"
+        return f"{title}\n\n"  # return it with no formatting
+
+    def _get_notes_issue(
+        self, id: str, url: str, description: str, formatting: str
+    ) -> str:
+        prefix = ""
+        if not url:
+            prefix = f"[{id}]"
+        elif formatting == "slack":
+            prefix = f"[<{url}|{id}>]"
+        elif formatting == "git":
+            return f"\\[[{id}]({url})\\]"
+        else:
+            prefix = id  # return it with no formatting
+
+        issue = prefix + f" - {description}\n"
+        return issue
 
     def earlier_versions_are_closed(self):
         assert self._version is not None

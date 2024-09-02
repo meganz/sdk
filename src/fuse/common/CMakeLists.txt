@@ -90,6 +90,7 @@ target_sources(${SDK_TARGET} PRIVATE
                              ${FUSE_COMMON_INC}/transaction_forward.h
                              ${FUSE_COMMON_INC}/type_traits.h
                              ${FUSE_COMMON_INC}/upload.h
+                             ${FUSE_COMMON_INC}/upload_callbacks.h
                              ${FUSE_COMMON_INC}/upload_forward.h
                              ${FUSE_COMMON_INC}/utility.h
                              ${FUSE_COMMON_SRC}/activity_monitor.cpp
@@ -120,6 +121,7 @@ target_sources(${SDK_TARGET} PRIVATE
                              ${FUSE_COMMON_SRC}/task_executor.cpp
                              ${FUSE_COMMON_SRC}/task_queue.cpp
                              ${FUSE_COMMON_SRC}/transaction.cpp
+                             ${FUSE_COMMON_SRC}/upload.cpp
                              ${FUSE_COMMON_SRC}/utility.cpp
 )
 

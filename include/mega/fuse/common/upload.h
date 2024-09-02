@@ -1,5 +1,6 @@
 #pragma once
 
+#include <mega/fuse/common/upload_callbacks.h>
 #include <mega/fuse/common/upload_forward.h>
 
 #include <mega/types.h>
@@ -16,6 +17,11 @@ protected:
 
 public:
     virtual ~Upload() = default;
+
+    // Begin the upload.
+    void begin(BoundCallback callback);
+
+    virtual void begin(UploadCallback callback) = 0;
 
     // Cancel the upload.
     //
