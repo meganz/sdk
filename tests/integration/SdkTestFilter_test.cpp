@@ -486,13 +486,13 @@ TEST_F(SdkTestFilter, SdkGetNodesInOrder)
     EXPECT_THAT(toNamesVector(*searchResults), ContainsInOrder(expected))
         << "Unexpected sorting for ORDER_LABEL_DESC";
 
-    // By fav, dirs first. Ties broken by natural sort
+    // By fav, dirs and natural sort
     expected = {
         "Dir1", // fav
-        "Dir2", // not fav
-        "Dir11", // not fav
         "testFile5", // fav
         "testFile6", // fav
+        "Dir2", // not fav
+        "Dir11", // not fav
         "testFile1", // not fav
         "TestFile5Uppercase", // not fav
     };
@@ -502,8 +502,7 @@ TEST_F(SdkTestFilter, SdkGetNodesInOrder)
         << "Unexpected sorting for ORDER_FAV_ASC";
 
     // By fav inverted, dirs first
-    std::reverse(expected.begin(), expected.begin() + 3);
-    std::reverse(expected.begin() + 3, expected.end());
+    std::rotate(expected.begin(), expected.begin() + 3, expected.end());
     searchResults.reset(megaApi[0]->search(filteringInfo.get(), MegaApi::ORDER_FAV_DESC));
     ASSERT_THAT(searchResults, NotNull()) << "search() returned a nullptr";
     EXPECT_THAT(toNamesVector(*searchResults), ContainsInOrder(expected))
@@ -729,6 +728,7 @@ TEST_F(SdkTestFilter, SdkGetChildrenInOrder)
     expected = {
         "Dir1", // fav
         "testFile6", // fav
+        "Dir2", // not fav
         "testFile1", // not fav
         "TestFile5Uppercase", // not fav
     };
@@ -737,11 +737,20 @@ TEST_F(SdkTestFilter, SdkGetChildrenInOrder)
     EXPECT_THAT(toNamesVector(*children), ContainsInOrder(expected))
         << "Unexpected sorting for ORDER_FAV_ASC";
 
+    children.reset(megaApi[0]->getChildren(getRootTestDirectory(), MegaApi::ORDER_FAV_ASC));
+    ASSERT_THAT(children, NotNull()) << "getChildren() with parent returned a nullptr";
+    EXPECT_THAT(toNamesVector(*children), ContainsInOrder(expected))
+        << "Unexpected sorting for ORDER_FAV_ASC getChildren with parent";
+
     // By fav inverted, dirs first
-    std::reverse(expected.begin(), expected.begin() + 1);
-    std::reverse(expected.begin() + 1, expected.end());
+    std::rotate(expected.begin(), expected.begin() + 2, expected.end());
     children.reset(megaApi[0]->getChildren(filteringInfo.get(), MegaApi::ORDER_FAV_DESC));
     ASSERT_THAT(children, NotNull()) << "getChildren() returned a nullptr";
     EXPECT_THAT(toNamesVector(*children), ContainsInOrder(expected))
         << "Unexpected sorting for ORDER_FAV_DESC";
+
+    children.reset(megaApi[0]->getChildren(getRootTestDirectory(), MegaApi::ORDER_FAV_DESC));
+    ASSERT_THAT(children, NotNull()) << "getChildren() with parent returned a nullptr";
+    EXPECT_THAT(toNamesVector(*children), ContainsInOrder(expected))
+        << "Unexpected sorting for ORDER_FAV_DESC getChildren with parent";
 }

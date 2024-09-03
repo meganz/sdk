@@ -17691,20 +17691,21 @@ bool MegaApiImpl::nodeComparatorLabelDESC(Node* i, Node* j)
 
 bool MegaApiImpl::nodeComparatorFavASC(Node *i, Node *j)
 {
-    int t = typeComparator(i, j);
-    if (t >= 0)
-    {
-        return t;
-    }
-
     nameid favId = AttrMap::string2nameid("fav");
     bool iFav = (i->attrs.map.find(favId) != i->attrs.map.end());
     bool jFav = (j->attrs.map.find(favId) != j->attrs.map.end());
 
     if (!(iFav ^ jFav))
     {
-        // if both or none of them, have the same attribute value, order default ASC
-        return nodeComparatorDefaultASC(i, j);
+        // if both or none of them, have the same attribute value, order type and natural comparator
+        // ASC
+        int t = typeComparator(i, j);
+        if (t >= 0)
+        {
+            return t;
+        }
+
+        return nodeNaturalComparatorASC(i, j);
     }
     else if (iFav)
     {
@@ -17718,20 +17719,21 @@ bool MegaApiImpl::nodeComparatorFavASC(Node *i, Node *j)
 
 bool MegaApiImpl::nodeComparatorFavDESC(Node *i, Node *j)
 {
-    int t = typeComparator(i, j);
-    if (t >= 0)
-    {
-        return t;
-    }
-
     nameid favId = AttrMap::string2nameid("fav");
     bool iFav = (i->attrs.map.find(favId) != i->attrs.map.end());
     bool jFav = (j->attrs.map.find(favId) != j->attrs.map.end());
 
     if (!(iFav ^ jFav))
     {
-        // if both or none of them, have the same attribute value, order default ASC
-        return nodeComparatorDefaultASC(i, j);
+        // if both or none of them, have the same attribute value, order type and natural comparator
+        // ASC
+        int t = typeComparator(i, j);
+        if (t >= 0)
+        {
+            return t;
+        }
+
+        return nodeNaturalComparatorASC(i, j);
     }
     else if (iFav)
     {
