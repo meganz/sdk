@@ -18719,7 +18719,11 @@ void MegaClient::getmegaachievements(AchievementsDetails *details)
 
 void MegaClient::getwelcomepdf()
 {
-    reqs.add(new CommandGetWelcomePDF(this));
+    // Only standard clients should be able to modify the remote node tree.
+    if (isClientType(ClientType::DEFAULT))
+    {
+        reqs.add(new CommandGetWelcomePDF(this));
+    }
 }
 
 bool MegaClient::startDriveMonitor()
