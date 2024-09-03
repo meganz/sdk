@@ -19649,22 +19649,25 @@ TEST_F(SdkTest, SdkNodeTag)
         << "Cannot upload a second test file";
 
     LOG_debug << "[SdkTest::SdkNodeTag] Adding tags to the file";
-    std::string subdirtag = "subdirtag";
-    std::string subdiraux = "subdiraux";
-    ASSERT_EQ(addTag(mh2, subdirtag), API_OK);
-    ASSERT_EQ(addTag(mh2, subdiraux), API_OK);
+    std::string subdirtag14 = "subdirtag14";
+    std::string subdirtag4 = "subdirtag4";
+    std::string subdirtag20 = "subdirtag20";
+    ASSERT_EQ(addTag(mh2, subdirtag14), API_OK);
+    ASSERT_EQ(addTag(mh2, subdirtag4), API_OK);
+    ASSERT_EQ(addTag(mh2, subdirtag20), API_OK);
 
     LOG_debug << "[SdkTest::SdkNodeTag] Testing all tags";
     std::unique_ptr<MegaStringList> allTags(megaApi[0]->getAllNodeTags());
     ASSERT_NE(allTags, nullptr);
     auto allTagsV = toVector(*allTags);
-    EXPECT_THAT(allTagsV, testing::ElementsAreArray({subdiraux, subdirtag, tag3, tag11}));
+    EXPECT_THAT(allTagsV,
+                testing::ElementsAreArray({subdirtag4, subdirtag14, subdirtag20, tag3, tag11}));
 
     LOG_debug << "[SdkTest::SdkNodeTag] Testing all tags with pattern matching";
     allTags.reset(megaApi[0]->getAllNodeTags("ub*r"));
     ASSERT_NE(allTags, nullptr);
     allTagsV = toVector(*allTags);
-    EXPECT_THAT(allTagsV, testing::ElementsAreArray({subdiraux, subdirtag}));
+    EXPECT_THAT(allTagsV, testing::ElementsAreArray({subdirtag4, subdirtag14, subdirtag20}));
 
     LOG_debug << "[SdkTest::SdkNodeTag] Testing all tags with exact match";
     allTags.reset(megaApi[0]->getAllNodeTags(tag11.c_str()));
@@ -19705,6 +19708,14 @@ TEST_F(SdkTest, SdkNodeTag)
 
     EXPECT_THAT(toVector(*oldTags), testing::UnorderedElementsAreArray(toVector(*newTags)))
         << "Tags are not maintained after file update";
+
+    LOG_debug << "[SdkTest::SdkNodeTag] Ensure tags from a node are naturally sorted";
+    std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByHandle(mh2));
+    ASSERT_NE(node, nullptr);
+    std::unique_ptr<MegaStringList> tags(node->getTags());
+    ASSERT_NE(tags, nullptr);
+    EXPECT_THAT(toVector(*tags), testing::ElementsAre(subdirtag4, subdirtag14, subdirtag20))
+        << "Tags for a single node are not returned in natural order";
 }
 
 /**

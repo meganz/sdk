@@ -1107,7 +1107,19 @@ const char* toString(retryreason_t reason);
 bool is_space(unsigned int ch);
 bool is_digit(unsigned int ch);
 
-std::set<std::string> splitString(const std::string& str, char delimiter);
+template<typename Container = std::set<std::string>>
+Container splitString(const string& str, char delimiter)
+{
+    Container tokens;
+    std::string token;
+    std::istringstream tokenStream(str);
+    while (std::getline(tokenStream, token, delimiter))
+    {
+        tokens.insert(tokens.end(), token);
+    }
+
+    return tokens;
+}
 
 template<typename Iter>
 std::string joinStrings(const Iter begin, const Iter end, const std::string& separator)
@@ -1303,6 +1315,19 @@ ScopedValue<T> makeScopedValue(T& what, T value)
  * @returns 0 if i==j, +1 if i goes first, -1 if j goes first.
  */
 int naturalsorting_compare(const char* i, const char* j);
+
+/**
+ * @class NaturalSortingComparator
+ * @brief A helper struct to be used in container templates such as std::set to force natural
+ * sorting
+ */
+struct NaturalSortingComparator
+{
+    bool operator()(const std::string& lhs, const std::string& rhs) const
+    {
+        return naturalsorting_compare(lhs.c_str(), rhs.c_str()) < 0;
+    }
+};
 
 /**
  * @class MrProper
