@@ -4171,6 +4171,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
     string enabledTestNotifications, versionEnabledTestNotifications;
     string lastReadNotification, versionLastReadNotification;
     string lastActionedBanner, versionLastActionedBanner;
+    string enabledTestSurveys, versionEnabledTestSurveys;
 #ifdef ENABLE_SYNC
     string jsonSyncConfigData;
     string jsonSyncConfigDataVersion;
@@ -4572,6 +4573,12 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
             break;
         }
 
+        case MAKENAMEID6('^', '!', 't', 's', 'u', 'r'):
+        {
+            parseUserAttribute(json, enabledTestSurveys, versionEnabledTestSurveys);
+            break;
+        }
+
         case EOO:
         {
             assert(me == client->me);
@@ -4906,6 +4913,17 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 else
                 {
                     u->removeattr(ATTR_LAST_ACTIONED_BANNER, true);
+                }
+
+                if (!enabledTestSurveys.empty() || !versionEnabledTestSurveys.empty())
+                {
+                    changes += u->updateattr(ATTR_ENABLE_TEST_SURVEYS,
+                                             &enabledTestSurveys,
+                                             &versionEnabledTestSurveys);
+                }
+                else
+                {
+                    u->removeattr(ATTR_ENABLE_TEST_SURVEYS, true);
                 }
 
 #ifdef ENABLE_SYNC
@@ -11968,6 +11986,163 @@ bool CommandGetNotifications::readCallToAction(JSON& json, map<string, string>& 
     return json.leaveobject();
 }
 
+CommandGetActiveSurveyTriggerActions::CommandGetActiveSurveyTriggerActions(MegaClient* client,
+                                                                           Completion&& completion)
+{
+    cmd("gsur");
+    mCompletion = std::move(completion);
+    tag = client->reqtag;
+}
 
+std::vector<uint32_t> CommandGetActiveSurveyTriggerActions::parseTriggerActionIds(JSON& json)
+{
+    std::vector<uint32_t> ids;
+
+    // Trigger action ID is a small positive integer
+    int id = 0;
+    while (json.isnumeric() && (id = json.getint32()) > 0)
+    {
+        ids.push_back(static_cast<uint32_t>(id));
+    }
+
+    return ids;
+}
+
+bool CommandGetActiveSurveyTriggerActions::procresult(Result r, JSON& json)
+{
+    std::vector<uint32_t> ids;
+    if (r.wasErrorOrOK())
+    {
+        // Preventive: convert API_OK to API_ENOENT
+        Error e = r.wasError(API_OK) ? Error{API_ENOENT} : r.errorOrOK();
+        onCompletion(e, ids);
+        return true;
+    }
+
+    if (!r.hasJsonArray())
+    {
+        // Not expect to happen
+        assert(r.hasJsonArray() && "Unexpected response for gsur command");
+        onCompletion(API_EINTERNAL, ids);
+        return false;
+    }
+
+    // Inside Json array and parse
+    ids = parseTriggerActionIds(json);
+
+    Error err = ids.empty() ? API_ENOENT : API_OK;
+
+    onCompletion(err, ids);
+
+    return true;
+}
+
+CommandGetSurvey::CommandGetSurvey(MegaClient* client,
+                                   unsigned int triggerActionId,
+                                   Completion&& completion)
+{
+    cmd("ssur");
+    arg("t", static_cast<m_off_t>(triggerActionId));
+    mCompletion = std::move(completion);
+    tag = client->reqtag;
+}
+
+//
+// Returns true if parsing was successful, false otherwise.
+//
+bool CommandGetSurvey::parseSurvey(JSON& json, Survey& survey)
+{
+    for (;;)
+    {
+        switch (json.getnameid())
+        {
+            case MAKENAMEID1('s'):
+                if ((survey.h = json.gethandle(MegaClient::SURVEYHANDLE)) == UNDEF)
+                    return false;
+                break;
+
+            case MAKENAMEID1('m'):
+                if (auto value = json.getint32(); value < 0)
+                    return false;
+                else
+                    survey.maxResponse = static_cast<unsigned int>(value);
+                break;
+
+            case MAKENAMEID1('i'):
+                if (!json.storeobject(&survey.image))
+                    return false;
+                break;
+
+            case MAKENAMEID1('c'):
+                if (!json.storeobject(&survey.content))
+                    return false;
+                break;
+
+            case EOO:
+                return true;
+                break;
+
+            default:
+                if (!json.storeobject())
+                    return false;
+                break;
+        }
+    }
+}
+
+bool CommandGetSurvey::procresult(Result r, JSON& json)
+{
+    Survey survey{};
+    if (r.wasErrorOrOK())
+    {
+        // Preventive: convert API_OK to API_ENOENT
+        const Error e = r.wasError(API_OK) ? Error{API_ENOENT} : r.errorOrOK();
+
+        onCompletion(e, survey);
+
+        return true;
+    }
+
+    const bool parsedOk = parseSurvey(json, survey);
+
+    const Error e = parsedOk && survey.isValid() ? API_OK : API_EINTERNAL;
+
+    onCompletion(e, survey);
+
+    return parsedOk;
+}
+
+CommandAnswerSurvey::CommandAnswerSurvey(MegaClient* client,
+                                         const Answer& answer,
+                                         Completion&& completion)
+{
+    cmd("asur");
+
+    arg("s", Base64Str<MegaClient::SURVEYHANDLE>(answer.mHandle));
+
+    arg("t", static_cast<m_off_t>(answer.mTriggerActionId));
+
+    if (!answer.mResponse.empty())
+        arg("r", answer.mResponse.c_str());
+
+    if (!answer.mComment.empty())
+        arg("c", answer.mComment.c_str());
+
+    mCompletion = std::move(completion);
+
+    tag = client->reqtag;
+}
+
+bool CommandAnswerSurvey::procresult(Result r, JSON& json)
+{
+    if (r.wasErrorOrOK())
+    {
+        onCompletion(r.errorOrOK());
+
+        return true;
+    }
+
+    return false;
+}
 
 } // namespace

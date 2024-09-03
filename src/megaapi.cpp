@@ -6114,6 +6114,30 @@ void MegaApi::deleteUserAttribute(int type, MegaRequestListener* listener)
     return pImpl->deleteUserAttribute(type, listener);
 }
 
+void MegaApi::getActiveSurveyTriggerActions(MegaRequestListener* listener)
+{
+    return pImpl->getActiveSurveyTriggerActions(listener);
+}
+
+void MegaApi::getSurvey(unsigned int triggerActionId, MegaRequestListener* listener)
+{
+    return pImpl->getSurvey(triggerActionId, listener);
+}
+
+void MegaApi::enableTestSurveys(const MegaHandleList* surveyHandles, MegaRequestListener* listener)
+{
+    return pImpl->enableTestSurveys(surveyHandles, listener);
+}
+
+void MegaApi::answerSurvey(MegaHandle surveyHandle,
+                           unsigned int triggerActionId,
+                           const char* response,
+                           const char* comment,
+                           MegaRequestListener* listener)
+{
+    return pImpl->answerSurvey(surveyHandle, triggerActionId, response, comment, listener);
+}
+
 /* END MEGAAPI */
 
 MegaHashSignature::MegaHashSignature(const char *base64Key)

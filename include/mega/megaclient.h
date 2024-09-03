@@ -2107,6 +2107,7 @@ public:
     static const int SETHANDLE = Set::HANDLESIZE;
     static const int SETELEMENTHANDLE = SetElement::HANDLESIZE;
     static const int PUBLICSETHANDLE = Set::PUBLICHANDLESIZE;
+    static const int SURVEYHANDLE = 8;
 
     // max new nodes per request
     static const int MAX_NEWNODES = 2000;
@@ -2778,6 +2779,14 @@ public:
     const std::vector<uint32_t>& getEnabledNotifications() const { return mEnabledNotifications; }
     void getNotifications(CommandGetNotifications::ResultFunc onResult);
     std::pair<uint32_t, uint32_t> getFlag(const char* flagName);
+
+    void getActiveSurveyTriggerActions(
+        CommandGetActiveSurveyTriggerActions::Completion&& completion);
+
+    void getSurvey(unsigned int triggerActionId, CommandGetSurvey::Completion&& completion);
+
+    void answerSurvey(const CommandAnswerSurvey::Answer& answer,
+                      CommandAnswerSurvey::Completion&& completion);
 
     using GetJSCDataCallback = std::function<void(JSCData, Error)>;
 

@@ -3953,6 +3953,19 @@ public:
 
         void deleteUserAttribute(int type, MegaRequestListener* listener = NULL);
 
+        void getActiveSurveyTriggerActions(MegaRequestListener* listener = NULL);
+
+        void getSurvey(unsigned int triggerActionId, MegaRequestListener* listener = NULL);
+
+        void enableTestSurveys(const MegaHandleList* surveyHandles,
+                               MegaRequestListener* listener = NULL);
+
+        void answerSurvey(MegaHandle surveyHandle,
+                          unsigned int triggerActionId,
+                          const char* response,
+                          const char* comment,
+                          MegaRequestListener* listener);
+
     private:
         void init(MegaApi *api, const char *appKey, std::unique_ptr<GfxProc> gfxproc, const char *basePath /*= NULL*/, const char *userAgent /*= NULL*/, unsigned clientWorkerThreadCount /*= 1*/, int clientType);
 
@@ -4486,6 +4499,7 @@ public:
         error getLastReadNotification_getua_result(byte* data, unsigned len, MegaRequestPrivate* request);
         void performRequest_setLastActionedBanner(MegaRequestPrivate* request);
         error getLastActionedBanner_getua_result(byte* data, unsigned len, MegaRequestPrivate* request);
+        void performRequest_enableTestSurveys(MegaRequestPrivate* request);
 };
 
 class MegaHashSignatureImpl

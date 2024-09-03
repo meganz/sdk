@@ -4592,7 +4592,10 @@ class MegaRequest
             TYPE_BACKUP_PAUSE_MD                                            = 194,
             TYPE_BACKUP_RESUME_MD                                           = 195,
             TYPE_IMPORT_PASSWORDS_FROM_FILE = 196,
-            TOTAL_OF_REQUEST_TYPES = 197,
+            TYPE_GET_ACTIVE_SURVEY_TRIGGER_ACTIONS = 197,
+            TYPE_GET_SURVEY = 198,
+            TYPE_ANSWER_SURVEY = 199,
+            TOTAL_OF_REQUEST_TYPES = 200,
         };
 
         virtual ~MegaRequest();
@@ -10129,6 +10132,8 @@ class MegaApi
             USER_ATTR_ENABLE_TEST_NOTIFICATIONS = 43, // private - non-encrypted - char array - non-versioned
             USER_ATTR_LAST_READ_NOTIFICATION = 44, // private - non-encrypted - char array - non-versioned
             USER_ATTR_LAST_ACTIONED_BANNER = 45, // private - non-encrypted - char array - non-versioned
+            USER_ATTR_ENABLE_TEST_SURVEYS =
+                46, // private - non-encrypted - char array in B64 - non-versioned
         };
 
         enum {
@@ -22795,6 +22800,101 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void deleteUserAttribute(int type, MegaRequestListener* listener = NULL);
+
+        /**
+         * @brief Retrieve active survey trigger action IDs
+         *
+         * This function fetches all active survey trigger action IDs.
+         *
+         * The associated request type for this function is
+         * MegaRequest::TYPE_GET_ACTIVE_SURVEY_TRIGGER_ACTIONS.
+         *
+         * On successful completion (MegaError::API_OK), the MegaRequest object received in
+         * onRequestFinish contains:
+         * - MegaRequest::getMegaIntegerList: Returns a list of active trigger action IDs.
+         *
+         * If the request fails, the MegaError code in onRequestFinish can be:
+         * - ENOENT: No available trigger actions.
+         * - EINTERNAL: Received response could not be read.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getActiveSurveyTriggerActions(MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Get a survey
+         *
+         * This function retrieves the survey of the given trigger action.
+         *
+         * The associated request type for this function is MegaRequest::TYPE_GET_SURVEY.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType  - Returns the trigger action ID.
+         *
+         * On successful completion (MegaError::API_OK), the MegaRequest object received in
+         * onRequestFinish contains:
+         * - MegaRequest::getNodeHandle - Returns the survey handle.
+         * - MegaRequest::getNumDetails - Returns the survey's maximum response value.
+         * - MegaRequest::getFile       - Returns the name of the image to be displayed.
+         * - MegaRequest::getText       - Returns the survey's question content.
+         *
+         * If the request fails, the MegaError code in onRequestFinish can be:
+         * - EACCESS   - Invalid user ID
+         * - EARGS     - Invalid trigger action
+         * - ENOENT    - No eligible survey
+         * - EINTERNAL - Received answer could not be read
+         *
+         * @param triggerActionId The ID of the trigger action
+         * @param listener MegaRequestListener to track this request
+         */
+        void getSurvey(unsigned int triggerActionId, MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Enable test surveys
+         *
+         * This function enables the specified surveys for testing purposes. Once enabled, these
+         * surveys can be answered multiple times.
+         *
+         * The type associated with this request is MegaRequest::TYPE_SET_ATTR_USER
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - The attribute type MegaApi::USER_ATTR_ENABLE_TEST_SURVEYS
+         * - MegaRequest::getMegaHandleList - A list of the survey handles to be enabled
+         *
+         * @param surveyHandles The list of handles of the surveys to be enabled.
+         * @param listener MegaRequestListener to track this request
+         */
+        void enableTestSurveys(const MegaHandleList* surveyHandles,
+                               MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Answer a survey
+         *
+         * This function answers a survey that the user has been asked to complete.
+         *
+         * The associated request type for this function is MegaRequest::TYPE_ANSWER_SURVEY.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the survey handle.
+         * - MegaRequest::getParamType  - Returns the trigger action ID.
+         * - MegaRequest::getText       - Returns the survey response.
+         * - MegaRequest::getFile       - Returns the response to tell us more.
+         *
+         * If the request fails, the MegaError code in onRequestFinish can be:
+         * - EACCESS   - Invalid user ID.
+         * - EARGS     - Invalid arguments such as invalid survey handle/invalid trigger action ID.
+         * - ENOENT    - Survey not found, trigger action not found, or survey disabled.
+         * - EINTERNAL - Received answer could not be read.
+         *
+         * @param surveyHandle The survey handle
+         * @param triggerActionId The trigger action ID
+         * @param response The response to the survey
+         * @param comment The response to tell us more
+         * @param listener MegaRequestListener to track this request
+         */
+        void answerSurvey(MegaHandle surveyHandle,
+                          unsigned int triggerActionId,
+                          const char* response,
+                          const char* comment = nullptr,
+                          MegaRequestListener* listener = nullptr);
 
     protected:
         MegaApiImpl *pImpl = nullptr;
