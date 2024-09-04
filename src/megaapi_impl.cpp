@@ -6919,11 +6919,6 @@ char MegaApiImpl::userAttributeToScope(int type)
             scope = '+';
             break;
 
-        case MegaApi::USER_ATTR_FIRSTNAME:
-        case MegaApi::USER_ATTR_LASTNAME:
-            scope = '0';
-            break;
-
         case MegaApi::USER_ATTR_AUTHRING:
         case MegaApi::USER_ATTR_LAST_INTERACTION:
         case MegaApi::USER_ATTR_KEYRING:
@@ -6960,6 +6955,11 @@ char MegaApiImpl::userAttributeToScope(int type)
 
         default:
             LOG_err << "Getting invalid scope";
+            [[fallthrough]];
+
+        case MegaApi::USER_ATTR_FIRSTNAME:
+        case MegaApi::USER_ATTR_LASTNAME:
+            // legacy, without a prefix for scope
             scope = 0;
             break;
     }

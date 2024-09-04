@@ -139,7 +139,6 @@ public:
     // Returns if attribute doesn't exist. Avoid requesting it to server
     bool nonExistingAttribute(attr_t at) const;
     // Only mark own attributes that it doesn't exist
-    void setNonExistingAttribute(attr_t at);
 
     static string attr2string(attr_t at);
     static string attr2longname(attr_t at);
