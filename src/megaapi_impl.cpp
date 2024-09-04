@@ -17722,7 +17722,7 @@ bool MegaApiImpl::nodeComparatorFavASC(Node *i, Node *j)
         int t = typeComparator(i, j);
         if (t >= 0)
         {
-            return t;
+            return t != 0;
         }
 
         return nodeNaturalComparatorASC(i, j);
@@ -17750,7 +17750,7 @@ bool MegaApiImpl::nodeComparatorFavDESC(Node *i, Node *j)
         int t = typeComparator(i, j);
         if (t >= 0)
         {
-            return t;
+            return t != 0;
         }
 
         return nodeNaturalComparatorASC(i, j);
