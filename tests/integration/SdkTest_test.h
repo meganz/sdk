@@ -803,8 +803,6 @@ public:
     template<typename ... requestArgs> int doDelVpnCredential(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->delVpnCredential(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int doCheckVpnCredential(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->checkVpnCredential(args..., &rt); return rt.waitForResult(); }
     /* MegaVpnCredentials END */
-
-    void doCreateAccountTest(const string& testName, int clientType);
 };
 
 /**

@@ -2286,16 +2286,10 @@ std::vector<std::string> toNamesVector(const MegaNodeList& nodes)
 
 ///////////////////////////__ Tests using SdkTest __//////////////////////////////////
 
-/*
- * doCreateAccountTest(testName, clientType)
+/**
+ * @brief TEST_F SdkTestCreateAccount
  *
- * testName
- * - Name of the concrete test invoking this function.
- *
- * clientType
- * - The type of the client we want to perform this test on.
- *
- * This function tests the creation of a new account for a random user.
+ * It tests the creation of a new account for a random user.
  *  - Create account and send confirmation link
  *  - Logout and resume the create-account process
  *  - Extract confirmation link from the mailbox
@@ -2309,9 +2303,9 @@ std::vector<std::string> toNamesVector(const MegaNodeList& nodes)
  *  - Extract cancel account link from the mailbox
  *  - Use the link to cancel the account
  */
-void SdkTest::doCreateAccountTest(const string& testName, int clientType)
+TEST_F(SdkTest, SdkTestCreateAccount)
 {
-    LOG_info << "___TEST " << testName << "____";
+    LOG_info << "___TEST Create account___";
 
     // Make sure the new account details have been set up
     const auto bufRealEmail = Utils::getenv("MEGA_REAL_EMAIL", ""); // user@host.domain
@@ -2337,11 +2331,11 @@ void SdkTest::doCreateAccountTest(const string& testName, int clientType)
 
     megaApi.resize(1);
     mApi.resize(1);
-    ASSERT_NO_FATAL_FAILURE(configureTestInstance(0, bufRealEmail, bufRealPswd, true, clientType));
+    ASSERT_NO_FATAL_FAILURE(configureTestInstance(0, bufRealEmail, bufRealPswd));
 
     // create the account
     // ------------------
-    LOG_debug << testName << ": Start account creation";
+    LOG_debug << "SdkTestCreateAccount: Start account creation";
 
     const string realEmail(bufRealEmail); // user@host.domain
     string::size_type pos = realEmail.find('@');
@@ -2359,22 +2353,22 @@ void SdkTest::doCreateAccountTest(const string& testName, int clientType)
     // Create an ephemeral session internally and send a confirmation link to email
     ASSERT_EQ(API_OK, synchronousCreateAccount(0, newTestAcc.c_str(), origTestPwd, "MyFirstname", "MyLastname"));
 
-    LOG_debug << testName << ": Logout and resume";
+    LOG_debug << "SdkTestCreateAccount: Logout and resume";
     // Logout from ephemeral session and resume session
     ASSERT_NO_FATAL_FAILURE( locallogout() );
     ASSERT_EQ(API_OK, synchronousResumeCreateAccount(0, mApi[0].getSid().c_str()));
 
     // Get confirmation link from the email
     {
-        LOG_debug << testName << ": Get confirmation link from email";
+        LOG_debug << "SdkTestCreateAccount: Get confirmation link from email";
         string conformLink = getLinkFromMailbox(pyExe, bufScript.string(), realAccount, bufRealPswd, newTestAcc, MegaClient::confirmLinkPrefix(), timeOfConfirmEmail);
         ASSERT_FALSE(conformLink.empty()) << "Confirmation link was not found.";
 
-        LOG_debug << testName << ": Confirm account";
+        LOG_debug << "SdkTestCreateAccount: Confirm account";
         // create another connection to confirm the account
         megaApi.resize(2);
         mApi.resize(2);
-        ASSERT_NO_FATAL_FAILURE(configureTestInstance(1, bufRealEmail, bufRealPswd, true, clientType));
+        ASSERT_NO_FATAL_FAILURE(configureTestInstance(1, bufRealEmail, bufRealPswd));
 
         PerApi& initialConn = mApi[0];
         initialConn.resetlastEvent();
@@ -2389,7 +2383,7 @@ void SdkTest::doCreateAccountTest(const string& testName, int clientType)
 
     // Login to the new account
     {
-        LOG_debug << testName << ": Login to the new account";
+        LOG_debug << "SdkTestCreateAccount: Login to the new account";
         unique_ptr<RequestTracker> loginTracker = std::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->login(newTestAcc.c_str(), origTestPwd, loginTracker.get());
         ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to account " << newTestAcc.c_str();
@@ -2397,7 +2391,7 @@ void SdkTest::doCreateAccountTest(const string& testName, int clientType)
 
     // fetchnodes // needed internally to fill in user details, including email
     {
-        LOG_debug << testName << ": fetch nodes from new account";
+        LOG_debug << "SdkTestCreateAccount: fetch nodes from new account";
         unique_ptr<RequestTracker>  fetchnodesTracker = std::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->fetchNodes(fetchnodesTracker.get());
         ASSERT_EQ(API_OK, fetchnodesTracker->waitForResult()) << " Failed to fetchnodes for account " << newTestAcc.c_str();
@@ -2406,25 +2400,25 @@ void SdkTest::doCreateAccountTest(const string& testName, int clientType)
     // test resetting the password
     // ---------------------------
 
-    LOG_debug << testName << ": Start reset password";
+    LOG_debug << "SdkTestCreateAccount: Start reset password";
     chrono::time_point timeOfResetEmail = chrono::steady_clock::now();
     ASSERT_EQ(synchronousResetPassword(0, newTestAcc.c_str(), true), MegaError::API_OK) << "resetPassword failed";
 
     // Get cancel account link from the mailbox
     const char* newTestPwd = "PassAndGotHerPhoneNumber!#$**!";
     {
-        LOG_debug << testName << ": Get password reset link from email";
+        LOG_debug << "SdkTestCreateAccount: Get password reset link from email";
         string recoverink = getLinkFromMailbox(pyExe, bufScript.string(), realAccount, bufRealPswd, newTestAcc, MegaClient::recoverLinkPrefix(), timeOfResetEmail);
         ASSERT_FALSE(recoverink.empty()) << "Recover account link was not found.";
 
-        LOG_debug << testName << ": Confirm reset password";
+        LOG_debug << "SdkTestCreateAccount: Confirm reset password";
         char* masterKey = megaApi[0]->exportMasterKey();
         ASSERT_EQ(synchronousConfirmResetPassword(0, recoverink.c_str(), newTestPwd, masterKey), MegaError::API_OK) << "confirmResetPassword failed";
     }
 
     // Login using new password
     {
-        LOG_debug << testName << ": Login with new password";
+        LOG_debug << "SdkTestCreateAccount: Login with new password";
         unique_ptr<RequestTracker> loginTracker = std::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->login(newTestAcc.c_str(), newTestPwd, loginTracker.get());
         ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to account after change password with new password " << newTestAcc.c_str();
@@ -2432,7 +2426,7 @@ void SdkTest::doCreateAccountTest(const string& testName, int clientType)
 
     // fetchnodes - needed internally to fill in user details, to allow cancelAccount() to work
     {
-        LOG_debug << testName << ": Fetching nodes";
+        LOG_debug << "SdkTestCreateAccount: Fetching nodes";
         unique_ptr<RequestTracker> fetchnodesTracker = std::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->fetchNodes(fetchnodesTracker.get());
         ASSERT_EQ(API_OK, fetchnodesTracker->waitForResult()) << " Failed to fetchnodes after change password for account " << newTestAcc.c_str();
@@ -2441,36 +2435,36 @@ void SdkTest::doCreateAccountTest(const string& testName, int clientType)
     // test changing the email (check change with auxiliar instance)
     // -----------------------
 
-    LOG_debug << testName << ": Start email change";
+    LOG_debug << "SdkTestCreateAccount: Start email change";
     // login with auxiliar instance
-    LOG_debug << testName << ": Login auxiliar account";
+    LOG_debug << "SdkTestCreateAccount: Login auxiliar account";
     megaApi.resize(2);
     mApi.resize(2);
-    ASSERT_NO_FATAL_FAILURE(configureTestInstance(1, newTestAcc, newTestPwd, true, clientType));
+    ASSERT_NO_FATAL_FAILURE(configureTestInstance(1, newTestAcc, newTestPwd));
     {
         unique_ptr<RequestTracker> loginTracker = std::make_unique<RequestTracker>(megaApi[1].get());
         megaApi[1]->login(newTestAcc.c_str(), newTestPwd, loginTracker.get());
         ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to auxiliar account ";
     }
 
-    LOG_debug << testName << ": Send change email request";
+    LOG_debug << "SdkTestCreateAccount: Send change email request";
     const string changedTestAcc = Utils::replace(newTestAcc, "@", "-new@");
     chrono::time_point timeOfChangeEmail = chrono::steady_clock::now();
     ASSERT_EQ(synchronousChangeEmail(0, changedTestAcc.c_str()), MegaError::API_OK) << "changeEmail failed";
 
     {
-        LOG_debug << testName << ": Get change email link from email inbox";
+        LOG_debug << "SdkTestCreateAccount: Get change email link from email inbox";
         string changelink = getLinkFromMailbox(pyExe, bufScript.string(), realAccount, bufRealPswd, changedTestAcc, MegaClient::verifyLinkPrefix(), timeOfChangeEmail);
         ASSERT_FALSE(changelink.empty()) << "Change email account link was not found.";
 
-        LOG_debug << testName << ": Confirm email change";
+        LOG_debug << "SdkTestCreateAccount: Confirm email change";
         ASSERT_STRCASEEQ(newTestAcc.c_str(), std::unique_ptr<char[]>{megaApi[0]->getMyEmail()}.get()) << "email changed prematurely";
         ASSERT_EQ(synchronousConfirmChangeEmail(0, changelink.c_str(), newTestPwd), MegaError::API_OK) << "confirmChangeEmail failed";
     }
 
     {
         // Check if our own email is updated after receive ug at auxiliar instance
-        LOG_debug << testName << ": Check email is updated";
+        LOG_debug << "SdkTestCreateAccount: Check email is updated";
         unique_ptr<RequestTracker> userDataTracker = std::make_unique<RequestTracker>(megaApi[1].get());
         megaApi[1]->getUserData(userDataTracker.get());
         ASSERT_EQ(API_OK, userDataTracker->waitForResult()) << " Failed to get user data at auxiliar account";
@@ -2481,7 +2475,7 @@ void SdkTest::doCreateAccountTest(const string& testName, int clientType)
     // Login using new email
     ASSERT_STRCASEEQ(changedTestAcc.c_str(), std::unique_ptr<char[]>{megaApi[0]->getMyEmail()}.get()) << "email not changed correctly";
     {
-        LOG_debug << testName << ": Login with new email";
+        LOG_debug << "SdkTestCreateAccount: Login with new email";
         unique_ptr<RequestTracker> loginTracker = std::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->login(changedTestAcc.c_str(), newTestPwd, loginTracker.get());
         ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to account after change email with new email " << changedTestAcc.c_str();
@@ -2489,7 +2483,7 @@ void SdkTest::doCreateAccountTest(const string& testName, int clientType)
 
     // fetchnodes - needed internally to fill in user details, to allow cancelAccount() to work
     {
-        LOG_debug << testName << ": Fetching nodes";
+        LOG_debug << "SdkTestCreateAccount: Fetching nodes";
         unique_ptr<RequestTracker> fetchnodesTracker = std::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->fetchNodes(fetchnodesTracker.get());
         ASSERT_EQ(API_OK, fetchnodesTracker->waitForResult()) << " Failed to fetchnodes after change password for account " << changedTestAcc.c_str();
@@ -2502,10 +2496,10 @@ void SdkTest::doCreateAccountTest(const string& testName, int clientType)
     // ------------------
 
     // Request cancel account link
-    LOG_debug << testName << ": Start deleting account";
+    LOG_debug << "SdkTestCreateAccount: Start deleting account";
     chrono::time_point timeOfDeleteEmail = chrono::steady_clock::now();
     {
-        LOG_debug << testName << ": Request account cancel";
+        LOG_debug << "SdkTestCreateAccount: Request account cancel";
         unique_ptr<RequestTracker> cancelLinkTracker = std::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->cancelAccount(cancelLinkTracker.get());
         ASSERT_EQ(API_OK, cancelLinkTracker->waitForResult()) << " Failed to request cancel link for account " << changedTestAcc.c_str();
@@ -2513,30 +2507,18 @@ void SdkTest::doCreateAccountTest(const string& testName, int clientType)
 
     // Get cancel account link from the mailbox
     {
-        LOG_debug << testName << ": Get cancel link from email";
+        LOG_debug << "SdkTestCreateAccount: Get cancel link from email";
         string deleteLink = getLinkFromMailbox(pyExe, bufScript.string(), realAccount, bufRealPswd, changedTestAcc, MegaClient::cancelLinkPrefix(), timeOfDeleteEmail);
         ASSERT_FALSE(deleteLink.empty()) << "Cancel account link was not found.";
 
         // Use cancel account link
-        LOG_debug << testName << ": Confirm cancel link";
+        LOG_debug << "SdkTestCreateAccount: Confirm cancel link";
         unique_ptr<RequestTracker> useCancelLinkTracker = std::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->confirmCancelAccount(deleteLink.c_str(), newTestPwd, useCancelLinkTracker.get());
         // Allow API_ESID beside API_OK, due to the race between sc and cs channels
         ASSERT_PRED3([](int t, int v1, int v2) { return t == v1 || t == v2; }, useCancelLinkTracker->waitForResult(), API_OK, API_ESID)
             << " Failed to confirm cancel account " << changedTestAcc.c_str();
     }
-}
-
-/**
- * @brief TEST_F SdkTestCreateAccount
- *
- * Tests account creation for a regular (default) client.
- *
- * See doCreateAccountTest(...).
- */
-TEST_F(SdkTest, SdkTestCreateAccount)
-{
-    ASSERT_NO_FATAL_FAILURE(doCreateAccountTest("SdkTestCreateAccount", MegaApi::CLIENT_TYPE_DEFAULT));
 }
 
 /**
@@ -19899,18 +19881,6 @@ TEST_F(SdkTest, SdkTestVPN)
         ASSERT_THAT(getNameTracker.request->getText(), ::testing::NotNull());
         ASSERT_EQ(origName, getNameTracker.request->getText());
     }
-}
-
-/**
- * @brief TEST_F SdkTestVPNCreateAccount
- *
- * Tests account creation for a VPN client.
- *
- * See doCreateAccountTest(...).
- */
-TEST_F(SdkTest, SdkTestVPNCreateAccount)
-{
-    ASSERT_NO_FATAL_FAILURE(doCreateAccountTest("SdkTestVPNCreateAccount", MegaApi::CLIENT_TYPE_VPN));
 }
 
 /**
