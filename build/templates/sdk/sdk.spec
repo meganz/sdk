@@ -57,6 +57,7 @@ This SDK brings you all the power of our client applications and let you create
 your own or analyze the security of our products. 
 
 %prep
+%global debug_package %{nil}
 %setup -q
 
 if [ -f /opt/vcpkg.tar.gz ]; then
@@ -103,6 +104,8 @@ if [ -f /opt/cmake.tar.gz ]; then
 fi
 
 cmake --install %{_builddir}/build_dir --prefix %{buildroot}
+ls -l %{buildroot}
+pwd
 
 %post
 
@@ -123,12 +126,14 @@ cmake --install %{_builddir}/build_dir --prefix %{buildroot}
 
 
 %files
-
+/cmake/sdklibConfig.cmake
+/cmake/sdklibTargets-relwithdebinfo.cmake
+/cmake/sdklibTargets.cmake
+/include/megaapi.h
+/lib64/libSDKlib.a
+/pkgconfig/sdklib.pc
 
 %defattr(-,root,root)
-
-
-%{_bindir}/*
 
 
 %changelog
