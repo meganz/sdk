@@ -128,12 +128,13 @@ public:
     // Gets the node size from node counter (blob)
     static void getSizeFromNodeCounter(sqlite3_context* context, int argc, sqlite3_value** argv);
 
-    // Check if string (pattern - argv[0]) is contained at data base column from type text (argv[1])
-    static void userIsContained(sqlite3_context* context, int argc, sqlite3_value** argv);
-
-    // Check if a tag (string - argv[0]) is contained in the stored list of tags
-    //(string with the tags delimited by TAG_DELIMITER - argv[1]).
-    static void userMatchTag(sqlite3_context* context, int argc, sqlite3_value** argv);
+    /**
+     * @brief This method is designed to apply all the filtering options in various methods that
+     * perform a query to the database and use a NodeSearchFilter object.
+     *
+     * It is implemented trying to short-circuit unnecessary argument parsing.
+     */
+    static void userMatchFilter(sqlite3_context* context, int argc, sqlite3_value** argv);
 
 private:
     // Iterate over a SQL query row by row and fill the map

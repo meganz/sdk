@@ -2936,6 +2936,7 @@ public:
     void byModificationTime(int64_t lowerLimit, int64_t upperLimit) override;
     void byDescription(const char* searchString) override;
     void byTag(const char* searchString) override;
+    void useAndForTextQuery(bool useAnd) override;
 
     const char* byName() const override { return mNameFilter.c_str(); }
     int byNodeType() const override { return mNodeType; }
@@ -2951,6 +2952,11 @@ public:
     const char* byDescription() const override { return mDescriptionFilter.c_str(); }
     const char* byTag() const override { return mTag.c_str(); }
 
+    bool useAndForTextQuery() const override
+    {
+        return mUseAndForTextQuery;
+    }
+
 private:
     std::string mNameFilter;
     int mNodeType = MegaNode::TYPE_UNKNOWN;
@@ -2965,6 +2971,7 @@ private:
     int64_t mModificationUpperLimit = 0;
     std::string mDescriptionFilter;
     std::string mTag;
+    bool mUseAndForTextQuery = true;
 
     /**
      * @brief Checks if the input value is:

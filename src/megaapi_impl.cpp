@@ -6222,6 +6222,11 @@ void MegaSearchFilterPrivate::byTag(const char* searchString)
     mTag = searchString ? searchString : string();
 }
 
+void MegaSearchFilterPrivate::useAndForTextQuery(bool useAnd)
+{
+    mUseAndForTextQuery = useAnd;
+}
+
 MegaSearchFilterPrivate* MegaSearchFilterPrivate::copy() const
 {
     return new MegaSearchFilterPrivate(*this);

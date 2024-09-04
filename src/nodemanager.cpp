@@ -28,6 +28,98 @@
 
 namespace mega {
 
+bool NodeSearchFilter::isValidNodeType(const nodetype_t nodeType) const
+{
+    return mNodeType == nodeType;
+}
+
+bool NodeSearchFilter::isValidCreationTime(const int64_t time) const
+{
+    if (mCreationLowerLimit && time <= mCreationLowerLimit)
+        return false;
+    if (mCreationUpperLimit && time >= mCreationUpperLimit)
+        return false;
+    return true;
+}
+
+bool NodeSearchFilter::isValidModificationTime(const int64_t time) const
+{
+    if (mModificationLowerLimit && time <= mModificationLowerLimit)
+        return false;
+    if (mModificationUpperLimit && (time <= 0 || time >= mModificationUpperLimit))
+        return false;
+    return true;
+}
+
+bool NodeSearchFilter::isValidCategory(const MimeType_t category, const nodetype_t nodeType) const
+{
+    if (nodeType != FILENODE)
+        return false;
+    if (mMimeCategory == MIME_TYPE_ALL_DOCS && isDocType(category))
+        return true;
+    return category == mMimeCategory;
+}
+
+bool NodeSearchFilter::isValidName(const uint8_t* testName) const
+{
+    const auto& pattern = mNameFilter.getPattern();
+    if (pattern.empty() || !testName)
+        return true;
+    return static_cast<bool>(icuLikeCompare(reinterpret_cast<const uint8_t*>(pattern.c_str()),
+                                            testName,
+                                            ESCAPE_CHARACTER));
+}
+
+bool NodeSearchFilter::isValidDescription(const uint8_t* testDescription) const
+{
+    const auto& pattern = mDescriptionFilter.getPattern();
+    if (pattern.empty())
+        return true;
+    return testDescription && icuLikeCompare(reinterpret_cast<const uint8_t*>(pattern.c_str()),
+                                             testDescription,
+                                             ESCAPE_CHARACTER);
+}
+
+bool NodeSearchFilter::isValidTagSequence(const uint8_t* tagSequence) const
+{
+    if (!hasTag())
+        return true;
+    // we know tags can not contain delimiter
+    if (!tagSequence || mTagFilterContainsSeparator)
+        return false;
+    auto tokens = splitString(reinterpret_cast<const char*>(tagSequence), TAG_DELIMITER);
+    return getTagPosition(tokens, mTagFilter) != tokens.end();
+}
+
+bool NodeSearchFilter::isValidFav(const bool isNodeFav) const
+{
+    return !hasFav() || (mFavouriteFilterOption == BoolFilter::onlyTrue) == isNodeFav;
+}
+
+bool NodeSearchFilter::isValidSensitivity(const bool isNodeSensitive) const
+{
+    if (!hasSensitive())
+        return true;
+    if (isNodeSensitive && mExcludeSensitive == BoolFilter::onlyFalse)
+        return true;
+    if (!isNodeSensitive && mExcludeSensitive == BoolFilter::onlyTrue)
+        return true;
+    return false;
+}
+
+bool NodeSearchFilter::isDocType(const MimeType_t t)
+{
+    switch (t)
+    {
+        case MIME_TYPE_DOCUMENT:
+        case MIME_TYPE_PDF:
+        case MIME_TYPE_PRESENTATION:
+        case MIME_TYPE_SPREADSHEET:
+            return true;
+        default:
+            return false;
+    }
+}
 
 NodeManager::NodeManager(MegaClient& client)
     : mClient(client)

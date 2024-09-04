@@ -41,6 +41,8 @@ class NodeSerialized;
 class NodeSearchFilter
 {
 public:
+    static constexpr char TAG_DELIMITER = ',';
+
     enum class BoolFilter
     {
         disabled = 0,
@@ -48,10 +50,16 @@ public:
         onlyFalse,
     };
 
+    enum class TextQueryJoiner
+    {
+        logicalAnd,
+        logicalOr,
+    };
+
     template<class T>
     void copyFrom(const T& f, ShareType_t includedShares = NO_SHARES)
     {
-        mNameFilter = f.byName() ? f.byName() : std::string(); // get it as const char*
+        mNameFilter = f.byName();
         mNodeType = static_cast<nodetype_t>(f.byNodeType()); // get it as int
         mMimeCategory = static_cast<MimeType_t>(f.byCategory()); // get it as int
         mExcludeSensitive = static_cast<BoolFilter>(f.bySensitivity());
@@ -62,13 +70,20 @@ public:
         mCreationUpperLimit = f.byCreationTimeUpperLimit();
         mModificationLowerLimit = f.byModificationTimeLowerLimit();
         mModificationUpperLimit = f.byModificationTimeUpperLimit();
-        mDescriptionFilter = f.byDescription();
-        mTagFilter = f.byTag();
+        // We can search for descriptions and tags containing wild cards so we need to escape them
+        mDescriptionFilter = escapeWildCards(f.byDescription());
+        mTagFilter = escapeWildCards(f.byTag());
+        mTagFilterContainsSeparator = mTagFilter.find(TAG_DELIMITER) != std::string::npos;
+        mUseAndForTextQuery = f.useAndForTextQuery();
     }
 
     void byAncestors(std::vector<handle>&& ancs) { assert(ancs.size() == 3); mLocationHandles.swap(ancs); }
     void setIncludedShares(ShareType_t s) { mIncludedShares = s; }
-    void byName(const std::string& name) { mNameFilter = name; }
+
+    void byName(const std::string& name)
+    {
+        mNameFilter = name;
+    }
 
     void byNodeType(nodetype_t nodeType)
     {
@@ -86,7 +101,10 @@ public:
         mExcludeSensitive = boolFilter;
     }
 
-    const std::string& byName() const { return mNameFilter; }
+    const std::string& byName() const
+    {
+        return mNameFilter.getText();
+    }
     nodetype_t byNodeType() const { return mNodeType; }
     MimeType_t byCategory() const { return mMimeCategory; }
     BoolFilter byFavourite() const { return mFavouriteFilterOption; }
@@ -105,12 +123,80 @@ public:
     int64_t byCreationTimeUpperLimit() const { return mCreationUpperLimit; }
 
     int64_t byModificationTimeLowerLimit() const { return mModificationLowerLimit; }
-    int64_t byModificationTimeUpperLimit() const { return mModificationUpperLimit; }
-    const std::string& byDescription() const { return mDescriptionFilter; }
+
+    int64_t byModificationTimeUpperLimit() const
+    {
+        return mModificationUpperLimit;
+    }
+
+    const std::string& byDescription() const
+    {
+        return mDescriptionFilter.getText();
+    }
     const std::string& byTag() const { return mTagFilter; }
 
+    bool useAndForTextQuery() const
+    {
+        return mUseAndForTextQuery;
+    }
+
+    bool hasNodeType() const
+    {
+        return mNodeType != TYPE_UNKNOWN;
+    }
+
+    bool hasCreationTimeLimits() const
+    {
+        return mCreationLowerLimit || mCreationUpperLimit;
+    }
+
+    bool hasModificationTimeLimits() const
+    {
+        return mModificationLowerLimit || mModificationUpperLimit;
+    }
+
+    bool hasCategory() const
+    {
+        return mMimeCategory != MIME_TYPE_UNKNOWN;
+    }
+
+    bool hasName() const
+    {
+        return !mNameFilter.getText().empty();
+    }
+
+    bool hasDescription() const
+    {
+        return !mDescriptionFilter.getText().empty();
+    }
+
+    bool hasTag() const
+    {
+        return !mTagFilter.empty();
+    }
+
+    bool hasFav() const
+    {
+        return mFavouriteFilterOption != BoolFilter::disabled;
+    }
+
+    bool hasSensitive() const
+    {
+        return mExcludeSensitive != BoolFilter::disabled;
+    }
+
+    bool isValidNodeType(const nodetype_t nodeType) const;
+    bool isValidCreationTime(const int64_t time) const;
+    bool isValidModificationTime(const int64_t time) const;
+    bool isValidCategory(const MimeType_t category, const nodetype_t nodeType) const;
+    bool isValidName(const uint8_t* testName) const;
+    bool isValidDescription(const uint8_t* testDescription) const;
+    bool isValidTagSequence(const uint8_t* tagSequence) const;
+    bool isValidFav(const bool isNodeFav) const;
+    bool isValidSensitivity(const bool isNodeSensitive) const;
+
 private:
-    std::string mNameFilter;
+    TextPattern mNameFilter;
     nodetype_t mNodeType = TYPE_UNKNOWN;
     MimeType_t mMimeCategory = MIME_TYPE_UNKNOWN;
     BoolFilter mFavouriteFilterOption = BoolFilter::disabled;
@@ -121,8 +207,12 @@ private:
     int64_t mCreationUpperLimit = 0;
     int64_t mModificationLowerLimit = 0;
     int64_t mModificationUpperLimit = 0;
-    std::string mDescriptionFilter;
+    TextPattern mDescriptionFilter;
     std::string mTagFilter;
+    bool mTagFilterContainsSeparator{false};
+    bool mUseAndForTextQuery = true;
+
+    static bool isDocType(const MimeType_t t);
 };
 
 class NodeSearchPage

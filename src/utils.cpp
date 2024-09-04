@@ -3277,6 +3277,41 @@ std::string escapeWildCards(const std::string& pattern)
     return newString;
 }
 
+TextPattern::TextPattern(const std::string& text):
+    mText{text}
+{
+    recalcPattern();
+}
+
+TextPattern::TextPattern(const char* text)
+{
+    if (text)
+    {
+        mText = text;
+        recalcPattern();
+    }
+}
+
+void TextPattern::recalcPattern()
+{
+    if (mText.empty() || isOnlyWildCards(mText))
+    {
+        mPattern.clear();
+        return;
+    }
+    mPattern = WILDCARD_MATCH_ALL + mText + WILDCARD_MATCH_ALL;
+}
+
+bool TextPattern::isOnlyWildCards(const std::string& text)
+{
+    return std::all_of(std::begin(text),
+                       std::end(text),
+                       [](auto&& c) -> bool
+                       {
+                           return c == WILDCARD_MATCH_ALL;
+                       });
+}
+
 std::set<std::string>::iterator getTagPosition(std::set<std::string>& tokens, const std::string& tag)
 {
     std::string escapedWidlCards = escapeWildCards(tag.c_str());
@@ -3638,6 +3673,11 @@ size_t fileExtensionDotPosition(const std::string& fileName)
         return fileName.size();
     else
         return dotPos;
+}
+
+bool combineConditions(const bool applyAnd)
+{
+    return applyAnd;
 }
 
 } // namespace mega
