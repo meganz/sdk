@@ -78,6 +78,10 @@ set(SDKLIB_HEADERS
     include/mega/mega_csv.h
     include/mega/name_collision.h
     include/mega/pwm_file_parser.h
+    include/mega/user_attribute.h
+    include/mega/user_attribute_definition.h
+    include/mega/user_attribute_manager.h
+    include/mega/user_attribute_types.h
 )
 
 set(SDKLIB_SOURCES
@@ -138,6 +142,9 @@ set(SDKLIB_SOURCES
     src/process.cpp
     src/name_collision.cpp
     src/pwm_file_parser.cpp
+    src/user_attribute.cpp
+    src/user_attribute_definition.cpp
+    src/user_attribute_manager.cpp
 )
 
 target_sources(SDKlib
