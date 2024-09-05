@@ -6877,6 +6877,14 @@ void MegaClient::sc_userattr()
                          itua++, ituav++)
                     {
                         attr_t type = User::string2attr(itua->c_str());
+                        if (type == ATTR_UNKNOWN) // several user attributes are ignored by SDK
+                            continue;
+                        if (!u->needversioning(type))
+                        {
+                            u->invalidateattr(type);
+                            continue;
+                        }
+
                         const string *cacheduav = u->getattrversion(type);
                         if (cacheduav)
                         {
@@ -12465,6 +12473,8 @@ error MegaClient::removecontact(const char* email, visibility_t show, CommandRem
 void MegaClient::putua(attr_t at, const byte* av, unsigned avl, int ctag, handle lastPublicHandle, int phtype, int64_t ts,
                        std::function<void(Error)> completion)
 {
+    assert(at != ATTR_STORAGE_STATE); // putua is forbidden for this attribute
+
     string data;
 
     if (!completion)
@@ -12549,6 +12559,8 @@ void MegaClient::putua(userattr_map *attrs, int ctag, std::function<void (Error)
     for (userattr_map::iterator it = attrs->begin(); it != attrs->end(); it++)
     {
         attr_t type = it->first;
+
+        assert(type != ATTR_STORAGE_STATE); // putua is forbidden for this attribute
 
         if (User::needversioning(type) != 1)
         {

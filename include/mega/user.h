@@ -25,6 +25,9 @@
 #include "attrmap.h"
 
 namespace mega {
+
+class UserAttrManager;
+
 // user/contact
 struct MEGA_API User : public Cacheable
 {
@@ -106,23 +109,18 @@ struct MEGA_API User : public Cacheable
     deque<std::unique_ptr<PubKeyAction>> pkrs;
 
 private:
-    // persistent attributes (keyring, firstname...)
-    userattr_map attrs;
-
-    // version of each attribute
-    userattr_map attrsv;
+    std::unique_ptr<UserAttrManager>
+        mAttributeManager; // never null, just avoid including implementation header
 
     // source tag
     int tag;
-
-    static constexpr char NO_VERSION[] = "N";
-    static constexpr char NON_EXISTING[] = "-9";
 
 public:
     void set(visibility_t, m_time_t);
 
     bool serialize(string*) const override;
     static User* unserialize(class MegaClient *, string*);
+    bool unserializeAttributes(const char*& from, const char* upTo, char formatVersion);
 
     void removepkrs(MegaClient*);
 

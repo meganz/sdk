@@ -20,16 +20,16 @@
  */
 
 #include "mega/user.h"
-#include "mega/megaclient.h"
-#include "mega/logging.h"
+
 #include "mega/base64.h"
+#include "mega/logging.h"
+#include "mega/megaclient.h"
+#include "mega/user_attribute_manager.h"
 
 namespace mega {
 
-constexpr char User::NO_VERSION[];
-constexpr char User::NON_EXISTING[];
-
-User::User(const char* cemail)
+User::User(const char* cemail):
+    mAttributeManager{std::make_unique<UserAttrManager>()}
 {
     userhandle = UNDEF;
     show = VISIBILITY_UNKNOWN;
@@ -88,12 +88,8 @@ bool User::mergeUserAttribute(attr_t type, const string_map &newValuesMap, TLVst
 bool User::serialize(string* d) const
 {
     unsigned char l;
-    unsigned short ll;
     time_t ts;
     AttrMap attrmap;
-    char attrVersion = '2';
-    // Version 1: attributes are serialized along with its version
-    // Version 2: size of attributes use 4B (uint32_t) instead of 2B (unsigned short)
 
     d->reserve(d->size() + 100 + attrmap.storagesize(10));
 
@@ -108,7 +104,7 @@ bool User::serialize(string* d) const
     d->append((char*)&l, sizeof l);
     d->append(email.c_str(), l);
 
-    d->append((char*)&attrVersion, 1);
+    mAttributeManager->serializeAttributeFormatVersion(*d);
 
     char bizMode = 0;
     if (mBizMode != BIZ_MODE_UNKNOWN) // convert number to ascii
@@ -120,29 +116,7 @@ bool User::serialize(string* d) const
     d->append("\0\0\0\0\0", 6);
 
     // serialization of attributes
-    l = (unsigned char)attrs.size();
-    d->append((char*)&l, sizeof l);
-    for (userattr_map::const_iterator it = attrs.begin(); it != attrs.end(); it++)
-    {
-        d->append((char*)&it->first, sizeof it->first);
-
-        uint32_t valueSize = static_cast<uint32_t>(it->second.size());
-        d->append((char*)&valueSize, sizeof valueSize);
-        d->append(it->second.data(), valueSize);
-
-        auto itattrsv = attrsv.find(it->first);
-        if (itattrsv != attrsv.end())
-        {
-            ll = (unsigned short)itattrsv->second.size();
-            d->append((char*)&ll, sizeof ll);
-            d->append(itattrsv->second.data(), ll);
-        }
-        else
-        {
-            ll = 0;
-            d->append((char*)&ll, sizeof ll);
-        }
-    }
+    mAttributeManager->serializeAttributes(*d);
 
     if (pubk.isvalid())
     {
@@ -158,13 +132,11 @@ User* User::unserialize(MegaClient* client, string* d)
     time_t ts;
     visibility_t v;
     unsigned char l;
-    unsigned short ll;
     string m;
     User* u;
     const char* ptr = d->data();
     const char* end = ptr + d->size();
     int i;
-    char attrVersion;
 
     if (ptr + sizeof(handle) + sizeof(time_t) + sizeof(visibility_t) + 2 > end)
     {
@@ -197,8 +169,7 @@ User* User::unserialize(MegaClient* client, string* d)
         return NULL;
     }
 
-    attrVersion = MemAccess::get<char>(ptr);
-    ptr += sizeof(attrVersion);
+    char attrVersion = UserAttrManager::unserializeAttributeFormatVersion(ptr);
 
     char bizModeValue = MemAccess::get<char>(ptr);
     ptr += sizeof(bizModeValue);
@@ -234,88 +205,10 @@ User* User::unserialize(MegaClient* client, string* d)
     u->resetTag();
     u->mBizMode = bizMode;
 
-    if (attrVersion == '\0')
+    if (!u->unserializeAttributes(ptr, end, attrVersion))
     {
-        AttrMap attrmap;
-        if ((ptr < end) && !(ptr = attrmap.unserialize(ptr, end)))
-        {
-            client->discarduser(uh);
-            return NULL;
-        }
-    }
-    else if (attrVersion == '1' || attrVersion == '2')
-    {
-        attr_t key;
-
-        // attrVersion = 1 -> size of value uses 2 bytes
-        // attrVersion = 2 -> size of value uses 4 bytes
-        uint32_t valueSize = 0;
-        size_t sizeLength = (attrVersion == '1') ? sizeof ll : sizeof valueSize;
-
-        if (ptr + sizeof(char) > end)
-        {
-            client->discarduser(uh);
-            return NULL;
-        }
-
-        l = *ptr++;
-        for (int i = 0; i < l; i++)
-        {
-            if (ptr + sizeof key + sizeLength > end)
-            {
-                client->discarduser(uh);
-                return NULL;
-            }
-
-            key = MemAccess::get<attr_t>(ptr);
-            ptr += sizeof key;
-
-            if (attrVersion == '1')
-            {
-                valueSize = MemAccess::get<short>(ptr);
-            }
-            else // attrVersion == '2'
-            {
-                valueSize = MemAccess::get<uint32_t>(ptr);
-            }
-            ptr += sizeLength;
-
-            if (ptr + valueSize + sizeof ll > end)
-            {
-                client->discarduser(uh);
-                return NULL;
-            }
-
-            // check it's not loaded by `ug` for own user, and that the
-            // attribute still exists (has not been removed)
-            if (!u->isattrvalid(key) && !u->nonExistingAttribute(key))
-            {
-                u->attrs[key].assign(ptr, valueSize);
-            }
-
-            ptr += valueSize;
-
-            ll = MemAccess::get<short>(ptr);
-            ptr += sizeof ll;
-
-            if (ll)
-            {
-                if (ptr + ll > end)
-                {
-                    client->discarduser(uh);
-                    return NULL;
-                }
-
-                // check it's not loaded by `ug` for own user, and that the
-                // attribute still exists (has not been removed)
-                if (!u->isattrvalid(key) && !u->nonExistingAttribute(key))
-                {
-                    u->attrsv[key].assign(ptr,ll);
-                }
-
-                ptr += ll;
-            }
-        }
+        client->discarduser(uh);
+        return nullptr;
     }
 
     // initialize private Ed25519 and Cu25519 from cache
@@ -391,6 +284,11 @@ User* User::unserialize(MegaClient* client, string* d)
     return u;
 }
 
+bool User::unserializeAttributes(const char*& from, const char* upTo, char formatVersion)
+{
+    return mAttributeManager->unserializeAttributes(from, upTo, formatVersion);
+}
+
 void User::removepkrs(MegaClient* client)
 {
     while (!pkrs.empty())  // protect any pending pubKey request
@@ -409,18 +307,15 @@ void User::setattr(attr_t at, string *av, string *v)
 {
     setChanged(at);
 
-    if (at != ATTR_AVATAR)  // avatar is saved to disc
-    {
-        attrs[at] = *av;
-    }
-
-    attrsv[at] = v ? *v : NO_VERSION;
+    const string& attrValue = av ? *av : string{};
+    const string& attrVersion = v ? *v : string{};
+    mAttributeManager->setAttr(at, attrValue, attrVersion);
 }
 
 void User::invalidateattr(attr_t at)
 {
     setChanged(at);
-    attrsv.erase(at);
+    mAttributeManager->setAttrExpired(at);
 }
 
 void User::removeattr(attr_t at, bool ownUser)
@@ -430,63 +325,46 @@ void User::removeattr(attr_t at, bool ownUser)
         setChanged(at);
     }
 
-    attrs.erase(at);
     if (ownUser)
-        attrsv[at] = NON_EXISTING; // it allows to avoid fetch from servers
+        mAttributeManager->setAttrNotExisting(at);
     else
-        attrsv.erase(at);
+        mAttributeManager->eraseAttr(at);
 }
 
 void User::removeattr(attr_t at, const string& version)
 {
     if (isattrvalid(at))
     {
-        setChanged(at);
+        invalidateattr(at);
     }
-
-    attrs.erase(at);
-    attrsv[at] = version;
 }
 
 // updates the user attribute value+version only if different
 int User::updateattr(attr_t at, std::string *av, std::string *v)
 {
-    if (attrsv[at] == *v)
+    if (mAttributeManager->setAttrIfNewVersion(at, *av, *v))
     {
-        return 0;
+        setChanged(at);
+        return 1;
     }
 
-    setattr(at, av, v);
-    return 1;
+    return 0;
 }
 
 bool User::nonExistingAttribute(attr_t at) const
 {
-    auto it = attrsv.find(at);
-    if (it != attrsv.end() && it->second == NON_EXISTING)
-    {
-        assert(attrs.find(at) == attrs.end());
-        return true;
-    }
-
-    return false;
+    return mAttributeManager->isAttrNotExisting(at);
 }
 
 // returns the value if there is value (even if it's invalid by now)
 const string * User::getattr(attr_t at)
 {
-    userattr_map::const_iterator it = attrs.find(at);
-    if (it != attrs.end())
-    {
-        return &(it->second);
-    }
-
-    return NULL;
+    return mAttributeManager->getAttrRawValue(at);
 }
 
 bool User::isattrvalid(attr_t at)
 {
-    return attrs.count(at) && attrsv.count(at) && attrsv.find(at)->second != NON_EXISTING;
+    return mAttributeManager->isAttrValid(at);
 }
 
 string User::attr2string(attr_t type)
@@ -1180,13 +1058,7 @@ bool User::isAuthring(attr_t at)
 
 size_t User::getMaxAttributeSize(attr_t at)
 {
-    std::string attributeName = attr2string(at);
-    if (attributeName.size() > 2 && (attributeName[1] == '!' || attributeName[1] == '~'))
-    {
-        return MAX_USER_VAR_SIZE;
-    }
-
-    return MAX_USER_ATTRIBUTE_SIZE;
+    return UserAttrManager::getAttrMaxSize(at);
 }
 
 bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int size, string *newValue)
@@ -1459,13 +1331,7 @@ m_time_t User::getPwdReminderData(int numDetail, const char *data, unsigned int 
 
 const string *User::getattrversion(attr_t at)
 {
-    userattr_map::iterator it = attrsv.find(at);
-    if (it != attrsv.end())
-    {
-        return &(it->second);
-    }
-
-    return NULL;
+    return mAttributeManager->getAttrVersion(at);
 }
 
 bool User::setChanged(attr_t at)
