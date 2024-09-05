@@ -984,7 +984,7 @@ bool WinFileSystemAccess::getsname(const LocalPath& namePath, LocalPath& snamePa
     {
         sname.erase(0, ptr - sname.data() + 1);
     }
-    return sname.size();
+    return sname.size() > 0;
 }
 
 // FIXME: if a folder rename fails because the target exists, do a top-down
@@ -1221,14 +1221,14 @@ bool WinFileSystemAccess::setmtimelocal(const LocalPath& namePath, m_time_t mtim
 
     CloseHandle(hFile);
 
-    return r;
+    return r != 0;
 }
 
 bool WinFileSystemAccess::chdirlocal(LocalPath& namePath) const
 {
     assert(namePath.isAbsolute());
     int r = SetCurrentDirectoryW(namePath.localpath.c_str());
-    return r;
+    return r != 0;
 }
 
 bool WinFileSystemAccess::expanselocalpath(const LocalPath& pathArg, LocalPath& absolutepathArg)

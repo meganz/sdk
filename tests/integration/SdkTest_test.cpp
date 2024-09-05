@@ -8093,7 +8093,14 @@ TEST_F(SdkTest, SdkTestCloudraidStreamingSoakTest)
 
         LOG_info << "beginning stream test, " << start << " to " << end << "(len " << end - start << ") " << (nonraid ? " non-raid " : " RAID ") << (!nonraid ? (smallpieces ? " smallpieces " : "normalpieces") : "");
 
-        CheckStreamedFile_MegaTransferListener* p = StreamRaidFilePart(megaApi[0].get(), start, end, !nonraid, smallpieces, nimported, nonRaidNode, compareDecryptedData.data());
+        CheckStreamedFile_MegaTransferListener* p = StreamRaidFilePart(megaApi[0].get(),
+                                                                       start,
+                                                                       end,
+                                                                       !nonraid,
+                                                                       smallpieces != 0,
+                                                                       nimported,
+                                                                       nonRaidNode,
+                                                                       compareDecryptedData.data());
 
         for (unsigned i = 0; p->comparedEqual; ++i)
         {

@@ -2417,7 +2417,7 @@ std::unique_ptr<SqliteDbAccess::MigrateType> SqliteDbAccess::MTimeType::fromNode
 
 bool SqliteDbAccess::MTimeType::hasValidValue() const
 {
-    return mValue;
+    return mValue != 0;
 }
 
 SqliteDbAccess::LabelType::LabelType(int value):
@@ -2483,7 +2483,7 @@ std::unique_ptr<SqliteDbAccess::MigrateType>
 
 bool SqliteDbAccess::DescriptionType::hasValidValue() const
 {
-    return mValue.size();
+    return mValue.size() > 0;
 }
 
 SqliteDbAccess::TagsType::TagsType(const string& value):
@@ -2521,7 +2521,7 @@ std::unique_ptr<SqliteDbAccess::MigrateType> SqliteDbAccess::TagsType::fromNodeD
 
 bool SqliteDbAccess::TagsType::hasValidValue() const
 {
-    return mValue.size();
+    return mValue.size() > 0;
 }
 
 } // namespace

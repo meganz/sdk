@@ -864,7 +864,7 @@ fs::path getLinkExtractSrciptPath() {
 
 bool isFileHidden(const LocalPath& path)
 {
-    return FileSystemAccess::isFileHidden(path);
+    return FileSystemAccess::isFileHidden(path) != 0;
 }
 
 bool isFileHidden(const fs::path& path)

@@ -781,7 +781,7 @@ bool MountDB::enabled(const LocalPath& path) const
     MountDBLock guard(*this);
 
     // Is a mount with this path enabled?
-    return mByPath.count(path);
+    return mByPath.count(path) > 0;
 }
 
 void MountDB::executorFlags(const TaskExecutorFlags& flags)

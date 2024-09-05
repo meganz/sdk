@@ -751,7 +751,13 @@ public:
                                     const unsigned int timeout_sec = maxTimeout);
 #endif
 
-    template<typename ... requestArgs> bool doSetMaxConnections(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->setMaxConnections(args..., &rt); return rt.waitForResult(); }
+    template<typename... requestArgs>
+    ErrorCodes doSetMaxConnections(unsigned apiIndex, requestArgs... args)
+    {
+        RequestTracker rt(megaApi[apiIndex].get());
+        megaApi[apiIndex]->setMaxConnections(args..., &rt);
+        return rt.waitForResult();
+    }
     /**
      * @brief Download a file from a URL using cURL
      *

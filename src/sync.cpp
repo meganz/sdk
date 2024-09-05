@@ -12878,7 +12878,8 @@ void Syncs::processSyncConflicts()
 {
     assert(onSyncThread());
 
-    bool conflictsNow = conflictsDetectedCount(1); // We only need to know if we have at least 1 conflict
+    bool conflictsNow =
+        conflictsDetectedCount(1) > 0; // We only need to know if we have at least 1 conflict
     if (conflictsNow != syncConflictState)
     {
         assert(onSyncThread());

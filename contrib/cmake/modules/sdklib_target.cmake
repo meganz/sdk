@@ -378,6 +378,7 @@ target_platform_compile_options(
             /wd4324 # structure was padded due to alignment specifier (common in Sodium)
             /wd4456 # declaration hides previous local declaration
             /wd4266 # derived class did not override all overloads of a virtual function
+            /we4800 # Implicit conversion from 'type' to bool. Possible information loss
             #TODO: remove some of those gradually.  also consider: /wd4503 /wd4996 /wd4702
     UNIX $<$<CONFIG:Debug>:-ggdb3> -Wall -Wextra -Wconversion -Wno-unused-parameter
 )

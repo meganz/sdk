@@ -1380,7 +1380,7 @@ void NodeManager::notifyPurge()
 bool NodeManager::hasCacheLoaded()
 {
     LockGuard g(mMutex);
-    return mNodes.size();
+    return mNodes.size() > 0;
 }
 
 bool NodeManager::loadNodes()

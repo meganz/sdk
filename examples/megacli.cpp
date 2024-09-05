@@ -7504,7 +7504,7 @@ void exec_chatc(autocomplete::ACState& s)
             numUsers++;
         }
 
-        client->createChat(group, false, userpriv);
+        client->createChat(group != 0, false, userpriv);
         delete userpriv;
     }
 }

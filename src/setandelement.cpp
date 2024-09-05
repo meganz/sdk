@@ -265,7 +265,7 @@ namespace mega {
             mAttrs.swap(s.mAttrs);
         }
 
-        return changes();
+        return changes() > 0;
     }
 
     void Set::setChanged(int changeType)
@@ -293,7 +293,7 @@ namespace mega {
             mAttrs.swap(el.mAttrs);
         }
 
-        return changes();
+        return changes() > 0;
     }
 
     void SetElement::setChanged(int changeType)
