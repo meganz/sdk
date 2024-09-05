@@ -112,6 +112,16 @@ NS_ASSUME_NONNULL_BEGIN
  */
 - (nullable NSString *)iOSIDAtProductIndex:(NSInteger)index;
 
+/**
+ * @brief Get trial duration in days
+ *
+ * The returned value will be 0 if the plan is not eligible for trial.
+ *
+ * @param index Product index (from 0 to [MEGAPricing products])
+ * @return Trial duration in days
+ */
+- (unsigned int)trialDurationInDaysAtProductIndex:(NSInteger)index;
+
 NS_ASSUME_NONNULL_END
 
 @end
