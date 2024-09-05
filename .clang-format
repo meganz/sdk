@@ -1,5 +1,18 @@
 # clang-format 14 style configuration
+
+# Common settings
+ColumnLimit: 100
+TabWidth: 4
+IndentWidth: 4
+UseCRLF: false
+UseTab: Never
+
 ---
+Language: Cpp
+
+DisableFormat: false
+Standard: Auto
+
 #BasedOnStyle:
 AccessModifierOffset: -4
 AlignAfterOpenBracket: Align
@@ -12,7 +25,6 @@ AlignEscapedNewlines: DontAlign
 AlignOperands: Align
 AlignTrailingComments: false
 AllowAllArgumentsOnNextLine: false
-#AllowAllConstructorInitializersOnNextLine:
 AllowAllParametersOfDeclarationOnNextLine: false
 AllowShortBlocksOnASingleLine: Empty
 AllowShortCaseLabelsOnASingleLine: false
@@ -21,10 +33,10 @@ AllowShortFunctionsOnASingleLine: Empty
 AllowShortIfStatementsOnASingleLine: Never
 AllowShortLambdasOnASingleLine: Empty
 AllowShortLoopsOnASingleLine: false
-#AlwaysBreakAfterDefinitionReturnType:
 AlwaysBreakAfterReturnType: None
 AlwaysBreakBeforeMultilineStrings: false
 AlwaysBreakTemplateDeclarations: Yes
+
 #AttributeMacros:
 BinPackArguments: false
 BinPackParameters: false
@@ -48,6 +60,7 @@ BraceWrapping:
   SplitEmptyFunction: false
   SplitEmptyRecord: false
   SplitEmptyNamespace: false
+
 #BreakAfterJavaFieldAnnotations:
 BreakBeforeBinaryOperators: None
 BreakBeforeBraces: Custom
@@ -56,7 +69,7 @@ BreakBeforeTernaryOperators: false
 BreakConstructorInitializers: AfterColon
 BreakInheritanceList: AfterColon
 BreakStringLiterals: true
-ColumnLimit: 100
+
 #CommentPragmas:
 CompactNamespaces: false
 #ConstructorInitializerAllOnOneLineOrOnePerLine:
@@ -65,7 +78,6 @@ ContinuationIndentWidth: 4
 Cpp11BracedListStyle: true
 DeriveLineEnding: false
 DerivePointerAlignment: false
-DisableFormat: false
 EmptyLineAfterAccessModifier: Never
 EmptyLineBeforeAccessModifier: Always
 ExperimentalAutoDetectBinPacking: false
@@ -85,6 +97,7 @@ IncludeCategories:
     Priority: 1
 #IncludeIsMainRegex:
 #IncludeIsMainSourceRegex:
+
 IndentAccessModifiers: false
 IndentCaseBlocks: false
 IndentCaseLabels: true
@@ -92,25 +105,26 @@ IndentExternBlock: Indent
 IndentGotoLabels: false
 IndentPPDirectives: None
 IndentRequires: false
-IndentWidth: 4
 IndentWrappedFunctionNames: true
+
 InsertTrailingCommas: Wrapped
 #JavaImportGroups:
 #JavaScriptQuotes:
 #JavaScriptWrapImports:
 KeepEmptyLinesAtTheStartOfBlocks: false
 LambdaBodyIndentation: Signature
-Language: Cpp
 #MacroBlockBegin:
 #MacroBlockEnd:
 MaxEmptyLinesToKeep: 1
 NamespaceIndentation: None
 #NamespaceMacros:
+
 #ObjCBinPackProtocolList:
 #ObjCBlockIndentWidth:
 #ObjCBreakBeforeNestedBlockParam:
 #ObjCSpaceAfterProperty:
 #ObjCSpaceBeforeProtocolList:
+
 PPIndentWidth: 0
 PackConstructorInitializers: Never
 #PenaltyBreakAssignment:
@@ -123,6 +137,7 @@ PackConstructorInitializers: Never
 #PenaltyExcessCharacter:
 #PenaltyIndentedWhitespace:
 PenaltyReturnTypeOnItsOwnLine: 100
+
 PointerAlignment: Left
 QualifierAlignment: Leave
 #QualifierOrder:
@@ -135,6 +150,7 @@ SeparateDefinitionBlocks: Always
 SortIncludes: CaseInsensitive
 #SortJavaStaticImport:
 SortUsingDeclarations: true
+
 SpaceAfterCStyleCast: false
 SpaceAfterLogicalNot: false
 SpaceAfterTemplateKeyword: false
@@ -160,13 +176,11 @@ SpacesInLineCommentPrefix:
   Maximum: 1
 SpacesInParentheses: false
 SpacesInSquareBrackets: false
-Standard: Auto
+
 #StatementAttributeLikeMacros:
 #StatementMacros:
-TabWidth: 4
 #TypenameMacros:
-UseCRLF: false
-UseTab: Never
+
 #WhitespaceSensitiveMacros:
 ...
 ---
