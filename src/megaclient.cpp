@@ -14989,10 +14989,56 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
                     loadAuthrings();
                 }
 
-                // FetchNodes procresult() needs some data from `ug` (or it may try to make new Sync User Attributes for example)
-                // So only submit the request after `ug` completes, otherwise everything is interleaved
-                const auto partialFetchRoot = isClientType(ClientType::PASSWORD_MANAGER) ? getPasswordManagerBase() : NodeHandle{};
-                reqs.add(new CommandFetchNodes(this, fetchtag, nocache, loadSyncs, partialFetchRoot));
+                // FetchNodes procresult() needs some data from `ug` (or it may try to make new Sync
+                // User Attributes for example) So only submit the request after `ug` completes,
+                // otherwise everything is interleaved
+                const auto partialFetchRoot = isClientType(ClientType::PASSWORD_MANAGER) ?
+                                                  getPasswordManagerBase() :
+                                                  NodeHandle{};
+
+                if (!isClientType(ClientType::PASSWORD_MANAGER) ||
+                    (isClientType(ClientType::PASSWORD_MANAGER) && !partialFetchRoot.isUndef()))
+                {
+                    reqs.add(new CommandFetchNodes(this,
+                                                   fetchtag,
+                                                   nocache,
+                                                   loadSyncs,
+                                                   partialFetchRoot));
+                }
+                else
+                {
+                    createPasswordManagerBase(
+                        fetchtag,
+                        [this, fetchtag, nocache, loadSyncs](Error e,
+                                                             std::unique_ptr<NewNode> newNode)
+                        {
+                            if (e != API_OK)
+                                app->fetchnodes_result(e);
+                            else if (newNode)
+                            {
+                                reqs.add(new CommandFetchNodes(this,
+                                                               fetchtag,
+                                                               nocache,
+                                                               loadSyncs,
+                                                               newNode->nodeHandle()));
+
+                                // Force request attribute, attribute change isn't received,
+                                // it's generated before fetch nodes
+                                reqs.add(new CommandGetUA(this,
+                                                          ownuser()->uid.c_str(),
+                                                          ATTR_PWM_BASE,
+                                                          nullptr,
+                                                          -1,
+                                                          nullptr,
+                                                          nullptr,
+                                                          nullptr));
+                            }
+                            else
+                            {
+                                assert(false);
+                            }
+                        });
+                }
             });
 
             fetchtimezone();
