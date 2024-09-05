@@ -112,4 +112,8 @@ using namespace mega;
     return [megaStringList toStringArray];
 }
 
+- (BOOL)isTrial {
+    return self.megaAccountSubscription ? self.megaAccountSubscription->isTrial() : NO;
+}
+
 @end
