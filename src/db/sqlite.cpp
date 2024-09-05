@@ -2335,6 +2335,7 @@ void SqliteAccountState::getSizeFromNodeCounter(sqlite3_context* context,
     if (!blob)
     {
         LOG_err << "getSizeFromNodeCounter: invalid FromNodeCounter blob";
+        sqlite3_result_int64(context, -1);
         return;
     }
     const auto blobSize = sqlite3_value_bytes(argv[0]);
