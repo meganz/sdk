@@ -3630,9 +3630,6 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                     // (none of those attributes are used by the SDK yet)
                     // bool nonHistoric = (attributename.at(1) == '!');
 
-                    // handle the attribute data depending on the scope
-                    char scope = User::scope(at);
-
                     if (!u) // retrieval of attributes without contact-relationship
                     {
                         if (at == ATTR_AVATAR && buf == "none")
@@ -3646,9 +3643,10 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                         return true;
                     }
 
-                    switch (scope)
+                    // handle attribute data depending on the scope
+                    switch (User::scope(at))
                     {
-                        case '*':   // private, encrypted
+                        case ATTR_SCOPE_PRIVATE_ENCRYPTED:
                         {
                             // decrypt the data and build the TLV records
                             std::unique_ptr<TLVstore> tlvRecords { TLVstore::containerToTLVrecords(&value, &client->key) };
@@ -3665,7 +3663,7 @@ bool CommandGetUA::procresult(Result r, JSON& json)
 
                             break;
                         }
-                        case '+':   // public
+                        case ATTR_SCOPE_PUBLIC:
                         {
                             u->setattr(at, &value, &version);
                             mCompletionBytes((byte*) value.data(), unsigned(value.size()), at);
@@ -3683,13 +3681,13 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                             }
                             break;
                         }
-                        case '#':   // protected
+                        case ATTR_SCOPE_PROTECTED:
                         {
                             u->setattr(at, &value, &version);
                             mCompletionBytes((byte*) value.data(), unsigned(value.size()), at);
                             break;
                         }
-                        case '^': // private, non-encrypted
+                        case ATTR_SCOPE_PRIVATE:
                         {
                             if (at == ATTR_KEYS && !client->mKeyManager.fromKeysContainer(value))
                             {

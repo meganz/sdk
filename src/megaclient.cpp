@@ -12607,7 +12607,7 @@ bool MegaClient::getua(User* u, const attr_t at, int ctag, mega::CommandGetUA::C
 
         if (cachedav && u->isattrvalid(at))
         {
-            if (User::scope(at) == '*') // private attribute, TLV encoding
+            if (User::scope(at) == ATTR_SCOPE_PRIVATE_ENCRYPTED) // TLV encoding
             {
                 TLVstore *tlv = TLVstore::containerToTLVrecords(cachedav, &key);
                 restag = tag;

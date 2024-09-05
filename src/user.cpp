@@ -1000,55 +1000,7 @@ int User::needversioning(attr_t at)
 
 char User::scope(attr_t at)
 {
-    switch(at)
-    {
-        case ATTR_KEYRING:
-        case ATTR_AUTHRING:
-        case ATTR_AUTHCU255:
-        case ATTR_LAST_INT:
-        case ATTR_RICH_PREVIEWS:
-        case ATTR_GEOLOCATION:
-        case ATTR_CAMERA_UPLOADS_FOLDER:
-        case ATTR_MY_CHAT_FILES_FOLDER:
-        case ATTR_UNSHAREABLE_KEY:
-        case ATTR_ALIAS:
-        case ATTR_DEVICE_NAMES:
-        case ATTR_JSON_SYNC_CONFIG_DATA:
-        case ATTR_APPS_PREFS:
-        case ATTR_CC_PREFS:
-            return '*';
-
-        case ATTR_AVATAR:
-        case ATTR_ED25519_PUBK:
-        case ATTR_CU25519_PUBK:
-        case ATTR_SIG_RSA_PUBK:
-        case ATTR_SIG_CU255_PUBK:
-            return '+';
-
-        case ATTR_LANGUAGE:
-        case ATTR_PWD_REMINDER:
-        case ATTR_DISABLE_VERSIONS:
-        case ATTR_NO_CALLKIT:
-        case ATTR_CONTACT_LINK_VERIFICATION:
-        case ATTR_LAST_PSA:
-        case ATTR_RUBBISH_TIME:
-        case ATTR_STORAGE_STATE:
-        case ATTR_PUSH_SETTINGS:
-        case ATTR_COOKIE_SETTINGS:
-        case ATTR_MY_BACKUPS_FOLDER:
-        case ATTR_KEYS:
-        case ATTR_VISIBLE_WELCOME_DIALOG:
-        case ATTR_VISIBLE_TERMS_OF_SERVICE:
-        case ATTR_PWM_BASE:
-        case ATTR_ENABLE_TEST_NOTIFICATIONS:
-        case ATTR_LAST_READ_NOTIFICATION:
-        case ATTR_LAST_ACTIONED_BANNER:
-        case ATTR_ENABLE_TEST_SURVEYS:
-            return '^';
-
-        default:
-            return '0';
-    }
+    return UserAttrManager::getAttrScope(at);
 }
 
 bool User::isAuthring(attr_t at)

@@ -6916,7 +6916,13 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_CU25519_PUBLIC_KEY:
         case MegaApi::USER_ATTR_SIG_RSA_PUBLIC_KEY:
         case MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY:
-            scope = '+';
+            scope = ATTR_SCOPE_PUBLIC;
+            break;
+
+        case MegaApi::USER_ATTR_FIRSTNAME:
+        case MegaApi::USER_ATTR_LASTNAME:
+            // legacy, without a prefix for scope
+            scope = ATTR_SCOPE_PROTECTED;
             break;
 
         case MegaApi::USER_ATTR_AUTHRING:
@@ -6930,7 +6936,7 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_DEVICE_NAMES:
         case MegaApi::USER_ATTR_APPS_PREFS:
         case MegaApi::USER_ATTR_CC_PREFS:
-            scope = '*';
+            scope = ATTR_SCOPE_PRIVATE_ENCRYPTED;
             break;
 
         case MegaApi::USER_ATTR_LANGUAGE:
@@ -6950,17 +6956,12 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_LAST_READ_NOTIFICATION:
         case MegaApi::USER_ATTR_LAST_ACTIONED_BANNER:
         case MegaApi::USER_ATTR_ENABLE_TEST_SURVEYS:
-            scope = '^';
+            scope = ATTR_SCOPE_PRIVATE;
             break;
 
         default:
             LOG_err << "Getting invalid scope";
-            [[fallthrough]];
-
-        case MegaApi::USER_ATTR_FIRSTNAME:
-        case MegaApi::USER_ATTR_LASTNAME:
-            // legacy, without a prefix for scope
-            scope = 0;
+            scope = ATTR_SCOPE_UNKNOWN;
             break;
     }
 
@@ -20806,7 +20807,7 @@ error MegaApiImpl::performRequest_getAttrUser(MegaRequestPrivate* request)
 
             if (!user)  // email/handle not found among (ex)contacts
             {
-                if (scope == '*' || scope == '#')
+                if (scope == ATTR_SCOPE_PRIVATE_ENCRYPTED || scope == ATTR_SCOPE_PROTECTED)
                 {
                     LOG_warn << "Cannot retrieve private/protected attributes from users other than yourself.";
                     return API_EACCESS;
@@ -20825,7 +20826,7 @@ error MegaApiImpl::performRequest_getAttrUser(MegaRequestPrivate* request)
             }
 
             // if attribute is private and user is not logged in user...
-            if (scope == '*' && user->userhandle != client->me)
+            if (scope == ATTR_SCOPE_PRIVATE_ENCRYPTED && user->userhandle != client->me)
             {
                 return API_EACCESS;
             }
@@ -20916,7 +20917,7 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                     return API_OK;
                 }
             }
-            else if (scope == '*')   // private attribute
+            else if (scope == ATTR_SCOPE_PRIVATE_ENCRYPTED)
             {
                 if (type == ATTR_DEVICE_NAMES && request->getFlag()) // external drive
                 {
@@ -21015,7 +21016,7 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                 }
                 return API_OK;
             }
-            else if (scope == '^')
+            else if (scope == ATTR_SCOPE_PRIVATE)
             {
                 if (type == ATTR_LANGUAGE)
                 {
