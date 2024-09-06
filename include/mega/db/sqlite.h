@@ -92,7 +92,7 @@ public:
                               NodeHandle& handle) override;
     // getRecentNodes() is for the deprecated method MegaClient::getRecentActions without
     // excludeSensitives flag
-    bool getRecentNodes(unsigned maxcount,
+    bool getRecentNodes(const NodeSearchPage& page,
                         m_time_t since,
                         std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) override;
     bool getFavouritesHandles(NodeHandle node, uint32_t count, std::vector<mega::NodeHandle>& nodes) override;

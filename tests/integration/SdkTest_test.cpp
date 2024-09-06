@@ -8144,180 +8144,115 @@ TEST_F(SdkTest, SdkTestCloudraidStreamingSoakTest)
 #endif
 }
 
-void SdkTest::testRecents(const std::string& title, bool useSensitiveExclusion)
-{
-    LOG_info << title;
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-
-    std::unique_ptr<MegaNode> rootnode(megaApi[0]->getRootNode());
-
-    // upload file1
-    const string filename1 = UPFILE;
-    deleteFile(filename1);
-    ASSERT_TRUE(createFile(filename1, false)) << "Couldn't create " << filename1;
-    auto err = doStartUpload(0, nullptr, filename1.c_str(),
-                                      rootnode.get(),
-                                      nullptr /*fileName*/,
-                                      ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                                      nullptr /*appData*/,
-                                      false   /*isSourceTemporary*/,
-                                      false   /*startFirst*/,
-                                      nullptr /*cancelToken*/);
-    ASSERT_EQ(API_OK, err) << "Cannot upload a test file (error: " << err << ")";
-    WaitMillisec(1000);
-
-    // upload a backup of file1
-    const string filename1bkp1 = filename1 + ".bkp1";
-    deleteFile(filename1bkp1);
-    createFile(filename1bkp1, false);
-    err = doStartUpload(0, nullptr, filename1bkp1.c_str(), rootnode.get(),
-                        nullptr /*fileName*/,
-                        ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                        nullptr /*appData*/,
-                        false   /*isSourceTemporary*/,
-                        false   /*startFirst*/,
-                        nullptr /*cancelToken*/);
-
-    ASSERT_EQ(MegaError::API_OK, err) << "Cannot upload test file " + filename1bkp1 + ", (error: " << err << ")";
-    deleteFile(filename1bkp1);
-
-    // upload a second backup of file1
-    const string filename1bkp2 = filename1 + ".bkp2";
-    deleteFile(filename1bkp2);
-    createFile(filename1bkp2, false);
-    err = doStartUpload(0, nullptr, filename1bkp2.c_str(), rootnode.get(),
-                        nullptr /*fileName*/,
-                        ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                        nullptr /*appData*/,
-                        false   /*isSourceTemporary*/,
-                        false   /*startFirst*/,
-                        nullptr /*cancelToken*/);
-
-    ASSERT_EQ(MegaError::API_OK, err) << "Cannot upload test file " + filename1bkp2 + ", (error: " << err << ")";
-    deleteFile(filename1bkp2);
-
-    // modify file1
-    ofstream f(filename1);
-    f << "update";
-    f.close();
-
-    err = doStartUpload(0, nullptr, filename1.c_str(),
-                                 rootnode.get(),
-                                 nullptr /*fileName*/,
-                                 ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                                 nullptr /*appData*/,
-                                 false   /*isSourceTemporary*/,
-                                 false   /*startFirst*/,
-                                 nullptr /*cancelToken*/);
-
-    ASSERT_EQ(API_OK, err) << "Cannot upload an updated test file (error: " << err << ")";
-
-    WaitMillisec(1000);
-    synchronousCatchup(0);
-
-    // upload file2
-    const string filename2 = DOWNFILE;
-    deleteFile(filename2);
-    ASSERT_TRUE(createFile(filename2, false)) << "Couldn't create " << filename2;
-    err = doStartUpload(0, nullptr, filename2.c_str(),
-                                 rootnode.get(),
-                                 nullptr /*fileName*/,
-                                 ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                                 nullptr /*appData*/,
-                                 false   /*isSourceTemporary*/,
-                                 false   /*startFirst*/,
-                                 nullptr /*cancelToken*/);
-    ASSERT_EQ(API_OK, err) << "Cannot upload a test file2 (error: " << err << ")";
-
-    WaitMillisec(1000);
-
-    // modify file2
-    ofstream f2(filename2);
-    f2 << "update";
-    f2.close();
-
-    err = doStartUpload(0, nullptr, filename2.c_str(),
-                                 rootnode.get(),
-                                 nullptr /*fileName*/,
-                                 ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                                 nullptr /*appData*/,
-                                 false   /*isSourceTemporary*/,
-                                 false   /*startFirst*/,
-                                 nullptr /*cancelToken*/);
-
-    ASSERT_EQ(API_OK, err) << "Cannot upload an updated test file2 (error: " << err << ")";
-
-    synchronousCatchup(0);
-
-    const auto& getRecentActionsStartTime = std::chrono::steady_clock::now();
-    RequestTracker tracker(megaApi[0].get());
-    if (useSensitiveExclusion)
-    {
-        // Sensitive exclusion has different code paths than the previous legacy function,
-        // hence why we cannot just pass the parameter with "false".
-        megaApi[0]->getRecentActionsAsync(1, 10, true, &tracker);
-    }
-    else
-    {
-        megaApi[0]->getRecentActionsAsync(1, 10, &tracker);
-    }
-    ASSERT_EQ(tracker.waitForResult(), API_OK);
-    std::unique_ptr<MegaRecentActionBucketList> buckets{
-        tracker.request->getRecentActions()->copy()};
-    ASSERT_TRUE(buckets != nullptr);
-
-    const auto& getRecentActionsEndTime = std::chrono::steady_clock::now();
-    auto getRecentActionsTime = std::chrono::duration_cast<std::chrono::microseconds>(
-                                    getRecentActionsEndTime - getRecentActionsStartTime)
-                                    .count();
-    LOG_debug << "[SdkTest::testRecents] getRecentActionsTime = " << getRecentActionsTime
-              << " us [buckets->size() = " << buckets->size() << "]";
-
-    for (int i = 0; i < buckets->size(); ++i)
-    {
-        auto bucketMsg = "bucket " + to_string(i) + ':';
-        megaApi[0]->log(MegaApi::LOG_LEVEL_DEBUG, bucketMsg.c_str());
-
-        auto bucket = buckets->get(i);
-        for (int j = 0; j < bucket->getNodes()->size(); ++j)
-        {
-            auto node = bucket->getNodes()->get(j);
-            auto nodeMsg = '[' + to_string(j) + "] " + node->getName() + " ctime:" + to_string(node->getCreationTime()) +
-                " timestamp:" + to_string(bucket->getTimestamp()) + " handle:" + to_string(node->getHandle()) +
-                " isUpdate:" + to_string(bucket->isUpdate()) + " isMedia:" + to_string(bucket->isMedia());
-            megaApi[0]->log(MegaApi::LOG_LEVEL_DEBUG, nodeMsg.c_str());
-        }
-    }
-
-    ASSERT_TRUE(buckets->size() > 1);
-
-    ASSERT_TRUE(buckets->get(0)->getNodes()->size() > 1);
-
-    MegaNode* n_0_0 = buckets->get(0)->getNodes()->get(0);
-    MegaNode* n_0_1 = buckets->get(0)->getNodes()->get(1);
-    ASSERT_TRUE(filename2 == n_0_0->getName() ||
-                (n_0_0->getCreationTime() == n_0_1->getCreationTime() && filename2 == n_0_1->getName()));
-    ASSERT_TRUE(filename1 == n_0_1->getName() ||
-                (n_0_0->getCreationTime() == n_0_1->getCreationTime() && filename1 == n_0_0->getName()));
-
-    ASSERT_TRUE(buckets->get(1)->getNodes()->size() > 1);
-
-    MegaNode* n_1_0 = buckets->get(1)->getNodes()->get(0);
-    MegaNode* n_1_1 = buckets->get(1)->getNodes()->get(1);
-    ASSERT_TRUE(filename1bkp2 == n_1_0->getName() ||
-                (n_1_0->getCreationTime() == n_1_1->getCreationTime() && filename1bkp2 == n_1_1->getName()));
-    ASSERT_TRUE(filename1bkp1 == n_1_1->getName() ||
-                (n_1_0->getCreationTime() == n_1_1->getCreationTime() && filename1bkp1 == n_1_0->getName()));
-}
-
-TEST_F(SdkTest, SdkRecentsTestLegacyWithoutSensitiveExclusion)
-{
-    testRecents("___TEST SdkRecentsTestLegacyWithoutSensitiveExclusion___", false);
-}
-
 TEST_F(SdkTest, SdkRecentsTest)
 {
-    testRecents("___TEST SdkRecentsTest___", true);
+    LOG_info << "___TEST SdkRecentsTest___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    const auto updloadFile =
+        [this, rootnode = std::unique_ptr<MegaNode>(megaApi[0]->getRootNode())](
+            const std::string& fname,
+            const std::string_view contents)
+    {
+        deleteFile(fname);
+        sdk_test::LocalTempFile f(fname, contents);
+        auto err = doStartUpload(0,
+                                 nullptr,
+                                 fname.c_str(),
+                                 rootnode.get(),
+                                 nullptr /*fileName*/,
+                                 ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                 nullptr /*appData*/,
+                                 false /*isSourceTemporary*/,
+                                 false /*startFirst*/,
+                                 nullptr /*cancelToken*/);
+        ASSERT_EQ(API_OK, err) << "Cannot upload test file [" << fname << "] (error: " << err
+                               << ")";
+    };
+
+    const auto bucketsToVec =
+        [](const MegaRecentActionBucketList& buckets) -> std::vector<std::vector<std::string>>
+    {
+        std::vector<std::vector<std::string>> result;
+        for (int i = 0; i < buckets.size(); ++i)
+        {
+            auto bucketNodes = buckets.get(i)->getNodes();
+            if (!bucketNodes)
+                continue;
+            std::vector<std::string> bucketInfo;
+            for (int j = 0; j < bucketNodes->size(); ++j)
+            {
+                bucketInfo.emplace_back(bucketNodes->get(j)->getName());
+            }
+            result.emplace_back(std::move(bucketInfo));
+        }
+        return result;
+    };
+
+    const std::string filename1 = UPFILE;
+    const std::string filename1bkp1 = filename1 + ".bkp1";
+    const std::string filename1bkp2 = filename1 + ".bkp2";
+    const std::string filename2 = DOWNFILE;
+    // Delays are added to ensure ordering in recent actions
+    LOG_debug << "# SdkRecentsTest: uploading file " << filename1;
+    updloadFile(filename1, "");
+    WaitMillisec(1000);
+
+    LOG_debug << "# SdkRecentsTest: uploading file " << filename1bkp1;
+    updloadFile(filename1bkp1, "");
+    WaitMillisec(1000);
+
+    LOG_debug << "# SdkRecentsTest: uploading file " << filename1bkp2;
+    updloadFile(filename1bkp2, "");
+    WaitMillisec(1000);
+
+    LOG_debug << "# SdkRecentsTest: updating file " << filename1;
+    updloadFile(filename1, "update");
+    WaitMillisec(1000);
+
+    synchronousCatchup(0);
+
+    LOG_debug << "# SdkRecentsTest: Marking file " << filename1 << " as sensitive";
+    std::unique_ptr<MegaNode> f1node(megaApi[0]->getNodeByPath(("/" + filename1).c_str()));
+    ASSERT_NE(f1node, nullptr);
+    ASSERT_EQ(synchronousSetNodeSensitive(0, f1node.get(), true), API_OK)
+        << "Error marking file as sensitive";
+
+    LOG_debug << "# SdkRecentsTest: uploading file " << filename2;
+    updloadFile(filename2, "");
+    WaitMillisec(1000);
+
+    LOG_debug << "# SdkRecentsTest: updating file " << filename2;
+    updloadFile(filename2, "update");
+
+    synchronousCatchup(0);
+
+    LOG_debug << "# SdkRecentsTest: Get all recent actions (no exclusion)";
+    RequestTracker trackerAll(megaApi[0].get());
+    megaApi[0]->getRecentActionsAsync(1, 10, false, &trackerAll);
+
+    ASSERT_EQ(trackerAll.waitForResult(), API_OK);
+    std::unique_ptr<MegaRecentActionBucketList> buckets{
+        trackerAll.request->getRecentActions()->copy()};
+
+    ASSERT_TRUE(buckets != nullptr);
+    auto bucketsVec = bucketsToVec(*buckets);
+    ASSERT_TRUE(bucketsVec.size() > 1);
+    EXPECT_THAT(bucketsVec[0], testing::ElementsAre(filename2, filename1));
+    EXPECT_THAT(bucketsVec[1], testing::ElementsAre(filename1bkp2, filename1bkp1));
+
+    LOG_debug << "# SdkRecentsTest: Get recent actions excluding sensitive nodes";
+    RequestTracker trackerExclude(megaApi[0].get());
+    megaApi[0]->getRecentActionsAsync(1, 10, true, &trackerExclude);
+
+    ASSERT_EQ(trackerExclude.waitForResult(), API_OK);
+    buckets.reset(trackerExclude.request->getRecentActions()->copy());
+
+    ASSERT_TRUE(buckets != nullptr);
+    bucketsVec = bucketsToVec(*buckets);
+    ASSERT_TRUE(bucketsVec.size() > 1);
+    EXPECT_THAT(bucketsVec[0], testing::ElementsAre(filename2));
+    EXPECT_THAT(bucketsVec[1], testing::ElementsAre(filename1bkp2, filename1bkp1));
 }
 
 #if !USE_FREEIMAGE

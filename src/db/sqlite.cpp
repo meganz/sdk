@@ -2004,7 +2004,7 @@ bool SqliteAccountState::getNodeByFingerprint(const std::string &fingerprint, me
     return result;
 }
 
-bool SqliteAccountState::getRecentNodes(unsigned maxcount,
+bool SqliteAccountState::getRecentNodes(const NodeSearchPage& page,
                                         m_time_t since,
                                         std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes)
 {
@@ -2013,15 +2013,16 @@ bool SqliteAccountState::getRecentNodes(unsigned maxcount,
         return false;
     }
 
-    const std::string filenode = std::to_string(FILENODE);
-    uint64_t excludeFlags = (1 << Node::FLAGS_IS_VERSION | 1 << Node::FLAGS_IS_IN_RUBBISH);
-    std::string sqlQuery = "SELECT n1.nodehandle, n1.counter, n1.node "
-                           "FROM nodes n1 "
-                           "WHERE n1.flags & " +
-                           std::to_string(excludeFlags) +
-                           " = 0 AND n1.ctime >= ? AND n1.type = " + filenode +
-                           " "
-                           "ORDER BY n1.ctime DESC LIMIT ?";
+    constexpr uint64_t excludeFlags =
+        (1 << Node::FLAGS_IS_VERSION | 1 << Node::FLAGS_IS_IN_RUBBISH);
+    static const std::string filenode = std::to_string(FILENODE);
+    static const std::string sqlQuery = "SELECT n1.nodehandle, n1.counter, n1.node "
+                                        "FROM nodes n1 "
+                                        "WHERE n1.flags & " +
+                                        std::to_string(excludeFlags) +
+                                        " = 0 AND n1.ctime >= ?1 AND n1.type = " + filenode +
+                                        " "
+                                        "ORDER BY n1.ctime DESC LIMIT ?2 OFFSET ?3";
 
     int sqlResult = SQLITE_OK;
     if (!mStmtRecents)
@@ -2030,18 +2031,13 @@ bool SqliteAccountState::getRecentNodes(unsigned maxcount,
     }
 
     bool stepResult = false;
-    if (sqlResult == SQLITE_OK)
+    const int64_t nodeCount = page.size() ? static_cast<int64_t>(page.size()) : -1;
+    const int64_t offset = static_cast<int64_t>(page.startingOffset());
+    if (sqlResult == SQLITE_OK && sqlResult == sqlite3_bind_int64(mStmtRecents, 1, since) &&
+        sqlResult == sqlite3_bind_int64(mStmtRecents, 2, nodeCount) &&
+        sqlResult == sqlite3_bind_int64(mStmtRecents, 3, offset))
     {
-        if (sqlResult == sqlite3_bind_int64(mStmtRecents, 1, since))
-        {
-            // LIMIT expression evaluates to a negative value, then there is no upper bound on the
-            // number of rows returned
-            int64_t nodeCount = (maxcount > 0) ? static_cast<int64_t>(maxcount) : -1;
-            if (sqlResult == sqlite3_bind_int64(mStmtRecents, 2, nodeCount))
-            {
-                stepResult = processSqlQueryNodes(mStmtRecents, nodes);
-            }
-        }
+        stepResult = processSqlQueryNodes(mStmtRecents, nodes);
     }
 
     if (sqlResult != SQLITE_OK)

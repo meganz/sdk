@@ -761,6 +761,7 @@ public:
 
     static constexpr char NODE_ATTRIBUTE_DESCRIPTION[] = "des";
     static constexpr char NODE_ATTRIBUTE_TAGS[] = "t";
+    static constexpr char NODE_ATTR_SEN[] = "sen";
     static constexpr char TAG_DELIMITER = ',';
     static constexpr uint32_t MAX_NUMBER_TAGS = 10;
     static constexpr uint32_t MAX_TAGS_SIZE = 3000;
@@ -1924,12 +1925,8 @@ private:
 public:
     // get a vector of recent actions in the account
     recentactions_vector getRecentActions(unsigned maxcount,
-                                          m_time_t since); // Old getRecentActions behavior without
-                                                           // newer excludeSensitive functionality
-
-    recentactions_vector getRecentActions(unsigned maxcount,
                                           m_time_t since,
-                                          bool excludeSensitives);
+                                          bool excludeSensitives = true);
 
     // determine if the file is a video, photo, or media (video or photo).  If the extension (with trailing .) is not precalculated, pass null
     bool nodeIsMedia(const Node*, bool *isphoto, bool *isvideo) const;
