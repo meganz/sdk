@@ -623,6 +623,11 @@ TEST_F(SdkTestFilter, SdkGetChildrenInOrder)
     EXPECT_THAT(toNamesVector(*children), ContainsInOrder(expected))
         << "Unexpected sorting for ORDER_DEFAULT_ASC";
 
+    children.reset(megaApi[0]->getChildren(getRootTestDirectory(), MegaApi::ORDER_DEFAULT_ASC));
+    ASSERT_THAT(children, NotNull()) << "getChildren() with parent returned a nullptr";
+    EXPECT_THAT(toNamesVector(*children), ContainsInOrder(expected))
+        << "Unexpected sorting for ORDER_DEFAULT_ASC getChildren with parent";
+
     // Alphabetical inverted, dirs first (reverse independently)
     std::reverse(expected.begin(), expected.begin() + 2);
     std::reverse(expected.begin() + 2, expected.end());
@@ -631,7 +636,12 @@ TEST_F(SdkTestFilter, SdkGetChildrenInOrder)
     EXPECT_THAT(toNamesVector(*children), ContainsInOrder(expected))
         << "Unexpected sorting for ORDER_DEFAULT_DESC";
 
-    // By size, dirs first. Ties break by natural
+    children.reset(megaApi[0]->getChildren(getRootTestDirectory(), MegaApi::ORDER_DEFAULT_DESC));
+    ASSERT_THAT(children, NotNull()) << "getChildren() with parent returned a nullptr";
+    EXPECT_THAT(toNamesVector(*children), ContainsInOrder(expected))
+        << "Unexpected sorting for ORDER_DEFAULT_DESC getChildren with parent";
+
+    // By size, dirs first (but not relevant order for now as size is 0). Ties break by natural
     // sorting
     expected = {
         "Dir2",
@@ -645,6 +655,11 @@ TEST_F(SdkTestFilter, SdkGetChildrenInOrder)
     EXPECT_THAT(toNamesVector(*children), ContainsInOrder(expected))
         << "Unexpected sorting for ORDER_SIZE_ASC";
 
+    children.reset(megaApi[0]->getChildren(getRootTestDirectory(), MegaApi::ORDER_SIZE_ASC));
+    ASSERT_THAT(children, NotNull()) << "getChildren() with parent returned a nullptr";
+    EXPECT_THAT(toNamesVector(*children), ContainsInOrder(expected))
+        << "Unexpected sorting for ORDER_SIZE_ASC getChildren with parent";
+
     // By size inverted, dirs first
     std::reverse(expected.begin(), expected.begin() + 2);
     std::reverse(expected.begin() + 2, expected.end());
@@ -653,12 +668,22 @@ TEST_F(SdkTestFilter, SdkGetChildrenInOrder)
     EXPECT_THAT(toNamesVector(*children), ContainsInOrder(expected))
         << "Unexpected sorting for ORDER_SIZE_DESC";
 
+    children.reset(megaApi[0]->getChildren(getRootTestDirectory(), MegaApi::ORDER_SIZE_DESC));
+    ASSERT_THAT(children, NotNull()) << "getChildren() with parent returned a nullptr";
+    EXPECT_THAT(toNamesVector(*children), ContainsInOrder(expected))
+        << "Unexpected sorting for ORDER_SIZE_DESC getChildren with parent";
+
     // By creation time, dirs first
     expected = {"Dir1", "testFile1", "testFile6"};
     children.reset(megaApi[0]->getChildren(filteringInfo.get(), MegaApi::ORDER_CREATION_ASC));
     ASSERT_THAT(children, NotNull()) << "getChildren() returned a nullptr";
     EXPECT_THAT(toNamesVector(*children), ContainsInOrder(expected))
         << "Unexpected sorting for ORDER_CREATION_ASC";
+
+    children.reset(megaApi[0]->getChildren(getRootTestDirectory(), MegaApi::ORDER_CREATION_ASC));
+    ASSERT_THAT(children, NotNull()) << "getChildren() with parent returned a nullptr";
+    EXPECT_THAT(toNamesVector(*children), ContainsInOrder(expected))
+        << "Unexpected sorting for ORDER_CREATION_ASC getChildren with parent";
 
     // By creation inverted
     std::reverse(expected.begin() + 1, expected.end());
@@ -668,7 +693,12 @@ TEST_F(SdkTestFilter, SdkGetChildrenInOrder)
     EXPECT_THAT(toNamesVector(*children), ContainsInOrder(expected))
         << "Unexpected sorting for ORDER_CREATION_DES";
 
-    // By modification time, dirs first but ordered naturally
+    children.reset(megaApi[0]->getChildren(getRootTestDirectory(), MegaApi::ORDER_CREATION_DESC));
+    ASSERT_THAT(children, NotNull()) << "getChildren() with parent returned a nullptr";
+    EXPECT_THAT(toNamesVector(*children), ContainsInOrder(expected))
+        << "Unexpected sorting for ORDER_CREATION_DESC getChildren with parent";
+
+    // By modification time, dirs first but ordered naturally ASC
     expected = {
         "Dir1",
         "Dir2",
@@ -680,13 +710,24 @@ TEST_F(SdkTestFilter, SdkGetChildrenInOrder)
     EXPECT_THAT(toNamesVector(*children), ContainsInOrder(expected))
         << "Unexpected sorting for ORDER_MODIFICATION_ASC";
 
-    // By modification inverted
+    children.reset(
+        megaApi[0]->getChildren(getRootTestDirectory(), MegaApi::ORDER_MODIFICATION_ASC));
+    ASSERT_THAT(children, NotNull()) << "getChildren() with parent returned a nullptr";
+    EXPECT_THAT(toNamesVector(*children), ContainsInOrder(expected))
+        << "Unexpected sorting for ORDER_MODIFICATION_ASC getChildren with parent";
+
     std::reverse(expected.begin(), expected.begin() + 2);
     std::reverse(expected.begin() + 2, expected.end());
     children.reset(megaApi[0]->getChildren(filteringInfo.get(), MegaApi::ORDER_MODIFICATION_DESC));
     ASSERT_THAT(children, NotNull()) << "getChildren() returned a nullptr";
     EXPECT_THAT(toNamesVector(*children), ContainsInOrder(expected))
         << "Unexpected sorting for ORDER_MODIFICATION_DES";
+
+    children.reset(
+        megaApi[0]->getChildren(getRootTestDirectory(), MegaApi::ORDER_MODIFICATION_DESC));
+    ASSERT_THAT(children, NotNull()) << "getChildren() with parent returned a nullptr";
+    EXPECT_THAT(toNamesVector(*children), ContainsInOrder(expected))
+        << "Unexpected sorting for ORDER_MODIFICATION_DESC getChildren with parent";
 
     // By label, dirs and  natural sort
     expected = {

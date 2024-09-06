@@ -17534,8 +17534,8 @@ bool MegaApiImpl::nodeComparatorModificationDESC(Node *i, Node *j)
 
     if (i->type != FILENODE)
     {
-        // If node doesn't have mtime, order alphabetically ascending
-        return nodeNaturalComparatorASC(i, j);
+        // If node doesn't have mtime, order alphabetically descending
+        return nodeNaturalComparatorDESC(i, j);
     }
 
     m_time_t r = i->mtime - j->mtime;
