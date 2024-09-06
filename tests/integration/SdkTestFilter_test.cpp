@@ -388,13 +388,14 @@ TEST_F(SdkTestFilter, SdkGetNodesInOrder)
     EXPECT_THAT(toNamesVector(*searchResults), ContainsInOrder(expected))
         << "Unexpected sorting for ORDER_DEFAULT_DESC";
 
-    // By size, dirs first (but not relevant order for now as size is 0). Ties break by natural
+    // By size, dirs first. Ties break by natural
     // sorting
     expected = {
-        "Dir1",
-        "Dir2",
         "Dir11",
+        "Dir2",
+        "Dir1",
         "testFile1", // 0
+        "testFile4", // 0
         "TestFile5Uppercase", // 0
         "testFile6", // 10
         "testFile2", // 15
@@ -630,11 +631,11 @@ TEST_F(SdkTestFilter, SdkGetChildrenInOrder)
     EXPECT_THAT(toNamesVector(*children), ContainsInOrder(expected))
         << "Unexpected sorting for ORDER_DEFAULT_DESC";
 
-    // By size, dirs first (but not relevant order for now as size is 0). Ties break by natural
+    // By size, dirs first. Ties break by natural
     // sorting
     expected = {
-        "Dir1",
         "Dir2",
+        "Dir1",
         "testFile1", // 0
         "TestFile5Uppercase", // 0
         "testFile6", // 10
