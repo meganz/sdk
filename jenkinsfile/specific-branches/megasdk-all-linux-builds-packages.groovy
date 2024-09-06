@@ -113,6 +113,45 @@ pipeline {
             }
         }
     }
+
+    post {
+        always {
+            script {
+                if (params.RESULT_TO_SLACK) {
+                    sdk_commit = sh(script: "git -C ${linux_sources_workspace} rev-parse HEAD", returnStdout: true).trim()
+                    messageStatus = currentBuild.currentResult
+                    messageColor = messageStatus == 'SUCCESS'? "#00FF00": "#FF0000" //green or red
+                    message = """
+                        Jenkins job #${BUILD_ID} ended with status '${messageStatus}'.
+                        See: ${BUILD_URL}
+
+                        SDK branch: `${SDK_BRANCH}` commit: `${sdk_commit}`
+                    """.stripIndent()
+                    withCredentials([string(credentialsId: 'slack_webhook_sdk_report', variable: 'SLACK_WEBHOOK_URL')]) {
+                        sh """
+                            curl -X POST -H 'Content-type: application/json' --data '
+                                {
+                                "attachments": [
+                                    {
+                                        "color": "${messageColor}",
+                                        "blocks": [
+                                        {
+                                            "type": "section",
+                                            "text": {
+                                                    "type": "mrkdwn",
+                                                    "text": "${message}"
+                                            }
+                                        }
+                                        ]
+                                    }
+                                    ]
+                                }' ${SLACK_WEBHOOK_URL}
+                        """
+                    }
+                }
+            }
+        }
+    }
 }
 
 
