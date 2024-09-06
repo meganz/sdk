@@ -1,3 +1,5 @@
+def failedDistros = []
+
 pipeline {
     agent { label 'linux-testing-package-builder' }
 
@@ -59,6 +61,13 @@ pipeline {
                     }
                 }
             }
+            post {
+                failure {
+                    script {
+                        failedDistros.add(params.DISTRO_TO_BUILD)
+                    }
+                }
+            }
         }
         stage ('Build all distributions'){
             when {
@@ -80,7 +89,6 @@ pipeline {
                                 'openSUSE_Leap_15.5','openSUSE_Leap_15.6', 'openSUSE_Tumbleweed'
                     }
                 }
-
                 stages {
                     stage('Build') {
                         agent { label 'linux-testing-package-builder' }
@@ -89,6 +97,13 @@ pipeline {
                             dir(linux_sources_workspace) {
                                 lock(resource: "${DISTRO}-amd64-sdk-build", quantity: 1) {
                                     buildAndSignPackage("${DISTRO}", "amd64", "sdk")
+                                }
+                            }
+                        }
+                        post {
+                            failure {
+                                script {
+                                    failedDistros.add(DISTRO)
                                 }
                             }
                         }
@@ -124,9 +139,14 @@ pipeline {
                     message = """
                         Jenkins job #${BUILD_ID} ended with status '${messageStatus}'.
                         See: ${BUILD_URL}
-
-                        SDK branch: `${SDK_BRANCH}` commit: `${sdk_commit}`
+                        SDK branch: `${SDK_BRANCH}`
+                        SDK_commit: `${sdk_commit}`
                     """.stripIndent()
+
+                    if (failedDistros.size() > 0) {
+                        message += "\n\nFailed distributions: ${failedDistros.join(', ')}"
+                    }
+                    
                     withCredentials([string(credentialsId: 'slack_webhook_sdk_report', variable: 'SLACK_WEBHOOK_URL')]) {
                         sh """
                             curl -X POST -H 'Content-type: application/json' --data '
@@ -156,7 +176,7 @@ pipeline {
 
 
 def buildAndSignPackage(String distro, String architecture, String packageName) {
-    sh "${env.BUILDTOOLS_PATH}/build/buildManager.sh -a ${architecture} -j 2 build ${distro} . ${packageName}"
+    sh "${env.BUILDTOOLS_PATH}/build/buildManager.sh -a ${architecture} -j 1 build ${distro} . ${packageName}"
     sh "${env.BUILDTOOLS_PATH}/repo/repoManager.sh add ${env.INTERNAL_REPO_PATH}/builder/results/${distro}/${architecture}/${packageName}/ ${distro}"
     sh "SIGN_KEY_PATH=${env.INTERNAL_REPO_PATH}/sign_test/ ${env.BUILDTOOLS_PATH}/repo/repoManager.sh build -n ${distro}"
 }
