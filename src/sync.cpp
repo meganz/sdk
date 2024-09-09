@@ -439,9 +439,6 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
         return "Active sync below path";
     case ACTIVE_SYNC_ABOVE_PATH:
         return "Active sync above path";
-    case REMOTE_PATH_DELETED:
-        assert(false);  // obsolete, should not happen
-        return "Remote node has been deleted";
     case REMOTE_NODE_INSIDE_RUBBISH:
         return "Remote node is inside Rubbish Bin";
     case VBOXSHAREDFOLDER_UNSUPPORTED:
