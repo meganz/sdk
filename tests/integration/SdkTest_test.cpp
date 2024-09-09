@@ -1011,7 +1011,7 @@ void SdkTest::onUsersUpdate(MegaApi* api, MegaUserList *users)
                 || u->hasChanged(MegaUser::CHANGE_TYPE_LASTNAME))
         {
             currentPerApi.userUpdated = true;
-            if (u->hasChanged(MegaUser::CHANGE_TYPE_FIRSTNAME))
+            if (u->hasChanged(MegaUser::CHANGE_TYPE_FIRSTNAME) && !u->isOwnChange())
             {
                 currentPerApi.userFirstNameUpdated = true;
             }
@@ -19534,6 +19534,10 @@ TEST_F(SdkTest, SdkTestVPN)
 
     // reset First Name to original value
     {
+        // truncate remmnants of older test failures
+        while (origName.length() > 4 && !origName.compare(origName.length() - 4, 4, "_upd"))
+            origName.erase(origName.length() - 4);
+
         nameUpdated = false;
         RequestTracker setNameTracker(megaApi[0].get());
         megaApi[0]->setUserAttribute(MegaApi::USER_ATTR_FIRSTNAME, origName.c_str(), &setNameTracker);
