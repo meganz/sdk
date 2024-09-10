@@ -14817,6 +14817,10 @@ void MegaClient::fatalError(ErrorReason errorReason)
             reason = "Failed to get JSON SYNC configuration data";
             sendevent(99488, reason.c_str(), 0);
             break;
+        case ErrorReason::REASON_ERROR_UNKNOWN:
+            reason = "Unknown fatal error";
+            sendevent(99489, reason.c_str(), 0);
+            break;
         default:
             reason = "Unknown reason";
             break;
