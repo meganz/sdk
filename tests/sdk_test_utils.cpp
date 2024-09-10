@@ -70,4 +70,23 @@ LocalTempFile::~LocalTempFile()
 {
     fs::remove(mFilePath);
 }
+
+FileNodeInfo::FileNodeInfo(const std::string& _name,
+                           const std::optional<unsigned int>& _label,
+                           const bool _fav,
+                           const unsigned int _size,
+                           const std::chrono::seconds _secondsSinceMod,
+                           const bool _sensitive,
+                           const std::string& _description,
+                           const std::set<std::string>& _tags):
+    NodeCommonInfo{_name, _label, _fav, _sensitive, _description, _tags},
+    size(_size)
+{
+    using std::chrono::system_clock;
+    static const int64_t refTime = system_clock::to_time_t(system_clock::now());
+    if (auto nSecs = _secondsSinceMod.count(); nSecs != 0)
+    {
+        mtime = refTime - nSecs;
+    }
+}
 }
