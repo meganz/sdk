@@ -2361,7 +2361,7 @@ void SqliteAccountState::userMatchFilter(sqlite3_context* context, int argc, sql
     }
     // Versioning
     constexpr int64_t versionFlag = 1 << Node::FLAGS_IS_VERSION;
-    int64_t flags = sqlite3_value_int64(argv[1]);
+    const int64_t flags = sqlite3_value_int64(argv[1]);
     if ((flags & versionFlag) != 0)
         return;
 
@@ -2397,24 +2397,51 @@ void SqliteAccountState::userMatchFilter(sqlite3_context* context, int argc, sql
     if (!filter->isValidSensitivity((flags & sensitivityFlag) == sensitivityFlag))
         return;
 
-    //// This block defines conditions that are accumulated by OR or AND operator.
-    const auto& passesByName = [&filter, &argv]()
-    {
-        return !filter->hasName() || filter->isValidName(sqlite3_value_text(argv[6]));
-    };
-    const auto& passesByDescription = [&filter, &argv]()
-    {
-        return !filter->hasDescription() || filter->isValidDescription(sqlite3_value_text(argv[7]));
-    };
-    const auto& passesByTag = [&filter, &argv]()
-    {
-        return !filter->hasTag() || filter->isValidTagSequence(sqlite3_value_text(argv[8]));
-    };
+    //// This block defines conditions to be combined by OR or AND operations if present in filter
+    // Define a vector with all the conditions to combine
+    std::vector<std::function<bool()>> conditionEvals;
+    if (filter->hasName())
+        conditionEvals.emplace_back(
+            [&filter, &argv]()
+            {
+                return filter->isValidName(sqlite3_value_text(argv[6]));
+            });
+    if (filter->hasDescription())
+        conditionEvals.emplace_back(
+            [&filter, &argv]()
+            {
+                return filter->isValidDescription(sqlite3_value_text(argv[7]));
+            });
+    if (filter->hasTag())
+        conditionEvals.emplace_back(
+            [&filter, &argv]()
+            {
+                return filter->isValidTagSequence(sqlite3_value_text(argv[8]));
+            });
 
-    result = combineConditions(filter->useAndForTextQuery(),
-                               passesByName,
-                               passesByDescription,
-                               passesByTag);
+    // Condition combination
+    if (conditionEvals.empty())
+    {
+        result = true;
+    }
+    else if (filter->useAndForTextQuery())
+    {
+        result = std::all_of(std::begin(conditionEvals),
+                             std::end(conditionEvals),
+                             [](auto&& f) -> bool
+                             {
+                                 return f();
+                             });
+    }
+    else
+    {
+        result = std::any_of(std::begin(conditionEvals),
+                             std::end(conditionEvals),
+                             [](auto&& f) -> bool
+                             {
+                                 return f();
+                             });
+    }
 }
 
 std::string OrderByClause::get(int order)

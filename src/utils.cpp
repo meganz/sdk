@@ -3675,10 +3675,5 @@ size_t fileExtensionDotPosition(const std::string& fileName)
         return dotPos;
 }
 
-bool combineConditions(const bool applyAnd)
-{
-    return applyAnd;
-}
-
 } // namespace mega
 

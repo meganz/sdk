@@ -1472,43 +1472,6 @@ private:
     std::chrono::time_point<std::chrono::steady_clock> mStartTime; // Fixed time_point type
 };
 
-/**
- * @brief Base case for the variadic overload
- */
-bool combineConditions(const bool applyAnd);
-
-/**
- * @brief Combines a set of conditions (functions returning bool) using AND or OR.
- *
- * @tparam Conditions Variadic template parameter representing a list of std::function<bool()>.
- * @param applyAnd If true apply AND, else apply OR
- * @param first The first condition to evaluate (a std::function<bool()>).
- * @param rest The remaining conditions to evaluate, passed as variadic arguments.
- * @return The result of combining all conditions with the specified operation.
- *         - If OR, it returns true if any condition is true, short-circuiting the evaluation.
- *         - If AND, it returns false if any condition is false, short-circuiting the evaluation.
- *
- * @example
- * @code
- * std::function<bool()> condition1 = []() { return true; };
- * std::function<bool()> condition2 = []() { return false; };
- * std::function<bool()> condition3 = []() { return true; };
- *
- * bool resultOr = combineConditions(Operation::OR, condition1, condition2, condition3);
- * bool resultAnd = combineConditions(Operation::AND, condition1, condition2, condition3);
- * @endcode
- */
-template<typename... Conditions>
-bool combineConditions(const bool applyAnd, std::function<bool()> first, Conditions... rest)
-{
-    bool firstResult = first();
-    if (!applyAnd && firstResult)
-        return true;
-    if (applyAnd && !firstResult)
-        return false;
-    return combineConditions(applyAnd, rest...);
-}
-
 } // namespace mega
 
 #endif // MEGA_UTILS_H
