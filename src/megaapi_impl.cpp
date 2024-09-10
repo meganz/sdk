@@ -10325,7 +10325,7 @@ bool MegaApiImpl::httpServerStart(bool localOnly, int port, bool useTLS, const c
     httpServer->enableOfflineAttribute(httpServerOfflineAttributeEnabled);
     httpServer->enableFolderServer(httpServerEnableFolders);
     httpServer->setRestrictedMode(httpServerRestrictedMode);
-    httpServer->enableSubtitlesSupport(httpServerRestrictedMode);
+    httpServer->enableSubtitlesSupport(httpServerRestrictedMode != 0);
 
     bool result = httpServer->start(port, localOnly);
     if (!result)
@@ -10357,7 +10357,7 @@ int MegaApiImpl::httpServerIsRunning()
     SdkMutexGuard g(sdkMutex);
     if (httpServer)
     {
-        result = httpServer->getPort();
+        result = httpServer->getPort() != 0;
     }
     return result;
 }
@@ -10710,7 +10710,7 @@ int MegaApiImpl::ftpServerIsRunning()
     SdkMutexGuard g(sdkMutex);
     if (ftpServer)
     {
-        result = ftpServer->getPort();
+        result = ftpServer->getPort() != 0;
     }
     return result;
 }
@@ -32672,7 +32672,7 @@ MegaHTTPServer::~MegaHTTPServer()
 
 bool MegaHTTPServer::isHandleWebDavAllowed(handle h)
 {
-    return allowedWebDavHandles.count(h);
+    return allowedWebDavHandles.count(h) > 0;
 }
 
 void MegaHTTPServer::clearAllowedHandles()
