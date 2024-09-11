@@ -3,9 +3,10 @@
 using namespace mega;
 using namespace std;
 
-QTMegaEvent::QTMegaEvent(MegaApi *megaApi, Type type) : QEvent(type)
+QTMegaEvent::QTMegaEvent(MegaApi* api, Type type):
+    QEvent(type)
 {
-    this->megaApi = megaApi;
+    megaApi = api;
     request = NULL;
     transfer = NULL;
     error = NULL;
@@ -175,4 +176,3 @@ void QTMegaEvent::setMountResult(int result)
 {
     mMountResult = result;
 }
-

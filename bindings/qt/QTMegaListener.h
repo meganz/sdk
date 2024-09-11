@@ -20,7 +20,7 @@ class QTMegaListener : public QObject, public MegaListener
 	Q_OBJECT
 
 public:
-    explicit QTMegaListener(MegaApi *megaApi, MegaListener *parent=NULL);
+    explicit QTMegaListener(MegaApi* megaApi, MegaListener* parent = NULL);
     ~QTMegaListener() override;
 
 	void onRequestStart(MegaApi* api, MegaRequest *request) override;
@@ -66,7 +66,7 @@ protected:
                         const std::string& path,
                         int result);
 
-    MegaApi *megaApi;
+    MegaApi* megaApi;
     MegaListener *listener;
 };
 }
