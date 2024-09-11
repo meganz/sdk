@@ -20807,7 +20807,7 @@ error MegaApiImpl::performRequest_getAttrUser(MegaRequestPrivate* request)
 
             if (!user)  // email/handle not found among (ex)contacts
             {
-                if (scope == ATTR_SCOPE_PRIVATE_ENCRYPTED || scope == ATTR_SCOPE_PROTECTED)
+                if (scope != ATTR_SCOPE_PUBLIC && scope != ATTR_SCOPE_PROTECTED)
                 {
                     LOG_warn << "Cannot retrieve private/protected attributes from users other than yourself.";
                     return API_EACCESS;
