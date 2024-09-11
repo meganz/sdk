@@ -11,7 +11,7 @@ namespace mega
 
 const UserAttrDefinition* UserAttrDefinition::get(attr_t at)
 {
-    const unordered_map<attr_t, const UserAttrDefinition>& defs = getAllDefinitions();
+    const auto& defs = getAllDefinitions();
     const auto it = defs.find(at);
     return it == defs.end() ? nullptr : &it->second;
 }
@@ -61,7 +61,6 @@ UserAttrDefinition::UserAttrDefinition(string&& name, string&& longName, int cus
         assert(mScope == ATTR_SCOPE_UNKNOWN && !(customOptions & MAKE_PRIVATE));
         mScope = ATTR_SCOPE_PROTECTED;
     }
-
     else if (customOptions & MAKE_PRIVATE)
     {
         assert(mScope == ATTR_SCOPE_UNKNOWN && !(customOptions & MAKE_PROTECTED));

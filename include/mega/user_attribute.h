@@ -19,38 +19,38 @@ public:
 
     bool useVersioning() const;
 
-    inline bool isValid() const
+    bool isValid() const
     {
         return mState == State::VALID;
     }
 
-    inline void setExpired()
+    void setExpired()
     {
         mState = State::EXPIRED;
     }
 
-    inline bool isExpired() const
+    bool isExpired() const
     {
         return mState == State::EXPIRED;
     }
 
-    inline void setNotExisting()
+    void setNotExisting()
     {
         mState = State::CACHED_NOT_EXISTING;
         mValue.clear();
     }
 
-    inline bool isCachedNotExisting() const
+    bool isCachedNotExisting() const
     {
         return mState == State::CACHED_NOT_EXISTING;
     }
 
-    inline const std::string& value() const
+    const std::string& value() const
     {
         return mValue;
     }
 
-    inline const std::string& version() const
+    const std::string& version() const
     {
         return mVersion;
     }

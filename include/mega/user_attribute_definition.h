@@ -16,32 +16,32 @@ public:
 
     static attr_t getTypeForName(const std::string& name);
 
-    static inline size_t getDefaultMaxSize()
+    static size_t getDefaultMaxSize()
     {
         return MAX_USER_ATTRIBUTE_SIZE;
     }
 
-    inline char scope() const
+    char scope() const
     {
         return mScope;
     }
 
-    inline const std::string& name() const
+    const std::string& name() const
     {
         return mName;
     }
 
-    inline const std::string& longName() const
+    const std::string& longName() const
     {
         return mLongName;
     }
 
-    inline bool versioningEnabled() const
+    bool versioningEnabled() const
     {
         return mUseVersioning;
     }
 
-    inline size_t maxSize() const
+    size_t maxSize() const
     {
         return mMaxSize;
     }
