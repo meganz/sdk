@@ -6344,6 +6344,26 @@ void Syncs::deregisterThenRemoveSyncBySds(UnifiedSync& us, std::function<void(Me
     });
 }
 
+void Syncs::deregisterThenRemoveSyncById(handle backupId, std::function<void(Error)>&& completion)
+{
+    assert(!onSyncThread());
+    queueSync(
+        [this, backupId]()
+        {
+            lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
+            if (const auto it = std::find_if(std::begin(mSyncVec),
+                                             std::end(mSyncVec),
+                                             [backupId](const auto& us)
+                                             {
+                                                 return us && us->mConfig.mBackupId == backupId;
+                                             });
+                it != std::end(mSyncVec))
+                (*it)->changeState(NO_SYNC_ERROR, false, false, false);
+        },
+        "removeSyncFromDb");
+    deregisterThenRemoveSync(backupId, std::move(completion), {});
+}
+
 void Syncs::deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion, std::function<void(MegaClient&, TransferDbCommitter&)> clientRemoveSdsEntryFunction)
 {
     assert(!onSyncThread());

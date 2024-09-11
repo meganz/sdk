@@ -22908,7 +22908,7 @@ void MegaApiImpl::removeSyncById(handle backupId, MegaRequestListener* listener)
                 fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(error(e)));
             };
 
-            client->syncs.deregisterThenRemoveSync(backupId, completion, nullptr);
+            client->syncs.deregisterThenRemoveSyncById(backupId, std::move(completion));
             return API_OK;
         };
 

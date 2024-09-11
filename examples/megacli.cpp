@@ -11735,7 +11735,7 @@ void exec_syncremove(autocomplete::ACState& s)
         };
     }
 
-    client->syncs.deregisterThenRemoveSync(v[0].mBackupId, completion, nullptr);
+    client->syncs.deregisterThenRemoveSyncById(v[0].mBackupId, std::move(completion));
 }
 
 void exec_syncstatus(autocomplete::ACState& s)

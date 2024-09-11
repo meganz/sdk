@@ -3230,8 +3230,11 @@ string StandardClient::exportSyncConfigs()
 
 void StandardClient::delSync_inthread(handle backupId, PromiseBoolSP result)
 {
-    client.syncs.deregisterThenRemoveSync(backupId,
-      [=](Error error) { result->set_value(error == API_OK); }, nullptr);
+    client.syncs.deregisterThenRemoveSyncById(backupId,
+                                              [=](Error error)
+                                              {
+                                                  result->set_value(error == API_OK);
+                                              });
 }
 
 bool StandardClient::recursiveConfirm(Model::ModelNode* mn, Node* n, int& descendants, const string& identifier, int depth, bool& firstreported, bool expectFail, bool skipIgnoreFile)
@@ -19195,6 +19198,28 @@ TEST_F(SyncTest, SyncUtf8DifferentlyNormalized1)
     ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
 
 
+}
+
+TEST_F(SyncTest, RemoveSync)
+{
+    // Set up a client
+    fs::path localtestroot = makeNewTestRoot();
+    auto clientA1 = g_clientManager->getCleanStandardClient(0, localtestroot); // user 1 client 1
+
+    // Create remote dir
+    ASSERT_TRUE(clientA1->resetBaseFolderMulticlient());
+    ASSERT_TRUE(clientA1->makeCloudSubdirs("f", 0, 0));
+
+    // create sync
+    handle backupId1 = clientA1->setupSync_mainthread("sync1", "f", false, true);
+    ASSERT_NE(backupId1, UNDEF);
+    waitonsyncs(std::chrono::seconds(4), clientA1);
+    auto* sync = clientA1->syncByBackupId(backupId1);
+    ASSERT_NE(sync, nullptr);
+
+    // Delete the sync and make sure it is disable
+    clientA1->delSync_mainthread(backupId1);
+    EXPECT_EQ(sync->getConfig().mRunState, SyncRunState::Disable);
 }
 
 #ifdef _WIN32
