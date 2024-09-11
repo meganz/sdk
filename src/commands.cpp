@@ -3663,7 +3663,7 @@ bool CommandGetUA::procresult(Result r, JSON& json)
 
                             break;
                         }
-                        case ATTR_SCOPE_PUBLIC:
+                        case ATTR_SCOPE_PUBLIC_UNENCRYPTED:
                         {
                             u->setattr(at, &value, &version);
                             mCompletionBytes((byte*) value.data(), unsigned(value.size()), at);
@@ -3681,13 +3681,13 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                             }
                             break;
                         }
-                        case ATTR_SCOPE_PROTECTED:
+                        case ATTR_SCOPE_PROTECTED_UNENCRYPTED:
                         {
                             u->setattr(at, &value, &version);
                             mCompletionBytes((byte*) value.data(), unsigned(value.size()), at);
                             break;
                         }
-                        case ATTR_SCOPE_PRIVATE:
+                        case ATTR_SCOPE_PRIVATE_UNENCRYPTED:
                         {
                             if (at == ATTR_KEYS && !client->mKeyManager.fromKeysContainer(value))
                             {

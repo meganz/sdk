@@ -63,14 +63,13 @@ enum attr_t
 enum UserAttrScope : char
 {
     ATTR_SCOPE_UNKNOWN = '\0',
-    ATTR_SCOPE_PUBLIC = '+', // public, unencrypted
-    ATTR_SCOPE_PROTECTED = '#', // protected, unencrypted: contacts can fetch it but not give it out
-                                // to non-contacts
-    ATTR_SCOPE_PRIVATE = '^', // private, unencrypted: can only be fetched by you
-    ATTR_SCOPE_PRIVATE_ENCRYPTED = '*', // private, encrypted (TLV encoding): can only be fetched by
-                                        // you, and API cannot read it
-    ATTR_SCOPE_BUSINESS = '%', // Business Private, unencrypted -- probably not used
-    ATTR_SCOPE_BUSINESS_ENCRYPTED = '$', // Business Private, encrypted -- not used
+    ATTR_SCOPE_PUBLIC_UNENCRYPTED = '+',
+    ATTR_SCOPE_PROTECTED_UNENCRYPTED = '#', // contacts can fetch it but not give it out
+                                            // to non-contacts
+    ATTR_SCOPE_PRIVATE_UNENCRYPTED = '^', // can only be fetched by you
+    ATTR_SCOPE_PRIVATE_ENCRYPTED = '*', // can only be fetched by you, and API cannot read it
+    ATTR_SCOPE_BUSINESS_UNENCRYPTED = '%', // probably not used
+    ATTR_SCOPE_BUSINESS_ENCRYPTED = '$', // not used
 };
 
 static constexpr size_t MAX_USER_VAR_SIZE =

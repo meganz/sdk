@@ -39,11 +39,11 @@ UserAttrDefinition::UserAttrDefinition(string&& name, string&& longName, int cus
 
     switch (mName[0])
     {
-        case ATTR_SCOPE_PUBLIC:
-        case ATTR_SCOPE_PROTECTED:
-        case ATTR_SCOPE_PRIVATE:
+        case ATTR_SCOPE_PUBLIC_UNENCRYPTED:
+        case ATTR_SCOPE_PROTECTED_UNENCRYPTED:
+        case ATTR_SCOPE_PRIVATE_UNENCRYPTED:
         case ATTR_SCOPE_PRIVATE_ENCRYPTED:
-        case ATTR_SCOPE_BUSINESS:
+        case ATTR_SCOPE_BUSINESS_UNENCRYPTED:
         case ATTR_SCOPE_BUSINESS_ENCRYPTED:
             mScope = mName[0];
     }
@@ -59,12 +59,12 @@ UserAttrDefinition::UserAttrDefinition(string&& name, string&& longName, int cus
     if (customOptions & MAKE_PROTECTED)
     {
         assert(mScope == ATTR_SCOPE_UNKNOWN && !(customOptions & MAKE_PRIVATE));
-        mScope = ATTR_SCOPE_PROTECTED;
+        mScope = ATTR_SCOPE_PROTECTED_UNENCRYPTED;
     }
     else if (customOptions & MAKE_PRIVATE)
     {
         assert(mScope == ATTR_SCOPE_UNKNOWN && !(customOptions & MAKE_PROTECTED));
-        mScope = ATTR_SCOPE_PRIVATE;
+        mScope = ATTR_SCOPE_PRIVATE_UNENCRYPTED;
     }
 }
 

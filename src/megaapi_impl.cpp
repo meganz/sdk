@@ -6916,13 +6916,13 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_CU25519_PUBLIC_KEY:
         case MegaApi::USER_ATTR_SIG_RSA_PUBLIC_KEY:
         case MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY:
-            scope = ATTR_SCOPE_PUBLIC;
+            scope = ATTR_SCOPE_PUBLIC_UNENCRYPTED;
             break;
 
         case MegaApi::USER_ATTR_FIRSTNAME:
         case MegaApi::USER_ATTR_LASTNAME:
             // legacy, without a prefix for scope
-            scope = ATTR_SCOPE_PROTECTED;
+            scope = ATTR_SCOPE_PROTECTED_UNENCRYPTED;
             break;
 
         case MegaApi::USER_ATTR_AUTHRING:
@@ -6956,7 +6956,7 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_LAST_READ_NOTIFICATION:
         case MegaApi::USER_ATTR_LAST_ACTIONED_BANNER:
         case MegaApi::USER_ATTR_ENABLE_TEST_SURVEYS:
-            scope = ATTR_SCOPE_PRIVATE;
+            scope = ATTR_SCOPE_PRIVATE_UNENCRYPTED;
             break;
 
         default:
@@ -20807,7 +20807,8 @@ error MegaApiImpl::performRequest_getAttrUser(MegaRequestPrivate* request)
 
             if (!user)  // email/handle not found among (ex)contacts
             {
-                if (scope != ATTR_SCOPE_PUBLIC && scope != ATTR_SCOPE_PROTECTED)
+                if (scope != ATTR_SCOPE_PUBLIC_UNENCRYPTED &&
+                    scope != ATTR_SCOPE_PROTECTED_UNENCRYPTED)
                 {
                     LOG_warn << "Cannot retrieve private/protected attributes from users other than yourself.";
                     return API_EACCESS;
@@ -21016,7 +21017,7 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                 }
                 return API_OK;
             }
-            else if (scope == ATTR_SCOPE_PRIVATE)
+            else if (scope == ATTR_SCOPE_PRIVATE_UNENCRYPTED)
             {
                 if (type == ATTR_LANGUAGE)
                 {
