@@ -8,9 +8,9 @@ pipeline {
         gitLabConnection('GitLabConnectionJenkins')
     }
     parameters {
-        booleanParam(name: 'UPLOAD_TO_REPOSITORY', defaultValue: false, description: 'Should the package be uploaded to artifactory?')
+        booleanParam(name: 'UPLOAD_TO_REPOSITORY', defaultValue: true, description: 'Should the package be uploaded to artifactory?')
         booleanParam(name: 'RESULT_TO_SLACK', defaultValue: true, description: 'Should the job result be sent to slack?')
-        booleanParam(name: 'CUSTOM_BUILD', defaultValue: true, description: 'If true, will use DISTRO_TO_BUILD and ARCH_TO_BUILD. If false, will build all distributions')
+        booleanParam(name: 'CUSTOM_BUILD', defaultValue: false, description: 'If true, will use DISTRO_TO_BUILD and ARCH_TO_BUILD. If false, will build all distributions')
         string(name: 'DISTRO_TO_BUILD', defaultValue: 'xUbuntu_22.04', description: 'Only used if CUSTOM_BUILD is true')
         string(name: 'SDK_BRANCH', defaultValue: 'SDK-4277-Build-SDK-for-all-supported-linux-distributions', description: 'Define a custom SDK branch.')
     }
