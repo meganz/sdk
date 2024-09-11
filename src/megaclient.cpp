@@ -6879,12 +6879,6 @@ void MegaClient::sc_userattr()
                         attr_t type = User::string2attr(itua->c_str());
                         if (type == ATTR_UNKNOWN) // several user attributes are ignored by SDK
                             continue;
-                        if (!u->needversioning(type))
-                        {
-                            u->invalidateattr(type);
-                            continue;
-                        }
-
                         const string *cacheduav = u->getattrversion(type);
                         if (cacheduav)
                         {
