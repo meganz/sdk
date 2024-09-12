@@ -8,12 +8,14 @@ target_sources(SDKQtBindings
     QTMegaListener.h
     QTMegaRequestListener.h
     QTMegaTransferListener.h
+    QTMegaApiManager.h
 
     QTMegaEvent.cpp
     QTMegaGlobalListener.cpp
     QTMegaListener.cpp
     QTMegaRequestListener.cpp
     QTMegaTransferListener.cpp
+    QTMegaApiManager.cpp
 )
 
 # Activate the meta-object code generator for Qt.

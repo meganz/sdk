@@ -49,7 +49,7 @@ public:
         OnMountRemoved
     };
 
-    QTMegaEvent(MegaApi *megaApi, Type type);
+    QTMegaEvent(MegaApi* api, Type type);
     ~QTMegaEvent() override;
 
     MegaApi *getMegaApi() const;
@@ -87,7 +87,7 @@ public:
     void setMountResult(int result);
 
 private:
-    MegaApi *megaApi;
+    MegaApi* megaApi;
     MegaRequest *request;
     MegaTransfer *transfer;
     MegaError *error;

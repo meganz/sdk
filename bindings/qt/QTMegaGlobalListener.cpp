@@ -1,11 +1,14 @@
 #include "QTMegaGlobalListener.h"
+
+#include "QTMegaApiManager.h"
 #include "QTMegaEvent.h"
 
 #include <QCoreApplication>
 
 using namespace mega;
 
-QTMegaGlobalListener::QTMegaGlobalListener(MegaApi *megaApi, MegaGlobalListener *listener) : QObject()
+QTMegaGlobalListener::QTMegaGlobalListener(MegaApi* megaApi, MegaGlobalListener* listener):
+    QObject()
 {
     this->megaApi = megaApi;
     this->listener = listener;
@@ -14,7 +17,10 @@ QTMegaGlobalListener::QTMegaGlobalListener(MegaApi *megaApi, MegaGlobalListener 
 QTMegaGlobalListener::~QTMegaGlobalListener()
 {
     this->listener = NULL;
-    megaApi->removeGlobalListener(this);
+    if (QTMegaApiManager::isMegaApiValid(megaApi))
+    {
+        megaApi->removeGlobalListener(this);
+    }
 }
 
 void QTMegaGlobalListener::onUsersUpdate(MegaApi *api, MegaUserList *users)
