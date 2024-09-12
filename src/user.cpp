@@ -326,7 +326,7 @@ void User::removeattr(attr_t at, bool ownUser)
     }
 
     if (ownUser)
-        mAttributeManager->setAttrNotExisting(at);
+        mAttributeManager->setAttrNotExisting(at); // avoids fetch from servers
     else
         mAttributeManager->eraseAttr(at);
 }

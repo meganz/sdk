@@ -126,7 +126,7 @@ void UserAttrManager::serializeAttributeFormatVersion(string& appendTo) const
     static constexpr char attributeFormatVersion = '2';
     // Version 1: attributes are serialized along with its version
     // Version 2: size of attributes use 4B (uint32_t) instead of 2B (unsigned short)
-    appendTo.append(&attributeFormatVersion, sizeof(char));
+    appendTo += attributeFormatVersion;
 }
 
 char UserAttrManager::unserializeAttributeFormatVersion(const char*& from)
@@ -142,13 +142,14 @@ void UserAttrManager::serializeAttributes(string& d) const
     assert(mAttrs.size() <= numeric_limits<unsigned char>::max());
 
     // serialize attr count
-    unsigned char attrCount = 0;
-    for (const auto& a: mAttrs)
-    {
-        if (a.second.isValid())
-            ++attrCount;
-    }
-    d.append(reinterpret_cast<char*>(&attrCount), sizeof(attrCount));
+    auto attrCount = std::count_if(mAttrs.begin(),
+                                   mAttrs.end(),
+                                   [](const auto& attr)
+                                   {
+                                       return attr.second.isValid();
+                                   });
+    assert(attrCount <= numeric_limits<unsigned char>::max());
+    d += static_cast<unsigned char>(attrCount);
 
     for (const auto& a: mAttrs)
     {
