@@ -20,6 +20,17 @@ else()
     target_link_libraries(gfxworker_test_integration PRIVATE PkgConfig::gtest)
 endif()
 
+# Adjust compilation flags for warnings and errors for libgfxworker
+target_platform_compile_options(
+    TARGET gfxworker_test_integration
+)
+
+if(ENABLE_SDKLIB_WERROR)
+    target_platform_compile_options(
+        TARGET gfxworker_test_integration
+    )
+endif()
+
 # prepare test data
 # Integration tests require the following files to work
 file(GLOB TESTING_AUX_FILES "test_data/*")
