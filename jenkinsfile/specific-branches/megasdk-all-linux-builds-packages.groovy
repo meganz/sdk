@@ -8,7 +8,7 @@ pipeline {
         gitLabConnection('GitLabConnectionJenkins')
     }
     parameters {
-        booleanParam(name: 'UPLOAD_TO_REPOSITORY', defaultValue: true, description: 'Should the package be uploaded to artifactory?')
+        booleanParam(name: 'UPLOAD_TO_REPOSITORY', defaultValue: false, description: 'Should the package be uploaded to artifactory?')
         booleanParam(name: 'RESULT_TO_SLACK', defaultValue: true, description: 'Should the job result be sent to slack?')
         booleanParam(name: 'CUSTOM_BUILD', defaultValue: false, description: 'If true, will use DISTRO_TO_BUILD and ARCH_TO_BUILD. If false, will build all distributions')
         string(name: 'DISTRO_TO_BUILD', defaultValue: 'xUbuntu_22.04', description: 'Only used if CUSTOM_BUILD is true')
@@ -42,7 +42,7 @@ pipeline {
             }
         }
         stage ('Build custom distribution'){
-            when { 
+            when {
                 beforeAgent true
                 expression { params.CUSTOM_BUILD == true } 
             }
@@ -54,9 +54,10 @@ pipeline {
                     }
                     script{
                         if ( params.UPLOAD_TO_REPOSITORY == true) {
-                            def SDK_VERSION = getVersionFromHeader("include/mega/version.h")
-                            sh "cd ${env.INTERNAL_REPO_PATH}/repo/private/$DISTRO_TO_BUILD && jf rt upload --regexp '((x86_64|amd64)/sdk.*deb\$|(x86_64|amd64)/sdk.*rpm\$|(x86_64|amd64)/sdk.*\\.pkg\\.tar\\.zst\$|(x86_64|amd64)/sdk.*\\.pkg\\.tar\\.xz\$)' sdk/$SDK_VERSION/linux/$DISTRO_TO_BUILD/"
-                            echo "Packages successfully uploaded. URL: [${env.REPO_URL}/sdk/$SDK_VERSION/linux/$DISTRO_TO_BUILD/]"
+                            //def SDK_VERSION = getVersionFromHeader("include/mega/version.h")
+                            def CURRENT_DATE = new Date().format('yyyyMMdd')
+                            sh "cd ${env.INTERNAL_REPO_PATH}/repo/private/$DISTRO_TO_BUILD && jf rt upload --regexp '((x86_64|amd64)/sdk.*deb\$|(x86_64|amd64)/sdk.*rpm\$|(x86_64|amd64)/sdk.*\\.pkg\\.tar\\.zst\$|(x86_64|amd64)/sdk.*\\.pkg\\.tar\\.xz\$)' sdk/releases/$CURRENT_DATE/linux/$DISTRO_TO_BUILD/"
+                            echo "Packages successfully uploaded. URL: [${env.REPO_URL}/sdk/releases/$CURRENT_DATE/linux/$DISTRO_TO_BUILD/]"
                         }
                     }
                 }
@@ -116,10 +117,10 @@ pipeline {
                         steps {
                             dir(linux_sources_workspace) {
                                 script{
-                                    def SDK_VERSION = getVersionFromHeader("include/mega/version.h")
-                                    sh "jf rt del sdk/$SDK_VERSION/linux/$DISTRO"
-                                    sh "cd ${env.INTERNAL_REPO_PATH}/repo/private/$DISTRO && jf rt upload --regexp '((x86_64|amd64)/sdk.*deb\$|(x86_64|amd64)/sdk.*rpm\$|(x86_64|amd64)/sdk.*\\.pkg\\.tar\\.zst\$|(x86_64|amd64)/sdk.*\\.pkg\\.tar\\.xz\$)' sdk/$SDK_VERSION/linux/$DISTRO/"  
-                                    echo "Packages successfully uploaded. URL: [${env.REPO_URL}/sdk/$SDK_VERSION/linux/$DISTRO/]"
+                                    def CURRENT_DATE = new Date().format('yyyyMMdd')
+                                    sh "jf rt del sdk/releases/$CURRENT_DATE/linux/$DISTRO/"
+                                    sh "cd ${env.INTERNAL_REPO_PATH}/repo/private/$DISTRO && jf rt upload --regexp '((x86_64|amd64)/sdk.*deb\$|(x86_64|amd64)/sdk.*rpm\$|(x86_64|amd64)/sdk.*\\.pkg\\.tar\\.zst\$|(x86_64|amd64)/sdk.*\\.pkg\\.tar\\.xz\$)' sdk/releases/$CURRENT_DATE/linux/$DISTRO/"  
+                                    echo "Packages successfully uploaded. URL: [${env.REPO_URL}/sdk/releases/$CURRENT_DATE/linux/$DISTRO/]"
                                 }
                             }
                         }
