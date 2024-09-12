@@ -20131,6 +20131,16 @@ void MegaApiImpl::restoreVersion(MegaNode* version, MegaRequestListener* listene
             if (newnode->nodekey.size())
             {
                 key.setkey((const byte*)version->nodekey().data(), version->type);
+                static constexpr std::array attributesToKeep{MegaClient::NODE_ATTRIBUTE_DESCRIPTION,
+                                                             MegaClient::NODE_ATTRIBUTE_TAGS};
+                std::for_each(std::begin(attributesToKeep),
+                              std::end(attributesToKeep),
+                              [&versionMap = version->attrs.map,
+                               &currentMap = current->attrs.map](auto&& attribute)
+                              {
+                                  const auto attrId = AttrMap::string2nameid(attribute);
+                                  versionMap[attrId] = currentMap[attrId];
+                              });
                 version->attrs.getjson(&attrstring);
                 client->makeattr(&key, newnode->attrstring, attrstring.c_str());
             }
