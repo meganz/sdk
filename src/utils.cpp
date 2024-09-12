@@ -3263,15 +3263,16 @@ std::string escapeWildCards(const std::string& pattern)
 {
     std::string newString;
     newString.reserve(pattern.size());
+    bool isEscaped = false;
 
     for (const char& character : pattern)
     {
-        if (character == WILDCARD_MATCH_ONE || character == WILDCARD_MATCH_ALL)
+        if ((character == WILDCARD_MATCH_ONE || character == WILDCARD_MATCH_ALL) && !isEscaped)
         {
             newString.push_back(ESCAPE_CHARACTER);
         }
-
         newString.push_back(character);
+        isEscaped = character == ESCAPE_CHARACTER && !isEscaped;
     }
 
     return newString;
