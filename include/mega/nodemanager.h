@@ -56,27 +56,6 @@ public:
         logicalOr,
     };
 
-    template<class T>
-    void copyFrom(const T& f, ShareType_t includedShares = NO_SHARES)
-    {
-        mNameFilter = f.byName();
-        mNodeType = static_cast<nodetype_t>(f.byNodeType()); // get it as int
-        mMimeCategory = static_cast<MimeType_t>(f.byCategory()); // get it as int
-        mExcludeSensitive = static_cast<BoolFilter>(f.bySensitivity());
-        mFavouriteFilterOption = static_cast<BoolFilter>(f.byFavourite());
-        mLocationHandles = {f.byLocationHandle(), UNDEF, UNDEF};
-        mIncludedShares = includedShares;
-        mCreationLowerLimit = f.byCreationTimeLowerLimit();
-        mCreationUpperLimit = f.byCreationTimeUpperLimit();
-        mModificationLowerLimit = f.byModificationTimeLowerLimit();
-        mModificationUpperLimit = f.byModificationTimeUpperLimit();
-        // We can search for descriptions and tags containing wild cards so we need to escape them
-        mDescriptionFilter = escapeWildCards(f.byDescription());
-        mTagFilter = escapeWildCards(f.byTag());
-        mTagFilterContainsSeparator = mTagFilter.find(TAG_DELIMITER) != std::string::npos;
-        mUseAndForTextQuery = f.useAndForTextQuery();
-    }
-
     void byAncestors(std::vector<handle>&& ancs) { assert(ancs.size() == 3); mLocationHandles.swap(ancs); }
     void setIncludedShares(ShareType_t s) { mIncludedShares = s; }
 
@@ -87,8 +66,28 @@ public:
 
     void byNodeType(nodetype_t nodeType)
     {
-        assert(nodeType >= nodetype_t::FILENODE && nodeType <= nodetype_t::FOLDERNODE);
+        assert(nodeType >= nodetype_t::TYPE_UNKNOWN && nodeType <= nodetype_t::FOLDERNODE);
         mNodeType = nodeType;
+    }
+
+    void byCategory(const MimeType_t category)
+    {
+        mMimeCategory = category;
+    }
+
+    void bySensitivity(BoolFilter boolFilter)
+    {
+        mExcludeSensitive = boolFilter;
+    }
+
+    void byFavourite(const BoolFilter byFav)
+    {
+        mFavouriteFilterOption = byFav;
+    }
+
+    void byLocationHandle(const handle location)
+    {
+        mLocationHandles = {location, UNDEF, UNDEF};
     }
 
     void byCreationTimeLowerLimitInSecs(int64_t creationLowerLimit)
@@ -96,9 +95,35 @@ public:
         mCreationLowerLimit = creationLowerLimit;
     }
 
-    void bySensitivity(BoolFilter boolFilter)
+    void byCreationTimeUpperLimitInSecs(int64_t creationUpperLimit)
     {
-        mExcludeSensitive = boolFilter;
+        mCreationUpperLimit = creationUpperLimit;
+    }
+
+    void byModificationTimeLowerLimitInSecs(int64_t modificationLowerLimit)
+    {
+        mModificationLowerLimit = modificationLowerLimit;
+    }
+
+    void byModificationTimeUpperLimitInSecs(int64_t modificationUpperLimit)
+    {
+        mModificationUpperLimit = modificationUpperLimit;
+    }
+
+    void byDescription(const std::string& description)
+    {
+        mDescriptionFilter = escapeWildCards(description);
+    }
+
+    void byTag(const std::string& tag)
+    {
+        mTagFilter = escapeWildCards(tag);
+        mTagFilterContainsSeparator = mTagFilter.find(TAG_DELIMITER) != std::string::npos;
+    }
+
+    void useAndForTextQuery(const bool useAnd)
+    {
+        mUseAndForTextQuery = useAnd;
     }
 
     const std::string& byName() const
@@ -210,7 +235,7 @@ private:
     TextPattern mDescriptionFilter;
     std::string mTagFilter;
     bool mTagFilterContainsSeparator{false};
-    bool mUseAndForTextQuery = true;
+    bool mUseAndForTextQuery{true};
 
     static bool isDocType(const MimeType_t t);
 };

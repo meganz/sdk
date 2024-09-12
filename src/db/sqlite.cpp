@@ -1801,12 +1801,13 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter,
                                                                              "label",
                                                                              "description",
                                                                              "tags"};
-
+        // Output: "nodehandle, parenthandle, flags, ..."
         static const std::string columnsForNodeAndFilters =
             joinStrings(std::cbegin(columnsForNodeAndFiltersVec),
                         std::cend(columnsForNodeAndFiltersVec),
                         ", ");
 
+        // Output: "N.nodehandle, N.parenthandle, N.flags, ..."
         static const std::string columnsForNodeAndFiltersPrefixN =
             joinStrings(std::cbegin(columnsForNodeAndFiltersVec),
                         std::cend(columnsForNodeAndFiltersVec),
