@@ -792,6 +792,7 @@ typedef enum {
     ATTR_ENABLE_TEST_NOTIFICATIONS = 43,    // private - non-encrypted - char array - non-versioned
     ATTR_LAST_READ_NOTIFICATION = 44,       // private - non-encrypted - char array - non-versioned
     ATTR_LAST_ACTIONED_BANNER = 45,         // private - non-encrypted - char array - non-versioned
+    ATTR_ENABLE_TEST_SURVEYS = 46, // private - non-encrypted - char array in B64 - non-versioned
 
 } attr_t;
 typedef map<attr_t, string> userattr_map;

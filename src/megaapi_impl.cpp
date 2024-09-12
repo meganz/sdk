@@ -893,10 +893,11 @@ MegaStringList* MegaNodePrivate::getTags()
 {
     const char* str = getOfficialAttr(MegaClient::NODE_ATTRIBUTE_TAGS);
     std::string tags = str ? str : "";
-
-    std::set<std::string> tokens = splitString(tags, MegaClient::TAG_DELIMITER);
+    const auto tokens =
+        splitString<std::set<std::string, NaturalSortingComparator>>(tags,
+                                                                     MegaClient::TAG_DELIMITER);
     MegaStringListPrivate* stringList = new MegaStringListPrivate();
-    for (const auto& token : tokens)
+    for (const auto& token: tokens)
     {
         stringList->add(token.c_str());
     }
@@ -2125,6 +2126,7 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     {
         changed |= MegaUser::CHANGE_CC_PREFS;
     }
+    // Don't need to notify about user->changed.enableTestSurveys
 }
 
 MegaUserPrivate::MegaUserPrivate(MegaUser *user) : MegaUser()
@@ -4012,6 +4014,12 @@ void MegaRequestPrivate::setMegaStringMap(const MegaStringMap *stringMap)
     this->stringMap = stringMap ? stringMap->copy() : NULL;
 }
 
+void MegaRequestPrivate::setMegaStringMap(const map<string, string>& newValues)
+{
+    delete stringMap;
+    stringMap = new MegaStringMapPrivate(&newValues);
+}
+
 MegaStringListMap *MegaRequestPrivate::getMegaStringListMap() const
 {
     return mStringListMap;
@@ -4778,6 +4786,12 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_ENABLE_MOUNT:    return "TYPE_ENABLE_MOUNT";
         case TYPE_REMOVE_MOUNT:    return "TYPE_REMOVE_MOUNT";
         case TYPE_SET_MOUNT_FLAGS: return "TYPE_SET_MOUNT_FLAGS";
+        case TYPE_GET_ACTIVE_SURVEY_TRIGGER_ACTIONS:
+            return "TYPE_GET_ACTIVE_SURVEY_TRIGGER_ACTIONS";
+        case TYPE_GET_SURVEY:
+            return "TYPE_GET_SURVEY";
+        case TYPE_ANSWER_SURVEY:
+            return "TYPE_ANSWER_SURVEY";
     }
     return "UNKNOWN";
 }
@@ -6915,6 +6929,7 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_ENABLE_TEST_NOTIFICATIONS:
         case MegaApi::USER_ATTR_LAST_READ_NOTIFICATION:
         case MegaApi::USER_ATTR_LAST_ACTIONED_BANNER:
+        case MegaApi::USER_ATTR_ENABLE_TEST_SURVEYS:
             scope = '^';
             break;
 
@@ -14127,7 +14142,12 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
     }
 }
 
-void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<NewNode>& nn, bool targetOverride, int tag)
+void MegaApiImpl::putnodes_result(const Error& inputErr,
+                                  targettype_t t,
+                                  vector<NewNode>& nn,
+                                  bool targetOverride,
+                                  int tag,
+                                  const map<string, string>& fileHandles)
 {
     handle h = UNDEF;
     std::shared_ptr<Node> n = NULL;
@@ -14239,6 +14259,10 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
                 h = ntmp->nodehandle;
             }
         }
+    }
+    else if (request->getType() == MegaRequest::TYPE_CREATE_NODE_TREE)
+    {
+        request->setMegaStringMap(fileHandles);
     }
 
     if (request->getType() != MegaRequest::TYPE_MOVE)
@@ -17579,12 +17603,6 @@ bool MegaApiImpl::nodeComparatorPublicLinkCreationDESC(Node *i, Node *j)
 
 bool MegaApiImpl::nodeComparatorLabelASC(Node *i, Node *j)
 {
-    int t = typeComparator(i, j);
-    if (t >= 0)
-    {
-        return t;
-    }
-
     nameid labelId = AttrMap::string2nameid("lbl");
     int iLabel = MegaNode::NODE_LBL_UNKNOWN;
     auto iAttrIt = i->attrs.map.find(labelId);
@@ -17621,17 +17639,18 @@ bool MegaApiImpl::nodeComparatorLabelASC(Node *i, Node *j)
     {
         return 0;
     }
-    return nodeComparatorDefaultASC(i, j);
-}
 
-bool MegaApiImpl::nodeComparatorLabelDESC(Node *i, Node *j)
-{
     int t = typeComparator(i, j);
     if (t >= 0)
     {
         return t;
     }
 
+    return nodeComparatorDefaultASC(i, j);
+}
+
+bool MegaApiImpl::nodeComparatorLabelDESC(Node* i, Node* j)
+{
     nameid labelId = AttrMap::string2nameid("lbl");
     int iLabel = MegaNode::NODE_LBL_UNKNOWN;
     auto iAttrIt = i->attrs.map.find(labelId);
@@ -17668,26 +17687,33 @@ bool MegaApiImpl::nodeComparatorLabelDESC(Node *i, Node *j)
     {
         return 1;
     }
-    return nodeComparatorDefaultASC(i, j);
-}
 
-
-bool MegaApiImpl::nodeComparatorFavASC(Node *i, Node *j)
-{
     int t = typeComparator(i, j);
     if (t >= 0)
     {
         return t;
     }
 
+    return nodeComparatorDefaultASC(i, j);
+}
+
+bool MegaApiImpl::nodeComparatorFavASC(Node *i, Node *j)
+{
     nameid favId = AttrMap::string2nameid("fav");
     bool iFav = (i->attrs.map.find(favId) != i->attrs.map.end());
     bool jFav = (j->attrs.map.find(favId) != j->attrs.map.end());
 
     if (!(iFav ^ jFav))
     {
-        // if both or none of them, have the same attribute value, order default ASC
-        return nodeComparatorDefaultASC(i, j);
+        // if both or none of them, have the same attribute value, order type and natural comparator
+        // ASC
+        int t = typeComparator(i, j);
+        if (t >= 0)
+        {
+            return t;
+        }
+
+        return nodeNaturalComparatorASC(i, j);
     }
     else if (iFav)
     {
@@ -17701,20 +17727,21 @@ bool MegaApiImpl::nodeComparatorFavASC(Node *i, Node *j)
 
 bool MegaApiImpl::nodeComparatorFavDESC(Node *i, Node *j)
 {
-    int t = typeComparator(i, j);
-    if (t >= 0)
-    {
-        return t;
-    }
-
     nameid favId = AttrMap::string2nameid("fav");
     bool iFav = (i->attrs.map.find(favId) != i->attrs.map.end());
     bool jFav = (j->attrs.map.find(favId) != j->attrs.map.end());
 
     if (!(iFav ^ jFav))
     {
-        // if both or none of them, have the same attribute value, order default ASC
-        return nodeComparatorDefaultASC(i, j);
+        // if both or none of them, have the same attribute value, order type and natural comparator
+        // ASC
+        int t = typeComparator(i, j);
+        if (t >= 0)
+        {
+            return t;
+        }
+
+        return nodeNaturalComparatorASC(i, j);
     }
     else if (iFav)
     {
@@ -20270,11 +20297,26 @@ void MegaApiImpl::getDownloadUrl(MegaNode* node, bool singleUrl, MegaRequestList
                 return API_EARGS;
             }
 
-            client->reqs.add(new CommandGetFile(client, (const byte*)node->nodekey().data(), node->nodekey().size(),
-                false /*undelete*/, node->nodehandle, true, nullptr, nullptr, nullptr, request->getFlag() /*singleUrl*/,
-                [this, request](const Error &e, m_off_t /*size*/, dstime /*timeleft*/,
-                std::string* /*filename*/, std::string* /*fingerprint*/, std::string* /*fileattrstring*/,
-                const std::vector<std::string> &urls, const std::vector<std::string> &ips)
+            client->reqs.add(new CommandGetFile(
+                client,
+                (const byte*)node->nodekey().data(),
+                node->nodekey().size(),
+                false /*undelete*/,
+                node->nodehandle,
+                true,
+                nullptr,
+                nullptr,
+                nullptr,
+                request->getFlag() /*singleUrl*/,
+                [this, request, h = node->nodehandle](const Error& e,
+                                                      m_off_t /*size*/,
+                                                      dstime /*timeleft*/,
+                                                      std::string* /*filename*/,
+                                                      std::string* /*fingerprint*/,
+                                                      std::string* /*fileattrstring*/,
+                                                      const std::vector<std::string>& urls,
+                                                      const std::vector<std::string>& ips,
+                                                      const std::string& fileHandle)
                 {
                     if (e == API_OK && urls.size() && ips.size())
                     {
@@ -20283,14 +20325,16 @@ void MegaApiImpl::getDownloadUrl(MegaNode* node, bool singleUrl, MegaRequestList
                         auto delimFields=";";
                         for (auto &u : urls)
                         {
-                            if (!surls.empty()) surls.append(delimFields);
+                            if (!surls.empty())
+                                surls.append(delimFields);
                             surls.append(u);
                         }
                         bool ipv4 = true;
                         for (auto &ip : ips)
                         {
                             auto &w = ipv4 ? sipsv4 : sipsv6;
-                            if (!w.empty()) w.append(delimFields);
+                            if (!w.empty())
+                                w.append(delimFields);
                             w.append(ip);
                             ipv4 = !ipv4;
                         }
@@ -20298,12 +20342,14 @@ void MegaApiImpl::getDownloadUrl(MegaNode* node, bool singleUrl, MegaRequestList
                         request->setName(surls.c_str());
                         request->setLink(sipsv4.c_str());
                         request->setText(sipsv6.c_str());
+                        request->setMegaStringMap({
+                            {Base64Str<MegaClient::NODEHANDLE>(h).chars, fileHandle}
+                        });
                     }
 
                     fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
                     return true;
-                })
-            );
+                }));
 
             return API_OK;
         };
@@ -20999,6 +21045,10 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                 else if (type == ATTR_LAST_ACTIONED_BANNER)
                 {
                     performRequest_setLastActionedBanner(request);
+                }
+                else if (type == ATTR_ENABLE_TEST_SURVEYS)
+                {
+                    performRequest_enableTestSurveys(request);
                 }
                 else
                 {
@@ -27126,26 +27176,29 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
             }
         }
 
-        auto result{
-            [this,
-             request,
-             nodeTree](const Error& error, targettype_t, vector<NewNode>& newNodes, bool, int)
-            {
-                size_t i{};
-                auto tmpNodeTree{dynamic_cast<MegaNodeTreePrivate*>(nodeTree)};
-                while (i < newNodes.size() && tmpNodeTree)
-                {
-                    if (auto node{client->nodebyhandle(newNodes[i].mAddedHandle)})
+        auto result{[this, request, nodeTree](const Error& error,
+                                              targettype_t,
+                                              vector<NewNode>& newNodes,
+                                              bool,
+                                              int,
+                                              const map<string, string>& fileHandles)
                     {
-                        tmpNodeTree->setNodeHandle(node->nodehandle);
-                    }
-                    i++;
-                    tmpNodeTree =
-                        dynamic_cast<MegaNodeTreePrivate*>(tmpNodeTree->getNodeTreeChild());
-                }
-                request->setMegaNodeTree(nodeTree);
-                fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(error));
-            }};
+                        size_t i{};
+                        auto tmpNodeTree{dynamic_cast<MegaNodeTreePrivate*>(nodeTree)};
+                        while (i < newNodes.size() && tmpNodeTree)
+                        {
+                            if (auto node{client->nodebyhandle(newNodes[i].mAddedHandle)})
+                            {
+                                tmpNodeTree->setNodeHandle(node->nodehandle);
+                            }
+                            i++;
+                            tmpNodeTree =
+                                dynamic_cast<MegaNodeTreePrivate*>(tmpNodeTree->getNodeTreeChild());
+                        }
+                        request->setMegaNodeTree(nodeTree);
+                        request->setMegaStringMap(fileHandles);
+                        fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(error));
+                    }};
 
         client->putnodes(NodeHandle().set6byte(request->getParentHandle()),
                          UseLocalVersioningFlag,
@@ -27407,6 +27460,145 @@ void MegaApiImpl::deleteUserAttribute(int type, MegaRequestListener* listener)
 #else
         return API_EACCESS;
 #endif
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getActiveSurveyTriggerActions(MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request =
+        new MegaRequestPrivate(MegaRequest::TYPE_GET_ACTIVE_SURVEY_TRIGGER_ACTIONS, listener);
+
+    request->performRequest = [this, request]()
+    {
+        auto completion = [this, request](const Error& e, const vector<uint32_t>& ids)
+        {
+            if (e == API_OK)
+            {
+                request->setMegaIntegerList(std::make_unique<MegaIntegerListPrivate>(ids));
+            }
+
+            fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
+        };
+
+        client->getActiveSurveyTriggerActions(std::move(completion));
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::answerSurvey(MegaHandle surveyHandle,
+                               unsigned int triggerActionId,
+                               const char* response,
+                               const char* comment,
+                               MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_ANSWER_SURVEY, listener);
+    request->setNodeHandle(surveyHandle);
+    request->setParamType(static_cast<int>(triggerActionId));
+    request->setText(response);
+    request->setFile(comment);
+    request->performRequest = [this, request]()
+    {
+        auto completion = [this, request](const Error& e)
+        {
+            fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
+        };
+
+        CommandAnswerSurvey::Answer answer{
+            request->getNodeHandle(), // survey handle
+            static_cast<unsigned int>(request->getParamType()), // triger action ID
+            request->getText(), // response
+            request->getFile()}; // comment
+
+        client->answerSurvey(answer, std::move(completion));
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getSurvey(unsigned int triggerActionId, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_SURVEY, listener);
+    request->setParamType(static_cast<int>(triggerActionId));
+    request->performRequest = [this, request]()
+    {
+        auto completion = [this, request](const Error& e, const CommandGetSurvey::Survey& survey)
+        {
+            if (e == API_OK)
+            {
+                request->setNodeHandle(survey.h);
+                request->setNumDetails(static_cast<int>(survey.maxResponse));
+                request->setFile(survey.image.c_str());
+                request->setText(survey.content.c_str());
+            }
+
+            fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
+        };
+
+        const auto triggerActionId = static_cast<unsigned int>(request->getParamType());
+        client->getSurvey(triggerActionId, std::move(completion));
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::performRequest_enableTestSurveys(MegaRequestPrivate* request)
+{
+    const MegaHandleList* ids = request->getMegaHandleList();
+    if (!ids)
+    {
+        fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_EARGS));
+        return;
+    }
+
+    // Example: Join the elements to form "A,B,C"
+    const auto joinWithCommaInB64 = [](const MegaHandleList* ids) -> string
+    {
+        string result;
+        for (unsigned i = 0; i < ids->size(); ++i)
+        {
+            result += string{Base64Str<MegaClient::SURVEYHANDLE>(ids->get(i))} + ',';
+        }
+        // Remove the ending ","
+        if (!result.empty())
+            result.pop_back();
+
+        return result;
+    };
+
+    const string attributeValue{joinWithCommaInB64(ids)};
+    client->putua(ATTR_ENABLE_TEST_SURVEYS,
+                  reinterpret_cast<const byte*>(attributeValue.c_str()),
+                  unsigned(attributeValue.size()),
+                  -1,
+                  UNDEF,
+                  0,
+                  0,
+                  [this, request](Error e)
+                  {
+                      fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
+                  });
+}
+
+void MegaApiImpl::enableTestSurveys(const MegaHandleList* surveyHandles,
+                                    MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_ENABLE_TEST_SURVEYS);
+    request->setMegaHandleList(surveyHandles);
+
+    request->performRequest = [this, request]()
+    {
+        return performRequest_setAttrUser(request);
     };
 
     requestQueue.push(request);
@@ -29517,10 +29709,12 @@ MegaFolderUploadController::batchResult MegaFolderUploadController::createNextFo
                                          targettype_t,
                                          vector<NewNode>&,
                                          bool,
-                                         int tag)
+                                         int tag,
+                                         const map<string, string>& /*fileHandles*/)
             {
                 // double check our object still exists on request completion
-                if (!weak_this.lock()) return;
+                if (!weak_this.lock())
+                    return;
                 assert(weak_this.lock().get() == this);
                 assert(mMainThreadId == std::this_thread::get_id());
 

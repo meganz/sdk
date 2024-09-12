@@ -818,10 +818,14 @@ struct StandardClient : public MegaApp
     public:
         BasicPutNodesCompletion(std::function<void(const Error&)>&& callable)
             : mCallable(std::move(callable))
-        {
-        }
+        {}
 
-        void operator()(const Error& e, targettype_t, vector<NewNode>&, bool, int tag)
+        void operator()(const Error& e,
+                        targettype_t,
+                        vector<NewNode>&,
+                        bool,
+                        int tag,
+                        const map<string, string>& /*fileHandles*/)
         {
             mCallable(e);
         }
@@ -893,10 +897,25 @@ struct StandardClient : public MegaApp
             assert(t->type == PUT);
             
             auto finalCompletion = move(completion);
-            sendPutnodesOfUpload(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(),
-                [finalCompletion](const Error&, targettype_t, vector<NewNode>&, bool targetOverride, int tag){
-                    if (finalCompletion) finalCompletion(true);
-                }, nullptr, false);
+            sendPutnodesOfUpload(
+                t->client,
+                t->uploadhandle,
+                *t->ultoken,
+                t->filekey,
+                source,
+                NodeHandle(),
+                [finalCompletion](const Error&,
+                                  targettype_t,
+                                  vector<NewNode>&,
+                                  bool targetOverride,
+                                  int tag,
+                                  const std::map<std::string, std::string>& fileHandles)
+                {
+                    if (finalCompletion)
+                        finalCompletion(true);
+                },
+                nullptr,
+                false);
 
             delete this;
         }
@@ -1065,7 +1084,12 @@ struct StandardClient : public MegaApp
 
     handle lastPutnodesResultFirstHandle = UNDEF;
 
-    void putnodes_result(const Error& e, targettype_t tt, vector<NewNode>& nn, bool targetOverride, int tag) override;
+    void putnodes_result(const Error& e,
+                         targettype_t tt,
+                         vector<NewNode>& nn,
+                         bool targetOverride,
+                         int tag,
+                         const std::map<std::string, std::string>& fileHandles) override;
     void catchup_result() override;
 
     void disableSync(handle id, SyncError error, bool enabled, bool keepSyncDB, PromiseBoolSP result);

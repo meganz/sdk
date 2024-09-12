@@ -959,6 +959,23 @@ void SdkTest::onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* 
     LOG_info << "lastError (by transfer) for MegaApi " << apiIndex << ": " << mApi[apiIndex].lastError;
 
     onTranferFinishedCount += 1;
+
+    // Transfer stats.
+    // We need to access the MegaTransferPrivate because the stats
+    // are not part of the public interface so we need to retrieve the Transfer object.
+    if (auto transferPrivate = dynamic_cast<MegaTransferPrivate*>(transfer))
+    {
+        auto internalTransfer = transferPrivate->getTransfer();
+        if (internalTransfer && internalTransfer->slot)
+        {
+            onTransferFinish_transferStats = internalTransfer->slot->tsStats;
+            LOG_debug << "[SdkTest::onTransferFinish] Stats: FailedRequestRatio = "
+                      << onTransferFinish_transferStats.failedRequestRatio
+                      << " [totalRequests = " << onTransferFinish_transferStats.numTotalRequests
+                      << ", failedRequests = " << onTransferFinish_transferStats.numFailedRequests
+                      << "]";
+        }
+    }
 }
 
 void SdkTest::onTransferUpdate(MegaApi *api, MegaTransfer *transfer)
@@ -7457,7 +7474,6 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
                                   false    /* undelete */);
 
         unsigned int transfer_timeout_in_seconds = 180;
-        //unsigned int transfer_timeout_in_seconds = 15;
         ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], transfer_timeout_in_seconds)) << "Cloudraid download with 404 and 403 errors time out (180 seconds)";
         ASSERT_EQ(API_OK, mApi[0].lastError) << "Cannot download the cloudraid file (error: " << mApi[0].lastError << ")";
         const auto& downloadEndTime = std::chrono::system_clock::now();
@@ -7467,8 +7483,13 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
         ASSERT_TRUE(onTransferUpdate_progress == onTransferUpdate_filesize);
         ASSERT_LT(DebugTestHook::countdownTo404, 0);
         ASSERT_LT(DebugTestHook::countdownTo403, 0);
+        ASSERT_EQ(onTransferFinish_transferStats.numFailedRequests, 2); // One 404 and one 403
+        ASSERT_GT(onTransferFinish_transferStats.failedRequestRatio, 0.0);
+        ASSERT_LT(onTransferFinish_transferStats.failedRequestRatio, 1.0);
+        ASSERT_EQ(onTransferFinish_transferStats.numTotalRequests,
+                  35 + 2); // 35 is the calculated number of requests for this file and chunk size
+                           // (+2 after 2 failed requests)
     }
-
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 }
@@ -7574,6 +7595,12 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
         ASSERT_GE(onTransferUpdate_filesize, 0u);
         ASSERT_EQ(onTransferUpdate_progress, onTransferUpdate_filesize);
         ASSERT_LT(DebugTestHook::countdownToTimeout, 0);
+        ASSERT_EQ(onTransferFinish_transferStats.numFailedRequests,
+                  0); // This "timeout" does not imply a request failure because it is detected as a
+                      // hanging source
+        ASSERT_EQ(onTransferFinish_transferStats.failedRequestRatio, 0.0);
+        ASSERT_EQ(onTransferFinish_transferStats.numTotalRequests,
+                  35 + 1); // 35 is the calculated number of requests for this file and chunk size
     }
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 }
@@ -18346,6 +18373,23 @@ TEST_F(SdkTest, CreateNodeTreeWithMultipleLevelsOfDirectoriesAndOneFileAtTheEnd)
     ASSERT_THAT(fileNode, ::testing::NotNull());
     ASSERT_STREQ(IMAGEFILE.c_str(), fileNode->getName());
     ASSERT_EQ(fileSize, fileNode->getSize());
+
+    // Check that fileHandle was populated when file node was created
+    Base64Str<MegaClient::NODEHANDLE> b64FileHandle{fileNode->getHandle()};
+    MegaStringMap* fileHandles = requestTracker.request->getMegaStringMap();
+    ASSERT_THAT(fileHandles, ::testing::NotNull());
+    ASSERT_EQ(fileHandles->size(), 1);
+    ASSERT_THAT(fileHandles->get(b64FileHandle), ::testing::NotNull());
+
+    // Check that fileHandle was populated when file download url was fetched
+    RequestTracker tracker{megaApi[apiIndex].get()};
+    megaApi[apiIndex]->getDownloadUrl(fileNode.get(), true, &tracker);
+    ASSERT_EQ(API_OK, tracker.waitForResult());
+    MegaStringMap* fileHandle = tracker.request->getMegaStringMap();
+    ASSERT_THAT(fileHandle, ::testing::NotNull());
+    ASSERT_EQ(fileHandle->size(), 1);
+    ASSERT_THAT(fileHandle->get(b64FileHandle), ::testing::NotNull());
+    ASSERT_STREQ(fileHandle->get(b64FileHandle), fileHandles->get(b64FileHandle));
 }
 
 /**
@@ -19605,22 +19649,25 @@ TEST_F(SdkTest, SdkNodeTag)
         << "Cannot upload a second test file";
 
     LOG_debug << "[SdkTest::SdkNodeTag] Adding tags to the file";
-    std::string subdirtag = "subdirtag";
-    std::string subdiraux = "subdiraux";
-    ASSERT_EQ(addTag(mh2, subdirtag), API_OK);
-    ASSERT_EQ(addTag(mh2, subdiraux), API_OK);
+    std::string subdirtag14 = "subdirtag14";
+    std::string subdirtag4 = "subdirtag4";
+    std::string subdirtag20 = "subdirtag20";
+    ASSERT_EQ(addTag(mh2, subdirtag14), API_OK);
+    ASSERT_EQ(addTag(mh2, subdirtag4), API_OK);
+    ASSERT_EQ(addTag(mh2, subdirtag20), API_OK);
 
     LOG_debug << "[SdkTest::SdkNodeTag] Testing all tags";
     std::unique_ptr<MegaStringList> allTags(megaApi[0]->getAllNodeTags());
     ASSERT_NE(allTags, nullptr);
     auto allTagsV = toVector(*allTags);
-    EXPECT_THAT(allTagsV, testing::ElementsAreArray({subdiraux, subdirtag, tag3, tag11}));
+    EXPECT_THAT(allTagsV,
+                testing::ElementsAreArray({subdirtag4, subdirtag14, subdirtag20, tag3, tag11}));
 
     LOG_debug << "[SdkTest::SdkNodeTag] Testing all tags with pattern matching";
     allTags.reset(megaApi[0]->getAllNodeTags("ub*r"));
     ASSERT_NE(allTags, nullptr);
     allTagsV = toVector(*allTags);
-    EXPECT_THAT(allTagsV, testing::ElementsAreArray({subdiraux, subdirtag}));
+    EXPECT_THAT(allTagsV, testing::ElementsAreArray({subdirtag4, subdirtag14, subdirtag20}));
 
     LOG_debug << "[SdkTest::SdkNodeTag] Testing all tags with exact match";
     allTags.reset(megaApi[0]->getAllNodeTags(tag11.c_str()));
@@ -19661,6 +19708,14 @@ TEST_F(SdkTest, SdkNodeTag)
 
     EXPECT_THAT(toVector(*oldTags), testing::UnorderedElementsAreArray(toVector(*newTags)))
         << "Tags are not maintained after file update";
+
+    LOG_debug << "[SdkTest::SdkNodeTag] Ensure tags from a node are naturally sorted";
+    std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByHandle(mh2));
+    ASSERT_NE(node, nullptr);
+    std::unique_ptr<MegaStringList> tags(node->getTags());
+    ASSERT_NE(tags, nullptr);
+    EXPECT_THAT(toVector(*tags), testing::ElementsAre(subdirtag4, subdirtag14, subdirtag20))
+        << "Tags for a single node are not returned in natural order";
 }
 
 /**

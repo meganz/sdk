@@ -19,17 +19,17 @@
  * program.
  */
 
-
-#include "mega.h"
 #include "../include/megaapi.h"
 #include "../include/megaapi_impl.h"
 #include "gtest/gtest.h"
+#include "mega.h"
 #include "test.h"
 
-#include <iostream>
+#include <atomic>
 #include <fstream>
 #include <future>
-#include <atomic>
+#include <iostream>
+#include <memory>
 
 using namespace mega;
 using ::testing::Test;
@@ -197,6 +197,17 @@ struct RequestTracker : public ::mega::MegaRequestListener
     bool getFlag()
     {
         return request ? request->getFlag() : false;
+    }
+
+    template<typename... Args, typename... Params>
+    static unique_ptr<RequestTracker> async(MegaApi& api,
+                                            void (MegaApi::*mf)(Params...),
+                                            Args&&... args)
+    {
+        static_assert(sizeof...(Args) + 1 == sizeof...(Params));
+        auto rt = std::make_unique<RequestTracker>(&api);
+        (api.*mf)(std::forward<Args>(args)..., rt.get());
+        return rt;
     }
 };
 
@@ -397,6 +408,23 @@ public:
     m_off_t onTransferUpdate_progress;
     m_off_t onTransferUpdate_filesize;
     unsigned onTranferFinishedCount = 0;
+
+    struct SdkTestTransferStats
+    {
+        m_off_t numFailedRequests{};
+        m_off_t numTotalRequests{};
+        double failedRequestRatio{};
+
+        SdkTestTransferStats& operator=(const TransferSlotStats& transferSlotStats)
+        {
+            numFailedRequests = transferSlotStats.numFailedRequests;
+            numTotalRequests = transferSlotStats.numTotalRequests;
+            failedRequestRatio = transferSlotStats.failedRequestRatio();
+            return *this;
+        }
+    };
+
+    SdkTestTransferStats onTransferFinish_transferStats{};
 
 protected:
     void SetUp() override;

@@ -124,19 +124,24 @@ class JiraProject:
 
         # build notes
         notes = ""
-        bullet_utf8 = "\U00002022"
+        bullet = self._get_bullet_placeholder(formatting)
         for k, vs in issues.items():
             notes += self._get_notes_chapter(k, formatting)
             for p in vs:
-                url = p[1] if include_urls else ""
-                notes += bullet_utf8 + " " + self._get_notes_issue(
-                    p[0], url, p[2], formatting
+                url = p[0] if include_urls else ""
+                notes += bullet + " " + self._get_notes_issue(
+                    p[1], url, p[2], formatting
                 )
             notes += "\n"
         notes += self._get_notes_chapter("Target apps", formatting)
         for a in apps:
-            notes += f"{bullet_utf8} {a}\n"
+            notes += f"{bullet} {a}\n"
         return notes
+
+    def _get_bullet_placeholder(self, formatting: str) -> str:
+        if formatting == "slack":
+            return "\U00002022" # utf8 bullet
+        return "-"  # "git" and others
 
     def _get_notes_chapter(self, title: str, formatting: str) -> str:
         if formatting == "slack":
@@ -154,7 +159,7 @@ class JiraProject:
         elif formatting == "slack":
             prefix = f"[<{url}|{id}>]"
         elif formatting == "git":
-            return f"\\[[{id}]({url})\\]"
+            prefix = f"\\[[{id}]({url})\\]"
         else:
             prefix = id  # return it with no formatting
 

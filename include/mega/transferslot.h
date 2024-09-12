@@ -45,6 +45,15 @@ public:
     inline operator FileAccess* () { return fa.get(); }
 };
 
+// Transfer stats
+struct TransferSlotStats
+{
+    m_off_t numFailedRequests{};
+    m_off_t numTotalRequests{};
+
+    double failedRequestRatio() const;
+};
+
 class TransferDbCommitter;
 
 // active transfer
@@ -126,6 +135,9 @@ struct MEGA_API TransferSlot
     // Prepare an HTTP request
     void prepareRequest(const std::shared_ptr<HttpReqXfer>&, const string& tempURL, m_off_t pos, m_off_t npos);
 
+    // Process HTTP POST
+    void processRequestPost(MegaClient* client, const std::shared_ptr<HttpReqXfer>&);
+
     // Process a request failure
     // Return values:
     // Error: the ErrorCode. If different from API_OK, it means that the transfer is considered as failed and transfer->failed() should be called.
@@ -165,7 +177,8 @@ struct MEGA_API TransferSlot
     // transfer failure flag. MegaClient will increment the transfer->errorcount when it sees this set.
     bool failure;
 
-    std::chrono::time_point<std::chrono::system_clock> downloadStartTime;
+    // transfer stats
+    TransferSlotStats tsStats;
 
     TransferSlot(Transfer*);
     ~TransferSlot();

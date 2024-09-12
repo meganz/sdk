@@ -760,7 +760,7 @@ void CommandGetFile::callFailedCompletion(const Error &e)
     assert(mCompletion);
     if (mCompletion)
     {
-        mCompletion(e, -1, 0, nullptr, nullptr, nullptr, {}, {});
+        mCompletion(e, -1, 0, nullptr, nullptr, nullptr, {}, {}, {});
     }
 }
 
@@ -788,6 +788,7 @@ bool CommandGetFile::procresult(Result r, JSON& json)
     string filefingerprint;
     vector<string> tempurls;
     vector<string> tempips;
+    string fileHandle;
 
     for (;;)
     {
@@ -841,6 +842,12 @@ bool CommandGetFile::procresult(Result r, JSON& json)
             case MAKENAMEID2('t', 'l'):
                 tl = dstime(json.getint());
                 break;
+
+            case MAKENAMEID2('f', 'h'):
+            {
+                json.storeobject(&fileHandle);
+                break;
+            }
 
             case EOO:
             {
@@ -900,11 +907,17 @@ bool CommandGetFile::procresult(Result r, JSON& json)
                             break;
 
                         case EOO:
-                            { //succeded, call completion function!
-                                return mCompletion ? mCompletion(e, s, tl,
-                                            &filenamestring, &filefingerprint, &fileattrstring,
-                                            tempurls, tempips) : false;
-                            }
+                            // success, call completion function!
+                            return mCompletion ? mCompletion(e,
+                                                             s,
+                                                             tl,
+                                                             &filenamestring,
+                                                             &filefingerprint,
+                                                             &fileattrstring,
+                                                             tempurls,
+                                                             tempips,
+                                                             fileHandle) :
+                                                 false;
 
                         default:
                             if (!attrJson.storeobject())
@@ -1047,6 +1060,8 @@ CommandPutNodes::CommandPutNodes(MegaClient* client,
     source = csource;
     mSeqtagArray = true;
     cmd("p");
+
+    arg("v", 4); // include file IDs/handles
 
     if (userhandle)
     {
@@ -1253,105 +1268,26 @@ void CommandPutNodes::removePendingDBRecordsAndTempFiles()
     }
 }
 
-void CommandPutNodes::performAppCallback(Error e, vector<NewNode>& newnodes, bool targetOverride)
+void CommandPutNodes::performAppCallback(Error e,
+                                         vector<NewNode>& newnodes,
+                                         bool targetOverride,
+                                         const map<string, string>& fileHandles)
 {
-    if (mResultFunction) mResultFunction(e, type, newnodes, targetOverride, tag);
-	else client->app->putnodes_result(e, type, newnodes, targetOverride, tag);
+    if (mResultFunction)
+        mResultFunction(e, type, newnodes, targetOverride, tag, fileHandles);
+    else
+        client->app->putnodes_result(e, type, newnodes, targetOverride, tag, fileHandles);
 }
 
 bool CommandPutNodes::procresult(Result r, JSON& json)
 {
     removePendingDBRecordsAndTempFiles();
 
-    if (r.hasJsonArray() || r.hasJsonObject())
-    {
-        // The response is a sparse array indicating the nodes that failed, and the corresponding error code.
-        // If the first three nodes failed, the response would be e.g. [-9,-9,-9].  Success is []
-        // If the second and third node failed, the response would change to {"1":-9,"2":-9}.
-
-        Error newNodeError(API_OK);
-        unsigned arrayIndex = 0;
-        for (;;)
-        {
-            if (r.hasJsonArray())
-            {
-                if (*json.pos == ']')
-                {
-                    break;
-                }
-
-                if (!json.isnumeric())
-                {
-                    performAppCallback(API_EINTERNAL, nn, false);
-                    return false;
-                }
-
-                assert(arrayIndex < nn.size());
-                if (arrayIndex < nn.size())
-                {
-                    nn[arrayIndex].mError = error(json.getint());
-                    if (nn[arrayIndex].mError != API_OK)
-                    {
-                        newNodeError = nn[arrayIndex].mError;
-                        LOG_debug << "[CommandPutNodes] New Node failed with " << newNodeError << " [newnode index = " << arrayIndex << ", NodeHandle = " << nn[arrayIndex].nodeHandle() << "]";
-                        assert(((nn[arrayIndex].mError != API_EKEY) || !nn[arrayIndex].hasZeroKey()) && "New Node which failed with API_EKEY has a zerokey!!!!");
-                    }
-                    arrayIndex++;
-                }
-            }
-            else
-            {
-                string index, errorCode;
-                if (json.storeobject(&index) && *json.pos == ':')
-                {
-                    ++json.pos;
-                    if (json.storeobject(&errorCode))
-                    {
-                        arrayIndex = unsigned(atoi(index.c_str()));
-                        if (arrayIndex < nn.size())
-                        {
-                            nn[arrayIndex].mError = error(atoi(errorCode.c_str()));
-                            continue;
-                        }
-                    }
-                }
-                if (*json.pos != '}')
-                {
-                    performAppCallback(API_EINTERNAL, nn, false);
-                    return false;
-                }
-                break;
-            }
-        }
-
-#ifdef DEBUG
-        if (type != USER_HANDLE)
-        {
-            for (auto& n : nn)
-            {
-                // double check we got a node, or know the error why it didn't get created
-                if (!((n.added && n.mAddedHandle != UNDEF && !n.mError) ||
-                     (!n.added && n.mAddedHandle == UNDEF && n.mError)))
-                {
-                    assert(false);
-                }
-            }
-        }
-#endif
-
-	    // when the target has been removed, the API automatically adds the new node/s
-        // into the rubbish bin
-        shared_ptr<Node> tempNode = !nn.empty() ? client->nodebyhandle(nn.front().mAddedHandle) : nullptr;
-        bool targetOverride = (tempNode.get() && NodeHandle().set6byte(tempNode->parenthandle) != targethandle);
-
-        performAppCallback(emptyResponse ? ((newNodeError != API_OK) ? static_cast<error>(newNodeError) : API_ENOENT) : // Add last new node error if there is any, otherwise API_ENOENT
-                                            API_OK, nn, targetOverride);
-        return true;
-    }
-    else
+    if (r.wasErrorOrOK())
     {
         LOG_debug << "Putnodes error " << r.errorOrOK();
-        if (r.wasError(API_EOVERQUOTA))
+        error e = r.errorOrOK();
+        if (e == API_EOVERQUOTA)
         {
             if (client->isPrivateNode(targethandle))
             {
@@ -1359,8 +1295,163 @@ bool CommandPutNodes::procresult(Result r, JSON& json)
             }
         }
 
-        performAppCallback(r.errorOrOK(), nn, false);
-        return r.wasErrorOrOK();
+        performAppCallback((e ? e : API_EINTERNAL), nn, false, {});
+        return true;
+    }
+
+    Error newNodeError(API_OK);
+    map<string, string> fileHandles;
+
+    for (;;)
+    {
+        switch (json.getnameid())
+        {
+            case 'e':
+            {
+                // This element is a sparse array indicating the nodes that failed, and the
+                // corresponding error codes.
+                // If the first three nodes failed, the response would be e.g. [-9,-9,-9].
+                // Success is [].
+                // If the second and third node failed, the response would change to
+                // {"1":-9,"2":-9}.
+
+                bool hasJsonArray = json.enterarray();
+                if (!hasJsonArray && !json.enterobject())
+                {
+                    performAppCallback(API_EINTERNAL, nn, false, fileHandles);
+                    return false;
+                }
+
+                unsigned arrayIndex = 0;
+                for (;;)
+                {
+                    if (hasJsonArray)
+                    {
+                        if (*json.pos == ']')
+                        {
+                            json.leavearray();
+                            break;
+                        }
+
+                        if (!json.isnumeric())
+                        {
+                            performAppCallback(API_EINTERNAL, nn, false, fileHandles);
+                            return false;
+                        }
+
+                        assert(arrayIndex < nn.size());
+                        if (arrayIndex < nn.size())
+                        {
+                            nn[arrayIndex].mError = error(json.getint());
+                            if (nn[arrayIndex].mError != API_OK)
+                            {
+                                newNodeError = nn[arrayIndex].mError;
+                                LOG_debug << "[CommandPutNodes] New Node failed with "
+                                          << newNodeError << " [newnode index = " << arrayIndex
+                                          << ", NodeHandle = " << nn[arrayIndex].nodeHandle()
+                                          << "]";
+                                assert(((nn[arrayIndex].mError != API_EKEY) ||
+                                        !nn[arrayIndex].hasZeroKey()) &&
+                                       "New Node which failed with API_EKEY has a zerokey!!!!");
+                            }
+                            arrayIndex++;
+                        }
+                    }
+                    else
+                    {
+                        string index, errorCode;
+                        if (json.storeobject(&index) && *json.pos == ':')
+                        {
+                            ++json.pos;
+                            if (json.storeobject(&errorCode))
+                            {
+                                arrayIndex = unsigned(atoi(index.c_str()));
+                                if (arrayIndex < nn.size())
+                                {
+                                    nn[arrayIndex].mError = error(atoi(errorCode.c_str()));
+                                    continue;
+                                }
+                            }
+                        }
+
+                        if (!json.leaveobject())
+                        {
+                            performAppCallback(API_EINTERNAL, nn, false, fileHandles);
+                            return false;
+                        }
+                        break;
+                    }
+                }
+
+                break;
+            }
+
+            case MAKENAMEID2('f', 'h'): // ["drEyXKKB:C6-OsdmLX2U","<nodehandle>:<fileid>"]
+                if (!json.enterarray())
+                {
+                    performAppCallback(API_EINTERNAL, nn, false, fileHandles);
+                    return false;
+                }
+
+                for (std::string temp; json.storeobject(&temp);)
+                {
+                    auto separator = temp.find(':');
+                    if (separator != string::npos)
+                    {
+                        fileHandles[temp.substr(0, separator)] = temp.substr(separator + 1);
+                    }
+                }
+
+                if (!json.leavearray())
+                {
+                    performAppCallback(API_EINTERNAL, nn, false, fileHandles);
+                    return false;
+                }
+                break;
+
+            default:
+                if (!json.storeobject())
+                {
+                    performAppCallback(API_EINTERNAL, nn, false, fileHandles);
+                    return false;
+                }
+                break;
+
+            case EOO:
+#ifdef DEBUG
+                if (type != USER_HANDLE)
+                {
+                    for (auto& n: nn)
+                    {
+                        // double check we got a node, or know the error why it didn't get created
+                        if (!((n.added && n.mAddedHandle != UNDEF && !n.mError) ||
+                              (!n.added && n.mAddedHandle == UNDEF && n.mError)))
+                        {
+                            assert(false);
+                        }
+                    }
+                }
+#endif
+
+                // when the target has been removed, the API automatically adds the new node/s
+                // into the rubbish bin
+                shared_ptr<Node> tempNode =
+                    !nn.empty() ? client->nodebyhandle(nn.front().mAddedHandle) : nullptr;
+                bool targetOverride =
+                    (tempNode.get() &&
+                     NodeHandle().set6byte(tempNode->parenthandle) != targethandle);
+
+                const Error& finalStatus =
+                    emptyResponse ?
+                        ((newNodeError != API_OK) ?
+                             // Add last new node error if there is any, otherwise API_ENOENT
+                             newNodeError :
+                             Error(API_ENOENT)) :
+                        Error(API_OK);
+
+                performAppCallback(finalStatus, nn, targetOverride, fileHandles);
+                return true;
+        }
     }
 }
 
@@ -4080,6 +4171,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
     string enabledTestNotifications, versionEnabledTestNotifications;
     string lastReadNotification, versionLastReadNotification;
     string lastActionedBanner, versionLastActionedBanner;
+    string enabledTestSurveys, versionEnabledTestSurveys;
 #ifdef ENABLE_SYNC
     string jsonSyncConfigData;
     string jsonSyncConfigDataVersion;
@@ -4481,6 +4573,12 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
             break;
         }
 
+        case MAKENAMEID6('^', '!', 't', 's', 'u', 'r'):
+        {
+            parseUserAttribute(json, enabledTestSurveys, versionEnabledTestSurveys);
+            break;
+        }
+
         case EOO:
         {
             assert(me == client->me);
@@ -4815,6 +4913,17 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 else
                 {
                     u->removeattr(ATTR_LAST_ACTIONED_BANNER, true);
+                }
+
+                if (!enabledTestSurveys.empty() || !versionEnabledTestSurveys.empty())
+                {
+                    changes += u->updateattr(ATTR_ENABLE_TEST_SURVEYS,
+                                             &enabledTestSurveys,
+                                             &versionEnabledTestSurveys);
+                }
+                else
+                {
+                    u->removeattr(ATTR_ENABLE_TEST_SURVEYS, true);
                 }
 
 #ifdef ENABLE_SYNC
@@ -11877,6 +11986,163 @@ bool CommandGetNotifications::readCallToAction(JSON& json, map<string, string>& 
     return json.leaveobject();
 }
 
+CommandGetActiveSurveyTriggerActions::CommandGetActiveSurveyTriggerActions(MegaClient* client,
+                                                                           Completion&& completion)
+{
+    cmd("gsur");
+    mCompletion = std::move(completion);
+    tag = client->reqtag;
+}
 
+std::vector<uint32_t> CommandGetActiveSurveyTriggerActions::parseTriggerActionIds(JSON& json)
+{
+    std::vector<uint32_t> ids;
+
+    // Trigger action ID is a small positive integer
+    int id = 0;
+    while (json.isnumeric() && (id = json.getint32()) > 0)
+    {
+        ids.push_back(static_cast<uint32_t>(id));
+    }
+
+    return ids;
+}
+
+bool CommandGetActiveSurveyTriggerActions::procresult(Result r, JSON& json)
+{
+    std::vector<uint32_t> ids;
+    if (r.wasErrorOrOK())
+    {
+        // Preventive: convert API_OK to API_ENOENT
+        Error e = r.wasError(API_OK) ? Error{API_ENOENT} : r.errorOrOK();
+        onCompletion(e, ids);
+        return true;
+    }
+
+    if (!r.hasJsonArray())
+    {
+        // Not expect to happen
+        assert(r.hasJsonArray() && "Unexpected response for gsur command");
+        onCompletion(API_EINTERNAL, ids);
+        return false;
+    }
+
+    // Inside Json array and parse
+    ids = parseTriggerActionIds(json);
+
+    Error err = ids.empty() ? API_ENOENT : API_OK;
+
+    onCompletion(err, ids);
+
+    return true;
+}
+
+CommandGetSurvey::CommandGetSurvey(MegaClient* client,
+                                   unsigned int triggerActionId,
+                                   Completion&& completion)
+{
+    cmd("ssur");
+    arg("t", static_cast<m_off_t>(triggerActionId));
+    mCompletion = std::move(completion);
+    tag = client->reqtag;
+}
+
+//
+// Returns true if parsing was successful, false otherwise.
+//
+bool CommandGetSurvey::parseSurvey(JSON& json, Survey& survey)
+{
+    for (;;)
+    {
+        switch (json.getnameid())
+        {
+            case MAKENAMEID1('s'):
+                if ((survey.h = json.gethandle(MegaClient::SURVEYHANDLE)) == UNDEF)
+                    return false;
+                break;
+
+            case MAKENAMEID1('m'):
+                if (auto value = json.getint32(); value < 0)
+                    return false;
+                else
+                    survey.maxResponse = static_cast<unsigned int>(value);
+                break;
+
+            case MAKENAMEID1('i'):
+                if (!json.storeobject(&survey.image))
+                    return false;
+                break;
+
+            case MAKENAMEID1('c'):
+                if (!json.storeobject(&survey.content))
+                    return false;
+                break;
+
+            case EOO:
+                return true;
+                break;
+
+            default:
+                if (!json.storeobject())
+                    return false;
+                break;
+        }
+    }
+}
+
+bool CommandGetSurvey::procresult(Result r, JSON& json)
+{
+    Survey survey{};
+    if (r.wasErrorOrOK())
+    {
+        // Preventive: convert API_OK to API_ENOENT
+        const Error e = r.wasError(API_OK) ? Error{API_ENOENT} : r.errorOrOK();
+
+        onCompletion(e, survey);
+
+        return true;
+    }
+
+    const bool parsedOk = parseSurvey(json, survey);
+
+    const Error e = parsedOk && survey.isValid() ? API_OK : API_EINTERNAL;
+
+    onCompletion(e, survey);
+
+    return parsedOk;
+}
+
+CommandAnswerSurvey::CommandAnswerSurvey(MegaClient* client,
+                                         const Answer& answer,
+                                         Completion&& completion)
+{
+    cmd("asur");
+
+    arg("s", Base64Str<MegaClient::SURVEYHANDLE>(answer.mHandle));
+
+    arg("t", static_cast<m_off_t>(answer.mTriggerActionId));
+
+    if (!answer.mResponse.empty())
+        arg("r", answer.mResponse.c_str());
+
+    if (!answer.mComment.empty())
+        arg("c", answer.mComment.c_str());
+
+    mCompletion = std::move(completion);
+
+    tag = client->reqtag;
+}
+
+bool CommandAnswerSurvey::procresult(Result r, JSON& json)
+{
+    if (r.wasErrorOrOK())
+    {
+        onCompletion(r.errorOrOK());
+
+        return true;
+    }
+
+    return false;
+}
 
 } // namespace

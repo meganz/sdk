@@ -1641,6 +1641,7 @@ class MegaRequestPrivate : public MegaRequest
 #endif
         MegaStringMap *getMegaStringMap() const override;
         void setMegaStringMap(const MegaStringMap *);
+        void setMegaStringMap(const std::map<std::string, std::string>&);
         MegaStringListMap *getMegaStringListMap() const override;
         void setMegaStringListMap(const MegaStringListMap *stringListMap);
         MegaStringTable *getMegaStringTable() const override;
@@ -3952,6 +3953,19 @@ public:
 
         void deleteUserAttribute(int type, MegaRequestListener* listener = NULL);
 
+        void getActiveSurveyTriggerActions(MegaRequestListener* listener = NULL);
+
+        void getSurvey(unsigned int triggerActionId, MegaRequestListener* listener = NULL);
+
+        void enableTestSurveys(const MegaHandleList* surveyHandles,
+                               MegaRequestListener* listener = NULL);
+
+        void answerSurvey(MegaHandle surveyHandle,
+                          unsigned int triggerActionId,
+                          const char* response,
+                          const char* comment,
+                          MegaRequestListener* listener);
+
     private:
         void init(MegaApi *api, const char *appKey, std::unique_ptr<GfxProc> gfxproc, const char *basePath /*= NULL*/, const char *userAgent /*= NULL*/, unsigned clientWorkerThreadCount /*= 1*/, int clientType);
 
@@ -4169,7 +4183,12 @@ public:
         void downgrade_attack() override;
 
         void fetchnodes_result(const Error&) override;
-        void putnodes_result(const Error&, targettype_t, vector<NewNode>&, bool targetOverride, int tag) override;
+        void putnodes_result(const Error&,
+                             targettype_t,
+                             vector<NewNode>&,
+                             bool targetOverride,
+                             int tag,
+                             const std::map<std::string, std::string>& fileHandles = {}) override;
 
         // contact request results
         void setpcr_result(handle, error, opcactions_t) override;
@@ -4480,6 +4499,7 @@ public:
         error getLastReadNotification_getua_result(byte* data, unsigned len, MegaRequestPrivate* request);
         void performRequest_setLastActionedBanner(MegaRequestPrivate* request);
         error getLastActionedBanner_getua_result(byte* data, unsigned len, MegaRequestPrivate* request);
+        void performRequest_enableTestSurveys(MegaRequestPrivate* request);
 };
 
 class MegaHashSignatureImpl

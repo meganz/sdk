@@ -904,10 +904,7 @@ void FileIOContext::FlushContext::uploaded(ErrorOr<UploadResult> result)
     // The file we were uploading has been removed.
     if (mContext.mFile->removed())
     {
-        if (mUpload)
-        {
-            mUpload->cancel();
-        }
+        mUpload->cancel();
         mCV.notify_all();
         return;
     }

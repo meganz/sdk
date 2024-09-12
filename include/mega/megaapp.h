@@ -151,7 +151,13 @@ struct MEGA_API MegaApp
 #endif // ! NDEBUG
 
     // node addition has failed
-    virtual void putnodes_result(const Error&, targettype_t, vector<NewNode>&, bool targetOverride, int tag) { }
+    virtual void putnodes_result(const Error&,
+                                 targettype_t,
+                                 vector<NewNode>&,
+                                 bool targetOverride,
+                                 int tag,
+                                 const std::map<std::string, std::string>& fileHandles = {})
+    {}
 
     // outgoing pending contact result
     virtual void setpcr_result(handle, error, opcactions_t) { }

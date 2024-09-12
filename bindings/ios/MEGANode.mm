@@ -50,10 +50,6 @@ using namespace mega;
     }
 }
 
-- (instancetype)clone {
-    return self.megaNode ? [[MEGANode alloc] initWithMegaNode:self.megaNode->copy() cMemoryOwn:YES] : nil;
-}
-
 - (BOOL)isEqual:(id)object {
     if (![object isKindOfClass:[MEGANode class]]) {
         return false;

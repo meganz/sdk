@@ -5716,26 +5716,20 @@ public class MegaApiJava {
     }
 
     /**
-     * Cancel credit card subscriptions of the account
-     * <p>
-     * The associated request type with this request is MegaRequest::TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS
+     * Cancel the credit card subscriptions of the account
      *
-     * @param reason   Reason for the cancellation. It can be NULL.
+     * The associated request type with this request is
+     * MegaRequest::TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS
+     * @param reason The reason for the cancellation. It can be NULL.
+     * @param id The subscription ID for the cancellation. It can be NULL.
+     * @param canContact Whether the user has permitted MEGA to contact them for the
+     * cancellation.
+     *      - MegaApi::CREDIT_CARD_CANCEL_SUBSCRIPTIONS_CAN_CONTACT_NO = 0
+     *      - MegaApi::CREDIT_CARD_CANCEL_SUBSCRIPTIONS_CAN_CONTACT_YES = 1
      * @param listener MegaRequestListener to track this request
      */
-    public void creditCardCancelSubscriptions(String reason, MegaRequestListenerInterface listener) {
-        megaApi.creditCardCancelSubscriptions(reason, createDelegateRequestListener(listener));
-    }
-
-    /**
-     * Cancel credit card subscriptions of the account
-     * <p>
-     * The associated request type with this request is MegaRequest::TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS
-     *
-     * @param reason Reason for the cancellation. It can be NULL.
-     */
-    public void creditCardCancelSubscriptions(String reason) {
-        megaApi.creditCardCancelSubscriptions(reason);
+    public void creditCardCancelSubscriptions(String reason, String id, int canContact, MegaRequestListenerInterface listener) {
+        megaApi.creditCardCancelSubscriptions(reason, id, canContact, createDelegateRequestListener(listener));
     }
 
     /**

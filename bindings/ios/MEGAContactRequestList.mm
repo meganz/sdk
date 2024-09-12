@@ -50,10 +50,6 @@ using namespace mega;
     }
 }
 
-- (instancetype)clone {
-    return self.megaContactRequestList ? [[MEGAContactRequestList alloc] initWithMegaContactRequestList:self.megaContactRequestList->copy() cMemoryOwn:YES] : nil;
-}
-
 - (MegaContactRequestList *)getCPtr {
     return self.megaContactRequestList;
 }

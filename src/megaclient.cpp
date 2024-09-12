@@ -870,7 +870,12 @@ error MegaClient::setbackupfolder(const char* foldername, int tag, std::function
     putnodes_prepareOneFolder(&newNode, foldername, true);
 
     // 2. upon completion of putnodes(), set the user's attribute `^!bak`
-    auto addua = [addua_completion, this](const Error& e, targettype_t handletype, vector<NewNode>& nodes, bool /*targetOverride*/, int tag)
+    auto addua = [addua_completion, this](const Error& e,
+                                          targettype_t handletype,
+                                          vector<NewNode>& nodes,
+                                          bool /*targetOverride*/,
+                                          int tag,
+                                          const map<string, string>& /*fileHandles*/)
     {
         if (e != API_OK)
         {
@@ -4143,69 +4148,103 @@ void MegaClient::dispatchTransfers()
                     }
                     else
                     {
-                        reqs.add((ts->pendingcmd = (nexttransfer->type == PUT)
-                            ? (Command*)new CommandPutFile(this, ts, putmbpscap)
-                            : new CommandGetFile(this, ts->transfer->transferkey.data(), SymmCipher::KEYLENGTH,
-                                                 (!ts->transfer->files.empty() && ts->transfer->files.front()->undelete()),
-                                                 h.as8byte(), hprivate, privauth, pubauth, chatauth, false,
-                            [this, ts, hprivate, h](const Error &e, m_off_t s, dstime tl /*timeleft*/,
-                               std::string* filename, std::string* /*fingerprint*/, std::string* /*fileattrstring*/,
-                               const std::vector<std::string> &tempurls, const std::vector<std::string> &/*ips*/)
-                        {
-                            auto tslot = ts;
-                            auto priv = hprivate;
+                        reqs.add((
+                            ts->pendingcmd =
+                                (nexttransfer->type == PUT) ?
+                                    (Command*)new CommandPutFile(this, ts, putmbpscap) :
+                                    new CommandGetFile(
+                                        this,
+                                        ts->transfer->transferkey.data(),
+                                        SymmCipher::KEYLENGTH,
+                                        (!ts->transfer->files.empty() &&
+                                         ts->transfer->files.front()->undelete()),
+                                        h.as8byte(),
+                                        hprivate,
+                                        privauth,
+                                        pubauth,
+                                        chatauth,
+                                        false,
+                                        [this, ts, hprivate, h](
+                                            const Error& e,
+                                            m_off_t s,
+                                            dstime tl /*timeleft*/,
+                                            std::string* filename,
+                                            std::string* /*fingerprint*/,
+                                            std::string* /*fileattrstring*/,
+                                            const std::vector<std::string>& tempurls,
+                                            const std::vector<std::string>& /*ips*/,
+                                            const std::string& /*fileHandle*/)
+                                        {
+                                            auto tslot = ts;
+                                            auto priv = hprivate;
 
-                            tslot->pendingcmd = nullptr;
+                                            tslot->pendingcmd = nullptr;
 
-                            if (!filename) //failed! (Notice: calls not coming from !callFailedCompletion) will allways have that != nullptr
-                            {
-                                assert(s == -1 && "failing a transfer too soon: coming from a successful mCompletion call");
-                                tslot->transfer->failed(e, *mTctableRequestCommitter);
-                                return true;
-                            }
+                                            if (!filename) // failed! (Notice: calls not coming from
+                                                           // !callFailedCompletion) will allways
+                                                           // have that != nullptr
+                                            {
+                                                assert(s == -1 &&
+                                                       "failing a transfer too soon: coming from a "
+                                                       "successful mCompletion call");
+                                                tslot->transfer->failed(e,
+                                                                        *mTctableRequestCommitter);
+                                                return true;
+                                            }
 
-                            if (s >= 0 && s != tslot->transfer->size)
-                            {
-                                tslot->transfer->size = s;
-                                for (file_list::iterator it = tslot->transfer->files.begin(); it != tslot->transfer->files.end(); it++)
-                                {
-                                    (*it)->size = s;
-                                }
+                                            if (s >= 0 && s != tslot->transfer->size)
+                                            {
+                                                tslot->transfer->size = s;
+                                                for (file_list::iterator it =
+                                                         tslot->transfer->files.begin();
+                                                     it != tslot->transfer->files.end();
+                                                     it++)
+                                                {
+                                                    (*it)->size = s;
+                                                }
 
-                                if (priv)
-                                {
-                                    std::shared_ptr<Node> n = mNodeManager.getNodeByHandle(h);
-                                    if (n)
-                                    {
-                                        n->size = s;
-                                        mNodeManager.notifyNode(n);
-                                    }
-                                }
+                                                if (priv)
+                                                {
+                                                    std::shared_ptr<Node> n =
+                                                        mNodeManager.getNodeByHandle(h);
+                                                    if (n)
+                                                    {
+                                                        n->size = s;
+                                                        mNodeManager.notifyNode(n);
+                                                    }
+                                                }
 
-                                sendevent(99411, "Node size mismatch", 0);
-                            }
+                                                sendevent(99411, "Node size mismatch", 0);
+                                            }
 
-                            tslot->starttime = tslot->lastdata = waiter->ds;
+                                            tslot->starttime = tslot->lastdata = waiter->ds;
 
-                            if ((tempurls.size() == 1 || tempurls.size() == RAIDPARTS) && s >= 0)
-                            {
-                                tslot->transfer->tempurls = tempurls;
-                                tslot->transfer->downloadFileHandle = h;
-                                tslot->transferbuf.setIsRaid(tslot->transfer, tempurls, tslot->transfer->pos, tslot->maxRequestSize);
-                                tslot->progress();
-                                return true;
-                            }
+                                            if ((tempurls.size() == 1 ||
+                                                 tempurls.size() == RAIDPARTS) &&
+                                                s >= 0)
+                                            {
+                                                tslot->transfer->tempurls = tempurls;
+                                                tslot->transfer->downloadFileHandle = h;
+                                                tslot->transferbuf.setIsRaid(tslot->transfer,
+                                                                             tempurls,
+                                                                             tslot->transfer->pos,
+                                                                             tslot->maxRequestSize);
+                                                tslot->progress();
+                                                return true;
+                                            }
 
-                            if (e == API_EOVERQUOTA && tl <= 0)
-                            {
-                                // default retry interval
-                                tl = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS;
-                            }
+                                            if (e == API_EOVERQUOTA && tl <= 0)
+                                            {
+                                                // default retry interval
+                                                tl = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS;
+                                            }
 
-                            tslot->transfer->failed(e, *mTctableRequestCommitter, e == API_EOVERQUOTA ? tl * 10 : 0);
-                            return true;
-
-                        })));
+                                            tslot->transfer->failed(e,
+                                                                    *mTctableRequestCommitter,
+                                                                    e == API_EOVERQUOTA ? tl * 10 :
+                                                                                          0);
+                                            return true;
+                                        })));
                     }
 
                     LOG_debug << "Activating transfer";
@@ -9016,8 +9055,10 @@ void MegaClient::putnodes(const char* user, vector<NewNode>&& newnodes, int tag,
 {
     if (!finduser(user, 0) && !user)
     {
-        if (completion) completion(API_EARGS, USER_HANDLE, newnodes, false, tag);
-        else app->putnodes_result(API_EARGS, USER_HANDLE, newnodes, false, tag);
+        if (completion)
+            completion(API_EARGS, USER_HANDLE, newnodes, false, tag, {});
+        else
+            app->putnodes_result(API_EARGS, USER_HANDLE, newnodes, false, tag, {});
         return;
     }
 
@@ -16819,7 +16860,8 @@ void MegaClient::preparebackup(SyncConfig sc, std::function<void(Error, SyncConf
                                     targettype_t,
                                     vector<NewNode>& nn,
                                     bool targetOverride,
-                                    int tag)
+                                    int tag,
+                                    const map<string, string>& /*fileHandles*/)
              {
                 if (e)
                 {
@@ -16842,23 +16884,32 @@ void MegaClient::preparebackup(SyncConfig sc, std::function<void(Error, SyncConf
                         completion(API_EEXIST, updatedConfig, nullptr);
                     }
 
-                    // Offer the option to the caller, to remove the new Backup node if a later step fails
-                    UndoFunction undoOnFail = [newBackupNodeHandle, this](std::function<void()> continuation){
+                    // Offer the option to the caller, to remove the new Backup node if a later
+                    // step fails
+                    UndoFunction undoOnFail =
+                         [newBackupNodeHandle, this](std::function<void()> continuation)
+                    {
                         if (std::shared_ptr<Node> n = nodebyhandle(newBackupNodeHandle))
                         {
-                            unlink(n.get(), false, 0, true, [continuation](NodeHandle, Error){
-                                if (continuation) continuation();
-                            });
+                            unlink(n.get(),
+                                   false,
+                                   0,
+                                   true,
+                                   [continuation](NodeHandle, Error)
+                                   {
+                                       if (continuation)
+                                           continuation();
+                                   });
                         }
                         else
                         {
-                            if (continuation) continuation();
+                            if (continuation)
+                                continuation();
                         }
                     };
 
                     completion(API_OK, updatedConfig, undoOnFail);
                 }
-
              });
 }
 
@@ -16906,7 +16957,8 @@ void MegaClient::execmovetosyncdebris(Node* requestedNode, std::function<void(No
                                          targettype_t,
                                          vector<NewNode>&,
                                          bool,
-                                         int)
+                                         int,
+                                         const map<string, string>& /*fileHandles*/)
                              {
                                  if (e)
                                  {
@@ -17016,9 +17068,21 @@ std::shared_ptr<Node> MegaClient::getOrCreateSyncdebrisFolder()
     }
 
     reqs.add(new CommandPutNodes(
-        this, binNode->nodeHandle(), NULL, NoVersioning, move(nnVec),
-        0, PUTNODES_SYNCDEBRIS, nullptr,
-        [this](const Error&, targettype_t, vector<NewNode>&, bool targetOverride, int tag){
+        this,
+        binNode->nodeHandle(),
+        NULL,
+        NoVersioning,
+        move(nnVec),
+        0,
+        PUTNODES_SYNCDEBRIS,
+        nullptr,
+        [this](const Error&,
+               targettype_t,
+               vector<NewNode>&,
+               bool targetOverride,
+               int tag,
+               const map<string, string>& /*fileHandles*/)
+        {
             syncdebrisadding = false;
             // on completion, send the queued nodes
             LOG_debug << "Daily cloud SyncDebris folder created. Trigger remaining debris moves: " << pendingDebris.size();
@@ -20896,6 +20960,23 @@ std::string MegaClient::generatePasswordChars(const bool useUpper,
 void MegaClient::getNotifications(CommandGetNotifications::ResultFunc onResult)
 {
     reqs.add(new CommandGetNotifications(this, onResult));
+}
+
+void MegaClient::getActiveSurveyTriggerActions(
+    CommandGetActiveSurveyTriggerActions::Completion&& completion)
+{
+    reqs.add(new CommandGetActiveSurveyTriggerActions(this, std::move(completion)));
+}
+
+void MegaClient::getSurvey(unsigned int triggerActionId, CommandGetSurvey::Completion&& completion)
+{
+    reqs.add(new CommandGetSurvey(this, triggerActionId, std::move(completion)));
+}
+
+void MegaClient::answerSurvey(const CommandAnswerSurvey::Answer& answer,
+                              CommandAnswerSurvey::Completion&& completion)
+{
+    reqs.add(new CommandAnswerSurvey(this, answer, std::move(completion)));
 }
 
 std::pair<uint32_t, uint32_t> MegaClient::getFlag(const char* flagName)

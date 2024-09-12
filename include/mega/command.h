@@ -619,9 +619,15 @@ public:
 
 class MEGA_API CommandGetFile : public Command
 {
-    using Cb = std::function<bool(const Error &/*e*/, m_off_t /*size*/,
-    dstime /*timeleft*/, std::string* /*filename*/, std::string* /*fingerprint*/, std::string* /*fileattrstring*/,
-    const std::vector<std::string> &/*urls*/, const std::vector<std::string> &/*ips*/)>;
+    using Cb = std::function<bool(const Error& /*e*/,
+                                  m_off_t /*size*/,
+                                  dstime /*timeleft*/,
+                                  std::string* /*filename*/,
+                                  std::string* /*fingerprint*/,
+                                  std::string* /*fileattrstring*/,
+                                  const std::vector<std::string>& /*urls*/,
+                                  const std::vector<std::string>& /*ips*/,
+                                  const std::string& /*fileHandle*/)>;
     Cb mCompletion;
 
     void callFailedCompletion (const Error& e);
@@ -684,7 +690,12 @@ public:
 class MEGA_API CommandPutNodes : public Command
 {
 public:
-    using Completion = std::function<void(const Error&, targettype_t, vector<NewNode>&, bool targetOverride, int tag)>;
+    using Completion = std::function<void(const Error&,
+                                          targettype_t,
+                                          vector<NewNode>&,
+                                          bool targetOverride,
+                                          int tag,
+                                          const std::map<std::string, std::string>& fileHandles)>;
 
 private:
     friend class MegaClient;
@@ -696,7 +707,10 @@ private:
     Completion mResultFunction;
 
     void removePendingDBRecordsAndTempFiles();
-    void performAppCallback(Error e, vector<NewNode>&, bool targetOverride = false);
+    void performAppCallback(Error e,
+                            vector<NewNode>&,
+                            bool targetOverride = false,
+                            const std::map<std::string, std::string>& fileHandles = {});
 
 public:
 
@@ -2008,6 +2022,115 @@ private:
     bool readCallToAction(JSON& json, std::map<std::string, std::string>& action);
 
     ResultFunc mOnResult;
+};
+
+class MEGA_API CommandGetActiveSurveyTriggerActions: public Command
+{
+public:
+    using Completion =
+        std::function<void(const Error& /*e*/, const std::vector<uint32_t>& /*triggerActionIds*/)>;
+
+    CommandGetActiveSurveyTriggerActions(MegaClient* client, Completion&& completion);
+
+    bool procresult(Result, JSON&) override;
+
+private:
+    std::vector<uint32_t> parseTriggerActionIds(JSON& json);
+
+    void onCompletion(const Error& e, const std::vector<uint32_t> triggerActionIds)
+    {
+        if (mCompletion)
+            mCompletion(e, triggerActionIds);
+    }
+
+    Completion mCompletion;
+};
+
+class MEGA_API CommandGetSurvey: public Command
+{
+public:
+    struct Survey
+    {
+        bool isValid() const
+        {
+            return h != UNDEF;
+        };
+
+        // Survey handle
+        handle h{UNDEF};
+
+        // Maximum allowed value in the survey response. A small non negative integer. 0 means
+        // a non integer survey reponse is wanted.
+        unsigned int maxResponse{0};
+
+        // Name of an image to be display, can be empty
+        std::string image;
+
+        // Content of the question
+        std::string content;
+    };
+
+    using Completion = std::function<void(const Error& /*e*/, const Survey& /*survey*/)>;
+
+    CommandGetSurvey(MegaClient* client, unsigned int triggerActionId, Completion&& completion);
+
+    bool procresult(Result, JSON&) override;
+
+private:
+    bool parseSurvey(JSON& json, Survey& survey);
+
+    void onCompletion(const Error& e, const Survey& survey)
+    {
+        if (mCompletion)
+            mCompletion(e, survey);
+    }
+
+    Completion mCompletion;
+};
+
+class MEGA_API CommandAnswerSurvey: public Command
+{
+public:
+    class Answer
+    {
+    public:
+        Answer(handle h, unsigned int triggerActionId, const char* response, const char* comment):
+            mHandle{h},
+            mTriggerActionId{triggerActionId},
+            mResponse{response ? response : ""},
+            mComment{comment ? comment : ""}
+        {}
+
+    private:
+        friend class CommandAnswerSurvey;
+
+        // Survey handle
+        handle mHandle{UNDEF};
+
+        // Trigger action id;
+        unsigned int mTriggerActionId{0};
+
+        // the response to the survey
+        std::string mResponse;
+
+        // the response to tell us more
+        std::string mComment;
+    };
+
+    using Completion = std::function<void(const Error& /*e*/)>;
+
+    CommandAnswerSurvey(MegaClient* client, const Answer& answer, Completion&& completion);
+
+    bool procresult(Result, JSON&) override;
+
+private:
+    void onCompletion(const Error& e)
+    {
+        if (mCompletion)
+            mCompletion(e);
+    }
+
+    Completion mCompletion;
 };
 
 } // namespace

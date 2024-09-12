@@ -52,6 +52,15 @@ void TransferSlotFileAccess::reset(std::unique_ptr<FileAccess>&& p)
     transfer->bt.enable(!!p);
 }
 
+double TransferSlotStats::failedRequestRatio() const
+{
+    assert(numFailedRequests <= numTotalRequests);
+    if (!numFailedRequests || !numTotalRequests)
+    {
+        return 0;
+    }
+    return static_cast<double>(numFailedRequests) / static_cast<double>(numTotalRequests);
+}
 
 // transfer attempts are considered failed after XFERTIMEOUT deciseconds
 // without data flow
@@ -77,8 +86,6 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
     : fa(ctransfer->client->fsaccess->newfileaccess(), ctransfer)
     , retrybt(ctransfer->client->rng, ctransfer->client->transferSlotsBackoff)
 {
-    downloadStartTime = std::chrono::system_clock::now();
-
     starttime = 0;
     lastprogressreport = 0;
     progressreported = 0;
@@ -322,6 +329,10 @@ TransferSlot::~TransferSlot()
     }
 
     delete[] asyncIO;
+    LOG_verbose << "[TransferSlot::~TransferSlot] Stats: FailedRequestRatio = "
+                << tsStats.failedRequestRatio() << " [totalRequests = " << tsStats.numTotalRequests
+                << ", failedRequests = " << tsStats.numFailedRequests
+                << "] [cloudRaid = " << (void*)(cloudRaid.get()) << "]";
     LOG_verbose << "[TransferSlot::~TransferSlot] END [cloudRaid = " << (void*)(cloudRaid.get()) << "]";
 }
 
@@ -1256,7 +1267,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                     }
                     else // if (!transferbuf.isNewRaid())
                     {
-                        reqs[i]->post(client); // status becomes either REQ_INFLIGHT or REQ_FAILED
+                        processRequestPost(client, reqs[i]);
                     }
                 }
                 if (transferbuf.isNewRaid())
@@ -1478,9 +1489,19 @@ void TransferSlot::prepareRequest(const std::shared_ptr<HttpReqXfer>& httpReq, c
     httpReq->status = REQ_PREPARED;
 }
 
+void TransferSlot::processRequestPost(MegaClient* client,
+                                      const std::shared_ptr<HttpReqXfer>& httpReq)
+{
+    ++tsStats.numTotalRequests;
+    httpReq->post(client); // status becomes either REQ_INFLIGHT or REQ_FAILED
+}
+
 std::pair<error, dstime> TransferSlot::processRequestFailure(MegaClient* client, const std::shared_ptr<HttpReqXfer>& httpReq, dstime& backoff, int channel)
 {
-    LOG_warn << "Conn " << channel << " : Failed chunk. HTTP status: " << httpReq->httpstatus << " [httpReq = " << (void*)httpReq.get() << "]";
+    ++tsStats.numFailedRequests;
+    LOG_warn << "Conn " << channel << " : Failed chunk. HTTP status: " << httpReq->httpstatus
+             << " [httpReq = " << (void*)httpReq.get()
+             << "] [totalFailedRequests = " << tsStats.numFailedRequests << "]";
 
     if (httpReq->httpstatus && httpReq->contenttype.find("text/html") != string::npos && !memcmp(httpReq->posturl.c_str(), "http:", 5))
     {
