@@ -1429,6 +1429,23 @@ void StandardClient::sync_added(const SyncConfig& config)
     }
 }
 
+void StandardClient::sync_removed(const SyncConfig& config)
+{
+    onCallback();
+
+    if (logcb)
+    {
+        lock_guard<mutex> guard(om);
+
+        out() << clientname << "sync_removed(): id: " << toHandle(config.mBackupId);
+    }
+
+    if (onRemovedSync)
+    {
+        onRemovedSync(config);
+    }
+}
+
 void StandardClient::syncs_restored(SyncError syncError)
 {
     lock_guard<mutex> g(om);
@@ -19218,8 +19235,11 @@ TEST_F(SyncTest, RemoveSync)
     ASSERT_NE(sync, nullptr);
 
     // Delete the sync and make sure it is disable
+    clientA1->onRemovedSync = [](const SyncConfig& config)
+    {
+        ASSERT_EQ(config.mRunState, SyncRunState::Disable);
+    };
     clientA1->delSync_mainthread(backupId1);
-    EXPECT_EQ(sync->getConfig().mRunState, SyncRunState::Disable);
 }
 
 #ifdef _WIN32

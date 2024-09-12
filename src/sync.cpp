@@ -6443,8 +6443,6 @@ bool Syncs::unloadSyncByBackupID(handle id, bool newEnabledFlag, SyncConfig& con
     {
         if (mSyncVec[i]->mConfig.mBackupId == id)
         {
-            configCopy = mSyncVec[i]->mConfig;
-
             if (auto& syncPtr = mSyncVec[i]->mSync)
             {
                 // if it was running, the app gets a callback saying it's no longer active
@@ -6453,6 +6451,8 @@ bool Syncs::unloadSyncByBackupID(handle id, bool newEnabledFlag, SyncConfig& con
                 assert(!syncPtr->statecachetable);
                 syncPtr.reset(); // deletes sync
             }
+
+            configCopy = mSyncVec[i]->mConfig;
 
             // the sync config is not affected by this operation; it should already be up to date on disk (or be pending)
             // we don't call sync_removed back since the sync is not deleted
