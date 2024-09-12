@@ -33,7 +33,7 @@ struct attr_map : map<nameid, string>
 
     attr_map(nameid key, string value)
     {
-        (*this)[key] = value;
+        (*this)[key] = std::move(value);
     }
 
     attr_map(map<nameid, string>&& m)
