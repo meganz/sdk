@@ -7053,6 +7053,8 @@ void MegaSearchFilter::byTag(const char* /*searchString*/)
 {
 }
 
+void MegaSearchFilter::useAndForTextQuery(bool /*useAnd*/) {}
+
 const char* MegaSearchFilter::byName() const
 {
     return nullptr;
@@ -7116,6 +7118,11 @@ const char* MegaSearchFilter::byDescription() const
 const char* MegaSearchFilter::byTag() const
 {
     return nullptr;
+}
+
+bool MegaSearchFilter::useAndForTextQuery() const
+{
+    return false;
 }
 
 MegaSearchPage::MegaSearchPage()

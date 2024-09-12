@@ -6222,6 +6222,11 @@ void MegaSearchFilterPrivate::byTag(const char* searchString)
     mTag = searchString ? searchString : string();
 }
 
+void MegaSearchFilterPrivate::useAndForTextQuery(bool useAnd)
+{
+    mUseAndForTextQuery = useAnd;
+}
+
 MegaSearchFilterPrivate* MegaSearchFilterPrivate::copy() const
 {
     return new MegaSearchFilterPrivate(*this);
@@ -12434,13 +12439,45 @@ MegaNodeList* MegaApiImpl::search(const MegaSearchFilter* filter, int order, Can
     return nodeList;
 }
 
+namespace
+{
+/**
+ * @brief A helper function to convert a MegaSearchFilter (external layer) into a NodeSearchFilter
+ * (internal).
+ *
+ * @param filter The filter to convert
+ * @param includedShares (Optional) What kind of share nodes to check in the search
+ * @return A NodeSearchFilter object to be used in search methods from the NodeManager
+ */
+NodeSearchFilter searchToNodeFilter(const MegaSearchFilter& filter,
+                                    const ShareType_t includedShares = NO_SHARES)
+{
+    NodeSearchFilter nf;
+    nf.byName(filter.byName());
+    nf.byNodeType(static_cast<nodetype_t>(filter.byNodeType()));
+    nf.byCategory(static_cast<MimeType_t>(filter.byCategory()));
+    nf.bySensitivity(static_cast<NodeSearchFilter::BoolFilter>(filter.bySensitivity()));
+    nf.byFavourite(static_cast<NodeSearchFilter::BoolFilter>(filter.byFavourite()));
+    nf.byLocationHandle(filter.byLocationHandle());
+    nf.setIncludedShares(includedShares);
+    nf.byCreationTimeLowerLimitInSecs(filter.byCreationTimeLowerLimit());
+    nf.byCreationTimeUpperLimitInSecs(filter.byCreationTimeUpperLimit());
+    nf.byModificationTimeLowerLimitInSecs(filter.byModificationTimeLowerLimit());
+    nf.byModificationTimeUpperLimitInSecs(filter.byModificationTimeUpperLimit());
+    nf.byDescription(filter.byDescription());
+    nf.byTag(filter.byTag());
+    nf.useAndForTextQuery(filter.useAndForTextQuery());
+    return nf;
+}
+}
+
 sharedNode_vector MegaApiImpl::searchInNodeManager(const MegaSearchFilter* filter, int order, CancelToken cancelToken, const MegaSearchPage* searchPage)
 {
     ShareType_t shareType = filter->byLocation() == MegaApi::SEARCH_TARGET_INSHARE ? IN_SHARES :
                             (filter->byLocation() == MegaApi::SEARCH_TARGET_OUTSHARE ? OUT_SHARES :
                             (filter->byLocation() == MegaApi::SEARCH_TARGET_PUBLICLINK ? LINK : NO_SHARES));
-    NodeSearchFilter nf;
-    nf.copyFrom(*filter, shareType);
+
+    NodeSearchFilter nf = searchToNodeFilter(*filter, shareType);
 
     if (filter->byLocation() == MegaApi::SEARCH_TARGET_ROOTNODE)
     {
@@ -17890,7 +17927,6 @@ int MegaApiImpl::getNumChildFolders(MegaNode* p)
     return static_cast<int>(client->mNodeManager.getNumberOfChildrenByType(parent->nodeHandle(), FOLDERNODE));
 }
 
-
 MegaNodeList *MegaApiImpl::getChildren(const MegaSearchFilter* filter, int order, CancelToken cancelToken, const MegaSearchPage* searchPage)
 {
     // guard against unsupported or removed order criteria
@@ -17906,8 +17942,9 @@ MegaNodeList *MegaApiImpl::getChildren(const MegaSearchFilter* filter, int order
     }
 
     SdkMutexGuard guard(sdkMutex);
-    NodeSearchFilter nf;
-    nf.copyFrom(*filter);
+
+    NodeSearchFilter nf = searchToNodeFilter(*filter);
+
     const NodeSearchPage& np = searchPage ? NodeSearchPage(searchPage->startingOffset(), searchPage->size()) : NodeSearchPage(0u, 0u);
     sharedNode_vector results = client->mNodeManager.getChildren(nf, order, cancelToken, np);
 
