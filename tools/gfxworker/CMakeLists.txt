@@ -30,6 +30,11 @@ target_include_directories(libgfxworker
     src
 )
 
+if (MSVC)
+    # strcpy and other warnings
+    target_compile_definitions(libgfxworker PRIVATE _CRT_SECURE_NO_WARNINGS)
+endif()
+
 target_link_libraries(libgfxworker
     PUBLIC
     MEGA::SDKlib

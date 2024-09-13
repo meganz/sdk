@@ -528,11 +528,13 @@ private:
             }
         });
         // Ensure we finish and wait for zipping thread
-        ScopeGuard<std::function<void(void)>> g([&](){
-            zippingThreadExit.store(true);
-            zippingWakeCv.notify_one();
-            zippingThread.join();
-        });
+        ScopeGuard<std::function<void(void)>> guard(
+            [&]()
+            {
+                zippingThreadExit.store(true);
+                zippingWakeCv.notify_one();
+                zippingThread.join();
+            });
 
         auto pushToZippingThread = [&](mega::LocalPath &&newNameDone)
         {
