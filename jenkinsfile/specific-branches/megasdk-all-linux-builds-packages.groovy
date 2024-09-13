@@ -6,6 +6,7 @@ pipeline {
     options { 
         buildDiscarder(logRotator(numToKeepStr: '25', daysToKeepStr: '30'))
         gitLabConnection('GitLabConnectionJenkins')
+        skipDefaultCheckout()
     }
     parameters {
         booleanParam(name: 'UPLOAD_TO_REPOSITORY', defaultValue: false, description: 'Should the package be uploaded to artifactory?')
