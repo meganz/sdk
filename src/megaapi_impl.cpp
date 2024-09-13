@@ -17640,7 +17640,7 @@ bool MegaApiImpl::nodeComparatorLabelASC(Node *i, Node *j)
         return t != 0;
     }
 
-    return nodeComparatorDefaultASC(i, j);
+    return nodeNaturalComparatorASC(i, j);
 }
 
 bool MegaApiImpl::nodeComparatorLabelDESC(Node* i, Node* j)
@@ -17688,7 +17688,7 @@ bool MegaApiImpl::nodeComparatorLabelDESC(Node* i, Node* j)
         return t != 0;
     }
 
-    return nodeComparatorDefaultASC(i, j);
+    return nodeNaturalComparatorASC(i, j);
 }
 
 bool MegaApiImpl::nodeComparatorFavASC(Node *i, Node *j)
