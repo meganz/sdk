@@ -53,7 +53,7 @@ pipeline {
             }
             steps{
                 dir(megachat_sources_workspace){
-                    sh "sed -i \"s#MEGAChatTest#${env.USER_AGENT_TESTS}#g\" tests/sdk_test/sdk_test.h"
+                    sh "sed -i \"s#MEGAChatTest#${env.USER_AGENT_TESTS_SDK}#g\" tests/sdk_test/sdk_test.h"
                     sh "mkdir -p build"
                 }
                 dir(sdk_sources_workspace){
@@ -91,10 +91,10 @@ pipeline {
                             ulimit -c unlimited
 
                             if [ -z \"${TESTS_PARALLEL}\" ]; then
-                                ${megachat_sources_workspace}/build/MEGAchatTests/megachat_tests --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} || FAILED=1
+                                ${megachat_sources_workspace}/build/MEGAchatTests/megachat_tests --USERAGENT:${env.USER_AGENT_TESTS_SDK} --APIURL:${APIURL_TO_TEST} || FAILED=1
                             else
                                 # Parallel run
-                                ${megachat_sources_workspace}/build/MEGAchatTests/megachat_tests --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} ${TESTS_PARALLEL} 2>&1 | tee tests.stdout
+                                ${megachat_sources_workspace}/build/MEGAchatTests/megachat_tests --USERAGENT:${env.USER_AGENT_TESTS_SDK} --APIURL:${APIURL_TO_TEST} ${TESTS_PARALLEL} 2>&1 | tee tests.stdout
                                 [ \"\${PIPESTATUS[0]}\" != \"0\" ] && FAILED=1
                             fi
 

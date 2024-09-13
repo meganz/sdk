@@ -154,12 +154,12 @@ pipeline {
                                         ulimit -c unlimited
                                         if [ -z \"${TESTS_PARALLEL}\" ]; then
                                             # Sequential run
-                                            ${env.BUILD_DIR}/tests/sdk_test/megachat_tests --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} ${GTEST_FILTER} ${GTEST_REPEAT} &
+                                            ${env.BUILD_DIR}/tests/sdk_test/megachat_tests --USERAGENT:${env.USER_AGENT_TESTS_SDK} --APIURL:${APIURL_TO_TEST} ${GTEST_FILTER} ${GTEST_REPEAT} &
                                             pid=\$!
                                             wait \$pid || FAILED=1
                                         else
                                             # Parallel run
-                                            ${env.BUILD_DIR}/tests/sdk_test/megachat_tests --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} ${GTEST_FILTER} ${GTEST_REPEAT} ${TESTS_PARALLEL} 2>&1 | tee tests.stdout
+                                            ${env.BUILD_DIR}/tests/sdk_test/megachat_tests --USERAGENT:${env.USER_AGENT_TESTS_SDK} --APIURL:${APIURL_TO_TEST} ${GTEST_FILTER} ${GTEST_REPEAT} ${TESTS_PARALLEL} 2>&1 | tee tests.stdout
                                             [ \"\${PIPESTATUS[0]}\" != \"0\" ] && FAILED=1
                                         fi
 
