@@ -12414,6 +12414,20 @@ class MegaApi
         static void setLogToConsole(bool enable);
 
         /**
+         * @brief
+         * Enable full JSON logging.
+         *
+         * This function allows an application to control whether JSON
+         * requests and responses are logged in full. When enable is true,
+         * JSON content will always be logged and will not be truncated.
+         * When false, JSON may be logged in some situations but only if
+         * the content is less than the logger's maximum payload size.
+         *
+         * @see MegaApi::setMaxPayloadLogSize
+         */
+        static void setLogJSONContent(bool enable);
+
+        /**
          * @brief Add a MegaLogger implementation to receive SDK logs
          *
          * Logs received by this objects depends on the active log level.

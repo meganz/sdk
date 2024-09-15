@@ -6713,6 +6713,11 @@ void MegaApiImpl::setLogToConsole(bool enable)
     g_externalLogger.setLogToConsole(enable);
 }
 
+void MegaApiImpl::setLogJSONContent(bool enable)
+{
+    gLogJSONRequests = enable;
+}
+
 void MegaApiImpl::log(int logLevel, const char *message, const char *filename, int line)
 {
     SimpleLogger::postLog(LogLevel(logLevel), message, filename, line);
