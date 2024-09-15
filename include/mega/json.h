@@ -283,6 +283,9 @@ protected:
 
 }; // JSONSplitter
 
+// If true, logs the contents of all JSON requests and responses in full.
+extern std::atomic<bool> gLogJSONRequests;
+
 } // namespace
 
 #endif
