@@ -1467,7 +1467,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
     }
     else
     {
-        if (req->out->size() < size_t(SimpleLogger::getMaxPayloadLogSize()))
+        if (gLogJSONRequests || req->out->size() < size_t(SimpleLogger::getMaxPayloadLogSize()))
         {
             LOG_debug << httpctx->req->logname << "Sending " << req->out->size() << ": " << DirectMessage(req->out->c_str(), req->out->size())
                       << " (at ds: " << Waiter::ds << ")";
@@ -2340,7 +2340,8 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                     }
                     else
                     {
-                        if (req->in.size() < size_t(SimpleLogger::getMaxPayloadLogSize()))
+                        if (gLogJSONRequests ||
+                            req->in.size() < size_t(SimpleLogger::getMaxPayloadLogSize()))
                         {
                             LOG_debug << req->logname << "Received " << req->in.size() << ": " << DirectMessage(req->in.c_str(), req->in.size())
                                       << " (at ds: " << Waiter::ds << ")";
