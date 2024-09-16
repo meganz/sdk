@@ -17571,8 +17571,8 @@ bool MegaApiImpl::nodeComparatorModificationDESC(Node *i, Node *j)
 
     if (i->type != FILENODE)
     {
-        // If node doesn't have mtime, order alphabetically ascending
-        return nodeNaturalComparatorASC(i, j);
+        // If node doesn't have mtime, order alphabetically descending
+        return nodeNaturalComparatorDESC(i, j);
     }
 
     m_time_t r = i->mtime - j->mtime;
@@ -17677,7 +17677,7 @@ bool MegaApiImpl::nodeComparatorLabelASC(Node *i, Node *j)
         return t != 0;
     }
 
-    return nodeComparatorDefaultASC(i, j);
+    return nodeNaturalComparatorASC(i, j);
 }
 
 bool MegaApiImpl::nodeComparatorLabelDESC(Node* i, Node* j)
@@ -17725,7 +17725,7 @@ bool MegaApiImpl::nodeComparatorLabelDESC(Node* i, Node* j)
         return t != 0;
     }
 
-    return nodeComparatorDefaultASC(i, j);
+    return nodeNaturalComparatorASC(i, j);
 }
 
 bool MegaApiImpl::nodeComparatorFavASC(Node *i, Node *j)
