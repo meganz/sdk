@@ -2646,6 +2646,9 @@ private:
 
     // Password Manager - private
     void preparePasswordNodeData(attr_map& attrs, const AttrMap& data) const;
+
+    // Get a string to complete sc/wsc url and receive partial action packages
+    // It's used from clients of type PWD and VPN
     std::string getPartialAPs();
 
 public:
