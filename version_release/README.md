@@ -9,21 +9,21 @@ Fill the details in `[make_release]` section of your local copy of [config.toml]
 
 > Note that the version for a new release will be automatically determined unless one was explicitly passed. To explicitly pass one, fill `release_version` argument in `[make_release]` section in `config.toml`.
 
-> Note that version-file will be updated in the process ([version.h](../include/mega/version.h) in SDK). For projects that don't have such a file, `gpg_keygrip` and `gpg_password` will be ignored and can be left empty.
+> Note that version-file will be updated in the process, where applicable ([version.h](../include/mega/version.h) in SDK). For projects that don't have such a file, `gpg_keygrip` and `gpg_password` will be ignored and can be left empty.
 
-From current directory run:
+From a directory in the repo (!) for which we intend to make a release, run:
 
 ```sh
-python3 ./make_release.py
+python3 path/to/make_release.py
 ```
 
 ## Close a new Release
 Fill the details in `[close_release]` section of your local copy of [config.toml](config.toml).
 
-From current directory run:
+From a directory in the repo (!) for which we intend to close a release, run:
 
 ```sh
-python3 ./close_release.py
+python3 path/to/close_release.py
 ```
 
 
