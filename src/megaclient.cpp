@@ -2175,6 +2175,10 @@ void MegaClient::exec()
                                     else
                                     {
                                         LOG_debug << "Node to attach file attribute to no longer exists";
+                                        restag = fa->tag;
+                                        app->putfa_result(fa->th.nodeHandle().as8byte(),
+                                                          fa->type,
+                                                          API_ENOENT);
                                     }
                                 }
                                 else
