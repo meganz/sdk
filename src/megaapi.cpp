@@ -6668,6 +6668,16 @@ size_t MegaSyncStallList::size() const
     return 0;
 }
 
+size_t MegaSyncStallList::getHash() const
+{
+    uint64_t hash = 0;
+    for (size_t i = 0; i < size(); ++i)
+    {
+        hash = hashCombine(hash, get(i)->getHash());
+    }
+    return hash;
+}
+
 const MegaSyncStall* MegaSyncStallList::get(size_t i) const
 {
     return nullptr;

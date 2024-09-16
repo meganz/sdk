@@ -7357,6 +7357,12 @@ class MegaSyncStall
         * is where the move could not be repliated.
         */
         virtual bool detectedCloudSide() const = 0;
+
+        /**
+         * @brief Get an unique identifier for the MegaSyncStall object that takes into account all
+         * the information it stores.
+         */
+        virtual size_t getHash() const = 0;
 };
 
 /**
@@ -7377,6 +7383,12 @@ class MegaSyncStallList
          * @return number of elements in the list.
          */
         virtual size_t size() const;
+
+        /**
+         * @brief Get an unique identifier that is calculated combining the hashes of all the
+         * elements in the container. The order of the elements also affects the final hash.
+         */
+        virtual size_t getHash() const;
 };
 
 #endif // ENABLE_SYNC
