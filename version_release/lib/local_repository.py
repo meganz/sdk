@@ -68,10 +68,8 @@ class LocalRepository:  # use raw git commands
         return False
 
     def check_for_uncommitted_changes(self):
-        path_to_exlude = Path(__file__).parent.parent
-        relative_path_to_exclude = path_to_exlude.relative_to(Path.cwd()).as_posix()
         byte_output = subprocess.check_output(
-            ["git", "diff", "--shortstat", "--", f":^{relative_path_to_exclude}"]
+            ["git", "diff", "--shortstat", "--", ":(exclude,top)version_release"]
         )
         assert (
             len(byte_output) == 0
@@ -84,7 +82,7 @@ class LocalRepository:  # use raw git commands
                 "--shortstat",
                 "--cached",
                 "--",
-                f":^{relative_path_to_exclude}",
+                ":(exclude,top)version_release",
             ]
         )
         assert (
