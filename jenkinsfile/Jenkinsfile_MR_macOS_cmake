@@ -105,7 +105,7 @@ pipeline {
                             sh "echo \"Building SDK for x64 (crosscompiling)\""
                             sh "rm -rf ${BUILD_DIR_X64}; mkdir ${BUILD_DIR_X64}"
                             sh "cmake -DENABLE_SDKLIB_WERROR=ON -DENABLE_CHAT=ON -DCMAKE_BUILD_TYPE=Debug -DVCPKG_ROOT=${VCPKGPATH} ${BUILD_OPTIONS} -DCMAKE_VERBOSE_MAKEFILE=ON \
-                            -DCMAKE_OSX_ARCHITECTURES=x86_64 \
+                            -DCMAKE_OSX_ARCHITECTURES=x86_64 -DENABLE_SDKLIB_EXAMPLES=OFF -DENABLE_SDKLIB_TESTS=OFF -DENABLE_ISOLATED_GFX=OFF \
                             -S ${mac_sources_workspace} -B ${mac_sources_workspace}/${BUILD_DIR_X64}"
                             sh "cmake --build ${mac_sources_workspace}/${BUILD_DIR_X64} -j3"
                         }

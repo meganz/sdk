@@ -9,3 +9,10 @@ if (NOT WIN32)
 else()
     set(USE_CPPTHREAD 1)
 endif()
+
+# Configure CMAKE_OSX_DEPLOYMENT_TARGET if not already set
+include(set_osx_deployment_target)
+set_osx_deployment_target(
+    ARM64 "11.1"
+    x86_64 "10.13"
+)
