@@ -147,9 +147,10 @@ class LocalRepository:  # use raw git commands
             ["git", "checkout", "-b", branch_name], stdout=subprocess.DEVNULL
         ), f'Failed to create new branch "{branch_name}"'
 
-        # stage changes
+        # stage changes to version file
         assert subprocess.run(
-            ["git", "add", "-u"], stdout=subprocess.DEVNULL
+            ["git", "add", LocalRepository.version_file.as_posix()],
+            stdout=subprocess.DEVNULL,
         ), "Failed to stage changes"
 
         # commit and sign
