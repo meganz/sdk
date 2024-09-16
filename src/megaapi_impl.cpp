@@ -14154,7 +14154,12 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
             if (request->getParamType() == MegaApi::CREATE_EPLUSPLUS_ACCOUNT)   // creation of account E++
             {
                 // import the PDF silently... (not chained)
-                client->getwelcomepdf();
+                // Not for VPN and PWM clients
+                if (client->getClientType() != MegaClient::ClientType::VPN &&
+                    client->getClientType() != MegaClient::ClientType::PASSWORD_MANAGER)
+                {
+                    client->getwelcomepdf();
+                }
 
                 // The session id cannot follow the same pattern, since no password is provided (yet)
                 // In consequence, the session resumption requires a regular session id (instead of the
@@ -16402,7 +16407,12 @@ void MegaApiImpl::sendsignuplink_result(error e)
             && (e == API_OK) && (request->getParamType() == MegaApi::CREATE_ACCOUNT))   // new account has been created
     {
         // import the PDF silently... (not chained)
-        client->getwelcomepdf();
+        // Not for VPN and PWM clients
+        if (client->getClientType() != MegaClient::ClientType::VPN &&
+            client->getClientType() != MegaClient::ClientType::PASSWORD_MANAGER)
+        {
+            client->getwelcomepdf();
+        }
     }
 
     fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));

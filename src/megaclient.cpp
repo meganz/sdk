@@ -18763,6 +18763,7 @@ void MegaClient::getmegaachievements(AchievementsDetails *details)
 
 void MegaClient::getwelcomepdf()
 {
+    assert(mClientType != ClientType::VPN && mClientType != ClientType::PASSWORD_MANAGER);
     reqs.add(new CommandGetWelcomePDF(this));
 }
 

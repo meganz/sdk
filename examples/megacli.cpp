@@ -6774,7 +6774,12 @@ void exec_begin(autocomplete::ACState& s)
     if (s.words.size() == 1)
     {
         cout << "Creating ephemeral session..." << endl;
-        pdf_to_import = true;
+
+        if (client->getClientType() != MegaClient::ClientType::VPN &&
+            client->getClientType() != MegaClient::ClientType::PASSWORD_MANAGER)
+        {
+            pdf_to_import = true;
+        }
         client->createephemeral();
     }
     else if (s.words.size() == 2)   // resume session
@@ -6803,7 +6808,11 @@ void exec_begin(autocomplete::ACState& s)
     {
         cout << "Creating ephemeral session plus plus..." << endl;
 
-        pdf_to_import = true;
+        if (client->getClientType() != MegaClient::ClientType::VPN &&
+            client->getClientType() != MegaClient::ClientType::PASSWORD_MANAGER)
+        {
+            pdf_to_import = true;
+        }
         ephemeralFirstname = s.words[1].s;
         ephemeralLastName = s.words[2].s;
         client->createephemeralPlusPlus();
