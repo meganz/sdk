@@ -29,8 +29,9 @@
 
 namespace mega {
 
-bool g_jsonLoggingOn = false;
-#define JSON_verbose if (g_jsonLoggingOn) LOG_verbose
+std::atomic<bool> gLogJSONRequests{false};
+
+#define JSON_verbose if (gLogJSONRequests) LOG_verbose
 
 // store array or object in string s
 // reposition after object

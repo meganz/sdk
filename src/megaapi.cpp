@@ -2148,6 +2148,11 @@ void MegaApi::setLogToConsole(bool enable)
     MegaApiImpl::setLogToConsole(enable);
 }
 
+void MegaApi::setLogJSONContent(bool enable)
+{
+    MegaApiImpl::setLogJSONContent(enable);
+}
+
 void MegaApi::addLoggerObject(MegaLogger *megaLogger, bool singleExclusiveLogger)
 {
     MegaApiImpl::addLoggerClass(megaLogger, singleExclusiveLogger);

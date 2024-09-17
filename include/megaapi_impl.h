@@ -3167,6 +3167,7 @@ class MegaApiImpl : public MegaApp
         static void addLoggerClass(MegaLogger *megaLogger, bool singleExclusiveLogger);
         static void removeLoggerClass(MegaLogger *megaLogger, bool singleExclusiveLogger);
         static void setLogToConsole(bool enable);
+        static void setLogJSONContent(bool enable);
         static void log(int logLevel, const char* message, const char *filename = NULL, int line = -1);
         void setLoggingName(const char* loggingName);
 
