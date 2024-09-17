@@ -2284,6 +2284,15 @@ std::vector<std::string> toNamesVector(const MegaNodeList& nodes)
     return result;
 }
 
+std::vector<std::string> stringListToVector(const MegaStringList& l)
+{
+    std::vector<std::string> result;
+    result.reserve(static_cast<size_t>(l.size()));
+    for (int i = 0; i < l.size(); ++i)
+        result.emplace_back(l.get(i));
+    return result;
+};
+
 ///////////////////////////__ Tests using SdkTest __//////////////////////////////////
 
 /**
@@ -19465,14 +19474,6 @@ TEST_F(SdkTest, SdkNodeTag)
         return (checkTag(node.get(), tag) && !checkTag(node.get(), oldTag)) ? API_OK : API_EEXIST;
     };
 
-    const auto toVector = [](const MegaStringList& l) -> std::vector<std::string>
-    {
-        std::vector<std::string> r;
-        for (int i = 0; i < l.size(); ++i)
-            r.emplace_back(l.get(i));
-        return r;
-    };
-
     std::string tag1 = "tag1";
     std::string tag2 = "tag2";
     std::string tag3 = "tag3";
@@ -19601,20 +19602,20 @@ TEST_F(SdkTest, SdkNodeTag)
     LOG_debug << "[SdkTest::SdkNodeTag] Testing all tags";
     std::unique_ptr<MegaStringList> allTags(megaApi[0]->getAllNodeTags());
     ASSERT_NE(allTags, nullptr);
-    auto allTagsV = toVector(*allTags);
+    auto allTagsV = stringListToVector(*allTags);
     EXPECT_THAT(allTagsV,
                 testing::ElementsAreArray({subdirtag4, subdirtag14, subdirtag20, tag3, tag11}));
 
     LOG_debug << "[SdkTest::SdkNodeTag] Testing all tags with pattern matching";
     allTags.reset(megaApi[0]->getAllNodeTags("ub*r"));
     ASSERT_NE(allTags, nullptr);
-    allTagsV = toVector(*allTags);
+    allTagsV = stringListToVector(*allTags);
     EXPECT_THAT(allTagsV, testing::ElementsAreArray({subdirtag4, subdirtag14, subdirtag20}));
 
     LOG_debug << "[SdkTest::SdkNodeTag] Testing all tags with exact match";
     allTags.reset(megaApi[0]->getAllNodeTags(tag11.c_str()));
     ASSERT_NE(allTags, nullptr);
-    allTagsV = toVector(*allTags);
+    allTagsV = stringListToVector(*allTags);
     EXPECT_THAT(allTagsV, testing::ElementsAreArray({tag11}));
 
     LOG_debug << "[SdkTest::SdkNodeTag] Changing the contents of test.txt to force a new version";
@@ -19648,7 +19649,8 @@ TEST_F(SdkTest, SdkNodeTag)
     unique_ptr<MegaNodeList> allVersions(megaApi[0]->getVersions(newNode.get()));
     ASSERT_EQ(allVersions->size(), 2);
 
-    EXPECT_THAT(toVector(*oldTags), testing::UnorderedElementsAreArray(toVector(*newTags)))
+    EXPECT_THAT(stringListToVector(*oldTags),
+                testing::UnorderedElementsAreArray(stringListToVector(*newTags)))
         << "Tags are not maintained after file update";
 
     LOG_debug << "[SdkTest::SdkNodeTag] Ensure tags from a node are naturally sorted";
@@ -19656,7 +19658,8 @@ TEST_F(SdkTest, SdkNodeTag)
     ASSERT_NE(node, nullptr);
     std::unique_ptr<MegaStringList> tags(node->getTags());
     ASSERT_NE(tags, nullptr);
-    EXPECT_THAT(toVector(*tags), testing::ElementsAre(subdirtag4, subdirtag14, subdirtag20))
+    EXPECT_THAT(stringListToVector(*tags),
+                testing::ElementsAre(subdirtag4, subdirtag14, subdirtag20))
         << "Tags for a single node are not returned in natural order";
 }
 
@@ -19975,4 +19978,120 @@ TEST_F(SdkTest, SdkTestSharesWhenMegaHosted)
     string b64Key{rt.request->getPassword()};
     string binKey = Base64::atob(b64Key);
     ASSERT_FALSE(binKey.empty());
+}
+
+TEST_F(SdkTest, SdkTestRestoreNodeVersion)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    LOG_info << "___TEST SdkTestRestoreNodeVersion___";
+
+    const auto addTagToNode =
+        [&api = megaApi[0]](const std::unique_ptr<MegaNode>& node, const std::string& tag)
+    {
+        RequestTracker trackerAddTag(api.get());
+        api->addNodeTag(node.get(), tag.c_str(), &trackerAddTag);
+        ASSERT_EQ(trackerAddTag.waitForResult(), API_OK);
+    };
+
+    const auto setNodeDescription =
+        [&api = megaApi[0]](const std::unique_ptr<MegaNode>& node, const std::string& description)
+    {
+        RequestTracker trackerSetDescription(api.get());
+        api->setNodeDescription(node.get(), description.c_str(), &trackerSetDescription);
+        ASSERT_EQ(trackerSetDescription.waitForResult(), API_OK);
+    };
+
+    LOG_debug << "[SdkTest::SdkTestRestoreNodeVersion] Creating root node";
+    std::unique_ptr<MegaNode> rootnodeA(megaApi[0]->getRootNode());
+    ASSERT_TRUE(rootnodeA);
+
+    LOG_debug << "[SdkTest::SdkTestRestoreNodeVersion] Uploading first version of the file";
+    const std::string originalContent{"Original content"};
+    MegaHandle originalHandle = 0;
+    {
+        const std::string filename = "test.txt";
+        sdk_test::LocalTempFile testTempFile(filename, originalContent);
+        ASSERT_EQ(MegaError::API_OK,
+                  doStartUpload(0,
+                                &originalHandle,
+                                filename.data(),
+                                rootnodeA.get(),
+                                nullptr /*fileName*/,
+                                ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                nullptr /*appData*/,
+                                false /*isSourceTemporary*/,
+                                false /*startFirst*/,
+                                nullptr /*cancelToken*/))
+            << "Cannot upload a test file";
+    }
+    LOG_debug << "[SdkTest::SdkTestRestoreNodeVersion] Setting metadata for first version";
+    std::unique_ptr<MegaNode> originalNodeVersion(megaApi[0]->getNodeByHandle(originalHandle));
+    ASSERT_TRUE(originalNodeVersion);
+    ASSERT_NO_FATAL_FAILURE(addTagToNode(originalNodeVersion, "originaltag"));
+    ASSERT_NO_FATAL_FAILURE(setNodeDescription(originalNodeVersion, "original description"));
+
+    LOG_debug << "[SdkTest::SdkTestRestoreNodeVersion] Uploading second version of the file";
+    MegaHandle currentHandle = 0;
+    {
+        const std::string filename = "test.txt";
+        sdk_test::LocalTempFile testTempFile(filename, "Current content");
+        ASSERT_EQ(MegaError::API_OK,
+                  doStartUpload(0,
+                                &currentHandle,
+                                filename.data(),
+                                rootnodeA.get(),
+                                nullptr /*fileName*/,
+                                ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                nullptr /*appData*/,
+                                false /*isSourceTemporary*/,
+                                false /*startFirst*/,
+                                nullptr /*cancelToken*/))
+            << "Cannot upload a test file";
+    }
+    LOG_debug << "[SdkTest::SdkTestRestoreNodeVersion] Setting metadata for second version";
+    std::unique_ptr<MegaNode> currentNodeVersion(megaApi[0]->getNodeByHandle(currentHandle));
+    ASSERT_TRUE(currentNodeVersion);
+    ASSERT_NO_FATAL_FAILURE(addTagToNode(currentNodeVersion, "currenttag"));
+    ASSERT_NO_FATAL_FAILURE(setNodeDescription(currentNodeVersion, "current description"));
+
+    LOG_debug << "[SdkTest::SdkTestRestoreNodeVersion] Restoring first version";
+    RequestTracker trackerRestoreVersion(megaApi[0].get());
+    megaApi[0]->restoreVersion(originalNodeVersion.get(), &trackerRestoreVersion);
+    ASSERT_EQ(trackerRestoreVersion.waitForResult(), API_OK);
+
+    LOG_debug << "[SdkTest::SdkTestRestoreNodeVersion] Check description remains the same";
+    std::unique_ptr<MegaNode> restoredNode(megaApi[0]->getNodeByPath("/test.txt"));
+    ASSERT_TRUE(restoredNode);
+    EXPECT_STREQ(restoredNode->getDescription(), "current description");
+
+    LOG_debug << "[SdkTest::SdkTestRestoreNodeVersion] Check tags remain the same";
+    std::unique_ptr<MegaStringList> tags(restoredNode->getTags());
+    ASSERT_TRUE(tags);
+    const auto tagsVec = stringListToVector(*tags);
+    EXPECT_THAT(tagsVec, testing::UnorderedElementsAreArray({"originaltag", "currenttag"}));
+    // Check the contents have changed to original
+
+    LOG_debug << "[SdkTest::SdkTestRestoreNodeVersion] Check the contents has been restored";
+    const std::string downloadFileName{DOTSLASH "downfile.txt"};
+    TransferTracker downloadListener(megaApi[0].get());
+    megaApi[0]->startDownload(
+        restoredNode.get(),
+        downloadFileName.c_str(),
+        nullptr /*customName*/,
+        nullptr /*appData*/,
+        false /*startFirst*/,
+        nullptr /*cancelToken*/,
+        MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+        MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
+        false /* undelete */,
+        &downloadListener);
+    ASSERT_EQ(downloadListener.waitForResult(), API_OK);
+
+    // Read file
+    std::ifstream file{downloadFileName};
+    ASSERT_TRUE(file);
+    const std::string contents{std::istreambuf_iterator<char>(file),
+                               std::istreambuf_iterator<char>()};
+    // Check contents
+    ASSERT_EQ(contents, originalContent);
 }
