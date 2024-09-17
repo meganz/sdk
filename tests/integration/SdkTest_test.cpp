@@ -2369,6 +2369,9 @@ void SdkTest::doCreateAccountTest(const string& testName, int clientType)
     // Create an ephemeral session internally and send a confirmation link to email
     ASSERT_EQ(API_OK, synchronousCreateAccount(0, newTestAcc.c_str(), origTestPwd, "MyFirstname", "MyLastname"));
 
+    // Wait for the client to import the "Welcome PDF."
+    WaitMillisec(8000);
+
     if (clientType == MegaApi::CLIENT_TYPE_PASSWORD_MANAGER)
     {
         RequestTracker rt{megaApi[0].get()};
