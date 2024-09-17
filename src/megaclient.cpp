@@ -20794,12 +20794,12 @@ std::string MegaClient::getPartialAPs()
     if (isClientType(ClientType::PASSWORD_MANAGER))
     {
         // List of handles to recieve updates from subtree
-        ret = "&e=" + toNodeHandle(getPasswordManagerBase());
+        ret = "&e=" + toNodeHandle(getPasswordManagerBase()) + "&ir=1";
     }
 
     // ir=1 -> Ignoring roots
     // ap=1 -> account packets
-    ret += "&ir=1&ap=1";
+    ret += "&ap=1";
 
     return ret;
 }

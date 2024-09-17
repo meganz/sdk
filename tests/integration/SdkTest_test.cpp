@@ -2572,7 +2572,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
 TEST_F(SdkTest, SdkTestPWMCreateAccount)
 {
     ASSERT_NO_FATAL_FAILURE(
-        doCreateAccountTest("SdkTestVPNCreateAccount", MegaApi::CLIENT_TYPE_PASSWORD_MANAGER));
+        doCreateAccountTest("SdkTestPWMCreateAccount", MegaApi::CLIENT_TYPE_PASSWORD_MANAGER));
 }
 
 /**
