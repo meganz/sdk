@@ -665,14 +665,6 @@ struct CacheableReader
     bool hasdataleft() { return end > ptr; }
 };
 
-template<typename T, typename U>
-void hashCombine(T& seed, const U& v)
-{
-    static_assert(std::is_integral<T>::value, "T is not integral");
-    // the magic number is the twos complement version of the golden ratio
-    seed ^= std::hash<U>{}(v) + 0x9e3779b9 + (seed<<6) + (seed>>2);
-}
-
 struct FileAccess;
 struct InputStreamAccess;
 class SymmCipher;
@@ -1435,6 +1427,13 @@ std::string ensureAsteriskSurround(std::string str);
  * std::stirng extension = fileName.substr(dotPos); // It will contain the '.' if present
  */
 size_t fileExtensionDotPosition(const std::string& fileName);
+
+// Helper function to combine hashes
+inline uint64_t hashCombine(uint64_t seed, uint64_t value)
+{
+    // the magic number is the twos complement version of the golden ratio
+    return seed ^ (value + 0x9e3779b97f4a7c15 + (seed << 12) + (seed >> 4));
+}
 
 /**
  * @class Timer

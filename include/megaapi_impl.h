@@ -2765,6 +2765,8 @@ class MegaSyncStallPrivate : public MegaSyncStall
             return info.detectionSideIsMEGA;
         }
 
+        size_t getHash() const override;
+
         static const char*
         reasonDebugString(MegaSyncStall::SyncStallReason reason);
 
@@ -2774,6 +2776,7 @@ class MegaSyncStallPrivate : public MegaSyncStall
         const SyncStallEntry info;
     protected:
         mutable string lpConverted[2];
+        mutable std::pair<bool, size_t> hashCache{}; // an std::optional would be much better
 };
 
 class MegaSyncNameConflictStallPrivate : public MegaSyncStall
@@ -2862,6 +2865,8 @@ public:
         return mCache1.size() > 1;
     }
 
+    size_t getHash() const override;
+
     static const char*
         reasonDebugString(MegaSyncStall::SyncStallReason reason);
 
@@ -2871,6 +2876,7 @@ public:
     const NameConflict mConflict;
 protected:
     mutable map<int, string> mCache1, mCache2;
+    mutable std::pair<bool, size_t> hashCache{}; // an std::optional would be much better
 };
 
 class AddressedStallFilter
@@ -5527,5 +5533,138 @@ public:
 }; // MegaMountListPrivate
 
 }
+
+// Specializations of std::hash for custom Sync types
+namespace std
+{
+
+template<>
+struct hash<::mega::NodeHandle>
+{
+    std::size_t operator()(const ::mega::NodeHandle& nh) const noexcept
+    {
+        return std::hash<uint64_t>{}(nh.as8byte());
+    }
+};
+
+template<>
+struct hash<::mega::LocalPath>
+{
+    std::size_t operator()(const ::mega::LocalPath& lp) const noexcept
+    {
+        std::size_t seed = 0;
+        seed = ::mega::hashCombine(seed, std::hash<std::string>{}(lp.toPath(false)));
+        seed = ::mega::hashCombine(seed, std::hash<bool>{}(lp.isAbsolute()));
+        return seed;
+    }
+};
+
+template<>
+struct hash<::mega::NameConflict::NameHandle>
+{
+    std::size_t operator()(const ::mega::NameConflict::NameHandle& nh) const noexcept
+    {
+        std::size_t seed = 0;
+        seed = ::mega::hashCombine(seed, std::hash<std::string>{}(nh.name));
+        seed = ::mega::hashCombine(seed, std::hash<::mega::NodeHandle>{}(nh.handle));
+        return seed;
+    }
+};
+
+template<>
+struct hash<::mega::NameConflict>
+{
+    std::size_t operator()(const ::mega::NameConflict& nc) const noexcept
+    {
+        std::size_t seed = 0;
+        const std::hash<::mega::LocalPath> lpHashGet{};
+        const std::hash<::mega::NameConflict::NameHandle> nhHashGet{};
+
+        seed = ::mega::hashCombine(seed, std::hash<std::string>{}(nc.cloudPath));
+        seed = ::mega::hashCombine(seed, lpHashGet(nc.localPath));
+        std::for_each(std::begin(nc.clashingCloud),
+                      std::end(nc.clashingCloud),
+                      [&seed, &nhHashGet](const auto& cc)
+                      {
+                          seed = ::mega::hashCombine(seed, nhHashGet(cc));
+                      });
+        std::for_each(std::begin(nc.clashingLocalNames),
+                      std::end(nc.clashingLocalNames),
+                      [&seed, &lpHashGet](const auto& lp)
+                      {
+                          seed = ::mega::hashCombine(seed, lpHashGet(lp));
+                      });
+        return seed;
+    }
+};
+
+#ifdef ENABLE_SYNC
+template<>
+struct hash<::mega::SyncStallEntry::StallCloudPath>
+{
+    std::size_t operator()(const ::mega::SyncStallEntry::StallCloudPath& scp) const noexcept
+    {
+        std::size_t seed = 0;
+        seed = ::mega::hashCombine(seed, std::hash<int>{}(static_cast<int>(scp.problem)));
+        seed = ::mega::hashCombine(seed, std::hash<std::string>{}(scp.cloudPath));
+        seed = ::mega::hashCombine(seed, std::hash<::mega::NodeHandle>{}(scp.cloudHandle));
+        return seed;
+    }
+};
+
+template<>
+struct hash<::mega::SyncStallEntry::StallLocalPath>
+{
+    std::size_t operator()(const ::mega::SyncStallEntry::StallLocalPath& slp) const noexcept
+    {
+        std::size_t seed = 0;
+        seed = ::mega::hashCombine(seed, std::hash<int>{}(static_cast<int>(slp.problem)));
+        seed = ::mega::hashCombine(seed, std::hash<::mega::LocalPath>{}(slp.localPath));
+        return seed;
+    }
+};
+
+template<>
+struct hash<::mega::SyncStallEntry>
+{
+    std::size_t operator()(const ::mega::SyncStallEntry& sse) const noexcept
+    {
+        using ::mega::SyncStallEntry;
+        std::size_t seed = 0;
+        seed = ::mega::hashCombine(seed, std::hash<int>{}(static_cast<int>(sse.reason)));
+        seed = ::mega::hashCombine(seed, std::hash<bool>{}(sse.alertUserImmediately));
+        seed = ::mega::hashCombine(seed, std::hash<bool>{}(sse.detectionSideIsMEGA));
+
+        const std::hash<SyncStallEntry::StallCloudPath> cpHashGet{};
+        seed = ::mega::hashCombine(seed, cpHashGet(sse.cloudPath1));
+        seed = ::mega::hashCombine(seed, cpHashGet(sse.cloudPath2));
+
+        const std::hash<SyncStallEntry::StallLocalPath> lpHashGet{};
+        seed = ::mega::hashCombine(seed, lpHashGet(sse.localPath1));
+        seed = ::mega::hashCombine(seed, lpHashGet(sse.localPath2));
+        return seed;
+    }
+};
+
+template<>
+struct hash<::mega::MegaSyncStallPrivate>
+{
+    std::size_t operator()(const ::mega::MegaSyncStallPrivate& stall) const noexcept
+    {
+        return std::hash<::mega::SyncStallEntry>{}(stall.info);
+    }
+};
+
+template<>
+struct hash<::mega::MegaSyncNameConflictStallPrivate>
+{
+    std::size_t operator()(const ::mega::MegaSyncNameConflictStallPrivate& stall) const noexcept
+    {
+        return std::hash<::mega::NameConflict>{}(stall.mConflict);
+    }
+};
+#endif
+
+} // namespace std
 
 #endif //MEGAAPI_IMPL_H

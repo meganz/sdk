@@ -1646,6 +1646,13 @@ MegaSyncStallPrivate* MegaSyncStallPrivate::copy() const
     return new MegaSyncStallPrivate(*this);
 }
 
+size_t MegaSyncStallPrivate::getHash() const
+{
+    if (!hashCache.first)
+        hashCache = {true, std::hash<MegaSyncStallPrivate>{}(*this)};
+    return hashCache.second;
+}
+
 const char*
 MegaSyncStallPrivate::reasonDebugString(MegaSyncStall::SyncStallReason reason)
 {
@@ -1705,6 +1712,13 @@ MegaSyncStallPrivate::pathProblemDebugString(MegaSyncStall::SyncPathProblem reas
     static_assert((int)PathProblem::PathProblem_LastPlusOne == (int)MegaSyncStall::SyncPathProblem::SyncPathProblem_LastPlusOne, "");
 
     return syncPathProblemDebugString(PathProblem(reason));
+}
+
+size_t MegaSyncNameConflictStallPrivate::getHash() const
+{
+    if (!hashCache.first)
+        hashCache = {true, std::hash<MegaSyncNameConflictStallPrivate>{}(*this)};
+    return hashCache.second;
 }
 
 const char*
