@@ -116,4 +116,11 @@
  */
 @property (readonly, nonatomic, nullable) NSArray<NSString *> *features;
 
+/**
+ * @brief Check if the subscription is related to an active trial
+ *
+ * @return YES if the subscription is related to an active trial, otherwise NO.
+ */
+@property (readonly, nonatomic) BOOL isTrial;
+
 @end

@@ -751,7 +751,13 @@ public:
                                     const unsigned int timeout_sec = maxTimeout);
 #endif
 
-    template<typename ... requestArgs> bool doSetMaxConnections(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->setMaxConnections(args..., &rt); return rt.waitForResult(); }
+    template<typename... requestArgs>
+    ErrorCodes doSetMaxConnections(unsigned apiIndex, requestArgs... args)
+    {
+        RequestTracker rt(megaApi[apiIndex].get());
+        megaApi[apiIndex]->setMaxConnections(args..., &rt);
+        return rt.waitForResult();
+    }
     /**
      * @brief Download a file from a URL using cURL
      *
@@ -809,3 +815,8 @@ public:
  * @brief Aux function to get a vector with the names of the nodes in a given MegaNodeList
  */
 std::vector<std::string> toNamesVector(const MegaNodeList& nodes);
+
+/**
+ * @brief Aux function to get a vector with the strings in a given MegaStringList
+ */
+std::vector<std::string> stringListToVector(const MegaStringList& l);

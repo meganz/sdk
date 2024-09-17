@@ -1281,7 +1281,7 @@ bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int s
         }
         else
         {
-            flagMkExported = tmp;
+            flagMkExported = tmp != 0;
         }
     }
 
@@ -1310,7 +1310,7 @@ bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int s
         }
         else
         {
-            flagDontShowAgain = tmp;
+            flagDontShowAgain = tmp != 0;
         }
     }
 

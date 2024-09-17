@@ -93,4 +93,8 @@ using namespace mega;
     return self.pricing ? [[NSString alloc] initWithUTF8String:self.pricing->getIosID((int)index)] : nil;
 }
 
+- (unsigned int)trialDurationInDaysAtProductIndex:(NSInteger)index {
+    return self.pricing ? self.pricing->getTrialDurationInDays((int)index) : 0;
+}
+
 @end

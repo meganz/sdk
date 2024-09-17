@@ -231,7 +231,7 @@ class ReleaseProcess:
             flush=True,
         )
         mr_id, _ = self._remote_private_repo.open_mr(
-            self._get_mr_title(),
+            f"Release {self._new_version}",
             self._release_branch,
             public_branch,
             remove_source=False,
@@ -269,7 +269,7 @@ class ReleaseProcess:
         tag_url = self._remote_private_repo.get_tag_url(self._rc_tag)
 
         notes: str = (
-            f"\U0001F4E3 \U0001F4E3 *New SDK version  -->  `{self._rc_tag}`* (<{tag_url}|Link>)\n\n"
+            f"\U0001F4E3 \U0001F4E3 *New {self._project_name} version  -->  `{self._rc_tag}`* (<{tag_url}|Link>)\n\n"
         ) + self._jira.get_release_notes_for_slack(apps)
         if not self._slack or not self._slack_channel:
             print("Enjoy:\n\n" + notes, flush=True)

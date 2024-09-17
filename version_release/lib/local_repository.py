@@ -14,9 +14,12 @@ class LocalRepository:  # use raw git commands
     - delete a local branch
     """
 
-    version_file = (
-        Path(__file__).parent.parent.parent / "include" / "mega" / "version.h"
+    repo_root = Path(
+        subprocess.check_output(["git", "rev-parse", "--show-toplevel"])
+        .decode("utf-8")
+        .strip()
     )
+    version_file = repo_root / "include" / "mega" / "version.h"
 
     def __init__(self, remote_name: str, remote_url: str):
         # confirm remote being correctly configured
@@ -65,10 +68,8 @@ class LocalRepository:  # use raw git commands
         return False
 
     def check_for_uncommitted_changes(self):
-        path_to_exlude = Path(__file__).parent.parent
-        relative_path_to_exclude = path_to_exlude.relative_to(Path.cwd()).as_posix()
         byte_output = subprocess.check_output(
-            ["git", "diff", "--shortstat", "--", f":^{relative_path_to_exclude}"]
+            ["git", "diff", "--shortstat", "--", ":(exclude,top)version_release"]
         )
         assert (
             len(byte_output) == 0
@@ -81,7 +82,7 @@ class LocalRepository:  # use raw git commands
                 "--shortstat",
                 "--cached",
                 "--",
-                f":^{relative_path_to_exclude}",
+                ":(exclude,top)version_release",
             ]
         )
         assert (
@@ -144,9 +145,10 @@ class LocalRepository:  # use raw git commands
             ["git", "checkout", "-b", branch_name], stdout=subprocess.DEVNULL
         ), f'Failed to create new branch "{branch_name}"'
 
-        # stage changes
+        # stage changes to version file
         assert subprocess.run(
-            ["git", "add", "-u"], stdout=subprocess.DEVNULL
+            ["git", "add", LocalRepository.version_file.as_posix()],
+            stdout=subprocess.DEVNULL,
         ), "Failed to stage changes"
 
         # commit and sign

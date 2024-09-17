@@ -21,7 +21,7 @@ bool PendingCallbacks::Context::remove(const ContextPtr& context)
     std::lock_guard<std::mutex> guard(mPendingCallbacks.mLock);
 
     // Try and remove this context.
-    return mPendingCallbacks.mContexts.erase(context);
+    return mPendingCallbacks.mContexts.erase(context) > 0;
 }
 
 PendingCallbacks::PendingCallbacks()

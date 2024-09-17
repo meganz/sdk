@@ -92,7 +92,7 @@ public:
                               NodeHandle& handle) override;
     // getRecentNodes() is for the deprecated method MegaClient::getRecentActions without
     // excludeSensitives flag
-    bool getRecentNodes(unsigned maxcount,
+    bool getRecentNodes(const NodeSearchPage& page,
                         m_time_t since,
                         std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) override;
     bool getFavouritesHandles(NodeHandle node, uint32_t count, std::vector<mega::NodeHandle>& nodes) override;
@@ -124,12 +124,17 @@ public:
     // Gets the mimetype corresponding to the file extension
     static void userGetMimetype(sqlite3_context* context, int argc, sqlite3_value** argv);
 
-    // Check if string (pattern - argv[0]) is contained at data base column from type text (argv[1])
-    static void userIsContained(sqlite3_context* context, int argc, sqlite3_value** argv);
+    // Method called when query uses 'getSizeFromNodeCounter'
+    // Gets the node size from node counter (blob)
+    static void getSizeFromNodeCounter(sqlite3_context* context, int argc, sqlite3_value** argv);
 
-    // Check if a tag (string - argv[0]) is contained in the stored list of tags
-    //(string with the tags delimited by TAG_DELIMITER - argv[1]).
-    static void userMatchTag(sqlite3_context* context, int argc, sqlite3_value** argv);
+    /**
+     * @brief This method is designed to apply all the filtering options in various methods that
+     * perform a query to the database and use a NodeSearchFilter object.
+     *
+     * It is implemented trying to short-circuit unnecessary argument parsing.
+     */
+    static void userMatchFilter(sqlite3_context* context, int argc, sqlite3_value** argv);
 
 private:
     // Iterate over a SQL query row by row and fill the map

@@ -1291,3 +1291,12 @@ TEST(Split, with_delimiter)
     EXPECT_EQ(result.second.second, 4u);
 }
 
+TEST(EscapeWildCars, UseCases)
+{
+    EXPECT_EQ(escapeWildCards("hello"), "hello");
+    EXPECT_EQ(escapeWildCards("hel*lo"), "hel\\*lo");
+    EXPECT_EQ(escapeWildCards("*hello*"), "\\*hello\\*");
+    EXPECT_EQ(escapeWildCards("\\*hello*"), "\\*hello\\*");
+    EXPECT_EQ(escapeWildCards("\\*hello\\*"), "\\*hello\\*");
+    EXPECT_EQ(escapeWildCards("hel\\\\*lo"), "hel\\\\\\*lo");
+}

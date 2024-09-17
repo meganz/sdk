@@ -1,4 +1,6 @@
 #include "QTMegaListener.h"
+
+#include "QTMegaApiManager.h"
 #include "QTMegaEvent.h"
 
 #include <QCoreApplication>
@@ -6,7 +8,8 @@
 using namespace mega;
 using namespace std;
 
-QTMegaListener::QTMegaListener(MegaApi *megaApi, MegaListener *listener) : QObject()
+QTMegaListener::QTMegaListener(MegaApi* megaApi, MegaListener* listener):
+    QObject()
 {
     this->megaApi = megaApi;
 	this->listener = listener;
@@ -15,7 +18,7 @@ QTMegaListener::QTMegaListener(MegaApi *megaApi, MegaListener *listener) : QObje
 QTMegaListener::~QTMegaListener()
 {
     this->listener = NULL;
-    if (megaApi)
+    if (QTMegaApiManager::isMegaApiValid(megaApi))
     {
         megaApi->removeListener(this);
     }
@@ -23,11 +26,6 @@ QTMegaListener::~QTMegaListener()
 
 void QTMegaListener::onRequestStart(MegaApi *api, MegaRequest *request)
 {
-    if (request->getType() == MegaRequest::TYPE_DELETE)
-    {
-        megaApi = NULL;
-    }
-
     QTMegaEvent *event = new QTMegaEvent(api, (QEvent::Type)QTMegaEvent::OnRequestStart);
     event->setRequest(request->copy());
     QCoreApplication::postEvent(this, event, INT_MIN);

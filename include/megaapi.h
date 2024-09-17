@@ -9785,6 +9785,20 @@ public:
     virtual void byTag(const char* searchString);
 
     /**
+     * @brief Set the logical operator for filtering text related conditions
+     *
+     * @note This method sets the logical operator to be used between multiple search criteria
+     * (name, tags and description). The operator can either be `AND` or `OR` based on the
+     * input parameter.
+     *
+     * If not invoked, `AND` will be used as the default behavior.
+     *
+     * @param useAnd If true, the `AND` operator will be used between search criteria.
+     * If false, the `OR` operator will be used.
+     */
+    virtual void useAndForTextQuery(bool useAnd);
+
+    /**
      * @brief Return the string used for filtering by name.
      *
      * @return string set for filtering by name, or empty string ("") if not set
@@ -9874,6 +9888,14 @@ public:
      * @return string set for filtering by tag, or empty string ("") if not set
      */
     virtual const char* byTag() const;
+
+    /**
+     * @brief Get the current logical operator used for filtering text related conditions
+     *
+     * @return True if the `AND` operator is being used between search criteria,
+     * false if the `OR` operator is being used.
+     */
+    virtual bool useAndForTextQuery() const;
 };
 
 /**
@@ -18696,6 +18718,8 @@ class MegaApi
          * sensitive if they have that property set, or one of their ancestors has it.
          * Use getRecentActionsAsync with explicit excludeSensitives flag
          * to search for sensitives and filter them depending on the flag value
+         *
+         * @deprecated use getRecentActionsAsync(days, maxnodes, excludeSensitives, listener)
          *
          * @param days Age of actions since added/modified nodes will be considered (in days)
          * @param maxnodes Maximum amount of nodes to be considered

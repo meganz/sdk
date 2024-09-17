@@ -682,7 +682,7 @@ bool Model::removesynctrash(const string& syncrootpath, const string& subpath)
 {
     if (subpath.empty())
     {
-        return removenode(syncrootpath + "/" + DEBRISFOLDER).get();
+        return removenode(syncrootpath + "/" + DEBRISFOLDER) != nullptr;
     }
     else
     {
@@ -690,7 +690,8 @@ bool Model::removesynctrash(const string& syncrootpath, const string& subpath)
         auto rawtime = time(NULL);
         strftime(today, sizeof today, "%F", localtime(&rawtime));
 
-        return removenode(syncrootpath + "/" + DEBRISFOLDER + "/" + today + "/" + subpath).get();
+        return removenode(syncrootpath + "/" + DEBRISFOLDER + "/" + today + "/" + subpath) !=
+               nullptr;
     }
 }
 
@@ -1425,6 +1426,23 @@ void StandardClient::sync_added(const SyncConfig& config)
     if (onAutoResumeResult)
     {
         onAutoResumeResult(config);
+    }
+}
+
+void StandardClient::sync_removed(const SyncConfig& config)
+{
+    onCallback();
+
+    if (logcb)
+    {
+        lock_guard<mutex> guard(om);
+
+        out() << clientname << "sync_removed(): id: " << toHandle(config.mBackupId);
+    }
+
+    if (onRemovedSync)
+    {
+        onRemovedSync(config);
     }
 }
 
@@ -3229,8 +3247,11 @@ string StandardClient::exportSyncConfigs()
 
 void StandardClient::delSync_inthread(handle backupId, PromiseBoolSP result)
 {
-    client.syncs.deregisterThenRemoveSync(backupId,
-      [=](Error error) { result->set_value(error == API_OK); }, nullptr);
+    client.syncs.deregisterThenRemoveSyncById(backupId,
+                                              [=](Error error)
+                                              {
+                                                  result->set_value(error == API_OK);
+                                              });
 }
 
 bool StandardClient::recursiveConfirm(Model::ModelNode* mn, Node* n, int& descendants, const string& identifier, int depth, bool& firstreported, bool expectFail, bool skipIgnoreFile)
@@ -3667,8 +3688,15 @@ bool StandardClient::setSyncPausedByBackupId(handle id, bool pause)
     }
     else
     {
-        client.syncs.enableSyncByBackupId(id, false,
-            [result](error e, SyncError, handle){ result->set_value(!e); }, id, "");
+        client.syncs.enableSyncByBackupId(
+            id,
+            false,
+            [result](error e, SyncError, handle)
+            {
+                result->set_value(!e);
+            },
+            id > 0,
+            "");
     }
 
     return debugTolerantWaitOnFuture(result->get_future(), 45);
@@ -3676,8 +3704,15 @@ bool StandardClient::setSyncPausedByBackupId(handle id, bool pause)
 
 void StandardClient::enableSyncByBackupId(handle id, PromiseBoolSP result, const string& logname)
 {
-    client.syncs.enableSyncByBackupId(id, true,
-        [result](error e, SyncError, handle){ result->set_value(!e); }, id, logname);
+    client.syncs.enableSyncByBackupId(
+        id,
+        true,
+        [result](error e, SyncError, handle)
+        {
+            result->set_value(!e);
+        },
+        id > 0,
+        logname);
 }
 
 bool StandardClient::enableSyncByBackupId(handle id, const string& logname)
@@ -5376,10 +5411,17 @@ SyncWaitPredicate SyncRemoteMatch(const CloudItem& item, const Model& source)
 
 SyncWaitPredicate SyncRemoteNodePresent(const CloudItem& item)
 {
-    return [item](StandardClient& client) {
-        return client.thread_do<bool>([&](StandardClient& client, PromiseBoolSP result) {
-            result->set_value(item.resolve(client).get());
-        }, __FILE__, __LINE__).get();
+    return [item](StandardClient& client)
+    {
+        return client
+            .thread_do<bool>(
+                [&](StandardClient& client, PromiseBoolSP result)
+                {
+                    result->set_value(item.resolve(client) != nullptr);
+                },
+                __FILE__,
+                __LINE__)
+            .get();
     };
 }
 
@@ -11170,11 +11212,11 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
                                 TwoWaySyncSymmetryCase testcase(allstate);
                                 testcase.syncType = TwoWaySyncSymmetryCase::SyncType(syncType);
                                 testcase.selfChange = selfChange != 0;
-                                testcase.up = up;
+                                testcase.up = up != 0;
                                 testcase.action = TwoWaySyncSymmetryCase::Action(action);
-                                testcase.file = file;
-                                testcase.isExternal = isExternal;
-                                testcase.pauseDuringAction = pauseDuringAction;
+                                testcase.file = file != 0;
+                                testcase.isExternal = isExternal != 0;
+                                testcase.pauseDuringAction = pauseDuringAction != 0;
                                 testcase.printTreesBeforeAndAfter = !tests.empty();
 
                                 if (tests.empty() || tests.count(testcase.name()) > 0)
@@ -19173,6 +19215,31 @@ TEST_F(SyncTest, SyncUtf8DifferentlyNormalized1)
     ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
 
 
+}
+
+TEST_F(SyncTest, RemoveSync)
+{
+    // Set up a client
+    fs::path localtestroot = makeNewTestRoot();
+    auto clientA1 = g_clientManager->getCleanStandardClient(0, localtestroot); // user 1 client 1
+
+    // Create remote dir
+    ASSERT_TRUE(clientA1->resetBaseFolderMulticlient());
+    ASSERT_TRUE(clientA1->makeCloudSubdirs("f", 0, 0));
+
+    // create sync
+    handle backupId1 = clientA1->setupSync_mainthread("sync1", "f", false, true);
+    ASSERT_NE(backupId1, UNDEF);
+    waitonsyncs(std::chrono::seconds(4), clientA1);
+    auto* sync = clientA1->syncByBackupId(backupId1);
+    ASSERT_NE(sync, nullptr);
+
+    // Delete the sync and make sure it is disable
+    clientA1->onRemovedSync = [](const SyncConfig& config)
+    {
+        ASSERT_EQ(config.mRunState, SyncRunState::Disable);
+    };
+    clientA1->delSync_mainthread(backupId1);
 }
 
 #ifdef _WIN32

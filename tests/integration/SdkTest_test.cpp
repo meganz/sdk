@@ -2284,6 +2284,15 @@ std::vector<std::string> toNamesVector(const MegaNodeList& nodes)
     return result;
 }
 
+std::vector<std::string> stringListToVector(const MegaStringList& l)
+{
+    std::vector<std::string> result;
+    result.reserve(static_cast<size_t>(l.size()));
+    for (int i = 0; i < l.size(); ++i)
+        result.emplace_back(l.get(i));
+    return result;
+};
+
 ///////////////////////////__ Tests using SdkTest __//////////////////////////////////
 
 /**
@@ -8093,7 +8102,14 @@ TEST_F(SdkTest, SdkTestCloudraidStreamingSoakTest)
 
         LOG_info << "beginning stream test, " << start << " to " << end << "(len " << end - start << ") " << (nonraid ? " non-raid " : " RAID ") << (!nonraid ? (smallpieces ? " smallpieces " : "normalpieces") : "");
 
-        CheckStreamedFile_MegaTransferListener* p = StreamRaidFilePart(megaApi[0].get(), start, end, !nonraid, smallpieces, nimported, nonRaidNode, compareDecryptedData.data());
+        CheckStreamedFile_MegaTransferListener* p = StreamRaidFilePart(megaApi[0].get(),
+                                                                       start,
+                                                                       end,
+                                                                       !nonraid,
+                                                                       smallpieces != 0,
+                                                                       nimported,
+                                                                       nonRaidNode,
+                                                                       compareDecryptedData.data());
 
         for (unsigned i = 0; p->comparedEqual; ++i)
         {
@@ -8137,180 +8153,115 @@ TEST_F(SdkTest, SdkTestCloudraidStreamingSoakTest)
 #endif
 }
 
-void SdkTest::testRecents(const std::string& title, bool useSensitiveExclusion)
-{
-    LOG_info << title;
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-
-    std::unique_ptr<MegaNode> rootnode(megaApi[0]->getRootNode());
-
-    // upload file1
-    const string filename1 = UPFILE;
-    deleteFile(filename1);
-    ASSERT_TRUE(createFile(filename1, false)) << "Couldn't create " << filename1;
-    auto err = doStartUpload(0, nullptr, filename1.c_str(),
-                                      rootnode.get(),
-                                      nullptr /*fileName*/,
-                                      ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                                      nullptr /*appData*/,
-                                      false   /*isSourceTemporary*/,
-                                      false   /*startFirst*/,
-                                      nullptr /*cancelToken*/);
-    ASSERT_EQ(API_OK, err) << "Cannot upload a test file (error: " << err << ")";
-    WaitMillisec(1000);
-
-    // upload a backup of file1
-    const string filename1bkp1 = filename1 + ".bkp1";
-    deleteFile(filename1bkp1);
-    createFile(filename1bkp1, false);
-    err = doStartUpload(0, nullptr, filename1bkp1.c_str(), rootnode.get(),
-                        nullptr /*fileName*/,
-                        ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                        nullptr /*appData*/,
-                        false   /*isSourceTemporary*/,
-                        false   /*startFirst*/,
-                        nullptr /*cancelToken*/);
-
-    ASSERT_EQ(MegaError::API_OK, err) << "Cannot upload test file " + filename1bkp1 + ", (error: " << err << ")";
-    deleteFile(filename1bkp1);
-
-    // upload a second backup of file1
-    const string filename1bkp2 = filename1 + ".bkp2";
-    deleteFile(filename1bkp2);
-    createFile(filename1bkp2, false);
-    err = doStartUpload(0, nullptr, filename1bkp2.c_str(), rootnode.get(),
-                        nullptr /*fileName*/,
-                        ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                        nullptr /*appData*/,
-                        false   /*isSourceTemporary*/,
-                        false   /*startFirst*/,
-                        nullptr /*cancelToken*/);
-
-    ASSERT_EQ(MegaError::API_OK, err) << "Cannot upload test file " + filename1bkp2 + ", (error: " << err << ")";
-    deleteFile(filename1bkp2);
-
-    // modify file1
-    ofstream f(filename1);
-    f << "update";
-    f.close();
-
-    err = doStartUpload(0, nullptr, filename1.c_str(),
-                                 rootnode.get(),
-                                 nullptr /*fileName*/,
-                                 ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                                 nullptr /*appData*/,
-                                 false   /*isSourceTemporary*/,
-                                 false   /*startFirst*/,
-                                 nullptr /*cancelToken*/);
-
-    ASSERT_EQ(API_OK, err) << "Cannot upload an updated test file (error: " << err << ")";
-
-    WaitMillisec(1000);
-    synchronousCatchup(0);
-
-    // upload file2
-    const string filename2 = DOWNFILE;
-    deleteFile(filename2);
-    ASSERT_TRUE(createFile(filename2, false)) << "Couldn't create " << filename2;
-    err = doStartUpload(0, nullptr, filename2.c_str(),
-                                 rootnode.get(),
-                                 nullptr /*fileName*/,
-                                 ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                                 nullptr /*appData*/,
-                                 false   /*isSourceTemporary*/,
-                                 false   /*startFirst*/,
-                                 nullptr /*cancelToken*/);
-    ASSERT_EQ(API_OK, err) << "Cannot upload a test file2 (error: " << err << ")";
-
-    WaitMillisec(1000);
-
-    // modify file2
-    ofstream f2(filename2);
-    f2 << "update";
-    f2.close();
-
-    err = doStartUpload(0, nullptr, filename2.c_str(),
-                                 rootnode.get(),
-                                 nullptr /*fileName*/,
-                                 ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                                 nullptr /*appData*/,
-                                 false   /*isSourceTemporary*/,
-                                 false   /*startFirst*/,
-                                 nullptr /*cancelToken*/);
-
-    ASSERT_EQ(API_OK, err) << "Cannot upload an updated test file2 (error: " << err << ")";
-
-    synchronousCatchup(0);
-
-    const auto& getRecentActionsStartTime = std::chrono::steady_clock::now();
-    RequestTracker tracker(megaApi[0].get());
-    if (useSensitiveExclusion)
-    {
-        // Sensitive exclusion has different code paths than the previous legacy function,
-        // hence why we cannot just pass the parameter with "false".
-        megaApi[0]->getRecentActionsAsync(1, 10, true, &tracker);
-    }
-    else
-    {
-        megaApi[0]->getRecentActionsAsync(1, 10, &tracker);
-    }
-    ASSERT_EQ(tracker.waitForResult(), API_OK);
-    std::unique_ptr<MegaRecentActionBucketList> buckets{
-        tracker.request->getRecentActions()->copy()};
-    ASSERT_TRUE(buckets != nullptr);
-
-    const auto& getRecentActionsEndTime = std::chrono::steady_clock::now();
-    auto getRecentActionsTime = std::chrono::duration_cast<std::chrono::microseconds>(
-                                    getRecentActionsEndTime - getRecentActionsStartTime)
-                                    .count();
-    LOG_debug << "[SdkTest::testRecents] getRecentActionsTime = " << getRecentActionsTime
-              << " us [buckets->size() = " << buckets->size() << "]";
-
-    for (int i = 0; i < buckets->size(); ++i)
-    {
-        auto bucketMsg = "bucket " + to_string(i) + ':';
-        megaApi[0]->log(MegaApi::LOG_LEVEL_DEBUG, bucketMsg.c_str());
-
-        auto bucket = buckets->get(i);
-        for (int j = 0; j < bucket->getNodes()->size(); ++j)
-        {
-            auto node = bucket->getNodes()->get(j);
-            auto nodeMsg = '[' + to_string(j) + "] " + node->getName() + " ctime:" + to_string(node->getCreationTime()) +
-                " timestamp:" + to_string(bucket->getTimestamp()) + " handle:" + to_string(node->getHandle()) +
-                " isUpdate:" + to_string(bucket->isUpdate()) + " isMedia:" + to_string(bucket->isMedia());
-            megaApi[0]->log(MegaApi::LOG_LEVEL_DEBUG, nodeMsg.c_str());
-        }
-    }
-
-    ASSERT_TRUE(buckets->size() > 1);
-
-    ASSERT_TRUE(buckets->get(0)->getNodes()->size() > 1);
-
-    MegaNode* n_0_0 = buckets->get(0)->getNodes()->get(0);
-    MegaNode* n_0_1 = buckets->get(0)->getNodes()->get(1);
-    ASSERT_TRUE(filename2 == n_0_0->getName() ||
-                (n_0_0->getCreationTime() == n_0_1->getCreationTime() && filename2 == n_0_1->getName()));
-    ASSERT_TRUE(filename1 == n_0_1->getName() ||
-                (n_0_0->getCreationTime() == n_0_1->getCreationTime() && filename1 == n_0_0->getName()));
-
-    ASSERT_TRUE(buckets->get(1)->getNodes()->size() > 1);
-
-    MegaNode* n_1_0 = buckets->get(1)->getNodes()->get(0);
-    MegaNode* n_1_1 = buckets->get(1)->getNodes()->get(1);
-    ASSERT_TRUE(filename1bkp2 == n_1_0->getName() ||
-                (n_1_0->getCreationTime() == n_1_1->getCreationTime() && filename1bkp2 == n_1_1->getName()));
-    ASSERT_TRUE(filename1bkp1 == n_1_1->getName() ||
-                (n_1_0->getCreationTime() == n_1_1->getCreationTime() && filename1bkp1 == n_1_0->getName()));
-}
-
-TEST_F(SdkTest, SdkRecentsTestLegacyWithoutSensitiveExclusion)
-{
-    testRecents("___TEST SdkRecentsTestLegacyWithoutSensitiveExclusion___", false);
-}
-
 TEST_F(SdkTest, SdkRecentsTest)
 {
-    testRecents("___TEST SdkRecentsTest___", true);
+    LOG_info << "___TEST SdkRecentsTest___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    const auto updloadFile =
+        [this, rootnode = std::unique_ptr<MegaNode>(megaApi[0]->getRootNode())](
+            const std::string& fname,
+            const std::string_view contents)
+    {
+        deleteFile(fname);
+        sdk_test::LocalTempFile f(fname, contents);
+        auto err = doStartUpload(0,
+                                 nullptr,
+                                 fname.c_str(),
+                                 rootnode.get(),
+                                 nullptr /*fileName*/,
+                                 ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                 nullptr /*appData*/,
+                                 false /*isSourceTemporary*/,
+                                 false /*startFirst*/,
+                                 nullptr /*cancelToken*/);
+        ASSERT_EQ(API_OK, err) << "Cannot upload test file [" << fname << "] (error: " << err
+                               << ")";
+    };
+
+    const auto bucketsToVec =
+        [](const MegaRecentActionBucketList& buckets) -> std::vector<std::vector<std::string>>
+    {
+        std::vector<std::vector<std::string>> result;
+        for (int i = 0; i < buckets.size(); ++i)
+        {
+            auto bucketNodes = buckets.get(i)->getNodes();
+            if (!bucketNodes)
+                continue;
+            std::vector<std::string> bucketInfo;
+            for (int j = 0; j < bucketNodes->size(); ++j)
+            {
+                bucketInfo.emplace_back(bucketNodes->get(j)->getName());
+            }
+            result.emplace_back(std::move(bucketInfo));
+        }
+        return result;
+    };
+
+    const std::string filename1 = UPFILE;
+    const std::string filename1bkp1 = filename1 + ".bkp1";
+    const std::string filename1bkp2 = filename1 + ".bkp2";
+    const std::string filename2 = DOWNFILE;
+    // Delays are added to ensure ordering in recent actions
+    LOG_debug << "# SdkRecentsTest: uploading file " << filename1;
+    updloadFile(filename1, "");
+    WaitMillisec(1000);
+
+    LOG_debug << "# SdkRecentsTest: uploading file " << filename1bkp1;
+    updloadFile(filename1bkp1, "");
+    WaitMillisec(1000);
+
+    LOG_debug << "# SdkRecentsTest: uploading file " << filename1bkp2;
+    updloadFile(filename1bkp2, "");
+    WaitMillisec(1000);
+
+    LOG_debug << "# SdkRecentsTest: updating file " << filename1;
+    updloadFile(filename1, "update");
+    WaitMillisec(1000);
+
+    synchronousCatchup(0);
+
+    LOG_debug << "# SdkRecentsTest: Marking file " << filename1 << " as sensitive";
+    std::unique_ptr<MegaNode> f1node(megaApi[0]->getNodeByPath(("/" + filename1).c_str()));
+    ASSERT_NE(f1node, nullptr);
+    ASSERT_EQ(synchronousSetNodeSensitive(0, f1node.get(), true), API_OK)
+        << "Error marking file as sensitive";
+
+    LOG_debug << "# SdkRecentsTest: uploading file " << filename2;
+    updloadFile(filename2, "");
+    WaitMillisec(1000);
+
+    LOG_debug << "# SdkRecentsTest: updating file " << filename2;
+    updloadFile(filename2, "update");
+
+    synchronousCatchup(0);
+
+    LOG_debug << "# SdkRecentsTest: Get all recent actions (no exclusion)";
+    RequestTracker trackerAll(megaApi[0].get());
+    megaApi[0]->getRecentActionsAsync(1, 10, false, &trackerAll);
+
+    ASSERT_EQ(trackerAll.waitForResult(), API_OK);
+    std::unique_ptr<MegaRecentActionBucketList> buckets{
+        trackerAll.request->getRecentActions()->copy()};
+
+    ASSERT_TRUE(buckets != nullptr);
+    auto bucketsVec = bucketsToVec(*buckets);
+    ASSERT_TRUE(bucketsVec.size() > 1);
+    EXPECT_THAT(bucketsVec[0], testing::ElementsAre(filename2, filename1));
+    EXPECT_THAT(bucketsVec[1], testing::ElementsAre(filename1bkp2, filename1bkp1));
+
+    LOG_debug << "# SdkRecentsTest: Get recent actions excluding sensitive nodes";
+    RequestTracker trackerExclude(megaApi[0].get());
+    megaApi[0]->getRecentActionsAsync(1, 10, true, &trackerExclude);
+
+    ASSERT_EQ(trackerExclude.waitForResult(), API_OK);
+    buckets.reset(trackerExclude.request->getRecentActions()->copy());
+
+    ASSERT_TRUE(buckets != nullptr);
+    bucketsVec = bucketsToVec(*buckets);
+    ASSERT_TRUE(bucketsVec.size() > 1);
+    EXPECT_THAT(bucketsVec[0], testing::ElementsAre(filename2));
+    EXPECT_THAT(bucketsVec[1], testing::ElementsAre(filename1bkp2, filename1bkp1));
 }
 
 #if !USE_FREEIMAGE
@@ -19523,14 +19474,6 @@ TEST_F(SdkTest, SdkNodeTag)
         return (checkTag(node.get(), tag) && !checkTag(node.get(), oldTag)) ? API_OK : API_EEXIST;
     };
 
-    const auto toVector = [](const MegaStringList& l) -> std::vector<std::string>
-    {
-        std::vector<std::string> r;
-        for (int i = 0; i < l.size(); ++i)
-            r.emplace_back(l.get(i));
-        return r;
-    };
-
     std::string tag1 = "tag1";
     std::string tag2 = "tag2";
     std::string tag3 = "tag3";
@@ -19659,20 +19602,20 @@ TEST_F(SdkTest, SdkNodeTag)
     LOG_debug << "[SdkTest::SdkNodeTag] Testing all tags";
     std::unique_ptr<MegaStringList> allTags(megaApi[0]->getAllNodeTags());
     ASSERT_NE(allTags, nullptr);
-    auto allTagsV = toVector(*allTags);
+    auto allTagsV = stringListToVector(*allTags);
     EXPECT_THAT(allTagsV,
                 testing::ElementsAreArray({subdirtag4, subdirtag14, subdirtag20, tag3, tag11}));
 
     LOG_debug << "[SdkTest::SdkNodeTag] Testing all tags with pattern matching";
     allTags.reset(megaApi[0]->getAllNodeTags("ub*r"));
     ASSERT_NE(allTags, nullptr);
-    allTagsV = toVector(*allTags);
+    allTagsV = stringListToVector(*allTags);
     EXPECT_THAT(allTagsV, testing::ElementsAreArray({subdirtag4, subdirtag14, subdirtag20}));
 
     LOG_debug << "[SdkTest::SdkNodeTag] Testing all tags with exact match";
     allTags.reset(megaApi[0]->getAllNodeTags(tag11.c_str()));
     ASSERT_NE(allTags, nullptr);
-    allTagsV = toVector(*allTags);
+    allTagsV = stringListToVector(*allTags);
     EXPECT_THAT(allTagsV, testing::ElementsAreArray({tag11}));
 
     LOG_debug << "[SdkTest::SdkNodeTag] Changing the contents of test.txt to force a new version";
@@ -19706,7 +19649,8 @@ TEST_F(SdkTest, SdkNodeTag)
     unique_ptr<MegaNodeList> allVersions(megaApi[0]->getVersions(newNode.get()));
     ASSERT_EQ(allVersions->size(), 2);
 
-    EXPECT_THAT(toVector(*oldTags), testing::UnorderedElementsAreArray(toVector(*newTags)))
+    EXPECT_THAT(stringListToVector(*oldTags),
+                testing::UnorderedElementsAreArray(stringListToVector(*newTags)))
         << "Tags are not maintained after file update";
 
     LOG_debug << "[SdkTest::SdkNodeTag] Ensure tags from a node are naturally sorted";
@@ -19714,7 +19658,8 @@ TEST_F(SdkTest, SdkNodeTag)
     ASSERT_NE(node, nullptr);
     std::unique_ptr<MegaStringList> tags(node->getTags());
     ASSERT_NE(tags, nullptr);
-    EXPECT_THAT(toVector(*tags), testing::ElementsAre(subdirtag4, subdirtag14, subdirtag20))
+    EXPECT_THAT(stringListToVector(*tags),
+                testing::ElementsAre(subdirtag4, subdirtag14, subdirtag20))
         << "Tags for a single node are not returned in natural order";
 }
 
@@ -20033,4 +19978,120 @@ TEST_F(SdkTest, SdkTestSharesWhenMegaHosted)
     string b64Key{rt.request->getPassword()};
     string binKey = Base64::atob(b64Key);
     ASSERT_FALSE(binKey.empty());
+}
+
+TEST_F(SdkTest, SdkTestRestoreNodeVersion)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    LOG_info << "___TEST SdkTestRestoreNodeVersion___";
+
+    const auto addTagToNode =
+        [&api = megaApi[0]](const std::unique_ptr<MegaNode>& node, const std::string& tag)
+    {
+        RequestTracker trackerAddTag(api.get());
+        api->addNodeTag(node.get(), tag.c_str(), &trackerAddTag);
+        ASSERT_EQ(trackerAddTag.waitForResult(), API_OK);
+    };
+
+    const auto setNodeDescription =
+        [&api = megaApi[0]](const std::unique_ptr<MegaNode>& node, const std::string& description)
+    {
+        RequestTracker trackerSetDescription(api.get());
+        api->setNodeDescription(node.get(), description.c_str(), &trackerSetDescription);
+        ASSERT_EQ(trackerSetDescription.waitForResult(), API_OK);
+    };
+
+    LOG_debug << "[SdkTest::SdkTestRestoreNodeVersion] Creating root node";
+    std::unique_ptr<MegaNode> rootnodeA(megaApi[0]->getRootNode());
+    ASSERT_TRUE(rootnodeA);
+
+    LOG_debug << "[SdkTest::SdkTestRestoreNodeVersion] Uploading first version of the file";
+    const std::string originalContent{"Original content"};
+    MegaHandle originalHandle = 0;
+    {
+        const std::string filename = "test.txt";
+        sdk_test::LocalTempFile testTempFile(filename, originalContent);
+        ASSERT_EQ(MegaError::API_OK,
+                  doStartUpload(0,
+                                &originalHandle,
+                                filename.data(),
+                                rootnodeA.get(),
+                                nullptr /*fileName*/,
+                                ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                nullptr /*appData*/,
+                                false /*isSourceTemporary*/,
+                                false /*startFirst*/,
+                                nullptr /*cancelToken*/))
+            << "Cannot upload a test file";
+    }
+    LOG_debug << "[SdkTest::SdkTestRestoreNodeVersion] Setting metadata for first version";
+    std::unique_ptr<MegaNode> originalNodeVersion(megaApi[0]->getNodeByHandle(originalHandle));
+    ASSERT_TRUE(originalNodeVersion);
+    ASSERT_NO_FATAL_FAILURE(addTagToNode(originalNodeVersion, "originaltag"));
+    ASSERT_NO_FATAL_FAILURE(setNodeDescription(originalNodeVersion, "original description"));
+
+    LOG_debug << "[SdkTest::SdkTestRestoreNodeVersion] Uploading second version of the file";
+    MegaHandle currentHandle = 0;
+    {
+        const std::string filename = "test.txt";
+        sdk_test::LocalTempFile testTempFile(filename, "Current content");
+        ASSERT_EQ(MegaError::API_OK,
+                  doStartUpload(0,
+                                &currentHandle,
+                                filename.data(),
+                                rootnodeA.get(),
+                                nullptr /*fileName*/,
+                                ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                nullptr /*appData*/,
+                                false /*isSourceTemporary*/,
+                                false /*startFirst*/,
+                                nullptr /*cancelToken*/))
+            << "Cannot upload a test file";
+    }
+    LOG_debug << "[SdkTest::SdkTestRestoreNodeVersion] Setting metadata for second version";
+    std::unique_ptr<MegaNode> currentNodeVersion(megaApi[0]->getNodeByHandle(currentHandle));
+    ASSERT_TRUE(currentNodeVersion);
+    ASSERT_NO_FATAL_FAILURE(addTagToNode(currentNodeVersion, "currenttag"));
+    ASSERT_NO_FATAL_FAILURE(setNodeDescription(currentNodeVersion, "current description"));
+
+    LOG_debug << "[SdkTest::SdkTestRestoreNodeVersion] Restoring first version";
+    RequestTracker trackerRestoreVersion(megaApi[0].get());
+    megaApi[0]->restoreVersion(originalNodeVersion.get(), &trackerRestoreVersion);
+    ASSERT_EQ(trackerRestoreVersion.waitForResult(), API_OK);
+
+    LOG_debug << "[SdkTest::SdkTestRestoreNodeVersion] Check description remains the same";
+    std::unique_ptr<MegaNode> restoredNode(megaApi[0]->getNodeByPath("/test.txt"));
+    ASSERT_TRUE(restoredNode);
+    EXPECT_STREQ(restoredNode->getDescription(), "current description");
+
+    LOG_debug << "[SdkTest::SdkTestRestoreNodeVersion] Check tags remain the same";
+    std::unique_ptr<MegaStringList> tags(restoredNode->getTags());
+    ASSERT_TRUE(tags);
+    const auto tagsVec = stringListToVector(*tags);
+    EXPECT_THAT(tagsVec, testing::UnorderedElementsAreArray({"originaltag", "currenttag"}));
+    // Check the contents have changed to original
+
+    LOG_debug << "[SdkTest::SdkTestRestoreNodeVersion] Check the contents has been restored";
+    const std::string downloadFileName{DOTSLASH "downfile.txt"};
+    TransferTracker downloadListener(megaApi[0].get());
+    megaApi[0]->startDownload(
+        restoredNode.get(),
+        downloadFileName.c_str(),
+        nullptr /*customName*/,
+        nullptr /*appData*/,
+        false /*startFirst*/,
+        nullptr /*cancelToken*/,
+        MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+        MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
+        false /* undelete */,
+        &downloadListener);
+    ASSERT_EQ(downloadListener.waitForResult(), API_OK);
+
+    // Read file
+    std::ifstream file{downloadFileName};
+    ASSERT_TRUE(file);
+    const std::string contents{std::istreambuf_iterator<char>(file),
+                               std::istreambuf_iterator<char>()};
+    // Check contents
+    ASSERT_EQ(contents, originalContent);
 }
