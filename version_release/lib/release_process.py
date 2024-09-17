@@ -231,7 +231,7 @@ class ReleaseProcess:
             flush=True,
         )
         mr_id, _ = self._remote_private_repo.open_mr(
-            self._get_mr_title(),
+            f"Release {self._new_version}",
             self._release_branch,
             public_branch,
             remove_source=False,
