@@ -1392,6 +1392,11 @@ void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
              << "\tthird party: " << bs[4] << endl;
     }
 
+    if (type == ATTR_FIRSTNAME || type == ATTR_LASTNAME)
+    {
+        cout << string((char*)data, l) << endl;
+    }
+
     if (type == ATTR_KEYS)
     {
         cout << client->mKeyManager.toString();
