@@ -12,6 +12,7 @@ pipeline {
         booleanParam(name: 'UPLOAD_TO_REPOSITORY', defaultValue: false, description: 'Should the package be uploaded to artifactory?')
         booleanParam(name: 'RESULT_TO_SLACK', defaultValue: true, description: 'Should the job result be sent to slack?')
         booleanParam(name: 'CUSTOM_BUILD', defaultValue: false, description: 'If true, will use DISTRO_TO_BUILD and ARCH_TO_BUILD. If false, will build all distributions')
+        choice(name: 'ARCH_TO_BUILD', choices: ['amd64', 'armhf'], description: 'Only used if CUSTOM_BUILD is true')        
         string(name: 'DISTRO_TO_BUILD', defaultValue: 'xUbuntu_22.04', description: 'Only used if CUSTOM_BUILD is true')
         string(name: 'SDK_BRANCH', defaultValue: 'SDK-4277-Build-SDK-for-all-supported-linux-distributions', description: 'Define a custom SDK branch.')
     }
@@ -50,8 +51,8 @@ pipeline {
             steps {
                 echo "Do Build for ${params.DISTRO_TO_BUILD}"
                 dir(linux_sources_workspace) {
-                    lock(resource: "${params.DISTRO_TO_BUILD}-amd64-sdk-build", quantity: 1) {
-                        buildAndSignPackage("${params.DISTRO_TO_BUILD}", "amd64", "sdk")
+                    lock(resource: "${params.DISTRO_TO_BUILD}-${params.ARCH_TO_BUILD}-sdk-build", quantity: 1) {
+                        buildAndSignPackage("${params.DISTRO_TO_BUILD}", "${params.ARCH_TO_BUILD}", "sdk")
                     }
                     script{
                         if ( params.UPLOAD_TO_REPOSITORY == true) {
@@ -80,25 +81,52 @@ pipeline {
                 axes {
                     axis { 
                         name 'ARCHITECTURE'; 
-                        values 'amd64' 
+                        values 'amd64','armhf'
                     }
                     axis { 
                         name 'DISTRO'; 
                         values  'xUbuntu_24.10','xUbuntu_24.04', 'xUbuntu_23.10','xUbuntu_22.04', 'xUbuntu_20.04',
                                 'Debian_11','Debian_12','Debian_testing',
                                 'DEB_Arch_Extra',
+                                'Raspbian_11', 'Raspbian_12',
                                 'Fedora_39', 'Fedora_40', 'Fedora_41',
                                 'openSUSE_Leap_15.5','openSUSE_Leap_15.6', 'openSUSE_Tumbleweed'
+                    }
+                }
+                excludes {
+                    exclude {   
+                        axis { 
+                            name 'ARCHITECTURE'; 
+                            values 'armhf' 
+                        } 
+                        axis { 
+                            name 'DISTRO'; 
+                            values  'xUbuntu_24.10','xUbuntu_24.04', 'xUbuntu_23.10','xUbuntu_22.04', 'xUbuntu_20.04',
+                                    'Debian_11','Debian_12','Debian_testing',
+                                    'DEB_Arch_Extra',
+                                    'Fedora_39', 'Fedora_40', 'Fedora_41',
+                                    'openSUSE_Leap_15.5','openSUSE_Leap_15.6', 'openSUSE_Tumbleweed'
+                        }
+                    }
+                    exclude {   
+                        axis { 
+                            name 'ARCHITECTURE'; 
+                            values 'amd64' 
+                        } 
+                        axis { 
+                            name 'DISTRO'; 
+                            values  'Raspbian_11', 'Raspbian_12'
+                        }
                     }
                 }
                 stages {
                     stage('Build') {
                         agent { label 'linux-testing-package-builder' }
                         steps {
-                            echo "Do Build for ${DISTRO} - amd64"
+                            echo "Do Build for ${DISTRO} - ${ARCHITECTURE}"
                             dir(linux_sources_workspace) {
-                                lock(resource: "${DISTRO}-amd64-sdk-build", quantity: 1) {
-                                    buildAndSignPackage("${DISTRO}", "amd64", "sdk")
+                                lock(resource: "${DISTRO}-${ARCHITECTURE}-sdk-build", quantity: 1) {
+                                    buildAndSignPackage("${DISTRO}", "${ARCHITECTURE}", "sdk")
                                 }
                             }
                         }
