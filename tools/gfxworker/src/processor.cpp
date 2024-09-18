@@ -59,7 +59,7 @@ GfxTaskResult GfxProcessor::process(const GfxTask& task)
     auto images = mGfxProvider->generateImages(path, sortedDimensions);
 
     // assign back to original order
-    for (int i = 0; i < images.size(); ++i)
+    for (decltype(images)::size_type i = 0; i < images.size(); ++i)
     {
         outputImages[indices[i]] = std::move(images[i]);
     }
