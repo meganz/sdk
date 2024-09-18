@@ -8205,52 +8205,33 @@ typedef NS_ENUM(NSInteger, MEGAClientType) {
  */
 - (MEGANodeList *)searchNonRecursivelyWith:(MEGASearchFilter *)filter orderType:(MEGASortOrderType)orderType page:(nullable MEGASearchPage *)page cancelToken:(MEGACancelToken *)cancelToken;
 
-/// Get a list of buckets, each bucket containing a list of recently added/modified nodes
-///
-/// Each bucket contains files that were added/modified in a set, by a single user.
-///
-/// Valid data in the MEGARequest object received on callbacks:
-///
-/// - [MEGARequest number] - Returns the number of days since nodes will be considerated
-/// 
-/// - [MEGARequest paramType] - Returns the maximun number of nodes
-///
-/// The associated request type with this request is MEGARequestTypeGetRecentActions
-/// Valid data in the MegaRequest object received in onRequestFinish when the error code
-/// is MEGAErrorTypeApiOk:
-///
-/// - [MEGARequest recentActionsBuckets] - Returns an array of buckets recently added/modified nodes
-///
-/// The recommended values for the following parameters are to consider
-/// interactions during the last 30 days and maximum 500 nodes.
-///
-/// @param days Age of actions since added/modified nodes will be considered (in days)
-/// @param maxNodes Maximum amount of nodes to be considered
-/// @param delegate MEGARequestDelegate to track this request
-- (void)getRecentActionsAsyncSinceDays:(NSInteger)days maxNodes:(NSInteger)maxNodes delegate:(id<MEGARequestDelegate>)delegate;
-
-/// Get a list of buckets, each bucket containing a list of recently added/modified nodes
-///
-/// Each bucket contains files that were added/modified in a set, by a single user.
-///
-/// Valid data in the MEGARequest object received on callbacks:
-///
-/// - [MEGARequest number] - Returns the number of days since nodes will be considerated
-///
-/// - [MEGARequest paramType] - Returns the maximun number of nodes
-///
-/// The associated request type with this request is MEGARequestTypeGetRecentActions
-/// Valid data in the MegaRequest object received in onRequestFinish when the error code
-/// is MEGAErrorTypeApiOk:
-/// 
-/// - [MEGARequest recentActionsBuckets] - Returns an array of buckets recently added/modified nodes
-///
-/// The recommended values for the following parameters are to consider
-/// interactions during the last 30 days and maximum 500 nodes.
-///
-/// @param days Age of actions since added/modified nodes will be considered (in days)
-/// @param maxNodes Maximum amount of nodes to be considered
-- (void)getRecentActionsAsyncSinceDays:(NSInteger)days maxNodes:(NSInteger)maxNodes;
+/**
+ * @brief Get a list of buckets, each bucket containing a list of recently added/modified
+ * nodes
+ *
+ * Each bucket contains files that were added/modified in a set, by a single user.
+ *
+ * Valid data in the MegaRequest object received on callbacks:
+ * - MegaRequest::getNumber - Returns the number of days since nodes will be considerated
+ * - MegaRequest::getParamType - Returns the maximum number of nodes
+ * - MegaRequest::getFlag - Returns true if sensitives are excluded
+ *
+ * The associated request type with this request is MegaRequest::TYPE_GET_RECENT_ACTIONS
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MegaError::API_OK:
+ * - MegaRequest::getRecentActions - Returns buckets with a list of recently added/modified
+ * nodes
+ *
+ * The recommended values for the following parameters are to consider
+ * interactions during the last 30 days and maximum 500 nodes.
+ *
+ * @param days Age of actions since added/modified nodes will be considered (in days)
+ * @param maxNodes Maximum amount of nodes to be considered
+ * @param excludeSensitives Set to true to filter out sensitive nodes (Nodes are considered
+ * sensitive if they have that property set, or one of their ancestors has it)
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getRecentActionsAsyncSinceDays:(NSInteger)days maxNodes:(NSInteger)maxNodes excludeSensitives:(bool)excludeSensitives delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Process a node tree using a MEGATreeProcessorDelegate implementation
