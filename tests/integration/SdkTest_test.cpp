@@ -20200,15 +20200,17 @@ TEST_F(SdkTest, SdkTestRemoveVersionsFromSync)
     ASSERT_EQ(megaApi[0]->getNumVersions(node), 1);
 
     unsigned int waitSyncedState = 40;
-    // Check if file is at synced state.
-    // If atfer 40 seconds file isn't at synced state, test fails
-    waitForEvent(
+
+    // Check if file is at synced state. None state change should be generated
+    ASSERT_TRUE(waitForEvent(
         [this, fileName]()
         {
             std::string path{fileName};
             return MegaApi::STATE_SYNCED == megaApi[0]->syncPathState(&path);
         },
-        waitSyncedState);
+        waitSyncedState));
+
+    ASSERT_EQ(MegaApi::STATE_SYNCED, megaApi[0]->syncPathState(&fileName));
 
     LOG_verbose << "SdkTestRemoveVersionsFromSync :  Remove all versions";
     rt = std::make_unique<RequestTracker>(megaApi[0].get());

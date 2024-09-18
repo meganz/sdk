@@ -8731,7 +8731,8 @@ std::shared_ptr<Node> MegaClient::sc_deltree()
 
                     useralerts.stashDeletedNotedSharedNodes(originatingUser);
 #ifdef ENABLE_SYNC
-                    if (n->parent)
+                    // None sync operation is required if version is removed
+                    if (n->parent && n->parent->type != FILENODE)
                     {
                         syncs.triggerSync(n->parent->nodeHandle());
                     }
