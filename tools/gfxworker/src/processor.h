@@ -1,16 +1,16 @@
 #pragma once
 
-#include "thread_pool.h"
-
-#include "mega/gfx/worker/comms.h"
-#include "mega/gfx/worker/commands.h"
 #include "mega/gfx/freeimage.h"
+#include "mega/gfx/worker/commands.h"
+#include "mega/gfx/worker/comms.h"
 #include "mega/gfx/worker/tasks.h"
 #include "megafs.h"
+#include "thread_pool.h"
 
+#include <chrono>
 #include <memory>
-#include <unordered_map>
 #include <mutex>
+#include <unordered_map>
 
 namespace mega {
 namespace gfx {
@@ -54,9 +54,9 @@ private:
 
     ThreadPool mThreadPool;
 
-    const static TimeoutMs READ_TIMEOUT;
+    const static std::chrono::milliseconds READ_TIMEOUT;
 
-    const static TimeoutMs WRITE_TIMEOUT;
+    const static std::chrono::milliseconds WRITE_TIMEOUT;
 };
 
 } // namespace

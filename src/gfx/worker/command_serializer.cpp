@@ -1,7 +1,11 @@
-#include "mega/logging.h"
 #include "mega/gfx/worker/command_serializer.h"
+
+#include "mega/logging.h"
 #include "mega/utils.h"
 
+#include <chrono>
+
+using std::chrono::milliseconds;
 
 namespace
 {
@@ -23,7 +27,7 @@ enum class CommandProtocolVersion
     UNSUPPORTED
 };
 
-bool ProtocolWriter::writeCommand(ICommand* command, TimeoutMs timeout) const
+bool ProtocolWriter::writeCommand(ICommand* command, milliseconds timeout) const
 {
     auto dataToWrite = CommandSerializer::serialize(command);
     if (!dataToWrite)
@@ -39,7 +43,7 @@ bool ProtocolWriter::writeCommand(ICommand* command, TimeoutMs timeout) const
     return true;
 }
 
-std::unique_ptr<ICommand> ProtocolReader::readCommand(TimeoutMs timeout) const
+std::unique_ptr<ICommand> ProtocolReader::readCommand(milliseconds timeout) const
 {
     return CommandSerializer::unserialize(*mReader, timeout);
 }
@@ -63,12 +67,12 @@ std::unique_ptr<std::string> CommandSerializer::serialize(ICommand* command)
     return std::make_unique<std::string>(std::move(dataToReturn));
 }
 
-bool CommandSerializer::unserializeUInt32(IReader& reader, uint32_t& data, TimeoutMs timeout)
+bool CommandSerializer::unserializeUInt32(IReader& reader, uint32_t& data, milliseconds timeout)
 {
     return reader.read(&data, sizeof(uint32_t), timeout);
 }
 
-bool CommandSerializer::unserializeString(IReader& reader, std::string& data, TimeoutMs timeout)
+bool CommandSerializer::unserializeString(IReader& reader, std::string& data, milliseconds timeout)
 {
     uint32_t len;
     if (!unserializeUInt32(reader, len, timeout))
@@ -83,7 +87,7 @@ bool CommandSerializer::unserializeString(IReader& reader, std::string& data, Ti
     return reader.read(const_cast<char *>(data.data()), len, timeout);
 }
 
-std::unique_ptr<ICommand> CommandSerializer::unserialize(IReader& reader, TimeoutMs timeout)
+std::unique_ptr<ICommand> CommandSerializer::unserialize(IReader& reader, milliseconds timeout)
 {
     // proto version unit32_t
     uint32_t protoVer;
