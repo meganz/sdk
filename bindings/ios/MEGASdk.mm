@@ -3257,7 +3257,7 @@ using namespace mega;
     return [MEGANodeList.alloc initWithNodeList:self.megaApi->getChildren([self generateSearchFilterFrom: filter], (int)orderType, cancelToken.getCPtr, [self generateSearchPageFrom:page]) cMemoryOwn:YES];
 }
 
-- (void)getRecentActionsAsyncSinceDays:(NSInteger)days maxNodes:(NSInteger)maxNodes excludeSensitives:(bool)excludeSensitives delegate:(id<MEGARequestDelegate>)delegate {
+- (void)getRecentActionsAsyncSinceDays:(NSInteger)days maxNodes:(NSInteger)maxNodes excludeSensitives:(BOOL)excludeSensitives delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi != nil) {
         self.megaApi->getRecentActionsAsync((int)days, (unsigned int)maxNodes, excludeSensitives, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
     }
