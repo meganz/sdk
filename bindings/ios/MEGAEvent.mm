@@ -58,8 +58,8 @@ using namespace mega;
     return (Event) (self.megaEvent ? self.megaEvent->getType() : 0);
 }
 
-- (NSString *)text {
-    return self.megaEvent ? [[NSString alloc] initWithUTF8String:self.megaEvent->getText()] : nil;
+- (nullable NSString *)text {
+    return self.megaEvent->getText() ? [[NSString alloc] initWithUTF8String:self.megaEvent->getText()] : nil;
 }
 
 - (NSInteger)number {
