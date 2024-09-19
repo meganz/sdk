@@ -6775,8 +6775,7 @@ void exec_begin(autocomplete::ACState& s)
     {
         cout << "Creating ephemeral session..." << endl;
 
-        if (client->getClientType() != MegaClient::ClientType::VPN &&
-            client->getClientType() != MegaClient::ClientType::PASSWORD_MANAGER)
+        if (client->shouldWelcomePdfImported())
         {
             pdf_to_import = true;
         }
@@ -6808,8 +6807,7 @@ void exec_begin(autocomplete::ACState& s)
     {
         cout << "Creating ephemeral session plus plus..." << endl;
 
-        if (client->getClientType() != MegaClient::ClientType::VPN &&
-            client->getClientType() != MegaClient::ClientType::PASSWORD_MANAGER)
+        if (client->shouldWelcomePdfImported())
         {
             pdf_to_import = true;
         }

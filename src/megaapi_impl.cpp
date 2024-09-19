@@ -14155,8 +14155,7 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
             {
                 // import the PDF silently... (not chained)
                 // Not for VPN and PWM clients
-                if (client->getClientType() != MegaClient::ClientType::VPN &&
-                    client->getClientType() != MegaClient::ClientType::PASSWORD_MANAGER)
+                if (client->shouldWelcomePdfImported())
                 {
                     client->getwelcomepdf();
                 }
@@ -16408,8 +16407,7 @@ void MegaApiImpl::sendsignuplink_result(error e)
     {
         // import the PDF silently... (not chained)
         // Not for VPN and PWM clients
-        if (client->getClientType() != MegaClient::ClientType::VPN &&
-            client->getClientType() != MegaClient::ClientType::PASSWORD_MANAGER)
+        if (client->shouldWelcomePdfImported())
         {
             client->getwelcomepdf();
         }
