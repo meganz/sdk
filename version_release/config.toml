@@ -36,3 +36,19 @@ private_remote_name = "origin" # same as the entry in [make_release]
 private_branch = "develop" # same as the entry in [make_release]
 public_branch = "master" # same as the entry in [make_release]
 public_remote_name = "public"
+
+[patch_release]
+project_name = "" # "SDK", "MEGAchat" etc. (case sensitive), same as the entry in [make_release]
+release_version = "" # "1.0.1", resulting version after patch
+tickets = "" # "SDK-123,SDK-1234"
+gitlab_url = "" # "https://code.foo.bar", same as the entry in [make_release]
+gitlab_token = "" # same as the entry in [make_release]
+gpg_keygrip = "" # used only if project has version-file, ignored otherwise
+gpg_password = "" # used only if project has version-file, ignored otherwise
+jira_url = "" # "https://jira.foo.bar", same as the entry in [make_release]
+jira_user = "" # same as the entry in [make_release]
+jira_password = "" # same as the entry in [make_release]
+slack_token = ""
+slack_channel = "" # "sdk"
+private_remote_name = "origin" # same as the entry in [make_release]
+private_branch = "develop" # same as the entry in [make_release]
