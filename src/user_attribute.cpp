@@ -9,7 +9,7 @@ using namespace std;
 namespace mega
 {
 
-void UserAttr::set(const string& value, const string& version)
+void UserAttribute::set(const string& value, const string& version)
 {
     mValue = value;
 
@@ -20,7 +20,7 @@ void UserAttr::set(const string& value, const string& version)
     mState = State::VALID;
 }
 
-bool UserAttr::useVersioning() const
+bool UserAttribute::useVersioning() const
 {
     return mDefinition.versioningEnabled();
 }

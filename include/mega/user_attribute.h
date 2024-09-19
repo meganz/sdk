@@ -6,12 +6,12 @@
 namespace mega
 {
 
-class UserAttrDefinition;
+class UserAttributeDefinition;
 
-class UserAttr
+class UserAttribute
 {
 public:
-    UserAttr(const UserAttrDefinition& def):
+    UserAttribute(const UserAttributeDefinition& def):
         mDefinition{def}
     {}
 
@@ -40,7 +40,7 @@ public:
         mValue.clear();
     }
 
-    bool isCachedNotExisting() const
+    bool isNotExisting() const
     {
         return mState == State::CACHED_NOT_EXISTING;
     }
@@ -56,7 +56,7 @@ public:
     }
 
 private:
-    const UserAttrDefinition& mDefinition;
+    const UserAttributeDefinition& mDefinition;
     std::string mValue;
     std::string mVersion;
 

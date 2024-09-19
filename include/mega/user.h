@@ -26,7 +26,7 @@
 
 namespace mega {
 
-class UserAttrManager;
+class UserAttributeManager;
 
 // user/contact
 struct MEGA_API User : public Cacheable
@@ -109,8 +109,7 @@ struct MEGA_API User : public Cacheable
     deque<std::unique_ptr<PubKeyAction>> pkrs;
 
 private:
-    std::unique_ptr<UserAttrManager>
-        mAttributeManager; // never null, just avoid including implementation header
+    std::unique_ptr<UserAttributeManager> mAttributeManager;
 
     // source tag
     int tag;

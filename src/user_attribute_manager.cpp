@@ -12,37 +12,37 @@ using namespace std;
 namespace mega
 {
 
-const string* UserAttrManager::getAttrRawValue(attr_t at) const
+const string* UserAttributeManager::getRawValue(attr_t at) const
 {
     if (at == ATTR_AVATAR)
         return nullptr; // its value is never cached
 
-    auto itAttr = mAttrs.find(at);
-    if (itAttr == mAttrs.end() || itAttr->second.isCachedNotExisting())
+    auto itAttr = mAttributes.find(at);
+    if (itAttr == mAttributes.end() || itAttr->second.isNotExisting())
         return nullptr;
 
     return &itAttr->second.value();
 }
 
-const string* UserAttrManager::getAttrVersion(attr_t at) const
+const string* UserAttributeManager::getVersion(attr_t at) const
 {
-    auto itAttr = mAttrs.find(at);
-    if (itAttr == mAttrs.end() || itAttr->second.isCachedNotExisting())
+    auto itAttr = mAttributes.find(at);
+    if (itAttr == mAttributes.end() || itAttr->second.isNotExisting())
         return nullptr;
 
     return &itAttr->second.version();
 }
 
-void UserAttrManager::setAttr(attr_t at, const string& value, const string& version)
+void UserAttributeManager::set(attr_t at, const string& value, const string& version)
 {
-    const UserAttrDefinition* d = UserAttrDefinition::get(at);
+    const UserAttributeDefinition* d = UserAttributeDefinition::get(at);
     if (!d)
     {
         assert(d);
         return;
     }
 
-    UserAttr& attr = mAttrs.try_emplace(at, *d).first->second;
+    UserAttribute& attr = mAttributes.try_emplace(at, *d).first->second;
     if (at == ATTR_AVATAR) // avatar is saved to disc, keep only its version
     {
         attr.set("", version);
@@ -53,17 +53,17 @@ void UserAttrManager::setAttr(attr_t at, const string& value, const string& vers
     }
 }
 
-bool UserAttrManager::setAttrIfNewVersion(attr_t at, const string& value, const string& version)
+bool UserAttributeManager::setIfNewVersion(attr_t at, const string& value, const string& version)
 {
-    const UserAttrDefinition* d = UserAttrDefinition::get(at);
+    const UserAttributeDefinition* d = UserAttributeDefinition::get(at);
     if (!d)
     {
         assert(d);
         return false;
     }
 
-    auto insertResult = mAttrs.try_emplace(at, *d);
-    UserAttr& attr = insertResult.first->second;
+    auto insertResult = mAttributes.try_emplace(at, *d);
+    UserAttribute& attr = insertResult.first->second;
     if (!insertResult.second && attr.version() == version)
     {
         return false;
@@ -80,48 +80,48 @@ bool UserAttrManager::setAttrIfNewVersion(attr_t at, const string& value, const 
     return true;
 }
 
-bool UserAttrManager::setAttrNotExisting(attr_t at)
+bool UserAttributeManager::setNotExisting(attr_t at)
 {
-    const UserAttrDefinition* d = UserAttrDefinition::get(at);
+    const UserAttributeDefinition* d = UserAttributeDefinition::get(at);
     if (!d)
     {
         assert(d); // undefined attribute
         return false;
     }
 
-    UserAttr& attr = mAttrs.try_emplace(at, *d).first->second;
-    if (attr.isCachedNotExisting())
+    UserAttribute& attr = mAttributes.try_emplace(at, *d).first->second;
+    if (attr.isNotExisting())
         return false;
 
     attr.setNotExisting();
     return true;
 }
 
-bool UserAttrManager::isAttrNotExisting(attr_t at) const
+bool UserAttributeManager::isNotExisting(attr_t at) const
 {
-    auto itAttr = mAttrs.find(at);
-    return itAttr != mAttrs.end() && itAttr->second.isCachedNotExisting();
+    auto itAttr = mAttributes.find(at);
+    return itAttr != mAttributes.end() && itAttr->second.isNotExisting();
 }
 
-void UserAttrManager::setAttrExpired(attr_t at)
+void UserAttributeManager::setExpired(attr_t at)
 {
-    const auto it = mAttrs.find(at);
-    if (it != mAttrs.end())
+    const auto it = mAttributes.find(at);
+    if (it != mAttributes.end())
         it->second.setExpired();
 }
 
-bool UserAttrManager::isAttrValid(attr_t at) const
+bool UserAttributeManager::isValid(attr_t at) const
 {
-    auto itAttr = mAttrs.find(at);
-    return itAttr != mAttrs.end() && itAttr->second.isValid();
+    auto itAttr = mAttributes.find(at);
+    return itAttr != mAttributes.end() && itAttr->second.isValid();
 }
 
-bool UserAttrManager::eraseAttr(attr_t at)
+bool UserAttributeManager::erase(attr_t at)
 {
-    return mAttrs.erase(at) > 0;
+    return mAttributes.erase(at) > 0;
 }
 
-void UserAttrManager::serializeAttributeFormatVersion(string& appendTo) const
+void UserAttributeManager::serializeAttributeFormatVersion(string& appendTo) const
 {
     static constexpr char attributeFormatVersion = '2';
     // Version 1: attributes are serialized along with its version
@@ -129,7 +129,7 @@ void UserAttrManager::serializeAttributeFormatVersion(string& appendTo) const
     appendTo += attributeFormatVersion;
 }
 
-char UserAttrManager::unserializeAttributeFormatVersion(const char*& from)
+char UserAttributeManager::unserializeAttributeFormatVersion(const char*& from)
 {
     assert(from != nullptr);
     char attrVersion = *from;
@@ -137,13 +137,13 @@ char UserAttrManager::unserializeAttributeFormatVersion(const char*& from)
     return attrVersion;
 }
 
-void UserAttrManager::serializeAttributes(string& d) const
+void UserAttributeManager::serializeAttributes(string& d) const
 {
-    assert(mAttrs.size() <= numeric_limits<unsigned char>::max());
+    assert(mAttributes.size() <= numeric_limits<unsigned char>::max());
 
     // serialize attr count
-    auto attrCount = std::count_if(mAttrs.begin(),
-                                   mAttrs.end(),
+    auto attrCount = std::count_if(mAttributes.begin(),
+                                   mAttributes.end(),
                                    [](const auto& attr)
                                    {
                                        return attr.second.isValid();
@@ -151,7 +151,7 @@ void UserAttrManager::serializeAttributes(string& d) const
     assert(attrCount <= numeric_limits<unsigned char>::max());
     d += static_cast<unsigned char>(attrCount);
 
-    for (const auto& a: mAttrs)
+    for (const auto& a: mAttributes)
     {
         if (!a.second.isValid())
             continue;
@@ -176,7 +176,9 @@ void UserAttrManager::serializeAttributes(string& d) const
     }
 }
 
-bool UserAttrManager::unserializeAttributes(const char*& from, const char* upTo, char formatVersion)
+bool UserAttributeManager::unserializeAttributes(const char*& from,
+                                                 const char* upTo,
+                                                 char formatVersion)
 {
     if (formatVersion == '1' || formatVersion == '2')
     {
@@ -223,11 +225,11 @@ bool UserAttrManager::unserializeAttributes(const char*& from, const char* upTo,
 
             // keep the ones that were not already loaded (i.e. by `ug` for own user), or
             // have been removed
-            if (!isAttrValid(at))
+            if (!isValid(at))
             {
                 string value{tmpVal, valueSize};
                 string version{(versionSize ? string{tmpVer, versionSize} : string{})};
-                setAttr(at, value, version);
+                set(at, value, version);
             }
         }
     }
@@ -242,43 +244,43 @@ bool UserAttrManager::unserializeAttributes(const char*& from, const char* upTo,
     return true;
 }
 
-string UserAttrManager::getAttrName(attr_t at)
+string UserAttributeManager::getName(attr_t at)
 {
-    const UserAttrDefinition* ad = UserAttrDefinition::get(at);
+    const UserAttributeDefinition* ad = UserAttributeDefinition::get(at);
     return ad ? ad->name() : string{};
 }
 
-string UserAttrManager::getAttrLongName(attr_t at)
+string UserAttributeManager::getLongName(attr_t at)
 {
-    const UserAttrDefinition* ad = UserAttrDefinition::get(at);
+    const UserAttributeDefinition* ad = UserAttributeDefinition::get(at);
     return ad ? ad->longName() : string{};
 }
 
-attr_t UserAttrManager::getAttrType(const string& name)
+attr_t UserAttributeManager::getType(const string& name)
 {
-    return UserAttrDefinition::getTypeForName(name);
+    return UserAttributeDefinition::getTypeForName(name);
 }
 
-char UserAttrManager::getAttrScope(attr_t at)
+char UserAttributeManager::getScope(attr_t at)
 {
-    const UserAttrDefinition* ad = UserAttrDefinition::get(at);
+    const UserAttributeDefinition* ad = UserAttributeDefinition::get(at);
     return ad ? ad->scope() : static_cast<char>(ATTR_SCOPE_UNKNOWN);
 }
 
-int UserAttrManager::getAttrVersioningEnabled(attr_t at)
+int UserAttributeManager::getVersioningEnabled(attr_t at)
 {
     static constexpr int VERSIONING_ENABLED_UNKNOWN = -1;
     if (at == ATTR_STORAGE_STATE)
         return VERSIONING_ENABLED_UNKNOWN; // help block putua for this attribute
 
-    const UserAttrDefinition* ad = UserAttrDefinition::get(at);
+    const UserAttributeDefinition* ad = UserAttributeDefinition::get(at);
     return ad ? ad->versioningEnabled() : VERSIONING_ENABLED_UNKNOWN;
 }
 
-size_t UserAttrManager::getAttrMaxSize(attr_t at)
+size_t UserAttributeManager::getMaxSize(attr_t at)
 {
-    const UserAttrDefinition* ad = UserAttrDefinition::get(at);
-    return ad ? ad->maxSize() : UserAttrDefinition::getDefaultMaxSize();
+    const UserAttributeDefinition* ad = UserAttributeDefinition::get(at);
+    return ad ? ad->maxSize() : UserAttributeDefinition::getDefaultMaxSize();
 }
 
 } // namespace

@@ -60,7 +60,7 @@ enum attr_t
     ATTR_ENABLE_TEST_SURVEYS = 46, // private - non-encrypted - char array - non-versioned
 };
 
-enum UserAttrScope : char
+enum UserAttributeScope : char
 {
     ATTR_SCOPE_UNKNOWN = '\0',
     ATTR_SCOPE_PUBLIC_UNENCRYPTED = '+',

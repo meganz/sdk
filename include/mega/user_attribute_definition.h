@@ -9,10 +9,10 @@
 namespace mega
 {
 
-class UserAttrDefinition
+class UserAttributeDefinition
 {
 public:
-    static const UserAttrDefinition* get(attr_t at);
+    static const UserAttributeDefinition* get(attr_t at);
 
     static attr_t getTypeForName(const std::string& name);
 
@@ -47,11 +47,11 @@ public:
     }
 
 private:
-    UserAttrDefinition(std::string&& name,
-                       std::string&& longName,
-                       int customOptions = NONE); // [*^+#%$][!~](actual name)
+    UserAttributeDefinition(std::string&& name,
+                            std::string&& longName,
+                            int customOptions = NONE); // [*^+#%$][!~](actual name)
 
-    static const std::unordered_map<attr_t, const UserAttrDefinition>& getAllDefinitions();
+    static const std::unordered_map<attr_t, const UserAttributeDefinition>& getAllDefinitions();
 
     const std::string mName;
     const std::string mLongName;

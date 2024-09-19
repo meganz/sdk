@@ -9,14 +9,14 @@ using namespace std;
 namespace mega
 {
 
-const UserAttrDefinition* UserAttrDefinition::get(attr_t at)
+const UserAttributeDefinition* UserAttributeDefinition::get(attr_t at)
 {
     const auto& defs = getAllDefinitions();
     const auto it = defs.find(at);
     return it == defs.end() ? nullptr : &it->second;
 }
 
-attr_t UserAttrDefinition::getTypeForName(const string& name)
+attr_t UserAttributeDefinition::getTypeForName(const string& name)
 {
     for (const auto& d: getAllDefinitions())
     {
@@ -27,7 +27,9 @@ attr_t UserAttrDefinition::getTypeForName(const string& name)
     return ATTR_UNKNOWN; // attribute not recognized
 }
 
-UserAttrDefinition::UserAttrDefinition(string&& name, string&& longName, int customOptions):
+UserAttributeDefinition::UserAttributeDefinition(string&& name,
+                                                 string&& longName,
+                                                 int customOptions):
     mName(std::move(name)),
     mLongName(std::move(longName))
 {
@@ -68,12 +70,13 @@ UserAttrDefinition::UserAttrDefinition(string&& name, string&& longName, int cus
     }
 }
 
-const unordered_map<attr_t, const UserAttrDefinition>& UserAttrDefinition::getAllDefinitions()
+const unordered_map<attr_t, const UserAttributeDefinition>&
+    UserAttributeDefinition::getAllDefinitions()
 {
     // Creating this map all at once should be fine in terms of complexity - populated once, and
     // most likely in a secondary thread. It also allows clean code and avoids having to write
     // attribute names multiple times.
-    static unordered_map<attr_t, const UserAttrDefinition> defs{
+    static unordered_map<attr_t, const UserAttributeDefinition> defs{
         {ATTR_AVATAR,                    {"+a", "AVATAR", DISABLE_VERSIONING}                           },
         {ATTR_FIRSTNAME,                 {"firstname", "FIRSTNAME", DISABLE_VERSIONING | MAKE_PROTECTED}},
         {ATTR_LASTNAME,                  {"lastname", "LASTNAME", DISABLE_VERSIONING | MAKE_PROTECTED}  },

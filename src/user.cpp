@@ -29,7 +29,7 @@
 namespace mega {
 
 User::User(const char* cemail):
-    mAttributeManager{std::make_unique<UserAttrManager>()}
+    mAttributeManager{std::make_unique<UserAttributeManager>()}
 {
     userhandle = UNDEF;
     show = VISIBILITY_UNKNOWN;
@@ -169,7 +169,7 @@ User* User::unserialize(MegaClient* client, string* d)
         return NULL;
     }
 
-    char attrVersion = UserAttrManager::unserializeAttributeFormatVersion(ptr);
+    char attrVersion = UserAttributeManager::unserializeAttributeFormatVersion(ptr);
 
     char bizModeValue = MemAccess::get<char>(ptr);
     ptr += sizeof(bizModeValue);
@@ -309,13 +309,13 @@ void User::setattr(attr_t at, string *av, string *v)
 
     const string& attrValue = av ? *av : string{};
     const string& attrVersion = v ? *v : string{};
-    mAttributeManager->setAttr(at, attrValue, attrVersion);
+    mAttributeManager->set(at, attrValue, attrVersion);
 }
 
 void User::invalidateattr(attr_t at)
 {
     setChanged(at);
-    mAttributeManager->setAttrExpired(at);
+    mAttributeManager->setExpired(at);
 }
 
 void User::removeattr(attr_t at, bool ownUser)
@@ -326,9 +326,9 @@ void User::removeattr(attr_t at, bool ownUser)
     }
 
     if (ownUser)
-        mAttributeManager->setAttrNotExisting(at); // avoids fetch from servers
+        mAttributeManager->setNotExisting(at); // avoids fetch from servers
     else
-        mAttributeManager->eraseAttr(at);
+        mAttributeManager->erase(at);
 }
 
 void User::removeattr(attr_t at, const string& version)
@@ -342,7 +342,7 @@ void User::removeattr(attr_t at, const string& version)
 // updates the user attribute value+version only if different
 int User::updateattr(attr_t at, std::string *av, std::string *v)
 {
-    if (mAttributeManager->setAttrIfNewVersion(at, *av, *v))
+    if (mAttributeManager->setIfNewVersion(at, *av, *v))
     {
         setChanged(at);
         return 1;
@@ -353,44 +353,44 @@ int User::updateattr(attr_t at, std::string *av, std::string *v)
 
 bool User::nonExistingAttribute(attr_t at) const
 {
-    return mAttributeManager->isAttrNotExisting(at);
+    return mAttributeManager->isNotExisting(at);
 }
 
 // returns the value if there is value (even if it's invalid by now)
 const string * User::getattr(attr_t at)
 {
-    return mAttributeManager->getAttrRawValue(at);
+    return mAttributeManager->getRawValue(at);
 }
 
 bool User::isattrvalid(attr_t at)
 {
-    return mAttributeManager->isAttrValid(at);
+    return mAttributeManager->isValid(at);
 }
 
 string User::attr2string(attr_t type)
 {
-    return UserAttrManager::getAttrName(type);
+    return UserAttributeManager::getName(type);
 }
 
 string User::attr2longname(attr_t type)
 {
-    return UserAttrManager::getAttrLongName(type);
+    return UserAttributeManager::getLongName(type);
 }
 
 
 attr_t User::string2attr(const char* name)
 {
-    return UserAttrManager::getAttrType(name);
+    return UserAttributeManager::getType(name);
 }
 
 int User::needversioning(attr_t at)
 {
-    return UserAttrManager::getAttrVersioningEnabled(at);
+    return UserAttributeManager::getVersioningEnabled(at);
 }
 
 char User::scope(attr_t at)
 {
-    return UserAttrManager::getAttrScope(at);
+    return UserAttributeManager::getScope(at);
 }
 
 bool User::isAuthring(attr_t at)
@@ -400,7 +400,7 @@ bool User::isAuthring(attr_t at)
 
 size_t User::getMaxAttributeSize(attr_t at)
 {
-    return UserAttrManager::getAttrMaxSize(at);
+    return UserAttributeManager::getMaxSize(at);
 }
 
 bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int size, string *newValue)
@@ -673,7 +673,7 @@ m_time_t User::getPwdReminderData(int numDetail, const char *data, unsigned int 
 
 const string *User::getattrversion(attr_t at)
 {
-    return mAttributeManager->getAttrVersion(at);
+    return mAttributeManager->getVersion(at);
 }
 
 bool User::setChanged(attr_t at)

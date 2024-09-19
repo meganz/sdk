@@ -10,33 +10,33 @@
 namespace mega
 {
 
-class UserAttrManager
+class UserAttributeManager
 {
 public:
-    const std::string* getAttrRawValue(attr_t at) const;
-    const std::string* getAttrVersion(attr_t at) const;
-    void setAttr(attr_t at, const std::string& value, const std::string& version);
-    bool setAttrIfNewVersion(attr_t at, const std::string& value, const std::string& version);
-    bool setAttrNotExisting(attr_t at);
-    bool isAttrNotExisting(attr_t at) const;
-    void setAttrExpired(attr_t at);
-    bool isAttrValid(attr_t at) const; // not Expired and not Cached as Not Existing
-    bool eraseAttr(attr_t at);
+    const std::string* getRawValue(attr_t at) const;
+    const std::string* getVersion(attr_t at) const;
+    void set(attr_t at, const std::string& value, const std::string& version);
+    bool setIfNewVersion(attr_t at, const std::string& value, const std::string& version);
+    bool setNotExisting(attr_t at);
+    bool isNotExisting(attr_t at) const;
+    void setExpired(attr_t at);
+    bool isValid(attr_t at) const; // not Expired and not cached as Not Existing
+    bool erase(attr_t at);
 
     void serializeAttributeFormatVersion(std::string& appendTo) const;
     static char unserializeAttributeFormatVersion(const char*& from);
     void serializeAttributes(std::string& appendTo) const;
     bool unserializeAttributes(const char*& from, const char* upTo, char formatVersion);
 
-    static std::string getAttrName(attr_t at);
-    static std::string getAttrLongName(attr_t at);
-    static attr_t getAttrType(const std::string& name);
-    static char getAttrScope(attr_t at);
-    static int getAttrVersioningEnabled(attr_t at);
-    static size_t getAttrMaxSize(attr_t at);
+    static std::string getName(attr_t at);
+    static std::string getLongName(attr_t at);
+    static attr_t getType(const std::string& name);
+    static char getScope(attr_t at);
+    static int getVersioningEnabled(attr_t at);
+    static size_t getMaxSize(attr_t at);
 
 private:
-    std::unordered_map<attr_t, UserAttr> mAttrs;
+    std::unordered_map<attr_t, UserAttribute> mAttributes;
 };
 
 } // namespace
