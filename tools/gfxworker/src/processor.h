@@ -1,6 +1,5 @@
 #pragma once
 
-#include "mega/gfx/freeimage.h"
 #include "mega/gfx/worker/commands.h"
 #include "mega/gfx/worker/comms.h"
 #include "mega/gfx/worker/tasks.h"
@@ -9,8 +8,6 @@
 
 #include <chrono>
 #include <memory>
-#include <mutex>
-#include <unordered_map>
 
 namespace mega {
 namespace gfx {

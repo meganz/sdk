@@ -1,8 +1,11 @@
 #pragma once
-#include "mega/types.h"
 #include "mega/gfx/worker/comms.h"
+#include "mega/types.h"
 
-namespace mega {
+#include <chrono>
+
+namespace mega
+{
 namespace gfx {
 namespace win_utils
 {
@@ -35,9 +38,9 @@ protected:
     std::string mName;
 
 private:
-    bool doWrite(const void* data, size_t n, TimeoutMs timeout) override;
+    bool doWrite(const void* data, size_t n, std::chrono::milliseconds timeout) override;
 
-    bool doRead(void* data, size_t n, TimeoutMs timeout) override;
+    bool doRead(void* data, size_t n, std::chrono::milliseconds timeout) override;
 
     //
     // The common part of doing an overlapped I/O.
@@ -45,8 +48,8 @@ private:
     // Overlapped I/O is a name used for asynchoruous I/O in the Windows API.
     // See https://learn.microsoft.com/en-us/windows/win32/ipc/named-pipe-server-using-overlapped-i-o
     //
-    bool doOverlappedOperation(std::function<bool(OVERLAPPED*)>op,
-                               TimeoutMs timeout,
+    bool doOverlappedOperation(std::function<bool(OVERLAPPED*)> op,
+                               std::chrono::milliseconds timeout,
                                const std::string& opStr);
 
     virtual Type type() const = 0;

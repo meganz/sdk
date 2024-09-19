@@ -3,11 +3,11 @@
 #include "logger.h"
 #include "mega/filesystem.h"
 #include "mega/gfx.h"
+#include "mega/gfx/freeimage.h"
 #include "mega/gfx/worker/command_serializer.h"
 #include "mega/gfx/worker/commands.h"
 #include "mega/gfx/worker/comms.h"
 #include "mega/logging.h"
-#include "thread_pool.h"
 
 #include <algorithm>
 #include <chrono>

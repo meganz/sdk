@@ -19,37 +19,12 @@
 #pragma once
 #include "mega/types.h"
 
-#include <memory>
-#include <functional>
-#include <limits>
 #include <chrono>
-namespace mega {
-namespace gfx {
 
-// TimeoutMS hides the platform API's timeout data type
-class TimeoutMs
+namespace mega
 {
-public:
-    using Type = unsigned int;
-
-    explicit TimeoutMs(Type milliseconds) : mValue(milliseconds) { }
-
-#ifdef _WIN32
-    explicit operator DWORD() const
-    {
-        return isForever() ? INFINITE : static_cast<DWORD>(mValue);
-    }
-#else
-    explicit operator std::chrono::milliseconds() const
-    {
-        return isForever() ? std::chrono::milliseconds{-1} : std::chrono::milliseconds{mValue};
-    }
-#endif
-private:
-    bool isForever() const { return mValue == std::numeric_limits<Type>::max();}
-
-    Type mValue;
-};
+namespace gfx
+{
 
 class IReader
 {
@@ -107,5 +82,5 @@ enum class CommError: uint8_t
     TIMEOUT         = 3,
 };
 
-} //namespace gfx
-} //namespace mega
+} // namespace gfx
+} // namespace mega
