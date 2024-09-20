@@ -86,7 +86,6 @@ SQLITE_SHA1="350fa5ccedc70f4979d7f954fba9525542809ba2"
 
 CURL=curl
 CURL_VERSION=8.1.1
-C_ARES_VERSION=1.19.1
 CURL_EXTRA="--disable-dict --disable-file --disable-ftp --disable-gopher --disable-imap --disable-ldap --disable-ldaps --disable-mime --disable-netrc --disable-pop3 --disable-proxy --disable-rtsp --disable-smb --disable-smtp --disable-telnet --disable-tftp --disable-manual"
 CURL_SOURCE_FILE=curl-${CURL_VERSION}.tar.gz
 CURL_SOURCE_FOLDER=curl-${CURL_VERSION}
