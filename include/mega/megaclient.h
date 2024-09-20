@@ -783,13 +783,8 @@ public:
     // It's depend on client type (true for ClientType::DEFAULT)
     bool shouldWelcomePdfImported() const
     {
-        if (getClientType() != MegaClient::ClientType::VPN &&
-            getClientType() != MegaClient::ClientType::PASSWORD_MANAGER)
-        {
-            return true;
-        }
-
-        return false;
+        return getClientType() != MegaClient::ClientType::VPN &&
+               getClientType() != MegaClient::ClientType::PASSWORD_MANAGER;
     }
 
 public:
