@@ -26,13 +26,13 @@ public:
     void doCreateAccountTest(const string& testName, int clientType);
 };
 
-string getLinkFromMailbox(const string& exe, // Python
-                          const string& script, // email_processor.py
-                          const string& realAccount, // user
-                          const string& realPswd, // password for user@host.domain
-                          const string& toAddr, // user+testnewaccount@host.domain
-                          const string& intent, // confirm / delete
-                          const chrono::steady_clock::time_point& timeOfEmail)
+std::string getLinkFromMailbox(const string& exe, // Python
+                               const string& script, // email_processor.py
+                               const string& realAccount, // user
+                               const string& realPswd, // password for user@host.domain
+                               const string& toAddr, // user+testnewaccount@host.domain
+                               const string& intent, // confirm / delete
+                               const chrono::steady_clock::time_point& timeOfEmail)
 {
     using namespace std::chrono; // Just for this little scope
 
@@ -54,8 +54,8 @@ string getLinkFromMailbox(const string& exe, // Python
         const auto attemptTime = steady_clock::now();
         seconds timeSinceEmail = duration_cast<seconds>(attemptTime - timeOfEmail) + safetyDelay;
         // Run Python script
-        output =
-            runProgram(command + ' ' + to_string(timeSinceEmail.count()), PROG_OUTPUT_TYPE::TEXT);
+        output = runProgram(command + ' ' + std::to_string(timeSinceEmail.count()),
+                            PROG_OUTPUT_TYPE::TEXT);
     }
     LOG_debug << "Time spent trying to get the email: " << spentTime.count() << "s";
 
@@ -65,14 +65,14 @@ string getLinkFromMailbox(const string& exe, // Python
     // Validate the link
     constexpr char expectedLinkPrefix[] = "https://";
     return output.substr(0, sizeof(expectedLinkPrefix) - 1) == expectedLinkPrefix ? output :
-                                                                                    string();
+                                                                                    std::string();
 }
 
-string getUniqueAlias()
+std::string getUniqueAlias()
 {
     // use n random chars
     int n = 4;
-    string alias;
+    std::string alias;
     auto t = std::time(nullptr);
     srand((unsigned int)t);
     for (int i = 0; i < n; ++i)
@@ -136,11 +136,11 @@ void SdkTestCreateAccount::doCreateAccountTest(const string& testName, int clien
         << "MEGA_REAL_EMAIL, MEGA_REAL_PWD env vars must all be defined";
 
     // test that Python 3 was installed
-    string pyExe = "python";
+    std::string pyExe = "python";
     {
-        const string pyOpt = " -V";
-        const string pyExpected = "Python 3.";
-        string output = runProgram(pyExe + pyOpt, PROG_OUTPUT_TYPE::TEXT); // Python -V
+        const std::string pyOpt = " -V";
+        const std::string pyExpected = "Python 3.";
+        std::string output = runProgram(pyExe + pyOpt, PROG_OUTPUT_TYPE::TEXT); // Python -V
         if (output.substr(0, pyExpected.length()) != pyExpected)
         {
             pyExe += "3";
@@ -159,18 +159,18 @@ void SdkTestCreateAccount::doCreateAccountTest(const string& testName, int clien
     // ------------------
     LOG_debug << testName << ": Start account creation";
 
-    const string realEmail(bufRealEmail); // user@host.domain
-    string::size_type pos = realEmail.find('@');
-    const string realAccount = realEmail.substr(0, pos); // user
+    const std::string realEmail(bufRealEmail); // user@host.domain
+    std::string::size_type pos = realEmail.find('@');
+    const std::string realAccount = realEmail.substr(0, pos); // user
     [[maybe_unused]] const auto [testEmail, _] = getEnvVarAccounts().getVarValues(0);
-    const string newTestAcc = realAccount + '+' + testEmail.substr(0, testEmail.find("@")) + '+' +
-                              getUniqueAlias() +
-                              realEmail.substr(pos); // user+testUser+rand20210919@host.domain
+    const std::string newTestAcc = realAccount + '+' + testEmail.substr(0, testEmail.find("@")) +
+                                   '+' + getUniqueAlias() +
+                                   realEmail.substr(pos); // user+testUser+rand20210919@host.domain
     LOG_info << "Creating Mega account " << newTestAcc;
     const char* origTestPwd = "TestPswd!@#$"; // maybe this should be logged too, changed later
 
     // save point in time for account init
-    chrono::time_point timeOfConfirmEmail = std::chrono::steady_clock::now();
+    std::chrono::time_point timeOfConfirmEmail = std::chrono::steady_clock::now();
 
     // Create an ephemeral session internally and send a confirmation link to email
     ASSERT_EQ(
@@ -199,13 +199,13 @@ void SdkTestCreateAccount::doCreateAccountTest(const string& testName, int clien
     // Get confirmation link from the email
     {
         LOG_debug << testName << ": Get confirmation link from email";
-        string conformLink = getLinkFromMailbox(pyExe,
-                                                bufScript.string(),
-                                                realAccount,
-                                                bufRealPswd,
-                                                newTestAcc,
-                                                MegaClient::confirmLinkPrefix(),
-                                                timeOfConfirmEmail);
+        std::string conformLink = getLinkFromMailbox(pyExe,
+                                                     bufScript.string(),
+                                                     realAccount,
+                                                     bufRealPswd,
+                                                     newTestAcc,
+                                                     MegaClient::confirmLinkPrefix(),
+                                                     timeOfConfirmEmail);
         ASSERT_FALSE(conformLink.empty()) << "Confirmation link was not found.";
 
         LOG_debug << testName << ": Confirm account";
@@ -234,7 +234,7 @@ void SdkTestCreateAccount::doCreateAccountTest(const string& testName, int clien
     // Login to the new account
     {
         LOG_debug << testName << ": Login to the new account";
-        unique_ptr<RequestTracker> loginTracker =
+        std::unique_ptr<RequestTracker> loginTracker =
             std::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->login(newTestAcc.c_str(), origTestPwd, loginTracker.get());
         ASSERT_EQ(API_OK, loginTracker->waitForResult())
@@ -244,7 +244,7 @@ void SdkTestCreateAccount::doCreateAccountTest(const string& testName, int clien
     // fetchnodes // needed internally to fill in user details, including email
     {
         LOG_debug << testName << ": fetch nodes from new account";
-        unique_ptr<RequestTracker> fetchnodesTracker =
+        std::unique_ptr<RequestTracker> fetchnodesTracker =
             std::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->fetchNodes(fetchnodesTracker.get());
         ASSERT_EQ(API_OK, fetchnodesTracker->waitForResult())
@@ -255,7 +255,7 @@ void SdkTestCreateAccount::doCreateAccountTest(const string& testName, int clien
     // ---------------------------
 
     LOG_debug << testName << ": Start reset password";
-    chrono::time_point timeOfResetEmail = chrono::steady_clock::now();
+    std::chrono::time_point timeOfResetEmail = chrono::steady_clock::now();
     ASSERT_EQ(synchronousResetPassword(0, newTestAcc.c_str(), true), MegaError::API_OK)
         << "resetPassword failed";
 
@@ -263,13 +263,13 @@ void SdkTestCreateAccount::doCreateAccountTest(const string& testName, int clien
     const char* newTestPwd = "PassAndGotHerPhoneNumber!#$**!";
     {
         LOG_debug << testName << ": Get password reset link from email";
-        string recoverink = getLinkFromMailbox(pyExe,
-                                               bufScript.string(),
-                                               realAccount,
-                                               bufRealPswd,
-                                               newTestAcc,
-                                               MegaClient::recoverLinkPrefix(),
-                                               timeOfResetEmail);
+        std::string recoverink = getLinkFromMailbox(pyExe,
+                                                    bufScript.string(),
+                                                    realAccount,
+                                                    bufRealPswd,
+                                                    newTestAcc,
+                                                    MegaClient::recoverLinkPrefix(),
+                                                    timeOfResetEmail);
         ASSERT_FALSE(recoverink.empty()) << "Recover account link was not found.";
 
         LOG_debug << testName << ": Confirm reset password";
@@ -282,7 +282,7 @@ void SdkTestCreateAccount::doCreateAccountTest(const string& testName, int clien
     // Login using new password
     {
         LOG_debug << testName << ": Login with new password";
-        unique_ptr<RequestTracker> loginTracker =
+        std::unique_ptr<RequestTracker> loginTracker =
             std::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->login(newTestAcc.c_str(), newTestPwd, loginTracker.get());
         ASSERT_EQ(API_OK, loginTracker->waitForResult())
@@ -293,7 +293,7 @@ void SdkTestCreateAccount::doCreateAccountTest(const string& testName, int clien
     // fetchnodes - needed internally to fill in user details, to allow cancelAccount() to work
     {
         LOG_debug << testName << ": Fetching nodes";
-        unique_ptr<RequestTracker> fetchnodesTracker =
+        std::unique_ptr<RequestTracker> fetchnodesTracker =
             std::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->fetchNodes(fetchnodesTracker.get());
         ASSERT_EQ(API_OK, fetchnodesTracker->waitForResult())
@@ -310,27 +310,27 @@ void SdkTestCreateAccount::doCreateAccountTest(const string& testName, int clien
     mApi.resize(2);
     ASSERT_NO_FATAL_FAILURE(configureTestInstance(1, newTestAcc, newTestPwd, true, clientType));
     {
-        unique_ptr<RequestTracker> loginTracker =
+        std::unique_ptr<RequestTracker> loginTracker =
             std::make_unique<RequestTracker>(megaApi[1].get());
         megaApi[1]->login(newTestAcc.c_str(), newTestPwd, loginTracker.get());
         ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to auxiliar account ";
     }
 
     LOG_debug << testName << ": Send change email request";
-    const string changedTestAcc = Utils::replace(newTestAcc, "@", "-new@");
-    chrono::time_point timeOfChangeEmail = chrono::steady_clock::now();
+    const std::string changedTestAcc = Utils::replace(newTestAcc, "@", "-new@");
+    std::chrono::time_point timeOfChangeEmail = chrono::steady_clock::now();
     ASSERT_EQ(synchronousChangeEmail(0, changedTestAcc.c_str()), MegaError::API_OK)
         << "changeEmail failed";
 
     {
         LOG_debug << testName << ": Get change email link from email inbox";
-        string changelink = getLinkFromMailbox(pyExe,
-                                               bufScript.string(),
-                                               realAccount,
-                                               bufRealPswd,
-                                               changedTestAcc,
-                                               MegaClient::verifyLinkPrefix(),
-                                               timeOfChangeEmail);
+        std::string changelink = getLinkFromMailbox(pyExe,
+                                                    bufScript.string(),
+                                                    realAccount,
+                                                    bufRealPswd,
+                                                    changedTestAcc,
+                                                    MegaClient::verifyLinkPrefix(),
+                                                    timeOfChangeEmail);
         ASSERT_FALSE(changelink.empty()) << "Change email account link was not found.";
 
         LOG_debug << testName << ": Confirm email change";
@@ -345,7 +345,7 @@ void SdkTestCreateAccount::doCreateAccountTest(const string& testName, int clien
     {
         // Check if our own email is updated after receive ug at auxiliar instance
         LOG_debug << testName << ": Check email is updated";
-        unique_ptr<RequestTracker> userDataTracker =
+        std::unique_ptr<RequestTracker> userDataTracker =
             std::make_unique<RequestTracker>(megaApi[1].get());
         megaApi[1]->getUserData(userDataTracker.get());
         ASSERT_EQ(API_OK, userDataTracker->waitForResult())
@@ -361,7 +361,7 @@ void SdkTestCreateAccount::doCreateAccountTest(const string& testName, int clien
         << "email not changed correctly";
     {
         LOG_debug << testName << ": Login with new email";
-        unique_ptr<RequestTracker> loginTracker =
+        std::unique_ptr<RequestTracker> loginTracker =
             std::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->login(changedTestAcc.c_str(), newTestPwd, loginTracker.get());
         ASSERT_EQ(API_OK, loginTracker->waitForResult())
@@ -372,7 +372,7 @@ void SdkTestCreateAccount::doCreateAccountTest(const string& testName, int clien
     // fetchnodes - needed internally to fill in user details, to allow cancelAccount() to work
     {
         LOG_debug << testName << ": Fetching nodes";
-        unique_ptr<RequestTracker> fetchnodesTracker =
+        std::unique_ptr<RequestTracker> fetchnodesTracker =
             std::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->fetchNodes(fetchnodesTracker.get());
         ASSERT_EQ(API_OK, fetchnodesTracker->waitForResult())
@@ -401,18 +401,18 @@ void SdkTestCreateAccount::doCreateAccountTest(const string& testName, int clien
     // Get cancel account link from the mailbox
     {
         LOG_debug << testName << ": Get cancel link from email";
-        string deleteLink = getLinkFromMailbox(pyExe,
-                                               bufScript.string(),
-                                               realAccount,
-                                               bufRealPswd,
-                                               changedTestAcc,
-                                               MegaClient::cancelLinkPrefix(),
-                                               timeOfDeleteEmail);
+        std::string deleteLink = getLinkFromMailbox(pyExe,
+                                                    bufScript.string(),
+                                                    realAccount,
+                                                    bufRealPswd,
+                                                    changedTestAcc,
+                                                    MegaClient::cancelLinkPrefix(),
+                                                    timeOfDeleteEmail);
         ASSERT_FALSE(deleteLink.empty()) << "Cancel account link was not found.";
 
         // Use cancel account link
         LOG_debug << testName << ": Confirm cancel link";
-        unique_ptr<RequestTracker> useCancelLinkTracker =
+        std::unique_ptr<RequestTracker> useCancelLinkTracker =
             std::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->confirmCancelAccount(deleteLink.c_str(),
                                          newTestPwd,
