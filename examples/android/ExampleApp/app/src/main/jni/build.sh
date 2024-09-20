@@ -93,10 +93,12 @@ CURL_SOURCE_FOLDER=curl-${CURL_VERSION}
 CURL_DOWNLOAD_URL=http://curl.haxx.se/download/${CURL_SOURCE_FILE}
 CURL_SHA1="5ff2ecaa4a68ecc06434644ce76d9837e99e7d1d"
 
+C_ARES_VERSION=1.19.1
+C_ARES_VERSION2=1_19_1
 ARES_SOURCE_FILE=c-ares-${C_ARES_VERSION}.tar.gz
 ARES_SOURCE_FOLDER=c-ares-${C_ARES_VERSION}
 ARES_CONFIGURED=${CURL}/${ARES_SOURCE_FOLDER}/Makefile.inc
-ARES_DOWNLOAD_URL=http://c-ares.haxx.se/download/${ARES_SOURCE_FILE}
+ARES_DOWNLOAD_URL=https://github.com/c-ares/c-ares/releases/download/cares-${C_ARES_VERSION2}/${ARES_SOURCE_FILE}
 ARES_SHA1="99566278e4ed4b261891aa62c8b88227bf1a2823"
 
 CRASHLYTICS=crashlytics
@@ -440,7 +442,7 @@ if [ ! -f ${LIBUV}/${LIBUV_SOURCE_FILE}.ready ]; then
 
         pushd ${LIBUV}/${LIBUV} &>> ${LOG_FILE}
         ./autogen.sh &>> ${LOG_FILE}
-        ./configure --host "${TARGET_HOST}" --with-pic --disable-shared --prefix="${BASE_PATH}/${LIBUV}/${LIBUV}"/libuv-android-${ABI} &>> ${LOG_FILE}
+        LDFLAGS+="-Wl,-z,max-page-size=16384" ./configure --host "${TARGET_HOST}" --with-pic --disable-shared --prefix="${BASE_PATH}/${LIBUV}/${LIBUV}"/libuv-android-${ABI} &>> ${LOG_FILE}
         make clean &>> ${LOG_FILE}
         make -j${JOBS} &>> ${LOG_FILE}
         make install &>> ${LOG_FILE}
@@ -577,7 +579,7 @@ if [ ! -f ${CURL}/${CURL_SOURCE_FILE}.ready ]; then
 	    fi
 
         pushd ${CURL}/ares &>> ${LOG_FILE}
-        ./configure --host "${TARGET_HOST}" --with-pic --disable-shared --prefix="${BASE_PATH}/${CURL}"/ares/ares-android-${ABI} &>> ${LOG_FILE}
+        LDFLAGS+="-Wl,-z,max-page-size=16384" ./configure --host "${TARGET_HOST}" --with-pic --disable-shared --prefix="${BASE_PATH}/${CURL}"/ares/ares-android-${ABI} &>> ${LOG_FILE}
         make clean &>> ${LOG_FILE}
         make -j${JOBS} &>> ${LOG_FILE}
         make install &>> ${LOG_FILE}
@@ -585,7 +587,7 @@ if [ ! -f ${CURL}/${CURL_SOURCE_FILE}.ready ]; then
 
         pushd ${CURL}/${CURL} &>> ${LOG_FILE}
 
-        LIBS=-lc++ ./configure --host "${TARGET_HOST}" --with-pic --disable-shared --prefix="${BASE_PATH}/${CURL}/${CURL}"/curl-android-${ABI} --with-ssl="${BASE_PATH}/${OPENSSL}/${OPENSSL}/${SSL_SUFFIX}" \
+        LDFLAGS+="-Wl,-z,max-page-size=16384" LIBS=-lc++ ./configure --host "${TARGET_HOST}" --with-pic --disable-shared --prefix="${BASE_PATH}/${CURL}/${CURL}"/curl-android-${ABI} --with-ssl="${BASE_PATH}/${OPENSSL}/${OPENSSL}/${SSL_SUFFIX}" \
         --enable-ares="${BASE_PATH}/${CURL}"/ares/ares-android-${ABI} ${CURL_EXTRA} &>> ${LOG_FILE}
         make clean &>> ${LOG_FILE}
         make -j${JOBS} &>> ${LOG_FILE}
@@ -613,7 +615,7 @@ if [ ! -f ${ICU}/${ICU_SOURCE_FILE}.ready ]; then
 
     mkdir -p linux && cd linux
 
-    CONFIGURE_LINUX_OPTIONS="--enable-static --enable-shared=no --enable-extras=no --enable-strict=no --enable-icuio=no --enable-layout=no --enable-layoutex=no --enable-tools=yes --enable-tests=no --enable-samples=no --enable-dyload=no"
+    LDFLAGS+="-Wl,-z,max-page-size=16384" CONFIGURE_LINUX_OPTIONS="--enable-static --enable-shared=no --enable-extras=no --enable-strict=no --enable-icuio=no --enable-layout=no --enable-layoutex=no --enable-tools=yes --enable-tests=no --enable-samples=no --enable-dyload=no"
     ../source/runConfigureICU Linux CFLAGS="-Os" CXXFLAGS="--std=c++11" ${CONFIGURE_LINUX_OPTIONS} &>> ${LOG_FILE}
 
     make -j${JOBS} &>> ${LOG_FILE}
@@ -649,7 +651,7 @@ if [ ! -f ${ICU}/${ICU_SOURCE_FILE}.ready ]; then
         export PATH=$ANDROID_TOOLCHAIN/bin:$PATH
 
         rm -rf ${ANDROID_TOOLCHAIN} &>> ${LOG_FILE}
-        $NDK_ROOT/build/tools/make-standalone-toolchain.sh --arch=${ARCH} --platform=${APP_PLATFORM} --install-dir=${ANDROID_TOOLCHAIN} &>> ${LOG_FILE}
+        $NDK_ROOT/build/tools/make_standalone_toolchain.py --arch=${ARCH} --api=${API_LEVEL} --install-dir=${ANDROID_TOOLCHAIN} &>> ${LOG_FILE}
 
         CONFIGURE_ANDROID_OPTIONS="--host=${HOST} --enable-static --enable-shared=no --enable-extras=no --enable-strict=no --enable-icuio=no --enable-layout=no --enable-layoutex=no --enable-tools=no --enable-tests=no --enable-samples=no --enable-dyload=no -with-cross-build=$CROSS_BUILD_DIR"
 
