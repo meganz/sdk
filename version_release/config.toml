@@ -56,6 +56,7 @@ private_branch = "develop" # same as the entry in [make_release]
 [make_another_rc]
 project_name = "" # "SDK", "MEGAchat" etc. (case sensitive), same as the entry in [make_release]
 release_version = "" # "1.0.0", the version to receive a new RC
+branch_for_mr = "" # "fix/SDK-1234_My-fix", only if the developer already has one
 mr_description = "" # "SDK-1234. My fix"
 tickets = "" # "SDK-123,SDK-1234"
 gitlab_url = "" # "https://code.foo.bar", same as the entry in [make_release]
@@ -65,5 +66,5 @@ jira_user = "" # same as the entry in [make_release]
 jira_password = "" # same as the entry in [make_release]
 slack_token = ""
 slack_channel = "" # "sdk"
-private_remote_name = "origin" # same as the entry in [make_release]
+private_remote_name = "origin" # same as the entry in [make_release]; used only if branch_for_mr was not set
 private_branch = "develop" # same as the entry in [make_release]

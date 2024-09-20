@@ -15,30 +15,31 @@ release = ReleaseProcess(
 )
 
 # prerequisites for a new RC
-release.setup_local_repo(args["private_remote_name"], "", "")
 release.setup_project_management(
     args["jira_url"], args["jira_user"], args["jira_password"]
 )
 if args["slack_token"] and args["slack_channel"]:
     release.setup_chat(args["slack_token"], args["slack_channel"])
 
+assert args["release_version"]  # "1.0.0"
 assert args["mr_description"]
 assert args["tickets"]
+name_of_new_branch = args["branch_for_mr"]
+app_descr = release.set_release_version_for_new_rc(args["release_version"])
 
+if not name_of_new_branch:
+    release.setup_local_repo(args["private_remote_name"], "", "")
 
-# STEP 1: Jira, GitLab: Create new branch (fix/SDK-1234_My_fix) from the last RC tag.
-version = args["release_version"]  # "1.0.0"
-app_descr = release.set_release_version_for_new_rc(version)
-name_of_new_branch = "fix/" + re.sub(r"[^\w-]+", "_", args["mr_description"])
-last_rc = release.create_branch_from_last_rc(
-    args["private_remote_name"], name_of_new_branch
-)
+    # STEP 1: Jira, GitLab: Create new branch (fix/SDK-1234_My_fix) from the last RC tag.
+    name_of_new_branch = "fix/" + re.sub(r"[^\w-]+", "_", args["mr_description"])
+    last_rc = release.create_branch_from_last_rc(
+        args["private_remote_name"], name_of_new_branch
+    )
 
-
-# STEP 2: local git: Wait for code changes and push them.
-if not release.wait_for_local_changes_to_be_applied():
-    raise RuntimeError("Process aborted")
-release.push_branch(args["private_remote_name"], name_of_new_branch)
+    # STEP 2: local git: Wait for code changes and push them.
+    if not release.wait_for_local_changes_to_be_applied():
+        raise RuntimeError("Process aborted")
+    release.push_branch(args["private_remote_name"], name_of_new_branch)
 
 
 # STEP 3: GitLab: Create MR from new branch to release branch (do NOT set to delete automatically after merge).
