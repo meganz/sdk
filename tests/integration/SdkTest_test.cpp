@@ -2369,6 +2369,17 @@ void SdkTest::doCreateAccountTest(const string& testName, int clientType)
     // Create an ephemeral session internally and send a confirmation link to email
     ASSERT_EQ(API_OK, synchronousCreateAccount(0, newTestAcc.c_str(), origTestPwd, "MyFirstname", "MyLastname"));
 
+    if (clientType == MegaApi::CLIENT_TYPE_PASSWORD_MANAGER)
+    {
+        RequestTracker rt{megaApi[0].get()};
+        megaApi[0]->getPasswordManagerBase(&rt);
+        EXPECT_EQ(API_OK, rt.waitForResult())
+            << "Getting Password Manager Base node through shortcut failed";
+        EXPECT_NE(nullptr, rt.request);
+        EXPECT_NE(INVALID_HANDLE, rt.request->getNodeHandle())
+            << "Invalid Password Manager Base node retrieved";
+    }
+
     LOG_debug << testName << ": Logout and resume";
     // Logout from ephemeral session and resume session
     ASSERT_NO_FATAL_FAILURE( locallogout() );
@@ -2549,6 +2560,19 @@ TEST_F(SdkTest, SdkTestCreateAccount)
 {
     ASSERT_NO_FATAL_FAILURE(
         doCreateAccountTest("SdkTestCreateAccount", MegaApi::CLIENT_TYPE_DEFAULT));
+}
+
+/**
+ * @brief TEST_F SdkTestPWMCreateAccount
+ *
+ * Tests account creation for a PWM client.
+ *
+ * See doCreateAccountTest(...).
+ */
+TEST_F(SdkTest, SdkTestPWMCreateAccount)
+{
+    ASSERT_NO_FATAL_FAILURE(
+        doCreateAccountTest("SdkTestVPNCreateAccount", MegaApi::CLIENT_TYPE_PASSWORD_MANAGER));
 }
 
 /**
