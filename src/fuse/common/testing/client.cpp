@@ -145,15 +145,14 @@ ErrorOr<NodeHandle> Client::uploadFile(const std::string& name,
     return waitFor(notifier->get_future());
 }
 
-Client::Client(const Path& databasePath,
-               const Path& storagePath)
-  : mMountEventObservers()
-  , mMountEventObserversLock()
-  , mNodesCurrent(false)
-  , mNodesCurrentCV()
-  , mNodesCurrentLock()
-  , mDatabasePath(databasePath)
-  , mStoragePath(storagePath)
+Client::Client(const std::string&, const Path& databasePath, const Path& storagePath):
+    mMountEventObservers(),
+    mMountEventObserversLock(),
+    mNodesCurrent(false),
+    mNodesCurrentCV(),
+    mNodesCurrentLock(),
+    mDatabasePath(databasePath),
+    mStoragePath(storagePath)
 {
 }
 
