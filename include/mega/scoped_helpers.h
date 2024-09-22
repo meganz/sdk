@@ -1,0 +1,133 @@
+#pragma once
+
+#include <functional>
+#include <memory>
+#include <type_traits>
+
+namespace mega
+{
+
+// Executes a user-provided function when destroyed.
+template<typename Destructor>
+class ScopedDestructor
+{
+    Destructor mDestructor;
+
+public:
+    ScopedDestructor(Destructor destructor):
+        mDestructor(std::move(destructor))
+    {}
+
+    ScopedDestructor(const ScopedDestructor& other) = delete;
+
+    ScopedDestructor(ScopedDestructor&& other) = default;
+
+    ~ScopedDestructor()
+    {
+        mDestructor();
+    }
+
+    ScopedDestructor& operator=(const ScopedDestructor& rhs) = delete;
+
+    ScopedDestructor& operator=(ScopedDestructor&& rhs) = default;
+}; // ScopedDestructor
+
+// Needed so we can customize how we set and retrieve an object's size.
+template<typename T>
+struct ScopedLengthRestorerTraits
+{
+    static void resize(T& instance, std::size_t newSize)
+    {
+        instance.resize(newSize);
+    }
+
+    static std::size_t size(const T& instance)
+    {
+        return instance.size();
+    }
+}; // ScopedLengthRestorerTraits<T>
+
+// Returns an object that executes function when destroyed.
+template<typename Function, typename = std::enable_if_t<std::is_invocable_v<Function>>>
+auto makeScopedDestructor(Function function)
+{
+    return ScopedDestructor(std::move(function));
+}
+
+// Returns an object that executes function when destroyed.
+//
+// This specialization differs from the above as it allows you to execute a
+// function that requires bound arguments.
+template<typename Function,
+         typename... Arguments,
+         typename = std::enable_if_t<std::is_invocable_v<Function, Arguments...>>>
+auto makeScopedDestructor(Function function, Arguments&&... arguments)
+{
+    auto destructor = std::bind(std::move(function), std::forward<Arguments>(arguments)...);
+
+    return makeScopedDestructor(std::move(destructor));
+}
+
+// Changes the length (size) of a sequence and returns an object that will
+// restore that sequence's original length when destroyed.
+template<typename T>
+auto makeScopedLengthRestorer(T& instance, std::size_t newSize)
+{
+    using Traits = ScopedLengthRestorerTraits<T>;
+
+    auto oldSize = Traits::size(instance);
+
+    Traits::resize(instance, newSize);
+
+    return makeScopedDestructor(
+        [&instance, oldSize]()
+        {
+            Traits::resize(instance, oldSize);
+        });
+}
+
+// Convenience specialization of the above.
+template<typename T>
+auto makeScopedLengthRestorer(T& instance)
+{
+    using Traits = ScopedLengthRestorerTraits<T>;
+
+    return makeScopedLengthRestorer(instance, Traits::size(instance));
+}
+
+// Changes the value of a specified location and returns an object that will
+// restore that location's original value when destroyed.
+template<typename T, typename U, typename = std::enable_if_t<std::is_convertible_v<U, T>>>
+auto makeScopedValue(T& location, U value)
+{
+    auto destructor = [oldValue = std::move(location), &location]()
+    {
+        location = std::move(oldValue);
+    }; // destructor
+
+    location = std::forward<U>(value);
+
+    return makeScopedDestructor(std::move(destructor));
+}
+
+// Instantiates a shared_ptr from an existing raw pointer.
+template<typename Tp,
+         typename = std::enable_if_t<std::is_pointer_v<Tp>>,
+         typename Tr = std::remove_pointer_t<Tp>,
+         typename Deleter = std::default_delete<Tr>>
+auto makeSharedFrom(Tp pointer, Deleter deleter = Deleter())
+{
+    return std::shared_ptr<Tr>(pointer, std::move(deleter));
+}
+
+// Instantiates a unique_ptr from an existing raw pointer.
+template<typename Tp,
+         typename = std::enable_if_t<std::is_pointer_v<Tp>>,
+         typename Tr = std::remove_pointer_t<Tp>,
+         typename Deleter = std::default_delete<Tr>>
+auto makeUniqueFrom(Tp pointer, Deleter deleter = Deleter())
+{
+    return std::unique_ptr<Tr, Deleter>(pointer, std::move(deleter));
+}
+
+} // mega
