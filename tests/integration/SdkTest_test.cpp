@@ -16704,27 +16704,36 @@ TEST_F(SdkTest, SdkResumableTrasfers)
     megaApi[0]->setMaxDownloadSpeed(-1);
 }
 
-
-class ScopedMinimumPermissions
+auto makeScopedDefaultPermissions(MegaApi& api, int directory, int file)
 {
-    int mDirectory;
-    int mFile;
+    auto previousDirectory = api.getDefaultFolderPermissions();
+    auto previousFile = api.getDefaultFilePermissions();
 
-public:
-    ScopedMinimumPermissions(int directory, int file)
-      : mDirectory(0700)
-      , mFile(0600)
-    {
-        FileSystemAccess::setMinimumDirectoryPermissions(directory);
-        FileSystemAccess::setMinimumFilePermissions(file);
-    }
+    api.setDefaultFolderPermissions(directory);
+    api.setDefaultFilePermissions(file);
 
-    ~ScopedMinimumPermissions()
-    {
-        FileSystemAccess::setMinimumDirectoryPermissions(mDirectory);
-        FileSystemAccess::setMinimumFilePermissions(mFile);
-    }
-}; // ScopedMinimumPermissions
+    return makeScopedDestructor(
+        [=, &api]()
+        {
+            api.setDefaultFolderPermissions(previousDirectory);
+            api.setDefaultFilePermissions(previousFile);
+        });
+}
+
+auto makeScopedMinimumPermissions(int directory, int file)
+{
+    using FSA = FileSystemAccess;
+
+    FSA::setMinimumDirectoryPermissions(directory);
+    FSA::setMinimumFilePermissions(file);
+
+    return makeScopedDestructor(
+        []()
+        {
+            FSA::setMinimumDirectoryPermissions(0700);
+            FSA::setMinimumFilePermissions(0600);
+        });
+}
 
 /**
  * @brief Test file permissions for a download when using megaApi->setDefaultFilePermissions.
@@ -16798,30 +16807,33 @@ TEST_F(SdkTest, SdkTestFilePermissions)
     ASSERT_TRUE(openFile(true, true)) << "Couldn't open file for read|write";
     deleteFile(filename.c_str());
 
-    ScopedMinimumPermissions minimumPermissions(0700, 0400);
+    auto minimumPermissions = makeScopedMinimumPermissions(0700, 0400);
 
     // TEST 2: Change file permissions: 0400. Only for reading.
     // Expected successful download, unsuccessful file opening for reading and writing (only for reading)
-    int filePermissions = 0400;
-    megaApi[0]->setDefaultFilePermissions(filePermissions);
-    ASSERT_EQ(API_OK, downloadFile());
-    ASSERT_TRUE(openFile(true, false)) << "Couldn't open file for read";
+    {
+        auto permissions = makeScopedDefaultPermissions(*megaApi[0], 0700, 0400);
+        ASSERT_EQ(API_OK, downloadFile());
+        ASSERT_TRUE(openFile(true, false)) << "Couldn't open file for read";
 #ifdef _WIN32
-    // Files should be able to be opened: posix file permissions don't have any effect on Windows.
-    ASSERT_TRUE(openFile(true, true)) << "Couldn't open files for read|write";
+        // Files should be able to be opened: posix file permissions don't have any effect on
+        // Windows.
+        ASSERT_TRUE(openFile(true, true)) << "Couldn't open files for read|write";
 #else
-    ASSERT_FALSE(openFile(true, true)) << "Could open files for read|write, while it shouldn't due to permissions";
+        ASSERT_FALSE(openFile(true, true))
+            << "Could open files for read|write, while it shouldn't due to permissions";
 #endif
-    deleteFile(filename.c_str());
-
+        deleteFile(filename.c_str());
+    }
 
     // TEST 3: Change file permissions: 0700. Read, write and execute.
     // Expected: successful download and successul file opening for reading and writing.
-    filePermissions = 0700;
-    megaApi[0]->setDefaultFilePermissions(filePermissions);
-    ASSERT_EQ(API_OK, downloadFile());
-    ASSERT_TRUE(openFile(true, true)) << "Couldn't open files for read|write";
-    deleteFile(filename.c_str());
+    {
+        auto permissions = makeScopedDefaultPermissions(*megaApi[0], 0700, 0700);
+        ASSERT_EQ(API_OK, downloadFile());
+        ASSERT_TRUE(openFile(true, true)) << "Couldn't open files for read|write";
+        deleteFile(filename.c_str());
+    }
 }
 
 /**
@@ -16926,49 +16938,56 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
     ASSERT_TRUE(openFolderAndFiles(true, true)) << "Couldn't open files for read|write";
     deleteFolder(foldername.c_str());
 
-    ScopedMinimumPermissions minimumPermissions(0400, 0400);
+    auto minimumPermissions = makeScopedMinimumPermissions(0400, 0400);
 
     // TEST 2. Change folder permissions: only read (0400). Default file permissions (0600).
     // Folder permissions: 0400. Expected to fail with API_EINCOMPLETE (-13): request incomplete because it can't write on resource (affecting children, not the parent folder downloaded).
     // Still, if there is any file children inside the folder, it won't be able able to be opened for reading and writing or even for reading only (because of the folder permissions: lack of the execution perm).
-    int folderPermissions = 0400;
-    megaApi[0]->setDefaultFolderPermissions(folderPermissions);
+    {
+        auto permissions = makeScopedDefaultPermissions(*megaApi[0], 0400, 0600);
 #ifdef _WIN32
-    // Folder and files should be able to be opened: posix file/folder permissions don't have any effect on Windows.
-    ASSERT_EQ(API_OK, downloadFolder());
-    ASSERT_TRUE(openFolderAndFiles(true, false)) << "Couldn't open files for read";
-    ASSERT_TRUE(openFolderAndFiles(true, true)) << "Couldn't open files for read|write";
+        // Folder and files should be able to be opened: posix file/folder permissions don't have
+        // any effect on Windows.
+        ASSERT_EQ(API_OK, downloadFolder());
+        ASSERT_TRUE(openFolderAndFiles(true, false)) << "Couldn't open files for read";
+        ASSERT_TRUE(openFolderAndFiles(true, true)) << "Couldn't open files for read|write";
 #else
-    ASSERT_EQ(API_EINCOMPLETE, downloadFolder()) << "Download should have failed as there are not enough permissions to write in the folder";
-    ASSERT_FALSE(openFolderAndFiles(true, false)) << "Could open files for read, while it shouldn't due to permissions";
-    ASSERT_FALSE(openFolderAndFiles(true, true)) << "Could open files for read|write, while it shouldn't due to permissions";
+        ASSERT_EQ(API_EINCOMPLETE, downloadFolder())
+            << "Download should have failed as there are not enough permissions to write in the "
+               "folder";
+        ASSERT_FALSE(openFolderAndFiles(true, false))
+            << "Could open files for read, while it shouldn't due to permissions";
+        ASSERT_FALSE(openFolderAndFiles(true, true))
+            << "Could open files for read|write, while it shouldn't due to permissions";
 #endif
-    deleteFolder(foldername.c_str());
+        deleteFolder(foldername.c_str());
+    }
 
     // TEST 3. Restore folder permissions. Change file permissions: only read.
     // Folder permissions: 0700. Expected a successful download and no issues when accessing the folder.
     // File permissions: 0400. Expected result: cannot open files for R and W (perm: 0400 -> only read).
-    folderPermissions = 0700;
-    megaApi[0]->setDefaultFolderPermissions(folderPermissions);
-    int filePermissions = 0400;
-    megaApi[0]->setDefaultFilePermissions(filePermissions);
-    ASSERT_EQ(API_OK, downloadFolder());
-    ASSERT_TRUE(openFolderAndFiles(true, false)) << "Couldn't open files for read";
+    {
+        auto permissions = makeScopedDefaultPermissions(*megaApi[0], 0700, 0400);
+        ASSERT_EQ(API_OK, downloadFolder());
+        ASSERT_TRUE(openFolderAndFiles(true, false)) << "Couldn't open files for read";
 #ifdef _WIN32
-    ASSERT_TRUE(openFolderAndFiles(true, true)) << "Couldn't open files for read|write";
+        ASSERT_TRUE(openFolderAndFiles(true, true)) << "Couldn't open files for read|write";
 #else
-    ASSERT_FALSE(openFolderAndFiles(true, true)) << "Could open files for read|write, while it shouldn't due to permissions";
+        ASSERT_FALSE(openFolderAndFiles(true, true))
+            << "Could open files for read|write, while it shouldn't due to permissions";
 #endif
-    deleteFolder(foldername.c_str());
+        deleteFolder(foldername.c_str());
+    }
 
     // TEST 4. Default folder permissions. Restore file permissions.
     // Folder permissions: 0700. Expected a successful download and no issues when accessing the folder.
     // File permissions: 0600. Expected result: Can open files for R and W (perm: 0600 -> r and w).
-    filePermissions = 0600;
-    megaApi[0]->setDefaultFilePermissions(filePermissions);
-    ASSERT_EQ(API_OK, downloadFolder());
-    ASSERT_TRUE(openFolderAndFiles(true, true)) << "Couldn't open files for read|write";
-    deleteFolder(foldername.c_str());
+    {
+        auto permissions = makeScopedDefaultPermissions(*megaApi[0], 0700, 0600);
+        ASSERT_EQ(API_OK, downloadFolder());
+        ASSERT_TRUE(openFolderAndFiles(true, true)) << "Couldn't open files for read|write";
+        deleteFolder(foldername.c_str());
+    }
 }
 
 TEST_F(SdkTest, GetRecommendedProLevel)

@@ -1150,7 +1150,7 @@ void PosixFileSystemAccess::emptydirlocal(const LocalPath& nameParam, dev_t base
                  || *d->d_name != '.'
                  || (d->d_name[1] && (d->d_name[1] != '.' || d->d_name[2])))
                 {
-                    ScopedLengthRestore restore(name);
+                    auto restorer = makeScopedLengthRestorer(name);
 
                     name.appendWithSeparator(LocalPath::fromPlatformEncodedRelative(d->d_name), true);
 
@@ -1920,7 +1920,7 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
         result.localname = LocalPath::fromPlatformEncodedRelative(entry->d_name);
 
         // Compute this entry's absolute name.
-        ScopedLengthRestore restorer(path);
+        auto restorer = makeScopedLengthRestorer(path);
 
         path.appendWithSeparator(result.localname, false);
 
@@ -2593,7 +2593,7 @@ bool PosixDirAccess::dnext(LocalPath& path, LocalPath& name, bool followsymlinks
 
     while ((d = readdir(dp)))
     {
-        ScopedLengthRestore restore(path);
+        auto restorer = makeScopedLengthRestorer(path);
 
         if (*d->d_name != '.' || (d->d_name[1] && (d->d_name[1] != '.' || d->d_name[2])))
         {

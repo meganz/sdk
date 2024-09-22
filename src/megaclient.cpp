@@ -12655,8 +12655,9 @@ void MegaClient::loginResult(CommandLogin::Completion completion,
     if (isFullyLoggedIn)
     {
         // Capture the client's response tag as apps may require it.
-        completion = [completion = std::move(completion), tag = restag, this](error result) {
-            ScopedValue restorer(restag, tag);
+        completion = [completion = std::move(completion), tag = restag, this](error result)
+        {
+            auto restorer = makeScopedValue(restag, tag);
             completion(result);
         }; // completion
 

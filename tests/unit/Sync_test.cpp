@@ -411,7 +411,7 @@ TEST_F(SyncConfigIOContextTest, GetSlotsOrderedByModificationTime)
         {
             using std::to_string;
 
-            ScopedLengthRestore restorer(configPath);
+            auto restorer = makeScopedLengthRestorer(configPath);
 
             // Generate suffix.
             LocalPath suffixPath =
@@ -465,7 +465,7 @@ TEST_F(SyncConfigIOContextTest, GetSlotsOrderedBySlotSuffix)
         {
             using std::to_string;
 
-            ScopedLengthRestore restorer(configPath);
+            auto restorer = makeScopedLengthRestorer(configPath);
 
             // Generate suffix.
             LocalPath suffixPath =

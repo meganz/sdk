@@ -1300,3 +1300,181 @@ TEST(EscapeWildCars, UseCases)
     EXPECT_EQ(escapeWildCards("\\*hello\\*"), "\\*hello\\*");
     EXPECT_EQ(escapeWildCards("hel\\\\*lo"), "hel\\\\\\*lo");
 }
+
+TEST(ScopedHelpers, ScopedDestructor)
+{
+    // So we can test various binding styles.
+    struct Functor
+    {
+        void memberNoArguments() {}
+
+        void memberWithArguments(std::string) {}
+
+        static void rawNoArguments() {}
+
+        static void rawWithArguments(std::string) {}
+    }; // Functor
+
+    // Make sure we can bind raw function pointers.
+    {
+        auto x = makeScopedDestructor(&Functor::rawNoArguments);
+
+        // This also tests that convertible arguments are allowed.
+        auto y = makeScopedDestructor(&Functor::rawWithArguments, "Test");
+    }
+
+    // Make sure we can bind member function pointers.
+    {
+        auto f = Functor();
+        auto x = makeScopedDestructor(&Functor::memberNoArguments, &f);
+        auto y = makeScopedDestructor(&Functor::memberWithArguments, &f, "Test");
+    }
+
+    // Make sure we can bind lambda functions.
+    auto x = 0;
+
+    // Lambda without parameters.
+    {
+        auto y = makeScopedDestructor(
+            [&x]()
+            {
+                ++x;
+            });
+    }
+
+    // Make sure the destructor was executed.
+    EXPECT_EQ(x, 1);
+
+    // Lambda with parameters.
+    {
+        auto y = makeScopedDestructor(
+            [&x](int v)
+            {
+                x += v;
+            },
+            3);
+
+        // Make sure convertible arguments are accepted.
+        auto z = makeScopedDestructor([](std::string) {}, "Test");
+    }
+
+    // Make sure destructor was executed.
+    EXPECT_EQ(x, 4);
+}
+
+TEST(ScopedHelpers, ScopedLengthRestorer)
+{
+    // Test with local path.
+    {
+        using Traits = ScopedLengthRestorerTraits<LocalPath>;
+
+        auto x = LocalPath::fromAbsolutePath("x");
+        auto originalSize = Traits::size(x);
+
+        {
+            auto r = makeScopedLengthRestorer(x);
+            x.appendWithSeparator(LocalPath::fromRelativePath("y"), true);
+            EXPECT_NE(Traits::size(x), originalSize);
+        }
+
+        EXPECT_EQ(Traits::size(x), originalSize);
+    }
+
+    // Test with vector.
+    {
+        std::vector<std::string> x(1, "foo");
+
+        auto originalSize = x.size();
+
+        {
+            auto r = makeScopedLengthRestorer(x);
+            x.emplace_back("bar");
+        }
+
+        EXPECT_EQ(x.size(), originalSize);
+    }
+
+    // Test with explicit new size given.
+    {
+        std::string x;
+
+        {
+            auto r = makeScopedLengthRestorer(x, 32);
+            EXPECT_EQ(x.size(), 32);
+        }
+
+        EXPECT_TRUE(x.empty());
+    }
+}
+
+TEST(ScopedHelpers, ScopedValue)
+{
+    const std::string originalValue = "before";
+    std::string value = originalValue;
+
+    {
+        const std::string expectedValue = "After";
+
+        // Also tests that conertible arguments are accepted.
+        auto guard = makeScopedValue(value, expectedValue.c_str());
+
+        // Make sure value's value was changed.
+        ASSERT_EQ(value, expectedValue);
+    }
+
+    // Make sure value's value was restored.
+    ASSERT_EQ(value, originalValue);
+}
+
+TEST(ScopedHelpers, MakePtrFrom)
+{
+    struct Dummy
+    {
+        static void destructor(Dummy* dummy)
+        {
+            delete dummy;
+        }
+    }; // Dummy
+
+    // Shared pointer, default deleter.
+    {
+        auto x = makeSharedFrom(new Dummy);
+
+        // Verify type signature.
+        static_assert(std::is_same_v<decltype(x), std::shared_ptr<Dummy>>);
+    }
+
+    // Shared pointer, custom deleter.
+    {
+        auto x = makeSharedFrom(new Dummy, &Dummy::destructor);
+
+        // Verify type signature.
+        static_assert(std::is_same_v<decltype(x), std::shared_ptr<Dummy>>);
+
+        // Verify deleter.
+        auto d = std::get_deleter<void (*)(Dummy*)>(x);
+        ASSERT_TRUE(d);
+        EXPECT_EQ(*d, &Dummy::destructor);
+    }
+
+    // Unique pointer, default deleter.
+    {
+        auto x = makeUniqueFrom(new Dummy);
+
+        // Verify type signature.
+        using ComputedType = decltype(x);
+        using ExpectedType = std::unique_ptr<Dummy, std::default_delete<Dummy>>;
+
+        static_assert(std::is_same_v<ComputedType, ExpectedType>);
+    }
+
+    // Unique pointer, custom deleter.
+    {
+        auto x = makeUniqueFrom(new Dummy, &Dummy::destructor);
+
+        using ComputedType = decltype(x);
+        using ExpectedType = std::unique_ptr<Dummy, void (*)(Dummy*)>;
+
+        static_assert(std::is_same_v<ComputedType, ExpectedType>);
+    }
+}

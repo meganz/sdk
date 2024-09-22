@@ -1322,34 +1322,6 @@ SplitResult split(const char* begin, const char* end, char delimiter);
 SplitResult split(const char* begin, const std::size_t size, char delimiter);
 SplitResult split(const std::string& value, char delimiter);
 
-template<typename T>
-class ScopedValue {
-public:
-    ScopedValue(T& what, T value)
-      : mLastValue(std::move(what))
-      , mWhat(what)
-    {
-        what = std::move(value);
-    }
-
-    ~ScopedValue()
-    {
-        mWhat = std::move(mLastValue);
-    }
-
-    MEGA_DISABLE_COPY_MOVE(ScopedValue)
-
-private:
-    T mLastValue;
-    T& mWhat;
-}; // ScopedValue<T>
-
-template<typename T>
-ScopedValue<T> makeScopedValue(T& what, T value)
-{
-    return ScopedValue<T>(what, std::move(value));
-}
-
 /**
  * @brief Sorts input char strings using natural sorting ignoring case
  *

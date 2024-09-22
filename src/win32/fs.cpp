@@ -1115,7 +1115,7 @@ void WinFileSystemAccess::emptydirlocal(const LocalPath& nameParam, dev_t basede
 
         WIN32_FIND_DATAW ffd;
         {
-            ScopedLengthRestore restoreNamePath2(namePath);
+            auto restoreNamePath2 = makeScopedLengthRestorer(namePath);
             namePath.appendWithSeparator(LocalPath::fromRelativePath("*"), true);
             hFind = FindFirstFileW(namePath.localpath.c_str(), &ffd);
         }
@@ -1134,7 +1134,7 @@ void WinFileSystemAccess::emptydirlocal(const LocalPath& nameParam, dev_t basede
                     || (ffd.cFileName[1] && ((ffd.cFileName[1] != '.')
                     || ffd.cFileName[2]))))
             {
-                ScopedLengthRestore restoreNamePath3(namePath);
+                auto restoreNamePath3 = makeScopedLengthRestorer(namePath);
                 namePath.appendWithSeparator(LocalPath::fromPlatformEncodedRelative(ffd.cFileName), true);
                 if (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
                 {

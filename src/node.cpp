@@ -2022,7 +2022,7 @@ void LocalNode::moveContentTo(LocalNode* ln, LocalPath& fullPath, bool setScanAg
     for (auto& c : children) workingList.push_back(c.second);
     for (auto& c : workingList)
     {
-        ScopedLengthRestore restoreLen(fullPath);
+        auto restoreLen = makeScopedLengthRestorer(fullPath);
         fullPath.appendWithSeparator(c->localname, true);
         c->setnameparent(ln, fullPath.leafName(), sync->syncs.fsaccess->fsShortname(fullPath));
 

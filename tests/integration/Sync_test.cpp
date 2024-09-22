@@ -42,22 +42,28 @@ shared_promise<T> makeSharedPromise()
 }
 
 // Convenience.
-class ScopedStallPredicateResetter
+auto makeScopedStallPredicateResetter(StandardClient& client)
 {
-    StandardClient& mClient;
+    return makeScopedDestructor(
+        [&client]()
+        {
+            client.setHasImmediateStall(nullptr);
+            client.setIsImmediateStall(nullptr);
+        });
+}
 
-public:
-    ScopedStallPredicateResetter(StandardClient& client)
-      : mClient(client)
-    {
-    }
-    
-    ~ScopedStallPredicateResetter()
-    {
-        mClient.setHasImmediateStall(nullptr);
-        mClient.setIsImmediateStall(nullptr);
-    }
-}; // ScopedStallPredicateResetter
+auto makeScopedSyncPauser(StandardClient& client, handle id)
+{
+    auto result = client.setSyncPausedByBackupId(id, true);
+    EXPECT_TRUE(result) << "Couldn't pause sync " << toHandle(id);
+
+    return makeScopedDestructor(
+        [&client, id]()
+        {
+            auto result = client.setSyncPausedByBackupId(id, false);
+            EXPECT_TRUE(result) << "Couldn't resume sync " << toHandle(id);
+        });
+}
 
 bool suppressfiles = false;
 
@@ -15913,7 +15919,7 @@ TEST_F(CloudToLocalFilterFixture, FilterMovedUpHierarchy)
 
     // Move x/a/.megaignore to x/.megaignore.
     {
-        ScopedSyncPauser pauser(*cd, id);
+        auto pauser = makeScopedSyncPauser(*cd, id);
 
         // Move x/a/.megaignore to x/.megaignore.
         localFS.removenode(".megaignore");
@@ -15944,7 +15950,7 @@ TEST_F(CloudToLocalFilterFixture, FilterMovedUpHierarchy)
 
 
     {
-        ScopedSyncPauser pauser(*cd, id);
+        auto pauser = makeScopedSyncPauser(*cd, id);
 
         remoteTree.removenode("b/fa");
 
@@ -16263,7 +16269,7 @@ TEST_F(CloudToLocalFilterFixture, MoveToIgnoredRubbishesRemote)
 
     // Create the directory d.
     {
-        ScopedSyncPauser pauser(*cdu, id);
+        auto pauser = makeScopedSyncPauser(*cdu, id);
 
         vector<NewNode> nodes(1);
 
@@ -16287,7 +16293,7 @@ TEST_F(CloudToLocalFilterFixture, MoveToIgnoredRubbishesRemote)
     ASSERT_TRUE(confirm(*cdu, id, remoteTree));
 
     {
-        ScopedSyncPauser pauser(*cdu, id);
+        auto pauser = makeScopedSyncPauser(*cdu, id);
 
         // Move f to d/f.
         ASSERT_TRUE(cdu->movenode("cdu/f", "cdu/d"));
@@ -16371,7 +16377,7 @@ TEST_F(CloudToLocalFilterFixture, OverwriteExcluded)
 
     // Move x/d/f to x, overwriting x/f.
     {
-        ScopedSyncPauser pauser(*cdu, id);
+        auto pauser = makeScopedSyncPauser(*cdu, id);
 
         // Make sure cd has seen cdu's changes.
         auto predicate = SyncRemoteMatch("x", remoteTree.root.get());
@@ -16437,7 +16443,7 @@ TEST_F(CloudToLocalFilterFixture, RenameToIgnoredRubbishesRemote)
 
     // Rename cdu/x to cdu/y.
     {
-        ScopedSyncPauser pauser(*cdu, id);
+        auto pauser = makeScopedSyncPauser(*cdu, id);
 
         // Make sure cu's seen cdu's changes.
         auto predicate = SyncRemoteMatch("cdu", remoteTree.root.get());
@@ -18006,7 +18012,7 @@ TEST_F(SyncTest, MoveJustAsPutNodesSent)
     client->setHasImmediateStall(hasDeferredStall);
 
     // Make sure original stall predicates are restored, no matter what.
-    ScopedStallPredicateResetter resetter(*client);
+    auto resetter = makeScopedStallPredicateResetter(*client);
 
     // Inhibit completion of s/f's putnodes.
     controller->setDeferPutnodeCompletionCallback([&](const fs::path& path) {
@@ -18152,7 +18158,7 @@ TEST_F(SyncTest, RemovedJustAsPutNodesSent)
     client->setHasImmediateStall(hasDeferredStall);
 
     // Make sure original stall predicates are restored, no matter what.
-    ScopedStallPredicateResetter resetter(*client);
+    auto resetter = makeScopedStallPredicateResetter(*client);
 
     // Inhibit completion of s/f's putnodes.
     controller->setDeferPutnodeCompletionCallback([&](const fs::path& path) {
@@ -18524,7 +18530,7 @@ TEST_F(SyncTest, CloudHorizontalMoveChain)
 
     // Rotate the cloud files: x -> y -> z -> x
     {
-        ScopedSyncPauser pauser(*client, id);
+        auto pauser = makeScopedSyncPauser(*client, id);
         auto root = client->fsBasePath / "s";
 
         model.findnode("s.txt")->name = "t.txt";
@@ -18591,7 +18597,7 @@ TEST_F(SyncTest, CloudHorizontalMoveCycle)
 
     // Rotate the cloud files: x -> y -> z -> x
     {
-        ScopedSyncPauser pauser(*client, id);
+        auto pauser = makeScopedSyncPauser(*client, id);
 
         client->received_node_actionpackets = false;
         ASSERT_TRUE(client->rename(zh, "x.txt"));
@@ -18693,7 +18699,7 @@ TEST_F(SyncTest, CloudVerticalMoveChain)
 
     // Rotate the local files: q -> 0/r -> 0/1/s -> 0/1/2/t
     {
-        ScopedSyncPauser pauser(*client, id);
+        auto pauser = makeScopedSyncPauser(*client, id);
 
         auto node = model.removenode("0/1/s.txt");
         node->name = "t.txt";
@@ -18771,7 +18777,7 @@ TEST_F(SyncTest, CloudVerticalMoveCycle)
 
     // Rotate the local files: x -> 0/y -> 0/1/z -> x
     {
-        ScopedSyncPauser pauser(*client, id);
+        auto pauser = makeScopedSyncPauser(*client, id);
 
         client->received_node_actionpackets = false;
         ASSERT_TRUE(client->movenode(yh, "s/0/1", "z.txt"));
@@ -18872,7 +18878,7 @@ TEST_F(SyncTest, LocalHorizontalMoveChain)
 
     // Rotate the local files: x -> y -> z -> x
     {
-        ScopedSyncPauser pauser(*client, id);
+        auto pauser = makeScopedSyncPauser(*client, id);
         auto root = client->fsBasePath / "s";
 
         model.findnode("s.txt")->name = "t.txt";
@@ -18936,7 +18942,7 @@ TEST_F(SyncTest, LocalHorizontalMoveCycle)
 
     // Rotate the local files: x -> y -> z -> x
     {
-        ScopedSyncPauser pauser(*client, id);
+        auto pauser = makeScopedSyncPauser(*client, id);
         auto root = client->fsBasePath / "s";
 
         model.findnode("z.txt")->name = "w.txt";
@@ -19032,7 +19038,7 @@ TEST_F(SyncTest, LocalVerticalMoveChain)
 
     // Rotate the local files: q -> 0/r -> 0/1/s -> 0/1/2/t.
     {
-        ScopedSyncPauser pauser(*client, id);
+        auto pauser = makeScopedSyncPauser(*client, id);
         auto root = client->fsBasePath / "s";
 
         auto node = model.removenode("0/1/s.txt");
@@ -19108,7 +19114,7 @@ TEST_F(SyncTest, LocalVerticalMoveCycle)
 
     // Rotate the local files: x -> 0/y -> 0/1/z -> x
     {
-        ScopedSyncPauser pauser(*client, id);
+        auto pauser = makeScopedSyncPauser(*client, id);
         auto root = client->fsBasePath / "s";
 
         fs::rename(root / "0" / "1" / "z.txt", root / "z.txt");
@@ -19412,7 +19418,7 @@ public:
 
         // Create a contradictory move scenario.
         {
-            ScopedSyncPauser pauser(*c, id);
+            auto pauser = makeScopedSyncPauser(*c, id);
 
             // Remotely move da -> db.
             mc.movenode("da", "db");
@@ -19522,7 +19528,7 @@ TEST_F(ContradictoryMoveFixture, ResolveLocally)
 
     // Manually make the disk look like the cloud.
     {
-        ScopedSyncPauser pauser(*c, id);
+        auto pauser = makeScopedSyncPauser(*c, id);
         std::error_code result;
 
         // Move da/db -> db.
@@ -19563,7 +19569,7 @@ TEST_F(ContradictoryMoveFixture, ResolveRemotely)
 
     // Manually make the cloud look like the disk.
     {
-        ScopedSyncPauser pauser(*c, id);
+        auto pauser = makeScopedSyncPauser(*c, id);
 
         // Move db/da -> da.
         mc.movenode("db/da", "");
