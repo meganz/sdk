@@ -8024,10 +8024,67 @@ void MegaApiImpl::getChatUserAttribute(const char *email_or_handle, int type, co
 
 void MegaApiImpl::setUserAttribute(int type, const char *value, MegaRequestListener *listener)
 {
-    setUserAttr(type ? type : -1, value, listener);
+    // allow only types documented to be valid
+    switch (type)
+    {
+        case ATTR_FIRSTNAME:
+        case ATTR_LASTNAME:
+        case ATTR_LANGUAGE:
+        case ATTR_DISABLE_VERSIONS:
+        case ATTR_CONTACT_LINK_VERIFICATION:
+        case ATTR_RUBBISH_TIME:
+        case ATTR_LAST_PSA:
+        case ATTR_PUSH_SETTINGS:
+        case ATTR_NO_CALLKIT:
+        case ATTR_VISIBLE_WELCOME_DIALOG:
+        case ATTR_VISIBLE_TERMS_OF_SERVICE:
+        case ATTR_LAST_READ_NOTIFICATION:
+        case ATTR_LAST_ACTIONED_BANNER:
+        // undocumented types, allowed only for testing:
+        case ATTR_ENABLE_TEST_NOTIFICATIONS:
+        case ATTR_ENABLE_TEST_SURVEYS:
+        // undocumented types, allowed only to notify with a specific error:
+        case ATTR_KEYRING:
+        case ATTR_KEYS:
+        case ATTR_AUTHRING:
+        case ATTR_AUTHCU255:
+        case ATTR_CU25519_PUBK:
+        case ATTR_ED25519_PUBK:
+        case ATTR_SIG_CU255_PUBK:
+        case ATTR_SIG_RSA_PUBK:
+        case ATTR_PWD_REMINDER:
+        case ATTR_MY_BACKUPS_FOLDER:
+            setUserAttr(type, value, listener);
+            break;
+        default:
+            setUserAttr(ATTR_UNKNOWN, value, listener);
+    }
 }
 
-void MegaApiImpl::setUserAttribute(int type, const MegaStringMap *value, MegaRequestListener *listener)
+void MegaApiImpl::setUserAttribute(int type,
+                                   const MegaStringMap* value,
+                                   MegaRequestListener* listener)
+{
+    // allow only types documented to be valid
+    switch (type)
+    {
+        case ATTR_AUTHRING:
+        case ATTR_LAST_INT:
+        case ATTR_KEYRING:
+        case ATTR_RICH_PREVIEWS:
+        case ATTR_GEOLOCATION:
+        case ATTR_ALIAS:
+        case ATTR_DEVICE_NAMES:
+        case ATTR_APPS_PREFS:
+        case ATTR_CC_PREFS:
+            setUserAttr(type, value, listener);
+            break;
+        default:
+            setUserAttr(ATTR_UNKNOWN, value, listener);
+    }
+}
+
+void MegaApiImpl::setUserAttr(int type, const MegaStringMap* value, MegaRequestListener* listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
 
@@ -11100,7 +11157,7 @@ void MegaApiImpl::enableRichPreviews(bool enable, MegaRequestListener *listener)
     string base64value;
     Base64::btoa(rawvalue, base64value);
     stringMap->set("num", base64value.c_str());
-    setUserAttribute(MegaApi::USER_ATTR_RICH_PREVIEWS, stringMap, listener);
+    setUserAttr(MegaApi::USER_ATTR_RICH_PREVIEWS, stringMap, listener);
     delete stringMap;
 }
 
@@ -11142,7 +11199,7 @@ void MegaApiImpl::setRichLinkWarningCounterValue(int value, MegaRequestListener 
     string base64value;
     Base64::btoa(oss.str(), base64value);
     stringMap->set("c", base64value.c_str());
-    setUserAttribute(MegaApi::USER_ATTR_RICH_PREVIEWS, stringMap, listener);
+    setUserAttr(MegaApi::USER_ATTR_RICH_PREVIEWS, stringMap, listener);
     delete stringMap;
 }
 
@@ -11152,7 +11209,7 @@ void MegaApiImpl::enableGeolocation(MegaRequestListener *listener)
     string base64value;
     Base64::btoa("1", base64value);
     stringMap->set("v", base64value.c_str());
-    setUserAttribute(MegaApi::USER_ATTR_GEOLOCATION, stringMap, listener);
+    setUserAttr(MegaApi::USER_ATTR_GEOLOCATION, stringMap, listener);
     delete stringMap;
 }
 
@@ -20893,9 +20950,13 @@ error MegaApiImpl::performRequest_getAttrUser(MegaRequestPrivate* request)
 
 error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
 {
+    attr_t type = static_cast<attr_t>(request->getParamType());
+    if (type == ATTR_UNKNOWN)
+    {
+        return API_EARGS;
+    }
             const char* file = request->getFile();
             const char* value = request->getText();
-            attr_t type = static_cast<attr_t>(request->getParamType());
 
             char scope = MegaApiImpl::userAttributeToScope(type);
             string attrname = MegaApiImpl::userAttributeToString(type);

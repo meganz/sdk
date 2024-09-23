@@ -4432,6 +4432,9 @@ public:
         void setNodeAttribute(MegaNode* node, int type, const char *srcFilePath, MegaHandle attributehandle, MegaRequestListener *listener = NULL);
         void putNodeAttribute(MegaBackgroundMediaUpload* bu, int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void setUserAttr(int type, const char *value, MegaRequestListener *listener = NULL);
+        void setUserAttr(int type,
+                         const MegaStringMap* value,
+                         MegaRequestListener* listener = nullptr);
         void getUserAttr(User* user, attr_t type, MegaRequestPrivate* request);
         void getUserAttr(const std::string& email, attr_t type, const char* ph, MegaRequestPrivate* request);
         void getua_completion(error, MegaRequestPrivate* request);

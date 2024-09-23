@@ -13666,8 +13666,11 @@ class MegaApi
          *
          * @param srcFilePath Source path of the file that will be set as avatar.
          * If NULL, the existing avatar will be removed (if any).
-         * In case the avatar never existed before, removing the avatar returns MegaError::API_ENOENT
+         * In case the avatar never existed before, removing the avatar returns
+         * MegaError::API_ENOENT
          * @param listener MegaRequestListener to track this request
+         *
+         * @see MegaApi::getUserAvatar
          */
         void setAvatar(const char *srcFilePath, MegaRequestListener *listener = NULL);
 
@@ -13727,17 +13730,31 @@ class MegaApi
          * Valid values are:
          *
          * MegaApi::USER_ATTR_FIRSTNAME = 1
-         * Set the firstname of the user (public)
+         * Set the firstname of the user (protected)
          * MegaApi::USER_ATTR_LASTNAME = 2
-         * Set the lastname of the user (public)
-         * MegaApi::USER_ATTR_ED25519_PUBLIC_KEY = 5
-         * Set the public key Ed25519 of the user (public)
-         * MegaApi::USER_ATTR_CU25519_PUBLIC_KEY = 6
-         * Set the public key Cu25519 of the user (public)
+         * Set the lastname of the user (protected)
+         * MegaApi::USER_ATTR_LANGUAGE = 14
+         * Set the language for the user (private)
+         * MegaApi::USER_ATTR_DISABLE_VERSIONS = 16
+         * Set file versioning disabled for the user (private)
+         * MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION = 17
+         * Set contact link verification for the user (private)
          * MegaApi::USER_ATTR_RUBBISH_TIME = 19
          * Set number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+         * MegaApi::USER_ATTR_LAST_PSA = 20
+         * Set last PSA for the user (private)
+         * MegaApi::USER_PUSH_SETTINGS = 25
+         * Enable/disable push notifications for the user (private)
          * MegaApi::USER_ATTR_NO_CALLKIT = 36
          * Set whether user has iOS CallKit disabled or enabled (private, non-encrypted)
+         * MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG = 40
+         * Show/hide welcome dialog for the user (private)
+         * MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE = 41
+         * Show/hide Terms of Service for the user (private)
+         * MegaApi::USER_ATTR_LAST_READ_NOTIFICATION = 44
+         * Set last read notification for the user (private)
+         * MegaApi::USER_ATTR_LAST_ACTIONED_BANNER = 45
+         * Set last actioned banner for the user (private)
          *
          * If the MEGA account is a sub-user business account, and the value of the parameter
          * type is equal to MegaApi::USER_ATTR_FIRSTNAME or MegaApi::USER_ATTR_LASTNAME
@@ -13757,11 +13774,12 @@ class MegaApi
          * - MegaRequest::getMegaStringMap - Returns the new value for the attribute
          *
          * You can remove existing records/keypairs from the following attributes:
-         *  - MegaApi::ATTR_ALIAS
-         *  - MegaApi::ATTR_DEVICE_NAMES
+         *  - MegaApi::USER_ATTR_ALIAS
+         *  - MegaApi::USER_ATTR_DEVICE_NAMES
          *  - MegaApi::USER_ATTR_APPS_PREFS
          *  - MegaApi::USER_ATTR_CC_PREFS
-         * by adding a keypair into MegaStringMap with the key to remove and an empty C-string null terminated as value.
+         * by adding a keypair into MegaStringMap with the key to remove and an empty C-string null
+         * terminated as value.
          *
          * @param type Attribute type
          *
@@ -13775,17 +13793,15 @@ class MegaApi
          * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
          * MegaApi::USER_ATTR_RICH_PREVIEWS = 18
          * Get whether user generates rich-link messages or not (private)
-         * MegaApi::USER_ATTR_RUBBISH_TIME = 19
-         * Set number of days for rubbish-bin cleaning scheduler (private non-encrypted)
          * MegaApi::USER_ATTR_GEOLOCATION = 22
          * Set whether the user can send geolocation messages (private)
-         * MegaApi::ATTR_ALIAS = 27
+         * MegaApi::USER_ATTR_ALIAS = 27
          * Set the list of users's aliases (private)
-         * MegaApi::ATTR_DEVICE_NAMES = 30
+         * MegaApi::USER_ATTR_DEVICE_NAMES = 30
          * Set the list of device names (private)
-         * MegaApi::ATTR_APPS_PREFS = 38
+         * MegaApi::USER_ATTR_APPS_PREFS = 38
          * Set the apps prefs (private)
-         * MegaApi::ATTR_CC_PREFS = 39
+         * MegaApi::USER_ATTR_CC_PREFS = 39
          * Set the content consumption prefs (private)
          *
          * @param value New attribute value
