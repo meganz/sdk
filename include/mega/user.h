@@ -173,6 +173,7 @@ public:
     void resetTag();
 
     User(const char* = NULL);
+    ~User() override;
 
     // merges the new values in the given TLV. Returns true if TLV is changed.
     static bool mergeUserAttribute(attr_t type, const string_map &newValuesMap, TLVstore &tlv);

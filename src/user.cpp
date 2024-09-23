@@ -46,6 +46,10 @@ User::User(const char* cemail)
     memset(&changed, 0, sizeof(changed));
 }
 
+// Use explicit destructor here to allow using smart pointers with incomplete type in class
+// definition.
+User::~User() = default;
+
 bool User::mergeUserAttribute(attr_t type, const string_map &newValuesMap, TLVstore &tlv)
 {
     bool modified = false;
