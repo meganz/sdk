@@ -38837,6 +38837,17 @@ MegaPushNotificationSettingsPrivate::MegaPushNotificationSettingsPrivate(const M
     mGlobalChatsDND = settings->mGlobalChatsDND;
 }
 
+bool MegaPushNotificationSettingsPrivate::operator==(
+    const MegaPushNotificationSettingsPrivate& other) const
+{
+    return mGlobalDND == other.mGlobalDND && mGlobalScheduleStart == other.mGlobalScheduleStart &&
+           mGlobalScheduleEnd == other.mGlobalScheduleEnd &&
+           mGlobalScheduleTimezone == other.mGlobalScheduleTimezone && mChatDND == other.mChatDND &&
+           mChatAlwaysNotify == other.mChatAlwaysNotify && mContactsDND == other.mContactsDND &&
+           mSharesDND == other.mSharesDND && mGlobalChatsDND == other.mGlobalChatsDND &&
+           mJsonInvalid == other.mJsonInvalid;
+}
+
 string MegaPushNotificationSettingsPrivate::generateJson() const
 {
     std::string json;

@@ -1339,6 +1339,7 @@ public:
     MegaPushNotificationSettingsPrivate(const std::string &settingsJSON);
     MegaPushNotificationSettingsPrivate();
     MegaPushNotificationSettingsPrivate(const MegaPushNotificationSettingsPrivate *settings);
+    bool operator==(const MegaPushNotificationSettingsPrivate& other) const;
 
     std::string generateJson() const;
     bool isValid() const;
