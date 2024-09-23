@@ -7942,12 +7942,8 @@ char* MegaApiImpl::getPrivateKey(int type)
 
 void MegaApiImpl::getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener)
 {
-    const char *email = NULL;
-    if (user)
-    {
-        email = user->getEmail();
-    }
-    getUserAttr(email, type ? type : -1, NULL, 0, listener);
+    const char* email = user ? user->getEmail() : nullptr;
+    getUserAttribute(email, type, listener);
 }
 
 bool MegaApiImpl::testAllocation(unsigned allocCount, size_t allocSize)
@@ -7975,7 +7971,50 @@ bool MegaApiImpl::testAllocation(unsigned allocCount, size_t allocSize)
 
 void MegaApiImpl::getUserAttribute(const char* email_or_handle, int type, MegaRequestListener *listener)
 {
-    getUserAttr(email_or_handle, type ? type : -1, NULL, 0, listener);
+    // allow only types documented to be valid
+    switch (type)
+    {
+        case ATTR_FIRSTNAME:
+        case ATTR_LASTNAME:
+        case ATTR_AUTHRING:
+        case ATTR_LAST_INT:
+        case ATTR_ED25519_PUBK:
+        case ATTR_CU25519_PUBK:
+        case ATTR_KEYRING:
+        case ATTR_SIG_RSA_PUBK:
+        case ATTR_SIG_CU255_PUBK:
+        case ATTR_LANGUAGE:
+        case ATTR_PWD_REMINDER:
+        case ATTR_DISABLE_VERSIONS:
+        case ATTR_CONTACT_LINK_VERIFICATION:
+        case ATTR_RICH_PREVIEWS:
+        case ATTR_RUBBISH_TIME:
+        case ATTR_LAST_PSA:
+        case ATTR_STORAGE_STATE:
+        case ATTR_GEOLOCATION:
+        case ATTR_CAMERA_UPLOADS_FOLDER:
+        case ATTR_MY_CHAT_FILES_FOLDER:
+        case ATTR_PUSH_SETTINGS:
+        case ATTR_ALIAS:
+        case ATTR_DEVICE_NAMES:
+        case ATTR_MY_BACKUPS_FOLDER:
+        case ATTR_COOKIE_SETTINGS:
+        case ATTR_JSON_SYNC_CONFIG_DATA:
+        case ATTR_NO_CALLKIT:
+        case ATTR_APPS_PREFS:
+        case ATTR_CC_PREFS:
+        case ATTR_VISIBLE_WELCOME_DIALOG:
+        case ATTR_VISIBLE_TERMS_OF_SERVICE:
+        case ATTR_PWM_BASE:
+        case ATTR_LAST_READ_NOTIFICATION:
+        case ATTR_LAST_ACTIONED_BANNER:
+        // undocumented types, allowed only for testing:
+        case ATTR_KEYS:
+            getUserAttr(email_or_handle, type, nullptr, 0, listener);
+            break;
+        default:
+            getUserAttr(email_or_handle, ATTR_UNKNOWN, nullptr, 0, listener);
+    }
 }
 
 void MegaApiImpl::getChatUserAttribute(const char *email_or_handle, int type, const char *ph, MegaRequestListener *listener)
@@ -20790,8 +20829,12 @@ void MegaApiImpl::getNodeAttribute(MegaNode* node, int type, const char* dstFile
 
 error MegaApiImpl::performRequest_getAttrUser(MegaRequestPrivate* request)
 {
-            const char* value = request->getFile();
             attr_t type = static_cast<attr_t>(request->getParamType());
+            if (type == ATTR_UNKNOWN)
+            {
+                return API_EARGS;
+            }
+            const char* value = request->getFile();
             const char *email = request->getEmail();
             const char *ph = request->getSessionKey();
 

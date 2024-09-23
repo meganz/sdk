@@ -13205,6 +13205,8 @@ class MegaApi
          * one of these characters, the file will be downloaded to a file in that path.
          *
          * @param listener MegaRequestListener to track this request
+         *
+         * @see MegaApi::setAvatar
          */
         void getUserAvatar(MegaUser* user, const char *dstFilePath, MegaRequestListener *listener = NULL);
 
@@ -13224,6 +13226,8 @@ class MegaApi
          * one of these characters, the file will be downloaded to a file in that path.
          *
          * @param listener MegaRequestListener to track this request
+         *
+         * @see MegaApi::setAvatar
          */
         void getUserAvatar(const char *email_or_handle, const char *dstFilePath, MegaRequestListener *listener = NULL);
 
@@ -13241,6 +13245,8 @@ class MegaApi
          * one of these characters, the file will be downloaded to a file in that path.
          *
          * @param listener MegaRequestListener to track this request
+         *
+         * @see MegaApi::setAvatar
          */
         void getUserAvatar(const char *dstFilePath, MegaRequestListener *listener = NULL);
 
@@ -13340,10 +13346,14 @@ class MegaApi
          * Get the password-reminder-dialog information (private, non-encrypted)
          * MegaApi::USER_ATTR_DISABLE_VERSIONS = 16
          * Get whether user has versions disabled or enabled (private, non-encrypted)
+         * MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION = 17
+         * Get whether user needs contact link verification (private)
          * MegaApi::USER_ATTR_RICH_PREVIEWS = 18
          * Get whether user generates rich-link messages or not (private)
          * MegaApi::USER_ATTR_RUBBISH_TIME = 19
          * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+         * MegaApi::USER_ATTR_LAST_PSA = 20
+         * Get the ID of last PSA seen by the user (private)
          * MegaApi::USER_ATTR_STORAGE_STATE = 21
          * Get the state of the storage (private non-encrypted)
          * MegaApi::USER_ATTR_GEOLOCATION = 22
@@ -13366,6 +13376,20 @@ class MegaApi
          * Get name and key to cypher sync-configs file
          * MegaApi::USER_ATTR_NO_CALLKIT = 36
          * Get whether user has iOS CallKit disabled or enabled (private, non-encrypted)
+         * MegaApi::USER_ATTR_APPS_PREFS = 38
+         * Get app preferences (private)
+         * MegaApi::USER_ATTR_CC_PREFS = 39
+         * Get preferences for consumed content (private)
+         * MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG = 40
+         * Get visibility for welcome dialog (private)
+         * MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE = 41
+         * Get visibility for Terms of Service (private)
+         * MegaApi::USER_ATTR_PWM_BASE = 42
+         * Get Password Manager Base (private)
+         * MegaApi::USER_ATTR_LAST_READ_NOTIFICATION = 44
+         * Get last read notification (private)
+         * MegaApi::USER_ATTR_LAST_ACTIONED_BANNER = 45
+         * Get last actioned banner (private)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -13428,37 +13452,7 @@ class MegaApi
          * @param email_or_handle Email or user handle (Base64 encoded) to get the attribute.
          * If this parameter is set to NULL, the attribute is obtained for the active account.
          * @param type Attribute type
-         *
-         * Valid values are:
-         *
-         * MegaApi::USER_ATTR_FIRSTNAME = 1
-         * Get the firstname of the user (public)
-         * MegaApi::USER_ATTR_LASTNAME = 2
-         * Get the lastname of the user (public)
-         * MegaApi::USER_ATTR_AUTHRING = 3
-         * Get the authentication ring of the user (private)
-         * MegaApi::USER_ATTR_LAST_INTERACTION = 4
-         * Get the last interaction of the contacts of the user (private)
-         * MegaApi::USER_ATTR_ED25519_PUBLIC_KEY = 5
-         * Get the public key Ed25519 of the user (public)
-         * MegaApi::USER_ATTR_CU25519_PUBLIC_KEY = 6
-         * Get the public key Cu25519 of the user (public)
-         * MegaApi::USER_ATTR_KEYRING = 7
-         * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
-         * MegaApi::USER_ATTR_SIG_RSA_PUBLIC_KEY = 8
-         * Get the signature of RSA public key of the user (public)
-         * MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY = 9
-         * Get the signature of Cu25519 public key of the user (public)
-         * MegaApi::USER_ATTR_LANGUAGE = 14
-         * Get the preferred language of the user (private, non-encrypted)
-         * MegaApi::USER_ATTR_PWD_REMINDER = 15
-         * Get the password-reminder-dialog information (private, non-encrypted)
-         * MegaApi::USER_ATTR_DISABLE_VERSIONS = 16
-         * Get whether user has versions disabled or enabled (private, non-encrypted)
-         * MegaApi::USER_ATTR_RUBBISH_TIME = 19
-         * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
-         * MegaApi::USER_ATTR_STORAGE_STATE = 21
-         * Get the state of the storage (private non-encrypted)
+         * Valid values are the same as the ones in the previous overload.
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -13480,43 +13474,7 @@ class MegaApi
          * - MegaRequest::getMegaStringMap - Returns the value for private attributes
          *
          * @param type Attribute type
-         *
-         * Valid values are:
-         *
-         * MegaApi::USER_ATTR_FIRSTNAME = 1
-         * Get the firstname of the user (public)
-         * MegaApi::USER_ATTR_LASTNAME = 2
-         * Get the lastname of the user (public)
-         * MegaApi::USER_ATTR_AUTHRING = 3
-         * Get the authentication ring of the user (private)
-         * MegaApi::USER_ATTR_LAST_INTERACTION = 4
-         * Get the last interaction of the contacts of the user (private)
-         * MegaApi::USER_ATTR_ED25519_PUBLIC_KEY = 5
-         * Get the public key Ed25519 of the user (public)
-         * MegaApi::USER_ATTR_CU25519_PUBLIC_KEY = 6
-         * Get the public key Cu25519 of the user (public)
-         * MegaApi::USER_ATTR_KEYRING = 7
-         * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
-         * MegaApi::USER_ATTR_SIG_RSA_PUBLIC_KEY = 8
-         * Get the signature of RSA public key of the user (public)
-         * MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY = 9
-         * Get the signature of Cu25519 public key of the user (public)
-         * MegaApi::USER_ATTR_LANGUAGE = 14
-         * Get the preferred language of the user (private, non-encrypted)
-         * MegaApi::USER_ATTR_PWD_REMINDER = 15
-         * Get the password-reminder-dialog information (private, non-encrypted)
-         * MegaApi::USER_ATTR_DISABLE_VERSIONS = 16
-         * Get whether user has versions disabled or enabled (private, non-encrypted)
-         * MegaApi::USER_ATTR_RICH_PREVIEWS = 18
-         * Get whether user generates rich-link messages or not (private)
-         * MegaApi::USER_ATTR_RUBBISH_TIME = 19
-         * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
-         * MegaApi::USER_ATTR_STORAGE_STATE = 21
-         * Get the state of the storage (private non-encrypted)
-         * MegaApi::USER_ATTR_GEOLOCATION = 22
-         * Get whether the user has enabled send geolocation messages (private)
-         * MegaApi::USER_ATTR_PUSH_SETTINGS = 23
-         * Get the settings for push notifications (private non-encrypted)
+         * Valid values are the same as the ones in the previous overload.
          *
          * @param listener MegaRequestListener to track this request
          */
