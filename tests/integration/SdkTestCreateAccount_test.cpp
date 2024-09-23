@@ -23,16 +23,16 @@ class SdkTestCreateAccount: public SdkTest, virtual public ::testing::WithParamI
 public:
     void TearDown() override;
 
-    void doCreateAccountTest(const string& testName, int clientType);
+    void doCreateAccountTest(const std::string& testName, int clientType);
 };
 
-std::string getLinkFromMailbox(const string& exe, // Python
-                               const string& script, // email_processor.py
-                               const string& realAccount, // user
-                               const string& realPswd, // password for user@host.domain
-                               const string& toAddr, // user+testnewaccount@host.domain
-                               const string& intent, // confirm / delete
-                               const chrono::steady_clock::time_point& timeOfEmail)
+std::string getLinkFromMailbox(const std::string& exe, // Python
+                               const std::string& script, // email_processor.py
+                               const std::string& realAccount, // user
+                               const std::string& realPswd, // password for user@host.domain
+                               const std::string& toAddr, // user+testnewaccount@host.domain
+                               const std::string& intent, // confirm / delete
+                               const std::chrono::steady_clock::time_point& timeOfEmail)
 {
     using namespace std::chrono; // Just for this little scope
 
@@ -123,7 +123,7 @@ void SdkTestCreateAccount::TearDown()
  *  - Extract cancel account link from the mailbox
  *  - Use the link to cancel the account
  */
-void SdkTestCreateAccount::doCreateAccountTest(const string& testName, int clientType)
+void SdkTestCreateAccount::doCreateAccountTest(const std::string& testName, int clientType)
 {
     LOG_info << "___TEST " << testName << "____";
 
@@ -388,10 +388,10 @@ void SdkTestCreateAccount::doCreateAccountTest(const string& testName, int clien
 
     // Request cancel account link
     LOG_debug << testName << ": Start deleting account";
-    chrono::time_point timeOfDeleteEmail = chrono::steady_clock::now();
+    std::chrono::time_point timeOfDeleteEmail = std::chrono::steady_clock::now();
     {
         LOG_debug << testName << ": Request account cancel";
-        unique_ptr<RequestTracker> cancelLinkTracker =
+        std::unique_ptr<RequestTracker> cancelLinkTracker =
             std::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->cancelAccount(cancelLinkTracker.get());
         ASSERT_EQ(API_OK, cancelLinkTracker->waitForResult())
