@@ -1,5 +1,5 @@
 
-APP_PLATFORM=android-21
+APP_PLATFORM=android-26
 
 NDK_TOOLCHAIN_VERSION=clang
 APP_STL := c++_shared

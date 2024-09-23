@@ -6,7 +6,7 @@ AndroidStudio project for developing a MEGA app for Android
 
 * [Android Studio and SDK tools](https://developer.android.com/studio)
 
-* [Android NDK](https://developer.android.com/ndk/downloads): this is only required if you want to build the native libraries and Java bindings by yourself. **Required version of NDK**: r21d or newer.
+* [Android NDK](https://developer.android.com/ndk/downloads): this is only required if you want to build the native libraries and Java bindings by yourself. **Required version of NDK**: 27.1.12297006 or newer.
 
 ## Build the third party libraries and the MEGA SDK
 
