@@ -73,7 +73,13 @@ using namespace mega;
 }
 
 - (nullable NSString *)eventString {
-    return self.megaEvent->getEventString() ? [[NSString alloc] initWithUTF8String:self.megaEvent->getEventString()]  : nil;
+    if (self.megaEvent) {
+        const char *val = self.megaEvent->getEventString();
+        if (val) {
+            return [NSString stringWithUTF8String:val];
+        }
+    }
+    return nil;
 }
 
 
