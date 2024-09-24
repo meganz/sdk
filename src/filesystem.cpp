@@ -2009,17 +2009,6 @@ bool LocalPath::related(const LocalPath& other) const
     return other.isContainingPathOf(*this);
 }
 
-ScopedLengthRestore::ScopedLengthRestore(LocalPath& p)
-    : path(p)
-    , length(path.localpath.size())
-{
-    assert(path.invariant());
-}
-ScopedLengthRestore::~ScopedLengthRestore()
-{
-    path.localpath.resize(length);
-};
-
 #ifdef ENABLE_SYNC
 bool Notification::fromDebris(const Sync& sync) const
 {

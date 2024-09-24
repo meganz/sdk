@@ -17,26 +17,26 @@
 */
 #include "logger.h"
 
-#include "megaapi_impl.h"
 #include "mega/filesystem.h"
+#include "mega/scoped_helpers.h"
 #include "mega/utils.h"
+#include "megaapi_impl.h"
 
-#include <zlib.h>
-
-#include <cstring>
-#include <iomanip>
-#include <string>
-#include <fstream>
-#include <iostream>
-#include <sstream>
-#include <ctime>
-#include <regex>
 #include <assert.h>
-#include <map>
 #include <chrono>
-#include <thread>
 #include <condition_variable>
+#include <cstring>
+#include <ctime>
+#include <fstream>
 #include <future>
+#include <iomanip>
+#include <iostream>
+#include <map>
+#include <regex>
+#include <sstream>
+#include <string>
+#include <thread>
+#include <zlib.h>
 
 #define LOG_TIME_CHARS 25
 #define LOG_LEVEL_CHARS 5
@@ -133,15 +133,6 @@ struct LogLinkedList
 
 class MegaFileLoggerLoggingThread
 {
-    template <typename ExitCallback>
-    class ScopeGuard
-    {
-        ExitCallback mExitCb;
-    public:
-        ScopeGuard(ExitCallback&& exitCb) : mExitCb{std::move(exitCb)} { }
-        ~ScopeGuard() { mExitCb(); }
-    };
-
     MegaFileLogger &mLogger;
     std::unique_ptr<std::thread> mLogThread;
     std::condition_variable mLogConditionVariable;
@@ -527,8 +518,9 @@ private:
                 }
             }
         });
+
         // Ensure we finish and wait for zipping thread
-        ScopeGuard<std::function<void(void)>> guard(
+        auto guard = makeScopedDestructor(
             [&]()
             {
                 zippingThreadExit.store(true);

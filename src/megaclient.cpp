@@ -20,19 +20,21 @@
  */
 
 #include "mega.h"
+#include "mega/heartbeats.h"
 #include "mega/mediafileattribute.h"
+#include "mega/scoped_helpers.h"
+#include "mega/testhooks.h"
+
+#include <cryptopp/hkdf.h> // required for derive key of master key
+#include <mega/fuse/common/normalized_path.h>
+
+#include <algorithm>
 #include <cctype>
 #include <ctime>
-#include <algorithm>
 #include <functional>
 #include <future>
 #include <iomanip>
 #include <random>
-#include <cryptopp/hkdf.h> // required for derive key of master key
-#include "mega/heartbeats.h"
-#include "mega/testhooks.h"
-
-#include <mega/fuse/common/normalized_path.h>
 
 #undef min // avoid issues with std::min and std::max
 #undef max
@@ -12655,8 +12657,9 @@ void MegaClient::loginResult(CommandLogin::Completion completion,
     if (isFullyLoggedIn)
     {
         // Capture the client's response tag as apps may require it.
-        completion = [completion = std::move(completion), tag = restag, this](error result) {
-            ScopedValue restorer(restag, tag);
+        completion = [completion = std::move(completion), tag = restag, this](error result)
+        {
+            auto restorer = makeScopedValue(restag, tag);
             completion(result);
         }; // completion
 

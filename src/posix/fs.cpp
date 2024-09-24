@@ -27,11 +27,13 @@
 #endif // ! __APPLE__
 
 #include "mega.h"
-#include <sys/utsname.h>
+#include "mega/scoped_helpers.h"
+
 #include <sys/ioctl.h>
-#include <sys/statvfs.h>
 #include <sys/resource.h>
+#include <sys/statvfs.h>
 #include <sys/types.h>
+#include <sys/utsname.h>
 #ifdef TARGET_OS_MAC
 #include "mega/osx/osxutils.h"
 #endif
@@ -1150,7 +1152,7 @@ void PosixFileSystemAccess::emptydirlocal(const LocalPath& nameParam, dev_t base
                  || *d->d_name != '.'
                  || (d->d_name[1] && (d->d_name[1] != '.' || d->d_name[2])))
                 {
-                    ScopedLengthRestore restore(name);
+                    auto restorer = makeScopedSizeRestorer(name);
 
                     name.appendWithSeparator(LocalPath::fromPlatformEncodedRelative(d->d_name), true);
 
@@ -1920,7 +1922,7 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
         result.localname = LocalPath::fromPlatformEncodedRelative(entry->d_name);
 
         // Compute this entry's absolute name.
-        ScopedLengthRestore restorer(path);
+        auto restorer = makeScopedSizeRestorer(path);
 
         path.appendWithSeparator(result.localname, false);
 
@@ -2593,7 +2595,7 @@ bool PosixDirAccess::dnext(LocalPath& path, LocalPath& name, bool followsymlinks
 
     while ((d = readdir(dp)))
     {
-        ScopedLengthRestore restore(path);
+        auto restorer = makeScopedSizeRestorer(path);
 
         if (*d->d_name != '.' || (d->d_name[1] && (d->d_name[1] != '.' || d->d_name[2])))
         {
