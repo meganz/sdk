@@ -76,7 +76,7 @@ auto makeScopedSizeRestorer(T& instance)
 // Changes the value of a specified location and returns an object that will
 // restore that location's original value when destroyed.
 template<typename T, typename U, typename = std::enable_if_t<std::is_convertible_v<U, T>>>
-auto makeScopedValue(T& location, U value)
+auto makeScopedValue(T& location, U&& value)
 {
     auto destructor = [oldValue = std::move(location), &location]()
     {
