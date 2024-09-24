@@ -1,25 +1,34 @@
 from lib.release_process import ReleaseProcess
 import re
 import tomllib
+import os
+import sys
+
+# Check number of arguments
+if len(sys.argv) < 2:
+    print("Usage: python make_another_rc.py <config_file.toml>")
+    sys.exit(1)
+
+config_file = sys.argv[1]
 
 # runtime arguments
-with open("config.toml", "rb") as f:
+with open(config_file, "rb") as f:
     args = tomllib.load(f)["make_another_rc"]
 
 # create Release process and do common init
 release = ReleaseProcess(
     args["project_name"],
-    args["gitlab_token"],
+    os.environ["GITLAB_TOKEN"],
     args["gitlab_url"],
     args["private_branch"],
 )
 
 # prerequisites for a new RC
 release.setup_project_management(
-    args["jira_url"], args["jira_user"], args["jira_password"]
+    args["jira_url"], args["jira_user"], os.environ["JIRA_PASSWORD"]
 )
-if args["slack_token"] and args["slack_channel"]:
-    release.setup_chat(args["slack_token"], args["slack_channel"])
+if os.environ["SLACK_TOKEN"] and args["slack_channel"]:
+    release.setup_chat(os.environ["SLACK_TOKEN"], args["slack_channel"])
 
 assert args["release_version"]  # "1.0.0"
 assert args["mr_description"]
