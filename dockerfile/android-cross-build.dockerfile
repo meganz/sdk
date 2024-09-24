@@ -23,9 +23,11 @@ RUN apt-get --quiet=2 update && DEBCONF_NOWARNINGS=yes apt-get --quiet=2 install
     curl \
     git \
     nasm \
+    openjdk-21-jdk \
     pkg-config \
     python3 \
     python3-pip \
+    swig \
     unzip \
     wget \
     zip \
@@ -39,6 +41,8 @@ RUN mkdir -p /mega/android-ndk && \
     rm android-ndk-r21d-linux-x86_64.zip
 ENV ANDROID_NDK_HOME=/mega/android-ndk/android-ndk-r21d
 ENV PATH=$PATH:$ANDROID_NDK_HOME
+ENV JAVA_HOME=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64
+ENV PATH=$PATH:$JAVA_HOME
 
 # Set up work directory
 WORKDIR /mega
@@ -69,6 +73,7 @@ CMD ["sh", "-c", "\
         -DVCPKG_ROOT=/mega/vcpkg \
         -DCMAKE_BUILD_TYPE=Debug \
         -DVCPKG_TARGET_TRIPLET=${VCPKG_TRIPLET} \
+        -DENABLE_JAVA_BINDINGS=ON \
         -DENABLE_SDKLIB_EXAMPLES=OFF \
         -DENABLE_SDKLIB_TESTS=OFF \
         -DUSE_FREEIMAGE=OFF \
