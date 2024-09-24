@@ -61,6 +61,8 @@ typedef NS_ENUM(NSInteger, MEGAUserChangeType) {
     MEGAUserChangeTypeBackupFolder            = 0x8000000,
     MEGAUserChangeTypeCookieSetting           = 0x10000000,
     MEGAUserChangeTypeNoCallKit               = 0x20000000,
+    MEGAUserChangeTypeAppsPrefs               = 0x40000000,
+    MEGAUserChangeTypeCCPrefs                 = 0x80000000
 };
 
 /**
