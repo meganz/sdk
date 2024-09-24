@@ -51,9 +51,9 @@ private:
 
     ThreadPool mThreadPool;
 
-    const static std::chrono::milliseconds READ_TIMEOUT;
+    static constexpr std::chrono::milliseconds READ_TIMEOUT{5000};
 
-    const static std::chrono::milliseconds WRITE_TIMEOUT;
+    static constexpr std::chrono::milliseconds WRITE_TIMEOUT{5000};
 };
 
 } // namespace

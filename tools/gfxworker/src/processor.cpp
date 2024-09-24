@@ -17,10 +17,6 @@
 namespace mega {
 namespace gfx {
 
-const std::chrono::milliseconds RequestProcessor::READ_TIMEOUT{5000};
-
-const std::chrono::milliseconds RequestProcessor::WRITE_TIMEOUT{5000};
-
 GfxProcessor::GfxProcessor()
     : mGfxProvider(std::make_unique<GfxProviderFreeImage>())
 {
