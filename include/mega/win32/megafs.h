@@ -22,6 +22,8 @@
 #ifndef FSACCESS_CLASS
 #define FSACCESS_CLASS WinFileSystemAccess
 
+#include "mega.h"
+
 #define DEBRISFOLDER "Rubbish"
 
 namespace mega {
