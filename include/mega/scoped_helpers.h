@@ -18,16 +18,12 @@ public:
         mDestructor(std::move(destructor))
     {}
 
-    ScopedDestructor(const ScopedDestructor& other) = delete;
-
     ScopedDestructor(ScopedDestructor&& other) = default;
 
     ~ScopedDestructor()
     {
         mDestructor();
     }
-
-    ScopedDestructor& operator=(const ScopedDestructor& rhs) = delete;
 
     ScopedDestructor& operator=(ScopedDestructor&& rhs) = default;
 }; // ScopedDestructor
