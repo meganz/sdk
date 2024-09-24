@@ -1,3 +1,4 @@
+import re
 from gitlab import Gitlab  # python-gitlab
 from gitlab.v4.objects import (
     CurrentUser,
@@ -200,3 +201,16 @@ class GitLabRepository:  # use gitlab API
             {"name": name, "tag_name": target, "description": notes}
         )
         assert release is not None
+
+    def get_last_rc(self, release_name: str) -> int:
+        re_pattern = "^" + re.escape(f"{release_name}-rc.") + r"(\d+)$"
+        rc = 0
+        tag_list = self._project.tags.list(get_all=True)
+        for t in tag_list:
+            if (
+                isinstance(t.name, str)
+                and (result := re.search(re_pattern, t.name))
+                and int(result.group(1)) > rc
+            ):
+                rc = int(result.group(1))
+        return rc

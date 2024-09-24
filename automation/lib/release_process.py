@@ -512,3 +512,84 @@ class ReleaseProcess:
         self._local_repo.push_branch(private_remote_name, new_branch)
         print(f"v Branch {new_branch} pushed", flush=True)
         self._merge_local_changes(new_branch, target_branch)
+
+    ####################
+    ##  RC
+    ####################
+
+    def set_release_version_for_new_rc(self, version: str):
+        assert not self._new_version
+        assert self._jira is not None
+        self._jira.setup_release(self._version_v_prefixed)
+        [exists, was_released, app_descr] = self._jira.get_version_info(version)
+        assert exists, f"Could not find version {version}, for a new RC"
+        assert not was_released, "Cannot make a new RC for a released version"
+
+        self._new_version = version
+        self._version_v_prefixed = f"v{self._new_version}"
+
+        return app_descr
+
+    def create_branch_from_last_rc(self, remote_name: str, branch_name: str) -> int:
+        rc = self._remote_private_repo.get_last_rc(self._version_v_prefixed)
+        assert rc, f"No RC found for version {self._new_version}"
+
+        print("Creating branch", branch_name, flush=True)
+        self._remote_private_repo.create_branch(
+            branch_name, f"{self._version_v_prefixed}-rc.{rc}"
+        )
+        print("v Created branch", branch_name, flush=True)
+        self._get_branch_locally(remote_name, branch_name)
+        print(f"Current branch is now {branch_name}.", flush=True)
+
+        return rc
+
+    def wait_for_local_changes_to_be_applied(self) -> bool:
+        print("Apply changes locally.", flush=True)
+        user_feedback = ""
+        while user_feedback not in ("DONE!", "Cancel"):
+            user_feedback = input(
+                'Type "DONE!" or "Cancel" here when done and hit Enter: '
+            )
+        if user_feedback == "DONE!":
+            return True
+
+        print("Process canceled", flush=True)
+        return False
+
+    def push_branch(self, remote_name: str, branch_name: str):
+        print("Pushing branch", branch_name, flush=True)
+        assert self._local_repo is not None
+        self._local_repo.push_branch(remote_name, branch_name)
+        print("v Pushed branch", branch_name, flush=True)
+
+    def open_private_mr(
+        self,
+        source_branch: str,
+        target_branch: str,
+        description: str,
+        remove_source: bool,
+    ) -> int:
+        print(
+            f"Opening MR to merge {source_branch} into {target_branch}",
+            flush=True,
+        )
+        mr_id, mr_url = self._remote_private_repo.open_mr(
+            description,
+            source_branch,
+            target_branch,
+            remove_source,
+            squash=False,
+        )
+        assert mr_id, f"Failed to open MR to merge {source_branch} into {target_branch}"
+        print(f"v Opened MR to merge {source_branch} into {target_branch}", flush=True)
+
+        # Request MR approval
+        self._request_mr_approval(
+            f"`{self._project_name}` patch `{source_branch}` to {target_branch}:\n{mr_url}"
+        )
+
+        return mr_id
+
+    def merge_private_mr(self, mr_id: int):
+        assert self._remote_private_repo.merge_mr(mr_id, 3600)
