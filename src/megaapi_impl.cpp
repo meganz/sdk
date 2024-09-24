@@ -29650,7 +29650,7 @@ MegaFolderUploadController::scanFolder_result MegaFolderUploadController::scanFo
 
         megaApi->fireOnFolderTransferUpdate(transfer, MegaTransfer::STAGE_SCAN, foldercount, 0, filecount, &localPath, &localname);
 
-        auto restoreLen = makeScopedLengthRestorer(localPath);
+        auto restoreLen = makeScopedSizeRestorer(localPath);
         localPath.appendWithSeparator(localname, false);
         if (dirEntryType == FILENODE)
         {
@@ -30539,7 +30539,7 @@ void MegaScheduledCopyController::onFolderAvailable(MegaHandle handle)
 
             while (da->dnext(localPath, localname, false))
             {
-                auto restoreLen = makeScopedLengthRestorer(localPath);
+                auto restoreLen = makeScopedSizeRestorer(localPath);
                 localPath.appendWithSeparator(localname, false);
 
                 //TODO: add exclude filters here
@@ -31215,7 +31215,7 @@ MegaFolderDownloadController::scanFolder_result MegaFolderDownloadController::sc
         }
         else
         {
-            auto restoreLen = makeScopedLengthRestorer(localpath);
+            auto restoreLen = makeScopedSizeRestorer(localpath);
             localpath.appendWithSeparator(LocalPath::fromRelativeName(child->getName(), *fsaccess, fsType), true);
             scanFolder_result result = scanFolder(child, localpath, fsType, fileAddedCount);
 
@@ -31317,7 +31317,7 @@ bool MegaFolderDownloadController::genDownloadTransfersForFiles(
 
         // get file local path
         auto& fileLocalPath = folder.localPath;
-        auto restoreLen = makeScopedLengthRestorer(fileLocalPath);
+        auto restoreLen = makeScopedSizeRestorer(fileLocalPath);
         fileLocalPath.appendWithSeparator(LocalPath::fromRelativeName(fileNode->getName(), *fsaccess, fsType), true);
 
         auto decision = CollisionChecker::Result::Download;

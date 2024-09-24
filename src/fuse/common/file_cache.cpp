@@ -326,7 +326,7 @@ void FileCache::current()
         if (mContext.mInodeDB.exists(id))
             continue;
 
-        auto restorer = makeScopedLengthRestorer(path);
+        auto restorer = makeScopedSizeRestorer(path);
 
         path.appendWithSeparator(name, true);
 

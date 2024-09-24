@@ -53,7 +53,7 @@ auto makeScopedDestructor(Function function, Arguments&&... arguments)
 // Changes the length (size) of a sequence and returns an object that will
 // restore that sequence's original length when destroyed.
 template<typename T>
-auto makeScopedLengthRestorer(T& instance, std::size_t newSize)
+auto makeScopedSizeRestorer(T& instance, std::size_t newSize)
 {
     auto oldSize = SizeTraits<T>::size(instance);
 
@@ -68,9 +68,9 @@ auto makeScopedLengthRestorer(T& instance, std::size_t newSize)
 
 // Convenience specialization of the above.
 template<typename T>
-auto makeScopedLengthRestorer(T& instance)
+auto makeScopedSizeRestorer(T& instance)
 {
-    return makeScopedLengthRestorer(instance, SizeTraits<T>::size(instance));
+    return makeScopedSizeRestorer(instance, SizeTraits<T>::size(instance));
 }
 
 // Changes the value of a specified location and returns an object that will

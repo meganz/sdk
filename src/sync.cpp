@@ -100,9 +100,9 @@ string changeDetectionMethodToString(const ChangeDetectionMethod method)
 
 auto makeScopedSyncPathRestorer(SyncPath& path)
 {
-    return std::make_tuple(makeScopedLengthRestorer(path.cloudPath),
-                           makeScopedLengthRestorer(path.localPath),
-                           makeScopedLengthRestorer(path.syncPath));
+    return std::make_tuple(makeScopedSizeRestorer(path.cloudPath),
+                           makeScopedSizeRestorer(path.localPath),
+                           makeScopedSizeRestorer(path.syncPath));
 }
 
 bool SyncPath::appendRowNames(const SyncRow& row, FileSystemType filesystemType)
@@ -824,7 +824,7 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
             // l will be added in its place.  Later entries were the ones used by the old algorithm
         }
 
-        auto restoreLen = makeScopedLengthRestorer(localpath);
+        auto restoreLen = makeScopedSizeRestorer(localpath);
 
         localpath.appendWithSeparator(l->localname, true);
 

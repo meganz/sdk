@@ -1370,7 +1370,7 @@ TEST(ScopedHelpers, ScopedLengthRestorer)
         auto originalSize = SizeTraits<LocalPath>::size(x);
 
         {
-            auto r = makeScopedLengthRestorer(x);
+            auto r = makeScopedSizeRestorer(x);
             x.appendWithSeparator(LocalPath::fromRelativePath("y"), true);
             EXPECT_NE(SizeTraits<LocalPath>::size(x), originalSize);
         }
@@ -1385,7 +1385,7 @@ TEST(ScopedHelpers, ScopedLengthRestorer)
         auto originalSize = x.size();
 
         {
-            auto r = makeScopedLengthRestorer(x);
+            auto r = makeScopedSizeRestorer(x);
             x.emplace_back("bar");
         }
 
@@ -1397,7 +1397,7 @@ TEST(ScopedHelpers, ScopedLengthRestorer)
         std::string x;
 
         {
-            auto r = makeScopedLengthRestorer(x, 32);
+            auto r = makeScopedSizeRestorer(x, 32);
             EXPECT_EQ(x.size(), 32);
         }
 
