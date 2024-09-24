@@ -417,8 +417,8 @@ public:
 
         SdkTestTransferStats& operator=(const TransferSlotStats& transferSlotStats)
         {
-            numFailedRequests = transferSlotStats.numFailedRequests;
-            numTotalRequests = transferSlotStats.numTotalRequests;
+            numFailedRequests = transferSlotStats.mNumFailedRequests;
+            numTotalRequests = transferSlotStats.mNumTotalRequests;
             failedRequestRatio = transferSlotStats.failedRequestRatio();
             return *this;
         }

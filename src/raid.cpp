@@ -1173,8 +1173,17 @@ public:
 
     m_off_t transferred(const std::shared_ptr<HttpReqXfer>& req) const
     {
-        if (!mStarted) return false;
+        if (!mStarted)
+            return 0;
         return req->transferred(mClient);
+    }
+
+    bool processRequestLatency(const std::shared_ptr<HttpReqXfer>& req)
+    {
+        if (!mStarted)
+            return false;
+        mTSlot->processRequestLatency(req);
+        return true;
     }
 
     /* CloudRaid functionality */
@@ -1361,6 +1370,13 @@ m_off_t CloudRaid::transferred(const std::shared_ptr<HttpReqXfer>& req) const
     if (!mShown)
         return 0;
     return mPimpl()->transferred(req);
+}
+
+bool CloudRaid::processRequestLatency(const std::shared_ptr<HttpReqXfer>& req)
+{
+    if (!mShown)
+        return false;
+    return mPimpl()->processRequestLatency(req);
 }
 
 bool CloudRaid::init(TransferSlot* tslot, MegaClient* client, int connections)

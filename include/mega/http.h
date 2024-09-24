@@ -529,6 +529,9 @@ public:
 struct MEGA_API HttpReqXfer : public HttpReq
 {
     unsigned size;
+    double mStartTransferTime{-1};
+    double mConnectTime{-1};
+    bool isLatencyProcessed{};
 
     virtual void prepare(const char*, SymmCipher*, uint64_t, m_off_t, m_off_t) = 0;
 

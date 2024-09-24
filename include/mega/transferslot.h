@@ -48,10 +48,22 @@ public:
 // Transfer stats
 struct TransferSlotStats
 {
-    m_off_t numFailedRequests{};
-    m_off_t numTotalRequests{};
+    m_off_t mNumFailedRequests{};
+    m_off_t mNumTotalRequests{};
+    double mTotalStartTransferTime{};
+    double mTotalConnectTime{};
+    m_off_t mNumRequestsWithCalculatedLatency{};
 
+    // Ratio between failed requests and total requests.
     double failedRequestRatio() const;
+    // Time taken to establish a connection
+    // Includes DNS resolution, TCP handshake.
+    m_off_t averageLatency() const;
+    // Time taken to start receiving the first byte of data
+    // Includes DNS resolution, TCP handshake,
+    // SSL handshake, server-side processing.
+    // This value is used for logging information only.
+    m_off_t averageStartTransferTime() const;
 };
 
 class TransferDbCommitter;
@@ -143,6 +155,9 @@ struct MEGA_API TransferSlot
     // Error: the ErrorCode. If different from API_OK, it means that the transfer is considered as failed and transfer->failed() should be called.
     // dstime: the backoff for the transfer->failed() call. This value doesn't shadow the backoff param, as it can be different and used on different parts of the code.
     std::pair<error, dstime> processRequestFailure(MegaClient* client, const std::shared_ptr<HttpReqXfer>& httpReq, dstime& backoff, int channel);
+
+    // Process the latency values for a given request.
+    void processRequestLatency(const std::shared_ptr<HttpReqXfer>& req);
 
     // Process CloudRaid Request
     std::pair<error, dstime> processRaidReq(size_t connection, m_off_t& raidReqProgress);

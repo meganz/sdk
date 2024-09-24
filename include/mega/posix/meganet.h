@@ -210,6 +210,8 @@ public:
     bool doio(void) override;
     bool multidoio(CURLM *curlmhandle);
 
+    void measureLatency(CURL* easy_handle, HttpReq* req);
+
     void addevents(Waiter*, int) override;
 
     void setuseragent(string*) override;
