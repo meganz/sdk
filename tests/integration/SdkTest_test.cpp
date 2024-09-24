@@ -19,15 +19,16 @@
  * program.
  */
 
-#include "sdk_test_utils.h"
+#include "SdkTest_test.h"
+
 #include "../stdfs.h"
 #include "env_var_accounts.h"
-#include "SdkTest_test.h"
-#include "gtest_common.h"
-#include "mega/types.h"
-#include "mega/testhooks.h"
-
 #include "gmock/gmock-matchers.h"
+#include "gtest_common.h"
+#include "mega/scoped_helpers.h"
+#include "mega/testhooks.h"
+#include "mega/types.h"
+#include "sdk_test_utils.h"
 
 #include <algorithm>
 #include <cctype>

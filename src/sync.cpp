@@ -26,12 +26,13 @@
 #include "mega.h"
 
 #ifdef ENABLE_SYNC
-#include "mega/sync.h"
-#include "mega/megaapp.h"
-#include "mega/transfer.h"
-#include "mega/megaclient.h"
 #include "mega/base64.h"
 #include "mega/heartbeats.h"
+#include "mega/megaapp.h"
+#include "mega/megaclient.h"
+#include "mega/scoped_helpers.h"
+#include "mega/sync.h"
+#include "mega/transfer.h"
 
 namespace mega {
 

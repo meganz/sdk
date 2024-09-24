@@ -16,26 +16,26 @@
  * program.
  */
 
-#include <memory>
-#include <numeric>
-
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
-
-#include <mega/megaclient.h>
-#include <mega/megaapp.h>
-#include <mega/types.h>
-#include <mega/heartbeats.h>
-#include <mega/sync.h>
-#include <mega/filesystem.h>
-
 #include "constants.h"
-#include "FsNode.h"
 #include "DefaultedDbTable.h"
 #include "DefaultedDirAccess.h"
 #include "DefaultedFileAccess.h"
 #include "DefaultedFileSystemAccess.h"
+#include "FsNode.h"
 #include "utils.h"
+
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
+#include <mega/filesystem.h>
+#include <mega/heartbeats.h>
+#include <mega/megaapp.h>
+#include <mega/megaclient.h>
+#include <mega/scoped_helpers.h>
+#include <mega/sync.h>
+#include <mega/types.h>
+
+#include <memory>
+#include <numeric>
 
 #ifdef ENABLE_SYNC
 

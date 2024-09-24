@@ -27,11 +27,13 @@
 #endif // ! __APPLE__
 
 #include "mega.h"
-#include <sys/utsname.h>
+#include "mega/scoped_helpers.h"
+
 #include <sys/ioctl.h>
-#include <sys/statvfs.h>
 #include <sys/resource.h>
+#include <sys/statvfs.h>
 #include <sys/types.h>
+#include <sys/utsname.h>
 #ifdef TARGET_OS_MAC
 #include "mega/osx/osxutils.h"
 #endif

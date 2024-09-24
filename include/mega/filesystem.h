@@ -176,7 +176,8 @@ class MEGA_API LocalPath
     bool isFromRoot = false;
 
     // only functions that need to call the OS or 3rdParty libraries - normal code should have no access (or accessor) to localpath
-    friend struct ScopedLengthRestorerTraits<LocalPath>;
+    friend struct ResizeTraits<LocalPath>;
+    friend struct SizeTraits<LocalPath>;
     friend class ScopedSyncPathRestore;
     friend class WinFileSystemAccess;
     friend class PosixFileSystemAccess;
@@ -375,18 +376,22 @@ public:
 };
 
 template<>
-struct ScopedLengthRestorerTraits<LocalPath>
+struct ResizeTraits<LocalPath>
+{
+    static void resize(LocalPath& instance, std::size_t newSize)
+    {
+        instance.localpath.resize(newSize);
+    }
+}; // ResizeTraits<T>
+
+template<>
+struct SizeTraits<LocalPath>
 {
     static std::size_t size(const LocalPath& instance)
     {
         return instance.localpath.size();
     }
-
-    static void resize(LocalPath& instance, std::size_t newSize)
-    {
-        instance.localpath.resize(newSize);
-    }
-}; // ScopedLengthRestoreTraits<LocalPath>
+}; // SizeTraits<T>
 
 inline std::ostream& operator<<(std::ostream& os, const LocalPath& p)
 {

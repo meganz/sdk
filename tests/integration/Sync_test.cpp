@@ -21,9 +21,10 @@
 
 // Many of these tests are still being worked on.
 
-#include "test.h"
 #include "env_var_accounts.h"
 #include "gtest_common.h"
+#include "mega/scoped_helpers.h"
+#include "test.h"
 
 #define DEFAULTWAIT std::chrono::seconds(20)
 

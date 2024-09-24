@@ -16,20 +16,20 @@
  * program.
  */
 
-#include <array>
-#include <tuple>
-
-#include <gtest/gtest.h>
-
-#include <mega/base64.h>
-#include <mega/filesystem.h>
-#include <mega/utils.h>
 #include "megafs.h"
 
+#include <gtest/gtest.h>
+#include <mega/base64.h>
 #include <mega/db.h>
 #include <mega/db/sqlite.h>
+#include <mega/filesystem.h>
 #include <mega/json.h>
 #include <mega/process.h>
+#include <mega/scoped_helpers.h>
+#include <mega/utils.h>
+
+#include <array>
+#include <tuple>
 
 TEST(utils, readLines)
 {
@@ -1366,18 +1366,16 @@ TEST(ScopedHelpers, ScopedLengthRestorer)
 {
     // Test with local path.
     {
-        using Traits = ScopedLengthRestorerTraits<LocalPath>;
-
         auto x = LocalPath::fromAbsolutePath("x");
-        auto originalSize = Traits::size(x);
+        auto originalSize = SizeTraits<LocalPath>::size(x);
 
         {
             auto r = makeScopedLengthRestorer(x);
             x.appendWithSeparator(LocalPath::fromRelativePath("y"), true);
-            EXPECT_NE(Traits::size(x), originalSize);
+            EXPECT_NE(SizeTraits<LocalPath>::size(x), originalSize);
         }
 
-        EXPECT_EQ(Traits::size(x), originalSize);
+        EXPECT_EQ(SizeTraits<LocalPath>::size(x), originalSize);
     }
 
     // Test with vector.

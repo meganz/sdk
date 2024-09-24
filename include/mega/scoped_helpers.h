@@ -1,8 +1,9 @@
 #pragma once
 
+#include <mega/traits.h>
+
 #include <functional>
 #include <memory>
-#include <type_traits>
 
 namespace mega
 {
@@ -27,21 +28,6 @@ public:
 
     ScopedDestructor& operator=(ScopedDestructor&& rhs) = default;
 }; // ScopedDestructor
-
-// Needed so we can customize how we set and retrieve an object's size.
-template<typename T>
-struct ScopedLengthRestorerTraits
-{
-    static void resize(T& instance, std::size_t newSize)
-    {
-        instance.resize(newSize);
-    }
-
-    static std::size_t size(const T& instance)
-    {
-        return instance.size();
-    }
-}; // ScopedLengthRestorerTraits<T>
 
 // Returns an object that executes function when destroyed.
 template<typename Function, typename = std::enable_if_t<std::is_invocable_v<Function>>>
@@ -69,16 +55,14 @@ auto makeScopedDestructor(Function function, Arguments&&... arguments)
 template<typename T>
 auto makeScopedLengthRestorer(T& instance, std::size_t newSize)
 {
-    using Traits = ScopedLengthRestorerTraits<T>;
+    auto oldSize = SizeTraits<T>::size(instance);
 
-    auto oldSize = Traits::size(instance);
-
-    Traits::resize(instance, newSize);
+    ResizeTraits<T>::resize(instance, newSize);
 
     return makeScopedDestructor(
         [&instance, oldSize]()
         {
-            Traits::resize(instance, oldSize);
+            ResizeTraits<T>::resize(instance, oldSize);
         });
 }
 
@@ -86,9 +70,7 @@ auto makeScopedLengthRestorer(T& instance, std::size_t newSize)
 template<typename T>
 auto makeScopedLengthRestorer(T& instance)
 {
-    using Traits = ScopedLengthRestorerTraits<T>;
-
-    return makeScopedLengthRestorer(instance, Traits::size(instance));
+    return makeScopedLengthRestorer(instance, SizeTraits<T>::size(instance));
 }
 
 // Changes the value of a specified location and returns an object that will

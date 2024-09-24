@@ -27,9 +27,10 @@
 
 #define USE_VARARGS
 #define PREFER_STDARG
-#include "megaapi_impl.h"
-#include "megaapi.h"
 #include "mega/mediafileattribute.h"
+#include "mega/scoped_helpers.h"
+#include "megaapi.h"
+#include "megaapi_impl.h"
 
 #ifdef ENABLE_ISOLATED_GFX
 #include "mega/gfx/isolatedprocess.h"

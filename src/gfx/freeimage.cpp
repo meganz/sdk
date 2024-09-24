@@ -19,8 +19,10 @@
  * program.
  */
 
-#include "mega.h"
 #include "mega/gfx/freeimage.h"
+
+#include "mega.h"
+#include "mega/scoped_helpers.h"
 
 #ifdef USE_FREEIMAGE
 
