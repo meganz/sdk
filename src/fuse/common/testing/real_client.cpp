@@ -142,6 +142,18 @@ void RealClient::fetchnodes_result(const Error& error)
 auto RealClient::invited(const std::string& email,
                          std::unique_lock<std::mutex>& lock) const -> InvitePtr
 {
+    // Compares two characters case insensitively.
+    auto characterEquals = [](std::uint8_t lhs, std::uint8_t rhs)
+    {
+        return std::tolower(lhs) == std::tolower(rhs);
+    }; // characterEquals
+
+    // Compares two strings case insensitively.
+    auto stringEquals = [&](const std::string& lhs, const std::string& rhs)
+    {
+        return std::equal(lhs.begin(), lhs.end(), rhs.begin(), rhs.end(), characterEquals);
+    }; // stringEquals
+
     // Convenience.
     auto& self = const_cast<RealClient&>(*this);
 
@@ -151,8 +163,8 @@ auto RealClient::invited(const std::string& email,
         auto& request = *i.second;
 
         // Request received from email or sent to email.
-        if ((request.isoutgoing && request.targetemail == email)
-            || request.originatoremail == email)
+        if ((request.isoutgoing && stringEquals(request.targetemail, email)) ||
+            stringEquals(request.originatoremail, email))
             return std::make_unique<RealInvite>(self, request.id);
     }
 
