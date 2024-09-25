@@ -15659,6 +15659,7 @@ void MegaApiImpl::getua_completion(byte* data, unsigned len, attr_t type, MegaRe
         case MegaApi::USER_ATTR_PWD_REMINDER:
         case MegaApi::USER_ATTR_DISABLE_VERSIONS:
         case MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION:
+        case MegaApi::USER_ATTR_NO_CALLKIT:
         case MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG:
         case MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE:
             {
@@ -15668,6 +15669,8 @@ void MegaApiImpl::getua_completion(byte* data, unsigned len, attr_t type, MegaRe
                 static_assert(int(MegaApi::USER_ATTR_DISABLE_VERSIONS) == ATTR_DISABLE_VERSIONS, "User Attribute Enum Mismatch");
                 static_assert(int(MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION) == ATTR_CONTACT_LINK_VERIFICATION, "User Attribute Enum Mismatch");
                 static_assert(int(MegaApi::USER_ATTR_PWD_REMINDER) == ATTR_PWD_REMINDER, "User Attribute Enum Mismatch");
+                static_assert(int(MegaApi::USER_ATTR_NO_CALLKIT) == ATTR_NO_CALLKIT,
+                              "User Attribute Enum Mismatch");
                 static_assert(int(MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG) == ATTR_VISIBLE_WELCOME_DIALOG, "User Attribute Enum Mismatch");
                 static_assert(int(MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE) == ATTR_VISIBLE_TERMS_OF_SERVICE, "User Attribute Enum Mismatch");
 
