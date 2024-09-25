@@ -21176,6 +21176,8 @@ error MegaClient::readSetPublicHandle(JSON& j, map<handle, Set>& sets)
 {
     handle item = UNDEF, itemPH = UNDEF;
     m_off_t ts = 0;
+    m_off_t dts = 0;
+    bool takeDown = 0;
     for (;;)
     {
         switch (j.getnameid())
@@ -21190,6 +21192,14 @@ error MegaClient::readSetPublicHandle(JSON& j, map<handle, Set>& sets)
 
         case makeNameid("ts"):
             ts = j.getint();
+            break;
+
+        case MAKENAMEID1('c'):
+            takeDown = j.getint() == 1;
+            break;
+
+        case MAKENAMEID3('d', 't', 's'):
+            dts = j.getint();
             break;
 
         default: // skip any unknown/unexpected member
@@ -21208,8 +21218,21 @@ error MegaClient::readSetPublicHandle(JSON& j, map<handle, Set>& sets)
             assert(item != UNDEF && itemPH != UNDEF);
             if (sets.find(item) != end(sets))
             {
-                sets[item].setPublicLink(std::make_unique<PublicLinkSet>(itemPH));
-                sets[item].setTs(ts);
+                std::unique_ptr<PublicLinkSet> publicLinkSet =
+                    std::make_unique<PublicLinkSet>(itemPH);
+
+                if (takeDown)
+                {
+                    publicLinkSet->setTakeDown(takeDown);
+                    // Set link with ETS and ATS aren't returned, only valid reason is
+                    // Dispute(copyright)
+                    publicLinkSet->setLinkDeletionReason(
+                        PublicLinkSet::LinkDeletionReason::DISPUTE);
+                }
+
+                sets[item].setPublicLink(std::move(publicLinkSet));
+                // setTs store last modification ts
+                sets[item].setTs(dts > ts ? dts : ts);
             }
             else LOG_warn << "Sets: Set handle " << toHandle(item) << " not found in user's Sets";
 
