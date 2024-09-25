@@ -22,10 +22,10 @@
 #include "mega/gfx/worker/comms.h"
 #include "mega/gfx/worker/comms_client.h"
 
+#include <chrono>
 #include <memory>
-#include <vector>
 #include <string>
-#include <assert.h>
+#include <vector>
 
 namespace mega {
 namespace gfx {
@@ -67,7 +67,11 @@ private:
     std::unique_ptr<IEndpoint> connect();
 
     template<typename ResponseT, typename RequestT>
-    std::unique_ptr<ResponseT> sendAndReceive(IEndpoint* endpoint, RequestT command, TimeoutMs sendTimeout = TimeoutMs(5000), TimeoutMs receiveTimeout = TimeoutMs(5000));
+    std::unique_ptr<ResponseT>
+        sendAndReceive(IEndpoint* endpoint,
+                       RequestT command,
+                       std::chrono::milliseconds sendTimeout = std::chrono::milliseconds{5000},
+                       std::chrono::milliseconds receiveTimeout = std::chrono::milliseconds{5000});
 
     std::unique_ptr<IGfxCommunicationsClient> mComms;
 };

@@ -2,7 +2,10 @@
 #include "mega/logging.h"
 #include "mega/filesystem.h"
 
-namespace mega {
+using std::chrono::milliseconds;
+
+namespace mega
+{
 namespace gfx {
 namespace win_utils
 {
@@ -62,7 +65,7 @@ NamedPipe::~NamedPipe()
     }
 }
 
-bool NamedPipe::doWrite(const void* data, size_t n, TimeoutMs timeout)
+bool NamedPipe::doWrite(const void* data, size_t n, milliseconds timeout)
 {
     auto writeOverlappedFn = [this, n, data](OVERLAPPED* overlapped){
         DWORD written;
@@ -79,7 +82,7 @@ bool NamedPipe::doWrite(const void* data, size_t n, TimeoutMs timeout)
     return doOverlappedOperation(writeOverlappedFn, timeout, "write");
 }
 
-bool NamedPipe::doRead(void* out, size_t n, TimeoutMs timeout)
+bool NamedPipe::doRead(void* out, size_t n, milliseconds timeout)
 {
     auto readOverlappedFn = [this, n, out](OVERLAPPED* overlapped){
         DWORD cbRead = 0;
@@ -96,9 +99,9 @@ bool NamedPipe::doRead(void* out, size_t n, TimeoutMs timeout)
     return doOverlappedOperation(readOverlappedFn, timeout, "read");
 }
 
-bool NamedPipe::doOverlappedOperation(std::function<bool(OVERLAPPED*)>op,
-                                          TimeoutMs timeout,
-                                          const std::string& opStr)
+bool NamedPipe::doOverlappedOperation(std::function<bool(OVERLAPPED*)> op,
+                                      milliseconds timeout,
+                                      const std::string& opStr)
 {
     if (mPipeHandle == INVALID_HANDLE_VALUE)
     {
@@ -111,13 +114,13 @@ bool NamedPipe::doOverlappedOperation(std::function<bool(OVERLAPPED*)>op,
         return false;
     }
 
-    // call Op.
+    // Call Op.
     if (op(overlapped.data()))
     {
         return true;
     }
 
-    // error
+    // Error
     auto lastError = GetLastError();
     if (lastError!= ERROR_IO_PENDING)
     {
@@ -125,15 +128,14 @@ bool NamedPipe::doOverlappedOperation(std::function<bool(OVERLAPPED*)>op,
         return false;
     }
 
-    // wait op to complete
-    DWORD milliseconds = static_cast<DWORD>(timeout);
+    // Wait op to complete. Negative timeout is infinite
+    DWORD waitTimeout = timeout.count() < 0 ? INFINITE : static_cast<DWORD>(timeout.count());
     DWORD numberOfBytesTransferred = 0;
-    bool success = GetOverlappedResultEx(
-        mPipeHandle,
-        overlapped.data(),
-        &numberOfBytesTransferred,
-        milliseconds,
-        false);
+    bool success = GetOverlappedResultEx(mPipeHandle,
+                                         overlapped.data(),
+                                         &numberOfBytesTransferred,
+                                         waitTimeout,
+                                         false);
 
     if (!success)
     {

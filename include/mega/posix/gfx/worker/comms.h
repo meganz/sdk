@@ -1,6 +1,8 @@
 #pragma once
 #include "mega/gfx/worker/comms.h"
 
+#include <chrono>
+
 namespace mega {
 namespace gfx {
 
@@ -20,9 +22,9 @@ public:
     int fd() const { return mSocket; }
 
 private:
-    bool doWrite(const void* data, size_t n, TimeoutMs timeout) override;
+    bool doWrite(const void* data, size_t n, std::chrono::milliseconds timeout) override;
 
-    bool doRead(void* data, size_t n, TimeoutMs timeout) override;
+    bool doRead(void* data, size_t n, std::chrono::milliseconds timeout) override;
 
     // File descriptor to the socket
     int mSocket{-1};
