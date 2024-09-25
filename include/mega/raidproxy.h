@@ -181,6 +181,7 @@ public:
     std::pair<::mega::error, raidTime> checkTransferFailure(); // Check if CloudRaid transfer has failed (it could have happened in other RaidReq)
     bool setNewUnusedRaidConnection(uint8_t part,             // set the shared unused raid connection in CloudRaid. Optionally add them to faulty servers persistent storage.
                                     bool addToFaultyServers = true);
+    void processRequestLatency(const HttpReqPtr&);            // process the request latency for a given source
 
     static size_t raidPartSize(uint8_t part, size_t fullfilesize);  // calculate part size
 };

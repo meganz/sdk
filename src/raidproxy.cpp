@@ -447,6 +447,7 @@ int64_t PartFetcher::io()
 
         if (httpReq->status == REQ_SUCCESS)
         {
+            rr->mCloudRaid->processRequestLatency(httpReq);
             LOG_verbose << "[PartFetcher::io] [part " << (int)part << "] REQ_SUCCESS [pos = " << mPos << ", partStartPos = " << mPartStartPos << "] [httpReq->dlpos = " << httpReq->dlpos << ", httpReq->size = " << httpReq->size << ", inbuf = " << (mInbuf ? static_cast<int>(mInbuf->datalen()) : -1) << "]" << " [this = " << this << "]";
             assert(!mInbuf || httpReq->buffer_released);
             if (!mInbuf || !httpReq->buffer_released)
@@ -1357,6 +1358,14 @@ bool RaidReq::setNewUnusedRaidConnection(uint8_t part, bool addToFaultyServers)
     return true;
 }
 
+void RaidReq::processRequestLatency(const HttpReqPtr& httpReq)
+{
+    if (httpReq)
+    {
+        mCloudRaid->processRequestLatency(httpReq);
+    }
+}
+
 size_t RaidReq::raidPartSize(uint8_t part, size_t fullfilesize)
 {
     // compute the size of this raid part based on the original file size len
@@ -1426,6 +1435,7 @@ void RaidReqPool::raidproxyio()
                 }
                 else
                 {
+                    mRaidReq->processRequestLatency(httpReq);
                     itScheduled++;
                 }
                 if (mRaidReq->checkTransferFailure().first)

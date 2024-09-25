@@ -54,12 +54,34 @@ void TransferSlotFileAccess::reset(std::unique_ptr<FileAccess>&& p)
 
 double TransferSlotStats::failedRequestRatio() const
 {
-    assert(numFailedRequests <= numTotalRequests);
-    if (!numFailedRequests || !numTotalRequests)
+    assert(mNumFailedRequests <= mNumTotalRequests);
+    if (!mNumFailedRequests || !mNumTotalRequests)
     {
         return 0;
     }
-    return static_cast<double>(numFailedRequests) / static_cast<double>(numTotalRequests);
+    return static_cast<double>(mNumFailedRequests) / static_cast<double>(mNumTotalRequests);
+}
+
+m_off_t TransferSlotStats::averageLatency() const
+{
+    assert(mTotalConnectTime != -1 || !mNumRequestsWithCalculatedLatency);
+    if (mTotalConnectTime <= 0 || !mNumRequestsWithCalculatedLatency)
+    {
+        return 0;
+    }
+    return static_cast<m_off_t>(
+        std::round(mTotalConnectTime / static_cast<double>(mNumRequestsWithCalculatedLatency)));
+}
+
+m_off_t TransferSlotStats::averageStartTransferTime() const
+{
+    assert(mTotalStartTransferTime != -1 || !mNumRequestsWithCalculatedLatency);
+    if (mTotalStartTransferTime <= 0 || !mNumRequestsWithCalculatedLatency)
+    {
+        return 0;
+    }
+    return static_cast<m_off_t>(std::round(mTotalStartTransferTime /
+                                           static_cast<double>(mNumRequestsWithCalculatedLatency)));
 }
 
 // transfer attempts are considered failed after XFERTIMEOUT deciseconds
@@ -330,8 +352,12 @@ TransferSlot::~TransferSlot()
 
     delete[] asyncIO;
     LOG_verbose << "[TransferSlot::~TransferSlot] Stats: FailedRequestRatio = "
-                << tsStats.failedRequestRatio() << " [totalRequests = " << tsStats.numTotalRequests
-                << ", failedRequests = " << tsStats.numFailedRequests
+                << tsStats.failedRequestRatio()
+                << " ms. Average latency: " << tsStats.averageLatency()
+                << " ms. Average start transfer time: " << tsStats.averageStartTransferTime()
+                << " [totalRequests = " << tsStats.mNumTotalRequests
+                << ", failedRequests = " << tsStats.mNumFailedRequests
+                << ", totalRequestsWithLatency = " << tsStats.mNumRequestsWithCalculatedLatency
                 << "] [cloudRaid = " << (void*)(cloudRaid.get()) << "]";
     LOG_verbose << "[TransferSlot::~TransferSlot] END [cloudRaid = " << (void*)(cloudRaid.get()) << "]";
 }
@@ -629,6 +655,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
             {
                 case REQ_INFLIGHT:
                 {
+                    processRequestLatency(reqs[i]);
                     mReqSpeeds[i].requestProgressed(reqs[i]->transferred(client));
 
                     p += reqs[i]->transferred(client);
@@ -657,6 +684,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
 
                 case REQ_SUCCESS:
                 {
+                    processRequestLatency(reqs[i]);
                     mReqSpeeds[i].requestProgressed(reqs[i]->size);
 
                     if (client->orderdownloadedchunks && transfer->type == GET && !transferbuf.isRaid() && transfer->progresscompleted != static_cast<HttpReqDL*>(reqs[i].get())->dlpos)
@@ -1492,16 +1520,17 @@ void TransferSlot::prepareRequest(const std::shared_ptr<HttpReqXfer>& httpReq, c
 void TransferSlot::processRequestPost(MegaClient* client,
                                       const std::shared_ptr<HttpReqXfer>& httpReq)
 {
-    ++tsStats.numTotalRequests;
+    ++tsStats.mNumTotalRequests;
     httpReq->post(client); // status becomes either REQ_INFLIGHT or REQ_FAILED
 }
 
 std::pair<error, dstime> TransferSlot::processRequestFailure(MegaClient* client, const std::shared_ptr<HttpReqXfer>& httpReq, dstime& backoff, int channel)
 {
-    ++tsStats.numFailedRequests;
+    processRequestLatency(httpReq);
+    ++tsStats.mNumFailedRequests;
     LOG_warn << "Conn " << channel << " : Failed chunk. HTTP status: " << httpReq->httpstatus
              << " [httpReq = " << (void*)httpReq.get()
-             << "] [totalFailedRequests = " << tsStats.numFailedRequests << "]";
+             << "] [totalFailedRequests = " << tsStats.mNumFailedRequests << "]";
 
     if (httpReq->httpstatus && httpReq->contenttype.find("text/html") != string::npos && !memcmp(httpReq->posturl.c_str(), "http:", 5))
     {
@@ -1663,6 +1692,29 @@ std::pair<error, dstime> TransferSlot::processRaidReq(size_t connection, m_off_t
         cloudRaid->removeRaidReq(static_cast<int>(connection));
     }
     return cloudRaid->checkTransferFailure();
+}
+
+void TransferSlot::processRequestLatency(const std::shared_ptr<HttpReqXfer>& req)
+{
+    if (!req->isLatencyProcessed)
+    {
+        if (req->mConnectTime > -1 && req->mStartTransferTime > -1)
+        {
+            if (req->mConnectTime > 0)
+            {
+                // mConnectTime, populated from CURLINFO_CONNECT_TIME, can be 0
+                // for reused connections. We want to calculate the network performance,
+                // so we exclude reused connections.
+                // For coherence, we only include CURLINFO_STARTTRANSFER_TIME when
+                // we have included CURLINFO_CONNECT_TIME, because we only have one
+                // variable for "numRequestsWithCalculatedLatency" to calculate both averages.
+                tsStats.mTotalConnectTime += req->mConnectTime;
+                tsStats.mTotalStartTransferTime += req->mStartTransferTime;
+                ++tsStats.mNumRequestsWithCalculatedLatency;
+            }
+            req->isLatencyProcessed = true;
+        }
+    }
 }
 
 } // namespace

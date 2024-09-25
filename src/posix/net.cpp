@@ -2231,6 +2231,8 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
 
             if (msg->msg == CURLMSG_DONE)
             {
+                measureLatency(msg->easy_handle, req);
+
                 CURLcode errorCode = msg->data.result;
                 if (errorCode != CURLE_OK)
                 {
@@ -2496,6 +2498,45 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
     result = statechange;
     statechange = false;
     return result;
+}
+
+// Measure latency and connect time
+void CurlHttpIO::measureLatency(CURL* easy_handle, HttpReq* req)
+{
+    if (auto httpReqXfer = dynamic_cast<HttpReqXfer*>(req))
+    {
+        double start_transfer_time = -1;
+        double connect_time = -1;
+
+        CURLcode start_transfer_time_res =
+            curl_easy_getinfo(easy_handle, CURLINFO_STARTTRANSFER_TIME, &start_transfer_time);
+        CURLcode connect_time_res =
+            curl_easy_getinfo(easy_handle, CURLINFO_CONNECT_TIME, &connect_time);
+
+        if (start_transfer_time_res == CURLE_OK)
+        {
+            start_transfer_time *= 1000; // Convert to milliseconds
+            httpReqXfer->mStartTransferTime = start_transfer_time;
+        }
+        else
+        {
+            LOG_warn << "Failed to get start transfer time info: "
+                     << curl_easy_strerror(start_transfer_time_res);
+        }
+
+        if (connect_time_res == CURLE_OK)
+        {
+            connect_time *= 1000; // Convert to milliseconds
+            httpReqXfer->mConnectTime = connect_time;
+        }
+        else
+        {
+            LOG_warn << "Failed to get connect time info: " << curl_easy_strerror(connect_time_res);
+        }
+
+        LOG_verbose << "Connect time and start transfer latency for request " << req->logname
+                    << ": " << connect_time << " ms - " << start_transfer_time << " ms";
+    }
 }
 
 // callback for incoming HTTP payload
