@@ -248,7 +248,7 @@ namespace mega {
             return nullptr;
         }
 
-        bool publicLink = expansionsS[2];
+        bool publicLink = static_cast<bool>(expansionsS[2]);
         std::unique_ptr<PublicLinkSet> publicLinkSet;
         if (publicLink)
         {
