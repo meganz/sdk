@@ -20199,6 +20199,8 @@ TEST_F(SdkTest, SdkTestRemoveVersionsFromSync)
                 std::string utf8String{std::move(path)};
                 path.clear();
                 utf8ToUtf16(utf8String.c_str(), &path);
+                // At Window use wstring, path should be a par length
+                ASSERT_EQ(path.size() % 2, 0);
 #endif
                 return MegaApi::STATE_SYNCED == megaApi[0]->syncPathState(&path);
             });
