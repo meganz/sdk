@@ -12344,7 +12344,7 @@ void MegaApiImpl::getFileVersionsOption(MegaRequestListener *listener)
 
 void MegaApiImpl::setContactLinksOption(bool disable, MegaRequestListener *listener)
 {
-    string av = disable ? "0" : "1";
+    string av = disable ? "1" : "0";
     setUserAttr(MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION, av.data(), listener);
 }
 
