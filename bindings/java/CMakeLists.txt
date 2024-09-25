@@ -4,7 +4,7 @@ include(UseSWIG)
 
 # For Android we do not need JNI
 if(ANDROID)
-    include_directories(
+    set(JNI_INCLUDE_DIRS 
         ${ANDROID_NDK_HOME}/sysroot/usr/include
         ${ANDROID_NDK_HOME}/sysroot/usr/include/${ANDROID_ABI}
     )
@@ -12,21 +12,13 @@ else()
     find_package(JNI REQUIRED)
 endif()
 
-# Set the paths for Java include directories
-set(JAVA_INCLUDE_DIR "${Java_INCLUDE_DIRS}")
-set(JAVA_OUTPUT_DIR "${CMAKE_BINARY_DIR}/bindings/java/nz/mega/sdk")
+# Set the output directory for generated Java files
+set(JAVA_OUTPUT_DIR ${CMAKE_BINARY_DIR}/bindings/java/nz/mega/sdk)
 
 # Define the interface file and its properties
-set(SWIG_INTERFACE_FILE "${CMAKE_SOURCE_DIR}/bindings/megaapi.i")
+set(SWIG_INTERFACE_FILE ${CMAKE_SOURCE_DIR}/bindings/megaapi.i)
 set_source_files_properties(${SWIG_INTERFACE_FILE} PROPERTIES
     CPLUSPLUS ON
-)
-
-include_directories(
-    ${JAVA_INCLUDE_DIR}
-    ${CMAKE_SOURCE_DIR}/include
-    ${JNI_INCLUDE_DIRS}
-    ${JAVA_OUTPUT_DIR}
 )
 
 # Set SWIG flags for generating Java code
@@ -38,7 +30,7 @@ if(USE_LIBUV)
     list(APPEND ADDITIONAL_SWIG_DEFINES -DHAVE_LIBUV)
 endif()
 
-set(CMAKE_SWIG_FLAGS -c++ -package "nz.mega.sdk" -O ${ADDITIONAL_SWIG_DEFINES})
+set(CMAKE_SWIG_FLAGS -c++ -package "nz.mega.sdk" ${ADDITIONAL_SWIG_DEFINES} -I${CMAKE_SOURCE_DIR}/include)
 
 # Generate java binding files
 swig_add_library(SDKJavaBindings
@@ -47,18 +39,20 @@ swig_add_library(SDKJavaBindings
     OUTPUT_DIR ${JAVA_OUTPUT_DIR}
 )
 
+target_include_directories(SDKJavaBindings
+    PRIVATE
+    ${Java_INCLUDE_DIRS}
+    ${JNI_INCLUDE_DIRS}
+    ${JAVA_OUTPUT_DIR}
+)
+
 target_link_libraries(SDKJavaBindings
     PRIVATE
     MEGA::SDKlib
 )
 
-# Compile Java code and create a JAR file
+# Compile Java code
 add_custom_command(TARGET SDKJavaBindings POST_BUILD
     COMMAND ${Java_JAVAC_EXECUTABLE} -d ${JAVA_OUTPUT_DIR} -cp ${JAVA_OUTPUT_DIR} ${JAVA_OUTPUT_DIR}/*.java
     COMMENT "Compiling Java classes..."
-)
-
-add_custom_command(TARGET SDKJavaBindings POST_BUILD
-    COMMAND ${Java_JAR_EXECUTABLE} cf ${CMAKE_BINARY_DIR}/SDKJavaBindings.jar -C ${JAVA_OUTPUT_DIR} .
-    COMMENT "Creating JAR file..."
 )
