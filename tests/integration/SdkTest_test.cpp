@@ -20110,7 +20110,7 @@ TEST_F(SdkTest, SdkTestRemoveVersionsFromSync)
     LOG_info << "___TEST SdkTestRemoveVersionsFromSync";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
-    std::string syncFolder = "sync1";
+    std::string syncFolder{"sync1"};
     fs::path syncFolderPath = syncFolder;
     const auto localSyncFolderPath = fs::current_path() / syncFolderPath;
 
@@ -20157,13 +20157,55 @@ TEST_F(SdkTest, SdkTestRemoveVersionsFromSync)
         << "Node update not received on client 0 after " << maxTimeout << " seconds";
     resetOnNodeUpdateCompletionCBs();
 
+    auto checkSyncState = [this](const std::string& fileName)
+    {
+        waitForEvent(
+            [this, fileName]()
+            {
+                std::string path{fileName};
+
+#ifdef _WIN32
+                auto utf8ToUtf16 = [](const char* utf8data, std::string* utf16string)
+                {
+                    // Check if input is valid
+                    if (utf8data == nullptr)
+                    {
+                        utf16string->clear();
+                        return;
+                    }
+
+                    // Get the length required for the UTF-16 buffer
+                    int utf16Length = MultiByteToWideChar(CP_UTF8, 0, utf8data, -1, nullptr, 0);
+
+                    // If the length is 0, an error occurred
+                    if (utf16Length == 0)
+                    {
+                        std::cerr << "Error converting UTF-8 to UTF-16." << std::endl;
+                        utf16string->clear();
+                        return;
+                    }
+
+                    // Create a buffer to hold the UTF-16 characters
+                    std::wstring utf16buffer(utf16Length, 0);
+
+                    // Perform the conversion from UTF-8 to UTF-16
+                    MultiByteToWideChar(CP_UTF8, 0, utf8data, -1, &utf16buffer[0], utf16Length);
+
+                    // Convert the UTF-16 wide string to a std::string by copying the raw bytes
+                    utf16string->assign(reinterpret_cast<const char*>(utf16buffer.data()),
+                                        utf16buffer.size() * sizeof(wchar_t));
+                };
+
+                std::string utf8String{std::move(path)};
+                path.clear();
+                utf8ToUtf16(utf8String.c_str(), &path);
+#endif
+                return MegaApi::STATE_SYNCED == megaApi[0]->syncPathState(&path);
+            });
+    };
+
     LOG_verbose << "SdkTestRemoveVersionsFromSync :  wait file is syncronized";
-    waitForEvent(
-        [this, fileName]()
-        {
-            std::string path{fileName};
-            return MegaApi::STATE_SYNCED == megaApi[0]->syncPathState(&path);
-        });
+    checkSyncState(fileName);
 
     check = false;
     mApi[0].mOnNodesUpdateCompletion =
@@ -20179,12 +20221,7 @@ TEST_F(SdkTest, SdkTestRemoveVersionsFromSync)
     resetOnNodeUpdateCompletionCBs();
 
     LOG_verbose << "SdkTestRemoveVersionsFromSync :  Wait file is syncronized after modification";
-    waitForEvent(
-        [this, fileName]()
-        {
-            std::string path{fileName};
-            return MegaApi::STATE_SYNCED == megaApi[0]->syncPathState(&path);
-        });
+    checkSyncState(fileName);
 
     std::unique_ptr<MegaNodeList> children{megaApi[0]->getChildren(remoteBaseNode.get())};
     ASSERT_EQ(children->size(), 1);
