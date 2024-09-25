@@ -1241,26 +1241,6 @@ struct StandardClient : public MegaApp
     bool transfersCompleted(direction_t type) const;
 };
 
-struct ScopedSyncPauser
-{
-    ScopedSyncPauser(StandardClient& client, handle id)
-      : mClient(client)
-      , mId(id)
-    {
-        auto result = mClient.setSyncPausedByBackupId(mId, true);
-        EXPECT_TRUE(result);
-    }
-
-    ~ScopedSyncPauser()
-    {
-        auto result = mClient.setSyncPausedByBackupId(mId, false);
-        EXPECT_TRUE(result);
-    }
-
-    StandardClient& mClient;
-    handle mId;
-}; // ScopedSyncPauser
-
 struct StandardClientInUseEntry
 {
     bool inUse = false;

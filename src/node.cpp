@@ -19,18 +19,20 @@
  * program.
  */
 
-#include "mega.h"
 #include "mega/node.h"
-#include "mega/megaclient.h"
-#include "mega/megaapp.h"
-#include "mega/share.h"
-#include "mega/serialize64.h"
+
+#include "mega.h"
 #include "mega/base64.h"
+#include "mega/heartbeats.h"
+#include "mega/logging.h"
+#include "mega/megaapp.h"
+#include "mega/megaclient.h"
+#include "mega/scoped_helpers.h"
+#include "mega/serialize64.h"
+#include "mega/share.h"
 #include "mega/sync.h"
 #include "mega/transfer.h"
 #include "mega/transferslot.h"
-#include "mega/logging.h"
-#include "mega/heartbeats.h"
 #include "megafs.h"
 
 namespace mega {
@@ -2022,7 +2024,7 @@ void LocalNode::moveContentTo(LocalNode* ln, LocalPath& fullPath, bool setScanAg
     for (auto& c : children) workingList.push_back(c.second);
     for (auto& c : workingList)
     {
-        ScopedLengthRestore restoreLen(fullPath);
+        auto restoreLen = makeScopedSizeRestorer(fullPath);
         fullPath.appendWithSeparator(c->localname, true);
         c->setnameparent(ln, fullPath.leafName(), sync->syncs.fsaccess->fsShortname(fullPath));
 

@@ -22,11 +22,13 @@
 #ifndef MEGA_FILESYSTEM_H
 #define MEGA_FILESYSTEM_H 1
 
-#include <atomic>
+#include "filefingerprint.h"
+#include "scoped_helpers.h"
 #include "types.h"
 #include "utils.h"
 #include "waiter.h"
-#include "filefingerprint.h"
+
+#include <atomic>
 
 namespace mega {
 
@@ -155,15 +157,6 @@ class MEGA_API LocalPath;
 class MEGA_API Sync;
 struct MEGA_API FSNode;
 
-class ScopedLengthRestore {
-    LocalPath& path;
-    size_t length;
-public:
-    // On destruction, puts the LocalPath length back to what it was on construction of this class
-    ScopedLengthRestore(LocalPath&);
-    ~ScopedLengthRestore();
-};
-
 extern CodeCounter::ScopeStats g_compareUtfTimings;
 
 class MEGA_API LocalPath
@@ -183,7 +176,8 @@ class MEGA_API LocalPath
     bool isFromRoot = false;
 
     // only functions that need to call the OS or 3rdParty libraries - normal code should have no access (or accessor) to localpath
-    friend class ScopedLengthRestore;
+    friend struct ResizeTraits<LocalPath>;
+    friend struct SizeTraits<LocalPath>;
     friend class ScopedSyncPathRestore;
     friend class WinFileSystemAccess;
     friend class PosixFileSystemAccess;
@@ -380,6 +374,24 @@ public:
     // - One path contains another.
     bool related(const LocalPath& other) const;
 };
+
+template<>
+struct ResizeTraits<LocalPath>
+{
+    static void resize(LocalPath& instance, std::size_t newSize)
+    {
+        instance.localpath.resize(newSize);
+    }
+}; // ResizeTraits<T>
+
+template<>
+struct SizeTraits<LocalPath>
+{
+    static std::size_t size(const LocalPath& instance)
+    {
+        return instance.localpath.size();
+    }
+}; // SizeTraits<T>
 
 inline std::ostream& operator<<(std::ostream& os, const LocalPath& p)
 {

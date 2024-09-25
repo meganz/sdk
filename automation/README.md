@@ -26,6 +26,27 @@ From a directory in the repo (!) for which we intend to close a release, run:
 python3 path/to/close_release.py
 ```
 
+## Patch a Release
+> Note that this process can become very complex when multiple releases need to be patched. Because of that, the automation is done for step 7 and further.
+Fill the details in `[patch_release]` section of your local copy of [config.toml](config.toml).
+
+From a directory in the repo (!) for which we intend to patch a release, run:
+
+```sh
+python3 ./patch_release.py
+```
+
+## Make another RC
+Fill the details in `[make_another_rc]` section of your local copy of [config.toml](config.toml).
+
+> Note that the number of the new RC will be automatically determined, from the last RC already existing for that Release plus 1.
+
+From a directory in the repo (!) for which we intend to make a release, run:
+
+```sh
+python3 path/to/make_another_rc.py
+```
+
 
 ## Prerequisites
 

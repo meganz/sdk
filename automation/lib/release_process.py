@@ -21,19 +21,24 @@ class ReleaseProcess:
         self._private_branch = private_branch
         self._jira: JiraProject | None = None
         self._local_repo: LocalRepository | None = None
+        print("GitLab initializing", flush=True)
         self._remote_private_repo = GitLabRepository(
             private_host_url, gitlab_token, project_name
         )
+        print("v GitLab initialized", flush=True)
         self._project_name = project_name
+        self._version_v_prefixed = ""
 
     def setup_project_management(self, url: str, user: str, password: str):
         assert self._jira is None
+        print("Jira initializing", flush=True)
         self._jira = JiraProject(
             url,
             user,
             password,
             self._project_name,
         )
+        print("v Jira initialized", flush=True)
 
     def set_release_version_to_make(self, version: str):
         assert self._jira is not None
@@ -52,8 +57,10 @@ class ReleaseProcess:
         # Chat has 2 purposes:
         # - request approvals for MRs (always in the same channel, only for SDK devs);
         # - make announcements in the given channel, if any.
+        print("Slack initializing", flush=True)
         self._slack = Slack(slack_token)
         self._slack_channel = slack_channel
+        print("v Slack initialized", flush=True)
 
     # STEP 3: update version in local file
     def update_version_in_local_file(
@@ -70,7 +77,7 @@ class ReleaseProcess:
         self._get_branch_locally(private_remote_name, self._private_branch)
         self._change_version_in_file()
         self._push_to_new_branch(new_branch, private_remote_name)
-        self._merge_local_changes(new_branch)
+        self._merge_local_changes(new_branch, self._private_branch)
 
     def _get_branch_locally(
         self,
@@ -79,7 +86,7 @@ class ReleaseProcess:
     ):
         assert self._local_repo is not None
         self._local_repo.check_for_uncommitted_changes()
-        self._local_repo.switch_to_branch(branch)
+        self._local_repo.switch_to_branch(remote_name, branch)
         self._local_repo.sync_current_branch(remote_name)
 
     # Edit version file
@@ -156,11 +163,12 @@ class ReleaseProcess:
     def _merge_local_changes(
         self,
         new_branch: str,
+        target_branch: str,
     ):
         mr_id, mr_url = self._remote_private_repo.open_mr(
             self._get_mr_title_for_version_update(),
             new_branch,
-            self._private_branch,
+            target_branch,
             remove_source=True,
             squash=True,
         )
@@ -196,59 +204,65 @@ class ReleaseProcess:
             self._slack.post_message(
                 "sdk-stuff-builders-team",
                 # "sdk_devs_only",
-                f"Hello @channel,\n\nPlease approve the MR for {reason}",
+                f"Hello !channel,\n\nPlease approve the MR for {reason}",
             )
 
     # STEP 4: Create "release/vX.Y.Z" branch
     def create_release_branch(self):
         self._version_v_prefixed = f"v{self._new_version}"
-        self._release_branch = f"release/{self._version_v_prefixed}"
+        release_branch = self.get_new_release_branch()
 
-        print("Creating branch", self._release_branch, flush=True)
-        self._remote_private_repo.create_branch(
-            self._release_branch, self._private_branch
-        )
-        print("v Created branch", self._release_branch)
+        print("Creating branch", release_branch, flush=True)
+        self._remote_private_repo.create_branch(release_branch, self._private_branch)
+        print("v Created branch", release_branch)
 
     # STEP 5: Create rc tag "vX.Y.Z-rc.1" from branch "release/vX.Y.Z"
     def create_rc_tag(self, rc_num: int):
         assert self._remote_private_repo is not None
-        assert self._version_v_prefixed is not None
-        assert self._release_branch is not None
+        assert self._version_v_prefixed
         self._rc_tag = f"{self._version_v_prefixed}-rc.{rc_num}"
 
         print("Creating tag", self._rc_tag, flush=True)
         try:
-            self._remote_private_repo.create_tag(self._rc_tag, self._release_branch)
+            self._remote_private_repo.create_tag(
+                self._rc_tag, self.get_new_release_branch()
+            )
         except Exception as e:
-            self._remote_private_repo.delete_branch(self._release_branch)
+            print(
+                "Creating tag",
+                self._rc_tag,
+                "for branch",
+                self.get_new_release_branch(),
+                "failed",
+                flush=True,
+            )
             raise e
         print("v Created tag", self._rc_tag)
 
     # STEP 6: Open MR to merge branch "release/vX.Y.Z" into public branch (don't merge)
     def open_mr_for_release_branch(self, public_branch: str):
         assert self._remote_private_repo is not None
-        assert self._release_branch is not None
         assert self._rc_tag is not None
+        release_branch = self.get_new_release_branch()
         print(
-            f"Opening MR to merge {self._release_branch} into {public_branch}",
+            f"Opening MR to merge {release_branch} into {public_branch}",
             flush=True,
         )
         mr_id, _ = self._remote_private_repo.open_mr(
             self._get_mr_title_for_release(),
-            self._release_branch,
+            release_branch,
             public_branch,
             remove_source=False,
             squash=False,
             labels="Release",
         )
         if mr_id == 0:
-            self._remote_private_repo.delete_branch(self._release_branch)
+            self._remote_private_repo.delete_branch(release_branch)
             self._remote_private_repo.delete_tag(self._rc_tag)
             raise ValueError(
-                f"Failed to open MR to merge {self._release_branch} into {public_branch}"
+                f"Failed to open MR to merge {release_branch} into {public_branch}"
             )
-        print(f"v Opened MR to merge {self._release_branch} into {public_branch}")
+        print(f"v Opened MR to merge {release_branch} into {public_branch}")
         print(
             "  **** Do NOT merge this MR until the release will be closed (dependent apps are live)!!",
             flush=True,
@@ -291,17 +305,22 @@ class ReleaseProcess:
         public_remote_name: str,
         public_remote_url: str,
     ):
+        print("Local Git repo initializing", flush=True)
         assert self._local_repo is None
         private_remote_url = self._remote_private_repo.get_url_to_private_repo()
         self._local_repo = LocalRepository(private_remote_name, private_remote_url)
-        self._local_repo.add_remote(
-            public_remote_name, public_remote_url, fetch_is_optional=True
-        )
+        if public_remote_name and public_remote_url:
+            self._local_repo.add_remote(
+                public_remote_name, public_remote_url, fetch_is_optional=True
+            )
+        print("v Local Git repo initialized", flush=True)
 
     def setup_public_repo(self, public_repo_token: str, public_repo_owner: str):
+        print("GitHub initializing", flush=True)
         self._public_repo = GitHubRepository(
             public_repo_token, public_repo_owner, self._project_name
         )
+        print("v GitHub initialized", flush=True)
 
     def set_release_version_to_close(self, version: str):
         assert not self._new_version
@@ -319,15 +338,17 @@ class ReleaseProcess:
 
     def setup_wiki(self, url: str, user: str, password: str):
         if url and user and password:
+            print("Confluence initializing", flush=True)
             self._wiki = Confluence(url=url, username=user, password=password)
             user_details = self._wiki.get_user_details_by_username(user)
             if isinstance(user_details, dict):
                 self._user_key = user_details["userKey"]
+            print("v Confluence initialized", flush=True)
 
     # STEP 1 (close): GitLab: Create tag "vX.Y.Z" from last commit of branch "release/vX.Y.Z"
     def create_release_tag(self):
         last_commit = self._remote_private_repo.get_last_commit_in_branch(
-            self._release_branch
+            self.get_new_release_branch()
         )
         print("Creating tag", self._version_v_prefixed, flush=True)
         assert (
@@ -356,7 +377,9 @@ class ReleaseProcess:
     # STEP 3 (close): GitLab: Merge version upgrade MR into public branch (master)
     def merge_release_changes_into_public_branch(self, public_branch: str):
         mr_id = self._remote_private_repo._get_id_of_open_mr(
-            self._get_mr_title_for_release(), self._release_branch, public_branch
+            self._get_mr_title_for_release(),
+            self.get_new_release_branch(),
+            public_branch,
         )
         assert mr_id > 0
         self._remote_private_repo.merge_mr(mr_id, 3600)  # must not delete source branch
@@ -428,3 +451,145 @@ class ReleaseProcess:
         )
         self._wiki.update_page(page_id, page["title"], new_content)
         print("v Release Captain rotated")
+
+    ####################
+    ##  Patch release
+    ####################
+
+    # Validation (patch): Jira, GitLab: Validate new and previous versions
+    def set_release_version_after_patch(self, version: str) -> str:
+        # validate the new version, ensure it didn't already exist
+        major, minor, micro = (int(n) for n in version.split("."))
+        assert micro > 0, f"Patched version must be higher than {version}"
+        assert self._jira is not None
+        [exists, _, _] = self._jira.get_version_info(version)
+        assert not exists, f"Version {version} already exists!"
+
+        # validate previous version, before patch
+        previous_version = f"{major}.{minor}.{micro - 1}"
+        [exists, was_released, app_descr] = self._jira.get_version_info(
+            previous_version
+        )
+        assert exists, f"Could not find version {previous_version} before patch"
+        assert was_released, "Attempting to patch a non-released version (RC)"
+
+        assert not self._new_version
+        self._new_version = version
+        self._version_v_prefixed = f"v{self._new_version}"
+
+        return app_descr
+
+    def get_new_release_branch(self) -> str:
+        assert self._version_v_prefixed
+        return f"release/{self._version_v_prefixed}"
+
+    # STEP 7 (patch): Jira: Manage versions
+    def create_new_for_patch(self, for_apps: str):
+        assert self._jira
+        assert self._version_v_prefixed
+        self._jira.create_new_version_for_patch(self._version_v_prefixed, for_apps)
+
+    def add_fix_version_to_tickets(self, tickets: list[str]):
+        assert self._jira
+        self._jira.add_fix_version_to_tickets(tickets)
+
+    # STEP 8 (patch): local git, GitLab: Update version in local file
+    def update_version_in_local_file_from_branch(
+        self,
+        gpg_keygrip: str,
+        gpg_password: str,
+        private_remote_name: str,
+        new_branch: str,
+        target_branch: str,
+    ):
+        setup_gpg_signing(gpg_keygrip, gpg_password)
+        self._get_branch_locally(private_remote_name, target_branch)
+        self._change_version_in_file()
+        assert self._local_repo is not None
+        self._local_repo.commit_changes_to_new_branch(
+            self._get_mr_title_for_version_update(), new_branch
+        )
+        self._local_repo.push_branch(private_remote_name, new_branch)
+        print(f"v Branch {new_branch} pushed", flush=True)
+        self._merge_local_changes(new_branch, target_branch)
+
+    ####################
+    ##  RC
+    ####################
+
+    def set_release_version_for_new_rc(self, version: str):
+        assert not self._new_version
+        assert self._jira is not None
+        self._jira.setup_release(self._version_v_prefixed)
+        [exists, was_released, app_descr] = self._jira.get_version_info(version)
+        assert exists, f"Could not find version {version}, for a new RC"
+        assert not was_released, "Cannot make a new RC for a released version"
+
+        self._new_version = version
+        self._version_v_prefixed = f"v{self._new_version}"
+
+        return app_descr
+
+    def create_branch_from_last_rc(self, remote_name: str, branch_name: str) -> int:
+        rc = self._remote_private_repo.get_last_rc(self._version_v_prefixed)
+        assert rc, f"No RC found for version {self._new_version}"
+
+        print("Creating branch", branch_name, flush=True)
+        self._remote_private_repo.create_branch(
+            branch_name, f"{self._version_v_prefixed}-rc.{rc}"
+        )
+        print("v Created branch", branch_name, flush=True)
+        self._get_branch_locally(remote_name, branch_name)
+        print(f"Current branch is now {branch_name}.", flush=True)
+
+        return rc
+
+    def wait_for_local_changes_to_be_applied(self) -> bool:
+        print("Apply changes locally.", flush=True)
+        user_feedback = ""
+        while user_feedback not in ("DONE!", "Cancel"):
+            user_feedback = input(
+                'Type "DONE!" or "Cancel" here when done and hit Enter: '
+            )
+        if user_feedback == "DONE!":
+            return True
+
+        print("Process canceled", flush=True)
+        return False
+
+    def push_branch(self, remote_name: str, branch_name: str):
+        print("Pushing branch", branch_name, flush=True)
+        assert self._local_repo is not None
+        self._local_repo.push_branch(remote_name, branch_name)
+        print("v Pushed branch", branch_name, flush=True)
+
+    def open_private_mr(
+        self,
+        source_branch: str,
+        target_branch: str,
+        description: str,
+        remove_source: bool,
+    ) -> int:
+        print(
+            f"Opening MR to merge {source_branch} into {target_branch}",
+            flush=True,
+        )
+        mr_id, mr_url = self._remote_private_repo.open_mr(
+            description,
+            source_branch,
+            target_branch,
+            remove_source,
+            squash=False,
+        )
+        assert mr_id, f"Failed to open MR to merge {source_branch} into {target_branch}"
+        print(f"v Opened MR to merge {source_branch} into {target_branch}", flush=True)
+
+        # Request MR approval
+        self._request_mr_approval(
+            f"`{self._project_name}` patch `{source_branch}` to {target_branch}:\n{mr_url}"
+        )
+
+        return mr_id
+
+    def merge_private_mr(self, mr_id: int):
+        assert self._remote_private_repo.merge_mr(mr_id, 3600)

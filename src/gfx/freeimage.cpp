@@ -19,8 +19,10 @@
  * program.
  */
 
-#include "mega.h"
 #include "mega/gfx/freeimage.h"
+
+#include "mega.h"
+#include "mega/scoped_helpers.h"
 
 #ifdef USE_FREEIMAGE
 
@@ -225,20 +227,6 @@ bool GfxProviderFreeImage::isFfmpegFile(const string& ext)
     return false;
 }
 
-
-template<class Deleter, class Ptr>
-class ScopeGuard {
-public:
-    ScopeGuard(Deleter deleter, Ptr arg) : mDeleter(deleter), mArg(arg) {}
-    ~ScopeGuard() { mDeleter(mArg); }
-private:
-    Deleter mDeleter;
-    Ptr mArg;
-};
-
-template<class F, class P>
-ScopeGuard<F, P> makeScopeGuard(F f, P p){ return ScopeGuard<F, P>(f, p);	}
-
 bool GfxProviderFreeImage::readbitmapFfmpeg(const LocalPath& imagePath, int size)
 {
 #ifndef DEBUG
@@ -257,7 +245,7 @@ bool GfxProviderFreeImage::readbitmapFfmpeg(const LocalPath& imagePath, int size
         return false;
     }
 
-    auto fmtContextGuard = makeScopeGuard(avformat_close_input, &formatContext);
+    auto fmtContextGuard = makeUniqueFrom(&formatContext, avformat_close_input);
 
     // Get stream information
     if (avformat_find_stream_info(formatContext, NULL))
@@ -312,7 +300,7 @@ bool GfxProviderFreeImage::readbitmapFfmpeg(const LocalPath& imagePath, int size
     }
 
     AVCodecContext *codecContext = avcodec_alloc_context3(decoder);
-    auto codecContextGuard = makeScopeGuard(avcodec_free_context, &codecContext);
+    auto codecContextGuard = makeUniqueFrom(&codecContext, avcodec_free_context);
     if (!codecContext || avcodec_parameters_to_context(codecContext, codecParm) < 0)
     {
         LOG_warn << "Could not copy codec parameters to context";
@@ -331,7 +319,7 @@ bool GfxProviderFreeImage::readbitmapFfmpeg(const LocalPath& imagePath, int size
     SwsContext* swsContext = sws_getContext(width, height, sourcePixelFormat,
                                             width, height, targetPixelFormat,
                                             SWS_FAST_BILINEAR, NULL, NULL, NULL);
-    auto swsContextGuard = makeScopeGuard(sws_freeContext, swsContext);
+    auto swsContextGuard = makeUniqueFrom(swsContext, sws_freeContext);
     if (!swsContext)
     {
         LOG_warn << "SWS Context not found: " << sourcePixelFormat;
@@ -347,10 +335,10 @@ bool GfxProviderFreeImage::readbitmapFfmpeg(const LocalPath& imagePath, int size
 
     //Allocate video frames
     AVFrame* videoFrame = av_frame_alloc();
-    auto videoFrameGuard = makeScopeGuard(av_frame_free, &videoFrame);
+    auto videoFrameGuard = makeUniqueFrom(&videoFrame, av_frame_free);
 
     AVFrame* targetFrame = av_frame_alloc();
-    auto targetFrameGuard = makeScopeGuard(av_frame_free, &targetFrame);
+    auto targetFrameGuard = makeUniqueFrom(&targetFrame, av_frame_free);
 
     if (!videoFrame || !targetFrame)
     {
@@ -367,7 +355,7 @@ bool GfxProviderFreeImage::readbitmapFfmpeg(const LocalPath& imagePath, int size
         return false;
     }
 
-    auto targetFrameDataGuard = makeScopeGuard(av_freep, &targetFrame->data[0]);
+    auto targetFrameDataGuard = makeUniqueFrom(&targetFrame->data[0], av_freep);
 
     // Calculation of seeking point. We need to rescale time units (seconds) to AVStream.time_base units to perform the seeking
     // Timestamp in streams are measured in frames rather than seconds
@@ -405,17 +393,17 @@ bool GfxProviderFreeImage::readbitmapFfmpeg(const LocalPath& imagePath, int size
     // Read frames until succesfull decodification or reach limit of 220 frames
     while (actualNumFrames < 220 && av_read_frame(formatContext, &packet) >= 0)
     {
-       auto avPacketGuard = makeScopeGuard(av_packet_unref, &packet);
-       if (packet.stream_index == videoStream->index)
-       {
-           int ret = avcodec_send_packet(codecContext, &packet);
-           if (ret < 0 && ret != AVERROR(EAGAIN) && ret != AVERROR_EOF)
-           {
-               break;
-           }
+        auto avPacketGuard = makeUniqueFrom(&packet, av_packet_unref);
+        if (packet.stream_index == videoStream->index)
+        {
+            int ret = avcodec_send_packet(codecContext, &packet);
+            if (ret < 0 && ret != AVERROR(EAGAIN) && ret != AVERROR_EOF)
+            {
+                break;
+            }
 
-           while (avcodec_receive_frame(codecContext, videoFrame) >= 0)
-           {
+            while (avcodec_receive_frame(codecContext, videoFrame) >= 0)
+            {
                 if (sourcePixelFormat != codecContext->pix_fmt)
                 {
                     LOG_warn << "Error: pixel format changed from " << sourcePixelFormat << " to " << codecContext->pix_fmt;
@@ -436,7 +424,7 @@ bool GfxProviderFreeImage::readbitmapFfmpeg(const LocalPath& imagePath, int size
                         LOG_warn << "Error allocating image copy buffer";
                         return false;
                     }
-                    auto fmemoryDataGuard = makeScopeGuard(free, fmemory.data);
+                    auto fmemoryDataGuard = makeUniqueFrom(fmemory.data, free);
 
                     if (av_image_copy_to_buffer((uint8_t *)fmemory.data, imagesize,
                                 targetFrame->data, targetFrame->linesize,
@@ -467,10 +455,10 @@ bool GfxProviderFreeImage::readbitmapFfmpeg(const LocalPath& imagePath, int size
 
                     return w > 0 && h > 0;
                 }
-           }
+            }
 
            actualNumFrames++;
-       }
+        }
     }
 
 

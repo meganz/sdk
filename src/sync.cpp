@@ -26,12 +26,13 @@
 #include "mega.h"
 
 #ifdef ENABLE_SYNC
-#include "mega/sync.h"
-#include "mega/megaapp.h"
-#include "mega/transfer.h"
-#include "mega/megaclient.h"
 #include "mega/base64.h"
 #include "mega/heartbeats.h"
+#include "mega/megaapp.h"
+#include "mega/megaclient.h"
+#include "mega/scoped_helpers.h"
+#include "mega/sync.h"
+#include "mega/transfer.h"
 
 namespace mega {
 
@@ -97,28 +98,12 @@ string changeDetectionMethodToString(const ChangeDetectionMethod method)
     }
 }
 
-class ScopedSyncPathRestore {
-    SyncPath& path;
-    size_t length1, length2, length3;
-public:
-
-    // On destruction, puts the LocalPath length back to what it was on construction of this class
-
-    ScopedSyncPathRestore(SyncPath& p)
-        : path(p)
-        , length1(p.localPath.localpath.size())
-        , length2(p.syncPath.size())
-        , length3(p.cloudPath.size())
-    {
-    }
-
-    ~ScopedSyncPathRestore()
-    {
-        path.localPath.localpath.resize(length1);
-        path.syncPath.resize(length2);
-        path.cloudPath.resize(length3);
-    };
-};
+auto makeScopedSyncPathRestorer(SyncPath& path)
+{
+    return std::make_tuple(makeScopedSizeRestorer(path.cloudPath),
+                           makeScopedSizeRestorer(path.localPath),
+                           makeScopedSizeRestorer(path.syncPath));
+}
 
 bool SyncPath::appendRowNames(const SyncRow& row, FileSystemType filesystemType)
 {
@@ -839,7 +824,7 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
             // l will be added in its place.  Later entries were the ones used by the old algorithm
         }
 
-        ScopedLengthRestore restoreLen(localpath);
+        auto restoreLen = makeScopedSizeRestorer(localpath);
 
         localpath.appendWithSeparator(l->localname, true);
 
@@ -6892,7 +6877,7 @@ void Sync::recursiveCollectNameConflicts(SyncRow& row, SyncPath& fullPath, list<
         // recurse after dealing with all items, so any renames within the folder have been completed
         if (childRow.syncNode && childRow.syncNode->type == FOLDERNODE)
         {
-            ScopedSyncPathRestore syncPathRestore(fullPath);
+            auto syncPathRestore = makeScopedSyncPathRestorer(fullPath);
 
             if (!fullPath.appendRowNames(childRow, mFilesystemType) ||
                 localdebris.isContainingPathOf(fullPath.localPath))
@@ -7767,7 +7752,7 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
                         }
                     }
 
-                    ScopedSyncPathRestore syncPathRestore(fullPath);
+                    auto syncPathRestore = makeScopedSyncPathRestorer(fullPath);
 
                     if (!fullPath.appendRowNames(childRow, mFilesystemType) ||
                         localdebris.isContainingPathOf(fullPath.localPath))

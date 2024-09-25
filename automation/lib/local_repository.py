@@ -94,7 +94,11 @@ class LocalRepository:  # use raw git commands
         branch_name = byte_output.decode("utf-8").strip()
         return branch_name
 
-    def switch_to_branch(self, target_branch: str):
+    def switch_to_branch(self, remote: str, target_branch: str):
+        assert subprocess.run(
+            ["git", "fetch", remote], stdout=subprocess.DEVNULL
+        ), f"Failed to fetch {remote}"
+
         cb = self._get_current_branch()
         if cb != target_branch:
             print(f"Switching to branch {target_branch} from {cb}...", flush=True)
@@ -105,10 +109,6 @@ class LocalRepository:  # use raw git commands
 
     def sync_current_branch(self, remote: str):
         my_branch = self._get_current_branch()
-
-        assert subprocess.run(
-            ["git", "fetch"], stdout=subprocess.DEVNULL
-        ), f"Failed to fetch {remote}/{my_branch}"
 
         byte_output = subprocess.check_output(
             [
@@ -145,6 +145,9 @@ class LocalRepository:  # use raw git commands
             ["git", "checkout", "-b", branch_name], stdout=subprocess.DEVNULL
         ), f'Failed to create new branch "{branch_name}"'
 
+        self.commit_changes(commit_message)
+
+    def commit_changes(self, commit_message: str):
         # stage changes to version file
         assert subprocess.run(
             ["git", "add", LocalRepository.version_file.as_posix()],
