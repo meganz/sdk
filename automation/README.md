@@ -5,7 +5,16 @@
 The following processes have been automated:
 
 ## Make a new Release
-Fill the details in `[make_release]` section of your local copy of [config.toml](config.toml).
+Fill the details in `[make_release]` section on your local copy of [config.toml](config.toml).
+(You can make your local copy by copying `config.toml.template` and renaming it to `config.toml`.)
+
+You will also need to set the following environment variables to make the script work:
+- `GITLAB_TOKEN`
+- `JIRA_USERNAME`
+- `JIRA_PASSWORD`
+- `SLACK_TOKEN`
+- `GPG_KEYGRIP`
+- `GPG_PASSWORD`
 
 > Note that the version for a new release will be automatically determined unless one was explicitly passed. To explicitly pass one, fill `release_version` argument in `[make_release]` section in `config.toml`.
 
@@ -14,37 +23,64 @@ Fill the details in `[make_release]` section of your local copy of [config.toml]
 From a directory in the repo (!) for which we intend to make a release, run:
 
 ```sh
-python3 path/to/make_release.py
+python3 path/to/make_release.py path/to/config.toml
 ```
 
 ## Close a new Release
-Fill the details in `[close_release]` section of your local copy of [config.toml](config.toml).
+Fill the details in `[close_release]` section on your local copy of [config.toml](config.toml).
+(You can make your local copy by copying `config.toml.template` and renaming it to `config.toml`.)
+
+You will also need to set the following environment variables to make the script work:
+- `GITLAB_TOKEN`
+- `JIRA_USERNAME`
+- `JIRA_PASSWORD`
+- `SLACK_TOKEN`
+- `GITHUB_TOKEN`
+- `CONFLUENCE_USER`
+- `CONFLUENCE_PASSWORD`
+
 
 From a directory in the repo (!) for which we intend to close a release, run:
 
 ```sh
-python3 path/to/close_release.py
+python3 path/to/close_release.py path/to/config.toml
 ```
 
 ## Patch a Release
 > Note that this process can become very complex when multiple releases need to be patched. Because of that, the automation is done for step 7 and further.
-Fill the details in `[patch_release]` section of your local copy of [config.toml](config.toml).
+Fill the details in `[patch_release]` section on your local copy of [config.toml](config.toml).
+(You can make your local copy by copying `config.toml.template` and renaming it to `config.toml`.)
+
+You will also need to set the following environment variables to make the script work:
+- `GITLAB_TOKEN`
+- `JIRA_USERNAME`
+- `JIRA_PASSWORD`
+- `SLACK_TOKEN`
+- `GPG_KEYGRIP`
+- `GPG_PASSWORD`
 
 From a directory in the repo (!) for which we intend to patch a release, run:
 
 ```sh
-python3 ./patch_release.py
+python3 ./patch_release.py path/to/config.toml
 ```
 
 ## Make another RC
-Fill the details in `[make_another_rc]` section of your local copy of [config.toml](config.toml).
+Fill the details in `[make_another_rc]` section on your local copy of [config.toml](config.toml).
+(You can make your local copy by copying `config.toml.template` and renaming it to `config.toml`.)
+
+You will also need to set the following environment variables to make the script work:
+- `GITLAB_TOKEN`
+- `JIRA_USERNAME`
+- `JIRA_PASSWORD`
+- `SLACK_TOKEN`
 
 > Note that the number of the new RC will be automatically determined, from the last RC already existing for that Release plus 1.
 
 From a directory in the repo (!) for which we intend to make a release, run:
 
 ```sh
-python3 path/to/make_another_rc.py
+python3 path/to/make_another_rc.py path/to/config.toml
 ```
 
 

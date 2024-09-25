@@ -2,17 +2,33 @@ from lib.local_repository import LocalRepository
 from lib.release_process import ReleaseProcess
 import tomllib
 import os
-import sys
+import argparse
 
-# Check number of arguments
-if len(sys.argv) < 2:
-    print("Usage: python patch_release.py <config_file.toml>")
-    sys.exit(1)
+# Read configuration file path
+parser = argparse.ArgumentParser(
+    description="Patch a release using the specified config file."
+)
+parser.add_argument(
+    "config_file", type=str, help="Path to the configuration file (TOML)"
+)
+args = parser.parse_args()
 
-config_file = sys.argv[1]
+# Check for required environment variables
+required_env_vars = [
+    "GITLAB_TOKEN",
+    "JIRA_USERNAME",
+    "JIRA_PASSWORD",
+    "SLACK_TOKEN",
+    "GPG_KEYGRIP",
+    "GPG_PASSWORD",
+]
+
+for var in required_env_vars:
+    if os.getenv(var) is None:
+        print(f"{var} environment variable is not defined.")
 
 # runtime arguments
-with open(config_file, "rb") as f:
+with open(args.config_file, "rb") as f:
     args = tomllib.load(f)["patch_release"]
 
 # create Release process and do common init
@@ -28,7 +44,7 @@ release.setup_local_repo(args["private_remote_name"], "", "")
 
 release.setup_project_management(
     args["jira_url"],
-    args["jira_user"],
+    os.environ["JIRA_USERNAME"],
     os.environ["JIRA_PASSWORD"],
 )
 

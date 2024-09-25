@@ -2,17 +2,31 @@ from lib.release_process import ReleaseProcess
 import re
 import tomllib
 import os
-import sys
+import argparse
 
-# Check number of arguments
-if len(sys.argv) < 2:
-    print("Usage: python make_another_rc.py <config_file.toml>")
-    sys.exit(1)
+# Read configuration file path
+parser = argparse.ArgumentParser(
+    description="Make a new release candidate using the specified config file."
+)
+parser.add_argument(
+    "config_file", type=str, help="Path to the configuration file (TOML)"
+)
+args = parser.parse_args()
 
-config_file = sys.argv[1]
+# Check for required environment variables
+required_env_vars = [
+    "GITLAB_TOKEN",
+    "JIRA_USERNAME",
+    "JIRA_PASSWORD",
+    "SLACK_TOKEN",
+]
+
+for var in required_env_vars:
+    if os.getenv(var) is None:
+        print(f"{var} environment variable is not defined.")
 
 # runtime arguments
-with open(config_file, "rb") as f:
+with open(args.config_file, "rb") as f:
     args = tomllib.load(f)["make_another_rc"]
 
 # create Release process and do common init
@@ -25,7 +39,7 @@ release = ReleaseProcess(
 
 # prerequisites for a new RC
 release.setup_project_management(
-    args["jira_url"], args["jira_user"], os.environ["JIRA_PASSWORD"]
+    args["jira_url"], os.environ["JIRA_USERNAME"], os.environ["JIRA_PASSWORD"]
 )
 if os.environ["SLACK_TOKEN"] and args["slack_channel"]:
     release.setup_chat(os.environ["SLACK_TOKEN"], args["slack_channel"])

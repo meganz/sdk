@@ -2,19 +2,35 @@ from lib.local_repository import LocalRepository
 from lib.release_process import ReleaseProcess
 import tomllib
 import os
-import sys
+import argparse
 
 RELEASE_CANDIDATE_NUMBER = 1
 
-# Check number of arguments
-if len(sys.argv) < 2:
-    print("Usage: python make_release.py <config_file.toml>")
-    sys.exit(1)
+# Read configuration file path
+parser = argparse.ArgumentParser(
+    description="Make a release using the specified config file."
+)
+parser.add_argument(
+    "config_file", type=str, help="Path to the configuration file (TOML)"
+)
+args = parser.parse_args()
 
-config_file = sys.argv[1]
+# Check for required environment variables
+required_env_vars = [
+    "GITLAB_TOKEN",
+    "JIRA_USERNAME",
+    "JIRA_PASSWORD",
+    "SLACK_TOKEN",
+    "GPG_KEYGRIP",
+    "GPG_PASSWORD",
+]
+
+for var in required_env_vars:
+    if os.getenv(var) is None:
+        print(f"{var} environment variable is not defined.")
 
 # runtime arguments
-with open(config_file, "rb") as f:
+with open(args.config_file, "rb") as f:
     args = tomllib.load(f)["make_release"]
 
 # create Release process and do common init
@@ -28,7 +44,7 @@ release = ReleaseProcess(
 # prerequisites for making a release
 release.setup_project_management(
     args["jira_url"],
-    args["jira_user"],
+    os.environ["JIRA_USERNAME"],
     os.environ["JIRA_PASSWORD"],
 )
 release.set_release_version_to_make(args["release_version"])
@@ -61,7 +77,7 @@ release.open_mr_for_release_branch(args["public_branch"])
 # STEP 7: Rename previous NextRelease version; create new NextRelease version
 release.manage_versions(
     args["jira_url"],
-    args["jira_user"],
+    os.environ["JIRA_USERNAME"],
     os.environ["JIRA_PASSWORD"],
     args["target_apps"],
 )
