@@ -217,6 +217,12 @@ typedef NS_ENUM(NSInteger, MEGAUserChangeType) {
  * - MEGAUserChangeTypeNoCallKit  = 0x20000000
  * Check if option for iOS CallKit has changed 
  *
+ * - MEGAUserChangeTypeAppsPrefs = 0x40000000
+ * Check if apps prefs have changed
+ *
+ * - MEGAUserChangeTypeCCPrefs = 0x80000000
+ * Check if content consumption prefs have changed
+ *
  */
 @property (readonly, nonatomic) MEGAUserChangeType changes;
 
