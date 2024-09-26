@@ -1,14 +1,40 @@
 from lib.release_process import ReleaseProcess
 import tomllib
+import os
+import argparse
+
+# Read configuration file path
+parser = argparse.ArgumentParser(
+    description="Close a release using the specified config file."
+)
+parser.add_argument(
+    "config_file", type=str, help="Path to the configuration file (TOML)"
+)
+args = parser.parse_args()
+
+# Check for required environment variables
+required_env_vars = [
+    "GITLAB_TOKEN",
+    "JIRA_USERNAME",
+    "JIRA_PASSWORD",
+    "SLACK_TOKEN",
+    "GITHUB_TOKEN",
+    "CONFLUENCE_USER",
+    "CONFLUENCE_PASSWORD",
+]
+
+for var in required_env_vars:
+    if os.getenv(var) is None:
+        print(f"{var} environment variable is not defined.")
 
 # runtime arguments
-with open("config.toml", "rb") as f:
+with open(args.config_file, "rb") as f:
     args = tomllib.load(f)["close_release"]
 
 # create Release process and do common init
 release = ReleaseProcess(
     args["project_name"],
-    args["gitlab_token"],
+    os.environ["GITLAB_TOKEN"],
     args["gitlab_url"],
     args["private_branch"],
 )
@@ -16,8 +42,8 @@ release = ReleaseProcess(
 # prerequisites for closing a release
 release.setup_project_management(
     args["jira_url"],
-    args["jira_user"],
-    args["jira_password"],
+    os.environ["JIRA_USERNAME"],
+    os.environ["JIRA_PASSWORD"],
 )
 release.set_release_version_to_close(args["release_version"])
 
@@ -26,14 +52,14 @@ release.setup_local_repo(
     args["public_remote_name"],
     args["github_push_remote_url"],
 )
-release.setup_public_repo(args["github_token"], args["github_repo_owner"])
+release.setup_public_repo(os.environ["GITHUB_TOKEN"], args["github_repo_owner"])
 release.confirm_all_earlier_versions_are_closed()
-if args["slack_token"]:
-    release.setup_chat(args["slack_token"], "")
+if os.environ["SLACK_TOKEN"]:
+    release.setup_chat(os.environ["SLACK_TOKEN"], "")
 release.setup_wiki(
     args["confluence_url"],
-    args["confluence_user"],
-    args["confluence_password"],
+    os.environ["CONFLUENCE_USER"],
+    os.environ["CONFLUENCE_PASSWORD"],
 )
 
 # STEP 1: GitLab: Create tag "vX.Y.Z" from last commit of branch "release/vX.Y.Z"

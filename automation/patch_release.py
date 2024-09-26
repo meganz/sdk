@@ -1,15 +1,40 @@
 from lib.local_repository import LocalRepository
 from lib.release_process import ReleaseProcess
 import tomllib
+import os
+import argparse
+
+# Read configuration file path
+parser = argparse.ArgumentParser(
+    description="Patch a release using the specified config file."
+)
+parser.add_argument(
+    "config_file", type=str, help="Path to the configuration file (TOML)"
+)
+args = parser.parse_args()
+
+# Check for required environment variables
+required_env_vars = [
+    "GITLAB_TOKEN",
+    "JIRA_USERNAME",
+    "JIRA_PASSWORD",
+    "SLACK_TOKEN",
+    "GPG_KEYGRIP",
+    "GPG_PASSWORD",
+]
+
+for var in required_env_vars:
+    if os.getenv(var) is None:
+        print(f"{var} environment variable is not defined.")
 
 # runtime arguments
-with open("config.toml", "rb") as f:
+with open(args.config_file, "rb") as f:
     args = tomllib.load(f)["patch_release"]
 
 # create Release process and do common init
 release = ReleaseProcess(
     args["project_name"],
-    args["gitlab_token"],
+    os.environ["GITLAB_TOKEN"],
     args["gitlab_url"],
     args["private_branch"],
 )
@@ -19,12 +44,12 @@ release.setup_local_repo(args["private_remote_name"], "", "")
 
 release.setup_project_management(
     args["jira_url"],
-    args["jira_user"],
-    args["jira_password"],
+    os.environ["JIRA_USERNAME"],
+    os.environ["JIRA_PASSWORD"],
 )
 
-if args["slack_token"] and args["slack_channel"]:
-    release.setup_chat(args["slack_token"], args["slack_channel"])
+if os.environ["SLACK_TOKEN"] and args["slack_channel"]:
+    release.setup_chat(os.environ["SLACK_TOKEN"], args["slack_channel"])
 
 assert args["tickets"]
 
@@ -48,8 +73,8 @@ release.add_fix_version_to_tickets(tickets)
 if LocalRepository.has_version_file():
     # STEP 8: local git, GitLab: update version in local file
     release.update_version_in_local_file_from_branch(
-        args["gpg_keygrip"],
-        args["gpg_password"],
+        os.environ["GPG_KEYGRIP"],
+        os.environ["GPG_PASSWORD"],
         args["private_remote_name"],
         "task/update-sdk-version",
         release.get_new_release_branch(),
