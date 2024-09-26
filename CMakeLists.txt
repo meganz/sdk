@@ -157,6 +157,12 @@ if(ENABLE_QT_BINDINGS)
     add_subdirectory(bindings/qt)
 endif()
 
+# Load Java bindings
+if(ENABLE_JAVA_BINDINGS)
+    add_subdirectory(bindings/java)
+    set_property(TARGET SDKlib PROPERTY POSITION_INDEPENDENT_CODE ON)
+endif()
+
 if(ENABLE_ISOLATED_GFX)
     add_subdirectory(tools/gfxworker)
 endif()
