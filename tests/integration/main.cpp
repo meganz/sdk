@@ -302,7 +302,7 @@ public:
             {
                 if (!mLogFile.is_open())
                 {
-                    mLogFile.open(gLogName);
+                    mLogFile.open(gLogName, ios::app);
                 }
                 mLogFile << os.str() << std::flush;
             }
