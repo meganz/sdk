@@ -851,6 +851,59 @@ TEST(Utils, replace_string)
     ASSERT_EQ(Utils::replace(string("abc"), "", "@"), "abc");
 }
 
+TEST(Utils, natural_sorting)
+{
+    // Comparison between symbols
+    ASSERT_EQ(naturalsorting_compare("!", "!"), 0);
+    ASSERT_GT(naturalsorting_compare("@", "!"), 0);
+    ASSERT_LT(naturalsorting_compare("#", "$"), 0);
+
+    // Comparison between symbols and numbers
+    ASSERT_LT(naturalsorting_compare("#", "0"), 0);
+    ASSERT_LT(naturalsorting_compare("!", "9"), 0);
+    ASSERT_GT(naturalsorting_compare("9", "#"), 0);
+
+    // Comparison between symbols and letters
+    ASSERT_LT(naturalsorting_compare("&", "a"), 0);
+    ASSERT_LT(naturalsorting_compare("!", "Z"), 0);
+    ASSERT_GT(naturalsorting_compare("a", "#"), 0);
+
+    // Comparison between numbers and letters
+    ASSERT_LT(naturalsorting_compare("9", "a"), 0);
+    ASSERT_GT(naturalsorting_compare("a", "1"), 0);
+    ASSERT_LT(naturalsorting_compare("1", "A"), 0);
+
+    // Comparison between symbols and letters (case no sensitive)
+    ASSERT_EQ(naturalsorting_compare("A", "a"), 0);
+    ASSERT_GT(naturalsorting_compare("B", "a"), 0);
+    ASSERT_LT(naturalsorting_compare("a", "C"), 0);
+
+    // Comparison between strings containing letters and numbers
+    ASSERT_GT(naturalsorting_compare("a1", "a0"), 0);
+    ASSERT_LT(naturalsorting_compare("a1", "a2"), 0);
+
+    // Comparison between strings containing letters and symbols
+    ASSERT_LT(naturalsorting_compare("a!", "a#"), 0);
+    ASSERT_LT(naturalsorting_compare("a#", "a@"), 0);
+
+    // Comparison between strings with different lengths
+    ASSERT_GT(naturalsorting_compare("abc", "ab"), 0);
+    ASSERT_LT(naturalsorting_compare("ab", "abc"), 0);
+
+    // Comparison between strings containing white spaces
+    ASSERT_LT(naturalsorting_compare("a ", "a!"), 0);
+    ASSERT_GT(naturalsorting_compare("a#", "a "), 0);
+
+    // Comparison between numbers of different lengths
+    ASSERT_GT(naturalsorting_compare("10", "2"), 0);
+    ASSERT_GT(naturalsorting_compare("100", "20"), 0);
+
+    // Comparison between numbers containing zeros at the beginning
+    ASSERT_EQ(naturalsorting_compare("00123", "123"), 0);
+    ASSERT_LT(naturalsorting_compare("00123", "124"), 0);
+    ASSERT_GT(naturalsorting_compare("0124", "00123"), 0);
+}
+
 TEST(RemotePath, nextPathComponent)
 {
     // Absolute path.

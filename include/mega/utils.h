@@ -1093,11 +1093,68 @@ string connDirectionToStr(direction_t directionType);
 // Translate retry reason into a human-friendly string.
 const char* toString(retryreason_t reason);
 
+enum class CharType : uint8_t
+{
+    CSYMBOL = 0,
+    CDIGIT = 1,
+    CALPHA = 2,
+};
 
 // Wrapper functions for std::isspace and std::isdigit
 // Not considering EOF values
+
+/**
+ * @brief Checks if a character is a whitespace character.
+ *
+ * @param ch The character to check
+ * @return true if the character is a space, otherwise returns false.
+ */
 bool is_space(unsigned int ch);
+
+/**
+ * @brief Checks if a character is a digit.
+ *
+ * @param ch The character to check
+ * @return true if the character is a digit (0-9), otherwise returns false.
+ */
 bool is_digit(unsigned int ch);
+
+/**
+ * @brief Checks if a character is a symbol.
+ *
+ * Note: this function is only valid for monobyte characters.
+ *
+ * @param ch The character to check
+ * @return true if the character is a symbol, otherwise returns false
+ */
+bool is_symbol(unsigned int ch);
+
+/**
+ * @brief Determines the type of a given character.
+ *
+ * Valid values returned by this function are:
+ * - CharType::CSYMBOL if the character is a symbol
+ * - CharType::CDIGIT if the character is a digit
+ * - CharType::CALPHA if the character is alphabetic
+ *
+ * @param ch The character to be classified
+ * @return CharType representing the type of the character
+ */
+CharType getCharType(const unsigned int ch);
+
+static std::string charTypeToString(const CharType t)
+{
+    switch (t)
+    {
+        case CharType::CSYMBOL:
+            return "Symbol";
+        case CharType::CDIGIT:
+            return "Digit";
+        case CharType::CALPHA:
+            return "Alpha";
+    }
+    return "Invalid character type";
+}
 
 template<typename Container = std::set<std::string>>
 Container splitString(const string& str, char delimiter)
@@ -1325,7 +1382,19 @@ SplitResult split(const std::string& value, char delimiter);
 /**
  * @brief Sorts input char strings using natural sorting ignoring case
  *
- * @returns 0 if i==j, +1 if i goes first, -1 if j goes first.
+ * This function is only valid for comparing monobyte characters.
+ * The default natural ascending order implemented by this function is:
+ * Symbols < Numbers < Alphabetic_characters(# < 1 < a).
+ *
+ * Valid values returned by this function are:
+ *  - if i == j returns 0
+ *  - if i goes first returns a number greater than 0 (>=1)
+ *  - if j goes first returns a number smaller than 0 (<=1)
+ *
+ * @param i Pointer to the first null-terminated string.
+ * @param j Pointer to the second null-terminated string.
+ *
+ * @returns the order between 2 characters
  */
 int naturalsorting_compare(const char* i, const char* j);
 

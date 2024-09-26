@@ -3248,7 +3248,6 @@ const char* toString(retryreason_t reason)
     return "RETRY_UNKNOWN";
 }
 
-
 bool is_space(unsigned int ch)
 {
     return std::isspace(static_cast<unsigned char>(ch)) != 0;
@@ -3257,6 +3256,24 @@ bool is_space(unsigned int ch)
 bool is_digit(unsigned int ch)
 {
     return std::isdigit(static_cast<unsigned char>(ch)) != 0;
+}
+
+bool is_symbol(unsigned int ch)
+{
+    return !is_digit(ch) && std::isalpha(static_cast<unsigned char>(ch)) == 0;
+}
+
+CharType getCharType(const unsigned int ch)
+{
+    if (is_symbol(ch))
+    {
+        return CharType::CSYMBOL;
+    }
+    else if (is_digit(ch))
+    {
+        return CharType::CDIGIT;
+    }
+    return CharType::CALPHA;
 }
 
 std::string escapeWildCards(const std::string& pattern)
@@ -3555,7 +3572,6 @@ SplitResult split(const std::string& value, char delimiter)
 int naturalsorting_compare(const char* i, const char* j)
 {
     static uint64_t maxNumber = (ULONG_MAX - 57) / 10; // 57 --> ASCII code for '9'
-
     bool stringMode = true;
 
     while (*i && *j)
@@ -3565,33 +3581,44 @@ int naturalsorting_compare(const char* i, const char* j)
             char char_i, char_j;
             while ((char_i = *i) && (char_j = *j))
             {
-                bool char_i_isDigit = is_digit(*i);
-                bool char_j_isDigit = is_digit(*j);
-
-                if (char_i_isDigit && char_j_isDigit)
+                CharType iCharType = getCharType(static_cast<unsigned int>(*i));
+                CharType jCharType = getCharType(static_cast<unsigned int>(*j));
+                if (iCharType == jCharType)
                 {
-                    stringMode = false;
-                    break;
-                }
+                    if (iCharType == CharType::CSYMBOL || iCharType == CharType::CALPHA)
+                    {
+                        if (int difference = strncasecmp(reinterpret_cast<const char*>(&char_i),
+                                                         reinterpret_cast<const char*>(&char_j),
+                                                         1);
+                            difference)
+                        {
+                            return difference;
+                        }
 
-                if (char_i_isDigit)
+                        ++i;
+                        ++j;
+                    }
+                    else if (iCharType == CharType::CDIGIT)
+                    {
+                        stringMode = false;
+                        break;
+                    }
+                }
+                else if (iCharType == CharType::CSYMBOL || jCharType == CharType::CSYMBOL)
                 {
-                    return -1;
+                    return iCharType == CharType::CSYMBOL ? -1 : 1;
                 }
-
-                if (char_j_isDigit)
+                else if (iCharType == CharType::CDIGIT || jCharType == CharType::CDIGIT)
                 {
-                    return 1;
+                    return iCharType == CharType::CDIGIT ? -1 : 1;
                 }
-
-                int difference = strncasecmp((char*)&char_i, (char*)&char_j, 1);
-                if (difference)
+                else
                 {
-                    return difference;
+                    LOG_err << "naturalsorting_compare: invalid case. Itype: "
+                            << charTypeToString(iCharType)
+                            << ", Jtype: " << charTypeToString(jCharType);
+                    assert(false);
                 }
-
-                ++i;
-                ++j;
             }
         }
         else // we are comparing numbers on both strings
