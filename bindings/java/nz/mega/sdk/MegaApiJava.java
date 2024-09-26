@@ -19,7 +19,6 @@ import static nz.mega.sdk.MegaSync.SyncRunningState.RUNSTATE_PAUSED;
 import static nz.mega.sdk.MegaSync.SyncRunningState.RUNSTATE_RUNNING;
 import static nz.mega.sdk.MegaSync.SyncRunningState.RUNSTATE_SUSPENDED;
 
-import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.OutputStream;
@@ -7985,7 +7984,17 @@ public class MegaApiJava {
      */
     @Nullable
     public MegaTransferData getTransferData(MegaTransferListenerInterface listener) {
-        return megaApi.getTransferData(createDelegateTransferListener(listener, false));
+        return megaApi.getTransferData(createDelegateTransferListener(listener, true));
+    }
+
+    /**
+     * Get information about transfer queues
+     *
+     * @return Information about transfer queues
+     */
+    @Nullable
+    public MegaTransferData getTransferData() {
+        return megaApi.getTransferData();
     }
 
     /**
