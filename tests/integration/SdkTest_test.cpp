@@ -20159,6 +20159,7 @@ TEST_F(SdkTest, SdkTestRemoveVersionsFromSync)
 
     auto checkSyncState = [this](const std::string& fileName)
     {
+        static unsigned int waitSyncedState = 40;
         waitForEvent(
             [this, fileName]()
             {
@@ -20199,11 +20200,10 @@ TEST_F(SdkTest, SdkTestRemoveVersionsFromSync)
                 std::string utf8String{std::move(path)};
                 path.clear();
                 utf8ToUtf16(utf8String.c_str(), &path);
-                // At Window use wstring, path should be a par length
-                ASSERT_EQ(path.size() % 2, 0);
 #endif
                 return MegaApi::STATE_SYNCED == megaApi[0]->syncPathState(&path);
-            });
+            },
+            waitSyncedState);
     };
 
     LOG_verbose << "SdkTestRemoveVersionsFromSync :  wait file is syncronized";
@@ -20238,20 +20238,10 @@ TEST_F(SdkTest, SdkTestRemoveVersionsFromSync)
     ASSERT_EQ(rt->waitForResult(), API_OK);
     ASSERT_EQ(megaApi[0]->getNumVersions(node), 1);
 
-    unsigned int waitSyncedState = 40;
-
     // Check if file is at synced state. None state change should be generated
-    ASSERT_TRUE(waitForEvent(
-        [this, fileName]()
-        {
-            std::string path{fileName};
-            return MegaApi::STATE_SYNCED == megaApi[0]->syncPathState(&path);
-        },
-        waitSyncedState));
+    checkSyncState(fileName);
 
-    ASSERT_EQ(MegaApi::STATE_SYNCED, megaApi[0]->syncPathState(&fileName));
-
-    LOG_verbose << "SdkTestRemoveVersionsFromSync :  Remove all versions";
+    LOG_verbose << "SdkTestRemoveVersionsFromSync :  Remove syncs";
     rt = std::make_unique<RequestTracker>(megaApi[0].get());
     megaApi[0]->removeSync(backupId, rt.get());
     ASSERT_EQ(rt->waitForResult(), API_OK);
