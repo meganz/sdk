@@ -1684,10 +1684,11 @@ void NodeManager::checkOrphanNodes(MissingParentNodes& nodesWithMissingParent)
                 mClient.proctree(orphan, &td);
 
                 // TODO: Change this warning to an error when Speculative Instant Completion (SIC) is gone
-               LOG_warn << "Detected orphan node: " << toNodeHandle(orphan->nodehandle)
-                        << " Parent: " << toNodeHandle(orphan->parentHandle());
+                LOG_warn << mClient.clientname
+                         << "Detected orphan node: " << toNodeHandle(orphan->nodehandle)
+                         << " Parent: " << toNodeHandle(orphan->parentHandle());
 
-               mClient.sendevent(99455, "Orphan node(s) detected");
+                mClient.sendevent(99455, "Orphan node(s) detected");
 
                 // If we didn't get all the parents of all the (not inshare) nodes,
                 // then the API is sending us inconsistent data,

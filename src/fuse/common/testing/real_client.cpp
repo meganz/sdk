@@ -422,18 +422,22 @@ bool RealClient::shared(const std::string& email,
            || (node->pendingshares && scan(*node->pendingshares));
 }
 
-RealClient::RealClient(const Path& databasePath,
-                       const Path& storagePath)
-  : Client(databasePath, storagePath)
-  , MegaApp()
-  , mClient()
-  , mClientLock()
-  , mClientTerminate{false}
-  , mClientThread()
-  , mHTTPIO(new CurlHttpIO())
-  , mPendingRequests()
-  , mWaiter(std::make_shared<WAIT_CLASS>())
+RealClient::RealClient(const std::string& clientName,
+                       const Path& databasePath,
+                       const Path& storagePath):
+    Client(clientName, databasePath, storagePath),
+    MegaApp(),
+    mClient(),
+    mClientLock(),
+    mClientTerminate{false},
+    mClientThread(),
+    mHTTPIO(new CurlHttpIO()),
+    mPendingRequests(),
+    mWaiter(std::make_shared<WAIT_CLASS>())
 {
+    // Sanity.
+    assert(!clientName.empty());
+
     // Instantiate the client.
     mClient.reset(new MegaClient(this,
                                  mWaiter,
@@ -443,6 +447,9 @@ RealClient::RealClient(const Path& databasePath,
                                  "N9tSBJDC",
                                  USER_AGENT.c_str(),
                                  THREADS_PER_MEGACLIENT));
+
+    // Make sure the client has a recognizable name.
+    mClient->clientname = clientName + " ";
 
     // Make sure FUSE logs *everything*.
     mClient->mFuseService.logLevel(LOG_LEVEL_DEBUG);
