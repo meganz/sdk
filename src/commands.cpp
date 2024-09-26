@@ -3145,7 +3145,7 @@ void CommandRemoveContact::doComplete(error result)
 
 CommandPutMultipleUAVer::CommandPutMultipleUAVer(MegaClient *client, const userattr_map *attrs, int ctag, std::function<void (Error)> completion)
 {
-    mV3 = false;
+    mSeqtagArray = true;
 
     this->attrs = *attrs;
 
@@ -3270,7 +3270,7 @@ bool CommandPutMultipleUAVer::procresult(Result r, JSON& json)
 CommandPutUAVer::CommandPutUAVer(MegaClient* client, attr_t at, const byte* av, unsigned avl, int ctag,
                                  std::function<void(Error)> completion)
 {
-    mV3 = false;
+    mSeqtagArray = true;
 
     this->at = at;
     this->av.assign((const char*)av, avl);
