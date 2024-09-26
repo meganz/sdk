@@ -2,16 +2,6 @@ find_package(Java REQUIRED)
 find_package(SWIG REQUIRED)
 include(UseSWIG)
 
-# For Android we do not need JNI
-if(ANDROID)
-    set(JNI_INCLUDE_DIRS 
-        ${ANDROID_NDK_HOME}/sysroot/usr/include
-        ${ANDROID_NDK_HOME}/sysroot/usr/include/${ANDROID_ABI}
-    )
-else()
-    find_package(JNI REQUIRED)
-endif()
-
 # Set the output directory for generated Java files
 set(JAVA_OUTPUT_DIR ${CMAKE_BINARY_DIR}/bindings/java/nz/mega/sdk)
 
@@ -38,6 +28,16 @@ swig_add_library(SDKJavaBindings
     SOURCES ${SWIG_INTERFACE_FILE}
     OUTPUT_DIR ${JAVA_OUTPUT_DIR}
 )
+
+# For Android we do not need JNI
+if(ANDROID)
+    set(JNI_INCLUDE_DIRS 
+        ${ANDROID_NDK_HOME}/sysroot/usr/include
+        ${ANDROID_NDK_HOME}/sysroot/usr/include/${ANDROID_ABI}
+    )
+else()
+    find_package(JNI REQUIRED)
+endif()
 
 target_include_directories(SDKJavaBindings
     PRIVATE
