@@ -12111,7 +12111,7 @@ public class MegaApiJava {
                 name,
                 remoteSyncRootFolder,
                 driveRootIfExternal,
-                createDelegateRequestListener(listener, false)
+                createDelegateRequestListener(listener, true)
         );
     }
 
