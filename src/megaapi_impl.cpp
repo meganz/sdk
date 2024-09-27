@@ -2791,8 +2791,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
             type = TYPE_SET_TAKEDOWN_REINSTATED;
         }
         nodeHandle = p->setId;
-        const Set* set = mc->getSet(nodeHandle);
-        if (set)
+        if (const Set* set = mc->getSet(nodeHandle); set)
         {
             nodeName = set->name();
         }

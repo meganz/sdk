@@ -2010,7 +2010,7 @@ public:
      *    - DELETION_LINK_ETD = 3
      *    - DELETION_LINK_ATD = 4
      *
-     * @return reson for link has been removed
+     * @return reason for link has been removed
      */
     virtual int getLinkDeletionReason() const
     {

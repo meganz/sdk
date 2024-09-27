@@ -20388,8 +20388,8 @@ TEST_F(SdkTest, HashCash)
 TEST_F(SdkTest, SdkTestRemovePublicLinkSet)
 {
     LOG_info << "___TEST SdkTestRemovePublicLinkSet";
-    int primaryClientIdx = 0;
-    int secondaryClientIdx = 1;
+    constexpr unsigned long primaryClientIdx{0};
+    constexpr unsigned long secondaryClientIdx{1};
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     // Client 2 is other client from user 1
@@ -20404,10 +20404,10 @@ TEST_F(SdkTest, SdkTestRemovePublicLinkSet)
     ASSERT_NO_FATAL_FAILURE(fetchnodes(secondaryClientIdx));
 
     const MrProper cleanUp(
-        [this, secondaryClientIdx]()
+        [this]()
         {
             // release secondary instance to avoid failure at tear down
-            releaseMegaApi(1);
+            releaseMegaApi(secondaryClientIdx);
         });
 
     LOG_debug << "# Create set";
@@ -20424,7 +20424,7 @@ TEST_F(SdkTest, SdkTestRemovePublicLinkSet)
 
     LOG_debug << "Set handle: " << Base64Str<MegaClient::USERHANDLE>(sh);
 
-    auto exportSet = [this, sh](int primaryClientIdx, int secondaryClientIdx)
+    auto exportSet = [this, sh]()
     {
         std::unique_ptr<MegaSet> set{megaApi[primaryClientIdx]->getSet(sh)};
         mApi[secondaryClientIdx].setUpdated = false;
@@ -20441,7 +20441,7 @@ TEST_F(SdkTest, SdkTestRemovePublicLinkSet)
         ASSERT_TRUE(setSecondAccount->getLinkDeletionReason() == MegaSet::DELETION_LINK_NO_REMOVED);
     };
 
-    auto disableExportSet = [this, sh](int primaryClientIdx, int secondaryClientIdx)
+    auto disableExportSet = [this, sh]()
     {
         std::unique_ptr<MegaSet> set{megaApi[primaryClientIdx]->getSet(sh)};
         mApi[secondaryClientIdx].setUpdated = false;
@@ -20457,14 +20457,14 @@ TEST_F(SdkTest, SdkTestRemovePublicLinkSet)
         ASSERT_FALSE(setSecondAccount->isExported());
     };
 
-    auto checkDeletionReasonAfterResumeSession = [this, sh](bool exported, int index)
+    auto checkDeletionReasonAfterResumeSession = [this, sh](bool exported)
     {
-        PerApi& target = mApi[index];
+        PerApi& target = mApi[primaryClientIdx];
         target.resetlastEvent();
-        std::unique_ptr<char[]> session(megaApi[index]->dumpSession());
+        std::unique_ptr<char[]> session(megaApi[primaryClientIdx]->dumpSession());
         ASSERT_NO_FATAL_FAILURE(locallogout());
         ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
-        ASSERT_NO_FATAL_FAILURE(fetchnodes(index));
+        ASSERT_NO_FATAL_FAILURE(fetchnodes(primaryClientIdx));
         // make sure that client is up to date (upon logout, recent changes might not be committed
         // to DB)
         ASSERT_TRUE(WaitFor(
@@ -20475,7 +20475,7 @@ TEST_F(SdkTest, SdkTestRemovePublicLinkSet)
             10000))
             << "Timeout expired to receive actionpackets";
 
-        std::unique_ptr<MegaSet> setPrimaryAccount{megaApi[index]->getSet(sh)};
+        std::unique_ptr<MegaSet> setPrimaryAccount{megaApi[primaryClientIdx]->getSet(sh)};
         ASSERT_TRUE(setPrimaryAccount);
         ASSERT_EQ(setPrimaryAccount->isExported(), exported);
     };
@@ -20484,20 +20484,20 @@ TEST_F(SdkTest, SdkTestRemovePublicLinkSet)
     ASSERT_FALSE(megaApi[primaryClientIdx]->isExportedSet(sh)) << "Set should not be public yet";
 
     LOG_debug << "# Enable Set export (creates public link)";
-    ASSERT_NO_FATAL_FAILURE(exportSet(primaryClientIdx, secondaryClientIdx));
+    ASSERT_NO_FATAL_FAILURE(exportSet());
 
     LOG_debug << "# Check state after resume session 1";
-    checkDeletionReasonAfterResumeSession(true, primaryClientIdx);
+    checkDeletionReasonAfterResumeSession(true);
 
     LOG_debug << "# Disable public link";
-    ASSERT_NO_FATAL_FAILURE(disableExportSet(primaryClientIdx, secondaryClientIdx));
+    ASSERT_NO_FATAL_FAILURE(disableExportSet());
 
     LOG_debug << "# Check state after resume session 2";
-    checkDeletionReasonAfterResumeSession(false, primaryClientIdx);
+    checkDeletionReasonAfterResumeSession(false);
 
     LOG_debug << "# Enable Set export again";
-    ASSERT_NO_FATAL_FAILURE(exportSet(primaryClientIdx, secondaryClientIdx));
+    ASSERT_NO_FATAL_FAILURE(exportSet());
 
     LOG_debug << "# Check state after resume session 3";
-    checkDeletionReasonAfterResumeSession(true, primaryClientIdx);
+    checkDeletionReasonAfterResumeSession(true);
 }

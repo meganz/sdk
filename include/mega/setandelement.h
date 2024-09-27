@@ -258,12 +258,13 @@ namespace mega {
 
         static constexpr uint64_t ETD_REMOVED_API_CODE = 4294967275; // Defined by API
         static constexpr uint64_t ATD_REMOVED_API_CODE = 4294967274; // Defined by API
+        static constexpr uint64_t USER_REMOVED_API_CODE = 0; // Defined by API
 
         static LinkDeletionReason apiCodeToDeletionReason(const int64_t apiCode)
         {
             switch (apiCode)
             {
-                case 0:
+                case USER_REMOVED_API_CODE:
                     return LinkDeletionReason::BY_USER;
                 case ETD_REMOVED_API_CODE:
                     return LinkDeletionReason::ETD;
@@ -326,7 +327,7 @@ namespace mega {
             return mPublicId;
         }
 
-        // retruns true if link has been taken down
+        // returns true if link has been taken down
         bool isTakenDown() const
         {
             return mTakedown;

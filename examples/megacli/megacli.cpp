@@ -12226,7 +12226,9 @@ void printSet(const Set* s)
     if (s->getPublicLink() && s->getPublicLink()->isTakenDown())
     {
         cout << "\t\ttake down reason: "
-             << static_cast<uint8_t>(s->getPublicLink()->getLinkDeletionReason()) << endl;
+             << PublicLinkSet::LinkDeletionReasonToString(
+                    s->getPublicLink()->getLinkDeletionReason())
+             << endl;
     }
     cout << "\tkey: " << Base64::btoa(s->key()) << endl;
     cout << "\tuser: " << toHandle(s->user()) << endl;
