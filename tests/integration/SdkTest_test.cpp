@@ -19287,13 +19287,13 @@ TEST_F(SdkTest, SdkNodeDescription)
     nodeList.reset(megaApi[0]->search(filter.get()));
     ASSERT_EQ(nodeList->size(), 1);
 
+    auto& target = mApi[0];
     std::unique_ptr<char> session(dumpSession());
     locallogout(0);
     resumeSession(session.get());
+    target.resetlastEvent();
     fetchnodes(0);
 
-    auto& target = mApi[0];
-    target.resetlastEvent();
     // make sure that client is up to date (upon logout, recent changes might not be committed to DB)
     ASSERT_TRUE(WaitFor(
         [&target]()
