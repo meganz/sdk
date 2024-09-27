@@ -57,7 +57,7 @@ struct PassFileParseResult
     {
         OK = 0,
         NO_VALID_ENTRIES,
-        FILE_DOES_NOT_EXIST,
+        FILE_NOT_FOUND,
         CANT_OPEN_FILE,
         MISSING_COLUMN,
         INVALID_HEADER,

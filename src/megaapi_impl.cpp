@@ -26990,7 +26990,7 @@ void MegaApiImpl::importPasswordsFromFile(const char* filePath,
             case PassFileParseResult::ErrCode::NO_VALID_ENTRIES:
                 LOG_err << "Import password: invalid file format";
                 return API_EARGS;
-            case PassFileParseResult::ErrCode::FILE_DOES_NOT_EXIST:
+            case PassFileParseResult::ErrCode::FILE_NOT_FOUND:
             case PassFileParseResult::ErrCode::CANT_OPEN_FILE:
                 LOG_err << "Import password: file can't be opened or doesn't exist";
                 return API_EREAD;
