@@ -1142,20 +1142,6 @@ bool is_symbol(unsigned int ch);
  */
 CharType getCharType(const unsigned int ch);
 
-static std::string charTypeToString(const CharType t)
-{
-    switch (t)
-    {
-        case CharType::CSYMBOL:
-            return "Symbol";
-        case CharType::CDIGIT:
-            return "Digit";
-        case CharType::CALPHA:
-            return "Alpha";
-    }
-    return "Invalid character type";
-}
-
 template<typename Container = std::set<std::string>>
 Container splitString(const string& str, char delimiter)
 {

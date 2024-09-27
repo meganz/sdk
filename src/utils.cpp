@@ -3260,7 +3260,7 @@ bool is_digit(unsigned int ch)
 
 bool is_symbol(unsigned int ch)
 {
-    return !is_digit(ch) && std::isalpha(static_cast<unsigned char>(ch)) == 0;
+    return std::isalnum(static_cast<unsigned char>(ch)) == 0;
 }
 
 CharType getCharType(const unsigned int ch)
@@ -3604,20 +3604,9 @@ int naturalsorting_compare(const char* i, const char* j)
                         break;
                     }
                 }
-                else if (iCharType == CharType::CSYMBOL || jCharType == CharType::CSYMBOL)
-                {
-                    return iCharType == CharType::CSYMBOL ? -1 : 1;
-                }
-                else if (iCharType == CharType::CDIGIT || jCharType == CharType::CDIGIT)
-                {
-                    return iCharType == CharType::CDIGIT ? -1 : 1;
-                }
                 else
                 {
-                    LOG_err << "naturalsorting_compare: invalid case. Itype: "
-                            << charTypeToString(iCharType)
-                            << ", Jtype: " << charTypeToString(jCharType);
-                    assert(false);
+                    return iCharType < jCharType ? -1 : 1;
                 }
             }
         }

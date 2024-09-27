@@ -886,6 +886,15 @@ TEST(Utils, natural_sorting)
     ASSERT_LT(naturalsorting_compare("a!", "a#"), 0);
     ASSERT_LT(naturalsorting_compare("a#", "a@"), 0);
 
+    // Comparison between strings containing letters, numbers and symbols
+    ASSERT_LT(naturalsorting_compare("1a!", "1a#"), 0);
+    ASSERT_LT(naturalsorting_compare("!a1", "a1#"), 0);
+    ASSERT_LT(naturalsorting_compare("!a1", "1#a"), 0);
+    ASSERT_GT(naturalsorting_compare("a1!", "1a#"), 0);
+    ASSERT_GT(naturalsorting_compare("a!1", "1a#"), 0);
+    ASSERT_GT(naturalsorting_compare("2a!", "1a#"), 0);
+    ASSERT_EQ(naturalsorting_compare("1a&", "1a&"), 0);
+
     // Comparison between strings with different lengths
     ASSERT_GT(naturalsorting_compare("abc", "ab"), 0);
     ASSERT_LT(naturalsorting_compare("ab", "abc"), 0);
