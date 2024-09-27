@@ -32,7 +32,7 @@ void validateUserAttributeValue(mega::User& user,
 {
     if (!value || at == mega::ATTR_AVATAR)
     {
-        ASSERT_THAT(user.getattr(at), testing::IsNull());
+        ASSERT_THAT(user.getattr(at), testing::IsNull()) << "Found value " << *user.getattr(at);
     }
     else
     {
@@ -124,7 +124,7 @@ TEST_P(scopeWithParam, scope)
 INSTANTIATE_TEST_SUITE_P(UserAttributeTests,
                          scopeWithParam,
                          testing::Values(std::make_tuple(mega::ATTR_AVATAR, '+'),
-                                         std::make_tuple(mega::ATTR_FIRSTNAME, '0'),
+                                         std::make_tuple(mega::ATTR_FIRSTNAME, '#'),
                                          std::make_tuple(mega::ATTR_AUTHRING, '*'),
                                          std::make_tuple(mega::ATTR_ED25519_PUBK, '+')));
 
@@ -158,6 +158,11 @@ TEST_P(getMaxAttributeSizeWithParam, getMaxAttributeSize)
     ASSERT_EQ(mega::User::getMaxAttributeSize(at), attributeMaxSize);
 }
 
+static constexpr size_t MAX_USER_VAR_SIZE =
+    16 * 1024 * 1024; // 16MB - User attributes whose second character is ! or ~ (per example
+                      // *!dn, ^!keys", ...)
+static constexpr size_t MAX_USER_ATTRIBUTE_SIZE = 64 * 1024; // 64kB  - Other user attributes
+
 INSTANTIATE_TEST_SUITE_P(
     UserAttributeTests,
     getMaxAttributeSizeWithParam,
@@ -182,7 +187,9 @@ TEST_P(InterfacesWithParam, SetValueAndVersion)
     mUser.setattr(GetParam(), &mValue1, &mVersion1);
     ASSERT_NE(memcmp(&mUser.changed, &unchanged, sizeof(mUser.changed)), 0);
     ASSERT_NO_FATAL_FAILURE(validateUserAttributeValue(mUser, GetParam(), mValue1));
-    ASSERT_EQ(*mUser.getattrversion(GetParam()), mVersion1);
+    const std::string* version = mUser.getattrversion(GetParam());
+    ASSERT_THAT(version, testing::NotNull());
+    ASSERT_EQ(*version, mVersion1);
 }
 
 TEST_P(InterfacesWithParam, UpdateValueSameVersion)
@@ -194,7 +201,9 @@ TEST_P(InterfacesWithParam, UpdateValueSameVersion)
     ASSERT_EQ(mUser.updateattr(GetParam(), &value2, &mVersion1), 0);
     ASSERT_EQ(memcmp(&mUser.changed, &unchanged, sizeof(mUser.changed)), 0);
     ASSERT_NO_FATAL_FAILURE(validateUserAttributeValue(mUser, GetParam(), mValue1));
-    ASSERT_EQ(*mUser.getattrversion(GetParam()), mVersion1);
+    const std::string* version = mUser.getattrversion(GetParam());
+    ASSERT_THAT(version, testing::NotNull());
+    ASSERT_EQ(*version, mVersion1);
 }
 
 TEST_P(InterfacesWithParam, UpdateValueDifferentVersion)
@@ -207,7 +216,9 @@ TEST_P(InterfacesWithParam, UpdateValueDifferentVersion)
     ASSERT_EQ(mUser.updateattr(GetParam(), &value2, &version2), 1);
     ASSERT_NE(memcmp(&mUser.changed, &unchanged, sizeof(mUser.changed)), 0);
     ASSERT_NO_FATAL_FAILURE(validateUserAttributeValue(mUser, GetParam(), value2));
-    ASSERT_EQ(*mUser.getattrversion(GetParam()), version2);
+    const std::string* version = mUser.getattrversion(GetParam());
+    ASSERT_THAT(version, testing::NotNull());
+    ASSERT_EQ(*version, version2);
 }
 
 TEST_P(InterfacesWithParam, SetValueNullVersion)
@@ -216,7 +227,9 @@ TEST_P(InterfacesWithParam, SetValueNullVersion)
     mUser.setattr(GetParam(), &mValue1, nullptr);
     ASSERT_NE(memcmp(&mUser.changed, &unchanged, sizeof(mUser.changed)), 0);
     ASSERT_NO_FATAL_FAILURE(validateUserAttributeValue(mUser, GetParam(), mValue1));
-    ASSERT_STREQ(mUser.getattrversion(GetParam())->c_str(), "N");
+    const std::string* version = mUser.getattrversion(GetParam());
+    ASSERT_THAT(version, testing::NotNull());
+    ASSERT_TRUE(version->empty());
 }
 
 TEST_P(InterfacesWithParam, Invalidate)
@@ -228,7 +241,9 @@ TEST_P(InterfacesWithParam, Invalidate)
     ASSERT_NE(memcmp(&mUser.changed, &unchanged, sizeof(mUser.changed)), 0);
     ASSERT_FALSE(mUser.isattrvalid(GetParam()));
     ASSERT_NO_FATAL_FAILURE(validateUserAttributeValue(mUser, GetParam(), mValue1));
-    ASSERT_THAT(mUser.getattrversion(GetParam()), testing::IsNull());
+    const std::string* version = mUser.getattrversion(GetParam());
+    ASSERT_THAT(version, testing::NotNull());
+    ASSERT_EQ(*version, mVersion1);
 }
 
 TEST_P(InterfacesWithParam, RemoveVersion)
@@ -236,19 +251,13 @@ TEST_P(InterfacesWithParam, RemoveVersion)
     mUser.setattr(GetParam(), &mValue1, &mVersion1);
     mUser.changed = {};
     auto unchanged = mUser.changed;
-    bool wasValidBeforeRemoval = mUser.isattrvalid(GetParam());
     mUser.removeattr(GetParam(),
                      mVersion1); // remove value, but keep updated version (for some reason...)
-    if (wasValidBeforeRemoval)
-    {
-        ASSERT_NE(memcmp(&mUser.changed, &unchanged, sizeof(mUser.changed)), 0);
-    }
-    else
-    {
-        ASSERT_EQ(memcmp(&mUser.changed, &unchanged, sizeof(mUser.changed)), 0);
-    }
-    ASSERT_NO_FATAL_FAILURE(validateUserAttributeValue(mUser, GetParam(), std::nullopt));
-    ASSERT_EQ(*mUser.getattrversion(GetParam()), mVersion1);
+    ASSERT_NE(memcmp(&mUser.changed, &unchanged, sizeof(mUser.changed)), 0);
+    ASSERT_NO_FATAL_FAILURE(validateUserAttributeValue(mUser, GetParam(), mValue1));
+    const std::string* version = mUser.getattrversion(GetParam());
+    ASSERT_THAT(version, testing::NotNull());
+    ASSERT_EQ(*version, mVersion1);
     ASSERT_FALSE(mUser.nonExistingAttribute(GetParam()));
 }
 
@@ -257,18 +266,10 @@ TEST_P(InterfacesWithParam, RemoveValueOwnUser)
     mUser.setattr(GetParam(), &mValue1, &mVersion1);
     mUser.changed = {};
     auto unchanged = mUser.changed;
-    bool wasValidBeforeRemoval = mUser.isattrvalid(GetParam());
     mUser.removeattr(GetParam(), true);
-    if (wasValidBeforeRemoval)
-    {
-        ASSERT_NE(memcmp(&mUser.changed, &unchanged, sizeof(mUser.changed)), 0);
-    }
-    else
-    {
-        ASSERT_EQ(memcmp(&mUser.changed, &unchanged, sizeof(mUser.changed)), 0);
-    }
+    ASSERT_NE(memcmp(&mUser.changed, &unchanged, sizeof(mUser.changed)), 0);
     ASSERT_NO_FATAL_FAILURE(validateUserAttributeValue(mUser, GetParam(), std::nullopt));
-    ASSERT_STREQ(mUser.getattrversion(GetParam())->c_str(), "-9");
+    ASSERT_THAT(mUser.getattrversion(GetParam()), testing::IsNull());
     ASSERT_TRUE(mUser.nonExistingAttribute(GetParam()));
 }
 
@@ -277,16 +278,8 @@ TEST_P(InterfacesWithParam, RemoveValueOtherUser)
     mUser.setattr(GetParam(), &mValue1, &mVersion1);
     mUser.changed = {};
     auto unchanged = mUser.changed;
-    bool wasValidBeforeRemoval = mUser.isattrvalid(GetParam());
     mUser.removeattr(GetParam(), false);
-    if (wasValidBeforeRemoval)
-    {
-        ASSERT_NE(memcmp(&mUser.changed, &unchanged, sizeof(mUser.changed)), 0);
-    }
-    else
-    {
-        ASSERT_EQ(memcmp(&mUser.changed, &unchanged, sizeof(mUser.changed)), 0);
-    }
+    ASSERT_NE(memcmp(&mUser.changed, &unchanged, sizeof(mUser.changed)), 0);
     ASSERT_NO_FATAL_FAILURE(validateUserAttributeValue(mUser, GetParam(), std::nullopt));
     ASSERT_THAT(mUser.getattrversion(GetParam()), testing::IsNull());
     ASSERT_FALSE(mUser.nonExistingAttribute(GetParam()));
