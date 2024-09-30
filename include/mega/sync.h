@@ -419,6 +419,9 @@ public:
     MegaClient* client() const { return mClient; }
 };
 
+// Forward declaration. The whole implementation and api is detailed in the cpp file
+struct ProgressingMonitor;
+
 class MEGA_API Sync
 {
 public:
@@ -510,7 +513,7 @@ public:
     bool syncItem_checkDownloadCompletion(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath);
     bool syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFolderLogSummaryCounts& pflsc);
 
-    string logTriplet(SyncRow& row, SyncPath& fullPath);
+    string logTriplet(const SyncRow& row, const SyncPath& fullPath) const;
 
     // resolve_* functions are to do with managing the various cases syncing a single item
     // they all return true/false depending on whether the node is now in sync
@@ -653,6 +656,115 @@ private:
     // permanent lock on the debris/tmp folder
     unique_ptr<FileAccess> tmpfa;
     LocalPath tmpfaPath;
+
+    /**
+     * @brief Method to handle what to do when a download was terminated without completion.
+     *
+     * @param row The SyncRow object holding the nodes involved in the download.
+     * @param fullPath Full path to the root of the sync.
+     * @param downloadFile The SyncDownload_inClient object that has being terminated by the
+     * corresponding Transfer.
+     * @param monitor The ProgressingMonitor object that is used to notify stalls if needed.
+     * @return true if it must continue with the syncItem logic false otherwise
+     */
+    bool handleTerminatedDownloads(const SyncRow& row,
+                                   const SyncPath& fullPath,
+                                   const SyncDownload_inClient& downloadFile,
+                                   ProgressingMonitor& monitor);
+
+    /**
+     * @brief Method to handle what to do when a download was terminated due to a MAC verification
+     * failure.
+     *
+     * A new Stall issue (of type SyncWaitReason::DownloadIssue) will be created and we will only
+     * continue with the rest of the syncItem logic if the cloudNode doesn't exists or if it exists
+     * but its handle is different from the one stored in downloadFile (i.e. if the remote node has
+     * changed).
+     * A new Stall issue will be created:
+     *     - Type: SyncWaitReason::DownloadIssue
+     *     - StallCloudPath: error of type PathProblem::MACVerificationFailure
+     *     - StallLocalPath1: pointing to the downloadFile.getLocalName() and error
+     *       PathProblem::MACVerificationFailure
+     *     - StallLocalPath2: pointing to the path of the sync (fullPath.localPath)
+     *
+     * @param row The SyncRow object holding the nodes involved in the download.
+     * @param fullPath Full path to the root of the sync.
+     * @param downloadFile The SyncDownload_inClient object that has being terminated by the
+     * corresponding Transfer.
+     * @param monitor The ProgressingMonitor object that is used to notify stalls if needed.
+     * @return true if it must continue with the syncItem logic false otherwise
+     */
+    bool handleTerminatedDownloadsDueMAC(const SyncRow& row,
+                                         const SyncPath& fullPath,
+                                         const SyncDownload_inClient& downloadFile,
+                                         ProgressingMonitor& monitor) const;
+
+    /**
+     * @brief Method to handle what to do when a download was terminated because the remote file has
+     * been taken down.
+     *
+     * A new Stall issue will be created:
+     *     - Type: SyncWaitReason::DownloadIssue
+     *     - StallCloudPath: error of type PathProblem::CloudNodeIsBlocked
+     *     - StallLocalPath: empty
+     *
+     * @param row The SyncRow object holding the nodes involved in the download.
+     * @param fullPath Full path to the root of the sync.
+     * @param downloadFile The SyncDownload_inClient object that has being terminated by the
+     * corresponding Transfer.
+     * @param monitor The ProgressingMonitor object that is used to notify stalls if needed.
+     * @return Always true so we keep the transfer intact and let syncItem continue, the transfer
+     * could be reset if the remote node is replaced
+     */
+    bool handleTerminatedDownloadsDueBlocked(const SyncRow& row,
+                                             const SyncPath& fullPath,
+                                             const SyncDownload_inClient& downloadFile,
+                                             ProgressingMonitor& monitor) const;
+
+    /**
+     * @brief Method to handle what to do when a download was terminated due to a write permissions
+     * issue, e.g., we couldn't write the download to the temporary location.
+     *
+     * In this case, the temporary file access (tmpfa) gets reset so a new valid location is
+     * recreated when restarting the transfer. This reset shouldn't be problematic even if there are
+     * other sync-downloads in flight, because they use threadSafeState::mSyncTmpFolder (and this is
+     * the same thread).
+     *
+     * @param row The SyncRow object holding the nodes involved in the download.
+     * @param fullPath Full path to the root of the sync.
+     * @param downloadFile The SyncDownload_inClient object that has being terminated by the
+     * corresponding Transfer.
+     * @return Always true so we re-evaluate what to do.
+     */
+    bool handleTerminatedDownloadsDueWritePerms(const SyncRow& row,
+                                                const SyncPath& fullPath,
+                                                const SyncDownload_inClient& downloadFile);
+
+    /**
+     * @brief Method to handle what to do when a download was terminated without completion due to
+     * an error that we have never found during development so we don't know how to handle it.
+     *
+     * @note: If this method gets called we know that it wasn't possible to download the file to the
+     * temporary location but we don't know why. So, if this gets executed in a debug session, make
+     * sure we understand how we get here and add a new case in the handleTerminatedDownloads method
+     * to handle it properly.
+     *
+     * A new Stall issue will be created:
+     *     - Type: SyncWaitReason::DownloadIssue
+     *     - StallCloudPath: error of type PathProblem::DownloadToTmpDestinationFailed
+     *     - StallLocalPath: pointing to the temporary path where the download tried to write
+     *
+     * @param row The SyncRow object holding the nodes involved in the download.
+     * @param fullPath Full path to the root of the sync.
+     * @param downloadFile The SyncDownload_inClient object that has being terminated by the
+     * corresponding Transfer.
+     * @param monitor The ProgressingMonitor object that is used to notify stalls if needed.
+     * @return Always false as we don't want to continue with syncItem under unknown circumstances.
+     */
+    bool handleTerminatedDownloadsDueUnknown(const SyncRow& row,
+                                             const SyncPath& fullPath,
+                                             const SyncDownload_inClient& downloadFile,
+                                             ProgressingMonitor& monitor) const;
 };
 
 class SyncConfigIOContext;

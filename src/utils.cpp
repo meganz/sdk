@@ -2891,6 +2891,8 @@ const char* syncPathProblemDebugString(PathProblem r)
     case PathProblem::CannotFingerprintFile: return "CannotFingerprintFile";
     case PathProblem::DestinationPathInUnresolvedArea: return "DestinationPathInUnresolvedArea";
     case PathProblem::MACVerificationFailure: return "MACVerificationFailure";
+    case PathProblem::DownloadToTmpDestinationFailed:
+        return "DownloadToTmpDestinationFailed";
     case PathProblem::DeletedOrMovedByUser: return "DeletedOrMovedByUser";
     case PathProblem::FileFolderDeletedByUser: return "FileFolderDeletedByUser";
     case PathProblem::MoveToDebrisFolderFailed: return "MoveToDebrisFolderFailed";

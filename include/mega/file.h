@@ -211,8 +211,8 @@ struct SyncTransfer_inClient: public File
     std::atomic<bool> wasCompleted{false};
     std::atomic<bool> wasRequesterAbandoned{false};
 
-    // Whether the flags above were already set in a previous call (and avoid repeating unnecessary actions)
-    std::atomic<bool> reasonAlreadyKnown{false};
+    // Whether the terminated SyncTransfer_inClient was already notified to the apps/in the logs
+    std::atomic<bool> terminatedReasonAlreadyKnown{true};
 };
 
 struct SyncDownload_inClient: public SyncTransfer_inClient

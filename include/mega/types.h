@@ -1156,6 +1156,7 @@ enum class PathProblem : unsigned short {
     CannotFingerprintFile,
     DestinationPathInUnresolvedArea,
     MACVerificationFailure,
+    DownloadToTmpDestinationFailed,
     DeletedOrMovedByUser,
     FileFolderDeletedByUser,
     MoveToDebrisFolderFailed,
