@@ -84,6 +84,7 @@ CMD ["sh", "-c", "\
         -DCMAKE_SYSTEM_NAME=Android \
         -DCMAKE_ANDROID_API=26 \
         -DCMAKE_ANDROID_ARCH_ABI=${ANDROID_ARCH} \
-        -DCMAKE_ANDROID_NDK=${ANDROID_NDK_HOME} && \
+        -DCMAKE_ANDROID_NDK=${ANDROID_NDK_HOME} \
+        -DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON && \
     cmake --build buildAndroid && \
     exec /bin/bash"]
