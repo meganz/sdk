@@ -20404,7 +20404,7 @@ TEST_F(SdkTest, SdkTestRemovePublicLinkSet)
     ASSERT_NO_FATAL_FAILURE(fetchnodes(secondaryClientIdx));
 
     const MrProper cleanUp(
-        [this]()
+        [this, secondaryClientIdx]()
         {
             // release secondary instance to avoid failure at tear down
             releaseMegaApi(secondaryClientIdx);
@@ -20424,7 +20424,7 @@ TEST_F(SdkTest, SdkTestRemovePublicLinkSet)
 
     LOG_debug << "Set handle: " << Base64Str<MegaClient::USERHANDLE>(sh);
 
-    auto exportSet = [this, sh]()
+    auto exportSet = [this, sh, primaryClientIdx, secondaryClientIdx]()
     {
         std::unique_ptr<MegaSet> set{megaApi[primaryClientIdx]->getSet(sh)};
         mApi[secondaryClientIdx].setUpdated = false;
@@ -20441,7 +20441,7 @@ TEST_F(SdkTest, SdkTestRemovePublicLinkSet)
         ASSERT_TRUE(setSecondAccount->getLinkDeletionReason() == MegaSet::DELETION_LINK_NO_REMOVED);
     };
 
-    auto disableExportSet = [this, sh]()
+    auto disableExportSet = [this, sh, primaryClientIdx, secondaryClientIdx]()
     {
         std::unique_ptr<MegaSet> set{megaApi[primaryClientIdx]->getSet(sh)};
         mApi[secondaryClientIdx].setUpdated = false;
@@ -20457,7 +20457,7 @@ TEST_F(SdkTest, SdkTestRemovePublicLinkSet)
         ASSERT_FALSE(setSecondAccount->isExported());
     };
 
-    auto checkDeletionReasonAfterResumeSession = [this, sh](bool exported)
+    auto checkDeletionReasonAfterResumeSession = [this, sh, primaryClientIdx](bool exported)
     {
         PerApi& target = mApi[primaryClientIdx];
         target.resetlastEvent();
