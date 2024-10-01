@@ -19819,3 +19819,157 @@ TEST_F(SdkTest, SdkTestRestoreNodeVersion)
     // Check contents
     ASSERT_EQ(contents, originalContent);
 }
+
+#ifdef ENABLE_SYNC
+/**
+ * @brief SdkTestRemoveVersionsFromSync
+ *
+ *  - Create a sync with a file
+ *  - Update the file content (sync engine add a new version)
+ *  - Remove all versions from the account
+ *  - Check file sync state is STATE_SYNCED
+ */
+TEST_F(SdkTest, SdkTestRemoveVersionsFromSync)
+{
+    LOG_info << "___TEST SdkTestRemoveVersionsFromSync";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    std::string syncFolder{"sync1"};
+    fs::path syncFolderPath = syncFolder;
+    const auto localSyncFolderPath = fs::current_path() / syncFolderPath;
+
+    // Create local directories and a files.
+    fs::create_directories(localSyncFolderPath);
+
+    LOG_verbose << "SdkTestRemoveVersionsFromSync :  Creating the remote folders to be synced to.";
+    std::unique_ptr<MegaNode> rootNode(megaApi[0]->getRootNode());
+    ASSERT_NE(rootNode.get(), nullptr);
+    auto nh = createFolder(0, syncFolder.c_str(), rootNode.get());
+    ASSERT_NE(nh, UNDEF) << "Error creating remote folders";
+    std::unique_ptr<MegaNode> remoteBaseNode(megaApi[0]->getNodeByHandle(nh));
+    ASSERT_NE(remoteBaseNode.get(), nullptr);
+
+    LOG_verbose << "SdkTestRemoveVersionsFromSync :  Add syncs";
+    auto lp = localSyncFolderPath.u8string();
+    ASSERT_EQ(API_OK,
+              synchronousSyncFolder(0,
+                                    nullptr,
+                                    MegaSync::TYPE_TWOWAY,
+                                    lp.c_str(),
+                                    nullptr,
+                                    remoteBaseNode->getHandle(),
+                                    nullptr))
+        << "API Error adding a new sync";
+    ASSERT_EQ(MegaSync::NO_SYNC_ERROR, mApi[0].lastSyncError);
+    std::unique_ptr<MegaSync> sync = waitForSyncState(megaApi[0].get(),
+                                                      remoteBaseNode.get(),
+                                                      MegaSync::RUNSTATE_RUNNING,
+                                                      MegaSync::NO_SYNC_ERROR);
+    ASSERT_TRUE(sync && sync->getRunState() == MegaSync::RUNSTATE_RUNNING);
+    ASSERT_EQ(MegaSync::NO_SYNC_ERROR, sync->getError());
+
+    handle backupId{sync->getBackupId()};
+
+    LOG_verbose << "SdkTestRemoveVersionsFromSync :  Create a file";
+    bool check{false};
+    mApi[0].mOnNodesUpdateCompletion =
+        createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check);
+    std::string name{"fileTest"};
+    std::string fileName{(localSyncFolderPath / name).u8string()};
+    ASSERT_TRUE(createFile(fileName, false));
+    ASSERT_TRUE(waitForResponse(&check))
+        << "Node update not received on client 0 after " << maxTimeout << " seconds";
+    resetOnNodeUpdateCompletionCBs();
+
+    auto checkSyncState = [this](const std::string& fileName)
+    {
+        static unsigned int waitSyncedState = 40;
+        waitForEvent(
+            [this, fileName]()
+            {
+                std::string path{fileName};
+
+#ifdef _WIN32
+                auto utf8ToUtf16 = [](const char* utf8data, std::string* utf16string)
+                {
+                    // Check if input is valid
+                    if (utf8data == nullptr)
+                    {
+                        utf16string->clear();
+                        return;
+                    }
+
+                    // Get the length required for the UTF-16 buffer
+                    int utf16Length = MultiByteToWideChar(CP_UTF8, 0, utf8data, -1, nullptr, 0);
+
+                    // If the length is 0, an error occurred
+                    if (utf16Length == 0)
+                    {
+                        std::cerr << "Error converting UTF-8 to UTF-16." << std::endl;
+                        utf16string->clear();
+                        return;
+                    }
+
+                    // Create a buffer to hold the UTF-16 characters
+                    std::wstring utf16buffer(utf16Length, 0);
+
+                    // Perform the conversion from UTF-8 to UTF-16
+                    MultiByteToWideChar(CP_UTF8, 0, utf8data, -1, &utf16buffer[0], utf16Length);
+
+                    // Convert the UTF-16 wide string to a std::string by copying the raw bytes
+                    utf16string->assign(reinterpret_cast<const char*>(utf16buffer.data()),
+                                        utf16buffer.size() * sizeof(wchar_t));
+                };
+
+                std::string utf8String{std::move(path)};
+                path.clear();
+                utf8ToUtf16(utf8String.c_str(), &path);
+#endif
+                return MegaApi::STATE_SYNCED == megaApi[0]->syncPathState(&path);
+            },
+            waitSyncedState);
+    };
+
+    LOG_verbose << "SdkTestRemoveVersionsFromSync :  wait file is syncronized";
+    checkSyncState(fileName);
+
+    check = false;
+    mApi[0].mOnNodesUpdateCompletion =
+        createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check);
+    // modify file
+    {
+        ofstream f{fileName};
+        f << "update ";
+        f.close();
+    }
+    ASSERT_TRUE(waitForResponse(&check))
+        << "Node update not received on client 0 after " << maxTimeout << " seconds";
+    resetOnNodeUpdateCompletionCBs();
+
+    LOG_verbose << "SdkTestRemoveVersionsFromSync :  Wait file is syncronized after modification";
+    checkSyncState(fileName);
+
+    std::unique_ptr<MegaNodeList> children{megaApi[0]->getChildren(remoteBaseNode.get())};
+    ASSERT_EQ(children->size(), 1);
+    MegaNode* node{children->get(0)};
+    ASSERT_TRUE(node);
+    // Check number of versions
+    ASSERT_EQ(megaApi[0]->getNumVersions(node), 2);
+
+    LOG_verbose << "SdkTestRemoveVersionsFromSync :  Remove all versions";
+    unique_ptr<RequestTracker> rt = std::make_unique<RequestTracker>(megaApi[0].get());
+    megaApi[0]->removeVersions(rt.get());
+    ASSERT_EQ(rt->waitForResult(), API_OK);
+    ASSERT_EQ(megaApi[0]->getNumVersions(node), 1);
+
+    // Check if file is at synced state. None state change should be generated
+    checkSyncState(fileName);
+
+    LOG_verbose << "SdkTestRemoveVersionsFromSync :  Remove syncs";
+    rt = std::make_unique<RequestTracker>(megaApi[0].get());
+    megaApi[0]->removeSync(backupId, rt.get());
+    ASSERT_EQ(rt->waitForResult(), API_OK);
+
+    ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), syncFolderPath));
+}
+#endif
