@@ -2432,7 +2432,7 @@ void MegaClient::exec()
 
                     case REQ_SUCCESS:
                         abortlockrequest();
-                        app->request_response_progress(pendingcs->bufpos, -1);
+                        app->request_response_progress(pendingcs->bufpos, pendingcs->contentlength);
 
                         if ((!pendingcs->mChunked && pendingcs->in != "-3" && pendingcs->in != "-4")
                             || (pendingcs->mChunked && (reqs.chunkedProgress() || (pendingcs->in != "-3" && pendingcs->in != "-4"))))
