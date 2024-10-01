@@ -2899,7 +2899,6 @@ void MegaClient::exec()
         {
             if (useralerts.begincatchup)
             {
-                assert(!fetchingnodes);
                 pendingscUserAlerts.reset(new HttpReq());
                 pendingscUserAlerts->logname = clientname + "sc50 ";
                 pendingscUserAlerts->protect = true;
