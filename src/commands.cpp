@@ -2925,22 +2925,23 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
         }
         else
         {
-            client->app->enumeratequotaitems_result(type,
-                                                    product,
-                                                    prolevel,
-                                                    gbstorage,
-                                                    gbtransfer,
-                                                    months,
-                                                    amount,
-                                                    amountMonth,
-                                                    localPrice,
-                                                    description.c_str(),
-                                                    std::move(features),
-                                                    ios_id.c_str(),
-                                                    android_id.c_str(),
-                                                    testCategory,
-                                                    std::move(bizPlan),
-                                                    trialDays);
+            const Product productData = {static_cast<unsigned int>(type),
+                                         product,
+                                         static_cast<unsigned int>(prolevel),
+                                         gbstorage,
+                                         gbtransfer,
+                                         static_cast<unsigned int>(months),
+                                         amount,
+                                         amountMonth,
+                                         localPrice,
+                                         description.c_str(),
+                                         std::move(features),
+                                         ios_id.c_str(),
+                                         android_id.c_str(),
+                                         testCategory,
+                                         std::move(bizPlan),
+                                         trialDays};
+            client->app->enumeratequotaitems_result(productData);
         }
     }
 

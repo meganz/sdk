@@ -4549,41 +4549,11 @@ void MegaRequestPrivate::setTag(int tag)
     this->tag = tag;
 }
 
-void MegaRequestPrivate::addProduct(unsigned int type,
-                                    handle product,
-                                    int proLevel,
-                                    int gbStorage,
-                                    int gbTransfer,
-                                    int months,
-                                    int amount,
-                                    int amountMonth,
-                                    int localPrice,
-                                    const char* description,
-                                    map<string, uint32_t>&& features,
-                                    const char* iosid,
-                                    const char* androidid,
-                                    unsigned int testCategory,
-                                    std::unique_ptr<BusinessPlan> bizPlan,
-                                    unsigned int trialDays)
+void MegaRequestPrivate::addProduct(const Product& product)
 {
     if (megaPricing)
     {
-        megaPricing->addProduct(type,
-                                product,
-                                proLevel,
-                                gbStorage,
-                                gbTransfer,
-                                months,
-                                amount,
-                                amountMonth,
-                                localPrice,
-                                description,
-                                std::move(features),
-                                iosid,
-                                androidid,
-                                testCategory,
-                                std::move(bizPlan),
-                                trialDays);
+        megaPricing->addProduct(product);
     }
 }
 
@@ -14696,22 +14666,7 @@ void MegaApiImpl::putfa_result(handle h, fatype, error e)
     fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
 }
 
-void MegaApiImpl::enumeratequotaitems_result(unsigned type,
-                                             handle product,
-                                             unsigned prolevel,
-                                             int gbstorage,
-                                             int gbtransfer,
-                                             unsigned months,
-                                             unsigned amount,
-                                             unsigned amountMonth,
-                                             unsigned localPrice,
-                                             const char* description,
-                                             map<string, uint32_t>&& features,
-                                             const char* iosid,
-                                             const char* androidid,
-                                             unsigned int testCategory,
-                                             std::unique_ptr<BusinessPlan> bizPlan,
-                                             unsigned int trialDays)
+void MegaApiImpl::enumeratequotaitems_result(const Product& product)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
@@ -14723,22 +14678,7 @@ void MegaApiImpl::enumeratequotaitems_result(unsigned type,
         return;
     }
 
-    request->addProduct(type,
-                        product,
-                        prolevel,
-                        gbstorage,
-                        gbtransfer,
-                        months,
-                        amount,
-                        amountMonth,
-                        localPrice,
-                        description,
-                        std::move(features),
-                        iosid,
-                        androidid,
-                        testCategory,
-                        std::move(bizPlan),
-                        trialDays);
+    request->addProduct(product);
 }
 
 void MegaApiImpl::enumeratequotaitems_result(unique_ptr<CurrencyData> currencyData)
@@ -28651,50 +28591,38 @@ const char *MegaErrorPrivate::__toString() const
     return getErrorString();
 }
 
-MegaPricingPrivate::~MegaPricingPrivate()
-{
-    for(unsigned i = 0; i < description.size(); i++)
-    {
-        delete[] description[i];
-    }
-
-    for(unsigned i = 0; i < iosId.size(); i++)
-    {
-        delete[] iosId[i];
-    }
-
-    for(unsigned i = 0; i < androidId.size(); i++)
-    {
-        delete[] androidId[i];
-    }
-}
+MegaPricingPrivate::~MegaPricingPrivate() {}
 
 int MegaPricingPrivate::getNumProducts()
 {
-    return int(handles.size());
+    return int(products.size());
 }
 
 handle MegaPricingPrivate::getHandle(int productIndex)
 {
-    if((unsigned)productIndex < handles.size())
-        return handles[productIndex];
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
+    {
+        return products[productIndex].productHandle;
+    }
 
     return UNDEF;
 }
 
 int MegaPricingPrivate::getProLevel(int productIndex)
 {
-    if((unsigned)productIndex < proLevel.size())
-        return proLevel[productIndex];
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
+    {
+        return products[productIndex].proLevel;
+    }
 
     return 0;
 }
 
 int MegaPricingPrivate::getGBStorage(int productIndex)
 {
-    if (static_cast<size_t>(productIndex) < gbStorage.size())
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
     {
-        return gbStorage[static_cast<size_t>(productIndex)];
+        return products[productIndex].gbStorage;
     }
 
     return 0;
@@ -28702,9 +28630,9 @@ int MegaPricingPrivate::getGBStorage(int productIndex)
 
 int MegaPricingPrivate::getGBTransfer(int productIndex)
 {
-    if (static_cast<size_t>(productIndex) < gbTransfer.size())
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
     {
-        return gbTransfer[static_cast<size_t>(productIndex)];
+        return products[productIndex].gbTransfer;
     }
 
     return 0;
@@ -28712,50 +28640,62 @@ int MegaPricingPrivate::getGBTransfer(int productIndex)
 
 int MegaPricingPrivate::getMonths(int productIndex)
 {
-    if((unsigned)productIndex < months.size())
-        return months[productIndex];
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
+    {
+        return products[productIndex].months;
+    }
 
     return 0;
 }
 
 int MegaPricingPrivate::getAmount(int productIndex)
 {
-    if((unsigned)productIndex < amount.size())
-        return amount[productIndex];
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
+    {
+        return products[productIndex].amount;
+    }
 
     return 0;
 }
 
 int mega::MegaPricingPrivate::getLocalPrice(int productIndex)
 {
-    if((unsigned)productIndex < mLocalPrice.size())
-        return mLocalPrice[productIndex];
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
+    {
+        return products[productIndex].localPrice;
+    }
 
     return 0;
 }
 
 const char *MegaPricingPrivate::getDescription(int productIndex)
 {
-    if((unsigned)productIndex < description.size())
-        return description[productIndex];
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
+    {
+        return products[productIndex].description.c_str();
+    }
 
-    return NULL;
+    return nullptr;
 }
 
 const char *MegaPricingPrivate::getIosID(int productIndex)
 {
-    if((unsigned)productIndex < iosId.size())
-        return iosId[productIndex];
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
+    {
+        return products[productIndex].iosid.c_str();
+    }
 
-    return NULL;
+    return nullptr;
 }
 
 const char *MegaPricingPrivate::getAndroidID(int productIndex)
 {
-    if((unsigned)productIndex < androidId.size())
-        return androidId[productIndex];
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
+    {
+        return products[productIndex].androidid.c_str();
+    }
 
-    return NULL;
+    return nullptr;
 }
 
 bool MegaPricingPrivate::isBusinessType(int productIndex)
@@ -28770,16 +28710,20 @@ bool MegaPricingPrivate::isFeaturePlan(int productIndex) const
 
 bool MegaPricingPrivate::isType(int productIndex, unsigned t) const
 {
-    if (static_cast<decltype(type.size())>(productIndex) < type.size())
-        return type[productIndex] == t;
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
+    {
+        return products[productIndex].planType == t;
+    }
 
     return false;
 }
 
 int MegaPricingPrivate::getAmountMonth(int productIndex)
 {
-    if((unsigned)productIndex < amountMonth.size())
-        return amountMonth[productIndex];
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
+    {
+        return products[productIndex].amountMonth;
+    }
 
     return 0;
 }
@@ -28787,72 +28731,23 @@ int MegaPricingPrivate::getAmountMonth(int productIndex)
 MegaPricing *MegaPricingPrivate::copy()
 {
     MegaPricingPrivate *megaPricing = new MegaPricingPrivate();
-    for(unsigned i=0; i<handles.size(); i++)
-    {
-        std::unique_ptr<BusinessPlan> bizPlan(mBizPlan[i] ? new BusinessPlan(*mBizPlan[i]) : nullptr);
-
-        megaPricing->addProduct(type[i],
-                                handles[i],
-                                proLevel[i],
-                                gbStorage[i],
-                                gbTransfer[i],
-                                months[i],
-                                amount[i],
-                                amountMonth[i],
-                                mLocalPrice[i],
-                                description[i],
-                                decltype(features)::value_type(features[i]), // make a copy
-                                iosId[i],
-                                androidId[i],
-                                mTestCategory[i],
-                                std::move(bizPlan),
-                                mTrialDays[i]);
-    }
+    megaPricing->products = this->products;
 
     return megaPricing;
 }
 
-void MegaPricingPrivate::addProduct(unsigned int type,
-                                    handle product,
-                                    int proLevel,
-                                    int gbStorage,
-                                    int gbTransfer,
-                                    int months,
-                                    int amount,
-                                    int amountMonth,
-                                    unsigned localPrice,
-                                    const char* description,
-                                    map<string, uint32_t>&& features,
-                                    const char* iosid,
-                                    const char* androidid,
-                                    unsigned int testCategory,
-                                    std::unique_ptr<BusinessPlan> bizPlan,
-                                    unsigned int trialDays)
+void MegaPricingPrivate::addProduct(const Product& product)
 {
-    this->type.push_back(type);
-    this->handles.push_back(product);
-    this->proLevel.push_back(proLevel);
-    this->gbStorage.push_back(gbStorage);
-    this->gbTransfer.push_back(gbTransfer);
-    this->months.push_back(months);
-    this->amount.push_back(amount);
-    this->amountMonth.push_back(amountMonth);
-    mLocalPrice.push_back(localPrice);
-    this->description.push_back(MegaApi::strdup(description));
-    this->features.emplace_back(std::move(features));
-    this->iosId.push_back(MegaApi::strdup(iosid));
-    this->androidId.push_back(MegaApi::strdup(androidid));
-    mBizPlan.push_back(std::move(bizPlan));
-    this->mTestCategory.push_back(testCategory);
-    this->mTrialDays.push_back(trialDays);
+    this->products.push_back(product);
 }
-
 
 int MegaPricingPrivate::getGBStoragePerUser(int productIndex)
 {
-    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    // some Pro plans don't have a valid pointer, only business plans
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size() &&
+        products[productIndex].businessPlan)
     {
-        return mBizPlan[productIndex]->gbStoragePerUser;
+        products[productIndex].businessPlan->gbStoragePerUser;
     }
 
     return 0;
@@ -28860,9 +28755,11 @@ int MegaPricingPrivate::getGBStoragePerUser(int productIndex)
 
 int MegaPricingPrivate::getGBTransferPerUser(int productIndex)
 {
-    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    // some Pro plans don't have a valid pointer, only business plans
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size() &&
+        products[productIndex].businessPlan)
     {
-        return mBizPlan[productIndex]->gbTransferPerUser;
+        products[productIndex].businessPlan->gbTransferPerUser;
     }
 
     return 0;
@@ -28870,9 +28767,11 @@ int MegaPricingPrivate::getGBTransferPerUser(int productIndex)
 
 unsigned int MegaPricingPrivate::getMinUsers(int productIndex)
 {
-    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    // some Pro plans don't have a valid pointer, only business plans
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size() &&
+        products[productIndex].businessPlan)
     {
-        return mBizPlan[productIndex]->minUsers;
+        products[productIndex].businessPlan->minUsers;
     }
 
     return 0;
@@ -28880,9 +28779,11 @@ unsigned int MegaPricingPrivate::getMinUsers(int productIndex)
 
 unsigned int MegaPricingPrivate::getPricePerUser(int productIndex)
 {
-    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    // some Pro plans don't have a valid pointer, only business plans
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size() &&
+        products[productIndex].businessPlan)
     {
-        return mBizPlan[productIndex]->pricePerUser;
+        products[productIndex].businessPlan->pricePerUser;
     }
 
     return 0;
@@ -28890,9 +28791,11 @@ unsigned int MegaPricingPrivate::getPricePerUser(int productIndex)
 
 unsigned int MegaPricingPrivate::getLocalPricePerUser(int productIndex)
 {
-    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    // some Pro plans don't have a valid pointer, only business plans
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size() &&
+        products[productIndex].businessPlan)
     {
-        return mBizPlan[productIndex]->localPricePerUser;
+        products[productIndex].businessPlan->localPricePerUser;
     }
 
     return 0;
@@ -28900,9 +28803,11 @@ unsigned int MegaPricingPrivate::getLocalPricePerUser(int productIndex)
 
 unsigned int MegaPricingPrivate::getPricePerStorage(int productIndex)
 {
-    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    // some Pro plans don't have a valid pointer, only business plans
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size() &&
+        products[productIndex].businessPlan)
     {
-        return mBizPlan[productIndex]->pricePerStorage;
+        products[productIndex].businessPlan->pricePerStorage;
     }
 
     return 0;
@@ -28910,9 +28815,11 @@ unsigned int MegaPricingPrivate::getPricePerStorage(int productIndex)
 
 unsigned int MegaPricingPrivate::getLocalPricePerStorage(int productIndex)
 {
-    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    // some Pro plans don't have a valid pointer, only business plans
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size() &&
+        products[productIndex].businessPlan)
     {
-        return mBizPlan[productIndex]->localPricePerStorage;
+        products[productIndex].businessPlan->localPricePerStorage;
     }
 
     return 0;
@@ -28920,9 +28827,11 @@ unsigned int MegaPricingPrivate::getLocalPricePerStorage(int productIndex)
 
 int MegaPricingPrivate::getGBPerStorage(int productIndex)
 {
-    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    // some Pro plans don't have a valid pointer, only business plans
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size() &&
+        products[productIndex].businessPlan)
     {
-        return mBizPlan[productIndex]->gbPerStorage;
+        products[productIndex].businessPlan->gbPerStorage;
     }
 
     return 0;
@@ -28930,9 +28839,11 @@ int MegaPricingPrivate::getGBPerStorage(int productIndex)
 
 unsigned int MegaPricingPrivate::getPricePerTransfer(int productIndex)
 {
-    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    // some Pro plans don't have a valid pointer, only business plans
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size() &&
+        products[productIndex].businessPlan)
     {
-        return mBizPlan[productIndex]->pricePerTransfer;
+        products[productIndex].businessPlan->pricePerTransfer;
     }
 
     return 0;
@@ -28940,9 +28851,11 @@ unsigned int MegaPricingPrivate::getPricePerTransfer(int productIndex)
 
 unsigned int MegaPricingPrivate::getLocalPricePerTransfer(int productIndex)
 {
-    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    // some Pro plans don't have a valid pointer, only business plans
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size() &&
+        products[productIndex].businessPlan)
     {
-        return mBizPlan[productIndex]->localPricePerTransfer;
+        products[productIndex].businessPlan->localPricePerTransfer;
     }
 
     return 0;
@@ -28950,9 +28863,11 @@ unsigned int MegaPricingPrivate::getLocalPricePerTransfer(int productIndex)
 
 int MegaPricingPrivate::getGBPerTransfer(int productIndex)
 {
-    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    // some Pro plans don't have a valid pointer, only business plans
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size() &&
+        products[productIndex].businessPlan)
     {
-        return mBizPlan[productIndex]->gbPerTransfer;
+        products[productIndex].businessPlan->gbPerTransfer;
     }
 
     return 0;
@@ -28960,13 +28875,13 @@ int MegaPricingPrivate::getGBPerTransfer(int productIndex)
 
 MegaStringIntegerMap* MegaPricingPrivate::getFeatures(int productIndex) const
 {
-    if (static_cast<decltype(features.size())>(productIndex) >= features.size())
+    if ((unsigned)productIndex > products.size())
     {
         return nullptr;
     }
 
     MegaStringIntegerMapPrivate* returnFeatures = new MegaStringIntegerMapPrivate();
-    for (const auto& feature: features[productIndex])
+    for (const auto& feature: products[productIndex].features)
     {
         returnFeatures->set(feature.first, feature.second);
     }
@@ -28975,9 +28890,9 @@ MegaStringIntegerMap* MegaPricingPrivate::getFeatures(int productIndex) const
 
 unsigned int MegaPricingPrivate::getTestCategory(int productIndex) const
 {
-    if (static_cast<decltype(mTestCategory.size())>(productIndex) < mTestCategory.size())
+    if ((unsigned)productIndex < products.size())
     {
-        return mTestCategory[productIndex];
+        return products[productIndex].testCategory;
     }
 
     return 0;
@@ -28985,10 +28900,9 @@ unsigned int MegaPricingPrivate::getTestCategory(int productIndex) const
 
 unsigned int MegaPricingPrivate::getTrialDurationInDays(int productIndex) const
 {
-    auto index = static_cast<decltype(mTrialDays.size())>(productIndex);
-    if (index < mTrialDays.size())
+    if ((unsigned)productIndex < products.size())
     {
-        return mTrialDays[index];
+        return products[productIndex].trialDays;
     }
 
     return 0;

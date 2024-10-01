@@ -10106,65 +10106,51 @@ void DemoApp::setelements_updated(SetElement** el, int count)
     }
 }
 
-void DemoApp::enumeratequotaitems_result(unsigned type,
-                                         handle product,
-                                         unsigned proLevel,
-                                         int gbStorage,
-                                         int gbTransfer,
-                                         unsigned months,
-                                         unsigned amount,
-                                         unsigned amountMonth,
-                                         unsigned localPrice,
-                                         const char* description,
-                                         map<string, uint32_t>&& features,
-                                         const char* iosId,
-                                         const char* androidId,
-                                         unsigned int testCategory,
-                                         std::unique_ptr<BusinessPlan> businessPlan,
-                                         unsigned int trialDays)
+void DemoApp::enumeratequotaitems_result(const Product& product)
 {
-    if (type != 1) // All plans but Business
+    if (product.planType != 1) // All plans but Business
     {
-        cout << "\n" << description << ":\n";
-        cout << "\tPro level: " << proLevel << "\n";
-        cout << "\tStorage: " << gbStorage << "\n";
-        cout << "\tTransfer: " << gbTransfer << "\n";
-        cout << "\tMonths: " << months << "\n";
-        cout << "\tAmount: " << amount << "\n";
-        cout << "\tAmount per month: " << amountMonth << "\n";
-        cout << "\tLocal price: " << localPrice << "\n";
+        cout << "\n" << product.description << ":\n";
+        cout << "\tPro level: " << product.proLevel << "\n";
+        cout << "\tStorage: " << product.gbStorage << "\n";
+        cout << "\tTransfer: " << product.gbTransfer << "\n";
+        cout << "\tMonths: " << product.months << "\n";
+        cout << "\tAmount: " << product.amount << "\n";
+        cout << "\tAmount per month: " << product.amountMonth << "\n";
+        cout << "\tLocal price: " << product.localPrice << "\n";
         cout << "\tFeatures:\n";
-        if (features.empty())
+        if (product.features.empty())
         {
             cout << "\t\t[none]\n";
         }
         else
         {
-            for (const auto& f : features)
+            for (const auto& f: product.features)
             {
                 cout << "\t\t" << f.first << ": " << f.second << '\n';
             }
         }
-        cout << "\tiOS ID: " << iosId << "\n";
-        cout << "\tAndroid ID: " << androidId << "\n";
-        cout << "\tTest Category: " << testCategory << "\n";
-        cout << "\tTrial Days: " << trialDays << endl;
+        cout << "\tiOS ID: " << product.iosid << "\n";
+        cout << "\tAndroid ID: " << product.androidid << "\n";
+        cout << "\tTest Category: " << product.testCategory << "\n";
+        cout << "\tTrial Days: " << product.trialDays << endl;
     }
     else // Business plan (type == 1)
     {
-        cout << "\n" << description << ":\n";
-        cout << "\tMinimum users: " << businessPlan->minUsers << "\n";
-        cout << "\tStorage per user: " << businessPlan->gbStoragePerUser << "\n";
-        cout << "\tTransfer per user: " << businessPlan->gbTransferPerUser << "\n";
-        cout << "\tPrice per user: " << businessPlan->pricePerUser << "\n";
-        cout << "\tLocal price per user: " << businessPlan->localPricePerUser << "\n";
-        cout << "\tPrice per storage: " << businessPlan->pricePerStorage << "\n";
-        cout << "\tLocal price per storage: " << businessPlan->localPricePerStorage << "\n";
-        cout << "\tGigabytes per storage: " << businessPlan->gbPerStorage << "\n";
-        cout << "\tPrice per transfer: " << businessPlan->pricePerTransfer << "\n";
-        cout << "\tLocal price per transfer: " << businessPlan->localPricePerTransfer << "\n";
-        cout << "\tGigabytes per transfer: " << businessPlan->gbPerTransfer << "\n";
-        cout << "\tTest Category: " << testCategory << endl;
+        cout << "\n" << product.description << ":\n";
+        cout << "\tMinimum users: " << product.businessPlan->minUsers << "\n";
+        cout << "\tStorage per user: " << product.businessPlan->gbStoragePerUser << "\n";
+        cout << "\tTransfer per user: " << product.businessPlan->gbTransferPerUser << "\n";
+        cout << "\tPrice per user: " << product.businessPlan->pricePerUser << "\n";
+        cout << "\tLocal price per user: " << product.businessPlan->localPricePerUser << "\n";
+        cout << "\tPrice per storage: " << product.businessPlan->pricePerStorage << "\n";
+        cout << "\tLocal price per storage: " << product.businessPlan->localPricePerStorage << "\n";
+        cout << "\tGigabytes per storage: " << product.businessPlan->gbPerStorage << "\n";
+        cout << "\tPrice per transfer: " << product.businessPlan->pricePerTransfer << "\n";
+        cout << "\tLocal price per transfer: " << product.businessPlan->localPricePerTransfer
+             << "\n";
+        cout << "\tGigabytes per transfer: " << product.businessPlan->gbPerTransfer << "\n";
+        cout << "\tTest Category: " << product.testCategory << endl;
     }
 }
 
