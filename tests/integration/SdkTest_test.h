@@ -494,6 +494,8 @@ public:
 
     bool waitForEvent(std::function<bool()> method, unsigned int timeout = maxTimeout);
 
+    static bool WaitFor(const std::function<bool()>& predicate, unsigned timeoutMs);
+
     bool synchronousRequest(unsigned apiIndex, int type, std::function<void()> f, unsigned int timeout = maxTimeout);
     bool synchronousTransfer(unsigned apiIndex, int type, std::function<void()> f, unsigned int timeout = maxTimeout);
 
@@ -806,8 +808,23 @@ public:
         newCredential = rt.request->getSessionKey() ? rt.request->getSessionKey() : ""; // Credential string for conf file
         return e;
     }
-    template<typename ... requestArgs> int doDelVpnCredential(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->delVpnCredential(args..., &rt); return rt.waitForResult(); }
-    template<typename ... requestArgs> int doCheckVpnCredential(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->checkVpnCredential(args..., &rt); return rt.waitForResult(); }
+
+    template<typename... requestArgs>
+    int doDelVpnCredential(unsigned apiIndex, requestArgs... args)
+    {
+        RequestTracker rt(megaApi[apiIndex].get());
+        megaApi[apiIndex]->delVpnCredential(args..., &rt);
+        return rt.waitForResult();
+    }
+
+    template<typename... requestArgs>
+    int doCheckVpnCredential(unsigned apiIndex, requestArgs... args)
+    {
+        RequestTracker rt(megaApi[apiIndex].get());
+        megaApi[apiIndex]->checkVpnCredential(args..., &rt);
+        return rt.waitForResult();
+    }
+
     /* MegaVpnCredentials END */
 };
 

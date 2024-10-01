@@ -1053,6 +1053,10 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_ENABLE_TEST_SURVEYS;
     }
+    else if (!strcmp(name, "pwmh"))
+    {
+        return ATTR_PWM_BASE;
+    }
     else
     {
         return ATTR_UNKNOWN;   // attribute not recognized

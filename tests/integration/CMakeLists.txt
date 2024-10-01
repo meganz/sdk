@@ -11,6 +11,7 @@ target_sources(test_integration
     SdkTest_test.cpp
     SdkTestFilter_test.cpp
     SdkTestPasswordManager_test.cpp
+    SdkTestCreateAccount_test.cpp
     Sync_test.cpp
     one_question_survey_test.cpp
 )
