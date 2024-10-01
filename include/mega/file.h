@@ -212,7 +212,7 @@ struct SyncTransfer_inClient: public File
     std::atomic<bool> wasRequesterAbandoned{false};
 
     // Whether the terminated SyncTransfer_inClient was already notified to the apps/in the logs
-    std::atomic<bool> terminatedReasonAlreadyKnown{true};
+    std::atomic<bool> terminatedReasonAlreadyKnown{false};
 };
 
 struct SyncDownload_inClient: public SyncTransfer_inClient

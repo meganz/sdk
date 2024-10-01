@@ -117,7 +117,7 @@ Transfer::~Transfer()
             if (auto dl = dynamic_cast<SyncDownload_inClient*>(*it))
             {
                 assert((*it)->syncxfer);
-                // Lets forward the error from previous possible failed() calls to the terminated
+                // Let's forward the error from previous possible failed() calls to the terminated
                 // command instad of terminating with API_OK
                 terminatedErrCode = dl->mError;
 

@@ -7259,7 +7259,7 @@ class MegaSyncStall
             CannotFingerprintFile,
             DestinationPathInUnresolvedArea,
             MACVerificationFailure,
-            DownloadToTmpDestinationFailed,
+            UnknownDownloadIssue,
             DeletedOrMovedByUser,
             FileFolderDeletedByUser,
             MoveToDebrisFolderFailed,

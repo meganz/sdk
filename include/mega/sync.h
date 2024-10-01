@@ -419,9 +419,6 @@ public:
     MegaClient* client() const { return mClient; }
 };
 
-// Forward declaration. The whole implementation and api is detailed in the cpp file
-struct ProgressingMonitor;
-
 class MEGA_API Sync
 {
 public:
@@ -657,6 +654,9 @@ private:
     unique_ptr<FileAccess> tmpfa;
     LocalPath tmpfaPath;
 
+    // Helper struct to handle new stall issues.
+    struct ProgressingMonitor;
+
     /**
      * @brief Method to handle what to do when a download was terminated without completion.
      *
@@ -665,7 +665,8 @@ private:
      * @param downloadFile The SyncDownload_inClient object that has being terminated by the
      * corresponding Transfer.
      * @param monitor The ProgressingMonitor object that is used to notify stalls if needed.
-     * @return true if it must continue with the syncItem logic false otherwise
+     * @return true if it must continue with the syncItem logic false otherwise. NOTE: If false is
+     * returned, the syncNode will be marked to sync again in the next iteration.
      */
     bool handleTerminatedDownloads(const SyncRow& row,
                                    const SyncPath& fullPath,
@@ -692,7 +693,8 @@ private:
      * @param downloadFile The SyncDownload_inClient object that has being terminated by the
      * corresponding Transfer.
      * @param monitor The ProgressingMonitor object that is used to notify stalls if needed.
-     * @return true if it must continue with the syncItem logic false otherwise
+     * @return false if we want to keep stalling this issue. That will mean that the current
+     * syncItem stops and the node gets synced again in the next iteration. True otherwise.
      */
     bool handleTerminatedDownloadsDueMAC(const SyncRow& row,
                                          const SyncPath& fullPath,
@@ -742,7 +744,7 @@ private:
 
     /**
      * @brief Method to handle what to do when a download was terminated without completion due to
-     * an error that we have never found during development so we don't know how to handle it.
+     * an error that we was never found during development so we don't know how to handle it.
      *
      * @note: If this method gets called we know that it wasn't possible to download the file to the
      * temporary location but we don't know why. So, if this gets executed in a debug session, make
@@ -751,7 +753,7 @@ private:
      *
      * A new Stall issue will be created:
      *     - Type: SyncWaitReason::DownloadIssue
-     *     - StallCloudPath: error of type PathProblem::DownloadToTmpDestinationFailed
+     *     - StallCloudPath: error of type PathProblem::UnknownDownloadIssue
      *     - StallLocalPath: pointing to the temporary path where the download tried to write
      *
      * @param row The SyncRow object holding the nodes involved in the download.
@@ -759,7 +761,10 @@ private:
      * @param downloadFile The SyncDownload_inClient object that has being terminated by the
      * corresponding Transfer.
      * @param monitor The ProgressingMonitor object that is used to notify stalls if needed.
-     * @return Always false as we don't want to continue with syncItem under unknown circumstances.
+     * @return Always false as we don't want to execute the rest of the syncItem method. Why?
+     * because terminated transfers with unhandled error codes are reset inside
+     * transferResetUnlessMatched which then forces the transfer to be created again and the
+     * download gets automatically restarted. We want to avoid that in this unexpected scenarios.
      */
     bool handleTerminatedDownloadsDueUnknown(const SyncRow& row,
                                              const SyncPath& fullPath,

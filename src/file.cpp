@@ -571,9 +571,10 @@ void SyncTransfer_inClient::terminated(error e)
         syncThreadSafeState->client()->syncs.disableSyncByBackupId(syncThreadSafeState->backupId(), FOREIGN_TARGET_OVERSTORAGE, false, true, nullptr);
     }
 
-    assert(!wasTerminated || terminatedReasonAlreadyKnown);
+    // We shouldn't call terminated twice but, if we do, all the calls must be done before notifying
+    // the apps
+    assert(!wasTerminated || !terminatedReasonAlreadyKnown);
     wasTerminated = true;
-    terminatedReasonAlreadyKnown = false;
     selfKeepAlive.reset();  // deletes this object! (if abandoned by sync)
 }
 

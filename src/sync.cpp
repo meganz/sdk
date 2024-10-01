@@ -1573,7 +1573,7 @@ void SyncStallInfo::debug() const
 #endif
 /* SyncStallInfo END */
 
-struct ProgressingMonitor
+struct Sync::ProgressingMonitor
 {
     bool resolved = false;
     Sync& sync;
@@ -8468,7 +8468,7 @@ bool Sync::handleTerminatedDownloadsDueMAC(const SyncRow& row,
                        {downloadFile.getLocalname(), PathProblem::MACVerificationFailure},
                        {fullPath.localPath}));
 
-    bool keepStalling = row.cloudNode && row.cloudNode->handle == downloadFile.h;
+    const bool keepStalling = row.cloudNode && row.cloudNode->handle == downloadFile.h;
     return !keepStalling;
 }
 
@@ -8526,16 +8526,15 @@ bool Sync::handleTerminatedDownloadsDueUnknown(const SyncRow& row,
     }
     monitor.waitingCloud(
         fullPath.cloudPath,
-        SyncStallEntry(
-            SyncWaitReason::DownloadIssue,
-            true,
-            true,
-            {downloadFile.h, fullPath.cloudPath, PathProblem::DownloadToTmpDestinationFailed},
-            {},
-            {tmpfaPath},
-            {}));
+        SyncStallEntry(SyncWaitReason::DownloadIssue,
+                       true,
+                       true,
+                       {downloadFile.h, fullPath.cloudPath, PathProblem::UnknownDownloadIssue},
+                       {},
+                       {},
+                       {}));
     assert(false);
-    return false;
+    return false; // see method documentation for why
 }
 
 struct DifferentValueDetector_nodetype
