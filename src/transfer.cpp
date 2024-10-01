@@ -110,12 +110,16 @@ Transfer::~Transfer()
 
         (*it)->transfer = NULL;
 
+        auto terminatedErrCode = API_OK;
         if (type == GET)
         {
 #ifdef ENABLE_SYNC
             if (auto dl = dynamic_cast<SyncDownload_inClient*>(*it))
             {
                 assert((*it)->syncxfer);
+                // Lets forward the error from previous possible failed() calls to the terminated
+                // command instad of terminating with API_OK
+                terminatedErrCode = dl->mError;
 
                 // Keep sync downloads whose Mac failed, so the user can decide to keep them or not
                 if (dl->mError == API_EKEY)
@@ -134,7 +138,7 @@ Transfer::~Transfer()
         }
 
         // this File may be deleted by this call.  So call after the tests above
-        (*it)->terminated(API_OK);
+        (*it)->terminated(terminatedErrCode);
     }
 
     if (!mOptimizedDelete)
