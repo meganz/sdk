@@ -1723,7 +1723,7 @@ protected:
                         m_time_t* cts = nullptr,
                         handle* s = nullptr,
                         int64_t* o = nullptr,
-                        std::unique_ptr<PublicLinkSet>* publicLinkSet = nullptr,
+                        PublicLinkSet* publicLinkSet = nullptr,
                         uint8_t* setType = nullptr) const;
     bool procresultid(JSON& json,
                       const Result& r,
@@ -1733,7 +1733,7 @@ protected:
                       m_time_t* cts = nullptr,
                       handle* s = nullptr,
                       int64_t* o = nullptr,
-                      std::unique_ptr<PublicLinkSet>* publicLinkSet = nullptr,
+                      PublicLinkSet* publicLinkSet = nullptr,
                       uint8_t* setType = nullptr) const;
     bool procerrorcode(const Result& r, Error& e) const;
     bool procExtendedError(JSON& json, int64_t& errCode, handle& eid) const;

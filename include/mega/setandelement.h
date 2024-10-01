@@ -294,6 +294,10 @@ namespace mega {
             return "";
         }
 
+        PublicLinkSet():
+            mPublicId(UNDEF)
+        {}
+
         PublicLinkSet(handle publicId):
             mPublicId(publicId)
         {}
@@ -410,6 +414,21 @@ namespace mega {
                 mPublicLink.reset(src.getPublicLink()->copy());
             }
 
+            return *this;
+        }
+
+        Set& operator=(Set&& src)
+        {
+            mId = src.mId;
+            mKey = src.mKey;
+            mAttrs = std::move(src.mAttrs);
+            mTs = src.mTs;
+            mEncryptedAttrs = std::move(src.mEncryptedAttrs);
+            mUser = src.mUser;
+            mCTs = src.mCTs;
+            mType = src.mType;
+            mChanges = src.mChanges;
+            mPublicLink = std::move(src.mPublicLink);
             return *this;
         }
 

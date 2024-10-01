@@ -10544,7 +10544,7 @@ bool CommandSE::procjsonobject(JSON& json,
                                m_time_t* cts,
                                handle* s,
                                int64_t* o,
-                               std::unique_ptr<mega::PublicLinkSet>* publicLinkSet,
+                               mega::PublicLinkSet* publicLinkSet,
                                uint8_t* t) const
 {
     for (;;)
@@ -10592,7 +10592,7 @@ bool CommandSE::procjsonobject(JSON& json,
                 const auto buf = json.gethandle(MegaClient::PUBLICSETHANDLE);
                 if (publicLinkSet)
                 {
-                    publicLinkSet->reset(new PublicLinkSet(buf));
+                    publicLinkSet->setPublicId(buf);
                 }
             }
             break;
@@ -10625,7 +10625,7 @@ bool CommandSE::procresultid(JSON& json,
                              m_time_t* cts,
                              handle* s,
                              int64_t* o,
-                             std::unique_ptr<PublicLinkSet>* publicLinkSet,
+                             PublicLinkSet* publicLinkSet,
                              uint8_t* t) const
 {
     return r.hasJsonObject() && procjsonobject(json, id, ts, u, cts, s, o, publicLinkSet, t);
@@ -11158,7 +11158,7 @@ bool CommandExportSet::procresult(Result r, JSON& json)
     handle sid = mSet->id();
     m_time_t ts = m_time(nullptr); // made it up for case that API returns [0] (like for "d":1)
     Error e = API_OK;
-    std::unique_ptr<PublicLinkSet> publicLinkSet;
+    PublicLinkSet publicLinkSet;
     const bool parsedOk =
         procerrorcode(r, e) ||
         procresultid(json, r, sid, ts, nullptr, nullptr, nullptr, nullptr, &publicLinkSet);
@@ -11172,7 +11172,7 @@ bool CommandExportSet::procresult(Result r, JSON& json)
 
     if ((parsedOk) && e == API_OK)
     {
-        mSet->setPublicLink(std::move(publicLinkSet));
+        mSet->setPublicLink(&publicLinkSet);
         mSet->setTs(ts);
         mSet->setChanged(Set::CH_EXPORTED);
         if (!client->updateSet(std::move(*mSet)))
