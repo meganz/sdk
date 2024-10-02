@@ -320,7 +320,7 @@ namespace mega {
         }
 
         // set the reason for link removal
-        void setLinkDeletionReason(LinkDeletionReason deletionReason)
+        void setLinkDeletionReason(const LinkDeletionReason deletionReason)
         {
             mLinkDeletionReason = deletionReason;
         }
