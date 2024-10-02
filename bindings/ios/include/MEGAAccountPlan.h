@@ -87,4 +87,11 @@
  */
 @property (readonly, nonatomic, nullable) NSString *subscriptionId;
 
+/**
+ * @brief Check if the plan is related to an active trial
+ *
+ * @return YES if the plan is related to an active trial, otherwise NO.
+ */
+@property (readonly, nonatomic) BOOL isTrial;
+
 @end

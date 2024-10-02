@@ -391,7 +391,7 @@ bool CurlHttpIO::ipv6available()
 
     if (ipv6_works != -1)
     {
-        return ipv6_works;
+        return ipv6_works != 0;
     }
 
     curl_socket_t s = socket(PF_INET6, SOCK_DGRAM, 0);
@@ -410,7 +410,7 @@ bool CurlHttpIO::ipv6available()
 #endif
     }
 
-    return ipv6_works;
+    return ipv6_works != 0;
 }
 
 #ifdef MEGA_USE_C_ARES
@@ -1391,7 +1391,7 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
         return;
     }
 
-    bool ares_pending = httpctx->ares_pending;
+    bool ares_pending = httpctx->ares_pending != 0;
     if (httpctx->hostip.size())
     {
         LOG_debug << "Name resolution finished";
@@ -1467,7 +1467,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
     }
     else
     {
-        if (req->out->size() < size_t(SimpleLogger::getMaxPayloadLogSize()))
+        if (gLogJSONRequests || req->out->size() < size_t(SimpleLogger::getMaxPayloadLogSize()))
         {
             LOG_debug << httpctx->req->logname << "Sending " << req->out->size() << ": " << DirectMessage(req->out->c_str(), req->out->size())
                       << " (at ds: " << Waiter::ds << ")";
@@ -2340,7 +2340,8 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                     }
                     else
                     {
-                        if (req->in.size() < size_t(SimpleLogger::getMaxPayloadLogSize()))
+                        if (gLogJSONRequests ||
+                            req->in.size() < size_t(SimpleLogger::getMaxPayloadLogSize()))
                         {
                             LOG_debug << req->logname << "Received " << req->in.size() << ": " << DirectMessage(req->in.c_str(), req->in.size())
                                       << " (at ds: " << Waiter::ds << ")";
@@ -2470,7 +2471,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
 
         if (req)
         {
-            inetstatus(req->httpstatus);
+            inetstatus(req->httpstatus != 0);
 
             CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
             if (httpctx)
@@ -2610,7 +2611,7 @@ size_t CurlHttpIO::write_data(void* ptr, size_t size, size_t nmemb, void* target
         if (httpio->maxspeed[GET])
         {
             CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
-            bool isUpload = httpctx->data ? httpctx->len : req->out->size();
+            bool isUpload = (httpctx->data ? httpctx->len : req->out->size()) > 0;
             bool isApi = (req->type == REQ_JSON);
             if (!isApi && !isUpload)
             {

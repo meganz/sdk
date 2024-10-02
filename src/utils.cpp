@@ -3251,30 +3251,66 @@ const char* toString(retryreason_t reason)
 
 bool is_space(unsigned int ch)
 {
-    return std::isspace(static_cast<unsigned char>(ch));
+    return std::isspace(static_cast<unsigned char>(ch)) != 0;
 }
 
 bool is_digit(unsigned int ch)
 {
-    return std::isdigit(static_cast<unsigned char>(ch));
+    return std::isdigit(static_cast<unsigned char>(ch)) != 0;
 }
 
 std::string escapeWildCards(const std::string& pattern)
 {
     std::string newString;
     newString.reserve(pattern.size());
+    bool isEscaped = false;
 
     for (const char& character : pattern)
     {
-        if (character == WILDCARD_MATCH_ONE || character == WILDCARD_MATCH_ALL)
+        if ((character == WILDCARD_MATCH_ONE || character == WILDCARD_MATCH_ALL) && !isEscaped)
         {
             newString.push_back(ESCAPE_CHARACTER);
         }
-
         newString.push_back(character);
+        isEscaped = character == ESCAPE_CHARACTER && !isEscaped;
     }
 
     return newString;
+}
+
+TextPattern::TextPattern(const std::string& text):
+    mText{text}
+{
+    recalcPattern();
+}
+
+TextPattern::TextPattern(const char* text)
+{
+    if (text)
+    {
+        mText = text;
+        recalcPattern();
+    }
+}
+
+void TextPattern::recalcPattern()
+{
+    if (mText.empty() || isOnlyWildCards(mText))
+    {
+        mPattern.clear();
+        return;
+    }
+    mPattern = WILDCARD_MATCH_ALL + mText + WILDCARD_MATCH_ALL;
+}
+
+bool TextPattern::isOnlyWildCards(const std::string& text)
+{
+    return std::all_of(std::begin(text),
+                       std::end(text),
+                       [](auto&& c) -> bool
+                       {
+                           return c == WILDCARD_MATCH_ALL;
+                       });
 }
 
 std::set<std::string>::iterator getTagPosition(std::set<std::string>& tokens, const std::string& tag)

@@ -92,4 +92,8 @@ using namespace mega;
     return ret;
 }
 
+- (BOOL)isTrial {
+    return self.megaAccountPlan ? self.megaAccountPlan->isTrial() : NO;
+}
+
 @end

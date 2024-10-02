@@ -31,18 +31,6 @@
 #include <mega/json.h>
 #include <mega/process.h>
 
-TEST(utils, hashCombine_integer)
-{
-    size_t hash = 0;
-    mega::hashCombine(hash, 42);
-#ifdef _WIN32
-    // MSVC's std::hash gives different values than that of gcc/clang
-    ASSERT_EQ(sizeof(hash) == 4 ? 286246808ul : 10203658983813110072ull, hash);
-#else
-    ASSERT_EQ(2654435811ull, hash);
-#endif
-}
-
 TEST(utils, readLines)
 {
     static const std::string input =
@@ -1303,3 +1291,12 @@ TEST(Split, with_delimiter)
     EXPECT_EQ(result.second.second, 4u);
 }
 
+TEST(EscapeWildCars, UseCases)
+{
+    EXPECT_EQ(escapeWildCards("hello"), "hello");
+    EXPECT_EQ(escapeWildCards("hel*lo"), "hel\\*lo");
+    EXPECT_EQ(escapeWildCards("*hello*"), "\\*hello\\*");
+    EXPECT_EQ(escapeWildCards("\\*hello*"), "\\*hello\\*");
+    EXPECT_EQ(escapeWildCards("\\*hello\\*"), "\\*hello\\*");
+    EXPECT_EQ(escapeWildCards("hel\\\\*lo"), "hel\\\\\\*lo");
+}

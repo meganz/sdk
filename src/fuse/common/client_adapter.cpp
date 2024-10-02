@@ -662,7 +662,7 @@ ErrorOr<bool> ClientAdapter::hasChildren(NodeHandle parent) const
         return API_ENOENT;
     
     // How many children does the parent contain?
-    return mClient.getNumberOfChildren(parent);
+    return mClient.getNumberOfChildren(parent) > 0;
 }
 
 void ClientAdapter::initialize()

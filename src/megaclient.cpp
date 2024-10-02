@@ -6313,7 +6313,14 @@ void MegaClient::readtree(JSON* j, Node* priorActionpacketDeletedNode, bool& fir
                     if (auto putnodesCmd = dynamic_cast<CommandPutNodes*>(reqs.getCurrentCommand(mCurrentSeqtagSeen)))
                     {
                         putnodesCmd->emptyResponse = !memcmp(j->pos, "[]", 2);
-                        readnodes(j, 1, putnodesCmd->source, &putnodesCmd->nn, putnodesCmd->tag, true, priorActionpacketDeletedNode, &firstHandleMatchesDelete);
+                        readnodes(j,
+                                  1,
+                                  putnodesCmd->source,
+                                  &putnodesCmd->nn,
+                                  putnodesCmd->tag != 0,
+                                  true,
+                                  priorActionpacketDeletedNode,
+                                  &firstHandleMatchesDelete);
                     }
                     else
                     {
@@ -6325,7 +6332,14 @@ void MegaClient::readtree(JSON* j, Node* priorActionpacketDeletedNode, bool& fir
                     if (auto putnodesCmd = dynamic_cast<CommandPutNodes*>(reqs.getCurrentCommand(mCurrentSeqtagSeen)))
                     {
                         // new nodes can appear in copied version lists too
-                        readnodes(j, 1, putnodesCmd->source, &putnodesCmd->nn, putnodesCmd->tag, true, nullptr, nullptr);
+                        readnodes(j,
+                                  1,
+                                  putnodesCmd->source,
+                                  &putnodesCmd->nn,
+                                  putnodesCmd->tag != 0,
+                                  true,
+                                  nullptr,
+                                  nullptr);
                     }
                     else
                     {
@@ -7075,7 +7089,7 @@ void MegaClient::sc_ipc()
 
                     pcr = new PendingContactRequest(p, m, NULL, ts, uts, msg, false);
                     mappcr(p, unique_ptr<PendingContactRequest>(pcr));
-                    pcr->autoaccepted = clv;
+                    pcr->autoaccepted = clv != 0;
                 }
                 notifypcr(pcr);
 
@@ -7513,7 +7527,7 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                 break;
 
             case 'g':
-                group = jsonsc.getint();
+                group = jsonsc.getbool();
                 break;
 
             case MAKENAMEID2('o','u'):
@@ -7530,7 +7544,7 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
 
             case 'm':
                 assert(readingPublicChat);
-                publicchat = jsonsc.getint();
+                publicchat = jsonsc.getbool();
                 break;
 
             case MAKENAMEID2('c','k'):
@@ -7706,12 +7720,12 @@ void MegaClient::sc_chatnode()
         {
             case 'g':
                 // access granted
-                g = jsonsc.getint();
+                g = jsonsc.getbool();
                 break;
 
             case 'r':
                 // access revoked
-                r = jsonsc.getint();
+                r = jsonsc.getbool();
                 break;
 
             case MAKENAMEID2('i','d'):
@@ -9687,9 +9701,9 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
             LOG_err << "Parsing error in readnodes: " << e;
             return 0;
         }
-    }  
+    }
 
-    mergenewshares(notify);
+    mergenewshares(notify != 0);
     mNodeManager.checkOrphanNodes(missingParentNodes);
 
 #ifdef ENABLE_SYNC
@@ -9961,7 +9975,7 @@ int MegaClient::readnode(JSON* j, int notify, putsource_t source, vector<NewNode
                 }
 
                 // NodeManager takes n ownership
-                mNodeManager.addNode(n, notify,  fetchingnodes, missingParentNodes);
+                mNodeManager.addNode(n, notify != 0, fetchingnodes, missingParentNodes);
 
                 if (!ISUNDEF(su))   // node represents an incoming share
                 {
@@ -13094,7 +13108,7 @@ void MegaClient::procmcf(JSON *j)
                                 break;
 
                             case 'g':
-                                group = j->getint();
+                                group = j->getbool();
                                 break;
 
                             case MAKENAMEID2('c','t'):
@@ -13112,7 +13126,7 @@ void MegaClient::procmcf(JSON *j)
 
                             case 'm':   // operation mode: 1 -> public chat; 0 -> private chat
                                 assert(readingPublicChats);
-                                publicchat = j->getint();
+                                publicchat = j->getbool();
                                 break;
 
                            case MAKENAMEID2('m', 'r'):    // meeting room: 1; no meeting room: 0
@@ -14802,6 +14816,10 @@ void MegaClient::fatalError(ErrorReason errorReason)
         case ErrorReason::REASON_ERROR_NO_JSCD:
             reason = "Failed to get JSON SYNC configuration data";
             sendevent(99488, reason.c_str(), 0);
+            break;
+        case ErrorReason::REASON_ERROR_UNKNOWN:
+            reason = "Unknown fatal error";
+            sendevent(99489, reason.c_str(), 0);
             break;
         default:
             reason = "Unknown reason";
@@ -17776,35 +17794,11 @@ bool MegaClient::treatAsIfFileDataEqual(const FileFingerprint& fp1, const string
             isPhotoVideoAudioByName(filenameExtensionLowercaseNoDot1);
 }
 
-recentactions_vector MegaClient::getRecentActions(unsigned maxcount, m_time_t since)
-{
-    sharedNode_vector v = mNodeManager.getRecentNodes(maxcount, since);
-
-    return getRecentActionsFromSharedNodeVector(std::move(v));
-}
-
 recentactions_vector MegaClient::getRecentActions(unsigned maxcount,
                                                   m_time_t since,
                                                   bool excludeSensitives)
 {
-    sharedNode_vector v;
-
-    NodeSearchFilter filter;
-    filter.byAncestors({mNodeManager.getRootNodeFiles().as8byte(),
-                        mNodeManager.getRootNodeVault().as8byte(),
-                        UNDEF});
-
-    filter.byCreationTimeLowerLimitInSecs(since);
-    if (excludeSensitives)
-    {
-        filter.bySensitivity(NodeSearchFilter::BoolFilter::onlyTrue);
-    }
-    filter.byNodeType(FILENODE);
-    filter.setIncludedShares(IN_SHARES);
-    v = mNodeManager.searchNodes(filter,
-                                 OrderByClause::CTIME_DESC,
-                                 CancelToken(),
-                                 NodeSearchPage{0, maxcount});
+    sharedNode_vector v = mNodeManager.getRecentNodes(maxcount, since, excludeSensitives);
 
     return getRecentActionsFromSharedNodeVector(std::move(v));
 }
@@ -17834,7 +17828,8 @@ recentactions_vector MegaClient::getRecentActionsFromSharedNodeVector(sharedNode
                 ra.time = (*j)->ctime;
                 ra.user = (*j)->owner;
                 ra.parent = (*j)->parent ? (*j)->parent->nodehandle : UNDEF;
-                ra.updated = getNumberOfChildren((*j)->nodeHandle());   // children of files represent previous versions
+                ra.updated = getNumberOfChildren((*j)->nodeHandle()) >
+                             0; // children of files represent previous versions
                 ra.media = nodeIsMedia(j->get(), nullptr, nullptr);
                 rav.push_back(ra);
             }
@@ -21400,19 +21395,19 @@ bool KeyManager::removePendingOutShare(handle sharehandle, std::string uid)
     User *user = mClient.finduser(uid.c_str(), 0);
     if (user)
     {
-        removed = mPendingOutShares[sharehandle].erase(user->email);
+        removed = mPendingOutShares[sharehandle].erase(user->email) > 0;
         removed |= mPendingOutShares[sharehandle].erase(user->uid) > 0;
     }
     else
     {
-        removed = mPendingOutShares[sharehandle].erase(uid);
+        removed = mPendingOutShares[sharehandle].erase(uid) > 0;
     }
     return removed;
 }
 
 bool KeyManager::removePendingInShare(std::string shareHandle)
 {
-    return mPendingInShares.erase(shareHandle);
+    return mPendingInShares.erase(shareHandle) > 0;
 }
 
 bool KeyManager::addShareKey(handle sharehandle, std::string shareKey, bool sharedSecurely)
@@ -21822,7 +21817,7 @@ bool KeyManager::getContactVerificationWarning()
             LOG_err << "cv field in warnings is malformed";
             return false;
         }
-        return res;
+        return res != 0;
     }
     return false;
 }
@@ -22330,7 +22325,7 @@ string KeyManager::serializePendingOutshares() const
             w.serializebyte(len);
             w.serializenodehandle(h);
 
-            bool isEmail = len;
+            bool isEmail = len > 0;
             if (isEmail) // uid is an email
             {
                 w.serializebinary((byte*)uid.data(), uid.size());
@@ -22692,7 +22687,7 @@ bool ScDbStateRecord::serialize(string* s) const
     CacheableWriter w(*s);
     w.serializestring(seqTag);
     w.serializeexpansionflags();
-    return s;
+    return s != nullptr;
 }
 
 ScDbStateRecord ScDbStateRecord::unserialize(const std::string& data)

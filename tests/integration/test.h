@@ -658,8 +658,10 @@ struct StandardClient : public MegaApp
     void onCallback();
 
     SynchronizedFunction<void(const SyncConfig&)> onAutoResumeResult;
+    SynchronizedFunction<void(const SyncConfig&)> onRemovedSync;
 
     void sync_added(const SyncConfig& config) override;
+    void sync_removed(const SyncConfig& config) override;
 
     std::atomic<bool> received_syncs_restored{false};
     void syncs_restored(SyncError syncError) override;

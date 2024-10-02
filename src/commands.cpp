@@ -1841,11 +1841,11 @@ bool CommandLogin::procresult(Result r, JSON& json)
                 break;
 
             case MAKENAMEID2('f', 'a'):
-                fa = json.getint();
+                fa = json.getbool();
                 break;
 
             case MAKENAMEID3('a', 'c', 'h'):
-                ach = json.getint();
+                ach = json.getbool();
                 break;
 
             case MAKENAMEID2('s', 'n'):
@@ -3145,12 +3145,6 @@ void CommandRemoveContact::doComplete(error result)
 
 CommandPutMultipleUAVer::CommandPutMultipleUAVer(MegaClient *client, const userattr_map *attrs, int ctag, std::function<void (Error)> completion)
 {
-    if (attrs->find(ATTR_KEYS) != attrs->end() && client->getClientType() != MegaClient::ClientType::DEFAULT)
-    {
-        LOG_warn << "Invalid Client type (" << static_cast<int>(client->getClientType()) << ") for updating keys in multi-upv.";
-        assert(client->getClientType() == MegaClient::ClientType::DEFAULT);
-    }
-
     mV3 = false;
 
     this->attrs = *attrs;
@@ -3276,12 +3270,6 @@ bool CommandPutMultipleUAVer::procresult(Result r, JSON& json)
 CommandPutUAVer::CommandPutUAVer(MegaClient* client, attr_t at, const byte* av, unsigned avl, int ctag,
                                  std::function<void(Error)> completion)
 {
-    if (at == ATTR_KEYS && client->getClientType() != MegaClient::ClientType::DEFAULT)
-    {
-        LOG_warn << "Invalid Client type (" << static_cast<int>(client->getClientType()) << ") for updating keys in upv.";
-        assert(client->getClientType() == MegaClient::ClientType::DEFAULT);
-    }
-
     mV3 = false;
 
     this->at = at;
@@ -8011,7 +7999,7 @@ bool CommandChatCreate::procresult(Result r, JSON& json)
                     break;
 
                 case 'g':
-                    group = json.getint();
+                    group = json.getbool();
                     break;
 
                 case MAKENAMEID2('t', 's'):  // actual creation timestamp

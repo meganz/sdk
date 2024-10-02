@@ -18,7 +18,7 @@ class QTMegaTransferListener : public QObject, public MegaTransferListener
 	Q_OBJECT
 
 public:
-    QTMegaTransferListener(MegaApi *megaApi,MegaTransferListener *listener);
+    QTMegaTransferListener(MegaApi* megaApi, MegaTransferListener* listener);
     ~QTMegaTransferListener() override;
 
 public:
@@ -33,7 +33,7 @@ public:
 protected:
     void customEvent(QEvent * event) override;
 
-    MegaApi *megaApi;
-	MegaTransferListener *listener;
+    MegaApi* megaApi;
+    MegaTransferListener* listener;
 };
 }

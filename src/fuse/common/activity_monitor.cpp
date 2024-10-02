@@ -98,7 +98,7 @@ bool ActivityMonitor::active() const
 {
     std::lock_guard<std::mutex> guard(mLock);
 
-    return mProcessing;
+    return mProcessing > 0;
 }
 
 Activity ActivityMonitor::begin()

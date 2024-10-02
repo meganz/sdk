@@ -94,7 +94,7 @@ public:
         // throw NotImplemented(__func__);
     }
 
-    bool getRecentNodes(unsigned maxcount,
+    bool getRecentNodes(const mega::NodeSearchPage& page,
                         mega::m_time_t since,
                         std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>&) override
     {

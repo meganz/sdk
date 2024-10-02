@@ -140,7 +140,7 @@ pipeline {
                                     set gfxworkerTestIntegration=tools\\\\gfxworker\\\\tests\\\\integration\\\\Debug\\\\gfxworker_test_integration.exe
                                     if exist %gfxworkerTestIntegration% %gfxworkerTestIntegration%
                                     if %ERRORLEVEL% NEQ 0 exit 1
-                                    tests\\\\integration\\\\Debug\\\\test_integration.exe --CI --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} ${GTEST_FILTER} ${GTEST_REPEAT} ${TESTS_PARALLEL}
+                                    tests\\\\integration\\\\Debug\\\\test_integration.exe --CI --USERAGENT:${env.USER_AGENT_TESTS_SDK} --APIURL:${APIURL_TO_TEST} ${GTEST_FILTER} ${GTEST_REPEAT} ${TESTS_PARALLEL}
                                     if %ERRORLEVEL% NEQ 0 set ERROR_VAL=1
                                     gzip -c test_integration.log > test_integration_${BUILD_ID}.log.gz
                                     rm test_integration.log

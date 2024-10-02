@@ -1,6 +1,9 @@
 #include "QTMegaTransferListener.h"
-#include <QCoreApplication>
+
+#include "QTMegaApiManager.h"
 #include "QTMegaEvent.h"
+
+#include <QCoreApplication>
 
 using namespace mega;
 
@@ -13,7 +16,8 @@ struct QtMegaFolderEvent : public QTMegaEvent
     uint32_t filecount;
 };
 
-QTMegaTransferListener::QTMegaTransferListener(MegaApi *megaApi, MegaTransferListener *listener) : QObject()
+QTMegaTransferListener::QTMegaTransferListener(MegaApi* megaApi, MegaTransferListener* listener):
+    QObject()
 {
     this->megaApi = megaApi;
     this->listener = listener;
@@ -22,7 +26,10 @@ QTMegaTransferListener::QTMegaTransferListener(MegaApi *megaApi, MegaTransferLis
 QTMegaTransferListener::~QTMegaTransferListener()
 {
     this->listener = NULL;
-    megaApi->removeTransferListener(this);
+    if (QTMegaApiManager::isMegaApiValid(megaApi))
+    {
+        megaApi->removeTransferListener(this);
+    }
 }
 
 

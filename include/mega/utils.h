@@ -665,14 +665,6 @@ struct CacheableReader
     bool hasdataleft() { return end > ptr; }
 };
 
-template<typename T, typename U>
-void hashCombine(T& seed, const U& v)
-{
-    static_assert(std::is_integral<T>::value, "T is not integral");
-    // the magic number is the twos complement version of the golden ratio
-    seed ^= std::hash<U>{}(v) + 0x9e3779b9 + (seed<<6) + (seed>>2);
-}
-
 struct FileAccess;
 struct InputStreamAccess;
 class SymmCipher;
@@ -1122,18 +1114,26 @@ Container splitString(const string& str, char delimiter)
 }
 
 template<typename Iter>
-std::string joinStrings(const Iter begin, const Iter end, const std::string& separator)
+std::string joinStrings(
+    const Iter begin,
+    const Iter end,
+    const std::string& separator,
+    const std::function<std::string(const std::string&)> transform =
+        [](const std::string& a) -> std::string
+    {
+        return a;
+    })
 {
     Iter position = begin;
     std::string result;
     if (position != end)
     {
-        result += *position++;
+        result += transform(*position++);
     }
 
     while (position != end)
     {
-        result += separator + *position++;
+        result += separator + transform(*position++);
     }
     return result;
 }
@@ -1143,6 +1143,47 @@ static constexpr char WILDCARD_MATCH_ALL = '*';
 static constexpr char ESCAPE_CHARACTER = '\\';
 
 std::string escapeWildCards(const std::string& pattern);
+
+/**
+ * @class TextPattern
+ * @brief Helper class to store a text that will be used in a regex like search
+ *
+ * It stores the original text and an associated pattern to be used directly in the search adding
+ * wild cards in both sides of the original text if needed. Example:
+ * - text: hello -> pattern: *hello*
+ * - text: * -> pattern: *
+ *
+ */
+class TextPattern
+{
+public:
+    TextPattern(const std::string& text);
+    TextPattern(const char* text);
+
+    TextPattern() = default;
+    ~TextPattern() = default;
+    TextPattern(const TextPattern& other) = default;
+    TextPattern& operator=(const TextPattern& other) = default;
+    TextPattern(TextPattern&& other) noexcept = default;
+    TextPattern& operator=(TextPattern&& other) noexcept = default;
+
+    const std::string& getText() const
+    {
+        return mText;
+    }
+
+    const std::string& getPattern() const
+    {
+        return mPattern;
+    }
+
+private:
+    std::string mText;
+    std::string mPattern;
+
+    void recalcPattern();
+    static bool isOnlyWildCards(const std::string& text);
+};
 
 std::set<std::string>::iterator getTagPosition(std::set<std::string>& tokens, const std::string& tag);
 
@@ -1386,6 +1427,49 @@ std::string ensureAsteriskSurround(std::string str);
  * std::stirng extension = fileName.substr(dotPos); // It will contain the '.' if present
  */
 size_t fileExtensionDotPosition(const std::string& fileName);
+
+// Helper function to combine hashes
+inline uint64_t hashCombine(uint64_t seed, uint64_t value)
+{
+    // the magic number is the twos complement version of the golden ratio
+    return seed ^ (value + 0x9e3779b97f4a7c15 + (seed << 12) + (seed >> 4));
+}
+
+/**
+ * @class Timer
+ * @brief A very simple helper struct to measure performance of some code pieces while developing a
+ * time consuming part or refactoring.
+ *
+ * Example usage:
+ * void exampleFunction() {
+ *     {
+ *         Timer t("Elapsed time: ", " ms");
+ *         // Code block whose execution time you want to measure
+ *         std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Simulate work
+ *     } // Timer destructs here, and the elapsed time is printed.
+ * }
+ */
+template<typename DurUnit = std::chrono::milliseconds>
+struct Timer
+{
+    Timer(const std::string& prefixMsg = "", const std::string& posfixMsg = ""):
+        mPreMsg{prefixMsg},
+        mPosMsg{posfixMsg},
+        mStartTime{std::chrono::steady_clock::now()} // Correct initialization
+    {}
+
+    ~Timer()
+    {
+        const auto end = std::chrono::steady_clock::now();
+        const auto dur = end - mStartTime; // Duration between start and end
+        std::cout << mPreMsg << std::chrono::duration_cast<DurUnit>(dur).count() << mPosMsg << "\n";
+    }
+
+private:
+    std::string mPreMsg;
+    std::string mPosMsg;
+    std::chrono::time_point<std::chrono::steady_clock> mStartTime; // Fixed time_point type
+};
 
 } // namespace mega
 

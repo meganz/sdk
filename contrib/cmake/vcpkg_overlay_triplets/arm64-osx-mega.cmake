@@ -3,7 +3,7 @@ set(VCPKG_CRT_LINKAGE dynamic)
 
 set(VCPKG_CMAKE_SYSTEM_NAME Darwin)
 set(VCPKG_OSX_ARCHITECTURES arm64)
-set(VCPKG_OSX_DEPLOYMENT_TARGET 11.0)
+set(VCPKG_OSX_DEPLOYMENT_TARGET 11.1)
 
 if(PORT MATCHES "ffmpeg")
     # build this library as dynamic (usually because it is LGPL licensed)

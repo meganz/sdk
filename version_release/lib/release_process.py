@@ -126,6 +126,7 @@ class ReleaseProcess:
         # write new version
         LocalRepository.version_file.write_text("\n".join(lines))
 
+    # Commit changes in version file
     def _push_to_new_branch(
         self,
         new_branch: str,
@@ -134,7 +135,7 @@ class ReleaseProcess:
         assert self._local_repo is not None
         try:
             self._local_repo.commit_changes_to_new_branch(
-                self._get_mr_title(), new_branch
+                self._get_mr_title_for_version_update(), new_branch
             )
             print("v Changes committed to", new_branch, flush=True)
             self._local_repo.push_branch(remote_name, new_branch)
@@ -145,8 +146,11 @@ class ReleaseProcess:
 
         self._local_repo.clean_version_changes(new_branch, self._private_branch)
 
-    def _get_mr_title(self) -> str:
+    def _get_mr_title_for_version_update(self) -> str:
         return f"Update version to {self._new_version}"
+
+    def _get_mr_title_for_release(self) -> str:
+        return f"Release {self._new_version}"
 
     # Merge new branch with changes in version file
     def _merge_local_changes(
@@ -154,7 +158,7 @@ class ReleaseProcess:
         new_branch: str,
     ):
         mr_id, mr_url = self._remote_private_repo.open_mr(
-            self._get_mr_title(),
+            self._get_mr_title_for_version_update(),
             new_branch,
             self._private_branch,
             remove_source=True,
@@ -231,7 +235,7 @@ class ReleaseProcess:
             flush=True,
         )
         mr_id, _ = self._remote_private_repo.open_mr(
-            self._get_mr_title(),
+            self._get_mr_title_for_release(),
             self._release_branch,
             public_branch,
             remove_source=False,
@@ -269,7 +273,7 @@ class ReleaseProcess:
         tag_url = self._remote_private_repo.get_tag_url(self._rc_tag)
 
         notes: str = (
-            f"\U0001F4E3 \U0001F4E3 *New SDK version  -->  `{self._rc_tag}`* (<{tag_url}|Link>)\n\n"
+            f"\U0001F4E3 \U0001F4E3 *New {self._project_name} version  -->  `{self._rc_tag}`* (<{tag_url}|Link>)\n\n"
         ) + self._jira.get_release_notes_for_slack(apps)
         if not self._slack or not self._slack_channel:
             print("Enjoy:\n\n" + notes, flush=True)
@@ -352,7 +356,7 @@ class ReleaseProcess:
     # STEP 3 (close): GitLab: Merge version upgrade MR into public branch (master)
     def merge_release_changes_into_public_branch(self, public_branch: str):
         mr_id = self._remote_private_repo._get_id_of_open_mr(
-            self._get_mr_title(), self._release_branch, public_branch
+            self._get_mr_title_for_release(), self._release_branch, public_branch
         )
         assert mr_id > 0
         self._remote_private_repo.merge_mr(mr_id, 3600)  # must not delete source branch

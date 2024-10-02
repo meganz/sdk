@@ -42,6 +42,17 @@ if (WIN32)
     )
 endif()
 
+# Adjust compilation flags for warnings and errors for libgfxworker
+target_platform_compile_options(
+    TARGET libgfxworker
+)
+
+if(ENABLE_SDKLIB_WERROR)
+    target_platform_compile_options(
+        TARGET libgfxworker
+    )
+endif()
+
 add_executable(gfxworker
     src/main.cpp
 )
@@ -50,6 +61,17 @@ target_link_libraries(gfxworker
     PRIVATE
     libgfxworker
 )
+
+# Adjust compilation flags for warnings and errors for gfxworker
+target_platform_compile_options(
+    TARGET gfxworker
+)
+
+if(ENABLE_SDKLIB_WERROR)
+    target_platform_compile_options(
+        TARGET gfxworker
+    )
+endif()
 
 if(ENABLE_SDKLIB_TESTS)
     add_subdirectory(tests/integration)

@@ -304,7 +304,7 @@ int MacFileSystemAccess::checkevents(Waiter*)
 
 void MacFileSystemAccess::flushDispatchQueue()
 {
-    dispatch_barrier_async_and_wait_f(mDispatchQueue, nullptr, [](void *){});
+    dispatch_barrier_sync_f(mDispatchQueue, nullptr, [](void*) {});
 }
 
 #ifdef ENABLE_SYNC

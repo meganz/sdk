@@ -7357,6 +7357,12 @@ class MegaSyncStall
         * is where the move could not be repliated.
         */
         virtual bool detectedCloudSide() const = 0;
+
+        /**
+         * @brief Get an unique identifier for the MegaSyncStall object that takes into account all
+         * the information it stores.
+         */
+        virtual size_t getHash() const = 0;
 };
 
 /**
@@ -7377,6 +7383,12 @@ class MegaSyncStallList
          * @return number of elements in the list.
          */
         virtual size_t size() const;
+
+        /**
+         * @brief Get an unique identifier that is calculated combining the hashes of all the
+         * elements in the container. The order of the elements also affects the final hash.
+         */
+        virtual size_t getHash() const;
 };
 
 #endif // ENABLE_SYNC
@@ -9773,6 +9785,20 @@ public:
     virtual void byTag(const char* searchString);
 
     /**
+     * @brief Set the logical operator for filtering text related conditions
+     *
+     * @note This method sets the logical operator to be used between multiple search criteria
+     * (name, tags and description). The operator can either be `AND` or `OR` based on the
+     * input parameter.
+     *
+     * If not invoked, `AND` will be used as the default behavior.
+     *
+     * @param useAnd If true, the `AND` operator will be used between search criteria.
+     * If false, the `OR` operator will be used.
+     */
+    virtual void useAndForTextQuery(bool useAnd);
+
+    /**
      * @brief Return the string used for filtering by name.
      *
      * @return string set for filtering by name, or empty string ("") if not set
@@ -9862,6 +9888,14 @@ public:
      * @return string set for filtering by tag, or empty string ("") if not set
      */
     virtual const char* byTag() const;
+
+    /**
+     * @brief Get the current logical operator used for filtering text related conditions
+     *
+     * @return True if the `AND` operator is being used between search criteria,
+     * false if the `OR` operator is being used.
+     */
+    virtual bool useAndForTextQuery() const;
 };
 
 /**
@@ -12378,6 +12412,20 @@ class MegaApi
          * @param enable True to show messages in console, false to skip them.
          */
         static void setLogToConsole(bool enable);
+
+        /**
+         * @brief
+         * Enable full JSON logging.
+         *
+         * This function allows an application to control whether JSON
+         * requests and responses are logged in full. When enable is true,
+         * JSON content will always be logged and will not be truncated.
+         * When false, JSON may be logged in some situations but only if
+         * the content is less than the logger's maximum payload size.
+         *
+         * @see MegaApi::setMaxPayloadLogSize
+         */
+        static void setLogJSONContent(bool enable);
 
         /**
          * @brief Add a MegaLogger implementation to receive SDK logs
@@ -18684,6 +18732,8 @@ class MegaApi
          * sensitive if they have that property set, or one of their ancestors has it.
          * Use getRecentActionsAsync with explicit excludeSensitives flag
          * to search for sensitives and filter them depending on the flag value
+         *
+         * @deprecated use getRecentActionsAsync(days, maxnodes, excludeSensitives, listener)
          *
          * @param days Age of actions since added/modified nodes will be considered (in days)
          * @param maxnodes Maximum amount of nodes to be considered

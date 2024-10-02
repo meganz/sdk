@@ -2148,6 +2148,11 @@ void MegaApi::setLogToConsole(bool enable)
     MegaApiImpl::setLogToConsole(enable);
 }
 
+void MegaApi::setLogJSONContent(bool enable)
+{
+    MegaApiImpl::setLogJSONContent(enable);
+}
+
 void MegaApi::addLoggerObject(MegaLogger *megaLogger, bool singleExclusiveLogger)
 {
     MegaApiImpl::addLoggerClass(megaLogger, singleExclusiveLogger);
@@ -6668,6 +6673,16 @@ size_t MegaSyncStallList::size() const
     return 0;
 }
 
+size_t MegaSyncStallList::getHash() const
+{
+    uint64_t hash = 0;
+    for (size_t i = 0; i < size(); ++i)
+    {
+        hash = hashCombine(hash, get(i)->getHash());
+    }
+    return hash;
+}
+
 const MegaSyncStall* MegaSyncStallList::get(size_t i) const
 {
     return nullptr;
@@ -7053,6 +7068,8 @@ void MegaSearchFilter::byTag(const char* /*searchString*/)
 {
 }
 
+void MegaSearchFilter::useAndForTextQuery(bool /*useAnd*/) {}
+
 const char* MegaSearchFilter::byName() const
 {
     return nullptr;
@@ -7116,6 +7133,11 @@ const char* MegaSearchFilter::byDescription() const
 const char* MegaSearchFilter::byTag() const
 {
     return nullptr;
+}
+
+bool MegaSearchFilter::useAndForTextQuery() const
+{
+    return false;
 }
 
 MegaSearchPage::MegaSearchPage()

@@ -20,7 +20,7 @@ class QTMegaRequestListener : public QObject, public MegaRequestListener
     Q_OBJECT
 
 public:
-    QTMegaRequestListener(MegaApi *megaApi, MegaRequestListener *listener = NULL);
+    QTMegaRequestListener(MegaApi* megaApi, MegaRequestListener* listener = NULL);
     ~QTMegaRequestListener() override;
 
     //Request callbacks
@@ -32,7 +32,7 @@ public:
 protected:
     virtual void customEvent(QEvent * event) override;
 
-    MegaRequestListener *listener;
-    MegaApi *megaApi;
+    MegaApi* megaApi;
+    MegaRequestListener* listener;
 };
 }
