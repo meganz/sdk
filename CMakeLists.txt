@@ -163,6 +163,12 @@ if(ENABLE_JAVA_BINDINGS)
     set_property(TARGET SDKlib PROPERTY POSITION_INDEPENDENT_CODE ON)
 endif()
 
+# Load Python bindings
+if(ENABLE_PYTHON_BINDINGS)
+    add_subdirectory(bindings/python)
+    set_property(TARGET SDKlib PROPERTY POSITION_INDEPENDENT_CODE ON)
+endif()
+
 if(ENABLE_ISOLATED_GFX)
     add_subdirectory(tools/gfxworker)
 endif()

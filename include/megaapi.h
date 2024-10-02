@@ -9364,10 +9364,10 @@ class MegaListener
          * @param path
          * A path identifying the mount that was added.
          *
-         * @param result
+         * @param megaMountResult
          * An element of the MegaMount::Result enumeration.
          */
-        virtual void onMountAdded(MegaApi* api, const char* path, int result);
+        virtual void onMountAdded(MegaApi* api, const char* path, int megaMountResult);
 
         /**
          * @brief
@@ -9379,10 +9379,10 @@ class MegaListener
          * @param path
          * A path identifying the mount that has changed.
          *
-         * @param result
+         * @param megaMountResult
          * An element of the MegaMount::Result enumeration.
          */
-        virtual void onMountChanged(MegaApi* api, const char* path, int result);
+        virtual void onMountChanged(MegaApi* api, const char* path, int megaMountResult);
 
         /**
          * @brief
@@ -9394,10 +9394,10 @@ class MegaListener
          * @param path
          * A path identifying the mount that has been disabled.
          *
-         * @param result
+         * @param megaMountResult
          * An element of the MegaMount::Result enumeration.
          */
-        virtual void onMountDisabled(MegaApi* api, const char* path, int result);
+        virtual void onMountDisabled(MegaApi* api, const char* path, int megaMountResult);
 
         /**
          * @brief
@@ -9409,10 +9409,10 @@ class MegaListener
          * @param path
          * A path identifying the mount that has been enabled.
          *
-         * @param result
+         * @param megaMountResult
          * An element of the MegaMount::Result enumeration.
          */
-        virtual void onMountEnabled(MegaApi* api, const char* path, int result);
+        virtual void onMountEnabled(MegaApi* api, const char* path, int megaMountResult);
 
         /**
          * @brief
@@ -9424,10 +9424,10 @@ class MegaListener
          * @param path
          * A path identifying the mount that has been removed.
          *
-         * @param result
+         * @param megaMountResult
          * An element of the MegaMount::Result enumeration.
          */
-        virtual void onMountRemoved(MegaApi* api, const char* path, int result);
+        virtual void onMountRemoved(MegaApi* api, const char* path, int megaMountResult);
 };
 
 /**
