@@ -36,6 +36,11 @@ std::vector<std::string> toNamesVector(const MegaNodeList& nodes);
  * @brief Aux function to get a vector with the strings in a given MegaStringList
  */
 std::vector<std::string> stringListToVector(const MegaStringList& l);
+
+/**
+ * @brief Aux function to get a vector with vector of strings in a given MegaRecentActionBucketList
+ */
+std::vector<std::vector<std::string>> bucketsToVector(const MegaRecentActionBucketList& buckets);
 }
 
 #endif // MEGAUTILS_H

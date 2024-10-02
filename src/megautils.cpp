@@ -46,4 +46,22 @@ std::vector<std::string> stringListToVector(const MegaStringList& l)
         result.emplace_back(l.get(i));
     return result;
 }
+
+std::vector<std::vector<std::string>> bucketsToVector(const MegaRecentActionBucketList& buckets)
+{
+    std::vector<std::vector<std::string>> result;
+    for (int i = 0; i < buckets.size(); ++i)
+    {
+        auto bucketNodes = buckets.get(i)->getNodes();
+        if (!bucketNodes)
+            continue;
+        std::vector<std::string> bucketInfo;
+        for (int j = 0; j < bucketNodes->size(); ++j)
+        {
+            bucketInfo.emplace_back(bucketNodes->get(j)->getName());
+        }
+        result.emplace_back(std::move(bucketInfo));
+    }
+    return result;
+}
 }
