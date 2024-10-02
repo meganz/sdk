@@ -6143,6 +6143,16 @@ void MegaApi::answerSurvey(MegaHandle surveyHandle,
     return pImpl->answerSurvey(surveyHandle, triggerActionId, response, comment, listener);
 }
 
+void MegaApi::getWelcomePdfCopied(MegaRequestListener* listener)
+{
+    pImpl->getWelcomePdfCopied(listener);
+}
+
+void MegaApi::setWelcomePdfCopied(bool copied, MegaRequestListener* listener)
+{
+    pImpl->setWelcomePdfCopied(copied, listener);
+}
+
 /* END MEGAAPI */
 
 MegaHashSignature::MegaHashSignature(const char *base64Key)

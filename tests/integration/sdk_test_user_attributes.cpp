@@ -260,6 +260,7 @@ private:
             case MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION:
             case MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG:
             case MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE:
+            case MegaApi::USER_ATTR_WELCOME_PDF_COPIED:
                 testFlag = true;
                 [[fallthrough]];
             default:
@@ -863,6 +864,45 @@ TEST_F(SdkTestUserAttribute, PushSettings)
             api->setPushNotificationSettings(newValue, &tracker);
         },
         {alternative1, alternative2}));
+}
+
+/**
+ * @brief SdkTestUserAttribute.WelcomPdfCopied
+ */
+TEST_F(SdkTestUserAttribute, WelcomPdfCopied)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    int at = MegaApi::USER_ATTR_WELCOME_PDF_COPIED;
+
+    ASSERT_NO_FATAL_FAILURE(testStaticInformation(at, "^!welpdf", "WELCOME_PDF_COPIED"));
+
+    // test generic interfaces
+    ASSERT_NO_FATAL_FAILURE(testValue<bool>(
+        at,
+        [api = megaApi[0].get(), at](RequestTracker& tracker)
+        {
+            api->getUserAttribute(at, &tracker);
+        },
+        [api = megaApi[0].get(), at](int newValue, RequestTracker& tracker)
+        {
+            std::string v{std::to_string(newValue)};
+            api->setUserAttribute(at, v.c_str(), &tracker);
+        },
+        {true, false}));
+
+    // test dedicated interfaces
+    ASSERT_NO_FATAL_FAILURE(testValue<bool>(
+        at,
+        [api = megaApi[0].get()](RequestTracker& tracker)
+        {
+            api->getWelcomePdfCopied(&tracker);
+        },
+        [api = megaApi[0].get()](bool newValue, RequestTracker& tracker)
+        {
+            api->setWelcomePdfCopied(newValue, &tracker);
+        },
+        {true, false}));
 }
 
 }
