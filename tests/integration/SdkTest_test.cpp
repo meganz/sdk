@@ -19476,13 +19476,17 @@ TEST_F(SdkTest, SdkTestVPN)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     // get First Name
-    string origName;
+    string origName = "testingName"; // default value in case it is not set
     {
         RequestTracker getNameTracker(megaApi[0].get());
         megaApi[0]->getUserAttribute(MegaApi::USER_ATTR_FIRSTNAME, &getNameTracker);
-        ASSERT_EQ(getNameTracker.waitForResult(), API_OK) << "Failed to get First Name";
-        ASSERT_THAT(getNameTracker.request->getText(), ::testing::NotNull());
-        origName = getNameTracker.request->getText();
+        ErrorCodes res = getNameTracker.waitForResult();
+        if (res != API_ENOENT)
+        {
+            ASSERT_EQ(res, API_OK) << "Failed to get First Name";
+            ASSERT_THAT(getNameTracker.request->getText(), ::testing::NotNull());
+            origName = getNameTracker.request->getText();
+        }
     }
 
     // Prepare VPN client with the same account
