@@ -1402,6 +1402,56 @@ m_off_t DirectReadSlot::calcThroughput(m_off_t numBytes, m_off_t timeCount) cons
     return throughput;
 }
 
+void DirectReadSlot::retry(const size_t connectionNum)
+{
+    if (!mDr->drbuf.isRaid())
+    {
+        LOG_verbose << "DirectReadSlot::retry: Retrying DirectRead Transfer";
+        mDr->drn->retry(API_EREAD);
+    }
+    else
+    {
+        assert(mReqs.size() <= RAIDPARTS);
+        if (connectionNum >= mReqs.size())
+        {
+            LOG_err << "DirectReadSlot::retry: Invalid connectionNum (out of bounds)";
+            assert(false);
+            return;
+        }
+
+        if (std::unique_ptr<HttpReq>& failedReq = mReqs[connectionNum]; !failedReq)
+        {
+            LOG_err << "DirectReadSlot::retry: Invalid connectionNum (not found)";
+            assert(false);
+            return;
+        }
+
+        if (connectionNum == mUnusedRaidConnection)
+        {
+            LOG_err << "DirectReadSlot::retry: connectionNum provided is same than "
+                       "unused connectionNum.";
+            assert(false);
+            return;
+        }
+
+        if (incFailedRaidedReq() > MAX_FAILED_RAIDED_PARTS)
+        {
+            clearFailedRaidedReq();
+            mDr->drn->retry(API_EREAD);
+            return;
+        }
+
+        LOG_verbose << "DirectReadSlot::retry [conn " << connectionNum << "]"
+                    << " has been failed for raided transfer, we will replace it by [conn "
+                    << mUnusedRaidConnection << "]";
+
+        assert(mDr->drbuf.setUnusedRaidConnection(static_cast<unsigned>(connectionNum)));
+        assert(resetConnection(mUnusedRaidConnection));
+        mUnusedRaidConnection = connectionNum;
+        assert(resetConnection(mUnusedRaidConnection));
+    }
+}
+
 bool DirectReadSlot::searchAndDisconnectSlowestConnection(size_t connectionNum)
 {
     assert(connectionNum < mReqs.size());
@@ -1765,6 +1815,13 @@ bool DirectReadSlot::doio()
                             return true;
                         }
 
+                        if (static_cast<size_t>(connectionNum) == mUnusedRaidConnection)
+                        {
+                            LOG_err << "DirectReadSlot [conn " << connectionNum
+                                    << "] We are processing unused connection";
+                            assert(false);
+                        }
+
                         if (!req)
                         {
                             mReqs[connectionNum] = std::make_unique<HttpReq>(true);
@@ -1806,29 +1863,11 @@ bool DirectReadSlot::doio()
 
         if (req && req->status == REQ_FAILURE)
         {
-            LOG_warn << "DirectReadSlot [conn " << connectionNum << "] Request status is FAILURE [Request status = " << req->status.load() << ", HTTP status = " << req->httpstatus << "]" << " [this = " << this << "]";
-            decreaseReqsInflight();
-            if (mDr->appdata)
-            {
-                if (req->httpstatus == 509)
-                {
-                    LOG_warn << "DirectReadSlot Bandwidth overquota from storage server for streaming transfer" << " [this = " << this << "]";
-
-                    dstime backoff = mDr->drn->client->overTransferQuotaBackoff(req.get());
-                    mDr->drn->retry(API_EOVERQUOTA, backoff);
-                }
-                else
-                {
-                    // a failure triggers a complete abort and retry of all pending reads for this node, including getting updated URL(s)
-                    mDr->drn->retry(API_EREAD);
-                }
-            }
-            else
-            {
-                LOG_err << "DirectReadSlot [conn " << connectionNum << "] Request failed, but transfer is already deleted. Aborting" << " [this = " << this << "]";
-                mDr->drn->client->sendevent(99472, "DirectRead detected with a null transfer");
-                delete mDr;
-            }
+            LOG_warn << "DirectReadSlot [conn " << connectionNum
+                     << "] Request status is FAILURE [Request status = " << req->status.load()
+                     << ", HTTP status = " << req->httpstatus << "]"
+                     << " [this = " << this << "]";
+            onFailure(req, static_cast<size_t>(connectionNum));
             return true;
         }
 
@@ -1840,6 +1879,34 @@ bool DirectReadSlot::doio()
     }
 
     return false;
+}
+
+void DirectReadSlot::onFailure(std::unique_ptr<HttpReq>& req, const size_t connectionNum)
+{
+    decreaseReqsInflight();
+    if (!mDr->appdata)
+    {
+        LOG_err << "DirectReadSlot [conn " << connectionNum
+                << "] Request failed, but transfer is already deleted. Aborting"
+                << " [this = " << this << "]";
+        mDr->drn->client->sendevent(99472, "DirectRead detected with a null transfer");
+        delete mDr;
+    }
+    else
+    {
+        if (auto isBwOverquotaErr = req->httpstatus == 509; isBwOverquotaErr)
+        {
+            LOG_warn
+                << "DirectReadSlot Bandwidth overquota from storage server for streaming transfer"
+                << " [this = " << this << "]";
+            dstime backoff = mDr->drn->client->overTransferQuotaBackoff(req.get());
+            mDr->drn->retry(API_EOVERQUOTA, backoff);
+        }
+        else
+        {
+            retry(connectionNum);
+        }
+    }
 }
 
 // abort active read, remove from pending queue
@@ -1968,6 +2035,7 @@ DirectReadSlot::DirectReadSlot(DirectRead* cdr)
     mNumReqsInflight = 0;
     mWaitForParts = false;
     mMaxChunkSubmitted = 0;
+    clearFailedRaidedReq();
 
     mDrs_it = mDr->drn->client->drss.insert(mDr->drn->client->drss.end(), this);
 

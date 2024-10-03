@@ -379,6 +379,13 @@ public:
     */
     static constexpr m_off_t SLOWEST_TO_FASTEST_THROUGHPUT_RATIO[2] { 4, 5 };
 
+    /**
+     * @brief Max times a failed raided part of a DirectRead, is allowed to be replaced by another
+     * one.
+     *
+     * @see DirectReadSlot::retry
+     */
+    static constexpr int MAX_FAILED_RAIDED_PARTS = 1;
 
     /* ===================*\
      *      Methods       *
@@ -390,6 +397,12 @@ public:
     *   @return True if connection must be retried, False to continue as normal.
     */
     bool doio();
+
+    /**
+     * @brief Manages a HTTP req failure filtering by httpstatus and performing required action (i.e
+     * retry HTTP req)
+     */
+    void onFailure(std::unique_ptr<HttpReq>& req, const size_t connectionNum);
 
     /**
     *   @brief Flag value getter to check if a given request is allowed to request a further chunk.
@@ -435,6 +448,20 @@ public:
     *   @see DirectReadSlot::mThroughPut
     */
     m_off_t getThroughput(size_t connectionNum) const;
+
+    /**
+     * @brief Retries a DirectRead transfer, handling both RAIDED and non RAIDED transfers.
+     *
+     * This method attempts to retry a DirectRead transfer. If the transfer is non RAIDED,
+     * it directly triggers a retry. If it's RAIDED, it replaces it with unused RAID connection, and
+     * retries only that connection.
+     *
+     * @note In case of RAIDED transfer and mFailedRaidedReqs has reached or exceeded
+     * MAX_FAILED_RAIDED_PARTS, entire transfer will be retried
+     *
+     * @param connectionNum The connection number to retry.
+     */
+    void retry(const size_t connectionNum);
 
     /**
     *   @brief Search for the slowest connection and switch it with the actual unused connection.
@@ -490,6 +517,42 @@ public:
     DirectReadSlot(DirectRead*);
 
     /**
+     * @brief Increments the count of failed raided requests.
+     *
+     * This method increments the counter of failed raided requests and returns the updated count.
+     *
+     * @return The updated count of failed raided requests.
+     */
+    std::size_t incFailedRaidedReq()
+    {
+        return ++mFailedRaidedReqs;
+    }
+
+    /**
+     * @brief Resets the count of failed raided requests.
+     *
+     * This method sets the counter of failed raided requests to 0.
+     */
+    void clearFailedRaidedReq()
+    {
+        mFailedRaidedReqs = 0;
+    }
+
+    /**
+     * @brief Checks if the maximum failed raided requests count has been reached.
+     *
+     * This checks if the maximum failed raided requests (MAX_FAILED_RAIDED_PARTS) count has been
+     * reached or exceeded.
+     *
+     * @return true if the maximum count of failed raided requests has been reached or exceeded,
+     * otherwise `false`.
+     */
+    bool maxFailedRaidedReqReached() const
+    {
+        return mFailedRaidedReqs >= MAX_FAILED_RAIDED_PARTS;
+    }
+
+    /**
     *   @brief Destroy DirectReadSlot and stop any pendant operation.
     *
     *   Aborts DirectRead operations and remove iterator from MegaClient's DirectRead list.
@@ -532,6 +595,12 @@ private:
     *   @see HttpReq
     */
     std::vector<std::unique_ptr<HttpReq>> mReqs;
+
+    /**
+     * @brief Number of failed raided parts of a DirectRead.
+     * @see DirectReadSlot::retry
+     */
+    size_t mFailedRaidedReqs = 0;
 
     /**
     *   @brief Pair of <Bytes downloaded> and <Total milliseconds> for throughput calculations.
