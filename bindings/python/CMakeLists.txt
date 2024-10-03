@@ -42,7 +42,7 @@ target_link_libraries(SDKPythonBindings
 )
 
 # Generate Python wheel
-set(SETUP_PYTHON_FILE ${CMAKE_SOURCE_DIR}/bindings/python/set.py)
+set(SETUP_PYTHON_FILE ${CMAKE_SOURCE_DIR}/bindings/python/setup.py)
 
 add_custom_target(build_wheel ALL
     COMMAND ${PYTHON_EXECUTABLE} ${SETUP_PYTHON_FILE} bdist_wheel

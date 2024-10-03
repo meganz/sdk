@@ -329,6 +329,12 @@ set_target_properties(SDKlib PROPERTIES
     DEBUG_POSTFIX "d"
 )
 
+if(ENABLE_JAVA_BINDINGS OR ENABLE_PYTHON_BINDINGS)
+    set_target_properties(SDKlib PROPERTIES
+        POSITION_INDEPENDENT_CODE ON
+    )
+endif()
+
 ## Load and link needed libraries for the SDKlib target ##
 
 # Load 3rd parties
