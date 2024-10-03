@@ -1,7 +1,7 @@
 #!/usr/bin/make -f
 NJOBS := $(shell echo ${DEB_BUILD_OPTIONS} | sed -rn 's/.*parallel=([0-9]*).*/\1/p')
 VCPKG_ROOT := $(shell [ -f /opt/vcpkg.tar.gz ] && echo "-DVCPKG_ROOT=vcpkg" || echo "")
-DPKGXZ := $(shell cat /etc/issue | grep "Ubuntu 24\|Oracular Oriole\|Noble Numbat\|Ubuntu 23\|Mantic Minotaur\|Lunar Lobster\|Ubuntu 22\|Jammy Jellyfish\|Ubuntu 21.10" >/dev/null && echo "-- -Zxz" || echo "")
+DPKGXZ := $(shell cat /etc/issue | grep "Ubuntu 24\|Oracular Oriole\|Ubuntu 23\|Ubuntu 22\|Ubuntu 21" >/dev/null && echo "-- -Zxz" || echo "")
 #TODO: Ensure raspbian builds with that export
 EXPORTCCMFPU := $(shell cat /etc/issue | grep "Raspbian GNU/Linux 12" >/dev/null && echo "export CC='cc -mfpu=vfp'" || echo ":")
 export VCPKG_DEFAULT_BINARY_CACHE := $(shell [ -f /opt/vcpkg.tar.gz ] && echo "/opt/persistent/vcpkg_cache" || echo "")
@@ -11,7 +11,7 @@ MEGA_BUILD_ID := $(shell cat MEGA_BUILD_ID || echo "1")
 
 build: build-stamp
 build-stamp:
-	sed -i -E "0,/megacmd \(([0-9.]*)[^\)]*\)/s//megacmd \(\1-$(MEGA_BUILD_ID).1)/" debian.changelog || :
+	sed -i -E "0,/sdk \(([0-9.]*)[^\)]*\)/s//sdk \(\1-$(MEGA_BUILD_ID).1)/" debian.changelog || :
 
 	if [ -f /opt/vcpkg.tar.gz ]; then           \
 		tar xzf /opt/vcpkg.tar.gz;              \
@@ -25,7 +25,6 @@ build-stamp:
 	fi
 
 	cmake --version
-	#notify this is compiled in release mode with default settings.
 	cmake $(VCPKG_ROOT) -DCMAKE_VERBOSE_MAKEFILE=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo -S $(CURDIR) -B $(CURDIR)/build_dir
 	cmake --build $(CURDIR)/build_dir -j$(NJOBS)
 	cmake --install $(CURDIR)/build_dir --prefix $(CURDIR)/install_dir

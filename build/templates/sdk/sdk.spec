@@ -1,10 +1,10 @@
 Name:		sdk
 Version:	sdk_VERSION
 Release:	%(cat MEGA_BUILD_ID || echo "1").1
-Summary:	MEGA Command Line Interactive and Scriptable Application
+Summary:	MEGA SDK - Client Access Engine
 License:	https://github.com/meganz/megacmd/blob/master/LICENSE
-Group:		Applications/Others
-Url:		https://mega.nz
+Group:		Unspecified
+Url:		https://mega.io/developers
 Source0:	sdk_%{version}.tar.gz
 Vendor:		MEGA Limited
 Packager:	MEGA Linux Team <linux@mega.co.nz>

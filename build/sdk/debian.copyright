@@ -1,7 +1,7 @@
 Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: sdk
 Upstream-Contact: <support@mega.nz>
-Source: https://github.com/meganz/MEGAsync
+Source: https://github.com/meganz/sdk
 Files: *
 Copyright: 2013, Mega Limited
 License: Simplified (2-clause) BSD License

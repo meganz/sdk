@@ -22,11 +22,7 @@ This directory contains all necessary scripts and templates for building the SDK
 - **Common template**:
   - `sdk.dsc`: Template for the Debian source control file.
 
-## Jenkins Build Process
-
-The packages are automatically generated through Jenkins using the `megasdk-all-linux-builds-packages.groovy` script, which can be found in the repository at: /jenkinsfile/specific-branches/megasdk-all-linux-builds-packages.groovy
-
-Currently, these packages are not in use and sderve no immediate practical purpose. However, in the future, they may become useful. The goal is to ensure that we are using the same build system as the SDK clients, so that we can debug locally and respond quickly in case of a failure.
+Currently, these packages are not in use and serve no immediate practical purpose. However, in the future, they may become useful. The goal is to ensure that we are using the same build system as the SDK clients, so that we can debug locally and respond quickly in case of a failure.
 
 ## Building the SDK
 

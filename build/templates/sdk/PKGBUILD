@@ -1,10 +1,10 @@
 ##
- # @file build/sdk/sdk/PKGBUILD
+ # @file build/templates/sdk/PKGBUILD
  # @brief script to generate package sdk for ArchLinux
  #
  # (c) 2013-2016 by Mega Limited, Auckland, New Zealand
  #
- # This file is part of the SDK.
+ # This file is part of the MEGA SDK - Client Access Engine.
  #
  # SDK is distributed in the hope that it will be useful,
  # but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -16,21 +16,20 @@
  # program.
 ##
 
-# Maintainer: Xavier Rins <xrl@mega.co.nz>
 pkgname=sdk
 pkgver=sdk_VERSION
 pkgrel=`cat MEGA_BUILD_ID || echo "1"`
 epoch=
-pkgdesc="MEGA Command Line Interactive and Scriptable Application"
+pkgdesc="MEGA SDK - Client Access Engine"
 arch=('i686' 'x86_64')
 url="https://mega.io/developers"
 license=("https://github.com/meganz/sdk/blob/master/LICENSE")
 groups=()
-depends=('glibc>=2.37' 'bash-completion')
+depends=('glibc>=2.37')
 makedepends=('unzip' 'wget' 'ca-certificates' 'cmake' 'zip' 'python3' 'autoconf-archive' 'nasm')
 checkdepends=()
 optdepends=()
-provides=("sdk=${pkgver}" 'ffmpeg-mega')
+provides=("sdk=${pkgver}")
 replaces=()
 backup=()
 options=(!lto) # ffmpeg is not relocatable

@@ -6,7 +6,7 @@
  #
  # (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  #
- # This file is part of the SDK.
+ # This file is part of the MEGA SDK - Client Access Engine.
  #
  # SDK is distributed in the hope that it will be useful,
  # but WITHOUT ANY WARRANTY; without even the implied warranty of
