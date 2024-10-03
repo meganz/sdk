@@ -4061,30 +4061,21 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool setOriginalPath,
     us.mNextHeartbeat->updateSPHBStatus(us);
 }
 
-bool Syncs::checkSyncRemoteLocationChange(UnifiedSync& us, bool exists, string cloudPath)
+void Syncs::checkSyncRemoteLocationChange(SyncConfig& config,
+                                          const bool exists,
+                                          const std::string& cloudPath)
 {
     assert(onSyncThread());
-
-    bool pathChanged = false;
-    if (exists)
+    if (exists && cloudPath != config.mOriginalPathOfRemoteRootNode)
     {
-        if (cloudPath != us.mConfig.mOriginalPathOfRemoteRootNode)
-        {
-            // the sync will be suspended. Should the user manually start it again,
-            // then the recorded path will be updated to whatever path the Node is then at.
-            LOG_debug << "Sync root path changed!  Was: " << us.mConfig.mOriginalPathOfRemoteRootNode << " now: " << cloudPath;
-            pathChanged = true;
-        }
+        LOG_debug << "Sync root path changed!  Was: " << config.mOriginalPathOfRemoteRootNode
+                  << " now: " << cloudPath;
+        config.mOriginalPathOfRemoteRootNode = cloudPath;
     }
-    else //unset remote node: failed!
+    else if (!exists && !config.mRemoteNode.isUndef())
     {
-        if (!us.mConfig.mRemoteNode.isUndef())
-        {
-            us.mConfig.mRemoteNode = NodeHandle();
-        }
+        config.mRemoteNode = NodeHandle();
     }
-
-    return pathChanged;
 }
 
 void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const LocalPath& localdebris,
@@ -12377,8 +12368,7 @@ void Syncs::syncLoop()
                 sync->cloudRootPath = cloudRootPath;
                 sync->mCurrentRootDepth = rootDepth;
 
-                // update path in sync configuration (if moved)  (even if no mSync - tests require this currently)
-                bool pathChanged = checkSyncRemoteLocationChange(*us, foundRootNode, sync->cloudRootPath);
+                checkSyncRemoteLocationChange(us->mConfig, foundRootNode, sync->cloudRootPath);
 
                 if (!foundRootNode)
                 {
@@ -12389,12 +12379,6 @@ void Syncs::syncLoop()
                 {
                     LOG_err << "Detected sync root node is now in trash";
                     sync->changestate(REMOTE_NODE_MOVED_TO_RUBBISH, false, true, true);
-                }
-                else if (pathChanged /*&& us->mConfig.isBackup()*/)  // TODO: decide if we cancel non-backup syncs unnecessarily.  Users may like to move some high level folders around, without breaking contained syncs.
-                {
-                    LOG_err << "Detected sync root node is now at a different path.";
-                    sync->changestate(REMOTE_PATH_HAS_CHANGED, false, true, true);
-                    mClient.app->syncupdate_remote_root_changed(sync->getConfig());
                 }
             }
             else if (us->mConfig.mRunState == SyncRunState::Suspend &&

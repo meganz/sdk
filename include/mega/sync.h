@@ -1416,8 +1416,20 @@ public:
 
     bool onSyncThread() const { return std::this_thread::get_id() == syncThreadId; }
 
-    // Update remote location
-    bool checkSyncRemoteLocationChange(UnifiedSync&, bool exists, string cloudPath);
+    /**
+     * @brief Checks if the new remote root path has changed. In that case,
+     * config.mOriginalPathOfRemoteRootNode gets updated.
+     *
+     * Also ensures that the config.mRemoteNode is undefined if the remote root doesn't exist
+     * anymore.
+     *
+     * @param config A configuration to read the previously stored remote root node
+     * @param exists Whether the remote root node continues existing
+     * @param cloudPath The current path of the remote root node
+     */
+    void checkSyncRemoteLocationChange(SyncConfig& config,
+                                       const bool exists,
+                                       const std::string& cloudPath);
 
     // Cause periodic-scan syncs to scan now (waiting for the next periodic scan is impractical for tests)
     std::future<size_t> triggerPeriodicScanEarly(handle backupID);
