@@ -9883,6 +9883,20 @@ void MegaApiImpl::setLegacyExclusionUpperSizeLimit(unsigned long long limit)
     client->syncs.mLegacyUpgradeFilterChain.upperLimit(limit);
 }
 
+MegaError* MegaApiImpl::exportLegacyExclusionRules(const char* absolutePath)
+{
+    SdkMutexGuard guard(sdkMutex);
+
+    if (!absolutePath || !*absolutePath)
+    {
+        return new MegaErrorPrivate(API_EARGS);
+    }
+
+    auto lp = LocalPath::fromAbsolutePath(absolutePath);
+    auto result = client->syncs.createMegaignoreFromLegacyExclusions(lp);
+    return new MegaErrorPrivate(result);
+}
+
 long long MegaApiImpl::getNumLocalNodes()
 {
     return client->syncs.totalLocalNodes;
