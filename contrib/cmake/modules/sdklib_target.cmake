@@ -10,7 +10,6 @@ set(SDKLIB_HEADERS
     include/mega.h
     include/megaapi_impl.h
     include/mega/transferslot.h
-    include/mega/thread/libuvthread.h
     include/mega/scoped_helpers.h
     include/mega/traits.h
     include/mega/scoped_timer.h
