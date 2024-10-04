@@ -1233,6 +1233,7 @@ public:
 
     string exportSyncConfigs(const SyncConfigVector configs) const;
     string exportSyncConfigs() const;
+    error createMegaignoreFromLegacyExclusions(const LocalPath& targetPath);
 
     void importSyncConfigs(const char* data, std::function<void(error)> completion);
 

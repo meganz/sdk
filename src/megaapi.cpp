@@ -3896,6 +3896,11 @@ void MegaApi::setLegacyExclusionUpperSizeLimit(unsigned long long limit)
 {
     pImpl->setLegacyExclusionUpperSizeLimit(limit);
 }
+
+MegaError* MegaApi::exportLegacyExclusionRules(const char* absolutePath)
+{
+    return pImpl->exportLegacyExclusionRules(absolutePath);
+}
 #endif
 
 

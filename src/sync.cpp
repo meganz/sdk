@@ -3753,6 +3753,33 @@ void Syncs::confirmOrCreateDefaultMegaignore(bool transitionToMegaignore, unique
     }
 }
 
+error Syncs::createMegaignoreFromLegacyExclusions(const LocalPath& targetPath)
+{
+    LOG_info << "Writing .megaignore with legacy exclusion rules at " << targetPath;
+
+    // Check whether the file already exists
+    auto targetPathWithFileName = targetPath;
+    targetPathWithFileName.appendWithSeparator(IGNORE_FILE_NAME, false);
+    if (fsaccess->fileExistsAt(targetPathWithFileName))
+    {
+        LOG_err << "Failed to write " << targetPathWithFileName
+                << " because the file already exists";
+        return API_EEXIST;
+    }
+
+    // Safely copy the legacy filter chain
+    auto legacyFilterChain = std::make_unique<DefaultFilterChain>(mLegacyUpgradeFilterChain);
+
+    // Write the file
+    if (!legacyFilterChain->create(targetPath, true, *fsaccess, false))
+    {
+        LOG_err << "Failed to write " << targetPath;
+        return API_EACCESS;
+    }
+
+    return API_OK;
+}
+
 void Syncs::enableSyncByBackupId(handle backupId, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname)
 {
     assert(!onSyncThread());
