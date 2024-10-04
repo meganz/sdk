@@ -20791,7 +20791,7 @@ std::string MegaClient::getPartialAPs()
     std::string ret;
     assert(isClientType(ClientType::PASSWORD_MANAGER) || isClientType(ClientType::VPN));
 
-    if (isClientType(ClientType::PASSWORD_MANAGER))
+    if (isClientType(ClientType::PASSWORD_MANAGER) && !getPasswordManagerBase().isUndef())
     {
         // List of handles to recieve updates from subtree
         ret = "&e=" + toNodeHandle(getPasswordManagerBase()) + "&ir=1";
