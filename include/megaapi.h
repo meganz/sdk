@@ -16991,6 +16991,30 @@ class MegaApi
         void setLegacyExclusionUpperSizeLimit(unsigned long long limit);
 
         /**
+         * @brief Create a .megaignore file using legacy exclusion rules.
+         *
+         * Absolute paths included in the legacy rules will only be included
+         * if they are contained in the absolute path passed to the function.
+         *
+         * Ex:
+         * 1. Legacy excluded path: "/home/user/someSync/folder1*"
+         * 2. Param absolutePath: "/home/user/someSync"
+         * 3. Path "folder1*" will be included in the .megaignore created at "someSync".
+         *
+         * Possible return values for this function are:
+         * - MegaError::API_OK if the megaignore file was successfuly written.
+         * - MegaError::API_EARGS if absolutePath is empty or invalid.
+         * - MegaError::API_EACCESS if there was a problem writing the megaignore file.
+         * - MegaError::API_EEXIST if the megaignore file already exists.
+         *
+         * The caller takes ownership of the returned value.
+         *
+         * @param absolutePath Absolute path where the .megaignore file is going to be created.
+         * @return MegaError::API_OK if the file was created, otherwise it returns an error.
+         */
+        MegaError* exportLegacyExclusionRules(const char* absolutePath);
+
+        /**
          * @brief Check if it's possible to start synchronizing a folder node.
          *
          * Possible return values for this function are:
