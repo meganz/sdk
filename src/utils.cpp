@@ -3725,4 +3725,10 @@ size_t fileExtensionDotPosition(const std::string& fileName)
         return dotPos;
 }
 
+std::string getThisThreadIdStr()
+{
+    std::stringstream ss;
+    ss << std::this_thread::get_id();
+    return ss.str();
+}
 } // namespace mega
