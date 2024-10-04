@@ -216,6 +216,10 @@ typedef enum ErrorCodes : int
     API_EMASTERONLY = -27,          ///< Access denied for sub-users (only for business accounts)
     API_EBUSINESSPASTDUE = -28,     ///< Business account expired
     API_EPAYWALL = -29,             ///< Over Disk Quota Paywall
+    API_ESUBUSERKEYMISSING = -30, ///< A business error where a subuser has not yet encrypted
+                                  /// their master key for the admin user and tries to perform
+                                  /// a disallowed command (currently u  and p )
+
     LOCAL_ENOSPC = -1000,           ///< Insufficient space
     LOCAL_ETIMEOUT = -1001,         ///< A request timed out.
     LOCAL_ABANDONED = -1002,        ///< Request abandoned due to local logout.
