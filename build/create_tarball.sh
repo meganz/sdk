@@ -23,22 +23,22 @@ IFS=$'\n\t'
 BASEPATH=$(pwd)/../
 
 # get current version
-sdk_VERSION=$(cat $BASEPATH/include/mega/version.h | grep -Po "MEGA_.*_VERSION [0-9]*"| awk '{print $2}' | paste -sd '.')
-export sdk_NAME=sdk-$sdk_VERSION
-rm -rf $sdk_NAME.tar.gz
-rm -rf $sdk_NAME
+megasdk_VERSION=$(cat $BASEPATH/include/mega/version.h | grep -Po "MEGA_.*_VERSION [0-9]*"| awk '{print $2}' | paste -sd '.')
+export megasdk_NAME=megasdk-$megasdk_VERSION
+rm -rf $megasdk_NAME.tar.gz
+rm -rf $megasdk_NAME
 
-echo "sdk version: $sdk_VERSION"
+echo "sdk version: $megasdk_VERSION"
 
 # delete previously generated files
-rm -fr sdk/sdk*.dsc
+rm -fr megasdk/megasdk*.dsc
 
 # fix version number in template files and copy to appropriate directories
-sed -e "s/sdk_VERSION/$sdk_VERSION/g" templates/sdk/sdk.spec | sed "s#^ *##g" > sdk/sdk.spec
-sed -e "s/sdk_VERSION/$sdk_VERSION/g" templates/sdk/sdk.dsc > sdk/sdk.dsc
-sed -e "s/sdk_VERSION/$sdk_VERSION/g" templates/sdk/PKGBUILD > sdk/PKGBUILD
-for dscFile in `find templates/sdk/ -name sdk-xUbuntu_* -o -name sdk-Debian_* -o -name sdk-Raspbian_*`; do
-    sed -e "s/sdk_VERSION/$sdk_VERSION/g" "${dscFile}" > sdk/`basename ${dscFile}`
+sed -e "s/megasdk_VERSION/$megasdk_VERSION/g" templates/megasdk/megasdk.spec | sed "s#^ *##g" > megasdk/megasdk.spec
+sed -e "s/megasdk_VERSION/$megasdk_VERSION/g" templates/megasdk/megasdk.dsc > megasdk/megasdk.dsc
+sed -e "s/megasdk_VERSION/$megasdk_VERSION/g" templates/megasdk/PKGBUILD > megasdk/PKGBUILD
+for dscFile in `find templates/megasdk/ -name megasdk-xUbuntu_* -o -name megasdk-Debian_* -o -name megasdk-Raspbian_*`; do
+    sed -e "s/megasdk_VERSION/$megasdk_VERSION/g" "${dscFile}" > megasdk/`basename ${dscFile}`
 done
 
 # read the last generated ChangeLog version
@@ -50,70 +50,70 @@ else
     last_version="none"
 fi
 
-if [ "$last_version" != "$sdk_VERSION" ]; then
+if [ "$last_version" != "$megasdk_VERSION" ]; then
     # add RPM ChangeLog entry
-    changelog="sdk/sdk.changes"
-    changelogold="sdk/sdk.changes.old"
+    changelog="megasdk/megasdk.changes"
+    changelogold="megasdk/megasdk.changes.old"
     if [ -f $changelog ]; then
         mv $changelog $changelogold
     fi
-    ./generate_rpm_changelog_entry.sh $sdk_VERSION $BASEPATH/include/mega/version.h > $changelog #TODO: read this from somewhere
+    ./generate_rpm_changelog_entry.sh $megasdk_VERSION $BASEPATH/include/mega/version.h > $changelog #TODO: read this from somewhere
     if [ -f $changelogold ]; then
         cat $changelogold >> $changelog
         rm $changelogold
     fi
 
     # add DEB ChangeLog entry
-    changelog="sdk/debian.changelog"
-    changelogold="sdk/debian.changelog.old"
+    changelog="megasdk/debian.changelog"
+    changelogold="megasdk/debian.changelog.old"
     if [ -f $changelog ]; then
         mv $changelog $changelogold
     fi
-    ./generate_deb_changelog_entry.sh $sdk_VERSION $BASEPATH/include/mega/version.h > $changelog #TODO: read this from somewhere
+    ./generate_deb_changelog_entry.sh $megasdk_VERSION $BASEPATH/include/mega/version.h > $changelog #TODO: read this from somewhere
     if [ -f $changelogold ]; then
         cat $changelogold >> $changelog
         rm $changelogold
     fi
 
     # update version file
-    echo $sdk_VERSION > $version_file
+    echo $megasdk_VERSION > $version_file
 fi
 
 # create archive
-mkdir $sdk_NAME
-ln -s ../sdk/sdk.spec $sdk_NAME/sdk.spec
-ln -s ../sdk/debian.postinst $sdk_NAME/debian.postinst
-ln -s ../sdk/debian.prerm $sdk_NAME/debian.prerm
-ln -s ../sdk/debian.postrm $sdk_NAME/debian.postrm
-ln -s ../sdk/debian.copyright $sdk_NAME/debian.copyright
+mkdir $megasdk_NAME
+ln -s ../megasdk/megasdk.spec $megasdk_NAME/megasdk.spec
+ln -s ../megasdk/debian.postinst $megasdk_NAME/debian.postinst
+ln -s ../megasdk/debian.prerm $megasdk_NAME/debian.prerm
+ln -s ../megasdk/debian.postrm $megasdk_NAME/debian.postrm
+ln -s ../megasdk/debian.copyright $megasdk_NAME/debian.copyright
 
-ln -s $BASEPATH/src $sdk_NAME/
-ln -s $BASEPATH/include $sdk_NAME
-ln -s $BASEPATH/third_party $sdk_NAME/
-ln -s $BASEPATH/tests $sdk_NAME/
-ln -s $BASEPATH/CMakeLists.txt $sdk_NAME/
-ln -s $BASEPATH/vcpkg.json $sdk_NAME/
-mkdir $sdk_NAME/examples
-ln -s $BASEPATH/examples/CMakeLists.txt $sdk_NAME/examples/
-ln -s $BASEPATH/examples/megacli.cpp $sdk_NAME/examples/
-ln -s $BASEPATH/examples/megacli.h $sdk_NAME/examples/
+ln -s $BASEPATH/src $megasdk_NAME/
+ln -s $BASEPATH/include $megasdk_NAME
+ln -s $BASEPATH/third_party $megasdk_NAME/
+ln -s $BASEPATH/tests $megasdk_NAME/
+ln -s $BASEPATH/CMakeLists.txt $megasdk_NAME/
+ln -s $BASEPATH/vcpkg.json $megasdk_NAME/
+mkdir $megasdk_NAME/examples
+ln -s $BASEPATH/examples/CMakeLists.txt $megasdk_NAME/examples/
+ln -s $BASEPATH/examples/megacli.cpp $megasdk_NAME/examples/
+ln -s $BASEPATH/examples/megacli.h $megasdk_NAME/examples/
 
-mkdir $sdk_NAME/tools
-ln -s $BASEPATH/tools/gfxworker $sdk_NAME/tools/
-mkdir $sdk_NAME/contrib
-ln -s $BASEPATH/contrib/cmake $sdk_NAME/contrib/
+mkdir $megasdk_NAME/tools
+ln -s $BASEPATH/tools/gfxworker $megasdk_NAME/tools/
+mkdir $megasdk_NAME/contrib
+ln -s $BASEPATH/contrib/cmake $megasdk_NAME/contrib/
 
-tar czfh $sdk_NAME.tar.gz --exclude-vcs $sdk_NAME
-rm -rf $sdk_NAME
+tar czfh $megasdk_NAME.tar.gz --exclude-vcs $megasdk_NAME
+rm -rf $megasdk_NAME
 
 # delete any previous archive
-rm -fr sdk/sdk_*.tar.gz
+rm -fr megasdk/megasdk_*.tar.gz
 # transform arch name, to satisfy Debian requirements
-mv $sdk_NAME.tar.gz sdk/sdk_$sdk_VERSION.tar.gz
+mv $megasdk_NAME.tar.gz megasdk/megasdk_$megasdk_VERSION.tar.gz
 
 #get md5sum and replace in PKGBUILD
-MD5SUM=`md5sum sdk/sdk_$sdk_VERSION.tar.gz | awk '{print $1}'`
-sed "s/MD5SUM/$MD5SUM/g"  -i sdk/PKGBUILD
+MD5SUM=`md5sum megasdk/megasdk_$megasdk_VERSION.tar.gz | awk '{print $1}'`
+sed "s/MD5SUM/$MD5SUM/g"  -i megasdk/PKGBUILD
 
 ######
 ######

@@ -16,8 +16,8 @@
  # program.
 ##
 
-pkgname=sdk
-pkgver=sdk_VERSION
+pkgname=megasdk
+pkgver=megasdk_VERSION
 pkgrel=`cat MEGA_BUILD_ID || echo "1"`
 epoch=
 pkgdesc="MEGA SDK - Client Access Engine"
@@ -29,11 +29,11 @@ depends=('glibc>=2.37')
 makedepends=('unzip' 'wget' 'ca-certificates' 'cmake' 'zip' 'python3' 'autoconf-archive' 'nasm')
 checkdepends=()
 optdepends=()
-provides=("sdk=${pkgver}")
+provides=("megasdk=${pkgver}")
 replaces=()
 backup=()
 options=(!lto) # ffmpeg is not relocatable
-install=sdk.install
+install=megasdk.install
 changelog= #TODO
 source=("./${pkgname}_$pkgver.tar.gz"
 )

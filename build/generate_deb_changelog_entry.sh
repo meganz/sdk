@@ -29,12 +29,12 @@ out1=$(printf "#include <iostream>
 using namespace std;
 #include \"$2\"
 int main() {
-cout << sdk::sdkchangelog << endl;
-}" | g++ -x c++ - -o /tmp/printChangeLogMsdk && /tmp/printChangeLogMsdk | awk '{print "  * "$0}' && rm /tmp/printChangeLogMsdk )
+cout << megasdk::megasdkchangelog << endl;
+}" | g++ -x c++ - -o /tmp/printChangeLogMmegasdk && /tmp/printChangeLogMmegasdk | awk '{print "  * "$0}' && rm /tmp/printChangeLogMmegasdk )
 
 # print ChangeLog entry
 NOW=$(LANG=C date -R)
-echo "sdk ($1) stable; urgency=low"
+echo "megasdk ($1) stable; urgency=low"
 echo ""
 echo "$out1" | sed 's#\\"#"#g'
 echo ""

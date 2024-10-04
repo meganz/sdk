@@ -51,14 +51,14 @@ pipeline {
             steps {
                 echo "Do Build for ${params.DISTRO_TO_BUILD}"
                 dir(linux_sources_workspace) {
-                    lock(resource: "${params.DISTRO_TO_BUILD}-${params.ARCH_TO_BUILD}-sdk-build", quantity: 1) {
-                        buildAndSignPackage("${params.DISTRO_TO_BUILD}", "${params.ARCH_TO_BUILD}", "sdk")
+                    lock(resource: "${params.DISTRO_TO_BUILD}-${params.ARCH_TO_BUILD}-megasdk-build", quantity: 1) {
+                        buildAndSignPackage("${params.DISTRO_TO_BUILD}", "${params.ARCH_TO_BUILD}", "megasdk")
                     }
                     script{
                         if ( params.UPLOAD_TO_REPOSITORY == true) {
                             //def SDK_VERSION = getVersionFromHeader("include/mega/version.h")
                             def CURRENT_DATE = new Date().format('yyyyMMdd')
-                            sh "cd ${env.INTERNAL_REPO_PATH}/repo/private/$DISTRO_TO_BUILD && jf rt upload --regexp '((x86_64|amd64)/sdk.*deb\$|(x86_64|amd64)/sdk.*rpm\$|(x86_64|amd64)/sdk.*\\.pkg\\.tar\\.zst\$|(x86_64|amd64)/sdk.*\\.pkg\\.tar\\.xz\$)' sdk/releases/$CURRENT_DATE/linux/$DISTRO_TO_BUILD/"
+                            sh "cd ${env.INTERNAL_REPO_PATH}/repo/private/$DISTRO_TO_BUILD && jf rt upload --regexp '((x86_64|amd64)/megasdk.*deb\$|(x86_64|amd64)/megasdk.*rpm\$|(x86_64|amd64)/megasdk.*\\.pkg\\.tar\\.zst\$|(x86_64|amd64)/megasdk.*\\.pkg\\.tar\\.xz\$)' sdk/releases/$CURRENT_DATE/linux/$DISTRO_TO_BUILD/"
                             echo "Packages successfully uploaded. URL: [${env.REPO_URL}/sdk/releases/$CURRENT_DATE/linux/$DISTRO_TO_BUILD/]"
                         }
                     }
@@ -125,8 +125,8 @@ pipeline {
                         steps {
                             echo "Do Build for ${DISTRO} - ${ARCHITECTURE}"
                             dir(linux_sources_workspace) {
-                                lock(resource: "${DISTRO}-${ARCHITECTURE}-sdk-build", quantity: 1) {
-                                    buildAndSignPackage("${DISTRO}", "${ARCHITECTURE}", "sdk")
+                                lock(resource: "${DISTRO}-${ARCHITECTURE}-megasdk-build", quantity: 1) {
+                                    buildAndSignPackage("${DISTRO}", "${ARCHITECTURE}", "megasdk")
                                 }
                             }
                         }
@@ -148,7 +148,7 @@ pipeline {
                                 script{
                                     def CURRENT_DATE = new Date().format('yyyyMMdd')
                                     sh "jf rt del sdk/releases/$CURRENT_DATE/linux/$DISTRO/"
-                                    sh "cd ${env.INTERNAL_REPO_PATH}/repo/private/$DISTRO && jf rt upload --regexp '((x86_64|amd64)/sdk.*deb\$|(x86_64|amd64)/sdk.*rpm\$|(x86_64|amd64)/sdk.*\\.pkg\\.tar\\.zst\$|(x86_64|amd64)/sdk.*\\.pkg\\.tar\\.xz\$)' sdk/releases/$CURRENT_DATE/linux/$DISTRO/"  
+                                    sh "cd ${env.INTERNAL_REPO_PATH}/repo/private/$DISTRO && jf rt upload --regexp '((x86_64|amd64)/megasdk.*deb\$|(x86_64|amd64)/megasdk.*rpm\$|(x86_64|amd64)/megasdk.*\\.pkg\\.tar\\.zst\$|(x86_64|amd64)/megasdk.*\\.pkg\\.tar\\.xz\$)' sdk/releases/$CURRENT_DATE/linux/$DISTRO/"  
                                     echo "Packages successfully uploaded. URL: [${env.REPO_URL}/sdk/releases/$CURRENT_DATE/linux/$DISTRO/]"
                                 }
                             }

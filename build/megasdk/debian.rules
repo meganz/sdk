@@ -11,7 +11,7 @@ MEGA_BUILD_ID := $(shell cat MEGA_BUILD_ID || echo "1")
 
 build: build-stamp
 build-stamp:
-	sed -i -E "0,/sdk \(([0-9.]*)[^\)]*\)/s//sdk \(\1-$(MEGA_BUILD_ID).1)/" debian.changelog || :
+	sed -i -E "0,/megasdk \(([0-9.]*)[^\)]*\)/s//megasdk \(\1-$(MEGA_BUILD_ID).1)/" debian.changelog || :
 
 	if [ -f /opt/vcpkg.tar.gz ]; then           \
 		tar xzf /opt/vcpkg.tar.gz;              \
@@ -37,7 +37,7 @@ clean:
 	rm -f build-stamp
 
 install: build
-	dh_auto_install --destdir=debian/sdk -- INSTALL_ROOT=$(CURDIR)/debian/sdk
+	dh_auto_install --destdir=debian/megasdk -- INSTALL_ROOT=$(CURDIR)/debian/megasdk
 	dh_install install_dir/* /
 	
 # Build architecture-independent files here.
@@ -63,7 +63,7 @@ binary-arch: build install
 #	dh_undocumented
 	dh_installchangelogs
 	dh_link
-	dh_strip --dbg-package=sdk-dbg
+	dh_strip --dbg-package=megasdk-dbg
 	dh_compress
 	dh_fixperms
 #	dh_makeshlibs
