@@ -15016,12 +15016,6 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
                                 app->fetchnodes_result(e);
                             else if (newNode)
                             {
-                                reqs.add(new CommandFetchNodes(this,
-                                                               fetchtag,
-                                                               nocache,
-                                                               loadSyncs,
-                                                               newNode->nodeHandle()));
-
                                 // Force request attribute, attribute change isn't received,
                                 // it's generated before fetch nodes
                                 reqs.add(new CommandGetUA(this,
@@ -15032,6 +15026,12 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
                                                           nullptr,
                                                           nullptr,
                                                           nullptr));
+
+                                reqs.add(new CommandFetchNodes(this,
+                                                               fetchtag,
+                                                               nocache,
+                                                               loadSyncs,
+                                                               newNode->nodeHandle()));
                             }
                             else
                             {
@@ -20791,7 +20791,7 @@ std::string MegaClient::getPartialAPs()
     std::string ret;
     assert(isClientType(ClientType::PASSWORD_MANAGER) || isClientType(ClientType::VPN));
 
-    if (isClientType(ClientType::PASSWORD_MANAGER))
+    if (isClientType(ClientType::PASSWORD_MANAGER) && !getPasswordManagerBase().isUndef())
     {
         // List of handles to recieve updates from subtree
         ret = "&e=" + toNodeHandle(getPasswordManagerBase()) + "&ir=1";
