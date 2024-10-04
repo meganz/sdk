@@ -15016,12 +15016,6 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
                                 app->fetchnodes_result(e);
                             else if (newNode)
                             {
-                                reqs.add(new CommandFetchNodes(this,
-                                                               fetchtag,
-                                                               nocache,
-                                                               loadSyncs,
-                                                               newNode->nodeHandle()));
-
                                 // Force request attribute, attribute change isn't received,
                                 // it's generated before fetch nodes
                                 reqs.add(new CommandGetUA(this,
@@ -15032,6 +15026,12 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
                                                           nullptr,
                                                           nullptr,
                                                           nullptr));
+
+                                reqs.add(new CommandFetchNodes(this,
+                                                               fetchtag,
+                                                               nocache,
+                                                               loadSyncs,
+                                                               newNode->nodeHandle()));
                             }
                             else
                             {
