@@ -25,6 +25,9 @@
 #include "attrmap.h"
 
 namespace mega {
+
+class UserAttributeManager;
+
 // user/contact
 struct MEGA_API User : public Cacheable
 {
@@ -106,23 +109,17 @@ struct MEGA_API User : public Cacheable
     deque<std::unique_ptr<PubKeyAction>> pkrs;
 
 private:
-    // persistent attributes (keyring, firstname...)
-    userattr_map attrs;
-
-    // version of each attribute
-    userattr_map attrsv;
+    std::unique_ptr<UserAttributeManager> mAttributeManager;
 
     // source tag
     int tag;
-
-    static constexpr char NO_VERSION[] = "N";
-    static constexpr char NON_EXISTING[] = "-9";
 
 public:
     void set(visibility_t, m_time_t);
 
     bool serialize(string*) const override;
     static User* unserialize(class MegaClient *, string*);
+    bool unserializeAttributes(const char*& from, const char* upTo, char formatVersion);
 
     void removepkrs(MegaClient*);
 
@@ -139,7 +136,6 @@ public:
     // Returns if attribute doesn't exist. Avoid requesting it to server
     bool nonExistingAttribute(attr_t at) const;
     // Only mark own attributes that it doesn't exist
-    void setNonExistingAttribute(attr_t at);
 
     static string attr2string(attr_t at);
     static string attr2longname(attr_t at);

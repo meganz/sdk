@@ -3615,7 +3615,7 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                     // if there's no avatar, the value is "none" (not Base64 encoded)
                     if (u && at == ATTR_AVATAR && buf == "none")
                     {
-                        u->setattr(at, NULL, &version);
+                        u->setattr(ATTR_AVATAR, &buf, &version); // actual value will be ignored
                         u->setTag(tag ? tag : -1);
                         mCompletionErr(API_ENOENT);
                         client->notifyuser(u);
@@ -3630,9 +3630,6 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                     // (none of those attributes are used by the SDK yet)
                     // bool nonHistoric = (attributename.at(1) == '!');
 
-                    // handle the attribute data depending on the scope
-                    char scope = User::scope(at);
-
                     if (!u) // retrieval of attributes without contact-relationship
                     {
                         if (at == ATTR_AVATAR && buf == "none")
@@ -3646,9 +3643,10 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                         return true;
                     }
 
-                    switch (scope)
+                    // handle attribute data depending on the scope
+                    switch (User::scope(at))
                     {
-                        case '*':   // private, encrypted
+                        case ATTR_SCOPE_PRIVATE_ENCRYPTED:
                         {
                             // decrypt the data and build the TLV records
                             std::unique_ptr<TLVstore> tlvRecords { TLVstore::containerToTLVrecords(&value, &client->key) };
@@ -3665,7 +3663,7 @@ bool CommandGetUA::procresult(Result r, JSON& json)
 
                             break;
                         }
-                        case '+':   // public
+                        case ATTR_SCOPE_PUBLIC_UNENCRYPTED:
                         {
                             u->setattr(at, &value, &version);
                             mCompletionBytes((byte*) value.data(), unsigned(value.size()), at);
@@ -3683,13 +3681,13 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                             }
                             break;
                         }
-                        case '#':   // protected
+                        case ATTR_SCOPE_PROTECTED_UNENCRYPTED:
                         {
                             u->setattr(at, &value, &version);
                             mCompletionBytes((byte*) value.data(), unsigned(value.size()), at);
                             break;
                         }
-                        case '^': // private, non-encrypted
+                        case ATTR_SCOPE_PRIVATE_UNENCRYPTED:
                         {
                             if (at == ATTR_KEYS && !client->mKeyManager.fromKeysContainer(value))
                             {
@@ -3730,23 +3728,11 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                             }
                             break;
                         }
-                        default:    // legacy attributes or unknown attribute
+                        default: // legacy attributes without explicit scope or unknown attribute
                         {
-                            if (at != ATTR_FIRSTNAME &&           // protected
-                                    at != ATTR_LASTNAME &&        // protected
-                                    at != ATTR_COUNTRY  &&        // private
-                                    at != ATTR_BIRTHDAY &&        // private
-                                    at != ATTR_BIRTHMONTH &&      // private
-                                    at != ATTR_BIRTHYEAR)     // private
-                            {
-                                LOG_err << "Unknown received attribute: " << User::attr2string(at);
-                                mCompletionErr(API_EINTERNAL);
-                                return false;
-                            }
-
-                            u->setattr(at, &value, &version);
-                            mCompletionBytes((byte*) value.data(), unsigned(value.size()), at);
-                            break;
+                            LOG_err << "Unknown received attribute: " << User::attr2string(at);
+                            mCompletionErr(API_EINTERNAL);
+                            return false;
                         }
 
                     }   // switch (scope)

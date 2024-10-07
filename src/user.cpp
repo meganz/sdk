@@ -20,16 +20,16 @@
  */
 
 #include "mega/user.h"
-#include "mega/megaclient.h"
-#include "mega/logging.h"
+
 #include "mega/base64.h"
+#include "mega/logging.h"
+#include "mega/megaclient.h"
+#include "mega/user_attribute_manager.h"
 
 namespace mega {
 
-constexpr char User::NO_VERSION[];
-constexpr char User::NON_EXISTING[];
-
-User::User(const char* cemail)
+User::User(const char* cemail):
+    mAttributeManager{std::make_unique<UserAttributeManager>()}
 {
     userhandle = UNDEF;
     show = VISIBILITY_UNKNOWN;
@@ -88,12 +88,8 @@ bool User::mergeUserAttribute(attr_t type, const string_map &newValuesMap, TLVst
 bool User::serialize(string* d) const
 {
     unsigned char l;
-    unsigned short ll;
     time_t ts;
     AttrMap attrmap;
-    char attrVersion = '2';
-    // Version 1: attributes are serialized along with its version
-    // Version 2: size of attributes use 4B (uint32_t) instead of 2B (unsigned short)
 
     d->reserve(d->size() + 100 + attrmap.storagesize(10));
 
@@ -108,7 +104,7 @@ bool User::serialize(string* d) const
     d->append((char*)&l, sizeof l);
     d->append(email.c_str(), l);
 
-    d->append((char*)&attrVersion, 1);
+    mAttributeManager->serializeAttributeFormatVersion(*d);
 
     char bizMode = 0;
     if (mBizMode != BIZ_MODE_UNKNOWN) // convert number to ascii
@@ -120,29 +116,7 @@ bool User::serialize(string* d) const
     d->append("\0\0\0\0\0", 6);
 
     // serialization of attributes
-    l = (unsigned char)attrs.size();
-    d->append((char*)&l, sizeof l);
-    for (userattr_map::const_iterator it = attrs.begin(); it != attrs.end(); it++)
-    {
-        d->append((char*)&it->first, sizeof it->first);
-
-        uint32_t valueSize = static_cast<uint32_t>(it->second.size());
-        d->append((char*)&valueSize, sizeof valueSize);
-        d->append(it->second.data(), valueSize);
-
-        auto itattrsv = attrsv.find(it->first);
-        if (itattrsv != attrsv.end())
-        {
-            ll = (unsigned short)itattrsv->second.size();
-            d->append((char*)&ll, sizeof ll);
-            d->append(itattrsv->second.data(), ll);
-        }
-        else
-        {
-            ll = 0;
-            d->append((char*)&ll, sizeof ll);
-        }
-    }
+    mAttributeManager->serializeAttributes(*d);
 
     if (pubk.isvalid())
     {
@@ -158,13 +132,11 @@ User* User::unserialize(MegaClient* client, string* d)
     time_t ts;
     visibility_t v;
     unsigned char l;
-    unsigned short ll;
     string m;
     User* u;
     const char* ptr = d->data();
     const char* end = ptr + d->size();
     int i;
-    char attrVersion;
 
     if (ptr + sizeof(handle) + sizeof(time_t) + sizeof(visibility_t) + 2 > end)
     {
@@ -197,8 +169,7 @@ User* User::unserialize(MegaClient* client, string* d)
         return NULL;
     }
 
-    attrVersion = MemAccess::get<char>(ptr);
-    ptr += sizeof(attrVersion);
+    char attrVersion = UserAttributeManager::unserializeAttributeFormatVersion(ptr);
 
     char bizModeValue = MemAccess::get<char>(ptr);
     ptr += sizeof(bizModeValue);
@@ -234,88 +205,10 @@ User* User::unserialize(MegaClient* client, string* d)
     u->resetTag();
     u->mBizMode = bizMode;
 
-    if (attrVersion == '\0')
+    if (!u->unserializeAttributes(ptr, end, attrVersion))
     {
-        AttrMap attrmap;
-        if ((ptr < end) && !(ptr = attrmap.unserialize(ptr, end)))
-        {
-            client->discarduser(uh);
-            return NULL;
-        }
-    }
-    else if (attrVersion == '1' || attrVersion == '2')
-    {
-        attr_t key;
-
-        // attrVersion = 1 -> size of value uses 2 bytes
-        // attrVersion = 2 -> size of value uses 4 bytes
-        uint32_t valueSize = 0;
-        size_t sizeLength = (attrVersion == '1') ? sizeof ll : sizeof valueSize;
-
-        if (ptr + sizeof(char) > end)
-        {
-            client->discarduser(uh);
-            return NULL;
-        }
-
-        l = *ptr++;
-        for (int i = 0; i < l; i++)
-        {
-            if (ptr + sizeof key + sizeLength > end)
-            {
-                client->discarduser(uh);
-                return NULL;
-            }
-
-            key = MemAccess::get<attr_t>(ptr);
-            ptr += sizeof key;
-
-            if (attrVersion == '1')
-            {
-                valueSize = MemAccess::get<short>(ptr);
-            }
-            else // attrVersion == '2'
-            {
-                valueSize = MemAccess::get<uint32_t>(ptr);
-            }
-            ptr += sizeLength;
-
-            if (ptr + valueSize + sizeof ll > end)
-            {
-                client->discarduser(uh);
-                return NULL;
-            }
-
-            // check it's not loaded by `ug` for own user, and that the
-            // attribute still exists (has not been removed)
-            if (!u->isattrvalid(key) && !u->nonExistingAttribute(key))
-            {
-                u->attrs[key].assign(ptr, valueSize);
-            }
-
-            ptr += valueSize;
-
-            ll = MemAccess::get<short>(ptr);
-            ptr += sizeof ll;
-
-            if (ll)
-            {
-                if (ptr + ll > end)
-                {
-                    client->discarduser(uh);
-                    return NULL;
-                }
-
-                // check it's not loaded by `ug` for own user, and that the
-                // attribute still exists (has not been removed)
-                if (!u->isattrvalid(key) && !u->nonExistingAttribute(key))
-                {
-                    u->attrsv[key].assign(ptr,ll);
-                }
-
-                ptr += ll;
-            }
-        }
+        client->discarduser(uh);
+        return nullptr;
     }
 
     // initialize private Ed25519 and Cu25519 from cache
@@ -391,6 +284,11 @@ User* User::unserialize(MegaClient* client, string* d)
     return u;
 }
 
+bool User::unserializeAttributes(const char*& from, const char* upTo, char formatVersion)
+{
+    return mAttributeManager->unserializeAttributes(from, upTo, formatVersion);
+}
+
 void User::removepkrs(MegaClient* client)
 {
     while (!pkrs.empty())  // protect any pending pubKey request
@@ -409,18 +307,15 @@ void User::setattr(attr_t at, string *av, string *v)
 {
     setChanged(at);
 
-    if (at != ATTR_AVATAR)  // avatar is saved to disc
-    {
-        attrs[at] = *av;
-    }
-
-    attrsv[at] = v ? *v : NO_VERSION;
+    const string& attrValue = av ? *av : string{};
+    const string& attrVersion = v ? *v : string{};
+    mAttributeManager->set(at, attrValue, attrVersion);
 }
 
 void User::invalidateattr(attr_t at)
 {
     setChanged(at);
-    attrsv.erase(at);
+    mAttributeManager->setExpired(at);
 }
 
 void User::removeattr(attr_t at, bool ownUser)
@@ -430,747 +325,72 @@ void User::removeattr(attr_t at, bool ownUser)
         setChanged(at);
     }
 
-    attrs.erase(at);
     if (ownUser)
-        attrsv[at] = NON_EXISTING; // it allows to avoid fetch from servers
+        mAttributeManager->setNotExisting(at); // avoids fetch from servers
     else
-        attrsv.erase(at);
+        mAttributeManager->erase(at);
 }
 
 void User::removeattr(attr_t at, const string& version)
 {
     if (isattrvalid(at))
     {
-        setChanged(at);
+        invalidateattr(at);
     }
-
-    attrs.erase(at);
-    attrsv[at] = version;
 }
 
 // updates the user attribute value+version only if different
 int User::updateattr(attr_t at, std::string *av, std::string *v)
 {
-    if (attrsv[at] == *v)
+    if (mAttributeManager->setIfNewVersion(at, *av, *v))
     {
-        return 0;
+        setChanged(at);
+        return 1;
     }
 
-    setattr(at, av, v);
-    return 1;
+    return 0;
 }
 
 bool User::nonExistingAttribute(attr_t at) const
 {
-    auto it = attrsv.find(at);
-    if (it != attrsv.end() && it->second == NON_EXISTING)
-    {
-        assert(attrs.find(at) == attrs.end());
-        return true;
-    }
-
-    return false;
+    return mAttributeManager->isNotExisting(at);
 }
 
 // returns the value if there is value (even if it's invalid by now)
 const string * User::getattr(attr_t at)
 {
-    userattr_map::const_iterator it = attrs.find(at);
-    if (it != attrs.end())
-    {
-        return &(it->second);
-    }
-
-    return NULL;
+    return mAttributeManager->getRawValue(at);
 }
 
 bool User::isattrvalid(attr_t at)
 {
-    return attrs.count(at) && attrsv.count(at) && attrsv.find(at)->second != NON_EXISTING;
+    return mAttributeManager->isValid(at);
 }
 
 string User::attr2string(attr_t type)
 {
-    string attrname;
-
-    // Special first character (required, except for the oldest attributes):
-    // `+` is public and unencrypted
-    // `#` is 'protected' and unencrypted, the API will allow contacts to fetch it but not give it out to non-contacts
-    // `^` is private but unencrypted, i.e.the API won't give it out to anybody except you, but the API can read the value as well
-    // `*` is private and encrypted, API only gives it to you and the API doesn't have a way to know the true value
-    // `%` business usage
-
-    // Special second character (optional)
-    // ! only store a single copy and do not keep a history of changes
-    // ~ only store one time (ignore subsequent updates, and no history of course)
-
-    switch(type)
-    {
-        case ATTR_AVATAR:
-            attrname = "+a";
-            break;
-
-        case ATTR_FIRSTNAME:
-            attrname = "firstname";
-            break;
-
-        case ATTR_LASTNAME:
-            attrname = "lastname";
-            break;
-
-        case ATTR_AUTHRING:
-            attrname = "*!authring";
-            break;
-
-        case ATTR_AUTHCU255:
-            attrname = "*!authCu255";
-            break;
-
-        case ATTR_LAST_INT:
-            attrname = "*!lstint";
-            break;
-
-        case ATTR_ED25519_PUBK:
-            attrname = "+puEd255";
-            break;
-
-        case ATTR_CU25519_PUBK:
-            attrname = "+puCu255";
-            break;
-
-        case ATTR_SIG_RSA_PUBK:
-            attrname = "+sigPubk";
-            break;
-
-        case ATTR_SIG_CU255_PUBK:
-            attrname = "+sigCu255";
-            break;
-
-        case ATTR_KEYRING:
-            attrname = "*keyring";
-            break;
-
-        case ATTR_COUNTRY:
-            attrname = "country";
-            break;
-
-        case ATTR_BIRTHDAY:
-            attrname = "birthday";
-            break;
-
-        case ATTR_BIRTHMONTH:
-            attrname = "birthmonth";
-            break;
-
-        case ATTR_BIRTHYEAR:
-            attrname = "birthyear";
-            break;
-
-        case ATTR_LANGUAGE:
-            attrname = "^!lang";
-            break;
-
-        case ATTR_PWD_REMINDER:
-            attrname = "^!prd";
-            break;
-
-        case ATTR_DISABLE_VERSIONS:
-            attrname = "^!dv";
-            break;
-
-        case ATTR_NO_CALLKIT:
-            attrname = "^!nokit";
-            break;
-
-        case ATTR_CONTACT_LINK_VERIFICATION:
-            attrname = "^clv";
-            break;
-
-        case ATTR_RICH_PREVIEWS:
-            attrname = "*!rp";
-            break;
-
-        case ATTR_LAST_PSA:
-            attrname = "^!lastPsa";
-            break;
-
-        case ATTR_RUBBISH_TIME:
-            attrname = "^!rubbishtime";
-            break;
-
-        case ATTR_STORAGE_STATE:
-            attrname = "^!usl";
-            break;
-
-        case ATTR_GEOLOCATION:
-            attrname = "*!geo";
-            break;
-
-        case ATTR_CAMERA_UPLOADS_FOLDER:
-            attrname = "*!cam";
-            break;
-
-        case ATTR_MY_CHAT_FILES_FOLDER:
-            attrname = "*!cf";
-            break;
-
-        case ATTR_PUSH_SETTINGS:
-            attrname = "^!ps";
-            break;
-
-        case ATTR_UNSHAREABLE_KEY:
-            attrname = "*~usk";  // unshareable key (for encrypting attributes that should not be shared)
-            break;
-
-        case ATTR_ALIAS:
-            attrname =  "*!>alias";
-            break;
-
-        case ATTR_DEVICE_NAMES:
-            attrname =  "*!dn";
-            break;
-
-        case ATTR_MY_BACKUPS_FOLDER:
-            attrname = "^!bak";
-            break;
-
-        case ATTR_COOKIE_SETTINGS:
-            attrname = "^!csp";
-            break;
-
-        case ATTR_JSON_SYNC_CONFIG_DATA:
-            attrname = "*~jscd";
-            break;
-
-        case ATTR_KEYS:
-            attrname =  "^!keys";
-            break;
-
-        case ATTR_APPS_PREFS:
-            attrname =  "*!aPrefs";
-            break;
-
-        case ATTR_CC_PREFS:
-            attrname = "*!ccPref";
-            break;
-
-        case ATTR_VISIBLE_WELCOME_DIALOG:
-            attrname = "^!weldlg";
-            break;
-
-        case ATTR_VISIBLE_TERMS_OF_SERVICE:
-            attrname = "^!tos";
-            break;
-
-        case ATTR_PWM_BASE:
-            attrname = "pwmh";
-            break;
-
-        case ATTR_ENABLE_TEST_NOTIFICATIONS:
-            attrname = "^!tnotif";
-            break;
-
-        case ATTR_LAST_READ_NOTIFICATION:
-            attrname = "^!lnotif";
-            break;
-
-        case ATTR_LAST_ACTIONED_BANNER:
-            attrname = "^!lbannr";
-            break;
-
-        case ATTR_ENABLE_TEST_SURVEYS:
-            attrname = "^!tsur";
-            break;
-
-        case ATTR_UNKNOWN:  // empty string
-            break;
-    }
-
-    return attrname;
+    return UserAttributeManager::getName(type);
 }
 
 string User::attr2longname(attr_t type)
 {
-    string longname;
-
-    switch(type)
-    {
-    case ATTR_AVATAR:
-        longname = "AVATAR";
-        break;
-
-    case ATTR_FIRSTNAME:
-        longname = "FIRSTNAME";
-        break;
-
-    case ATTR_LASTNAME:
-        longname = "LASTNAME";
-        break;
-
-    case ATTR_AUTHRING:
-        longname = "AUTHRING";
-        break;
-
-    case ATTR_AUTHCU255:
-        longname = "AUTHCU255";
-        break;
-
-    case ATTR_LAST_INT:
-        longname = "LAST_INT";
-        break;
-
-    case ATTR_ED25519_PUBK:
-        longname = "ED25519_PUBK";
-        break;
-
-    case ATTR_CU25519_PUBK:
-        longname = "CU25519_PUBK";
-        break;
-
-    case ATTR_SIG_RSA_PUBK:
-        longname = "SIG_RSA_PUBK";
-        break;
-
-    case ATTR_SIG_CU255_PUBK:
-        longname = "SIG_CU255_PUBK";
-        break;
-
-    case ATTR_KEYRING:
-        longname = "KEYRING";
-        break;
-
-    case ATTR_COUNTRY:
-        longname = "COUNTRY";
-        break;
-
-    case ATTR_BIRTHDAY:
-        longname = "BIRTHDAY";
-        break;
-
-    case ATTR_BIRTHMONTH:
-        longname = "BIRTHMONTH";
-        break;
-
-    case ATTR_BIRTHYEAR:
-        longname = "BIRTHYEAR";
-        break;
-
-    case ATTR_LANGUAGE:
-        longname = "LANGUAGE";
-        break;
-
-    case ATTR_PWD_REMINDER:
-        longname = "PWD_REMINDER";
-        break;
-
-    case ATTR_DISABLE_VERSIONS:
-        longname = "DISABLE_VERSIONS";
-        break;
-
-    case ATTR_NO_CALLKIT:
-        longname = "NO_CALLKIT";
-        break;
-
-    case ATTR_CONTACT_LINK_VERIFICATION:
-        longname = "CONTACT_LINK_VERIFICATION";
-        break;
-
-    case ATTR_RICH_PREVIEWS:
-        longname = "RICH_PREVIEWS";
-        break;
-
-    case ATTR_LAST_PSA:
-        longname = "LAST_PSA";
-        break;
-
-    case ATTR_RUBBISH_TIME:
-        longname = "RUBBISH_TIME";
-        break;
-
-    case ATTR_STORAGE_STATE:
-        longname = "STORAGE_STATE";
-        break;
-
-    case ATTR_GEOLOCATION:
-        longname = "GEOLOCATION";
-        break;
-
-    case ATTR_UNSHAREABLE_KEY:
-        longname = "UNSHAREABLE_KEY";
-        break;
-
-    case ATTR_CAMERA_UPLOADS_FOLDER:
-        longname = "CAMERA_UPLOADS_FOLDER";
-        break;
-
-    case ATTR_MY_CHAT_FILES_FOLDER:
-        longname = "MY_CHAT_FILES_FOLDER";
-        break;
-
-    case ATTR_UNKNOWN:
-        longname = "";  // empty string
-        break;
-
-    case ATTR_PUSH_SETTINGS:
-        longname = "PUSH_SETTINGS";
-        break;
-
-    case ATTR_ALIAS:
-        longname = "ALIAS";
-        break;
-
-    case ATTR_DEVICE_NAMES:
-        longname = "DEVICE_NAMES";
-        break;
-
-    case ATTR_MY_BACKUPS_FOLDER:
-        longname = "ATTR_MY_BACKUPS_FOLDER";
-        break;
-
-    case ATTR_COOKIE_SETTINGS:
-        longname = "ATTR_COOKIE_SETTINGS";
-        break;
-
-    case ATTR_JSON_SYNC_CONFIG_DATA:
-        longname = "JSON_SYNC_CONFIG_DATA";
-        break;
-
-    case ATTR_KEYS:
-        longname = "KEYS";
-        break;
-
-    case ATTR_APPS_PREFS:
-        longname = "APPS_PREFS";
-        break;
-    case ATTR_CC_PREFS:
-        longname = "CC_PREFS";
-        break;
-
-    case ATTR_VISIBLE_WELCOME_DIALOG:
-        longname = "VISIBLE_WELCOME_DIALOG";
-        break;
-
-    case ATTR_VISIBLE_TERMS_OF_SERVICE:
-        longname = "VISIBLE_TERMS_OF_SERVICE";
-        break;
-
-    case ATTR_PWM_BASE:
-        longname = "PWM_BASE";
-        break;
-
-    case ATTR_ENABLE_TEST_NOTIFICATIONS:
-        longname = "ENABLE_TEST_NOTIFICATIONS";
-        break;
-
-    case ATTR_LAST_READ_NOTIFICATION:
-        longname = "LAST_READ_NOTIFICATION";
-        break;
-
-    case ATTR_LAST_ACTIONED_BANNER:
-        longname = "LAST_ACTIONED_BANNER";
-        break;
-
-    case ATTR_ENABLE_TEST_SURVEYS:
-        longname = "ATTR_ENABLE_TEST_SURVEYS";
-        break;
-    }
-
-    return longname;
+    return UserAttributeManager::getLongName(type);
 }
 
 
 attr_t User::string2attr(const char* name)
 {
-    if (!strcmp(name, "*keyring"))
-    {
-        return ATTR_KEYRING;
-    }
-    else if (!strcmp(name, "*!authring"))
-    {
-        return ATTR_AUTHRING;
-    }
-    else if (!strcmp(name, "*!authCu255"))
-    {
-        return ATTR_AUTHCU255;
-    }
-    else if (!strcmp(name, "*!lstint"))
-    {
-        return ATTR_LAST_INT;
-    }
-    else if (!strcmp(name, "+puCu255"))
-    {
-        return ATTR_CU25519_PUBK;
-    }
-    else if (!strcmp(name, "+puEd255"))
-    {
-        return ATTR_ED25519_PUBK;
-    }
-    else if (!strcmp(name, "+sigPubk"))
-    {
-        return ATTR_SIG_RSA_PUBK;
-    }
-    else if (!strcmp(name, "+sigCu255"))
-    {
-        return ATTR_SIG_CU255_PUBK;
-    }
-    else if (!strcmp(name, "+a"))
-    {
-        return ATTR_AVATAR;
-    }
-    else if (!strcmp(name, "firstname"))
-    {
-        return ATTR_FIRSTNAME;
-    }
-    else if (!strcmp(name, "lastname"))
-    {
-        return ATTR_LASTNAME;
-    }
-    else if (!strcmp(name, "country"))
-    {
-        return ATTR_COUNTRY;
-    }
-    else if (!strcmp(name, "birthday"))
-    {
-        return ATTR_BIRTHDAY;
-    }
-    else if(!strcmp(name, "birthmonth"))
-    {
-        return ATTR_BIRTHMONTH;
-    }
-    else if(!strcmp(name, "birthyear"))
-    {
-        return ATTR_BIRTHYEAR;
-    }
-    else if(!strcmp(name, "^!lang"))
-    {
-        return ATTR_LANGUAGE;
-    }
-    else if(!strcmp(name, "^!prd"))
-    {
-        return ATTR_PWD_REMINDER;
-    }
-    else if(!strcmp(name, "^!dv"))
-    {
-        return ATTR_DISABLE_VERSIONS;
-    }
-    else if(!strcmp(name, "^!nokit"))
-    {
-        return ATTR_NO_CALLKIT;
-    }
-    else if(!strcmp(name, "^clv"))
-    {
-        return ATTR_CONTACT_LINK_VERIFICATION;
-    }
-    else if(!strcmp(name, "*!rp"))
-    {
-        return ATTR_RICH_PREVIEWS;
-    }
-    else if(!strcmp(name, "^!lastPsa"))
-    {
-        return ATTR_LAST_PSA;
-    }
-    else if(!strcmp(name, "^!rubbishtime"))
-    {
-        return ATTR_RUBBISH_TIME;
-    }
-    else if(!strcmp(name, "^!usl"))
-    {
-        return ATTR_STORAGE_STATE;
-    }
-    else if(!strcmp(name, "*!geo"))
-    {
-        return ATTR_GEOLOCATION;
-    }
-    else if (!strcmp(name, "*!cam"))
-    {
-        return ATTR_CAMERA_UPLOADS_FOLDER;
-    }
-    else if(!strcmp(name, "*!cf"))
-    {
-        return ATTR_MY_CHAT_FILES_FOLDER;
-    }
-    else if(!strcmp(name, "^!ps"))
-    {
-        return ATTR_PUSH_SETTINGS;
-    }
-    else if (!strcmp(name, "*~usk"))
-    {
-        return ATTR_UNSHAREABLE_KEY;
-    }
-    else if (!strcmp(name, "*!>alias"))
-    {
-        return ATTR_ALIAS;
-    }
-    else if (!strcmp(name, "*!dn"))
-    {
-        return ATTR_DEVICE_NAMES;
-    }
-    else if (!strcmp(name, "^!bak"))
-    {
-        return ATTR_MY_BACKUPS_FOLDER;
-    }
-    else if (!strcmp(name, "^!csp"))
-    {
-        return ATTR_COOKIE_SETTINGS;
-    }
-    else if (!strcmp(name, "*~jscd"))
-    {
-        return ATTR_JSON_SYNC_CONFIG_DATA;
-    }
-    else if (!strcmp(name, "^!keys"))
-    {
-        return ATTR_KEYS;
-    }
-    else if (!strcmp(name, "*!aPrefs"))
-    {
-        return ATTR_APPS_PREFS;
-    }
-    else if (!strcmp(name, "*!ccPref"))
-    {
-        return ATTR_CC_PREFS;
-    }
-    else if(!strcmp(name, "^!weldlg"))
-    {
-        return ATTR_VISIBLE_WELCOME_DIALOG;
-    }
-    else if(!strcmp(name, "^!tos"))
-    {
-        return ATTR_VISIBLE_TERMS_OF_SERVICE;
-    }
-    else if(!strcmp(name, "^!tnotif"))
-    {
-        return ATTR_ENABLE_TEST_NOTIFICATIONS;
-    }
-    else if(!strcmp(name, "^!lnotif"))
-    {
-        return ATTR_LAST_READ_NOTIFICATION;
-    }
-    else if(!strcmp(name, "^!lbannr"))
-    {
-        return ATTR_LAST_ACTIONED_BANNER;
-    }
-    else if (!strcmp(name, "^!tsur"))
-    {
-        return ATTR_ENABLE_TEST_SURVEYS;
-    }
-    else if (!strcmp(name, "pwmh"))
-    {
-        return ATTR_PWM_BASE;
-    }
-    else
-    {
-        return ATTR_UNKNOWN;   // attribute not recognized
-    }
+    return UserAttributeManager::getType(name);
 }
 
 int User::needversioning(attr_t at)
 {
-    switch(at)
-    {
-        case ATTR_AVATAR:
-        case ATTR_FIRSTNAME:
-        case ATTR_LASTNAME:
-        case ATTR_COUNTRY:
-        case ATTR_BIRTHDAY:
-        case ATTR_BIRTHMONTH:
-        case ATTR_BIRTHYEAR:
-        case ATTR_LANGUAGE:
-        case ATTR_PWD_REMINDER:
-        case ATTR_DISABLE_VERSIONS:
-        case ATTR_NO_CALLKIT:
-        case ATTR_RICH_PREVIEWS:
-        case ATTR_LAST_PSA:
-        case ATTR_RUBBISH_TIME:
-        case ATTR_GEOLOCATION:
-        case ATTR_MY_CHAT_FILES_FOLDER:
-        case ATTR_PUSH_SETTINGS:
-        case ATTR_COOKIE_SETTINGS:
-        case ATTR_ENABLE_TEST_SURVEYS:
-            return 0;
-
-        case ATTR_LAST_INT:
-        case ATTR_ED25519_PUBK:
-        case ATTR_CU25519_PUBK:
-        case ATTR_SIG_RSA_PUBK:
-        case ATTR_SIG_CU255_PUBK:
-        case ATTR_KEYRING:
-        case ATTR_AUTHRING:
-        case ATTR_AUTHCU255:
-        case ATTR_CONTACT_LINK_VERIFICATION:
-        case ATTR_ALIAS:
-        case ATTR_CAMERA_UPLOADS_FOLDER:
-        case ATTR_UNSHAREABLE_KEY:
-        case ATTR_DEVICE_NAMES:
-        case ATTR_JSON_SYNC_CONFIG_DATA:
-        case ATTR_MY_BACKUPS_FOLDER:
-        case ATTR_KEYS:
-        case ATTR_APPS_PREFS:
-        case ATTR_CC_PREFS:
-        case ATTR_VISIBLE_WELCOME_DIALOG:
-        case ATTR_VISIBLE_TERMS_OF_SERVICE:
-        case ATTR_ENABLE_TEST_NOTIFICATIONS:
-        case ATTR_LAST_READ_NOTIFICATION:
-        case ATTR_LAST_ACTIONED_BANNER:
-            return 1;
-
-        case ATTR_STORAGE_STATE: //putua is forbidden for this attribute
-            assert(false);
-        default:
-            return -1;
-    }
+    return UserAttributeManager::getVersioningEnabled(at);
 }
 
 char User::scope(attr_t at)
 {
-    switch(at)
-    {
-        case ATTR_KEYRING:
-        case ATTR_AUTHRING:
-        case ATTR_AUTHCU255:
-        case ATTR_LAST_INT:
-        case ATTR_RICH_PREVIEWS:
-        case ATTR_GEOLOCATION:
-        case ATTR_CAMERA_UPLOADS_FOLDER:
-        case ATTR_MY_CHAT_FILES_FOLDER:
-        case ATTR_UNSHAREABLE_KEY:
-        case ATTR_ALIAS:
-        case ATTR_DEVICE_NAMES:
-        case ATTR_JSON_SYNC_CONFIG_DATA:
-        case ATTR_APPS_PREFS:
-        case ATTR_CC_PREFS:
-            return '*';
-
-        case ATTR_AVATAR:
-        case ATTR_ED25519_PUBK:
-        case ATTR_CU25519_PUBK:
-        case ATTR_SIG_RSA_PUBK:
-        case ATTR_SIG_CU255_PUBK:
-            return '+';
-
-        case ATTR_LANGUAGE:
-        case ATTR_PWD_REMINDER:
-        case ATTR_DISABLE_VERSIONS:
-        case ATTR_NO_CALLKIT:
-        case ATTR_CONTACT_LINK_VERIFICATION:
-        case ATTR_LAST_PSA:
-        case ATTR_RUBBISH_TIME:
-        case ATTR_STORAGE_STATE:
-        case ATTR_PUSH_SETTINGS:
-        case ATTR_COOKIE_SETTINGS:
-        case ATTR_MY_BACKUPS_FOLDER:
-        case ATTR_KEYS:
-        case ATTR_VISIBLE_WELCOME_DIALOG:
-        case ATTR_VISIBLE_TERMS_OF_SERVICE:
-        case ATTR_PWM_BASE:
-        case ATTR_ENABLE_TEST_NOTIFICATIONS:
-        case ATTR_LAST_READ_NOTIFICATION:
-        case ATTR_LAST_ACTIONED_BANNER:
-        case ATTR_ENABLE_TEST_SURVEYS:
-            return '^';
-
-        default:
-            return '0';
-    }
+    return UserAttributeManager::getScope(at);
 }
 
 bool User::isAuthring(attr_t at)
@@ -1180,13 +400,7 @@ bool User::isAuthring(attr_t at)
 
 size_t User::getMaxAttributeSize(attr_t at)
 {
-    std::string attributeName = attr2string(at);
-    if (attributeName.size() > 2 && (attributeName[1] == '!' || attributeName[1] == '~'))
-    {
-        return MAX_USER_VAR_SIZE;
-    }
-
-    return MAX_USER_ATTRIBUTE_SIZE;
+    return UserAttributeManager::getMaxSize(at);
 }
 
 bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int size, string *newValue)
@@ -1459,13 +673,7 @@ m_time_t User::getPwdReminderData(int numDetail, const char *data, unsigned int 
 
 const string *User::getattrversion(attr_t at)
 {
-    userattr_map::iterator it = attrsv.find(at);
-    if (it != attrsv.end())
-    {
-        return &(it->second);
-    }
-
-    return NULL;
+    return mAttributeManager->getVersion(at);
 }
 
 bool User::setChanged(attr_t at)

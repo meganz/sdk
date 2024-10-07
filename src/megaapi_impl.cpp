@@ -6916,12 +6916,13 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_CU25519_PUBLIC_KEY:
         case MegaApi::USER_ATTR_SIG_RSA_PUBLIC_KEY:
         case MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY:
-            scope = '+';
+            scope = ATTR_SCOPE_PUBLIC_UNENCRYPTED;
             break;
 
         case MegaApi::USER_ATTR_FIRSTNAME:
         case MegaApi::USER_ATTR_LASTNAME:
-            scope = '0';
+            // legacy, without a prefix for scope
+            scope = ATTR_SCOPE_PROTECTED_UNENCRYPTED;
             break;
 
         case MegaApi::USER_ATTR_AUTHRING:
@@ -6932,10 +6933,12 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER:
         case MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER:
         case MegaApi::USER_ATTR_ALIAS:
+        case ATTR_AUTHCU255: // deprecated
         case MegaApi::USER_ATTR_DEVICE_NAMES:
+        case MegaApi::USER_ATTR_JSON_SYNC_CONFIG_DATA:
         case MegaApi::USER_ATTR_APPS_PREFS:
         case MegaApi::USER_ATTR_CC_PREFS:
-            scope = '*';
+            scope = ATTR_SCOPE_PRIVATE_ENCRYPTED;
             break;
 
         case MegaApi::USER_ATTR_LANGUAGE:
@@ -6946,8 +6949,10 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_RUBBISH_TIME:
         case MegaApi::USER_ATTR_STORAGE_STATE:
         case MegaApi::USER_ATTR_PUSH_SETTINGS:
-        case MegaApi::USER_ATTR_COOKIE_SETTINGS:
         case MegaApi::USER_ATTR_MY_BACKUPS_FOLDER:
+        case MegaApi::USER_ATTR_COOKIE_SETTINGS:
+        case MegaApi::USER_ATTR_NO_CALLKIT:
+        case ATTR_KEYS: // allow for testing
         case MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG:
         case MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE:
         case MegaApi::USER_ATTR_PWM_BASE:
@@ -6955,12 +6960,12 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_LAST_READ_NOTIFICATION:
         case MegaApi::USER_ATTR_LAST_ACTIONED_BANNER:
         case MegaApi::USER_ATTR_ENABLE_TEST_SURVEYS:
-            scope = '^';
+            scope = ATTR_SCOPE_PRIVATE_UNENCRYPTED;
             break;
 
         default:
             LOG_err << "Getting invalid scope";
-            scope = 0;
+            scope = ATTR_SCOPE_UNKNOWN;
             break;
     }
 
@@ -7941,12 +7946,12 @@ char* MegaApiImpl::getPrivateKey(int type)
 
 void MegaApiImpl::getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener)
 {
-    const char *email = NULL;
+    const char* email = NULL;
     if (user)
     {
         email = user->getEmail();
     }
-    getUserAttr(email, type ? type : -1, NULL, 0, listener);
+    getUserAttribute(email, type, listener);
 }
 
 bool MegaApiImpl::testAllocation(unsigned allocCount, size_t allocSize)
@@ -7974,7 +7979,50 @@ bool MegaApiImpl::testAllocation(unsigned allocCount, size_t allocSize)
 
 void MegaApiImpl::getUserAttribute(const char* email_or_handle, int type, MegaRequestListener *listener)
 {
-    getUserAttr(email_or_handle, type ? type : -1, NULL, 0, listener);
+    // allow only types documented to be valid
+    switch (type)
+    {
+        case ATTR_FIRSTNAME:
+        case ATTR_LASTNAME:
+        case ATTR_AUTHRING:
+        case ATTR_LAST_INT:
+        case ATTR_ED25519_PUBK:
+        case ATTR_CU25519_PUBK:
+        case ATTR_KEYRING:
+        case ATTR_SIG_RSA_PUBK:
+        case ATTR_SIG_CU255_PUBK:
+        case ATTR_LANGUAGE:
+        case ATTR_PWD_REMINDER:
+        case ATTR_DISABLE_VERSIONS:
+        case ATTR_CONTACT_LINK_VERIFICATION:
+        case ATTR_RICH_PREVIEWS:
+        case ATTR_RUBBISH_TIME:
+        case ATTR_LAST_PSA:
+        case ATTR_STORAGE_STATE:
+        case ATTR_GEOLOCATION:
+        case ATTR_CAMERA_UPLOADS_FOLDER:
+        case ATTR_MY_CHAT_FILES_FOLDER:
+        case ATTR_PUSH_SETTINGS:
+        case ATTR_ALIAS:
+        case ATTR_DEVICE_NAMES:
+        case ATTR_MY_BACKUPS_FOLDER:
+        case ATTR_COOKIE_SETTINGS:
+        case ATTR_JSON_SYNC_CONFIG_DATA:
+        case ATTR_NO_CALLKIT:
+        case ATTR_APPS_PREFS:
+        case ATTR_CC_PREFS:
+        case ATTR_VISIBLE_WELCOME_DIALOG:
+        case ATTR_VISIBLE_TERMS_OF_SERVICE:
+        case ATTR_PWM_BASE:
+        case ATTR_LAST_READ_NOTIFICATION:
+        case ATTR_LAST_ACTIONED_BANNER:
+        // undocumented types, allowed only for testing:
+        case ATTR_KEYS:
+            getUserAttr(email_or_handle, type, nullptr, 0, listener);
+            break;
+        default:
+            getUserAttr(email_or_handle, ATTR_UNKNOWN, nullptr, 0, listener);
+    }
 }
 
 void MegaApiImpl::getChatUserAttribute(const char *email_or_handle, int type, const char *ph, MegaRequestListener *listener)
@@ -7984,10 +8032,67 @@ void MegaApiImpl::getChatUserAttribute(const char *email_or_handle, int type, co
 
 void MegaApiImpl::setUserAttribute(int type, const char *value, MegaRequestListener *listener)
 {
-    setUserAttr(type ? type : -1, value, listener);
+    // allow only types documented to be valid
+    switch (type)
+    {
+        case ATTR_FIRSTNAME:
+        case ATTR_LASTNAME:
+        case ATTR_LANGUAGE:
+        case ATTR_DISABLE_VERSIONS:
+        case ATTR_CONTACT_LINK_VERIFICATION:
+        case ATTR_RUBBISH_TIME:
+        case ATTR_LAST_PSA:
+        case ATTR_PUSH_SETTINGS:
+        case ATTR_NO_CALLKIT:
+        case ATTR_VISIBLE_WELCOME_DIALOG:
+        case ATTR_VISIBLE_TERMS_OF_SERVICE:
+        case ATTR_LAST_READ_NOTIFICATION:
+        case ATTR_LAST_ACTIONED_BANNER:
+        // undocumented types, allowed only for testing:
+        case ATTR_ENABLE_TEST_NOTIFICATIONS:
+        case ATTR_ENABLE_TEST_SURVEYS:
+        // undocumented types, allowed only to notify with a specific error:
+        case ATTR_KEYRING:
+        case ATTR_KEYS:
+        case ATTR_AUTHRING:
+        case ATTR_AUTHCU255:
+        case ATTR_CU25519_PUBK:
+        case ATTR_ED25519_PUBK:
+        case ATTR_SIG_CU255_PUBK:
+        case ATTR_SIG_RSA_PUBK:
+        case ATTR_PWD_REMINDER:
+        case ATTR_MY_BACKUPS_FOLDER:
+            setUserAttr(type, value, listener);
+            break;
+        default:
+            setUserAttr(ATTR_UNKNOWN, value, listener);
+    }
 }
 
-void MegaApiImpl::setUserAttribute(int type, const MegaStringMap *value, MegaRequestListener *listener)
+void MegaApiImpl::setUserAttribute(int type,
+                                   const MegaStringMap* value,
+                                   MegaRequestListener* listener)
+{
+    // allow only types documented to be valid
+    switch (type)
+    {
+        case ATTR_AUTHRING:
+        case ATTR_LAST_INT:
+        case ATTR_KEYRING:
+        case ATTR_RICH_PREVIEWS:
+        case ATTR_GEOLOCATION:
+        case ATTR_ALIAS:
+        case ATTR_DEVICE_NAMES:
+        case ATTR_APPS_PREFS:
+        case ATTR_CC_PREFS:
+            setUserAttr(type, value, listener);
+            break;
+        default:
+            setUserAttr(ATTR_UNKNOWN, value, listener);
+    }
+}
+
+void MegaApiImpl::setUserAttr(int type, const MegaStringMap* value, MegaRequestListener* listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
 
@@ -11074,7 +11179,7 @@ void MegaApiImpl::enableRichPreviews(bool enable, MegaRequestListener *listener)
     string base64value;
     Base64::btoa(rawvalue, base64value);
     stringMap->set("num", base64value.c_str());
-    setUserAttribute(MegaApi::USER_ATTR_RICH_PREVIEWS, stringMap, listener);
+    setUserAttr(MegaApi::USER_ATTR_RICH_PREVIEWS, stringMap, listener);
     delete stringMap;
 }
 
@@ -11116,7 +11221,7 @@ void MegaApiImpl::setRichLinkWarningCounterValue(int value, MegaRequestListener 
     string base64value;
     Base64::btoa(oss.str(), base64value);
     stringMap->set("c", base64value.c_str());
-    setUserAttribute(MegaApi::USER_ATTR_RICH_PREVIEWS, stringMap, listener);
+    setUserAttr(MegaApi::USER_ATTR_RICH_PREVIEWS, stringMap, listener);
     delete stringMap;
 }
 
@@ -11126,7 +11231,7 @@ void MegaApiImpl::enableGeolocation(MegaRequestListener *listener)
     string base64value;
     Base64::btoa("1", base64value);
     stringMap->set("v", base64value.c_str());
-    setUserAttribute(MegaApi::USER_ATTR_GEOLOCATION, stringMap, listener);
+    setUserAttr(MegaApi::USER_ATTR_GEOLOCATION, stringMap, listener);
     delete stringMap;
 }
 
@@ -12257,7 +12362,7 @@ void MegaApiImpl::getFileVersionsOption(MegaRequestListener *listener)
 
 void MegaApiImpl::setContactLinksOption(bool disable, MegaRequestListener *listener)
 {
-    string av = disable ? "0" : "1";
+    string av = disable ? "1" : "0";
     setUserAttr(MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION, av.data(), listener);
 }
 
@@ -15572,6 +15677,7 @@ void MegaApiImpl::getua_completion(byte* data, unsigned len, attr_t type, MegaRe
         case MegaApi::USER_ATTR_PWD_REMINDER:
         case MegaApi::USER_ATTR_DISABLE_VERSIONS:
         case MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION:
+        case MegaApi::USER_ATTR_NO_CALLKIT:
         case MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG:
         case MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE:
             {
@@ -15581,6 +15687,8 @@ void MegaApiImpl::getua_completion(byte* data, unsigned len, attr_t type, MegaRe
                 static_assert(int(MegaApi::USER_ATTR_DISABLE_VERSIONS) == ATTR_DISABLE_VERSIONS, "User Attribute Enum Mismatch");
                 static_assert(int(MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION) == ATTR_CONTACT_LINK_VERIFICATION, "User Attribute Enum Mismatch");
                 static_assert(int(MegaApi::USER_ATTR_PWD_REMINDER) == ATTR_PWD_REMINDER, "User Attribute Enum Mismatch");
+                static_assert(int(MegaApi::USER_ATTR_NO_CALLKIT) == ATTR_NO_CALLKIT,
+                              "User Attribute Enum Mismatch");
                 static_assert(int(MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG) == ATTR_VISIBLE_WELCOME_DIALOG, "User Attribute Enum Mismatch");
                 static_assert(int(MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE) == ATTR_VISIBLE_TERMS_OF_SERVICE, "User Attribute Enum Mismatch");
 
@@ -20803,8 +20911,12 @@ void MegaApiImpl::getNodeAttribute(MegaNode* node, int type, const char* dstFile
 
 error MegaApiImpl::performRequest_getAttrUser(MegaRequestPrivate* request)
 {
-            const char* value = request->getFile();
             attr_t type = static_cast<attr_t>(request->getParamType());
+            if (type == ATTR_UNKNOWN)
+            {
+                return API_EARGS;
+            }
+            const char* value = request->getFile();
             const char *email = request->getEmail();
             const char *ph = request->getSessionKey();
 
@@ -20820,7 +20932,8 @@ error MegaApiImpl::performRequest_getAttrUser(MegaRequestPrivate* request)
 
             if (!user)  // email/handle not found among (ex)contacts
             {
-                if (scope == '*' || scope == '#')
+                if (scope != ATTR_SCOPE_PUBLIC_UNENCRYPTED &&
+                    scope != ATTR_SCOPE_PROTECTED_UNENCRYPTED)
                 {
                     LOG_warn << "Cannot retrieve private/protected attributes from users other than yourself.";
                     return API_EACCESS;
@@ -20839,7 +20952,7 @@ error MegaApiImpl::performRequest_getAttrUser(MegaRequestPrivate* request)
             }
 
             // if attribute is private and user is not logged in user...
-            if (scope == '*' && user->userhandle != client->me)
+            if (scope == ATTR_SCOPE_PRIVATE_ENCRYPTED && user->userhandle != client->me)
             {
                 return API_EACCESS;
             }
@@ -20862,9 +20975,13 @@ error MegaApiImpl::performRequest_getAttrUser(MegaRequestPrivate* request)
 
 error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
 {
+    attr_t type = static_cast<attr_t>(request->getParamType());
+    if (type == ATTR_UNKNOWN)
+    {
+        return API_EARGS;
+    }
             const char* file = request->getFile();
             const char* value = request->getText();
-            attr_t type = static_cast<attr_t>(request->getParamType());
 
             char scope = MegaApiImpl::userAttributeToScope(type);
             string attrname = MegaApiImpl::userAttributeToString(type);
@@ -20930,7 +21047,7 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                     return API_OK;
                 }
             }
-            else if (scope == '*')   // private attribute
+            else if (scope == ATTR_SCOPE_PRIVATE_ENCRYPTED)
             {
                 if (type == ATTR_DEVICE_NAMES && request->getFlag()) // external drive
                 {
@@ -21029,7 +21146,7 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                 }
                 return API_OK;
             }
-            else if (scope == '^')
+            else if (scope == ATTR_SCOPE_PRIVATE_UNENCRYPTED)
             {
                 if (type == ATTR_LANGUAGE)
                 {
@@ -27002,7 +27119,7 @@ void MegaApiImpl::importPasswordsFromFile(const char* filePath,
             case PassFileParseResult::ErrCode::NO_VALID_ENTRIES:
                 LOG_err << "Import password: invalid file format";
                 return API_EARGS;
-            case PassFileParseResult::ErrCode::FILE_DOES_NOT_EXIST:
+            case PassFileParseResult::ErrCode::FILE_NOT_FOUND:
             case PassFileParseResult::ErrCode::CANT_OPEN_FILE:
                 LOG_err << "Import password: file can't be opened or doesn't exist";
                 return API_EREAD;
@@ -38743,6 +38860,17 @@ MegaPushNotificationSettingsPrivate::MegaPushNotificationSettingsPrivate(const M
     mContactsDND = settings->mContactsDND;
     mSharesDND = settings->mSharesDND;
     mGlobalChatsDND = settings->mGlobalChatsDND;
+}
+
+bool MegaPushNotificationSettingsPrivate::operator==(
+    const MegaPushNotificationSettingsPrivate& other) const
+{
+    return mGlobalDND == other.mGlobalDND && mGlobalScheduleStart == other.mGlobalScheduleStart &&
+           mGlobalScheduleEnd == other.mGlobalScheduleEnd &&
+           mGlobalScheduleTimezone == other.mGlobalScheduleTimezone && mChatDND == other.mChatDND &&
+           mChatAlwaysNotify == other.mChatAlwaysNotify && mContactsDND == other.mContactsDND &&
+           mSharesDND == other.mSharesDND && mGlobalChatsDND == other.mGlobalChatsDND &&
+           mJsonInvalid == other.mJsonInvalid;
 }
 
 string MegaPushNotificationSettingsPrivate::generateJson() const

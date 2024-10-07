@@ -6880,6 +6880,8 @@ void MegaClient::sc_userattr()
                          itua++, ituav++)
                     {
                         attr_t type = User::string2attr(itua->c_str());
+                        if (type == ATTR_UNKNOWN) // several user attributes are ignored by SDK
+                            continue;
                         const string *cacheduav = u->getattrversion(type);
                         if (cacheduav)
                         {
@@ -12468,6 +12470,8 @@ error MegaClient::removecontact(const char* email, visibility_t show, CommandRem
 void MegaClient::putua(attr_t at, const byte* av, unsigned avl, int ctag, handle lastPublicHandle, int phtype, int64_t ts,
                        std::function<void(Error)> completion)
 {
+    assert(at != ATTR_STORAGE_STATE); // putua is forbidden for this attribute
+
     string data;
 
     if (!completion)
@@ -12553,6 +12557,8 @@ void MegaClient::putua(userattr_map *attrs, int ctag, std::function<void (Error)
     {
         attr_t type = it->first;
 
+        assert(type != ATTR_STORAGE_STATE); // putua is forbidden for this attribute
+
         if (User::needversioning(type) != 1)
         {
             restag = tag;
@@ -12598,7 +12604,7 @@ bool MegaClient::getua(User* u, const attr_t at, int ctag, mega::CommandGetUA::C
 
         if (cachedav && u->isattrvalid(at))
         {
-            if (User::scope(at) == '*') // private attribute, TLV encoding
+            if (User::scope(at) == ATTR_SCOPE_PRIVATE_ENCRYPTED) // TLV encoding
             {
                 TLVstore *tlv = TLVstore::containerToTLVrecords(cachedav, &key);
                 restag = tag;

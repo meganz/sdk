@@ -64,11 +64,12 @@ namespace mega {
 #endif
 
 #include "mega/crypto/sodium.h"
+#include "mega/user_attribute_types.h"
 
-#include <memory>
-#include <string>
 #include <chrono>
+#include <memory>
 #include <mutex>
+#include <string>
 #include <thread>
 
 namespace mega {
@@ -743,58 +744,6 @@ typedef map<string, string> string_map;
 typedef multimap<int64_t, int64_t> integer_map;
 typedef string_map TLV_map;
 
-// user attribute types
-typedef enum {
-    ATTR_UNKNOWN = -1,
-    ATTR_AVATAR = 0,                        // public - char array - non-versioned
-    ATTR_FIRSTNAME = 1,                     // public - char array - non-versioned
-    ATTR_LASTNAME = 2,                      // public - char array - non-versioned
-    ATTR_AUTHRING = 3,                      // private - byte array
-    ATTR_LAST_INT = 4,                      // private - byte array
-    ATTR_ED25519_PUBK = 5,                  // public - byte array - versioned
-    ATTR_CU25519_PUBK = 6,                  // public - byte array - versioned
-    ATTR_KEYRING = 7,                       // private - byte array - versioned
-    ATTR_SIG_RSA_PUBK = 8,                  // public - byte array - versioned
-    ATTR_SIG_CU255_PUBK = 9,                // public - byte array - versioned
-    ATTR_COUNTRY = 10,                      // public - char array - non-versioned
-    ATTR_BIRTHDAY = 11,                     // public - char array - non-versioned
-    ATTR_BIRTHMONTH = 12,                   // public - char array - non-versioned
-    ATTR_BIRTHYEAR = 13,                    // public - char array - non-versioned
-    ATTR_LANGUAGE = 14,                     // private, non-encrypted - char array in B64 - non-versioned
-    ATTR_PWD_REMINDER = 15,                 // private, non-encrypted - char array in B64 - non-versioned
-    ATTR_DISABLE_VERSIONS = 16,             // private, non-encrypted - char array in B64 - non-versioned
-    ATTR_CONTACT_LINK_VERIFICATION = 17,    // private, non-encrypted - char array in B64 - versioned
-    ATTR_RICH_PREVIEWS = 18,                // private - byte array
-    ATTR_RUBBISH_TIME = 19,                 // private, non-encrypted - char array in B64 - non-versioned
-    ATTR_LAST_PSA = 20,                     // private - char array
-    ATTR_STORAGE_STATE = 21,                // private - non-encrypted - char array in B64 - non-versioned
-    ATTR_GEOLOCATION = 22,                  // private - byte array - non-versioned
-    ATTR_CAMERA_UPLOADS_FOLDER = 23,        // private - byte array - non-versioned
-    ATTR_MY_CHAT_FILES_FOLDER = 24,         // private - byte array - non-versioned
-    ATTR_PUSH_SETTINGS = 25,                // private - non-encrypted - char array in B64 - non-versioned
-    ATTR_UNSHAREABLE_KEY = 26,              // private - char array - versioned
-    ATTR_ALIAS = 27,                        // private - byte array - versioned
-    //ATTR_AUTHRSA = 28,                    // (deprecated) private - byte array
-    ATTR_AUTHCU255 = 29,                    // private - byte array
-    ATTR_DEVICE_NAMES = 30,                 // private - byte array - versioned
-    ATTR_MY_BACKUPS_FOLDER = 31,            // private - non-encrypted - char array in B64 - non-versioned
-    //ATTR_BACKUP_NAMES = 32,               // (deprecated) private - byte array - versioned
-    ATTR_COOKIE_SETTINGS = 33,              // private - byte array - non-versioned
-    ATTR_JSON_SYNC_CONFIG_DATA = 34,        // private - byte array - non-versioned
-    //ATTR_DRIVE_NAMES = 35,                // (merged with ATTR_DEVICE_NAMES and removed) private - byte array - versioned
-    ATTR_NO_CALLKIT = 36,                   // private, non-encrypted - char array in B64 - non-versioned
-    ATTR_KEYS = 37,                         // private, non-encrypted (but encrypted to derived key from MK) - binary blob, non-versioned
-    ATTR_APPS_PREFS = 38,                   // private - byte array - versioned (apps preferences)
-    ATTR_CC_PREFS   = 39,                   // private - byte array - versioned (content consumption preferences)
-    ATTR_VISIBLE_WELCOME_DIALOG = 40,       // private - non-encrypted - byte array - non-versioned
-    ATTR_VISIBLE_TERMS_OF_SERVICE = 41,     // private - non-encrypted - byte array - non-versioned
-    ATTR_PWM_BASE = 42,                     // private, non-encrypted (fully controlled by API) - char array in B64 - non-versioned
-    ATTR_ENABLE_TEST_NOTIFICATIONS = 43,    // private - non-encrypted - char array - non-versioned
-    ATTR_LAST_READ_NOTIFICATION = 44,       // private - non-encrypted - char array - non-versioned
-    ATTR_LAST_ACTIONED_BANNER = 45,         // private - non-encrypted - char array - non-versioned
-    ATTR_ENABLE_TEST_SURVEYS = 46, // private - non-encrypted - char array in B64 - non-versioned
-
-} attr_t;
 typedef map<attr_t, string> userattr_map;
 
 typedef enum {
@@ -1538,9 +1487,7 @@ public:
 } // detail
 
 // API supports user/node attributes up to 16KB. This constant is used to restrict clients sending larger values
-static constexpr size_t MAX_NODE_ATTRIBUTE_SIZE = 64 * 1024;        // 64kB
-static constexpr size_t MAX_USER_VAR_SIZE = 16 * 1024 * 1024;       // 16MB - User attributes whose second character is ! or ~ (per example *!dn, ^!keys", ...)
-static constexpr size_t MAX_USER_ATTRIBUTE_SIZE = 64 * 1024;        // 64kB  - Other user attributes
+static constexpr size_t MAX_NODE_ATTRIBUTE_SIZE = 64 * 1024; // 64kB
 static constexpr size_t MAX_FILE_ATTRIBUTE_SIZE = 16 * 1024 * 1024; // 16MB
 
 
