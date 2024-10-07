@@ -1414,35 +1414,35 @@ void DirectReadSlot::retry(const size_t connectionNum)
         assert(mReqs.size() <= RAIDPARTS);
         if (connectionNum >= mReqs.size())
         {
-            LOG_err << "DirectReadSlot::retry: Invalid connectionNum (out of bounds)";
+            LOG_err << "DirectReadSlot::retry [Raided]: Invalid connectionNum (out of bounds)";
             assert(false);
             return;
         }
 
         if (std::unique_ptr<HttpReq>& failedReq = mReqs[connectionNum]; !failedReq)
         {
-            LOG_err << "DirectReadSlot::retry: Invalid connectionNum (not found)";
+            LOG_err << "DirectReadSlot::retry [Raided]: Invalid connectionNum (not found)";
             assert(false);
             return;
         }
 
         if (connectionNum == mUnusedRaidConnection)
         {
-            LOG_err << "DirectReadSlot::retry: connectionNum provided is same than "
+            LOG_err << "DirectReadSlot::retry [Raided]: connectionNum provided is same than "
                        "unused connectionNum.";
             assert(false);
             return;
         }
 
-        if (incFailedRaidedReq() > MAX_FAILED_RAIDED_PARTS)
+        if (incFailedRaidedPart() > MAX_FAILED_RAIDED_PARTS)
         {
-            clearFailedRaidedReq();
+            clearFailedRaidedParts();
             mDr->drn->retry(API_EREAD);
             return;
         }
 
-        LOG_verbose << "DirectReadSlot::retry [conn " << connectionNum << "]"
-                    << " has been failed for raided transfer, we will replace it by [conn "
+        LOG_verbose << "DirectReadSlot::retry [Raided] [conn " << connectionNum << "]"
+                    << " has been failed, we will replace this part by [conn "
                     << mUnusedRaidConnection << "]";
 
         assert(mDr->drbuf.setUnusedRaidConnection(static_cast<unsigned>(connectionNum)));
@@ -2035,7 +2035,7 @@ DirectReadSlot::DirectReadSlot(DirectRead* cdr)
     mNumReqsInflight = 0;
     mWaitForParts = false;
     mMaxChunkSubmitted = 0;
-    clearFailedRaidedReq();
+    clearFailedRaidedParts();
 
     mDrs_it = mDr->drn->client->drss.insert(mDr->drn->client->drss.end(), this);
 

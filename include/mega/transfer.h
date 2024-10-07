@@ -453,10 +453,10 @@ public:
      * @brief Retries a DirectRead transfer, handling both RAIDED and non RAIDED transfers.
      *
      * This method attempts to retry a DirectRead transfer. If the transfer is non RAIDED,
-     * it directly triggers a retry. If it's RAIDED, it replaces it with unused RAID connection, and
-     * retries only that connection.
+     * it directly triggers a retry. If it's RAIDED, it replaces that part with unused RAID
+     * connection, and retries only that part.
      *
-     * @note In case of RAIDED transfer and mFailedRaidedReqs has reached or exceeded
+     * @note In case of RAIDED transfer and mFailedRaidedParts has reached or exceeded
      * MAX_FAILED_RAIDED_PARTS, entire transfer will be retried
      *
      * @param connectionNum The connection number to retry.
@@ -517,39 +517,39 @@ public:
     DirectReadSlot(DirectRead*);
 
     /**
-     * @brief Increments the count of failed raided requests.
+     * @brief Increments the count of failed raided parts.
      *
-     * This method increments the counter of failed raided requests and returns the updated count.
+     * This method increments the counter of failed raided parts and returns the updated count.
      *
-     * @return The updated count of failed raided requests.
+     * @return The updated count of failed raided parts.
      */
-    std::size_t incFailedRaidedReq()
+    std::size_t incFailedRaidedPart()
     {
-        return ++mFailedRaidedReqs;
+        return ++mFailedRaidedParts;
     }
 
     /**
-     * @brief Resets the count of failed raided requests.
+     * @brief Resets the count of failed raided parts.
      *
-     * This method sets the counter of failed raided requests to 0.
+     * This method sets the counter of failed raided parts to 0.
      */
-    void clearFailedRaidedReq()
+    void clearFailedRaidedParts()
     {
-        mFailedRaidedReqs = 0;
+        mFailedRaidedParts = 0;
     }
 
     /**
-     * @brief Checks if the maximum failed raided requests count has been reached.
+     * @brief Checks if the maximum failed raided parts has been reached.
      *
-     * This checks if the maximum failed raided requests (MAX_FAILED_RAIDED_PARTS) count has been
+     * This checks if the maximum failed raided parts (MAX_FAILED_RAIDED_PARTS) count has been
      * reached or exceeded.
      *
-     * @return true if the maximum count of failed raided requests has been reached or exceeded,
+     * @return true if the maximum count of failed raided parts has been reached or exceeded,
      * otherwise `false`.
      */
     bool maxFailedRaidedReqReached() const
     {
-        return mFailedRaidedReqs >= MAX_FAILED_RAIDED_PARTS;
+        return mFailedRaidedParts >= MAX_FAILED_RAIDED_PARTS;
     }
 
     /**
@@ -600,7 +600,7 @@ private:
      * @brief Number of failed raided parts of a DirectRead.
      * @see DirectReadSlot::retry
      */
-    size_t mFailedRaidedReqs = 0;
+    size_t mFailedRaidedParts = 0;
 
     /**
     *   @brief Pair of <Bytes downloaded> and <Total milliseconds> for throughput calculations.
