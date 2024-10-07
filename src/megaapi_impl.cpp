@@ -14213,8 +14213,30 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
             switch (client->getClientType())
             {
                 case MegaClient::ClientType::DEFAULT:
+                {
                     assert(!client->mNodeManager.getRootNodeFiles().isUndef());
+                    User* u = client->ownuser();
+                    if (u)
+                    {
+                        client->getua(
+                            u,
+                            ATTR_WELCOME_PDF_COPIED,
+                            -1,
+                            [](error e)
+                            {
+                                LOG_err << "Failed to get user attribute "
+                                        << User::attr2string(ATTR_WELCOME_PDF_COPIED);
+                            },
+                            [cl = client](byte*, unsigned, attr_t)
+                            {
+                                if (cl->wasWelcomePdfImportDelayed())
+                                {
+                                    cl->getwelcomepdf();
+                                }
+                            });
+                    }
                     break;
+                }
 
                 case MegaClient::ClientType::PASSWORD_MANAGER:
                     assert(!client->mNodeManager.getRootNodeVault().isUndef());
@@ -14280,6 +14302,10 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
                 if (client->shouldWelcomePdfImported())
                 {
                     client->getwelcomepdf();
+                }
+                else
+                {
+                    client->setWelcomePdfNeedsDelayedImport(true);
                 }
 
                 // The session id cannot follow the same pattern, since no password is provided (yet)
@@ -16540,6 +16566,10 @@ void MegaApiImpl::sendsignuplink_result(error e)
         if (client->shouldWelcomePdfImported())
         {
             client->getwelcomepdf();
+        }
+        else
+        {
+            client->setWelcomePdfNeedsDelayedImport(true);
         }
     }
 

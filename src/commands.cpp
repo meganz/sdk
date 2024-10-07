@@ -9156,6 +9156,10 @@ bool CommandGetWelcomePDF::procresult(Result r, JSON& json)
                 }
                 key.assign((const char *) keybuf, len_key);
                 client->reqs.add(new CommandGetPH(client, ph, (const byte*) key.data(), 2));
+                if (client->wasWelcomePdfImportDelayed())
+                {
+                    client->setWelcomePdfNeedsDelayedImport(false);
+                }
                 return true;
 
             default:

@@ -1259,6 +1259,8 @@ public:
 
     // get welcome pdf
     void getwelcomepdf();
+    void setWelcomePdfNeedsDelayedImport(bool requestImport);
+    bool wasWelcomePdfImportDelayed();
 
     // report an event to the API logger
     void reportevent(const char*, const char* = NULL);
