@@ -7946,7 +7946,11 @@ char* MegaApiImpl::getPrivateKey(int type)
 
 void MegaApiImpl::getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener)
 {
-    const char* email = user ? user->getEmail() : nullptr;
+    const char* email = NULL;
+    if (user)
+    {
+        email = user->getEmail();
+    }
     getUserAttribute(email, type, listener);
 }
 
