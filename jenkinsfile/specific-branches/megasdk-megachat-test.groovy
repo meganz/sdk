@@ -15,7 +15,7 @@ pipeline {
             steps {
                 deleteDir() // Clean workspace
                 //Clone MEGAchat
-                sh "echo Cloning MEGAchat branch ${MEGACHAT_BRANCH}"
+                sh "echo Cloning MEGAchat branch \"${MEGACHAT_BRANCH}\""
                 checkout([
                     $class: 'GitSCM', 
                     branches: [[name: "origin/${MEGACHAT_BRANCH}"]],
@@ -26,7 +26,7 @@ pipeline {
                 ])
                 dir('third-party/mega'){  
                     //Clone SDK (with PreBuildMerge)                      
-                    sh "echo Cloning SDK branch ${SDK_BRANCH}"
+                    sh "echo Cloning SDK branch \"${SDK_BRANCH}\""
                     checkout([
                         $class: 'GitSCM', 
                         branches: [[name: "origin/${SDK_BRANCH}"]],

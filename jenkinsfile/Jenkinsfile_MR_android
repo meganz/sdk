@@ -199,7 +199,7 @@ pipeline {
                                     steps {
                                         deleteDir()
                                         //Clone Android
-                                        sh "echo Cloning android branch ${ANDROID_BRANCH}"
+                                        sh "echo Cloning android branch \"${ANDROID_BRANCH}\""
                                         checkout([
                                             $class: 'GitSCM',
                                             branches: [[name: "origin/${ANDROID_BRANCH}"]],
@@ -210,7 +210,7 @@ pipeline {
                                         ])
                                         dir("sdk/src/main/jni/megachat/sdk"){
                                             //Clone MEGAchat branch
-                                            sh "echo Cloning megachat branch ${MEGACHAT_BRANCH}"
+                                            sh "echo Cloning megachat branch \"${MEGACHAT_BRANCH}\""
                                             checkout([
                                                 $class: 'GitSCM',
                                                 branches: [[name: "origin/${MEGACHAT_BRANCH}"]],
