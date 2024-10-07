@@ -28,6 +28,7 @@
 #include "mega/scoped_helpers.h"
 #include "mega/testhooks.h"
 #include "mega/types.h"
+#include "megautils.h"
 #include "sdk_test_utils.h"
 
 #include <algorithm>
@@ -2208,25 +2209,6 @@ bool SdkTest::getFileFromArtifactory(const std::string& relativeUrl, const fs::p
 
     return getFileFromURL(absoluateUrl, dstPath);
 }
-std::vector<std::string> toNamesVector(const MegaNodeList& nodes)
-{
-    std::vector<std::string> result;
-    result.reserve(static_cast<size_t>(nodes.size()));
-    for (int i = 0; i < nodes.size(); ++i)
-    {
-        result.emplace_back(nodes.get(i)->getName());
-    }
-    return result;
-}
-
-std::vector<std::string> stringListToVector(const MegaStringList& l)
-{
-    std::vector<std::string> result;
-    result.reserve(static_cast<size_t>(l.size()));
-    for (int i = 0; i < l.size(); ++i)
-        result.emplace_back(l.get(i));
-    return result;
-};
 
 ///////////////////////////__ Tests using SdkTest __//////////////////////////////////
 /**
