@@ -1212,7 +1212,37 @@ void DemoApp::fetchnodes_result(const Error& e)
 
         if (pdf_to_import)
         {
-            client->getwelcomepdf();
+            if (client->shouldWelcomePdfImported())
+            {
+                client->getwelcomepdf();
+            }
+            else
+            {
+                client->setWelcomePdfNeedsDelayedImport(true);
+            }
+        }
+        else if (client->shouldWelcomePdfImported())
+        {
+            User* u = client->ownuser();
+            if (u)
+            {
+                client->getua(
+                    u,
+                    ATTR_WELCOME_PDF_COPIED,
+                    -1,
+                    [](error e)
+                    {
+                        LOG_err << "Failed to get user attribute "
+                                << User::attr2string(ATTR_WELCOME_PDF_COPIED);
+                    },
+                    [cl = client](byte*, unsigned, attr_t)
+                    {
+                        if (cl->wasWelcomePdfImportDelayed())
+                        {
+                            cl->getwelcomepdf();
+                        }
+                    });
+            }
         }
 
         if (client->ephemeralSessionPlusPlus)
@@ -6780,10 +6810,7 @@ void exec_begin(autocomplete::ACState& s)
     {
         cout << "Creating ephemeral session..." << endl;
 
-        if (client->shouldWelcomePdfImported())
-        {
-            pdf_to_import = true;
-        }
+        pdf_to_import = true;
         client->createephemeral();
     }
     else if (s.words.size() == 2)   // resume session
@@ -6812,10 +6839,7 @@ void exec_begin(autocomplete::ACState& s)
     {
         cout << "Creating ephemeral session plus plus..." << endl;
 
-        if (client->shouldWelcomePdfImported())
-        {
-            pdf_to_import = true;
-        }
+        pdf_to_import = true;
         ephemeralFirstname = s.words[1].s;
         ephemeralLastName = s.words[2].s;
         client->createephemeralPlusPlus();
@@ -10866,7 +10890,9 @@ MegaClient::ClientType getClientTypeFromArgs(const std::string& clientType)
     }
     if (clientType != "default")
     {
-        cout << "WARNING: Invalid argument " << clientType << ". Using default instead." << endl;
+        cout << "WARNING: Invalid argument " << clientType
+             << ". Valid possibilities are: vpn, password_manager, default.\nUsing default instead."
+             << endl;
     }
 
     return MegaClient::ClientType::DEFAULT;
