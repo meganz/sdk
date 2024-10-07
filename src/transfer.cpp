@@ -438,8 +438,11 @@ void Transfer::failed(const Error& e, TransferDbCommitter& committer, dstime tim
             }
         }
     }
-    else if (e == API_EARGS || (e == API_EBLOCKED && type == GET) || (e == API_ETOOMANY && type == GET && e.hasExtraInfo()))
+    else if (e == API_EARGS || (e == API_EBLOCKED && type == GET) ||
+             (e == API_ETOOMANY && type == GET && e.hasExtraInfo()) ||
+             (e == API_ESUBUSERKEYMISSING))
     {
+        assert(e != API_ESUBUSERKEYMISSING || type == PUT);
         client->app->transfer_failed(this, e);
     }
     else if (e != API_EBUSINESSPASTDUE)
@@ -466,7 +469,8 @@ void Transfer::failed(const Error& e, TransferDbCommitter& committer, dstime tim
          * the actionpacket will eventually remove the target and the sync-engine will force to
          * disable the synchronization of the folder. For non-sync-transfers, remove the file directly.
          */
-        if (e == API_EARGS || (e == API_EBLOCKED && type == GET) || (e == API_ETOOMANY && type == GET && e.hasExtraInfo()))
+        if (e == API_EARGS || (e == API_EBLOCKED && type == GET) ||
+            (e == API_ETOOMANY && type == GET && e.hasExtraInfo()) || (e == API_ESUBUSERKEYMISSING))
         {
              File *f = (*it++);
              if (f->syncxfer && e == API_EARGS)
