@@ -3982,6 +3982,9 @@ public:
                           const char* comment,
                           MegaRequestListener* listener);
 
+        void setWelcomePdfCopied(bool copied, MegaRequestListener* listener);
+        void getWelcomePdfCopied(MegaRequestListener* listener);
+
     private:
         void init(MegaApi *api, const char *appKey, std::unique_ptr<GfxProc> gfxproc, const char *basePath /*= NULL*/, const char *userAgent /*= NULL*/, unsigned clientWorkerThreadCount /*= 1*/, int clientType);
 

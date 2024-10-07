@@ -121,6 +121,7 @@ const unordered_map<attr_t, const UserAttributeDefinition>&
         {ATTR_LAST_READ_NOTIFICATION,    {"^!lnotif", "LAST_READ_NOTIFICATION"}                         },
         {ATTR_LAST_ACTIONED_BANNER,      {"^!lbannr", "LAST_ACTIONED_BANNER"}                           },
         {ATTR_ENABLE_TEST_SURVEYS,       {"^!tsur", "ENABLE_TEST_SURVEYS", DISABLE_VERSIONING}          },
+        {ATTR_WELCOME_PDF_COPIED,        {"^!welpdf", "WELCOME_PDF_COPIED"}                             },
     };
 
     return defs;

@@ -6960,6 +6960,7 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_LAST_READ_NOTIFICATION:
         case MegaApi::USER_ATTR_LAST_ACTIONED_BANNER:
         case MegaApi::USER_ATTR_ENABLE_TEST_SURVEYS:
+        case MegaApi::USER_ATTR_WELCOME_PDF_COPIED:
             scope = ATTR_SCOPE_PRIVATE_UNENCRYPTED;
             break;
 
@@ -8016,6 +8017,7 @@ void MegaApiImpl::getUserAttribute(const char* email_or_handle, int type, MegaRe
         case ATTR_PWM_BASE:
         case ATTR_LAST_READ_NOTIFICATION:
         case ATTR_LAST_ACTIONED_BANNER:
+        case ATTR_WELCOME_PDF_COPIED:
         // undocumented types, allowed only for testing:
         case ATTR_KEYS:
             getUserAttr(email_or_handle, type, nullptr, 0, listener);
@@ -8048,6 +8050,7 @@ void MegaApiImpl::setUserAttribute(int type, const char *value, MegaRequestListe
         case ATTR_VISIBLE_TERMS_OF_SERVICE:
         case ATTR_LAST_READ_NOTIFICATION:
         case ATTR_LAST_ACTIONED_BANNER:
+        case ATTR_WELCOME_PDF_COPIED:
         // undocumented types, allowed only for testing:
         case ATTR_ENABLE_TEST_NOTIFICATIONS:
         case ATTR_ENABLE_TEST_SURVEYS:
@@ -15591,7 +15594,8 @@ void MegaApiImpl::getua_completion(error e, MegaRequestPrivate* request)
         }
         else if ((request->getType() == MegaRequest::TYPE_GET_ATTR_USER)
                   && (request->getParamType() == MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG
-                  || request->getParamType() == MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE))
+                  || request->getParamType() == MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE
+                  || request->getParamType() == MegaApi::USER_ATTR_WELCOME_PDF_COPIED))
         {
             request->setFlag(true);
         }
@@ -15680,6 +15684,7 @@ void MegaApiImpl::getua_completion(byte* data, unsigned len, attr_t type, MegaRe
         case MegaApi::USER_ATTR_NO_CALLKIT:
         case MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG:
         case MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE:
+        case MegaApi::USER_ATTR_WELCOME_PDF_COPIED:
             {
                 string str((const char*)data,len);
                 request->setText(str.c_str());
@@ -15691,11 +15696,14 @@ void MegaApiImpl::getua_completion(byte* data, unsigned len, attr_t type, MegaRe
                               "User Attribute Enum Mismatch");
                 static_assert(int(MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG) == ATTR_VISIBLE_WELCOME_DIALOG, "User Attribute Enum Mismatch");
                 static_assert(int(MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE) == ATTR_VISIBLE_TERMS_OF_SERVICE, "User Attribute Enum Mismatch");
+                static_assert(int(MegaApi::USER_ATTR_WELCOME_PDF_COPIED) == ATTR_WELCOME_PDF_COPIED,
+                              "User Attribute Enum Mismatch");
 
                 if (int(type) == MegaApi::USER_ATTR_DISABLE_VERSIONS
                         || int(type) == MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION
                         || int(type) == MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG
-                        || int(type) == MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE)
+                        || int(type) == MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE
+                        || static_cast<int>(type) == MegaApi::USER_ATTR_WELCOME_PDF_COPIED)
                 {
                     request->setFlag(str == "1");
                 }
@@ -21188,7 +21196,8 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                          || (type == ATTR_NO_CALLKIT)
                          || (type == ATTR_CONTACT_LINK_VERIFICATION)
                          || (type == ATTR_VISIBLE_WELCOME_DIALOG)
-                         || (type == ATTR_VISIBLE_TERMS_OF_SERVICE))
+                         || (type == ATTR_VISIBLE_TERMS_OF_SERVICE)
+                         || (type == ATTR_WELCOME_PDF_COPIED))
                 {
                     if (!value || strlen(value) != 1 || (value[0] != '0' && value[0] != '1'))
                     {
@@ -27803,6 +27812,17 @@ void MegaApiImpl::enableTestSurveys(const MegaHandleList* surveyHandles,
 
     requestQueue.push(request);
     waiter->notify();
+}
+
+void MegaApiImpl::setWelcomePdfCopied(bool copied, MegaRequestListener* listener)
+{
+    const string attributeValue{std::to_string(copied)};
+    setUserAttr(MegaApi::USER_ATTR_WELCOME_PDF_COPIED, attributeValue.c_str(), listener);
+}
+
+void MegaApiImpl::getWelcomePdfCopied(MegaRequestListener* listener)
+{
+    getUserAttr(nullptr, MegaApi::USER_ATTR_WELCOME_PDF_COPIED, nullptr, 0, listener);
 }
 
 /* END MEGAAPIIMPL */
