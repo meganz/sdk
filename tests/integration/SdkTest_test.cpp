@@ -7586,7 +7586,7 @@ struct CheckStreamedFile_MegaTransferListener : public MegaTransferListener
     MegaError* completedUnsuccessfullyError;
     byte* compareDecryptedData;
     bool comparedEqual;
-
+    m_off_t numFailedRequests{};
 
     CheckStreamedFile_MegaTransferListener(size_t receiveStartPoint, size_t receiveSizeExpected, byte* fileCompareData)
         : reserved(0)
@@ -7632,6 +7632,7 @@ struct CheckStreamedFile_MegaTransferListener : public MegaTransferListener
     }
     void onTransferTemporaryError(MegaApi *api, MegaTransfer * /*transfer*/, MegaError* error) override
     {
+        ++numFailedRequests;
         ostringstream msg;
         msg << "onTransferTemporaryError: " << (error ? error->getErrorString() : "NULL");
         api->log(MegaApi::LOG_LEVEL_WARNING, msg.str().c_str());
@@ -7652,7 +7653,7 @@ struct CheckStreamedFile_MegaTransferListener : public MegaTransferListener
 
 CheckStreamedFile_MegaTransferListener* StreamRaidFilePart(MegaApi* megaApi, m_off_t start, m_off_t end, bool raid, bool smallpieces, MegaNode* raidFileNode, MegaNode*nonRaidFileNode, ::mega::byte* filecomparedata)
 {
-    assert(raidFileNode && nonRaidFileNode);
+    assert((raid ? raidFileNode : nonRaidFileNode));
     LOG_info << "stream test ---------------------------------------------------" << start << " to " << end << "(len " << end - start << ") " << (raid ? " RAID " : " non-raid ") << (raid ? (smallpieces ? " smallpieces " : "normalpieces") : "");
 
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
@@ -7961,6 +7962,65 @@ TEST_F(SdkTest, SdkRecentsTest)
     ASSERT_TRUE(bucketsVec.size() > 1);
     EXPECT_THAT(bucketsVec[0], testing::ElementsAre(filename2));
     EXPECT_THAT(bucketsVec[1], testing::ElementsAre(filename1bkp2, filename1bkp1));
+}
+
+TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)
+{
+    LOG_info << "___TEST Streaming Raided Transfer With Connection Failures___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    auto importRaidHandle =
+        importPublicLink(0, MegaClient::MEGAURL + PUBLIC_IMAGE_URL, rootnode.get());
+    std::shared_ptr<MegaNode> cloudRaidNode{megaApi[0]->getNodeByHandle(importRaidHandle)};
+
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    globalMegaTestHooks.onHttpReqPost = DebugTestHook::onHttpReqPost404Or403;
+    globalMegaTestHooks.onSetIsRaid = DebugTestHook::onSetIsRaid_morechunks;
+    globalMegaTestHooks.onLimitMaxReqSize = ::mega::DebugTestHook::onLimitMaxReqSize;
+    globalMegaTestHooks.onHookNumberOfConnections =
+        ::mega::DebugTestHook::onHookNumberOfConnections;
+#endif
+
+    megaApi[0]->setMaxDownloadSpeed(1024 * 1024);
+    ASSERT_EQ(API_OK, doSetMaxConnections(0, 2))
+        << "doSetMaxConnections failed or took more than 1 minute";
+    auto startStreaming =
+        [cloudRaidNode,
+         this](int cd404, int cd403, m_off_t nFailedReqs, unsigned int transfer_timeout_in_seconds)
+    {
+        mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
+        DebugTestHook::countdownTo404 = cd404;
+        DebugTestHook::countdownTo403 = cd403;
+        std::unique_ptr<CheckStreamedFile_MegaTransferListener> p(
+            StreamRaidFilePart(megaApi[0].get(),
+                               0,
+                               cloudRaidNode->getSize(),
+                               true /*raid*/,
+                               false,
+                               cloudRaidNode.get(),
+                               nullptr,
+                               nullptr));
+
+        ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD],
+                                    transfer_timeout_in_seconds))
+            << "Cloudraid download with 404 and 403 errors time out (180 seconds)";
+        ASSERT_EQ(API_OK, mApi[0].lastError)
+            << "Cannot finish streaming download for the cloudraid file (error: "
+            << mApi[0].lastError << ")";
+        ASSERT_TRUE(cd404 < 0 || DebugTestHook::countdownTo404 < 0) << "";
+        ASSERT_TRUE(cd403 < 0 || DebugTestHook::countdownTo403 < 0) << "";
+        ASSERT_EQ(p->numFailedRequests, nFailedReqs)
+            << "Unexpected number of retries for streaming download";
+    };
+
+    LOG_debug << "#### Test1: Streaming Download forcing 1 Raided Part Failure (404) ####";
+    startStreaming(2 /*cd404*/, -1 /*cd403*/, 0 /*nFailedReqs*/, 180 /*timeout*/);
+    LOG_debug << "#### Test2: Streaming Download forcing 2 Raided Part Failures(404 | 403). "
+                 "onTransferTemporaryError received ####";
+    startStreaming(2 /*cd404*/, 2 /*cd403*/, 1 /*nFailedReqs*/, 180 /*timeout*/);
+    ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 }
 
 #if !USE_FREEIMAGE
