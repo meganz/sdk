@@ -14,7 +14,7 @@ pipeline {
         booleanParam(name: 'CUSTOM_BUILD', defaultValue: false, description: 'If true, will use DISTRO_TO_BUILD and ARCH_TO_BUILD. If false, will build all distributions')
         choice(name: 'ARCH_TO_BUILD', choices: ['amd64', 'armhf'], description: 'Only used if CUSTOM_BUILD is true')        
         string(name: 'DISTRO_TO_BUILD', defaultValue: 'xUbuntu_22.04', description: 'Only used if CUSTOM_BUILD is true')
-        string(name: 'SDK_BRANCH', defaultValue: 'SDK-4277-Build-SDK-for-all-supported-linux-distributions', description: 'Define a custom SDK branch.')
+        string(name: 'SDK_BRANCH', defaultValue: 'develop', description: 'Define a custom SDK branch.')
     }
     environment {
         gitlab_token = credentials('jenkins_sdk_token')
