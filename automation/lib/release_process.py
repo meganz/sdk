@@ -378,12 +378,15 @@ class ReleaseProcess:
 
     # STEP 3 (close): GitLab: Merge version upgrade MR into public branch (master)
     def merge_release_changes_into_public_branch(self, public_branch: str):
-        mr_id = self._remote_private_repo._get_id_of_open_mr(
+        mr_id, mr_url = self._remote_private_repo._get_open_mr(
             self._get_mr_title_for_release(),
             self.get_new_release_branch(),
             public_branch,
         )
         assert mr_id > 0
+        self._request_mr_approval(
+            f"`{self._project_name}` close `{self._new_version}`:\n{mr_url}"
+        )
         self._remote_private_repo.merge_mr(mr_id, 3600)  # must not delete source branch
 
     # STEP 4 (close): local git: Push public branch (master) to public remote (github)

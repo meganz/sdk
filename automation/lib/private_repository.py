@@ -61,7 +61,9 @@ class GitLabRepository:  # use gitlab API
     def get_url_to_private_repo(self) -> str:
         return self._project.ssh_url_to_repo
 
-    def _get_id_of_open_mr(self, mr_title: str, mr_source: str, mr_target: str) -> int:
+    def _get_open_mr(
+        self, mr_title: str, mr_source: str, mr_target: str
+    ) -> tuple[int, str]:
         mrs = self._project.mergerequests.list(
             state="opened",
             source_branch=mr_source,
@@ -70,8 +72,8 @@ class GitLabRepository:  # use gitlab API
         )
         for mr in mrs:
             if mr.title == mr_title:
-                return mr.iid
-        return 0
+                return mr.iid, mr.web_url
+        return 0, ""
 
     def _get_default_mr_description(self) -> str:
         # Default MR description configured for a GitLab project is apparently
@@ -100,9 +102,9 @@ class GitLabRepository:  # use gitlab API
         squash: bool,
         labels: str | None = None,
     ) -> tuple[int, str]:
-        mr_id = self._get_id_of_open_mr(mr_title, mr_source, mr_target)
+        mr_id, mr_url = self._get_open_mr(mr_title, mr_source, mr_target)
         if mr_id > 0:
-            print(f'MR with title "{mr_title}" was already opened')
+            print(f'MR with title "{mr_title}" was already opened:\n{mr_url}')
             return 0, ""
         assert isinstance(self._project.manager.gitlab.user, CurrentUser)
 
@@ -146,7 +148,7 @@ class GitLabRepository:  # use gitlab API
             mr = self._project.mergerequests.get(mr_id)
             assert isinstance(mr, ProjectMergeRequest)
             if mr.state != "opened":
-                print("MR waiting for approval not found")
+                print(f"MR waiting for approval was {mr.state}:\n{mr.web_url}")
                 return None
             if (
                 mr.merge_status == "can_be_merged"

@@ -68,7 +68,7 @@ release.create_release_tag()
 # STEP 2: GitLab: Create release "Version X.Y.Z" from tag "vX.Y.Z" plus release notes
 release.create_release_in_private_repo()
 
-# STEP 3: GitLab: Merge version upgrade MR into public branch (master)
+# STEP 3: GitLab, Slack: Merge version upgrade MR into public branch (master)
 release.merge_release_changes_into_public_branch(args["public_branch"])
 
 # STEP 4: local git: Push public branch (master) to public remote (github)
