@@ -54,8 +54,10 @@ release.setup_local_repo(
 )
 release.setup_public_repo(os.environ["GITHUB_TOKEN"], args["github_repo_owner"])
 release.confirm_all_earlier_versions_are_closed()
-if os.environ["SLACK_TOKEN"]:
-    release.setup_chat(os.environ["SLACK_TOKEN"], "")
+slack_token = os.environ.get("SLACK_TOKEN", "")
+slack_channel_dev = args.get("slack_channel_dev_requests", "")
+if slack_token and slack_channel_dev:
+    release.setup_chat(slack_token, slack_channel_dev, "")
 release.setup_wiki(
     args["confluence_url"],
     os.environ["CONFLUENCE_USER"],

@@ -52,6 +52,7 @@ class ReleaseProcess:
     def setup_chat(
         self,
         slack_token: str,
+        slack_channel_dev: str,
         slack_channel_announce: str,
     ):
         # Chat has 2 purposes:
@@ -59,6 +60,7 @@ class ReleaseProcess:
         # - make announcements in the given channel, if any.
         print("Slack initializing", flush=True)
         self._slack = Slack(slack_token)
+        self._slack_channel_dev_requests = slack_channel_dev
         self._slack_channel_announce = slack_channel_announce
         print("v Slack initialized", flush=True)
 
@@ -195,15 +197,14 @@ class ReleaseProcess:
         print("v MR merged for version upgrade", flush=True)
 
     def _request_mr_approval(self, reason: str):
-        if self._slack is None:
+        if self._slack is None or not self._slack_channel_dev_requests:
             print(
                 f"You need to request MR approval yourself because chat is not available,\n{reason}",
                 flush=True,
             )
         else:
             self._slack.post_message(
-                "sdk-stuff-builders-team",
-                # "sdk_devs_only",
+                self._slack_channel_dev_requests,
                 f"Hello !channel,\n\nPlease approve the MR for {reason}",
             )
 
@@ -376,7 +377,7 @@ class ReleaseProcess:
         )
         print("v Created release", release_name, flush=True)
 
-    # STEP 3 (close): GitLab: Merge version upgrade MR into public branch (master)
+    # STEP 3 (close): GitLab, Slack: Merge version upgrade MR into public branch (master)
     def merge_release_changes_into_public_branch(self, public_branch: str):
         mr_id, mr_url = self._remote_private_repo._get_open_mr(
             self._get_mr_title_for_release(),
@@ -498,7 +499,7 @@ class ReleaseProcess:
         assert self._jira
         self._jira.add_fix_version_to_tickets(tickets)
 
-    # STEP 8 (patch): local git, GitLab: Update version in local file
+    # STEP 8 (patch): local git, GitLab, Slack: Update version in local file
     def update_version_in_local_file_from_branch(
         self,
         gpg_keygrip: str,

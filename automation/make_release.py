@@ -49,8 +49,11 @@ release.setup_project_management(
 )
 release.set_release_version_to_make(args["release_version"])
 
-if os.environ["SLACK_TOKEN"] and args["slack_channel_announce"]:
-    release.setup_chat(os.environ["SLACK_TOKEN"], args["slack_channel_announce"])
+slack_token = os.environ.get("SLACK_TOKEN", "")
+slack_channel_dev = args.get("slack_channel_dev_requests", "")
+slack_channel_announce = args.get("slack_channel_announce", "")
+if slack_token and (slack_channel_dev or slack_channel_announce):
+    release.setup_chat(slack_token, slack_channel_dev, slack_channel_announce)
 
 if LocalRepository.has_version_file():
     # STEP 3: update version in local file
