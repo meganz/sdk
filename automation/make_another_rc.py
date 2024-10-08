@@ -41,8 +41,8 @@ release = ReleaseProcess(
 release.setup_project_management(
     args["jira_url"], os.environ["JIRA_USERNAME"], os.environ["JIRA_PASSWORD"]
 )
-if os.environ["SLACK_TOKEN"] and args["slack_channel"]:
-    release.setup_chat(os.environ["SLACK_TOKEN"], args["slack_channel"])
+if os.environ["SLACK_TOKEN"] and args["slack_channel_announce"]:
+    release.setup_chat(os.environ["SLACK_TOKEN"], args["slack_channel_announce"])
 
 assert args["release_version"]  # "1.0.0"
 assert args["mr_description"]

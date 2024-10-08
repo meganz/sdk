@@ -52,14 +52,14 @@ class ReleaseProcess:
     def setup_chat(
         self,
         slack_token: str,
-        slack_channel: str,
+        slack_channel_announce: str,
     ):
         # Chat has 2 purposes:
         # - request approvals for MRs (always in the same channel, only for SDK devs);
         # - make announcements in the given channel, if any.
         print("Slack initializing", flush=True)
         self._slack = Slack(slack_token)
-        self._slack_channel = slack_channel
+        self._slack_channel_announce = slack_channel_announce
         print("v Slack initialized", flush=True)
 
     # STEP 3: update version in local file
@@ -289,11 +289,13 @@ class ReleaseProcess:
         notes: str = (
             f"\U0001F4E3 \U0001F4E3 *New {self._project_name} version  -->  `{self._rc_tag}`* (<{tag_url}|Link>)\n\n"
         ) + self._jira.get_release_notes_for_slack(apps)
-        if not self._slack or not self._slack_channel:
+        if not self._slack or not self._slack_channel_announce:
             print("Enjoy:\n\n" + notes, flush=True)
         else:
-            self._slack.post_message(self._slack_channel, notes)
-            print(f"v Posted release notes to #{self._slack_channel}", flush=True)
+            self._slack.post_message(self._slack_channel_announce, notes)
+            print(
+                f"v Posted release notes to #{self._slack_channel_announce}", flush=True
+            )
 
     ####################
     ##  Close release
