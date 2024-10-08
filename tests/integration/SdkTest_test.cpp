@@ -28,6 +28,7 @@
 #include "mega/scoped_helpers.h"
 #include "mega/testhooks.h"
 #include "mega/types.h"
+#include "megautils.h"
 #include "sdk_test_utils.h"
 
 #include <algorithm>
@@ -2208,25 +2209,6 @@ bool SdkTest::getFileFromArtifactory(const std::string& relativeUrl, const fs::p
 
     return getFileFromURL(absoluateUrl, dstPath);
 }
-std::vector<std::string> toNamesVector(const MegaNodeList& nodes)
-{
-    std::vector<std::string> result;
-    result.reserve(static_cast<size_t>(nodes.size()));
-    for (int i = 0; i < nodes.size(); ++i)
-    {
-        result.emplace_back(nodes.get(i)->getName());
-    }
-    return result;
-}
-
-std::vector<std::string> stringListToVector(const MegaStringList& l)
-{
-    std::vector<std::string> result;
-    result.reserve(static_cast<size_t>(l.size()));
-    for (int i = 0; i < l.size(); ++i)
-        result.emplace_back(l.get(i));
-    return result;
-};
 
 ///////////////////////////__ Tests using SdkTest __//////////////////////////////////
 /**
@@ -7878,25 +7860,6 @@ TEST_F(SdkTest, SdkRecentsTest)
                                << ")";
     };
 
-    const auto bucketsToVec =
-        [](const MegaRecentActionBucketList& buckets) -> std::vector<std::vector<std::string>>
-    {
-        std::vector<std::vector<std::string>> result;
-        for (int i = 0; i < buckets.size(); ++i)
-        {
-            auto bucketNodes = buckets.get(i)->getNodes();
-            if (!bucketNodes)
-                continue;
-            std::vector<std::string> bucketInfo;
-            for (int j = 0; j < bucketNodes->size(); ++j)
-            {
-                bucketInfo.emplace_back(bucketNodes->get(j)->getName());
-            }
-            result.emplace_back(std::move(bucketInfo));
-        }
-        return result;
-    };
-
     const std::string filename1 = UPFILE;
     const std::string filename1bkp1 = filename1 + ".bkp1";
     const std::string filename1bkp2 = filename1 + ".bkp2";
@@ -7944,7 +7907,7 @@ TEST_F(SdkTest, SdkRecentsTest)
         trackerAll.request->getRecentActions()->copy()};
 
     ASSERT_TRUE(buckets != nullptr);
-    auto bucketsVec = bucketsToVec(*buckets);
+    auto bucketsVec = bucketsToVector(*buckets);
     ASSERT_TRUE(bucketsVec.size() > 1);
     EXPECT_THAT(bucketsVec[0], testing::ElementsAre(filename2, filename1));
     EXPECT_THAT(bucketsVec[1], testing::ElementsAre(filename1bkp2, filename1bkp1));
@@ -7957,7 +7920,7 @@ TEST_F(SdkTest, SdkRecentsTest)
     buckets.reset(trackerExclude.request->getRecentActions()->copy());
 
     ASSERT_TRUE(buckets != nullptr);
-    bucketsVec = bucketsToVec(*buckets);
+    bucketsVec = bucketsToVector(*buckets);
     ASSERT_TRUE(bucketsVec.size() > 1);
     EXPECT_THAT(bucketsVec[0], testing::ElementsAre(filename2));
     EXPECT_THAT(bucketsVec[1], testing::ElementsAre(filename1bkp2, filename1bkp1));

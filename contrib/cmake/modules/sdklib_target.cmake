@@ -9,6 +9,7 @@ set(SDKLIB_PUB_HEADERS
 set(SDKLIB_HEADERS
     include/mega.h
     include/megaapi_impl.h
+    include/megautils.h
     include/mega/transferslot.h
     include/mega/thread/libuvthread.h
     include/mega/scoped_helpers.h
@@ -145,6 +146,7 @@ set(SDKLIB_SOURCES
     src/user_attribute.cpp
     src/user_attribute_definition.cpp
     src/user_attribute_manager.cpp
+    src/megautils.cpp
 )
 
 target_sources(SDKlib

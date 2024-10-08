@@ -4,6 +4,7 @@
  */
 
 #include "megaapi.h"
+#include "megautils.h"
 #include "sdk_test_utils.h"
 #include "SdkTest_test.h"
 
