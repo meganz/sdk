@@ -1428,23 +1428,27 @@ void DirectReadSlot::retry(const size_t connectionNum)
 
         if (connectionNum == mUnusedRaidConnection)
         {
-            LOG_err << "DirectReadSlot::retry [Raided]: connectionNum provided is same than "
+            LOG_err << "DirectReadSlot::retry [Raided]: connectionNum provided matches the "
                        "unused connectionNum.";
             assert(false);
             return;
         }
 
-        if (incFailedRaidedPart() > MAX_FAILED_RAIDED_PARTS)
+        auto failedParts = incFailedRaidedPart();
+        std::string msg = "DirectReadSlot::retry [Raided] [conn " + std::to_string(connectionNum) +
+                          "] has been failed (" + std::to_string(failedParts) + " time/s). ";
+
+        if (failedParts > MAX_FAILED_RAIDED_PARTS)
         {
+            msg += "We will retry entire transfer";
+            LOG_debug << msg;
             clearFailedRaidedParts();
             mDr->drn->retry(API_EREAD);
             return;
         }
 
-        LOG_verbose << "DirectReadSlot::retry [Raided] [conn " << connectionNum << "]"
-                    << " has been failed, we will replace this part by [conn "
-                    << mUnusedRaidConnection << "]";
-
+        msg += "We will replace this part by [conn " + std::to_string(mUnusedRaidConnection) + "]";
+        LOG_debug << msg;
         assert(mDr->drbuf.setUnusedRaidConnection(static_cast<unsigned>(connectionNum)));
         assert(resetConnection(mUnusedRaidConnection));
         mUnusedRaidConnection = connectionNum;
