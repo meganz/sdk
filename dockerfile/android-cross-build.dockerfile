@@ -73,6 +73,7 @@ CMD ["sh", "-c", "\
         -DVCPKG_ROOT=/mega/vcpkg \
         -DCMAKE_BUILD_TYPE=Debug \
         -DVCPKG_TARGET_TRIPLET=${VCPKG_TRIPLET} \
+        -DENABLE_CHAT=ON \
         -DENABLE_JAVA_BINDINGS=ON \
         -DENABLE_SDKLIB_EXAMPLES=OFF \
         -DENABLE_SDKLIB_TESTS=OFF \
