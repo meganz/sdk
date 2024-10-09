@@ -1310,6 +1310,66 @@ void DirectReadNode::enqueue(m_off_t offset, m_off_t count, int reqtag, void* ap
     new DirectRead(this, count, offset, reqtag, appdata);
 }
 
+size_t UnusedConn::getNum() const
+{
+    return mNum;
+}
+
+bool UnusedConn::isTempReasonErr() const
+{
+    auto isTempErr = mReason == UN_TEMP_ERR;
+    assert(!isTempErr || mNumBackoffRetries > 0);
+    return isTempErr;
+}
+
+bool UnusedConn::isNoReasonErr() const
+{
+    return mReason == UN_NOT_ERR;
+}
+
+bool UnusedConn::setUnused(const size_t num, const unusedReason reason)
+{
+    if (!isValidReason(reason))
+    {
+        assert(false);
+        return false;
+    }
+
+    if (num == mNum)
+    {
+        assert(false);
+        return false;
+    }
+
+    mNum = num;
+    mReason = reason;
+    mNumBackoffRetries = reason == UN_TEMP_ERR ? defaultBackoffRetries : 0;
+    return true;
+}
+
+void UnusedConn::clear()
+{
+    mNum = 0;
+    mNumBackoffRetries = 0;
+    mReason = UN_NOT_ERR;
+}
+
+void UnusedConn::decTempBackoffRetries()
+{
+    if (!isTempReasonErr())
+    {
+        return;
+    }
+
+    if (mNumBackoffRetries > 0)
+    {
+        if (--mNumBackoffRetries == 0)
+        {
+            mReason = UN_NOT_ERR;
+        }
+    }
+}
+
 bool DirectReadSlot::processAnyOutputPieces()
 {
     bool continueDirectRead = true;
@@ -1365,7 +1425,8 @@ unsigned DirectReadSlot::usedConnections() const
     {
         LOG_warn << "DirectReadSlot -> usedConnections() being used when it shouldn't" << " [this = " << this << "]";
     }
-    return static_cast<unsigned>(mReqs.size()) - ((mUnusedRaidConnection != static_cast<unsigned>(mReqs.size())) ? 1 : 0);
+    return static_cast<unsigned>(mReqs.size()) -
+           ((mUnusedConn.getNum() != static_cast<unsigned>(mReqs.size())) ? 1 : 0);
 }
 
 bool DirectReadSlot::resetConnection(size_t connectionNum)
@@ -1402,7 +1463,7 @@ m_off_t DirectReadSlot::calcThroughput(m_off_t numBytes, m_off_t timeCount) cons
     return throughput;
 }
 
-void DirectReadSlot::retry(const size_t connectionNum)
+void DirectReadSlot::retryOnError(const size_t connectionNum, const int httpstatus)
 {
     if (!mDr->drbuf.isRaid())
     {
@@ -1412,6 +1473,13 @@ void DirectReadSlot::retry(const size_t connectionNum)
     else
     {
         assert(mReqs.size() <= RAIDPARTS);
+        if (!UnusedConn::isValidHttpStatus(httpstatus))
+        {
+            LOG_err << "DirectReadSlot::retry [Raided]: Invalid httpstatus: " << httpstatus;
+            assert(false);
+            return;
+        }
+
         if (connectionNum >= mReqs.size())
         {
             LOG_err << "DirectReadSlot::retry [Raided]: Invalid connectionNum (out of bounds)";
@@ -1426,7 +1494,7 @@ void DirectReadSlot::retry(const size_t connectionNum)
             return;
         }
 
-        if (connectionNum == mUnusedRaidConnection)
+        if (connectionNum == mUnusedConn.getNum())
         {
             LOG_err << "DirectReadSlot::retry [Raided]: connectionNum provided matches the "
                        "unused connectionNum.";
@@ -1434,25 +1502,47 @@ void DirectReadSlot::retry(const size_t connectionNum)
             return;
         }
 
-        auto failedParts = incFailedRaidedPart();
-        std::string msg = "DirectReadSlot::retry [Raided] [conn " + std::to_string(connectionNum) +
-                          "] has been failed (" + std::to_string(failedParts) + " time/s). ";
-
-        if (failedParts > MAX_FAILED_RAIDED_PARTS)
+        auto reason = UnusedConn::getReasonFromHttpStatus(httpstatus);
+        if (!UnusedConn::isReasonErr(reason))
         {
-            msg += "We will retry entire transfer";
-            LOG_debug << msg;
-            clearFailedRaidedParts();
-            mDr->drn->retry(API_EREAD);
+            LOG_err << "DirectReadSlot::retry [Raided]: invalid httpstatus: " << httpstatus;
+            assert(false);
             return;
         }
 
-        msg += "We will replace this part by [conn " + std::to_string(mUnusedRaidConnection) + "]";
+        auto failedParts = recordFailedRaidedPart(connectionNum);
+        std::string msg = "DirectReadSlot::retry [Raided] [conn " + std::to_string(connectionNum) +
+                          "] has been failed (" + std::to_string(failedParts) + " time/s)";
+
+        if (failedParts > MAX_FAILED_RAIDED_PARTS)
+        {
+            if (getDifferentRaidedPartsFailed() > MAX_DIFFERENT_FAILED_RAIDED_CONNS)
+            {
+                msg += "We will retry entire transfer";
+                LOG_debug << msg;
+                clearFailedRaidedParts();
+                mUnusedConn.clear();
+                mDr->drn->retry(API_EREAD);
+                return;
+            }
+            else
+            {
+                // If same connection has failed more than once and failedParts has exceeded
+                // MAX_FAILED_RAIDED_PARTS then discard that connection by setting as unused with a
+                // non-retriable reason
+                msg += "We will definetively disable [Conn " + std::to_string(connectionNum) +
+                       "] and ";
+                reason = UnusedConn::UN_DEFINITIVE_ERR;
+                decrementFailedRaidedPartsCounter();
+            }
+        }
+
+        msg += "We will replace that part by [conn " + std::to_string(mUnusedConn.getNum()) + "]";
         LOG_debug << msg;
         assert(mDr->drbuf.setUnusedRaidConnection(static_cast<unsigned>(connectionNum)));
-        assert(resetConnection(mUnusedRaidConnection));
-        mUnusedRaidConnection = connectionNum;
-        assert(resetConnection(mUnusedRaidConnection));
+        assert(resetConnection(mUnusedConn.getNum()));
+        assert(mUnusedConn.setUnused(connectionNum, reason));
+        assert(resetConnection(mUnusedConn.getNum()));
     }
 }
 
@@ -1466,10 +1556,32 @@ bool DirectReadSlot::searchAndDisconnectSlowestConnection(size_t connectionNum)
         return false;
     }
     std::unique_ptr<HttpReq>& req = mReqs[connectionNum];
-    if (!req || (connectionNum == mUnusedRaidConnection))
+    if (!req || (connectionNum == mUnusedConn.getNum()))
     {
         return false;
     }
+
+    if (auto isErrReason = !mUnusedConn.isNoReasonErr(); isErrReason)
+    {
+        if (mUnusedConn.isTempReasonErr())
+        {
+            // if unused connection is temporarily failed (UN_TEMP_ERR), decrements retries backoff
+            // and then checks if connection can be reused now, if false return. At next call to
+            // this method will decrements counter again, until it reaches 0 and it's status is
+            // UN_NOT_ERR
+            mUnusedConn.decTempBackoffRetries();
+            if (mUnusedConn.isTempReasonErr())
+            {
+                return false;
+            }
+        }
+        else
+        {
+            // avoid reusing unused connection if it failed due a non recoverable error
+            return false;
+        }
+    }
+
     bool minComparableThroughputForThisConnection = mThroughput[connectionNum].second &&
                                                     mThroughput[connectionNum].first >= mMinComparableThroughput;
     if (minComparableThroughputForThisConnection)
@@ -1480,8 +1592,7 @@ bool DirectReadSlot::searchAndDisconnectSlowestConnection(size_t connectionNum)
         bool minComparableThroughputForOtherConnection = true;
         for (size_t otherConnection = numReqs; (otherConnection-- > 0) && minComparableThroughputForOtherConnection;)
         {
-            if ((otherConnection != connectionNum) &&
-                (otherConnection != mUnusedRaidConnection))
+            if ((otherConnection != connectionNum) && (otherConnection != mUnusedConn.getNum()))
             {
                 bool otherConnectionIsDone = (mReqs[otherConnection] &&
                                                     (mReqs[otherConnection]->status == REQ_DONE ||
@@ -1514,8 +1625,10 @@ bool DirectReadSlot::searchAndDisconnectSlowestConnection(size_t connectionNum)
         LOG_verbose << "DirectReadSlot [conn " << connectionNum << "]"
                     << " Test slow connection -> slowest connection = " << slowestConnection
                     << ", fastest connection = " << fastestConnection
-                    << ", unused raid connection = " << mUnusedRaidConnection
-                    << ", mMinComparableThroughput = " << (mMinComparableThroughput / 1024) << " KB/s" << " [this = " << this << "]";
+                    << ", unused raid connection = " << mUnusedConn.getNum()
+                    << ", mMinComparableThroughput = " << (mMinComparableThroughput / 1024)
+                    << " KB/s"
+                    << " [this = " << this << "]";
         if (((slowestConnection == connectionNum) ||
              ((slowestConnection != numReqs) && (mReqs[slowestConnection]->status == REQ_READY))) &&
             (fastestConnection != slowestConnection))
@@ -1527,24 +1640,30 @@ bool DirectReadSlot::searchAndDisconnectSlowestConnection(size_t connectionNum)
                 slowestConnectionThroughput * SLOWEST_TO_FASTEST_THROUGHPUT_RATIO[1])
             {
                 LOG_warn << "DirectReadSlot [conn " << connectionNum << "]"
-                         << " Connection " << slowestConnection << " is slow, trying the other 5 cloudraid connections"
-                         << " [slowest speed = " << ((slowestConnectionThroughput * 1000 / 1024)) << " KB/s"
-                         << ", fastest speed = " << ((fastestConnectionThroughput * 1000 / 1024)) << " KB/s"
-                         << ", mMinComparableThroughput = " << (mMinComparableThroughput / 1024) << " KB/s]"
-                         << " [total slow connections switches = " << mNumSlowConnectionsSwitches << "]"
-                         << " [current unused raid connection = " << mUnusedRaidConnection << "]" << " [this = " << this << "]";
+                         << " Connection " << slowestConnection
+                         << " is slow, trying the other 5 cloudraid connections"
+                         << " [slowest speed = " << ((slowestConnectionThroughput * 1000 / 1024))
+                         << " KB/s"
+                         << ", fastest speed = " << ((fastestConnectionThroughput * 1000 / 1024))
+                         << " KB/s"
+                         << ", mMinComparableThroughput = " << (mMinComparableThroughput / 1024)
+                         << " KB/s]"
+                         << " [total slow connections switches = " << mNumSlowConnectionsSwitches
+                         << "]"
+                         << " [current unused raid connection = " << mUnusedConn.getNum() << "]"
+                         << " [this = " << this << "]";
                 if (mDr->drbuf.setUnusedRaidConnection(static_cast<unsigned>(slowestConnection)))
                 {
-                    if (mUnusedRaidConnection != mReqs.size())
+                    if (mUnusedConn.getNum() != mReqs.size())
                     {
-                        resetConnection(mUnusedRaidConnection);
+                        resetConnection(mUnusedConn.getNum());
                     }
-                    mUnusedRaidConnection = slowestConnection;
+                    mUnusedConn.setUnused(slowestConnection, UnusedConn::UN_NOT_ERR);
                     ++mNumSlowConnectionsSwitches;
                     LOG_verbose << "DirectReadSlot [conn " << connectionNum << "]"
                                 << " Continuing after setting slow connection"
                                 << " [total slow connections switches = " << mNumSlowConnectionsSwitches << "]" << " [this = " << this << "]";
-                    return resetConnection(mUnusedRaidConnection);
+                    return resetConnection(mUnusedConn.getNum());
                 }
             }
         }
@@ -1559,8 +1678,8 @@ bool DirectReadSlot::decreaseReqsInflight()
         LOG_verbose << "Decreasing counter of total requests inflight: " << mNumReqsInflight << " - 1" << " [this = " << this << "]";
         assert(mNumReqsInflight > 0);
         --mNumReqsInflight;
-        if ((mUnusedRaidConnection < mReqs.size()) &&
-            (mReqs[mUnusedRaidConnection]->status != REQ_DONE) &&
+        if ((mUnusedConn.getNum() < mReqs.size()) &&
+            (mReqs[mUnusedConn.getNum()]->status != REQ_DONE) &&
             (mNumReqsInflight == (static_cast<unsigned>(mReqs.size()) - usedConnections())))
         {
             mNumReqsInflight = 0;
@@ -1644,8 +1763,10 @@ bool DirectReadSlot::doio()
     for (int connectionNum = static_cast<int>(mReqs.size()); connectionNum--; )
     {
         std::unique_ptr<HttpReq>& req = mReqs[connectionNum];
-        bool isNotUnusedConnection = !isRaid || (static_cast<unsigned>(connectionNum) != mUnusedRaidConnection);
-        bool submitCondition = req && isNotUnusedConnection && (req->status == REQ_INFLIGHT || req->status == REQ_SUCCESS);
+        bool isNotUnusedConnection =
+            !isRaid || (static_cast<unsigned>(connectionNum) != mUnusedConn.getNum());
+        bool submitCondition = req && isNotUnusedConnection &&
+                               (req->status == REQ_INFLIGHT || req->status == REQ_SUCCESS);
 
         if (submitCondition)
         {
@@ -1701,20 +1822,32 @@ bool DirectReadSlot::doio()
                     mThroughput[connectionNum].first += static_cast<m_off_t>(n);
                     mThroughput[connectionNum].second += chunkTime;
                     LOG_verbose << "DirectReadSlot [conn " << connectionNum << "] ->"
-                                << " FilePiece's going to be submitted: n = " << n << ", req->in.size = " << req->in.size() << ", req->in.capacity = " << req->in.capacity()
+                                << " FilePiece's going to be submitted: n = " << n
+                                << ", req->in.size = " << req->in.size()
+                                << ", req->in.capacity = " << req->in.capacity()
                                 << " [minChunkSize = " << minChunkSize
                                 << ", mMaxChunkSize = " << mMaxChunkSize
-                                << ", reqs.size = " << mReqs.size()
-                                << ", req->status = " << std::string(req->status == REQ_READY ? "REQ_READY" : req->status == REQ_INFLIGHT ? "REQ_INFLIGHT"
-                                                                                                          : req->status == REQ_SUCCESS    ? "REQ_SUCCESS"
-                                                                                                                                          : "REQ_SOMETHING")
-                                << ", req->httpstatus = " << req->httpstatus << ", req->contentlength = " << req->contentlength
-                                << ", numReqsInflight = " << mNumReqsInflight << ", unusedRaidConnection = " << mUnusedRaidConnection << "]"
-                                << " [chunk throughput = " << ((calcThroughput(static_cast<m_off_t>(n), chunkTime) * 1000) / 1024) << " KB/s"
-                                << ", average throughput = " << (getThroughput(connectionNum) * 1000 / 1024) << " KB/s"
-                                << ", aggregated throughput = " << (aggregatedThroughput / 1024) << " KB/s"
+                                << ", reqs.size = " << mReqs.size() << ", req->status = "
+                                << std::string(req->status == REQ_READY    ? "REQ_READY" :
+                                               req->status == REQ_INFLIGHT ? "REQ_INFLIGHT" :
+                                               req->status == REQ_SUCCESS  ? "REQ_SUCCESS" :
+                                                                             "REQ_SOMETHING")
+                                << ", req->httpstatus = " << req->httpstatus
+                                << ", req->contentlength = " << req->contentlength
+                                << ", numReqsInflight = " << mNumReqsInflight
+                                << ", unusedRaidConnection = " << mUnusedConn.getNum() << "]"
+                                << " [chunk throughput = "
+                                << ((calcThroughput(static_cast<m_off_t>(n), chunkTime) * 1000) /
+                                    1024)
+                                << " KB/s"
+                                << ", average throughput = "
+                                << (getThroughput(connectionNum) * 1000 / 1024) << " KB/s"
+                                << ", aggregated throughput = " << (aggregatedThroughput / 1024)
+                                << " KB/s"
                                 << ", maxChunkSize = " << (maxChunkSize / 1024) << " KBs]"
-                                << ", [req->pos_pre = " << (req->pos) << ", req->pos_now = " << (req->pos + n) << "]" << " [this = " << this << "]";
+                                << ", [req->pos_pre = " << (req->pos)
+                                << ", req->pos_now = " << (req->pos + n) << "]"
+                                << " [this = " << this << "]";
                     RaidBufferManager::FilePiece* np = new RaidBufferManager::FilePiece(req->pos, n);
                     memcpy(np->buf.datastart(), req->in.c_str(), n);
 
@@ -1763,14 +1896,17 @@ bool DirectReadSlot::doio()
             {
                 if (searchAndDisconnectSlowestConnection(connectionNum))
                 {
-                    LOG_verbose << "DirectReadSlot [conn " << connectionNum << "] Continue DirectReadSlot loop after disconnecting slow connection " << mUnusedRaidConnection << " [this = " << this << "]";
+                    LOG_verbose
+                        << "DirectReadSlot [conn " << connectionNum
+                        << "] Continue DirectReadSlot loop after disconnecting slow connection "
+                        << mUnusedConn.getNum() << " [this = " << this << "]";
                 }
                 bool newBufferSupplied = false, pauseForRaid = false;
                 std::pair<m_off_t, m_off_t> posrange = mDr->drbuf.nextNPosForConnection(connectionNum, newBufferSupplied, pauseForRaid);
 
                 if (newBufferSupplied)
                 {
-                    if (static_cast<unsigned>(connectionNum) == mUnusedRaidConnection)
+                    if (static_cast<unsigned>(connectionNum) == mUnusedConn.getNum())
                     {
                         // Count the "unused connection" (restored by parity) as a req inflight, so we avoid to exec this piece of code needlessly
                         increaseReqsInflight();
@@ -1819,7 +1955,7 @@ bool DirectReadSlot::doio()
                             return true;
                         }
 
-                        if (static_cast<size_t>(connectionNum) == mUnusedRaidConnection)
+                        if (static_cast<size_t>(connectionNum) == mUnusedConn.getNum())
                         {
                             LOG_err << "DirectReadSlot [conn " << connectionNum
                                     << "] We are processing unused connection";
@@ -1908,7 +2044,7 @@ void DirectReadSlot::onFailure(std::unique_ptr<HttpReq>& req, const size_t conne
         }
         else
         {
-            retry(connectionNum);
+            retryOnError(connectionNum, req->httpstatus);
         }
     }
 }
@@ -2026,14 +2162,18 @@ DirectReadSlot::DirectReadSlot(DirectRead* cdr)
         mReqs.back()->status = REQ_READY;
         mReqs.back()->type = REQ_BINARY;
     }
-    LOG_verbose << "[DirectReadSlot::DirectReadSlot] Num requests: " << numReqs << " [this = " << this << "]";
+    LOG_verbose << "[DirectReadSlot::DirectReadSlot] Num requests: " << numReqs
+                << " [this = " << this << "]";
     mThroughput.resize(mReqs.size());
-    mUnusedRaidConnection = mDr->drbuf.isRaid() ? mDr->drbuf.getUnusedRaidConnection() : mReqs.size();
-    if (mDr->drbuf.isRaid() && mUnusedRaidConnection == RAIDPARTS)
+    mUnusedConn.clear();
+    auto auxUnused = mDr->drbuf.isRaid() ? mDr->drbuf.getUnusedRaidConnection() : mReqs.size();
+    mUnusedConn.setUnused(auxUnused, UnusedConn::UN_NOT_ERR);
+    if (mDr->drbuf.isRaid() && mUnusedConn.getNum() == RAIDPARTS)
     {
-        LOG_verbose << "[DirectReadSlot::DirectReadSlot] Set initial unused raid connection to 0" << " [this = " << this << "]";
+        LOG_verbose << "[DirectReadSlot::DirectReadSlot] Set initial unused raid connection to 0"
+                    << " [this = " << this << "]";
         mDr->drbuf.setUnusedRaidConnection(0);
-        mUnusedRaidConnection = 0;
+        mUnusedConn.setUnused(0, UnusedConn::UN_NOT_ERR);
     }
     mNumSlowConnectionsSwitches = 0;
     mNumReqsInflight = 0;

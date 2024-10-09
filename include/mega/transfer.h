@@ -275,6 +275,151 @@ private:
 };
 
 /**
+ * @brief Represents unused connection in a Raided Streaming Transfer.
+ * This struct stores the connection number, the reason why is unused, and the number of backoff
+ * retries (in case of reason is UN_TEMP_ERR) before it can be reused again
+ */
+struct UnusedConn
+{
+public:
+    static constexpr unsigned int defaultBackoffRetries{5};
+    static constexpr std::array httpErrCodes = {
+        0, // NETWORK ERROR
+        403, // FORBIDDEN
+        404, // NOT FOUND
+        429, // TOO MANY REQUESTS
+        500, // INTERNAL SERVER ERROR
+        503, // SERVICE UNAVALIABLE
+    };
+
+    enum unusedReason
+    {
+        UN_INVALID = 0, // INVALID REASON
+        UN_NOT_ERR = 1, // CONNECTION CAN BE USED
+        UN_TEMP_ERR = 2, // CONNECTION CAN BE USED AFTER A BACKOFF
+        UN_DEFINITIVE_ERR = 3, // CONNECTION CANNOT BE USED ANYMORE
+    };
+
+    /**
+     * @brief Returns an unusedReason given a HTTP status code.
+     *
+     * @return An unusedReason given a HTTP status code.
+     */
+    static unusedReason getReasonFromHttpStatus(const int httpstatus)
+    {
+        switch (httpstatus)
+        {
+            case 0:
+            case 403:
+            case 404:
+            case 500:
+                return UN_DEFINITIVE_ERR;
+            case 429:
+            case 503:
+                return UN_TEMP_ERR;
+            default:
+                assert(false);
+                return UN_INVALID;
+        }
+    }
+
+    /**
+     * @brief Checks if the provided HTTP status code is valid.
+     *
+     * @return true if the HTTP status code is valid, otherwise returns false.
+     */
+    static bool isValidHttpStatus(const int httpstatus)
+    {
+        return std::find(httpErrCodes.begin(), httpErrCodes.end(), httpstatus) !=
+               httpErrCodes.end();
+    }
+
+    /**
+     * @brief Checks if the provided reason is an error reason.
+     *
+     * @return true if the reason is either `UN_TEMP_ERR` or `UN_DEFINITIVE_ERR`, otherwise returns
+     * false.
+     */
+    static bool isReasonErr(unusedReason reason)
+    {
+        return reason == UN_TEMP_ERR || reason == UN_DEFINITIVE_ERR;
+    }
+
+    /**
+     * @brief Gets the number of the unused connection.
+     *
+     * @return The number of the unused connection.
+     */
+    size_t getNum() const;
+
+    /**
+     * @brief Checks if the current reason is a temporary error.
+     *
+     * This method checks if the unused connection is a temporary error reason (`UN_TEMP_ERR`).
+     *
+     * @return true if the reason is `UN_TEMP_ERR`, otherwise returns false.
+     */
+    bool isTempReasonErr() const;
+
+    /**
+     * @brief Checks if mReason is not an error reason
+     *
+     * @return true if the reason is `UN_NOT_ERR`, otherwise returns false.
+     */
+    bool isNoReasonErr() const;
+
+    /**
+     * @brief Sets the unused connection info.
+     *
+     * This method sets the unused state of the connection, the connection number and clears
+     * mNumBackoffRetries. If reason is UN_TEMP_ERR, it also reset mNumBackoffRetries to
+     * defaultBackoffRetries
+     *
+     * @param num The number of connection
+     * @param reason The reason for marking the connection as unused
+     *
+     * @return true if the reason is valid and the connection state was updated successfully,
+     *         false if the reason is invalid.
+     */
+    bool setUnused(const size_t num, const unusedReason reason);
+
+    /**
+     * @brief Resets the unused connection state.
+     */
+    void clear();
+
+    /**
+     * @brief Decrements the temporary backoff retries counter.
+     *
+     * This method decrements the number of backoff retries, only if mReason is UN_TEMP_ERR and if
+     * it's greater than 0, otherwise it returns. If mNumBackoffRetries reaches 0 after decrement,
+     * it also resets mReason to UN_NOT_ERR
+     *
+     * If mNumBackoffRetries is greater that 0 and mReason is UN_TEMP_ERR it means that this
+     * connection cannot be used temporarily, until mNumBackoffRetries is 0 and mReason is
+     * UN_NOT_ERR
+     *
+     * @see searchAndDisconnectSlowestConnection
+     */
+    void decTempBackoffRetries();
+
+private:
+    /**
+     * @brief Checks if reason provided by param is a valid unusedReason.
+     *
+     * @return true if the reason is valid, otherwise returns false.
+     */
+    static bool isValidReason(unusedReason reason)
+    {
+        return reason == UN_NOT_ERR || reason == UN_TEMP_ERR || reason == UN_DEFINITIVE_ERR;
+    }
+
+    unsigned int mNumBackoffRetries{};
+    unusedReason mReason{UN_NOT_ERR};
+    size_t mNum{};
+};
+
+/**
 *   @brief Direct Read Slot: slot for DirectRead for connections i/o operations
 *
 *   Slot for DirectRead.
@@ -387,6 +532,13 @@ public:
      */
     static constexpr int MAX_FAILED_RAIDED_PARTS = 1;
 
+    /**
+     * @brief Max different failed raided parts of a DirectRead allowed
+     *
+     * @see DirectReadSlot::retryOnError
+     */
+    static constexpr int MAX_DIFFERENT_FAILED_RAIDED_CONNS = 1;
+
     /* ===================*\
      *      Methods       *
     \* ===================*/
@@ -461,7 +613,7 @@ public:
      *
      * @param connectionNum The connection number to retry.
      */
-    void retry(const size_t connectionNum);
+    void retryOnError(const size_t connectionNum, const int httpstatus);
 
     /**
     *   @brief Search for the slowest connection and switch it with the actual unused connection.
@@ -519,13 +671,36 @@ public:
     /**
      * @brief Increments the count of failed raided parts.
      *
-     * This method increments the counter of failed raided parts and returns the updated count.
+     * This method increments the counter of failed raided parts, and stores connNum at
+     * mFailedRaidedParts.
+     *
+     * @param connNum The number of connection
+     * @return The updated count of failed raided parts.
+     */
+    std::size_t recordFailedRaidedPart(size_t connNum)
+    {
+        mFailedRaidedParts.emplace(connNum);
+        return ++mFailedRaidedPartsCounter;
+    }
+
+    /**
+     * @brief decrements the count of failed raided parts.
      *
      * @return The updated count of failed raided parts.
      */
-    std::size_t incFailedRaidedPart()
+    std::size_t decrementFailedRaidedPartsCounter()
     {
-        return ++mFailedRaidedParts;
+        return --mFailedRaidedPartsCounter;
+    }
+
+    /**
+     * @brief gets the number of different failed raided parts (connections).
+     *
+     * @return The number of different failed raided parts.
+     */
+    std::size_t getDifferentRaidedPartsFailed() const
+    {
+        return mFailedRaidedParts.size();
     }
 
     /**
@@ -535,21 +710,8 @@ public:
      */
     void clearFailedRaidedParts()
     {
-        mFailedRaidedParts = 0;
-    }
-
-    /**
-     * @brief Checks if the maximum failed raided parts has been reached.
-     *
-     * This checks if the maximum failed raided parts (MAX_FAILED_RAIDED_PARTS) count has been
-     * reached or exceeded.
-     *
-     * @return true if the maximum count of failed raided parts has been reached or exceeded,
-     * otherwise `false`.
-     */
-    bool maxFailedRaidedReqReached() const
-    {
-        return mFailedRaidedParts >= MAX_FAILED_RAIDED_PARTS;
+        mFailedRaidedParts.clear();
+        mFailedRaidedPartsCounter = 0;
     }
 
     /**
@@ -600,7 +762,12 @@ private:
      * @brief Number of failed raided parts of a DirectRead.
      * @see DirectReadSlot::retry
      */
-    size_t mFailedRaidedParts = 0;
+    size_t mFailedRaidedPartsCounter = 0;
+
+    /**
+     * @brief Set of failed raided parts of a DirectRead.
+     */
+    std::set<size_t> mFailedRaidedParts;
 
     /**
     *   @brief Pair of <Bytes downloaded> and <Total milliseconds> for throughput calculations.
@@ -630,7 +797,7 @@ private:
     *   This value is used for detecting the slowest start connection and further search and disconnect new slowest connections.
     *   It must be synchronized with RaidBufferManager value, which is the one to be cached (so we keep it if reseting the DirectReadSlot).
     */
-    size_t mUnusedRaidConnection;
+    UnusedConn mUnusedConn;
 
     /**
     *   @brief Current total switches done, i.e.: the slowest connection being switched with the unused connection.
