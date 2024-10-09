@@ -5229,6 +5229,9 @@ autocomplete::ACN autocompleteSyntax()
                                     localFSFolder("target")))));
 
     p->Add(exec_getpricing, text("getpricing"));
+
+    p->Add(exec_collectAndPrintTransferStats,
+           sequence(text("getTransferStats"), opt(either(flag("-uploads"), flag("-downloads")))));
     return autocompleteTemplate = std::move(p);
 }
 
@@ -13416,4 +13419,46 @@ void exec_getpricing(autocomplete::ACState& s)
 {
     cout << "Getting pricing plans... " << endl;
     client->purchase_enumeratequotaitems();
+}
+
+void exec_collectAndPrintTransferStats(autocomplete::ACState& state)
+{
+    bool uploadsOnly = state.extractflag("-uploads");
+    bool downloadsOnly = state.extractflag("-downloads");
+    assert(!(uploadsOnly && downloadsOnly));
+
+    auto collectAndPrintTransfersMetricsFromType = [](direction_t transferType)
+    {
+        std::cout << "\n==================================================================="
+                  << std::endl;
+        std::cout << (transferType == PUT ? "[UploadStatistics]" : "[DownloadStatistics]")
+                  << std::endl;
+        std::cout << "Number of transfers: " << client->transferStatsManager.size(transferType)
+                  << std::endl;
+        std::cout << "Max entries: " << client->transferStatsManager.getMaxEntries(transferType)
+                  << std::endl;
+        std::cout << "Max age in seconds: "
+                  << client->transferStatsManager.getMaxAgeSeconds(transferType) << std::endl;
+        std::cout << "-------------------------------------------------------------------"
+                  << std::endl;
+        ::mega::stats::TransferStats::Metrics metrics =
+            client->transferStatsManager.collectAndPrintMetrics(transferType);
+        std::cout << metrics.toString() << std::endl;
+        std::cout << "-------------------------------------------------------------------"
+                  << std::endl;
+        std::cout << "JSON format:" << std::endl;
+        std::cout << metrics.compressWithKeysAndValues() << std::endl;
+        std::cout << "===================================================================\n"
+                  << std::endl;
+    };
+
+    if (!downloadsOnly)
+    {
+        collectAndPrintTransfersMetricsFromType(PUT);
+    }
+
+    if (!uploadsOnly)
+    {
+        collectAndPrintTransfersMetricsFromType(GET);
+    }
 }

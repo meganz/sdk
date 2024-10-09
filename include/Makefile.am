@@ -31,6 +31,7 @@ nobase_libmegainclude_HEADERS = \
 	mega/sync.h \
 	mega/transfer.h \
 	mega/transferslot.h \
+	mega/transferstats.h \
 	mega/treeproc.h \
 	mega/types.h \
 	mega/user.h \

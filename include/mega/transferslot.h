@@ -45,6 +45,8 @@ public:
     inline operator FileAccess* () { return fa.get(); }
 };
 
+namespace stats
+{
 // Transfer stats
 struct TransferSlotStats
 {
@@ -56,15 +58,16 @@ struct TransferSlotStats
 
     // Ratio between failed requests and total requests.
     double failedRequestRatio() const;
-    // Time taken to establish a connection
+    // Time (ms) taken to establish a connection
     // Includes DNS resolution, TCP handshake.
-    m_off_t averageLatency() const;
-    // Time taken to start receiving the first byte of data
+    double averageLatency() const;
+    // Time (ms) taken to start receiving the first byte of data
     // Includes DNS resolution, TCP handshake,
     // SSL handshake, server-side processing.
     // This value is used for logging information only.
     m_off_t averageStartTransferTime() const;
 };
+} // namespace stats
 
 class TransferDbCommitter;
 
@@ -193,7 +196,7 @@ struct MEGA_API TransferSlot
     bool failure;
 
     // transfer stats
-    TransferSlotStats tsStats;
+    stats::TransferSlotStats tsStats;
 
     TransferSlot(Transfer*);
     ~TransferSlot();

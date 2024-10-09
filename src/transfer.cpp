@@ -20,16 +20,17 @@
  */
 
 #include "mega/transfer.h"
-#include "mega/megaclient.h"
-#include "mega/transferslot.h"
-#include "mega/megaapp.h"
-#include "mega/sync.h"
-#include "mega/logging.h"
+
 #include "mega/base64.h"
+#include "mega/logging.h"
 #include "mega/mediafileattribute.h"
-#include "megawaiter.h"
-#include "mega/utils.h"
+#include "mega/megaapp.h"
+#include "mega/megaclient.h"
+#include "mega/sync.h"
 #include "mega/testhooks.h"
+#include "mega/transferslot.h"
+#include "mega/utils.h"
+#include "megawaiter.h"
 
 namespace mega {
 
@@ -605,6 +606,17 @@ void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ LocalPath&
 bool Transfer::isForSupport() const
 {
     return type == PUT && !files.empty() && files.back()->targetuser == MegaClient::SUPPORT_USER_HANDLE;
+}
+
+bool Transfer::addTransferStats()
+{
+    if (!client)
+    {
+        LOG_err << "[Transfer::addTransferStats] called with a NULL MEGAclient";
+        assert(false && "[Transfer::addTransferStats] called with a NULL MEGAclient");
+        return false;
+    }
+    return client->mTransferStatsManager.addTransferStats(this);
 }
 
 FileDistributor::TargetNameExistsResolution Transfer::toTargetNameExistsResolution(CollisionResolution resolution)

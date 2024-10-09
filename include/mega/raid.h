@@ -152,12 +152,13 @@ namespace mega {
         enum { RaidReadAheadChunksPausePoint = 8 };
         enum { RaidReadAheadChunksUnpausePoint = 4 };
 
-        bool is_raid;
-        bool is_newRaid;
-        bool raidKnown;
-        m_off_t deliverlimitpos;   // end of the data that the client requested
-        m_off_t acquirelimitpos;   // end of the data that we need to deliver that (can be up to the next raidline boundary)
-        m_off_t fullfilesize;      // end of the file
+        bool is_raid{};
+        bool is_newRaid{};
+        bool raidKnown{};
+        m_off_t deliverlimitpos{}; // end of the data that the client requested
+        m_off_t acquirelimitpos{}; // end of the data that we need to deliver that (can be up to the
+                                   // next raidline boundary)
+        m_off_t fullfilesize{}; // end of the file
 
         // controls buffer sizes used
         unsigned raidLinesPerChunk;

@@ -415,7 +415,7 @@ public:
         m_off_t numTotalRequests{};
         double failedRequestRatio{};
 
-        SdkTestTransferStats& operator=(const TransferSlotStats& transferSlotStats)
+        SdkTestTransferStats& operator=(const stats::TransferSlotStats& transferSlotStats)
         {
             numFailedRequests = transferSlotStats.mNumFailedRequests;
             numTotalRequests = transferSlotStats.mNumTotalRequests;

@@ -47,6 +47,7 @@
     <ClCompile Include="..\..\src\sync.cpp" />
     <ClCompile Include="..\..\src\transfer.cpp" />
     <ClCompile Include="..\..\src\transferslot.cpp" />
+    <ClCompile Include="..\..\src\transferstats.cpp" />
     <ClCompile Include="..\..\src\treeproc.cpp" />
     <ClCompile Include="..\..\src\user.cpp" />
     <ClCompile Include="..\..\src\useralerts.cpp" />
