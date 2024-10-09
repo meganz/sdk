@@ -12575,14 +12575,14 @@ void exec_getvpnregions(autocomplete::ACState& s)
 {
     cout << "Getting the list of VPN regions" << endl;
     client->getVpnRegions([]
-            (const Error& e, std::vector<std::string>&& vpnRegions)
+            (const Error& e, std::vector<VpnRegion>&& vpnRegions)
             {
                 if (e == API_OK)
                 {
                     cout << "List of VPN regions:" << endl;
                     for (size_t i = 0; i < vpnRegions.size(); i++)
                     {
-                        cout << (i+1) << ". " << vpnRegions[i] << "." << endl;
+                        cout << (i+1) << ". " << vpnRegions[i].getName() << "." << endl;
                     }
                 }
                 else
@@ -12615,7 +12615,7 @@ void exec_getvpncredentials(autocomplete::ACState& s)
             (const Error& e,
             CommandGetVpnCredentials::MapSlotIDToCredentialInfo&& mapSlotIDToCredentialInfo, /* Map of SlotID: { ClusterID, IPv4, IPv6, DeviceID } */
             CommandGetVpnCredentials::MapClusterPublicKeys&& mapClusterPubKeys, /* Map of ClusterID: Cluster Public Key */
-            std::vector<std::string>&& vpnRegions /* VPN Regions */)
+            std::vector<VpnRegion>&& vpnRegions /* VPN Regions */)
             {
                 if (e == API_OK)
                 {
@@ -12701,7 +12701,7 @@ void exec_getvpncredentials(autocomplete::ACState& s)
                             cout << "===================================================" << endl;
                             for (size_t i = 0; i < vpnRegions.size(); i++)
                             {
-                                cout << (i+1) << ". " << vpnRegions[i] << "." << endl;
+                                cout << (i+1) << ". " << vpnRegions[i].getName() << "." << endl;
                             }
                             cout << "===================================================" << endl;
                         }

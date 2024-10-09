@@ -30,6 +30,7 @@
 #include "megaapi.h"
 
 #include "mega/heartbeats.h"
+#include "mega/command.h"
 
 #define CRON_USE_LOCAL_TIME 1
 #include "mega/mega_ccronexpr.h"
@@ -5259,9 +5260,11 @@ public:
     using MapSlotIDToCredentialInfo = CommandGetVpnCredentials::MapSlotIDToCredentialInfo;
     using MapClusterPublicKeys = CommandGetVpnCredentials::MapClusterPublicKeys;
 
-    MegaVpnCredentialsPrivate(MapSlotIDToCredentialInfo&&, MapClusterPublicKeys&&, MegaStringList*);
+    MegaVpnCredentialsPrivate(MapSlotIDToCredentialInfo&&,
+                              MapClusterPublicKeys&&,
+                              std::vector<VpnRegion>&&);
     MegaVpnCredentialsPrivate(const MegaVpnCredentialsPrivate&);
-    ~MegaVpnCredentialsPrivate();
+    ~MegaVpnCredentialsPrivate() override = default;
 
     MegaIntegerList* getSlotIDs() const override;
     MegaStringList* getVpnRegions() const override;
@@ -5275,7 +5278,7 @@ public:
 private:
     MapSlotIDToCredentialInfo mMapSlotIDToCredentialInfo;
     MapClusterPublicKeys mMapClusterPubKeys;
-    std::unique_ptr<MegaStringList> mVpnRegions;
+    std::vector<VpnRegion> mVpnRegions;
 };
 
 class MegaNodeTreePrivate: public MegaNodeTree

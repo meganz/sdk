@@ -26926,12 +26926,16 @@ void MegaApiImpl::getVpnRegions(MegaRequestListener* listener)
 
     request->performRequest = [this, request]()
     {
-        client->getVpnRegions([this, request]
-            (const Error& e, std::vector<std::string>&& vpnRegions)
+        client->getVpnRegions(
+            [this, request](const Error& e, std::vector<VpnRegion>&& vpnRegions)
             {
                 if (e == API_OK && !vpnRegions.empty())
                 {
-                    auto vpnRegionsMegaStringList = std::make_unique<MegaStringListPrivate>(std::move(vpnRegions));
+                    auto vpnRegionsMegaStringList = std::make_unique<MegaStringListPrivate>();
+                    for (const auto& r: vpnRegions)
+                    {
+                        vpnRegionsMegaStringList->add(r.getName().c_str());
+                    }
                     request->setMegaStringList(vpnRegionsMegaStringList.get());
                 }
 
@@ -26954,12 +26958,14 @@ void MegaApiImpl::getVpnCredentials(MegaRequestListener* listener)
             (const Error& e,
             CommandGetVpnCredentials::MapSlotIDToCredentialInfo&& mapSlotIDToCredentialInfo, /* Map of SlotID: { ClusterID, IPv4, IPv6, DeviceID } */
             CommandGetVpnCredentials::MapClusterPublicKeys&& mapClusterPubKeys, /* Map of ClusterID: Cluster Public Key */
-            std::vector<std::string>&& vpnRegions /* VPN Regions */)
+            std::vector<VpnRegion>&& vpnRegions /* VPN Regions */)
             {
                 if (e == API_OK && !mapSlotIDToCredentialInfo.empty() && !mapClusterPubKeys.empty() && !vpnRegions.empty())
                 {
-                    auto vpnRegionsMegaStringList = std::make_unique<MegaStringListPrivate>(std::move(vpnRegions));
-                    request->setMegaVpnCredentials(new MegaVpnCredentialsPrivate(std::move(mapSlotIDToCredentialInfo), std::move(mapClusterPubKeys), vpnRegionsMegaStringList.get()));
+                    request->setMegaVpnCredentials(
+                        new MegaVpnCredentialsPrivate(std::move(mapSlotIDToCredentialInfo),
+                                                      std::move(mapClusterPubKeys),
+                                                      std::move(vpnRegions)));
                 }
 
                 fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
@@ -39349,25 +39355,20 @@ bool MegaCancelTokenPrivate::isCancelled() const
 }
 
 /* MegaVpnCredentialsPrivate BEGIN */
-MegaVpnCredentialsPrivate::MegaVpnCredentialsPrivate(MapSlotIDToCredentialInfo&& mapSlotIDToCredentialInfo,
-                                                    MapClusterPublicKeys&& mapClusterPubKeys,
-                                                    MegaStringList* vpnRegions) :
+MegaVpnCredentialsPrivate::MegaVpnCredentialsPrivate(
+    MapSlotIDToCredentialInfo&& mapSlotIDToCredentialInfo,
+    MapClusterPublicKeys&& mapClusterPubKeys,
+    std::vector<VpnRegion>&& vpnRegions):
     mMapSlotIDToCredentialInfo(std::move(mapSlotIDToCredentialInfo)),
-    mMapClusterPubKeys(std::move(mapClusterPubKeys))
-{
-    mVpnRegions.reset(vpnRegions->copy());
-}
+    mMapClusterPubKeys(std::move(mapClusterPubKeys)),
+    mVpnRegions(std::move(vpnRegions))
+{}
 
-MegaVpnCredentialsPrivate::MegaVpnCredentialsPrivate(const MegaVpnCredentialsPrivate& otherMegaVpnCredentialsPrivate)
-{
-    mMapSlotIDToCredentialInfo = otherMegaVpnCredentialsPrivate.mMapSlotIDToCredentialInfo;
-    mMapClusterPubKeys = otherMegaVpnCredentialsPrivate.mMapClusterPubKeys;
-    mVpnRegions.reset(otherMegaVpnCredentialsPrivate.mVpnRegions->copy());
-}
-
-MegaVpnCredentialsPrivate::~MegaVpnCredentialsPrivate()
-{
-}
+MegaVpnCredentialsPrivate::MegaVpnCredentialsPrivate(const MegaVpnCredentialsPrivate& other):
+    mMapSlotIDToCredentialInfo{other.mMapSlotIDToCredentialInfo},
+    mMapClusterPubKeys{other.mMapClusterPubKeys},
+    mVpnRegions{other.mVpnRegions}
+{}
 
 MegaIntegerList* MegaVpnCredentialsPrivate::getSlotIDs() const
 {
@@ -39381,7 +39382,12 @@ MegaIntegerList* MegaVpnCredentialsPrivate::getSlotIDs() const
 
 MegaStringList* MegaVpnCredentialsPrivate::getVpnRegions() const
 {
-    return mVpnRegions->copy();
+    MegaStringList* regions = MegaStringList::createInstance();
+    for (const auto& r : mVpnRegions)
+    {
+        regions->add(r.getName().c_str());
+    }
+    return regions;
 }
 
 const char* MegaVpnCredentialsPrivate::getIPv4(int slotID) const

@@ -1905,14 +1905,49 @@ public:
 };
 
 /* MegaVPN Commands BEGIN */
+class VpnCluster
+{
+public:
+    VpnCluster(std::string&& host, std::vector<std::string>&& dns):
+        mHost{std::move(host)},
+        mDns{std::move(dns)}
+    {}
+
+private:
+    std::string mHost; // "nz.vpn.mega.nz"
+    std::vector<std::string> mDns; // {"8.8.8.8", "8.8.4.4", ...}
+};
+
+class VpnRegion
+{
+public:
+    VpnRegion(std::string&& name):
+        mName{std::move(name)}
+    {}
+
+    const std::string& getName() const
+    {
+        return mName;
+    }
+
+    void addCluster(int id, VpnCluster&& cluster)
+    {
+        mClusters.emplace(id, std::move(cluster));
+    }
+
+private:
+    std::string mName; // "NZ", "JP", "CA-WEST", ...
+    std::map<int, VpnCluster> mClusters;
+};
+
 class MEGA_API CommandGetVpnRegions : public Command
 {
 public:
     using Cb = std::function<void(const Error& /* API error */,
-                                std::vector<std::string>&& /* VPN regions */)>;
+                                  std::vector<VpnRegion>&& /* VPN regions */)>;
     CommandGetVpnRegions(MegaClient*, Cb&& completion = nullptr);
     bool procresult(Result, JSON&) override;
-    static void parseregions(JSON& json, std::vector<std::string>*);
+    static bool parseRegions(JSON& json, std::vector<VpnRegion>* vpnRegions);
 
 private:
     Cb mCompletion;
@@ -1933,7 +1968,7 @@ public:
     using Cb = std::function<void(const Error& /* API error */,
                                 MapSlotIDToCredentialInfo&& /* Map of SlotID: { ClusterID, IPv4, IPv6, DeviceID } */,
                                 MapClusterPublicKeys&& /* Map of ClusterID: Cluster Public Key */,
-                                std::vector<std::string>&& /* VPN Regions */)>;
+                                std::vector<VpnRegion>&& /* VPN Regions */)>;
     CommandGetVpnCredentials(MegaClient*, Cb&& completion = nullptr);
     bool procresult(Result, JSON&) override;
 
