@@ -278,7 +278,7 @@ target_sources_conditional(SDKlib
 )
 
 target_sources_conditional(SDKlib
-    FLAG NOT HAVE_GLOB_H AND NOT WIN32
+    FLAG (NOT HAVE_GLOB_H AND NOT WIN32) OR ANDROID
     PRIVATE
     include/mega/mega_glob.h
     src/mega_glob.c
