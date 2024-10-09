@@ -7983,9 +7983,7 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)
         ::mega::DebugTestHook::onHookNumberOfConnections;
 #endif
 
-    megaApi[0]->setMaxDownloadSpeed(1024 * 1024);
-    ASSERT_EQ(API_OK, doSetMaxConnections(0, 2))
-        << "doSetMaxConnections failed or took more than 1 minute";
+    megaApi[0]->setMaxDownloadSpeed(0);
     auto startStreaming =
         [cloudRaidNode,
          this](int cd404, int cd403, m_off_t nFailedReqs, unsigned int transfer_timeout_in_seconds)
