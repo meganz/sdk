@@ -544,6 +544,28 @@ public:
     \* ===================*/
 
     /**
+     * @brief Retries the entire direct read transfer upon a failure.
+     *
+     * This function is called when a transfer has failed, and it is responsible for
+     * resetting any failed parts and retrying the operation.
+     *
+     * @param err The error code that caused the failure
+     * @param timeleft The time after which the transfer is retried
+     */
+    void retryEntireTransfer(const Error& e, dstime timeleft = 0);
+
+    /**
+     * @brief Manages low speed raided direct read transfer
+     *
+     * The function finds the slowest connection, and replaces it by unused connection if posible,
+     * Otherwise entire transfer is retried.
+     *
+     * @note This function is called from watchOverDirectReadPerformance that monitors the speed of
+     * the entire raided transfer.
+     */
+    void onLowSpeedRaidedTransfer();
+
+    /**
     *   @brief Main i/o loop (process every HTTP req from req vector).
     *
     *   @return True if connection must be retried, False to continue as normal.

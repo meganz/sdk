@@ -1468,7 +1468,7 @@ void DirectReadSlot::retryOnError(const size_t connectionNum, const int httpstat
     if (!mDr->drbuf.isRaid())
     {
         LOG_verbose << "DirectReadSlot::retry: Retrying DirectRead Transfer";
-        mDr->drn->retry(API_EREAD);
+        retryEntireTransfer(API_EREAD);
     }
     else
     {
@@ -1520,9 +1520,7 @@ void DirectReadSlot::retryOnError(const size_t connectionNum, const int httpstat
             {
                 msg += "We will retry entire transfer";
                 LOG_debug << msg;
-                clearFailedRaidedParts();
-                mUnusedConn.clear();
-                mDr->drn->retry(API_EREAD);
+                retryEntireTransfer(API_EREAD);
                 return;
             }
             else
@@ -1542,6 +1540,68 @@ void DirectReadSlot::retryOnError(const size_t connectionNum, const int httpstat
         assert(mDr->drbuf.setUnusedRaidConnection(static_cast<unsigned>(connectionNum)));
         assert(resetConnection(mUnusedConn.getNum()));
         assert(mUnusedConn.setUnused(connectionNum, reason));
+        assert(resetConnection(mUnusedConn.getNum()));
+    }
+}
+
+void DirectReadSlot::retryEntireTransfer(const Error& e, dstime timeleft)
+{
+    clearFailedRaidedParts();
+    mUnusedConn.clear();
+    mDr->drn->retry(e, timeleft);
+}
+
+void DirectReadSlot::onLowSpeedRaidedTransfer()
+{
+    if (!mDr->drbuf.isRaid() ||
+        mNumSlowConnectionsSwitches >=
+            DirectReadSlot::MAX_SLOW_CONNECTION_SWITCHES || // Limit for connection switches
+        !mUnusedConn
+             .isNoReasonErr()) // mUnusedConn has failed (no matter if temp or definitive err), and
+                               // another one has detected too slow (retry entire transfer)
+    {
+        LOG_warn << "DirectReadSlot: onLowSpeedRaidedTransfer -> Transfer speed too low for "
+                    "streaming. Retrying entire transfer"
+                 << " [this = " << this << "]";
+        retryEntireTransfer(API_EREAD);
+        return;
+    }
+
+    size_t slowestConnectionIndex = mReqs.size(); // init to invalid conn num
+    m_off_t slowestThroughput = 0; // init slowest throughput
+
+    for (size_t i = 0; i < mReqs.size(); ++i)
+    {
+        if (!mReqs[i] || i == mUnusedConn.getNum())
+        {
+            continue;
+        }
+
+        if (mThroughput[i].second && mThroughput[i].first >= mMinComparableThroughput)
+        {
+            m_off_t currentThroughput = getThroughput(i);
+            if (auto invalidIdx = slowestConnectionIndex == mReqs.size();
+                invalidIdx || currentThroughput < slowestThroughput)
+            {
+                slowestConnectionIndex = i;
+                slowestThroughput = currentThroughput;
+            }
+        }
+    }
+
+    if (slowestConnectionIndex == mUnusedConn.getNum() || slowestConnectionIndex >= mReqs.size())
+    {
+        LOG_warn << "DirectReadSlot: onLowSpeedRaidedTransfer -> Cannot find another raided part "
+                    "for replacement. Retrying entire transfer"
+                 << " [this = " << this << "]";
+        retryEntireTransfer(API_EAGAIN);
+    }
+    else
+    {
+        ++mNumSlowConnectionsSwitches;
+        assert(mDr->drbuf.setUnusedRaidConnection(static_cast<unsigned>(slowestConnectionIndex)));
+        assert(resetConnection(mUnusedConn.getNum()));
+        assert(mUnusedConn.setUnused(slowestConnectionIndex, UnusedConn::UN_NOT_ERR));
         assert(resetConnection(mUnusedConn.getNum()));
     }
 }
@@ -1738,7 +1798,7 @@ bool DirectReadSlot::watchOverDirectReadPerformance()
                 return false;
             }
             LOG_warn << "DirectReadSlot: Watchdog -> Transfer speed too low for streaming. Retrying" << " [this = " << this << "]";
-            mDr->drn->retry(API_EAGAIN);
+            onLowSpeedRaidedTransfer();
             return true;
         }
         else
@@ -2040,7 +2100,7 @@ void DirectReadSlot::onFailure(std::unique_ptr<HttpReq>& req, const size_t conne
                 << "DirectReadSlot Bandwidth overquota from storage server for streaming transfer"
                 << " [this = " << this << "]";
             dstime backoff = mDr->drn->client->overTransferQuotaBackoff(req.get());
-            mDr->drn->retry(API_EOVERQUOTA, backoff);
+            retryEntireTransfer(API_EOVERQUOTA, backoff);
         }
         else
         {
