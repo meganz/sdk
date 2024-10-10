@@ -3904,6 +3904,15 @@ CommandSendDevCommand::CommandSendDevCommand(MegaClient* client,
         if (cp) arg("c", cp);
         arg("g", us);
     }
+    else if (strcmp(command, "sal") == 0)
+    {
+        // Account level.
+        arg("al", us);
+
+        // Quota length in months.
+        arg("m", q);
+    }
+
     tag = client->reqtag;
 }
 

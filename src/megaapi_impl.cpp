@@ -23770,13 +23770,15 @@ void MegaApiImpl::sendDevCommand(const char* command, const char* email, long lo
             int bs = request->getAccess();
             int us = request->getNumDetails();
 
+            bool isSalSubcmd = !strcmp(command, "sal");
             bool isOdqSubcmd = !strcmp(command, "aodq");
             bool isTqSubcmd = !strcmp(command, "tq");
             bool isBsSubcmd = !strcmp(command, "bs");
             bool isUsSubcmd = !strcmp(command, "us");
             bool isFrSubcmd = !strcmp(command, "fr");   // force reload via -6 on sc channel
 
-            if (!isOdqSubcmd && !isTqSubcmd && !isBsSubcmd && !isUsSubcmd && !isFrSubcmd)
+            if (!isOdqSubcmd && !isTqSubcmd && !isBsSubcmd && !isUsSubcmd && !isFrSubcmd &&
+                !isSalSubcmd)
             {
                 return API_EARGS;
             }

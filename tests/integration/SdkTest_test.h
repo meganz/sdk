@@ -1058,6 +1058,14 @@ public:
 
     /* MegaVpnCredentials END */
 
+    template<typename... requestArgs>
+    int setAccountLevel(unsigned apiIndex, requestArgs... args)
+    {
+        RequestTracker rt(megaApi[apiIndex].get());
+        megaApi[apiIndex]->sendSetAccountLevelDevCommand(args..., &rt);
+        return rt.waitForResult();
+    }
+
     template<typename... Arguments>
     int setThumbnail(MegaApi& client, Arguments... arguments)
     {
