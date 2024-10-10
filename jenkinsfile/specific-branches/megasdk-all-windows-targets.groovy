@@ -43,12 +43,12 @@ pipeline {
                 //Build SDK
                 sh "echo Building SDK x64"
                 sh "rm -rf ${BUILD_DIR}; mkdir ${BUILD_DIR}"
-                sh "cmake -DVCPKG_ROOT='${VCPKGPATH}' -DCMAKE_PREFIX_PATH='${QTPATH}'\\\\x64 -DCMAKE_VERBOSE_MAKEFILE=ON -DENABLE_QT_BINDINGS=ON -DENABLE_LOG_PERFORMANCE=ON -DENABLE_LIBUV=ON -DCMAKE_GENERATOR_PLATFORM=x64 -S '${WORKSPACE}' -B '${WORKSPACE}'\\\\build_dir\\\\"
+                sh "cmake -DVCPKG_ROOT='${VCPKGPATH}' -DCMAKE_PREFIX_PATH='${QTPATH}'\\\\x64 -DCMAKE_VERBOSE_MAKEFILE=ON -DENABLE_QT_BINDINGS=ON -DENABLE_LOG_PERFORMANCE=ON -DUSE_LIBUV=ON -DCMAKE_GENERATOR_PLATFORM=x64 -S '${WORKSPACE}' -B '${WORKSPACE}'\\\\build_dir\\\\"
                 sh "cmake --build '${WORKSPACE}'\\\\build_dir\\\\ --config RelWithDebInfo -j 1"
 
                 sh "echo Building SDK x86"
                 sh "rm -rf build_dir_x86; mkdir build_dir_x86"
-                sh "cmake -DVCPKG_ROOT='${VCPKGPATH}' -DCMAKE_PREFIX_PATH='${QTPATH}'\\\\x86 -DCMAKE_VERBOSE_MAKEFILE=ON -DENABLE_QT_BINDINGS=ON -DENABLE_LOG_PERFORMANCE=ON -DENABLE_LIBUV=ON -DCMAKE_GENERATOR_PLATFORM=Win32 -DENABLE_SDKLIB_WERROR=OFF -S '${WORKSPACE}' -B '${WORKSPACE}'\\\\build_dir_x86\\\\"
+                sh "cmake -DVCPKG_ROOT='${VCPKGPATH}' -DCMAKE_PREFIX_PATH='${QTPATH}'\\\\x86 -DCMAKE_VERBOSE_MAKEFILE=ON -DENABLE_QT_BINDINGS=ON -DENABLE_LOG_PERFORMANCE=ON -DUSE_LIBUV=ON -DCMAKE_GENERATOR_PLATFORM=Win32 -DENABLE_SDKLIB_WERROR=OFF -S '${WORKSPACE}' -B '${WORKSPACE}'\\\\build_dir_x86\\\\"
                 sh "cmake --build '${WORKSPACE}'\\\\build_dir_x86\\\\ --config RelWithDebInfo -j 1"
             }
         }    
@@ -57,7 +57,7 @@ pipeline {
         always {
             script {
                 if (params.RESULT_TO_SLACK) {
-                    sdk_commit = sh(script: "git -C ${windows_sources_workspace} rev-parse HEAD", returnStdout: true).trim()
+                    sdk_commit = sh(script: "git -C '${windows_sources_workspace}' rev-parse HEAD", returnStdout: true).trim()
                     messageStatus = currentBuild.currentResult
                     messageColor = messageStatus == 'SUCCESS'? "#00FF00": "#FF0000" //green or red
                     message = """
