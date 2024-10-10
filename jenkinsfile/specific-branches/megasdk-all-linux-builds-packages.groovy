@@ -167,7 +167,7 @@ pipeline {
                     messageStatus = currentBuild.currentResult
                     messageColor = messageStatus == 'SUCCESS'? "#00FF00": "#FF0000" //green or red
                     message = """
-                        Jenkins job #${BUILD_ID} ended with status '${messageStatus}'.
+                        Linux jenkins job #${BUILD_ID} ended with status '${messageStatus}'.
                         See: ${BUILD_URL}
                         SDK branch: `${SDK_BRANCH}`
                         SDK_commit: `${sdk_commit}`
