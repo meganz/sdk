@@ -19732,6 +19732,59 @@ TEST_F(SdkTest, CreditCardCancelSubscriptions)
     }
 }
 
+#ifdef DEBUG
+
+TEST_F(SdkTest, SdkTestSetAccountLevel)
+{
+    // Make sure we can transition between account levels.
+    auto check = [this](MegaApi& api, int months, int plan)
+    {
+        // Try and set the account level.
+        auto result = setAccountLevel(api, plan, months, nullptr);
+
+        EXPECT_EQ(result, API_OK) << "Couldn't set account level: " << result;
+
+        // Make sure the account level actually changed.
+        if (result == API_OK)
+        {
+            auto m = 0;
+            auto p = 0;
+
+            // Try and retrieve the account level.
+            std::tie(m, p, result) = getAccountLevel(api);
+
+            EXPECT_EQ(result, API_OK) << "Couldn't retrieve account level: " << result;
+
+            // Make sure the account level actually changed.
+            EXPECT_EQ(m, months);
+            EXPECT_EQ(p, plan);
+        }
+
+        return result;
+    }; // check
+
+    // Get an account for us to play with.
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // Convenience.
+    constexpr auto FREE = MegaAccountDetails::ACCOUNT_TYPE_FREE;
+    constexpr auto PRO = MegaAccountDetails::ACCOUNT_TYPE_PROI;
+
+    // Convenience.
+    auto& api = *megaApi[0];
+
+    // Make sure any modifications we make are reversed.
+    auto restorer = makeScopedAccountLevelRestorer(api);
+
+    // Make sure we can change to a free plan.
+    EXPECT_EQ(check(api, 0, FREE), API_OK);
+
+    // Make sure we can change to a pro plan.
+    EXPECT_EQ(check(api, 1, PRO), API_OK);
+}
+
+#endif
+
 TEST_F(SdkTest, FailsWhenThumbnailIsTooLarge)
 {
     // Convenience.
