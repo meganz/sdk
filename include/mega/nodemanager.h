@@ -425,6 +425,7 @@ public:
     uint64_t getNumNodesAtCacheLRU() const;
 
     // true when the filesystem has been initialized
+    // i.e., when nodes have been fully loaded from a fetchnodes or from cache
     bool ready();
 
 private:
