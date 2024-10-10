@@ -1,5 +1,3 @@
-[[_TOC_]]
-
 # MEGA SDK - Client Access Engine <a href="https://scan.coverity.com/projects/4315"><img alt="Coverity Scan Build Status" src="https://scan.coverity.com/projects/4315/badge.svg"/></a>
 
 MEGA --- _The Privacy Company_ --- is a Secure Cloud Storage
