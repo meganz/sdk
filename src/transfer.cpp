@@ -1315,16 +1315,16 @@ size_t UnusedConn::getNum() const
     return mNum;
 }
 
-bool UnusedConn::isTempReasonErr() const
+bool UnusedConn::isTempErrReason() const
 {
     auto isTempErr = mReason == UN_TEMP_ERR;
     assert(!isTempErr || mNumBackoffRetries > 0);
     return isTempErr;
 }
 
-bool UnusedConn::isNoReasonErr() const
+bool UnusedConn::isErrReason() const
 {
-    return mReason == UN_NOT_ERR;
+    return mReason == UN_TEMP_ERR || mReason == UN_DEFINITIVE_ERR;
 }
 
 bool UnusedConn::setUnused(const size_t num, const unusedReason reason)
@@ -1356,7 +1356,7 @@ void UnusedConn::clear()
 
 void UnusedConn::decTempBackoffRetries()
 {
-    if (!isTempReasonErr())
+    if (!isTempErrReason())
     {
         return;
     }
@@ -1503,7 +1503,7 @@ void DirectReadSlot::retryOnError(const size_t connectionNum, const int httpstat
         }
 
         auto reason = UnusedConn::getReasonFromHttpStatus(httpstatus);
-        if (!UnusedConn::isReasonErr(reason))
+        if (reason != UnusedConn::UN_TEMP_ERR && reason != UnusedConn::UN_DEFINITIVE_ERR)
         {
             LOG_err << "DirectReadSlot::retry [Raided]: invalid httpstatus: " << httpstatus;
             assert(false);
@@ -1519,6 +1519,14 @@ void DirectReadSlot::retryOnError(const size_t connectionNum, const int httpstat
             if (getDifferentRaidedPartsFailed() > MAX_DIFFERENT_FAILED_RAIDED_CONNS)
             {
                 msg += "We will retry entire transfer";
+                LOG_debug << msg;
+                retryEntireTransfer(API_EREAD);
+                return;
+            }
+            else if (mUnusedConn.isErrReason())
+            {
+                msg += "We cannot replace failed part by unused one as it's also failed. Retry "
+                       "entire transfer";
                 LOG_debug << msg;
                 retryEntireTransfer(API_EREAD);
                 return;
@@ -1556,9 +1564,8 @@ void DirectReadSlot::onLowSpeedRaidedTransfer()
     if (!mDr->drbuf.isRaid() ||
         mNumSlowConnectionsSwitches >=
             DirectReadSlot::MAX_SLOW_CONNECTION_SWITCHES || // Limit for connection switches
-        !mUnusedConn
-             .isNoReasonErr()) // mUnusedConn has failed (no matter if temp or definitive err), and
-                               // another one has detected too slow (retry entire transfer)
+        mUnusedConn.isErrReason()) // mUnusedConn has failed (no matter if temp or definitive err),
+                                   // and another one has detected too slow (retry entire transfer)
     {
         LOG_warn << "DirectReadSlot: onLowSpeedRaidedTransfer -> Transfer speed too low for "
                     "streaming. Retrying entire transfer"
@@ -1621,16 +1628,16 @@ bool DirectReadSlot::searchAndDisconnectSlowestConnection(size_t connectionNum)
         return false;
     }
 
-    if (auto isErrReason = !mUnusedConn.isNoReasonErr(); isErrReason)
+    if (mUnusedConn.isErrReason())
     {
-        if (mUnusedConn.isTempReasonErr())
+        if (mUnusedConn.isTempErrReason())
         {
             // if unused connection is temporarily failed (UN_TEMP_ERR), decrements retries backoff
             // and then checks if connection can be reused now, if false return. At next call to
             // this method will decrements counter again, until it reaches 0 and it's status is
             // UN_NOT_ERR
             mUnusedConn.decTempBackoffRetries();
-            if (mUnusedConn.isTempReasonErr())
+            if (mUnusedConn.isTempErrReason())
             {
                 return false;
             }

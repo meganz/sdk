@@ -335,17 +335,6 @@ public:
     }
 
     /**
-     * @brief Checks if the provided reason is an error reason.
-     *
-     * @return true if the reason is either `UN_TEMP_ERR` or `UN_DEFINITIVE_ERR`, otherwise returns
-     * false.
-     */
-    static bool isReasonErr(unusedReason reason)
-    {
-        return reason == UN_TEMP_ERR || reason == UN_DEFINITIVE_ERR;
-    }
-
-    /**
      * @brief Gets the number of the unused connection.
      *
      * @return The number of the unused connection.
@@ -359,14 +348,14 @@ public:
      *
      * @return true if the reason is `UN_TEMP_ERR`, otherwise returns false.
      */
-    bool isTempReasonErr() const;
+    bool isTempErrReason() const;
 
     /**
-     * @brief Checks if mReason is not an error reason
+     * @brief Checks if mReason is an error reason
      *
-     * @return true if the reason is `UN_NOT_ERR`, otherwise returns false.
+     * @return true if the reason is `UN_TEMP_ERR` or `UN_DEFINITIVE_ERR`, otherwise returns false.
      */
-    bool isNoReasonErr() const;
+    bool isErrReason() const;
 
     /**
      * @brief Sets the unused connection info.
