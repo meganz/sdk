@@ -48,7 +48,7 @@ pipeline {
 
                 sh "echo Building SDK x86"
                 sh "rm -rf build_dir_x86; mkdir build_dir_x86"
-                sh "cmake -DVCPKG_ROOT='${VCPKGPATH}' -DCMAKE_PREFIX_PATH='${QTPATH}'\\\\x86 -DCMAKE_VERBOSE_MAKEFILE=ON -DENABLE_QT_BINDINGS=ON -DENABLE_LOG_PERFORMANCE=ON -DUSE_LIBUV=ON -DCMAKE_GENERATOR_PLATFORM=Win32 -DENABLE_SDKLIB_WERROR=OFF -S '${WORKSPACE}' -B '${WORKSPACE}'\\\\build_dir_x86\\\\"
+                sh "cmake -DVCPKG_ROOT='${VCPKGPATH}' -DCMAKE_PREFIX_PATH='${QTPATH}'\\\\x86 -DCMAKE_VERBOSE_MAKEFILE=ON -DENABLE_QT_BINDINGS=ON -DENABLE_LOG_PERFORMANCE=ON -DUSE_LIBUV=ON -DCMAKE_GENERATOR_PLATFORM=Win32 -DENABLE_SDKLIB_WERROR=ON -S '${WORKSPACE}' -B '${WORKSPACE}'\\\\build_dir_x86\\\\"
                 sh "cmake --build '${WORKSPACE}'\\\\build_dir_x86\\\\ --config RelWithDebInfo -j 1"
             }
         }    
