@@ -326,7 +326,7 @@ const char* errorstring(error e)
             return "Over Disk Quota Paywall";
         case API_ESUBUSERKEYMISSING:
             return "A business error where a subuser has not yet encrypted their master key for "
-                   "the admin user and tries to perform a disallowed command (currently u  and p )";
+                   "the admin user and tries to perform a disallowed command (currently u and p)";
         case LOCAL_ENOSPC:
             return "Insufficient disk space";
         default:
