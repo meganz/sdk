@@ -6821,6 +6821,7 @@ namespace mega
         static int countdownToOverquota;
         static int countdownTo404;
         static int countdownTo403;
+        static int countdownTo429;
         static int countdownToTimeout;
         static bool isRaid;
         static bool isRaidKnown;
@@ -6870,6 +6871,14 @@ namespace mega
                     LOG_info << "SIMULATING HTTP GET 403";
                     return true;
                 }
+                if (countdownTo429-- == 0)
+                {
+                    req->httpstatus = 429;
+                    req->status = REQ_FAILURE;
+
+                    LOG_info << "SIMULATING HTTP GET 429";
+                    return true;
+                }
             }
             return false;
         }
@@ -6917,6 +6926,7 @@ namespace mega
             countdownToOverquota = 3;
             countdownTo404 = 5;
             countdownTo403 = 10;
+            countdownTo429 = 20;
             countdownToTimeout = 15;
             isRaid = false;
             isRaidKnown = false;
@@ -6938,6 +6948,7 @@ namespace mega
     bool DebugTestHook::isRaidKnown = false;
     int DebugTestHook::countdownTo404 = 5;
     int DebugTestHook::countdownTo403 = 10;
+    int DebugTestHook::countdownTo429 = 20;
     int DebugTestHook::countdownToTimeout = 15;
 
 }
@@ -7984,13 +7995,16 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)
 #endif
 
     megaApi[0]->setMaxDownloadSpeed(0);
-    auto startStreaming =
-        [cloudRaidNode,
-         this](int cd404, int cd403, m_off_t nFailedReqs, unsigned int transfer_timeout_in_seconds)
+    auto startStreaming = [cloudRaidNode, this](int cd404,
+                                                int cd403,
+                                                int cd429,
+                                                m_off_t nFailedReqs,
+                                                unsigned int transfer_timeout_in_seconds)
     {
         mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
         DebugTestHook::countdownTo404 = cd404;
         DebugTestHook::countdownTo403 = cd403;
+        DebugTestHook::countdownTo429 = cd429;
         std::unique_ptr<CheckStreamedFile_MegaTransferListener> p(
             StreamRaidFilePart(megaApi[0].get(),
                                0,
@@ -8009,15 +8023,23 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)
             << mApi[0].lastError << ")";
         ASSERT_TRUE(cd404 < 0 || DebugTestHook::countdownTo404 < 0) << "";
         ASSERT_TRUE(cd403 < 0 || DebugTestHook::countdownTo403 < 0) << "";
+        ASSERT_TRUE(cd429 < 0 || DebugTestHook::countdownTo404 < 0) << "";
         ASSERT_EQ(p->numFailedRequests, nFailedReqs)
             << "Unexpected number of retries for streaming download";
     };
 
-    LOG_debug << "#### Test1: Streaming Download forcing 1 Raided Part Failure (404) ####";
-    startStreaming(2 /*cd404*/, -1 /*cd403*/, 0 /*nFailedReqs*/, 180 /*timeout*/);
-    LOG_debug << "#### Test2: Streaming Download forcing 2 Raided Part Failures(404 | 403). "
-                 "onTransferTemporaryError received ####";
-    startStreaming(2 /*cd404*/, 2 /*cd403*/, 1 /*nFailedReqs*/, 180 /*timeout*/);
+    LOG_debug << "#### Test1: Streaming Download, forcing 1 Raided Part Failure (404). No transfer "
+                 "retry ####";
+    startStreaming(2 /*cd404*/, -1 /*cd403*/, -1 /*cd429*/, 0 /*nFailedReqs*/, 180 /*timeout*/);
+
+    LOG_debug << "#### Test2: Streaming Download, forcing 2 Raided Part Failures(404 | 403)."
+                 "Transfer will be retried(onTransferTemporaryError received) ####";
+    startStreaming(2 /*cd404*/, 2 /*cd403*/, -1 /*cd429*/, 1 /*nFailedReqs*/, 180 /*timeout*/);
+
+    LOG_debug << "#### Test3: Streaming Download forcing 1 Raided Part Failures(429). No transfer "
+                 "retry ####";
+    startStreaming(-1 /*cd404*/, -1 /*cd403*/, 2 /*cd429*/, 0 /*nFailedReqs*/, 180 /*timeout*/);
+
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 }
 

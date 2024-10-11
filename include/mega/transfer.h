@@ -309,13 +309,13 @@ public:
     {
         switch (httpstatus)
         {
+            case 404:
+            case 429:
+                return UN_DEFINITIVE_ERR;
             case 0:
             case 403:
-            case 404:
-            case 500:
-                return UN_DEFINITIVE_ERR;
-            case 429:
             case 503:
+            case 500:
                 return UN_TEMP_ERR;
             default:
                 assert(false);

@@ -1337,7 +1337,6 @@ bool UnusedConn::setUnused(const size_t num, const unusedReason reason)
 
     if (num == mNum)
     {
-        assert(false);
         return false;
     }
 
@@ -1616,14 +1615,7 @@ void DirectReadSlot::onLowSpeedRaidedTransfer()
 bool DirectReadSlot::searchAndDisconnectSlowestConnection(size_t connectionNum)
 {
     assert(connectionNum < mReqs.size());
-    if (!mDr->drbuf.isRaid() ||
-        mNumSlowConnectionsSwitches >= DirectReadSlot::MAX_SLOW_CONNECTION_SWITCHES || // Limit for connection switches
-        mNumReqsInflight) // If there is any connection inflight we don't switch (we only switch when the status is REQ_READY for all reqs to avoid disconnections)
-    {
-        return false;
-    }
-    std::unique_ptr<HttpReq>& req = mReqs[connectionNum];
-    if (!req || (connectionNum == mUnusedConn.getNum()))
+    if (!mDr->drbuf.isRaid())
     {
         return false;
     }
@@ -1647,6 +1639,46 @@ bool DirectReadSlot::searchAndDisconnectSlowestConnection(size_t connectionNum)
             // avoid reusing unused connection if it failed due a non recoverable error
             return false;
         }
+    }
+
+    auto exitDueReqsOnFlight = [this]() -> bool
+    {
+        // If there is any `valid` connection inflight we don't switch (we only switch when the
+        // status is REQ_READY for all reqs to avoid disconnections)
+        if (mNumReqsInflight > 1)
+        {
+            return true;
+        }
+        else if (mNumReqsInflight == 1)
+        {
+            for (size_t i = 0; i < mReqs.size(); ++i)
+            {
+                if (i == mUnusedConn.getNum())
+                {
+                    // Altough "unused connection" is taken into account to increase
+                    // mNumReqsInflight (for convenience), it's not an effective request in flight
+                    continue;
+                }
+                if (std::unique_ptr<HttpReq>& req = mReqs[i]; req && req->httpstatus == REQ_READY)
+                {
+                    continue;
+                }
+                return true;
+            }
+        }
+        return false;
+    };
+
+    if (mNumSlowConnectionsSwitches >= DirectReadSlot::MAX_SLOW_CONNECTION_SWITCHES ||
+        exitDueReqsOnFlight())
+    {
+        return false;
+    }
+
+    std::unique_ptr<HttpReq>& req = mReqs[connectionNum];
+    if (!req || (connectionNum == mUnusedConn.getNum()))
+    {
+        return false;
     }
 
     bool minComparableThroughputForThisConnection = mThroughput[connectionNum].second &&
@@ -2112,6 +2144,10 @@ void DirectReadSlot::onFailure(std::unique_ptr<HttpReq>& req, const size_t conne
         else
         {
             retryOnError(connectionNum, req->httpstatus);
+            // If failed raided part it's set as unused, and it's failure reason is:
+            // - temporary => it could be retried later (if required conditions are met)
+            // - permanent => that connection won't be used anymore
+            req->status = REQ_READY;
         }
     }
 }
