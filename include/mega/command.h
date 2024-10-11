@@ -1913,6 +1913,16 @@ public:
         mDns{std::move(dns)}
     {}
 
+    const std::string& getHost() const
+    {
+        return mHost;
+    }
+
+    const std::vector<std::string>& getDns() const
+    {
+        return mDns;
+    }
+
 private:
     std::string mHost; // "nz.vpn.mega.nz"
     std::vector<std::string> mDns; // {"8.8.8.8", "8.8.4.4", ...}
@@ -1928,6 +1938,11 @@ public:
     const std::string& getName() const
     {
         return mName;
+    }
+
+    const std::map<int, VpnCluster>& getClusters() const
+    {
+        return mClusters;
     }
 
     void addCluster(int id, VpnCluster&& cluster)

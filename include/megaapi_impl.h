@@ -1039,6 +1039,100 @@ inline CancelToken convertToCancelToken(MegaCancelToken* mct)
     return static_cast<MegaCancelTokenPrivate*>(mct)->cancelFlag;
 }
 
+class MegaVpnClusterPrivate: public MegaVpnCluster
+{
+public:
+    MegaVpnClusterPrivate(const VpnCluster& cluster):
+        mCluster{cluster}
+    {}
+
+    MegaVpnClusterPrivate* copy() const override
+    {
+        return new MegaVpnClusterPrivate(*this);
+    }
+
+    const char* getHost() const override
+    {
+        return mCluster.getHost().c_str();
+    }
+
+    MegaStringList* getDns() const override;
+
+private:
+    VpnCluster mCluster;
+};
+
+class MegaVpnClusterMapPrivate: public MegaVpnClusterMap
+{
+public:
+    MegaVpnClusterMapPrivate(const std::map<int, VpnCluster>& clusters):
+        mClusters{clusters}
+    {}
+
+    MegaVpnClusterMapPrivate* copy() const override
+    {
+        return new MegaVpnClusterMapPrivate(*this);
+    }
+
+    MegaIntegerListPrivate* getKeys() const override;
+    MegaVpnClusterPrivate* get(int64_t key) const override;
+
+    int64_t size() const override
+    {
+        return static_cast<int64_t>(mClusters.size());
+    }
+
+private:
+    std::map<int, VpnCluster> mClusters;
+};
+
+class MegaVpnRegionPrivate: public MegaVpnRegion
+{
+public:
+    MegaVpnRegionPrivate(const VpnRegion& region):
+        mRegion{region}
+    {}
+
+    MegaVpnRegionPrivate* copy() const override
+    {
+        return new MegaVpnRegionPrivate(*this);
+    }
+
+    const char* getName() const override
+    {
+        return mRegion.getName().c_str();
+    }
+
+    MegaVpnClusterMapPrivate* getClusters() const override;
+
+private:
+    VpnRegion mRegion;
+};
+
+class MegaVpnRegionListPrivate: public MegaVpnRegionList
+{
+public:
+    MegaVpnRegionListPrivate(const std::vector<VpnRegion>& regions);
+
+    MegaVpnRegionListPrivate* copy() const override
+    {
+        return new MegaVpnRegionListPrivate(*this);
+    }
+
+    const MegaVpnRegionPrivate* get(unsigned i) const override
+    {
+        return (static_cast<size_t>(i) < mRegions.size()) ? &(mRegions[i]) : nullptr;
+    }
+
+    unsigned size() const override
+    {
+        return static_cast<unsigned>(mRegions.size());
+    }
+
+private:
+    std::vector<MegaVpnRegionPrivate> mRegions;
+};
+
 class CollisionChecker
 {
 public:
@@ -1682,6 +1776,9 @@ class MegaRequestPrivate : public MegaRequest
         MegaBackupInfoList* getMegaBackupInfoList() const override;
         void setMegaBackupInfoList(std::unique_ptr<MegaBackupInfoList> bkps);
 
+        MegaVpnRegionList* getMegaVpnRegionsDetailed() const override;
+        void setMegaVpnRegionsDetailed(MegaVpnRegionList* vpnRegions);
+
         MegaVpnCredentials* getMegaVpnCredentials() const override;
         void setMegaVpnCredentials(MegaVpnCredentials* megaVpnCredentials);
 
@@ -1747,6 +1844,7 @@ protected:
         unique_ptr<MegaSetElementList> mMegaSetElementList;
         unique_ptr<MegaIntegerList> mMegaIntegerList;
         unique_ptr<MegaBackupInfoList> mMegaBackupInfoList;
+        unique_ptr<MegaVpnRegionList> mMegaVpnRegions;
         unique_ptr<MegaVpnCredentials> mMegaVpnCredentials;
 
 #ifdef ENABLE_SYNC
@@ -2280,6 +2378,7 @@ class MegaStringListPrivate : public MegaStringList
 public:
     MegaStringListPrivate() = default;
     MegaStringListPrivate(string_vector&&); // takes ownership
+    MegaStringListPrivate(const string_vector&);
     ~MegaStringListPrivate() override = default;
     MegaStringList *copy() const override;
     const char* get(int i) const override;
@@ -5268,6 +5367,7 @@ public:
 
     MegaIntegerList* getSlotIDs() const override;
     MegaStringList* getVpnRegions() const override;
+    MegaVpnRegionListPrivate* getVpnRegionsDetailed() const override;
     const char* getIPv4(int slotID) const override;
     const char* getIPv6(int slotID) const override;
     const char* getDeviceID(int slotID) const override;

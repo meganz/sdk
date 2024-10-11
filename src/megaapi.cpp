@@ -1196,6 +1196,11 @@ MegaSyncStallList* MegaRequest::getMegaSyncStallList() const
 
 #endif // ENABLE_SYNC
 
+MegaVpnRegionList* MegaRequest::getMegaVpnRegionsDetailed() const
+{
+    return nullptr;
+}
+
 MegaVpnCredentials* MegaRequest::getMegaVpnCredentials() const
 {
     return nullptr;
@@ -8084,6 +8089,11 @@ MegaIntegerList* MegaVpnCredentials::getSlotIDs() const
 }
 
 MegaStringList* MegaVpnCredentials::getVpnRegions() const
+{
+    return nullptr;
+}
+
+MegaVpnRegionList* MegaVpnCredentials::getVpnRegionsDetailed() const
 {
     return nullptr;
 }

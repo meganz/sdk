@@ -4021,6 +4021,8 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
         mSyncStallList.reset(request->mSyncStallList->copy());
 #endif // ENABLE_SYNC
     this->mStringList.reset(request->mStringList ? request->mStringList->copy() : nullptr);
+    this->mMegaVpnRegions.reset(request->mMegaVpnRegions ? request->mMegaVpnRegions->copy() :
+                                                           nullptr);
     this->mMegaVpnCredentials.reset(request->mMegaVpnCredentials ? request->mMegaVpnCredentials->copy() : nullptr);
     this->mMegaNotifications.reset(request->mMegaNotifications ? request->mMegaNotifications->copy() : nullptr);
     this->mMegaNodeTree.reset(request->mMegaNodeTree ? request->mMegaNodeTree->copy() : nullptr);
@@ -4702,6 +4704,16 @@ void MegaRequestPrivate::setMegaBackupInfoList(std::unique_ptr<MegaBackupInfoLis
     mMegaBackupInfoList.swap(bkps);
 }
 
+MegaVpnRegionList* MegaRequestPrivate::getMegaVpnRegionsDetailed() const
+{
+    return mMegaVpnRegions.get();
+}
+
+void MegaRequestPrivate::setMegaVpnRegionsDetailed(MegaVpnRegionList* vpnRegions)
+{
+    mMegaVpnRegions.reset(vpnRegions);
+}
+
 MegaVpnCredentials* MegaRequestPrivate::getMegaVpnCredentials() const
 {
     return mMegaVpnCredentials.get();
@@ -5245,6 +5257,10 @@ MegaStringListPrivate::MegaStringListPrivate(string_vector&& v)
     : mList(std::move(v))
 {
 }
+
+MegaStringListPrivate::MegaStringListPrivate(const string_vector& v):
+    mList(v)
+{}
 
 MegaStringList *MegaStringListPrivate::copy() const
 {
@@ -26929,7 +26945,7 @@ void MegaApiImpl::getVpnRegions(MegaRequestListener* listener)
         client->getVpnRegions(
             [this, request](const Error& e, std::vector<VpnRegion>&& vpnRegions)
             {
-                if (e == API_OK && !vpnRegions.empty())
+                if (e == API_OK)
                 {
                     auto vpnRegionsMegaStringList = std::make_unique<MegaStringListPrivate>();
                     for (const auto& r: vpnRegions)
@@ -26937,6 +26953,10 @@ void MegaApiImpl::getVpnRegions(MegaRequestListener* listener)
                         vpnRegionsMegaStringList->add(r.getName().c_str());
                     }
                     request->setMegaStringList(vpnRegionsMegaStringList.get());
+
+                    MegaVpnRegionListPrivate* regionsWithDetails =
+                        new MegaVpnRegionListPrivate(vpnRegions);
+                    request->setMegaVpnRegionsDetailed(regionsWithDetails);
                 }
 
                 fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
@@ -39354,6 +39374,41 @@ bool MegaCancelTokenPrivate::isCancelled() const
     return cancelFlag.isCancelled();
 }
 
+MegaStringList* MegaVpnClusterPrivate::getDns() const
+{
+    MegaStringListPrivate* dns = new MegaStringListPrivate(mCluster.getDns());
+    return dns;
+}
+
+MegaIntegerListPrivate* MegaVpnClusterMapPrivate::getKeys() const
+{
+    MegaIntegerListPrivate* keys = new MegaIntegerListPrivate();
+    for (const auto& entry: mClusters)
+    {
+        keys->add(entry.first);
+    }
+    return keys;
+}
+
+MegaVpnClusterPrivate* MegaVpnClusterMapPrivate::get(int64_t key) const
+{
+    const auto it = mClusters.find(static_cast<int>(key));
+    return it == mClusters.end() ? nullptr : new MegaVpnClusterPrivate(it->second);
+}
+
+MegaVpnClusterMapPrivate* MegaVpnRegionPrivate::getClusters() const
+{
+    return new MegaVpnClusterMapPrivate(mRegion.getClusters());
+}
+
+MegaVpnRegionListPrivate::MegaVpnRegionListPrivate(const vector<VpnRegion>& regions)
+{
+    for (const auto& r: regions)
+    {
+        mRegions.push_back(r);
+    }
+}
+
 /* MegaVpnCredentialsPrivate BEGIN */
 MegaVpnCredentialsPrivate::MegaVpnCredentialsPrivate(
     MapSlotIDToCredentialInfo&& mapSlotIDToCredentialInfo,
@@ -39388,6 +39443,11 @@ MegaStringList* MegaVpnCredentialsPrivate::getVpnRegions() const
         regions->add(r.getName().c_str());
     }
     return regions;
+}
+
+MegaVpnRegionListPrivate* MegaVpnCredentialsPrivate::getVpnRegionsDetailed() const
+{
+    return new MegaVpnRegionListPrivate(mVpnRegions);
 }
 
 const char* MegaVpnCredentialsPrivate::getIPv4(int slotID) const
