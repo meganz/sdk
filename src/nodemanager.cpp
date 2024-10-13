@@ -85,7 +85,7 @@ bool NodeSearchFilter::isValidTagSequence(const uint8_t* tagSequence) const
     if (!tagSequence || mTagFilterContainsSeparator)
         return false;
     auto tokens = splitString(reinterpret_cast<const char*>(tagSequence), TAG_DELIMITER);
-    return getTagPosition(tokens, mTagFilter) != tokens.end();
+    return getTagPosition(tokens, mTagFilter.getPattern()) != tokens.end();
 }
 
 bool NodeSearchFilter::isValidFav(const bool isNodeFav) const
