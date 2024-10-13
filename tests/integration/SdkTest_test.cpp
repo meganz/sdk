@@ -19215,16 +19215,19 @@ TEST_F(SdkTest, SdkNodeTag)
     nodeList.reset(megaApi[0]->search(filter.get()));
     ASSERT_EQ(nodeList->size(), 1) << *nodeList;
 
+    // Search matches any part of a tag.
     std::string tagNoFind = "ta";
     filter->byTag(tagNoFind.c_str());
     nodeList.reset(megaApi[0]->search(filter.get()));
-    ASSERT_EQ(nodeList->size(), 0) << *nodeList;
+    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
 
+    // Wildcards are not permitted.
     std::string tagNoFindWithWildCard = "t*g";
     filter->byTag(tagNoFindWithWildCard.c_str());
     nodeList.reset(megaApi[0]->search(filter.get()));
     ASSERT_EQ(nodeList->size(), 0) << *nodeList;
 
+    // Searching for multiple tags at the same time is not permitted.
     std::string tagNoFindWithCombi = tag1 + "," + tag2;
     filter->byTag(tagNoFindWithCombi.c_str());
     nodeList.reset(megaApi[0]->search(filter.get()));
