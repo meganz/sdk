@@ -20,14 +20,16 @@
  */
 
 #include "mega/utils.h"
-#include "mega/logging.h"
-#include "mega/megaclient.h"
-#include "mega/base64.h"
-#include "mega/serialize64.h"
-#include "mega/filesystem.h"
 
-#include <iomanip>
+#include "mega/base64.h"
+#include "mega/filesystem.h"
+#include "mega/logging.h"
+#include "mega/mega_utf8proc.h"
+#include "mega/megaclient.h"
+#include "mega/serialize64.h"
+
 #include <cctype>
+#include <iomanip>
 
 #if defined(_WIN32) && defined(_MSC_VER)
 #include <sys/timeb.h>
@@ -3334,16 +3336,41 @@ bool TextPattern::isOnlyWildCards(const std::string& text)
 
 std::set<std::string>::iterator getTagPosition(std::set<std::string>& tokens, const std::string& tag)
 {
-    std::string escapedWidlCards = escapeWildCards(tag.c_str());
-    const uint8_t* pattern = reinterpret_cast<const uint8_t*>(escapedWidlCards.c_str());
+    const std::string pattern = escapeWildCards(tag.c_str());
     return std::find_if(tokens.begin(),
                         tokens.end(),
-                        [pattern](const std::string& token)
+                        [&pattern](const std::string& token)
                         {
-                            const uint8_t* tokenU8 =
-                                reinterpret_cast<const uint8_t*>(token.c_str());
-                            return icuLikeCompare(pattern, tokenU8, '\\');
+                            return likeCompare(pattern.c_str(), token.c_str());
                         });
+}
+
+bool foldCaseAccentEqual(uint32_t codePoint1, uint32_t codePoint2)
+{
+    // 8 is big enough decompose one unicode point
+    using Buffer = std::array<utf8proc_int32_t, 8>;
+
+    auto foldCaseAccent = [](uint32_t codePoint, Buffer& buff)
+    {
+        return utf8proc_decompose_char((utf8proc_int32_t)codePoint,
+                                       buff.data(),
+                                       static_cast<utf8proc_ssize_t>(buff.size()),
+                                       (utf8proc_option_t)(UTF8PROC_NULLTERM | UTF8PROC_STABLE |
+                                                           UTF8PROC_COMPOSE | UTF8PROC_STRIPMARK |
+                                                           UTF8PROC_CASEFOLD),
+                                       nullptr);
+    };
+
+    Buffer buf1{0};
+    Buffer buf2{0};
+    if (foldCaseAccent(codePoint1, buf1) >= 0 && foldCaseAccent(codePoint2, buf2) >= 0)
+    {
+        return buf1 == buf2;
+    }
+
+    // Fallback if fold case and accent above has errors, better than we couldn't search
+    return u_foldCase(codePoint1, U_FOLD_CASE_DEFAULT) ==
+           u_foldCase(codePoint1, U_FOLD_CASE_DEFAULT);
 }
 
 // This code has been taken from sqlite repository (https://www.sqlite.org/src/file?name=ext/icu/icu.c)
@@ -3378,7 +3405,6 @@ assert(*zIn);                                         \
     if (*(zIn++)>=0xc0){                              \
         while ((*zIn & 0xc0)==0x80){zIn++;}           \
 }
-
 
 int icuLikeCompare(const uint8_t *zPattern,   // LIKE pattern
                    const uint8_t *zString,    // The UTF-8 string to compare against
@@ -3458,9 +3484,7 @@ int icuLikeCompare(const uint8_t *zPattern,   // LIKE pattern
             // Case 4
             uint32_t uString;
             SQLITE_ICU_READ_UTF8(zString, uString);
-            uString = (uint32_t)u_foldCase((UChar32)uString, U_FOLD_CASE_DEFAULT);
-            uPattern = (uint32_t)u_foldCase((UChar32)uPattern, U_FOLD_CASE_DEFAULT);
-            if (uString != uPattern)
+            if (!foldCaseAccentEqual(uString, uPattern))
             {
                 return 0;
             }
@@ -3470,6 +3494,13 @@ int icuLikeCompare(const uint8_t *zPattern,   // LIKE pattern
     }
 
     return *zString == 0;
+}
+
+bool likeCompare(const char* pattern, const char* str, const UChar32 esc)
+{
+    return static_cast<bool>(icuLikeCompare(reinterpret_cast<const uint8_t*>(pattern),
+                                            reinterpret_cast<const uint8_t*>(str),
+                                            esc));
 }
 
 // Get the current process ID
@@ -3695,4 +3726,3 @@ size_t fileExtensionDotPosition(const std::string& fileName)
 }
 
 } // namespace mega
-
