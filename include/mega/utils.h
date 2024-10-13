@@ -1228,7 +1228,8 @@ private:
     static bool isOnlyWildCards(const std::string& text);
 };
 
-std::set<std::string>::iterator getTagPosition(std::set<std::string>& tokens, const std::string& tag);
+std::set<std::string>::iterator getTagPosition(std::set<std::string>& tokens,
+                                               const std::string& pattern);
 
 /*
  * Compare two UTF-8 strings for equality where the first string is

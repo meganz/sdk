@@ -3334,9 +3334,9 @@ bool TextPattern::isOnlyWildCards(const std::string& text)
                        });
 }
 
-std::set<std::string>::iterator getTagPosition(std::set<std::string>& tokens, const std::string& tag)
+std::set<std::string>::iterator getTagPosition(std::set<std::string>& tokens,
+                                               const std::string& pattern)
 {
-    const std::string pattern = escapeWildCards(tag.c_str());
     return std::find_if(tokens.begin(),
                         tokens.end(),
                         [&pattern](const std::string& token)
