@@ -298,10 +298,15 @@ public:
         UN_NOT_ERR = 1, // CONNECTION CAN BE USED
         UN_TEMP_ERR = 2, // CONNECTION CAN BE USED AFTER A BACKOFF
         UN_DEFINITIVE_ERR = 3, // CONNECTION CANNOT BE USED ANYMORE
+        UN_RETRY_IMMEDIATELY = 4, // ENTIRE TRANSFER MUST BE RETRIED IMMEDIATELY
     };
 
     /**
      * @brief Returns an unusedReason given a HTTP status code.
+     *
+     * @note Currently this method never returns UN_DEFINITIVE_ERR UN_DEFINITIVE_ERR is only set
+     * if same connection has failed more than once and failedParts has exceeded
+     * MAX_FAILED_RAIDED_PARTS
      *
      * @return An unusedReason given a HTTP status code.
      */
@@ -311,7 +316,7 @@ public:
         {
             case 404:
             case 429:
-                return UN_DEFINITIVE_ERR;
+                return UN_RETRY_IMMEDIATELY;
             case 0:
             case 403:
             case 503:
@@ -398,7 +403,7 @@ private:
      *
      * @return true if the reason is valid, otherwise returns false.
      */
-    static bool isValidReason(unusedReason reason)
+    static bool isValidUnusedReason(unusedReason reason)
     {
         return reason == UN_NOT_ERR || reason == UN_TEMP_ERR || reason == UN_DEFINITIVE_ERR;
     }

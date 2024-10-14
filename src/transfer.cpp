@@ -1329,7 +1329,7 @@ bool UnusedConn::isErrReason() const
 
 bool UnusedConn::setUnused(const size_t num, const unusedReason reason)
 {
-    if (!isValidReason(reason))
+    if (!isValidUnusedReason(reason))
     {
         assert(false);
         return false;
@@ -1502,6 +1502,15 @@ void DirectReadSlot::retryOnError(const size_t connectionNum, const int httpstat
         }
 
         auto reason = UnusedConn::getReasonFromHttpStatus(httpstatus);
+        if (reason == UnusedConn::UN_RETRY_IMMEDIATELY)
+        {
+            LOG_debug << "DirectReadSlot::retry [Raided] [conn " << connectionNum
+                      << "] has been failed with httpstatus: " << httpstatus
+                      << ". Retry entire transfer immediately";
+            retryEntireTransfer(API_EREAD);
+            return;
+        }
+
         if (reason != UnusedConn::UN_TEMP_ERR && reason != UnusedConn::UN_DEFINITIVE_ERR)
         {
             LOG_err << "DirectReadSlot::retry [Raided]: invalid httpstatus: " << httpstatus;
