@@ -128,6 +128,35 @@ Once the build is finished, binaries will be available in the `build_dir`
 
 To run the example app `megacli`, go to the `examples` directory in the `build_dir` and execute the `megacli` binary.
 
+## Minimum OS versions
+
+### macOS
+
+- macOS High Sierra (10.13) for Intel, macOS Big Sur (11) for M1+ chips
+
+### Windows
+
+- Windows 7
+- Windows Server 2008 R2
+
+### Linux
+
+- Arch Linux Extra
+- Debian 10
+- Elementary OS Juno
+- Fedora 37
+- Mint 19
+- OpenSUSE Leap 15.4
+- Ubuntu 20.04
+
+### iOS
+
+- version 15
+
+### Android
+
+- version 8.0 (Oreo)
+
 ## How to build the SDK library (Obsolete methods)
 
 ### Building with POSIX Autotools  (Linux/Darwin/BSD/OSX ...)
