@@ -790,7 +790,7 @@ void Sync::setBackupMonitoring()
 
     config.setBackupState(SYNC_BACKUP_MONITOR);
 
-    syncs.saveSyncConfig(config);
+    syncs.ensureDriveOpenedAndMarkDirty(config.mExternalDrivePath);
 }
 
 bool Sync::shouldHaveDatabase() const
@@ -3891,7 +3891,7 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool setOriginalPath,
             &&  us.mConfig.mOriginalPathOfRemoteRootNode != cloudNodePath)
         {
             us.mConfig.mOriginalPathOfRemoteRootNode = cloudNodePath;
-            saveSyncConfig(us.mConfig);
+            ensureDriveOpenedAndMarkDirty(us.mConfig.mExternalDrivePath);
         }
     }
 
@@ -4135,7 +4135,7 @@ void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const Loca
 
     us.mSync->isnetwork = isNetwork;
 
-    saveSyncConfig(us.mConfig);
+    ensureDriveOpenedAndMarkDirty(us.mConfig.mExternalDrivePath);
     mSyncFlags->isInitialPass = true;
 
     if (completion) completion(API_OK, us.mConfig.mError, us.mConfig.mBackupId);
@@ -4154,7 +4154,7 @@ void UnifiedSync::changedConfigState(bool save, bool notifyApp)
 
         if (save)
         {
-            syncs.saveSyncConfig(mConfig);
+            syncs.ensureDriveOpenedAndMarkDirty(mConfig.mExternalDrivePath);
         }
 
         if (notifyApp && !mConfig.mRemovingSyncBySds)
@@ -5952,7 +5952,7 @@ void Syncs::appendNewSync_inThread(const SyncConfig& c, bool startSync, std::fun
         mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(*this, c)));
     }
 
-    saveSyncConfig(c);
+    ensureDriveOpenedAndMarkDirty(c.mExternalDrivePath);
 
     mClient.app->sync_added(c);
 
@@ -6587,20 +6587,19 @@ void Syncs::locallogout_inThread(bool removecaches, bool keepSyncsConfigFile, bo
     }
 }
 
-void Syncs::saveSyncConfig(const SyncConfig& config)
+void Syncs::ensureDriveOpenedAndMarkDirty(const LocalPath& externalDrivePath)
 {
     assert(onSyncThread());
 
     if (auto* store = syncConfigStore())
     {
-
-        // If the app hasn't opened this drive itself, then we open it now (loads any syncs that already exist there)
-        if (!config.mExternalDrivePath.empty() && !store->driveKnown(config.mExternalDrivePath))
+        // If the app hasn't opened this drive itself, then we open it now (loads any syncs that
+        // already exist there)
+        if (!externalDrivePath.empty() && !store->driveKnown(externalDrivePath))
         {
-            backupOpenDrive_inThread(config.mExternalDrivePath);
+            backupOpenDrive_inThread(externalDrivePath);
         }
-
-        store->markDriveDirty(config.mExternalDrivePath);
+        store->markDriveDirty(externalDrivePath);
     }
 }
 
@@ -6684,7 +6683,7 @@ void Syncs::resumeSyncsOnStateCurrent_inThread()
                 if (lookupCloudNode(unifiedSync->mConfig.mRemoteNode, cloudNode, &cloudNodePath, nullptr, nullptr, nullptr, nullptr, Syncs::FOLDER_ONLY))
                 {
                     unifiedSync->mConfig.mOriginalPathOfRemoteRootNode = cloudNodePath;
-                    saveSyncConfig(unifiedSync->mConfig);
+                    ensureDriveOpenedAndMarkDirty(unifiedSync->mConfig.mExternalDrivePath);
                 }
             }
 

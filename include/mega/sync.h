@@ -1346,9 +1346,20 @@ private:  // anything to do with loading/saving/storing configs etc is done on t
     // Load internal sync configs from disk.
     error syncConfigStoreLoad(SyncConfigVector& configs);
 
-    // updates in state & error
-    void saveSyncConfig(const SyncConfig& config);
-
+    /**
+     * @brief Ensures the specified external drive is opened and marks it as dirty in the sync
+     * configuration store.
+     *
+     * This function checks whether the external drive at the given local path is known to the
+     * synchronization configuration store. If the drive is not already known (i.e., the application
+     * hasn't opened it yet), the function opens the drive to load any existing sync configurations.
+     * After ensuring the drive is opened, it marks the drive as dirty in the sync configuration
+     * store.
+     *
+     * @param externalDrivePath The local path to the external drive that needs to be opened and
+     * marked as dirty.
+     */
+    void ensureDriveOpenedAndMarkDirty(const LocalPath& externalDrivePath);
 
 public:
 
