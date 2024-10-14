@@ -14879,9 +14879,9 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
 
     // only initial load from local cache
     if (!forceLoadFromServers &&
-        (loggedin() == FULLACCOUNT || loggedIntoFolder() || loggedin() == EPHEMERALACCOUNTPLUSPLUS) &&
-            !mNodeManager.hasCacheLoaded() && !ISUNDEF(cachedscsn) &&
-            sctable && fetchsc(sctable.get()))
+        (loggedin() == FULLACCOUNT || loggedIntoFolder() ||
+         loggedin() == EPHEMERALACCOUNTPLUSPLUS) &&
+        !mNodeManager.ready() && !ISUNDEF(cachedscsn) && sctable && fetchsc(sctable.get()))
     {
         nodeTreeIsChanging.unlock(); // nodes loaded from db
         debugLogHeapUsage();
