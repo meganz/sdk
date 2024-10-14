@@ -22,12 +22,12 @@ public:
     void SetUp() override
     {
         SdkTestNodesSetUp::SetUp();
-        ASSERT_NO_FATAL_FAILURE(initiateSync());
+        ASSERT_NO_FATAL_FAILURE(initiateSync(getLocalTmpDir().u8string(), "dir1/", mBackupId));
     }
 
     void TearDown() override
     {
-        ASSERT_NO_FATAL_FAILURE(removeSync());
+        ASSERT_NO_FATAL_FAILURE(removeSync(mBackupId));
         SdkTestNodesSetUp::TearDown();
     }
 
@@ -135,20 +135,17 @@ public:
         ASSERT_EQ(sync->getLastKnownMegaFolder(), convertToTestPath(path));
     }
 
-private:
-    LocalTempDir mTempLocalDir{getLocalTmpDir()};
-    handle mBackupId{UNDEF};
-
-    void initiateSync()
+    void initiateSync(const std::string& localPath,
+                      const std::string& remotePath,
+                      MegaHandle& backupId)
     {
         LOG_verbose << "SdkTestSyncNodeOperations : Initiate sync";
-        auto lp = getLocalTmpDir().u8string();
-        const auto syncNode = getNodeByPath("dir1/");
+        const auto syncNode = getNodeByPath(remotePath);
         ASSERT_EQ(API_OK,
                   synchronousSyncFolder(0,
                                         nullptr,
                                         MegaSync::TYPE_TWOWAY,
-                                        lp.c_str(),
+                                        localPath.c_str(),
                                         nullptr,
                                         syncNode->getHandle(),
                                         nullptr))
@@ -160,16 +157,20 @@ private:
                                                                     MegaSync::NO_SYNC_ERROR);
         ASSERT_TRUE(sync && sync->getRunState() == MegaSync::RUNSTATE_RUNNING);
         ASSERT_EQ(MegaSync::NO_SYNC_ERROR, sync->getError());
-        mBackupId = sync->getBackupId();
+        backupId = sync->getBackupId();
     }
 
-    void removeSync()
+    void removeSync(const MegaHandle backupId)
     {
         LOG_verbose << "SdkTestSyncNodeOperations : Remove sync";
         const auto rt = std::make_unique<RequestTracker>(megaApi[0].get());
-        megaApi[0]->removeSync(mBackupId, rt.get());
+        megaApi[0]->removeSync(backupId, rt.get());
         ASSERT_EQ(rt->waitForResult(), API_OK);
     }
+
+private:
+    LocalTempDir mTempLocalDir{getLocalTmpDir()};
+    handle mBackupId{UNDEF};
 };
 
 TEST_F(SdkTestSyncNodeOperations, MoveRemoteRoot)
@@ -214,4 +215,37 @@ TEST_F(SdkTestSyncNodeOperations, RemoveRemoteRoot)
     ASSERT_TRUE(sync);
     ASSERT_EQ(sync->getRunState(), MegaSync::RUNSTATE_SUSPENDED);
     ASSERT_EQ(sync->getError(), MegaSync::REMOTE_NODE_NOT_FOUND);
+}
+
+TEST_F(SdkTestSyncNodeOperations, MoveSyncToAnotherSync)
+{
+    static constexpr std::string_view logPre{"SdkTestSyncNodeOperations.MoveSyncToAnotherSync : "};
+    // Moving a sync to another sync should disable it
+
+    LOG_verbose << logPre << "Initiating sync in dir2";
+    std::string tempLocalDir2Name = getLocalTmpDir().u8string() + "2";
+    LocalTempDir tempLocalDir2{tempLocalDir2Name};
+    MegaHandle dir2SyncId;
+    ASSERT_NO_FATAL_FAILURE(initiateSync(tempLocalDir2Name, "dir2/", dir2SyncId));
+    // Make sure it is removed after exiting the scope
+    const auto autoRemove = MrProper(
+        [&dir2SyncId, this]()
+        {
+            ASSERT_NO_FATAL_FAILURE(removeSync(dir2SyncId));
+        });
+
+    ASSERT_NO_FATAL_FAILURE(ensureSyncNodeIsRunning("dir1"));
+    ASSERT_NO_FATAL_FAILURE(ensureSyncNodeIsRunning("dir2"));
+
+    LOG_verbose << logPre << "Moving dir1 inside dir2";
+    ASSERT_NO_FATAL_FAILURE(moveRemoteNode("dir1", "dir2/"));
+
+    LOG_verbose << logPre << "Waiting for dir1 to be disable as it is inside another sync";
+    const auto sync = waitForSyncState(megaApi[0].get(),
+                                       getBackupId(),
+                                       MegaSync::RUNSTATE_SUSPENDED,
+                                       MegaSync::ACTIVE_SYNC_ABOVE_PATH);
+    ASSERT_TRUE(sync);
+    ASSERT_EQ(sync->getRunState(), MegaSync::RUNSTATE_SUSPENDED);
+    ASSERT_EQ(sync->getError(), MegaSync::ACTIVE_SYNC_ABOVE_PATH);
 }

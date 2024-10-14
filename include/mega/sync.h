@@ -1426,8 +1426,9 @@ public:
      * @param config A configuration to read the previously stored remote root node
      * @param exists Whether the remote root node continues existing
      * @param cloudPath The current path of the remote root node
+     * @return true if the remote mOriginalPathOfRemoteRootNode has changed, false otherwise
      */
-    void checkSyncRemoteLocationChange(SyncConfig& config,
+    bool checkSyncRemoteLocationChange(SyncConfig& config,
                                        const bool exists,
                                        const std::string& cloudPath);
 

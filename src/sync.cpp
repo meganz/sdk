@@ -4061,21 +4061,27 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool setOriginalPath,
     us.mNextHeartbeat->updateSPHBStatus(us);
 }
 
-void Syncs::checkSyncRemoteLocationChange(SyncConfig& config,
+bool Syncs::checkSyncRemoteLocationChange(SyncConfig& config,
                                           const bool exists,
                                           const std::string& cloudPath)
 {
     assert(onSyncThread());
-    if (exists && cloudPath != config.mOriginalPathOfRemoteRootNode)
+    if (!exists)
     {
-        LOG_debug << "Sync root path changed!  Was: " << config.mOriginalPathOfRemoteRootNode
-                  << " now: " << cloudPath;
-        config.mOriginalPathOfRemoteRootNode = cloudPath;
+        if (!config.mRemoteNode.isUndef())
+        {
+            config.mRemoteNode = NodeHandle();
+        }
+        return false;
     }
-    else if (!exists && !config.mRemoteNode.isUndef())
+    if (cloudPath == config.mOriginalPathOfRemoteRootNode)
     {
-        config.mRemoteNode = NodeHandle();
+        return false;
     }
+    LOG_debug << "Sync root path changed!  Was: " << config.mOriginalPathOfRemoteRootNode
+              << " now: " << cloudPath;
+    config.mOriginalPathOfRemoteRootNode = cloudPath;
+    return true;
 }
 
 void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const LocalPath& localdebris,
@@ -12368,7 +12374,8 @@ void Syncs::syncLoop()
                 sync->cloudRootPath = cloudRootPath;
                 sync->mCurrentRootDepth = rootDepth;
 
-                checkSyncRemoteLocationChange(us->mConfig, foundRootNode, sync->cloudRootPath);
+                const bool remoteRootHasChanged =
+                    checkSyncRemoteLocationChange(us->mConfig, foundRootNode, sync->cloudRootPath);
 
                 if (!foundRootNode)
                 {
@@ -12380,14 +12387,31 @@ void Syncs::syncLoop()
                     LOG_err << "Detected sync root node is now in trash";
                     sync->changestate(REMOTE_NODE_MOVED_TO_RUBBISH, false, true, true);
                 }
+                else if (remoteRootHasChanged)
+                {
+                    // we need to check if the node in its new location is syncable
+                    std::lock_guard g(mClient.nodeTreeMutex);
+                    SyncError syncError;
+                    if (mClient.isnodesyncable(
+                            mClient.mNodeManager.getNodeByHandle(us->mConfig.mRemoteNode),
+                            nullptr,
+                            &syncError,
+                            true))
+                    {
+                        LOG_debug << "Node is not syncable after moving to a new location: "
+                                  << syncError;
+                        sync->changestate(syncError, false, true, true);
+                    }
+                }
             }
             else if (us->mConfig.mRunState == SyncRunState::Suspend &&
-                    (us->mConfig.mError == LOCAL_PATH_UNAVAILABLE ||
-                     us->mConfig.mError == LOCAL_PATH_TEMPORARY_UNAVAILABLE))
+                     (us->mConfig.mError == LOCAL_PATH_UNAVAILABLE ||
+                      us->mConfig.mError == LOCAL_PATH_TEMPORARY_UNAVAILABLE))
             {
                 // If we shut the sync down before because the local path wasn't available (yet)
                 // And it's safe to resume the sync because it's in Suspend (rather than disable)
-                // then we can auto-restart it, if the path becomes available (eg, network drive was slow to mount, user plugged in USB, etc)
+                // then we can auto-restart it, if the path becomes available (eg, network drive was
+                // slow to mount, user plugged in USB, etc)
 
                 auto computedFsfp = fsaccess->fsFingerprint(us->mConfig.mLocalPath);
                 auto expectedFsfp = us->mConfig.mFilesystemFingerprint;

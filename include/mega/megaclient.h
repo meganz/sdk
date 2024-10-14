@@ -976,12 +976,20 @@ public:
 
 #ifdef ENABLE_SYNC
     /**
-     * @brief is node syncable
+     * @brief Check if a given node is syncable
+     * @param remotenode We want to validate if a sync can be enabled using this node as remote
+     * root.
      * @param isinshare filled with whether the node is within an inshare.
      * @param syncError filled with SyncError with the sync error that makes the node unsyncable
+     * @param excludeSelf if true, we will asume the given node is already the root of a sync and we
+     * want to validate if it can still be synced. In other words, while iterating active syncs we
+     * will scape the one having remotenode as root.
      * @return API_OK if syncable. (regular) error otherwise
      */
-    error isnodesyncable(std::shared_ptr<Node>, bool * isinshare = NULL, SyncError *syncError = nullptr);
+    error isnodesyncable(std::shared_ptr<Node> remotenode,
+                         bool* isinshare = NULL,
+                         SyncError* syncError = nullptr,
+                         const bool excludeSelf = false);
 
     /**
      * @brief is local path syncable
