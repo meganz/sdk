@@ -133,7 +133,8 @@ public:
     void removeattr(attr_t at, const string& version);
     int updateattr(attr_t at, string *av, string *v);
 
-    // Returns if attribute doesn't exist. Avoid requesting it to server
+    void cacheNonExistingAttributes();
+    // Returns true if attribute was cached as non-existing. Avoid requesting it to server
     bool nonExistingAttribute(attr_t at) const;
     // Only mark own attributes that it doesn't exist
 
