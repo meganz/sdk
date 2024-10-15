@@ -12389,17 +12389,28 @@ void Syncs::syncLoop()
                 else if (remoteRootHasChanged)
                 {
                     // we need to check if the node in its new location is syncable
-                    std::lock_guard g(mClient.nodeTreeMutex);
-                    SyncError syncError;
-                    if (mClient.isnodesyncable(
-                            mClient.mNodeManager.getNodeByHandle(us->mConfig.mRemoteNode),
-                            nullptr,
-                            &syncError,
-                            true))
+                    const auto [e, syncError] = std::invoke(
+                        [this, &us]() -> std::pair<error, SyncError>
+                        {
+                            std::lock_guard g(mClient.nodeTreeMutex);
+                            SyncError syncError;
+                            error e = mClient.isnodesyncable(
+                                mClient.mNodeManager.getNodeByHandle(us->mConfig.mRemoteNode),
+                                nullptr,
+                                &syncError,
+                                true);
+                            return {e, syncError};
+                        });
+                    if (e)
                     {
                         LOG_debug << "Node is not syncable after moving to a new location: "
                                   << syncError;
                         sync->changestate(syncError, false, true, true);
+                    }
+                    else
+                    {
+                        // Notify the change in the root path
+                        mClient.app->syncupdate_remote_root_changed(sync->getConfig());
                     }
                 }
             }

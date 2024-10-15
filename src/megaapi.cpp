@@ -1895,20 +1895,21 @@ void MegaListener::onEvent(MegaApi *api, MegaEvent *event)
 { }
 
 #ifdef ENABLE_SYNC
-void MegaGlobalListener::onGlobalSyncStateChanged(MegaApi *)
-{ }
-void MegaListener::onSyncFileStateChanged(MegaApi *, MegaSync *, string *, int)
-{ }
-void MegaListener::onSyncAdded(MegaApi *, MegaSync *)
-{ }
-void MegaListener::onSyncDeleted(MegaApi *, MegaSync *)
-{ }
-void MegaListener::onSyncStateChanged(MegaApi *, MegaSync *)
-{ }
-void MegaListener::onSyncStatsUpdated(MegaApi *api, MegaSyncStats* syncStats)
-{ }
-void MegaListener::onGlobalSyncStateChanged(MegaApi *)
-{ }
+void MegaGlobalListener::onGlobalSyncStateChanged(MegaApi*) {}
+
+void MegaListener::onSyncFileStateChanged(MegaApi*, MegaSync*, string*, int) {}
+
+void MegaListener::onSyncAdded(MegaApi*, MegaSync*) {}
+
+void MegaListener::onSyncDeleted(MegaApi*, MegaSync*) {}
+
+void MegaListener::onSyncStateChanged(MegaApi*, MegaSync*) {}
+
+void MegaListener::onSyncStatsUpdated(MegaApi* api, MegaSyncStats* syncStats) {}
+
+void MegaListener::onGlobalSyncStateChanged(MegaApi*) {}
+
+void MegaListener::onSyncRemoteRootChanged(MegaApi*, MegaSync*) {}
 #endif
 
 void MegaListener::onBackupStateChanged(MegaApi *, MegaScheduledCopy *)

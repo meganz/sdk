@@ -466,8 +466,15 @@ protected:
     void onUserAlertsUpdate(MegaApi* api, MegaUserAlertList* alerts) override;
 
 #ifdef ENABLE_SYNC
-    void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, string* filePath, int newState) override {}
-    void onSyncStateChanged(MegaApi *api,  MegaSync *sync) override {}
+    void onSyncFileStateChanged(MegaApi* api,
+                                MegaSync* sync,
+                                string* filePath,
+                                int newState) override
+    {}
+
+    void onSyncStateChanged(MegaApi* api, MegaSync* sync) override {}
+
+    void onSyncRemoteRootChanged(MegaApi* api, MegaSync* sync) override {}
     void onGlobalSyncStateChanged(MegaApi* api) override {}
     void purgeVaultTree(unsigned int apiIndex, MegaNode *vault);
 #endif

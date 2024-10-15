@@ -7,7 +7,26 @@
 #include "integration_test_utils.h"
 #include "SdkTestNodesSetUp_test.h"
 
+#include <gmock/gmock.h>
+
 using namespace sdk_test;
+using namespace testing;
+
+class MockSyncListener: public MegaListener
+{
+public:
+    MOCK_METHOD(void,
+                onSyncFileStateChanged,
+                (MegaApi * api, MegaSync* sync, std::string* localPath, int newState),
+                (override));
+    MOCK_METHOD(void, onSyncAdded, (MegaApi * api, MegaSync* sync), (override));
+    MOCK_METHOD(void, onSyncDeleted, (MegaApi * api, MegaSync* sync), (override));
+    MOCK_METHOD(void, onSyncStateChanged, (MegaApi * api, MegaSync* sync), (override));
+    MOCK_METHOD(void, onSyncStatsUpdated, (MegaApi * api, MegaSyncStats* syncStats), (override));
+    MOCK_METHOD(void, onGlobalSyncStateChanged, (MegaApi * api), (override));
+    MOCK_METHOD(void, onSyncRemoteRootChanged, (MegaApi * api, MegaSync* sync), (override));
+    MOCK_METHOD(void, onRequestFinish, (MegaApi*, MegaRequest*, MegaError*), (override));
+};
 
 /**
  * @class SdkTestSyncNodeOperations
@@ -168,6 +187,51 @@ public:
         ASSERT_EQ(rt->waitForResult(), API_OK);
     }
 
+    enum class MoveOp
+    {
+        MOVE,
+        RENAME
+    };
+
+    void moveRemoteRootAndWaitForSyncUpdate(const std::string& sourcePath,
+                                            const std::string& destPath,
+                                            const MoveOp rename = MoveOp::MOVE)
+    {
+        // Expectations
+        std::string expectedNewRootPath = destPath;
+        if (rename == MoveOp::MOVE && destPath.back() == '/')
+            expectedNewRootPath += sourcePath;
+
+        const auto hasGoodName = Pointee(Property(&MegaSync::getLastKnownMegaFolder,
+                                                  StrEq(convertToTestPath(expectedNewRootPath))));
+        const auto hasGoodRunState =
+            Pointee(Property(&MegaSync::getRunState, MegaSync::RUNSTATE_RUNNING));
+
+        std::promise<void> renameFinished;
+        NiceMock<MockSyncListener> ml;
+        EXPECT_CALL(ml, onSyncRemoteRootChanged(_, AllOf(hasGoodName, hasGoodRunState)))
+            .WillOnce(
+                [&renameFinished]
+                {
+                    renameFinished.set_value();
+                });
+
+        // Code execution
+        megaApi[0]->addListener(&ml);
+        switch (rename)
+        {
+            case MoveOp::MOVE:
+                ASSERT_NO_FATAL_FAILURE(moveRemoteNode(sourcePath, destPath));
+                break;
+            case MoveOp::RENAME:
+                ASSERT_NO_FATAL_FAILURE(renameRemoteNode(sourcePath, destPath));
+                break;
+        }
+        // Wait for finish
+        renameFinished.get_future().wait();
+        megaApi[0]->removeListener(&ml);
+    }
+
 private:
     LocalTempDir mTempLocalDir{getLocalTmpDir()};
     handle mBackupId{UNDEF};
@@ -182,16 +246,15 @@ TEST_F(SdkTestSyncNodeOperations, MoveRemoteRoot)
     ASSERT_NO_FATAL_FAILURE(ensureSyncLastKnownMegaFolder("dir1"));
 
     LOG_verbose << logPre << "Rename remote root from dir1 to dir1moved";
-    ASSERT_NO_FATAL_FAILURE(renameRemoteNode("dir1", "dir1moved"));
-    std::this_thread::sleep_for(3s);
+    ASSERT_NO_FATAL_FAILURE(
+        moveRemoteRootAndWaitForSyncUpdate("dir1", "dir1moved", MoveOp::RENAME));
 
     // Now the sync should be running on the moved dir
     ASSERT_NO_FATAL_FAILURE(ensureSyncNodeIsRunning("dir1moved"));
     ASSERT_NO_FATAL_FAILURE(ensureSyncLastKnownMegaFolder("dir1moved"));
 
     LOG_verbose << logPre << "Move the remote root (put dir1moved inside dir2)";
-    ASSERT_NO_FATAL_FAILURE(moveRemoteNode("dir1moved", "dir2/"));
-    std::this_thread::sleep_for(3s);
+    ASSERT_NO_FATAL_FAILURE(moveRemoteRootAndWaitForSyncUpdate("dir1moved", "dir2/", MoveOp::MOVE));
 
     // Now the sync should be running on the moved dir
     ASSERT_NO_FATAL_FAILURE(ensureSyncNodeIsRunning("dir2/dir1moved"));
@@ -220,9 +283,9 @@ TEST_F(SdkTestSyncNodeOperations, RemoveRemoteRoot)
 TEST_F(SdkTestSyncNodeOperations, MoveSyncToAnotherSync)
 {
     static constexpr std::string_view logPre{"SdkTestSyncNodeOperations.MoveSyncToAnotherSync : "};
-    // Moving a sync to another sync should disable it
 
-    LOG_verbose << logPre << "Initiating sync in dir2";
+    // Moving a sync to another sync should disable it
+    LOG_verbose << logPre << "Create a new sync in dir2";
     std::string tempLocalDir2Name = getLocalTmpDir().u8string() + "2";
     LocalTempDir tempLocalDir2{tempLocalDir2Name};
     MegaHandle dir2SyncId;

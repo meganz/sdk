@@ -9115,6 +9115,22 @@ class MegaListener
      * @param api MegaApi object related to the event
      */
     virtual void onGlobalSyncStateChanged(MegaApi* api);
+
+    /**
+     * @brief This function is called when the root in the cloud of the sync has changed.
+     *
+     * You can use MegaSync::getLastKnownMegaFolder to get the new root in the cloud.
+     *
+     * @note This method will be called if the change doesn't imply a change in the state of the
+     * sync or any additional errors.
+     *
+     * The SDK retains the ownership of the sync parameter.
+     * Don't use it after this functions returns.
+     *
+     * @param api MegaApi object that is synchronizing files
+     * @param sync MegaSync object that has changed its remote root node
+     */
+    virtual void onSyncRemoteRootChanged(MegaApi* api, MegaSync* sync);
 #endif
 
     /**
