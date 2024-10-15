@@ -1097,6 +1097,9 @@ struct SyncStallInfo
     using SyncIDtoStallInfoMaps = std::map<handle, StallInfoMaps>;
     SyncIDtoStallInfoMaps syncStallInfoMaps;
 
+    // Map of SyncID to list of NameConflict
+    SyncIDtoConflictInfoMap syncConflictInfoMap;
+
     // No stalls detected
     bool empty() const;
 
@@ -1145,7 +1148,7 @@ public:
 
 struct SyncProblems
 {
-    list<NameConflict> mConflicts;
+    SyncIDtoConflictInfoMap mConflictsMap;
     SyncStallInfo mStalls;
     bool mConflictsDetected = false;
     bool mStallsDetected = false;
@@ -1372,6 +1375,11 @@ public:
     // manage syncdown flags inside the syncs
     // backupId of UNDEF to rescan all
     void setSyncsNeedFullSync(bool andFullScan, bool andReFingerprint, handle backupId);
+
+    // retrieves information about any detected name conflictsa and stores in a Map (BackupId to
+    // list of conficts).
+    bool conflictsDetectedToMap(
+        SyncIDtoConflictInfoMap& conflicts); // This one resets syncupdate_totalconflicts
 
     // retrieves information about any detected name conflicts.
     bool conflictsDetected(list<NameConflict>& conflicts); // This one resets syncupdate_totalconflicts

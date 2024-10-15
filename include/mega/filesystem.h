@@ -498,6 +498,8 @@ struct NameConflict {
     vector<LocalPath> clashingLocalNames;
 };
 
+using SyncIDtoConflictInfoMap = std::map<handle, list<NameConflict>>;
+
 void AddHiddenFileAttribute(mega::LocalPath& path);
 void RemoveHiddenFileAttribute(mega::LocalPath& path);
 

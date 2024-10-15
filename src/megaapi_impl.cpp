@@ -1860,11 +1860,14 @@ const MegaSyncStall* MegaSyncStallListPrivate::get(size_t i) const
 
 MegaSyncStallListPrivate::MegaSyncStallListPrivate(SyncProblems&& sp, AddressedStallFilter& filter)
 {
-    for(auto& nc : sp.mConflicts)
+    for (auto& itnc: sp.mConflictsMap)
     {
-        if (!filter.addressedNameConfict(nc.cloudPath, nc.localPath))
+        for (auto& nc: itnc.second)
         {
-            mStalls.push_back(std::make_shared<MegaSyncNameConflictStallPrivate>(nc));
+            if (!filter.addressedNameConfict(nc.cloudPath, nc.localPath))
+            {
+                mStalls.push_back(std::make_shared<MegaSyncNameConflictStallPrivate>(nc));
+            }
         }
     }
 
