@@ -6926,7 +6926,7 @@ namespace mega
             countdownToOverquota = 3;
             countdownTo404 = 5;
             countdownTo403 = 10;
-            countdownTo429 = 20;
+            countdownTo429 = -1;
             countdownToTimeout = 15;
             isRaid = false;
             isRaidKnown = false;
@@ -6948,7 +6948,7 @@ namespace mega
     bool DebugTestHook::isRaidKnown = false;
     int DebugTestHook::countdownTo404 = 5;
     int DebugTestHook::countdownTo403 = 10;
-    int DebugTestHook::countdownTo429 = 20;
+    int DebugTestHook::countdownTo429 = -1;
     int DebugTestHook::countdownToTimeout = 15;
 
 }
