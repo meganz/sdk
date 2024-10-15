@@ -19786,3 +19786,47 @@ TEST_F(SdkTest, SdkTestRemoveVersionsFromSync)
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), syncFolderPath));
 }
 #endif
+
+/**
+ * @brief SdkTest.CreditCardCancelSubscriptions
+ *
+ *  - Limited test for canceling a subscription using multiple reasons
+ *  - Create helper instances
+ *  - Call relevant MegaApi interaface which should fail in a predefined manner
+ */
+TEST_F(SdkTest, CreditCardCancelSubscriptions)
+{
+    LOG_info << "___TEST SdkTest.CreditCardCancelSubscriptions___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    unique_ptr<MegaCancelSubscriptionReason> reason1{
+        MegaCancelSubscriptionReason::create("Some reason", "22.n")};
+    unique_ptr<MegaCancelSubscriptionReason> reason2{
+        MegaCancelSubscriptionReason::create("Other reason", "99.MCMLXIV")};
+    unique_ptr<MegaCancelSubscriptionReasonList> reasons{
+        MegaCancelSubscriptionReasonList::create()};
+    reasons->add(reason1.get());
+    reasons->add(reason2.get());
+
+    // Cancel dummy subscription
+    {
+        RequestTracker listener{megaApi[0].get()};
+        megaApi[0]->creditCardCancelSubscriptions(
+            reasons.get(),
+            "Dummy subscription ID",
+            MegaApi::CREDIT_CARD_CANCEL_SUBSCRIPTIONS_CAN_CONTACT_NO,
+            &listener);
+        ASSERT_EQ(listener.waitForResult(), API_EARGS);
+    }
+
+    // Cancel all subscriptions (no-op for free account)
+    {
+        RequestTracker listener{megaApi[0].get()};
+        megaApi[0]->creditCardCancelSubscriptions(
+            reasons.get(),
+            "",
+            MegaApi::CREDIT_CARD_CANCEL_SUBSCRIPTIONS_CAN_CONTACT_NO,
+            &listener);
+        ASSERT_EQ(listener.waitForResult(), API_OK);
+    }
+}

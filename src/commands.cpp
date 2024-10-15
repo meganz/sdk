@@ -7262,7 +7262,16 @@ bool CommandCreditCardQuerySubscriptions::procresult(Result r, JSON& json)
 CommandCreditCardCancelSubscriptions::CancelSubscription::CancelSubscription(const char* reason,
                                                                              const char* id,
                                                                              int canContact):
-    mReason{reason ? reason : ""},
+    mReasoning{reason ? reason : ""},
+    mId{id ? id : ""},
+    mCanContact{canContact == static_cast<int>(CanContact::Yes) ? CanContact::Yes : CanContact::No}
+{}
+
+CommandCreditCardCancelSubscriptions::CancelSubscription::CancelSubscription(
+    vector<pair<string, string>>&& reasons,
+    const char* id,
+    int canContact):
+    mReasoning{std::move(reasons)},
     mId{id ? id : ""},
     mCanContact{canContact == static_cast<int>(CanContact::Yes) ? CanContact::Yes : CanContact::No}
 {}
@@ -7273,22 +7282,42 @@ CommandCreditCardCancelSubscriptions::CommandCreditCardCancelSubscriptions(
 {
     cmd("cccs");
 
-    // Cancel Reason
-    if (!cancelSubscription.mReason.empty())
+    // Cancel Reason(s)
+    if (const string* reason = cancelSubscription.getReasoning<string>())
     {
-        arg("r", cancelSubscription.mReason.c_str());
+        if (!reason->empty())
+        {
+            arg("r", reason->c_str());
+        }
+    }
+    else if (const auto* reasons = cancelSubscription.getReasoning<vector<pair<string, string>>>())
+    {
+        if (!reasons->empty())
+        {
+            beginarray("r");
+
+            for (const auto& r: *reasons)
+            {
+                beginobject();
+                arg("r", r.first.c_str());
+                arg("p", r.second.c_str());
+                endobject();
+            }
+
+            endarray();
+        }
     }
 
     // The user can be contacted or not
-    if (cancelSubscription.mCanContact == CanContact::Yes)
+    if (cancelSubscription.canContact())
     {
         arg("cc", static_cast<m_off_t>(CanContact::Yes));
     }
 
     // Specific subscription ID
-    if (!cancelSubscription.mId.empty())
+    if (!cancelSubscription.getId().empty())
     {
-        arg("sub", cancelSubscription.mId.c_str());
+        arg("sub", cancelSubscription.getId().c_str());
     }
 
     tag = client->reqtag;

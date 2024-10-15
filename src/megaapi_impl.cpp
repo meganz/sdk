@@ -4982,6 +4982,17 @@ void MegaRequestPrivate::setMegaNodeTree(MegaNodeTree* megaNodeTree)
     mMegaNodeTree.reset(megaNodeTree);
 }
 
+const MegaCancelSubscriptionReasonList* MegaRequestPrivate::getMegaCancelSubscriptionReasons() const
+{
+    return mMegaCancelSubscriptionReasons.get();
+}
+
+void MegaRequestPrivate::setMegaCancelSubscriptionReasons(
+    MegaCancelSubscriptionReasonList* cancelReasons)
+{
+    mMegaCancelSubscriptionReasons.reset(cancelReasons);
+}
+
 MegaBannerPrivate::MegaBannerPrivate(std::tuple<int, std::string, std::string, std::string, std::string, std::string, std::string>&& details)
                   :mDetails(std::move(details))
 {
@@ -23478,6 +23489,45 @@ void MegaApiImpl::creditCardCancelSubscriptions(const char* reason,
     waiter->notify();
 }
 
+void MegaApiImpl::creditCardCancelSubscriptions(const MegaCancelSubscriptionReasonList* reasons,
+                                                const char* id,
+                                                int canContact,
+                                                MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request =
+        new MegaRequestPrivate(MegaRequest::TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS, listener);
+    request->setMegaCancelSubscriptionReasons(reasons->copy());
+    request->setName(id);
+    request->setNumDetails(canContact);
+
+    request->performRequest = [this, request]()
+    {
+        vector<pair<string, string>> reasons;
+        if (const MegaCancelSubscriptionReasonList* megaReasons =
+                request->getMegaCancelSubscriptionReasons())
+        {
+            for (size_t i = 0; i < megaReasons->size(); ++i)
+            {
+                const MegaCancelSubscriptionReason* r = megaReasons->get(i);
+                assert(r && r->text() && r->position());
+                string text{(r && r->text()) ? r->text() : ""};
+                string position{(r && r->position()) ? r->position() : ""};
+                reasons.emplace_back(std::move(text), std::move(position));
+            }
+        }
+        CommandCreditCardCancelSubscriptions::CancelSubscription cancelSubscription{
+            std::move(reasons),
+            request->getName(), // id
+            request->getNumDetails(), // canContact
+        };
+        client->creditcardcancelsubscriptions(cancelSubscription);
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::getPaymentMethods(MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_PAYMENT_METHODS, listener);
@@ -39891,6 +39941,47 @@ const MegaMount* MegaMountListPrivate::get(size_t index) const
 size_t MegaMountListPrivate::size() const
 {
     return mMounts.size();
+}
+
+MegaCancelSubscriptionReasonPrivate::MegaCancelSubscriptionReasonPrivate(const char* text,
+                                                                         const char* position):
+    mText{text ? text : ""},
+    mPosition{position ? position : ""}
+{}
+
+const char* MegaCancelSubscriptionReasonPrivate::text() const
+{
+    return mText.c_str();
+}
+
+const char* MegaCancelSubscriptionReasonPrivate::position() const
+{
+    return mPosition.c_str();
+}
+
+MegaCancelSubscriptionReasonPrivate* MegaCancelSubscriptionReasonPrivate::copy() const
+{
+    return new MegaCancelSubscriptionReasonPrivate(*this);
+}
+
+void MegaCancelSubscriptionReasonListPrivate::add(const MegaCancelSubscriptionReason* reason)
+{
+    mReasons.emplace_back(reason->copy());
+}
+
+const MegaCancelSubscriptionReason* MegaCancelSubscriptionReasonListPrivate::get(size_t index) const
+{
+    return index >= mReasons.size() ? nullptr : mReasons[index].get();
+}
+
+size_t MegaCancelSubscriptionReasonListPrivate::size() const
+{
+    return mReasons.size();
+}
+
+MegaCancelSubscriptionReasonListPrivate* MegaCancelSubscriptionReasonListPrivate::copy() const
+{
+    return new MegaCancelSubscriptionReasonListPrivate(*this);
 }
 
 } // namespace mega

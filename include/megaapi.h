@@ -105,6 +105,7 @@ class MegaVpnCredentials;
 class MegaNodeTree;
 class MegaCompleteUploadData;
 class MegaNotificationList;
+class MegaCancelSubscriptionReasonList;
 
 #if defined(SWIG)
     #define MEGA_DEPRECATED
@@ -5580,6 +5581,8 @@ class MegaRequest
          * @return non-null pointer if a valid MegaApi functionality has been called, null otherwise.
          */
         virtual const MegaNodeTree* getMegaNodeTree() const;
+
+        virtual const MegaCancelSubscriptionReasonList* getMegaCancelSubscriptionReasons() const;
 };
 
 /**
@@ -14792,7 +14795,8 @@ class MegaApi
          * The associated request type with this request is
          * MegaRequest::TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS
          * @param reason The reason for the cancellation. It can be NULL.
-         * @param id The subscription ID for the cancellation. It can be NULL.
+         * @param id The subscription ID for the cancellation. If null or empty, all subscriptions
+         * will be cancelled.
          * @param canContact Whether the user has permitted MEGA to contact them for the
          * cancellation.
          *      - MegaApi::CREDIT_CARD_CANCEL_SUBSCRIPTIONS_CAN_CONTACT_NO = 0
@@ -14803,6 +14807,26 @@ class MegaApi
                                            const char* id,
                                            int canContact,
                                            MegaRequestListener* listener = NULL);
+
+        /**
+         * @brief Cancel credit card subscriptions of the account
+         *
+         * The associated request type with this request is
+         * MegaRequest::TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS
+         *
+         * @param reasonList List of reasons for the cancellation. It can be null.
+         * @param id The ID of the subscription to be cancelled. If null or empty, all subscriptions
+         * will be cancelled.
+         * @param canContact Whether the user has permitted MEGA to contact them about the
+         * cancellation.
+         *      - MegaApi::CREDIT_CARD_CANCEL_SUBSCRIPTIONS_CAN_CONTACT_NO = 0
+         *      - MegaApi::CREDIT_CARD_CANCEL_SUBSCRIPTIONS_CAN_CONTACT_YES = 1
+         * @param listener MegaRequestListener to track this request
+         */
+        void creditCardCancelSubscriptions(const MegaCancelSubscriptionReasonList* reasonList,
+                                           const char* id,
+                                           int canContact,
+                                           MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Get the available payment methods
@@ -25686,6 +25710,102 @@ public:
     virtual size_t size() const = 0;
 }; // MegaMountList
 
+/**
+ * @brief Reason chosen from a multiple-choice by a user when canceling a subscription
+ */
+class MegaCancelSubscriptionReason
+{
+public:
+    /**
+     * @brief
+     * Create a new instance.
+     *
+     * @param text
+     * The actual text of the reason.
+     * @param position
+     * The rendered position of the selected reason (for example "1", "1.a", "2" etc.)
+     *
+     * @return
+     * A new instance.
+     */
+    static MegaCancelSubscriptionReason* create(const char* text, const char* position);
+
+    /**
+     * @brief
+     * Get the text of the reason.
+     * The returned value is owned by the current instances.
+     *
+     * @return
+     * The text of the reason.
+     */
+    virtual const char* text() const = 0;
+
+    /**
+     * @brief
+     * Get the rendered position of the selected reason.
+     * The returned value is owned by the current instances.
+     *
+     * @return
+     * The rendered position of the selected reason.
+     */
+    virtual const char* position() const = 0;
+
+    virtual MegaCancelSubscriptionReason* copy() const = 0;
+    virtual ~MegaCancelSubscriptionReason() = default;
+};
+
+/**
+ * @brief List of MegaCancelSubscriptionReason instances
+ *
+ * The list has the ownership of the instances that it contains, so they will be valid until the
+ * list is deleted. If you want to retain a copy of a particular instance, use
+ * MegaCancelSubscriptionReason::copy().
+ */
+class MegaCancelSubscriptionReasonList
+{
+public:
+    /**
+     * @brief
+     * Create a new instance.
+     *
+     * @return
+     * A new instance.
+     */
+    static MegaCancelSubscriptionReasonList* create();
+
+    /**
+     * @brief
+     * Add an element to the list.
+     *
+     * @param reason
+     * The reason to be added to the list.
+     */
+    virtual void add(const MegaCancelSubscriptionReason* reason) = 0;
+
+    /**
+     * @brief
+     * Retrieve an element from the list.
+     *
+     * @param index
+     * The index of the element to retrieve.
+     *
+     * @return
+     * The element at the given index or NULL if index was out of range.
+     */
+    virtual const MegaCancelSubscriptionReason* get(size_t index) const = 0;
+
+    /**
+     * @brief
+     * Query how many elements are in this list.
+     *
+     * @return
+     * The number of elements in this list.
+     */
+    virtual size_t size() const = 0;
+
+    virtual MegaCancelSubscriptionReasonList* copy() const = 0;
+    virtual ~MegaCancelSubscriptionReasonList() = default;
+};
 }
 
 #endif //MEGAAPI_H

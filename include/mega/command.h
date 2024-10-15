@@ -22,15 +22,16 @@
 #ifndef MEGA_COMMAND_H
 #define MEGA_COMMAND_H 1
 
-#include <memory>
-
-#include "types.h"
-#include "node.h"
 #include "account.h"
 #include "http.h"
 #include "json.h"
-#include "textchat.h"
+#include "node.h"
 #include "nodemanager.h"
+#include "textchat.h"
+#include "types.h"
+
+#include <memory>
+#include <variant>
 
 namespace mega {
 
@@ -1037,12 +1038,29 @@ public:
     {
     public:
         CancelSubscription(const char* reason, const char* id, int canContact);
+        CancelSubscription(std::vector<std::pair<std::string, std::string>>&& reasons,
+                           const char* id,
+                           int canContact);
+
+        template<class T>
+        const T* getReasoning() const
+        {
+            return std::get_if<T>(&mReasoning);
+        }
+
+        const std::string& getId() const
+        {
+            return mId;
+        }
+
+        bool canContact() const
+        {
+            return mCanContact == CanContact::Yes;
+        }
 
     private:
-        friend CommandCreditCardCancelSubscriptions;
-
         // Can be empty
-        std::string mReason;
+        std::variant<std::string, std::vector<std::pair<std::string, std::string>>> mReasoning;
         // Can be empty which means all subscriptions
         std::string mId;
 
