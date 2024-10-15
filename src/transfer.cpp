@@ -2153,10 +2153,6 @@ void DirectReadSlot::onFailure(std::unique_ptr<HttpReq>& req, const size_t conne
         else
         {
             retryOnError(connectionNum, req->httpstatus);
-            // If failed raided part it's set as unused, and it's failure reason is:
-            // - temporary => it could be retried later (if required conditions are met)
-            // - permanent => that connection won't be used anymore
-            req->status = REQ_READY;
         }
     }
 }
