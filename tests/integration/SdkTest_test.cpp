@@ -6822,6 +6822,7 @@ namespace mega
         static int countdownTo404;
         static int countdownTo403;
         static int countdownTo429;
+        static int countdownTo503;
         static int countdownToTimeout;
         static bool isRaid;
         static bool isRaidKnown;
@@ -6879,6 +6880,14 @@ namespace mega
                     LOG_info << "SIMULATING HTTP GET 429";
                     return true;
                 }
+                if (countdownTo503-- == 0)
+                {
+                    req->httpstatus = 503;
+                    req->status = REQ_FAILURE;
+
+                    LOG_info << "SIMULATING HTTP GET 503";
+                    return true;
+                }
             }
             return false;
         }
@@ -6927,6 +6936,7 @@ namespace mega
             countdownTo404 = 5;
             countdownTo403 = 10;
             countdownTo429 = -1;
+            countdownTo503 = -1;
             countdownToTimeout = 15;
             isRaid = false;
             isRaidKnown = false;
@@ -6949,6 +6959,7 @@ namespace mega
     int DebugTestHook::countdownTo404 = 5;
     int DebugTestHook::countdownTo403 = 10;
     int DebugTestHook::countdownTo429 = -1;
+    int DebugTestHook::countdownTo503 = -1;
     int DebugTestHook::countdownToTimeout = 15;
 
 }
@@ -7998,6 +8009,7 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)
     auto startStreaming = [cloudRaidNode, this](int cd404,
                                                 int cd403,
                                                 int cd429,
+                                                int cd503,
                                                 m_off_t nFailedReqs,
                                                 unsigned int transfer_timeout_in_seconds)
     {
@@ -8005,6 +8017,7 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)
         DebugTestHook::countdownTo404 = cd404;
         DebugTestHook::countdownTo403 = cd403;
         DebugTestHook::countdownTo429 = cd429;
+        DebugTestHook::countdownTo503 = cd503;
         std::unique_ptr<CheckStreamedFile_MegaTransferListener> p(
             StreamRaidFilePart(megaApi[0].get(),
                                0,
@@ -8028,17 +8041,53 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)
             << "Unexpected number of retries for streaming download";
     };
 
-    LOG_debug << "#### Test1: Streaming Download, forcing 1 Raided Part Failure (404). No transfer "
+    LOG_debug << "#### Test1: Streaming Download, forcing 1 Raided Part Failure (403). No transfer "
                  "retry ####";
-    startStreaming(2 /*cd404*/, -1 /*cd403*/, -1 /*cd429*/, 0 /*nFailedReqs*/, 180 /*timeout*/);
+    startStreaming(-1 /*cd404*/,
+                   2 /*cd403*/,
+                   -1 /*cd429*/,
+                   -1 /*cd503*/,
+                   0 /*nFailedReqs*/,
+                   180 /*timeout*/);
 
-    LOG_debug << "#### Test2: Streaming Download, forcing 2 Raided Part Failures(404 | 403)."
-                 "Transfer will be retried(onTransferTemporaryError received) ####";
-    startStreaming(2 /*cd404*/, 2 /*cd403*/, -1 /*cd429*/, 1 /*nFailedReqs*/, 180 /*timeout*/);
-
-    LOG_debug << "#### Test3: Streaming Download forcing 1 Raided Part Failures(429). No transfer "
+    LOG_debug << "#### Test2: Streaming Download, forcing 1 Raided Part Failure(503) No transfer "
                  "retry ####";
-    startStreaming(-1 /*cd404*/, -1 /*cd403*/, 2 /*cd429*/, 0 /*nFailedReqs*/, 180 /*timeout*/);
+    startStreaming(-1 /*cd404*/,
+                   -1 /*cd403*/,
+                   -1 /*cd429*/,
+                   1 /*cd503*/,
+                   0 /*nFailedReqs*/,
+                   180 /*timeout*/);
+
+    LOG_debug << "#### Test3: Streaming Download, forcing 1 Raided Part Failure (404)."
+                 "Transfer will be retried immediately due to 404(onTransferTemporaryError "
+                 "received) ####";
+    startStreaming(2 /*cd404*/,
+                   -1 /*cd403*/,
+                   -1 /*cd429*/,
+                   -1 /*cd503*/,
+                   1 /*nFailedReqs*/,
+                   180 /*timeout*/);
+
+    LOG_debug << "#### Test4: Streaming Download, forcing 1 Raided Part Failure (429)."
+                 "Transfer will be retried immediately due to 429(onTransferTemporaryError "
+                 "received) ####";
+    startStreaming(-1 /*cd404*/,
+                   -1 /*cd403*/,
+                   2 /*cd429*/,
+                   -1 /*cd503*/,
+                   1 /*nFailedReqs*/,
+                   180 /*timeout*/);
+
+    LOG_debug << "#### Test5: Streaming Download forcing 2 Raided Parts Failures(403 | 503)."
+                 "Transfer will be retried immediately due to 403 and 503(onTransferTemporaryError "
+                 "received) ####";
+    startStreaming(-1 /*cd404*/,
+                   2 /*cd403*/,
+                   -1 /*cd429*/,
+                   2 /*cd503*/,
+                   1 /*nFailedReqs*/,
+                   180 /*timeout*/);
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 }
