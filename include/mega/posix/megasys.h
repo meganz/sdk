@@ -95,7 +95,7 @@
 #include <arpa/inet.h>
 #include <termios.h>
 
-#if defined(__linux__)
+#if defined(__linux__) || defined(__OpenBSD__)
 #include <endian.h>
 #endif
 
