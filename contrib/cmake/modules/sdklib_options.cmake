@@ -34,6 +34,7 @@ option(ENABLE_DRIVE_NOTIFICATIONS "Allows to monitor (external) drives being [di
 option(ENABLE_QT_BINDINGS "Enable the target to build the Qt Bindings" OFF)
 option(ENABLE_JAVA_BINDINGS "Enable the target to build the Java Bindings" OFF)
 option(ENABLE_PYTHON_BINDINGS "Enable the target to build the Python Bindings" OFF)
+option(ENABLE_PHP_BINDINGS "Enable the target to build the PHP Bindings" OFF)
 if (USE_FREEIMAGE)
     option(ENABLE_ISOLATED_GFX "Turns on isolated GFX processor" ON)
 else()
