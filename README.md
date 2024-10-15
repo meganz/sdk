@@ -134,19 +134,9 @@ To run the example app `megacli`, go to the `examples` directory in the `build_d
 
 - Android 8.0
 
-### iOS
+### DMS
 
-- iOS 15
-
-### Windows
-
-- Windows 7
-- Windows Server 2008
-
-### macOS
-
-- macOS 10.13 (Intel)
-- macOS 11.1 (Apple silicon)
+- DMS 7.2
 
 ### GNU/Linux
 
@@ -157,9 +147,19 @@ To run the example app `megacli`, go to the `examples` directory in the `build_d
 - Raspberry Pi OS Lite (Debian 11)
 - Ubuntu 20.04 LTS
 
-### DMS
+### iOS
 
-- DMS 7.2
+- iOS 15
+
+### macOS
+
+- macOS 10.13 (Intel)
+- macOS 11.1 (Apple silicon)
+
+### Windows
+
+- Windows 7
+- Windows Server 2008
 
 ## How to build the SDK library (Obsolete methods)
 
