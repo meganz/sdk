@@ -205,7 +205,7 @@ class ReleaseProcess:
         else:
             self._slack.post_message(
                 self._slack_channel_dev_requests,
-                f"Hello !channel,\n\nPlease approve the MR for {reason}",
+                f"Hello <!channel>,\n\nPlease approve the MR for {reason}",
             )
 
     # STEP 4: Create "release/vX.Y.Z" branch
