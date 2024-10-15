@@ -130,33 +130,36 @@ To run the example app `megacli`, go to the `examples` directory in the `build_d
 
 ## Minimum supported OS versions
 
-### macOS
+### Android
 
-- macOS 10.13 (High Sierra) for Intel
-- macOS 11 (Big Sur) for Apple silicon
-
-### Windows
-
-- Windows 7
-- Windows Server 2008 R2
-
-### Linux
-
-- Arch
-- Debian 10
-- Elementary OS Juno
-- Fedora 37
-- Mint 19
-- OpenSUSE Leap 15.4
-- Ubuntu 20.04
+- Android 8.0
 
 ### iOS
 
 - iOS 15
 
-### Android
+### Windows
 
-- Android 8.0 (Oreo)
+- Windows 7
+- Windows Server 2008
+
+### macOS
+
+- macOS 10.13 (Intel)
+- macOS 11.1 (Apple silicon)
+
+### GNU/Linux
+
+- Arch
+- Debian 11
+- Fedora 38
+- OpenSUSE Leap 15.5
+- Raspberry Pi OS Lite (Debian 11)
+- Ubuntu 20.04 LTS
+
+### DMS
+
+- DMS 7.2
 
 ## How to build the SDK library (Obsolete methods)
 
