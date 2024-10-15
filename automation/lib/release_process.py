@@ -52,14 +52,16 @@ class ReleaseProcess:
     def setup_chat(
         self,
         slack_token: str,
-        slack_channel: str,
+        slack_channel_dev: str,
+        slack_channel_announce: str,
     ):
         # Chat has 2 purposes:
         # - request approvals for MRs (always in the same channel, only for SDK devs);
         # - make announcements in the given channel, if any.
         print("Slack initializing", flush=True)
         self._slack = Slack(slack_token)
-        self._slack_channel = slack_channel
+        self._slack_channel_dev_requests = slack_channel_dev
+        self._slack_channel_announce = slack_channel_announce
         print("v Slack initialized", flush=True)
 
     # STEP 3: update version in local file
@@ -195,16 +197,15 @@ class ReleaseProcess:
         print("v MR merged for version upgrade", flush=True)
 
     def _request_mr_approval(self, reason: str):
-        if self._slack is None:
+        if self._slack is None or not self._slack_channel_dev_requests:
             print(
                 f"You need to request MR approval yourself because chat is not available,\n{reason}",
                 flush=True,
             )
         else:
             self._slack.post_message(
-                "sdk-stuff-builders-team",
-                # "sdk_devs_only",
-                f"Hello !channel,\n\nPlease approve the MR for {reason}",
+                self._slack_channel_dev_requests,
+                f"Hello <!channel>,\n\nPlease approve the MR for {reason}",
             )
 
     # STEP 4: Create "release/vX.Y.Z" branch
@@ -289,11 +290,13 @@ class ReleaseProcess:
         notes: str = (
             f"\U0001F4E3 \U0001F4E3 *New {self._project_name} version  -->  `{self._rc_tag}`* (<{tag_url}|Link>)\n\n"
         ) + self._jira.get_release_notes_for_slack(apps)
-        if not self._slack or not self._slack_channel:
+        if not self._slack or not self._slack_channel_announce:
             print("Enjoy:\n\n" + notes, flush=True)
         else:
-            self._slack.post_message(self._slack_channel, notes)
-            print(f"v Posted release notes to #{self._slack_channel}", flush=True)
+            self._slack.post_message(self._slack_channel_announce, notes)
+            print(
+                f"v Posted release notes to #{self._slack_channel_announce}", flush=True
+            )
 
     ####################
     ##  Close release
@@ -374,14 +377,17 @@ class ReleaseProcess:
         )
         print("v Created release", release_name, flush=True)
 
-    # STEP 3 (close): GitLab: Merge version upgrade MR into public branch (master)
+    # STEP 3 (close): GitLab, Slack: Merge version upgrade MR into public branch (master)
     def merge_release_changes_into_public_branch(self, public_branch: str):
-        mr_id = self._remote_private_repo._get_id_of_open_mr(
+        mr_id, mr_url = self._remote_private_repo._get_open_mr(
             self._get_mr_title_for_release(),
             self.get_new_release_branch(),
             public_branch,
         )
         assert mr_id > 0
+        self._request_mr_approval(
+            f"`{self._project_name}` close `{self._new_version}`:\n{mr_url}"
+        )
         self._remote_private_repo.merge_mr(mr_id, 3600)  # must not delete source branch
 
     # STEP 4 (close): local git: Push public branch (master) to public remote (github)
@@ -493,7 +499,7 @@ class ReleaseProcess:
         assert self._jira
         self._jira.add_fix_version_to_tickets(tickets)
 
-    # STEP 8 (patch): local git, GitLab: Update version in local file
+    # STEP 8 (patch): local git, GitLab, Slack: Update version in local file
     def update_version_in_local_file_from_branch(
         self,
         gpg_keygrip: str,

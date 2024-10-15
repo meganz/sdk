@@ -48,8 +48,11 @@ release.setup_project_management(
     os.environ["JIRA_PASSWORD"],
 )
 
-if os.environ["SLACK_TOKEN"] and args["slack_channel"]:
-    release.setup_chat(os.environ["SLACK_TOKEN"], args["slack_channel"])
+slack_token = os.environ.get("SLACK_TOKEN", "")
+slack_channel_dev = args.get("slack_channel_dev_requests", "")
+slack_channel_announce = args.get("slack_channel_announce", "")
+if slack_token and (slack_channel_dev or slack_channel_announce):
+    release.setup_chat(slack_token, slack_channel_dev, slack_channel_announce)
 
 assert args["tickets"]
 
@@ -71,7 +74,7 @@ release.add_fix_version_to_tickets(tickets)
 
 
 if LocalRepository.has_version_file():
-    # STEP 8: local git, GitLab: update version in local file
+    # STEP 8: local git, GitLab, Slack: update version in local file
     release.update_version_in_local_file_from_branch(
         os.environ["GPG_KEYGRIP"],
         os.environ["GPG_PASSWORD"],
