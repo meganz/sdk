@@ -12816,24 +12816,23 @@ void Syncs::setSyncsNeedFullSync(bool andFullScan, bool andReFingerprint, handle
 bool Syncs::conflictsDetectedToMap(SyncIDtoConflictInfoMap& conflicts)
 {
     assert(onSyncThread());
-
+    unsigned int totalConflicts{};
     for (auto& us: mSyncVec)
     {
-        if (Sync* sync = us->mSync.get())
+        if (Sync* sync = us->mSync.get(); sync && sync->localroot->conflictsDetected())
         {
-            if (sync->localroot->conflictsDetected())
+            auto [it, success] = conflicts.emplace(us->mConfig.mBackupId, list<NameConflict>());
+            if (!success)
             {
-                auto [it, success] = conflicts.emplace(us->mConfig.mBackupId, list<NameConflict>());
-                if (!success)
-                {
-                    assert(false);
-                    LOG_err << "[Syncs::conflictsDetected()] cannot add entry at conflicts map "
-                               "with BackUpId: "
-                            << toHandle(us->mConfig.mBackupId);
-                    return false;
-                }
-                sync->recursiveCollectNameConflicts(&it->second);
+                assert(false);
+                LOG_err << "[Syncs::conflictsDetected()] cannot add entry at conflicts map "
+                           "with BackUpId: "
+                        << toHandle(us->mConfig.mBackupId);
+                conflicts.clear();
+                break;
             }
+            sync->recursiveCollectNameConflicts(&it->second);
+            totalConflicts += it->second.size();
         }
     }
     // Disable sync conflicts update flag
@@ -12842,8 +12841,8 @@ bool Syncs::conflictsDetectedToMap(SyncIDtoConflictInfoMap& conflicts)
     // number of conflicts + 1, in order to avoid extra recursive operations as the full count is
     // not needed This updates the counter to the real number of conflicts, so we avoid incremental
     // updates later (from previous_conflicts_size + 1 to actual_conflicts_size)
-    totalSyncConflicts.store(conflicts.size());
-    return !conflicts.empty();
+    totalSyncConflicts.store(totalConflicts);
+    return totalConflicts;
 }
 
 bool Syncs::conflictsDetected(list<NameConflict>& conflicts)

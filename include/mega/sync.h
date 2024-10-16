@@ -40,6 +40,7 @@ class BackupMonitor;
 class MegaClient;
 struct JSON;
 class JSONWriter;
+using SyncIDtoConflictInfoMap = std::map<handle, list<NameConflict>>;
 
 // How should the sync engine detect filesystem changes?
 enum ChangeDetectionMethod
@@ -1376,10 +1377,20 @@ public:
     // backupId of UNDEF to rescan all
     void setSyncsNeedFullSync(bool andFullScan, bool andReFingerprint, handle backupId);
 
-    // retrieves information about any detected name conflictsa and stores in a Map (BackupId to
-    // list of conficts).
-    bool conflictsDetectedToMap(
-        SyncIDtoConflictInfoMap& conflicts); // This one resets syncupdate_totalconflicts
+    /**
+     * @brief Detects name conflicts in the synchronizations and stores them in a Map.
+     *
+     * Additionally, this function updates the global conflict counter, and
+     * disables sync conflicts update flag
+     *
+     * @note This function must be executed on the sync thread.
+     *
+     * @param conflicts Map (BackupId to list of conficts) where detected conflicts are stored.
+     *
+     * @return Returns true if conflicts were detected and stored in the map, otherwise returns
+     * false.
+     */
+    bool conflictsDetectedToMap(SyncIDtoConflictInfoMap& conflicts);
 
     // retrieves information about any detected name conflicts.
     bool conflictsDetected(list<NameConflict>& conflicts); // This one resets syncupdate_totalconflicts
