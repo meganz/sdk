@@ -106,6 +106,7 @@
     <ClInclude Include="..\..\include\mega\thread.h" />
     <ClInclude Include="..\..\include\mega\transfer.h" />
     <ClInclude Include="..\..\include\mega\transferslot.h" />
+    <ClInclude Include="..\..\include\mega\transferstats.h" />
     <ClInclude Include="..\..\include\mega\treeproc.h" />
     <ClInclude Include="..\..\include\mega\types.h" />
     <ClInclude Include="..\..\include\mega\user.h" />

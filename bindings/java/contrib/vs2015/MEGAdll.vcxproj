@@ -60,6 +60,7 @@
     <ClInclude Include="..\..\..\..\include\mega\thread\win32thread.h" />
     <ClInclude Include="..\..\..\..\include\mega\transfer.h" />
     <ClInclude Include="..\..\..\..\include\mega\transferslot.h" />
+    <ClInclude Include="..\..\..\..\include\mega\transferstats.h" />
     <ClInclude Include="..\..\..\..\include\mega\treeproc.h" />
     <ClInclude Include="..\..\..\..\include\mega\types.h" />
     <ClInclude Include="..\..\..\..\include\mega\user.h" />
@@ -113,6 +114,7 @@
     <ClCompile Include="..\..\..\..\src\thread\win32thread.cpp" />
     <ClCompile Include="..\..\..\..\src\transfer.cpp" />
     <ClCompile Include="..\..\..\..\src\transferslot.cpp" />
+    <ClCompile Include="..\..\..\..\src\transferstats.cpp" />
     <ClCompile Include="..\..\..\..\src\treeproc.cpp" />
     <ClCompile Include="..\..\..\..\src\user.cpp" />
     <ClCompile Include="..\..\..\..\src\useralerts.cpp" />

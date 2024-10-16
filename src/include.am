@@ -56,6 +56,7 @@ src_libmega_la_SOURCES += src/sync.cpp
 src_libmega_la_SOURCES += src/syncfilter.cpp
 src_libmega_la_SOURCES += src/transfer.cpp
 src_libmega_la_SOURCES += src/transferslot.cpp
+src_libmega_la_SOURCES += src/transferstats.cpp
 src_libmega_la_SOURCES += src/treeproc.cpp
 src_libmega_la_SOURCES += src/user.cpp
 src_libmega_la_SOURCES += src/useralerts.cpp
