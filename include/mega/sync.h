@@ -1701,6 +1701,15 @@ private:
 
     void confirmOrCreateDefaultMegaignore(bool transitionToMegaignore, unique_ptr<DefaultFilterChain>& resultIfDfc, unique_ptr<string_vector>& resultIfMegaignoreDefault);
 
+    /**
+     * @brief Handles how to deal with a sync whose remote root node has been moved or renamed
+     *
+     * @note This method assumes that the location of the remote node has changed.
+     *
+     * @param sync The affected sync. Its state might be changed
+     */
+    void manageRemoteRootLocationChange(Sync& sync) const;
+
     // ------ private data members
 
     MegaClient& mClient;

@@ -4084,6 +4084,41 @@ bool Syncs::checkSyncRemoteLocationChange(SyncConfig& config,
     return true;
 }
 
+void Syncs::manageRemoteRootLocationChange(Sync& sync) const
+{
+    // Currently, we don't support movements for backup roots
+    if (sync.isBackup())
+    {
+        LOG_err << "Remote root node move/rename is not expected to take place for backup syncs";
+        assert(false);
+        sync.changestate(SyncError::BACKUP_MODIFIED, false, true, false);
+        return;
+    }
+    // we need to check if the node in its new location is syncable
+    const auto& config = sync.getConfig();
+    const auto [e, syncError] = std::invoke(
+        [this, newRemoteRootNH = config.mRemoteNode]() -> std::pair<error, SyncError>
+        {
+            std::lock_guard g(mClient.nodeTreeMutex);
+            SyncError syncError;
+            error e = mClient.isnodesyncable(mClient.mNodeManager.getNodeByHandle(newRemoteRootNH),
+                                             nullptr,
+                                             &syncError,
+                                             true);
+            return {e, syncError};
+        });
+    if (e)
+    {
+        LOG_debug << "Node is not syncable after moving to a new location: " << syncError;
+        sync.changestate(syncError, false, true, true);
+    }
+    else
+    {
+        // Notify the change in the root path
+        mClient.app->syncupdate_remote_root_changed(config);
+    }
+}
+
 void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const LocalPath& localdebris,
     bool inshare, bool isNetwork, const LocalPath& rootpath,
     std::function<void(error, SyncError, handle)> completion, const string& logname)
@@ -12388,30 +12423,7 @@ void Syncs::syncLoop()
                 }
                 else if (remoteRootHasChanged)
                 {
-                    // we need to check if the node in its new location is syncable
-                    const auto [e, syncError] = std::invoke(
-                        [this, &us]() -> std::pair<error, SyncError>
-                        {
-                            std::lock_guard g(mClient.nodeTreeMutex);
-                            SyncError syncError;
-                            error e = mClient.isnodesyncable(
-                                mClient.mNodeManager.getNodeByHandle(us->mConfig.mRemoteNode),
-                                nullptr,
-                                &syncError,
-                                true);
-                            return {e, syncError};
-                        });
-                    if (e)
-                    {
-                        LOG_debug << "Node is not syncable after moving to a new location: "
-                                  << syncError;
-                        sync->changestate(syncError, false, true, true);
-                    }
-                    else
-                    {
-                        // Notify the change in the root path
-                        mClient.app->syncupdate_remote_root_changed(sync->getConfig());
-                    }
+                    manageRemoteRootLocationChange(*sync);
                 }
             }
             else if (us->mConfig.mRunState == SyncRunState::Suspend &&
