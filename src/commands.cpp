@@ -11666,8 +11666,9 @@ bool CommandPutVpnCredential::procresult(Command::Result r, JSON& json)
         return false;
     }
 
-    // Skip VPN regions
-    if (!json.enterobject() || !CommandGetVpnRegions::parseRegions(json, nullptr) ||
+    // Parse VPN regions
+    vector<VpnRegion> vpnRegions;
+    if (!json.enterobject() || !CommandGetVpnRegions::parseRegions(json, &vpnRegions) ||
         !json.leaveobject())
     {
         if (mCompletion)
@@ -11680,9 +11681,38 @@ bool CommandPutVpnCredential::procresult(Command::Result r, JSON& json)
     if (mCompletion)
     {
         std::string userPubKey = Base64::btoa(mUserKeyPair.pubKey);
-        auto peerKeyPair = StringKeyPair(std::move(mUserKeyPair.privKey), std::move(clusterPubKey));
-        std::string newCredential = client->generateVpnCredentialString(clusterID, std::move(mRegion), std::move(ipv4), std::move(ipv6), std::move(peerKeyPair));
-        mCompletion(API_OK, slotID, std::move(userPubKey), std::move(newCredential));
+        std::string newCredential;
+        const auto itRegion = std::find_if(vpnRegions.begin(),
+                                           vpnRegions.end(),
+                                           [&name = mRegion](const VpnRegion& r)
+                                           {
+                                               return r.getName() == name;
+                                           });
+        if (itRegion != vpnRegions.end())
+        {
+            const auto& clusters = itRegion->getClusters();
+            const auto itCluster = clusters.find(clusterID);
+            if (itCluster != clusters.end())
+            {
+                auto peerKeyPair =
+                    StringKeyPair(std::move(mUserKeyPair.privKey), std::move(clusterPubKey));
+                newCredential = client->generateVpnCredentialString(itCluster->second.getHost(),
+                                                                    itCluster->second.getDns(),
+                                                                    std::move(ipv4),
+                                                                    std::move(ipv6),
+                                                                    std::move(peerKeyPair));
+            }
+        }
+
+        if (newCredential.empty())
+        {
+            LOG_err << "[CommandPutVpnCredentials] Could not generate VPN credential string";
+            mCompletion(API_ENOENT, -1, {}, {});
+        }
+        else
+        {
+            mCompletion(API_OK, slotID, std::move(userPubKey), std::move(newCredential));
+        }
     }
     return true;
 }

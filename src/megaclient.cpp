@@ -34,6 +34,7 @@
 #include <functional>
 #include <future>
 #include <iomanip>
+#include <numeric>
 #include <random>
 
 #undef min // avoid issues with std::min and std::max
@@ -20735,8 +20736,8 @@ void MegaClient::checkVpnCredential(std::string&& userPubKey, CommandDelVpnCrede
 }
 
 // Generate the credential string.
-string MegaClient::generateVpnCredentialString(int clusterID,
-                                               std::string&& vpnRegion,
+string MegaClient::generateVpnCredentialString(const std::string& host,
+                                               const std::vector<std::string>& dns,
                                                std::string&& ipv4,
                                                std::string&& ipv6,
                                                StringKeyPair&& peerKeyPair)
@@ -20754,18 +20755,32 @@ string MegaClient::generateVpnCredentialString(int clusterID,
     string credential;
     credential.reserve(300);
     credential.append("[Interface]\n")
-              .append("PrivateKey = ").append(peerPrivateKey).append("\n")
-              .append("Address = ").append(ipv4).append("/32").append(", ").append(ipv6).append("/128\n")
-              .append("DNS = 8.8.8.8, 2001:4860:4860::8888\n\n")
-              .append("[Peer]\n")
-              .append("PublicKey = ").append(peerPublicKey).append("\n")
-              .append("AllowedIPs = 0.0.0.0/0, ::/0\n")
-              .append("Endpoint = ").append(vpnRegion).append(".vpn");
-    if (clusterID > 1)
-    {
-        credential.append(std::to_string(clusterID));
-    }
-    credential.append(".mega.nz:51820");
+        .append("PrivateKey = ")
+        .append(peerPrivateKey)
+        .append("\n")
+        .append("Address = ")
+        .append(ipv4)
+        .append("/32")
+        .append(", ")
+        .append(ipv6)
+        .append("/128\n")
+        .append("DNS = ")
+        .append(std::accumulate(dns.begin(),
+                                dns.end(),
+                                std::string{},
+                                [](std::string& a, const std::string& b)
+                                {
+                                    return a.empty() ? b : (std::move(a) + ',' + b);
+                                }))
+        .append("\n\n")
+        .append("[Peer]\n")
+        .append("PublicKey = ")
+        .append(peerPublicKey)
+        .append("\n")
+        .append("AllowedIPs = 0.0.0.0/0, ::/0\n")
+        .append("Endpoint = ")
+        .append(host)
+        .append(":51820");
     return credential;
 }
 /* Mega VPN methods END */
