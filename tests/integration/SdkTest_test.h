@@ -31,6 +31,12 @@
 #include <iostream>
 #include <memory>
 
+#ifndef WIN32
+#define DOTSLASH "./"
+#else
+#define DOTSLASH ".\\"
+#endif
+
 using namespace mega;
 using ::testing::Test;
 
