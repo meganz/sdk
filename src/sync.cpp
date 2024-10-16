@@ -4249,7 +4249,7 @@ void Syncs::getSyncProblems_inThread(SyncProblems& problems)
     assert(onSyncThread());
 
     problems.mStallsDetected = stallsDetected(problems.mStalls);
-    problems.mConflictsDetected = conflictsDetectedToMap(problems.mConflictsMap);
+    problems.mConflictsDetected = conflictsDetected(problems.mConflictsMap);
 
     // Try to present just one item for a move/rename, instead of two.
     // We may have generated two items, one for the source node
@@ -12813,10 +12813,10 @@ void Syncs::setSyncsNeedFullSync(bool andFullScan, bool andReFingerprint, handle
     }, "setSyncsNeedFullSync");
 }
 
-bool Syncs::conflictsDetectedToMap(SyncIDtoConflictInfoMap& conflicts)
+bool Syncs::conflictsDetected(SyncIDtoConflictInfoMap& conflicts)
 {
     assert(onSyncThread());
-    unsigned int totalConflicts{};
+    size_t totalConflicts{};
     for (auto& us: mSyncVec)
     {
         if (Sync* sync = us->mSync.get(); sync && sync->localroot->conflictsDetected())
@@ -12842,29 +12842,7 @@ bool Syncs::conflictsDetectedToMap(SyncIDtoConflictInfoMap& conflicts)
     // not needed This updates the counter to the real number of conflicts, so we avoid incremental
     // updates later (from previous_conflicts_size + 1 to actual_conflicts_size)
     totalSyncConflicts.store(totalConflicts);
-    return totalConflicts;
-}
-
-bool Syncs::conflictsDetected(list<NameConflict>& conflicts)
-{
-    assert(onSyncThread());
-
-    for (auto& us : mSyncVec)
-    {
-        if (Sync* sync = us->mSync.get())
-        {
-            if (sync->localroot->conflictsDetected())
-            {
-                sync->recursiveCollectNameConflicts(&conflicts);
-            }
-        }
-    }
-    // Disable sync conflicts update flag
-    mClient.app->syncupdate_totalconflicts(false);
-    // totalSyncConflicts is set by conflictsDetectedCount, whose count is limited by the previous number of conflicts + 1, in order to avoid extra recursive operations as the full count is not needed
-    // This updates the counter to the real number of conflicts, so we avoid incremental updates later (from previous_conflicts_size + 1 to actual_conflicts_size)
-    totalSyncConflicts.store(conflicts.size());
-    return !conflicts.empty();
+    return totalConflicts > 0;
 }
 
 size_t Syncs::conflictsDetectedCount(size_t limit) const

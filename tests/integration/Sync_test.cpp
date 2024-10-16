@@ -4195,13 +4195,21 @@ void StandardClient::waitonsyncs(chrono::seconds d)
 bool StandardClient::conflictsDetected(list<NameConflict>& conflicts)
 {
     PromiseBoolSP pb(new promise<bool>());
-
     bool result = false;
 
-    client.syncs.syncRun([&](){
-        result = client.syncs.conflictsDetected(conflicts);
-        pb->set_value(true);
-    }, "StandardClient::conflictsDetected");
+    client.syncs.syncRun(
+        [&]()
+        {
+            SyncIDtoConflictInfoMap auxconflicts;
+            result = client.syncs.conflictsDetected(auxconflicts);
+            for (auto& conflict: auxconflicts)
+            {
+                conflicts.insert(conflicts.end(), conflict.second.begin(), conflict.second.end());
+            }
+
+            pb->set_value(true);
+        },
+        "StandardClient::conflictsDetected");
 
     EXPECT_TRUE(debugTolerantWaitOnFuture(pb->get_future(), 45));
 

@@ -1390,10 +1390,7 @@ public:
      * @return Returns true if conflicts were detected and stored in the map, otherwise returns
      * false.
      */
-    bool conflictsDetectedToMap(SyncIDtoConflictInfoMap& conflicts);
-
-    // retrieves information about any detected name conflicts.
-    bool conflictsDetected(list<NameConflict>& conflicts); // This one resets syncupdate_totalconflicts
+    bool conflictsDetected(SyncIDtoConflictInfoMap& conflicts);
     size_t conflictsDetectedCount(size_t limit = 0) const; // limit 0 -> no limit
 
     // Get name conficts - pass UNDEF to collect for all syncs.
