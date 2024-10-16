@@ -8,7 +8,7 @@ Unit and integration tests require the google test framework:
 https://github.com/google/googletest
 
 Building gtest and the tests itself depends very much on your OS and your build 
-system of choice. We currently support autotools, QMake, and CMake.
+system of choice. We currently support CMake.
 
 You can run all tests or just a subset of the tests by supplying a filter to the 
 test executable, e.g., `./test_unit --gtest_filter=Crypto*`
