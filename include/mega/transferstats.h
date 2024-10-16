@@ -79,7 +79,7 @@ public:
 
         // Create a string to be used for debug and analyze contents.
         // The separator is meant for different lines with metrics data.
-        std::string toString(const std::string separator = "") const;
+        std::string toString(const std::string separator = "\n") const;
 
         // Create a string in JSON format with keys and values.
         std::string toJson() const;
@@ -280,7 +280,7 @@ std::string metricsToJson(const TransferStats::Metrics& metrics);
  * @param metrics The metrics to log.
  * @param separator Separator for each line of metrics values.
  */
-void printMetrics(const TransferStats::Metrics& metrics, const std::string separator = "");
+void printMetrics(const TransferStats::Metrics& metrics, const std::string separator = "\n");
 
 /**
  * @brief Calculates the median of a vector of sorted values.
