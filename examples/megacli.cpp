@@ -13430,24 +13430,24 @@ void exec_collectAndPrintTransferStats(autocomplete::ACState& state)
     auto collectAndPrintTransfersMetricsFromType = [](direction_t transferType)
     {
         std::cout << "\n==================================================================="
-                  << std::endl;
-        std::cout << (transferType == PUT ? "[UploadStatistics]" : "[DownloadStatistics]")
-                  << std::endl;
-        std::cout << "Number of transfers: " << client->transferStatsManager.size(transferType)
-                  << std::endl;
-        std::cout << "Max entries: " << client->transferStatsManager.getMaxEntries(transferType)
-                  << std::endl;
+                  << "\n";
+        std::cout << (transferType == PUT ? "[UploadStatistics]" : "[DownloadStatistics]") << "\n";
+        std::cout << "Number of transfers: " << client->mTransferStatsManager.size(transferType)
+                  << "\n";
+        std::cout << "Max entries: " << client->mTransferStatsManager.getMaxEntries(transferType)
+                  << "\n";
         std::cout << "Max age in seconds: "
-                  << client->transferStatsManager.getMaxAgeSeconds(transferType) << std::endl;
+                  << client->mTransferStatsManager.getMaxAgeSeconds(transferType) << "\n";
         std::cout << "-------------------------------------------------------------------"
-                  << std::endl;
+                  << "\n";
         ::mega::stats::TransferStats::Metrics metrics =
-            client->transferStatsManager.collectAndPrintMetrics(transferType);
-        std::cout << metrics.toString() << std::endl;
+            client->mTransferStatsManager.collectAndPrintMetrics(transferType);
+        std::cout << metrics.toString() << "\n";
         std::cout << "-------------------------------------------------------------------"
-                  << std::endl;
-        std::cout << "JSON format:" << std::endl;
-        std::cout << metrics.compressWithKeysAndValues() << std::endl;
+                  << "\n";
+        std::cout << "JSON format:"
+                  << "\n";
+        std::cout << metrics.toJson() << "\n";
         std::cout << "===================================================================\n"
                   << std::endl;
     };
