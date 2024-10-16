@@ -34,6 +34,32 @@ namespace mega
 namespace stats
 {
 
+// TransferData
+bool TransferData::checkDataStateValidity() const
+{
+    auto checkTransferFieldValidity = [](const std::string_view& fieldName,
+                                         const auto fieldValue) -> bool
+    {
+        if (fieldValue <= 0)
+        {
+            LOG_debug << "[TransferStats::checkPreconditions] " << fieldName
+                      << " for this transfer (" << fieldValue << ") is not valid";
+            assert((fieldValue == 0) &&
+                   ("Invalid " + std::string(fieldName) + " for transfer stats")
+                       .c_str()); // Fields can be 0 under certain conditions.
+            return false;
+        }
+        return true;
+    };
+
+    bool transferFieldsAreValid = true;
+    transferFieldsAreValid &= checkPrecondition("size", mSize);
+    transferFieldsAreValid &= checkPrecondition("speed", mSpeed);
+    transferFieldsAreValid &= checkPrecondition("latency", mLatency);
+
+    return transferFieldsAreValid;
+}
+
 // Metrics
 std::string TransferStats::Metrics::toString(const std::string_view separator) const
 {
@@ -72,26 +98,10 @@ std::string TransferStats::Metrics::toJson() const
 bool TransferStats::addTransferData(TransferData&& transferData)
 {
     // Check all preconditions.
-    auto checkPrecondition = [](const std::string_view& fieldName, const auto fieldValue)
+    if (!transferData.checkDataStateValidity())
     {
-        if (fieldValue <= 0)
-        {
-            LOG_debug << "[TransferStats::addTransferStats] " << fieldName << " for this transfer ("
-                      << fieldValue << ") is not valid."
-                      << " Stats skipped for this transfer";
-            assert((fieldValue == 0) &&
-                   ("Invalid " + std::string(fieldName) + " for transfer stats")
-                       .c_str()); // Fields can be 0 under certain conditions.
-            return false;
-        }
-        return true;
-    };
-    bool allPreconditionsAreValid = true;
-    allPreconditionsAreValid &= checkPrecondition("size", transferData.mSize);
-    allPreconditionsAreValid &= checkPrecondition("speed", transferData.mSpeed);
-    allPreconditionsAreValid &= checkPrecondition("latency", transferData.mLatency);
-    if (!allPreconditionsAreValid)
-    {
+        LOG_debug << "[TransferStats::addTransferStats] Some fields are not valid. Stats skipped "
+                     "for this transfer";
         return false;
     }
 

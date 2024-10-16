@@ -50,6 +50,9 @@ public:
         bool mIsRaided{}; // Flag indicating if the transfer is raided (true) or not (false).
         std::chrono::steady_clock::time_point
             mTimestamp{}; // Timestamp indicating when the transfer was added.
+
+        // Check data fields validity.
+        bool checkDataStateValidity() const;
     };
 
     /**
