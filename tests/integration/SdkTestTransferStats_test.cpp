@@ -32,10 +32,10 @@ stats::TransferStats::Metrics calculateExpectedMetrics(const direction_t transfe
     // Calculate the median size.
     auto sortedSizes = sizes;
     std::sort(sortedSizes.begin(), sortedSizes.end());
-    metrics.mMedianSize = stats::utils::calculateMedian(sortedSizes);
+    metrics.mMedianSize = stats::calculateMedian(sortedSizes);
 
     // Calculate the contraharmonic mean (sizes weighted by their own sizes).
-    metrics.mContraharmonicMeanSize = stats::utils::calculateWeightedAverage(sizes, sizes);
+    metrics.mContraharmonicMeanSize = stats::calculateWeightedAverage(sizes, sizes);
 
     // Set RAID transfer ratio.
     metrics.mRaidedTransferRatio = raidedTransferRatio;

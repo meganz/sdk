@@ -274,8 +274,7 @@ private:
     static bool transferStateIsValid(const Transfer* const transfer);
 };
 
-namespace utils
-{
+// UTILS
 /**
  * @brief Converts the collected metrics into a JSON format.
  *
@@ -310,7 +309,6 @@ m_off_t calculateMedian(const std::vector<m_off_t>& sortedValues);
 m_off_t calculateWeightedAverage(const std::vector<m_off_t>& values,
                                  const std::vector<m_off_t>& weights);
 
-} // namespace utils
 
 } // namespace stats
 

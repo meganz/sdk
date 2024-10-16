@@ -20,10 +20,10 @@
 
 #include <gtest/gtest.h>
 
-using namespace mega::stats::utils;
+using namespace mega::stats;
 
 /**
- * @brief Unit test for mega::stats::utils::calculateMedian()
+ * @brief Unit test for mega::stats::calculateMedian()
  */
 TEST(TransferStatsTest, TestCalculateMedian)
 {
@@ -85,7 +85,7 @@ TEST(TransferStatsTest, TestCalculateMedian)
 }
 
 /**
- * @brief Unit test for mega::stats::utils::calculateWeightedAverage()
+ * @brief Unit test for mega::stats::calculateWeightedAverage()
  */
 TEST(TransferStatsTest, TestCalculateWeightedAverage)
 {

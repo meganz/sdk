@@ -268,7 +268,7 @@ bool TransferStatsManager::addTransferStats(const Transfer* const transfer)
 
 std::string TransferStatsManager::metricsToJsonForTransferType(const direction_t type) const
 {
-    return utils::metricsToJson(collectMetrics(type));
+    return metricsToJson(collectMetrics(type));
 }
 
 TransferStats::Metrics TransferStatsManager::collectMetrics(const direction_t type) const
@@ -319,9 +319,6 @@ int64_t TransferStatsManager::getMaxAgeSeconds(const direction_t type) const
 }
 
 // Utils
-namespace utils
-{
-
 std::string metricsToJson(const TransferStats::Metrics& metrics)
 {
     return metrics.toJson();
@@ -368,7 +365,6 @@ m_off_t calculateWeightedAverage(const vector<m_off_t>& values, const vector<m_o
         std::round(static_cast<double>(weightedSum) / static_cast<double>(totalWeight)));
 }
 
-} // namespace utils
 
 } // namespace stats
 
