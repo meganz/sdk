@@ -7755,6 +7755,9 @@ public:
         API_EMASTERONLY = -27,          ///< Access denied for sub-users (only for business accounts)
         API_EBUSINESSPASTDUE = -28,     ///< Business account expired
         API_EPAYWALL = -29,             ///< Over Disk Quota Paywall
+        API_ESUBUSERKEYMISSING = -30, ///< A business error where a subuser has not yet encrypted
+                                      /// their master key for the admin user and tries to perform
+                                      /// a disallowed command (currently u and p)
 
         PAYMENT_ECARD = -101,
         PAYMENT_EBILLING = -102,
