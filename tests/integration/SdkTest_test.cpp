@@ -6854,7 +6854,7 @@ namespace mega
             return false;
         }
 
-        static bool onHttpReqPost404Or403(HttpReq* req)
+        static bool onHttpReqPostError(HttpReq* req)
         {
             if (req->type == REQ_BINARY)
             {
@@ -6932,12 +6932,12 @@ namespace mega
         {
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
             globalMegaTestHooks = MegaTestHooks(); // remove any callbacks set in other tests
-            countdownToOverquota = 3;
-            countdownTo404 = 5;
-            countdownTo403 = 10;
+            countdownToOverquota = -1;
+            countdownTo404 = -1;
+            countdownTo403 = -1;
             countdownTo429 = -1;
             countdownTo503 = -1;
-            countdownToTimeout = 15;
+            countdownToTimeout = -1;
             isRaid = false;
             isRaidKnown = false;
             return true;
@@ -6953,15 +6953,14 @@ namespace mega
 
     };
 
-    int DebugTestHook::countdownToOverquota = 3;
+    int DebugTestHook::countdownToOverquota = -1;
     bool DebugTestHook::isRaid = false;
     bool DebugTestHook::isRaidKnown = false;
-    int DebugTestHook::countdownTo404 = 5;
-    int DebugTestHook::countdownTo403 = 10;
+    int DebugTestHook::countdownTo404 = -1;
+    int DebugTestHook::countdownTo403 = -1;
     int DebugTestHook::countdownTo429 = -1;
     int DebugTestHook::countdownTo503 = -1;
-    int DebugTestHook::countdownToTimeout = 15;
-
+    int DebugTestHook::countdownToTimeout = -1;
 }
 
 
@@ -7177,7 +7176,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
     DebugTestHook::countdownTo404 = 5;
     DebugTestHook::countdownTo403 = 12;
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
-    globalMegaTestHooks.onHttpReqPost = DebugTestHook::onHttpReqPost404Or403;
+    globalMegaTestHooks.onHttpReqPost = DebugTestHook::onHttpReqPostError;
     globalMegaTestHooks.onSetIsRaid = DebugTestHook::onSetIsRaid_morechunks;
     globalMegaTestHooks.onLimitMaxReqSize = ::mega::DebugTestHook::onLimitMaxReqSize;
     globalMegaTestHooks.onHookNumberOfConnections = ::mega::DebugTestHook::onHookNumberOfConnections;
@@ -7990,20 +7989,12 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)
 {
     LOG_info << "___TEST Streaming Raided Transfer With Connection Failures___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-    ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
-
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_NE(rootnode.get(), nullptr) << "Cannot retrieve RootNode";
     auto importRaidHandle =
         importPublicLink(0, MegaClient::MEGAURL + PUBLIC_IMAGE_URL, rootnode.get());
     std::shared_ptr<MegaNode> cloudRaidNode{megaApi[0]->getNodeByHandle(importRaidHandle)};
-
-#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
-    globalMegaTestHooks.onHttpReqPost = DebugTestHook::onHttpReqPost404Or403;
-    globalMegaTestHooks.onSetIsRaid = DebugTestHook::onSetIsRaid_morechunks;
-    globalMegaTestHooks.onLimitMaxReqSize = ::mega::DebugTestHook::onLimitMaxReqSize;
-    globalMegaTestHooks.onHookNumberOfConnections =
-        ::mega::DebugTestHook::onHookNumberOfConnections;
-#endif
+    ASSERT_NE(rootnode.get(), nullptr) << "Cannot get CloudRaidNode node from public link";
 
     megaApi[0]->setMaxDownloadSpeed(0);
     auto startStreaming = [cloudRaidNode, this](int cd404,
@@ -8013,6 +8004,16 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)
                                                 m_off_t nFailedReqs,
                                                 unsigned int transfer_timeout_in_seconds)
     {
+        ASSERT_TRUE(DebugTestHook::resetForTests())
+            << "SDK test hooks are not enabled in release mode";
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+        globalMegaTestHooks.onHttpReqPost = DebugTestHook::onHttpReqPostError;
+        globalMegaTestHooks.onSetIsRaid = DebugTestHook::onSetIsRaid_morechunks;
+        globalMegaTestHooks.onLimitMaxReqSize = ::mega::DebugTestHook::onLimitMaxReqSize;
+        globalMegaTestHooks.onHookNumberOfConnections =
+            ::mega::DebugTestHook::onHookNumberOfConnections;
+#endif
+
         mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
         DebugTestHook::countdownTo404 = cd404;
         DebugTestHook::countdownTo403 = cd403;
