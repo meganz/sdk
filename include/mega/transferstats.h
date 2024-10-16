@@ -265,10 +265,13 @@ private:
     TransferStats mDownloadStatistics; // Transfer statistics for downloads.
 
     // Sanity.
-    void checkValidTransferType(direction_t type)
+    static void checkValidTransferType(direction_t type)
     {
         assert(type == PUT || type == GET);
     }
+
+    // Check transfer state validity to add transfer stats.
+    static bool TransferStatsManager::transferStateIsValid(const Transfer* const transfer);
 };
 
 namespace utils

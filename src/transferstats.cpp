@@ -35,7 +35,7 @@ namespace stats
 {
 
 // TransferData
-bool TransferData::checkDataStateValidity() const
+bool TransferStats::TransferData::checkDataStateValidity() const
 {
     auto checkTransferFieldValidity = [](const std::string_view& fieldName,
                                          const auto fieldValue) -> bool
@@ -53,9 +53,9 @@ bool TransferData::checkDataStateValidity() const
     };
 
     bool transferFieldsAreValid = true;
-    transferFieldsAreValid &= checkPrecondition("size", mSize);
-    transferFieldsAreValid &= checkPrecondition("speed", mSpeed);
-    transferFieldsAreValid &= checkPrecondition("latency", mLatency);
+    transferFieldsAreValid &= checkTransferFieldValidity("size", mSize);
+    transferFieldsAreValid &= checkTransferFieldValidity("speed", mSpeed);
+    transferFieldsAreValid &= checkTransferFieldValidity("latency", mLatency);
 
     return transferFieldsAreValid;
 }
@@ -196,33 +196,60 @@ TransferStats::Metrics TransferStats::collectMetrics(const direction_t type) con
 }
 
 // TransferStatsManager
+bool TransferStatsManager::transferStateIsValid(const Transfer* const transfer)
+{
+    auto checkTransferStateCondition = [](bool transferStateCondition,
+                                          const std::string& errorMsg,
+                                          bool triggerAssert = true) -> bool
+    {
+        if (!transferStateCondition)
+        {
+            LOG_err << errorMsg;
+            if (triggerAssert)
+                assert(false && errorMsg.c_str());
+            return false;
+        }
+        return true;
+    };
+
+    if (!checkTransferStateCondition(
+            transfer != nullptr,
+            "[TransferStatsManager::transferStateIsValid] called with a NULL transfer"))
+    {
+        return false;
+    }
+
+    if (!checkTransferStateCondition(
+            transfer->type == PUT || transfer->type == GET,
+            "[TransferStatsManager::transferStateIsValid] called with an invalid transfer type"))
+    {
+        return false;
+    }
+
+    if (!checkTransferStateCondition(
+            transfer->slot != nullptr,
+            "[TransferStatsManager::transferStateIsValid] called with a NULL transfer slot"))
+    {
+        return false;
+    }
+
+    if (!checkTransferStateCondition(
+            !transfer->tempurls.empty(),
+            "[TransferStatsManager::transferStateIsValid] This transfer didn't initialize the "
+            "transferbuf, it will be discarded for stats",
+            false))
+    {
+        return false;
+    }
+
+    return true;
+}
+
 bool TransferStatsManager::addTransferStats(const Transfer* const transfer)
 {
     // Check preconditions.
-    if (!transfer)
+    if (!transferStateIsValid(transfer))
     {
-        LOG_err << "[TransferStatsManager::addTransferStats] called with a NULL transfer";
-        assert(false && "[TransferStatsManager::addTransferStats] called with a null transfer");
-        return false;
-    }
-    if (transfer->type != PUT && transfer->type != GET)
-    {
-        // Only uploads & downloads
-        return false;
-    }
-    if (!transfer->slot)
-    {
-        LOG_err << "[TransferStatsManager::addTransferStats] called with a NULL transfer slot";
-        assert(false &&
-               "[TransferStatsManager::addTransferStats] called with a null transfer slot");
-        return false;
-    }
-    if (transfer->tempurls.empty())
-    {
-        LOG_verbose << "[TransferStatsManager::addTransferStats] This transfer didn't initialize "
-                       "the transferbuf, it will be discarded for stats";
-        // The transfer has not started (and it was finished)
-        // we don't know if it was raided or not, and we can't use it.
         return false;
     }
 
@@ -235,19 +262,8 @@ bool TransferStatsManager::addTransferStats(const Transfer* const transfer)
                                                  transfer->slot->transferbuf.isNewRaid()};
 
     std::lock_guard<std::mutex> guard(mTransferStatsMutex);
-    if (transfer->type == PUT)
-    {
-        return mUploadStatistics.addTransferData(std::move(transferData));
-    }
-    if (transfer->type == GET)
-    {
-        return mDownloadStatistics.addTransferData(std::move(transferData));
-    }
-
-    LOG_warn << "[TransferStatsManager::addTransferStats] Invalid transfer type: "
-             << transfer->type;
-    assert(false && "[TransferStatsManager::addTransferStats] Invalid transfer type");
-    return false;
+    return transfer->type == PUT ? mUploadStatistics.addTransferData(std::move(transferData)) :
+                                   mDownloadStatistics.addTransferData(std::move(transferData));
 }
 
 std::string TransferStatsManager::metricsToJsonForTransferType(const direction_t type) const
