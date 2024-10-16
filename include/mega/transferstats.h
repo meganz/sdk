@@ -263,15 +263,6 @@ private:
     mutable std::mutex mTransferStatsMutex;
     TransferStats mUploadStatistics; // Transfer statistics for uploads.
     TransferStats mDownloadStatistics; // Transfer statistics for downloads.
-
-    // Sanity.
-    static void checkValidTransferType(direction_t type)
-    {
-        assert(type == PUT || type == GET);
-    }
-
-    // Check transfer state validity to add transfer stats.
-    static bool transferStateIsValid(const Transfer* const transfer);
 };
 
 // UTILS
@@ -309,6 +300,27 @@ m_off_t calculateMedian(const std::vector<m_off_t>& sortedValues);
 m_off_t calculateWeightedAverage(const std::vector<m_off_t>& values,
                                  const std::vector<m_off_t>& weights);
 
+/**
+ * @brief Check/assert valid transfer type.
+ *
+ * Only PUT (uploads) and GET (downloads) are allowed.
+ */
+void checkTransferTypeValidity(direction_t type);
+
+/**
+ * @brief Checks transfer state validity to add transfer stats.
+ *
+ * Error conditions are logged and asserts are triggered.
+ *
+ * The transfer object must be valid.
+ * There must be a valid TransferSlot.
+ * TempURLs must be defined and raidKnown (whether or not is raid) defined.
+ *
+ * @param transfer The transfer object to get the stats from.
+ *
+ * @returm true if the transfer state is valid and stats can be retrieved from it, false otherwise.
+ */
+bool checkTransferStateValidity(const Transfer* const transfer);
 
 } // namespace stats
 

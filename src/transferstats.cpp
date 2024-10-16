@@ -37,16 +37,23 @@ namespace stats
 // TransferData
 bool TransferStats::TransferData::checkDataStateValidity() const
 {
-    auto checkTransferFieldValidity = [](const std::string_view& fieldName,
-                                         const auto fieldValue) -> bool
+    std::string notValidAndErroneousValuesErrMsg;
+    auto checkTransferFieldValidity =
+        [&notValidAndErroneousValuesErrMsg](const std::string_view& fieldName,
+                                            const auto fieldValue) -> bool
     {
         if (fieldValue <= 0)
         {
             LOG_debug << "[TransferStats::checkPreconditions] " << fieldName
                       << " for this transfer (" << fieldValue << ") is not valid";
-            assert((fieldValue == 0) &&
-                   ("Invalid " + std::string(fieldName) + " for transfer stats")
-                       .c_str()); // Fields can be 0 under certain conditions.
+            if (fieldValue < 0)
+            {
+                // Fields can be 0 under certain conditions (even when we need to discard the
+                // metrics) but, if they are lower than 0, then there is an error somewhere.
+                notValidAndErroneousValuesErrMsg +=
+                    ("Invalid " + std::string(fieldName) + " value (" + std::to_string(fieldValue) +
+                     "). ");
+            }
             return false;
         }
         return true;
@@ -56,6 +63,8 @@ bool TransferStats::TransferData::checkDataStateValidity() const
     transferFieldsAreValid &= checkTransferFieldValidity("size", mSize);
     transferFieldsAreValid &= checkTransferFieldValidity("speed", mSpeed);
     transferFieldsAreValid &= checkTransferFieldValidity("latency", mLatency);
+
+    assert(notValidAndErroneousValuesErrMsg.empty() && notValidAndErroneousValuesErrMsg.c_str());
 
     return transferFieldsAreValid;
 }
@@ -165,10 +174,10 @@ TransferStats::Metrics TransferStats::collectMetrics(const direction_t type) con
     std::sort(speeds.begin(), speeds.end());
 
     // Calculate median and weighted averages.
-    metrics.mMedianSize = utils::calculateMedian(sizes);
-    metrics.mContraharmonicMeanSize = utils::calculateWeightedAverage(sizes, sizes);
-    metrics.mMedianSpeed = utils::calculateMedian(speeds);
-    metrics.mWeightedAverageSpeed = utils::calculateWeightedAverage(speeds, sizes);
+    metrics.mMedianSize = calculateMedian(sizes);
+    metrics.mContraharmonicMeanSize = calculateWeightedAverage(sizes, sizes);
+    metrics.mMedianSpeed = calculateMedian(speeds);
+    metrics.mWeightedAverageSpeed = calculateWeightedAverage(speeds, sizes);
 
     // Calculate max speed from the sorted speeds vector (last element is the max).
     metrics.mMaxSpeed = speeds.back();
@@ -196,59 +205,10 @@ TransferStats::Metrics TransferStats::collectMetrics(const direction_t type) con
 }
 
 // TransferStatsManager
-bool TransferStatsManager::transferStateIsValid(const Transfer* const transfer)
-{
-    auto checkTransferStateCondition = [](bool transferStateCondition,
-                                          const std::string& errorMsg,
-                                          bool triggerAssert = true) -> bool
-    {
-        if (!transferStateCondition)
-        {
-            LOG_err << errorMsg;
-            if (triggerAssert)
-                assert(false && errorMsg.c_str());
-            return false;
-        }
-        return true;
-    };
-
-    if (!checkTransferStateCondition(
-            transfer != nullptr,
-            "[TransferStatsManager::transferStateIsValid] called with a NULL transfer"))
-    {
-        return false;
-    }
-
-    if (!checkTransferStateCondition(
-            transfer->type == PUT || transfer->type == GET,
-            "[TransferStatsManager::transferStateIsValid] called with an invalid transfer type"))
-    {
-        return false;
-    }
-
-    if (!checkTransferStateCondition(
-            transfer->slot != nullptr,
-            "[TransferStatsManager::transferStateIsValid] called with a NULL transfer slot"))
-    {
-        return false;
-    }
-
-    if (!checkTransferStateCondition(
-            !transfer->tempurls.empty(),
-            "[TransferStatsManager::transferStateIsValid] This transfer didn't initialize the "
-            "transferbuf, it will be discarded for stats",
-            false))
-    {
-        return false;
-    }
-
-    return true;
-}
-
 bool TransferStatsManager::addTransferStats(const Transfer* const transfer)
 {
     // Check preconditions.
-    if (!transferStateIsValid(transfer))
+    if (!checkTransferStateValidity(transfer))
     {
         return false;
     }
@@ -273,7 +233,7 @@ std::string TransferStatsManager::metricsToJsonForTransferType(const direction_t
 
 TransferStats::Metrics TransferStatsManager::collectMetrics(const direction_t type) const
 {
-    checkValidTransferType(type);
+    checkTransferTypeValidity(type);
 
     std::lock_guard<std::mutex> guard(mTransferStatsMutex);
     return type == PUT ? mUploadStatistics.collectMetrics(type) :
@@ -289,13 +249,13 @@ TransferStats::Metrics
              << ". Max age in seconds: " << getMaxAgeSeconds(type);
 
     TransferStats::Metrics metrics = collectMetrics(type);
-    utils::printMetrics(metrics, separator);
+    printMetrics(metrics, separator);
     return metrics;
 }
 
 size_t TransferStatsManager::size(const direction_t type) const
 {
-    checkValidTransferType(type);
+    checkTransferTypeValidity(type);
 
     std::lock_guard<std::mutex> guard(mTransferStatsMutex);
     return type == PUT ? mUploadStatistics.size() : mDownloadStatistics.size();
@@ -303,7 +263,7 @@ size_t TransferStatsManager::size(const direction_t type) const
 
 size_t TransferStatsManager::getMaxEntries(const direction_t type) const
 {
-    checkValidTransferType(type);
+    checkTransferTypeValidity(type);
 
     std::lock_guard<std::mutex> guard(mTransferStatsMutex);
     return type == PUT ? mUploadStatistics.getMaxEntries() : mDownloadStatistics.getMaxEntries();
@@ -311,7 +271,7 @@ size_t TransferStatsManager::getMaxEntries(const direction_t type) const
 
 int64_t TransferStatsManager::getMaxAgeSeconds(const direction_t type) const
 {
-    checkValidTransferType(type);
+    checkTransferTypeValidity(type);
 
     std::lock_guard<std::mutex> guard(mTransferStatsMutex);
     return type == PUT ? mUploadStatistics.getMaxAgeSeconds() :
@@ -365,6 +325,58 @@ m_off_t calculateWeightedAverage(const vector<m_off_t>& values, const vector<m_o
         std::round(static_cast<double>(weightedSum) / static_cast<double>(totalWeight)));
 }
 
+void checkTransferTypeValidity(direction_t type)
+{
+    assert(type == PUT || type == GET);
+}
+
+bool checkTransferStateValidity(const Transfer* const transfer)
+{
+    auto checkTransferStateCondition = [](bool transferStateCondition,
+                                          const std::string& errorMsg,
+                                          bool triggerAssert = true) -> bool
+    {
+        if (!transferStateCondition)
+        {
+            LOG_err << errorMsg;
+            if (triggerAssert)
+                assert(false && errorMsg.c_str());
+            return false;
+        }
+        return true;
+    };
+
+    if (!checkTransferStateCondition(transfer != nullptr,
+                                     "[checkTransferStateValidity] It is a NULL transfer"))
+    {
+        return false;
+    }
+
+    if (!checkTransferStateCondition(
+            transfer->type == PUT || transfer->type == GET,
+            "[checkTransferStateValidity] called with an invalid transfer type"))
+    {
+        return false;
+    }
+
+    if (!checkTransferStateCondition(
+            transfer->slot != nullptr,
+            "[checkTransferStateValidity] called with a NULL transfer slot"))
+    {
+        return false;
+    }
+
+    if (!checkTransferStateCondition(
+            !transfer->tempurls.empty(),
+            "[checkTransferStateValidity] This transfer didn't initialize the "
+            "transferbuf, it will be discarded for stats",
+            false))
+    {
+        return false;
+    }
+
+    return true;
+}
 
 } // namespace stats
 
