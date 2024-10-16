@@ -3,70 +3,70 @@
  * @brief This file defines some tests for testing transfer stats (uploads & downloads).
  */
 
-#include "SdkTest_test.h"
 #include "sdk_test_utils.h"
+#include "SdkTest_test.h"
 
 namespace
 {
 
-    /**
-     * @brief Calculate specific metrics values that can be expected.
-     *
-     * @param transferType The type of transfer: PUT for uploads, GET for downloads.
-     * @param sizes A vector with the file sizes.
-     * @param raidedTransferRatio The ratio of raided files per transfer.
-     *
-     * @return A stats::TransferStats::Metrics object with the transfer type, median size,
-     * contraharmonic mean and raided transfer ratio.
-     */
-    stats::TransferStats::Metrics calculateExpectedMetrics(const direction_t transferType,
-                                                           const std::vector<m_off_t>& sizes,
-                                                           const double raidedTransferRatio = 0.0)
-    {
-        stats::TransferStats::Metrics metrics;
+/**
+ * @brief Calculate specific metrics values that can be expected.
+ *
+ * @param transferType The type of transfer: PUT for uploads, GET for downloads.
+ * @param sizes A vector with the file sizes.
+ * @param raidedTransferRatio The ratio of raided files per transfer.
+ *
+ * @return A stats::TransferStats::Metrics object with the transfer type, median size,
+ * contraharmonic mean and raided transfer ratio.
+ */
+stats::TransferStats::Metrics calculateExpectedMetrics(const direction_t transferType,
+                                                       const std::vector<m_off_t>& sizes,
+                                                       const double raidedTransferRatio = 0.0)
+{
+    stats::TransferStats::Metrics metrics;
 
-        // Assign the transfer type (PUT or GET).
-        EXPECT_TRUE(transferType == PUT || transferType == GET);
-        metrics.mTransferType = transferType;
+    // Assign the transfer type (PUT or GET).
+    EXPECT_TRUE(transferType == PUT || transferType == GET);
+    metrics.mTransferType = transferType;
 
-        // Calculate the median size.
-        auto sortedSizes = sizes;
-        std::sort(sortedSizes.begin(), sortedSizes.end());
-        metrics.mMedianSize = stats::utils::calculateMedian(sortedSizes);
+    // Calculate the median size.
+    auto sortedSizes = sizes;
+    std::sort(sortedSizes.begin(), sortedSizes.end());
+    metrics.mMedianSize = stats::utils::calculateMedian(sortedSizes);
 
-        // Calculate the contraharmonic mean (sizes weighted by their own sizes).
-        metrics.mContraharmonicMeanSize = stats::utils::calculateWeightedAverage(sizes, sizes);
+    // Calculate the contraharmonic mean (sizes weighted by their own sizes).
+    metrics.mContraharmonicMeanSize = stats::utils::calculateWeightedAverage(sizes, sizes);
 
-        // Set RAID transfer ratio.
-        metrics.mRaidedTransferRatio = raidedTransferRatio;
+    // Set RAID transfer ratio.
+    metrics.mRaidedTransferRatio = raidedTransferRatio;
 
-        return metrics;
-    }
+    return metrics;
+}
 
-    /**
-     * @brief Compare the expected Metrics with the metrics obtained from the TransferStatsManager.
-     *
-     * For medianSpeed, weightedAverageSpeed, maxSpeed, avgLatency, and failedRequestRatio,
-     * we perform some light checks, as those are not fully predictable.
-     *
-     * @param expected The expected values for TransferStats::Metrics.
-     * @param actual The TransferStats::Metrics object retrieved from the
-     * MegaClient::TransferStatsManager.
-     *
-     */
-    void compareMetrics(const stats::TransferStats::Metrics& expected,
-                        const stats::TransferStats::Metrics& actual)
-    {
-        EXPECT_EQ(expected.mTransferType, actual.mTransferType);
-        EXPECT_EQ(expected.mMedianSize, actual.mMedianSize);
-        EXPECT_EQ(expected.mContraharmonicMeanSize, actual.mContraharmonicMeanSize);
-        EXPECT_TRUE(actual.mMedianSpeed > 0);
-        EXPECT_TRUE(actual.mWeightedAverageSpeed >= actual.mMedianSpeed);
-        EXPECT_TRUE(actual.mMaxSpeed >= actual.mMedianSpeed);
-        EXPECT_TRUE(actual.mAvgLatency > 0 && actual.mAvgLatency < 1000);
-        EXPECT_TRUE(actual.mFailedRequestRatio >= 0.0 && actual.mFailedRequestRatio <= 1.1);
-        EXPECT_EQ(expected.mRaidedTransferRatio, actual.mRaidedTransferRatio);
-    };
+/**
+ * @brief Compare the expected Metrics with the metrics obtained from the TransferStatsManager.
+ *
+ * For medianSpeed, weightedAverageSpeed, maxSpeed, avgLatency, and failedRequestRatio,
+ * we perform some light checks, as those are not fully predictable.
+ *
+ * @param expected The expected values for TransferStats::Metrics.
+ * @param actual The TransferStats::Metrics object retrieved from the
+ * MegaClient::TransferStatsManager.
+ *
+ */
+void compareMetrics(const stats::TransferStats::Metrics& expected,
+                    const stats::TransferStats::Metrics& actual)
+{
+    EXPECT_EQ(expected.mTransferType, actual.mTransferType);
+    EXPECT_EQ(expected.mMedianSize, actual.mMedianSize);
+    EXPECT_EQ(expected.mContraharmonicMeanSize, actual.mContraharmonicMeanSize);
+    EXPECT_TRUE(actual.mMedianSpeed > 0);
+    EXPECT_TRUE(actual.mWeightedAverageSpeed >= actual.mMedianSpeed);
+    EXPECT_TRUE(actual.mMaxSpeed >= actual.mMedianSpeed);
+    EXPECT_TRUE(actual.mAvgLatency > 0 && actual.mAvgLatency < 1000);
+    EXPECT_TRUE(actual.mFailedRequestRatio >= 0.0 && actual.mFailedRequestRatio <= 1.1);
+    EXPECT_EQ(expected.mRaidedTransferRatio, actual.mRaidedTransferRatio);
+};
 
 } // namespace
 
@@ -75,7 +75,7 @@ namespace
  * @brief Fixture for test suite to test Transfer Stats.
  *
  */
-class SdkTestTransferStats : public SdkTest
+class SdkTestTransferStats: public SdkTest
 {
 public:
     /**
@@ -163,22 +163,22 @@ TEST_F(SdkTestTransferStats, SdkTestTransferStats)
     std::unique_ptr<MegaNode> rootNode(megaApi[0]->getRootNode());
     ASSERT_TRUE(rootNode);
 
-
     // 1. UPLOAD AND DOWNLOAD TWO FILES TO COLLECT TRANSFER STATS.
 
     // 1.1 Upload files.
     constexpr std::string_view file1content = "Current content 1";
-    std::unique_ptr<MegaNode> testFileNode1(uploadFileForStats(rootNode.get(), "test1.txt", file1content));
+    std::unique_ptr<MegaNode> testFileNode1(
+        uploadFileForStats(rootNode.get(), "test1.txt", file1content));
     ASSERT_TRUE(testFileNode1);
 
     constexpr std::string_view file2content = "Current content 2";
-    std::unique_ptr<MegaNode> testFileNode2(uploadFileForStats(rootNode.get(), "test2.txt", file2content));
+    std::unique_ptr<MegaNode> testFileNode2(
+        uploadFileForStats(rootNode.get(), "test2.txt", file2content));
     ASSERT_TRUE(testFileNode2);
 
     // 1.2. Download both files.
     downloadFileForStats(testFileNode1.get(), DOTSLASH "downfile1.txt");
     downloadFileForStats(testFileNode2.get(), DOTSLASH "downfile2.txt");
-
 
     // 2. COLLECT AND COMPARE UPLOADS AND DOWNLOADS METRICS.
 
@@ -206,7 +206,6 @@ TEST_F(SdkTestTransferStats, SdkTestTransferStats)
     const stats::TransferStats::Metrics expectedDownloadMetrics1 =
         calculateExpectedMetrics(GET, regularFileSizes);
     compareMetrics(expectedDownloadMetrics1, downloadMetrics1);
-
 
     // 3. CHECK DOWNLOAD TRANSFER STATS INCLUDING A NEW CLOUDRAID FILE.
 
