@@ -19,11 +19,13 @@
  * program.
  */
 
-#include <mega/fuse/common/service.h>
+#include "megaapi.h"
 
 #include "mega.h"
-#include "megaapi.h"
 #include "megaapi_impl.h"
+#include "megautils.h"
+
+#include <mega/fuse/common/service.h>
 
 namespace mega {
 
@@ -8144,16 +8146,15 @@ MegaCompleteUploadData* MegaCompleteUploadData::createInstance(const char* finge
 
 MegaGfxProvider::~MegaGfxProvider() = default;
 
-MegaGfxProvider* MegaGfxProvider::createIsolatedInstance(
-    const char* endpointName,
-    const char* executable)
+MegaGfxProvider* MegaGfxProvider::createIsolatedInstance(const char* endpointName,
+                                                         const char* executable,
+                                                         unsigned int keepAliveInSeconds,
+                                                         const MegaStringList* extraArgs)
 {
-    if (!endpointName || !executable) return nullptr;
-
-    auto provider = MegaGfxProviderPrivate::createIsolatedInstance(
-        std::string(endpointName),
-        std::string(executable)
-    );
+    auto provider = MegaGfxProviderPrivate::createIsolatedInstance(endpointName,
+                                                                   executable,
+                                                                   keepAliveInSeconds,
+                                                                   extraArgs);
 
     return provider.release();
 }

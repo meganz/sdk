@@ -6371,15 +6371,24 @@ int MegaSearchFilterPrivate::validateBoolFilterOption(const int value)
     }
 }
 
-std::unique_ptr<MegaGfxProviderPrivate> MegaGfxProviderPrivate::createIsolatedInstance(
-    const std::string& endpointName,
-    const std::string& executable)
+std::unique_ptr<MegaGfxProviderPrivate>
+    MegaGfxProviderPrivate::createIsolatedInstance([[maybe_unused]] const char* endpointName,
+                                                   [[maybe_unused]] const char* executable,
+                                                   [[maybe_unused]] unsigned int keepAliveInSeconds,
+                                                   [[maybe_unused]] const MegaStringList* extraArgs)
 {
 #ifdef ENABLE_ISOLATED_GFX
-    auto provider = GfxProviderIsolatedProcess::create(endpointName, executable);
+    if (!endpointName || !executable)
+        return nullptr;
+
+    auto args = dynamic_cast<const MegaStringListPrivate*>(extraArgs);
+    GfxIsolatedProcess::Params params{std::string{endpointName},
+                                      std::string{executable},
+                                      std::chrono::seconds{keepAliveInSeconds},
+                                      args ? args->getVector() : string_vector{}};
+    auto provider = GfxProviderIsolatedProcess::create(params);
     return std::make_unique<MegaGfxProviderPrivate>(std::move(provider));
 #else
-    (void)endpointName, (void)executable;
     return nullptr;
 #endif
 }

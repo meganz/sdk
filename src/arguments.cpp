@@ -40,6 +40,7 @@ Arguments ArgumentsParser::parse(int argc, char* argv[])
     Arguments arguments;
     for (const auto& arg : argVec)
     {
+        // A argument wouldn't be emplaced (thus dropped) if it is duplicated with a previous one
         arguments.mValues.emplace(parseOneArgument(arg));
     }
     return arguments;

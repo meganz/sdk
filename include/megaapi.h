@@ -275,15 +275,23 @@ public:
     virtual ~MegaGfxProvider();
 
     /**
-    * @brief Create a graphics processor that implemented and run in an isolated process.
-    *
-    * Note: Windows, Linux, macOS are supported.
-    *
-    * @param endpointName The unique name used for communicating with the isolated process.
-    * @param executable The executable path.
-    */
+     * @brief Create a graphics processor that implemented and run in an isolated process.
+     *
+     * Note: Windows, Linux, macOS are supported.
+     *
+     * @param endpointName The unique name used for communicating with the isolated process.
+     * @param executable The path to the executable file.
+     * @param keepAliveInSeconds The amount of time (in seconds) the isolated process stays active
+     * without receiving any requests.
+     * @param extraArgs Additional arguments that will be passed directly to the isolated process.
+     *
+     * @note The created instance sends a hello request every keepAliveInSeconds / 3 seconds to
+     * ensure the isolated process stays running.
+     */
     static MegaGfxProvider* createIsolatedInstance(const char* endpointName,
-                                                   const char* executable);
+                                                   const char* executable,
+                                                   unsigned int keepAliveInSeconds = 60,
+                                                   const MegaStringList* extraArgs = nullptr);
 
     /**
     * @brief Create a graphics processor that use your implementations @see MegaGfxProcessor.

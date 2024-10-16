@@ -212,7 +212,8 @@ Config Config::fromArguments(const Arguments& arguments)
 static std::unique_ptr<IGfxProvider> createGfxProvider([[maybe_unused]] const Config& config)
 {
 #if defined(ENABLE_ISOLATED_GFX)
-    if (auto provider = GfxProviderIsolatedProcess::create(config.endpointName, config.executable))
+    GfxIsolatedProcess::Params params{config.endpointName, config.executable};
+    if (auto provider = GfxProviderIsolatedProcess::create(params))
     {
         return provider;
     }
