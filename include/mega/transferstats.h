@@ -271,7 +271,7 @@ private:
     }
 
     // Check transfer state validity to add transfer stats.
-    static bool TransferStatsManager::transferStateIsValid(const Transfer* const transfer);
+    static bool transferStateIsValid(const Transfer* const transfer);
 };
 
 namespace utils
