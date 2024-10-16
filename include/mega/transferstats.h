@@ -305,7 +305,7 @@ m_off_t calculateWeightedAverage(const std::vector<m_off_t>& values,
  *
  * Only PUT (uploads) and GET (downloads) are allowed.
  */
-void checkTransferTypeValidity(direction_t type);
+void checkTransferTypeValidity(const direction_t type);
 
 /**
  * @brief Checks transfer state validity to add transfer stats.
