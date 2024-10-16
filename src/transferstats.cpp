@@ -70,7 +70,7 @@ bool TransferStats::TransferData::checkDataStateValidity() const
 }
 
 // Metrics
-std::string TransferStats::Metrics::toString(const std::string separator) const
+std::string TransferStats::Metrics::toString(const std::string& separator) const
 {
     std::ostringstream oss;
     oss << std::fixed << std::setprecision(2); // Two decimal precision.
@@ -242,7 +242,7 @@ TransferStats::Metrics TransferStatsManager::collectMetrics(const direction_t ty
 
 TransferStats::Metrics
     TransferStatsManager::collectAndPrintMetrics(const direction_t type,
-                                                 const std::string separator) const
+                                                 const std::string& separator) const
 {
     LOG_info << (type == PUT ? "[UploadStatistics]" : "[DownloadStatistics]")
              << " Number of transfers: " << size(type) << ". Max entries: " << getMaxEntries(type)
@@ -284,7 +284,7 @@ std::string metricsToJson(const TransferStats::Metrics& metrics)
     return metrics.toJson();
 }
 
-void printMetrics(const TransferStats::Metrics& metrics, const std::string separator)
+void printMetrics(const TransferStats::Metrics& metrics, const std::string& separator)
 {
     LOG_info << metrics.toString(separator);
 }
