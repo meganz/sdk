@@ -149,6 +149,9 @@ TransferStats::Metrics TransferStats::collectMetrics(const direction_t type) con
     assert((type == PUT || type == GET) && "Invalid transfer type!");
     metrics.mTransferType = type;
 
+    // Set the number of transfers used to calculate these metrics.
+    metrics.mNumTransfers = mTransfersData.size();
+
     // Declare sizes & speeds vectors and accumulated values.
     std::vector<m_off_t> sizes;
     std::vector<m_off_t> speeds;

@@ -76,6 +76,8 @@ public:
         double
             mFailedRequestRatio{}; // Ratio of failed requests to total requests, between 0 and 1.
         double mRaidedTransferRatio{}; // Ratio of raided transfers in the set, between 0 and 1.
+        size_t mNumTransfers{}; // Number of transfers used to calculate these metrics. Informative,
+                                // not used for stats analysis.
 
         // Create a string to be used for debug and analyze contents.
         // The separator is meant for different lines with metrics data.
