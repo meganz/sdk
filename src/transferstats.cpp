@@ -232,7 +232,8 @@ bool TransferStatsManager::addTransferStats(const Transfer* const transfer)
 
 std::string TransferStatsManager::metricsToJsonForTransferType(const direction_t type) const
 {
-    return metricsToJson(collectMetrics(type));
+    const TransferStats::Metrics metrics = collectMetrics(type);
+    return metrics.toJson();
 }
 
 TransferStats::Metrics TransferStatsManager::collectMetrics(const direction_t type) const

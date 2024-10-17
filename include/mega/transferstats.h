@@ -269,14 +269,6 @@ private:
 
 // UTILS
 /**
- * @brief Converts the collected metrics into a JSON format.
- *
- * @param metrics The collected metrics.
- * @return string A string representing the metrics in JSON format.
- */
-std::string metricsToJson(const TransferStats::Metrics& metrics);
-
-/**
  * @brief LOG the collected metrics.
  *
  * @param metrics The metrics to log.
