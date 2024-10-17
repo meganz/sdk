@@ -7020,67 +7020,10 @@ int MegaApiImpl::userAttributeFromString(const char *name)
 
 char MegaApiImpl::userAttributeToScope(int type)
 {
-    char scope;
-
-    switch(type)
+    char scope = User::scope(static_cast<attr_t>(type));
+    if (scope == ATTR_SCOPE_UNKNOWN)
     {
-        case MegaApi::USER_ATTR_AVATAR:
-        case MegaApi::USER_ATTR_ED25519_PUBLIC_KEY:
-        case MegaApi::USER_ATTR_CU25519_PUBLIC_KEY:
-        case MegaApi::USER_ATTR_SIG_RSA_PUBLIC_KEY:
-        case MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY:
-            scope = ATTR_SCOPE_PUBLIC_UNENCRYPTED;
-            break;
-
-        case MegaApi::USER_ATTR_FIRSTNAME:
-        case MegaApi::USER_ATTR_LASTNAME:
-            // legacy, without a prefix for scope
-            scope = ATTR_SCOPE_PROTECTED_UNENCRYPTED;
-            break;
-
-        case MegaApi::USER_ATTR_AUTHRING:
-        case MegaApi::USER_ATTR_LAST_INTERACTION:
-        case MegaApi::USER_ATTR_KEYRING:
-        case MegaApi::USER_ATTR_RICH_PREVIEWS:
-        case MegaApi::USER_ATTR_GEOLOCATION:
-        case MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER:
-        case MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER:
-        case MegaApi::USER_ATTR_ALIAS:
-        case ATTR_AUTHCU255: // deprecated
-        case MegaApi::USER_ATTR_DEVICE_NAMES:
-        case MegaApi::USER_ATTR_JSON_SYNC_CONFIG_DATA:
-        case MegaApi::USER_ATTR_APPS_PREFS:
-        case MegaApi::USER_ATTR_CC_PREFS:
-            scope = ATTR_SCOPE_PRIVATE_ENCRYPTED;
-            break;
-
-        case MegaApi::USER_ATTR_LANGUAGE:
-        case MegaApi::USER_ATTR_PWD_REMINDER:
-        case MegaApi::USER_ATTR_DISABLE_VERSIONS:
-        case MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION:
-        case MegaApi::USER_ATTR_LAST_PSA:
-        case MegaApi::USER_ATTR_RUBBISH_TIME:
-        case MegaApi::USER_ATTR_STORAGE_STATE:
-        case MegaApi::USER_ATTR_PUSH_SETTINGS:
-        case MegaApi::USER_ATTR_MY_BACKUPS_FOLDER:
-        case MegaApi::USER_ATTR_COOKIE_SETTINGS:
-        case MegaApi::USER_ATTR_NO_CALLKIT:
-        case ATTR_KEYS: // allow for testing
-        case MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG:
-        case MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE:
-        case MegaApi::USER_ATTR_PWM_BASE:
-        case MegaApi::USER_ATTR_ENABLE_TEST_NOTIFICATIONS:
-        case MegaApi::USER_ATTR_LAST_READ_NOTIFICATION:
-        case MegaApi::USER_ATTR_LAST_ACTIONED_BANNER:
-        case MegaApi::USER_ATTR_ENABLE_TEST_SURVEYS:
-        case MegaApi::USER_ATTR_WELCOME_PDF_COPIED:
-            scope = ATTR_SCOPE_PRIVATE_UNENCRYPTED;
-            break;
-
-        default:
-            LOG_err << "Getting invalid scope";
-            scope = ATTR_SCOPE_UNKNOWN;
-            break;
+        LOG_err << "Invalid scope for user attribute of type " << type;
     }
 
     return scope;
