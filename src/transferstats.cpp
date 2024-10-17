@@ -317,8 +317,10 @@ m_off_t calculateWeightedAverage(const vector<m_off_t>& values, const vector<m_o
 {
     if (values.size() != weights.size())
     {
-        LOG_warn << "[calculateWeightedAverage] Values size (" << values.size() << ") != weights size (" << weights.size() << "). Skipping";
-        assert(false && "[calculateWeightedAverage] Vector of values and vector of weights have different sizes");
+        LOG_warn << "[calculateWeightedAverage] Values size (" << values.size()
+                 << ") != weights size (" << weights.size() << "). Skipping";
+        assert(false && "[calculateWeightedAverage] Vector of values and vector of weights have "
+                        "different sizes");
         return 0;
     }
 
