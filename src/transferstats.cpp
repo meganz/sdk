@@ -138,6 +138,8 @@ bool TransferStats::addTransferData(TransferData&& transferData)
 
 TransferStats::Metrics TransferStats::collectMetrics(const direction_t type) const
 {
+    checkTransferTypeValidity(type);
+
     TransferStats::Metrics metrics = {};
 
     if (mTransfersData.empty())
@@ -146,7 +148,6 @@ TransferStats::Metrics TransferStats::collectMetrics(const direction_t type) con
     }
 
     // Set transfer type (PUT or GET).
-    assert((type == PUT || type == GET) && "Invalid transfer type!");
     metrics.mTransferType = type;
 
     // Set the number of transfers used to calculate these metrics.
@@ -337,7 +338,7 @@ m_off_t calculateWeightedAverage(const vector<m_off_t>& values, const vector<m_o
 
 void checkTransferTypeValidity(const direction_t type)
 {
-    assert(type == PUT || type == GET);
+    assert((type == PUT || type == GET) && "Only uploads (PUT) or downloads (GET) are allowed");
 }
 
 bool checkTransferStateValidity(const Transfer* const transfer)
