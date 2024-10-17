@@ -64,8 +64,7 @@ pipeline {
                     messageStatus = currentBuild.currentResult
                     messageColor = messageStatus == 'SUCCESS'? "#00FF00": "#FF0000" //green or red
                     message = """
-                        MacOS jenkins job #${BUILD_ID} ended with status '${messageStatus}'.
-                        See: ${BUILD_URL}
+                        *MacOS* <${BUILD_URL}|Build result>: '${messageStatus}'.
                         SDK branch: `${SDK_BRANCH}`
                         SDK_commit: `${sdk_commit}`
                     """.stripIndent()

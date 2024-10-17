@@ -167,14 +167,13 @@ pipeline {
                     messageStatus = currentBuild.currentResult
                     messageColor = messageStatus == 'SUCCESS'? "#00FF00": "#FF0000" //green or red
                     message = """
-                        Linux jenkins job #${BUILD_ID} ended with status '${messageStatus}'.
-                        See: ${BUILD_URL}
+                        *Linux* <${BUILD_URL}|Build result>: '${messageStatus}'.
                         SDK branch: `${SDK_BRANCH}`
                         SDK_commit: `${sdk_commit}`
                     """.stripIndent()
 
                     if (failedDistros.size() > 0) {
-                        message += "\n\nFailed distributions: ${failedDistros.join(', ')}"
+                        message += "\nFailed distributions: ${failedDistros.join(', ')}"
                     }
                     
                     withCredentials([string(credentialsId: 'slack_webhook_sdk_report', variable: 'SLACK_WEBHOOK_URL')]) {
