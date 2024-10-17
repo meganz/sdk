@@ -28,10 +28,7 @@
 #include <iomanip>
 #include <numeric>
 
-namespace mega
-{
-
-namespace stats
+namespace mega::stats
 {
 
 // TransferData
@@ -392,6 +389,4 @@ bool checkTransferStateValidity(const Transfer* const transfer)
     return true;
 }
 
-} // namespace stats
-
-} // namespace mega
+} // namespace mega::stats

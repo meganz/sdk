@@ -23,10 +23,7 @@
 
 #include "mega/transfer.h"
 
-namespace mega
-{
-
-namespace stats
+namespace mega::stats
 {
 
 /**
@@ -316,6 +313,4 @@ void checkTransferTypeValidity(const direction_t type);
  */
 bool checkTransferStateValidity(const Transfer* const transfer);
 
-} // namespace stats
-
-} // namespace mega
+} // namespace mega::stats
