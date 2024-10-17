@@ -455,11 +455,12 @@ void SdkTestCreateAccount::testWelcomPdfUserAttribute(int clientType)
     {
         // Wait for the client to import the "Welcome PDF".
         std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
-        constexpr int deltaMs = 200;
-        for (int i = 0; i <= 10000 && !megaApi[0]->getNumChildren(rootnode.get()); i += deltaMs)
-        {
-            WaitMillisec(deltaMs);
-        }
+        EXPECT_TRUE(SdkTest::WaitFor(
+            [&api = *megaApi[0], &rootnode]()
+            {
+                return api.getNumChildren(rootnode.get()) > 0;
+            },
+            10000));
         // test that the delayed import was not requested
         {
             RequestTracker getUserAttributeTracker(megaApi[0].get());
@@ -525,29 +526,30 @@ void SdkTestCreateAccount::testDelayedImportOfWelcomPdf(const string& userEmail,
         api->getUserAttribute(MegaApi::USER_ATTR_WELCOME_PDF_COPIED, &getUserAttributeTracker);
         return getUserAttributeTracker.waitForResult() == API_OK;
     };
-    constexpr int deltaMs = 200;
-    for (int i = 0; i <= 10000 && !hasWelcomPdfAttribute(); i += deltaMs)
-    {
-        WaitMillisec(deltaMs);
-    }
-    EXPECT_TRUE(hasWelcomPdfAttribute());
+    EXPECT_TRUE(SdkTest::WaitFor(
+        [&hasWelcomPdfAttribute]()
+        {
+            return hasWelcomPdfAttribute();
+        },
+        10000));
 
     // fetchnodes for the new connection
     {
         RequestTracker fetchnodesTracker{&apiOfDefaultClient};
         apiOfDefaultClient.fetchNodes(&fetchnodesTracker);
-        ASSERT_EQ(API_OK, fetchnodesTracker.waitForResult())
+        EXPECT_EQ(API_OK, fetchnodesTracker.waitForResult())
             << " Failed to fetchnodes for account " << userEmail;
     }
 
     // Wait for the client to import the "Welcome PDF".
     std::unique_ptr<MegaNode> rootnode{apiOfDefaultClient.getRootNode()};
     EXPECT_THAT(rootnode, testing::NotNull()) << "Failed to get root node";
-    // constexpr int deltaMs = 200;
-    for (int i = 0; i <= 10000 && !apiOfDefaultClient.getNumChildren(rootnode.get()); i += deltaMs)
-    {
-        WaitMillisec(deltaMs);
-    }
+    EXPECT_TRUE(SdkTest::WaitFor(
+        [&apiOfDefaultClient, &rootnode]()
+        {
+            return apiOfDefaultClient.getNumChildren(rootnode.get()) > 0;
+        },
+        10000));
 
     // Check that "Welcome PDF" is there
     std::unique_ptr<MegaNodeList> children{apiOfDefaultClient.getChildren(rootnode.get())};
