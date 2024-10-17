@@ -26,7 +26,6 @@
 
 #include <chrono>
 #include <iomanip>
-#include <numeric>
 
 namespace mega::stats
 {
