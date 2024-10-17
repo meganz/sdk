@@ -313,6 +313,13 @@ m_off_t calculateMedian(const vector<m_off_t>& sortedValues)
 
 m_off_t calculateWeightedAverage(const vector<m_off_t>& values, const vector<m_off_t>& weights)
 {
+    if (values.size() != weights.size())
+    {
+        LOG_warn << "[calculateWeightedAverage] Values size (" << values.size() << ") != weights size (" << weights.size() << "). Skipping";
+        assert(false && "[calculateWeightedAverage] Vector of values and vector of weights have different sizes");
+        return 0;
+    }
+
     m_off_t weightedSum = 0;
     m_off_t totalWeight = 0;
     for (size_t i = 0; i < values.size(); ++i)
