@@ -1194,6 +1194,10 @@ MegaSyncStallList* MegaRequest::getMegaSyncStallList() const
     return nullptr;
 }
 
+MegaSyncStallMap* MegaRequest::getMegaSyncStallMap() const
+{
+    return nullptr;
+}
 #endif // ENABLE_SYNC
 
 MegaVpnCredentials* MegaRequest::getMegaVpnCredentials() const
@@ -3831,6 +3835,11 @@ long long MegaApi::getNumLocalNodes()
 void MegaApi::getMegaSyncStallList(MegaRequestListener* listener)
 {
     pImpl->getMegaSyncStallList(listener);
+}
+
+void MegaApi::getMegaSyncStallMap(MegaRequestListener* listener)
+{
+    pImpl->getMegaSyncStallMap(listener);
 }
 
 void MegaApi::clearStalledPath(MegaSyncStall* stall)
@@ -6703,6 +6712,36 @@ const MegaSyncStall* MegaSyncStallList::get(size_t i) const
     return nullptr;
 }
 
+MegaSyncStallMap* MegaSyncStallMap::copy() const
+{
+    return nullptr;
+}
+
+size_t MegaSyncStallMap::size() const
+{
+    return 0;
+}
+
+size_t MegaSyncStallMap::getHash() const
+{
+    uint64_t hash = 0;
+    const MegaHandleList* keys = getKeys();
+    for (unsigned int i = 0; i < keys->size(); ++i)
+    {
+        hash = hashCombine(hash, get(keys->get(i))->getHash());
+    }
+    return hash;
+}
+
+const MegaSyncStall* MegaSyncStallMap::get(const MegaHandle) const
+{
+    return nullptr;
+}
+
+MegaHandleList* MegaSyncStallMap::getKeys() const
+{
+    return nullptr;
+}
 #endif
 
 

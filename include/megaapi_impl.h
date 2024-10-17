@@ -1630,7 +1630,9 @@ class MegaRequestPrivate : public MegaRequest
 
 #ifdef ENABLE_SYNC
         MegaSyncStallList* getMegaSyncStallList() const override;
+        MegaSyncStallMap* getMegaSyncStallMap() const override;
         void setMegaSyncStallList(unique_ptr<MegaSyncStallList>&& stalls);
+        void setMegaSyncStallMap(unique_ptr<MegaSyncStallMap>&& sm);
 #endif // ENABLE_SYNC
 
 #ifdef ENABLE_CHAT
@@ -1750,6 +1752,7 @@ protected:
 
 #ifdef ENABLE_SYNC
         unique_ptr<MegaSyncStallList> mSyncStallList;
+        unique_ptr<MegaSyncStallMap> mSyncStallMap;
 #endif // ENABLE_SYNC
 
         unique_ptr<MegaNotificationList> mMegaNotifications;
@@ -2924,6 +2927,21 @@ class MegaSyncStallListPrivate : public MegaSyncStallList
         std::vector<std::shared_ptr<MegaSyncStall>> mStalls;
 };
 
+class MegaSyncStallMapPrivate: public MegaSyncStallMap
+{
+public:
+    MegaSyncStallMapPrivate(SyncProblems&&, AddressedStallFilter& filter);
+    MegaSyncStallMapPrivate(const MegaSyncStallMapPrivate&);
+    MegaSyncStallMapPrivate* copy() const override;
+    const MegaSyncStall* get(const MegaHandle key) const override;
+    size_t size() const override;
+    MegaHandleList* getKeys() const override;
+
+private:
+    const std::map<MegaHandle, std::shared_ptr<MegaSyncStall>> getMap() const;
+    std::map<MegaHandle, std::shared_ptr<MegaSyncStall>> mStallsMap;
+};
+
 #endif // ENABLE_SYNC
 
 class MegaSearchFilterPrivate : public MegaSearchFilter
@@ -3489,6 +3507,7 @@ class MegaApiImpl : public MegaApp
         MegaSync *getSyncByNode(MegaNode *node);
         MegaSync *getSyncByPath(const char * localPath);
         void getMegaSyncStallList(MegaRequestListener* listener);
+        void getMegaSyncStallMap(MegaRequestListener* listener);
         void clearStalledPath(MegaSyncStall*);
 
         void moveToDebris(const char* path, MegaHandle syncBackupId, MegaRequestListener* listener = nullptr);
@@ -4522,6 +4541,7 @@ public:
         void performRequest_setLastActionedBanner(MegaRequestPrivate* request);
         error getLastActionedBanner_getua_result(byte* data, unsigned len, MegaRequestPrivate* request);
         void performRequest_enableTestSurveys(MegaRequestPrivate* request);
+        error performRequest_getSyncStalls(MegaRequestPrivate* request);
 };
 
 class MegaHashSignatureImpl
