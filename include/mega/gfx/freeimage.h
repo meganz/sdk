@@ -30,13 +30,27 @@
 #include "mega/gfx/gfx_pdfium.h"
 
 namespace mega {
+
+// Thread-safe RAII management of the FreeImage library.
+class FreeImageInstance
+{
+    // Serializes access to mNumReferences.
+    static std::mutex mLock;
+
+    // How many providers are referencing FreeImage?
+    static std::size_t mNumReferences;
+
+public:
+    FreeImageInstance();
+
+    ~FreeImageInstance();
+}; // FreeImageInstance
+
 // bitmap graphics processor
 class MEGA_API GfxProviderFreeImage : public IGfxLocalProvider
 {
-#ifdef FREEIMAGE_LIB
-    static std::mutex libFreeImageInitializedMutex;
-    static unsigned libFreeImageInitialized;
-#endif
+    FreeImageInstance mLibraryInstance;
+
 #ifdef HAVE_PDFIUM
     bool pdfiumInitialized;
 #endif
