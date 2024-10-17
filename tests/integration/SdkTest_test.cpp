@@ -32,7 +32,6 @@
 
 #include <algorithm>
 #include <cctype>
-#include <numeric>
 
 #if !defined(WIN32) && defined(ENABLE_ISOLATED_GFX)
 #include "mega/posix/gfx/worker/socket_utils.h"
