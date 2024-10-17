@@ -1,0 +1,84 @@
+// As a developer I want to create a release management pipeline so that we can trigger from Jenkins the following actions:
+
+// Create release.
+// Create release candidate.
+// Close release.
+// Create a new release candidate.
+// To do this we should have a job in Jenkins that can be executed with parameters, 
+// the configurable parameters should be the ones defined in config.toml.template with those parameters 
+// the script should create a config.toml file and launch the needed script as described in the README.md file, 
+// setting up everything needed before as described there too.
+
+
+pipeline {
+    agent { label 'linux' }
+
+    options { 
+        buildDiscarder(logRotator(numToKeepStr: '25', daysToKeepStr: '30'))
+        gitLabConnection('GitLabConnectionJenkins')
+    }
+    parameters {
+        choice(name: 'ACTION', choices: ['Create_Release', 'Create_Release_Candidate', 'Close_Release', 'Patch_Release'], description: 'Pick an action')
+        string(name: 'TARGET_APPS', defaultValue: '', description: 'e.g. Android 1.0.1 / iOS 1.2 / MEGAsync 9.9.9 RC1')
+        string(name: 'RELEASE_VERSION', defaultValue: '', description: 'Optionally define a release version for Create Release. It must exist for Patch Release. Default is 1.0.0.')   
+        string(name: 'TICKETS', defaultValue: '', description: 'Comma separated tickets')
+        string(name: 'BRANCH_FOR_MR', defaultValue: '', description: 'Comma separated tickets')
+        string(name: 'MR_DESCRIPTION', defaultValue: '', description: 'Comma separated tickets')
+    }
+    environment {
+        gitlab_token = credentials('jenkins_sdk_token')
+        slack_token = credentials('slack_token')
+        jira_sdk_username = credentials('') //use with credentials
+        jira_sdk_password = credentials('') //use with credentials
+        project_name = "SDK"
+        slack_channel = "sdk"
+        slack_channel_dev_requests = "sdk_devs_only"
+        gitlab_url = "${env.GITLAB_BASE_URL}"
+        jira_url = "${env.JIRA_BASE_URL}"
+        confluence_url = "${env.CONFLUENCE_BASE_URL}"
+        confluence_page_id = "3640225"
+        github_push_remote_url = "git@github.com:meganz/sdk.git"
+        gpg_keygrip = credentials('') //use with credentials
+        gpg_password = credentials('') //use with credentials
+        confluence_username = credentials('') //use with credentials
+        confluence_password = credentials('') //use with credentials
+    }
+
+    stages {
+        stage('Create Release'){
+            when { 
+                beforeAgent true
+                expression { params.ACTION == "Create_Release" }
+            }
+            steps {
+                script {
+
+                }
+            }
+        }
+        stage ('Create Release Candidate'){
+            when { 
+                beforeAgent true
+                expression { params.ACTION == "Create_Release_CANDIDATE" } 
+            }
+            steps {
+            }
+        }
+        stage ('Close Release'){
+            when { 
+                beforeAgent true
+                expression { params.ACTION == "Close_Release" }
+            }
+            steps {
+            }
+        }
+        stage ('Patch Release'){
+            when { 
+                beforeAgent true
+                expression { params.ACTION == "Patch_Release" }
+            }
+            steps {
+            }
+        }
+    }
+}
