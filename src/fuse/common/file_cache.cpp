@@ -1,11 +1,3 @@
-#include <atomic>
-#include <cassert>
-#include <chrono>
-#include <mutex>
-#include <stdexcept>
-#include <tuple>
-#include <utility>
-
 #include <mega/fuse/common/bind_handle.h>
 #include <mega/fuse/common/client.h>
 #include <mega/fuse/common/file_cache.h>
@@ -17,6 +9,15 @@
 #include <mega/fuse/common/logging.h>
 #include <mega/fuse/common/ref.h>
 #include <mega/fuse/platform/service_context.h>
+#include <mega/scoped_helpers.h>
+
+#include <atomic>
+#include <cassert>
+#include <chrono>
+#include <mutex>
+#include <stdexcept>
+#include <tuple>
+#include <utility>
 
 namespace mega
 {
@@ -325,7 +326,7 @@ void FileCache::current()
         if (mContext.mInodeDB.exists(id))
             continue;
 
-        ScopedLengthRestore restorer(path);
+        auto restorer = makeScopedSizeRestorer(path);
 
         path.appendWithSeparator(name, true);
 

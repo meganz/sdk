@@ -142,6 +142,18 @@ void RealClient::fetchnodes_result(const Error& error)
 auto RealClient::invited(const std::string& email,
                          std::unique_lock<std::mutex>& lock) const -> InvitePtr
 {
+    // Compares two characters case insensitively.
+    auto characterEquals = [](std::uint8_t lhs, std::uint8_t rhs)
+    {
+        return std::tolower(lhs) == std::tolower(rhs);
+    }; // characterEquals
+
+    // Compares two strings case insensitively.
+    auto stringEquals = [&](const std::string& lhs, const std::string& rhs)
+    {
+        return std::equal(lhs.begin(), lhs.end(), rhs.begin(), rhs.end(), characterEquals);
+    }; // stringEquals
+
     // Convenience.
     auto& self = const_cast<RealClient&>(*this);
 
@@ -151,8 +163,8 @@ auto RealClient::invited(const std::string& email,
         auto& request = *i.second;
 
         // Request received from email or sent to email.
-        if ((request.isoutgoing && request.targetemail == email)
-            || request.originatoremail == email)
+        if ((request.isoutgoing && stringEquals(request.targetemail, email)) ||
+            stringEquals(request.originatoremail, email))
             return std::make_unique<RealInvite>(self, request.id);
     }
 
@@ -410,18 +422,22 @@ bool RealClient::shared(const std::string& email,
            || (node->pendingshares && scan(*node->pendingshares));
 }
 
-RealClient::RealClient(const Path& databasePath,
-                       const Path& storagePath)
-  : Client(databasePath, storagePath)
-  , MegaApp()
-  , mClient()
-  , mClientLock()
-  , mClientTerminate{false}
-  , mClientThread()
-  , mHTTPIO(new CurlHttpIO())
-  , mPendingRequests()
-  , mWaiter(std::make_shared<WAIT_CLASS>())
+RealClient::RealClient(const std::string& clientName,
+                       const Path& databasePath,
+                       const Path& storagePath):
+    Client(clientName, databasePath, storagePath),
+    MegaApp(),
+    mClient(),
+    mClientLock(),
+    mClientTerminate{false},
+    mClientThread(),
+    mHTTPIO(new CurlHttpIO()),
+    mPendingRequests(),
+    mWaiter(std::make_shared<WAIT_CLASS>())
 {
+    // Sanity.
+    assert(!clientName.empty());
+
     // Instantiate the client.
     mClient.reset(new MegaClient(this,
                                  mWaiter,
@@ -431,6 +447,9 @@ RealClient::RealClient(const Path& databasePath,
                                  "N9tSBJDC",
                                  USER_AGENT.c_str(),
                                  THREADS_PER_MEGACLIENT));
+
+    // Make sure the client has a recognizable name.
+    mClient->clientname = clientName + " ";
 
     // Make sure FUSE logs *everything*.
     mClient->mFuseService.logLevel(LOG_LEVEL_DEBUG);

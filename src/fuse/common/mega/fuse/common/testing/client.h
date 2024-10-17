@@ -74,7 +74,7 @@ class Client
     std::mutex mNodesCurrentLock;
 
 protected:
-    Client(const Path& databasePath, const Path& storagePath);
+    Client(const std::string& clientName, const Path& databasePath, const Path& storagePath);
 
     // Called when a mount event has been emitted.
     void mountEvent(const MountEvent& event);

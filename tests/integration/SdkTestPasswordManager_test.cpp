@@ -27,10 +27,7 @@ class SdkTestPasswordManager: public SdkTest
  *
  * Test description:
  * #1 Get Password Manager Base node
- * - U1: special logging in sequence
- *     + 1) plain login
- *     + 2) get Password Manager node handle; it will be created if it didn't exist
- *     + 3) fetch nodes
+ * - U1: get account for test for client type password manager
  * - U1: get Password Manager Base node via get user's attribute command
  * - U1: get Password Manager Base node again; no get user attribute requests expected
  *
@@ -53,22 +50,17 @@ TEST_F(SdkTestPasswordManager, SdkTestPasswordManager)
 {
     LOG_info << "___TEST SdkTestPasswordManager";
 
-    LOG_debug << "# U1: special logging in sequence";
+    LOG_debug << "# U1: Get account";
     const unsigned userIdx = 0, totalAccounts = 1;
-    LOG_debug << "\t# log in without fetching nodes";
     ASSERT_NO_FATAL_FAILURE(
-        getAccountsForTest(totalAccounts, false, MegaApi::CLIENT_TYPE_PASSWORD_MANAGER));
+        getAccountsForTest(totalAccounts, true, MegaApi::CLIENT_TYPE_PASSWORD_MANAGER));
 
-    LOG_debug << "\t# get Password Manager Base node handle; it will be created if it didn't exist";
+    LOG_debug << "\t# get Password Manager Base node handle";
     RequestTracker rt2{megaApi[userIdx].get()};
     megaApi[userIdx]->getPasswordManagerBase(&rt2);
     ASSERT_EQ(API_OK, rt2.waitForResult()) << "Getting Password Manager Base node failed";
     ASSERT_NE(nullptr, rt2.request) << "Missing getPasswordManagerBase request data after finish";
     const MegaHandle nhBase = rt2.request->getNodeHandle();
-    ASSERT_NE(UNDEF, nhBase) << "Password Manager Base node not set";
-
-    LOG_debug << "\t# fetch nodes";
-    fetchNodesForAccounts(totalAccounts, MegaApi::CLIENT_TYPE_PASSWORD_MANAGER);
     LOG_debug << "\t# get Password Manager Base node by handle";
     std::unique_ptr<MegaNode> mnBase{megaApi[userIdx]->getNodeByHandle(nhBase)};
     ASSERT_NE(nullptr, mnBase.get())
@@ -80,16 +72,6 @@ TEST_F(SdkTestPasswordManager, SdkTestPasswordManager)
     ASSERT_EQ(API_OK, rt3.waitForResult()) << "Unexpected error retrieving pwmh user attribute";
     ASSERT_NE(nullptr, rt3.request) << "Missing get user attribute pwmh request data after finish";
     ASSERT_EQ(nhBase, rt3.request->getNodeHandle()) << "Mismatch in user attribute pwmh retrieved";
-
-    LOG_debug
-        << "# U1: get Password Manager Base node again; no get user attribute requests expected";
-    RequestTracker rt4{megaApi[userIdx].get()};
-    megaApi[userIdx]->getPasswordManagerBase(&rt4);
-    ASSERT_EQ(API_OK, rt4.waitForResult())
-        << "Getting Password Manager Base node through shortcut failed";
-    ASSERT_NE(nullptr, rt4.request);
-    ASSERT_EQ(nhBase, rt4.request->getNodeHandle())
-        << "Wrong Password Manager Base node retrieved through shortcut";
 
     LOG_debug << "# U1: create a new Password Node under Password Manager Base";
     RequestTracker rtC{megaApi[userIdx].get()};

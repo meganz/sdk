@@ -35,6 +35,7 @@ target_sources(test_unit
     TextChat_test.cpp
     Transfer_test.cpp
     User_test.cpp
+    user_attributes_test.cpp
     utils.cpp
     utils_test.cpp
     pwm_file_parser_test.cpp

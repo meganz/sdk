@@ -1,0 +1,46 @@
+[make_release]
+project_name = "" # "SDK", "MEGAchat" etc. (case sensitive)
+target_apps = "" # "Android 1.0.1 / iOS 1.2 / MEGAsync 9.9.9 RC1"
+gitlab_url = "" # "https://code.foo.bar"
+jira_url = "" # "https://jira.foo.bar"
+slack_channel = "" # "sdk", "megachat_native" 
+release_version = "" # Optional ("1.0.0"); autodetect if empty
+private_remote_name = "origin"
+private_branch = "develop"
+public_branch = "master"
+
+[close_release]
+project_name = "" # "SDK", "MEGAchat" etc. (case sensitive), same as the entry in [make_release]
+release_version = "" # "1.0.0"
+github_push_remote_url = "" # "git@github.com:owner/proj.git"
+github_repo_owner = "meganz"
+gitlab_url = "" # "https://code.foo.bar", same as the entry in [make_release]
+jira_url = "" # "https://jira.foo.bar", same as the entry in [make_release]
+confluence_url = ""
+confluence_page_id = 3640225
+private_remote_name = "origin" # same as the entry in [make_release]
+private_branch = "develop" # same as the entry in [make_release]
+public_branch = "master" # same as the entry in [make_release]
+public_remote_name = "public"
+
+[patch_release]
+project_name = "" # "SDK", "MEGAchat" etc. (case sensitive), same as the entry in [make_release]
+release_version = "" # "1.0.1", resulting version after patch
+tickets = "" # "SDK-123,SDK-1234"
+gitlab_url = "" # "https://code.foo.bar", same as the entry in [make_release]
+jira_url = "" # "https://jira.foo.bar", same as the entry in [make_release]
+slack_channel = "" # "sdk"
+private_remote_name = "origin" # same as the entry in [make_release]
+private_branch = "develop" # same as the entry in [make_release]
+
+[make_another_rc]
+project_name = "" # "SDK", "MEGAchat" etc. (case sensitive), same as the entry in [make_release]
+release_version = "" # "1.0.0", the version to receive a new RC
+branch_for_mr = "" # "fix/SDK-1234_My-fix", only if the developer already has one
+mr_description = "" # "SDK-1234. My fix"
+tickets = "" # "SDK-123,SDK-1234"
+gitlab_url = "" # "https://code.foo.bar", same as the entry in [make_release]
+jira_url = "" # "https://jira.foo.bar", same as the entry in [make_release]
+slack_channel = "" # "sdk"
+private_remote_name = "origin" # same as the entry in [make_release]; used only if branch_for_mr was not set
+private_branch = "develop" # same as the entry in [make_release]

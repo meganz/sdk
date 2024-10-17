@@ -277,7 +277,7 @@ ClientPtr Test::CreateClient(const std::string& name)
         return nullptr;
 
     // Return client to caller.
-    return std::make_unique<RealClient>(databasePath, storagePath);
+    return std::make_unique<RealClient>(name, databasePath, storagePath);
 }
 
 void Test::SetUp()

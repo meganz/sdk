@@ -779,6 +779,14 @@ public:
     error removeTagFromNode(std::shared_ptr<Node> node, const std::string& tag, CommandSetAttr::Completion&& c);
     error updateTagNode(std::shared_ptr<Node>, const std::string& newTag, const std::string& oldTag, CommandSetAttr::Completion&& c);
 
+    // Returns true if welcome pdf should be imported
+    // It's depend on client type (true for ClientType::DEFAULT)
+    bool shouldWelcomePdfImported() const
+    {
+        return getClientType() != MegaClient::ClientType::VPN &&
+               getClientType() != MegaClient::ClientType::PASSWORD_MANAGER;
+    }
+
 public:
     // check node access level
     int checkaccess(Node*, accesslevel_t);
@@ -2646,6 +2654,9 @@ private:
 
     // Password Manager - private
     void preparePasswordNodeData(attr_map& attrs, const AttrMap& data) const;
+
+    // Get a string to complete sc/wsc url and receive partial action packages
+    // It's used from clients of type PWD and VPN
     std::string getPartialAPs();
 
 public:

@@ -24,9 +24,9 @@ Socket::~Socket()
     }
 }
 
-bool Socket::doWrite(const void* data, size_t n, TimeoutMs timeout)
+bool Socket::doWrite(const void* data, size_t n, milliseconds timeout)
 {
-    const auto errorCode = SocketUtils::write(mSocket, data, n, static_cast<milliseconds>(timeout));
+    const auto errorCode = SocketUtils::write(mSocket, data, n, timeout);
     if (errorCode)
     {
         LOG_err << "Write to socket " << mName << "_" << mSocket << " error: " <<  errorCode.message();
@@ -35,9 +35,9 @@ bool Socket::doWrite(const void* data, size_t n, TimeoutMs timeout)
     return !errorCode;
 }
 
-bool Socket::doRead(void* out, size_t n, TimeoutMs timeout)
+bool Socket::doRead(void* out, size_t n, milliseconds timeout)
 {
-    const auto errorCode = SocketUtils::read(mSocket, out, n, static_cast<milliseconds>(timeout));
+    const auto errorCode = SocketUtils::read(mSocket, out, n, timeout);
     if (errorCode)
     {
         LOG_err << "Read from socket " << mName << "_" << mSocket << " error: " << errorCode.message();

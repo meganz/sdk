@@ -58,8 +58,14 @@ using namespace mega;
     return (Event) (self.megaEvent ? self.megaEvent->getType() : 0);
 }
 
-- (NSString *)text {
-    return self.megaEvent ? [[NSString alloc] initWithUTF8String:self.megaEvent->getText()] : nil;
+- (nullable NSString *)text {
+    if (self.megaEvent) {
+        const char *val = self.megaEvent->getText();
+        if (val) {
+            return [NSString stringWithUTF8String:val];
+        }
+    }
+    return nil;
 }
 
 - (NSInteger)number {
@@ -67,7 +73,13 @@ using namespace mega;
 }
 
 - (nullable NSString *)eventString {
-    return self.megaEvent->getEventString() ? [[NSString alloc] initWithUTF8String:self.megaEvent->getEventString()]  : nil;
+    if (self.megaEvent) {
+        const char *val = self.megaEvent->getEventString();
+        if (val) {
+            return [NSString stringWithUTF8String:val];
+        }
+    }
+    return nil;
 }
 
 

@@ -16,20 +16,20 @@
  * program.
  */
 
-#include <array>
-#include <tuple>
-
-#include <gtest/gtest.h>
-
-#include <mega/base64.h>
-#include <mega/filesystem.h>
-#include <mega/utils.h>
 #include "megafs.h"
 
+#include <gtest/gtest.h>
+#include <mega/base64.h>
 #include <mega/db.h>
 #include <mega/db/sqlite.h>
+#include <mega/filesystem.h>
 #include <mega/json.h>
 #include <mega/process.h>
+#include <mega/scoped_helpers.h>
+#include <mega/utils.h>
+
+#include <array>
+#include <tuple>
 
 TEST(utils, readLines)
 {
@@ -851,6 +851,68 @@ TEST(Utils, replace_string)
     ASSERT_EQ(Utils::replace(string("abc"), "", "@"), "abc");
 }
 
+TEST(Utils, natural_sorting)
+{
+    // Comparison between symbols
+    ASSERT_EQ(naturalsorting_compare("!", "!"), 0);
+    ASSERT_GT(naturalsorting_compare("@", "!"), 0);
+    ASSERT_LT(naturalsorting_compare("#", "$"), 0);
+
+    // Comparison between symbols and numbers
+    ASSERT_LT(naturalsorting_compare("#", "0"), 0);
+    ASSERT_LT(naturalsorting_compare("!", "9"), 0);
+    ASSERT_GT(naturalsorting_compare("9", "#"), 0);
+
+    // Comparison between symbols and letters
+    ASSERT_LT(naturalsorting_compare("&", "a"), 0);
+    ASSERT_LT(naturalsorting_compare("!", "Z"), 0);
+    ASSERT_GT(naturalsorting_compare("a", "#"), 0);
+
+    // Comparison between numbers and letters
+    ASSERT_LT(naturalsorting_compare("9", "a"), 0);
+    ASSERT_GT(naturalsorting_compare("a", "1"), 0);
+    ASSERT_LT(naturalsorting_compare("1", "A"), 0);
+
+    // Comparison between symbols and letters (case no sensitive)
+    ASSERT_EQ(naturalsorting_compare("A", "a"), 0);
+    ASSERT_GT(naturalsorting_compare("B", "a"), 0);
+    ASSERT_LT(naturalsorting_compare("a", "C"), 0);
+
+    // Comparison between strings containing letters and numbers
+    ASSERT_GT(naturalsorting_compare("a1", "a0"), 0);
+    ASSERT_LT(naturalsorting_compare("a1", "a2"), 0);
+
+    // Comparison between strings containing letters and symbols
+    ASSERT_LT(naturalsorting_compare("a!", "a#"), 0);
+    ASSERT_LT(naturalsorting_compare("a#", "a@"), 0);
+
+    // Comparison between strings containing letters, numbers and symbols
+    ASSERT_LT(naturalsorting_compare("1a!", "1a#"), 0);
+    ASSERT_LT(naturalsorting_compare("!a1", "a1#"), 0);
+    ASSERT_LT(naturalsorting_compare("!a1", "1#a"), 0);
+    ASSERT_GT(naturalsorting_compare("a1!", "1a#"), 0);
+    ASSERT_GT(naturalsorting_compare("a!1", "1a#"), 0);
+    ASSERT_GT(naturalsorting_compare("2a!", "1a#"), 0);
+    ASSERT_EQ(naturalsorting_compare("1a&", "1a&"), 0);
+
+    // Comparison between strings with different lengths
+    ASSERT_GT(naturalsorting_compare("abc", "ab"), 0);
+    ASSERT_LT(naturalsorting_compare("ab", "abc"), 0);
+
+    // Comparison between strings containing white spaces
+    ASSERT_LT(naturalsorting_compare("a ", "a!"), 0);
+    ASSERT_GT(naturalsorting_compare("a#", "a "), 0);
+
+    // Comparison between numbers of different lengths
+    ASSERT_GT(naturalsorting_compare("10", "2"), 0);
+    ASSERT_GT(naturalsorting_compare("100", "20"), 0);
+
+    // Comparison between numbers containing zeros at the beginning
+    ASSERT_EQ(naturalsorting_compare("00123", "123"), 0);
+    ASSERT_LT(naturalsorting_compare("00123", "124"), 0);
+    ASSERT_GT(naturalsorting_compare("0124", "00123"), 0);
+}
+
 TEST(RemotePath, nextPathComponent)
 {
     // Absolute path.
@@ -1299,4 +1361,180 @@ TEST(EscapeWildCars, UseCases)
     EXPECT_EQ(escapeWildCards("\\*hello*"), "\\*hello\\*");
     EXPECT_EQ(escapeWildCards("\\*hello\\*"), "\\*hello\\*");
     EXPECT_EQ(escapeWildCards("hel\\\\*lo"), "hel\\\\\\*lo");
+}
+
+TEST(ScopedHelpers, ScopedDestructor)
+{
+    // So we can test various binding styles.
+    struct Functor
+    {
+        void memberNoArguments() {}
+
+        void memberWithArguments(std::string) {}
+
+        static void rawNoArguments() {}
+
+        static void rawWithArguments(std::string) {}
+    }; // Functor
+
+    // Make sure we can bind raw function pointers.
+    {
+        auto x = makeScopedDestructor(&Functor::rawNoArguments);
+
+        // This also tests that convertible arguments are allowed.
+        auto y = makeScopedDestructor(&Functor::rawWithArguments, "Test");
+    }
+
+    // Make sure we can bind member function pointers.
+    {
+        auto f = Functor();
+        auto x = makeScopedDestructor(&Functor::memberNoArguments, &f);
+        auto y = makeScopedDestructor(&Functor::memberWithArguments, &f, "Test");
+    }
+
+    // Make sure we can bind lambda functions.
+    auto x = 0;
+
+    // Lambda without parameters.
+    {
+        auto y = makeScopedDestructor(
+            [&x]()
+            {
+                ++x;
+            });
+    }
+
+    // Make sure the destructor was executed.
+    EXPECT_EQ(x, 1);
+
+    // Lambda with parameters.
+    {
+        auto y = makeScopedDestructor(
+            [&x](int v)
+            {
+                x += v;
+            },
+            3);
+
+        // Make sure convertible arguments are accepted.
+        auto z = makeScopedDestructor([](std::string) {}, "Test");
+    }
+
+    // Make sure destructor was executed.
+    EXPECT_EQ(x, 4);
+}
+
+TEST(ScopedHelpers, ScopedLengthRestorer)
+{
+    // Test with local path.
+    {
+        auto x = LocalPath::fromAbsolutePath("x");
+        auto originalSize = SizeTraits<LocalPath>::size(x);
+
+        {
+            auto r = makeScopedSizeRestorer(x);
+            x.appendWithSeparator(LocalPath::fromRelativePath("y"), true);
+            EXPECT_NE(SizeTraits<LocalPath>::size(x), originalSize);
+        }
+
+        EXPECT_EQ(SizeTraits<LocalPath>::size(x), originalSize);
+    }
+
+    // Test with vector.
+    {
+        std::vector<std::string> x(1, "foo");
+
+        auto originalSize = x.size();
+
+        {
+            auto r = makeScopedSizeRestorer(x);
+            x.emplace_back("bar");
+        }
+
+        EXPECT_EQ(x.size(), originalSize);
+    }
+
+    // Test with explicit new size given.
+    {
+        std::string x;
+
+        {
+            auto r = makeScopedSizeRestorer(x, 32);
+            EXPECT_EQ(x.size(), 32);
+        }
+
+        EXPECT_TRUE(x.empty());
+    }
+}
+
+TEST(ScopedHelpers, ScopedValue)
+{
+    const std::string originalValue = "before";
+    std::string value = originalValue;
+
+    {
+        const std::string expectedValue = "After";
+
+        // Also tests that conertible arguments are accepted.
+        auto guard = makeScopedValue(value, expectedValue.c_str());
+
+        // Make sure value's value was changed.
+        ASSERT_EQ(value, expectedValue);
+    }
+
+    // Make sure value's value was restored.
+    ASSERT_EQ(value, originalValue);
+}
+
+TEST(ScopedHelpers, MakePtrFrom)
+{
+    struct Dummy
+    {
+        static void destructor(Dummy* dummy)
+        {
+            delete dummy;
+        }
+    }; // Dummy
+
+    // Shared pointer, default deleter.
+    {
+        auto x = makeSharedFrom(new Dummy);
+
+        // Verify type signature.
+        static_assert(std::is_same_v<decltype(x), std::shared_ptr<Dummy>>);
+    }
+
+    // Shared pointer, custom deleter.
+    {
+        auto x = makeSharedFrom(new Dummy, &Dummy::destructor);
+
+        // Verify type signature.
+        static_assert(std::is_same_v<decltype(x), std::shared_ptr<Dummy>>);
+
+        // Verify deleter.
+        auto d = std::get_deleter<void (*)(Dummy*)>(x);
+        ASSERT_TRUE(d);
+        EXPECT_EQ(*d, &Dummy::destructor);
+    }
+
+    // Unique pointer, default deleter.
+    {
+        auto x = makeUniqueFrom(new Dummy);
+
+        // Verify type signature.
+        using ComputedType = decltype(x);
+        using ExpectedType = std::unique_ptr<Dummy, std::default_delete<Dummy>>;
+
+        static_assert(std::is_same_v<ComputedType, ExpectedType>);
+    }
+
+    // Unique pointer, custom deleter.
+    {
+        auto x = makeUniqueFrom(new Dummy, &Dummy::destructor);
+
+        using ComputedType = decltype(x);
+        using ExpectedType = std::unique_ptr<Dummy, void (*)(Dummy*)>;
+
+        static_assert(std::is_same_v<ComputedType, ExpectedType>);
+    }
 }

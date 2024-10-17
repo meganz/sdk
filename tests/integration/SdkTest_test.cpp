@@ -19,15 +19,16 @@
  * program.
  */
 
-#include "sdk_test_utils.h"
+#include "SdkTest_test.h"
+
 #include "../stdfs.h"
 #include "env_var_accounts.h"
-#include "SdkTest_test.h"
-#include "gtest_common.h"
-#include "mega/types.h"
-#include "mega/testhooks.h"
-
 #include "gmock/gmock-matchers.h"
+#include "gtest_common.h"
+#include "mega/scoped_helpers.h"
+#include "mega/testhooks.h"
+#include "mega/types.h"
+#include "sdk_test_utils.h"
 
 #include <algorithm>
 #include <cctype>
@@ -150,7 +151,7 @@ std::string megaApiCacheFolder(int index)
     return p;
 }
 
-bool WaitFor(const std::function<bool()>& predicate, unsigned timeoutMs)
+bool SdkTest::WaitFor(const std::function<bool()>& predicate, unsigned timeoutMs)
 {
     const unsigned sleepMs = 100;
     unsigned totalMs = 0;
@@ -1321,6 +1322,20 @@ void SdkTest::purgeVaultTree(unsigned int apiIndex, MegaNode *vault)
             }
         }
     }
+
+    // Get password manager base with user attribute instead of MegaApi::getPasswordManagerBase to
+    // avoid create password manager base if it doesn't exist
+    RequestTracker rt{megaApi[apiIndex].get()};
+    megaApi[apiIndex]->getUserAttribute(MegaApi::USER_ATTR_PWM_BASE, &rt);
+    if (rt.waitForResult() == API_OK)
+    {
+        MegaHandle h{rt.request->getNodeHandle()};
+        std::unique_ptr<MegaNode> passwordManagerBase{megaApi[apiIndex]->getNodeByHandle(h)};
+        if (passwordManagerBase)
+        {
+            purgeTree(apiIndex, passwordManagerBase.get());
+        }
+    }
 }
 #endif
 
@@ -1450,28 +1465,12 @@ void SdkTest::deleteFolder(string foldername)
     fs::remove_all(p, ignoredEc);
 }
 
-void SdkTest::fetchNodesForAccounts(const unsigned howMany, const int clientType)
+void SdkTest::fetchNodesForAccounts(const unsigned howMany)
 {
     std::vector<std::unique_ptr<RequestTracker>> trackers(howMany);
     // perform parallel fetchnodes for each
     for (unsigned index = 0; index < howMany; ++index)
     {
-        // For apps from type password manager, password manager base should be defined before
-        // calling to fetchnode. In other case, api answers with -11 to 'f' command
-        if (clientType == MegaApi::CLIENT_TYPE_PASSWORD_MANAGER)
-        {
-            // First receive user attributes calling to 'ug' command.
-            // With user attributes, SDK determines if password base node exists
-            RequestTracker userInfoTracker(megaApi[index].get());
-            megaApi[index]->getUserData(&userInfoTracker);
-            ASSERT_EQ(userInfoTracker.waitForResult(), API_OK);
-
-            // Get password node base, in case it doesn't exist, it creates it
-            RequestTracker passwordManagerBaseTracker(megaApi[index].get());
-            megaApi[index]->getPasswordManagerBase(&passwordManagerBaseTracker);
-            ASSERT_EQ(passwordManagerBaseTracker.waitForResult(), API_OK);
-        }
-
         out() << "Fetching nodes for account " << index;
         trackers[index] = asyncRequestFetchnodes(index);
     }
@@ -1545,7 +1544,7 @@ void SdkTest::getAccountsForTest(unsigned howMany, bool fetchNodes, const int cl
     ASSERT_FALSE(anyLoginFailed);
 
     if (fetchNodes)
-        fetchNodesForAccounts(howMany, clientType);
+        fetchNodesForAccounts(howMany);
 
     for (unsigned index = 0; index < howMany; ++index)
     {
@@ -2209,70 +2208,6 @@ bool SdkTest::getFileFromArtifactory(const std::string& relativeUrl, const fs::p
 
     return getFileFromURL(absoluateUrl, dstPath);
 }
-
-string getLinkFromMailbox(const string& exe,         // Python
-                          const string& script,      // email_processor.py
-                          const string& realAccount, // user
-                          const string& realPswd,    // password for user@host.domain
-                          const string& toAddr,      // user+testnewaccount@host.domain
-                          const string& intent,      // confirm / delete
-                          const chrono::steady_clock::time_point& timeOfEmail)
-{
-    using namespace std::chrono; // Just for this little scope
-
-    std::string command = exe + " \"" + script + "\" \"" + realAccount + "\" \"" + realPswd +
-                          "\" \"" + toAddr + "\" " + intent;
-    std::string output;
-
-    // Wait for the link to be sent
-    constexpr seconds delta = 10s;
-    constexpr minutes maxTimeout = 10min;
-    seconds spentTime = 0s;
-    for (; spentTime < maxTimeout && output.empty(); spentTime += delta)
-    {
-        WaitMillisec(duration_cast<milliseconds>(delta).count());
-
-        // get time interval to look for emails, add some seconds to account for delays related to
-        // the python script call
-        constexpr seconds safetyDelay = 5s;
-        const auto attemptTime = steady_clock::now();
-        seconds timeSinceEmail = duration_cast<seconds>(attemptTime - timeOfEmail) + safetyDelay;
-        // Run Python script
-        output =
-            runProgram(command + ' ' + to_string(timeSinceEmail.count()), PROG_OUTPUT_TYPE::TEXT);
-    }
-    LOG_debug << "Time spent trying to get the email: " << spentTime.count() << "s";
-
-    // Print whatever was fetched from the mailbox
-    LOG_debug << "Link from email (" << intent << "): " << (output.empty() ? "[empty]" : output);
-
-    // Validate the link
-    constexpr char expectedLinkPrefix[] = "https://";
-    return output.substr(0, sizeof(expectedLinkPrefix) - 1) == expectedLinkPrefix ?
-           output : string();
-}
-
-string getUniqueAlias()
-{
-    // use n random chars
-    int n = 4;
-    string alias;
-    auto t = std::time(nullptr);
-    srand((unsigned int)t);
-    for (int i = 0; i < n; ++i)
-    {
-        alias += static_cast<char>('a' + rand() % 26);
-    }
-
-    // add a timestamp
-    auto tm = *std::localtime(&t);
-    std::ostringstream oss;
-    oss << std::put_time(&tm, "%Y%m%d%H%M%S");
-    alias += oss.str();
-
-    return alias;
-}
-
 std::vector<std::string> toNamesVector(const MegaNodeList& nodes)
 {
     std::vector<std::string> result;
@@ -2294,242 +2229,6 @@ std::vector<std::string> stringListToVector(const MegaStringList& l)
 };
 
 ///////////////////////////__ Tests using SdkTest __//////////////////////////////////
-
-/**
- * @brief TEST_F SdkTestCreateAccount
- *
- * It tests the creation of a new account for a random user.
- *  - Create account and send confirmation link
- *  - Logout and resume the create-account process
- *  - Extract confirmation link from the mailbox
- *  - Use the link to confirm the account
- *
- *  - Request a reset password link
- *  - Confirm the reset password
- *
- *  - Login to the new account
- *  - Request cancel account link
- *  - Extract cancel account link from the mailbox
- *  - Use the link to cancel the account
- */
-TEST_F(SdkTest, SdkTestCreateAccount)
-{
-    LOG_info << "___TEST Create account___";
-
-    // Make sure the new account details have been set up
-    const auto bufRealEmail = Utils::getenv("MEGA_REAL_EMAIL", ""); // user@host.domain
-    const auto bufRealPswd = Utils::getenv("MEGA_REAL_PWD", ""); // email password of user@host.domain
-    fs::path bufScript = getLinkExtractSrciptPath();
-    ASSERT_TRUE(!bufRealEmail.empty() && !bufRealPswd.empty()) <<
-        "MEGA_REAL_EMAIL, MEGA_REAL_PWD env vars must all be defined";
-
-    // test that Python 3 was installed
-    string pyExe = "python";
-    {
-        const string pyOpt = " -V";
-        const string pyExpected = "Python 3.";
-        string output = runProgram(pyExe + pyOpt, PROG_OUTPUT_TYPE::TEXT);  // Python -V
-        if (output.substr(0, pyExpected.length()) != pyExpected)
-        {
-            pyExe += "3";
-            output = runProgram(pyExe + pyOpt, PROG_OUTPUT_TYPE::TEXT);  // Python3 -V
-            ASSERT_EQ(pyExpected, output.substr(0, pyExpected.length())) << "Python 3 was not found.";
-        }
-        LOG_debug << "Using " << output;
-    }
-
-    megaApi.resize(1);
-    mApi.resize(1);
-    ASSERT_NO_FATAL_FAILURE(configureTestInstance(0, bufRealEmail, bufRealPswd));
-
-    // create the account
-    // ------------------
-    LOG_debug << "SdkTestCreateAccount: Start account creation";
-
-    const string realEmail(bufRealEmail); // user@host.domain
-    string::size_type pos = realEmail.find('@');
-    const string realAccount = realEmail.substr(0, pos); // user
-    [[maybe_unused]]const auto [testEmail, _] = getEnvVarAccounts().getVarValues(0);
-    const string newTestAcc = realAccount + '+' +
-                              testEmail.substr(0, testEmail.find("@")) + '+' +
-                              getUniqueAlias() + realEmail.substr(pos); // user+testUser+rand20210919@host.domain
-    LOG_info << "Creating Mega account " << newTestAcc;
-    const char* origTestPwd = "TestPswd!@#$"; // maybe this should be logged too, changed later
-
-    // save point in time for account init
-    chrono::time_point timeOfConfirmEmail = std::chrono::steady_clock::now();
-
-    // Create an ephemeral session internally and send a confirmation link to email
-    ASSERT_EQ(API_OK, synchronousCreateAccount(0, newTestAcc.c_str(), origTestPwd, "MyFirstname", "MyLastname"));
-
-    LOG_debug << "SdkTestCreateAccount: Logout and resume";
-    // Logout from ephemeral session and resume session
-    ASSERT_NO_FATAL_FAILURE( locallogout() );
-    ASSERT_EQ(API_OK, synchronousResumeCreateAccount(0, mApi[0].getSid().c_str()));
-
-    // Get confirmation link from the email
-    {
-        LOG_debug << "SdkTestCreateAccount: Get confirmation link from email";
-        string conformLink = getLinkFromMailbox(pyExe, bufScript.string(), realAccount, bufRealPswd, newTestAcc, MegaClient::confirmLinkPrefix(), timeOfConfirmEmail);
-        ASSERT_FALSE(conformLink.empty()) << "Confirmation link was not found.";
-
-        LOG_debug << "SdkTestCreateAccount: Confirm account";
-        // create another connection to confirm the account
-        megaApi.resize(2);
-        mApi.resize(2);
-        ASSERT_NO_FATAL_FAILURE(configureTestInstance(1, bufRealEmail, bufRealPswd));
-
-        PerApi& initialConn = mApi[0];
-        initialConn.resetlastEvent();
-
-        // Use confirmation link
-        ASSERT_EQ(API_OK, synchronousConfirmSignupLink(1, conformLink.c_str(), origTestPwd));
-
-        // check for event triggered by 'uec' action packet received after the confirmation
-        EXPECT_TRUE(WaitFor([&initialConn]() { return initialConn.lastEventsContain(MegaEvent::EVENT_CONFIRM_USER_EMAIL); }, 10000))
-            << "EVENT_CONFIRM_USER_EMAIL event triggered by 'uec' action packet was not received";
-    }
-
-    // Login to the new account
-    {
-        LOG_debug << "SdkTestCreateAccount: Login to the new account";
-        unique_ptr<RequestTracker> loginTracker = std::make_unique<RequestTracker>(megaApi[0].get());
-        megaApi[0]->login(newTestAcc.c_str(), origTestPwd, loginTracker.get());
-        ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to account " << newTestAcc.c_str();
-    }
-
-    // fetchnodes // needed internally to fill in user details, including email
-    {
-        LOG_debug << "SdkTestCreateAccount: fetch nodes from new account";
-        unique_ptr<RequestTracker>  fetchnodesTracker = std::make_unique<RequestTracker>(megaApi[0].get());
-        megaApi[0]->fetchNodes(fetchnodesTracker.get());
-        ASSERT_EQ(API_OK, fetchnodesTracker->waitForResult()) << " Failed to fetchnodes for account " << newTestAcc.c_str();
-    }
-
-    // test resetting the password
-    // ---------------------------
-
-    LOG_debug << "SdkTestCreateAccount: Start reset password";
-    chrono::time_point timeOfResetEmail = chrono::steady_clock::now();
-    ASSERT_EQ(synchronousResetPassword(0, newTestAcc.c_str(), true), MegaError::API_OK) << "resetPassword failed";
-
-    // Get cancel account link from the mailbox
-    const char* newTestPwd = "PassAndGotHerPhoneNumber!#$**!";
-    {
-        LOG_debug << "SdkTestCreateAccount: Get password reset link from email";
-        string recoverink = getLinkFromMailbox(pyExe, bufScript.string(), realAccount, bufRealPswd, newTestAcc, MegaClient::recoverLinkPrefix(), timeOfResetEmail);
-        ASSERT_FALSE(recoverink.empty()) << "Recover account link was not found.";
-
-        LOG_debug << "SdkTestCreateAccount: Confirm reset password";
-        char* masterKey = megaApi[0]->exportMasterKey();
-        ASSERT_EQ(synchronousConfirmResetPassword(0, recoverink.c_str(), newTestPwd, masterKey), MegaError::API_OK) << "confirmResetPassword failed";
-    }
-
-    // Login using new password
-    {
-        LOG_debug << "SdkTestCreateAccount: Login with new password";
-        unique_ptr<RequestTracker> loginTracker = std::make_unique<RequestTracker>(megaApi[0].get());
-        megaApi[0]->login(newTestAcc.c_str(), newTestPwd, loginTracker.get());
-        ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to account after change password with new password " << newTestAcc.c_str();
-    }
-
-    // fetchnodes - needed internally to fill in user details, to allow cancelAccount() to work
-    {
-        LOG_debug << "SdkTestCreateAccount: Fetching nodes";
-        unique_ptr<RequestTracker> fetchnodesTracker = std::make_unique<RequestTracker>(megaApi[0].get());
-        megaApi[0]->fetchNodes(fetchnodesTracker.get());
-        ASSERT_EQ(API_OK, fetchnodesTracker->waitForResult()) << " Failed to fetchnodes after change password for account " << newTestAcc.c_str();
-    }
-
-    // test changing the email (check change with auxiliar instance)
-    // -----------------------
-
-    LOG_debug << "SdkTestCreateAccount: Start email change";
-    // login with auxiliar instance
-    LOG_debug << "SdkTestCreateAccount: Login auxiliar account";
-    megaApi.resize(2);
-    mApi.resize(2);
-    ASSERT_NO_FATAL_FAILURE(configureTestInstance(1, newTestAcc, newTestPwd));
-    {
-        unique_ptr<RequestTracker> loginTracker = std::make_unique<RequestTracker>(megaApi[1].get());
-        megaApi[1]->login(newTestAcc.c_str(), newTestPwd, loginTracker.get());
-        ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to auxiliar account ";
-    }
-
-    LOG_debug << "SdkTestCreateAccount: Send change email request";
-    const string changedTestAcc = Utils::replace(newTestAcc, "@", "-new@");
-    chrono::time_point timeOfChangeEmail = chrono::steady_clock::now();
-    ASSERT_EQ(synchronousChangeEmail(0, changedTestAcc.c_str()), MegaError::API_OK) << "changeEmail failed";
-
-    {
-        LOG_debug << "SdkTestCreateAccount: Get change email link from email inbox";
-        string changelink = getLinkFromMailbox(pyExe, bufScript.string(), realAccount, bufRealPswd, changedTestAcc, MegaClient::verifyLinkPrefix(), timeOfChangeEmail);
-        ASSERT_FALSE(changelink.empty()) << "Change email account link was not found.";
-
-        LOG_debug << "SdkTestCreateAccount: Confirm email change";
-        ASSERT_STRCASEEQ(newTestAcc.c_str(), std::unique_ptr<char[]>{megaApi[0]->getMyEmail()}.get()) << "email changed prematurely";
-        ASSERT_EQ(synchronousConfirmChangeEmail(0, changelink.c_str(), newTestPwd), MegaError::API_OK) << "confirmChangeEmail failed";
-    }
-
-    {
-        // Check if our own email is updated after receive ug at auxiliar instance
-        LOG_debug << "SdkTestCreateAccount: Check email is updated";
-        unique_ptr<RequestTracker> userDataTracker = std::make_unique<RequestTracker>(megaApi[1].get());
-        megaApi[1]->getUserData(userDataTracker.get());
-        ASSERT_EQ(API_OK, userDataTracker->waitForResult()) << " Failed to get user data at auxiliar account";
-        ASSERT_EQ(changedTestAcc, std::unique_ptr<char[]>{megaApi[1]->getMyEmail()}.get()) << "Email update error at auxiliar account";
-        logout(1, false, maxTimeout);
-    }
-
-    // Login using new email
-    ASSERT_STRCASEEQ(changedTestAcc.c_str(), std::unique_ptr<char[]>{megaApi[0]->getMyEmail()}.get()) << "email not changed correctly";
-    {
-        LOG_debug << "SdkTestCreateAccount: Login with new email";
-        unique_ptr<RequestTracker> loginTracker = std::make_unique<RequestTracker>(megaApi[0].get());
-        megaApi[0]->login(changedTestAcc.c_str(), newTestPwd, loginTracker.get());
-        ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to account after change email with new email " << changedTestAcc.c_str();
-    }
-
-    // fetchnodes - needed internally to fill in user details, to allow cancelAccount() to work
-    {
-        LOG_debug << "SdkTestCreateAccount: Fetching nodes";
-        unique_ptr<RequestTracker> fetchnodesTracker = std::make_unique<RequestTracker>(megaApi[0].get());
-        megaApi[0]->fetchNodes(fetchnodesTracker.get());
-        ASSERT_EQ(API_OK, fetchnodesTracker->waitForResult()) << " Failed to fetchnodes after change password for account " << changedTestAcc.c_str();
-    }
-
-    ASSERT_STRCASEEQ(changedTestAcc.c_str(), std::unique_ptr<char[]>{megaApi[0]->getMyEmail()}.get()) << "my email not set correctly after changed";
-
-
-    // delete the account
-    // ------------------
-
-    // Request cancel account link
-    LOG_debug << "SdkTestCreateAccount: Start deleting account";
-    chrono::time_point timeOfDeleteEmail = chrono::steady_clock::now();
-    {
-        LOG_debug << "SdkTestCreateAccount: Request account cancel";
-        unique_ptr<RequestTracker> cancelLinkTracker = std::make_unique<RequestTracker>(megaApi[0].get());
-        megaApi[0]->cancelAccount(cancelLinkTracker.get());
-        ASSERT_EQ(API_OK, cancelLinkTracker->waitForResult()) << " Failed to request cancel link for account " << changedTestAcc.c_str();
-    }
-
-    // Get cancel account link from the mailbox
-    {
-        LOG_debug << "SdkTestCreateAccount: Get cancel link from email";
-        string deleteLink = getLinkFromMailbox(pyExe, bufScript.string(), realAccount, bufRealPswd, changedTestAcc, MegaClient::cancelLinkPrefix(), timeOfDeleteEmail);
-        ASSERT_FALSE(deleteLink.empty()) << "Cancel account link was not found.";
-
-        // Use cancel account link
-        LOG_debug << "SdkTestCreateAccount: Confirm cancel link";
-        unique_ptr<RequestTracker> useCancelLinkTracker = std::make_unique<RequestTracker>(megaApi[0].get());
-        megaApi[0]->confirmCancelAccount(deleteLink.c_str(), newTestPwd, useCancelLinkTracker.get());
-        // Allow API_ESID beside API_OK, due to the race between sc and cs channels
-        ASSERT_PRED3([](int t, int v1, int v2) { return t == v1 || t == v2; }, useCancelLinkTracker->waitForResult(), API_OK, API_ESID)
-            << " Failed to confirm cancel account " << changedTestAcc.c_str();
-    }
-}
-
 /**
  * @brief TEST_F SdkTestCreateEphmeralPlusPlusAccount
  *
@@ -10448,11 +10147,13 @@ void cleanUp(::mega::MegaApi* megaApi, const fs::path &basePath)
 std::unique_ptr<::mega::MegaSync> waitForSyncState(::mega::MegaApi* megaApi, ::mega::MegaNode* remoteNode, ::mega::MegaSync::SyncRunningState runState, MegaSync::Error err)
 {
     std::unique_ptr<MegaSync> sync;
-    WaitFor([&megaApi, &remoteNode, &sync, runState, err]() -> bool
-    {
-        sync.reset(megaApi->getSyncByNode(remoteNode));
-        return (sync && sync->getRunState() == runState && sync->getError() == err);
-    }, 30*1000);
+    SdkTest::WaitFor(
+        [&megaApi, &remoteNode, &sync, runState, err]() -> bool
+        {
+            sync.reset(megaApi->getSyncByNode(remoteNode));
+            return (sync && sync->getRunState() == runState && sync->getError() == err);
+        },
+        30 * 1000);
 
     if (sync)
     {
@@ -10470,11 +10171,13 @@ std::unique_ptr<::mega::MegaSync> waitForSyncState(::mega::MegaApi* megaApi, ::m
 std::unique_ptr<::mega::MegaSync> waitForSyncState(::mega::MegaApi* megaApi, handle backupID, ::mega::MegaSync::SyncRunningState runState, MegaSync::Error err)
 {
     std::unique_ptr<MegaSync> sync;
-    WaitFor([&megaApi, backupID, &sync, runState, err]() -> bool
-    {
-        sync.reset(megaApi->getSyncByBackupId(backupID));
-        return (sync && sync->getRunState() == runState && sync->getError() == err);
-    }, 30*1000);
+    SdkTest::WaitFor(
+        [&megaApi, backupID, &sync, runState, err]() -> bool
+        {
+            sync.reset(megaApi->getSyncByBackupId(backupID));
+            return (sync && sync->getRunState() == runState && sync->getError() == err);
+        },
+        30 * 1000);
 
     if (sync && sync->getRunState() == runState && sync->getError() == err)
     {
@@ -16704,27 +16407,36 @@ TEST_F(SdkTest, SdkResumableTrasfers)
     megaApi[0]->setMaxDownloadSpeed(-1);
 }
 
-
-class ScopedMinimumPermissions
+auto makeScopedDefaultPermissions(MegaApi& api, int directory, int file)
 {
-    int mDirectory;
-    int mFile;
+    auto previousDirectory = api.getDefaultFolderPermissions();
+    auto previousFile = api.getDefaultFilePermissions();
 
-public:
-    ScopedMinimumPermissions(int directory, int file)
-      : mDirectory(0700)
-      , mFile(0600)
-    {
-        FileSystemAccess::setMinimumDirectoryPermissions(directory);
-        FileSystemAccess::setMinimumFilePermissions(file);
-    }
+    api.setDefaultFolderPermissions(directory);
+    api.setDefaultFilePermissions(file);
 
-    ~ScopedMinimumPermissions()
-    {
-        FileSystemAccess::setMinimumDirectoryPermissions(mDirectory);
-        FileSystemAccess::setMinimumFilePermissions(mFile);
-    }
-}; // ScopedMinimumPermissions
+    return makeScopedDestructor(
+        [=, &api]()
+        {
+            api.setDefaultFolderPermissions(previousDirectory);
+            api.setDefaultFilePermissions(previousFile);
+        });
+}
+
+auto makeScopedMinimumPermissions(int directory, int file)
+{
+    using FSA = FileSystemAccess;
+
+    FSA::setMinimumDirectoryPermissions(directory);
+    FSA::setMinimumFilePermissions(file);
+
+    return makeScopedDestructor(
+        []()
+        {
+            FSA::setMinimumDirectoryPermissions(0700);
+            FSA::setMinimumFilePermissions(0600);
+        });
+}
 
 /**
  * @brief Test file permissions for a download when using megaApi->setDefaultFilePermissions.
@@ -16798,30 +16510,33 @@ TEST_F(SdkTest, SdkTestFilePermissions)
     ASSERT_TRUE(openFile(true, true)) << "Couldn't open file for read|write";
     deleteFile(filename.c_str());
 
-    ScopedMinimumPermissions minimumPermissions(0700, 0400);
+    auto minimumPermissions = makeScopedMinimumPermissions(0700, 0400);
 
     // TEST 2: Change file permissions: 0400. Only for reading.
     // Expected successful download, unsuccessful file opening for reading and writing (only for reading)
-    int filePermissions = 0400;
-    megaApi[0]->setDefaultFilePermissions(filePermissions);
-    ASSERT_EQ(API_OK, downloadFile());
-    ASSERT_TRUE(openFile(true, false)) << "Couldn't open file for read";
+    {
+        auto permissions = makeScopedDefaultPermissions(*megaApi[0], 0700, 0400);
+        ASSERT_EQ(API_OK, downloadFile());
+        ASSERT_TRUE(openFile(true, false)) << "Couldn't open file for read";
 #ifdef _WIN32
-    // Files should be able to be opened: posix file permissions don't have any effect on Windows.
-    ASSERT_TRUE(openFile(true, true)) << "Couldn't open files for read|write";
+        // Files should be able to be opened: posix file permissions don't have any effect on
+        // Windows.
+        ASSERT_TRUE(openFile(true, true)) << "Couldn't open files for read|write";
 #else
-    ASSERT_FALSE(openFile(true, true)) << "Could open files for read|write, while it shouldn't due to permissions";
+        ASSERT_FALSE(openFile(true, true))
+            << "Could open files for read|write, while it shouldn't due to permissions";
 #endif
-    deleteFile(filename.c_str());
-
+        deleteFile(filename.c_str());
+    }
 
     // TEST 3: Change file permissions: 0700. Read, write and execute.
     // Expected: successful download and successul file opening for reading and writing.
-    filePermissions = 0700;
-    megaApi[0]->setDefaultFilePermissions(filePermissions);
-    ASSERT_EQ(API_OK, downloadFile());
-    ASSERT_TRUE(openFile(true, true)) << "Couldn't open files for read|write";
-    deleteFile(filename.c_str());
+    {
+        auto permissions = makeScopedDefaultPermissions(*megaApi[0], 0700, 0700);
+        ASSERT_EQ(API_OK, downloadFile());
+        ASSERT_TRUE(openFile(true, true)) << "Couldn't open files for read|write";
+        deleteFile(filename.c_str());
+    }
 }
 
 /**
@@ -16926,49 +16641,56 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
     ASSERT_TRUE(openFolderAndFiles(true, true)) << "Couldn't open files for read|write";
     deleteFolder(foldername.c_str());
 
-    ScopedMinimumPermissions minimumPermissions(0400, 0400);
+    auto minimumPermissions = makeScopedMinimumPermissions(0400, 0400);
 
     // TEST 2. Change folder permissions: only read (0400). Default file permissions (0600).
     // Folder permissions: 0400. Expected to fail with API_EINCOMPLETE (-13): request incomplete because it can't write on resource (affecting children, not the parent folder downloaded).
     // Still, if there is any file children inside the folder, it won't be able able to be opened for reading and writing or even for reading only (because of the folder permissions: lack of the execution perm).
-    int folderPermissions = 0400;
-    megaApi[0]->setDefaultFolderPermissions(folderPermissions);
+    {
+        auto permissions = makeScopedDefaultPermissions(*megaApi[0], 0400, 0600);
 #ifdef _WIN32
-    // Folder and files should be able to be opened: posix file/folder permissions don't have any effect on Windows.
-    ASSERT_EQ(API_OK, downloadFolder());
-    ASSERT_TRUE(openFolderAndFiles(true, false)) << "Couldn't open files for read";
-    ASSERT_TRUE(openFolderAndFiles(true, true)) << "Couldn't open files for read|write";
+        // Folder and files should be able to be opened: posix file/folder permissions don't have
+        // any effect on Windows.
+        ASSERT_EQ(API_OK, downloadFolder());
+        ASSERT_TRUE(openFolderAndFiles(true, false)) << "Couldn't open files for read";
+        ASSERT_TRUE(openFolderAndFiles(true, true)) << "Couldn't open files for read|write";
 #else
-    ASSERT_EQ(API_EINCOMPLETE, downloadFolder()) << "Download should have failed as there are not enough permissions to write in the folder";
-    ASSERT_FALSE(openFolderAndFiles(true, false)) << "Could open files for read, while it shouldn't due to permissions";
-    ASSERT_FALSE(openFolderAndFiles(true, true)) << "Could open files for read|write, while it shouldn't due to permissions";
+        ASSERT_EQ(API_EINCOMPLETE, downloadFolder())
+            << "Download should have failed as there are not enough permissions to write in the "
+               "folder";
+        ASSERT_FALSE(openFolderAndFiles(true, false))
+            << "Could open files for read, while it shouldn't due to permissions";
+        ASSERT_FALSE(openFolderAndFiles(true, true))
+            << "Could open files for read|write, while it shouldn't due to permissions";
 #endif
-    deleteFolder(foldername.c_str());
+        deleteFolder(foldername.c_str());
+    }
 
     // TEST 3. Restore folder permissions. Change file permissions: only read.
     // Folder permissions: 0700. Expected a successful download and no issues when accessing the folder.
     // File permissions: 0400. Expected result: cannot open files for R and W (perm: 0400 -> only read).
-    folderPermissions = 0700;
-    megaApi[0]->setDefaultFolderPermissions(folderPermissions);
-    int filePermissions = 0400;
-    megaApi[0]->setDefaultFilePermissions(filePermissions);
-    ASSERT_EQ(API_OK, downloadFolder());
-    ASSERT_TRUE(openFolderAndFiles(true, false)) << "Couldn't open files for read";
+    {
+        auto permissions = makeScopedDefaultPermissions(*megaApi[0], 0700, 0400);
+        ASSERT_EQ(API_OK, downloadFolder());
+        ASSERT_TRUE(openFolderAndFiles(true, false)) << "Couldn't open files for read";
 #ifdef _WIN32
-    ASSERT_TRUE(openFolderAndFiles(true, true)) << "Couldn't open files for read|write";
+        ASSERT_TRUE(openFolderAndFiles(true, true)) << "Couldn't open files for read|write";
 #else
-    ASSERT_FALSE(openFolderAndFiles(true, true)) << "Could open files for read|write, while it shouldn't due to permissions";
+        ASSERT_FALSE(openFolderAndFiles(true, true))
+            << "Could open files for read|write, while it shouldn't due to permissions";
 #endif
-    deleteFolder(foldername.c_str());
+        deleteFolder(foldername.c_str());
+    }
 
     // TEST 4. Default folder permissions. Restore file permissions.
     // Folder permissions: 0700. Expected a successful download and no issues when accessing the folder.
     // File permissions: 0600. Expected result: Can open files for R and W (perm: 0600 -> r and w).
-    filePermissions = 0600;
-    megaApi[0]->setDefaultFilePermissions(filePermissions);
-    ASSERT_EQ(API_OK, downloadFolder());
-    ASSERT_TRUE(openFolderAndFiles(true, true)) << "Couldn't open files for read|write";
-    deleteFolder(foldername.c_str());
+    {
+        auto permissions = makeScopedDefaultPermissions(*megaApi[0], 0700, 0600);
+        ASSERT_EQ(API_OK, downloadFolder());
+        ASSERT_TRUE(openFolderAndFiles(true, true)) << "Couldn't open files for read|write";
+        deleteFolder(foldername.c_str());
+    }
 }
 
 TEST_F(SdkTest, GetRecommendedProLevel)
@@ -19267,13 +18989,13 @@ TEST_F(SdkTest, SdkNodeDescription)
     nodeList.reset(megaApi[0]->search(filter.get()));
     ASSERT_EQ(nodeList->size(), 1);
 
+    auto& target = mApi[0];
     std::unique_ptr<char> session(dumpSession());
     locallogout(0);
     resumeSession(session.get());
+    target.resetlastEvent();
     fetchnodes(0);
 
-    auto& target = mApi[0];
-    target.resetlastEvent();
     // make sure that client is up to date (upon logout, recent changes might not be committed to DB)
     ASSERT_TRUE(WaitFor(
         [&target]()
@@ -20095,3 +19817,157 @@ TEST_F(SdkTest, SdkTestRestoreNodeVersion)
     // Check contents
     ASSERT_EQ(contents, originalContent);
 }
+
+#ifdef ENABLE_SYNC
+/**
+ * @brief SdkTestRemoveVersionsFromSync
+ *
+ *  - Create a sync with a file
+ *  - Update the file content (sync engine add a new version)
+ *  - Remove all versions from the account
+ *  - Check file sync state is STATE_SYNCED
+ */
+TEST_F(SdkTest, SdkTestRemoveVersionsFromSync)
+{
+    LOG_info << "___TEST SdkTestRemoveVersionsFromSync";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    std::string syncFolder{"sync1"};
+    fs::path syncFolderPath = syncFolder;
+    const auto localSyncFolderPath = fs::current_path() / syncFolderPath;
+
+    // Create local directories and a files.
+    fs::create_directories(localSyncFolderPath);
+
+    LOG_verbose << "SdkTestRemoveVersionsFromSync :  Creating the remote folders to be synced to.";
+    std::unique_ptr<MegaNode> rootNode(megaApi[0]->getRootNode());
+    ASSERT_NE(rootNode.get(), nullptr);
+    auto nh = createFolder(0, syncFolder.c_str(), rootNode.get());
+    ASSERT_NE(nh, UNDEF) << "Error creating remote folders";
+    std::unique_ptr<MegaNode> remoteBaseNode(megaApi[0]->getNodeByHandle(nh));
+    ASSERT_NE(remoteBaseNode.get(), nullptr);
+
+    LOG_verbose << "SdkTestRemoveVersionsFromSync :  Add syncs";
+    auto lp = localSyncFolderPath.u8string();
+    ASSERT_EQ(API_OK,
+              synchronousSyncFolder(0,
+                                    nullptr,
+                                    MegaSync::TYPE_TWOWAY,
+                                    lp.c_str(),
+                                    nullptr,
+                                    remoteBaseNode->getHandle(),
+                                    nullptr))
+        << "API Error adding a new sync";
+    ASSERT_EQ(MegaSync::NO_SYNC_ERROR, mApi[0].lastSyncError);
+    std::unique_ptr<MegaSync> sync = waitForSyncState(megaApi[0].get(),
+                                                      remoteBaseNode.get(),
+                                                      MegaSync::RUNSTATE_RUNNING,
+                                                      MegaSync::NO_SYNC_ERROR);
+    ASSERT_TRUE(sync && sync->getRunState() == MegaSync::RUNSTATE_RUNNING);
+    ASSERT_EQ(MegaSync::NO_SYNC_ERROR, sync->getError());
+
+    handle backupId{sync->getBackupId()};
+
+    LOG_verbose << "SdkTestRemoveVersionsFromSync :  Create a file";
+    bool check{false};
+    mApi[0].mOnNodesUpdateCompletion =
+        createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check);
+    std::string name{"fileTest"};
+    std::string fileName{(localSyncFolderPath / name).u8string()};
+    ASSERT_TRUE(createFile(fileName, false));
+    ASSERT_TRUE(waitForResponse(&check))
+        << "Node update not received on client 0 after " << maxTimeout << " seconds";
+    resetOnNodeUpdateCompletionCBs();
+
+    auto checkSyncState = [this](const std::string& fileName)
+    {
+        static unsigned int waitSyncedState = 40;
+        waitForEvent(
+            [this, fileName]()
+            {
+                std::string path{fileName};
+
+#ifdef _WIN32
+                auto utf8ToUtf16 = [](const char* utf8data, std::string* utf16string)
+                {
+                    // Check if input is valid
+                    if (utf8data == nullptr)
+                    {
+                        utf16string->clear();
+                        return;
+                    }
+
+                    // Get the length required for the UTF-16 buffer
+                    int utf16Length = MultiByteToWideChar(CP_UTF8, 0, utf8data, -1, nullptr, 0);
+
+                    // If the length is 0, an error occurred
+                    if (utf16Length == 0)
+                    {
+                        std::cerr << "Error converting UTF-8 to UTF-16." << std::endl;
+                        utf16string->clear();
+                        return;
+                    }
+
+                    // Create a buffer to hold the UTF-16 characters
+                    std::wstring utf16buffer(utf16Length, 0);
+
+                    // Perform the conversion from UTF-8 to UTF-16
+                    MultiByteToWideChar(CP_UTF8, 0, utf8data, -1, &utf16buffer[0], utf16Length);
+
+                    // Convert the UTF-16 wide string to a std::string by copying the raw bytes
+                    utf16string->assign(reinterpret_cast<const char*>(utf16buffer.data()),
+                                        utf16buffer.size() * sizeof(wchar_t));
+                };
+
+                std::string utf8String{std::move(path)};
+                path.clear();
+                utf8ToUtf16(utf8String.c_str(), &path);
+#endif
+                return MegaApi::STATE_SYNCED == megaApi[0]->syncPathState(&path);
+            },
+            waitSyncedState);
+    };
+
+    LOG_verbose << "SdkTestRemoveVersionsFromSync :  wait file is syncronized";
+    checkSyncState(fileName);
+
+    check = false;
+    mApi[0].mOnNodesUpdateCompletion =
+        createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check);
+    // modify file
+    {
+        ofstream f{fileName};
+        f << "update ";
+        f.close();
+    }
+    ASSERT_TRUE(waitForResponse(&check))
+        << "Node update not received on client 0 after " << maxTimeout << " seconds";
+    resetOnNodeUpdateCompletionCBs();
+
+    LOG_verbose << "SdkTestRemoveVersionsFromSync :  Wait file is syncronized after modification";
+    checkSyncState(fileName);
+
+    std::unique_ptr<MegaNodeList> children{megaApi[0]->getChildren(remoteBaseNode.get())};
+    ASSERT_EQ(children->size(), 1);
+    MegaNode* node{children->get(0)};
+    ASSERT_TRUE(node);
+    // Check number of versions
+    ASSERT_EQ(megaApi[0]->getNumVersions(node), 2);
+
+    LOG_verbose << "SdkTestRemoveVersionsFromSync :  Remove all versions";
+    unique_ptr<RequestTracker> rt = std::make_unique<RequestTracker>(megaApi[0].get());
+    megaApi[0]->removeVersions(rt.get());
+    ASSERT_EQ(rt->waitForResult(), API_OK);
+    ASSERT_EQ(megaApi[0]->getNumVersions(node), 1);
+
+    // Check if file is at synced state. None state change should be generated
+    checkSyncState(fileName);
+
+    LOG_verbose << "SdkTestRemoveVersionsFromSync :  Remove syncs";
+    rt = std::make_unique<RequestTracker>(megaApi[0].get());
+    megaApi[0]->removeSync(backupId, rt.get());
+    ASSERT_EQ(rt->waitForResult(), API_OK);
+
+    ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), syncFolderPath));
+}
+#endif

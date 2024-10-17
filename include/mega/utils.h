@@ -1093,11 +1093,54 @@ string connDirectionToStr(direction_t directionType);
 // Translate retry reason into a human-friendly string.
 const char* toString(retryreason_t reason);
 
+enum class CharType : uint8_t
+{
+    CSYMBOL = 0,
+    CDIGIT = 1,
+    CALPHA = 2,
+};
 
 // Wrapper functions for std::isspace and std::isdigit
 // Not considering EOF values
+
+/**
+ * @brief Checks if a character is a whitespace character.
+ *
+ * @param ch The character to check
+ * @return true if the character is a space, otherwise returns false.
+ */
 bool is_space(unsigned int ch);
+
+/**
+ * @brief Checks if a character is a digit.
+ *
+ * @param ch The character to check
+ * @return true if the character is a digit (0-9), otherwise returns false.
+ */
 bool is_digit(unsigned int ch);
+
+/**
+ * @brief Checks if a character is a symbol.
+ *
+ * Note: this function is only valid for monobyte characters.
+ *
+ * @param ch The character to check
+ * @return true if the character is a symbol, otherwise returns false
+ */
+bool is_symbol(unsigned int ch);
+
+/**
+ * @brief Determines the type of a given character.
+ *
+ * Valid values returned by this function are:
+ * - CharType::CSYMBOL if the character is a symbol
+ * - CharType::CDIGIT if the character is a digit
+ * - CharType::CALPHA if the character is alphabetic
+ *
+ * @param ch The character to be classified
+ * @return CharType representing the type of the character
+ */
+CharType getCharType(const unsigned int ch);
 
 template<typename Container = std::set<std::string>>
 Container splitString(const string& str, char delimiter)
@@ -1322,38 +1365,22 @@ SplitResult split(const char* begin, const char* end, char delimiter);
 SplitResult split(const char* begin, const std::size_t size, char delimiter);
 SplitResult split(const std::string& value, char delimiter);
 
-template<typename T>
-class ScopedValue {
-public:
-    ScopedValue(T& what, T value)
-      : mLastValue(std::move(what))
-      , mWhat(what)
-    {
-        what = std::move(value);
-    }
-
-    ~ScopedValue()
-    {
-        mWhat = std::move(mLastValue);
-    }
-
-    MEGA_DISABLE_COPY_MOVE(ScopedValue)
-
-private:
-    T mLastValue;
-    T& mWhat;
-}; // ScopedValue<T>
-
-template<typename T>
-ScopedValue<T> makeScopedValue(T& what, T value)
-{
-    return ScopedValue<T>(what, std::move(value));
-}
-
 /**
  * @brief Sorts input char strings using natural sorting ignoring case
  *
- * @returns 0 if i==j, +1 if i goes first, -1 if j goes first.
+ * This function is only valid for comparing monobyte characters.
+ * The default natural ascending order implemented by this function is:
+ * Symbols < Numbers < Alphabetic_characters(# < 1 < a).
+ *
+ * Valid values returned by this function are:
+ *  - if i == j returns 0
+ *  - if i goes first returns a number greater than 0 (>=1)
+ *  - if j goes first returns a number smaller than 0 (<=1)
+ *
+ * @param i Pointer to the first null-terminated string.
+ * @param j Pointer to the second null-terminated string.
+ *
+ * @returns the order between 2 characters
  */
 int naturalsorting_compare(const char* i, const char* j);
 

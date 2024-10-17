@@ -20,19 +20,21 @@
  */
 
 #include "mega.h"
+#include "mega/heartbeats.h"
 #include "mega/mediafileattribute.h"
+#include "mega/scoped_helpers.h"
+#include "mega/testhooks.h"
+
+#include <cryptopp/hkdf.h> // required for derive key of master key
+#include <mega/fuse/common/normalized_path.h>
+
+#include <algorithm>
 #include <cctype>
 #include <ctime>
-#include <algorithm>
 #include <functional>
 #include <future>
 #include <iomanip>
 #include <random>
-#include <cryptopp/hkdf.h> // required for derive key of master key
-#include "mega/heartbeats.h"
-#include "mega/testhooks.h"
-
-#include <mega/fuse/common/normalized_path.h>
 
 #undef min // avoid issues with std::min and std::max
 #undef max
@@ -2430,7 +2432,7 @@ void MegaClient::exec()
 
                     case REQ_SUCCESS:
                         abortlockrequest();
-                        app->request_response_progress(pendingcs->bufpos, -1);
+                        app->request_response_progress(pendingcs->bufpos, pendingcs->contentlength);
 
                         if ((!pendingcs->mChunked && pendingcs->in != "-3" && pendingcs->in != "-4")
                             || (pendingcs->mChunked && (reqs.chunkedProgress() || (pendingcs->in != "-3" && pendingcs->in != "-4"))))
@@ -2897,7 +2899,6 @@ void MegaClient::exec()
         {
             if (useralerts.begincatchup)
             {
-                assert(!fetchingnodes);
                 pendingscUserAlerts.reset(new HttpReq());
                 pendingscUserAlerts->logname = clientname + "sc50 ";
                 pendingscUserAlerts->protect = true;
@@ -2939,7 +2940,7 @@ void MegaClient::exec()
                 bool suppressSID = loggedIntoFolder() ? true : false;
                 pendingsc->posturl.append(getAuthURI(suppressSID, true));
 
-                if (isClientType(ClientType::PASSWORD_MANAGER))
+                if (isClientType(ClientType::PASSWORD_MANAGER) || isClientType(ClientType::VPN))
                 {
                     pendingsc->posturl.append(getPartialAPs());
                 }
@@ -8731,7 +8732,8 @@ std::shared_ptr<Node> MegaClient::sc_deltree()
 
                     useralerts.stashDeletedNotedSharedNodes(originatingUser);
 #ifdef ENABLE_SYNC
-                    if (n->parent)
+                    // None sync operation is required if version is removed
+                    if (n->parent && n->parent->type != FILENODE)
                     {
                         syncs.triggerSync(n->parent->nodeHandle());
                     }
@@ -12655,8 +12657,9 @@ void MegaClient::loginResult(CommandLogin::Completion completion,
     if (isFullyLoggedIn)
     {
         // Capture the client's response tag as apps may require it.
-        completion = [completion = std::move(completion), tag = restag, this](error result) {
-            ScopedValue restorer(restag, tag);
+        completion = [completion = std::move(completion), tag = restag, this](error result)
+        {
+            auto restorer = makeScopedValue(restag, tag);
             completion(result);
         }; // completion
 
@@ -14986,10 +14989,56 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
                     loadAuthrings();
                 }
 
-                // FetchNodes procresult() needs some data from `ug` (or it may try to make new Sync User Attributes for example)
-                // So only submit the request after `ug` completes, otherwise everything is interleaved
-                const auto partialFetchRoot = isClientType(ClientType::PASSWORD_MANAGER) ? getPasswordManagerBase() : NodeHandle{};
-                reqs.add(new CommandFetchNodes(this, fetchtag, nocache, loadSyncs, partialFetchRoot));
+                // FetchNodes procresult() needs some data from `ug` (or it may try to make new Sync
+                // User Attributes for example) So only submit the request after `ug` completes,
+                // otherwise everything is interleaved
+                const auto partialFetchRoot = isClientType(ClientType::PASSWORD_MANAGER) ?
+                                                  getPasswordManagerBase() :
+                                                  NodeHandle{};
+
+                if (!isClientType(ClientType::PASSWORD_MANAGER) ||
+                    (isClientType(ClientType::PASSWORD_MANAGER) && !partialFetchRoot.isUndef()))
+                {
+                    reqs.add(new CommandFetchNodes(this,
+                                                   fetchtag,
+                                                   nocache,
+                                                   loadSyncs,
+                                                   partialFetchRoot));
+                }
+                else
+                {
+                    createPasswordManagerBase(
+                        fetchtag,
+                        [this, fetchtag, nocache, loadSyncs](Error e,
+                                                             std::unique_ptr<NewNode> newNode)
+                        {
+                            if (e != API_OK)
+                                app->fetchnodes_result(e);
+                            else if (newNode)
+                            {
+                                // Force request attribute, attribute change isn't received,
+                                // it's generated before fetch nodes
+                                reqs.add(new CommandGetUA(this,
+                                                          ownuser()->uid.c_str(),
+                                                          ATTR_PWM_BASE,
+                                                          nullptr,
+                                                          -1,
+                                                          nullptr,
+                                                          nullptr,
+                                                          nullptr));
+
+                                reqs.add(new CommandFetchNodes(this,
+                                                               fetchtag,
+                                                               nocache,
+                                                               loadSyncs,
+                                                               newNode->nodeHandle()));
+                            }
+                            else
+                            {
+                                assert(false);
+                            }
+                        });
+                }
             });
 
             fetchtimezone();
@@ -18714,6 +18763,7 @@ void MegaClient::getmegaachievements(AchievementsDetails *details)
 
 void MegaClient::getwelcomepdf()
 {
+    assert(mClientType != ClientType::VPN && mClientType != ClientType::PASSWORD_MANAGER);
     reqs.add(new CommandGetWelcomePDF(this));
 }
 
@@ -20739,10 +20789,17 @@ void MegaClient::preparePasswordNodeData(attr_map& attrs, const AttrMap& data) c
 std::string MegaClient::getPartialAPs()
 {
     std::string ret;
-    if (isClientType(ClientType::PASSWORD_MANAGER))
+    assert(isClientType(ClientType::PASSWORD_MANAGER) || isClientType(ClientType::VPN));
+
+    if (isClientType(ClientType::PASSWORD_MANAGER) && !getPasswordManagerBase().isUndef())
     {
+        // List of handles to recieve updates from subtree
         ret = "&e=" + toNodeHandle(getPasswordManagerBase()) + "&ir=1";
     }
+
+    // ir=1 -> Ignoring roots
+    // ap=1 -> account packets
+    ret += "&ap=1";
 
     return ret;
 }

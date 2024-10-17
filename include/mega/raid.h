@@ -296,6 +296,7 @@ namespace mega {
         bool setUnusedRaidConnection(uint8_t part, bool addToFaultyServers);
         uint8_t getUnusedRaidConnection() const;
         m_off_t transferred(const std::shared_ptr<HttpReqXfer>& req) const;
+        bool processRequestLatency(const std::shared_ptr<HttpReqXfer>& req);
 
         /* RaidProxy functionality for TransferSlot */
         bool init(TransferSlot* tslot, MegaClient* client, int connections);

@@ -27,9 +27,10 @@
 
 #define USE_VARARGS
 #define PREFER_STDARG
-#include "megaapi_impl.h"
-#include "megaapi.h"
 #include "mega/mediafileattribute.h"
+#include "mega/scoped_helpers.h"
+#include "megaapi.h"
+#include "megaapi_impl.h"
 
 #ifdef ENABLE_ISOLATED_GFX
 #include "mega/gfx/isolatedprocess.h"
@@ -9882,6 +9883,20 @@ void MegaApiImpl::setLegacyExclusionUpperSizeLimit(unsigned long long limit)
     client->syncs.mLegacyUpgradeFilterChain.upperLimit(limit);
 }
 
+MegaError* MegaApiImpl::exportLegacyExclusionRules(const char* absolutePath)
+{
+    SdkMutexGuard guard(sdkMutex);
+
+    if (!absolutePath || !*absolutePath)
+    {
+        return new MegaErrorPrivate(API_EARGS);
+    }
+
+    auto lp = LocalPath::fromAbsolutePath(absolutePath);
+    auto result = client->syncs.createMegaignoreFromLegacyExclusions(lp);
+    return new MegaErrorPrivate(result);
+}
+
 long long MegaApiImpl::getNumLocalNodes()
 {
     return client->syncs.totalLocalNodes;
@@ -14153,7 +14168,11 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
             if (request->getParamType() == MegaApi::CREATE_EPLUSPLUS_ACCOUNT)   // creation of account E++
             {
                 // import the PDF silently... (not chained)
-                client->getwelcomepdf();
+                // Not for VPN and PWM clients
+                if (client->shouldWelcomePdfImported())
+                {
+                    client->getwelcomepdf();
+                }
 
                 // The session id cannot follow the same pattern, since no password is provided (yet)
                 // In consequence, the session resumption requires a regular session id (instead of the
@@ -16401,7 +16420,11 @@ void MegaApiImpl::sendsignuplink_result(error e)
             && (e == API_OK) && (request->getParamType() == MegaApi::CREATE_ACCOUNT))   // new account has been created
     {
         // import the PDF silently... (not chained)
-        client->getwelcomepdf();
+        // Not for VPN and PWM clients
+        if (client->shouldWelcomePdfImported())
+        {
+            client->getwelcomepdf();
+        }
     }
 
     fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
@@ -29649,7 +29672,7 @@ MegaFolderUploadController::scanFolder_result MegaFolderUploadController::scanFo
 
         megaApi->fireOnFolderTransferUpdate(transfer, MegaTransfer::STAGE_SCAN, foldercount, 0, filecount, &localPath, &localname);
 
-        ScopedLengthRestore restoreLen(localPath);
+        auto restoreLen = makeScopedSizeRestorer(localPath);
         localPath.appendWithSeparator(localname, false);
         if (dirEntryType == FILENODE)
         {
@@ -30538,7 +30561,7 @@ void MegaScheduledCopyController::onFolderAvailable(MegaHandle handle)
 
             while (da->dnext(localPath, localname, false))
             {
-                ScopedLengthRestore restoreLen(localPath);
+                auto restoreLen = makeScopedSizeRestorer(localPath);
                 localPath.appendWithSeparator(localname, false);
 
                 //TODO: add exclude filters here
@@ -31214,7 +31237,7 @@ MegaFolderDownloadController::scanFolder_result MegaFolderDownloadController::sc
         }
         else
         {
-            ScopedLengthRestore restoreLen(localpath);
+            auto restoreLen = makeScopedSizeRestorer(localpath);
             localpath.appendWithSeparator(LocalPath::fromRelativeName(child->getName(), *fsaccess, fsType), true);
             scanFolder_result result = scanFolder(child, localpath, fsType, fileAddedCount);
 
@@ -31316,7 +31339,7 @@ bool MegaFolderDownloadController::genDownloadTransfersForFiles(
 
         // get file local path
         auto& fileLocalPath = folder.localPath;
-        ScopedLengthRestore restoreLen(fileLocalPath);
+        auto restoreLen = makeScopedSizeRestorer(fileLocalPath);
         fileLocalPath.appendWithSeparator(LocalPath::fromRelativeName(fileNode->getName(), *fsaccess, fsType), true);
 
         auto decision = CollisionChecker::Result::Download;

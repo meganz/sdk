@@ -19,7 +19,6 @@ import static nz.mega.sdk.MegaSync.SyncRunningState.RUNSTATE_PAUSED;
 import static nz.mega.sdk.MegaSync.SyncRunningState.RUNSTATE_RUNNING;
 import static nz.mega.sdk.MegaSync.SyncRunningState.RUNSTATE_SUSPENDED;
 
-import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.OutputStream;
@@ -7985,7 +7984,17 @@ public class MegaApiJava {
      */
     @Nullable
     public MegaTransferData getTransferData(MegaTransferListenerInterface listener) {
-        return megaApi.getTransferData(createDelegateTransferListener(listener, false));
+        return megaApi.getTransferData(createDelegateTransferListener(listener, true));
+    }
+
+    /**
+     * Get information about transfer queues
+     *
+     * @return Information about transfer queues
+     */
+    @Nullable
+    public MegaTransferData getTransferData() {
+        return megaApi.getTransferData();
     }
 
     /**
@@ -9553,6 +9562,65 @@ public class MegaApiJava {
      */
     public void getRecentActionsAsync(long days, long maxnodes) {
         megaApi.getRecentActionsAsync(days, maxnodes);
+    }
+
+    /**
+     * @brief Get a list of buckets, each bucket containing a list of recently added/modified
+     * nodes
+     * <p>
+     * Each bucket contains files that were added/modified in a set, by a single user.
+     * <p>
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNumber - Returns the number of days since nodes will be considerated
+     * - MegaRequest::getParamType - Returns the maximun number of nodes
+     * - MegaRequest::getFlag - Returns true if sensitives are excluded
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_GET_RECENT_ACTIONS
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getRecentActions - Returns buckets with a list of recently added/modified
+     * nodes
+     * <p>
+     * The recommended values for the following parameters are to consider
+     * interactions during the last 30 days and maximum 500 nodes.
+     *
+     * @param days Age of actions since added/modified nodes will be considered (in days)
+     * @param maxnodes Maximum amount of nodes to be considered
+     * @param excludeSensitives Set to true to filter out sensitive nodes (Nodes are considered
+     * sensitive if they have that property set, or one of their ancestors has it)
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getRecentActionsAsync(long days, long maxnodes, boolean excludeSensitives, MegaRequestListenerInterface listener){
+        megaApi.getRecentActionsAsync(days, maxnodes, excludeSensitives, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * @brief Get a list of buckets, each bucket containing a list of recently added/modified
+     * nodes
+     * <p>
+     * Each bucket contains files that were added/modified in a set, by a single user.
+     * <p>
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNumber - Returns the number of days since nodes will be considerated
+     * - MegaRequest::getParamType - Returns the maximun number of nodes
+     * - MegaRequest::getFlag - Returns true if sensitives are excluded
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_GET_RECENT_ACTIONS
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getRecentActions - Returns buckets with a list of recently added/modified
+     * nodes
+     * <p>
+     * The recommended values for the following parameters are to consider
+     * interactions during the last 30 days and maximum 500 nodes.
+     *
+     * @param days Age of actions since added/modified nodes will be considered (in days)
+     * @param maxnodes Maximum amount of nodes to be considered
+     * @param excludeSensitives Set to true to filter out sensitive nodes (Nodes are considered
+     * sensitive if they have that property set, or one of their ancestors has it)
+     */
+    public void getRecentActionsAsync(long days, long maxnodes, boolean excludeSensitives){
+        megaApi.getRecentActionsAsync(days, maxnodes, excludeSensitives);
     }
 
     /**
@@ -12043,7 +12111,7 @@ public class MegaApiJava {
                 name,
                 remoteSyncRootFolder,
                 driveRootIfExternal,
-                createDelegateRequestListener(listener, false)
+                createDelegateRequestListener(listener, true)
         );
     }
 

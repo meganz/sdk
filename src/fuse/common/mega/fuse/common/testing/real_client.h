@@ -112,7 +112,7 @@ class RealClient
     std::shared_ptr<Waiter> mWaiter;
 
 public:
-    RealClient(const Path& databasePath, const Path& storagePath);
+    RealClient(const std::string& clientName, const Path& databasePath, const Path& storagePath);
 
     ~RealClient();
 

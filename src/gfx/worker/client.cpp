@@ -184,7 +184,10 @@ std::unique_ptr<IEndpoint> GfxClient::connect()
 }
 
 template<typename ResponseT, typename RequestT>
-std::unique_ptr<ResponseT> GfxClient::sendAndReceive(IEndpoint* endpoint, RequestT command, TimeoutMs sendTimeout, TimeoutMs receiveTimeout)
+std::unique_ptr<ResponseT> GfxClient::sendAndReceive(IEndpoint* endpoint,
+                                                     RequestT command,
+                                                     milliseconds sendTimeout,
+                                                     milliseconds receiveTimeout)
 {
     // send a request
     ProtocolWriter writer(endpoint);
