@@ -6977,17 +6977,7 @@ void MegaClient::sc_userattr()
                             {
                                 if (shouldWelcomePdfImported())
                                 {
-                                    getua(u,
-                                          type,
-                                          0,
-                                          nullptr,
-                                          [this](byte*, unsigned, attr_t)
-                                          {
-                                              if (wasWelcomePdfImportDelayed())
-                                              {
-                                                  getwelcomepdf();
-                                              }
-                                          });
+                                    importWelcomePdfIfDelayed();
                                 }
                             }
                         }
@@ -18790,6 +18780,47 @@ void MegaClient::getaccountachievements(AchievementsDetails *details)
 void MegaClient::getmegaachievements(AchievementsDetails *details)
 {
     reqs.add(new CommandGetMegaAchievements(this, details, false));
+}
+
+void MegaClient::importOrDelayWelcomePdf()
+{
+    if (shouldWelcomePdfImported())
+    {
+        getwelcomepdf();
+    }
+    else
+    {
+        setWelcomePdfNeedsDelayedImport(true);
+    }
+}
+
+void MegaClient::importWelcomePdfIfDelayed()
+{
+    assert(shouldWelcomePdfImported());
+    User* u = ownuser();
+    if (!u)
+        return;
+    assert(!mNodeManager.getRootNodeFiles().isUndef());
+
+    getua(
+        u,
+        ATTR_WELCOME_PDF_COPIED,
+        -1,
+        [](error e)
+        {
+            if (e != API_ENOENT)
+            {
+                LOG_err << "Failed to get user attribute "
+                        << User::attr2string(ATTR_WELCOME_PDF_COPIED) << ", error " << e;
+            }
+        },
+        [this](byte*, unsigned, attr_t)
+        {
+            if (wasWelcomePdfImportDelayed())
+            {
+                getwelcomepdf();
+            }
+        });
 }
 
 void MegaClient::getwelcomepdf()

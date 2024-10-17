@@ -14214,27 +14214,7 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
             {
                 case MegaClient::ClientType::DEFAULT:
                 {
-                    assert(!client->mNodeManager.getRootNodeFiles().isUndef());
-                    User* u = client->ownuser();
-                    if (u)
-                    {
-                        client->getua(
-                            u,
-                            ATTR_WELCOME_PDF_COPIED,
-                            -1,
-                            [](error e)
-                            {
-                                LOG_err << "Failed to get user attribute "
-                                        << User::attr2string(ATTR_WELCOME_PDF_COPIED);
-                            },
-                            [cl = client](byte*, unsigned, attr_t)
-                            {
-                                if (cl->wasWelcomePdfImportDelayed())
-                                {
-                                    cl->getwelcomepdf();
-                                }
-                            });
-                    }
+                    client->importWelcomePdfIfDelayed();
                     break;
                 }
 
@@ -14299,14 +14279,7 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
             {
                 // import the PDF silently... (not chained)
                 // Not for VPN and PWM clients
-                if (client->shouldWelcomePdfImported())
-                {
-                    client->getwelcomepdf();
-                }
-                else
-                {
-                    client->setWelcomePdfNeedsDelayedImport(true);
-                }
+                client->importOrDelayWelcomePdf();
 
                 // The session id cannot follow the same pattern, since no password is provided (yet)
                 // In consequence, the session resumption requires a regular session id (instead of the
@@ -16563,14 +16536,7 @@ void MegaApiImpl::sendsignuplink_result(error e)
     {
         // import the PDF silently... (not chained)
         // Not for VPN and PWM clients
-        if (client->shouldWelcomePdfImported())
-        {
-            client->getwelcomepdf();
-        }
-        else
-        {
-            client->setWelcomePdfNeedsDelayedImport(true);
-        }
+        client->importOrDelayWelcomePdf();
     }
 
     fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));

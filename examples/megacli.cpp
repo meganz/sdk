@@ -1212,37 +1212,11 @@ void DemoApp::fetchnodes_result(const Error& e)
 
         if (pdf_to_import)
         {
-            if (client->shouldWelcomePdfImported())
-            {
-                client->getwelcomepdf();
-            }
-            else
-            {
-                client->setWelcomePdfNeedsDelayedImport(true);
-            }
+            client->importOrDelayWelcomePdf();
         }
         else if (client->shouldWelcomePdfImported())
         {
-            User* u = client->ownuser();
-            if (u)
-            {
-                client->getua(
-                    u,
-                    ATTR_WELCOME_PDF_COPIED,
-                    -1,
-                    [](error e)
-                    {
-                        LOG_err << "Failed to get user attribute "
-                                << User::attr2string(ATTR_WELCOME_PDF_COPIED);
-                    },
-                    [cl = client](byte*, unsigned, attr_t)
-                    {
-                        if (cl->wasWelcomePdfImportDelayed())
-                        {
-                            cl->getwelcomepdf();
-                        }
-                    });
-            }
+            client->importWelcomePdfIfDelayed();
         }
 
         if (client->ephemeralSessionPlusPlus)
