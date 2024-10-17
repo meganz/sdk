@@ -190,7 +190,7 @@ TEST_F(SdkTestTransferStats, SdkTestTransferStats)
     // 2. COLLECT AND COMPARE UPLOADS AND DOWNLOADS METRICS.
 
     // 2.1 Collect metrics.
-    auto client{megaApi[0]->getClient()};
+    const auto* const client{megaApi[0]->getClient()};
     LOG_debug << "[SdkTest::SdkTestTransferStats] collectAndPrintMetrics for UPLOADS";
     const stats::TransferStats::Metrics uploadMetrics =
         client->mTransferStatsManager.collectAndPrintMetrics(PUT);
@@ -220,7 +220,8 @@ TEST_F(SdkTestTransferStats, SdkTestTransferStats)
     {
         std::string url100MB =
             "/#!JzckQJ6L!X_p0u26-HOTenAG0rATFhKdxYx-rOV1U6YHYhnz2nsA"; // https://mega.nz/file/JzckQJ6L#X_p0u26-HOTenAG0rATFhKdxYx-rOV1U6YHYhnz2nsA
-        auto importHandle = importPublicLink(0, MegaClient::MEGAURL + url100MB, rootNode.get());
+        const auto importHandle =
+            importPublicLink(0, MegaClient::MEGAURL + url100MB, rootNode.get());
         std::unique_ptr<MegaNode> nimported{megaApi[0]->getNodeByHandle(importHandle)};
 
         constexpr std::string_view downloadFileName3{DOTSLASH "downfile3.cloudraided.sdktest"};
