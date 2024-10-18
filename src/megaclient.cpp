@@ -12598,11 +12598,15 @@ void MegaClient::putua(userattr_map *attrs, int ctag, std::function<void (Error)
  * @param at Attribute type.
  * @param ctag Tag to identify the request at intermediate layer
  *
- * @return False when attribute requires a request to server. False otherwise (if cached, or unknown)
+ * @return False when attribute requires a request to server. True otherwise (if cached, or unknown)
  */
 bool MegaClient::getua(User* u, const attr_t at, int ctag, mega::CommandGetUA::CompletionErr completionErr, mega::CommandGetUA::CompletionBytes completionBytes, mega::CommandGetUA::CompletionTLV completionTLV)
 {
-    if (at != ATTR_UNKNOWN)
+    if (!u || at == ATTR_UNKNOWN)
+    {
+        completionErr ? completionErr(API_ENOENT) : app->getua_result(API_ENOENT);
+    }
+    else
     {
         // if we can solve those requests locally (cached values)...
         const string *cachedav = u->getattr(at);
@@ -18777,10 +18781,83 @@ void MegaClient::getmegaachievements(AchievementsDetails *details)
     reqs.add(new CommandGetMegaAchievements(this, details, false));
 }
 
+void MegaClient::importOrDelayWelcomePdf()
+{
+    if (shouldWelcomePdfImported())
+    {
+        getwelcomepdf();
+    }
+    else
+    {
+        setWelcomePdfNeedsDelayedImport(true);
+    }
+}
+
+void MegaClient::importWelcomePdfIfDelayed()
+{
+    assert(shouldWelcomePdfImported());
+    User* u = ownuser();
+    if (!u)
+        return;
+    assert(!mNodeManager.getRootNodeFiles().isUndef());
+
+    getua(
+        u,
+        ATTR_WELCOME_PDF_COPIED,
+        -1,
+        [](error e)
+        {
+            if (e != API_ENOENT)
+            {
+                LOG_err << "Failed to get user attribute "
+                        << User::attr2string(ATTR_WELCOME_PDF_COPIED) << ", error " << e;
+            }
+        },
+        [this](byte*, unsigned, attr_t)
+        {
+            if (wasWelcomePdfImportDelayed())
+            {
+                getwelcomepdf();
+            }
+        });
+}
+
 void MegaClient::getwelcomepdf()
 {
     assert(mClientType != ClientType::VPN && mClientType != ClientType::PASSWORD_MANAGER);
     reqs.add(new CommandGetWelcomePDF(this));
+}
+
+void MegaClient::setWelcomePdfNeedsDelayedImport(bool requestImport)
+{
+    byte importedAlready = requestImport ? '0' : '1';
+    putua(ATTR_WELCOME_PDF_COPIED,
+          &importedAlready,
+          1,
+          -1,
+          UNDEF,
+          0,
+          0,
+          [importedAlready](Error e)
+          {
+              if (!e)
+              {
+                  LOG_debug << "Successfully set " << User::attr2string(ATTR_WELCOME_PDF_COPIED)
+                            << " user attribute to " << importedAlready;
+              }
+              else
+              {
+                  LOG_err << "Failed to set " << User::attr2string(ATTR_WELCOME_PDF_COPIED)
+                          << " user attribute to " << importedAlready;
+              }
+          });
+}
+
+bool MegaClient::wasWelcomePdfImportDelayed()
+{
+    User* u = ownuser();
+    const string* attrValue = u ? u->getattr(ATTR_WELCOME_PDF_COPIED) : nullptr;
+    return attrValue && *attrValue == "0";
 }
 
 bool MegaClient::startDriveMonitor()

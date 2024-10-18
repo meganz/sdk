@@ -24,6 +24,12 @@ public:
     void TearDown() override;
 
     void doCreateAccountTest(const std::string& testName, int clientType);
+
+protected:
+    void testWelcomPdfUserAttribute(int clientType);
+    void testDelayedImportOfWelcomPdf(const std::string& userEmail,
+                                      const std::string& password,
+                                      int clientType);
 };
 
 std::string getLinkFromMailbox(const std::string& exe, // Python
@@ -177,8 +183,7 @@ void SdkTestCreateAccount::doCreateAccountTest(const std::string& testName, int 
         API_OK,
         synchronousCreateAccount(0, newTestAcc.c_str(), origTestPwd, "MyFirstname", "MyLastname"));
 
-    // Wait for the client to import the "Welcome PDF."
-    WaitMillisec(8000);
+    EXPECT_NO_FATAL_FAILURE(testWelcomPdfUserAttribute(clientType));
 
     if (clientType == MegaApi::CLIENT_TYPE_PASSWORD_MANAGER)
     {
@@ -251,6 +256,13 @@ void SdkTestCreateAccount::doCreateAccountTest(const std::string& testName, int 
             << " Failed to fetchnodes for account " << newTestAcc.c_str();
     }
 
+    // test delayed import for "Welcome PDF"
+    if (clientType == MegaApi::CLIENT_TYPE_PASSWORD_MANAGER ||
+        clientType == MegaApi::CLIENT_TYPE_VPN)
+    {
+        EXPECT_NO_FATAL_FAILURE(testDelayedImportOfWelcomPdf(newTestAcc, origTestPwd, clientType));
+    }
+
     // test resetting the password
     // ---------------------------
 
@@ -259,7 +271,7 @@ void SdkTestCreateAccount::doCreateAccountTest(const std::string& testName, int 
     ASSERT_EQ(synchronousResetPassword(0, newTestAcc.c_str(), true), MegaError::API_OK)
         << "resetPassword failed";
 
-    // Get cancel account link from the mailbox
+    // Get password reset link from the mailbox
     const char* newTestPwd = "PassAndGotHerPhoneNumber!#$**!";
     {
         LOG_debug << testName << ": Get password reset link from email";
@@ -428,6 +440,140 @@ void SdkTestCreateAccount::doCreateAccountTest(const std::string& testName, int 
             API_ESID)
             << " Failed to confirm cancel account " << changedTestAcc.c_str();
     }
+}
+
+void SdkTestCreateAccount::testWelcomPdfUserAttribute(int clientType)
+{
+    // This is a test for the initial connection, which should already be available
+    EXPECT_GT(megaApi.size(), 0);
+    if (megaApi.size() == 0)
+    {
+        return;
+    }
+
+    if (clientType == MegaApi::CLIENT_TYPE_DEFAULT)
+    {
+        // Wait for the client to import the "Welcome PDF".
+        std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+        EXPECT_TRUE(SdkTest::WaitFor(
+            [&api = *megaApi[0], &rootnode]()
+            {
+                return api.getNumChildren(rootnode.get()) > 0;
+            },
+            10000));
+        // test that the delayed import was not requested
+        {
+            RequestTracker getUserAttributeTracker(megaApi[0].get());
+            megaApi[0]->getWelcomePdfCopied(&getUserAttributeTracker);
+            EXPECT_EQ(getUserAttributeTracker.waitForResult(), API_ENOENT);
+        }
+    }
+    else
+    {
+        // test that the delayed import was requested
+        RequestTracker getUserAttributeTracker(megaApi[0].get());
+        megaApi[0]->getWelcomePdfCopied(&getUserAttributeTracker);
+        EXPECT_EQ(getUserAttributeTracker.waitForResult(), API_OK);
+        EXPECT_FALSE(getUserAttributeTracker.getFlag());
+    }
+}
+
+void SdkTestCreateAccount::testDelayedImportOfWelcomPdf(const string& userEmail,
+                                                        const string& password,
+                                                        int clientType)
+{
+    // This relies on the initial connection
+    auto initialApiCount = megaApi.size();
+    EXPECT_GT(initialApiCount, 0);
+    EXPECT_THAT(clientType,
+                testing::AnyOf(MegaApi::CLIENT_TYPE_PASSWORD_MANAGER, MegaApi::CLIENT_TYPE_VPN));
+    if (HasFatalFailure())
+    {
+        return;
+    }
+
+    // test that delayed import was requested by initial connection
+    {
+        RequestTracker getUserAttributeTracker(megaApi[0].get());
+        megaApi[0]->getWelcomePdfCopied(&getUserAttributeTracker);
+        EXPECT_EQ(getUserAttributeTracker.waitForResult(), API_OK);
+        EXPECT_FALSE(getUserAttributeTracker.getFlag());
+    }
+
+    // make a new connection with a client of Default type
+    megaApi.resize(initialApiCount + 1);
+    mApi.resize(initialApiCount + 1);
+    EXPECT_NO_FATAL_FAILURE(configureTestInstance(static_cast<unsigned>(initialApiCount),
+                                                  userEmail,
+                                                  password,
+                                                  false,
+                                                  MegaApi::CLIENT_TYPE_DEFAULT));
+    MegaApiTest& apiOfDefaultClient = *megaApi[initialApiCount];
+    RequestTracker loginTracker(&apiOfDefaultClient);
+    apiOfDefaultClient.login(userEmail.c_str(), password.c_str(), &loginTracker);
+    EXPECT_EQ(API_OK, loginTracker.waitForResult())
+        << "Failed to login with the same account via client of Default type";
+    if (HasFatalFailure())
+    {
+        return;
+    }
+
+    // Wait for the new connection client to receive the user attribute for late "Welcome PDF"
+    // import.
+    auto hasWelcomPdfAttribute = [api = &apiOfDefaultClient]() mutable
+    {
+        RequestTracker getUserAttributeTracker(api);
+        api->getUserAttribute(MegaApi::USER_ATTR_WELCOME_PDF_COPIED, &getUserAttributeTracker);
+        return getUserAttributeTracker.waitForResult() == API_OK;
+    };
+    EXPECT_TRUE(SdkTest::WaitFor(
+        [&hasWelcomPdfAttribute]()
+        {
+            return hasWelcomPdfAttribute();
+        },
+        10000));
+
+    // fetchnodes for the new connection
+    {
+        RequestTracker fetchnodesTracker{&apiOfDefaultClient};
+        apiOfDefaultClient.fetchNodes(&fetchnodesTracker);
+        EXPECT_EQ(API_OK, fetchnodesTracker.waitForResult())
+            << " Failed to fetchnodes for account " << userEmail;
+    }
+
+    // Wait for the client to import the "Welcome PDF".
+    std::unique_ptr<MegaNode> rootnode{apiOfDefaultClient.getRootNode()};
+    EXPECT_THAT(rootnode, testing::NotNull()) << "Failed to get root node";
+    EXPECT_TRUE(SdkTest::WaitFor(
+        [&apiOfDefaultClient, &rootnode]()
+        {
+            return apiOfDefaultClient.getNumChildren(rootnode.get()) > 0;
+        },
+        10000));
+
+    // Check that "Welcome PDF" is there
+    std::unique_ptr<MegaNodeList> children{apiOfDefaultClient.getChildren(rootnode.get())};
+    EXPECT_EQ(children->size(), 1) << "Wrong number of children nodes found";
+    if (children->size() > 0)
+    {
+        const char* name = children->get(0)->getName();
+        EXPECT_THAT(name, testing::NotNull());
+        size_t len = strlen(name);
+        EXPECT_GT(len, 4u);
+        EXPECT_EQ(strcasecmp(name + len - 4, ".pdf"), 0);
+    }
+
+    // test that the delayed import was performed
+    {
+        RequestTracker getUserAttributeTracker(&apiOfDefaultClient);
+        apiOfDefaultClient.getWelcomePdfCopied(&getUserAttributeTracker);
+        EXPECT_EQ(getUserAttributeTracker.waitForResult(), API_OK);
+        EXPECT_TRUE(getUserAttributeTracker.getFlag());
+    }
+
+    releaseMegaApi(static_cast<unsigned>(initialApiCount));
+    megaApi.resize(initialApiCount);
+    mApi.resize(initialApiCount);
 }
 
 /**

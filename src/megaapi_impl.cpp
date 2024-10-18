@@ -14269,8 +14269,10 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
             switch (client->getClientType())
             {
                 case MegaClient::ClientType::DEFAULT:
-                    assert(!client->mNodeManager.getRootNodeFiles().isUndef());
+                {
+                    client->importWelcomePdfIfDelayed();
                     break;
+                }
 
                 case MegaClient::ClientType::PASSWORD_MANAGER:
                     assert(!client->mNodeManager.getRootNodeVault().isUndef());
@@ -14333,10 +14335,7 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
             {
                 // import the PDF silently... (not chained)
                 // Not for VPN and PWM clients
-                if (client->shouldWelcomePdfImported())
-                {
-                    client->getwelcomepdf();
-                }
+                client->importOrDelayWelcomePdf();
 
                 // The session id cannot follow the same pattern, since no password is provided (yet)
                 // In consequence, the session resumption requires a regular session id (instead of the
@@ -16593,10 +16592,7 @@ void MegaApiImpl::sendsignuplink_result(error e)
     {
         // import the PDF silently... (not chained)
         // Not for VPN and PWM clients
-        if (client->shouldWelcomePdfImported())
-        {
-            client->getwelcomepdf();
-        }
+        client->importOrDelayWelcomePdf();
     }
 
     fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
