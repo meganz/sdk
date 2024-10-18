@@ -4192,6 +4192,20 @@ void StandardClient::waitonsyncs(chrono::seconds d)
 
 }
 
+void StandardClient::syncproblemsDetected(SyncProblems& problems)
+{
+    PromiseBoolSP pb(new promise<bool>());
+    client.syncs.syncRun(
+        [&]()
+        {
+            problems.mStallsDetected = client.syncs.stallsDetected(problems.mStalls);
+            problems.mConflictsDetected = client.syncs.conflictsDetected(problems.mConflictsMap);
+            pb->set_value(true);
+        },
+        "StandardClient::syncproblemsDetected");
+    EXPECT_TRUE(debugTolerantWaitOnFuture(pb->get_future(), 45));
+}
+
 bool StandardClient::conflictsDetected(list<NameConflict>& conflicts)
 {
     PromiseBoolSP pb(new promise<bool>());
@@ -8230,6 +8244,123 @@ TEST_F(SyncTest, DetectsAndReportsNameClashes)
     ASSERT_TRUE(client->waitFor(SyncConflictState(false), TIMEOUT));
     conflicts.clear();
     ASSERT_FALSE(client->conflictsDetected(conflicts));
+}
+
+/**
+ * @brief TEST_F DetectsAndReportsSyncProblems
+ *
+ * Tests Synchronization when there are sync problems (name conflicts and stall issues).
+ *
+ * # Test1: generate a name conflict
+ * - U1: creates a directory tree in cloud drive (/x)
+ * - U1: creates a directory in local FS (root/s)
+ * - U1: creates a local file (root/s/f0)
+ * - U1: creates a local file (root/s/f%30)
+ * - U1: synchronizes s with x
+ * - U1: wait for syncs
+ * - U1 checks if name conflict has been detected and it's the expected one
+ *
+ * # Test2: generate a stall issue
+ * - U1: creates a local file (root/s/n0)
+ * - U1: creates a hardlink from n1 into path (root/s/d/n5)
+ * - U1: wait for syncs and check if stall issue has been detected and it's the expected one
+ */
+TEST_F(SyncTest, DetectsAndReportsSyncProblems)
+{
+    auto localConflictDetected = [](const NameConflict& nc, const LocalPath& name)
+    {
+        auto i = nc.clashingLocalNames.begin();
+        auto j = nc.clashingLocalNames.end();
+        return std::find(i, j, name) != j;
+    };
+
+    const auto TESTFOLDER = makeNewTestRoot();
+    const auto TIMEOUT = chrono::seconds(8);
+    StandardClientInUse client = g_clientManager->getCleanStandardClient(0, TESTFOLDER);
+    client->client.versions_disabled = true; // allowing creating files with the same name.
+    ASSERT_TRUE(client->resetBaseFolderMulticlient());
+
+    // Create directory tree required for test
+    const auto root = client->fsBasePath / "s";
+    fs::create_directories(root / "d");
+    ASSERT_TRUE(client->makeCloudSubdirs("x", 0, 0));
+    ASSERT_TRUE(CatchupClients(client));
+
+    LOG_debug << "#### Test1: generate a name conflict ####";
+    createNameFile(root / "d", "f0");
+    createNameFile(root / "d", "f%30");
+
+    // Start the sync.
+    handle backupId1 = client->setupSync_mainthread("s", "x", false, true);
+    ASSERT_NE(backupId1, UNDEF) << "Invalid BackupId";
+    // Give the client time to synchronize.
+    waitonsyncs(TIMEOUT, client);
+
+    // Ensure conflicts were detected
+    ASSERT_TRUE(client->waitFor(SyncConflictState(true), TIMEOUT))
+        << "Name conflicts were not detected";
+    // First state change - not new updates should be notified
+    ASSERT_TRUE(client->waitFor(SyncTotalConflictsStateUpdate(false), TIMEOUT));
+
+    // Obtain the name conflicts and check that are the expected ones
+    SyncProblems problems;
+    client->syncproblemsDetected(problems);
+    ASSERT_EQ(problems.mConflictsMap.size(), 1u) << "Unexpected ConflictsMap size";
+    auto itCn = problems.mConflictsMap.find(backupId1);
+    ASSERT_NE(itCn, problems.mConflictsMap.end())
+        << "BackupId (" << toHandle(backupId1) << ") not found in ConflictsMap";
+    auto& conflicts = itCn->second;
+    ASSERT_EQ(conflicts.back().localPath,
+              LocalPath::fromRelativePath("d").prependNewWithSeparator(
+                  client->syncByBackupId(backupId1)->localroot->localname))
+        << "Unexpected local path";
+    ASSERT_EQ(conflicts.back().clashingLocalNames.size(), 2u)
+        << "Unexpected clashingLocalNames size";
+    ASSERT_TRUE(localConflictDetected(conflicts.back(), LocalPath::fromRelativePath("f%30")));
+    ASSERT_TRUE(localConflictDetected(conflicts.back(), LocalPath::fromRelativePath("f0")));
+    ASSERT_EQ(conflicts.back().clashingCloud.size(), 0u) << "Unexpected clashingCloud size";
+    ;
+
+    LOG_debug << "#### Test2: generate a stall issue ####";
+    createNameFile(root, "n0");
+    // Give the client time to synchronize.
+    waitonsyncs(TIMEOUT, client);
+
+    // Create a hard link to f0.
+    auto fsAccess = client->client.fsaccess.get();
+    LocalPath sourcePath;
+    LocalPath targetPath;
+    {
+        auto source = root / "n0";
+        auto target = root / "d" / "n5";
+        sourcePath = LocalPath::fromAbsolutePath(source.u8string());
+        targetPath = LocalPath::fromAbsolutePath(target.u8string());
+
+        ASSERT_TRUE(fsAccess->hardLink(sourcePath, targetPath));
+    }
+
+    // Give the client time to synchronize.
+    waitonsyncs(TIMEOUT, client);
+    // Ensure stalls were detected
+    ASSERT_TRUE(client->waitFor(SyncStallState(true), TIMEOUT));
+
+    // Obtain a list of the stall issues and check that are the expected ones
+    SyncProblems problems2;
+    client->syncproblemsDetected(problems2);
+    ASSERT_EQ(problems2.mConflictsMap.size(), 1u) << "Unexpected ConflictsMap size";
+    ASSERT_EQ(problems2.mStalls.syncStallInfoMaps.size(), 1u)
+        << "Unexpected syncStallInfoMaps size";
+    SyncStallInfoTests stalls;
+    stalls.extractFrom(problems2.mStalls);
+    ASSERT_FALSE(stalls.local.empty()) << "No stall issues detected";
+    auto& sr = stalls.local.begin()->second;
+    ASSERT_EQ(sr.localPath1.localPath, sourcePath) << "Unexpected sourcePath";
+    ASSERT_EQ(sr.localPath2.localPath, targetPath) << "Unexpected targetPath";
+    ASSERT_EQ(sr.reason, SyncWaitReason::FileIssue);
+    ASSERT_EQ(sr.localPath1.problem, PathProblem::DetectedHardLink)
+        << "Unexpected problem type for " << sr.localPath1.localPath.toPath(true);
+    ASSERT_EQ(sr.localPath2.problem, PathProblem::DetectedHardLink)
+        << "Unexpected problem type for " << sr.localPath2.localPath.toPath(true);
 }
 #endif
 

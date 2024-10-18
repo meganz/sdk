@@ -1143,6 +1143,12 @@ struct StandardClient : public MegaApp
     void exportnode(std::shared_ptr<Node> n, int del, m_time_t expiry, bool writable, bool megaHosted, promise<Error>& pb);
     void getpubliclink(Node* n, int del, m_time_t expiry, bool writable, bool megaHosted, promise<Error>& pb);
     void waitonsyncs(chrono::seconds d = chrono::seconds(2));
+    bool stallsDetected(SyncProblems& conflicts);
+    /**
+     * @brief Collect syncs problems (stall issues and name conflicts)
+     * @param problems SyncProblems struct where sync problems will be stored
+     */
+    void syncproblemsDetected(SyncProblems& problems);
     bool conflictsDetected(list<NameConflict>& conflicts);
     bool stallsDetected(SyncStallInfoTests& stalls);
     bool syncStallDetected(SyncStallInfoTests& si) const;

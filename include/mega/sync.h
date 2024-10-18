@@ -1098,9 +1098,6 @@ struct SyncStallInfo
     using SyncIDtoStallInfoMaps = std::map<handle, StallInfoMaps>;
     SyncIDtoStallInfoMaps syncStallInfoMaps;
 
-    // Map of SyncID to list of NameConflict
-    SyncIDtoConflictInfoMap syncConflictInfoMap;
-
     // No stalls detected
     bool empty() const;
 
