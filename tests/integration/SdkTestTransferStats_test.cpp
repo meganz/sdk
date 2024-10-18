@@ -29,6 +29,9 @@ stats::TransferStats::Metrics calculateExpectedMetrics(const direction_t transfe
     EXPECT_TRUE(transferType == PUT || transferType == GET);
     metrics.mTransferType = transferType;
 
+    // Assign number of transfers.
+    metrics.mNumTransfers = sizes.size();
+
     // Calculate the median size.
     auto sortedSizes = sizes;
     std::sort(sortedSizes.begin(), sortedSizes.end());
