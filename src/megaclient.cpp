@@ -6973,13 +6973,6 @@ void MegaClient::sc_userattr()
                                     app->notify_storage(STORAGE_CHANGE);
                                 }
                             }
-                            else if (type == ATTR_WELCOME_PDF_COPIED)
-                            {
-                                if (shouldWelcomePdfImported())
-                                {
-                                    importWelcomePdfIfDelayed();
-                                }
-                            }
                         }
                     }
                     u->setTag(0);
