@@ -11551,6 +11551,12 @@ User* MegaClient::finduser(handle uh, int add)
         uhindex[uh] = userid;
         u->userhandle = uh;
 
+        if (uh == me)
+        {
+            // we've just created the instance for logged-in user
+            u->cacheNonExistingAttributes();
+        }
+
         return u;
     }
     else
