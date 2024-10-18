@@ -134,9 +134,8 @@ public:
     int updateattr(attr_t at, string *av, string *v);
 
     void cacheNonExistingAttributes();
-    // Returns true if attribute was cached as non-existing. Avoid requesting it to server
+    // Returns true if attribute was cached as non-existing. Avoid requesting it from server.
     bool nonExistingAttribute(attr_t at) const;
-    // Only mark own attributes that it doesn't exist
 
     static string attr2string(attr_t at);
     static string attr2longname(attr_t at);
