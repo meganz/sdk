@@ -309,9 +309,6 @@ struct MEGA_API HttpIO : public EventTrigger
     // get proxy settings from the system
     virtual Proxy *getautoproxy();
 
-    // get alternative DNS servers
-    void getMEGADNSservers(string* dnsservers, bool getfromnetwork);
-
     // get DNS servers as configured in the system
     void getDNSserversFromIos(string &dnsServers);
 
