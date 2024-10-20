@@ -1058,115 +1058,13 @@ public:
 
     /* MegaVpnCredentials END */
 
-    auto getAccountLevel(MegaApi& api) -> std::tuple<int, int, int>
-    {
-        // Try and retrieve the user's account details.
-        auto details = getAccountDetails(api);
+    auto getAccountLevel(MegaApi& api) -> std::tuple<int, int, int>;
 
-        // Couldn't get account details.
-        if (std::get<1>(details) != API_OK)
-        {
-            return std::make_tuple(0, 0, std::get<1>(details));
-        }
+    auto getAccountDetails(MegaApi& api) -> std::tuple<std::unique_ptr<MegaAccountDetails>, int>;
 
-        // Latch the user's plan.
-        auto plan = std::get<0>(details)->getProLevel();
+    auto getPricing(MegaApi& api) -> std::tuple<std::unique_ptr<MegaPricing>, int>;
 
-        // User has a free account: No need to get features or months.
-        if (plan == MegaAccountDetails::ACCOUNT_TYPE_FREE)
-        {
-            return std::make_tuple(0, plan, API_OK);
-        }
-
-        // Try and get pricing information.
-        auto pricing = getPricing(api);
-
-        // Couldn't get pricing information.
-        if (std::get<1>(pricing) != API_OK)
-        {
-            return std::make_tuple(0, 0, std::get<1>(pricing));
-        }
-
-        // Convenience.
-        auto& priceDetails = *std::get<0>(pricing);
-
-        // Locate the user's plan.
-        for (auto i = 0, j = priceDetails.getNumProducts(); i < j; ++i)
-        {
-            // Found the user's plan.
-            if (plan == priceDetails.getProLevel(i))
-            {
-                // Return plan and its length.
-                return std::make_tuple(priceDetails.getMonths(i), plan, API_OK);
-            }
-        }
-
-        // Couldn't locate the user's plan.
-        return std::make_tuple(0, 0, API_ENOENT);
-    }
-
-    auto getAccountDetails(MegaApi& api) -> std::tuple<std::unique_ptr<MegaAccountDetails>, int>
-    {
-        // So we can wait for the client's result.
-        RequestTracker tracker(&api);
-
-        // Ask client for account details.
-        api.getAccountDetails(&tracker);
-
-        // Wait for client to report a result.
-        auto result = tracker.waitForResult();
-        auto details = makeUniqueFrom(tracker.request->getMegaAccountDetails());
-
-        // Return result to caller.
-        return std::make_tuple(std::move(details), result);
-    }
-
-    auto getPricing(MegaApi& api) -> std::tuple<std::unique_ptr<MegaPricing>, int>
-    {
-        // So we can wait for the client's result.
-        RequestTracker tracker(&api);
-
-        // Ask client for plan pricing information,
-        api.getPricing(&tracker);
-
-        // Wait for client to report a result.
-        auto result = tracker.waitForResult();
-        auto pricing = makeUniqueFrom(tracker.request->getPricing());
-
-        // Return result to caller.
-        return std::make_tuple(std::move(pricing), result);
-    }
-
-    auto makeScopedAccountLevelRestorer(MegaApi& api)
-    {
-        // Assume we can't retrieve the account level.
-        std::function<void()> destructor = []() {};
-
-        auto months = 0;
-        auto plan = 0;
-        auto result = 0;
-
-        // Try and retrieve the user's current account level.
-        std::tie(months, plan, result) = getAccountLevel(api);
-
-        // Leave a trail if we couldn't get the account level.
-        EXPECT_EQ(result, API_OK) << "Couldn't retrieve account level: " << result;
-
-        // We were able to retrieve the account level.
-        if (result == API_OK)
-        {
-            // Build a destructor that will restore the user's account level.
-            destructor = [&api, months, plan, this]()
-            {
-                // Try and restore the user's account level.
-                auto result = setAccountLevel(api, plan, months, nullptr);
-                EXPECT_EQ(result, API_OK) << "Couldn't restore account level: " << result;
-            };
-        }
-
-        // Return destructor to caller.
-        return makeScopedDestructor(std::move(destructor));
-    }
+    auto makeScopedAccountLevelRestorer(MegaApi& api);
 
     template<typename... requestArgs>
     int setAccountLevel(MegaApi& api, requestArgs... args)
