@@ -13056,6 +13056,7 @@ void MegaClient::delua(const char *an)
         reqs.add(new CommandDelUA(this, an));
     }
 }
+#endif
 
 void MegaClient::senddevcommand(const char* command,
                                 const char* email,
@@ -13066,7 +13067,6 @@ void MegaClient::senddevcommand(const char* command,
 {
     reqs.add(new CommandSendDevCommand(this, command, email, q, bs, us, abs_c));
 }
-#endif
 
 void MegaClient::transfercacheadd(Transfer *transfer, TransferDbCommitter* committer)
 {

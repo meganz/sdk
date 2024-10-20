@@ -3869,6 +3869,8 @@ bool CommandDelUA::procresult(Result r, JSON& json)
     return true;
 }
 
+#endif // #ifdef DEBUG
+
 CommandSendDevCommand::CommandSendDevCommand(MegaClient* client,
                                              const char* command,
                                              const char* email,
@@ -3921,8 +3923,6 @@ bool CommandSendDevCommand::procresult(Result r, JSON&)
     client->app->senddevcommand_result(r.errorOrOK());
     return r.wasErrorOrOK();
 }
-
-#endif  // #ifdef DEBUG
 
 CommandGetUserEmail::CommandGetUserEmail(MegaClient *client, const char *uid)
 {

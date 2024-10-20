@@ -4416,8 +4416,8 @@ public:
         void removecontact_result(error) override;
 #ifdef DEBUG
         void delua_result(error) override;
-        void senddevcommand_result(int) override;
 #endif
+        void senddevcommand_result(int) override;
 
         void getuseremail_result(string *, error) override;
 

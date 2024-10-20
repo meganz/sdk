@@ -19843,8 +19843,6 @@ TEST_F(SdkTest, CreditCardCancelSubscriptions)
     }
 }
 
-#ifdef DEBUG
-
 TEST_F(SdkTest, SdkTestSetAccountLevel)
 {
     // Make sure we can transition between account levels.
@@ -19893,8 +19891,6 @@ TEST_F(SdkTest, SdkTestSetAccountLevel)
     // Make sure we can change to a pro plan.
     EXPECT_EQ(check(api, 1, PRO), API_OK);
 }
-
-#endif
 
 TEST_F(SdkTest, FailsWhenThumbnailIsTooLarge)
 {

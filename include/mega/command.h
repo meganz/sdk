@@ -458,6 +458,7 @@ public:
 
     bool procresult(Result, JSON&) override;
 };
+#endif
 
 class MEGA_API CommandSendDevCommand : public Command
 {
@@ -472,7 +473,6 @@ public:
                           int us = 0,
                           const char* cp = nullptr);
 };
-#endif
 
 class MEGA_API CommandGetUserEmail : public Command
 {

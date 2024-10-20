@@ -972,6 +972,7 @@ public:
     // queue a user attribute removal
     void delua(const char* an);
 
+#endif
     // send dev command for testing
     void senddevcommand(const char* command,
                         const char* email,
@@ -979,7 +980,6 @@ public:
                         int bs = 0,
                         int us = 0,
                         const char* abs_c = nullptr);
-#endif
 
     // delete or block an existing contact
     error removecontact(const char*, visibility_t = HIDDEN, CommandRemoveContact::Completion completion = nullptr);

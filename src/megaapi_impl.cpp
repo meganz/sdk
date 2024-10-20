@@ -16091,6 +16091,7 @@ void MegaApiImpl::delua_result(error e)
 
     fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
 }
+#endif
 
 void MegaApiImpl::senddevcommand_result(int value)
 {
@@ -16108,7 +16109,6 @@ void MegaApiImpl::senddevcommand_result(int value)
 
     fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
 }
-#endif
 
 void MegaApiImpl::getuseremail_result(string *email, error e)
 {
@@ -23764,7 +23764,6 @@ void MegaApiImpl::sendDevCommand(const char* command, const char* email, long lo
                 return API_EARGS;
             }
 
-    #ifdef DEBUG
             const char* email = request->getEmail();
             long long q = request->getTotalBytes();
             int bs = request->getAccess();
@@ -23806,11 +23805,7 @@ void MegaApiImpl::sendDevCommand(const char* command, const char* email, long lo
             }
             client->senddevcommand(command, email, q, bs, us);
             return API_OK;
-    #else
-            return API_EACCESS;
-    #endif
         };
-
 
     requestQueue.push(request);
     waiter->notify();
