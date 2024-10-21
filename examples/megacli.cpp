@@ -13432,8 +13432,7 @@ void exec_collectAndPrintTransferStats(autocomplete::ACState& state)
 
     auto collectAndPrintTransfersMetricsFromType = [](direction_t transferType)
     {
-        std::cout << "\n==================================================================="
-                  << "\n";
+        std::cout << "\n===================================================================\n";
         std::cout << (transferType == PUT ? "[UploadStatistics]" : "[DownloadStatistics]") << "\n";
         std::cout << "Number of transfers: " << client->mTransferStatsManager.size(transferType)
                   << "\n";
@@ -13441,18 +13440,14 @@ void exec_collectAndPrintTransferStats(autocomplete::ACState& state)
                   << "\n";
         std::cout << "Max age in seconds: "
                   << client->mTransferStatsManager.getMaxAgeSeconds(transferType) << "\n";
-        std::cout << "-------------------------------------------------------------------"
-                  << "\n";
+        std::cout << "-------------------------------------------------------------------\n";
         ::mega::stats::TransferStats::Metrics metrics =
             client->mTransferStatsManager.collectAndPrintMetrics(transferType);
         std::cout << metrics.toString() << "\n";
-        std::cout << "-------------------------------------------------------------------"
-                  << "\n";
-        std::cout << "JSON format:"
-                  << "\n";
+        std::cout << "-------------------------------------------------------------------\n";
+        std::cout << "JSON format:\n";
         std::cout << metrics.toJson() << "\n";
-        std::cout << "===================================================================\n"
-                  << std::endl;
+        std::cout << "===================================================================\n\n";
     };
 
     if (!downloadsOnly)
