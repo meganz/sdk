@@ -1892,9 +1892,9 @@ MegaSyncStallListPrivate::MegaSyncStallListPrivate(SyncProblems&& sp, AddressedS
 
 MegaSyncStallMapPrivate::MegaSyncStallMapPrivate(SyncProblems&& sp, AddressedStallFilter& filter)
 {
-    for (auto& itnc: sp.mConflictsMap)
+    for (const auto& itnc: sp.mConflictsMap)
     {
-        for (auto& nc: itnc.second)
+        for (const auto& nc: itnc.second)
         {
             if (!filter.addressedNameConfict(nc.cloudPath, nc.localPath))
             {
@@ -1916,7 +1916,7 @@ MegaSyncStallMapPrivate::MegaSyncStallMapPrivate(SyncProblems&& sp, AddressedSta
             }
         }
 
-        for (auto& stall: stalledSyncMap.local)
+        for (const auto& stall: stalledSyncMap.local)
         {
             if (!filter.addressedLocalStall(stall.first))
             {
@@ -1953,7 +1953,7 @@ size_t MegaSyncStallMapPrivate::size() const
 MegaHandleList* MegaSyncStallMapPrivate::getKeys() const
 {
     MegaHandleList* list = MegaHandleList::createInstance();
-    for (auto& stall: mStallsMap)
+    for (const auto& stall: mStallsMap)
     {
         list->addMegaHandle(stall.first);
     }
@@ -4164,7 +4164,7 @@ void MegaRequestPrivate::setMegaSyncStallList(unique_ptr<MegaSyncStallList>&& sl
     mSyncStallList = std::move(sl);
 }
 
-void MegaRequestPrivate::setMegaSyncStallMap(unique_ptr<MegaSyncStallMap>&& sm)
+void MegaRequestPrivate::setMegaSyncStallMap(std::unique_ptr<MegaSyncStallMap>&& sm)
 {
     mSyncStallMap = std::move(sm);
 }
@@ -27999,14 +27999,14 @@ void MegaApiImpl::performRequest_enableTestSurveys(MegaRequestPrivate* request)
 
 error MegaApiImpl::performRequest_getSyncStalls(MegaRequestPrivate* request)
 {
-    auto completion = [this, request](unique_ptr<SyncProblems> problems)
+    const auto completion = [this, request](unique_ptr<SyncProblems> problems)
     {
         mAddressedStallFilter.removeOldFilters(client->syncs.completedPassCount.load());
         // If the user already addressed some sync issues but the sync hasn't made another pass
         // to generate a new stall list, then the filter will hide those for now
         auto error = std::make_unique<MegaErrorPrivate>(API_OK);
 
-        if (auto getMap = request->getFlag(); getMap)
+        if (const auto getMap = request->getFlag(); getMap)
         {
             auto stallsMap =
                 std::make_unique<MegaSyncStallMapPrivate>(move(*problems), mAddressedStallFilter);

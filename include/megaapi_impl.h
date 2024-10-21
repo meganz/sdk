@@ -1632,7 +1632,7 @@ class MegaRequestPrivate : public MegaRequest
         MegaSyncStallList* getMegaSyncStallList() const override;
         MegaSyncStallMap* getMegaSyncStallMap() const override;
         void setMegaSyncStallList(unique_ptr<MegaSyncStallList>&& stalls);
-        void setMegaSyncStallMap(unique_ptr<MegaSyncStallMap>&& sm);
+        void setMegaSyncStallMap(std::unique_ptr<MegaSyncStallMap>&& sm);
 #endif // ENABLE_SYNC
 
 #ifdef ENABLE_CHAT

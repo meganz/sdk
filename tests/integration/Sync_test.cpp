@@ -8354,12 +8354,12 @@ TEST_F(SyncTest, DetectsAndReportsSyncProblems)
     stalls.extractFrom(problems2.mStalls);
     ASSERT_FALSE(stalls.local.empty()) << "No stall issues detected";
     auto& sr = stalls.local.begin()->second;
-    ASSERT_EQ(sr.localPath1.localPath, sourcePath) << "Unexpected sourcePath";
-    ASSERT_EQ(sr.localPath2.localPath, targetPath) << "Unexpected targetPath";
-    ASSERT_EQ(sr.reason, SyncWaitReason::FileIssue);
-    ASSERT_EQ(sr.localPath1.problem, PathProblem::DetectedHardLink)
+    EXPECT_EQ(sr.localPath1.localPath, sourcePath) << "Unexpected sourcePath";
+    EXPECT_EQ(sr.localPath2.localPath, targetPath) << "Unexpected targetPath";
+    EXPECT_EQ(sr.reason, SyncWaitReason::FileIssue);
+    EXPECT_EQ(sr.localPath1.problem, PathProblem::DetectedHardLink)
         << "Unexpected problem type for " << sr.localPath1.localPath.toPath(true);
-    ASSERT_EQ(sr.localPath2.problem, PathProblem::DetectedHardLink)
+    EXPECT_EQ(sr.localPath2.problem, PathProblem::DetectedHardLink)
         << "Unexpected problem type for " << sr.localPath2.localPath.toPath(true);
 }
 #endif
