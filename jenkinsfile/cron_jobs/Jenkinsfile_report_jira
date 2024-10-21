@@ -1,5 +1,5 @@
 pipeline {
-    agent {label "docker"}
+    agent {label "ci-debian-11-64-3 "}
     options {
         buildDiscarder(logRotator(numToKeepStr: '32', daysToKeepStr: '14'))
         ansiColor('xterm')
@@ -15,7 +15,7 @@ pipeline {
         stage('Rebuild docker image') {
             when {
                 beforeAgent true
-                expression { REBUILD_IMAGE }
+                expression { return params.REBUILD_IMAGE }
             }
             steps {
                 sh """
