@@ -1657,60 +1657,170 @@ size_t MegaSyncStallPrivate::getHash() const
 const char*
 MegaSyncStallPrivate::reasonDebugString(MegaSyncStall::SyncStallReason reason)
 {
-    static_assert((int)SyncWaitReason::NoReason == (int)MegaSyncStall::SyncStallReason::NoReason, "");
-    static_assert((int)SyncWaitReason::FileIssue == (int)MegaSyncStall::SyncStallReason::FileIssue, "");
-    static_assert((int)SyncWaitReason::MoveOrRenameCannotOccur == (int)MegaSyncStall::SyncStallReason::MoveOrRenameCannotOccur, "");
-    static_assert((int)SyncWaitReason::DeleteOrMoveWaitingOnScanning == (int)MegaSyncStall::SyncStallReason::DeleteOrMoveWaitingOnScanning, "");
-    static_assert((int)SyncWaitReason::DeleteWaitingOnMoves == (int)MegaSyncStall::SyncStallReason::DeleteWaitingOnMoves, "");
-    static_assert((int)SyncWaitReason::UploadIssue == (int)MegaSyncStall::SyncStallReason::UploadIssue, "");
-    static_assert((int)SyncWaitReason::DownloadIssue == (int)MegaSyncStall::SyncStallReason::DownloadIssue, "");
-    static_assert((int)SyncWaitReason::CannotCreateFolder == (int)MegaSyncStall::SyncStallReason::CannotCreateFolder, "");
-    static_assert((int)SyncWaitReason::CannotPerformDeletion == (int)MegaSyncStall::SyncStallReason::CannotPerformDeletion, "");
-    static_assert((int)SyncWaitReason::SyncItemExceedsSupportedTreeDepth == (int)MegaSyncStall::SyncStallReason::SyncItemExceedsSupportedTreeDepth, "");
-    static_assert((int)SyncWaitReason::FolderMatchedAgainstFile == (int)MegaSyncStall::SyncStallReason::FolderMatchedAgainstFile, "");
-    static_assert((int)SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose == (int)MegaSyncStall::SyncStallReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose, "");
-    static_assert((int)SyncWaitReason::LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose == (int)MegaSyncStall::SyncStallReason::LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose, "");
-    static_assert((int)SyncWaitReason::NamesWouldClashWhenSynced == (int)MegaSyncStall::SyncStallReason::NamesWouldClashWhenSynced, "");
-    static_assert((int)SyncWaitReason::SyncWaitReason_LastPlusOne == (int)MegaSyncStall::SyncStallReason::SyncStallReason_LastPlusOne, "");
+    static_assert(static_cast<int>(SyncWaitReason::NoReason) ==
+                      static_cast<int>(MegaSyncStall::SyncStallReason::NoReason),
+                  "");
+    static_assert(static_cast<int>(SyncWaitReason::FileIssue) ==
+                      static_cast<int>(MegaSyncStall::SyncStallReason::FileIssue),
+                  "");
+    static_assert(static_cast<int>(SyncWaitReason::MoveOrRenameCannotOccur) ==
+                      static_cast<int>(MegaSyncStall::SyncStallReason::MoveOrRenameCannotOccur),
+                  "");
+    static_assert(
+        static_cast<int>(SyncWaitReason::DeleteOrMoveWaitingOnScanning) ==
+            static_cast<int>(MegaSyncStall::SyncStallReason::DeleteOrMoveWaitingOnScanning),
+        "");
+    static_assert(static_cast<int>(SyncWaitReason::DeleteWaitingOnMoves) ==
+                      static_cast<int>(MegaSyncStall::SyncStallReason::DeleteWaitingOnMoves),
+                  "");
+    static_assert(static_cast<int>(SyncWaitReason::UploadIssue) ==
+                      static_cast<int>(MegaSyncStall::SyncStallReason::UploadIssue),
+                  "");
+    static_assert(static_cast<int>(SyncWaitReason::DownloadIssue) ==
+                      static_cast<int>(MegaSyncStall::SyncStallReason::DownloadIssue),
+                  "");
+    static_assert(static_cast<int>(SyncWaitReason::CannotCreateFolder) ==
+                      static_cast<int>(MegaSyncStall::SyncStallReason::CannotCreateFolder),
+                  "");
+    static_assert(static_cast<int>(SyncWaitReason::CannotPerformDeletion) ==
+                      static_cast<int>(MegaSyncStall::SyncStallReason::CannotPerformDeletion),
+                  "");
+    static_assert(
+        static_cast<int>(SyncWaitReason::SyncItemExceedsSupportedTreeDepth) ==
+            static_cast<int>(MegaSyncStall::SyncStallReason::SyncItemExceedsSupportedTreeDepth),
+        "");
+    static_assert(static_cast<int>(SyncWaitReason::FolderMatchedAgainstFile) ==
+                      static_cast<int>(MegaSyncStall::SyncStallReason::FolderMatchedAgainstFile),
+                  "");
+    static_assert(
+        static_cast<int>(
+            SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose) ==
+            static_cast<int>(MegaSyncStall::SyncStallReason::
+                                 LocalAndRemoteChangedSinceLastSyncedState_userMustChoose),
+        "");
+    static_assert(
+        static_cast<int>(SyncWaitReason::LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose) ==
+            static_cast<int>(MegaSyncStall::SyncStallReason::
+                                 LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose),
+        "");
+    static_assert(static_cast<int>(SyncWaitReason::NamesWouldClashWhenSynced) ==
+                      static_cast<int>(MegaSyncStall::SyncStallReason::NamesWouldClashWhenSynced),
+                  "");
+    static_assert(static_cast<int>(SyncWaitReason::SyncWaitReason_LastPlusOne) ==
+                      static_cast<int>(MegaSyncStall::SyncStallReason::SyncStallReason_LastPlusOne),
+                  "");
 
     return syncWaitReasonDebugString(SyncWaitReason(reason));
 }
 
-const char*
-MegaSyncStallPrivate::pathProblemDebugString(MegaSyncStall::SyncPathProblem reason)
+const char* MegaSyncStallPrivate::pathProblemDebugString(MegaSyncStall::SyncPathProblem reason)
 {
-    static_assert((int)PathProblem::NoProblem == (int)MegaSyncStall::SyncPathProblem::NoProblem, "");
+    static_assert(static_cast<int>(PathProblem::NoProblem) ==
+                      static_cast<int>(MegaSyncStall::SyncPathProblem::NoProblem),
+                  "");
 
-    static_assert((int)PathProblem::FileChangingFrequently == (int)MegaSyncStall::SyncPathProblem::FileChangingFrequently, "");
-    static_assert((int)PathProblem::IgnoreRulesUnknown == (int)MegaSyncStall::SyncPathProblem::IgnoreRulesUnknown, "");
-    static_assert((int)PathProblem::DetectedHardLink == (int)MegaSyncStall::SyncPathProblem::DetectedHardLink, "");
-    static_assert((int)PathProblem::DetectedSymlink == (int)MegaSyncStall::SyncPathProblem::DetectedSymlink, "");
-    static_assert((int)PathProblem::DetectedSpecialFile == (int)MegaSyncStall::SyncPathProblem::DetectedSpecialFile, "");
-    static_assert((int)PathProblem::DifferentFileOrFolderIsAlreadyPresent == (int)MegaSyncStall::SyncPathProblem::DifferentFileOrFolderIsAlreadyPresent, "");
-    static_assert((int)PathProblem::ParentFolderDoesNotExist == (int)MegaSyncStall::SyncPathProblem::ParentFolderDoesNotExist, "");
-    static_assert((int)PathProblem::FilesystemErrorDuringOperation == (int)MegaSyncStall::SyncPathProblem::FilesystemErrorDuringOperation, "");
-    static_assert((int)PathProblem::NameTooLongForFilesystem == (int)MegaSyncStall::SyncPathProblem::NameTooLongForFilesystem, "");
-    static_assert((int)PathProblem::CannotFingerprintFile == (int)MegaSyncStall::SyncPathProblem::CannotFingerprintFile, "");
-    static_assert((int)PathProblem::DestinationPathInUnresolvedArea == (int)MegaSyncStall::SyncPathProblem::DestinationPathInUnresolvedArea, "");
-    static_assert((int)PathProblem::MACVerificationFailure == (int)MegaSyncStall::SyncPathProblem::MACVerificationFailure, "");
-    static_assert((int)PathProblem::DeletedOrMovedByUser == (int)MegaSyncStall::SyncPathProblem::DeletedOrMovedByUser, "");
-    static_assert((int)PathProblem::FileFolderDeletedByUser == (int)MegaSyncStall::SyncPathProblem::FileFolderDeletedByUser, "");
-    static_assert((int)PathProblem::MoveToDebrisFolderFailed == (int)MegaSyncStall::SyncPathProblem::MoveToDebrisFolderFailed, "");
-    static_assert((int)PathProblem::IgnoreFileMalformed == (int)MegaSyncStall::SyncPathProblem::IgnoreFileMalformed, "");
-    static_assert((int)PathProblem::FilesystemErrorListingFolder == (int)MegaSyncStall::SyncPathProblem::FilesystemErrorListingFolder, "");
-    static_assert((int)PathProblem::FilesystemErrorIdentifyingFolderContent == (int)MegaSyncStall::SyncPathProblem::FilesystemErrorIdentifyingFolderContent, "");  // Deprecated after SDK-3206
-    static_assert((int)PathProblem::WaitingForScanningToComplete == (int)MegaSyncStall::SyncPathProblem::WaitingForScanningToComplete, "");
-    static_assert((int)PathProblem::WaitingForAnotherMoveToComplete == (int)MegaSyncStall::SyncPathProblem::WaitingForAnotherMoveToComplete, "");
-    static_assert((int)PathProblem::SourceWasMovedElsewhere == (int)MegaSyncStall::SyncPathProblem::SourceWasMovedElsewhere, "");
-    static_assert((int)PathProblem::FilesystemCannotStoreThisName == (int)MegaSyncStall::SyncPathProblem::FilesystemCannotStoreThisName, "");
-    static_assert((int)PathProblem::CloudNodeInvalidFingerprint == (int)MegaSyncStall::SyncPathProblem::CloudNodeInvalidFingerprint, "");
-    static_assert((int)PathProblem::PutnodeDeferredByController == (int)MegaSyncStall::SyncPathProblem::PutnodeDeferredByController, "");
-    static_assert((int)PathProblem::PutnodeCompletionDeferredByController == (int)MegaSyncStall::SyncPathProblem::PutnodeCompletionDeferredByController, "");
-    static_assert((int)PathProblem::PutnodeCompletionPending == (int)MegaSyncStall::SyncPathProblem::PutnodeCompletionPending, "");
-    static_assert((int)PathProblem::UploadDeferredByController == (int)MegaSyncStall::SyncPathProblem::UploadDeferredByController, "");
-    static_assert((int)PathProblem::DetectedNestedMount == (int)MegaSyncStall::SyncPathProblem::DetectedNestedMount, "");
-    static_assert((int)PathProblem::CloudNodeIsBlocked == (int)MegaSyncStall::SyncPathProblem::CloudNodeIsBlocked, "");
-    static_assert((int)PathProblem::PathProblem_LastPlusOne == (int)MegaSyncStall::SyncPathProblem::SyncPathProblem_LastPlusOne, "");
+    static_assert(static_cast<int>(PathProblem::FileChangingFrequently) ==
+                      static_cast<int>(MegaSyncStall::SyncPathProblem::FileChangingFrequently),
+                  "");
+    static_assert(static_cast<int>(PathProblem::IgnoreRulesUnknown) ==
+                      static_cast<int>(MegaSyncStall::SyncPathProblem::IgnoreRulesUnknown),
+                  "");
+    static_assert(static_cast<int>(PathProblem::DetectedHardLink) ==
+                      static_cast<int>(MegaSyncStall::SyncPathProblem::DetectedHardLink),
+                  "");
+    static_assert(static_cast<int>(PathProblem::DetectedSymlink) ==
+                      static_cast<int>(MegaSyncStall::SyncPathProblem::DetectedSymlink),
+                  "");
+    static_assert(static_cast<int>(PathProblem::DetectedSpecialFile) ==
+                      static_cast<int>(MegaSyncStall::SyncPathProblem::DetectedSpecialFile),
+                  "");
+    static_assert(
+        static_cast<int>(PathProblem::DifferentFileOrFolderIsAlreadyPresent) ==
+            static_cast<int>(MegaSyncStall::SyncPathProblem::DifferentFileOrFolderIsAlreadyPresent),
+        "");
+    static_assert(static_cast<int>(PathProblem::ParentFolderDoesNotExist) ==
+                      static_cast<int>(MegaSyncStall::SyncPathProblem::ParentFolderDoesNotExist),
+                  "");
+    static_assert(
+        static_cast<int>(PathProblem::FilesystemErrorDuringOperation) ==
+            static_cast<int>(MegaSyncStall::SyncPathProblem::FilesystemErrorDuringOperation),
+        "");
+    static_assert(static_cast<int>(PathProblem::NameTooLongForFilesystem) ==
+                      static_cast<int>(MegaSyncStall::SyncPathProblem::NameTooLongForFilesystem),
+                  "");
+    static_assert(static_cast<int>(PathProblem::CannotFingerprintFile) ==
+                      static_cast<int>(MegaSyncStall::SyncPathProblem::CannotFingerprintFile),
+                  "");
+    static_assert(
+        static_cast<int>(PathProblem::DestinationPathInUnresolvedArea) ==
+            static_cast<int>(MegaSyncStall::SyncPathProblem::DestinationPathInUnresolvedArea),
+        "");
+    static_assert(static_cast<int>(PathProblem::MACVerificationFailure) ==
+                      static_cast<int>(MegaSyncStall::SyncPathProblem::MACVerificationFailure),
+                  "");
+    static_assert(static_cast<int>(PathProblem::UnknownDownloadIssue) ==
+                      static_cast<int>(MegaSyncStall::SyncPathProblem::UnknownDownloadIssue),
+                  "");
+    static_assert(static_cast<int>(PathProblem::DeletedOrMovedByUser) ==
+                      static_cast<int>(MegaSyncStall::SyncPathProblem::DeletedOrMovedByUser),
+                  "");
+    static_assert(static_cast<int>(PathProblem::FileFolderDeletedByUser) ==
+                      static_cast<int>(MegaSyncStall::SyncPathProblem::FileFolderDeletedByUser),
+                  "");
+    static_assert(static_cast<int>(PathProblem::MoveToDebrisFolderFailed) ==
+                      static_cast<int>(MegaSyncStall::SyncPathProblem::MoveToDebrisFolderFailed),
+                  "");
+    static_assert(static_cast<int>(PathProblem::IgnoreFileMalformed) ==
+                      static_cast<int>(MegaSyncStall::SyncPathProblem::IgnoreFileMalformed),
+                  "");
+    static_assert(
+        static_cast<int>(PathProblem::FilesystemErrorListingFolder) ==
+            static_cast<int>(MegaSyncStall::SyncPathProblem::FilesystemErrorListingFolder),
+        "");
+    static_assert(static_cast<int>(PathProblem::FilesystemErrorIdentifyingFolderContent) ==
+                      static_cast<int>(
+                          MegaSyncStall::SyncPathProblem::FilesystemErrorIdentifyingFolderContent),
+                  ""); // Deprecated after SDK-3206
+    static_assert(
+        static_cast<int>(PathProblem::WaitingForScanningToComplete) ==
+            static_cast<int>(MegaSyncStall::SyncPathProblem::WaitingForScanningToComplete),
+        "");
+    static_assert(
+        static_cast<int>(PathProblem::WaitingForAnotherMoveToComplete) ==
+            static_cast<int>(MegaSyncStall::SyncPathProblem::WaitingForAnotherMoveToComplete),
+        "");
+    static_assert(static_cast<int>(PathProblem::SourceWasMovedElsewhere) ==
+                      static_cast<int>(MegaSyncStall::SyncPathProblem::SourceWasMovedElsewhere),
+                  "");
+    static_assert(
+        static_cast<int>(PathProblem::FilesystemCannotStoreThisName) ==
+            static_cast<int>(MegaSyncStall::SyncPathProblem::FilesystemCannotStoreThisName),
+        "");
+    static_assert(static_cast<int>(PathProblem::CloudNodeInvalidFingerprint) ==
+                      static_cast<int>(MegaSyncStall::SyncPathProblem::CloudNodeInvalidFingerprint),
+                  "");
+    static_assert(static_cast<int>(PathProblem::PutnodeDeferredByController) ==
+                      static_cast<int>(MegaSyncStall::SyncPathProblem::PutnodeDeferredByController),
+                  "");
+    static_assert(
+        static_cast<int>(PathProblem::PutnodeCompletionDeferredByController) ==
+            static_cast<int>(MegaSyncStall::SyncPathProblem::PutnodeCompletionDeferredByController),
+        "");
+    static_assert(static_cast<int>(PathProblem::PutnodeCompletionPending) ==
+                      static_cast<int>(MegaSyncStall::SyncPathProblem::PutnodeCompletionPending),
+                  "");
+    static_assert(static_cast<int>(PathProblem::UploadDeferredByController) ==
+                      static_cast<int>(MegaSyncStall::SyncPathProblem::UploadDeferredByController),
+                  "");
+    static_assert(static_cast<int>(PathProblem::DetectedNestedMount) ==
+                      static_cast<int>(MegaSyncStall::SyncPathProblem::DetectedNestedMount),
+                  "");
+    static_assert(static_cast<int>(PathProblem::CloudNodeIsBlocked) ==
+                      static_cast<int>(MegaSyncStall::SyncPathProblem::CloudNodeIsBlocked),
+                  "");
+    static_assert(static_cast<int>(PathProblem::PathProblem_LastPlusOne) ==
+                      static_cast<int>(MegaSyncStall::SyncPathProblem::SyncPathProblem_LastPlusOne),
+                  "");
 
     return syncPathProblemDebugString(PathProblem(reason));
 }
@@ -1750,11 +1860,14 @@ const MegaSyncStall* MegaSyncStallListPrivate::get(size_t i) const
 
 MegaSyncStallListPrivate::MegaSyncStallListPrivate(SyncProblems&& sp, AddressedStallFilter& filter)
 {
-    for(auto& nc : sp.mConflicts)
+    for (auto& itnc: sp.mConflictsMap)
     {
-        if (!filter.addressedNameConfict(nc.cloudPath, nc.localPath))
+        for (auto& nc: itnc.second)
         {
-            mStalls.push_back(std::make_shared<MegaSyncNameConflictStallPrivate>(nc));
+            if (!filter.addressedNameConfict(nc.cloudPath, nc.localPath))
+            {
+                mStalls.push_back(std::make_shared<MegaSyncNameConflictStallPrivate>(nc));
+            }
         }
     }
 
@@ -6907,67 +7020,10 @@ int MegaApiImpl::userAttributeFromString(const char *name)
 
 char MegaApiImpl::userAttributeToScope(int type)
 {
-    char scope;
-
-    switch(type)
+    char scope = User::scope(static_cast<attr_t>(type));
+    if (scope == ATTR_SCOPE_UNKNOWN)
     {
-        case MegaApi::USER_ATTR_AVATAR:
-        case MegaApi::USER_ATTR_ED25519_PUBLIC_KEY:
-        case MegaApi::USER_ATTR_CU25519_PUBLIC_KEY:
-        case MegaApi::USER_ATTR_SIG_RSA_PUBLIC_KEY:
-        case MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY:
-            scope = ATTR_SCOPE_PUBLIC_UNENCRYPTED;
-            break;
-
-        case MegaApi::USER_ATTR_FIRSTNAME:
-        case MegaApi::USER_ATTR_LASTNAME:
-            // legacy, without a prefix for scope
-            scope = ATTR_SCOPE_PROTECTED_UNENCRYPTED;
-            break;
-
-        case MegaApi::USER_ATTR_AUTHRING:
-        case MegaApi::USER_ATTR_LAST_INTERACTION:
-        case MegaApi::USER_ATTR_KEYRING:
-        case MegaApi::USER_ATTR_RICH_PREVIEWS:
-        case MegaApi::USER_ATTR_GEOLOCATION:
-        case MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER:
-        case MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER:
-        case MegaApi::USER_ATTR_ALIAS:
-        case ATTR_AUTHCU255: // deprecated
-        case MegaApi::USER_ATTR_DEVICE_NAMES:
-        case MegaApi::USER_ATTR_JSON_SYNC_CONFIG_DATA:
-        case MegaApi::USER_ATTR_APPS_PREFS:
-        case MegaApi::USER_ATTR_CC_PREFS:
-            scope = ATTR_SCOPE_PRIVATE_ENCRYPTED;
-            break;
-
-        case MegaApi::USER_ATTR_LANGUAGE:
-        case MegaApi::USER_ATTR_PWD_REMINDER:
-        case MegaApi::USER_ATTR_DISABLE_VERSIONS:
-        case MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION:
-        case MegaApi::USER_ATTR_LAST_PSA:
-        case MegaApi::USER_ATTR_RUBBISH_TIME:
-        case MegaApi::USER_ATTR_STORAGE_STATE:
-        case MegaApi::USER_ATTR_PUSH_SETTINGS:
-        case MegaApi::USER_ATTR_MY_BACKUPS_FOLDER:
-        case MegaApi::USER_ATTR_COOKIE_SETTINGS:
-        case MegaApi::USER_ATTR_NO_CALLKIT:
-        case ATTR_KEYS: // allow for testing
-        case MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG:
-        case MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE:
-        case MegaApi::USER_ATTR_PWM_BASE:
-        case MegaApi::USER_ATTR_ENABLE_TEST_NOTIFICATIONS:
-        case MegaApi::USER_ATTR_LAST_READ_NOTIFICATION:
-        case MegaApi::USER_ATTR_LAST_ACTIONED_BANNER:
-        case MegaApi::USER_ATTR_ENABLE_TEST_SURVEYS:
-        case MegaApi::USER_ATTR_WELCOME_PDF_COPIED:
-            scope = ATTR_SCOPE_PRIVATE_UNENCRYPTED;
-            break;
-
-        default:
-            LOG_err << "Getting invalid scope";
-            scope = ATTR_SCOPE_UNKNOWN;
-            break;
+        LOG_err << "Invalid scope for user attribute of type " << type;
     }
 
     return scope;
@@ -14213,8 +14269,10 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
             switch (client->getClientType())
             {
                 case MegaClient::ClientType::DEFAULT:
-                    assert(!client->mNodeManager.getRootNodeFiles().isUndef());
+                {
+                    client->importWelcomePdfIfDelayed();
                     break;
+                }
 
                 case MegaClient::ClientType::PASSWORD_MANAGER:
                     assert(!client->mNodeManager.getRootNodeVault().isUndef());
@@ -14277,10 +14335,7 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
             {
                 // import the PDF silently... (not chained)
                 // Not for VPN and PWM clients
-                if (client->shouldWelcomePdfImported())
-                {
-                    client->getwelcomepdf();
-                }
+                client->importOrDelayWelcomePdf();
 
                 // The session id cannot follow the same pattern, since no password is provided (yet)
                 // In consequence, the session resumption requires a regular session id (instead of the
@@ -16537,10 +16592,7 @@ void MegaApiImpl::sendsignuplink_result(error e)
     {
         // import the PDF silently... (not chained)
         // Not for VPN and PWM clients
-        if (client->shouldWelcomePdfImported())
-        {
-            client->getwelcomepdf();
-        }
+        client->importOrDelayWelcomePdf();
     }
 
     fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));

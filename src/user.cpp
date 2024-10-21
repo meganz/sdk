@@ -318,17 +318,16 @@ void User::invalidateattr(attr_t at)
     mAttributeManager->setExpired(at);
 }
 
-void User::removeattr(attr_t at, bool ownUser)
+void User::removeattr(attr_t at, [[maybe_unused]] bool ownUser)
 {
     if (isattrvalid(at))
     {
         setChanged(at);
     }
 
-    if (ownUser)
-        mAttributeManager->setNotExisting(at); // avoids fetch from servers
-    else
-        mAttributeManager->erase(at);
+    assert((ownUser && mAttributeManager->isCachingNonExistingAttributes()) ||
+           (!ownUser && !mAttributeManager->isCachingNonExistingAttributes()));
+    mAttributeManager->erase(at);
 }
 
 void User::removeattr(attr_t at, const string& version)
@@ -349,6 +348,11 @@ int User::updateattr(attr_t at, std::string *av, std::string *v)
     }
 
     return 0;
+}
+
+void User::cacheNonExistingAttributes()
+{
+    mAttributeManager->cacheNonExistingAttributes();
 }
 
 bool User::nonExistingAttribute(attr_t at) const

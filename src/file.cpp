@@ -571,9 +571,10 @@ void SyncTransfer_inClient::terminated(error e)
         syncThreadSafeState->client()->syncs.disableSyncByBackupId(syncThreadSafeState->backupId(), FOREIGN_TARGET_OVERSTORAGE, false, true, nullptr);
     }
 
-    assert(!wasTerminated || reasonAlreadyKnown);
+    // We shouldn't call terminated twice but, if we do, all the calls must be done before notifying
+    // the apps
+    assert(!wasTerminated || !terminatedReasonAlreadyKnown);
     wasTerminated = true;
-    reasonAlreadyKnown = true;
     selfKeepAlive.reset();  // deletes this object! (if abandoned by sync)
 }
 
@@ -584,9 +585,8 @@ void SyncTransfer_inClient::completed(Transfer* t, putsource_t source)
     // do not allow the base class to submit putnodes immediately
     //File::completed(t, source);
 
-    assert(!wasCompleted || reasonAlreadyKnown);
+    assert(!wasCompleted);
     wasCompleted = true;
-    reasonAlreadyKnown = true;
     selfKeepAlive.reset();  // deletes this object! (if abandoned by sync)
 }
 

@@ -118,7 +118,14 @@ bool UserAttributeManager::isValid(attr_t at) const
 
 bool UserAttributeManager::erase(attr_t at)
 {
-    return mAttributes.erase(at) > 0;
+    if (mCacheNonExistingAttributes)
+    {
+        return setNotExisting(at);
+    }
+    else
+    {
+        return mAttributes.erase(at) > 0;
+    }
 }
 
 void UserAttributeManager::serializeAttributeFormatVersion(string& appendTo) const

@@ -79,7 +79,7 @@ pipeline {
                 stage('Checkout SDK and MEGAchat'){
                     steps {
                         //Clone MEGAchat
-                        sh "echo Cloning MEGAchat branch ${MEGACHAT_BRANCH}"
+                        sh "echo Cloning MEGAchat branch \"${MEGACHAT_BRANCH}\""
                         checkout([
                             $class: 'GitSCM',
                             branches: [[name: "origin/${MEGACHAT_BRANCH}"]],

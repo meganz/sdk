@@ -29,7 +29,10 @@ else()
     include(CheckFunctionExists)
     check_include_file(inttypes.h HAVE_INTTYPES_H)
     check_include_file(dirent.h HAVE_DIRENT_H)
-    check_include_file(glob.h HAVE_GLOB_H)
+
+    include(CheckSymbolExists)
+    check_symbol_exists(glob glob.h HAVE_GLOB_H)
+
     check_function_exists(aio_write, HAVE_AIO_RT)
 
     # Check if our toolchain supports TI emulation mode.

@@ -15,6 +15,12 @@ public:
                               const char* basePath,
                               const char* userAgent);
 
+    static void createMegaApi(MegaApi*& api,
+                              const char* appKey,
+                              MegaGfxProvider* gfxProvider,
+                              const char* basePath,
+                              const char* userAgent);
+
     static bool isMegaApiValid(MegaApi* api);
     static void removeMegaApis();
 

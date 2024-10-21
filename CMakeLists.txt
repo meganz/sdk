@@ -160,7 +160,16 @@ endif()
 # Load Java bindings
 if(ENABLE_JAVA_BINDINGS)
     add_subdirectory(bindings/java)
-    set_property(TARGET SDKlib PROPERTY POSITION_INDEPENDENT_CODE ON)
+endif()
+
+# Load Python bindings
+if(ENABLE_PYTHON_BINDINGS)
+    add_subdirectory(bindings/python)
+endif()
+
+# Load PHP bindings
+if(ENABLE_PHP_BINDINGS)
+    add_subdirectory(bindings/php)
 endif()
 
 if(ENABLE_ISOLATED_GFX)

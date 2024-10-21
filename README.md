@@ -128,68 +128,38 @@ Once the build is finished, binaries will be available in the `build_dir`
 
 To run the example app `megacli`, go to the `examples` directory in the `build_dir` and execute the `megacli` binary.
 
-## How to build the SDK library (Obsolete methods)
+## Minimum supported OS versions
 
-### Building with POSIX Autotools  (Linux/Darwin/BSD/OSX ...)
+### Android
 
-For platforms with Autotools, first set up needed libraries and then the generic way to build and install it is:
+- Android 8.0
 
-	sh autogen.sh
-	./configure
-	make
-	sudo make install
+### DMS
 
-Notice that you would need Autotools installed in your system (in Linux this normally entails having `autoconf` and `libtool` packages installed).
+- DMS 7.2
 
-That compilation will include the example using our low level SDK: `megacli`.
-You also have specific build instructions for OSX (`doc/OSX.txt`) and FreeBSD (`doc/FreeBSD.txt`)
-and a build script to automatically download and build the SDK along with all its dependencies (`contrib/build_sdk.sh`)
+### GNU/Linux
 
-For other platforms, or if you want to see how to use the new intermediate layer,
-the easiest way is to get a smooth start is to build one of the examples in subfolders
-of the `examples` folder.
+- Arch
+- Debian 11
+- Fedora 38
+- OpenSUSE Leap 15.5
+- Raspberry Pi OS Lite (Debian 11)
+- Ubuntu 20.04 LTS
 
-All these folders contains a README.md file with information about how to get the project up and running,
-including the installation of all required dependencies.
+### iOS
 
-#### Dependencies for POSIX Autotools:
+- iOS 15
 
-Install the following development packages, if available, or download
-and compile their respective sources (package names are for
-Debian and RedHat derivatives, respectively):
+### macOS
 
-* cURL (`libcurl4-openssl-dev`, `libcurl-devel`), compiled with `--enable-ssl`
-* c-ares (`libc-ares-dev`, `libcares-devel`, `c-ares-devel`)
-* OpenSSL (`libssl-dev`, `openssl-devel`)
-* Crypto++ (`libcrypto++-dev`, `libcryptopp-devel`)
-* zlib (`zlib1g-dev`, `zlib-devel`)
-* SQLite (`libsqlite3-dev`, `sqlite-devel`) or configure `--without-sqlite`
-* FreeImage (`libfreeimage-dev`, `freeimage-devel`) or configure `--without-freeimage`
-* pthread
+- macOS 10.13 (Intel)
+- macOS 11.1 (Apple silicon)
 
-Optional dependencies:
-* Libraw (`libraw-dev`, `libraw-devel`)
-* Sodium (`libsodium-dev`, `libsodium-devel`), configure `--with-sodium`
-* MediaInfoLib (optional, see third_party/README_MediaInfo.txt)
-* libudev (`libudev-dev`, `libudev-devel`)
+### Windows
 
-Filesystem event monitoring: The provided filesystem layer implements the Linux `inotify` and the MacOS `fsevents` interfaces.
-
-PDF thumbnail generation: The PDFium library is detected automatically by the configure step if installed. There is a helper script located at `contrib/build_pdfium` to install it in a Linux system (`/usr`). To download, build and install it in the system, run the following:
-
-	cd contrib/build_pdfium
-	build.sh -b
-	sudo build.sh -i
-
-Library will be installed under `/usr/lib/` and headers under `/usr/include/`. Once installed, the generated workspace folder could be removed to free up space.
-
-To build the reference `megacli` example, you may also need to install:
-* GNU Readline (`libreadline-dev`, `readline-devel`)
-on Mac, you will probably need to download the source and build it yourself, and adjust the project to refer to that version.
-
-For Android, we provide an additional implementation of the graphics subsystem using Android libraries.
-
-For iOS, we provide an additional implementation of the graphics subsystem using Objective C frameworks.
+- Windows 7
+- Windows Server 2008
 
 ## Usage
 

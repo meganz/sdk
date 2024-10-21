@@ -59,27 +59,52 @@ namespace mega {
 std::mutex GfxProviderFreeImage::gfxMutex;
 #endif
 
+std::mutex FreeImageInstance::mLock;
+std::size_t FreeImageInstance::mNumReferences = 0;
+
+FreeImageInstance::FreeImageInstance()
+{
+    std::lock_guard<std::mutex> guard(mLock);
+
+    // Make sure reference count doesn't overflow.
+    assert(mNumReferences < std::numeric_limits<std::size_t>::max());
+
+    // Increment reference counter.
+    ++mNumReferences;
+
 #ifdef FREEIMAGE_LIB
-std::mutex GfxProviderFreeImage::libFreeImageInitializedMutex;
-unsigned GfxProviderFreeImage::libFreeImageInitialized = 0;
-#endif
+    // Iniitalize if necessary.
+    if (mNumReferences == 1)
+    {
+        FreeImage_Initialise(TRUE);
+    }
+#endif // FREEIMAGE_LIB
+}
+
+FreeImageInstance::~FreeImageInstance()
+{
+    std::lock_guard<std::mutex> guard(mLock);
+
+    // Make sure reference count doesn't borrow.
+    assert(mNumReferences > 0);
+
+    // Decrement reference counter.
+    --mNumReferences;
+
+#ifdef FREEIMAGE_LIB
+    // Deinitialize if necessary.
+    if (mNumReferences == 0)
+    {
+        FreeImage_DeInitialise();
+    }
+#endif // FREEIMAGE_LIB
+}
 
 GfxProviderFreeImage::GfxProviderFreeImage()
 {
     dib = NULL;
     w = 0;
     h = 0;
-
-#ifdef FREEIMAGE_LIB
-    {
-        std::unique_lock<std::mutex> guard(libFreeImageInitializedMutex);
-        if (!libFreeImageInitialized)
-        {
-            FreeImage_Initialise(TRUE);
-            libFreeImageInitialized++;
-        }
-    }
-#endif
 
 #ifdef HAVE_PDFIUM
     pdfiumInitialized = false;
@@ -92,17 +117,6 @@ GfxProviderFreeImage::GfxProviderFreeImage()
 
 GfxProviderFreeImage::~GfxProviderFreeImage()
 {
-#ifdef FREEIMAGE_LIB
-    {
-        std::unique_lock<std::mutex> guard(libFreeImageInitializedMutex);
-        if (libFreeImageInitialized)
-        {
-            FreeImage_DeInitialise();
-            libFreeImageInitialized--;
-        }
-    }
-#endif
-
 #ifdef HAVE_PDFIUM
     gfxMutex.lock();
     if (pdfiumInitialized)

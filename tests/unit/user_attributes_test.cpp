@@ -263,6 +263,7 @@ TEST_P(InterfacesWithParam, RemoveVersion)
 
 TEST_P(InterfacesWithParam, RemoveValueOwnUser)
 {
+    mUser.cacheNonExistingAttributes();
     mUser.setattr(GetParam(), &mValue1, &mVersion1);
     mUser.changed = {};
     auto unchanged = mUser.changed;

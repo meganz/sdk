@@ -833,13 +833,3 @@ public:
 
     /* MegaVpnCredentials END */
 };
-
-/**
- * @brief Aux function to get a vector with the names of the nodes in a given MegaNodeList
- */
-std::vector<std::string> toNamesVector(const MegaNodeList& nodes);
-
-/**
- * @brief Aux function to get a vector with the strings in a given MegaStringList
- */
-std::vector<std::string> stringListToVector(const MegaStringList& l);

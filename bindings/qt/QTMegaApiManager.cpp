@@ -7,14 +7,26 @@ using namespace mega;
 QList<MegaApi**> QTMegaApiManager::mMegaApis = QList<MegaApi**>();
 QReadWriteLock QTMegaApiManager::mLock = QReadWriteLock();
 
-void QTMegaApiManager::createMegaApi(mega::MegaApi*& api,
+void QTMegaApiManager::createMegaApi(MegaApi*& api,
                                      const char* appKey,
                                      const char* basePath,
                                      const char* userAgent)
 {
     QWriteLocker lock(&mLock);
 
-    api = new mega::MegaApi(appKey, basePath, userAgent);
+    api = new MegaApi(appKey, basePath, userAgent);
+    mMegaApis.append(std::addressof(api));
+}
+
+void QTMegaApiManager::createMegaApi(MegaApi*& api,
+                                     const char* appKey,
+                                     MegaGfxProvider* gfxProvider,
+                                     const char* basePath,
+                                     const char* userAgent)
+{
+    QWriteLocker lock(&mLock);
+
+    api = new MegaApi(appKey, gfxProvider, basePath, userAgent);
     mMegaApis.append(std::addressof(api));
 }
 
@@ -25,7 +37,7 @@ bool QTMegaApiManager::isMegaApiValid(MegaApi* api)
         QReadLocker lock(&mLock);
         auto found = std::find_if(mMegaApis.cbegin(),
                                   mMegaApis.cend(),
-                                  [api](mega::MegaApi** pToApi)
+                                  [api](MegaApi** pToApi)
                                   {
                                       return (*pToApi) == api;
                                   });

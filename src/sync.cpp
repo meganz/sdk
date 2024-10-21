@@ -1573,7 +1573,7 @@ void SyncStallInfo::debug() const
 #endif
 /* SyncStallInfo END */
 
-struct ProgressingMonitor
+struct Sync::ProgressingMonitor
 {
     bool resolved = false;
     Sync& sync;
@@ -4249,7 +4249,7 @@ void Syncs::getSyncProblems_inThread(SyncProblems& problems)
     assert(onSyncThread());
 
     problems.mStallsDetected = stallsDetected(problems.mStalls);
-    problems.mConflictsDetected = conflictsDetected(problems.mConflicts);
+    problems.mConflictsDetected = conflictsDetected(problems.mConflictsMap);
 
     // Try to present just one item for a move/rename, instead of two.
     // We may have generated two items, one for the source node
@@ -7997,7 +7997,7 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
     return !earlyExit;
 }
 
-string Sync::logTriplet(SyncRow& row, SyncPath& fullPath)
+string Sync::logTriplet(const SyncRow& row, const SyncPath& fullPath) const
 {
     ostringstream s;
     s << " triplet:" <<
@@ -8329,69 +8329,11 @@ bool Sync::syncItem_checkDownloadCompletion(SyncRow& row, SyncRow& parentRow, Sy
 
     if (downloadPtr->wasTerminated)
     {
-        // Did the download fail due to a MAC error?
-        if (downloadPtr->mError == API_EKEY)
-        {
-            if (!downloadPtr->reasonAlreadyKnown)
-            {
-                // Then report it as a stall.
-                SYNC_verbose << syncname
-                                << "Download was terminated due to MAC verification failure: "
-                                << logTriplet(row, fullPath);
-            }
-
-            monitor.waitingLocal(downloadPtr->getLocalname(), SyncStallEntry(
-                SyncWaitReason::DownloadIssue, true, true,
-                {downloadPtr->h, fullPath.cloudPath, PathProblem::MACVerificationFailure},
-                {},
-                {downloadPtr->getLocalname(), PathProblem::MACVerificationFailure},
-                {fullPath.localPath}));
-
-            bool keepStalling = row.cloudNode && row.cloudNode->handle == downloadPtr->h;
-
-            return !keepStalling;
-        }
-        if (downloadPtr->mError == API_EBLOCKED)
-        {
-            if (!downloadPtr->reasonAlreadyKnown)
-            {
-                // Report a stall if the file is blocked (taken down)
-                SYNC_verbose << syncname
-                                << "Download was terminated due to file being blocked (taken down because of ToS): "
-                                << logTriplet(row, fullPath);
-            }
-
-            monitor.waitingCloud(fullPath.cloudPath, SyncStallEntry(
-                SyncWaitReason::DownloadIssue, true, true,
-                {downloadPtr->h, fullPath.cloudPath, PathProblem::CloudNodeIsBlocked},
-                {},
-                {},
-                {}));
-
-            // Keep the transfer intact and let syncItem continue, the transfer could be reset if the remote node is replaced
-            return true;
-        }
-        else
-        {
-            assert(!downloadPtr->reasonAlreadyKnown);
-            if (downloadPtr->mError == API_EWRITE)
-            {
-                // This could be due to a problem with the temporary directory. Reset tmpfa to recreate them when restarting the transfer.
-                // This reset shouldn't be problematic even if there are other sync-downloads in flight, because they use threadSafeState::mSyncTmpFolder (and this is the same thread)
-                SYNC_verbose << syncname
-                                << "Download was terminated due to API_EWRITE (problem with the temporary directory?): "
-                                << logTriplet(row, fullPath);
-                tmpfa.reset();
-            }
-            else
-            {
-                SYNC_verbose << syncname << "Download was terminated (error: " << downloadPtr->mError << ") " << logTriplet(row, fullPath);
-            }
-            // remove the download record so we re-evaluate what to do
-            row.syncNode->resetTransfer(nullptr);
-        }
+        const bool keepSyncItem = handleTerminatedDownloads(row, fullPath, *downloadPtr, monitor);
+        downloadPtr->terminatedReasonAlreadyKnown = true;
+        return keepSyncItem;
     }
-    else if (downloadPtr->wasCompleted)
+    if (downloadPtr->wasCompleted)
     {
         assert(downloadPtr->downloadDistributor);
 
@@ -8512,6 +8454,114 @@ bool Sync::syncItem_checkDownloadCompletion(SyncRow& row, SyncRow& parentRow, Sy
         }
     }
     return true;  // carry on with checkItem()
+}
+
+bool Sync::handleTerminatedDownloads(const SyncRow& row,
+                                     const SyncPath& fullPath,
+                                     const SyncDownload_inClient& downloadFile,
+                                     ProgressingMonitor& monitor)
+{
+    switch (downloadFile.mError)
+    {
+        case API_EKEY:
+            return handleTerminatedDownloadsDueMAC(row, fullPath, downloadFile, monitor);
+        case API_EBLOCKED:
+            return handleTerminatedDownloadsDueBlocked(row, fullPath, downloadFile, monitor);
+        case API_EWRITE:
+            return handleTerminatedDownloadsDueWritePerms(row, fullPath, downloadFile);
+        default:
+            return handleTerminatedDownloadsDueUnknown(row, fullPath, downloadFile, monitor);
+    }
+}
+
+bool Sync::handleTerminatedDownloadsDueMAC(const SyncRow& row,
+                                           const SyncPath& fullPath,
+                                           const SyncDownload_inClient& downloadFile,
+                                           ProgressingMonitor& monitor) const
+{
+    if (!downloadFile.terminatedReasonAlreadyKnown)
+    {
+        SYNC_verbose << syncname << "Download was terminated due to MAC verification failure: "
+                     << logTriplet(row, fullPath);
+    }
+
+    monitor.waitingLocal(
+        downloadFile.getLocalname(),
+        SyncStallEntry(SyncWaitReason::DownloadIssue,
+                       true,
+                       true,
+                       {downloadFile.h, fullPath.cloudPath, PathProblem::MACVerificationFailure},
+                       {},
+                       {downloadFile.getLocalname(), PathProblem::MACVerificationFailure},
+                       {fullPath.localPath}));
+
+    const bool keepStalling = row.cloudNode && row.cloudNode->handle == downloadFile.h;
+    return !keepStalling;
+}
+
+bool Sync::handleTerminatedDownloadsDueBlocked(const SyncRow& row,
+                                               const SyncPath& fullPath,
+                                               const SyncDownload_inClient& downloadFile,
+                                               ProgressingMonitor& monitor) const
+{
+    if (!downloadFile.terminatedReasonAlreadyKnown)
+    {
+        SYNC_verbose
+            << syncname
+            << "Download was terminated due to file being blocked (taken down because of ToS): "
+            << logTriplet(row, fullPath);
+    }
+
+    monitor.waitingCloud(
+        fullPath.cloudPath,
+        SyncStallEntry(SyncWaitReason::DownloadIssue,
+                       true,
+                       true,
+                       {downloadFile.h, fullPath.cloudPath, PathProblem::CloudNodeIsBlocked},
+                       {},
+                       {},
+                       {}));
+    return true;
+}
+
+bool Sync::handleTerminatedDownloadsDueWritePerms(const SyncRow& row,
+                                                  const SyncPath& fullPath,
+                                                  const SyncDownload_inClient& downloadFile)
+{
+    if (!downloadFile.terminatedReasonAlreadyKnown)
+    {
+        SYNC_verbose << syncname
+                     << "Download was terminated due to API_EWRITE (problem with the temporary "
+                        "directory?): "
+                     << logTriplet(row, fullPath);
+    }
+    tmpfa.reset();
+    // remove the download record so we re-evaluate what to do
+    row.syncNode->resetTransfer(nullptr);
+    return true;
+}
+
+bool Sync::handleTerminatedDownloadsDueUnknown(const SyncRow& row,
+                                               const SyncPath& fullPath,
+                                               const SyncDownload_inClient& downloadFile,
+                                               ProgressingMonitor& monitor) const
+{
+    if (!downloadFile.terminatedReasonAlreadyKnown)
+    {
+        SYNC_verbose << syncname << "Download was terminated due to an unhandled reason (error: "
+                     << downloadFile.mError << ") " << logTriplet(row, fullPath);
+    }
+    monitor.waitingCloud(
+        fullPath.cloudPath,
+        SyncStallEntry(SyncWaitReason::DownloadIssue,
+                       true,
+                       true,
+                       {downloadFile.h, fullPath.cloudPath, PathProblem::UnknownDownloadIssue},
+                       {},
+                       {},
+                       {}));
+    assert(false);
+    return false; // see method documentation for why
 }
 
 struct DifferentValueDetector_nodetype
@@ -12763,26 +12813,36 @@ void Syncs::setSyncsNeedFullSync(bool andFullScan, bool andReFingerprint, handle
     }, "setSyncsNeedFullSync");
 }
 
-bool Syncs::conflictsDetected(list<NameConflict>& conflicts)
+bool Syncs::conflictsDetected(SyncIDtoConflictInfoMap& conflicts)
 {
     assert(onSyncThread());
-
-    for (auto& us : mSyncVec)
+    size_t totalConflicts{};
+    for (auto& us: mSyncVec)
     {
-        if (Sync* sync = us->mSync.get())
+        if (Sync* sync = us->mSync.get(); sync && sync->localroot->conflictsDetected())
         {
-            if (sync->localroot->conflictsDetected())
+            auto [it, success] = conflicts.emplace(us->mConfig.mBackupId, list<NameConflict>());
+            if (!success)
             {
-                sync->recursiveCollectNameConflicts(&conflicts);
+                assert(false);
+                LOG_err << "[Syncs::conflictsDetected()] cannot add entry at conflicts map "
+                           "with BackUpId: "
+                        << toHandle(us->mConfig.mBackupId);
+                conflicts.clear();
+                break;
             }
+            sync->recursiveCollectNameConflicts(&it->second);
+            totalConflicts += it->second.size();
         }
     }
     // Disable sync conflicts update flag
     mClient.app->syncupdate_totalconflicts(false);
-    // totalSyncConflicts is set by conflictsDetectedCount, whose count is limited by the previous number of conflicts + 1, in order to avoid extra recursive operations as the full count is not needed
-    // This updates the counter to the real number of conflicts, so we avoid incremental updates later (from previous_conflicts_size + 1 to actual_conflicts_size)
-    totalSyncConflicts.store(conflicts.size());
-    return !conflicts.empty();
+    // totalSyncConflicts is set by conflictsDetectedCount, whose count is limited by the previous
+    // number of conflicts + 1, in order to avoid extra recursive operations as the full count is
+    // not needed This updates the counter to the real number of conflicts, so we avoid incremental
+    // updates later (from previous_conflicts_size + 1 to actual_conflicts_size)
+    totalSyncConflicts.store(totalConflicts);
+    return totalConflicts > 0;
 }
 
 size_t Syncs::conflictsDetectedCount(size_t limit) const

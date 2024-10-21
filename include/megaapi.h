@@ -7259,6 +7259,7 @@ class MegaSyncStall
             CannotFingerprintFile,
             DestinationPathInUnresolvedArea,
             MACVerificationFailure,
+            UnknownDownloadIssue,
             DeletedOrMovedByUser,
             FileFolderDeletedByUser,
             MoveToDebrisFolderFailed,
@@ -7754,6 +7755,9 @@ public:
         API_EMASTERONLY = -27,          ///< Access denied for sub-users (only for business accounts)
         API_EBUSINESSPASTDUE = -28,     ///< Business account expired
         API_EPAYWALL = -29,             ///< Over Disk Quota Paywall
+        API_ESUBUSERKEYMISSING = -30, ///< A business error where a subuser has not yet encrypted
+                                      /// their master key for the admin user and tries to perform
+                                      /// a disallowed command (currently u and p)
 
         PAYMENT_ECARD = -101,
         PAYMENT_EBILLING = -102,
@@ -9364,10 +9368,10 @@ class MegaListener
          * @param path
          * A path identifying the mount that was added.
          *
-         * @param result
+         * @param megaMountResult
          * An element of the MegaMount::Result enumeration.
          */
-        virtual void onMountAdded(MegaApi* api, const char* path, int result);
+        virtual void onMountAdded(MegaApi* api, const char* path, int megaMountResult);
 
         /**
          * @brief
@@ -9379,10 +9383,10 @@ class MegaListener
          * @param path
          * A path identifying the mount that has changed.
          *
-         * @param result
+         * @param megaMountResult
          * An element of the MegaMount::Result enumeration.
          */
-        virtual void onMountChanged(MegaApi* api, const char* path, int result);
+        virtual void onMountChanged(MegaApi* api, const char* path, int megaMountResult);
 
         /**
          * @brief
@@ -9394,10 +9398,10 @@ class MegaListener
          * @param path
          * A path identifying the mount that has been disabled.
          *
-         * @param result
+         * @param megaMountResult
          * An element of the MegaMount::Result enumeration.
          */
-        virtual void onMountDisabled(MegaApi* api, const char* path, int result);
+        virtual void onMountDisabled(MegaApi* api, const char* path, int megaMountResult);
 
         /**
          * @brief
@@ -9409,10 +9413,10 @@ class MegaListener
          * @param path
          * A path identifying the mount that has been enabled.
          *
-         * @param result
+         * @param megaMountResult
          * An element of the MegaMount::Result enumeration.
          */
-        virtual void onMountEnabled(MegaApi* api, const char* path, int result);
+        virtual void onMountEnabled(MegaApi* api, const char* path, int megaMountResult);
 
         /**
          * @brief
@@ -9424,10 +9428,10 @@ class MegaListener
          * @param path
          * A path identifying the mount that has been removed.
          *
-         * @param result
+         * @param megaMountResult
          * An element of the MegaMount::Result enumeration.
          */
-        virtual void onMountRemoved(MegaApi* api, const char* path, int result);
+        virtual void onMountRemoved(MegaApi* api, const char* path, int megaMountResult);
 };
 
 /**

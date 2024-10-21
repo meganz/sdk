@@ -9,8 +9,8 @@ set(SDKLIB_PUB_HEADERS
 set(SDKLIB_HEADERS
     include/mega.h
     include/megaapi_impl.h
+    include/megautils.h
     include/mega/transferslot.h
-    include/mega/thread/libuvthread.h
     include/mega/scoped_helpers.h
     include/mega/traits.h
     include/mega/scoped_timer.h
@@ -147,6 +147,7 @@ set(SDKLIB_SOURCES
     src/user_attribute.cpp
     src/user_attribute_definition.cpp
     src/user_attribute_manager.cpp
+    src/megautils.cpp
 )
 
 target_sources(SDKlib
@@ -337,6 +338,12 @@ set_target_properties(SDKlib PROPERTIES
     VERSION ${PROJECT_VERSION}
     DEBUG_POSTFIX "d"
 )
+
+if(ENABLE_JAVA_BINDINGS OR ENABLE_PYTHON_BINDINGS OR ENABLE_PHP_BINDINGS)
+    set_target_properties(SDKlib PROPERTIES
+        POSITION_INDEPENDENT_CODE ON
+    )
+endif()
 
 ## Load and link needed libraries for the SDKlib target ##
 

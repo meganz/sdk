@@ -3145,7 +3145,7 @@ void CommandRemoveContact::doComplete(error result)
 
 CommandPutMultipleUAVer::CommandPutMultipleUAVer(MegaClient *client, const userattr_map *attrs, int ctag, std::function<void (Error)> completion)
 {
-    mSeqtagArray = true;
+    mV3 = false;
 
     this->attrs = *attrs;
 
@@ -3270,7 +3270,7 @@ bool CommandPutMultipleUAVer::procresult(Result r, JSON& json)
 CommandPutUAVer::CommandPutUAVer(MegaClient* client, attr_t at, const byte* av, unsigned avl, int ctag,
                                  std::function<void(Error)> completion)
 {
-    mSeqtagArray = true;
+    mV3 = false;
 
     this->at = at;
     this->av.assign((const char*)av, avl);
@@ -9156,6 +9156,10 @@ bool CommandGetWelcomePDF::procresult(Result r, JSON& json)
                 }
                 key.assign((const char *) keybuf, len_key);
                 client->reqs.add(new CommandGetPH(client, ph, (const byte*) key.data(), 2));
+                if (client->wasWelcomePdfImportDelayed())
+                {
+                    client->setWelcomePdfNeedsDelayedImport(false);
+                }
                 return true;
 
             default:

@@ -5,8 +5,7 @@
 The following processes have been automated:
 
 ## Make a new Release
-Fill the details in `[make_release]` section on your local copy of [config.toml](config.toml).
-(You can make your local copy by copying `config.toml.template` and renaming it to `config.toml`.)
+Fill the details in `[make_release]` section of your `config.toml` local copy of [config.toml.template](config.toml.template).
 
 You will also need to set the following environment variables to make the script work:
 - `GITLAB_TOKEN`
@@ -16,7 +15,7 @@ You will also need to set the following environment variables to make the script
 - `GPG_KEYGRIP`
 - `GPG_PASSWORD`
 
-> Note that the version for a new release will be automatically determined unless one was explicitly passed. To explicitly pass one, fill `release_version` argument in `[make_release]` section in `config.toml`.
+> Note that the version for a new release will be automatically determined unless one was explicitly passed. To explicitly pass one, fill `release_version` argument in this section.
 
 > Note that version-file will be updated in the process, where applicable ([version.h](../include/mega/version.h) in SDK). For projects that don't have such a file, `gpg_keygrip` and `gpg_password` will be ignored and can be left empty.
 
@@ -27,8 +26,7 @@ python3 path/to/make_release.py path/to/config.toml
 ```
 
 ## Close a new Release
-Fill the details in `[close_release]` section on your local copy of [config.toml](config.toml).
-(You can make your local copy by copying `config.toml.template` and renaming it to `config.toml`.)
+Fill the details in `[close_release]` section of your `config.toml` local copy of [config.toml.template](config.toml.template).
 
 You will also need to set the following environment variables to make the script work:
 - `GITLAB_TOKEN`
@@ -48,8 +46,8 @@ python3 path/to/close_release.py path/to/config.toml
 
 ## Patch a Release
 > Note that this process can become very complex when multiple releases need to be patched. Because of that, the automation is done for step 7 and further.
-Fill the details in `[patch_release]` section on your local copy of [config.toml](config.toml).
-(You can make your local copy by copying `config.toml.template` and renaming it to `config.toml`.)
+
+Fill the details in `[patch_release]` section of your `config.toml` local copy of [config.toml.template](config.toml.template).
 
 You will also need to set the following environment variables to make the script work:
 - `GITLAB_TOKEN`
@@ -66,8 +64,7 @@ python3 ./patch_release.py path/to/config.toml
 ```
 
 ## Make another RC
-Fill the details in `[make_another_rc]` section on your local copy of [config.toml](config.toml).
-(You can make your local copy by copying `config.toml.template` and renaming it to `config.toml`.)
+Fill the details in `[make_another_rc]` section of your `config.toml` local copy of [config.toml.template](config.toml.template).
 
 You will also need to set the following environment variables to make the script work:
 - `GITLAB_TOKEN`

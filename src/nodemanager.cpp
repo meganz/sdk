@@ -65,9 +65,7 @@ bool NodeSearchFilter::isValidName(const uint8_t* testName) const
     const auto& pattern = mNameFilter.getPattern();
     if (pattern.empty() || !testName)
         return true;
-    return static_cast<bool>(icuLikeCompare(reinterpret_cast<const uint8_t*>(pattern.c_str()),
-                                            testName,
-                                            ESCAPE_CHARACTER));
+    return likeCompare(pattern.c_str(), reinterpret_cast<const char*>(testName));
 }
 
 bool NodeSearchFilter::isValidDescription(const uint8_t* testDescription) const
@@ -75,9 +73,8 @@ bool NodeSearchFilter::isValidDescription(const uint8_t* testDescription) const
     const auto& pattern = mDescriptionFilter.getPattern();
     if (pattern.empty())
         return true;
-    return testDescription && icuLikeCompare(reinterpret_cast<const uint8_t*>(pattern.c_str()),
-                                             testDescription,
-                                             ESCAPE_CHARACTER);
+    return testDescription &&
+           likeCompare(pattern.c_str(), reinterpret_cast<const char*>(testDescription));
 }
 
 bool NodeSearchFilter::isValidTagSequence(const uint8_t* tagSequence) const

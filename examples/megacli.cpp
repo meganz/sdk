@@ -324,6 +324,9 @@ const char* errorstring(error e)
             return "Business account has expired";
         case API_EPAYWALL:
             return "Over Disk Quota Paywall";
+        case API_ESUBUSERKEYMISSING:
+            return "A business error where a subuser has not yet encrypted their master key for "
+                   "the admin user and tries to perform a disallowed command (currently u and p)";
         case LOCAL_ENOSPC:
             return "Insufficient disk space";
         default:
@@ -1212,7 +1215,11 @@ void DemoApp::fetchnodes_result(const Error& e)
 
         if (pdf_to_import)
         {
-            client->getwelcomepdf();
+            client->importOrDelayWelcomePdf();
+        }
+        else if (client->shouldWelcomePdfImported())
+        {
+            client->importWelcomePdfIfDelayed();
         }
 
         if (client->ephemeralSessionPlusPlus)
@@ -6783,10 +6790,7 @@ void exec_begin(autocomplete::ACState& s)
     {
         cout << "Creating ephemeral session..." << endl;
 
-        if (client->shouldWelcomePdfImported())
-        {
-            pdf_to_import = true;
-        }
+        pdf_to_import = true;
         client->createephemeral();
     }
     else if (s.words.size() == 2)   // resume session
@@ -6815,10 +6819,7 @@ void exec_begin(autocomplete::ACState& s)
     {
         cout << "Creating ephemeral session plus plus..." << endl;
 
-        if (client->shouldWelcomePdfImported())
-        {
-            pdf_to_import = true;
-        }
+        pdf_to_import = true;
         ephemeralFirstname = s.words[1].s;
         ephemeralLastName = s.words[2].s;
         client->createephemeralPlusPlus();
@@ -10869,7 +10870,9 @@ MegaClient::ClientType getClientTypeFromArgs(const std::string& clientType)
     }
     if (clientType != "default")
     {
-        cout << "WARNING: Invalid argument " << clientType << ". Using default instead." << endl;
+        cout << "WARNING: Invalid argument " << clientType
+             << ". Valid possibilities are: vpn, password_manager, default.\nUsing default instead."
+             << endl;
     }
 
     return MegaClient::ClientType::DEFAULT;

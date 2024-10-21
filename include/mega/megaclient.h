@@ -1259,8 +1259,15 @@ public:
     void getmegaachievements(AchievementsDetails *details);
 
     // get welcome pdf
+    void importOrDelayWelcomePdf();
+    bool wasWelcomePdfImportDelayed();
+    void importWelcomePdfIfDelayed();
+    void setWelcomePdfNeedsDelayedImport(bool requestImport);
+
+private:
     void getwelcomepdf();
 
+public:
     // report an event to the API logger
     void reportevent(const char*, const char* = NULL);
     void reportevent(const char*, const char*, int tag);
