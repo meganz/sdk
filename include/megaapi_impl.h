@@ -2930,15 +2930,70 @@ class MegaSyncStallListPrivate : public MegaSyncStallList
 class MegaSyncStallMapPrivate: public MegaSyncStallMap
 {
 public:
-    MegaSyncStallMapPrivate(SyncProblems&&, AddressedStallFilter& filter);
-    MegaSyncStallMapPrivate(const MegaSyncStallMapPrivate&);
-    MegaSyncStallMapPrivate* copy() const override;
-    const MegaSyncStall* get(const MegaHandle key) const override;
-    size_t size() const override;
+    MegaSyncStallMapPrivate(SyncProblems&& sp, AddressedStallFilter& filter)
+    {
+        for (const auto& itnc: sp.mConflictsMap)
+        {
+            for (const auto& nc: itnc.second)
+            {
+                if (!filter.addressedNameConfict(nc.cloudPath, nc.localPath))
+                {
+                    mStallsMap.emplace(itnc.first,
+                                       std::make_shared<MegaSyncNameConflictStallPrivate>(nc));
+                }
+            }
+        }
+
+        for (const auto& [syncId, stalledSyncMap]: sp.mStalls.syncStallInfoMaps)
+        {
+            for (const auto& stall: stalledSyncMap.cloud)
+            {
+                if (!filter.addressedCloudStall(stall.first))
+                {
+                    mStallsMap.emplace(syncId,
+                                       std::make_shared<MegaSyncStallPrivate>(stall.second));
+                }
+            }
+
+            for (const auto& stall: stalledSyncMap.local)
+            {
+                if (!filter.addressedLocalStall(stall.first))
+                {
+                    mStallsMap.emplace(syncId,
+                                       std::make_shared<MegaSyncStallPrivate>(stall.second));
+                }
+            }
+        }
+    }
+
+    MegaSyncStallMapPrivate(const MegaSyncStallMapPrivate& m)
+    {
+        mStallsMap = m.getMap();
+    }
+
+    MegaSyncStallMapPrivate* copy() const override
+    {
+        return new MegaSyncStallMapPrivate(*this);
+    }
+
+    const MegaSyncStall* get(const MegaHandle key) const override
+    {
+        if (const auto& it = mStallsMap.find(key); it != mStallsMap.end())
+        {
+            return it->second.get();
+        }
+        return nullptr;
+    }
+
+    size_t size() const override
+    {
+        return mStallsMap.size();
+    }
+
     MegaHandleList* getKeys() const override;
 
 private:
-    const std::map<MegaHandle, std::shared_ptr<MegaSyncStall>> getMap() const;
+    const std::map<MegaHandle, std::shared_ptr<MegaSyncStall>>& getMap() const;
     std::map<MegaHandle, std::shared_ptr<MegaSyncStall>> mStallsMap;
 };
 

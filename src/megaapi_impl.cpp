@@ -1890,66 +1890,6 @@ MegaSyncStallListPrivate::MegaSyncStallListPrivate(SyncProblems&& sp, AddressedS
     }
 }
 
-MegaSyncStallMapPrivate::MegaSyncStallMapPrivate(SyncProblems&& sp, AddressedStallFilter& filter)
-{
-    for (const auto& itnc: sp.mConflictsMap)
-    {
-        for (const auto& nc: itnc.second)
-        {
-            if (!filter.addressedNameConfict(nc.cloudPath, nc.localPath))
-            {
-                mStallsMap.emplace(itnc.first,
-                                   std::make_shared<MegaSyncNameConflictStallPrivate>(nc));
-            }
-        }
-    }
-
-    for (auto& stalledSyncMapPair: sp.mStalls.syncStallInfoMaps)
-    {
-        auto syncId = stalledSyncMapPair.first;
-        auto& stalledSyncMap = stalledSyncMapPair.second;
-        for (auto& stall: stalledSyncMap.cloud)
-        {
-            if (!filter.addressedCloudStall(stall.first))
-            {
-                mStallsMap.emplace(syncId, std::make_shared<MegaSyncStallPrivate>(stall.second));
-            }
-        }
-
-        for (const auto& stall: stalledSyncMap.local)
-        {
-            if (!filter.addressedLocalStall(stall.first))
-            {
-                mStallsMap.emplace(syncId, std::make_shared<MegaSyncStallPrivate>(stall.second));
-            }
-        }
-    }
-}
-
-MegaSyncStallMapPrivate::MegaSyncStallMapPrivate(const MegaSyncStallMapPrivate& m)
-{
-    mStallsMap = m.getMap();
-}
-
-MegaSyncStallMapPrivate* MegaSyncStallMapPrivate::copy() const
-{
-    return new MegaSyncStallMapPrivate(*this);
-}
-
-const MegaSyncStall* MegaSyncStallMapPrivate::get(const MegaHandle key) const
-{
-    if (auto it = mStallsMap.find(key); it != mStallsMap.end())
-    {
-        return it->second.get();
-    }
-    return nullptr;
-}
-
-size_t MegaSyncStallMapPrivate::size() const
-{
-    return mStallsMap.size();
-}
-
 MegaHandleList* MegaSyncStallMapPrivate::getKeys() const
 {
     MegaHandleList* list = MegaHandleList::createInstance();
@@ -1960,7 +1900,7 @@ MegaHandleList* MegaSyncStallMapPrivate::getKeys() const
     return list;
 }
 
-const std::map<MegaHandle, std::shared_ptr<MegaSyncStall>> MegaSyncStallMapPrivate::getMap() const
+const std::map<MegaHandle, std::shared_ptr<MegaSyncStall>>& MegaSyncStallMapPrivate::getMap() const
 {
     return mStallsMap;
 }
@@ -28004,8 +27944,6 @@ error MegaApiImpl::performRequest_getSyncStalls(MegaRequestPrivate* request)
         mAddressedStallFilter.removeOldFilters(client->syncs.completedPassCount.load());
         // If the user already addressed some sync issues but the sync hasn't made another pass
         // to generate a new stall list, then the filter will hide those for now
-        auto error = std::make_unique<MegaErrorPrivate>(API_OK);
-
         if (const auto getMap = request->getFlag(); getMap)
         {
             auto stallsMap =
@@ -28018,7 +27956,7 @@ error MegaApiImpl::performRequest_getSyncStalls(MegaRequestPrivate* request)
                 std::make_unique<MegaSyncStallListPrivate>(move(*problems), mAddressedStallFilter);
             request->setMegaSyncStallList(std::move(stallsList));
         }
-        fireOnRequestFinish(request, std::move(error));
+        fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
     };
 
     client->syncs.getSyncProblems(std::move(completion), true);

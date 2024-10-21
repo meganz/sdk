@@ -22,6 +22,7 @@
 // Many of these tests are still being worked on.
 
 #include "env_var_accounts.h"
+#include "gmock/gmock.h"
 #include "gtest_common.h"
 #include "mega/scoped_helpers.h"
 #include "test.h"
@@ -8267,13 +8268,6 @@ TEST_F(SyncTest, DetectsAndReportsNameClashes)
  */
 TEST_F(SyncTest, DetectsAndReportsSyncProblems)
 {
-    auto localConflictDetected = [](const NameConflict& nc, const LocalPath& name)
-    {
-        auto i = nc.clashingLocalNames.begin();
-        auto j = nc.clashingLocalNames.end();
-        return std::find(i, j, name) != j;
-    };
-
     const auto TESTFOLDER = makeNewTestRoot();
     const auto TIMEOUT = chrono::seconds(8);
     StandardClientInUse client = g_clientManager->getCleanStandardClient(0, TESTFOLDER);
@@ -8314,12 +8308,11 @@ TEST_F(SyncTest, DetectsAndReportsSyncProblems)
               LocalPath::fromRelativePath("d").prependNewWithSeparator(
                   client->syncByBackupId(backupId1)->localroot->localname))
         << "Unexpected local path";
-    ASSERT_EQ(conflicts.back().clashingLocalNames.size(), 2u)
-        << "Unexpected clashingLocalNames size";
-    ASSERT_TRUE(localConflictDetected(conflicts.back(), LocalPath::fromRelativePath("f%30")));
-    ASSERT_TRUE(localConflictDetected(conflicts.back(), LocalPath::fromRelativePath("f0")));
+
+    EXPECT_THAT(conflicts.back().clashingLocalNames,
+                testing::UnorderedElementsAre(LocalPath::fromRelativePath("f%30"),
+                                              LocalPath::fromRelativePath("f0")));
     ASSERT_EQ(conflicts.back().clashingCloud.size(), 0u) << "Unexpected clashingCloud size";
-    ;
 
     LOG_debug << "#### Test2: generate a stall issue ####";
     createNameFile(root, "n0");
