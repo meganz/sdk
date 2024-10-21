@@ -1,0 +1,75 @@
+pipeline {
+    agent {label "docker"}
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '32', daysToKeepStr: '14'))
+        ansiColor('xterm')
+    }
+    parameters {
+        booleanParam(
+            name: 'REBUILD_IMAGE',
+            defaultValue: false,
+            description: 'Rebuild docker image? If the report script has changed, the image should be rebuilt.'
+        )
+    }
+    stages {
+        stage('Rebuild docker image') {
+            when {
+                beforeAgent true
+                expression { REBUILD_IMAGE }
+            }
+            steps {
+                sh """
+                    docker build \
+                        -f dockerfile/report-jira-slack.dockerfile \
+                        -t ${env.MEGA_INTERNAL_DOCKER_REGISTRY}:8443/report-jira-slack-sdk:latest \
+                        .
+                """
+                withCredentials([usernamePassword(credentialsId: 'artifactory-jenkins-docker', usernameVariable: 'ART_USER', passwordVariable: 'ART_PASS')]) {
+                    sh """
+                        echo \$ART_PASS | docker login \
+                                            -u \$ART_USER \
+                                            --password-stdin \
+                                            ${env.MEGA_INTERNAL_DOCKER_REGISTRY}:8443
+                        docker push ${env.MEGA_INTERNAL_DOCKER_REGISTRY}:8443/report-jira-slack-sdk:latest
+                    """
+                }
+            }
+        }
+        stage('Run report'){
+            steps {
+                withCredentials([
+                    string(credentialsId: 'SDK_JIRA_PERSONAL_ACCESS_TOKEN', variable: 'SDK_JIRA_PERSONAL_ACCESS_TOKEN'),
+                    string(credentialsId: 'SDK_SLACK_BOT_TOKEN', variable: 'SDK_SLACK_BOT_TOKEN')
+                ]){
+                    // SDK report
+                    sh """
+                        docker run \
+                            -e JIRA_PERSONAL_ACCESS_TOKEN=${env.SDK_JIRA_PERSONAL_ACCESS_TOKEN} \
+                            -e SLACK_BOT_TOKEN=${env.SDK_SLACK_BOT_TOKEN} \
+                            -e JIRA_URL=${env.JIRA_URL} \
+                            -e JIRA_PROJECT_KEY=${env.SDK_JIRA_PROJECT_KEY} \
+                            -e SLACK_CHANNEL=${env.SDK_SLACK_CHANNEL} \
+                            ${env.MEGA_INTERNAL_DOCKER_REGISTRY}:8443/report-jira-slack-sdk:latest
+                    """
+                    // CHT report
+                    sh """
+                        docker run \
+                            -e JIRA_PERSONAL_ACCESS_TOKEN=${env.SDK_JIRA_PERSONAL_ACCESS_TOKEN} \
+                            -e SLACK_BOT_TOKEN=${env.SDK_SLACK_BOT_TOKEN} \
+                            -e JIRA_URL=${env.JIRA_URL} \
+                            -e JIRA_PROJECT_KEY=${env.CHT_JIRA_PROJECT_KEY} \
+                            -e SLACK_CHANNEL=${env.CHT_SLACK_CHANNEL} \
+                            ${env.MEGA_INTERNAL_DOCKER_REGISTRY}:8443/report-jira-slack-sdk:latest
+                    """
+                }
+            }
+            post {
+                always {
+                    deleteDir()
+                }
+            }
+        }
+    }
+}
+
+// vim: syntax=groovy tabstop=4 shiftwidth=4
