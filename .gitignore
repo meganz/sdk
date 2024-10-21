@@ -1,9 +1,4 @@
 # Documentation generator
-doc/_build
-doc/api
-doc/lib
-doc/sphinx_api
-doc/Doxyfile
 doc/example/lsmega
 
 # Editor and IDE stuff
