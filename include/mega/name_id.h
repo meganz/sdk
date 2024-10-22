@@ -40,6 +40,9 @@ static constexpr nameid psts = MAKENAMEID4('p', 's', 't', 's');
 static constexpr nameid psts_v2 = MAKENAMEID7('p', 's', 't', 's', '_', 'v', '2');
 static constexpr nameid pses = MAKENAMEID4('p', 's', 'e', 's');
 static constexpr nameid ph = MAKENAMEID2('p', 'h');
+#ifdef ENABLE_CHAT
+static constexpr nameid mcsmp = MAKENAMEID5('m', 'c', 's', 'm', 'p');
+#endif
 } // namespace name_id
 
 } // namespace mega

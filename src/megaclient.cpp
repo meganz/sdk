@@ -5296,7 +5296,7 @@ bool MegaClient::procsc()
                                 sc_chatnode();
                                 break;
 
-                            case MAKENAMEID5('m', 'c', 's', 'm', 'p'):
+                            case name_id::mcsmp:
                                 // scheduled meetings updates
                                 sc_scheduledmeetings();
                                 break;
