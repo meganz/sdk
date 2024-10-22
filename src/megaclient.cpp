@@ -5244,7 +5244,7 @@ bool MegaClient::procsc()
                                 sc_paymentreminder();
                                 break;
 
-                            case MAKENAMEID3('i', 'p', 'c'):
+                            case name_id::ipc:
                                 // incoming pending contact request (to us)
                                 sc_ipc();
                                 break;

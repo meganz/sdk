@@ -68,7 +68,7 @@ struct UserAlertPendingContact
 
 namespace UserAlert
 {
-    static const nameid type_ipc = MAKENAMEID3('i', 'p', 'c');                      // incoming pending contact
+static constexpr nameid type_ipc = name_id::ipc; // incoming pending contact
     static const nameid type_c = 'c';                                               // contact change
     static const nameid type_upci = MAKENAMEID4('u', 'p', 'c', 'i');                // updating pending contact incoming
     static const nameid type_upco = MAKENAMEID4('u', 'p', 'c', 'o');                // updating pending contact outgoing

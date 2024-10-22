@@ -25,6 +25,11 @@ using nameid = uint64_t;
 (nameid)((((nameid)a) << 56) + (((nameid)b) << 48) + (((nameid)c) << 40) + (((nameid)d) << 32) + \
          ((e) << 24) + ((f) << 16) + ((g) << 8) + (h))
 
+namespace name_id
+{
+static constexpr nameid ipc = MAKENAMEID3('i', 'p', 'c');
+} // namespace name_id
+
 } // namespace mega
 
 #endif // MEGA_NAME_ID_H
