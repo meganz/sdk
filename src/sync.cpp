@@ -4117,15 +4117,11 @@ void Syncs::manageRemoteRootLocationChange(Sync& sync) const
     // we need to check if the node in its new location is syncable
     const auto& config = sync.getConfig();
     const auto [e, syncError] = std::invoke(
-        [this, newRemoteRootNH = config.mRemoteNode]() -> std::pair<error, SyncError>
+        [this, &config]() -> std::pair<error, SyncError>
         {
             std::lock_guard g(mClient.nodeTreeMutex);
-            SyncError syncError;
-            error e = mClient.isnodesyncable(mClient.mNodeManager.getNodeByHandle(newRemoteRootNH),
-                                             nullptr,
-                                             &syncError,
-                                             true);
-            return {e, syncError};
+            return mClient.isnodesyncable(mClient.mNodeManager.getNodeByHandle(config.mRemoteNode),
+                                          true);
         });
     if (e)
     {

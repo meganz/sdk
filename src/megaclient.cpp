@@ -16445,118 +16445,95 @@ error MegaClient::addtimer(TimerWithBackoff *twb)
 
 #ifdef ENABLE_SYNC
 
-error MegaClient::isnodesyncable(std::shared_ptr<Node> remotenode,
-                                 bool* isinshare,
-                                 SyncError* syncError,
-                                 const bool excludeSelf)
+std::pair<error, SyncError> MegaClient::isnodesyncable(std::shared_ptr<Node> remotenode,
+                                                       const bool excludeSelf)
 {
-    // cannot sync files, rubbish bins or vault
-    if (remotenode->type != FOLDERNODE && remotenode->type != ROOTNODE)
+    if (!remotenode)
     {
-        if(syncError)
-        {
-            *syncError = INVALID_REMOTE_TYPE;
-        }
-        return API_EACCESS;
+        LOG_err << "Calling isnodesyncable with a null node. This should not happen";
+        assert(false && "Calling isnodesyncable with a null node. This should not happen");
+        return {API_EARGS, REMOTE_NODE_NOT_FOUND};
     }
 
-    // any active syncs below?
+    if (remotenode->type != FOLDERNODE && remotenode->type != ROOTNODE)
+        return {API_EACCESS, INVALID_REMOTE_TYPE};
 
-    auto activeConfigs = syncs.getConfigs(true);
-    for (auto& sc : activeConfigs)
+    if (remotenode->firstancestor()->type == RUBBISHNODE)
+        return {API_EACCESS, REMOTE_NODE_INSIDE_RUBBISH};
+
+    if (auto syncError = anyActiveSyncAboveOrBelow(*remotenode, excludeSelf);
+        syncError != NO_SYNC_ERROR)
+        return {API_EEXIST, syncError};
+
+    if (userHasRestrictedAccessToNode(*remotenode))
+        return {API_EACCESS, SHARE_NON_FULL_ACCESS};
+
+    return {API_OK, NO_SYNC_ERROR};
+}
+
+SyncError MegaClient::anyActiveSyncAboveOrBelow(const Node& remotenode, const bool excludeSelf)
+{
+    const auto activeConfigs = syncs.getConfigs(true);
+    for (const auto& syncConfig: activeConfigs)
     {
-        if (excludeSelf && sc.mRemoteNode == remotenode->nodeHandle())
+        if (excludeSelf && syncConfig.mRemoteNode == remotenode.nodeHandle())
             continue;
 
-        if (std::shared_ptr<Node> syncRoot = nodeByHandle(sc.mRemoteNode))
-        {
-            bool above = remotenode->isbelow(syncRoot.get());
-            bool below = syncRoot->isbelow(remotenode.get());
-            if (above && below)
-            {
-                if (syncError) *syncError = ACTIVE_SYNC_SAME_PATH;
-                return API_EEXIST;
-            }
-            else if (below)
-            {
-                if (syncError) *syncError = ACTIVE_SYNC_BELOW_PATH;
-                return API_EEXIST;
-            }
-            else if (above)
-            {
-                if (syncError) *syncError = ACTIVE_SYNC_ABOVE_PATH;
-                return API_EEXIST;
-            }
-        }
+        std::shared_ptr<Node> syncRoot = nodeByHandle(syncConfig.mRemoteNode);
+        if (!syncRoot)
+            continue;
+
+        bool thereIsSyncRootAbove = remotenode.isbelow(syncRoot.get());
+        bool thereIsSyncRootBelow = syncRoot->isbelow(&remotenode);
+        if (thereIsSyncRootAbove && thereIsSyncRootBelow)
+            return ACTIVE_SYNC_SAME_PATH;
+        if (thereIsSyncRootBelow)
+            return ACTIVE_SYNC_BELOW_PATH;
+        if (thereIsSyncRootAbove)
+            return ACTIVE_SYNC_ABOVE_PATH;
     }
+    return NO_SYNC_ERROR;
+}
 
-    // any active syncs above? or node within //bin or inside non full access inshare
-    std::shared_ptr<Node> n = remotenode;
-    bool inshare = false;
-
-    do {
-
-        if (n->inshare && !inshare)
-        {
-            // we need FULL access to sync
-            // FIXME: allow downsyncing from RDONLY and limited syncing to RDWR shares
-            if (n->inshare->access != FULL)
+bool MegaClient::userHasRestrictedAccessToNode(const Node& targetNode)
+{
+    bool firstInShareAncestorHasRestrictedAccess = true;
+    if (const bool anyAncestorInShare = targetNode.matchesOrHasAncestorMatching(
+            [&firstInShareAncestorHasRestrictedAccess](const Node& node) -> bool
             {
-                if(syncError)
+                if (node.inshare)
                 {
-                    *syncError = SHARE_NON_FULL_ACCESS;
+                    firstInShareAncestorHasRestrictedAccess = node.inshare->access != FULL;
+                    return true;
                 }
-                return API_EACCESS;
-            }
+                return false;
+            });
+        !anyAncestorInShare)
+        return false; // No restrictions if not inside an inshare
 
-            inshare = true;
-        }
+    if (firstInShareAncestorHasRestrictedAccess)
+        return true;
 
-        if (n->nodeHandle() == mNodeManager.getRootNodeRubbish())
-        {
-            if(syncError)
-            {
-                *syncError = REMOTE_NODE_INSIDE_RUBBISH;
-            }
-            return API_EACCESS;
-        }
-    } while ((n = n->parent));
-
-    if (inshare)
+    // if target node is inside an inshare with full perms, we need to ensure we have full access to
+    // all the descendants. For that we evaluate all the nodes being shared that are inside target
+    const auto isSuccessorOfTargetNodeAndHasNotFullAccess =
+        [remotenodeHandle = targetNode.nodeHandle(), this](const handle nh) -> bool
     {
-        // this sync is located in an inbound share - make sure that there
-        // are no access restrictions in place anywhere in the sync's tree
-        for (user_map::iterator uit = users.begin(); uit != users.end(); uit++)
-        {
-            User* u = &uit->second;
-
-            if (u->sharing.size())
-            {
-                for (handle_set::iterator sit = u->sharing.begin(); sit != u->sharing.end(); sit++)
-                {
-                    if ((n = nodebyhandle(*sit)) && n->inshare && n->inshare->access != FULL)
-                    {
-                        do {
-                            if (n == remotenode)
-                            {
-                                if(syncError)
-                                {
-                                    *syncError = SHARE_NON_FULL_ACCESS;
-                                }
-                                return API_EACCESS;
-                            }
-                        } while ((n = n->parent));
-                    }
-                }
-            }
-        }
-    }
-
-    if (isinshare)
+        const auto testNode = nodebyhandle(nh);
+        return testNode && testNode->inshare && testNode->inshare->access != FULL &&
+               (testNode->hasNHOrHasAncestorWithNH(remotenodeHandle));
+    };
+    const auto isUserSharingNotFullAccessNodeUnderTarget =
+        [&isSuccessorOfTargetNodeAndHasNotFullAccess](const auto& idUserPair) -> bool
     {
-        *isinshare = inshare;
-    }
-    return API_OK;
+        const auto& userSharings = idUserPair.second.sharing;
+        return std::any_of(std::begin(userSharings),
+                           std::end(userSharings),
+                           isSuccessorOfTargetNodeAndHasNotFullAccess);
+    };
+    return std::any_of(std::begin(users),
+                       std::end(users),
+                       isUserSharingNotFullAccessNodeUnderTarget);
 }
 
 error MegaClient::isLocalPathSyncable(const LocalPath& newPath, handle excludeBackupId, SyncError *syncError)
@@ -16644,9 +16621,10 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
         return API_ENOENT;
     }
 
-    if (error e = isnodesyncable(remotenode, &inshare, &syncConfig.mError))
+    if (const auto [e, syncError] = isnodesyncable(remotenode); e)
     {
         LOG_debug << "Node is not syncable for sync add";
+        syncConfig.mError = syncError;
         syncConfig.mEnabled = false;
         return e;
     }
@@ -16790,6 +16768,12 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
         return API_EFAILED;
     }
 
+    // This only matters if there were no errors
+    inshare = remotenode->matchesOrHasAncestorMatching(
+        [](const Node& node) -> bool
+        {
+            return node.inshare != nullptr;
+        });
     return API_OK;
 }
 
