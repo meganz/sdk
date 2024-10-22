@@ -83,7 +83,7 @@ static constexpr nameid type_pses = name_id::pses; // payment reminder
 static constexpr nameid type_ph = name_id::ph; // takedown
 #ifdef ENABLE_CHAT
 static constexpr nameid type_nusm = name_id::mcsmp; // new or updated scheduled meeting
-    static const nameid type_dsm = MAKENAMEID5('m', 'c', 's', 'm', 'r');            // deleted scheduled meeting
+static constexpr nameid type_dsm = name_id::mcsmr; // deleted scheduled meeting
 #endif
 
     enum userAlertsSubtype

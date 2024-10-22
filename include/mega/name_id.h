@@ -42,6 +42,7 @@ static constexpr nameid pses = MAKENAMEID4('p', 's', 'e', 's');
 static constexpr nameid ph = MAKENAMEID2('p', 'h');
 #ifdef ENABLE_CHAT
 static constexpr nameid mcsmp = MAKENAMEID5('m', 'c', 's', 'm', 'p');
+static constexpr nameid mcsmr = MAKENAMEID5('m', 'c', 's', 'm', 'r');
 #endif
 } // namespace name_id
 

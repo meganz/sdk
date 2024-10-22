@@ -5301,7 +5301,7 @@ bool MegaClient::procsc()
                                 sc_scheduledmeetings();
                                 break;
 
-                            case MAKENAMEID5('m', 'c', 's', 'm', 'r'):
+                            case name_id::mcsmr:
                                 // scheduled meetings removal
                                 sc_delscheduledmeeting();
                                 break;
