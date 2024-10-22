@@ -78,6 +78,7 @@ set(SDKLIB_HEADERS
     include/mega/process.h
     include/mega/mega_csv.h
     include/mega/name_collision.h
+    include/mega/name_id.h
     include/mega/pwm_file_parser.h
     include/mega/user_attribute.h
     include/mega/user_attribute_definition.h

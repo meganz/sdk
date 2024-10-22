@@ -23,7 +23,7 @@
 #define MEGAUSERNOTIFICATIONS_H 1
 
 #include "json.h"
-#include "utils.h"
+#include "name_id.h"
 
 #include <bitset>
 

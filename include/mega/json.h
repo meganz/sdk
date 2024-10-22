@@ -22,6 +22,7 @@
 #ifndef MEGA_JSON_H
 #define MEGA_JSON_H 1
 
+#include "name_id.h"
 #include "types.h"
 
 namespace mega {
