@@ -70,7 +70,7 @@ namespace UserAlert
 {
 static constexpr nameid type_ipc = name_id::ipc; // incoming pending contact
 static constexpr nameid type_c = name_id::c; // contact change
-    static const nameid type_upci = MAKENAMEID4('u', 'p', 'c', 'i');                // updating pending contact incoming
+static constexpr nameid type_upci = name_id::upci; // updating pending contact incoming
     static const nameid type_upco = MAKENAMEID4('u', 'p', 'c', 'o');                // updating pending contact outgoing
     static const nameid type_share = MAKENAMEID5('s', 'h', 'a', 'r', 'e');          // new share
     static const nameid type_dshare = MAKENAMEID6('d', 's', 'h', 'a', 'r', 'e');    // deleted share

@@ -5254,7 +5254,7 @@ bool MegaClient::procsc()
                                 sc_opc();
                                 break;
 
-                            case MAKENAMEID4('u', 'p', 'c', 'i'):
+                            case name_id::upci:
                                 // incoming pending contact request update (accept/deny/ignore)
                                 sc_upc(true);
                                 break;
