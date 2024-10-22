@@ -1239,6 +1239,7 @@ std::set<std::string>::iterator getTagPosition(std::set<std::string>& tokens,
  * @param pattern the like pattern
  * @param str the UFT-8 string to compare against
  * @param esc the escape character
+ * @param stripAccents True if accents should be stripped before comparison.
  *
  * @return true if the are the same and false if they are different
  */
