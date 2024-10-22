@@ -3014,8 +3014,11 @@ public:
 
     std::unique_ptr<::mega::IGfxProvider> releaseProvider() { return std::move(mProvider); }
 
-    static std::unique_ptr<MegaGfxProviderPrivate> createIsolatedInstance(const std::string& endpointName,
-                                                                          const std::string& executable);
+    static std::unique_ptr<MegaGfxProviderPrivate>
+        createIsolatedInstance(const char* endpointName,
+                               const char* executable,
+                               unsigned int keepAliveInSeconds,
+                               const MegaStringList* extraArgs);
 
     static std::unique_ptr<MegaGfxProviderPrivate> createExternalInstance(MegaGfxProcessor* processor);
 

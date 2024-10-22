@@ -85,13 +85,13 @@ const char* GfxProviderIsolatedProcess::Formats::videoformats() const
     return (mIsValid && !mVideoformats.empty()) ? mVideoformats.c_str() : nullptr;
 }
 
-std::unique_ptr<GfxProviderIsolatedProcess> GfxProviderIsolatedProcess::create(
-    const std::string &endpointName,
-    const std::string &executable)
+std::unique_ptr<GfxProviderIsolatedProcess>
+    GfxProviderIsolatedProcess::create(const GfxIsolatedProcess::Params& params)
 {
-    if (endpointName.empty() || executable.empty()) return nullptr;
+    if (!params.isValid())
+        return nullptr;
 
-    auto process = std::make_unique<GfxIsolatedProcess>(endpointName, executable);
+    auto process = std::make_unique<GfxIsolatedProcess>(params);
     return std::make_unique<GfxProviderIsolatedProcess>(std::move(process));
 }
 
@@ -318,10 +318,12 @@ void CancellableSleeper::cancel()
 
 GfxIsolatedProcess::Params::Params(const std::string& endpointName,
                                    const std::string& executable,
-                                   std::chrono::seconds keepAliveInSeconds)
-    : endpointName(endpointName)
-    , executable(executable)
-    , keepAliveInSeconds(std::max(MIN_ALIVE_SECONDS, keepAliveInSeconds))
+                                   std::chrono::seconds keepAliveInSeconds,
+                                   const std::vector<std::string>& rawArguments):
+    endpointName(endpointName),
+    executable(executable),
+    keepAliveInSeconds(std::max(MIN_ALIVE_SECONDS, keepAliveInSeconds)),
+    rawArguments(rawArguments)
 {
 }
 
@@ -329,28 +331,26 @@ std::vector<std::string> GfxIsolatedProcess::Params::toArgs() const
 {
     LocalPath absolutePath = LocalPath::fromAbsolutePath(executable);
 
-     // Triple the keepAliveInSeconds as isolated process args.
-     // Allow at least 2 beats
-    std::vector<std::string> commandArgs = {
-        absolutePath.toPath(false),
-        "-n=" + endpointName,
-        "-l=" + std::to_string(keepAliveInSeconds.count() * 3)
-    };
+    std::vector<std::string> commandArgs = {absolutePath.toPath(false),
+                                            "-n=" + endpointName,
+                                            "-l=" + std::to_string(keepAliveInSeconds.count())};
+
+    // Append raw arguments
+    // For simplicity, duplication isn't checked, leave to the executable to deal with
+    std::copy(rawArguments.begin(), rawArguments.end(), std::back_inserter(commandArgs));
 
     return commandArgs;
 }
 
-GfxIsolatedProcess::GfxIsolatedProcess(const Params& params)
-    : mEndpointName(params.endpointName)
-    , mLauncher(params.toArgs(), [endpointName = params.endpointName]() { shutdown(endpointName); })
-    , mBeater(seconds(params.keepAliveInSeconds), params.endpointName)
-{
-}
-
-GfxIsolatedProcess::GfxIsolatedProcess(const std::string& endpointName,
-                                       const std::string& executable)
-    : GfxIsolatedProcess(Params{endpointName, executable})
-{
-}
-
+// We divide keepAliveInSeconds by three to set up mBeater so that it allows at least two
+// beats within the keep-alive period.
+GfxIsolatedProcess::GfxIsolatedProcess(const Params& params):
+    mEndpointName(params.endpointName),
+    mLauncher(params.toArgs(),
+              [endpointName = params.endpointName]()
+              {
+                  shutdown(endpointName);
+              }),
+    mBeater(seconds(params.keepAliveInSeconds / 3), params.endpointName)
+{}
 }
