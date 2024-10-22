@@ -71,7 +71,7 @@ namespace UserAlert
 static constexpr nameid type_ipc = name_id::ipc; // incoming pending contact
 static constexpr nameid type_c = name_id::c; // contact change
 static constexpr nameid type_upci = name_id::upci; // updating pending contact incoming
-    static const nameid type_upco = MAKENAMEID4('u', 'p', 'c', 'o');                // updating pending contact outgoing
+static constexpr nameid type_upco = name_id::upco; // updating pending contact outgoing
     static const nameid type_share = MAKENAMEID5('s', 'h', 'a', 'r', 'e');          // new share
     static const nameid type_dshare = MAKENAMEID6('d', 's', 'h', 'a', 'r', 'e');    // deleted share
     static const nameid type_put = MAKENAMEID3('p', 'u', 't');                      // new shared nodes

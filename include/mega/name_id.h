@@ -30,6 +30,7 @@ namespace name_id
 static constexpr nameid ipc = MAKENAMEID3('i', 'p', 'c');
 static constexpr nameid c = 'c';
 static constexpr nameid upci = MAKENAMEID4('u', 'p', 'c', 'i');
+static constexpr nameid upco = MAKENAMEID4('u', 'p', 'c', 'o');
 } // namespace name_id
 
 } // namespace mega
