@@ -5164,10 +5164,11 @@ bool MegaClient::procsc()
                     // only process server-client request if not marked as
                     // self-originating ("i" marker element guaranteed to be following
                     // "a" element if present)
-                    if (fetchingnodes || memcmp(jsonsc.pos, "\"i\":\"", 5)
-                     || memcmp(jsonsc.pos + 5, sessionid, sizeof sessionid)
-                     || jsonsc.pos[5 + sizeof sessionid] != '"'
-                     || name == 'd' || name == 't')  // we still set 'i' on move commands to produce backward compatible actionpackets, so don't skip those here
+                    if (fetchingnodes || memcmp(jsonsc.pos, "\"i\":\"", 5) ||
+                        memcmp(jsonsc.pos + 5, sessionid, sizeof sessionid) ||
+                        jsonsc.pos[5 + sizeof sessionid] != '"' || name == name_id::d ||
+                        name == 't') // we still set 'i' on move commands to produce backward
+                                     // compatible actionpackets, so don't skip those here
                     {
 #ifdef ENABLE_CHAT
                         bool readingPublicChat = false;
@@ -5193,7 +5194,7 @@ bool MegaClient::procsc()
                             }
                             break;
 
-                            case 'd':
+                            case name_id::d:
                                 // node deletion
                                 lastAPDeletedNode = sc_deltree();
                                 break;
@@ -7340,7 +7341,7 @@ void MegaClient::sc_ph()
         case 'w':
             static_cast<void>(jsonsc.storeobject(&authKey));
             break;
-        case 'd':
+        case name_id::d:
             deleted = (jsonsc.getint() == 1);
             break;
         case 'n':
@@ -18341,7 +18342,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                     auxJson->storeobject(&title);
                     break;
                 }
-                case MAKENAMEID1('d'): // description
+                case name_id::d: // description
                 {
                     auxJson->storeobject(&description);
                     break;
@@ -18652,7 +18653,7 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
             }
             break;
 
-            case MAKENAMEID1('d'):
+            case name_id::d:
                 if (wasFieldUpdated())
                 {
                     auxCS.addChange(Changeset::CHANGE_TYPE_DESCRIPTION);
