@@ -5175,7 +5175,7 @@ bool MegaClient::procsc()
 #endif
                         switch (name)
                         {
-                            case 'u':
+                            case name_id::u:
                                 // node update
                                 sc_updatenode();
                                 break;
@@ -6155,7 +6155,7 @@ void MegaClient::sc_updatenode()
                 h = jsonsc.gethandle();
                 break;
 
-            case 'u':
+            case name_id::u:
                 u = jsonsc.gethandle(USERHANDLE);
                 break;
 
@@ -6353,7 +6353,7 @@ void MegaClient::readtree(JSON* j, Node* priorActionpacketDeletedNode, bool& fir
                     }
                     break;
 
-                case 'u':
+                case name_id::u:
                     readusers(j, true);
                     break;
 
@@ -6383,7 +6383,7 @@ handle MegaClient::sc_newnodes(Node* priorActionpacketDeletedNode, bool& firstHa
                 readtree(&jsonsc, priorActionpacketDeletedNode, firstHandleMatchesDelete);
                 break;
 
-            case 'u':
+            case name_id::u:
                 readusers(&jsonsc, true);
                 break;
 
@@ -6446,7 +6446,7 @@ bool MegaClient::sc_shares()
                 oh = jsonsc.gethandle(USERHANDLE);
                 break;
 
-            case 'u':   // target user
+            case name_id::u: // target user
                 uh = jsonsc.is(EXPORTEDLINK) ? 0 : jsonsc.gethandle(USERHANDLE);
                 break;
 
@@ -6707,7 +6707,7 @@ void MegaClient::sc_contacts()
     {
         switch (jsonsc.getnameid())
         {
-            case 'u':
+            case name_id::u:
                 useralerts.startprovisional();
                 readusers(&jsonsc, true);
                 break;
@@ -6836,7 +6836,7 @@ void MegaClient::sc_userattr()
     {
         switch (jsonsc.getnameid())
         {
-            case 'u':
+            case name_id::u:
                 uh = jsonsc.gethandle(USERHANDLE);
                 break;
 
@@ -7347,7 +7347,7 @@ void MegaClient::sc_ph()
         case 'n':
             created = (jsonsc.getint() == 1);
             break;
-        case 'u':
+        case name_id::u:
             updated = (jsonsc.getint() == 1);
             break;
         case MAKENAMEID4('d', 'o', 'w', 'n'):
@@ -7437,7 +7437,7 @@ void MegaClient::sc_se()
         case 'e':
             jsonsc.storeobject(&email);
             break;
-        case 'u':
+        case name_id::u:
             uh = jsonsc.gethandle(USERHANDLE);
             break;
         case 's':
@@ -7522,7 +7522,7 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                 chatid = jsonsc.gethandle(MegaClient::CHATHANDLE);
                 break;
 
-            case 'u':   // list of users participating in the chat (+privileges)
+            case name_id::u: // list of users participating in the chat (+privileges)
                 userpriv = readuserpriv(&jsonsc);
                 break;
 
@@ -7744,7 +7744,7 @@ void MegaClient::sc_chatnode()
                 h = jsonsc.gethandle(MegaClient::NODEHANDLE);
                 break;
 
-            case 'u':
+            case name_id::u:
                 uh = jsonsc.gethandle(MegaClient::USERHANDLE);
                 break;
 
@@ -8051,7 +8051,7 @@ void MegaClient::sc_uec()
                 jsonsc.storeobject(&email);
                 break;
 
-            case 'u':
+            case name_id::u:
                 u = jsonsc.gethandle(USERHANDLE);
                 break;
 
@@ -9764,7 +9764,7 @@ int MegaClient::readnode(JSON* j, int notify, putsource_t source, vector<NewNode
                     ph = j->gethandle();
                     break;
 
-                case 'u':   // owner user
+                case name_id::u: // owner user
                     u = j->gethandle(USERHANDLE);
                     break;
 
@@ -10190,7 +10190,7 @@ void MegaClient::readoutshareelement(JSON* j)
                 p = j->gethandle(PCRHANDLE);
                 break;
 
-            case 'u':           // share target user
+            case name_id::u: // share target user
                 uh = j->is(EXPORTEDLINK) ? 0 : j->gethandle(USERHANDLE);
                 break;
 
@@ -10657,7 +10657,7 @@ int MegaClient::readuser(JSON* j, bool actionpackets)
             name = j->getnameid();
             switch (name)
             {
-                case 'u':   // new node: handle
+                case name_id::u: // new user: handle
                     uh = j->gethandle(USERHANDLE);
                     break;
 
@@ -13127,7 +13127,8 @@ void MegaClient::procmcf(JSON *j)
                                 shard = int(j->getint());
                                 break;
 
-                            case 'u':   // list of users participating in the chat (+privileges)
+                            case name_id::u: // list of users participating in the chat
+                                             // (+privileges)
                                 userpriv = readuserpriv(j);
                                 break;
 
@@ -13369,7 +13370,7 @@ void MegaClient::procmcna(JSON *j)
                     h = j->gethandle(MegaClient::NODEHANDLE);
                     break;
 
-                case 'u':
+                case name_id::u:
                     uh = j->gethandle(MegaClient::USERHANDLE);
                     break;
 
@@ -18144,7 +18145,7 @@ userpriv_vector *MegaClient::readuserpriv(JSON *j)
             {
                 switch (j->getnameid())
                 {
-                    case 'u':
+                    case name_id::u:
                         uh = j->gethandle(MegaClient::USERHANDLE);
                         break;
 
@@ -18311,7 +18312,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                     parentSchedId = auxJson->gethandle(MegaClient::CHATHANDLE);
                     break;
                 }
-                case MAKENAMEID1('u'): // organizer user Handle
+                case name_id::u: // organizer user Handle
                 {
                     organizerUserId = auxJson->gethandle(MegaClient::CHATHANDLE);
                     break;
@@ -18393,7 +18394,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                                     interval = static_cast<int>(auxJson->getint());
                                     break;
                                 }
-                                case MAKENAMEID1('u'):
+                                case name_id::u:
                                 {
                                     until = auxJson->getint();
                                     break;
@@ -19676,7 +19677,7 @@ error MegaClient::readSet(JSON& j, Set& s)
             break;
         }
 
-        case MAKENAMEID1('u'):
+        case name_id::u:
             s.setUser(j.gethandle(MegaClient::USERHANDLE));
             break;
 
@@ -19840,7 +19841,7 @@ error MegaClient::readSingleNodeMetadata(JSON& j, SetElement::NodeMetadata& eln)
             eln.h = j.gethandle(MegaClient::NODEHANDLE);
             break;
 
-        case MAKENAMEID1('u'):
+        case name_id::u:
             eln.u = j.gethandle(MegaClient::USERHANDLE);
             break;
 

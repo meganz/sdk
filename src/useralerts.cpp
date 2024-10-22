@@ -177,7 +177,7 @@ UserAlert::Base::Base(UserAlertRaw& un, unsigned int cid)
     type = un.t;
     m_time_t timeDelta = un.getint64(MAKENAMEID2('t', 'd'), 0);
     pst.timestamp = m_time() - timeDelta;
-    pst.userHandle = un.gethandle('u', MegaClient::USERHANDLE, UNDEF);
+    pst.userHandle = un.gethandle(name_id::u, MegaClient::USERHANDLE, UNDEF);
     pst.userEmail = un.getstring('m', "");
 
     tag = -1;
@@ -2513,7 +2513,7 @@ bool UserAlerts::procsc_useralert(JSON& jsonsc)
     {
         switch (jsonsc.getnameid())
         {
-        case 'u':
+        case name_id::u:
             if (jsonsc.enterarray())
             {
                 for (;;)
@@ -2526,7 +2526,7 @@ bool UserAlerts::procsc_useralert(JSON& jsonsc)
                         {
                             switch (jsonsc.getnameid())
                             {
-                            case 'u':
+                            case name_id::u:
                                 ul.u = jsonsc.gethandle(MegaClient::USERHANDLE);
                                 break;
                             case 'm':
