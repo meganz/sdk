@@ -28,6 +28,7 @@ using nameid = uint64_t;
 namespace name_id
 {
 static constexpr nameid ipc = MAKENAMEID3('i', 'p', 'c');
+static constexpr nameid c = 'c';
 } // namespace name_id
 
 } // namespace mega

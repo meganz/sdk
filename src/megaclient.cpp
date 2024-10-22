@@ -5210,7 +5210,7 @@ bool MegaClient::procsc()
                                 }
                                 break;
 
-                            case 'c':
+                            case name_id::c:
                                 // contact addition/update
                                 sc_contacts();
                                 break;
@@ -8977,7 +8977,7 @@ error MegaClient::putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, co
     shared_ptr<Node> previousNode = childnodebyname(parentNode, utf8Name, true);
     honorPreviousVersionAttrs(previousNode.get(), attrs);
     attrs.map['n'] = utf8Name;
-    attrs.map['c'] = megafingerprint;
+    attrs.map[name_id::c] = megafingerprint;
     if (fingerprintOriginal)
     {
         attrs.map[MAKENAMEID2('c', '0')] = fingerprintOriginal;
@@ -10660,7 +10660,7 @@ int MegaClient::readuser(JSON* j, bool actionpackets)
                     uh = j->gethandle(USERHANDLE);
                     break;
 
-                case 'c':   // visibility
+                case name_id::c: // visibility
                     v = (visibility_t)j->getint();
                     break;
 
@@ -13087,7 +13087,7 @@ void MegaClient::procmcf(JSON *j)
                 {
                     readingPublicChats = true;
                 }   // fall-through
-                case 'c':   // list of chatrooms
+                case name_id::c: // list of chatrooms
                 {
                     j->enterarray();
 
@@ -18356,7 +18356,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                     overrides = auxJson->getint();
                     break;
                 }
-                case MAKENAMEID1('c'): // cancelled
+                case name_id::c: // cancelled
                 {
                     cancelled = static_cast<int>(auxJson->getint());
                     break;
@@ -18659,7 +18659,7 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
                 }
                 break;
 
-            case MAKENAMEID1('c'):
+            case name_id::c:
                 if (wasFieldUpdated())
                 {
                     auxCS.addChange(Changeset::CHANGE_TYPE_CANCELLED);
@@ -19902,7 +19902,7 @@ bool MegaClient::decryptNodeMetadata(SetElement::NodeMetadata& nodeMeta, const s
     {
         switch (attrJson.getnameid())
         {
-        case 'c':
+            case name_id::c:
             if (!attrJson.storeobject(&nodeMeta.fingerprint))
             {
                 LOG_err << "Reading node fingerprint failed. Node Handle = " << toNodeHandle(nodeMeta.h);
@@ -20277,7 +20277,7 @@ error MegaClient::readExportedSet(JSON& j, Set& s, pair<bool,m_off_t>& exportRem
             s.setPublicId(UNDEF);
             break;
 
-        case MAKENAMEID1('c'):
+        case name_id::c:
             exportRemoved.second = j.getint();
             /* 0     => deleted by user
              * Other => ETD / ATD / dispute */

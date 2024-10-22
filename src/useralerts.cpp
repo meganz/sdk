@@ -353,7 +353,7 @@ UserAlert::IncomingPendingContact* UserAlert::IncomingPendingContact::unserializ
 UserAlert::ContactChange::ContactChange(UserAlertRaw& un, unsigned int id)
     : Base(un, id)
 {
-    action = un.getint('c', -1);
+    action = un.getint(name_id::c, -1);
     pst.relevant = action >= 0 && action < 4;
     assert(action >= 0 && action < 4);
 }
@@ -2608,7 +2608,7 @@ bool UserAlerts::procsc_useralert(JSON& jsonsc)
             catchupdone = true;
             return true;
 
-        case 'c':  // notifications
+        case name_id::c: // notifications
             if (jsonsc.enterarray())
             {
                 for (;;)
@@ -2639,7 +2639,7 @@ bool UserAlerts::procsc_useralert(JSON& jsonsc)
                             }
                         }
 
-                        if (!isUnwantedAlert(un.t, un.getint('c', -1)))
+                        if (!isUnwantedAlert(un.t, un.getint(name_id::c, -1)))
                         {
                             add(un);
                         }
