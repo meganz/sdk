@@ -1229,7 +1229,8 @@ private:
 };
 
 std::set<std::string>::iterator getTagPosition(std::set<std::string>& tokens,
-                                               const std::string& pattern);
+                                               const std::string& pattern,
+                                               const bool stripAccents = true);
 
 /*
  * Compare two UTF-8 strings for equality where the first string is
@@ -1243,7 +1244,8 @@ std::set<std::string>::iterator getTagPosition(std::set<std::string>& tokens,
  */
 bool likeCompare(const char* pattern,
                  const char* str,
-                 const UChar32 esc = static_cast<UChar32>(ESCAPE_CHARACTER));
+                 const UChar32 esc = static_cast<UChar32>(ESCAPE_CHARACTER),
+                 const bool stripAccents = true);
 
 // Get the current process ID
 unsigned long getCurrentPid();
