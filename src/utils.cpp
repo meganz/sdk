@@ -3350,14 +3350,16 @@ bool foldCaseAccentEqual(uint32_t codePoint1, uint32_t codePoint2)
     // 8 is big enough decompose one unicode point
     using Buffer = std::array<utf8proc_int32_t, 8>;
 
-    auto foldCaseAccent = [](uint32_t codePoint, Buffer& buff)
+    // convenience.
+    auto options = UTF8PROC_CASEFOLD | UTF8PROC_COMPOSE | UTF8PROC_NULLTERM | UTF8PROC_STABLE |
+                   UTF8PROC_STRIPMARK;
+
+    auto foldCaseAccent = [options](uint32_t codePoint, Buffer& buff)
     {
         return utf8proc_decompose_char((utf8proc_int32_t)codePoint,
                                        buff.data(),
                                        static_cast<utf8proc_ssize_t>(buff.size()),
-                                       (utf8proc_option_t)(UTF8PROC_NULLTERM | UTF8PROC_STABLE |
-                                                           UTF8PROC_COMPOSE | UTF8PROC_STRIPMARK |
-                                                           UTF8PROC_CASEFOLD),
+                                       static_cast<utf8proc_option_t>(options),
                                        nullptr);
     };
 
