@@ -63,6 +63,7 @@ set(SDKLIB_HEADERS
     include/mega/utils.h
     include/mega/account.h
     include/mega/transfer.h
+    include/mega/transferstats.h
     include/mega/config-android.h
     include/mega/treeproc.h
     include/mega/arguments.h
@@ -131,6 +132,7 @@ set(SDKLIB_SOURCES
     src/testhooks.cpp
     src/transfer.cpp
     src/transferslot.cpp
+    src/transferstats.cpp
     src/treeproc.cpp
     src/user.cpp
     src/useralerts.cpp

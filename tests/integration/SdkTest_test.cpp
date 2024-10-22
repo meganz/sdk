@@ -74,12 +74,6 @@ pthread_t ThreadId()
 }
 #endif
 
-#ifndef WIN32
-#define DOTSLASH "./"
-#else
-#define DOTSLASH ".\\"
-#endif
-
 const char* cwd()
 {
     // for windows and linux
@@ -7201,7 +7195,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
 
 TEST_F(SdkTest, SdkTestCloudraidTransferBestCase)
 {
-    LOG_info << "___TEST Cloudraid transfers bet case___";
+    LOG_info << "___TEST Cloudraid transfers best case___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
 
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};

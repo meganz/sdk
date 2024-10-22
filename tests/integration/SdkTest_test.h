@@ -31,6 +31,12 @@
 #include <iostream>
 #include <memory>
 
+#ifndef WIN32
+#define DOTSLASH "./"
+#else
+#define DOTSLASH ".\\"
+#endif
+
 using namespace mega;
 using ::testing::Test;
 
@@ -415,7 +421,7 @@ public:
         m_off_t numTotalRequests{};
         double failedRequestRatio{};
 
-        SdkTestTransferStats& operator=(const TransferSlotStats& transferSlotStats)
+        SdkTestTransferStats& operator=(const stats::TransferSlotStats& transferSlotStats)
         {
             numFailedRequests = transferSlotStats.mNumFailedRequests;
             numTotalRequests = transferSlotStats.mNumTotalRequests;

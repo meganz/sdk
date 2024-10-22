@@ -41,6 +41,7 @@
 #include "sharenodekeys.h"
 #include "sync.h"
 #include "transfer.h"
+#include "transferstats.h"
 #include "treeproc.h"
 #include "user.h"
 #include "useralerts.h"
@@ -1856,6 +1857,9 @@ public:
 
     // next TransferSlot to doio() on
     transferslot_list::iterator slotit;
+
+    // transfer statistics manager
+    stats::TransferStatsManager mTransferStatsManager;
 
     // send updates to app when the storage size changes
     int64_t mNotifiedSumSize = 0;

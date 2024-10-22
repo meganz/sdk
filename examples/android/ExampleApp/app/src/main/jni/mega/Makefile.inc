@@ -38,6 +38,7 @@ CPP_SOURCES= sdk/src/attrmap.cpp \
     sdk/src/sync.cpp \
     sdk/src/transfer.cpp \
     sdk/src/transferslot.cpp \
+    sdk/src/transferstats.cpp \
     sdk/src/proxy.cpp \
     sdk/src/pendingcontactrequest.cpp \
     sdk/src/treeproc.cpp \
@@ -102,6 +103,7 @@ HEADERS= sdk/include/mega.h \
         sdk/include/mega/sync.h \
         sdk/include/mega/transfer.h \
         sdk/include/mega/transferslot.h \
+        sdk/include/mega/transferstats.h \
         sdk/include/mega/proxy.h \
         sdk/include/mega/pendingcontactrequest.h \
         sdk/include/mega/treeproc.h \

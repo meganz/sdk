@@ -5237,6 +5237,9 @@ autocomplete::ACN autocompleteSyntax()
                                     localFSFolder("target")))));
 
     p->Add(exec_getpricing, text("getpricing"));
+
+    p->Add(exec_collectAndPrintTransferStats,
+           sequence(text("getTransferStats"), opt(either(flag("-uploads"), flag("-downloads")))));
     return autocompleteTemplate = std::move(p);
 }
 
@@ -13420,4 +13423,41 @@ void exec_getpricing(autocomplete::ACState& s)
 {
     cout << "Getting pricing plans... " << endl;
     client->purchase_enumeratequotaitems();
+}
+
+void exec_collectAndPrintTransferStats(autocomplete::ACState& state)
+{
+    bool uploadsOnly = state.extractflag("-uploads");
+    bool downloadsOnly = state.extractflag("-downloads");
+    assert(!(uploadsOnly && downloadsOnly));
+
+    auto collectAndPrintTransfersMetricsFromType = [](direction_t transferType)
+    {
+        std::cout << "\n===================================================================\n";
+        std::cout << (transferType == PUT ? "[UploadStatistics]" : "[DownloadStatistics]") << "\n";
+        std::cout << "Number of transfers: " << client->mTransferStatsManager.size(transferType)
+                  << "\n";
+        std::cout << "Max entries: " << client->mTransferStatsManager.getMaxEntries(transferType)
+                  << "\n";
+        std::cout << "Max age in seconds: "
+                  << client->mTransferStatsManager.getMaxAgeSeconds(transferType) << "\n";
+        std::cout << "-------------------------------------------------------------------\n";
+        ::mega::stats::TransferStats::Metrics metrics =
+            client->mTransferStatsManager.collectAndPrintMetrics(transferType);
+        std::cout << metrics.toString() << "\n";
+        std::cout << "-------------------------------------------------------------------\n";
+        std::cout << "JSON format:\n";
+        std::cout << metrics.toJson() << "\n";
+        std::cout << "===================================================================\n\n";
+    };
+
+    if (!downloadsOnly)
+    {
+        collectAndPrintTransfersMetricsFromType(PUT);
+    }
+
+    if (!uploadsOnly)
+    {
+        collectAndPrintTransfersMetricsFromType(GET);
+    }
 }
