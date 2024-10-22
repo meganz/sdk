@@ -21,6 +21,7 @@
 #import "MEGANode.h"
 #import "megaapi.h"
 #import "PasswordNodeData.h"
+#import "MEGAStringList+init.h"
 
 using namespace mega;
 
@@ -291,6 +292,12 @@ using namespace mega;
 
 - (BOOL)isPasswordNode {
     return self.megaNode ? self.megaNode->isPasswordNode() : NO;
+}
+
+- (MEGAStringList *)tags {
+    if(!self.megaNode) return nil;
+
+    return self.megaNode->getTags() ? [[MEGAStringList alloc] initWithMegaStringList:self.megaNode->getTags() cMemoryOwn:YES] : nil;
 }
 
 + (NSString *)stringForNodeLabel:(MEGANodeLabel)nodeLabel {

@@ -74,6 +74,8 @@ typedef NS_ENUM (NSInteger, MEGANodeFormatType) {
     MEGANodeFormatTypeOthers
 };
 
+@class MEGAStringList;
+
 NS_ASSUME_NONNULL_BEGIN
 
 /**
@@ -319,6 +321,11 @@ NS_ASSUME_NONNULL_BEGIN
 * @brief The Password Node Data if the node is a Password Node.
 */
 @property (readonly, nonatomic, nullable) PasswordNodeData *passwordNodeData;
+
+/**
+ * @breif Get a list of tags from a node.
+ */
+@property (readonly, nonatomic, nullable) MEGAStringList *tags;
 
 /**
  * @brief Returns a BOOL value that indicates if the node represents a file (type == MEGANodeTypeFile)
