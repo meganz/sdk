@@ -36,6 +36,7 @@ static constexpr nameid dshare = MAKENAMEID6('d', 's', 'h', 'a', 'r', 'e');
 static constexpr nameid put = MAKENAMEID3('p', 'u', 't');
 static constexpr nameid d = 'd';
 static constexpr nameid u = 'u';
+static constexpr nameid psts = MAKENAMEID4('p', 's', 't', 's');
 } // namespace name_id
 
 } // namespace mega
