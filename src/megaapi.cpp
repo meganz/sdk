@@ -6733,7 +6733,7 @@ size_t MegaSyncStallMap::getHash() const
     return hash;
 }
 
-const MegaSyncStall* MegaSyncStallMap::get(const MegaHandle) const
+const MegaSyncStallList* MegaSyncStallMap::get(const MegaHandle) const
 {
     return nullptr;
 }

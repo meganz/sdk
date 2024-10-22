@@ -2912,8 +2912,8 @@ public:
 class MegaSyncStallListPrivate : public MegaSyncStallList
 {
     public:
+        MegaSyncStallListPrivate() = default;
         MegaSyncStallListPrivate(SyncProblems&&, AddressedStallFilter& filter);
-
         MegaSyncStallListPrivate* copy() const override;
 
         const MegaSyncStall* get(size_t i) const override;
@@ -2923,6 +2923,12 @@ class MegaSyncStallListPrivate : public MegaSyncStallList
             return mStalls.size();
         }
 
+        void addStall(std::shared_ptr<MegaSyncStall> s)
+        {
+            assert(!!s);
+            mStalls.push_back(s);
+        }
+
     protected:
         std::vector<std::shared_ptr<MegaSyncStall>> mStalls;
 };
@@ -2930,42 +2936,7 @@ class MegaSyncStallListPrivate : public MegaSyncStallList
 class MegaSyncStallMapPrivate: public MegaSyncStallMap
 {
 public:
-    MegaSyncStallMapPrivate(SyncProblems&& sp, AddressedStallFilter& filter)
-    {
-        for (const auto& itnc: sp.mConflictsMap)
-        {
-            for (const auto& nc: itnc.second)
-            {
-                if (!filter.addressedNameConfict(nc.cloudPath, nc.localPath))
-                {
-                    mStallsMap.emplace(itnc.first,
-                                       std::make_shared<MegaSyncNameConflictStallPrivate>(nc));
-                }
-            }
-        }
-
-        for (const auto& [syncId, stalledSyncMap]: sp.mStalls.syncStallInfoMaps)
-        {
-            for (const auto& stall: stalledSyncMap.cloud)
-            {
-                if (!filter.addressedCloudStall(stall.first))
-                {
-                    mStallsMap.emplace(syncId,
-                                       std::make_shared<MegaSyncStallPrivate>(stall.second));
-                }
-            }
-
-            for (const auto& stall: stalledSyncMap.local)
-            {
-                if (!filter.addressedLocalStall(stall.first))
-                {
-                    mStallsMap.emplace(syncId,
-                                       std::make_shared<MegaSyncStallPrivate>(stall.second));
-                }
-            }
-        }
-    }
-
+    MegaSyncStallMapPrivate(SyncProblems&& sp, AddressedStallFilter& filter);
     MegaSyncStallMapPrivate(const MegaSyncStallMapPrivate& m)
     {
         mStallsMap = m.getMap();
@@ -2976,11 +2947,11 @@ public:
         return new MegaSyncStallMapPrivate(*this);
     }
 
-    const MegaSyncStall* get(const MegaHandle key) const override
+    const MegaSyncStallList* get(const MegaHandle key) const override
     {
         if (const auto& it = mStallsMap.find(key); it != mStallsMap.end())
         {
-            return it->second.get();
+            return &it->second;
         }
         return nullptr;
     }
@@ -2993,8 +2964,8 @@ public:
     MegaHandleList* getKeys() const override;
 
 private:
-    const std::map<MegaHandle, std::shared_ptr<MegaSyncStall>>& getMap() const;
-    std::map<MegaHandle, std::shared_ptr<MegaSyncStall>> mStallsMap;
+    const std::map<MegaHandle, MegaSyncStallListPrivate>& getMap() const;
+    std::map<MegaHandle, MegaSyncStallListPrivate> mStallsMap;
 };
 
 #endif // ENABLE_SYNC

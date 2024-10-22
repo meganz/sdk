@@ -7431,15 +7431,15 @@ public:
     virtual size_t getHash() const;
 
     /**
-     * @brief Retrieves a MegaSyncStall object associated with the given key.
+     * @brief Retrieves a MegaSyncStallList object associated with the given key.
      *
      * The SDK retains the ownership of the MegaSyncStall object.
      *
      * @param key MegaHandle to look for in the stalls map.
-     * @return A pointer to the MegaSyncStall object associated with the key, or nullptr if not
+     * @return A pointer to the MegaSyncStallList object associated with the key, or nullptr if not
      * found.
      */
-    virtual const MegaSyncStall* get(const MegaHandle key) const;
+    virtual const MegaSyncStallList* get(const MegaHandle key) const;
 
     /**
      * @brief Retrieves a list of all keys present in the MegaSyncStallMap.

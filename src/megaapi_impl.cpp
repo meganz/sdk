@@ -1890,6 +1890,52 @@ MegaSyncStallListPrivate::MegaSyncStallListPrivate(SyncProblems&& sp, AddressedS
     }
 }
 
+MegaSyncStallMapPrivate::MegaSyncStallMapPrivate(SyncProblems&& sp, AddressedStallFilter& filter)
+{
+    auto findOrEmplace = [&](const handle syncId)
+    {
+        if (auto it = mStallsMap.find(syncId); it != mStallsMap.end())
+        {
+            return it;
+        }
+        return mStallsMap.emplace(syncId, MegaSyncStallListPrivate{}).first;
+    };
+
+    for (const auto& [syncId, nameConflictList]: sp.mConflictsMap)
+    {
+        auto it = findOrEmplace(syncId);
+        auto& stallList = it->second;
+        for (const auto& nc: nameConflictList)
+        {
+            if (!filter.addressedNameConfict(nc.cloudPath, nc.localPath))
+            {
+                stallList.addStall(std::make_shared<MegaSyncNameConflictStallPrivate>(nc));
+            }
+        }
+    }
+
+    for (const auto& [syncId, stalledSyncMap]: sp.mStalls.syncStallInfoMaps)
+    {
+        auto it = findOrEmplace(syncId);
+        auto& stallList = it->second;
+        for (const auto& stall: stalledSyncMap.cloud)
+        {
+            if (!filter.addressedCloudStall(stall.first))
+            {
+                stallList.addStall(std::make_shared<MegaSyncStallPrivate>(stall.second));
+            }
+        }
+
+        for (const auto& stall: stalledSyncMap.local)
+        {
+            if (!filter.addressedLocalStall(stall.first))
+            {
+                stallList.addStall(std::make_shared<MegaSyncStallPrivate>(stall.second));
+            }
+        }
+    }
+}
+
 MegaHandleList* MegaSyncStallMapPrivate::getKeys() const
 {
     MegaHandleList* list = MegaHandleList::createInstance();
@@ -1900,7 +1946,7 @@ MegaHandleList* MegaSyncStallMapPrivate::getKeys() const
     return list;
 }
 
-const std::map<MegaHandle, std::shared_ptr<MegaSyncStall>>& MegaSyncStallMapPrivate::getMap() const
+const std::map<MegaHandle, MegaSyncStallListPrivate>& MegaSyncStallMapPrivate::getMap() const
 {
     return mStallsMap;
 }
