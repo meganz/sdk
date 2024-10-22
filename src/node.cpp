@@ -142,22 +142,19 @@ int Node::getShareType() const
     return shareType;
 }
 
-bool Node::isAncestor(NodeHandle ancestorHandle) const
+bool Node::hasAncestorMatching(const nodeCondition_t& condition) const
 {
-    Node* ancestor = parent.get();
+    const Node* ancestor = parent.get();
     while (ancestor)
     {
-        if (ancestor->nodeHandle() == ancestorHandle)
-        {
+        if (condition(*ancestor))
             return true;
-        }
 
         ancestor = ancestor->parent.get();
     }
 
     return false;
 }
-
 
 bool Node::hasChildWithName(const string& name) const
 {

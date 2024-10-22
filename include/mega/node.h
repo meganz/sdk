@@ -401,7 +401,47 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     int getShareType() const;
 
-    bool isAncestor(NodeHandle ancestorHandle) const;
+    using nodeCondition_t = std::function<bool(const Node& node)>;
+
+    /**
+     * @brief Check if any of the ancestors of this node matches the give condition
+     *
+     * @param condition The condition to check on every ancestor.
+     * @return Returns true if any of the ancestors of this node evaluates to true the given
+     * condition, false otherwise.
+     */
+    bool hasAncestorMatching(const nodeCondition_t& condition) const;
+
+    /**
+     * @brief Same as hasAncestorMatching but evaluates also the condition on this node.
+     */
+    bool matchesOrHasAncestorMatching(const nodeCondition_t& condition) const
+    {
+        return condition(*this) || hasAncestorMatching(condition);
+    }
+
+    /**
+     * @brief Check if any of the ancestors of this node has the given handle
+     *
+     * @param ancestorHandle The handle that is expected to match.
+     * @return Returns true if any of the ancestors of this node has the given ancestorHandle
+     */
+    bool isAncestor(const NodeHandle ancestorHandle) const
+    {
+        return hasAncestorMatching(
+            [ancestorHandle](const Node& node)
+            {
+                return node.nodeHandle() == ancestorHandle;
+            });
+    }
+
+    /**
+     * @brief Returns true if this node has the given nodeHandle or any of its ancestors have it.
+     */
+    bool hasNHOrHasAncestorWithNH(const NodeHandle nh) const
+    {
+        return nodeHandle() == nh || isAncestor(nh);
+    }
 
     // true for outshares, pending outshares and folder links (which are shared folders internally)
     bool isShared() const { return  (outshares && !outshares->empty()) || (pendingshares && !pendingshares->empty()); }
