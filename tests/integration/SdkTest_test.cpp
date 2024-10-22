@@ -19278,20 +19278,15 @@ TEST_F(SdkTest, SdkNodeTag)
     nodeList.reset(megaApi[0]->search(filter.get()));
     ASSERT_EQ(nodeList->size(), 1) << *nodeList;
 
-    // Tags with an accent are considered the same as those without.
+    // Tags with an accent are considered different from those without.
     std::string cafeWithoutAccent = "cafe";
+    std::string cafeWithAccent = "café";
 
     ASSERT_EQ(addTag(mh, cafeWithoutAccent), API_OK);
-    ASSERT_EQ(addTag(mh, "café"), API_EEXIST);
+    ASSERT_EQ(addTag(mh, cafeWithAccent), API_OK);
 
     // Tags are case insensitive.
-    std::string fooUppercase = "foo";
-
-    ASSERT_EQ(addTag(mh, fooUppercase), API_OK);
-    ASSERT_EQ(addTag(mh, "Foo"), API_EEXIST);
-
     ASSERT_EQ(addTag(mh, tag4Lowercase), API_EEXIST);
-    ASSERT_EQ(addTag(mh, tag4NoAccent), API_EEXIST);
 
     // To prepare for the following block, check natural sorting
     const std::string tag11 = "tag11";
@@ -19337,10 +19332,14 @@ TEST_F(SdkTest, SdkNodeTag)
     std::unique_ptr<MegaStringList> allTags(megaApi[0]->getAllNodeTags());
     ASSERT_NE(allTags, nullptr);
     auto allTagsV = stringListToVector(*allTags);
-    EXPECT_THAT(
-        allTagsV,
-        testing::ElementsAreArray(
-            {cafeWithoutAccent, fooUppercase, subdirtag4, subdirtag14, subdirtag20, tag3, tag11}));
+    EXPECT_THAT(allTagsV,
+                testing::ElementsAreArray({cafeWithAccent,
+                                           cafeWithoutAccent,
+                                           subdirtag4,
+                                           subdirtag14,
+                                           subdirtag20,
+                                           tag3,
+                                           tag11}));
 
     LOG_debug << "[SdkTest::SdkNodeTag] Testing all tags with pattern matching";
     allTags.reset(megaApi[0]->getAllNodeTags("ub*r"));

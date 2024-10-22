@@ -8810,7 +8810,7 @@ error MegaClient::addTagToNode(std::shared_ptr<Node> node,
         return API_ETOOMANY;
     }
 
-    if (getTagPosition(tokens, escapeWildCards(tag)) != tokens.end())
+    if (getTagPosition(tokens, escapeWildCards(tag), false) != tokens.end())
     {
         return API_EEXIST;
     }
@@ -8842,7 +8842,7 @@ error MegaClient::removeTagFromNode(std::shared_ptr<Node> node,
     std::string tags = node->attrs.map[tagNameid];
     std::set<std::string> tokens = splitString(tags, TAG_DELIMITER);
 
-    auto tagPosition = getTagPosition(tokens, escapeWildCards(tag));
+    auto tagPosition = getTagPosition(tokens, escapeWildCards(tag), false);
     if (tagPosition == tokens.end())
     {
         return API_ENOENT;
@@ -8867,7 +8867,7 @@ error MegaClient::updateTagNode(std::shared_ptr<Node> node,
     std::string tags = node->attrs.map[tagNameid];
     std::set<std::string> tokens = splitString(tags, TAG_DELIMITER);
 
-    auto tagPosition = getTagPosition(tokens, escapeWildCards(oldTag));
+    auto tagPosition = getTagPosition(tokens, escapeWildCards(oldTag), false);
     if (tagPosition == tokens.end())
     {
         return API_ENOENT;
@@ -8875,7 +8875,7 @@ error MegaClient::updateTagNode(std::shared_ptr<Node> node,
 
     tokens.erase(tagPosition);
 
-    tagPosition = getTagPosition(tokens, escapeWildCards(newTag));
+    tagPosition = getTagPosition(tokens, escapeWildCards(newTag), false);
     if (tagPosition != tokens.end())
     {
         return API_EEXIST;
