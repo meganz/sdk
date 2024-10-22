@@ -32,6 +32,7 @@ static constexpr nameid c = 'c';
 static constexpr nameid upci = MAKENAMEID4('u', 'p', 'c', 'i');
 static constexpr nameid upco = MAKENAMEID4('u', 'p', 'c', 'o');
 static constexpr nameid share = MAKENAMEID5('s', 'h', 'a', 'r', 'e');
+static constexpr nameid dshare = MAKENAMEID6('d', 's', 'h', 'a', 'r', 'e');
 } // namespace name_id
 
 } // namespace mega
