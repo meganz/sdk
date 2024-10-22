@@ -94,7 +94,7 @@ const unordered_map<attr_t, const UserAttributeDefinition>&
         {ATTR_LANGUAGE,                  {"^!lang", "LANGUAGE", DISABLE_VERSIONING}                     },
         {ATTR_PWD_REMINDER,              {"^!prd", "PWD_REMINDER", DISABLE_VERSIONING}                  },
         {ATTR_DISABLE_VERSIONS,          {"^!dv", "DISABLE_VERSIONS", DISABLE_VERSIONING}               },
-        {ATTR_CONTACT_LINK_VERIFICATION, {"^!clv", "CONTACT_LINK_VERIFICATION"}                         },
+        {ATTR_CONTACT_LINK_VERIFICATION, {"^clv", "CONTACT_LINK_VERIFICATION"}                          },
         {ATTR_RICH_PREVIEWS,             {"*!rp", "RICH_PREVIEWS", DISABLE_VERSIONING}                  },
         {ATTR_RUBBISH_TIME,              {"^!rubbishtime", "RUBBISH_TIME", DISABLE_VERSIONING}          },
         {ATTR_LAST_PSA,                  {"^!lastPsa", "LAST_PSA", DISABLE_VERSIONING}                  },
