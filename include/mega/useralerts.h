@@ -80,7 +80,7 @@ static constexpr nameid type_u = name_id::u; // updated shared node
 static constexpr nameid type_psts = name_id::psts; // payment
 static constexpr nameid type_psts_v2 = name_id::psts_v2; // payment v2 (VPN)
 static constexpr nameid type_pses = name_id::pses; // payment reminder
-    static const nameid type_ph = MAKENAMEID2('p', 'h');                            // takedown
+static constexpr nameid type_ph = name_id::ph; // takedown
 #ifdef ENABLE_CHAT
     static const nameid type_nusm = MAKENAMEID5('m', 'c', 's', 'm', 'p');           // new or updated scheduled meeting
     static const nameid type_dsm = MAKENAMEID5('m', 'c', 's', 'm', 'r');            // deleted scheduled meeting
