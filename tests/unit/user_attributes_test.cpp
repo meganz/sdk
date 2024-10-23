@@ -184,7 +184,7 @@ protected:
 TEST_P(InterfacesWithParam, SetValueAndVersion)
 {
     auto unchanged = mUser.changed;
-    mUser.setattr(GetParam(), &mValue1, &mVersion1);
+    mUser.setAttribute(GetParam(), mValue1, mVersion1);
     ASSERT_NE(memcmp(&mUser.changed, &unchanged, sizeof(mUser.changed)), 0);
     ASSERT_NO_FATAL_FAILURE(validateUserAttributeValue(mUser, GetParam(), mValue1));
     const std::string* version = mUser.getattrversion(GetParam());
@@ -194,7 +194,7 @@ TEST_P(InterfacesWithParam, SetValueAndVersion)
 
 TEST_P(InterfacesWithParam, UpdateValueSameVersion)
 {
-    mUser.setattr(GetParam(), &mValue1, &mVersion1);
+    mUser.setAttribute(GetParam(), mValue1, mVersion1);
     std::string value2{"Bar"};
     mUser.changed = {};
     auto unchanged = mUser.changed;
@@ -208,7 +208,7 @@ TEST_P(InterfacesWithParam, UpdateValueSameVersion)
 
 TEST_P(InterfacesWithParam, UpdateValueDifferentVersion)
 {
-    mUser.setattr(GetParam(), &mValue1, &mVersion1);
+    mUser.setAttribute(GetParam(), mValue1, mVersion1);
     std::string value2{"Bar"};
     std::string version2{"FHqlO7Gbl_x"};
     mUser.changed = {};
@@ -224,7 +224,7 @@ TEST_P(InterfacesWithParam, UpdateValueDifferentVersion)
 TEST_P(InterfacesWithParam, SetValueNullVersion)
 {
     auto unchanged = mUser.changed;
-    mUser.setattr(GetParam(), &mValue1, nullptr);
+    mUser.setAttribute(GetParam(), mValue1, {});
     ASSERT_NE(memcmp(&mUser.changed, &unchanged, sizeof(mUser.changed)), 0);
     ASSERT_NO_FATAL_FAILURE(validateUserAttributeValue(mUser, GetParam(), mValue1));
     const std::string* version = mUser.getattrversion(GetParam());
@@ -234,7 +234,7 @@ TEST_P(InterfacesWithParam, SetValueNullVersion)
 
 TEST_P(InterfacesWithParam, Invalidate)
 {
-    mUser.setattr(GetParam(), &mValue1, &mVersion1);
+    mUser.setAttribute(GetParam(), mValue1, mVersion1);
     mUser.changed = {};
     auto unchanged = mUser.changed;
     mUser.setAttributeExpired(GetParam());
@@ -248,7 +248,7 @@ TEST_P(InterfacesWithParam, Invalidate)
 
 TEST_P(InterfacesWithParam, RemoveValueUpdateVersion)
 {
-    mUser.setattr(GetParam(), &mValue1, &mVersion1);
+    mUser.setAttribute(GetParam(), mValue1, mVersion1);
     mUser.changed = {};
     auto unchanged = mUser.changed;
     std::string version2{"FHqlO7Gbl_x"};
@@ -266,7 +266,7 @@ TEST_P(InterfacesWithParam, RemoveValueUpdateVersion)
 TEST_P(InterfacesWithParam, RemoveValueOwnUser)
 {
     mUser.cacheNonExistingAttributes();
-    mUser.setattr(GetParam(), &mValue1, &mVersion1);
+    mUser.setAttribute(GetParam(), mValue1, mVersion1);
     mUser.changed = {};
     auto unchanged = mUser.changed;
     mUser.removeAttribute(GetParam());
@@ -278,7 +278,7 @@ TEST_P(InterfacesWithParam, RemoveValueOwnUser)
 
 TEST_P(InterfacesWithParam, RemoveValueOtherUser)
 {
-    mUser.setattr(GetParam(), &mValue1, &mVersion1);
+    mUser.setAttribute(GetParam(), mValue1, mVersion1);
     mUser.changed = {};
     auto unchanged = mUser.changed;
     mUser.removeAttribute(GetParam());

@@ -3207,7 +3207,7 @@ bool CommandPutMultipleUAVer::procresult(Result r, JSON& json)
             }
             else
             {
-                u->setattr(type, &it->second, &value);
+                u->setAttribute(type, it->second, value);
                 u->setTag(tag ? tag : -1);
 
                 if (type == ATTR_KEYRING)
@@ -3361,7 +3361,7 @@ bool CommandPutUAVer::procresult(Result r, JSON& json)
                 }
             }
 
-            u->setattr(at, &av, &v);
+            u->setAttribute(at, av, v);
             u->setTag(tag ? tag : -1);
 
             if (at == ATTR_UNSHAREABLE_KEY)
@@ -3456,7 +3456,7 @@ bool CommandPutUA::procresult(Result r, JSON& json)
             mCompletion(API_EACCESS);
             return true;
         }
-        u->setattr(at, &av, &v);
+        u->setAttribute(at, av, v);
         u->setTag(tag ? tag : -1);
         client->notifyuser(u);
 
@@ -3615,7 +3615,9 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                     // if there's no avatar, the value is "none" (not Base64 encoded)
                     if (u && at == ATTR_AVATAR && buf == "none")
                     {
-                        u->setattr(ATTR_AVATAR, &buf, &version); // actual value will be ignored
+                        u->setAttribute(ATTR_AVATAR,
+                                        buf, // actual value will be ignored
+                                        version);
                         u->setTag(tag ? tag : -1);
                         mCompletionErr(API_ENOENT);
                         client->notifyuser(u);
@@ -3658,14 +3660,14 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                             }
 
                             // store the value for private user attributes (re-encrypted version of serialized TLV)
-                            u->setattr(at, &value, &version);
+                            u->setAttribute(at, value, version);
                             mCompletionTLV(tlvRecords.get(), at);
 
                             break;
                         }
                         case ATTR_SCOPE_PUBLIC_UNENCRYPTED:
                         {
-                            u->setattr(at, &value, &version);
+                            u->setAttribute(at, value, version);
                             mCompletionBytes((byte*) value.data(), unsigned(value.size()), at);
 
                             if (!u->isTemporary && u->userhandle != client->me)
@@ -3683,7 +3685,7 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                         }
                         case ATTR_SCOPE_PROTECTED_UNENCRYPTED:
                         {
-                            u->setattr(at, &value, &version);
+                            u->setAttribute(at, value, version);
                             mCompletionBytes((byte*) value.data(), unsigned(value.size()), at);
                             break;
                         }
@@ -3706,7 +3708,7 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                             }
 
                             // store the value in cache in binary format
-                            u->setattr(at, &value, &version);
+                            u->setAttribute(at, value, version);
 
                             mCompletionBytes((byte*) value.data(), unsigned(value.size()), at);
 

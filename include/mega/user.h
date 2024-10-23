@@ -124,7 +124,7 @@ public:
     void removepkrs(MegaClient*);
 
     // attribute methods: set/get/expire...
-    void setattr(attr_t at, string *av, string *v);
+    void setAttribute(attr_t at, const string& value, const string& version);
     const string *getattr(attr_t at);
     const string *getattrversion(attr_t at);
     void setAttributeExpired(attr_t at);

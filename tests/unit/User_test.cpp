@@ -66,8 +66,8 @@ TEST(User, serialize_unserialize)
     std::string firstname1 = "f";
     std::string firstname2 = "f2";
     std::string lastname = "oo";
-    user.setattr(mega::ATTR_FIRSTNAME, &firstname1, &firstname2);
-    user.setattr(mega::ATTR_LASTNAME, &lastname, nullptr);
+    user.setAttribute(mega::ATTR_FIRSTNAME, firstname1, firstname2);
+    user.setAttribute(mega::ATTR_LASTNAME, lastname, {});
     std::string key(128, 1);
     user.pubk.setkey(mega::AsymmCipher::PUBKEY, reinterpret_cast<const mega::byte*>(key.c_str()), static_cast<int>(key.size()));
     ASSERT_TRUE(user.pubk.isvalid(mega::AsymmCipher::PUBKEY));
@@ -91,8 +91,8 @@ TEST(User, unserialize_32bit)
     std::string firstname1 = "f";
     std::string firstname2 = "f2";
     std::string lastname = "oo";
-    user.setattr(mega::ATTR_FIRSTNAME, &firstname1, &firstname2);
-    user.setattr(mega::ATTR_LASTNAME, &lastname, nullptr);
+    user.setAttribute(mega::ATTR_FIRSTNAME, firstname1, firstname2);
+    user.setAttribute(mega::ATTR_LASTNAME, lastname, {});
     std::string key(128, 1);
     user.pubk.setkey(mega::AsymmCipher::PUBKEY, reinterpret_cast<const mega::byte*>(key.c_str()), static_cast<int>(key.size()));
     ASSERT_TRUE(user.pubk.isvalid(mega::AsymmCipher::PUBKEY));

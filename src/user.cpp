@@ -303,13 +303,10 @@ void User::removepkrs(MegaClient* client)
     }
 }
 
-void User::setattr(attr_t at, string *av, string *v)
+void User::setAttribute(attr_t at, const string& value, const string& version)
 {
     setChanged(at);
-
-    const string& attrValue = av ? *av : string{};
-    const string& attrVersion = v ? *v : string{};
-    mAttributeManager->set(at, attrValue, attrVersion);
+    mAttributeManager->set(at, value, version);
 }
 
 void User::setAttributeExpired(attr_t at)

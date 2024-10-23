@@ -6951,7 +6951,7 @@ void MegaClient::sc_userattr()
                             if (type == ATTR_DISABLE_VERSIONS && !u->getattr(type))
                             {
                                 string emptyStr;
-                                u->setattr(type, &emptyStr, &emptyStr);
+                                u->setAttribute(type, emptyStr, emptyStr);
                                 u->setAttributeExpired(type);
                             }
                         }
@@ -10775,22 +10775,22 @@ int MegaClient::readuser(JSON* j, bool actionpackets)
 
                     if (puEd255.size())
                     {
-                        u->setattr(ATTR_ED25519_PUBK, &puEd255, nullptr);
+                        u->setAttribute(ATTR_ED25519_PUBK, puEd255, {});
                     }
 
                     if (puCu255.size())
                     {
-                        u->setattr(ATTR_CU25519_PUBK, &puCu255, nullptr);
+                        u->setAttribute(ATTR_CU25519_PUBK, puCu255, {});
                     }
 
                     if (sigPubk.size())
                     {
-                        u->setattr(ATTR_SIG_RSA_PUBK, &sigPubk, nullptr);
+                        u->setAttribute(ATTR_SIG_RSA_PUBK, sigPubk, {});
                     }
 
                     if (sigCu255.size())
                     {
-                        u->setattr(ATTR_SIG_CU255_PUBK, &sigCu255, nullptr);
+                        u->setAttribute(ATTR_SIG_CU255_PUBK, sigCu255, {});
                     }
                 }
 
