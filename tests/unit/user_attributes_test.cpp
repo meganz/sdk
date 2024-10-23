@@ -267,7 +267,7 @@ TEST_P(InterfacesWithParam, RemoveValueOwnUser)
     mUser.setattr(GetParam(), &mValue1, &mVersion1);
     mUser.changed = {};
     auto unchanged = mUser.changed;
-    mUser.removeattr(GetParam(), true);
+    mUser.removeAttribute(GetParam());
     ASSERT_NE(memcmp(&mUser.changed, &unchanged, sizeof(mUser.changed)), 0);
     ASSERT_NO_FATAL_FAILURE(validateUserAttributeValue(mUser, GetParam(), std::nullopt));
     ASSERT_THAT(mUser.getattrversion(GetParam()), testing::IsNull());
@@ -279,7 +279,7 @@ TEST_P(InterfacesWithParam, RemoveValueOtherUser)
     mUser.setattr(GetParam(), &mValue1, &mVersion1);
     mUser.changed = {};
     auto unchanged = mUser.changed;
-    mUser.removeattr(GetParam(), false);
+    mUser.removeAttribute(GetParam());
     ASSERT_NE(memcmp(&mUser.changed, &unchanged, sizeof(mUser.changed)), 0);
     ASSERT_NO_FATAL_FAILURE(validateUserAttributeValue(mUser, GetParam(), std::nullopt));
     ASSERT_THAT(mUser.getattrversion(GetParam()), testing::IsNull());

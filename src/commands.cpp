@@ -3531,7 +3531,7 @@ bool CommandGetUA::procresult(Result r, JSON& json)
     {
         if (r.wasError(API_ENOENT) && u)
         {
-            u->removeattr(at, u->userhandle == client->me);
+            u->removeAttribute(at);
         }
 
         mCompletionErr(r.errorOrOK());
@@ -4625,7 +4625,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->removeattr(ATTR_LANGUAGE, true);
+                    u->removeAttribute(ATTR_LANGUAGE);
                 }
 
                 if (birthday.size())
@@ -4634,7 +4634,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->removeattr(ATTR_BIRTHDAY, true);
+                    u->removeAttribute(ATTR_BIRTHDAY);
                 }
 
                 if (birthmonth.size())
@@ -4643,7 +4643,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->removeattr(ATTR_BIRTHMONTH, true);
+                    u->removeAttribute(ATTR_BIRTHMONTH);
                 }
 
                 if (birthyear.size())
@@ -4652,7 +4652,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->removeattr(ATTR_BIRTHYEAR, true);
+                    u->removeAttribute(ATTR_BIRTHYEAR);
                 }
 
                 if (country.size())
@@ -4661,7 +4661,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->removeattr(ATTR_COUNTRY, true);
+                    u->removeAttribute(ATTR_COUNTRY);
                 }
 
                 if (pwdReminderDialog.size())
@@ -4670,7 +4670,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->removeattr(ATTR_PWD_REMINDER, true);
+                    u->removeAttribute(ATTR_PWD_REMINDER);
                 }
 
                 if (pushSetting.size())
@@ -4679,7 +4679,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->removeattr(ATTR_PUSH_SETTINGS, true);
+                    u->removeAttribute(ATTR_PUSH_SETTINGS);
                 }
 
                 if (contactLinkVerification.size())
@@ -4688,7 +4688,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->removeattr(ATTR_CONTACT_LINK_VERIFICATION, true);
+                    u->removeAttribute(ATTR_CONTACT_LINK_VERIFICATION);
                 }
 
                 if (disableVersions.size())
@@ -4710,7 +4710,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 {
                     LOG_info << "File versioning is enabled";
                     client->versions_disabled = false;
-                    u->removeattr(ATTR_DISABLE_VERSIONS, true);
+                    u->removeAttribute(ATTR_DISABLE_VERSIONS);
                 }
 
                 if (noCallKit.size())
@@ -4721,7 +4721,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 else
                 {
                     LOG_info << "CallKit is enabled [noCallKit.size() == 0]";
-                    u->removeattr(ATTR_NO_CALLKIT, true);
+                    u->removeAttribute(ATTR_NO_CALLKIT);
                 }
 
                 if (chatFolder.size())
@@ -4740,7 +4740,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->removeattr(ATTR_MY_CHAT_FILES_FOLDER, true);
+                    u->removeAttribute(ATTR_MY_CHAT_FILES_FOLDER);
                 }
 
                 if (cameraUploadFolder.size())
@@ -4759,7 +4759,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->removeattr(ATTR_CAMERA_UPLOADS_FOLDER, true);
+                    u->removeAttribute(ATTR_CAMERA_UPLOADS_FOLDER);
                 }
 
                 if (!myBackupsFolder.empty())
@@ -4768,7 +4768,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->removeattr(ATTR_MY_BACKUPS_FOLDER, true);
+                    u->removeAttribute(ATTR_MY_BACKUPS_FOLDER);
                 }
 
                 if (!appPrefs.empty())
@@ -4777,7 +4777,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->removeattr(ATTR_APPS_PREFS, true);
+                    u->removeAttribute(ATTR_APPS_PREFS);
                 }
 
                 if (!ccPrefs.empty())
@@ -4786,7 +4786,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->removeattr(ATTR_CC_PREFS, true);
+                    u->removeAttribute(ATTR_CC_PREFS);
                 }
 
                 if (aliases.size())
@@ -4805,7 +4805,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->removeattr(ATTR_ALIAS, true);
+                    u->removeAttribute(ATTR_ALIAS);
                 }
 
                 if (unshareableKey.size() == Base64Str<SymmCipher::BLOCKSIZE>::STRLEN)
@@ -4848,7 +4848,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->removeattr(ATTR_DEVICE_NAMES, true);
+                    u->removeAttribute(ATTR_DEVICE_NAMES);
                 }
 
                 if (!cookieSettings.empty())
@@ -4857,7 +4857,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->removeattr(ATTR_COOKIE_SETTINGS, true);
+                    u->removeAttribute(ATTR_COOKIE_SETTINGS);
                 }
 
                 client->setEnabledNotifications(std::move(notifs));
@@ -4868,7 +4868,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->removeattr(ATTR_ENABLE_TEST_NOTIFICATIONS, true);
+                    u->removeAttribute(ATTR_ENABLE_TEST_NOTIFICATIONS);
                 }
 
                 if (!lastReadNotification.empty() || !versionLastReadNotification.empty())
@@ -4877,7 +4877,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->removeattr(ATTR_LAST_READ_NOTIFICATION, true);
+                    u->removeAttribute(ATTR_LAST_READ_NOTIFICATION);
                 }
 
                 if (!lastActionedBanner.empty() || !versionLastActionedBanner.empty())
@@ -4886,7 +4886,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->removeattr(ATTR_LAST_ACTIONED_BANNER, true);
+                    u->removeAttribute(ATTR_LAST_ACTIONED_BANNER);
                 }
 
                 if (!enabledTestSurveys.empty() || !versionEnabledTestSurveys.empty())
@@ -4897,7 +4897,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->removeattr(ATTR_ENABLE_TEST_SURVEYS, true);
+                    u->removeAttribute(ATTR_ENABLE_TEST_SURVEYS);
                 }
 
 #ifdef ENABLE_SYNC
@@ -4910,7 +4910,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->removeattr(ATTR_JSON_SYNC_CONFIG_DATA, true);
+                    u->removeAttribute(ATTR_JSON_SYNC_CONFIG_DATA);
                 }
 #endif // ENABLE_SYNC
 
@@ -4986,7 +4986,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
                 else
                 {
-                    u->removeattr(ATTR_PWM_BASE, true);
+                    u->removeAttribute(ATTR_PWM_BASE);
                 }
 
                 if (changes > 0)

@@ -129,7 +129,7 @@ public:
     const string *getattrversion(attr_t at);
     void setAttributeExpired(attr_t at);
     bool isattrvalid(attr_t at);
-    void removeattr(attr_t at, bool ownUser);
+    void removeAttribute(attr_t at);
     void removeattr(attr_t at, const string& version);
     int updateattr(attr_t at, string *av, string *v);
 

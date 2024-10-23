@@ -13026,7 +13026,7 @@ void exec_passwordmanager(autocomplete::ACState& s)
         client->senddevcommand("pwmhd", client->ownuser()->email.c_str());
 
         // forced erasing the user attribute and base folder node from Vault
-        client->ownuser()->removeattr(ATTR_PWM_BASE, true);
+        client->ownuser()->removeAttribute(ATTR_PWM_BASE);
         if (!mnBase) return;  // just in case there was a previous state where the node was deleted
         const bool keepVersions = false;
         const int tag = -1;

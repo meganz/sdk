@@ -318,15 +318,13 @@ void User::setAttributeExpired(attr_t at)
     mAttributeManager->setExpired(at);
 }
 
-void User::removeattr(attr_t at, [[maybe_unused]] bool ownUser)
+void User::removeAttribute(attr_t at)
 {
     if (isattrvalid(at))
     {
         setChanged(at);
     }
 
-    assert((ownUser && mAttributeManager->isCachingNonExistingAttributes()) ||
-           (!ownUser && !mAttributeManager->isCachingNonExistingAttributes()));
     mAttributeManager->erase(at);
 }
 

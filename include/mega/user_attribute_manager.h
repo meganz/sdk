@@ -40,13 +40,6 @@ public:
         mCacheNonExistingAttributes = true;
     }
 
-#ifndef NDEBUG
-    bool isCachingNonExistingAttributes() const
-    {
-        return mCacheNonExistingAttributes;
-    }
-#endif
-
 private:
     bool setNotExisting(attr_t at);
 
