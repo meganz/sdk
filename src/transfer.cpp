@@ -1617,12 +1617,55 @@ void DirectReadSlot::onLowSpeedRaidedTransfer()
     }
     else
     {
-        ++mNumSlowConnectionsSwitches;
-        assert(mDr->drbuf.setUnusedRaidConnection(static_cast<unsigned>(slowestConnectionIndex)));
-        assert(resetConnection(mUnusedConn.getNum()));
-        assert(mUnusedConn.setUnused(slowestConnectionIndex, UnusedConn::UN_NOT_ERR));
-        assert(resetConnection(mUnusedConn.getNum()));
+        replaceUnusedConnection(slowestConnectionIndex);
     }
+}
+
+bool DirectReadSlot::exitDueReqsOnFlight() const
+{
+    // If there is any `valid` connection inflight we don't switch (we only switch when the
+    // status is REQ_READY for all reqs to avoid disconnections)
+    if (mNumReqsInflight > 1)
+    {
+        return true;
+    }
+    else if (mNumReqsInflight == 1)
+    {
+        for (size_t i = 0; i < mReqs.size(); ++i)
+        {
+            if (i == mUnusedConn.getNum())
+            {
+                // Altough "unused connection" is taken into account to increase
+                // mNumReqsInflight (for convenience), it's not an effective request in flight
+                continue;
+            }
+            if (const std::unique_ptr<HttpReq>& req = mReqs[i]; req && req->httpstatus == REQ_READY)
+            {
+                continue;
+            }
+            return true;
+        }
+    }
+    return false;
+}
+
+std::pair<bool, bool> DirectReadSlot::replaceUnusedConnection(size_t connectionNum)
+{
+    if (mDr->drbuf.setUnusedRaidConnection(static_cast<unsigned>(connectionNum)))
+    {
+        if (mUnusedConn.getNum() != mReqs.size())
+        {
+            resetConnection(mUnusedConn.getNum());
+        }
+        mUnusedConn.setUnused(connectionNum, UnusedConn::UN_NOT_ERR);
+        ++mNumSlowConnectionsSwitches;
+        LOG_verbose << "DirectReadSlot [conn " << connectionNum << "]"
+                    << " Continuing after setting slow connection"
+                    << " [total slow connections switches = " << mNumSlowConnectionsSwitches << "]"
+                    << " [this = " << this << "]";
+        return {true, resetConnection(mUnusedConn.getNum())};
+    }
+    return {false, false};
 }
 
 bool DirectReadSlot::searchAndDisconnectSlowestConnection(size_t connectionNum)
@@ -1653,34 +1696,6 @@ bool DirectReadSlot::searchAndDisconnectSlowestConnection(size_t connectionNum)
             return false;
         }
     }
-
-    auto exitDueReqsOnFlight = [this]() -> bool
-    {
-        // If there is any `valid` connection inflight we don't switch (we only switch when the
-        // status is REQ_READY for all reqs to avoid disconnections)
-        if (mNumReqsInflight > 1)
-        {
-            return true;
-        }
-        else if (mNumReqsInflight == 1)
-        {
-            for (size_t i = 0; i < mReqs.size(); ++i)
-            {
-                if (i == mUnusedConn.getNum())
-                {
-                    // Altough "unused connection" is taken into account to increase
-                    // mNumReqsInflight (for convenience), it's not an effective request in flight
-                    continue;
-                }
-                if (std::unique_ptr<HttpReq>& req = mReqs[i]; req && req->httpstatus == REQ_READY)
-                {
-                    continue;
-                }
-                return true;
-            }
-        }
-        return false;
-    };
 
     if (mNumSlowConnectionsSwitches >= DirectReadSlot::MAX_SLOW_CONNECTION_SWITCHES ||
         exitDueReqsOnFlight())
@@ -1760,18 +1775,10 @@ bool DirectReadSlot::searchAndDisconnectSlowestConnection(size_t connectionNum)
                          << "]"
                          << " [current unused raid connection = " << mUnusedConn.getNum() << "]"
                          << " [this = " << this << "]";
-                if (mDr->drbuf.setUnusedRaidConnection(static_cast<unsigned>(slowestConnection)))
+
+                if (const auto& [exit, res] = replaceUnusedConnection(connectionNum); exit)
                 {
-                    if (mUnusedConn.getNum() != mReqs.size())
-                    {
-                        resetConnection(mUnusedConn.getNum());
-                    }
-                    mUnusedConn.setUnused(slowestConnection, UnusedConn::UN_NOT_ERR);
-                    ++mNumSlowConnectionsSwitches;
-                    LOG_verbose << "DirectReadSlot [conn " << connectionNum << "]"
-                                << " Continuing after setting slow connection"
-                                << " [total slow connections switches = " << mNumSlowConnectionsSwitches << "]" << " [this = " << this << "]";
-                    return resetConnection(mUnusedConn.getNum());
+                    return res;
                 }
             }
         }

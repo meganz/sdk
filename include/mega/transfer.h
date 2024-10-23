@@ -645,6 +645,21 @@ public:
     void retryOnError(const size_t connectionNum, const int httpstatus);
 
     /**
+     * @brief Check if there are in-flight requests
+     *
+     * @return True if there are in-flight requests, otherwise returns false
+     */
+    bool exitDueReqsOnFlight() const;
+
+    /**
+     * @brief Replace unused connection by connectionNum
+     * @param connectionNum The connection number
+     * @return a pair of booleans, where first represents if connection could be replaced at
+     * DirectReadBufferManager level, and second one if new "usable" connection could be reset fine
+     */
+    std::pair<bool, bool> replaceUnusedConnection(size_t connectionNum);
+
+    /**
     *   @brief Search for the slowest connection and switch it with the actual unused connection.
     *
     *   This method is called between requests:
