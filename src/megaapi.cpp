@@ -5059,6 +5059,7 @@ char *MegaApi::getMimeType(const char *extension)
         {"jpm", "video/jpm"},
         {"json", "application/json"},
         {"jsonml", "application/jsonml+json"},
+        {"jxl", "image/jxl"},
         {"kar", "audio/midi"},
         {"ktx", "image/ktx"},
         {"list", "text/plain"},
