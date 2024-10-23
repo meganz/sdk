@@ -134,7 +134,51 @@ public:
     }
 };
 
-TEST(SyncStallHashTest, MegaSyncStallListGetHash)
+class MegaSyncStallMapTest: public MegaSyncStallMap
+{
+public:
+    std::map<MegaHandle, MegaSyncStallListTest> mStalls;
+    MegaSyncStallMapTest() = default;
+
+    void add(const MegaHandle backupId, const MegaSyncStallListTest& testList)
+    {
+        mStalls.emplace(backupId, testList);
+    }
+
+    MegaHandleList* getKeys() const override
+    {
+        MegaHandleList* list = MegaHandleList::createInstance();
+        for (const auto& stall: mStalls)
+        {
+            list->addMegaHandle(stall.first);
+        }
+        return list;
+    }
+
+    const MegaSyncStallListTest* get(const MegaHandle key) const override
+    {
+        if (const auto& it = mStalls.find(key); it != mStalls.end())
+        {
+            return &it->second;
+        }
+        return nullptr;
+    }
+
+    size_t getHash() const override
+    {
+        uint64_t hash{};
+        if (const MegaHandleList* keys = getKeys(); keys)
+        {
+            for (unsigned int i = 0; i < keys->size(); ++i)
+            {
+                hash = hashCombine(hash, get(keys->get(i))->getHash());
+            }
+        }
+        return hash;
+    }
+};
+
+TEST(SyncStallHashTest, MegaSyncStallIssuesGetHash)
 {
     std::vector<NameConflict::NameHandle> nhVec{};
     std::vector<LocalPath> clashingLNames{};
@@ -169,6 +213,18 @@ TEST(SyncStallHashTest, MegaSyncStallListGetHash)
     ASSERT_NE(testList1.getHash(), testList2.getHash());
     ASSERT_NE(testList1.getHash(), testList3.getHash());
     ASSERT_NE(testList2.getHash(), testList3.getHash());
+
+    MegaSyncStallMapTest map;
+    map.add(111111111111111, testList1);
+    map.add(222222222222222, testList2);
+    map.add(333333333333333, testList3);
+
+    uint64_t hash = {};
+    hash = hashCombine(hash, testList1.getHash());
+    hash = hashCombine(hash, testList2.getHash());
+    hash = hashCombine(hash, testList3.getHash());
+
+    ASSERT_EQ(hash, map.getHash());
 }
 
 } // namespace
