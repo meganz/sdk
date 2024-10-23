@@ -1324,13 +1324,14 @@ bool UnusedConn::isTempErrReason() const
 
 bool UnusedConn::isErrReason() const
 {
-    return mReason == UN_TEMP_ERR || mReason == UN_DEFINITIVE_ERR;
+    return isErrReason(mReason);
 }
 
 bool UnusedConn::setUnused(const size_t num, const unusedReason reason)
 {
     if (!isValidUnusedReason(reason))
     {
+        LOG_err << "setUnused: Invalid reason: " << reason;
         assert(false);
         return false;
     }
@@ -1472,10 +1473,10 @@ void DirectReadSlot::retryOnError(const size_t connectionNum, const int httpstat
     else
     {
         assert(mReqs.size() <= RAIDPARTS);
-        if (!UnusedConn::isValidHttpStatus(httpstatus))
+        if (!UnusedConn::isHandledHttpStatus(httpstatus))
         {
-            LOG_err << "DirectReadSlot::retry [Raided]: Invalid httpstatus: " << httpstatus;
-            assert(false);
+            LOG_err << "DirectReadSlot::retry [Raided] transfer due httpstatus: " << httpstatus;
+            retryEntireTransfer(API_EREAD);
             return;
         }
 
@@ -1511,10 +1512,12 @@ void DirectReadSlot::retryOnError(const size_t connectionNum, const int httpstat
             return;
         }
 
-        if (reason != UnusedConn::UN_TEMP_ERR && reason != UnusedConn::UN_DEFINITIVE_ERR)
+        if (!UnusedConn::isErrReason(reason))
         {
-            LOG_err << "DirectReadSlot::retry [Raided]: invalid httpstatus: " << httpstatus;
+            LOG_err << "DirectReadSlot::retry [Raided]: invalid reason: " << reason
+                    << " httpstatus: " << httpstatus;
             assert(false);
+            retryEntireTransfer(API_EREAD);
             return;
         }
 
@@ -1592,7 +1595,7 @@ void DirectReadSlot::onLowSpeedRaidedTransfer()
             continue;
         }
 
-        if (mThroughput[i].second && mThroughput[i].first >= mMinComparableThroughput)
+        if (!isConnectionDone(i) && isMinComparableThroughputForThisConnection(i))
         {
             m_off_t currentThroughput = getThroughput(i);
             if (auto invalidIdx = slowestConnectionIndex == mReqs.size();
@@ -1604,7 +1607,8 @@ void DirectReadSlot::onLowSpeedRaidedTransfer()
         }
     }
 
-    if (slowestConnectionIndex == mUnusedConn.getNum() || slowestConnectionIndex >= mReqs.size())
+    assert(slowestConnectionIndex != mUnusedConn.getNum());
+    if (slowestConnectionIndex >= mReqs.size())
     {
         LOG_warn << "DirectReadSlot: onLowSpeedRaidedTransfer -> Cannot find another raided part "
                     "for replacement. Retrying entire transfer"
@@ -1690,9 +1694,7 @@ bool DirectReadSlot::searchAndDisconnectSlowestConnection(size_t connectionNum)
         return false;
     }
 
-    bool minComparableThroughputForThisConnection = mThroughput[connectionNum].second &&
-                                                    mThroughput[connectionNum].first >= mMinComparableThroughput;
-    if (minComparableThroughputForThisConnection)
+    if (isMinComparableThroughputForThisConnection(connectionNum))
     {
         size_t slowestConnection = connectionNum;
         size_t fastestConnection = connectionNum;
@@ -1702,9 +1704,7 @@ bool DirectReadSlot::searchAndDisconnectSlowestConnection(size_t connectionNum)
         {
             if ((otherConnection != connectionNum) && (otherConnection != mUnusedConn.getNum()))
             {
-                bool otherConnectionIsDone = (mReqs[otherConnection] &&
-                                                    (mReqs[otherConnection]->status == REQ_DONE ||
-                                                    (mReqs[otherConnection]->pos == mDr->drbuf.transferSize(static_cast<unsigned>(otherConnection)))));
+                bool otherConnectionIsDone = isConnectionDone(otherConnection);
                 bool otherConnectionHasEnoughDataToCompare = mThroughput[otherConnection].second && mThroughput[otherConnection].first >= mMinComparableThroughput;
                 bool compareCondition = otherConnectionHasEnoughDataToCompare && !otherConnectionIsDone;
                 if (compareCondition)
@@ -1820,6 +1820,14 @@ bool DirectReadSlot::increaseReqsInflight()
         return true;
     }
     return false;
+}
+
+bool DirectReadSlot::isConnectionDone(const size_t connectionNum)
+{
+    return mReqs[connectionNum] &&
+           (mReqs[connectionNum]->status == REQ_DONE ||
+            (mReqs[connectionNum]->pos ==
+             mDr->drbuf.transferSize(static_cast<unsigned>(connectionNum))));
 }
 
 bool DirectReadSlot::watchOverDirectReadPerformance()

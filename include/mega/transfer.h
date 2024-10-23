@@ -329,14 +329,27 @@ public:
     }
 
     /**
-     * @brief Checks if the provided HTTP status code is valid.
+     * @brief Checks if the provided HTTP status code is handled.
+     *
+     * @note if this method returns false entire transfer should be retried
+     * as there's no specific code to handle that HTTP status
      *
      * @return true if the HTTP status code is valid, otherwise returns false.
      */
-    static bool isValidHttpStatus(const int httpstatus)
+    static bool isHandledHttpStatus(const int httpstatus)
     {
         return std::find(httpErrCodes.begin(), httpErrCodes.end(), httpstatus) !=
                httpErrCodes.end();
+    }
+
+    /**
+     * @brief Checks if mReason is an error reason
+     *
+     * @return true if the reason is `UN_TEMP_ERR` or `UN_DEFINITIVE_ERR`, otherwise returns false.
+     */
+    static bool isErrReason(const unusedReason& reason)
+    {
+        return reason == UN_TEMP_ERR || reason == UN_DEFINITIVE_ERR;
     }
 
     /**
@@ -357,8 +370,8 @@ public:
 
     /**
      * @brief Checks if mReason is an error reason
-     *
-     * @return true if the reason is `UN_TEMP_ERR` or `UN_DEFINITIVE_ERR`, otherwise returns false.
+     * @see isErrReason(const unusedReason& reason)
+     * @return true if the reason is an error reason, otherwise returns false.
      */
     bool isErrReason() const;
 
@@ -646,6 +659,19 @@ public:
     bool searchAndDisconnectSlowestConnection(size_t connectionNum = 0);
 
     /**
+     * @brief Checks if the minimum comparable throughput is met for a specific connection.
+     *
+     * @param connectionNum The index of the connection
+     * @return true if the throughput for the specified connection meets the minimum comparable
+     * threshold, otherwise returns false
+     */
+    bool isMinComparableThroughputForThisConnection(const size_t connectionNum)
+    {
+        return mThroughput[connectionNum].second &&
+               mThroughput[connectionNum].first >= mMinComparableThroughput;
+    }
+
+    /**
     *   @brief Decrease counter for requests with REQ_INFLIGHT status
     *
     *   Valid only for 2+ connections
@@ -676,6 +702,14 @@ public:
     *   @see DirectReadSlot::MEAN_SPEED_INTERVAL_DS
     */
     bool watchOverDirectReadPerformance();
+
+    /**
+     * @brief Checks if connection is done
+     * @param connectionNum The index of the connection
+     *
+     * @return true if connection is done, otherwise returns false
+     */
+    bool isConnectionDone(const size_t connectionNum);
 
     /**
     *   @brief Builds a DirectReadSlot attached to a DirectRead object.
@@ -778,7 +812,7 @@ private:
      * @brief Number of failed raided parts of a DirectRead.
      * @see DirectReadSlot::retry
      */
-    size_t mFailedRaidedPartsCounter = 0;
+    size_t mFailedRaidedPartsCounter{};
 
     /**
      * @brief Set of failed raided parts of a DirectRead.
