@@ -6907,8 +6907,8 @@ public:
         STORAGE_OVERQUOTA = 9, //Account reached storage overquota
         ACCOUNT_EXPIRED = 10, //Account expired (business or pro flexi)
         FOREIGN_TARGET_OVERSTORAGE = 11, //Sync transfer fails (upload into an inshare whose account is overquota)
-        REMOTE_PATH_HAS_CHANGED = 12, // Remote path has changed (currently unused: not an error)
-        //REMOTE_PATH_DELETED = 13, // (obsolete -> unified with REMOTE_NODE_NOT_FOUND) Remote path has been deleted
+        REMOTE_PATH_HAS_CHANGED = 12, // (obsolete -> changing remote path is not an error)
+        // REMOTE_PATH_DELETED = 13, // (obsolete -> unified with REMOTE_NODE_NOT_FOUND)
         SHARE_NON_FULL_ACCESS = 14, //Existing inbound share sync or part thereof lost full access
         LOCAL_FILESYSTEM_MISMATCH = 15, //Filesystem fingerprint does not match the one stored for the synchronization
         PUT_NODES_ERROR = 16, // Error processing put nodes result
@@ -9123,6 +9123,22 @@ class MegaListener
      * @param api MegaApi object related to the event
      */
     virtual void onGlobalSyncStateChanged(MegaApi* api);
+
+    /**
+     * @brief This function is called when the root in the cloud of the sync has changed.
+     *
+     * You can use MegaSync::getLastKnownMegaFolder to get the new root in the cloud.
+     *
+     * @note This method will be called if the change doesn't imply a change in the state of the
+     * sync or any additional errors.
+     *
+     * The SDK retains the ownership of the sync parameter.
+     * Don't use it after this functions returns.
+     *
+     * @param api MegaApi object that is synchronizing files
+     * @param sync MegaSync object that has changed its remote root node
+     */
+    virtual void onSyncRemoteRootChanged(MegaApi* api, MegaSync* sync);
 #endif
 
     /**

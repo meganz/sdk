@@ -1506,6 +1506,11 @@ private:
     std::chrono::time_point<std::chrono::steady_clock> mStartTime; // Fixed time_point type
 };
 
+/**
+ * @brief Returns std::this_thread:get_id() converted to a string
+ */
+std::string getThisThreadIdStr();
+
 } // namespace mega
 
 #endif // MEGA_UTILS_H

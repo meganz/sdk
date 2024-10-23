@@ -165,6 +165,13 @@ void QTMegaListener::onGlobalSyncStateChanged(MegaApi *api)
     QTMegaEvent *event = new QTMegaEvent(api, (QEvent::Type)QTMegaEvent::OnGlobalSyncStateChanged);
     QCoreApplication::postEvent(this, event, INT_MIN);
 }
+
+void QTMegaListener::onSyncRemoteRootChanged(MegaApi* api, MegaSync* sync)
+{
+    QTMegaEvent* event = new QTMegaEvent(api, (QEvent::Type)QTMegaEvent::OnSyncRemoteRootChanged);
+    event->setSync(sync->copy());
+    QCoreApplication::postEvent(this, event, INT_MIN);
+}
 #endif
 
 void QTMegaListener::onMountAdded(MegaApi *api, const char* path, int result)
@@ -257,6 +264,10 @@ void QTMegaListener::customEvent(QEvent *e)
         break;
         case QTMegaEvent::OnGlobalSyncStateChanged:
             if(listener) listener->onGlobalSyncStateChanged(event->getMegaApi());
+            break;
+        case QTMegaEvent::OnSyncRemoteRootChanged:
+            if (listener)
+                listener->onSyncRemoteRootChanged(event->getMegaApi(), event->getSync());
             break;
 #endif
         case QTMegaEvent::OnMountAdded:

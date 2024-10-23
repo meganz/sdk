@@ -16352,7 +16352,10 @@ error MegaClient::addtimer(TimerWithBackoff *twb)
 
 #ifdef ENABLE_SYNC
 
-error MegaClient::isnodesyncable(std::shared_ptr<Node> remotenode, bool *isinshare, SyncError *syncError)
+error MegaClient::isnodesyncable(std::shared_ptr<Node> remotenode,
+                                 bool* isinshare,
+                                 SyncError* syncError,
+                                 const bool excludeSelf)
 {
     // cannot sync files, rubbish bins or vault
     if (remotenode->type != FOLDERNODE && remotenode->type != ROOTNODE)
@@ -16369,10 +16372,11 @@ error MegaClient::isnodesyncable(std::shared_ptr<Node> remotenode, bool *isinsha
     auto activeConfigs = syncs.getConfigs(true);
     for (auto& sc : activeConfigs)
     {
+        if (excludeSelf && sc.mRemoteNode == remotenode->nodeHandle())
+            continue;
+
         if (std::shared_ptr<Node> syncRoot = nodeByHandle(sc.mRemoteNode))
         {
-            // We cannot use this function re-test an existing sync
-            // This is just for testing whether we can create a new one with `remotenode`
             bool above = remotenode->isbelow(syncRoot.get());
             bool below = syncRoot->isbelow(remotenode.get());
             if (above && below)

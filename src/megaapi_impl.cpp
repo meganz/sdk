@@ -14048,7 +14048,7 @@ void MegaApiImpl::syncupdate_remote_root_changed(const SyncConfig &config)
 
     if (auto megaSync = cachedMegaSyncPrivateByBackupId(config))
     {
-        fireOnSyncStateChanged(megaSync);
+        fireOnSyncRemoteRootChanged(megaSync);
     }
 }
 
@@ -17220,6 +17220,16 @@ void MegaApiImpl::fireOnSyncAdded(MegaSyncPrivate *sync)
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
         (*it++)->onSyncAdded(api, sync);
+    }
+}
+
+void MegaApiImpl::fireOnSyncRemoteRootChanged(MegaSyncPrivate* sync)
+{
+    assert(sync->getBackupId() != INVALID_HANDLE);
+    assert(client->syncs.onSyncThread());
+    for (set<MegaListener*>::iterator it = listeners.begin(); it != listeners.end();)
+    {
+        (*it++)->onSyncRemoteRootChanged(api, sync);
     }
 }
 

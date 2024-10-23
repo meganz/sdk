@@ -4016,6 +4016,7 @@ public:
         void fireOnSyncAdded(MegaSyncPrivate *sync);
         void fireOnSyncDeleted(MegaSyncPrivate *sync);
         void fireOnFileSyncStateChanged(MegaSyncPrivate *sync, string *localPath, int newState);
+        void fireOnSyncRemoteRootChanged(MegaSyncPrivate* sync);
 #endif
 
 #ifdef ENABLE_CHAT
