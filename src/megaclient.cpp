@@ -6888,7 +6888,6 @@ void MegaClient::sc_userattr()
                             if (*cacheduav != *ituav)
                             {
                                 u->invalidateattr(type);
-                                // some attributes should be fetched upon invalidation
                                 switch(type)
                                 {
                                     case ATTR_KEYRING:
@@ -6897,17 +6896,20 @@ void MegaClient::sc_userattr()
                                         resetKeyring();
                                         break;
                                     }
-                                    case ATTR_MY_BACKUPS_FOLDER:
-                                    // there should be no actionpackets for this attribute. It is
-                                    // created and never updated afterwards
-                                    LOG_err << "The node handle for My backups folder has changed";
-                                    //fall-through
 
-                                    case ATTR_KEYS:                  // fall-through
-                                    case ATTR_AUTHRING:              // fall-through
-                                    case ATTR_AUTHCU255:             // fall-through
-                                    case ATTR_DEVICE_NAMES:          // fall-through
-                                    case ATTR_JSON_SYNC_CONFIG_DATA: // fall-through
+                                    case ATTR_MY_BACKUPS_FOLDER:
+                                        // There should be no actionpackets for this attribute. It
+                                        // is created and never updated afterwards.
+                                        LOG_err
+                                            << "The node handle for My backups folder has changed";
+                                        [[fallthrough]];
+
+                                    // some attributes should be fetched upon invalidation
+                                    case ATTR_KEYS:
+                                    case ATTR_AUTHRING:
+                                    case ATTR_AUTHCU255:
+                                    case ATTR_DEVICE_NAMES:
+                                    case ATTR_JSON_SYNC_CONFIG_DATA:
                                     {
                                         if ((type == ATTR_AUTHRING || type == ATTR_AUTHCU255) && mKeyManager.generation())
                                         {
