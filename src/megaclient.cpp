@@ -6887,7 +6887,7 @@ void MegaClient::sc_userattr()
                         {
                             if (*cacheduav != *ituav)
                             {
-                                u->invalidateattr(type);
+                                u->setAttributeExpired(type);
                                 switch(type)
                                 {
                                     case ATTR_KEYRING:
@@ -6952,7 +6952,7 @@ void MegaClient::sc_userattr()
                             {
                                 string emptyStr;
                                 u->setattr(type, &emptyStr, &emptyStr);
-                                u->invalidateattr(type);
+                                u->setAttributeExpired(type);
                             }
                         }
 
@@ -10800,8 +10800,8 @@ int MegaClient::readuser(JSON* j, bool actionpackets)
                     {
                         if (u->show == HIDDEN && v == VISIBLE)
                         {
-                            u->invalidateattr(ATTR_FIRSTNAME);
-                            u->invalidateattr(ATTR_LASTNAME);
+                            u->setAttributeExpired(ATTR_FIRSTNAME);
+                            u->setAttributeExpired(ATTR_LASTNAME);
                             if (oldEmail != u->email)
                             {
                                 u->changed.email = true;
@@ -11728,12 +11728,11 @@ void MegaClient::clearKeys()
 {
     User *u = finduser(me);
 
-    u->invalidateattr(ATTR_KEYRING);
-    u->invalidateattr(ATTR_ED25519_PUBK);
-    u->invalidateattr(ATTR_CU25519_PUBK);
-    u->invalidateattr(ATTR_SIG_RSA_PUBK);
-    u->invalidateattr(ATTR_SIG_CU255_PUBK);
-
+    u->setAttributeExpired(ATTR_KEYRING);
+    u->setAttributeExpired(ATTR_ED25519_PUBK);
+    u->setAttributeExpired(ATTR_CU25519_PUBK);
+    u->setAttributeExpired(ATTR_SIG_RSA_PUBK);
+    u->setAttributeExpired(ATTR_SIG_CU255_PUBK);
 }
 
 void MegaClient::resetKeyring()
@@ -15527,7 +15526,7 @@ void MegaClient::fetchContactKeys(User *user)
         getua(user, attrType, 0);
 
         // if Ed25519 is not in cache, better to ensure that Ed25519 is tracked before Cu25519
-        user->invalidateattr(ATTR_CU25519_PUBK);
+        user->setAttributeExpired(ATTR_CU25519_PUBK);
     }
     else trackKey(attrType, user->userhandle, *user->getattr(attrType));
 

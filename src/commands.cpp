@@ -3312,7 +3312,7 @@ bool CommandPutUAVer::procresult(Result r, JSON& json)
         if (r.wasError(API_EEXPIRED))
         {
             User *u = client->ownuser();
-            u->invalidateattr(at);
+            u->setAttributeExpired(at);
         }
 
         mCompletion(r.errorOrOK());

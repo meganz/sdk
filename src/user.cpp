@@ -312,7 +312,7 @@ void User::setattr(attr_t at, string *av, string *v)
     mAttributeManager->set(at, attrValue, attrVersion);
 }
 
-void User::invalidateattr(attr_t at)
+void User::setAttributeExpired(attr_t at)
 {
     setChanged(at);
     mAttributeManager->setExpired(at);

@@ -237,7 +237,7 @@ TEST_P(InterfacesWithParam, Invalidate)
     mUser.setattr(GetParam(), &mValue1, &mVersion1);
     mUser.changed = {};
     auto unchanged = mUser.changed;
-    mUser.invalidateattr(GetParam());
+    mUser.setAttributeExpired(GetParam());
     ASSERT_NE(memcmp(&mUser.changed, &unchanged, sizeof(mUser.changed)), 0);
     ASSERT_FALSE(mUser.isattrvalid(GetParam()));
     ASSERT_NO_FATAL_FAILURE(validateUserAttributeValue(mUser, GetParam(), mValue1));
