@@ -13587,6 +13587,13 @@ class MegaApi
         /**
          * @brief Set the thumbnail of a MegaNode
          *
+         * Preview file attribute must be set along with this attribute (due to API specs), ensure
+         * you also call MegaApi::setPreview. In order to provide a valid image to this method,
+         * ensure you call MegaApi::createThumbnail and provide it's output image to this method.
+         *
+         * @note For consistence same source image must be used for both attributes (check
+         * MegaApi::createPreview and MegaApi::createThumbnail).
+         *
          * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_FILE
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the node
@@ -13601,6 +13608,13 @@ class MegaApi
 
         /**
          * @brief Uploads a thumbnail as part of a background media file upload
+         *
+         * Preview file attribute must be set along with this attribute (due to API specs), ensure
+         * you also call MegaApi::setPreview. In order to provide a valid image to this method,
+         * ensure you call MegaApi::createThumbnail and provide it's output image to this method.
+         *
+         * @note For consistence same source image must be used for both attributes (check
+         * MegaApi::createPreview and MegaApi::createThumbnail).
          *
          * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_FILE
          * Valid data in the MegaRequest object received on callbacks:
@@ -13624,6 +13638,13 @@ class MegaApi
         /**
          * @brief Set the thumbnail of a MegaNode, via the result of MegaApi::putThumbnail
          *
+         * Preview file attribute must be set along with this attribute (due to API specs), ensure
+         * you also call MegaApi::setPreview. In order to provide a valid image to this method,
+         * ensure you call MegaApi::createThumbnail and provide it's output image to this method.
+         *
+         * @note For consistence same source image must be used for both attributes (check
+         * MegaApi::createPreview and MegaApi::createThumbnail).
+         *
          * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_FILE
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the node
@@ -13639,6 +13660,13 @@ class MegaApi
         /**
          * @brief Set the preview of a MegaNode
          *
+         * Thumbnail file attribute must be set along with this attribute (due to API specs), ensure
+         * you also call MegaApi::setThumbnail. In order to provide a valid image to this method,
+         * ensure you call MegaApi::createPreview and provide it's output image to this method.
+         *
+         * @note For consistence same source image must be used for both attributes (check
+         * MegaApi::createPreview and MegaApi::createThumbnail).
+         *
          * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_FILE
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the node
@@ -13653,6 +13681,13 @@ class MegaApi
 
         /**
          * @brief Uploads a preview as part of a background media file upload
+         *
+         * Thumbnail file attribute must be set along with this attribute (due to API specs), ensure
+         * you also call MegaApi::setThumbnail. In order to provide a valid image to this method,
+         * ensure you call MegaApi::createPreview and provide it's output image to this method.
+         *
+         * @note For consistence same source image must be used for both attributes (check
+         * MegaApi::createPreview and MegaApi::createThumbnail).
          *
          * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_FILE
          * Valid data in the MegaRequest object received on callbacks:
@@ -13675,6 +13710,13 @@ class MegaApi
 
         /**
          * @brief Set the preview of a MegaNode, via the result of MegaApi::putPreview
+         *
+         * Thumbnail file attribute must be set along with this attribute (due to API specs), ensure
+         * you also call MegaApi::setThumbnail. In order to provide a valid image to this method,
+         * ensure you call MegaApi::createPreview and provide it's output image to this method.
+         *
+         * @note For consistence same source image must be used for both attributes (check
+         * MegaApi::createPreview and MegaApi::createThumbnail).
          *
          * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_FILE
          * Valid data in the MegaRequest object received on callbacks:
