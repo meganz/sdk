@@ -192,13 +192,13 @@ TEST_P(InterfacesWithParam, SetValueAndVersion)
     ASSERT_EQ(*version, mVersion1);
 }
 
-TEST_P(InterfacesWithParam, UpdateValueSameVersion)
+TEST_P(InterfacesWithParam, SetValueSameVersion)
 {
     mUser.setAttribute(GetParam(), mValue1, mVersion1);
     std::string value2{"Bar"};
     mUser.changed = {};
     auto unchanged = mUser.changed;
-    ASSERT_EQ(mUser.updateattr(GetParam(), &value2, &mVersion1), 0);
+    ASSERT_FALSE(mUser.setAttributeIfDifferentVersion(GetParam(), value2, mVersion1));
     ASSERT_EQ(memcmp(&mUser.changed, &unchanged, sizeof(mUser.changed)), 0);
     ASSERT_NO_FATAL_FAILURE(validateUserAttributeValue(mUser, GetParam(), mValue1));
     const std::string* version = mUser.getattrversion(GetParam());
@@ -206,14 +206,14 @@ TEST_P(InterfacesWithParam, UpdateValueSameVersion)
     ASSERT_EQ(*version, mVersion1);
 }
 
-TEST_P(InterfacesWithParam, UpdateValueDifferentVersion)
+TEST_P(InterfacesWithParam, SetValueDifferentVersion)
 {
     mUser.setAttribute(GetParam(), mValue1, mVersion1);
     std::string value2{"Bar"};
     std::string version2{"FHqlO7Gbl_x"};
     mUser.changed = {};
     auto unchanged = mUser.changed;
-    ASSERT_EQ(mUser.updateattr(GetParam(), &value2, &version2), 1);
+    ASSERT_TRUE(mUser.setAttributeIfDifferentVersion(GetParam(), value2, version2));
     ASSERT_NE(memcmp(&mUser.changed, &unchanged, sizeof(mUser.changed)), 0);
     ASSERT_NO_FATAL_FAILURE(validateUserAttributeValue(mUser, GetParam(), value2));
     const std::string* version = mUser.getattrversion(GetParam());

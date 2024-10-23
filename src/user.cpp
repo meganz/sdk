@@ -309,6 +309,17 @@ void User::setAttribute(attr_t at, const string& value, const string& version)
     mAttributeManager->set(at, value, version);
 }
 
+bool User::setAttributeIfDifferentVersion(attr_t at, const string& value, const string& version)
+{
+    if (mAttributeManager->setIfNewVersion(at, value, version))
+    {
+        setChanged(at);
+        return true;
+    }
+
+    return false;
+}
+
 void User::setAttributeExpired(attr_t at)
 {
     setChanged(at);
@@ -331,18 +342,6 @@ void User::removeAttributeUpdateVersion(attr_t at, const string& version)
     {
         setChanged(at);
     }
-}
-
-// updates the user attribute value+version only if different
-int User::updateattr(attr_t at, std::string *av, std::string *v)
-{
-    if (mAttributeManager->setIfNewVersion(at, *av, *v))
-    {
-        setChanged(at);
-        return 1;
-    }
-
-    return 0;
 }
 
 void User::cacheNonExistingAttributes()

@@ -4605,7 +4605,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
             User* u = client->ownuser();
             if (u)
             {
-                int changes = 0;
+                bool changes = false;
                 if (email.size())
                 {
                     client->setEmail(u, email);
@@ -4613,17 +4613,21 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
                 if (firstname.size())
                 {
-                    changes += u->updateattr(ATTR_FIRSTNAME, &firstname, &versionFirstname);
+                    changes |= u->setAttributeIfDifferentVersion(ATTR_FIRSTNAME,
+                                                                 firstname,
+                                                                 versionFirstname);
                 }
 
                 if (lastname.size())
                 {
-                    changes += u->updateattr(ATTR_LASTNAME, &lastname, &versionLastname);
+                    changes |=
+                        u->setAttributeIfDifferentVersion(ATTR_LASTNAME, lastname, versionLastname);
                 }
 
                 if (language.size())
                 {
-                    changes += u->updateattr(ATTR_LANGUAGE, &language, &versionLanguage);
+                    changes |=
+                        u->setAttributeIfDifferentVersion(ATTR_LANGUAGE, language, versionLanguage);
                 }
                 else
                 {
@@ -4632,7 +4636,8 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
                 if (birthday.size())
                 {
-                    changes += u->updateattr(ATTR_BIRTHDAY, &birthday, &versionBirthday);
+                    changes |=
+                        u->setAttributeIfDifferentVersion(ATTR_BIRTHDAY, birthday, versionBirthday);
                 }
                 else
                 {
@@ -4641,7 +4646,9 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
                 if (birthmonth.size())
                 {
-                    changes += u->updateattr(ATTR_BIRTHMONTH, &birthmonth, &versionBirthmonth);
+                    changes |= u->setAttributeIfDifferentVersion(ATTR_BIRTHMONTH,
+                                                                 birthmonth,
+                                                                 versionBirthmonth);
                 }
                 else
                 {
@@ -4650,7 +4657,9 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
                 if (birthyear.size())
                 {
-                    changes += u->updateattr(ATTR_BIRTHYEAR, &birthyear, &versionBirthyear);
+                    changes |= u->setAttributeIfDifferentVersion(ATTR_BIRTHYEAR,
+                                                                 birthyear,
+                                                                 versionBirthyear);
                 }
                 else
                 {
@@ -4659,7 +4668,8 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
                 if (country.size())
                 {
-                    changes += u->updateattr(ATTR_COUNTRY, &country, &versionCountry);
+                    changes |=
+                        u->setAttributeIfDifferentVersion(ATTR_COUNTRY, country, versionCountry);
                 }
                 else
                 {
@@ -4668,7 +4678,9 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
                 if (pwdReminderDialog.size())
                 {
-                    changes += u->updateattr(ATTR_PWD_REMINDER, &pwdReminderDialog, &versionPwdReminderDialog);
+                    changes |= u->setAttributeIfDifferentVersion(ATTR_PWD_REMINDER,
+                                                                 pwdReminderDialog,
+                                                                 versionPwdReminderDialog);
                 }
                 else
                 {
@@ -4677,7 +4689,9 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
                 if (pushSetting.size())
                 {
-                    changes += u->updateattr(ATTR_PUSH_SETTINGS, &pushSetting, &versionPushSetting);
+                    changes |= u->setAttributeIfDifferentVersion(ATTR_PUSH_SETTINGS,
+                                                                 pushSetting,
+                                                                 versionPushSetting);
                 }
                 else
                 {
@@ -4686,7 +4700,9 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
                 if (contactLinkVerification.size())
                 {
-                    changes += u->updateattr(ATTR_CONTACT_LINK_VERIFICATION, &contactLinkVerification, &versionContactLinkVerification);
+                    changes |= u->setAttributeIfDifferentVersion(ATTR_CONTACT_LINK_VERIFICATION,
+                                                                 contactLinkVerification,
+                                                                 versionContactLinkVerification);
                 }
                 else
                 {
@@ -4695,7 +4711,9 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
                 if (disableVersions.size())
                 {
-                    changes += u->updateattr(ATTR_DISABLE_VERSIONS, &disableVersions, &versionDisableVersions);
+                    changes |= u->setAttributeIfDifferentVersion(ATTR_DISABLE_VERSIONS,
+                                                                 disableVersions,
+                                                                 versionDisableVersions);
 
                     // initialize the status of file-versioning for the client
                     client->versions_disabled = (disableVersions == "1");
@@ -4717,7 +4735,9 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
                 if (noCallKit.size())
                 {
-                    changes += u->updateattr(ATTR_NO_CALLKIT, &noCallKit, &versionNoCallKit);
+                    changes |= u->setAttributeIfDifferentVersion(ATTR_NO_CALLKIT,
+                                                                 noCallKit,
+                                                                 versionNoCallKit);
                     LOG_info << "CallKit is " << ((noCallKit == "1") ? "disabled" : "enabled");
                 }
                 else
@@ -4733,7 +4753,9 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                     {
                         // store the value for private user attributes (decrypted version of serialized TLV)
                         unique_ptr<string> tlvString(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
-                        changes += u->updateattr(ATTR_MY_CHAT_FILES_FOLDER, tlvString.get(), &versionChatFolder);
+                        changes |= u->setAttributeIfDifferentVersion(ATTR_MY_CHAT_FILES_FOLDER,
+                                                                     *tlvString,
+                                                                     versionChatFolder);
                     }
                     else
                     {
@@ -4752,7 +4774,9 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                     {
                         // store the value for private user attributes (decrypted version of serialized TLV)
                         unique_ptr<string> tlvString(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
-                        changes += u->updateattr(ATTR_CAMERA_UPLOADS_FOLDER, tlvString.get(), &versionCameraUploadFolder);
+                        changes |= u->setAttributeIfDifferentVersion(ATTR_CAMERA_UPLOADS_FOLDER,
+                                                                     *tlvString,
+                                                                     versionCameraUploadFolder);
                     }
                     else
                     {
@@ -4766,7 +4790,9 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
                 if (!myBackupsFolder.empty())
                 {
-                    changes += u->updateattr(ATTR_MY_BACKUPS_FOLDER, &myBackupsFolder, &versionMyBackupsFolder);
+                    changes |= u->setAttributeIfDifferentVersion(ATTR_MY_BACKUPS_FOLDER,
+                                                                 myBackupsFolder,
+                                                                 versionMyBackupsFolder);
                 }
                 else
                 {
@@ -4775,7 +4801,9 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
                 if (!appPrefs.empty())
                 {
-                    changes += u->updateattr(ATTR_APPS_PREFS, &appPrefs, &versionAppPrefs);
+                    changes |= u->setAttributeIfDifferentVersion(ATTR_APPS_PREFS,
+                                                                 appPrefs,
+                                                                 versionAppPrefs);
                 }
                 else
                 {
@@ -4784,7 +4812,8 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
                 if (!ccPrefs.empty())
                 {
-                    changes += u->updateattr(ATTR_CC_PREFS, &ccPrefs, &versionCcPrefs);
+                    changes |=
+                        u->setAttributeIfDifferentVersion(ATTR_CC_PREFS, ccPrefs, versionCcPrefs);
                 }
                 else
                 {
@@ -4798,7 +4827,9 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                     {
                         // store the value for private user attributes (decrypted version of serialized TLV)
                         unique_ptr<string> tlvString(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
-                        changes += u->updateattr(ATTR_ALIAS, tlvString.get(), &versionAliases);
+                        changes |= u->setAttributeIfDifferentVersion(ATTR_ALIAS,
+                                                                     *tlvString,
+                                                                     versionAliases);
                     }
                     else
                     {
@@ -4812,7 +4843,9 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
                 if (unshareableKey.size() == Base64Str<SymmCipher::BLOCKSIZE>::STRLEN)
                 {
-                    changes += u->updateattr(ATTR_UNSHAREABLE_KEY, &unshareableKey, &versionUnshareableKey);
+                    changes |= u->setAttributeIfDifferentVersion(ATTR_UNSHAREABLE_KEY,
+                                                                 unshareableKey,
+                                                                 versionUnshareableKey);
                     client->unshareablekey.swap(unshareableKey);
                 }
                 else if (client->loggedin() == EPHEMERALACCOUNTPLUSPLUS)
@@ -4841,7 +4874,9 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                     {
                         // store the value for private user attributes (decrypted version of serialized TLV)
                         unique_ptr<string> tlvString(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
-                        changes += u->updateattr(ATTR_DEVICE_NAMES, tlvString.get(), &versionDeviceNames);
+                        changes |= u->setAttributeIfDifferentVersion(ATTR_DEVICE_NAMES,
+                                                                     *tlvString,
+                                                                     versionDeviceNames);
                     }
                     else
                     {
@@ -4855,7 +4890,9 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
                 if (!cookieSettings.empty())
                 {
-                    changes += u->updateattr(ATTR_COOKIE_SETTINGS, &cookieSettings, &versionCookieSettings);
+                    changes |= u->setAttributeIfDifferentVersion(ATTR_COOKIE_SETTINGS,
+                                                                 cookieSettings,
+                                                                 versionCookieSettings);
                 }
                 else
                 {
@@ -4866,7 +4903,9 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
                 if (!enabledTestNotifications.empty() || !versionEnabledTestNotifications.empty())
                 {
-                    changes += u->updateattr(ATTR_ENABLE_TEST_NOTIFICATIONS, &enabledTestNotifications, &versionEnabledTestNotifications);
+                    changes |= u->setAttributeIfDifferentVersion(ATTR_ENABLE_TEST_NOTIFICATIONS,
+                                                                 enabledTestNotifications,
+                                                                 versionEnabledTestNotifications);
                 }
                 else
                 {
@@ -4875,7 +4914,9 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
                 if (!lastReadNotification.empty() || !versionLastReadNotification.empty())
                 {
-                    changes += u->updateattr(ATTR_LAST_READ_NOTIFICATION, &lastReadNotification, &versionLastReadNotification);
+                    changes |= u->setAttributeIfDifferentVersion(ATTR_LAST_READ_NOTIFICATION,
+                                                                 lastReadNotification,
+                                                                 versionLastReadNotification);
                 }
                 else
                 {
@@ -4884,7 +4925,9 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
                 if (!lastActionedBanner.empty() || !versionLastActionedBanner.empty())
                 {
-                    changes += u->updateattr(ATTR_LAST_ACTIONED_BANNER, &lastActionedBanner, &versionLastActionedBanner);
+                    changes |= u->setAttributeIfDifferentVersion(ATTR_LAST_ACTIONED_BANNER,
+                                                                 lastActionedBanner,
+                                                                 versionLastActionedBanner);
                 }
                 else
                 {
@@ -4893,9 +4936,9 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
                 if (!enabledTestSurveys.empty() || !versionEnabledTestSurveys.empty())
                 {
-                    changes += u->updateattr(ATTR_ENABLE_TEST_SURVEYS,
-                                             &enabledTestSurveys,
-                                             &versionEnabledTestSurveys);
+                    changes |= u->setAttributeIfDifferentVersion(ATTR_ENABLE_TEST_SURVEYS,
+                                                                 enabledTestSurveys,
+                                                                 versionEnabledTestSurveys);
                 }
                 else
                 {
@@ -4906,9 +4949,9 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 if (!jsonSyncConfigData.empty())
                 {
                     // Tell the rest of the SDK that the attribute's changed.
-                    changes += u->updateattr(ATTR_JSON_SYNC_CONFIG_DATA,
-                                             &jsonSyncConfigData,
-                                             &jsonSyncConfigDataVersion);
+                    changes |= u->setAttributeIfDifferentVersion(ATTR_JSON_SYNC_CONFIG_DATA,
+                                                                 jsonSyncConfigData,
+                                                                 jsonSyncConfigDataVersion);
                 }
                 else
                 {
@@ -4934,7 +4977,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                         }
                     }
 
-                    changes += u->updateattr(ATTR_KEYS, &keys, &keysVersion);
+                    changes |= u->setAttributeIfDifferentVersion(ATTR_KEYS, keys, keysVersion);
                 }
                 else if (client->mKeyManager.generation())
                 {
@@ -4948,50 +4991,64 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                     // If ^!keys exists, they are all already in it.
                     if (keyring.size()) // priv Ed255 and Cu255 keys
                     {
-                        changes += u->updateattr(ATTR_KEYRING, &keyring, &versionKeyring);
+                        changes |= u->setAttributeIfDifferentVersion(ATTR_KEYRING,
+                                                                     keyring,
+                                                                     versionKeyring);
                     }
 
                     if (authringEd255.size())
                     {
-                        changes += u->updateattr(ATTR_AUTHRING, &authringEd255, &versionAuthringEd255);
+                        changes |= u->setAttributeIfDifferentVersion(ATTR_AUTHRING,
+                                                                     authringEd255,
+                                                                     versionAuthringEd255);
                     }
 
                     if (authringCu255.size())
                     {
-                        changes += u->updateattr(ATTR_AUTHCU255, &authringCu255, &versionAuthringCu255);
+                        changes |= u->setAttributeIfDifferentVersion(ATTR_AUTHCU255,
+                                                                     authringCu255,
+                                                                     versionAuthringCu255);
                     }
                 }
 
                 if (pubEd255.size())
                 {
-                    changes += u->updateattr(ATTR_ED25519_PUBK, &pubEd255, &versionPubEd255);
+                    changes |= u->setAttributeIfDifferentVersion(ATTR_ED25519_PUBK,
+                                                                 pubEd255,
+                                                                 versionPubEd255);
                 }
 
                 if (pubCu255.size())
                 {
-                    changes += u->updateattr(ATTR_CU25519_PUBK, &pubCu255, &versionPubCu255);
+                    changes |= u->setAttributeIfDifferentVersion(ATTR_CU25519_PUBK,
+                                                                 pubCu255,
+                                                                 versionPubCu255);
                 }
 
                 if (sigPubk.size())
                 {
-                    changes += u->updateattr(ATTR_SIG_RSA_PUBK, &sigPubk, &versionSigPubk);
+                    changes |= u->setAttributeIfDifferentVersion(ATTR_SIG_RSA_PUBK,
+                                                                 sigPubk,
+                                                                 versionSigPubk);
                 }
 
                 if (sigCu255.size())
                 {
-                    changes += u->updateattr(ATTR_SIG_CU255_PUBK, &sigCu255, &versionSigCu255);
+                    changes |= u->setAttributeIfDifferentVersion(ATTR_SIG_CU255_PUBK,
+                                                                 sigCu255,
+                                                                 versionSigCu255);
                 }
 
                 if (!pwmh.empty())
                 {
-                    changes += u->updateattr(ATTR_PWM_BASE, &pwmh, &pwmhVersion);
+                    changes |= u->setAttributeIfDifferentVersion(ATTR_PWM_BASE, pwmh, pwmhVersion);
                 }
                 else
                 {
                     u->removeAttribute(ATTR_PWM_BASE);
                 }
 
-                if (changes > 0)
+                if (changes)
                 {
                     u->setTag(tag ? tag : -1);
                     client->notifyuser(u);
