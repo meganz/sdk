@@ -8252,18 +8252,46 @@ TEST_F(SyncTest, DetectsAndReportsNameClashes)
  *
  * Tests Synchronization when there are sync problems (name conflicts and stall issues).
  *
- * # Test1: generate a name conflict
- * - U1: creates a directory tree in cloud drive (/x)
- * - U1: creates a directory in local FS (root/s)
- * - U1: creates a local file (root/s/f0)
- * - U1: creates a local file (root/s/f%30)
- * - U1: synchronizes s with x
+ * # Test1: generate two name conflicts in sync folder 1
+ * - U1: creates a directory tree in cloud drive (/x1)
+ * - U1: creates a tree in local FS (root/s/d1)
+ * - U1: creates a local file (root/s/d1/f0)
+ * - U1: creates a local file (root/s/d1/f%30)
+ * - U1: synchronizes d1 with x1
+ * - U1: wait for syncs
+ * - U1 checks if name conflict has been detected and it's the expected one
+ * - U1: creates a local file (root/s/d/f10)
+ * - U1: creates a local file (root/s/d/f1%30)
+ * - U1: synchronizes d1 with x1
  * - U1: wait for syncs
  * - U1 checks if name conflict has been detected and it's the expected one
  *
- * # Test2: generate a stall issue
- * - U1: creates a local file (root/s/n0)
- * - U1: creates a hardlink from n1 into path (root/s/d/n5)
+ * # Test2: generate two name conflicts in sync folder 2
+ * - U1: creates a directory tree in cloud drive (/x2)
+ * - U1: creates a tree in local FS (root/s/d2)
+ * - U1: creates a local file (root/s/d2/f0)
+ * - U1: creates a local file (root/s/d2/f%30)
+ * - U1: synchronizes d2 with x2
+ * - U1: wait for syncs
+ * - U1 checks if name conflict has been detected and it's the expected one
+ * - U1: creates a local file (root/s/d2/f10)
+ * - U1: creates a local file (root/s/d2/f1%30)
+ * - U1: synchronizes d2 with x2
+ * - U1: wait for syncs
+ * - U1 checks if name conflict has been detected and it's the expected one
+ *
+ * # Test3: generate a stall issue in sync folder 3
+ * - U1: creates a directory tree in cloud drive (/x3)
+ * - U1: creates a tree in local FS (root/s/d3)
+ * - U1: creates a local file (root/s/d3/n0)
+ * - U1: creates a hardlink from n1 into path (root/s/d3/e/n5)
+ * - U1: wait for syncs and check if stall issue has been detected and it's the expected one
+ *
+ * # Test4: generate a stall issue in sync folder 4
+ * - U1: creates a directory tree in cloud drive (/x4)
+ * - U1: creates a tree in local FS (root/s/d4)
+ * - U1: creates a local file (root/s/d4/n0)
+ * - U1: creates a hardlink from n1 into path (root/s/d4/e/n5)
  * - U1: wait for syncs and check if stall issue has been detected and it's the expected one
  */
 TEST_F(SyncTest, DetectsAndReportsSyncProblems)
@@ -8273,87 +8301,166 @@ TEST_F(SyncTest, DetectsAndReportsSyncProblems)
     StandardClientInUse client = g_clientManager->getCleanStandardClient(0, TESTFOLDER);
     client->client.versions_disabled = true; // allowing creating files with the same name.
     ASSERT_TRUE(client->resetBaseFolderMulticlient());
+    const std::string rootdir = "s";
+    const auto root = client->fsBasePath / rootdir;
 
-    // Create directory tree required for test
-    const auto root = client->fsBasePath / "s";
-    fs::create_directories(root / "d");
-    ASSERT_TRUE(client->makeCloudSubdirs("x", 0, 0));
+    auto checkSyncProblems = [&](const handle backupId,
+                                 const int backupIdsCount,
+                                 const unsigned int expectedConflicts,
+                                 const LocalPath& localPath,
+                                 const std::string& f1,
+                                 const std::string& f2)
+    {
+        SyncProblems problems;
+        client->syncproblemsDetected(problems);
+        auto itCn = problems.mConflictsMap.find(backupId);
+        ASSERT_NE(itCn, problems.mConflictsMap.end())
+            << "BackupId (" << toHandle(backupId) << ") not found in ConflictsMap";
+        auto& conflicts = itCn->second;
+        ASSERT_EQ(conflicts.size(), expectedConflicts) << "Unexpected ConflictsMap size";
+        ASSERT_EQ(conflicts.back().localPath, localPath) << "Unexpected local path";
+        EXPECT_THAT(conflicts.back().clashingLocalNames,
+                    testing::UnorderedElementsAre(LocalPath::fromRelativePath(f1.c_str()),
+                                                  LocalPath::fromRelativePath(f2.c_str())));
+    };
+
+    auto createHardLink =
+        [&](const fs::path& src, const fs::path& dst, LocalPath& sourcePath, LocalPath& targetPath)
+    {
+        auto fsAccess = client->client.fsaccess.get();
+        sourcePath = LocalPath::fromAbsolutePath(src.u8string());
+        targetPath = LocalPath::fromAbsolutePath(dst.u8string());
+        ASSERT_TRUE(fsAccess->hardLink(sourcePath, targetPath));
+    };
+
+    auto checkStallIssues = [&](const handle backupId,
+                                const unsigned int expectedStalls,
+                                LocalPath& sourcePath,
+                                LocalPath& targetPath)
+    {
+        SyncProblems problems;
+        client->syncproblemsDetected(problems);
+        ASSERT_EQ(problems.mStalls.syncStallInfoMaps.size(), expectedStalls)
+            << "Unexpected syncStallInfoMaps size";
+
+        SyncStallInfoTests stalls;
+        stalls.extractFrom(problems.mStalls);
+        ASSERT_FALSE(stalls.local.empty()) << "No stall issues detected";
+
+        bool found = false;
+        for (const auto& [_, sr]: stalls.local)
+        {
+            if (sr.localPath1.localPath == sourcePath && sr.localPath2.localPath == targetPath &&
+                sr.reason == SyncWaitReason::FileIssue &&
+                sr.localPath1.problem == PathProblem::DetectedHardLink &&
+                sr.localPath2.problem == PathProblem::DetectedHardLink)
+            {
+                found = true;
+                break;
+            }
+        }
+        ASSERT_TRUE(found) << "Expected stall issue could not be found";
+    };
+
+    LOG_debug << "#### Test1: generate two name conflicts in sync folder 1 ####";
+    const std::string ldir1 = "d1";
+    const std::string rdir1 = "x1";
+    fs::create_directories(root / ldir1);
+    ASSERT_TRUE(client->makeCloudSubdirs(rdir1, 0, 0));
     ASSERT_TRUE(CatchupClients(client));
-
-    LOG_debug << "#### Test1: generate a name conflict ####";
-    createNameFile(root / "d", "f0");
-    createNameFile(root / "d", "f%30");
-
-    // Start the sync.
-    handle backupId1 = client->setupSync_mainthread("s", "x", false, true);
+    const handle backupId1 = client->setupSync_mainthread(root / ldir1, rdir1, false, true);
     ASSERT_NE(backupId1, UNDEF) << "Invalid BackupId";
-    // Give the client time to synchronize.
-    waitonsyncs(TIMEOUT, client);
 
-    // Ensure conflicts were detected
+    const std::string f11 = "f0";
+    const std::string f12 = "f%30";
+    createNameFile(root / ldir1, f11);
+    createNameFile(root / ldir1, f12);
+    waitonsyncs(TIMEOUT, client);
     ASSERT_TRUE(client->waitFor(SyncConflictState(true), TIMEOUT))
         << "Name conflicts were not detected";
-    // First state change - not new updates should be notified
-    ASSERT_TRUE(client->waitFor(SyncTotalConflictsStateUpdate(false), TIMEOUT));
+    ASSERT_TRUE(
+        client->waitFor(SyncTotalConflictsStateUpdate(false),
+                        TIMEOUT)); // First state change - not new updates should be notified
+    auto& ln1 = client->syncByBackupId(backupId1)->localroot->localname;
+    ASSERT_NO_FATAL_FAILURE(checkSyncProblems(backupId1, 1u, 1u, ln1, f11, f12));
 
-    // Obtain the name conflicts and check that are the expected ones
-    SyncProblems problems;
-    client->syncproblemsDetected(problems);
-    ASSERT_EQ(problems.mConflictsMap.size(), 1u) << "Unexpected ConflictsMap size";
-    auto itCn = problems.mConflictsMap.find(backupId1);
-    ASSERT_NE(itCn, problems.mConflictsMap.end())
-        << "BackupId (" << toHandle(backupId1) << ") not found in ConflictsMap";
-    auto& conflicts = itCn->second;
-    ASSERT_EQ(conflicts.back().localPath,
-              LocalPath::fromRelativePath("d").prependNewWithSeparator(
-                  client->syncByBackupId(backupId1)->localroot->localname))
-        << "Unexpected local path";
+    const std::string f13 = "f10";
+    const std::string f14 = "f1%30";
+    createNameFile(root / ldir1, f13);
+    createNameFile(root / ldir1, f14);
+    waitonsyncs(TIMEOUT, client);
+    ASSERT_TRUE(client->waitFor(SyncTotalConflictsStateUpdate(true), TIMEOUT));
+    ASSERT_NO_FATAL_FAILURE(checkSyncProblems(backupId1, 1u, 2u, ln1, f13, f14));
 
-    EXPECT_THAT(conflicts.back().clashingLocalNames,
-                testing::UnorderedElementsAre(LocalPath::fromRelativePath("f%30"),
-                                              LocalPath::fromRelativePath("f0")));
-    ASSERT_EQ(conflicts.back().clashingCloud.size(), 0u) << "Unexpected clashingCloud size";
+    LOG_debug << "#### Test2: generate two name conflicts in sync folder 2 ####";
+    // Create directory tree required for test
+    const std::string ldir2 = "d2";
+    const std::string rdir2 = "x2";
+    fs::create_directories(root / ldir2);
+    ASSERT_TRUE(client->makeCloudSubdirs(rdir2, 0, 0));
+    ASSERT_TRUE(CatchupClients(client));
+    const handle backupId2 = client->setupSync_mainthread(root / ldir2, rdir2, false, true);
+    ASSERT_NE(backupId2, UNDEF) << "Invalid BackupId";
 
-    LOG_debug << "#### Test2: generate a stall issue ####";
-    createNameFile(root, "n0");
-    // Give the client time to synchronize.
+    const std::string f21 = "f0";
+    const std::string f22 = "f%30";
+    createNameFile(root / ldir2, f21);
+    createNameFile(root / ldir2, f22);
+    waitonsyncs(TIMEOUT, client);
+    ASSERT_TRUE(client->waitFor(SyncTotalConflictsStateUpdate(true), TIMEOUT));
+    auto& ln2 = client->syncByBackupId(backupId2)->localroot->localname;
+    ASSERT_NO_FATAL_FAILURE(checkSyncProblems(backupId2, 2u, 1u, ln2, f21, f22));
+
+    const std::string f23 = "f10";
+    const std::string f24 = "f1%30";
+    createNameFile(root / ldir2, f23);
+    createNameFile(root / ldir2, f24);
+    waitonsyncs(TIMEOUT, client);
+    ASSERT_TRUE(client->waitFor(SyncTotalConflictsStateUpdate(true), TIMEOUT));
+    ASSERT_NO_FATAL_FAILURE(checkSyncProblems(backupId2, 2u, 2u, ln2, f23, f24));
+
+    LOG_debug << "#### Test3: generate a stall issue in sync folder 1 ####";
+    const std::string ldir3 = "d3";
+    const std::string rdir3 = "x3";
+    fs::create_directories(root / ldir3);
+    ASSERT_TRUE(client->makeCloudSubdirs(rdir3, 0, 0));
+    ASSERT_TRUE(CatchupClients(client));
+    const handle backupId3 = client->setupSync_mainthread(root / ldir3, rdir3, false, true);
+    ASSERT_NE(backupId3, UNDEF) << "Invalid BackupId";
+    fs::create_directories(root / ldir3 / "e");
+    createNameFile(root / ldir3, "n0");
     waitonsyncs(TIMEOUT, client);
 
-    // Create a hard link to f0.
-    auto fsAccess = client->client.fsaccess.get();
-    LocalPath sourcePath;
-    LocalPath targetPath;
-    {
-        auto source = root / "n0";
-        auto target = root / "d" / "n5";
-        sourcePath = LocalPath::fromAbsolutePath(source.u8string());
-        targetPath = LocalPath::fromAbsolutePath(target.u8string());
+    LocalPath sPath1;
+    LocalPath tPath1;
+    createHardLink(root / ldir3 / "n0", root / ldir3 / "e" / "n5", sPath1, tPath1);
 
-        ASSERT_TRUE(fsAccess->hardLink(sourcePath, targetPath));
-    }
-
-    // Give the client time to synchronize.
     waitonsyncs(TIMEOUT, client);
-    // Ensure stalls were detected
     ASSERT_TRUE(client->waitFor(SyncStallState(true), TIMEOUT));
+    ASSERT_TRUE(
+        client->waitFor(SyncTotalStallsStateUpdate(false),
+                        TIMEOUT)); // First time stall state, the update flag should be unset
+    ASSERT_NO_FATAL_FAILURE(checkStallIssues(backupId3, 1u, sPath1, tPath1));
 
-    // Obtain a list of the stall issues and check that are the expected ones
-    SyncProblems problems2;
-    client->syncproblemsDetected(problems2);
-    ASSERT_EQ(problems2.mConflictsMap.size(), 1u) << "Unexpected ConflictsMap size";
-    ASSERT_EQ(problems2.mStalls.syncStallInfoMaps.size(), 1u)
-        << "Unexpected syncStallInfoMaps size";
-    SyncStallInfoTests stalls;
-    stalls.extractFrom(problems2.mStalls);
-    ASSERT_FALSE(stalls.local.empty()) << "No stall issues detected";
-    auto& sr = stalls.local.begin()->second;
-    EXPECT_EQ(sr.localPath1.localPath, sourcePath) << "Unexpected sourcePath";
-    EXPECT_EQ(sr.localPath2.localPath, targetPath) << "Unexpected targetPath";
-    EXPECT_EQ(sr.reason, SyncWaitReason::FileIssue);
-    EXPECT_EQ(sr.localPath1.problem, PathProblem::DetectedHardLink)
-        << "Unexpected problem type for " << sr.localPath1.localPath.toPath(true);
-    EXPECT_EQ(sr.localPath2.problem, PathProblem::DetectedHardLink)
-        << "Unexpected problem type for " << sr.localPath2.localPath.toPath(true);
+    LOG_debug << "#### Test4: generate a stall issue in sync folder 2 ####";
+    const std::string ldir4 = "d4";
+    const std::string rdir4 = "x4";
+    fs::create_directories(root / ldir4);
+    ASSERT_TRUE(client->makeCloudSubdirs(rdir4, 0, 0));
+    ASSERT_TRUE(CatchupClients(client));
+    const handle backupId4 = client->setupSync_mainthread(root / ldir4, rdir4, false, true);
+    ASSERT_NE(backupId4, UNDEF) << "Invalid BackupId";
+    fs::create_directories(root / ldir4 / "e");
+    createNameFile(root / ldir4, "n0");
+    waitonsyncs(TIMEOUT, client);
+
+    LocalPath sPath2;
+    LocalPath tPath2;
+    createHardLink(root / ldir4 / "n0", root / ldir4 / "e" / "n5", sPath2, tPath2);
+
+    waitonsyncs(TIMEOUT, client);
+    ASSERT_TRUE(client->waitFor(SyncTotalStallsStateUpdate(true), TIMEOUT));
+    ASSERT_NO_FATAL_FAILURE(checkStallIssues(backupId4, 2u, sPath2, tPath2));
 }
 #endif
 
