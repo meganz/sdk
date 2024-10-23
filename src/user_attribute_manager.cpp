@@ -128,6 +128,20 @@ bool UserAttributeManager::erase(attr_t at)
     }
 }
 
+bool UserAttributeManager::eraseUpdateVersion(attr_t at, const std::string& version)
+{
+    auto itAttr{mAttributes.find(at)};
+    if (itAttr != mAttributes.end() &&
+        (itAttr->second.isValid() || itAttr->second.version() != version))
+    {
+        bool notExisting = itAttr->second.isNotExisting();
+        itAttr->second.set("", version);
+        notExisting ? itAttr->second.setNotExisting() : itAttr->second.setExpired();
+        return true;
+    }
+    return false;
+}
+
 void UserAttributeManager::serializeAttributeFormatVersion(string& appendTo) const
 {
     static constexpr char attributeFormatVersion = '2';

@@ -130,7 +130,7 @@ public:
     void setAttributeExpired(attr_t at);
     bool isattrvalid(attr_t at);
     void removeAttribute(attr_t at);
-    void removeattr(attr_t at, const string& version);
+    void removeAttributeUpdateVersion(attr_t at, const string& version); // remove in up2/upv V3 ?
     int updateattr(attr_t at, string *av, string *v);
 
     void cacheNonExistingAttributes();

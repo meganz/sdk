@@ -3793,8 +3793,8 @@ bool CommandDelUA::procresult(Result r, JSON& json)
         attr_t at = User::string2attr(an.c_str());
         string version(ptr, (end-ptr));
 
-        u->removeattr(at, version); // store version to filter corresponding AP in order to
-                                    // avoid double onUsersUpdate()
+        // store version in order to avoid double users update from corresponding AP
+        u->removeAttributeUpdateVersion(at, version);
 
         if (at == ATTR_KEYRING)
         {

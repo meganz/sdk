@@ -21,6 +21,7 @@ public:
     void setExpired(attr_t at);
     bool isValid(attr_t at) const; // not Expired and not cached as Not Existing
     bool erase(attr_t at);
+    bool eraseUpdateVersion(attr_t at, const std::string& version);
 
     void serializeAttributeFormatVersion(std::string& appendTo) const;
     static char unserializeAttributeFormatVersion(const char*& from);

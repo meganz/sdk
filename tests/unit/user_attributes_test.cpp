@@ -246,19 +246,21 @@ TEST_P(InterfacesWithParam, Invalidate)
     ASSERT_EQ(*version, mVersion1);
 }
 
-TEST_P(InterfacesWithParam, RemoveVersion)
+TEST_P(InterfacesWithParam, RemoveValueUpdateVersion)
 {
     mUser.setattr(GetParam(), &mValue1, &mVersion1);
     mUser.changed = {};
     auto unchanged = mUser.changed;
-    mUser.removeattr(GetParam(),
-                     mVersion1); // remove value, but keep updated version (for some reason...)
+    std::string version2{"FHqlO7Gbl_x"};
+    mUser.removeAttributeUpdateVersion(
+        GetParam(),
+        version2); // remove value, but keep updated version and attribute as invalid
     ASSERT_NE(memcmp(&mUser.changed, &unchanged, sizeof(mUser.changed)), 0);
-    ASSERT_NO_FATAL_FAILURE(validateUserAttributeValue(mUser, GetParam(), mValue1));
+    ASSERT_NO_FATAL_FAILURE(validateUserAttributeValue(mUser, GetParam(), ""));
     const std::string* version = mUser.getattrversion(GetParam());
     ASSERT_THAT(version, testing::NotNull());
-    ASSERT_EQ(*version, mVersion1);
-    ASSERT_FALSE(mUser.nonExistingAttribute(GetParam()));
+    ASSERT_EQ(*version, version2);
+    ASSERT_FALSE(mUser.isattrvalid(GetParam()));
 }
 
 TEST_P(InterfacesWithParam, RemoveValueOwnUser)

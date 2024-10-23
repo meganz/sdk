@@ -328,11 +328,11 @@ void User::removeAttribute(attr_t at)
     mAttributeManager->erase(at);
 }
 
-void User::removeattr(attr_t at, const string& version)
+void User::removeAttributeUpdateVersion(attr_t at, const string& version)
 {
-    if (isattrvalid(at))
+    if (mAttributeManager->eraseUpdateVersion(at, version))
     {
-        invalidateattr(at);
+        setChanged(at);
     }
 }
 
