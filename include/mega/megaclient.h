@@ -1099,6 +1099,25 @@ public:
      */
     void importSyncConfigs(const char* configs, std::function<void(error)> completion);
 
+    /**
+     * @brief Changes the local/remote root of a sync to a different path/node
+     *
+     * @note This function only allows changing the local or the remote roots at once. To decide
+     * which one would be changes, one of newRemoteRootNodeHandle or newLocalRootPath must be
+     * UNDEF or nullptr respectively. Otherwise an API_EARGS will be returned
+     *
+     * @param backupId The backup id of the sync to be modified
+     * @param newRemoteRootNodeHandle The handle of the node that will be used for the new root on
+     * the cloud
+     * @param newLocalRootPath The path to the new root of the sync locally
+     * @param completion A completion function to be called once the logic is done, with the
+     * corresponding error.
+     */
+    void changeSyncRoot(const handle backupId,
+                        const handle newRemoteRootNodeHandle,
+                        const char* const newLocalRootPath,
+                        std::function<void(error, SyncError)>&& completion);
+
 public:
 
 #endif  // ENABLE_SYNC

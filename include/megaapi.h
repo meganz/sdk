@@ -4606,7 +4606,8 @@ class MegaRequest
             TYPE_GET_ACTIVE_SURVEY_TRIGGER_ACTIONS = 197,
             TYPE_GET_SURVEY = 198,
             TYPE_ANSWER_SURVEY = 199,
-            TOTAL_OF_REQUEST_TYPES = 200,
+            TYPE_CHANGE_SYNC_ROOT = 200,
+            TOTAL_OF_REQUEST_TYPES = 201,
         };
 
         virtual ~MegaRequest();
@@ -17417,6 +17418,38 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void moveToDebris(const char* path, MegaHandle syncBackupId, MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Change the node that is being used as remote root for a sync.
+         *
+         * This operation is only allowed with syncs of TYPE_TWOWAY.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHANGE_SYNC_ROOT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParentHandle - Returns the handle of the new remote root in MEGA
+         * - MegaRequest::getNodeHandle - Returns the affected sync backupId
+         * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+         * - MegaRequest::getNumDetails - If different than NO_SYNC_ERROR, it returns additional
+         * info for the specific sync error (MegaSync::Error). It could happen both when the request
+         * has succeeded (API_OK) and also in some cases of failure, when the request error is not
+         * accurate enough.
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError
+         * (MegaError::getErrorCode()) can be:
+         * - MegaError::API_EARGS - If there is no sync with the given id or there is no node on the
+         *   cloud with the given handle.
+         *
+         * The MegaError can also contain a SyncError (MegaError::getSyncError()), with the same
+         * value as MegaRequest::getNumDetails(). See MegaApi::isNodeSyncableWithError() for
+         * specific SyncError codes depending on the specific MegaError code.
+         *
+         * @param syncBackupId handle to the sync to change its remote root
+         * @param newRootNodeHandle Handle of the MEGA node to set as new sync remote root
+         * @param listener MegaRequestListener to track this request
+         */
+        void changeSyncRemoteRoot(const MegaHandle syncBackupId,
+                                  const MegaHandle newRootNodeHandle,
+                                  MegaRequestListener* listener = nullptr);
 
 #endif // ENABLE_SYNC
 

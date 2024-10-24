@@ -16808,6 +16808,41 @@ void MegaClient::importSyncConfigs(const char* configs, std::function<void(error
     syncs.importSyncConfigs(configs, std::move(completion));
 }
 
+void MegaClient::changeSyncRoot(const handle backupId,
+                                const handle newRemoteRootNodeHandle,
+                                const char* const newLocalRootPath,
+                                std::function<void(error, SyncError)>&& completion)
+{
+    const bool noNode = newRemoteRootNodeHandle == UNDEF;
+    const bool noPath = newLocalRootPath == nullptr;
+    if ((noNode && noPath) || (!noNode && !noPath))
+    {
+        if (noNode)
+            LOG_err << "changeSyncRoot invoked with null local and remote new roots";
+        else
+            LOG_err << "changeSyncRoot invoked with both new local and remote node. Only accepts "
+                       "one at a time";
+        return completion(API_EARGS, NO_SYNC_ERROR);
+    }
+
+    if (noNode)
+        return syncs.changeSyncLocalRoot(backupId, newLocalRootPath, std::move(completion));
+
+    // When changing remote root, validate the new target
+    const auto newRootNode =
+        mNodeManager.getNodeByHandle(NodeHandle().set6byte(newRemoteRootNodeHandle));
+    if (!newRootNode)
+    {
+        LOG_err << "changeSyncRoot: Invalid new root node handle";
+        return completion(API_EARGS, REMOTE_NODE_NOT_FOUND);
+    }
+
+    if (const auto [err, syncErr] = isnodesyncable(newRootNode); err != API_OK)
+        return completion(err, syncErr);
+
+    syncs.changeSyncRemoteRoot(backupId, std::move(newRootNode), std::move(completion));
+}
+
 void MegaClient::addsync(SyncConfig&& config, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath)
 {
     assert(completion);

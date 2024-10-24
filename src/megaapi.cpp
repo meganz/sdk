@@ -3898,6 +3898,13 @@ void MegaApi::moveToDebris(const char* path, MegaHandle syncBackupId, MegaReques
     pImpl->moveToDebris(path, syncBackupId, listener);
 }
 
+void MegaApi::changeSyncRemoteRoot(const MegaHandle syncBackupId,
+                                   const MegaHandle newRootNodeHandle,
+                                   MegaRequestListener* listener)
+{
+    pImpl->changeSyncRemoteRoot(syncBackupId, newRootNodeHandle, listener);
+}
+
 MegaSync *MegaApi::getSyncByBackupId(MegaHandle backupId)
 {
     return pImpl->getSyncByBackupId(backupId);

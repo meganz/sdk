@@ -1638,6 +1638,38 @@ void MegaApiImpl::moveToDebris(const char* path, MegaHandle syncBackupId, MegaRe
     waiter->notify();
 }
 
+void MegaApiImpl::changeSyncRemoteRoot(const MegaHandle syncBackupId,
+                                       const MegaHandle newRootNodeHandle,
+                                       MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request =
+        new MegaRequestPrivate(MegaRequest::TYPE_CHANGE_SYNC_ROOT, listener);
+
+    request->setNodeHandle(syncBackupId);
+    request->setParentHandle(newRootNodeHandle);
+    request->performRequest = [this, request]()
+    {
+        handle syncBackupId = request->getNodeHandle();
+        handle newRootNodeHandle = request->getNodeHandle();
+        if (newRootNodeHandle == UNDEF || syncBackupId == UNDEF)
+        {
+            return API_EARGS;
+        }
+        client->changeSyncRoot(syncBackupId,
+                               newRootNodeHandle,
+                               nullptr,
+                               [this, request](error e, SyncError se)
+                               {
+                                   fireOnRequestFinish(request,
+                                                       std::make_unique<MegaErrorPrivate>(e, se));
+                               });
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 MegaSyncStallPrivate::MegaSyncStallPrivate(const SyncStallEntry& e)
 :info(e)
 {}
@@ -4963,6 +4995,8 @@ const char *MegaRequestPrivate::getRequestString() const
             return "TYPE_GET_SURVEY";
         case TYPE_ANSWER_SURVEY:
             return "TYPE_ANSWER_SURVEY";
+        case TYPE_CHANGE_SYNC_ROOT:
+            return "TYPE_CHANGE_SYNC_ROOT";
     }
     return "UNKNOWN";
 }

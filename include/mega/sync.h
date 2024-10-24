@@ -1422,6 +1422,34 @@ public:
     void queueSync(std::function<void()>&&, const string& actionName);
     void queueClient(QueuedClientFunc&&, bool fromAnyThread = false);
 
+    /**
+     * @brief Wraps the given callable inside another callable (same signature) that, once invoked,
+     * instead of running it immediately, it gets enqueued to be executed in the MegaClient thread.
+     *
+     * @note This method must be called from the syncs thread
+     *
+     * @tparam Callable A type implementing operator(). The return type of the callable must be void
+     * @param callable The callable to wrap
+     * @return A new callable that will enqueue the input parameter to the MegaClient thread.
+     */
+    template<typename Callable>
+    auto wrapToRunInClientThread(Callable&& callable)
+    {
+        return [this, callable = std::forward<Callable>(callable)](auto&&... args) mutable
+        {
+            using ReturnType = decltype(callable(std::forward<decltype(args)>(args)...));
+            static_assert(std::is_same_v<ReturnType, void>, "Callable must return void");
+
+            auto argsTuple = std::make_tuple(std::forward<decltype(args)>(args)...);
+            queueClient(
+                [callable = std::move(callable), argsTuple = std::move(argsTuple)](auto&&,
+                                                                                   auto&&) mutable
+                {
+                    std::apply(callable, std::move(argsTuple));
+                });
+        };
+    }
+
     bool onSyncThread() const { return std::this_thread::get_id() == syncThreadId; }
 
     /**
@@ -1439,6 +1467,39 @@ public:
     bool checkSyncRemoteLocationChange(SyncConfig& config,
                                        const bool exists,
                                        const std::string& cloudPath);
+
+    /**
+     * @brief Change the root node in the cloud the sync with the given backupId is tracking
+     *
+     * @note This method must be called from the MegaClient thread.
+     *
+     * @param backupId Id of the sync to change the remote root node
+     * @param newRootNode The new root's node handle
+     * @param completionForClient The completion function to be called after the operations finishes
+     * or if some error takes place.
+     */
+    void changeSyncRemoteRoot(const handle backupId,
+                              std::shared_ptr<const Node>&& newRootNode,
+                              std::function<void(error, SyncError)>&& completionForClient);
+
+    /**
+     * @brief Same as changeSyncRemoteRoot but this must be called from the syncs thread.
+     */
+    void changeSyncRemoteRootInThread(const handle backupId,
+                                      std::shared_ptr<const Node>&& newRootNode,
+                                      std::function<void(error, SyncError)>&& completion);
+
+    /**
+     * @brief Change the local path being used as the root of a sync
+     *
+     * @param backupId Id of the sync to change the remote root node
+     * @param newRootNode The new root's node handle
+     * @param completionForClient The completion function to be called after the operations finishes
+     * or if some error takes place.
+     */
+    void changeSyncLocalRoot(const handle backupId,
+                             const std::string& newLocalRootPath,
+                             std::function<void(error, SyncError)>&& completion);
 
     // Cause periodic-scan syncs to scan now (waiting for the next periodic scan is impractical for tests)
     std::future<size_t> triggerPeriodicScanEarly(handle backupID);

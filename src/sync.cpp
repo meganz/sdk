@@ -4104,6 +4104,63 @@ bool Syncs::checkSyncRemoteLocationChange(SyncConfig& config,
     return true;
 }
 
+void Syncs::changeSyncLocalRoot(const handle backupId,
+                                const std::string& newLocalRootPath,
+                                std::function<void(error, SyncError)>&& completion)
+{
+    assert(false && "Not implemented yet and this code should be unreachable from public api");
+    return completion(API_EBLOCKED, UNKNOWN_ERROR);
+}
+
+void Syncs::changeSyncRemoteRoot(const handle backupId,
+                                 std::shared_ptr<const Node>&& newRootNode,
+                                 std::function<void(error, SyncError)>&& completionForClient)
+{
+    assert(!onSyncThread());
+
+    // We need to change to the syncs thread to run the missing validations and commit the change
+    queueSync(
+        [this,
+         backupId,
+         newRootNode = std::move(newRootNode),
+         completionForClientWrapped =
+             wrapToRunInClientThread(std::move(completionForClient))]() mutable
+        {
+            changeSyncRemoteRootInThread(backupId,
+                                         std::move(newRootNode),
+                                         std::move(completionForClientWrapped));
+        },
+        "changeSyncRemoteRoot");
+}
+
+void Syncs::changeSyncRemoteRootInThread(const handle backupId,
+                                         std::shared_ptr<const Node>&& newRootNode,
+                                         std::function<void(error, SyncError)>&& completion)
+{
+    assert(onSyncThread());
+
+    lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
+    const auto it = std::find_if(std::begin(mSyncVec),
+                                 std::end(mSyncVec),
+                                 [backupId](const auto& unifSync)
+                                 {
+                                     return unifSync && unifSync->mSync &&
+                                            unifSync->mConfig.mBackupId == backupId;
+                                 });
+    if (it == std::end(mSyncVec))
+        return completion(API_EARGS, UNKNOWN_ERROR);
+
+    auto& syncConfig = (*it)->mConfig;
+    const auto newRootNH = newRootNode->nodeHandle();
+    if (syncConfig.mRemoteNode == newRootNode->nodeHandle())
+        return completion(API_EEXIST, UNKNOWN_ERROR);
+
+    syncConfig.mRemoteNode = newRootNH;
+    syncConfig.mOriginalPathOfRemoteRootNode = newRootNode->displaypath();
+    mClient.app->syncupdate_remote_root_changed(syncConfig);
+    completion(API_OK, NO_SYNC_ERROR);
+}
+
 void Syncs::manageRemoteRootLocationChange(Sync& sync) const
 {
     // Currently, we don't support movements for backup roots
