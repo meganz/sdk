@@ -239,7 +239,7 @@ private:
 
 TEST_F(SdkTestSyncNodeOperations, MoveRemoteRoot)
 {
-    static constexpr std::string_view logPre{"SdkTestSyncNodeOperations.MoveRemoteRoot : "};
+    static const std::string logPre{"SdkTestSyncNodeOperations.MoveRemoteRoot : "};
 
     // The state of the sync shouldn't change so we will be checking that all across the test
     ASSERT_NO_FATAL_FAILURE(ensureSyncNodeIsRunning("dir1"));
@@ -263,7 +263,7 @@ TEST_F(SdkTestSyncNodeOperations, MoveRemoteRoot)
 
 TEST_F(SdkTestSyncNodeOperations, RemoveRemoteRoot)
 {
-    static constexpr std::string_view logPre{"SdkTestSyncNodeOperations.RemoveRemoteRoot : "};
+    static const std::string logPre{"SdkTestSyncNodeOperations.RemoveRemoteRoot : "};
 
     // We expect the sync to stop if the remote root node gets deleted
     ASSERT_NO_FATAL_FAILURE(ensureSyncNodeIsRunning("dir1"));
@@ -282,7 +282,7 @@ TEST_F(SdkTestSyncNodeOperations, RemoveRemoteRoot)
 
 TEST_F(SdkTestSyncNodeOperations, MoveSyncToAnotherSync)
 {
-    static constexpr std::string_view logPre{"SdkTestSyncNodeOperations.MoveSyncToAnotherSync : "};
+    static const std::string logPre{"SdkTestSyncNodeOperations.MoveSyncToAnotherSync : "};
 
     // Moving a sync to another sync should disable it
     LOG_verbose << logPre << "Create a new sync in dir2";

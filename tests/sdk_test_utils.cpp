@@ -114,7 +114,7 @@ LocalTempDir::~LocalTempDir()
     }
     catch (const std::exception& e)
     {
-        LOG_err << "Error removing directory: " << mDirPath << ". Error: " << e.what();
+        LOG_err << "Error removing directory: " << mDirPath.string() << ". Error: " << e.what();
     }
 }
 
