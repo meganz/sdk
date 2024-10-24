@@ -52,7 +52,10 @@ slack_token = os.environ.get("SLACK_TOKEN", "")
 slack_channel_dev = args.get("slack_channel_dev_requests", "")
 slack_channel_announce = args.get("slack_channel_announce", "")
 if slack_token and (slack_channel_dev or slack_channel_announce):
-    release.setup_chat(slack_token, slack_channel_dev, slack_channel_announce)
+    slack_thread_announce = args.get("slack_thread_announce", "")
+    release.setup_chat(
+        slack_token, slack_channel_dev, slack_channel_announce, slack_thread_announce
+    )
 
 assert args["tickets"]
 

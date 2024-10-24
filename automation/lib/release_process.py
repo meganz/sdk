@@ -53,7 +53,8 @@ class ReleaseProcess:
         self,
         slack_token: str,
         slack_channel_dev: str,
-        slack_channel_announce: str,
+        slack_channel_announce: str = "",
+        slack_thread_announce: str = "",
     ):
         # Chat has 2 purposes:
         # - request approvals for MRs (always in the same channel, only for SDK devs);
@@ -62,6 +63,7 @@ class ReleaseProcess:
         self._slack = Slack(slack_token)
         self._slack_channel_dev_requests = slack_channel_dev
         self._slack_channel_announce = slack_channel_announce
+        self._slack_thread_announce = slack_thread_announce
         print("v Slack initialized", flush=True)
 
     # STEP 3: update version in local file
@@ -205,6 +207,7 @@ class ReleaseProcess:
         else:
             self._slack.post_message(
                 self._slack_channel_dev_requests,
+                "",
                 f"Hello <!channel>,\n\nPlease approve the MR for {reason}",
             )
 
@@ -293,7 +296,9 @@ class ReleaseProcess:
         if not self._slack or not self._slack_channel_announce:
             print("Enjoy:\n\n" + notes, flush=True)
         else:
-            self._slack.post_message(self._slack_channel_announce, notes)
+            self._slack.post_message(
+                self._slack_channel_announce, self._slack_thread_announce, notes
+            )
             print(
                 f"v Posted release notes to #{self._slack_channel_announce}", flush=True
             )
