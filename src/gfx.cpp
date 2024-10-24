@@ -364,7 +364,9 @@ std::string GfxProc::generateOneImage(const LocalPath& localfilepath, const GfxD
     return images[0];
 }
 
-bool GfxProc::savefa(const LocalPath& localfilepath, const GfxDimension& dimension, LocalPath& localdstpath)
+bool GfxProc::savefa(const LocalPath& localfilepath,
+                     const GfxDimension& dimension,
+                     const LocalPath& localdstpath)
 {
     if (!isgfx(localfilepath))
     {
