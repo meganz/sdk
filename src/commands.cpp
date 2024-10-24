@@ -19,18 +19,19 @@
  * program.
  */
 
-#include "mega/types.h"
-#include "mega/command.h"
-#include "mega/megaapp.h"
-#include "mega/fileattributefetch.h"
-#include "mega/base64.h"
-#include "mega/transferslot.h"
-#include "mega/transfer.h"
-#include "mega/utils.h"
-#include "mega/user.h"
 #include "mega.h"
-#include "mega/mediafileattribute.h"
+#include "mega/base64.h"
+#include "mega/command.h"
+#include "mega/fileattributefetch.h"
 #include "mega/heartbeats.h"
+#include "mega/mediafileattribute.h"
+#include "mega/megaapp.h"
+#include "mega/transfer.h"
+#include "mega/transferslot.h"
+#include "mega/types.h"
+#include "mega/user.h"
+#include "mega/user_attribute.h"
+#include "mega/utils.h"
 
 namespace mega {
 
@@ -3164,10 +3165,10 @@ CommandPutMultipleUAVer::CommandPutMultipleUAVer(MegaClient *client, const usera
 
         element((const byte *) it->second.data(), int(it->second.size()));
 
-        const string *attrv = client->ownuser()->getattrversion(type);
-        if (attrv)
+        const UserAttribute* attribute = client->ownuser()->getAttribute(type);
+        if (attribute && !attribute->version().empty())
         {
-            element(attrv->c_str());
+            element(attribute->version().c_str());
         }
 
         endarray();
@@ -3294,10 +3295,10 @@ CommandPutUAVer::CommandPutUAVer(MegaClient* client, attr_t at, const byte* av, 
         element(av, avl);
     }
 
-    const string *attrv = client->ownuser()->getattrversion(at);
-    if (client->ownuser()->isattrvalid(at) && attrv)
+    const UserAttribute* attribute = client->ownuser()->getAttribute(at);
+    if (attribute && attribute->isValid() && !attribute->version().empty())
     {
-        element(attrv->c_str());
+        element(attribute->version().c_str());
     }
 
     endarray();
@@ -3350,14 +3351,14 @@ bool CommandPutUAVer::procresult(Result r, JSON& json)
             {
                 LOG_err << "Error processing new established value for the Key Manager";
 
-                // if there's a previous version, better to keep that one in cache
-                const string* oldVersion = u->getattrversion(ATTR_KEYS);
-                if (oldVersion)
+                // if there's a previous version, better keep that value in cache
+                const UserAttribute* attribute = client->ownuser()->getAttribute(at);
+                if (attribute && !attribute->isNotExisting() && !attribute->version().empty())
                 {
-                    LOG_warn << "Replacing ^!keys value by previous version " << *oldVersion << ", current: " << v;
-                    const string* oldValue = u->getattr(ATTR_KEYS);
-                    assert(oldValue);
-                    av = *oldValue;
+                    LOG_warn << "Replacing ^!keys value by previous version "
+                             << attribute->version() << ", current: " << v;
+                    assert(!attribute->value().empty());
+                    av = attribute->value();
                 }
             }
 
@@ -3695,15 +3696,16 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                             {
                                 LOG_err << "Error processing new established value for the Key Manager upon init";
 
-                                // if there's a previous version, better to keep that one in cache
-                                const string* oldValue = u->getattr(ATTR_KEYS);
-                                const string* oldVersion = u->getattrversion(ATTR_KEYS);
-                                if (oldValue)
+                                // if there's a previous version, better keep that value in cache
+                                const UserAttribute* attribute =
+                                    client->ownuser()->getAttribute(at);
+                                if (attribute && !attribute->isNotExisting() &&
+                                    !attribute->version().empty())
                                 {
-                                    LOG_warn << "Replacing ^!keys value by previous version " << *oldVersion << " current: " << version;
-                                    const string* oldValue = u->getattr(ATTR_KEYS);
-                                    assert(oldValue);
-                                    value = *oldValue;
+                                    LOG_warn << "Replacing ^!keys value by previous version "
+                                             << attribute->version() << " current: " << version;
+                                    assert(!attribute->value().empty());
+                                    value = attribute->value();
                                 }
                             }
 
@@ -4966,14 +4968,15 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                     {
                         LOG_err << "Error processing new received values for the Key Manager (ug command)";
 
-                        // if there's a previous version, better to keep that one in cache
-                        const string* oldVersion = u->getattrversion(ATTR_KEYS);
-                        if (oldVersion)
+                        // if there's a previous version, better keep that value in cache
+                        const UserAttribute* attribute = client->ownuser()->getAttribute(ATTR_KEYS);
+                        if (attribute && !attribute->isNotExisting() &&
+                            !attribute->version().empty())
                         {
-                            LOG_warn << "Replacing ^!keys value by previous version " << *oldVersion << " current: " << keysVersion;
-                            const string* oldValue = u->getattr(ATTR_KEYS);
-                            assert(oldValue);
-                            keys = *oldValue;
+                            LOG_warn << "Replacing ^!keys value by previous version "
+                                     << attribute->version() << " current: " << keysVersion;
+                            assert(!attribute->value().empty());
+                            keys = attribute->value();
                         }
                     }
 

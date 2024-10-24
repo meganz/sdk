@@ -26,6 +26,7 @@
 
 namespace mega {
 
+class UserAttribute;
 class UserAttributeManager;
 
 // user/contact
@@ -126,17 +127,13 @@ public:
     // attribute methods: set/get/expire...
     void setAttribute(attr_t at, const string& value, const string& version);
     bool setAttributeIfDifferentVersion(attr_t at, const string& value, const string& version);
-    const string *getattr(attr_t at);
-    const string *getattrversion(attr_t at);
     void setAttributeExpired(attr_t at);
-    bool isattrvalid(attr_t at);
     const UserAttribute* getAttribute(attr_t at) const;
     void removeAttribute(attr_t at);
     void removeAttributeUpdateVersion(attr_t at, const string& version); // remove in up2/upv V3 ?
 
+    // Set this to avoid requesting attributes already known to not exist from server.
     void cacheNonExistingAttributes();
-    // Returns true if attribute was cached as non-existing. Avoid requesting it from server.
-    bool nonExistingAttribute(attr_t at) const;
 
     static string attr2string(attr_t at);
     static string attr2longname(attr_t at);

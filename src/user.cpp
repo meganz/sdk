@@ -216,11 +216,11 @@ User* User::unserialize(MegaClient* client, string* d)
     {
         string prEd255, prCu255;
 
-        const string* keys = u->getattr(ATTR_KEYS);
-        if (keys)
+        const UserAttribute* keysAttribute = u->getAttribute(ATTR_KEYS);
+        if (keysAttribute && !keysAttribute->isNotExisting())
         {
             client->mKeyManager.setKey(client->key);
-            if (client->mKeyManager.fromKeysContainer(*keys))
+            if (client->mKeyManager.fromKeysContainer(keysAttribute->value()))
             {
                 prEd255 = client->mKeyManager.privEd25519();
                 prCu255 = client->mKeyManager.privCu25519();
@@ -229,10 +229,11 @@ User* User::unserialize(MegaClient* client, string* d)
 
         if (!client->mKeyManager.generation())
         {
-            const string *av = (u->isattrvalid(ATTR_KEYRING)) ? u->getattr(ATTR_KEYRING) : NULL;
-            if (av)
+            const UserAttribute* attribute = u->getAttribute(ATTR_KEYRING);
+            if (attribute && attribute->isValid())
             {
-                unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(av, &client->key));
+                unique_ptr<TLVstore> tlvRecords(
+                    TLVstore::containerToTLVrecords(&attribute->value(), &client->key));
                 if (tlvRecords)
                 {
                     tlvRecords->get(EdDSA::TLV_KEY, prEd255);
@@ -333,12 +334,10 @@ const UserAttribute* User::getAttribute(attr_t at) const
 
 void User::removeAttribute(attr_t at)
 {
-    if (isattrvalid(at))
+    if (mAttributeManager->erase(at))
     {
         setChanged(at);
     }
-
-    mAttributeManager->erase(at);
 }
 
 void User::removeAttributeUpdateVersion(attr_t at, const string& version)
@@ -352,22 +351,6 @@ void User::removeAttributeUpdateVersion(attr_t at, const string& version)
 void User::cacheNonExistingAttributes()
 {
     mAttributeManager->cacheNonExistingAttributes();
-}
-
-bool User::nonExistingAttribute(attr_t at) const
-{
-    return mAttributeManager->isNotExisting(at);
-}
-
-// returns the value if there is value (even if it's invalid by now)
-const string * User::getattr(attr_t at)
-{
-    return mAttributeManager->getRawValue(at);
-}
-
-bool User::isattrvalid(attr_t at)
-{
-    return mAttributeManager->isValid(at);
 }
 
 string User::attr2string(attr_t type)
@@ -672,11 +655,6 @@ m_time_t User::getPwdReminderData(int numDetail, const char *data, unsigned int 
     }
 
     return 0;
-}
-
-const string *User::getattrversion(attr_t at)
-{
-    return mAttributeManager->getVersion(at);
 }
 
 bool User::setChanged(attr_t at)

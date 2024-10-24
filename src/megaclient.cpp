@@ -24,6 +24,7 @@
 #include "mega/mediafileattribute.h"
 #include "mega/scoped_helpers.h"
 #include "mega/testhooks.h"
+#include "mega/user_attribute.h"
 
 #include <cryptopp/hkdf.h> // required for derive key of master key
 #include <mega/fuse/common/normalized_path.h>
@@ -852,13 +853,13 @@ error MegaClient::setbackupfolder(const char* foldername, int tag, std::function
         return API_EACCESS; // not logged in?
     }
 
-    if (u->isattrvalid(ATTR_MY_BACKUPS_FOLDER))
+    const UserAttribute* attribute = u->getAttribute(ATTR_MY_BACKUPS_FOLDER);
+    if (attribute && attribute->isValid())
     {
-        // if the attribute was previously set, only allow setting it again if the folder node was missing
-        // (should never happen, but it already did)
-        const string* buf = u->getattr(ATTR_MY_BACKUPS_FOLDER);
+        // if the attribute was previously set, only allow setting it again if the folder node was
+        // missing (should never happen, but it already did)
         handle h = 0;
-        memcpy(&h, buf->data(), NODEHANDLE);
+        memcpy(&h, attribute->value().data(), NODEHANDLE);
         if (nodebyhandle(h))
         {
             // cannot set a new folder if it already exists
@@ -6882,10 +6883,10 @@ void MegaClient::sc_userattr()
                         attr_t type = User::string2attr(itua->c_str());
                         if (type == ATTR_UNKNOWN) // several user attributes are ignored by SDK
                             continue;
-                        const string *cacheduav = u->getattrversion(type);
-                        if (cacheduav)
+                        const UserAttribute* attribute = u->getAttribute(type);
+                        if (attribute)
                         {
-                            if (*cacheduav != *ituav)
+                            if (attribute->version() != *ituav)
                             {
                                 u->setAttributeExpired(type);
                                 switch(type)
@@ -6948,7 +6949,7 @@ void MegaClient::sc_userattr()
 
                             // if this attr was just created, add it to cache with empty value and set it as invalid
                             // (it will allow to detect if the attr exists upon resumption from cache, in case the value wasn't received yet)
-                            if (type == ATTR_DISABLE_VERSIONS && !u->getattr(type))
+                            if (type == ATTR_DISABLE_VERSIONS && !u->getAttribute(type))
                             {
                                 string emptyStr;
                                 u->setAttribute(type, emptyStr, emptyStr);
@@ -11862,10 +11863,11 @@ void MegaClient::upgradeSecurity(std::function<void(Error)> completion)
     string prEd255;
     string prCu255;
     User *u = finduser(me);
-    const string *av = (u->isattrvalid(ATTR_KEYRING)) ? u->getattr(ATTR_KEYRING) : NULL;
-    if (av)
+    assert(u);
+    const UserAttribute* attribute = u->getAttribute(ATTR_KEYRING);
+    if (attribute && attribute->isValid())
     {
-        unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(av, &key));
+        unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&attribute->value(), &key));
         if (tlvRecords)
         {
             tlvRecords->get(EdDSA::TLV_KEY, prEd255);
@@ -12532,7 +12534,8 @@ void MegaClient::putua(attr_t at, const byte* av, unsigned avl, int ctag, handle
     else
     {
         // if the cached value is outdated, first need to fetch the latest version
-        if (u->getattr(at) && !u->isattrvalid(at))
+        const UserAttribute* attribute = u->getAttribute(at);
+        if (attribute && attribute->isExpired())
         {
             restag = tag;
             completion(API_EEXPIRED);
@@ -12573,7 +12576,8 @@ void MegaClient::putua(userattr_map *attrs, int ctag, std::function<void (Error)
         }
 
         // if the cached value is outdated, first need to fetch the latest version
-        if (u->getattr(type) && !u->isattrvalid(type))
+        const UserAttribute* attribute = u->getAttribute(type);
+        if (attribute && attribute->isExpired())
         {
             restag = tag;
             return completion(API_EEXPIRED);
@@ -12610,11 +12614,13 @@ bool MegaClient::getua(User* u, const attr_t at, int ctag, mega::CommandGetUA::C
     else
     {
         // if we can solve those requests locally (cached values)...
-        const string *cachedav = u->getattr(at);
+        const UserAttribute* attribute = u->getAttribute(at);
         int tag = (ctag != -1) ? ctag : reqtag;
 
-        if (cachedav && u->isattrvalid(at))
+        if (attribute && attribute->isValid() &&
+            at != ATTR_AVATAR) // value of Avatar is always empty
         {
+            const string* cachedav = &attribute->value();
             if (User::scope(at) == ATTR_SCOPE_PRIVATE_ENCRYPTED) // TLV encoding
             {
                 TLVstore *tlv = TLVstore::containerToTLVrecords(cachedav, &key);
@@ -12631,13 +12637,13 @@ bool MegaClient::getua(User* u, const attr_t at, int ctag, mega::CommandGetUA::C
                 return true;
             }
         }
-        else if (u->nonExistingAttribute(at))  // only own user attrs get marked as "no exits"
+        else if (attribute && attribute->isNotExisting()) // own user attrs marked as "no exits"
         {
             assert(u->userhandle == me);
             restag = tag;
             completionErr ? completionErr(API_ENOENT) : app->getua_result(API_ENOENT);
         }
-        else
+        else // never created or expired
         {
             reqs.add(new CommandGetUA(this, u->uid.c_str(), at, NULL, tag, completionErr, completionBytes, completionTLV));
             return false;
@@ -15148,10 +15154,11 @@ void MegaClient::initializekeys()
     }
     else
     {
-        const string *av = (u->isattrvalid(ATTR_KEYRING)) ? u->getattr(ATTR_KEYRING) : NULL;
-        if (av)
+        const UserAttribute* attribute = u->getAttribute(ATTR_KEYRING);
+        if (attribute && attribute->isValid())
         {
-            unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(av, &key));
+            unique_ptr<TLVstore> tlvRecords(
+                TLVstore::containerToTLVrecords(&attribute->value(), &key));
             if (tlvRecords)
             {
                 tlvRecords->get(EdDSA::TLV_KEY, prEd255);
@@ -15165,10 +15172,18 @@ void MegaClient::initializekeys()
     }
 
     // get public keys and signatures
-    puEd255 = (u->isattrvalid(ATTR_ED25519_PUBK)) ? *u->getattr(ATTR_ED25519_PUBK) : "";
-    puCu255 = (u->isattrvalid(ATTR_CU25519_PUBK)) ? *u->getattr(ATTR_CU25519_PUBK) : "";
-    sigCu255 = (u->isattrvalid(ATTR_SIG_CU255_PUBK)) ? *u->getattr(ATTR_SIG_CU255_PUBK) : "";
-    sigPubk = (u->isattrvalid(ATTR_SIG_RSA_PUBK)) ? *u->getattr(ATTR_SIG_RSA_PUBK) : "";
+    const UserAttribute* attribute = u->getAttribute(ATTR_ED25519_PUBK);
+    if (attribute && attribute->isValid())
+        puEd255 = attribute->value();
+    attribute = u->getAttribute(ATTR_CU25519_PUBK);
+    if (attribute && attribute->isValid())
+        puCu255 = attribute->value();
+    attribute = u->getAttribute(ATTR_SIG_CU255_PUBK);
+    if (attribute && attribute->isValid())
+        sigCu255 = attribute->value();
+    attribute = u->getAttribute(ATTR_SIG_RSA_PUBK);
+    if (attribute && attribute->isValid())
+        sigPubk = attribute->value();
 
     // Initialize private keys
     if (prEd255.size() == EdDSA::SEED_KEY_LENGTH)
@@ -15442,12 +15457,13 @@ void MegaClient::loadAuthrings()
             std::set<attr_t> attrs { ATTR_AUTHRING, ATTR_AUTHCU255 };
             for (auto at : attrs)
             {
-                const string *av = ownUser->getattr(at);
-                if (av)
+                const UserAttribute* attribute = ownUser->getAttribute(at);
+                if (attribute && !attribute->isNotExisting())
                 {
-                    if (ownUser->isattrvalid(at))
+                    if (attribute->isValid())
                     {
-                        std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(av, &key));
+                        std::unique_ptr<TLVstore> tlvRecords(
+                            TLVstore::containerToTLVrecords(&attribute->value(), &key));
                         if (tlvRecords)
                         {
                             mAuthRings.emplace(at, AuthRing(at, *tlvRecords));
@@ -15460,7 +15476,7 @@ void MegaClient::loadAuthrings()
 
                         continue;
                     }
-                    else
+                    else // expired
                     {
                         LOG_err << User::attr2string(at) << " not available: found in cache, but out of date.";
                     }
@@ -15521,18 +15537,25 @@ void MegaClient::fetchContactKeys(User *user)
     // call trackKey() in case the key is in cache
     // otherwise, send getua() to server, CommandGetUA::procresult() will call trackKey()
     attr_t attrType = ATTR_ED25519_PUBK;
-    if (!user->isattrvalid(attrType))
+    const UserAttribute* attribute = user->getAttribute(attrType);
+    if (!attribute || !attribute->isValid())
     {
         getua(user, attrType, 0);
 
         // if Ed25519 is not in cache, better to ensure that Ed25519 is tracked before Cu25519
         user->setAttributeExpired(ATTR_CU25519_PUBK);
     }
-    else trackKey(attrType, user->userhandle, *user->getattr(attrType));
+    else
+    {
+        trackKey(attrType, user->userhandle, attribute->value());
+    }
 
     attrType = ATTR_CU25519_PUBK;
-    if (!user->isattrvalid(attrType)) getua(user, attrType, 0);
-    else trackKey(attrType, user->userhandle, *user->getattr(attrType));
+    attribute = user->getAttribute(attrType);
+    if (!attribute || !attribute->isValid())
+        getua(user, attrType, 0);
+    else
+        trackKey(attrType, user->userhandle, attribute->value());
 
     // TODO: remove obsolete retrieval of public RSA keys and its signatures
     // (authrings for RSA are deprecated)
@@ -15621,13 +15644,14 @@ error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
 
     if (authring->isSignedKey())
     {
-        assert(user->getattr(ATTR_ED25519_PUBK) != nullptr); // User's public Ed25519 should be in cache already
+        // User's public Ed25519 should be in cache already
+        assert(user->getAttribute(ATTR_ED25519_PUBK) != nullptr);
 
         attr_t attrType = AuthRing::authringTypeToSignatureType(authringType);
-        const string* signature = user->getattr(attrType);
-        if (signature)
+        const UserAttribute* attribute = user->getAttribute(attrType);
+        if (attribute && attribute->isValid())
         {
-            trackSignature(attrType, uh, *signature);
+            trackSignature(attrType, uh, attribute->value());
         }
         else
         {
@@ -15656,7 +15680,7 @@ error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
 
 error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::string &signature)
 {
-    User *user = finduser(uh);
+    const User* user = finduser(uh);
     if (!user)
     {
         LOG_err << "Attempt to track a key for an unknown user " << Base64Str<MegaClient::USERHANDLE>(uh) << ": " << User::attr2string(signatureType);
@@ -15699,13 +15723,14 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
     if (signatureType == ATTR_SIG_CU255_PUBK)
     {
         // retrieve public key whose signature wants to be verified, from cache
-        if (!user || !user->isattrvalid(ATTR_CU25519_PUBK))
+        const UserAttribute* attribute = user->getAttribute(signatureType);
+        if (!attribute || !attribute->isValid())
         {
             LOG_warn << "Failed to verify signature " << User::attr2string(signatureType) << " for user " << uid << ": CU25519 public key is not available";
             assert(false);
             return API_EINTERNAL;
         }
-        pubKey = user->getattr(ATTR_CU25519_PUBK);
+        pubKey = &attribute->value();
     }
     else
     {
@@ -15715,13 +15740,15 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
     }
 
     // retrieve signing key from cache
-    if (!user->isattrvalid(ATTR_ED25519_PUBK))
+    const UserAttribute* attribute = user->getAttribute(ATTR_ED25519_PUBK);
+    if (!attribute || !attribute->isValid())
     {
-        LOG_warn << "Failed to verify signature " << User::attr2string(signatureType) << " for user " << uid << ": signing public key is not available";
-        assert(false);
+        LOG_warn << "Failed to retrieve signing key " << User::attr2string(ATTR_ED25519_PUBK)
+                 << " for user " << uid << ": signing public key is not available";
+        assert(attribute && attribute->isValid());
         return API_ETEMPUNAVAIL;
     }
-    const string *signingPubKey = user->getattr(ATTR_ED25519_PUBK);
+    const string* signingPubKey = &attribute->value();
 
     // compute key's fingerprint
     string keyFingerprint = AuthRing::fingerprint(*pubKey);
@@ -15883,8 +15910,11 @@ error MegaClient::verifyCredentials(handle uh, std::function<void (Error)> compl
         if (user)
         {
             attr_t attrType = ATTR_CU25519_PUBK;
-            if (!user->isattrvalid(attrType)) getua(user, attrType, 0);
-            else trackKey(attrType, user->userhandle, *user->getattr(attrType));
+            const UserAttribute* attribute = user->getAttribute(attrType);
+            if (!attribute || !attribute->isValid())
+                getua(user, attrType, 0);
+            else
+                trackKey(attrType, user->userhandle, attribute->value());
         }
         return API_EINTERNAL;
     }
@@ -15907,8 +15937,9 @@ error MegaClient::verifyCredentials(handle uh, std::function<void (Error)> compl
     case AUTH_METHOD_UNKNOWN:
     {
         User *user = finduser(uh);
-        const string *pubKey = user ? user->getattr(ATTR_ED25519_PUBK) : nullptr;
-        if (pubKey)
+        const UserAttribute* pubKeyAttribute =
+            user ? user->getAttribute(ATTR_ED25519_PUBK) : nullptr;
+        if (pubKeyAttribute && pubKeyAttribute->isValid())
         {
             LOG_warn << "Adding authentication method of Ed25519 public key for user " << uid << ": key is not tracked yet";
         }
@@ -15951,10 +15982,11 @@ error MegaClient::verifyCredentials(handle uh, std::function<void (Error)> compl
         case AUTH_METHOD_UNKNOWN:
         {
             User *user = finduser(uh);
-            const string *pubKey = user ? user->getattr(ATTR_ED25519_PUBK) : nullptr;
-            if (pubKey)
+            const UserAttribute* pubKeyAttribute =
+                user ? user->getAttribute(ATTR_ED25519_PUBK) : nullptr;
+            if (pubKeyAttribute && pubKeyAttribute->isValid())
             {
-                string keyFingerprint = AuthRing::fingerprint(*pubKey);
+                string keyFingerprint = AuthRing::fingerprint(pubKeyAttribute->value());
                 LOG_warn << "Adding authentication method of Ed25519 public key for user " << uid
                          << ": key is not tracked yet during commit";
                 authring.add(uh, keyFingerprint, AUTH_METHOD_FINGERPRINT);
@@ -16804,20 +16836,20 @@ void MegaClient::preparebackup(SyncConfig sc, std::function<void(Error, SyncConf
     User* u = ownuser();
 
     // get handle of remote "My Backups" folder, from user attributes
-    if (!u || !u->isattrvalid(ATTR_MY_BACKUPS_FOLDER))
+    const UserAttribute* attribute = u ? u->getAttribute(ATTR_MY_BACKUPS_FOLDER) : nullptr;
+    if (!attribute || !attribute->isValid())
     {
         LOG_err << "Add backup: \"My Backups\" folder was not set";
         return completion(API_EACCESS, sc, nullptr);
     }
-    const string* handleContainerStr = u->getattr(ATTR_MY_BACKUPS_FOLDER);
-    if (!handleContainerStr)
+    if (attribute->value().size() != MegaClient::NODEHANDLE)
     {
-        LOG_err << "Add backup: ATTR_MY_BACKUPS_FOLDER attribute had null value";
+        LOG_err << "Add backup: ATTR_MY_BACKUPS_FOLDER attribute had invalid value";
         return completion(API_EACCESS, sc, nullptr);
     }
 
     handle h = 0;
-    memcpy(&h, handleContainerStr->data(), MegaClient::NODEHANDLE);
+    memcpy(&h, attribute->value().data(), MegaClient::NODEHANDLE);
     if (!h || h == UNDEF)
     {
         LOG_err << "Add backup: ATTR_MY_BACKUPS_FOLDER attribute contained invalid handler value";
@@ -16892,20 +16924,21 @@ void MegaClient::preparebackup(SyncConfig sc, std::function<void(Error, SyncConf
     {
         // get `DEVICE_NAME`, from user attributes
         attr_t attrType = ATTR_DEVICE_NAMES;
-        if (!u->isattrvalid(attrType))
+        attribute = u->getAttribute(attrType);
+        if (!attribute || !attribute->isValid())
         {
             LOG_err << "Add backup: device/drive name not set";
             return completion(API_EINCOMPLETE, sc, nullptr);
         }
-        const string* deviceNameContainerStr = u->getattr(attrType);
-        if (!deviceNameContainerStr)
+        if (attribute->value().empty())
         {
-            LOG_err << "Add backup: null attribute value for device/drive name";
+            LOG_err << "Add backup: empty attribute value for device/drive name";
             return completion(API_EINCOMPLETE, sc, nullptr);
         }
 
         string deviceName;
-        std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(deviceNameContainerStr, &key));
+        std::unique_ptr<TLVstore> tlvRecords(
+            TLVstore::containerToTLVrecords(&attribute->value(), &key));
         const string& deviceNameKey = isInternalDrive ? deviceId : User::attributePrefixInTLV(ATTR_DEVICE_NAMES, true) + deviceId;
         if (!tlvRecords || !tlvRecords->get(deviceNameKey, deviceName) || deviceName.empty())
         {
@@ -18860,9 +18893,9 @@ void MegaClient::setWelcomePdfNeedsDelayedImport(bool requestImport)
 
 bool MegaClient::wasWelcomePdfImportDelayed()
 {
-    User* u = ownuser();
-    const string* attrValue = u ? u->getattr(ATTR_WELCOME_PDF_COPIED) : nullptr;
-    return attrValue && *attrValue == "0";
+    const User* u = ownuser();
+    const UserAttribute* attribute = u ? u->getAttribute(ATTR_WELCOME_PDF_COPIED) : nullptr;
+    return attribute && attribute->isValid() && attribute->value() == "0";
 }
 
 bool MegaClient::startDriveMonitor()
@@ -20872,7 +20905,11 @@ const char* const MegaClient::PWM_ATTR_PASSWORD_PWD = "pwd";
 NodeHandle MegaClient::getPasswordManagerBase()
 {
     auto u = ownuser();
-    return u ? toNodeHandle(u->getattr(ATTR_PWM_BASE)) : NodeHandle{};
+    const UserAttribute* attribute = u ? u->getAttribute(ATTR_PWM_BASE) : nullptr;
+    return (attribute && attribute->isValid() &&
+            attribute->value().size() == MegaClient::NODEHANDLE) ?
+               toNodeHandle(&attribute->value()) :
+               NodeHandle{};
 }
 
 void MegaClient::preparePasswordNodeData(attr_map& attrs, const AttrMap& data) const
@@ -22693,8 +22730,8 @@ string KeyManager::computeSymmetricKey(handle user)
         return std::string();
     }
 
-    const string *cachedav = u->getattr(ATTR_CU25519_PUBK);
-    if (!cachedav)
+    const UserAttribute* attribute = u->getAttribute(ATTR_CU25519_PUBK);
+    if (!attribute || !attribute->isValid())
     {
         LOG_warn << "Unable to generate symmetric key. Public key not cached.";
         if (mClient.statecurrent && mClient.mAuthRingsTemp.find(ATTR_CU25519_PUBK) == mClient.mAuthRingsTemp.end())
@@ -22709,7 +22746,7 @@ string KeyManager::computeSymmetricKey(handle user)
     }
 
     std::string sharedSecret;
-    ECDH ecdh(mClient.chatkey->getPrivKey(), *cachedav);
+    ECDH ecdh(mClient.chatkey->getPrivKey(), attribute->value());
     if (!ecdh.computeSymmetricKey(sharedSecret))
     {
         return std::string();

@@ -12,27 +12,6 @@ using namespace std;
 namespace mega
 {
 
-const string* UserAttributeManager::getRawValue(attr_t at) const
-{
-    if (at == ATTR_AVATAR)
-        return nullptr; // its value is never cached
-
-    auto itAttr = mAttributes.find(at);
-    if (itAttr == mAttributes.end() || itAttr->second.isNotExisting())
-        return nullptr;
-
-    return &itAttr->second.value();
-}
-
-const string* UserAttributeManager::getVersion(attr_t at) const
-{
-    auto itAttr = mAttributes.find(at);
-    if (itAttr == mAttributes.end() || itAttr->second.isNotExisting())
-        return nullptr;
-
-    return &itAttr->second.version();
-}
-
 void UserAttributeManager::set(attr_t at, const string& value, const string& version)
 {
     const UserAttributeDefinition* d = UserAttributeDefinition::get(at);
@@ -95,12 +74,6 @@ bool UserAttributeManager::setNotExisting(attr_t at)
 
     attr.setNotExisting();
     return true;
-}
-
-bool UserAttributeManager::isNotExisting(attr_t at) const
-{
-    auto itAttr = mAttributes.find(at);
-    return itAttr != mAttributes.end() && itAttr->second.isNotExisting();
 }
 
 void UserAttributeManager::setExpired(attr_t at)
