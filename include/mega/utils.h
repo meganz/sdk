@@ -1228,7 +1228,9 @@ private:
     static bool isOnlyWildCards(const std::string& text);
 };
 
-std::set<std::string>::iterator getTagPosition(std::set<std::string>& tokens, const std::string& tag);
+std::set<std::string>::iterator getTagPosition(std::set<std::string>& tokens,
+                                               const std::string& pattern,
+                                               const bool stripAccents = true);
 
 /*
  * Compare two UTF-8 strings for equality where the first string is
@@ -1237,12 +1239,14 @@ std::set<std::string>::iterator getTagPosition(std::set<std::string>& tokens, co
  * @param pattern the like pattern
  * @param str the UFT-8 string to compare against
  * @param esc the escape character
+ * @param stripAccents True if accents should be stripped before comparison.
  *
  * @return true if the are the same and false if they are different
  */
 bool likeCompare(const char* pattern,
                  const char* str,
-                 const UChar32 esc = static_cast<UChar32>(ESCAPE_CHARACTER));
+                 const UChar32 esc = static_cast<UChar32>(ESCAPE_CHARACTER),
+                 const bool stripAccents = true);
 
 // Get the current process ID
 unsigned long getCurrentPid();

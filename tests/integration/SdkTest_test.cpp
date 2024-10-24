@@ -18973,16 +18973,19 @@ TEST_F(SdkTest, SdkNodeTag)
     nodeList.reset(megaApi[0]->search(filter.get()));
     ASSERT_EQ(nodeList->size(), 1) << *nodeList;
 
+    // Search matches any part of a tag.
     std::string tagNoFind = "ta";
     filter->byTag(tagNoFind.c_str());
     nodeList.reset(megaApi[0]->search(filter.get()));
-    ASSERT_EQ(nodeList->size(), 0) << *nodeList;
+    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
 
+    // Wildcards are not permitted.
     std::string tagNoFindWithWildCard = "t*g";
     filter->byTag(tagNoFindWithWildCard.c_str());
     nodeList.reset(megaApi[0]->search(filter.get()));
     ASSERT_EQ(nodeList->size(), 0) << *nodeList;
 
+    // Searching for multiple tags at the same time is not permitted.
     std::string tagNoFindWithCombi = tag1 + "," + tag2;
     filter->byTag(tagNoFindWithCombi.c_str());
     nodeList.reset(megaApi[0]->search(filter.get()));
@@ -19033,8 +19036,15 @@ TEST_F(SdkTest, SdkNodeTag)
     nodeList.reset(megaApi[0]->search(filter.get()));
     ASSERT_EQ(nodeList->size(), 1) << *nodeList;
 
+    // Tags with an accent are considered different from those without.
+    std::string cafeWithoutAccent = "cafe";
+    std::string cafeWithAccent = "café";
+
+    ASSERT_EQ(addTag(mh, cafeWithoutAccent), API_OK);
+    ASSERT_EQ(addTag(mh, cafeWithAccent), API_OK);
+
+    // Tags are case insensitive.
     ASSERT_EQ(addTag(mh, tag4Lowercase), API_EEXIST);
-    ASSERT_EQ(addTag(mh, tag4NoAccent), API_EEXIST);
 
     // To prepare for the following block, check natural sorting
     const std::string tag11 = "tag11";
@@ -19081,7 +19091,13 @@ TEST_F(SdkTest, SdkNodeTag)
     ASSERT_NE(allTags, nullptr);
     auto allTagsV = stringListToVector(*allTags);
     EXPECT_THAT(allTagsV,
-                testing::ElementsAreArray({subdirtag4, subdirtag14, subdirtag20, tag3, tag11}));
+                testing::ElementsAreArray({cafeWithAccent,
+                                           cafeWithoutAccent,
+                                           subdirtag4,
+                                           subdirtag14,
+                                           subdirtag20,
+                                           tag3,
+                                           tag11}));
 
     LOG_debug << "[SdkTest::SdkNodeTag] Testing all tags with pattern matching";
     allTags.reset(megaApi[0]->getAllNodeTags("ub*r"));

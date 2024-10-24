@@ -3334,30 +3334,39 @@ bool TextPattern::isOnlyWildCards(const std::string& text)
                        });
 }
 
-std::set<std::string>::iterator getTagPosition(std::set<std::string>& tokens, const std::string& tag)
+std::set<std::string>::iterator getTagPosition(std::set<std::string>& tokens,
+                                               const std::string& pattern,
+                                               bool stripAccents)
 {
-    const std::string pattern = escapeWildCards(tag.c_str());
-    return std::find_if(tokens.begin(),
-                        tokens.end(),
-                        [&pattern](const std::string& token)
-                        {
-                            return likeCompare(pattern.c_str(), token.c_str());
-                        });
+    return std::find_if(
+        tokens.begin(),
+        tokens.end(),
+        [&](const std::string& token)
+        {
+            return likeCompare(pattern.c_str(), token.c_str(), ESCAPE_CHARACTER, stripAccents);
+        });
 }
 
-bool foldCaseAccentEqual(uint32_t codePoint1, uint32_t codePoint2)
+bool foldCaseAccentEqual(uint32_t codePoint1, uint32_t codePoint2, bool stripAccents)
 {
     // 8 is big enough decompose one unicode point
     using Buffer = std::array<utf8proc_int32_t, 8>;
 
-    auto foldCaseAccent = [](uint32_t codePoint, Buffer& buff)
+    // convenience.
+    auto options = UTF8PROC_CASEFOLD | UTF8PROC_COMPOSE | UTF8PROC_NULLTERM | UTF8PROC_STABLE;
+
+    // Strip accents if desired.
+    if (stripAccents)
+    {
+        options |= UTF8PROC_STRIPMARK;
+    }
+
+    auto foldCaseAccent = [options](uint32_t codePoint, Buffer& buff)
     {
         return utf8proc_decompose_char((utf8proc_int32_t)codePoint,
                                        buff.data(),
                                        static_cast<utf8proc_ssize_t>(buff.size()),
-                                       (utf8proc_option_t)(UTF8PROC_NULLTERM | UTF8PROC_STABLE |
-                                                           UTF8PROC_COMPOSE | UTF8PROC_STRIPMARK |
-                                                           UTF8PROC_CASEFOLD),
+                                       static_cast<utf8proc_option_t>(options),
                                        nullptr);
     };
 
@@ -3406,9 +3415,10 @@ assert(*zIn);                                         \
         while ((*zIn & 0xc0)==0x80){zIn++;}           \
 }
 
-int icuLikeCompare(const uint8_t *zPattern,   // LIKE pattern
-                   const uint8_t *zString,    // The UTF-8 string to compare against
-                   const UChar32 uEsc)        // The escape character
+int icuLikeCompare(const uint8_t* zPattern, // LIKE pattern
+                   const uint8_t* zString, // The UTF-8 string to compare against
+                   const UChar32 uEsc, // The escape character
+                   const bool stripAccents) // Whether we should strip accents
 {
     // Define Linux wildcards
     static const uint32_t MATCH_ONE = static_cast<uint32_t>(WILDCARD_MATCH_ONE);
@@ -3456,7 +3466,7 @@ int icuLikeCompare(const uint8_t *zPattern,   // LIKE pattern
 
             while (*zString)
             {
-                if (icuLikeCompare(zPattern, zString, uEsc))
+                if (icuLikeCompare(zPattern, zString, uEsc, stripAccents))
                 {
                     return 1;
                 }
@@ -3484,7 +3494,7 @@ int icuLikeCompare(const uint8_t *zPattern,   // LIKE pattern
             // Case 4
             uint32_t uString;
             SQLITE_ICU_READ_UTF8(zString, uString);
-            if (!foldCaseAccentEqual(uString, uPattern))
+            if (!foldCaseAccentEqual(uString, uPattern, stripAccents))
             {
                 return 0;
             }
@@ -3496,11 +3506,12 @@ int icuLikeCompare(const uint8_t *zPattern,   // LIKE pattern
     return *zString == 0;
 }
 
-bool likeCompare(const char* pattern, const char* str, const UChar32 esc)
+bool likeCompare(const char* pattern, const char* str, const UChar32 esc, bool stripAccents)
 {
     return static_cast<bool>(icuLikeCompare(reinterpret_cast<const uint8_t*>(pattern),
                                             reinterpret_cast<const uint8_t*>(str),
-                                            esc));
+                                            esc,
+                                            stripAccents));
 }
 
 // Get the current process ID

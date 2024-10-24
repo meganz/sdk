@@ -118,7 +118,7 @@ public:
     void byTag(const std::string& tag)
     {
         mTagFilter = escapeWildCards(tag);
-        mTagFilterContainsSeparator = mTagFilter.find(TAG_DELIMITER) != std::string::npos;
+        mTagFilterContainsSeparator = mTagFilter.getText().find(TAG_DELIMITER) != std::string::npos;
     }
 
     void useAndForTextQuery(const bool useAnd)
@@ -158,7 +158,11 @@ public:
     {
         return mDescriptionFilter.getText();
     }
-    const std::string& byTag() const { return mTagFilter; }
+
+    const std::string& byTag() const
+    {
+        return mTagFilter.getText();
+    }
 
     bool useAndForTextQuery() const
     {
@@ -197,7 +201,7 @@ public:
 
     bool hasTag() const
     {
-        return !mTagFilter.empty();
+        return !mTagFilter.getText().empty();
     }
 
     bool hasFav() const
@@ -233,7 +237,7 @@ private:
     int64_t mModificationLowerLimit = 0;
     int64_t mModificationUpperLimit = 0;
     TextPattern mDescriptionFilter;
-    std::string mTagFilter;
+    TextPattern mTagFilter;
     bool mTagFilterContainsSeparator{false};
     bool mUseAndForTextQuery{true};
 
