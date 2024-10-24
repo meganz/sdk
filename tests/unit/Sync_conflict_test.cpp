@@ -134,51 +134,87 @@ public:
     }
 };
 
-class MegaSyncStallMapTest: public MegaSyncStallMap
+class MegaSyncStallMapTest: public MegaSyncStallMapPrivate
 {
 public:
-    std::map<MegaHandle, MegaSyncStallListTest> mStalls;
-    MegaSyncStallMapTest() = default;
+    MegaSyncStallMapTest():
+        MegaSyncStallMapPrivate()
+    {}
 
-    void add(const MegaHandle backupId, const MegaSyncStallListTest& testList)
+    void add(const MegaHandle backupId, const MegaSyncStallListPrivate& testList)
     {
-        mStalls.emplace(backupId, testList);
-    }
-
-    MegaHandleList* getKeys() const override
-    {
-        MegaHandleList* list = MegaHandleList::createInstance();
-        for (const auto& stall: mStalls)
-        {
-            list->addMegaHandle(stall.first);
-        }
-        return list;
-    }
-
-    const MegaSyncStallListTest* get(const MegaHandle key) const override
-    {
-        if (const auto& it = mStalls.find(key); it != mStalls.end())
-        {
-            return &it->second;
-        }
-        return nullptr;
-    }
-
-    size_t getHash() const override
-    {
-        uint64_t hash{};
-        if (const MegaHandleList* keys = getKeys(); keys)
-        {
-            for (unsigned int i = 0; i < keys->size(); ++i)
-            {
-                hash = hashCombine(hash, get(keys->get(i))->getHash());
-            }
-        }
-        return hash;
+        mStallsMap.emplace(backupId, testList);
     }
 };
 
-TEST(SyncStallHashTest, MegaSyncStallIssuesGetHash)
+TEST(SyncStallHashTest, MegaSyncStallIssuesMapGetHash)
+{
+    std::vector<NameConflict::NameHandle> nhVec{};
+    std::vector<LocalPath> clashingLNames{};
+    NameConflict nc1{"cloudPath1", nhVec, LocalPath(), clashingLNames};
+    std::shared_ptr<MegaSyncNameConflictStallPrivate> s1{new MegaSyncNameConflictStallPrivate(nc1)};
+
+    nhVec.emplace_back("nameHandle", NodeHandle());
+    clashingLNames.emplace_back(LocalPath::fromAbsolutePath("./test/local"));
+    NameConflict nc2{"cloudPath2", nhVec, LocalPath(), clashingLNames};
+    std::shared_ptr<MegaSyncNameConflictStallPrivate> s2{new MegaSyncNameConflictStallPrivate(nc2)};
+
+    SyncStallEntry e1{
+        SyncWaitReason::FileIssue,
+        true,
+        false,
+        {NodeHandle{},                  "currentPath1", PathProblem::DetectedSymlink},
+        {NodeHandle{},                             "currentPath1",                                PathProblem::DetectedSymlink},
+        {LocalPath{}, PathProblem::DetectedSymlink},
+        {LocalPath{}, PathProblem::DetectedSymlink                               }
+    };
+    std::shared_ptr<MegaSyncStallPrivate> s3{new MegaSyncStallPrivate(e1)};
+
+    SyncStallEntry e2{
+        SyncWaitReason::FileIssue,
+        true,
+        false,
+        {NodeHandle{},                  "currentPath2", PathProblem::DetectedSymlink},
+        {NodeHandle{},                             "currentPath2",                                PathProblem::DetectedSymlink},
+        {LocalPath{}, PathProblem::DetectedSymlink},
+        {LocalPath{}, PathProblem::NoProblem                               }
+    };
+    std::shared_ptr<MegaSyncStallPrivate> s4{new MegaSyncStallPrivate(e1)};
+
+    MegaSyncStallListPrivate sl1;
+    sl1.addStall(s1);
+    sl1.addStall(s3);
+
+    MegaSyncStallListPrivate sl2;
+    sl1.addStall(s2);
+    sl1.addStall(s4);
+
+    MegaSyncStallListPrivate sl3;
+    sl1.addStall(s2);
+    sl1.addStall(s3);
+
+    MegaSyncStallMapTest m1;
+    m1.add(111111111111111, sl1);
+    m1.add(222222222222222, sl2);
+
+    MegaSyncStallMapTest m2;
+    m2.add(111111111111111, sl1);
+    m2.add(222222222222222, sl2);
+
+    MegaSyncStallMapTest m3;
+    m2.add(222222222222222, sl2);
+    m2.add(111111111111111, sl1);
+
+    MegaSyncStallMapTest m4;
+    m4.add(222222222222222, sl1);
+    m4.add(111111111111111, sl3);
+
+    ASSERT_EQ(m1.getHash(), m2.getHash());
+    ASSERT_NE(m1.getHash(), m3.getHash());
+    ASSERT_NE(m2.getHash(), m4.getHash());
+}
+
+TEST(SyncStallHashTest, MegaSyncStallListGetHash)
 {
     std::vector<NameConflict::NameHandle> nhVec{};
     std::vector<LocalPath> clashingLNames{};
@@ -213,18 +249,6 @@ TEST(SyncStallHashTest, MegaSyncStallIssuesGetHash)
     ASSERT_NE(testList1.getHash(), testList2.getHash());
     ASSERT_NE(testList1.getHash(), testList3.getHash());
     ASSERT_NE(testList2.getHash(), testList3.getHash());
-
-    MegaSyncStallMapTest map;
-    map.add(111111111111111, testList1);
-    map.add(222222222222222, testList2);
-    map.add(333333333333333, testList3);
-
-    uint64_t hash = {};
-    hash = hashCombine(hash, testList1.getHash());
-    hash = hashCombine(hash, testList2.getHash());
-    hash = hashCombine(hash, testList3.getHash());
-
-    ASSERT_EQ(hash, map.getHash());
 }
 
 } // namespace

@@ -2963,7 +2963,8 @@ public:
 
     MegaHandleList* getKeys() const override;
 
-private:
+protected:
+    MegaSyncStallMapPrivate() = default;
     const std::map<MegaHandle, MegaSyncStallListPrivate>& getMap() const;
     std::map<MegaHandle, MegaSyncStallListPrivate> mStallsMap;
 };
