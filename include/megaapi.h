@@ -13671,7 +13671,7 @@ class MegaApi
          *
          * @param node MegaNode to set the preview
          * @param srcFilePath Source path of the file that will be set as preview. This
-         * image must be square (ratio) and it should contain the image's primary content for a
+         * image must be of the same ratio and contain completely the original image for a
          * better UX
          * @param listener MegaRequestListener to track this request
          */
@@ -13700,7 +13700,7 @@ class MegaApi
          *
          * @param bu the MegaBackgroundMediaUpload that the fingernail will be assoicated with
          * @param srcFilePath Source path of the file that will be set as preview. This
-         * image must be square (ratio) and it should contain the image's primary content for a
+         * image must be of the same ratio and contain completely the original image for a
          * better UX
          * @param listener MegaRequestListener to track this request
          */
