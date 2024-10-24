@@ -130,6 +130,7 @@ public:
     const string *getattrversion(attr_t at);
     void setAttributeExpired(attr_t at);
     bool isattrvalid(attr_t at);
+    const UserAttribute* getAttribute(attr_t at) const;
     void removeAttribute(attr_t at);
     void removeAttributeUpdateVersion(attr_t at, const string& version); // remove in up2/upv V3 ?
 

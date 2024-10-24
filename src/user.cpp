@@ -326,6 +326,11 @@ void User::setAttributeExpired(attr_t at)
     mAttributeManager->setExpired(at);
 }
 
+const UserAttribute* User::getAttribute(attr_t at) const
+{
+    return mAttributeManager->get(at);
+}
+
 void User::removeAttribute(attr_t at)
 {
     if (isattrvalid(at))

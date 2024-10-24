@@ -116,6 +116,12 @@ bool UserAttributeManager::isValid(attr_t at) const
     return itAttr != mAttributes.end() && itAttr->second.isValid();
 }
 
+const UserAttribute* UserAttributeManager::get(attr_t at) const
+{
+    auto itAttr = mAttributes.find(at);
+    return itAttr == mAttributes.end() ? nullptr : &itAttr->second;
+}
+
 bool UserAttributeManager::erase(attr_t at)
 {
     if (mCacheNonExistingAttributes)

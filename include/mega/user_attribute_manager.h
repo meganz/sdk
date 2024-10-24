@@ -20,6 +20,7 @@ public:
     bool isNotExisting(attr_t at) const;
     void setExpired(attr_t at);
     bool isValid(attr_t at) const; // not Expired and not cached as Not Existing
+    const UserAttribute* get(attr_t at) const;
     bool erase(attr_t at);
     bool eraseUpdateVersion(attr_t at, const std::string& version);
 
