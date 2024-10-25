@@ -2346,7 +2346,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
 
     switch (b->type)
     {
-    case UserAlert::type_ipc:
+    case name_id::ipc:
     {
         UserAlert::IncomingPendingContact* p = static_cast<UserAlert::IncomingPendingContact*>(b);
         if (p->requestWasDeleted)
@@ -2366,7 +2366,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         email = p->email();
     }
     break;
-    case UserAlert::type_c:
+    case name_id::c:
     {
         UserAlert::ContactChange* p = static_cast<UserAlert::ContactChange*>(b);
         switch (p->action)
@@ -2380,7 +2380,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         email = p->email();
     }
     break;
-    case UserAlert::type_upci:
+    case name_id::upci:
     {
         UserAlert::UpdatedPendingContactIncoming* p = static_cast<UserAlert::UpdatedPendingContactIncoming*>(b);
         switch (p->action)
@@ -2393,7 +2393,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         email = p->email();
     }
     break;
-    case UserAlert::type_upco:
+    case name_id::upco:
     {
         UserAlert::UpdatedPendingContactOutgoing* p = static_cast<UserAlert::UpdatedPendingContactOutgoing*>(b);
         switch (p->action)
@@ -2406,7 +2406,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         email = p->email();
     }
     break;
-    case UserAlert::type_share:
+    case name_id::share:
     {
         UserAlert::NewShare* p = static_cast<UserAlert::NewShare*>(b);
         type = TYPE_NEWSHARE;
@@ -2420,7 +2420,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         }
     }
     break;
-    case UserAlert::type_dshare:
+    case name_id::dshare:
     {
         UserAlert::DeletedShare* p = static_cast<UserAlert::DeletedShare*>(b);
         type = TYPE_DELETEDSHARE;
@@ -2433,7 +2433,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         numbers.push_back(accessRevoked ? 1 : 0);
     }
     break;
-    case UserAlert::type_put:
+    case name_id::put:
     {
         UserAlert::NewSharedNodes* p = static_cast<UserAlert::NewSharedNodes*>(b);
         type = TYPE_NEWSHAREDNODES;
@@ -2446,7 +2446,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         handles.insert(end(handles), begin(p->fileNodeHandles), end(p->fileNodeHandles));
     }
     break;
-    case UserAlert::type_d:
+    case name_id::d:
     {
         UserAlert::RemovedSharedNode* p = static_cast<UserAlert::RemovedSharedNode*>(b);
         type = TYPE_REMOVEDSHAREDNODES;
@@ -2455,7 +2455,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         numbers.push_back(p->nodeHandles.size());
     }
     break;
-    case UserAlert::type_u:
+    case name_id::u:
     {
         UserAlert::UpdatedSharedNode* p = static_cast<UserAlert::UpdatedSharedNode*>(b);
         type = TYPE_UPDATEDSHAREDNODES;
@@ -2464,22 +2464,22 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         numbers.push_back(p->nodeHandles.size());
     }
     break;
-    case UserAlert::type_psts:
-    case UserAlert::type_psts_v2:
+    case name_id::psts:
+    case name_id::psts_v2:
     {
         UserAlert::Payment* p = static_cast<UserAlert::Payment*>(b);
         type = p->success ? TYPE_PAYMENT_SUCCEEDED : TYPE_PAYMENT_FAILED;
         extraStrings.push_back(p->getProPlanName());
     }
     break;
-    case UserAlert::type_pses:
+    case name_id::pses:
     {
         UserAlert::PaymentReminder* p = static_cast<UserAlert::PaymentReminder*>(b);
         type = TYPE_PAYMENTREMINDER;
         timestamps.push_back(p->expiryTime);
     }
     break;
-    case UserAlert::type_ph:
+    case name_id::ph:
     {
         UserAlert::Takedown* p = static_cast<UserAlert::Takedown*>(b);
         if (p->isTakedown)
@@ -2500,7 +2500,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
     }
     break;
 #ifdef ENABLE_CHAT
-    case UserAlert::type_nusm:
+    case name_id::mcsmp:
     {
          if (auto* p = dynamic_cast<UserAlert::NewScheduledMeeting*>(b))
          {
@@ -2535,7 +2535,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
          }
     }
     break;
-    case UserAlert::type_dsm:
+    case name_id::mcsmr:
     {
         if (auto* p = dynamic_cast<UserAlert::DeletedScheduledMeeting*>(b))
         {
