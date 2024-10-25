@@ -201,7 +201,7 @@ TEST_P(InterfacesWithParam, SetValueSameVersion)
     std::string value2{"Bar"};
     mUser.changed = {};
     auto unchanged = mUser.changed;
-    ASSERT_FALSE(mUser.setAttributeIfDifferentVersion(GetParam(), value2, mVersion1));
+    ASSERT_FALSE(mUser.updateAttributeIfDifferentVersion(GetParam(), value2, mVersion1));
     ASSERT_EQ(memcmp(&mUser.changed, &unchanged, sizeof(mUser.changed)), 0);
 
     const mega::UserAttribute* attribute = mUser.getAttribute(GetParam());
@@ -218,7 +218,7 @@ TEST_P(InterfacesWithParam, SetValueDifferentVersion)
     std::string version2{"FHqlO7Gbl_x"};
     mUser.changed = {};
     auto unchanged = mUser.changed;
-    ASSERT_TRUE(mUser.setAttributeIfDifferentVersion(GetParam(), value2, version2));
+    ASSERT_TRUE(mUser.updateAttributeIfDifferentVersion(GetParam(), value2, version2));
     ASSERT_NE(memcmp(&mUser.changed, &unchanged, sizeof(mUser.changed)), 0);
 
     const mega::UserAttribute* attribute = mUser.getAttribute(GetParam());

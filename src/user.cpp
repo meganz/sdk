@@ -310,7 +310,7 @@ void User::setAttribute(attr_t at, const string& value, const string& version)
     mAttributeManager->set(at, value, version);
 }
 
-bool User::setAttributeIfDifferentVersion(attr_t at, const string& value, const string& version)
+bool User::updateAttributeIfDifferentVersion(attr_t at, const string& value, const string& version)
 {
     if (mAttributeManager->setIfNewVersion(at, value, version))
     {
