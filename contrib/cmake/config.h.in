@@ -96,9 +96,6 @@
 /* Define to 1 if you have the <openssl/ssl.h> header file. */
 #define HAVE_OPENSSL_SSL_H 1
 
-/* Define to 1 if you have the <pcrecpp.h> header file. */
-/* #undef HAVE_PCRECPP_H */
-
 /* If available, contains the Python version number currently in use. */
 /* #undef HAVE_PYTHON */
 
@@ -247,9 +244,6 @@
 
 /* Define to use OpenSSL */
 #cmakedefine USE_OPENSSL 1
-
-/* Define to use libpcre */
-#cmakedefine USE_PCRE 1
 
 /* Defined if pthreads are available */
 #cmakedefine USE_PTHREAD 1
