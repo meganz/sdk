@@ -323,8 +323,10 @@ bool User::updateAttributeIfDifferentVersion(attr_t at, const string& value, con
 
 void User::setAttributeExpired(attr_t at)
 {
-    setChanged(at);
-    mAttributeManager->setExpired(at);
+    if (mAttributeManager->setExpired(at))
+    {
+        setChanged(at);
+    }
 }
 
 const UserAttribute* User::getAttribute(attr_t at) const

@@ -76,11 +76,15 @@ bool UserAttributeManager::setNotExisting(attr_t at)
     return true;
 }
 
-void UserAttributeManager::setExpired(attr_t at)
+bool UserAttributeManager::setExpired(attr_t at)
 {
     const auto it = mAttributes.find(at);
-    if (it != mAttributes.end())
+    if (it != mAttributes.end() && !it->second.isExpired())
+    {
         it->second.setExpired();
+        return true;
+    }
+    return false;
 }
 
 bool UserAttributeManager::isValid(attr_t at) const
