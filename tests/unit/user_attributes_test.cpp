@@ -17,30 +17,12 @@
  */
 
 #include "mega/user.h"
+#include "mega/user_attribute.h"
 
 #include <gmock/gmock-matchers.h>
 #include <gtest/gtest.h>
 
 #include <tuple>
-
-namespace
-{
-
-void validateUserAttributeValue(mega::User& user,
-                                mega::attr_t at,
-                                const std::optional<const std::string>& value)
-{
-    if (!value || at == mega::ATTR_AVATAR)
-    {
-        ASSERT_THAT(user.getattr(at), testing::IsNull()) << "Found value " << *user.getattr(at);
-    }
-    else
-    {
-        ASSERT_EQ(*user.getattr(at), *value);
-    }
-}
-
-}
 
 // attr2string
 class attr2stringWithParam: public testing::TestWithParam<std::tuple<mega::attr_t, std::string>>
@@ -175,6 +157,25 @@ INSTANTIATE_TEST_SUITE_P(
 class InterfacesWithParam: public testing::TestWithParam<mega::attr_t>
 {
 protected:
+    void validateValue(mega::attr_t at,
+                       const mega::UserAttribute* attribute,
+                       const std::optional<const std::string>& value)
+    {
+        if (!value)
+        {
+            ASSERT_TRUE(!attribute || attribute->isNotExisting() ||
+                        (at == mega::ATTR_AVATAR && attribute->value().empty()));
+        }
+        else if (at == mega::ATTR_AVATAR)
+        {
+            ASSERT_TRUE(attribute->value().empty()) << "Found value " << attribute->value();
+        }
+        else
+        {
+            ASSERT_EQ(attribute->value(), *value);
+        }
+    }
+
     std::string mEmail{"foo@bar.com"};
     mega::User mUser{mEmail.c_str()};
     std::string mValue1{"Foo"};
@@ -184,106 +185,118 @@ protected:
 TEST_P(InterfacesWithParam, SetValueAndVersion)
 {
     auto unchanged = mUser.changed;
-    mUser.setattr(GetParam(), &mValue1, &mVersion1);
+    mUser.setAttribute(GetParam(), mValue1, mVersion1);
     ASSERT_NE(memcmp(&mUser.changed, &unchanged, sizeof(mUser.changed)), 0);
-    ASSERT_NO_FATAL_FAILURE(validateUserAttributeValue(mUser, GetParam(), mValue1));
-    const std::string* version = mUser.getattrversion(GetParam());
-    ASSERT_THAT(version, testing::NotNull());
-    ASSERT_EQ(*version, mVersion1);
+
+    const mega::UserAttribute* attribute = mUser.getAttribute(GetParam());
+    ASSERT_THAT(attribute, testing::NotNull());
+    ASSERT_TRUE(attribute->isValid());
+    ASSERT_NO_FATAL_FAILURE(validateValue(GetParam(), attribute, mValue1));
+    ASSERT_EQ(attribute->version(), mVersion1);
 }
 
-TEST_P(InterfacesWithParam, UpdateValueSameVersion)
+TEST_P(InterfacesWithParam, SetValueSameVersion)
 {
-    mUser.setattr(GetParam(), &mValue1, &mVersion1);
+    mUser.setAttribute(GetParam(), mValue1, mVersion1);
     std::string value2{"Bar"};
     mUser.changed = {};
     auto unchanged = mUser.changed;
-    ASSERT_EQ(mUser.updateattr(GetParam(), &value2, &mVersion1), 0);
+    ASSERT_FALSE(mUser.updateAttributeIfDifferentVersion(GetParam(), value2, mVersion1));
     ASSERT_EQ(memcmp(&mUser.changed, &unchanged, sizeof(mUser.changed)), 0);
-    ASSERT_NO_FATAL_FAILURE(validateUserAttributeValue(mUser, GetParam(), mValue1));
-    const std::string* version = mUser.getattrversion(GetParam());
-    ASSERT_THAT(version, testing::NotNull());
-    ASSERT_EQ(*version, mVersion1);
+
+    const mega::UserAttribute* attribute = mUser.getAttribute(GetParam());
+    ASSERT_THAT(attribute, testing::NotNull());
+    ASSERT_TRUE(attribute->isValid());
+    ASSERT_NO_FATAL_FAILURE(validateValue(GetParam(), attribute, mValue1));
+    ASSERT_EQ(attribute->version(), mVersion1);
 }
 
-TEST_P(InterfacesWithParam, UpdateValueDifferentVersion)
+TEST_P(InterfacesWithParam, SetValueDifferentVersion)
 {
-    mUser.setattr(GetParam(), &mValue1, &mVersion1);
+    mUser.setAttribute(GetParam(), mValue1, mVersion1);
     std::string value2{"Bar"};
     std::string version2{"FHqlO7Gbl_x"};
     mUser.changed = {};
     auto unchanged = mUser.changed;
-    ASSERT_EQ(mUser.updateattr(GetParam(), &value2, &version2), 1);
+    ASSERT_TRUE(mUser.updateAttributeIfDifferentVersion(GetParam(), value2, version2));
     ASSERT_NE(memcmp(&mUser.changed, &unchanged, sizeof(mUser.changed)), 0);
-    ASSERT_NO_FATAL_FAILURE(validateUserAttributeValue(mUser, GetParam(), value2));
-    const std::string* version = mUser.getattrversion(GetParam());
-    ASSERT_THAT(version, testing::NotNull());
-    ASSERT_EQ(*version, version2);
+
+    const mega::UserAttribute* attribute = mUser.getAttribute(GetParam());
+    ASSERT_THAT(attribute, testing::NotNull());
+    ASSERT_TRUE(attribute->isValid());
+    ASSERT_NO_FATAL_FAILURE(validateValue(GetParam(), attribute, value2));
+    ASSERT_EQ(attribute->version(), version2);
 }
 
-TEST_P(InterfacesWithParam, SetValueNullVersion)
+TEST_P(InterfacesWithParam, SetValueEmptyVersion)
 {
     auto unchanged = mUser.changed;
-    mUser.setattr(GetParam(), &mValue1, nullptr);
+    mUser.setAttribute(GetParam(), mValue1, {});
     ASSERT_NE(memcmp(&mUser.changed, &unchanged, sizeof(mUser.changed)), 0);
-    ASSERT_NO_FATAL_FAILURE(validateUserAttributeValue(mUser, GetParam(), mValue1));
-    const std::string* version = mUser.getattrversion(GetParam());
-    ASSERT_THAT(version, testing::NotNull());
-    ASSERT_TRUE(version->empty());
+
+    const mega::UserAttribute* attribute = mUser.getAttribute(GetParam());
+    ASSERT_THAT(attribute, testing::NotNull());
+    ASSERT_TRUE(attribute->isValid());
+    ASSERT_NO_FATAL_FAILURE(validateValue(GetParam(), attribute, mValue1));
+    ASSERT_TRUE(attribute->version().empty());
 }
 
 TEST_P(InterfacesWithParam, Invalidate)
 {
-    mUser.setattr(GetParam(), &mValue1, &mVersion1);
+    mUser.setAttribute(GetParam(), mValue1, mVersion1);
     mUser.changed = {};
     auto unchanged = mUser.changed;
-    mUser.invalidateattr(GetParam());
+    mUser.setAttributeExpired(GetParam());
     ASSERT_NE(memcmp(&mUser.changed, &unchanged, sizeof(mUser.changed)), 0);
-    ASSERT_FALSE(mUser.isattrvalid(GetParam()));
-    ASSERT_NO_FATAL_FAILURE(validateUserAttributeValue(mUser, GetParam(), mValue1));
-    const std::string* version = mUser.getattrversion(GetParam());
-    ASSERT_THAT(version, testing::NotNull());
-    ASSERT_EQ(*version, mVersion1);
+
+    const mega::UserAttribute* attribute = mUser.getAttribute(GetParam());
+    ASSERT_THAT(attribute, testing::NotNull());
+    ASSERT_FALSE(attribute->isValid());
+    ASSERT_NO_FATAL_FAILURE(validateValue(GetParam(), attribute, mValue1));
+    ASSERT_EQ(attribute->version(), mVersion1);
 }
 
-TEST_P(InterfacesWithParam, RemoveVersion)
+TEST_P(InterfacesWithParam, RemoveValueUpdateVersion)
 {
-    mUser.setattr(GetParam(), &mValue1, &mVersion1);
+    mUser.setAttribute(GetParam(), mValue1, mVersion1);
     mUser.changed = {};
     auto unchanged = mUser.changed;
-    mUser.removeattr(GetParam(),
-                     mVersion1); // remove value, but keep updated version (for some reason...)
+    std::string version2{"FHqlO7Gbl_x"};
+    mUser.removeAttributeUpdateVersion(
+        GetParam(),
+        version2); // remove value, but keep updated version and attribute as invalid
     ASSERT_NE(memcmp(&mUser.changed, &unchanged, sizeof(mUser.changed)), 0);
-    ASSERT_NO_FATAL_FAILURE(validateUserAttributeValue(mUser, GetParam(), mValue1));
-    const std::string* version = mUser.getattrversion(GetParam());
-    ASSERT_THAT(version, testing::NotNull());
-    ASSERT_EQ(*version, mVersion1);
-    ASSERT_FALSE(mUser.nonExistingAttribute(GetParam()));
+
+    const mega::UserAttribute* attribute = mUser.getAttribute(GetParam());
+    ASSERT_THAT(attribute, testing::NotNull());
+    ASSERT_FALSE(attribute->isValid());
+    ASSERT_NO_FATAL_FAILURE(validateValue(GetParam(), attribute, ""));
+    ASSERT_EQ(attribute->version(), version2);
 }
 
 TEST_P(InterfacesWithParam, RemoveValueOwnUser)
 {
     mUser.cacheNonExistingAttributes();
-    mUser.setattr(GetParam(), &mValue1, &mVersion1);
+    mUser.setAttribute(GetParam(), mValue1, mVersion1);
     mUser.changed = {};
     auto unchanged = mUser.changed;
-    mUser.removeattr(GetParam(), true);
+    mUser.removeAttribute(GetParam());
     ASSERT_NE(memcmp(&mUser.changed, &unchanged, sizeof(mUser.changed)), 0);
-    ASSERT_NO_FATAL_FAILURE(validateUserAttributeValue(mUser, GetParam(), std::nullopt));
-    ASSERT_THAT(mUser.getattrversion(GetParam()), testing::IsNull());
-    ASSERT_TRUE(mUser.nonExistingAttribute(GetParam()));
+
+    const mega::UserAttribute* attribute = mUser.getAttribute(GetParam());
+    ASSERT_NO_FATAL_FAILURE(validateValue(GetParam(), attribute, std::nullopt));
 }
 
 TEST_P(InterfacesWithParam, RemoveValueOtherUser)
 {
-    mUser.setattr(GetParam(), &mValue1, &mVersion1);
+    mUser.setAttribute(GetParam(), mValue1, mVersion1);
     mUser.changed = {};
     auto unchanged = mUser.changed;
-    mUser.removeattr(GetParam(), false);
+    mUser.removeAttribute(GetParam());
     ASSERT_NE(memcmp(&mUser.changed, &unchanged, sizeof(mUser.changed)), 0);
-    ASSERT_NO_FATAL_FAILURE(validateUserAttributeValue(mUser, GetParam(), std::nullopt));
-    ASSERT_THAT(mUser.getattrversion(GetParam()), testing::IsNull());
-    ASSERT_FALSE(mUser.nonExistingAttribute(GetParam()));
+
+    const mega::UserAttribute* attribute = mUser.getAttribute(GetParam());
+    ASSERT_NO_FATAL_FAILURE(validateValue(GetParam(), attribute, std::nullopt));
 }
 
 INSTANTIATE_TEST_SUITE_P(UserAttributeTests,

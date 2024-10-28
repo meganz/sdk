@@ -27,6 +27,7 @@
 #include "mega/gfx.h"
 #include "mega/pwm_file_parser.h"
 #include "mega/testhooks.h"
+#include "mega/user_attribute.h"
 
 #include <bitset>
 #include <charconv>
@@ -3736,14 +3737,14 @@ void putua_map(const std::string& b64key, const std::string& b64value, attr_t at
 
     std::unique_ptr<TLVstore> tlv;
 
-    const std::string* oldValue = ownUser->getattr(attrtype);
-    if (!oldValue)  // attr doesn't exist -> create it
+    const UserAttribute* attribute = ownUser->getAttribute(attrtype);
+    if (!attribute || attribute->isNotExisting()) // attr doesn't exist -> create it
     {
         tlv.reset(new TLVstore());
         const string& realValue = Base64::atob(b64value);
         tlv->set(b64key, realValue); // real value, non-B64
     }
-    else if (!ownUser->isattrvalid(attrtype)) // not fetched yet or outdated
+    else if (attribute->isExpired())
     {
         cout << "User attribute is outdated";
         cout << "Fetch the attribute first" << endl;
@@ -3751,7 +3752,7 @@ void putua_map(const std::string& b64key, const std::string& b64value, attr_t at
     }
     else
     {
-        tlv.reset(TLVstore::containerToTLVrecords(oldValue, &client->key));
+        tlv.reset(TLVstore::containerToTLVrecords(&attribute->value(), &client->key));
 
         string_map attrMap;
         attrMap[b64key] = b64value; // User::mergeUserAttribute() expects B64 values
@@ -3886,15 +3887,15 @@ void exec_getmybackups(autocomplete::ACState&)
         return;
     }
 
-    const string* buf = u->getattr(ATTR_MY_BACKUPS_FOLDER);
-    if (!buf)
+    const UserAttribute* attribute = u->getAttribute(ATTR_MY_BACKUPS_FOLDER);
+    if (!attribute || attribute->isNotExisting())
     {
         cout << "\"My Backups\" folder has not been set." << endl;
         return;
     }
 
     handle h = 0;
-    memcpy(&h, buf->data(), MegaClient::NODEHANDLE);
+    memcpy(&h, attribute->value().data(), MegaClient::NODEHANDLE);
     if (!h || h == UNDEF)
     {
         cout << "Invalid handle stored for \"My Backups\" folder." << endl;
@@ -7992,9 +7993,10 @@ void exec_verifycredentials(autocomplete::ACState& s)
 
     if (s.words[1].s == "show")
     {
-        if (u->isattrvalid(ATTR_ED25519_PUBK))
+        const UserAttribute* attribute = u->getAttribute(ATTR_ED25519_PUBK);
+        if (attribute && attribute->isValid())
         {
-            cout << "Credentials: " << AuthRing::fingerprint(*u->getattr(ATTR_ED25519_PUBK), true) << endl;
+            cout << "Credentials: " << AuthRing::fingerprint(attribute->value(), true) << endl;
         }
         else
         {
@@ -12988,10 +12990,12 @@ void exec_passwordmanager(autocomplete::ACState& s)
     }
     else if (command == "createbase")
     {
-        auto sBase = client->ownuser()->getattr(ATTR_PWM_BASE);
-        if (sBase)
+        const UserAttribute* attribute = client->ownuser()->getAttribute(ATTR_PWM_BASE);
+        if (attribute && attribute->isValid())
         {
-            std::cout << "Password Manager Base already exists " << toNodeHandle(sBase) << ". Skipping creation\n";
+            assert(attribute->value().size() == MegaClient::NODEHANDLE);
+            std::cout << "Password Manager Base already exists "
+                      << toNodeHandle(&attribute->value()) << ". Skipping creation\n";
             return;
         }
 
@@ -13026,7 +13030,7 @@ void exec_passwordmanager(autocomplete::ACState& s)
         client->senddevcommand("pwmhd", client->ownuser()->email.c_str());
 
         // forced erasing the user attribute and base folder node from Vault
-        client->ownuser()->removeattr(ATTR_PWM_BASE, true);
+        client->ownuser()->removeAttribute(ATTR_PWM_BASE);
         if (!mnBase) return;  // just in case there was a previous state where the node was deleted
         const bool keepVersions = false;
         const int tag = -1;

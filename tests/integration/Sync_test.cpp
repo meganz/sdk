@@ -24,6 +24,7 @@
 #include "env_var_accounts.h"
 #include "gtest_common.h"
 #include "mega/scoped_helpers.h"
+#include "mega/user_attribute.h"
 #include "test.h"
 
 #define DEFAULTWAIT std::chrono::seconds(20)
@@ -1739,8 +1740,8 @@ bool StandardClient::waitForAttrDeviceIdIsSet(unsigned int numSeconds, bool& upd
     std::string deviceIdHash = client.getDeviceidHash();
     if (err == API_OK)
     {
-        User* ownUser = client.ownuser();
-        tlv.reset(TLVstore::containerToTLVrecords(ownUser->getattr(attr_t::ATTR_DEVICE_NAMES), &client.key));
+        const UserAttribute* attribute = client.ownuser()->getAttribute(ATTR_DEVICE_NAMES);
+        tlv.reset(TLVstore::containerToTLVrecords(&attribute->value(), &client.key));
         std::string buffer;
         if (tlv->get(deviceIdHash, buffer))
         {

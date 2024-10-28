@@ -13,14 +13,12 @@ namespace mega
 class UserAttributeManager
 {
 public:
-    const std::string* getRawValue(attr_t at) const;
-    const std::string* getVersion(attr_t at) const;
     void set(attr_t at, const std::string& value, const std::string& version);
     bool setIfNewVersion(attr_t at, const std::string& value, const std::string& version);
-    bool isNotExisting(attr_t at) const;
     void setExpired(attr_t at);
-    bool isValid(attr_t at) const; // not Expired and not cached as Not Existing
+    const UserAttribute* get(attr_t at) const;
     bool erase(attr_t at);
+    bool eraseUpdateVersion(attr_t at, const std::string& version);
 
     void serializeAttributeFormatVersion(std::string& appendTo) const;
     static char unserializeAttributeFormatVersion(const char*& from);
@@ -40,15 +38,9 @@ public:
         mCacheNonExistingAttributes = true;
     }
 
-#ifndef NDEBUG
-    bool isCachingNonExistingAttributes() const
-    {
-        return mCacheNonExistingAttributes;
-    }
-#endif
-
 private:
     bool setNotExisting(attr_t at);
+    bool isValid(attr_t at) const; // not Expired and not cached as Not Existing
 
     std::unordered_map<attr_t, UserAttribute> mAttributes;
     bool mCacheNonExistingAttributes = false;

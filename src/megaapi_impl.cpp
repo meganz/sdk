@@ -29,6 +29,7 @@
 #define PREFER_STDARG
 #include "mega/mediafileattribute.h"
 #include "mega/scoped_helpers.h"
+#include "mega/user_attribute.h"
 #include "megaapi.h"
 #include "megaapi_impl.h"
 
@@ -7984,10 +7985,11 @@ char* MegaApiImpl::getPrivateKey(int type)
     }
     else
     {
-        const string *av = (u->isattrvalid(ATTR_KEYRING)) ? u->getattr(ATTR_KEYRING) : NULL;
-        if (av)
+        const UserAttribute* attribute = u->getAttribute(ATTR_KEYRING);
+        if (attribute && attribute->isValid())
         {
-            unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(av, &client->key));
+            unique_ptr<TLVstore> tlvRecords(
+                TLVstore::containerToTLVrecords(&attribute->value(), &client->key));
             if (tlvRecords &&  (type == MegaApi::PRIVATE_KEY_ED25519 || type == MegaApi::PRIVATE_KEY_CU25519))
             {
                 tlvRecords->get(type == MegaApi::PRIVATE_KEY_ED25519 ? EdDSA::TLV_KEY : ECDH::TLV_KEY, privateKey);
@@ -13917,13 +13919,14 @@ std::unique_ptr<MegaPushNotificationSettingsPrivate> MegaApiImpl::getMegaPushNot
     if (!ownUser)
         return nullptr;
 
-    const std::string* settingsJson = ownUser->getattr(ATTR_PUSH_SETTINGS);
-    if (!settingsJson)
+    const UserAttribute* settingsJson = ownUser->getAttribute(ATTR_PUSH_SETTINGS);
+    if (!settingsJson || settingsJson->isNotExisting())
     {
         return nullptr;
     }
 
-    std::unique_ptr<MegaPushNotificationSettingsPrivate> pushSettings = std::make_unique<MegaPushNotificationSettingsPrivate>(*settingsJson);
+    std::unique_ptr<MegaPushNotificationSettingsPrivate> pushSettings =
+        std::make_unique<MegaPushNotificationSettingsPrivate>(settingsJson->value());
     if (pushSettings->isValid())
     {
         return pushSettings;
@@ -21172,7 +21175,8 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                         || type == ATTR_CC_PREFS
                         || type == ATTR_APPS_PREFS)
                 {
-                    if (!ownUser->isattrvalid(type)) // not fetched yet or outdated
+                    const UserAttribute* attribute = ownUser->getAttribute(type);
+                    if (!attribute || !attribute->isValid()) // not fetched yet or outdated
                     {
                         // always get updated value before update it
                         getUserAttr(ownUser, type, request);
@@ -21180,7 +21184,8 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                     }
                     else
                     {
-                        tlv.reset(TLVstore::containerToTLVrecords(ownUser->getattr(type), &client->key));
+                        tlv.reset(
+                            TLVstore::containerToTLVrecords(&attribute->value(), &client->key));
                     }
                 }
                 else
@@ -25513,11 +25518,20 @@ void MegaApiImpl::setMyBackupsFolder(const char* localizedName, MegaRequestListe
             {
                 if (e == API_OK)
                 {
-                    const string* buf = client->ownuser()->getattr(ATTR_MY_BACKUPS_FOLDER);
-                    handle h = 0;
-                    memcpy(&h, buf->data(), MegaClient::NODEHANDLE);
-
-                    request->setNodeHandle(h);
+                    const UserAttribute* attribute =
+                        client->ownuser()->getAttribute(ATTR_MY_BACKUPS_FOLDER);
+                    if (attribute && !attribute->isNotExisting())
+                    {
+                        assert(attribute->value().size() == MegaClient::NODEHANDLE);
+                        handle h = 0;
+                        memcpy(&h, attribute->value().data(), MegaClient::NODEHANDLE);
+                        request->setNodeHandle(h);
+                    }
+                    else
+                    {
+                        LOG_err << "Invalid value for ATTR_MY_BACKUPS_FOLDER";
+                        e = API_EINTERNAL;
+                    }
                 }
                 fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
             };
