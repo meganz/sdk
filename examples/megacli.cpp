@@ -27,6 +27,7 @@
 #include "mega/gfx.h"
 #include "mega/pwm_file_parser.h"
 #include "mega/testhooks.h"
+#include "mega/tlv.h"
 #include "mega/user_attribute.h"
 
 #include <bitset>

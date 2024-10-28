@@ -26,6 +26,7 @@
 
 namespace mega {
 
+class TLVstore;
 class UserAttribute;
 class UserAttributeManager;
 

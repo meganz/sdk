@@ -26,6 +26,7 @@
 #include "mega/heartbeats.h"
 #include "mega/mediafileattribute.h"
 #include "mega/megaapp.h"
+#include "mega/tlv.h"
 #include "mega/transfer.h"
 #include "mega/transferslot.h"
 #include "mega/types.h"

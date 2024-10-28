@@ -30,6 +30,7 @@
 
 #include "mega/mediafileattribute.h"
 #include "mega/scoped_helpers.h"
+#include "mega/tlv.h"
 #include "mega/user_attribute.h"
 #include "megaapi.h"
 

@@ -24,6 +24,7 @@
 #include "mega/base64.h"
 #include "mega/logging.h"
 #include "mega/megaclient.h"
+#include "mega/tlv.h"
 #include "mega/user_attribute_manager.h"
 
 namespace mega {
