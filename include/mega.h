@@ -121,8 +121,5 @@
 #if defined(REQUIRE_USE_MEDIAINFO) && !defined(USE_MEDIAINFO)
 #error compilation with USE_MEDIAINFO is required
 #endif
-#if defined(REQUIRE_USE_PCRE) && !defined(USE_PCRE)
-#error compilation with USE_PCRE is required
-#endif
 
 #endif
