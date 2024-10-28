@@ -190,7 +190,7 @@ public:
                                               (remoteRoot + "/" + childName).c_str()) != nullptr;
                                });
         };
-        ASSERT_TRUE(waitFor(areLocalAndCloudSynched, 30min, 10s));
+        ASSERT_TRUE(waitFor(areLocalAndCloudSynched, 3min, 10s));
     }
 
     /**
@@ -204,7 +204,8 @@ public:
         std::vector<std::string> result;
         const auto pushName = [&result](const std::filesystem::path& path)
         {
-            if (const auto name = path.filename().string(); name.front() != '.')
+            if (const auto name = path.filename().string();
+                name.front() != '.' && name != DEBRISFOLDER)
                 result.emplace_back(std::move(name));
         };
         std::filesystem::directory_iterator children{getLocalTmpDir()};
