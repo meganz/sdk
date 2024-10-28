@@ -608,7 +608,7 @@ public:
     SimpleLogger& operator<<(const DirectMessage &obj)
     {
 #ifndef ENABLE_LOG_PERFORMANCE
-        ostr.write(obj.constChar(), obj.size());
+        ostr.write(obj.constChar(), static_cast<std::streamsize>(obj.size()));
 #else
         // careful using constChar() without taking size() into account: *this << obj.constChar(); ended up with 2MB+ lines from fetchnodes.
 
