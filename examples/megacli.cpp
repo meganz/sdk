@@ -1703,7 +1703,7 @@ static std::shared_ptr<Node> nodebypath(const char* ptr, string* user = NULL, st
 
     vector<string> c;
     string s;
-    int l = 0;
+    size_t l = 0;
     const char* bptr = ptr;
     int remote = 0;
     int folderlink = 0;
@@ -1729,7 +1729,7 @@ static std::shared_ptr<Node> nodebypath(const char* ptr, string* user = NULL, st
                 {
                     if (ptr > bptr)
                     {
-                        s.append(bptr, ptr - bptr);
+                        s.append(bptr, static_cast<size_t>(ptr - bptr));
                     }
 
                     bptr = ++ptr;
@@ -1758,7 +1758,7 @@ static std::shared_ptr<Node> nodebypath(const char* ptr, string* user = NULL, st
 
                     if (ptr > bptr)
                     {
-                        s.append(bptr, ptr - bptr);
+                        s.append(bptr, static_cast<size_t>(ptr - bptr));
                     }
 
                     bptr = ptr + 1;
@@ -1894,7 +1894,7 @@ static std::shared_ptr<Node> nodebypath(const char* ptr, string* user = NULL, st
     }
 
     // parse relative path
-    while (n && l < (int)c.size())
+    while (n && l < c.size())
     {
         if (c[l] != ".")
         {
@@ -1922,7 +1922,7 @@ static std::shared_ptr<Node> nodebypath(const char* ptr, string* user = NULL, st
                     if (!nn)
                     {
                         // mv command target? return name part of not found
-                        if (namepart && l == (int) c.size() - 1)
+                        if (namepart && l == c.size() - 1)
                         {
                             *namepart = c[l];
                             return n;
@@ -3178,7 +3178,15 @@ void exec_generatetestfilesfolders(autocomplete::ACState& s)
     if (!p.empty())
     {
         int totalfilecount = 0, totalfoldercount = 0;
-        buildLocalFolders(p, nameprefix, folderwidth, folderdepth, filecount, filesize, totalfilecount, totalfoldercount, nullptr);
+        buildLocalFolders(p,
+                          nameprefix,
+                          folderwidth,
+                          folderdepth,
+                          filecount,
+                          static_cast<uint64_t>(filesize),
+                          totalfilecount,
+                          totalfoldercount,
+                          nullptr);
         cout << "created " << totalfilecount << " files and " << totalfoldercount << " folders" << endl;
     }
     else
@@ -3329,7 +3337,15 @@ void exec_cycleUploadDownload(autocomplete::ACState& s)
     {
         int totalfilecount = 0, totalfoldercount = 0;
         vector<LocalPath> localPaths;
-        buildLocalFolders(p, nameprefix, 1, 1, filecount, filesize, totalfilecount, totalfoldercount, &localPaths);
+        buildLocalFolders(p,
+                          nameprefix,
+                          1,
+                          1,
+                          filecount,
+                          static_cast<uint64_t>(filesize),
+                          totalfilecount,
+                          totalfoldercount,
+                          &localPaths);
         cout << "created " << totalfilecount << " files and " << totalfoldercount << " folders" << endl;
 
         for (auto& fp : localPaths)
@@ -3392,7 +3408,7 @@ void exec_generatesparsefile(autocomplete::ACState& s)
     CloseHandle(hFile);
 #endif //WIN32
 
-    fs::resize_file(p, filesize);
+    fs::resize_file(p, static_cast<std::uintmax_t>(filesize));
     cout << "File size:  " << fs::file_size(p) << '\n'
         << "Free space: " << fs::space(p).free << '\n';
 }
@@ -7209,9 +7225,9 @@ void exec_putua(autocomplete::ACState& s)
         else if (s.words[2].s == "set64")
         {
             int len = int(s.words[3].s.size() * 3 / 4 + 3);
-            byte *value = new byte[len];
+            byte* value = new byte[static_cast<size_t>(len)];
             int valuelen = Base64::atob(s.words[3].s.data(), value, len);
-            client->putua(attrtype, value, valuelen);
+            client->putua(attrtype, value, static_cast<unsigned>(valuelen));
             delete [] value;
             return;
         }
@@ -8453,7 +8469,7 @@ void exec_alerts(autocomplete::ACState& s)
         }
         else if (atoi(s.words[1].s.c_str()) > 0)
         {
-            showN = atoi(s.words[1].s.c_str());
+            showN = static_cast<size_t>(atoi(s.words[1].s.c_str()));
         }
     }
     if (showold || shownew || showN > 0)
@@ -9053,7 +9069,7 @@ void exec_driveid(autocomplete::ACState& s)
             return;
 
         default:
-            assert(!"Uexpected result from readDriveID(...)");
+            assert(false && "Unexpected result from readDriveID(...)");
             cerr << "Unexpected result from readDriveId(...): "
                  << errorstring(result)
                  << endl;
@@ -9408,7 +9424,7 @@ void DemoApp::getprivatekey_result(error e,  const byte *privk, const size_t len
         key.ecb_decrypt(privkbuf, len_privk);
 
         AsymmCipher uk;
-        if (!uk.setkey(AsymmCipher::PRIVKEY, privkbuf, unsigned(len_privk)))
+        if (!uk.setkey(AsymmCipher::PRIVKEY, privkbuf, static_cast<int>(len_privk)))
         {
             cout << "The master key doesn't seem to be correct." << endl;
 
@@ -9722,7 +9738,8 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
     string attrstring;
 
     attrstring.resize(a->length()*4/3+4);
-    attrstring.resize(Base64::btoa((const byte *)a->data(), int(a->length()), (char *)attrstring.data()));
+    attrstring.resize(static_cast<size_t>(
+        Base64::btoa((const byte*)a->data(), int(a->length()), (char*)attrstring.data())));
 
     SymmCipher nodeKey;
     nodeKey.setkey(key, FILENODE);
@@ -9907,7 +9924,7 @@ bool DemoApp::pread_data(byte* data, m_off_t len, m_off_t pos, m_off_t, m_off_t,
     }
     else if (pread_file)
     {
-        pread_file->write((const char*)data, (size_t)len);
+        pread_file->write((const char*)data, static_cast<std::streamsize>(len));
         cout << "Received " << len << " partial read byte(s) at position " << pos << endl;
         if (pread_file_end == pos + len)
         {
@@ -10590,7 +10607,7 @@ char** my_rl_completion(const char* /*text*/, int /*start*/, int end)
 {
     rl_attempted_completion_over = 1;
 
-    std::string line(rl_line_buffer, end);
+    std::string line(rl_line_buffer, static_cast<size_t>(end));
     ac::CompletionState acs = ac::autoComplete(line, line.size(), autocompleteTemplate, true);
 
     if (acs.completions.empty())
@@ -10856,7 +10873,7 @@ static void registerSignalHandlers()
     action.sa_handler = &onFatalSignal;
 
     // Restore default signal handler after invoking our own.
-    action.sa_flags = SA_NODEFER | SA_RESETHAND;
+    action.sa_flags = static_cast<int>(SA_NODEFER | SA_RESETHAND);
 
     // Don't ignore any signals.
     sigemptyset(&action.sa_mask);
@@ -11410,7 +11427,7 @@ void exec_syncimport(autocomplete::ACState& s)
     for (char buffer[512]; istream; )
     {
         istream.read(buffer, sizeof(buffer));
-        data.append(buffer, istream.gcount());
+        data.append(buffer, static_cast<size_t>(istream.gcount()));
     }
 
     if (!istream.eof())
@@ -11464,7 +11481,7 @@ void exec_syncexport(autocomplete::ACState& s)
     auto flags = std::ios::binary | std::ios::out | std::ios::trunc;
     ofstream ostream(s.words[2].s, flags);
 
-    ostream.write(configs.data(), configs.size());
+    ostream.write(configs.data(), static_cast<std::streamsize>(configs.size()));
     ostream.close();
 
     if (!ostream.good())
@@ -13225,7 +13242,7 @@ void exec_generatepassword(autocomplete::ACState& s)
             return;
         }
 
-        const auto length = static_cast<unsigned int>(std::stoul(s.words[2].s));
+        const auto length = static_cast<unsigned>(std::stoul(s.words[2].s));
         const bool useUpper = s.extractflag("-useUpper");
         const bool useDigits = s.extractflag("-useDigits");
         const bool useSymb = s.extractflag("-useSymbols");
