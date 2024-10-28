@@ -378,8 +378,15 @@ public:
         unsigned getFavNodeCount() const { return mMegaFavNodeList ? mMegaFavNodeList->size() : 0u; }
         MegaHandle getFavNode(unsigned i) const { return mMegaFavNodeList->size() > i ? mMegaFavNodeList->get(i) : INVALID_HANDLE; }
 
-        void setStringLists(const MegaStringListMap* s) { stringListMap.reset(s); }
-        unsigned getStringListCount() const { return stringListMap ? stringListMap->size() : 0u; }
+        void setStringLists(const MegaStringListMap* s)
+        {
+            stringListMap.reset(s);
+        }
+
+        unsigned getStringListCount() const
+        {
+            return stringListMap ? static_cast<unsigned>(stringListMap->size()) : 0u;
+        }
         const MegaStringList* getStringList(const char* key) const { return stringListMap ? stringListMap->get(key) : nullptr; }
 
         void setStringTable(const MegaStringTable* s) { stringTable.reset(s); }
@@ -549,11 +556,45 @@ public:
 
     // *** USE THESE ONES INSTEAD ***
     // convenience functions - make a request and wait for the result via listener, return the result code.  To add new functions to call, just copy the line
-    template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncQueryAds(unsigned apiIndex, requestArgs... args) { auto rt = std::make_unique<RequestTracker>(megaApi[apiIndex].get()); megaApi[apiIndex]->queryAds(args..., rt.get()); return rt; }
-    template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncFetchAds(unsigned apiIndex, requestArgs... args) { auto rt = std::make_unique<RequestTracker>(megaApi[apiIndex].get()); megaApi[apiIndex]->fetchAds(args..., rt.get()); return rt; }
-    template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestLogin(unsigned apiIndex, requestArgs... args) { auto rt = std::make_unique<RequestTracker>(megaApi[apiIndex].get()); megaApi[apiIndex]->login(args..., rt.get()); return rt; }
-    template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestFastLogin(unsigned apiIndex, requestArgs... args) { auto rt = std::make_unique<RequestTracker>(megaApi[apiIndex].get()); megaApi[apiIndex]->fastLogin(args..., rt.get()); return rt; }
-    template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestFastLogin(int apiIndex, requestArgs... args) { auto rt = std::make_unique<RequestTracker>(megaApi[apiIndex].get()); megaApi[apiIndex]->fastLogin(args..., rt.get()); return rt; }
+    template<typename... requestArgs>
+    std::unique_ptr<RequestTracker> asyncQueryAds(unsigned apiIndex, requestArgs... args)
+    {
+        auto rt = std::make_unique<RequestTracker>(megaApi[apiIndex].get());
+        megaApi[apiIndex]->queryAds(args..., rt.get());
+        return rt;
+    }
+
+    template<typename... requestArgs>
+    std::unique_ptr<RequestTracker> asyncFetchAds(unsigned apiIndex, requestArgs... args)
+    {
+        auto rt = std::make_unique<RequestTracker>(megaApi[apiIndex].get());
+        megaApi[apiIndex]->fetchAds(args..., rt.get());
+        return rt;
+    }
+
+    template<typename... requestArgs>
+    std::unique_ptr<RequestTracker> asyncRequestLogin(unsigned apiIndex, requestArgs... args)
+    {
+        auto rt = std::make_unique<RequestTracker>(megaApi[apiIndex].get());
+        megaApi[apiIndex]->login(args..., rt.get());
+        return rt;
+    }
+
+    template<typename... requestArgs>
+    std::unique_ptr<RequestTracker> asyncRequestFastLogin(unsigned apiIndex, requestArgs... args)
+    {
+        auto rt = std::make_unique<RequestTracker>(megaApi[apiIndex].get());
+        megaApi[apiIndex]->fastLogin(args..., rt.get());
+        return rt;
+    }
+
+    template<typename... requestArgs>
+    std::unique_ptr<RequestTracker> asyncRequestFastLogin(int apiIndex, requestArgs... args)
+    {
+        auto rt = std::make_unique<RequestTracker>(megaApi[static_cast<size_t>(apiIndex)].get());
+        megaApi[static_cast<size_t>(apiIndex)]->fastLogin(args..., rt.get());
+        return rt;
+    }
     template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestFastLogin(MegaApi *api, requestArgs... args) { auto rt = std::make_unique<RequestTracker>(api); api->fastLogin(args..., rt.get()); return rt; }
     template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestLoginToFolder(unsigned apiIndex, requestArgs... args) { auto rt = std::make_unique<RequestTracker>(megaApi[apiIndex].get()); megaApi[apiIndex]->loginToFolder(args..., rt.get()); return rt; }
     template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestLoginToFolder(MegaApi *api, requestArgs... args) { auto rt = std::make_unique<RequestTracker>(api); api->loginToFolder(args..., rt.get()); return rt; }
