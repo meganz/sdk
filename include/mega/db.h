@@ -97,16 +97,13 @@ public:
     // permanantly remove all database info
     virtual void remove() = 0;
 
-    // whether an unmatched begin() has been issued
-    virtual bool inTransaction() const = 0;
-
     void checkCommitter(DBTableTransactionCommitter*);
 
     // autoincrement
     uint32_t nextid;
 
     DbTable(PrnGen &rng, bool alwaysTransacted, DBErrorCallback dBErrorCallBack);
-    virtual ~DbTable() { }
+    virtual ~DbTable() = default;
     DBTableTransactionCommitter *getTransactionCommitter() const;
 };
 

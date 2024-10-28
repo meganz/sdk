@@ -6705,7 +6705,6 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
                 LOG_debug << "Resetting sc database";
                 client->sctable->truncate();
                 client->sctable->commit();
-                assert(!client->sctable->inTransaction());
                 client->sctable->begin();
                 client->pendingsccommit = false;
             }
@@ -7004,7 +7003,6 @@ bool CommandFetchNodes::procresult(Result r, JSON& json)
         LOG_debug << "Resetting sc database";
         client->sctable->truncate();
         client->sctable->commit();
-        assert(!client->sctable->inTransaction());
         client->sctable->begin();
         client->pendingsccommit = false;
     }
