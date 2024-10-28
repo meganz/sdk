@@ -98,7 +98,7 @@ void EdDSA::signKey(const unsigned char *key, const unsigned long long keyLength
     for (int i = 0; i < 8; i++)
     {
         digit = ts & 0xFF;
-        tsstr.insert(0, 1, digit);
+        tsstr.insert(0, 1, static_cast<char>(digit));
         ts >>= 8;
     }
 

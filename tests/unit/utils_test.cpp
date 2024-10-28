@@ -1199,7 +1199,7 @@ TEST_F(SprintfTest, Multiple) {
     snprintf(ebuf, sizeof ebuf, "%s", "1234");
     // technique developed to used snprintf()
     char* ptr = strchr(ebuf, 0);
-    snprintf(ptr, sizeof ebuf - (ptr - ebuf), "%s", "ABCDEFGH");
+    snprintf(ptr, sizeof ebuf - static_cast<size_t>(ptr - ebuf), "%s", "ABCDEFGH");
     ASSERT_EQ(ebuf[0], '1');
     ASSERT_EQ(ebuf[1], '2');
     ASSERT_EQ(ebuf[2], '3');

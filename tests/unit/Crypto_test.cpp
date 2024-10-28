@@ -31,25 +31,27 @@ TEST(Crypto, AES_GCM)
     string keyStr = "dGQhii-B7-eLLHRiOA690w";     //gitleaks:allow Base64 URL encoding
     unsigned keyLen = SymmCipher::KEYLENGTH;
     byte* keyBytes = new byte[keyLen];
-    keyLen = Base64::atob(keyStr.data(), keyBytes, keyLen);
+    keyLen = static_cast<unsigned>(Base64::atob(keyStr.data(), keyBytes, static_cast<int>(keyLen)));
 
     string ivStr = "R8q1njARXS7urWv3";
     unsigned ivLen = 12;
     byte* ivBytes = new byte[ivLen];
-    ivLen = Base64::atob(ivStr.data(), ivBytes, ivLen);
+    ivLen = static_cast<unsigned>(Base64::atob(ivStr.data(), ivBytes, static_cast<int>(ivLen)));
 
     unsigned tagLen = 16;
 
     string plainStr = "dGQhwoovwoHDr8OnwossdGI4DsK9w5M";
     auto plainLen = plainStr.length();
     byte* plainBytes = new byte[plainLen];
-    plainLen = Base64::atob(plainStr.data(), plainBytes, static_cast<int>(plainLen));
+    plainLen =
+        static_cast<size_t>(Base64::atob(plainStr.data(), plainBytes, static_cast<int>(plainLen)));
     string plainText((const char*)plainBytes, plainLen);
 
     string cipherStr = "L3zqVYAOsRk7zMg2KsNTVShcad8TjIQ7umfsvia21QO0XTj8vaeR";
     auto cipherLen = cipherStr.length();
     byte* cipherBytes = new byte[cipherLen];
-    cipherLen = Base64::atob(cipherStr.data(), cipherBytes, static_cast<int>(cipherLen));
+    cipherLen = static_cast<size_t>(
+        Base64::atob(cipherStr.data(), cipherBytes, static_cast<int>(cipherLen)));
     string cipherText((const char*)cipherBytes, cipherLen);
 
     SymmCipher key;
@@ -99,7 +101,8 @@ TEST(Crypto, xxTea)
     {
         uint32_t key2[4] = { 0, 0xFFFFFFFF,  0xFEFFFFFF, 0xFDFFFFFF };
         uint32_t data2[16];
-        for (unsigned i = sizeof(data2) / sizeof(data2[0]); i--; ) data2[i] = -(int32_t)i;
+        for (unsigned i = sizeof(data2) / sizeof(data2[0]); i--;)
+            data2[i] = -i;
         uint32_t encCmpData2[16] = { 1331968695, 2520133218, 2881973170, 783802011, 1812010991, 1359505125, 15067484, 3344073997, 4210258643, 824383226, 3584459687, 2866083302, 881254637, 502181030, 680349945, 1722488731 };
         xxteaEncrypt(data2, 16, key2);
         ASSERT_TRUE(0 == memcmp(data2, encCmpData2, sizeof(data2)));
@@ -212,7 +215,9 @@ TEST(Crypto, Ed25519_Signing)
 
     string puEd255bin;
     puEd255bin.resize(puEd255str.size() * 3 / 4 + 3);
-    puEd255bin.resize(Base64::atob(puEd255str.data(), (byte*) puEd255bin.data(), static_cast<int>(puEd255bin.size())));
+    puEd255bin.resize(static_cast<size_t>(Base64::atob(puEd255str.data(),
+                                                       (byte*)puEd255bin.data(),
+                                                       static_cast<int>(puEd255bin.size()))));
     ASSERT_TRUE(!memcmp(puEd255bin.data(), signkey.pubKey, EdDSA::PUBLIC_KEY_LENGTH))
             << "Public Ed25519 key doesn't match the derived public key";
 
@@ -222,11 +227,13 @@ TEST(Crypto, Ed25519_Signing)
 
     string pqbin;
     pqbin.resize(pqstr.size() * 3 / 4 + 3);
-    pqbin.resize(Base64::atob(pqstr.data(), (byte*) pqbin.data(), static_cast<int>(pqbin.size())));
+    pqbin.resize(static_cast<size_t>(
+        Base64::atob(pqstr.data(), (byte*)pqbin.data(), static_cast<int>(pqbin.size()))));
 
     string ebin;
     ebin.resize(estr.size() * 3 / 4 + 3);
-    ebin.resize(Base64::atob(estr.data(), (byte*) ebin.data(), static_cast<int>(ebin.size())));
+    ebin.resize(static_cast<size_t>(
+        Base64::atob(estr.data(), (byte*)ebin.data(), static_cast<int>(ebin.size()))));
 
     string pubRSAbin;
     pubRSAbin.append(pqbin.data(), pqbin.size());
@@ -238,8 +245,9 @@ TEST(Crypto, Ed25519_Signing)
 
     string sigRSAbin;
     sigRSAbin.resize(sigRSAstr.size() * 4 / 3 + 4);
-    sigRSAbin.resize(Base64::atob(sigRSAstr.data(), (byte *) sigRSAbin.data(), static_cast<int>(sigRSAbin.size())));
-
+    sigRSAbin.resize(static_cast<size_t>(Base64::atob(sigRSAstr.data(),
+                                                      (byte*)sigRSAbin.data(),
+                                                      static_cast<int>(sigRSAbin.size()))));
 
     // ____ Check signature of RSA public key ____
 
@@ -317,12 +325,12 @@ TEST(Crypto, SymmCipher_xorblock_block_aligned)
     byte src[SymmCipher::BLOCKSIZE];
     byte n = 0;
     std::generate(src, src + sizeof(src), [&n]() {return n++; });
-    ASSERT_EQ(ptrdiff_t((ptrdiff_t)src % sizeof(ptrdiff_t)), (ptrdiff_t)0);
+    ASSERT_EQ(reinterpret_cast<ptrdiff_t>(src) % static_cast<ptrdiff_t>(sizeof(ptrdiff_t)), 0);
 
     byte dest[SymmCipher::BLOCKSIZE];
     n = 100;
     std::generate(dest, dest + sizeof(src), [&n]() { return n = static_cast<byte>(n + 3); });
-    ASSERT_EQ(ptrdiff_t((ptrdiff_t)dest % sizeof(ptrdiff_t)), (ptrdiff_t)0);
+    ASSERT_EQ(reinterpret_cast<ptrdiff_t>(dest) % static_cast<ptrdiff_t>(sizeof(ptrdiff_t)), 0);
 
     byte result[SymmCipher::BLOCKSIZE];
     byte* output = result;
