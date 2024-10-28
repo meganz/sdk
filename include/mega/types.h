@@ -439,9 +439,6 @@ public:
     bool notified = false;
 };
 
-// numeric representation of string (up to 8 chars)
-typedef uint64_t nameid;
-
 // access levels:
 // RDONLY - cannot add, rename or delete
 // RDWR - cannot rename or delete
