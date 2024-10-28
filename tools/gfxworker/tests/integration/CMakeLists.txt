@@ -36,7 +36,7 @@ if(ENABLE_SDKLIB_WERROR)
         TARGET gfxworker_test_integration
         WINDOWS /WX
         UNIX  $<$<CONFIG:Debug>: -Werror>
-        APPLE $<$<CONFIG:Debug>: -Wno-sign-conversion -Wno-overloaded-virtual>
+        APPLE $<$<CONFIG:Debug>: -Wno-overloaded-virtual>
     )
 endif()
 
