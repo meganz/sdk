@@ -4155,9 +4155,14 @@ void Syncs::changeSyncRemoteRootInThread(const handle backupId,
     if (syncConfig.mRemoteNode == newRootNode->nodeHandle())
         return completion(API_EEXIST, UNKNOWN_ERROR);
 
+    // Change the remote path and notify apps
     syncConfig.mRemoteNode = newRootNH;
     syncConfig.mOriginalPathOfRemoteRootNode = newRootNode->displaypath();
     mClient.app->syncupdate_remote_root_changed(syncConfig);
+
+    // Make sure we rescan the sync next iteration
+    const auto& sync = (*it)->mSync;
+    sync->localroot->setScanAgain(false, true, true, 0);
     completion(API_OK, NO_SYNC_ERROR);
 }
 

@@ -16829,8 +16829,8 @@ void MegaClient::changeSyncRoot(const handle backupId,
         return syncs.changeSyncLocalRoot(backupId, newLocalRootPath, std::move(completion));
 
     // When changing remote root, validate the new target
-    const auto newRootNode =
-        mNodeManager.getNodeByHandle(NodeHandle().set6byte(newRemoteRootNodeHandle));
+    const auto newRootNode = nodebyhandle(newRemoteRootNodeHandle);
+
     if (!newRootNode)
     {
         LOG_err << "changeSyncRoot: Invalid new root node handle";

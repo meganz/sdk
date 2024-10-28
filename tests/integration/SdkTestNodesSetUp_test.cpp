@@ -34,6 +34,14 @@ std::unique_ptr<MegaNode> SdkTestNodesSetUp::getNodeByPath(const std::string& pa
     return std::unique_ptr<MegaNode>(megaApi[0]->getNodeByPath(testPath.c_str()));
 }
 
+std::optional<MegaHandle> SdkTestNodesSetUp::getNodeHandleByPath(const std::string& path) const
+{
+    const auto testPath = convertToTestPath(path);
+    if (std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByPath(testPath.c_str())); node)
+        return node->getHandle();
+    return {};
+}
+
 void SdkTestNodesSetUp::createRootTestDir()
 {
     const std::unique_ptr<MegaNode> rootnode(megaApi[0]->getRootNode());

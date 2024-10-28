@@ -1650,7 +1650,7 @@ void MegaApiImpl::changeSyncRemoteRoot(const MegaHandle syncBackupId,
     request->performRequest = [this, request]()
     {
         handle syncBackupId = request->getNodeHandle();
-        handle newRootNodeHandle = request->getNodeHandle();
+        handle newRootNodeHandle = request->getParentHandle();
         if (newRootNodeHandle == UNDEF || syncBackupId == UNDEF)
         {
             return API_EARGS;
