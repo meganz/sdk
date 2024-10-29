@@ -1,15 +1,6 @@
 Contributions
 =============
 
-Eclipse
--------
-
-Contains configurations, formatters and templates to ease the use of
-the Eclipse IDE with the C/C++ Development Tools.
-
-(See `contrib/Eclipse/README.md`)
-
-
 Static Code Check
 -----------------
 
