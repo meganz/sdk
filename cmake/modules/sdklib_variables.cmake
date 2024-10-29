@@ -10,6 +10,8 @@ else()
     set(USE_CPPTHREAD 1)
 endif()
 
+include(detect_host_architecture)
+
 # Configure CMAKE_OSX_DEPLOYMENT_TARGET if not already set
 include(set_osx_deployment_target)
 set_osx_deployment_target(
