@@ -1726,12 +1726,9 @@ bool SqliteAccountState::getAllNodeTags(const std::string& searchString,
 
     if (therIsSomethingToSearch)
     {
-        const auto tagValidator = [&asteriskSurroundSearch](const std::string& tag)
+        const auto tagValidator = [&pattern = asteriskSurroundSearch](const std::string& tag)
         {
-            const uint8_t* pattern =
-                reinterpret_cast<const uint8_t*>(asteriskSurroundSearch.c_str());
-            const uint8_t* toMatch = reinterpret_cast<const uint8_t*>(tag.c_str());
-            return static_cast<bool>(icuLikeCompare(pattern, toMatch, 0));
+            return likeCompare(pattern.c_str(), tag.c_str(), 0);
         };
         return processSqlQueryAllNodeTags(mStmtAllNodeTags, tags, tagValidator);
     }
@@ -2294,11 +2291,12 @@ void SqliteAccountState::userRegexp(sqlite3_context* context, int argc, sqlite3_
         return;
     }
 
-    const uint8_t* pattern = static_cast<const uint8_t*>(sqlite3_value_text(argv[0]));
-    const uint8_t* nameFromDataBase = static_cast<const uint8_t*>(sqlite3_value_text(argv[1]));
+    auto pattern = reinterpret_cast<const char*>(sqlite3_value_text(argv[0]));
+    auto nameFromDataBase = reinterpret_cast<const char*>(sqlite3_value_text(argv[1]));
     if (nameFromDataBase && pattern)
     {
-        int result = icuLikeCompare(pattern, nameFromDataBase, 0);
+        // C++ standard, true to 1, false to 0
+        int result = static_cast<int>(likeCompare(pattern, nameFromDataBase, 0));
         sqlite3_result_int(context, result);
     }
 }

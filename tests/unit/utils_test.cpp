@@ -28,9 +28,6 @@
 #include <mega/scoped_helpers.h>
 #include <mega/utils.h>
 
-#include <array>
-#include <tuple>
-
 TEST(utils, readLines)
 {
     static const std::string input =
@@ -1537,4 +1534,71 @@ TEST(ScopedHelpers, MakePtrFrom)
 
         static_assert(std::is_same_v<ComputedType, ExpectedType>);
     }
+}
+
+TEST(LikeCompare, ExactMatch)
+{
+    ASSERT_TRUE(likeCompare("hello", "hello"));
+    ASSERT_TRUE(likeCompare("he1lo", "he1lo"));
+    ASSERT_TRUE(likeCompare("hélloé", "hélloé"));
+    ASSERT_TRUE(likeCompare("你好", "你好"));
+
+    ASSERT_FALSE(likeCompare("hello1", "hello"));
+    ASSERT_FALSE(likeCompare("helo", "he1lo"));
+    ASSERT_FALSE(likeCompare("héllo", "hélloé"));
+    ASSERT_FALSE(likeCompare("你好", "你好!"));
+}
+
+TEST(LikeCompare, MatchOne)
+{
+    ASSERT_TRUE(likeCompare("hell?", "hello"));
+    ASSERT_TRUE(likeCompare("héll?é", "hélloé"));
+    ASSERT_TRUE(likeCompare("你?", "你好"));
+
+    ASSERT_FALSE(likeCompare("hello?", "hello"));
+    ASSERT_FALSE(likeCompare("hel?o", "he1lo"));
+    ASSERT_FALSE(likeCompare("héll?", "hélloé"));
+    ASSERT_FALSE(likeCompare("你?", "你好!"));
+}
+
+TEST(LikeCompare, MatchAll)
+{
+    ASSERT_TRUE(likeCompare("h*o", "hello"));
+    ASSERT_TRUE(likeCompare("*é", "hélloé"));
+    ASSERT_TRUE(likeCompare("*", "你好"));
+
+    ASSERT_FALSE(likeCompare("he1*lo", "hello"));
+    ASSERT_FALSE(likeCompare("*你", "你好!"));
+}
+
+TEST(LikeCompare, CaseInsensitiveMatch)
+{
+    ASSERT_TRUE(likeCompare("HELLO", "hello"));
+    ASSERT_TRUE(likeCompare("HÉllOé", "hélloé"));
+}
+
+TEST(LikeCompare, AccentInsensitiveMatch)
+{
+    ASSERT_TRUE(likeCompare("HÉllOé", "HElloe"));
+    ASSERT_TRUE(likeCompare("façade", "facade"));
+    ASSERT_TRUE(likeCompare("nghiÃªn", "nghiAªn"));
+}
+
+// \\* is \* in c++ string. It is the escaping of the character * in the pattern, which makes it
+// match only the single character *.
+TEST(LikeCompare, EscapeMatch)
+{
+    ASSERT_TRUE(likeCompare("H\\*Elloe", "H*Elloe"));
+    ASSERT_TRUE(likeCompare("\\*你*", "*你好!"));
+
+    ASSERT_FALSE(likeCompare("H\\*", "H*Elloe"));
+    ASSERT_FALSE(likeCompare("\\*你", "**你"));
+}
+
+TEST(LikeCompare, CombinedMatch)
+{
+    ASSERT_TRUE(likeCompare("HÉ?l*e", "heLloé"));
+    ASSERT_TRUE(likeCompare("你ç?*", "你c好!"));
+
+    ASSERT_FALSE(likeCompare("HÉ?l*e\\*", "heLloé"));
 }

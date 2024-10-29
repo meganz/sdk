@@ -28,6 +28,7 @@
 #include "mega/scoped_helpers.h"
 #include "mega/testhooks.h"
 #include "mega/types.h"
+#include "megautils.h"
 #include "sdk_test_utils.h"
 
 #include <algorithm>
@@ -323,6 +324,21 @@ namespace
         ASSERT_NE(notification->getCallToAction2()->size(), 0);
     };
 
+}
+
+namespace mega
+{
+std::ostream& operator<<(std::ostream& os, const ::mega::MegaNodeList& nodeList)
+{
+    os << "[";
+    for (int i = 0; i < nodeList.size(); i++)
+    {
+        const char* name = nodeList.get(i)->getName();
+        i == 0 ? (os << name) : (os << ", " << name);
+    }
+    os << "]";
+    return os;
+}
 }
 
 std::map<size_t, std::string> gSessionIDs;
@@ -1011,7 +1027,7 @@ void SdkTest::onUsersUpdate(MegaApi* api, MegaUserList *users)
                 || u->hasChanged(MegaUser::CHANGE_TYPE_LASTNAME))
         {
             currentPerApi.userUpdated = true;
-            if (u->hasChanged(MegaUser::CHANGE_TYPE_FIRSTNAME))
+            if (u->hasChanged(MegaUser::CHANGE_TYPE_FIRSTNAME) && !u->isOwnChange())
             {
                 currentPerApi.userFirstNameUpdated = true;
             }
@@ -2208,25 +2224,6 @@ bool SdkTest::getFileFromArtifactory(const std::string& relativeUrl, const fs::p
 
     return getFileFromURL(absoluateUrl, dstPath);
 }
-std::vector<std::string> toNamesVector(const MegaNodeList& nodes)
-{
-    std::vector<std::string> result;
-    result.reserve(static_cast<size_t>(nodes.size()));
-    for (int i = 0; i < nodes.size(); ++i)
-    {
-        result.emplace_back(nodes.get(i)->getName());
-    }
-    return result;
-}
-
-std::vector<std::string> stringListToVector(const MegaStringList& l)
-{
-    std::vector<std::string> result;
-    result.reserve(static_cast<size_t>(l.size()));
-    for (int i = 0; i < l.size(); ++i)
-        result.emplace_back(l.get(i));
-    return result;
-};
 
 ///////////////////////////__ Tests using SdkTest __//////////////////////////////////
 /**
@@ -7878,25 +7875,6 @@ TEST_F(SdkTest, SdkRecentsTest)
                                << ")";
     };
 
-    const auto bucketsToVec =
-        [](const MegaRecentActionBucketList& buckets) -> std::vector<std::vector<std::string>>
-    {
-        std::vector<std::vector<std::string>> result;
-        for (int i = 0; i < buckets.size(); ++i)
-        {
-            auto bucketNodes = buckets.get(i)->getNodes();
-            if (!bucketNodes)
-                continue;
-            std::vector<std::string> bucketInfo;
-            for (int j = 0; j < bucketNodes->size(); ++j)
-            {
-                bucketInfo.emplace_back(bucketNodes->get(j)->getName());
-            }
-            result.emplace_back(std::move(bucketInfo));
-        }
-        return result;
-    };
-
     const std::string filename1 = UPFILE;
     const std::string filename1bkp1 = filename1 + ".bkp1";
     const std::string filename1bkp2 = filename1 + ".bkp2";
@@ -7944,7 +7922,7 @@ TEST_F(SdkTest, SdkRecentsTest)
         trackerAll.request->getRecentActions()->copy()};
 
     ASSERT_TRUE(buckets != nullptr);
-    auto bucketsVec = bucketsToVec(*buckets);
+    auto bucketsVec = bucketsToVector(*buckets);
     ASSERT_TRUE(bucketsVec.size() > 1);
     EXPECT_THAT(bucketsVec[0], testing::ElementsAre(filename2, filename1));
     EXPECT_THAT(bucketsVec[1], testing::ElementsAre(filename1bkp2, filename1bkp1));
@@ -7957,7 +7935,7 @@ TEST_F(SdkTest, SdkRecentsTest)
     buckets.reset(trackerExclude.request->getRecentActions()->copy());
 
     ASSERT_TRUE(buckets != nullptr);
-    bucketsVec = bucketsToVec(*buckets);
+    bucketsVec = bucketsToVector(*buckets);
     ASSERT_TRUE(bucketsVec.size() > 1);
     EXPECT_THAT(bucketsVec[0], testing::ElementsAre(filename2));
     EXPECT_THAT(bucketsVec[1], testing::ElementsAre(filename1bkp2, filename1bkp1));
@@ -15841,6 +15819,7 @@ TEST_F(SdkTest, SdkVersionManagement)
  * - Get out share by name (no recursive)
  * - Get out share by name (no recursive) -> mismatch
  * - Get nodes with utf8 characters insensitive case
+ * - Get nodes with accent insensitive case
  */
 TEST_F(SdkTest, SdkGetNodesByName)
 {
@@ -16029,7 +16008,7 @@ TEST_F(SdkTest, SdkGetNodesByName)
 
     mApi[0].nodeUpdated = false;
     mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, mApi[0].nodeUpdated);
-    std::string fileUtf8 = "ñamÚ";
+    std::string fileUtf8 = "ñ01amÚ";
     createFile(fileUtf8, false);
     MegaHandle fileUtf8Handle = 0;
     ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &fileUtf8Handle, fileUtf8.data(), folder1.get(),
@@ -16047,7 +16026,6 @@ TEST_F(SdkTest, SdkGetNodesByName)
     nodeFile.reset(megaApi[0]->getNodeByHandle(fileUtf8Handle));
     ASSERT_NE(nodeFile, nullptr) << "Cannot initialize 5 node for scenario (error: " << mApi[0].lastError << ")";
 
-
     // Tree structure
     // Root node
     //   - Folder1
@@ -16059,46 +16037,46 @@ TEST_F(SdkTest, SdkGetNodesByName)
     //       - file3Check
     //       - file4Check
     //       - file5Check
-    //       - ñam
+    //       - ñ01amÚ
     //   - file6Test
 
     stringSearch = file1;
     filterResults.reset(MegaSearchFilter::createInstance());
     filterResults->byName(stringSearch.c_str());
     nodeList.reset(megaApi[0]->search(filterResults.get()));
-    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
     ASSERT_EQ(nodeList->get(0)->getHandle(), file1Handle);
 
     filterResults.reset(MegaSearchFilter::createInstance());
     filterResults->byName("FILE2CHECK");
     nodeList.reset(megaApi[0]->search(filterResults.get()));
-    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
     ASSERT_EQ(nodeList->get(0)->getHandle(), file2Handle);
 
     stringSearch = "file*Check";
     filterResults.reset(MegaSearchFilter::createInstance());
     filterResults->byName(stringSearch.c_str());
     nodeList.reset(megaApi[0]->search(filterResults.get()));
-    ASSERT_EQ(nodeList->size(), 8);
+    ASSERT_EQ(nodeList->size(), 8) << *nodeList;
 
     stringSearch = "file*check";
     filterResults.reset(MegaSearchFilter::createInstance());
     filterResults->byName(stringSearch.c_str());
     nodeList.reset(megaApi[0]->search(filterResults.get()));
-    ASSERT_EQ(nodeList->size(), 8);
+    ASSERT_EQ(nodeList->size(), 8) << *nodeList;
 
     stringSearch = "*check";
     filterResults.reset(MegaSearchFilter::createInstance());
     filterResults->byName(stringSearch.c_str());
     nodeList.reset(megaApi[0]->search(filterResults.get()));
-    ASSERT_EQ(nodeList->size(), 9 + nodesWithTest);
+    ASSERT_EQ(nodeList->size(), 9 + nodesWithTest) << *nodeList;
 
     stringSearch = file1;
     filterResults.reset(MegaSearchFilter::createInstance());
     filterResults->byLocationHandle(folder1->getHandle());
     filterResults->byName(stringSearch.c_str());
     nodeList.reset(megaApi[0]->search(filterResults.get()));
-    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
     ASSERT_EQ(nodeList->get(0)->getHandle(), file1Handle);
 
     stringSearch = file1;
@@ -16106,7 +16084,7 @@ TEST_F(SdkTest, SdkGetNodesByName)
     filterResults->byName(stringSearch.c_str());
     filterResults->byLocationHandle(folder1->getHandle());
     nodeList.reset(megaApi[0]->getChildren(filterResults.get()));
-    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
     ASSERT_EQ(nodeList->get(0)->getHandle(), file1Handle);
 
     stringSearch = file7;
@@ -16114,14 +16092,14 @@ TEST_F(SdkTest, SdkGetNodesByName)
     filterResults->byLocationHandle(folder1->getHandle());
     filterResults->byName(stringSearch.c_str());
     nodeList.reset(megaApi[0]->getChildren(filterResults.get()));
-    ASSERT_EQ(nodeList->size(), 0);
+    ASSERT_EQ(nodeList->size(), 0) << *nodeList;
 
     stringSearch = folder1_1;
     filterResults.reset(MegaSearchFilter::createInstance());
     filterResults->byLocationHandle(folder1->getHandle());
     filterResults->byName(stringSearch.c_str());
     nodeList.reset(megaApi[0]->getChildren(filterResults.get()));
-    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
     ASSERT_EQ(nodeList->get(0)->getHandle(), folder1_1Handle);
 
     stringSearch = std::string("file*check");
@@ -16129,7 +16107,7 @@ TEST_F(SdkTest, SdkGetNodesByName)
     filterResults->byLocationHandle(folder1->getHandle());
     filterResults->byName(stringSearch.c_str());
     nodeList.reset(megaApi[0]->getChildren(filterResults.get()));
-    ASSERT_EQ(nodeList->size(), 5);
+    ASSERT_EQ(nodeList->size(), 5) << *nodeList;
 
     // --- Create contact relationship ---
     std::string message = "Hi contact. Let's share some stuff";
@@ -16179,21 +16157,21 @@ TEST_F(SdkTest, SdkGetNodesByName)
     filterResults->byName(stringSearch.c_str());
     filterResults->byLocation(MegaApi::SEARCH_TARGET_INSHARE);
     nodeList.reset(megaApi[1]->search(filterResults.get()));
-    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
 
     stringSearch = "FILE*check";
     filterResults.reset(MegaSearchFilter::createInstance());
     filterResults->byName(stringSearch.c_str());
     filterResults->byLocation(MegaApi::SEARCH_TARGET_INSHARE);
     nodeList.reset(megaApi[1]->search(filterResults.get()));
-    ASSERT_EQ(nodeList->size(), 7);
+    ASSERT_EQ(nodeList->size(), 7) << *nodeList;
 
     stringSearch = folder1_1;
     filterResults.reset(MegaSearchFilter::createInstance());
     filterResults->byName(stringSearch.c_str());
     filterResults->byLocation(MegaApi::SEARCH_TARGET_INSHARE);
     nodeList.reset(megaApi[1]->search(filterResults.get()));
-    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
     ASSERT_EQ(nodeList->get(0)->getHandle(), folder1_1Handle);
 
     stringSearch = "folder*";
@@ -16201,7 +16179,7 @@ TEST_F(SdkTest, SdkGetNodesByName)
     filterResults->byName(stringSearch.c_str());
     filterResults->byLocation(MegaApi::SEARCH_TARGET_INSHARE);
     nodeList.reset(megaApi[1]->search(filterResults.get()));
-    ASSERT_EQ(nodeList->size(), 2);
+    ASSERT_EQ(nodeList->size(), 2) << *nodeList;
 
     // --- Test search out shares ---
     stringSearch = file8;
@@ -16209,21 +16187,21 @@ TEST_F(SdkTest, SdkGetNodesByName)
     filterResults->byName(stringSearch.c_str());
     filterResults->byLocation(MegaApi::SEARCH_TARGET_OUTSHARE);
     nodeList.reset(megaApi[0]->search(filterResults.get()));
-    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
 
     stringSearch = "FILE*check";
     filterResults.reset(MegaSearchFilter::createInstance());
     filterResults->byName(stringSearch.c_str());
     filterResults->byLocation(MegaApi::SEARCH_TARGET_OUTSHARE);
     nodeList.reset(megaApi[0]->search(filterResults.get()));
-    ASSERT_EQ(nodeList->size(), 7);
+    ASSERT_EQ(nodeList->size(), 7) << *nodeList;
 
     stringSearch = folder1_1;
     filterResults.reset(MegaSearchFilter::createInstance());
     filterResults->byName(stringSearch.c_str());
     filterResults->byLocation(MegaApi::SEARCH_TARGET_OUTSHARE);
     nodeList.reset(megaApi[0]->search(filterResults.get()));
-    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
     ASSERT_EQ(nodeList->get(0)->getHandle(), folder1_1Handle);
 
     stringSearch = "folder*";
@@ -16231,38 +16209,52 @@ TEST_F(SdkTest, SdkGetNodesByName)
     filterResults->byName(stringSearch.c_str());
     filterResults->byLocation(MegaApi::SEARCH_TARGET_OUTSHARE);
     nodeList.reset(megaApi[0]->search(filterResults.get()));
-    ASSERT_EQ(nodeList->size(), 2);
+    ASSERT_EQ(nodeList->size(), 2) << *nodeList;
 
     // --- Test strings with UTF-8 characters
-    stringSearch = "Ñ";
+    stringSearch = "Ñ01am";
     filterResults.reset(MegaSearchFilter::createInstance());
     filterResults->byName(stringSearch.c_str());
     nodeList.reset(megaApi[0]->search(filterResults.get()));
-    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
     ASSERT_EQ(nodeList->get(0)->getHandle(), fileUtf8Handle);
 
-    stringSearch = "ñ";
+    stringSearch = "ñ01am";
     filterResults.reset(MegaSearchFilter::createInstance());
     filterResults->byName(stringSearch.c_str());
     nodeList.reset(megaApi[0]->search(filterResults.get()));
-    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
     ASSERT_EQ(nodeList->get(0)->getHandle(), fileUtf8Handle);
 
     // No recursive search
-    stringSearch = "Ñ";
+    stringSearch = "Ñ01am";
     filterResults.reset(MegaSearchFilter::createInstance());
     filterResults->byName(stringSearch.c_str());
     filterResults->byLocationHandle(folder1->getHandle());
     nodeList.reset(megaApi[0]->getChildren(filterResults.get()));
-    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
     ASSERT_EQ(nodeList->get(0)->getHandle(), fileUtf8Handle);
 
-    stringSearch = "ú";
+    stringSearch = "01amú";
     filterResults.reset(MegaSearchFilter::createInstance());
     filterResults->byName(stringSearch.c_str());
     nodeList.reset(megaApi[0]->search(filterResults.get()));
-    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
     ASSERT_EQ(nodeList->get(0)->getHandle(), fileUtf8Handle);
+
+    // --- Test strings with UTF-8 characters
+    stringSearch = "n01am";
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byName(stringSearch.c_str());
+    nodeList.reset(megaApi[0]->search(filterResults.get()));
+    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
+    ASSERT_EQ(nodeList->get(0)->getHandle(), fileUtf8Handle);
+
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byName("FILè2CHèCK");
+    nodeList.reset(megaApi[0]->search(filterResults.get()));
+    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
+    ASSERT_EQ(nodeList->get(0)->getHandle(), file2Handle);
 }
 
 /**
@@ -17012,34 +17004,34 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
 
     filterResults->byCategory(MegaApi::FILE_TYPE_PROGRAM);
     std::unique_ptr<MegaNodeList> nodeList(megaApi[0]->search(filterResults.get()));
-    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
     ASSERT_EQ(nodeList->get(0)->getHandle(), handleCodeFile);
 
     filterResults->byCategory(MegaApi::FILE_TYPE_PDF);
     nodeList.reset(megaApi[0]->search(filterResults.get()));
-    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
     ASSERT_EQ(nodeList->get(0)->getHandle(), handlePdfFile);
 
     filterResults->byCategory(MegaApi::FILE_TYPE_DOCUMENT);
     nodeList.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_DESC));
-    ASSERT_EQ(nodeList->size(), 3);
+    ASSERT_EQ(nodeList->size(), 3) << *nodeList;
     ASSERT_EQ(nodeList->get(0)->getHandle(), handleTxtFile);
     ASSERT_EQ(nodeList->get(1)->getHandle(), handleOrgFile);
     ASSERT_EQ(nodeList->get(2)->getHandle(), handleDocumentFile);
 
     filterResults->byCategory(MegaApi::FILE_TYPE_MISC);
     nodeList.reset(megaApi[0]->search(filterResults.get()));
-    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
     ASSERT_EQ(nodeList->get(0)->getHandle(), handleJsonFile);
 
     filterResults->byCategory(MegaApi::FILE_TYPE_SPREADSHEET);
     nodeList.reset(megaApi[0]->search(filterResults.get()));
-    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
     ASSERT_EQ(nodeList->get(0)->getHandle(), handleSpreadsheetFile);
 
     filterResults->byCategory(MegaApi::FILE_TYPE_ALL_DOCS); // any of {DOCUMENT, PDF, PRESENTATION, SPREADSHEET}
     nodeList.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC)); // order Alphabetical asc
-    ASSERT_EQ(nodeList->size(), 5);
+    ASSERT_EQ(nodeList->size(), 5) << *nodeList;
     ASSERT_EQ(nodeList->get(0)->getHandle(), handleDocumentFile);
     ASSERT_EQ(nodeList->get(1)->getHandle(), handleSpreadsheetFile);
     ASSERT_EQ(nodeList->get(2)->getHandle(), handleOrgFile);
@@ -17048,7 +17040,7 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
 
     filterResults->byCategory(MegaApi::FILE_TYPE_OTHERS); // none of {PHOTO, VIDEO, AUDIO, MISC, PROGRAM, DOCUMENT, PDF, PRESENTATION, SPREADSHEET}
     nodeList.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC)); // order Alphabetical asc
-    ASSERT_EQ(nodeList->size(), 2);
+    ASSERT_EQ(nodeList->size(), 2) << *nodeList;
     ASSERT_EQ(nodeList->get(0)->getHandle(), handleWithoutExtensionFile);
     ASSERT_EQ(nodeList->get(1)->getHandle(), handleUnkownExtensionFile);
 
@@ -18967,27 +18959,32 @@ TEST_F(SdkTest, SdkNodeDescription)
     std::unique_ptr<MegaSearchFilter> filter(MegaSearchFilter::createInstance());
     filter->byDescription(descriptionFilter.c_str());
     std::unique_ptr<MegaNodeList> nodeList(megaApi[0]->search(filter.get()));
-    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
 
     std::unique_ptr<MegaSearchFilter> filterChildren(MegaSearchFilter::createInstance());
     filterChildren->byDescription(descriptionFilter.c_str());
     filterChildren->byLocationHandle(rootnodeA->getHandle());
     nodeList.reset(megaApi[0]->getChildren(filterChildren.get()));
-    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
 
     std::string descriptionFilterNoFind{"searchin"};
     filter->byDescription(descriptionFilterNoFind.c_str());
     nodeList.reset(megaApi[0]->search(filter.get()));
-    ASSERT_EQ(nodeList->size(), 0);
+    ASSERT_EQ(nodeList->size(), 0) << *nodeList;
 
     filterChildren->byDescription(descriptionFilterNoFind.c_str());
     nodeList.reset(megaApi[0]->getChildren(filterChildren.get()));
-    ASSERT_EQ(nodeList->size(), 0);
+    ASSERT_EQ(nodeList->size(), 0) << *nodeList;
 
     std::string descriptionWithoutCapitalLetter("this");
     filter->byDescription(descriptionWithoutCapitalLetter.c_str());
     nodeList.reset(megaApi[0]->search(filter.get()));
-    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
+
+    std::string descriptionWithAccent("thiŚ");
+    filter->byDescription(descriptionWithAccent.c_str());
+    nodeList.reset(megaApi[0]->search(filter.get()));
+    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
 
     auto& target = mApi[0];
     std::unique_ptr<char> session(dumpSession());
@@ -19028,11 +19025,11 @@ TEST_F(SdkTest, SdkNodeDescription)
 
     filter->byDescription("stars");
     nodeList.reset(megaApi[0]->search(filter.get()));
-    ASSERT_EQ(nodeList->size(), 2);
+    ASSERT_EQ(nodeList->size(), 2) << *nodeList;
 
     filter->byDescription("*star");
     nodeList.reset(megaApi[0]->search(filter.get()));
-    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
 
     LOG_debug
         << "[SdkTest::SdkNodeDescription] Changing the contents of test.txt to force a new version";
@@ -19212,53 +19209,53 @@ TEST_F(SdkTest, SdkNodeTag)
     std::unique_ptr<MegaSearchFilter> filter(MegaSearchFilter::createInstance());
     filter->byTag(tag2.c_str());
     std::unique_ptr<MegaNodeList> nodeList(megaApi[0]->search(filter.get()));
-    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
 
     //Search a tag at beginning of the tags
     filter->byTag(tag1.c_str());
     nodeList.reset(megaApi[0]->search(filter.get()));
-    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
 
     //Search a tag at end of the tags
     filter->byTag(tag3.c_str());
     nodeList.reset(megaApi[0]->search(filter.get()));
-    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
 
     std::string tagNoFind = "ta";
     filter->byTag(tagNoFind.c_str());
     nodeList.reset(megaApi[0]->search(filter.get()));
-    ASSERT_EQ(nodeList->size(), 0);
+    ASSERT_EQ(nodeList->size(), 0) << *nodeList;
 
     std::string tagNoFindWithWildCard = "t*g";
     filter->byTag(tagNoFindWithWildCard.c_str());
     nodeList.reset(megaApi[0]->search(filter.get()));
-    ASSERT_EQ(nodeList->size(), 0);
+    ASSERT_EQ(nodeList->size(), 0) << *nodeList;
 
     std::string tagNoFindWithCombi = tag1 + "," + tag2;
     filter->byTag(tagNoFindWithCombi.c_str());
     nodeList.reset(megaApi[0]->search(filter.get()));
-    ASSERT_EQ(nodeList->size(), 0);
+    ASSERT_EQ(nodeList->size(), 0) << *nodeList;
 
     std::unique_ptr<MegaSearchFilter> filterChildren(MegaSearchFilter::createInstance());
     filterChildren->byTag(tag2.c_str());
     filterChildren->byLocationHandle(rootnodeA->getHandle());
     nodeList.reset(megaApi[0]->getChildren(filterChildren.get()));
-    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
 
     filterChildren->byTag(tag1.c_str());
     nodeList.reset(megaApi[0]->getChildren(filterChildren.get()));
-    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
 
     filterChildren->byTag(tag3.c_str());
     nodeList.reset(megaApi[0]->getChildren(filterChildren.get()));
-    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
 
     ASSERT_EQ(removeTag(mh, tag2), API_OK);
     ASSERT_EQ(removeTag(mh, tag2), API_ENOENT);
 
     filter->byTag(tag2.c_str());
     nodeList.reset(megaApi[0]->search(filter.get()));
-    ASSERT_EQ(nodeList->size(), 0);
+    ASSERT_EQ(nodeList->size(), 0) << *nodeList;
 
     ASSERT_EQ(updateTag(mh, tagUpdated, tag1), API_OK);
 
@@ -19270,16 +19267,22 @@ TEST_F(SdkTest, SdkNodeTag)
     // Search a tag with only one tag
     filter->byTag(tag3.c_str());
     nodeList.reset(megaApi[0]->search(filter.get()));
-    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
 
     std::string tag4 = "Ñaa";
     std::string tag4Lowercase = "ñaa";
     ASSERT_EQ(addTag(mh, tag4), API_OK);
     filter->byTag(tag4Lowercase.c_str());
     nodeList.reset(megaApi[0]->search(filter.get()));
-    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
+
+    std::string tag4NoAccent = "naa";
+    filter->byTag(tag4NoAccent.c_str());
+    nodeList.reset(megaApi[0]->search(filter.get()));
+    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
 
     ASSERT_EQ(addTag(mh, tag4Lowercase), API_EEXIST);
+    ASSERT_EQ(addTag(mh, tag4NoAccent), API_EEXIST);
 
     // To prepare for the following block, check natural sorting
     const std::string tag11 = "tag11";
@@ -19476,13 +19479,17 @@ TEST_F(SdkTest, SdkTestVPN)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     // get First Name
-    string origName;
+    string origName = "testingName"; // default value in case it is not set
     {
         RequestTracker getNameTracker(megaApi[0].get());
         megaApi[0]->getUserAttribute(MegaApi::USER_ATTR_FIRSTNAME, &getNameTracker);
-        ASSERT_EQ(getNameTracker.waitForResult(), API_OK) << "Failed to get First Name";
-        ASSERT_THAT(getNameTracker.request->getText(), ::testing::NotNull());
-        origName = getNameTracker.request->getText();
+        ErrorCodes res = getNameTracker.waitForResult();
+        if (res != API_ENOENT)
+        {
+            ASSERT_EQ(res, API_OK) << "Failed to get First Name";
+            ASSERT_THAT(getNameTracker.request->getText(), ::testing::NotNull());
+            origName = getNameTracker.request->getText();
+        }
     }
 
     // Prepare VPN client with the same account
@@ -19532,6 +19539,10 @@ TEST_F(SdkTest, SdkTestVPN)
 
     // reset First Name to original value
     {
+        // truncate remmnants of older test failures
+        while (origName.length() > 4 && !origName.compare(origName.length() - 4, 4, "_upd"))
+            origName.erase(origName.length() - 4);
+
         nameUpdated = false;
         RequestTracker setNameTracker(megaApi[0].get());
         megaApi[0]->setUserAttribute(MegaApi::USER_ATTR_FIRSTNAME, origName.c_str(), &setNameTracker);

@@ -119,7 +119,7 @@ pipeline {
                 stage('Checkout SDK MEGAchat and iOS'){
                     steps {
                         //Clone iOS
-                        sh "echo Cloning iOS branch ${IOS_BRANCH}"
+                        sh "echo Cloning iOS branch \"${IOS_BRANCH}\""
                         checkout([
                             $class: 'GitSCM',
                             branches: [[name: "origin/${IOS_BRANCH}"]],
@@ -131,7 +131,7 @@ pipeline {
                         dir('Modules/DataSource/MEGAChatSDK/Sources/MEGAChatSDK'){
 
                             //Clone MEGAchat
-                            sh "echo Cloning megachat branch ${env.MEGACHAT_BRANCH}"
+                            sh "echo Cloning megachat branch \"${env.MEGACHAT_BRANCH}\""
                             checkout([
                                 $class: 'GitSCM',
                                 branches: [[name: "origin/${env.MEGACHAT_BRANCH}"]],
@@ -155,6 +155,9 @@ pipeline {
                         }
                         sh "git submodule update --init iMEGA/Vendor/SVProgressHUD"
                         sh "git submodule update --init iMEGA/Vendor/LTHPasscodeViewController"
+                        withCredentials([gitUsernamePassword(credentialsId: 'jenkins_sdk_token_with_user', gitToolName: 'Default')]) {
+                            sh "git submodule update --init Modules/MEGASharedRepo"
+                        }
                         script{
                             ios_sources_workspace = WORKSPACE
                             sdk_sources_workspace = "${ios_sources_workspace}/Modules/DataSource/MEGASDK/Sources/MEGASDK"

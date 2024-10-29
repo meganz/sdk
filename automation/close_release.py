@@ -54,8 +54,10 @@ release.setup_local_repo(
 )
 release.setup_public_repo(os.environ["GITHUB_TOKEN"], args["github_repo_owner"])
 release.confirm_all_earlier_versions_are_closed()
-if os.environ["SLACK_TOKEN"]:
-    release.setup_chat(os.environ["SLACK_TOKEN"], "")
+slack_token = os.environ.get("SLACK_TOKEN", "")
+slack_channel_dev = args.get("slack_channel_dev_requests", "")
+if slack_token and slack_channel_dev:
+    release.setup_chat(slack_token, slack_channel_dev, "")
 release.setup_wiki(
     args["confluence_url"],
     os.environ["CONFLUENCE_USER"],
@@ -68,7 +70,7 @@ release.create_release_tag()
 # STEP 2: GitLab: Create release "Version X.Y.Z" from tag "vX.Y.Z" plus release notes
 release.create_release_in_private_repo()
 
-# STEP 3: GitLab: Merge version upgrade MR into public branch (master)
+# STEP 3: GitLab, Slack: Merge version upgrade MR into public branch (master)
 release.merge_release_changes_into_public_branch(args["public_branch"])
 
 # STEP 4: local git: Push public branch (master) to public remote (github)

@@ -41,8 +41,11 @@ release = ReleaseProcess(
 release.setup_project_management(
     args["jira_url"], os.environ["JIRA_USERNAME"], os.environ["JIRA_PASSWORD"]
 )
-if os.environ["SLACK_TOKEN"] and args["slack_channel"]:
-    release.setup_chat(os.environ["SLACK_TOKEN"], args["slack_channel"])
+slack_token = os.environ.get("SLACK_TOKEN", "")
+slack_channel_dev = args.get("slack_channel_dev_requests", "")
+slack_channel_announce = args.get("slack_channel_announce", "")
+if slack_token and (slack_channel_dev or slack_channel_announce):
+    release.setup_chat(slack_token, slack_channel_dev, slack_channel_announce)
 
 assert args["release_version"]  # "1.0.0"
 assert args["mr_description"]
@@ -65,7 +68,7 @@ if not name_of_new_branch:
     release.push_branch(args["private_remote_name"], name_of_new_branch)
 
 
-# STEP 3: GitLab: Create MR from new branch to release branch (do NOT set to delete automatically after merge).
+# STEP 3: GitLab, Slack: Create MR from new branch to release branch (do NOT set to delete automatically after merge).
 mr_to_release = release.open_private_mr(
     name_of_new_branch,
     release.get_new_release_branch(),
@@ -74,7 +77,7 @@ mr_to_release = release.open_private_mr(
 )
 
 
-# STEP 4: GitLab: Open MR from new branch to develop (set to delete automatically after merge).
+# STEP 4: GitLab, Slack: Open MR from new branch to develop (set to delete automatically after merge).
 mr_to_develop = release.open_private_mr(
     name_of_new_branch,
     args["private_branch"],

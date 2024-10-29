@@ -17,9 +17,6 @@ macro(load_sdklib_libraries)
         find_package(CURL REQUIRED)
         target_link_libraries(SDKlib PRIVATE CURL::libcurl)
 
-        find_package(ICU COMPONENTS uc data REQUIRED)
-        target_link_libraries(SDKlib PRIVATE ICU::uc ICU::data)
-
         if(USE_OPENSSL)
             if(USE_WEBRTC) # Defined in MEGAchat.
                 # find_package(OpenSSL) works for BoringSSL but it does not load the flags from the .pc files. find_package() has
@@ -70,6 +67,9 @@ macro(load_sdklib_libraries)
             target_link_libraries(SDKlib PRIVATE PDFIUM::pdfium)
             set(HAVE_PDFIUM 1)
         endif()
+
+        find_package(ICU COMPONENTS uc data REQUIRED)
+        target_link_libraries(SDKlib PRIVATE ICU::uc ICU::data)
 
         if(USE_C_ARES)
             find_package(c-ares REQUIRED)

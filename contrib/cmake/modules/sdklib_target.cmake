@@ -9,6 +9,7 @@ set(SDKLIB_PUB_HEADERS
 set(SDKLIB_HEADERS
     include/mega.h
     include/megaapi_impl.h
+    include/megautils.h
     include/mega/transferslot.h
     include/mega/thread/libuvthread.h
     include/mega/scoped_helpers.h
@@ -78,6 +79,10 @@ set(SDKLIB_HEADERS
     include/mega/mega_csv.h
     include/mega/name_collision.h
     include/mega/pwm_file_parser.h
+    include/mega/user_attribute.h
+    include/mega/user_attribute_definition.h
+    include/mega/user_attribute_manager.h
+    include/mega/user_attribute_types.h
 )
 
 set(SDKLIB_SOURCES
@@ -138,6 +143,10 @@ set(SDKLIB_SOURCES
     src/process.cpp
     src/name_collision.cpp
     src/pwm_file_parser.cpp
+    src/user_attribute.cpp
+    src/user_attribute_definition.cpp
+    src/user_attribute_manager.cpp
+    src/megautils.cpp
 )
 
 target_sources(SDKlib
@@ -328,6 +337,12 @@ set_target_properties(SDKlib PROPERTIES
     VERSION ${PROJECT_VERSION}
     DEBUG_POSTFIX "d"
 )
+
+if(ENABLE_JAVA_BINDINGS OR ENABLE_PYTHON_BINDINGS OR ENABLE_PHP_BINDINGS)
+    set_target_properties(SDKlib PROPERTIES
+        POSITION_INDEPENDENT_CODE ON
+    )
+endif()
 
 ## Load and link needed libraries for the SDKlib target ##
 

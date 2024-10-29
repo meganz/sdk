@@ -1230,11 +1230,19 @@ private:
 
 std::set<std::string>::iterator getTagPosition(std::set<std::string>& tokens, const std::string& tag);
 
-// Check if two string (possible multibyte characters) are equal without take account if they are lower or higher case
-// 1 if they are equal
-int icuLikeCompare(const uint8_t* zPattern, /* LIKE pattern */
-                   const uint8_t* zString, /* The UTF-8 string to compare against */
-                   const UChar32 uEsc); /* The escape character */
+/*
+ * Compare two UTF-8 strings for equality where the first string is
+ * a "LIKE" expression. It is case and aceent insensitive.
+ *
+ * @param pattern the like pattern
+ * @param str the UFT-8 string to compare against
+ * @param esc the escape character
+ *
+ * @return true if the are the same and false if they are different
+ */
+bool likeCompare(const char* pattern,
+                 const char* str,
+                 const UChar32 esc = static_cast<UChar32>(ESCAPE_CHARACTER));
 
 // Get the current process ID
 unsigned long getCurrentPid();

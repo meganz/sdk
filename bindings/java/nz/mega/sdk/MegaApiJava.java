@@ -12427,23 +12427,30 @@ public class MegaApiJava {
     }
 
     /**
-     * Get the type and value for the flag with the given name,
-     * if present among either A/B Test or Feature flags.
+     * @Deprecated: Use the other MegaApi::getFlag overload instead
+     * @param flagName
+     * @param commit
+     * @return
+     */
+    public MegaFlag getFlag(String flagName, Boolean commit, MegaRequestListenerInterface listener) {
+        return megaApi.getFlag(flagName, commit, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Get the type and value for the flag with the given name, if present among either
+     * A/B Test or Feature flags.
      *
-     * If found among A/B Test flags and commit was true, also inform the API
-     * that a user has become relevant for that A/B Test flag, in which case
-     * the associated request type with this request is MegaRequest::TYPE_AB_TEST_ACTIVE
-     * and valid data in the MegaRequest object received on all callbacks:
-     * - MegaRequest::getText - Returns the flag passed as parameter
+     * If found among A/B Test flags and commit was true, also inform the API that a user has become
+     * relevant for that A/B Test flag (via a request of type MegaRequest::TYPE_AB_TEST_ACTIVE,
+     * for which the response is not relevant for the calling app)
      *
      * @param flagName Name or key of the value to be retrieved (and possibly be sent to API as active).
      * @param commit Determine whether an A/B Test flag will be sent to API as active.
-     * @param listener MegaRequestListener to track this request, ignored if commit was false
      *
      * @return A MegaFlag instance with the type and value of the flag.
      */
-    public MegaFlag getFlag(String flagName, Boolean commit, MegaRequestListenerInterface listener) {
-       return megaApi.getFlag(flagName, commit, createDelegateRequestListener(listener));
+    public MegaFlag getFlag(String flagName, Boolean commit) {
+       return megaApi.getFlag(flagName, commit);
     }
 
     /**
@@ -12508,4 +12515,29 @@ public class MegaApiJava {
         return megaApi.isNodeSyncableWithError(megaNode);
     }
 
+    /**
+     * Move or Remove the nodes that used to be part of backup.
+     *
+     * The folder must be in folder Vault/<device>/, and will be moved, or permanently deleted.
+     * Deletion is permanent (not to trash) and is selected with destination INVALID_HANDLE.
+     * To move the nodes instead, specify the destination folder in backupDestination.
+     *
+     * These nodes cannot be deleted with the usual remove() function as they are in the Vault.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_REMOVE_OLD_BACKUP_NODES
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the deconfiguredBackupRoot handle
+     *
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_ENOENT - deconfiguredBackupRoot was not valid
+     * - MegaError::API_EARGS - deconfiguredBackupRoot was not in the Vault,
+     *                          or backupDestination was not in Files or Rubbish
+     *
+     * @param deconfiguredBackupRoot Identifier of the Sync (unique per user, provided by API)
+     * @param backupDestination If INVALID_HANDLE, files will be permanently deleted, otherwise files will be moved there.
+     * @param listener MegaRequestListener to track this request
+     */
+    public void moveOrRemoveDeconfiguredBackupNodes(long deconfiguredBackupRoot, long backupDestination, MegaRequestListenerInterface listener) {
+        megaApi.moveOrRemoveDeconfiguredBackupNodes(deconfiguredBackupRoot, backupDestination, createDelegateRequestListener(listener));
+    }
 }

@@ -7259,6 +7259,7 @@ class MegaSyncStall
             CannotFingerprintFile,
             DestinationPathInUnresolvedArea,
             MACVerificationFailure,
+            UnknownDownloadIssue,
             DeletedOrMovedByUser,
             FileFolderDeletedByUser,
             MoveToDebrisFolderFailed,
@@ -9364,10 +9365,10 @@ class MegaListener
          * @param path
          * A path identifying the mount that was added.
          *
-         * @param result
+         * @param megaMountResult
          * An element of the MegaMount::Result enumeration.
          */
-        virtual void onMountAdded(MegaApi* api, const char* path, int result);
+        virtual void onMountAdded(MegaApi* api, const char* path, int megaMountResult);
 
         /**
          * @brief
@@ -9379,10 +9380,10 @@ class MegaListener
          * @param path
          * A path identifying the mount that has changed.
          *
-         * @param result
+         * @param megaMountResult
          * An element of the MegaMount::Result enumeration.
          */
-        virtual void onMountChanged(MegaApi* api, const char* path, int result);
+        virtual void onMountChanged(MegaApi* api, const char* path, int megaMountResult);
 
         /**
          * @brief
@@ -9394,10 +9395,10 @@ class MegaListener
          * @param path
          * A path identifying the mount that has been disabled.
          *
-         * @param result
+         * @param megaMountResult
          * An element of the MegaMount::Result enumeration.
          */
-        virtual void onMountDisabled(MegaApi* api, const char* path, int result);
+        virtual void onMountDisabled(MegaApi* api, const char* path, int megaMountResult);
 
         /**
          * @brief
@@ -9409,10 +9410,10 @@ class MegaListener
          * @param path
          * A path identifying the mount that has been enabled.
          *
-         * @param result
+         * @param megaMountResult
          * An element of the MegaMount::Result enumeration.
          */
-        virtual void onMountEnabled(MegaApi* api, const char* path, int result);
+        virtual void onMountEnabled(MegaApi* api, const char* path, int megaMountResult);
 
         /**
          * @brief
@@ -9424,10 +9425,10 @@ class MegaListener
          * @param path
          * A path identifying the mount that has been removed.
          *
-         * @param result
+         * @param megaMountResult
          * An element of the MegaMount::Result enumeration.
          */
-        virtual void onMountRemoved(MegaApi* api, const char* path, int result);
+        virtual void onMountRemoved(MegaApi* api, const char* path, int megaMountResult);
 };
 
 /**
@@ -10168,6 +10169,7 @@ class MegaApi
             USER_ATTR_LAST_ACTIONED_BANNER = 45, // private - non-encrypted - char array - non-versioned
             USER_ATTR_ENABLE_TEST_SURVEYS =
                 46, // private - non-encrypted - char array in B64 - non-versioned
+            USER_ATTR_WELCOME_PDF_COPIED = 47, // private - non-encrypted - char array
         };
 
         enum {
@@ -13205,6 +13207,8 @@ class MegaApi
          * one of these characters, the file will be downloaded to a file in that path.
          *
          * @param listener MegaRequestListener to track this request
+         *
+         * @see MegaApi::setAvatar
          */
         void getUserAvatar(MegaUser* user, const char *dstFilePath, MegaRequestListener *listener = NULL);
 
@@ -13224,6 +13228,8 @@ class MegaApi
          * one of these characters, the file will be downloaded to a file in that path.
          *
          * @param listener MegaRequestListener to track this request
+         *
+         * @see MegaApi::setAvatar
          */
         void getUserAvatar(const char *email_or_handle, const char *dstFilePath, MegaRequestListener *listener = NULL);
 
@@ -13241,6 +13247,8 @@ class MegaApi
          * one of these characters, the file will be downloaded to a file in that path.
          *
          * @param listener MegaRequestListener to track this request
+         *
+         * @see MegaApi::setAvatar
          */
         void getUserAvatar(const char *dstFilePath, MegaRequestListener *listener = NULL);
 
@@ -13340,10 +13348,14 @@ class MegaApi
          * Get the password-reminder-dialog information (private, non-encrypted)
          * MegaApi::USER_ATTR_DISABLE_VERSIONS = 16
          * Get whether user has versions disabled or enabled (private, non-encrypted)
+         * MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION = 17
+         * Get whether user needs contact link verification (private)
          * MegaApi::USER_ATTR_RICH_PREVIEWS = 18
          * Get whether user generates rich-link messages or not (private)
          * MegaApi::USER_ATTR_RUBBISH_TIME = 19
          * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+         * MegaApi::USER_ATTR_LAST_PSA = 20
+         * Get the ID of last PSA seen by the user (private)
          * MegaApi::USER_ATTR_STORAGE_STATE = 21
          * Get the state of the storage (private non-encrypted)
          * MegaApi::USER_ATTR_GEOLOCATION = 22
@@ -13366,6 +13378,22 @@ class MegaApi
          * Get name and key to cypher sync-configs file
          * MegaApi::USER_ATTR_NO_CALLKIT = 36
          * Get whether user has iOS CallKit disabled or enabled (private, non-encrypted)
+         * MegaApi::USER_ATTR_APPS_PREFS = 38
+         * Get app preferences (private)
+         * MegaApi::USER_ATTR_CC_PREFS = 39
+         * Get preferences for consumed content (private)
+         * MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG = 40
+         * Get visibility for welcome dialog (private)
+         * MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE = 41
+         * Get visibility for Terms of Service (private)
+         * MegaApi::USER_ATTR_PWM_BASE = 42
+         * Get Password Manager Base (private)
+         * MegaApi::USER_ATTR_LAST_READ_NOTIFICATION = 44
+         * Get last read notification (private)
+         * MegaApi::USER_ATTR_LAST_ACTIONED_BANNER = 45
+         * Get last actioned banner (private)
+         * MegaApi::USER_ATTR_WELCOME_PDF_COPIED = 47
+         * Get whether welcome pdf has to be copied to cloud drive (private)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -13428,37 +13456,7 @@ class MegaApi
          * @param email_or_handle Email or user handle (Base64 encoded) to get the attribute.
          * If this parameter is set to NULL, the attribute is obtained for the active account.
          * @param type Attribute type
-         *
-         * Valid values are:
-         *
-         * MegaApi::USER_ATTR_FIRSTNAME = 1
-         * Get the firstname of the user (public)
-         * MegaApi::USER_ATTR_LASTNAME = 2
-         * Get the lastname of the user (public)
-         * MegaApi::USER_ATTR_AUTHRING = 3
-         * Get the authentication ring of the user (private)
-         * MegaApi::USER_ATTR_LAST_INTERACTION = 4
-         * Get the last interaction of the contacts of the user (private)
-         * MegaApi::USER_ATTR_ED25519_PUBLIC_KEY = 5
-         * Get the public key Ed25519 of the user (public)
-         * MegaApi::USER_ATTR_CU25519_PUBLIC_KEY = 6
-         * Get the public key Cu25519 of the user (public)
-         * MegaApi::USER_ATTR_KEYRING = 7
-         * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
-         * MegaApi::USER_ATTR_SIG_RSA_PUBLIC_KEY = 8
-         * Get the signature of RSA public key of the user (public)
-         * MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY = 9
-         * Get the signature of Cu25519 public key of the user (public)
-         * MegaApi::USER_ATTR_LANGUAGE = 14
-         * Get the preferred language of the user (private, non-encrypted)
-         * MegaApi::USER_ATTR_PWD_REMINDER = 15
-         * Get the password-reminder-dialog information (private, non-encrypted)
-         * MegaApi::USER_ATTR_DISABLE_VERSIONS = 16
-         * Get whether user has versions disabled or enabled (private, non-encrypted)
-         * MegaApi::USER_ATTR_RUBBISH_TIME = 19
-         * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
-         * MegaApi::USER_ATTR_STORAGE_STATE = 21
-         * Get the state of the storage (private non-encrypted)
+         * Valid values are the same as the ones in the previous overload.
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -13480,43 +13478,7 @@ class MegaApi
          * - MegaRequest::getMegaStringMap - Returns the value for private attributes
          *
          * @param type Attribute type
-         *
-         * Valid values are:
-         *
-         * MegaApi::USER_ATTR_FIRSTNAME = 1
-         * Get the firstname of the user (public)
-         * MegaApi::USER_ATTR_LASTNAME = 2
-         * Get the lastname of the user (public)
-         * MegaApi::USER_ATTR_AUTHRING = 3
-         * Get the authentication ring of the user (private)
-         * MegaApi::USER_ATTR_LAST_INTERACTION = 4
-         * Get the last interaction of the contacts of the user (private)
-         * MegaApi::USER_ATTR_ED25519_PUBLIC_KEY = 5
-         * Get the public key Ed25519 of the user (public)
-         * MegaApi::USER_ATTR_CU25519_PUBLIC_KEY = 6
-         * Get the public key Cu25519 of the user (public)
-         * MegaApi::USER_ATTR_KEYRING = 7
-         * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
-         * MegaApi::USER_ATTR_SIG_RSA_PUBLIC_KEY = 8
-         * Get the signature of RSA public key of the user (public)
-         * MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY = 9
-         * Get the signature of Cu25519 public key of the user (public)
-         * MegaApi::USER_ATTR_LANGUAGE = 14
-         * Get the preferred language of the user (private, non-encrypted)
-         * MegaApi::USER_ATTR_PWD_REMINDER = 15
-         * Get the password-reminder-dialog information (private, non-encrypted)
-         * MegaApi::USER_ATTR_DISABLE_VERSIONS = 16
-         * Get whether user has versions disabled or enabled (private, non-encrypted)
-         * MegaApi::USER_ATTR_RICH_PREVIEWS = 18
-         * Get whether user generates rich-link messages or not (private)
-         * MegaApi::USER_ATTR_RUBBISH_TIME = 19
-         * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
-         * MegaApi::USER_ATTR_STORAGE_STATE = 21
-         * Get the state of the storage (private non-encrypted)
-         * MegaApi::USER_ATTR_GEOLOCATION = 22
-         * Get whether the user has enabled send geolocation messages (private)
-         * MegaApi::USER_ATTR_PUSH_SETTINGS = 23
-         * Get the settings for push notifications (private non-encrypted)
+         * Valid values are the same as the ones in the previous overload.
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -13708,8 +13670,11 @@ class MegaApi
          *
          * @param srcFilePath Source path of the file that will be set as avatar.
          * If NULL, the existing avatar will be removed (if any).
-         * In case the avatar never existed before, removing the avatar returns MegaError::API_ENOENT
+         * In case the avatar never existed before, removing the avatar returns
+         * MegaError::API_ENOENT
          * @param listener MegaRequestListener to track this request
+         *
+         * @see MegaApi::getUserAvatar
          */
         void setAvatar(const char *srcFilePath, MegaRequestListener *listener = NULL);
 
@@ -13769,17 +13734,33 @@ class MegaApi
          * Valid values are:
          *
          * MegaApi::USER_ATTR_FIRSTNAME = 1
-         * Set the firstname of the user (public)
+         * Set the firstname of the user (protected)
          * MegaApi::USER_ATTR_LASTNAME = 2
-         * Set the lastname of the user (public)
-         * MegaApi::USER_ATTR_ED25519_PUBLIC_KEY = 5
-         * Set the public key Ed25519 of the user (public)
-         * MegaApi::USER_ATTR_CU25519_PUBLIC_KEY = 6
-         * Set the public key Cu25519 of the user (public)
+         * Set the lastname of the user (protected)
+         * MegaApi::USER_ATTR_LANGUAGE = 14
+         * Set the language for the user (private)
+         * MegaApi::USER_ATTR_DISABLE_VERSIONS = 16
+         * Set file versioning disabled for the user (private)
+         * MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION = 17
+         * Set contact link verification for the user (private)
          * MegaApi::USER_ATTR_RUBBISH_TIME = 19
          * Set number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+         * MegaApi::USER_ATTR_LAST_PSA = 20
+         * Set last PSA for the user (private)
+         * MegaApi::USER_PUSH_SETTINGS = 25
+         * Enable/disable push notifications for the user (private)
          * MegaApi::USER_ATTR_NO_CALLKIT = 36
          * Set whether user has iOS CallKit disabled or enabled (private, non-encrypted)
+         * MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG = 40
+         * Show/hide welcome dialog for the user (private)
+         * MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE = 41
+         * Show/hide Terms of Service for the user (private)
+         * MegaApi::USER_ATTR_LAST_READ_NOTIFICATION = 44
+         * Set last read notification for the user (private)
+         * MegaApi::USER_ATTR_LAST_ACTIONED_BANNER = 45
+         * Set last actioned banner for the user (private)
+         * MegaApi::USER_ATTR_WELCOME_PDF_COPIED = 47
+         * Set whether welcome pdf has to be copied to cloud drive (private)
          *
          * If the MEGA account is a sub-user business account, and the value of the parameter
          * type is equal to MegaApi::USER_ATTR_FIRSTNAME or MegaApi::USER_ATTR_LASTNAME
@@ -13799,11 +13780,12 @@ class MegaApi
          * - MegaRequest::getMegaStringMap - Returns the new value for the attribute
          *
          * You can remove existing records/keypairs from the following attributes:
-         *  - MegaApi::ATTR_ALIAS
-         *  - MegaApi::ATTR_DEVICE_NAMES
+         *  - MegaApi::USER_ATTR_ALIAS
+         *  - MegaApi::USER_ATTR_DEVICE_NAMES
          *  - MegaApi::USER_ATTR_APPS_PREFS
          *  - MegaApi::USER_ATTR_CC_PREFS
-         * by adding a keypair into MegaStringMap with the key to remove and an empty C-string null terminated as value.
+         * by adding a keypair into MegaStringMap with the key to remove and an empty C-string null
+         * terminated as value.
          *
          * @param type Attribute type
          *
@@ -13817,17 +13799,15 @@ class MegaApi
          * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
          * MegaApi::USER_ATTR_RICH_PREVIEWS = 18
          * Get whether user generates rich-link messages or not (private)
-         * MegaApi::USER_ATTR_RUBBISH_TIME = 19
-         * Set number of days for rubbish-bin cleaning scheduler (private non-encrypted)
          * MegaApi::USER_ATTR_GEOLOCATION = 22
          * Set whether the user can send geolocation messages (private)
-         * MegaApi::ATTR_ALIAS = 27
+         * MegaApi::USER_ATTR_ALIAS = 27
          * Set the list of users's aliases (private)
-         * MegaApi::ATTR_DEVICE_NAMES = 30
+         * MegaApi::USER_ATTR_DEVICE_NAMES = 30
          * Set the list of device names (private)
-         * MegaApi::ATTR_APPS_PREFS = 38
+         * MegaApi::USER_ATTR_APPS_PREFS = 38
          * Set the apps prefs (private)
-         * MegaApi::ATTR_CC_PREFS = 39
+         * MegaApi::USER_ATTR_CC_PREFS = 39
          * Set the content consumption prefs (private)
          *
          * @param value New attribute value
@@ -22969,6 +22949,38 @@ class MegaApi
                           const char* response,
                           const char* comment = nullptr,
                           MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Tell if Welcome PDF has to be copied to Cloud drive
+         *
+         * The type associated with this request is MegaRequest::TYPE_GET_ATTR_USER.
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns MegaApi::USER_ATTR_WELCOME_PDF_COPIED
+         *
+         * When the request finished with MegaError::API_OK, valid data in MegaRequest object is:
+         * - MegaRequest::getFlag - Returns true if Welcome PDF has to be copied to Cloud drive.
+         *
+         * If the corresponding user attribute was not set, the request will fail with error code
+         * MegaError::API_ENOENT and MegaRequest calls will return default values.
+         *
+         * @param listener A tracker for this request
+         */
+        void getWelcomePdfCopied(MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Set whether Welcome PDF has to be copied to Cloud drive
+         *
+         * The type associated with this request is MegaRequest::TYPE_SET_ATTR_USER
+         *
+         * When the request finished with MegaError::API_OK, valid data in MegaRequest object is:
+         * - MegaRequest::getParamType - Returns the attribute type
+         * MegaApi::USER_ATTR_WELCOME_PDF_COPIED
+         *
+         * @param copied True to set the Welcome PDF to be copied, false otherwise
+         * @param listener A tracker for this request
+         */
+        void setWelcomePdfCopied(bool copied, MegaRequestListener* listener = nullptr);
 
     protected:
         MegaApiImpl *pImpl = nullptr;
