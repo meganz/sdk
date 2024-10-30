@@ -46,8 +46,14 @@ public:
     const std::vector<NodeInfo>& getElements() const override
     {
         static const std::vector<NodeInfo> ELEMENTS{
-            DirNodeInfo("dir1").addChild(FileNodeInfo("testFile")),
-            DirNodeInfo("dir2")};
+            DirNodeInfo("dir1")
+                .addChild(FileNodeInfo("testFile").setSize(1))
+                .addChild(FileNodeInfo("testCommonFile"))
+                .addChild(FileNodeInfo("testFile1")),
+            DirNodeInfo("dir2")
+                .addChild(FileNodeInfo("testFile").setSize(2))
+                .addChild(FileNodeInfo("testCommonFile"))
+                .addChild(FileNodeInfo("testFile2"))};
         return ELEMENTS;
     }
 
@@ -463,18 +469,22 @@ TEST_F(SdkTestSyncNodeOperations, ChangeSyncRemoteRootOK)
 {
     static const std::string logPre{"SdkTestSyncNodeOperations.ChangeSyncRemoteRootOK : "};
 
-    // Initial state: dir1 contains testFile
+    // Initial state: dir1 contains testFile, testFile1 and testCommonFile
     LOG_verbose << logPre << "Ensuring sync is running on dir1";
     ASSERT_NO_FATAL_FAILURE(ensureSyncNodeIsRunning("dir1"));
     LOG_verbose << logPre << "Changing sync remote root to point dir2";
     ASSERT_NO_FATAL_FAILURE(changeRemoteRootNodeAndWaitForSyncUpdate("dir2"));
-    // Note: dir2 is empty
+    // Note: dir2 contains testFile (different from dir1), testFile2 and testCommonFile
     LOG_verbose << logPre << "Ensuring sync is running on dir2";
     ASSERT_NO_FATAL_FAILURE(ensureSyncNodeIsRunning("dir2"));
     LOG_verbose << logPre << "Waiting for sync remote and local roots to have the same content";
     ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocal());
 
-    const std::vector<std::string> expectations{};
-    EXPECT_THAT(expectations, testing::UnorderedElementsAreArray(getLocalFirstChildrenNames()));
+    const std::vector<std::string> expectations{"testFile", "testCommonFile", "testFile2"};
+    ASSERT_THAT(expectations, testing::UnorderedElementsAreArray(getLocalFirstChildrenNames()));
+    // Additionally, testFile must have 2 bytes stored
+    auto testFilePath = getLocalTmpDir() / "testFile";
+    ASSERT_TRUE(std::filesystem::exists(testFilePath));
+    EXPECT_EQ(std::filesystem::file_size(testFilePath), 2);
 }
 #endif // ENABLE_SYNC
