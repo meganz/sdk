@@ -2,17 +2,13 @@
 # Additionally it shows how to work with VS community edition, for home enthusiasts.
 # When buliding all dependencies this way, debug iterators can be turned off - those can cause large delays in the SDK which can make testing in debug a bit slow.
 
+include(${CMAKE_CURRENT_LIST_DIR}/find_visual_studio_path.cmake)
 
-if(EXISTS "C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Professional")
-    set(VCPKG_VISUAL_STUDIO_PATH "C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Professional")
-    set(VCPKG_PLATFORM_TOOLSET v142)
-elseif(EXISTS "C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Community")
-    message(AUTHOR_WARNING "Microsoft Visual Studio 2019 Community will be used. Professional would be more appropriate.")
-    set(VCPKG_VISUAL_STUDIO_PATH "C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Community")
-    set(VCPKG_PLATFORM_TOOLSET v142)
-else()
-    message(FATAL_ERROR "Microsoft Visual Studio 2019 or 2017 could not be found")
-endif()
+find_visual_studio_path()
+
+set(VCPKG_VISUAL_STUDIO_PATH ${VISUAL_STUDIO_PATH})
+
+set(VCPKG_PLATFORM_TOOLSET v142)
 
 set(VCPKG_TARGET_ARCHITECTURE x86)
 set(VCPKG_CRT_LINKAGE static)
