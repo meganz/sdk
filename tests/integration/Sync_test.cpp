@@ -1739,23 +1739,20 @@ bool StandardClient::waitForAttrDeviceIdIsSet(unsigned int numSeconds, bool& upd
     error err = API_EINTERNAL;
     isUserAttributeSet(attr_t::ATTR_DEVICE_NAMES, numSeconds, err);
 
-    std::unique_ptr<TLVstore> tlv;
+    TLV_map records;
     std::string deviceIdHash = client.getDeviceidHash();
     if (err == API_OK)
     {
         const UserAttribute* attribute = client.ownuser()->getAttribute(ATTR_DEVICE_NAMES);
-        tlv.reset(TLVstore::containerToTLVrecords(&attribute->value(), &client.key));
+        unique_ptr<TLVstore> tlv{TLVstore::containerToTLVrecords(&attribute->value(), &client.key)};
         std::string buffer;
         if (tlv->get(deviceIdHash, buffer))
         {
             return true;  // Device id is found
         }
+        records = *tlv->getMap();
     }
-    else if (err == API_ENOENT)
-    {
-        tlv.reset(new TLVstore);
-    }
-    else
+    else if (err != API_ENOENT)
     {
         return false; // Unexpected error has been detected
     }
@@ -1763,13 +1760,14 @@ bool StandardClient::waitForAttrDeviceIdIsSet(unsigned int numSeconds, bool& upd
     std::string timestamp = getCurrentTimestamp(true);
     std::string deviceName = "Jenkins " + timestamp;
 
-    tlv->set(deviceIdHash, deviceName);
+    records.emplace(deviceIdHash, deviceName);
     bool attrDeviceNamePut = false;
     std::recursive_mutex attrDeviceNamePut_mutex;
     std::condition_variable_any attrDeviceNamePut_cv;
     std::atomic_bool replyReceived{false};
     // serialize and encrypt the TLV container
-    std::unique_ptr<string> container(tlv->tlvRecordsToContainer(client.rng, &client.key));
+    std::unique_ptr<std::string> container(
+        TLVstore::recordsToContainer(std::move(records), client.rng, client.key));
     std::unique_lock<std::recursive_mutex> g(attrDeviceNamePut_mutex);
     resultproc.prepresult(COMPLETION, ++next_request_tag,
         [&](){

@@ -921,11 +921,7 @@ bool AuthRing::deserialize(const string& authValue)
 std::string* AuthRing::serialize(PrnGen &rng, SymmCipher &key) const
 {
     string buf = serializeForJS();
-
-    TLVstore tlv;
-    tlv.set("", buf);
-
-    return tlv.tlvRecordsToContainer(rng, &key);
+    return TLVstore::recordsToContainer({{string{}, std::move(buf)}}, rng, key).release();
 }
 
 string AuthRing::serializeForJS() const

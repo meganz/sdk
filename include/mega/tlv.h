@@ -2,6 +2,7 @@
 #define MEGA_TLV_H
 
 #include <map>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -33,6 +34,10 @@ enum encryptionmode_t
 class TLVstore
 {
 public:
+    static std::unique_ptr<std::string> recordsToContainer(TLV_map&& records,
+                                                           PrnGen& rng,
+                                                           SymmCipher& key);
+
     /**
      * @brief Build a TLV object with records from an encrypted container
      *
@@ -114,6 +119,13 @@ public:
      * @param value New value to be set.
      */
     void set(const std::string& type, const std::string& value);
+
+    /**
+     * @brief Replace all records in the container
+     *
+     * @param records New records to be set.
+     */
+    void set(TLV_map&& records);
 
     /**
      * @brief Remove a record from the container

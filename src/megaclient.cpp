@@ -12858,11 +12858,10 @@ void MegaClient::saveV1Pwd(const char* pwd)
         rng.genblock(pwkey.data(), pwkey.size());
         SymmCipher pwcipher(pwkey.data());
 
-        TLVstore tlv;
-        tlv.set("p", pwd);
-        unique_ptr<string> tlvStr(tlv.tlvRecordsToContainer(rng, &pwcipher));
-
-        if (tlvStr)
+        if (auto tlvStr{
+                TLVstore::recordsToContainer({{"p", pwd}},
+                rng, pwcipher)
+        })
         {
             mV1PswdVault.reset(new pair<string, SymmCipher>(std::move(*tlvStr), std::move(pwcipher)));
         }
@@ -15438,13 +15437,16 @@ void MegaClient::initializekeys()
 
             // save private keys into the *!keyring attribute (for backwards compatibility, so legacy
             // clients can retrieve chat and signing key for accounts created with ^!keys support)
-            TLVstore tlvRecords;
-            tlvRecords.set(EdDSA::TLV_KEY, string((const char*)signkey->keySeed, EdDSA::SEED_KEY_LENGTH));
-            tlvRecords.set(ECDH::TLV_KEY, string((const char*)chatkey->getPrivKey(), ECDH::PRIVATE_KEY_LENGTH));
-            unique_ptr<string> tlvContainer(tlvRecords.tlvRecordsToContainer(rng, &key));
-
-            buf.assign(tlvContainer->data(), tlvContainer->size());
-            attrs[ATTR_KEYRING] = buf;
+            TLV_map records{
+                {EdDSA::TLV_KEY,
+                 string{reinterpret_cast<const char*>(signkey->keySeed), EdDSA::SEED_KEY_LENGTH}},
+                {ECDH::TLV_KEY,
+                 string{reinterpret_cast<const char*>(chatkey->getPrivKey()),
+                        ECDH::PRIVATE_KEY_LENGTH}                                               },
+            };
+            unique_ptr<string> tlvContainer{
+                TLVstore::recordsToContainer(std::move(records), rng, key)};
+            attrs[ATTR_KEYRING] = tlvContainer ? std::move(*tlvContainer) : string{};
 
             // create signatures of public RSA and Cu25519 keys
             if (loggedin() != EPHEMERALACCOUNTPLUSPLUS) // Ephemeral++ don't have RSA keys until confirmation, but need chat and signing key
@@ -17283,10 +17285,7 @@ std::shared_ptr<Node> MegaClient::getOrCreateSyncdebrisFolder()
 
 string MegaClient::cypherTLVTextWithMasterKey(const char* name, const string& text)
 {
-    TLVstore tlv;
-    tlv.set(name, text);
-    std::unique_ptr<string> tlvStr(tlv.tlvRecordsToContainer(rng, &key));
-
+    unique_ptr<string> tlvStr(TLVstore::recordsToContainer({{name, text}}, rng, key));
     return Base64::btoa(*tlvStr);
 }
 
@@ -19679,13 +19678,7 @@ string MegaClient::encryptAttrs(const string_map& attrs, const string& encryptio
         return string();
     }
 
-    TLVstore tlvRecords;
-    for (const auto& a : attrs)
-    {
-        tlvRecords.set(a.first, a.second);
-    }
-
-    unique_ptr<string> encrAttrs(tlvRecords.tlvRecordsToContainer(rng, &tmpnodecipher));
+    unique_ptr<string> encrAttrs(TLVstore::recordsToContainer(TLV_map{attrs}, rng, tmpnodecipher));
 
     if (!encrAttrs || encrAttrs->empty())
     {
@@ -23013,20 +23006,18 @@ void MegaClient::createJSCData(GetJSCDataCallback callback)
     // Convenience.
     constexpr auto Length = SymmCipher::KEYLENGTH;
 
-    // Instantiate a TLV store to contain the JSC data.
-    TLVstore store;
-
-    // Key used to authenticate the sync configuration database.
-    store.set("ak", rng.genstring(Length));
-
-    // Key used to encrypt the sync configuration database.
-    store.set("ck", rng.genstring(Length));
-
-    // The name of the sync configuration database.
-    store.set("fn", rng.genstring(Length));
-
-    // Translate the store into an encrypted binary blob.
-    unique_ptr<string> content(store.tlvRecordsToContainer(rng, &key));
+    // Instantiate store to contain the JSC data.
+    TLV_map store{
+        {"ak", rng.genstring(Length)},
+        {"ck", rng.genstring(Length)},
+        {"fn", rng.genstring(Length)},
+    };
+    unique_ptr<string> content(TLVstore::recordsToContainer(std::move(store), rng, key));
+    if (!content)
+    {
+        JSCDataCreated(callback, API_EINTERNAL);
+        return;
+    }
 
     // Convenience.
     using std::bind;

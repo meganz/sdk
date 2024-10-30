@@ -3783,7 +3783,8 @@ void putua_map(const std::string& b64key, const std::string& b64value, attr_t at
     }
 
     // serialize and encrypt the TLV container
-    std::unique_ptr<std::string> container(tlv->tlvRecordsToContainer(client->rng, &client->key));
+    std::unique_ptr<std::string> container(
+        TLVstore::recordsToContainer(TLV_map{*tlv->getMap()}, client->rng, client->key));
     client->putua(attrtype, (byte*)container->data(), unsigned(container->size()));
 }
 

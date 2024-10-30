@@ -15668,7 +15668,7 @@ void MegaApiImpl::getua_completion(error e, MegaRequestPrivate* request)
                     && request->getType() == MegaRequest::TYPE_SET_ATTR_USER)
         {
             // The attribute doesn't exists so we have to create it
-            TLVstore tlv;
+            TLV_map records;
             MegaStringMap *stringMap = request->getMegaStringMap();
             std::unique_ptr<MegaStringList> keys(stringMap->getKeys());
             attr_t type = static_cast<attr_t>(request->getParamType());
@@ -15677,11 +15677,12 @@ void MegaApiImpl::getua_completion(error e, MegaRequestPrivate* request)
             for (int i = 0; i < keys->size(); i++)
             {
                 const char *key = keys->get(i);
-                tlv.set(keyPrefix + key, Base64::atob(stringMap->get(key)));
+                records.emplace(keyPrefix + key, Base64::atob(stringMap->get(key)));
             }
 
             // serialize and encrypt the TLV container
-            std::unique_ptr<string> container(tlv.tlvRecordsToContainer(client->rng, &client->key));
+            std::unique_ptr<string> container(
+                TLVstore::recordsToContainer(std::move(records), client->rng, client->key));
             client->putua(type, (byte *)container->data(), unsigned(container->size()), client->restag, UNDEF, 0, 0, [this, request](Error e)
             {
                 fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
@@ -15964,7 +15965,9 @@ void MegaApiImpl::getua_completion(TLVstore *tlv, attr_t type, MegaRequestPrivat
             if (User::mergeUserAttribute(type, *newValuesMap, *tlv))
             {
                 // serialize and encrypt the TLV container
-                std::unique_ptr<string> container(tlv->tlvRecordsToContainer(client->rng, &client->key));
+                unique_ptr<string> container(TLVstore::recordsToContainer(TLV_map{*tlv->getMap()},
+                                                                          client->rng,
+                                                                          client->key));
                 client->putua(type, (byte *)container->data(), unsigned(container->size()), client->restag, UNDEF, 0, 0, [this, request](Error e)
                 {
                     fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
@@ -21323,7 +21326,10 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                 if (User::mergeUserAttribute(type, *newValuesMap, *tlv.get()))
                 {
                     // serialize and encrypt the TLV container
-                    std::unique_ptr<string> container(tlv->tlvRecordsToContainer(client->rng, &client->key));
+                    unique_ptr<string> container(
+                        TLVstore::recordsToContainer(TLV_map{*tlv->getMap()},
+                                                     client->rng,
+                                                     client->key));
                     client->putua(type, (byte *)container->data(), unsigned(container->size()), -1, UNDEF, 0, 0, std::move(putuaCompletion));
                 }
                 else
