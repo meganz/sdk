@@ -1743,14 +1743,17 @@ bool StandardClient::waitForAttrDeviceIdIsSet(unsigned int numSeconds, bool& upd
     std::string deviceIdHash = client.getDeviceidHash();
     if (err == API_OK)
     {
-        const UserAttribute* attribute = client.ownuser()->getAttribute(ATTR_DEVICE_NAMES);
-        unique_ptr<TLVstore> tlv{TLVstore::containerToTLVrecords(&attribute->value(), &client.key)};
-        std::string buffer;
-        if (tlv->get(deviceIdHash, buffer))
+        if (const auto* attribute = client.ownuser()->getAttribute(ATTR_DEVICE_NAMES))
         {
-            return true;  // Device id is found
+            if (auto oldRecords{TLVstore::containerToRecords(attribute->value(), client.key)})
+            {
+                if (oldRecords->find(deviceIdHash) != oldRecords->end())
+                {
+                    return true; // Device id is found
+                }
+                records.swap(*oldRecords);
+            }
         }
-        records = *tlv->getMap();
     }
     else if (err != API_ENOENT)
     {

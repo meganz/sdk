@@ -34,6 +34,9 @@ enum encryptionmode_t
 class TLVstore
 {
 public:
+    static std::unique_ptr<TLV_map> containerToRecords(const std::string& container,
+                                                       SymmCipher& key);
+
     static std::unique_ptr<std::string> recordsToContainer(TLV_map&& records,
                                                            PrnGen& rng,
                                                            SymmCipher& key);
@@ -102,6 +105,8 @@ public:
      * @return The TLV_map associated to this TLVstore
      */
     const TLV_map* getMap() const;
+
+    TLV_map moveMap();
 
     /**
      * @brief Get a list of the keys contained in the TLV

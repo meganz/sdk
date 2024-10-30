@@ -233,12 +233,10 @@ User* User::unserialize(MegaClient* client, string* d)
             const UserAttribute* attribute = u->getAttribute(ATTR_KEYRING);
             if (attribute && attribute->isValid())
             {
-                unique_ptr<TLVstore> tlvRecords(
-                    TLVstore::containerToTLVrecords(&attribute->value(), &client->key));
-                if (tlvRecords)
+                if (auto records{TLVstore::containerToRecords(attribute->value(), client->key)})
                 {
-                    tlvRecords->get(EdDSA::TLV_KEY, prEd255);
-                    tlvRecords->get(ECDH::TLV_KEY, prCu255);
+                    prEd255.swap((*records)[EdDSA::TLV_KEY]);
+                    prCu255.swap((*records)[ECDH::TLV_KEY]);
                 }
                 else
                 {
@@ -865,14 +863,12 @@ string User::attributePrefixInTLV(attr_t type, bool modifier)
     return string();
 }
 
-AuthRing::AuthRing(attr_t type, const TLVstore &authring)
+AuthRing::AuthRing(attr_t type, const TLV_map& authring)
     : mType(type)
 {
-    string authType = "";
-    string authValue;
-    if (authring.get(authType, authValue))
+    if (auto it = authring.find(""); it != authring.end())
     {
-        if (!deserialize(authValue))
+        if (!deserialize(it->second))
         {
             LOG_warn << "Excess data while deserializing Authring (TLV) of type: " << type;
         }

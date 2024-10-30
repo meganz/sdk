@@ -8,6 +8,13 @@ using namespace std;
 namespace mega
 {
 
+unique_ptr<TLV_map> TLVstore::containerToRecords(const string& container,
+                                                 SymmCipher& key)
+{
+    auto tlv{TLVstore::containerToTLVrecords(&container, &key)};
+    return tlv ? std::make_unique<TLV_map>(tlv->moveMap()) : nullptr;
+}
+
 unique_ptr<string> TLVstore::recordsToContainer(TLV_map&& records,
                                                 PrnGen& rng,
                                                 SymmCipher& key)
@@ -114,6 +121,13 @@ bool TLVstore::get(const string& type, string& value) const
 const TLV_map* TLVstore::getMap() const
 {
     return &tlv;
+}
+
+TLV_map TLVstore::moveMap()
+{
+    TLV_map moved;
+    moved.swap(tlv);
+    return moved;
 }
 
 vector<string>* TLVstore::getKeys() const

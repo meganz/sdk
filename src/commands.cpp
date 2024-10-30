@@ -3236,17 +3236,16 @@ bool CommandPutMultipleUAVer::procresult(Result r, JSON& json)
 
                 if (type == ATTR_KEYRING)
                 {
-                    TLVstore *tlvRecords = TLVstore::containerToTLVrecords(&attrs[type], &client->key);
-                    if (tlvRecords)
+                    if (auto tlvRecords = TLVstore::containerToRecords(attrs[type], client->key))
                     {
-                        string prEd255;
-                        if (tlvRecords->get(EdDSA::TLV_KEY, prEd255) && prEd255.size() == EdDSA::SEED_KEY_LENGTH)
+                        string prEd255{std::move((*tlvRecords)[EdDSA::TLV_KEY])};
+                        if (prEd255.size() == EdDSA::SEED_KEY_LENGTH)
                         {
                             client->signkey = new EdDSA(client->rng, (unsigned char *) prEd255.data());
                         }
 
-                        string prCu255;
-                        if (tlvRecords->get(ECDH::TLV_KEY, prCu255) && prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
+                        string prCu255{std::move((*tlvRecords)[ECDH::TLV_KEY])};
+                        if (prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
                         {
                             client->chatkey = new ECDH(prCu255);
                         }
@@ -3261,8 +3260,6 @@ bool CommandPutMultipleUAVer::procresult(Result r, JSON& json)
                         {
                             client->sendevent(99420, "Signing and chat keys attached OK", 0);
                         }
-
-                        delete tlvRecords;
                     }
                     else
                     {
@@ -4778,8 +4775,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
                 if (chatFolder.size())
                 {
-                    unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&chatFolder, &client->key));
-                    if (tlvRecords)
+                    if (TLVstore::containerToRecords(chatFolder, client->key)) // validation
                     {
                         changes |= u->updateAttributeIfDifferentVersion(ATTR_MY_CHAT_FILES_FOLDER,
                                                                         chatFolder,
@@ -4797,8 +4793,8 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
                 if (cameraUploadFolder.size())
                 {
-                    unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&cameraUploadFolder, &client->key));
-                    if (tlvRecords)
+                    if (TLVstore::containerToRecords(cameraUploadFolder,
+                                                     client->key)) // validation
                     {
                         changes |= u->updateAttributeIfDifferentVersion(ATTR_CAMERA_UPLOADS_FOLDER,
                                                                         cameraUploadFolder,
@@ -4849,8 +4845,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
                 if (aliases.size())
                 {
-                    unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&aliases, &client->key));
-                    if (tlvRecords)
+                    if (TLVstore::containerToRecords(aliases, client->key)) // validation
                     {
                         changes |= u->updateAttributeIfDifferentVersion(ATTR_ALIAS,
                                                                         aliases,
@@ -4894,8 +4889,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
                 if (deviceNames.size())
                 {
-                    unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&deviceNames, &client->key));
-                    if (tlvRecords)
+                    if (TLVstore::containerToRecords(deviceNames, client->key)) // validation
                     {
                         changes |= u->updateAttributeIfDifferentVersion(ATTR_DEVICE_NAMES,
                                                                         deviceNames,

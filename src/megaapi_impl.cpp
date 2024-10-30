@@ -8047,11 +8047,12 @@ char* MegaApiImpl::getPrivateKey(int type)
         const UserAttribute* attribute = u->getAttribute(ATTR_KEYRING);
         if (attribute && attribute->isValid())
         {
-            unique_ptr<TLVstore> tlvRecords(
-                TLVstore::containerToTLVrecords(&attribute->value(), &client->key));
+            auto tlvRecords{TLVstore::containerToRecords(attribute->value(), client->key)};
             if (tlvRecords &&  (type == MegaApi::PRIVATE_KEY_ED25519 || type == MegaApi::PRIVATE_KEY_CU25519))
             {
-                tlvRecords->get(type == MegaApi::PRIVATE_KEY_ED25519 ? EdDSA::TLV_KEY : ECDH::TLV_KEY, privateKey);
+                privateKey = type == MegaApi::PRIVATE_KEY_ED25519 ?
+                                 std::move((*tlvRecords)[EdDSA::TLV_KEY]) :
+                                 std::move((*tlvRecords)[ECDH::TLV_KEY]);
             }
             else
             {
