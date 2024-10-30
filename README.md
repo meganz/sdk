@@ -108,7 +108,7 @@ In the command above, relative paths have been used for simplicity. If you want 
 
 During the configuration of the project, VCPKG will build and configure the necessary libraries for the platform. It may take a while on the first run, but once the libraries are built, VCPKG will retrieve them from the binary cache.
 
-Some options to configure the SDK library can be found in the [sdklib_options.cmake](contrib/cmake/modules/sdklib_options.cmake) file, like ENABLE_SYNC or USE_PDFIUM.
+Some options to configure the SDK library can be found in the [sdklib_options.cmake](cmake/modules/sdklib_options.cmake) file, like ENABLE_SYNC or USE_PDFIUM.
 The options to manage the examples and tests are in the [CMakeLists.txt](CMakeLists.txt).
 
 ### Building the sources

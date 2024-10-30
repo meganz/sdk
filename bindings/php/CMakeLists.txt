@@ -1,7 +1,7 @@
 find_package(SWIG REQUIRED)
 include(UseSWIG)
 
-list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/contrib/cmake/modules/packages)
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/modules/packages)
 find_package(PHP REQUIRED)
 
 # Set the output directory for generated PHP files
