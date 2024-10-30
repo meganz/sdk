@@ -6919,8 +6919,6 @@ void MegaClient::sc_userattr()
                                             LOG_warn << "Ignoring update of : " << User::attr2string(type);
                                             break;
                                         }
-
-                                        LOG_debug << User::attr2string(type) << " has changed externally. Fetching...";
                                         if (type == ATTR_JSON_SYNC_CONFIG_DATA)
                                         {
                                             // this user's attribute should be set only once and never change
@@ -6929,8 +6927,22 @@ void MegaClient::sc_userattr()
                                             LOG_warn << "Sync config data has changed, when it should not";
                                             assert(false);
                                         }
-
-                                        getua(u, type, 0);
+                                        // mCurrentSeqtagSeen is true if the next command response
+                                        // st matches with the current AP st. So, it is true if we
+                                        // are the account and session setting the attribute, using
+                                        // a V3 request, false in any other case.
+                                        if (mCurrentSeqtagSeen)
+                                        {
+                                            LOG_debug << "Skiping " << User::attr2string(type)
+                                                      << " self action packet. Will be managed by "
+                                                         "the command response.";
+                                        }
+                                        else
+                                        {
+                                            LOG_debug << User::attr2string(type)
+                                                      << " has changed externally. Fetching...";
+                                            getua(u, type, 0);
+                                        }
                                         break;
                                     }
                                     default:

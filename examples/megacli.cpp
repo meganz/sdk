@@ -5321,6 +5321,7 @@ struct Login
 {
     string email, password, salt, pin;
     int version;
+    bool succeeded = false;
 
     Login() : version(0)
     {
@@ -5355,6 +5356,14 @@ struct Login
         {
             cout << "Login unexpected error" << endl;
         }
+    }
+
+    void fetchnodes(MegaClient* mc)
+    {
+        assert(succeeded);
+        cout << "Retrieving account after a succesful login..." << endl;
+        mc->fetchnodes(false, true, false);
+        succeeded = false;
     }
 };
 static Login login;
@@ -9275,8 +9284,10 @@ void DemoApp::login_result(error e)
     if (!e)
     {
         login.reset();
-        cout << "Login successful, retrieving account..." << endl;
-        client->fetchnodes(false, true, false);
+        cout << "Login successful." << endl;
+        // Delay fetchnodes to give time to the SDK to finish and unlock the internal
+        // "nodeTreeMutex".
+        login.succeeded = true;
     }
     else if (e == API_EMFAREQUIRED)
     {
@@ -10809,6 +10820,13 @@ void megacli()
         // pass the CPU to the engine (nonblocking)
         client->exec();
         if (clientFolder) clientFolder->exec();
+
+        if (login.succeeded)
+        {
+            // Continue with fetchnodes
+            login.fetchnodes(client);
+            client->exec();
+        }
 
         if (puts && !appxferq[PUT].size())
         {
