@@ -13,6 +13,15 @@
 #include <chrono>
 #include <future>
 
+/**
+ * @class SynchronizationHelper
+ * @brief A helper class to implement mock classes involved in async operations.
+ *
+ * In summary, the class has a promise and a method (markAsFinished) that allows to set the value of
+ * the promise. Then, it provides method for waiting for the promise to finish (waitForFinish and
+ * waitForFinishOrTimeout).
+ *
+ */
 class SynchronizationHelper
 {
 public:
@@ -20,13 +29,17 @@ public:
         finishedFuture(finishedPromise.get_future())
     {}
 
-    // Wait indefinitely until the operation finishes
     void waitForFinish()
     {
         finishedFuture.wait();
     }
 
-    // Wait for the specified duration
+    /**
+     * @brief Waits for the promise to finish for the given amount of time.
+     *
+     * @param duration The time to wait. You can use std::chrono literals such as 3min
+     * @return true if the promise finishes within the given duration, false otherwise.
+     */
     template<typename Rep, typename Period>
     bool waitForFinishOrTimeout(const std::chrono::duration<Rep, Period>& duration)
     {
@@ -34,7 +47,6 @@ public:
         return status == std::future_status::ready;
     }
 
-    // Mark the operation as finished
     void markAsFinished()
     {
         finishedPromise.set_value();
@@ -45,6 +57,13 @@ private:
     std::future<void> finishedFuture;
 };
 
+/**
+ * @class MockRequestListener
+ * @brief A mock class for MegaRequestListener
+ *
+ * By default, the underlying promise is marked as finished once the onRequestFinish method gets
+ * called so remember to wait for finish before going out of scope.
+ */
 class MockRequestListener: public ::mega::MegaRequestListener, public SynchronizationHelper
 {
 public:
@@ -72,18 +91,30 @@ public:
                 (::mega::MegaApi*, ::mega::MegaRequest*, ::mega::MegaError*),
                 (override));
 
-    void setErrorExpectations(const int reqError, const std::optional<int> syncError)
+    /**
+     * @brief Set expectations on the error codes and request type when onRequestFinish gets
+     * invoked
+     *
+     * @param reqErrorMatcher A matcher for the value returned by MegaRequest::getErrorCode
+     * @param syncErrorMatcher A matcher for the value returned by MegaRequest::getSyncError. It
+     * will match any error by default.
+     * @param reqTypeMatcher A matcher for the value returned by MegaRequest::getType. It
+     * will match any type by default.
+     */
+    void setErrorExpectations(const testing::Matcher<int> reqErrorMatcher,
+                              const testing::Matcher<int> syncErrorMatcher = testing::_,
+                              const testing::Matcher<int> reqTypeMatcher = testing::_)
     {
         using namespace testing;
-        const auto expectedErr = Pointee(Property(&::mega::MegaError::getErrorCode, reqError));
-        if (!syncError)
-        {
-            EXPECT_CALL(*this, onRequestFinish(_, _, expectedErr));
-            return;
-        }
+
+        const auto& expectedReqType =
+            Pointee(Property(&::mega::MegaRequest::getType, reqTypeMatcher));
+        const auto expectedErr =
+            Pointee(Property(&::mega::MegaError::getErrorCode, reqErrorMatcher));
         const auto expectedSyncErr =
-            Pointee(Property(&::mega::MegaError::getSyncError, *syncError));
-        EXPECT_CALL(*this, onRequestFinish(_, _, AllOf(expectedErr, expectedSyncErr)));
+            Pointee(Property(&::mega::MegaError::getSyncError, syncErrorMatcher));
+        EXPECT_CALL(*this,
+                    onRequestFinish(_, expectedReqType, AllOf(expectedErr, expectedSyncErr)));
     }
 
 private:
@@ -99,7 +130,7 @@ private:
  * @brief Mock listener only implementing methods for syncs
  *
  */
-class MockSyncListener: public ::mega::MegaListener, SynchronizationHelper
+class MockSyncListener: public ::mega::MegaListener
 {
 public:
     MOCK_METHOD(

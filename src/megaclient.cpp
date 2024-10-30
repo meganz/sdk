@@ -16838,7 +16838,11 @@ void MegaClient::changeSyncRoot(const handle backupId,
     }
 
     if (const auto [err, syncErr] = isnodesyncable(newRootNode); err != API_OK)
+    {
+        LOG_err << "changeSyncRoot: Given new root node is not syncable. Error: "
+                << SyncConfig::syncErrorToStr(syncErr);
         return completion(err, syncErr);
+    }
 
     syncs.changeSyncRemoteRoot(backupId, std::move(newRootNode), std::move(completion));
 }

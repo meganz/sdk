@@ -17438,12 +17438,14 @@ class MegaApi
          * (MegaError::getErrorCode()) can be:
          * - MegaError::API_EARGS - If there is no sync with the given id or there is no node on the
          *   cloud with the given handle.
+         * - MegaError::API_EEXISTS - If the current remote root is the same as the one you tried to
+         *   assign. In this case the associated MegaError::getSyncError() will be UNKNOWN_ERROR
          *
-         * The MegaError can also contain a SyncError (MegaError::getSyncError()), with the same
-         * value as MegaRequest::getNumDetails(). See MegaApi::isNodeSyncableWithError() for
-         * specific SyncError codes depending on the specific MegaError code.
+         * Additionally, error codes associated to the MegaApi::isNodeSyncableWithError() method
+         * can also be reported by this method. See MegaApi::isNodeSyncableWithError() for specific
+         * SyncError codes depending on the specific MegaError code.
          *
-         * @param syncBackupId handle to the sync to change its remote root
+         * @param syncBackupId handle of the sync to change its remote root
          * @param newRootNodeHandle Handle of the MEGA node to set as new sync remote root
          * @param listener MegaRequestListener to track this request
          */

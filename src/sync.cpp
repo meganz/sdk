@@ -4124,7 +4124,7 @@ void Syncs::changeSyncRemoteRoot(const handle backupId,
          backupId,
          newRootNode = std::move(newRootNode),
          completionForClientWrapped =
-             wrapToRunInClientThread(std::move(completionForClient))]() mutable
+             wrapToRunInClientThread(std::move(completionForClient), FromAnyThread::yes)]() mutable
         {
             changeSyncRemoteRootInThread(backupId,
                                          std::move(newRootNode),
@@ -4148,21 +4148,30 @@ void Syncs::changeSyncRemoteRootInThread(const handle backupId,
                                             unifSync->mConfig.mBackupId == backupId;
                                  });
     if (it == std::end(mSyncVec))
+    {
+        LOG_err << "There are no syncs with the given backupId";
         return completion(API_EARGS, UNKNOWN_ERROR);
+    }
 
-    auto& syncConfig = (*it)->mConfig;
+    const auto& unifiedSync = *it;
+    auto& syncConfig = unifiedSync->mConfig;
     const auto newRootNH = newRootNode->nodeHandle();
-    if (syncConfig.mRemoteNode == newRootNode->nodeHandle())
+    if (syncConfig.mRemoteNode == newRootNH)
+    {
+        LOG_err << "The given node to set as new root is already the root of the sync";
         return completion(API_EEXIST, UNKNOWN_ERROR);
+    }
 
-    // Change the remote path and notify apps
+    LOG_debug << "Changing the remote root node handle of a sync";
     syncConfig.mRemoteNode = newRootNH;
-    syncConfig.mOriginalPathOfRemoteRootNode = newRootNode->displaypath();
-    mClient.app->syncupdate_remote_root_changed(syncConfig);
+    unifiedSync->mSync->localroot->setSyncedNodeHandle(newRootNH);
 
-    // Make sure we rescan the sync next iteration
-    const auto& sync = (*it)->mSync;
-    sync->localroot->setScanAgain(false, true, true, 0);
+    // Make sure we sync again in next iteration and the config is committed into the db
+    unifiedSync->mSync->localroot->setSyncAgain(false, true, true);
+    ensureDriveOpenedAndMarkDirty(syncConfig.mExternalDrivePath);
+
+    // update information on the servers
+    mHeartBeatMonitor->updateOrRegisterSync(*unifiedSync);
     completion(API_OK, NO_SYNC_ERROR);
 }
 

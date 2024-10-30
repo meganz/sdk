@@ -295,27 +295,30 @@ public:
         const auto HasGoodRunState =
             Pointee(Property(&MegaSync::getRunState, MegaSync::RUNSTATE_RUNNING));
 
-        std::promise<void> changeFinished;
         NiceMock<MockSyncListener> mockSyncListener;
+        // Expect call to onSyncRemoteRootChanged on the global listener
+        std::promise<void> remoteRootChangedFinished;
         EXPECT_CALL(mockSyncListener,
                     onSyncRemoteRootChanged(_, AllOf(HasGoodName, HasGoodRunState)))
             .WillOnce(
-                [&changeFinished]
+                [&remoteRootChangedFinished]
                 {
-                    changeFinished.set_value();
+                    remoteRootChangedFinished.set_value();
                 });
 
         // Expectations on the request listener
         NiceMock<MockRequestListener> mockReqListener;
-        mockReqListener.setErrorExpectations(API_OK, {});
+        mockReqListener.setErrorExpectations(API_OK, _, MegaRequest::TYPE_CHANGE_SYNC_ROOT);
 
         // Code execution
         megaApi[0]->addListener(&mockSyncListener);
         megaApi[0]->changeSyncRemoteRoot(getBackupId(), *newRootHandleOpt, &mockReqListener);
 
-        // Wait for finish
+        // Wait for everything to finish
         mockReqListener.waitForFinishOrTimeout(3min);
-        ASSERT_EQ(changeFinished.get_future().wait_for(3min), future_status::ready);
+        EXPECT_EQ(remoteRootChangedFinished.get_future().wait_for(3min), future_status::ready);
+
+        // Remove the listener
         megaApi[0]->removeListener(&mockSyncListener);
     }
 
@@ -407,7 +410,7 @@ TEST_F(SdkTestSyncNodeOperations, ChangeSyncRemoteRootErrors)
     {
         LOG_verbose << logPre << "Giving undef backupId and undef remote handle";
         NiceMock<MockRequestListener> mockListener;
-        mockListener.setErrorExpectations(API_EARGS, {});
+        mockListener.setErrorExpectations(API_EARGS, _);
         megaApi[0]->changeSyncRemoteRoot(UNDEF, UNDEF, &mockListener);
         EXPECT_TRUE(mockListener.waitForFinishOrTimeout(3min));
     }
@@ -419,7 +422,7 @@ TEST_F(SdkTestSyncNodeOperations, ChangeSyncRemoteRootErrors)
     {
         LOG_verbose << logPre << "Giving undef backupId and good remote handle";
         NiceMock<MockRequestListener> mockListener;
-        mockListener.setErrorExpectations(API_EARGS, {});
+        mockListener.setErrorExpectations(API_EARGS, _);
         megaApi[0]->changeSyncRemoteRoot(UNDEF, newRootHandle, &mockListener);
         EXPECT_TRUE(mockListener.waitForFinishOrTimeout(3min));
     }

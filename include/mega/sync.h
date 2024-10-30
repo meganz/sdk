@@ -1422,31 +1422,38 @@ public:
     void queueSync(std::function<void()>&&, const string& actionName);
     void queueClient(QueuedClientFunc&&, bool fromAnyThread = false);
 
+    enum class FromAnyThread
+    {
+        yes,
+        no
+    };
+
     /**
      * @brief Wraps the given callable inside another callable (same signature) that, once invoked,
      * instead of running it immediately, it gets enqueued to be executed in the MegaClient thread.
      *
-     * @note This method must be called from the syncs thread
-     *
      * @tparam Callable A type implementing operator(). The return type of the callable must be void
      * @param callable The callable to wrap
+     * @param fromAnyThread If the callable can be enqueued from any thread (FromAnyThread::yes) or
+     * if it should be done only from the sync thread.
      * @return A new callable that will enqueue the input parameter to the MegaClient thread.
      */
     template<typename Callable>
-    auto wrapToRunInClientThread(Callable&& callable)
+    auto wrapToRunInClientThread(Callable&& callable,
+                                 const FromAnyThread fromAnyThread = FromAnyThread::no)
     {
-        return [this, callable = std::forward<Callable>(callable)](auto&&... args) mutable
+        return [this,
+                fromAnyThread = fromAnyThread == FromAnyThread::yes,
+                callable = std::forward<Callable>(callable)](auto&&... args) mutable
         {
-            using ReturnType = decltype(callable(std::forward<decltype(args)>(args)...));
-            static_assert(std::is_same_v<ReturnType, void>, "Callable must return void");
-
             auto argsTuple = std::make_tuple(std::forward<decltype(args)>(args)...);
             queueClient(
                 [callable = std::move(callable), argsTuple = std::move(argsTuple)](auto&&,
                                                                                    auto&&) mutable
                 {
                     std::apply(callable, std::move(argsTuple));
-                });
+                },
+                fromAnyThread);
         };
     }
 
