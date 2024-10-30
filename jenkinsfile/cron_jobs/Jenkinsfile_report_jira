@@ -1,5 +1,5 @@
 pipeline {
-    agent {label "ci-debian-11-64-3 "}
+    agent {label "docker"}
     options {
         buildDiscarder(logRotator(numToKeepStr: '32', daysToKeepStr: '14'))
         ansiColor('xterm')
