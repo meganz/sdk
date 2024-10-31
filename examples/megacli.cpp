@@ -3754,14 +3754,13 @@ void putua_map(const std::string& b64key, const std::string& b64value, attr_t at
         return;
     }
 
-    std::unique_ptr<TLVstore> tlv;
+    string_map destination;
 
     const UserAttribute* attribute = ownUser->getAttribute(attrtype);
     if (!attribute || attribute->isNotExisting()) // attr doesn't exist -> create it
     {
-        tlv.reset(new TLVstore());
         const string& realValue = Base64::atob(b64value);
-        tlv->set(b64key, realValue); // real value, non-B64
+        destination[b64key] = realValue; // real value, non-B64
     }
     else if (attribute->isExpired())
     {
@@ -3771,11 +3770,14 @@ void putua_map(const std::string& b64key, const std::string& b64value, attr_t at
     }
     else
     {
-        tlv.reset(TLVstore::containerToTLVrecords(&attribute->value(), &client->key));
+        if (auto oldRecords = TLVstore::containerToRecords(attribute->value(), client->key))
+        {
+            destination.swap(*oldRecords);
+        }
 
         string_map attrMap;
         attrMap[b64key] = b64value; // User::mergeUserAttribute() expects B64 values
-        if (!User::mergeUserAttribute(attrtype, attrMap, *tlv.get()))
+        if (!User::mergeUserAttribute(attrtype, attrMap, destination))
         {
             cout << "Failed to merge with existing values" << endl;
             return;
@@ -3784,7 +3786,7 @@ void putua_map(const std::string& b64key, const std::string& b64value, attr_t at
 
     // serialize and encrypt the TLV container
     std::unique_ptr<std::string> container(
-        TLVstore::recordsToContainer(TLV_map{*tlv->getMap()}, client->rng, client->key));
+        TLVstore::recordsToContainer(std::move(destination), client->rng, client->key));
     client->putua(attrtype, (byte*)container->data(), unsigned(container->size()));
 }
 

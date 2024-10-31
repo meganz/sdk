@@ -15936,6 +15936,7 @@ void MegaApiImpl::getua_completion(TLVstore *tlv, attr_t type, MegaRequestPrivat
 
     if (tlv)
     {
+        string_map records{*tlv->getMap()};
         if (request->getType() == MegaRequest::TYPE_SET_ATTR_USER)
         {
             const string_map *newValuesMap = static_cast<MegaStringMapPrivate*>(request->getMegaStringMap())->getMap();
@@ -15944,7 +15945,7 @@ void MegaApiImpl::getua_completion(TLVstore *tlv, attr_t type, MegaRequestPrivat
             if (type == ATTR_DEVICE_NAMES)
             {
                 // allow only unique names for Devices and Drives
-                if (haveDuplicatedValues(*tlv->getMap(), *newValuesMap)) // ignores keys
+                if (haveDuplicatedValues(records, *newValuesMap)) // ignores keys
                 {
                     e = API_EEXIST;
                     LOG_err << "Attribute " << User::attr2string(type) << " attempted to add duplicated value (2): "
@@ -15963,12 +15964,11 @@ void MegaApiImpl::getua_completion(TLVstore *tlv, attr_t type, MegaRequestPrivat
                 }
             }
 
-            if (User::mergeUserAttribute(type, *newValuesMap, *tlv))
+            if (User::mergeUserAttribute(type, *newValuesMap, records))
             {
                 // serialize and encrypt the TLV container
-                unique_ptr<string> container(TLVstore::recordsToContainer(TLV_map{*tlv->getMap()},
-                                                                          client->rng,
-                                                                          client->key));
+                unique_ptr<string> container(
+                    TLVstore::recordsToContainer(string_map{records}, client->rng, client->key));
                 client->putua(type, (byte *)container->data(), unsigned(container->size()), client->restag, UNDEF, 0, 0, [this, request](Error e)
                 {
                     fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
@@ -15985,7 +15985,7 @@ void MegaApiImpl::getua_completion(TLVstore *tlv, attr_t type, MegaRequestPrivat
 
         // TLV data usually includes byte arrays with zeros in the middle, so values
         // must be converted into Base64 strings to avoid problems
-        std::unique_ptr<MegaStringMap> stringMap(new MegaStringMapPrivate(tlv->getMap(), true));
+        std::unique_ptr<MegaStringMap> stringMap(new MegaStringMapPrivate(&records, true));
         request->setMegaStringMap(stringMap.get());
         switch (request->getParamType())
         {
@@ -16051,20 +16051,15 @@ void MegaApiImpl::getua_completion(TLVstore *tlv, attr_t type, MegaRequestPrivat
             case MegaApi::USER_ATTR_ALIAS:
             {
                 // If a handle was set in the request, we have to find it in the corresponding map and return it
-                const char *h = request->getText();
-                if (h)
+                if (const char* h = request->getText())
                 {
-                    string key{h};
-                    string buffer;
-
-                    if (!tlv || !tlv->get(key, buffer))
+                    if (auto it = records.find(h); it != records.end())
                     {
-                        e = API_ENOENT;
-                        break;
+                        request->setName(it->second.c_str());
                     }
                     else
                     {
-                        request->setName(buffer.c_str());
+                        e = API_ENOENT;
                     }
                 }
                 break;
@@ -21276,7 +21271,7 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                     return API_EARGS;
                 }
 
-                std::unique_ptr<TLVstore> tlv;
+                string_map destination;
                 if (type == ATTR_ALIAS
                         || type == ATTR_CAMERA_UPLOADS_FOLDER
                         || type == ATTR_DEVICE_NAMES
@@ -21290,15 +21285,11 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                         getUserAttr(ownUser, type, request);
                         return API_OK;
                     }
-                    else
+                    else if (auto old =
+                                 TLVstore::containerToRecords(attribute->value(), client->key))
                     {
-                        tlv.reset(
-                            TLVstore::containerToTLVrecords(&attribute->value(), &client->key));
+                        destination.swap(*old);
                     }
-                }
-                else
-                {
-                    tlv.reset(new TLVstore);
                 }
 
                 const string_map *newValuesMap = static_cast<MegaStringMapPrivate*>(stringMap)->getMap();
@@ -21307,7 +21298,7 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                 if (type == ATTR_DEVICE_NAMES)
                 {
                     // allow only unique names for Devices and Drives
-                    if (haveDuplicatedValues(*tlv->getMap(), *newValuesMap))
+                    if (haveDuplicatedValues(destination, *newValuesMap))
                     {
                         LOG_err << "Attribute " << User::attr2string(type) << " attempted to add duplicated value (1): "
                             << Base64::atob(newValuesMap->begin()->second); // will only have a single value
@@ -21324,11 +21315,11 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                     }
                 }
 
-                if (User::mergeUserAttribute(type, *newValuesMap, *tlv.get()))
+                if (User::mergeUserAttribute(type, *newValuesMap, destination))
                 {
                     // serialize and encrypt the TLV container
                     unique_ptr<string> container(
-                        TLVstore::recordsToContainer(TLV_map{*tlv->getMap()},
+                        TLVstore::recordsToContainer(std::move(destination),
                                                      client->rng,
                                                      client->key));
                     client->putua(type, (byte *)container->data(), unsigned(container->size()), -1, UNDEF, 0, 0, std::move(putuaCompletion));

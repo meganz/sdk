@@ -170,8 +170,10 @@ public:
     User(const char* = NULL);
     ~User() override;
 
-    // merges the new values in the given TLV. Returns true if TLV is changed.
-    static bool mergeUserAttribute(attr_t type, const string_map &newValuesMap, TLVstore &tlv);
+    // merges the new values in the given destination. Returns true if it was changed.
+    static bool mergeUserAttribute(attr_t type,
+                                   const string_map& newValuesMap,
+                                   string_map& destination);
     static string attributePrefixInTLV(attr_t type, bool modifier);
 };
 

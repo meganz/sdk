@@ -51,19 +51,18 @@ User::User(const char* cemail):
 // definition.
 User::~User() = default;
 
-bool User::mergeUserAttribute(attr_t type, const string_map &newValuesMap, TLVstore &tlv)
+bool User::mergeUserAttribute(attr_t type, const string_map& newValuesMap, string_map& destination)
 {
     bool modified = false;
 
     for (const auto &it : newValuesMap)
     {
-        const char *key = it.first.c_str();
-        string newValue = it.second;
+        const string& key = it.first;
+        const string& newValue = it.second;
         string currentValue;
-        string buffer;
-        if (tlv.get(key, buffer) && !buffer.empty())  // the key may not exist in the current user attribute
+        if (auto itD = destination.find(key); itD != destination.end() && !itD->second.empty())
         {
-            Base64::btoa(buffer, currentValue);
+            Base64::btoa(itD->second, currentValue);
         }
         if (newValue != currentValue)
         {
@@ -73,11 +72,11 @@ bool User::mergeUserAttribute(attr_t type, const string_map &newValuesMap, TLVst
                  || type == ATTR_APPS_PREFS) && newValue[0] == '\0')
             {
                 // alias/deviceName/appPrefs being removed
-                tlv.reset(key);
+                destination.erase(key);
             }
             else
             {
-                tlv.set(key, Base64::atob(newValue));
+                destination[key] = Base64::atob(newValue);
             }
             modified = true;
         }
