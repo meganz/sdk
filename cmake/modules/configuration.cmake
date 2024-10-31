@@ -44,5 +44,16 @@ else()
     if (SUPPORTS_TI_EMULATION_MODE)
         add_compile_definitions(SUPPORTS_TI_EMULATION_MODE=1)
     endif()
+
+    if (UNIX AND NOT APPLE)
+        list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/checks)
+        include("need_to_link_with_atomic")
+        check_if_atomic_is_needed()
+        
+        if (NEEDS_ATOMIC_LIB)
+            link_libraries(atomic)
+        endif()
+    endif()
+
 endif()
 

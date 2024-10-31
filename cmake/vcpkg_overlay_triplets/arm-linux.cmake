@@ -10,5 +10,10 @@ else()
 	set(VCPKG_LIBRARY_LINKAGE static)
 endif()
 
+if(PORT MATCHES "pdfium")
+    set(VCPKG_C_FLAGS "${VCPKG_C_FLAGS} -march=armv7-a")
+    set(VCPKG_CXX_FLAGS "${VCPKG_CXX_FLAGS} -march=armv7-a")
+endif()
+
 set(VCPKG_C_FLAGS "${VCPKG_C_FLAGS} -mfpu=vfp")
 set(VCPKG_CXX_FLAGS "${VCPKG_CXX_FLAGS} -mfpu=vfp")
