@@ -8,22 +8,25 @@ using namespace std;
 namespace mega
 {
 
-unique_ptr<TLV_map> TLVstore::containerToRecords(const string& container,
-                                                 SymmCipher& key)
+namespace tlv
+{
+
+unique_ptr<TLV_map> containerToRecords(const string& container, SymmCipher& key)
 {
     auto tlv{TLVstore::containerToTLVrecords(&container, &key)};
     return tlv ? std::make_unique<TLV_map>(tlv->moveMap()) : nullptr;
 }
 
-unique_ptr<string> TLVstore::recordsToContainer(TLV_map&& records,
-                                                PrnGen& rng,
-                                                SymmCipher& key)
+unique_ptr<string> recordsToContainer(TLV_map&& records, PrnGen& rng, SymmCipher& key)
 {
     TLVstore tlv;
     tlv.set(std::move(records));
     return unique_ptr<string>{tlv.tlvRecordsToContainer(rng, &key)};
 }
 
+//=========================================
+// Old implementation
+// Direct use should be avoided in new code
 
 string* TLVstore::tlvRecordsToContainer(PrnGen& rng,
                                         SymmCipher* key,
@@ -369,4 +372,5 @@ TLVstore* TLVstore::containerToTLVrecords(const string* data, SymmCipher* key)
     return tlv;
 }
 
+} // namespace tlv
 } // namespace mega

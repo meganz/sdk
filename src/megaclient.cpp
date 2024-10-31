@@ -11928,7 +11928,7 @@ void MegaClient::upgradeSecurity(std::function<void(Error)> completion)
     const UserAttribute* attribute = u->getAttribute(ATTR_KEYRING);
     if (attribute && attribute->isValid())
     {
-        if (auto records{TLVstore::containerToRecords(attribute->value(), key)})
+        if (auto records{tlv::containerToRecords(attribute->value(), key)})
         {
             prEd255.swap((*records)[EdDSA::TLV_KEY]);
             prCu255.swap((*records)[ECDH::TLV_KEY]);
@@ -12682,7 +12682,7 @@ bool MegaClient::getua(User* u, const attr_t at, int ctag, mega::CommandGetUA::C
             const string& cachedav = attribute->value();
             if (User::scope(at) == ATTR_SCOPE_PRIVATE_ENCRYPTED) // TLV encoding
             {
-                auto records = TLVstore::containerToRecords(cachedav, key);
+                auto records = tlv::containerToRecords(cachedav, key);
                 restag = tag;
                 completionTLV ? completionTLV(std::move(records), at) :
                                 app->getua_result(std::move(records), at);
@@ -12769,7 +12769,7 @@ void MegaClient::loginResult(CommandLogin::Completion completion,
             // initiate automatic upgrade to V2
             string pwd;
             bool upgrade = false;
-            if (auto records{TLVstore::containerToRecords(v1PswdVault->first, v1PswdVault->second)})
+            if (auto records{tlv::containerToRecords(v1PswdVault->first, v1PswdVault->second)})
             {
                 if (auto it = records->find("p"); it != records->end())
                 {
@@ -12866,12 +12866,13 @@ void MegaClient::saveV1Pwd(const char* pwd)
         rng.genblock(pwkey.data(), pwkey.size());
         SymmCipher pwcipher(pwkey.data());
 
-        if (auto tlvStr{
-                TLVstore::recordsToContainer({{"p", pwd}},
+        if (auto encrypted{
+                tlv::recordsToContainer({{"p", pwd}},
                 rng, pwcipher)
         })
         {
-            mV1PswdVault.reset(new pair<string, SymmCipher>(std::move(*tlvStr), std::move(pwcipher)));
+            mV1PswdVault.reset(
+                new pair<string, SymmCipher>(std::move(*encrypted), std::move(pwcipher)));
         }
     }
 }
@@ -15225,7 +15226,7 @@ void MegaClient::initializekeys()
         const UserAttribute* attribute = u->getAttribute(ATTR_KEYRING);
         if (attribute && attribute->isValid())
         {
-            if (auto records{TLVstore::containerToRecords(attribute->value(), key)})
+            if (auto records{tlv::containerToRecords(attribute->value(), key)})
             {
                 prEd255.swap((*records)[EdDSA::TLV_KEY]);
                 prCu255.swap((*records)[ECDH::TLV_KEY]);
@@ -15443,16 +15444,15 @@ void MegaClient::initializekeys()
 
             // save private keys into the *!keyring attribute (for backwards compatibility, so legacy
             // clients can retrieve chat and signing key for accounts created with ^!keys support)
-            TLV_map records{
+            string_map records{
                 {EdDSA::TLV_KEY,
                  string{reinterpret_cast<const char*>(signkey->keySeed), EdDSA::SEED_KEY_LENGTH}},
                 {ECDH::TLV_KEY,
                  string{reinterpret_cast<const char*>(chatkey->getPrivKey()),
                         ECDH::PRIVATE_KEY_LENGTH}                                               },
             };
-            unique_ptr<string> tlvContainer{
-                TLVstore::recordsToContainer(std::move(records), rng, key)};
-            attrs[ATTR_KEYRING] = tlvContainer ? std::move(*tlvContainer) : string{};
+            unique_ptr<string> container{tlv::recordsToContainer(std::move(records), rng, key)};
+            attrs[ATTR_KEYRING] = container ? std::move(*container) : string{};
 
             // create signatures of public RSA and Cu25519 keys
             if (loggedin() != EPHEMERALACCOUNTPLUSPLUS) // Ephemeral++ don't have RSA keys until confirmation, but need chat and signing key
@@ -15531,7 +15531,7 @@ void MegaClient::loadAuthrings()
                 {
                     if (attribute->isValid())
                     {
-                        if (auto records{TLVstore::containerToRecords(attribute->value(), key)})
+                        if (auto records{tlv::containerToRecords(attribute->value(), key)})
                         {
                             mAuthRings.emplace(at, AuthRing(at, *records));
                             LOG_info << "Authring succesfully loaded from cache: "
@@ -17004,7 +17004,7 @@ void MegaClient::preparebackup(SyncConfig sc, std::function<void(Error, SyncConf
             return completion(API_EINCOMPLETE, sc, nullptr);
         }
 
-        std::unique_ptr<TLV_map> records(TLVstore::containerToRecords(attribute->value(), key));
+        std::unique_ptr<string_map> records(tlv::containerToRecords(attribute->value(), key));
         const string& deviceNameKey = isInternalDrive ? deviceId : User::attributePrefixInTLV(ATTR_DEVICE_NAMES, true) + deviceId;
         const string& deviceName = records ? (*records)[deviceNameKey] : string {};
         if (deviceName.empty())
@@ -17289,14 +17289,17 @@ std::shared_ptr<Node> MegaClient::getOrCreateSyncdebrisFolder()
 
 string MegaClient::cypherTLVTextWithMasterKey(const char* name, const string& text)
 {
-    unique_ptr<string> tlvStr(TLVstore::recordsToContainer({{name, text}}, rng, key));
-    return Base64::btoa(*tlvStr);
+    string_map records{
+        {name, text}
+    };
+    unique_ptr<string> container(tlv::recordsToContainer(std::move(records), rng, key));
+    return Base64::btoa(*container);
 }
 
 string MegaClient::decypherTLVTextWithMasterKey(const char* name, const string& encoded)
 {
     string unencoded = Base64::atob(encoded);
-    unique_ptr<TLV_map> records{TLVstore::containerToRecords(unencoded, key)};
+    unique_ptr<string_map> records{tlv::containerToRecords(unencoded, key)};
     return records ? (*records)[name] : string{};
 }
 
@@ -19677,7 +19680,7 @@ string MegaClient::encryptAttrs(const string_map& attrs, const string& encryptio
         return string();
     }
 
-    unique_ptr<string> encrAttrs(TLVstore::recordsToContainer(TLV_map{attrs}, rng, tmpnodecipher));
+    unique_ptr<string> encrAttrs(tlv::recordsToContainer(string_map{attrs}, rng, tmpnodecipher));
 
     if (!encrAttrs || encrAttrs->empty())
     {
@@ -19704,7 +19707,7 @@ bool MegaClient::decryptAttrs(const string& attrs, const string& decrKey, string
         return false;
     }
 
-    if (auto records{ TLVstore::containerToRecords(attrs, tmpnodecipher) })
+    if (auto records{tlv::containerToRecords(attrs, tmpnodecipher)})
     {
         output.swap(*records);
     }
@@ -23007,12 +23010,12 @@ void MegaClient::createJSCData(GetJSCDataCallback callback)
     constexpr auto Length = SymmCipher::KEYLENGTH;
 
     // Instantiate store to contain the JSC data.
-    TLV_map store{
+    string_map store{
         {"ak", rng.genstring(Length)},
         {"ck", rng.genstring(Length)},
         {"fn", rng.genstring(Length)},
     };
-    unique_ptr<string> content(TLVstore::recordsToContainer(std::move(store), rng, key));
+    unique_ptr<string> content(tlv::recordsToContainer(std::move(store), rng, key));
     if (!content)
     {
         JSCDataCreated(callback, API_EINTERNAL);

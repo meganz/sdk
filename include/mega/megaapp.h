@@ -39,7 +39,6 @@ class MegaClient;
 class LocalPath;
 struct BusinessPlan;
 struct CurrencyData;
-class TLVstore;
 struct AchievementsDetails;
 class Sync;
 struct Product;

@@ -744,7 +744,6 @@ typedef map<handle, unique_ptr<PendingContactRequest>> handlepcr_map;
 typedef vector<string> string_vector;
 typedef map<string, string> string_map;
 typedef multimap<int64_t, int64_t> integer_map;
-typedef string_map TLV_map;
 
 typedef map<attr_t, string> userattr_map;
 

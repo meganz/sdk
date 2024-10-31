@@ -1415,15 +1415,15 @@ void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
     }
 }
 
-void DemoApp::getua_result(unique_ptr<string_map> tlv, attr_t type)
+void DemoApp::getua_result(unique_ptr<string_map> records, attr_t type)
 {
-    if (!tlv)
+    if (!records)
     {
         cout << "Error getting private user attribute" << endl;
     }
     else if (!gVerboseMode)
     {
-        cout << "Received a TLV with " << tlv->size() << " item(s) of user attribute: " << endl;
+        cout << "Received a TLV with " << records->size() << " item(s) of user attribute: " << endl;
         if (type == ATTR_DEVICE_NAMES)
         {
             cout << '(' << (b64driveid.empty() ? "Printing only Device names" :
@@ -1433,7 +1433,7 @@ void DemoApp::getua_result(unique_ptr<string_map> tlv, attr_t type)
 
         bool printDriveId = false;
 
-        for (const auto& record: *tlv)
+        for (const auto& record: *records)
         {
             const string& key = record.first.empty() ? "(no key)" : record.first;
 
@@ -3769,7 +3769,7 @@ void putua_map(const std::string& b64key, const std::string& b64value, attr_t at
     }
     else
     {
-        if (auto oldRecords = TLVstore::containerToRecords(attribute->value(), client->key))
+        if (auto oldRecords = tlv::containerToRecords(attribute->value(), client->key))
         {
             destination.swap(*oldRecords);
         }
@@ -3785,7 +3785,7 @@ void putua_map(const std::string& b64key, const std::string& b64value, attr_t at
 
     // serialize and encrypt the TLV container
     std::unique_ptr<std::string> container(
-        TLVstore::recordsToContainer(std::move(destination), client->rng, client->key));
+        tlv::recordsToContainer(std::move(destination), client->rng, client->key));
     client->putua(attrtype, (byte*)container->data(), unsigned(container->size()));
 }
 

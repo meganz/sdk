@@ -11,7 +11,35 @@ namespace mega
 
 class PrnGen;
 class SymmCipher;
+
+namespace tlv
+{
 using TLV_map = std::map<std::string, std::string>;
+
+/**
+ * @brief Extract decrypted records from encrypted data
+ *
+ * @param container Binary byte array representing the encrypted data
+ * @param key Key to decrypt the data
+ *
+ * @return Decrypted records
+ */
+std::unique_ptr<TLV_map> containerToRecords(const std::string& container, SymmCipher& key);
+
+/**
+ * @brief Create container with encrypted data from decrypted records
+ *
+ * @param records Decrypted records
+ * @param rng Random number generator used in data encryption
+ * @param key Key to encrypt the data
+ *
+ * @return Encrypted data
+ */
+std::unique_ptr<std::string> recordsToContainer(TLV_map&& records, PrnGen& rng, SymmCipher& key);
+
+//=========================================
+// Old implementation
+// Direct use should be avoided in new code
 
 enum encryptionsetting_t
 {
@@ -34,13 +62,6 @@ enum encryptionmode_t
 class TLVstore
 {
 public:
-    static std::unique_ptr<TLV_map> containerToRecords(const std::string& container,
-                                                       SymmCipher& key);
-
-    static std::unique_ptr<std::string> recordsToContainer(TLV_map&& records,
-                                                           PrnGen& rng,
-                                                           SymmCipher& key);
-
     /**
      * @brief Build a TLV object with records from an encrypted container
      *
@@ -149,6 +170,7 @@ private:
     TLV_map tlv;
 };
 
+} // namespace tlv
 } // namespace mega
 
 #endif // MEGA_TLV_H

@@ -26,7 +26,6 @@
 
 namespace mega {
 
-class TLVstore;
 class UserAttribute;
 class UserAttributeManager;
 
@@ -180,8 +179,8 @@ public:
 class AuthRing
 {
 public:
-    // create authring of 'type' from the encrypted TLV container
-    AuthRing(attr_t type, const TLV_map& authring = {});
+    // create authring of 'type' from the encrypted data
+    AuthRing(attr_t type, const string_map& authring = {});
 
     // create authring of 'type' from the TLV value (undecrypted already, no Type nor Length)
     AuthRing(attr_t type, const string& authring);

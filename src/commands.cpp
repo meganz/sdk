@@ -3236,15 +3236,15 @@ bool CommandPutMultipleUAVer::procresult(Result r, JSON& json)
 
                 if (type == ATTR_KEYRING)
                 {
-                    if (auto tlvRecords = TLVstore::containerToRecords(attrs[type], client->key))
+                    if (auto records = tlv::containerToRecords(attrs[type], client->key))
                     {
-                        string prEd255{std::move((*tlvRecords)[EdDSA::TLV_KEY])};
+                        string prEd255{std::move((*records)[EdDSA::TLV_KEY])};
                         if (prEd255.size() == EdDSA::SEED_KEY_LENGTH)
                         {
                             client->signkey = new EdDSA(client->rng, (unsigned char *) prEd255.data());
                         }
 
-                        string prCu255{std::move((*tlvRecords)[ECDH::TLV_KEY])};
+                        string prCu255{std::move((*records)[ECDH::TLV_KEY])};
                         if (prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
                         {
                             client->chatkey = new ECDH(prCu255);
@@ -3680,7 +3680,7 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                         {
                             // decrypt the data
                             std::unique_ptr<string_map> records{
-                                TLVstore::containerToRecords(value, client->key)};
+                                tlv::containerToRecords(value, client->key)};
                             if (!records)
                             {
                                 LOG_err << "Cannot extract TLV records for private attribute "
@@ -4784,7 +4784,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
                 if (chatFolder.size())
                 {
-                    if (TLVstore::containerToRecords(chatFolder, client->key)) // validation
+                    if (tlv::containerToRecords(chatFolder, client->key)) // validation
                     {
                         changes |= u->updateAttributeIfDifferentVersion(ATTR_MY_CHAT_FILES_FOLDER,
                                                                         chatFolder,
@@ -4802,8 +4802,8 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
                 if (cameraUploadFolder.size())
                 {
-                    if (TLVstore::containerToRecords(cameraUploadFolder,
-                                                     client->key)) // validation
+                    if (tlv::containerToRecords(cameraUploadFolder,
+                                                client->key)) // validation
                     {
                         changes |= u->updateAttributeIfDifferentVersion(ATTR_CAMERA_UPLOADS_FOLDER,
                                                                         cameraUploadFolder,
@@ -4854,7 +4854,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
                 if (aliases.size())
                 {
-                    if (TLVstore::containerToRecords(aliases, client->key)) // validation
+                    if (tlv::containerToRecords(aliases, client->key)) // validation
                     {
                         changes |= u->updateAttributeIfDifferentVersion(ATTR_ALIAS,
                                                                         aliases,
@@ -4898,7 +4898,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
                 if (deviceNames.size())
                 {
-                    if (TLVstore::containerToRecords(deviceNames, client->key)) // validation
+                    if (tlv::containerToRecords(deviceNames, client->key)) // validation
                     {
                         changes |= u->updateAttributeIfDifferentVersion(ATTR_DEVICE_NAMES,
                                                                         deviceNames,

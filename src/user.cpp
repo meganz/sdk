@@ -232,7 +232,7 @@ User* User::unserialize(MegaClient* client, string* d)
             const UserAttribute* attribute = u->getAttribute(ATTR_KEYRING);
             if (attribute && attribute->isValid())
             {
-                if (auto records{TLVstore::containerToRecords(attribute->value(), client->key)})
+                if (auto records{tlv::containerToRecords(attribute->value(), client->key)})
                 {
                     prEd255.swap((*records)[EdDSA::TLV_KEY]);
                     prCu255.swap((*records)[ECDH::TLV_KEY]);
@@ -862,8 +862,8 @@ string User::attributePrefixInTLV(attr_t type, bool modifier)
     return string();
 }
 
-AuthRing::AuthRing(attr_t type, const TLV_map& authring)
-    : mType(type)
+AuthRing::AuthRing(attr_t type, const string_map& authring):
+    mType(type)
 {
     if (auto it = authring.find(""); it != authring.end())
     {
@@ -916,7 +916,10 @@ bool AuthRing::deserialize(const string& authValue)
 std::string* AuthRing::serialize(PrnGen &rng, SymmCipher &key) const
 {
     string buf = serializeForJS();
-    return TLVstore::recordsToContainer({{string{}, std::move(buf)}}, rng, key).release();
+    string_map records{
+        {{}, std::move(buf)}
+    };
+    return tlv::recordsToContainer(std::move(records), rng, key).release();
 }
 
 string AuthRing::serializeForJS() const

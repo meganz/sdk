@@ -1739,13 +1739,13 @@ bool StandardClient::waitForAttrDeviceIdIsSet(unsigned int numSeconds, bool& upd
     error err = API_EINTERNAL;
     isUserAttributeSet(attr_t::ATTR_DEVICE_NAMES, numSeconds, err);
 
-    TLV_map records;
+    string_map records;
     std::string deviceIdHash = client.getDeviceidHash();
     if (err == API_OK)
     {
         if (const auto* attribute = client.ownuser()->getAttribute(ATTR_DEVICE_NAMES))
         {
-            if (auto oldRecords{TLVstore::containerToRecords(attribute->value(), client.key)})
+            if (auto oldRecords{tlv::containerToRecords(attribute->value(), client.key)})
             {
                 if (oldRecords->find(deviceIdHash) != oldRecords->end())
                 {
@@ -1770,7 +1770,7 @@ bool StandardClient::waitForAttrDeviceIdIsSet(unsigned int numSeconds, bool& upd
     std::atomic_bool replyReceived{false};
     // serialize and encrypt the TLV container
     std::unique_ptr<std::string> container(
-        TLVstore::recordsToContainer(std::move(records), client.rng, client.key));
+        tlv::recordsToContainer(std::move(records), client.rng, client.key));
     std::unique_lock<std::recursive_mutex> g(attrDeviceNamePut_mutex);
     resultproc.prepresult(COMPLETION, ++next_request_tag,
         [&](){

@@ -37,7 +37,6 @@ namespace mega {
 
 struct JSON;
 struct MegaApp;
-class TLVstore;
 
 // request command component
 
