@@ -1918,21 +1918,19 @@ MegaSyncStallMapPrivate::MegaSyncStallMapPrivate(SyncProblems&& sp, AddressedSta
     {
         auto it = findOrEmplace(syncId);
         auto& stallList = it->second;
-        for (const auto& stall: stalledSyncMap.cloud)
+        auto addStalls = [&](const auto& stallMap, auto& filter, auto filterFunc)
         {
-            if (!filter.addressedCloudStall(stall.first))
+            for (const auto& stall: stallMap)
             {
-                stallList.addStall(std::make_shared<MegaSyncStallPrivate>(stall.second));
+                if (!(filter.*filterFunc)(stall.first))
+                {
+                    stallList.addStall(std::make_shared<MegaSyncStallPrivate>(stall.second));
+                }
             }
-        }
+        };
 
-        for (const auto& stall: stalledSyncMap.local)
-        {
-            if (!filter.addressedLocalStall(stall.first))
-            {
-                stallList.addStall(std::make_shared<MegaSyncStallPrivate>(stall.second));
-            }
-        }
+        addStalls(stalledSyncMap.cloud, filter, &AddressedStallFilter::addressedCloudStall);
+        addStalls(stalledSyncMap.local, filter, &AddressedStallFilter::addressedLocalStall);
     }
 }
 

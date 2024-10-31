@@ -8364,7 +8364,8 @@ TEST_F(SyncTest, DetectsAndReportsSyncProblems)
     const std::string rootdir = "s";
     const auto root = client->fsBasePath / rootdir;
 
-    LOG_debug << "#### Test1: generate two name conflicts in sync folder 1 ####";
+    LOG_debug << "#### Test1(DetectsAndReportsSyncProblems): generate two name conflicts in sync "
+                 "folder 1 ####";
     const std::string ldir1 = "d1";
     const std::string rdir1 = "x1";
     fs::create_directories(root / ldir1);
@@ -8394,7 +8395,8 @@ TEST_F(SyncTest, DetectsAndReportsSyncProblems)
     ASSERT_TRUE(client->waitFor(SyncTotalConflictsStateUpdate(true), TIMEOUT));
     ASSERT_NO_FATAL_FAILURE(client->checkSyncProblems(backupId1, 1u, 2u, ln1, f13, f14));
 
-    LOG_debug << "#### Test2: generate two name conflicts in sync folder 2 ####";
+    LOG_debug << "#### Test2(DetectsAndReportsSyncProblems): generate two name conflicts in sync "
+                 "folder 2 ####";
     // Create directory tree required for test
     const std::string ldir2 = "d2";
     const std::string rdir2 = "x2";
@@ -8421,7 +8423,8 @@ TEST_F(SyncTest, DetectsAndReportsSyncProblems)
     ASSERT_TRUE(client->waitFor(SyncTotalConflictsStateUpdate(true), TIMEOUT));
     ASSERT_NO_FATAL_FAILURE(client->checkSyncProblems(backupId2, 2u, 2u, ln2, f23, f24));
 
-    LOG_debug << "#### Test3: generate a stall issue in sync folder 1 ####";
+    LOG_debug << "#### Test3(DetectsAndReportsSyncProblems): generate a stall issue in sync folder "
+                 "1 ####";
     const std::string ldir3 = "d3";
     const std::string rdir3 = "x3";
     fs::create_directories(root / ldir3);
@@ -8444,7 +8447,8 @@ TEST_F(SyncTest, DetectsAndReportsSyncProblems)
                         TIMEOUT)); // First time stall state, the update flag should be unset
     ASSERT_NO_FATAL_FAILURE(client->checkStallIssues(backupId3, 1u, sPath1, tPath1));
 
-    LOG_debug << "#### Test4: generate a stall issue in sync folder 2 ####";
+    LOG_debug << "#### Test4(DetectsAndReportsSyncProblems): generate a stall issue in sync folder "
+                 "2 ####";
     const std::string ldir4 = "d4";
     const std::string rdir4 = "x4";
     fs::create_directories(root / ldir4);
