@@ -1218,6 +1218,11 @@ const MegaNodeTree* MegaRequest::getMegaNodeTree() const
     return nullptr;
 }
 
+const MegaCancelSubscriptionReasonList* MegaRequest::getMegaCancelSubscriptionReasons() const
+{
+    return nullptr;
+}
+
 MegaTransfer::~MegaTransfer() { }
 
 MegaTransfer *MegaTransfer::copy()
@@ -3104,7 +3109,15 @@ void MegaApi::creditCardCancelSubscriptions(const char* reason,
     pImpl->creditCardCancelSubscriptions(reason, id, canContact, listener);
 }
 
-void MegaApi::getPaymentMethods(MegaRequestListener *listener)
+void MegaApi::creditCardCancelSubscriptions(const MegaCancelSubscriptionReasonList* reasonList,
+                                            const char* id,
+                                            int canContact,
+                                            MegaRequestListener* listener)
+{
+    pImpl->creditCardCancelSubscriptions(reasonList, id, canContact, listener);
+}
+
+void MegaApi::getPaymentMethods(MegaRequestListener* listener)
 {
     pImpl->getPaymentMethods(listener);
 }
@@ -8230,4 +8243,14 @@ MegaMountList::MegaMountList() = default;
 
 MegaMountList::~MegaMountList() = default;
 
+MegaCancelSubscriptionReason* MegaCancelSubscriptionReason::create(const char* text,
+                                                                   const char* position)
+{
+    return new MegaCancelSubscriptionReasonPrivate(text, position);
+}
+
+MegaCancelSubscriptionReasonList* MegaCancelSubscriptionReasonList::create()
+{
+    return new MegaCancelSubscriptionReasonListPrivate();
+}
 }

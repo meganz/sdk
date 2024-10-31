@@ -1788,7 +1788,10 @@ class MegaRequestPrivate : public MegaRequest
         const MegaNodeTree* getMegaNodeTree() const override;
         void setMegaNodeTree(MegaNodeTree* megaNodeTree);
 
-protected:
+        const MegaCancelSubscriptionReasonList* getMegaCancelSubscriptionReasons() const override;
+        void setMegaCancelSubscriptionReasons(MegaCancelSubscriptionReasonList* cancelReasons);
+
+    protected:
         std::shared_ptr<AccountDetails> accountDetails;
         MegaPricingPrivate *megaPricing;
         MegaCurrencyPrivate *megaCurrency;
@@ -1853,6 +1856,7 @@ protected:
 
         unique_ptr<MegaNotificationList> mMegaNotifications;
         unique_ptr<MegaNodeTree> mMegaNodeTree;
+        unique_ptr<MegaCancelSubscriptionReasonList> mMegaCancelSubscriptionReasons;
 
     public:
         shared_ptr<ExecuteOnce> functionToExecute;
@@ -3372,6 +3376,10 @@ class MegaApiImpl : public MegaApp
                                            const char* id,
                                            int canContact,
                                            MegaRequestListener* listener = NULL);
+        void creditCardCancelSubscriptions(const MegaCancelSubscriptionReasonList* reasons,
+                                           const char* id,
+                                           int canContact,
+                                           MegaRequestListener* listener);
         void getPaymentMethods(MegaRequestListener *listener = NULL);
 
         char *exportMasterKey();
@@ -5648,6 +5656,30 @@ public:
     size_t size() const override;
 }; // MegaMountListPrivate
 
+class MegaCancelSubscriptionReasonPrivate: public MegaCancelSubscriptionReason
+{
+public:
+    MegaCancelSubscriptionReasonPrivate(const char* reason, const char* position);
+    const char* text() const override;
+    const char* position() const override;
+    MegaCancelSubscriptionReasonPrivate* copy() const override;
+
+private:
+    std::string mText;
+    std::string mPosition;
+};
+
+class MegaCancelSubscriptionReasonListPrivate: public MegaCancelSubscriptionReasonList
+{
+public:
+    void add(const MegaCancelSubscriptionReason* reason) override;
+    const MegaCancelSubscriptionReason* get(size_t index) const override;
+    size_t size() const override;
+    MegaCancelSubscriptionReasonListPrivate* copy() const override;
+
+private:
+    std::vector<std::shared_ptr<MegaCancelSubscriptionReason>> mReasons;
+};
 }
 
 // Specializations of std::hash for custom Sync types
