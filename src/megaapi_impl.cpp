@@ -23482,42 +23482,83 @@ void MegaApiImpl::getPaymentMethods(MegaRequestListener* listener)
     waiter->notify();
 }
 
-void MegaApiImpl::submitFeedback(int rating, const char* comment, MegaRequestListener* listener)
+void MegaApiImpl::submitFeedback(int rating,
+                                 const char* comment,
+                                 bool transferFeedback,
+                                 int transferType,
+                                 MegaRequestListener* listener)
 {
-    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_SUBMIT_FEEDBACK, listener);
+    MegaRequestPrivate* request =
+        new MegaRequestPrivate(MegaRequest::TYPE_SUBMIT_FEEDBACK, listener);
     request->setText(comment);
     request->setNumber(rating);
+    request->setFlag(transferFeedback);
+    request->setParamType(transferType);
 
     request->performRequest = [this, request]()
+    {
+        auto sendFeedback = [this](const int rating,
+                                   const std::string& base64message,
+                                   const bool transferFeedback,
+                                   const direction_t transferType)
         {
-            int rating = int(request->getNumber());
-            const char *message = request->getText();
-
-            if(rating < 1 || rating > 5)
+            std::ostringstream feedback;
+            if (transferFeedback)
             {
-                return API_EARGS;
+                std::string ts =
+                    client->mTransferStatsManager.metricsToJsonForTransferType(transferType);
+                feedback << R"({\"r\":\")" << rating << R"(\",\"m\":\")" << base64message
+                         << R"(\",\"u\":\")" << toHandle(client->me) << R"(\",)" << ts << "}";
             }
-
-            if(!message)
+            else
             {
-                message = "";
+                feedback << R"({\"r\":\")" << rating << R"(\",\"m\":\")" << base64message
+                         << R"(\",\"u\":\")" << toHandle(client->me) << R"(\"})";
             }
-
-            int size = int(strlen(message));
-            char *base64message = new char[size * 4 / 3 + 4];
-            Base64::btoa((byte *)message, size, base64message);
-
-            char base64uhandle[12];
-            Base64::btoa((const byte*)&client->me, MegaClient::USERHANDLE, base64uhandle);
-
-            string feedback;
-            feedback.resize(128 + strlen(base64message));
-
-            snprintf((char *)feedback.data(), feedback.size(), "{\\\"r\\\":\\\"%d\\\",\\\"m\\\":\\\"%s\\\",\\\"u\\\":\\\"%s\\\"}", rating, base64message, base64uhandle);
-            client->userfeedbackstore(feedback.c_str());
-            delete [] base64message;
-            return API_OK;
+            client->userfeedbackstore(feedback.str().c_str());
         };
+
+        const int rating{static_cast<int>(request->getNumber())};
+        if (rating < 1 || rating > 5)
+        {
+            LOG_err << "Request (TYPE_SUBMIT_FEEDBACK). Invalid rating: " << rating;
+            return API_EARGS;
+        }
+
+        const int transferType{request->getParamType()};
+        if (transferType < MegaApi::TRANSFER_STATS_DOWNLOAD ||
+            transferType > MegaApi::TRANSFER_STATS_MAX)
+        {
+            LOG_err << "Request (TYPE_SUBMIT_FEEDBACK). Invalid transferType: " << transferType;
+            return API_EARGS;
+        }
+
+        std::string base64message{};
+        if (const char* message = request->getText(); message)
+        {
+            base64message = Base64::btoa(message);
+        }
+
+        if (const bool transferFeedback{request->getFlag()}; transferFeedback)
+        {
+            if (transferType == MegaApi::TRANSFER_STATS_DOWNLOAD ||
+                transferType == MegaApi::TRANSFER_STATS_BOTH)
+            {
+                sendFeedback(rating, base64message, transferFeedback, GET);
+            }
+
+            if (transferType == MegaApi::TRANSFER_STATS_UPLOAD ||
+                transferType == MegaApi::TRANSFER_STATS_BOTH)
+            {
+                sendFeedback(rating, base64message, transferFeedback, PUT);
+            }
+        }
+        else
+        {
+            sendFeedback(rating, base64message, transferFeedback, NONE);
+        }
+        return API_OK;
+    };
 
     requestQueue.push(request);
     waiter->notify();

@@ -3421,9 +3421,21 @@ char* MegaApi::generateRandomCharsPassword(bool uU, bool uD, bool uS, unsigned i
     return MegaApiImpl::generateRandomCharsPassword(uU, uD, uS, l);
 }
 
-void MegaApi::submitFeedback(int rating, const char *comment, MegaRequestListener* listener)
+void MegaApi::submitFeedback(int rating, const char* comment, MegaRequestListener* listener)
 {
-    pImpl->submitFeedback(rating, comment, listener);
+    pImpl->submitFeedback(rating,
+                          comment,
+                          false /*transferFeedback*/,
+                          TRANSFER_STATS_BOTH,
+                          listener);
+}
+
+void MegaApi::submitFeedbackForTransfers(int rating,
+                                         const char* comment,
+                                         int transferType,
+                                         MegaRequestListener* listener)
+{
+    pImpl->submitFeedback(rating, comment, true /*transferFeedback*/, transferType, listener);
 }
 
 void MegaApi::sendEvent(int eventType, const char *message, MegaRequestListener *listener)
