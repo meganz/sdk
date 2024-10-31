@@ -16868,7 +16868,8 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
     // 1) Get VPN regions to choose one of them
     {
         std::unique_ptr<MegaStringList> vpnRegions;
-        result = doGetVpnRegions(0, vpnRegions);
+        std::unique_ptr<MegaVpnRegionList> vpnRegionsDetailed;
+        result = doGetVpnRegions(0, vpnRegions, vpnRegionsDetailed);
         ASSERT_EQ(API_OK, result) << "getting the VPN regions failed";
         ASSERT_TRUE(vpnRegions) << "list of VPN regions is NULL";
         ASSERT_TRUE(vpnRegions->size()) << "list of VPN regions is empty";
@@ -16876,6 +16877,31 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
         const char* vpnRegion = vpnRegions->get(0); // Select the first vpn region
         ASSERT_TRUE(vpnRegion) << "VPN region is NULL";
         ASSERT_TRUE(*vpnRegion) << "VPN region is EMPTY";
+
+        auto testDetailedRegionList = [](const std::unique_ptr<MegaVpnRegionList>& regionList)
+        {
+            const MegaVpnRegion* region = regionList->get(0);
+            ASSERT_THAT(region, testing::NotNull());
+            ASSERT_STRNE(region->getName(), "");
+            std::unique_ptr<MegaVpnClusterMap> clusters{region->getClusters()};
+            ASSERT_THAT(clusters, testing::NotNull());
+            ASSERT_GT(clusters->size(), 0);
+            std::unique_ptr<MegaIntegerList> clusterIDs{clusters->getKeys()};
+            ASSERT_THAT(clusterIDs, testing::NotNull());
+            ASSERT_GT(clusterIDs->size(), 0);
+            std::unique_ptr<MegaVpnCluster> firstCluster{clusters->get(clusterIDs->get(0))};
+            ASSERT_THAT(firstCluster, testing::NotNull());
+            ASSERT_THAT(firstCluster->getHost(), testing::NotNull());
+            std::unique_ptr<MegaStringList> clusterDns{firstCluster->getDns()};
+            ASSERT_THAT(clusterDns, testing::NotNull());
+            ASSERT_GT(clusterDns->size(), 0);
+        };
+        ASSERT_THAT(vpnRegionsDetailed, testing::NotNull());
+        ASSERT_EQ(static_cast<int>(vpnRegionsDetailed->size()), vpnRegions->size());
+        const MegaVpnRegion* region = vpnRegionsDetailed->get(0);
+        ASSERT_THAT(region, testing::NotNull());
+        ASSERT_STREQ(region->getName(), vpnRegion);
+        ASSERT_NO_FATAL_FAILURE(testDetailedRegionList(vpnRegionsDetailed));
 
         // Get the PRO level for the testing account
         ASSERT_EQ(API_OK, synchronousGetSpecificAccountDetails(0, true, true, true)) << "Cannot get account details";
@@ -16958,6 +16984,16 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
                 vpnRegionsFromCredentials.reset(megaVpnCredentials->getVpnRegions());
                 ASSERT_TRUE(vpnRegionsFromCredentials) << "list of VPN regions is NULL";
                 ASSERT_TRUE(vpnRegionsFromCredentials->size()) << "list of VPN regions is empty";
+                std::unique_ptr<MegaVpnRegionList> vpnRegionsDetailed{
+                    megaVpnCredentials->getVpnRegionsDetailed()};
+                ASSERT_THAT(vpnRegionsDetailed, testing::NotNull())
+                    << "list of detailed VPN regions was null";
+                ASSERT_EQ(static_cast<int>(vpnRegionsDetailed->size()),
+                          vpnRegionsFromCredentials->size());
+                const MegaVpnRegion* regionDetailed = vpnRegionsDetailed->get(0);
+                ASSERT_THAT(regionDetailed, testing::NotNull());
+                ASSERT_STREQ(regionDetailed->getName(), vpnRegionsFromCredentials->get(0));
+                ASSERT_NO_FATAL_FAILURE(testDetailedRegionList(vpnRegionsDetailed));
             }
             else
             {

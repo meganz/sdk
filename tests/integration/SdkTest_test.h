@@ -793,13 +793,20 @@ public:
     bool getFileFromArtifactory(const std::string& relativeUrl, const fs::path& dstPath);
 
     /* MegaVpnCredentials */
-    template<typename ... requestArgs> int doGetVpnRegions(unsigned apiIndex, unique_ptr<MegaStringList>& vpnRegions, requestArgs... args)
+    template<typename... requestArgs>
+    int doGetVpnRegions(unsigned apiIndex,
+                        unique_ptr<MegaStringList>& vpnRegions,
+                        unique_ptr<MegaVpnRegionList>& vpnRegionsDetailed,
+                        requestArgs... args)
     {
         RequestTracker rt(megaApi[apiIndex].get());
         megaApi[apiIndex]->getVpnRegions(args..., &rt);
         auto e = rt.waitForResult();
         auto vpnRegionsFromRequest = rt.request->getMegaStringList() ? rt.request->getMegaStringList()->copy() : nullptr;
         vpnRegions.reset(vpnRegionsFromRequest);
+        vpnRegionsDetailed.reset(rt.request->getMegaVpnRegionsDetailed() ?
+                                     rt.request->getMegaVpnRegionsDetailed()->copy() :
+                                     nullptr);
         return e;
     }
     template<typename ... requestArgs> int doGetVpnCredentials(unsigned apiIndex, unique_ptr<MegaVpnCredentials>& vpnCredentials, requestArgs... args)

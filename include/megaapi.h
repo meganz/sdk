@@ -100,6 +100,7 @@ class MegaFuseInodeCacheFlags;
 class MegaMount;
 class MegaMountFlags;
 class MegaMountList;
+class MegaVpnRegionList;
 class MegaVpnCredentials;
 class MegaNodeTree;
 class MegaCompleteUploadData;
@@ -5508,6 +5509,24 @@ class MegaRequest
         virtual MegaSyncStallList* getMegaSyncStallList() const;
 
 #endif // ENABLE_SYNC
+
+        /**
+         * @brief Provide all available VPN Regions, including their details.
+         *
+         * The data included for each Region is the following:
+         * - Name (example: NZ, JP, CA-WEST etc.)
+         * - Map of {ClusterID, Cluster}.
+         * - For each Cluster:
+         *    · Host.
+         *    · DNS IP list (as a MegaStringList).
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * @return not-null instance with available VPN Regions, if the relevant request was sent;
+         * nullptr otherwise.
+         */
+        virtual MegaVpnRegionList* getMegaVpnRegionsDetailed() const;
 
         /**
          * @brief Returns the VPN credentials registered by the user.
@@ -24751,6 +24770,158 @@ public:
 };
 
 /**
+ * @brief Container to store information of a VPN Cluster.
+ *
+ *  - Host
+ *  - DNS: list of IPs
+ *
+ * Instances of this class are immutable.
+ */
+class MegaVpnCluster
+{
+public:
+    /**
+     * @brief Get the host of this VPN Cluster.
+     *
+     * The caller does not take ownership of the returned const char*, which is valid as long as
+     * current instance is valid.
+     *
+     * @return the host of this VPN Cluster, always not-null.
+     */
+    virtual const char* getHost() const = 0;
+
+    /**
+     * @brief Get the list of IPs for current VPN Cluster
+     *
+     * You take the ownership of the returned value
+     *
+     * @return A list containing the IPs for current VPN Cluster, always not-null
+     */
+    virtual MegaStringList* getDns() const = 0;
+
+    virtual ~MegaVpnCluster() = default;
+    virtual MegaVpnCluster* copy() const = 0;
+
+protected:
+    MegaVpnCluster() = default;
+};
+
+/**
+ * @brief Container for MegaVpnCluster-s
+ *
+ * Instances of this class are immutable.
+ */
+class MegaVpnClusterMap
+{
+public:
+    /**
+     * @brief Get the list of keys in current instance
+     *
+     * You take the ownership of the returned value
+     *
+     * @return A list containing the keys in current intance, always not-null
+     */
+    virtual MegaIntegerList* getKeys() const = 0;
+
+    /**
+     * @brief Get the payload for the provided key
+     *
+     * You take the ownership of the returned value
+     *
+     * @param key Key of the element that you want to get from the map
+     *
+     * @return The payload for the provided key, or null if not found
+     */
+    virtual MegaVpnCluster* get(int64_t key) const = 0;
+
+    /**
+     * @brief Get the entry count for the container
+     *
+     * @return Entry count for the container
+     */
+    virtual int64_t size() const = 0;
+
+    virtual ~MegaVpnClusterMap() = default;
+    virtual MegaVpnClusterMap* copy() const = 0;
+
+protected:
+    MegaVpnClusterMap() = default;
+};
+
+/**
+ * @brief Container to store information of a VPN Region.
+ *
+ *  - Name (example: NZ, JP, CA-WEST etc.)
+ *  - Clusters (contain information like host, DNS list, possibly others)
+ *
+ * Instances of this class are immutable.
+ */
+class MegaVpnRegion
+{
+public:
+    /**
+     * @brief Get the name of this VPN Region.
+     *
+     * The caller does not take ownership of the returned value, which is valid as long as current
+     * instance is valid.
+     *
+     * @return the name of this VPN Region, always not-null.
+     */
+    virtual const char* getName() const = 0;
+
+    /**
+     * @brief Get a container with all Clusters of this VPN Region.
+     *
+     * The caller takes ownership of the returned instance.
+     *
+     * @return a container with all Clusters of this VPN Region, always not-null.
+     */
+    virtual MegaVpnClusterMap* getClusters() const = 0;
+
+    virtual MegaVpnRegion* copy() const = 0;
+    virtual ~MegaVpnRegion() = default;
+
+protected:
+    MegaVpnRegion() = default;
+};
+
+/**
+ * @brief List of MegaVpnRegion objects
+ *
+ * Instances of this class are immutable.
+ */
+class MegaVpnRegionList
+{
+public:
+    /**
+     * @brief Get the instance at position i in the list.
+     *
+     * The caller does not take ownership of the returned value, which will be valid until the list
+     * is deleted. If you want to retain a copy of the instance returned by this function, use
+     * MegaVpnRegion::copy().
+     * If the given index was out of range, this function will return null.
+     *
+     * @param i Position of the instance that we want to get from the list
+     *
+     * @return Instance at position i in the list, or null if given index was out of range
+     */
+    virtual const MegaVpnRegion* get(unsigned i) const = 0;
+
+    /**
+     * @brief Get the instance count for the list
+     *
+     * @return Instance count for this list
+     */
+    virtual unsigned size() const = 0;
+
+    virtual MegaVpnRegionList* copy() const = 0;
+    virtual ~MegaVpnRegionList() = default;
+
+protected:
+    MegaVpnRegionList() = default;
+};
+
+/**
  * @brief Container class to store and load Mega VPN credentials data.
  *
  *  - SlotIDs occupied by VPN credentials.
@@ -24785,6 +24956,15 @@ public:
      * @return A pointer to a MegaStringList with the VPN regions.
      */
     virtual MegaStringList* getVpnRegions() const = 0;
+
+    /**
+     * @brief Get the list of the available VPN regions, including the clusters for each region.
+     *
+     * The caller takes the ownership of the returned object.
+     *
+     * @return A pointer to a list of detailed VPN regions.
+     */
+    virtual MegaVpnRegionList* getVpnRegionsDetailed() const = 0;
 
     /**
      * @brief Get the IPv4 associated with the VPN credentials of a SlotID.

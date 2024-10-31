@@ -33,6 +33,9 @@
 #include "mega/user_attribute.h"
 #include "mega/utils.h"
 
+#include <charconv>
+#include <optional>
+
 namespace mega {
 
 CommandPutFA::CommandPutFA(NodeOrUploadHandle cth, fatype ctype, bool usehttps, int ctag, size_t size, bool getIP, CommandPutFA::Cb &&completion)
@@ -11402,36 +11405,131 @@ CommandGetVpnRegions::CommandGetVpnRegions(MegaClient* client, Cb&& completion)
     mCompletion(std::move(completion))
 {
     cmd("vpnr");
+    arg("v", 4); // include the DNS targets for each cluster in each region in response
 
     tag = client->reqtag;
 }
 
-void CommandGetVpnRegions::parseregions(JSON& json, std::vector<std::string>* vpnRegions)
+bool CommandGetVpnRegions::parseRegions(JSON& json, vector<VpnRegion>* vpnRegions)
 {
-    std::string vpnRegion;
-    while (json.storeobject(&vpnRegion))
+    bool storeData = vpnRegions != nullptr;
+    string buffer;
+    string* pBuffer = storeData ? &buffer : nullptr;
+    for (; json.storeobject(pBuffer);) // region name
     {
-        if (vpnRegions)
+        if (*json.pos == ':') // work around lack of functionality in enterobject()
+            ++json.pos;
+        if (!json.enterobject())
+            return false;
+
+        std::optional<VpnRegion> region{storeData ? std::make_optional(std::move(buffer)) :
+                                                    std::nullopt};
+        buffer.clear();
+
+        for (; json.storeobject(pBuffer);) // cluster ID
         {
-            vpnRegions->emplace_back(std::move(vpnRegion));
+            int clusterID{};
+            if (storeData)
+            {
+                auto [ptr, ec] =
+                    std::from_chars(buffer.c_str(), buffer.c_str() + buffer.size(), clusterID);
+                if (ec != std::errc())
+                    return false;
+            }
+
+            if (*json.pos == ':')
+                ++json.pos;
+            if (!json.enterobject())
+                return false;
+
+            std::optional<string> host{storeData ? std::make_optional<string>() : std::nullopt};
+            std::optional<vector<string>> dns{storeData ? std::make_optional<vector<string>>() :
+                                                          std::nullopt};
+
+            for (bool hasData = true; hasData;) // host, dns
+            {
+                switch (json.getnameid())
+                {
+                    case 'h':
+                        if (!json.storeobject(pBuffer))
+                            return false;
+                        if (storeData)
+                        {
+                            host = std::move(buffer);
+                            buffer.clear();
+                        }
+                        break;
+
+                    case MAKENAMEID3('d', 'n', 's'):
+                        if (!json.enterarray())
+                            return false;
+
+                        while (json.storeobject(pBuffer))
+                        {
+                            if (storeData)
+                            {
+                                dns->emplace_back(std::move(buffer));
+                                buffer.clear();
+                            }
+                        }
+
+                        if (!json.leavearray())
+                            return false;
+                        break;
+
+                    case EOO:
+                        hasData = false;
+                        break;
+
+                    default:
+                        if (!json.storeobject())
+                            return false;
+                }
+            }
+            if (!json.leaveobject())
+                return false;
+
+            if (storeData)
+            {
+                region->addCluster(clusterID, {std::move(host.value()), std::move(dns.value())});
+            }
+
+            if (*json.pos == '}')
+            {
+                json.leaveobject();
+                break;
+            }
+        }
+
+        if (storeData)
+        {
+            vpnRegions->emplace_back(std::move(region.value()));
         }
     }
+
+    return true;
 }
 
 bool CommandGetVpnRegions::procresult(Command::Result r, JSON& json)
 {
-    if (!r.hasJsonArray())
+    if (!r.hasJsonObject())
     {
         if (mCompletion) { mCompletion(API_EINTERNAL, {}); }
         return false;
     }
 
     // Parse regions
-    std::vector<std::string> vpnRegions;
-    parseregions(json, &vpnRegions);
-
-    mCompletion(API_OK, std::move(vpnRegions));
-    return true;
+    vector<VpnRegion> vpnRegions;
+    if (parseRegions(json, &vpnRegions))
+    {
+        mCompletion(API_OK, std::move(vpnRegions));
+        return true;
+    }
+    else
+    {
+        mCompletion(API_EINTERNAL, {});
+        return false;
+    }
 }
 
 CommandGetVpnCredentials::CommandGetVpnCredentials(MegaClient* client, Cb&& completion)
@@ -11439,7 +11537,7 @@ CommandGetVpnCredentials::CommandGetVpnCredentials(MegaClient* client, Cb&& comp
     mCompletion(std::move(completion))
 {
     cmd("vpng");
-    arg("v", 2);
+    arg("v", 4); // include the DNS targets for each cluster in each region in response
 
     tag = client->reqtag;
 }
@@ -11561,18 +11659,21 @@ bool CommandGetVpnCredentials::procresult(Command::Result r, JSON& json)
     }
 
     // Finally, parse VPN regions
-    std::vector<std::string> vpnRegions;
-    if (json.enterarray())
+    vector<VpnRegion> vpnRegions;
+    if (json.enterobject() && CommandGetVpnRegions::parseRegions(json, &vpnRegions) &&
+        json.leaveobject())
     {
-        // Parse regions
-        CommandGetVpnRegions::parseregions(json, &vpnRegions);
-        json.leavearray();
+        mCompletion(API_OK,
+                    std::move(mapSlotIDToCredentialInfo),
+                    std::move(mapClusterPubKeys),
+                    std::move(vpnRegions));
+        return true;
     }
-
-    e.setErrorCode(API_OK);
-    mCompletion(e, std::move(mapSlotIDToCredentialInfo), std::move(mapClusterPubKeys), std::move(vpnRegions));
-
-    return true;
+    else
+    {
+        mCompletion(API_EINTERNAL, {}, {}, {});
+        return false;
+    }
 }
 
 CommandPutVpnCredential::CommandPutVpnCredential(MegaClient* client,
@@ -11586,6 +11687,7 @@ CommandPutVpnCredential::CommandPutVpnCredential(MegaClient* client,
 {
     cmd("vpnp");
     arg("k", (byte*)mUserKeyPair.pubKey.c_str(), static_cast<int>(mUserKeyPair.pubKey.size()));
+    arg("v", 4); // include the DNS targets for each cluster in each region in response
 
     tag = client->reqtag;
 }
@@ -11636,19 +11738,53 @@ bool CommandPutVpnCredential::procresult(Command::Result r, JSON& json)
         return false;
     }
 
-    // Skip VPN regions
-    if (json.enterarray())
+    // Parse VPN regions
+    vector<VpnRegion> vpnRegions;
+    if (!json.enterobject() || !CommandGetVpnRegions::parseRegions(json, &vpnRegions) ||
+        !json.leaveobject())
     {
-        CommandGetVpnRegions::parseregions(json, nullptr);
-        json.leavearray();
+        if (mCompletion)
+        {
+            mCompletion(API_EINTERNAL, -1, {}, {});
+        }
+        return false;
     }
 
     if (mCompletion)
     {
         std::string userPubKey = Base64::btoa(mUserKeyPair.pubKey);
-        auto peerKeyPair = StringKeyPair(std::move(mUserKeyPair.privKey), std::move(clusterPubKey));
-        std::string newCredential = client->generateVpnCredentialString(clusterID, std::move(mRegion), std::move(ipv4), std::move(ipv6), std::move(peerKeyPair));
-        mCompletion(API_OK, slotID, std::move(userPubKey), std::move(newCredential));
+        std::string newCredential;
+        const auto itRegion = std::find_if(vpnRegions.begin(),
+                                           vpnRegions.end(),
+                                           [&name = mRegion](const VpnRegion& r)
+                                           {
+                                               return r.getName() == name;
+                                           });
+        if (itRegion != vpnRegions.end())
+        {
+            const auto& clusters = itRegion->getClusters();
+            const auto itCluster = clusters.find(clusterID);
+            if (itCluster != clusters.end())
+            {
+                auto peerKeyPair =
+                    StringKeyPair(std::move(mUserKeyPair.privKey), std::move(clusterPubKey));
+                newCredential = client->generateVpnCredentialString(itCluster->second.getHost(),
+                                                                    itCluster->second.getDns(),
+                                                                    std::move(ipv4),
+                                                                    std::move(ipv6),
+                                                                    std::move(peerKeyPair));
+            }
+        }
+
+        if (newCredential.empty())
+        {
+            LOG_err << "[CommandPutVpnCredentials] Could not generate VPN credential string";
+            mCompletion(API_ENOENT, -1, {}, {});
+        }
+        else
+        {
+            mCompletion(API_OK, slotID, std::move(userPubKey), std::move(newCredential));
+        }
     }
     return true;
 }
