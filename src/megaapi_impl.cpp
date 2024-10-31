@@ -8917,9 +8917,9 @@ void MegaApiImpl::getUserAttr(User* user, attr_t type, MegaRequestPrivate* reque
     {
         getua_completion(data, len, type, request);
     },
-    [this, request](TLVstore *tlv, attr_t type)
+    [this, request](unique_ptr<string_map> tlv, attr_t type)
     {
-        getua_completion(tlv, type, request);
+        getua_completion(std::move(tlv), type, request);
     });
 }
 
@@ -8934,9 +8934,9 @@ void MegaApiImpl::getUserAttr(const string& email, attr_t type, const char* ph, 
     {
         getua_completion(data, len, type, request);
     },
-    [this, request](TLVstore *tlv, attr_t type)
+    [this, request](unique_ptr<string_map> tlv, attr_t type)
     {
-        getua_completion(tlv, type, request);
+        getua_completion(std::move(tlv), type, request);
     });
 }
 
@@ -15929,14 +15929,16 @@ void MegaApiImpl::getua_completion(byte* data, unsigned len, attr_t type, MegaRe
     fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
 }
 
-void MegaApiImpl::getua_completion(TLVstore *tlv, attr_t type, MegaRequestPrivate* request)
+void MegaApiImpl::getua_completion(unique_ptr<string_map> tlv,
+                                   attr_t type,
+                                   MegaRequestPrivate* request)
 {
     error e = API_OK;
     assert(type == static_cast<attr_t>(request->getParamType()));
 
     if (tlv)
     {
-        string_map records{*tlv->getMap()};
+        string_map& records = *tlv;
         if (request->getType() == MegaRequest::TYPE_SET_ATTR_USER)
         {
             const string_map *newValuesMap = static_cast<MegaStringMapPrivate*>(request->getMegaStringMap())->getMap();
@@ -27214,7 +27216,7 @@ void MegaApiImpl::getPasswordManagerBase(MegaRequestListener* listener)
             assert(!ISUNDEF(request->getNodeHandle()));
             fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
         };
-        CommandGetUA::CompletionTLV ctlv = [this, request](TLVstore*, attr_t) -> void
+        CommandGetUA::CompletionTLV ctlv = [this, request](unique_ptr<string_map>, attr_t) -> void
         {
             LOG_err << "Password Manager: ERROR CompletionTLV callback evaluated from CommandGetUA";
             assert(false);

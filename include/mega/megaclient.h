@@ -2917,7 +2917,7 @@ private:
      */
     void JSCDataRetrieved(GetJSCDataCallback& callback,
                           Error result,
-                          TLVstore* store);
+                          std::unique_ptr<string_map> store);
 
     // Last known capacity retrieved from the cloud.
     m_off_t mLastKnownCapacity = -1;

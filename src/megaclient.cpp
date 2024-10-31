@@ -12679,20 +12679,21 @@ bool MegaClient::getua(User* u, const attr_t at, int ctag, mega::CommandGetUA::C
         if (attribute && attribute->isValid() &&
             at != ATTR_AVATAR) // value of Avatar is always empty
         {
-            const string* cachedav = &attribute->value();
+            const string& cachedav = attribute->value();
             if (User::scope(at) == ATTR_SCOPE_PRIVATE_ENCRYPTED) // TLV encoding
             {
-                TLVstore *tlv = TLVstore::containerToTLVrecords(cachedav, &key);
+                auto records = TLVstore::containerToRecords(cachedav, key);
                 restag = tag;
-                completionTLV ? completionTLV(tlv, at) : app->getua_result(tlv, at);
-                delete tlv;
+                completionTLV ? completionTLV(std::move(records), at) :
+                                app->getua_result(std::move(records), at);
                 return true;
             }
             else
             {
                 restag = tag;
-                completionBytes ? completionBytes((byte*) cachedav->data(), unsigned(cachedav->size()), at)
-                                : app->getua_result((byte*) cachedav->data(), unsigned(cachedav->size()), at);
+                completionBytes ?
+                    completionBytes((byte*)cachedav.data(), unsigned(cachedav.size()), at) :
+                    app->getua_result((byte*)cachedav.data(), unsigned(cachedav.size()), at);
                 return true;
             }
         }
@@ -23101,7 +23102,7 @@ void MegaClient::JSCDataCreated(GetJSCDataCallback& callback,
 
 void MegaClient::JSCDataRetrieved(GetJSCDataCallback& callback,
                                   Error result,
-                                  TLVstore* store)
+                                  unique_ptr<string_map> store)
 {
     // Sanity.
     assert(callback);
@@ -23121,9 +23122,12 @@ void MegaClient::JSCDataRetrieved(GetJSCDataCallback& callback,
     JSCData data;
 
     // Extract JSC data.
-    store->get("ak", data.authenticationKey);
-    store->get("ck", data.cipherKey);
-    store->get("fn", data.fileName);
+    if (store)
+    {
+        data.authenticationKey.swap((*store)["ak"]);
+        data.cipherKey.swap((*store)["ck"]);
+        data.fileName.swap((*store)["fn"]);
+    }
 
     // Saves a little typing.
     auto valid = [](const std::string& datum) {

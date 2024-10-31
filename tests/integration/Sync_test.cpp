@@ -1712,7 +1712,7 @@ bool StandardClient::isUserAttributeSet(attr_t attr, unsigned int numSeconds, er
         user_attribute_updated_cv.notify_one();
     };
 
-    auto completionTLV = [&](TLVstore*, attr_t)
+    auto completionTLV = [&](unique_ptr<string_map>, attr_t)
     {
         std::lock_guard<std::recursive_mutex> g(attr_cv_mutex);
         err = API_OK;

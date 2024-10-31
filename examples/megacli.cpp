@@ -1415,7 +1415,7 @@ void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
     }
 }
 
-void DemoApp::getua_result(TLVstore *tlv, attr_t type)
+void DemoApp::getua_result(unique_ptr<string_map> tlv, attr_t type)
 {
     if (!tlv)
     {
@@ -1433,10 +1433,9 @@ void DemoApp::getua_result(TLVstore *tlv, attr_t type)
 
         bool printDriveId = false;
 
-        unique_ptr<vector<string>> keys(tlv->getKeys());
-        for (auto it = keys->begin(); it != keys->end(); it++)
+        for (const auto& record: *tlv)
         {
-            const string& key = it->empty() ? "(no key)" : *it;
+            const string& key = record.first.empty() ? "(no key)" : record.first;
 
             // external drive names can be filtered
             if (type == ATTR_DEVICE_NAMES)
@@ -1452,8 +1451,8 @@ void DemoApp::getua_result(TLVstore *tlv, attr_t type)
             }
 
             // print user attribute values
-            string value;
-            if (!tlv->get(*it, value) || value.empty())
+            const string& value = record.second;
+            if (value.empty())
             {
                 cout << "\t" << key << "\t" << "(no value)";
             }

@@ -430,10 +430,16 @@ public:
 
     typedef std::function<void(error)> CompletionErr;
     typedef std::function<void(byte*, unsigned, attr_t)> CompletionBytes;
-    typedef std::function<void(TLVstore*, attr_t)> CompletionTLV;
+    typedef std::function<void(unique_ptr<string_map>, attr_t)> CompletionTLV;
 
-    CommandGetUA(MegaClient*, const char*, attr_t, const char *, int,
-        CompletionErr completionErr, CompletionBytes completionBytes, CompletionTLV compltionTLV);
+    CommandGetUA(MegaClient*,
+                 const char*,
+                 attr_t,
+                 const char*,
+                 int,
+                 CompletionErr completionErr,
+                 CompletionBytes completionBytes,
+                 CompletionTLV completionTLV);
 
     bool procresult(Result, JSON&) override;
 

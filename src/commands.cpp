@@ -3504,8 +3504,14 @@ bool CommandPutUA::procresult(Result r, JSON& json)
     return true;
 }
 
-CommandGetUA::CommandGetUA(MegaClient* /*client*/, const char* uid, attr_t at, const char* ph, int ctag,
-                           CompletionErr completionErr, CompletionBytes completionBytes, CompletionTLV compltionTLV)
+CommandGetUA::CommandGetUA(MegaClient* /*client*/,
+                           const char* uid,
+                           attr_t at,
+                           const char* ph,
+                           int ctag,
+                           CompletionErr completionErr,
+                           CompletionBytes completionBytes,
+                           CompletionTLV completionTLV)
 {
     mV3 = true;
 
@@ -3523,10 +3529,11 @@ CommandGetUA::CommandGetUA(MegaClient* /*client*/, const char* uid, attr_t at, c
             client->app->getua_result(b, l, e);
         };
 
-    mCompletionTLV = compltionTLV ? std::move(compltionTLV) :
-        [this](TLVstore* t, attr_t e) {
-            client->app->getua_result(t, e);
-        };
+    mCompletionTLV = completionTLV ? std::move(completionTLV) :
+                                     [this](unique_ptr<string_map> t, attr_t e)
+    {
+        client->app->getua_result(std::move(t), e);
+    };
 
     if (ph && ph[0])
     {
@@ -3671,17 +3678,19 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                     {
                         case ATTR_SCOPE_PRIVATE_ENCRYPTED:
                         {
-                            // decrypt the data and build the TLV records
-                            std::unique_ptr<TLVstore> tlvRecords { TLVstore::containerToTLVrecords(&value, &client->key) };
-                            if (!tlvRecords)
+                            // decrypt the data
+                            std::unique_ptr<string_map> records{
+                                TLVstore::containerToRecords(value, client->key)};
+                            if (!records)
                             {
-                                LOG_err << "Cannot extract TLV records for private attribute " << User::attr2string(at);
+                                LOG_err << "Cannot extract TLV records for private attribute "
+                                        << User::attr2string(at);
                                 mCompletionErr(API_EINTERNAL);
                                 return false;
                             }
 
                             u->setAttribute(at, value, version);
-                            mCompletionTLV(tlvRecords.get(), at);
+                            mCompletionTLV(std::move(records), at);
 
                             break;
                         }
