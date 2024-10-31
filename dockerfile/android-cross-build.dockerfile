@@ -52,6 +52,11 @@ ARG ARCH=x64
 
 # Configure and build CMake command, this will be executed when running the container
 CMD ["sh", "-c", "\
+    owner_uid=$(stat -c '%u' /mega/sdk) && \
+    owner_gid=$(stat -c '%g' /mega/sdk) && \
+    groupadd -g $owner_gid me && \
+    echo 'Adding \"me\" user...' && \
+    useradd -r -M -u $owner_uid -g $owner_gid -d /mega -s /bin/bash me && \
     arch=${ARCH} && \
     case ${arch} in \
       arm) \
