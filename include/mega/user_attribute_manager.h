@@ -15,7 +15,7 @@ class UserAttributeManager
 public:
     void set(attr_t at, const std::string& value, const std::string& version);
     bool setIfNewVersion(attr_t at, const std::string& value, const std::string& version);
-    void setExpired(attr_t at);
+    bool setExpired(attr_t at);
     const UserAttribute* get(attr_t at) const;
     bool erase(attr_t at);
     bool eraseUpdateVersion(attr_t at, const std::string& version);
