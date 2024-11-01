@@ -68,7 +68,7 @@ if(ENABLE_SDKLIB_WERROR)
         TARGET test_unit
         WINDOWS /WX
         UNIX  $<$<CONFIG:Debug>: -Werror>
-        APPLE $<$<CONFIG:Debug>: -Wno-sign-conversion -Wno-overloaded-virtual -Wno-inconsistent-missing-override
+        APPLE $<$<CONFIG:Debug>: -Wno-sign-conversion -Wno-overloaded-virtual
                                  -Wno-unqualified-std-cast-call>
     )
 endif()

@@ -409,7 +409,6 @@ if(ENABLE_SDKLIB_WERROR)
         UNIX  $<$<CONFIG:Debug>: -Werror
                                  -Wno-error=deprecated-declarations> # Kept as a warning, do not promote to error.
         APPLE $<$<CONFIG:Debug>: -Wno-sign-conversion                 -Wno-overloaded-virtual
-                                 -Wno-inconsistent-missing-override
                                  -Wno-string-conversion
                                  -Wno-implicit-int-conversion
                                  -Wno-shorten-64-to-32                -Wno-unused-value

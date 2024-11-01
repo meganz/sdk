@@ -51,7 +51,7 @@ if(ENABLE_SDKLIB_WERROR)
         TARGET test_integration
         WINDOWS /WX
         UNIX  $<$<CONFIG:Debug>: -Werror>
-        APPLE $<$<CONFIG:Debug>: -Wno-sign-conversion -Wno-overloaded-virtual -Wno-inconsistent-missing-override
+        APPLE $<$<CONFIG:Debug>: -Wno-sign-conversion -Wno-overloaded-virtual
                                  -Wno-string-conversion>
     )
 endif()
