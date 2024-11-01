@@ -104,6 +104,7 @@ public:
     uint64_t getNumberOfChildrenByType(NodeHandle parentHandle, nodetype_t nodeType) override;
 
     bool put(Node* node) override;
+    using SqliteDbTable::put; // for the other virtual overload
     bool remove(mega::NodeHandle nodehandle) override;
     bool removeNodes() override;
 
