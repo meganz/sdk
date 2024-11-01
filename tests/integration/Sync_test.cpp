@@ -2994,11 +2994,16 @@ void StandardClient::setupBackup_inThread(const string& rootPath,
         }
         else
         {
-            client.addsync(std::move(sc), [revertOnError, result, this](error e, SyncError se, handle h){
-                if (e && revertOnError) revertOnError(nullptr);
-                result->set_value(e ? UNDEF : h);
-
-            }, "", "");
+            client.addsync(
+                std::move(sc),
+                [revertOnError, result](error e, SyncError se, handle h)
+                {
+                    if (e && revertOnError)
+                        revertOnError(nullptr);
+                    result->set_value(e ? UNDEF : h);
+                },
+                "",
+                "");
         }
     });
 }
@@ -16932,7 +16937,8 @@ TEST_F(SyncTest, BasicSync_RapidLocalChangesWhenUploadCompletes)
     // The idea here is that we start hammering the engine with a bunch of
     // file change notifications, the goal of which is to confuse the engine
     // such that it no longer knows which side is "current."
-    c->onTransferCompleted = [&c, &m](Transfer*) {
+    c->onTransferCompleted = [&c](Transfer*)
+    {
         // Only call us once.
         c->onTransferCompleted = nullptr;
     };

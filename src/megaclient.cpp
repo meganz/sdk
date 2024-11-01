@@ -12112,15 +12112,14 @@ void MegaClient::setshare(std::shared_ptr<Node> n, const char* user, accesslevel
                 {
                     LOG_debug << "Last share: disabling in-use flag for the sharekey in KeyManager. nh: " << toNodeHandle(nodehandle);
                     mKeyManager.commit(
-                    [this, nodehandle]()
-                    {
-                        mKeyManager.setSharekeyInUse(nodehandle, false);
-
-                    },
-                    [completion, e, writable](error commitError)
-                    {
-                        completion(commitError, writable);
-                    });
+                        [this, nodehandle]()
+                        {
+                            mKeyManager.setSharekeyInUse(nodehandle, false);
+                        },
+                        [completion, writable](error commitError)
+                        {
+                            completion(commitError, writable);
+                        });
                 }
                 else
                 {
@@ -12223,14 +12222,14 @@ void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool w
 
                     LOG_debug << "Enabling in-use flag for the sharekey in KeyManager. nh: " << toNodeHandle(nodehandle);
                     mKeyManager.commit(
-                    [this, nodehandle]()
-                    {
-                        mKeyManager.setSharekeyInUse(nodehandle, true);
-                    },
-                    [completion, e, writable](error commitError)
-                    {
-                        completion(commitError, writable);
-                    });
+                        [this, nodehandle]()
+                        {
+                            mKeyManager.setSharekeyInUse(nodehandle, true);
+                        },
+                        [completion, writable](error commitError)
+                        {
+                            completion(commitError, writable);
+                        });
                 }
                 else
                 {
@@ -12748,7 +12747,9 @@ void MegaClient::loginResult(CommandLogin::Completion completion,
                             LOG_debug << "Account upgrade to V2 failed with EEXIST. It must have been upgraded in the meantime. Fetching user data again.";
 
                             // upgrade done in the meantime by different client; get account details again
-                            getuserdata(restag, [this, completion, onLoginOk](string*, string*, string*, error e)
+                            getuserdata(
+                                restag,
+                                [completion, onLoginOk](string*, string*, string*, error e)
                                 {
                                     error loginErr = e == API_OK ? API_OK : API_EINTERNAL;
                                     completion(loginErr); // if error, report for login too because user data is inconsistent now
@@ -12761,8 +12762,7 @@ void MegaClient::loginResult(CommandLogin::Completion completion,
                                     {
                                         onLoginOk();
                                     }
-                                }
-                            );
+                                });
                         }
 
                         else

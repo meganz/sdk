@@ -6724,12 +6724,13 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
     });
 
     // Parsing of chunk finished
-    mFilters.emplace(">", [this, client](JSON *)
-    {
-        assert(mNodeTreeIsChanging.owns_lock());
-        mNodeTreeIsChanging.unlock();
-        return true;
-    });
+    mFilters.emplace(">",
+                     [this](JSON*)
+                     {
+                         assert(mNodeTreeIsChanging.owns_lock());
+                         mNodeTreeIsChanging.unlock();
+                         return true;
+                     });
 
     // Node objects (one by one)
     auto f = mFilters.emplace("{[f{", [this, client](JSON *json)
@@ -6839,19 +6840,21 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
     });
 
     // sn tag
-    mFilters.emplace("{\"sn", [this, client](JSON *json)
-    {
-        // Not applying the scsn until the end of the parsing
-        // because it could arrive before nodes
-        // (despite at the moment it is arriving at the end)
-        return json->storebinary((byte*)&mScsn, sizeof mScsn) == sizeof mScsn;
-    });
+    mFilters.emplace("{\"sn",
+                     [this](JSON* json)
+                     {
+                         // Not applying the scsn until the end of the parsing
+                         // because it could arrive before nodes
+                         // (despite at the moment it is arriving at the end)
+                         return json->storebinary((byte*)&mScsn, sizeof mScsn) == sizeof mScsn;
+                     });
 
     // st tag
-    mFilters.emplace("{\"st", [this, client](JSON *json)
-    {
-        return json->storeobject(&mSt);
-    });
+    mFilters.emplace("{\"st",
+                     [this](JSON* json)
+                     {
+                         return json->storeobject(&mSt);
+                     });
 
     // Incoming contact requests
     mFilters.emplace("{[ipc", [client](JSON *json)
@@ -6921,17 +6924,18 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
     });
 
     // Parsing error
-    mFilters.emplace("E", [this, client](JSON *)
-    {
-        WAIT_CLASS::bumpds();
-        client->fnstats.timeToLastByte = Waiter::ds - client->fnstats.startTime;
-        client->purgenodesusersabortsc(true);
+    mFilters.emplace("E",
+                     [client](JSON*)
+                     {
+                         WAIT_CLASS::bumpds();
+                         client->fnstats.timeToLastByte = Waiter::ds - client->fnstats.startTime;
+                         client->purgenodesusersabortsc(true);
 
-        client->fetchingnodes = false;
-        client->mNodeManager.cleanNodes();
-        client->app->fetchnodes_result(API_EINTERNAL);
-        return true;
-    });
+                         client->fetchingnodes = false;
+                         client->mNodeManager.cleanNodes();
+                         client->app->fetchnodes_result(API_EINTERNAL);
+                         return true;
+                     });
 
 #ifdef ENABLE_CHAT
     // Chat-related callbacks
