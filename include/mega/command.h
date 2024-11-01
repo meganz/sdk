@@ -1617,7 +1617,6 @@ public:
 
 class MEGA_API CommandBackupRemove : public Command
 {
-    handle mBackupId;
     std::function<void(const Error&)> mCompletion;
 
 public:
@@ -1880,7 +1879,6 @@ public:
 typedef std::function<void(Error, const std::vector<std::unique_ptr<ScheduledMeeting>>*)> CommandScheduledMeetingFetchCompletion;
 class MEGA_API CommandScheduledMeetingFetch : public Command
 {
-    handle mChatId;
     CommandScheduledMeetingFetchCompletion mCompletion;
 
 public:
