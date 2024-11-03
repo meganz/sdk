@@ -1,3 +1,5 @@
+def failedTargets = []
+
 pipeline {
     agent { label 'docker' }
     options { 
@@ -66,7 +68,15 @@ pipeline {
                     }
                     post{
                         aborted {
-                            sh "docker kill android-builder-arm-${env.BUILD_NUMBER}" 
+                            sh "docker kill android-builder-arm-${env.BUILD_NUMBER}"
+                            script {
+                                failedTargets.add("arm")
+                            }
+                        }
+                        failure {
+                            script {
+                                failedTargets.add("arm")
+                            }
                         }
                     }
                 }
@@ -81,6 +91,14 @@ pipeline {
                     post{
                         aborted {
                             sh "docker kill android-builder-arm64-${env.BUILD_NUMBER}" 
+                            script {
+                                failedTargets.add("arm64")
+                            }
+                        }
+                        failure {
+                            script {
+                                failedTargets.add("arm64")
+                            }
                         }
                     }
                 }
@@ -95,6 +113,14 @@ pipeline {
                     post{
                         aborted {
                             sh "docker kill android-builder-x86-${env.BUILD_NUMBER}" 
+                            script {
+                                failedTargets.add("x86")
+                            }
+                        }
+                        failure {
+                            script {
+                                failedTargets.add("x86")
+                            }
                         }
                     }
                 }
@@ -109,6 +135,14 @@ pipeline {
                     post{
                         aborted {
                             sh "docker kill android-builder-x64-${env.BUILD_NUMBER}" 
+                            script {
+                                failedTargets.add("x64")
+                            }
+                        }
+                        failure {
+                            script {
+                                failedTargets.add("x64")
+                            }
                         }
                     }
                 }
@@ -129,6 +163,9 @@ pipeline {
                         SDK_commit: `${sdk_commit}`
                     """.stripIndent()
                     
+                    if (failedTargets.size() > 0) {
+                        message += "\nFailed targets: ${failedTargets.join(', ')}"
+                    }
                     withCredentials([string(credentialsId: 'slack_webhook_sdk_report', variable: 'SLACK_WEBHOOK_URL')]) {
                         sh """
                             curl -X POST -H 'Content-type: application/json' --data '
