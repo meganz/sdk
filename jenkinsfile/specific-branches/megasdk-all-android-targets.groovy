@@ -16,6 +16,7 @@ pipeline {
     }
     environment {
         VCPKGPATH = "/opt/vcpkg"
+        VCPKGPATH_CACHE = "${HOME}/.cache/vcpkg"
     }
     stages {
         stage('Clean previous runs'){
@@ -64,7 +65,7 @@ pipeline {
                         expression { params.BUILD_ARM == true }
                     }
                     steps {
-                        sh "docker run --name android-builder-arm-${env.BUILD_NUMBER} --rm -v ${WORKSPACE}:/mega/sdk -v ${VCPKGPATH}:/mega/vcpkg -e ARCH=arm meganz/android-build-env:${env.BUILD_NUMBER}"
+                        sh "docker run --name android-builder-arm-${env.BUILD_NUMBER} --rm -v ${WORKSPACE}:/mega/sdk -v ${VCPKGPATH}:/mega/vcpkg -v ${VCPKGPATH_CACHE}:/mega/.cache/vcpkg -e ARCH=arm meganz/android-build-env:${env.BUILD_NUMBER}"
                     }
                     post{
                         aborted {
@@ -86,7 +87,7 @@ pipeline {
                         expression { params.BUILD_ARM64 == true }
                     }
                     steps {
-                        sh "docker run --name android-builder-arm64-${env.BUILD_NUMBER} --rm -v ${WORKSPACE}:/mega/sdk -v ${VCPKGPATH}:/mega/vcpkg -e ARCH=arm64 meganz/android-build-env:${env.BUILD_NUMBER}"
+                        sh "docker run --name android-builder-arm64-${env.BUILD_NUMBER} --rm -v ${WORKSPACE}:/mega/sdk -v ${VCPKGPATH}:/mega/vcpkg -v ${VCPKGPATH_CACHE}:/mega/.cache/vcpkg -e ARCH=arm64 meganz/android-build-env:${env.BUILD_NUMBER}"
                     }
                     post{
                         aborted {
@@ -108,7 +109,7 @@ pipeline {
                         expression { params.BUILD_X86 == true }
                     }
                     steps {
-                        sh "docker run --name android-builder-x86-${env.BUILD_NUMBER} --rm -v ${WORKSPACE}:/mega/sdk -v ${VCPKGPATH}:/mega/vcpkg -e ARCH=x86 meganz/android-build-env:${env.BUILD_NUMBER}"
+                        sh "docker run --name android-builder-x86-${env.BUILD_NUMBER} --rm -v ${WORKSPACE}:/mega/sdk -v ${VCPKGPATH}:/mega/vcpkg -v ${VCPKGPATH_CACHE}:/mega/.cache/vcpkg -e ARCH=x86 meganz/android-build-env:${env.BUILD_NUMBER}"
                     }
                     post{
                         aborted {
@@ -130,7 +131,7 @@ pipeline {
                         expression { params.BUILD_X64 == true }
                     }
                     steps {
-                        sh "docker run --name android-builder-x64-${env.BUILD_NUMBER} --rm -v ${WORKSPACE}:/mega/sdk -v ${VCPKGPATH}:/mega/vcpkg -e ARCH=x64 meganz/android-build-env:${env.BUILD_NUMBER}"
+                        sh "docker run --name android-builder-x64-${env.BUILD_NUMBER} --rm -v ${WORKSPACE}:/mega/sdk -v ${VCPKGPATH}:/mega/vcpkg -v ${VCPKGPATH_CACHE}:/mega/.cache/vcpkg -e ARCH=x64 meganz/android-build-env:${env.BUILD_NUMBER}"
                     }
                     post{
                         aborted {
