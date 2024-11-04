@@ -2487,7 +2487,6 @@ void MegaClient::exec()
                                 {
                                     LOG_debug << "Executing postponed DB commit 2 (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
                                     sctable->commit();
-                                    assert(!sctable->inTransaction());
                                     sctable->begin();
                                     app->notify_dbcommit();
                                     pendingsccommit = false;
@@ -4901,7 +4900,6 @@ bool MegaClient::procsc()
                         {
                             LOG_debug << "DB transaction COMMIT (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
                             sctable->commit();
-                            assert(!sctable->inTransaction());
                             sctable->begin();
                             app->notify_dbcommit();
                             pendingsccommit = false;
@@ -4936,7 +4934,6 @@ bool MegaClient::procsc()
                             {
                                 LOG_debug << "DB transaction COMMIT (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
                                 sctable->commit();
-                                assert(!sctable->inTransaction());
                                 sctable->begin();
                                 pendingsccommit = false;
                             }
@@ -5101,7 +5098,6 @@ bool MegaClient::procsc()
                     {
                         LOG_debug << "Executing postponed DB commit 1";
                         sctable->commit();
-                        assert(!sctable->inTransaction());
                         sctable->begin();
                         app->notify_dbcommit();
                         pendingsccommit = false;
@@ -5495,7 +5491,6 @@ void MegaClient::initsc()
     {
         bool complete;
 
-        assert(sctable->inTransaction());
         sctable->truncate();
 
         // 1. write current scsn
@@ -5575,7 +5570,6 @@ void MegaClient::initsc()
             // Commit now, otherwise we'll have to do fetchnodes again (on restart) if no actionpackets arrive.
             LOG_debug << "DB transaction COMMIT (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
             sctable->commit();
-            assert(!sctable->inTransaction());
             sctable->begin();
             pendingsccommit = false;
         }
@@ -5587,7 +5581,6 @@ void MegaClient::initStatusTable()
     if (statusTable)
     {
         // statusTable is different from sctable in that we begin/commit with each change
-        assert(!statusTable->inTransaction());
         DBTableTransactionCommitter committer(statusTable);
         statusTable->truncate();
     }
@@ -11431,7 +11424,6 @@ void MegaClient::opensctable()
                 // DB connection always has a transaction started (applies to both tables, statecache and nodes)
                 // We only commit once we have an up to date SCSN and the table state matches it.
                 sctable->begin();
-                assert(sctable->inTransaction());
             }
             else
             {
@@ -14941,8 +14933,6 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
             fnstats.timeToResult = fnstats.timeToCached;
 
             statecurrent = false;
-
-            assert(sctable->inTransaction());
             pendingsccommit = false;
 
             // allow sc requests to start

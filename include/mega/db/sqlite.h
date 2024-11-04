@@ -58,10 +58,11 @@ public:
     void remove() override;
 
     SqliteDbTable(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const LocalPath &path, const bool checkAlwaysTransacted, DBErrorCallback dBErrorCallBack);
-    virtual ~SqliteDbTable();
+    ~SqliteDbTable() override;
 
-    bool inTransaction() const override;
-
+private:
+    // whether an unmatched begin() has been issued
+    bool inTransaction() const;
 };
 
 /**
