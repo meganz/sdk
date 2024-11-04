@@ -27,6 +27,17 @@ using TLV_map = std::map<std::string, std::string>;
 std::unique_ptr<TLV_map> containerToRecords(const std::string& container, SymmCipher& key);
 
 /**
+ * @brief Extract records from data
+ *
+ * @param container Binary byte array representing the encrypted data
+ *
+ * @return Records that received data had packed
+ *
+ * @note Only used by MEGAchat implementation
+ */
+std::unique_ptr<TLV_map> containerToRecords(const std::string& container);
+
+/**
  * @brief Create container with encrypted data from decrypted records
  *
  * @param records Decrypted records
@@ -36,6 +47,17 @@ std::unique_ptr<TLV_map> containerToRecords(const std::string& container, SymmCi
  * @return Encrypted data
  */
 std::unique_ptr<std::string> recordsToContainer(TLV_map&& records, PrnGen& rng, SymmCipher& key);
+
+/**
+ * @brief Create container with data from received records
+ *
+ * @param records Records to pack into returned data
+ *
+ * @return Data packing the received records
+ *
+ * @note Only used by MEGAchat implementation
+ */
+std::unique_ptr<std::string> recordsToContainer(TLV_map&& records);
 
 //=========================================
 // Old implementation

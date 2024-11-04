@@ -17,11 +17,24 @@ unique_ptr<TLV_map> containerToRecords(const string& container, SymmCipher& key)
     return tlv ? std::make_unique<TLV_map>(tlv->moveMap()) : nullptr;
 }
 
+unique_ptr<TLV_map> containerToRecords(const string& container)
+{
+    auto tlv{TLVstore::containerToTLVrecords(&container)};
+    return tlv ? std::make_unique<TLV_map>(tlv->moveMap()) : nullptr;
+}
+
 unique_ptr<string> recordsToContainer(TLV_map&& records, PrnGen& rng, SymmCipher& key)
 {
     TLVstore tlv;
     tlv.set(std::move(records));
     return unique_ptr<string>{tlv.tlvRecordsToContainer(rng, &key)};
+}
+
+unique_ptr<string> recordsToContainer(TLV_map&& records)
+{
+    TLVstore tlv;
+    tlv.set(std::move(records));
+    return unique_ptr<string>{tlv.tlvRecordsToContainer()};
 }
 
 //=========================================
