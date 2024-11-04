@@ -894,9 +894,45 @@ struct MEGA_API LocalNode
     // use this one to skip the hasRare check, if it doesn't exist a reference to a blank one is returned
     const RareFields& rareRO() const;
 
-    // set the syncupTargetedAction for this, and parents
+    /**
+     * @brief Marks the node and optionally its relatives for scanning again.
+     *
+     * This method sets the scanning flag on the current node, its parent, and/or its descendants,
+     * indicating that they need to be scanned for filesystem changes during the next
+     * synchronization cycle. Optionally, you can specify a delay before the scan occurs.
+     *
+     * @param doParent If `true`, marks the parent node for scanning.
+     * @param doHere If `true`, marks the current node for scanning.
+     * @param doBelow If `true`, marks all descendant nodes for scanning.
+     * @param delayds The delay in deciseconds before the scan should occur. If zero, the scan is
+     * addressed in the next syncLoop iteration.
+     */
     void setScanAgain(bool doParent, bool doHere, bool doBelow, dstime delayds);
+
+    /**
+     * @brief Marks the node and optionally its relatives to recheck for moved or renamed items.
+     *
+     * This method sets the move checking flag on the current node, its parent, and/or its
+     * descendants, indicating that they need to be rechecked for any moves or renames within the
+     * synchronization scope.
+     *
+     * @param doParent If `true`, marks the parent node for move checking.
+     * @param doHere If `true`, marks the current node for move checking.
+     * @param doBelow If `true`, marks all descendant nodes for move checking.
+     */
     void setCheckMovesAgain(bool doParent, bool doHere, bool doBelow);
+
+    /**
+     * @brief Marks the node and optionally its relatives to be resynchronized.
+     *
+     * This method sets the synchronization flag on the current node, its parent, and/or its
+     * descendants, indicating that they need to be synchronized with the remote server during the
+     * next syncLoop iteration.
+     *
+     * @param doParent If `true`, marks the parent node for synchronization.
+     * @param doHere If `true`, marks the current node for synchronization.
+     * @param doBelow If `true`, marks all descendant nodes for synchronization.
+     */
     void setSyncAgain(bool doParent, bool doHere, bool doBelow);
 
     void setContainsConflicts(bool doParent, bool doHere, bool doBelow);
