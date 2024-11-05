@@ -6813,6 +6813,8 @@ namespace mega
         static int countdownToOverquota;
         static int countdownTo404;
         static int countdownTo403;
+        static int countdownTo429;
+        static int countdownTo503;
         static int countdownToTimeout;
         static bool isRaid;
         static bool isRaidKnown;
@@ -6844,7 +6846,7 @@ namespace mega
             return false;
         }
 
-        static bool onHttpReqPost404Or403(HttpReq* req)
+        static bool onHttpReqPostError(HttpReq* req)
         {
             if (req->type == REQ_BINARY)
             {
@@ -6860,6 +6862,22 @@ namespace mega
                     req->status = REQ_FAILURE;
 
                     LOG_info << "SIMULATING HTTP GET 403";
+                    return true;
+                }
+                if (countdownTo429-- == 0)
+                {
+                    req->httpstatus = 429;
+                    req->status = REQ_FAILURE;
+
+                    LOG_info << "SIMULATING HTTP GET 429";
+                    return true;
+                }
+                if (countdownTo503-- == 0)
+                {
+                    req->httpstatus = 503;
+                    req->status = REQ_FAILURE;
+
+                    LOG_info << "SIMULATING HTTP GET 503";
                     return true;
                 }
             }
@@ -6906,10 +6924,12 @@ namespace mega
         {
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
             globalMegaTestHooks = MegaTestHooks(); // remove any callbacks set in other tests
-            countdownToOverquota = 3;
-            countdownTo404 = 5;
-            countdownTo403 = 10;
-            countdownToTimeout = 15;
+            countdownToOverquota = -1;
+            countdownTo404 = -1;
+            countdownTo403 = -1;
+            countdownTo429 = -1;
+            countdownTo503 = -1;
+            countdownToTimeout = -1;
             isRaid = false;
             isRaidKnown = false;
             return true;
@@ -6925,13 +6945,14 @@ namespace mega
 
     };
 
-    int DebugTestHook::countdownToOverquota = 3;
+    int DebugTestHook::countdownToOverquota = -1;
     bool DebugTestHook::isRaid = false;
     bool DebugTestHook::isRaidKnown = false;
-    int DebugTestHook::countdownTo404 = 5;
-    int DebugTestHook::countdownTo403 = 10;
-    int DebugTestHook::countdownToTimeout = 15;
-
+    int DebugTestHook::countdownTo404 = -1;
+    int DebugTestHook::countdownTo403 = -1;
+    int DebugTestHook::countdownTo429 = -1;
+    int DebugTestHook::countdownTo503 = -1;
+    int DebugTestHook::countdownToTimeout = -1;
 }
 
 
@@ -7147,7 +7168,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
     DebugTestHook::countdownTo404 = 5;
     DebugTestHook::countdownTo403 = 12;
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
-    globalMegaTestHooks.onHttpReqPost = DebugTestHook::onHttpReqPost404Or403;
+    globalMegaTestHooks.onHttpReqPost = DebugTestHook::onHttpReqPostError;
     globalMegaTestHooks.onSetIsRaid = DebugTestHook::onSetIsRaid_morechunks;
     globalMegaTestHooks.onLimitMaxReqSize = ::mega::DebugTestHook::onLimitMaxReqSize;
     globalMegaTestHooks.onHookNumberOfConnections = ::mega::DebugTestHook::onHookNumberOfConnections;
@@ -7578,7 +7599,7 @@ struct CheckStreamedFile_MegaTransferListener : public MegaTransferListener
     MegaError* completedUnsuccessfullyError;
     byte* compareDecryptedData;
     bool comparedEqual;
-
+    m_off_t numFailedRequests{};
 
     CheckStreamedFile_MegaTransferListener(size_t receiveStartPoint, size_t receiveSizeExpected, byte* fileCompareData)
         : reserved(0)
@@ -7624,6 +7645,7 @@ struct CheckStreamedFile_MegaTransferListener : public MegaTransferListener
     }
     void onTransferTemporaryError(MegaApi *api, MegaTransfer * /*transfer*/, MegaError* error) override
     {
+        ++numFailedRequests;
         ostringstream msg;
         msg << "onTransferTemporaryError: " << (error ? error->getErrorString() : "NULL");
         api->log(MegaApi::LOG_LEVEL_WARNING, msg.str().c_str());
@@ -7644,7 +7666,7 @@ struct CheckStreamedFile_MegaTransferListener : public MegaTransferListener
 
 CheckStreamedFile_MegaTransferListener* StreamRaidFilePart(MegaApi* megaApi, m_off_t start, m_off_t end, bool raid, bool smallpieces, MegaNode* raidFileNode, MegaNode*nonRaidFileNode, ::mega::byte* filecomparedata)
 {
-    assert(raidFileNode && nonRaidFileNode);
+    assert((raid ? raidFileNode : nonRaidFileNode));
     LOG_info << "stream test ---------------------------------------------------" << start << " to " << end << "(len " << end - start << ") " << (raid ? " RAID " : " non-raid ") << (raid ? (smallpieces ? " smallpieces " : "normalpieces") : "");
 
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
@@ -7934,6 +7956,114 @@ TEST_F(SdkTest, SdkRecentsTest)
     ASSERT_TRUE(bucketsVec.size() > 1);
     EXPECT_THAT(bucketsVec[0], testing::ElementsAre(filename2));
     EXPECT_THAT(bucketsVec[1], testing::ElementsAre(filename1bkp2, filename1bkp1));
+}
+
+TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)
+{
+    LOG_info << "___TEST Streaming Raided Transfer With Connection Failures___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_NE(rootnode.get(), nullptr) << "Cannot retrieve RootNode";
+    auto importRaidHandle =
+        importPublicLink(0, MegaClient::MEGAURL + PUBLIC_IMAGE_URL, rootnode.get());
+    std::shared_ptr<MegaNode> cloudRaidNode{megaApi[0]->getNodeByHandle(importRaidHandle)};
+    ASSERT_NE(rootnode.get(), nullptr) << "Cannot get CloudRaidNode node from public link";
+
+    megaApi[0]->setMaxDownloadSpeed(0);
+    auto startStreaming = [cloudRaidNode, this](int cd404,
+                                                int cd403,
+                                                int cd429,
+                                                int cd503,
+                                                m_off_t nFailedReqs,
+                                                unsigned int transfer_timeout_in_seconds)
+    {
+        ASSERT_TRUE(DebugTestHook::resetForTests())
+            << "SDK test hooks are not enabled in release mode";
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+        globalMegaTestHooks.onHttpReqPost = DebugTestHook::onHttpReqPostError;
+        globalMegaTestHooks.onSetIsRaid = DebugTestHook::onSetIsRaid_morechunks;
+        globalMegaTestHooks.onLimitMaxReqSize = ::mega::DebugTestHook::onLimitMaxReqSize;
+        globalMegaTestHooks.onHookNumberOfConnections =
+            ::mega::DebugTestHook::onHookNumberOfConnections;
+#endif
+
+        mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
+        DebugTestHook::countdownTo404 = cd404;
+        DebugTestHook::countdownTo403 = cd403;
+        DebugTestHook::countdownTo429 = cd429;
+        DebugTestHook::countdownTo503 = cd503;
+        std::unique_ptr<CheckStreamedFile_MegaTransferListener> p(
+            StreamRaidFilePart(megaApi[0].get(),
+                               0,
+                               cloudRaidNode->getSize(),
+                               true /*raid*/,
+                               false,
+                               cloudRaidNode.get(),
+                               nullptr,
+                               nullptr));
+
+        ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD],
+                                    transfer_timeout_in_seconds))
+            << "Cloudraid download with 404 and 403 errors time out (180 seconds)";
+        ASSERT_EQ(API_OK, mApi[0].lastError)
+            << "Cannot finish streaming download for the cloudraid file (error: "
+            << mApi[0].lastError << ")";
+        ASSERT_TRUE(cd404 < 0 || DebugTestHook::countdownTo404 < 0) << "";
+        ASSERT_TRUE(cd403 < 0 || DebugTestHook::countdownTo403 < 0) << "";
+        ASSERT_TRUE(cd429 < 0 || DebugTestHook::countdownTo404 < 0) << "";
+        ASSERT_EQ(p->numFailedRequests, nFailedReqs)
+            << "Unexpected number of retries for streaming download";
+    };
+
+    LOG_debug << "#### Test1: Streaming Download, forcing 1 Raided Part Failure (403). No transfer "
+                 "retry ####";
+    startStreaming(-1 /*cd404*/,
+                   2 /*cd403*/,
+                   -1 /*cd429*/,
+                   -1 /*cd503*/,
+                   0 /*nFailedReqs*/,
+                   180 /*timeout*/);
+
+    LOG_debug << "#### Test2: Streaming Download, forcing 1 Raided Part Failure(503) No transfer "
+                 "retry ####";
+    startStreaming(-1 /*cd404*/,
+                   -1 /*cd403*/,
+                   -1 /*cd429*/,
+                   1 /*cd503*/,
+                   0 /*nFailedReqs*/,
+                   180 /*timeout*/);
+
+    LOG_debug << "#### Test3: Streaming Download, forcing 1 Raided Part Failure (404)."
+                 "Transfer will be retried immediately due to 404(onTransferTemporaryError "
+                 "received) ####";
+    startStreaming(2 /*cd404*/,
+                   -1 /*cd403*/,
+                   -1 /*cd429*/,
+                   -1 /*cd503*/,
+                   1 /*nFailedReqs*/,
+                   180 /*timeout*/);
+
+    LOG_debug << "#### Test4: Streaming Download, forcing 1 Raided Part Failure (429)."
+                 "Transfer will be retried immediately due to 429(onTransferTemporaryError "
+                 "received) ####";
+    startStreaming(-1 /*cd404*/,
+                   -1 /*cd403*/,
+                   2 /*cd429*/,
+                   -1 /*cd503*/,
+                   1 /*nFailedReqs*/,
+                   180 /*timeout*/);
+
+    LOG_debug << "#### Test5: Streaming Download forcing 2 Raided Parts Failures(403 | 503)."
+                 "Transfer will be retried immediately due to 403 and 503(onTransferTemporaryError "
+                 "received) ####";
+    startStreaming(-1 /*cd404*/,
+                   2 /*cd403*/,
+                   -1 /*cd429*/,
+                   2 /*cd503*/,
+                   1 /*nFailedReqs*/,
+                   180 /*timeout*/);
+
+    ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 }
 
 #if !USE_FREEIMAGE
