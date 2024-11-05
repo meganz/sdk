@@ -25230,6 +25230,26 @@ public:
     virtual const MegaStringMap* getCallToAction2() const = 0;
 
     /**
+     * @brief Get available rendering modes.
+     *
+     * The caller takes ownership of the returned object and is in charge of releasing the memory.
+     *
+     * @return available rendering modes, null if no rendering mode was supported.
+     */
+    virtual MegaStringList* getRenderModes() const = 0;
+
+    /**
+     * @brief Get the fields of the received rendering mode.
+     *
+     * The caller takes ownership of the returned object and is in charge of releasing the memory.
+     *
+     * @param mode Rendering mode for which the fields will be returned
+     *
+     * @return fields of the received rendering mode, null if the mode was not supported.
+     */
+    virtual MegaStringMap* getRenderModeFields(const char* mode) const = 0;
+
+    /**
      * @brief Copy the MegaNotification object.
      *
      * This copy is meant to be used from another scope which must survive the actual owner of this MegaNotification object.

@@ -501,6 +501,7 @@ struct DynamicMessageNotification
     bool showBanner = false;
     std::map<std::string, std::string> callToAction1;
     std::map<std::string, std::string> callToAction2;
+    std::map<std::string, std::map<std::string, std::string>> renderModes;
 };
 
 class MEGA_API MegaClient

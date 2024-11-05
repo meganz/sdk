@@ -39611,6 +39611,40 @@ MegaFuseExecutorFlagsPrivate::MegaFuseExecutorFlagsPrivate(fuse::TaskExecutorFla
 {
 }
 
+MegaStringList* MegaNotificationPrivate::getRenderModes() const
+{
+    if (mNotification.renderModes.empty())
+    {
+        return nullptr;
+    }
+
+    MegaStringList* modes = MegaStringList::createInstance();
+    for (const auto& m: mNotification.renderModes)
+    {
+        modes->add(m.first.c_str());
+    }
+
+    return modes;
+}
+
+MegaStringMap* MegaNotificationPrivate::getRenderModeFields(const char* mode) const
+{
+    if (!mode || mNotification.renderModes.empty())
+    {
+        return nullptr;
+    }
+
+    for (const auto& m: mNotification.renderModes)
+    {
+        if (m.first == mode)
+        {
+            return new MegaStringMapPrivate(&m.second);
+        }
+    }
+
+    return nullptr;
+}
+
 size_t MegaFuseExecutorFlagsPrivate::getMinThreadCount() const
 {
     return mFlags.mMinWorkers;

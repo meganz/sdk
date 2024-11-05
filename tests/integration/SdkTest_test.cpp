@@ -18821,8 +18821,10 @@ TEST_F(SdkTest, DynamicMessageNotifs)
     // IDs 1,2,3,4,5 have been reserved to be "^!tnotif" only notifications.
     // Notifications with IDs 1~4 existed at the time of writing this test
     // Notification with ID 2 has icon
+    // Notification with ID 9 has render modes ('m')
     ids->add(1);                                   // add notification with ID 1
     ids->add(2);                                   // add notification with ID 2
+    ids->add(9); // add notification with ID 9
     ids->add(numeric_limits<uint32_t>::max() - 1); // dummy
 
     RequestTracker notifsTracker(megaApi[0].get());
@@ -18837,9 +18839,12 @@ TEST_F(SdkTest, DynamicMessageNotifs)
     // Get IDs of enabled-notifications
     unique_ptr<MegaIntegerList> enabledNotifs{ megaApi[0]->getEnabledNotifications() };
     ASSERT_THAT(enabledNotifs, ::testing::NotNull());
-    ASSERT_EQ(enabledNotifs->size(), 2); // only IDs of existing notifications will be there, dummy IDs will not be included
+    ASSERT_EQ(
+        enabledNotifs->size(),
+        3); // only IDs of existing notifications will be there, dummy IDs will not be included
     ASSERT_EQ(enabledNotifs->get(0), 1);
     ASSERT_EQ(enabledNotifs->get(1), 2);
+    ASSERT_EQ(enabledNotifs->get(2), 9);
 
     // Get the complete notifications (corresponding only to existing IDs)
     RequestTracker gnotifTracker2(megaApi[0].get());
@@ -18847,11 +18852,43 @@ TEST_F(SdkTest, DynamicMessageNotifs)
     ASSERT_EQ(gnotifTracker2.waitForResult(), API_OK);
     const auto* notificationList2 = gnotifTracker2.request->getMegaNotifications();
     ASSERT_THAT(notificationList2, ::testing::NotNull());
-    ASSERT_EQ(notificationList2->size(), 2u);
+    ASSERT_EQ(notificationList2->size(), 3u);
 
     // validate complete notifications
     ASSERT_NO_FATAL_FAILURE(validateNotification(notificationList2->get(0), 1, HasIcon::NO));
     ASSERT_NO_FATAL_FAILURE(validateNotification(notificationList2->get(1), 2, HasIcon::YES));
+    ASSERT_NO_FATAL_FAILURE(validateNotification(notificationList2->get(2), 9, HasIcon::NO));
+    unique_ptr<MegaStringList> renderModes{notificationList2->get(2)->getRenderModes()};
+    ASSERT_THAT(renderModes, ::testing::NotNull());
+    ASSERT_GT(renderModes->size(), 0);
+    for (int i = 0; i < renderModes->size(); ++i)
+    {
+        unique_ptr<MegaStringMap> fields{
+            notificationList2->get(2)->getRenderModeFields(renderModes->get(i))};
+        ASSERT_THAT(fields, ::testing::NotNull());
+        if (string{"btp"} == renderModes->get(i))
+        {
+            ASSERT_EQ(fields->size(), 2);
+            ASSERT_THAT(fields->get("href"), ::testing::NotNull());
+            ASSERT_THAT(fields->get("img"), ::testing::NotNull());
+        }
+        else if (string{"brp"} == renderModes->get(i))
+        {
+            ASSERT_EQ(fields->size(), 2);
+            ASSERT_THAT(fields->get("href"), ::testing::NotNull());
+            ASSERT_THAT(fields->get("img"), ::testing::NotNull());
+        }
+        else if (string{"bti"} == renderModes->get(i))
+        {
+            ASSERT_EQ(fields->size(), 1);
+            ASSERT_THAT(fields->get("src"), ::testing::NotNull());
+        }
+        else if (string{"bri"} == renderModes->get(i))
+        {
+            ASSERT_EQ(fields->size(), 1);
+            ASSERT_THAT(fields->get("src"), ::testing::NotNull());
+        }
+    }
 
     // Set last-read-notification
     const uint32_t lastReadNotifId = numeric_limits<uint32_t>::max() - 2; // dummy value
