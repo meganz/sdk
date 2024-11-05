@@ -21988,6 +21988,11 @@ void KeyManager::reset()
     mPendingInShares.clear();
     mPendingOutShares.clear();
     mShareKeys.clear();
+    mDowngradeAttack = false;
+    mManualVerification = false;
+    mPostRegistration = false;
+    nextQueue.clear();
+    activeQueue.clear();
 }
 
 string KeyManager::toString() const
