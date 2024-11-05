@@ -403,20 +403,28 @@ bool GfxProviderFreeImage::readbitmapFfmpeg(const LocalPath& imagePath, int /*si
 
     int scalingResult;
     int actualNumFrames = 0;
+    int result = 0;
 
     // Read frames until succesfull decodification or reach limit of 220 frames
-    while (actualNumFrames < 220 && av_read_frame(formatContext, &packet) >= 0)
+    while (actualNumFrames < 220 && result != AVERROR_EOF)
     {
+        result = av_read_frame(formatContext, &packet);
+
+        if (result < 0 && result != AVERROR_EOF)
+        {
+            break;
+        }
+
         auto avPacketGuard = makeUniqueFrom(&packet, av_packet_unref);
         if (packet.stream_index == videoStream->index)
         {
-            int ret = avcodec_send_packet(codecContext, &packet);
-            if (ret < 0 && ret != AVERROR(EAGAIN) && ret != AVERROR_EOF)
+            int result = avcodec_send_packet(codecContext, &packet);
+            if (result < 0 && result != AVERROR(EAGAIN) && result != AVERROR_EOF)
             {
                 break;
             }
 
-            while (avcodec_receive_frame(codecContext, videoFrame) >= 0)
+            while ((result = avcodec_receive_frame(codecContext, videoFrame)) >= 0)
             {
                 if (sourcePixelFormat != codecContext->pix_fmt)
                 {
@@ -471,7 +479,7 @@ bool GfxProviderFreeImage::readbitmapFfmpeg(const LocalPath& imagePath, int /*si
                 }
             }
 
-           actualNumFrames++;
+            actualNumFrames++;
         }
     }
 
