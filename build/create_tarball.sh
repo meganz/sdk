@@ -100,8 +100,7 @@ ln -s $BASEPATH/examples/megacli.h $megasdk_NAME/examples/
 
 mkdir $megasdk_NAME/tools
 ln -s $BASEPATH/tools/gfxworker $megasdk_NAME/tools/
-mkdir $megasdk_NAME/contrib
-ln -s $BASEPATH/contrib/cmake $megasdk_NAME/contrib/
+ln -s $BASEPATH/cmake $megasdk_NAME/
 
 tar czfh $megasdk_NAME.tar.gz --exclude-vcs $megasdk_NAME
 rm -rf $megasdk_NAME

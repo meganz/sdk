@@ -30,6 +30,7 @@ let package = Package(
             exclude: [
                 "bindings",
                 "contrib",
+                "cmake",
                 "doc",
                 "examples",
                 "src/fuse/common/client_adapter_with_sync.cpp",

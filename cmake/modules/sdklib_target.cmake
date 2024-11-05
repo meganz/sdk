@@ -419,12 +419,12 @@ endif()
 
 ## Create config files ##
 configure_file(
-    contrib/cmake/config.h.in
+    cmake/config.h.in
     ${PROJECT_BINARY_DIR}/mega/config.h
     )
 
 configure_package_config_file(
-    contrib/cmake/modules/Config.cmake.in
+    cmake/modules/Config.cmake.in
     ${CMAKE_CURRENT_BINARY_DIR}/sdklibConfig.cmake
     INSTALL_DESTINATION cmake
     )
@@ -435,7 +435,7 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 endif()
 
 configure_file(
-    contrib/cmake/modules/sdklib.pc.in
+    cmake/modules/sdklib.pc.in
     ${CMAKE_CURRENT_BINARY_DIR}/sdklib.pc @ONLY
     )
 
