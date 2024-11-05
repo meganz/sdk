@@ -1662,22 +1662,7 @@ class MegaRequestPrivate : public MegaRequest
         void setTotalBytes(long long totalBytes);
         void setTransferredBytes(long long transferredBytes);
         void setTag(int tag);
-        void addProduct(unsigned int type,
-                        handle product,
-                        int proLevel,
-                        int gbStorage,
-                        int gbTransfer,
-                        int months,
-                        int amount,
-                        int amountMonth,
-                        int localPrice,
-                        const char* description,
-                        std::map<std::string, uint32_t>&& features,
-                        const char* iosid,
-                        const char* androidid,
-                        unsigned int testCategory,
-                        std::unique_ptr<BusinessPlan>,
-                        unsigned int trialDays);
+        void addProduct(const Product& product);
         void setCurrency(std::unique_ptr<CurrencyData> currencyData);
         void setProxy(Proxy *proxy);
         Proxy *getProxy();
@@ -2125,23 +2110,7 @@ public:
     MegaStringIntegerMap* getFeatures(int productIndex) const override;
     unsigned int getTestCategory(int productIndex) const override;
     unsigned int getTrialDurationInDays(int productIndex) const override;
-
-    void addProduct(unsigned int type,
-                    handle product,
-                    int proLevel,
-                    int gbStorage,
-                    int gbTransfer,
-                    int months,
-                    int amount,
-                    int amountMonth,
-                    unsigned localPrice,
-                    const char* description,
-                    std::map<std::string, uint32_t>&& features,
-                    const char* iosid,
-                    const char* androidid,
-                    unsigned int testCategory,
-                    std::unique_ptr<BusinessPlan>,
-                    unsigned int trialDays);
+    void addProduct(const Product& product);
 
 private:
     enum PlanType : unsigned
@@ -2153,23 +2122,7 @@ private:
 
     bool isType(int productIndex, unsigned t) const;
 
-    vector<unsigned int> type;
-    vector<handle> handles;
-    vector<int> proLevel;
-    vector<int> gbStorage;
-    vector<int> gbTransfer;
-    vector<int> months;
-    vector<int> amount;
-    vector<int> amountMonth;
-    vector<int> mLocalPrice;
-    vector<const char *> description;
-    vector<map<string, uint32_t>> features;
-    vector<const char *> iosId;
-    vector<const char *> androidId;
-    vector<unsigned int> mTestCategory;
-    vector<unsigned int> mTrialDays;
-
-    std::vector<std::unique_ptr<BusinessPlan>> mBizPlan;
+    vector<Product> products;
 };
 
 class MegaAchievementsDetailsPrivate : public MegaAchievementsDetails
@@ -4338,22 +4291,7 @@ public:
 #endif
 
         // purchase transactions
-        void enumeratequotaitems_result(unsigned type,
-                                        handle product,
-                                        unsigned prolevel,
-                                        int gbstorage,
-                                        int gbtransfer,
-                                        unsigned months,
-                                        unsigned amount,
-                                        unsigned amountMonth,
-                                        unsigned localPrice,
-                                        const char* description,
-                                        std::map<std::string, uint32_t>&& features,
-                                        const char* iosid,
-                                        const char* androidid,
-                                        unsigned int testCategory,
-                                        std::unique_ptr<BusinessPlan>,
-                                        unsigned int trialDays) override;
+        void enumeratequotaitems_result(const Product& product) override;
         void enumeratequotaitems_result(unique_ptr<CurrencyData>) override;
         void enumeratequotaitems_result(error e) override;
         void additem_result(error) override;
