@@ -1035,24 +1035,127 @@ public:
     bool userHasRestrictedAccessToNode(const Node& remotenode);
 
     /**
-     * @brief is local path syncable
-     * @param newPath path to check
-     * @param excludeBackupId backupId to exclude in checking (that of the new sync)
-     * @param syncError filled with SyncError with the sync error that makes the node unsyncable
-     * @return API_OK if syncable. (regular) error otherwise
+     * @brief Checks if a local path is suitable for synchronization without conflicting with
+     * existing syncs.
+     *
+     * This method determines whether the provided `newPath` can be used for a new synchronization
+     * task. It ensures that the path does not overlap with any existing active sync configurations,
+     * thereby preventing conflicts arising from nested or overlapping sync directories.
+     *
+     * @param newPath The local path to be checked for sync compatibility.
+     * @param excludeBackupId A backup ID to exclude from the check. This is useful when
+     * updating an existing sync, allowing it to bypass itself during the validation. Pass `UNDEF`
+     * if you don't want to skip any sync during the validation.
+     *
+     * @return A `std::pair` containing:
+     * - `error`: An error code indicating the result of the check.
+     * - `SyncError`: A detailed sync error code providing more context.
+     *
+     * The possible returned error combinations are:
+     *   - `API_OK`:
+     *      + `NO_SYNC_ERROR` if the path is syncable and does not conflict with existing syncs.
+     *   - `API_EARGS`:
+     *      + `LOCAL_PATH_UNAVAILABLE` if the provided `newPath` is empty.
+     *      + `LOCAL_PATH_SYNC_COLLISION` if the path conflicts with an existing sync path.
+     *
+     * @warning
+     * - The function does not verify the existence or accessibility of the `newPath`; it only
+     * checks for path conflicts.
+     * - Symbolic links are not resolved; the check is purely lexical based on the expanded paths.
      */
-    error isLocalPathSyncable(const LocalPath& newPath, handle excludeBackupId = UNDEF, SyncError *syncError = nullptr);
+    std::pair<error, SyncError> isLocalPathSyncable(const LocalPath& newPath,
+                                                    const handle excludeBackupId) const;
 
     /**
-     * @brief check config. Will fill syncError in the SyncConfig in case there is one.
-     * Will fill syncWarning in the SyncConfig in case there is one.
-     * Does not persist the sync configuration.
-     * Does not add the syncConfig.
-     * Reference parameters are filled in while checking syncConfig, for the benefit of addSync() which calls it.
-     * @return And error code if there are problems serious enough with the syncconfig that it should not be added.
-     *         Otherwise, API_OK
+     * @brief Validates if the local path in a SyncConfig is suitable as a synchronization root.
+     *
+     * It performs several validations, including:
+     * - Ensuring the path is not above or below a FUSE mount point.
+     * - Verifying that the filesystem supports synchronization.
+     * - Confirming the path exists, is accessible, and is a directory.
+     * - Checking for conflicts with existing sync configurations to prevent overlapping sync areas.
+     *
+     * Based on the validation results, the function updates the `syncConfig`'s `mError`,
+     * `mEnabled`, and `mWarning` fields accordingly.
+     *
+     * @param[in,out] syncConfig The `SyncConfig` containing the local path to validate. May
+     * be modified with error or warning details.
+     * @param[out] openedLocalFolder A unique pointer to a `FileAccess` object representing the
+     * opened local folder if validation succeeds.
+     * @param[out] isnetwork Set to `true` if the local path is on a network filesystem.
+     *
+     * @return
+     * - `API_OK` if the local path is valid and synchronization can proceed.
+     * - An error code otherwise, with details provided in `syncConfig`'s `mError` field.
+     *
+     * Possible error codes include:
+     * - `API_EFAILED`: The path is above or below a FUSE mount point or the filesystem is
+     * unsupported.
+     * - `API_ETEMPUNAVAIL`: The local path is temporarily unavailable.
+     * - `API_ENOENT`: The local path does not exist or cannot be found.
+     * - `API_EACCESS`: The path is not a directory or cannot be accessed.
+     * - `API_EARGS`: The local path conflicts with existing synchronization paths.
+     *
+     * @note
+     * - If validation fails due to an error, `syncConfig.mEnabled` is set to `false`.
+     * - The `syncConfig.mError` field provides detailed error information.
+     * - The function checks against existing active sync configurations to prevent overlapping sync
+     * directories.
      */
-    error checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder, bool& inshare, bool& isnetwork);
+    error isValidLocalSyncRoot(SyncConfig& syncConfig,
+                               std::unique_ptr<FileAccess>& openedLocalFolder,
+                               bool& isnetwork);
+
+    /**
+     * @brief Validates a SyncConfig and prepares it for synchronization.
+     *
+     * This function performs a series of checks to determine whether the provided `SyncConfig` is
+     * valid and can be used to initiate synchronization. It updates the `syncConfig`'s `mError`,
+     * `mWarning`, and `mEnabled` fields based on the validation results.
+     *
+     * The validation includes:
+     * - Ensuring the remote node exists and is suitable for syncing. This includes checks for
+     *   nested-syncs, which are not allowed.
+     * - Verifying the local path is accessible, is a directory, and is on a supported filesystem.
+     *   Also nested syncs checks are carried out.
+     * - Checking for account-related issues such as over-storage, expiration, or blockage.
+     * - Handling specific conditions for backups, external drives, and periodic scanning modes.
+     *
+     * @param[in,out] syncConfig The `SyncConfig` to validate. May be modified with error or warning
+     * details.
+     * @param[out] rootpath The local path corresponding to the sync root if validation is
+     * successful.
+     * @param[out] openedLocalFolder A unique pointer to a `FileAccess` object representing the
+     * opened local folder.
+     * @param[out] inshare Set to `true` if the remote node is within an inbound shared folder.
+     * @param[out] isnetwork Set to `true` if the local path is on a network filesystem.
+     *
+     * @return
+     * - `API_OK` if the `SyncConfig` is valid and synchronization can proceed.
+     * - An error code otherwise, with details provided in `syncConfig`'s `mError` field.
+     *
+     * Possible error codes include:
+     * - `API_ENOENT`: Remote node does not exist.
+     * - `API_EARGS`: Invalid arguments, such as an invalid scan interval, mismatched drive paths or
+     *   given directory involved in other syncs.
+     * - `API_EEXIST`: If there is an active sync already initiated with the given node, containing
+     *   the node or the given node contains a another sync's root.
+     * - `API_EFAILED`: General failure due to account status or unsupported filesystem.
+     * - `API_EACCESS`: Local path is not a directory or cannot be accessed.
+     * - `API_ETEMPUNAVAIL`: Local path is temporarily unavailable.
+     * - `API_EINTERNAL`: Internal error requiring account reload or restart.
+     *
+     * @note
+     * - The function sets `syncConfig.mEnabled` to `false` if validation fails.
+     * - The `syncConfig.mError` field provides detailed error information.
+     * - Symbolic links and mount points are considered during validation to prevent syncing
+     * unsupported paths.
+     */
+    error checkSyncConfig(SyncConfig& syncConfig,
+                          LocalPath& rootpath,
+                          std::unique_ptr<FileAccess>& openedLocalFolder,
+                          bool& inshare,
+                          bool& isnetwork);
 
     /**
      * @brief add sync. Will fill syncError/syncWarning in the SyncConfig in case there are any.

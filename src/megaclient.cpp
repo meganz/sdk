@@ -16645,59 +16645,104 @@ bool MegaClient::userHasRestrictedAccessToNode(const Node& targetNode)
                        isUserSharingNotFullAccessNodeUnderTarget);
 }
 
-error MegaClient::isLocalPathSyncable(const LocalPath& newPath, handle excludeBackupId, SyncError *syncError)
+std::pair<error, SyncError> MegaClient::isLocalPathSyncable(const LocalPath& newPath,
+                                                            const handle excludeBackupId) const
 {
     if (newPath.empty())
-    {
-        if (syncError)
-        {
-            *syncError = LOCAL_PATH_UNAVAILABLE;
-        }
-        return API_EARGS;
-    }
+        return {API_EARGS, LOCAL_PATH_UNAVAILABLE};
 
-    LocalPath newLocallyEncodedPath = newPath;
     LocalPath newLocallyEncodedAbsolutePath;
-    fsaccess->expanselocalpath(newLocallyEncodedPath, newLocallyEncodedAbsolutePath);
+    fsaccess->expanselocalpath(newPath, newLocallyEncodedAbsolutePath);
 
-    error e = API_OK;
-    for (auto& config : syncs.getConfigs(false))
+    for (const auto& config: syncs.getConfigs(false))
     {
-        // (when adding a new config, excludeBackupId=UNDEF, so it doesn't match any existing config)
-        if (config.mBackupId != excludeBackupId)
+        if (config.mBackupId == excludeBackupId || !config.getEnabled() || config.mError)
+            continue;
+
+        LocalPath otherLocallyEncodedAbsolutePath;
+        fsaccess->expanselocalpath(config.getLocalPath(), otherLocallyEncodedAbsolutePath);
+
+        if (newLocallyEncodedAbsolutePath.isContainingPathOf(otherLocallyEncodedAbsolutePath) ||
+            otherLocallyEncodedAbsolutePath.isContainingPathOf(newLocallyEncodedAbsolutePath))
         {
-            LocalPath otherLocallyEncodedPath = config.getLocalPath();
-            LocalPath otherLocallyEncodedAbsolutePath;
-            fsaccess->expanselocalpath(otherLocallyEncodedPath, otherLocallyEncodedAbsolutePath);
-
-            if (config.getEnabled() && !config.mError &&
-                    ( newLocallyEncodedAbsolutePath.isContainingPathOf(otherLocallyEncodedAbsolutePath)
-                      || otherLocallyEncodedAbsolutePath.isContainingPathOf(newLocallyEncodedAbsolutePath)
-                    ) )
-            {
-                LOG_warn << "Path already associated with a sync: "
-                         << newLocallyEncodedAbsolutePath
-                         << " "
-                         << toHandle(config.mBackupId)
-                         << " "
-                         << otherLocallyEncodedAbsolutePath;
-
-                if (syncError)
-                {
-                    *syncError = LOCAL_PATH_SYNC_COLLISION;
-                }
-                e = API_EARGS;
-            }
+            LOG_warn << "Path already associated with a sync: " << newLocallyEncodedAbsolutePath
+                     << " " << toHandle(config.mBackupId) << " " << otherLocallyEncodedAbsolutePath;
+            return {API_EARGS, LOCAL_PATH_SYNC_COLLISION};
         }
     }
-
-    return e;
+    return {API_OK, NO_SYNC_ERROR};
 }
 
-// check sync path, add sync if folder
-// disallow nested syncs (there is only one LocalNode pointer per node)
-// (FIXME: perform the same check for local paths!)
-error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder, bool& inshare, bool& isnetwork)
+error MegaClient::isValidLocalSyncRoot(SyncConfig& syncConfig,
+                                       std::unique_ptr<FileAccess>& openedLocalFolder,
+                                       bool& isnetwork)
+{
+    const auto setErrorAndReturn = [&syncConfig](error e, SyncError syncError) -> error
+    {
+        syncConfig.mEnabled = syncError != NO_SYNC_ERROR;
+        syncConfig.mError = syncError;
+        return e;
+    };
+
+    const auto rootPathWithoutEndingSeparator = std::invoke(
+        [&config = std::as_const(syncConfig)]() -> LocalPath
+        {
+            auto rootPath = config.getLocalPath();
+            rootPath.trimNonDriveTrailingSeparator();
+            return rootPath;
+        });
+    // Make sure the user isn't trying to sync a FUSE mount.
+    if (!mFuseService.syncable(rootPathWithoutEndingSeparator))
+    {
+        LOG_warn << "Trying to sync in a FUSE mount: " << rootPathWithoutEndingSeparator;
+        return setErrorAndReturn(API_EFAILED, LOCAL_PATH_MOUNTED);
+    }
+
+    isnetwork = false;
+    if (!fsaccess->issyncsupported(rootPathWithoutEndingSeparator,
+                                   isnetwork,
+                                   syncConfig.mError,
+                                   syncConfig.mWarning))
+    {
+        LOG_warn << "Unsupported filesystem";
+        return setErrorAndReturn(API_EFAILED, UNSUPPORTED_FILE_SYSTEM);
+    }
+
+    openedLocalFolder = fsaccess->newfileaccess();
+    if (!openedLocalFolder->fopen(rootPathWithoutEndingSeparator,
+                                  true,
+                                  false,
+                                  FSLogging::logOnError,
+                                  nullptr,
+                                  true))
+    {
+        LOG_warn << "Cannot open rootpath for sync: " << rootPathWithoutEndingSeparator;
+        if (openedLocalFolder->retry)
+            return setErrorAndReturn(API_ETEMPUNAVAIL, LOCAL_PATH_TEMPORARY_UNAVAILABLE);
+        return setErrorAndReturn(API_ENOENT, LOCAL_PATH_UNAVAILABLE);
+    }
+
+    if (openedLocalFolder->type != FOLDERNODE)
+    {
+        LOG_warn << "Cannot sync non-folder";
+        return setErrorAndReturn(API_EACCESS, INVALID_LOCAL_TYPE);
+    }
+
+    if (const auto [e, syncError] =
+            isLocalPathSyncable(syncConfig.getLocalPath(), syncConfig.mBackupId);
+        e != API_OK)
+    {
+        LOG_warn << "Local path not syncable: " << syncConfig.getLocalPath();
+        return setErrorAndReturn(e, syncError);
+    }
+    return API_OK;
+}
+
+error MegaClient::checkSyncConfig(SyncConfig& syncConfig,
+                                  LocalPath& rootpath,
+                                  std::unique_ptr<FileAccess>& openedLocalFolder,
+                                  bool& inshare,
+                                  bool& isnetwork)
 {
     // Checking for conditions where we would not even add the sync config
     // Though, if the config is already present but now invalid for one of these reasons, we don't remove it
@@ -16783,70 +16828,12 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
         }
     }
 
+    isnetwork = false;
+    if (error e = isValidLocalSyncRoot(syncConfig, openedLocalFolder, isnetwork); e != API_OK)
+        return e;
+
     rootpath = syncConfig.getLocalPath();
     rootpath.trimNonDriveTrailingSeparator();
-
-    // Make sure the user isn't trying to sync a FUSE mount.
-    if (!mFuseService.syncable(rootpath))
-    {
-        LOG_warn << "Trying to sync above (below) a FUSE mount: "
-                 << rootpath;
-
-        syncConfig.mError = LOCAL_PATH_MOUNTED;
-        syncConfig.mEnabled = false;
-
-        return API_EFAILED;
-    }
-
-    isnetwork = false;
-    if (!fsaccess->issyncsupported(rootpath, isnetwork, syncConfig.mError, syncConfig.mWarning))
-    {
-        LOG_warn << "Unsupported filesystem";
-        syncConfig.mError = UNSUPPORTED_FILE_SYSTEM;
-        syncConfig.mEnabled = false;
-        return API_EFAILED;
-    }
-
-    openedLocalFolder = fsaccess->newfileaccess();
-    if (openedLocalFolder->fopen(rootpath, true, false, FSLogging::logOnError, nullptr, true))
-    {
-        if (openedLocalFolder->type == FOLDERNODE)
-        {
-            LOG_debug << "Adding sync: " << syncConfig.getLocalPath() << " vs " << remotenode->displaypath();
-
-            // Note localpath is stored as utf8 in syncconfig as passed from the apps!
-            // Note: we might want to have it expansed to store the full canonical path.
-            // so that the app does not need to carry that burden.
-            // Although it might not be required given the following test does expands the configured
-            // paths to use canonical paths when checking for path collisions:
-            error e = isLocalPathSyncable(syncConfig.getLocalPath(), syncConfig.mBackupId, &syncConfig.mError);
-            if (e)
-            {
-                LOG_warn << "Local path not syncable: " << syncConfig.getLocalPath();
-
-                if (syncConfig.mError == NO_SYNC_ERROR)
-                {
-                    syncConfig.mError = LOCAL_PATH_UNAVAILABLE;
-                }
-                syncConfig.mEnabled = false;
-                return e;  // eg. API_EARGS
-            }
-        }
-        else
-        {
-            LOG_warn << "Cannot sync non-folder";
-            syncConfig.mError = INVALID_LOCAL_TYPE;
-            syncConfig.mEnabled = false;
-            return API_EACCESS;    // cannot sync individual files
-        }
-    }
-    else
-    {
-        LOG_warn << "Cannot open rootpath for sync: " << rootpath;
-        syncConfig.mError = openedLocalFolder->retry ? LOCAL_PATH_TEMPORARY_UNAVAILABLE : LOCAL_PATH_UNAVAILABLE;
-        syncConfig.mEnabled = false;
-        return openedLocalFolder->retry ? API_ETEMPUNAVAIL : API_ENOENT;
-    }
 
     //check we are not in any blocking situation
     using CType = CacheableStatus::Type;
