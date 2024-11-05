@@ -405,6 +405,22 @@ bool GfxProviderFreeImage::readbitmapFfmpeg(const LocalPath& imagePath, int /*si
     int actualNumFrames = 0;
     int result = 0;
 
+    // Compute the video's rotation.
+    auto rotation = [&]()
+    {
+        // Retrieve the video's display matrix.
+        auto* matrix = av_stream_get_side_data(videoStream, AV_PKT_DATA_DISPLAYMATRIX, nullptr);
+
+        // No display matrix? No rotation.
+        if (!matrix)
+        {
+            return 0;
+        }
+
+        // Retrieve the video's rotation.
+        return (int)av_display_rotation_get((int32_t*)matrix);
+    }();
+
     // Read frames until succesfull decodification or reach limit of 220 frames
     while (actualNumFrames < 220 && result != AVERROR_EOF)
     {
@@ -456,18 +472,35 @@ bool GfxProviderFreeImage::readbitmapFfmpeg(const LocalPath& imagePath, int /*si
                         return false;
                     }
 
-                    //int pitch = imagesize/height;
-                    int pitch = width*3;
+                    int pitch = width * 3;
 
+                    // Assume we can't generate the imaege from our raw frame.
+                    w = 0;
+                    h = 0;
+
+                    // Try and generate an image from our raw frame.
                     if (!(dib = FreeImage_ConvertFromRawBits((BYTE*)fmemory.data,width,height,
                                                              pitch, 24, FI_RGBA_RED_SHIFT, FI_RGBA_GREEN_MASK,
                                                              FI_RGBA_BLUE_MASK | 0xFFFF, TRUE) ) )
                     {
                         LOG_warn << "Error loading freeimage from memory: " << imagePath;
+                        return false;
                     }
-                    else
+
+                    LOG_verbose << "SUCCESS loading freeimage from memory: " << imagePath;
+
+                    // Invert any rotation if necessary.
+                    if (rotation)
                     {
-                        LOG_verbose << "SUCCESS loading freeimage from memory: "<< imagePath;
+                        if (auto* temp = FreeImage_Rotate(dib, rotation))
+                        {
+                            FreeImage_Unload(dib);
+                            dib = temp;
+                        }
+                        else
+                        {
+                            LOG_warn << "Couldn't remove rotation from image: " << imagePath;
+                        }
                     }
 
                     LOG_debug << "Video image ready";
