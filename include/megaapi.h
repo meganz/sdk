@@ -17494,6 +17494,55 @@ class MegaApi
                                   const MegaHandle newRootNodeHandle,
                                   MegaRequestListener* listener = nullptr);
 
+        /**
+         * @brief Change the local path that is being used as root for a sync.
+         *
+         * Currently, this operation is only allowed with syncs of TYPE_TWOWAY.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHANGE_SYNC_ROOT.
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getFile - Returns the path of the new local folder to use as root
+         * - MegaRequest::getNodeHandle - Returns the affected sync backup ID.
+         * - MegaRequest::getListener - Returns the MegaRequestListener to track this request.
+         * - MegaRequest::getNumDetails - If different than NO_SYNC_ERROR, it returns additional
+         *   info for the specific sync error (MegaSync::Error). This can occur both when the
+         *   request has succeeded (API_OK) and in some cases of failure when the request error is
+         *   not sufficiently descriptive.
+         *
+         * On the onRequestFinish callback, the error code associated with the MegaError
+         * (MegaError::getErrorCode()) and the SyncError (if relevant, MegaError::getSyncError())
+         * can be:
+         * - MegaError::API_OK:
+         *     + SyncError::NO_SYNC_ERROR the new root has been changed successfully
+         * - MegaError::API_EARGS:
+         *     + SyncError::LOCAL_PATH_UNAVAILABLE the given path is nullptr or is empty
+         *     + SyncError::UNKNOWN_ERROR The given backupId does not match any of the registered
+         *       syncs
+         *     + SyncError::LOCAL_PATH_SYNC_COLLISION The local path conflicts with existing
+         *       synchronization paths (nested syncs are not allowed)
+         * - MegaError::API_EEXISTS:
+         *     + SyncError::UNKNOWN_ERROR the current local root is the same as the given new one
+         * - MegaError::API_EFAILED:
+         *     + SyncError::LOCAL_PATH_MOUNTED trying to sync bellow a FUSE mount point
+         *     + SyncError::UNSUPPORTED_FILE_SYSTEM the given path is in a not supported file system
+         * - MegaError::API_ETEMPUNAVAIL:
+         *     + SyncError::LOCAL_PATH_TEMPORARY_UNAVAILABLE the given new path is temporarily
+         *       unavailable
+         * - MegaError::API_ENOENT:
+         *     + SyncError::LOCAL_PATH_UNAVAILABLE the given new path is not available
+         * - MegaError::API_EACCESS:
+         *     + SyncError::INVALID_LOCAL_TYPE the given path is not a directory
+         *
+         * @param syncBackupId The handle (backup ID) of the sync whose local root is to be changed.
+         * @param newLocalSyncRootPath The new local path to set as the sync root. It must be an
+         * absolute path.
+         * @param listener A MegaRequestListener to track this request. This parameter is optional.
+         */
+        void changeSyncLocalRoot(const MegaHandle syncBackupId,
+                                 const char* newLocalSyncRootPath,
+                                 MegaRequestListener* listener = nullptr);
+
 #endif // ENABLE_SYNC
 
         /**

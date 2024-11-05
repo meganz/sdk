@@ -3905,6 +3905,13 @@ void MegaApi::changeSyncRemoteRoot(const MegaHandle syncBackupId,
     pImpl->changeSyncRemoteRoot(syncBackupId, newRootNodeHandle, listener);
 }
 
+void MegaApi::changeSyncLocalRoot(const MegaHandle syncBackupId,
+                                  const char* newLocalSyncRootPath,
+                                  MegaRequestListener* listener)
+{
+    pImpl->changeSyncLocalRoot(syncBackupId, newLocalSyncRootPath, listener);
+}
+
 MegaSync *MegaApi::getSyncByBackupId(MegaHandle backupId)
 {
     return pImpl->getSyncByBackupId(backupId);
