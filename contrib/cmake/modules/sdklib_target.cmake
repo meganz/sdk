@@ -411,7 +411,7 @@ if(ENABLE_SDKLIB_WERROR)
         APPLE $<$<CONFIG:Debug>: -Wno-sign-conversion                 -Wno-overloaded-virtual
                                  -Wno-inconsistent-missing-override   -Wno-unused-variable
                                  -Wno-unused-private-field            -Wno-string-conversion
-                                 -Wno-unused-lambda-capture           -Wno-implicit-int-conversion
+                                 -Wno-implicit-int-conversion
                                  -Wno-shorten-64-to-32                -Wno-unused-value
                                  -Wno-unqualified-std-cast-call>
     )

@@ -10558,7 +10558,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
         ASSERT_EQ(API_OK, syncTracker.waitForResult());
     };
 
-    auto removeSyncByBackupId = [this, &megaNode](handle backupId)
+    auto removeSyncByBackupId = [this](handle backupId)
     {
         RequestTracker syncTracker(megaApi[0].get());
         megaApi[0]->removeSync(backupId, &syncTracker);
@@ -14113,12 +14113,14 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
 
 
     LOG_debug << "# U1: Get public Set URL";
-    const auto lCheckSetLink = [this, sh, &exportedSetURL](int expectedResult)
+    const auto lCheckSetLink = [this, sh](int expectedResult)
     {
         bool isSuccessExpected = expectedResult == API_OK;
         unique_ptr<const char[]> publicSetLink(megaApi[0]->getPublicLinkForExportedSet(sh));
-        if (isSuccessExpected) ASSERT_NE(publicSetLink.get(), nullptr);
-        else                   ASSERT_EQ(publicSetLink.get(), nullptr);
+        if (isSuccessExpected)
+            ASSERT_NE(publicSetLink.get(), nullptr);
+        else
+            ASSERT_EQ(publicSetLink.get(), nullptr);
     };
 
     ASSERT_NO_FATAL_FAILURE(lCheckSetLink(API_OK));
@@ -16238,7 +16240,7 @@ TEST_F(SdkTest, SdkTestFilePermissions)
         return downloadListener.waitForResult();
     };
 
-    auto openFile = [this, &filename](bool readF, bool writeF) -> bool
+    auto openFile = [&filename](bool readF, bool writeF) -> bool
     {
         auto fsa = std::make_unique<FSACCESS_CLASS>();
         fs::path filePath = fs::current_path() / filename.c_str();

@@ -52,7 +52,7 @@ if(ENABLE_SDKLIB_WERROR)
         WINDOWS /WX
         UNIX  $<$<CONFIG:Debug>: -Werror>
         APPLE $<$<CONFIG:Debug>: -Wno-sign-conversion -Wno-overloaded-virtual -Wno-inconsistent-missing-override
-                                 -Wno-string-conversion -Wno-unused-lambda-capture>
+                                 -Wno-string-conversion>
     )
 endif()
 
