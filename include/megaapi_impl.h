@@ -2856,7 +2856,7 @@ public:
     {
         if (index >= 0 && index < int(mConflict.clashingCloud.size()))
         {
-            return mConflict.clashingCloud[index].handle.as8byte();
+            return mConflict.clashingCloud[static_cast<size_t>(index)].handle.as8byte();
         }
         return UNDEF;
     }
@@ -2871,7 +2871,8 @@ public:
 
             if (index >= 0 && index < int(mConflict.clashingCloud.size()))
             {
-                mCache1[index] = mConflict.cloudPath + "/" + mConflict.clashingCloud[index].name;
+                mCache1[index] = mConflict.cloudPath + "/" +
+                                 mConflict.clashingCloud[static_cast<size_t>(index)].name;
                 return mCache1[index].c_str();
             }
         }
@@ -2883,7 +2884,8 @@ public:
             if (index >= 0 && index < int(mConflict.clashingLocalNames.size()))
             {
                 LocalPath lp = mConflict.localPath;
-                lp.appendWithSeparator(mConflict.clashingLocalNames[index], true);
+                lp.appendWithSeparator(mConflict.clashingLocalNames[static_cast<size_t>(index)],
+                                       true);
                 mCache2[index] = lp.toPath(false);
                 return mCache2[index].c_str();
             }

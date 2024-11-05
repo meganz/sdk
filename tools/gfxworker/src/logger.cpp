@@ -946,7 +946,7 @@ void MegaFileLoggerLoggingThread::log(int loglevel, const char *message, const c
                         assert(n && "Unexpected snprintf failure");
                         if (n > 0)
                         {
-                            mLogListLast->append(repeatbuf, static_cast<unsigned int>(n));
+                            mLogListLast->append(repeatbuf, static_cast<unsigned>(n));
                         }
                     }
                     mLogListLast->append(timebuf, LOG_TIME_CHARS);
