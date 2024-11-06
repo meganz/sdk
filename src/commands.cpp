@@ -10064,8 +10064,9 @@ bool CommandBackupPutHeartBeat::procresult(Result r, JSON& json)
     return r.wasErrorOrOK();
 }
 
-CommandBackupRemove::CommandBackupRemove(MegaClient *client, handle backupId, std::function<void(Error)> completion)
-    : mBackupId(backupId)
+CommandBackupRemove::CommandBackupRemove(MegaClient* client,
+                                         handle backupId,
+                                         std::function<void(Error)> completion)
 {
     cmd("sr");
     arg("id", (byte*)&backupId, MegaClient::BACKUPHANDLE);
@@ -11221,9 +11222,12 @@ bool CommandScheduledMeetingRemove::procresult(Command::Result r, JSON& json)
     return true;
 }
 
-CommandScheduledMeetingFetch::CommandScheduledMeetingFetch(MegaClient* client, handle chatid, handle schedMeeting, CommandScheduledMeetingFetchCompletion completion)
-    : mChatId(chatid),
-      mCompletion(completion)
+CommandScheduledMeetingFetch::CommandScheduledMeetingFetch(
+    MegaClient* client,
+    handle chatid,
+    handle schedMeeting,
+    CommandScheduledMeetingFetchCompletion completion):
+    mCompletion(completion)
 {
     cmd("mcsmf");
     if (schedMeeting != UNDEF) { arg("id", (byte*) &schedMeeting, MegaClient::CHATHANDLE); }
