@@ -35,6 +35,7 @@ RUN apt-get --quiet=2 update && DEBCONF_NOWARNINGS=yes apt-get --quiet=2 install
 
 # Download, extract and set the Android NDK
 RUN mkdir -p /mega/android-ndk && \
+    chmod 777 /mega && \
     cd /mega/android-ndk && \
     wget https://dl.google.com/android/repository/android-ndk-r27b-linux.zip && \
     unzip android-ndk-r27b-linux.zip && \
@@ -52,23 +53,29 @@ ARG ARCH=x64
 
 # Configure and build CMake command, this will be executed when running the container
 CMD ["sh", "-c", "\
+    owner_uid=$(stat -c '%u' /mega/sdk) && \
+    owner_gid=$(stat -c '%g' /mega/sdk) && \
+    groupadd -g $owner_gid me && \
+    echo 'Adding \"me\" user...' && \
+    useradd -r -M -u $owner_uid -g $owner_gid -d /mega -s /bin/bash me && \
     arch=${ARCH} && \
     case ${arch} in \
       arm) \
-        VCPKG_TRIPLET='arm-android-mega' && \
-        ANDROID_ARCH='armeabi-v7a';; \
+        export VCPKG_TRIPLET='arm-android-mega' && \
+        export ANDROID_ARCH='armeabi-v7a';; \
       arm64) \
-        VCPKG_TRIPLET='arm64-android-mega' && \
-        ANDROID_ARCH='arm64-v8a';; \
+        export VCPKG_TRIPLET='arm64-android-mega' && \
+        export ANDROID_ARCH='arm64-v8a';; \
       x86) \
-        VCPKG_TRIPLET='x86-android-mega' && \
-        ANDROID_ARCH='x86';; \
+        export VCPKG_TRIPLET='x86-android-mega' && \
+        export ANDROID_ARCH='x86';; \
       x64) \
-        VCPKG_TRIPLET='x64-android-mega' && \
-        ANDROID_ARCH='x86_64';; \
+        export VCPKG_TRIPLET='x64-android-mega' && \
+        export ANDROID_ARCH='x86_64';; \
       *) \
         echo 'Unsupported architecture: ${arch}' && exit 1;; \
     esac && \
+    su - me -w 'ANDROID_NDK_HOME,PATH,JAVA_HOME,VCPKG_TRIPLET,ANDROID_ARCH' -c ' \
     cmake -B buildAndroid -S sdk \
         -DVCPKG_ROOT=/mega/vcpkg \
         -DCMAKE_BUILD_TYPE=Debug \
@@ -87,5 +94,5 @@ CMD ["sh", "-c", "\
         -DCMAKE_ANDROID_ARCH_ABI=${ANDROID_ARCH} \
         -DCMAKE_ANDROID_NDK=${ANDROID_NDK_HOME} \
         -DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON && \
-    cmake --build buildAndroid && \
+    cmake --build buildAndroid' && \
     exec /bin/bash"]
