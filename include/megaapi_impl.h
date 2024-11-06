@@ -3351,7 +3351,11 @@ class MegaApiImpl : public MegaApp
         void invalidateCache();
         int getPasswordStrength(const char *password);
         static char* generateRandomCharsPassword(bool useUpper, bool useDigit, bool useSymbol, unsigned int length);
-        void submitFeedback(int rating, const char *comment, MegaRequestListener *listener = NULL);
+        void submitFeedback(int rating,
+                            const char* comment,
+                            bool transferFeedback,
+                            int transferType,
+                            MegaRequestListener* listener = nullptr);
         void reportEvent(const char *details = NULL, MegaRequestListener *listener = NULL);
         void sendEvent(int eventType, const char* message, bool addJourneyId, const char* viewId, MegaRequestListener *listener = NULL);
         void createSupportTicket(const char* message, int type = 1, MegaRequestListener *listener = NULL);
