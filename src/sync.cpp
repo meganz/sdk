@@ -569,14 +569,21 @@ std::optional<std::filesystem::path> SyncConfig::getSyncDbPath(const FileSystemA
 
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated
-Sync::Sync(UnifiedSync& us, const string& cdebris,
-           const LocalPath& clocaldebris, bool cinshare,
-           const string& logname, SyncError& e)
-: syncs(us.syncs)
-, localroot(nullptr)
-, mUnifiedSync(us)
-, syncscanbt(us.syncs.rng)
-, threadSafeState(new SyncThreadsafeState(us.mConfig.mBackupId, &syncs.mClient, us.mConfig.isBackup())) // assuming backups are only in Vault
+Sync::Sync(UnifiedSync& us,
+           const string& cdebris,
+           const LocalPath& clocaldebris,
+           bool cinshare,
+           const string& logname,
+           SyncError& e):
+    syncs(us.syncs),
+    localroot(nullptr),
+    mUnifiedSync(us),
+    syncscanbt(us.syncs.rng),
+    threadSafeState(
+        new SyncThreadsafeState(us.mConfig.mBackupId,
+                                &syncs.mClient,
+                                us.mConfig.isBackup())), // assuming backups are only in Vault
+    mLocalPath(us.mConfig.getLocalPath())
 {
     e = NO_SYNC_ERROR;
     assert(syncs.onSyncThread());
@@ -603,8 +610,6 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
     syncname = logname; // can be updated to be more specific in logs
 
     assert(mUnifiedSync.mConfig.mRunState == SyncRunState::Loading);
-
-    mLocalPath = mUnifiedSync.mConfig.getLocalPath();
 
     mFilesystemType = syncs.fsaccess->getlocalfstype(mLocalPath);
     LOG_debug << "Sync being created on filesystem type " << mFilesystemType << ": " << FileSystemAccess::fstypetostring(mFilesystemType);

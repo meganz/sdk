@@ -701,7 +701,7 @@ protected :
     void readstatecache();
 
 private:
-    LocalPath mLocalPath;
+    const LocalPath& mLocalPath;
 
     // permanent lock on the debris/tmp folder
     void createDebrisTmpLockOnce();
