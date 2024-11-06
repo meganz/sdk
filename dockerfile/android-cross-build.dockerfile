@@ -76,8 +76,6 @@ CMD ["sh", "-c", "\
         echo 'Unsupported architecture: ${arch}' && exit 1;; \
     esac && \
     su - me -w 'ANDROID_NDK_HOME,PATH,JAVA_HOME,VCPKG_TRIPLET,ANDROID_ARCH' -c ' \
-    id && \
-    env && \
     cmake -B buildAndroid -S sdk \
         -DVCPKG_ROOT=/mega/vcpkg \
         -DCMAKE_BUILD_TYPE=Debug \
