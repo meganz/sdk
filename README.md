@@ -151,7 +151,7 @@ To run the example app `megacli`, go to the `examples` directory in the `build_d
 
 ### macOS
 
-- macOS 10.13 (Intel)
+- macOS 10.15 (Intel)
 - macOS 11.1 (Apple silicon)
 
 ### Windows
