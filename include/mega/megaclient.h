@@ -1104,7 +1104,7 @@ public:
      */
     error isValidLocalSyncRoot(SyncConfig& syncConfig,
                                std::unique_ptr<FileAccess>& openedLocalFolder,
-                               bool& isnetwork);
+                               bool& isnetwork) const;
 
     /**
      * @brief Overloaded version that checkes whether the given path is valid for a new sync.

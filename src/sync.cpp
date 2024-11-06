@@ -567,6 +567,22 @@ std::optional<std::filesystem::path> SyncConfig::getSyncDbPath(const FileSystemA
     return client.dbaccess->getExistingDbPath(fsAccess, fname);
 }
 
+void SyncConfig::renameDBToMatchTarget(const SyncConfig& targetConfig,
+                                       const FileSystemAccess& fsAccess,
+                                       const MegaClient& client) const
+{
+    const auto currentDbPath = getSyncDbPath(fsAccess, client);
+    if (!currentDbPath)
+        return;
+
+    const auto newDbFileName = targetConfig.getSyncDbStateCacheName(targetConfig.mLocalPathFsid,
+                                                                    targetConfig.mRemoteNode,
+                                                                    client.me);
+    std::filesystem::path newDbPath{
+        client.dbaccess->databasePath(fsAccess, newDbFileName, DbAccess::DB_VERSION).rawValue()};
+    std::filesystem::rename(*currentDbPath, newDbPath);
+}
+
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated
 Sync::Sync(UnifiedSync& us,
@@ -1131,6 +1147,65 @@ void UnifiedSync::resumeSync(std::function<void(error, SyncError, handle)>&& com
 bool UnifiedSync::shouldHaveDatabase() const
 {
     return syncs.mClient.dbaccess && !mConfig.isExternal();
+}
+
+SyncError UnifiedSync::changeConfigLocalRoot(const LocalPath& newPath)
+{
+    if (mSync != nullptr)
+    {
+        LOG_err << "Calling changeConfigLocalRoot on a enabled sync. Disable it first";
+        return UNKNOWN_ERROR;
+    }
+
+    if (mConfig.mLocalPath == newPath)
+        return NO_SYNC_ERROR;
+
+    const auto fsfp = syncs.fsaccess->fsFingerprint(newPath);
+    if (!fsfp)
+    {
+        LOG_err << "Unable to get the file system fingerprint for path " << newPath;
+        return FILESYSTEM_ID_UNAVAILABLE;
+    }
+
+    if (const auto& original_fsfp = mConfig.mFilesystemFingerprint;
+        original_fsfp && !original_fsfp.equivalent(fsfp))
+    {
+        LOG_err << "Sync root path is a different Filesystem than when the sync was created. "
+                   "Original filesystem id: "
+                << original_fsfp.toString() << "  Current: " << fsfp.toString();
+        return LOCAL_FILESYSTEM_MISMATCH;
+    }
+
+    auto fas = syncs.fsaccess->newfileaccess();
+    // we do allow, eg. mounting an exFAT drive over an NTFS folder and making a sync at that path
+    const bool reparsePointOkAtRoot = true;
+    if (!fas->fopen(newPath,
+                    true,
+                    false,
+                    FSLogging::logOnError,
+                    nullptr,
+                    reparsePointOkAtRoot,
+                    true,
+                    nullptr) ||
+        fas->fsid == UNDEF)
+    {
+        LOG_err << "Could not open sync root folder, could not get its fsid: " << newPath;
+        return UNABLE_TO_RETRIEVE_ROOT_FSID;
+    }
+
+    const auto oldConfig = mConfig;
+    mConfig.mLocalPath = newPath;
+    mConfig.mLocalPathFsid = fas->fsid;
+    mConfig.mFilesystemFingerprint = fsfp;
+    if (!syncs.commitConfigToDb(mConfig))
+    {
+        mConfig = oldConfig;
+        LOG_err
+            << "Couldn't commit the configuration into the database, cancelling remote root change";
+        return SYNC_CONFIG_WRITE_FAILURE;
+    }
+    oldConfig.renameDBToMatchTarget(mConfig, *syncs.fsaccess, syncs.mClient);
+    return NO_SYNC_ERROR;
 }
 
 // walk localpath and return corresponding LocalNode and its parent
@@ -4160,14 +4235,6 @@ bool Syncs::checkSyncRemoteLocationChange(SyncConfig& config,
     return true;
 }
 
-void Syncs::changeSyncLocalRoot(const handle /* backupId */,
-                                const std::string& /* newLocalRootPath */,
-                                std::function<void(error, SyncError)>&& completion)
-{
-    assert(false && "Not implemented yet and this code should be unreachable from public api");
-    return completion(API_EBLOCKED, UNKNOWN_ERROR);
-}
-
 void Syncs::changeSyncRemoteRoot(const handle backupId,
                                  std::shared_ptr<const Node>&& newRootNode,
                                  std::function<void(error, SyncError)>&& completionForClient)
@@ -4266,6 +4333,91 @@ void Syncs::changeSyncRemoteRootInThread(const handle backupId,
         renameDbAndNotifyServer();
         completion(API_OK, NO_SYNC_ERROR);
     }
+}
+
+void Syncs::changeSyncLocalRoot(const handle backupId,
+                                LocalPath&& newValidLocalRootPath,
+                                std::function<void(error, SyncError)>&& completionForClient)
+{
+    assert(!onSyncThread());
+
+    // We need to change to the syncs thread to run the missing validations and commit the change
+    queueSync(
+        [this,
+         backupId,
+         newPath = std::move(newValidLocalRootPath),
+         completionForClientWrapped =
+             wrapToRunInClientThread(std::move(completionForClient), FromAnyThread::yes)]() mutable
+        {
+            changeSyncLocalRootInThread(backupId,
+                                        std::move(newPath),
+                                        std::move(completionForClientWrapped));
+        },
+        "changeSyncRemoteRoot");
+}
+
+void Syncs::changeSyncLocalRootInThread(const handle backupId,
+                                        LocalPath&& newValidLocalRootPath,
+                                        std::function<void(error, SyncError)>&& completion)
+{
+    assert(onSyncThread());
+
+    lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
+    const auto it = std::find_if(std::begin(mSyncVec),
+                                 std::end(mSyncVec),
+                                 [backupId](const auto& unifSync)
+                                 {
+                                     return unifSync && unifSync->mConfig.mBackupId == backupId;
+                                 });
+    if (it == std::end(mSyncVec))
+    {
+        LOG_err << "There are no syncs with the given backupId";
+        return completion(API_EARGS, UNKNOWN_ERROR);
+    }
+
+    const auto& unifSync = *it;
+    if (unifSync->mConfig.isBackup())
+    {
+        LOG_err << "Trying to change local root of a backup sync. Operation not supported yet.";
+        return completion(API_EARGS, UNKNOWN_ERROR);
+    }
+
+    auto& config = unifSync->mConfig;
+    const auto currentPath = config.getLocalPath();
+    if (currentPath == newValidLocalRootPath)
+    {
+        LOG_err
+            << "The given new root path is the one already being used as local root of the sync";
+        return completion(API_EEXIST, UNKNOWN_ERROR);
+    }
+
+    const bool syncWasRunning = unifSync->mSync != nullptr;
+    if (syncWasRunning)
+        unifSync->suspendSync();
+
+    const auto exitResumingIfNeeded =
+        [syncWasRunning, completion = std::move(completion), &unifSync](error e, SyncError se)
+    {
+        if (!syncWasRunning)
+            return completion(e, se);
+        unifSync->resumeSync(
+            [completion = std::move(completion), e, se](error err, SyncError serr, handle)
+            {
+                if (err)
+                    LOG_err << "Error resuming sync after local root change: " << err
+                            << ", Sync err: " << serr;
+                completion(e, se);
+            });
+    };
+
+    if (const auto syncErr = unifSync->changeConfigLocalRoot(newValidLocalRootPath);
+        syncErr != NO_SYNC_ERROR)
+    {
+        const error apiErr = syncErr == SYNC_CONFIG_WRITE_FAILURE ? API_EWRITE : API_EARGS;
+        return exitResumingIfNeeded(apiErr, syncErr);
+    }
+    mHeartBeatMonitor->updateOrRegisterSync(*unifSync);
+    exitResumingIfNeeded(API_OK, NO_SYNC_ERROR);
 }
 
 void Syncs::manageRemoteRootLocationChange(Sync& sync) const

@@ -17478,6 +17478,9 @@ class MegaApi
          *       existing node in the cloud
          *     + SyncError::UNKNOWN_ERROR The given syncBackupId does not map to an existing two way
          *       sync
+         * - MegaError::API_EWRITE:
+         *     + SyncError::SYNC_CONFIG_WRITE_FAILURE We couldn't write into the database to commit
+         *       the change.
          * - MegaError::API_EEXISTS:
          *     + SyncError::UNKNOWN_ERROR the given newRootNodeHandle matches with the one that is
          *       already the root of the sync
@@ -17516,11 +17519,20 @@ class MegaApi
          * - MegaError::API_OK:
          *     + SyncError::NO_SYNC_ERROR the new root has been changed successfully
          * - MegaError::API_EARGS:
+         *     + SyncError::NO_SYNC_ERROR the given path is not absolute
          *     + SyncError::LOCAL_PATH_UNAVAILABLE the given path is nullptr or is empty
          *     + SyncError::UNKNOWN_ERROR The given backupId does not match any of the registered
          *       syncs
          *     + SyncError::LOCAL_PATH_SYNC_COLLISION The local path conflicts with existing
          *       synchronization paths (nested syncs are not allowed)
+         *     + SyncError::FILESYSTEM_ID_UNAVAILABLE unable to get the file system fingerprint with
+         *       the given path
+         *     + SyncError::LOCAL_FILESYSTEM_MISMATCH The given path is in a different file system
+         *       comparing with the previous one. We don't allow this operation
+         *     + SyncError::UNABLE_TO_RETRIEVE_ROOT_FSID The new root directory cannot be opened
+         * - MegaError::API_EWRITE:
+         *     + SyncError::SYNC_CONFIG_WRITE_FAILURE We couldn't write into the database to commit
+         *       the change.
          * - MegaError::API_EEXISTS:
          *     + SyncError::UNKNOWN_ERROR the current local root is the same as the given new one
          * - MegaError::API_EFAILED:

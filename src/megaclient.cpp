@@ -16691,7 +16691,7 @@ std::pair<error, SyncError> MegaClient::isValidLocalSyncRoot(const LocalPath& ro
 
 error MegaClient::isValidLocalSyncRoot(SyncConfig& syncConfig,
                                        std::unique_ptr<FileAccess>& openedLocalFolder,
-                                       bool& isnetwork)
+                                       bool& isnetwork) const
 {
     const auto setErrorAndReturn = [&syncConfig](error e, SyncError syncError) -> error
     {
