@@ -8179,6 +8179,24 @@ typedef NS_ENUM(NSInteger, MEGAClientType) {
 -(BOOL)isNodeInheritingSensitivity:(MEGANode *)node;
 
 /**
+ * @brief Retrieve all unique node tags present across all nodes in the account
+ *
+ * @note If the searchString contains invalid characters, such as ',', an empty list will be
+ * returned.
+ *
+ * @note This function allows to cancel the processing at any time by passing a
+ * MEGACancelToken and calling to [MEGACancelToken cancel] .
+ *
+ *
+ * @param searchString Optional parameter to filter the tags based on a specific search
+ * string. If set to nil, all node tags will be retrieved.
+ * @param cancelToken MEGACancelToken to be able to cancel the processing at any time.
+ *
+ * @return All the unique node tags that match the search criteria.
+ */
+- (nullable NSArray<NSString *> *)nodeTagsForSearchString:(nullable NSString *)searchString cancelToken:(MEGACancelToken *)cancelToken;
+
+/**
  * @brief Search nodes with applied filter recursively.
  *
  * The search is case-insensitive.
