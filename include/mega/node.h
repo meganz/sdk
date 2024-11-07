@@ -997,6 +997,13 @@ struct MEGA_API LocalNode
     bool transferResetUnlessMatched(direction_t, const FileFingerprint& fingerprint);
     shared_ptr<SyncTransfer_inClient> transferSP;
 
+    /**
+     * @brief Check if this node or any successors have any pending transfer (transferSP != nullptr)
+     *
+     * @return true if there are pending transfers, false otherwise
+     */
+    bool hasPendingTransfers() const;
+
     void updateMoveInvolvement();
 
     void setSyncedFsid(handle newfsid, fsid_localnode_map& fsidnodes, const LocalPath& fsName, std::unique_ptr<LocalPath> newshortname);

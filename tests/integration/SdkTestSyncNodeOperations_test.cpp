@@ -487,4 +487,55 @@ TEST_F(SdkTestSyncNodeOperations, ChangeSyncRemoteRootOK)
     ASSERT_TRUE(std::filesystem::exists(testFilePath));
     EXPECT_EQ(std::filesystem::file_size(testFilePath), 2);
 }
+
+TEST_F(SdkTestSyncNodeOperations, ChangeSyncRemoteRootWhenTransfersInProgress)
+{
+    static const std::string logPre{
+        "SdkTestSyncNodeOperations.ChangeSyncRemoteRootWhenTransfersInProgress : "};
+
+    LOG_verbose << logPre << "Ensuring sync is running on dir1";
+    ASSERT_NO_FATAL_FAILURE(ensureSyncNodeIsRunning("dir1"));
+
+    LOG_verbose << logPre << "Setting up the mock listener";
+    const auto dir1HandleOpt = getNodeHandleByPath("dir1");
+    ASSERT_TRUE(dir1HandleOpt);
+    const std::string_view newFileName{"test_file_new.txt"};
+
+    const auto isMyFile = Pointee(Property(&MegaTransfer::getPath, EndsWith(newFileName)));
+    const auto isUpload = Pointee(Property(&MegaTransfer::getType, MegaTransfer::TYPE_UPLOAD));
+    const auto isBelowDir1 = Pointee(Property(&MegaTransfer::getParentHandle, *dir1HandleOpt));
+
+    NiceMock<MockTransferListener> mockListener{};
+    std::promise<void> fileStartedUpload;
+    EXPECT_CALL(mockListener, onTransferStart(_, AllOf(isMyFile, isUpload, isBelowDir1)))
+        .WillOnce(
+            [&fileStartedUpload]
+            {
+                fileStartedUpload.set_value();
+            });
+    NiceMock<MockRequestListener> mockReqListener;
+    mockReqListener.setErrorExpectations(API_ETEMPUNAVAIL, UNKNOWN_ERROR);
+
+    LOG_verbose << logPre << "Taking the handle of the new root";
+    const auto newRootHandleOpt{getNodeHandleByPath("dir2")};
+    ASSERT_TRUE(newRootHandleOpt);
+    const MegaHandle newRootHandle{*newRootHandleOpt};
+
+    LOG_verbose << logPre << "Create the new file locally";
+    megaApi[0]->addListener(&mockListener);
+    MrProper clean{[this, &mockListener]()
+                   {
+                       megaApi[0]->removeListener(&mockListener);
+                   }};
+
+    const auto newFilePath = getLocalTmpDir() / newFileName;
+    LocalTempFile tempFile{newFilePath, 1000};
+
+    LOG_verbose << logPre << "Waiting until transfer starts";
+    fileStartedUpload.get_future().wait();
+
+    LOG_verbose << logPre << "Changing sync remote root to point dir2";
+    megaApi[0]->changeSyncRemoteRoot(getBackupId(), newRootHandle, &mockReqListener);
+    EXPECT_TRUE(mockReqListener.waitForFinishOrTimeout(3min));
+}
 #endif // ENABLE_SYNC

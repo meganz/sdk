@@ -17440,6 +17440,8 @@ class MegaApi
          *   cloud with the given handle.
          * - MegaError::API_EEXISTS - If the current remote root is the same as the one you tried to
          *   assign. In this case the associated MegaError::getSyncError() will be UNKNOWN_ERROR
+         * - MegaError::API_ETEMPUNAVAIL - If the sync to be modified has ongoing transfers. In this
+         *   case the associated MegaError::getSyncError() will be UNKNOWN_ERROR
          *
          * Additionally, error codes associated to the MegaApi::isNodeSyncableWithError() method
          * can also be reported by this method. See MegaApi::isNodeSyncableWithError() for specific

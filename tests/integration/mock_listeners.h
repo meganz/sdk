@@ -124,6 +124,32 @@ private:
     }
 };
 
+/**
+ * @class MockSyncListener
+ * @brief Mock listener only implementing methods for transfers
+ *
+ */
+class MockTransferListener: public ::mega::MegaListener
+{
+public:
+    MOCK_METHOD(void,
+                onTransferFinish,
+                (::mega::MegaApi * api, ::mega::MegaTransfer* transfer, ::mega::MegaError* error),
+                (override));
+    MOCK_METHOD(void,
+                onTransferStart,
+                (::mega::MegaApi * api, ::mega::MegaTransfer* transfer),
+                (override));
+    MOCK_METHOD(void,
+                onTransferUpdate,
+                (::mega::MegaApi * api, ::mega::MegaTransfer* transfer),
+                (override));
+    MOCK_METHOD(void,
+                onTransferTemporaryError,
+                (::mega::MegaApi * api, ::mega::MegaTransfer* transfer, ::mega::MegaError* error),
+                (override));
+};
+
 #ifdef ENABLE_SYNC
 /**
  * @class MockSyncListener

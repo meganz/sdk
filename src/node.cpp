@@ -3085,6 +3085,17 @@ FSNode LocalNode::getScannedFSDetails() const
     return n;
 }
 
+bool LocalNode::hasPendingTransfers() const
+{
+    return transferSP != nullptr ||
+           std::any_of(std::begin(children),
+                       std::end(children),
+                       [](const auto& p)
+                       {
+                           return p.second && p.second->hasPendingTransfers();
+                       });
+}
+
 void LocalNode::updateMoveInvolvement()
 {
     bool moveInvolved = hasRare() && (rare().moveToHere || rare().moveFromHere);

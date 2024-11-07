@@ -629,6 +629,16 @@ public:
     // True if this sync should have a state cache database.
     bool shouldHaveDatabase() const;
 
+    /**
+     * @brief Check if this sync has any pending transfer attached to any of its local nodes
+     *
+     * @return true if there are pending transfers, false otherwise
+     */
+    bool hasPendingTransfers() const
+    {
+        return localroot != nullptr && localroot->hasPendingTransfers();
+    }
+
     // What filesystem is this sync running on?
     const fsfp_t& fsfp() const;
 

@@ -4162,6 +4162,13 @@ void Syncs::changeSyncRemoteRootInThread(const handle backupId,
         return completion(API_EEXIST, UNKNOWN_ERROR);
     }
 
+    // Does the sync have pending transfers?
+    if (unifiedSync->mSync->hasPendingTransfers())
+    {
+        LOG_err << "Trying to change the remote root of a sync that has ongoing transfers";
+        return completion(API_ETEMPUNAVAIL, UNKNOWN_ERROR);
+    }
+
     LOG_debug << "Changing the remote root node handle of a sync";
     syncConfig.mRemoteNode = newRootNH;
     unifiedSync->mSync->localroot->setSyncedNodeHandle(newRootNH);
