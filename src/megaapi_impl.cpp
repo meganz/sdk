@@ -28798,7 +28798,7 @@ int MegaPricingPrivate::getGBStoragePerUser(int productIndex)
     if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size() &&
         products[productIndex].businessPlan)
     {
-        products[productIndex].businessPlan->gbStoragePerUser;
+        return products[productIndex].businessPlan->gbStoragePerUser;
     }
 
     return 0;
@@ -28810,7 +28810,7 @@ int MegaPricingPrivate::getGBTransferPerUser(int productIndex)
     if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size() &&
         products[productIndex].businessPlan)
     {
-        products[productIndex].businessPlan->gbTransferPerUser;
+        return products[productIndex].businessPlan->gbTransferPerUser;
     }
 
     return 0;
@@ -28822,7 +28822,7 @@ unsigned int MegaPricingPrivate::getMinUsers(int productIndex)
     if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size() &&
         products[productIndex].businessPlan)
     {
-        products[productIndex].businessPlan->minUsers;
+        return products[productIndex].businessPlan->minUsers;
     }
 
     return 0;
@@ -28834,7 +28834,7 @@ unsigned int MegaPricingPrivate::getPricePerUser(int productIndex)
     if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size() &&
         products[productIndex].businessPlan)
     {
-        products[productIndex].businessPlan->pricePerUser;
+        return products[productIndex].businessPlan->pricePerUser;
     }
 
     return 0;
@@ -28846,7 +28846,7 @@ unsigned int MegaPricingPrivate::getLocalPricePerUser(int productIndex)
     if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size() &&
         products[productIndex].businessPlan)
     {
-        products[productIndex].businessPlan->localPricePerUser;
+        return products[productIndex].businessPlan->localPricePerUser;
     }
 
     return 0;
@@ -28858,7 +28858,7 @@ unsigned int MegaPricingPrivate::getPricePerStorage(int productIndex)
     if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size() &&
         products[productIndex].businessPlan)
     {
-        products[productIndex].businessPlan->pricePerStorage;
+        return products[productIndex].businessPlan->pricePerStorage;
     }
 
     return 0;
@@ -28870,7 +28870,7 @@ unsigned int MegaPricingPrivate::getLocalPricePerStorage(int productIndex)
     if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size() &&
         products[productIndex].businessPlan)
     {
-        products[productIndex].businessPlan->localPricePerStorage;
+        return products[productIndex].businessPlan->localPricePerStorage;
     }
 
     return 0;
@@ -28882,7 +28882,7 @@ int MegaPricingPrivate::getGBPerStorage(int productIndex)
     if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size() &&
         products[productIndex].businessPlan)
     {
-        products[productIndex].businessPlan->gbPerStorage;
+        return products[productIndex].businessPlan->gbPerStorage;
     }
 
     return 0;
@@ -28894,7 +28894,7 @@ unsigned int MegaPricingPrivate::getPricePerTransfer(int productIndex)
     if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size() &&
         products[productIndex].businessPlan)
     {
-        products[productIndex].businessPlan->pricePerTransfer;
+        return products[productIndex].businessPlan->pricePerTransfer;
     }
 
     return 0;
@@ -28906,7 +28906,7 @@ unsigned int MegaPricingPrivate::getLocalPricePerTransfer(int productIndex)
     if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size() &&
         products[productIndex].businessPlan)
     {
-        products[productIndex].businessPlan->localPricePerTransfer;
+        return products[productIndex].businessPlan->localPricePerTransfer;
     }
 
     return 0;
@@ -28918,7 +28918,7 @@ int MegaPricingPrivate::getGBPerTransfer(int productIndex)
     if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size() &&
         products[productIndex].businessPlan)
     {
-        products[productIndex].businessPlan->gbPerTransfer;
+        return products[productIndex].businessPlan->gbPerTransfer;
     }
 
     return 0;
