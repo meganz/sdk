@@ -17005,6 +17005,8 @@ void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr
         bool fileRemoved = !client->fsaccess->fileExistsAt(wLocalPath);
         if (!fileRemoved)
         {
+            // This prevents that file is tried to be removed more than once.
+            // Anyway in case that happens, FileSystemAccess::transient_error wouldn't be set true
             fileRemoved = client->fsaccess->unlinklocal(wLocalPath);
             if (!fileRemoved)
             {
