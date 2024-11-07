@@ -514,14 +514,17 @@ static char* string_to_char_ptr(const std::string& str)
 static char* str_replace(char *orig, const char *rep, const char *with)
 {
     if (!orig) return nullptr; // Nothing to do
-    if (!rep) return orig;     // We do not want to replace anything
+
+    size_t orig_len = strlen(orig);
+    if (!rep)
+        return strdupl(orig, orig_len); // We do not want to replace anything
 
     size_t rep_len = strlen(rep);
-    if (rep_len == 0) return orig;
+    if (rep_len == 0)
+        return strdupl(orig, orig_len);
 
     const char* aux_with = with ? with : "";
     size_t with_len = strlen(aux_with);
-    size_t orig_len = strlen(orig);
 
     std::string aux_result {orig};
 
@@ -532,7 +535,8 @@ static char* str_replace(char *orig, const char *rep, const char *with)
         ++count;
         start_pos += rep_len;
     }
-    if (!count) return orig;
+    if (!count)
+        return strdupl(orig, orig_len);
 
     if (rep_len < with_len)
     {
