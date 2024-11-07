@@ -3236,6 +3236,13 @@ using namespace mega;
     return self.megaApi->isSensitiveInherited(node.getCPtr);
 }
 
+- (nullable NSArray<NSString *> *)nodeTagsForSearchString:(nullable NSString *)searchString cancelToken:(MEGACancelToken *)cancelToken {
+    if (self.megaApi == nil) return nil;
+    MegaStringList *result = self.megaApi->getAllNodeTags(searchString.UTF8String, cancelToken.getCPtr);
+    MEGAStringList *tagsStringList = [MEGAStringList.alloc initWithMegaStringList:result cMemoryOwn:YES];
+    return tagsStringList.toStringArray;
+}
+
 - (MEGAError *)checkMoveErrorExtendedForNode:(MEGANode *)node target:(MEGANode *)target {
     if (self.megaApi == nil) return nil;
     return [[MEGAError alloc] initWithMegaError:self.megaApi->checkMoveErrorExtended(node.getCPtr, target.getCPtr) cMemoryOwn:YES];
