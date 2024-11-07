@@ -19633,6 +19633,103 @@ TEST_F(SdkTest, SdkTestRestoreNodeVersion)
     ASSERT_EQ(contents, originalContent);
 }
 
+/**
+ * @brief TEST_F SdkRemoveTempFilesUponUploadTransfers
+ *
+ * Tests that file uploads transfers started with isSourceTemporary flag finally removes temporary
+ * files in local filesystem
+ *
+ * # Test1 Upload file F1
+ * # Test2 Upload file F1 again
+ * # Test3 Upload file F2 with same fingerprint than F1 (Node copy)
+ * # Test4 Upload file F1 (modified) with different fingerprint than F1 in cloud
+ * # Test5 Upload file F2 with same fingerprint than F1 in cloud (Node copy)
+ * # Test5 Upload file F2 with same fingerprint than F1 in cloud (Node copy)
+ * # Test6 Upload file F3 and cancel transfer
+ */
+TEST_F(SdkTest, SdkRemoveTempFilesUponUploadTransfers)
+{
+    LOG_info << "___TEST SdkRemoveTempFilesUponUploadTransfers___";
+    constexpr int accIdx{0};
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    std::shared_ptr<MegaNode> rootnode(megaApi[accIdx]->getRootNode());
+    ASSERT_TRUE(!!rootnode) << "Cannot retrieve rootnode";
+
+    auto uploadFile =
+        [this](MegaNode* n, const fs::path& filePath, const bool cancelTransfer = false)
+    {
+        TransferTracker uploadListener(megaApi[accIdx].get());
+        megaApi[accIdx]->startUpload(filePath.u8string().c_str(),
+                                     n,
+                                     nullptr /*fileName*/,
+                                     ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                     nullptr /*appData*/,
+                                     true /*isSourceTemporary*/,
+                                     false /*startFirst*/,
+                                     nullptr /*cancelToken*/,
+                                     &uploadListener);
+
+        if (cancelTransfer)
+        {
+            ASSERT_EQ(API_OK, synchronousCancelTransfers(accIdx, MegaTransfer::TYPE_UPLOAD));
+            ASSERT_EQ(API_EINCOMPLETE, uploadListener.waitForResult());
+        }
+        else
+        {
+            ASSERT_EQ(API_OK, uploadListener.waitForResult())
+                << "Cannot upload local file: " << filePath;
+            std::unique_ptr<MegaNode> n1(
+                megaApi[accIdx]->getNodeByHandle(uploadListener.resultNodeHandle));
+            ASSERT_TRUE(!!n1) << "Cannot get node in cloud drive file: "
+                              << toHandle(uploadListener.resultNodeHandle);
+        }
+
+        ASSERT_TRUE(uploadListener.mTempFileRemoved)
+            << "Temporary file couldn't be removed: " << filePath;
+        ASSERT_TRUE(!fs::exists(filePath)) << "File still exists locally: " << filePath;
+    };
+
+    auto modifyFile = [](const fs::path& filePath, const std::string& text)
+    {
+        std::ofstream f(filePath, std::ios::app);
+        f << text;
+        f.close();
+    };
+
+    LOG_debug << "### Test1 (SdkRemoveTempFilesUponUploadTransfers) Upload file F1 ####";
+    const fs::path f1Path = fs::current_path() / fs::u8path("file1.txt");
+    ASSERT_TRUE(createFile(f1Path)) << "Couldn't create " << f1Path;
+    ASSERT_NO_FATAL_FAILURE(uploadFile(rootnode.get(), f1Path));
+
+    LOG_debug << "### Test2 (SdkRemoveTempFilesUponUploadTransfers) Upload file F1 again ####";
+    ASSERT_TRUE(createFile(f1Path)) << "Couldn't create " << f1Path;
+    const fs::path f2Path = fs::current_path() / fs::u8path("file2.txt");
+    sdk_test::copyFileFromTestData(f1Path, f2Path);
+    ASSERT_NO_FATAL_FAILURE(uploadFile(rootnode.get(), f1Path));
+
+    LOG_debug << "### Test3 (SdkRemoveTempFilesUponUploadTransfers) Upload file F2 with same "
+                 "fingerprint than F1 (Node copy) ####";
+    ASSERT_NO_FATAL_FAILURE(uploadFile(rootnode.get(), f2Path));
+
+    LOG_debug << "### Test4 (SdkRemoveTempFilesUponUploadTransfers) Upload file F1 (modified) with "
+                 "different fingerprint than F1 in cloud ####";
+    ASSERT_TRUE(createFile(f1Path)) << "Couldn't create " << f1Path;
+    ASSERT_NO_FATAL_FAILURE(uploadFile(rootnode.get(), f1Path));
+    modifyFile(f1Path, "Update");
+    sdk_test::copyFileFromTestData(f1Path, f2Path);
+    ASSERT_NO_FATAL_FAILURE(uploadFile(rootnode.get(), f1Path));
+
+    LOG_debug << "### Test5 (SdkRemoveTempFilesUponUploadTransfers) Upload file F2 with same "
+                 "fingerprint than F1 in cloud (Node copy)####";
+    ASSERT_NO_FATAL_FAILURE(uploadFile(rootnode.get(), f2Path));
+
+    LOG_debug << "### Test6 (SdkRemoveTempFilesUponUploadTransfers) Upload file F3 and cancel "
+                 "transfer ####";
+    const fs::path f3Path = fs::current_path() / fs::u8path("file3.txt");
+    ASSERT_TRUE(createFile(f3Path, true)) << "Couldn't create " << f3Path;
+    ASSERT_NO_FATAL_FAILURE(uploadFile(rootnode.get(), f3Path, true));
+}
+
 #ifdef ENABLE_SYNC
 /**
  * @brief SdkTestRemoveVersionsFromSync

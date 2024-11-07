@@ -16996,7 +16996,7 @@ void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr
     }
 
     if (transfer->getType() == MegaTransfer::TYPE_UPLOAD && transfer->isSourceFileTemporary() &&
-        transfer->getPath() &&
+        transfer->fingerprint_filetype == FILENODE && transfer->getPath() &&
         (transfer->getState() == MegaTransfer::STATE_COMPLETED ||
          transfer->getState() == MegaTransfer::STATE_CANCELLED ||
          transfer->getState() == MegaTransfer::STATE_FAILED))
