@@ -29,8 +29,16 @@
 #include "mega/serialize64.h"
 #include "mega/testhooks.h"
 
+#include <unicode/coll.h>
+#include <unicode/errorcode.h>
+#include <unicode/stringpiece.h>
+#include <unicode/ucol.h>
+#include <unicode/unistr.h>
+#include <unicode/utypes.h>
+
 #include <cctype>
 #include <iomanip>
+#include <memory>
 
 #if defined(_WIN32) && defined(_MSC_VER)
 #include <sys/timeb.h>
@@ -3285,24 +3293,6 @@ bool is_digit(unsigned int ch)
     return std::isdigit(static_cast<unsigned char>(ch)) != 0;
 }
 
-bool is_symbol(unsigned int ch)
-{
-    return std::isalnum(static_cast<unsigned char>(ch)) == 0;
-}
-
-CharType getCharType(const unsigned int ch)
-{
-    if (is_symbol(ch))
-    {
-        return CharType::CSYMBOL;
-    }
-    else if (is_digit(ch))
-    {
-        return CharType::CDIGIT;
-    }
-    return CharType::CALPHA;
-}
-
 std::string escapeWildCards(const std::string& pattern)
 {
     std::string newString;
@@ -3636,130 +3626,51 @@ SplitResult split(const std::string& value, char delimiter)
     return split(value.data(), value.size(), delimiter);
 }
 
+// Set up a collator for numeric (natural) sorting, so it behaves the same as
+// the web client collator instance Intl.Collator('co', {numeric: true}).
+// For reference, see the Google V8 engine function JSCollator::New in commit 3b9350b6fc0.
+static icu::Collator* createCollator()
+{
+    UErrorCode ec = U_ZERO_ERROR;
+    auto collator = icu::Collator::createInstance(ec);
+    if (U_FAILURE(ec))
+    {
+        LOG_err << "ICU::collator fail to createInstance: " << ec;
+        return nullptr;
+    }
+
+    collator->setStrength(icu::Collator::TERTIARY);
+
+    // Enable numeric ordering, E.g. 2 < 12
+    collator->setAttribute(UCOL_NUMERIC_COLLATION, UCOL_ON, ec);
+    if (U_FAILURE(ec))
+    {
+        LOG_err << "ICU::collator fail to setAttribute UCOL_NUMERIC_COLLATION: " << ec;
+        return nullptr;
+    }
+
+    return collator;
+}
+
 int naturalsorting_compare(const char* i, const char* j)
 {
-    static uint64_t maxNumber = (ULONG_MAX - 57) / 10; // 57 --> ASCII code for '9'
-    bool stringMode = true;
-
-    while (*i && *j)
+    // Thread local for multithread safety and performance
+    const static thread_local std::unique_ptr<icu::Collator> collator{createCollator()};
+    if (!collator)
     {
-        if (stringMode)
-        {
-            char char_i, char_j;
-            char_i = *i;
-            char_j = *j;
-            while (char_i && char_j)
-            {
-                CharType iCharType = getCharType(static_cast<unsigned int>(*i));
-                CharType jCharType = getCharType(static_cast<unsigned int>(*j));
-                if (iCharType == jCharType)
-                {
-                    if (iCharType == CharType::CSYMBOL || iCharType == CharType::CALPHA)
-                    {
-                        if (int difference = strncasecmp(reinterpret_cast<const char*>(&char_i),
-                                                         reinterpret_cast<const char*>(&char_j),
-                                                         1);
-                            difference)
-                        {
-                            return difference;
-                        }
-
-                        ++i;
-                        ++j;
-                    }
-                    else if (iCharType == CharType::CDIGIT)
-                    {
-                        stringMode = false;
-                        break;
-                    }
-                }
-                else
-                {
-                    return iCharType < jCharType ? -1 : 1;
-                }
-                char_i = *i;
-                char_j = *j;
-            }
-        }
-        else // we are comparing numbers on both strings
-        {
-            auto m = i;
-            auto n = j;
-
-            uint64_t number_i = 0;
-            unsigned int i_overflow_count = 0;
-            while (*i && is_digit(static_cast<unsigned int>(*i)))
-            {
-                number_i = number_i * 10 + static_cast<uint64_t>(*i - 48); // '0' ASCII code is 48
-                ++i;
-
-                // check the number won't overflow upon addition of next char
-                if (number_i >= maxNumber)
-                {
-                    number_i -= maxNumber;
-                    i_overflow_count++;
-                }
-            }
-
-            uint64_t number_j = 0;
-            unsigned int j_overflow_count = 0;
-            while (*j && is_digit(static_cast<unsigned int>(*j)))
-            {
-                number_j = number_j * 10 + static_cast<uint64_t>(*j - 48);
-                ++j;
-
-                // check the number won't overflow upon addition of next char
-                if (number_j >= maxNumber)
-                {
-                    number_j -= maxNumber;
-                    j_overflow_count++;
-                }
-            }
-
-            int difference = static_cast<int>(i_overflow_count - j_overflow_count);
-
-            if (difference)
-            {
-                return difference;
-            }
-
-            if (number_i != number_j)
-            {
-                return number_i > number_j ? 1 : -1;
-            }
-
-            auto length = static_cast<std::size_t>(std::min(i - m, j - n));
-
-            difference = strncmp(m, n, length);
-            if (difference)
-            {
-                return difference;
-            }
-
-            auto relation = (i - m) - (j - n);
-
-            relation = std::clamp<decltype(relation)>(relation, -1, 1);
-
-            if (relation)
-            {
-                return static_cast<int>(relation);
-            }
-
-            stringMode = true;
-        }
+        // Fallback
+        return strcmp(i, j);
     }
 
-    if (*j)
+    UErrorCode ec{U_ZERO_ERROR};
+    const auto result = collator->compareUTF8(icu::StringPiece{i}, icu::StringPiece{j}, ec);
+    if (U_FAILURE(ec))
     {
-        return -1;
+        // Fallback
+        return strcmp(i, j);
     }
-
-    if (*i)
-    {
-        return 1;
-    }
-
-    return 0;
+    assert(UCOL_EQUAL == 0 && UCOL_GREATER == 1 && UCOL_LESS == -1);
+    return result;
 }
 
 std::string ensureAsteriskSurround(std::string str)

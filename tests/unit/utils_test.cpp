@@ -16,6 +16,7 @@
  * program.
  */
 
+#include "gmock/gmock.h"
 #include "megafs.h"
 
 #include <gmock/gmock.h>
@@ -28,6 +29,9 @@
 #include <mega/process.h>
 #include <mega/scoped_helpers.h>
 #include <mega/utils.h>
+
+#include <algorithm>
+#include <vector>
 
 TEST(utils, readLines)
 {
@@ -849,7 +853,7 @@ TEST(Utils, replace_string)
     ASSERT_EQ(Utils::replace(string("abc"), "", "@"), "abc");
 }
 
-TEST(Utils, natural_sorting)
+TEST(Utils, NaturalSortingAscii)
 {
     // Comparison between symbols
     ASSERT_EQ(naturalsorting_compare("!", "!"), 0);
@@ -871,8 +875,8 @@ TEST(Utils, natural_sorting)
     ASSERT_GT(naturalsorting_compare("a", "1"), 0);
     ASSERT_LT(naturalsorting_compare("1", "A"), 0);
 
-    // Comparison between symbols and letters (case no sensitive)
-    ASSERT_EQ(naturalsorting_compare("A", "a"), 0);
+    // Comparison between symbols and letters (case sensitive)
+    ASSERT_GT(naturalsorting_compare("A", "a"), 0);
     ASSERT_GT(naturalsorting_compare("B", "a"), 0);
     ASSERT_LT(naturalsorting_compare("a", "C"), 0);
 
@@ -882,7 +886,7 @@ TEST(Utils, natural_sorting)
 
     // Comparison between strings containing letters and symbols
     ASSERT_LT(naturalsorting_compare("a!", "a#"), 0);
-    ASSERT_LT(naturalsorting_compare("a#", "a@"), 0);
+    ASSERT_GT(naturalsorting_compare("a#", "a@"), 0);
 
     // Comparison between strings containing letters, numbers and symbols
     ASSERT_LT(naturalsorting_compare("1a!", "1a#"), 0);
@@ -911,6 +915,27 @@ TEST(Utils, natural_sorting)
     ASSERT_LT(naturalsorting_compare("00123", "123"), 0);
     ASSERT_LT(naturalsorting_compare("00123", "124"), 0);
     ASSERT_GT(naturalsorting_compare("0124", "00123"), 0);
+}
+
+TEST(Utils, NaturalSortingUnicode)
+{
+    std::vector<std::string> names{
+        "11.txt",   "#.txt",       "中文.txt",   "😼.txt",     "१.txt",
+        "一.txt",   "2.txt",       "cafe.txt",   "file2.txt", "1.txt",
+        "Cafe.txt", "अमन.txt.txt", "file1.txt",  "cáfe.txt",  "file11.txt",
+        "test.txt", "中文1.txt",   "☺️.txt", "{}.txt",
+    };
+    std::vector<std::string> sortedNames{
+        "{}.txt",   "#.txt",       "☺️.txt", "😼.txt",    "१.txt",     "1.txt",     "2.txt",
+        "11.txt",   "cafe.txt",    "Cafe.txt",   "cáfe.txt", "file1.txt", "file2.txt", "file11.txt",
+        "test.txt", "अमन.txt.txt", "一.txt",     "中文.txt", "中文1.txt",
+    };
+    auto comp = [](const std::string& a, const std::string b)
+    {
+        return naturalsorting_compare(a.c_str(), b.c_str()) < 0;
+    };
+    std::stable_sort(names.begin(), names.end(), comp);
+    ASSERT_THAT(names, testing::ElementsAreArray(sortedNames));
 }
 
 TEST(RemotePath, nextPathComponent)
