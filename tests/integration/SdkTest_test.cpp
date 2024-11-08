@@ -19641,11 +19641,9 @@ TEST_F(SdkTest, SdkTestRestoreNodeVersion)
  *
  * # Test1 Upload file F1
  * # Test2 Upload file F1 again
- * # Test3 Upload file F2 with same fingerprint than F1 (Node copy)
+ * # Test3 Upload file F2 with same fingerprint than F1 in cloud (Node copy)
  * # Test4 Upload file F1 (modified) with different fingerprint than F1 in cloud
- * # Test5 Upload file F2 with same fingerprint than F1 in cloud (Node copy)
- * # Test5 Upload file F2 with same fingerprint than F1 in cloud (Node copy)
- * # Test6 Upload file F3 and cancel transfer
+ * # Test5 Upload file F3 and cancel transfer
  */
 TEST_F(SdkTest, SdkRemoveTempFilesUponUploadTransfers)
 {
@@ -19716,14 +19714,9 @@ TEST_F(SdkTest, SdkRemoveTempFilesUponUploadTransfers)
     ASSERT_TRUE(createFile(f1Path)) << "Couldn't create " << f1Path;
     ASSERT_NO_FATAL_FAILURE(uploadFile(rootnode.get(), f1Path));
     modifyFile(f1Path, "Update");
-    sdk_test::copyFileFromTestData(f1Path, f2Path);
     ASSERT_NO_FATAL_FAILURE(uploadFile(rootnode.get(), f1Path));
 
-    LOG_debug << "### Test5 (SdkRemoveTempFilesUponUploadTransfers) Upload file F2 with same "
-                 "fingerprint than F1 in cloud (Node copy)####";
-    ASSERT_NO_FATAL_FAILURE(uploadFile(rootnode.get(), f2Path));
-
-    LOG_debug << "### Test6 (SdkRemoveTempFilesUponUploadTransfers) Upload file F3 and cancel "
+    LOG_debug << "### Test5 (SdkRemoveTempFilesUponUploadTransfers) Upload file F3 and cancel "
                  "transfer ####";
     const fs::path f3Path = fs::current_path() / fs::u8path("file3.txt");
     ASSERT_TRUE(createFile(f3Path, true)) << "Couldn't create " << f3Path;
