@@ -345,37 +345,38 @@ TEST(MegaApi, MegaApiImpl_calcRecommendedProLevel)
         std::make_unique<BusinessPlan>(BusinessPlan{20, 40, 3, 50, 60, 70, 80, 90, 100, 15, 10}),
         0};
     pricing.addProduct(testProduct);
+    const int testProductIndex = pricing.getNumProducts() - 1;
 
-    ASSERT_EQ(pricing.getGBStorage(pricing.getNumProducts() - 1), testProduct.gbStorage);
-    ASSERT_EQ(pricing.getAmount(pricing.getNumProducts() - 1), testProduct.amount);
-    ASSERT_EQ(pricing.getAmountMonth(pricing.getNumProducts() - 1), testProduct.amountMonth);
-    ASSERT_EQ(pricing.getAndroidID(pricing.getNumProducts() - 1), testProduct.androidid);
-    ASSERT_EQ(pricing.getDescription(pricing.getNumProducts() - 1), testProduct.description);
-    ASSERT_EQ(pricing.getGBPerStorage(pricing.getNumProducts() - 1),
+    ASSERT_EQ(pricing.getGBStorage(testProductIndex), testProduct.gbStorage);
+    ASSERT_EQ(pricing.getAmount(testProductIndex), testProduct.amount);
+    ASSERT_EQ(pricing.getAmountMonth(testProductIndex), testProduct.amountMonth);
+    ASSERT_EQ(pricing.getAndroidID(testProductIndex), testProduct.androidid);
+    ASSERT_EQ(pricing.getDescription(testProductIndex), testProduct.description);
+    ASSERT_EQ(pricing.getGBPerStorage(testProductIndex),
               (testProduct.businessPlan) ? testProduct.businessPlan->gbPerStorage : 0);
-    ASSERT_EQ(pricing.getGBPerTransfer(pricing.getNumProducts() - 1),
+    ASSERT_EQ(pricing.getGBPerTransfer(testProductIndex),
               (testProduct.businessPlan) ? testProduct.businessPlan->gbPerTransfer : 0);
-    ASSERT_EQ(pricing.getGBStoragePerUser(pricing.getNumProducts() - 1),
+    ASSERT_EQ(pricing.getGBStoragePerUser(testProductIndex),
               (testProduct.businessPlan) ? testProduct.businessPlan->gbStoragePerUser : 0);
-    ASSERT_EQ(pricing.getGBTransferPerUser(pricing.getNumProducts() - 1),
+    ASSERT_EQ(pricing.getGBTransferPerUser(testProductIndex),
               (testProduct.businessPlan) ? testProduct.businessPlan->gbTransferPerUser : 0);
-    ASSERT_EQ(pricing.getHandle(pricing.getNumProducts() - 1), testProduct.productHandle);
-    ASSERT_EQ(pricing.getIosID(pricing.getNumProducts() - 1), testProduct.iosid);
-    ASSERT_EQ(pricing.getLocalPrice(pricing.getNumProducts() - 1), testProduct.localPrice);
-    ASSERT_EQ(pricing.getMonths(pricing.getNumProducts() - 1), testProduct.months);
-    ASSERT_EQ(pricing.getProLevel(pricing.getNumProducts() - 1), testProduct.proLevel);
-    ASSERT_EQ(pricing.getTrialDurationInDays(pricing.getNumProducts() - 1), testProduct.trialDays);
-    ASSERT_EQ(pricing.getPricePerStorage(pricing.getNumProducts() - 1),
+    ASSERT_EQ(pricing.getHandle(testProductIndex), testProduct.productHandle);
+    ASSERT_EQ(pricing.getIosID(testProductIndex), testProduct.iosid);
+    ASSERT_EQ(pricing.getLocalPrice(testProductIndex), testProduct.localPrice);
+    ASSERT_EQ(pricing.getMonths(testProductIndex), testProduct.months);
+    ASSERT_EQ(pricing.getProLevel(testProductIndex), testProduct.proLevel);
+    ASSERT_EQ(pricing.getTrialDurationInDays(testProductIndex), testProduct.trialDays);
+    ASSERT_EQ(pricing.getPricePerStorage(testProductIndex),
               (testProduct.businessPlan) ? testProduct.businessPlan->pricePerStorage : 0);
-    ASSERT_EQ(pricing.getPricePerTransfer(pricing.getNumProducts() - 1),
+    ASSERT_EQ(pricing.getPricePerTransfer(testProductIndex),
               (testProduct.businessPlan) ? testProduct.businessPlan->pricePerTransfer : 0);
-    ASSERT_EQ(pricing.getPricePerUser(pricing.getNumProducts() - 1),
+    ASSERT_EQ(pricing.getPricePerUser(testProductIndex),
               (testProduct.businessPlan) ? testProduct.businessPlan->pricePerUser : 0);
-    ASSERT_EQ(pricing.getLocalPricePerTransfer(pricing.getNumProducts() - 1),
+    ASSERT_EQ(pricing.getLocalPricePerTransfer(testProductIndex),
               (testProduct.businessPlan) ? testProduct.businessPlan->localPricePerTransfer : 0);
-    ASSERT_EQ(pricing.getLocalPricePerStorage(pricing.getNumProducts() - 1),
+    ASSERT_EQ(pricing.getLocalPricePerStorage(testProductIndex),
               (testProduct.businessPlan) ? testProduct.businessPlan->localPricePerStorage : 0);
-    ASSERT_EQ(pricing.getLocalPricePerUser(pricing.getNumProducts() - 1),
+    ASSERT_EQ(pricing.getLocalPricePerUser(testProductIndex),
               (testProduct.businessPlan) ? testProduct.businessPlan->localPricePerUser : 0);
 
     std::function<int(int, int)> test = [&](int level, int gb)
