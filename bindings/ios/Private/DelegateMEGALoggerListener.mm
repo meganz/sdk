@@ -48,7 +48,7 @@ void DelegateMEGALoggerListener::log(const char *time, int logLevel, const char 
             [messages addObject:[NSString stringWithUTF8String:directMessages[i]]];
         }
 #endif
-        [listener logWithTime:(time ? [NSString stringWithUTF8String:time] : [[NSDate now] description])
+        [listener logWithTime:(time ? [NSString stringWithUTF8String:time] : @"")
                      logLevel:(MEGALogLevel)logLevel
                        source:(source ? [NSString stringWithUTF8String:source] : @"")
                       message:(message ? [NSString stringWithUTF8String:message] : @"")
