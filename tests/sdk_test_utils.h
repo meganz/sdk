@@ -55,6 +55,11 @@ public:
     LocalTempFile(LocalTempFile&&) noexcept = default;
     LocalTempFile& operator=(LocalTempFile&&) noexcept = default;
 
+    const fs::path& path() const
+    {
+        return mFilePath;
+    }
+
 private:
     fs::path mFilePath;
 };
@@ -76,6 +81,11 @@ public:
     // Allow move operations
     LocalTempDir(LocalTempDir&&) noexcept = default;
     LocalTempDir& operator=(LocalTempDir&&) noexcept = default;
+
+    const fs::path& path() const
+    {
+        return mDirPath;
+    }
 
 private:
     fs::path mDirPath;

@@ -45,6 +45,12 @@ target_sources(test_unit
 )
 
 target_sources_conditional(test_unit
+    FLAG USE_FREEIMAGE
+    PRIVATE
+    thumbnail_test.cpp
+)
+
+target_sources_conditional(test_unit
     FLAG ENABLE_ISOLATED_GFX
     PRIVATE
     Isolatedprocess_test.cpp
@@ -71,3 +77,12 @@ if(ENABLE_SDKLIB_WERROR)
         UNIX  $<$<CONFIG:Debug>: -Werror>
     )
 endif()
+
+# Copy test data to the build directory.
+set(TEST_DATA_DESTINATION_DIR "$<TARGET_FILE_DIR:test_unit>/unit-test-data")
+set(TEST_DATA_SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/unit-test-data")
+
+add_custom_command(TARGET test_unit POST_BUILD
+                   COMMAND "${CMAKE_COMMAND}" -E copy_directory
+                                              "${TEST_DATA_SOURCE_DIR}"
+                                              "${TEST_DATA_DESTINATION_DIR}")
