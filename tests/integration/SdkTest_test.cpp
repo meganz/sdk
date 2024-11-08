@@ -6955,16 +6955,15 @@ namespace mega
     int DebugTestHook::countdownToTimeout = -1;
 }
 
-
 /**
-* @brief TEST_F SdkTestCloudraidTransfers
-*
-* - Download our well-known cloudraid file with standard settings
-* - Download our well-known cloudraid file, but this time with small chunk sizes and periodically pausing and unpausing
-* - Download our well-known cloudraid file, but this time with small chunk sizes and periodically destrying the megaApi object, then recreating and Resuming (with session token)
-*
-*/
-
+ * @brief TEST_F SdkTestCloudraidTransfers
+ *
+ * - # Test1: Download our well-known cloudraid file with standard settings
+ * - # Test2: Download our well-known cloudraid file, but this time with small chunk sizes and
+ * periodically pausing and unpausing
+ * - # Test3: Download our well-known cloudraid file, but this time with small chunk sizes and
+ * periodically destrying the megaApi object, then recreating and Resuming (with session token)
+ */
 #ifdef DEBUG
 TEST_F(SdkTest, SdkTestCloudraidTransfers)
 {
@@ -6984,7 +6983,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
     string filename = DOTSLASH "cloudraid_downloaded_file.sdktest";
     deleteFile(filename.c_str());
 
-    // plain cloudraid download
+    LOG_debug << "#### Test1: Download our well-known cloudraid file with standard settings ####";
     mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
     megaApi[0]->startDownload(nimported.get(),
                               filename.c_str(),
@@ -7000,9 +6999,8 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
         << "Download cloudraid transfer failed after " << maxTimeout << " seconds";
     ASSERT_EQ(API_OK, mApi[0].lastError) << "Cannot download the cloudraid file (error: " << mApi[0].lastError << ")";
 
-
-    // cloudraid download with periodic pause and resume
-
+    LOG_debug << "#### Test2(SdkTestCloudraidTransfers): Download our well-known cloudraid file, "
+                 "but this time with small chunk sizes and periodically pausing and unpausing ####";
     incrementFilename(filename);
     deleteFile(filename.c_str());
 
@@ -7057,7 +7055,10 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
     incrementFilename(filename);
     deleteFile(filename.c_str());
 
-    // cloudraid download with periodic full exit and resume from session ID
+    LOG_debug << "#### Test3(SdkTestCloudraidTransfers): Download our well-known cloudraid file, "
+                 "but this time with small "
+                 "chunk sizes and periodically destrying the megaApi object, then recreating and "
+                 "Resuming (with session token)####";
     // plain cloudraid download
     {
         megaApi[0]->setMaxDownloadSpeed(1024 * 1024);
@@ -7081,7 +7082,8 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
         second_timer t;
         auto initialOnTranferFinishedCount = onTranferFinishedCount;
         auto lastOnTranferFinishedCount = onTranferFinishedCount;
-        while (t.elapsed() < 180 && onTranferFinishedCount < initialOnTranferFinishedCount + 2)
+        while (t.elapsed() < static_cast<int>(maxTimeout / 2) &&
+               onTranferFinishedCount < initialOnTranferFinishedCount + 2)
         {
             if (onTranferFinishedCount > lastOnTranferFinishedCount)
             {
@@ -7127,8 +7129,12 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
             }
             WaitMillisec(1);
         }
-        ASSERT_EQ(onTransferUpdate_progress, onTransferUpdate_filesize);
-        ASSERT_EQ(initialOnTranferFinishedCount + 2, onTranferFinishedCount);
+        ASSERT_EQ(initialOnTranferFinishedCount + 2, onTranferFinishedCount)
+            << onTranferFinishedCount << "transfers finished, but we expected "
+            << initialOnTranferFinishedCount + 2;
+        ASSERT_EQ(onTransferUpdate_progress, onTransferUpdate_filesize)
+            << "Expected onTransferUpdate_progress: " << onTransferUpdate_progress
+            << ", doesn't match with onTransferUpdate_filesize: " << onTransferUpdate_filesize;
         ASSERT_GE(exitresumecount, 6u);
         ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], 1)) << "Download cloudraid transfer with pauses failed";
         ASSERT_EQ(API_OK, mApi[0].lastError) << "Cannot download the cloudraid file (error: " << mApi[0].lastError << ")";
