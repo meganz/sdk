@@ -18357,13 +18357,32 @@ class MegaApi
          * @brief Get a list with all active and pending outbound sharings
          *
          * This method returns both, verified and unverified shares.
-         *
-         * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
-         * MegaApi::ORDER_DEFAULT_DESC
-         *
          * You take the ownership of the returned value
          *
          * @param order Sorting order to use
+         *
+         * Valid values for this parameter are:
+         * - MegaApi::ORDER_NONE = 0
+         * Undefined order
+         *
+         * - MegaApi::ORDER_DEFAULT_ASC = 1
+         * Alphabetical order, e.g. bar, Car, foo
+         *
+         * - MegaApi::ORDER_DEFAULT_DESC = 2
+         * Alphabetical inverse order, e.g. foo, Car, bar
+         *
+         * - MegaApi::ORDER_SIZE_ASC = 3
+         * Sort by size, small elements first
+         *
+         * - MegaApi::ORDER_SIZE_DESC = 4
+         * Sort by size, small elements last
+         *
+         * - MegaApi::ORDER_CREATION_ASC = 5
+         * Sort by creation time in MEGA, older elements first
+         *
+         * - MegaApi::ORDER_CREATION_DESC = 6
+         * Sort by creation time in MEGA, older elements last
+         *
          * @return List of MegaShare objects
          */
         MegaShareList *getOutShares(int order = ORDER_NONE);
@@ -18412,6 +18431,29 @@ class MegaApi
          * You take the ownership of the returned value
          *
          * @param order Sorting order to use
+         *
+         * Valid values for this parameter are:
+         * - MegaApi::ORDER_NONE = 0
+         * Undefined order
+         *
+         * - MegaApi::ORDER_DEFAULT_ASC = 1
+         * Alphabetical order, e.g. bar, Car, foo
+         *
+         * - MegaApi::ORDER_DEFAULT_DESC = 2
+         * Alphabetical inverse order, e.g. foo, Car, bar
+         *
+         * - MegaApi::ORDER_SIZE_ASC = 3
+         * Sort by size, small elements first
+         *
+         * - MegaApi::ORDER_SIZE_DESC = 4
+         * Sort by size, small elements last
+         *
+         * - MegaApi::ORDER_CREATION_ASC = 5
+         * Sort by creation time in MEGA, older elements first
+         *
+         * - MegaApi::ORDER_CREATION_DESC = 6
+         * Sort by creation time in MEGA, older elements last
+         *
          * @return List of MegaShare objects
          */
         MegaShareList *getUnverifiedOutShares(int order = ORDER_NONE);
