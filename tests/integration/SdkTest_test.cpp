@@ -19653,8 +19653,7 @@ TEST_F(SdkTest, SdkRemoveTempFilesUponUploadTransfers)
     std::shared_ptr<MegaNode> rootnode(megaApi[accIdx]->getRootNode());
     ASSERT_TRUE(!!rootnode) << "Cannot retrieve rootnode";
 
-    auto uploadFile =
-        [this](MegaNode* n, const fs::path& filePath, const bool cancelTransfer = false)
+    auto uploadFile = [&](MegaNode* n, const fs::path& filePath, bool cancelTransfer = false)
     {
         TransferTracker uploadListener(megaApi[accIdx].get());
         megaApi[accIdx]->startUpload(filePath.u8string().c_str(),
@@ -19696,11 +19695,11 @@ TEST_F(SdkTest, SdkRemoveTempFilesUponUploadTransfers)
 
     LOG_debug << "### Test1 (SdkRemoveTempFilesUponUploadTransfers) Upload file F1 ####";
     const fs::path f1Path = fs::current_path() / fs::u8path("file1.txt");
-    ASSERT_TRUE(createFile(f1Path)) << "Couldn't create " << f1Path;
+    ASSERT_TRUE(createFile(f1Path.u8string())) << "Couldn't create " << f1Path;
     ASSERT_NO_FATAL_FAILURE(uploadFile(rootnode.get(), f1Path));
 
     LOG_debug << "### Test2 (SdkRemoveTempFilesUponUploadTransfers) Upload file F1 again ####";
-    ASSERT_TRUE(createFile(f1Path)) << "Couldn't create " << f1Path;
+    ASSERT_TRUE(createFile(f1Path.u8string())) << "Couldn't create " << f1Path;
     const fs::path f2Path = fs::current_path() / fs::u8path("file2.txt");
     sdk_test::copyFileFromTestData(f1Path, f2Path);
     ASSERT_NO_FATAL_FAILURE(uploadFile(rootnode.get(), f1Path));
@@ -19711,7 +19710,7 @@ TEST_F(SdkTest, SdkRemoveTempFilesUponUploadTransfers)
 
     LOG_debug << "### Test4 (SdkRemoveTempFilesUponUploadTransfers) Upload file F1 (modified) with "
                  "different fingerprint than F1 in cloud ####";
-    ASSERT_TRUE(createFile(f1Path)) << "Couldn't create " << f1Path;
+    ASSERT_TRUE(createFile(f1Path.u8string())) << "Couldn't create " << f1Path;
     ASSERT_NO_FATAL_FAILURE(uploadFile(rootnode.get(), f1Path));
     modifyFile(f1Path, "Update");
     ASSERT_NO_FATAL_FAILURE(uploadFile(rootnode.get(), f1Path));
@@ -19719,7 +19718,7 @@ TEST_F(SdkTest, SdkRemoveTempFilesUponUploadTransfers)
     LOG_debug << "### Test5 (SdkRemoveTempFilesUponUploadTransfers) Upload file F3 and cancel "
                  "transfer ####";
     const fs::path f3Path = fs::current_path() / fs::u8path("file3.txt");
-    ASSERT_TRUE(createFile(f3Path, true)) << "Couldn't create " << f3Path;
+    ASSERT_TRUE(createFile(f3Path.u8string(), true)) << "Couldn't create " << f3Path;
     ASSERT_NO_FATAL_FAILURE(uploadFile(rootnode.get(), f3Path, true));
 }
 
