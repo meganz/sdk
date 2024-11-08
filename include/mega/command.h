@@ -1956,6 +1956,46 @@ public:
         return mName;
     }
 
+    const std::string& getCountryCode() const
+    {
+        return mCountryCode;
+    }
+
+    const std::string& getCountryName() const
+    {
+        return mCountryName;
+    }
+
+    const std::string& getRegionName() const
+    {
+        return mRegionName;
+    }
+
+    const std::string& getTownName() const
+    {
+        return mTownName;
+    }
+
+    void setCountryCode(std::string&& countryCode)
+    {
+        mCountryCode = std::move(countryCode);
+    }
+
+    void setCountryName(std::string&& countryName)
+    {
+        mCountryName = std::move(countryName);
+    }
+
+    void setRegionName(std::string&& regionName)
+    {
+        mRegionName = std::move(regionName);
+    }
+
+    void setTownName(std::string&& townName)
+    {
+        mTownName = std::move(townName);
+    }
+
     const std::map<int, VpnCluster>& getClusters() const
     {
         return mClusters;
@@ -1967,7 +2007,11 @@ public:
     }
 
 private:
-    std::string mName; // "NZ", "JP", "CA-WEST", ...
+    std::string mName; // Name (handle) of the VPN Region
+    std::string mCountryCode;
+    std::string mCountryName;
+    std::string mRegionName; // Country region name
+    std::string mTownName;
     std::map<int, VpnCluster> mClusters;
 };
 
@@ -1981,6 +2025,7 @@ public:
     static bool parseRegions(JSON& json, std::vector<VpnRegion>* vpnRegions);
 
 private:
+    static bool parseClusters(JSON& json, VpnRegion* vpnRegion);
     Cb mCompletion;
 };
 

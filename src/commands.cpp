@@ -11441,7 +11441,8 @@ CommandGetVpnRegions::CommandGetVpnRegions(MegaClient* client, Cb&& completion)
     mCompletion(std::move(completion))
 {
     cmd("vpnr");
-    arg("v", 4); // include the DNS targets for each cluster in each region in response
+    arg("v", 5); // include the DNS targets for each cluster in each region in response
+    arg("t", 1); // Retrieve server location information
 
     tag = client->reqtag;
 }
@@ -11451,7 +11452,7 @@ bool CommandGetVpnRegions::parseRegions(JSON& json, vector<VpnRegion>* vpnRegion
     bool storeData = vpnRegions != nullptr;
     string buffer;
     string* pBuffer = storeData ? &buffer : nullptr;
-    for (; json.storeobject(pBuffer);) // region name
+    for (; json.storeobject(pBuffer);) // Iterate over regions
     {
         if (*json.pos == ':') // work around lack of functionality in enterobject()
             ++json.pos;
@@ -11462,80 +11463,85 @@ bool CommandGetVpnRegions::parseRegions(JSON& json, vector<VpnRegion>* vpnRegion
                                                     std::nullopt};
         buffer.clear();
 
-        for (; json.storeobject(pBuffer);) // cluster ID
+        for (bool finishedRegion = false; !finishedRegion;)
         {
-            int clusterID{};
-            if (storeData)
+            switch (json.getnameid())
             {
-                auto [ptr, ec] =
-                    std::from_chars(buffer.c_str(), buffer.c_str() + buffer.size(), clusterID);
-                if (ec != std::errc())
-                    return false;
-            }
-
-            if (*json.pos == ':')
-                ++json.pos;
-            if (!json.enterobject())
-                return false;
-
-            std::optional<string> host{storeData ? std::make_optional<string>() : std::nullopt};
-            std::optional<vector<string>> dns{storeData ? std::make_optional<vector<string>>() :
-                                                          std::nullopt};
-
-            for (bool hasData = true; hasData;) // host, dns
-            {
-                switch (json.getnameid())
+                case MAKENAMEID1('c'): // Clusters list
+                    if (!json.enterobject()) // Enter clusters object
+                    {
+                        return false;
+                    }
+                    if (!CommandGetVpnRegions::parseClusters(json,
+                                                             storeData ? &region.value() : nullptr))
+                    {
+                        return false;
+                    }
+                    if (!json.leaveobject()) // leave clusters object
+                    {
+                        return false;
+                    }
+                    break;
+                case MAKENAMEID2('c', 'c'): // Country code
                 {
-                    case 'h':
-                        if (!json.storeobject(pBuffer))
-                            return false;
-                        if (storeData)
-                        {
-                            host = std::move(buffer);
-                            buffer.clear();
-                        }
-                        break;
-
-                    case MAKENAMEID3('d', 'n', 's'):
-                        if (!json.enterarray())
-                            return false;
-
-                        while (json.storeobject(pBuffer))
-                        {
-                            if (storeData)
-                            {
-                                dns->emplace_back(std::move(buffer));
-                                buffer.clear();
-                            }
-                        }
-
-                        if (!json.leavearray())
-                            return false;
-                        break;
-
-                    case EOO:
-                        hasData = false;
-                        break;
-
-                    default:
-                        if (!json.storeobject())
-                            return false;
+                    string countryCode;
+                    json.storeobject(&countryCode);
+                    if (storeData)
+                    {
+                        region->setCountryCode(std::move(countryCode));
+                    }
                 }
-            }
-            if (!json.leaveobject())
-                return false;
-
-            if (storeData)
-            {
-                region->addCluster(clusterID, {std::move(host.value()), std::move(dns.value())});
-            }
-
-            if (*json.pos == '}')
-            {
-                json.leaveobject();
                 break;
+                case MAKENAMEID2('c', 'n'): // Country name
+                {
+                    string countryName;
+                    json.storeobject(&countryName);
+                    if (storeData)
+                    {
+                        region->setCountryName(std::move(countryName));
+                    }
+                }
+                break;
+                case MAKENAMEID2('r', 'n'): // Region name (optional)
+                {
+                    string regionName;
+                    json.storeobject(&regionName);
+                    if (storeData)
+                    {
+                        region->setRegionName(std::move(regionName));
+                    }
+                }
+                break;
+                case MAKENAMEID2('t', 'n'): // Town name (optional)
+                {
+                    string townName;
+                    json.storeobject(&townName);
+                    if (storeData)
+                    {
+                        region->setTownName(std::move(townName));
+                    }
+                }
+                break;
+                default:
+                    if (!json.storeobject())
+                    {
+                        return false;
+                    }
+                    break;
+                case EOO:
+                    // No optional values, can't be empty.
+                    if (region->getCountryCode().empty() || region->getCountryName().empty())
+                    {
+                        return false;
+                    }
+                    finishedRegion = true;
+                    break;
             }
         }
+
+        // Leave region object
+        if (!json.leaveobject())
+            return false;
 
         if (storeData)
         {
@@ -11543,6 +11549,83 @@ bool CommandGetVpnRegions::parseRegions(JSON& json, vector<VpnRegion>* vpnRegion
         }
     }
 
+    return true;
+}
+
+bool CommandGetVpnRegions::parseClusters(JSON& json, VpnRegion* vpnRegion)
+{
+    bool storeData = vpnRegion != nullptr;
+    string buffer;
+    string* pBuffer = storeData ? &buffer : nullptr;
+
+    for (; json.storeobject(pBuffer);) // cluster ID
+    {
+        int clusterID{};
+        if (storeData)
+        {
+            auto [ptr, ec] =
+                std::from_chars(buffer.c_str(), buffer.c_str() + buffer.size(), clusterID);
+            if (ec != std::errc())
+                return false;
+        }
+
+        if (*json.pos == ':')
+            ++json.pos;
+        if (!json.enterobject())
+            return false;
+
+        std::optional<string> host{storeData ? std::make_optional<string>() : std::nullopt};
+        std::optional<vector<string>> dns{storeData ? std::make_optional<vector<string>>() :
+                                                      std::nullopt};
+
+        for (bool hasData = true; hasData;) // host, dns
+        {
+            switch (json.getnameid())
+            {
+                case 'h':
+                    if (!json.storeobject(pBuffer))
+                        return false;
+                    if (storeData)
+                    {
+                        host = std::move(buffer);
+                        buffer.clear();
+                    }
+                    break;
+
+                case MAKENAMEID3('d', 'n', 's'):
+                    if (!json.enterarray())
+                        return false;
+
+                    while (json.storeobject(pBuffer))
+                    {
+                        if (storeData)
+                        {
+                            dns->emplace_back(std::move(buffer));
+                            buffer.clear();
+                        }
+                    }
+
+                    if (!json.leavearray())
+                        return false;
+                    break;
+
+                case EOO:
+                    hasData = false;
+                    break;
+
+                default:
+                    if (!json.storeobject())
+                        return false;
+            }
+        }
+        if (!json.leaveobject())
+            return false;
+
+        if (storeData)
+        {
+            vpnRegion->addCluster(clusterID, {std::move(host.value()), std::move(dns.value())});
+        }
+    }
     return true;
 }
 
@@ -11573,7 +11656,7 @@ CommandGetVpnCredentials::CommandGetVpnCredentials(MegaClient* client, Cb&& comp
     mCompletion(std::move(completion))
 {
     cmd("vpng");
-    arg("v", 4); // include the DNS targets for each cluster in each region in response
+    arg("v", 5); // include the DNS targets for each cluster in each region in response
 
     tag = client->reqtag;
 }
@@ -11723,7 +11806,7 @@ CommandPutVpnCredential::CommandPutVpnCredential(MegaClient* client,
 {
     cmd("vpnp");
     arg("k", (byte*)mUserKeyPair.pubKey.c_str(), static_cast<int>(mUserKeyPair.pubKey.size()));
-    arg("v", 4); // include the DNS targets for each cluster in each region in response
+    arg("v", 5); // include the DNS targets for each cluster in each region in response
 
     tag = client->reqtag;
 }
