@@ -1103,6 +1103,26 @@ public:
         return mRegion.getName().c_str();
     }
 
+    const char* getCountryCode() const override
+    {
+        return mRegion.getCountryCode().c_str();
+    }
+
+    const char* getCountryName() const override
+    {
+        return mRegion.getCountryName().c_str();
+    }
+
+    const char* getRegionName() const override
+    {
+        return mRegion.getRegionName().c_str();
+    }
+
+    const char* getTownName() const override
+    {
+        return mRegion.getTownName().c_str();
+    }
+
     MegaVpnClusterMapPrivate* getClusters() const override;
 
 private:

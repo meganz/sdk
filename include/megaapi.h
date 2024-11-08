@@ -5515,7 +5515,11 @@ class MegaRequest
          * @brief Provide all available VPN Regions, including their details.
          *
          * The data included for each Region is the following:
-         * - Name (example: NZ, JP, CA-WEST etc.)
+         * - Name (example: hMLKTUojS6o, 1MvzBCx1Uf4)
+         * - Country Code (example: ES, LU)
+         * - Country Name (example: Spain, Luxembourg)
+         * - Region Name (optional) (example: Esch-sur-Alzette)
+         * - Town Name (Optional) (example: Bettembourg)
          * - Map of {ClusterID, Cluster}.
          * - For each Cluster:
          *    · Host.
@@ -24875,7 +24879,11 @@ protected:
 /**
  * @brief Container to store information of a VPN Region.
  *
- *  - Name (example: NZ, JP, CA-WEST etc.)
+ *  - Name (example: hMLKTUojS6o, 1MvzBCx1Uf4)
+ *  - Country Code (example: ES, LU)
+ *  - Country Name (example: Spain, Luxembourg)
+ *  - Region Name (optional) (example: Esch-sur-Alzette)
+ *  - Town Name (Optional) (example: Bettembourg)
  *  - Clusters (contain information like host, DNS list, possibly others)
  *
  * Instances of this class are immutable.
@@ -24892,6 +24900,50 @@ public:
      * @return the name of this VPN Region, always not-null.
      */
     virtual const char* getName() const = 0;
+
+    /**
+     * @brief Get the country code where the VPN Region is located.
+     *
+     * The caller does not take ownership of the returned value, which is valid as long as current
+     * instance is valid.
+     *
+     * @return the country code for this VPN Region, always not-null.
+     */
+    virtual const char* getCountryCode() const = 0;
+
+    /**
+     * @brief Get the name of the country where the VPN Region is located.
+     *
+     * The caller does not take ownership of the returned value, which is valid as long as current
+     * instance is valid.
+     *
+     * @return the country name for this VPN Region, always not-null.
+     */
+    virtual const char* getCountryName() const = 0;
+
+    /**
+     * @brief Get the name of the country region where this VPN Region is located.
+     *
+     * Optional value. It may be empty for certain VPN Regions
+     *
+     * The caller does not take ownership of the returned value, which is valid as long as current
+     * instance is valid.
+     *
+     * @return the country region name for this VPN Region, always not-null.
+     */
+    virtual const char* getRegionName() const = 0;
+
+    /**
+     * @brief Get the name name of the town where this VPN is located.
+     *
+     * Optional value. It may be empty for certain VPN Regions
+     *
+     * The caller does not take ownership of the returned value, which is valid as long as current
+     * instance is valid.
+     *
+     * @return the name of the Town for this VPN Region, always not-null.
+     */
+    virtual const char* getTownName() const = 0;
 
     /**
      * @brief Get a container with all Clusters of this VPN Region.

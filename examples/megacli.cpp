@@ -12620,7 +12620,24 @@ void exec_getvpnregions(autocomplete::ACState& s)
                     cout << "List of VPN regions:" << endl;
                     for (size_t i = 0; i < vpnRegions.size(); i++)
                     {
-                        cout << (i+1) << ". " << vpnRegions[i].getName() << "." << endl;
+                        cout << (i + 1) << ". " << vpnRegions[i].getName() << " ---> ";
+                        cout << " Country Code: \"" << vpnRegions[i].getCountryCode() << "\",";
+                        cout << " Country Name: \"" << vpnRegions[i].getCountryName() << "\"";
+                        if (!vpnRegions[i].getRegionName().empty())
+                        {
+                            cout << ", Region: \"" << vpnRegions[i].getRegionName() << "\"";
+                        }
+                        if (!vpnRegions[i].getTownName().empty())
+                        {
+                            cout << ", Town: \"" << vpnRegions[i].getTownName() << "\"";
+                        }
+                        cout << endl;
+                        const auto clusters = vpnRegions[i].getClusters();
+                        for (const auto& cluster: clusters)
+                        {
+                            cout << "\t Cluster [" << cluster.first << "] -> "
+                                 << cluster.second.getHost() << endl;
+                        }
                     }
                 }
                 else
