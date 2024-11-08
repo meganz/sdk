@@ -101,12 +101,12 @@ TEST(PayCrypter, allFeatures)
 
     //Test HMAC-SHA256
     string toAuth;
-    toAuth.assign((char *)iv, ivLen);
+    toAuth.assign((char*)iv, static_cast<size_t>(ivLen));
     toAuth.append(result);
 
     string mac;
     mac.resize(32);
-    HMACSHA256 hmacProcessor(hmacKey, hmacKeyLen);
+    HMACSHA256 hmacProcessor(hmacKey, static_cast<size_t>(hmacKeyLen));
     hmacProcessor.add((byte *)toAuth.data(), toAuth.size());
     hmacProcessor.get((byte *)mac.data());
 
@@ -126,7 +126,7 @@ TEST(PayCrypter, allFeatures)
 
     //Prepare the expected result
     string CRYPT_PAYLOAD = mac;
-    CRYPT_PAYLOAD.append((char *)iv, ivLen);
+    CRYPT_PAYLOAD.append((char*)iv, static_cast<size_t>(ivLen));
     CRYPT_PAYLOAD.append(result);
     char* expectedPayload = new char[CRYPT_PAYLOAD.size()*4/3+4];
     Base64::btoa((const byte *)CRYPT_PAYLOAD.data(), static_cast<int>(CRYPT_PAYLOAD.size()), expectedPayload);
@@ -151,7 +151,7 @@ TEST(PayCrypter, allFeatures)
 
     //Test PayCrypter:rsaEncryptKeys() with a binary input, disabling random padding to get known results
     string cryptKeysBytesBin;
-    message.assign(keys, keysLen);
+    message.assign(keys, static_cast<size_t>(keysLen));
     ASSERT_TRUE(payCrypter.rsaEncryptKeys(&message, pubkdata, pubkdatalen, &cryptKeysBytesBin, false));
 
     //Check result

@@ -194,7 +194,7 @@ TEST(CacheLRU, removeNode)
     for (uint32_t i = 0; i < numNodes; i++)
     {
         auto& file = mt::makeNode(*client, mega::nodetype_t::FILENODE, mega::NodeHandle().set6byte(index++), &folder);
-        file.size = index;
+        file.size = static_cast<m_off_t>(index);
         file.owner = 88;
         file.ctime = 44;
         file.attrs.map = std::map<mega::nameid, std::string>{
@@ -269,7 +269,7 @@ TEST(CacheLRU, getNodebyFingerprint_RAM_NoLRU)
     for (uint32_t i = 0; i < numNodes; i++)
     {
         auto& file = mt::makeNode(*client, mega::nodetype_t::FILENODE, mega::NodeHandle().set6byte(index++), &folder);
-        file.size = index;
+        file.size = static_cast<m_off_t>(index);
         file.owner = 88;
         file.ctime = 44;
         // Modify fingerprint look nodes by fingerprint
@@ -363,7 +363,7 @@ TEST(CacheLRU, getNodeByFingerprint_NoRAM_NoLRU)
     for (uint32_t i = 0; i < numNodes; i++)
     {
         auto& file = mt::makeNode(*client, mega::nodetype_t::FILENODE, mega::NodeHandle().set6byte(index++), &folder);
-        file.size = index;
+        file.size = static_cast<m_off_t>(index);
         file.owner = 88;
         file.ctime = 44;
         // Modify fingerprint look nodes by fingerprint
@@ -451,7 +451,7 @@ TEST(CacheLRU, searchNode) // processUnserializedNodes
     for (uint32_t i = 0; i < numNodes; i++)
     {
         auto& file = mt::makeNode(*client, mega::nodetype_t::FILENODE, mega::NodeHandle().set6byte(index++), &folder);
-        file.size = index;
+        file.size = static_cast<m_off_t>(index);
         file.owner = 88;
         file.ctime = 44;
         std::string name = "name" + std::to_string(index);
@@ -556,7 +556,7 @@ TEST(CacheLRU, getChildren)
     for (uint32_t i = 0; i < numNodesFolder1; i++)
     {
         auto& file = mt::makeNode(*client, mega::nodetype_t::FILENODE, mega::NodeHandle().set6byte(index++), folder1.get());
-        file.size = index;
+        file.size = static_cast<m_off_t>(index);
         file.owner = 88;
         file.ctime = 44;
         file.attrs.map = std::map<mega::nameid, std::string>{{101, "foo"}, {102, "bar"}};
@@ -572,7 +572,7 @@ TEST(CacheLRU, getChildren)
     for (uint32_t i = 0; i < numNodesFolder2; i++)
     {
         auto& file = mt::makeNode(*client, mega::nodetype_t::FILENODE, mega::NodeHandle().set6byte(index++), folder2.get());
-        file.size = index;
+        file.size = static_cast<m_off_t>(index);
         file.owner = 88;
         file.ctime = 44;
         file.attrs.map = std::map<mega::nameid, std::string>{{101, "foo"}, {102, "bar"}};
@@ -589,7 +589,7 @@ TEST(CacheLRU, getChildren)
     for (uint32_t i = 0; i < numNodesFolder3; i++)
     {
         auto& file = mt::makeNode(*client, mega::nodetype_t::FILENODE, mega::NodeHandle().set6byte(index++), folder3.get());
-        file.size = index;
+        file.size = static_cast<m_off_t>(index);
         file.owner = 88;
         file.ctime = 44;
         file.attrs.map = std::map<mega::nameid, std::string>{{101, "foo"}, {102, "bar"}};
@@ -656,7 +656,7 @@ TEST(CacheLRU, getNodeByHandle)
     for (uint32_t i = 0; i < numNodes; i++)
     {
         auto& file = mt::makeNode(*client, mega::nodetype_t::FILENODE, mega::NodeHandle().set6byte(index++), &folder);
-        file.size = index;
+        file.size = static_cast<m_off_t>(index);
         file.owner = 88;
         file.ctime = 44;
         std::string name = "name" + std::to_string(index);
@@ -741,7 +741,7 @@ TEST(CacheLRU, childNodeByNameType)
     for (uint32_t i = 0; i < numNodes; i++)
     {
         auto& file = mt::makeNode(*client, mega::nodetype_t::FILENODE, mega::NodeHandle().set6byte(index++), &folder);
-        file.size = index;
+        file.size = static_cast<m_off_t>(index);
         file.owner = 88;
         file.ctime = 44;
         std::string name = "name" + std::to_string(index);
@@ -820,7 +820,7 @@ TEST(CacheLRU, reduceCacheLRUSize)
     for (uint32_t i = 0; i < numNodes; i++)
     {
         auto& file = mt::makeNode(*client, mega::nodetype_t::FILENODE, mega::NodeHandle().set6byte(index++), &folder);
-        file.size = index;
+        file.size = static_cast<m_off_t>(index);
         file.owner = 88;
         file.ctime = 44;
         std::string name = "name" + std::to_string(index);
