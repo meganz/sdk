@@ -12147,6 +12147,15 @@ bool CommandGetNotifications::procresult(Result r, JSON& json)
                 break;
             }
 
+            case 'm':
+                if (!readRenderModes(json, notification.renderModes))
+                {
+                    LOG_err << "Unable to read 'm' in 'gnotif' response";
+                    mOnResult(API_EINTERNAL, {});
+                    return false;
+                }
+                break;
+
             default:
                 if (!json.storeobject())
                 {
@@ -12198,6 +12207,40 @@ bool CommandGetNotifications::readCallToAction(JSON& json, map<string, string>& 
             {
                 return false;
             }
+        }
+    }
+
+    return json.leaveobject();
+}
+
+bool CommandGetNotifications::readRenderModes(JSON& json, map<string, map<string, string>>& modes)
+{
+    if (!json.enterobject())
+    {
+        return false;
+    }
+
+    for (string renderMode = json.getname(); !renderMode.empty(); renderMode = json.getname())
+    {
+        if (!json.enterobject())
+        {
+            return false;
+        }
+
+        auto& fields = modes[std::move(renderMode)];
+
+        for (string f, v; json.storeKeyValueFromObject(f, v);)
+        {
+            fields.emplace(std::move(f), std::move(v));
+            // Clear moved-from strings to avoid "Use of a moved from object" warning
+            // (false-positive in current implementation)
+            f.clear();
+            v.clear();
+        }
+
+        if (!json.leaveobject())
+        {
+            return false;
         }
     }
 

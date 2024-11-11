@@ -2086,6 +2086,8 @@ public:
 
 private:
     bool readCallToAction(JSON& json, std::map<std::string, std::string>& action);
+    bool readRenderModes(JSON& json,
+                         std::map<std::string, std::map<std::string, std::string>>& modes);
 
     ResultFunc mOnResult;
 };

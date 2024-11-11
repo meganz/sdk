@@ -5398,18 +5398,68 @@ public:
     MegaNotificationPrivate(const DynamicMessageNotification& n) :
         mNotification{n}, mCall1{&mNotification.callToAction1}, mCall2{&mNotification.callToAction2} {}
 
-    int64_t getID() const override { return mNotification.id; }
-    const char* getTitle() const override { return mNotification.title.c_str(); }
-    const char* getDescription() const override { return mNotification.description.c_str(); }
-    const char* getImageName() const override { return mNotification.imageName.c_str(); }
-    const char* getIconName() const override { return mNotification.iconName.c_str(); }
-    const char* getImagePath() const override { return mNotification.imagePath.c_str(); }
-    int64_t getStart() const override { return mNotification.start; }
-    int64_t getEnd() const override { return mNotification.end; }
-    bool showBanner() const override { return mNotification.showBanner; }
-    const MegaStringMap* getCallToAction1() const override { return &mCall1; }
-    const MegaStringMap* getCallToAction2() const override { return &mCall2; }
-    MegaNotificationPrivate* copy() const override { return new MegaNotificationPrivate(*this); }
+    int64_t getID() const override
+    {
+        return mNotification.id;
+    }
+
+    const char* getTitle() const override
+    {
+        return mNotification.title.c_str();
+    }
+
+    const char* getDescription() const override
+    {
+        return mNotification.description.c_str();
+    }
+
+    const char* getImageName() const override
+    {
+        return mNotification.imageName.c_str();
+    }
+
+    const char* getIconName() const override
+    {
+        return mNotification.iconName.c_str();
+    }
+
+    const char* getImagePath() const override
+    {
+        return mNotification.imagePath.c_str();
+    }
+
+    int64_t getStart() const override
+    {
+        return mNotification.start;
+    }
+
+    int64_t getEnd() const override
+    {
+        return mNotification.end;
+    }
+
+    bool showBanner() const override
+    {
+        return mNotification.showBanner;
+    }
+
+    const MegaStringMap* getCallToAction1() const override
+    {
+        return &mCall1;
+    }
+
+    const MegaStringMap* getCallToAction2() const override
+    {
+        return &mCall2;
+    }
+
+    MegaStringList* getRenderModes() const override;
+    MegaStringMap* getRenderModeFields(const char* mode) const override;
+
+    MegaNotificationPrivate* copy() const override
+    {
+        return new MegaNotificationPrivate(*this);
+    }
 
 private:
     const DynamicMessageNotification mNotification;
