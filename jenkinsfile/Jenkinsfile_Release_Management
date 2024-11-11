@@ -19,17 +19,20 @@ pipeline {
     }
     parameters {
         choice(name: 'ACTION', choices: ['Create_Release', 'Create_Release_Candidate', 'Close_Release', 'Patch_Release'], description: 'Pick an action')
+        string(name: 'SLACK_THREAD_ANNOUNCE', defaultValue: '', description: 'Id of thread root message')
         string(name: 'TARGET_APPS', defaultValue: '', description: 'e.g. Android 1.0.1 / iOS 1.2 / MEGAsync 9.9.9 RC1')
         string(name: 'RELEASE_VERSION', defaultValue: '', description: 'Optionally define a release version for Create Release. It must exist for Patch Release. Default is 1.0.0.')   
-        string(name: 'TICKETS', defaultValue: '', description: 'Comma separated tickets')
-        string(name: 'BRANCH_FOR_MR', defaultValue: '', description: 'Comma separated tickets')
-        string(name: 'MR_DESCRIPTION', defaultValue: '', description: 'Comma separated tickets')
+        string(name: 'TICKETS', defaultValue: '', description: 'Comma separated tickets (patch release or create rc)')
+        string(name: 'BRANCH_FOR_MR', defaultValue: '', description: 'Branch for MR')
+        string(name: 'MR_DESCRIPTION', defaultValue: '', description: 'MR Description')
+        password(name: 'GPG_PASSWORD', defaultValue: '', description: 'Enter the password')
     }
     environment {
-        gitlab_token = credentials('jenkins_sdk_token')
-        slack_token = credentials('slack_token')
-        jira_sdk_username = credentials('') //use with credentials
-        jira_sdk_password = credentials('') //use with credentials
+        //gitlab_token = credentials('jenkins_sdk_token')
+        //slack_token = credentials('slack_token')
+        //jira_sdk_username = credentials('') //use with credentials
+        //jira_sdk_password = credentials('') //use with credentials
+        //github_token = credentials('') //use with credentials
         project_name = "SDK"
         slack_channel = "sdk"
         slack_channel_dev_requests = "sdk_devs_only"
@@ -38,21 +41,46 @@ pipeline {
         confluence_url = "${env.CONFLUENCE_BASE_URL}"
         confluence_page_id = "3640225"
         github_push_remote_url = "git@github.com:meganz/sdk.git"
-        gpg_keygrip = credentials('') //use with credentials
-        gpg_password = credentials('') //use with credentials
-        confluence_username = credentials('') //use with credentials
-        confluence_password = credentials('') //use with credentials
+        //gpg_keygrip = credentials('') //use with credentials
+        //confluence_username = credentials('') //use with credentials
+        //confluence_password = credentials('') //use with credentials
     }
 
     stages {
+        stage('Replace config file'){
+            steps {
+                dir("automation"){
+                    sh 'cp config.toml.template config.toml'   
+                    script {
+                        sh """
+                            sed -i 's|project_name = ""|project_name = "${env.project_name}"|' config.toml
+                            sed -i 's|target_apps = ""|target_apps = "${params.TARGET_APPS}"|' config.toml
+                            sed -i 's|gitlab_url = ""|gitlab_url = "${env.gitlab_url}"|' config.toml
+                            sed -i 's|jira_url = ""|jira_url = "${env.jira_url}"|' config.toml
+                            sed -i 's|slack_channel_dev_requests = ""|slack_channel_dev_requests = "${env.slack_channel_dev_requests}"|' config.toml
+                            sed -i 's|slack_channel_announce = ""|slack_channel_announce = "${env.slack_channel}"|' config.toml
+                            sed -i 's|slack_thread_announce = ""|slack_thread_announce = "${params.SLACK_THREAD_ANNOUNCE}"|' config.toml
+                            sed -i 's|release_version = ""|release_version = "${params.RELEASE_VERSION}"|' config.toml
+                            sed -i 's|github_push_remote_url = ""|github_push_remote_url = "${env.github_push_remote_url}"|' config.toml
+                            sed -i 's|confluence_url = ""|confluence_url = "${env.confluence_url}"|' config.toml
+                            sed -i 's|tickets = ""|tickets = "${params.TICKETS}"|' config.toml
+                            sed -i 's|branch_for_mr = ""|branch_for_mr = "${params.BRANCH_FOR_MR}"|' config.toml
+                            sed -i 's|mr_description = ""|mr_description = "${params.MR_DESCRIPTION}"|' config.toml
+                        """
+                    }
+                    sh 'cat config.toml'
+                }
+            }            
+        }
+        
         stage('Create Release'){
             when { 
                 beforeAgent true
                 expression { params.ACTION == "Create_Release" }
             }
             steps {
-                script {
-
+                dir("automation"){
+                    sh 'cat config.toml'
                 }
             }
         }
@@ -62,6 +90,9 @@ pipeline {
                 expression { params.ACTION == "Create_Release_CANDIDATE" } 
             }
             steps {
+                dir("automation"){
+                    sh 'cat config.toml'
+                }
             }
         }
         stage ('Close Release'){
@@ -70,6 +101,9 @@ pipeline {
                 expression { params.ACTION == "Close_Release" }
             }
             steps {
+                dir("automation"){
+                    sh 'cat config.toml'
+                }
             }
         }
         stage ('Patch Release'){
@@ -78,7 +112,15 @@ pipeline {
                 expression { params.ACTION == "Patch_Release" }
             }
             steps {
+                dir("automation"){
+                    sh 'cat config.toml'
+                }
             }
+        }
+    }
+    post {
+        always {
+            deleteDir() /* clean up our workspace */
         }
     }
 }
