@@ -23091,6 +23091,10 @@ class MegaApi
          *
          * This function answers a survey that the user has been asked to complete.
          *
+         * @note: If triggerActionId is MegaApi::ACT_END_UPLOAD, response and comment params, must
+         * be valid null terminated c-style strings, and response must contains a string with a
+         * valid rating value between 0 and 5
+         *
          * The associated request type for this function is MegaRequest::TYPE_ANSWER_SURVEY.
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the survey handle.
@@ -23101,6 +23105,8 @@ class MegaApi
          * If the request fails, the MegaError code in onRequestFinish can be:
          * - EACCESS   - Invalid user ID.
          * - EARGS     - Invalid arguments such as invalid survey handle/invalid trigger action ID.
+         * Also if triggerActionId is MegaApi::ACT_END_UPLOAD, and no valid rating value is provided
+         * at response, or comment param is nullptr.
          * - ENOENT    - Survey not found, trigger action not found, or survey disabled.
          * - EINTERNAL - Received answer could not be read.
          *

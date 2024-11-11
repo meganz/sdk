@@ -19,6 +19,7 @@
  * program.
  */
 
+#include <charconv>
 #include <numeric>
 #define _LARGE_FILES
 
@@ -27870,9 +27871,59 @@ void MegaApiImpl::answerSurvey(MegaHandle surveyHandle,
             fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
         };
 
+        auto parseRating = [](const char* response) -> std::pair<ErrorCodes, int>
+        {
+            assert(response);
+            int rating{};
+            if (auto [ptr, ec] =
+                    std::from_chars(response, response + std::strlen(response), rating);
+                ec != std::errc{})
+            {
+                LOG_err
+                    << "Request (TYPE_ANSWER_SURVEY). Cannot convert rating into a numeric value: "
+                    << rating;
+                return {API_EARGS, rating};
+            }
+
+            if (rating < 1 || rating > 5)
+            {
+                LOG_err << "Request (TYPE_ANSWER_SURVEY). Rating value is out of valid range: "
+                        << rating;
+                return {API_EARGS, rating};
+            }
+
+            return {API_OK, rating};
+        };
+
         const unsigned int triggerActionId{static_cast<unsigned int>(request->getParamType())};
         const char* response{request->getText()};
         const char* comment{request->getFile()};
+        if (const auto sendTransferFeedback = triggerActionId == MegaApi::ACT_END_UPLOAD;
+            sendTransferFeedback)
+        {
+            if (!response)
+            {
+                LOG_err << "Request (TYPE_ANSWER_SURVEY). Invalid response param";
+                return API_EARGS;
+            }
+
+            if (!comment)
+            {
+                LOG_err << "Request (TYPE_ANSWER_SURVEY). Invalid comment param";
+                return API_EARGS;
+            }
+
+            auto [err, rating] = parseRating(response);
+            if (err != API_OK)
+            {
+                return err;
+            }
+
+            sendUserfeedback(rating,
+                             comment,
+                             true /*transferFeedback*/,
+                             MegaApi::TRANSFER_STATS_UPLOAD);
+        }
 
         CommandAnswerSurvey::Answer answer{request->getNodeHandle(), // survey handle
                                            triggerActionId,
@@ -27880,15 +27931,6 @@ void MegaApiImpl::answerSurvey(MegaHandle surveyHandle,
                                            comment};
 
         client->answerSurvey(answer, std::move(completion));
-
-        if (triggerActionId == MegaApi::ACT_END_UPLOAD)
-        {
-            const int rating{-1}; // TODO: add method to extract rating from response
-            sendUserfeedback(rating,
-                             comment,
-                             true /*transferFeedback*/,
-                             MegaApi::TRANSFER_STATS_UPLOAD);
-        }
         return API_OK;
     };
 
