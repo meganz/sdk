@@ -10403,6 +10403,26 @@ class MegaApi
             TRANSFER_STATS_MAX = TRANSFER_STATS_BOTH,
         };
 
+        /**
+         * @enum ActionType
+         * @brief Enumeration representing different types of trigger actions for surveys.
+         *
+         * This enum is used to define actions that will trigger specific surveys.
+         * Each action is associated with a particular user activity.
+         */
+        enum
+        {
+            ACT_END_UPLOAD = 1,
+            ACT_END_MEETING = 2,
+            ACT_CLOSING_DOC = 3,
+            ACT_END_VIDEO = 4,
+            ACT_END_AUDIO = 5,
+            ACT_INIT_BACKUP = 6,
+            ACT_END_PHOTO_UPLOAD = 7,
+            ACT_END_ALBUM_UPLOAD = 8,
+            ACT_SHARE_FOLDER_FILE = 9,
+        };
+
         static constexpr int64_t INVALID_CUSTOM_MOD_TIME = -1;
         static constexpr int CHAT_OPTIONS_EMPTY = 0;
         static constexpr int MAX_NODE_DESCRIPTION_SIZE = 3000;

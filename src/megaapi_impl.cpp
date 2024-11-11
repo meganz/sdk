@@ -19881,6 +19881,58 @@ std::pair<bool, error> MegaApiImpl::checkCreateFolderPrecons(const char* name,
     return std::make_pair(true, API_OK);
 }
 
+void MegaApiImpl::sendUserfeedback(const int rating,
+                                   const char* comment,
+                                   const bool transferFeedback,
+                                   const int transferType)
+{
+    auto sendFeedback = [this](const int rating,
+                               const std::string& base64comment,
+                               const bool transferFeedback,
+                               const direction_t transferType)
+    {
+        std::ostringstream feedback;
+        if (transferFeedback)
+        {
+            std::string ts =
+                client->mTransferStatsManager.metricsToJsonForTransferType(transferType);
+            feedback << R"({\"r\":\")" << rating << R"(\",\"m\":\")" << base64comment
+                     << R"(\",\"u\":\")" << toHandle(client->me) << R"(\",)" << ts << "}";
+        }
+        else
+        {
+            feedback << R"({\"r\":\")" << rating << R"(\",\"m\":\")" << base64comment
+                     << R"(\",\"u\":\")" << toHandle(client->me) << R"(\"})";
+        }
+        client->userfeedbackstore(feedback.str().c_str());
+    };
+
+    std::string base64comment{};
+    if (comment)
+    {
+        base64comment = Base64::btoa(comment);
+    }
+
+    if (transferFeedback)
+    {
+        if (transferType == MegaApi::TRANSFER_STATS_DOWNLOAD ||
+            transferType == MegaApi::TRANSFER_STATS_BOTH)
+        {
+            sendFeedback(rating, base64comment, transferFeedback, GET);
+        }
+
+        if (transferType == MegaApi::TRANSFER_STATS_UPLOAD ||
+            transferType == MegaApi::TRANSFER_STATS_BOTH)
+        {
+            sendFeedback(rating, base64comment, transferFeedback, PUT);
+        }
+    }
+    else
+    {
+        sendFeedback(rating, base64comment, transferFeedback, NONE);
+    }
+}
+
 void MegaApiImpl::createFolder(const char* name, MegaNode* parent, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_FOLDER, listener);
@@ -23497,27 +23549,6 @@ void MegaApiImpl::submitFeedback(int rating,
 
     request->performRequest = [this, request]()
     {
-        auto sendFeedback = [this](const int rating,
-                                   const std::string& base64message,
-                                   const bool transferFeedback,
-                                   const direction_t transferType)
-        {
-            std::ostringstream feedback;
-            if (transferFeedback)
-            {
-                std::string ts =
-                    client->mTransferStatsManager.metricsToJsonForTransferType(transferType);
-                feedback << R"({\"r\":\")" << rating << R"(\",\"m\":\")" << base64message
-                         << R"(\",\"u\":\")" << toHandle(client->me) << R"(\",)" << ts << "}";
-            }
-            else
-            {
-                feedback << R"({\"r\":\")" << rating << R"(\",\"m\":\")" << base64message
-                         << R"(\",\"u\":\")" << toHandle(client->me) << R"(\"})";
-            }
-            client->userfeedbackstore(feedback.str().c_str());
-        };
-
         const int rating{static_cast<int>(request->getNumber())};
         if (rating < 1 || rating > 5)
         {
@@ -23533,30 +23564,9 @@ void MegaApiImpl::submitFeedback(int rating,
             return API_EARGS;
         }
 
-        std::string base64message{};
-        if (const char* message = request->getText(); message)
-        {
-            base64message = Base64::btoa(message);
-        }
-
-        if (const bool transferFeedback{request->getFlag()}; transferFeedback)
-        {
-            if (transferType == MegaApi::TRANSFER_STATS_DOWNLOAD ||
-                transferType == MegaApi::TRANSFER_STATS_BOTH)
-            {
-                sendFeedback(rating, base64message, transferFeedback, GET);
-            }
-
-            if (transferType == MegaApi::TRANSFER_STATS_UPLOAD ||
-                transferType == MegaApi::TRANSFER_STATS_BOTH)
-            {
-                sendFeedback(rating, base64message, transferFeedback, PUT);
-            }
-        }
-        else
-        {
-            sendFeedback(rating, base64message, transferFeedback, NONE);
-        }
+        const bool transferFeedback{request->getFlag()};
+        const char* comment{request->getText()};
+        sendUserfeedback(rating, comment, transferFeedback, transferType);
         return API_OK;
     };
 
@@ -27860,13 +27870,25 @@ void MegaApiImpl::answerSurvey(MegaHandle surveyHandle,
             fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
         };
 
-        CommandAnswerSurvey::Answer answer{
-            request->getNodeHandle(), // survey handle
-            static_cast<unsigned int>(request->getParamType()), // triger action ID
-            request->getText(), // response
-            request->getFile()}; // comment
+        const unsigned int triggerActionId{static_cast<unsigned int>(request->getParamType())};
+        const char* response{request->getText()};
+        const char* comment{request->getFile()};
+
+        CommandAnswerSurvey::Answer answer{request->getNodeHandle(), // survey handle
+                                           triggerActionId,
+                                           response,
+                                           comment};
 
         client->answerSurvey(answer, std::move(completion));
+
+        if (triggerActionId == MegaApi::ACT_END_UPLOAD)
+        {
+            const int rating{-1}; // TODO: add method to extract rating from response
+            sendUserfeedback(rating,
+                             comment,
+                             true /*transferFeedback*/,
+                             MegaApi::TRANSFER_STATS_UPLOAD);
+        }
         return API_OK;
     };
 
