@@ -1230,7 +1230,7 @@ bool PosixFileSystemAccess::mkdirlocal(const LocalPath& name, bool, bool logAlre
     AdjustBasePathResult nameStr = adjustBasePath(name);
 
     mode_t mode = umask(0);
-    bool r = !mkdir(nameStr.c_str(), defaultfolderpermissions);
+    bool r = !mkdir(nameStr.c_str(), static_cast<mode_t>(defaultfolderpermissions));
     umask(mode);
 
     if (!r)
