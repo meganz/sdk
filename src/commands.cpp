@@ -3700,7 +3700,9 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                                 const string* oldVersion = u->getattrversion(ATTR_KEYS);
                                 if (oldValue)
                                 {
-                                    LOG_warn << "Replacing ^!keys value by previous version " << *oldVersion << " current: " << version;
+                                    LOG_warn << "Replacing ^!keys value by previous version "
+                                             << (oldVersion ? *oldVersion : "[NA]")
+                                             << " current: " << version;
                                     const string* oldValue = u->getattr(ATTR_KEYS);
                                     assert(oldValue);
                                     value = *oldValue;
