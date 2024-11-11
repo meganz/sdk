@@ -16935,6 +16935,28 @@ void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr
         LOG_info << "Transfer (" << transfer->getTransferString() << ") finished. File: " << transfer->getFileName();
     }
 
+    if (transfer->getType() == MegaTransfer::TYPE_UPLOAD && transfer->isSourceFileTemporary() &&
+        transfer->fingerprint_filetype == FILENODE && transfer->getPath() &&
+        (transfer->getState() == MegaTransfer::STATE_COMPLETED ||
+         transfer->getState() == MegaTransfer::STATE_CANCELLED ||
+         transfer->getState() == MegaTransfer::STATE_FAILED))
+    {
+        const auto wLocalPath = LocalPath::fromAbsolutePath(transfer->getPath());
+        bool fileRemoved = !client->fsaccess->fileExistsAt(wLocalPath);
+        if (!fileRemoved)
+        {
+            // This prevents that file is tried to be removed more than once.
+            // Anyway in case that happens, FileSystemAccess::transient_error wouldn't be set true
+            fileRemoved = client->fsaccess->unlinklocal(wLocalPath);
+            if (!fileRemoved)
+            {
+                LOG_err << "fireOnTransferFinish (TYPE_UPLOAD): cannot remove temporary local file "
+                        << wLocalPath;
+            }
+        }
+        transfer->setStage(fileRemoved);
+    }
+
     for(set<MegaTransferListener *>::iterator it = transferListeners.begin(); it != transferListeners.end() ;)
     {
         (*it++)->onTransferFinish(api, transfer, e.get());

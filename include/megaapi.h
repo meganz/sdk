@@ -5957,21 +5957,30 @@ class MegaTransfer
 		virtual int getMaxRetries() const;
 
         /**
-         * @brief Returns the current stage in case this transfer represents a folder upload/download operation.
-         * This method can return the following values:
+         * @brief Returns a numeric value that can be used for different purposes:
+         *
+         * 1) In case MegaTransfer::isRecursive is true, it returns the current stage in case this
+         * transfer represents a folder upload/download operation. Valid values are:
          *  - MegaTransfer::STAGE_SCAN                      = 1
          *  - MegaTransfer::STAGE_CREATE_TREE               = 2
          *  - MegaTransfer::STAGE_TRANSFERRING_FILES        = 3
-         * Any other returned value, must be ignored.
+         * Any other returned value in this scenario, must be ignored.
          *
-         * The value returned by this method, can only be considered as valid, when we receive MegaTransferListener::onTransferUpdate
-         * or MegaListener::onTransferUpdate, and the returned value is in between the range specified above.
+         * In this scenario the value returned by this method, can only be considered as valid, when
+         * we receive MegaTransferListener::onTransferUpdate or MegaListener::onTransferUpdate, and
+         * the returned value is in between the range specified above.
          *
          * Note: any specific stage can only be notified once at most.
-         *
          * @deprecated use the stage in the onFolderTransferUpdate callback instead
          *
-         * @return The current stage for a folder upload/download operation
+         * 2) In case of file transfer, MegaTransfer::getType is MegaTransfer::TYPE_UPLOAD and
+         * MegaTransfer::isSourceFileTemporary is true, This method method returns a number greater
+         * than 0 if temporary file could be removed from local filesystem, otherwise returns 0
+         *
+         * In this scenario the value returned by this method, can only be considered as valid, when
+         * we receive MegaTransferListener::onTransferFinish or MegaListener::onTransferFinish.
+         *
+         * @return A numeric value that can be used for different purposes
          */
         virtual unsigned getStage() const;
 

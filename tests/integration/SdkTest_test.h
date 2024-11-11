@@ -60,6 +60,7 @@ struct TransferTracker : public ::mega::MegaTransferListener
     std::future<ErrorCodes> futureResult;
     std::shared_ptr<TransferTracker> selfDeleteOnFinalCallback;
 
+    bool mTempFileRemoved{false};
     MegaHandle resultNodeHandle = UNDEF;
 
     TransferTracker(MegaApi *api): mApi(api), futureResult(promiseResult.get_future())
@@ -84,6 +85,7 @@ struct TransferTracker : public ::mega::MegaTransferListener
     void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* error) override
     {
         LOG_debug << "TransferTracker::onTransferFinish callback received.  Result: " << error->getErrorCode() << " for " << (transfer->getFileName() ? transfer->getFileName() : "<null>");
+        mTempFileRemoved = static_cast<bool>(transfer->getStage());
 
         // called back on a different thread
         resultNodeHandle = transfer->getNodeHandle();
