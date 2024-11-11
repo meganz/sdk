@@ -216,11 +216,11 @@ User* User::unserialize(MegaClient* client, string* d)
     {
         string prEd255, prCu255;
 
-        const string* keys = u->getattr(ATTR_KEYS);
-        if (keys)
+        const UserAttribute* keysAttribute = u->getAttribute(ATTR_KEYS);
+        if (keysAttribute && !keysAttribute->isNotExisting())
         {
             client->mKeyManager.setKey(client->key);
-            if (client->mKeyManager.fromKeysContainer(*keys))
+            if (client->mKeyManager.fromKeysContainer(keysAttribute->value()))
             {
                 prEd255 = client->mKeyManager.privEd25519();
                 prCu255 = client->mKeyManager.privCu25519();
@@ -229,10 +229,11 @@ User* User::unserialize(MegaClient* client, string* d)
 
         if (!client->mKeyManager.generation())
         {
-            const string *av = (u->isattrvalid(ATTR_KEYRING)) ? u->getattr(ATTR_KEYRING) : NULL;
-            if (av)
+            const UserAttribute* attribute = u->getAttribute(ATTR_KEYRING);
+            if (attribute && attribute->isValid())
             {
-                unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(av, &client->key));
+                unique_ptr<TLVstore> tlvRecords(
+                    TLVstore::containerToTLVrecords(&attribute->value(), &client->key));
                 if (tlvRecords)
                 {
                     tlvRecords->get(EdDSA::TLV_KEY, prEd255);
@@ -303,68 +304,53 @@ void User::removepkrs(MegaClient* client)
     }
 }
 
-void User::setattr(attr_t at, string *av, string *v)
+void User::setAttribute(attr_t at, const string& value, const string& version)
 {
     setChanged(at);
-
-    const string& attrValue = av ? *av : string{};
-    const string& attrVersion = v ? *v : string{};
-    mAttributeManager->set(at, attrValue, attrVersion);
+    mAttributeManager->set(at, value, version);
 }
 
-void User::invalidateattr(attr_t at)
+bool User::updateAttributeIfDifferentVersion(attr_t at, const string& value, const string& version)
+{
+    if (mAttributeManager->setIfNewVersion(at, value, version))
+    {
+        setChanged(at);
+        return true;
+    }
+
+    return false;
+}
+
+void User::setAttributeExpired(attr_t at)
 {
     setChanged(at);
     mAttributeManager->setExpired(at);
 }
 
-void User::removeattr(attr_t at, bool ownUser)
+const UserAttribute* User::getAttribute(attr_t at) const
 {
-    if (isattrvalid(at))
+    return mAttributeManager->get(at);
+}
+
+void User::removeAttribute(attr_t at)
+{
+    if (mAttributeManager->erase(at))
     {
         setChanged(at);
     }
-
-    if (ownUser)
-        mAttributeManager->setNotExisting(at); // avoids fetch from servers
-    else
-        mAttributeManager->erase(at);
 }
 
-void User::removeattr(attr_t at, const string& version)
+void User::removeAttributeUpdateVersion(attr_t at, const string& version)
 {
-    if (isattrvalid(at))
-    {
-        invalidateattr(at);
-    }
-}
-
-// updates the user attribute value+version only if different
-int User::updateattr(attr_t at, std::string *av, std::string *v)
-{
-    if (mAttributeManager->setIfNewVersion(at, *av, *v))
+    if (mAttributeManager->eraseUpdateVersion(at, version))
     {
         setChanged(at);
-        return 1;
     }
-
-    return 0;
 }
 
-bool User::nonExistingAttribute(attr_t at) const
+void User::cacheNonExistingAttributes()
 {
-    return mAttributeManager->isNotExisting(at);
-}
-
-// returns the value if there is value (even if it's invalid by now)
-const string * User::getattr(attr_t at)
-{
-    return mAttributeManager->getRawValue(at);
-}
-
-bool User::isattrvalid(attr_t at)
-{
-    return mAttributeManager->isValid(at);
+    mAttributeManager->cacheNonExistingAttributes();
 }
 
 string User::attr2string(attr_t type)
@@ -669,11 +655,6 @@ m_time_t User::getPwdReminderData(int numDetail, const char *data, unsigned int 
     }
 
     return 0;
-}
-
-const string *User::getattrversion(attr_t at)
-{
-    return mAttributeManager->getVersion(at);
 }
 
 bool User::setChanged(attr_t at)

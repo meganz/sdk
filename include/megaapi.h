@@ -275,15 +275,23 @@ public:
     virtual ~MegaGfxProvider();
 
     /**
-    * @brief Create a graphics processor that implemented and run in an isolated process.
-    *
-    * Note: Windows, Linux, macOS are supported.
-    *
-    * @param endpointName The unique name used for communicating with the isolated process.
-    * @param executable The executable path.
-    */
+     * @brief Create a graphics processor that implemented and run in an isolated process.
+     *
+     * Note: Windows, Linux, macOS are supported.
+     *
+     * @param endpointName The unique name used for communicating with the isolated process.
+     * @param executable The path to the executable file.
+     * @param keepAliveInSeconds The amount of time (in seconds) the isolated process stays active
+     * without receiving any requests.
+     * @param extraArgs Additional arguments that will be passed directly to the isolated process.
+     *
+     * @note The created instance sends a hello request every keepAliveInSeconds / 3 seconds to
+     * ensure the isolated process stays running.
+     */
     static MegaGfxProvider* createIsolatedInstance(const char* endpointName,
-                                                   const char* executable);
+                                                   const char* executable,
+                                                   unsigned int keepAliveInSeconds = 60,
+                                                   const MegaStringList* extraArgs = nullptr);
 
     /**
     * @brief Create a graphics processor that use your implementations @see MegaGfxProcessor.
@@ -6899,8 +6907,8 @@ public:
         STORAGE_OVERQUOTA = 9, //Account reached storage overquota
         ACCOUNT_EXPIRED = 10, //Account expired (business or pro flexi)
         FOREIGN_TARGET_OVERSTORAGE = 11, //Sync transfer fails (upload into an inshare whose account is overquota)
-        REMOTE_PATH_HAS_CHANGED = 12, // Remote path has changed (currently unused: not an error)
-        //REMOTE_PATH_DELETED = 13, // (obsolete -> unified with REMOTE_NODE_NOT_FOUND) Remote path has been deleted
+        REMOTE_PATH_HAS_CHANGED = 12, // (obsolete -> changing remote path is not an error)
+        // REMOTE_PATH_DELETED = 13, // (obsolete -> unified with REMOTE_NODE_NOT_FOUND)
         SHARE_NON_FULL_ACCESS = 14, //Existing inbound share sync or part thereof lost full access
         LOCAL_FILESYSTEM_MISMATCH = 15, //Filesystem fingerprint does not match the one stored for the synchronization
         PUT_NODES_ERROR = 16, // Error processing put nodes result
@@ -7755,6 +7763,9 @@ public:
         API_EMASTERONLY = -27,          ///< Access denied for sub-users (only for business accounts)
         API_EBUSINESSPASTDUE = -28,     ///< Business account expired
         API_EPAYWALL = -29,             ///< Over Disk Quota Paywall
+        API_ESUBUSERKEYMISSING = -30, ///< A business error where a subuser has not yet encrypted
+                                      /// their master key for the admin user and tries to perform
+                                      /// a disallowed command (currently u and p)
 
         PAYMENT_ECARD = -101,
         PAYMENT_EBILLING = -102,
@@ -9112,6 +9123,22 @@ class MegaListener
      * @param api MegaApi object related to the event
      */
     virtual void onGlobalSyncStateChanged(MegaApi* api);
+
+    /**
+     * @brief This function is called when the root in the cloud of the sync has changed.
+     *
+     * You can use MegaSync::getLastKnownMegaFolder to get the new root in the cloud.
+     *
+     * @note This method will be called if the change doesn't imply a change in the state of the
+     * sync or any additional errors.
+     *
+     * The SDK retains the ownership of the sync parameter.
+     * Don't use it after this functions returns.
+     *
+     * @param api MegaApi object that is synchronizing files
+     * @param sync MegaSync object that has changed its remote root node
+     */
+    virtual void onSyncRemoteRootChanged(MegaApi* api, MegaSync* sync);
 #endif
 
     /**
@@ -13560,6 +13587,11 @@ class MegaApi
         /**
          * @brief Set the thumbnail of a MegaNode
          *
+         * It is good practice to set the Preview file attribute (see MegaApi::setPreview)
+         * and this attribute with the same original image to keep consistency. In order to
+         * ensure the correct ratio for the Thumbnail you may call MegaApi::createThumbnail
+         * and provide it's output image to this method.
+         *
          * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_FILE
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the node
@@ -13567,13 +13599,20 @@ class MegaApi
          * - MegaRequest::getParamType - Returns MegaApi::ATTR_TYPE_THUMBNAIL
          *
          * @param node MegaNode to set the thumbnail
-         * @param srcFilePath Source path of the file that will be set as thumbnail
+         * @param srcFilePath Source path of the file that will be set as thumbnail. This
+         * image must be square (ratio) and it should contain the image's primary content for a
+         * better UX
          * @param listener MegaRequestListener to track this request
          */
         void setThumbnail(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Uploads a thumbnail as part of a background media file upload
+         *
+         * It is good practice to set the Preview file attribute (see MegaApi::setPreview)
+         * and this attribute with the same original image to keep consistency. In order to
+         * ensure the correct ratio for the Thumbnail you may call MegaApi::createThumbnail
+         * and provide it's output image to this method.
          *
          * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_FILE
          * Valid data in the MegaRequest object received on callbacks:
@@ -13589,13 +13628,20 @@ class MegaApi
          * call to MegaApi::backgroundMediaUploadComplete.
          *
          * @param bu the MegaBackgroundMediaUpload that the fingernail will be assoicated with
-         * @param srcFilePath Source path of the file that will be set as thumbnail
+         * @param srcFilePath Source path of the file that will be set as thumbnail. This
+         * image must be square (ratio) and it should contain the image's primary content for a
+         * better UX
          * @param listener MegaRequestListener to track this request
          */
         void putThumbnail(MegaBackgroundMediaUpload* bu, const char *srcFilePath, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Set the thumbnail of a MegaNode, via the result of MegaApi::putThumbnail
+         *
+         * It is good practice to set the Preview file attribute (see MegaApi::setPreview)
+         * and this attribute with the same original image to keep consistency. In order to
+         * ensure the correct ratio for the Thumbnail you may call MegaApi::createThumbnail
+         * and provide it's output image to this method.
          *
          * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_FILE
          * Valid data in the MegaRequest object received on callbacks:
@@ -13612,6 +13658,11 @@ class MegaApi
         /**
          * @brief Set the preview of a MegaNode
          *
+         * It is good practice to set the Thumbnail file attribute (see MegaApi::setThumbnail)
+         * and this attribute with the same original image to keep consistency. In order to
+         * ensure the correct ratio for the Preview you may call MegaApi::createPreview
+         * and provide it's output image to this method.
+         *
          * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_FILE
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the node
@@ -13619,13 +13670,20 @@ class MegaApi
          * - MegaRequest::getParamType - Returns MegaApi::ATTR_TYPE_PREVIEW
          *
          * @param node MegaNode to set the preview
-         * @param srcFilePath Source path of the file that will be set as preview
+         * @param srcFilePath Source path of the file that will be set as preview. This
+         * image must be of the same ratio and contain completely the original image for a
+         * better UX
          * @param listener MegaRequestListener to track this request
          */
         void setPreview(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Uploads a preview as part of a background media file upload
+         *
+         * It is good practice to set the Thumbnail file attribute (see MegaApi::setThumbnail)
+         * and this attribute with the same original image to keep consistency. In order to
+         * ensure the correct ratio for the Preview you may call MegaApi::createPreview
+         * and provide it's output image to this method.
          *
          * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_FILE
          * Valid data in the MegaRequest object received on callbacks:
@@ -13641,13 +13699,23 @@ class MegaApi
          * call to MegaApi::backgroundMediaUploadComplete.
          *
          * @param bu the MegaBackgroundMediaUpload that the fingernail will be assoicated with
-         * @param srcFilePath Source path of the file that will be set as thumbnail
+         * @param srcFilePath Source path of the file that will be set as preview. This
+         * image must be of the same ratio and contain completely the original image for a
+         * better UX
          * @param listener MegaRequestListener to track this request
          */
         void putPreview(MegaBackgroundMediaUpload* bu, const char *srcFilePath, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Set the preview of a MegaNode, via the result of MegaApi::putPreview
+         *
+         * It is good practice to set the Thumbnail file attribute (see MegaApi::setThumbnail)
+         * and this attribute with the same original image to keep consistency. In order to
+         * ensure the correct ratio for the Preview you may call MegaApi::createPreview
+         * and provide it's output image to this method.
+         *
+         * @note For consistence same source image must be used for both attributes (check
+         * MegaApi::createPreview and MegaApi::createThumbnail).
          *
          * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_FILE
          * Valid data in the MegaRequest object received on callbacks:

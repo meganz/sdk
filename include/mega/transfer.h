@@ -211,6 +211,9 @@ struct MEGA_API Transfer : public FileFingerprint
     // whether the transfer is a Sync upload transfer
     bool mIsSyncUpload = false;
 
+    // Add stats for this transfer to the MEGAclient. The client must be valid at this point.
+    bool addTransferStats();
+
 private:
     FileDistributor::TargetNameExistsResolution toTargetNameExistsResolution(CollisionResolution resolution);
 };
@@ -747,6 +750,7 @@ struct MEGA_API DirectReadNode
     DirectReadNode(MegaClient*, handle, bool, SymmCipher*, int64_t, const char*, const char*, const char*);
     ~DirectReadNode();
 };
-} // namespace
+
+} // namespace mega
 
 #endif

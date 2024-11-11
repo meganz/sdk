@@ -216,6 +216,10 @@ typedef enum ErrorCodes : int
     API_EMASTERONLY = -27,          ///< Access denied for sub-users (only for business accounts)
     API_EBUSINESSPASTDUE = -28,     ///< Business account expired
     API_EPAYWALL = -29,             ///< Over Disk Quota Paywall
+    API_ESUBUSERKEYMISSING = -30, ///< A business error where a subuser has not yet encrypted
+                                  /// their master key for the admin user and tries to perform
+                                  /// a disallowed command (currently u and p)
+
     LOCAL_ENOSPC = -1000,           ///< Insufficient space
     LOCAL_ETIMEOUT = -1001,         ///< A request timed out.
     LOCAL_ABANDONED = -1002,        ///< Request abandoned due to local logout.
@@ -435,9 +439,6 @@ public:
     bool notified = false;
 };
 
-// numeric representation of string (up to 8 chars)
-typedef uint64_t nameid;
-
 // access levels:
 // RDONLY - cannot add, rename or delete
 // RDWR - cannot rename or delete
@@ -501,8 +502,8 @@ enum SyncError {
     STORAGE_OVERQUOTA = 9,                  // Account reached storage overquota
     ACCOUNT_EXPIRED = 10,                   // Your plan has expired
     FOREIGN_TARGET_OVERSTORAGE = 11,        // Sync transfer fails (upload into an inshare whose account is overquota)
-    REMOTE_PATH_HAS_CHANGED = 12,           // Remote path has changed (currently unused: not an error)
-    //REMOTE_PATH_DELETED = 13,               // (obsolete -> unified with REMOTE_NODE_NOT_FOUND) Remote path has been deleted
+    REMOTE_PATH_HAS_CHANGED = 12, // (obsolete -> changing remote path is not an error)
+    // REMOTE_PATH_DELETED = 13,               // (obsolete -> unified with REMOTE_NODE_NOT_FOUND)
     SHARE_NON_FULL_ACCESS = 14,             // Existing inbound share sync or part thereof lost full access
     LOCAL_FILESYSTEM_MISMATCH = 15,         // Filesystem fingerprint does not match the one stored for the synchronization
     PUT_NODES_ERROR = 16,                   // Error processing put nodes result

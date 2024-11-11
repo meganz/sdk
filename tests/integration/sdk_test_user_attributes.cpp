@@ -464,7 +464,7 @@ TEST_F(SdkTestUserAttribute, ContactLinkVerification)
 
     int at = MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION;
 
-    ASSERT_NO_FATAL_FAILURE(testStaticInformation(at, "^!clv", "CONTACT_LINK_VERIFICATION"));
+    ASSERT_NO_FATAL_FAILURE(testStaticInformation(at, "^clv", "CONTACT_LINK_VERIFICATION"));
 
     // test generic interfaces
     ASSERT_NO_FATAL_FAILURE(testValue<bool>(

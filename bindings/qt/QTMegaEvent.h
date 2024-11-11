@@ -41,6 +41,7 @@ public:
         OnSyncAdded,
         OnSyncDeleted,
         OnGlobalSyncStateChanged,
+        OnSyncRemoteRootChanged,
 #endif
         OnMountAdded,
         OnMountChanged,

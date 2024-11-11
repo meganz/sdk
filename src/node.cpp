@@ -326,18 +326,18 @@ const std::set<nameid>& photoExtensions()
                                         MAKENAMEID2('g','3'), MAKENAMEID3('g','i','f'), MAKENAMEID4('h','e','i','c'),
                                         MAKENAMEID4('h','e','i','f'), MAKENAMEID3('i','c','o'), MAKENAMEID3('i','e','f'),
                                         MAKENAMEID3('j','p','e'), MAKENAMEID4('j','p','e','g'), MAKENAMEID3('j','p','g'),
-                                        MAKENAMEID3('k','t','x'), MAKENAMEID3('m','d','i'), MAKENAMEID3('m','m','r'),
-                                        MAKENAMEID3('n','p','x'), MAKENAMEID3('p','b','m'), MAKENAMEID3('p','c','t'),
-                                        MAKENAMEID3('p','c','x'), MAKENAMEID3('p','g','m'), MAKENAMEID3('p','i','c'),
-                                        MAKENAMEID3('p','n','g'), MAKENAMEID3('p','n','m'), MAKENAMEID3('p','p','m'),
-                                        MAKENAMEID3('p','s','d'), MAKENAMEID3('r','a','s'), MAKENAMEID3('r','g','b'),
-                                        MAKENAMEID3('r','l','c'), MAKENAMEID3('s','g','i'), MAKENAMEID3('s','i','d'),
-                                        MAKENAMEID3('s','v','g'), MAKENAMEID4('s','v','g','z'), MAKENAMEID3('t','g','a'),
-                                        MAKENAMEID3('t','i','f'), MAKENAMEID4('t','i','f','f'), MAKENAMEID3('u','v','g'),
-                                        MAKENAMEID3('u','v','i'), MAKENAMEID4('u','v','v','g'), MAKENAMEID4('u','v','v','i'),
-                                        MAKENAMEID4('w','b','m','p'), MAKENAMEID3('w','d','p'), MAKENAMEID4('w','e','b','p'),
-                                        MAKENAMEID3('x','b','m'), MAKENAMEID3('x','i','f'), MAKENAMEID3('x','p','m'),
-                                        MAKENAMEID3('x','w','d')};
+                                        MAKENAMEID3('j','x','l'), MAKENAMEID3('k','t','x'), MAKENAMEID3('m','d','i'),
+                                        MAKENAMEID3('m','m','r'), MAKENAMEID3('n','p','x'), MAKENAMEID3('p','b','m'),
+                                        MAKENAMEID3('p','c','t'), MAKENAMEID3('p','c','x'), MAKENAMEID3('p','g','m'),
+                                        MAKENAMEID3('p','i','c'), MAKENAMEID3('p','n','g'), MAKENAMEID3('p','n','m'),
+                                        MAKENAMEID3('p','p','m'),  MAKENAMEID3('p','s','d'), MAKENAMEID3('r','a','s'),
+                                        MAKENAMEID3('r','g','b'),  MAKENAMEID3('r','l','c'), MAKENAMEID3('s','g','i'),
+                                        MAKENAMEID3('s','i','d'), MAKENAMEID3('s','v','g'), MAKENAMEID4('s','v','g','z'),
+                                        MAKENAMEID3('t','g','a'), MAKENAMEID3('t','i','f'), MAKENAMEID4('t','i','f','f'),
+                                        MAKENAMEID3('u','v','g'), MAKENAMEID3('u','v','i'), MAKENAMEID4('u','v','v','g'),
+                                        MAKENAMEID4('u','v','v','i'), MAKENAMEID4('w','b','m','p'), MAKENAMEID3('w','d','p'),
+                                        MAKENAMEID4('w','e','b','p'), MAKENAMEID3('x','b','m'), MAKENAMEID3('x','i','f'),
+                                        MAKENAMEID3('x','p','m'), MAKENAMEID3('x','w','d')};
     return phts;
 }
 

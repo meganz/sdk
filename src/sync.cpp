@@ -790,7 +790,7 @@ void Sync::setBackupMonitoring()
 
     config.setBackupState(SYNC_BACKUP_MONITOR);
 
-    syncs.saveSyncConfig(config);
+    syncs.ensureDriveOpenedAndMarkDirty(config.mExternalDrivePath);
 }
 
 bool Sync::shouldHaveDatabase() const
@@ -3891,7 +3891,7 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool setOriginalPath,
             &&  us.mConfig.mOriginalPathOfRemoteRootNode != cloudNodePath)
         {
             us.mConfig.mOriginalPathOfRemoteRootNode = cloudNodePath;
-            saveSyncConfig(us.mConfig);
+            ensureDriveOpenedAndMarkDirty(us.mConfig.mExternalDrivePath);
         }
     }
 
@@ -4061,30 +4061,62 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool setOriginalPath,
     us.mNextHeartbeat->updateSPHBStatus(us);
 }
 
-bool Syncs::checkSyncRemoteLocationChange(UnifiedSync& us, bool exists, string cloudPath)
+bool Syncs::checkSyncRemoteLocationChange(SyncConfig& config,
+                                          const bool exists,
+                                          const std::string& cloudPath)
 {
     assert(onSyncThread());
-
-    bool pathChanged = false;
-    if (exists)
+    if (!exists)
     {
-        if (cloudPath != us.mConfig.mOriginalPathOfRemoteRootNode)
+        if (!config.mRemoteNode.isUndef())
         {
-            // the sync will be suspended. Should the user manually start it again,
-            // then the recorded path will be updated to whatever path the Node is then at.
-            LOG_debug << "Sync root path changed!  Was: " << us.mConfig.mOriginalPathOfRemoteRootNode << " now: " << cloudPath;
-            pathChanged = true;
+            config.mRemoteNode = NodeHandle();
         }
+        return false;
     }
-    else //unset remote node: failed!
+    if (cloudPath == config.mOriginalPathOfRemoteRootNode)
     {
-        if (!us.mConfig.mRemoteNode.isUndef())
-        {
-            us.mConfig.mRemoteNode = NodeHandle();
-        }
+        return false;
     }
+    LOG_debug << "Sync root path changed!  Was: " << config.mOriginalPathOfRemoteRootNode
+              << " now: " << cloudPath;
+    config.mOriginalPathOfRemoteRootNode = cloudPath;
+    return true;
+}
 
-    return pathChanged;
+void Syncs::manageRemoteRootLocationChange(Sync& sync) const
+{
+    // Currently, we don't support movements for backup roots
+    if (sync.isBackup())
+    {
+        LOG_err << "Remote root node move/rename is not expected to take place for backup syncs";
+        assert(false);
+        sync.changestate(SyncError::BACKUP_MODIFIED, false, true, false);
+        return;
+    }
+    // we need to check if the node in its new location is syncable
+    const auto& config = sync.getConfig();
+    const auto [e, syncError] = std::invoke(
+        [this, newRemoteRootNH = config.mRemoteNode]() -> std::pair<error, SyncError>
+        {
+            std::lock_guard g(mClient.nodeTreeMutex);
+            SyncError syncError;
+            error e = mClient.isnodesyncable(mClient.mNodeManager.getNodeByHandle(newRemoteRootNH),
+                                             nullptr,
+                                             &syncError,
+                                             true);
+            return {e, syncError};
+        });
+    if (e)
+    {
+        LOG_debug << "Node is not syncable after moving to a new location: " << syncError;
+        sync.changestate(syncError, false, true, true);
+    }
+    else
+    {
+        // Notify the change in the root path
+        mClient.app->syncupdate_remote_root_changed(config);
+    }
 }
 
 void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const LocalPath& localdebris,
@@ -4138,7 +4170,7 @@ void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const Loca
 
     us.mSync->isnetwork = isNetwork;
 
-    saveSyncConfig(us.mConfig);
+    ensureDriveOpenedAndMarkDirty(us.mConfig.mExternalDrivePath);
     mSyncFlags->isInitialPass = true;
 
     if (completion) completion(API_OK, us.mConfig.mError, us.mConfig.mBackupId);
@@ -4157,7 +4189,7 @@ void UnifiedSync::changedConfigState(bool save, bool notifyApp)
 
         if (save)
         {
-            syncs.saveSyncConfig(mConfig);
+            syncs.ensureDriveOpenedAndMarkDirty(mConfig.mExternalDrivePath);
         }
 
         if (notifyApp && !mConfig.mRemovingSyncBySds)
@@ -4249,7 +4281,7 @@ void Syncs::getSyncProblems_inThread(SyncProblems& problems)
     assert(onSyncThread());
 
     problems.mStallsDetected = stallsDetected(problems.mStalls);
-    problems.mConflictsDetected = conflictsDetected(problems.mConflicts);
+    problems.mConflictsDetected = conflictsDetected(problems.mConflictsMap);
 
     // Try to present just one item for a move/rename, instead of two.
     // We may have generated two items, one for the source node
@@ -5955,7 +5987,7 @@ void Syncs::appendNewSync_inThread(const SyncConfig& c, bool startSync, std::fun
         mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(*this, c)));
     }
 
-    saveSyncConfig(c);
+    ensureDriveOpenedAndMarkDirty(c.mExternalDrivePath);
 
     mClient.app->sync_added(c);
 
@@ -6590,20 +6622,19 @@ void Syncs::locallogout_inThread(bool removecaches, bool keepSyncsConfigFile, bo
     }
 }
 
-void Syncs::saveSyncConfig(const SyncConfig& config)
+void Syncs::ensureDriveOpenedAndMarkDirty(const LocalPath& externalDrivePath)
 {
     assert(onSyncThread());
 
     if (auto* store = syncConfigStore())
     {
-
-        // If the app hasn't opened this drive itself, then we open it now (loads any syncs that already exist there)
-        if (!config.mExternalDrivePath.empty() && !store->driveKnown(config.mExternalDrivePath))
+        // If the app hasn't opened this drive itself, then we open it now (loads any syncs that
+        // already exist there)
+        if (!externalDrivePath.empty() && !store->driveKnown(externalDrivePath))
         {
-            backupOpenDrive_inThread(config.mExternalDrivePath);
+            backupOpenDrive_inThread(externalDrivePath);
         }
-
-        store->markDriveDirty(config.mExternalDrivePath);
+        store->markDriveDirty(externalDrivePath);
     }
 }
 
@@ -6687,7 +6718,7 @@ void Syncs::resumeSyncsOnStateCurrent_inThread()
                 if (lookupCloudNode(unifiedSync->mConfig.mRemoteNode, cloudNode, &cloudNodePath, nullptr, nullptr, nullptr, nullptr, Syncs::FOLDER_ONLY))
                 {
                     unifiedSync->mConfig.mOriginalPathOfRemoteRootNode = cloudNodePath;
-                    saveSyncConfig(unifiedSync->mConfig);
+                    ensureDriveOpenedAndMarkDirty(unifiedSync->mConfig.mExternalDrivePath);
                 }
             }
 
@@ -12377,8 +12408,8 @@ void Syncs::syncLoop()
                 sync->cloudRootPath = cloudRootPath;
                 sync->mCurrentRootDepth = rootDepth;
 
-                // update path in sync configuration (if moved)  (even if no mSync - tests require this currently)
-                bool pathChanged = checkSyncRemoteLocationChange(*us, foundRootNode, sync->cloudRootPath);
+                const bool remoteRootHasChanged =
+                    checkSyncRemoteLocationChange(us->mConfig, foundRootNode, sync->cloudRootPath);
 
                 if (!foundRootNode)
                 {
@@ -12390,20 +12421,19 @@ void Syncs::syncLoop()
                     LOG_err << "Detected sync root node is now in trash";
                     sync->changestate(REMOTE_NODE_MOVED_TO_RUBBISH, false, true, true);
                 }
-                else if (pathChanged /*&& us->mConfig.isBackup()*/)  // TODO: decide if we cancel non-backup syncs unnecessarily.  Users may like to move some high level folders around, without breaking contained syncs.
+                else if (remoteRootHasChanged)
                 {
-                    LOG_err << "Detected sync root node is now at a different path.";
-                    sync->changestate(REMOTE_PATH_HAS_CHANGED, false, true, true);
-                    mClient.app->syncupdate_remote_root_changed(sync->getConfig());
+                    manageRemoteRootLocationChange(*sync);
                 }
             }
             else if (us->mConfig.mRunState == SyncRunState::Suspend &&
-                    (us->mConfig.mError == LOCAL_PATH_UNAVAILABLE ||
-                     us->mConfig.mError == LOCAL_PATH_TEMPORARY_UNAVAILABLE))
+                     (us->mConfig.mError == LOCAL_PATH_UNAVAILABLE ||
+                      us->mConfig.mError == LOCAL_PATH_TEMPORARY_UNAVAILABLE))
             {
                 // If we shut the sync down before because the local path wasn't available (yet)
                 // And it's safe to resume the sync because it's in Suspend (rather than disable)
-                // then we can auto-restart it, if the path becomes available (eg, network drive was slow to mount, user plugged in USB, etc)
+                // then we can auto-restart it, if the path becomes available (eg, network drive was
+                // slow to mount, user plugged in USB, etc)
 
                 auto computedFsfp = fsaccess->fsFingerprint(us->mConfig.mLocalPath);
                 auto expectedFsfp = us->mConfig.mFilesystemFingerprint;
@@ -12813,26 +12843,36 @@ void Syncs::setSyncsNeedFullSync(bool andFullScan, bool andReFingerprint, handle
     }, "setSyncsNeedFullSync");
 }
 
-bool Syncs::conflictsDetected(list<NameConflict>& conflicts)
+bool Syncs::conflictsDetected(SyncIDtoConflictInfoMap& conflicts)
 {
     assert(onSyncThread());
-
-    for (auto& us : mSyncVec)
+    size_t totalConflicts{};
+    for (auto& us: mSyncVec)
     {
-        if (Sync* sync = us->mSync.get())
+        if (Sync* sync = us->mSync.get(); sync && sync->localroot->conflictsDetected())
         {
-            if (sync->localroot->conflictsDetected())
+            auto [it, success] = conflicts.emplace(us->mConfig.mBackupId, list<NameConflict>());
+            if (!success)
             {
-                sync->recursiveCollectNameConflicts(&conflicts);
+                assert(false);
+                LOG_err << "[Syncs::conflictsDetected()] cannot add entry at conflicts map "
+                           "with BackUpId: "
+                        << toHandle(us->mConfig.mBackupId);
+                conflicts.clear();
+                break;
             }
+            sync->recursiveCollectNameConflicts(&it->second);
+            totalConflicts += it->second.size();
         }
     }
     // Disable sync conflicts update flag
     mClient.app->syncupdate_totalconflicts(false);
-    // totalSyncConflicts is set by conflictsDetectedCount, whose count is limited by the previous number of conflicts + 1, in order to avoid extra recursive operations as the full count is not needed
-    // This updates the counter to the real number of conflicts, so we avoid incremental updates later (from previous_conflicts_size + 1 to actual_conflicts_size)
-    totalSyncConflicts.store(conflicts.size());
-    return !conflicts.empty();
+    // totalSyncConflicts is set by conflictsDetectedCount, whose count is limited by the previous
+    // number of conflicts + 1, in order to avoid extra recursive operations as the full count is
+    // not needed This updates the counter to the real number of conflicts, so we avoid incremental
+    // updates later (from previous_conflicts_size + 1 to actual_conflicts_size)
+    totalSyncConflicts.store(totalConflicts);
+    return totalConflicts > 0;
 }
 
 size_t Syncs::conflictsDetectedCount(size_t limit) const

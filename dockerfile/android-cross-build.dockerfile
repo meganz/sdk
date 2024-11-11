@@ -36,10 +36,10 @@ RUN apt-get --quiet=2 update && DEBCONF_NOWARNINGS=yes apt-get --quiet=2 install
 # Download, extract and set the Android NDK
 RUN mkdir -p /mega/android-ndk && \
     cd /mega/android-ndk && \
-    wget https://dl.google.com/android/repository/android-ndk-r21d-linux-x86_64.zip && \
-    unzip android-ndk-r21d-linux-x86_64.zip && \
-    rm android-ndk-r21d-linux-x86_64.zip
-ENV ANDROID_NDK_HOME=/mega/android-ndk/android-ndk-r21d
+    wget https://dl.google.com/android/repository/android-ndk-r27b-linux.zip && \
+    unzip android-ndk-r27b-linux.zip && \
+    rm android-ndk-r27b-linux.zip
+ENV ANDROID_NDK_HOME=/mega/android-ndk/android-ndk-r27b
 ENV PATH=$PATH:$ANDROID_NDK_HOME
 ENV JAVA_HOME=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64
 ENV PATH=$PATH:$JAVA_HOME
@@ -73,6 +73,7 @@ CMD ["sh", "-c", "\
         -DVCPKG_ROOT=/mega/vcpkg \
         -DCMAKE_BUILD_TYPE=Debug \
         -DVCPKG_TARGET_TRIPLET=${VCPKG_TRIPLET} \
+        -DENABLE_CHAT=ON \
         -DENABLE_JAVA_BINDINGS=ON \
         -DENABLE_SDKLIB_EXAMPLES=OFF \
         -DENABLE_SDKLIB_TESTS=OFF \
@@ -84,6 +85,7 @@ CMD ["sh", "-c", "\
         -DCMAKE_SYSTEM_NAME=Android \
         -DCMAKE_ANDROID_API=26 \
         -DCMAKE_ANDROID_ARCH_ABI=${ANDROID_ARCH} \
-        -DCMAKE_ANDROID_NDK=${ANDROID_NDK_HOME} && \
+        -DCMAKE_ANDROID_NDK=${ANDROID_NDK_HOME} \
+        -DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON && \
     cmake --build buildAndroid && \
     exec /bin/bash"]

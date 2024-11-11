@@ -40,6 +40,7 @@ class BackupMonitor;
 class MegaClient;
 struct JSON;
 class JSONWriter;
+using SyncIDtoConflictInfoMap = std::map<handle, list<NameConflict>>;
 
 // How should the sync engine detect filesystem changes?
 enum ChangeDetectionMethod
@@ -1097,6 +1098,9 @@ struct SyncStallInfo
     using SyncIDtoStallInfoMaps = std::map<handle, StallInfoMaps>;
     SyncIDtoStallInfoMaps syncStallInfoMaps;
 
+    // Map of SyncID to list of NameConflict
+    SyncIDtoConflictInfoMap syncConflictInfoMap;
+
     // No stalls detected
     bool empty() const;
 
@@ -1145,7 +1149,7 @@ public:
 
 struct SyncProblems
 {
-    list<NameConflict> mConflicts;
+    SyncIDtoConflictInfoMap mConflictsMap;
     SyncStallInfo mStalls;
     bool mConflictsDetected = false;
     bool mStallsDetected = false;
@@ -1342,9 +1346,20 @@ private:  // anything to do with loading/saving/storing configs etc is done on t
     // Load internal sync configs from disk.
     error syncConfigStoreLoad(SyncConfigVector& configs);
 
-    // updates in state & error
-    void saveSyncConfig(const SyncConfig& config);
-
+    /**
+     * @brief Ensures the specified external drive is opened and marks it as dirty in the sync
+     * configuration store.
+     *
+     * This function checks whether the external drive at the given local path is known to the
+     * synchronization configuration store. If the drive is not already known (i.e., the application
+     * hasn't opened it yet), the function opens the drive to load any existing sync configurations.
+     * After ensuring the drive is opened, it marks the drive as dirty in the sync configuration
+     * store.
+     *
+     * @param externalDrivePath The local path to the external drive that needs to be opened and
+     * marked as dirty.
+     */
+    void ensureDriveOpenedAndMarkDirty(const LocalPath& externalDrivePath);
 
 public:
 
@@ -1373,8 +1388,20 @@ public:
     // backupId of UNDEF to rescan all
     void setSyncsNeedFullSync(bool andFullScan, bool andReFingerprint, handle backupId);
 
-    // retrieves information about any detected name conflicts.
-    bool conflictsDetected(list<NameConflict>& conflicts); // This one resets syncupdate_totalconflicts
+    /**
+     * @brief Detects name conflicts in the synchronizations and stores them in a Map.
+     *
+     * Additionally, this function updates the global conflict counter, and
+     * disables sync conflicts update flag
+     *
+     * @note This function must be executed on the sync thread.
+     *
+     * @param conflicts Map (BackupId to list of conficts) where detected conflicts are stored.
+     *
+     * @return Returns true if conflicts were detected and stored in the map, otherwise returns
+     * false.
+     */
+    bool conflictsDetected(SyncIDtoConflictInfoMap& conflicts);
     size_t conflictsDetectedCount(size_t limit = 0) const; // limit 0 -> no limit
 
     // Get name conficts - pass UNDEF to collect for all syncs.
@@ -1400,8 +1427,21 @@ public:
 
     bool onSyncThread() const { return std::this_thread::get_id() == syncThreadId; }
 
-    // Update remote location
-    bool checkSyncRemoteLocationChange(UnifiedSync&, bool exists, string cloudPath);
+    /**
+     * @brief Checks if the new remote root path has changed. In that case,
+     * config.mOriginalPathOfRemoteRootNode gets updated.
+     *
+     * Also ensures that the config.mRemoteNode is undefined if the remote root doesn't exist
+     * anymore.
+     *
+     * @param config A configuration to read the previously stored remote root node
+     * @param exists Whether the remote root node continues existing
+     * @param cloudPath The current path of the remote root node
+     * @return true if the remote mOriginalPathOfRemoteRootNode has changed, false otherwise
+     */
+    bool checkSyncRemoteLocationChange(SyncConfig& config,
+                                       const bool exists,
+                                       const std::string& cloudPath);
 
     // Cause periodic-scan syncs to scan now (waiting for the next periodic scan is impractical for tests)
     std::future<size_t> triggerPeriodicScanEarly(handle backupID);
@@ -1660,6 +1700,15 @@ private:
     bool hasIgnoreFile(const SyncConfig& config);
 
     void confirmOrCreateDefaultMegaignore(bool transitionToMegaignore, unique_ptr<DefaultFilterChain>& resultIfDfc, unique_ptr<string_vector>& resultIfMegaignoreDefault);
+
+    /**
+     * @brief Handles how to deal with a sync whose remote root node has been moved or renamed
+     *
+     * @note This method assumes that the location of the remote node has changed.
+     *
+     * @param sync The affected sync. Its state might be changed
+     */
+    void manageRemoteRootLocationChange(Sync& sync) const;
 
     // ------ private data members
 

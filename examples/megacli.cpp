@@ -27,6 +27,7 @@
 #include "mega/gfx.h"
 #include "mega/pwm_file_parser.h"
 #include "mega/testhooks.h"
+#include "mega/user_attribute.h"
 
 #include <bitset>
 #include <charconv>
@@ -212,7 +213,8 @@ Config Config::fromArguments(const Arguments& arguments)
 static std::unique_ptr<IGfxProvider> createGfxProvider([[maybe_unused]] const Config& config)
 {
 #if defined(ENABLE_ISOLATED_GFX)
-    if (auto provider = GfxProviderIsolatedProcess::create(config.endpointName, config.executable))
+    GfxIsolatedProcess::Params params{config.endpointName, config.executable};
+    if (auto provider = GfxProviderIsolatedProcess::create(params))
     {
         return provider;
     }
@@ -324,6 +326,9 @@ const char* errorstring(error e)
             return "Business account has expired";
         case API_EPAYWALL:
             return "Over Disk Quota Paywall";
+        case API_ESUBUSERKEYMISSING:
+            return "A business error where a subuser has not yet encrypted their master key for "
+                   "the admin user and tries to perform a disallowed command (currently u and p)";
         case LOCAL_ENOSPC:
             return "Insufficient disk space";
         default:
@@ -1212,7 +1217,11 @@ void DemoApp::fetchnodes_result(const Error& e)
 
         if (pdf_to_import)
         {
-            client->getwelcomepdf();
+            client->importOrDelayWelcomePdf();
+        }
+        else if (client->shouldWelcomePdfImported())
+        {
+            client->importWelcomePdfIfDelayed();
         }
 
         if (client->ephemeralSessionPlusPlus)
@@ -3728,14 +3737,14 @@ void putua_map(const std::string& b64key, const std::string& b64value, attr_t at
 
     std::unique_ptr<TLVstore> tlv;
 
-    const std::string* oldValue = ownUser->getattr(attrtype);
-    if (!oldValue)  // attr doesn't exist -> create it
+    const UserAttribute* attribute = ownUser->getAttribute(attrtype);
+    if (!attribute || attribute->isNotExisting()) // attr doesn't exist -> create it
     {
         tlv.reset(new TLVstore());
         const string& realValue = Base64::atob(b64value);
         tlv->set(b64key, realValue); // real value, non-B64
     }
-    else if (!ownUser->isattrvalid(attrtype)) // not fetched yet or outdated
+    else if (attribute->isExpired())
     {
         cout << "User attribute is outdated";
         cout << "Fetch the attribute first" << endl;
@@ -3743,7 +3752,7 @@ void putua_map(const std::string& b64key, const std::string& b64value, attr_t at
     }
     else
     {
-        tlv.reset(TLVstore::containerToTLVrecords(oldValue, &client->key));
+        tlv.reset(TLVstore::containerToTLVrecords(&attribute->value(), &client->key));
 
         string_map attrMap;
         attrMap[b64key] = b64value; // User::mergeUserAttribute() expects B64 values
@@ -3878,15 +3887,15 @@ void exec_getmybackups(autocomplete::ACState&)
         return;
     }
 
-    const string* buf = u->getattr(ATTR_MY_BACKUPS_FOLDER);
-    if (!buf)
+    const UserAttribute* attribute = u->getAttribute(ATTR_MY_BACKUPS_FOLDER);
+    if (!attribute || attribute->isNotExisting())
     {
         cout << "\"My Backups\" folder has not been set." << endl;
         return;
     }
 
     handle h = 0;
-    memcpy(&h, buf->data(), MegaClient::NODEHANDLE);
+    memcpy(&h, attribute->value().data(), MegaClient::NODEHANDLE);
     if (!h || h == UNDEF)
     {
         cout << "Invalid handle stored for \"My Backups\" folder." << endl;
@@ -5229,6 +5238,9 @@ autocomplete::ACN autocompleteSyntax()
                                     localFSFolder("target")))));
 
     p->Add(exec_getpricing, text("getpricing"));
+
+    p->Add(exec_collectAndPrintTransferStats,
+           sequence(text("getTransferStats"), opt(either(flag("-uploads"), flag("-downloads")))));
     return autocompleteTemplate = std::move(p);
 }
 
@@ -6780,10 +6792,7 @@ void exec_begin(autocomplete::ACState& s)
     {
         cout << "Creating ephemeral session..." << endl;
 
-        if (client->shouldWelcomePdfImported())
-        {
-            pdf_to_import = true;
-        }
+        pdf_to_import = true;
         client->createephemeral();
     }
     else if (s.words.size() == 2)   // resume session
@@ -6812,10 +6821,7 @@ void exec_begin(autocomplete::ACState& s)
     {
         cout << "Creating ephemeral session plus plus..." << endl;
 
-        if (client->shouldWelcomePdfImported())
-        {
-            pdf_to_import = true;
-        }
+        pdf_to_import = true;
         ephemeralFirstname = s.words[1].s;
         ephemeralLastName = s.words[2].s;
         client->createephemeralPlusPlus();
@@ -7987,9 +7993,10 @@ void exec_verifycredentials(autocomplete::ACState& s)
 
     if (s.words[1].s == "show")
     {
-        if (u->isattrvalid(ATTR_ED25519_PUBK))
+        const UserAttribute* attribute = u->getAttribute(ATTR_ED25519_PUBK);
+        if (attribute && attribute->isValid())
         {
-            cout << "Credentials: " << AuthRing::fingerprint(*u->getattr(ATTR_ED25519_PUBK), true) << endl;
+            cout << "Credentials: " << AuthRing::fingerprint(attribute->value(), true) << endl;
         }
         else
         {
@@ -8430,11 +8437,19 @@ void exec_alerts(autocomplete::ACState& s)
         }
         else if (s.words[1].s == "test_payment")
         {
-            client->useralerts.add(new UserAlert::Payment(true, 1, time(NULL) + 86000 * 1, client->useralerts.nextId(), UserAlert::type_psts));
+            client->useralerts.add(new UserAlert::Payment(true,
+                                                          1,
+                                                          time(NULL) + 86000 * 1,
+                                                          client->useralerts.nextId(),
+                                                          name_id::psts));
         }
         else if (s.words[1].s == "test_payment_v2")
         {
-            client->useralerts.add(new UserAlert::Payment(true, 1, time(NULL) + 86000 * 1, client->useralerts.nextId(), UserAlert::type_psts_v2));
+            client->useralerts.add(new UserAlert::Payment(true,
+                                                          1,
+                                                          time(NULL) + 86000 * 1,
+                                                          client->useralerts.nextId(),
+                                                          name_id::psts_v2));
         }
         else if (atoi(s.words[1].s.c_str()) > 0)
         {
@@ -10866,7 +10881,9 @@ MegaClient::ClientType getClientTypeFromArgs(const std::string& clientType)
     }
     if (clientType != "default")
     {
-        cout << "WARNING: Invalid argument " << clientType << ". Using default instead." << endl;
+        cout << "WARNING: Invalid argument " << clientType
+             << ". Valid possibilities are: vpn, password_manager, default.\nUsing default instead."
+             << endl;
     }
 
     return MegaClient::ClientType::DEFAULT;
@@ -12981,10 +12998,12 @@ void exec_passwordmanager(autocomplete::ACState& s)
     }
     else if (command == "createbase")
     {
-        auto sBase = client->ownuser()->getattr(ATTR_PWM_BASE);
-        if (sBase)
+        const UserAttribute* attribute = client->ownuser()->getAttribute(ATTR_PWM_BASE);
+        if (attribute && attribute->isValid())
         {
-            std::cout << "Password Manager Base already exists " << toNodeHandle(sBase) << ". Skipping creation\n";
+            assert(attribute->value().size() == MegaClient::NODEHANDLE);
+            std::cout << "Password Manager Base already exists "
+                      << toNodeHandle(&attribute->value()) << ". Skipping creation\n";
             return;
         }
 
@@ -13019,7 +13038,7 @@ void exec_passwordmanager(autocomplete::ACState& s)
         client->senddevcommand("pwmhd", client->ownuser()->email.c_str());
 
         // forced erasing the user attribute and base folder node from Vault
-        client->ownuser()->removeattr(ATTR_PWM_BASE, true);
+        client->ownuser()->removeAttribute(ATTR_PWM_BASE);
         if (!mnBase) return;  // just in case there was a previous state where the node was deleted
         const bool keepVersions = false;
         const int tag = -1;
@@ -13416,4 +13435,41 @@ void exec_getpricing(autocomplete::ACState& s)
 {
     cout << "Getting pricing plans... " << endl;
     client->purchase_enumeratequotaitems();
+}
+
+void exec_collectAndPrintTransferStats(autocomplete::ACState& state)
+{
+    bool uploadsOnly = state.extractflag("-uploads");
+    bool downloadsOnly = state.extractflag("-downloads");
+    assert(!(uploadsOnly && downloadsOnly));
+
+    auto collectAndPrintTransfersMetricsFromType = [](direction_t transferType)
+    {
+        std::cout << "\n===================================================================\n";
+        std::cout << (transferType == PUT ? "[UploadStatistics]" : "[DownloadStatistics]") << "\n";
+        std::cout << "Number of transfers: " << client->mTransferStatsManager.size(transferType)
+                  << "\n";
+        std::cout << "Max entries: " << client->mTransferStatsManager.getMaxEntries(transferType)
+                  << "\n";
+        std::cout << "Max age in seconds: "
+                  << client->mTransferStatsManager.getMaxAgeSeconds(transferType) << "\n";
+        std::cout << "-------------------------------------------------------------------\n";
+        ::mega::stats::TransferStats::Metrics metrics =
+            client->mTransferStatsManager.collectAndPrintMetrics(transferType);
+        std::cout << metrics.toString() << "\n";
+        std::cout << "-------------------------------------------------------------------\n";
+        std::cout << "JSON format:\n";
+        std::cout << metrics.toJson() << "\n";
+        std::cout << "===================================================================\n\n";
+    };
+
+    if (!downloadsOnly)
+    {
+        collectAndPrintTransfersMetricsFromType(PUT);
+    }
+
+    if (!uploadsOnly)
+    {
+        collectAndPrintTransfersMetricsFromType(GET);
+    }
 }

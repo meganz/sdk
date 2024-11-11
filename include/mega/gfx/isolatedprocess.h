@@ -102,14 +102,25 @@ public:
     {
     public:
         //
-        // keepAliveInSeconds default 10 seconds. It also ensure the minimum MIN_ALIVE_SECONDS
+        // keepAliveInSeconds default 60 seconds. It also ensure the minimum MIN_ALIVE_SECONDS
         //
         Params(const std::string& endpointName,
                const std::string& executable,
-               std::chrono::seconds keepAliveInSeconds  = std::chrono::seconds(10));
+               std::chrono::seconds keepAliveInSeconds = std::chrono::seconds(60),
+               const std::vector<std::string>& rawArguments = {});
 
         // Convert to args used to launch isolated process
         std::vector<std::string> toArgs() const;
+
+        bool isValid() const
+        {
+            return !endpointName.empty() && !executable.empty();
+        }
+
+    private:
+        friend class GfxIsolatedProcess;
+
+        static constexpr std::chrono::seconds MIN_ALIVE_SECONDS{9};
 
         // The pipe name in Windows or the unix domain socket name in UNIX
         std::string  endpointName;
@@ -117,17 +128,14 @@ public:
         // The executable file path
         std::string  executable;
 
-        // The interval in seconds to keep the server alive
+        // The number of seconds the server stays alive without receiving any requests.
         std::chrono::seconds keepAliveInSeconds;
-    private:
 
-        static constexpr std::chrono::seconds MIN_ALIVE_SECONDS{3};
+        // The raw arguments that will be passed through as-is, without any modifications.
+        std::vector<std::string> rawArguments;
     };
 
     GfxIsolatedProcess(const Params& params);
-
-    GfxIsolatedProcess(const std::string& endpointName,
-                       const std::string& executable);
 
     const std::string& endpointName() const { return mEndpointName; }
 private:
@@ -152,8 +160,9 @@ public:
 
     const char* supportedvideoformats() override;
 
-    static std::unique_ptr<GfxProviderIsolatedProcess> create(const std::string& endpointName,
-                                                              const std::string& executable);
+    static std::unique_ptr<GfxProviderIsolatedProcess>
+        create(const GfxIsolatedProcess::Params& params);
+
 private:
 
     // thread safe formats accessor

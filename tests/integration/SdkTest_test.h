@@ -31,6 +31,12 @@
 #include <iostream>
 #include <memory>
 
+#ifndef WIN32
+#define DOTSLASH "./"
+#else
+#define DOTSLASH ".\\"
+#endif
+
 using namespace mega;
 using ::testing::Test;
 
@@ -415,7 +421,7 @@ public:
         m_off_t numTotalRequests{};
         double failedRequestRatio{};
 
-        SdkTestTransferStats& operator=(const TransferSlotStats& transferSlotStats)
+        SdkTestTransferStats& operator=(const stats::TransferSlotStats& transferSlotStats)
         {
             numFailedRequests = transferSlotStats.mNumFailedRequests;
             numTotalRequests = transferSlotStats.mNumTotalRequests;
@@ -466,8 +472,15 @@ protected:
     void onUserAlertsUpdate(MegaApi* api, MegaUserAlertList* alerts) override;
 
 #ifdef ENABLE_SYNC
-    void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, string* filePath, int newState) override {}
-    void onSyncStateChanged(MegaApi *api,  MegaSync *sync) override {}
+    void onSyncFileStateChanged(MegaApi* api,
+                                MegaSync* sync,
+                                string* filePath,
+                                int newState) override
+    {}
+
+    void onSyncStateChanged(MegaApi* api, MegaSync* sync) override {}
+
+    void onSyncRemoteRootChanged(MegaApi* api, MegaSync* sync) override {}
     void onGlobalSyncStateChanged(MegaApi* api) override {}
     void purgeVaultTree(unsigned int apiIndex, MegaNode *vault);
 #endif

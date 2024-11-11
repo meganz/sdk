@@ -26,6 +26,7 @@
 
 namespace mega {
 
+class UserAttribute;
 class UserAttributeManager;
 
 // user/contact
@@ -123,19 +124,16 @@ public:
 
     void removepkrs(MegaClient*);
 
-    // attribute methods: set/get/invalidate...
-    void setattr(attr_t at, string *av, string *v);
-    const string *getattr(attr_t at);
-    const string *getattrversion(attr_t at);
-    void invalidateattr(attr_t at);
-    bool isattrvalid(attr_t at);
-    void removeattr(attr_t at, bool ownUser);
-    void removeattr(attr_t at, const string& version);
-    int updateattr(attr_t at, string *av, string *v);
+    // attribute methods: set/get/expire...
+    void setAttribute(attr_t at, const string& value, const string& version);
+    bool updateAttributeIfDifferentVersion(attr_t at, const string& value, const string& version);
+    void setAttributeExpired(attr_t at);
+    const UserAttribute* getAttribute(attr_t at) const;
+    void removeAttribute(attr_t at);
+    void removeAttributeUpdateVersion(attr_t at, const string& version); // remove in up2/upv V3 ?
 
-    // Returns if attribute doesn't exist. Avoid requesting it to server
-    bool nonExistingAttribute(attr_t at) const;
-    // Only mark own attributes that it doesn't exist
+    // Set this to avoid requesting attributes already known to not exist from server.
+    void cacheNonExistingAttributes();
 
     static string attr2string(attr_t at);
     static string attr2longname(attr_t at);

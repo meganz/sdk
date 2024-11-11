@@ -34,6 +34,7 @@ target_sources(test_unit
     Sync_test.cpp
     TextChat_test.cpp
     Transfer_test.cpp
+    Transferstats_test.cpp
     User_test.cpp
     user_attributes_test.cpp
     utils.cpp

@@ -11,7 +11,6 @@ set(SDKLIB_HEADERS
     include/megaapi_impl.h
     include/megautils.h
     include/mega/transferslot.h
-    include/mega/thread/libuvthread.h
     include/mega/scoped_helpers.h
     include/mega/traits.h
     include/mega/scoped_timer.h
@@ -64,6 +63,7 @@ set(SDKLIB_HEADERS
     include/mega/utils.h
     include/mega/account.h
     include/mega/transfer.h
+    include/mega/transferstats.h
     include/mega/config-android.h
     include/mega/treeproc.h
     include/mega/arguments.h
@@ -78,6 +78,7 @@ set(SDKLIB_HEADERS
     include/mega/process.h
     include/mega/mega_csv.h
     include/mega/name_collision.h
+    include/mega/name_id.h
     include/mega/pwm_file_parser.h
     include/mega/user_attribute.h
     include/mega/user_attribute_definition.h
@@ -132,6 +133,7 @@ set(SDKLIB_SOURCES
     src/testhooks.cpp
     src/transfer.cpp
     src/transferslot.cpp
+    src/transferstats.cpp
     src/treeproc.cpp
     src/user.cpp
     src/useralerts.cpp

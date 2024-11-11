@@ -19,11 +19,13 @@
  * program.
  */
 
-#include <mega/fuse/common/service.h>
+#include "megaapi.h"
 
 #include "mega.h"
-#include "megaapi.h"
 #include "megaapi_impl.h"
+#include "megautils.h"
+
+#include <mega/fuse/common/service.h>
 
 namespace mega {
 
@@ -1590,6 +1592,9 @@ const char* MegaError::getErrorString(int errorCode, ErrorContexts context)
             return "Business account has expired";
         case API_EPAYWALL:
             return "Storage Quota Exceeded. Upgrade now";
+        case API_ESUBUSERKEYMISSING:
+            return "A business error where a subuser has not yet encrypted their master key for "
+                   "the admin user and tries to perform a disallowed command (currently u and p)";
         case LOCAL_ENOSPC:
             return "Insufficient disk space";
         case PAYMENT_ECARD:
@@ -1892,20 +1897,21 @@ void MegaListener::onEvent(MegaApi *api, MegaEvent *event)
 { }
 
 #ifdef ENABLE_SYNC
-void MegaGlobalListener::onGlobalSyncStateChanged(MegaApi *)
-{ }
-void MegaListener::onSyncFileStateChanged(MegaApi *, MegaSync *, string *, int)
-{ }
-void MegaListener::onSyncAdded(MegaApi *, MegaSync *)
-{ }
-void MegaListener::onSyncDeleted(MegaApi *, MegaSync *)
-{ }
-void MegaListener::onSyncStateChanged(MegaApi *, MegaSync *)
-{ }
-void MegaListener::onSyncStatsUpdated(MegaApi *api, MegaSyncStats* syncStats)
-{ }
-void MegaListener::onGlobalSyncStateChanged(MegaApi *)
-{ }
+void MegaGlobalListener::onGlobalSyncStateChanged(MegaApi*) {}
+
+void MegaListener::onSyncFileStateChanged(MegaApi*, MegaSync*, string*, int) {}
+
+void MegaListener::onSyncAdded(MegaApi*, MegaSync*) {}
+
+void MegaListener::onSyncDeleted(MegaApi*, MegaSync*) {}
+
+void MegaListener::onSyncStateChanged(MegaApi*, MegaSync*) {}
+
+void MegaListener::onSyncStatsUpdated(MegaApi* api, MegaSyncStats* syncStats) {}
+
+void MegaListener::onGlobalSyncStateChanged(MegaApi*) {}
+
+void MegaListener::onSyncRemoteRootChanged(MegaApi*, MegaSync*) {}
 #endif
 
 void MegaListener::onBackupStateChanged(MegaApi *, MegaScheduledCopy *)
@@ -5053,6 +5059,7 @@ char *MegaApi::getMimeType(const char *extension)
         {"jpm", "video/jpm"},
         {"json", "application/json"},
         {"jsonml", "application/jsonml+json"},
+        {"jxl", "image/jxl"},
         {"kar", "audio/midi"},
         {"ktx", "image/ktx"},
         {"list", "text/plain"},
@@ -8144,16 +8151,15 @@ MegaCompleteUploadData* MegaCompleteUploadData::createInstance(const char* finge
 
 MegaGfxProvider::~MegaGfxProvider() = default;
 
-MegaGfxProvider* MegaGfxProvider::createIsolatedInstance(
-    const char* endpointName,
-    const char* executable)
+MegaGfxProvider* MegaGfxProvider::createIsolatedInstance(const char* endpointName,
+                                                         const char* executable,
+                                                         unsigned int keepAliveInSeconds,
+                                                         const MegaStringList* extraArgs)
 {
-    if (!endpointName || !executable) return nullptr;
-
-    auto provider = MegaGfxProviderPrivate::createIsolatedInstance(
-        std::string(endpointName),
-        std::string(executable)
-    );
+    auto provider = MegaGfxProviderPrivate::createIsolatedInstance(endpointName,
+                                                                   executable,
+                                                                   keepAliveInSeconds,
+                                                                   extraArgs);
 
     return provider.release();
 }

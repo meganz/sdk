@@ -463,3 +463,5 @@ void exec_passwordmanager(autocomplete::ACState&);
 void exec_generatepassword(autocomplete::ACState&);
 void exec_importpasswordsfromgooglefile(autocomplete::ACState&);
 void exec_getpricing(autocomplete::ACState&);
+
+void exec_collectAndPrintTransferStats(autocomplete::ACState&);

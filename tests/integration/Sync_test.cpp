@@ -24,6 +24,7 @@
 #include "env_var_accounts.h"
 #include "gtest_common.h"
 #include "mega/scoped_helpers.h"
+#include "mega/user_attribute.h"
 #include "test.h"
 
 #define DEFAULTWAIT std::chrono::seconds(20)
@@ -1739,8 +1740,8 @@ bool StandardClient::waitForAttrDeviceIdIsSet(unsigned int numSeconds, bool& upd
     std::string deviceIdHash = client.getDeviceidHash();
     if (err == API_OK)
     {
-        User* ownUser = client.ownuser();
-        tlv.reset(TLVstore::containerToTLVrecords(ownUser->getattr(attr_t::ATTR_DEVICE_NAMES), &client.key));
+        const UserAttribute* attribute = client.ownuser()->getAttribute(ATTR_DEVICE_NAMES);
+        tlv.reset(TLVstore::containerToTLVrecords(&attribute->value(), &client.key));
         std::string buffer;
         if (tlv->get(deviceIdHash, buffer))
         {
@@ -4195,13 +4196,21 @@ void StandardClient::waitonsyncs(chrono::seconds d)
 bool StandardClient::conflictsDetected(list<NameConflict>& conflicts)
 {
     PromiseBoolSP pb(new promise<bool>());
-
     bool result = false;
 
-    client.syncs.syncRun([&](){
-        result = client.syncs.conflictsDetected(conflicts);
-        pb->set_value(true);
-    }, "StandardClient::conflictsDetected");
+    client.syncs.syncRun(
+        [&]()
+        {
+            SyncIDtoConflictInfoMap auxconflicts;
+            result = client.syncs.conflictsDetected(auxconflicts);
+            for (auto& conflict: auxconflicts)
+            {
+                conflicts.insert(conflicts.end(), conflict.second.begin(), conflict.second.end());
+            }
+
+            pb->set_value(true);
+        },
+        "StandardClient::conflictsDetected");
 
     EXPECT_TRUE(debugTolerantWaitOnFuture(pb->get_future(), 45));
 

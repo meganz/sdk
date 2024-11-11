@@ -52,7 +52,7 @@ void TransferSlotFileAccess::reset(std::unique_ptr<FileAccess>&& p)
     transfer->bt.enable(!!p);
 }
 
-double TransferSlotStats::failedRequestRatio() const
+double stats::TransferSlotStats::failedRequestRatio() const
 {
     assert(mNumFailedRequests <= mNumTotalRequests);
     if (!mNumFailedRequests || !mNumTotalRequests)
@@ -62,18 +62,17 @@ double TransferSlotStats::failedRequestRatio() const
     return static_cast<double>(mNumFailedRequests) / static_cast<double>(mNumTotalRequests);
 }
 
-m_off_t TransferSlotStats::averageLatency() const
+double stats::TransferSlotStats::averageLatency() const
 {
     assert(mTotalConnectTime != -1 || !mNumRequestsWithCalculatedLatency);
     if (mTotalConnectTime <= 0 || !mNumRequestsWithCalculatedLatency)
     {
         return 0;
     }
-    return static_cast<m_off_t>(
-        std::round(mTotalConnectTime / static_cast<double>(mNumRequestsWithCalculatedLatency)));
+    return std::round(mTotalConnectTime / static_cast<double>(mNumRequestsWithCalculatedLatency));
 }
 
-m_off_t TransferSlotStats::averageStartTransferTime() const
+m_off_t stats::TransferSlotStats::averageStartTransferTime() const
 {
     assert(mTotalStartTransferTime != -1 || !mNumRequestsWithCalculatedLatency);
     if (mTotalStartTransferTime <= 0 || !mNumRequestsWithCalculatedLatency)
@@ -320,6 +319,26 @@ TransferSlot::~TransferSlot()
         }
     }
 
+    // Manage transfer stats before setting the slot to NULL
+    LOG_verbose << "[TransferSlot::~TransferSlot] Stats: FailedRequestRatio = "
+                << tsStats.failedRequestRatio()
+                << " ms. Average latency: " << tsStats.averageLatency()
+                << " ms. Average start transfer time: " << tsStats.averageStartTransferTime()
+                << " [totalRequests = " << tsStats.mNumTotalRequests
+                << ", failedRequests = " << tsStats.mNumFailedRequests
+                << ", totalRequestsWithLatency = " << tsStats.mNumRequestsWithCalculatedLatency
+                << "] [cloudRaid = " << (void*)(cloudRaid.get()) << "]";
+    if (transfer->addTransferStats())
+    {
+        LOG_verbose << "[TransferSlot::~TransferSlot] Stats for this transfer have been added to "
+                       "the global transfer stats";
+    }
+    else
+    {
+        LOG_debug << "[TransferSlot::~TransferSlot] Stats for this transfer have NOT been added to "
+                     "the global transfer stats";
+    }
+
     transfer->slot = NULL;
 
     if (slots_it != transfer->client->tslots.end())
@@ -351,14 +370,7 @@ TransferSlot::~TransferSlot()
     }
 
     delete[] asyncIO;
-    LOG_verbose << "[TransferSlot::~TransferSlot] Stats: FailedRequestRatio = "
-                << tsStats.failedRequestRatio()
-                << " ms. Average latency: " << tsStats.averageLatency()
-                << " ms. Average start transfer time: " << tsStats.averageStartTransferTime()
-                << " [totalRequests = " << tsStats.mNumTotalRequests
-                << ", failedRequests = " << tsStats.mNumFailedRequests
-                << ", totalRequestsWithLatency = " << tsStats.mNumRequestsWithCalculatedLatency
-                << "] [cloudRaid = " << (void*)(cloudRaid.get()) << "]";
+
     LOG_verbose << "[TransferSlot::~TransferSlot] END [cloudRaid = " << (void*)(cloudRaid.get()) << "]";
 }
 
@@ -770,6 +782,22 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
 
                             if (transfer->progresscompleted != progressreported)
                             {
+                                m_off_t diff = transfer->progresscompleted - progressreported;
+                                m_off_t naturalDiff = std::max<m_off_t>(diff, 0);
+                                speed = mTransferSpeed.calculateSpeed(naturalDiff);
+                                meanSpeed = mTransferSpeed.getMeanSpeed();
+                                LOG_verbose
+                                    << "[TransferSlot::doio] [Upload] COMPLETED (with a diff)"
+                                    << " Speed: " << (speed / 1)
+                                    << " KB/s. Mean speed: " << (meanSpeed / 1)
+                                    << " KB/s [diff = " << diff << "]"
+                                    << " [progressreported = " << progressreported
+                                    << ", transfer->progresscompleted = "
+                                    << transfer->progresscompleted
+                                    << "] [transfer->size = " << transfer->size
+                                    << "] [transfer->name = " << transfer->localfilename << "]";
+                                client->httpio->updateuploadspeed(naturalDiff);
+
                                 progressreported = transfer->progresscompleted;
                                 lastdata = Waiter::ds;
 
@@ -1281,9 +1309,6 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
             {
                 if (reqs[i]->status == REQ_PREPARED)
                 {
-                    mReqSpeeds[i].requestStarted();
-                    reqs[i]->minspeed = true;
-
                     if (transferbuf.isNewRaid())
                     {
                         assert(cloudRaid != nullptr);
@@ -1297,6 +1322,9 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                     {
                         processRequestPost(client, reqs[i]);
                     }
+
+                    mReqSpeeds[i].requestStarted();
+                    reqs[i]->minspeed = true;
                 }
                 if (transferbuf.isNewRaid())
                 {

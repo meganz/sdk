@@ -3,8 +3,10 @@
 
 #include "stdfs.h"
 
+#include <functional>
 #include <optional>
 #include <set>
+#include <thread>
 #include <variant>
 #include <vector>
 
@@ -55,6 +57,28 @@ public:
 
 private:
     fs::path mFilePath;
+};
+
+/**
+ * @class LocalTempDir
+ * @brief Helper class to apply RAII when creating a directory locally
+ */
+class LocalTempDir
+{
+public:
+    LocalTempDir(const fs::path& _dirPath);
+    ~LocalTempDir();
+
+    // Delete copy constructors -> Don't allow many objects to remove the same dir
+    LocalTempDir(const LocalTempDir&) = delete;
+    LocalTempDir& operator=(const LocalTempDir&) = delete;
+
+    // Allow move operations
+    LocalTempDir(LocalTempDir&&) noexcept = default;
+    LocalTempDir& operator=(LocalTempDir&&) noexcept = default;
+
+private:
+    fs::path mDirPath;
 };
 
 /**
@@ -181,6 +205,55 @@ struct DirNodeInfo: public NodeCommonInfo<DirNodeInfo>
         return *this;
     }
 };
+
+/**
+ * @brief Returns the names in the tree specified by node
+ *
+ * @note The tree is iterated using a depth-first approach
+ */
+std::vector<std::string> getNodeNames(const NodeInfo& node);
+
+/**
+ * @brief Waits for a condition to become true or until a timeout occurs.
+ *
+ * This function repeatedly checks a predicate at intervals (controlled by sleepDuration)
+ * and stops when the predicate returns true or when the specified timeout has been reached.
+ *
+ * @tparam Duration The type of the timeout duration (e.g., std::chrono::milliseconds,
+ * std::chrono::seconds).
+ * @tparam SleepDuration The type of the sleep interval between predicate checks (default is
+ * std::chrono::milliseconds).
+ * @param predicate The condition to be evaluated. It should be a callable returning a bool.
+ * @param timeout The maximum duration to wait for the predicate to return true.
+ * @param sleepDuration The interval between each check of the predicate. Defaults to 100
+ * milliseconds.
+ *
+ * @return true if the predicate returns true within the timeout period, otherwise false.
+ *
+ * @note The predicate will be evaluated at least once, and then at intervals of `sleepDuration`.
+ *
+ * @example
+ * using namespace std::chrono_literals
+ * bool conditionMet = waitFor(
+ *     [] { return some_condition(); },
+ *     5s,
+ *     200ms
+ * );
+ */
+template<typename Duration, typename SleepDuration = std::chrono::milliseconds>
+bool waitFor(const std::function<bool()>& predicate,
+             Duration timeout,
+             SleepDuration sleepDuration = std::chrono::milliseconds(100))
+{
+    auto startTime = std::chrono::steady_clock::now();
+    while (std::chrono::steady_clock::now() - startTime < timeout)
+    {
+        if (predicate())
+            return true;
+        std::this_thread::sleep_for(sleepDuration);
+    }
+    return false;
+}
 }
 
 #endif // INCLUDE_TESTS_SDK_TEST_UTILS_H_

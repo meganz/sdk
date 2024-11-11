@@ -89,7 +89,7 @@ pipeline {
                                 'Debian_11','Debian_12','Debian_testing',
                                 'DEB_Arch_Extra',
                                 'Raspbian_11', 'Raspbian_12',
-                                'Fedora_39', 'Fedora_40', 'Fedora_41',
+                                'Fedora_39', 'Fedora_40',
                                 'openSUSE_Leap_15.5','openSUSE_Leap_15.6', 'openSUSE_Tumbleweed'
                     }
                 }
@@ -104,7 +104,7 @@ pipeline {
                             values  'xUbuntu_24.10','xUbuntu_24.04', 'xUbuntu_23.10','xUbuntu_22.04', 'xUbuntu_20.04',
                                     'Debian_11','Debian_12','Debian_testing',
                                     'DEB_Arch_Extra',
-                                    'Fedora_39', 'Fedora_40', 'Fedora_41',
+                                    'Fedora_39', 'Fedora_40',
                                     'openSUSE_Leap_15.5','openSUSE_Leap_15.6', 'openSUSE_Tumbleweed'
                         }
                     }
@@ -167,14 +167,13 @@ pipeline {
                     messageStatus = currentBuild.currentResult
                     messageColor = messageStatus == 'SUCCESS'? "#00FF00": "#FF0000" //green or red
                     message = """
-                        Jenkins job #${BUILD_ID} ended with status '${messageStatus}'.
-                        See: ${BUILD_URL}
+                        *Linux* <${BUILD_URL}|Build result>: '${messageStatus}'.
                         SDK branch: `${SDK_BRANCH}`
                         SDK_commit: `${sdk_commit}`
                     """.stripIndent()
 
                     if (failedDistros.size() > 0) {
-                        message += "\n\nFailed distributions: ${failedDistros.join(', ')}"
+                        message += "\nFailed distributions: ${failedDistros.join(', ')}"
                     }
                     
                     withCredentials([string(credentialsId: 'slack_webhook_sdk_report', variable: 'SLACK_WEBHOOK_URL')]) {

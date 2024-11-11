@@ -29,6 +29,7 @@
 #define PREFER_STDARG
 #include "mega/mediafileattribute.h"
 #include "mega/scoped_helpers.h"
+#include "mega/user_attribute.h"
 #include "megaapi.h"
 #include "megaapi_impl.h"
 
@@ -1860,11 +1861,14 @@ const MegaSyncStall* MegaSyncStallListPrivate::get(size_t i) const
 
 MegaSyncStallListPrivate::MegaSyncStallListPrivate(SyncProblems&& sp, AddressedStallFilter& filter)
 {
-    for(auto& nc : sp.mConflicts)
+    for (auto& itnc: sp.mConflictsMap)
     {
-        if (!filter.addressedNameConfict(nc.cloudPath, nc.localPath))
+        for (auto& nc: itnc.second)
         {
-            mStalls.push_back(std::make_shared<MegaSyncNameConflictStallPrivate>(nc));
+            if (!filter.addressedNameConfict(nc.cloudPath, nc.localPath))
+            {
+                mStalls.push_back(std::make_shared<MegaSyncNameConflictStallPrivate>(nc));
+            }
         }
     }
 
@@ -2343,7 +2347,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
 
     switch (b->type)
     {
-    case UserAlert::type_ipc:
+    case name_id::ipc:
     {
         UserAlert::IncomingPendingContact* p = static_cast<UserAlert::IncomingPendingContact*>(b);
         if (p->requestWasDeleted)
@@ -2363,7 +2367,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         email = p->email();
     }
     break;
-    case UserAlert::type_c:
+    case name_id::c:
     {
         UserAlert::ContactChange* p = static_cast<UserAlert::ContactChange*>(b);
         switch (p->action)
@@ -2377,7 +2381,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         email = p->email();
     }
     break;
-    case UserAlert::type_upci:
+    case name_id::upci:
     {
         UserAlert::UpdatedPendingContactIncoming* p = static_cast<UserAlert::UpdatedPendingContactIncoming*>(b);
         switch (p->action)
@@ -2390,7 +2394,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         email = p->email();
     }
     break;
-    case UserAlert::type_upco:
+    case name_id::upco:
     {
         UserAlert::UpdatedPendingContactOutgoing* p = static_cast<UserAlert::UpdatedPendingContactOutgoing*>(b);
         switch (p->action)
@@ -2403,7 +2407,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         email = p->email();
     }
     break;
-    case UserAlert::type_share:
+    case name_id::share:
     {
         UserAlert::NewShare* p = static_cast<UserAlert::NewShare*>(b);
         type = TYPE_NEWSHARE;
@@ -2417,7 +2421,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         }
     }
     break;
-    case UserAlert::type_dshare:
+    case name_id::dshare:
     {
         UserAlert::DeletedShare* p = static_cast<UserAlert::DeletedShare*>(b);
         type = TYPE_DELETEDSHARE;
@@ -2430,7 +2434,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         numbers.push_back(accessRevoked ? 1 : 0);
     }
     break;
-    case UserAlert::type_put:
+    case name_id::put:
     {
         UserAlert::NewSharedNodes* p = static_cast<UserAlert::NewSharedNodes*>(b);
         type = TYPE_NEWSHAREDNODES;
@@ -2443,7 +2447,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         handles.insert(end(handles), begin(p->fileNodeHandles), end(p->fileNodeHandles));
     }
     break;
-    case UserAlert::type_d:
+    case name_id::d:
     {
         UserAlert::RemovedSharedNode* p = static_cast<UserAlert::RemovedSharedNode*>(b);
         type = TYPE_REMOVEDSHAREDNODES;
@@ -2452,7 +2456,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         numbers.push_back(p->nodeHandles.size());
     }
     break;
-    case UserAlert::type_u:
+    case name_id::u:
     {
         UserAlert::UpdatedSharedNode* p = static_cast<UserAlert::UpdatedSharedNode*>(b);
         type = TYPE_UPDATEDSHAREDNODES;
@@ -2461,22 +2465,22 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         numbers.push_back(p->nodeHandles.size());
     }
     break;
-    case UserAlert::type_psts:
-    case UserAlert::type_psts_v2:
+    case name_id::psts:
+    case name_id::psts_v2:
     {
         UserAlert::Payment* p = static_cast<UserAlert::Payment*>(b);
         type = p->success ? TYPE_PAYMENT_SUCCEEDED : TYPE_PAYMENT_FAILED;
         extraStrings.push_back(p->getProPlanName());
     }
     break;
-    case UserAlert::type_pses:
+    case name_id::pses:
     {
         UserAlert::PaymentReminder* p = static_cast<UserAlert::PaymentReminder*>(b);
         type = TYPE_PAYMENTREMINDER;
         timestamps.push_back(p->expiryTime);
     }
     break;
-    case UserAlert::type_ph:
+    case name_id::ph:
     {
         UserAlert::Takedown* p = static_cast<UserAlert::Takedown*>(b);
         if (p->isTakedown)
@@ -2497,7 +2501,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
     }
     break;
 #ifdef ENABLE_CHAT
-    case UserAlert::type_nusm:
+    case name_id::mcsmp:
     {
          if (auto* p = dynamic_cast<UserAlert::NewScheduledMeeting*>(b))
          {
@@ -2532,7 +2536,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
          }
     }
     break;
-    case UserAlert::type_dsm:
+    case name_id::mcsmr:
     {
         if (auto* p = dynamic_cast<UserAlert::DeletedScheduledMeeting*>(b))
         {
@@ -6371,15 +6375,24 @@ int MegaSearchFilterPrivate::validateBoolFilterOption(const int value)
     }
 }
 
-std::unique_ptr<MegaGfxProviderPrivate> MegaGfxProviderPrivate::createIsolatedInstance(
-    const std::string& endpointName,
-    const std::string& executable)
+std::unique_ptr<MegaGfxProviderPrivate>
+    MegaGfxProviderPrivate::createIsolatedInstance([[maybe_unused]] const char* endpointName,
+                                                   [[maybe_unused]] const char* executable,
+                                                   [[maybe_unused]] unsigned int keepAliveInSeconds,
+                                                   [[maybe_unused]] const MegaStringList* extraArgs)
 {
 #ifdef ENABLE_ISOLATED_GFX
-    auto provider = GfxProviderIsolatedProcess::create(endpointName, executable);
+    if (!endpointName || !executable)
+        return nullptr;
+
+    auto args = dynamic_cast<const MegaStringListPrivate*>(extraArgs);
+    GfxIsolatedProcess::Params params{std::string{endpointName},
+                                      std::string{executable},
+                                      std::chrono::seconds{keepAliveInSeconds},
+                                      args ? args->getVector() : string_vector{}};
+    auto provider = GfxProviderIsolatedProcess::create(params);
     return std::make_unique<MegaGfxProviderPrivate>(std::move(provider));
 #else
-    (void)endpointName, (void)executable;
     return nullptr;
 #endif
 }
@@ -7017,67 +7030,10 @@ int MegaApiImpl::userAttributeFromString(const char *name)
 
 char MegaApiImpl::userAttributeToScope(int type)
 {
-    char scope;
-
-    switch(type)
+    char scope = User::scope(static_cast<attr_t>(type));
+    if (scope == ATTR_SCOPE_UNKNOWN)
     {
-        case MegaApi::USER_ATTR_AVATAR:
-        case MegaApi::USER_ATTR_ED25519_PUBLIC_KEY:
-        case MegaApi::USER_ATTR_CU25519_PUBLIC_KEY:
-        case MegaApi::USER_ATTR_SIG_RSA_PUBLIC_KEY:
-        case MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY:
-            scope = ATTR_SCOPE_PUBLIC_UNENCRYPTED;
-            break;
-
-        case MegaApi::USER_ATTR_FIRSTNAME:
-        case MegaApi::USER_ATTR_LASTNAME:
-            // legacy, without a prefix for scope
-            scope = ATTR_SCOPE_PROTECTED_UNENCRYPTED;
-            break;
-
-        case MegaApi::USER_ATTR_AUTHRING:
-        case MegaApi::USER_ATTR_LAST_INTERACTION:
-        case MegaApi::USER_ATTR_KEYRING:
-        case MegaApi::USER_ATTR_RICH_PREVIEWS:
-        case MegaApi::USER_ATTR_GEOLOCATION:
-        case MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER:
-        case MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER:
-        case MegaApi::USER_ATTR_ALIAS:
-        case ATTR_AUTHCU255: // deprecated
-        case MegaApi::USER_ATTR_DEVICE_NAMES:
-        case MegaApi::USER_ATTR_JSON_SYNC_CONFIG_DATA:
-        case MegaApi::USER_ATTR_APPS_PREFS:
-        case MegaApi::USER_ATTR_CC_PREFS:
-            scope = ATTR_SCOPE_PRIVATE_ENCRYPTED;
-            break;
-
-        case MegaApi::USER_ATTR_LANGUAGE:
-        case MegaApi::USER_ATTR_PWD_REMINDER:
-        case MegaApi::USER_ATTR_DISABLE_VERSIONS:
-        case MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION:
-        case MegaApi::USER_ATTR_LAST_PSA:
-        case MegaApi::USER_ATTR_RUBBISH_TIME:
-        case MegaApi::USER_ATTR_STORAGE_STATE:
-        case MegaApi::USER_ATTR_PUSH_SETTINGS:
-        case MegaApi::USER_ATTR_MY_BACKUPS_FOLDER:
-        case MegaApi::USER_ATTR_COOKIE_SETTINGS:
-        case MegaApi::USER_ATTR_NO_CALLKIT:
-        case ATTR_KEYS: // allow for testing
-        case MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG:
-        case MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE:
-        case MegaApi::USER_ATTR_PWM_BASE:
-        case MegaApi::USER_ATTR_ENABLE_TEST_NOTIFICATIONS:
-        case MegaApi::USER_ATTR_LAST_READ_NOTIFICATION:
-        case MegaApi::USER_ATTR_LAST_ACTIONED_BANNER:
-        case MegaApi::USER_ATTR_ENABLE_TEST_SURVEYS:
-        case MegaApi::USER_ATTR_WELCOME_PDF_COPIED:
-            scope = ATTR_SCOPE_PRIVATE_UNENCRYPTED;
-            break;
-
-        default:
-            LOG_err << "Getting invalid scope";
-            scope = ATTR_SCOPE_UNKNOWN;
-            break;
+        LOG_err << "Invalid scope for user attribute of type " << type;
     }
 
     return scope;
@@ -8029,10 +7985,11 @@ char* MegaApiImpl::getPrivateKey(int type)
     }
     else
     {
-        const string *av = (u->isattrvalid(ATTR_KEYRING)) ? u->getattr(ATTR_KEYRING) : NULL;
-        if (av)
+        const UserAttribute* attribute = u->getAttribute(ATTR_KEYRING);
+        if (attribute && attribute->isValid())
         {
-            unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(av, &client->key));
+            unique_ptr<TLVstore> tlvRecords(
+                TLVstore::containerToTLVrecords(&attribute->value(), &client->key));
             if (tlvRecords &&  (type == MegaApi::PRIVATE_KEY_ED25519 || type == MegaApi::PRIVATE_KEY_CU25519))
             {
                 tlvRecords->get(type == MegaApi::PRIVATE_KEY_ED25519 ? EdDSA::TLV_KEY : ECDH::TLV_KEY, privateKey);
@@ -13962,13 +13919,14 @@ std::unique_ptr<MegaPushNotificationSettingsPrivate> MegaApiImpl::getMegaPushNot
     if (!ownUser)
         return nullptr;
 
-    const std::string* settingsJson = ownUser->getattr(ATTR_PUSH_SETTINGS);
-    if (!settingsJson)
+    const UserAttribute* settingsJson = ownUser->getAttribute(ATTR_PUSH_SETTINGS);
+    if (!settingsJson || settingsJson->isNotExisting())
     {
         return nullptr;
     }
 
-    std::unique_ptr<MegaPushNotificationSettingsPrivate> pushSettings = std::make_unique<MegaPushNotificationSettingsPrivate>(*settingsJson);
+    std::unique_ptr<MegaPushNotificationSettingsPrivate> pushSettings =
+        std::make_unique<MegaPushNotificationSettingsPrivate>(settingsJson->value());
     if (pushSettings->isValid())
     {
         return pushSettings;
@@ -14093,7 +14051,7 @@ void MegaApiImpl::syncupdate_remote_root_changed(const SyncConfig &config)
 
     if (auto megaSync = cachedMegaSyncPrivateByBackupId(config))
     {
-        fireOnSyncStateChanged(megaSync);
+        fireOnSyncRemoteRootChanged(megaSync);
     }
 }
 
@@ -14323,8 +14281,10 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
             switch (client->getClientType())
             {
                 case MegaClient::ClientType::DEFAULT:
-                    assert(!client->mNodeManager.getRootNodeFiles().isUndef());
+                {
+                    client->importWelcomePdfIfDelayed();
                     break;
+                }
 
                 case MegaClient::ClientType::PASSWORD_MANAGER:
                     assert(!client->mNodeManager.getRootNodeVault().isUndef());
@@ -14387,10 +14347,7 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
             {
                 // import the PDF silently... (not chained)
                 // Not for VPN and PWM clients
-                if (client->shouldWelcomePdfImported())
-                {
-                    client->getwelcomepdf();
-                }
+                client->importOrDelayWelcomePdf();
 
                 // The session id cannot follow the same pattern, since no password is provided (yet)
                 // In consequence, the session resumption requires a regular session id (instead of the
@@ -16647,10 +16604,7 @@ void MegaApiImpl::sendsignuplink_result(error e)
     {
         // import the PDF silently... (not chained)
         // Not for VPN and PWM clients
-        if (client->shouldWelcomePdfImported())
-        {
-            client->getwelcomepdf();
-        }
+        client->importOrDelayWelcomePdf();
     }
 
     fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
@@ -17269,6 +17223,16 @@ void MegaApiImpl::fireOnSyncAdded(MegaSyncPrivate *sync)
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
         (*it++)->onSyncAdded(api, sync);
+    }
+}
+
+void MegaApiImpl::fireOnSyncRemoteRootChanged(MegaSyncPrivate* sync)
+{
+    assert(sync->getBackupId() != INVALID_HANDLE);
+    assert(client->syncs.onSyncThread());
+    for (set<MegaListener*>::iterator it = listeners.begin(); it != listeners.end();)
+    {
+        (*it++)->onSyncRemoteRootChanged(api, sync);
     }
 }
 
@@ -21211,7 +21175,8 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                         || type == ATTR_CC_PREFS
                         || type == ATTR_APPS_PREFS)
                 {
-                    if (!ownUser->isattrvalid(type)) // not fetched yet or outdated
+                    const UserAttribute* attribute = ownUser->getAttribute(type);
+                    if (!attribute || !attribute->isValid()) // not fetched yet or outdated
                     {
                         // always get updated value before update it
                         getUserAttr(ownUser, type, request);
@@ -21219,7 +21184,8 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                     }
                     else
                     {
-                        tlv.reset(TLVstore::containerToTLVrecords(ownUser->getattr(type), &client->key));
+                        tlv.reset(
+                            TLVstore::containerToTLVrecords(&attribute->value(), &client->key));
                     }
                 }
                 else
@@ -25552,11 +25518,20 @@ void MegaApiImpl::setMyBackupsFolder(const char* localizedName, MegaRequestListe
             {
                 if (e == API_OK)
                 {
-                    const string* buf = client->ownuser()->getattr(ATTR_MY_BACKUPS_FOLDER);
-                    handle h = 0;
-                    memcpy(&h, buf->data(), MegaClient::NODEHANDLE);
-
-                    request->setNodeHandle(h);
+                    const UserAttribute* attribute =
+                        client->ownuser()->getAttribute(ATTR_MY_BACKUPS_FOLDER);
+                    if (attribute && !attribute->isNotExisting())
+                    {
+                        assert(attribute->value().size() == MegaClient::NODEHANDLE);
+                        handle h = 0;
+                        memcpy(&h, attribute->value().data(), MegaClient::NODEHANDLE);
+                        request->setNodeHandle(h);
+                    }
+                    else
+                    {
+                        LOG_err << "Invalid value for ATTR_MY_BACKUPS_FOLDER";
+                        e = API_EINTERNAL;
+                    }
                 }
                 fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
             };

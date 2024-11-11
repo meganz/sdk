@@ -20,16 +20,17 @@
  */
 
 #include "mega/transfer.h"
-#include "mega/megaclient.h"
-#include "mega/transferslot.h"
-#include "mega/megaapp.h"
-#include "mega/sync.h"
-#include "mega/logging.h"
+
 #include "mega/base64.h"
+#include "mega/logging.h"
 #include "mega/mediafileattribute.h"
-#include "megawaiter.h"
-#include "mega/utils.h"
+#include "mega/megaapp.h"
+#include "mega/megaclient.h"
+#include "mega/sync.h"
 #include "mega/testhooks.h"
+#include "mega/transferslot.h"
+#include "mega/utils.h"
+#include "megawaiter.h"
 
 namespace mega {
 
@@ -438,8 +439,11 @@ void Transfer::failed(const Error& e, TransferDbCommitter& committer, dstime tim
             }
         }
     }
-    else if (e == API_EARGS || (e == API_EBLOCKED && type == GET) || (e == API_ETOOMANY && type == GET && e.hasExtraInfo()))
+    else if (e == API_EARGS || (e == API_EBLOCKED && type == GET) ||
+             (e == API_ETOOMANY && type == GET && e.hasExtraInfo()) ||
+             (e == API_ESUBUSERKEYMISSING))
     {
+        assert(e != API_ESUBUSERKEYMISSING || type == PUT);
         client->app->transfer_failed(this, e);
     }
     else if (e != API_EBUSINESSPASTDUE)
@@ -466,7 +470,8 @@ void Transfer::failed(const Error& e, TransferDbCommitter& committer, dstime tim
          * the actionpacket will eventually remove the target and the sync-engine will force to
          * disable the synchronization of the folder. For non-sync-transfers, remove the file directly.
          */
-        if (e == API_EARGS || (e == API_EBLOCKED && type == GET) || (e == API_ETOOMANY && type == GET && e.hasExtraInfo()))
+        if (e == API_EARGS || (e == API_EBLOCKED && type == GET) ||
+            (e == API_ETOOMANY && type == GET && e.hasExtraInfo()) || (e == API_ESUBUSERKEYMISSING))
         {
              File *f = (*it++);
              if (f->syncxfer && e == API_EARGS)
@@ -609,6 +614,17 @@ void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ LocalPath&
 bool Transfer::isForSupport() const
 {
     return type == PUT && !files.empty() && files.back()->targetuser == MegaClient::SUPPORT_USER_HANDLE;
+}
+
+bool Transfer::addTransferStats()
+{
+    if (!client)
+    {
+        LOG_err << "[Transfer::addTransferStats] called with a NULL MEGAclient";
+        assert(false && "[Transfer::addTransferStats] called with a NULL MEGAclient");
+        return false;
+    }
+    return client->mTransferStatsManager.addTransferStats(this);
 }
 
 FileDistributor::TargetNameExistsResolution Transfer::toTargetNameExistsResolution(CollisionResolution resolution)

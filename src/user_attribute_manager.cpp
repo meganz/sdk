@@ -12,27 +12,6 @@ using namespace std;
 namespace mega
 {
 
-const string* UserAttributeManager::getRawValue(attr_t at) const
-{
-    if (at == ATTR_AVATAR)
-        return nullptr; // its value is never cached
-
-    auto itAttr = mAttributes.find(at);
-    if (itAttr == mAttributes.end() || itAttr->second.isNotExisting())
-        return nullptr;
-
-    return &itAttr->second.value();
-}
-
-const string* UserAttributeManager::getVersion(attr_t at) const
-{
-    auto itAttr = mAttributes.find(at);
-    if (itAttr == mAttributes.end() || itAttr->second.isNotExisting())
-        return nullptr;
-
-    return &itAttr->second.version();
-}
-
 void UserAttributeManager::set(attr_t at, const string& value, const string& version)
 {
     const UserAttributeDefinition* d = UserAttributeDefinition::get(at);
@@ -97,12 +76,6 @@ bool UserAttributeManager::setNotExisting(attr_t at)
     return true;
 }
 
-bool UserAttributeManager::isNotExisting(attr_t at) const
-{
-    auto itAttr = mAttributes.find(at);
-    return itAttr != mAttributes.end() && itAttr->second.isNotExisting();
-}
-
 void UserAttributeManager::setExpired(attr_t at)
 {
     const auto it = mAttributes.find(at);
@@ -116,9 +89,36 @@ bool UserAttributeManager::isValid(attr_t at) const
     return itAttr != mAttributes.end() && itAttr->second.isValid();
 }
 
+const UserAttribute* UserAttributeManager::get(attr_t at) const
+{
+    auto itAttr = mAttributes.find(at);
+    return itAttr == mAttributes.end() ? nullptr : &itAttr->second;
+}
+
 bool UserAttributeManager::erase(attr_t at)
 {
-    return mAttributes.erase(at) > 0;
+    if (mCacheNonExistingAttributes)
+    {
+        return setNotExisting(at);
+    }
+    else
+    {
+        return mAttributes.erase(at) > 0;
+    }
+}
+
+bool UserAttributeManager::eraseUpdateVersion(attr_t at, const std::string& version)
+{
+    auto itAttr{mAttributes.find(at)};
+    if (itAttr != mAttributes.end() &&
+        (itAttr->second.isValid() || itAttr->second.version() != version))
+    {
+        bool notExisting = itAttr->second.isNotExisting();
+        itAttr->second.set("", version);
+        notExisting ? itAttr->second.setNotExisting() : itAttr->second.setExpired();
+        return true;
+    }
+    return false;
 }
 
 void UserAttributeManager::serializeAttributeFormatVersion(string& appendTo) const

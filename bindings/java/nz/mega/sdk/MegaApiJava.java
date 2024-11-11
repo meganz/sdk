@@ -504,6 +504,13 @@ public class MegaApiJava {
     //****************************************************************************************************/
 
     /**
+     * Enable request status monitor to receive EVENT_REQSTAT_PROGRESS events
+     */
+    public void enableRequestStatusMonitor() {
+        megaApi.enableRequestStatusMonitor(true);
+    }
+
+    /**
      * Get an URL to transfer the current session to the webclient
      * <p>
      * This function creates a new session for the link so logging out in the web client won't log out
