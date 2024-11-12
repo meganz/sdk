@@ -11449,9 +11449,8 @@ CommandGetVpnRegions::CommandGetVpnRegions(MegaClient* client, Cb&& completion)
 
 bool CommandGetVpnRegions::parseRegions(JSON& json, vector<VpnRegion>* vpnRegions)
 {
-    bool storeData = vpnRegions != nullptr;
     string buffer;
-    string* pBuffer = storeData ? &buffer : nullptr;
+    string* pBuffer = vpnRegions ? &buffer : nullptr;
     for (; json.storeobject(pBuffer);) // Iterate over regions
     {
         if (*json.pos == ':') // work around lack of functionality in enterobject()
@@ -11459,8 +11458,8 @@ bool CommandGetVpnRegions::parseRegions(JSON& json, vector<VpnRegion>* vpnRegion
         if (!json.enterobject())
             return false;
 
-        std::optional<VpnRegion> region{storeData ? std::make_optional(std::move(buffer)) :
-                                                    std::nullopt};
+        std::optional<VpnRegion> region{vpnRegions ? std::make_optional(std::move(buffer)) :
+                                                     std::nullopt};
         buffer.clear();
 
         for (bool finishedRegion = false; !finishedRegion;)
@@ -11473,7 +11472,7 @@ bool CommandGetVpnRegions::parseRegions(JSON& json, vector<VpnRegion>* vpnRegion
                         return false;
                     }
                     if (!CommandGetVpnRegions::parseClusters(json,
-                                                             storeData ? &region.value() : nullptr))
+                                                             region ? &region.value() : nullptr))
                     {
                         return false;
                     }
@@ -11486,7 +11485,7 @@ bool CommandGetVpnRegions::parseRegions(JSON& json, vector<VpnRegion>* vpnRegion
                 {
                     string countryCode;
                     json.storeobject(&countryCode);
-                    if (storeData)
+                    if (region)
                     {
                         region->setCountryCode(std::move(countryCode));
                     }
@@ -11496,7 +11495,7 @@ bool CommandGetVpnRegions::parseRegions(JSON& json, vector<VpnRegion>* vpnRegion
                 {
                     string countryName;
                     json.storeobject(&countryName);
-                    if (storeData)
+                    if (region)
                     {
                         region->setCountryName(std::move(countryName));
                     }
@@ -11506,7 +11505,7 @@ bool CommandGetVpnRegions::parseRegions(JSON& json, vector<VpnRegion>* vpnRegion
                 {
                     string regionName;
                     json.storeobject(&regionName);
-                    if (storeData)
+                    if (region)
                     {
                         region->setRegionName(std::move(regionName));
                     }
@@ -11516,7 +11515,7 @@ bool CommandGetVpnRegions::parseRegions(JSON& json, vector<VpnRegion>* vpnRegion
                 {
                     string townName;
                     json.storeobject(&townName);
-                    if (storeData)
+                    if (region)
                     {
                         region->setTownName(std::move(townName));
                     }
@@ -11529,8 +11528,9 @@ bool CommandGetVpnRegions::parseRegions(JSON& json, vector<VpnRegion>* vpnRegion
                     }
                     break;
                 case EOO:
-                    // No optional values, can't be empty.
-                    if (region->getCountryCode().empty() || region->getCountryName().empty())
+                    // Mandatory values can't be empty.
+                    if (region &&
+                        (region->getCountryCode().empty() || region->getCountryName().empty()))
                     {
                         return false;
                     }
@@ -11543,7 +11543,7 @@ bool CommandGetVpnRegions::parseRegions(JSON& json, vector<VpnRegion>* vpnRegion
         if (!json.leaveobject())
             return false;
 
-        if (storeData)
+        if (region)
         {
             vpnRegions->emplace_back(std::move(region.value()));
         }
@@ -11554,14 +11554,13 @@ bool CommandGetVpnRegions::parseRegions(JSON& json, vector<VpnRegion>* vpnRegion
 
 bool CommandGetVpnRegions::parseClusters(JSON& json, VpnRegion* vpnRegion)
 {
-    bool storeData = vpnRegion != nullptr;
     string buffer;
-    string* pBuffer = storeData ? &buffer : nullptr;
+    string* pBuffer = vpnRegion ? &buffer : nullptr;
 
     for (; json.storeobject(pBuffer);) // cluster ID
     {
         int clusterID{};
-        if (storeData)
+        if (vpnRegion)
         {
             auto [ptr, ec] =
                 std::from_chars(buffer.c_str(), buffer.c_str() + buffer.size(), clusterID);
@@ -11574,8 +11573,8 @@ bool CommandGetVpnRegions::parseClusters(JSON& json, VpnRegion* vpnRegion)
         if (!json.enterobject())
             return false;
 
-        std::optional<string> host{storeData ? std::make_optional<string>() : std::nullopt};
-        std::optional<vector<string>> dns{storeData ? std::make_optional<vector<string>>() :
+        std::optional<string> host{vpnRegion ? std::make_optional<string>() : std::nullopt};
+        std::optional<vector<string>> dns{vpnRegion ? std::make_optional<vector<string>>() :
                                                       std::nullopt};
 
         for (bool hasData = true; hasData;) // host, dns
@@ -11585,7 +11584,7 @@ bool CommandGetVpnRegions::parseClusters(JSON& json, VpnRegion* vpnRegion)
                 case 'h':
                     if (!json.storeobject(pBuffer))
                         return false;
-                    if (storeData)
+                    if (host)
                     {
                         host = std::move(buffer);
                         buffer.clear();
@@ -11598,7 +11597,7 @@ bool CommandGetVpnRegions::parseClusters(JSON& json, VpnRegion* vpnRegion)
 
                     while (json.storeobject(pBuffer))
                     {
-                        if (storeData)
+                        if (dns)
                         {
                             dns->emplace_back(std::move(buffer));
                             buffer.clear();
@@ -11621,7 +11620,7 @@ bool CommandGetVpnRegions::parseClusters(JSON& json, VpnRegion* vpnRegion)
         if (!json.leaveobject())
             return false;
 
-        if (storeData)
+        if (host && dns)
         {
             vpnRegion->addCluster(clusterID, {std::move(host.value()), std::move(dns.value())});
         }
