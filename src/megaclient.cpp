@@ -31,6 +31,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <charconv>
 #include <ctime>
 #include <functional>
 #include <future>
@@ -2569,6 +2570,27 @@ void MegaClient::exec()
 
                     // fall through
                     case REQ_FAILURE:
+                        if (pendingcs->httpstatus == 402)
+                        {
+                            // get X-Hashcash header
+                            if (pendingcs->hashcash.empty())
+                            {
+                                LOG_err << "X-Hashcash header missing for HTTP status "
+                                        << pendingcs->httpstatus;
+                            }
+                            else if (pendingcs->contentlength != 0)
+                            {
+                                LOG_err << "Content-Length not 0, as it should be when X-Hashcash "
+                                           "header was received";
+                            }
+                            else
+                            {
+                                reqHashcash = std::move(pendingcs->hashcash);
+                                pendingcs->hashcash.clear(); // just to be sure
+                                reqHashcashEasyness = pendingcs->hashcashEasyness;
+                            }
+                        }
+
                         if (!reason && pendingcs->httpstatus != 200)
                         {
                             if (pendingcs->httpstatus == 500)
@@ -2679,6 +2701,9 @@ void MegaClient::exec()
                         pendingcs->mChunked = !isClientType(ClientType::VPN);
                     }
 
+                    pendingcs->hashcash = std::move(reqHashcash);
+                    reqHashcash.clear();
+                    pendingcs->hashcashEasyness = reqHashcashEasyness;
                     performanceStats.csRequestWaitTime.start();
                     pendingcs->post(this);
                     continue;
