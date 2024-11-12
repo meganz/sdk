@@ -370,6 +370,10 @@ struct MEGA_API HttpReq
     // Content-Type of the response
     string contenttype;
 
+    // Hashcash of a response
+    string hashcash;
+    uint8_t hashcashEasyness{};
+
     // HttpIO implementation-specific identifier for this connection
     void* httpiohandle;
 
