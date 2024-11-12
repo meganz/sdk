@@ -2937,10 +2937,6 @@ class MegaSyncStallMapPrivate: public MegaSyncStallMap
 {
 public:
     MegaSyncStallMapPrivate(SyncProblems&& sp, AddressedStallFilter& filter);
-    MegaSyncStallMapPrivate(const MegaSyncStallMapPrivate& m)
-    {
-        mStallsMap = m.getMap();
-    }
 
     MegaSyncStallMapPrivate* copy() const override
     {
