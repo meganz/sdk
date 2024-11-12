@@ -1816,8 +1816,15 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
             if (auto& movePendingTo = s->rare().movePendingTo)
             {
                 // Check if the source/target has stabilized.
-                if (checkIfFileIsChanging(*row.fsNode, movePendingTo->sourcePath))
+                if (auto [waitforupdate, wasInitialized] =
+                        checkIfFileIsChanging(*row.fsNode, movePendingTo->sourcePath);
+                    waitforupdate)
                 {
+                    if (!wasInitialized)
+                    {
+                        return false;
+                    }
+
                     ProgressingMonitor monitor(*this, row, fullPath);
 
                     // Let the engine know why we're not making any progress.
@@ -2193,32 +2200,43 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
 
         // logic to detect files being updated in the local computer moving the original file
         // to another location as a temporary backup
-        if (!pendingTo
-            && sourceSyncNode->type == FILENODE
-            && checkIfFileIsChanging(*row.fsNode, sourceSyncNode->getLocalPath()))
+        if (!pendingTo && sourceSyncNode->type == FILENODE)
         {
-            // Make sure we don't process the source until the move is completed.
-            if (!markSiblingSourceRow())
+            auto [waitforupdate, wasInitialized] =
+                checkIfFileIsChanging(*row.fsNode, sourceSyncNode->getLocalPath());
+            if (waitforupdate && wasInitialized)
             {
-                // Source isn't a sibling so we need to add a marker.
-                pendingTo = std::make_shared<MovePending>(sourceSyncNode->getLocalPath());
+                // Make sure we don't process the source until the move is completed.
+                if (!markSiblingSourceRow())
+                {
+                    // Source isn't a sibling so we need to add a marker.
+                    pendingTo = std::make_shared<MovePending>(sourceSyncNode->getLocalPath());
 
-                row.syncNode->rare().movePendingTo = pendingTo;
-                sourceSyncNode->rare().movePendingFrom = pendingTo;
+                    row.syncNode->rare().movePendingTo = pendingTo;
+                    sourceSyncNode->rare().movePendingFrom = pendingTo;
 
-                // Make sure we revisit the source.
-                sourceSyncNode->setSyncAgain(true, false, false);
+                    // Make sure we revisit the source.
+                    sourceSyncNode->setSyncAgain(true, false, false);
+                }
+
+                // if we revist here and the file is still the same after enough time, we'll move it
+                monitor.waitingLocal(
+                    sourceSyncNode->getLocalPath(),
+                    SyncStallEntry(
+                        SyncWaitReason::FileIssue,
+                        false,
+                        false,
+                        {sourceSyncNode->syncedCloudNodeHandle, sourceSyncNode->getCloudPath(true)},
+                        {NodeHandle(), fullPath.cloudPath},
+                        {sourceSyncNode->getLocalPath(), PathProblem::FileChangingFrequently},
+                        {fullPath.localPath}));
+
+                return rowResult = false, true;
             }
-
-            // if we revist here and the file is still the same after enough time, we'll move it
-            monitor.waitingLocal(sourceSyncNode->getLocalPath(), SyncStallEntry(
-                SyncWaitReason::FileIssue, false, false,
-                {sourceSyncNode->syncedCloudNodeHandle, sourceSyncNode->getCloudPath(true)},
-                {NodeHandle(), fullPath.cloudPath},
-                {sourceSyncNode->getLocalPath(), PathProblem::FileChangingFrequently},
-                {fullPath.localPath}));
-
-            return rowResult = false, true;
+            else if (waitforupdate && !wasInitialized)
+            {
+                return false;
+            }
         }
 
         row.suppressRecursion = true;   // wait until we have moved the other LocalNodes below this one
@@ -11012,7 +11030,7 @@ bool Syncs::findLocalNodeByNodeHandle(NodeHandle h, LocalNode*& sourceSyncNodeOr
     return sourceSyncNodeCurrent && sourceSyncNodeOriginal;
 }
 
-bool Sync::checkIfFileIsChanging(FSNode& fsNode, const LocalPath& fullPath)
+std::pair<bool, bool> Sync::checkIfFileIsChanging(FSNode& fsNode, const LocalPath& fullPath)
 {
     assert(syncs.onSyncThread());
     // code extracted from the old checkpath()
@@ -11027,6 +11045,8 @@ bool Sync::checkIfFileIsChanging(FSNode& fsNode, const LocalPath& fullPath)
 
     bool waitforupdate = false;
     Syncs::FileChangingState& state = syncs.mFileChangingCheckState[fullPath];
+
+    const bool wasInitialized = !Syncs::isFileChangingUninitialized(state);
 
     m_time_t currentsecs = m_time();
     if (!state.updatedfileinitialts)
@@ -11123,7 +11143,7 @@ bool Sync::checkIfFileIsChanging(FSNode& fsNode, const LocalPath& fullPath)
     {
         syncs.mFileChangingCheckState.erase(fullPath);
     }
-    return waitforupdate;
+    return {waitforupdate, wasInitialized};
 }
 
 bool Sync::resolve_fsNodeGone(SyncRow& row, SyncRow& /*parentRow*/, SyncPath& fullPath)

@@ -501,7 +501,7 @@ public:
     dstime procscanq();
 
     // helper for checking moves etc
-    bool checkIfFileIsChanging(FSNode& fsNode, const LocalPath& fullPath);
+    std::pair<bool, bool> checkIfFileIsChanging(FSNode& fsNode, const LocalPath& fullPath);
 
     // look up LocalNode relative to localroot
     LocalNode* localnodebypath(LocalNode*, const LocalPath&, LocalNode** parent, LocalPath* outpath, bool fromOutsideThreadAlreadyLocked);
@@ -1999,6 +1999,12 @@ public:
 
         // Let the caller know if any syncs match our predicate.
         return notifier.get_future().get();
+    }
+
+    static bool isFileChangingUninitialized(const FileChangingState& state)
+    {
+        return state.updatedfilesize == ~0 && state.updatedfilets == 0 &&
+               state.updatedfileinitialts == 0;
     }
 };
 
