@@ -477,15 +477,15 @@ void Either::Add(ExecFn f, ACN n)
 bool Either::addCompletions(ACState& s)
 {
     bool stop = true;
-    int n = s.i;
-    int best_s_i = s.i;
+    unsigned n = s.i;
+    unsigned best_s_i = s.i;
     for (auto& p : eithers)
     {
-        s.i = n;
+        s.i = static_cast<unsigned>(n);
         if (!p->addCompletions(s))
         {
             stop = false;
-            best_s_i = std::max<int>(s.i, best_s_i);
+            best_s_i = std::max<unsigned>(s.i, best_s_i);
         }
     }
     s.i = best_s_i;
@@ -519,7 +519,7 @@ std::ostream& Either::describe(std::ostream& s) const
         std::ostringstream s2;
         for (int i = 0; i < int(eithers.size() * 2) - 1; ++i)
         {
-            (i & 1 ? s2 << "|" : s2 << *eithers[i / 2]);
+            (i & 1 ? s2 << "|" : s2 << *eithers[static_cast<size_t>(i / 2)]);
         }
         std::string str = s2.str();
         if (str.find(' ') == std::string::npos)
@@ -551,7 +551,7 @@ bool WholeNumber::addCompletions(ACState& s)
     {
         for (char c : s.word().s)
         {
-            if (!is_digit(c))
+            if (!is_digit(static_cast<unsigned>(c)))
             {
                 return true;
             }
@@ -568,7 +568,7 @@ bool WholeNumber::match(ACState& s) const
     {
         for (char c : s.word().s)
         {
-            if (!is_digit(c))
+            if (!is_digit(static_cast<unsigned>(c)))
             {
                 return false;
             }
@@ -1049,13 +1049,14 @@ ACState prepACState(const std::string line, size_t insertPos, bool unixStyle)
     do
     {
         linepos = identifyNextWord(line, linepos.second);
-        std::string word = line.substr(linepos.first, linepos.second - linepos.first);
+        std::string word = line.substr(static_cast<size_t>(linepos.first),
+                                       static_cast<size_t>(linepos.second - linepos.first));
         last = linepos.first == linepos.second;
         bool cursorInWord = linepos.first <= int(insertPos) && int(insertPos) <= linepos.second;
         if (cursorInWord)
         {
             last = true;
-            word.erase(insertPos - linepos.first, std::string::npos);
+            word.erase(insertPos - static_cast<size_t>(linepos.first), std::string::npos);
             linepos.second = int(insertPos);  // keep everything to the right of the cursor
         }
         if (!acs.words.empty() && linepos.first == acs.wordPos.back().second)
@@ -1185,7 +1186,7 @@ unsigned utf8GlyphCount(const string &str)
     int c, i, ix, q;
     for (q = 0, i = 0, ix = int(str.length()); i < ix; i++, q++)
     {
-        c = (unsigned char)str[i];
+        c = (unsigned char)str[static_cast<size_t>(i)];
 
         if (c >= 0 && c <= 127) i += 0;
         else if ((c & 0xE0) == 0xC0) i += 1;
@@ -1193,13 +1194,13 @@ unsigned utf8GlyphCount(const string &str)
         else if ((c & 0xF8) == 0xF0) i += 3;
         else q++; // invalid utf8 - leave lots of space
     }
-    return q;
+    return static_cast<unsigned>(q);
 }
 
 const string& CompletionState::unixColumnEntry(int row, int col, int rows)
 {
     static string emptyString;
-    size_t index = unixListCount + col * rows + row;
+    size_t index = unixListCount + static_cast<size_t>(col * rows + row);
     return index < completions.size() ? completions[index].s : emptyString;
 }
 
@@ -1227,15 +1228,17 @@ void applyCompletion(CompletionState& s, bool forwards, unsigned consoleWidth, C
         if (!s.unixStyle)
         {
             int index = ((!forwards && s.lastAppliedIndex == -1) ? -1 : (s.lastAppliedIndex + (forwards ? 1 : -1))) + (int)s.completions.size();
-            index = static_cast<int>(index % s.completions.size());
+            index = static_cast<int>(static_cast<unsigned>(index) % s.completions.size());
 
             // restore quotes if it had them already
-            auto& c = s.completions[index];
+            auto& c = s.completions[static_cast<size_t>(index)];
             std::string w = c.s;
             s.originalWord.q.applyQuotes(w);
             w += (s.completions.size() == 1 && !c.couldExtend) ? " " : "";
-            s.line.replace(s.wordPos.first, s.wordPos.second - s.wordPos.first, w);
-            s.wordPos.second = int(w.size() + s.wordPos.first);
+            s.line.replace(static_cast<size_t>(s.wordPos.first),
+                           static_cast<size_t>(s.wordPos.second - s.wordPos.first),
+                           w);
+            s.wordPos.second = int(w.size() + static_cast<unsigned>(s.wordPos.first));
             s.lastAppliedIndex = index;
 
             if (s.completions.size()==1)
@@ -1265,8 +1268,10 @@ void applyCompletion(CompletionState& s, bool forwards, unsigned consoleWidth, C
                 }
                 s.originalWord.q.applyQuotes(exactChars);
                 exactChars += (s.completions.size() == 1 && !s.completions[0].couldExtend) ? " " : "";
-                s.line.replace(s.wordPos.first, s.wordPos.second - s.wordPos.first, exactChars);
-                s.wordPos.second = int(exactChars.size() + s.wordPos.first);
+                s.line.replace(static_cast<size_t>(s.wordPos.first),
+                               static_cast<size_t>(s.wordPos.second - s.wordPos.first),
+                               exactChars);
+                s.wordPos.second = int(exactChars.size() + static_cast<unsigned>(s.wordPos.first));
                 s.firstPressDone = true;
                 s.unixListCount = 0;
                 if (s.completions.size() == 1)
@@ -1280,7 +1285,8 @@ void applyCompletion(CompletionState& s, bool forwards, unsigned consoleWidth, C
                 unsigned rows = 1, cols = 0, sumwidth = 0;
                 for (unsigned c = 0; ;)
                 {
-                    unsigned width = s.calcUnixColumnWidthInGlyphs(c, rows);
+                    unsigned width =
+                        s.calcUnixColumnWidthInGlyphs(static_cast<int>(c), static_cast<int>(rows));
                     if (width == 0)
                     {
                         cols = c;
@@ -1315,18 +1321,22 @@ void applyCompletion(CompletionState& s, bool forwards, unsigned consoleWidth, C
                     }
                 }
 
-                rows = std::max<int>(rows, 1);
-                cols = std::max<int>(cols, 1);
+                rows = std::max<unsigned>(rows, 1);
+                cols = std::max<unsigned>(cols, 1);
                 for (unsigned c = 0; c < cols; ++c)
                 {
-                    textOut.columnwidths.push_back(s.calcUnixColumnWidthInGlyphs(c, rows) + (c == 0 ? 6 : 3));
+                    textOut.columnwidths.push_back(static_cast<int>(
+                        s.calcUnixColumnWidthInGlyphs(static_cast<int>(c), static_cast<int>(rows)) +
+                        (c == 0 ? 6 : 3)));
                 }
                 for (unsigned r = 0; r < rows; ++r)
                 {
                     textOut.stringgrid.push_back(vector<string>());
                     for (unsigned c = 0; c < cols; ++c)
                     {
-                        const string& entry = s.unixColumnEntry(r, c, rows);
+                        const string& entry = s.unixColumnEntry(static_cast<int>(r),
+                                                                static_cast<int>(c),
+                                                                static_cast<int>(rows));
                         if (!entry.empty())
                         {
                             textOut.stringgrid[r].push_back((c == 0 ? "   " : "") + entry);

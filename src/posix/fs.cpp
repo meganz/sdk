@@ -634,7 +634,7 @@ bool PosixFileAccess::fopen(const LocalPath& f,
             if ((fname = strrchr(fstr.c_str(), '/')))
             {
                 fname++;
-                fnamesize = fstr.size() - (fname - fstr.c_str());
+                fnamesize = fstr.size() - (static_cast<size_t>(fname - fstr.c_str()));
             }
             else
             {
@@ -1076,7 +1076,9 @@ bool PosixFileSystemAccess::copylocal(const LocalPath& oldname, const LocalPath&
         if ((tfd = open(newnamestr.c_str(), O_WRONLY | O_CREAT | O_TRUNC, defaultfilepermissions)) >= 0)
         {
             umask(mode);
-            while (((t = read(sfd, buf, sizeof buf)) > 0) && write(tfd, buf, t) == t);
+            while (((t = read(sfd, buf, sizeof buf)) > 0) &&
+                   write(tfd, buf, static_cast<size_t>(t)) == t)
+                ;
 #endif
             close(tfd);
         }
@@ -1629,7 +1631,7 @@ void PosixFileSystemAccess::statsid(string *id) const
 
     if (len > 0)
     {
-        id->append(buff, len);
+        id->append(buff, static_cast<size_t>(len));
     }
 #endif
 }
@@ -1968,16 +1970,11 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
 
                 // Leave a trail for debuggers.
                 LOG_warn << "directoryScan: "
-                         << "Encountered a nested mount: "
-                         << path
-                         << ". Expected device "
-                         << major(device)
-                         << ":"
-                         << minor(device)
-                         << ", got device "
-                         << major(metadata.st_dev)
-                         << ":"
-                         << minor(metadata.st_dev);
+                         << "Encountered a nested mount: " << path << ". Expected device "
+                         << major(static_cast<unsigned>(device)) << ":"
+                         << minor(static_cast<unsigned>(device)) << ", got device "
+                         << major(static_cast<unsigned>(metadata.st_dev)) << ":"
+                         << minor(static_cast<unsigned>(metadata.st_dev));
             }
 
             continue;

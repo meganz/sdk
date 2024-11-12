@@ -369,7 +369,7 @@ void BackupMonitor::beatBackupInfo(UnifiedSync& us)
                 mc.reqs.add(new CommandBackupPutHeartBeat(&mc,
                                                           backupId,
                                                           status,
-                                                          progress,
+                                                          static_cast<int8_t>(progress),
                                                           pendingUps,
                                                           pendingDowns,
                                                           lastAction,

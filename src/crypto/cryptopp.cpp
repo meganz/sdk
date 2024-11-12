@@ -307,14 +307,14 @@ bool SymmCipher::ccm_encrypt(const string *data, const byte *iv, unsigned ivlen,
     {
         if (taglen == 16)
         {
-            aesccm16_e.Resynchronize(iv, ivlen);
+            aesccm16_e.Resynchronize(iv, static_cast<int>(ivlen));
             aesccm16_e.SpecifyDataLengths(0, data->size(), 0);
             StringSource ss(*data, true, new AuthenticatedEncryptionFilter(aesccm16_e, new StringSink(*result)));
             return true;
         }
         else if (taglen == 8)
         {
-            aesccm8_e.Resynchronize(iv, ivlen);
+            aesccm8_e.Resynchronize(iv, static_cast<int>(ivlen));
             aesccm8_e.SpecifyDataLengths(0, data->size(), 0);
             StringSource ss(*data, true, new AuthenticatedEncryptionFilter(aesccm8_e, new StringSink(*result)));
             return true;
@@ -339,14 +339,14 @@ bool SymmCipher::ccm_decrypt(const string *data, const byte *iv, unsigned ivlen,
     {
         if (taglen == 16)
         {
-            aesccm16_d.Resynchronize(iv, ivlen);
+            aesccm16_d.Resynchronize(iv, static_cast<int>(ivlen));
             aesccm16_d.SpecifyDataLengths(0, data->size() - taglen, 0);
             StringSource ss(*data, true, new AuthenticatedDecryptionFilter(aesccm16_d, new StringSink(*result)));
             return true;
         }
         else if (taglen == 8)
         {
-            aesccm8_d.Resynchronize(iv, ivlen);
+            aesccm8_d.Resynchronize(iv, static_cast<int>(ivlen));
             aesccm8_d.SpecifyDataLengths(0, data->size() - taglen, 0);
             StringSource ss(*data, true, new AuthenticatedDecryptionFilter(aesccm8_d, new StringSink(*result)));
             return true;
@@ -370,8 +370,13 @@ bool SymmCipher::gcm_encrypt(const string *data, const byte *iv, unsigned ivlen,
 
     try
     {
-        aesgcm_e.Resynchronize(iv, ivlen);
-        StringSource ss(*data, true, new AuthenticatedEncryptionFilter(aesgcm_e, new StringSink(*result), false, taglen));
+        aesgcm_e.Resynchronize(iv, static_cast<int>(ivlen));
+        StringSource ss(*data,
+                        true,
+                        new AuthenticatedEncryptionFilter(aesgcm_e,
+                                                          new StringSink(*result),
+                                                          false,
+                                                          static_cast<int>(taglen)));
     }
     catch (CryptoPP::Exception const &e)
     {
@@ -458,7 +463,7 @@ bool SymmCipher::gcm_decrypt(const string *data, const byte *iv, unsigned ivlen,
 
     try
     {
-        aesgcm_d.Resynchronize(iv, ivlen);
+        aesgcm_d.Resynchronize(iv, static_cast<int>(ivlen));
         StringSource ss(*data, true, new AuthenticatedDecryptionFilter(aesgcm_d, new StringSink(*result), taglen));
     }
     catch (CryptoPP::Exception const& e)
@@ -568,7 +573,7 @@ bool SymmCipher::gcm_decrypt_with_key(const byte* data, const size_t datalen, co
 
 void SymmCipher::serializekeyforjs(string *d)
 {
-    char invertedkey[BLOCKSIZE];
+    unsigned char invertedkey[BLOCKSIZE];
     std::stringstream ss;
 
     ss << "[";
@@ -593,7 +598,7 @@ void SymmCipher::serializekeyforjs(string *d)
 void SymmCipher::setint64(int64_t value, byte* data)
 {
 #if __BYTE_ORDER == __LITTLE_ENDIAN
-    value = htobe64(value);
+    value = static_cast<int64_t>(htobe64(value));
 #else
 #if __BYTE_ORDER != __BIG_ENDIAN
 #error "Unknown or unsupported endianness"
@@ -604,7 +609,8 @@ void SymmCipher::setint64(int64_t value, byte* data)
 
 void SymmCipher::xorblock(const byte* src, byte* dst)
 {
-    if (((ptrdiff_t)src & (sizeof(long)-1)) == 0 && ((ptrdiff_t)dst & (sizeof(long)-1)) == 0) 
+    if ((reinterpret_cast<uintptr_t>(src) & (sizeof(long) - 1)) == 0 &&
+        (reinterpret_cast<uintptr_t>(dst) & (sizeof(long) - 1)) == 0)
     {
         // src and dst aligned to machine word
         long* lsrc = (long*)src;
@@ -689,7 +695,7 @@ void SymmCipher::ctr_crypt(byte* data, unsigned len, m_off_t pos, ctr_iv ctriv, 
 
     byte ctr[BLOCKSIZE], tmp[BLOCKSIZE];
 
-    MemAccess::set<int64_t>(ctr,ctriv);
+    MemAccess::set<int64_t>(ctr, static_cast<int64_t>(ctriv));
     setint64(pos / BLOCKSIZE, ctr + sizeof ctriv);
 
     if (mac && initmac)
@@ -724,7 +730,7 @@ void SymmCipher::ctr_crypt(byte* data, unsigned len, m_off_t pos, ctr_iv ctriv, 
                 }
                 else
                 {
-                    xorblock(data, mac, len);
+                    xorblock(data, mac, static_cast<int>(len));
                 }
 
                 ecb_encrypt(mac);
@@ -981,7 +987,7 @@ void AsymmCipher::serializeintarray(const Integer* t, int numints, string* d, bo
             d->append((char*)&c, sizeof c);
         }
 
-        for (int j = t[i].ByteCount(); j--;)
+        for (unsigned j = t[i].ByteCount(); j--;)
         {
             c = t[i].GetByte(j);
             d->append((char*)&c, sizeof c);
@@ -1010,7 +1016,7 @@ int AsymmCipher::decodeintarray(Integer* t, int numints, const byte* data, int l
             break;
         }
 
-        t[i] = Integer(data + p, n);
+        t[i] = Integer(data + p, static_cast<size_t>(n));
 
         p += n;
     }
@@ -1082,9 +1088,8 @@ void AsymmCipher::genkeypair(PrnGen &rng, Integer* privk, Integer* pubk, int siz
     pubk[PUB_E] = 17;
 
     RSAPrimeSelector selector(pubk[PUB_E]);
-    AlgorithmParameters primeParam
-            = MakeParametersForTwoPrimesOfEqualSize(size)
-                (Name::PointerToPrimeSelector(), selector.GetSelectorPointer());
+    AlgorithmParameters primeParam = MakeParametersForTwoPrimesOfEqualSize(
+        static_cast<unsigned>(size))(Name::PointerToPrimeSelector(), selector.GetSelectorPointer());
 
     privk[PRIV_P].GenerateRandom(rng, primeParam);
     privk[PRIV_Q].GenerateRandom(rng, primeParam);

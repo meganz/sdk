@@ -406,7 +406,7 @@ bool UserAlert::ContactChange::serialize(string* d) const
 {
     Base::serialize(d);
     CacheableWriter w(*d);
-    w.serializeu32(action);
+    w.serializei32(action);
     w.serializeexpansionflags();
 
     return true;
@@ -474,7 +474,7 @@ bool UserAlert::UpdatedPendingContactIncoming::serialize(string* d) const
 {
     Base::serialize(d);
     CacheableWriter w(*d);
-    w.serializeu32(action);
+    w.serializei32(action);
     w.serializeexpansionflags();
 
     return true;
@@ -538,7 +538,7 @@ bool UserAlert::UpdatedPendingContactOutgoing::serialize(string* d) const
 {
     Base::serialize(d);
     CacheableWriter w(*d);
-    w.serializeu32(action);
+    w.serializei32(action);
     w.serializeexpansionflags();
 
     return true;
@@ -1145,7 +1145,7 @@ bool UserAlert::Payment::serialize(string* d) const
     Base::serialize(d);
     CacheableWriter w(*d);
     w.serializebool(success);
-    w.serializeu32(planNumber);
+    w.serializei32(planNumber);
     w.serializeexpansionflags();
 
     return true;

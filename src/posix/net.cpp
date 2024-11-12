@@ -2683,7 +2683,7 @@ size_t CurlHttpIO::read_data(void* ptr, size_t size, size_t nmemb, void* source)
 
             if (nread > (size_t)maxbytes)
             {
-                nread = maxbytes;
+                nread = static_cast<size_t>(maxbytes);
             }
             httpio->partialdata[PUT] += nread;
         }
@@ -2722,14 +2722,14 @@ size_t CurlHttpIO::write_data(void* ptr, size_t size, size_t nmemb, void* target
 
         if (len)
         {
-            req->put(ptr, len, true);
+            req->put(ptr, static_cast<unsigned>(len), true);
         }
 
         httpio->lastdata = Waiter::ds;
         req->lastdata = Waiter::ds;
     }
 
-    return len;
+    return static_cast<size_t>(len);
 }
 
 // set contentlength according to Original-Content-Length header
@@ -2844,10 +2844,10 @@ int CurlHttpIO::seek_data(void *userp, curl_off_t offset, int origin)
         newoffset = offset;
         break;
     case SEEK_CUR:
-        newoffset = req->outpos + offset;
+        newoffset = static_cast<curl_off_t>(req->outpos) + offset;
         break;
     case SEEK_END:
-        newoffset = totalsize + offset;
+        newoffset = static_cast<curl_off_t>(totalsize) + offset;
         break;
     default:
         LOG_err << "Invalid origin in seek function: " << origin;

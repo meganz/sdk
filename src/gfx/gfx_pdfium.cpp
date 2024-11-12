@@ -144,7 +144,7 @@ std::unique_ptr<char[]> PdfiumReader::readBitmapFromPdf(int &w, int &h, int &ori
                 }
 
                 // BGRA format, 4 bytes per pixel (32bits), byte order: blue, green, red, alpha.
-                std::unique_ptr<char[]> buffer(new char[w*h*4]);
+                std::unique_ptr<char[]> buffer(new char[static_cast<size_t>(w * h * 4)]);
                 FPDF_BITMAP bitmap = FPDFBitmap_CreateEx(w, h, FPDFBitmap_BGRA, buffer.get(), w * 4);
                 if (!bitmap) //out of memory
                 {

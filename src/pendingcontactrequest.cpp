@@ -118,7 +118,7 @@ PendingContactRequest* PendingContactRequest::unserialize(string *d)
     id = MemAccess::get<handle>(ptr);
     ptr += sizeof id;
 
-    l = *ptr++;
+    l = static_cast<unsigned char>(*ptr++);
     if (ptr + l + sizeof l > end)
     {
         return NULL;
@@ -127,7 +127,7 @@ PendingContactRequest* PendingContactRequest::unserialize(string *d)
     oemail.assign(ptr, l);
     ptr += l;
 
-    l = *ptr++;
+    l = static_cast<unsigned char>(*ptr++);
     if (ptr + l + sizeof ts + sizeof uts + sizeof l > end)
     {
         return NULL;
@@ -142,7 +142,7 @@ PendingContactRequest* PendingContactRequest::unserialize(string *d)
     uts = MemAccess::get<m_time_t>(ptr);
     ptr += sizeof uts;
 
-    l = *ptr++;
+    l = static_cast<unsigned char>(*ptr++);
     if (ptr + l > end)
     // should be ptr+l+sizeof(isoutgoing), but legacy code writes 0 bytes when false
     {

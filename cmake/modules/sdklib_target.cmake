@@ -407,9 +407,33 @@ if(ENABLE_SDKLIB_WERROR)
         WINDOWS /WX
         UNIX  $<$<CONFIG:Debug>: -Werror
                                  -Wno-error=deprecated-declarations> # Kept as a warning, do not promote to error.
-        APPLE $<$<CONFIG:Debug>: -Wno-sign-conversion
-                                 -Wno-string-conversion>
+        APPLE $<$<CONFIG:Debug>: -Wno-string-conversion>
     )
+    if(APPLE)
+        set_source_files_properties( # Temporary until sign-conversion warnings are fixed on this files too (SDK-4567, SDK-4568 and SDK-4570)
+            src/db/sqlite.cpp
+            src/commands.cpp
+            src/megaapi_impl.cpp
+            src/megaclient.cpp
+            src/raid.cpp
+            src/raidproxy.cpp
+            src/transfer.cpp
+            src/transferslot.cpp
+            src/utils.cpp
+            PROPERTIES 
+            COMPILE_FLAGS "-Wno-sign-conversion"
+        )
+    endif()
+    if(APPLE)
+        set_source_files_properties(
+            src/mega_ccronexpr.cpp
+            src/mega_http_parser.cpp
+            src/mega_utf8proc.cpp
+            src/mega_zxcvbn.cpp
+            PROPERTIES 
+            COMPILE_FLAGS "-Wno-sign-conversion"
+        )
+    endif()
 endif()
 
 ## Create config files ##

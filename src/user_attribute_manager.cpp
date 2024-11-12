@@ -153,7 +153,7 @@ void UserAttributeManager::serializeAttributes(string& d) const
                                        return attr.second.isValid();
                                    });
     assert(attrCount <= numeric_limits<unsigned char>::max());
-    d += static_cast<unsigned char>(attrCount);
+    d += static_cast<char>(attrCount);
 
     for (const auto& a: mAttributes)
     {
@@ -188,7 +188,7 @@ bool UserAttributeManager::unserializeAttributes(const char*& from,
     {
         if (from + sizeof(char) > upTo)
             return false;
-        unsigned char attrCount = *from++;
+        unsigned char attrCount = static_cast<unsigned char>(*from++);
         size_t sizeLength = (formatVersion == '1') ? 2 : 4;
         // formatVersion == 1 -> size of value uses 2 bytes
         // formatVersion == 2 -> size of value uses 4 bytes

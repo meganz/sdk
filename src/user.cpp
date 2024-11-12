@@ -153,7 +153,7 @@ User* User::unserialize(MegaClient* client, string* d)
     v = MemAccess::get<visibility_t>(ptr);
     ptr += sizeof v;
 
-    l = *ptr++;
+    l = static_cast<unsigned char>(*ptr++);
     if (l)
     {
         if (ptr + l > end)

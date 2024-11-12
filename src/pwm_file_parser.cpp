@@ -1,6 +1,13 @@
 #include "mega/pwm_file_parser.h"
 
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wsign-conversion"
+#endif
 #include "mega/mega_csv.h"
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 
 namespace mega::pwm::import
 {

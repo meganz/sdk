@@ -952,13 +952,13 @@ bool add(const string& text, SizeFilterPtr& filter)
     }
 
     // Skip leading whitespace.
-    while (is_space(istream.peek()))
+    while (is_space(static_cast<unsigned>(istream.peek())))
     {
         istream.get();
     }
 
     // Is the limit a bare number?
-    if (!is_digit(istream.peek()))
+    if (!is_digit(static_cast<unsigned>(istream.peek())))
     {
         // Limit isn't a number or has sign markers.
         return syntaxError(text);
@@ -1012,7 +1012,7 @@ bool add(const string& text, SizeFilterPtr& filter)
         {
             auto character = istream.get();
 
-            if (!is_space(character))
+            if (!is_space(static_cast<unsigned>(character)))
                 break;
         }
 
@@ -1206,7 +1206,7 @@ bool add(const string& text, StringFilterPtrVector& filters, bool& syncThisMegai
 
     // Ignore trailing whitespace.
     const char* n = text.c_str() + text.size();
-    while (n > m && is_space(*(n-1)))
+    while (n > m && is_space(static_cast<unsigned>(*(n - 1))))
         --n;
 
     // Is the pattern effectively empty?
@@ -1217,7 +1217,7 @@ bool add(const string& text, StringFilterPtrVector& filters, bool& syncThisMegai
     MatcherPtr matcher;
 
     // Extract the pattern.
-    string pattern(m, n - m);
+    string pattern(m, static_cast<size_t>(n - m));
 
     try
     {
