@@ -27981,6 +27981,7 @@ void MegaApiImpl::performRequest_enableTestSurveys(MegaRequestPrivate* request)
                   });
 }
 
+#ifdef ENABLE_SYNC
 error MegaApiImpl::performRequest_getSyncStalls(MegaRequestPrivate* request)
 {
     const auto completion = [this, request](unique_ptr<SyncProblems> problems)
@@ -28006,6 +28007,7 @@ error MegaApiImpl::performRequest_getSyncStalls(MegaRequestPrivate* request)
     client->syncs.getSyncProblems(std::move(completion), true);
     return API_OK;
 }
+#endif
 
 void MegaApiImpl::enableTestSurveys(const MegaHandleList* surveyHandles,
                                     MegaRequestListener* listener)
