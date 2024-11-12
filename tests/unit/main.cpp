@@ -16,15 +16,10 @@
  * program.
  */
 
-#include "sdk_test_utils.h"
-
 #include <gtest/gtest.h>
 
 int main (int argc, char *argv[])
 {
-    // Make sure our tests know where to find data files.
-    sdk_test::setTestDataDir(fs::absolute(fs::path(argv[0]).parent_path()));
-
     testing::InitGoogleTest(&argc, argv);
     int rc = RUN_ALL_TESTS();
     return rc;
