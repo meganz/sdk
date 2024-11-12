@@ -8378,7 +8378,8 @@ TEST_F(SyncTest, DetectsAndReportsSyncProblems)
     fs::create_directories(root / ldir1);
     ASSERT_TRUE(client->makeCloudSubdirs(rdir1, 0, 0));
     ASSERT_TRUE(CatchupClients(client));
-    const handle backupId1 = client->setupSync_mainthread(root / ldir1, rdir1, false, true);
+    const handle backupId1 =
+        client->setupSync_mainthread((root / ldir1).u8string(), rdir1, false, true);
     ASSERT_NE(backupId1, UNDEF) << "Invalid BackupId";
 
     const std::string f11 = "f0";
@@ -8410,7 +8411,8 @@ TEST_F(SyncTest, DetectsAndReportsSyncProblems)
     fs::create_directories(root / ldir2);
     ASSERT_TRUE(client->makeCloudSubdirs(rdir2, 0, 0));
     ASSERT_TRUE(CatchupClients(client));
-    const handle backupId2 = client->setupSync_mainthread(root / ldir2, rdir2, false, true);
+    const handle backupId2 =
+        client->setupSync_mainthread((root / ldir2).u8string(), rdir2, false, true);
     ASSERT_NE(backupId2, UNDEF) << "Invalid BackupId";
 
     const std::string f21 = "f0";
@@ -8437,7 +8439,8 @@ TEST_F(SyncTest, DetectsAndReportsSyncProblems)
     fs::create_directories(root / ldir3);
     ASSERT_TRUE(client->makeCloudSubdirs(rdir3, 0, 0));
     ASSERT_TRUE(CatchupClients(client));
-    const handle backupId3 = client->setupSync_mainthread(root / ldir3, rdir3, false, true);
+    const handle backupId3 =
+        client->setupSync_mainthread((root / ldir3).u8string(), rdir3, false, true);
     ASSERT_NE(backupId3, UNDEF) << "Invalid BackupId";
     fs::create_directories(root / ldir3 / "e");
     createNameFile(root / ldir3, "n0");
@@ -8461,7 +8464,8 @@ TEST_F(SyncTest, DetectsAndReportsSyncProblems)
     fs::create_directories(root / ldir4);
     ASSERT_TRUE(client->makeCloudSubdirs(rdir4, 0, 0));
     ASSERT_TRUE(CatchupClients(client));
-    const handle backupId4 = client->setupSync_mainthread(root / ldir4, rdir4, false, true);
+    const handle backupId4 =
+        client->setupSync_mainthread((root / ldir4).u8string(), rdir4, false, true);
     ASSERT_NE(backupId4, UNDEF) << "Invalid BackupId";
     fs::create_directories(root / ldir4 / "e");
     createNameFile(root / ldir4, "n0");
