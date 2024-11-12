@@ -7342,14 +7342,23 @@ class MegaSyncStall
         virtual const char* reasonDebugString() const = 0;
 
         /**
-         * To get all paths involved in the stall,
-         * try with index 0, 1, 2 etc.  Usually there
-         * are two maximum.  Empty paths should be
-         * ignored unless there is a corresponding `pathProblem`.
-         * until the function returns NULL.  You can
-         * do this for each of cloudSide: true/false.
+         * Retrieves a specific path involved in a sync stall.
          *
-         * @return path involved in the sync stall
+         * This method returns a string representing a path associated with the sync stall, aiding
+         * in explaining the stall to the user.
+         *
+         * Notes:
+         * - To retrieve all paths involved in the stall, iterate over `index` values starting from
+         *   `0` for both `cloudSide` values (`true` and `false`) until the function returns `NULL`.
+         * - Empty paths (when the method returns `NULL`) should be ignored unless there is a
+         *   corresponding `pathProblem` for that path.
+         * - The maximum number of paths is usually two.
+         *
+         * @param cloudSide true to retrieve the information for the cloud path, `false` for the
+         * local.
+         * @param index The index of the path; valid values are typically `0` or `1`.
+         * @return A pointer to a character string containing the path, or `NULL` if no path is
+         * associated with the specified `cloudSide` and `index`.
          */
         virtual const char* path(bool cloudSide, int index) const = 0;
 
@@ -7367,14 +7376,21 @@ class MegaSyncStall
         virtual unsigned int pathCount(bool cloudSide) const = 0;
 
         /**
-         * use the same technique as for `path` with
-         * cloudSide, index. -1 is returned when there is no entry.
-         * This function returns an enum describing a condition
-         * of the corresponding `path` that will help
-         * explain the stall to the user.
-         * It is possible for there to be a reason but with an empty path.
+         * Retrieves a code representing a problem associated with a specific path involved in a
+         * sync stall.
          *
-         * @return local path involved in the sync stall
+         * This method returns an integer corresponding to a `SyncPathProblem` enum value that
+         * describes a condition of the specified path, helping to explain the stall to the user.
+         *
+         * Notes:
+         * - The `-1` value acts as a sentinel indicating "no problem" or "not applicable."
+         * - Some stall types may always return `-1` if path problems are not relevant for them.
+         *
+         * @param cloudSide true to retrieve the information for the cloud path, `false` for the
+         * local.
+         * @param index The index of the path; valid values are `0` or `1`.
+         * @return An integer corresponding to a `SyncPathProblem` enum value, or `-1` if there is
+         * no problem or the path is does not apply for this stall.
          */
         virtual int pathProblem(bool cloudSide, int index) const = 0;
 
