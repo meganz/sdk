@@ -401,10 +401,6 @@ bool GfxProviderFreeImage::readbitmapFfmpeg(const LocalPath& imagePath, int /*si
     packet.data = NULL;
     packet.size = 0;
 
-    int scalingResult;
-    int actualNumFrames = 0;
-    int result = 0;
-
     // Compute the video's rotation.
     auto rotation = [&]()
     {
@@ -421,6 +417,10 @@ bool GfxProviderFreeImage::readbitmapFfmpeg(const LocalPath& imagePath, int /*si
         return (int)av_display_rotation_get((int32_t*)matrix);
     }();
 
+    int scalingResult;
+    int actualNumFrames = 0;
+    int result = 0;
+
     // Read frames until succesfull decodification or reach limit of 220 frames
     while (actualNumFrames < 220 && result != AVERROR_EOF)
     {
@@ -434,7 +434,7 @@ bool GfxProviderFreeImage::readbitmapFfmpeg(const LocalPath& imagePath, int /*si
         auto avPacketGuard = makeUniqueFrom(&packet, av_packet_unref);
         if (packet.stream_index == videoStream->index)
         {
-            int result = avcodec_send_packet(codecContext, &packet);
+            result = avcodec_send_packet(codecContext, &packet);
             if (result < 0 && result != AVERROR(EAGAIN) && result != AVERROR_EOF)
             {
                 break;
