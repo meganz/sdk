@@ -4963,7 +4963,7 @@ void StandardClient::triggerPeriodicScanEarly(handle backupID)
 
 void StandardClient::checkSyncProblems(const handle backupId,
                                        const int backupIdsCount,
-                                       const unsigned int expectedConflicts,
+                                       const unsigned int totalExpectedConflicts,
                                        const LocalPath& localPath,
                                        const std::string& f1,
                                        const std::string& f2)
@@ -4974,11 +4974,21 @@ void StandardClient::checkSyncProblems(const handle backupId,
     ASSERT_NE(itCn, problems.mConflictsMap.end())
         << "BackupId (" << toHandle(backupId) << ") not found in ConflictsMap";
     auto& conflicts = itCn->second;
-    ASSERT_EQ(conflicts.size(), expectedConflicts) << "Unexpected ConflictsMap size";
-    ASSERT_EQ(conflicts.back().localPath, localPath) << "Unexpected local path";
-    EXPECT_THAT(conflicts.back().clashingLocalNames,
-                testing::UnorderedElementsAre(LocalPath::fromRelativePath(f1.c_str()),
-                                              LocalPath::fromRelativePath(f2.c_str())));
+    ASSERT_EQ(conflicts.size(), totalExpectedConflicts) << "Unexpected ConflictsMap size";
+
+    const auto isExpectedConflict = [&localPath, &f1, &f2](const NameConflict& nc)
+    {
+        return nc.localPath == localPath &&
+               std::find(nc.clashingLocalNames.begin(),
+                         nc.clashingLocalNames.end(),
+                         LocalPath::fromRelativePath(f1)) != nc.clashingLocalNames.end() &&
+               std::find(nc.clashingLocalNames.begin(),
+                         nc.clashingLocalNames.end(),
+                         LocalPath::fromRelativePath(f2)) != nc.clashingLocalNames.end();
+    };
+
+    using namespace testing;
+    EXPECT_THAT(conflicts, Contains(Truly(isExpectedConflict)));
 }
 
 void StandardClient::createHardLink(const fs::path& src,
@@ -5006,19 +5016,16 @@ void StandardClient::checkStallIssues(const handle backupId,
     stalls.extractFrom(problems.mStalls);
     ASSERT_FALSE(stalls.local.empty()) << "No stall issues detected";
 
-    bool found = false;
-    for (const auto& [_, sr]: stalls.local)
+    const auto isExpectedStall = [&sourcePath, &targetPath](const SyncStallEntry& sr) -> bool
     {
-        if (sr.localPath1.localPath == sourcePath && sr.localPath2.localPath == targetPath &&
-            sr.reason == SyncWaitReason::FileIssue &&
-            sr.localPath1.problem == PathProblem::DetectedHardLink &&
-            sr.localPath2.problem == PathProblem::DetectedHardLink)
-        {
-            found = true;
-            break;
-        }
-    }
-    ASSERT_TRUE(found) << "Expected stall issue could not be found";
+        return sr.localPath1.localPath == sourcePath && sr.localPath2.localPath == targetPath &&
+               sr.reason == SyncWaitReason::FileIssue &&
+               sr.localPath1.problem == PathProblem::DetectedHardLink &&
+               sr.localPath2.problem == PathProblem::DetectedHardLink;
+    };
+    using namespace testing;
+    EXPECT_THAT(stalls.local, Contains(Pair(_, Truly(isExpectedStall))))
+        << "Expected stall issue could not be found";
 }
 
 handle StandardClient::getNodeHandle(const CloudItem& item)

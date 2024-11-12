@@ -1190,14 +1190,14 @@ struct StandardClient : public MegaApp
      *
      * @param backupId The handle representing the ID of the backup to check.
      * @param backupIdsCount The total number of backup IDs.
-     * @param expectedConflicts The expected number of conflicts for the given backup.
+     * @param expectedConflicts The total expected number of conflicts for the given backup.
      * @param localPath The expected local path associated with the most recent conflict.
      * @param f1 The first file name expected to be clashing in the conflict.
      * @param f2 The second file name expected to be clashing in the conflict.
      */
     void checkSyncProblems(const handle backupId,
                            const int backupIdsCount,
-                           const unsigned int expectedConflicts,
+                           const unsigned int totalExpectedConflicts,
                            const LocalPath& localPath,
                            const std::string& f1,
                            const std::string& f2);

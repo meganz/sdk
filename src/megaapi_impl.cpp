@@ -1892,19 +1892,9 @@ MegaSyncStallListPrivate::MegaSyncStallListPrivate(SyncProblems&& sp, AddressedS
 
 MegaSyncStallMapPrivate::MegaSyncStallMapPrivate(SyncProblems&& sp, AddressedStallFilter& filter)
 {
-    auto findOrEmplace = [&](const handle syncId)
-    {
-        if (auto it = mStallsMap.find(syncId); it != mStallsMap.end())
-        {
-            return it;
-        }
-        return mStallsMap.emplace(syncId, MegaSyncStallListPrivate{}).first;
-    };
-
     for (const auto& [syncId, nameConflictList]: sp.mConflictsMap)
     {
-        auto it = findOrEmplace(syncId);
-        auto& stallList = it->second;
+        auto& stallList = mStallsMap[syncId];
         for (const auto& nc: nameConflictList)
         {
             if (!filter.addressedNameConfict(nc.cloudPath, nc.localPath))
@@ -1916,21 +1906,20 @@ MegaSyncStallMapPrivate::MegaSyncStallMapPrivate(SyncProblems&& sp, AddressedSta
 
     for (const auto& [syncId, stalledSyncMap]: sp.mStalls.syncStallInfoMaps)
     {
-        auto it = findOrEmplace(syncId);
-        auto& stallList = it->second;
-        auto addStalls = [&](const auto& stallMap, auto& filter, auto filterFunc)
+        auto addStalls =
+            [&stallList = mStallsMap[syncId], &filter](const auto& stallMap, auto filterFunc)
         {
             for (const auto& stall: stallMap)
             {
-                if (!(filter.*filterFunc)(stall.first))
+                if (!std::invoke(filterFunc, filter, stall.first))
                 {
                     stallList.addStall(std::make_shared<MegaSyncStallPrivate>(stall.second));
                 }
             }
         };
 
-        addStalls(stalledSyncMap.cloud, filter, &AddressedStallFilter::addressedCloudStall);
-        addStalls(stalledSyncMap.local, filter, &AddressedStallFilter::addressedLocalStall);
+        addStalls(stalledSyncMap.cloud, &AddressedStallFilter::addressedCloudStall);
+        addStalls(stalledSyncMap.local, &AddressedStallFilter::addressedLocalStall);
     }
 }
 
@@ -27984,7 +27973,7 @@ void MegaApiImpl::performRequest_enableTestSurveys(MegaRequestPrivate* request)
 #ifdef ENABLE_SYNC
 error MegaApiImpl::performRequest_getSyncStalls(MegaRequestPrivate* request)
 {
-    const auto completion = [this, request](unique_ptr<SyncProblems> problems)
+    const auto completion = [this, request](std::unique_ptr<SyncProblems> problems)
     {
         mAddressedStallFilter.removeOldFilters(client->syncs.completedPassCount.load());
         // If the user already addressed some sync issues but the sync hasn't made another pass
