@@ -9948,6 +9948,20 @@ typedef NS_ENUM(NSInteger, MEGAClientType) {
  */
 - (void)queryAds:(AdsFlag)adFlags publicHandle:(MEGAHandle)publicHandle delegate:(id<MEGARequestDelegate>)delegate;
 
+/// Enable or disable the request status monitor
+///
+/// - Note: When it's enabled, the request status monitor generates events of type
+/// `EventReqStatProgress` with the per mille progress in
+/// the field [MEGAEvent number], or -1 if there isn't any operation in progress.
+///
+/// - Parameters:
+///    - enable: YES to enable the request status monitor, or No to disable it
+- (void)enableRequestStatusMonitor:(BOOL)enable;
+
+/// Get the status of the request status monitor
+/// - Returns: YES when the request status monitor is enabled, or NO if it's disabled
+@property (readonly, nonatomic, getter=isRequestStatusMonitorEnabled) BOOL requestStatusMonitorEnabled;
+
 #pragma mark - VPN
 
 /**
