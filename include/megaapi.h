@@ -18232,13 +18232,33 @@ class MegaApi
          *
          * This method returns both verified and not verified shares.
          *
-         * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
-         * MegaApi::ORDER_DEFAULT_DESC
-         *
          * You take the ownership of the returned value
          *
          * @param user MegaUser sharing folders with this account
          * @param order Sorting order to use
+         *
+         * Valid values for this parameter are:
+         * - MegaApi::ORDER_NONE = 0
+         * Undefined order
+         *
+         * - MegaApi::ORDER_DEFAULT_ASC = 1
+         * Alphabetical order, e.g. bar, Car, foo
+         *
+         * - MegaApi::ORDER_DEFAULT_DESC = 2
+         * Alphabetical inverse order, e.g. foo, Car, bar
+         *
+         * - MegaApi::ORDER_SIZE_ASC = 3
+         * Sort by size, small elements first
+         *
+         * - MegaApi::ORDER_SIZE_DESC = 4
+         * Sort by size, small elements last
+         *
+         * - MegaApi::ORDER_CREATION_ASC = 5
+         * Sort by creation time in MEGA, older elements first
+         *
+         * - MegaApi::ORDER_CREATION_DESC = 6
+         * Sort by creation time in MEGA, older elements last
+         *
          * @return List of MegaNode objects that this user is sharing with this account
          */
         MegaNodeList *getInShares(MegaUser* user, int order = ORDER_NONE);
@@ -18248,12 +18268,32 @@ class MegaApi
          *
          * This method returns both verified and not verified shares.
          *
-         * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
-         * MegaApi::ORDER_DEFAULT_DESC
-         *
          * You take the ownership of the returned value
          *
          * @param order Sorting order to use
+         *
+         * Valid values for this parameter are:
+         * - MegaApi::ORDER_NONE = 0
+         * Undefined order
+         *
+         * - MegaApi::ORDER_DEFAULT_ASC = 1
+         * Alphabetical order, e.g. bar, Car, foo
+         *
+         * - MegaApi::ORDER_DEFAULT_DESC = 2
+         * Alphabetical inverse order, e.g. foo, Car, bar
+         *
+         * - MegaApi::ORDER_SIZE_ASC = 3
+         * Sort by size, small elements first
+         *
+         * - MegaApi::ORDER_SIZE_DESC = 4
+         * Sort by size, small elements last
+         *
+         * - MegaApi::ORDER_CREATION_ASC = 5
+         * Sort by creation time in MEGA, older elements first
+         *
+         * - MegaApi::ORDER_CREATION_DESC = 6
+         * Sort by creation time in MEGA, older elements last
+         *
          * @return List of MegaNode objects that other users are sharing with this account
          */
         MegaNodeList *getInShares(int order = ORDER_NONE);
@@ -18263,12 +18303,32 @@ class MegaApi
          *
          * This method returns verified shares.
          *
-         * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
-         * MegaApi::ORDER_DEFAULT_DESC
-         *
          * You take the ownership of the returned value
          *
          * @param order Sorting order to use
+         *
+         * Valid values for this parameter are:
+         * - MegaApi::ORDER_NONE = 0
+         * Undefined order
+         *
+         * - MegaApi::ORDER_DEFAULT_ASC = 1
+         * Alphabetical order, e.g. bar, Car, foo
+         *
+         * - MegaApi::ORDER_DEFAULT_DESC = 2
+         * Alphabetical inverse order, e.g. foo, Car, bar
+         *
+         * - MegaApi::ORDER_SIZE_ASC = 3
+         * Sort by size, small elements first
+         *
+         * - MegaApi::ORDER_SIZE_DESC = 4
+         * Sort by size, small elements last
+         *
+         * - MegaApi::ORDER_CREATION_ASC = 5
+         * Sort by creation time in MEGA, older elements first
+         *
+         * - MegaApi::ORDER_CREATION_DESC = 6
+         * Sort by creation time in MEGA, older elements last
+         *
          * @return List of MegaShare objects that other users are sharing with this account
          */
         MegaShareList *getInSharesList(int order = ORDER_NONE);
@@ -18279,6 +18339,29 @@ class MegaApi
          * You take the ownership of the returned value
          *
          * @param order Sorting order to use
+         *
+         * Valid values for this parameter are:
+         * - MegaApi::ORDER_NONE = 0
+         * Undefined order
+         *
+         * - MegaApi::ORDER_DEFAULT_ASC = 1
+         * Alphabetical order, e.g. bar, Car, foo
+         *
+         * - MegaApi::ORDER_DEFAULT_DESC = 2
+         * Alphabetical inverse order, e.g. foo, Car, bar
+         *
+         * - MegaApi::ORDER_SIZE_ASC = 3
+         * Sort by size, small elements first
+         *
+         * - MegaApi::ORDER_SIZE_DESC = 4
+         * Sort by size, small elements last
+         *
+         * - MegaApi::ORDER_CREATION_ASC = 5
+         * Sort by creation time in MEGA, older elements first
+         *
+         * - MegaApi::ORDER_CREATION_DESC = 6
+         * Sort by creation time in MEGA, older elements last
+         *
          * @return List of MegaShare objects that other users are sharing with this account
          */
         MegaShareList *getUnverifiedInShares(int order = ORDER_NONE);
