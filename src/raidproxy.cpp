@@ -1011,7 +1011,7 @@ void RaidReq::procdata(uint8_t part, byte* ptr, m_off_t pos, m_off_t len)
     assert((t + len) <= static_cast<m_off_t>(mDataSize / EFFECTIVE_RAIDPARTS));
 
     // set valid bit for every block that's been received in full
-    char partmask = 1 << part;
+    char partmask = static_cast<char>(1 << part);
     m_off_t until = (t + len) / RAIDSECTOR; // Number of sectors - corresponding to the number of lines for this part (for each part, N_RAIDSECTORS == N_RAIDLINES)
     for (m_off_t i = t / RAIDSECTOR; i < until; i++)
     {
