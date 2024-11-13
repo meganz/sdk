@@ -21,6 +21,7 @@ target_sources(test_unit
     FileFingerprint_test.cpp
     File_test.cpp
     FsNode.cpp
+    hashcash_test.cpp
     Logging_test.cpp
     MediaProperties_test.cpp
     MegaApi_test.cpp
