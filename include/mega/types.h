@@ -960,7 +960,7 @@ namespace CodeCounter
             }
         }
 #else
-        ScopeTimer(ScopeStats& sm) {}
+        ScopeTimer(ScopeStats&) {}
         void complete() {}
 #endif
     };

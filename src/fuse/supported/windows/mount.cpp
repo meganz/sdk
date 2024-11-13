@@ -473,11 +473,7 @@ NTSTATUS Mount::overwrite(PVOID context,
     return STATUS_SUCCESS;
 }
 
-NTSTATUS Mount::read(PVOID context,
-                     PVOID buffer,
-                     UINT64 offset,
-                     ULONG length,
-                     ULONG& numRead)
+NTSTATUS Mount::read(PVOID context, PVOID buffer, UINT64 offset, ULONG length, ULONG& /*numRead*/)
 {
     // Sanity.
     assert(context);
@@ -492,7 +488,8 @@ NTSTATUS Mount::read(PVOID context,
     auto hint = mDispatcher.request().Hint;
 
     // Actually reads the file.
-    auto read = [=](Activity&, const Task& task) {
+    auto read = [=](Activity&, const Task&)
+    {
         auto response = std::make_unique<FSP_FSCTL_TRANSACT_RSP>();
 
         std::memset(response.get(), 0, sizeof(response));
@@ -510,8 +507,7 @@ NTSTATUS Mount::read(PVOID context,
             return mDispatcher.reply(*response, result.error());
 
         // Let the caller know how much data was read.
-        response->IoStatus.Information =
-          static_cast<ULONG>(result->size());
+        response->IoStatus.Information = static_cast<ULONG>(result->size());
 
         // Caller's hit the end of the file.
         if (!response->IoStatus.Information)
@@ -535,11 +531,11 @@ NTSTATUS Mount::read(PVOID context,
 }
 
 NTSTATUS Mount::readDirectory(PVOID context,
-                              const std::string& pattern,
+                              const std::string& /*pattern*/,
                               const std::string& marker,
                               PVOID buffer,
                               ULONG length,
-                              ULONG& numWritten)
+                              ULONG& /*numWritten*/)
 {
     // Get our hands on the directory's context.
     auto* context_ = reinterpret_cast<DirectoryContext*>(context);
@@ -633,9 +629,9 @@ NTSTATUS Mount::rename(PVOID context,
 NTSTATUS Mount::setBasicInfo(PVOID context,
                              UINT32 attributes,
                              UINT64 created,
-                             UINT64 accessed,
+                             UINT64 /*accessed*/,
                              UINT64 written,
-                             UINT64 changed,
+                             UINT64 /*changed*/,
                              FSP_FSCTL_FILE_INFO& info)
 {
     // Get our hands on this inode's context.
@@ -764,9 +760,7 @@ NTSTATUS Mount::setSecurity(PVOID context,
     return STATUS_SUCCESS;
 }
 
-void Mount::stopped(BOOLEAN normally)
-{
-}
+void Mount::stopped(BOOLEAN /*normally*/) {}
 
 NTSTATUS Mount::write(PVOID context,
                       PVOID buffer,
@@ -774,8 +768,8 @@ NTSTATUS Mount::write(PVOID context,
                       ULONG length,
                       BOOLEAN append,
                       BOOLEAN noGrow,
-                      ULONG& numWritten,
-                      FSP_FSCTL_FILE_INFO& info)
+                      ULONG& /*numWritten*/,
+                      FSP_FSCTL_FILE_INFO& /*info*/)
 {
     // Sanity.
     assert(context);
@@ -857,30 +851,15 @@ Mount::~Mount()
                path().toPath(false).c_str());
 }
 
-void Mount::invalidateAttributes(InodeID id)
-{
-}
+void Mount::invalidateAttributes(InodeID) {}
 
-void Mount::invalidateData(InodeID id,
-                           m_off_t offset,
-                           m_off_t size)
-{
-}
+void Mount::invalidateData(InodeID, m_off_t /*offset*/, m_off_t /*size*/) {}
 
-void Mount::invalidateData(InodeID id)
-{
-}
+void Mount::invalidateData(InodeID) {}
 
-void Mount::invalidateEntry(const std::string& name,
-                            InodeID child,
-                            InodeID parent)
-{
-}
+void Mount::invalidateEntry(const std::string& /*name*/, InodeID /*child*/, InodeID /*parent*/) {}
 
-void Mount::invalidateEntry(const std::string& name,
-                            InodeID parent)
-{
-}
+void Mount::invalidateEntry(const std::string& /*name*/, InodeID /*parent*/) {}
 
 InodeID Mount::map(MountInodeID id) const
 {

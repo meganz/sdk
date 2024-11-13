@@ -325,7 +325,7 @@ Command* Request::getCurrentCommand()
     return cmds[processindex].get();
 }
 
-void Request::serverresponse(std::string&& movestring, MegaClient* client)
+void Request::serverresponse(std::string&& movestring, MegaClient*)
 {
     assert(processindex == 0);
     jsonresponse = std::move(movestring);

@@ -6211,12 +6211,12 @@ void MegaFileGet::progress()
 #endif
 }
 
-void MegaFileGet::completed(Transfer*, putsource_t source)
+void MegaFileGet::completed(Transfer*, putsource_t /*source*/)
 {
     delete this;
 }
 
-void MegaFileGet::terminated(error e)
+void MegaFileGet::terminated(error)
 {
     delete this;
 }
@@ -6316,7 +6316,7 @@ void MegaFilePut::completed(Transfer* t, putsource_t source)
     delete this;
 }
 
-void MegaFilePut::terminated(error e)
+void MegaFilePut::terminated(error)
 {
     delete this;
 }
@@ -10386,9 +10386,9 @@ char *MegaApiImpl::escapeFsIncompatible(const char *filename, const char *dstPat
     return MegaApi::strdup(name.c_str());
 }
 
-char *MegaApiImpl::unescapeFsIncompatible(const char *name, const char *path)
+char* MegaApiImpl::unescapeFsIncompatible(const char* name, const char* /*path*/)
 {
-    if(!name)
+    if (!name)
     {
         return NULL;
     }
@@ -13804,7 +13804,7 @@ void MegaApiImpl::setchatretentiontime_result(error e)
     fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
 }
 
-void MegaApiImpl::chats_updated(textchat_map *chats, int count)
+void MegaApiImpl::chats_updated(textchat_map* chats, int /*count*/)
 {
     if (chats)
     {
@@ -27195,7 +27195,8 @@ void MegaApiImpl::getPasswordManagerBase(MegaRequestListener* listener)
                 fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
             }
         };
-        CommandGetUA::CompletionBytes cb = [this, request](byte* data, unsigned len, attr_t type) -> void
+        CommandGetUA::CompletionBytes cb =
+            [this, request](byte* /*data*/, unsigned /*len*/, attr_t /*type*/) -> void
         {
             request->setNodeHandle(client->getPasswordManagerBase().as8byte());
             assert(!ISUNDEF(request->getNodeHandle()));
@@ -30154,7 +30155,7 @@ MegaFolderUploadController::batchResult MegaFolderUploadController::createNextFo
                                          targettype_t,
                                          vector<NewNode>&,
                                          bool,
-                                         int tag,
+                                         int /*tag*/,
                                          const map<string, string>& /*fileHandles*/)
             {
                 // double check our object still exists on request completion
@@ -31144,7 +31145,7 @@ void MegaScheduledCopyController::onTransferUpdate(MegaApi *, MegaTransfer *t)
     megaApi->fireOnBackupUpdate(this);
 }
 
-void MegaScheduledCopyController::onTransferTemporaryError(MegaApi *, MegaTransfer *t, MegaError *e)
+void MegaScheduledCopyController::onTransferTemporaryError(MegaApi*, MegaTransfer*, MegaError* e)
 {
     LOG_verbose << " at MegaScheduledCopyController::onTransferTemporaryError";
 
@@ -32939,22 +32940,22 @@ void MegaTCPServer::closeTCPConnection(MegaTCPContext *tcpctx)
     }
 }
 
-void MegaTCPServer::processOnAsyncEventClose(MegaTCPContext *tcpctx) // without this closing breaks!
+void MegaTCPServer::processOnAsyncEventClose(MegaTCPContext*) // without this closing breaks!
 {
     LOG_debug << "At supposed to be virtual processOnAsyncEventClose";
 }
 
-void MegaTCPServer::processOnExitHandleClose(MegaTCPServer *tcpServer) // without this closing breaks!
+void MegaTCPServer::processOnExitHandleClose(MegaTCPServer*) // without this closing breaks!
 {
     LOG_debug << "At supposed to be virtual processOnExitHandleClose";
 }
 
-void MegaTCPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, const uv_buf_t *buf)
+void MegaTCPServer::processReceivedData(MegaTCPContext*, ssize_t /*nread*/, const uv_buf_t*)
 {
     LOG_debug << "At supposed to be virtual processReceivedData";
 }
 
-void MegaTCPServer::processAsyncEvent(MegaTCPContext *tcpctx)
+void MegaTCPServer::processAsyncEvent(MegaTCPContext*)
 {
     LOG_debug << "At supposed to be virtual processAsyncEvent";
 }
@@ -33105,14 +33106,12 @@ void MegaHTTPServer::processOnAsyncEventClose(MegaTCPContext* tcpctx)
     httpctx->node = NULL;
 }
 
-bool MegaHTTPServer::respondNewConnection(MegaTCPContext* tcpctx)
+bool MegaHTTPServer::respondNewConnection(MegaTCPContext*)
 {
     return true;
 }
 
-void MegaHTTPServer::processOnExitHandleClose(MegaTCPServer *tcpServer)
-{
-}
+void MegaHTTPServer::processOnExitHandleClose(MegaTCPServer*) {}
 
 MegaHTTPServer::~MegaHTTPServer()
 {
@@ -35212,7 +35211,7 @@ MegaTCPContext* MegaFTPServer::initializeContext(uv_stream_t *server_handle)
     return ftpctx;
 }
 
-void MegaFTPServer::processWriteFinished(MegaTCPContext *tcpctx, int status)
+void MegaFTPServer::processWriteFinished(MegaTCPContext*, int status)
 {
     LOG_verbose << "MegaFTPServer::processWriteFinished. status=" << status;
 }
@@ -36720,7 +36719,7 @@ void MegaFTPServer::processAsyncEvent(MegaTCPContext *tcpctx)
     uv_mutex_unlock(&ftpctx->mutex_responses);
 }
 
-void MegaFTPServer::processOnAsyncEventClose(MegaTCPContext* tcpctx)
+void MegaFTPServer::processOnAsyncEventClose(MegaTCPContext*)
 {
     LOG_verbose << "At MegaFTPServer::processOnAsyncEventClose";
 }
@@ -36769,10 +36768,7 @@ bool MegaFTPServer::respondNewConnection(MegaTCPContext* tcpctx)
 
 }
 
-void MegaFTPServer::processOnExitHandleClose(MegaTCPServer *tcpServer)
-{
-
-}
+void MegaFTPServer::processOnExitHandleClose(MegaTCPServer*) {}
 
 MegaFTPContext::MegaFTPContext()
 {
@@ -36807,11 +36803,9 @@ MegaFTPContext::~MegaFTPContext()
     uv_mutex_destroy(&mutex_nodeToDownload);
 }
 
-void MegaFTPContext::onTransferStart(MegaApi *, MegaTransfer *transfer)
-{
-}
+void MegaFTPContext::onTransferStart(MegaApi*, MegaTransfer*) {}
 
-bool MegaFTPContext::onTransferData(MegaApi *, MegaTransfer *transfer, char *buffer, size_t size)
+bool MegaFTPContext::onTransferData(MegaApi*, MegaTransfer*, char* /*buffer*/, size_t /*size*/)
 {
     LOG_verbose << "MegaFTPContext::onTransferData";
     return true;
@@ -37392,9 +37386,7 @@ bool MegaFTPDataServer::respondNewConnection(MegaTCPContext* tcpctx)
     return false;
 }
 
-void MegaFTPDataServer::processOnExitHandleClose(MegaTCPServer *tcpServer)
-{
-}
+void MegaFTPDataServer::processOnExitHandleClose(MegaTCPServer*) {}
 
 void MegaFTPDataServer::sendNextBytes(MegaFTPDataContext *ftpdatactx)
 {
@@ -37551,7 +37543,7 @@ void MegaFTPDataContext::onTransferFinish(MegaApi *, MegaTransfer *, MegaError *
     uv_async_send(&asynchandle);
 }
 
-void MegaFTPDataContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError *)
+void MegaFTPDataContext::onRequestFinish(MegaApi*, MegaRequest*, MegaError*)
 {
     if (finished)
     {

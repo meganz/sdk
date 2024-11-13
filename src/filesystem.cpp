@@ -1634,7 +1634,7 @@ bool LocalPath::findNextSeparator(size_t& separatorBytePos) const
     return separatorBytePos != string::npos;
 }
 
-bool LocalPath::findPrevSeparator(size_t& separatorBytePos, const FileSystemAccess& fsaccess) const
+bool LocalPath::findPrevSeparator(size_t& separatorBytePos, const FileSystemAccess&) const
 {
     assert(invariant());
     separatorBytePos = localpath.rfind(LocalPath::localPathSeparator, separatorBytePos);

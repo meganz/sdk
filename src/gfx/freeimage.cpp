@@ -241,7 +241,7 @@ bool GfxProviderFreeImage::isFfmpegFile(const string& ext)
     return false;
 }
 
-bool GfxProviderFreeImage::readbitmapFfmpeg(const LocalPath& imagePath, int size)
+bool GfxProviderFreeImage::readbitmapFfmpeg(const LocalPath& imagePath, int /*size*/)
 {
 #ifndef DEBUG
     av_log_set_level(AV_LOG_PANIC);
@@ -498,7 +498,7 @@ bool GfxProviderFreeImage::isPdfFile(const string &ext)
     return false;
 }
 
-bool GfxProviderFreeImage::readbitmapPdf(const LocalPath& imagePath, int size)
+bool GfxProviderFreeImage::readbitmapPdf(const LocalPath& imagePath, int /*size*/)
 {
     std::lock_guard<std::mutex> g(gfxMutex);
     if (!pdfiumInitialized)

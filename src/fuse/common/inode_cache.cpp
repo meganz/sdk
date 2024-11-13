@@ -65,9 +65,7 @@ void InodeCache::loop()
     FUSEDebug1("Inode Cache Cleaner thread stopped");
 }
 
-InodeRefVector InodeCache::reduce(std::chrono::seconds age,
-                                  Lock& lock,
-                                  std::size_t size)
+InodeRefVector InodeCache::reduce(std::chrono::seconds age, Lock&, std::size_t size)
 {
     // For debugging.
     FUSEDebugF("Cleaning inode cache: age >= %lus, size > %lu",

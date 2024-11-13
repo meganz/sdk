@@ -2913,7 +2913,7 @@ public:
         return -1;
     }
 
-    bool couldSuggestIgnoreThisPath(bool cloudSide, int index) const override
+    bool couldSuggestIgnoreThisPath(bool /*cloudSide*/, int /*index*/) const override
     {
         return false;
     }

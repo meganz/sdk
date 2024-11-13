@@ -24,7 +24,6 @@ endif()
 target_platform_compile_options(
     TARGET gfxworker_test_integration
     WINDOWS /W4
-            /wd4100 # unreferenced formal parameter
             /wd4201 # nameless struct/union (nonstandard)
             /wd4458 # identifier hides class member
             /we4800 # Implicit conversion from 'type' to bool. Possible information loss

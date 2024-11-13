@@ -578,7 +578,7 @@ void SyncTransfer_inClient::terminated(error e)
     selfKeepAlive.reset();  // deletes this object! (if abandoned by sync)
 }
 
-void SyncTransfer_inClient::completed(Transfer* t, putsource_t source)
+void SyncTransfer_inClient::completed(Transfer*, putsource_t source)
 {
     assert(source == PUTNODES_SYNC);
 
@@ -678,10 +678,10 @@ void SyncUpload_inClient::sendPutnodesToCloneNode(MegaClient* client, NodeHandle
         PUTNODES_SYNC,
         ovHandle,
         [self, stts, client](const Error& e,
-                             targettype_t t,
+                             targettype_t /*t*/,
                              vector<NewNode>& nn,
-                             bool targetOverride,
-                             int tag,
+                             bool /*targetOverride*/,
+                             int /*tag*/,
                              const map<string, string>& /*fileHandles*/)
         {
             // Is the originating transfer still alive?
@@ -830,7 +830,7 @@ SyncDownload_inClient::~SyncDownload_inClient()
     }
 }
 
-void SyncDownload_inClient::prepare(FileSystemAccess& fsaccess)
+void SyncDownload_inClient::prepare(FileSystemAccess&)
 {
     if (transfer->localfilename.empty())
     {
