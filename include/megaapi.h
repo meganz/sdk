@@ -8504,10 +8504,13 @@ class MegaGlobalListener
         /**
          * @brief This function is called when there are new or updated contacts in the account
          *
-         * The SDK retains the ownership of the MegaUserList in the second parameter. The list and all the
-         * MegaUser objects that it contains will be valid until this function returns. If you want to save the
-         * list, use MegaUserList::copy. If you want to save only some of the MegaUser objects, use MegaUser::copy
-         * for those objects.
+         * When the full account is reloaded or a large number of server notifications arrives at
+         * once, the second parameter will be NULL.
+         *
+         * The SDK retains the ownership of the MegaUserList in the second parameter. The list and
+         * all the MegaUser objects that it contains will be valid until this function returns. If
+         * you want to save the list, use MegaUserList::copy. If you want to save only some of the
+         * MegaUser objects, use MegaUser::copy for those objects.
          *
          * @param api MegaApi object connected to the account
          * @param users List that contains the new or updated contacts
@@ -8515,16 +8518,20 @@ class MegaGlobalListener
         virtual void onUsersUpdate(MegaApi* api, MegaUserList *users);
 
         /**
-        * @brief This function is called when there are new or updated user alerts in the account
-        *
-        * The SDK retains the ownership of the MegaUserAlertList in the second parameter. The list and all the
-        * MegaUserAlert objects that it contains will be valid until this function returns. If you want to save the
-        * list, use MegaUserAlertList::copy. If you want to save only some of the MegaUserAlert objects, use MegaUserAlert::copy
-        * for those objects.
-        *
-        * @param api MegaApi object connected to the account
-        * @param alerts List that contains the new or updated alerts
-        */
+         * @brief This function is called when there are new or updated user alerts in the account
+         *
+         * When there is a problem parsing the incoming information from the server or the full
+         * account is reloaded or a large number of server notifications arrives at once, the second
+         * parameter will be NULL.
+         *
+         * The SDK retains the ownership of the MegaUserAlertList in the second parameter. The list
+         * and all the MegaUserAlert objects that it contains will be valid until this function
+         * returns. If you want to save the list, use MegaUserAlertList::copy. If you want to save
+         * only some of the MegaUserAlert objects, use MegaUserAlert::copy for those objects.
+         *
+         * @param api MegaApi object connected to the account
+         * @param alerts List that contains the new or updated alerts
+         */
         virtual void onUserAlertsUpdate(MegaApi* api, MegaUserAlertList *alerts);
 
         /**
@@ -8556,10 +8563,13 @@ class MegaGlobalListener
         /**
          * @brief This function is called when a Set has been updated (created / updated / removed)
          *
-         * The SDK retains the ownership of the MegaSetList in the second parameter. The list and all the
-         * MegaSet objects that it contains will be valid until this function returns. If you want to save the
-         * list, use MegaSetList::copy. If you want to save only some of the MegaSet objects, use MegaSet::copy
-         * for them.
+         * When the full account is reloaded or a large number of server notifications arrives at
+         * once, the second parameter will be NULL.
+         *
+         * The SDK retains the ownership of the MegaSetList in the second parameter. The list and
+         * all the MegaSet objects that it contains will be valid until this function returns. If
+         * you want to save the list, use MegaSetList::copy. If you want to save only some of the
+         * MegaSet objects, use MegaSet::copy for them.
          *
          * @param api MegaApi object connected to the account
          * @param sets List that contains the new or updated Sets
@@ -8567,12 +8577,16 @@ class MegaGlobalListener
         virtual void onSetsUpdate(MegaApi* api, MegaSetList* sets);
 
         /**
-         * @brief This function is called when a Set-Element has been updated (created / updated / removed)
+         * @brief This function is called when a Set-Element has been updated (created / updated /
+         * removed)
          *
-         * The SDK retains the ownership of the MegaSetElementList in the second parameter. The list and all the
-         * MegaSetElement objects that it contains will be valid until this function returns. If you want to save the
-         * list, use MegaSetElementList::copy. If you want to save only some of the MegaSetElement objects, use
-         * MegaSetElement::copy for them.
+         * When the full account is reloaded or a large number of server notifications arrives at
+         * once, the second parameter will be NULL.
+         *
+         * The SDK retains the ownership of the MegaSetElementList in the second parameter. The list
+         * and all the MegaSetElement objects that it contains will be valid until this function
+         * returns. If you want to save the list, use MegaSetElementList::copy. If you want to save
+         * only some of the MegaSetElement objects, use MegaSetElement::copy for them.
          *
          * @param api MegaApi object connected to the account
          * @param elements List that contains the new or updated Set-Elements
@@ -8633,12 +8647,16 @@ class MegaGlobalListener
         /**
          * @brief This function is called when there are new or updated chats
          *
-         * This callback is also used to initialize the list of chats available during the fetchnodes request.
+         * When the full account is reloaded or a large number of server notifications arrives at
+         * once, the second parameter will be NULL.
          *
-         * The SDK retains the ownership of the MegaTextChatList in the second parameter. The list and all the
-         * MegaTextChat objects that it contains will be valid until this function returns. If you want to save the
-         * list, use MegaTextChatList::copy. If you want to save only some of the MegaTextChat objects, use
-         * MegaTextChat::copy for those objects.
+         * This callback is also used to initialize the list of chats available during the
+         * fetchnodes request.
+         *
+         * The SDK retains the ownership of the MegaTextChatList in the second parameter. The list
+         * and all the MegaTextChat objects that it contains will be valid until this function
+         * returns. If you want to save the list, use MegaTextChatList::copy. If you want to save
+         * only some of the MegaTextChat objects, use MegaTextChat::copy for those objects.
          *
          * @param api MegaApi object connected to the account
          * @param chats List that contains the new or updated chats
@@ -8976,29 +8994,36 @@ class MegaListener
         virtual void onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* error);
 
         /**
-        * @brief This function is called when there are new or updated contacts in the account
-        *
-        * The SDK retains the ownership of the MegaUserList in the second parameter. The list and all the
-        * MegaUser objects that it contains will be valid until this function returns. If you want to save the
-        * list, use MegaUserList::copy. If you want to save only some of the MegaUser objects, use MegaUser::copy
-        * for those objects.
-        *
-        * @param api MegaApi object connected to the account
-        * @param users List that contains the new or updated contacts
-        */
+         * @brief This function is called when there are new or updated contacts in the account
+         *
+         * When the full account is reloaded or a large number of server notifications arrives at
+         * once, the second parameter will be NULL.
+         *
+         * The SDK retains the ownership of the MegaUserList in the second parameter. The list and
+         * all the MegaUser objects that it contains will be valid until this function returns. If
+         * you want to save the list, use MegaUserList::copy. If you want to save only some of the
+         * MegaUser objects, use MegaUser::copy for those objects.
+         *
+         * @param api MegaApi object connected to the account
+         * @param users List that contains the new or updated contacts
+         */
         virtual void onUsersUpdate(MegaApi* api, MegaUserList *users);
 
         /**
-        * @brief This function is called when there are new or updated user alerts in the account
-        *
-        * The SDK retains the ownership of the MegaUserAlertList in the second parameter. The list and all the
-        * MegaUserAlert objects that it contains will be valid until this function returns. If you want to save the
-        * list, use MegaUserAlertList::copy. If you want to save only some of the MegaUserAlert objects, use MegaUserAlert::copy
-        * for those objects.
-        *
-        * @param api MegaApi object connected to the account
-        * @param alerts List that contains the new or updated alerts
-        */
+         * @brief This function is called when there are new or updated user alerts in the account
+         *
+         * When there is a problem parsing the incoming information from the server or the full
+         * account is reloaded or a large number of server notifications arrives at once, the second
+         * parameter will be NULL.
+         *
+         * The SDK retains the ownership of the MegaUserAlertList in the second parameter. The list
+         * and all the MegaUserAlert objects that it contains will be valid until this function
+         * returns. If you want to save the list, use MegaUserAlertList::copy. If you want to save
+         * only some of the MegaUserAlert objects, use MegaUserAlert::copy for those objects.
+         *
+         * @param api MegaApi object connected to the account
+         * @param alerts List that contains the new or updated alerts
+         */
         virtual void onUserAlertsUpdate(MegaApi* api, MegaUserAlertList *alerts);
 
         /**
@@ -9030,10 +9055,13 @@ class MegaListener
         /**
          * @brief This function is called when a Set has been updated (created / updated / removed)
          *
-         * The SDK retains the ownership of the MegaSetList in the second parameter. The list and all the
-         * MegaSet objects that it contains will be valid until this function returns. If you want to save the
-         * list, use MegaSetList::copy. If you want to save only some of the MegaSet objects, use MegaSet::copy
-         * for them.
+         * When the full account is reloaded or a large number of server notifications arrives at
+         * once, the second parameter will be NULL.
+         *
+         * The SDK retains the ownership of the MegaSetList in the second parameter. The list and
+         * all the MegaSet objects that it contains will be valid until this function returns. If
+         * you want to save the list, use MegaSetList::copy. If you want to save only some of the
+         * MegaSet objects, use MegaSet::copy for them.
          *
          * @param api MegaApi object connected to the account
          * @param sets List that contains the new or updated Sets
@@ -9041,12 +9069,16 @@ class MegaListener
         virtual void onSetsUpdate(MegaApi* api, MegaSetList* sets);
 
         /**
-         * @brief This function is called when a Set-Element has been updated (created / updated / removed)
+         * @brief This function is called when a Set-Element has been updated (created / updated /
+         * removed)
          *
-         * The SDK retains the ownership of the MegaSetElementList in the second parameter. The list and all the
-         * MegaSetElement objects that it contains will be valid until this function returns. If you want to save the
-         * list, use MegaSetElementList::copy. If you want to save only some of the MegaSetElement objects, use
-         * MegaSetElement::copy for them.
+         * When the full account is reloaded or a large number of server notifications arrives at
+         * once, the second parameter will be NULL.
+         *
+         * The SDK retains the ownership of the MegaSetElementList in the second parameter. The list
+         * and all the MegaSetElement objects that it contains will be valid until this function
+         * returns. If you want to save the list, use MegaSetElementList::copy. If you want to save
+         * only some of the MegaSetElement objects, use MegaSetElement::copy for them.
          *
          * @param api MegaApi object connected to the account
          * @param elements List that contains the new or updated Set-Elements
@@ -9269,10 +9301,13 @@ class MegaListener
     /**
      * @brief This function is called when there are new or updated chats
      *
-     * The SDK retains the ownership of the MegaTextChatList in the second parameter. The list and all the
-     * MegaTextChat objects that it contains will be valid until this function returns. If you want to save the
-     * list, use MegaTextChatList::copy. If you want to save only some of the MegaTextChat objects, use
-     * MegaTextChat::copy for those objects.
+     * When the full account is reloaded or a large number of server notifications arrives at once,
+     * the second parameter will be NULL.
+     *
+     * The SDK retains the ownership of the MegaTextChatList in the second parameter. The list and
+     * all the MegaTextChat objects that it contains will be valid until this function returns. If
+     * you want to save the list, use MegaTextChatList::copy. If you want to save only some of the
+     * MegaTextChat objects, use MegaTextChat::copy for those objects.
      *
      * @param api MegaApi object connected to the account
      * @param chats List that contains the new or updated chats
