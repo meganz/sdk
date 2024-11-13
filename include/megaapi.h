@@ -10410,7 +10410,7 @@ class MegaApi
          * This enum is used to define actions that will trigger specific surveys.
          * Each action is associated with a particular user activity.
          */
-        enum
+        enum SurveyTriggerActionId
         {
             ACT_END_UPLOAD = 1,
             ACT_END_MEETING = 2,
@@ -23111,7 +23111,8 @@ class MegaApi
          * - EINTERNAL - Received answer could not be read.
          *
          * @param surveyHandle The survey handle
-         * @param triggerActionId The trigger action ID
+         * @param triggerActionId The trigger action ID. Valid values for this field are defined at
+         * MegaApi::SurveyTriggerActionId
          * @param response The response to the survey
          * @param comment The response to tell us more
          * @param listener MegaRequestListener to track this request

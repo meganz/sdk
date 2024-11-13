@@ -27896,6 +27896,14 @@ void MegaApiImpl::answerSurvey(MegaHandle surveyHandle,
         };
 
         const unsigned int triggerActionId{static_cast<unsigned int>(request->getParamType())};
+        if (triggerActionId < MegaApi::ACT_END_UPLOAD ||
+            triggerActionId > MegaApi::ACT_SHARE_FOLDER_FILE)
+        {
+            LOG_err << "Request (TYPE_ANSWER_SURVEY). triggerActionId value is out of valid range: "
+                    << triggerActionId;
+            return API_EARGS;
+        }
+
         const char* response{request->getText()};
         const char* comment{request->getFile()};
         if (const auto sendTransferFeedback = triggerActionId == MegaApi::ACT_END_UPLOAD;
@@ -27907,12 +27915,8 @@ void MegaApiImpl::answerSurvey(MegaHandle surveyHandle,
                 return API_EARGS;
             }
 
-            if (!comment)
-            {
-                LOG_err << "Request (TYPE_ANSWER_SURVEY). Invalid comment param";
-                return API_EARGS;
-            }
-
+            // if no comment is provided send empty string comment.
+            const std::string c{comment ? comment : ""};
             auto [err, rating] = parseRating(response);
             if (err != API_OK)
             {
@@ -27920,7 +27924,7 @@ void MegaApiImpl::answerSurvey(MegaHandle surveyHandle,
             }
 
             sendUserfeedback(rating,
-                             comment,
+                             c.c_str(),
                              true /*transferFeedback*/,
                              MegaApi::TRANSFER_STATS_UPLOAD);
         }

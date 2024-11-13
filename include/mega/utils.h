@@ -19,6 +19,7 @@
  * program.
  */
 
+#include <charconv>
 #ifndef MEGA_UTILS_H
 #define MEGA_UTILS_H 1
 
@@ -1504,6 +1505,37 @@ private:
  * @brief Returns std::this_thread:get_id() converted to a string
  */
 std::string getThisThreadIdStr();
+
+/**
+ * @brief Converts a number of any arithmetic type to its string representation.
+ *
+ * @tparam T The type of the number to be converted. It must be an arithmetic type (e.g., int,
+ * float, double).
+ *
+ * @param number The number to be converted to a string.
+ * @return A `std::string` representing the number. If conversion fails or the type is not
+ * arithmetic, an empty string is returned.
+ *
+ * @note This function only supports arithmetic types. The function will return an empty string if
+ * the number cannot be successfully converted.
+ */
+template<typename T>
+std::string numberToString(T number)
+{
+    if (!std::is_arithmetic<T>::value)
+    {
+        assert(false);
+        return {};
+    }
+
+    char buffer[64];
+    if (auto [ptr, ec] = std::to_chars(buffer, buffer + sizeof(buffer), number); ec == std::errc())
+    {
+        return std::string(buffer, ptr);
+    }
+
+    return {};
+}
 
 } // namespace mega
 
