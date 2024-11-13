@@ -424,22 +424,54 @@ bool GfxProviderFreeImage::readbitmapFfmpeg(const LocalPath& imagePath, int /*si
     // Read frames until succesfull decodification or reach limit of 220 frames
     while (actualNumFrames < 220 && result != AVERROR_EOF)
     {
+        // Try and read a packet from the file.
         result = av_read_frame(formatContext, &packet);
 
+        // Couldn't read a packet from the file due to some (hard) error.
+        //
+        // Note that we don't break here if we couldn't read a packet
+        // because we hit the end of the file. This is because in this case,
+        // the packet will be a dummy which we'll feed into the codec below.
         if (result < 0 && result != AVERROR_EOF)
         {
             break;
         }
 
+        // Make sure any data contained in the packet is released at the end
+        // of this iteration.
         auto avPacketGuard = makeUniqueFrom(&packet, av_packet_unref);
+
+        // We're only interested in video packets.
         if (packet.stream_index == videoStream->index)
         {
+            // Feed the packet we retrieved from the file into our codec.
+            //
+            // Note that the packet we feed into the codec will be a dummy
+            // if we hit the end of the file. The reason we still need to
+            // process this dummy packet is that doing so will put the codec
+            // into "drain mode."
+            //
+            // This is necessary because even though we've hit the end of
+            // the file, the codec may still contain frames for us to
+            // process.
             result = avcodec_send_packet(codecContext, &packet);
+
+            // Encountered a hard error passing the packet to the codec.
             if (result < 0 && result != AVERROR(EAGAIN) && result != AVERROR_EOF)
             {
                 break;
             }
 
+            // Keep extracting decoded frames from the codec for as long as
+            // we can. If we haven't hit the end of the file, this function
+            // will return EAGAIN which means it needs us to feed the codec
+            // more packets. If the function returns EOF, it means that the
+            // codec has been drained and no further decoded frames are
+            // possible.
+            //
+            // Note that this function can only return EOF if the codec had
+            // entered "draining mode." That is, it'll only happen if
+            // av_read_frame above also returned EOF.
             while ((result = avcodec_receive_frame(codecContext, videoFrame)) >= 0)
             {
                 if (sourcePixelFormat != codecContext->pix_fmt)
