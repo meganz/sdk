@@ -474,7 +474,7 @@ bool GfxProviderFreeImage::readbitmapFfmpeg(const LocalPath& imagePath, int /*si
 
                     int pitch = width * 3;
 
-                    // Assume we can't generate the imaege from our raw frame.
+                    // Assume we can't generate the image from our raw frame.
                     w = 0;
                     h = 0;
 
