@@ -2578,7 +2578,7 @@ void MegaClient::exec()
                         if (pendingcs->httpstatus == 402)
                         {
                             // get X-Hashcash header
-                            if (pendingcs->hashcash.empty())
+                            if (pendingcs->mHashcashToken.empty())
                             {
                                 LOG_err << "X-Hashcash header missing for HTTP status "
                                         << pendingcs->httpstatus;
@@ -2590,9 +2590,9 @@ void MegaClient::exec()
                             }
                             else
                             {
-                                reqHashcash = std::move(pendingcs->hashcash);
-                                pendingcs->hashcash.clear(); // just to be sure
-                                reqHashcashEasyness = pendingcs->hashcashEasyness;
+                                mReqHashcashToken = std::move(pendingcs->mHashcashToken);
+                                pendingcs->mHashcashToken.clear(); // just to be sure
+                                mReqHashcashEasyness = pendingcs->mHashcashEasyness;
                             }
                         }
 
@@ -2706,9 +2706,9 @@ void MegaClient::exec()
                         pendingcs->mChunked = !isClientType(ClientType::VPN);
                     }
 
-                    pendingcs->hashcash = std::move(reqHashcash);
-                    reqHashcash.clear();
-                    pendingcs->hashcashEasyness = reqHashcashEasyness;
+                    pendingcs->mHashcashToken = std::move(mReqHashcashToken);
+                    mReqHashcashToken.clear();
+                    pendingcs->mHashcashEasyness = mReqHashcashEasyness;
                     performanceStats.csRequestWaitTime.start();
                     pendingcs->post(this);
                     continue;
@@ -4765,6 +4765,9 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     mKeyManager.reset();
 
     mLastErrorDetected = REASON_ERROR_NO_ERROR;
+    
+    mReqHashcashEasyness = 0;
+    mReqHashcashToken.clear();
 }
 
 void MegaClient::removeCaches()

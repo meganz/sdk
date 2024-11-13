@@ -6680,7 +6680,7 @@ void exec_open(autocomplete::ACState& s)
                                NULL,
 #endif
                                gfx,
-                               "HashcashDemo Gk8DyQBS",
+                               "Gk8DyQBS",
                                "megacli_folder/" TOSTRING(MEGA_MAJOR_VERSION) "." TOSTRING(
                                    MEGA_MINOR_VERSION) "." TOSTRING(MEGA_MICRO_VERSION),
                                2,
