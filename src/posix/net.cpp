@@ -1455,13 +1455,14 @@ struct curl_slist* CurlHttpIO::clone_curl_slist(struct curl_slist* inlist)
 // Generate cash function
 std::string gencash(const string& token, uint8_t easiness)
 {
-    // Calculate threshold
+    // Calculate threshold from easiness
+    // easiness: encoded threshold (maximum acceptable value in the first 32 byte of the
+    // hash (little endian) - the lower, the harder to solve)
     uint32_t threshold =
         static_cast<uint32_t>((((easiness & 63) << 1) + 1) << ((easiness >> 6) * 7 + 3));
-
+    
+    // Token is 64 chars in B64, we need the 48 bytes in binary
     string tokenBinary = Base64::atob(token);
-    LOG_debug << "Token in B64: " << token << " (size: " << token.size() << " chars, "
-              << tokenBinary.size() << " bytes)";
 
     // Buffer to hold 4-byte prefix + 262144 * 48 bytes of the token
     std::vector<uint8_t> buffer(4 + 262144 * 48); // total size = 179919652
@@ -1528,14 +1529,14 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
     httpctx->headers = clone_curl_slist(req->type == REQ_JSON ? httpio->contenttypejson : httpio->contenttypebinary);
     httpctx->posturl = req->posturl;
 
-    if (!req->hashcash.empty())
+    if (!req->mHashcashToken.empty())
     {
-        string nextValue = gencash(req->hashcash, req->hashcashEasyness);
-        string xHashcashHeader{"X-Hashcash: 1:" + req->hashcash + ":" + std::move(nextValue)};
+        string nextValue = gencash(req->mHashcashToken, req->mHashcashEasyness);
+        string xHashcashHeader{"X-Hashcash: 1:" + req->mHashcashToken + ":" + std::move(nextValue)};
         httpctx->headers = curl_slist_append(httpctx->headers, xHashcashHeader.c_str());
         LOG_warn << "X-Hashcash computed: " << xHashcashHeader;
-        req->hashcash.clear();
-        req->hashcashEasyness = 0;
+        req->mHashcashToken.clear();
+        req->mHashcashEasyness = 0;
     }
 
 #ifdef MEGA_USE_C_ARES
@@ -2775,7 +2776,7 @@ size_t CurlHttpIO::check_header(void* ptr, size_t size, size_t nmemb, void* targ
     {
         req->contenttype.assign((char *)ptr + 13, len - 15);
     }
-    else if (len >= (11 + 7) && !memcmp(ptr, "X-Hashcash:", 11)) // "X-Hashcash: 1:A:B:C"
+    else if (len >= (11 + 7) && !memcmp(ptr, "X-Hashcash:", 11))
     {
         string buffer{(char*)ptr + 11, len - 11};
         LOG_warn << "X-Hashcash received: " << buffer;
@@ -2795,15 +2796,16 @@ size_t CurlHttpIO::check_header(void* ptr, size_t size, size_t nmemb, void* targ
         }
         if (hc.size() != 4 // incomplete data
             || stoi(hc[0]) != 1 // not required to process
-            || stoi(hc[1]) < 0 || stoi(hc[1]) > 255) // invalid easiness [0, 255]
+            || stoi(hc[1]) < 0 || stoi(hc[1]) > 255 // invalid easiness [0, 255]
+            || hc[3].size() != 64)  // token is 64 chars in B64
         {
-            req->hashcash.clear();
-            req->hashcashEasyness = 0;
+            req->mHashcashToken.clear();
+            req->mHashcashEasyness = 0;
         }
         else
         {
-            req->hashcash = hc[3].substr(0, 64);
-            req->hashcashEasyness = static_cast<uint8_t>(stoi(hc[1]));
+            req->mHashcashToken = hc[3].substr(0, 64);
+            req->mHashcashEasyness = static_cast<uint8_t>(stoi(hc[1]));
         }
     }
     else
