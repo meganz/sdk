@@ -53,29 +53,34 @@ class EmailProcessor:
         messages = []
         for n in data[0].split():
             _, d = self.mail.fetch(n, "(RFC822)")
-            body = d[0][1]
-            msg = email.message_from_string(body.decode('utf-8'))
-            subject = msg['subject']
-            if self.debug: print("subject: " + subject)
-            text = None
-            dt = 0
-            for item in msg['DKIM-Signature'].split(';'):
-                if 't=' in item:
-                    dt = item.strip()[2:]
-                    break
-            else:
-                assert dt, 'timestamp not found from email header'
-            elapsed = ref_time - float(dt)
-            if elapsed > delta:
-                # Emails are sorted by time so no need to continue processing
-                break
-            for m in msg.walk():
-                content_type = m.get_content_type()
-                if content_type == 'text/plain':
-                    text = m.get_payload(decode=True).decode('raw-unicode-escape')
-                    break
-            if text:
-                messages.append({subject: [n, text]})
+
+            for part in d:
+                if isinstance(part, tuple):
+                    msg = email.message_from_bytes(part[1])
+                    subject, encoding = email.header.decode_header(msg['subject'])[0]
+                    if isinstance(subject, bytes):
+                        subject = subject.decode(encoding)
+                    if self.debug: print("subject: " + subject)
+                    text = None
+                    dt = 0
+                    for item in msg['DKIM-Signature'].split(';'):
+                        if 't=' in item:
+                            dt = item.strip()[2:]
+                            break
+                    else:
+                        assert dt, 'timestamp not found from email header'
+                    elapsed = ref_time - float(dt)
+                    if elapsed > delta:
+                        # Emails are sorted by time so no need to continue processing
+                        break
+                    for m in msg.walk():
+                        content_type = m.get_content_type()
+                        if content_type == 'text/plain':
+                            text = m.get_payload(decode=True).decode('raw-unicode-escape')
+                            break
+                    if text:
+                        messages.append({subject: [n, text]})
+
         return messages
 
 if len(sys.argv) == 1 or "--help" in sys.argv[1:] or (os.name == "nt" and "/?" in sys.argv[1:]):
