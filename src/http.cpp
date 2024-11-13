@@ -253,56 +253,6 @@ Proxy *HttpIO::getautoproxy()
     return proxy;
 }
 
-// this method allows to retrieve DNS servers as configured in the system. Note that, under Wifi connections,
-// it usually returns the gateway (192.168.1.1 or similar), so the DNS requests done by c-ares represent a
-// an access to the local network, which we aim to avoid since iOS 14 requires explicit permission given by the user.
-void HttpIO::getDNSserversFromIos(string& dnsServers)
-{
-#if TARGET_OS_IPHONE
-    // Workaround to get the IP of valid DNS servers on iOS
-     __res_state res;
-     bool valid;
-     if (res_ninit(&res) == 0)
-     {
-         union res_sockaddr_union u[MAXNS];
-         int nscount = res_getservers(&res, u, MAXNS);
-
-         for (int i = 0; i < nscount; i++)
-         {
-             char straddr[INET6_ADDRSTRLEN];
-             straddr[0] = 0;
-             valid = false;
-
-             if (u[i].sin.sin_family == PF_INET)
-             {
-                 valid = mega_inet_ntop(PF_INET, &u[i].sin.sin_addr, straddr, sizeof(straddr)) == straddr;
-             }
-
-             if (u[i].sin6.sin6_family == PF_INET6)
-             {
-                 valid = mega_inet_ntop(PF_INET6, &u[i].sin6.sin6_addr, straddr, sizeof(straddr)) == straddr;
-             }
-
-             if (valid && straddr[0])
-             {
-                 if (dnsServers.size())
-                 {
-                     dnsServers.append(",");
-                 }
-                 dnsServers.append(straddr);
-             }
-         }
-
-         res_ndestroy(&res);
-     }
-
-     if (!dnsServers.size())
-     {
-         LOG_warn << "Failed to get DNS servers from OS";
-     }
-#endif
-}
-
 bool HttpIO::setmaxdownloadspeed(m_off_t)
 {
     return false;
