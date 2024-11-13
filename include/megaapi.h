@@ -94,6 +94,7 @@ class MegaIntegerMap;
 class MegaIntegerList;
 class MegaSyncStall;
 class MegaSyncStallList;
+class MegaSyncStallMap;
 class MegaFuseExecutorFlags;
 class MegaFuseFlags;
 class MegaFuseInodeCacheFlags;
@@ -5509,6 +5510,18 @@ class MegaRequest
          */
         virtual MegaSyncStallList* getMegaSyncStallList() const;
 
+        /**
+         * @brief
+         * Returns a reference to this request's MegaSyncStallMap instance.
+         *
+         * This value is valid only for the following requests:
+         * - MegaApi::getMegaSyncStallMap
+         *
+         * @return
+         * A reference to this request's getMegaSyncStallMap instance.
+         */
+        virtual MegaSyncStallMap* getMegaSyncStallMap() const;
+
 #endif // ENABLE_SYNC
 
         /**
@@ -7445,6 +7458,53 @@ class MegaSyncStallList
          * elements in the container. The order of the elements also affects the final hash.
          */
         virtual size_t getHash() const;
+};
+
+/**
+ * @brief A Map of BackupId to list of synchronization stall conflicts @see MegaSyncStall
+ */
+class MegaSyncStallMap
+{
+public:
+    MegaSyncStallMap() = default;
+    virtual ~MegaSyncStallMap() = default;
+    virtual MegaSyncStallMap* copy() const;
+
+    /**
+     * @brief Returns the number of elements in the MegaSyncStallMap.
+     *
+     * @return The number of elements in the MegaSyncStallMap.
+     */
+    virtual size_t size() const;
+
+    /**
+     * @brief Get an unique identifier that is calculated combining the hashes of all the
+     * elements in the container. The order of the elements also affects the final hash.
+     *
+     * @return A combined hash value of all MegaSyncStall elements in the map.
+     */
+    virtual size_t getHash() const;
+
+    /**
+     * @brief Retrieves a MegaSyncStallList object associated with the given key.
+     *
+     * The SDK retains the ownership of the MegaSyncStall object.
+     *
+     * @param key MegaHandle to look for in the stalls map.
+     * @return A pointer to the MegaSyncStallList object associated with the key, or nullptr if not
+     * found.
+     */
+    virtual const MegaSyncStallList* get(const MegaHandle key) const;
+
+    /**
+     * @brief Retrieves a list of all keys present in the MegaSyncStallMap.
+     *
+     * This method creates and returns a MegaHandleList containing all the keys
+     * currently present in the internal map of stalls.
+     *
+     * @return A MegaHandleList containing all keys(BackupId's) from the stalls map.
+     */
+    virtual MegaHandleList* getKeys() const;
 };
 
 #endif // ENABLE_SYNC
@@ -17242,27 +17302,35 @@ class MegaApi
         long long getNumLocalNodes();
 
         /**
-         * @brief
-         * Query the sync engine to find out what is causing sync stalls
+         * @brief Query the sync engine to find out what is causing sync stalls
          *
-         * The type of this request is MegaRequest::TYPE_GET_SYNC_STALL_LIST.
+         * The associated request type with this request is MegaRequest::TYPE_GET_SYNC_STALL_LIST.
          *
-         * @param listener
-         * A MegaRequestListener with which to track the request.
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code is
+         * MegaError::API_OK:
+         * - MegaRequest::getMegaSyncStallList -  Returns a List of synchronization stall conflicts
          *
-         * @param detailed
-         * Set to true if you want to receive as much information as
-         * possible detailing any problems the sync engine has detected.
+         * @param listener A MegaRequestListener with which to track the request.
          *
-         * If this flag is false, the engine will tell you whether it had
-         * detected any name conflicts or stalls but it will not include any
-         * information about those conflicts or stalls.
-         *
-         * If the flag is true, the engine will include detailed information
-         * about any detected name conflicts or stalls.
          */
         void getMegaSyncStallList(MegaRequestListener* listener);
 
+        /**
+         * @brief Query the sync engine to find out what is causing sync stalls
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_SYNC_STALL_LIST.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getFlag - Returns true
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code is
+         * MegaError::API_OK:
+         * - MegaRequest::getMegaSyncStallMap -  Returns a Map of BackupId to synchronization stall
+         * conflicts list
+         *
+         * @param listener A MegaRequestListener with which to track the request.
+         *
+         */
+        void getMegaSyncStallMap(MegaRequestListener* listener);
 
         /**
          * @brief

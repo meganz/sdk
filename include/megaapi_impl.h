@@ -1710,7 +1710,9 @@ class MegaRequestPrivate : public MegaRequest
 
 #ifdef ENABLE_SYNC
         MegaSyncStallList* getMegaSyncStallList() const override;
+        MegaSyncStallMap* getMegaSyncStallMap() const override;
         void setMegaSyncStallList(unique_ptr<MegaSyncStallList>&& stalls);
+        void setMegaSyncStallMap(std::unique_ptr<MegaSyncStallMap>&& sm);
 #endif // ENABLE_SYNC
 
 #ifdef ENABLE_CHAT
@@ -1837,6 +1839,7 @@ class MegaRequestPrivate : public MegaRequest
 
 #ifdef ENABLE_SYNC
         unique_ptr<MegaSyncStallList> mSyncStallList;
+        unique_ptr<MegaSyncStallMap> mSyncStallMap;
 #endif // ENABLE_SYNC
 
         unique_ptr<MegaNotificationList> mMegaNotifications;
@@ -2968,8 +2971,8 @@ public:
 class MegaSyncStallListPrivate : public MegaSyncStallList
 {
     public:
+        MegaSyncStallListPrivate() = default;
         MegaSyncStallListPrivate(SyncProblems&&, AddressedStallFilter& filter);
-
         MegaSyncStallListPrivate* copy() const override;
 
         const MegaSyncStall* get(size_t i) const override;
@@ -2979,8 +2982,46 @@ class MegaSyncStallListPrivate : public MegaSyncStallList
             return mStalls.size();
         }
 
+        void addStall(std::shared_ptr<MegaSyncStall> s)
+        {
+            assert(!!s);
+            mStalls.push_back(s);
+        }
+
     protected:
         std::vector<std::shared_ptr<MegaSyncStall>> mStalls;
+};
+
+class MegaSyncStallMapPrivate: public MegaSyncStallMap
+{
+public:
+    MegaSyncStallMapPrivate(SyncProblems&& sp, AddressedStallFilter& filter);
+
+    MegaSyncStallMapPrivate* copy() const override
+    {
+        return new MegaSyncStallMapPrivate(*this);
+    }
+
+    const MegaSyncStallList* get(const MegaHandle key) const override
+    {
+        if (const auto& it = mStallsMap.find(key); it != mStallsMap.end())
+        {
+            return &it->second;
+        }
+        return nullptr;
+    }
+
+    size_t size() const override
+    {
+        return mStallsMap.size();
+    }
+
+    MegaHandleList* getKeys() const override;
+
+protected:
+    MegaSyncStallMapPrivate() = default;
+    const std::map<MegaHandle, MegaSyncStallListPrivate>& getMap() const;
+    std::map<MegaHandle, MegaSyncStallListPrivate> mStallsMap;
 };
 
 #endif // ENABLE_SYNC
@@ -3559,6 +3600,7 @@ class MegaApiImpl : public MegaApp
         MegaSync *getSyncByNode(MegaNode *node);
         MegaSync *getSyncByPath(const char * localPath);
         void getMegaSyncStallList(MegaRequestListener* listener);
+        void getMegaSyncStallMap(MegaRequestListener* listener);
         void clearStalledPath(MegaSyncStall*);
 
         void moveToDebris(const char* path, MegaHandle syncBackupId, MegaRequestListener* listener = nullptr);
@@ -4578,6 +4620,7 @@ public:
         void performRequest_setLastActionedBanner(MegaRequestPrivate* request);
         error getLastActionedBanner_getua_result(byte* data, unsigned len, MegaRequestPrivate* request);
         void performRequest_enableTestSurveys(MegaRequestPrivate* request);
+        error performRequest_getSyncStalls(MegaRequestPrivate* request);
 };
 
 class MegaHashSignatureImpl

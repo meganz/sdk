@@ -1557,29 +1557,27 @@ void AddressedStallFilter::clear()
     addressedNameConflictLocalStalls.clear();
 }
 
-
 void MegaApiImpl::getMegaSyncStallList(MegaRequestListener* listener)
 {
     auto request = new MegaRequestPrivate(MegaRequest::TYPE_GET_SYNC_STALL_LIST, listener);
 
-    request->performRequest = [this, request]() -> error {
+    request->performRequest = [this, request]() -> error
+    {
+        return performRequest_getSyncStalls(request);
+    };
 
-        auto completion = [this, request](unique_ptr<SyncProblems> problems) {
+    requestQueue.push(request);
+    waiter->notify();
+}
 
-            mAddressedStallFilter.removeOldFilters(client->syncs.completedPassCount.load());
+void MegaApiImpl::getMegaSyncStallMap(MegaRequestListener* listener)
+{
+    auto request = new MegaRequestPrivate(MegaRequest::TYPE_GET_SYNC_STALL_LIST, listener);
+    request->setFlag(true);
 
-            // If the user already addressed some sync issues but the sync hasn't made another pass
-            // to generate a new stall list, then the filter will hide those for now
-            auto error = std::make_unique<MegaErrorPrivate>(API_OK);
-            auto stalls = std::make_unique<MegaSyncStallListPrivate>(move(*problems), mAddressedStallFilter);
-
-            request->setMegaSyncStallList(std::move(stalls));
-
-            fireOnRequestFinish(request, std::move(error));
-        };
-
-        client->syncs.getSyncProblems(std::move(completion), true);
-        return API_OK;
+    request->performRequest = [this, request]() -> error
+    {
+        return performRequest_getSyncStalls(request);
     };
 
     requestQueue.push(request);
@@ -1893,6 +1891,53 @@ MegaSyncStallListPrivate::MegaSyncStallListPrivate(SyncProblems&& sp, AddressedS
     }
 }
 
+MegaSyncStallMapPrivate::MegaSyncStallMapPrivate(SyncProblems&& sp, AddressedStallFilter& filter)
+{
+    for (const auto& [syncId, nameConflictList]: sp.mConflictsMap)
+    {
+        auto& stallList = mStallsMap[syncId];
+        for (const auto& nc: nameConflictList)
+        {
+            if (!filter.addressedNameConfict(nc.cloudPath, nc.localPath))
+            {
+                stallList.addStall(std::make_shared<MegaSyncNameConflictStallPrivate>(nc));
+            }
+        }
+    }
+
+    for (const auto& [syncId, stalledSyncMap]: sp.mStalls.syncStallInfoMaps)
+    {
+        auto addStalls =
+            [&stallList = mStallsMap[syncId], &filter](const auto& stallMap, auto filterFunc)
+        {
+            for (const auto& stall: stallMap)
+            {
+                if (!std::invoke(filterFunc, filter, stall.first))
+                {
+                    stallList.addStall(std::make_shared<MegaSyncStallPrivate>(stall.second));
+                }
+            }
+        };
+
+        addStalls(stalledSyncMap.cloud, &AddressedStallFilter::addressedCloudStall);
+        addStalls(stalledSyncMap.local, &AddressedStallFilter::addressedLocalStall);
+    }
+}
+
+MegaHandleList* MegaSyncStallMapPrivate::getKeys() const
+{
+    MegaHandleList* list = MegaHandleList::createInstance();
+    for (const auto& stall: mStallsMap)
+    {
+        list->addMegaHandle(stall.first);
+    }
+    return list;
+}
+
+const std::map<MegaHandle, MegaSyncStallListPrivate>& MegaSyncStallMapPrivate::getMap() const
+{
+    return mStallsMap;
+}
 #endif // ENABLE_SYNC
 
 MegaScheduledCopy *MegaApiImpl::getScheduledCopyByTag(int tag)
@@ -4023,6 +4068,11 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
 #ifdef ENABLE_SYNC
     if (request->mSyncStallList)
         mSyncStallList.reset(request->mSyncStallList->copy());
+
+    if (request->mSyncStallMap)
+    {
+        mSyncStallMap.reset(request->mSyncStallMap->copy());
+    }
 #endif // ENABLE_SYNC
     this->mStringList.reset(request->mStringList ? request->mStringList->copy() : nullptr);
     this->mMegaVpnRegions.reset(request->mMegaVpnRegions ? request->mMegaVpnRegions->copy() :
@@ -4080,11 +4130,20 @@ MegaSyncStallList* MegaRequestPrivate::getMegaSyncStallList() const
     return mSyncStallList.get();
 }
 
+MegaSyncStallMap* MegaRequestPrivate::getMegaSyncStallMap() const
+{
+    return mSyncStallMap.get();
+}
+
 void MegaRequestPrivate::setMegaSyncStallList(unique_ptr<MegaSyncStallList>&& sl)
 {
     mSyncStallList = std::move(sl);
 }
 
+void MegaRequestPrivate::setMegaSyncStallMap(std::unique_ptr<MegaSyncStallMap>&& sm)
+{
+    mSyncStallMap = std::move(sm);
+}
 #endif // ENABLE_SYNC
 
 #ifdef ENABLE_CHAT
@@ -27961,6 +28020,34 @@ void MegaApiImpl::performRequest_enableTestSurveys(MegaRequestPrivate* request)
                       fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
                   });
 }
+
+#ifdef ENABLE_SYNC
+error MegaApiImpl::performRequest_getSyncStalls(MegaRequestPrivate* request)
+{
+    const auto completion = [this, request](std::unique_ptr<SyncProblems> problems)
+    {
+        mAddressedStallFilter.removeOldFilters(client->syncs.completedPassCount.load());
+        // If the user already addressed some sync issues but the sync hasn't made another pass
+        // to generate a new stall list, then the filter will hide those for now
+        if (const auto getMap = request->getFlag(); getMap)
+        {
+            auto stallsMap =
+                std::make_unique<MegaSyncStallMapPrivate>(move(*problems), mAddressedStallFilter);
+            request->setMegaSyncStallMap(std::move(stallsMap));
+        }
+        else
+        {
+            auto stallsList =
+                std::make_unique<MegaSyncStallListPrivate>(move(*problems), mAddressedStallFilter);
+            request->setMegaSyncStallList(std::move(stallsList));
+        }
+        fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
+    };
+
+    client->syncs.getSyncProblems(std::move(completion), true);
+    return API_OK;
+}
+#endif
 
 void MegaApiImpl::enableTestSurveys(const MegaHandleList* surveyHandles,
                                     MegaRequestListener* listener)
