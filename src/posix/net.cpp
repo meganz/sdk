@@ -1471,11 +1471,16 @@ std::string gencash(const string& token, uint8_t easiness)
         std::copy(tokenBinary.begin(), tokenBinary.end(), buffer.begin() + 4 + i * 48);
     }
 
-    while (1)
+    // Define a 4-byte unsigned counter, to be set as the prefix of the data to be hashed.
+    for (uint32_t i = 1; i < std::numeric_limits<uint32_t>::max(); ++i)
     {
-        // Increment prefix
-        uint32_t& prefixToIncrement = *reinterpret_cast<uint32_t*>(buffer.data());
-        ++prefixToIncrement;
+        // Write the prefix in front of the data in reversed byte-order
+        for (auto j = 0; j < 4; ++j)
+        {
+            uint8_t& src = *(reinterpret_cast<uint8_t*>(&i) + j);
+            uint8_t& dst = *(reinterpret_cast<uint8_t*>(buffer.data()) + 3 - j);
+            dst = src;
+        }
 
         // SHA-256 hash
         HashSHA256 hasher;
@@ -1484,15 +1489,25 @@ std::string gencash(const string& token, uint8_t easiness)
         string hash;
         hasher.get(&hash);
 
-        // Check if hash meets threshold
-        uint32_t prefixOfDigest =
-            static_cast<uint32_t>((hash[0] << 24) | (hash[1] << 16) | (hash[2] << 8) | hash[3]);
+        // Get the new prefix after the hasher function has modified it along with the original
+        // data.
+        // Get the value converting it from reversed byte-order.
+        uint32_t prefixOfDigest = (uint16_t)hash[0];
+        prefixOfDigest <<= 8;
+        prefixOfDigest += (uint16_t)hash[1];
+        prefixOfDigest <<= 8;
+        prefixOfDigest += (uint16_t)hash[2];
+        prefixOfDigest <<= 8;
+        prefixOfDigest += (uint16_t)hash[3];
+
         if (prefixOfDigest <= threshold)
         {
             string prefixToReturn(buffer.begin(), buffer.begin() + 4);
             return Base64::btoa(prefixToReturn);
         }
     }
+
+    return {};
 }
 
 void CurlHttpIO::send_request(CurlHttpContext* httpctx)
