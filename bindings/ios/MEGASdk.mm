@@ -4063,6 +4063,20 @@ using namespace mega;
     }
 }
 
+- (void)enableRequestStatusMonitor:(BOOL)enable {
+    if (self.megaApi) {
+        self.megaApi->enableRequestStatusMonitor(enable);
+    }
+}
+
+- (BOOL)isRequestStatusMonitorEnabled {
+    if (self.megaApi) {
+        return self.megaApi->requestStatusMonitorEnabled();
+    } else {
+        return NO;
+    }
+}
+
 #pragma mark - VPN
 
 - (void)getVpnRegionsWithDelegate:(id<MEGARequestDelegate>)delegate {
