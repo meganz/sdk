@@ -1719,7 +1719,7 @@ public:
     // When triggering an API Hashcash challenge, the HTTP response will contain
     // X-Hashcash header, with relevant data to be saved and used for the next retry.
     string mReqHashcashToken;
-    uint8_t mReqHashcashEasyness{};
+    uint8_t mReqHashcashEasiness{};
 
     // Only queue the "Server busy" event once, until the current cs completes, otherwise we may DDOS
     // ourselves in cases where many clients get 500s for a while and then recover at the same time
