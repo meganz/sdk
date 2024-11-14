@@ -13,13 +13,13 @@ class JiraTicketsReporter:
         jira_token: str,
         jira_project_key: str,
         slack_token: str,
-        slack_channel: str,
+        slack_channel_id: str,
     ):
         self._jira_url = jira_url
         self._jira_client = JIRA(self._jira_url, token_auth=jira_token)
         self._jira_project_key = jira_project_key
         self._slack_client = WebClient(token=slack_token)
-        self._slack_channel = slack_channel
+        self._slack_channel = slack_channel_id
 
     def get_jira_query_for_issues_missing_fix_version(self, project_key: str):
         return f'project = {project_key} AND status = Resolved AND resolution = Done AND fixVersion is EMPTY AND "Release number affected" is not EMPTY'
@@ -51,12 +51,23 @@ class JiraTicketsReporter:
             print(f"Error fetching Slack user ID for {email}: {e.response['error']}")
             return None
 
+    def ensure_user_is_in_the_channel(self, slack_user_id: str):
+        member_list = self._slack_client.conversations_members(
+            channel=self._slack_channel
+        )["members"]
+        if slack_user_id in member_list:
+            return
+        self._slack_client.conversations_invite(
+            channel=self._slack_channel, users=[slack_user_id]
+        )
+
     def post_to_slack(
         self, issue_key: str, slack_user_id: str | None, missing_field: str
     ):
         if not slack_user_id:
             user_mention = "<!channel>"
         else:
+            self.ensure_user_is_in_the_channel(slack_user_id=slack_user_id)
             user_mention = f"<@{slack_user_id}>"
 
         issue_url = f"{self._jira_url}/browse/{issue_key}"
@@ -132,7 +143,7 @@ jiraTicketsReporter = JiraTicketsReporter(
     jira_token=JIRA_PERSONAL_ACCESS_TOKEN,
     jira_project_key=JIRA_PROJECT_KEY,
     slack_token=SLACK_BOT_TOKEN,
-    slack_channel=SLACK_CHANNEL,
+    slack_channel_id=SLACK_CHANNEL,
 )
 
 # Report issues
