@@ -1477,9 +1477,6 @@ std::string gencash(const string& token, uint8_t easiness)
         uint32_t& prefixToIncrement = *reinterpret_cast<uint32_t*>(buffer.data());
         ++prefixToIncrement;
 
-        // Save prefix
-        std::string prefixToReturn(buffer.begin(), buffer.begin() + 4);
-
         // SHA-256 hash
         HashSHA256 hasher;
         hasher.add((const byte*)buffer.data(), static_cast<unsigned>(buffer.size()));
@@ -1492,6 +1489,7 @@ std::string gencash(const string& token, uint8_t easiness)
             static_cast<uint32_t>((hash[0] << 24) | (hash[1] << 16) | (hash[2] << 8) | hash[3]);
         if (prefixOfDigest <= threshold)
         {
+            string prefixToReturn(buffer.begin(), buffer.begin() + 4);
             return Base64::btoa(prefixToReturn);
         }
     }
@@ -2797,7 +2795,7 @@ size_t CurlHttpIO::check_header(void* ptr, size_t size, size_t nmemb, void* targ
         if (hc.size() != 4 // incomplete data
             || stoi(hc[0]) != 1 // not required to process
             || stoi(hc[1]) < 0 || stoi(hc[1]) > 255 // invalid easiness [0, 255]
-            || hc[3].size() != 64)  // token is 64 chars in B64
+            || hc[3].size() < 64)  // token is 64 chars in B64 (may have ending \r\n
         {
             req->mHashcashToken.clear();
             req->mHashcashEasiness = 0;
