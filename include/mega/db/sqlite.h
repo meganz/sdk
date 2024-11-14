@@ -27,6 +27,8 @@
 
 #include "mega/db.h"
 
+#include <filesystem>
+#include <optional>
 #include <sqlite3.h>
 
 namespace mega {
@@ -199,6 +201,9 @@ public:
     DbTable* openTableWithNodes(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags, DBErrorCallback dBErrorCallBack) override;
 
     bool probe(FileSystemAccess& fsAccess, const string& name) const override;
+
+    std::optional<std::filesystem::path> getExistingDbPath(const FileSystemAccess& fsAccess,
+                                                           const std::string& fname) const override;
 
     const LocalPath& rootPath() const override;
 

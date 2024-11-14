@@ -22,11 +22,13 @@
 #ifndef MEGA_SYNC_H
 #define MEGA_SYNC_H 1
 
-#include <future>
-#include <unordered_set>
-
 #include "db.h"
 #include "waiter.h"
+
+#include <filesystem>
+#include <future>
+#include <optional>
+#include <unordered_set>
 
 #ifdef ENABLE_SYNC
 #include "node.h"
@@ -182,6 +184,9 @@ public:
     // Name of this sync's state cache.
     string getSyncDbStateCacheName(handle fsid, NodeHandle nh, handle userId) const;
 
+    std::optional<std::filesystem::path> getSyncDbPath(const FileSystemAccess& fsAccess,
+                                                       const MegaClient& client) const;
+
     // How should the engine detect filesystem changes?
     ChangeDetectionMethod mChangeDetectionMethod = CDM_NOTIFICATIONS;
 
@@ -245,9 +250,28 @@ struct UnifiedSync
     // Update state and signal to application
     void changeState(SyncError newSyncError, bool newEnableFlag, bool notifyApp, bool keepSyncDb);
 
+    /**
+     * @brief A wrapper around changeState that also makes sure mSync gets reset
+     */
+    void suspendSync();
+
+    /**
+     * @brief A wrapper around enableSyncByBackupId if the sync is not running
+     *
+     * @param completion callback to forward to enableSyncByBackupId
+     */
+    void resumeSync(std::function<void(error, SyncError, handle)>&& completion);
+
     shared_ptr<bool> sdsUpdateInProgress;
 
     PerSyncStats lastReportedDisplayStats;
+
+    /**
+     * @brief Check if the associated sync should work with a database for the statecachetable
+     *
+     * @return true if it should, false otherwise
+     */
+    bool shouldHaveDatabase() const;
 
 private:
     friend class Sync;
@@ -595,6 +619,18 @@ public:
 
     Sync(UnifiedSync&, const string&, const LocalPath&, bool, const string& logname, SyncError& e);
     ~Sync();
+
+    /**
+     * @brief Checks if this sync should have a database, in that case tries to open it if it
+     * already exists and tries to create it if it doesn't
+     *
+     * Note: this method will reset the statecachetable member with a pointer to the DBTable if
+     * everything went well.
+     *
+     * @param errorHandler a function to be called if something went wrong while opening the db
+     * @return true if we ended up with an opened database, false otherwise
+     */
+    bool openOrCreateDb(DBErrorCallback&& errorHandler);
 
     // Asynchronous scan request / result.
     std::shared_ptr<ScanService::ScanRequest> mActiveScanRequestGeneral;

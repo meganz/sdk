@@ -18,12 +18,12 @@
  * You should have received a copy of the license along with this
  * program.
  */
+#include "mega.h"
+
 #include <cctype>
+#include <future>
 #include <memory>
 #include <type_traits>
-#include <future>
-
-#include "mega.h"
 
 #ifdef ENABLE_SYNC
 #include "mega/base64.h"
@@ -559,6 +559,13 @@ string SyncConfig::getSyncDbStateCacheName(handle fsid, NodeHandle nh, handle us
     return dbname;
 }
 
+std::optional<std::filesystem::path> SyncConfig::getSyncDbPath(const FileSystemAccess& fsAccess,
+                                                               const MegaClient& client) const
+{
+    const auto fname = getSyncDbStateCacheName(mLocalPathFsid, mRemoteNode, client.me);
+    return client.dbaccess->getExistingDbPath(fsAccess, fname);
+}
+
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated
 Sync::Sync(UnifiedSync& us, const string& cdebris,
@@ -701,29 +708,14 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
               << us.mConfig.mLocalPathFsid;
 
     // load LocalNodes from cache (only for internal syncs)
-    // We are using SQLite in the no-mutex mode, so only access a database from a single thread.
-    if (shouldHaveDatabase())
-    {
-        string dbname = config.getSyncDbStateCacheName(fas->fsid, config.mRemoteNode, syncs.mClient.me);
+    us.mConfig.mDatabaseExists = shouldHaveDatabase() && openOrCreateDb(
+                                                             [this](DBError error)
+                                                             {
+                                                                 syncs.mClient.handleDbError(error);
+                                                             });
+    if (us.mConfig.mDatabaseExists)
+        readstatecache();
 
-        // Check if the database exists on disk.
-        us.mConfig.mDatabaseExists = syncs.mClient.dbaccess->probe(*syncs.fsaccess, dbname);
-
-        // Note, we opened dbaccess in thread-safe mode
-            statecachetable.reset(syncs.mClient.dbaccess->open(syncs.rng, *syncs.fsaccess, dbname, DB_OPEN_FLAG_RECYCLE |  DB_OPEN_FLAG_TRANSACTED, [this](DBError error)
-            {
-                syncs.mClient.handleDbError(error);
-            }));
-
-        // Did the call above create the database?
-        us.mConfig.mDatabaseExists |= !!statecachetable;
-
-        // Don't bother trying to read the cache if we couldn't open the database.
-        if (us.mConfig.mDatabaseExists)
-        {
-            readstatecache();
-        }
-    }
     us.mConfig.mRunState = SyncRunState::Run;
 
     mCaseInsensitive = determineCaseInsenstivity(false);
@@ -757,6 +749,29 @@ Sync::~Sync()
     // Decrement counter of active syncs.
     --syncs.mNumSyncsActive;
 }
+
+bool Sync::openOrCreateDb(DBErrorCallback&& errorHandler)
+{
+    // We are using SQLite in the no-mutex mode, so only access a database from a single thread.
+    assert(syncs.onSyncThread());
+
+    auto& config = mUnifiedSync.mConfig;
+    const std::string dbname =
+        config.getSyncDbStateCacheName(config.mLocalPathFsid, config.mRemoteNode, syncs.mClient.me);
+
+    // Check if the database exists on disk.
+    const bool dbExistsOnDisk = syncs.mClient.dbaccess->probe(*syncs.fsaccess, dbname);
+
+    // Note, we opened dbaccess in thread-safe mode
+    statecachetable.reset(
+        syncs.mClient.dbaccess->open(syncs.rng,
+                                     *syncs.fsaccess,
+                                     dbname,
+                                     DB_OPEN_FLAG_RECYCLE | DB_OPEN_FLAG_TRANSACTED,
+                                     std::move(errorHandler)));
+
+    return dbExistsOnDisk || statecachetable != nullptr;
+};
 
 bool Sync::isBackup() const
 {
@@ -795,7 +810,7 @@ void Sync::setBackupMonitoring()
 
 bool Sync::shouldHaveDatabase() const
 {
-    return syncs.mClient.dbaccess && !mUnifiedSync.mConfig.isExternal();
+    return mUnifiedSync.shouldHaveDatabase();
 }
 
 const fsfp_t& Sync::fsfp() const
@@ -1090,6 +1105,26 @@ void UnifiedSync::changeState(SyncError newSyncError, bool newEnableFlag, bool n
 
     changedConfigState(!!syncs.mSyncConfigStore, notifyApp);
     mNextHeartbeat->updateSPHBStatus(*this);
+}
+
+void UnifiedSync::suspendSync()
+{
+    assert(syncs.onSyncThread());
+    if (!mSync)
+        return;
+    changeState(UNLOADING_SYNC, false, false, true);
+    mSync.reset();
+}
+
+void UnifiedSync::resumeSync(std::function<void(error, SyncError, handle)>&& completion)
+{
+    assert(syncs.onSyncThread());
+    syncs.enableSyncByBackupId_inThread(mConfig.mBackupId, true, std::move(completion), "");
+}
+
+bool UnifiedSync::shouldHaveDatabase() const
+{
+    return syncs.mClient.dbaccess && !mConfig.isExternal();
 }
 
 // walk localpath and return corresponding LocalNode and its parent
@@ -4144,8 +4179,7 @@ void Syncs::changeSyncRemoteRootInThread(const handle backupId,
                                  std::end(mSyncVec),
                                  [backupId](const auto& unifSync)
                                  {
-                                     return unifSync && unifSync->mSync &&
-                                            unifSync->mConfig.mBackupId == backupId;
+                                     return unifSync && unifSync->mConfig.mBackupId == backupId;
                                  });
     if (it == std::end(mSyncVec))
     {
@@ -4153,33 +4187,54 @@ void Syncs::changeSyncRemoteRootInThread(const handle backupId,
         return completion(API_EARGS, UNKNOWN_ERROR);
     }
 
-    const auto& unifiedSync = *it;
-    auto& syncConfig = unifiedSync->mConfig;
+    const auto& unifSync = (*it);
+    auto& config = unifSync->mConfig;
     const auto newRootNH = newRootNode->nodeHandle();
-    if (syncConfig.mRemoteNode == newRootNH)
+    if (config.mRemoteNode == newRootNH)
     {
         LOG_err << "The given node to set as new root is already the root of the sync";
         return completion(API_EEXIST, UNKNOWN_ERROR);
     }
 
-    // Does the sync have pending transfers?
-    if (unifiedSync->mSync->hasPendingTransfers())
+    const auto performTheRootChange = [&config, &unifSync, newRootNH, this]()
     {
-        LOG_err << "Trying to change the remote root of a sync that has ongoing transfers";
-        return completion(API_ETEMPUNAVAIL, UNKNOWN_ERROR);
+        const auto& syncs = unifSync->syncs;
+        if (const auto currentDbPath = config.getSyncDbPath(*syncs.fsaccess, syncs.mClient);
+            currentDbPath)
+        {
+            const auto newDbFileName =
+                config.getSyncDbStateCacheName(config.mLocalPathFsid, newRootNH, syncs.mClient.me);
+
+            std::filesystem::path newDbPath{
+                syncs.mClient.dbaccess
+                    ->databasePath(*syncs.fsaccess, newDbFileName, DbAccess::DB_VERSION)
+                    .rawValue()};
+
+            std::filesystem::rename(*currentDbPath, newDbPath);
+        }
+        config.mRemoteNode = newRootNH;
+        ensureDriveOpenedAndMarkDirty(config.mExternalDrivePath);
+        mHeartBeatMonitor->updateOrRegisterSync(*unifSync);
+    };
+
+    if (const bool syncRunning = (unifSync->mSync != nullptr); syncRunning)
+    {
+        unifSync->suspendSync();
+        performTheRootChange();
+        unifSync->resumeSync(
+            [completion = std::move(completion)](error err, SyncError serr, handle)
+            {
+                if (err)
+                    LOG_err << "Error resuming sync after remote root change: " << err
+                            << ", Sync err: " << serr;
+                completion(API_OK, NO_SYNC_ERROR);
+            });
     }
-
-    LOG_debug << "Changing the remote root node handle of a sync";
-    syncConfig.mRemoteNode = newRootNH;
-    unifiedSync->mSync->localroot->setSyncedNodeHandle(newRootNH);
-
-    // Make sure we sync again in next iteration and the config is committed into the db
-    unifiedSync->mSync->localroot->setSyncAgain(false, true, true);
-    ensureDriveOpenedAndMarkDirty(syncConfig.mExternalDrivePath);
-
-    // update information on the servers
-    mHeartBeatMonitor->updateOrRegisterSync(*unifiedSync);
-    completion(API_OK, NO_SYNC_ERROR);
+    else
+    {
+        performTheRootChange();
+        completion(API_OK, NO_SYNC_ERROR);
+    }
 }
 
 void Syncs::manageRemoteRootLocationChange(Sync& sync) const

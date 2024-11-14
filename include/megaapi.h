@@ -17422,7 +17422,11 @@ class MegaApi
         /**
          * @brief Change the node that is being used as remote root for a sync.
          *
-         * This operation is only allowed with syncs of TYPE_TWOWAY.
+         * @important If the sync is active when executing this method, it will be temporary
+         * suspended to perform the change, meaning that any ongoing transfer will be automatically
+         * stopped.
+         *
+         * @note This operation is only allowed with syncs of TYPE_TWOWAY.
          *
          * The associated request type with this request is MegaRequest::TYPE_CHANGE_SYNC_ROOT
          * Valid data in the MegaRequest object received on callbacks:
@@ -17430,18 +17434,24 @@ class MegaApi
          * - MegaRequest::getNodeHandle - Returns the affected sync backupId
          * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
          * - MegaRequest::getNumDetails - If different than NO_SYNC_ERROR, it returns additional
-         * info for the specific sync error (MegaSync::Error). It could happen both when the request
-         * has succeeded (API_OK) and also in some cases of failure, when the request error is not
-         * accurate enough.
+         * info about the specific sync error (MegaSync::Error). It could happen both when the
+         * request has succeeded (API_OK) and also in some cases of failure, when the request error
+         * is not accurate enough.
          *
-         * On the onRequestFinish error, the error code associated to the MegaError
-         * (MegaError::getErrorCode()) can be:
-         * - MegaError::API_EARGS - If there is no sync with the given id or there is no node on the
-         *   cloud with the given handle.
-         * - MegaError::API_EEXISTS - If the current remote root is the same as the one you tried to
-         *   assign. In this case the associated MegaError::getSyncError() will be UNKNOWN_ERROR
-         * - MegaError::API_ETEMPUNAVAIL - If the sync to be modified has ongoing transfers. In this
-         *   case the associated MegaError::getSyncError() will be UNKNOWN_ERROR
+         * On the onRequestFinish callback, the error code associated with the MegaError
+         * (MegaError::getErrorCode()) and the SyncError (if relevant, MegaError::getSyncError())
+         * can be:
+         * - MegaError::API_OK:
+         *     + SyncError::NO_SYNC_ERROR the new root has been changed successfully
+         * - MegaError::API_EARGS:
+         *     + SyncError::NO_SYNC_ERROR The given syncBackupId or newRootNodeHandle are UNDEF
+         *     + SyncError::REMOTE_NODE_NOT_FOUND The given newRootNodeHandle does not map to an
+         *       existing node in the cloud
+         *     + SyncError::UNKNOWN_ERROR The given syncBackupId does not map to an existing two way
+         *       sync
+         * - MegaError::API_EEXISTS:
+         *     + SyncError::UNKNOWN_ERROR the given newRootNodeHandle matches with the one that is
+         *       already the root of the sync
          *
          * Additionally, error codes associated to the MegaApi::isNodeSyncableWithError() method
          * can also be reported by this method. See MegaApi::isNodeSyncableWithError() for specific
