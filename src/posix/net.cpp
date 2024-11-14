@@ -1464,7 +1464,7 @@ std::string gencash(const string& token, uint8_t easiness)
     string tokenBinary = Base64::atob(token);
 
     // Buffer to hold 4-byte prefix + 262144 * 48 bytes of the token
-    std::vector<uint8_t> buffer(4 + 262144 * 48); // total size = 179919652
+    std::vector<uint8_t> buffer(4 + 262144 * 48); // total size = 12582916
     for (auto i = 0; i < 262144; ++i)
     {
         std::copy(tokenBinary.begin(), tokenBinary.end(), buffer.begin() + 4 + i * 48);
@@ -1530,12 +1530,12 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
 
     if (!req->mHashcashToken.empty())
     {
-        string nextValue = gencash(req->mHashcashToken, req->mHashcashEasyness);
+        string nextValue = gencash(req->mHashcashToken, req->mHashcashEasiness);
         string xHashcashHeader{"X-Hashcash: 1:" + req->mHashcashToken + ":" + std::move(nextValue)};
         httpctx->headers = curl_slist_append(httpctx->headers, xHashcashHeader.c_str());
         LOG_warn << "X-Hashcash computed: " << xHashcashHeader;
         req->mHashcashToken.clear();
-        req->mHashcashEasyness = 0;
+        req->mHashcashEasiness = 0;
     }
 
 #ifdef MEGA_USE_C_ARES
@@ -2793,12 +2793,12 @@ size_t CurlHttpIO::check_header(void* ptr, size_t size, size_t nmemb, void* targ
             || hc[3].size() != 64)  // token is 64 chars in B64
         {
             req->mHashcashToken.clear();
-            req->mHashcashEasyness = 0;
+            req->mHashcashEasiness = 0;
         }
         else
         {
             req->mHashcashToken = hc[3].substr(0, 64);
-            req->mHashcashEasyness = static_cast<uint8_t>(stoi(hc[1]));
+            req->mHashcashEasiness = static_cast<uint8_t>(stoi(hc[1]));
         }
     }
     else

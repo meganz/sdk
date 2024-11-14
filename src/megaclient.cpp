@@ -2592,7 +2592,7 @@ void MegaClient::exec()
                             {
                                 mReqHashcashToken = std::move(pendingcs->mHashcashToken);
                                 pendingcs->mHashcashToken.clear(); // just to be sure
-                                mReqHashcashEasyness = pendingcs->mHashcashEasyness;
+                                mReqHashcashEasiness = pendingcs->mHashcashEasiness;
                             }
                         }
 
@@ -2708,7 +2708,7 @@ void MegaClient::exec()
 
                     pendingcs->mHashcashToken = std::move(mReqHashcashToken);
                     mReqHashcashToken.clear();
-                    pendingcs->mHashcashEasyness = mReqHashcashEasyness;
+                    pendingcs->mHashcashEasiness = mReqHashcashEasiness;
                     performanceStats.csRequestWaitTime.start();
                     pendingcs->post(this);
                     continue;
@@ -4766,7 +4766,7 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
 
     mLastErrorDetected = REASON_ERROR_NO_ERROR;
     
-    mReqHashcashEasyness = 0;
+    mReqHashcashEasiness = 0;
     mReqHashcashToken.clear();
 }
 
