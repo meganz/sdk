@@ -11928,7 +11928,8 @@ void MegaClient::upgradeSecurity(std::function<void(Error)> completion)
     const UserAttribute* attribute = u->getAttribute(ATTR_KEYRING);
     if (attribute && attribute->isValid())
     {
-        if (auto records{tlv::containerToRecords(attribute->value(), key)})
+        unique_ptr<string_map> records{tlv::containerToRecords(attribute->value(), key)};
+        if (records)
         {
             prEd255.swap((*records)[EdDSA::TLV_KEY]);
             prCu255.swap((*records)[ECDH::TLV_KEY]);
@@ -12682,7 +12683,7 @@ bool MegaClient::getua(User* u, const attr_t at, int ctag, mega::CommandGetUA::C
             const string& cachedav = attribute->value();
             if (User::scope(at) == ATTR_SCOPE_PRIVATE_ENCRYPTED) // TLV encoding
             {
-                auto records = tlv::containerToRecords(cachedav, key);
+                unique_ptr<string_map> records{tlv::containerToRecords(cachedav, key)};
                 restag = tag;
                 completionTLV ? completionTLV(std::move(records), at) :
                                 app->getua_result(std::move(records), at);
@@ -12769,7 +12770,9 @@ void MegaClient::loginResult(CommandLogin::Completion completion,
             // initiate automatic upgrade to V2
             string pwd;
             bool upgrade = false;
-            if (auto records{tlv::containerToRecords(v1PswdVault->first, v1PswdVault->second)})
+            unique_ptr<string_map> records{
+                tlv::containerToRecords(v1PswdVault->first, v1PswdVault->second)};
+            if (records)
             {
                 if (auto it = records->find("p"); it != records->end())
                 {
@@ -12866,10 +12869,11 @@ void MegaClient::saveV1Pwd(const char* pwd)
         rng.genblock(pwkey.data(), pwkey.size());
         SymmCipher pwcipher(pwkey.data());
 
-        if (auto encrypted{
-                tlv::recordsToContainer({{"p", pwd}},
-                rng, pwcipher)
-        })
+        unique_ptr<string> encrypted{
+            tlv::recordsToContainer({{"p", pwd}},
+            rng, pwcipher)
+        };
+        if (encrypted)
         {
             mV1PswdVault.reset(
                 new pair<string, SymmCipher>(std::move(*encrypted), std::move(pwcipher)));
@@ -15226,7 +15230,8 @@ void MegaClient::initializekeys()
         const UserAttribute* attribute = u->getAttribute(ATTR_KEYRING);
         if (attribute && attribute->isValid())
         {
-            if (auto records{tlv::containerToRecords(attribute->value(), key)})
+            unique_ptr<string_map> records{tlv::containerToRecords(attribute->value(), key)};
+            if (records)
             {
                 prEd255.swap((*records)[EdDSA::TLV_KEY]);
                 prCu255.swap((*records)[ECDH::TLV_KEY]);
@@ -15531,7 +15536,9 @@ void MegaClient::loadAuthrings()
                 {
                     if (attribute->isValid())
                     {
-                        if (auto records{tlv::containerToRecords(attribute->value(), key)})
+                        unique_ptr<string_map> records{
+                            tlv::containerToRecords(attribute->value(), key)};
+                        if (records)
                         {
                             mAuthRings.emplace(at, AuthRing(at, *records));
                             LOG_info << "Authring succesfully loaded from cache: "
@@ -19707,7 +19714,8 @@ bool MegaClient::decryptAttrs(const string& attrs, const string& decrKey, string
         return false;
     }
 
-    if (auto records{tlv::containerToRecords(attrs, tmpnodecipher)})
+    unique_ptr<string_map> records{tlv::containerToRecords(attrs, tmpnodecipher)};
+    if (records)
     {
         output.swap(*records);
     }
@@ -23011,10 +23019,12 @@ void MegaClient::createJSCData(GetJSCDataCallback callback)
 
     // Instantiate store to contain the JSC data.
     string_map store{
-        {"ak", rng.genstring(Length)},
-        {"ck", rng.genstring(Length)},
-        {"fn", rng.genstring(Length)},
+        {"ak", rng.genstring(Length)}, // Key used to authenticate the sync configuration database.
+        {"ck", rng.genstring(Length)}, // Key used to encrypt the sync configuration database.
+        {"fn", rng.genstring(Length)}, // The name of the sync configuration database.
     };
+
+    // Translate the store into an encrypted binary blob.
     unique_ptr<string> content(tlv::recordsToContainer(std::move(store), rng, key));
     if (!content)
     {

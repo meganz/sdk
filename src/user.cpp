@@ -232,7 +232,9 @@ User* User::unserialize(MegaClient* client, string* d)
             const UserAttribute* attribute = u->getAttribute(ATTR_KEYRING);
             if (attribute && attribute->isValid())
             {
-                if (auto records{tlv::containerToRecords(attribute->value(), client->key)})
+                unique_ptr<string_map> records{
+                    tlv::containerToRecords(attribute->value(), client->key)};
+                if (records)
                 {
                     prEd255.swap((*records)[EdDSA::TLV_KEY]);
                     prCu255.swap((*records)[ECDH::TLV_KEY]);

@@ -1743,9 +1743,10 @@ bool StandardClient::waitForAttrDeviceIdIsSet(unsigned int numSeconds, bool& upd
     std::string deviceIdHash = client.getDeviceidHash();
     if (err == API_OK)
     {
-        if (const auto* attribute = client.ownuser()->getAttribute(ATTR_DEVICE_NAMES))
+        if (const UserAttribute* attribute = client.ownuser()->getAttribute(ATTR_DEVICE_NAMES))
         {
-            if (auto oldRecords{tlv::containerToRecords(attribute->value(), client.key)})
+            if (std::unique_ptr<string_map> oldRecords{
+                    tlv::containerToRecords(attribute->value(), client.key)})
             {
                 if (oldRecords->find(deviceIdHash) != oldRecords->end())
                 {

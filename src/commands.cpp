@@ -3236,7 +3236,9 @@ bool CommandPutMultipleUAVer::procresult(Result r, JSON& json)
 
                 if (type == ATTR_KEYRING)
                 {
-                    if (auto records = tlv::containerToRecords(attrs[type], client->key))
+                    unique_ptr<string_map> records{
+                        tlv::containerToRecords(attrs[type], client->key)};
+                    if (records)
                     {
                         string prEd255{std::move((*records)[EdDSA::TLV_KEY])};
                         if (prEd255.size() == EdDSA::SEED_KEY_LENGTH)

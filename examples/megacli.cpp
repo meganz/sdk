@@ -3769,7 +3769,9 @@ void putua_map(const std::string& b64key, const std::string& b64value, attr_t at
     }
     else
     {
-        if (auto oldRecords = tlv::containerToRecords(attribute->value(), client->key))
+        std::unique_ptr<string_map> oldRecords{
+            tlv::containerToRecords(attribute->value(), client->key)};
+        if (oldRecords)
         {
             destination.swap(*oldRecords);
         }

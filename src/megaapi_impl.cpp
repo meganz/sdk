@@ -8047,7 +8047,8 @@ char* MegaApiImpl::getPrivateKey(int type)
         const UserAttribute* attribute = u->getAttribute(ATTR_KEYRING);
         if (attribute && attribute->isValid())
         {
-            auto records{tlv::containerToRecords(attribute->value(), client->key)};
+            unique_ptr<string_map> records{
+                tlv::containerToRecords(attribute->value(), client->key)};
             if (records &&
                 (type == MegaApi::PRIVATE_KEY_ED25519 || type == MegaApi::PRIVATE_KEY_CU25519))
             {
