@@ -11,7 +11,7 @@
 
 
 pipeline {
-    agent { label 'linux' }
+    agent { label 'ci-debian-11-64-5' }
 
     options { 
         buildDiscarder(logRotator(numToKeepStr: '25', daysToKeepStr: '30'))
@@ -28,11 +28,11 @@ pipeline {
         password(name: 'GPG_PASSWORD', defaultValue: '', description: 'Enter the password')
     }
     environment {
-        //gitlab_token = credentials('jenkins_sdk_token')
-        //slack_token = credentials('slack_token')
-        //jira_sdk_username = credentials('') //use with credentials
-        //jira_sdk_password = credentials('') //use with credentials
-        //github_token = credentials('') //use with credentials
+        JIRA_SDK_CREDS = credentials('SDK_JIRA')
+        SLACK_TOKEN = credentials('sdk_slack_bot_releases')
+        GITLAB_TOKEN = credentials('SDK_releases_gitlab_token')
+        gpg_keygrip = credentials('sdk_gpg_keygrip_release_management')
+        GITHUB_TOKEN = credentials('sdk_github_token')
         project_name = "SDK"
         slack_channel = "sdk"
         slack_channel_dev_requests = "sdk_devs_only"
@@ -41,9 +41,6 @@ pipeline {
         confluence_url = "${env.CONFLUENCE_BASE_URL}"
         confluence_page_id = "3640225"
         github_push_remote_url = "git@github.com:meganz/sdk.git"
-        //gpg_keygrip = credentials('') //use with credentials
-        //confluence_username = credentials('') //use with credentials
-        //confluence_password = credentials('') //use with credentials
     }
 
     stages {
@@ -78,9 +75,15 @@ pipeline {
                 beforeAgent true
                 expression { params.ACTION == "Create_Release" }
             }
+            environment {
+                JIRA_USERNAME = '$JIRA_SDK_CREDS_USR'
+                JIRA_PASSWORD = '$JIRA_SDK_CREDS_PSW'
+            }
             steps {
                 dir("automation"){
+
                     sh 'cat config.toml'
+                    sh 'python3 ./make_release.py config.toml'
                 }
             }
         }
@@ -89,9 +92,14 @@ pipeline {
                 beforeAgent true
                 expression { params.ACTION == "Create_Release_CANDIDATE" } 
             }
+            environment {
+                JIRA_USERNAME = '$JIRA_SDK_CREDS_USR'
+                JIRA_PASSWORD = '$JIRA_SDK_CREDS_PSW'
+            }
             steps {
                 dir("automation"){
                     sh 'cat config.toml'
+                    sh 'python3 ./make_another_rc.py config.toml'
                 }
             }
         }
@@ -100,9 +108,16 @@ pipeline {
                 beforeAgent true
                 expression { params.ACTION == "Close_Release" }
             }
+            environment {
+                JIRA_USERNAME = '$JIRA_SDK_CREDS_USR'
+                JIRA_PASSWORD = '$JIRA_SDK_CREDS_PSW'
+                CONFLUENCE_USER = '$JIRA_SDK_CREDS_USR'
+                CONFLUENCE_PASSWORD = '$JIRA_SDK_CREDS_PSW'
+            }
             steps {
                 dir("automation"){
                     sh 'cat config.toml'
+                    sh 'python3 ./close_release.py config.toml'
                 }
             }
         }
@@ -111,9 +126,15 @@ pipeline {
                 beforeAgent true
                 expression { params.ACTION == "Patch_Release" }
             }
+            environment {
+                JIRA_USERNAME = '$JIRA_SDK_CREDS_USR'
+                JIRA_PASSWORD = '$JIRA_SDK_CREDS_PSW'
+            }
             steps {
                 dir("automation"){
                     sh 'cat config.toml'
+                    sh 'python3 ./patch_release.py config.toml'
+
                 }
             }
         }
