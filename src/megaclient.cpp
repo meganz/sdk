@@ -6888,21 +6888,26 @@ void MegaClient::sc_userattr()
                         {
                             if (attribute->version() != *ituav)
                             {
+                                bool alreadyExisting = !attribute->isNotExisting();
                                 u->setAttributeExpired(type);
                                 switch(type)
                                 {
                                     case ATTR_KEYRING:
-                                    {
-                                        assert(false);
-                                        resetKeyring();
+                                        if (alreadyExisting)
+                                        {
+                                            assert(false);
+                                            resetKeyring();
+                                        }
                                         break;
-                                    }
 
                                     case ATTR_MY_BACKUPS_FOLDER:
                                         // There should be no actionpackets for this attribute. It
                                         // is created and never updated afterwards.
-                                        LOG_err
-                                            << "The node handle for My backups folder has changed";
+                                        if (alreadyExisting)
+                                        {
+                                            LOG_err << "The node handle for My backups folder has "
+                                                       "changed";
+                                        }
                                         [[fallthrough]];
 
                                     // some attributes should be fetched upon invalidation
@@ -6912,18 +6917,22 @@ void MegaClient::sc_userattr()
                                     case ATTR_DEVICE_NAMES:
                                     case ATTR_JSON_SYNC_CONFIG_DATA:
                                     {
-                                        if ((type == ATTR_AUTHRING || type == ATTR_AUTHCU255) && mKeyManager.generation())
+                                        if ((type == ATTR_AUTHRING || type == ATTR_AUTHCU255) &&
+                                            mKeyManager.generation())
                                         {
                                             // legacy authrings not useful anymore
-                                            LOG_warn << "Ignoring update of : " << User::attr2string(type);
+                                            LOG_warn << "Ignoring update of : "
+                                                     << User::attr2string(type);
                                             break;
                                         }
-                                        if (type == ATTR_JSON_SYNC_CONFIG_DATA)
+                                        if (type == ATTR_JSON_SYNC_CONFIG_DATA && alreadyExisting)
                                         {
-                                            // this user's attribute should be set only once and never change
-                                            // afterwards. If it has changed, it may indicate a race condition
-                                            // setting the attribute from another client at the same time
-                                            LOG_warn << "Sync config data has changed, when it should not";
+                                            // this user's attribute should be set only once and
+                                            // never change afterwards. If it has changed, it
+                                            // may indicate a race condition setting the
+                                            // attribute from another client at the same time
+                                            LOG_warn << "Sync config data has changed, when it "
+                                                        "should not";
                                             assert(false);
                                         }
                                         // mCurrentSeqtagSeen is true if the next command response
