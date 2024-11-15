@@ -139,8 +139,7 @@ void RealClient::fetchnodes_result(const Error& error)
     requestCompleted(std::make_pair(RT_FETCH, mClient->restag), error);
 }
 
-auto RealClient::invited(const std::string& email,
-                         std::unique_lock<std::mutex>& lock) const -> InvitePtr
+auto RealClient::invited(const std::string& email, std::unique_lock<std::mutex>&) const -> InvitePtr
 {
     // Compares two characters case insensitively.
     auto characterEquals = [](std::uint8_t lhs, std::uint8_t rhs)
@@ -782,7 +781,7 @@ Error RealClient::RealInvite::execute(ipcactions_t action)
     return waitFor(notifier->get_future());
 }
 
-Error RealClient::RealInvite::execute(opcactions_t action)
+Error RealClient::RealInvite::execute(opcactions_t)
 {
     auto notifier = makeSharedPromise<Error>();
 
@@ -806,7 +805,7 @@ Error RealClient::RealInvite::execute(opcactions_t action)
     return waitFor(notifier->get_future());
 }
 
-bool RealClient::RealContact::mustVerify(std::unique_lock<std::mutex>& lock) const
+bool RealClient::RealContact::mustVerify(std::unique_lock<std::mutex>&) const
 {
     return mClient.mClient->mKeyManager.getManualVerificationFlag();
 }

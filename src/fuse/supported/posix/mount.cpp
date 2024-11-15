@@ -166,9 +166,7 @@ void Mount::lookup(Request request,
     request.replyEntry(entry);
 }
 
-void Mount::flush(Request request,
-                  MountInodeID inode,
-                  fuse_file_info& info)
+void Mount::flush(Request request, MountInodeID, fuse_file_info&)
 {
     request.replyOk();
 }
@@ -209,10 +207,7 @@ void Mount::forget_multi(Request request,
     request.replyNone();
 }
 
-void Mount::fsync(Request request,
-                  MountInodeID inode,
-                  bool,
-                  fuse_file_info& info)
+void Mount::fsync(Request request, MountInodeID, bool, fuse_file_info& info)
 {
     // Get our hands on the file's context.
     auto* context = reinterpret_cast<FileContext*>(info.fh);
@@ -411,7 +406,7 @@ void Mount::opendir(Request request,
 }
 
 void Mount::read(Request request,
-                 MountInodeID inode,
+                 MountInodeID,
                  std::size_t size,
                  off_t offset,
                  fuse_file_info& info)
@@ -434,7 +429,7 @@ void Mount::read(Request request,
 }
 
 void Mount::readdir(Request request,
-                    MountInodeID inode,
+                    MountInodeID,
                     std::size_t size,
                     off_t offset,
                     fuse_file_info& info)
@@ -491,9 +486,7 @@ void Mount::readdir(Request request,
     request.replyBuffer(std::move(buffer));
 }
 
-void Mount::release(Request request,
-                    MountInodeID inode,
-                    fuse_file_info& info)
+void Mount::release(Request request, MountInodeID, fuse_file_info& info)
 {
     // Get our hands on the context.
     auto* context = reinterpret_cast<FileContext*>(info.fh);
@@ -759,7 +752,7 @@ void Mount::unlink(Request request,
 }
 
 void Mount::write(Request request,
-                  MountInodeID inode,
+                  MountInodeID,
                   const string& data,
                   off_t offset,
                   fuse_file_info& info)

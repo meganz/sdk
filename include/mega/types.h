@@ -901,7 +901,7 @@ namespace CodeCounter
             return s;
         }
 #else
-        ScopeStats(std::string s) {}
+        ScopeStats(std::string) {}
 #endif
     };
 

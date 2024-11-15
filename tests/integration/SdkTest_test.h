@@ -77,12 +77,13 @@ struct TransferTracker : public ::mega::MegaTransferListener
         }
     }
 
-    void onTransferStart(MegaApi *api, MegaTransfer *transfer) override
+    void onTransferStart(MegaApi*, MegaTransfer*) override
     {
         // called back on a different thread
         started = true;
     }
-    void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* error) override
+
+    void onTransferFinish(MegaApi*, MegaTransfer* transfer, MegaError* error) override
     {
         LOG_debug << "TransferTracker::onTransferFinish callback received.  Result: " << error->getErrorCode() << " for " << (transfer->getFileName() ? transfer->getFileName() : "<null>");
         mTempFileRemoved = static_cast<bool>(transfer->getStage());
@@ -153,11 +154,12 @@ struct RequestTracker : public ::mega::MegaRequestListener
         }
     }
 
-    void onRequestStart(MegaApi* api, MegaRequest *request) override
+    void onRequestStart(MegaApi*, MegaRequest*) override
     {
         started = true;
     }
-    void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError* e) override
+
+    void onRequestFinish(MegaApi*, MegaRequest* request, MegaError* e) override
     {
         if (onFinish) onFinish(*e, *request);
 
@@ -226,12 +228,11 @@ struct OneShotListener : public ::mega::MegaRequestListener
 
     std::function<void(MegaError& e, MegaRequest& request)> mFunc;
 
-    OneShotListener(std::function<void(MegaError& e, MegaRequest& request)> f)
-    : mFunc(f)
-    {
-    }
+    OneShotListener(std::function<void(MegaError&, MegaRequest&)> f):
+        mFunc(f)
+    {}
 
-    void onRequestFinish(MegaApi* api, MegaRequest* request, MegaError* e) override
+    void onRequestFinish(MegaApi*, MegaRequest* request, MegaError* e) override
     {
         mFunc(*e, *request);
         delete this;
@@ -462,35 +463,39 @@ protected:
 
     void syncTestMyBackupsRemoteFolder(unsigned apiIdx);
 
-    void onRequestStart(MegaApi *api, MegaRequest *request) override {}
-    void onRequestUpdate(MegaApi*api, MegaRequest *request) override {}
-    void onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e) override;
-    void onRequestTemporaryError(MegaApi *api, MegaRequest *request, MegaError* error) override {}
+    void onRequestStart(MegaApi*, MegaRequest*) override {}
+
+    void onRequestUpdate(MegaApi*, MegaRequest*) override {}
+
+    void onRequestFinish(MegaApi* api, MegaRequest* request, MegaError* e) override;
+
+    void onRequestTemporaryError(MegaApi*, MegaRequest*, MegaError*) override {}
     void onTransferStart(MegaApi *api, MegaTransfer *transfer) override;
     void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* e) override;
     void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) override;
-    void onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* error) override {}
+
+    void onTransferTemporaryError(MegaApi*, MegaTransfer*, MegaError*) override {}
     void onUsersUpdate(MegaApi* api, MegaUserList *users) override;
     void onAccountUpdate(MegaApi *api) override;
     void onNodesUpdate(MegaApi* api, MegaNodeList *nodes) override;
     void onSetsUpdate(MegaApi *api, MegaSetList *sets) override;
     void onSetElementsUpdate(MegaApi *api, MegaSetElementList *elements) override;
     void onContactRequestsUpdate(MegaApi* api, MegaContactRequestList* requests) override;
-    void onReloadNeeded(MegaApi *api) override {}
+
+    void onReloadNeeded(MegaApi*) override {}
 
     void onUserAlertsUpdate(MegaApi* api, MegaUserAlertList* alerts) override;
 
 #ifdef ENABLE_SYNC
-    void onSyncFileStateChanged(MegaApi* api,
-                                MegaSync* sync,
-                                string* filePath,
-                                int newState) override
+    void
+        onSyncFileStateChanged(MegaApi*, MegaSync*, string* /*filePath*/, int /*newState*/) override
     {}
 
-    void onSyncStateChanged(MegaApi* api, MegaSync* sync) override {}
+    void onSyncStateChanged(MegaApi*, MegaSync*) override {}
 
-    void onSyncRemoteRootChanged(MegaApi* api, MegaSync* sync) override {}
-    void onGlobalSyncStateChanged(MegaApi* api) override {}
+    void onSyncRemoteRootChanged(MegaApi*, MegaSync*) override {}
+
+    void onGlobalSyncStateChanged(MegaApi*) override {}
     void purgeVaultTree(unsigned int apiIndex, MegaNode *vault);
 #endif
 #ifdef ENABLE_CHAT

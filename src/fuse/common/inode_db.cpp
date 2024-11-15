@@ -1252,7 +1252,7 @@ Error InodeDB::move(FileInodeRef source,
     return API_OK;
 }
 
-void InodeDB::remove(const DirectoryInode& inode, InodeDBLock lock)
+void InodeDB::remove(const DirectoryInode& inode, InodeDBLock)
 {
     // Leave a record of what we've done.
     FUSEDebugF("Removing inode %s from memory",

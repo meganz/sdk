@@ -826,7 +826,7 @@ struct StandardClient : public MegaApp
                         targettype_t,
                         vector<NewNode>&,
                         bool,
-                        int tag,
+                        int /*tag*/,
                         const map<string, string>& /*fileHandles*/)
         {
             mCallable(e);
@@ -872,7 +872,7 @@ struct StandardClient : public MegaApp
             delete this;
         }
 
-        void terminated(error e) override
+        void terminated(error) override
         {
             result->set_value(false);
             delete this;
@@ -909,9 +909,9 @@ struct StandardClient : public MegaApp
                 [finalCompletion](const Error&,
                                   targettype_t,
                                   vector<NewNode>&,
-                                  bool targetOverride,
-                                  int tag,
-                                  const std::map<std::string, std::string>& fileHandles)
+                                  bool /*targetOverride*/,
+                                  int /*tag*/,
+                                  const std::map<std::string, std::string>& /*fileHandles*/)
                 {
                     if (finalCompletion)
                         finalCompletion(true);
@@ -922,7 +922,7 @@ struct StandardClient : public MegaApp
             delete this;
         }
 
-        void terminated(error e) override
+        void terminated(error) override
         {
             if (completion) completion(false);
             delete this;
@@ -955,9 +955,9 @@ struct StandardClient : public MegaApp
     class TreeProcPrintTree : public TreeProc
     {
     public:
-        void proc(MegaClient* client, std::shared_ptr<Node> n) override
+        void proc(MegaClient*, std::shared_ptr<Node> /*n*/) override
         {
-            //out() << "fetchnodes tree: " << n->displaypath();;
+            // out() << "fetchnodes tree: " << n->displaypath();
         }
     };
 
