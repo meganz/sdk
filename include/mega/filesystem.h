@@ -1004,7 +1004,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     // append local operating system version information to string.
     // Set includeArchExtraInfo to know if the app is 32 bit running on 64 bit (on windows, that is via the WOW subsystem)
-    virtual void osversion(string*, bool includeArchExtraInfo) const { }
+    virtual void osversion(string*, bool /*includeArchExtraInfo*/) const {}
 
     // append id for stats
     virtual void statsid(string*) const { }

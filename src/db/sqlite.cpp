@@ -38,7 +38,7 @@ SqliteDbAccess::~SqliteDbAccess()
 {
 }
 
-LocalPath SqliteDbAccess::databasePath(const FileSystemAccess& fsAccess,
+LocalPath SqliteDbAccess::databasePath(const FileSystemAccess&,
                                        const string& name,
                                        const int version) const
 {

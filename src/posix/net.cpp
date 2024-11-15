@@ -183,7 +183,7 @@ void CurlHttpIO::locking_function(int mode, int lockNumber, const char *, int)
 }
 
 #if OPENSSL_VERSION_NUMBER >= 0x10000000 || defined (LIBRESSL_VERSION_NUMBER)
-void CurlHttpIO::id_function(CRYPTO_THREADID* id)
+void CurlHttpIO::id_function([[maybe_unused]] CRYPTO_THREADID* id)
 {
     CRYPTO_THREADID_set_pointer(id, (void *)THREAD_CLASS::currentThreadId());
 }
@@ -508,7 +508,7 @@ void CurlHttpIO::filterDNSservers()
     }
 }
 
-void CurlHttpIO::addaresevents(Waiter *waiter)
+void CurlHttpIO::addaresevents([[maybe_unused]] Waiter* waiter)
 {
 #ifdef MEGA_MEASURE_CODE
     CodeCounter::ScopeTimer ccst(countAddAresEventsCode);

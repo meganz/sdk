@@ -50,7 +50,7 @@ ErrorOr<MakeInodeResult> DirectoryInode::make(Maker&& maker, const std::string& 
     return maker(name);
 }
 
-void DirectoryInode::remove(RefBadge badge, InodeDBLock lock)
+void DirectoryInode::remove(RefBadge, InodeDBLock lock)
 {
     // Remove this directory from the database.
     mInodeDB.remove(*this, std::move(lock));
@@ -279,9 +279,7 @@ Error DirectoryInode::move(const std::string& name,
                         std::move(newParent));
 }
 
-Error DirectoryInode::move(InodeBadge badge,
-                           const std::string& name,
-                           DirectoryInodeRef parent)
+Error DirectoryInode::move(InodeBadge, const std::string& name, DirectoryInodeRef parent)
 {
     // Sanity.
     assert(parent);
@@ -289,7 +287,7 @@ Error DirectoryInode::move(InodeBadge badge,
     return mInodeDB.move(InodeRef(this), name, std::move(parent));
 }
 
-Error DirectoryInode::replace(InodeBadge badge,
+Error DirectoryInode::replace(InodeBadge,
                               InodeRef other,
                               const std::string& otherName,
                               DirectoryInodeRef otherParent)

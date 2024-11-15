@@ -943,9 +943,7 @@ bool WinFileSystemAccess::istransientorexists(DWORD e)
     return istransient(e);
 }
 
-void WinFileSystemAccess::addevents(Waiter* w, int)
-{
-}
+void WinFileSystemAccess::addevents(Waiter*, int) {}
 
 // write short name of the last path component to sname
 bool WinFileSystemAccess::getsname(const LocalPath& namePath, LocalPath& snamePath) const
@@ -1726,7 +1724,7 @@ WinDirNotify::~WinDirNotify()
 }
 #endif   // ENABLE_SYNC
 
-std::unique_ptr<FileAccess> WinFileSystemAccess::newfileaccess(bool followSymLinks)
+std::unique_ptr<FileAccess> WinFileSystemAccess::newfileaccess(bool /*followSymLinks*/)
 {
     return std::unique_ptr<FileAccess>(new WinFileAccess(waiter));
 }

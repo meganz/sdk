@@ -3039,7 +3039,7 @@ int platformGetRLimitNumFile()
 #endif
 }
 
-bool platformSetRLimitNumFile(int newNumFileLimit)
+bool platformSetRLimitNumFile([[maybe_unused]] int newNumFileLimit)
 {
 #ifndef WIN32
     struct rlimit rl{0,0};

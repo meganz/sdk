@@ -331,7 +331,12 @@ string MegaClient::generateViewId(PrnGen& rng)
 }
 
 // decrypt key (symmetric or asymmetric)
-bool MegaClient::decryptkey(const char* sk, byte* tk, int tl, SymmCipher* sc, int type, handle node)
+bool MegaClient::decryptkey(const char* sk,
+                            byte* tk,
+                            int tl,
+                            SymmCipher* sc,
+                            int /*type*/,
+                            handle /*node*/)
 {
     int sl;
     const char* ptr = sk;
@@ -878,7 +883,7 @@ error MegaClient::setbackupfolder(const char* foldername, int tag, std::function
                                           targettype_t handletype,
                                           vector<NewNode>& nodes,
                                           bool /*targetOverride*/,
-                                          int tag,
+                                          int /*tag*/,
                                           const map<string, string>& /*fileHandles*/)
     {
         if (e != API_OK)
@@ -9734,10 +9739,17 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
     return j->leavearray();
 }
 
-
-int MegaClient::readnode(JSON* j, int notify, putsource_t source, vector<NewNode>* nn, bool modifiedByThisClient, bool applykeys,
-                         mega::NodeManager::MissingParentNodes &missingParentNodes, handle &previousHandleForAlert, set<NodeHandle> *allParents,
-                         Node* priorActionpacketDeletedNode, bool* firstHandleMatchesDelete)
+int MegaClient::readnode(JSON* j,
+                         int notify,
+                         putsource_t /*source*/,
+                         vector<NewNode>* nn,
+                         bool modifiedByThisClient,
+                         bool applykeys,
+                         mega::NodeManager::MissingParentNodes& missingParentNodes,
+                         handle& previousHandleForAlert,
+                         set<NodeHandle>* allParents,
+                         Node* priorActionpacketDeletedNode,
+                         bool* firstHandleMatchesDelete)
 {
     std::shared_ptr<Node> n;
 
@@ -14127,8 +14139,9 @@ error MegaClient::changepw(const char* password, const char *pin)
     // Confirm account version, not rely on cached values
     string spwd = password ? password : string();
     string spin = pin ? pin : string();
-    getuserdata(reqtag,
-        [this, u, spwd, spin](string* name, string* pubk, string* privk, error e)
+    getuserdata(
+        reqtag,
+        [this, u, spwd, spin](string* /*name*/, string* /*pubk*/, string* /*privk*/, error e)
         {
             if (e != API_OK)
             {
@@ -14138,25 +14151,25 @@ error MegaClient::changepw(const char* password, const char *pin)
 
             switch (accountversion)
             {
-            case 1:
-                e = changePasswordV1(u, spwd.c_str(), spin.c_str());
-                break;
+                case 1:
+                    e = changePasswordV1(u, spwd.c_str(), spin.c_str());
+                    break;
 
-            default:
-                LOG_warn << "Unexpected account version v" << accountversion << " processed as v2";
-                // fallthrough
+                default:
+                    LOG_warn << "Unexpected account version v" << accountversion
+                             << " processed as v2";
+                    [[fallthrough]];
 
-            case 2:
-                e = changePasswordV2(spwd.c_str(), spin.c_str());
-                break;
+                case 2:
+                    e = changePasswordV2(spwd.c_str(), spin.c_str());
+                    break;
             }
 
             if (e != API_OK)
             {
                 app->changepw_result(e);
             }
-        }
-    );
+        });
 
     return API_OK;
 }
@@ -16989,57 +17002,57 @@ void MegaClient::preparebackup(SyncConfig sc, std::function<void(Error, SyncConf
              [completion, sc, this](const Error& e,
                                     targettype_t,
                                     vector<NewNode>& nn,
-                                    bool targetOverride,
-                                    int tag,
+                                    bool /*targetOverride*/,
+                                    int /*tag*/,
                                     const map<string, string>& /*fileHandles*/)
              {
-                if (e)
-                {
-                    completion(e, sc, nullptr);
-                }
-                else
-                {
-                    handle newBackupNodeHandle = nn.back().mAddedHandle;
+                 if (e)
+                 {
+                     completion(e, sc, nullptr);
+                 }
+                 else
+                 {
+                     handle newBackupNodeHandle = nn.back().mAddedHandle;
 
-                    SyncConfig updatedConfig = sc;
-                    updatedConfig.mRemoteNode.set6byte(newBackupNodeHandle);
+                     SyncConfig updatedConfig = sc;
+                     updatedConfig.mRemoteNode.set6byte(newBackupNodeHandle);
 
-                    if (std::shared_ptr<Node> backupRoot = nodeByHandle(updatedConfig.mRemoteNode))
-                    {
-                        updatedConfig.mOriginalPathOfRemoteRootNode = backupRoot->displaypath();
-                    }
-                    else
-                    {
-                        LOG_err << "Node created for backup is missing already";
-                        completion(API_EEXIST, updatedConfig, nullptr);
-                    }
+                     if (std::shared_ptr<Node> backupRoot = nodeByHandle(updatedConfig.mRemoteNode))
+                     {
+                         updatedConfig.mOriginalPathOfRemoteRootNode = backupRoot->displaypath();
+                     }
+                     else
+                     {
+                         LOG_err << "Node created for backup is missing already";
+                         completion(API_EEXIST, updatedConfig, nullptr);
+                     }
 
-                    // Offer the option to the caller, to remove the new Backup node if a later
-                    // step fails
-                    UndoFunction undoOnFail =
+                     // Offer the option to the caller, to remove the new Backup node if a later
+                     // step fails
+                     UndoFunction undoOnFail =
                          [newBackupNodeHandle, this](std::function<void()> continuation)
-                    {
-                        if (std::shared_ptr<Node> n = nodebyhandle(newBackupNodeHandle))
-                        {
-                            unlink(n.get(),
-                                   false,
-                                   0,
-                                   true,
-                                   [continuation](NodeHandle, Error)
-                                   {
-                                       if (continuation)
-                                           continuation();
-                                   });
-                        }
-                        else
-                        {
-                            if (continuation)
-                                continuation();
-                        }
-                    };
+                     {
+                         if (std::shared_ptr<Node> n = nodebyhandle(newBackupNodeHandle))
+                         {
+                             unlink(n.get(),
+                                    false,
+                                    0,
+                                    true,
+                                    [continuation](NodeHandle, Error)
+                                    {
+                                        if (continuation)
+                                            continuation();
+                                    });
+                         }
+                         else
+                         {
+                             if (continuation)
+                                 continuation();
+                         }
+                     };
 
-                    completion(API_OK, updatedConfig, undoOnFail);
-                }
+                     completion(API_OK, updatedConfig, undoOnFail);
+                 }
              });
 }
 
@@ -17209,8 +17222,8 @@ std::shared_ptr<Node> MegaClient::getOrCreateSyncdebrisFolder()
         [this](const Error&,
                targettype_t,
                vector<NewNode>&,
-               bool targetOverride,
-               int tag,
+               bool /*targetOverride*/,
+               int /*tag*/,
                const map<string, string>& /*fileHandles*/)
         {
             syncdebrisadding = false;
