@@ -890,6 +890,15 @@ public:
     // notify delayed upload completion subsystem about new file attribute
     void checkfacompletion(UploadHandle, Transfer* = NULL, bool uploadCompleted = false);
 
+    // attach/update/delete a user attribute using encryption
+    void putua(attr_t at,
+               string_map&& records,
+               int ctag = -1,
+               handle lastPublicHandle = UNDEF,
+               int phtype = 0,
+               int64_t ts = 0,
+               std::function<void(Error)> completion = nullptr);
+
     // attach/update/delete a user attribute
     void putua(attr_t at, const byte* av = NULL, unsigned avl = 0, int ctag = -1, handle lastPublicHandle = UNDEF, int phtype = 0, int64_t ts = 0,
         std::function<void(Error)> completion = nullptr);

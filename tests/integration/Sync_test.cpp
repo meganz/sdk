@@ -1769,29 +1769,35 @@ bool StandardClient::waitForAttrDeviceIdIsSet(unsigned int numSeconds, bool& upd
     std::recursive_mutex attrDeviceNamePut_mutex;
     std::condition_variable_any attrDeviceNamePut_cv;
     std::atomic_bool replyReceived{false};
-    // serialize and encrypt the TLV container
-    std::unique_ptr<std::string> container(
-        tlv::recordsToContainer(std::move(records), client.rng, client.key));
     std::unique_lock<std::recursive_mutex> g(attrDeviceNamePut_mutex);
-    resultproc.prepresult(COMPLETION, ++next_request_tag,
-        [&](){
-            client.putua(attr_t::ATTR_DEVICE_NAMES, (::mega::byte *)container->data(), unsigned(container->size()), -1, UNDEF, 0, 0, [&](Error e)
-            {
-                std::lock_guard<std::recursive_mutex> g(attrDeviceNamePut_mutex);
-                if (e == API_OK)
-                {
-                    attrDeviceNamePut = true;
-                }
-                else
-                {
-                    LOG_err << "Error setting device id user attribute";
-                }
+    resultproc.prepresult(
+        COMPLETION,
+        ++next_request_tag,
+        [&]()
+        {
+            client.putua(attr_t::ATTR_DEVICE_NAMES,
+                         std::move(records),
+                         -1,
+                         UNDEF,
+                         0,
+                         0,
+                         [&](Error e)
+                         {
+                             std::lock_guard<std::recursive_mutex> g(attrDeviceNamePut_mutex);
+                             if (e == API_OK)
+                             {
+                                 attrDeviceNamePut = true;
+                             }
+                             else
+                             {
+                                 LOG_err << "Error setting device id user attribute";
+                             }
 
-                replyReceived = true;
-                attrDeviceNamePut_cv.notify_one();
-            });
-        }, nullptr);
-
+                             replyReceived = true;
+                             attrDeviceNamePut_cv.notify_one();
+                         });
+        },
+        nullptr);
 
     attrDeviceNamePut_cv.wait_for(g, std::chrono::seconds(numSeconds), [&replyReceived](){ return replyReceived.load(); });
 

@@ -3785,10 +3785,7 @@ void putua_map(const std::string& b64key, const std::string& b64value, attr_t at
         }
     }
 
-    // serialize and encrypt the TLV container
-    std::unique_ptr<std::string> container(
-        tlv::recordsToContainer(std::move(destination), client->rng, client->key));
-    client->putua(attrtype, (byte*)container->data(), unsigned(container->size()));
+    client->putua(attrtype, std::move(destination));
 }
 
 void exec_setdevicename(autocomplete::ACState& s)

@@ -12519,6 +12519,32 @@ error MegaClient::removecontact(const char* email, visibility_t show, CommandRem
     return API_OK;
 }
 
+void MegaClient::putua(attr_t at,
+                       string_map&& records,
+                       int ctag,
+                       handle lastPublicHandle,
+                       int phtype,
+                       int64_t ts,
+                       std::function<void(Error)> completion)
+{
+    // serialize and encrypt the TLV container
+    unique_ptr<string> container(tlv::recordsToContainer(std::move(records), rng, key));
+    if (!container)
+    {
+        completion ? completion(API_EINTERNAL) : app->putua_result(API_EINTERNAL);
+        return;
+    }
+
+    putua(at,
+          reinterpret_cast<byte*>(container->data()),
+          static_cast<unsigned>(container->size()),
+          ctag,
+          lastPublicHandle,
+          phtype,
+          ts,
+          std::move(completion));
+}
+
 /**
  * @brief Attach/update/delete a user attribute.
  *
@@ -23024,22 +23050,13 @@ void MegaClient::createJSCData(GetJSCDataCallback callback)
         {"fn", rng.genstring(Length)}, // The name of the sync configuration database.
     };
 
-    // Translate the store into an encrypted binary blob.
-    unique_ptr<string> content(tlv::recordsToContainer(std::move(store), rng, key));
-    if (!content)
-    {
-        JSCDataCreated(callback, API_EINTERNAL);
-        return;
-    }
-
     // Convenience.
     using std::bind;
     using std::placeholders::_1;
 
     // Try and create the JSCD attribute.
     putua(ATTR_JSON_SYNC_CONFIG_DATA,
-          reinterpret_cast<const byte*>(content->data()),
-          static_cast<unsigned>(content->size()),
+          std::move(store),
           0,
           UNDEF,
           0,
