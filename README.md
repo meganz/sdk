@@ -97,8 +97,8 @@ The solution is simple: go to VCPKG local repository and run `git pull`.
 The following instructions are for configuring the project from the CLI, but cmake-gui or any editor or IDE
 compatible with CMake should be suitable if the same CMake parameters are configured.
 
-The SDK is configured likne any other regular CMake project. The only parameter that is always needed is the VCPKG directory
-to manage the third-party dependencies. To configure the SDK with the dafault options, from the workspace (`mega` directory), run CMake:
+The SDK is configured like any other regular CMake project. The only parameter that is always needed is the VCPKG directory
+to manage the third-party dependencies. To configure the SDK with the default options, from the workspace (`mega` directory), run CMake:
 
 	cmake -DVCPKG_ROOT=vcpkg -DCMAKE_BUILD_TYPE=Debug -S sdk -B build_dir
 
