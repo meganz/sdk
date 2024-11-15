@@ -67,7 +67,7 @@ class JiraTicketsReporter:
         if not slack_user_id:
             user_mention = "<!channel>"
         else:
-            self.ensure_user_is_in_the_channel(slack_user_id=slack_user_id)
+            self.ensure_user_is_in_the_channel(slack_user_id)
             user_mention = f"<@{slack_user_id}>"
 
         issue_url = f"{self._jira_url}/browse/{issue_key}"
