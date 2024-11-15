@@ -22,12 +22,17 @@ class JiraTicketsReporter:
         self._slack_channel = slack_channel
 
     def get_jira_query_for_issues_missing_fix_version(self, project_key: str):
-        return f"project = {project_key} AND status = Resolved AND resolution = Done AND fixVersion is EMPTY"
+        return f'project = {project_key} AND status = Resolved AND resolution = Done AND fixVersion is EMPTY AND "Release number affected" is not EMPTY'
 
     def get_jira_query_for_issues_missing_release_number_affected(
         self, project_key: str
     ):
         return f'project = {project_key} AND status = Resolved AND resolution = Done AND fixVersion is not EMPTY AND "Release number affected" is EMPTY'
+
+    def get_jira_query_for_issues_missing_fix_version_and_release_number_affected(
+        self, project_key: str
+    ):
+        return f'project = {project_key} AND status = Resolved AND resolution = Done AND fixVersion is EMPTY AND "Release number affected" is EMPTY'
 
     def fetch_jira_issues(self, jql_query: str) -> ResultList[Issue]:
         issues = self._jira_client.search_issues(
@@ -93,6 +98,26 @@ class JiraTicketsReporter:
             )
             self.post_to_slack(issue_key, slack_user_id, "Release number affected")
 
+    def report_tickets_missing_fix_version_and_release_number_affected(
+        self,
+    ):
+        issues = self.fetch_jira_issues(
+            self.get_jira_query_for_issues_missing_fix_version_and_release_number_affected(
+                self._jira_project_key
+            )
+        )
+        for issue in issues:
+            issue_key = issue.key
+            assignee = issue.fields.assignee
+            slack_user_id = (
+                self.get_slack_user_id_by_email(assignee.emailAddress)
+                if assignee
+                else None
+            )
+            self.post_to_slack(
+                issue_key, slack_user_id, "Fix Version and Release number affected"
+            )
+
 
 # Get attribute values from the environment
 JIRA_URL = os.environ["JIRA_URL"]
@@ -113,3 +138,4 @@ jiraTicketsReporter = JiraTicketsReporter(
 # Report issues
 jiraTicketsReporter.report_tickets_missing_fix_version()
 jiraTicketsReporter.report_tickets_missing_release_number_affected()
+jiraTicketsReporter.report_tickets_missing_fix_version_and_release_number_affected()
