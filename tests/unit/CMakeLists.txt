@@ -60,7 +60,7 @@ target_link_libraries(test_unit PRIVATE MEGA::test_tools MEGA::test_common)
 target_platform_compile_options(
     TARGET test_unit
     WINDOWS /we4800 # Implicit conversion from 'type' to bool. Possible information loss
-    UNIX $<$<CONFIG:Debug>:-ggdb3> -Wall -Wextra -Wconversion -Wno-unused-parameter
+    UNIX $<$<CONFIG:Debug>:-ggdb3> -Wall -Wextra -Wconversion
 )
 
 if(ENABLE_SDKLIB_WERROR)
