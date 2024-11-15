@@ -624,7 +624,7 @@ if [ ! -f ${ICU}/${ICU_SOURCE_FILE}.ready ]; then
         rm -rf ${ANDROID_TOOLCHAIN} &>> ${LOG_FILE}
         $NDK_ROOT/build/tools/make_standalone_toolchain.py --arch=${ARCH} --api=${API_LEVEL} --install-dir=${ANDROID_TOOLCHAIN} &>> ${LOG_FILE}
 
-        CONFIGURE_ANDROID_OPTIONS="--host=${HOST} --enable-static --enable-shared=no --enable-extras=no --enable-strict=no --enable-icuio=no --enable-layout=no --enable-layoutex=no --enable-tools=no --enable-tests=no --enable-samples=no --enable-dyload=no -with-cross-build=$CROSS_BUILD_DIR"
+        CONFIGURE_ANDROID_OPTIONS="--host=${HOST} --enable-static --enable-shared=no --enable-extras=no --enable-strict=no --enable-icuio=no --enable-layout=no --enable-layoutex=no --enable-tools=no --enable-tests=no --enable-samples=no --enable-dyload=no --enable-i18n=yes -with-cross-build=$CROSS_BUILD_DIR"
 
         ../source/configure CFLAGS="-Os -fPIC" CXXFLAGS="--std=c++11 -fPIC" ${CONFIGURE_ANDROID_OPTIONS}  &>> ${LOG_FILE}
 
