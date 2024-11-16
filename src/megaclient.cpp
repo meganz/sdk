@@ -2583,7 +2583,7 @@ void MegaClient::exec()
                                 LOG_err << "X-Hashcash header missing for HTTP status "
                                         << pendingcs->httpstatus;
                             }
-                            else if (pendingcs->contentlength != 0)
+                            else if (pendingcs->contentlength > 0)
                             {
                                 LOG_err << "Content-Length not 0, as it should be when X-Hashcash "
                                            "header was received";
