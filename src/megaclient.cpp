@@ -9181,11 +9181,18 @@ void MegaClient::putnodes(const char* user, vector<NewNode>&& newnodes, int tag,
 void MegaClient::putFileAttributes(handle h, fatype t, const string& encryptedAttributes, int tag)
 {
     std::shared_ptr<Node> node = mNodeManager.getNodeByHandle(NodeHandle().set6byte(h));
-    if (node && node->fileattrstring.size() + encryptedAttributes.size() >= MAX_FILE_ATTRIBUTE_SIZE)
+
+    // Make sure the node's file attribute string is within acceptable limits.
+    if (node && node->fileattrstring.size() + encryptedAttributes.size() >= MAX_NODE_ATTRIBUTE_SIZE)
     {
-        sendevent(99485, "Exceeded size for file attribute");
-        LOG_err << "Exceede size for file attribute: " << t;
+        // Monitoring.
+        sendevent(99485, "Exceeded size for node attribute");
+
+        // Clarity.
+        LOG_err << "Exceeded size for node attribute: " << t;
         restag = tag;
+
+        // Let app know the request failed.
         app->putfa_result(h, t, API_EARGS);
         return;
     }
