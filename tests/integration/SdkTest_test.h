@@ -894,4 +894,14 @@ public:
     }
 
     /* MegaVpnCredentials END */
+
+    template<typename... Arguments>
+    int setThumbnail(MegaApi& client, Arguments... arguments)
+    {
+        RequestTracker tracker(&client);
+
+        client.setThumbnail(arguments..., &tracker);
+
+        return tracker.waitForResult();
+    }
 };
