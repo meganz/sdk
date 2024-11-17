@@ -253,6 +253,71 @@ Proxy *HttpIO::getautoproxy()
     return proxy;
 }
 
+void HttpIO::getMEGADNSservers(string* dnsservers, bool getfromnetwork)
+{
+    if (!dnsservers)
+    {
+        return;
+    }
+
+    dnsservers->clear();
+    if (getfromnetwork)
+    {
+        struct addrinfo* aiList = NULL;
+        struct addrinfo* hp;
+
+        struct addrinfo hints = {};
+        hints.ai_family = AF_UNSPEC;
+
+#ifndef __MINGW32__
+        hints.ai_flags = AI_V4MAPPED | AI_ADDRCONFIG;
+#endif
+
+        if (!getaddrinfo("ns.mega.co.nz", NULL, &hints, &aiList))
+        {
+            hp = aiList;
+            while (hp)
+            {
+                char straddr[INET6_ADDRSTRLEN];
+                straddr[0] = 0;
+
+                if (hp->ai_family == AF_INET)
+                {
+                    sockaddr_in* addr = (sockaddr_in*)hp->ai_addr;
+                    mega_inet_ntop(hp->ai_family, &addr->sin_addr, straddr, sizeof(straddr));
+                }
+                else if (hp->ai_family == AF_INET6)
+                {
+                    sockaddr_in6* addr = (sockaddr_in6*)hp->ai_addr;
+                    mega_inet_ntop(hp->ai_family, &addr->sin6_addr, straddr, sizeof(straddr));
+                }
+
+                if (straddr[0])
+                {
+                    if (dnsservers->size())
+                    {
+                        dnsservers->append(",");
+                    }
+                    dnsservers->append(straddr);
+                }
+
+                hp = hp->ai_next;
+            }
+            freeaddrinfo(aiList);
+        }
+    }
+
+    if (!getfromnetwork || !dnsservers->size())
+    {
+        *dnsservers = MEGA_DNS_SERVERS;
+        LOG_info << "Using hardcoded MEGA DNS servers: " << *dnsservers;
+    }
+    else
+    {
+        LOG_info << "Using current MEGA DNS servers: " << *dnsservers;
+    }
+}
+
 bool HttpIO::setmaxdownloadspeed(m_off_t)
 {
     return false;
