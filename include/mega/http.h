@@ -174,6 +174,11 @@ namespace mega {
 #define SFUSTATSSSLEXPONENTSIZE "\x03"
 #define SFUSTATSSSLEXPONENT "\x01\x00\x01"
 
+#define MEGA_DNS_SERVERS "2001:678:25c:2215::554,89.44.169.136," \
+                         "2001:678:25c:2215::559,89.44.169.141," \
+                         "2a0b:e40:3::14,66.203.127.16," \
+                         "2a0b:e40:3::16,66.203.127.14"
+
 class MEGA_API SpeedController
 {
 public:
@@ -306,6 +311,9 @@ struct MEGA_API HttpIO : public EventTrigger
 
     // get DNS servers as configured in the system
     void getDNSserversFromIos(string &dnsServers);
+    
+    // get alternative DNS servers
+    void getMEGADNSservers(string* dnsservers, bool getfromnetwork);
 
     // set max download speed
     virtual bool setmaxdownloadspeed(m_off_t bpslimit);
