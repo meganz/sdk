@@ -309,7 +309,7 @@ void HttpIO::getMEGADNSservers(string* dnsservers, bool getfromnetwork)
 
     if (!getfromnetwork || !dnsservers->size())
     {
-        *dnsservers = MEGA_DNS_SERVERS;
+        *dnsservers = DNS_SERVERS;
         LOG_info << "Using hardcoded MEGA DNS servers: " << *dnsservers;
     }
     else

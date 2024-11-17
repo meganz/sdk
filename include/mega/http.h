@@ -174,10 +174,12 @@ namespace mega {
 #define SFUSTATSSSLEXPONENTSIZE "\x03"
 #define SFUSTATSSSLEXPONENT "\x01\x00\x01"
 
-#define MEGA_DNS_SERVERS "2001:678:25c:2215::554,89.44.169.136," \
-                         "2001:678:25c:2215::559,89.44.169.141," \
-                         "2a0b:e40:3::14,66.203.127.16," \
-                         "2a0b:e40:3::16,66.203.127.14"
+
+#define DNS_SERVERS "2001:4860:4860::8888,8.8.8.8," \
+                    "2001:4860:4860::8844,8.8.4.4," \
+                    "2606:4700:4700::1111,1.1.1.1," \
+                    "2606:4700:4700::1001,1.0.0.1," \
+                    "2620:fe::fe,9.9.9.9"
 
 class MEGA_API SpeedController
 {
