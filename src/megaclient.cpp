@@ -5915,6 +5915,25 @@ bool MegaClient::putfa(NodeOrUploadHandle th,
 {
     // CBC-encrypt attribute data (padded to next multiple of BLOCKSIZE)
     data->resize((data->size() + SymmCipher::BLOCKSIZE - 1) & -SymmCipher::BLOCKSIZE);
+
+    // Make sure the attribute isn't too large.
+    if (data->size() >= MAX_FILE_ATTRIBUTE_SIZE)
+    {
+        // Monitoring.
+        sendevent(99485, "Exceeded size for file attribute");
+
+        // Clarity.
+        LOG_err << "Exceeded size for file attribute: " << tag;
+
+        restag = tag;
+
+        // Let the application know we couldn't upload this attribute.
+        app->putfa_result(th.as8byte(), t, API_EARGS);
+
+        // Let the caller know we couldn't upload this attribute.
+        return false;
+    }
+
     if (!cypher->cbc_encrypt((byte*)data->data(), data->size()))
     {
         LOG_err << "Failed to CBC encrypt Node attribute data.";
