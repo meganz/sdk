@@ -1,17 +1,5 @@
-// As a developer I want to create a release management pipeline so that we can trigger from Jenkins the following actions:
-
-// Create release.
-// Create release candidate.
-// Close release.
-// Create a new release candidate.
-// To do this we should have a job in Jenkins that can be executed with parameters, 
-// the configurable parameters should be the ones defined in config.toml.template with those parameters 
-// the script should create a config.toml file and launch the needed script as described in the README.md file, 
-// setting up everything needed before as described there too.
-
-
 pipeline {
-    agent { label 'ci-debian-11-64-5' }
+    agent { label 'ci-debian-11-64-4' }
 
     options { 
         buildDiscarder(logRotator(numToKeepStr: '25', daysToKeepStr: '30'))
@@ -23,8 +11,8 @@ pipeline {
         string(name: 'TARGET_APPS', defaultValue: '', description: 'e.g. Android 1.0.1 / iOS 1.2 / MEGAsync 9.9.9 RC1')
         string(name: 'RELEASE_VERSION', defaultValue: '', description: 'Optionally define a release version for Create Release. It must exist for Patch Release. Default is 1.0.0.')   
         string(name: 'TICKETS', defaultValue: '', description: 'Comma separated tickets (patch release or create rc)')
-        string(name: 'BRANCH_FOR_MR', defaultValue: '', description: 'Branch for MR')
-        string(name: 'MR_DESCRIPTION', defaultValue: '', description: 'MR Description')
+        string(name: 'BRANCH_FOR_MR', defaultValue: '', description: 'Branch for MR (create release candidate)')
+        string(name: 'MR_DESCRIPTION', defaultValue: '', description: 'MR Description (create release candidate)')
         password(name: 'GPG_PASSWORD', defaultValue: '', description: 'Enter the password')
     }
     environment {
@@ -47,7 +35,7 @@ pipeline {
         stage('Replace config file'){
             steps {
                 dir("automation"){
-                    sh 'cp config.toml.template config.toml'   
+                    sh 'cp config.toml.template config.toml'
                     script {
                         sh """
                             sed -i 's|project_name = ""|project_name = "${env.project_name}"|' config.toml
@@ -69,11 +57,30 @@ pipeline {
                 }
             }            
         }
-        
+        stage('Build docker image') {
+            steps {
+                sh "cp automation/requirements.txt dockerfile/requirements.txt"
+                dir ("dockerfile") {
+                    sh """
+                        docker build \
+                            -f release-management.dockerfile \
+                            -t meganz/sdk-release-management:${env.BUILD_NUMBER} \
+                            .
+                    """
+                }
+            }
+        }
         stage('Create Release'){
             when { 
                 beforeAgent true
                 expression { params.ACTION == "Create_Release" }
+            }
+            agent {
+                docker {
+                    image 'meganz/sdk-release-management:${env.BUILD_NUMBER}'
+                    reuseNode true
+                    args '-v ${WORKSPACE}:/app/'
+                }
             }
             environment {
                 JIRA_USERNAME = '$JIRA_SDK_CREDS_USR'
@@ -92,6 +99,13 @@ pipeline {
                 beforeAgent true
                 expression { params.ACTION == "Create_Release_CANDIDATE" } 
             }
+            agent {
+                docker {
+                    image "meganz/sdk-release-management:${env.BUILD_NUMBER}"
+                    reuseNode true
+                    args '-v ${WORKSPACE}:/app/'
+                }
+            }
             environment {
                 JIRA_USERNAME = '$JIRA_SDK_CREDS_USR'
                 JIRA_PASSWORD = '$JIRA_SDK_CREDS_PSW'
@@ -107,6 +121,13 @@ pipeline {
             when { 
                 beforeAgent true
                 expression { params.ACTION == "Close_Release" }
+            }
+            agent {
+                docker {
+                    image "meganz/sdk-release-management:${env.BUILD_NUMBER}"
+                    reuseNode true
+                    args '-v ${WORKSPACE}:/app/'
+                }
             }
             environment {
                 JIRA_USERNAME = '$JIRA_SDK_CREDS_USR'
@@ -126,6 +147,13 @@ pipeline {
                 beforeAgent true
                 expression { params.ACTION == "Patch_Release" }
             }
+            agent {
+                docker {
+                    image "meganz/sdk-release-management:${env.BUILD_NUMBER}"
+                    reuseNode true
+                    args '-v ${WORKSPACE}:/app/'
+                }
+            }
             environment {
                 JIRA_USERNAME = '$JIRA_SDK_CREDS_USR'
                 JIRA_PASSWORD = '$JIRA_SDK_CREDS_PSW'
@@ -141,6 +169,7 @@ pipeline {
     }
     post {
         always {
+            sh "docker image rm meganz/sdk-release-management:${env.BUILD_NUMBER}"
             deleteDir() /* clean up our workspace */
         }
     }
