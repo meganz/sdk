@@ -1979,7 +1979,7 @@ string SdkTest::createPublicLink(unsigned apiIndex, MegaNode *n, m_time_t expire
 
     mApi[apiIndex].megaApi->exportNode(n, expireDate, writable, megaHosted, &rt);
 
-    rt.waitForResult();
+    rt.waitForResult(timeout);
 
     if (!expireDate || !isFreeAccount)
     {
@@ -11716,7 +11716,12 @@ TEST_F(SdkTest, DISABLED_StressTestSDKInstancesOverWritableFoldersOverWritableFo
         ASSERT_NE(remoteSubFolderNode.get(), nullptr);
 
         // ___ get a link to the file node
-        string nodelink = createPublicLink(0, remoteSubFolderNode.get(), 0, 0, false/*mApi[0].accountDetails->getProLevel() == 0)*/, true/*writable*/);
+        string nodelink = createPublicLink(0,
+                                           remoteSubFolderNode.get(),
+                                           0,
+                                           maxTimeout,
+                                           false /*mApi[0].accountDetails->getProLevel() == 0)*/,
+                                           true /*writable*/);
         // The created link is stored in this->link at onRequestFinish()
         LOG_verbose << "StressTestSDKInstancesOverWritableFolders : " << subFolderPath << " link = " << nodelink;
 
@@ -11864,7 +11869,12 @@ TEST_F(SdkTest, WritableFolderSessionResumption)
         ASSERT_NE(remoteSubFolderNode.get(), nullptr);
 
         // ___ get a link to the file node
-        string nodelink = createPublicLink(0, remoteSubFolderNode.get(), 0, 0, false/*mApi[0].accountDetails->getProLevel() == 0)*/, true/*writable*/);
+        string nodelink = createPublicLink(0,
+                                           remoteSubFolderNode.get(),
+                                           0,
+                                           maxTimeout,
+                                           false /*mApi[0].accountDetails->getProLevel() == 0)*/,
+                                           true /*writable*/);
         // The created link is stored in this->link at onRequestFinish()
         LOG_verbose << "WritableFolderSessionResumption : " << subFolderPath << " link = " << nodelink;
 
