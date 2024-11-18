@@ -4047,7 +4047,9 @@ using namespace mega;
 - (NSInteger)remoteFeatureFlagValue:(NSString *)flag {
     if (self.megaApi == nil) return 0;
     MegaFlag *flagValue = self.megaApi->getFlag(flag.UTF8String);
-    return flagValue->getGroup();
+    uint32_t group = flagValue->getGroup();
+    delete flagValue;
+    return NSInteger(group);
 }
 
 #pragma mark - Ads

@@ -23073,6 +23073,8 @@ class MegaApi
          * relevant for that A/B Test flag (via a request of type MegaRequest::TYPE_AB_TEST_ACTIVE,
          * for which the response is not be relevant for the calling app)
          *
+         * You take the ownership of the returned value
+         *
          * @param flagName Name or key of the value to be retrieved (and possibly be sent to API as active).
          * @param commit Determine whether an A/B Test flag will be sent to API as active.
          *
