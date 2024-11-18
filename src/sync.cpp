@@ -8651,8 +8651,12 @@ bool Sync::handleTerminatedDownloadsDueUnknown(const SyncRow& row,
                        {},
                        {},
                        {}));
-    assert(false);
-    return false; // see method documentation for why
+    assert(false && "Unhandled situation! Investigate the reason and handle it properly");
+    const bool cloudNodeHasChanged = row.cloudNode && row.cloudNode->handle != downloadFile.h;
+    const bool localFileIsNewer = row.fsNode && row.cloudNode &&
+                                  row.fsNode->fingerprint.mtime > row.cloudNode->fingerprint.mtime;
+    const bool executeRestOfSyncItem = cloudNodeHasChanged || localFileIsNewer;
+    return executeRestOfSyncItem;
 }
 
 struct DifferentValueDetector_nodetype
