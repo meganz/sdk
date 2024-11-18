@@ -19,8 +19,6 @@
  * program.
  */
 
-#include <charconv>
-#include <numeric>
 #define _LARGE_FILES
 
 #define _GNU_SOURCE 1
@@ -28,21 +26,24 @@
 
 #define USE_VARARGS
 #define PREFER_STDARG
+#include "megaapi_impl.h"
+
 #include "mega/mediafileattribute.h"
 #include "mega/scoped_helpers.h"
 #include "mega/user_attribute.h"
 #include "megaapi.h"
-#include "megaapi_impl.h"
 
 #ifdef ENABLE_ISOLATED_GFX
 #include "mega/gfx/isolatedprocess.h"
 #endif
 
-#include <iomanip>
 #include <algorithm>
-#include <functional>
 #include <cctype>
+#include <charconv>
+#include <functional>
+#include <iomanip>
 #include <locale>
+#include <numeric>
 #include <thread>
 
 #ifndef _WIN32

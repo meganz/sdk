@@ -19,17 +19,16 @@
  * program.
  */
 
-#include <charconv>
 #ifndef MEGA_UTILS_H
 #define MEGA_UTILS_H 1
+#include "types.h"
 
-#include <type_traits>
+#include <charconv>
 #include <condition_variable>
-#include <thread>
 #include <mutex>
 #include <shared_mutex>
-
-#include "types.h"
+#include <thread>
+#include <type_traits>
 #undef SSIZE_MAX
 #include "mega/mega_utf8proc.h"
 #undef SSIZE_MAX
