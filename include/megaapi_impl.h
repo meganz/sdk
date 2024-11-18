@@ -3555,6 +3555,11 @@ class MegaApiImpl : public MegaApp
                                                         std::shared_ptr<Node> parent,
                                                         MegaRequestPrivate* request);
 
+        void sendUserfeedback(const int rating,
+                              const char* comment,
+                              const bool transferFeedback,
+                              const int transferType);
+
     public:
 #ifdef ENABLE_SYNC
         //Sync

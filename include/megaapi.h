@@ -10523,6 +10523,26 @@ class MegaApi
             TRANSFER_STATS_MAX = TRANSFER_STATS_BOTH,
         };
 
+        /**
+         * @enum ActionType
+         * @brief Enumeration representing different types of trigger actions for surveys.
+         *
+         * This enum is used to define actions that will trigger specific surveys.
+         * Each action is associated with a particular user activity.
+         */
+        enum SurveyTriggerActionId
+        {
+            ACT_END_UPLOAD = 1,
+            ACT_END_MEETING = 2,
+            ACT_CLOSING_DOC = 3,
+            ACT_END_VIDEO = 4,
+            ACT_END_AUDIO = 5,
+            ACT_INIT_BACKUP = 6,
+            ACT_END_PHOTO_UPLOAD = 7,
+            ACT_END_ALBUM_UPLOAD = 8,
+            ACT_SHARE_FOLDER_FILE = 9,
+        };
+
         static constexpr int64_t INVALID_CUSTOM_MOD_TIME = -1;
         static constexpr int CHAT_OPTIONS_EMPTY = 0;
         static constexpr int MAX_NODE_DESCRIPTION_SIZE = 3000;
@@ -23199,6 +23219,10 @@ class MegaApi
          *
          * This function answers a survey that the user has been asked to complete.
          *
+         * @note: If triggerActionId is MegaApi::ACT_END_UPLOAD, response and comment params, must
+         * be valid null terminated c-style strings, and response must contains a string with a
+         * valid rating value between 1 and 5
+         *
          * The associated request type for this function is MegaRequest::TYPE_ANSWER_SURVEY.
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the survey handle.
@@ -23209,11 +23233,14 @@ class MegaApi
          * If the request fails, the MegaError code in onRequestFinish can be:
          * - EACCESS   - Invalid user ID.
          * - EARGS     - Invalid arguments such as invalid survey handle/invalid trigger action ID.
+         * Also if triggerActionId is MegaApi::ACT_END_UPLOAD, and no valid rating value is provided
+         * at response, or comment param is nullptr.
          * - ENOENT    - Survey not found, trigger action not found, or survey disabled.
          * - EINTERNAL - Received answer could not be read.
          *
          * @param surveyHandle The survey handle
-         * @param triggerActionId The trigger action ID
+         * @param triggerActionId The trigger action ID. Valid values for this field are defined at
+         * MegaApi::SurveyTriggerActionId
          * @param response The response to the survey
          * @param comment The response to tell us more
          * @param listener MegaRequestListener to track this request

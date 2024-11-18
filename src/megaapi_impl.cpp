@@ -19,7 +19,6 @@
  * program.
  */
 
-#include <numeric>
 #define _LARGE_FILES
 
 #define _GNU_SOURCE 1
@@ -27,21 +26,24 @@
 
 #define USE_VARARGS
 #define PREFER_STDARG
+#include "megaapi_impl.h"
+
 #include "mega/mediafileattribute.h"
 #include "mega/scoped_helpers.h"
 #include "mega/user_attribute.h"
 #include "megaapi.h"
-#include "megaapi_impl.h"
 
 #ifdef ENABLE_ISOLATED_GFX
 #include "mega/gfx/isolatedprocess.h"
 #endif
 
-#include <iomanip>
 #include <algorithm>
-#include <functional>
 #include <cctype>
+#include <charconv>
+#include <functional>
+#include <iomanip>
 #include <locale>
+#include <numeric>
 #include <thread>
 
 #ifndef _WIN32
@@ -19963,6 +19965,58 @@ std::pair<bool, error> MegaApiImpl::checkCreateFolderPrecons(const char* name,
     return std::make_pair(true, API_OK);
 }
 
+void MegaApiImpl::sendUserfeedback(const int rating,
+                                   const char* comment,
+                                   const bool transferFeedback,
+                                   const int transferType)
+{
+    auto sendFeedback = [this](const int rating,
+                               const std::string& base64comment,
+                               const bool transferFeedback,
+                               const direction_t transferType)
+    {
+        std::ostringstream feedback;
+        if (transferFeedback)
+        {
+            std::string ts =
+                client->mTransferStatsManager.metricsToJsonForTransferType(transferType);
+            feedback << R"({\"r\":\")" << rating << R"(\",\"m\":\")" << base64comment
+                     << R"(\",\"u\":\")" << toHandle(client->me) << R"(\",)" << ts << "}";
+        }
+        else
+        {
+            feedback << R"({\"r\":\")" << rating << R"(\",\"m\":\")" << base64comment
+                     << R"(\",\"u\":\")" << toHandle(client->me) << R"(\"})";
+        }
+        client->userfeedbackstore(feedback.str().c_str());
+    };
+
+    std::string base64comment{};
+    if (comment)
+    {
+        base64comment = Base64::btoa(comment);
+    }
+
+    if (transferFeedback)
+    {
+        if (transferType == MegaApi::TRANSFER_STATS_DOWNLOAD ||
+            transferType == MegaApi::TRANSFER_STATS_BOTH)
+        {
+            sendFeedback(rating, base64comment, transferFeedback, GET);
+        }
+
+        if (transferType == MegaApi::TRANSFER_STATS_UPLOAD ||
+            transferType == MegaApi::TRANSFER_STATS_BOTH)
+        {
+            sendFeedback(rating, base64comment, transferFeedback, PUT);
+        }
+    }
+    else
+    {
+        sendFeedback(rating, base64comment, transferFeedback, NONE);
+    }
+}
+
 void MegaApiImpl::createFolder(const char* name, MegaNode* parent, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_FOLDER, listener);
@@ -23579,27 +23633,6 @@ void MegaApiImpl::submitFeedback(int rating,
 
     request->performRequest = [this, request]()
     {
-        auto sendFeedback = [this](const int rating,
-                                   const std::string& base64message,
-                                   const bool transferFeedback,
-                                   const direction_t transferType)
-        {
-            std::ostringstream feedback;
-            if (transferFeedback)
-            {
-                std::string ts =
-                    client->mTransferStatsManager.metricsToJsonForTransferType(transferType);
-                feedback << R"({\"r\":\")" << rating << R"(\",\"m\":\")" << base64message
-                         << R"(\",\"u\":\")" << toHandle(client->me) << R"(\",)" << ts << "}";
-            }
-            else
-            {
-                feedback << R"({\"r\":\")" << rating << R"(\",\"m\":\")" << base64message
-                         << R"(\",\"u\":\")" << toHandle(client->me) << R"(\"})";
-            }
-            client->userfeedbackstore(feedback.str().c_str());
-        };
-
         const int rating{static_cast<int>(request->getNumber())};
         if (rating < 1 || rating > 5)
         {
@@ -23615,30 +23648,9 @@ void MegaApiImpl::submitFeedback(int rating,
             return API_EARGS;
         }
 
-        std::string base64message{};
-        if (const char* message = request->getText(); message)
-        {
-            base64message = Base64::btoa(message);
-        }
-
-        if (const bool transferFeedback{request->getFlag()}; transferFeedback)
-        {
-            if (transferType == MegaApi::TRANSFER_STATS_DOWNLOAD ||
-                transferType == MegaApi::TRANSFER_STATS_BOTH)
-            {
-                sendFeedback(rating, base64message, transferFeedback, GET);
-            }
-
-            if (transferType == MegaApi::TRANSFER_STATS_UPLOAD ||
-                transferType == MegaApi::TRANSFER_STATS_BOTH)
-            {
-                sendFeedback(rating, base64message, transferFeedback, PUT);
-            }
-        }
-        else
-        {
-            sendFeedback(rating, base64message, transferFeedback, NONE);
-        }
+        const bool transferFeedback{request->getFlag()};
+        const char* comment{request->getText()};
+        sendUserfeedback(rating, comment, transferFeedback, transferType);
         return API_OK;
     };
 
@@ -27943,11 +27955,68 @@ void MegaApiImpl::answerSurvey(MegaHandle surveyHandle,
             fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
         };
 
-        CommandAnswerSurvey::Answer answer{
-            request->getNodeHandle(), // survey handle
-            static_cast<unsigned int>(request->getParamType()), // triger action ID
-            request->getText(), // response
-            request->getFile()}; // comment
+        auto parseRating = [](const char* response) -> std::pair<ErrorCodes, int>
+        {
+            assert(response);
+            int rating{};
+            if (auto [ptr, ec] =
+                    std::from_chars(response, response + std::strlen(response), rating);
+                ec != std::errc{})
+            {
+                LOG_err
+                    << "Request (TYPE_ANSWER_SURVEY). Cannot convert rating into a numeric value: "
+                    << rating;
+                return {API_EARGS, rating};
+            }
+
+            if (rating < 1 || rating > 5)
+            {
+                LOG_err << "Request (TYPE_ANSWER_SURVEY). Rating value is out of valid range: "
+                        << rating;
+                return {API_EARGS, rating};
+            }
+
+            return {API_OK, rating};
+        };
+
+        const unsigned int triggerActionId{static_cast<unsigned int>(request->getParamType())};
+        if (triggerActionId < MegaApi::ACT_END_UPLOAD ||
+            triggerActionId > MegaApi::ACT_SHARE_FOLDER_FILE)
+        {
+            LOG_err << "Request (TYPE_ANSWER_SURVEY). triggerActionId value is out of valid range: "
+                    << triggerActionId;
+            return API_EARGS;
+        }
+
+        const char* response{request->getText()};
+        const char* comment{request->getFile()};
+        if (const auto sendTransferFeedback = triggerActionId == MegaApi::ACT_END_UPLOAD;
+            sendTransferFeedback)
+        {
+            if (!response)
+            {
+                LOG_err << "Request (TYPE_ANSWER_SURVEY). Invalid response param";
+                return API_EARGS;
+            }
+
+            // if no comment is provided send empty string comment.
+            const std::string c{comment ? comment : ""};
+            auto [err, rating] = parseRating(response);
+            if (err != API_OK)
+            {
+                return err;
+            }
+
+            sendUserfeedback(rating,
+                             c.c_str(),
+                             true /*transferFeedback*/,
+                             MegaApi::TRANSFER_STATS_UPLOAD);
+        }
+
+        CommandAnswerSurvey::Answer answer{request->getNodeHandle(), // survey handle
+                                           triggerActionId,
+                                           response,
+                                           comment};
 
         client->answerSurvey(answer, std::move(completion));
         return API_OK;
