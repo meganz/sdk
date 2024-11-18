@@ -2066,7 +2066,8 @@ MegaHandle SdkTest::createFolder(unsigned int apiIndex, const char *name, MegaNo
 
     megaApi[apiIndex]->createFolder(name, parent, &tracker);
 
-    if (tracker.waitForResult() != API_OK) return UNDEF;
+    if (tracker.waitForResult(timeout) != API_OK)
+        return UNDEF;
 
     return tracker.request->getNodeHandle();
 }
