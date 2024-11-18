@@ -171,6 +171,7 @@ protected:
     bool curlipv6;
     bool reset;
     bool statechange;
+    bool dnsok;
 #ifdef MEGA_USE_C_ARES
     string dnsservers;
 #endif

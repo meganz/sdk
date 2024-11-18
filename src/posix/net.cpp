@@ -259,6 +259,7 @@ CurlHttpIO::CurlHttpIO()
     curlipv6 = data->features & CURL_VERSION_IPV6;
     LOG_debug << "IPv6 enabled: " << curlipv6;
 
+    dnsok = false;
     reset = false;
     statechange = false;
     disconnecting = false;
@@ -1940,6 +1941,11 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
             LOG_info << "Using custom DNS servers: " << dnsservers;
             ares_set_servers_csv(ares, dnsservers.c_str());
         }
+        else if (!dnsok)
+        {
+            getMEGADNSservers(&dnsservers, false);
+            ares_set_servers_csv(ares, dnsservers.c_str());
+        }
 
         if (proxyurl.size() && !proxyip.size())
         {
@@ -2361,6 +2367,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
 
                 if (req->status == REQ_SUCCESS)
                 {
+                    dnsok = true;
                     lastdata = Waiter::ds;
                     req->lastdata = Waiter::ds;
                 }
