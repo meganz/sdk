@@ -1409,6 +1409,15 @@ private:  // anything to do with loading/saving/storing configs etc is done on t
      */
     void ensureDriveOpenedAndMarkDirty(const LocalPath& externalDrivePath);
 
+    /**
+     * @brief Marks the externalDrivePath stored in the config as dirty and calls the
+     * syncConfigStoreFlush method to ensure the configuration is written into the database.
+     *
+     * @param config The configuration to store
+     * @return true if the operation succeed (the config was stored in the db), false otherwise
+     */
+    bool commitConfigToDb(const SyncConfig& config);
+
 public:
 
     string exportSyncConfigs(const SyncConfigVector configs) const;

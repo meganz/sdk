@@ -4196,12 +4196,24 @@ void Syncs::changeSyncRemoteRootInThread(const handle backupId,
         return completion(API_EEXIST, UNKNOWN_ERROR);
     }
 
-    const auto performTheRootChange = [&config, &unifSync, newRootNH, this]()
+    const auto& syncs = unifSync->syncs;
+    const auto currentDbPath = config.getSyncDbPath(*syncs.fsaccess, syncs.mClient);
+    const auto currentRootNH = std::exchange(config.mRemoteNode, newRootNH);
+
+    if (!commitConfigToDb(config))
     {
-        const auto& syncs = unifSync->syncs;
-        if (const auto currentDbPath = config.getSyncDbPath(*syncs.fsaccess, syncs.mClient);
-            currentDbPath)
+        config.mRemoteNode = currentRootNH;
+        LOG_err
+            << "Couldn't commit the configuration into the database, cancelling remote root change";
+        return completion(API_EWRITE, SYNC_CONFIG_WRITE_FAILURE);
+    }
+
+    const auto renameDbAndNotifyServer =
+        [&config, &unifSync, &syncs, &currentDbPath, newRootNH, this]()
+    {
+        if (currentDbPath)
         {
+            // Move db to the new expected location
             const auto newDbFileName =
                 config.getSyncDbStateCacheName(config.mLocalPathFsid, newRootNH, syncs.mClient.me);
 
@@ -4212,15 +4224,13 @@ void Syncs::changeSyncRemoteRootInThread(const handle backupId,
 
             std::filesystem::rename(*currentDbPath, newDbPath);
         }
-        config.mRemoteNode = newRootNH;
-        ensureDriveOpenedAndMarkDirty(config.mExternalDrivePath);
         mHeartBeatMonitor->updateOrRegisterSync(*unifSync);
     };
 
     if (const bool syncRunning = (unifSync->mSync != nullptr); syncRunning)
     {
         unifSync->suspendSync();
-        performTheRootChange();
+        renameDbAndNotifyServer();
         unifSync->resumeSync(
             [completion = std::move(completion)](error err, SyncError serr, handle)
             {
@@ -4232,7 +4242,7 @@ void Syncs::changeSyncRemoteRootInThread(const handle backupId,
     }
     else
     {
-        performTheRootChange();
+        renameDbAndNotifyServer();
         completion(API_OK, NO_SYNC_ERROR);
     }
 }
@@ -6802,6 +6812,13 @@ void Syncs::locallogout_inThread(bool removecaches, bool keepSyncsConfigFile, bo
         SyncConfigVector configs;
         syncConfigStoreLoad(configs);
     }
+}
+
+bool Syncs::commitConfigToDb(const SyncConfig& config)
+{
+    assert(onSyncThread());
+    ensureDriveOpenedAndMarkDirty(config.mExternalDrivePath);
+    return syncConfigStoreFlush();
 }
 
 void Syncs::ensureDriveOpenedAndMarkDirty(const LocalPath& externalDrivePath)
