@@ -1595,6 +1595,8 @@ const char* MegaError::getErrorString(int errorCode, ErrorContexts context)
             return "SSL verification failed";
         case API_EGOINGOVERQUOTA:
             return "Not enough quota";
+        case API_EROLLEDBACK:
+            return "Strongly-grouped request rolled back";
         case API_EMFAREQUIRED:
             return "Multi-factor authentication required";
         case API_EMASTERONLY:

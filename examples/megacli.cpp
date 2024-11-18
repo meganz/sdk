@@ -318,6 +318,8 @@ const char* errorstring(error e)
             return "Invalid application key";
         case API_EGOINGOVERQUOTA:
             return "Not enough quota";
+        case API_EROLLEDBACK:
+            return "Strongly-ordered request rolled back";
         case API_EMFAREQUIRED:
             return "Multi-factor authentication required";
         case API_EMASTERONLY:
