@@ -49,7 +49,7 @@ private:
 
     void serverListeningLoop();
 
-    std::error_code waitForClient(HANDLE hPipe, OVERLAPPED* overlapped);
+    std::error_code waitForClient(HANDLE hPipe, WinOverlapped& overlapped);
 
     std::unique_ptr<RequestProcessor> mRequestProcessor;
 
