@@ -4139,8 +4139,8 @@ bool Syncs::checkSyncRemoteLocationChange(SyncConfig& config,
     return true;
 }
 
-void Syncs::changeSyncLocalRoot(const handle backupId,
-                                const std::string& newLocalRootPath,
+void Syncs::changeSyncLocalRoot(const handle /* backupId */,
+                                const std::string& /* newLocalRootPath */,
                                 std::function<void(error, SyncError)>&& completion)
 {
     assert(false && "Not implemented yet and this code should be unreachable from public api");
