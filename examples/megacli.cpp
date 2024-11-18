@@ -5257,6 +5257,8 @@ autocomplete::ACN autocompleteSyntax()
 
     p->Add(exec_collectAndPrintTransferStats,
            sequence(text("getTransferStats"), opt(either(flag("-uploads"), flag("-downloads")))));
+
+    p->Add(exec_hashcash, sequence(text("hashcash"), opt(either(flag("-on"), flag("-off")))));
     return autocompleteTemplate = std::move(p);
 }
 
@@ -6668,21 +6670,21 @@ void exec_open(autocomplete::ACState& s)
 
             // create a new MegaClient with a different MegaApp to process callbacks
             // from the client logged into a folder. Reuse the waiter and httpio
-            clientFolder = new MegaClient(new DemoAppFolder,
-                                          client->waiter,
-                                          client->httpio,
-                #ifdef DBACCESS_CLASS
-                                          new DBACCESS_CLASS(*startDir),
-                #else
-                                          NULL,
-                #endif
-                                          gfx,
-                                          "Gk8DyQBS",
-                                          "megacli_folder/" TOSTRING(MEGA_MAJOR_VERSION)
-                                          "." TOSTRING(MEGA_MINOR_VERSION)
-                                          "." TOSTRING(MEGA_MICRO_VERSION),
-                                          2,
-                                          client->getClientType());
+            clientFolder =
+                new MegaClient(new DemoAppFolder,
+                               client->waiter,
+                               client->httpio,
+#ifdef DBACCESS_CLASS
+                               new DBACCESS_CLASS(*startDir),
+#else
+                               NULL,
+#endif
+                               gfx,
+                               "Gk8DyQBS",
+                               "megacli_folder/" TOSTRING(MEGA_MAJOR_VERSION) "." TOSTRING(
+                                   MEGA_MINOR_VERSION) "." TOSTRING(MEGA_MICRO_VERSION),
+                               2,
+                               client->getClientType());
         }
         else
         {
@@ -13493,4 +13495,33 @@ void exec_collectAndPrintTransferStats(autocomplete::ACState& state)
     {
         collectAndPrintTransfersMetricsFromType(GET);
     }
+}
+
+void exec_hashcash(autocomplete::ACState& s)
+{
+    const static string originalUserAgent = client->useragent;
+    const static string hashcashUserAgent = "HashcashDemo";
+
+    if (s.words.size() == 1)
+    {
+        cout << "Hashcash demo is "
+             << ((client->useragent == hashcashUserAgent) ? "enabled" : "disabled") << endl;
+        return;
+    }
+
+    if (s.extractflag("-on"))
+    {
+        g_APIURL_default = "https://staging.api.mega.co.nz/";
+        client->useragent = hashcashUserAgent;
+    }
+    else if (s.extractflag("-off"))
+    {
+        g_APIURL_default = "https://g.api.mega.co.nz/";
+        client->useragent = originalUserAgent;
+    }
+
+    client->httpio->APIURL = g_APIURL_default;
+    string tempUserAgent = client->useragent;
+    client->httpio->setuseragent(&tempUserAgent);
+    client->disconnect();
 }
