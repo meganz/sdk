@@ -1265,7 +1265,8 @@ void SdkTest::fetchnodes(unsigned int apiIndex, int timeout)
 {
     RequestTracker rt(megaApi[apiIndex].get());
     mApi[apiIndex].megaApi->fetchNodes(&rt);
-    ASSERT_EQ(API_OK, rt.waitForResult(300)) << "Fetchnodes failed or took more than 5 minutes";
+    ASSERT_EQ(API_OK, rt.waitForResult(timeout))
+        << "Fetchnodes failed or took more than " << timeout << " seconds";
 }
 
 void SdkTest::logout(unsigned int apiIndex, bool keepSyncConfigs, int timeout)
