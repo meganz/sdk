@@ -61,8 +61,6 @@ std::pair<CommError, HANDLE> GfxCommunicationsClient::doConnect(LPCTSTR pipeName
         }
     }
 
-    LOG_verbose << "Connected Handle:" << hPipe << " error: " << static_cast<int>(error);
-
     return {error, hPipe};
 }
 
