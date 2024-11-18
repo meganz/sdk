@@ -2777,9 +2777,9 @@ size_t CurlHttpIO::check_header(void* ptr, size_t size, size_t nmemb, void* targ
     else if (len >= (11 + 7) && !memcmp(ptr, "X-Hashcash:", 11))
     {
         // trim trailing CRLF
-        while (len > 11 && static_cast<uint8_t*>(ptr)[len] < ' ') len--;
+        while (len > 11 && static_cast<uint8_t*>(ptr)[len - 1] < ' ') len--;
 
-        string buffer{(char*)ptr + 11, len - 10};
+        string buffer{(char*)ptr + 11, len - 11};
         LOG_warn << "X-Hashcash received:" << buffer;
 
         // Example of hashcash header
