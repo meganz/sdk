@@ -1,5 +1,5 @@
 pipeline {
-    agent { label 'ci-debian-11-64-4' }
+    agent { label 'docker' }
 
     options { 
         buildDiscarder(logRotator(numToKeepStr: '25', daysToKeepStr: '30'))
@@ -16,10 +16,11 @@ pipeline {
         password(name: 'GPG_PASSWORD', defaultValue: '', description: 'Enter the password')
     }
     environment {
-        JIRA_SDK_CREDS = credentials('SDK_JIRA')
+        //JIRA_SDK_CREDS = credentials('SDK_JIRA')
         SLACK_TOKEN = credentials('sdk_slack_bot_releases')
         GITLAB_TOKEN = credentials('SDK_releases_gitlab_token')
         gpg_keygrip = credentials('sdk_gpg_keygrip_release_management')
+        gpg_key = credentials('sdk_gpg_key_release_management')
         GITHUB_TOKEN = credentials('sdk_github_token')
         project_name = "SDK"
         slack_channel = "sdk"
@@ -79,18 +80,21 @@ pipeline {
                 docker {
                     image 'meganz/sdk-release-management:${env.BUILD_NUMBER}'
                     reuseNode true
-                    args '-v ${WORKSPACE}:/app/'
+                    args '-v ${WORKSPACE}:/mega/sdk/'
                 }
             }
-            environment {
-                JIRA_USERNAME = '$JIRA_SDK_CREDS_USR'
-                JIRA_PASSWORD = '$JIRA_SDK_CREDS_PSW'
-            }
             steps {
-                dir("automation"){
-
-                    sh 'cat config.toml'
-                    sh 'python3 ./make_release.py config.toml'
+                withCredentials([
+                    usernamePassword(credentialsId: 'SDK_JIRA', usernameVariable: 'JIRA_USERNAME', passwordVariable: 'JIRA_PASSWORD'),
+                    usernamePassword(credentialsId: 'SDK_JIRA', usernameVariable: 'CONFLUENCE_USER', passwordVariable: 'CONFLUENCE_PASSWORD')
+                    ]){
+                    dir("automation"){
+                        sh 'cat config.toml'
+                        sh 'printenv'
+                        sh 'gpg --batch --import $gpg_key'                     
+                        sh 'gpg --list-secret-keys'
+                        sh 'python3 ./make_release.py config.toml'
+                    }
                 }
             }
         }
@@ -103,17 +107,21 @@ pipeline {
                 docker {
                     image "meganz/sdk-release-management:${env.BUILD_NUMBER}"
                     reuseNode true
-                    args '-v ${WORKSPACE}:/app/'
+                    args '-v ${WORKSPACE}:/mega/sdk/'
                 }
             }
-            environment {
-                JIRA_USERNAME = '$JIRA_SDK_CREDS_USR'
-                JIRA_PASSWORD = '$JIRA_SDK_CREDS_PSW'
-            }
             steps {
-                dir("automation"){
-                    sh 'cat config.toml'
-                    sh 'python3 ./make_another_rc.py config.toml'
+                withCredentials([
+                    usernamePassword(credentialsId: 'SDK_JIRA', usernameVariable: 'JIRA_USERNAME', passwordVariable: 'JIRA_PASSWORD'),
+                    usernamePassword(credentialsId: 'SDK_JIRA', usernameVariable: 'CONFLUENCE_USER', passwordVariable: 'CONFLUENCE_PASSWORD')
+                    ]){
+                    dir("automation"){
+                        sh 'cat config.toml'
+                        sh 'printenv'
+                        sh 'gpg --batch --import $gpg_key'                     
+                        sh 'gpg --list-secret-keys'
+                        sh 'python3 ./make_another_rc.py config.toml'
+                    }
                 }
             }
         }
@@ -126,19 +134,21 @@ pipeline {
                 docker {
                     image "meganz/sdk-release-management:${env.BUILD_NUMBER}"
                     reuseNode true
-                    args '-v ${WORKSPACE}:/app/'
+                    args '-v ${WORKSPACE}:/mega/sdk/'
                 }
             }
-            environment {
-                JIRA_USERNAME = '$JIRA_SDK_CREDS_USR'
-                JIRA_PASSWORD = '$JIRA_SDK_CREDS_PSW'
-                CONFLUENCE_USER = '$JIRA_SDK_CREDS_USR'
-                CONFLUENCE_PASSWORD = '$JIRA_SDK_CREDS_PSW'
-            }
             steps {
-                dir("automation"){
-                    sh 'cat config.toml'
-                    sh 'python3 ./close_release.py config.toml'
+                withCredentials([
+                    usernamePassword(credentialsId: 'SDK_JIRA', usernameVariable: 'JIRA_USERNAME', passwordVariable: 'JIRA_PASSWORD'),
+                    usernamePassword(credentialsId: 'SDK_JIRA', usernameVariable: 'CONFLUENCE_USER', passwordVariable: 'CONFLUENCE_PASSWORD')
+                    ]){
+                    dir("automation"){
+                        sh 'cat config.toml'
+                        sh 'printenv'
+                        sh 'gpg --batch --import $gpg_key'                     
+                        sh 'gpg --list-secret-keys'
+                        sh 'python3 ./close_release.py config.toml'
+                    }
                 }
             }
         }
@@ -151,18 +161,21 @@ pipeline {
                 docker {
                     image "meganz/sdk-release-management:${env.BUILD_NUMBER}"
                     reuseNode true
-                    args '-v ${WORKSPACE}:/app/'
+                    args '-v ${WORKSPACE}:/mega/sdk/'
                 }
             }
-            environment {
-                JIRA_USERNAME = '$JIRA_SDK_CREDS_USR'
-                JIRA_PASSWORD = '$JIRA_SDK_CREDS_PSW'
-            }
             steps {
-                dir("automation"){
-                    sh 'cat config.toml'
-                    sh 'python3 ./patch_release.py config.toml'
-
+                withCredentials([
+                    usernamePassword(credentialsId: 'SDK_JIRA', usernameVariable: 'JIRA_USERNAME', passwordVariable: 'JIRA_PASSWORD'),
+                    usernamePassword(credentialsId: 'SDK_JIRA', usernameVariable: 'CONFLUENCE_USER', passwordVariable: 'CONFLUENCE_PASSWORD')
+                    ]){
+                    dir("automation"){
+                        sh 'cat config.toml'
+                        sh 'printenv'
+                        sh 'gpg --batch --import $gpg_key'                     
+                        sh 'gpg --list-secret-keys'
+                        sh 'python3 ./patch_release.py config.toml'
+                    }
                 }
             }
         }
