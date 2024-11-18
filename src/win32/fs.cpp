@@ -1919,7 +1919,12 @@ bool  WinFileSystemAccess::checkForSymlink(const LocalPath& lp)
     return false;
 }
 
-ScanResult WinFileSystemAccess::directoryScan(const LocalPath& path, handle expectedFsid, map<LocalPath, FSNode>& known, std::vector<FSNode>& results, bool followSymLinks, unsigned& nFingerprinted)
+ScanResult WinFileSystemAccess::directoryScan(const LocalPath& path,
+                                              handle expectedFsid,
+                                              map<LocalPath, FSNode>& known,
+                                              std::vector<FSNode>& results,
+                                              [[maybe_unused]] bool followSymLinks,
+                                              unsigned& nFingerprinted)
 {
     assert(path.isAbsolute());
     assert(!followSymLinks && "Symlinks are not supported on Windows!");

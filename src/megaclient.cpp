@@ -880,7 +880,7 @@ error MegaClient::setbackupfolder(const char* foldername, int tag, std::function
 
     // 2. upon completion of putnodes(), set the user's attribute `^!bak`
     auto addua = [addua_completion, this](const Error& e,
-                                          targettype_t handletype,
+                                          [[maybe_unused]] targettype_t handletype,
                                           vector<NewNode>& nodes,
                                           bool /*targetOverride*/,
                                           int /*tag*/,
@@ -928,20 +928,25 @@ void MegaClient::updateStateInBC(handle bkpId, CommandBackupPut::SPState newStat
     };
 
     // step 3: set sds attribute
-    auto updateSds = [this, bkpId, newState, bkpRoot, setAttrCompletion, finalCompletion](const Error& updateStateErr, handle backupId) mutable
+    auto updateSds = [this, bkpId, newState, bkpRoot, setAttrCompletion, finalCompletion](
+                         const Error& updateStateErr,
+                         [[maybe_unused]] handle backupId) mutable
     {
         assert(backupId == UNDEF || bkpId == backupId);
 
         if (updateStateErr != API_OK)
         {
-            LOG_err << "Update backup/sync: failed to update " << toHandle(bkpId) << ", error: " << error(updateStateErr);
+            LOG_err << "Update backup/sync: failed to update " << toHandle(bkpId)
+                    << ", error: " << error(updateStateErr);
             // Don't break execution here in case of error. Still try to set 'sds' node attribute.
         }
 
         std::shared_ptr<Node> bkpRootNode = nodebyhandle(*bkpRoot);
         if (!bkpRootNode)
         {
-            LOG_err << "Update backup/sync: root node not found to set SDS attribute for when updating " << toHandle(bkpId);
+            LOG_err
+                << "Update backup/sync: root node not found to set SDS attribute for when updating "
+                << toHandle(bkpId);
             finalCompletion(API_ENOENT);
             return;
         }

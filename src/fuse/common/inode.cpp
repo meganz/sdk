@@ -48,7 +48,7 @@ void LockableTraits<Inode>::tryAcquire(const Inode& inode)
                toString(inode.id()).c_str());
 }
 
-void Inode::moved(InodeDBLock& lock,
+void Inode::moved([[maybe_unused]] InodeDBLock& lock,
                   const std::string& name,
                   NodeHandle parentHandle)
 {
