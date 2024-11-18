@@ -4271,7 +4271,8 @@ void Syncs::queueSync(std::function<void()>&& f, const string& actionName)
     waiter->notify();
 }
 
-void Syncs::queueClient(std::function<void(MegaClient&, TransferDbCommitter&)>&& f, bool fromAnyThread)
+void Syncs::queueClient(std::function<void(MegaClient&, TransferDbCommitter&)>&& f,
+                        [[maybe_unused]] bool fromAnyThread)
 {
     assert(onSyncThread() || fromAnyThread);
     clientThreadActions.pushBack(move(f));
@@ -10126,7 +10127,11 @@ bool Sync::resolve_upsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, 
     return false;
 }
 
-bool Sync::resolve_downsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool alreadyExists, PerFolderLogSummaryCounts& pflsc)
+bool Sync::resolve_downsync(SyncRow& row,
+                            SyncRow& parentRow,
+                            SyncPath& fullPath,
+                            [[maybe_unused]] bool alreadyExists,
+                            PerFolderLogSummaryCounts& pflsc)
 {
     assert(syncs.onSyncThread());
     ProgressingMonitor monitor(*this, row, fullPath);

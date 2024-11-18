@@ -336,7 +336,7 @@ void InodeDB::childAdded(const Inode& inode,
     static_cast<void>(result);
 }
 
-void InodeDB::childRemoved(const Inode& inode,
+void InodeDB::childRemoved([[maybe_unused]] const Inode& inode,
                            const std::string& name,
                            NodeHandle parentHandle)
 {

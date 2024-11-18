@@ -578,7 +578,7 @@ void SyncTransfer_inClient::terminated(error e)
     selfKeepAlive.reset();  // deletes this object! (if abandoned by sync)
 }
 
-void SyncTransfer_inClient::completed(Transfer*, putsource_t source)
+void SyncTransfer_inClient::completed(Transfer*, [[maybe_unused]] putsource_t source)
 {
     assert(source == PUTNODES_SYNC);
 

@@ -2164,9 +2164,14 @@ bool FileDistributor::moveToForMethod_RenameExistingToOldN(const LocalPath& sour
 }
 
 #ifdef ENABLE_SYNC
-bool FileDistributor::moveToForMethod_MoveReplacedFileToSyncDebris(const LocalPath& source, LocalPath& target, FileSystemAccess& fsAccess,
-                        bool& transient_error, bool& name_too_long, Sync* syncForDebris,
-                        const FileFingerprint& confirmFingerprint)
+bool FileDistributor::moveToForMethod_MoveReplacedFileToSyncDebris(
+    const LocalPath& source,
+    LocalPath& target,
+    FileSystemAccess& fsAccess,
+    bool& transient_error,
+    bool& name_too_long,
+    Sync* syncForDebris,
+    [[maybe_unused]] const FileFingerprint& confirmFingerprint)
 {
         // Move the obstruction to the local debris.
         if (!syncForDebris->movetolocaldebris(target))
@@ -2188,9 +2193,15 @@ bool FileDistributor::moveToForMethod_MoveReplacedFileToSyncDebris(const LocalPa
         return result;
 }
 
-bool FileDistributor::copyToForMethod_MoveReplacedFileToSyncDebris(const LocalPath& source, LocalPath& target, m_time_t mtime, FileSystemAccess& fsAccess,
-                        bool& transient_error, bool& name_too_long, Sync* syncForDebris,
-                        const FileFingerprint& confirmFingerprint)
+bool FileDistributor::copyToForMethod_MoveReplacedFileToSyncDebris(
+    const LocalPath& source,
+    LocalPath& target,
+    m_time_t mtime,
+    FileSystemAccess& fsAccess,
+    bool& transient_error,
+    bool& name_too_long,
+    Sync* syncForDebris,
+    [[maybe_unused]] const FileFingerprint& confirmFingerprint)
 {
         // Move the obstruction to the local debris.
         if (!syncForDebris->movetolocaldebris(target))
@@ -2267,8 +2278,14 @@ bool FileDistributor::copyToForMethod_RenameExistingToOldN(const LocalPath& sour
         }
 }
 
-bool FileDistributor::copyToForMethod_OverwriteTarget(const LocalPath& source, LocalPath& target, m_time_t mtime,
-                        FileSystemAccess& fsAccess, bool& transient_error, bool& name_too_long, const FileFingerprint& confirmFingerprint)
+bool FileDistributor::copyToForMethod_OverwriteTarget(
+    const LocalPath& source,
+    LocalPath& target,
+    m_time_t mtime,
+    FileSystemAccess& fsAccess,
+    bool& transient_error,
+    bool& name_too_long,
+    [[maybe_unused]] const FileFingerprint& confirmFingerprint)
 {
     if (fsAccess.copylocal(source, target, mtime))//copylocal is implemented as always overwrite
     {

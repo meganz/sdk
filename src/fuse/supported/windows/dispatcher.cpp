@@ -153,7 +153,7 @@ NTSTATUS Dispatcher::create(FSP_FILE_SYSTEM* filesystem,
                             UINT32 options,
                             UINT32 access,
                             UINT32 attributes,
-                            PSECURITY_DESCRIPTOR descriptor,
+                            [[maybe_unused]] PSECURITY_DESCRIPTOR descriptor,
                             UINT64,
                             PVOID* context,
                             FSP_FSCTL_FILE_INFO* info)

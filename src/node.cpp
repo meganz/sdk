@@ -2794,7 +2794,10 @@ void LocalNode::setSyncedFsid(handle newfsid, fsid_localnode_map& fsidnodes, con
 //        0 == compareUtf(localname, true, name, false, true));
 }
 
-void LocalNode::setScannedFsid(handle newfsid, fsid_localnode_map& fsidnodes, const LocalPath& fsName, const FileFingerprint& scanfp)
+void LocalNode::setScannedFsid(handle newfsid,
+                               fsid_localnode_map& fsidnodes,
+                               [[maybe_unused]] const LocalPath& fsName,
+                               const FileFingerprint& scanfp)
 {
     if (fsid_asScanned_it != fsidnodes.end())
     {

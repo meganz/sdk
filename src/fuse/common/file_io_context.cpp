@@ -222,7 +222,7 @@ InodeDB& FileIOContext::inodeDB() const
     return mFileCache.mContext.mInodeDB;
 }
 
-Error FileIOContext::manualFlush(FileIOContextSharedLock& contextLock,
+Error FileIOContext::manualFlush([[maybe_unused]] FileIOContextSharedLock& contextLock,
                                  std::unique_lock<std::mutex>& flushLock,
                                  NodeHandle mountHandle,
                                  LocalPath mountPath)
@@ -366,10 +366,8 @@ void FileIOContext::onPeriodicFlush(FileIOContextRef& context,
         mPeriodicFlushTask.reset();
 }
 
-auto FileIOContext::open(FileIOContextLock& lock,
-                         const Mount& mount,
-                         m_off_t hint)
-  -> ErrorOr<FileAccessSharedPtr>
+auto FileIOContext::open([[maybe_unused]] FileIOContextLock& lock, const Mount& mount, m_off_t hint)
+    -> ErrorOr<FileAccessSharedPtr>
 {
     // Sanity.
     assert(lock.owns_lock());
