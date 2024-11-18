@@ -23093,7 +23093,7 @@ class MegaApi
          *
          * @note: If triggerActionId is MegaApi::ACT_END_UPLOAD, response and comment params, must
          * be valid null terminated c-style strings, and response must contains a string with a
-         * valid rating value between 0 and 5
+         * valid rating value between 1 and 5
          *
          * The associated request type for this function is MegaRequest::TYPE_ANSWER_SURVEY.
          * Valid data in the MegaRequest object received on callbacks:

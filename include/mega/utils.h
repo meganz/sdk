@@ -1521,11 +1521,7 @@ std::string getThisThreadIdStr();
 template<typename T>
 std::string numberToString(T number)
 {
-    if (!std::is_arithmetic<T>::value)
-    {
-        assert(false);
-        return {};
-    }
+    static_assert(std::is_arithmetic_v<T>, "invalid numeric type");
 
     char buffer[64];
     if (auto [ptr, ec] = std::to_chars(buffer, buffer + sizeof(buffer), number); ec == std::errc())
