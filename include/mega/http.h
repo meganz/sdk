@@ -380,6 +380,10 @@ struct MEGA_API HttpReq
     // Content-Type of the response
     string contenttype;
 
+    // Hashcash data extracted from X-Hashcash header of cs response, if any
+    string mHashcashToken;
+    uint8_t mHashcashEasiness{};
+
     // HttpIO implementation-specific identifier for this connection
     void* httpiohandle;
 

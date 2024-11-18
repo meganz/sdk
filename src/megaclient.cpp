@@ -31,6 +31,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <charconv>
 #include <ctime>
 #include <functional>
 #include <future>
@@ -2579,6 +2580,27 @@ void MegaClient::exec()
 
                     // fall through
                     case REQ_FAILURE:
+                        if (pendingcs->httpstatus == 402)
+                        {
+                            // get X-Hashcash header
+                            if (pendingcs->mHashcashToken.empty())
+                            {
+                                LOG_err << "X-Hashcash header missing for HTTP status "
+                                        << pendingcs->httpstatus;
+                            }
+                            else if (pendingcs->contentlength > 0)
+                            {
+                                LOG_err << "Content-Length not 0, as it should be when X-Hashcash "
+                                           "header was received";
+                            }
+                            else
+                            {
+                                mReqHashcashToken = std::move(pendingcs->mHashcashToken);
+                                pendingcs->mHashcashToken.clear(); // just to be sure
+                                mReqHashcashEasiness = pendingcs->mHashcashEasiness;
+                            }
+                        }
+
                         if (!reason && pendingcs->httpstatus != 200)
                         {
                             if (pendingcs->httpstatus == 500)
@@ -2689,6 +2711,9 @@ void MegaClient::exec()
                         pendingcs->mChunked = !isClientType(ClientType::VPN);
                     }
 
+                    pendingcs->mHashcashToken = std::move(mReqHashcashToken);
+                    mReqHashcashToken.clear();
+                    pendingcs->mHashcashEasiness = mReqHashcashEasiness;
                     performanceStats.csRequestWaitTime.start();
                     pendingcs->post(this);
                     continue;
@@ -4745,6 +4770,9 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     mKeyManager.reset();
 
     mLastErrorDetected = REASON_ERROR_NO_ERROR;
+    
+    mReqHashcashEasiness = 0;
+    mReqHashcashToken.clear();
 }
 
 void MegaClient::removeCaches()

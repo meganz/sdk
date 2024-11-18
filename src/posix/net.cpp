@@ -1452,6 +1452,50 @@ struct curl_slist* CurlHttpIO::clone_curl_slist(struct curl_slist* inlist)
     return outlist;
 }
 
+// Generate cash function
+// FIXME: make async/make multithreaded
+std::string gencash(const string& token, uint8_t easiness)
+{
+    // Calculate threshold from easiness
+    // easiness: encoded threshold (maximum acceptable value in the first 32 byte of the
+    // hash (little endian) - the lower, the harder to solve)
+    uint32_t threshold =
+        static_cast<uint32_t>((((easiness & 63) << 1) + 1) << ((easiness >> 6) * 7 + 3));
+    
+    // Token is 64 chars in B64, we need the 48 bytes in binary
+    string tokenBinary = Base64::atob(token);
+
+    // Buffer to hold 4-byte prefix + 262144 * 48 bytes of the token
+    std::vector<uint8_t> buffer(4 + 262144 * 48); // total size = 12582916
+    for (auto i = 0; i < 262144; ++i)
+    {
+        std::copy(tokenBinary.begin(), tokenBinary.end(), buffer.begin() + 4 + i * 48);
+    }
+
+    uint32_t* prefixptr = reinterpret_cast<uint32_t*>(buffer.data());
+
+    for (;;)
+    {
+        // increment prefix (the final result, but not its correctness, will depend on the CPU's endianness)
+	// we do not have an explicit abort condition (the actual easiness will be lenient enough)
+	(*prefixptr)++;
+
+        // SHA-256 hash
+        HashSHA256 hasher;
+        hasher.add((const byte*)buffer.data(), static_cast<unsigned>(buffer.size()));
+
+        string hash;
+        hasher.get(&hash);
+
+        if (htonl(*(reinterpret_cast<uint32_t*>(hash.data()))) <= threshold)
+        {
+            // success - return the prefix
+            string prefixToReturn(buffer.begin(), buffer.begin() + 4);
+            return Base64::btoa(prefixToReturn);
+        }
+    }
+}
+
 void CurlHttpIO::send_request(CurlHttpContext* httpctx)
 {
     CurlHttpIO* httpio = httpctx->httpio;
@@ -1483,6 +1527,15 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
 
     httpctx->headers = clone_curl_slist(req->type == REQ_JSON ? httpio->contenttypejson : httpio->contenttypebinary);
     httpctx->posturl = req->posturl;
+
+    if (!req->mHashcashToken.empty())
+    {
+        string nextValue = gencash(req->mHashcashToken, req->mHashcashEasiness);
+        string xHashcashHeader{"X-Hashcash: 1:" + req->mHashcashToken + ":" + std::move(nextValue)};
+        httpctx->headers = curl_slist_append(httpctx->headers, xHashcashHeader.c_str());
+        LOG_warn << "X-Hashcash computed: " << xHashcashHeader;
+        req->mHashcashToken.clear();
+    }
 
 #ifdef MEGA_USE_C_ARES
     if(httpio->proxyip.size())
@@ -2234,7 +2287,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                 measureLatency(msg->easy_handle, req);
 
                 CURLcode errorCode = msg->data.result;
-                if (errorCode != CURLE_OK)
+                if (errorCode != CURLE_OK && errorCode != CURLE_HTTP_RETURNED_ERROR && errorCode != CURLE_WRITE_ERROR)
                 {
                     LOG_debug << req->logname << "CURLMSG_DONE with error " << errorCode << ": " << curl_easy_strerror(errorCode);
 
@@ -2720,6 +2773,40 @@ size_t CurlHttpIO::check_header(void* ptr, size_t size, size_t nmemb, void* targ
     else if (len > 15 && !memcmp(ptr, "Content-Type:", 13))
     {
         req->contenttype.assign((char *)ptr + 13, len - 15);
+    }
+    else if (len >= (11 + 7) && !memcmp(ptr, "X-Hashcash:", 11))
+    {
+        // trim trailing CRLF
+        while (len > 11 && static_cast<uint8_t*>(ptr)[len - 1] < ' ') len--;
+
+        string buffer{(char*)ptr + 11, len - 11};
+        LOG_warn << "X-Hashcash received:" << buffer;
+
+        // Example of hashcash header
+        // 1:100:1731410499:RUvIePV2PNO8ofg8xp1aT5ugBcKSEzwKoLBw9o4E6F_fmn44eC3oMpv388UtFl2K
+        // <version>:<easiness>:<timestamp>:<b64token>
+
+        std::stringstream ss(buffer);
+        vector<string> hc;
+        for (size_t i = 0; i < 4; i++)
+        {
+            string buf;
+            if (!getline(ss, buf, ':'))
+                break;
+            hc.push_back(move(buf));
+        }
+        if (hc.size() != 4 // incomplete data
+            || stoi(hc[0]) != 1 // header version
+            || stoi(hc[1]) < 0 || stoi(hc[1]) > 255 // invalid easiness [0, 255]
+            || hc[3].size() != 64)  // token is 64 chars in B64
+        {
+            req->mHashcashToken.clear();
+        }
+        else
+        {
+            req->mHashcashToken = hc[3].substr(0, 64);
+            req->mHashcashEasiness = static_cast<uint8_t>(stoi(hc[1]));
+        }
     }
     else
     {

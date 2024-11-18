@@ -450,3 +450,4 @@ void exec_importpasswordsfromgooglefile(autocomplete::ACState&);
 void exec_getpricing(autocomplete::ACState&);
 
 void exec_collectAndPrintTransferStats(autocomplete::ACState&);
+void exec_hashcash(autocomplete::ACState&);
