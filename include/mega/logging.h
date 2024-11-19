@@ -195,7 +195,7 @@ class SimpleLogger
 
     std::string getTime();
 #else
-    static thread_local std::array<char, LOGGER_CHUNKS_SIZE> mBuffer;
+    static inline thread_local std::array<char, LOGGER_CHUNKS_SIZE> mBuffer;
     std::array<char, LOGGER_CHUNKS_SIZE>::iterator mBufferIt;
 #ifndef NDEBUG
     // Detect and warn against multiple instances of this class created in the same thread.
@@ -205,7 +205,7 @@ class SimpleLogger
     // An alternative approach aiming to allow such cases, would be to overload operator,(), but that will
     // require to no longer use LoggerVoidify(), and create a "null logger" for the cases when requested
     // log level needs to be ignored. That would also incur a small performance penalty for the latter case.
-    static thread_local const SimpleLogger* mBufferOwner;
+    static inline thread_local const SimpleLogger* mBufferOwner = nullptr;
 #endif
 
     using DiffType = std::array<char, LOGGER_CHUNKS_SIZE>::difference_type;
