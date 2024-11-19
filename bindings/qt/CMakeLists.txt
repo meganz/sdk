@@ -40,7 +40,7 @@ target_link_libraries(SDKQtBindings
 ## Adjust compilation flags for warnings and errors ##
 target_platform_compile_options(
     TARGET SDKQtBindings
-    UNIX $<$<CONFIG:Debug>:-ggdb3> -Wall -Wextra -Wconversion -Wno-unused-parameter
+    UNIX $<$<CONFIG:Debug>:-ggdb3> -Wall -Wextra -Wconversion
 )
 
 if(ENABLE_CHATLIB_WERROR)

@@ -1262,7 +1262,7 @@ void StandardClient::ResultProc::prepresult(resultprocenum rpe, int tag, std::fu
     client.client.waiter->notify();
 }
 
-void StandardClient::ResultProc::processresult(resultprocenum rpe, error e, handle h, int tag)
+void StandardClient::ResultProc::processresult(resultprocenum rpe, error e, handle, int tag)
 {
     if (tag == 0 && rpe != CATCHUP)
     {
@@ -1514,7 +1514,7 @@ void StandardClient::syncupdate_stateconfig(const SyncConfig& config)
         mOnSyncStateConfig(config);
 }
 
-void StandardClient::useralerts_updated(UserAlert::Base** alerts, int numAlerts)
+void StandardClient::useralerts_updated(UserAlert::Base** /*alerts*/, int numAlerts)
 {
     if (logcb)
     {
@@ -1868,7 +1868,7 @@ void StandardClient::file_complete(File* file)
     }
 }
 
-void StandardClient::notify_retry(dstime when, retryreason_t reason)
+void StandardClient::notify_retry(dstime /*when*/, retryreason_t reason)
 {
     onCallback();
 
@@ -2074,11 +2074,15 @@ void StandardClient::loginFromSession(const string& session, PromiseBoolSP pb)
 #if defined(MEGA_MEASURE_CODE) || defined(DEBUG)
 void StandardClient::sendDeferredAndReset()
 {
-    auto futureResult = thread_do<bool>([&](StandardClient& sc, PromiseBoolSP pb) {
-        client.reqs.deferRequests = nullptr;
-        client.reqs.sendDeferred();
-        pb->set_value(true);
-    }, __FILE__, __LINE__);
+    auto futureResult = thread_do<bool>(
+        [&](StandardClient&, PromiseBoolSP pb)
+        {
+            client.reqs.deferRequests = nullptr;
+            client.reqs.sendDeferred();
+            pb->set_value(true);
+        },
+        __FILE__,
+        __LINE__);
     futureResult.get();
 }
 #endif
@@ -2477,7 +2481,7 @@ void StandardClient::uploadFile(const fs::path& sourcePath,
                                            targettype_t,
                                            vector<NewNode>&,
                                            bool,
-                                           int tag,
+                                           int /*tag*/,
                                            const map<string, string>& /*fileHandles*/)
             {
                 EXPECT_EQ(result, API_OK);
@@ -2798,7 +2802,7 @@ void StandardClient::makeCloudSubdirs(const string& prefix, int depth, int fanou
                                      targettype_t,
                                      vector<NewNode>& nodes,
                                      bool,
-                                     int tag,
+                                     int /*tag*/,
                                      const map<string, string>& /*fileHandles*/)
         {
             lastPutnodesResultFirstHandle = nodes.empty() ? UNDEF : nodes[0].mAddedHandle;
@@ -2998,7 +3002,7 @@ void StandardClient::setupBackup_inThread(const string& rootPath,
         {
             client.addsync(
                 std::move(sc),
-                [revertOnError, result](error e, SyncError se, handle h)
+                [revertOnError, result](error e, SyncError, handle h)
                 {
                     if (e && revertOnError)
                         revertOnError(nullptr);
@@ -3960,9 +3964,9 @@ void StandardClient::unlink_result(handle h, error e)
 }
 
 void StandardClient::putnodes_result(const Error& e,
-                                     targettype_t tt,
+                                     targettype_t,
                                      vector<NewNode>& nn,
-                                     bool targetOverride,
+                                     bool /*targetOverride*/,
                                      int tag,
                                      const map<string, string>& /*fileHandles*/)
 {
@@ -4111,11 +4115,21 @@ void StandardClient::movenodetotrash(string path, PromiseBoolSP pb)
     std::shared_ptr<Node> p = getcloudrubbishnode();
     if (n && p && n->parent)
     {
-        resultproc.prepresult(COMPLETION, ++next_request_tag,
+        resultproc.prepresult(
+            COMPLETION,
+            ++next_request_tag,
             [pb, n, p, this]()
             {
-                client.rename(n, p, SYNCDEL_NONE, NodeHandle(), nullptr, false,
-                    [pb](NodeHandle h, Error e) { pb->set_value(!e); });
+                client.rename(n,
+                              p,
+                              SYNCDEL_NONE,
+                              NodeHandle(),
+                              nullptr,
+                              false,
+                              [pb](NodeHandle, Error e)
+                              {
+                                  pb->set_value(!e);
+                              });
             },
             nullptr);
         return;
@@ -4170,7 +4184,6 @@ void StandardClient::getpubliclink(Node* n, int del, m_time_t expiry, bool writa
         nullptr);
 }
 
-
 void StandardClient::waitonsyncs(chrono::seconds d)
 {
     auto start = chrono::steady_clock::now();
@@ -4178,14 +4191,18 @@ void StandardClient::waitonsyncs(chrono::seconds d)
     {
         bool any_add_del = client.syncs.syncBusyState;
 
-        thread_do<bool>([&any_add_del, this](StandardClient& mc, PromiseBoolSP pb)
+        thread_do<bool>(
+            [&any_add_del, this](StandardClient&, PromiseBoolSP pb)
             {
                 if (!client.multi_transfers[GET].empty() || !client.multi_transfers[PUT].empty())
                 {
                     any_add_del = true;
                 }
                 pb->set_value(true);
-            }, __FILE__, __LINE__).get();
+            },
+            __FILE__,
+            __LINE__)
+            .get();
 
         if (any_add_del || debugging)
         {
@@ -4469,36 +4486,56 @@ void StandardClient::cleanupForTestReuse(int loginIndex)
 
     // delete everything from Vault
     std::atomic<int> requestcount{0};
-    p1 = thread_do<bool>([=, &requestcount](StandardClient& sc, PromiseBoolSP pb) {
-
-        if (auto vault = sc.client.nodeByHandle(sc.client.mNodeManager.getRootNodeVault()))
+    p1 = thread_do<bool>(
+        [=, &requestcount](StandardClient& sc, PromiseBoolSP)
         {
-            for (auto n : sc.client.mNodeManager.getChildren(vault.get()))
+            if (auto vault = sc.client.nodeByHandle(sc.client.mNodeManager.getRootNodeVault()))
             {
-                LOG_debug << "vault child: " << n->displaypath();
-                for (auto& n2 : sc.client.mNodeManager.getChildren(n.get()))
+                for (auto n: sc.client.mNodeManager.getChildren(vault.get()))
                 {
-                    LOG_debug << "Unlinking: " << n2->displaypath();
-                    ++requestcount;
-                    sc.client.unlink(n2.get(), false, 0, true, [&requestcount](NodeHandle, Error){ --requestcount; });
+                    LOG_debug << "vault child: " << n->displaypath();
+                    for (auto& n2: sc.client.mNodeManager.getChildren(n.get()))
+                    {
+                        LOG_debug << "Unlinking: " << n2->displaypath();
+                        ++requestcount;
+                        sc.client.unlink(n2.get(),
+                                         false,
+                                         0,
+                                         true,
+                                         [&requestcount](NodeHandle, Error)
+                                         {
+                                             --requestcount;
+                                         });
+                    }
                 }
             }
-        }
-    }, __FILE__, __LINE__);
+        },
+        __FILE__,
+        __LINE__);
 
     // delete everything from //bin
-    p1 = thread_do<bool>([=, &requestcount](StandardClient& sc, PromiseBoolSP pb) {
-
-        if (auto bin = sc.client.nodeByHandle(sc.client.mNodeManager.getRootNodeRubbish()))
+    p1 = thread_do<bool>(
+        [=, &requestcount](StandardClient& sc, PromiseBoolSP)
         {
-            for (auto n : sc.client.mNodeManager.getChildren(bin.get()))
+            if (auto bin = sc.client.nodeByHandle(sc.client.mNodeManager.getRootNodeRubbish()))
             {
-                LOG_debug << "Unlinking from bin: " << n->displaypath();
-                ++requestcount;
-                sc.client.unlink(n.get(), false, 0, false, [&requestcount](NodeHandle, Error){ --requestcount; });
+                for (auto n: sc.client.mNodeManager.getChildren(bin.get()))
+                {
+                    LOG_debug << "Unlinking from bin: " << n->displaypath();
+                    ++requestcount;
+                    sc.client.unlink(n.get(),
+                                     false,
+                                     0,
+                                     false,
+                                     [&requestcount](NodeHandle, Error)
+                                     {
+                                         --requestcount;
+                                     });
+                }
             }
-        }
-    }, __FILE__, __LINE__);
+        },
+        __FILE__,
+        __LINE__);
 
     int limit = 100;
     while (requestcount.load() > 0 && --limit)
@@ -4971,7 +5008,7 @@ void StandardClient::triggerPeriodicScanEarly(handle backupID)
 }
 
 void StandardClient::checkSyncProblems(const handle backupId,
-                                       const int backupIdsCount,
+                                       const int /*backupIdsCount*/,
                                        const unsigned int totalExpectedConflicts,
                                        const LocalPath& localPath,
                                        const std::string& f1,
@@ -5011,7 +5048,7 @@ void StandardClient::createHardLink(const fs::path& src,
     ASSERT_TRUE(fsAccess->hardLink(sourcePath, targetPath));
 }
 
-void StandardClient::checkStallIssues(const handle backupId,
+void StandardClient::checkStallIssues(const handle /*backupId*/,
                                       const unsigned int expectedStalls,
                                       LocalPath& sourcePath,
                                       LocalPath& targetPath)
@@ -7541,9 +7578,23 @@ TEST_F(SyncTest, PutnodesForMultipleFolders)
     auto targethandle = standardclient->client.mNodeManager.getRootNodeFiles();
 
     std::atomic<bool> putnodesDone{false};
-    standardclient->resultproc.prepresult(StandardClient::PUTNODES,  ++next_request_tag,
-        [&](){ standardclient->client.putnodes(targethandle, NoVersioning, std::move(newnodes), nullptr, standardclient->client.reqtag, false); },
-        [&putnodesDone](error e) { putnodesDone = true; return true; });
+    standardclient->resultproc.prepresult(
+        StandardClient::PUTNODES,
+        ++next_request_tag,
+        [&]()
+        {
+            standardclient->client.putnodes(targethandle,
+                                            NoVersioning,
+                                            std::move(newnodes),
+                                            nullptr,
+                                            standardclient->client.reqtag,
+                                            false);
+        },
+        [&putnodesDone](error)
+        {
+            putnodesDone = true;
+            return true;
+        });
 
     while (!putnodesDone)
     {
@@ -12038,13 +12089,15 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
         m.generate(cb.fsBasePath / "s");
 
         // Disable the sync when it starts uploading a file.
-        cb.mOnFileAdded = [&cb, &id](File& file) {
-
+        cb.mOnFileAdded = [&cb, &id](File&)
+        {
             // the upload has been set super slow so there's loads of time.
 
             // get the single sync
             SyncConfig config;
-            ASSERT_TRUE(cb.client.syncs.syncConfigByBackupId(id, config)) << "BackupId: " << id << ". SyncVec is empty: " << (cb.client.syncs.mNumSyncsActive > 0);
+            ASSERT_TRUE(cb.client.syncs.syncConfigByBackupId(id, config))
+                << "BackupId: " << id
+                << ". SyncVec is empty: " << (cb.client.syncs.mNumSyncsActive > 0);
 
             // Make sure the sync's in mirroring mode.
             ASSERT_EQ(config.mBackupId, id);
@@ -12091,8 +12144,8 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
         // Log out the client when we try and upload a file.
         std::promise<void> waiter;
 
-        cb.mOnFileAdded = [&cb, &waiter, &id](File& file) {
-
+        cb.mOnFileAdded = [&cb, &waiter, &id](File&)
+        {
             // get the single sync
             SyncConfig config;
             ASSERT_TRUE(cb.client.syncs.syncConfigByBackupId(id, config));
@@ -12390,7 +12443,8 @@ void BackupBehavior::doTest(const string& initialContent,
         m.addfile("f", updatedContent);
 
         // Hook callback so we can tweak the mtime.
-        cu.mOnSyncDebugNotification = [&](const SyncConfig&, int, const Notification& notification) {
+        cu.mOnSyncDebugNotification = [&](const SyncConfig&, int, const Notification&)
+        {
             // Roll back the mtime now that we know it will be processed.
             fs::last_write_time(cu.fsBasePath / "su" / "f", mtime);
 

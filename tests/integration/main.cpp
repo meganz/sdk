@@ -416,7 +416,7 @@ class RequestRetryReporter
     }
 
 public:
-    void OnTestEnd(const ::testing::TestInfo& info) override
+    void OnTestEnd(const ::testing::TestInfo&) override
     {
         RequestRetryRecorder::instance().report(toStandardOutput);
     }
