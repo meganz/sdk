@@ -174,6 +174,12 @@ struct FileNodeInfo: public NodeCommonInfo<FileNodeInfo>
                                                      _secondsSinceMod);
         return *this;
     }
+
+    FileNodeInfo& setMtime(const std::chrono::system_clock::time_point _timePoint)
+    {
+        mtime = std::chrono::system_clock::to_time_t(_timePoint);
+        return *this;
+    }
 };
 
 struct DirNodeInfo;

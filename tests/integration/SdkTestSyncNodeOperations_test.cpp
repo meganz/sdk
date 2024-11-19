@@ -18,6 +18,26 @@ using namespace sdk_test;
 using namespace testing;
 
 /**
+ * @brief Custom matcher for MegaSyncStall given a matcher for the local path and another for the
+ * stall reason.
+ */
+MATCHER_P2(MatchesStall, pathMatcher, reasonMatcher, "")
+{
+    const MegaSyncStall* stall = arg;
+    if (!stall)
+    {
+        *result_listener << "Stall is null";
+        return false;
+    }
+
+    std::string actualPath = stall->path(false, 0);
+    auto actualReason = stall->reason();
+
+    return ExplainMatchResult(pathMatcher, actualPath, result_listener) &&
+           ExplainMatchResult(reasonMatcher, actualReason, result_listener);
+}
+
+/**
  * @class SdkTestSyncNodeOperations
  * @brief Test fixture designed to test operations involving node operations and syncs
  *
@@ -47,14 +67,16 @@ public:
      */
     const std::vector<NodeInfo>& getElements() const override
     {
+        // To ensure "testCommonFile" is identical in both dirs
+        static const auto currentTime = std::chrono::system_clock::now();
         static const std::vector<NodeInfo> ELEMENTS{
             DirNodeInfo("dir1")
                 .addChild(FileNodeInfo("testFile").setSize(1))
-                .addChild(FileNodeInfo("testCommonFile"))
+                .addChild(FileNodeInfo("testCommonFile").setMtime(currentTime))
                 .addChild(FileNodeInfo("testFile1")),
             DirNodeInfo("dir2")
                 .addChild(FileNodeInfo("testFile").setSize(2))
-                .addChild(FileNodeInfo("testCommonFile"))
+                .addChild(FileNodeInfo("testCommonFile").setMtime(currentTime))
                 .addChild(FileNodeInfo("testFile2"))};
         return ELEMENTS;
     }
@@ -152,6 +174,18 @@ public:
                                     &reqListener);
         ASSERT_TRUE(reqListener.waitForFinishOrTimeout(MAX_TIMEOUT))
             << "Timeout exceeded when trying to suspend the sync";
+    }
+
+    void disableSync()
+    {
+        NiceMock<MockRequestListener> reqListener;
+        EXPECT_CALL(reqListener,
+                    onRequestFinish(_, _, Pointee(Property(&MegaError::getErrorCode, API_OK))));
+        megaApi[0]->setSyncRunState(getBackupId(),
+                                    MegaSync::SyncRunningState::RUNSTATE_DISABLED,
+                                    &reqListener);
+        ASSERT_TRUE(reqListener.waitForFinishOrTimeout(MAX_TIMEOUT))
+            << "Timeout exceeded when trying to disable the sync";
     }
 
     void resumeSync()
@@ -277,6 +311,50 @@ public:
                       });
 
         ASSERT_THAT(childLocalInfo, testing::UnorderedElementsAreArray(childOriginalInfo));
+    }
+
+    /**
+     * @brief Asserts that there are 2 stall issues pointing to local paths that end with the given
+     * names and their reason is LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose.
+     *
+     * Useful to validate mirroring state between dir1 and dir2.
+     */
+    void thereIsAStall(const std::string_view fileName) const
+    {
+        // Define the matcher for the request
+        const auto hasOneStall = Pointee(Property(&MegaSyncStallList::size, 1));
+        const auto getStall = [](const MegaSyncStallList& stallList) -> const MegaSyncStall*
+        {
+            return stallList.get(0);
+        };
+        const auto goodStallList =
+            AllOf(hasOneStall,
+                  Pointee(ResultOf(
+                      getStall,
+                      MatchesStall(EndsWith(fileName),
+                                   MegaSyncStall::SyncStallReason::
+                                       LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose))));
+        const auto goodRequest =
+            Pointee(Property(&MegaRequest::getMegaSyncStallList, goodStallList));
+
+        // Prepare the mock listener
+        NiceMock<MockRequestListener> reqList;
+        const auto expectedErr = Pointee(Property(&::mega::MegaError::getErrorCode, API_OK));
+        EXPECT_CALL(reqList, onRequestFinish(_, goodRequest, expectedErr));
+
+        megaApi[0]->getMegaSyncStallList(&reqList);
+        ASSERT_TRUE(reqList.waitForFinishOrTimeout(MAX_TIMEOUT));
+    }
+
+    /**
+     * @brief Asserts that the local sync directory contains all the files matching a mirroring
+     * state (all the files in dir1 merged with those in dir2)
+     */
+    void checkCurrentLocalMatchesMirror() const
+    {
+        ASSERT_THAT(getLocalFirstChildrenNames(),
+                    UnorderedElementsAre("testFile", "testCommonFile", "testFile1", "testFile2"));
+        ASSERT_NO_FATAL_FAILURE(thereIsAStall("testFile"));
     }
 
     /**
@@ -587,7 +665,44 @@ TEST_F(SdkTestSyncNodeOperations, ChangeSyncRemoteRootWhenSyncPausedOK)
     LOG_verbose << logPre << "Waiting for sync remote and local roots to have the same content";
     ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocal());
 
+    LOG_verbose << logPre << "Checking the final state";
     ASSERT_NO_FATAL_FAILURE(checkCurrentLocalMatchesOriginal("dir2"));
+}
+
+/**
+ * @brief SdkTestSyncNodeOperations.ChangeSyncRemoteRootWhenSyncDisableOK
+ *
+ * Changes the remote root node of a sync that has been disabled. Then it is resumed and the final
+ * state is validated.
+ *
+ * @note In this case, as the local nodes database is removed after disabling, a mirroring is
+ * expected after resuming.
+ */
+TEST_F(SdkTestSyncNodeOperations, ChangeSyncRemoteRootWhenSyncDisableOK)
+{
+    static const std::string logPre{
+        "SdkTestSyncNodeOperations.ChangeSyncRemoteRootWhenSyncDisableOK : "};
+
+    LOG_verbose << logPre << "Ensuring sync is running on dir1";
+    ASSERT_NO_FATAL_FAILURE(ensureSyncNodeIsRunning("dir1"));
+
+    LOG_verbose << logPre << "Disabling the sync";
+    ASSERT_NO_FATAL_FAILURE(disableSync());
+
+    LOG_verbose << logPre << "Changing sync remote root to point dir2";
+    ASSERT_NO_FATAL_FAILURE(changeRemoteRootNodeAndWaitForSyncUpdate("dir2"));
+
+    LOG_verbose << logPre << "Resuming the sync";
+    ASSERT_NO_FATAL_FAILURE(resumeSync());
+
+    LOG_verbose << logPre << "Ensuring sync is running on dir2";
+    ASSERT_NO_FATAL_FAILURE(ensureSyncNodeIsRunning("dir2"));
+
+    LOG_verbose << logPre << "Waiting for sync remote and local roots to have the same content";
+    ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocal());
+
+    LOG_verbose << logPre << "Checking the final state";
+    ASSERT_NO_FATAL_FAILURE(checkCurrentLocalMatchesMirror());
 }
 
 /**
