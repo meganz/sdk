@@ -398,7 +398,6 @@ endif()
 target_platform_compile_options(
     TARGET SDKlib
     WINDOWS /W4
-            /wd4201 # nameless struct/union (nonstandard)
             /wd4706 # assignment within conditional
             /wd4458 # identifier hides class member
             /wd4324 # structure was padded due to alignment specifier (common in Sodium)
