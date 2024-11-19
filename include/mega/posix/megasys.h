@@ -99,7 +99,8 @@
 #include <endian.h>
 #endif
 
-#if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__DragonFly__) || defined(__minix)
+#if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__DragonFly__) || defined(__minix) || \
+    defined(__OpenBSD__)
 #include <sys/endian.h>
 #endif
 
