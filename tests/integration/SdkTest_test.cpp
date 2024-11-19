@@ -17144,6 +17144,8 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
             std::unique_ptr<MegaStringList> clusterDns{firstCluster->getDns()};
             ASSERT_THAT(clusterDns, testing::NotNull());
             ASSERT_GT(clusterDns->size(), 0);
+            ASSERT_STRNE(region->getCountryCode(), "");
+            ASSERT_STRNE(region->getCountryName(), "");
         };
         ASSERT_THAT(vpnRegionsDetailed, testing::NotNull());
         ASSERT_EQ(static_cast<int>(vpnRegionsDetailed->size()), vpnRegions->size());
