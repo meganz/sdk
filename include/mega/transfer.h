@@ -61,7 +61,7 @@ public:
     void remember(int tag, shared_ptr<SyncTransfer_inClient> wp)
     {
         lock_guard<mutex> g(m);
-        pendingPutnodes[tag] = move(wp);
+        pendingPutnodes[tag] = std::move(wp);
     }
 
     void forget(int tag)

@@ -1402,7 +1402,7 @@ bool SyncStallInfo::waitingCloud(handle backupId, const string& mapKeyPath, Sync
     }
 
     // Add a new entry.
-    syncStallInfoMap.cloud.emplace(mapKeyPath, move(e));
+    syncStallInfoMap.cloud.emplace(mapKeyPath, std::move(e));
     return true;
 }
 
@@ -1423,7 +1423,7 @@ bool SyncStallInfo::waitingLocal(handle backupId, const LocalPath& mapKeyPath, S
         ++i;
     }
 
-    syncStallInfoMap.local.emplace(mapKeyPath, move(e));
+    syncStallInfoMap.local.emplace(mapKeyPath, std::move(e));
     return true;
 }
 
@@ -1593,7 +1593,7 @@ struct Sync::ProgressingMonitor
             SYNCS_verbose_timed << sync.syncname << "First sync node cloud-waiting: " << int(e.reason) << " " << sync.logTriplet(sr, sp);
         }
 
-        sf.stall.waitingCloud(sync.getConfig().mBackupId, mapKeyPath, move(e));
+        sf.stall.waitingCloud(sync.getConfig().mBackupId, mapKeyPath, std::move(e));
     }
 
     void waitingLocal(const LocalPath& mapKeyPath, SyncStallEntry&& e)
@@ -1607,7 +1607,7 @@ struct Sync::ProgressingMonitor
             SYNCS_verbose_timed << sync.syncname << "First sync node local-waiting: " << int(e.reason) << " " << sync.logTriplet(sr, sp);
         }
 
-        sf.stall.waitingLocal(sync.getConfig().mBackupId, mapKeyPath, move(e));
+        sf.stall.waitingLocal(sync.getConfig().mBackupId, mapKeyPath, std::move(e));
     }
 
     void noResult()
@@ -2325,7 +2325,7 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
                         }
                     };
 
-                    syncs.queueClient(move(simultaneousMoveReplacedNodeToDebris));
+                    syncs.queueClient(std::move(simultaneousMoveReplacedNodeToDebris));
 
                     // For the normal move case, we would have made this (empty) row.syncNode specifically for the move
                     // But for this case we are reusing this existing LocalNode and it may be a folder with children
@@ -4266,7 +4266,7 @@ void Syncs::syncRun(std::function<void()> f, const string& actionName)
 void Syncs::queueSync(std::function<void()>&& f, const string& actionName)
 {
     assert(!onSyncThread());
-    syncThreadActions.pushBack(QueuedSyncFunc(move(f), actionName));
+    syncThreadActions.pushBack(QueuedSyncFunc(std::move(f), actionName));
     mSyncFlags->earlyRecurseExitRequested = true;
     waiter->notify();
 }
@@ -4275,7 +4275,7 @@ void Syncs::queueClient(std::function<void(MegaClient&, TransferDbCommitter&)>&&
                         [[maybe_unused]] bool fromAnyThread)
 {
     assert(onSyncThread() || fromAnyThread);
-    clientThreadActions.pushBack(move(f));
+    clientThreadActions.pushBack(std::move(f));
     mClient.waiter->notify();
 }
 
@@ -4295,11 +4295,14 @@ void Syncs::getSyncProblems(std::function<void(unique_ptr<SyncProblems>)> comple
         };
     }
 
-    queueSync([this, completion]() mutable {
-        unique_ptr<SyncProblems> problems(new SyncProblems);
-        getSyncProblems_inThread(*problems);
-        completion(move(problems));
-    }, "getSyncProblems");
+    queueSync(
+        [this, completion]() mutable
+        {
+            unique_ptr<SyncProblems> problems(new SyncProblems);
+            getSyncProblems_inThread(*problems);
+            completion(std::move(problems));
+        },
+        "getSyncProblems");
 }
 
 void Syncs::getSyncProblems_inThread(SyncProblems& problems)
@@ -6477,7 +6480,14 @@ void Syncs::deregisterThenRemoveSync(handle backupId, std::function<void(Error)>
                         LOG_warn << "API error deregisterig sync " << toHandle(backupId) << ":" << e;
                     }
 
-                    queueSync([=](){ removeSyncAfterDeregistration_inThread(backupId, move(completion), clientRemoveSdsEntryFunction); }, "deregisterThenRemoveSync");
+                    queueSync(
+                        [=]()
+                        {
+                            removeSyncAfterDeregistration_inThread(backupId,
+                                                                   std::move(completion),
+                                                                   clientRemoveSdsEntryFunction);
+                        },
+                        "deregisterThenRemoveSync");
                 }));
     }, true);
 
@@ -6497,7 +6507,7 @@ void Syncs::removeSyncAfterDeregistration_inThread(handle backupId, std::functio
         // lastly, send the command to remove the sds entry from the (former) sync root Node's attributes
         if (clientRemoveSdsEntryFunction)
         {
-            queueClient(move(clientRemoveSdsEntryFunction));
+            queueClient(std::move(clientRemoveSdsEntryFunction));
         }
     }
     else
@@ -8028,7 +8038,7 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
                 scan->reserve(scan->size() + row.fsAddedSiblings.size());
                 for (auto& ptr: row.fsAddedSiblings)
                 {
-                    scan->push_back(move(ptr));
+                    scan->push_back(std::move(ptr));
                 }
                 row.fsAddedSiblings.clear();
             }
@@ -10068,7 +10078,7 @@ bool Sync::resolve_upsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, 
                         mc.putnodes_prepareOneFolder(&nn[0], foldername, canChangeVault);
                         mc.putnodes(targethandle,
                                     NoVersioning,
-                                    move(nn),
+                                    std::move(nn),
                                     nullptr,
                                     0,
                                     canChangeVault,
@@ -12992,12 +13002,12 @@ void Syncs::collectSyncNameConflicts(handle backupId, std::function<void(list<Na
 
     auto clientCompletion = [this, completion](list<NameConflict>&& nc)
     {
-        shared_ptr<list<NameConflict>> ncptr(new list<NameConflict>(move(nc)));
+        shared_ptr<list<NameConflict>> ncptr(new list<NameConflict>(std::move(nc)));
         queueClient(
             [completion, ncptr](MegaClient&, TransferDbCommitter&)
             {
                 if (completion)
-                    completion(move(*ncptr));
+                    completion(std::move(*ncptr));
             });
     };
 
@@ -13013,7 +13023,7 @@ void Syncs::collectSyncNameConflicts(handle backupId, std::function<void(list<Na
                     us->mSync->recursiveCollectNameConflicts(&nc);
                 }
             }
-            finalcompletion(move(nc));
+            finalcompletion(std::move(nc));
         }, "collectSyncNameConflicts");
 }
 

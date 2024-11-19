@@ -1955,7 +1955,7 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath& newlocalpat
     if (shortnameChange)
     {
         // set new shortname
-        slocalname = move(newshortname);
+        slocalname = std::move(newshortname);
     }
 
 
@@ -2037,7 +2037,7 @@ void LocalNode::moveContentTo(LocalNode* ln, LocalPath& fullPath, bool setScanAg
         }
     }
 
-    ln->resetTransfer(move(transferSP));
+    ln->resetTransfer(std::move(transferSP));
 
     LocalTreeProcUpdateTransfers tput;
     tput.proc(*sync->syncs.fsaccess, ln);
@@ -2541,7 +2541,10 @@ bool LocalNode::processBackgroundFolderScan(SyncRow& row, SyncPath& fullPath)
             }
 
             ourScanRequest = sync->syncs.mScanService->queueScan(fullPath.localPath,
-                row.fsNode->fsid, false, move(priorScanChildren), sync->syncs.waiter);
+                                                                 row.fsNode->fsid,
+                                                                 false,
+                                                                 std::move(priorScanChildren),
+                                                                 sync->syncs.waiter);
 
             rare().scanRequest = ourScanRequest;
             *availableScanSlot = ourScanRequest;
@@ -2776,7 +2779,7 @@ void LocalNode::setSyncedFsid(handle newfsid, fsid_localnode_map& fsidnodes, con
             (newshortname && slocalname && *newshortname != *slocalname))
     {
         // localname must always be set by this function, to maintain parent's child maps
-        setnameparent(parent, fsName, move(newshortname));
+        setnameparent(parent, fsName, std::move(newshortname));
     }
 
     // LOG_verbose << "localnode " << this << " fsid " << toHandle(fsid_lastSynced) << " localname " << fsName.toPath() << " parent " << parent;
@@ -3184,7 +3187,7 @@ void LocalNode::resetTransfer(shared_ptr<SyncTransfer_inClient> p)
         }
     }
 
-    transferSP = move(p);
+    transferSP = std::move(p);
 }
 
 

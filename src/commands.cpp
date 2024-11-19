@@ -1503,7 +1503,7 @@ CommandMoveNode::CommandMoveNode(MegaClient* client, std::shared_ptr<Node> n, st
     tpsk.get(this);
 
     tag = client->reqtag;
-    completion = move(c);
+    completion = std::move(c);
 }
 
 bool CommandMoveNode::procresult(Result r, JSON&)

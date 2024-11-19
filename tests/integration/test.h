@@ -897,8 +897,8 @@ struct StandardClient : public MegaApp
             assert(!transfer || t == transfer);
             assert(source == PUTNODES_APP);  // derived class for sync doesn't use this code path
             assert(t->type == PUT);
-            
-            auto finalCompletion = move(completion);
+
+            auto finalCompletion = std::move(completion);
             sendPutnodesOfUpload(
                 t->client,
                 t->uploadhandle,

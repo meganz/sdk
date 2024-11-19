@@ -950,7 +950,10 @@ int LinuxFileSystemAccess::checkevents(Waiter* waiter)
             }
 
             auto localName = LocalPath::fromPlatformEncodedRelative(name);
-            notifier.notify(notifier.fsEventq, &node, Notification::NEEDS_PARENT_SCAN, move(localName));
+            notifier.notify(notifier.fsEventq,
+                            &node,
+                            Notification::NEEDS_PARENT_SCAN,
+                            std::move(localName));
 
             // We need to rescan the directory if it's changed permissions.
             //

@@ -1024,16 +1024,21 @@ struct SyncStallEntry
     StallLocalPath localPath1;
     StallLocalPath localPath2;
 
-    SyncStallEntry(SyncWaitReason r, bool immediate, bool dueTocloudSideChange, StallCloudPath&& cp1, StallCloudPath&& cp2, StallLocalPath&& lp1, StallLocalPath&& lp2)
-        : reason(r)
-        , alertUserImmediately(immediate)
-        , detectionSideIsMEGA(dueTocloudSideChange)
-        , cloudPath1(move(cp1))
-        , cloudPath2(move(cp2))
-        , localPath1(move(lp1))
-        , localPath2(move(lp2))
-    {
-    }
+    SyncStallEntry(SyncWaitReason r,
+                   bool immediate,
+                   bool dueTocloudSideChange,
+                   StallCloudPath&& cp1,
+                   StallCloudPath&& cp2,
+                   StallLocalPath&& lp1,
+                   StallLocalPath&& lp2):
+        reason(r),
+        alertUserImmediately(immediate),
+        detectionSideIsMEGA(dueTocloudSideChange),
+        cloudPath1(std::move(cp1)),
+        cloudPath2(std::move(cp2)),
+        localPath1(std::move(lp1)),
+        localPath2(std::move(lp2))
+    {}
 };
 
 struct SyncStallInfo

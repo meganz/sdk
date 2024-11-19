@@ -744,7 +744,7 @@ SyncUpload_inClient::SyncUpload_inClient(NodeHandle targetFolder, const LocalPat
     transfer = nullptr;
     tag = 0;
 
-    syncThreadSafeState = move(stss);
+    syncThreadSafeState = std::move(stss);
     syncThreadSafeState->transferBegin(PUT, size);
 
     sourceFsid = fsid;
@@ -805,7 +805,7 @@ SyncDownload_inClient::SyncDownload_inClient(CloudNode& n, const LocalPath& cloc
 
     setLocalname(clocalname);
 
-    syncThreadSafeState = move(stss);
+    syncThreadSafeState = std::move(stss);
     syncThreadSafeState->transferBegin(GET, size);
 }
 

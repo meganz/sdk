@@ -8999,7 +8999,7 @@ error MegaClient::setattr(std::shared_ptr<Node> n, attr_map&& updates, CommandSe
     }
 
     // we only update the values stored in the node once the command completes successfully
-    reqs.add(new CommandSetAttr(this, n, move(updates), move(c), canChangeVault));
+    reqs.add(new CommandSetAttr(this, n, std::move(updates), std::move(c), canChangeVault));
 
     return API_OK;
 }
@@ -9357,7 +9357,8 @@ error MegaClient::rename(std::shared_ptr<Node> n, std::shared_ptr<Node> p, syncd
     // rewrite keys of foreign nodes that are moved out of an outbound share
     rewriteforeignkeys(n);
 
-    reqs.add(new CommandMoveNode(this, n, p, syncdel, prevparenthandle, move(c), canChangeVault));
+    reqs.add(
+        new CommandMoveNode(this, n, p, syncdel, prevparenthandle, std::move(c), canChangeVault));
 
     return API_OK;
 }
@@ -9550,7 +9551,12 @@ error MegaClient::unlink(Node* n, bool keepversions, int tag, bool canChangeVaul
     }
 
     bool kv = (keepversions && n->type == FILENODE);
-    reqs.add(new CommandDelNode(this, n->nodeHandle(), kv, tag, move(resultFunction), canChangeVault));
+    reqs.add(new CommandDelNode(this,
+                                n->nodeHandle(),
+                                kv,
+                                tag,
+                                std::move(resultFunction),
+                                canChangeVault));
 
     return API_OK;
 }
@@ -17102,14 +17108,17 @@ void MegaClient::preparebackup(SyncConfig sc, std::function<void(Error, SyncConf
 // dupes)
 void MegaClient::movetosyncdebris(Node* dn, bool inshare, std::function<void(NodeHandle, Error)>&& completion, bool canChangeVault)
 {
-    execmovetosyncdebris(dn, move(completion), canChangeVault, inshare);
+    execmovetosyncdebris(dn, std::move(completion), canChangeVault, inshare);
 }
 
 void MegaClient::execmovetosyncdebris(Node* requestedNode, std::function<void(NodeHandle, Error)>&& completion, bool canChangeVault, bool isInshare)
 {
     if (requestedNode)
     {
-        pendingDebris.emplace_back(requestedNode->nodeHandle(), move(completion), isInshare, canChangeVault);
+        pendingDebris.emplace_back(requestedNode->nodeHandle(),
+                                   std::move(completion),
+                                   isInshare,
+                                   canChangeVault);
     }
 
     if (std::shared_ptr<Node> debrisTarget = getOrCreateSyncdebrisFolder())
@@ -17121,7 +17130,13 @@ void MegaClient::execmovetosyncdebris(Node* requestedNode, std::function<void(No
                 if (!rec.mIsInshare)
                 {
                     LOG_debug << "Moving to cloud Syncdebris: " << n->displaypath() << " in " << debrisTarget->displaypath() << " Nhandle: " << LOG_NODEHANDLE(n->nodehandle);
-                    rename(n, debrisTarget, SYNCDEL_DEBRISDAY, n->parent ? n->parent->nodeHandle() : NodeHandle(), nullptr, rec.mCanChangeVault, move(rec.completion));
+                    rename(n,
+                           debrisTarget,
+                           SYNCDEL_DEBRISDAY,
+                           n->parent ? n->parent->nodeHandle() : NodeHandle(),
+                           nullptr,
+                           rec.mCanChangeVault,
+                           std::move(rec.completion));
                 }
                 else
                 {
@@ -17257,7 +17272,7 @@ std::shared_ptr<Node> MegaClient::getOrCreateSyncdebrisFolder()
         binNode->nodeHandle(),
         NULL,
         NoVersioning,
-        move(nnVec),
+        std::move(nnVec),
         0,
         PUTNODES_SYNCDEBRIS,
         nullptr,
@@ -17270,7 +17285,8 @@ std::shared_ptr<Node> MegaClient::getOrCreateSyncdebrisFolder()
         {
             syncdebrisadding = false;
             // on completion, send the queued nodes
-            LOG_debug << "Daily cloud SyncDebris folder created. Trigger remaining debris moves: " << pendingDebris.size();
+            LOG_debug << "Daily cloud SyncDebris folder created. Trigger remaining debris moves: "
+                      << pendingDebris.size();
             execmovetosyncdebris(nullptr, nullptr, false, false);
         },
         false,
