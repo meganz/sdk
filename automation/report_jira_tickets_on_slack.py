@@ -1,4 +1,5 @@
 import os
+from typing import Callable
 from jira import JIRA, Issue
 from jira.client import ResultList
 from slack_sdk import WebClient
@@ -43,13 +44,33 @@ class JiraTicketsReporter:
 
         return issues
 
-    def get_slack_user_id_by_email(self, email: str) -> str | None:
+    def try_lookup_for_user_email(self, email_to_try) -> str | None:
         try:
-            response = self._slack_client.users_lookupByEmail(email=email)
+            response = self._slack_client.users_lookupByEmail(email=email_to_try)
             return response["user"]["id"]
         except SlackApiError as e:
-            print(f"Error fetching Slack user ID for {email}: {e.response['error']}")
+            if e.response["error"] != "users_not_found":
+                print(
+                    f"Error fetching Slack user ID for {email_to_try}: {e.response['error']}"
+                )
             return None
+
+    def get_slack_user_id_by_email(self, email: str) -> str | None:
+        if not email.endswith("@mega.co.nz") and not email.endswith("@mega.nz"):
+            return None
+
+        slack_user_id = self.try_lookup_for_user_email(email)
+        if slack_user_id:
+            return slack_user_id
+
+        alt_email = (
+            email.replace("@mega.co.nz", "@mega.nz")
+            if email.endswith("@mega.co.nz")
+            else email.replace("@mega.nz", "@mega.co.nz")
+        )
+        slack_user_id = self.try_lookup_for_user_email(alt_email)
+
+        return slack_user_id
 
     def ensure_user_is_in_the_channel(self, slack_user_id: str):
         member_list = self._slack_client.conversations_members(
@@ -79,10 +100,8 @@ class JiraTicketsReporter:
         self._slack_client.chat_postMessage(channel=self._slack_channel, text=message)
         print(message)
 
-    def report_tickets_missing_fix_version(self):
-        issues = self.fetch_jira_issues(
-            self.get_jira_query_for_issues_missing_fix_version(self._jira_project_key)
-        )
+    def report_tickets(self, query_function: Callable[[str], str], message: str):
+        issues = self.fetch_jira_issues(query_function(self._jira_project_key))
         for issue in issues:
             issue_key = issue.key
             assignee = issue.fields.assignee
@@ -91,43 +110,24 @@ class JiraTicketsReporter:
                 if assignee
                 else None
             )
-            self.post_to_slack(issue_key, slack_user_id, "Fix Version")
+            self.post_to_slack(issue_key, slack_user_id, message)
+
+    def report_tickets_missing_fix_version(self):
+        self.report_tickets(
+            self.get_jira_query_for_issues_missing_fix_version, "Fix Version"
+        )
 
     def report_tickets_missing_release_number_affected(self):
-        issues = self.fetch_jira_issues(
-            self.get_jira_query_for_issues_missing_release_number_affected(
-                self._jira_project_key
-            )
+        self.report_tickets(
+            self.get_jira_query_for_issues_missing_release_number_affected,
+            "Release number affected",
         )
-        for issue in issues:
-            issue_key = issue.key
-            assignee = issue.fields.assignee
-            slack_user_id = (
-                self.get_slack_user_id_by_email(assignee.emailAddress)
-                if assignee
-                else None
-            )
-            self.post_to_slack(issue_key, slack_user_id, "Release number affected")
 
-    def report_tickets_missing_fix_version_and_release_number_affected(
-        self,
-    ):
-        issues = self.fetch_jira_issues(
-            self.get_jira_query_for_issues_missing_fix_version_and_release_number_affected(
-                self._jira_project_key
-            )
+    def report_tickets_missing_fix_version_and_release_number_affected(self):
+        self.report_tickets(
+            self.get_jira_query_for_issues_missing_fix_version_and_release_number_affected,
+            "Fix Version and Release number affected",
         )
-        for issue in issues:
-            issue_key = issue.key
-            assignee = issue.fields.assignee
-            slack_user_id = (
-                self.get_slack_user_id_by_email(assignee.emailAddress)
-                if assignee
-                else None
-            )
-            self.post_to_slack(
-                issue_key, slack_user_id, "Fix Version and Release number affected"
-            )
 
 
 # Get attribute values from the environment
