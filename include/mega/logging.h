@@ -392,7 +392,7 @@ class SimpleLogger
 
 public:
     // flag to turn off logging on the log-output thread, to prevent possible deadlock cycles.
-    static thread_local bool mThreadLocalLoggingDisabled;
+    static inline thread_local bool mThreadLocalLoggingDisabled = false;
 
     SimpleLogger(const LogLevel ll, const char* filename, const int line)
     : level{ll}
