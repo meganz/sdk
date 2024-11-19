@@ -409,8 +409,7 @@ if(ENABLE_SDKLIB_WERROR)
                                  -Wno-error=deprecated-declarations> # Kept as a warning, do not promote to error.
         APPLE $<$<CONFIG:Debug>: -Wno-sign-conversion
                                  -Wno-string-conversion
-                                 -Wno-shorten-64-to-32
-                                 -Wno-unqualified-std-cast-call>
+                                 -Wno-shorten-64-to-32>
     )
 endif()
 
