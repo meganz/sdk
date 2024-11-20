@@ -683,9 +683,9 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * the MEGARequest object is deleted.
  *
  * @return An array of MEGAVPNRegion objects with available VPN Regions, if the relevant request was sent;
- * nil otherwise.
+ * Returns empty if otherwise.
  */
-@property (readonly, nonatomic, nullable) NSArray<MEGAVPNRegion *> *megaVpnRegions;
+@property (readonly, nonatomic, nonnull) NSArray<MEGAVPNRegion *> *megaVpnRegions;
 
 /**
  * @brief Get list of available notifications for Notification Center

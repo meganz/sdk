@@ -2,7 +2,7 @@
  * @file MEGAVPNCluster.mm
  * @brief Container to store information of a VPN Cluster.
  *
- * (c) 2023- by Mega Limited, Auckland, New Zealand
+ * (c) 2024 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -46,24 +46,24 @@
 }
 
 - (mega::MegaVpnCluster *)getCPtr {
-    return _megaVpnCluster;
+    return self.megaVpnCluster;
 }
 
-- (NSString *)host {
-    const char *host = _megaVpnCluster->getHost();
+- (nonnull NSString *)host {
+    const char *host = self.megaVpnCluster->getHost();
     return host ? [NSString stringWithUTF8String:host] : @"";
 }
 
-- (NSArray<NSString *> *)dns {
-    if (!_megaVpnCluster) {
-        return nil;
+- (nonnull NSArray<NSString *> *)dns {
+    if (!self.megaVpnCluster) {
+        return @[];
     }
-    mega::MegaStringList *dnsList = _megaVpnCluster->getDns();
+    mega::MegaStringList *dnsList = self.megaVpnCluster->getDns();
     if (!dnsList) {
-        return nil;
+        return @[];
     }
     int count = dnsList->size();
-    NSMutableArray<NSString *> *dnsArray = [NSMutableArray.alloc initWithCapacity:(NSUInteger)count];
+    NSMutableArray<NSString *> *dnsArray = [[NSMutableArray alloc] initWithCapacity:(NSUInteger)count];
     for (int i = 0; i < count; i++) {
         const char *dnsEntry = dnsList->get(i);
         if (dnsEntry) {
@@ -71,7 +71,7 @@
         }
     }
     delete dnsList;
-    return dnsArray.copy;
+    return dnsArray;
 }
 
 @end

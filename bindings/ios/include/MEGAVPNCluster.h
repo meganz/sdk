@@ -40,7 +40,7 @@ NS_ASSUME_NONNULL_BEGIN
  *
  * @return The host of this VPN Cluster, always not-null.
  */
-@property (nonatomic, readonly) NSString *host;
+@property (nonatomic, readonly, nonnull) NSString *host;
 
 /**
  * @brief Get the list of IPs for the current VPN Cluster.
@@ -49,7 +49,7 @@ NS_ASSUME_NONNULL_BEGIN
  *
  * @return An NSArray containing the IPs for the current VPN Cluster, always not-null.
  */
-@property (nonatomic, readonly) NSArray<NSString *> *dns;
+@property (nonatomic, readonly, nonnull) NSArray<NSString *> *dns;
 
 @end
 

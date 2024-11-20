@@ -48,56 +48,56 @@
 }
 
 - (mega::MegaVpnRegion *)getCPtr {
-    return _megaVpnRegion;
+    return self.megaVpnRegion;
 }
 
-- (NSString *)name {
-    const char *name = _megaVpnRegion->getName();
+- (nonnull NSString *)name {
+    const char *name = self.megaVpnRegion->getName();
     return name ? [NSString stringWithUTF8String:name] : @"";
 }
 
-- (NSString *)countryCode {
-    const char *countryCode = _megaVpnRegion->getCountryCode();
+- (nonnull NSString *)countryCode {
+    const char *countryCode = self.megaVpnRegion->getCountryCode();
     return countryCode ? [NSString stringWithUTF8String:countryCode] : @"";
 }
 
-- (NSString *)countryName {
-    const char *countryName = _megaVpnRegion->getCountryName();
+- (nonnull NSString *)countryName {
+    const char *countryName = self.megaVpnRegion->getCountryName();
     return countryName ? [NSString stringWithUTF8String:countryName] : @"";
 }
 
-- (NSString *)regionName {
-    const char *regionName = _megaVpnRegion->getRegionName();
-    return regionName ? [NSString stringWithUTF8String:regionName] : @"";
+- (nullable NSString *)regionName {
+    const char *regionName = self.megaVpnRegion->getRegionName();
+    return regionName ? [NSString stringWithUTF8String:regionName] : nil;
 }
 
-- (NSString *)townName {
-    const char *townName = _megaVpnRegion->getTownName();
-    return townName ? [NSString stringWithUTF8String:townName] : @"";
+- (nullable NSString *)townName {
+    const char *townName = self.megaVpnRegion->getTownName();
+    return townName ? [NSString stringWithUTF8String:townName] : nil;
 }
 
-- (NSDictionary<NSNumber *, MEGAVPNCluster *> *)clusters {
-    if (!_megaVpnRegion) {
-        return nil;
+- (nonnull NSDictionary<NSNumber *, MEGAVPNCluster *> *)clusters {
+    if (!self.megaVpnRegion) {
+        return @{};
     }
-    mega::MegaVpnClusterMap *clusterMap = _megaVpnRegion->getClusters();
+    mega::MegaVpnClusterMap *clusterMap = self.megaVpnRegion->getClusters();
     if (!clusterMap) {
-        return nil;
+        return @{};
     }
     mega::MegaIntegerList *keys = clusterMap->getKeys();
     int count = (int)keys->size();
-    NSMutableDictionary<NSNumber *, MEGAVPNCluster *> *clustersDict = [NSMutableDictionary.alloc initWithCapacity:(NSUInteger)count];
+    NSMutableDictionary<NSNumber *, MEGAVPNCluster *> *clustersDict = [[NSMutableDictionary alloc] initWithCapacity:(NSUInteger)count];
     for (int i = 0; i < count; i++) {
         int64_t key = keys->get(i);
         mega::MegaVpnCluster *cluster = clusterMap->get(key);
         if (cluster) {
-            MEGAVPNCluster *vpnCluster = [MEGAVPNCluster.alloc initWithMegaVpnCluster:cluster->copy() cMemoryOwn:YES];
+            MEGAVPNCluster *vpnCluster = [[MEGAVPNCluster alloc] initWithMegaVpnCluster:cluster->copy() cMemoryOwn:YES];
             clustersDict[@(key)] = vpnCluster;
         }
     }
     delete keys;
     delete clusterMap;
-    return clustersDict.copy;
+    return clustersDict;
 }
 
 @end

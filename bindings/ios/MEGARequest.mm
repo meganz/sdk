@@ -341,24 +341,24 @@ using namespace mega;
     return self.megaRequest ? [[MEGAVPNCredentials alloc] initWithMegaVpnCredentials:self.megaRequest->getMegaVpnCredentials()->copy() cMemoryOwn:YES] : nil;
 }
 
-- (nullable NSArray<MEGAVPNRegion *> *)megaVpnRegions {
+- (nonnull NSArray<MEGAVPNRegion *> *)megaVpnRegions {
     if (!self.megaRequest) {
-        return nil;
+        return @[];
     }
     mega::MegaVpnRegionList *regionList = self.megaRequest->getMegaVpnRegionsDetailed();
     if (!regionList) {
-        return nil;
+        return @[];
     }
     int count = regionList->size();
-    NSMutableArray<MEGAVPNRegion *> *regionsArray = [NSMutableArray.alloc initWithCapacity:(NSUInteger)count];
+    NSMutableArray<MEGAVPNRegion *> *regionsArray = [[NSMutableArray alloc] initWithCapacity:(NSUInteger)count];
     for (int i = 0; i < count; i++) {
         const mega::MegaVpnRegion *region = regionList->get(i);
         if (region) {
-            MEGAVPNRegion *vpnRegion = [MEGAVPNRegion.alloc initWithMegaVpnRegion:region->copy() cMemoryOwn:YES];
+            MEGAVPNRegion *vpnRegion = [[MEGAVPNRegion alloc] initWithMegaVpnRegion:region->copy() cMemoryOwn:YES];
             [regionsArray addObject:vpnRegion];
         }
     }
-    return regionsArray.copy;
+    return regionsArray;
 }
 
 - (nullable MEGANotificationList*)megaNotifications {
