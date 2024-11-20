@@ -24,11 +24,10 @@ WinOverlapped::WinOverlapped()
 {
     mOverlapped.Offset = 0;
     mOverlapped.OffsetHigh = 0;
-    mOverlapped.hEvent = CreateEvent(
-        NULL,    // default security attribute
-        TRUE,    // manual-reset event
-        TRUE,    // initial state = signaled
-        NULL);   // unnamed event object
+    mOverlapped.hEvent = CreateEvent(NULL, // default security attribute
+                                     TRUE, // manual-reset event
+                                     FALSE, // initial state = non signaled
+                                     NULL); // unnamed event object
 
     if (mOverlapped.hEvent == NULL)
     {
@@ -49,6 +48,30 @@ OVERLAPPED* WinOverlapped::data()
     return &mOverlapped;
 }
 
+std::pair<std::error_code, std::string> WinOverlapped::waitForCompletion(DWORD waitMs)
+{
+    const auto waitResult = WaitForSingleObject(mOverlapped.hEvent, waitMs);
+    switch (waitResult)
+    {
+        case WAIT_OBJECT_0:
+            return {std::error_code{}, ""};
+        case WAIT_TIMEOUT:
+            return {std::make_error_code(std::errc::timed_out),
+                    "wait timeout: " + std::to_string(waitMs)};
+        case WAIT_ABANDONED:
+            return {std::make_error_code(std::errc::not_connected), "wait abandoned"};
+        case WAIT_FAILED:
+        {
+            const auto lastError = GetLastError();
+            return {std::make_error_code(std::errc::not_connected),
+                    "wait failed error " + std::to_string(lastError) + " " +
+                        mega::winErrorMessage(lastError)};
+        }
+        default:
+            return {std::make_error_code(std::errc::not_connected), "wait error"};
+    }
+}
+
 NamedPipe::NamedPipe(NamedPipe&& other)
 {
     this->mPipeHandle = other.mPipeHandle;
@@ -61,7 +84,6 @@ NamedPipe::~NamedPipe()
     if (mPipeHandle != INVALID_HANDLE_VALUE)
     {
         CloseHandle(mPipeHandle);
-        LOG_verbose << "endpoint " << mName << "_" << mPipeHandle << " closed";
     }
 }
 
@@ -108,7 +130,7 @@ bool NamedPipe::doOverlappedOperation(std::function<bool(OVERLAPPED*)> op,
         return false;
     }
 
-    WinOverlapped overlapped;
+    WinOverlapped overlapped{};
     if (!overlapped.isValid())
     {
         return false;
@@ -117,34 +139,39 @@ bool NamedPipe::doOverlappedOperation(std::function<bool(OVERLAPPED*)> op,
     // Call Op.
     if (op(overlapped.data()))
     {
-        return true;
+        return true; // Completed
     }
-
-    // Error
-    auto lastError = GetLastError();
-    if (lastError!= ERROR_IO_PENDING)
+    else if (const auto lastError = GetLastError();
+             lastError != ERROR_IO_PENDING) // Fail with other errors
     {
-        LOG_err << mName << ": " << opStr << " pipe failed. error=" << lastError << " " << mega::winErrorMessage(lastError);
+        LOG_err << mName << ": " << opStr << " pipe failed. error=" << lastError << " "
+                << mega::winErrorMessage(lastError);
         return false;
     }
 
-    // Wait op to complete. Negative timeout is infinite
+    // Wait
     DWORD waitTimeout = timeout.count() < 0 ? INFINITE : static_cast<DWORD>(timeout.count());
+    if (const auto& [error, errorText] = overlapped.waitForCompletion(waitTimeout); error)
+    {
+        LOG_verbose << mName << ": " << opStr << " " << errorText;
+        return false;
+    }
+
+    // Get result
     DWORD numberOfBytesTransferred = 0;
-    bool success = GetOverlappedResultEx(mPipeHandle,
-                                         overlapped.data(),
-                                         &numberOfBytesTransferred,
-                                         waitTimeout,
-                                         false);
+    bool success = GetOverlappedResult(mPipeHandle,
+                                       overlapped.data(),
+                                       &numberOfBytesTransferred,
+                                       false /*bWait*/);
 
     if (!success)
     {
-        lastError = GetLastError();
+        const auto lastError = GetLastError();
         LOG_err << mName << ": " << opStr << " pipe fail to complete error=" << lastError << " " << mega::winErrorMessage(lastError);
         return false;
     }
 
-    // IO completed
+    // Completed
     return true;
 }
 

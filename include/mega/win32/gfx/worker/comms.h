@@ -63,7 +63,13 @@ public:
 
     OVERLAPPED* data();
 
-    bool isValid() const { return mOverlapped.hEvent != NULL; };
+    bool isValid() const
+    {
+        return mOverlapped.hEvent != NULL;
+    };
+
+    // Return an error code and error string on error
+    std::pair<std::error_code, std::string> waitForCompletion(DWORD mWaitMs);
 
 private:
     OVERLAPPED mOverlapped;
