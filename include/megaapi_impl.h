@@ -3630,6 +3630,10 @@ class MegaApiImpl : public MegaApp
 
         void moveToDebris(const char* path, MegaHandle syncBackupId, MegaRequestListener* listener = nullptr);
 
+        void changeSyncRemoteRoot(const MegaHandle syncBackupId,
+                                  const MegaHandle newRootNodeHandle,
+                                  MegaRequestListener* listener);
+
         AddressedStallFilter mAddressedStallFilter;
 
 #endif // ENABLE_SYNC

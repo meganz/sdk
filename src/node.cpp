@@ -142,22 +142,19 @@ int Node::getShareType() const
     return shareType;
 }
 
-bool Node::isAncestor(NodeHandle ancestorHandle) const
+bool Node::hasAncestorMatching(const nodeCondition_t& condition) const
 {
-    Node* ancestor = parent.get();
+    const Node* ancestor = parent.get();
     while (ancestor)
     {
-        if (ancestor->nodeHandle() == ancestorHandle)
-        {
+        if (condition(*ancestor))
             return true;
-        }
 
         ancestor = ancestor->parent.get();
     }
 
     return false;
 }
-
 
 bool Node::hasChildWithName(const string& name) const
 {
@@ -1378,7 +1375,7 @@ unsigned Node::depth() const
 }
 
 // returns 1 if n is under p, 0 otherwise
-bool Node::isbelow(Node* p) const
+bool Node::isbelow(const Node* p) const
 {
     const Node* n = this;
 
@@ -3089,6 +3086,17 @@ FSNode LocalNode::getScannedFSDetails() const
     n.fingerprint = scannedFingerprint;
     assert(scannedFingerprint.isvalid || type != FILENODE);
     return n;
+}
+
+bool LocalNode::hasPendingTransfers() const
+{
+    return transferSP != nullptr ||
+           std::any_of(std::begin(children),
+                       std::end(children),
+                       [](const auto& p)
+                       {
+                           return p.second && p.second->hasPendingTransfers();
+                       });
 }
 
 void LocalNode::updateMoveInvolvement()

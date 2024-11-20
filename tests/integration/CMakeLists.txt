@@ -7,6 +7,7 @@ target_sources(test_integration
     SdkTestNodesSetUp_test.h
     test.h
     integration_test_utils.h
+    mock_listeners.h
 
     env_var_accounts.cpp
     main.cpp
