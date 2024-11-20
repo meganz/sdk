@@ -7917,7 +7917,7 @@ TEST_F(SyncTest, BasicSync_CreateAndReplaceLinkLocally)
     ASSERT_TRUE(clientA1->confirmModel_mainthread(model.findnode("f"), backupId1));
 
     // Necessary as clientA2 has downloaded files.
-    model.movetosynctrash(move(linkedNode), "f");
+    model.movetosynctrash(std::move(linkedNode), "f");
     model.ensureLocalDebrisTmpLock("f");
 
     ASSERT_TRUE(clientA2->confirmModel_mainthread(model.findnode("f"), backupId2));

@@ -2793,7 +2793,7 @@ size_t CurlHttpIO::check_header(void* ptr, size_t size, size_t nmemb, void* targ
             string buf;
             if (!getline(ss, buf, ':'))
                 break;
-            hc.push_back(move(buf));
+            hc.push_back(std::move(buf));
         }
         if (hc.size() != 4 // incomplete data
             || stoi(hc[0]) != 1 // header version

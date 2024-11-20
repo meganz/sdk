@@ -28102,14 +28102,14 @@ error MegaApiImpl::performRequest_getSyncStalls(MegaRequestPrivate* request)
         // to generate a new stall list, then the filter will hide those for now
         if (const auto getMap = request->getFlag(); getMap)
         {
-            auto stallsMap =
-                std::make_unique<MegaSyncStallMapPrivate>(move(*problems), mAddressedStallFilter);
+            auto stallsMap = std::make_unique<MegaSyncStallMapPrivate>(std::move(*problems),
+                                                                       mAddressedStallFilter);
             request->setMegaSyncStallMap(std::move(stallsMap));
         }
         else
         {
-            auto stallsList =
-                std::make_unique<MegaSyncStallListPrivate>(move(*problems), mAddressedStallFilter);
+            auto stallsList = std::make_unique<MegaSyncStallListPrivate>(std::move(*problems),
+                                                                         mAddressedStallFilter);
             request->setMegaSyncStallList(std::move(stallsList));
         }
         fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
