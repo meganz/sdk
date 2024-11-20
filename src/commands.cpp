@@ -985,7 +985,7 @@ CommandSetAttr::CommandSetAttr(MegaClient*,
     addToNodePendingCommands(n.get());
 }
 
-const char* CommandSetAttr::getJSON(MegaClient* client)
+const char* CommandSetAttr::getJSON(MegaClient* clientOfRequest)
 {
     // We generate the command just before sending, so it's up to date for any external changes that occured in the meantime
     // And we can also take into account any changes we have sent for this node that have not yet been applied by actionpackets
@@ -995,7 +995,7 @@ const char* CommandSetAttr::getJSON(MegaClient* client)
     cmd("a");
 
     string at;
-    if (shared_ptr<Node> n = client->nodeByHandle(h))
+    if (shared_ptr<Node> n = clientOfRequest->nodeByHandle(h))
     {
         assert(n == mNode);
         AttrMap m = n->attrs;
@@ -1016,7 +1016,7 @@ const char* CommandSetAttr::getJSON(MegaClient* client)
         if (SymmCipher* cipher = n->nodecipher())
         {
             m.getjson(&at);
-            client->makeattr(cipher, &at, at.c_str(), int(at.size()));
+            clientOfRequest->makeattr(cipher, &at, at.c_str(), int(at.size()));
         }
         else
         {
@@ -1027,7 +1027,7 @@ const char* CommandSetAttr::getJSON(MegaClient* client)
 
         if (at.size() > MAX_NODE_ATTRIBUTE_SIZE)
         {
-            client->sendevent(99484, "Node attribute exceed maximun size");
+            clientOfRequest->sendevent(99484, "Node attribute exceed maximun size");
             LOG_err << "Node attribute exceed maximun size";
             h.setUndef();  // dummy command to generate an error, with no effect
             mNode.reset();
@@ -1661,12 +1661,12 @@ CommandLogout::CommandLogout(MegaClient *client, Completion completion, bool kee
     tag = client->reqtag;
 }
 
-const char* CommandLogout::getJSON(MegaClient* client)
+const char* CommandLogout::getJSON(MegaClient* clientOfRequest)
 {
     if (!incrementedCount)
     {
         // only set this once we are about to send the command, in case there are others ahead of it in the queue
-        client->loggingout++;
+        clientOfRequest->loggingout++;
         // only set it once in case of retries due to -3.
         incrementedCount = true;
     }
@@ -7004,15 +7004,15 @@ CommandFetchNodes::~CommandFetchNodes()
     assert(!mNodeTreeIsChanging.owns_lock());
 }
 
-const char* CommandFetchNodes::getJSON(MegaClient* client)
+const char* CommandFetchNodes::getJSON(MegaClient* clientOfRequest)
 {
     // reset all the sc channel state, prevent sending sc requests while fetchnodes is sent
     // we wait until this moment, because when `f` is queued, there may be
     // other commands queued ahead of it, and those may need sc responses in order
     // to fully complete, and so we can't reset these members at that time.
-    client->resetScForFetchnodes();
+    clientOfRequest->resetScForFetchnodes();
 
-    return Command::getJSON(client);
+    return Command::getJSON(clientOfRequest);
 }
 
 // purge and rebuild node/user tree

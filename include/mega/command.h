@@ -157,7 +157,7 @@ public:
     virtual bool procresult(Result, JSON&) = 0;
 
     // json for the command is usually pre-generated but can be calculated just before sending, by overriding this function
-    virtual const char* getJSON(MegaClient* client);
+    virtual const char* getJSON(MegaClient* clientOfRequest);
 
     Command();
     virtual ~Command();
@@ -487,7 +487,7 @@ class MEGA_API CommandFetchNodes : public Command
 {
     bool mLoadSyncs = false;
 
-    const char* getJSON(MegaClient* client) override;
+    const char* getJSON(MegaClient* clientOfRequest) override;
 
 public:
     bool procresult(Result, JSON&) override;
@@ -590,7 +590,8 @@ public:
 class MEGA_API CommandLogout : public Command
 {
     bool incrementedCount = false;
-    const char* getJSON(MegaClient* client) override;
+    const char* getJSON(MegaClient* clientOfRequest) override;
+
 public:
     using Completion = std::function<void(error)>;
 
@@ -750,7 +751,7 @@ private:
     error generationError;
     bool mCanChangeVault;
 
-    const char* getJSON(MegaClient* client) override;
+    const char* getJSON(MegaClient* clientOfRequest) override;
 
     Completion completion;
 
