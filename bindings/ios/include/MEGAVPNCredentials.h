@@ -2,7 +2,7 @@
  * @file MEGAVPNCredentials.h
  * @brief Container to store information of a VPN Cluster.
  *
- * (c) 2023- by Mega Limited, Auckland, New Zealand
+ * (c) 2024 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *

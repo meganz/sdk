@@ -2,7 +2,7 @@
  * @file MEGAVPNCredentials.mm
  * @brief Container to store and load Mega VPN credentials data
  *
- * (c) 2023- by Mega Limited, Auckland, New Zealand
+ * (c) 2024 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
