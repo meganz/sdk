@@ -165,7 +165,7 @@ public:
     bool checkError(Error &errorDetails, JSON &json);
 
     void addToNodePendingCommands(Node* n);
-    void removeFromNodePendingCommands(NodeHandle h, MegaClient* client);
+    void removeFromNodePendingCommands(NodeHandle h);
 
 #ifdef ENABLE_CHAT
     // create json structure for scheduled meetings (mcsmp command)

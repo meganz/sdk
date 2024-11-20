@@ -1054,7 +1054,7 @@ const char* CommandSetAttr::getJSON(MegaClient* client)
 
 bool CommandSetAttr::procresult(Result r, JSON&)
 {
-    removeFromNodePendingCommands(h, client);
+    removeFromNodePendingCommands(h);
     if (completion) completion(h, generationError ? Error(generationError) : r.errorOrOK());
     return r.wasErrorOrOK();
 }
