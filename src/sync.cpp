@@ -1815,16 +1815,16 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
             // Move is pending?
             if (auto& movePendingTo = s->rare().movePendingTo)
             {
-                // Check if the source/target has stabilized.
-                if (auto [waitforupdate, wasInitialized] =
-                        checkIfFileIsChanging(*row.fsNode, movePendingTo->sourcePath);
-                    waitforupdate)
+                auto waitforupdateOpt =
+                    checkIfFileIsChanging(*row.fsNode, movePendingTo->sourcePath);
+                if (!waitforupdateOpt)
                 {
-                    if (!wasInitialized)
-                    {
-                        return false;
-                    }
+                    return false;
+                }
 
+                // Check if the source/target has stabilized.
+                if (*waitforupdateOpt)
+                {
                     ProgressingMonitor monitor(*this, row, fullPath);
 
                     // Let the engine know why we're not making any progress.
@@ -2202,9 +2202,14 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
         // to another location as a temporary backup
         if (!pendingTo && sourceSyncNode->type == FILENODE)
         {
-            auto [waitforupdate, wasInitialized] =
+            auto waitforupdateOpt =
                 checkIfFileIsChanging(*row.fsNode, sourceSyncNode->getLocalPath());
-            if (waitforupdate && wasInitialized)
+            if (!waitforupdateOpt)
+            {
+                return false;
+            }
+
+            if (*waitforupdateOpt)
             {
                 // Make sure we don't process the source until the move is completed.
                 if (!markSiblingSourceRow())
@@ -2232,10 +2237,6 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
                         {fullPath.localPath}));
 
                 return rowResult = false, true;
-            }
-            else if (waitforupdate && !wasInitialized)
-            {
-                return false;
             }
         }
 
@@ -11030,120 +11031,129 @@ bool Syncs::findLocalNodeByNodeHandle(NodeHandle h, LocalNode*& sourceSyncNodeOr
     return sourceSyncNodeCurrent && sourceSyncNodeOriginal;
 }
 
-std::pair<bool, bool> Sync::checkIfFileIsChanging(FSNode& fsNode, const LocalPath& fullPath)
+std::optional<bool> Sync::checkIfFileIsChanging(const FSNode& fsNode, const LocalPath& fullPath)
 {
     assert(syncs.onSyncThread());
-    // code extracted from the old checkpath()
-
-    // logic to prevent moving/uploading files that may still be being updated
-
-    // (original sync code comment:)
-    // detect files being updated in the local computer moving the original file
-    // to another location as a temporary backup
-
     assert(fsNode.type == FILENODE);
 
     bool waitforupdate = false;
     Syncs::FileChangingState& state = syncs.mFileChangingCheckState[fullPath];
 
-    const bool wasInitialized = !Syncs::isFileChangingUninitialized(state);
+    const auto getResult = [&waitforupdate,
+                            wasInitialized = state.isInitialized()]() -> std::optional<bool>
+    {
+        if (!wasInitialized)
+        {
+            return std::nullopt;
+        }
+        return waitforupdate;
+    };
 
-    m_time_t currentsecs = m_time();
+    const m_time_t currentsecs = m_time();
     if (!state.updatedfileinitialts)
     {
         state.updatedfileinitialts = currentsecs;
     }
 
-    if (currentsecs >= state.updatedfileinitialts)
+    const bool fileUpdatedBeforeNow = currentsecs >= state.updatedfileinitialts;
+    if (!fileUpdatedBeforeNow)
     {
-        if (currentsecs - state.updatedfileinitialts <= Sync::FILE_UPDATE_MAX_DELAY_SECS)
+        LOG_warn << syncname << "checkIfFileIsChanging: File check started in the future";
+        syncs.mFileChangingCheckState.erase(fullPath);
+        return getResult();
+    }
+
+    const bool isMaxDelayExceeded =
+        currentsecs - state.updatedfileinitialts > Sync::FILE_UPDATE_MAX_DELAY_SECS;
+    if (isMaxDelayExceeded)
+    {
+        syncs.queueClient(
+            [](MegaClient& mc, TransferDbCommitter& committer)
+            {
+                mc.sendevent(99438, "Timeout waiting for file update", 0);
+            });
+
+        assert(!waitforupdate);
+        syncs.mFileChangingCheckState.erase(fullPath);
+        return getResult();
+    }
+
+    auto prevfa = syncs.fsaccess->newfileaccess(false);
+    const bool canOpenFile = prevfa->fopen(fullPath, FSLogging::logOnError);
+    if (!canOpenFile)
+    {
+        if (prevfa->retry)
         {
-            auto prevfa = syncs.fsaccess->newfileaccess(false);
-            if (prevfa->fopen(fullPath, FSLogging::logOnError))
-            {
-                LOG_debug << syncname << "File detected in the origin of a move";
-
-                if (currentsecs >= state.updatedfilets)
-                {
-                    if ((currentsecs - state.updatedfilets) < (Sync::FILE_UPDATE_DELAY_DS / 10))
-                    {
-                        LOG_verbose << syncname << "currentsecs = " << currentsecs << "  lastcheck = " << state.updatedfilets
-                            << "  currentsize = " << prevfa->size << "  lastsize = " << state.updatedfilesize;
-                        LOG_debug << "The file size changed too recently. Waiting " << currentsecs - state.updatedfilets << " ds for " << fsNode.localname;
-                        waitforupdate = true;
-                    }
-                    else if (state.updatedfilesize != prevfa->size)
-                    {
-                        LOG_verbose << syncname << "currentsecs = " << currentsecs << "  lastcheck = " << state.updatedfilets
-                            << "  currentsize = " << prevfa->size << "  lastsize = " << state.updatedfilesize;
-                        LOG_debug << "The file size has changed since the last check. Waiting...";
-                        state.updatedfilesize = prevfa->size;
-                        state.updatedfilets = currentsecs;
-                        waitforupdate = true;
-                    }
-                    else
-                    {
-                        LOG_debug << syncname << "The file size seems stable";
-                    }
-                }
-                else
-                {
-                    LOG_warn << syncname << "File checked in the future";
-                }
-
-                if (!waitforupdate)
-                {
-                    if (currentsecs >= prevfa->mtime)
-                    {
-                        if (currentsecs - prevfa->mtime < (Sync::FILE_UPDATE_DELAY_DS / 10))
-                        {
-                            LOG_verbose << syncname << "currentsecs = " << currentsecs << "  mtime = " << prevfa->mtime;
-                            LOG_debug << syncname << "File modified too recently. Waiting...";
-                            waitforupdate = true;
-                        }
-                        else
-                        {
-                            LOG_debug << syncname << "The modification time seems stable.";
-                        }
-                    }
-                    else
-                    {
-                        LOG_warn << syncname << "File modified in the future";
-                    }
-                }
-            }
-            else
-            {
-                if (prevfa->retry)
-                {
-                    LOG_debug << syncname << "The file in the origin is temporarily blocked. Waiting...";
-                    waitforupdate = true;
-                }
-                else
-                {
-                    LOG_debug << syncname << "There isn't anything in the origin path";
-                }
-            }
+            LOG_debug << syncname
+                      << "checkIfFileIsChanging: The file in the origin is temporarily blocked. "
+                         "Waiting...";
+            waitforupdate = true;
         }
         else
         {
-            syncs.queueClient(
-                [](MegaClient& mc, TransferDbCommitter&)
-                {
-                    mc.sendevent(99438, "Timeout waiting for file update", 0);
-                });
+            LOG_debug << syncname
+                      << "checkIfFileIsChanging: There isn't anything in the origin path";
+            syncs.mFileChangingCheckState.erase(fullPath);
         }
+        return getResult();
     }
-    else
+    LOG_debug << syncname << "checkIfFileIsChanging: File detected in the origin of a move";
+
+    const bool fileCheckedInFuture = currentsecs < state.updatedfilets;
+    fileCheckedInFuture ?
+        LOG_warn << syncname << "checkIfFileIsChanging: File checked in the future" :
+        LOG_debug << syncname << "checkIfFileIsChanging: The file size seems stable";
+
+    const bool fileSizeChangedTooRecently =
+        (currentsecs - state.updatedfilets) < (Sync::FILE_UPDATE_DELAY_DS / 10);
+    if (!fileCheckedInFuture && fileSizeChangedTooRecently)
     {
-        LOG_warn << syncname << "File check started in the future";
+        LOG_verbose << syncname << "checkIfFileIsChanging: currentsecs = " << currentsecs
+                    << "  lastcheck = " << state.updatedfilets << "  currentsize = " << prevfa->size
+                    << "  lastsize = " << state.updatedfilesize;
+        LOG_debug << "checkIfFileIsChanging: The file size changed too recently. Waiting "
+                  << currentsecs - state.updatedfilets << " ds for " << fsNode.localname;
+        waitforupdate = true;
+        return getResult();
     }
 
-    if (!waitforupdate)
+    const bool fileSizeIsChanging = state.updatedfilesize != prevfa->size;
+    if (!fileCheckedInFuture && fileSizeIsChanging)
     {
-        syncs.mFileChangingCheckState.erase(fullPath);
+        LOG_verbose << "checkIfFileIsChanging: " << syncname << " currentsecs = " << currentsecs
+                    << "  lastcheck = " << state.updatedfilets << "  currentsize = " << prevfa->size
+                    << "  lastsize = " << state.updatedfilesize;
+        LOG_debug
+            << "checkIfFileIsChanging: The file size has changed since the last check. Waiting...";
+        state.updatedfilesize = prevfa->size;
+        state.updatedfilets = currentsecs;
+        waitforupdate = true;
+        return getResult();
     }
-    return {waitforupdate, wasInitialized};
+
+    assert(!waitforupdate);
+    const bool fileModifiedInFuture = currentsecs < prevfa->mtime;
+    if (fileModifiedInFuture)
+    {
+        LOG_warn << syncname << "checkIfFileIsChanging: File modified in the future";
+        syncs.mFileChangingCheckState.erase(fullPath);
+        return getResult();
+    }
+
+    const bool fileModifiedIsStable =
+        currentsecs - prevfa->mtime >= (Sync::FILE_UPDATE_DELAY_DS / 10);
+    if (fileModifiedIsStable)
+    {
+        LOG_debug << syncname << "checkIfFileIsChanging: The modification time seems stable.";
+        syncs.mFileChangingCheckState.erase(fullPath);
+        return getResult();
+    }
+
+    LOG_verbose << "checkIfFileIsChanging:" << syncname << "currentsecs = " << currentsecs
+                << "  mtime = " << prevfa->mtime;
+    LOG_debug << "checkIfFileIsChanging:" << syncname << "File modified too recently. Waiting...";
+    waitforupdate = true;
+    return getResult();
 }
 
 bool Sync::resolve_fsNodeGone(SyncRow& row, SyncRow& /*parentRow*/, SyncPath& fullPath)
