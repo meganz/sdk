@@ -66,14 +66,14 @@
     return countryName ? [NSString stringWithUTF8String:countryName] : @"";
 }
 
-- (nullable NSString *)regionName {
+- (nonnull NSString *)regionName {
     const char *regionName = self.megaVpnRegion->getRegionName();
-    return regionName ? [NSString stringWithUTF8String:regionName] : nil;
+    return regionName ? [NSString stringWithUTF8String:regionName] : @"";
 }
 
-- (nullable NSString *)townName {
+- (nonnull NSString *)townName {
     const char *townName = self.megaVpnRegion->getTownName();
-    return townName ? [NSString stringWithUTF8String:townName] : nil;
+    return townName ? [NSString stringWithUTF8String:townName] : @"";
 }
 
 - (nonnull NSDictionary<NSNumber *, MEGAVPNCluster *> *)clusters {

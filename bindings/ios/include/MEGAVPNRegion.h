@@ -65,7 +65,7 @@ NS_ASSUME_NONNULL_BEGIN
  *
  * @return The country region name for this VPN Region, always not-null.
  */
-@property (nonatomic, readonly, nullable) NSString *regionName;
+@property (nonatomic, readonly, nonnull) NSString *regionName;
 
 /**
  * @brief Get the name of the town where this VPN is located.
@@ -74,7 +74,7 @@ NS_ASSUME_NONNULL_BEGIN
  *
  * @return The name of the town for this VPN Region, always not-null.
  */
-@property (nonatomic, readonly, nullable) NSString *townName;
+@property (nonatomic, readonly, nonnull) NSString *townName;
 
 /**
  * @brief Get a container with all Clusters of this VPN Region.
