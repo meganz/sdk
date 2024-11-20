@@ -1,6 +1,6 @@
 /**
  * @file MEGAVPNCredentials.h
- * @brief List of strings
+ * @brief Container to store information of a VPN Cluster.
  *
  * (c) 2023- by Mega Limited, Auckland, New Zealand
  *
@@ -21,6 +21,7 @@
 #import <Foundation/Foundation.h>
 #import "MEGAIntegerList.h"
 #import "MEGAStringList.h"
+#import "MEGAVPNRegion.h"
 
 @interface MEGAVPNCredentials : NSObject
 
@@ -37,6 +38,15 @@
  * @return A MEGAStringList containing the VPN regions.
  */
 - (MEGAStringList *)vpnRegions;
+
+/**
+ * @brief Get the list of the available VPN regions, including the clusters for each region.
+ *
+ * The caller takes the ownership of the returned array.
+ *
+ * @return An NSArray of MEGAVPNRegion objects.
+ */
+- (NSArray<MEGAVPNRegion *> *)vpnRegionsDetailed;
 
 /**
  * @brief Gets the IPv4 address associated with a given SlotID.

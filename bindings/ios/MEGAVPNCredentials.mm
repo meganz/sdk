@@ -1,6 +1,6 @@
 /**
  * @file MEGAVPNCredentials.mm
- * @brief List of MEGAUser objects
+ * @brief Container to store and load Mega VPN credentials data
  *
  * (c) 2023- by Mega Limited, Auckland, New Zealand
  *
@@ -21,6 +21,7 @@
 #import "MEGAVPNCredentials.h"
 #import "MEGAIntegerList+init.h"
 #import "MEGAStringList+init.h"
+#import "MEGAVPNRegion+init.h"
 
 @interface MEGAVPNCredentials ()
 @property mega::MegaVpnCredentials *megaVpnCredentials;
@@ -54,6 +55,27 @@
 
 - (MEGAStringList *)vpnRegions {
     return [[MEGAStringList alloc] initWithMegaStringList:self.megaVpnCredentials->getVpnRegions() cMemoryOwn:YES];
+}
+
+- (NSArray<MEGAVPNRegion *> *)vpnRegionsDetailed {
+    if (!_megaVpnCredentials) {
+        return nil;
+    }
+    mega::MegaVpnRegionList *regionList = _megaVpnCredentials->getVpnRegionsDetailed();
+    if (!regionList) {
+        return nil;
+    }
+    int count = regionList->size();
+    NSMutableArray<MEGAVPNRegion *> *regionsArray = [NSMutableArray.alloc initWithCapacity:(NSUInteger)count];
+    for (int i = 0; i < count; i++) {
+        const mega::MegaVpnRegion *region = regionList->get(i);
+        if (region) {
+            MEGAVPNRegion *vpnRegion = [MEGAVPNRegion.alloc initWithMegaVpnRegion:region->copy() cMemoryOwn:YES];
+            [regionsArray addObject:vpnRegion];
+        }
+    }
+    delete regionList;
+    return regionsArray.copy;
 }
 
 - (NSString *)ipv4ForSlotID:(NSInteger)slotID {
