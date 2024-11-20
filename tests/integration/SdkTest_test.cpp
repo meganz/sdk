@@ -960,7 +960,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
     mApi[apiIndex].requestFlags[request->getType()] = true;
 }
 
-void SdkTest::onTransferStart(MegaApi *api, MegaTransfer *transfer)
+void SdkTest::onTransferStart(MegaApi*, MegaTransfer* transfer)
 {
     onTransferStart_progress = transfer->getTransferredBytes();
 }
@@ -1001,7 +1001,7 @@ void SdkTest::onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* 
     }
 }
 
-void SdkTest::onTransferUpdate(MegaApi *api, MegaTransfer *transfer)
+void SdkTest::onTransferUpdate(MegaApi*, MegaTransfer* transfer)
 {
     onTransferUpdate_progress = transfer->getTransferredBytes();
     onTransferUpdate_filesize = transfer->getTotalBytes();
@@ -1082,7 +1082,7 @@ void SdkTest::onSetElementsUpdate(MegaApi* api, MegaSetElementList* elements)
     mApi[static_cast<size_t>(apiIndex)].setElementUpdated = true;
 }
 
-void SdkTest::onContactRequestsUpdate(MegaApi* api, MegaContactRequestList* requests)
+void SdkTest::onContactRequestsUpdate(MegaApi* api, MegaContactRequestList*)
 {
     int apiIndex = getApiIndex(api);
     if (apiIndex < 0) return;
@@ -1265,7 +1265,8 @@ void SdkTest::fetchnodes(unsigned int apiIndex, int timeout)
 {
     RequestTracker rt(megaApi[apiIndex].get());
     mApi[apiIndex].megaApi->fetchNodes(&rt);
-    ASSERT_EQ(API_OK, rt.waitForResult(300)) << "Fetchnodes failed or took more than 5 minutes";
+    ASSERT_EQ(API_OK, rt.waitForResult(timeout))
+        << "Fetchnodes failed or took more than " << timeout << " seconds";
 }
 
 void SdkTest::logout(unsigned int apiIndex, bool keepSyncConfigs, int timeout)
@@ -1978,7 +1979,7 @@ string SdkTest::createPublicLink(unsigned apiIndex, MegaNode *n, m_time_t expire
 
     mApi[apiIndex].megaApi->exportNode(n, expireDate, writable, megaHosted, &rt);
 
-    rt.waitForResult();
+    rt.waitForResult(timeout);
 
     if (!expireDate || !isFreeAccount)
     {
@@ -2065,18 +2066,19 @@ MegaHandle SdkTest::createFolder(unsigned int apiIndex, const char *name, MegaNo
 
     megaApi[apiIndex]->createFolder(name, parent, &tracker);
 
-    if (tracker.waitForResult() != API_OK) return UNDEF;
+    if (tracker.waitForResult(timeout) != API_OK)
+        return UNDEF;
 
     return tracker.request->getNodeHandle();
 }
 
-void SdkTest::getCountryCallingCodes(const int timeout)
+void SdkTest::getCountryCallingCodes(const int /*timeout*/)
 {
     unsigned int apiIndex = 0;
     ASSERT_EQ(API_OK, synchronousGetCountryCallingCodes(apiIndex, this)) << "Get country calling codes failed";
 }
 
-void SdkTest::getUserAttribute(MegaUser *u, int type, int timeout, int apiIndex)
+void SdkTest::getUserAttribute(MegaUser* u, int type, int /*timeout*/, int apiIndex)
 {
     mApi[static_cast<size_t>(apiIndex)].requestFlags[MegaRequest::TYPE_GET_ATTR_USER] = false;
 
@@ -7651,10 +7653,9 @@ struct CheckStreamedFile_MegaTransferListener : public MegaTransferListener
         delete[] receiveBuf;
     }
 
-    void onTransferStart(MegaApi *api, MegaTransfer *transfer) override
-    {
-    }
-    void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* error) override
+    void onTransferStart(MegaApi*, MegaTransfer*) override {}
+
+    void onTransferFinish(MegaApi*, MegaTransfer*, MegaError* error) override
     {
         if (error && error->getErrorCode() != API_OK)
         {
@@ -7668,9 +7669,9 @@ struct CheckStreamedFile_MegaTransferListener : public MegaTransferListener
             completedSuccessfully = true;
         }
     }
-    void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) override
-    {
-    }
+
+    void onTransferUpdate(MegaApi*, MegaTransfer*) override {}
+
     void onTransferTemporaryError(MegaApi *api, MegaTransfer * /*transfer*/, MegaError* error) override
     {
         ++numFailedRequests;
@@ -7678,7 +7679,8 @@ struct CheckStreamedFile_MegaTransferListener : public MegaTransferListener
         msg << "onTransferTemporaryError: " << (error ? error->getErrorString() : "NULL");
         api->log(MegaApi::LOG_LEVEL_WARNING, msg.str().c_str());
     }
-    bool onTransferData(MegaApi *api, MegaTransfer *transfer, char *buffer, size_t size) override
+
+    bool onTransferData(MegaApi*, MegaTransfer*, char* buffer, size_t size) override
     {
         assert(receiveBufPos + size <= reserved);
         memcpy(receiveBuf + receiveBufPos, buffer, size);
@@ -10587,13 +10589,16 @@ struct SyncListener : MegaListener
         stateMap.clear();
     }
 
-    void onSyncFileStateChanged(MegaApi* api, MegaSync* sync, std::string* localPath, int newState) override
+    void onSyncFileStateChanged(MegaApi*,
+                                MegaSync* /*sync*/,
+                                std::string* /*localPath*/,
+                                int /*newState*/) override
     {
         // probably too frequent to output
         //out() << "onSyncFileStateChanged " << sync << newState;
     }
 
-    void onSyncAdded(MegaApi* api, MegaSync* sync) override
+    void onSyncAdded(MegaApi*, MegaSync* sync) override
     {
         out() << "onSyncAdded " << toHandle(sync->getBackupId());
         check(sync->getBackupId() != UNDEF, "sync added with undef backup Id");
@@ -10602,14 +10607,14 @@ struct SyncListener : MegaListener
         state(sync) = added;
     }
 
-    void onSyncDeleted(MegaApi* api, MegaSync* sync) override
+    void onSyncDeleted(MegaApi*, MegaSync* sync) override
     {
         out() << "onSyncDeleted " << toHandle(sync->getBackupId());
         check(state(sync) != nonexistent && state(sync) != deleted);
         state(sync) = nonexistent;
     }
 
-    void onSyncStateChanged(MegaApi* api, MegaSync* sync) override
+    void onSyncStateChanged(MegaApi*, MegaSync* sync) override
     {
         out() << "onSyncStateChanged " << toHandle(sync->getBackupId()) << " runState: " << sync->getRunState();
 
@@ -10621,13 +10626,13 @@ struct SyncListener : MegaListener
         check(state(sync) != nonexistent);
     }
 
-    void onSyncRemoteRootChanged(MegaApi* api, MegaSync* sync) override
+    void onSyncRemoteRootChanged(MegaApi*, MegaSync* sync) override
     {
         out() << "onSyncRemoteRootChanged " << toHandle(sync->getBackupId())
               << " new Remote root: " << sync->getLastKnownMegaFolder();
     }
 
-    void onGlobalSyncStateChanged(MegaApi* api) override
+    void onGlobalSyncStateChanged(MegaApi*) override
     {
         // just too frequent for out() really
         //out() << "onGlobalSyncStateChanged ";
@@ -11715,7 +11720,12 @@ TEST_F(SdkTest, DISABLED_StressTestSDKInstancesOverWritableFoldersOverWritableFo
         ASSERT_NE(remoteSubFolderNode.get(), nullptr);
 
         // ___ get a link to the file node
-        string nodelink = createPublicLink(0, remoteSubFolderNode.get(), 0, 0, false/*mApi[0].accountDetails->getProLevel() == 0)*/, true/*writable*/);
+        string nodelink = createPublicLink(0,
+                                           remoteSubFolderNode.get(),
+                                           0,
+                                           maxTimeout,
+                                           false /*mApi[0].accountDetails->getProLevel() == 0)*/,
+                                           true /*writable*/);
         // The created link is stored in this->link at onRequestFinish()
         LOG_verbose << "StressTestSDKInstancesOverWritableFolders : " << subFolderPath << " link = " << nodelink;
 
@@ -11863,7 +11873,12 @@ TEST_F(SdkTest, WritableFolderSessionResumption)
         ASSERT_NE(remoteSubFolderNode.get(), nullptr);
 
         // ___ get a link to the file node
-        string nodelink = createPublicLink(0, remoteSubFolderNode.get(), 0, 0, false/*mApi[0].accountDetails->getProLevel() == 0)*/, true/*writable*/);
+        string nodelink = createPublicLink(0,
+                                           remoteSubFolderNode.get(),
+                                           0,
+                                           maxTimeout,
+                                           false /*mApi[0].accountDetails->getProLevel() == 0)*/,
+                                           true /*writable*/);
         // The created link is stored in this->link at onRequestFinish()
         LOG_verbose << "WritableFolderSessionResumption : " << subFolderPath << " link = " << nodelink;
 
@@ -17129,6 +17144,8 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
             std::unique_ptr<MegaStringList> clusterDns{firstCluster->getDns()};
             ASSERT_THAT(clusterDns, testing::NotNull());
             ASSERT_GT(clusterDns->size(), 0);
+            ASSERT_STRNE(region->getCountryCode(), "");
+            ASSERT_STRNE(region->getCountryName(), "");
         };
         ASSERT_THAT(vpnRegionsDetailed, testing::NotNull());
         ASSERT_EQ(static_cast<int>(vpnRegionsDetailed->size()), vpnRegions->size());

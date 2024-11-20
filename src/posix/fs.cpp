@@ -597,7 +597,14 @@ int PosixFileAccess::stealFileDescriptor()
     return toret;
 }
 
-bool PosixFileAccess::fopen(const LocalPath& f, bool read, bool write, FSLogging fsl, DirAccess* iteratingDir, bool, bool skipcasecheck, LocalPath* actualLeafNameIfDifferent)
+bool PosixFileAccess::fopen(const LocalPath& f,
+                            bool read,
+                            bool write,
+                            FSLogging fsl,
+                            DirAccess* iteratingDir,
+                            bool,
+                            [[maybe_unused]] bool skipcasecheck,
+                            LocalPath* /*actualLeafNameIfDifferent*/)
 {
     struct stat statbuf;
 
@@ -658,8 +665,6 @@ bool PosixFileAccess::fopen(const LocalPath& f, bool read, bool write, FSLogging
             }
         }
     }
-#else
-    (void)skipcasecheck; // avoid unused parameter warning
 #endif
 
 #ifndef HAVE_FDOPENDIR
@@ -874,7 +879,7 @@ bool PosixFileSystemAccess::cwd_static(LocalPath& path)
 // wake up from filesystem updates
 
 #ifdef __linux__
-void LinuxFileSystemAccess::addevents(Waiter* waiter, int flags)
+void LinuxFileSystemAccess::addevents([[maybe_unused]] Waiter* waiter, int /*flags*/)
 {
 #ifdef ENABLE_SYNC
 
@@ -892,7 +897,7 @@ void LinuxFileSystemAccess::addevents(Waiter* waiter, int flags)
 }
 
 // read all pending inotify events and queue them for processing
-int LinuxFileSystemAccess::checkevents(Waiter* waiter)
+int LinuxFileSystemAccess::checkevents([[maybe_unused]] Waiter* waiter)
 {
     int result = 0;
 
@@ -950,7 +955,10 @@ int LinuxFileSystemAccess::checkevents(Waiter* waiter)
             }
 
             auto localName = LocalPath::fromPlatformEncodedRelative(name);
-            notifier.notify(notifier.fsEventq, &node, Notification::NEEDS_PARENT_SCAN, move(localName));
+            notifier.notify(notifier.fsEventq,
+                            &node,
+                            Notification::NEEDS_PARENT_SCAN,
+                            std::move(localName));
 
             // We need to rescan the directory if it's changed permissions.
             //
@@ -1630,11 +1638,11 @@ void PosixFileSystemAccess::statsid(string *id) const
 #if defined(__linux__)
 
 LinuxDirNotify::LinuxDirNotify(LinuxFileSystemAccess& owner,
-    LocalNode& root,
-    const LocalPath& rootPath)
-    : DirNotify(rootPath)
-    , mOwner(owner)
-    , mNotifiersIt(owner.mNotifiers.insert(owner.mNotifiers.end(), this))
+                               LocalNode& /*root*/,
+                               const LocalPath& rootPath):
+    DirNotify(rootPath),
+    mOwner(owner),
+    mNotifiersIt(owner.mNotifiers.insert(owner.mNotifiers.end(), this))
 {
     // Assume our owner couldn't initialize.
     setFailed(-owner.mNotifyFd, "Unable to create filesystem monitor.");

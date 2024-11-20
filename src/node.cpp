@@ -142,22 +142,19 @@ int Node::getShareType() const
     return shareType;
 }
 
-bool Node::isAncestor(NodeHandle ancestorHandle) const
+bool Node::hasAncestorMatching(const nodeCondition_t& condition) const
 {
-    Node* ancestor = parent.get();
+    const Node* ancestor = parent.get();
     while (ancestor)
     {
-        if (ancestor->nodeHandle() == ancestorHandle)
-        {
+        if (condition(*ancestor))
             return true;
-        }
 
         ancestor = ancestor->parent.get();
     }
 
     return false;
 }
-
 
 bool Node::hasChildWithName(const string& name) const
 {
@@ -1378,7 +1375,7 @@ unsigned Node::depth() const
 }
 
 // returns 1 if n is under p, 0 otherwise
-bool Node::isbelow(Node* p) const
+bool Node::isbelow(const Node* p) const
 {
     const Node* n = this;
 
@@ -1955,7 +1952,7 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath& newlocalpat
     if (shortnameChange)
     {
         // set new shortname
-        slocalname = move(newshortname);
+        slocalname = std::move(newshortname);
     }
 
 
@@ -2037,7 +2034,7 @@ void LocalNode::moveContentTo(LocalNode* ln, LocalPath& fullPath, bool setScanAg
         }
     }
 
-    ln->resetTransfer(move(transferSP));
+    ln->resetTransfer(std::move(transferSP));
 
     LocalTreeProcUpdateTransfers tput;
     tput.proc(*sync->syncs.fsaccess, ln);
@@ -2541,7 +2538,10 @@ bool LocalNode::processBackgroundFolderScan(SyncRow& row, SyncPath& fullPath)
             }
 
             ourScanRequest = sync->syncs.mScanService->queueScan(fullPath.localPath,
-                row.fsNode->fsid, false, move(priorScanChildren), sync->syncs.waiter);
+                                                                 row.fsNode->fsid,
+                                                                 false,
+                                                                 std::move(priorScanChildren),
+                                                                 sync->syncs.waiter);
 
             rare().scanRequest = ourScanRequest;
             *availableScanSlot = ourScanRequest;
@@ -2776,7 +2776,7 @@ void LocalNode::setSyncedFsid(handle newfsid, fsid_localnode_map& fsidnodes, con
             (newshortname && slocalname && *newshortname != *slocalname))
     {
         // localname must always be set by this function, to maintain parent's child maps
-        setnameparent(parent, fsName, move(newshortname));
+        setnameparent(parent, fsName, std::move(newshortname));
     }
 
     // LOG_verbose << "localnode " << this << " fsid " << toHandle(fsid_lastSynced) << " localname " << fsName.toPath() << " parent " << parent;
@@ -3088,6 +3088,17 @@ FSNode LocalNode::getScannedFSDetails() const
     return n;
 }
 
+bool LocalNode::hasPendingTransfers() const
+{
+    return transferSP != nullptr ||
+           std::any_of(std::begin(children),
+                       std::end(children),
+                       [](const auto& p)
+                       {
+                           return p.second && p.second->hasPendingTransfers();
+                       });
+}
+
 void LocalNode::updateMoveInvolvement()
 {
     bool moveInvolved = hasRare() && (rare().moveToHere || rare().moveFromHere);
@@ -3184,7 +3195,7 @@ void LocalNode::resetTransfer(shared_ptr<SyncTransfer_inClient> p)
         }
     }
 
-    transferSP = move(p);
+    transferSP = std::move(p);
 }
 
 

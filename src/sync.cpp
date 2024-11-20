@@ -18,12 +18,12 @@
  * You should have received a copy of the license along with this
  * program.
  */
+#include "mega.h"
+
 #include <cctype>
+#include <future>
 #include <memory>
 #include <type_traits>
-#include <future>
-
-#include "mega.h"
 
 #ifdef ENABLE_SYNC
 #include "mega/base64.h"
@@ -559,6 +559,13 @@ string SyncConfig::getSyncDbStateCacheName(handle fsid, NodeHandle nh, handle us
     return dbname;
 }
 
+std::optional<std::filesystem::path> SyncConfig::getSyncDbPath(const FileSystemAccess& fsAccess,
+                                                               const MegaClient& client) const
+{
+    const auto fname = getSyncDbStateCacheName(mLocalPathFsid, mRemoteNode, client.me);
+    return client.dbaccess->getExistingDbPath(fsAccess, fname);
+}
+
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated
 Sync::Sync(UnifiedSync& us, const string& cdebris,
@@ -701,29 +708,14 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
               << us.mConfig.mLocalPathFsid;
 
     // load LocalNodes from cache (only for internal syncs)
-    // We are using SQLite in the no-mutex mode, so only access a database from a single thread.
-    if (shouldHaveDatabase())
-    {
-        string dbname = config.getSyncDbStateCacheName(fas->fsid, config.mRemoteNode, syncs.mClient.me);
+    us.mConfig.mDatabaseExists = shouldHaveDatabase() && openOrCreateDb(
+                                                             [this](DBError error)
+                                                             {
+                                                                 syncs.mClient.handleDbError(error);
+                                                             });
+    if (us.mConfig.mDatabaseExists)
+        readstatecache();
 
-        // Check if the database exists on disk.
-        us.mConfig.mDatabaseExists = syncs.mClient.dbaccess->probe(*syncs.fsaccess, dbname);
-
-        // Note, we opened dbaccess in thread-safe mode
-            statecachetable.reset(syncs.mClient.dbaccess->open(syncs.rng, *syncs.fsaccess, dbname, DB_OPEN_FLAG_RECYCLE |  DB_OPEN_FLAG_TRANSACTED, [this](DBError error)
-            {
-                syncs.mClient.handleDbError(error);
-            }));
-
-        // Did the call above create the database?
-        us.mConfig.mDatabaseExists |= !!statecachetable;
-
-        // Don't bother trying to read the cache if we couldn't open the database.
-        if (us.mConfig.mDatabaseExists)
-        {
-            readstatecache();
-        }
-    }
     us.mConfig.mRunState = SyncRunState::Run;
 
     mCaseInsensitive = determineCaseInsenstivity(false);
@@ -757,6 +749,29 @@ Sync::~Sync()
     // Decrement counter of active syncs.
     --syncs.mNumSyncsActive;
 }
+
+bool Sync::openOrCreateDb(DBErrorCallback&& errorHandler)
+{
+    // We are using SQLite in the no-mutex mode, so only access a database from a single thread.
+    assert(syncs.onSyncThread());
+
+    auto& config = mUnifiedSync.mConfig;
+    const std::string dbname =
+        config.getSyncDbStateCacheName(config.mLocalPathFsid, config.mRemoteNode, syncs.mClient.me);
+
+    // Check if the database exists on disk.
+    const bool dbExistsOnDisk = syncs.mClient.dbaccess->probe(*syncs.fsaccess, dbname);
+
+    // Note, we opened dbaccess in thread-safe mode
+    statecachetable.reset(
+        syncs.mClient.dbaccess->open(syncs.rng,
+                                     *syncs.fsaccess,
+                                     dbname,
+                                     DB_OPEN_FLAG_RECYCLE | DB_OPEN_FLAG_TRANSACTED,
+                                     std::move(errorHandler)));
+
+    return dbExistsOnDisk || statecachetable != nullptr;
+};
 
 bool Sync::isBackup() const
 {
@@ -795,7 +810,7 @@ void Sync::setBackupMonitoring()
 
 bool Sync::shouldHaveDatabase() const
 {
-    return syncs.mClient.dbaccess && !mUnifiedSync.mConfig.isExternal();
+    return mUnifiedSync.shouldHaveDatabase();
 }
 
 const fsfp_t& Sync::fsfp() const
@@ -1090,6 +1105,26 @@ void UnifiedSync::changeState(SyncError newSyncError, bool newEnableFlag, bool n
 
     changedConfigState(!!syncs.mSyncConfigStore, notifyApp);
     mNextHeartbeat->updateSPHBStatus(*this);
+}
+
+void UnifiedSync::suspendSync()
+{
+    assert(syncs.onSyncThread());
+    if (!mSync)
+        return;
+    changeState(UNLOADING_SYNC, false, false, true);
+    mSync.reset();
+}
+
+void UnifiedSync::resumeSync(std::function<void(error, SyncError, handle)>&& completion)
+{
+    assert(syncs.onSyncThread());
+    syncs.enableSyncByBackupId_inThread(mConfig.mBackupId, true, std::move(completion), "");
+}
+
+bool UnifiedSync::shouldHaveDatabase() const
+{
+    return syncs.mClient.dbaccess && !mConfig.isExternal();
 }
 
 // walk localpath and return corresponding LocalNode and its parent
@@ -1402,7 +1437,7 @@ bool SyncStallInfo::waitingCloud(handle backupId, const string& mapKeyPath, Sync
     }
 
     // Add a new entry.
-    syncStallInfoMap.cloud.emplace(mapKeyPath, move(e));
+    syncStallInfoMap.cloud.emplace(mapKeyPath, std::move(e));
     return true;
 }
 
@@ -1423,7 +1458,7 @@ bool SyncStallInfo::waitingLocal(handle backupId, const LocalPath& mapKeyPath, S
         ++i;
     }
 
-    syncStallInfoMap.local.emplace(mapKeyPath, move(e));
+    syncStallInfoMap.local.emplace(mapKeyPath, std::move(e));
     return true;
 }
 
@@ -1593,7 +1628,7 @@ struct Sync::ProgressingMonitor
             SYNCS_verbose_timed << sync.syncname << "First sync node cloud-waiting: " << int(e.reason) << " " << sync.logTriplet(sr, sp);
         }
 
-        sf.stall.waitingCloud(sync.getConfig().mBackupId, mapKeyPath, move(e));
+        sf.stall.waitingCloud(sync.getConfig().mBackupId, mapKeyPath, std::move(e));
     }
 
     void waitingLocal(const LocalPath& mapKeyPath, SyncStallEntry&& e)
@@ -1607,7 +1642,7 @@ struct Sync::ProgressingMonitor
             SYNCS_verbose_timed << sync.syncname << "First sync node local-waiting: " << int(e.reason) << " " << sync.logTriplet(sr, sp);
         }
 
-        sf.stall.waitingLocal(sync.getConfig().mBackupId, mapKeyPath, move(e));
+        sf.stall.waitingLocal(sync.getConfig().mBackupId, mapKeyPath, std::move(e));
     }
 
     void noResult()
@@ -2325,7 +2360,7 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
                         }
                     };
 
-                    syncs.queueClient(move(simultaneousMoveReplacedNodeToDebris));
+                    syncs.queueClient(std::move(simultaneousMoveReplacedNodeToDebris));
 
                     // For the normal move case, we would have made this (empty) row.syncNode specifically for the move
                     // But for this case we are reusing this existing LocalNode and it may be a folder with children
@@ -4104,6 +4139,114 @@ bool Syncs::checkSyncRemoteLocationChange(SyncConfig& config,
     return true;
 }
 
+void Syncs::changeSyncLocalRoot(const handle /* backupId */,
+                                const std::string& /* newLocalRootPath */,
+                                std::function<void(error, SyncError)>&& completion)
+{
+    assert(false && "Not implemented yet and this code should be unreachable from public api");
+    return completion(API_EBLOCKED, UNKNOWN_ERROR);
+}
+
+void Syncs::changeSyncRemoteRoot(const handle backupId,
+                                 std::shared_ptr<const Node>&& newRootNode,
+                                 std::function<void(error, SyncError)>&& completionForClient)
+{
+    assert(!onSyncThread());
+
+    // We need to change to the syncs thread to run the missing validations and commit the change
+    queueSync(
+        [this,
+         backupId,
+         newRootNode = std::move(newRootNode),
+         completionForClientWrapped =
+             wrapToRunInClientThread(std::move(completionForClient), FromAnyThread::yes)]() mutable
+        {
+            changeSyncRemoteRootInThread(backupId,
+                                         std::move(newRootNode),
+                                         std::move(completionForClientWrapped));
+        },
+        "changeSyncRemoteRoot");
+}
+
+void Syncs::changeSyncRemoteRootInThread(const handle backupId,
+                                         std::shared_ptr<const Node>&& newRootNode,
+                                         std::function<void(error, SyncError)>&& completion)
+{
+    assert(onSyncThread());
+
+    lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
+    const auto it = std::find_if(std::begin(mSyncVec),
+                                 std::end(mSyncVec),
+                                 [backupId](const auto& unifSync)
+                                 {
+                                     return unifSync && unifSync->mConfig.mBackupId == backupId;
+                                 });
+    if (it == std::end(mSyncVec))
+    {
+        LOG_err << "There are no syncs with the given backupId";
+        return completion(API_EARGS, UNKNOWN_ERROR);
+    }
+
+    const auto& unifSync = (*it);
+    auto& config = unifSync->mConfig;
+    const auto newRootNH = newRootNode->nodeHandle();
+    if (config.mRemoteNode == newRootNH)
+    {
+        LOG_err << "The given node to set as new root is already the root of the sync";
+        return completion(API_EEXIST, UNKNOWN_ERROR);
+    }
+
+    const auto& syncs = unifSync->syncs;
+    const auto currentDbPath = config.getSyncDbPath(*syncs.fsaccess, syncs.mClient);
+    const auto currentRootNH = std::exchange(config.mRemoteNode, newRootNH);
+
+    if (!commitConfigToDb(config))
+    {
+        config.mRemoteNode = currentRootNH;
+        LOG_err
+            << "Couldn't commit the configuration into the database, cancelling remote root change";
+        return completion(API_EWRITE, SYNC_CONFIG_WRITE_FAILURE);
+    }
+
+    const auto renameDbAndNotifyServer =
+        [&config, &unifSync, &syncs, &currentDbPath, newRootNH, this]()
+    {
+        if (currentDbPath)
+        {
+            // Move db to the new expected location
+            const auto newDbFileName =
+                config.getSyncDbStateCacheName(config.mLocalPathFsid, newRootNH, syncs.mClient.me);
+
+            std::filesystem::path newDbPath{
+                syncs.mClient.dbaccess
+                    ->databasePath(*syncs.fsaccess, newDbFileName, DbAccess::DB_VERSION)
+                    .rawValue()};
+
+            std::filesystem::rename(*currentDbPath, newDbPath);
+        }
+        mHeartBeatMonitor->updateOrRegisterSync(*unifSync);
+    };
+
+    if (const bool syncRunning = (unifSync->mSync != nullptr); syncRunning)
+    {
+        unifSync->suspendSync();
+        renameDbAndNotifyServer();
+        unifSync->resumeSync(
+            [completion = std::move(completion)](error err, SyncError serr, handle)
+            {
+                if (err)
+                    LOG_err << "Error resuming sync after remote root change: " << err
+                            << ", Sync err: " << serr;
+                completion(API_OK, NO_SYNC_ERROR);
+            });
+    }
+    else
+    {
+        renameDbAndNotifyServer();
+        completion(API_OK, NO_SYNC_ERROR);
+    }
+}
+
 void Syncs::manageRemoteRootLocationChange(Sync& sync) const
 {
     // Currently, we don't support movements for backup roots
@@ -4117,15 +4260,11 @@ void Syncs::manageRemoteRootLocationChange(Sync& sync) const
     // we need to check if the node in its new location is syncable
     const auto& config = sync.getConfig();
     const auto [e, syncError] = std::invoke(
-        [this, newRemoteRootNH = config.mRemoteNode]() -> std::pair<error, SyncError>
+        [this, &config]() -> std::pair<error, SyncError>
         {
             std::lock_guard g(mClient.nodeTreeMutex);
-            SyncError syncError;
-            error e = mClient.isnodesyncable(mClient.mNodeManager.getNodeByHandle(newRemoteRootNH),
-                                             nullptr,
-                                             &syncError,
-                                             true);
-            return {e, syncError};
+            return mClient.isnodesyncable(mClient.mNodeManager.getNodeByHandle(config.mRemoteNode),
+                                          true);
         });
     if (e)
     {
@@ -4266,7 +4405,7 @@ void Syncs::syncRun(std::function<void()> f, const string& actionName)
 void Syncs::queueSync(std::function<void()>&& f, const string& actionName)
 {
     assert(!onSyncThread());
-    syncThreadActions.pushBack(QueuedSyncFunc(move(f), actionName));
+    syncThreadActions.pushBack(QueuedSyncFunc(std::move(f), actionName));
     mSyncFlags->earlyRecurseExitRequested = true;
     waiter->notify();
 }
@@ -4275,7 +4414,7 @@ void Syncs::queueClient(std::function<void(MegaClient&, TransferDbCommitter&)>&&
                         [[maybe_unused]] bool fromAnyThread)
 {
     assert(onSyncThread() || fromAnyThread);
-    clientThreadActions.pushBack(move(f));
+    clientThreadActions.pushBack(std::move(f));
     mClient.waiter->notify();
 }
 
@@ -4295,11 +4434,14 @@ void Syncs::getSyncProblems(std::function<void(unique_ptr<SyncProblems>)> comple
         };
     }
 
-    queueSync([this, completion]() mutable {
-        unique_ptr<SyncProblems> problems(new SyncProblems);
-        getSyncProblems_inThread(*problems);
-        completion(move(problems));
-    }, "getSyncProblems");
+    queueSync(
+        [this, completion]() mutable
+        {
+            unique_ptr<SyncProblems> problems(new SyncProblems);
+            getSyncProblems_inThread(*problems);
+            completion(std::move(problems));
+        },
+        "getSyncProblems");
 }
 
 void Syncs::getSyncProblems_inThread(SyncProblems& problems)
@@ -6477,7 +6619,14 @@ void Syncs::deregisterThenRemoveSync(handle backupId, std::function<void(Error)>
                         LOG_warn << "API error deregisterig sync " << toHandle(backupId) << ":" << e;
                     }
 
-                    queueSync([=](){ removeSyncAfterDeregistration_inThread(backupId, move(completion), clientRemoveSdsEntryFunction); }, "deregisterThenRemoveSync");
+                    queueSync(
+                        [=]()
+                        {
+                            removeSyncAfterDeregistration_inThread(backupId,
+                                                                   std::move(completion),
+                                                                   clientRemoveSdsEntryFunction);
+                        },
+                        "deregisterThenRemoveSync");
                 }));
     }, true);
 
@@ -6497,7 +6646,7 @@ void Syncs::removeSyncAfterDeregistration_inThread(handle backupId, std::functio
         // lastly, send the command to remove the sds entry from the (former) sync root Node's attributes
         if (clientRemoveSdsEntryFunction)
         {
-            queueClient(move(clientRemoveSdsEntryFunction));
+            queueClient(std::move(clientRemoveSdsEntryFunction));
         }
     }
     else
@@ -6663,6 +6812,13 @@ void Syncs::locallogout_inThread(bool removecaches, bool keepSyncsConfigFile, bo
         SyncConfigVector configs;
         syncConfigStoreLoad(configs);
     }
+}
+
+bool Syncs::commitConfigToDb(const SyncConfig& config)
+{
+    assert(onSyncThread());
+    ensureDriveOpenedAndMarkDirty(config.mExternalDrivePath);
+    return syncConfigStoreFlush();
 }
 
 void Syncs::ensureDriveOpenedAndMarkDirty(const LocalPath& externalDrivePath)
@@ -8028,7 +8184,7 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
                 scan->reserve(scan->size() + row.fsAddedSiblings.size());
                 for (auto& ptr: row.fsAddedSiblings)
                 {
-                    scan->push_back(move(ptr));
+                    scan->push_back(std::move(ptr));
                 }
                 row.fsAddedSiblings.clear();
             }
@@ -10068,7 +10224,7 @@ bool Sync::resolve_upsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, 
                         mc.putnodes_prepareOneFolder(&nn[0], foldername, canChangeVault);
                         mc.putnodes(targethandle,
                                     NoVersioning,
-                                    move(nn),
+                                    std::move(nn),
                                     nullptr,
                                     0,
                                     canChangeVault,
@@ -12992,12 +13148,12 @@ void Syncs::collectSyncNameConflicts(handle backupId, std::function<void(list<Na
 
     auto clientCompletion = [this, completion](list<NameConflict>&& nc)
     {
-        shared_ptr<list<NameConflict>> ncptr(new list<NameConflict>(move(nc)));
+        shared_ptr<list<NameConflict>> ncptr(new list<NameConflict>(std::move(nc)));
         queueClient(
             [completion, ncptr](MegaClient&, TransferDbCommitter&)
             {
                 if (completion)
-                    completion(move(*ncptr));
+                    completion(std::move(*ncptr));
             });
     };
 
@@ -13013,7 +13169,7 @@ void Syncs::collectSyncNameConflicts(handle backupId, std::function<void(list<Na
                     us->mSync->recursiveCollectNameConflicts(&nc);
                 }
             }
-            finalcompletion(move(nc));
+            finalcompletion(std::move(nc));
         }, "collectSyncNameConflicts");
 }
 

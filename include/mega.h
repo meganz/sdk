@@ -29,10 +29,6 @@
 // version
 #include "mega/version.h"
 
-#ifdef __clang__
-#pragma GCC diagnostic ignored "-Wunqualified-std-cast-call"
-#endif
-
 // project types
 #include "mega/types.h"
 

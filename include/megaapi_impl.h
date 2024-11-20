@@ -1103,6 +1103,26 @@ public:
         return mRegion.getName().c_str();
     }
 
+    const char* getCountryCode() const override
+    {
+        return mRegion.getCountryCode().c_str();
+    }
+
+    const char* getCountryName() const override
+    {
+        return mRegion.getCountryName().c_str();
+    }
+
+    const char* getRegionName() const override
+    {
+        return mRegion.getRegionName().c_str();
+    }
+
+    const char* getTownName() const override
+    {
+        return mRegion.getTownName().c_str();
+    }
+
     MegaVpnClusterMapPrivate* getClusters() const override;
 
 private:
@@ -3609,6 +3629,10 @@ class MegaApiImpl : public MegaApp
         void clearStalledPath(MegaSyncStall*);
 
         void moveToDebris(const char* path, MegaHandle syncBackupId, MegaRequestListener* listener = nullptr);
+
+        void changeSyncRemoteRoot(const MegaHandle syncBackupId,
+                                  const MegaHandle newRootNodeHandle,
+                                  MegaRequestListener* listener);
 
         AddressedStallFilter mAddressedStallFilter;
 

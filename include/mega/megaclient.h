@@ -981,17 +981,40 @@ public:
      * @brief Check if a given node is syncable
      * @param remotenode We want to validate if a sync can be enabled using this node as remote
      * root.
-     * @param isinshare filled with whether the node is within an inshare.
-     * @param syncError filled with SyncError with the sync error that makes the node unsyncable
      * @param excludeSelf if true, we will asume the given node is already the root of a sync and we
      * want to validate if it can still be synced. In other words, while iterating active syncs we
      * will scape the one having remotenode as root.
-     * @return API_OK if syncable. (regular) error otherwise
+     * @return A std::pair with information about the API and Sync errors. API_OK, NO_SYNC_ERROR if
+     * the node is syncable.
      */
-    error isnodesyncable(std::shared_ptr<Node> remotenode,
-                         bool* isinshare = NULL,
-                         SyncError* syncError = nullptr,
-                         const bool excludeSelf = false);
+    std::pair<error, SyncError> isnodesyncable(std::shared_ptr<Node> remotenode,
+                                               const bool excludeSelf = false);
+
+    /**
+     * @brief Checks if the given remotenode is related with any active sync
+     *
+     * @param remotenode The node to check
+     * @param excludeSelf if true, we will asume the given node is already the root of an active
+     * sync. This sync will be skipped during the evaluation.
+     * @return NO_SYNC_ERROR if the given node is not related with any of the active syncs.
+     * Otherwise:
+     *   - ACTIVE_SYNC_SAME_PATH: If the given node is already the root of an active sync
+     *   - ACTIVE_SYNC_BELOW_PATH: If the given node contains an active sync
+     *   - ACTIVE_SYNC_ABOVE_PATH: If the given node is contained in an active sync
+     */
+    SyncError anyActiveSyncAboveOrBelow(const Node& remotenode, const bool excludeSelf);
+
+    /**
+     * @brief Checks whether the current user has full access to the given node.
+     *
+     * This will be always the case for nodes that are not part of an inbound shared node. If the
+     * node is or is contained in an inbound shared node, this function checks that the user has
+     * full access to the node being shared.
+     *
+     * @param remotenode The node to check
+     * @return true if the current user has full access to the node, false otherwise
+     */
+    bool userHasRestrictedAccessToNode(const Node& remotenode);
 
     /**
      * @brief is local path syncable
@@ -1075,6 +1098,25 @@ public:
      * @see Syncs::importSyncConfigs
      */
     void importSyncConfigs(const char* configs, std::function<void(error)> completion);
+
+    /**
+     * @brief Changes the local/remote root of a sync to a different path/node
+     *
+     * @note This function only allows changing the local or the remote roots at once. To decide
+     * which one would be changes, one of newRemoteRootNodeHandle or newLocalRootPath must be
+     * UNDEF or nullptr respectively. Otherwise an API_EARGS will be returned
+     *
+     * @param backupId The backup id of the sync to be modified
+     * @param newRemoteRootNodeHandle The handle of the node that will be used for the new root on
+     * the cloud
+     * @param newLocalRootPath The path to the new root of the sync locally
+     * @param completion A completion function to be called once the logic is done, with the
+     * corresponding error.
+     */
+    void changeSyncRoot(const handle backupId,
+                        const handle newRemoteRootNodeHandle,
+                        const char* const newLocalRootPath,
+                        std::function<void(error, SyncError)>&& completion);
 
 public:
 
@@ -1715,6 +1757,11 @@ public:
     // reqs[r] is open for adding commands
     // reqs[r^1] is being processed on the API server
     HttpReq* pendingcs;
+
+    // When triggering an API Hashcash challenge, the HTTP response will contain
+    // X-Hashcash header, with relevant data to be saved and used for the next retry.
+    string mReqHashcashToken;
+    uint8_t mReqHashcashEasiness{};
 
     // Only queue the "Server busy" event once, until the current cs completes, otherwise we may DDOS
     // ourselves in cases where many clients get 500s for a while and then recover at the same time

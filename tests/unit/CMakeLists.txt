@@ -21,6 +21,7 @@ target_sources(test_unit
     FileFingerprint_test.cpp
     File_test.cpp
     FsNode.cpp
+    hashcash_test.cpp
     Logging_test.cpp
     MediaProperties_test.cpp
     MegaApi_test.cpp
@@ -60,7 +61,7 @@ target_link_libraries(test_unit PRIVATE MEGA::test_tools MEGA::test_common)
 target_platform_compile_options(
     TARGET test_unit
     WINDOWS /we4800 # Implicit conversion from 'type' to bool. Possible information loss
-    UNIX $<$<CONFIG:Debug>:-ggdb3> -Wall -Wextra -Wconversion -Wno-unused-parameter
+    UNIX $<$<CONFIG:Debug>:-ggdb3> -Wall -Wextra -Wconversion
 )
 
 if(ENABLE_SDKLIB_WERROR)
@@ -68,6 +69,5 @@ if(ENABLE_SDKLIB_WERROR)
         TARGET test_unit
         WINDOWS /WX
         UNIX  $<$<CONFIG:Debug>: -Werror>
-        APPLE $<$<CONFIG:Debug>: -Wno-unqualified-std-cast-call>
     )
 endif()

@@ -7,6 +7,7 @@ target_sources(test_integration
     SdkTestNodesSetUp_test.h
     test.h
     integration_test_utils.h
+    mock_listeners.h
 
     env_var_accounts.cpp
     main.cpp
@@ -43,7 +44,7 @@ target_link_libraries(test_integration
 target_platform_compile_options(
     TARGET test_integration
     WINDOWS /bigobj /we4800 # Implicit conversion from 'type' to bool. Possible information loss
-    UNIX $<$<CONFIG:Debug>:-ggdb3> -Wall -Wextra -Wconversion -Wno-unused-parameter
+    UNIX $<$<CONFIG:Debug>:-ggdb3> -Wall -Wextra -Wconversion
 )
 
 if(ENABLE_SDKLIB_WERROR)

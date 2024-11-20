@@ -174,6 +174,12 @@ struct FileNodeInfo: public NodeCommonInfo<FileNodeInfo>
                                                      _secondsSinceMod);
         return *this;
     }
+
+    FileNodeInfo& setMtime(const std::chrono::system_clock::time_point _timePoint)
+    {
+        mtime = std::chrono::system_clock::to_time_t(_timePoint);
+        return *this;
+    }
 };
 
 struct DirNodeInfo;
@@ -204,6 +210,11 @@ struct DirNodeInfo: public NodeCommonInfo<DirNodeInfo>
         childs.emplace_back(child);
         return *this;
     }
+
+    /**
+     * @brief Returns a vector with the names of the firs successors of the directory
+     */
+    std::vector<std::string> getChildrenNames() const;
 };
 
 /**
@@ -212,6 +223,11 @@ struct DirNodeInfo: public NodeCommonInfo<DirNodeInfo>
  * @note The tree is iterated using a depth-first approach
  */
 std::vector<std::string> getNodeNames(const NodeInfo& node);
+
+/**
+ * @brief Get the name of the give node
+ */
+std::string getNodeName(const NodeInfo& node);
 
 /**
  * @brief Waits for a condition to become true or until a timeout occurs.

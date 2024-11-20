@@ -4,7 +4,12 @@
  * and remote), e.g., what happens when the remote root of a sync gets deleted.
  */
 
+#ifdef ENABLE_SYNC
+
 #include "integration_test_utils.h"
+#include "megautils.h"
+#include "mock_listeners.h"
+#include "sdk_test_utils.h"
 #include "SdkTestNodesSetUp_test.h"
 
 #include <gmock/gmock.h>
@@ -12,21 +17,25 @@
 using namespace sdk_test;
 using namespace testing;
 
-class MockSyncListener: public MegaListener
+/**
+ * @brief Custom matcher for MegaSyncStall given a matcher for the local path and another for the
+ * stall reason.
+ */
+MATCHER_P2(MatchesStall, pathMatcher, reasonMatcher, "")
 {
-public:
-    MOCK_METHOD(void,
-                onSyncFileStateChanged,
-                (MegaApi * api, MegaSync* sync, std::string* localPath, int newState),
-                (override));
-    MOCK_METHOD(void, onSyncAdded, (MegaApi * api, MegaSync* sync), (override));
-    MOCK_METHOD(void, onSyncDeleted, (MegaApi * api, MegaSync* sync), (override));
-    MOCK_METHOD(void, onSyncStateChanged, (MegaApi * api, MegaSync* sync), (override));
-    MOCK_METHOD(void, onSyncStatsUpdated, (MegaApi * api, MegaSyncStats* syncStats), (override));
-    MOCK_METHOD(void, onGlobalSyncStateChanged, (MegaApi * api), (override));
-    MOCK_METHOD(void, onSyncRemoteRootChanged, (MegaApi * api, MegaSync* sync), (override));
-    MOCK_METHOD(void, onRequestFinish, (MegaApi*, MegaRequest*, MegaError*), (override));
-};
+    const MegaSyncStall* stall = arg;
+    if (!stall)
+    {
+        *result_listener << "Stall is null";
+        return false;
+    }
+
+    std::string actualPath = stall->path(false, 0);
+    auto actualReason = stall->reason();
+
+    return ExplainMatchResult(pathMatcher, actualPath, result_listener) &&
+           ExplainMatchResult(reasonMatcher, actualReason, result_listener);
+}
 
 /**
  * @class SdkTestSyncNodeOperations
@@ -38,10 +47,13 @@ public:
 class SdkTestSyncNodeOperations: public SdkTestNodesSetUp
 {
 public:
+    static constexpr auto MAX_TIMEOUT = 3min; // Timeout for operations in this tests suite
+
     void SetUp() override
     {
         SdkTestNodesSetUp::SetUp();
         ASSERT_NO_FATAL_FAILURE(initiateSync(getLocalTmpDir().u8string(), "dir1/", mBackupId));
+        ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocal());
     }
 
     void TearDown() override
@@ -55,9 +67,17 @@ public:
      */
     const std::vector<NodeInfo>& getElements() const override
     {
+        // To ensure "testCommonFile" is identical in both dirs
+        static const auto currentTime = std::chrono::system_clock::now();
         static const std::vector<NodeInfo> ELEMENTS{
-            DirNodeInfo("dir1").addChild(FileNodeInfo("testFile")),
-            DirNodeInfo("dir2")};
+            DirNodeInfo("dir1")
+                .addChild(FileNodeInfo("testFile").setSize(1))
+                .addChild(FileNodeInfo("testCommonFile").setMtime(currentTime))
+                .addChild(FileNodeInfo("testFile1")),
+            DirNodeInfo("dir2")
+                .addChild(FileNodeInfo("testFile").setSize(2))
+                .addChild(FileNodeInfo("testCommonFile").setMtime(currentTime))
+                .addChild(FileNodeInfo("testFile2"))};
         return ELEMENTS;
     }
 
@@ -144,6 +164,42 @@ public:
         ASSERT_EQ(sync->getRunState(), MegaSync::RUNSTATE_RUNNING);
     }
 
+    void suspendSync()
+    {
+        NiceMock<MockRequestListener> reqListener;
+        EXPECT_CALL(reqListener,
+                    onRequestFinish(_, _, Pointee(Property(&MegaError::getErrorCode, API_OK))));
+        megaApi[0]->setSyncRunState(getBackupId(),
+                                    MegaSync::SyncRunningState::RUNSTATE_SUSPENDED,
+                                    &reqListener);
+        ASSERT_TRUE(reqListener.waitForFinishOrTimeout(MAX_TIMEOUT))
+            << "Timeout exceeded when trying to suspend the sync";
+    }
+
+    void disableSync()
+    {
+        NiceMock<MockRequestListener> reqListener;
+        EXPECT_CALL(reqListener,
+                    onRequestFinish(_, _, Pointee(Property(&MegaError::getErrorCode, API_OK))));
+        megaApi[0]->setSyncRunState(getBackupId(),
+                                    MegaSync::SyncRunningState::RUNSTATE_DISABLED,
+                                    &reqListener);
+        ASSERT_TRUE(reqListener.waitForFinishOrTimeout(MAX_TIMEOUT))
+            << "Timeout exceeded when trying to disable the sync";
+    }
+
+    void resumeSync()
+    {
+        NiceMock<MockRequestListener> reqListener;
+        EXPECT_CALL(reqListener,
+                    onRequestFinish(_, _, Pointee(Property(&MegaError::getErrorCode, API_OK))));
+        megaApi[0]->setSyncRunState(getBackupId(),
+                                    MegaSync::SyncRunningState::RUNSTATE_RUNNING,
+                                    &reqListener);
+        ASSERT_TRUE(reqListener.waitForFinishOrTimeout(MAX_TIMEOUT))
+            << "Timeout exceeded when trying to resume the sync";
+    }
+
     /**
      * @brief Asserts that the sync last known remote folder matches with the one give relative path
      */
@@ -177,6 +233,166 @@ public:
         ASSERT_TRUE(sync && sync->getRunState() == MegaSync::RUNSTATE_RUNNING);
         ASSERT_EQ(MegaSync::NO_SYNC_ERROR, sync->getError());
         backupId = sync->getBackupId();
+    }
+
+    /**
+     * @brief Waits until all direct successors from both remote and local roots of the sync matches
+     *
+     * Asserts false if a timeout is overpassed.
+     */
+    void waitForSyncToMatchCloudAndLocal()
+    {
+        const auto areLocalAndCloudSynched = [this]() -> bool
+        {
+            const auto childrenLocalName = getLocalFirstChildrenNames();
+            const auto childrenCloudName = getCloudFirstChildrenNames();
+            return childrenCloudName && childrenCloudName->size() == childrenLocalName.size() &&
+                   std::all_of(begin(childrenLocalName),
+                               end(childrenLocalName),
+                               [remoteRoot = std::string{getSync()->getLastKnownMegaFolder()},
+                                this](const std::string& childName) -> bool
+                               {
+                                   return megaApi[0]->getNodeByPath(
+                                              (remoteRoot + "/" + childName).c_str()) != nullptr;
+                               });
+        };
+        ASSERT_TRUE(waitFor(areLocalAndCloudSynched, MAX_TIMEOUT, 10s));
+    }
+
+    void checkCurrentLocalMatchesOriginal(const std::string_view cloudDirName)
+    {
+        const auto& originals = getElements();
+        const auto it = std::find_if(std::begin(originals),
+                                     std::end(originals),
+                                     [&cloudDirName](const auto& node)
+                                     {
+                                         return getNodeName(node) == cloudDirName;
+                                     });
+        ASSERT_NE(it, std::end(originals))
+            << cloudDirName << ": directory not found in original elements";
+        const auto* dirNode = std::get_if<DirNodeInfo>(&(*it));
+        ASSERT_TRUE(dirNode) << "The found original element is not a directory";
+
+        using ChildNameSize = std::pair<std::string, std::optional<unsigned>>;
+        // Get info from original cloud
+        std::vector<ChildNameSize> childOriginalInfo;
+        std::transform(std::begin(dirNode->childs),
+                       std::end(dirNode->childs),
+                       std::back_inserter(childOriginalInfo),
+                       [](const auto& child) -> ChildNameSize
+                       {
+                           return std::visit(
+                               overloaded{[](const DirNodeInfo& dir) -> ChildNameSize
+                                          {
+                                              return {dir.name, {}};
+                                          },
+                                          [](const FileNodeInfo& file) -> ChildNameSize
+                                          {
+                                              return {file.name, file.size};
+                                          }},
+                               child);
+                       });
+
+        // Get info from current local
+        std::vector<ChildNameSize> childLocalInfo;
+        std::filesystem::directory_iterator children{getLocalTmpDir()};
+        std::for_each(begin(children),
+                      end(children),
+                      [&childLocalInfo](const std::filesystem::path& path)
+                      {
+                          const auto name = path.filename().string();
+                          if (name.front() == '.' || name == DEBRISFOLDER)
+                              return;
+                          if (std::filesystem::is_directory(path))
+                              childLocalInfo.push_back({name, {}});
+                          else
+                              childLocalInfo.push_back(
+                                  {name, static_cast<unsigned>(std::filesystem::file_size(path))});
+                      });
+
+        ASSERT_THAT(childLocalInfo, testing::UnorderedElementsAreArray(childOriginalInfo));
+    }
+
+    /**
+     * @brief Asserts that there are 2 stall issues pointing to local paths that end with the given
+     * names and their reason is LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose.
+     *
+     * Useful to validate mirroring state between dir1 and dir2.
+     */
+    void thereIsAStall(const std::string_view fileName) const
+    {
+        // Define the matcher for the request
+        const auto hasOneStall = Pointee(Property(&MegaSyncStallList::size, 1));
+        const auto getStall = [](const MegaSyncStallList& stallList) -> const MegaSyncStall*
+        {
+            return stallList.get(0);
+        };
+        const auto goodStallList =
+            AllOf(hasOneStall,
+                  Pointee(ResultOf(
+                      getStall,
+                      MatchesStall(EndsWith(fileName),
+                                   MegaSyncStall::SyncStallReason::
+                                       LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose))));
+        const auto goodRequest =
+            Pointee(Property(&MegaRequest::getMegaSyncStallList, goodStallList));
+
+        // Prepare the mock listener
+        NiceMock<MockRequestListener> reqList;
+        const auto expectedErr = Pointee(Property(&::mega::MegaError::getErrorCode, API_OK));
+        EXPECT_CALL(reqList, onRequestFinish(_, goodRequest, expectedErr));
+
+        megaApi[0]->getMegaSyncStallList(&reqList);
+        ASSERT_TRUE(reqList.waitForFinishOrTimeout(MAX_TIMEOUT));
+    }
+
+    /**
+     * @brief Asserts that the local sync directory contains all the files matching a mirroring
+     * state (all the files in dir1 merged with those in dir2)
+     */
+    void checkCurrentLocalMatchesMirror() const
+    {
+        ASSERT_THAT(getLocalFirstChildrenNames(),
+                    UnorderedElementsAre("testFile", "testCommonFile", "testFile1", "testFile2"));
+        ASSERT_NO_FATAL_FAILURE(thereIsAStall("testFile"));
+    }
+
+    /**
+     * @brief Returns a vector with the names of the first successor files/directories inside the
+     * local root.
+     *
+     * Hidden files (starting with . are excludoed)
+     */
+    std::vector<std::string> getLocalFirstChildrenNames() const
+    {
+        std::vector<std::string> result;
+        const auto pushName = [&result](const std::filesystem::path& path)
+        {
+            if (const auto name = path.filename().string();
+                name.front() != '.' && name != DEBRISFOLDER)
+                result.emplace_back(std::move(name));
+        };
+        std::filesystem::directory_iterator children{getLocalTmpDir()};
+        std::for_each(begin(children), end(children), pushName);
+        return result;
+    }
+
+    /**
+     * @brief Returns a vector with the names of the first successor nodes inside the cloud root
+     * node. nullopt is returned in case the remote root node does not exist.
+     */
+    std::optional<std::vector<std::string>> getCloudFirstChildrenNames() const
+    {
+        const auto nodeHandle = getSync()->getMegaHandle();
+        if (nodeHandle == UNDEF)
+            return {};
+        std::unique_ptr<MegaNode> rootNode{megaApi[0]->getNodeByHandle(nodeHandle)};
+        if (!rootNode)
+            return {};
+        std::unique_ptr<MegaNodeList> childrenNodeList{megaApi[0]->getChildren(rootNode.get())};
+        if (!childrenNodeList)
+            return {};
+        return toNamesVector(*childrenNodeList);
     }
 
     void removeSync(const MegaHandle backupId)
@@ -218,6 +434,10 @@ public:
 
         // Code execution
         megaApi[0]->addListener(&ml);
+        MrProper clean{[&api = megaApi[0], &ml]()
+                       {
+                           api->removeListener(&ml);
+                       }};
         switch (rename)
         {
             case MoveOp::MOVE:
@@ -228,8 +448,24 @@ public:
                 break;
         }
         // Wait for finish
-        renameFinished.get_future().wait();
-        megaApi[0]->removeListener(&ml);
+        ASSERT_EQ(renameFinished.get_future().wait_for(MAX_TIMEOUT), std::future_status::ready)
+            << "The sync root movement didn't take place within 3 mins";
+    }
+
+    void changeRemoteRootNodeAndWaitForSyncUpdate(const std::string& destRemotePath)
+    {
+        const auto newRootHandleOpt = getNodeHandleByPath(destRemotePath);
+        ASSERT_TRUE(newRootHandleOpt);
+
+        // Expectations on the request listener
+        NiceMock<MockRequestListener> mockReqListener;
+        mockReqListener.setErrorExpectations(API_OK, _, MegaRequest::TYPE_CHANGE_SYNC_ROOT);
+
+        // Code execution
+        megaApi[0]->changeSyncRemoteRoot(getBackupId(), *newRootHandleOpt, &mockReqListener);
+
+        // Wait for everything to finish
+        mockReqListener.waitForFinishOrTimeout(MAX_TIMEOUT);
     }
 
 private:
@@ -312,3 +548,263 @@ TEST_F(SdkTestSyncNodeOperations, MoveSyncToAnotherSync)
     ASSERT_EQ(sync->getRunState(), MegaSync::RUNSTATE_SUSPENDED);
     ASSERT_EQ(sync->getError(), MegaSync::ACTIVE_SYNC_ABOVE_PATH);
 }
+
+/**
+ * @brief SdkTestSyncNodeOperations.ChangeSyncRemoteRootErrors
+ *
+ * Tests multiple error paths when calling changeSyncRemoteRoot
+ */
+TEST_F(SdkTestSyncNodeOperations, ChangeSyncRemoteRootErrors)
+{
+    static const std::string logPre{"SdkTestSyncNodeOperations.ChangeSyncRemoteRootErrors : "};
+
+    {
+        LOG_verbose << logPre << "Giving undef backupId and undef remote handle";
+        NiceMock<MockRequestListener> mockListener;
+        mockListener.setErrorExpectations(API_EARGS, _);
+        megaApi[0]->changeSyncRemoteRoot(UNDEF, UNDEF, &mockListener);
+        EXPECT_TRUE(mockListener.waitForFinishOrTimeout(MAX_TIMEOUT));
+    }
+
+    const auto newRootHandleOpt{getNodeHandleByPath("dir2")};
+    ASSERT_TRUE(newRootHandleOpt);
+    const MegaHandle newRootHandle{*newRootHandleOpt};
+
+    {
+        LOG_verbose << logPre << "Giving undef backupId and good remote handle";
+        NiceMock<MockRequestListener> mockListener;
+        mockListener.setErrorExpectations(API_EARGS, _);
+        megaApi[0]->changeSyncRemoteRoot(UNDEF, newRootHandle, &mockListener);
+        EXPECT_TRUE(mockListener.waitForFinishOrTimeout(MAX_TIMEOUT));
+    }
+
+    {
+        LOG_verbose << logPre << "Giving non existent backupId and good remote handle";
+        NiceMock<MockRequestListener> mockListener;
+        mockListener.setErrorExpectations(API_EARGS, UNKNOWN_ERROR);
+        megaApi[0]->changeSyncRemoteRoot(newRootHandle, newRootHandle, &mockListener);
+        EXPECT_TRUE(mockListener.waitForFinishOrTimeout(MAX_TIMEOUT));
+    }
+
+    {
+        LOG_verbose << logPre << "Giving good backupId and a handle to a file node";
+        NiceMock<MockRequestListener> mockListener;
+        mockListener.setErrorExpectations(API_EACCESS, INVALID_REMOTE_TYPE);
+        const auto fileHandle = getNodeHandleByPath("dir1/testFile");
+        ASSERT_TRUE(fileHandle);
+        megaApi[0]->changeSyncRemoteRoot(getBackupId(), *fileHandle, &mockListener);
+        EXPECT_TRUE(mockListener.waitForFinishOrTimeout(MAX_TIMEOUT));
+    }
+
+    {
+        LOG_verbose << logPre << "Giving good backupId and handle to already synced root";
+        NiceMock<MockRequestListener> mockListener;
+        mockListener.setErrorExpectations(API_EEXIST, ACTIVE_SYNC_SAME_PATH);
+        const auto dir1Handle = getNodeHandleByPath("dir1");
+        ASSERT_TRUE(dir1Handle);
+        megaApi[0]->changeSyncRemoteRoot(getBackupId(), *dir1Handle, &mockListener);
+        EXPECT_TRUE(mockListener.waitForFinishOrTimeout(MAX_TIMEOUT));
+    }
+
+    // Just make sure that after all the attempts the sync is still running fine
+    ASSERT_NO_FATAL_FAILURE(ensureSyncNodeIsRunning("dir1"));
+}
+
+/**
+ * @brief SdkTestSyncNodeOperations.ChangeSyncRemoteRootOK
+ *
+ * Changes the remote root node of the running sync and validates the final state (which is expected
+ * to mimic the state of the new root)
+ */
+TEST_F(SdkTestSyncNodeOperations, ChangeSyncRemoteRootOK)
+{
+    static const std::string logPre{"SdkTestSyncNodeOperations.ChangeSyncRemoteRootOK : "};
+
+    LOG_verbose << logPre << "Ensuring sync is running on dir1";
+    ASSERT_NO_FATAL_FAILURE(ensureSyncNodeIsRunning("dir1"));
+
+    LOG_verbose << logPre << "Changing sync remote root to point dir2";
+    ASSERT_NO_FATAL_FAILURE(changeRemoteRootNodeAndWaitForSyncUpdate("dir2"));
+
+    LOG_verbose << logPre << "Ensuring sync is running on dir2";
+    ASSERT_NO_FATAL_FAILURE(ensureSyncNodeIsRunning("dir2"));
+
+    LOG_verbose << logPre << "Waiting for sync remote and local roots to have the same content";
+    ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocal());
+
+    LOG_verbose << logPre << "Check if the contents match expectations";
+    ASSERT_NO_FATAL_FAILURE(checkCurrentLocalMatchesOriginal("dir2"));
+}
+
+/**
+ * @brief SdkTestSyncNodeOperations.ChangeSyncRemoteRootWhenSyncPausedOK
+ *
+ * Same as SdkTestSyncNodeOperations.ChangeSyncRemoteRootOK but the change is applied on a paused
+ * sync. Once the change is done, the sync gets resumed and the final state is validated.
+ */
+TEST_F(SdkTestSyncNodeOperations, ChangeSyncRemoteRootWhenSyncPausedOK)
+{
+    static const std::string logPre{
+        "SdkTestSyncNodeOperations.ChangeSyncRemoteRootWhenSyncPausedOK : "};
+
+    LOG_verbose << logPre << "Ensuring sync is running on dir1";
+    ASSERT_NO_FATAL_FAILURE(ensureSyncNodeIsRunning("dir1"));
+
+    LOG_verbose << logPre << "Suspending the sync";
+    ASSERT_NO_FATAL_FAILURE(suspendSync());
+
+    LOG_verbose << logPre << "Changing sync remote root to point dir2";
+    ASSERT_NO_FATAL_FAILURE(changeRemoteRootNodeAndWaitForSyncUpdate("dir2"));
+
+    LOG_verbose << logPre << "Resuming the sync";
+    ASSERT_NO_FATAL_FAILURE(resumeSync());
+
+    LOG_verbose << logPre << "Ensuring sync is running on dir2";
+    ASSERT_NO_FATAL_FAILURE(ensureSyncNodeIsRunning("dir2"));
+
+    LOG_verbose << logPre << "Waiting for sync remote and local roots to have the same content";
+    ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocal());
+
+    LOG_verbose << logPre << "Checking the final state";
+    ASSERT_NO_FATAL_FAILURE(checkCurrentLocalMatchesOriginal("dir2"));
+}
+
+/**
+ * @brief SdkTestSyncNodeOperations.ChangeSyncRemoteRootWhenSyncDisableOK
+ *
+ * Changes the remote root node of a sync that has been disabled. Then it is resumed and the final
+ * state is validated.
+ *
+ * @note In this case, as the local nodes database is removed after disabling, a mirroring is
+ * expected after resuming.
+ */
+TEST_F(SdkTestSyncNodeOperations, ChangeSyncRemoteRootWhenSyncDisableOK)
+{
+    static const std::string logPre{
+        "SdkTestSyncNodeOperations.ChangeSyncRemoteRootWhenSyncDisableOK : "};
+
+    LOG_verbose << logPre << "Ensuring sync is running on dir1";
+    ASSERT_NO_FATAL_FAILURE(ensureSyncNodeIsRunning("dir1"));
+
+    LOG_verbose << logPre << "Disabling the sync";
+    ASSERT_NO_FATAL_FAILURE(disableSync());
+
+    LOG_verbose << logPre << "Changing sync remote root to point dir2";
+    ASSERT_NO_FATAL_FAILURE(changeRemoteRootNodeAndWaitForSyncUpdate("dir2"));
+
+    LOG_verbose << logPre << "Resuming the sync";
+    ASSERT_NO_FATAL_FAILURE(resumeSync());
+
+    LOG_verbose << logPre << "Ensuring sync is running on dir2";
+    ASSERT_NO_FATAL_FAILURE(ensureSyncNodeIsRunning("dir2"));
+
+    LOG_verbose << logPre << "Waiting for sync remote and local roots to have the same content";
+    ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocal());
+
+    LOG_verbose << logPre << "Checking the final state";
+    ASSERT_NO_FATAL_FAILURE(checkCurrentLocalMatchesMirror());
+}
+
+/**
+ * @brief SdkTestSyncNodeOperations.ChangeSyncRemoteRootPersistsAfterDisable
+ *
+ * Changes the remote root node of the running sync, suspends it, resumes it and validates the final
+ * state (which is expected to mimic the state of the new root)
+ */
+TEST_F(SdkTestSyncNodeOperations, ChangeSyncRemoteRootPersistsAfterDisabled)
+{
+    static const std::string logPre{"SdkTestSyncNodeOperations.ChangeSyncRemoteRootOK : "};
+
+    LOG_verbose << logPre << "Ensuring sync is running on dir1";
+    ASSERT_NO_FATAL_FAILURE(ensureSyncNodeIsRunning("dir1"));
+
+    LOG_verbose << logPre << "Changing sync remote root to point dir2";
+    ASSERT_NO_FATAL_FAILURE(changeRemoteRootNodeAndWaitForSyncUpdate("dir2"));
+
+    LOG_verbose << logPre << "Suspending the sync";
+    ASSERT_NO_FATAL_FAILURE(suspendSync());
+
+    LOG_verbose << logPre << "Resuming the sync";
+    ASSERT_NO_FATAL_FAILURE(resumeSync());
+
+    LOG_verbose << logPre << "Ensuring sync is running on dir2";
+    ASSERT_NO_FATAL_FAILURE(ensureSyncNodeIsRunning("dir2"));
+
+    LOG_verbose << logPre << "Waiting for sync remote and local roots to have the same content";
+    ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocal());
+
+    LOG_verbose << logPre << "Check if the contents match expectations";
+    ASSERT_NO_FATAL_FAILURE(checkCurrentLocalMatchesOriginal("dir2"));
+}
+
+/**
+ * @brief SdkTestSyncNodeOperations.ChangeSyncRemoteRootWhenTransfersInProgress
+ *
+ * Similar to ChangeSyncRemoteRootOK but we must detect a transfer being cancelled and the file that
+ * was being transferred will be removed as it is not in the new cloud root.
+ *
+ * 1. We create a file locally
+ * 2. Wait until the transfer starts
+ * 3. Call the changeSyncRemoteRoot method
+ * 4. Expect the transfer to terminate
+ * 5. Validate final state with the new root
+ */
+TEST_F(SdkTestSyncNodeOperations, ChangeSyncRemoteRootWhenTransfersInProgress)
+{
+    static const std::string logPre{
+        "SdkTestSyncNodeOperations.ChangeSyncRemoteRootWhenTransfersInProgress : "};
+
+    LOG_verbose << logPre << "Ensuring sync is running on dir1";
+    ASSERT_NO_FATAL_FAILURE(ensureSyncNodeIsRunning("dir1"));
+
+    LOG_verbose << logPre << "Setting up the mock listener";
+    const auto dir1HandleOpt = getNodeHandleByPath("dir1");
+    ASSERT_TRUE(dir1HandleOpt);
+    const std::string_view newFileName{"test_file_new.txt"};
+
+    const auto isMyFile = Pointee(Property(&MegaTransfer::getPath, EndsWith(newFileName)));
+    const auto isUpload = Pointee(Property(&MegaTransfer::getType, MegaTransfer::TYPE_UPLOAD));
+    const auto isBelowDir1 = Pointee(Property(&MegaTransfer::getParentHandle, *dir1HandleOpt));
+    const auto isExpectedError = Pointee(Property(&MegaError::getErrorCode, API_EINCOMPLETE));
+
+    NiceMock<MockTransferListener> mockListener{};
+    std::promise<void> fileStartedUpload;
+    EXPECT_CALL(mockListener, onTransferStart).Times(AnyNumber());
+    EXPECT_CALL(mockListener, onTransferStart(_, AllOf(isMyFile, isUpload, isBelowDir1)))
+        .WillOnce(
+            [&fileStartedUpload]
+            {
+                fileStartedUpload.set_value();
+            });
+    std::promise<void> transferTerminated;
+    EXPECT_CALL(mockListener, onTransferFinish).Times(AnyNumber());
+    EXPECT_CALL(mockListener,
+                onTransferFinish(_, AllOf(isMyFile, isUpload, isBelowDir1), isExpectedError))
+        .WillOnce(
+            [&transferTerminated]
+            {
+                transferTerminated.set_value();
+            });
+    // Register the listener
+    megaApi[0]->addListener(&mockListener);
+    MrProper clean{[&api = megaApi[0], &mockListener]()
+                   {
+                       api->removeListener(&mockListener);
+                   }};
+
+    LOG_verbose << logPre << "Create the new file locally";
+    const auto newFilePath = getLocalTmpDir() / newFileName;
+    LocalTempFile tempFile{newFilePath, 1000};
+
+    LOG_verbose << logPre << "Waiting until transfer starts";
+    ASSERT_EQ(fileStartedUpload.get_future().wait_for(MAX_TIMEOUT), std::future_status::ready)
+        << "The upload didn't start within 3 mins";
+
+    LOG_verbose << logPre << "Changing sync remote root to point dir2";
+    ASSERT_NO_FATAL_FAILURE(changeRemoteRootNodeAndWaitForSyncUpdate("dir2"));
+
+    LOG_verbose << logPre << "Waiting transfer to be terminated with error";
+    ASSERT_EQ(transferTerminated.get_future().wait_for(MAX_TIMEOUT), std::future_status::ready)
+        << "The upload didn't start within 3 mins";
+}
+#endif // ENABLE_SYNC

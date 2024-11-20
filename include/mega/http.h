@@ -42,7 +42,7 @@
 #pragma warning(pop)
 #endif
 
-#ifdef __FreeBSD__
+#if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__DragonFly__)
 #include <netinet/in.h>
 #endif
 
@@ -379,6 +379,10 @@ struct MEGA_API HttpReq
 
     // Content-Type of the response
     string contenttype;
+
+    // Hashcash data extracted from X-Hashcash header of cs response, if any
+    string mHashcashToken;
+    uint8_t mHashcashEasiness{};
 
     // HttpIO implementation-specific identifier for this connection
     void* httpiohandle;

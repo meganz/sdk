@@ -1595,6 +1595,8 @@ const char* MegaError::getErrorString(int errorCode, ErrorContexts context)
             return "SSL verification failed";
         case API_EGOINGOVERQUOTA:
             return "Not enough quota";
+        case API_EROLLEDBACK:
+            return "Strongly-grouped request rolled back";
         case API_EMFAREQUIRED:
             return "Multi-factor authentication required";
         case API_EMASTERONLY:
@@ -3894,6 +3896,13 @@ void MegaApi::clearStalledPath(MegaSyncStall* stall)
 void MegaApi::moveToDebris(const char* path, MegaHandle syncBackupId, MegaRequestListener* listener)
 {
     pImpl->moveToDebris(path, syncBackupId, listener);
+}
+
+void MegaApi::changeSyncRemoteRoot(const MegaHandle syncBackupId,
+                                   const MegaHandle newRootNodeHandle,
+                                   MegaRequestListener* listener)
+{
+    pImpl->changeSyncRemoteRoot(syncBackupId, newRootNodeHandle, listener);
 }
 
 MegaSync *MegaApi::getSyncByBackupId(MegaHandle backupId)

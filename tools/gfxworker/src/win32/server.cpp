@@ -13,9 +13,7 @@ ServerNamedPipe::~ServerNamedPipe()
 {
     if (isValid())
     {
-        LOG_verbose << mName << "Endpoint server flush";
         FlushFileBuffers(mPipeHandle);
-        LOG_verbose << mName << "Endpoint server disconnect";
         DisconnectNamedPipe(mPipeHandle);
     }
 }
@@ -25,58 +23,53 @@ void ServerWin32::operator()()
     serverListeningLoop();
 }
 
-std::error_code ServerWin32::waitForClient(HANDLE hPipe, OVERLAPPED* overlapped)
+std::error_code ServerWin32::waitForClient(HANDLE hPipe, WinOverlapped& overlapped)
 {
     assert(hPipe != INVALID_HANDLE_VALUE);
-    assert(overlapped);
+    assert(overlapped.isValid());
 
     // Wait for the client to connect asynchronous; if it succeeds,
     // the function returns a nonzero value.
     // If the function returns zero,
-    //         GetLastError returns ERROR_IO_PENDING, the IO is connected
-    //         GetLastError returns ERROR_PIPE_CONNECTED, the IO is pending
-    bool success = ConnectNamedPipe(hPipe, overlapped);
+    //         GetLastError returns ERROR_PIPE_CONNECTED, the IO is connected
+    //         GetLastError returns ERROR_IO_PENDING, the IO is pending
+    bool success = ConnectNamedPipe(hPipe, overlapped.data());
     if (success)
     {
         LOG_verbose << "Client connected";
         return OK;
     }
 
-    if (!success && GetLastError() == ERROR_PIPE_CONNECTED)
+    if (GetLastError() == ERROR_PIPE_CONNECTED)
     {
         LOG_verbose << "Client connected";
         return OK;
     }
 
-    if (!success && GetLastError() != ERROR_IO_PENDING)
+    if (GetLastError() != ERROR_IO_PENDING)
     {
         LOG_verbose << "Client couldn't connect, error=" << GetLastError() << " " << mega::winErrorMessage(GetLastError());
         return std::make_error_code(std::errc::not_connected);
     }
 
-    // IO_PENDING
+    // Wait
+    if (auto [error, errorText] = overlapped.waitForCompletion(mWaitMs); error)
+    {
+        LOG_verbose << "Client " << errorText;
+        return error;
+    }
+
+    // Get result
     DWORD numberOfBytesTransferred = 0;
-    if (GetOverlappedResultEx(
-        hPipe,
-        overlapped,
-        &numberOfBytesTransferred,
-        mWaitMs,
-        false))
+    if (GetOverlappedResult(hPipe, overlapped.data(), &numberOfBytesTransferred, false /*bWait*/))
     {
         LOG_verbose << "Client connected";
         return OK;
     }
 
-    if (GetLastError() == WAIT_TIMEOUT)
-    {
-        LOG_verbose << "Wait client connecting Timeout";
-        return std::make_error_code(std::errc::timed_out);
-    }
-    else
-    {
-        LOG_verbose << "Client couldn't connect, error=" << GetLastError() << " " << mega::winErrorMessage(GetLastError());
-        return std::make_error_code(std::errc::not_connected);
-    }
+    LOG_verbose << "Client couldn't connect, error=" << GetLastError() << " "
+                << mega::winErrorMessage(GetLastError());
+    return std::make_error_code(std::errc::not_connected);
 }
 
 void ServerWin32::serverListeningLoop()
@@ -87,6 +80,8 @@ void ServerWin32::serverListeningLoop()
         return;
     }
 
+    LOG_verbose << "server awaiting client connection";
+
     const auto fullPipeName = win_utils::toFullPipeName(mPipeName);
 
     // first instance to prevent two processes create the same pipe
@@ -94,8 +89,6 @@ void ServerWin32::serverListeningLoop()
     const DWORD BUFSIZE = 512;
     for (;;)
     {
-        LOG_verbose << "server awaiting client connection";
-
         auto hPipe = CreateNamedPipe(
             fullPipeName.c_str(),     // pipe name
             PIPE_ACCESS_DUPLEX |      // read/write access
@@ -120,7 +113,7 @@ void ServerWin32::serverListeningLoop()
         firstInstance = 0;
 
         bool stopRunning = false;
-        auto err_code = waitForClient(hPipe, overlapped.data());
+        auto err_code = waitForClient(hPipe, overlapped);
         if (err_code)
         {
             // if has timeout and expires, we'll stop running

@@ -4606,7 +4606,8 @@ class MegaRequest
             TYPE_GET_ACTIVE_SURVEY_TRIGGER_ACTIONS = 197,
             TYPE_GET_SURVEY = 198,
             TYPE_ANSWER_SURVEY = 199,
-            TOTAL_OF_REQUEST_TYPES = 200,
+            TYPE_CHANGE_SYNC_ROOT = 200,
+            TOTAL_OF_REQUEST_TYPES = 201,
         };
 
         virtual ~MegaRequest();
@@ -5528,7 +5529,11 @@ class MegaRequest
          * @brief Provide all available VPN Regions, including their details.
          *
          * The data included for each Region is the following:
-         * - Name (example: NZ, JP, CA-WEST etc.)
+         * - Name (example: hMLKTUojS6o, 1MvzBCx1Uf4)
+         * - Country Code (example: ES, LU)
+         * - Country Name (example: Spain, Luxembourg)
+         * - Region Name (optional) (example: Esch-sur-Alzette)
+         * - Town Name (Optional) (example: Bettembourg)
          * - Map of {ClusterID, Cluster}.
          * - For each Cluster:
          *    · Host.
@@ -7866,6 +7871,7 @@ public:
         API_EAPPKEY = -22,              ///< Invalid or missing application key.
         API_ESSL = -23,                 ///< SSL verification failed
         API_EGOINGOVERQUOTA = -24,      ///< Not enough quota
+        API_EROLLEDBACK = -25, ///< A strongly-grouped request was rolled back.
         API_EMFAREQUIRED = -26,         ///< Multi-factor authentication required
         API_EMASTERONLY = -27,          ///< Access denied for sub-users (only for business accounts)
         API_EBUSINESSPASTDUE = -28,     ///< Business account expired
@@ -17417,6 +17423,52 @@ class MegaApi
          */
         void moveToDebris(const char* path, MegaHandle syncBackupId, MegaRequestListener* listener = nullptr);
 
+        /**
+         * @brief Change the node that is being used as remote root for a sync.
+         *
+         * @important If the sync is active when executing this method, it will be temporary
+         * suspended to perform the change, meaning that any ongoing transfer will be automatically
+         * stopped.
+         *
+         * @note This operation is only allowed with syncs of TYPE_TWOWAY.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHANGE_SYNC_ROOT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParentHandle - Returns the handle of the new remote root in MEGA
+         * - MegaRequest::getNodeHandle - Returns the affected sync backupId
+         * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+         * - MegaRequest::getNumDetails - If different than NO_SYNC_ERROR, it returns additional
+         * info about the specific sync error (MegaSync::Error). It could happen both when the
+         * request has succeeded (API_OK) and also in some cases of failure, when the request error
+         * is not accurate enough.
+         *
+         * On the onRequestFinish callback, the error code associated with the MegaError
+         * (MegaError::getErrorCode()) and the SyncError (if relevant, MegaError::getSyncError())
+         * can be:
+         * - MegaError::API_OK:
+         *     + SyncError::NO_SYNC_ERROR the new root has been changed successfully
+         * - MegaError::API_EARGS:
+         *     + SyncError::NO_SYNC_ERROR The given syncBackupId or newRootNodeHandle are UNDEF
+         *     + SyncError::REMOTE_NODE_NOT_FOUND The given newRootNodeHandle does not map to an
+         *       existing node in the cloud
+         *     + SyncError::UNKNOWN_ERROR The given syncBackupId does not map to an existing two way
+         *       sync
+         * - MegaError::API_EEXISTS:
+         *     + SyncError::UNKNOWN_ERROR the given newRootNodeHandle matches with the one that is
+         *       already the root of the sync
+         *
+         * Additionally, error codes associated to the MegaApi::isNodeSyncableWithError() method
+         * can also be reported by this method. See MegaApi::isNodeSyncableWithError() for specific
+         * SyncError codes depending on the specific MegaError code.
+         *
+         * @param syncBackupId handle of the sync to change its remote root
+         * @param newRootNodeHandle Handle of the MEGA node to set as new sync remote root
+         * @param listener MegaRequestListener to track this request
+         */
+        void changeSyncRemoteRoot(const MegaHandle syncBackupId,
+                                  const MegaHandle newRootNodeHandle,
+                                  MegaRequestListener* listener = nullptr);
+
 #endif // ENABLE_SYNC
 
         /**
@@ -25067,7 +25119,11 @@ protected:
 /**
  * @brief Container to store information of a VPN Region.
  *
- *  - Name (example: NZ, JP, CA-WEST etc.)
+ *  - Name (example: hMLKTUojS6o, 1MvzBCx1Uf4)
+ *  - Country Code (example: ES, LU)
+ *  - Country Name (example: Spain, Luxembourg)
+ *  - Region Name (optional) (example: Esch-sur-Alzette)
+ *  - Town Name (Optional) (example: Bettembourg)
  *  - Clusters (contain information like host, DNS list, possibly others)
  *
  * Instances of this class are immutable.
@@ -25084,6 +25140,50 @@ public:
      * @return the name of this VPN Region, always not-null.
      */
     virtual const char* getName() const = 0;
+
+    /**
+     * @brief Get the country code where the VPN Region is located.
+     *
+     * The caller does not take ownership of the returned value, which is valid as long as current
+     * instance is valid.
+     *
+     * @return the country code for this VPN Region, always not-null.
+     */
+    virtual const char* getCountryCode() const = 0;
+
+    /**
+     * @brief Get the name of the country where the VPN Region is located.
+     *
+     * The caller does not take ownership of the returned value, which is valid as long as current
+     * instance is valid.
+     *
+     * @return the country name for this VPN Region, always not-null.
+     */
+    virtual const char* getCountryName() const = 0;
+
+    /**
+     * @brief Get the name of the country region where this VPN Region is located.
+     *
+     * Optional value. It may be empty for certain VPN Regions
+     *
+     * The caller does not take ownership of the returned value, which is valid as long as current
+     * instance is valid.
+     *
+     * @return the country region name for this VPN Region, always not-null.
+     */
+    virtual const char* getRegionName() const = 0;
+
+    /**
+     * @brief Get the name name of the town where this VPN is located.
+     *
+     * Optional value. It may be empty for certain VPN Regions
+     *
+     * The caller does not take ownership of the returned value, which is valid as long as current
+     * instance is valid.
+     *
+     * @return the name of the Town for this VPN Region, always not-null.
+     */
+    virtual const char* getTownName() const = 0;
 
     /**
      * @brief Get a container with all Clusters of this VPN Region.
