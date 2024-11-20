@@ -23,6 +23,8 @@
 #import "MEGAStringList.h"
 #import "MEGAVPNRegion.h"
 
+NS_ASSUME_NONNULL_BEGIN
+
 @interface MEGAVPNCredentials : NSObject
 
 /**
@@ -30,14 +32,14 @@
  *
  * @return A MEGAIntegerList containing the SlotIDs.
  */
-- (nonnull MEGAIntegerList *)slotIDs;
+- (MEGAIntegerList *)slotIDs;
 
 /**
  * @brief Gets the list of available VPN regions.
  *
  * @return A MEGAStringList containing the VPN regions.
  */
-- (nonnull MEGAStringList *)vpnRegions;
+- (MEGAStringList *)vpnRegions;
 
 /**
  * @brief Get the list of the available VPN regions, including the clusters for each region.
@@ -46,7 +48,7 @@
  *
  * @return An NSArray of MEGAVPNRegion objects.
  */
-- (nonnull NSArray<MEGAVPNRegion *> *)vpnRegionsDetailed;
+- (NSArray<MEGAVPNRegion *> *)vpnRegionsDetailed;
 
 /**
  * @brief Gets the IPv4 address associated with a given SlotID.
@@ -89,3 +91,5 @@
 - (nullable NSString *)clusterPublicKeyForClusterID:(NSInteger)clusterID;
 
 @end
+
+NS_ASSUME_NONNULL_END

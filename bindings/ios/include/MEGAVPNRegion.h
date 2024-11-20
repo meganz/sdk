@@ -42,21 +42,21 @@ NS_ASSUME_NONNULL_BEGIN
  *
  * @return The name of this VPN Region, always not-null.
  */
-@property (nonatomic, readonly, nonnull) NSString *name;
+@property (nonatomic, readonly) NSString *name;
 
 /**
  * @brief Get the country code where the VPN Region is located.
  *
  * @return The country code for this VPN Region, always not-null.
  */
-@property (nonatomic, readonly, nonnull) NSString *countryCode;
+@property (nonatomic, readonly) NSString *countryCode;
 
 /**
  * @brief Get the name of the country where the VPN Region is located.
  *
  * @return The country name for this VPN Region, always not-null.
  */
-@property (nonatomic, readonly, nonnull) NSString *countryName;
+@property (nonatomic, readonly) NSString *countryName;
 
 /**
  * @brief Get the name of the country region where this VPN Region is located.
@@ -65,7 +65,7 @@ NS_ASSUME_NONNULL_BEGIN
  *
  * @return The country region name for this VPN Region, always not-null.
  */
-@property (nonatomic, readonly, nonnull) NSString *regionName;
+@property (nonatomic, readonly) NSString *regionName;
 
 /**
  * @brief Get the name of the town where this VPN is located.
@@ -74,7 +74,7 @@ NS_ASSUME_NONNULL_BEGIN
  *
  * @return The name of the town for this VPN Region, always not-null.
  */
-@property (nonatomic, readonly, nonnull) NSString *townName;
+@property (nonatomic, readonly) NSString *townName;
 
 /**
  * @brief Get a container with all Clusters of this VPN Region.
@@ -83,7 +83,7 @@ NS_ASSUME_NONNULL_BEGIN
  *
  * @return A dictionary mapping cluster IDs (NSNumber) to MEGAVPNCluster objects, always not-null.
  */
-@property (nonatomic, readonly, nonnull) NSDictionary<NSNumber *, MEGAVPNCluster *> *clusters;
+@property (nonatomic, readonly) NSDictionary<NSNumber *, MEGAVPNCluster *> *clusters;
 
 @end
 
