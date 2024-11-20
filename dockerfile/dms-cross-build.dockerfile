@@ -56,9 +56,6 @@ COPY dms-toolchains.conf /mega/
 # Make the helper shell script executable
 RUN chmod +x /mega/dms-toolchain.sh
 
-# Run the shell script to set up the environment
-RUN bash -c '/mega/dms-toolchain.sh ${ARCH}'
-
 # Configure and build CMake command
 CMD ["sh", "-c", "\
     owner_uid=$(stat -c '%u' /mega/sdk) && \
@@ -68,6 +65,7 @@ CMD ["sh", "-c", "\
     useradd -r -M -u $owner_uid -g $owner_gid -d /mega -s /bin/bash me && \
     export ARCH=${ARCH} && \
     su - me -w 'ARCH' -c ' \
+    /mega/dms-toolchain.sh ${ARCH} && \
     cmake -B buildDMS -S sdk \
         -DVCPKG_ROOT=/mega/vcpkg \
         -DCMAKE_BUILD_TYPE=Debug \
