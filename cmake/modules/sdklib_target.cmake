@@ -399,7 +399,6 @@ target_platform_compile_options(
     TARGET SDKlib
     WINDOWS /W4
             /wd4706 # assignment within conditional
-            /wd4458 # identifier hides class member
             /wd4324 # structure was padded due to alignment specifier (common in Sodium)
             /wd4456 # declaration hides previous local declaration
             /wd4266 # derived class did not override all overloads of a virtual function
