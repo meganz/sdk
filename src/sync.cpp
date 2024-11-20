@@ -11035,18 +11035,12 @@ std::optional<bool> Sync::checkIfFileIsChanging(const FSNode& fsNode, const Loca
 {
     assert(syncs.onSyncThread());
     assert(fsNode.type == FILENODE);
-
-    bool waitforupdate = false;
     Syncs::FileChangingState& state = syncs.mFileChangingCheckState[fullPath];
 
-    const auto getResult = [&waitforupdate,
-                            wasInitialized = state.isInitialized()]() -> std::optional<bool>
+    const auto getResult =
+        [wasInitialized = state.isInitialized()](const bool waitforupdate) -> std::optional<bool>
     {
-        if (!wasInitialized)
-        {
-            return std::nullopt;
-        }
-        return waitforupdate;
+        return wasInitialized ? std::optional{waitforupdate} : std::nullopt;
     };
 
     const m_time_t currentsecs = m_time();
@@ -11060,7 +11054,7 @@ std::optional<bool> Sync::checkIfFileIsChanging(const FSNode& fsNode, const Loca
     {
         LOG_warn << syncname << "checkIfFileIsChanging: File check started in the future";
         syncs.mFileChangingCheckState.erase(fullPath);
-        return getResult();
+        return getResult(false);
     }
 
     const bool isMaxDelayExceeded =
@@ -11073,9 +11067,8 @@ std::optional<bool> Sync::checkIfFileIsChanging(const FSNode& fsNode, const Loca
                 mc.sendevent(99438, "Timeout waiting for file update", 0);
             });
 
-        assert(!waitforupdate);
         syncs.mFileChangingCheckState.erase(fullPath);
-        return getResult();
+        return getResult(false);
     }
 
     auto prevfa = syncs.fsaccess->newfileaccess(false);
@@ -11087,15 +11080,15 @@ std::optional<bool> Sync::checkIfFileIsChanging(const FSNode& fsNode, const Loca
             LOG_debug << syncname
                       << "checkIfFileIsChanging: The file in the origin is temporarily blocked. "
                          "Waiting...";
-            waitforupdate = true;
+            return getResult(true);
         }
         else
         {
             LOG_debug << syncname
                       << "checkIfFileIsChanging: There isn't anything in the origin path";
             syncs.mFileChangingCheckState.erase(fullPath);
+            return getResult(false);
         }
-        return getResult();
     }
     LOG_debug << syncname << "checkIfFileIsChanging: File detected in the origin of a move";
 
@@ -11113,8 +11106,7 @@ std::optional<bool> Sync::checkIfFileIsChanging(const FSNode& fsNode, const Loca
                     << "  lastsize = " << state.updatedfilesize;
         LOG_debug << "checkIfFileIsChanging: The file size changed too recently. Waiting "
                   << currentsecs - state.updatedfilets << " ds for " << fsNode.localname;
-        waitforupdate = true;
-        return getResult();
+        return getResult(true);
     }
 
     const bool fileSizeIsChanging = state.updatedfilesize != prevfa->size;
@@ -11127,17 +11119,15 @@ std::optional<bool> Sync::checkIfFileIsChanging(const FSNode& fsNode, const Loca
             << "checkIfFileIsChanging: The file size has changed since the last check. Waiting...";
         state.updatedfilesize = prevfa->size;
         state.updatedfilets = currentsecs;
-        waitforupdate = true;
-        return getResult();
+        return getResult(true);
     }
 
-    assert(!waitforupdate);
     const bool fileModifiedInFuture = currentsecs < prevfa->mtime;
     if (fileModifiedInFuture)
     {
         LOG_warn << syncname << "checkIfFileIsChanging: File modified in the future";
         syncs.mFileChangingCheckState.erase(fullPath);
-        return getResult();
+        return getResult(false);
     }
 
     const bool fileModifiedIsStable =
@@ -11146,14 +11136,13 @@ std::optional<bool> Sync::checkIfFileIsChanging(const FSNode& fsNode, const Loca
     {
         LOG_debug << syncname << "checkIfFileIsChanging: The modification time seems stable.";
         syncs.mFileChangingCheckState.erase(fullPath);
-        return getResult();
+        return getResult(false);
     }
 
     LOG_verbose << "checkIfFileIsChanging:" << syncname << "currentsecs = " << currentsecs
                 << "  mtime = " << prevfa->mtime;
     LOG_debug << "checkIfFileIsChanging:" << syncname << "File modified too recently. Waiting...";
-    waitforupdate = true;
-    return getResult();
+    return getResult(true);
 }
 
 bool Sync::resolve_fsNodeGone(SyncRow& row, SyncRow& /*parentRow*/, SyncPath& fullPath)
