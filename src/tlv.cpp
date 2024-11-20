@@ -11,26 +11,29 @@ namespace mega
 namespace tlv
 {
 
-unique_ptr<TLV_map> containerToRecords(const string& container, SymmCipher& key)
+unique_ptr<std::map<std::string, std::string>> containerToRecords(const string& container,
+                                                                  SymmCipher& key)
 {
     auto tlv{TLVstore::containerToTLVrecords(&container, &key)};
-    return tlv ? std::make_unique<TLV_map>(tlv->moveMap()) : nullptr;
+    return tlv ? std::make_unique<std::map<std::string, std::string>>(tlv->moveMap()) : nullptr;
 }
 
-unique_ptr<TLV_map> containerToRecords(const string& container)
+unique_ptr<std::map<std::string, std::string>> containerToRecords(const string& container)
 {
     auto tlv{TLVstore::containerToTLVrecords(&container)};
-    return tlv ? std::make_unique<TLV_map>(tlv->moveMap()) : nullptr;
+    return tlv ? std::make_unique<std::map<std::string, std::string>>(tlv->moveMap()) : nullptr;
 }
 
-unique_ptr<string> recordsToContainer(TLV_map&& records, PrnGen& rng, SymmCipher& key)
+unique_ptr<string> recordsToContainer(std::map<std::string, std::string>&& records,
+                                      PrnGen& rng,
+                                      SymmCipher& key)
 {
     TLVstore tlv;
     tlv.set(std::move(records));
     return unique_ptr<string>{tlv.tlvRecordsToContainer(rng, &key)};
 }
 
-unique_ptr<string> recordsToContainer(TLV_map&& records)
+unique_ptr<string> recordsToContainer(std::map<std::string, std::string>&& records)
 {
     TLVstore tlv;
     tlv.set(std::move(records));

@@ -14,8 +14,6 @@ class SymmCipher;
 
 namespace tlv
 {
-using TLV_map = std::map<std::string, std::string>;
-
 /**
  * @brief Extract decrypted records from encrypted data
  *
@@ -24,18 +22,20 @@ using TLV_map = std::map<std::string, std::string>;
  *
  * @return Decrypted records
  */
-std::unique_ptr<TLV_map> containerToRecords(const std::string& container, SymmCipher& key);
+std::unique_ptr<std::map<std::string, std::string>> containerToRecords(const std::string& container,
+                                                                       SymmCipher& key);
 
 /**
  * @brief Extract records from data
  *
  * @param container Binary byte array representing the encrypted data
  *
- * @return Records that received data had packed
+ * @return Records extracted from the received data
  *
  * @note Only used by MEGAchat implementation
  */
-std::unique_ptr<TLV_map> containerToRecords(const std::string& container);
+std::unique_ptr<std::map<std::string, std::string>>
+    containerToRecords(const std::string& container);
 
 /**
  * @brief Create container with encrypted data from decrypted records
@@ -46,7 +46,9 @@ std::unique_ptr<TLV_map> containerToRecords(const std::string& container);
  *
  * @return Encrypted data
  */
-std::unique_ptr<std::string> recordsToContainer(TLV_map&& records, PrnGen& rng, SymmCipher& key);
+std::unique_ptr<std::string> recordsToContainer(std::map<std::string, std::string>&& records,
+                                                PrnGen& rng,
+                                                SymmCipher& key);
 
 /**
  * @brief Create container with data from received records
@@ -57,11 +59,16 @@ std::unique_ptr<std::string> recordsToContainer(TLV_map&& records, PrnGen& rng, 
  *
  * @note Only used by MEGAchat implementation
  */
-std::unique_ptr<std::string> recordsToContainer(TLV_map&& records);
+std::unique_ptr<std::string> recordsToContainer(std::map<std::string, std::string>&& records);
 
 //=========================================
 // Old implementation
 // Direct use should be avoided in new code
+
+/**
+ * @deprecated Please don't use this data type alias in new code.
+ */
+using TLV_map = std::map<std::string, std::string>;
 
 enum encryptionsetting_t
 {
@@ -81,6 +88,10 @@ enum encryptionmode_t
     AES_MODE_GCM
 };
 
+/**
+ * @deprecated Please don't use this class in new code. Instead use the equivalent
+ * functions that directly convert between std data types.
+ */
 class TLVstore
 {
 public:
@@ -100,8 +111,6 @@ public:
      * @param data Binary byte array representing the TLV records
      *
      * @return A new TLVstore object. You take the ownership of the object.
-     *
-     * @note: Still public method because it's used by MEGAchat implementation
      */
     static TLVstore* containerToTLVrecords(const std::string* data);
 
@@ -121,8 +130,6 @@ public:
      * @brief Convert the TLV records into a byte array
      *
      * @return A new string holding the byte array. You take the ownership of the string.
-     *
-     * @note: Still public method because it's used by MEGAchat implementation
      */
     std::string* tlvRecordsToContainer();
 
