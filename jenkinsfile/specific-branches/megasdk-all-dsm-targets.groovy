@@ -8,8 +8,8 @@ pipeline {
     }
     parameters {
         booleanParam(name: 'RESULT_TO_SLACK', defaultValue: true, description: 'Should the job result be sent to slack?')
-        booleanParam(name: 'CUSTOM_ARCH', defaultValue: true, description: 'If true, will use ARCH_TO_BUILD. If false, will build all distributions')
-        string(name: 'ARCH_TO_BUILD', defaultValue: 'alpine', description: 'Only used if ARCH_TO_BUILD is true')  
+        booleanParam(name: 'CUSTOM_ARCH', defaultValue: false, description: 'If true, will use ARCH_TO_BUILD. If false, will build all architectures')
+        string(name: 'ARCH_TO_BUILD', defaultValue: 'alpine', description: 'Only used if CUSTOM_ARCH is true')  
         string(name: 'SDK_BRANCH', defaultValue: 'develop', description: 'Define a custom SDK branch.')
     }
     environment {

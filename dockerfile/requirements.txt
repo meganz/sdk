@@ -1,5 +1,0 @@
-jira
-python-gitlab
-slack_sdk
-github3.py
-atlassian-python-api
