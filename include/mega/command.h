@@ -366,7 +366,7 @@ public:
     CommandRemoveContact(MegaClient*, const char*, visibility_t, Completion completion = nullptr);
 
 private:
-    void doComplete(error result);
+    void doComplete(error e);
 
     Completion mCompletion;
 };
@@ -849,7 +849,7 @@ public:
     CommandSetPendingContact(MegaClient*, const char*, opcactions_t, const char* = NULL, const char* = NULL, handle = UNDEF, Completion completion = nullptr);
 
 private:
-    void doComplete(handle handle, error result, opcactions_t actions);
+    void doComplete(handle handle, error e, opcactions_t actions);
 
     Completion mCompletion;
 };
@@ -866,7 +866,7 @@ public:
     CommandUpdatePendingContact(MegaClient*, handle, ipcactions_t, Completion completion = nullptr);
 
 private:
-    void doComplete(error result, ipcactions_t actions);
+    void doComplete(error e, ipcactions_t actions);
 
     Completion mCompletion;
 };

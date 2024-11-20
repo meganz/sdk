@@ -2488,12 +2488,12 @@ bool CommandSetPendingContact::procresult(Result r, JSON& json)
     }
 }
 
-void CommandSetPendingContact::doComplete(handle handle, error result, opcactions_t actions)
+void CommandSetPendingContact::doComplete(handle handle, error e, opcactions_t actions)
 {
     if (!mCompletion)
-        return client->app->setpcr_result(handle, result, actions);
+        return client->app->setpcr_result(handle, e, actions);
 
-    mCompletion(handle, result, actions);
+    mCompletion(handle, e, actions);
 }
 
 CommandUpdatePendingContact::CommandUpdatePendingContact(MegaClient* client, handle p, ipcactions_t action, Completion completion)
@@ -2529,13 +2529,12 @@ bool CommandUpdatePendingContact::procresult(Result r, JSON&)
     return r.wasErrorOrOK();
 }
 
-
-void CommandUpdatePendingContact::doComplete(error result, ipcactions_t actions)
+void CommandUpdatePendingContact::doComplete(error e, ipcactions_t actions)
 {
     if (!mCompletion)
-        return client->app->updatepcr_result(result, actions);
+        return client->app->updatepcr_result(e, actions);
 
-    mCompletion(result, actions);
+    mCompletion(e, actions);
 }
 
 CommandEnumerateQuotaItems::CommandEnumerateQuotaItems(MegaClient* client)
@@ -3172,12 +3171,12 @@ bool CommandRemoveContact::procresult(Result r, JSON&)
     return r.wasErrorOrOK();
 }
 
-void CommandRemoveContact::doComplete(error result)
+void CommandRemoveContact::doComplete(error e)
 {
     if (!mCompletion)
-        return client->app->removecontact_result(result);
+        return client->app->removecontact_result(e);
 
-    mCompletion(result);
+    mCompletion(e);
 }
 
 CommandPutMultipleUAVer::CommandPutMultipleUAVer(MegaClient *client, const userattr_map *attrs, int ctag, std::function<void (Error)> completion)
