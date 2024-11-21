@@ -35,17 +35,12 @@ NS_ASSUME_NONNULL_BEGIN
 /**
  * @brief Get the host of this VPN Cluster.
  *
- * The caller does not take ownership of the returned value, which is valid as long as the current
- * instance is valid.
- *
  * @return The host of this VPN Cluster, always not-null.
  */
 @property (nonatomic, readonly) NSString *host;
 
 /**
  * @brief Get the list of IPs for the current VPN Cluster.
- *
- * The caller takes ownership of the returned instance.
  *
  * @return An NSArray containing the IPs for the current VPN Cluster, always not-null.
  */

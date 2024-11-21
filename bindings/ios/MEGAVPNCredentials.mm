@@ -75,7 +75,7 @@
         }
     }
     delete regionList;
-    return regionsArray;
+    return [regionsArray copy];
 }
 
 - (nullable NSString *)ipv4ForSlotID:(NSInteger)slotID {

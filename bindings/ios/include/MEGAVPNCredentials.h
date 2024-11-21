@@ -44,8 +44,6 @@ NS_ASSUME_NONNULL_BEGIN
 /**
  * @brief Get the list of the available VPN regions, including the clusters for each region.
  *
- * The caller takes the ownership of the returned array.
- *
  * @return An NSArray of MEGAVPNRegion objects.
  */
 - (NSArray<MEGAVPNRegion *> *)vpnRegionsDetailed;

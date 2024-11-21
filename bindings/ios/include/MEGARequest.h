@@ -679,13 +679,10 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  *    · Host.
  *    · DNS IP list (as a MEGAStringList).
  *
- * The SDK retains the ownership of the returned value. It will be valid until
- * the MEGARequest object is deleted.
- *
  * @return An array of MEGAVPNRegion objects with available VPN Regions, if the relevant request was sent;
  * Returns empty if otherwise.
  */
-@property (readonly, nonatomic, nonnull) NSArray<MEGAVPNRegion *> *megaVpnRegions;
+@property (readonly, nonatomic) NSArray<MEGAVPNRegion *> *megaVpnRegions;
 
 /**
  * @brief Get list of available notifications for Notification Center

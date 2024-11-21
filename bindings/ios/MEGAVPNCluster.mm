@@ -71,7 +71,7 @@
         }
     }
     delete dnsList;
-    return dnsArray;
+    return [dnsArray copy];
 }
 
 @end

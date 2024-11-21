@@ -97,7 +97,7 @@
     }
     delete keys;
     delete clusterMap;
-    return clustersDict;
+    return [clustersDict copy];
 }
 
 @end

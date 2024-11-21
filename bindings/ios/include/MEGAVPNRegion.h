@@ -79,8 +79,6 @@ NS_ASSUME_NONNULL_BEGIN
 /**
  * @brief Get a container with all Clusters of this VPN Region.
  *
- * The caller takes ownership of the returned instance.
- *
  * @return A dictionary mapping cluster IDs (NSNumber) to MEGAVPNCluster objects, always not-null.
  */
 @property (nonatomic, readonly) NSDictionary<NSNumber *, MEGAVPNCluster *> *clusters;
