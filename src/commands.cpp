@@ -220,6 +220,8 @@ CommandGetFA::CommandGetFA(MegaClient *client, int p, handle fahref)
     }
 
     arg("r", 1);
+
+    arg("v", 3);
 }
 
 bool CommandGetFA::procresult(Result r, JSON& json)
@@ -246,6 +248,7 @@ bool CommandGetFA::procresult(Result r, JSON& json)
     }
 
     const char* p = NULL;
+    std::vector<string> ips;
 
     for (;;)
     {
@@ -255,6 +258,10 @@ bool CommandGetFA::procresult(Result r, JSON& json)
                 p = json.getvalue();
                 break;
 
+            case MAKENAMEID2('i', 'p'):
+                loadIpsFromJson(ips, json);
+                break;
+
             case EOO:
                 if (it != client->fafcs.end())
                 {
@@ -262,6 +269,12 @@ bool CommandGetFA::procresult(Result r, JSON& json)
                     {
                         JSON::copystring(&it->second->posturl, p);
                         it->second->urltime = Waiter::ds;
+                        size_t ipCount = ips.size();
+                        if (!cacheresolvedurls({it->second->posturl}, std::move(ips)))
+                        {
+                            LOG_err << "Unpaired IPs received for URLs in `ufa` command. "
+                                    << ipCount << " IPs for one URL.";
+                        }
                         it->second->dispatch();
                     }
                     else
