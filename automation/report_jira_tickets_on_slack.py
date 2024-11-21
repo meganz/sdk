@@ -86,7 +86,7 @@ class JiraTicketsReporter:
         self, issue_key: str, slack_user_id: str | None, missing_field: str
     ):
         if not slack_user_id:
-            user_mention = "<!channel>"
+            user_mention = "<!subteam^S01DB0PQ0GY|sdkdevs>"
         else:
             self.ensure_user_is_in_the_channel(slack_user_id)
             user_mention = f"<@{slack_user_id}>"
