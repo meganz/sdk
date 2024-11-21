@@ -43,6 +43,8 @@ RUN apt-get --quiet=2 update && DEBCONF_NOWARNINGS=yes apt-get --quiet=2 install
 # Set up work directory
 WORKDIR /mega
 
+RUN chmod 777 /mega
+
 # Clone and checkout known pkgscripts baseline
 RUN git clone https://github.com/SynologyOpenSource/pkgscripts-ng.git pkgscripts \
     && git -C ./pkgscripts checkout e1d9f52
@@ -54,11 +56,16 @@ COPY dms-toolchains.conf /mega/
 # Make the helper shell script executable
 RUN chmod +x /mega/dms-toolchain.sh
 
-# Run the shell script to set up the environment
-RUN bash -c '/mega/dms-toolchain.sh ${ARCH}'
-
 # Configure and build CMake command
 CMD ["sh", "-c", "\
+    owner_uid=$(stat -c '%u' /mega/sdk) && \
+    owner_gid=$(stat -c '%g' /mega/sdk) && \
+    groupadd -g $owner_gid me && \
+    echo 'Adding \"me\" user...' && \
+    useradd -r -M -u $owner_uid -g $owner_gid -d /mega -s /bin/bash me && \
+    export ARCH=${ARCH} && \
+    su - me -w 'ARCH' -c ' \
+    /mega/dms-toolchain.sh ${ARCH} && \
     cmake -B buildDMS -S sdk \
         -DVCPKG_ROOT=/mega/vcpkg \
         -DCMAKE_BUILD_TYPE=Debug \
@@ -67,5 +74,5 @@ CMD ["sh", "-c", "\
         -DVCPKG_CHAINLOAD_TOOLCHAIN_FILE=/mega/${ARCH}.toolchain.cmake \
         -DVCPKG_OVERLAY_TRIPLETS=/mega \
         -DVCPKG_TARGET_TRIPLET=${ARCH} && \
-    cmake --build buildDMS && \
+    cmake --build buildDMS' && \
     exec /bin/bash"]
