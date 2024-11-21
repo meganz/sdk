@@ -1815,15 +1815,13 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
             // Move is pending?
             if (auto& movePendingTo = s->rare().movePendingTo)
             {
+                // If checkIfFileIsChanging returns nullopt it means that mFileChangingCheckState is
+                // not initialized, so it's stable and we can procceed with sync
                 auto waitforupdateOpt =
                     checkIfFileIsChanging(*row.fsNode, movePendingTo->sourcePath);
-                if (!waitforupdateOpt)
-                {
-                    return false;
-                }
 
                 // Check if the source/target has stabilized.
-                if (*waitforupdateOpt)
+                if (waitforupdateOpt && *waitforupdateOpt)
                 {
                     ProgressingMonitor monitor(*this, row, fullPath);
 
@@ -2202,14 +2200,12 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
         // to another location as a temporary backup
         if (!pendingTo && sourceSyncNode->type == FILENODE)
         {
+            // If checkIfFileIsChanging returns nullopt it means that mFileChangingCheckState is
+            // not initialized, so it's stable and we can procceed with sync
             auto waitforupdateOpt =
                 checkIfFileIsChanging(*row.fsNode, sourceSyncNode->getLocalPath());
-            if (!waitforupdateOpt)
-            {
-                return false;
-            }
 
-            if (*waitforupdateOpt)
+            if (waitforupdateOpt && *waitforupdateOpt)
             {
                 // Make sure we don't process the source until the move is completed.
                 if (!markSiblingSourceRow())
