@@ -184,6 +184,16 @@ public:
     // Name of this sync's state cache.
     string getSyncDbStateCacheName(handle fsid, NodeHandle nh, handle userId) const;
 
+    /**
+     * @brief Checks if there is a file in the system with the database with local nodes
+     * information and returns it if found.
+     *
+     * @param fsAccess The file system access needed to invoke the client's database
+     * getExistingDbPath method
+     * @param client The instance of MegaClient that has the information about the database
+     * location.
+     * @return std::nullopt if there is no database file, the path to the file otherwise.
+     */
     std::optional<std::filesystem::path> getSyncDbPath(const FileSystemAccess& fsAccess,
                                                        const MegaClient& client) const;
 
