@@ -30,20 +30,20 @@ Proxy::Proxy()
     proxyType = AUTO;
 }
 
-void Proxy::setProxyType(int proxyType)
+void Proxy::setProxyType(int newType)
 {
-    this->proxyType = proxyType;
+    proxyType = newType;
 }
 
-void Proxy::setProxyURL(string *proxyURL)
+void Proxy::setProxyURL(string* newURL)
 {
-    this->proxyURL = *proxyURL;
+    proxyURL = *newURL;
 }
 
-void Proxy::setCredentials(string *username, string *password)
+void Proxy::setCredentials(string* newUsername, string* newPassword)
 {
-    this->username = *username;
-    this->password = *password;
+    username = *newUsername;
+    password = *newPassword;
 }
 
 int Proxy::getProxyType()
