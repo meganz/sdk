@@ -11058,7 +11058,7 @@ std::optional<bool> Sync::checkIfFileIsChanging(const FSNode& fsNode, const Loca
     if (isMaxDelayExceeded)
     {
         syncs.queueClient(
-            [](MegaClient& mc, [[maybe_unused]] TransferDbCommitter& committer)
+            [](MegaClient& mc, TransferDbCommitter&)
             {
                 mc.sendevent(99438, "Timeout waiting for file update", 0);
             });
