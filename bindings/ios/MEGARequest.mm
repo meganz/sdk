@@ -37,6 +37,8 @@
 #import "MEGABackupInfo+init.h"
 #import "MEGAVPNCredentials.h"
 #import "MEGAVPNCredentials+init.h"
+#import "MEGAVPNRegion.h"
+#import "MEGAVPNRegion+init.h"
 #import "MEGANotificationList+init.h"
 
 using namespace mega;
@@ -337,6 +339,26 @@ using namespace mega;
 
 - (nullable MEGAVPNCredentials *)megaVpnCredentials {
     return self.megaRequest ? [[MEGAVPNCredentials alloc] initWithMegaVpnCredentials:self.megaRequest->getMegaVpnCredentials()->copy() cMemoryOwn:YES] : nil;
+}
+
+- (nonnull NSArray<MEGAVPNRegion *> *)megaVpnRegions {
+    if (!self.megaRequest) {
+        return @[];
+    }
+    mega::MegaVpnRegionList *regionList = self.megaRequest->getMegaVpnRegionsDetailed();
+    if (!regionList) {
+        return @[];
+    }
+    int count = regionList->size();
+    NSMutableArray<MEGAVPNRegion *> *regionsArray = [[NSMutableArray alloc] initWithCapacity:(NSUInteger)count];
+    for (int i = 0; i < count; i++) {
+        const mega::MegaVpnRegion *region = regionList->get(i);
+        if (region) {
+            MEGAVPNRegion *vpnRegion = [[MEGAVPNRegion alloc] initWithMegaVpnRegion:region->copy() cMemoryOwn:YES];
+            [regionsArray addObject:vpnRegion];
+        }
+    }
+    return regionsArray;
 }
 
 - (nullable MEGANotificationList*)megaNotifications {

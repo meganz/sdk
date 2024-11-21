@@ -1,8 +1,8 @@
 /**
  * @file MEGAVPNCredentials.mm
- * @brief List of MEGAUser objects
+ * @brief Container to store and load Mega VPN credentials data
  *
- * (c) 2023- by Mega Limited, Auckland, New Zealand
+ * (c) 2024 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -21,6 +21,7 @@
 #import "MEGAVPNCredentials.h"
 #import "MEGAIntegerList+init.h"
 #import "MEGAStringList+init.h"
+#import "MEGAVPNRegion+init.h"
 
 @interface MEGAVPNCredentials ()
 @property mega::MegaVpnCredentials *megaVpnCredentials;
@@ -48,25 +49,46 @@
     return self.megaVpnCredentials;
 }
 
-- (MEGAIntegerList *)slotIDs {
+- (nonnull MEGAIntegerList *)slotIDs {
     return [[MEGAIntegerList alloc] initWithMegaIntegerList:self.megaVpnCredentials->getSlotIDs() cMemoryOwn:YES];
 }
 
-- (MEGAStringList *)vpnRegions {
+- (nonnull MEGAStringList *)vpnRegions {
     return [[MEGAStringList alloc] initWithMegaStringList:self.megaVpnCredentials->getVpnRegions() cMemoryOwn:YES];
 }
 
-- (NSString *)ipv4ForSlotID:(NSInteger)slotID {
+- (nonnull NSArray<MEGAVPNRegion *> *)vpnRegionsDetailed {
+    if (!self.megaVpnCredentials) {
+        return @[];
+    }
+    mega::MegaVpnRegionList *regionList = self.megaVpnCredentials->getVpnRegionsDetailed();
+    if (!regionList) {
+        return @[];
+    }
+    int count = regionList->size();
+    NSMutableArray<MEGAVPNRegion *> *regionsArray = [[NSMutableArray alloc] initWithCapacity:(NSUInteger)count];
+    for (int i = 0; i < count; i++) {
+        const mega::MegaVpnRegion *region = regionList->get(i);
+        if (region) {
+            MEGAVPNRegion *vpnRegion = [[MEGAVPNRegion alloc] initWithMegaVpnRegion:region->copy() cMemoryOwn:YES];
+            [regionsArray addObject:vpnRegion];
+        }
+    }
+    delete regionList;
+    return [regionsArray copy];
+}
+
+- (nullable NSString *)ipv4ForSlotID:(NSInteger)slotID {
     const char *ipv4 = self.megaVpnCredentials->getIPv4((int)slotID);
     return ipv4 ? [[NSString alloc] initWithUTF8String:ipv4] : nil;
 }
 
-- (NSString *)ipv6ForSlotID:(NSInteger)slotID {
+- (nullable NSString *)ipv6ForSlotID:(NSInteger)slotID {
     const char *ipv6 = self.megaVpnCredentials->getIPv6((int)slotID);
     return ipv6 ? [[NSString alloc] initWithUTF8String:ipv6] : nil;
 }
 
-- (NSString *)deviceIDForSlotID:(NSInteger)slotID {
+- (nullable NSString *)deviceIDForSlotID:(NSInteger)slotID {
     const char *deviceID = self.megaVpnCredentials->getDeviceID((int)slotID);
     return deviceID ? [[NSString alloc] initWithUTF8String:deviceID] : nil;
 }
@@ -75,7 +97,7 @@
     return self.megaVpnCredentials->getClusterID((int)slotID);
 }
 
-- (NSString *)clusterPublicKeyForClusterID:(NSInteger)clusterID {
+- (nullable NSString *)clusterPublicKeyForClusterID:(NSInteger)clusterID {
     const char *publicKey = self.megaVpnCredentials->getClusterPublicKey((int)clusterID);
     return publicKey ? [[NSString alloc] initWithUTF8String:publicKey] : nil;
 }
