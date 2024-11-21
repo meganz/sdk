@@ -1107,6 +1107,22 @@ public:
                                bool& isnetwork);
 
     /**
+     * @brief Overloaded version that checkes whether the given path is valid for a new sync.
+     *
+     * For the possible errors, see documentation of overload above.
+     *
+     * Additionally, this overload will return {API_EARGS, NO_SYNC_ERROR} in case the given root
+     * path is not an absolute path.
+     *
+     * @param rootPath The path to validate
+     * @param excludeBackupId A backup ID to exclude from the check. This is useful when
+     * updating an existing sync, allowing it to bypass itself during the validation. Set to UNDEF
+     * by default.
+     */
+    std::pair<error, SyncError> isValidLocalSyncRoot(const LocalPath& rootPath,
+                                                     const handle excludeBackupId) const;
+
+    /**
      * @brief Validates a SyncConfig and prepares it for synchronization.
      *
      * This function performs a series of checks to determine whether the provided `SyncConfig` is
