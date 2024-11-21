@@ -764,7 +764,7 @@ std::ostream& ConsoleProgressBar::put(std::ostream& os) const {
 
     m_time_t elapsed = m_time() - start;
     size_t totalSec = size_t((double)elapsed / ((double)value / (double)max));
-    m_time_t etta = totalSec - elapsed;
+    m_time_t etta = static_cast<m_time_t>(totalSec) - elapsed;
 
     char ettaStr[1024];
     tm tm;

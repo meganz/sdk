@@ -25,8 +25,8 @@
 #include "mega/logging.h"
 #include "mega/utils.h"
 
-namespace {
-
+namespace
+{
 constexpr int MAXFULL = 8192;
 
 } // anonymous
@@ -158,7 +158,7 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
 
         if (size < (m_off_t)sizeof(crc))
         {
-            memset((byte*)newcrc.data() + size, 0, size_t(sizeof(crc) - size));
+            memset((byte*)newcrc.data() + size, 0, sizeof(crc) - static_cast<size_t>(size));
         }
     }
     else if (size <= MAXFULL)
@@ -176,13 +176,13 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
 
         for (unsigned i = 0; i < crc.size(); i++)
         {
-            int begin = int(i * size / crc.size());
-            int end = int((i + 1) * size / crc.size());
+            int begin = int(i * static_cast<size_t>(size) / crc.size());
+            int end = int((i + 1) * static_cast<size_t>(size) / crc.size());
 
-            crc32.add(buf + begin, end - begin);
+            crc32.add(buf + begin, static_cast<unsigned>(end - begin));
             crc32.get((byte*)&crcval);
 
-            newcrc[i] = htonl(crcval);
+            newcrc[i] = static_cast<int32_t>(htonl(static_cast<uint32_t>(crcval)));
         }
     }
     else
@@ -196,10 +196,13 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
         {
             for (unsigned j = 0; j < blocks; j++)
             {
-                if (!fa->frawread(block, sizeof block,
-                                  (size - sizeof block)
-                                  * (i * blocks + j)
-                                  / (crc.size() * blocks - 1), true, FSLogging::logOnError))
+                if (!fa->frawread(block,
+                                  sizeof block,
+                                  static_cast<m_off_t>((static_cast<size_t>(size) - sizeof block) *
+                                                       (i * blocks + j) /
+                                                       (crc.size() * blocks - 1)),
+                                  true,
+                                  FSLogging::logOnError))
                 {
                     size = -1;
                     fa->closef();
@@ -210,7 +213,7 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
             }
 
             crc32.get((byte*)&crcval);
-            newcrc[i] = htonl(crcval);
+            newcrc[i] = static_cast<int32_t>(htonl(static_cast<uint32_t>(crcval)));
         }
     }
 
@@ -265,7 +268,7 @@ bool FileFingerprint::genfingerprint(InputStreamAccess *is, m_time_t cmtime, boo
 
         if (size < (m_off_t)sizeof(crc))
         {
-            memset((byte*)newcrc.data() + size, 0, size_t(sizeof(crc) - size));
+            memset((byte*)newcrc.data() + size, 0, sizeof(crc) - static_cast<size_t>(size));
         }
     }
     else if (size <= MAXFULL)
@@ -274,7 +277,7 @@ bool FileFingerprint::genfingerprint(InputStreamAccess *is, m_time_t cmtime, boo
         HashCRC32 crc32;
         byte buf[MAXFULL];
 
-        if (!is->read(buf, int(size)))
+        if (!is->read(buf, static_cast<unsigned>(size)))
         {
             size = -1;
             return true;
@@ -282,13 +285,13 @@ bool FileFingerprint::genfingerprint(InputStreamAccess *is, m_time_t cmtime, boo
 
         for (unsigned i = 0; i < crc.size(); i++)
         {
-            int begin = int(i * size / crc.size());
-            int end = int((i + 1) * size / crc.size());
+            int begin = int(i * static_cast<size_t>(size) / crc.size());
+            int end = int((i + 1) * static_cast<size_t>(size) / crc.size());
 
-            crc32.add(buf + begin, end - begin);
+            crc32.add(buf + begin, static_cast<unsigned>(end - begin));
             crc32.get((byte*)&crcval);
 
-            newcrc[i] = htonl(crcval);
+            newcrc[i] = static_cast<int32_t>(htonl(static_cast<uint32_t>(crcval)));
         }
     }
     else
@@ -303,9 +306,8 @@ bool FileFingerprint::genfingerprint(InputStreamAccess *is, m_time_t cmtime, boo
         {
             for (unsigned j = 0; j < blocks; j++)
             {
-                m_off_t offset = (size - sizeof block)
-                        * (i * blocks + j)
-                        / (crc.size() * blocks - 1);
+                m_off_t offset = static_cast<m_off_t>((static_cast<size_t>(size) - sizeof block) *
+                                                      (i * blocks + j) / (crc.size() * blocks - 1));
 
                 //Seek
                 for (m_off_t fullstep = offset - current; fullstep > 0; )  // 500G or more and the step doesn't fit in 32 bits
@@ -332,7 +334,7 @@ bool FileFingerprint::genfingerprint(InputStreamAccess *is, m_time_t cmtime, boo
             }
 
             crc32.get((byte*)&crcval);
-            newcrc[i] = htonl(crcval);
+            newcrc[i] = static_cast<int32_t>(htonl(static_cast<uint32_t>(crcval)));
         }
     }
 
@@ -358,10 +360,13 @@ void FileFingerprint::serializefingerprint(string* d) const
     int l;
 
     memcpy(buf, crc.data(), sizeof crc);
-    l = Serialize64::serialize(buf + sizeof crc, mtime);
+    l = Serialize64::serialize(buf + sizeof crc, static_cast<uint64_t>(mtime));
 
-    d->resize((sizeof crc + l) * 4 / 3 + 4);
-    d->resize(Base64::btoa(buf, static_cast<int>(sizeof crc + l), (char*)d->c_str()));
+    d->resize((sizeof crc + static_cast<size_t>(l)) * 4 / 3 + 4);
+    d->resize(static_cast<size_t>(
+        Base64::btoa(buf,
+                     static_cast<int>(sizeof crc + static_cast<unsigned long>(l)),
+                     (char*)d->c_str())));
 }
 
 // decode and set base64-encoded fingerprint
@@ -371,7 +376,7 @@ int FileFingerprint::unserializefingerprint(const string* d)
     unsigned l;
     uint64_t t;
 
-    if ((l = Base64::atob(d->c_str(), buf, sizeof buf)) < sizeof crc + 1)
+    if ((l = static_cast<unsigned>(Base64::atob(d->c_str(), buf, sizeof buf))) < sizeof crc + 1)
     {
         return 0;
     }
@@ -383,7 +388,7 @@ int FileFingerprint::unserializefingerprint(const string* d)
 
     memcpy(crc.data(), buf, sizeof crc);
 
-    mtime = t;
+    mtime = static_cast<m_time_t>(t);
 
     isvalid = true;
 

@@ -229,8 +229,11 @@ void NodeManager::notifyNode_internal(std::shared_ptr<Node> n, sharedNode_vector
 
             int attrlen = int(n->attrstring->size());
             string base64attrstring;
-            base64attrstring.resize(attrlen * 4 / 3 + 4);
-            base64attrstring.resize(Base64::btoa((byte *)n->attrstring->data(), int(n->attrstring->size()), (char *)base64attrstring.data()));
+            base64attrstring.resize(static_cast<size_t>(attrlen * 4 / 3 + 4));
+            base64attrstring.resize(
+                static_cast<size_t>(Base64::btoa((byte*)n->attrstring->data(),
+                                                 int(n->attrstring->size()),
+                                                 (char*)base64attrstring.data())));
 
             char report[512];
             Base64::btoa((const byte *)&n->nodehandle, MegaClient::NODEHANDLE, report);

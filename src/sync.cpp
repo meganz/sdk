@@ -251,10 +251,10 @@ void SyncThreadsafeState::adjustTransferCounts(bool upload, int32_t adjustQueued
     assert(adjustQueuedBytes >= 0 || tc.mPendingBytes);
     assert(adjustCompletedBytes >= 0 || tc.mCompletedBytes);
 
-    tc.mPending += adjustQueued;
-    tc.mCompleted += adjustCompleted;
-    tc.mPendingBytes += adjustQueuedBytes;
-    tc.mCompletedBytes += adjustCompletedBytes;
+    tc.mPending += static_cast<uint32_t>(adjustQueued);
+    tc.mCompleted += static_cast<uint32_t>(adjustCompleted);
+    tc.mPendingBytes += static_cast<uint64_t>(adjustQueuedBytes);
+    tc.mCompletedBytes += static_cast<uint64_t>(adjustCompletedBytes);
 
     if (!tc.mPending && tc.mCompletedBytes == tc.mPendingBytes)
     {
@@ -531,7 +531,7 @@ bool SyncConfig::synctypefromname(const string& name, Type& type)
         return type = TYPE_TWOWAY, true;
     }
 
-    assert(!"Unknown sync type name.");
+    assert(false && "Unknown sync type name.");
 
     return false;
 }
@@ -555,7 +555,8 @@ string SyncConfig::getSyncDbStateCacheName(handle fsid, NodeHandle nh, handle us
 
     string dbname;
     dbname.resize(sizeof tableid * 4 / 3 + 3);
-    dbname.resize(Base64::btoa((byte*)tableid, sizeof tableid, (char*)dbname.c_str()));
+    dbname.resize(
+        static_cast<size_t>(Base64::btoa((byte*)tableid, sizeof tableid, (char*)dbname.c_str())));
     return dbname;
 }
 
@@ -4613,7 +4614,7 @@ void Syncs::getSyncStatusInfoInThread(handle backupID,
 
             // Directories don't have a size.
             if (node.type == FILENODE)
-                info.mTotalSyncedBytes += node.syncedFingerprint.size;
+                info.mTotalSyncedBytes += static_cast<size_t>(node.syncedFingerprint.size);
 
             // Process children, if any.
             for (auto& childIt : node.children)
@@ -6686,7 +6687,7 @@ bool Syncs::unloadSyncByBackupID(handle id, bool newEnabledFlag, SyncConfig& con
             // we don't unregister from the backup/sync heartbeats as the sync can be resumed later
 
             lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
-            mSyncVec.erase(mSyncVec.begin() + i);
+            mSyncVec.erase(mSyncVec.begin() + static_cast<long>(i));
             return true;
         }
     }
@@ -11580,7 +11581,7 @@ handle SyncConfigStore::driveID(const LocalPath& drivePath) const
     if (i != mKnownDrives.end())
         return i->second.driveID;
 
-    assert(!"Drive should be known!");
+    assert(false && "Drive should be known!");
 
     return UNDEF;
 }
@@ -11995,7 +11996,7 @@ error SyncConfigIOContext::getSlotsInOrder(const LocalPath& dbPath,
         const char suffix = filePath.toPath(false).back();
 
         // Skip invalid suffixes.
-        if (!is_digit(suffix))
+        if (!is_digit(static_cast<unsigned>(suffix)))
         {
             continue;
         }
@@ -12008,7 +12009,7 @@ error SyncConfigIOContext::getSlotsInOrder(const LocalPath& dbPath,
         }
 
         // Record this slot-time pair.
-        unsigned int slot = suffix - 0x30; // convert char to int
+        unsigned int slot = static_cast<unsigned>(suffix - 0x30); // convert char to int
         slotTimes.emplace_back(slot, fileAccess->mtime);
     }
 
@@ -12883,8 +12884,8 @@ void Syncs::syncLoop()
                                  sync->localroot->syncRequired();
                 sync->threadSafeState->getSyncNodeCounts(counts.numFiles, counts.numFolders);
                 SyncTransferCounts stc = sync->threadSafeState->transferCounts();
-                counts.numUploads = stc.mUploads.mPending;
-                counts.numDownloads = stc.mDownloads.mPending;
+                counts.numUploads = static_cast<int32_t>(stc.mUploads.mPending);
+                counts.numDownloads = static_cast<int32_t>(stc.mDownloads.mPending);
                 if (us->lastReportedDisplayStats != counts)
                 {
                     mClient.app->syncupdate_stats(us->mConfig.mBackupId, counts);

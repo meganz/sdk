@@ -700,7 +700,7 @@ MegaNode *MegaNode::unserialize(const char *d)
 
     string data;
     data.resize(strlen(d) * 3 / 4 + 3);
-    data.resize(Base64::atob(d, (byte*)data.data(), int(data.size())));
+    data.resize(static_cast<size_t>(Base64::atob(d, (byte*)data.data(), int(data.size()))));
 
     return MegaNodePrivate::unserialize(&data);
 }
@@ -4387,10 +4387,10 @@ char *MegaApi::base64ToBase32(const char *base64)
 
     unsigned binarylen = unsigned(strlen(base64) * 3/4 + 4);
     byte *binary = new byte[binarylen];
-    binarylen = Base64::atob(base64, binary, binarylen);
+    binarylen = static_cast<unsigned>(Base64::atob(base64, binary, static_cast<int>(binarylen)));
 
     char *result = new char[binarylen * 8/5 + 6];
-    Base32::btoa(binary, binarylen, result);
+    Base32::btoa(binary, static_cast<int>(binarylen), result);
     delete [] binary;
 
     return result;
@@ -4405,10 +4405,10 @@ char *MegaApi::base32ToBase64(const char *base32)
 
     unsigned binarylen = unsigned(strlen(base32) * 5/8 + 8);
     byte *binary = new byte[binarylen];
-    binarylen = Base32::atob(base32, binary, binarylen);
+    binarylen = static_cast<unsigned>(Base32::atob(base32, binary, static_cast<int>(binarylen)));
 
     char *result = new char[binarylen * 4/3 + 4];
-    Base64::btoa(binary, binarylen, result);
+    Base64::btoa(binary, static_cast<int>(binarylen), result);
     delete [] binary;
 
     return result;
@@ -5598,8 +5598,8 @@ char* MegaApi::strdup(const char* buffer)
     if (!buffer)
         return NULL;
     int tam = int(strlen(buffer) + 1);
-    char *newbuffer = new char[tam];
-    memcpy(newbuffer, buffer, tam);
+    char* newbuffer = new char[static_cast<size_t>(tam)];
+    memcpy(newbuffer, buffer, static_cast<size_t>(tam));
     return newbuffer;
 }
 

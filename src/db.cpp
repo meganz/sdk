@@ -85,7 +85,7 @@ bool DbTable::next(uint32_t* type, string* data, SymmCipher* key)
 
         if (*type > nextid)
         {
-            nextid = *type & - IDSPACING;
+            nextid = *type & ~(static_cast<unsigned>(IDSPACING) - 1);
         }
 
         return PaddedCBC::decrypt(data, key);

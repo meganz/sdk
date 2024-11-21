@@ -705,7 +705,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     hasAttachments = MemAccess::get<char>(ptr);
     ptr += sizeof hasAttachments;
 
-    flags = MemAccess::get<char>(ptr);
+    flags = MemAccess::get<byte>(ptr);
     ptr += sizeof(char);
 
     char mode = MemAccess::get<char>(ptr);

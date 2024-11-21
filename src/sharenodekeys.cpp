@@ -32,7 +32,7 @@ int ShareNodeKeys::addshare(std::shared_ptr<Node> sn)
 {
     for (int i = static_cast<int>(shares.size()); i--;)
     {
-        if (shares[i] == sn)
+        if (shares[static_cast<size_t>(i)] == sn)
         {
             return i;
         }
@@ -80,7 +80,7 @@ void ShareNodeKeys::add(const string& nodekey, handle nodehandle, std::shared_pt
             ptr += Base64::btoa(key, int(nodekey.size()), ptr);
             *ptr++ = '"';
 
-            keys.append(buf, ptr - buf);
+            keys.append(buf, static_cast<size_t>(ptr - buf));
             addnode = 1;
         }
     } while (includeParentChain && (sn = sn->parent));
@@ -91,7 +91,7 @@ void ShareNodeKeys::add(const string& nodekey, handle nodehandle, std::shared_pt
 
         if (item)
         {
-            items[items.size() - 1].assign((const char*)item, itemlen);
+            items[items.size() - 1].assign((const char*)item, static_cast<size_t>(itemlen));
         }
         else
         {

@@ -105,7 +105,7 @@ bool getProxyConfiguration(CFDictionaryRef dict, int proxyType, Proxy* proxy)
         {
             CFIndex length = CFStringGetLength(hostRef);
             CFIndex maxSize = CFStringGetMaximumSizeForEncoding(length, kCFStringEncodingUTF8) + 1;
-            char *buffer = new char[maxSize];
+            char *buffer = new char[static_cast<size_t>(maxSize)];
             if (CFStringGetCString(hostRef, buffer, maxSize, kCFStringEncodingUTF8))
             {
                 CFNumberRef portRef = (CFNumberRef)getValueFromKey(dict, portKey, CFNumberGetTypeID());

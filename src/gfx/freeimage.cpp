@@ -277,7 +277,7 @@ bool GfxProviderFreeImage::readbitmapFfmpeg(const LocalPath& imagePath, int /*si
         if (formatContext->streams[i]->codecpar && formatContext->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO)
         {
             videoStream = formatContext->streams[i];
-            videoStreamIdx = i;
+            videoStreamIdx = static_cast<int>(i);
             break;
         }
     }
@@ -432,7 +432,7 @@ bool GfxProviderFreeImage::readbitmapFfmpeg(const LocalPath& imagePath, int /*si
                     const int legacy_align = 1;
                     int imagesize = av_image_get_buffer_size(targetPixelFormat, width, height, legacy_align);
                     FIMEMORY fmemory;
-                    fmemory.data = malloc(imagesize);
+                    fmemory.data = malloc(static_cast<size_t>(imagesize));
                     if (!fmemory.data)
                     {
                         LOG_warn << "Error allocating image copy buffer";
@@ -464,8 +464,8 @@ bool GfxProviderFreeImage::readbitmapFfmpeg(const LocalPath& imagePath, int /*si
 
                     LOG_debug << "Video image ready";
 
-                    w = FreeImage_GetWidth(dib);
-                    h = FreeImage_GetHeight(dib);
+                    w = static_cast<int>(FreeImage_GetWidth(dib));
+                    h = static_cast<int>(FreeImage_GetHeight(dib));
 
                     return w > 0 && h > 0;
                 }

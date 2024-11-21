@@ -62,8 +62,8 @@ bool GfxProviderExternal::resizebitmap(int rw, int rh, string* jpegout)
     if (!w || !h) return false;
 
     int size = processor->getBitmapDataSize(w, h, px, py, rw, rh);
-    jpegout->resize(size);
     if(size <= 0) return false;
+    jpegout->resize(static_cast<size_t>(size));
 
     return processor->getBitmapData((char *)jpegout->data(), jpegout->size());
 }

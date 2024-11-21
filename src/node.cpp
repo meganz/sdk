@@ -628,7 +628,7 @@ bool Node::serialize(string* d) const
     {
         auto authKeySize = (char)plink->mAuthKey.size();
         d->append((char*)&authKeySize, sizeof(authKeySize));
-        d->append(plink->mAuthKey.data(), authKeySize);
+        d->append(plink->mAuthKey.data(), static_cast<size_t>(authKeySize));
     }
     else
     {
@@ -654,11 +654,11 @@ bool Node::serialize(string* d) const
         numshares = 0;
         if (outshares)
         {
-            numshares = static_cast<short int>(numshares + outshares->size());
+            numshares += static_cast<short int>(outshares->size());
         }
         if (pendingshares)
         {
-            numshares = static_cast<short int>(numshares + pendingshares->size());
+            numshares += static_cast<short int>(pendingshares->size());
         }
     }
 
@@ -734,13 +734,13 @@ byte* Node::decryptattr(SymmCipher* key, const char* attrstring, size_t attrstrl
     if (attrstrlen)
     {
         int l = int(attrstrlen * 3 / 4 + 3);
-        auto buf = std::make_unique<byte[]>(l);
+        auto buf = std::make_unique<byte[]>(static_cast<size_t>(l));
 
         l = Base64::atob(attrstring, buf.get(), l);
 
         if (!(l & (SymmCipher::BLOCKSIZE - 1)))
         {
-            if (!key->cbc_decrypt(buf.get(), l))
+            if (!key->cbc_decrypt(buf.get(), static_cast<size_t>(l)))
             {
                 return nullptr;
             }
@@ -1221,7 +1221,7 @@ bool Node::applykey()
     byte key[FILENODEKEYLENGTH];
     unsigned keylength = (type == FILENODE) ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH;
 
-    if (client->decryptkey(k, key, keylength, sc, 0, nodehandle))
+    if (client->decryptkey(k, key, static_cast<int>(keylength), sc, 0, nodehandle))
     {
         std::string undecryptedKey = nodekeydata;
         client->mAppliedKeyNodeCount++;
@@ -1278,7 +1278,7 @@ bool Node::testShareKey(const byte *shareKey)
     unsigned keylength = (type == FILENODE) ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH;
     const char* k = nodekeydata.c_str() + p + mark.size();
     SymmCipher *sc = client->getRecycledTemporaryNodeCipher(shareKey);
-    if (!client->decryptkey(k, key, keylength, sc, 0, UNDEF))
+    if (!client->decryptkey(k, key, static_cast<int>(keylength), sc, 0, UNDEF))
     {
         // This should never happen (malformed key)
         LOG_err << "Malformed node key detected";
@@ -1500,7 +1500,7 @@ bool NodeData::readComponents()
                 return false;
             }
 
-            mNodeKey.assign(ptr, nodeKeyLen);
+            mNodeKey.assign(ptr, static_cast<size_t>(nodeKeyLen));
             ptr += nodeKeyLen;
         }
     }
@@ -1553,7 +1553,7 @@ bool NodeData::readComponents()
             {
                 return false;
             }
-            mAuthKey.assign(ptr, authKeySize);
+            mAuthKey.assign(ptr, static_cast<size_t>(authKeySize));
             ptr += authKeySize;
         }
     }

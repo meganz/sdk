@@ -57,9 +57,9 @@ string Request::get(MegaClient* client, char reqidCounter[10], string& idempoten
         for (int i = 0; i < (int)cmds.size(); i++)
         {
             req.append(i ? ",{" : "{");
-            req.append(cmds[i]->getJSON(client));
+            req.append(cmds[static_cast<size_t>(i)]->getJSON(client));
             req.append("}");
-            ++counts[cmds[i]->commandStr];
+            ++counts[cmds[static_cast<size_t>(i)]->commandStr];
         }
 
         req.append("]");

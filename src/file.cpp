@@ -301,7 +301,7 @@ File *File::unserialize(string *d)
         }
     }
 
-    d->erase(0, ptr - d->data());
+    d->erase(0, static_cast<size_t>(ptr - d->data()));
     return file;
 }
 
