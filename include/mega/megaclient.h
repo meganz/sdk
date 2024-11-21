@@ -691,7 +691,7 @@ public:
     void killallsessions();
 
     // extract public handle and key from a public file/folder link
-    error parsepubliclink(const char *link, handle &ph, byte *key, TypeOfLink type);
+    error parsepubliclink(const char* link, handle& ph, byte* extractedKey, TypeOfLink type);
 
     // open the SC database and get the SCSN from it
     void checkForResumeableSCDatabase();
@@ -700,7 +700,7 @@ public:
     error folderaccess(const char*folderlink, const char* authKey);
 
     // open exported file link (op=0 -> download, op=1 fetch data)
-    void openfilelink(handle ph, const byte *key);
+    void openfilelink(handle ph, const byte* fileKey);
 
     // decrypt password-protected public link
     // the caller takes the ownership of the returned value in decryptedLink parameter
@@ -838,7 +838,16 @@ public:
 
     // enqueue/abort direct read
     void pread(Node*, m_off_t, m_off_t, void*);
-    void pread(handle, SymmCipher* key, int64_t, m_off_t, m_off_t, void*, bool = false,  const char* = NULL, const char* = NULL, const char* = NULL);
+    void pread(handle,
+               SymmCipher* cypher,
+               int64_t,
+               m_off_t,
+               m_off_t,
+               void*,
+               bool = false,
+               const char* = NULL,
+               const char* = NULL,
+               const char* = NULL);
     void preadabort(Node*, m_off_t = -1, m_off_t = -1);
     void preadabort(handle, m_off_t = -1, m_off_t = -1);
 
@@ -913,7 +922,7 @@ public:
     void getua(const char* email_handle, const attr_t at = ATTR_UNKNOWN, const char *ph = NULL, int ctag = -1, CommandGetUA::CompletionErr ce = nullptr, CommandGetUA::CompletionBytes cb = nullptr, CommandGetUA::CompletionTLV ctlv = nullptr);
 
     // retrieve the email address of a user
-    void getUserEmail(const char *uid);
+    void getUserEmail(const char* userID);
 
     // Set email for an user
     void setEmail(User* u, const std::string& email);
@@ -1170,7 +1179,7 @@ public:
     void sendchatstats(const char*, int port);
 
     // send chat logs with user's annonymous id
-    void sendchatlogs(const char*, mega::handle userid, mega::handle callid, int port);
+    void sendchatlogs(const char*, mega::handle forUserID, mega::handle callid, int port);
 
     // send a HTTP request
     void httprequest(const char*, int, bool = false, const char* = NULL, int = 1);
@@ -1261,10 +1270,10 @@ public:
     userpriv_vector * readuserpriv(JSON* j);
 
     // grant access to a chat peer to one specific node
-    void grantAccessInChat(handle chatid, handle h, const char *uid);
+    void grantAccessInChat(handle chatid, handle h, const char* peer);
 
     // revoke access to a chat peer to one specific node
-    void removeAccessInChat(handle chatid, handle h, const char *uid);
+    void removeAccessInChat(handle chatid, handle h, const char* peer);
 
     // update permissions of a peer in a chat
     void updateChatPermissions(handle chatid, handle uh, int priv);
@@ -2264,7 +2273,7 @@ public:
     PendingContactRequest* findpcr(handle);
 
     // queue public key request for user
-    User *getUserForSharing(const char *uid);
+    User* getUserForSharing(const char* userID);
     void queuepubkeyreq(User*, std::unique_ptr<PubKeyAction>);
     void queuepubkeyreq(const char*, std::unique_ptr<PubKeyAction>);
 
@@ -2319,14 +2328,16 @@ public:
     // hash password
     error pw_key(const char*, byte*) const;
 
-    // returns a pointer to tmptransfercipher setting its key to the one provided
-    // tmptransfercipher key will change: to be used right away: this is not a dedicated SymmCipher for the transfer!
-    SymmCipher *getRecycledTemporaryTransferCipher(const byte *key, int type = 1);
+    // returns a pointer to tmptransfercipher, setting its key to the one provided;
+    // tmptransfercipher key will change to be used right away; this is not a dedicated SymmCipher
+    // for the transfer!
+    SymmCipher* getRecycledTemporaryTransferCipher(const byte* newKey, int type = 1);
 
-    // returns a pointer to tmpnodecipher setting its key to the one provided
-    // tmpnodecipher key will change: to be used right away: this is not a dedicated SymmCipher for the node!
-    SymmCipher *getRecycledTemporaryNodeCipher(const string *key);
-    SymmCipher *getRecycledTemporaryNodeCipher(const byte *key);
+    // returns a pointer to tmpnodecipher, setting its key to the one provided;
+    // tmpnodecipher key will change to be used right away; this is not a dedicated SymmCipher for
+    // the node!
+    SymmCipher* getRecycledTemporaryNodeCipher(const string* newKey);
+    SymmCipher* getRecycledTemporaryNodeCipher(const byte* newKey);
 
     // request a link to recover account
     void getrecoverylink(const char *email, bool hasMasterkey);
@@ -2338,7 +2349,11 @@ public:
     void getprivatekey(const char *code);
 
     // confirm a recovery link to restore the account
-    void confirmrecoverylink(const char *code, const char *email, const char *password, const byte *masterkey = NULL, int accountversion = 1);
+    void confirmrecoverylink(const char* code,
+                             const char* email,
+                             const char* password,
+                             const byte* masterkey = NULL,
+                             int ownAccountVersion = 1);
 
     // request a link to cancel the account
     void getcancellink(const char *email, const char* = NULL);
@@ -2592,7 +2607,7 @@ public:
     void putSet(Set&& s, std::function<void(Error, const Set*)> completion);
 
     // generate "asr" command
-    void removeSet(handle sid, std::function<void(Error)> completion);
+    void removeSet(handle setID, std::function<void(Error)> completion);
 
     // generate "aft" command
     void fetchSetInPreviewMode(std::function<void(Error, Set*, elementsmap_t*)> completion);
@@ -2604,10 +2619,12 @@ public:
     void putSetElement(SetElement&& el, std::function<void(Error, const SetElement*)> completion);
 
     // generate "aerb" command
-    void removeSetElements(handle sid, vector<handle>&& eids, std::function<void(Error, const vector<int64_t>*)> completion);
+    void removeSetElements(handle setID,
+                           vector<handle>&& eids,
+                           std::function<void(Error, const vector<int64_t>*)> completion);
 
     // generate "aer" command
-    void removeSetElement(handle sid, handle eid, std::function<void(Error)> completion);
+    void removeSetElement(handle setID, handle eid, std::function<void(Error)> completion);
 
     // handle "aesp" parameter, part of 'f'/ "fetch nodes" response
     bool procaesp(JSON& j);
@@ -2615,8 +2632,8 @@ public:
     // load Sets and Elements from json
     error readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<handle, elementsmap_t>& newElements);
 
-    // return Set with given sid or nullptr if it was not found
-    const Set* getSet(handle sid) const;
+    // return Set with given setID or nullptr if it was not found
+    const Set* getSet(handle setID) const;
 
     // return all available Sets, indexed by id
     const map<handle, Set>& getSets() const { return mSets; }
@@ -2627,31 +2644,31 @@ public:
     // search for Set with the same id, and update its members
     bool updateSet(Set&& s);
 
-    // delete Set with elemId from local memory; return true if found and deleted
-    bool deleteSet(handle sid);
+    // delete Set with setID from local memory; return true if found and deleted
+    bool deleteSet(handle setID);
 
-    // return Element count for Set sid, or 0 if not found
-    unsigned getSetElementCount(handle sid) const;
+    // return Element count for Set with setID, or 0 if not found
+    unsigned getSetElementCount(handle setID) const;
 
-    // return Element with given eid from Set sid, or nullptr if not found
-    const SetElement* getSetElement(handle sid, handle eid) const;
+    // return Element with given eid from Set with setID, or nullptr if not found
+    const SetElement* getSetElement(handle setID, handle eid) const;
 
     // return all available Elements in a Set, indexed by eid
-    const elementsmap_t* getSetElements(handle sid) const;
+    const elementsmap_t* getSetElements(handle setID) const;
 
     // add new SetElement or replace exisiting one
     const SetElement* addOrUpdateSetElement(SetElement&& el);
 
-    // delete Element with eid from Set with sid in local memory; return true if found and deleted
-    bool deleteSetElement(handle sid, handle eid);
+    // delete Element with eid from Set with setID in local memory; return true if found and deleted
+    bool deleteSetElement(handle setID, handle eid);
 
-    // return true if Set with given sid is exported (has a public link)
-    bool isExportedSet(handle sid) const;
+    // return true if Set with given setID was exported (has a public link)
+    bool isExportedSet(handle setID) const;
 
-    void exportSet(handle sid, bool makePublic, std::function<void(Error)> completion);
+    void exportSet(handle setID, bool makePublic, std::function<void(Error)> completion);
 
     // returns result of the operation and the link created
-    pair<error, string> getPublicSetLink(handle sid) const;
+    pair<error, string> getPublicSetLink(handle setID) const;
 
     // returns error code and public handle for the link provided as a param
     error fetchPublicSet(const char* publicSetLink, std::function<void(Error, Set*, elementsmap_t*)>);
@@ -2674,7 +2691,7 @@ private:
     error readElement(JSON& j, SetElement& el);
     error readAllNodeMetadata(JSON& j, map<handle, SetElement::NodeMetadata>& nodes);
     error readSingleNodeMetadata(JSON& j, SetElement::NodeMetadata& node);
-    bool decryptNodeMetadata(SetElement::NodeMetadata& nodeMeta, const string& key);
+    bool decryptNodeMetadata(SetElement::NodeMetadata& nodeMeta, const string& encryptionKey);
     error readExportedSet(JSON& j, Set& s, pair<bool, m_off_t>& exportRemoved);
     error readSetsPublicHandles(JSON& j, map<handle, Set>& sets);
     error readSetPublicHandle(JSON& j, map<handle, Set>& sets);
@@ -2682,7 +2699,7 @@ private:
     size_t decryptAllSets(map<handle, Set>& newSets, map<handle, elementsmap_t>& newElements, map<handle, SetElement::NodeMetadata>* nodeData);
     error decryptSetData(Set& s);
     error decryptElementData(SetElement& el, const string& setKey);
-    string decryptKey(const string& k, SymmCipher& cipher) const;
+    string decryptKey(const string& encryptedKey, SymmCipher& cipher) const;
     bool decryptAttrs(const string& attrs, const string& decrKey, string_map& output);
     string encryptAttrs(const string_map& attrs, const string& encryptionKey);
 
@@ -2705,7 +2722,7 @@ private:
     bool updatescsetelements();
     void notifypurgesetelements();
     void notifysetelement(SetElement*);
-    void clearsetelementnotify(handle sid);
+    void clearsetelementnotify(handle setID);
     vector<SetElement*> setelementnotify;
     map<handle, elementsmap_t> mSetElements; // indexed by Set id, then Element id
 
