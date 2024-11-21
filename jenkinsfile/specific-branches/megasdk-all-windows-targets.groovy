@@ -32,7 +32,7 @@ pipeline {
         }
         stage('Build Windows'){
             environment{
-                VCPKGPATH  = "${WORKSPACE}\\..\\vcpkg"
+                VCPKGPATH  = "${WORKSPACE}\\..\\..\\vcpkg"
                 QTPATH = "C:\\Qt\\Qt5.15.13\\5.15.13"
                 BUILD_DIR = "build_dir"
             }
