@@ -1420,13 +1420,10 @@ void ClientUpload::bound(BoundCallback callback,
                       NewNodeVectorPtr& nodes,
                       bool overridden,
                       Error result,
-                      int tag,
-                      const Task&) {
-        application.putnodes_result(result,
-                                    NODE_HANDLE,
-                                    *nodes,
-                                    overridden,
-                                    tag);
+                      int ownTag,
+                      const Task&)
+    {
+        application.putnodes_result(result, NODE_HANDLE, *nodes, overridden, ownTag);
     }; // wrapper
 
     // Wrapper takes ownership of the new nodes.

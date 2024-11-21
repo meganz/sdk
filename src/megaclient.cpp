@@ -3950,7 +3950,7 @@ void MegaClient::dispatchTransfers()
                 else
                 {
                     // set up keys for the decryption of this file (k == NULL => private node)
-                    const byte* k = NULL;
+                    const byte* keyData = nullptr;
                     bool missingPrivateNode = false;
 
                     // locate suitable template file
@@ -3966,27 +3966,32 @@ void MegaClient::dispatchTransfers()
                             }
                             else if (n->type == FILENODE)
                             {
-                                k = (const byte*)n->nodekey().data();
+                                keyData = (const byte*)n->nodekey().data();
                                 nexttransfer->size = n->size;
                             }
                         }
                         else
                         {
-                            k = (*it)->filekey;
+                            keyData = (*it)->filekey;
                             nexttransfer->size = (*it)->size;
                         }
 
-                        if (k)
+                        if (keyData)
                         {
-                            memcpy(nexttransfer->transferkey.data(), k, SymmCipher::KEYLENGTH);
-                            SymmCipher::xorblock(k + SymmCipher::KEYLENGTH, nexttransfer->transferkey.data());
-                            nexttransfer->ctriv = MemAccess::get<int64_t>((const char*)k + SymmCipher::KEYLENGTH);
-                            nexttransfer->metamac = MemAccess::get<int64_t>((const char*)k + SymmCipher::KEYLENGTH + sizeof(int64_t));
+                            memcpy(nexttransfer->transferkey.data(),
+                                   keyData,
+                                   SymmCipher::KEYLENGTH);
+                            SymmCipher::xorblock(keyData + SymmCipher::KEYLENGTH,
+                                                 nexttransfer->transferkey.data());
+                            nexttransfer->ctriv = MemAccess::get<int64_t>((const char*)keyData +
+                                                                          SymmCipher::KEYLENGTH);
+                            nexttransfer->metamac = MemAccess::get<int64_t>(
+                                (const char*)keyData + SymmCipher::KEYLENGTH + sizeof(int64_t));
                             break;
                         }
                     }
 
-                    if (!k)
+                    if (!keyData)
                     {
                         // there are no keys to decrypt this download - if it's because the node to download doesn't exist anymore, fail the transfer (otherwise wait for keys to become available)
                         if (missingPrivateNode)
@@ -4859,9 +4864,9 @@ void MegaClient::sendchatlogs(const char *json, handle userid, handle callid, in
         req->posturl.append(stringPort);
     }
 
-    Base64Str<MegaClient::USERHANDLE> uid(userid);
+    Base64Str<MegaClient::USERHANDLE> uidB64(userid);
     req->posturl.append("/msglog?userid=");
-    req->posturl.append(uid);
+    req->posturl.append(uidB64);
     req->posturl.append("&t=e");
     if (callid != UNDEF)
     {
@@ -6450,7 +6455,7 @@ bool MegaClient::sc_shares()
     handle p = UNDEF;
     handle ou = UNDEF;
     bool upgrade_pending_to_full = false;
-    const char* k = NULL;
+    const char* sk = NULL;
     const char* ok = NULL;
     bool okremoved = false;
     byte ha[SymmCipher::BLOCKSIZE];
@@ -6509,7 +6514,7 @@ bool MegaClient::sc_shares()
                 break;
 
             case 'k':   // share key
-                k = jsonsc.getvalue();
+                sk = jsonsc.getvalue();
                 break;
 
             case EOO:
@@ -6536,10 +6541,11 @@ bool MegaClient::sc_shares()
                 // am I the owner of the share? use ok, otherwise k.
                 if (ok && oh == me)
                 {
-                    k = ok;
+                    sk = ok;
                 }
 
-                if (!k || mKeyManager.generation()) // Same logic as below but without using the key
+                if (!sk ||
+                    mKeyManager.generation()) // Same logic as below but without using the key
                 {
                     if (!(!ISUNDEF(oh) && (!ISUNDEF(uh) || !ISUNDEF(p))))
                     {
@@ -6606,9 +6612,9 @@ bool MegaClient::sc_shares()
                     return r == ACCESS_UNKNOWN;
                 }
 
-                if (k)
+                if (sk)
                 {
-                    if (!decryptkey(k, sharekey, sizeof sharekey, &key, 1, h))
+                    if (!decryptkey(sk, sharekey, sizeof sharekey, &key, 1, h))
                     {
                         return false;
                     }
@@ -9808,7 +9814,7 @@ int MegaClient::readnode(JSON* j,
         handle u = 0, su = UNDEF;
         nodetype_t t = TYPE_UNKNOWN;
         const char* a = NULL;
-        const char* k = NULL;
+        const char* nodeKey = nullptr;
         const char* fa = NULL;
         const char *sk = NULL;
         accesslevel_t rl = ACCESS_UNKNOWN;
@@ -9847,7 +9853,7 @@ int MegaClient::readnode(JSON* j,
                     break;
 
                 case 'k':   // key(s)
-                    k = j->getvalue();
+                    nodeKey = j->getvalue();
                     break;
 
                 case 's':   // file size
@@ -9911,7 +9917,7 @@ int MegaClient::readnode(JSON* j,
                 {
                     warn("Missing node attributes");
                 }
-                else if (!k)
+                else if (!nodeKey)
                 {
                     warn("Missing node key");
                 }
@@ -9970,11 +9976,11 @@ int MegaClient::readnode(JSON* j,
                     }
                 }
 
-                if (a && k && n->attrstring)
+                if (a && nodeKey && n->attrstring)
                 {
                     LOG_warn << "Updating the key of a NO_KEY node";
                     JSON::copystring(n->attrstring.get(), a);
-                    n->setkeyfromjson(k);
+                    n->setkeyfromjson(nodeKey);
                 }
             }
             else
@@ -10034,7 +10040,7 @@ int MegaClient::readnode(JSON* j,
 
                 n->attrstring.reset(new string);
                 JSON::copystring(n->attrstring.get(), a);
-                n->setkeyfromjson(k);
+                n->setkeyfromjson(nodeKey);
 
                 if (loggedIntoFolder())
                 {
@@ -10155,7 +10161,7 @@ void MegaClient::readokelement(JSON* j)
     byte ha[SymmCipher::BLOCKSIZE];
     byte auth[SymmCipher::BLOCKSIZE];
     int have_ha = 0;
-    const char* k = NULL;
+    const char* shareKey = nullptr;
 
     for (;;)
     {
@@ -10170,7 +10176,7 @@ void MegaClient::readokelement(JSON* j)
                 break;
 
             case 'k':           // share key(s)
-                k = j->getvalue();
+                shareKey = j->getvalue();
                 break;
 
             case EOO:
@@ -10182,7 +10188,7 @@ void MegaClient::readokelement(JSON* j)
 
                 if (!mKeyManager.generation())   // client not migrated yet
                 {
-                    if (!k)
+                    if (!shareKey)
                     {
                         LOG_warn << "Missing outgoing share key in ok element";
                         return;
@@ -10195,7 +10201,7 @@ void MegaClient::readokelement(JSON* j)
                     }
 
                     vector<byte> buf(SymmCipher::BLOCKSIZE);
-                    if (decryptkey(k, buf.data(), static_cast<int>(buf.size()), &key, 1, h))
+                    if (decryptkey(shareKey, buf.data(), static_cast<int>(buf.size()), &key, 1, h))
                     {
                         newshares.push_back(new NewShare(h, 1, UNDEF, ACCESS_UNKNOWN, 0, buf.data(), ha));
                         if (mNewKeyRepository.find(NodeHandle().set6byte(h)) == mNewKeyRepository.end())
@@ -10718,7 +10724,7 @@ int MegaClient::readuser(JSON* j, bool actionpackets)
         const char* m = NULL;
         nameid name;
         BizMode bizMode = BIZ_MODE_UNKNOWN;
-        string pubk, puEd255, puCu255, sigPubk, sigCu255;
+        string publicKey, puEd255, puCu255, sigPubk, sigCu255;
 
         bool exit = false;
         while (!exit)
@@ -10769,7 +10775,7 @@ int MegaClient::readuser(JSON* j, bool actionpackets)
                 }
 
                 case MAKENAMEID4('p', 'u', 'b', 'k'):
-                    j->storebinary(&pubk);
+                    j->storebinary(&publicKey);
                     break;
 
                 case MAKENAMEID8('+', 'p', 'u', 'E', 'd', '2', '5', '5'):
@@ -10837,9 +10843,11 @@ int MegaClient::readuser(JSON* j, bool actionpackets)
                 // Keep them instead of the ones with no version from the fetch nodes.
                 if (!(uh == me && fetchingnodes))
                 {
-                    if (pubk.size())
+                    if (!publicKey.empty())
                     {
-                        u->pubk.setkey(AsymmCipher::PUBKEY, (const byte*)pubk.data(), (int)pubk.size());
+                        u->pubk.setkey(AsymmCipher::PUBKEY,
+                                       (const byte*)publicKey.data(),
+                                       (int)publicKey.size());
                     }
 
                     if (puEd255.size())
@@ -10974,13 +10982,13 @@ error MegaClient::parsepubliclink(const char* link, handle& ph, byte* key, TypeO
 
         if (*ptr == '!' || *ptr == '#')
         {
-            const char *k = ptr + 1;    // skip '!' or '#' separator
+            const char* keyBuffer = ptr + 1; // skip '!' or '#' separator
             static const map<TypeOfLink, int> nodetypeKeylength = {{TypeOfLink::FOLDER, FOLDERNODEKEYLENGTH}
                                                                   ,{TypeOfLink::FILE, FILENODEKEYLENGTH}
                                                                   ,{TypeOfLink::SET, SETNODEKEYLENGTH}
                                                                   };
             int keylen = nodetypeKeylength.at(type);
-            if (Base64::atob(k, key, keylen) == keylen)
+            if (Base64::atob(keyBuffer, key, keylen) == keylen)
             {
                 return API_OK;
             }
@@ -11180,19 +11188,17 @@ void MegaClient::login(string session, CommandLogin::Completion completion)
 
         byte sessionVersion;
         handle publicHandle, rootnode;
-        byte k[FOLDERNODEKEYLENGTH];
+        byte accountKey[FOLDERNODEKEYLENGTH];
         string writeAuth, accountAuth, padding;
         byte expansions[8];
 
-        if (!cr.unserializebyte(sessionVersion) ||
-            !cr.unserializenodehandle(publicHandle) ||
+        if (!cr.unserializebyte(sessionVersion) || !cr.unserializenodehandle(publicHandle) ||
             !cr.unserializenodehandle(rootnode) ||
-            !cr.unserializebinary(k, sizeof(k)) ||
+            !cr.unserializebinary(accountKey, sizeof(accountKey)) ||
             !cr.unserializeexpansionflags(expansions, 3) ||
             (expansions[0] && !cr.unserializestring(writeAuth)) ||
             (expansions[1] && !cr.unserializestring(accountAuth)) ||
-            (expansions[2] && !cr.unserializestring(padding)) ||
-            cr.hasdataleft())
+            (expansions[2] && !cr.unserializestring(padding)) || cr.hasdataleft())
         {
             restag = reqtag;
             completion(API_EARGS);
@@ -11212,7 +11218,7 @@ void MegaClient::login(string session, CommandLogin::Completion completion)
                 mFolderLink.mWriteAuth = writeAuth;
                 mFolderLink.mAccountAuth = accountAuth;
 
-                key.setkey(k, FOLDERNODE);
+                key.setkey(accountKey, FOLDERNODE);
                 checkForResumeableSCDatabase();
                 openStatusTable(true);
                 completion(API_OK);
@@ -11327,11 +11333,11 @@ int MegaClient::dumpsession(string& session)
 
             session[0] = 1;
 
-            byte k[SymmCipher::KEYLENGTH];
+            byte sessionData[SymmCipher::KEYLENGTH];
             SymmCipher cipher;
             cipher.setkey((const byte *)sessionkey.data(), int(sessionkey.size()));
-            cipher.ecb_encrypt(key.key, k);
-            memcpy(const_cast<char*>(session.data())+1, k, sizeof k);
+            cipher.ecb_encrypt(key.key, sessionData);
+            memcpy(const_cast<char*>(session.data()) + 1, sessionData, sizeof(sessionData));
         }
         else
         {
@@ -11614,9 +11620,9 @@ User* MegaClient::finduser(handle uh, int add)
         // add user by binary handle
         u = &users[++userid];
 
-        char uid[12];
-        Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
-        u->uid.assign(uid, 11);
+        char tempUid[12];
+        Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, tempUid);
+        u->uid.assign(tempUid, 11);
 
         uhindex[uh] = userid;
         u->userhandle = uh;
@@ -11695,9 +11701,9 @@ void MegaClient::mapuser(handle uh, const char* email)
         uhindex[uh] = mit->second;
         u->userhandle = uh;
 
-        char uid[12];
-        Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
-        u->uid.assign(uid, 11);
+        char tempUid[12];
+        Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, tempUid);
+        u->uid.assign(tempUid, 11);
     }
 }
 
@@ -12093,9 +12099,9 @@ void MegaClient::openShareDialog(Node* n, std::function<void(Error)> completion)
         if (!previousKey.size())
         {
             LOG_debug << "Creating new share key for " << toHandle(n->nodehandle);
-            byte key[SymmCipher::KEYLENGTH];
-            rng.genblock(key, sizeof key);
-            n->sharekey.reset(new SymmCipher(key));
+            byte newKey[SymmCipher::KEYLENGTH];
+            rng.genblock(newKey, sizeof(newKey));
+            n->sharekey.reset(new SymmCipher(newKey));
             updateKeys = true;
         }
         else
@@ -12208,17 +12214,17 @@ void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool w
         msg = personal_representation;
     }
 
-    std::string uid;
+    std::string userID;
     if (user)
     {
-        uid = (user->show == VISIBLE) ? user->uid : user->email;
+        userID = (user->show == VISIBLE) ? user->uid : user->email;
     }
 
     bool newshare = !n->isShared();
 
     // if creating a folder link and there's no sharekey already
     bool newShareKey = false;
-    if (!n->sharekey && uid.empty())
+    if (!n->sharekey && userID.empty())
     {
         assert(newshare);
 
@@ -12226,9 +12232,9 @@ void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool w
         if (!previousKey.size())
         {
             LOG_debug << "Creating new share key for folder link on " << toHandle(n->nodehandle);
-            byte key[SymmCipher::KEYLENGTH];
-            rng.genblock(key, sizeof key);
-            n->sharekey.reset(new SymmCipher(key));
+            byte newKey[SymmCipher::KEYLENGTH];
+            rng.genblock(newKey, sizeof(newKey));
+            n->sharekey.reset(new SymmCipher(newKey));
             newShareKey = true;
         }
         else
@@ -12309,34 +12315,36 @@ void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool w
         }));
     };
 
-    if (uid.size() || newShareKey) // share with a user or folder-link requiring new sharekey
+    if (userID.size() || newShareKey) // share with a user or folder-link requiring new sharekey
     {
         LOG_debug << "Updating ^!keys before sharing " << toNodeHandle(nodehandle);
         mKeyManager.commit(
-        [this, newShareKey, nodehandle, shareKey, uid]()
-        {
-            // Changes to apply in the commit
-            if (newShareKey)
+            [this, newShareKey, nodehandle, shareKey, userID]()
             {
-                // Add outshare key into ^!keys
-                mKeyManager.addShareKey(nodehandle, shareKey, true);
-            }
+                // Changes to apply in the commit
+                if (newShareKey)
+                {
+                    // Add outshare key into ^!keys
+                    mKeyManager.addShareKey(nodehandle, shareKey, true);
+                }
 
-            if (uid.size()) // not a folder link, but a share with a user
+                if (userID.size()) // not a folder link, but a share with a user
+                {
+                    // Add pending outshare;
+                    mKeyManager.addPendingOutShare(nodehandle, userID);
+                }
+            },
+            [completeShare, completion, user, writable](error e)
             {
-                // Add pending outshare;
-                mKeyManager.addPendingOutShare(nodehandle, uid);
-            }
-        },
-        [completeShare, completion, user, writable](error e)
-        {
-            if (e == API_OK) completeShare();
-            else
-            {
-                completion(e, writable);
-                if (user && user->isTemporary) delete user;
-            }
-        });
+                if (e == API_OK)
+                    completeShare();
+                else
+                {
+                    completion(e, writable);
+                    if (user && user->isTemporary)
+                        delete user;
+                }
+            });
         return;
     }
     else // folder link on an already shared folder or reusing existing sharekey -> no need to update ^!keys
@@ -14033,13 +14041,13 @@ error MegaClient::decryptlink(const char *link, const char *pwd, string* decrypt
     if (decryptedLink)
     {
         // Decrypt encKey using X-OR with first 16/32 bytes of derivedKey
-        byte key[FILENODEKEYLENGTH];
+        byte keyBuffer[FILENODEKEYLENGTH];
         for (unsigned int i = 0; i < encKeyLen; i++)
         {
-            key[i] = static_cast<byte>(encKey[i] ^ derivedKey[i]);
+            keyBuffer[i] = static_cast<byte>(encKey[i] ^ derivedKey[i]);
         }
 
-        Base64Str<FILENODEKEYLENGTH> keyStr(key);
+        Base64Str<FILENODEKEYLENGTH> keyStr(keyBuffer);
         decryptedLink->assign(publicLinkURL(mNewLinkFormat, isFolder ? TypeOfLink::FOLDER : TypeOfLink::FILE, ph, keyStr));
     }
 
@@ -14426,13 +14434,13 @@ void MegaClient::confirmsignuplink2(const byte *code, unsigned len)
 // generate and configure encrypted private key, plaintext public key
 void MegaClient::setkeypair()
 {
-    CryptoPP::Integer pubk[AsymmCipher::PUBKEY];
+    CryptoPP::Integer newPubKey[AsymmCipher::PUBKEY];
 
     string privks, pubks;
 
-    asymkey.genkeypair(rng, pubk, 2048);
+    asymkey.genkeypair(rng, newPubKey, 2048);
 
-    AsymmCipher::serializeintarray(pubk, AsymmCipher::PUBKEY, &pubks);
+    AsymmCipher::serializeintarray(newPubKey, AsymmCipher::PUBKEY, &pubks);
     AsymmCipher::serializeintarray(asymkey.getKey(), AsymmCipher::PRIVKEY, &privks);
 
     // add random padding and ECB-encrypt with master key
@@ -15442,18 +15450,18 @@ void MegaClient::initializekeys()
         else    // No keys were set --> generate keypairs and related attributes
         {
             // generate keypairs
-            EdDSA *signkey = new EdDSA(rng);
-            ECDH *chatkey = new ECDH();
+            EdDSA* newSignKey = new EdDSA(rng);
+            ECDH* newChatKey = new ECDH();
 
-            prEd255 = string((char *)signkey->keySeed, EdDSA::SEED_KEY_LENGTH);
-            prCu255 = string((char *)chatkey->getPrivKey(), ECDH::PRIVATE_KEY_LENGTH);
+            prEd255 = string((char*)newSignKey->keySeed, EdDSA::SEED_KEY_LENGTH);
+            prCu255 = string((char*)newChatKey->getPrivKey(), ECDH::PRIVATE_KEY_LENGTH);
 
-            if (!chatkey->initializationOK || !signkey->initializationOK)
+            if (!newChatKey->initializationOK || !newSignKey->initializationOK)
             {
                 LOG_err << "Initialization of keys Cu25519 and/or Ed25519 failed";
                 clearKeys();
-                delete signkey;
-                delete chatkey;
+                delete newSignKey;
+                delete newChatKey;
                 return;
             }
 
@@ -15483,10 +15491,11 @@ void MegaClient::initializekeys()
             // clients can retrieve chat and signing key for accounts created with ^!keys support)
             string_map records{
                 {EdDSA::TLV_KEY,
-                 string{reinterpret_cast<const char*>(signkey->keySeed), EdDSA::SEED_KEY_LENGTH}},
+                 string{reinterpret_cast<const char*>(newSignKey->keySeed),
+                        EdDSA::SEED_KEY_LENGTH}  },
                 {ECDH::TLV_KEY,
-                 string{reinterpret_cast<const char*>(chatkey->getPrivKey()),
-                        ECDH::PRIVATE_KEY_LENGTH}                                               },
+                 string{reinterpret_cast<const char*>(newChatKey->getPrivKey()),
+                        ECDH::PRIVATE_KEY_LENGTH}},
             };
             unique_ptr<string> container{tlv::recordsToContainer(std::move(records), rng, key)};
             attrs[ATTR_KEYRING] = container ? std::move(*container) : string{};
@@ -15497,14 +15506,14 @@ void MegaClient::initializekeys()
                 // prepare signatures
                 string pubkStr;
                 pubk.serializekeyforjs(pubkStr);
-                signkey->signKey((unsigned char*)pubkStr.data(), pubkStr.size(), &sigPubk);
+                newSignKey->signKey((unsigned char*)pubkStr.data(), pubkStr.size(), &sigPubk);
             }
-            signkey->signKey(chatkey->getPubKey(), ECDH::PUBLIC_KEY_LENGTH, &sigCu255);
+            newSignKey->signKey(newChatKey->getPubKey(), ECDH::PUBLIC_KEY_LENGTH, &sigCu255);
 
-            buf.assign((const char *) signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH);
+            buf.assign((const char*)newSignKey->pubKey, EdDSA::PUBLIC_KEY_LENGTH);
             attrs[ATTR_ED25519_PUBK] = buf;
 
-            buf.assign((const char *) chatkey->getPubKey(), ECDH::PUBLIC_KEY_LENGTH);
+            buf.assign((const char*)newChatKey->getPubKey(), ECDH::PUBLIC_KEY_LENGTH);
             attrs[ATTR_CU25519_PUBK] = buf;
 
             if (loggedin() != EPHEMERALACCOUNTPLUSPLUS) // Ephemeral++ don't have RSA keys until confirmation, but need chat and signing key
@@ -15527,8 +15536,8 @@ void MegaClient::initializekeys()
                 }
             });
 
-            delete chatkey;
-            delete signkey; // MegaClient::signkey & chatkey are created on putua::procresult()
+            delete newChatKey;
+            delete newSignKey; // MegaClient::signkey & chatkey are created on putua::procresult()
 
             LOG_info << "Creating new keypairs and signatures";
             return;
@@ -15684,11 +15693,12 @@ error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
         assert(false);
         return API_EARGS;
     }
-    const char *uid = user->uid.c_str();
+    const char* userID = user->uid.c_str();
     attr_t authringType = AuthRing::keyTypeToAuthringType(keyType);
     if (authringType == ATTR_UNKNOWN)
     {
-        LOG_err << "Attempt to track an unknown type of key for user " << uid << ": " << User::attr2string(keyType);
+        LOG_err << "Attempt to track an unknown type of key for user " << userID << ": "
+                << User::attr2string(keyType);
         assert(false);
         return API_EARGS;
     }
@@ -15708,7 +15718,8 @@ error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
         it = mAuthRings.find(authringType);
         if (it == mAuthRings.end())
         {
-            LOG_warn << "Failed to track public key in " << User::attr2string(authringType) << " for user " << uid << ": authring not available";
+            LOG_warn << "Failed to track public key in " << User::attr2string(authringType)
+                     << " for user " << userID << ": authring not available";
             assert(false);
             return API_ETEMPUNAVAIL;
         }
@@ -15729,7 +15740,8 @@ error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
         {
             if (!authring->isSignedKey())
             {
-                LOG_err << "Failed to track public key in " << User::attr2string(authringType) << " for user " << uid << ": fingerprint mismatch";
+                LOG_err << "Failed to track public key in " << User::attr2string(authringType)
+                        << " for user " << userID << ": fingerprint mismatch";
 
                 app->key_modified(uh, keyType);
                 sendevent(99451, "Key modification detected");
@@ -15745,7 +15757,9 @@ error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
         }
         else
         {
-            LOG_debug << "Authentication of public key in " << User::attr2string(authringType) << " for user " << uid << " was successful. Auth method: " << AuthRing::authMethodToStr(authring->getAuthMethod(uh));
+            LOG_debug << "Authentication of public key in " << User::attr2string(authringType)
+                      << " for user " << userID << " was successful. Auth method: "
+                      << AuthRing::authMethodToStr(authring->getAuthMethod(uh));
         }
     }
 
@@ -15769,7 +15783,8 @@ error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
     {
         if (!keyTracked)
         {
-            LOG_debug << "Adding public key to " << User::attr2string(authringType) << " as seen for user " << uid;
+            LOG_debug << "Adding public key to " << User::attr2string(authringType)
+                      << " as seen for user " << userID;
 
             // tracking has changed --> persist authring
             authring->add(uh, keyFingerprint, AUTH_METHOD_SEEN);
@@ -15794,11 +15809,12 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
         assert(false);
         return API_EARGS;
     }
-    const char *uid = user->uid.c_str();
+    const char* userID = user->uid.c_str();
     attr_t authringType = AuthRing::signatureTypeToAuthringType(signatureType);
     if (authringType == ATTR_UNKNOWN)
     {
-        LOG_err << "Attempt to track an unknown type of signature for user " << uid << ": " << User::attr2string(signatureType);
+        LOG_err << "Attempt to track an unknown type of signature for user " << userID << ": "
+                << User::attr2string(signatureType);
         assert(false);
         return API_EARGS;
     }
@@ -15833,7 +15849,8 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
         const UserAttribute* attribute = user->getAttribute(signatureType);
         if (!attribute || !attribute->isValid())
         {
-            LOG_warn << "Failed to verify signature " << User::attr2string(signatureType) << " for user " << uid << ": CU25519 public key is not available";
+            LOG_warn << "Failed to verify signature " << User::attr2string(signatureType)
+                     << " for user " << userID << ": CU25519 public key is not available";
             assert(false);
             return API_EINTERNAL;
         }
@@ -15851,7 +15868,7 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
     if (!attribute || !attribute->isValid())
     {
         LOG_warn << "Failed to retrieve signing key " << User::attr2string(ATTR_ED25519_PUBK)
-                 << " for user " << uid << ": signing public key is not available";
+                 << " for user " << userID << ": signing public key is not available";
         assert(attribute && attribute->isValid());
         return API_ETEMPUNAVAIL;
     }
@@ -15874,7 +15891,9 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
             fingerprintMatch = (keyFingerprint == authring->getFingerprint(uh));
             if (!fingerprintMatch)
             {
-                LOG_err << "Failed to track signature of public key in " << User::attr2string(authringType) << " for user " << uid << ": fingerprint mismatch";
+                LOG_err << "Failed to track signature of public key in "
+                        << User::attr2string(authringType) << " for user " << userID
+                        << ": fingerprint mismatch";
 
                 app->key_modified(uh, signatureType == ATTR_SIG_CU255_PUBK ? ATTR_CU25519_PUBK : ATTR_UNKNOWN);
                 sendevent(99451, "Key modification detected");
@@ -15883,14 +15902,16 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
             }
             else if (authring->getAuthMethod(uh) != AUTH_METHOD_SIGNATURE)
             {
-                LOG_debug << "Updating authentication method for user " << uid << " to signature verified";
+                LOG_debug << "Updating authentication method for user " << userID
+                          << " to signature verified";
 
                 authring->update(uh, AUTH_METHOD_SIGNATURE);
             }
         }
         else
         {
-            LOG_debug << "Adding public key to " << User::attr2string(authringType) << " as signature verified for user " << uid;
+            LOG_debug << "Adding public key to " << User::attr2string(authringType)
+                      << " as signature verified for user " << userID;
 
             authring->add(uh, keyFingerprint, AUTH_METHOD_SIGNATURE);
         }
@@ -15903,7 +15924,8 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
     }
     else
     {
-        LOG_err << "Failed to verify signature of public key in " << User::attr2string(authringType) << " for user " << uid << ": signature mismatch";
+        LOG_err << "Failed to verify signature of public key in " << User::attr2string(authringType)
+                << " for user " << userID << ": signature mismatch";
 
         app->key_modified(uh, signatureType);
         sendevent(99452, "Signature mismatch for public key");
@@ -15995,20 +16017,22 @@ error MegaClient::verifyCredentials(handle uh, std::function<void (Error)> compl
         return API_EINCOMPLETE;
     }
 
-    Base64Str<MegaClient::USERHANDLE> uid(uh);
+    Base64Str<MegaClient::USERHANDLE> uidB64(uh);
     auto itEd = mAuthRings.find(ATTR_AUTHRING);
     bool hasEdAuthring = itEd != mAuthRings.end();
     auto itCu = mAuthRings.find(ATTR_AUTHCU255);
     bool hasCuAuthring = itCu != mAuthRings.end();
     if (!hasEdAuthring || !hasCuAuthring)
     {
-        LOG_warn << "Failed to verify public Ed25519 key for user " << uid << ": authring(s) not available";
+        LOG_warn << "Failed to verify public Ed25519 key for user " << uidB64
+                 << ": authring(s) not available";
         return API_ETEMPUNAVAIL;
     }
 
     if (itCu->second.getAuthMethod(uh) != AUTH_METHOD_SIGNATURE)
     {
-        LOG_err << "Failed to verify credentials for user " << uid << ": signature of Cu25519 public key is not verified";
+        LOG_err << "Failed to verify credentials for user " << uidB64
+                << ": signature of Cu25519 public key is not verified";
         assert(false);
 
         // Let's try to authenticate Cu25519 for this user
@@ -16030,15 +16054,17 @@ error MegaClient::verifyCredentials(handle uh, std::function<void (Error)> compl
     switch (authMethod)
     {
     case AUTH_METHOD_SEEN:
-        LOG_debug << "Updating authentication method of Ed25519 public key for user " << uid << " from seen to signature verified";
+        LOG_debug << "Updating authentication method of Ed25519 public key for user " << uidB64
+                  << " from seen to signature verified";
         break;
 
     case AUTH_METHOD_FINGERPRINT:
-        LOG_err << "Failed to verify credentials for user " << uid << ": already verified";
+        LOG_err << "Failed to verify credentials for user " << uidB64 << ": already verified";
         return API_EEXIST;
 
     case AUTH_METHOD_SIGNATURE:
-        LOG_err << "Failed to verify credentials for user " << uid << ": invalid authentication method";
+        LOG_err << "Failed to verify credentials for user " << uidB64
+                << ": invalid authentication method";
         return API_EINTERNAL;
 
     case AUTH_METHOD_UNKNOWN:
@@ -16048,11 +16074,13 @@ error MegaClient::verifyCredentials(handle uh, std::function<void (Error)> compl
             user ? user->getAttribute(ATTR_ED25519_PUBK) : nullptr;
         if (pubKeyAttribute && pubKeyAttribute->isValid())
         {
-            LOG_warn << "Adding authentication method of Ed25519 public key for user " << uid << ": key is not tracked yet";
+            LOG_warn << "Adding authentication method of Ed25519 public key for user " << uidB64
+                     << ": key is not tracked yet";
         }
         else
         {
-            LOG_err << "Failed to verify credentials for user " << uid << ": key not tracked and not available";
+            LOG_err << "Failed to verify credentials for user " << uidB64
+                    << ": key not tracked and not available";
             return API_ETEMPUNAVAIL;
         }
         break;
@@ -16060,66 +16088,66 @@ error MegaClient::verifyCredentials(handle uh, std::function<void (Error)> compl
     }
 
     mKeyManager.commit(
-    [this, uh, uid]()
-    {
-        // Changes to apply in the commit
-        auto itEd = mAuthRings.find(ATTR_AUTHRING);
-        auto itCu = mAuthRings.find(ATTR_AUTHCU255);
-        if (itEd == mAuthRings.end() || itCu == mAuthRings.end())
+        [this, uh, uidB64]()
         {
-            LOG_warn << "Failed to verify public Ed25519 key for user " << uid
-                     << ": authring(s) not available during commit";
-            return;
-        }
-
-        if (itCu->second.getAuthMethod(uh) != AUTH_METHOD_SIGNATURE)
-        {
-            LOG_err << "Failed to verify credentials for user " << uid
-                    << ": signature of Cu25519 public key is not verified during commit";
-            return;
-        }
-
-        AuthRing authring = itEd->second; // copy, do not modify yet the cached authring
-        AuthMethod authMethod = authring.getAuthMethod(uh);
-        switch (authMethod)
-        {
-        case AUTH_METHOD_SEEN:
-            authring.update(uh, AUTH_METHOD_FINGERPRINT);
-            break;
-        case AUTH_METHOD_UNKNOWN:
-        {
-            User *user = finduser(uh);
-            const UserAttribute* pubKeyAttribute =
-                user ? user->getAttribute(ATTR_ED25519_PUBK) : nullptr;
-            if (pubKeyAttribute && pubKeyAttribute->isValid())
+            // Changes to apply in the commit
+            auto itEd = mAuthRings.find(ATTR_AUTHRING);
+            auto itCu = mAuthRings.find(ATTR_AUTHCU255);
+            if (itEd == mAuthRings.end() || itCu == mAuthRings.end())
             {
-                string keyFingerprint = AuthRing::fingerprint(pubKeyAttribute->value());
-                LOG_warn << "Adding authentication method of Ed25519 public key for user " << uid
-                         << ": key is not tracked yet during commit";
-                authring.add(uh, keyFingerprint, AUTH_METHOD_FINGERPRINT);
-                break;
-            }
-            else
-            {
-                LOG_err << "Failed to verify credentials for user " << uid
-                        << ": key not tracked and not available during commit";
+                LOG_warn << "Failed to verify public Ed25519 key for user " << uidB64
+                         << ": authring(s) not available during commit";
                 return;
             }
-            break;
-        }
-        default:
-            LOG_err << "Failed to verify credentials for user " << uid
-                    << " unexpected authMethod (" << authMethod << ") during commit";
-            return;
-        }
 
-        std::string serializedAuthring = authring.serializeForJS();
-        mKeyManager.setAuthRing(serializedAuthring);
-    },
-    [completion](error e)
-    {
-        completion(e);
-    });
+            if (itCu->second.getAuthMethod(uh) != AUTH_METHOD_SIGNATURE)
+            {
+                LOG_err << "Failed to verify credentials for user " << uidB64
+                        << ": signature of Cu25519 public key is not verified during commit";
+                return;
+            }
+
+            AuthRing authring = itEd->second; // copy, do not modify yet the cached authring
+            AuthMethod authMethod = authring.getAuthMethod(uh);
+            switch (authMethod)
+            {
+                case AUTH_METHOD_SEEN:
+                    authring.update(uh, AUTH_METHOD_FINGERPRINT);
+                    break;
+                case AUTH_METHOD_UNKNOWN:
+                {
+                    User* user = finduser(uh);
+                    const UserAttribute* pubKeyAttribute =
+                        user ? user->getAttribute(ATTR_ED25519_PUBK) : nullptr;
+                    if (pubKeyAttribute && pubKeyAttribute->isValid())
+                    {
+                        string keyFingerprint = AuthRing::fingerprint(pubKeyAttribute->value());
+                        LOG_warn << "Adding authentication method of Ed25519 public key for user "
+                                 << uidB64 << ": key is not tracked yet during commit";
+                        authring.add(uh, keyFingerprint, AUTH_METHOD_FINGERPRINT);
+                        break;
+                    }
+                    else
+                    {
+                        LOG_err << "Failed to verify credentials for user " << uidB64
+                                << ": key not tracked and not available during commit";
+                        return;
+                    }
+                    break;
+                }
+                default:
+                    LOG_err << "Failed to verify credentials for user " << uidB64
+                            << " unexpected authMethod (" << authMethod << ") during commit";
+                    return;
+            }
+
+            std::string serializedAuthring = authring.serializeForJS();
+            mKeyManager.setAuthRing(serializedAuthring);
+        },
+        [completion](error e)
+        {
+            completion(e);
+        });
 
     return API_OK;
 }
@@ -16132,62 +16160,64 @@ error MegaClient::resetCredentials(handle uh, std::function<void(Error)> complet
         return API_EINCOMPLETE;
     }
 
-    Base64Str<MegaClient::USERHANDLE> uid(uh);
+    Base64Str<MegaClient::USERHANDLE> uidB64(uh);
     auto it = mAuthRings.find(ATTR_AUTHRING);
     if (it == mAuthRings.end())
     {
-        LOG_warn << "Failed to reset credentials for user " << uid << ": authring not available";
+        LOG_warn << "Failed to reset credentials for user " << uidB64 << ": authring not available";
         return API_ETEMPUNAVAIL;
     }
 
     AuthMethod authMethod = it->second.getAuthMethod(uh);
     if (authMethod == AUTH_METHOD_SEEN)
     {
-        LOG_warn << "Failed to reset credentials for user " << uid << ": Ed25519 key is not verified by fingerprint";
+        LOG_warn << "Failed to reset credentials for user " << uidB64
+                 << ": Ed25519 key is not verified by fingerprint";
         return API_EARGS;
     }
     else if (authMethod == AUTH_METHOD_UNKNOWN)
     {
-        LOG_warn << "Failed to reset credentials for user " << uid << ": Ed25519 key is not tracked yet";
+        LOG_warn << "Failed to reset credentials for user " << uidB64
+                 << ": Ed25519 key is not tracked yet";
         return API_ENOENT;
     }
     assert(authMethod == AUTH_METHOD_FINGERPRINT); // Ed25519 authring cannot be at AUTH_METHOD_SIGNATURE
-    LOG_debug << "Reseting credentials for user " << uid << "...";
+    LOG_debug << "Reseting credentials for user " << uidB64 << "...";
 
     mKeyManager.commit(
-    [this, uh, uid]()
-    {
-        auto it = mAuthRings.find(ATTR_AUTHRING);
-        if (it == mAuthRings.end())
+        [this, uh, uidB64]()
         {
-            LOG_warn << "Failed to reset credentials for user " << uid
-                     << ": authring not available during commit";
+            auto it = mAuthRings.find(ATTR_AUTHRING);
+            if (it == mAuthRings.end())
+            {
+                LOG_warn << "Failed to reset credentials for user " << uidB64
+                         << ": authring not available during commit";
+                return;
+            }
+
+            AuthRing authring = it->second; // copy, do not update cached authring yet
+            AuthMethod authMethod = authring.getAuthMethod(uh);
+            if (authMethod != AUTH_METHOD_FINGERPRINT)
+            {
+                LOG_warn << "Failed to reset credentials for user " << uidB64
+                         << " unexpected authMethod (" << authMethod << ") during commit";
+                return;
+            }
+
+            authring.update(uh, AUTH_METHOD_SEEN);
+            string serializedAuthring = authring.serializeForJS();
+
+            // Changes to apply in the commit
+            mKeyManager.setAuthRing(serializedAuthring);
+        },
+        [completion](error e)
+        {
+            if (completion)
+            {
+                completion(e);
+            }
             return;
-        }
-
-        AuthRing authring = it->second; // copy, do not update cached authring yet
-        AuthMethod authMethod = authring.getAuthMethod(uh);
-        if (authMethod != AUTH_METHOD_FINGERPRINT)
-        {
-            LOG_warn << "Failed to reset credentials for user " << uid
-                     << " unexpected authMethod (" << authMethod << ") during commit";
-            return;
-        }
-
-        authring.update(uh, AUTH_METHOD_SEEN);
-        string serializedAuthring = authring.serializeForJS();
-
-        // Changes to apply in the commit
-        mKeyManager.setAuthRing(serializedAuthring);
-    },
-    [completion](error e)
-    {
-        if (completion)
-        {
-            completion(e);
-        }
-        return;
-    });
+        });
 
     return API_OK;
 }
@@ -19893,9 +19923,9 @@ error MegaClient::readElements(JSON& j, map<handle, elementsmap_t>& elements)
             j.leavearray();
             return e;
         }
-        handle sid = el.set();
+        handle setID = el.set();
         handle eid = el.id();
-        elements[sid].emplace(eid, std::move(el));
+        elements[setID].emplace(eid, std::move(el));
 
         j.leaveobject();
     }
@@ -20105,8 +20135,8 @@ const Set* MegaClient::getSet(handle sid) const
 
 const Set* MegaClient::addSet(Set&& a)
 {
-    handle sid = a.id();
-    auto add = mSets.emplace(sid, std::move(a));
+    handle setID = a.id();
+    auto add = mSets.emplace(setID, std::move(a));
     assert(add.second);
 
     if (add.second) // newly inserted
@@ -20248,11 +20278,11 @@ bool MegaClient::deleteSetElement(handle sid, handle eid)
 
 const SetElement* MegaClient::addOrUpdateSetElement(SetElement&& el)
 {
-    handle sid = el.set();
-    assert(sid != UNDEF);
+    handle setID = el.set();
+    assert(setID != UNDEF);
     handle eid = el.id();
 
-    auto itS = mSetElements.find(sid);
+    auto itS = mSetElements.find(setID);
     if (itS != mSetElements.end())
     {
         auto& elements = itS->second;
@@ -20268,7 +20298,7 @@ const SetElement* MegaClient::addOrUpdateSetElement(SetElement&& el)
     }
 
     // not found, add it
-    auto add = mSetElements[sid].emplace(eid, std::move(el));
+    auto add = mSetElements[setID].emplace(eid, std::move(el));
     assert(add.second);
 
     SetElement& added = add.first->second;
@@ -20717,8 +20747,8 @@ bool MegaClient::fetchscset(string* data, uint32_t id)
         return false;
     }
 
-    handle sid = s->id();
-    auto its = mSets.emplace(sid, std::move(*s));
+    handle setID = s->id();
+    auto its = mSets.emplace(setID, std::move(*s));
     assert(its.second); // insertion must have occurred
     Set& addedSet = its.first->second;
     addedSet.resetChanges();
@@ -20736,9 +20766,9 @@ bool MegaClient::fetchscsetelement(string* data, uint32_t id)
         return false;
     }
 
-    handle sid = el->set();
+    handle setID = el->set();
     handle eid = el->id();
-    auto ite = mSetElements[sid].emplace(eid, std::move(*el));
+    auto ite = mSetElements[setID].emplace(eid, std::move(*el));
     assert(ite.second); // insertion must have occurred
     SetElement& addedEl = ite.first->second;
     addedEl.resetChanges();

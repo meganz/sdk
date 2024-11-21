@@ -3363,7 +3363,7 @@ bool LocalNodeCore::read(const string& source, uint32_t& parentID)
 
     CacheableReader r(source);
 
-    nodetype_t type;
+    nodetype_t nodeType;
     m_off_t size;
 
     if (!r.unserializei64(size)) return false;
@@ -3371,17 +3371,17 @@ bool LocalNodeCore::read(const string& source, uint32_t& parentID)
     if (size < 0 && size >= -FOLDERNODE)
     {
         // will any compiler optimize this to a const assignment?
-        type = (nodetype_t)-size;
+        nodeType = (nodetype_t)-size;
         size = 0;
     }
     else
     {
-        type = FILENODE;
+        nodeType = FILENODE;
     }
 
     handle fsid;
     handle h = 0;
-    string localname, shortname;
+    string name, shortname;
     m_time_t mtime = 0;
     int32_t crc[4];
     memset(crc, 0, sizeof crc);
@@ -3389,12 +3389,10 @@ bool LocalNodeCore::read(const string& source, uint32_t& parentID)
     unsigned char expansionflags[8] = { 0 };
     bool ns = false;
 
-    if (!r.unserializehandle(fsid) ||
-        !r.unserializeu32(parentID) ||
-        !r.unserializenodehandle(h) ||
-        !r.unserializestring(localname) ||
-        (type == FILENODE && !r.unserializebinary((byte*)crc, sizeof(crc))) ||
-        (type == FILENODE && !r.unserializecompressedi64(mtime)) ||
+    if (!r.unserializehandle(fsid) || !r.unserializeu32(parentID) || !r.unserializenodehandle(h) ||
+        !r.unserializestring(name) ||
+        (nodeType == FILENODE && !r.unserializebinary((byte*)crc, sizeof(crc))) ||
+        (nodeType == FILENODE && !r.unserializecompressedi64(mtime)) ||
         (r.hasdataleft() && !r.unserializebyte(syncable)) ||
         (r.hasdataleft() && !r.unserializeexpansionflags(expansionflags, 2)) ||
         (expansionflags[0] && !r.unserializecstr(shortname, false)) ||
@@ -3406,10 +3404,10 @@ bool LocalNodeCore::read(const string& source, uint32_t& parentID)
     }
     assert(!r.hasdataleft());
 
-    this->type = type;
+    type = nodeType;
     this->syncedFingerprint.size = size;
     this->fsid_lastSynced = fsid;
-    this->localname = LocalPath::fromPlatformEncodedRelative(localname);
+    localname = LocalPath::fromPlatformEncodedRelative(name);
     this->slocalname.reset(shortname.empty() ? nullptr : new LocalPath(LocalPath::fromPlatformEncodedRelative(shortname)));
     this->slocalname_in_db = 0 != expansionflags[0];
     this->namesSynchronized = ns;
@@ -3791,9 +3789,9 @@ ExclusionState LocalNode::exclusionState(const string& name, nodetype_t type, m_
     // Consider providing a specialized implementation to avoid conversion.
     auto fsAccess = sync->syncs.fsaccess.get();
     auto fsType = sync->mFilesystemType;
-    auto localname = LocalPath::fromRelativeName(name, *fsAccess, fsType);
+    LocalPath absoluteName = LocalPath::fromRelativeName(name, *fsAccess, fsType);
 
-    return exclusionState(localname, type, size);
+    return exclusionState(absoluteName, type, size);
 }
 
 ExclusionState LocalNode::exclusionState() const

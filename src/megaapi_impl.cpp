@@ -193,8 +193,17 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
         this->fileattrstring = std::string(fileAttributeString);
         delete [] fileAttributeString;
     }
-    string *nodekey = node->getNodeKey();
-    this->nodekey.assign(nodekey->data(),nodekey->size());
+
+    if (string* tempNodekey = node->getNodeKey())
+    {
+        nodekey.swap(*tempNodekey);
+    }
+    else
+    {
+        assert(tempNodekey != nullptr);
+        nodekey.clear();
+    }
+
     this->changed = node->getChanges();
     this->thumbnailAvailable = node->hasThumbnail();
     this->previewAvailable = node->hasPreview();
@@ -256,10 +265,10 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
 
     if (node->isvalid)
     {
-        string fingerprint;
-        node->serializefingerprint(&fingerprint);
-        string result = MegaNodePrivate::addAppPrefixToFingerprint(fingerprint, node->size);
-        this->fingerprint = MegaApi::strdup(result.c_str());
+        string tempFingerprint;
+        node->serializefingerprint(&tempFingerprint);
+        string result = MegaNodePrivate::addAppPrefixToFingerprint(tempFingerprint, node->size);
+        fingerprint = MegaApi::strdup(result.c_str());
     }
 
     this->duration = -1;
@@ -638,22 +647,15 @@ MegaNodePrivate *MegaNodePrivate::unserialize(string *d)
     string name, fingerprint, originalfingerprint, attrstring, nodekey, privauth, pubauth, chatauth;
     int64_t size, ctime, mtime;
     MegaHandle nodehandle, parenthandle, owner = INVALID_HANDLE;
-    bool isPublicNode, foreign, isNodeKeyDecrypted;
+    bool isPublic, isForeign, isNodeKeyDecrypted;
     unsigned char expansions[8];
     string fileattrstring; // fileattrstring is not serialized
-    if (!r.unserializecstr(name, true) ||
-        !r.unserializecstr(fingerprint, true) ||
-        !r.unserializei64(size) ||
-        !r.unserializei64(ctime) ||
-        !r.unserializei64(mtime) ||
-        !r.unserializehandle(nodehandle) ||
-        !r.unserializehandle(parenthandle) ||
-        !r.unserializestring(attrstring) ||
-        !r.unserializestring(nodekey) ||
-        !r.unserializestring(privauth) ||
-        !r.unserializestring(pubauth) ||
-        !r.unserializebool(isPublicNode) ||
-        !r.unserializebool(foreign) ||
+    if (!r.unserializecstr(name, true) || !r.unserializecstr(fingerprint, true) ||
+        !r.unserializei64(size) || !r.unserializei64(ctime) || !r.unserializei64(mtime) ||
+        !r.unserializehandle(nodehandle) || !r.unserializehandle(parenthandle) ||
+        !r.unserializestring(attrstring) || !r.unserializestring(nodekey) ||
+        !r.unserializestring(privauth) || !r.unserializestring(pubauth) ||
+        !r.unserializebool(isPublic) || !r.unserializebool(isForeign) ||
         !r.unserializeexpansionflags(expansions, 4) ||
         (expansions[0] && !r.unserializecstr(chatauth, false)) ||
         (expansions[1] && !r.unserializehandle(owner)) ||
@@ -666,11 +668,24 @@ MegaNodePrivate *MegaNodePrivate::unserialize(string *d)
 
     r.eraseused(*d);
 
-    return new MegaNodePrivate(name.c_str(), FILENODE, size, ctime,
-                               mtime, nodehandle, &nodekey, &fileattrstring,
-                               fingerprint.empty() ? NULL : fingerprint.c_str(), originalfingerprint.empty() ? NULL : originalfingerprint.c_str(),
-                               owner, parenthandle, privauth.c_str(), pubauth.c_str(),
-                               isPublicNode, foreign, chatauth.empty() ? NULL : chatauth.c_str(), isNodeKeyDecrypted);
+    return new MegaNodePrivate(name.c_str(),
+                               FILENODE,
+                               size,
+                               ctime,
+                               mtime,
+                               nodehandle,
+                               &nodekey,
+                               &fileattrstring,
+                               fingerprint.empty() ? NULL : fingerprint.c_str(),
+                               originalfingerprint.empty() ? NULL : originalfingerprint.c_str(),
+                               owner,
+                               parenthandle,
+                               privauth.c_str(),
+                               pubauth.c_str(),
+                               isPublic,
+                               isForeign,
+                               chatauth.empty() ? NULL : chatauth.c_str(),
+                               isNodeKeyDecrypted);
 }
 
 char *MegaNodePrivate::getBase64Handle()
@@ -3688,11 +3703,11 @@ void MegaTransferPrivate::setPath(const char* path)
     {
         if (path[i] == LocalPath::localPathSeparator_utf8)
         {
-            setFileName(&(path[i+1]));
-            char *parentPath = MegaApi::strdup(path);
-            parentPath[i+1] = '\0';
-            setParentPath(parentPath);
-            delete [] parentPath;
+            setFileName(&(path[i + 1]));
+            char* parentFolderPath = MegaApi::strdup(path);
+            parentFolderPath[i + 1] = '\0';
+            setParentPath(parentFolderPath);
+            delete[] parentFolderPath;
             return;
         }
     }
