@@ -18,20 +18,20 @@
  * You should have received a copy of the license along with this
  * program.
  */
-#include <cctype>
+#include "mega/filesystem.h"
 
 #include "mega.h"
-#include "mega/filesystem.h"
-#include "mega/node.h"
-#include "mega/megaclient.h"
+#include "mega/base64.h"
 #include "mega/logging.h"
 #include "mega/mega_utf8proc.h"
+#include "mega/megaclient.h"
+#include "mega/node.h"
 #include "mega/sync.h"
-#include "mega/base64.h"
-
 #include "megafs.h"
 
 #include <cassert>
+#include <cctype>
+#include <regex>
 #include <tuple>
 
 #ifdef TARGET_OS_MAC
@@ -570,6 +570,7 @@ bool IsContainingLocalPathOf(const string& a, const char* b, size_t bLength)
 void LocalPath::removeTrailingSeparators()
 {
     assert(invariant());
+    assert(!isURI());
 
     // Remove trailing separator if present.
     while (localpath.size() > 1 &&
@@ -584,6 +585,7 @@ void LocalPath::removeTrailingSeparators()
 void LocalPath::normalizeAbsolute()
 {
     assert(!localpath.empty());
+    assert(!isURI());
 
 #ifdef USE_IOS
     // iOS is a tricky case.
@@ -594,7 +596,7 @@ void LocalPath::normalizeAbsolute()
     // unless it already started with /
     // and that's how it worked before we added the "absolute" feature to LocalPath.
     // As a result of that though, there's nothing to adjust or check here for iOS.
-    isFromRoot = true;
+    mPathType = PathType::ABSOLUTE_PATH;
 
     // In addition, for iOS, should the app try to use ".", or "./", we interpret that to mean
     // that really it's relative to the app base path.  So we convert:
@@ -634,7 +636,7 @@ void LocalPath::normalizeAbsolute()
         localpath = wstring(buffer, stringLen);
     }
 
-    isFromRoot = true;
+    mPathType = PathType::ABSOLUTE_PATH;
 
     // See https://docs.microsoft.com/en-us/dotnet/standard/io/file-path-formats
     // Also https://docs.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation
@@ -673,7 +675,7 @@ void LocalPath::normalizeAbsolute()
         lp.appendWithSeparator(*this, false);
         localpath = std::move(lp.localpath);
     }
-    isFromRoot = true;
+    mPathType = PathType::ABSOLUTE_PATH;
 #endif
 
     assert(invariant());
@@ -691,7 +693,7 @@ bool LocalPath::invariant() const
     // and that's how it worked before we added the "absolute" feature to LocalPath.
     // As a result of that though, there's nothing to adjust or check here for iOS.
 #elif WIN32
-    if (isFromRoot)
+    if (isAbsolute)
     {
         // if it starts with \\ then it's absolute, either by us or provided
         if (localpath.size() >= 2 && localpath[0] == '\\' && localpath[1] == '\\') return true;
@@ -709,7 +711,7 @@ bool LocalPath::invariant() const
             localpath.substr(0, 2) == L"\\\\") return false;
      }
 #else
-    if (isFromRoot)
+    if (isAbsolute())
     {
         // must start /
         if (localpath.size() < 1) return false;
@@ -1445,7 +1447,7 @@ void LocalPath::clear()
 {
     assert(invariant());
     localpath.clear();
-    isFromRoot = false;
+    mPathType = PathType::RELATIVE_PATH;
     assert(invariant());
 }
 
@@ -1459,6 +1461,7 @@ void LocalPath::truncate(size_t bytePos)
 LocalPath LocalPath::leafName() const
 {
     assert(invariant());
+    assert(!isURI());
 
     auto p = localpath.find_last_of(localPathSeparator);
     p = p == string::npos ? 0 : p + 1;
@@ -1471,6 +1474,7 @@ LocalPath LocalPath::leafName() const
 string LocalPath::leafOrParentName() const
 {
     assert(invariant());
+    assert(!isURI());
 
     LocalPath name;
     // win32: normalizeAbsolute() does not work with paths like "D:\\foo\\..\\bar.txt". TODO ?
@@ -1498,6 +1502,7 @@ string LocalPath::leafOrParentName() const
 void LocalPath::append(const LocalPath& additionalPath)
 {
     assert(invariant());
+    assert(!isURI());
     localpath.append(additionalPath.localpath);
     assert(invariant());
 }
@@ -1505,6 +1510,8 @@ void LocalPath::append(const LocalPath& additionalPath)
 std::string LocalPath::platformEncoded() const
 {
     assert(invariant());
+    assert(!isURI());
+
 #ifdef WIN32
     // this function is typically used where we need to pass a file path to the client app, which expects utf16 in a std::string buffer
     // some other backwards compatible cases need this format also, eg. serialization
@@ -1541,12 +1548,14 @@ std::string LocalPath::platformEncoded() const
 
 void LocalPath::appendWithSeparator(const LocalPath& additionalPath, bool separatorAlways)
 {
+    assert(!isURI());
+
 #ifdef USE_IOS
     bool originallyUsesAppBasePath = isFromRoot &&
         (localpath.empty() || localpath.front() != localPathSeparator);
 #endif
 
-    assert(!additionalPath.isFromRoot);
+    assert(!additionalPath.isAbsolute());
     if (separatorAlways || localpath.size())
     {
         // still have to be careful about appending a \ to F:\ for example, on windows, which produces an invalid path
@@ -1573,7 +1582,7 @@ void LocalPath::appendWithSeparator(const LocalPath& additionalPath, bool separa
 
 void LocalPath::prependWithSeparator(const LocalPath& additionalPath)
 {
-    assert(!isFromRoot);
+    assert(!isAbsolute() && mPathType != PathType::URI_PATH);
     assert(invariant());
     // no additional separator if there is already one after
     if (!localpath.empty() && localpath[0] != localPathSeparator)
@@ -1585,13 +1594,13 @@ void LocalPath::prependWithSeparator(const LocalPath& additionalPath)
         }
     }
     localpath.insert(0, additionalPath.localpath);
-    isFromRoot = additionalPath.isFromRoot;
+    mPathType = additionalPath.mPathType;
     assert(invariant());
 }
 
 LocalPath LocalPath::prependNewWithSeparator(const LocalPath& additionalPath) const
 {
-    assert(!isFromRoot);
+    assert(!isAbsolute() && mPathType != PathType::URI_PATH);
     LocalPath lp = *this;
     lp.prependWithSeparator(additionalPath);
     assert(lp.invariant());
@@ -1600,6 +1609,7 @@ LocalPath LocalPath::prependNewWithSeparator(const LocalPath& additionalPath) co
 
 void LocalPath::trimNonDriveTrailingSeparator()
 {
+    assert(!isURI());
     assert(invariant());
     if (endsInSeparator())
     {
@@ -1619,6 +1629,7 @@ void LocalPath::trimNonDriveTrailingSeparator()
 
 bool LocalPath::findNextSeparator(size_t& separatorBytePos) const
 {
+    assert(!isURI());
     assert(invariant());
     separatorBytePos = localpath.find(localPathSeparator, separatorBytePos);
     return separatorBytePos != string::npos;
@@ -1626,6 +1637,7 @@ bool LocalPath::findNextSeparator(size_t& separatorBytePos) const
 
 bool LocalPath::findPrevSeparator(size_t& separatorBytePos, const FileSystemAccess&) const
 {
+    assert(!isURI());
     assert(invariant());
     separatorBytePos = localpath.rfind(LocalPath::localPathSeparator, separatorBytePos);
     return separatorBytePos != string::npos;
@@ -1633,18 +1645,21 @@ bool LocalPath::findPrevSeparator(size_t& separatorBytePos, const FileSystemAcce
 
 bool LocalPath::endsInSeparator() const
 {
+    assert(!isURI());
     assert(invariant());
     return !localpath.empty() && localpath.back() == localPathSeparator;
 }
 
 bool LocalPath::beginsWithSeparator() const
 {
+    assert(!isURI());
     assert(invariant());
     return !localpath.empty() && localpath.front() == localPathSeparator;
 }
 
 size_t LocalPath::getLeafnameByteIndex() const
 {
+    assert(!isURI());
     assert(invariant());
     size_t p = localpath.size();
 
@@ -1673,19 +1688,21 @@ LocalPath LocalPath::subpathTo(size_t bytePos) const
     assert(invariant());
     LocalPath p;
     p.localpath = localpath.substr(0, bytePos);
-    p.isFromRoot = isFromRoot;
+    p.mPathType = mPathType;
     assert(p.invariant());
     return p;
 }
 
 LocalPath LocalPath::parentPath() const
 {
+    assert(!isURI());
     assert(invariant());
     return subpathTo(getLeafnameByteIndex());
 }
 
 LocalPath LocalPath::insertFilenameSuffix(const std::string& suffix) const
 {
+    assert(!isURI());
     assert(invariant());
 
     size_t dotindex = localpath.find_last_of('.');
@@ -1696,12 +1713,12 @@ LocalPath LocalPath::insertFilenameSuffix(const std::string& suffix) const
     if (dotindex == string::npos || (sepindex != string::npos && sepindex > dotindex))
     {
         result.localpath = localpath;
-        result.isFromRoot = isFromRoot;
+        result.mPathType = mPathType;
     }
     else
     {
         result.localpath = localpath.substr(0, dotindex);
-        result.isFromRoot = isFromRoot;
+        result.mPathType = mPathType;
         extension.localpath = localpath.substr(dotindex);
     }
 
@@ -1713,6 +1730,7 @@ LocalPath LocalPath::insertFilenameSuffix(const std::string& suffix) const
 
 string LocalPath::toPath(bool normalize) const
 {
+    assert(!isURI());
     assert(invariant());
     string path;
     local2path(&localpath, &path, normalize);
@@ -1738,6 +1756,7 @@ string LocalPath::toPath(bool normalize) const
 
 string LocalPath::toName(const FileSystemAccess& fsaccess) const
 {
+    assert(!isURI());
     string name = toPath(true);
     fsaccess.unescapefsincompatible(&name);
     return name;
@@ -1758,6 +1777,22 @@ LocalPath LocalPath::fromRelativePath(const string& path)
     path2local(&path, &p.localpath);
     assert(p.invariant());
     return p;
+}
+
+LocalPath LocalPath::fromURIPath(const string& path)
+{
+    LocalPath p;
+    path2local(&path, &p.localpath);
+    p.mPathType = PathType::URI_PATH;
+    assert(p.invariant());
+    return p;
+}
+
+bool LocalPath::isUri(const string& path)
+{
+    // Regex to match URI scheme (file, content, ...)
+    std::regex uriRegex(R"(^([a-zA-Z][a-zA-Z\d+\-.]*):)");
+    return std::regex_search(path, uriRegex);
 }
 
 LocalPath LocalPath::fromRelativeName(string path, const FileSystemAccess& fsaccess, FileSystemType fsType)
@@ -1814,7 +1849,7 @@ LocalPath LocalPath::fromPlatformEncodedAbsolute(wstring&& wpath)
 
 wchar_t LocalPath::driveLetter()
 {
-    assert(isFromRoot);
+    assert(isAbsolute());
     assert(invariant());
     auto drivepos = localpath.find(L':');
     return drivepos == wstring::npos || drivepos < 1 ? 0 : localpath[drivepos-1];
@@ -1923,9 +1958,10 @@ LocalPath LocalPath::tmpNameLocal()
 
 bool LocalPath::isContainingPathOf(const LocalPath& path, size_t* subpathIndex) const
 {
+    assert(!isURI());
     assert(!empty());
     assert(!path.empty());
-    assert(isFromRoot == path.isFromRoot);
+    assert(mPathType == path.mPathType);
     assert(invariant());
     assert(path.invariant());
 
@@ -1954,6 +1990,7 @@ bool LocalPath::isContainingPathOf(const LocalPath& path, size_t* subpathIndex) 
 
 bool LocalPath::nextPathComponent(size_t& subpathIndex, LocalPath& component) const
 {
+    assert(!isURI());
     assert(invariant());
 
     while (subpathIndex < localpath.size() && localpath[subpathIndex] == localPathSeparator)
@@ -1988,8 +2025,9 @@ bool LocalPath::hasNextPathComponent(size_t index) const
 
 bool LocalPath::related(const LocalPath& other) const
 {
+    assert(!isURI());
     // Sanity: Compare like for like paths.
-    assert(isFromRoot == other.isFromRoot);
+    assert(mPathType == other.mPathType);
 
     // This path is shorter: It may contain other.
     if (localpath.size() <= other.localpath.size())

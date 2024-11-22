@@ -165,6 +165,13 @@ struct MEGA_API FSNode;
 
 extern CodeCounter::ScopeStats g_compareUtfTimings;
 
+enum class PathType
+{
+    ABSOLUTE_PATH,
+    RELATIVE_PATH,
+    URI_PATH,
+};
+
 class MEGA_API LocalPath
 {
 #ifdef WIN32
@@ -179,7 +186,7 @@ class MEGA_API LocalPath
     // Track whether this LocalPath is from the root of a filesystem (ie, an absolute path)
     // It makes a big difference for windows, where we must prepend \\?\ prefix
     // to be able to access long paths, paths ending with space or `.`, etc
-    bool isFromRoot = false;
+    PathType mPathType{PathType::RELATIVE_PATH};
 
     // only functions that need to call the OS or 3rdParty libraries - normal code should have no access (or accessor) to localpath
     friend struct ResizeTraits<LocalPath>;
@@ -238,7 +245,15 @@ public:
     const static char localPathSeparator_utf8 = '/';
 #endif
 
-    bool isAbsolute() const { return isFromRoot; };
+    bool isAbsolute() const
+    {
+        return mPathType == PathType::ABSOLUTE_PATH;
+    };
+
+    bool isURI() const
+    {
+        return mPathType == PathType::URI_PATH;
+    };
 
     // UTF-8 normalization
     static void utf8_normalize(string *);
@@ -321,6 +336,8 @@ public:
     // Create a Localpath from a utf8 string where no character conversions or escaping is necessary.
     static LocalPath fromAbsolutePath(const string& path);
     static LocalPath fromRelativePath(const string& path);
+    static LocalPath fromURIPath(const std::string& path);
+    static bool isUri(const std::string& path);
 
     // Create a LocalPath from a utf8 string, making any character conversions (escaping) necessary
     // for characters that are disallowed on that filesystem.  fsaccess is used to do the conversion.
@@ -365,11 +382,13 @@ public:
 
     bool extension(std::string& extension) const
     {
+        assert(!isURI());
         return extensionOf(localpath, extension);
     }
 
     std::string extension() const
     {
+        assert(!isURI());
         return extensionOf(localpath);
     }
 

@@ -187,7 +187,7 @@ auto LocalPath::asPlatformEncoded(bool) const -> string_type
 }
 bool LocalPath::isRootPath() const
 {
-    if (isFromRoot)
+    if (isAbsolute())
         return localpath.size() == 1 && localpath.back() == '/';
 
     return false;
