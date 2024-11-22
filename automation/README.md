@@ -9,8 +9,7 @@ Fill the details in `[make_release]` section of your `config.toml` local copy of
 
 You will also need to set the following environment variables to make the script work:
 - `GITLAB_TOKEN`
-- `JIRA_USERNAME`
-- `JIRA_PASSWORD`
+- `JIRA_TOKEN`
 - `SLACK_TOKEN`
 - `GPG_KEYGRIP`
 - `GPG_PASSWORD`
@@ -30,8 +29,7 @@ Fill the details in `[close_release]` section of your `config.toml` local copy o
 
 You will also need to set the following environment variables to make the script work:
 - `GITLAB_TOKEN`
-- `JIRA_USERNAME`
-- `JIRA_PASSWORD`
+- `JIRA_TOKEN`
 - `SLACK_TOKEN`
 - `GITHUB_TOKEN`
 - `CONFLUENCE_USER`
@@ -51,8 +49,7 @@ Fill the details in `[patch_release]` section of your `config.toml` local copy o
 
 You will also need to set the following environment variables to make the script work:
 - `GITLAB_TOKEN`
-- `JIRA_USERNAME`
-- `JIRA_PASSWORD`
+- `JIRA_TOKEN`
 - `SLACK_TOKEN`
 - `GPG_KEYGRIP`
 - `GPG_PASSWORD`
@@ -68,8 +65,7 @@ Fill the details in `[make_another_rc]` section of your `config.toml` local copy
 
 You will also need to set the following environment variables to make the script work:
 - `GITLAB_TOKEN`
-- `JIRA_USERNAME`
-- `JIRA_PASSWORD`
+- `JIRA_TOKEN`
 - `SLACK_TOKEN`
 
 > Note that the number of the new RC will be automatically determined, from the last RC already existing for that Release plus 1.

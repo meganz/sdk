@@ -15,8 +15,7 @@ args = parser.parse_args()
 # Check for required environment variables
 required_env_vars = [
     "GITLAB_TOKEN",
-    "JIRA_USERNAME",
-    "JIRA_PASSWORD",
+    "JIRA_TOKEN",
     "SLACK_TOKEN",
     "GITHUB_TOKEN",
     "CONFLUENCE_USER",
@@ -42,8 +41,7 @@ release = ReleaseProcess(
 # prerequisites for closing a release
 release.setup_project_management(
     args["jira_url"],
-    os.environ["JIRA_USERNAME"],
-    os.environ["JIRA_PASSWORD"],
+    os.environ["JIRA_TOKEN"],
 )
 release.set_release_version_to_close(args["release_version"])
 type_of_release = release.get_release_type_to_close(args["public_branch"])

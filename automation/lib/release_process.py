@@ -29,13 +29,12 @@ class ReleaseProcess:
         self._project_name = project_name
         self._version_v_prefixed = ""
 
-    def setup_project_management(self, url: str, user: str, password: str):
+    def setup_project_management(self, url: str, token: str):
         assert self._jira is None
         print("Jira initializing", flush=True)
         self._jira = JiraProject(
             url,
-            user,
-            password,
+            token,
             self._project_name,
         )
         print("v Jira initialized", flush=True)
@@ -273,7 +272,7 @@ class ReleaseProcess:
         )
 
     # STEP 7: Update and rename previous NextRelease version; create new NextRelease version
-    def manage_versions(self, url: str, user: str, password: str, apps: str):
+    def manage_versions(self, apps: str):
         assert self._new_version is not None
         assert self._jira is not None
         self._jira.update_current_version(
