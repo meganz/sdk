@@ -293,7 +293,8 @@ TLVstore* TLVstore::containerToTLVrecords(const string* data)
         offset += typelen + 1; // +1: NULL character
 
         // get the Length of the value
-        valuelen = (unsigned char)data->at(offset) << 8 | (unsigned char)data->at(offset + 1);
+        valuelen = static_cast<unsigned>((unsigned char)data->at(offset) << 8 |
+                                         (unsigned char)data->at(offset + 1));
         offset += 2;
 
         // if there's not enough data for value...
