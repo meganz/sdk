@@ -18,8 +18,7 @@ required_env_vars = [
     "JIRA_TOKEN",
     "SLACK_TOKEN",
     "GITHUB_TOKEN",
-    "CONFLUENCE_USER",
-    "CONFLUENCE_PASSWORD",
+    "CONFLUENCE_TOKEN",
 ]
 
 for var in required_env_vars:
@@ -59,8 +58,8 @@ if slack_token and slack_channel_dev:
     release.setup_chat(slack_token, slack_channel_dev)
 release.setup_wiki(
     args["confluence_url"],
-    os.environ["CONFLUENCE_USER"],
-    os.environ["CONFLUENCE_PASSWORD"],
+    os.environ["CONFLUENCE_TOKEN"],
+    args["confluence_captain_user"]
 )
 
 # STEP 1: GitLab: Create tag "vX.Y.Z" from last commit of branch "release/vX.Y.Z"

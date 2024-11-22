@@ -358,11 +358,11 @@ class ReleaseProcess:
         assert self._jira is not None, "Init Jira connection first"
         self._jira.earlier_versions_are_closed()
 
-    def setup_wiki(self, url: str, user: str, password: str):
-        if url and user and password:
+    def setup_wiki(self, url: str, token: str, captain: str):
+        if url and token and captain:
             print("Confluence initializing", flush=True)
-            self._wiki = Confluence(url=url, username=user, password=password)
-            user_details = self._wiki.get_user_details_by_username(user)
+            self._wiki = Confluence(url=url, token=token)
+            user_details = self._wiki.get_user_details_by_username(captain)
             if isinstance(user_details, dict):
                 self._user_key = user_details["userKey"]
             print("v Confluence initialized", flush=True)

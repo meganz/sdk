@@ -32,8 +32,7 @@ You will also need to set the following environment variables to make the script
 - `JIRA_TOKEN`
 - `SLACK_TOKEN`
 - `GITHUB_TOKEN`
-- `CONFLUENCE_USER`
-- `CONFLUENCE_PASSWORD`
+- `CONFLUENCE_TOKEN`
 
 
 From a directory in the repo (!) for which we intend to close a release, run:
