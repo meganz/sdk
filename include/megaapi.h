@@ -342,9 +342,9 @@ public:
      * PROXY_AUTO is currently supported on Windows only, for other platforms
      * PROXY_NONE will be used as the automatic detected value.
      *
-     * @param proxyType Sets the type of the proxy
+     * @param newProxyType Sets the type of the proxy
      */
-    void setProxyType(int proxyType);
+    void setProxyType(int newProxyType);
 
     /**
      * @brief Sets the URL of the proxy
@@ -353,9 +353,9 @@ public:
      *
      * This is a valid example: http://127.0.0.1:8080
      *
-     * @param proxyURL URL of the proxy: "<scheme>://<hostname|ip>:<port>"
+     * @param newProxyURL URL of the proxy: "<scheme>://<hostname|ip>:<port>"
      */
-    void setProxyURL(const char *proxyURL);
+    void setProxyURL(const char* newProxyURL);
 
     /**
      * @brief Set the credentials needed to use the proxy
@@ -363,10 +363,10 @@ public:
      * If you don't need to use any credentials, do not use this function
      * or pass NULL in the first parameter.
      *
-     * @param username Username to access the proxy, or NULL if credentials aren't needed
-     * @param password Password to access the proxy
+     * @param newUsername Username to access the proxy, or NULL if credentials aren't needed
+     * @param newPassword Password to access the proxy
      */
-    void setCredentials(const char *username, const char *password);
+    void setCredentials(const char* newUsername, const char* newPassword);
 
     /**
      * @brief Returns the current proxy type of the object

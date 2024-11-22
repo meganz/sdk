@@ -44,29 +44,29 @@ MegaProxy::~MegaProxy()
 	delete proxyURL;
 }
 
-void MegaProxy::setProxyType(int proxyType)
+void MegaProxy::setProxyType(int newProxyType)
 {
-    this->proxyType = proxyType;
+    proxyType = newProxyType;
 }
 
-void MegaProxy::setProxyURL(const char *proxyURL)
+void MegaProxy::setProxyURL(const char* newProxyURL)
 {
-    if(this->proxyURL)
-        delete this->proxyURL;
+    if (proxyURL)
+        delete proxyURL;
 
-    this->proxyURL = MegaApi::strdup(proxyURL);
+    proxyURL = MegaApi::strdup(newProxyURL);
 }
 
-void MegaProxy::setCredentials(const char *username, const char *password)
+void MegaProxy::setCredentials(const char* newUsername, const char* newPassword)
 {
-    if(this->username)
-        delete this->username;
+    if (username)
+        delete username;
 
-    if(this->password)
-        delete this->password;
+    if (password)
+        delete password;
 
-    this->username = MegaApi::strdup(username);
-    this->password = MegaApi::strdup(password);
+    username = MegaApi::strdup(newUsername);
+    password = MegaApi::strdup(newPassword);
 }
 
 int MegaProxy::getProxyType()
