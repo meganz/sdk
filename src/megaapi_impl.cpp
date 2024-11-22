@@ -4199,12 +4199,12 @@ MegaTextChatList *MegaRequestPrivate::getMegaTextChatList() const
     return chatList;
 }
 
-void MegaRequestPrivate::setMegaTextChatList(MegaTextChatList *chatList)
+void MegaRequestPrivate::setMegaTextChatList(MegaTextChatList* newChatList)
 {
-    if (this->chatList)
-        delete this->chatList;
+    if (chatList)
+        delete chatList;
 
-    this->chatList = chatList->copy();
+    chatList = newChatList->copy();
 }
 
 MegaScheduledMeetingList* MegaRequestPrivate::getMegaScheduledMeetingList() const
@@ -4228,14 +4228,14 @@ MegaStringMap *MegaRequestPrivate::getMegaStringMap() const
     return stringMap;
 }
 
-void MegaRequestPrivate::setMegaStringMap(const MegaStringMap *stringMap)
+void MegaRequestPrivate::setMegaStringMap(const MegaStringMap* newStringMap)
 {
-    if (this->stringMap)
+    if (stringMap)
     {
-        delete this->stringMap;
+        delete stringMap;
     }
 
-    this->stringMap = stringMap ? stringMap->copy() : NULL;
+    stringMap = newStringMap ? newStringMap->copy() : nullptr;
 }
 
 void MegaRequestPrivate::setMegaStringMap(const map<string, string>& newValues)
@@ -4277,14 +4277,14 @@ MegaFolderInfo *MegaRequestPrivate::getMegaFolderInfo() const
     return folderInfo;
 }
 
-void MegaRequestPrivate::setMegaFolderInfo(const MegaFolderInfo *folderInfo)
+void MegaRequestPrivate::setMegaFolderInfo(const MegaFolderInfo* newFolderInfo)
 {
-    if (this->folderInfo)
+    if (folderInfo)
     {
-        delete this->folderInfo;
+        delete folderInfo;
     }
 
-    this->folderInfo = folderInfo ? folderInfo->copy() : NULL;
+    folderInfo = newFolderInfo ? newFolderInfo->copy() : nullptr;
 }
 
 const MegaPushNotificationSettings *MegaRequestPrivate::getMegaPushNotificationSettings() const
@@ -4292,14 +4292,15 @@ const MegaPushNotificationSettings *MegaRequestPrivate::getMegaPushNotificationS
     return settings;
 }
 
-void MegaRequestPrivate::setMegaPushNotificationSettings(const MegaPushNotificationSettings *settings)
+void MegaRequestPrivate::setMegaPushNotificationSettings(
+    const MegaPushNotificationSettings* newSettings)
 {
-    if (this->settings)
+    if (settings)
     {
-        delete this->settings;
+        delete settings;
     }
 
-    this->settings = settings ? settings->copy() : NULL;
+    settings = newSettings ? newSettings->copy() : nullptr;
 }
 
 MegaBackgroundMediaUpload *MegaRequestPrivate::getMegaBackgroundMediaUploadPtr() const
@@ -4506,9 +4507,9 @@ MegaCurrency *MegaRequestPrivate::getCurrency() const
     return megaCurrency ? megaCurrency->copy() : nullptr;
 }
 
-void MegaRequestPrivate::setNumDetails(int numDetails)
+void MegaRequestPrivate::setNumDetails(int count)
 {
-    this->numDetails = numDetails;
+    numDetails = count;
 }
 
 MegaNode *MegaRequestPrivate::getPublicNode() const
@@ -4526,126 +4527,134 @@ MegaNode *MegaRequestPrivate::getPublicMegaNode() const
     return NULL;
 }
 
-void MegaRequestPrivate::setNodeHandle(uint64_t nodeHandle)
+void MegaRequestPrivate::setNodeHandle(MegaHandle newNodeHandle)
 {
-    this->nodeHandle = nodeHandle;
+    nodeHandle = newNodeHandle;
 }
 
-void MegaRequestPrivate::setParentHandle(uint64_t parentHandle)
+void MegaRequestPrivate::setParentHandle(MegaHandle newParentHandle)
 {
-    this->parentHandle = parentHandle;
+    parentHandle = newParentHandle;
 }
 
-void MegaRequestPrivate::setSessionKey(const char* sessionKey)
+void MegaRequestPrivate::setSessionKey(const char* newSessionKey)
 {
-    if(this->sessionKey) delete [] this->sessionKey;
-    this->sessionKey = MegaApi::strdup(sessionKey);
+    if (sessionKey)
+        delete[] sessionKey;
+    sessionKey = MegaApi::strdup(newSessionKey);
 }
 
-void MegaRequestPrivate::setNumRetry(int numRetry)
+void MegaRequestPrivate::setNumRetry(int count)
 {
-    this->numRetry = numRetry;
+    numRetry = count;
 }
 
-void MegaRequestPrivate::setLink(const char* link)
+void MegaRequestPrivate::setLink(const char* newLink)
 {
-    if(this->link)
-        delete [] this->link;
+    if (link)
+        delete[] link;
 
-    this->link = MegaApi::strdup(link);
-}
-void MegaRequestPrivate::setName(const char* name)
-{
-    if(this->name)
-        delete [] this->name;
-
-    this->name = MegaApi::strdup(name);
-}
-void MegaRequestPrivate::setEmail(const char* email)
-{
-    if(this->email)
-        delete [] this->email;
-
-    this->email = MegaApi::strdup(email);
-}
-void MegaRequestPrivate::setPassword(const char* password)
-{
-    if(this->password)
-        delete [] this->password;
-
-    this->password = MegaApi::strdup(password);
-}
-void MegaRequestPrivate::setNewPassword(const char* newPassword)
-{
-    if(this->newPassword)
-        delete [] this->newPassword;
-
-    this->newPassword = MegaApi::strdup(newPassword);
-}
-void MegaRequestPrivate::setPrivateKey(const char* privateKey)
-{
-    if(this->privateKey)
-        delete [] this->privateKey;
-
-    this->privateKey = MegaApi::strdup(privateKey);
-}
-void MegaRequestPrivate::setAccess(int access)
-{
-    this->access = access;
+    link = MegaApi::strdup(newLink);
 }
 
-void MegaRequestPrivate::setFile(const char* file)
+void MegaRequestPrivate::setName(const char* newName)
 {
-    if(this->file)
-        delete [] this->file;
+    if (name)
+        delete[] name;
 
-    this->file = MegaApi::strdup(file);
+    name = MegaApi::strdup(newName);
 }
 
-void MegaRequestPrivate::setParamType(int type)
+void MegaRequestPrivate::setEmail(const char* newEmail)
 {
-    this->attrType = type;
+    if (email)
+        delete[] email;
+
+    email = MegaApi::strdup(newEmail);
 }
 
-void MegaRequestPrivate::setText(const char *text)
+void MegaRequestPrivate::setPassword(const char* pass)
 {
-    if(this->text) delete [] this->text;
-    this->text = MegaApi::strdup(text);
+    if (password)
+        delete[] password;
+
+    password = MegaApi::strdup(pass);
 }
 
-void MegaRequestPrivate::setNumber(long long number)
+void MegaRequestPrivate::setNewPassword(const char* pass)
 {
-    this->number = number;
+    if (newPassword)
+        delete[] newPassword;
+
+    newPassword = MegaApi::strdup(pass);
 }
 
-void MegaRequestPrivate::setFlag(bool flag)
+void MegaRequestPrivate::setPrivateKey(const char* newPrivateKey)
 {
-    this->flag = flag;
+    if (privateKey)
+        delete[] privateKey;
+
+    privateKey = MegaApi::strdup(newPrivateKey);
 }
 
-void MegaRequestPrivate::setTransferTag(int transfer)
+void MegaRequestPrivate::setAccess(int newAccess)
 {
-    this->transfer = transfer;
+    access = newAccess;
 }
 
-void MegaRequestPrivate::setListener(MegaRequestListener *listener)
+void MegaRequestPrivate::setFile(const char* newFile)
 {
-    this->listener = listener;
+    if (file)
+        delete[] file;
+
+    file = MegaApi::strdup(newFile);
 }
 
-void MegaRequestPrivate::setTotalBytes(long long totalBytes)
+void MegaRequestPrivate::setParamType(int newType)
 {
-    this->totalBytes = totalBytes;
+    attrType = newType;
 }
 
-void MegaRequestPrivate::setTransferredBytes(long long transferredBytes)
+void MegaRequestPrivate::setText(const char* newText)
 {
-    this->transferredBytes = transferredBytes;
+    if (text)
+        delete[] text;
+    text = MegaApi::strdup(newText);
 }
 
-void MegaRequestPrivate::setTag(int tag)
+void MegaRequestPrivate::setNumber(long long newNumber)
 {
-    this->tag = tag;
+    number = newNumber;
+}
+
+void MegaRequestPrivate::setFlag(bool newFlag)
+{
+    flag = newFlag;
+}
+
+void MegaRequestPrivate::setTransferTag(int newTag)
+{
+    transfer = newTag;
+}
+
+void MegaRequestPrivate::setListener(MegaRequestListener* newListener)
+{
+    listener = newListener;
+}
+
+void MegaRequestPrivate::setTotalBytes(long long byteCount)
+{
+    totalBytes = byteCount;
+}
+
+void MegaRequestPrivate::setTransferredBytes(long long byteCount)
+{
+    transferredBytes = byteCount;
+}
+
+void MegaRequestPrivate::setTag(int newTag)
+{
+    tag = newTag;
 }
 
 void MegaRequestPrivate::addProduct(const Product& product)
@@ -4664,9 +4673,9 @@ void MegaRequestPrivate::setCurrency(std::unique_ptr<CurrencyData> currencyData)
     }
 }
 
-void MegaRequestPrivate::setProxy(Proxy *proxy)
+void MegaRequestPrivate::setProxy(Proxy* newProxy)
 {
-    this->proxy = proxy;
+    proxy = newProxy;
 }
 
 Proxy *MegaRequestPrivate::getProxy()
@@ -4674,35 +4683,36 @@ Proxy *MegaRequestPrivate::getProxy()
     return proxy;
 }
 
-void MegaRequestPrivate::setTimeZoneDetails(MegaTimeZoneDetails *timeZoneDetails)
+void MegaRequestPrivate::setTimeZoneDetails(MegaTimeZoneDetails* newDetails)
 {
-    if (this->timeZoneDetails)
+    if (timeZoneDetails)
     {
-        delete this->timeZoneDetails;
+        delete timeZoneDetails;
     }
-    this->timeZoneDetails = timeZoneDetails ? timeZoneDetails->copy() : NULL;
+    timeZoneDetails = newDetails ? newDetails->copy() : nullptr;
 }
 
-void MegaRequestPrivate::setPublicNode(MegaNode *publicNode, bool copyChildren)
+void MegaRequestPrivate::setPublicNode(MegaNode* newPublicNode, bool copyChildren)
 {
-    if (this->publicNode)
+    if (publicNode)
     {
-        delete this->publicNode;
+        delete publicNode;
     }
 
-    if (!publicNode)
+    if (!newPublicNode)
     {
-        this->publicNode = NULL;
+        publicNode = nullptr;
     }
     else
     {
-        MegaNodePrivate *nodePrivate = new MegaNodePrivate(publicNode);
-        MegaNodeListPrivate *children = dynamic_cast<MegaNodeListPrivate *>(publicNode->getChildren());
+        MegaNodePrivate* nodePrivate = new MegaNodePrivate(newPublicNode);
+        MegaNodeListPrivate* children =
+            dynamic_cast<MegaNodeListPrivate*>(newPublicNode->getChildren());
         if (children && copyChildren)
         {
             nodePrivate->setChildren(new MegaNodeListPrivate(children, true));
         }
-        this->publicNode = nodePrivate;
+        publicNode = nodePrivate;
     }
 }
 
