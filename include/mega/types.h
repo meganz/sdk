@@ -744,23 +744,8 @@ typedef map<handle, unique_ptr<PendingContactRequest>> handlepcr_map;
 typedef vector<string> string_vector;
 typedef map<string, string> string_map;
 typedef multimap<int64_t, int64_t> integer_map;
-typedef string_map TLV_map;
 
 typedef map<attr_t, string> userattr_map;
-
-typedef enum {
-
-    AES_CCM_12_16 = 0x00,
-    AES_CCM_10_16 = 0x01,
-    AES_CCM_10_08 = 0x02,
-    AES_GCM_12_16_BROKEN = 0x03, // Same as 0x00 (due to a legacy bug)
-    AES_GCM_10_08_BROKEN = 0x04, // Same as 0x02 (due to a legacy bug)
-    AES_GCM_12_16 = 0x10,
-    AES_GCM_10_08 = 0x11
-
-} encryptionsetting_t;
-
-typedef enum { AES_MODE_UNKNOWN, AES_MODE_CCM, AES_MODE_GCM } encryptionmode_t;
 
 typedef enum { RECOVER_WITH_MASTERKEY = 9, RECOVER_WITHOUT_MASTERKEY = 10, CANCEL_ACCOUNT = 21, CHANGE_EMAIL = 12 } recovery_t;
 

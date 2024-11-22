@@ -26,6 +26,7 @@
 #include "mega/heartbeats.h"
 #include "mega/mediafileattribute.h"
 #include "mega/megaapp.h"
+#include "mega/tlv.h"
 #include "mega/transfer.h"
 #include "mega/transferslot.h"
 #include "mega/types.h"
@@ -3248,17 +3249,17 @@ bool CommandPutMultipleUAVer::procresult(Result r, JSON& json)
 
                 if (type == ATTR_KEYRING)
                 {
-                    TLVstore *tlvRecords = TLVstore::containerToTLVrecords(&attrs[type], &client->key);
-                    if (tlvRecords)
+                    if (unique_ptr<string_map> records{
+                            tlv::containerToRecords(attrs[type], client->key)})
                     {
-                        string prEd255;
-                        if (tlvRecords->get(EdDSA::TLV_KEY, prEd255) && prEd255.size() == EdDSA::SEED_KEY_LENGTH)
+                        string prEd255{std::move((*records)[EdDSA::TLV_KEY])};
+                        if (prEd255.size() == EdDSA::SEED_KEY_LENGTH)
                         {
                             client->signkey = new EdDSA(client->rng, (unsigned char *) prEd255.data());
                         }
 
-                        string prCu255;
-                        if (tlvRecords->get(ECDH::TLV_KEY, prCu255) && prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
+                        string prCu255{std::move((*records)[ECDH::TLV_KEY])};
+                        if (prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
                         {
                             client->chatkey = new ECDH(prCu255);
                         }
@@ -3273,8 +3274,6 @@ bool CommandPutMultipleUAVer::procresult(Result r, JSON& json)
                         {
                             client->sendevent(99420, "Signing and chat keys attached OK", 0);
                         }
-
-                        delete tlvRecords;
                     }
                     else
                     {
@@ -3519,8 +3518,14 @@ bool CommandPutUA::procresult(Result r, JSON& json)
     return true;
 }
 
-CommandGetUA::CommandGetUA(MegaClient* /*client*/, const char* uid, attr_t at, const char* ph, int ctag,
-                           CompletionErr completionErr, CompletionBytes completionBytes, CompletionTLV compltionTLV)
+CommandGetUA::CommandGetUA(MegaClient* /*client*/,
+                           const char* uid,
+                           attr_t at,
+                           const char* ph,
+                           int ctag,
+                           CompletionErr completionErr,
+                           CompletionBytes completionBytes,
+                           CompletionTLV completionTLV)
 {
     mV3 = true;
 
@@ -3538,10 +3543,11 @@ CommandGetUA::CommandGetUA(MegaClient* /*client*/, const char* uid, attr_t at, c
             client->app->getua_result(b, l, e);
         };
 
-    mCompletionTLV = compltionTLV ? std::move(compltionTLV) :
-        [this](TLVstore* t, attr_t e) {
-            client->app->getua_result(t, e);
-        };
+    mCompletionTLV = completionTLV ? std::move(completionTLV) :
+                                     [this](unique_ptr<string_map> t, attr_t e)
+    {
+        client->app->getua_result(std::move(t), e);
+    };
 
     if (ph && ph[0])
     {
@@ -3686,18 +3692,19 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                     {
                         case ATTR_SCOPE_PRIVATE_ENCRYPTED:
                         {
-                            // decrypt the data and build the TLV records
-                            std::unique_ptr<TLVstore> tlvRecords { TLVstore::containerToTLVrecords(&value, &client->key) };
-                            if (!tlvRecords)
+                            // decrypt the data
+                            std::unique_ptr<string_map> records{
+                                tlv::containerToRecords(value, client->key)};
+                            if (!records)
                             {
-                                LOG_err << "Cannot extract TLV records for private attribute " << User::attr2string(at);
+                                LOG_err << "Cannot extract TLV records for private attribute "
+                                        << User::attr2string(at);
                                 mCompletionErr(API_EINTERNAL);
                                 return false;
                             }
 
-                            // store the value for private user attributes (re-encrypted version of serialized TLV)
                             u->setAttribute(at, value, version);
-                            mCompletionTLV(tlvRecords.get(), at);
+                            mCompletionTLV(std::move(records), at);
 
                             break;
                         }
@@ -4791,13 +4798,10 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
                 if (chatFolder.size())
                 {
-                    unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&chatFolder, &client->key));
-                    if (tlvRecords)
+                    if (tlv::containerToRecords(chatFolder, client->key)) // validation
                     {
-                        // store the value for private user attributes (decrypted version of serialized TLV)
-                        unique_ptr<string> tlvString(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
                         changes |= u->updateAttributeIfDifferentVersion(ATTR_MY_CHAT_FILES_FOLDER,
-                                                                        *tlvString,
+                                                                        chatFolder,
                                                                         versionChatFolder);
                     }
                     else
@@ -4812,13 +4816,11 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
                 if (cameraUploadFolder.size())
                 {
-                    unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&cameraUploadFolder, &client->key));
-                    if (tlvRecords)
+                    if (tlv::containerToRecords(cameraUploadFolder,
+                                                client->key)) // validation
                     {
-                        // store the value for private user attributes (decrypted version of serialized TLV)
-                        unique_ptr<string> tlvString(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
                         changes |= u->updateAttributeIfDifferentVersion(ATTR_CAMERA_UPLOADS_FOLDER,
-                                                                        *tlvString,
+                                                                        cameraUploadFolder,
                                                                         versionCameraUploadFolder);
                     }
                     else
@@ -4866,13 +4868,10 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
                 if (aliases.size())
                 {
-                    unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&aliases, &client->key));
-                    if (tlvRecords)
+                    if (tlv::containerToRecords(aliases, client->key)) // validation
                     {
-                        // store the value for private user attributes (decrypted version of serialized TLV)
-                        unique_ptr<string> tlvString(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
                         changes |= u->updateAttributeIfDifferentVersion(ATTR_ALIAS,
-                                                                        *tlvString,
+                                                                        aliases,
                                                                         versionAliases);
                     }
                     else
@@ -4913,13 +4912,10 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
                 if (deviceNames.size())
                 {
-                    unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&deviceNames, &client->key));
-                    if (tlvRecords)
+                    if (tlv::containerToRecords(deviceNames, client->key)) // validation
                     {
-                        // store the value for private user attributes (decrypted version of serialized TLV)
-                        unique_ptr<string> tlvString(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
                         changes |= u->updateAttributeIfDifferentVersion(ATTR_DEVICE_NAMES,
-                                                                        *tlvString,
+                                                                        deviceNames,
                                                                         versionDeviceNames);
                     }
                     else

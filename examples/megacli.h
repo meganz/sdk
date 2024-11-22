@@ -197,7 +197,7 @@ struct DemoApp : public MegaApp
     void putua_result(error) override;
     void getua_result(error) override;
     void getua_result(byte*, unsigned, attr_t) override;
-    void getua_result(TLVstore *, attr_t) override;
+    void getua_result(unique_ptr<string_map>, attr_t) override;
 #ifdef DEBUG
     void delua_result(error) override;
     void senddevcommand_result(int) override;

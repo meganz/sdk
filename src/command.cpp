@@ -20,8 +20,10 @@
  */
 
 #include "mega/command.h"
+
 #include "mega/base64.h"
 #include "mega/megaclient.h"
+#include "mega/tlv.h"
 
 namespace mega {
 Command::Command()

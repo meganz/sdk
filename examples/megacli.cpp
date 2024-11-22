@@ -27,6 +27,7 @@
 #include "mega/gfx.h"
 #include "mega/pwm_file_parser.h"
 #include "mega/testhooks.h"
+#include "mega/tlv.h"
 #include "mega/user_attribute.h"
 
 #include <bitset>
@@ -1414,15 +1415,15 @@ void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
     }
 }
 
-void DemoApp::getua_result(TLVstore *tlv, attr_t type)
+void DemoApp::getua_result(unique_ptr<string_map> records, attr_t type)
 {
-    if (!tlv)
+    if (!records)
     {
         cout << "Error getting private user attribute" << endl;
     }
     else if (!gVerboseMode)
     {
-        cout << "Received a TLV with " << tlv->size() << " item(s) of user attribute: " << endl;
+        cout << "Received a TLV with " << records->size() << " item(s) of user attribute: " << endl;
         if (type == ATTR_DEVICE_NAMES)
         {
             cout << '(' << (b64driveid.empty() ? "Printing only Device names" :
@@ -1432,10 +1433,9 @@ void DemoApp::getua_result(TLVstore *tlv, attr_t type)
 
         bool printDriveId = false;
 
-        unique_ptr<vector<string>> keys(tlv->getKeys());
-        for (auto it = keys->begin(); it != keys->end(); it++)
+        for (const auto& record: *records)
         {
-            const string& key = it->empty() ? "(no key)" : *it;
+            const string& key = record.first.empty() ? "(no key)" : record.first;
 
             // external drive names can be filtered
             if (type == ATTR_DEVICE_NAMES)
@@ -1451,8 +1451,8 @@ void DemoApp::getua_result(TLVstore *tlv, attr_t type)
             }
 
             // print user attribute values
-            string value;
-            if (!tlv->get(*it, value) || value.empty())
+            const string& value = record.second;
+            if (value.empty())
             {
                 cout << "\t" << key << "\t" << "(no value)";
             }
@@ -3759,14 +3759,13 @@ void putua_map(const std::string& b64key, const std::string& b64value, attr_t at
         return;
     }
 
-    std::unique_ptr<TLVstore> tlv;
+    string_map destination;
 
     const UserAttribute* attribute = ownUser->getAttribute(attrtype);
     if (!attribute || attribute->isNotExisting()) // attr doesn't exist -> create it
     {
-        tlv.reset(new TLVstore());
         const string& realValue = Base64::atob(b64value);
-        tlv->set(b64key, realValue); // real value, non-B64
+        destination[b64key] = realValue; // real value, non-B64
     }
     else if (attribute->isExpired())
     {
@@ -3776,20 +3775,23 @@ void putua_map(const std::string& b64key, const std::string& b64value, attr_t at
     }
     else
     {
-        tlv.reset(TLVstore::containerToTLVrecords(&attribute->value(), &client->key));
+        std::unique_ptr<string_map> oldRecords{
+            tlv::containerToRecords(attribute->value(), client->key)};
+        if (oldRecords)
+        {
+            destination.swap(*oldRecords);
+        }
 
         string_map attrMap;
         attrMap[b64key] = b64value; // User::mergeUserAttribute() expects B64 values
-        if (!User::mergeUserAttribute(attrtype, attrMap, *tlv.get()))
+        if (!User::mergeUserAttribute(attrtype, attrMap, destination))
         {
             cout << "Failed to merge with existing values" << endl;
             return;
         }
     }
 
-    // serialize and encrypt the TLV container
-    std::unique_ptr<std::string> container(tlv->tlvRecordsToContainer(client->rng, &client->key));
-    client->putua(attrtype, (byte*)container->data(), unsigned(container->size()));
+    client->putua(attrtype, std::move(destination));
 }
 
 void exec_setdevicename(autocomplete::ACState& s)

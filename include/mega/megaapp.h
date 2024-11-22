@@ -39,7 +39,6 @@ class MegaClient;
 class LocalPath;
 struct BusinessPlan;
 struct CurrencyData;
-struct TLVstore;
 struct AchievementsDetails;
 class Sync;
 struct Product;
@@ -198,7 +197,8 @@ struct MEGA_API MegaApp
     virtual void putua_result(error) { }
     virtual void getua_result(error) { }
     virtual void getua_result(byte*, unsigned, attr_t) { }
-    virtual void getua_result(TLVstore *, attr_t) { }
+
+    virtual void getua_result(unique_ptr<string_map>, attr_t) {}
 #ifdef DEBUG
     virtual void delua_result(error) { }
 

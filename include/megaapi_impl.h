@@ -4571,7 +4571,7 @@ public:
         void getUserAttr(const std::string& email, attr_t type, const char* ph, MegaRequestPrivate* request);
         void getua_completion(error, MegaRequestPrivate* request);
         void getua_completion(byte*, unsigned, attr_t, MegaRequestPrivate* request);
-        void getua_completion(TLVstore *, attr_t, MegaRequestPrivate* request);
+        void getua_completion(unique_ptr<string_map>, attr_t, MegaRequestPrivate* request);
         static char *getAvatarColor(handle userhandle);
         static char *getAvatarSecondaryColor(handle userhandle);
         bool isGlobalNotifiable(MegaPushNotificationSettingsPrivate* pushSettings);

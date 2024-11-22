@@ -24,6 +24,7 @@
 #include "mega/base64.h"
 #include "mega/logging.h"
 #include "mega/megaclient.h"
+#include "mega/tlv.h"
 #include "mega/user_attribute_manager.h"
 
 namespace mega {
@@ -50,19 +51,18 @@ User::User(const char* cemail):
 // definition.
 User::~User() = default;
 
-bool User::mergeUserAttribute(attr_t type, const string_map &newValuesMap, TLVstore &tlv)
+bool User::mergeUserAttribute(attr_t type, const string_map& newValuesMap, string_map& destination)
 {
     bool modified = false;
 
     for (const auto &it : newValuesMap)
     {
-        const char *key = it.first.c_str();
-        string newValue = it.second;
+        const string& key = it.first;
+        const string& newValue = it.second;
         string currentValue;
-        string buffer;
-        if (tlv.get(key, buffer) && !buffer.empty())  // the key may not exist in the current user attribute
+        if (auto itD = destination.find(key); itD != destination.end() && !itD->second.empty())
         {
-            Base64::btoa(buffer, currentValue);
+            Base64::btoa(itD->second, currentValue);
         }
         if (newValue != currentValue)
         {
@@ -72,11 +72,11 @@ bool User::mergeUserAttribute(attr_t type, const string_map &newValuesMap, TLVst
                  || type == ATTR_APPS_PREFS) && newValue[0] == '\0')
             {
                 // alias/deviceName/appPrefs being removed
-                tlv.reset(key);
+                destination.erase(key);
             }
             else
             {
-                tlv.set(key, Base64::atob(newValue));
+                destination[key] = Base64::atob(newValue);
             }
             modified = true;
         }
@@ -232,12 +232,12 @@ User* User::unserialize(MegaClient* client, string* d)
             const UserAttribute* attribute = u->getAttribute(ATTR_KEYRING);
             if (attribute && attribute->isValid())
             {
-                unique_ptr<TLVstore> tlvRecords(
-                    TLVstore::containerToTLVrecords(&attribute->value(), &client->key));
-                if (tlvRecords)
+                unique_ptr<string_map> records{
+                    tlv::containerToRecords(attribute->value(), client->key)};
+                if (records)
                 {
-                    tlvRecords->get(EdDSA::TLV_KEY, prEd255);
-                    tlvRecords->get(ECDH::TLV_KEY, prCu255);
+                    prEd255.swap((*records)[EdDSA::TLV_KEY]);
+                    prCu255.swap((*records)[ECDH::TLV_KEY]);
                 }
                 else
                 {
@@ -864,14 +864,12 @@ string User::attributePrefixInTLV(attr_t type, bool modifier)
     return string();
 }
 
-AuthRing::AuthRing(attr_t type, const TLVstore &authring)
-    : mType(type)
+AuthRing::AuthRing(attr_t type, const string_map& authring):
+    mType(type)
 {
-    string authType = "";
-    string authValue;
-    if (authring.get(authType, authValue))
+    if (auto it = authring.find(""); it != authring.end())
     {
-        if (!deserialize(authValue))
+        if (!deserialize(it->second))
         {
             LOG_warn << "Excess data while deserializing Authring (TLV) of type: " << type;
         }
@@ -920,11 +918,10 @@ bool AuthRing::deserialize(const string& authValue)
 std::string* AuthRing::serialize(PrnGen &rng, SymmCipher &key) const
 {
     string buf = serializeForJS();
-
-    TLVstore tlv;
-    tlv.set("", buf);
-
-    return tlv.tlvRecordsToContainer(rng, &key);
+    string_map records{
+        {{}, std::move(buf)}
+    };
+    return tlv::recordsToContainer(std::move(records), rng, key).release();
 }
 
 string AuthRing::serializeForJS() const
