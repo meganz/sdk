@@ -338,6 +338,21 @@ class ReleaseProcess:
         assert self._jira is not None
         self._jira.setup_release(self._version_v_prefixed)
 
+    def get_release_type_to_close(self, public_branch: str):
+        assert self._jira is not None, "Init Jira connection first"
+        mr_id, _ = self._remote_private_repo._get_open_mr(
+            self._get_mr_title_for_release(),
+            self.get_new_release_branch(),
+            public_branch,
+        )
+        if mr_id == 0:
+            return "hotfix"
+
+        if self._jira.earlier_versions_are_closed():
+            return "new_release"
+
+        return "old_release"
+
     def confirm_all_earlier_versions_are_closed(self):
         # This could be implemented in multiple ways.
         # Relying on Jira looked fine as it's the last update done when closing a Release.
@@ -410,6 +425,22 @@ class ReleaseProcess:
         self._local_repo.push_branch(  # "vX.Y.Z" tag
             public_remote_name, self._version_v_prefixed
         )
+
+    # STEP 4 (close): local git: Push release branch (release/vX.Y.Z) to public remote (github)
+    def push_release_branch_to_public_repo(
+        self, private_remote_name: str, public_remote_name: str
+    ):
+        release_branch = self.get_new_release_branch()
+
+        # get hotfix branch locally, with latest changes
+        self._get_branch_locally(private_remote_name, release_branch)
+
+        # push stuff to public repo
+        assert self._local_repo is not None
+        self._local_repo.push_branch(public_remote_name, release_branch)
+        self._local_repo.push_branch(
+            public_remote_name, self._version_v_prefixed
+        )  # "vX.Y.Z" tag
 
     # STEP 5 (close): GitHub: Create release in public repo from new tag
     def create_release_in_public_repo(self, version: str):

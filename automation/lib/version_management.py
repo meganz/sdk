@@ -203,22 +203,30 @@ class JiraProject:
         all_versions = self._jira.project_versions(self._project_key)
         for v in all_versions:
             assert isinstance(v, Version)
+
             if (
-                not v.archived
-                and not v.released
-                and v.name != self._version.name
-                and re.match(r"^v(\d)+\.(\d+)\.(\d+)$", v.name)
+                v.archived
+                or v.released
+                or v.name == self._version.name
+                or v.name == self._NEXT_RELEASE
             ):
-                old_major, old_minor, old_micro = (
-                    int(n) for n in v.name[1:].split(".")
-                )
-                assert new_major < old_major or (
-                    new_major == old_major
-                    and (
-                        new_minor < old_minor
-                        or (new_minor == old_minor and new_micro < old_micro)
-                    )
-                ), f"Release {v.name} must be closed before continuing"
+                continue
+
+            match = re.match(r"^v(\d+)\.(\d+)\.(\d+)$", v.name)
+            if not match:
+                raise ValueError(f"Unexpected version format: {v.name}")
+            old_major, old_minor, old_micro = map(int, match.groups())
+            if (
+                new_major,
+                new_minor,
+                new_micro,
+            ) < (
+                old_major,
+                old_minor,
+                old_micro,
+            ):
+                return False
+        return True
 
     def get_next_version(self) -> tuple[int, int, int]:
         highest_existing_version = self._get_highest_existing_version()

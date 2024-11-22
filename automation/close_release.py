@@ -46,6 +46,7 @@ release.setup_project_management(
     os.environ["JIRA_PASSWORD"],
 )
 release.set_release_version_to_close(args["release_version"])
+type_of_release = release.get_release_type_to_close(args["public_branch"])
 
 release.setup_local_repo(
     args["private_remote_name"],
@@ -70,15 +71,20 @@ release.create_release_tag()
 # STEP 2: GitLab: Create release "Version X.Y.Z" from tag "vX.Y.Z" plus release notes
 release.create_release_in_private_repo()
 
-# STEP 3: GitLab, Slack: Merge version upgrade MR into public branch (master)
-release.merge_release_changes_into_public_branch(args["public_branch"])
+if type_of_release == "new_release":
+    # STEP 3: GitLab, Slack: Merge version upgrade MR into public branch (master)
+    release.merge_release_changes_into_public_branch(args["public_branch"])
 
-# STEP 4: local git: Push public branch (master) to public remote (github)
-release.push_to_public_repo(
-    args["private_remote_name"],
-    args["public_branch"],
-    args["public_remote_name"],
-)
+    # STEP 4: local git: Push public branch (master) to public remote (github)
+    release.push_to_public_repo(
+        args["private_remote_name"],
+        args["public_branch"],
+        args["public_remote_name"],
+    )
+
+elif type_of_release == "hotfix" or type_of_release == "old_release":
+    # STEP 4: local git: Push release branch (release/vX.Y.Z) to public remote (github)
+    release.push_release_branch_to_public_repo()
 
 # STEP 5: GitHub: Create release in public repo from new tag
 release.create_release_in_public_repo(args["release_version"])
