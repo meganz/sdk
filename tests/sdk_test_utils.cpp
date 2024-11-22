@@ -186,4 +186,22 @@ std::string getNodeName(const NodeInfo& node)
         },
         node);
 }
+
+std::vector<std::string>
+    getLocalFirstChildrenNames_if(const std::filesystem::path& localPath,
+                                  std::function<bool(const std::string&)> filter)
+{
+    if (!std::filesystem::is_directory(localPath))
+        return {};
+    std::vector<std::string> result;
+    const auto pushName = [&result, &filter](const std::filesystem::path& path)
+    {
+        const auto name = path.filename().string();
+        if (!filter || filter(name))
+            result.emplace_back(std::move(name));
+    };
+    std::filesystem::directory_iterator children{localPath};
+    std::for_each(begin(children), end(children), pushName);
+    return result;
+}
 }
