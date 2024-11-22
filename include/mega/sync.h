@@ -500,8 +500,20 @@ public:
     // process all outstanding filesystem notifications (mark sections of the sync tree to visit)
     dstime procscanq();
 
-    // helper for checking moves etc
-    bool checkIfFileIsChanging(FSNode& fsNode, const LocalPath& fullPath);
+    /**
+     * @brief This function returns a value to be checked in order to prevent moving/uploading files
+     * that may still being updated
+     *
+     * @note In case you call this method for the first time for a given path it will be
+     * unitialized, so it will return nullopt. In that case this function needs to be called again
+     * in the future.
+     *
+     * @param fsNode a reference to `FsNode` that represents the file you want to check
+     * @param fullPath The absolute local path of the file that need to be checked
+     * @return nullopt in case cache for this localPath is unitialized, `true` in case localPath is
+     * still changing or changed too recently. `False` otherwise
+     */
+    std::optional<bool> checkIfFileIsChanging(const FSNode& fsNode, const LocalPath& fullPath);
 
     // look up LocalNode relative to localroot
     LocalNode* localnodebypath(LocalNode*, const LocalPath&, LocalNode** parent, LocalPath* outpath, bool fromOutsideThreadAlreadyLocked);
@@ -1883,6 +1895,11 @@ private:
         m_off_t updatedfilesize = ~0;
         m_time_t updatedfilets = 0;
         m_time_t updatedfileinitialts = 0;
+
+        bool isInitialized() const
+        {
+            return updatedfilesize != ~0 || updatedfilets != 0 || updatedfileinitialts != 0;
+        }
     };
     std::map<LocalPath, FileChangingState> mFileChangingCheckState;
 
