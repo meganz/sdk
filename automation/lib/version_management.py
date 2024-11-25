@@ -206,7 +206,7 @@ class JiraProject:
 
             if (
                 v.archived
-                or v.released
+                or not v.released
                 or v.name == self._version.name
                 or v.name == self._NEXT_RELEASE
             ):
@@ -214,7 +214,7 @@ class JiraProject:
 
             match = re.match(r"^v(\d+)\.(\d+)\.(\d+)$", v.name)
             if not match:
-                raise ValueError(f"Unexpected version format: {v.name}")
+                continue
             old_major, old_minor, old_micro = map(int, match.groups())
             if (
                 new_major,
