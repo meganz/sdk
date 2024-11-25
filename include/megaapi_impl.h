@@ -993,7 +993,7 @@ private:
 class MegaSharePrivate : public MegaShare
 {
 	public:
-        static MegaShare *fromShare(MegaHandle nodeMegaHandle, Share *share, bool verified);
+        static MegaShare* fromShare(MegaHandle nodeHandle, const Share* share, bool verified);
         MegaShare *copy() override;
         ~MegaSharePrivate() override;
         const char *getUser() override;
@@ -1004,13 +1004,13 @@ class MegaSharePrivate : public MegaShare
         bool isVerified() override;
 
 	protected:
-        MegaSharePrivate(MegaHandle nodehandle, Share *share, bool verified);
-		MegaSharePrivate(MegaShare *share);
+        MegaSharePrivate(MegaHandle nodeHandle, const Share* share, bool verified);
+        MegaSharePrivate(MegaShare* share);
 
-		MegaHandle nodehandle;
-		const char *user;
-		int access;
-		int64_t ts;
+        MegaHandle nodehandle;
+        const char* user;
+        int access;
+        int64_t ts;
         bool pending;
         bool mVerified;
 };
@@ -2480,7 +2480,10 @@ class MegaShareListPrivate : public MegaShareList
 {
 	public:
         MegaShareListPrivate();
-        MegaShareListPrivate(Share** newlist, MegaHandle *MegaHandlelist, byte *verified, int size);
+        MegaShareListPrivate(const Share* const* newlist,
+                             const MegaHandle* nodeHandleList,
+                             const byte* verified,
+                             int size);
         ~MegaShareListPrivate() override;
         MegaShare* get(int i) override;
         int size() override;

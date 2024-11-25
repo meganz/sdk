@@ -2854,9 +2854,9 @@ MegaShare *MegaSharePrivate::copy()
     return new MegaSharePrivate(this);
 }
 
-MegaSharePrivate::MegaSharePrivate(uint64_t handle, Share *share, bool verified)
+MegaSharePrivate::MegaSharePrivate(MegaHandle nodeHandle, const Share* share, bool verified)
 {
-    this->nodehandle = handle;
+    this->nodehandle = nodeHandle;
     this->user = share->user ? MegaApi::strdup(share->user->email.c_str()) : NULL;
     if ((!user || !*user) && share->pcr)
     {
@@ -2869,9 +2869,9 @@ MegaSharePrivate::MegaSharePrivate(uint64_t handle, Share *share, bool verified)
     this->mVerified = verified;
 }
 
-MegaShare *MegaSharePrivate::fromShare(uint64_t nodeuint64_t, Share *share, bool verified)
+MegaShare* MegaSharePrivate::fromShare(MegaHandle nodeHandle, const Share* share, bool verified)
 {
-    return new MegaSharePrivate(nodeuint64_t, share, verified);
+    return new MegaSharePrivate(nodeHandle, share, verified);
 }
 
 MegaSharePrivate::~MegaSharePrivate()
@@ -5853,7 +5853,10 @@ MegaShareListPrivate::MegaShareListPrivate()
     s = 0;
 }
 
-MegaShareListPrivate::MegaShareListPrivate(Share** newlist, uint64_t *uint64_tlist, byte *verified, int size)
+MegaShareListPrivate::MegaShareListPrivate(const Share* const* newlist,
+                                           const MegaHandle* nodeHandleList,
+                                           const byte* verified,
+                                           int size)
 {
     list = NULL; s = size;
     if(!size) return;
@@ -5861,7 +5864,7 @@ MegaShareListPrivate::MegaShareListPrivate(Share** newlist, uint64_t *uint64_tli
     list = new MegaShare*[size];
     for(int i=0; i<size; i++)
     {
-        list[i] = MegaSharePrivate::fromShare(uint64_tlist[i], newlist[i], verified[i] > 0);
+        list[i] = MegaSharePrivate::fromShare(nodeHandleList[i], newlist[i], verified[i] > 0);
     }
 }
 
