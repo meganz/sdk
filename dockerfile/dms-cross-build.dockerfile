@@ -11,7 +11,7 @@
 #     -v : Mounts a local directory into the container, replace /path/to/your/sdk and /path/to/your/vcpkg with your local paths
 #     -it : Starts an interactive terminal session inside the container after the cmake project is configured and build
 #
-#     Possible architechtures are: [alpine alpine4k apollolake armada37xx armada38x avoton broadwell broadwellnk broadwellnkv2 broadwellntbap bromolow braswell denverton epyc7002 geminilake grantley kvmcloud kvmx64 monaco purley r1000 rtd1296 rtd1619b v1000]
+#     Possible architechtures are: [alpine alpine4k apollolake armada37xx armada38x avoton broadwell broadwellnk broadwellnkv2 broadwellntbap bromolow braswell denverton epyc7002 geminilake grantley kvmx64 monaco purley r1000 rtd1296 rtd1619b v1000]
 
 # Base image
 FROM ubuntu:22.04
