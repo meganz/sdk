@@ -99,7 +99,7 @@ public:
      */
     std::vector<std::string> getLocalFirstChildrenNames() const
     {
-        return getLocalFirstChildrenNames_if(getLocalTmpDir(),
+        return getLocalFirstChildrenNames_if(getLocalSyncRoot().value_or(getLocalTmpDir()),
                                              [](const std::string& name)
                                              {
                                                  return name.front() != '.' && name != DEBRISFOLDER;
@@ -134,6 +134,18 @@ public:
     }
 
     /**
+     * @brief Returns the current path the sync is using as root. If there is no sync, nullopt is
+     * returned
+     */
+    std::optional<std::filesystem::path> getLocalSyncRoot() const
+    {
+        const auto sync = getSync();
+        if (!sync)
+            return {};
+        return sync->getLocalFolder();
+    }
+
+    /**
      * @brief Where should we put our sync locally?
      */
     static const fs::path& getLocalTmpDir()
@@ -142,6 +154,101 @@ public:
         thread_local const fs::path localTmpDir{"./SDK_TEST_SYNC_LOCAL_ROOT_CHANGE_AUX_LOCAL_DIR_" +
                                                 getThisThreadIdStr()};
         return localTmpDir;
+    }
+
+    /**
+     * @brief Removes the node located at the give relative path
+     */
+    void removeRemoteNode(const std::string& path)
+    {
+        const auto node = getNodeByPath(path);
+        ASSERT_EQ(API_OK, doDeleteNode(0, node.get()));
+    }
+
+    /**
+     * @brief Changes the local root of the sync and expects the operation to success.
+     */
+    void changeLocalSyncRootNoErrors(const std::filesystem::path& newRootPath) const
+    {
+        NiceMock<MockRequestListener> mockListener;
+        mockListener.setErrorExpectations(API_OK);
+        const auto rootPath = newRootPath.u8string();
+        megaApi[0]->changeSyncLocalRoot(getBackupId(), rootPath.c_str(), &mockListener);
+        EXPECT_TRUE(mockListener.waitForFinishOrTimeout(MAX_TIMEOUT));
+    }
+
+    /**
+     * @brief Sets up three files inside the given directory. These are:
+     * - testCommonFile: An exact copy of the file created originally in the cloud
+     * - testFile: A file with the same name as the one in the cloud originally but different
+     *   contents (2 bytes of data)
+     * - testFile2: Complete new file
+     */
+    void prepareSimilarRoot(const std::filesystem::path& newRootPath) const
+    {
+        const auto currentRoot = getLocalSyncRoot();
+        ASSERT_TRUE(currentRoot);
+        ASSERT_THAT(getLocalFirstChildrenNames(),
+                    IsSupersetOf({"testCommonFile", "testFile", "testFile1"}));
+        // Exact copy (including the mtime)
+        const auto source = *currentRoot / "testCommonFile";
+        const auto destination = newRootPath / "testCommonFile";
+        std::filesystem::copy(source,
+                              destination,
+                              std::filesystem::copy_options::overwrite_existing);
+        const auto mod_time = fs::last_write_time(source);
+        fs::last_write_time(destination, mod_time);
+
+        // Empty different file
+        std::ofstream test2(newRootPath / "testFile2", std::ios::binary);
+
+        // Same name different content
+        std::ofstream test(newRootPath / "testFile", std::ios::binary);
+        std::vector<char> buffer(2, 0);
+        test.write(buffer.data(), static_cast<std::streamsize>(buffer.size()));
+    }
+
+    /**
+     * @brief Check that the current local root of the sync has the contents specified by the
+     * prepareSimilarRoot method
+     */
+    void checkCurrentLocalMatchesSimilar() const
+    {
+        const auto currentRoot = getLocalSyncRoot();
+        ASSERT_TRUE(currentRoot);
+        ASSERT_THAT(getLocalFirstChildrenNames(),
+                    UnorderedElementsAre("testCommonFile", "testFile2", "testFile"));
+        ASSERT_EQ(std::filesystem::file_size(*currentRoot / "testFile"), 2);
+    }
+
+    /**
+     * @brief Ensures the current local root of the sync matches the state expected after mirroring
+     * original contests + the ones specified by prepareSimilarRoot. This includes a stall issue
+     * with "testFile"
+     */
+    void checkCurrentLocalMatchesMirror() const
+    {
+        ASSERT_THAT(getLocalFirstChildrenNames(),
+                    UnorderedElementsAre("testFile", "testCommonFile", "testFile1", "testFile2"));
+        ASSERT_NO_FATAL_FAILURE(thereIsAStall("testFile"));
+    }
+
+    /**
+     * @brief Ensures there is a stall issue involving the file with the given name.
+     *
+     * The expected reason for the stall is: LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose
+     */
+    void thereIsAStall(const std::string_view fileName) const
+    {
+        const auto stalls = sdk_test::getStalls(megaApi[0].get());
+        ASSERT_EQ(stalls.size(), 1);
+        ASSERT_TRUE(stalls[0]);
+        const auto& stall = *stalls[0];
+        EXPECT_THAT(stall.path(false, 0), EndsWith(fileName));
+        EXPECT_THAT(
+            stall.reason(),
+            MegaSyncStall::SyncStallReason::LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose);
+        ASSERT_FALSE(HasNonfatalFailure());
     }
 
 private:
@@ -252,4 +359,165 @@ TEST_F(SdkTestSyncLocalRootChange, ErrorNestedSyncs)
     }
 }
 
+/**
+ * @brief SdkTestSyncLocalRootChange.OKSyncRunningToEmptyRoot: Change the root of a running sync to
+ * an empty directory. Ensure the new .debris is properly created.
+ */
+TEST_F(SdkTestSyncLocalRootChange, OKSyncRunningToEmptyRoot)
+{
+    static const std::string logPre{"SdkTestSyncLocalRootChange.OKSyncRunningToEmptyRoot : "};
+
+    ASSERT_EQ(getSyncRunState(), std::optional{MegaSync::RUNSTATE_RUNNING});
+
+    LOG_verbose << logPre << "Moving local root to an empty new root";
+    const LocalTempDir tmpDir{"./auxTmpDirOKSyncRunningToEmptyRoot/"};
+    ASSERT_NO_FATAL_FAILURE(changeLocalSyncRootNoErrors(tmpDir.getPath()));
+    ASSERT_EQ(getSyncRunState(), std::optional{MegaSync::RUNSTATE_RUNNING});
+
+    LOG_verbose << logPre << "Waiting for local to match cloud";
+    ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocal());
+
+    LOG_verbose << logPre << "Validating expectations: Empty dir (local has preference)";
+    EXPECT_THAT(getLocalFirstChildrenNames_if(tmpDir.getPath()),
+                testing::UnorderedElementsAre(".megaignore"));
+
+    // Create a file and remove it in the cloud to force debris creation
+    LOG_verbose << logPre << "Creating new file and removing from cloud to force .debris";
+    const std::string testFileName{"testTempFile.txt"};
+    LocalTempFile f{tmpDir.getPath() / testFileName, 0};
+    ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocal());
+    removeRemoteNode("dir1/" + testFileName);
+    ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocal());
+
+    LOG_verbose << logPre << "Validating expectations: Empty + .debris";
+    EXPECT_THAT(getLocalFirstChildrenNames_if(tmpDir.getPath()),
+                testing::UnorderedElementsAre(".megaignore", DEBRISFOLDER));
+}
+
+/**
+ * @brief SdkTestSyncLocalRootChange.OKSyncRunningPauseAndResume: Change the root of a running sync
+ * and ensure everything works as expected after pausing and resuming.
+ */
+TEST_F(SdkTestSyncLocalRootChange, OKSyncRunningPauseAndResume)
+{
+    static const std::string logPre{"SdkTestSyncLocalRootChange.OKSyncRunningPauseAndResume : "};
+
+    LOG_verbose << logPre << "Moving local root to an empty new root";
+    const LocalTempDir tmpDir{"./auxTmpDirOKSyncRunningToEmptyRoot/"};
+    ASSERT_NO_FATAL_FAILURE(changeLocalSyncRootNoErrors(tmpDir.getPath()));
+
+    ASSERT_EQ(getSyncRunState(), std::optional{MegaSync::RUNSTATE_RUNNING});
+
+    LOG_verbose << logPre << "Suspending the sync";
+    ASSERT_TRUE(sdk_test::suspendSync(megaApi[0].get(), getBackupId()))
+        << "Error suspending the sync";
+    ASSERT_EQ(getSyncRunState(), std::optional{MegaSync::RUNSTATE_SUSPENDED});
+
+    LOG_verbose << logPre << "Creating a new file locally";
+    const std::string testFileName{"testTempFile.txt"};
+    LocalTempFile f{tmpDir.getPath() / testFileName, 0};
+
+    LOG_verbose << logPre << "Resuming the sync";
+    ASSERT_TRUE(sdk_test::resumeSync(megaApi[0].get(), getBackupId())) << "Error resuming the sync";
+    ASSERT_EQ(getSyncRunState(), std::optional{MegaSync::RUNSTATE_RUNNING});
+
+    LOG_verbose << logPre << "Checking the new file uploads";
+    ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocal());
+    EXPECT_THAT(getLocalFirstChildrenNames_if(tmpDir.getPath()),
+                testing::UnorderedElementsAre(".megaignore", testFileName));
+}
+
+/**
+ * @brief SdkTestSyncLocalRootChange.OKSyncRunningToSimilarRoot: Change the root of a running sync
+ * to a directory that contains different files:
+ * - One exactly the same as in the previous root
+ * - One different
+ * - One with same name and different contents
+ * - It misses one that was in previous root
+ *
+ * The final state prioritize local new root
+ *
+ */
+TEST_F(SdkTestSyncLocalRootChange, OKSyncRunningToSimilarRoot)
+{
+    static const std::string logPre{"SdkTestSyncLocalRootChange.OKSyncRunningToSimilarRoot : "};
+
+    LOG_verbose << logPre << "Preparing new root with similar contents";
+    const LocalTempDir tmpDir{"./auxTmpOKSyncRunningToSimilarRoot/"};
+    prepareSimilarRoot(tmpDir.getPath());
+
+    LOG_verbose << logPre << "Changing the root";
+    ASSERT_NO_FATAL_FAILURE(changeLocalSyncRootNoErrors(tmpDir.getPath()));
+    ASSERT_EQ(getSyncRunState(), std::optional{MegaSync::RUNSTATE_RUNNING});
+    ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocal());
+
+    LOG_verbose << logPre << "Validating expectations";
+    ASSERT_NO_FATAL_FAILURE(checkCurrentLocalMatchesSimilar());
+}
+
+/**
+ * @brief SdkTestSyncLocalRootChange.OKSyncSuspendedToSimilarRoot: Same as
+ * OKSyncRunningToSimilarRoot but changing the root while the sync is suspended, then it is resumed
+ * and wait to validate expectations.
+ */
+TEST_F(SdkTestSyncLocalRootChange, OKSyncSuspendedToSimilarRoot)
+{
+    static const std::string logPre{"SdkTestSyncLocalRootChange.OKSyncSuspendedToSimilarRoot : "};
+
+    LOG_verbose << logPre << "Preparing new root with similar contents";
+    const LocalTempDir tmpDir{"./auxTmpOKSyncSuspendedToSimilarRoot/"};
+    prepareSimilarRoot(tmpDir.getPath());
+
+    LOG_verbose << logPre << "Suspending the sync";
+    ASSERT_TRUE(sdk_test::suspendSync(megaApi[0].get(), getBackupId()))
+        << "Error suspending the sync";
+    ASSERT_EQ(getSyncRunState(), std::optional{MegaSync::RUNSTATE_SUSPENDED});
+
+    LOG_verbose << logPre << "Changing the root";
+    ASSERT_NO_FATAL_FAILURE(changeLocalSyncRootNoErrors(tmpDir.getPath()));
+    ASSERT_EQ(getSyncRunState(), std::optional{MegaSync::RUNSTATE_SUSPENDED});
+
+    LOG_verbose << logPre << "Resuming the sync";
+    ASSERT_TRUE(sdk_test::resumeSync(megaApi[0].get(), getBackupId())) << "Error resuming the sync";
+    ASSERT_EQ(getSyncRunState(), std::optional{MegaSync::RUNSTATE_RUNNING});
+
+    ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocal());
+
+    LOG_verbose << logPre << "Validating expectations";
+    ASSERT_NO_FATAL_FAILURE(checkCurrentLocalMatchesSimilar());
+}
+
+/**
+ * @brief SdkTestSyncLocalRootChange.OKSyncDisabledToSimilarRoot: Same as
+ * OKSyncRunningToSimilarRoot but changing the root while the sync is disabled, then it is enabled
+ * and wait to validate expectations.
+ *
+ * NOTE: In this case, the final state must be a mirror between cloud and local.
+ */
+TEST_F(SdkTestSyncLocalRootChange, OKSyncDisabledToSimilarRoot)
+{
+    static const std::string logPre{"SdkTestSyncLocalRootChange.OKSyncDisabledToSimilarRoot : "};
+
+    LOG_verbose << logPre << "Preparing new root with similar contents";
+    const LocalTempDir tmpDir{"./auxTmpOKSyncDisabledToSimilarRoot/"};
+    prepareSimilarRoot(tmpDir.getPath());
+
+    LOG_verbose << logPre << "Disable the sync";
+    ASSERT_TRUE(sdk_test::disableSync(megaApi[0].get(), getBackupId()))
+        << "Error suspending the sync";
+    ASSERT_EQ(getSyncRunState(), std::optional{MegaSync::RUNSTATE_DISABLED});
+
+    LOG_verbose << logPre << "Changing the root";
+    ASSERT_NO_FATAL_FAILURE(changeLocalSyncRootNoErrors(tmpDir.getPath()));
+    ASSERT_EQ(getSyncRunState(), std::optional{MegaSync::RUNSTATE_DISABLED});
+
+    LOG_verbose << logPre << "Resuming the sync";
+    ASSERT_TRUE(sdk_test::resumeSync(megaApi[0].get(), getBackupId())) << "Error resuming the sync";
+    ASSERT_EQ(getSyncRunState(), std::optional{MegaSync::RUNSTATE_RUNNING});
+
+    ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocal());
+
+    LOG_verbose << logPre << "Validating expectations";
+    ASSERT_NO_FATAL_FAILURE(checkCurrentLocalMatchesMirror());
+}
 #endif // ENABLE_SYNC
