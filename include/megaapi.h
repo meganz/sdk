@@ -17519,7 +17519,6 @@ class MegaApi
          * - MegaError::API_OK:
          *     + SyncError::NO_SYNC_ERROR the new root has been changed successfully
          * - MegaError::API_EARGS:
-         *     + SyncError::NO_SYNC_ERROR the given path is not absolute
          *     + SyncError::LOCAL_PATH_UNAVAILABLE the given path is nullptr or is empty
          *     + SyncError::UNKNOWN_ERROR The given backupId does not match any of the registered
          *       syncs
@@ -17547,8 +17546,7 @@ class MegaApi
          *     + SyncError::INVALID_LOCAL_TYPE the given path is not a directory
          *
          * @param syncBackupId The handle (backup ID) of the sync whose local root is to be changed.
-         * @param newLocalSyncRootPath The new local path to set as the sync root. It must be an
-         * absolute path.
+         * @param newLocalSyncRootPath The new local path to set as the sync root.
          * @param listener A MegaRequestListener to track this request. This parameter is optional.
          */
         void changeSyncLocalRoot(const MegaHandle syncBackupId,

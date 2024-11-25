@@ -77,6 +77,11 @@ public:
     LocalTempDir(LocalTempDir&&) noexcept = default;
     LocalTempDir& operator=(LocalTempDir&&) noexcept = default;
 
+    const fs::path& getPath() const
+    {
+        return mDirPath;
+    }
+
 private:
     fs::path mDirPath;
 };
