@@ -91,7 +91,7 @@ pipeline {
                         values 'alpine', 'alpine4k', 'apollolake', 'armada37xx', 'armada38x',
                                'avoton','braswell', 'broadwell', 'broadwellnk', 'broadwellnkv2',
                                'broadwellntbap', 'bromolow', 'denverton', 'epyc7002',
-                               'geminilake', 'grantley', 'kvmcloud', 'kvmx64', 'monaco',
+                               'geminilake', 'grantley', 'kvmx64', 'monaco',
                                'purley', 'r1000', 'rtd1296', 'rtd1619b', 'v1000'
                     }
                 }
