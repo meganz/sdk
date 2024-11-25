@@ -218,6 +218,26 @@ struct MEGA_API CurrencyData
     std::string localCurrencyName;      // ie. NZD
 };
 
+struct MEGA_API Product
+{
+    unsigned int planType = ~(unsigned)0;
+    handle productHandle = UNDEF;
+    unsigned int proLevel = 0;
+    int gbStorage = -1;
+    int gbTransfer = -1;
+    unsigned int months = 0;
+    unsigned int amount = 0;
+    unsigned int amountMonth = 0;
+    unsigned int localPrice = 0;
+    std::string description;
+    std::map<std::string, uint32_t> features;
+    std::string iosid;
+    std::string androidid;
+    unsigned int testCategory = 0;
+    std::shared_ptr<BusinessPlan> businessPlan;
+    unsigned int trialDays = 0;
+};
+
 } // namespace
 
 #endif

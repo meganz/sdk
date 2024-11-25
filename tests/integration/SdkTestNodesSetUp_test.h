@@ -137,7 +137,8 @@ protected:
         // Label
         if (nodeInfo.label)
         {
-            ASSERT_EQ(API_OK, synchronousSetNodeLabel(0, node.get(), *nodeInfo.label))
+            ASSERT_EQ(API_OK,
+                      synchronousSetNodeLabel(0, node.get(), static_cast<int>(*nodeInfo.label)))
                 << "Error setting label";
         }
         else

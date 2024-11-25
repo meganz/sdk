@@ -3236,6 +3236,13 @@ using namespace mega;
     return self.megaApi->isSensitiveInherited(node.getCPtr);
 }
 
+- (nullable NSArray<NSString *> *)nodeTagsForSearchString:(nullable NSString *)searchString cancelToken:(MEGACancelToken *)cancelToken {
+    if (self.megaApi == nil) return nil;
+    MegaStringList *result = self.megaApi->getAllNodeTags(searchString.UTF8String, cancelToken.getCPtr);
+    MEGAStringList *tagsStringList = [MEGAStringList.alloc initWithMegaStringList:result cMemoryOwn:YES];
+    return tagsStringList.toStringArray;
+}
+
 - (MEGAError *)checkMoveErrorExtendedForNode:(MEGANode *)node target:(MEGANode *)target {
     if (self.megaApi == nil) return nil;
     return [[MEGAError alloc] initWithMegaError:self.megaApi->checkMoveErrorExtended(node.getCPtr, target.getCPtr) cMemoryOwn:YES];
@@ -4053,6 +4060,20 @@ using namespace mega;
 - (void)queryAds:(AdsFlag)adFlags publicHandle:(MEGAHandle)publicHandle delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->queryAds((int)adFlags, publicHandle, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
+- (void)enableRequestStatusMonitor:(BOOL)enable {
+    if (self.megaApi) {
+        self.megaApi->enableRequestStatusMonitor(enable);
+    }
+}
+
+- (BOOL)isRequestStatusMonitorEnabled {
+    if (self.megaApi) {
+        return self.megaApi->requestStatusMonitorEnabled();
+    } else {
+        return NO;
     }
 }
 

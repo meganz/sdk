@@ -20,7 +20,7 @@ cmake_minimum_required(VERSION 3.18)
 set(QT_CREATOR_SKIP_VCPKG_SETUP TRUE CACHE BOOL "")
 
 # Main modules location
-list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/modules)
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake/modules)
 
 set(VCPKG_ROOT "" CACHE PATH "If set, it will build and use the VCPKG packages defined in the manifest file")
 
@@ -67,10 +67,10 @@ if(NOT PROJECT_NAME)
     if(VCPKG_ROOT)
         # Include VCPKG management tools.
         include(vcpkg_management)
-        process_vcpkg_libraries(${CMAKE_CURRENT_LIST_DIR}/contrib/cmake)
+        process_vcpkg_libraries(${CMAKE_CURRENT_LIST_DIR}/cmake)
     else()
         # For packages with no pkg-config in the system.
-        list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/modules/packages)
+        list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake/modules/packages)
         message(STATUS "Using system dependencies")
     endif()
 endif()

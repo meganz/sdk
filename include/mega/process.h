@@ -139,7 +139,6 @@ private:
 #endif
 
     bool launched = false;
-    bool redirectStdin = false;
 
     // reads stdout from the sub process
     AutoFileHandle readFd;

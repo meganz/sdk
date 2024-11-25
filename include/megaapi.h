@@ -100,10 +100,12 @@ class MegaFuseInodeCacheFlags;
 class MegaMount;
 class MegaMountFlags;
 class MegaMountList;
+class MegaVpnRegionList;
 class MegaVpnCredentials;
 class MegaNodeTree;
 class MegaCompleteUploadData;
 class MegaNotificationList;
+class MegaCancelSubscriptionReasonList;
 
 #if defined(SWIG)
     #define MEGA_DEPRECATED
@@ -5510,6 +5512,24 @@ class MegaRequest
 #endif // ENABLE_SYNC
 
         /**
+         * @brief Provide all available VPN Regions, including their details.
+         *
+         * The data included for each Region is the following:
+         * - Name (example: NZ, JP, CA-WEST etc.)
+         * - Map of {ClusterID, Cluster}.
+         * - For each Cluster:
+         *    · Host.
+         *    · DNS IP list (as a MegaStringList).
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * @return not-null instance with available VPN Regions, if the relevant request was sent;
+         * nullptr otherwise.
+         */
+        virtual MegaVpnRegionList* getMegaVpnRegionsDetailed() const;
+
+        /**
          * @brief Returns the VPN credentials registered by the user.
          *
          * Important consideration (as indicated on MegaApi::getVpnCredentials):
@@ -5561,6 +5581,8 @@ class MegaRequest
          * @return non-null pointer if a valid MegaApi functionality has been called, null otherwise.
          */
         virtual const MegaNodeTree* getMegaNodeTree() const;
+
+        virtual const MegaCancelSubscriptionReasonList* getMegaCancelSubscriptionReasons() const;
 };
 
 /**
@@ -5935,21 +5957,30 @@ class MegaTransfer
 		virtual int getMaxRetries() const;
 
         /**
-         * @brief Returns the current stage in case this transfer represents a folder upload/download operation.
-         * This method can return the following values:
+         * @brief Returns a numeric value that can be used for different purposes:
+         *
+         * 1) In case MegaTransfer::isRecursive is true, it returns the current stage in case this
+         * transfer represents a folder upload/download operation. Valid values are:
          *  - MegaTransfer::STAGE_SCAN                      = 1
          *  - MegaTransfer::STAGE_CREATE_TREE               = 2
          *  - MegaTransfer::STAGE_TRANSFERRING_FILES        = 3
-         * Any other returned value, must be ignored.
+         * Any other returned value in this scenario, must be ignored.
          *
-         * The value returned by this method, can only be considered as valid, when we receive MegaTransferListener::onTransferUpdate
-         * or MegaListener::onTransferUpdate, and the returned value is in between the range specified above.
+         * In this scenario the value returned by this method, can only be considered as valid, when
+         * we receive MegaTransferListener::onTransferUpdate or MegaListener::onTransferUpdate, and
+         * the returned value is in between the range specified above.
          *
          * Note: any specific stage can only be notified once at most.
-         *
          * @deprecated use the stage in the onFolderTransferUpdate callback instead
          *
-         * @return The current stage for a folder upload/download operation
+         * 2) In case of file transfer, MegaTransfer::getType is MegaTransfer::TYPE_UPLOAD and
+         * MegaTransfer::isSourceFileTemporary is true, This method method returns a number greater
+         * than 0 if temporary file could be removed from local filesystem, otherwise returns 0
+         *
+         * In this scenario the value returned by this method, can only be considered as valid, when
+         * we receive MegaTransferListener::onTransferFinish or MegaListener::onTransferFinish.
+         *
+         * @return A numeric value that can be used for different purposes
          */
         virtual unsigned getStage() const;
 
@@ -7311,14 +7342,23 @@ class MegaSyncStall
         virtual const char* reasonDebugString() const = 0;
 
         /**
-         * To get all paths involved in the stall,
-         * try with index 0, 1, 2 etc.  Usually there
-         * are two maximum.  Empty paths should be
-         * ignored unless there is a corresponding `pathProblem`.
-         * until the function returns NULL.  You can
-         * do this for each of cloudSide: true/false.
+         * Retrieves a specific path involved in a sync stall.
          *
-         * @return path involved in the sync stall
+         * This method returns a string representing a path associated with the sync stall, aiding
+         * in explaining the stall to the user.
+         *
+         * Notes:
+         * - To retrieve all paths involved in the stall, iterate over `index` values starting from
+         *   `0` for both `cloudSide` values (`true` and `false`) until the function returns `NULL`.
+         * - Empty paths (when the method returns `NULL`) should be ignored unless there is a
+         *   corresponding `pathProblem` for that path.
+         * - The maximum number of paths is usually two.
+         *
+         * @param cloudSide true to retrieve the information for the cloud path, `false` for the
+         * local.
+         * @param index The index of the path; valid values are typically `0` or `1`.
+         * @return A pointer to a character string containing the path, or `NULL` if no path is
+         * associated with the specified `cloudSide` and `index`.
          */
         virtual const char* path(bool cloudSide, int index) const = 0;
 
@@ -7336,14 +7376,21 @@ class MegaSyncStall
         virtual unsigned int pathCount(bool cloudSide) const = 0;
 
         /**
-         * use the same technique as for `path` with
-         * cloudSide, index. -1 is returned when there is no entry.
-         * This function returns an enum describing a condition
-         * of the corresponding `path` that will help
-         * explain the stall to the user.
-         * It is possible for there to be a reason but with an empty path.
+         * Retrieves a code representing a problem associated with a specific path involved in a
+         * sync stall.
          *
-         * @return local path involved in the sync stall
+         * This method returns an integer corresponding to a `SyncPathProblem` enum value that
+         * describes a condition of the specified path, helping to explain the stall to the user.
+         *
+         * Notes:
+         * - The `-1` value acts as a sentinel indicating "no problem" or "not applicable."
+         * - Some stall types may always return `-1` if path problems are not relevant for them.
+         *
+         * @param cloudSide true to retrieve the information for the cloud path, `false` for the
+         * local.
+         * @param index The index of the path; valid values are `0` or `1`.
+         * @return An integer corresponding to a `SyncPathProblem` enum value, or `-1` if there is
+         * no problem or the path is does not apply for this stall.
          */
         virtual int pathProblem(bool cloudSide, int index) const = 0;
 
@@ -10371,6 +10418,14 @@ class MegaApi
         {
             IMPORTED_PASSWORD_ERROR_PARSER = 1,
             IMPORTED_PASSWORD_ERROR_MISSINGPASSWORD = 2,
+        };
+
+        enum
+        {
+            TRANSFER_STATS_DOWNLOAD = 0,
+            TRANSFER_STATS_UPLOAD = 1,
+            TRANSFER_STATS_BOTH = 2,
+            TRANSFER_STATS_MAX = TRANSFER_STATS_BOTH,
         };
 
         static constexpr int64_t INVALID_CUSTOM_MOD_TIME = -1;
@@ -14773,7 +14828,8 @@ class MegaApi
          * The associated request type with this request is
          * MegaRequest::TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS
          * @param reason The reason for the cancellation. It can be NULL.
-         * @param id The subscription ID for the cancellation. It can be NULL.
+         * @param id The subscription ID for the cancellation. If null or empty, all subscriptions
+         * will be cancelled.
          * @param canContact Whether the user has permitted MEGA to contact them for the
          * cancellation.
          *      - MegaApi::CREDIT_CARD_CANCEL_SUBSCRIPTIONS_CAN_CONTACT_NO = 0
@@ -14784,6 +14840,26 @@ class MegaApi
                                            const char* id,
                                            int canContact,
                                            MegaRequestListener* listener = NULL);
+
+        /**
+         * @brief Cancel credit card subscriptions of the account
+         *
+         * The associated request type with this request is
+         * MegaRequest::TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS
+         *
+         * @param reasonList List of reasons for the cancellation. It can be null.
+         * @param id The ID of the subscription to be cancelled. If null or empty, all subscriptions
+         * will be cancelled.
+         * @param canContact Whether the user has permitted MEGA to contact them about the
+         * cancellation.
+         *      - MegaApi::CREDIT_CARD_CANCEL_SUBSCRIPTIONS_CAN_CONTACT_NO = 0
+         *      - MegaApi::CREDIT_CARD_CANCEL_SUBSCRIPTIONS_CAN_CONTACT_YES = 1
+         * @param listener MegaRequestListener to track this request
+         */
+        void creditCardCancelSubscriptions(const MegaCancelSubscriptionReasonList* reasonList,
+                                           const char* id,
+                                           int canContact,
+                                           MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Get the available payment methods
@@ -15558,15 +15634,42 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getText - Retuns the comment about the app
          * - MegaRequest::getNumber - Returns the rating for the app
+         * - MegaRequest::getFlag - Returns a flag used to differentiate feedback about transfers
+         * from other types. In this case, it will always be false since we are not sending transfer
+         * feedback.
          *
          * @param rating Integer to rate the app. Valid values: from 1 to 5.
          * @param comment Comment about the app
          * @param listener MegaRequestListener to track this request
-         *
-         * @deprecated This function is for internal usage of MEGA apps. This feedback
-         * is sent to MEGA servers.
          */
         void submitFeedback(int rating, const char *comment, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Submit feedback about transfers
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SUBMIT_FEEDBACK
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getText - Retuns the comment about the app
+         * - MegaRequest::getNumber - Returns the rating for the app
+         * - MegaRequest::getFlag - Returns a flag used to differentiate feedback about transfers
+         * from other types. In this case, it will always be true since we are sending transfer
+         * feedback.
+         * - MegaRequest::getParamType - Returns the type of transfer we want to give feedback
+         * Valid values are:
+         *   + TRANSFER_STATS_DOWNLOAD = 0,
+         *   + TRANSFER_STATS_UPLOAD = 1,
+         *   + TRANSFER_STATS_BOTH = 2,
+         *
+         * @param rating Integer to rate the app. Valid values: from 1 to 5.
+         * @param comment Comment about the app
+         * @param comment transferType type of transfer we want to give feedback. Valid values are:
+         * TRANSFER_STATS_DOWNLOAD (0) and TRANSFER_STATS_UPLOAD (1) TRANSFER_STATS_BOTH (2),
+         * @param listener MegaRequestListener to track this request
+         */
+        void submitFeedbackForTransfers(int rating,
+                                        const char* comment,
+                                        int transferType,
+                                        MegaRequestListener* listener = NULL);
 
         /**
          * @brief Send events to the stats server
@@ -24751,6 +24854,158 @@ public:
 };
 
 /**
+ * @brief Container to store information of a VPN Cluster.
+ *
+ *  - Host
+ *  - DNS: list of IPs
+ *
+ * Instances of this class are immutable.
+ */
+class MegaVpnCluster
+{
+public:
+    /**
+     * @brief Get the host of this VPN Cluster.
+     *
+     * The caller does not take ownership of the returned const char*, which is valid as long as
+     * current instance is valid.
+     *
+     * @return the host of this VPN Cluster, always not-null.
+     */
+    virtual const char* getHost() const = 0;
+
+    /**
+     * @brief Get the list of IPs for current VPN Cluster
+     *
+     * You take the ownership of the returned value
+     *
+     * @return A list containing the IPs for current VPN Cluster, always not-null
+     */
+    virtual MegaStringList* getDns() const = 0;
+
+    virtual ~MegaVpnCluster() = default;
+    virtual MegaVpnCluster* copy() const = 0;
+
+protected:
+    MegaVpnCluster() = default;
+};
+
+/**
+ * @brief Container for MegaVpnCluster-s
+ *
+ * Instances of this class are immutable.
+ */
+class MegaVpnClusterMap
+{
+public:
+    /**
+     * @brief Get the list of keys in current instance
+     *
+     * You take the ownership of the returned value
+     *
+     * @return A list containing the keys in current intance, always not-null
+     */
+    virtual MegaIntegerList* getKeys() const = 0;
+
+    /**
+     * @brief Get the payload for the provided key
+     *
+     * You take the ownership of the returned value
+     *
+     * @param key Key of the element that you want to get from the map
+     *
+     * @return The payload for the provided key, or null if not found
+     */
+    virtual MegaVpnCluster* get(int64_t key) const = 0;
+
+    /**
+     * @brief Get the entry count for the container
+     *
+     * @return Entry count for the container
+     */
+    virtual int64_t size() const = 0;
+
+    virtual ~MegaVpnClusterMap() = default;
+    virtual MegaVpnClusterMap* copy() const = 0;
+
+protected:
+    MegaVpnClusterMap() = default;
+};
+
+/**
+ * @brief Container to store information of a VPN Region.
+ *
+ *  - Name (example: NZ, JP, CA-WEST etc.)
+ *  - Clusters (contain information like host, DNS list, possibly others)
+ *
+ * Instances of this class are immutable.
+ */
+class MegaVpnRegion
+{
+public:
+    /**
+     * @brief Get the name of this VPN Region.
+     *
+     * The caller does not take ownership of the returned value, which is valid as long as current
+     * instance is valid.
+     *
+     * @return the name of this VPN Region, always not-null.
+     */
+    virtual const char* getName() const = 0;
+
+    /**
+     * @brief Get a container with all Clusters of this VPN Region.
+     *
+     * The caller takes ownership of the returned instance.
+     *
+     * @return a container with all Clusters of this VPN Region, always not-null.
+     */
+    virtual MegaVpnClusterMap* getClusters() const = 0;
+
+    virtual MegaVpnRegion* copy() const = 0;
+    virtual ~MegaVpnRegion() = default;
+
+protected:
+    MegaVpnRegion() = default;
+};
+
+/**
+ * @brief List of MegaVpnRegion objects
+ *
+ * Instances of this class are immutable.
+ */
+class MegaVpnRegionList
+{
+public:
+    /**
+     * @brief Get the instance at position i in the list.
+     *
+     * The caller does not take ownership of the returned value, which will be valid until the list
+     * is deleted. If you want to retain a copy of the instance returned by this function, use
+     * MegaVpnRegion::copy().
+     * If the given index was out of range, this function will return null.
+     *
+     * @param i Position of the instance that we want to get from the list
+     *
+     * @return Instance at position i in the list, or null if given index was out of range
+     */
+    virtual const MegaVpnRegion* get(unsigned i) const = 0;
+
+    /**
+     * @brief Get the instance count for the list
+     *
+     * @return Instance count for this list
+     */
+    virtual unsigned size() const = 0;
+
+    virtual MegaVpnRegionList* copy() const = 0;
+    virtual ~MegaVpnRegionList() = default;
+
+protected:
+    MegaVpnRegionList() = default;
+};
+
+/**
  * @brief Container class to store and load Mega VPN credentials data.
  *
  *  - SlotIDs occupied by VPN credentials.
@@ -24785,6 +25040,15 @@ public:
      * @return A pointer to a MegaStringList with the VPN regions.
      */
     virtual MegaStringList* getVpnRegions() const = 0;
+
+    /**
+     * @brief Get the list of the available VPN regions, including the clusters for each region.
+     *
+     * The caller takes the ownership of the returned object.
+     *
+     * @return A pointer to a list of detailed VPN regions.
+     */
+    virtual MegaVpnRegionList* getVpnRegionsDetailed() const = 0;
 
     /**
      * @brief Get the IPv4 associated with the VPN credentials of a SlotID.
@@ -24980,6 +25244,26 @@ public:
      * @return metadata for the second call-to-action, always not-null.
      */
     virtual const MegaStringMap* getCallToAction2() const = 0;
+
+    /**
+     * @brief Get available rendering modes.
+     *
+     * The caller takes ownership of the returned object and is in charge of releasing the memory.
+     *
+     * @return available rendering modes, null if no rendering mode was supported.
+     */
+    virtual MegaStringList* getRenderModes() const = 0;
+
+    /**
+     * @brief Get the fields of the received rendering mode.
+     *
+     * The caller takes ownership of the returned object and is in charge of releasing the memory.
+     *
+     * @param mode Rendering mode for which the fields will be returned
+     *
+     * @return fields of the received rendering mode, null if the mode was not supported.
+     */
+    virtual MegaStringMap* getRenderModeFields(const char* mode) const = 0;
 
     /**
      * @brief Copy the MegaNotification object.
@@ -25506,6 +25790,102 @@ public:
     virtual size_t size() const = 0;
 }; // MegaMountList
 
+/**
+ * @brief Reason chosen from a multiple-choice by a user when canceling a subscription
+ */
+class MegaCancelSubscriptionReason
+{
+public:
+    /**
+     * @brief
+     * Create a new instance.
+     *
+     * @param text
+     * The actual text of the reason.
+     * @param position
+     * The rendered position of the selected reason (for example "1", "1.a", "2" etc.)
+     *
+     * @return
+     * A new instance.
+     */
+    static MegaCancelSubscriptionReason* create(const char* text, const char* position);
+
+    /**
+     * @brief
+     * Get the text of the reason.
+     * The returned value is owned by the current instances.
+     *
+     * @return
+     * The text of the reason.
+     */
+    virtual const char* text() const = 0;
+
+    /**
+     * @brief
+     * Get the rendered position of the selected reason.
+     * The returned value is owned by the current instances.
+     *
+     * @return
+     * The rendered position of the selected reason.
+     */
+    virtual const char* position() const = 0;
+
+    virtual MegaCancelSubscriptionReason* copy() const = 0;
+    virtual ~MegaCancelSubscriptionReason() = default;
+};
+
+/**
+ * @brief List of MegaCancelSubscriptionReason instances
+ *
+ * The list has the ownership of the instances that it contains, so they will be valid until the
+ * list is deleted. If you want to retain a copy of a particular instance, use
+ * MegaCancelSubscriptionReason::copy().
+ */
+class MegaCancelSubscriptionReasonList
+{
+public:
+    /**
+     * @brief
+     * Create a new instance.
+     *
+     * @return
+     * A new instance.
+     */
+    static MegaCancelSubscriptionReasonList* create();
+
+    /**
+     * @brief
+     * Add an element to the list.
+     *
+     * @param reason
+     * The reason to be added to the list.
+     */
+    virtual void add(const MegaCancelSubscriptionReason* reason) = 0;
+
+    /**
+     * @brief
+     * Retrieve an element from the list.
+     *
+     * @param index
+     * The index of the element to retrieve.
+     *
+     * @return
+     * The element at the given index or NULL if index was out of range.
+     */
+    virtual const MegaCancelSubscriptionReason* get(size_t index) const = 0;
+
+    /**
+     * @brief
+     * Query how many elements are in this list.
+     *
+     * @return
+     * The number of elements in this list.
+     */
+    virtual size_t size() const = 0;
+
+    virtual MegaCancelSubscriptionReasonList* copy() const = 0;
+    virtual ~MegaCancelSubscriptionReasonList() = default;
+};
 }
 
 #endif //MEGAAPI_H

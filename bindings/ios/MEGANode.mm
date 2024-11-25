@@ -295,9 +295,7 @@ using namespace mega;
 }
 
 - (MEGAStringList *)tags {
-    if(!self.megaNode) return nil;
-
-    return self.megaNode->getTags() ? [[MEGAStringList alloc] initWithMegaStringList:self.megaNode->getTags() cMemoryOwn:YES] : nil;
+    return self.megaNode ? [[MEGAStringList alloc] initWithMegaStringList:self.megaNode->getTags() cMemoryOwn:YES] : nil;
 }
 
 + (NSString *)stringForNodeLabel:(MEGANodeLabel)nodeLabel {

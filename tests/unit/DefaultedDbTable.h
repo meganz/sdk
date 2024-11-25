@@ -176,15 +176,11 @@ public:
     }
     void abort() override
     {
-        //throw NotImplemented{__func__};
+        // throw NotImplemented{__func__};
     }
     void remove() override
     {
         //throw NotImplemented{__func__};
-    }
-    bool inTransaction() const override
-    {
-        return false;
     }
 };
 

@@ -261,7 +261,7 @@ bool createFile(const fs::path &path, const void *data, const size_t data_length
 
     LOG_verbose << "Creating local data file at " << path.u8string() << ", length " << data_length;
 
-    ostream.write(reinterpret_cast<const char *>(data), data_length);
+    ostream.write(reinterpret_cast<const char*>(data), static_cast<std::streamsize>(data_length));
 
     return ostream.good();
 }
@@ -1164,7 +1164,8 @@ StandardClientInUse ClientManager::getCleanStandardClient(int loginIndex, fs::pa
             new StandardClient(localAccountRoot, "client" + clientname, workingFolder));
 
     clients[loginIndex].push_back(StandardClientInUseEntry(false, c, clientname, loginIndex));
-    const auto& [emailVarName, passVarName] = getEnvVarAccounts().getVarNames(loginIndex);
+    const auto& [emailVarName, passVarName] =
+        getEnvVarAccounts().getVarNames(static_cast<size_t>(loginIndex));
     c->login_reset(emailVarName, passVarName, false, false);
 
     c->cleanupForTestReuse(loginIndex);
@@ -2994,11 +2995,16 @@ void StandardClient::setupBackup_inThread(const string& rootPath,
         }
         else
         {
-            client.addsync(std::move(sc), [revertOnError, result, this](error e, SyncError se, handle h){
-                if (e && revertOnError) revertOnError(nullptr);
-                result->set_value(e ? UNDEF : h);
-
-            }, "", "");
+            client.addsync(
+                std::move(sc),
+                [revertOnError, result](error e, SyncError se, handle h)
+                {
+                    if (e && revertOnError)
+                        revertOnError(nullptr);
+                    result->set_value(e ? UNDEF : h);
+                },
+                "",
+                "");
         }
     });
 }
@@ -3567,7 +3573,8 @@ bool StandardClient::recursiveConfirm(Model::ModelNode* mn, fs::path p, int& des
             ifstream fs(p, ios::binary);
             std::vector<char> buffer;
             buffer.resize(mn->content.size() + 1024);
-            fs.read(reinterpret_cast<char *>(buffer.data()), buffer.size());
+            fs.read(reinterpret_cast<char*>(buffer.data()),
+                    static_cast<std::streamsize>(buffer.size()));
             EXPECT_EQ(size_t(fs.gcount()), mn->content.size()) << " file is not expected size " << p;
             EXPECT_TRUE(!memcmp(buffer.data(), mn->content.data(), mn->content.size())) << " file data mismatch " << p;
         }
@@ -4420,7 +4427,8 @@ void StandardClient::cleanupForTestReuse(int loginIndex)
 
     if (client.nodeByPath("/abort_jenkins_test_run"))
     {
-        [[maybe_unused]]const auto [user, _] = getEnvVarAccounts().getVarValues(loginIndex);
+        [[maybe_unused]] const auto [user, _] =
+            getEnvVarAccounts().getVarValues(static_cast<size_t>(loginIndex));
         cout << "Detected node /abort_jenkins_test_run in account " << user << ", aborting test run" << endl;
         out() << "Detected node /abort_jenkins_test_run in account " << user << ", aborting test run";
         WaitMillisec(100);
@@ -5850,7 +5858,7 @@ TEST_F(SyncFingerprintCollisionTest, DifferentMacSameName)
     waitOnSyncs();
 
     // Alter MAC but leave fingerprint untouched.
-    data1[0x41] = static_cast<uint8_t>(~data1[0x41]);
+    data1[0x41] = static_cast<char>(~data1[0x41]);
 
     // Prepare the file outside of the sync's view.
     auto stamp = fs::last_write_time(path0);
@@ -5894,7 +5902,7 @@ TEST_F(SyncFingerprintCollisionTest, DifferentMacDifferentName)
     waitOnSyncs();
 
     // Alter MAC but leave fingerprint untouched.
-    data1[0x41] = static_cast<uint8_t>(~data1[0x41]);
+    data1[0x41] = static_cast<char>(~data1[0x41]);
 
     // Prepare the file outside of the engine's view.
     auto stamp = fs::last_write_time(path0);
@@ -6054,7 +6062,7 @@ TEST_F(SyncTest, BasicSync_DelLocalFolder)
     error_code e;
     auto nRemoved = fs::remove_all(clientA1->syncSet(backupId1).localpath / "f_2" / "f_2_1", e);
     ASSERT_TRUE(!e) << "remove failed " << (clientA1->syncSet(backupId1).localpath / "f_2" / "f_2_1").u8string() << " error " << e;
-    ASSERT_GT(static_cast<unsigned int>(nRemoved), 0u) << e;
+    ASSERT_GT(static_cast<unsigned>(nRemoved), 0u) << e;
 
     clientA1->triggerPeriodicScanEarly(backupId1);
 
@@ -12907,8 +12915,8 @@ TEST_F(FilterFixture, MigrateLegacyFilters)
         oldExclusions.excludedPaths(elements);
 
         // Set legacy size exclusions.
-        oldExclusions.lowerLimit(MINSIZE);
-        oldExclusions.upperLimit(MAXSIZE);
+        oldExclusions.lowerLimit(static_cast<uint64_t>(MINSIZE));
+        oldExclusions.upperLimit(static_cast<uint64_t>(MAXSIZE));
     }
 
     // Prepare legacy exclusions without absolute paths, as would go into .megaignore.default
@@ -12919,19 +12927,19 @@ TEST_F(FilterFixture, MigrateLegacyFilters)
         oldExclusionsNoAbsoutePaths.excludedNames(elements, fsAccess);
 
         // Set legacy size exclusions.
-        oldExclusionsNoAbsoutePaths.lowerLimit(MINSIZE);
-        oldExclusionsNoAbsoutePaths.upperLimit(MAXSIZE);
+        oldExclusionsNoAbsoutePaths.lowerLimit(static_cast<uint64_t>(MINSIZE));
+        oldExclusionsNoAbsoutePaths.upperLimit(static_cast<uint64_t>(MAXSIZE));
     }
 
 
     // Prepare local filesystem.
     LocalFSModel localFS;
     string dpfidata;
-    localFS.addfile("dn/fi", randomData(MINSIZE));
-    localFS.addfile("dn/fe", randomData(MINSIZE));
-    localFS.addfile("dn/fs", randomData(MINSIZE - 1));
-    localFS.addfile("dn/fl", randomData(MAXSIZE + 1));
-    localFS.addfile("dp/fi", (dpfidata = randomData(MINSIZE)));
+    localFS.addfile("dn/fi", randomData(static_cast<size_t>(MINSIZE)));
+    localFS.addfile("dn/fe", randomData(static_cast<size_t>(MINSIZE)));
+    localFS.addfile("dn/fs", randomData(static_cast<size_t>(MINSIZE) - 1));
+    localFS.addfile("dn/fl", randomData(static_cast<size_t>(MAXSIZE) + 1));
+    localFS.addfile("dp/fi", (dpfidata = randomData(static_cast<size_t>(MINSIZE))));
     localFS.generate(root);
     localFS.addfile(".megaignore", oldExclusions.generate(rootPath, fsAccess, true, false));
 
@@ -16850,7 +16858,7 @@ TEST_F(SyncTest, BasicSync_EditAndMove_MoveAndEdit)
         ASSERT_TRUE( alterFile.good());
         alterFile << additionalContent;
         modelNode->content += additionalContent;
-        size_t alteredFileSize = alterFile.tellp();
+        size_t alteredFileSize = static_cast<size_t>(alterFile.tellp());
         alterFile.close();
         ASSERT_EQ(modelNode->content.size(), alteredFileSize);
     };
@@ -16932,7 +16940,8 @@ TEST_F(SyncTest, BasicSync_RapidLocalChangesWhenUploadCompletes)
     // The idea here is that we start hammering the engine with a bunch of
     // file change notifications, the goal of which is to confuse the engine
     // such that it no longer knows which side is "current."
-    c->onTransferCompleted = [&c, &m](Transfer*) {
+    c->onTransferCompleted = [&c](Transfer*)
+    {
         // Only call us once.
         c->onTransferCompleted = nullptr;
     };

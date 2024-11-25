@@ -4025,6 +4025,8 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
         mSyncStallList.reset(request->mSyncStallList->copy());
 #endif // ENABLE_SYNC
     this->mStringList.reset(request->mStringList ? request->mStringList->copy() : nullptr);
+    this->mMegaVpnRegions.reset(request->mMegaVpnRegions ? request->mMegaVpnRegions->copy() :
+                                                           nullptr);
     this->mMegaVpnCredentials.reset(request->mMegaVpnCredentials ? request->mMegaVpnCredentials->copy() : nullptr);
     this->mMegaNotifications.reset(request->mMegaNotifications ? request->mMegaNotifications->copy() : nullptr);
     this->mMegaNodeTree.reset(request->mMegaNodeTree ? request->mMegaNodeTree->copy() : nullptr);
@@ -4553,41 +4555,11 @@ void MegaRequestPrivate::setTag(int tag)
     this->tag = tag;
 }
 
-void MegaRequestPrivate::addProduct(unsigned int type,
-                                    handle product,
-                                    int proLevel,
-                                    int gbStorage,
-                                    int gbTransfer,
-                                    int months,
-                                    int amount,
-                                    int amountMonth,
-                                    int localPrice,
-                                    const char* description,
-                                    map<string, uint32_t>&& features,
-                                    const char* iosid,
-                                    const char* androidid,
-                                    unsigned int testCategory,
-                                    std::unique_ptr<BusinessPlan> bizPlan,
-                                    unsigned int trialDays)
+void MegaRequestPrivate::addProduct(const Product& product)
 {
     if (megaPricing)
     {
-        megaPricing->addProduct(type,
-                                product,
-                                proLevel,
-                                gbStorage,
-                                gbTransfer,
-                                months,
-                                amount,
-                                amountMonth,
-                                localPrice,
-                                description,
-                                std::move(features),
-                                iosid,
-                                androidid,
-                                testCategory,
-                                std::move(bizPlan),
-                                trialDays);
+        megaPricing->addProduct(product);
     }
 }
 
@@ -4704,6 +4676,16 @@ MegaBackupInfoList* MegaRequestPrivate::getMegaBackupInfoList() const
 void MegaRequestPrivate::setMegaBackupInfoList(std::unique_ptr<MegaBackupInfoList> bkps)
 {
     mMegaBackupInfoList.swap(bkps);
+}
+
+MegaVpnRegionList* MegaRequestPrivate::getMegaVpnRegionsDetailed() const
+{
+    return mMegaVpnRegions.get();
+}
+
+void MegaRequestPrivate::setMegaVpnRegionsDetailed(MegaVpnRegionList* vpnRegions)
+{
+    mMegaVpnRegions.reset(vpnRegions);
 }
 
 MegaVpnCredentials* MegaRequestPrivate::getMegaVpnCredentials() const
@@ -4968,6 +4950,17 @@ const MegaNodeTree* MegaRequestPrivate::getMegaNodeTree() const
 void MegaRequestPrivate::setMegaNodeTree(MegaNodeTree* megaNodeTree)
 {
     mMegaNodeTree.reset(megaNodeTree);
+}
+
+const MegaCancelSubscriptionReasonList* MegaRequestPrivate::getMegaCancelSubscriptionReasons() const
+{
+    return mMegaCancelSubscriptionReasons.get();
+}
+
+void MegaRequestPrivate::setMegaCancelSubscriptionReasons(
+    MegaCancelSubscriptionReasonList* cancelReasons)
+{
+    mMegaCancelSubscriptionReasons.reset(cancelReasons);
 }
 
 MegaBannerPrivate::MegaBannerPrivate(std::tuple<int, std::string, std::string, std::string, std::string, std::string, std::string>&& details)
@@ -5249,6 +5242,10 @@ MegaStringListPrivate::MegaStringListPrivate(string_vector&& v)
     : mList(std::move(v))
 {
 }
+
+MegaStringListPrivate::MegaStringListPrivate(const string_vector& v):
+    mList(v)
+{}
 
 MegaStringList *MegaStringListPrivate::copy() const
 {
@@ -14653,22 +14650,7 @@ void MegaApiImpl::putfa_result(handle h, fatype, error e)
     fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
 }
 
-void MegaApiImpl::enumeratequotaitems_result(unsigned type,
-                                             handle product,
-                                             unsigned prolevel,
-                                             int gbstorage,
-                                             int gbtransfer,
-                                             unsigned months,
-                                             unsigned amount,
-                                             unsigned amountMonth,
-                                             unsigned localPrice,
-                                             const char* description,
-                                             map<string, uint32_t>&& features,
-                                             const char* iosid,
-                                             const char* androidid,
-                                             unsigned int testCategory,
-                                             std::unique_ptr<BusinessPlan> bizPlan,
-                                             unsigned int trialDays)
+void MegaApiImpl::enumeratequotaitems_result(const Product& product)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
@@ -14680,22 +14662,7 @@ void MegaApiImpl::enumeratequotaitems_result(unsigned type,
         return;
     }
 
-    request->addProduct(type,
-                        product,
-                        prolevel,
-                        gbstorage,
-                        gbtransfer,
-                        months,
-                        amount,
-                        amountMonth,
-                        localPrice,
-                        description,
-                        std::move(features),
-                        iosid,
-                        androidid,
-                        testCategory,
-                        std::move(bizPlan),
-                        trialDays);
+    request->addProduct(product);
 }
 
 void MegaApiImpl::enumeratequotaitems_result(unique_ptr<CurrencyData> currencyData)
@@ -16966,6 +16933,28 @@ void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr
     else
     {
         LOG_info << "Transfer (" << transfer->getTransferString() << ") finished. File: " << transfer->getFileName();
+    }
+
+    if (transfer->getType() == MegaTransfer::TYPE_UPLOAD && transfer->isSourceFileTemporary() &&
+        transfer->fingerprint_filetype == FILENODE && transfer->getPath() &&
+        (transfer->getState() == MegaTransfer::STATE_COMPLETED ||
+         transfer->getState() == MegaTransfer::STATE_CANCELLED ||
+         transfer->getState() == MegaTransfer::STATE_FAILED))
+    {
+        const auto wLocalPath = LocalPath::fromAbsolutePath(transfer->getPath());
+        bool fileRemoved = !client->fsaccess->fileExistsAt(wLocalPath);
+        if (!fileRemoved)
+        {
+            // This prevents that file is tried to be removed more than once.
+            // Anyway in case that happens, FileSystemAccess::transient_error wouldn't be set true
+            fileRemoved = client->fsaccess->unlinklocal(wLocalPath);
+            if (!fileRemoved)
+            {
+                LOG_err << "fireOnTransferFinish (TYPE_UPLOAD): cannot remove temporary local file "
+                        << wLocalPath;
+            }
+        }
+        transfer->setStage(fileRemoved);
     }
 
     for(set<MegaTransferListener *>::iterator it = transferListeners.begin(); it != transferListeners.end() ;)
@@ -23462,6 +23451,45 @@ void MegaApiImpl::creditCardCancelSubscriptions(const char* reason,
     waiter->notify();
 }
 
+void MegaApiImpl::creditCardCancelSubscriptions(const MegaCancelSubscriptionReasonList* reasons,
+                                                const char* id,
+                                                int canContact,
+                                                MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request =
+        new MegaRequestPrivate(MegaRequest::TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS, listener);
+    request->setMegaCancelSubscriptionReasons(reasons->copy());
+    request->setName(id);
+    request->setNumDetails(canContact);
+
+    request->performRequest = [this, request]()
+    {
+        vector<pair<string, string>> reasons;
+        if (const MegaCancelSubscriptionReasonList* megaReasons =
+                request->getMegaCancelSubscriptionReasons())
+        {
+            for (size_t i = 0; i < megaReasons->size(); ++i)
+            {
+                const MegaCancelSubscriptionReason* r = megaReasons->get(i);
+                assert(r && r->text() && r->position());
+                string text{(r && r->text()) ? r->text() : ""};
+                string position{(r && r->position()) ? r->position() : ""};
+                reasons.emplace_back(std::move(text), std::move(position));
+            }
+        }
+        CommandCreditCardCancelSubscriptions::CancelSubscription cancelSubscription{
+            std::move(reasons),
+            request->getName(), // id
+            request->getNumDetails(), // canContact
+        };
+        client->creditcardcancelsubscriptions(cancelSubscription);
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::getPaymentMethods(MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_PAYMENT_METHODS, listener);
@@ -23476,42 +23504,83 @@ void MegaApiImpl::getPaymentMethods(MegaRequestListener* listener)
     waiter->notify();
 }
 
-void MegaApiImpl::submitFeedback(int rating, const char* comment, MegaRequestListener* listener)
+void MegaApiImpl::submitFeedback(int rating,
+                                 const char* comment,
+                                 bool transferFeedback,
+                                 int transferType,
+                                 MegaRequestListener* listener)
 {
-    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_SUBMIT_FEEDBACK, listener);
+    MegaRequestPrivate* request =
+        new MegaRequestPrivate(MegaRequest::TYPE_SUBMIT_FEEDBACK, listener);
     request->setText(comment);
     request->setNumber(rating);
+    request->setFlag(transferFeedback);
+    request->setParamType(transferType);
 
     request->performRequest = [this, request]()
+    {
+        auto sendFeedback = [this](const int rating,
+                                   const std::string& base64message,
+                                   const bool transferFeedback,
+                                   const direction_t transferType)
         {
-            int rating = int(request->getNumber());
-            const char *message = request->getText();
-
-            if(rating < 1 || rating > 5)
+            std::ostringstream feedback;
+            if (transferFeedback)
             {
-                return API_EARGS;
+                std::string ts =
+                    client->mTransferStatsManager.metricsToJsonForTransferType(transferType);
+                feedback << R"({\"r\":\")" << rating << R"(\",\"m\":\")" << base64message
+                         << R"(\",\"u\":\")" << toHandle(client->me) << R"(\",)" << ts << "}";
             }
-
-            if(!message)
+            else
             {
-                message = "";
+                feedback << R"({\"r\":\")" << rating << R"(\",\"m\":\")" << base64message
+                         << R"(\",\"u\":\")" << toHandle(client->me) << R"(\"})";
             }
-
-            int size = int(strlen(message));
-            char *base64message = new char[size * 4 / 3 + 4];
-            Base64::btoa((byte *)message, size, base64message);
-
-            char base64uhandle[12];
-            Base64::btoa((const byte*)&client->me, MegaClient::USERHANDLE, base64uhandle);
-
-            string feedback;
-            feedback.resize(128 + strlen(base64message));
-
-            snprintf((char *)feedback.data(), feedback.size(), "{\\\"r\\\":\\\"%d\\\",\\\"m\\\":\\\"%s\\\",\\\"u\\\":\\\"%s\\\"}", rating, base64message, base64uhandle);
-            client->userfeedbackstore(feedback.c_str());
-            delete [] base64message;
-            return API_OK;
+            client->userfeedbackstore(feedback.str().c_str());
         };
+
+        const int rating{static_cast<int>(request->getNumber())};
+        if (rating < 1 || rating > 5)
+        {
+            LOG_err << "Request (TYPE_SUBMIT_FEEDBACK). Invalid rating: " << rating;
+            return API_EARGS;
+        }
+
+        const int transferType{request->getParamType()};
+        if (transferType < MegaApi::TRANSFER_STATS_DOWNLOAD ||
+            transferType > MegaApi::TRANSFER_STATS_MAX)
+        {
+            LOG_err << "Request (TYPE_SUBMIT_FEEDBACK). Invalid transferType: " << transferType;
+            return API_EARGS;
+        }
+
+        std::string base64message{};
+        if (const char* message = request->getText(); message)
+        {
+            base64message = Base64::btoa(message);
+        }
+
+        if (const bool transferFeedback{request->getFlag()}; transferFeedback)
+        {
+            if (transferType == MegaApi::TRANSFER_STATS_DOWNLOAD ||
+                transferType == MegaApi::TRANSFER_STATS_BOTH)
+            {
+                sendFeedback(rating, base64message, transferFeedback, GET);
+            }
+
+            if (transferType == MegaApi::TRANSFER_STATS_UPLOAD ||
+                transferType == MegaApi::TRANSFER_STATS_BOTH)
+            {
+                sendFeedback(rating, base64message, transferFeedback, PUT);
+            }
+        }
+        else
+        {
+            sendFeedback(rating, base64message, transferFeedback, NONE);
+        }
+        return API_OK;
+    };
 
     requestQueue.push(request);
     waiter->notify();
@@ -26901,13 +26970,21 @@ void MegaApiImpl::getVpnRegions(MegaRequestListener* listener)
 
     request->performRequest = [this, request]()
     {
-        client->getVpnRegions([this, request]
-            (const Error& e, std::vector<std::string>&& vpnRegions)
+        client->getVpnRegions(
+            [this, request](const Error& e, std::vector<VpnRegion>&& vpnRegions)
             {
-                if (e == API_OK && !vpnRegions.empty())
+                if (e == API_OK)
                 {
-                    auto vpnRegionsMegaStringList = std::make_unique<MegaStringListPrivate>(std::move(vpnRegions));
+                    auto vpnRegionsMegaStringList = std::make_unique<MegaStringListPrivate>();
+                    for (const auto& r: vpnRegions)
+                    {
+                        vpnRegionsMegaStringList->add(r.getName().c_str());
+                    }
                     request->setMegaStringList(vpnRegionsMegaStringList.get());
+
+                    MegaVpnRegionListPrivate* regionsWithDetails =
+                        new MegaVpnRegionListPrivate(vpnRegions);
+                    request->setMegaVpnRegionsDetailed(regionsWithDetails);
                 }
 
                 fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
@@ -26929,12 +27006,14 @@ void MegaApiImpl::getVpnCredentials(MegaRequestListener* listener)
             (const Error& e,
             CommandGetVpnCredentials::MapSlotIDToCredentialInfo&& mapSlotIDToCredentialInfo, /* Map of SlotID: { ClusterID, IPv4, IPv6, DeviceID } */
             CommandGetVpnCredentials::MapClusterPublicKeys&& mapClusterPubKeys, /* Map of ClusterID: Cluster Public Key */
-            std::vector<std::string>&& vpnRegions /* VPN Regions */)
+            std::vector<VpnRegion>&& vpnRegions /* VPN Regions */)
             {
                 if (e == API_OK && !mapSlotIDToCredentialInfo.empty() && !mapClusterPubKeys.empty() && !vpnRegions.empty())
                 {
-                    auto vpnRegionsMegaStringList = std::make_unique<MegaStringListPrivate>(std::move(vpnRegions));
-                    request->setMegaVpnCredentials(new MegaVpnCredentialsPrivate(std::move(mapSlotIDToCredentialInfo), std::move(mapClusterPubKeys), vpnRegionsMegaStringList.get()));
+                    request->setMegaVpnCredentials(
+                        new MegaVpnCredentialsPrivate(std::move(mapSlotIDToCredentialInfo),
+                                                      std::move(mapClusterPubKeys),
+                                                      std::move(vpnRegions)));
                 }
 
                 fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
@@ -28626,50 +28705,38 @@ const char *MegaErrorPrivate::__toString() const
     return getErrorString();
 }
 
-MegaPricingPrivate::~MegaPricingPrivate()
-{
-    for(unsigned i = 0; i < description.size(); i++)
-    {
-        delete[] description[i];
-    }
-
-    for(unsigned i = 0; i < iosId.size(); i++)
-    {
-        delete[] iosId[i];
-    }
-
-    for(unsigned i = 0; i < androidId.size(); i++)
-    {
-        delete[] androidId[i];
-    }
-}
+MegaPricingPrivate::~MegaPricingPrivate() {}
 
 int MegaPricingPrivate::getNumProducts()
 {
-    return int(handles.size());
+    return int(products.size());
 }
 
 handle MegaPricingPrivate::getHandle(int productIndex)
 {
-    if((unsigned)productIndex < handles.size())
-        return handles[productIndex];
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
+    {
+        return products[productIndex].productHandle;
+    }
 
     return UNDEF;
 }
 
 int MegaPricingPrivate::getProLevel(int productIndex)
 {
-    if((unsigned)productIndex < proLevel.size())
-        return proLevel[productIndex];
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
+    {
+        return products[productIndex].proLevel;
+    }
 
     return 0;
 }
 
 int MegaPricingPrivate::getGBStorage(int productIndex)
 {
-    if (static_cast<size_t>(productIndex) < gbStorage.size())
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
     {
-        return gbStorage[static_cast<size_t>(productIndex)];
+        return products[productIndex].gbStorage;
     }
 
     return 0;
@@ -28677,9 +28744,9 @@ int MegaPricingPrivate::getGBStorage(int productIndex)
 
 int MegaPricingPrivate::getGBTransfer(int productIndex)
 {
-    if (static_cast<size_t>(productIndex) < gbTransfer.size())
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
     {
-        return gbTransfer[static_cast<size_t>(productIndex)];
+        return products[productIndex].gbTransfer;
     }
 
     return 0;
@@ -28687,50 +28754,62 @@ int MegaPricingPrivate::getGBTransfer(int productIndex)
 
 int MegaPricingPrivate::getMonths(int productIndex)
 {
-    if((unsigned)productIndex < months.size())
-        return months[productIndex];
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
+    {
+        return products[productIndex].months;
+    }
 
     return 0;
 }
 
 int MegaPricingPrivate::getAmount(int productIndex)
 {
-    if((unsigned)productIndex < amount.size())
-        return amount[productIndex];
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
+    {
+        return products[productIndex].amount;
+    }
 
     return 0;
 }
 
 int mega::MegaPricingPrivate::getLocalPrice(int productIndex)
 {
-    if((unsigned)productIndex < mLocalPrice.size())
-        return mLocalPrice[productIndex];
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
+    {
+        return products[productIndex].localPrice;
+    }
 
     return 0;
 }
 
 const char *MegaPricingPrivate::getDescription(int productIndex)
 {
-    if((unsigned)productIndex < description.size())
-        return description[productIndex];
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
+    {
+        return products[productIndex].description.c_str();
+    }
 
-    return NULL;
+    return nullptr;
 }
 
 const char *MegaPricingPrivate::getIosID(int productIndex)
 {
-    if((unsigned)productIndex < iosId.size())
-        return iosId[productIndex];
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
+    {
+        return products[productIndex].iosid.c_str();
+    }
 
-    return NULL;
+    return nullptr;
 }
 
 const char *MegaPricingPrivate::getAndroidID(int productIndex)
 {
-    if((unsigned)productIndex < androidId.size())
-        return androidId[productIndex];
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
+    {
+        return products[productIndex].androidid.c_str();
+    }
 
-    return NULL;
+    return nullptr;
 }
 
 bool MegaPricingPrivate::isBusinessType(int productIndex)
@@ -28745,16 +28824,20 @@ bool MegaPricingPrivate::isFeaturePlan(int productIndex) const
 
 bool MegaPricingPrivate::isType(int productIndex, unsigned t) const
 {
-    if (static_cast<decltype(type.size())>(productIndex) < type.size())
-        return type[productIndex] == t;
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
+    {
+        return products[productIndex].planType == t;
+    }
 
     return false;
 }
 
 int MegaPricingPrivate::getAmountMonth(int productIndex)
 {
-    if((unsigned)productIndex < amountMonth.size())
-        return amountMonth[productIndex];
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
+    {
+        return products[productIndex].amountMonth;
+    }
 
     return 0;
 }
@@ -28762,72 +28845,23 @@ int MegaPricingPrivate::getAmountMonth(int productIndex)
 MegaPricing *MegaPricingPrivate::copy()
 {
     MegaPricingPrivate *megaPricing = new MegaPricingPrivate();
-    for(unsigned i=0; i<handles.size(); i++)
-    {
-        std::unique_ptr<BusinessPlan> bizPlan(mBizPlan[i] ? new BusinessPlan(*mBizPlan[i]) : nullptr);
-
-        megaPricing->addProduct(type[i],
-                                handles[i],
-                                proLevel[i],
-                                gbStorage[i],
-                                gbTransfer[i],
-                                months[i],
-                                amount[i],
-                                amountMonth[i],
-                                mLocalPrice[i],
-                                description[i],
-                                decltype(features)::value_type(features[i]), // make a copy
-                                iosId[i],
-                                androidId[i],
-                                mTestCategory[i],
-                                std::move(bizPlan),
-                                mTrialDays[i]);
-    }
+    megaPricing->products = this->products;
 
     return megaPricing;
 }
 
-void MegaPricingPrivate::addProduct(unsigned int type,
-                                    handle product,
-                                    int proLevel,
-                                    int gbStorage,
-                                    int gbTransfer,
-                                    int months,
-                                    int amount,
-                                    int amountMonth,
-                                    unsigned localPrice,
-                                    const char* description,
-                                    map<string, uint32_t>&& features,
-                                    const char* iosid,
-                                    const char* androidid,
-                                    unsigned int testCategory,
-                                    std::unique_ptr<BusinessPlan> bizPlan,
-                                    unsigned int trialDays)
+void MegaPricingPrivate::addProduct(const Product& product)
 {
-    this->type.push_back(type);
-    this->handles.push_back(product);
-    this->proLevel.push_back(proLevel);
-    this->gbStorage.push_back(gbStorage);
-    this->gbTransfer.push_back(gbTransfer);
-    this->months.push_back(months);
-    this->amount.push_back(amount);
-    this->amountMonth.push_back(amountMonth);
-    mLocalPrice.push_back(localPrice);
-    this->description.push_back(MegaApi::strdup(description));
-    this->features.emplace_back(std::move(features));
-    this->iosId.push_back(MegaApi::strdup(iosid));
-    this->androidId.push_back(MegaApi::strdup(androidid));
-    mBizPlan.push_back(std::move(bizPlan));
-    this->mTestCategory.push_back(testCategory);
-    this->mTrialDays.push_back(trialDays);
+    this->products.push_back(product);
 }
-
 
 int MegaPricingPrivate::getGBStoragePerUser(int productIndex)
 {
-    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    // some Pro plans don't have a valid pointer, only business plans
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size() &&
+        products[productIndex].businessPlan)
     {
-        return mBizPlan[productIndex]->gbStoragePerUser;
+        return products[productIndex].businessPlan->gbStoragePerUser;
     }
 
     return 0;
@@ -28835,9 +28869,11 @@ int MegaPricingPrivate::getGBStoragePerUser(int productIndex)
 
 int MegaPricingPrivate::getGBTransferPerUser(int productIndex)
 {
-    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    // some Pro plans don't have a valid pointer, only business plans
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size() &&
+        products[productIndex].businessPlan)
     {
-        return mBizPlan[productIndex]->gbTransferPerUser;
+        return products[productIndex].businessPlan->gbTransferPerUser;
     }
 
     return 0;
@@ -28845,9 +28881,11 @@ int MegaPricingPrivate::getGBTransferPerUser(int productIndex)
 
 unsigned int MegaPricingPrivate::getMinUsers(int productIndex)
 {
-    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    // some Pro plans don't have a valid pointer, only business plans
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size() &&
+        products[productIndex].businessPlan)
     {
-        return mBizPlan[productIndex]->minUsers;
+        return products[productIndex].businessPlan->minUsers;
     }
 
     return 0;
@@ -28855,9 +28893,11 @@ unsigned int MegaPricingPrivate::getMinUsers(int productIndex)
 
 unsigned int MegaPricingPrivate::getPricePerUser(int productIndex)
 {
-    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    // some Pro plans don't have a valid pointer, only business plans
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size() &&
+        products[productIndex].businessPlan)
     {
-        return mBizPlan[productIndex]->pricePerUser;
+        return products[productIndex].businessPlan->pricePerUser;
     }
 
     return 0;
@@ -28865,9 +28905,11 @@ unsigned int MegaPricingPrivate::getPricePerUser(int productIndex)
 
 unsigned int MegaPricingPrivate::getLocalPricePerUser(int productIndex)
 {
-    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    // some Pro plans don't have a valid pointer, only business plans
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size() &&
+        products[productIndex].businessPlan)
     {
-        return mBizPlan[productIndex]->localPricePerUser;
+        return products[productIndex].businessPlan->localPricePerUser;
     }
 
     return 0;
@@ -28875,9 +28917,11 @@ unsigned int MegaPricingPrivate::getLocalPricePerUser(int productIndex)
 
 unsigned int MegaPricingPrivate::getPricePerStorage(int productIndex)
 {
-    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    // some Pro plans don't have a valid pointer, only business plans
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size() &&
+        products[productIndex].businessPlan)
     {
-        return mBizPlan[productIndex]->pricePerStorage;
+        return products[productIndex].businessPlan->pricePerStorage;
     }
 
     return 0;
@@ -28885,9 +28929,11 @@ unsigned int MegaPricingPrivate::getPricePerStorage(int productIndex)
 
 unsigned int MegaPricingPrivate::getLocalPricePerStorage(int productIndex)
 {
-    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    // some Pro plans don't have a valid pointer, only business plans
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size() &&
+        products[productIndex].businessPlan)
     {
-        return mBizPlan[productIndex]->localPricePerStorage;
+        return products[productIndex].businessPlan->localPricePerStorage;
     }
 
     return 0;
@@ -28895,9 +28941,11 @@ unsigned int MegaPricingPrivate::getLocalPricePerStorage(int productIndex)
 
 int MegaPricingPrivate::getGBPerStorage(int productIndex)
 {
-    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    // some Pro plans don't have a valid pointer, only business plans
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size() &&
+        products[productIndex].businessPlan)
     {
-        return mBizPlan[productIndex]->gbPerStorage;
+        return products[productIndex].businessPlan->gbPerStorage;
     }
 
     return 0;
@@ -28905,9 +28953,11 @@ int MegaPricingPrivate::getGBPerStorage(int productIndex)
 
 unsigned int MegaPricingPrivate::getPricePerTransfer(int productIndex)
 {
-    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    // some Pro plans don't have a valid pointer, only business plans
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size() &&
+        products[productIndex].businessPlan)
     {
-        return mBizPlan[productIndex]->pricePerTransfer;
+        return products[productIndex].businessPlan->pricePerTransfer;
     }
 
     return 0;
@@ -28915,9 +28965,11 @@ unsigned int MegaPricingPrivate::getPricePerTransfer(int productIndex)
 
 unsigned int MegaPricingPrivate::getLocalPricePerTransfer(int productIndex)
 {
-    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    // some Pro plans don't have a valid pointer, only business plans
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size() &&
+        products[productIndex].businessPlan)
     {
-        return mBizPlan[productIndex]->localPricePerTransfer;
+        return products[productIndex].businessPlan->localPricePerTransfer;
     }
 
     return 0;
@@ -28925,9 +28977,11 @@ unsigned int MegaPricingPrivate::getLocalPricePerTransfer(int productIndex)
 
 int MegaPricingPrivate::getGBPerTransfer(int productIndex)
 {
-    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    // some Pro plans don't have a valid pointer, only business plans
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size() &&
+        products[productIndex].businessPlan)
     {
-        return mBizPlan[productIndex]->gbPerTransfer;
+        return products[productIndex].businessPlan->gbPerTransfer;
     }
 
     return 0;
@@ -28935,13 +28989,13 @@ int MegaPricingPrivate::getGBPerTransfer(int productIndex)
 
 MegaStringIntegerMap* MegaPricingPrivate::getFeatures(int productIndex) const
 {
-    if (static_cast<decltype(features.size())>(productIndex) >= features.size())
+    if ((unsigned)productIndex > products.size())
     {
         return nullptr;
     }
 
     MegaStringIntegerMapPrivate* returnFeatures = new MegaStringIntegerMapPrivate();
-    for (const auto& feature: features[productIndex])
+    for (const auto& feature: products[productIndex].features)
     {
         returnFeatures->set(feature.first, feature.second);
     }
@@ -28950,9 +29004,9 @@ MegaStringIntegerMap* MegaPricingPrivate::getFeatures(int productIndex) const
 
 unsigned int MegaPricingPrivate::getTestCategory(int productIndex) const
 {
-    if (static_cast<decltype(mTestCategory.size())>(productIndex) < mTestCategory.size())
+    if ((unsigned)productIndex < products.size())
     {
-        return mTestCategory[productIndex];
+        return products[productIndex].testCategory;
     }
 
     return 0;
@@ -28960,10 +29014,9 @@ unsigned int MegaPricingPrivate::getTestCategory(int productIndex) const
 
 unsigned int MegaPricingPrivate::getTrialDurationInDays(int productIndex) const
 {
-    auto index = static_cast<decltype(mTrialDays.size())>(productIndex);
-    if (index < mTrialDays.size())
+    if ((unsigned)productIndex < products.size())
     {
-        return mTrialDays[index];
+        return products[productIndex].trialDays;
     }
 
     return 0;
@@ -39323,26 +39376,56 @@ bool MegaCancelTokenPrivate::isCancelled() const
     return cancelFlag.isCancelled();
 }
 
+MegaStringList* MegaVpnClusterPrivate::getDns() const
+{
+    MegaStringListPrivate* dns = new MegaStringListPrivate(mCluster.getDns());
+    return dns;
+}
+
+MegaIntegerListPrivate* MegaVpnClusterMapPrivate::getKeys() const
+{
+    MegaIntegerListPrivate* keys = new MegaIntegerListPrivate();
+    for (const auto& entry: mClusters)
+    {
+        keys->add(entry.first);
+    }
+    return keys;
+}
+
+MegaVpnClusterPrivate* MegaVpnClusterMapPrivate::get(int64_t key) const
+{
+    const auto it = mClusters.find(static_cast<int>(key));
+    return it == mClusters.end() ? nullptr : new MegaVpnClusterPrivate(it->second);
+}
+
+MegaVpnClusterMapPrivate* MegaVpnRegionPrivate::getClusters() const
+{
+    return new MegaVpnClusterMapPrivate(mRegion.getClusters());
+}
+
+MegaVpnRegionListPrivate::MegaVpnRegionListPrivate(const vector<VpnRegion>& regions)
+{
+    for (const auto& r: regions)
+    {
+        mRegions.push_back(r);
+    }
+}
+
 /* MegaVpnCredentialsPrivate BEGIN */
-MegaVpnCredentialsPrivate::MegaVpnCredentialsPrivate(MapSlotIDToCredentialInfo&& mapSlotIDToCredentialInfo,
-                                                    MapClusterPublicKeys&& mapClusterPubKeys,
-                                                    MegaStringList* vpnRegions) :
+MegaVpnCredentialsPrivate::MegaVpnCredentialsPrivate(
+    MapSlotIDToCredentialInfo&& mapSlotIDToCredentialInfo,
+    MapClusterPublicKeys&& mapClusterPubKeys,
+    std::vector<VpnRegion>&& vpnRegions):
     mMapSlotIDToCredentialInfo(std::move(mapSlotIDToCredentialInfo)),
-    mMapClusterPubKeys(std::move(mapClusterPubKeys))
-{
-    mVpnRegions.reset(vpnRegions->copy());
-}
+    mMapClusterPubKeys(std::move(mapClusterPubKeys)),
+    mVpnRegions(std::move(vpnRegions))
+{}
 
-MegaVpnCredentialsPrivate::MegaVpnCredentialsPrivate(const MegaVpnCredentialsPrivate& otherMegaVpnCredentialsPrivate)
-{
-    mMapSlotIDToCredentialInfo = otherMegaVpnCredentialsPrivate.mMapSlotIDToCredentialInfo;
-    mMapClusterPubKeys = otherMegaVpnCredentialsPrivate.mMapClusterPubKeys;
-    mVpnRegions.reset(otherMegaVpnCredentialsPrivate.mVpnRegions->copy());
-}
-
-MegaVpnCredentialsPrivate::~MegaVpnCredentialsPrivate()
-{
-}
+MegaVpnCredentialsPrivate::MegaVpnCredentialsPrivate(const MegaVpnCredentialsPrivate& other):
+    mMapSlotIDToCredentialInfo{other.mMapSlotIDToCredentialInfo},
+    mMapClusterPubKeys{other.mMapClusterPubKeys},
+    mVpnRegions{other.mVpnRegions}
+{}
 
 MegaIntegerList* MegaVpnCredentialsPrivate::getSlotIDs() const
 {
@@ -39356,7 +39439,17 @@ MegaIntegerList* MegaVpnCredentialsPrivate::getSlotIDs() const
 
 MegaStringList* MegaVpnCredentialsPrivate::getVpnRegions() const
 {
-    return mVpnRegions->copy();
+    MegaStringList* regions = MegaStringList::createInstance();
+    for (const auto& r : mVpnRegions)
+    {
+        regions->add(r.getName().c_str());
+    }
+    return regions;
+}
+
+MegaVpnRegionListPrivate* MegaVpnCredentialsPrivate::getVpnRegionsDetailed() const
+{
+    return new MegaVpnRegionListPrivate(mVpnRegions);
 }
 
 const char* MegaVpnCredentialsPrivate::getIPv4(int slotID) const
@@ -39516,6 +39609,40 @@ MegaFuseExecutorFlagsPrivate::MegaFuseExecutorFlagsPrivate(fuse::TaskExecutorFla
   : MegaFuseExecutorFlags()
   , mFlags(flags)
 {
+}
+
+MegaStringList* MegaNotificationPrivate::getRenderModes() const
+{
+    if (mNotification.renderModes.empty())
+    {
+        return nullptr;
+    }
+
+    MegaStringList* modes = MegaStringList::createInstance();
+    for (const auto& m: mNotification.renderModes)
+    {
+        modes->add(m.first.c_str());
+    }
+
+    return modes;
+}
+
+MegaStringMap* MegaNotificationPrivate::getRenderModeFields(const char* mode) const
+{
+    if (!mode || mNotification.renderModes.empty())
+    {
+        return nullptr;
+    }
+
+    for (const auto& m: mNotification.renderModes)
+    {
+        if (m.first == mode)
+        {
+            return new MegaStringMapPrivate(&m.second);
+        }
+    }
+
+    return nullptr;
 }
 
 size_t MegaFuseExecutorFlagsPrivate::getMinThreadCount() const
@@ -39825,6 +39952,47 @@ const MegaMount* MegaMountListPrivate::get(size_t index) const
 size_t MegaMountListPrivate::size() const
 {
     return mMounts.size();
+}
+
+MegaCancelSubscriptionReasonPrivate::MegaCancelSubscriptionReasonPrivate(const char* text,
+                                                                         const char* position):
+    mText{text ? text : ""},
+    mPosition{position ? position : ""}
+{}
+
+const char* MegaCancelSubscriptionReasonPrivate::text() const
+{
+    return mText.c_str();
+}
+
+const char* MegaCancelSubscriptionReasonPrivate::position() const
+{
+    return mPosition.c_str();
+}
+
+MegaCancelSubscriptionReasonPrivate* MegaCancelSubscriptionReasonPrivate::copy() const
+{
+    return new MegaCancelSubscriptionReasonPrivate(*this);
+}
+
+void MegaCancelSubscriptionReasonListPrivate::add(const MegaCancelSubscriptionReason* reason)
+{
+    mReasons.emplace_back(reason->copy());
+}
+
+const MegaCancelSubscriptionReason* MegaCancelSubscriptionReasonListPrivate::get(size_t index) const
+{
+    return index >= mReasons.size() ? nullptr : mReasons[index].get();
+}
+
+size_t MegaCancelSubscriptionReasonListPrivate::size() const
+{
+    return mReasons.size();
+}
+
+MegaCancelSubscriptionReasonListPrivate* MegaCancelSubscriptionReasonListPrivate::copy() const
+{
+    return new MegaCancelSubscriptionReasonListPrivate(*this);
 }
 
 } // namespace mega

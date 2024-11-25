@@ -21,6 +21,7 @@ target_sources(test_unit
     FileFingerprint_test.cpp
     File_test.cpp
     FsNode.cpp
+    hashcash_test.cpp
     Logging_test.cpp
     MediaProperties_test.cpp
     MegaApi_test.cpp
@@ -68,7 +69,6 @@ if(ENABLE_SDKLIB_WERROR)
         TARGET test_unit
         WINDOWS /WX
         UNIX  $<$<CONFIG:Debug>: -Werror>
-        APPLE $<$<CONFIG:Debug>: -Wno-sign-conversion -Wno-overloaded-virtual -Wno-inconsistent-missing-override
-                                 -Wno-unqualified-std-cast-call>
+        APPLE $<$<CONFIG:Debug>: -Wno-unqualified-std-cast-call>
     )
 endif()

@@ -36,7 +36,6 @@ bool GfxClient::runHello(const std::string& text)
     auto response = sendAndReceive<CommandHelloResponse>(endpoint.get(), command);
     if (response)
     {
-        LOG_verbose << "GfxClient gets hello response: " << response->Text;
         return true;
     }
     else

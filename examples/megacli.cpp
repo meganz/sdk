@@ -1703,7 +1703,7 @@ static std::shared_ptr<Node> nodebypath(const char* ptr, string* user = NULL, st
 
     vector<string> c;
     string s;
-    int l = 0;
+    size_t l = 0;
     const char* bptr = ptr;
     int remote = 0;
     int folderlink = 0;
@@ -1729,7 +1729,7 @@ static std::shared_ptr<Node> nodebypath(const char* ptr, string* user = NULL, st
                 {
                     if (ptr > bptr)
                     {
-                        s.append(bptr, ptr - bptr);
+                        s.append(bptr, static_cast<size_t>(ptr - bptr));
                     }
 
                     bptr = ++ptr;
@@ -1758,7 +1758,7 @@ static std::shared_ptr<Node> nodebypath(const char* ptr, string* user = NULL, st
 
                     if (ptr > bptr)
                     {
-                        s.append(bptr, ptr - bptr);
+                        s.append(bptr, static_cast<size_t>(ptr - bptr));
                     }
 
                     bptr = ptr + 1;
@@ -1894,7 +1894,7 @@ static std::shared_ptr<Node> nodebypath(const char* ptr, string* user = NULL, st
     }
 
     // parse relative path
-    while (n && l < (int)c.size())
+    while (n && l < c.size())
     {
         if (c[l] != ".")
         {
@@ -1922,7 +1922,7 @@ static std::shared_ptr<Node> nodebypath(const char* ptr, string* user = NULL, st
                     if (!nn)
                     {
                         // mv command target? return name part of not found
-                        if (namepart && l == (int) c.size() - 1)
+                        if (namepart && l == c.size() - 1)
                         {
                             *namepart = c[l];
                             return n;
@@ -3178,7 +3178,15 @@ void exec_generatetestfilesfolders(autocomplete::ACState& s)
     if (!p.empty())
     {
         int totalfilecount = 0, totalfoldercount = 0;
-        buildLocalFolders(p, nameprefix, folderwidth, folderdepth, filecount, filesize, totalfilecount, totalfoldercount, nullptr);
+        buildLocalFolders(p,
+                          nameprefix,
+                          folderwidth,
+                          folderdepth,
+                          filecount,
+                          static_cast<uint64_t>(filesize),
+                          totalfilecount,
+                          totalfoldercount,
+                          nullptr);
         cout << "created " << totalfilecount << " files and " << totalfoldercount << " folders" << endl;
     }
     else
@@ -3329,7 +3337,15 @@ void exec_cycleUploadDownload(autocomplete::ACState& s)
     {
         int totalfilecount = 0, totalfoldercount = 0;
         vector<LocalPath> localPaths;
-        buildLocalFolders(p, nameprefix, 1, 1, filecount, filesize, totalfilecount, totalfoldercount, &localPaths);
+        buildLocalFolders(p,
+                          nameprefix,
+                          1,
+                          1,
+                          filecount,
+                          static_cast<uint64_t>(filesize),
+                          totalfilecount,
+                          totalfoldercount,
+                          &localPaths);
         cout << "created " << totalfilecount << " files and " << totalfoldercount << " folders" << endl;
 
         for (auto& fp : localPaths)
@@ -3392,7 +3408,7 @@ void exec_generatesparsefile(autocomplete::ACState& s)
     CloseHandle(hFile);
 #endif //WIN32
 
-    fs::resize_file(p, filesize);
+    fs::resize_file(p, static_cast<std::uintmax_t>(filesize));
     cout << "File size:  " << fs::file_size(p) << '\n'
         << "Free space: " << fs::space(p).free << '\n';
 }
@@ -5241,6 +5257,8 @@ autocomplete::ACN autocompleteSyntax()
 
     p->Add(exec_collectAndPrintTransferStats,
            sequence(text("getTransferStats"), opt(either(flag("-uploads"), flag("-downloads")))));
+
+    p->Add(exec_hashcash, sequence(text("hashcash"), opt(either(flag("-on"), flag("-off")))));
     return autocompleteTemplate = std::move(p);
 }
 
@@ -5321,6 +5339,7 @@ struct Login
 {
     string email, password, salt, pin;
     int version;
+    bool succeeded = false;
 
     Login() : version(0)
     {
@@ -5355,6 +5374,14 @@ struct Login
         {
             cout << "Login unexpected error" << endl;
         }
+    }
+
+    void fetchnodes(MegaClient* mc)
+    {
+        assert(succeeded);
+        cout << "Retrieving account after a succesful login..." << endl;
+        mc->fetchnodes(false, true, false);
+        succeeded = false;
     }
 };
 static Login login;
@@ -6643,21 +6670,21 @@ void exec_open(autocomplete::ACState& s)
 
             // create a new MegaClient with a different MegaApp to process callbacks
             // from the client logged into a folder. Reuse the waiter and httpio
-            clientFolder = new MegaClient(new DemoAppFolder,
-                                          client->waiter,
-                                          client->httpio,
-                #ifdef DBACCESS_CLASS
-                                          new DBACCESS_CLASS(*startDir),
-                #else
-                                          NULL,
-                #endif
-                                          gfx,
-                                          "Gk8DyQBS",
-                                          "megacli_folder/" TOSTRING(MEGA_MAJOR_VERSION)
-                                          "." TOSTRING(MEGA_MINOR_VERSION)
-                                          "." TOSTRING(MEGA_MICRO_VERSION),
-                                          2,
-                                          client->getClientType());
+            clientFolder =
+                new MegaClient(new DemoAppFolder,
+                               client->waiter,
+                               client->httpio,
+#ifdef DBACCESS_CLASS
+                               new DBACCESS_CLASS(*startDir),
+#else
+                               NULL,
+#endif
+                               gfx,
+                               "Gk8DyQBS",
+                               "megacli_folder/" TOSTRING(MEGA_MAJOR_VERSION) "." TOSTRING(
+                                   MEGA_MINOR_VERSION) "." TOSTRING(MEGA_MICRO_VERSION),
+                               2,
+                               client->getClientType());
         }
         else
         {
@@ -7209,9 +7236,9 @@ void exec_putua(autocomplete::ACState& s)
         else if (s.words[2].s == "set64")
         {
             int len = int(s.words[3].s.size() * 3 / 4 + 3);
-            byte *value = new byte[len];
+            byte* value = new byte[static_cast<size_t>(len)];
             int valuelen = Base64::atob(s.words[3].s.data(), value, len);
-            client->putua(attrtype, value, valuelen);
+            client->putua(attrtype, value, static_cast<unsigned>(valuelen));
             delete [] value;
             return;
         }
@@ -8453,7 +8480,7 @@ void exec_alerts(autocomplete::ACState& s)
         }
         else if (atoi(s.words[1].s.c_str()) > 0)
         {
-            showN = atoi(s.words[1].s.c_str());
+            showN = static_cast<size_t>(atoi(s.words[1].s.c_str()));
         }
     }
     if (showold || shownew || showN > 0)
@@ -9053,7 +9080,7 @@ void exec_driveid(autocomplete::ACState& s)
             return;
 
         default:
-            assert(!"Uexpected result from readDriveID(...)");
+            assert(false && "Unexpected result from readDriveID(...)");
             cerr << "Unexpected result from readDriveId(...): "
                  << errorstring(result)
                  << endl;
@@ -9275,8 +9302,10 @@ void DemoApp::login_result(error e)
     if (!e)
     {
         login.reset();
-        cout << "Login successful, retrieving account..." << endl;
-        client->fetchnodes(false, true, false);
+        cout << "Login successful." << endl;
+        // Delay fetchnodes to give time to the SDK to finish and unlock the internal
+        // "nodeTreeMutex".
+        login.succeeded = true;
     }
     else if (e == API_EMFAREQUIRED)
     {
@@ -9408,7 +9437,7 @@ void DemoApp::getprivatekey_result(error e,  const byte *privk, const size_t len
         key.ecb_decrypt(privkbuf, len_privk);
 
         AsymmCipher uk;
-        if (!uk.setkey(AsymmCipher::PRIVKEY, privkbuf, unsigned(len_privk)))
+        if (!uk.setkey(AsymmCipher::PRIVKEY, privkbuf, static_cast<int>(len_privk)))
         {
             cout << "The master key doesn't seem to be correct." << endl;
 
@@ -9722,7 +9751,8 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
     string attrstring;
 
     attrstring.resize(a->length()*4/3+4);
-    attrstring.resize(Base64::btoa((const byte *)a->data(), int(a->length()), (char *)attrstring.data()));
+    attrstring.resize(static_cast<size_t>(
+        Base64::btoa((const byte*)a->data(), int(a->length()), (char*)attrstring.data())));
 
     SymmCipher nodeKey;
     nodeKey.setkey(key, FILENODE);
@@ -9907,7 +9937,7 @@ bool DemoApp::pread_data(byte* data, m_off_t len, m_off_t pos, m_off_t, m_off_t,
     }
     else if (pread_file)
     {
-        pread_file->write((const char*)data, (size_t)len);
+        pread_file->write((const char*)data, static_cast<std::streamsize>(len));
         cout << "Received " << len << " partial read byte(s) at position " << pos << endl;
         if (pread_file_end == pos + len)
         {
@@ -10121,65 +10151,51 @@ void DemoApp::setelements_updated(SetElement** el, int count)
     }
 }
 
-void DemoApp::enumeratequotaitems_result(unsigned type,
-                                         handle product,
-                                         unsigned proLevel,
-                                         int gbStorage,
-                                         int gbTransfer,
-                                         unsigned months,
-                                         unsigned amount,
-                                         unsigned amountMonth,
-                                         unsigned localPrice,
-                                         const char* description,
-                                         map<string, uint32_t>&& features,
-                                         const char* iosId,
-                                         const char* androidId,
-                                         unsigned int testCategory,
-                                         std::unique_ptr<BusinessPlan> businessPlan,
-                                         unsigned int trialDays)
+void DemoApp::enumeratequotaitems_result(const Product& product)
 {
-    if (type != 1) // All plans but Business
+    if (product.planType != 1) // All plans but Business
     {
-        cout << "\n" << description << ":\n";
-        cout << "\tPro level: " << proLevel << "\n";
-        cout << "\tStorage: " << gbStorage << "\n";
-        cout << "\tTransfer: " << gbTransfer << "\n";
-        cout << "\tMonths: " << months << "\n";
-        cout << "\tAmount: " << amount << "\n";
-        cout << "\tAmount per month: " << amountMonth << "\n";
-        cout << "\tLocal price: " << localPrice << "\n";
+        cout << "\n" << product.description << ":\n";
+        cout << "\tPro level: " << product.proLevel << "\n";
+        cout << "\tStorage: " << product.gbStorage << "\n";
+        cout << "\tTransfer: " << product.gbTransfer << "\n";
+        cout << "\tMonths: " << product.months << "\n";
+        cout << "\tAmount: " << product.amount << "\n";
+        cout << "\tAmount per month: " << product.amountMonth << "\n";
+        cout << "\tLocal price: " << product.localPrice << "\n";
         cout << "\tFeatures:\n";
-        if (features.empty())
+        if (product.features.empty())
         {
             cout << "\t\t[none]\n";
         }
         else
         {
-            for (const auto& f : features)
+            for (const auto& f: product.features)
             {
                 cout << "\t\t" << f.first << ": " << f.second << '\n';
             }
         }
-        cout << "\tiOS ID: " << iosId << "\n";
-        cout << "\tAndroid ID: " << androidId << "\n";
-        cout << "\tTest Category: " << testCategory << "\n";
-        cout << "\tTrial Days: " << trialDays << endl;
+        cout << "\tiOS ID: " << product.iosid << "\n";
+        cout << "\tAndroid ID: " << product.androidid << "\n";
+        cout << "\tTest Category: " << product.testCategory << "\n";
+        cout << "\tTrial Days: " << product.trialDays << endl;
     }
     else // Business plan (type == 1)
     {
-        cout << "\n" << description << ":\n";
-        cout << "\tMinimum users: " << businessPlan->minUsers << "\n";
-        cout << "\tStorage per user: " << businessPlan->gbStoragePerUser << "\n";
-        cout << "\tTransfer per user: " << businessPlan->gbTransferPerUser << "\n";
-        cout << "\tPrice per user: " << businessPlan->pricePerUser << "\n";
-        cout << "\tLocal price per user: " << businessPlan->localPricePerUser << "\n";
-        cout << "\tPrice per storage: " << businessPlan->pricePerStorage << "\n";
-        cout << "\tLocal price per storage: " << businessPlan->localPricePerStorage << "\n";
-        cout << "\tGigabytes per storage: " << businessPlan->gbPerStorage << "\n";
-        cout << "\tPrice per transfer: " << businessPlan->pricePerTransfer << "\n";
-        cout << "\tLocal price per transfer: " << businessPlan->localPricePerTransfer << "\n";
-        cout << "\tGigabytes per transfer: " << businessPlan->gbPerTransfer << "\n";
-        cout << "\tTest Category: " << testCategory << endl;
+        cout << "\n" << product.description << ":\n";
+        cout << "\tMinimum users: " << product.businessPlan->minUsers << "\n";
+        cout << "\tStorage per user: " << product.businessPlan->gbStoragePerUser << "\n";
+        cout << "\tTransfer per user: " << product.businessPlan->gbTransferPerUser << "\n";
+        cout << "\tPrice per user: " << product.businessPlan->pricePerUser << "\n";
+        cout << "\tLocal price per user: " << product.businessPlan->localPricePerUser << "\n";
+        cout << "\tPrice per storage: " << product.businessPlan->pricePerStorage << "\n";
+        cout << "\tLocal price per storage: " << product.businessPlan->localPricePerStorage << "\n";
+        cout << "\tGigabytes per storage: " << product.businessPlan->gbPerStorage << "\n";
+        cout << "\tPrice per transfer: " << product.businessPlan->pricePerTransfer << "\n";
+        cout << "\tLocal price per transfer: " << product.businessPlan->localPricePerTransfer
+             << "\n";
+        cout << "\tGigabytes per transfer: " << product.businessPlan->gbPerTransfer << "\n";
+        cout << "\tTest Category: " << product.testCategory << endl;
     }
 }
 
@@ -10590,7 +10606,7 @@ char** my_rl_completion(const char* /*text*/, int /*start*/, int end)
 {
     rl_attempted_completion_over = 1;
 
-    std::string line(rl_line_buffer, end);
+    std::string line(rl_line_buffer, static_cast<size_t>(end));
     ac::CompletionState acs = ac::autoComplete(line, line.size(), autocompleteTemplate, true);
 
     if (acs.completions.empty())
@@ -10810,6 +10826,13 @@ void megacli()
         client->exec();
         if (clientFolder) clientFolder->exec();
 
+        if (login.succeeded)
+        {
+            // Continue with fetchnodes
+            login.fetchnodes(client);
+            client->exec();
+        }
+
         if (puts && !appxferq[PUT].size())
         {
             cout << "Uploads complete" << endl;
@@ -10856,7 +10879,7 @@ static void registerSignalHandlers()
     action.sa_handler = &onFatalSignal;
 
     // Restore default signal handler after invoking our own.
-    action.sa_flags = SA_NODEFER | SA_RESETHAND;
+    action.sa_flags = static_cast<int>(SA_NODEFER | SA_RESETHAND);
 
     // Don't ignore any signals.
     sigemptyset(&action.sa_mask);
@@ -11410,7 +11433,7 @@ void exec_syncimport(autocomplete::ACState& s)
     for (char buffer[512]; istream; )
     {
         istream.read(buffer, sizeof(buffer));
-        data.append(buffer, istream.gcount());
+        data.append(buffer, static_cast<size_t>(istream.gcount()));
     }
 
     if (!istream.eof())
@@ -11464,7 +11487,7 @@ void exec_syncexport(autocomplete::ACState& s)
     auto flags = std::ios::binary | std::ios::out | std::ios::trunc;
     ofstream ostream(s.words[2].s, flags);
 
-    ostream.write(configs.data(), configs.size());
+    ostream.write(configs.data(), static_cast<std::streamsize>(configs.size()));
     ostream.close();
 
     if (!ostream.good())
@@ -12592,14 +12615,14 @@ void exec_getvpnregions(autocomplete::ACState& s)
 {
     cout << "Getting the list of VPN regions" << endl;
     client->getVpnRegions([]
-            (const Error& e, std::vector<std::string>&& vpnRegions)
+            (const Error& e, std::vector<VpnRegion>&& vpnRegions)
             {
                 if (e == API_OK)
                 {
                     cout << "List of VPN regions:" << endl;
                     for (size_t i = 0; i < vpnRegions.size(); i++)
                     {
-                        cout << (i+1) << ". " << vpnRegions[i] << "." << endl;
+                        cout << (i+1) << ". " << vpnRegions[i].getName() << "." << endl;
                     }
                 }
                 else
@@ -12632,7 +12655,7 @@ void exec_getvpncredentials(autocomplete::ACState& s)
             (const Error& e,
             CommandGetVpnCredentials::MapSlotIDToCredentialInfo&& mapSlotIDToCredentialInfo, /* Map of SlotID: { ClusterID, IPv4, IPv6, DeviceID } */
             CommandGetVpnCredentials::MapClusterPublicKeys&& mapClusterPubKeys, /* Map of ClusterID: Cluster Public Key */
-            std::vector<std::string>&& vpnRegions /* VPN Regions */)
+            std::vector<VpnRegion>&& vpnRegions /* VPN Regions */)
             {
                 if (e == API_OK)
                 {
@@ -12718,7 +12741,7 @@ void exec_getvpncredentials(autocomplete::ACState& s)
                             cout << "===================================================" << endl;
                             for (size_t i = 0; i < vpnRegions.size(); i++)
                             {
-                                cout << (i+1) << ". " << vpnRegions[i] << "." << endl;
+                                cout << (i+1) << ". " << vpnRegions[i].getName() << "." << endl;
                             }
                             cout << "===================================================" << endl;
                         }
@@ -13225,7 +13248,7 @@ void exec_generatepassword(autocomplete::ACState& s)
             return;
         }
 
-        const auto length = static_cast<unsigned int>(std::stoul(s.words[2].s));
+        const auto length = static_cast<unsigned>(std::stoul(s.words[2].s));
         const bool useUpper = s.extractflag("-useUpper");
         const bool useDigits = s.extractflag("-useDigits");
         const bool useSymb = s.extractflag("-useSymbols");
@@ -13472,4 +13495,33 @@ void exec_collectAndPrintTransferStats(autocomplete::ACState& state)
     {
         collectAndPrintTransfersMetricsFromType(GET);
     }
+}
+
+void exec_hashcash(autocomplete::ACState& s)
+{
+    const static string originalUserAgent = client->useragent;
+    const static string hashcashUserAgent = "HashcashDemo";
+
+    if (s.words.size() == 1)
+    {
+        cout << "Hashcash demo is "
+             << ((client->useragent == hashcashUserAgent) ? "enabled" : "disabled") << endl;
+        return;
+    }
+
+    if (s.extractflag("-on"))
+    {
+        g_APIURL_default = "https://staging.api.mega.co.nz/";
+        client->useragent = hashcashUserAgent;
+    }
+    else if (s.extractflag("-off"))
+    {
+        g_APIURL_default = "https://g.api.mega.co.nz/";
+        client->useragent = originalUserAgent;
+    }
+
+    client->httpio->APIURL = g_APIURL_default;
+    string tempUserAgent = client->useragent;
+    client->httpio->setuseragent(&tempUserAgent);
+    client->disconnect();
 }

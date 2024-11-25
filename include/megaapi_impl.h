@@ -30,6 +30,7 @@
 #include "megaapi.h"
 
 #include "mega/heartbeats.h"
+#include "mega/command.h"
 
 #define CRON_USE_LOCAL_TIME 1
 #include "mega/mega_ccronexpr.h"
@@ -1038,6 +1039,100 @@ inline CancelToken convertToCancelToken(MegaCancelToken* mct)
     return static_cast<MegaCancelTokenPrivate*>(mct)->cancelFlag;
 }
 
+class MegaVpnClusterPrivate: public MegaVpnCluster
+{
+public:
+    MegaVpnClusterPrivate(const VpnCluster& cluster):
+        mCluster{cluster}
+    {}
+
+    MegaVpnClusterPrivate* copy() const override
+    {
+        return new MegaVpnClusterPrivate(*this);
+    }
+
+    const char* getHost() const override
+    {
+        return mCluster.getHost().c_str();
+    }
+
+    MegaStringList* getDns() const override;
+
+private:
+    VpnCluster mCluster;
+};
+
+class MegaVpnClusterMapPrivate: public MegaVpnClusterMap
+{
+public:
+    MegaVpnClusterMapPrivate(const std::map<int, VpnCluster>& clusters):
+        mClusters{clusters}
+    {}
+
+    MegaVpnClusterMapPrivate* copy() const override
+    {
+        return new MegaVpnClusterMapPrivate(*this);
+    }
+
+    MegaIntegerListPrivate* getKeys() const override;
+    MegaVpnClusterPrivate* get(int64_t key) const override;
+
+    int64_t size() const override
+    {
+        return static_cast<int64_t>(mClusters.size());
+    }
+
+private:
+    std::map<int, VpnCluster> mClusters;
+};
+
+class MegaVpnRegionPrivate: public MegaVpnRegion
+{
+public:
+    MegaVpnRegionPrivate(const VpnRegion& region):
+        mRegion{region}
+    {}
+
+    MegaVpnRegionPrivate* copy() const override
+    {
+        return new MegaVpnRegionPrivate(*this);
+    }
+
+    const char* getName() const override
+    {
+        return mRegion.getName().c_str();
+    }
+
+    MegaVpnClusterMapPrivate* getClusters() const override;
+
+private:
+    VpnRegion mRegion;
+};
+
+class MegaVpnRegionListPrivate: public MegaVpnRegionList
+{
+public:
+    MegaVpnRegionListPrivate(const std::vector<VpnRegion>& regions);
+
+    MegaVpnRegionListPrivate* copy() const override
+    {
+        return new MegaVpnRegionListPrivate(*this);
+    }
+
+    const MegaVpnRegionPrivate* get(unsigned i) const override
+    {
+        return (static_cast<size_t>(i) < mRegions.size()) ? &(mRegions[i]) : nullptr;
+    }
+
+    unsigned size() const override
+    {
+        return static_cast<unsigned>(mRegions.size());
+    }
+
+private:
+    std::vector<MegaVpnRegionPrivate> mRegions;
+};
+
 class CollisionChecker
 {
 public:
@@ -1567,22 +1662,7 @@ class MegaRequestPrivate : public MegaRequest
         void setTotalBytes(long long totalBytes);
         void setTransferredBytes(long long transferredBytes);
         void setTag(int tag);
-        void addProduct(unsigned int type,
-                        handle product,
-                        int proLevel,
-                        int gbStorage,
-                        int gbTransfer,
-                        int months,
-                        int amount,
-                        int amountMonth,
-                        int localPrice,
-                        const char* description,
-                        std::map<std::string, uint32_t>&& features,
-                        const char* iosid,
-                        const char* androidid,
-                        unsigned int testCategory,
-                        std::unique_ptr<BusinessPlan>,
-                        unsigned int trialDays);
+        void addProduct(const Product& product);
         void setCurrency(std::unique_ptr<CurrencyData> currencyData);
         void setProxy(Proxy *proxy);
         Proxy *getProxy();
@@ -1681,6 +1761,9 @@ class MegaRequestPrivate : public MegaRequest
         MegaBackupInfoList* getMegaBackupInfoList() const override;
         void setMegaBackupInfoList(std::unique_ptr<MegaBackupInfoList> bkps);
 
+        MegaVpnRegionList* getMegaVpnRegionsDetailed() const override;
+        void setMegaVpnRegionsDetailed(MegaVpnRegionList* vpnRegions);
+
         MegaVpnCredentials* getMegaVpnCredentials() const override;
         void setMegaVpnCredentials(MegaVpnCredentials* megaVpnCredentials);
 
@@ -1690,7 +1773,10 @@ class MegaRequestPrivate : public MegaRequest
         const MegaNodeTree* getMegaNodeTree() const override;
         void setMegaNodeTree(MegaNodeTree* megaNodeTree);
 
-protected:
+        const MegaCancelSubscriptionReasonList* getMegaCancelSubscriptionReasons() const override;
+        void setMegaCancelSubscriptionReasons(MegaCancelSubscriptionReasonList* cancelReasons);
+
+    protected:
         std::shared_ptr<AccountDetails> accountDetails;
         MegaPricingPrivate *megaPricing;
         MegaCurrencyPrivate *megaCurrency;
@@ -1746,6 +1832,7 @@ protected:
         unique_ptr<MegaSetElementList> mMegaSetElementList;
         unique_ptr<MegaIntegerList> mMegaIntegerList;
         unique_ptr<MegaBackupInfoList> mMegaBackupInfoList;
+        unique_ptr<MegaVpnRegionList> mMegaVpnRegions;
         unique_ptr<MegaVpnCredentials> mMegaVpnCredentials;
 
 #ifdef ENABLE_SYNC
@@ -1754,6 +1841,7 @@ protected:
 
         unique_ptr<MegaNotificationList> mMegaNotifications;
         unique_ptr<MegaNodeTree> mMegaNodeTree;
+        unique_ptr<MegaCancelSubscriptionReasonList> mMegaCancelSubscriptionReasons;
 
     public:
         shared_ptr<ExecuteOnce> functionToExecute;
@@ -2022,23 +2110,7 @@ public:
     MegaStringIntegerMap* getFeatures(int productIndex) const override;
     unsigned int getTestCategory(int productIndex) const override;
     unsigned int getTrialDurationInDays(int productIndex) const override;
-
-    void addProduct(unsigned int type,
-                    handle product,
-                    int proLevel,
-                    int gbStorage,
-                    int gbTransfer,
-                    int months,
-                    int amount,
-                    int amountMonth,
-                    unsigned localPrice,
-                    const char* description,
-                    std::map<std::string, uint32_t>&& features,
-                    const char* iosid,
-                    const char* androidid,
-                    unsigned int testCategory,
-                    std::unique_ptr<BusinessPlan>,
-                    unsigned int trialDays);
+    void addProduct(const Product& product);
 
 private:
     enum PlanType : unsigned
@@ -2050,23 +2122,7 @@ private:
 
     bool isType(int productIndex, unsigned t) const;
 
-    vector<unsigned int> type;
-    vector<handle> handles;
-    vector<int> proLevel;
-    vector<int> gbStorage;
-    vector<int> gbTransfer;
-    vector<int> months;
-    vector<int> amount;
-    vector<int> amountMonth;
-    vector<int> mLocalPrice;
-    vector<const char *> description;
-    vector<map<string, uint32_t>> features;
-    vector<const char *> iosId;
-    vector<const char *> androidId;
-    vector<unsigned int> mTestCategory;
-    vector<unsigned int> mTrialDays;
-
-    std::vector<std::unique_ptr<BusinessPlan>> mBizPlan;
+    vector<Product> products;
 };
 
 class MegaAchievementsDetailsPrivate : public MegaAchievementsDetails
@@ -2279,6 +2335,7 @@ class MegaStringListPrivate : public MegaStringList
 public:
     MegaStringListPrivate() = default;
     MegaStringListPrivate(string_vector&&); // takes ownership
+    MegaStringListPrivate(const string_vector&);
     ~MegaStringListPrivate() override = default;
     MegaStringList *copy() const override;
     const char* get(int i) const override;
@@ -2799,7 +2856,7 @@ public:
     {
         if (index >= 0 && index < int(mConflict.clashingCloud.size()))
         {
-            return mConflict.clashingCloud[index].handle.as8byte();
+            return mConflict.clashingCloud[static_cast<size_t>(index)].handle.as8byte();
         }
         return UNDEF;
     }
@@ -2814,7 +2871,8 @@ public:
 
             if (index >= 0 && index < int(mConflict.clashingCloud.size()))
             {
-                mCache1[index] = mConflict.cloudPath + "/" + mConflict.clashingCloud[index].name;
+                mCache1[index] = mConflict.cloudPath + "/" +
+                                 mConflict.clashingCloud[static_cast<size_t>(index)].name;
                 return mCache1[index].c_str();
             }
         }
@@ -2826,7 +2884,8 @@ public:
             if (index >= 0 && index < int(mConflict.clashingLocalNames.size()))
             {
                 LocalPath lp = mConflict.localPath;
-                lp.appendWithSeparator(mConflict.clashingLocalNames[index], true);
+                lp.appendWithSeparator(mConflict.clashingLocalNames[static_cast<size_t>(index)],
+                                       true);
                 mCache2[index] = lp.toPath(false);
                 return mCache2[index].c_str();
             }
@@ -3272,6 +3331,10 @@ class MegaApiImpl : public MegaApp
                                            const char* id,
                                            int canContact,
                                            MegaRequestListener* listener = NULL);
+        void creditCardCancelSubscriptions(const MegaCancelSubscriptionReasonList* reasons,
+                                           const char* id,
+                                           int canContact,
+                                           MegaRequestListener* listener);
         void getPaymentMethods(MegaRequestListener *listener = NULL);
 
         char *exportMasterKey();
@@ -3288,7 +3351,11 @@ class MegaApiImpl : public MegaApp
         void invalidateCache();
         int getPasswordStrength(const char *password);
         static char* generateRandomCharsPassword(bool useUpper, bool useDigit, bool useSymbol, unsigned int length);
-        void submitFeedback(int rating, const char *comment, MegaRequestListener *listener = NULL);
+        void submitFeedback(int rating,
+                            const char* comment,
+                            bool transferFeedback,
+                            int transferType,
+                            MegaRequestListener* listener = nullptr);
         void reportEvent(const char *details = NULL, MegaRequestListener *listener = NULL);
         void sendEvent(int eventType, const char* message, bool addJourneyId, const char* viewId, MegaRequestListener *listener = NULL);
         void createSupportTicket(const char* message, int type = 1, MegaRequestListener *listener = NULL);
@@ -4230,22 +4297,7 @@ public:
 #endif
 
         // purchase transactions
-        void enumeratequotaitems_result(unsigned type,
-                                        handle product,
-                                        unsigned prolevel,
-                                        int gbstorage,
-                                        int gbtransfer,
-                                        unsigned months,
-                                        unsigned amount,
-                                        unsigned amountMonth,
-                                        unsigned localPrice,
-                                        const char* description,
-                                        std::map<std::string, uint32_t>&& features,
-                                        const char* iosid,
-                                        const char* androidid,
-                                        unsigned int testCategory,
-                                        std::unique_ptr<BusinessPlan>,
-                                        unsigned int trialDays) override;
+        void enumeratequotaitems_result(const Product& product) override;
         void enumeratequotaitems_result(unique_ptr<CurrencyData>) override;
         void enumeratequotaitems_result(error e) override;
         void additem_result(error) override;
@@ -5263,12 +5315,15 @@ public:
     using MapSlotIDToCredentialInfo = CommandGetVpnCredentials::MapSlotIDToCredentialInfo;
     using MapClusterPublicKeys = CommandGetVpnCredentials::MapClusterPublicKeys;
 
-    MegaVpnCredentialsPrivate(MapSlotIDToCredentialInfo&&, MapClusterPublicKeys&&, MegaStringList*);
+    MegaVpnCredentialsPrivate(MapSlotIDToCredentialInfo&&,
+                              MapClusterPublicKeys&&,
+                              std::vector<VpnRegion>&&);
     MegaVpnCredentialsPrivate(const MegaVpnCredentialsPrivate&);
-    ~MegaVpnCredentialsPrivate();
+    ~MegaVpnCredentialsPrivate() override = default;
 
     MegaIntegerList* getSlotIDs() const override;
     MegaStringList* getVpnRegions() const override;
+    MegaVpnRegionListPrivate* getVpnRegionsDetailed() const override;
     const char* getIPv4(int slotID) const override;
     const char* getIPv6(int slotID) const override;
     const char* getDeviceID(int slotID) const override;
@@ -5279,7 +5334,7 @@ public:
 private:
     MapSlotIDToCredentialInfo mMapSlotIDToCredentialInfo;
     MapClusterPublicKeys mMapClusterPubKeys;
-    std::unique_ptr<MegaStringList> mVpnRegions;
+    std::vector<VpnRegion> mVpnRegions;
 };
 
 class MegaNodeTreePrivate: public MegaNodeTree
@@ -5343,18 +5398,68 @@ public:
     MegaNotificationPrivate(const DynamicMessageNotification& n) :
         mNotification{n}, mCall1{&mNotification.callToAction1}, mCall2{&mNotification.callToAction2} {}
 
-    int64_t getID() const override { return mNotification.id; }
-    const char* getTitle() const override { return mNotification.title.c_str(); }
-    const char* getDescription() const override { return mNotification.description.c_str(); }
-    const char* getImageName() const override { return mNotification.imageName.c_str(); }
-    const char* getIconName() const override { return mNotification.iconName.c_str(); }
-    const char* getImagePath() const override { return mNotification.imagePath.c_str(); }
-    int64_t getStart() const override { return mNotification.start; }
-    int64_t getEnd() const override { return mNotification.end; }
-    bool showBanner() const override { return mNotification.showBanner; }
-    const MegaStringMap* getCallToAction1() const override { return &mCall1; }
-    const MegaStringMap* getCallToAction2() const override { return &mCall2; }
-    MegaNotificationPrivate* copy() const override { return new MegaNotificationPrivate(*this); }
+    int64_t getID() const override
+    {
+        return mNotification.id;
+    }
+
+    const char* getTitle() const override
+    {
+        return mNotification.title.c_str();
+    }
+
+    const char* getDescription() const override
+    {
+        return mNotification.description.c_str();
+    }
+
+    const char* getImageName() const override
+    {
+        return mNotification.imageName.c_str();
+    }
+
+    const char* getIconName() const override
+    {
+        return mNotification.iconName.c_str();
+    }
+
+    const char* getImagePath() const override
+    {
+        return mNotification.imagePath.c_str();
+    }
+
+    int64_t getStart() const override
+    {
+        return mNotification.start;
+    }
+
+    int64_t getEnd() const override
+    {
+        return mNotification.end;
+    }
+
+    bool showBanner() const override
+    {
+        return mNotification.showBanner;
+    }
+
+    const MegaStringMap* getCallToAction1() const override
+    {
+        return &mCall1;
+    }
+
+    const MegaStringMap* getCallToAction2() const override
+    {
+        return &mCall2;
+    }
+
+    MegaStringList* getRenderModes() const override;
+    MegaStringMap* getRenderModeFields(const char* mode) const override;
+
+    MegaNotificationPrivate* copy() const override
+    {
+        return new MegaNotificationPrivate(*this);
+    }
 
 private:
     const DynamicMessageNotification mNotification;
@@ -5545,6 +5650,30 @@ public:
     size_t size() const override;
 }; // MegaMountListPrivate
 
+class MegaCancelSubscriptionReasonPrivate: public MegaCancelSubscriptionReason
+{
+public:
+    MegaCancelSubscriptionReasonPrivate(const char* reason, const char* position);
+    const char* text() const override;
+    const char* position() const override;
+    MegaCancelSubscriptionReasonPrivate* copy() const override;
+
+private:
+    std::string mText;
+    std::string mPosition;
+};
+
+class MegaCancelSubscriptionReasonListPrivate: public MegaCancelSubscriptionReasonList
+{
+public:
+    void add(const MegaCancelSubscriptionReason* reason) override;
+    const MegaCancelSubscriptionReason* get(size_t index) const override;
+    size_t size() const override;
+    MegaCancelSubscriptionReasonListPrivate* copy() const override;
+
+private:
+    std::vector<std::shared_ptr<MegaCancelSubscriptionReason>> mReasons;
+};
 }
 
 // Specializations of std::hash for custom Sync types

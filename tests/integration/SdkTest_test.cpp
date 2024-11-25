@@ -18,7 +18,6 @@
 
  * program.
  */
-
 #include "SdkTest_test.h"
 
 #include "../stdfs.h"
@@ -226,7 +225,7 @@ namespace
     //     is better than 0 on errors.
     size_t writeData(void *ptr, size_t size, size_t nmemb, std::ofstream *stream)
     {
-        if (stream->write((char*)ptr, size * nmemb))
+        if (stream->write((char*)ptr, static_cast<std::streamsize>(size * nmemb)))
         {
             return size * nmemb;
         }
@@ -598,7 +597,7 @@ void SdkTest::Cleanup()
             unique_ptr<MegaTextChatList> chats(megaApi[nApi]->getChatList());
             for (int i = 0u; i < chats->size(); ++i)
             {
-                const MegaTextChat* c = chats->get(i);
+                const MegaTextChat* c = chats->get(static_cast<unsigned>(i));
                 ASSERT_TRUE(c);
                 if (c->getOwnPrivilege() == PRIV_MODERATOR)
                 {
@@ -676,7 +675,9 @@ void SdkTest::Cleanup()
             if (rootNode)
             {
                 ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(nApi, rootNode.get())) << "Cannot get Folder Info for rootnode";
-                nodesInRoot = mApi[nApi].mFolderInfo->getNumFiles() + mApi[nApi].mFolderInfo->getNumFolders() + mApi[nApi].mFolderInfo->getNumVersions();
+                nodesInRoot = static_cast<uint64_t>(mApi[nApi].mFolderInfo->getNumFiles() +
+                                                    mApi[nApi].mFolderInfo->getNumFolders() +
+                                                    mApi[nApi].mFolderInfo->getNumVersions());
             }
 
             uint64_t nodesInRubbishBin = 0;
@@ -684,7 +685,9 @@ void SdkTest::Cleanup()
             if (rubbishbinNode)
             {
                 ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(nApi, rubbishbinNode.get())) << "Cannot get Folder Info for rubbis bin";
-                nodesInRubbishBin = mApi[nApi].mFolderInfo->getNumFiles() + mApi[nApi].mFolderInfo->getNumFolders() + mApi[nApi].mFolderInfo->getNumVersions();
+                nodesInRubbishBin = static_cast<uint64_t>(mApi[nApi].mFolderInfo->getNumFiles() +
+                                                          mApi[nApi].mFolderInfo->getNumFolders() +
+                                                          mApi[nApi].mFolderInfo->getNumVersions());
             }
 
             uint64_t nodesInVault = 0;
@@ -692,7 +695,9 @@ void SdkTest::Cleanup()
             if (vaultNode)
             {
                 ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(nApi, vaultNode.get())) << "Cannot get Folder Info for vault";
-                nodesInVault = mApi[nApi].mFolderInfo->getNumFiles() + mApi[nApi].mFolderInfo->getNumFolders() + mApi[nApi].mFolderInfo->getNumVersions();
+                nodesInVault = static_cast<uint64_t>(mApi[nApi].mFolderInfo->getNumFiles() +
+                                                     mApi[nApi].mFolderInfo->getNumFolders() +
+                                                     mApi[nApi].mFolderInfo->getNumVersions());
             }
 
             if (nodesInRoot > 0 || nodesInRubbishBin > 0 || nodesInVault > 0)
@@ -706,7 +711,9 @@ void SdkTest::Cleanup()
 int SdkTest::getApiIndex(MegaApi* api)
 {
     int apiIndex = -1;
-    for (int i = int(megaApi.size()); i--; )  if (megaApi[i].get() == api) apiIndex = i;
+    for (int i = int(megaApi.size()); i--;)
+        if (megaApi[static_cast<size_t>(i)].get() == api)
+            apiIndex = i;
     if (apiIndex == -1)
     {
         LOG_warn << "Instance of MegaApi not recognized";  // this can occur during MegaApi deletion due to callbacks on shutdown
@@ -960,15 +967,19 @@ void SdkTest::onTransferStart(MegaApi *api, MegaTransfer *transfer)
 
 void SdkTest::onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* e)
 {
-    int apiIndex = getApiIndex(api);
-    if (apiIndex < 0) return;
+    int tempApiIndex = getApiIndex(api);
+    if (tempApiIndex < 0)
+        return;
+    size_t apiIndex = static_cast<size_t>(tempApiIndex);
 
     mApi[apiIndex].transferFlags[transfer->getType()] = true;
-    mApi[apiIndex].lastError = e->getErrorCode();   // todo: change the rest of the transfer test code to use lastTransferError instead.
+    mApi[apiIndex].lastError = e->getErrorCode(); // todo: change the rest of the transfer test code
+                                                  // to use lastTransferError instead.
     mApi[apiIndex].lastTransferError = e->getErrorCode();
 
     // there could be a race on these getting set?
-    LOG_info << "lastError (by transfer) for MegaApi " << apiIndex << ": " << mApi[apiIndex].lastError;
+    LOG_info << "lastError (by transfer) for MegaApi " << apiIndex << ": "
+             << mApi[apiIndex].lastError;
 
     onTranferFinishedCount += 1;
 
@@ -1001,7 +1012,7 @@ void SdkTest::onAccountUpdate(MegaApi* api)
     int apiIndex = getApiIndex(api);
     if (apiIndex < 0) return;
 
-    mApi[apiIndex].accountUpdated = true;
+    mApi[static_cast<size_t>(apiIndex)].accountUpdated = true;
 }
 
 void SdkTest::onUsersUpdate(MegaApi* api, MegaUserList *users)
@@ -1051,7 +1062,7 @@ void SdkTest::onSetsUpdate(MegaApi* api, MegaSetList* sets)
     int apiIndex = getApiIndex(api);
     if (apiIndex < 0 || !sets || !sets->size()) return;
 
-    mApi[apiIndex].setUpdated = true;
+    mApi[static_cast<size_t>(apiIndex)].setUpdated = true;
 }
 
 void SdkTest::onSetElementsUpdate(MegaApi* api, MegaSetElementList* elements)
@@ -1068,7 +1079,7 @@ void SdkTest::onSetElementsUpdate(MegaApi* api, MegaSetElementList* elements)
         }
     }
 
-    mApi[apiIndex].setElementUpdated = true;
+    mApi[static_cast<size_t>(apiIndex)].setElementUpdated = true;
 }
 
 void SdkTest::onContactRequestsUpdate(MegaApi* api, MegaContactRequestList* requests)
@@ -1076,7 +1087,7 @@ void SdkTest::onContactRequestsUpdate(MegaApi* api, MegaContactRequestList* requ
     int apiIndex = getApiIndex(api);
     if (apiIndex < 0) return;
 
-    mApi[apiIndex].contactRequestUpdated = true;
+    mApi[static_cast<size_t>(apiIndex)].contactRequestUpdated = true;
 }
 
 void SdkTest::onUserAlertsUpdate(MegaApi* api, MegaUserAlertList* alerts)
@@ -1084,15 +1095,16 @@ void SdkTest::onUserAlertsUpdate(MegaApi* api, MegaUserAlertList* alerts)
     int apiIndex = getApiIndex(api);
     if (apiIndex < 0) return;
 
-    mApi[apiIndex].userAlertList.reset(alerts ? alerts->copy() : nullptr);
-    mApi[apiIndex].userAlertsUpdated = true;
+    mApi[static_cast<size_t>(apiIndex)].userAlertList.reset(alerts ? alerts->copy() : nullptr);
+    mApi[static_cast<size_t>(apiIndex)].userAlertsUpdated = true;
 }
-
 #ifdef ENABLE_CHAT
 void SdkTest::onChatsUpdate(MegaApi *api, MegaTextChatList *chats)
 {
-    int apiIndex = getApiIndex(api);
-    if (apiIndex < 0) return;
+    int tempApiIndex = getApiIndex(api);
+    if (tempApiIndex < 0)
+        return;
+    size_t apiIndex = static_cast<size_t>(tempApiIndex);
 
     MegaTextChatList *list = NULL;
     if (chats)
@@ -1105,14 +1117,14 @@ void SdkTest::onChatsUpdate(MegaApi *api, MegaTextChatList *chats)
     }
     for (int i = 0; i < list->size(); i++)
     {
-        handle chatid = list->get(i)->getHandle();
+        handle chatid = list->get(static_cast<unsigned>(i))->getHandle();
         if (mApi[apiIndex].chats.find(chatid) != mApi[apiIndex].chats.end())
         {
-            mApi[apiIndex].chats[chatid].reset(list->get(i)->copy());
+            mApi[apiIndex].chats[chatid].reset(list->get(static_cast<unsigned>(i))->copy());
         }
         else
         {
-            mApi[apiIndex].chats[chatid].reset(list->get(i)->copy());
+            mApi[apiIndex].chats[chatid].reset(list->get(static_cast<unsigned>(i))->copy());
         }
     }
     delete list;
@@ -1123,16 +1135,19 @@ void SdkTest::onChatsUpdate(MegaApi *api, MegaTextChatList *chats)
 
 void SdkTest::createChat(bool group, MegaTextChatPeerList *peers, int timeout)
 {
-    int apiIndex = 0;
+    size_t apiIndex = 0;
     mApi[apiIndex].requestFlags[MegaRequest::TYPE_CHAT_CREATE] = false;
     megaApi[0]->createChat(group, peers);
-    waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_CHAT_CREATE], timeout);
+    waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_CHAT_CREATE],
+                    static_cast<unsigned>(timeout));
     if (timeout)
     {
-        ASSERT_TRUE(mApi[apiIndex].requestFlags[MegaRequest::TYPE_CHAT_CREATE]) << "Chat creation not finished after " << timeout  << " seconds";
+        ASSERT_TRUE(mApi[apiIndex].requestFlags[MegaRequest::TYPE_CHAT_CREATE])
+            << "Chat creation not finished after " << timeout << " seconds";
     }
 
-    ASSERT_EQ(API_OK, mApi[apiIndex].lastError) << "Chat creation failed (error: " << mApi[apiIndex].lastError << ")";
+    ASSERT_EQ(API_OK, mApi[apiIndex].lastError)
+        << "Chat creation failed (error: " << mApi[static_cast<size_t>(apiIndex)].lastError << ")";
 }
 
 /**
@@ -1241,7 +1256,7 @@ void SdkTest::onEvent(MegaApi* s, MegaEvent *event)
     int index = getApiIndex(s);
     if (index >= 0) // it can be -1 when tests are being destroyed
     {
-        mApi[index].receiveEvent(event);
+        mApi[static_cast<size_t>(index)].receiveEvent(event);
         LOG_debug << index << " Received event " << event->getType();
     }
 }
@@ -1263,8 +1278,9 @@ void SdkTest::logout(unsigned int apiIndex, bool keepSyncConfigs, int timeout)
 #endif
     gSessionIDs[apiIndex] = "invalid";
 
-    EXPECT_TRUE( waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_LOGOUT], timeout) )
-            << "Logout failed after " << timeout  << " seconds";
+    EXPECT_TRUE(waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_LOGOUT],
+                                static_cast<unsigned>(timeout)))
+        << "Logout failed after " << timeout << " seconds";
 
     // if the connection was closed before the response of the request was received, the result is ESID
     if (mApi[apiIndex].lastError == API_ESID) mApi[apiIndex].lastError = API_OK;
@@ -1422,8 +1438,10 @@ void SdkTest::onNodesUpdateCheck(size_t apiIndex, MegaHandle target, MegaNodeLis
     for (int i = 0; i < nodes->size(); i++)
     {
         MegaNode* n = nodes->get(i);
-        if ((n->getHandle() == target && (n->hasChanged(change) || change == -1))
-                || (target == INVALID_HANDLE && change == MegaNode::CHANGE_TYPE_NEW && n->hasChanged(change)))
+        if ((n->getHandle() == target &&
+             (n->hasChanged(static_cast<uint64_t>(change)) || change == -1)) ||
+            (target == INVALID_HANDLE && change == MegaNode::CHANGE_TYPE_NEW &&
+             n->hasChanged(static_cast<uint64_t>(change))))
         {
             flag = true;
         }
@@ -1596,7 +1614,11 @@ void SdkTest::configureTestInstance(unsigned index,
         ASSERT_FALSE(mApi[index].pwd.empty()) << "Set test account " << index << " password at the environment variable $" << passVarName;
     }
 
-    megaApi[index].reset(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(index).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT), clientType));
+    megaApi[index].reset(newMegaApi(APP_KEY.c_str(),
+                                    megaApiCacheFolder(static_cast<int>(index)).c_str(),
+                                    USER_AGENT.c_str(),
+                                    unsigned(THREADS_PER_MEGACLIENT),
+                                    clientType));
     mApi[index].megaApi = megaApi[index].get();
 
     // helps with restoring logging after tests that fiddle with log level
@@ -1692,7 +1714,7 @@ void SdkTest::inviteContact(const unsigned apiIndex, const string& email, const 
 
 void SdkTest::replyContact(MegaContactRequest *cr, int action)
 {
-    int apiIndex = 1;
+    unsigned int apiIndex = 1;
     ASSERT_EQ(API_OK, synchronousReplyContactRequest(apiIndex, cr, action)) << "Contact reply failed";
 }
 
@@ -1937,7 +1959,7 @@ void SdkTest::deleteScheduledMeeting(unsigned apiIndex, MegaHandle& chatid)
 
 void SdkTest::shareFolder(MegaNode *n, const char *email, int action)
 {
-    int apiIndex = 0;
+    unsigned int apiIndex = 0;
     auto shareFolderErr = synchronousShare(apiIndex, n, email, action);
     if (shareFolderErr == API_EKEY)
     {
@@ -2050,22 +2072,22 @@ MegaHandle SdkTest::createFolder(unsigned int apiIndex, const char *name, MegaNo
 
 void SdkTest::getCountryCallingCodes(const int timeout)
 {
-    int apiIndex = 0;
+    unsigned int apiIndex = 0;
     ASSERT_EQ(API_OK, synchronousGetCountryCallingCodes(apiIndex, this)) << "Get country calling codes failed";
 }
 
 void SdkTest::getUserAttribute(MegaUser *u, int type, int timeout, int apiIndex)
 {
-    mApi[apiIndex].requestFlags[MegaRequest::TYPE_GET_ATTR_USER] = false;
+    mApi[static_cast<size_t>(apiIndex)].requestFlags[MegaRequest::TYPE_GET_ATTR_USER] = false;
 
     int err;
     if (type == MegaApi::USER_ATTR_AVATAR)
     {
-        err = synchronousGetUserAvatar(apiIndex, u, AVATARDST.c_str());
+        err = synchronousGetUserAvatar(static_cast<unsigned>(apiIndex), u, AVATARDST.c_str());
     }
     else
     {
-        err = synchronousGetUserAttribute(apiIndex, u, type);
+        err = synchronousGetUserAttribute(static_cast<unsigned>(apiIndex), u, type);
     }
     bool result = (err == API_OK) || (err == API_ENOENT);
     ASSERT_TRUE(result) << "User attribute retrieval failed (error: " << err << ")";
@@ -3594,8 +3616,7 @@ bool SdkTest::checkAlert(int apiIndex, const string& title, const string& path)
     bool ok = false;
     for (int i = 0; !ok && i < 10; ++i)
     {
-
-        MegaUserAlertList* list = mApi[apiIndex].megaApi->getUserAlerts();
+        MegaUserAlertList* list = mApi[static_cast<size_t>(apiIndex)].megaApi->getUserAlerts();
         if (list->size() > 0)
         {
             MegaUserAlert* a = list->get(list->size() - 1);
@@ -3659,8 +3680,7 @@ bool SdkTest::checkAlert(int apiIndex, const string& title, handle h, int64_t n,
     bool ok = false;
     for (int i = 0; !ok && i < 10; ++i)
     {
-
-        MegaUserAlertList* list = megaApi[apiIndex]->getUserAlerts();
+        MegaUserAlertList* list = megaApi[static_cast<size_t>(apiIndex)]->getUserAlerts();
         if (list->size() > 0)
         {
             MegaUserAlert* a = list->get(list->size() - 1);
@@ -5538,7 +5558,7 @@ TEST_F(SdkTest, SdkTestShareKeys)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(3));
 
     // make sure users B and C have no inshares (since before this test was started)
-    for (int apiIdx = 1; apiIdx <= 2; ++apiIdx)
+    for (unsigned apiIdx = 1; apiIdx <= 2; ++apiIdx)
     {
         unique_ptr<MegaShareList> inShares(megaApi[apiIdx]->getInSharesList());
         for (int i = 0; i < inShares->size(); ++i)
@@ -6711,11 +6731,11 @@ public:
     virtual bool read(char *buffer, size_t size) {
         if (buffer)
         {
-            ifs.read(buffer, size);
+            ifs.read(buffer, static_cast<streamsize>(size));
         }
         else
         {
-            ifs.seekg(size, ios::cur);
+            ifs.seekg(static_cast<streamoff>(size), ios::cur);
         }
         return !ifs.fail();
     }
@@ -6748,8 +6768,9 @@ TEST_F(SdkTest, SdkTestFingerprint)
             ofstream ofs(name.c_str(), ios::binary);
             char s[8192];
             ofs.rdbuf()->pubsetbuf(s, sizeof s);
-            for (auto j = filesizes[i] / sizeof(value); j-- ; ) ofs.write((char*)&value, sizeof(value));
-            ofs.write((char*)&value, filesizes[i] % sizeof(value));
+            for (auto j = static_cast<size_t>(filesizes[i]) / sizeof(value); j--;)
+                ofs.write((char*)&value, sizeof(value));
+            ofs.write((char*)&value, static_cast<size_t>(filesizes[i]) % sizeof(value));
         }
 
         fsa->setmtimelocal(localname, 1000000000);
@@ -6778,7 +6799,8 @@ static void incrementFilename(string& s)
 {
     if (s.size() > 2)
     {
-        if (is_digit(s[s.size() - 2]) || !is_digit(s[s.size() - 1]))
+        if (is_digit(static_cast<unsigned>(s[s.size() - 2])) ||
+            !is_digit(static_cast<unsigned>(s[s.size() - 1])))
         {
             s += "00";
         }
@@ -6813,6 +6835,8 @@ namespace mega
         static int countdownToOverquota;
         static int countdownTo404;
         static int countdownTo403;
+        static int countdownTo429;
+        static int countdownTo503;
         static int countdownToTimeout;
         static bool isRaid;
         static bool isRaidKnown;
@@ -6844,7 +6868,7 @@ namespace mega
             return false;
         }
 
-        static bool onHttpReqPost404Or403(HttpReq* req)
+        static bool onHttpReqPostError(HttpReq* req)
         {
             if (req->type == REQ_BINARY)
             {
@@ -6860,6 +6884,22 @@ namespace mega
                     req->status = REQ_FAILURE;
 
                     LOG_info << "SIMULATING HTTP GET 403";
+                    return true;
+                }
+                if (countdownTo429-- == 0)
+                {
+                    req->httpstatus = 429;
+                    req->status = REQ_FAILURE;
+
+                    LOG_info << "SIMULATING HTTP GET 429";
+                    return true;
+                }
+                if (countdownTo503-- == 0)
+                {
+                    req->httpstatus = 503;
+                    req->status = REQ_FAILURE;
+
+                    LOG_info << "SIMULATING HTTP GET 503";
                     return true;
                 }
             }
@@ -6906,10 +6946,12 @@ namespace mega
         {
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
             globalMegaTestHooks = MegaTestHooks(); // remove any callbacks set in other tests
-            countdownToOverquota = 3;
-            countdownTo404 = 5;
-            countdownTo403 = 10;
-            countdownToTimeout = 15;
+            countdownToOverquota = -1;
+            countdownTo404 = -1;
+            countdownTo403 = -1;
+            countdownTo429 = -1;
+            countdownTo503 = -1;
+            countdownToTimeout = -1;
             isRaid = false;
             isRaidKnown = false;
             return true;
@@ -6925,13 +6967,14 @@ namespace mega
 
     };
 
-    int DebugTestHook::countdownToOverquota = 3;
+    int DebugTestHook::countdownToOverquota = -1;
     bool DebugTestHook::isRaid = false;
     bool DebugTestHook::isRaidKnown = false;
-    int DebugTestHook::countdownTo404 = 5;
-    int DebugTestHook::countdownTo403 = 10;
-    int DebugTestHook::countdownToTimeout = 15;
-
+    int DebugTestHook::countdownTo404 = -1;
+    int DebugTestHook::countdownTo403 = -1;
+    int DebugTestHook::countdownTo429 = -1;
+    int DebugTestHook::countdownTo503 = -1;
+    int DebugTestHook::countdownToTimeout = -1;
 }
 
 
@@ -7147,7 +7190,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
     DebugTestHook::countdownTo404 = 5;
     DebugTestHook::countdownTo403 = 12;
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
-    globalMegaTestHooks.onHttpReqPost = DebugTestHook::onHttpReqPost404Or403;
+    globalMegaTestHooks.onHttpReqPost = DebugTestHook::onHttpReqPostError;
     globalMegaTestHooks.onSetIsRaid = DebugTestHook::onSetIsRaid_morechunks;
     globalMegaTestHooks.onLimitMaxReqSize = ::mega::DebugTestHook::onLimitMaxReqSize;
     globalMegaTestHooks.onHookNumberOfConnections = ::mega::DebugTestHook::onHookNumberOfConnections;
@@ -7578,7 +7621,7 @@ struct CheckStreamedFile_MegaTransferListener : public MegaTransferListener
     MegaError* completedUnsuccessfullyError;
     byte* compareDecryptedData;
     bool comparedEqual;
-
+    m_off_t numFailedRequests{};
 
     CheckStreamedFile_MegaTransferListener(size_t receiveStartPoint, size_t receiveSizeExpected, byte* fileCompareData)
         : reserved(0)
@@ -7624,6 +7667,7 @@ struct CheckStreamedFile_MegaTransferListener : public MegaTransferListener
     }
     void onTransferTemporaryError(MegaApi *api, MegaTransfer * /*transfer*/, MegaError* error) override
     {
+        ++numFailedRequests;
         ostringstream msg;
         msg << "onTransferTemporaryError: " << (error ? error->getErrorString() : "NULL");
         api->log(MegaApi::LOG_LEVEL_WARNING, msg.str().c_str());
@@ -7644,7 +7688,7 @@ struct CheckStreamedFile_MegaTransferListener : public MegaTransferListener
 
 CheckStreamedFile_MegaTransferListener* StreamRaidFilePart(MegaApi* megaApi, m_off_t start, m_off_t end, bool raid, bool smallpieces, MegaNode* raidFileNode, MegaNode*nonRaidFileNode, ::mega::byte* filecomparedata)
 {
-    assert(raidFileNode && nonRaidFileNode);
+    assert((raid ? raidFileNode : nonRaidFileNode));
     LOG_info << "stream test ---------------------------------------------------" << start << " to " << end << "(len " << end - start << ") " << (raid ? " RAID " : " non-raid ") << (raid ? (smallpieces ? " smallpieces " : "normalpieces") : "");
 
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
@@ -7934,6 +7978,114 @@ TEST_F(SdkTest, SdkRecentsTest)
     ASSERT_TRUE(bucketsVec.size() > 1);
     EXPECT_THAT(bucketsVec[0], testing::ElementsAre(filename2));
     EXPECT_THAT(bucketsVec[1], testing::ElementsAre(filename1bkp2, filename1bkp1));
+}
+
+TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)
+{
+    LOG_info << "___TEST Streaming Raided Transfer With Connection Failures___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_NE(rootnode.get(), nullptr) << "Cannot retrieve RootNode";
+    auto importRaidHandle =
+        importPublicLink(0, MegaClient::MEGAURL + PUBLIC_IMAGE_URL, rootnode.get());
+    std::shared_ptr<MegaNode> cloudRaidNode{megaApi[0]->getNodeByHandle(importRaidHandle)};
+    ASSERT_NE(rootnode.get(), nullptr) << "Cannot get CloudRaidNode node from public link";
+
+    megaApi[0]->setMaxDownloadSpeed(0);
+    auto startStreaming = [cloudRaidNode, this](int cd404,
+                                                int cd403,
+                                                int cd429,
+                                                int cd503,
+                                                m_off_t nFailedReqs,
+                                                unsigned int transfer_timeout_in_seconds)
+    {
+        ASSERT_TRUE(DebugTestHook::resetForTests())
+            << "SDK test hooks are not enabled in release mode";
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+        globalMegaTestHooks.onHttpReqPost = DebugTestHook::onHttpReqPostError;
+        globalMegaTestHooks.onSetIsRaid = DebugTestHook::onSetIsRaid_morechunks;
+        globalMegaTestHooks.onLimitMaxReqSize = ::mega::DebugTestHook::onLimitMaxReqSize;
+        globalMegaTestHooks.onHookNumberOfConnections =
+            ::mega::DebugTestHook::onHookNumberOfConnections;
+#endif
+
+        mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
+        DebugTestHook::countdownTo404 = cd404;
+        DebugTestHook::countdownTo403 = cd403;
+        DebugTestHook::countdownTo429 = cd429;
+        DebugTestHook::countdownTo503 = cd503;
+        std::unique_ptr<CheckStreamedFile_MegaTransferListener> p(
+            StreamRaidFilePart(megaApi[0].get(),
+                               0,
+                               cloudRaidNode->getSize(),
+                               true /*raid*/,
+                               false,
+                               cloudRaidNode.get(),
+                               nullptr,
+                               nullptr));
+
+        ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD],
+                                    transfer_timeout_in_seconds))
+            << "Cloudraid download with 404 and 403 errors time out (180 seconds)";
+        ASSERT_EQ(API_OK, mApi[0].lastError)
+            << "Cannot finish streaming download for the cloudraid file (error: "
+            << mApi[0].lastError << ")";
+        ASSERT_TRUE(cd404 < 0 || DebugTestHook::countdownTo404 < 0) << "";
+        ASSERT_TRUE(cd403 < 0 || DebugTestHook::countdownTo403 < 0) << "";
+        ASSERT_TRUE(cd429 < 0 || DebugTestHook::countdownTo404 < 0) << "";
+        ASSERT_EQ(p->numFailedRequests, nFailedReqs)
+            << "Unexpected number of retries for streaming download";
+    };
+
+    LOG_debug << "#### Test1: Streaming Download, forcing 1 Raided Part Failure (403). No transfer "
+                 "retry ####";
+    startStreaming(-1 /*cd404*/,
+                   2 /*cd403*/,
+                   -1 /*cd429*/,
+                   -1 /*cd503*/,
+                   0 /*nFailedReqs*/,
+                   180 /*timeout*/);
+
+    LOG_debug << "#### Test2: Streaming Download, forcing 1 Raided Part Failure(503) No transfer "
+                 "retry ####";
+    startStreaming(-1 /*cd404*/,
+                   -1 /*cd403*/,
+                   -1 /*cd429*/,
+                   1 /*cd503*/,
+                   0 /*nFailedReqs*/,
+                   180 /*timeout*/);
+
+    LOG_debug << "#### Test3: Streaming Download, forcing 1 Raided Part Failure (404)."
+                 "Transfer will be retried immediately due to 404(onTransferTemporaryError "
+                 "received) ####";
+    startStreaming(2 /*cd404*/,
+                   -1 /*cd403*/,
+                   -1 /*cd429*/,
+                   -1 /*cd503*/,
+                   1 /*nFailedReqs*/,
+                   180 /*timeout*/);
+
+    LOG_debug << "#### Test4: Streaming Download, forcing 1 Raided Part Failure (429)."
+                 "Transfer will be retried immediately due to 429(onTransferTemporaryError "
+                 "received) ####";
+    startStreaming(-1 /*cd404*/,
+                   -1 /*cd403*/,
+                   2 /*cd429*/,
+                   -1 /*cd503*/,
+                   1 /*nFailedReqs*/,
+                   180 /*timeout*/);
+
+    LOG_debug << "#### Test5: Streaming Download forcing 2 Raided Parts Failures(403 | 503)."
+                 "Transfer will be retried immediately due to 403 and 503(onTransferTemporaryError "
+                 "received) ####";
+    startStreaming(-1 /*cd404*/,
+                   2 /*cd403*/,
+                   -1 /*cd429*/,
+                   2 /*cd503*/,
+                   1 /*nFailedReqs*/,
+                   180 /*timeout*/);
+
+    ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 }
 
 #if !USE_FREEIMAGE
@@ -8983,11 +9135,13 @@ TEST_F(SdkTest, SdkBackupMoveOrDelete)
     mApi.push_back(std::move(pa));
     auto& differentApiDtls = mApi.back();
     differentApiDtls.megaApi = &differentApi;
-    int differentApiIdx = int(megaApi.size() - 1);
+    size_t differentApiIdx = megaApi.size() - 1;
 
-    auto loginTracker = asyncRequestLogin(differentApiIdx, differentApiDtls.email.c_str(), differentApiDtls.pwd.c_str());
+    auto loginTracker = asyncRequestLogin(static_cast<unsigned>(differentApiIdx),
+                                          differentApiDtls.email.c_str(),
+                                          differentApiDtls.pwd.c_str());
     ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to establish a login/session for account " << differentApiIdx;
-    loginTracker = asyncRequestFetchnodes(differentApiIdx);
+    loginTracker = asyncRequestFetchnodes(static_cast<unsigned>(differentApiIdx));
     ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to fetch nodes for account " << differentApiIdx;
 
     // Request backup removal (and delete its contents) from a different connection
@@ -9052,7 +9206,7 @@ TEST_F(SdkTest, SdkBackupMoveOrDelete)
     ASSERT_TRUE(WaitFor(bkpDestOK, 60000)) << "Other API could not see the backup destination after 60 seconds";
 
     // Request backup removal (and move its contents) from a different connection
-    RequestTracker removeBackupTracker2(megaApi[differentApiIdx].get());
+    RequestTracker removeBackupTracker2(megaApi[static_cast<size_t>(differentApiIdx)].get());
     megaApi[differentApiIdx]->removeFromBC(backupId, moveDest, &removeBackupTracker2);
     ASSERT_EQ(removeBackupTracker2.waitForResult(), API_OK) << "Failed to remove 2nd backup and move its contents";
 
@@ -10213,14 +10367,21 @@ TEST_F(SdkTest, SyncBasicOperations)
     ASSERT_EQ(MegaSync::NO_SYNC_ERROR, sync->getError());
 
     //  Sync 2
-    ASSERT_EQ(API_OK, synchronousSetSyncRunState(0, sync2->getBackupId(), MegaSync::RUNSTATE_DISABLED));
+    ASSERT_EQ(API_OK,
+              synchronousSetSyncRunState(0, sync2->getBackupId(), MegaSync::RUNSTATE_DISABLED));
     sync2 = waitForSyncState(megaApi[0].get(), remoteBaseNode2.get(), MegaSync::RUNSTATE_DISABLED, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync2 && sync2->getRunState() == MegaSync::RUNSTATE_DISABLED);
     ASSERT_EQ(MegaSync::NO_SYNC_ERROR, sync->getError());
 
     LOG_verbose << "SyncRemoveRemoteNode :  Disable disabled syncs";
-    ASSERT_EQ(API_OK, synchronousSetSyncRunState(0, sync->getBackupId(), MegaSync::RUNSTATE_DISABLED)); // Currently disabled.
-    ASSERT_EQ(API_OK, synchronousSetSyncRunState(0, backupId, MegaSync::RUNSTATE_DISABLED)); // Currently disabled.
+    ASSERT_EQ(API_OK,
+              synchronousSetSyncRunState(0,
+                                         sync->getBackupId(),
+                                         MegaSync::RUNSTATE_DISABLED)); // Currently disabled.
+    ASSERT_EQ(API_OK,
+              synchronousSetSyncRunState(0,
+                                         backupId,
+                                         MegaSync::RUNSTATE_DISABLED)); // Currently disabled.
 
     LOG_verbose << "SyncRemoveRemoteNode :  Enable Syncs";
     // Sync 1
@@ -10229,16 +10390,24 @@ TEST_F(SdkTest, SyncBasicOperations)
     sync = waitForSyncState(megaApi[0].get(), remoteBaseNode1.get(), MegaSync::RUNSTATE_RUNNING, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync && sync->getRunState() == MegaSync::RUNSTATE_RUNNING);
     // Sync 2
-    ASSERT_EQ(API_OK, synchronousSetSyncRunState(0, sync2->getBackupId(), MegaSync::RUNSTATE_RUNNING));
+    ASSERT_EQ(API_OK,
+              synchronousSetSyncRunState(0, sync2->getBackupId(), MegaSync::RUNSTATE_RUNNING));
     ASSERT_EQ(MegaSync::NO_SYNC_ERROR, mApi[0].lastSyncError);
     sync2 = waitForSyncState(megaApi[0].get(), remoteBaseNode2.get(), MegaSync::RUNSTATE_RUNNING, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync2 && sync2->getRunState() == MegaSync::RUNSTATE_RUNNING);
 
     LOG_verbose << "SyncRemoveRemoteNode :  Enable syncs that fail";
     {
-        ASSERT_EQ(API_ENOENT, synchronousSetSyncRunState(0, 999999, MegaSync::RUNSTATE_RUNNING)); // Hope it doesn't exist.
+        ASSERT_EQ(API_ENOENT,
+                  synchronousSetSyncRunState(0,
+                                             static_cast<MegaHandle>(999999),
+                                             MegaSync::RUNSTATE_RUNNING)); // Hope it doesn't exist.
         ASSERT_EQ(MegaSync::UNKNOWN_ERROR, mApi[0].lastSyncError); // MegaApi.h specifies that this contains the error code (not the tag)
-        ASSERT_EQ(API_OK, synchronousSetSyncRunState(0, sync2->getBackupId(), MegaSync::RUNSTATE_RUNNING)); // Currently enabled, already running.
+        ASSERT_EQ(API_OK,
+                  synchronousSetSyncRunState(
+                      0,
+                      sync2->getBackupId(),
+                      MegaSync::RUNSTATE_RUNNING)); // Currently enabled, already running.
         ASSERT_EQ(MegaSync::NO_SYNC_ERROR, mApi[0].lastSyncError);  // since the sync is active, we should see its real state, and it should not have had any error code stored in it
     }
 
@@ -10248,12 +10417,15 @@ TEST_F(SdkTest, SyncBasicOperations)
     sync.reset(megaApi[0]->getSyncByNode(remoteBaseNode1.get()));
     ASSERT_EQ(nullptr, sync.get());
     // Sync 2
-    ASSERT_EQ(API_OK, synchronousRemoveSync(0, sync2->getBackupId())) << "API Error removing the sync";
+    ASSERT_EQ(API_OK, synchronousRemoveSync(0, sync2->getBackupId()))
+        << "API Error removing the sync";
     // Keep sync2 not updated. Will be used later to test another removal attemp using a non-updated object.
 
     LOG_verbose << "SyncRemoveRemoteNode :  Remove Syncs that fail";
     {
-        ASSERT_EQ(API_ENOENT, synchronousRemoveSync(0, 9999999)); // Hope id doesn't exist
+        ASSERT_EQ(
+            API_ENOENT,
+            synchronousRemoveSync(0, static_cast<MegaHandle>(9999999))); // Hope id doesn't exist
         ASSERT_EQ(API_ENOENT, synchronousRemoveSync(0, backupId)); // already removed.
         ASSERT_EQ(API_ENOENT, synchronousRemoveSync(0, backupId2)); // already removed.
     }
@@ -10558,7 +10730,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
         ASSERT_EQ(API_OK, syncTracker.waitForResult());
     };
 
-    auto removeSyncByBackupId = [this, &megaNode](handle backupId)
+    auto removeSyncByBackupId = [this](handle backupId)
     {
         RequestTracker syncTracker(megaApi[0].get());
         megaApi[0]->removeSync(backupId, &syncTracker);
@@ -10933,7 +11105,8 @@ TEST_F(SdkTest, SyncPersistence)
 
     // Check if a logout with keepSyncsAfterLogout keeps the sync configured.
     ASSERT_NO_FATAL_FAILURE(logout(0, true, maxTimeout));
-    size_t syncCount = unique_ptr<MegaSyncList>(megaApi[0]->getSyncs())->size();
+    size_t syncCount =
+        static_cast<size_t>(unique_ptr<MegaSyncList>(megaApi[0]->getSyncs())->size());
     ASSERT_EQ(syncCount, 0u);
     gSessionIDs[0] = "invalid";
     auto trackerLogin = asyncRequestLogin(0, mApi[0].email.c_str(), mApi[0].pwd.c_str());
@@ -11066,7 +11239,8 @@ TEST_F(SdkTest, SyncPaths)
     // Disable the first one, create again the one with the symlink, check that it is working and check if the first fails when enabled.
     LOG_verbose << "SyncPaths :  Disable sync with local path " << localPath.u8string() << " and remote " << basePath.u8string();
     auto tagID = sync->getBackupId();
-    ASSERT_EQ(API_OK, synchronousSetSyncRunState(0, tagID, MegaSync::RUNSTATE_DISABLED)) << "API Error disabling sync";
+    ASSERT_EQ(API_OK, synchronousSetSyncRunState(0, tagID, MegaSync::RUNSTATE_DISABLED))
+        << "API Error disabling sync";
     sync = waitForSyncState(megaApi[0].get(), tagID, MegaSync::RUNSTATE_DISABLED, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync);
     ASSERT_EQ(sync->getRunState(), MegaSync::RUNSTATE_DISABLED);
@@ -11110,7 +11284,8 @@ TEST_F(SdkTest, SyncPaths)
 #ifndef WIN32
     {
         LOG_verbose << "SyncPaths :  Check that we cannot enable again the no-symlink sync with local path " << localPath.u8string() << " and remote " << basePath.u8string();
-        ASSERT_EQ(API_EARGS, synchronousSetSyncRunState(0, tagID, MegaSync::RUNSTATE_RUNNING)) << "API Error enabling a sync";
+        ASSERT_EQ(API_EARGS, synchronousSetSyncRunState(0, tagID, MegaSync::RUNSTATE_RUNNING))
+            << "API Error enabling a sync";
         ASSERT_EQ(MegaSync::LOCAL_PATH_SYNC_COLLISION, mApi[0].lastSyncError);
     }
 #endif
@@ -11289,7 +11464,8 @@ TEST_F(SdkTest, SyncOQTransitions)
         ASSERT_EQ(MegaSync::STORAGE_OVERQUOTA, sync->getError());
 
         LOG_verbose << "SyncOQTransitions :  Check that Sync could not be enabled while disabled due to OQ.";
-        ASSERT_EQ(API_EFAILED, synchronousSetSyncRunState(0, backupId, MegaSync::RUNSTATE_RUNNING))  << "API Error enabling a sync";
+        ASSERT_EQ(API_EFAILED, synchronousSetSyncRunState(0, backupId, MegaSync::RUNSTATE_RUNNING))
+            << "API Error enabling a sync";
         sync = waitForSyncState(megaApi[0].get(), backupId, MegaSync::RUNSTATE_SUSPENDED, MegaSync::STORAGE_OVERQUOTA);  // fresh snapshot of sync state
         ASSERT_TRUE(sync && sync->getRunState() == MegaSync::RUNSTATE_SUSPENDED);
         ASSERT_EQ(MegaSync::STORAGE_OVERQUOTA, sync->getError());
@@ -11477,7 +11653,7 @@ TEST_F(SdkTest, DISABLED_StressTestSDKInstancesOverWritableFoldersOverWritableFo
 
     std::string baseFolder = "StressTestSDKInstancesOverWritableFoldersFolder";
 
-    int numFolders = 90;
+    unsigned numFolders = 90;
 
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), baseFolder));
 
@@ -11490,7 +11666,7 @@ TEST_F(SdkTest, DISABLED_StressTestSDKInstancesOverWritableFoldersOverWritableFo
     ASSERT_NE(remoteBaseNode.get(), nullptr);
 
     // create subfolders ...
-    for (int index = 0 ; index < numFolders; index++ )
+    for (unsigned index = 0; index < numFolders; index++)
     {
         string subFolderPath = string("subfolder_").append(SSTR(index));
         nh = createFolder(0, subFolderPath.c_str(), remoteBaseNode.get());
@@ -11526,7 +11702,7 @@ TEST_F(SdkTest, DISABLED_StressTestSDKInstancesOverWritableFoldersOverWritableFo
     authKeys.resize(howMany);
 
     // export subfolders
-    for (int index = 0 ; index < howMany; index++ )
+    for (unsigned index = 0; index < howMany; index++)
     {
         string subFolderPath = string("subfolder_").append(SSTR(index));
         std::unique_ptr<MegaNode> remoteSubFolderNode(megaApi[0]->getNodeByPath(subFolderPath.c_str(), remoteBaseNode.get()));
@@ -11554,45 +11730,51 @@ TEST_F(SdkTest, DISABLED_StressTestSDKInstancesOverWritableFoldersOverWritableFo
     }
 
     // create apis to exported folders
-    for (int index = 0 ; index < howMany; index++ )
+    for (unsigned index = 0; index < howMany; index++)
     {
-        exportedFolderApis[index].reset(
+        exportedFolderApis[static_cast<size_t>(index)].reset(
             newMegaApi(APP_KEY.c_str(),
-                       megaApiCacheFolder(index + 10).c_str(),
+                       megaApiCacheFolder(static_cast<int>(index) + 10).c_str(),
                        USER_AGENT.c_str(),
                        static_cast<unsigned>(THREADS_PER_MEGACLIENT)));
 
         // reduce log level to something beareable
-        exportedFolderApis[index]->setLogLevel(MegaApi::LOG_LEVEL_WARNING);
+        exportedFolderApis[static_cast<size_t>(index)]->setLogLevel(MegaApi::LOG_LEVEL_WARNING);
     }
 
     // login to exported folders
-    for (int index = 0 ; index < howMany; index++ )
+    for (unsigned index = 0; index < howMany; index++)
     {
         string nodelink = exportedLinks[index];
         string authKey = authKeys[index];
 
         out() << "login to exported folder " << index;
-        trackers[index] = asyncRequestLoginToFolder(exportedFolderApis[index].get(), nodelink.c_str(), authKey.c_str());
+        trackers[static_cast<size_t>(index)] =
+            asyncRequestLoginToFolder(exportedFolderApis[static_cast<size_t>(index)].get(),
+                                      nodelink.c_str(),
+                                      authKey.c_str());
     }
 
     // wait for login to complete:
-    for (int index = 0; index < howMany; ++index)
+    for (unsigned index = 0; index < howMany; ++index)
     {
-        ASSERT_EQ(API_OK, trackers[index]->waitForResult()) << " Failed to fetchnodes for accout " << index;
+        ASSERT_EQ(API_OK, trackers[index]->waitForResult())
+            << " Failed to fetchnodes for accout " << index;
     }
 
     // perform parallel fetchnodes for each
-    for (int index = 0; index < howMany; ++index)
+    for (unsigned index = 0; index < howMany; ++index)
     {
         out() << "Fetching nodes for account " << index;
-        trackers[index] = asyncRequestFetchnodes(exportedFolderApis[index].get());
+        trackers[index] =
+            asyncRequestFetchnodes(exportedFolderApis[static_cast<size_t>(index)].get());
     }
 
     // wait for fetchnodes to complete:
-    for (int index = 0; index < howMany; ++index)
+    for (unsigned index = 0; index < howMany; ++index)
     {
-        ASSERT_EQ(API_OK, trackers[index]->waitForResult()) << " Failed to fetchnodes for accout " << index;
+        ASSERT_EQ(API_OK, trackers[index]->waitForResult())
+            << " Failed to fetchnodes for accout " << index;
     }
 
     // In case the last test exited without cleaning up (eg, debugging etc)
@@ -13498,9 +13680,11 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     differentApiDtls.megaApi = &differentApi;
     int differentApiIdx = int(megaApi.size() - 1);
 
-    auto loginTracker = asyncRequestLogin(differentApiIdx, differentApiDtls.email.c_str(), differentApiDtls.pwd.c_str());
+    auto loginTracker = asyncRequestLogin(static_cast<unsigned>(differentApiIdx),
+                                          differentApiDtls.email.c_str(),
+                                          differentApiDtls.pwd.c_str());
     ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to establish a login/session for account " << differentApiIdx;
-    loginTracker = asyncRequestFetchnodes(differentApiIdx);
+    loginTracker = asyncRequestFetchnodes(static_cast<unsigned>(differentApiIdx));
     ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to fetch nodes for account " << differentApiIdx;
 
     // 1. Create Set
@@ -13958,8 +14142,11 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     // Use another connection with the same credentials as U1
     MegaApi* differentApiPtr = nullptr;
     PerApi* differentApiDtlsPtr = nullptr;
-    int userIdx = 0;
-    megaApi.emplace_back(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(userIdx).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
+    unsigned userIdx = 0;
+    megaApi.emplace_back(newMegaApi(APP_KEY.c_str(),
+                                    megaApiCacheFolder(static_cast<int>(userIdx)).c_str(),
+                                    USER_AGENT.c_str(),
+                                    unsigned(THREADS_PER_MEGACLIENT)));
     differentApiPtr = &(*megaApi.back());
     differentApiPtr->addListener(this);
     PerApi pa; // make a copy
@@ -13969,9 +14156,11 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     mApi.push_back(std::move(pa));
     differentApiDtlsPtr = &(mApi.back());
     differentApiDtlsPtr->megaApi = differentApiPtr;
-    int difApiIdx = static_cast<int>(megaApi.size() - 1);
+    unsigned difApiIdx = static_cast<unsigned>(megaApi.size() - 1);
 
-    auto loginTracker = asyncRequestLogin(difApiIdx, differentApiDtlsPtr->email.c_str(), differentApiDtlsPtr->pwd.c_str());
+    auto loginTracker = asyncRequestLogin(difApiIdx,
+                                          differentApiDtlsPtr->email.c_str(),
+                                          differentApiDtlsPtr->pwd.c_str());
     ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to establish a login/session for account " << difApiIdx;
     loginTracker = asyncRequestFetchnodes(difApiIdx);
     ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to fetch nodes for account " << difApiIdx;
@@ -13991,19 +14180,21 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
 
     LOG_debug << "# U1: Upload test file";
     userIdx = 0;
-    unique_ptr<MegaNode> rootnode{ megaApi[userIdx]->getRootNode() };
+    unique_ptr<MegaNode> rootnode{megaApi[userIdx]->getRootNode()};
     ASSERT_TRUE(createFile(UPFILE, false)) << "Couldn't create " << UPFILE;
     MegaHandle uploadedNode = INVALID_HANDLE;
-    ASSERT_EQ(API_OK, doStartUpload(userIdx, &uploadedNode, UPFILE.c_str(),
-                                    rootnode.get(),
-                                    nullptr /*fileName*/,
-                                    ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                                    nullptr /*appData*/,
-                                    false   /*isSourceTemporary*/,
-                                    false   /*startFirst*/,
-                                    nullptr /*cancelToken*/)
-             ) << "Cannot upload a test file";
-
+    ASSERT_EQ(API_OK,
+              doStartUpload(userIdx,
+                            &uploadedNode,
+                            UPFILE.c_str(),
+                            rootnode.get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << "Cannot upload a test file";
 
     LOG_debug << "# U1: Add Element to Set";
     userIdx = 0;
@@ -14072,7 +14263,8 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     ASSERT_EQ(API_OK, doUpdateSetName(userIdx, nullptr, sh, updatedName.c_str()));
     ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setUpdated))
         << "Failed to receive shared Set name updated AP on U1's secondary client";
-    ASSERT_TRUE(megaApi[userIdx]->isExportedSet(sh)) << "Set should still be public after the update";
+    ASSERT_TRUE(megaApi[userIdx]->isExportedSet(sh))
+        << "Set should still be public after the update";
     // reset to previous name to keep using existing original cached Set for validation
     differentApiDtlsPtr->setUpdated = false;
     PerApi& target = mApi[userIdx];
@@ -14113,12 +14305,14 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
 
 
     LOG_debug << "# U1: Get public Set URL";
-    const auto lCheckSetLink = [this, sh, &exportedSetURL](int expectedResult)
+    const auto lCheckSetLink = [this, sh](int expectedResult)
     {
         bool isSuccessExpected = expectedResult == API_OK;
         unique_ptr<const char[]> publicSetLink(megaApi[0]->getPublicLinkForExportedSet(sh));
-        if (isSuccessExpected) ASSERT_NE(publicSetLink.get(), nullptr);
-        else                   ASSERT_EQ(publicSetLink.get(), nullptr);
+        if (isSuccessExpected)
+            ASSERT_NE(publicSetLink.get(), nullptr);
+        else
+            ASSERT_EQ(publicSetLink.get(), nullptr);
     };
 
     ASSERT_NO_FATAL_FAILURE(lCheckSetLink(API_OK));
@@ -14134,10 +14328,11 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
         ASSERT_NO_FATAL_FAILURE(lIsSameElement(ell->get(0)));
     };
     const auto lFetchCurrentSetInPreviewMode =
-    [this, &lIsSameSet, &lIsSameElementList] (int apiIdx, int isSuccessExpected)
+        [this, &lIsSameSet, &lIsSameElementList](int apiIdx, int isSuccessExpected)
     {
-        unique_ptr<MegaSet> s(megaApi[apiIdx]->getPublicSetInPreview());
-        unique_ptr<MegaSetElementList> ell(megaApi[apiIdx]->getPublicSetElementsInPreview());
+        unique_ptr<MegaSet> s(megaApi[static_cast<size_t>(apiIdx)]->getPublicSetInPreview());
+        unique_ptr<MegaSetElementList> ell(
+            megaApi[static_cast<size_t>(apiIdx)]->getPublicSetElementsInPreview());
 
         if (isSuccessExpected)
         {
@@ -14156,7 +14351,10 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     {
         MegaSet* exportedSet = nullptr;
         MegaSetElementList* exportedEls = nullptr;
-        const auto reqResult = doFetchPublicSet(apiIdx, &exportedSet, &exportedEls, exportedSetURL.c_str());
+        const auto reqResult = doFetchPublicSet(static_cast<unsigned>(apiIdx),
+                                                &exportedSet,
+                                                &exportedEls,
+                                                exportedSetURL.c_str());
         unique_ptr<MegaSet> s(exportedSet);
         unique_ptr<MegaSetElementList> els(exportedEls);
 
@@ -14173,7 +14371,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
             ASSERT_EQ(els.get(), nullptr);
         }
 
-        ASSERT_EQ(megaApi[apiIdx]->inPublicSetPreview(), isSetExportExpected);
+        ASSERT_EQ(megaApi[static_cast<size_t>(apiIdx)]->inPublicSetPreview(), isSetExportExpected);
         ASSERT_NO_FATAL_FAILURE(lFetchCurrentSetInPreviewMode(apiIdx, isSetExportExpected));
     };
 
@@ -14184,8 +14382,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     userIdx = 0;
     megaApi[userIdx]->stopPublicSetPreview();
     ASSERT_FALSE(megaApi[userIdx]->inPublicSetPreview());
-    ASSERT_NO_FATAL_FAILURE(lFetchCurrentSetInPreviewMode(userIdx, false));
-
+    ASSERT_NO_FATAL_FAILURE(lFetchCurrentSetInPreviewMode(static_cast<int>(userIdx), false));
 
     LOG_debug << "# U2: Attempt to fetch public Set using wrong key";
     string exportedSetURL_wrongKey = exportedSetURL;
@@ -14195,11 +14392,10 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
 
     LOG_debug << "# U2: Fetch public Set and start preview mode";
     userIdx = 1;
-    ASSERT_NO_FATAL_FAILURE(lFetchPublicSet(userIdx, isExpectedToBeExported));
+    ASSERT_NO_FATAL_FAILURE(lFetchPublicSet(static_cast<int>(userIdx), isExpectedToBeExported));
     // test shortcut
     LOG_debug << "\tTesting fetch shortcut (same public Set in a row)";
-    ASSERT_NO_FATAL_FAILURE(lFetchPublicSet(userIdx, isExpectedToBeExported));
-
+    ASSERT_NO_FATAL_FAILURE(lFetchPublicSet(static_cast<int>(userIdx), isExpectedToBeExported));
 
     LOG_debug << "# U2: Download foreign Set Element in preview set mode";
     unique_ptr<MegaNode> foreignNode;
@@ -14255,8 +14451,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     userIdx = 1;
     megaApi[userIdx]->stopPublicSetPreview();
     ASSERT_FALSE(megaApi[userIdx]->inPublicSetPreview());
-    ASSERT_NO_FATAL_FAILURE(lFetchCurrentSetInPreviewMode(userIdx, false));
-
+    ASSERT_NO_FATAL_FAILURE(lFetchCurrentSetInPreviewMode(static_cast<int>(userIdx), false));
 
     LOG_debug << "# U2: Download foreign Set Element not in preview set mode (-11 and -9 expected)";
     ASSERT_NO_FATAL_FAILURE(lFetchForeignNode(API_EACCESS));
@@ -14294,9 +14489,9 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
 
     LOG_debug << "# U1: Fetch public Set on non-exported Set (using previously valid link)";
     userIdx = 0;
-    ASSERT_NO_FATAL_FAILURE(lFetchPublicSet(userIdx, isExpectedToBeExported));
-    ASSERT_FALSE(megaApi[userIdx]->inPublicSetPreview()) << "Public Set preview mode should not be active";
-
+    ASSERT_NO_FATAL_FAILURE(lFetchPublicSet(static_cast<int>(userIdx), isExpectedToBeExported));
+    ASSERT_FALSE(megaApi[userIdx]->inPublicSetPreview())
+        << "Public Set preview mode should not be active";
 
     LOG_debug << "# U1: Remove all Sets";
     userIdx = 0;
@@ -14312,7 +14507,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
         ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setUpdated))
             << "Failed to receive deleted Set AP on U1's secondary client";
     }
-    sets.reset(megaApi[userIdx]->getSets());
+    sets.reset(megaApi[static_cast<size_t>(userIdx)]->getSets());
     ASSERT_EQ(sets->size(), 0u);
 }
 
@@ -14348,7 +14543,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsSetTypes)
     mApi.push_back(std::move(pa));
     differentApiDtlsPtr = &(mApi.back());
     differentApiDtlsPtr->megaApi = differentApiPtr;
-    const unsigned int difApiIdx = static_cast<unsigned int>(megaApi.size() - 1);
+    const unsigned int difApiIdx = static_cast<unsigned>(megaApi.size() - 1);
     differentApiPtr->setLoggingName(to_string(difApiIdx).c_str());
 
     auto loginTracker = asyncRequestLogin(difApiIdx, differentApiDtlsPtr->email.c_str(), differentApiDtlsPtr->pwd.c_str());
@@ -14466,8 +14661,8 @@ TEST_F(SdkTest, SdkUserAlerts)
     LOG_info << "___TEST SdkUserAlerts___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
 
-    int A1idx = 0;
-    int B1idx = 1;
+    unsigned A1idx = 0;
+    unsigned B1idx = 1;
 
     // Alerts generated in this test should be compared with:
     // - db persisted ones;
@@ -14510,7 +14705,10 @@ TEST_F(SdkTest, SdkUserAlerts)
 
     // --- Send a contact request ---
     A1dtls.contactRequestUpdated = B1dtls.contactRequestUpdated = false;
-    ASSERT_NO_FATAL_FAILURE(inviteContact(A1idx, B1dtls.email, "test: A1 invited B1", MegaContactRequest::INVITE_ACTION_ADD));
+    ASSERT_NO_FATAL_FAILURE(inviteContact(A1idx,
+                                          B1dtls.email,
+                                          "test: A1 invited B1",
+                                          MegaContactRequest::INVITE_ACTION_ADD));
     ASSERT_TRUE(waitForResponse(&A1dtls.contactRequestUpdated))
         << "Contact request creation not received by A1 after " << maxTimeout << " seconds";
     ASSERT_TRUE(waitForResponse(&B1dtls.contactRequestUpdated))
@@ -14641,13 +14839,18 @@ TEST_F(SdkTest, SdkUserAlerts)
     // not a large file since don't need to test transfers here
     ASSERT_TRUE(createFile(PUBLICFILE.c_str(), false)) << "Couldn't create " << PUBLICFILE.c_str();
     MegaHandle hPublicfile = UNDEF;
-    ASSERT_EQ(MegaError::API_OK, doStartUpload(A1idx, &hPublicfile, PUBLICFILE.c_str(), nSharedFolder.get(),
-        nullptr /*fileName*/,
-        ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-        nullptr /*appData*/,
-        false   /*isSourceTemporary*/,
-        false   /*startFirst*/,
-        nullptr /*cancelToken*/)) << "Cannot upload a test file";
+    ASSERT_EQ(MegaError::API_OK,
+              doStartUpload(A1idx,
+                            &hPublicfile,
+                            PUBLICFILE.c_str(),
+                            nSharedFolder.get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << "Cannot upload a test file";
 
     std::unique_ptr<MegaNode> nSubfolder(A1.getNodeByHandle(hSubfolder));
     ASSERT_NE(nSubfolder, nullptr);
@@ -14655,13 +14858,18 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_NE(rootA1, nullptr);
     ASSERT_TRUE(createFile(UPFILE.c_str(), false)) << "Couldn't create " << UPFILE.c_str();
     MegaHandle hUpfile = UNDEF;
-    ASSERT_EQ(MegaError::API_OK, doStartUpload(A1idx, &hUpfile, UPFILE.c_str(), rootA1.get(),
-        nullptr /*fileName*/,
-        ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-        nullptr /*appData*/,
-        false   /*isSourceTemporary*/,
-        false   /*startFirst*/,
-        nullptr /*cancelToken*/)) << "Cannot upload a second test file";
+    ASSERT_EQ(MegaError::API_OK,
+              doStartUpload(A1idx,
+                            &hUpfile,
+                            UPFILE.c_str(),
+                            rootA1.get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << "Cannot upload a second test file";
 
 #ifdef ENABLE_CHAT
     // NewScheduledMeeting
@@ -14757,8 +14965,16 @@ TEST_F(SdkTest, SdkUserAlerts)
 
     // --- Create a new outgoing share ---
     A1dtls.nodeUpdated = B1dtls.nodeUpdated = false; // reset flags expected to be true in asserts below
-    A1dtls.mOnNodesUpdateCompletion = [&A1dtls, A1idx](size_t apiIndex, MegaNodeList*) { if (A1idx == int(apiIndex)) A1dtls.nodeUpdated = true; };
-    B1dtls.mOnNodesUpdateCompletion = [&B1dtls, B1idx](size_t apiIndex, MegaNodeList*) { if (B1idx == int(apiIndex)) B1dtls.nodeUpdated = true; };
+    A1dtls.mOnNodesUpdateCompletion = [&A1dtls, A1idx](size_t apiIndex, MegaNodeList*)
+    {
+        if (A1idx == apiIndex)
+            A1dtls.nodeUpdated = true;
+    };
+    B1dtls.mOnNodesUpdateCompletion = [&B1dtls, B1idx](size_t apiIndex, MegaNodeList*)
+    {
+        if (B1idx == apiIndex)
+            B1dtls.nodeUpdated = true;
+    };
 
     ASSERT_NO_FATAL_FAILURE(shareFolder(nSharedFolder.get(), B1dtls.email.c_str(), MegaShare::ACCESS_FULL));
     ASSERT_TRUE(waitForResponse(&A1dtls.nodeUpdated))   // at the target side (main account)
@@ -14830,7 +15046,8 @@ TEST_F(SdkTest, SdkUserAlerts)
     B1dtls.userAlertList.reset();
 
     // --- Move shared sub-folder (owned) to Root ---
-    ASSERT_EQ(API_OK, doMoveNode(A1idx, nullptr, nSubfolder.get(), rootA1.get())) << "Moving subfolder out of (owned) share failed";
+    ASSERT_EQ(API_OK, doMoveNode(A1idx, nullptr, nSubfolder.get(), rootA1.get()))
+        << "Moving subfolder out of (owned) share failed";
 
     // RemovedSharedNode
     ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
@@ -14879,13 +15096,15 @@ TEST_F(SdkTest, SdkUserAlerts)
     B1dtls.userAlertList.reset();
 
     // --- Move sub-folder from Root (owned) back to share ---
-    ASSERT_EQ(API_OK, doMoveNode(A1idx, nullptr, nSubfolder.get(), nSharedFolder.get())) << "Moving sub-folder from Root (owned) to share failed";
+    ASSERT_EQ(API_OK, doMoveNode(A1idx, nullptr, nSubfolder.get(), nSharedFolder.get()))
+        << "Moving sub-folder from Root (owned) to share failed";
     // NOTE: This did not create a NewSharedNodes alert (even when it contained files). Notified as a potential bug.
 
     // --- Move file from Root (owned) to share ---
     std::unique_ptr<MegaNode> nfile2(A1.getNodeByHandle(hUpfile));
     ASSERT_NE(nfile2, nullptr);
-    ASSERT_EQ(API_OK, doMoveNode(A1idx, nullptr, nfile2.get(), nSubfolder.get())) << "Moving file from Root (owned) to shared folder failed";
+    ASSERT_EQ(API_OK, doMoveNode(A1idx, nullptr, nfile2.get(), nSubfolder.get()))
+        << "Moving file from Root (owned) to shared folder failed";
 
     // ignore notification about single TYPE_REMOVEDSHAREDNODES alert marked as removed
     if (B1dtls.userAlertList && B1dtls.userAlertList->size() == 1 &&
@@ -15158,8 +15377,16 @@ TEST_F(SdkTest, SdkUserAlerts)
 
     // --- Revoke access to an outgoing share ---
     A1dtls.nodeUpdated = B1dtls.nodeUpdated = false; // reset flags expected to be true in asserts below
-    A1dtls.mOnNodesUpdateCompletion = [&A1dtls, A1idx](size_t apiIndex, MegaNodeList*) { if (A1idx == int(apiIndex)) A1dtls.nodeUpdated = true; };
-    B1dtls.mOnNodesUpdateCompletion = [&B1dtls, B1idx](size_t apiIndex, MegaNodeList*) { if (B1idx == int(apiIndex)) B1dtls.nodeUpdated = true; };
+    A1dtls.mOnNodesUpdateCompletion = [&A1dtls, A1idx](size_t apiIndex, MegaNodeList*)
+    {
+        if (A1idx == apiIndex)
+            A1dtls.nodeUpdated = true;
+    };
+    B1dtls.mOnNodesUpdateCompletion = [&B1dtls, B1idx](size_t apiIndex, MegaNodeList*)
+    {
+        if (B1idx == apiIndex)
+            B1dtls.nodeUpdated = true;
+    };
     ASSERT_NO_FATAL_FAILURE(shareFolder(nSharedFolder.get(), B1dtls.email.c_str(), MegaShare::ACCESS_UNKNOWN));
     ASSERT_TRUE(waitForResponse(&A1dtls.nodeUpdated))   // at the target side (main account)
         << "Node update not received by A1 after " << maxTimeout << " seconds";
@@ -15265,7 +15492,7 @@ TEST_F(SdkTest, SdkUserAlerts)
 
     // create a dummy folder, just to trigger a local db commit before locallogout (which triggers a ROLLBACK)
     std::unique_ptr<MegaNode> rootnodeB1{ B1.getRootNode() };
-    PerApi& target = mApi[B1idx];
+    PerApi& target = mApi[static_cast<size_t>(B1idx)];
     target.resetlastEvent();
     MegaHandle hDummyFolder = createFolder(B1idx, "DummyFolder_TriggerDbCommit", rootnodeB1.get());
     ASSERT_NE(hDummyFolder, INVALID_HANDLE);
@@ -15277,7 +15504,8 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_EQ(API_OK, logoutErr) << "Local logout failed (error: " << logoutErr << ") for account " << B1idx << " (B1)";
 
     // resume session for B1
-    ASSERT_EQ(API_OK, synchronousFastLogin(B1idx, B1session.get(), this)) << "Resume session failed for B1 (error: " << B1dtls.lastError << ")";
+    ASSERT_EQ(API_OK, synchronousFastLogin(B1idx, B1session.get(), this))
+        << "Resume session failed for B1 (error: " << B1dtls.lastError << ")";
     ASSERT_NO_FATAL_FAILURE(fetchnodes(B1idx));
     unique_ptr<MegaUserAlertList> persistedAlerts(B1.getUserAlerts());
     ASSERT_TRUE(persistedAlerts);
@@ -15308,7 +15536,7 @@ TEST_F(SdkTest, SdkUserAlerts)
 
         if (it != bkpAlerts.end())
         {
-            sortedPersistedAlerts[it - bkpAlerts.begin()] = pal;
+            sortedPersistedAlerts[static_cast<size_t>(it - bkpAlerts.begin())] = pal;
         }
     }
 
@@ -16238,7 +16466,7 @@ TEST_F(SdkTest, SdkTestFilePermissions)
         return downloadListener.waitForResult();
     };
 
-    auto openFile = [this, &filename](bool readF, bool writeF) -> bool
+    auto openFile = [&filename](bool readF, bool writeF) -> bool
     {
         auto fsa = std::make_unique<FSACCESS_CLASS>();
         fs::path filePath = fs::current_path() / filename.c_str();
@@ -16868,7 +17096,8 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
     // 1) Get VPN regions to choose one of them
     {
         std::unique_ptr<MegaStringList> vpnRegions;
-        result = doGetVpnRegions(0, vpnRegions);
+        std::unique_ptr<MegaVpnRegionList> vpnRegionsDetailed;
+        result = doGetVpnRegions(0, vpnRegions, vpnRegionsDetailed);
         ASSERT_EQ(API_OK, result) << "getting the VPN regions failed";
         ASSERT_TRUE(vpnRegions) << "list of VPN regions is NULL";
         ASSERT_TRUE(vpnRegions->size()) << "list of VPN regions is empty";
@@ -16876,6 +17105,31 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
         const char* vpnRegion = vpnRegions->get(0); // Select the first vpn region
         ASSERT_TRUE(vpnRegion) << "VPN region is NULL";
         ASSERT_TRUE(*vpnRegion) << "VPN region is EMPTY";
+
+        auto testDetailedRegionList = [](const std::unique_ptr<MegaVpnRegionList>& regionList)
+        {
+            const MegaVpnRegion* region = regionList->get(0);
+            ASSERT_THAT(region, testing::NotNull());
+            ASSERT_STRNE(region->getName(), "");
+            std::unique_ptr<MegaVpnClusterMap> clusters{region->getClusters()};
+            ASSERT_THAT(clusters, testing::NotNull());
+            ASSERT_GT(clusters->size(), 0);
+            std::unique_ptr<MegaIntegerList> clusterIDs{clusters->getKeys()};
+            ASSERT_THAT(clusterIDs, testing::NotNull());
+            ASSERT_GT(clusterIDs->size(), 0);
+            std::unique_ptr<MegaVpnCluster> firstCluster{clusters->get(clusterIDs->get(0))};
+            ASSERT_THAT(firstCluster, testing::NotNull());
+            ASSERT_THAT(firstCluster->getHost(), testing::NotNull());
+            std::unique_ptr<MegaStringList> clusterDns{firstCluster->getDns()};
+            ASSERT_THAT(clusterDns, testing::NotNull());
+            ASSERT_GT(clusterDns->size(), 0);
+        };
+        ASSERT_THAT(vpnRegionsDetailed, testing::NotNull());
+        ASSERT_EQ(static_cast<int>(vpnRegionsDetailed->size()), vpnRegions->size());
+        const MegaVpnRegion* region = vpnRegionsDetailed->get(0);
+        ASSERT_THAT(region, testing::NotNull());
+        ASSERT_STREQ(region->getName(), vpnRegion);
+        ASSERT_NO_FATAL_FAILURE(testDetailedRegionList(vpnRegionsDetailed));
 
         // Get the PRO level for the testing account
         ASSERT_EQ(API_OK, synchronousGetSpecificAccountDetails(0, true, true, true)) << "Cannot get account details";
@@ -16958,6 +17212,16 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
                 vpnRegionsFromCredentials.reset(megaVpnCredentials->getVpnRegions());
                 ASSERT_TRUE(vpnRegionsFromCredentials) << "list of VPN regions is NULL";
                 ASSERT_TRUE(vpnRegionsFromCredentials->size()) << "list of VPN regions is empty";
+                std::unique_ptr<MegaVpnRegionList> vpnRegionsDetailed{
+                    megaVpnCredentials->getVpnRegionsDetailed()};
+                ASSERT_THAT(vpnRegionsDetailed, testing::NotNull())
+                    << "list of detailed VPN regions was null";
+                ASSERT_EQ(static_cast<int>(vpnRegionsDetailed->size()),
+                          vpnRegionsFromCredentials->size());
+                const MegaVpnRegion* regionDetailed = vpnRegionsDetailed->get(0);
+                ASSERT_THAT(regionDetailed, testing::NotNull());
+                ASSERT_STREQ(regionDetailed->getName(), vpnRegionsFromCredentials->get(0));
+                ASSERT_NO_FATAL_FAILURE(testDetailedRegionList(vpnRegionsDetailed));
             }
             else
             {
@@ -17121,8 +17385,8 @@ TEST_F(SdkTest, SdkTesResumeSessionInFolderLinkDeleted)
     auto& requestFlag{mApi[folderVisitorApiIndex].requestFlags[requestFlagType]};
     requestFlag = false;
 
-    ASSERT_EQ(synchronousFastLogin(static_cast<unsigned int>(folderVisitorApiIndex), session.c_str(), this), API_OK);
-    ASSERT_NO_FATAL_FAILURE(fetchnodes(static_cast<unsigned int>(folderVisitorApiIndex)));
+    ASSERT_EQ(synchronousFastLogin(folderVisitorApiIndex, session.c_str(), this), API_OK);
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(folderVisitorApiIndex));
 
     const unsigned int timeoutInSeconds{60};
     ASSERT_TRUE(waitForResponse(&requestFlag, timeoutInSeconds))
@@ -18557,8 +18821,10 @@ TEST_F(SdkTest, DynamicMessageNotifs)
     // IDs 1,2,3,4,5 have been reserved to be "^!tnotif" only notifications.
     // Notifications with IDs 1~4 existed at the time of writing this test
     // Notification with ID 2 has icon
+    // Notification with ID 9 has render modes ('m')
     ids->add(1);                                   // add notification with ID 1
     ids->add(2);                                   // add notification with ID 2
+    ids->add(9); // add notification with ID 9
     ids->add(numeric_limits<uint32_t>::max() - 1); // dummy
 
     RequestTracker notifsTracker(megaApi[0].get());
@@ -18573,9 +18839,12 @@ TEST_F(SdkTest, DynamicMessageNotifs)
     // Get IDs of enabled-notifications
     unique_ptr<MegaIntegerList> enabledNotifs{ megaApi[0]->getEnabledNotifications() };
     ASSERT_THAT(enabledNotifs, ::testing::NotNull());
-    ASSERT_EQ(enabledNotifs->size(), 2); // only IDs of existing notifications will be there, dummy IDs will not be included
+    ASSERT_EQ(
+        enabledNotifs->size(),
+        3); // only IDs of existing notifications will be there, dummy IDs will not be included
     ASSERT_EQ(enabledNotifs->get(0), 1);
     ASSERT_EQ(enabledNotifs->get(1), 2);
+    ASSERT_EQ(enabledNotifs->get(2), 9);
 
     // Get the complete notifications (corresponding only to existing IDs)
     RequestTracker gnotifTracker2(megaApi[0].get());
@@ -18583,11 +18852,43 @@ TEST_F(SdkTest, DynamicMessageNotifs)
     ASSERT_EQ(gnotifTracker2.waitForResult(), API_OK);
     const auto* notificationList2 = gnotifTracker2.request->getMegaNotifications();
     ASSERT_THAT(notificationList2, ::testing::NotNull());
-    ASSERT_EQ(notificationList2->size(), 2u);
+    ASSERT_EQ(notificationList2->size(), 3u);
 
     // validate complete notifications
     ASSERT_NO_FATAL_FAILURE(validateNotification(notificationList2->get(0), 1, HasIcon::NO));
     ASSERT_NO_FATAL_FAILURE(validateNotification(notificationList2->get(1), 2, HasIcon::YES));
+    ASSERT_NO_FATAL_FAILURE(validateNotification(notificationList2->get(2), 9, HasIcon::NO));
+    unique_ptr<MegaStringList> renderModes{notificationList2->get(2)->getRenderModes()};
+    ASSERT_THAT(renderModes, ::testing::NotNull());
+    ASSERT_GT(renderModes->size(), 0);
+    for (int i = 0; i < renderModes->size(); ++i)
+    {
+        unique_ptr<MegaStringMap> fields{
+            notificationList2->get(2)->getRenderModeFields(renderModes->get(i))};
+        ASSERT_THAT(fields, ::testing::NotNull());
+        if (string{"btp"} == renderModes->get(i))
+        {
+            ASSERT_EQ(fields->size(), 2);
+            ASSERT_THAT(fields->get("href"), ::testing::NotNull());
+            ASSERT_THAT(fields->get("img"), ::testing::NotNull());
+        }
+        else if (string{"brp"} == renderModes->get(i))
+        {
+            ASSERT_EQ(fields->size(), 2);
+            ASSERT_THAT(fields->get("href"), ::testing::NotNull());
+            ASSERT_THAT(fields->get("img"), ::testing::NotNull());
+        }
+        else if (string{"bti"} == renderModes->get(i))
+        {
+            ASSERT_EQ(fields->size(), 1);
+            ASSERT_THAT(fields->get("src"), ::testing::NotNull());
+        }
+        else if (string{"bri"} == renderModes->get(i))
+        {
+            ASSERT_EQ(fields->size(), 1);
+            ASSERT_THAT(fields->get("src"), ::testing::NotNull());
+        }
+    }
 
     // Set last-read-notification
     const uint32_t lastReadNotifId = numeric_limits<uint32_t>::max() - 2; // dummy value
@@ -19200,8 +19501,8 @@ TEST_F(SdkTest, SdkCacheLRU)
 
     megaApi[0]->setLRUCacheSize(500);
 
-    int numberOfCopies = 100;
-    for (int i = 0; i < numberOfCopies; ++i)
+    unsigned numberOfCopies = 100;
+    for (unsigned i = 0; i < numberOfCopies; ++i)
     {
         MegaHandle newNodeHandle;
         std::string newName{filename + std::to_string(i)};
@@ -19209,7 +19510,8 @@ TEST_F(SdkTest, SdkCacheLRU)
     }
 
     uint64_t numNodeCacheLRU = megaApi[0]->getNumNodesAtCacheLRU();
-    ASSERT_EQ(numNodeCacheLRU, numberOfCopies + 1 + initialNumberNodes);  // 101 -> initial node + 100 copies
+    ASSERT_EQ(numNodeCacheLRU,
+              numberOfCopies + 1 + initialNumberNodes); // 101 -> initial node + 100 copies
 
     uint64_t cacheLRUSize = 50;
     megaApi[0]->setLRUCacheSize(cacheLRUSize);
@@ -19223,7 +19525,7 @@ TEST_F(SdkTest, SdkCacheLRU)
     numNodeCacheLRU = megaApi[0]->getNumNodesAtCacheLRU();
     ASSERT_EQ(numNodeCacheLRU, cacheLRUSize);
 
-    for (int i = 0; i < 20; ++i)
+    for (unsigned i = 0; i < 20; ++i)
     {
         MegaHandle newNodeHandle;
         std::string newName{filename + std::to_string(numberOfCopies + i)};
@@ -19597,6 +19899,95 @@ TEST_F(SdkTest, SdkTestRestoreNodeVersion)
     ASSERT_EQ(contents, originalContent);
 }
 
+/**
+ * @brief TEST_F SdkRemoveTempFilesUponUploadTransfers
+ *
+ * Tests that file uploads transfers started with isSourceTemporary flag finally removes temporary
+ * files in local filesystem
+ *
+ * # Test1 Upload file F1
+ * # Test2 Upload file F1 again
+ * # Test3 Upload file F2 with same fingerprint than F1 in cloud (Node copy)
+ * # Test4 Upload file F1 (modified) with different fingerprint than F1 in cloud
+ * # Test5 Upload file F3 and cancel transfer
+ */
+TEST_F(SdkTest, SdkRemoveTempFilesUponUploadTransfers)
+{
+    LOG_info << "___TEST SdkRemoveTempFilesUponUploadTransfers___";
+    constexpr int accIdx{0};
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    std::shared_ptr<MegaNode> rootnode(megaApi[accIdx]->getRootNode());
+    ASSERT_TRUE(!!rootnode) << "Cannot retrieve rootnode";
+
+    auto uploadFile = [&](MegaNode* n, const fs::path& filePath, bool cancelTransfer = false)
+    {
+        TransferTracker uploadListener(megaApi[accIdx].get());
+        megaApi[accIdx]->startUpload(filePath.u8string().c_str(),
+                                     n,
+                                     nullptr /*fileName*/,
+                                     ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                     nullptr /*appData*/,
+                                     true /*isSourceTemporary*/,
+                                     false /*startFirst*/,
+                                     nullptr /*cancelToken*/,
+                                     &uploadListener);
+
+        if (cancelTransfer)
+        {
+            ASSERT_EQ(API_OK, synchronousCancelTransfers(accIdx, MegaTransfer::TYPE_UPLOAD));
+            ASSERT_EQ(API_EINCOMPLETE, uploadListener.waitForResult());
+        }
+        else
+        {
+            ASSERT_EQ(API_OK, uploadListener.waitForResult())
+                << "Cannot upload local file: " << filePath;
+            std::unique_ptr<MegaNode> n1(
+                megaApi[accIdx]->getNodeByHandle(uploadListener.resultNodeHandle));
+            ASSERT_TRUE(!!n1) << "Cannot get node in cloud drive file: "
+                              << toHandle(uploadListener.resultNodeHandle);
+        }
+
+        ASSERT_TRUE(uploadListener.mTempFileRemoved)
+            << "Temporary file couldn't be removed: " << filePath;
+        ASSERT_TRUE(!fs::exists(filePath)) << "File still exists locally: " << filePath;
+    };
+
+    auto modifyFile = [](const fs::path& filePath, const std::string& text)
+    {
+        std::ofstream f(filePath, std::ios::app);
+        f << text;
+        f.close();
+    };
+
+    LOG_debug << "### Test1 (SdkRemoveTempFilesUponUploadTransfers) Upload file F1 ####";
+    const fs::path f1Path = fs::current_path() / fs::u8path("file1.txt");
+    ASSERT_TRUE(createFile(f1Path.u8string())) << "Couldn't create " << f1Path;
+    ASSERT_NO_FATAL_FAILURE(uploadFile(rootnode.get(), f1Path));
+
+    LOG_debug << "### Test2 (SdkRemoveTempFilesUponUploadTransfers) Upload file F1 again ####";
+    ASSERT_TRUE(createFile(f1Path.u8string())) << "Couldn't create " << f1Path;
+    const fs::path f2Path = fs::current_path() / fs::u8path("file2.txt");
+    sdk_test::copyFileFromTestData(f1Path, f2Path);
+    ASSERT_NO_FATAL_FAILURE(uploadFile(rootnode.get(), f1Path));
+
+    LOG_debug << "### Test3 (SdkRemoveTempFilesUponUploadTransfers) Upload file F2 with same "
+                 "fingerprint than F1 (Node copy) ####";
+    ASSERT_NO_FATAL_FAILURE(uploadFile(rootnode.get(), f2Path));
+
+    LOG_debug << "### Test4 (SdkRemoveTempFilesUponUploadTransfers) Upload file F1 (modified) with "
+                 "different fingerprint than F1 in cloud ####";
+    ASSERT_TRUE(createFile(f1Path.u8string())) << "Couldn't create " << f1Path;
+    ASSERT_NO_FATAL_FAILURE(uploadFile(rootnode.get(), f1Path));
+    modifyFile(f1Path, "Update");
+    ASSERT_NO_FATAL_FAILURE(uploadFile(rootnode.get(), f1Path));
+
+    LOG_debug << "### Test5 (SdkRemoveTempFilesUponUploadTransfers) Upload file F3 and cancel "
+                 "transfer ####";
+    const fs::path f3Path = fs::current_path() / fs::u8path("file3.txt");
+    ASSERT_TRUE(createFile(f3Path.u8string(), true)) << "Couldn't create " << f3Path;
+    ASSERT_NO_FATAL_FAILURE(uploadFile(rootnode.get(), f3Path, true));
+}
+
 #ifdef ENABLE_SYNC
 /**
  * @brief SdkTestRemoveVersionsFromSync
@@ -19750,3 +20141,47 @@ TEST_F(SdkTest, SdkTestRemoveVersionsFromSync)
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), syncFolderPath));
 }
 #endif
+
+/**
+ * @brief SdkTest.CreditCardCancelSubscriptions
+ *
+ *  - Limited test for canceling a subscription using multiple reasons
+ *  - Create helper instances
+ *  - Call relevant MegaApi interaface which should fail in a predefined manner
+ */
+TEST_F(SdkTest, CreditCardCancelSubscriptions)
+{
+    LOG_info << "___TEST SdkTest.CreditCardCancelSubscriptions___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    unique_ptr<MegaCancelSubscriptionReason> reason1{
+        MegaCancelSubscriptionReason::create("Some reason", "22.n")};
+    unique_ptr<MegaCancelSubscriptionReason> reason2{
+        MegaCancelSubscriptionReason::create("Other reason", "99.MCMLXIV")};
+    unique_ptr<MegaCancelSubscriptionReasonList> reasons{
+        MegaCancelSubscriptionReasonList::create()};
+    reasons->add(reason1.get());
+    reasons->add(reason2.get());
+
+    // Cancel dummy subscription
+    {
+        RequestTracker listener{megaApi[0].get()};
+        megaApi[0]->creditCardCancelSubscriptions(
+            reasons.get(),
+            "Dummy subscription ID",
+            MegaApi::CREDIT_CARD_CANCEL_SUBSCRIPTIONS_CAN_CONTACT_NO,
+            &listener);
+        ASSERT_EQ(listener.waitForResult(), API_EARGS);
+    }
+
+    // Cancel all subscriptions (no-op for free account)
+    {
+        RequestTracker listener{megaApi[0].get()};
+        megaApi[0]->creditCardCancelSubscriptions(
+            reasons.get(),
+            "",
+            MegaApi::CREDIT_CARD_CANCEL_SUBSCRIPTIONS_CAN_CONTACT_NO,
+            &listener);
+        ASSERT_EQ(listener.waitForResult(), API_OK);
+    }
+}

@@ -1198,6 +1198,11 @@ MegaSyncStallList* MegaRequest::getMegaSyncStallList() const
 
 #endif // ENABLE_SYNC
 
+MegaVpnRegionList* MegaRequest::getMegaVpnRegionsDetailed() const
+{
+    return nullptr;
+}
+
 MegaVpnCredentials* MegaRequest::getMegaVpnCredentials() const
 {
     return nullptr;
@@ -1209,6 +1214,11 @@ const MegaNotificationList* MegaRequest::getMegaNotifications() const
 }
 
 const MegaNodeTree* MegaRequest::getMegaNodeTree() const
+{
+    return nullptr;
+}
+
+const MegaCancelSubscriptionReasonList* MegaRequest::getMegaCancelSubscriptionReasons() const
 {
     return nullptr;
 }
@@ -3099,7 +3109,15 @@ void MegaApi::creditCardCancelSubscriptions(const char* reason,
     pImpl->creditCardCancelSubscriptions(reason, id, canContact, listener);
 }
 
-void MegaApi::getPaymentMethods(MegaRequestListener *listener)
+void MegaApi::creditCardCancelSubscriptions(const MegaCancelSubscriptionReasonList* reasonList,
+                                            const char* id,
+                                            int canContact,
+                                            MegaRequestListener* listener)
+{
+    pImpl->creditCardCancelSubscriptions(reasonList, id, canContact, listener);
+}
+
+void MegaApi::getPaymentMethods(MegaRequestListener* listener)
 {
     pImpl->getPaymentMethods(listener);
 }
@@ -3403,9 +3421,21 @@ char* MegaApi::generateRandomCharsPassword(bool uU, bool uD, bool uS, unsigned i
     return MegaApiImpl::generateRandomCharsPassword(uU, uD, uS, l);
 }
 
-void MegaApi::submitFeedback(int rating, const char *comment, MegaRequestListener* listener)
+void MegaApi::submitFeedback(int rating, const char* comment, MegaRequestListener* listener)
 {
-    pImpl->submitFeedback(rating, comment, listener);
+    pImpl->submitFeedback(rating,
+                          comment,
+                          false /*transferFeedback*/,
+                          TRANSFER_STATS_BOTH,
+                          listener);
+}
+
+void MegaApi::submitFeedbackForTransfers(int rating,
+                                         const char* comment,
+                                         int transferType,
+                                         MegaRequestListener* listener)
+{
+    pImpl->submitFeedback(rating, comment, true /*transferFeedback*/, transferType, listener);
 }
 
 void MegaApi::sendEvent(int eventType, const char *message, MegaRequestListener *listener)
@@ -8095,6 +8125,11 @@ MegaStringList* MegaVpnCredentials::getVpnRegions() const
     return nullptr;
 }
 
+MegaVpnRegionList* MegaVpnCredentials::getVpnRegionsDetailed() const
+{
+    return nullptr;
+}
+
 const char* MegaVpnCredentials::getIPv4(int slotID) const
 {
     return nullptr;
@@ -8220,4 +8255,14 @@ MegaMountList::MegaMountList() = default;
 
 MegaMountList::~MegaMountList() = default;
 
+MegaCancelSubscriptionReason* MegaCancelSubscriptionReason::create(const char* text,
+                                                                   const char* position)
+{
+    return new MegaCancelSubscriptionReasonPrivate(text, position);
+}
+
+MegaCancelSubscriptionReasonList* MegaCancelSubscriptionReasonList::create()
+{
+    return new MegaCancelSubscriptionReasonListPrivate();
+}
 }

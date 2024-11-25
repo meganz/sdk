@@ -31,10 +31,12 @@
 
 #include <algorithm>
 #include <cctype>
+#include <charconv>
 #include <ctime>
 #include <functional>
 #include <future>
 #include <iomanip>
+#include <numeric>
 #include <random>
 
 #undef min // avoid issues with std::min and std::max
@@ -2486,7 +2488,6 @@ void MegaClient::exec()
                                 {
                                     LOG_debug << "Executing postponed DB commit 2 (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
                                     sctable->commit();
-                                    assert(!sctable->inTransaction());
                                     sctable->begin();
                                     app->notify_dbcommit();
                                     pendingsccommit = false;
@@ -2569,6 +2570,27 @@ void MegaClient::exec()
 
                     // fall through
                     case REQ_FAILURE:
+                        if (pendingcs->httpstatus == 402)
+                        {
+                            // get X-Hashcash header
+                            if (pendingcs->mHashcashToken.empty())
+                            {
+                                LOG_err << "X-Hashcash header missing for HTTP status "
+                                        << pendingcs->httpstatus;
+                            }
+                            else if (pendingcs->contentlength > 0)
+                            {
+                                LOG_err << "Content-Length not 0, as it should be when X-Hashcash "
+                                           "header was received";
+                            }
+                            else
+                            {
+                                mReqHashcashToken = std::move(pendingcs->mHashcashToken);
+                                pendingcs->mHashcashToken.clear(); // just to be sure
+                                mReqHashcashEasiness = pendingcs->mHashcashEasiness;
+                            }
+                        }
+
                         if (!reason && pendingcs->httpstatus != 200)
                         {
                             if (pendingcs->httpstatus == 500)
@@ -2679,6 +2701,9 @@ void MegaClient::exec()
                         pendingcs->mChunked = !isClientType(ClientType::VPN);
                     }
 
+                    pendingcs->mHashcashToken = std::move(mReqHashcashToken);
+                    mReqHashcashToken.clear();
+                    pendingcs->mHashcashEasiness = mReqHashcashEasiness;
                     performanceStats.csRequestWaitTime.start();
                     pendingcs->post(this);
                     continue;
@@ -4735,6 +4760,9 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     mKeyManager.reset();
 
     mLastErrorDetected = REASON_ERROR_NO_ERROR;
+    
+    mReqHashcashEasiness = 0;
+    mReqHashcashToken.clear();
 }
 
 void MegaClient::removeCaches()
@@ -4900,7 +4928,6 @@ bool MegaClient::procsc()
                         {
                             LOG_debug << "DB transaction COMMIT (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
                             sctable->commit();
-                            assert(!sctable->inTransaction());
                             sctable->begin();
                             app->notify_dbcommit();
                             pendingsccommit = false;
@@ -4935,7 +4962,6 @@ bool MegaClient::procsc()
                             {
                                 LOG_debug << "DB transaction COMMIT (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
                                 sctable->commit();
-                                assert(!sctable->inTransaction());
                                 sctable->begin();
                                 pendingsccommit = false;
                             }
@@ -5100,7 +5126,6 @@ bool MegaClient::procsc()
                     {
                         LOG_debug << "Executing postponed DB commit 1";
                         sctable->commit();
-                        assert(!sctable->inTransaction());
                         sctable->begin();
                         app->notify_dbcommit();
                         pendingsccommit = false;
@@ -5494,7 +5519,6 @@ void MegaClient::initsc()
     {
         bool complete;
 
-        assert(sctable->inTransaction());
         sctable->truncate();
 
         // 1. write current scsn
@@ -5574,7 +5598,6 @@ void MegaClient::initsc()
             // Commit now, otherwise we'll have to do fetchnodes again (on restart) if no actionpackets arrive.
             LOG_debug << "DB transaction COMMIT (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
             sctable->commit();
-            assert(!sctable->inTransaction());
             sctable->begin();
             pendingsccommit = false;
         }
@@ -5586,7 +5609,6 @@ void MegaClient::initStatusTable()
     if (statusTable)
     {
         // statusTable is different from sctable in that we begin/commit with each change
-        assert(!statusTable->inTransaction());
         DBTableTransactionCommitter committer(statusTable);
         statusTable->truncate();
     }
@@ -6919,8 +6941,6 @@ void MegaClient::sc_userattr()
                                             LOG_warn << "Ignoring update of : " << User::attr2string(type);
                                             break;
                                         }
-
-                                        LOG_debug << User::attr2string(type) << " has changed externally. Fetching...";
                                         if (type == ATTR_JSON_SYNC_CONFIG_DATA)
                                         {
                                             // this user's attribute should be set only once and never change
@@ -6929,8 +6949,22 @@ void MegaClient::sc_userattr()
                                             LOG_warn << "Sync config data has changed, when it should not";
                                             assert(false);
                                         }
-
-                                        getua(u, type, 0);
+                                        // mCurrentSeqtagSeen is true if the next command response
+                                        // st matches with the current AP st. So, it is true if we
+                                        // are the account and session setting the attribute, using
+                                        // a V3 request, false in any other case.
+                                        if (mCurrentSeqtagSeen)
+                                        {
+                                            LOG_debug << "Skiping " << User::attr2string(type)
+                                                      << " self action packet. Will be managed by "
+                                                         "the command response.";
+                                        }
+                                        else
+                                        {
+                                            LOG_debug << User::attr2string(type)
+                                                      << " has changed externally. Fetching...";
+                                            getua(u, type, 0);
+                                        }
                                         break;
                                     }
                                     default:
@@ -11418,7 +11452,6 @@ void MegaClient::opensctable()
                 // DB connection always has a transaction started (applies to both tables, statecache and nodes)
                 // We only commit once we have an up to date SCSN and the table state matches it.
                 sctable->begin();
-                assert(sctable->inTransaction());
             }
             else
             {
@@ -12099,15 +12132,14 @@ void MegaClient::setshare(std::shared_ptr<Node> n, const char* user, accesslevel
                 {
                     LOG_debug << "Last share: disabling in-use flag for the sharekey in KeyManager. nh: " << toNodeHandle(nodehandle);
                     mKeyManager.commit(
-                    [this, nodehandle]()
-                    {
-                        mKeyManager.setSharekeyInUse(nodehandle, false);
-
-                    },
-                    [completion, e, writable](error commitError)
-                    {
-                        completion(commitError, writable);
-                    });
+                        [this, nodehandle]()
+                        {
+                            mKeyManager.setSharekeyInUse(nodehandle, false);
+                        },
+                        [completion, writable](error commitError)
+                        {
+                            completion(commitError, writable);
+                        });
                 }
                 else
                 {
@@ -12210,14 +12242,14 @@ void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool w
 
                     LOG_debug << "Enabling in-use flag for the sharekey in KeyManager. nh: " << toNodeHandle(nodehandle);
                     mKeyManager.commit(
-                    [this, nodehandle]()
-                    {
-                        mKeyManager.setSharekeyInUse(nodehandle, true);
-                    },
-                    [completion, e, writable](error commitError)
-                    {
-                        completion(commitError, writable);
-                    });
+                        [this, nodehandle]()
+                        {
+                            mKeyManager.setSharekeyInUse(nodehandle, true);
+                        },
+                        [completion, writable](error commitError)
+                        {
+                            completion(commitError, writable);
+                        });
                 }
                 else
                 {
@@ -12735,7 +12767,9 @@ void MegaClient::loginResult(CommandLogin::Completion completion,
                             LOG_debug << "Account upgrade to V2 failed with EEXIST. It must have been upgraded in the meantime. Fetching user data again.";
 
                             // upgrade done in the meantime by different client; get account details again
-                            getuserdata(restag, [this, completion, onLoginOk](string*, string*, string*, error e)
+                            getuserdata(
+                                restag,
+                                [completion, onLoginOk](string*, string*, string*, error e)
                                 {
                                     error loginErr = e == API_OK ? API_OK : API_EINTERNAL;
                                     completion(loginErr); // if error, report for login too because user data is inconsistent now
@@ -12748,8 +12782,7 @@ void MegaClient::loginResult(CommandLogin::Completion completion,
                                     {
                                         onLoginOk();
                                     }
-                                }
-                            );
+                                });
                         }
 
                         else
@@ -14928,8 +14961,6 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
             fnstats.timeToResult = fnstats.timeToCached;
 
             statecurrent = false;
-
-            assert(sctable->inTransaction());
             pendingsccommit = false;
 
             // allow sc requests to start
@@ -20858,8 +20889,8 @@ void MegaClient::checkVpnCredential(std::string&& userPubKey, CommandDelVpnCrede
 }
 
 // Generate the credential string.
-string MegaClient::generateVpnCredentialString(int clusterID,
-                                               std::string&& vpnRegion,
+string MegaClient::generateVpnCredentialString(const std::string& host,
+                                               const std::vector<std::string>& dns,
                                                std::string&& ipv4,
                                                std::string&& ipv6,
                                                StringKeyPair&& peerKeyPair)
@@ -20877,18 +20908,32 @@ string MegaClient::generateVpnCredentialString(int clusterID,
     string credential;
     credential.reserve(300);
     credential.append("[Interface]\n")
-              .append("PrivateKey = ").append(peerPrivateKey).append("\n")
-              .append("Address = ").append(ipv4).append("/32").append(", ").append(ipv6).append("/128\n")
-              .append("DNS = 8.8.8.8, 2001:4860:4860::8888\n\n")
-              .append("[Peer]\n")
-              .append("PublicKey = ").append(peerPublicKey).append("\n")
-              .append("AllowedIPs = 0.0.0.0/0, ::/0\n")
-              .append("Endpoint = ").append(vpnRegion).append(".vpn");
-    if (clusterID > 1)
-    {
-        credential.append(std::to_string(clusterID));
-    }
-    credential.append(".mega.nz:51820");
+        .append("PrivateKey = ")
+        .append(peerPrivateKey)
+        .append("\n")
+        .append("Address = ")
+        .append(ipv4)
+        .append("/32")
+        .append(", ")
+        .append(ipv6)
+        .append("/128\n")
+        .append("DNS = ")
+        .append(std::accumulate(dns.begin(),
+                                dns.end(),
+                                std::string{},
+                                [](std::string& a, const std::string& b)
+                                {
+                                    return a.empty() ? b : (std::move(a) + ',' + b);
+                                }))
+        .append("\n\n")
+        .append("[Peer]\n")
+        .append("PublicKey = ")
+        .append(peerPublicKey)
+        .append("\n")
+        .append("AllowedIPs = 0.0.0.0/0, ::/0\n")
+        .append("Endpoint = ")
+        .append(host)
+        .append(":51820");
     return credential;
 }
 /* Mega VPN methods END */
@@ -21971,6 +22016,11 @@ void KeyManager::reset()
     mPendingInShares.clear();
     mPendingOutShares.clear();
     mShareKeys.clear();
+    mDowngradeAttack = false;
+    mManualVerification = false;
+    mPostRegistration = false;
+    nextQueue.clear();
+    activeQueue.clear();
 }
 
 string KeyManager::toString() const

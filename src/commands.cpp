@@ -33,6 +33,9 @@
 #include "mega/user_attribute.h"
 #include "mega/utils.h"
 
+#include <charconv>
+#include <optional>
+
 namespace mega {
 
 CommandPutFA::CommandPutFA(NodeOrUploadHandle cth, fatype ctype, bool usehttps, int ctag, size_t size, bool getIP, CommandPutFA::Cb &&completion)
@@ -2926,22 +2929,23 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
         }
         else
         {
-            client->app->enumeratequotaitems_result(type,
-                                                    product,
-                                                    prolevel,
-                                                    gbstorage,
-                                                    gbtransfer,
-                                                    months,
-                                                    amount,
-                                                    amountMonth,
-                                                    localPrice,
-                                                    description.c_str(),
-                                                    std::move(features),
-                                                    ios_id.c_str(),
-                                                    android_id.c_str(),
-                                                    testCategory,
-                                                    std::move(bizPlan),
-                                                    trialDays);
+            const Product productData = {static_cast<unsigned int>(type),
+                                         product,
+                                         static_cast<unsigned int>(prolevel),
+                                         gbstorage,
+                                         gbtransfer,
+                                         static_cast<unsigned int>(months),
+                                         amount,
+                                         amountMonth,
+                                         localPrice,
+                                         description.c_str(),
+                                         std::move(features),
+                                         ios_id.c_str(),
+                                         android_id.c_str(),
+                                         testCategory,
+                                         std::move(bizPlan),
+                                         trialDays};
+            client->app->enumeratequotaitems_result(productData);
         }
     }
 
@@ -3146,7 +3150,7 @@ void CommandRemoveContact::doComplete(error result)
 
 CommandPutMultipleUAVer::CommandPutMultipleUAVer(MegaClient *client, const userattr_map *attrs, int ctag, std::function<void (Error)> completion)
 {
-    mV3 = false;
+    mSeqtagArray = true;
 
     this->attrs = *attrs;
 
@@ -3271,7 +3275,7 @@ bool CommandPutMultipleUAVer::procresult(Result r, JSON& json)
 CommandPutUAVer::CommandPutUAVer(MegaClient* client, attr_t at, const byte* av, unsigned avl, int ctag,
                                  std::function<void(Error)> completion)
 {
-    mV3 = false;
+    mSeqtagArray = true;
 
     this->at = at;
     this->av.assign((const char*)av, avl);
@@ -6705,7 +6709,6 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
                 LOG_debug << "Resetting sc database";
                 client->sctable->truncate();
                 client->sctable->commit();
-                assert(!client->sctable->inTransaction());
                 client->sctable->begin();
                 client->pendingsccommit = false;
             }
@@ -6721,12 +6724,13 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
     });
 
     // Parsing of chunk finished
-    mFilters.emplace(">", [this, client](JSON *)
-    {
-        assert(mNodeTreeIsChanging.owns_lock());
-        mNodeTreeIsChanging.unlock();
-        return true;
-    });
+    mFilters.emplace(">",
+                     [this](JSON*)
+                     {
+                         assert(mNodeTreeIsChanging.owns_lock());
+                         mNodeTreeIsChanging.unlock();
+                         return true;
+                     });
 
     // Node objects (one by one)
     auto f = mFilters.emplace("{[f{", [this, client](JSON *json)
@@ -6836,19 +6840,21 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
     });
 
     // sn tag
-    mFilters.emplace("{\"sn", [this, client](JSON *json)
-    {
-        // Not applying the scsn until the end of the parsing
-        // because it could arrive before nodes
-        // (despite at the moment it is arriving at the end)
-        return json->storebinary((byte*)&mScsn, sizeof mScsn) == sizeof mScsn;
-    });
+    mFilters.emplace("{\"sn",
+                     [this](JSON* json)
+                     {
+                         // Not applying the scsn until the end of the parsing
+                         // because it could arrive before nodes
+                         // (despite at the moment it is arriving at the end)
+                         return json->storebinary((byte*)&mScsn, sizeof mScsn) == sizeof mScsn;
+                     });
 
     // st tag
-    mFilters.emplace("{\"st", [this, client](JSON *json)
-    {
-        return json->storeobject(&mSt);
-    });
+    mFilters.emplace("{\"st",
+                     [this](JSON* json)
+                     {
+                         return json->storeobject(&mSt);
+                     });
 
     // Incoming contact requests
     mFilters.emplace("{[ipc", [client](JSON *json)
@@ -6918,17 +6924,18 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
     });
 
     // Parsing error
-    mFilters.emplace("E", [this, client](JSON *)
-    {
-        WAIT_CLASS::bumpds();
-        client->fnstats.timeToLastByte = Waiter::ds - client->fnstats.startTime;
-        client->purgenodesusersabortsc(true);
+    mFilters.emplace("E",
+                     [client](JSON*)
+                     {
+                         WAIT_CLASS::bumpds();
+                         client->fnstats.timeToLastByte = Waiter::ds - client->fnstats.startTime;
+                         client->purgenodesusersabortsc(true);
 
-        client->fetchingnodes = false;
-        client->mNodeManager.cleanNodes();
-        client->app->fetchnodes_result(API_EINTERNAL);
-        return true;
-    });
+                         client->fetchingnodes = false;
+                         client->mNodeManager.cleanNodes();
+                         client->app->fetchnodes_result(API_EINTERNAL);
+                         return true;
+                     });
 
 #ifdef ENABLE_CHAT
     // Chat-related callbacks
@@ -7004,7 +7011,6 @@ bool CommandFetchNodes::procresult(Result r, JSON& json)
         LOG_debug << "Resetting sc database";
         client->sctable->truncate();
         client->sctable->commit();
-        assert(!client->sctable->inTransaction());
         client->sctable->begin();
         client->pendingsccommit = false;
     }
@@ -7259,7 +7265,16 @@ bool CommandCreditCardQuerySubscriptions::procresult(Result r, JSON& json)
 CommandCreditCardCancelSubscriptions::CancelSubscription::CancelSubscription(const char* reason,
                                                                              const char* id,
                                                                              int canContact):
-    mReason{reason ? reason : ""},
+    mReasoning{reason ? reason : ""},
+    mId{id ? id : ""},
+    mCanContact{canContact == static_cast<int>(CanContact::Yes) ? CanContact::Yes : CanContact::No}
+{}
+
+CommandCreditCardCancelSubscriptions::CancelSubscription::CancelSubscription(
+    vector<pair<string, string>>&& reasons,
+    const char* id,
+    int canContact):
+    mReasoning{std::move(reasons)},
     mId{id ? id : ""},
     mCanContact{canContact == static_cast<int>(CanContact::Yes) ? CanContact::Yes : CanContact::No}
 {}
@@ -7270,22 +7285,42 @@ CommandCreditCardCancelSubscriptions::CommandCreditCardCancelSubscriptions(
 {
     cmd("cccs");
 
-    // Cancel Reason
-    if (!cancelSubscription.mReason.empty())
+    // Cancel Reason(s)
+    if (const string* reason = cancelSubscription.getReasoning<string>())
     {
-        arg("r", cancelSubscription.mReason.c_str());
+        if (!reason->empty())
+        {
+            arg("r", reason->c_str());
+        }
+    }
+    else if (const auto* reasons = cancelSubscription.getReasoning<vector<pair<string, string>>>())
+    {
+        if (!reasons->empty())
+        {
+            beginarray("r");
+
+            for (const auto& r: *reasons)
+            {
+                beginobject();
+                arg("r", r.first.c_str());
+                arg("p", r.second.c_str());
+                endobject();
+            }
+
+            endarray();
+        }
     }
 
     // The user can be contacted or not
-    if (cancelSubscription.mCanContact == CanContact::Yes)
+    if (cancelSubscription.canContact())
     {
         arg("cc", static_cast<m_off_t>(CanContact::Yes));
     }
 
     // Specific subscription ID
-    if (!cancelSubscription.mId.empty())
+    if (!cancelSubscription.getId().empty())
     {
-        arg("sub", cancelSubscription.mId.c_str());
+        arg("sub", cancelSubscription.getId().c_str());
     }
 
     tag = client->reqtag;
@@ -10029,8 +10064,9 @@ bool CommandBackupPutHeartBeat::procresult(Result r, JSON& json)
     return r.wasErrorOrOK();
 }
 
-CommandBackupRemove::CommandBackupRemove(MegaClient *client, handle backupId, std::function<void(Error)> completion)
-    : mBackupId(backupId)
+CommandBackupRemove::CommandBackupRemove(MegaClient* client,
+                                         handle backupId,
+                                         std::function<void(Error)> completion)
 {
     cmd("sr");
     arg("id", (byte*)&backupId, MegaClient::BACKUPHANDLE);
@@ -11186,9 +11222,12 @@ bool CommandScheduledMeetingRemove::procresult(Command::Result r, JSON& json)
     return true;
 }
 
-CommandScheduledMeetingFetch::CommandScheduledMeetingFetch(MegaClient* client, handle chatid, handle schedMeeting, CommandScheduledMeetingFetchCompletion completion)
-    : mChatId(chatid),
-      mCompletion(completion)
+CommandScheduledMeetingFetch::CommandScheduledMeetingFetch(
+    MegaClient* client,
+    handle chatid,
+    handle schedMeeting,
+    CommandScheduledMeetingFetchCompletion completion):
+    mCompletion(completion)
 {
     cmd("mcsmf");
     if (schedMeeting != UNDEF) { arg("id", (byte*) &schedMeeting, MegaClient::CHATHANDLE); }
@@ -11402,36 +11441,131 @@ CommandGetVpnRegions::CommandGetVpnRegions(MegaClient* client, Cb&& completion)
     mCompletion(std::move(completion))
 {
     cmd("vpnr");
+    arg("v", 4); // include the DNS targets for each cluster in each region in response
 
     tag = client->reqtag;
 }
 
-void CommandGetVpnRegions::parseregions(JSON& json, std::vector<std::string>* vpnRegions)
+bool CommandGetVpnRegions::parseRegions(JSON& json, vector<VpnRegion>* vpnRegions)
 {
-    std::string vpnRegion;
-    while (json.storeobject(&vpnRegion))
+    bool storeData = vpnRegions != nullptr;
+    string buffer;
+    string* pBuffer = storeData ? &buffer : nullptr;
+    for (; json.storeobject(pBuffer);) // region name
     {
-        if (vpnRegions)
+        if (*json.pos == ':') // work around lack of functionality in enterobject()
+            ++json.pos;
+        if (!json.enterobject())
+            return false;
+
+        std::optional<VpnRegion> region{storeData ? std::make_optional(std::move(buffer)) :
+                                                    std::nullopt};
+        buffer.clear();
+
+        for (; json.storeobject(pBuffer);) // cluster ID
         {
-            vpnRegions->emplace_back(std::move(vpnRegion));
+            int clusterID{};
+            if (storeData)
+            {
+                auto [ptr, ec] =
+                    std::from_chars(buffer.c_str(), buffer.c_str() + buffer.size(), clusterID);
+                if (ec != std::errc())
+                    return false;
+            }
+
+            if (*json.pos == ':')
+                ++json.pos;
+            if (!json.enterobject())
+                return false;
+
+            std::optional<string> host{storeData ? std::make_optional<string>() : std::nullopt};
+            std::optional<vector<string>> dns{storeData ? std::make_optional<vector<string>>() :
+                                                          std::nullopt};
+
+            for (bool hasData = true; hasData;) // host, dns
+            {
+                switch (json.getnameid())
+                {
+                    case 'h':
+                        if (!json.storeobject(pBuffer))
+                            return false;
+                        if (storeData)
+                        {
+                            host = std::move(buffer);
+                            buffer.clear();
+                        }
+                        break;
+
+                    case MAKENAMEID3('d', 'n', 's'):
+                        if (!json.enterarray())
+                            return false;
+
+                        while (json.storeobject(pBuffer))
+                        {
+                            if (storeData)
+                            {
+                                dns->emplace_back(std::move(buffer));
+                                buffer.clear();
+                            }
+                        }
+
+                        if (!json.leavearray())
+                            return false;
+                        break;
+
+                    case EOO:
+                        hasData = false;
+                        break;
+
+                    default:
+                        if (!json.storeobject())
+                            return false;
+                }
+            }
+            if (!json.leaveobject())
+                return false;
+
+            if (storeData)
+            {
+                region->addCluster(clusterID, {std::move(host.value()), std::move(dns.value())});
+            }
+
+            if (*json.pos == '}')
+            {
+                json.leaveobject();
+                break;
+            }
+        }
+
+        if (storeData)
+        {
+            vpnRegions->emplace_back(std::move(region.value()));
         }
     }
+
+    return true;
 }
 
 bool CommandGetVpnRegions::procresult(Command::Result r, JSON& json)
 {
-    if (!r.hasJsonArray())
+    if (!r.hasJsonObject())
     {
         if (mCompletion) { mCompletion(API_EINTERNAL, {}); }
         return false;
     }
 
     // Parse regions
-    std::vector<std::string> vpnRegions;
-    parseregions(json, &vpnRegions);
-
-    mCompletion(API_OK, std::move(vpnRegions));
-    return true;
+    vector<VpnRegion> vpnRegions;
+    if (parseRegions(json, &vpnRegions))
+    {
+        mCompletion(API_OK, std::move(vpnRegions));
+        return true;
+    }
+    else
+    {
+        mCompletion(API_EINTERNAL, {});
+        return false;
+    }
 }
 
 CommandGetVpnCredentials::CommandGetVpnCredentials(MegaClient* client, Cb&& completion)
@@ -11439,7 +11573,7 @@ CommandGetVpnCredentials::CommandGetVpnCredentials(MegaClient* client, Cb&& comp
     mCompletion(std::move(completion))
 {
     cmd("vpng");
-    arg("v", 2);
+    arg("v", 4); // include the DNS targets for each cluster in each region in response
 
     tag = client->reqtag;
 }
@@ -11561,18 +11695,21 @@ bool CommandGetVpnCredentials::procresult(Command::Result r, JSON& json)
     }
 
     // Finally, parse VPN regions
-    std::vector<std::string> vpnRegions;
-    if (json.enterarray())
+    vector<VpnRegion> vpnRegions;
+    if (json.enterobject() && CommandGetVpnRegions::parseRegions(json, &vpnRegions) &&
+        json.leaveobject())
     {
-        // Parse regions
-        CommandGetVpnRegions::parseregions(json, &vpnRegions);
-        json.leavearray();
+        mCompletion(API_OK,
+                    std::move(mapSlotIDToCredentialInfo),
+                    std::move(mapClusterPubKeys),
+                    std::move(vpnRegions));
+        return true;
     }
-
-    e.setErrorCode(API_OK);
-    mCompletion(e, std::move(mapSlotIDToCredentialInfo), std::move(mapClusterPubKeys), std::move(vpnRegions));
-
-    return true;
+    else
+    {
+        mCompletion(API_EINTERNAL, {}, {}, {});
+        return false;
+    }
 }
 
 CommandPutVpnCredential::CommandPutVpnCredential(MegaClient* client,
@@ -11586,6 +11723,7 @@ CommandPutVpnCredential::CommandPutVpnCredential(MegaClient* client,
 {
     cmd("vpnp");
     arg("k", (byte*)mUserKeyPair.pubKey.c_str(), static_cast<int>(mUserKeyPair.pubKey.size()));
+    arg("v", 4); // include the DNS targets for each cluster in each region in response
 
     tag = client->reqtag;
 }
@@ -11636,19 +11774,53 @@ bool CommandPutVpnCredential::procresult(Command::Result r, JSON& json)
         return false;
     }
 
-    // Skip VPN regions
-    if (json.enterarray())
+    // Parse VPN regions
+    vector<VpnRegion> vpnRegions;
+    if (!json.enterobject() || !CommandGetVpnRegions::parseRegions(json, &vpnRegions) ||
+        !json.leaveobject())
     {
-        CommandGetVpnRegions::parseregions(json, nullptr);
-        json.leavearray();
+        if (mCompletion)
+        {
+            mCompletion(API_EINTERNAL, -1, {}, {});
+        }
+        return false;
     }
 
     if (mCompletion)
     {
         std::string userPubKey = Base64::btoa(mUserKeyPair.pubKey);
-        auto peerKeyPair = StringKeyPair(std::move(mUserKeyPair.privKey), std::move(clusterPubKey));
-        std::string newCredential = client->generateVpnCredentialString(clusterID, std::move(mRegion), std::move(ipv4), std::move(ipv6), std::move(peerKeyPair));
-        mCompletion(API_OK, slotID, std::move(userPubKey), std::move(newCredential));
+        std::string newCredential;
+        const auto itRegion = std::find_if(vpnRegions.begin(),
+                                           vpnRegions.end(),
+                                           [&name = mRegion](const VpnRegion& r)
+                                           {
+                                               return r.getName() == name;
+                                           });
+        if (itRegion != vpnRegions.end())
+        {
+            const auto& clusters = itRegion->getClusters();
+            const auto itCluster = clusters.find(clusterID);
+            if (itCluster != clusters.end())
+            {
+                auto peerKeyPair =
+                    StringKeyPair(std::move(mUserKeyPair.privKey), std::move(clusterPubKey));
+                newCredential = client->generateVpnCredentialString(itCluster->second.getHost(),
+                                                                    itCluster->second.getDns(),
+                                                                    std::move(ipv4),
+                                                                    std::move(ipv6),
+                                                                    std::move(peerKeyPair));
+            }
+        }
+
+        if (newCredential.empty())
+        {
+            LOG_err << "[CommandPutVpnCredentials] Could not generate VPN credential string";
+            mCompletion(API_ENOENT, -1, {}, {});
+        }
+        else
+        {
+            mCompletion(API_OK, slotID, std::move(userPubKey), std::move(newCredential));
+        }
     }
     return true;
 }
@@ -11975,6 +12147,15 @@ bool CommandGetNotifications::procresult(Result r, JSON& json)
                 break;
             }
 
+            case 'm':
+                if (!readRenderModes(json, notification.renderModes))
+                {
+                    LOG_err << "Unable to read 'm' in 'gnotif' response";
+                    mOnResult(API_EINTERNAL, {});
+                    return false;
+                }
+                break;
+
             default:
                 if (!json.storeobject())
                 {
@@ -12026,6 +12207,40 @@ bool CommandGetNotifications::readCallToAction(JSON& json, map<string, string>& 
             {
                 return false;
             }
+        }
+    }
+
+    return json.leaveobject();
+}
+
+bool CommandGetNotifications::readRenderModes(JSON& json, map<string, map<string, string>>& modes)
+{
+    if (!json.enterobject())
+    {
+        return false;
+    }
+
+    for (string renderMode = json.getname(); !renderMode.empty(); renderMode = json.getname())
+    {
+        if (!json.enterobject())
+        {
+            return false;
+        }
+
+        auto& fields = modes[std::move(renderMode)];
+
+        for (string f, v; json.storeKeyValueFromObject(f, v);)
+        {
+            fields.emplace(std::move(f), std::move(v));
+            // Clear moved-from strings to avoid "Use of a moved from object" warning
+            // (false-positive in current implementation)
+            f.clear();
+            v.clear();
+        }
+
+        if (!json.leaveobject())
+        {
+            return false;
         }
     }
 

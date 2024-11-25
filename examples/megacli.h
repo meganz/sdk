@@ -248,22 +248,7 @@ struct DemoApp : public MegaApp
     void userattr_update(User*, int, const char*) override;
     void resetSmsVerifiedPhoneNumber_result(error e) override;
 
-    void enumeratequotaitems_result(unsigned type,
-                                    handle product,
-                                    unsigned proLevel,
-                                    int gbStorage,
-                                    int gbTransfer,
-                                    unsigned months,
-                                    unsigned amount,
-                                    unsigned amountMonth,
-                                    unsigned localPrice,
-                                    const char* description,
-                                    map<string, uint32_t>&& features,
-                                    const char* iosId,
-                                    const char* androidId,
-                                    unsigned int testCategory,
-                                    std::unique_ptr<BusinessPlan> businessPlan,
-                                    unsigned int trialDays) override;
+    void enumeratequotaitems_result(const Product& product) override;
     void enumeratequotaitems_result(unique_ptr<CurrencyData>) override;
     void enumeratequotaitems_result(error) override;
     void additem_result(error) override;
@@ -465,3 +450,4 @@ void exec_importpasswordsfromgooglefile(autocomplete::ACState&);
 void exec_getpricing(autocomplete::ACState&);
 
 void exec_collectAndPrintTransferStats(autocomplete::ACState&);
+void exec_hashcash(autocomplete::ACState&);

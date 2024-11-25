@@ -8179,6 +8179,24 @@ typedef NS_ENUM(NSInteger, MEGAClientType) {
 -(BOOL)isNodeInheritingSensitivity:(MEGANode *)node;
 
 /**
+ * @brief Retrieve all unique node tags present across all nodes in the account
+ *
+ * @note If the searchString contains invalid characters, such as ',', an empty list will be
+ * returned.
+ *
+ * @note This function allows to cancel the processing at any time by passing a
+ * MEGACancelToken and calling to [MEGACancelToken cancel] .
+ *
+ *
+ * @param searchString Optional parameter to filter the tags based on a specific search
+ * string. If set to nil, all node tags will be retrieved.
+ * @param cancelToken MEGACancelToken to be able to cancel the processing at any time.
+ *
+ * @return All the unique node tags that match the search criteria.
+ */
+- (nullable NSArray<NSString *> *)nodeTagsForSearchString:(nullable NSString *)searchString cancelToken:(MEGACancelToken *)cancelToken;
+
+/**
  * @brief Search nodes with applied filter recursively.
  *
  * The search is case-insensitive.
@@ -9929,6 +9947,20 @@ typedef NS_ENUM(NSInteger, MEGAClientType) {
  * @param delegate MEGARequestDelegate to track this request
  */
 - (void)queryAds:(AdsFlag)adFlags publicHandle:(MEGAHandle)publicHandle delegate:(id<MEGARequestDelegate>)delegate;
+
+/// Enable or disable the request status monitor
+///
+/// - Note: When it's enabled, the request status monitor generates events of type
+/// `EventReqStatProgress` with the per mille progress in
+/// the field [MEGAEvent number], or -1 if there isn't any operation in progress.
+///
+/// - Parameters:
+///    - enable: YES to enable the request status monitor, or No to disable it
+- (void)enableRequestStatusMonitor:(BOOL)enable;
+
+/// Get the status of the request status monitor
+/// - Returns: YES when the request status monitor is enabled, or NO if it's disabled
+@property (readonly, nonatomic, getter=isRequestStatusMonitorEnabled) BOOL requestStatusMonitorEnabled;
 
 #pragma mark - VPN
 

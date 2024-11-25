@@ -188,9 +188,10 @@ TEST_F(SdkTestPasswordManager, SdkTestPasswordManager)
     ASSERT_TRUE(waitForResponse(&check1))
         << "Node update not received after " << maxTimeout << " seconds";
     const auto isExpectedData =
-        [this, &userIdx, &equals](MegaHandle nh, const MegaNode::PasswordNodeData* expectedData)
+        [&api = megaApi[userIdx], &equals](MegaHandle nh,
+                                           const MegaNode::PasswordNodeData* expectedData)
     {
-        std::unique_ptr<MegaNode> retrievedNode{megaApi[userIdx]->getNodeByHandle(nh)};
+        std::unique_ptr<MegaNode> retrievedNode{api->getNodeByHandle(nh)};
         ASSERT_TRUE(retrievedNode);
         ASSERT_TRUE(retrievedNode->isPasswordNode());
         std::unique_ptr<MegaNode::PasswordNodeData> retrievedData{retrievedNode->getPasswordData()};

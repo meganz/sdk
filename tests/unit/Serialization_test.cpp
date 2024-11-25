@@ -66,7 +66,7 @@ TEST(Serialization, CacheableReaderWriter)
     std::string cstr1("test1");
     std::string cstr2("test2diffdata");
     std::string stringtest("diffstringagaindefinitelybigger");
-    int64_t i64 = 0x8765432112345678;
+    int64_t i64 = static_cast<int64_t>(0x8765432112345678);
     uint32_t u32 = 0x87678765;
     mega::handle handle1 = 0x998;
     bool b = true;

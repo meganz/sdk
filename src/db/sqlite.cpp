@@ -629,7 +629,7 @@ SqliteDbTable::~SqliteDbTable()
 
     if (inTransaction())
     {
-        abort();
+        SqliteDbTable::abort(); // fully qualify virtual function
     }
 
     sqlite3_close(db);
@@ -808,6 +808,7 @@ void SqliteDbTable::truncate()
     }
 
     checkTransaction();
+    assert(inTransaction());
 
     int rc = sqlite3_exec(db, "DELETE FROM statecache", 0, 0, NULL);
     errorHandler(rc, "Truncate ", false);
@@ -821,6 +822,7 @@ void SqliteDbTable::begin()
         return;
     }
 
+    assert(!inTransaction());
     LOG_debug << "DB transaction BEGIN " << dbfile;
     int rc = sqlite3_exec(db, "BEGIN", 0, 0, NULL);
     errorHandler(rc, "Begin transaction", false);

@@ -91,11 +91,24 @@ std::string TransferStats::Metrics::toJson() const
     oss << std::fixed
         << std::setprecision(2); // Ensure two decimal precision for floating-point values
 
-    oss << "tm:{t" << mTransferType << ",ml:" << mMedianSize << ",wl:" << mContraharmonicMeanSize
-        << ",ms:" << (mMedianSpeed / 1024) << ",ws:" << (mWeightedAverageSpeed / 1024)
-        << ",zs:" << (mMaxSpeed / 1024) << ",al:" << mAvgLatency << ",fr:" << mFailedRequestRatio
-        << ",rr:" << mRaidedTransferRatio << "}";
+    const auto addField = [&oss](auto&& fieldName, auto&& value, const bool last = false)
+    {
+        oss << "\\\"" << fieldName << "\\\":\\\"" << value << "\\\"";
+        if (!last)
+            oss << ",";
+    };
 
+    oss << R"(\"tm\":{)";
+    addField("t", mTransferType);
+    addField("ml", mMedianSize);
+    addField("wl", mContraharmonicMeanSize);
+    addField("ms", (mMedianSpeed / 1024));
+    addField("ws", (mWeightedAverageSpeed / 1024));
+    addField("zs", (mMaxSpeed / 1024));
+    addField("al", mAvgLatency);
+    addField("fr", mFailedRequestRatio);
+    addField("rr", mRaidedTransferRatio, true);
+    oss << R"(})";
     return oss.str();
 }
 

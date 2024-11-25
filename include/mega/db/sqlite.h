@@ -58,10 +58,11 @@ public:
     void remove() override;
 
     SqliteDbTable(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const LocalPath &path, const bool checkAlwaysTransacted, DBErrorCallback dBErrorCallBack);
-    virtual ~SqliteDbTable();
+    ~SqliteDbTable() override;
 
-    bool inTransaction() const override;
-
+private:
+    // whether an unmatched begin() has been issued
+    bool inTransaction() const;
 };
 
 /**
@@ -103,6 +104,7 @@ public:
     uint64_t getNumberOfChildrenByType(NodeHandle parentHandle, nodetype_t nodeType) override;
 
     bool put(Node* node) override;
+    using SqliteDbTable::put; // for the other virtual overload
     bool remove(mega::NodeHandle nodehandle) override;
     bool removeNodes() override;
 

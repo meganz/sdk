@@ -22,15 +22,16 @@
 #ifndef MEGA_COMMAND_H
 #define MEGA_COMMAND_H 1
 
-#include <memory>
-
-#include "types.h"
-#include "node.h"
 #include "account.h"
 #include "http.h"
 #include "json.h"
-#include "textchat.h"
+#include "node.h"
 #include "nodemanager.h"
+#include "textchat.h"
+#include "types.h"
+
+#include <memory>
+#include <variant>
 
 namespace mega {
 
@@ -1037,12 +1038,29 @@ public:
     {
     public:
         CancelSubscription(const char* reason, const char* id, int canContact);
+        CancelSubscription(std::vector<std::pair<std::string, std::string>>&& reasons,
+                           const char* id,
+                           int canContact);
+
+        template<class T>
+        const T* getReasoning() const
+        {
+            return std::get_if<T>(&mReasoning);
+        }
+
+        const std::string& getId() const
+        {
+            return mId;
+        }
+
+        bool canContact() const
+        {
+            return mCanContact == CanContact::Yes;
+        }
 
     private:
-        friend CommandCreditCardCancelSubscriptions;
-
         // Can be empty
-        std::string mReason;
+        std::variant<std::string, std::vector<std::pair<std::string, std::string>>> mReasoning;
         // Can be empty which means all subscriptions
         std::string mId;
 
@@ -1599,7 +1617,6 @@ public:
 
 class MEGA_API CommandBackupRemove : public Command
 {
-    handle mBackupId;
     std::function<void(const Error&)> mCompletion;
 
 public:
@@ -1862,7 +1879,6 @@ public:
 typedef std::function<void(Error, const std::vector<std::unique_ptr<ScheduledMeeting>>*)> CommandScheduledMeetingFetchCompletion;
 class MEGA_API CommandScheduledMeetingFetch : public Command
 {
-    handle mChatId;
     CommandScheduledMeetingFetchCompletion mCompletion;
 
 public:
@@ -1905,14 +1921,64 @@ public:
 };
 
 /* MegaVPN Commands BEGIN */
+class VpnCluster
+{
+public:
+    VpnCluster(std::string&& host, std::vector<std::string>&& dns):
+        mHost{std::move(host)},
+        mDns{std::move(dns)}
+    {}
+
+    const std::string& getHost() const
+    {
+        return mHost;
+    }
+
+    const std::vector<std::string>& getDns() const
+    {
+        return mDns;
+    }
+
+private:
+    std::string mHost; // "nz.vpn.mega.nz"
+    std::vector<std::string> mDns; // {"8.8.8.8", "8.8.4.4", ...}
+};
+
+class VpnRegion
+{
+public:
+    VpnRegion(std::string&& name):
+        mName{std::move(name)}
+    {}
+
+    const std::string& getName() const
+    {
+        return mName;
+    }
+
+    const std::map<int, VpnCluster>& getClusters() const
+    {
+        return mClusters;
+    }
+
+    void addCluster(int id, VpnCluster&& cluster)
+    {
+        mClusters.emplace(id, std::move(cluster));
+    }
+
+private:
+    std::string mName; // "NZ", "JP", "CA-WEST", ...
+    std::map<int, VpnCluster> mClusters;
+};
+
 class MEGA_API CommandGetVpnRegions : public Command
 {
 public:
     using Cb = std::function<void(const Error& /* API error */,
-                                std::vector<std::string>&& /* VPN regions */)>;
+                                  std::vector<VpnRegion>&& /* VPN regions */)>;
     CommandGetVpnRegions(MegaClient*, Cb&& completion = nullptr);
     bool procresult(Result, JSON&) override;
-    static void parseregions(JSON& json, std::vector<std::string>*);
+    static bool parseRegions(JSON& json, std::vector<VpnRegion>* vpnRegions);
 
 private:
     Cb mCompletion;
@@ -1933,7 +1999,7 @@ public:
     using Cb = std::function<void(const Error& /* API error */,
                                 MapSlotIDToCredentialInfo&& /* Map of SlotID: { ClusterID, IPv4, IPv6, DeviceID } */,
                                 MapClusterPublicKeys&& /* Map of ClusterID: Cluster Public Key */,
-                                std::vector<std::string>&& /* VPN Regions */)>;
+                                std::vector<VpnRegion>&& /* VPN Regions */)>;
     CommandGetVpnCredentials(MegaClient*, Cb&& completion = nullptr);
     bool procresult(Result, JSON&) override;
 
@@ -2020,6 +2086,8 @@ public:
 
 private:
     bool readCallToAction(JSON& json, std::map<std::string, std::string>& action);
+    bool readRenderModes(JSON& json,
+                         std::map<std::string, std::map<std::string, std::string>>& modes);
 
     ResultFunc mOnResult;
 };

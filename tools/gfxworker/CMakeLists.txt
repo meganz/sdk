@@ -63,7 +63,6 @@ if(ENABLE_SDKLIB_WERROR)
         TARGET libgfxworker
         WINDOWS /WX
         UNIX  $<$<CONFIG:Debug>: -Werror>
-        APPLE $<$<CONFIG:Debug>: -Wno-sign-conversion -Wno-overloaded-virtual>
     )
 endif()
 
@@ -92,7 +91,6 @@ if(ENABLE_SDKLIB_WERROR)
         TARGET gfxworker
         WINDOWS /WX
         UNIX  $<$<CONFIG:Debug>: -Werror>
-        APPLE $<$<CONFIG:Debug>: -Wno-sign-conversion -Wno-overloaded-virtual>
     )
 endif()
 

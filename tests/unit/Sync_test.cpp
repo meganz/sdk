@@ -424,7 +424,7 @@ TEST_F(SyncConfigIOContextTest, GetSlotsOrderedByModificationTime)
             EXPECT_TRUE(Utilities::randomFile(configPath));
 
             // Set the modification time.
-            EXPECT_TRUE(fsAccess().setmtimelocal(configPath, i * 1000));
+            EXPECT_TRUE(fsAccess().setmtimelocal(configPath, static_cast<m_time_t>(i * 1000)));
         }
     }
 
