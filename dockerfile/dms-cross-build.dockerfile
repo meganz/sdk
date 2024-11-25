@@ -1,7 +1,7 @@
 # Dockerfile for cross-compiling for DMS in its different architectures.
 #
 # Build the Docker image:
-#   docker build -t dms-build-env -f /path/to/your/sdk/dockerfile/dms-cross-build.dockerfile /path/to/your/sdk/dockerfile/ --build-arg ARCH=architechtureName
+#   docker build -t dms-build-env -f /path/to/your/sdk/dockerfile/dms-cross-build.dockerfile /path/to/your/sdk/dockerfile/ --build-arg PLATFORM=platformName
 #     -t : Tags the built container with a name
 #     -f : Specify dockerfile to be build, replace /path/to/your/sdk with your local path to the sdk
 #     --build-arg : adds an argument to the build, you should select one of the possible architectures
@@ -17,8 +17,8 @@
 FROM ubuntu:22.04
 
 # Set default architecture
-ARG ARCH=alpine
-ENV ARCH=${ARCH}
+ARG PLATFORM=alpine
+ENV PLATFORM=${PLATFORM}
 
 # Install dependencies
 RUN apt-get --quiet=2 update && DEBCONF_NOWARNINGS=yes apt-get --quiet=2 install \
@@ -63,16 +63,16 @@ CMD ["sh", "-c", "\
     groupadd -g $owner_gid me && \
     echo 'Adding \"me\" user...' && \
     useradd -r -M -u $owner_uid -g $owner_gid -d /mega -s /bin/bash me && \
-    export ARCH=${ARCH} && \
-    su - me -w 'ARCH' -c ' \
-    /mega/dms-toolchain.sh ${ARCH} && \
+    export PLATFORM=${PLATFORM} && \
+    su - me -w 'PLATFORM' -c ' \
+    /mega/dms-toolchain.sh ${PLATFORM} && \
     cmake -B buildDMS -S sdk \
         -DVCPKG_ROOT=/mega/vcpkg \
         -DCMAKE_BUILD_TYPE=Debug \
         -DENABLE_SDKLIB_EXAMPLES=OFF \
         -DENABLE_SDKLIB_TESTS=OFF \
-        -DVCPKG_CHAINLOAD_TOOLCHAIN_FILE=/mega/${ARCH}.toolchain.cmake \
+        -DVCPKG_CHAINLOAD_TOOLCHAIN_FILE=/mega/${PLATFORM}.toolchain.cmake \
         -DVCPKG_OVERLAY_TRIPLETS=/mega \
-        -DVCPKG_TARGET_TRIPLET=${ARCH} && \
+        -DVCPKG_TARGET_TRIPLET=${PLATFORM} && \
     cmake --build buildDMS' && \
     exec /bin/bash"]

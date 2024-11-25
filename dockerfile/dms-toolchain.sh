@@ -30,17 +30,17 @@ download_toolchain() {
 # Generate CMake toolchain file
 generate_cmake_toolchain_file() {
     local toolchain_path="$1"
-    local architecture=32
+    local bitMode=32
 
-    [ -v ToolChainDir64 ] && architecture=64
-
+    # Variables loaded from pkscripts platform file.
+    [ -v ToolChainDir64 ] && bitMode=64
     arch="ARCH"
-    c_compiler="CC$architecture"
-    c_compiler_flags="CFLAGS$architecture"
-    cxx_compiler="CXX$architecture"
-    cxx_compiler_flags="CFLAGS$architecture"
-    linker_flags="LDFLAGS$architecture"
-    toolchain_system_root_dir="ToolChainSysRoot$architecture"
+    c_compiler="CC$bitMode"
+    c_compiler_flags="CFLAGS$bitMode"
+    cxx_compiler="CXX$bitMode"
+    cxx_compiler_flags="CFLAGS$bitMode"
+    linker_flags="LDFLAGS$bitMode"
+    toolchain_system_root_dir="ToolChainSysRoot$bitMode"
 
     (
         printf 'set(CMAKE_SYSTEM_NAME Linux)\n'
@@ -99,9 +99,20 @@ fi
 download_toolchain $platform
 
 toolchain_path="mega/toolchain"
-vcpkg_toolchain_base="mega/toolchains"
 
-# Source the platform's file
+# Source the platform's file from the pkgscripts provided by Synology
+# Some useful variables used in this script from the platfom file:
+#
+# ARCH: Target processor architecture (x86_64, arm, arm64,...)
+# CC32, CC64: C Compiler, for 32 and 64 bits.
+# CFLAGS32, CFLAGS64: C flags, for 32 and 64 bits.
+# CXX32, CXX64: C++ Compiler, for 32 and 64 bits.
+# CFLAGS32, CLFAGS64: C++ flags, for 32 and 64 bits.
+# LDFLAGS32, LDFLAGS64: Linker flags, for 32 and 64 bits.
+# ToolChainDir32, ToolChainDir64: Root of compiler, sysroot,... for 32 and 64 bits.
+# ToolChainSysRoot32, ToolChainSysRoot: sysroot path, for 32 and 64 bits.
+#
+# Note: 64 variables only exists for 64 capable platforms. That could be used to detect them
 source "/mega/pkgscripts/include/platform.$platform" || { echo "Failed to source platform file"; exit 1; }
 
 # Generate CMake toolchain file
