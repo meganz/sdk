@@ -85,6 +85,9 @@ set(SDKLIB_HEADERS
     include/mega/user_attribute_definition.h
     include/mega/user_attribute_manager.h
     include/mega/user_attribute_types.h
+
+    # megaapi_impl related headers
+    include/mega/impl/share.h
 )
 
 set(SDKLIB_SOURCES
@@ -151,6 +154,9 @@ set(SDKLIB_SOURCES
     src/user_attribute_definition.cpp
     src/user_attribute_manager.cpp
     src/megautils.cpp
+
+    # megaapi_impl related sources
+    src/impl/share.cpp
 )
 
 target_sources(SDKlib
