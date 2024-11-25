@@ -60,8 +60,7 @@ generate_cmake_toolchain_file() {
 # Generate VCPKG triplet file
 generate_vcpkg_triplet_file() {
     local platform="$1"
-    local toolchain_path="$2"
-    local architecture="$3"
+    local architecture="$2"
 
     printf 'set(VCPKG_CHAINLOAD_TOOLCHAIN_FILE "%s%s")\n' \
            '${CMAKE_CURRENT_LIST_DIR}/' \
@@ -109,4 +108,4 @@ source "/mega/pkgscripts/include/platform.$platform" || { echo "Failed to source
 generate_cmake_toolchain_file "$toolchain_path" > "/mega/$platform.toolchain.cmake" || { echo "Couldn't generate toolchain file for \"$platform\""; exit 1; }
 
 # Generate VCPKG triplet file
-generate_vcpkg_triplet_file "$platform" "$vcpkg_toolchain_base/" "$platform" > "/mega/$platform.cmake" || { echo "Couldn't generate triplet file for \"$platform\""; exit 1; }
+generate_vcpkg_triplet_file "$platform" "$ARCH" > "/mega/$platform.cmake" || { echo "Couldn't generate triplet file for \"$platform\""; exit 1; }
