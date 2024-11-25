@@ -49,6 +49,7 @@
 #import "MEGADataInputStream.h"
 #import "MEGACancelToken+init.h"
 #import "MEGAPushNotificationSettings+init.h"
+#import "MEGACancelSubscriptionReasonList+init.h"
 
 #import <set>
 #import <pthread.h>
@@ -2200,6 +2201,12 @@ using namespace mega;
 - (void)creditCardCancelSubscriptions:(nullable NSString *)reason subscriptionId:(nullable NSString *)subscriptionId canContact:(BOOL)canContact delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->creditCardCancelSubscriptions(reason.UTF8String, subscriptionId.UTF8String, canContact, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
+- (void)creditCardCancelSubscriptionsWithReasons:(nullable MEGACancelSubscriptionReasonList *)reasonList subscriptionId:(nullable NSString *)subscriptionId canContact:(BOOL)canContact delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->creditCardCancelSubscriptions(reasonList.getCPtr, subscriptionId.UTF8String, canContact, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
     }
 }
 
