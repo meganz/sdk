@@ -151,6 +151,28 @@ bool disableSync(MegaApi* megaApi, const handle backupID)
     return setSyncRunState(megaApi, backupID, MegaSync::SyncRunningState::RUNSTATE_DISABLED);
 }
 
+std::vector<std::unique_ptr<MegaSyncStall>> getStalls(MegaApi* megaApi)
+{
+    if (megaApi == nullptr)
+        return {};
+
+    NiceMock<MockRequestListener> reqList;
+    const auto expectedErr = Pointee(Property(&MegaError::getErrorCode, API_OK));
+    std::vector<std::unique_ptr<MegaSyncStall>> stalls;
+    EXPECT_CALL(reqList, onRequestFinish(_, _, expectedErr))
+        .WillOnce(
+            [&stalls, &reqList](MegaApi*, MegaRequest* request, MegaError*)
+            {
+                if (auto list = request->getMegaSyncStallList(); list != nullptr)
+                    stalls = toSyncStallVector(*list);
+                reqList.markAsFinished();
+            });
+    megaApi->getMegaSyncStallList(&reqList);
+    if (!reqList.waitForFinishOrTimeout(MAX_TIMEOUT))
+        return {};
+    return stalls;
+}
+
 #endif
 
 std::optional<std::vector<std::string>> getCloudFirstChildrenNames(MegaApi* megaApi,

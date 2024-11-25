@@ -18,26 +18,6 @@ using namespace sdk_test;
 using namespace testing;
 
 /**
- * @brief Custom matcher for MegaSyncStall given a matcher for the local path and another for the
- * stall reason.
- */
-MATCHER_P2(MatchesStall, pathMatcher, reasonMatcher, "")
-{
-    const MegaSyncStall* stall = arg;
-    if (!stall)
-    {
-        *result_listener << "Stall is null";
-        return false;
-    }
-
-    std::string actualPath = stall->path(false, 0);
-    auto actualReason = stall->reason();
-
-    return ExplainMatchResult(pathMatcher, actualPath, result_listener) &&
-           ExplainMatchResult(reasonMatcher, actualReason, result_listener);
-}
-
-/**
  * @class SdkTestSyncNodeOperations
  * @brief Test fixture designed to test operations involving node operations and syncs
  *
@@ -281,29 +261,14 @@ public:
      */
     void thereIsAStall(const std::string_view fileName) const
     {
-        // Define the matcher for the request
-        const auto hasOneStall = Pointee(Property(&MegaSyncStallList::size, 1));
-        const auto getStall = [](const MegaSyncStallList& stallList) -> const MegaSyncStall*
-        {
-            return stallList.get(0);
-        };
-        const auto goodStallList =
-            AllOf(hasOneStall,
-                  Pointee(ResultOf(
-                      getStall,
-                      MatchesStall(EndsWith(fileName),
-                                   MegaSyncStall::SyncStallReason::
-                                       LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose))));
-        const auto goodRequest =
-            Pointee(Property(&MegaRequest::getMegaSyncStallList, goodStallList));
-
-        // Prepare the mock listener
-        NiceMock<MockRequestListener> reqList;
-        const auto expectedErr = Pointee(Property(&::mega::MegaError::getErrorCode, API_OK));
-        EXPECT_CALL(reqList, onRequestFinish(_, goodRequest, expectedErr));
-
-        megaApi[0]->getMegaSyncStallList(&reqList);
-        ASSERT_TRUE(reqList.waitForFinishOrTimeout(MAX_TIMEOUT));
+        const auto stalls = sdk_test::getStalls(megaApi[0].get());
+        ASSERT_EQ(stalls.size(), 1);
+        ASSERT_TRUE(stalls[0]);
+        const auto& stall = *stalls[0];
+        ASSERT_THAT(stall.path(false, 0), EndsWith(fileName));
+        ASSERT_THAT(
+            stall.reason(),
+            MegaSyncStall::SyncStallReason::LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose);
     }
 
     /**

@@ -98,6 +98,11 @@ bool suspendSync(::mega::MegaApi* megaApi, const ::mega::handle backupID);
  */
 bool disableSync(::mega::MegaApi* megaApi, const ::mega::handle backupID);
 
+/**
+ * @brief Get a vector with all the reported stalls.
+ */
+std::vector<std::unique_ptr<::mega::MegaSyncStall>> getStalls(::mega::MegaApi* megaApi);
+
 #endif
 
 /**
