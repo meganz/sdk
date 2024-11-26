@@ -87,7 +87,7 @@ set(SDKLIB_HEADERS
     include/mega/user_attribute_types.h
 
     # megaapi_impl related headers
-    include/mega/impl/share.h
+    include/impl/share.h
 )
 
 set(SDKLIB_SOURCES

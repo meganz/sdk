@@ -149,7 +149,7 @@ HEADERS= sdk/include/mega.h \
 
 # impl layer headers
 HEADERS += \
-    sdk/include/mega/impl/share.h
+    sdk/include/impl/share.h
 
 # impl layer sources
 CPP_SOURCES += \

@@ -1,4 +1,4 @@
-#include "mega/impl/share.h"
+#include "impl/share.h"
 
 namespace mega
 {

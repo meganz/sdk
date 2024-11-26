@@ -51,7 +51,7 @@
 #include "mega/gfx/GfxProcCG.h"
 #endif
 
-#include "mega/impl/share.h"
+#include "impl/share.h"
 
 // FUSE
 #include <mega/fuse/common/mount_flags.h>
