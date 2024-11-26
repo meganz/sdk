@@ -59,7 +59,6 @@ if slack_token and slack_channel_dev:
 release.setup_wiki(
     args["confluence_url"],
     os.environ["CONFLUENCE_TOKEN"],
-    args["confluence_captain_user"]
 )
 
 # STEP 1: GitLab: Create tag "vX.Y.Z" from last commit of branch "release/vX.Y.Z"
@@ -89,5 +88,5 @@ release.create_release_in_public_repo(args["release_version"])
 # STEP 6: Jira: mark version as Released, set release date
 release.mark_version_as_released()
 
-# STEP 7: Confluence: Rotate own name to the end of the list of release captains
+# STEP 7: Confluence: Rotate the first name to the end of the list of release captains
 release.move_release_captain_last(args["confluence_page_id"])

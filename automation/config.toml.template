@@ -21,7 +21,6 @@ jira_url = "" # "https://jira.foo.bar", same as the entry in [make_release]
 slack_channel_dev_requests = "" # "sdk_devs_only", same as the entry in [make_release]
 confluence_url = ""
 confluence_page_id = 3640225
-confluence_captain_user = ""
 private_remote_name = "origin" # same as the entry in [make_release]
 private_branch = "develop" # same as the entry in [make_release]
 public_branch = "master" # same as the entry in [make_release]
