@@ -118,6 +118,29 @@ LocalTempDir::~LocalTempDir()
     }
 }
 
+bool LocalTempDir::move(const fs::path& newLocation)
+{
+    if (std::filesystem::exists(newLocation))
+    {
+        LOG_err
+            << "Moving " << mDirPath.string() << " to " << newLocation.string()
+            << " will overwrite the target path. Romove it before proceeding with the operation.";
+        return false;
+    }
+    try
+    {
+        std::filesystem::rename(mDirPath, newLocation);
+    }
+    catch (const std::exception& e)
+    {
+        LOG_err << "Error moving directory from " << mDirPath.string() << " to "
+                << newLocation.string() << ". Error: " << e.what();
+        return false;
+    }
+    mDirPath = newLocation;
+    return true;
+}
+
 namespace
 {
 

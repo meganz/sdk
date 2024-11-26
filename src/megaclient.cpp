@@ -16940,7 +16940,7 @@ void MegaClient::changeSyncRoot(const handle backupId,
     if (noNode)
     {
         auto newRootPath = LocalPath::fromAbsolutePath(newLocalRootPath);
-        if (const auto [err, syncErr] = isValidLocalSyncRoot(newRootPath, backupId); err != API_OK)
+        if (const auto [err, syncErr] = isValidLocalSyncRoot(newRootPath, UNDEF); err != API_OK)
         {
             LOG_err << "changeSyncRoot: Invalid new local root. Error: "
                     << SyncConfig::syncErrorToStr(syncErr);

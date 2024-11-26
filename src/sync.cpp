@@ -4382,15 +4382,6 @@ void Syncs::changeSyncLocalRootInThread(const handle backupId,
         return completion(API_EARGS, UNKNOWN_ERROR);
     }
 
-    auto& config = unifSync->mConfig;
-    const auto currentPath = config.getLocalPath();
-    if (currentPath == newValidLocalRootPath)
-    {
-        LOG_err
-            << "The given new root path is the one already being used as local root of the sync";
-        return completion(API_EEXIST, UNKNOWN_ERROR);
-    }
-
     const bool syncWasRunning = unifSync->mSync != nullptr;
     if (syncWasRunning)
         unifSync->suspendSync();

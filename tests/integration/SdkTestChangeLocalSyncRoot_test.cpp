@@ -251,6 +251,11 @@ public:
         ASSERT_FALSE(HasNonfatalFailure());
     }
 
+    void moveLocalTmpDir(const std::filesystem::path& newLocation)
+    {
+        ASSERT_TRUE(mTempLocalDir.move(newLocation)) << "Error moving local tmp dir";
+    }
+
 private:
     LocalTempDir mTempLocalDir{getLocalTmpDir()};
     handle mBackupId{UNDEF};
@@ -314,7 +319,7 @@ TEST_F(SdkTestSyncLocalRootChange, ArgumentErrors)
     {
         LOG_verbose << logPre << "Giving good backupId and path to the already synced root";
         NiceMock<MockRequestListener> mockListener;
-        mockListener.setErrorExpectations(API_EEXIST, UNKNOWN_ERROR);
+        mockListener.setErrorExpectations(API_EARGS, LOCAL_PATH_SYNC_COLLISION);
         const auto rootPath = std::filesystem::absolute(getLocalTmpDir()).u8string();
         megaApi[0]->changeSyncLocalRoot(getBackupId(), rootPath.c_str(), &mockListener);
         EXPECT_TRUE(mockListener.waitForFinishOrTimeout(MAX_TIMEOUT));
@@ -356,6 +361,48 @@ TEST_F(SdkTestSyncLocalRootChange, ErrorNestedSyncs)
         const auto rootPath = tmpSubDir.getPath().u8string();
         megaApi[0]->changeSyncLocalRoot(getBackupId(), rootPath.c_str(), &mockListener);
         EXPECT_TRUE(mockListener.waitForFinishOrTimeout(MAX_TIMEOUT));
+    }
+}
+
+/**
+ * @brief SdkTestSyncLocalRootChange.ErrorNestedSyncSymLink :
+ * 1. Change the root of the sync to a symlink pointing to the original root
+ * 2. Change the root of the sync to a symlink pointing to a root of another sync
+ */
+TEST_F(SdkTestSyncLocalRootChange, ErrorNestedSyncSymLink)
+{
+    static const std::string logPre{"SdkTestSyncLocalRootChange.ErrorNestedSyncSymLink : "};
+    LOG_verbose << logPre
+                << "Creating a new sync between auxTmpDirErrorNestedSyncSymLink/ and dir2/";
+    const LocalTempDir tmpDir{"./auxTmpDirErrorNestedSyncSymLink/"};
+    const auto dir2BackupId = syncFolder(megaApi[0].get(),
+                                         tmpDir.getPath().u8string(),
+                                         getNodeByPath("dir2/")->getHandle());
+    ASSERT_NE(dir2BackupId, UNDEF) << "API Error adding a new sync";
+
+    {
+        LOG_verbose << logPre << "Changing the root to a symlink pointing to the original root";
+        std::filesystem::path linkName{"./symLinkToOriginal"};
+        std::filesystem::create_directory_symlink(getLocalTmpDir(), linkName);
+        NiceMock<MockRequestListener> mockListener;
+        mockListener.setErrorExpectations(API_EARGS, LOCAL_PATH_SYNC_COLLISION);
+        const auto rootPath = linkName.u8string();
+        megaApi[0]->changeSyncLocalRoot(getBackupId(), rootPath.c_str(), &mockListener);
+        EXPECT_TRUE(mockListener.waitForFinishOrTimeout(MAX_TIMEOUT));
+        std::filesystem::remove(linkName);
+    }
+
+    {
+        LOG_verbose << logPre
+                    << "Changing the root to a symlink pointing to the root of another sync";
+        std::filesystem::path linkName{"./symLinkToSecondSync"};
+        std::filesystem::create_directory_symlink(tmpDir.getPath(), linkName);
+        NiceMock<MockRequestListener> mockListener;
+        mockListener.setErrorExpectations(API_EARGS, LOCAL_PATH_SYNC_COLLISION);
+        const auto rootPath = linkName.u8string();
+        megaApi[0]->changeSyncLocalRoot(getBackupId(), rootPath.c_str(), &mockListener);
+        EXPECT_TRUE(mockListener.waitForFinishOrTimeout(MAX_TIMEOUT));
+        std::filesystem::remove(linkName);
     }
 }
 
@@ -520,4 +567,74 @@ TEST_F(SdkTestSyncLocalRootChange, OKSyncDisabledToSimilarRoot)
     LOG_verbose << logPre << "Validating expectations";
     ASSERT_NO_FATAL_FAILURE(checkCurrentLocalMatchesMirror());
 }
+
+/**
+ * @brief SdkTestSyncLocalRootChange.OKSyncRunningMoveRootAndReassing:
+ * 1. Move the root directory of a running sync to a different location
+ * 2. Check that it gets suspended
+ * 3. Reassign the root to the new location
+ * 4. Sync can be resumed and everything stays as it was
+ */
+TEST_F(SdkTestSyncLocalRootChange, OKSyncRunningMoveRootAndReassing)
+{
+    static const std::string logPre{
+        "SdkTestSyncLocalRootChange.OKSyncRunningMoveRootAndReassing : "};
+
+    ASSERT_EQ(getSyncRunState(), std::optional{MegaSync::RUNSTATE_RUNNING});
+
+    LOG_verbose << logPre << "Renaming local root";
+    const auto newRoot = getLocalTmpDir().parent_path() / "TestDirOKSyncRunningMoveRootAndReassing";
+    ASSERT_NO_FATAL_FAILURE(moveLocalTmpDir(newRoot));
+
+    LOG_verbose << logPre << "Waiting for the sync to be disabled";
+    ASSERT_TRUE(waitFor(
+        [this]()
+        {
+            return getSyncRunState() == std::optional{MegaSync::RUNSTATE_SUSPENDED};
+        },
+        MAX_TIMEOUT,
+        10s));
+
+    LOG_verbose << logPre << "Change sync root to new location";
+    ASSERT_NO_FATAL_FAILURE(changeLocalSyncRootNoErrors(newRoot));
+
+    LOG_verbose << logPre << "Enabling the sync";
+    ASSERT_TRUE(sdk_test::resumeSync(megaApi[0].get(), getBackupId())) << "Error resuming the sync";
+    ASSERT_EQ(getSyncRunState(), std::optional{MegaSync::RUNSTATE_RUNNING});
+
+    // Move the directory back to where it was
+    moveLocalTmpDir(getLocalTmpDir());
+}
+
+/**
+ * @brief SdkTestSyncLocalRootChange.OKChangRootToASymLink: Change root to a symlink to an empty
+ * directory. Validate final state.
+ */
+TEST_F(SdkTestSyncLocalRootChange, OKChangRootToASymLink)
+{
+    static const std::string logPre{"SdkTestSyncLocalRootChange.OKChangRootToASymLink : "};
+
+    const LocalTempDir tmpDir{"./auxTmpDirOKChangRootToASymLink/"};
+    std::filesystem::path linkName{"./symLinkToEmpty"};
+    const MrProper defer{[&linkName]()
+                         {
+                             std::filesystem::remove(linkName);
+                         }};
+
+    ASSERT_EQ(getSyncRunState(), std::optional{MegaSync::RUNSTATE_RUNNING});
+
+    std::filesystem::create_directory_symlink(tmpDir.getPath(), linkName);
+
+    LOG_verbose << logPre << "Moving local root to an empty new root";
+    ASSERT_NO_FATAL_FAILURE(changeLocalSyncRootNoErrors(linkName));
+    ASSERT_EQ(getSyncRunState(), std::optional{MegaSync::RUNSTATE_RUNNING});
+
+    LOG_verbose << logPre << "Waiting for local to match cloud";
+    ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocal());
+
+    LOG_verbose << logPre << "Validating expectations: Empty dir (local has preference)";
+    EXPECT_THAT(getLocalFirstChildrenNames_if(tmpDir.getPath()),
+                testing::UnorderedElementsAre(".megaignore"));
+}
+
 #endif // ENABLE_SYNC

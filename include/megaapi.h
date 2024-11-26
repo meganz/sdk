@@ -17532,8 +17532,6 @@ class MegaApi
          * - MegaError::API_EWRITE:
          *     + SyncError::SYNC_CONFIG_WRITE_FAILURE We couldn't write into the database to commit
          *       the change.
-         * - MegaError::API_EEXISTS:
-         *     + SyncError::UNKNOWN_ERROR the current local root is the same as the given new one
          * - MegaError::API_EFAILED:
          *     + SyncError::LOCAL_PATH_MOUNTED trying to sync bellow a FUSE mount point
          *     + SyncError::UNSUPPORTED_FILE_SYSTEM the given path is in a not supported file system

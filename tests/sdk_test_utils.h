@@ -82,6 +82,14 @@ public:
         return mDirPath;
     }
 
+    /**
+     * @brief Move the current temp dir to the given location
+     *
+     * @return true if the operation succeeded, false there was an error or if there is already a
+     * file/directory in the given newLocation.
+     */
+    bool move(const fs::path& newLocation);
+
 private:
     fs::path mDirPath;
 };
