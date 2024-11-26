@@ -11,6 +11,7 @@ class JiraProject:
     - rename NextRelease to the new version
     - create new NextRelease version
     - get release notes
+    - check all tickets on a release are resolved or closed
     """
 
     _NEXT_RELEASE = "NextRelease"
@@ -49,6 +50,7 @@ class JiraProject:
         assert self._version is not None
         assert self._version.released == False
         self._version_id = self._version.id
+        self._check_all_tickets_are_resolved_or_closed()
 
     def update_current_version(self, to_version: str, used_by_apps: str):
         from datetime import date
@@ -305,3 +307,17 @@ class JiraProject:
                     fixVersions.append({"name": v.name})
             fixVersions.append({"name": self._version.name})
             issue.update({"fixVersions": fixVersions})
+
+    def _check_all_tickets_are_resolved_or_closed(self):
+        jql_query = (
+            f'project = "{self._project_key}" AND fixVersion = "{self._version.name}" '
+            f'AND status NOT IN ("Resolved", "Closed")'
+        )
+        issues = self._jira.search_issues(jql_query)
+
+        assert not issues, (
+            f"The following tickets are not resolved or closed for Fix Version '{self._version.name}':\n"
+            + "\n".join(
+                f"- {issue.key} -> {issue.fields.status.name}" for issue in issues
+            )
+        )
