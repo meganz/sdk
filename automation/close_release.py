@@ -84,7 +84,9 @@ if type_of_release == "new_release":
 
 elif type_of_release == "hotfix" or type_of_release == "old_release":
     # STEP 4: local git: Push release branch (release/vX.Y.Z) to public remote (github)
-    release.push_release_branch_to_public_repo()
+    release.push_release_branch_to_public_repo(
+        args["private_remote_name"], args["public_remote_name"]
+    )
 
 # STEP 5: GitHub: Create release in public repo from new tag
 release.create_release_in_public_repo(args["release_version"])
