@@ -1,7 +1,5 @@
 #include "mega/impl/share.h"
 
-#include "mega/share.h"
-
 namespace mega
 {
 namespace impl
