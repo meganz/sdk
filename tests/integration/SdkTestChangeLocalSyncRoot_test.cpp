@@ -364,10 +364,12 @@ TEST_F(SdkTestSyncLocalRootChange, ErrorNestedSyncs)
     }
 }
 
+#ifndef WIN32
 /**
  * @brief SdkTestSyncLocalRootChange.ErrorNestedSyncSymLink :
  * 1. Change the root of the sync to a symlink pointing to the original root
  * 2. Change the root of the sync to a symlink pointing to a root of another sync
+ * NOTE: This test does not make sense on windows due to how symlinks are handled there.
  */
 TEST_F(SdkTestSyncLocalRootChange, ErrorNestedSyncSymLink)
 {
@@ -405,6 +407,7 @@ TEST_F(SdkTestSyncLocalRootChange, ErrorNestedSyncSymLink)
         std::filesystem::remove(linkName);
     }
 }
+#endif
 
 /**
  * @brief SdkTestSyncLocalRootChange.OKSyncRunningToEmptyRoot: Change the root of a running sync to
@@ -568,12 +571,16 @@ TEST_F(SdkTestSyncLocalRootChange, OKSyncDisabledToSimilarRoot)
     ASSERT_NO_FATAL_FAILURE(checkCurrentLocalMatchesMirror());
 }
 
+#ifndef WIN32
 /**
  * @brief SdkTestSyncLocalRootChange.OKSyncRunningMoveRootAndReassing:
  * 1. Move the root directory of a running sync to a different location
  * 2. Check that it gets suspended
  * 3. Reassign the root to the new location
  * 4. Sync can be resumed and everything stays as it was
+ * NOTE: This test does not apply to windows because windows will block the rename operation on the
+ * root while the sync is running (the directory is opened by the sync engine). We should pause the
+ * sync before the rename but that scenario falls into the domain of other tests.
  */
 TEST_F(SdkTestSyncLocalRootChange, OKSyncRunningMoveRootAndReassing)
 {
@@ -605,6 +612,7 @@ TEST_F(SdkTestSyncLocalRootChange, OKSyncRunningMoveRootAndReassing)
     // Move the directory back to where it was
     moveLocalTmpDir(getLocalTmpDir());
 }
+#endif
 
 /**
  * @brief SdkTestSyncLocalRootChange.OKChangRootToASymLink: Change root to a symlink to an empty
