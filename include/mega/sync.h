@@ -820,10 +820,11 @@ private:
      * @param downloadFile The SyncDownload_inClient object that has being terminated by the
      * corresponding Transfer.
      * @param monitor The ProgressingMonitor object that is used to notify stalls if needed.
-     * @return Always false as we don't want to execute the rest of the syncItem method. Why?
-     * because terminated transfers with unhandled error codes are reset inside
-     * transferResetUnlessMatched which then forces the transfer to be created again and the
-     * download gets automatically restarted. We want to avoid that in this unexpected scenarios.
+     * @return false until file with a newer modification time is detected in the target local
+     * location or the node in the cloud gets updated. Why false? Because terminated transfers with
+     * unhandled error codes are reset inside transferResetUnlessMatched which then forces the
+     * transfer to be created again and the download gets automatically restarted. We want to avoid
+     * that in this unexpected scenarios.
      */
     bool handleTerminatedDownloadsDueUnknown(const SyncRow& row,
                                              const SyncPath& fullPath,
