@@ -19,11 +19,10 @@ class JiraProject:
     def __init__(
         self,
         url: str,
-        username: str,
-        password: str,
+        token: str,
         project: str,
     ):
-        self._jira = JIRA(url, basic_auth=(username, password))
+        self._jira = JIRA(url, token_auth=token)
         self._project_key = self._get_project_key(project)
         assert self._project_key, f"No project found with name {project}"
         self._version_manager_url = f"{self._jira.server_url}/rest/versionmanager/1.0/versionmanager/{self._project_key}"
