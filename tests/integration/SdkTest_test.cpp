@@ -15119,22 +15119,22 @@ TEST_F(SdkTest, SdkUserAlerts)
     // --- Move sub-folder from Root (owned) back to share ---
     ASSERT_EQ(API_OK, doMoveNode(A1idx, nullptr, nSubfolder.get(), nSharedFolder.get()))
         << "Moving sub-folder from Root (owned) to share failed";
-    // NOTE: This did not create a NewSharedNodes alert (even when it contained files). Notified as a potential bug.
+    // Notifies and suppresses the previous RemovedSharedNode alert
+    ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
+        << "Suppressed remove share alert not received by B1 after " << maxTimeout << " seconds";
+    ASSERT_NE(B1dtls.userAlertList, nullptr) << "Suppressed RemovedSharedNode";
+    ASSERT_EQ(B1dtls.userAlertList->size(), 1) << "Suppressed RemovedSharedNode";
+    ASSERT_EQ(B1dtls.userAlertList->get(0)->getType(), MegaUserAlert::TYPE_REMOVEDSHAREDNODES)
+        << "Suppressed RemovedSharedNode";
+    ASSERT_TRUE(B1dtls.userAlertList->get(0)->isRemoved()) << "Suppressed RemovedSharedNode";
 
     // --- Move file from Root (owned) to share ---
+    B1dtls.userAlertsUpdated = false;
+    B1dtls.userAlertList.reset();
     std::unique_ptr<MegaNode> nfile2(A1.getNodeByHandle(hUpfile));
     ASSERT_NE(nfile2, nullptr);
     ASSERT_EQ(API_OK, doMoveNode(A1idx, nullptr, nfile2.get(), nSubfolder.get()))
         << "Moving file from Root (owned) to shared folder failed";
-
-    // ignore notification about single TYPE_REMOVEDSHAREDNODES alert marked as removed
-    if (B1dtls.userAlertList && B1dtls.userAlertList->size() == 1 &&
-        B1dtls.userAlertList->get(0)->getType() == MegaUserAlert::TYPE_REMOVEDSHAREDNODES &&
-        B1dtls.userAlertList->get(0)->isRemoved())
-    {
-        B1dtls.userAlertsUpdated = false;
-        B1dtls.userAlertList.reset();
-    }
 
     // NewSharedNodes
     ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
