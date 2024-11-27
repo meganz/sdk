@@ -16853,23 +16853,16 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig,
 
     if (syncConfig.isExternal())
     {
-        // Currently only possible for backup syncs.
         if (!syncConfig.isBackup())
         {
             LOG_warn << "Only Backups can be external";
             return API_EARGS;
         }
-
-        const auto& drivePath = syncConfig.mExternalDrivePath;
-        const auto& sourcePath = syncConfig.mLocalPath;
-
-        // Source must be on the drive.
-        if (!drivePath.isContainingPathOf(sourcePath))
+        if (!syncConfig.isGoodPathForExternalBackup(syncConfig.mLocalPath))
         {
-            LOG_debug << "Drive path inconsistent for sync add";
+            LOG_warn << "Drive path inconsistent for sync local path";
             syncConfig.mEnabled = false;
             syncConfig.mError = BACKUP_SOURCE_NOT_BELOW_DRIVE;
-
             return API_EARGS;
         }
     }

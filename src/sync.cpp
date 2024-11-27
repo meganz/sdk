@@ -1160,6 +1160,9 @@ SyncError UnifiedSync::changeConfigLocalRoot(const LocalPath& newPath)
     if (mConfig.mLocalPath == newPath)
         return NO_SYNC_ERROR;
 
+    if (!mConfig.isGoodPathForExternalBackup(newPath))
+        return BACKUP_SOURCE_NOT_BELOW_DRIVE;
+
     const auto fsfp = syncs.fsaccess->fsFingerprint(newPath);
     if (!fsfp)
     {
@@ -4374,12 +4377,6 @@ void Syncs::changeSyncLocalRootInThread(const handle backupId,
     }
 
     const auto& unifSync = *it;
-    if (unifSync->mConfig.isBackup())
-    {
-        LOG_err << "Trying to change local root of a backup sync. Operation not supported yet.";
-        return completion(API_EARGS, UNKNOWN_ERROR);
-    }
-
     const bool syncWasRunning = unifSync->mSync != nullptr;
     if (syncWasRunning)
         unifSync->suspendSync();
