@@ -98,20 +98,26 @@ namespace mega {
 class ShareExtractor
 {
 public:
-    // Extract both out and pending shares
+    using Filter = std::function<bool(const impl::ShareData&)>;
+
+    // Extract both out and pending shares, if filter(data) returns false, the share data is dropped
     static vector<impl::ShareData> extractShares(const sharedNode_vector& outshares,
-                                                 const KeyManager& keyManager);
+                                                 const KeyManager& keyManager,
+                                                 Filter filter = nullptr);
 
 private:
     static std::vector<impl::ShareData> extractPendingShares(const Node* n,
-                                                             const KeyManager& keyManager);
+                                                             const KeyManager& keyManager,
+                                                             Filter filter);
 
     static std::vector<impl::ShareData> extractOutShares(const Node* n,
-                                                         const KeyManager& keyManager);
+                                                         const KeyManager& keyManager,
+                                                         Filter filter);
 };
 
 std::vector<impl::ShareData> ShareExtractor::extractOutShares(const Node* n,
-                                                              const KeyManager& keyManager)
+                                                              const KeyManager& keyManager,
+                                                              Filter filter)
 {
     std::vector<impl::ShareData> shares;
     if (n->outshares)
@@ -125,7 +131,11 @@ std::vector<impl::ShareData> ShareExtractor::extractOutShares(const Node* n,
                 const bool verified =
                     !keyManager.isUnverifiedOutShare(n->nodehandle,
                                                      toHandle(share->user->userhandle));
-                shares.emplace_back(n->nodehandle, share, verified);
+                impl::ShareData data{n->nodehandle, share, verified};
+                if (!filter || filter(data)) // no filter or filter() returns true
+                {
+                    shares.push_back(std::move(data));
+                }
             }
         }
     }
@@ -133,7 +143,8 @@ std::vector<impl::ShareData> ShareExtractor::extractOutShares(const Node* n,
 }
 
 std::vector<impl::ShareData> ShareExtractor::extractPendingShares(const Node* n,
-                                                                  const KeyManager& keyManager)
+                                                                  const KeyManager& keyManager,
+                                                                  Filter filter)
 {
     std::vector<impl::ShareData> shares;
     if (n->pendingshares)
@@ -146,7 +157,11 @@ std::vector<impl::ShareData> ShareExtractor::extractPendingShares(const Node* n,
                 const bool verified =
                     !keyManager.isUnverifiedOutShare(n->nodehandle, share->pcr->targetemail);
 
-                shares.emplace_back(n->nodehandle, share, verified);
+                impl::ShareData data{n->nodehandle, share, verified};
+                if (!filter || filter(data)) // no filter or filter() returns true
+                {
+                    shares.push_back(std::move(data));
+                }
             }
         }
     }
@@ -154,17 +169,18 @@ std::vector<impl::ShareData> ShareExtractor::extractPendingShares(const Node* n,
 }
 
 vector<impl::ShareData> ShareExtractor::extractShares(const sharedNode_vector& outshares,
-                                                      const KeyManager& keyManager)
+                                                      const KeyManager& keyManager,
+                                                      Filter filter)
 {
     vector<impl::ShareData> shares;
     for (const auto& n: outshares)
     {
-        auto outSharesOfThisNode = extractOutShares(n.get(), keyManager);
+        auto outSharesOfThisNode = extractOutShares(n.get(), keyManager, filter);
         std::move(std::begin(outSharesOfThisNode),
                   std::end(outSharesOfThisNode),
                   std::back_inserter(shares));
 
-        auto pendingSharesOfThisNode = extractPendingShares(n.get(), keyManager);
+        auto pendingSharesOfThisNode = extractPendingShares(n.get(), keyManager, filter);
         std::move(std::begin(pendingSharesOfThisNode),
                   std::end(pendingSharesOfThisNode),
                   std::back_inserter(shares));
