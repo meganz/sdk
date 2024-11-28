@@ -95,6 +95,83 @@ std::unique_ptr<GfxProc> createGfxProc(MegaGfxProcessor* processor)
 }
 namespace mega {
 
+class ShareExtractor
+{
+public:
+    // Extract both out and pending shares
+    static vector<impl::ShareData> extractShares(const sharedNode_vector& outshares,
+                                                 const KeyManager& keyManager);
+
+private:
+    static std::vector<impl::ShareData> extractPendingShares(const Node* n,
+                                                             const KeyManager& keyManager);
+
+    static std::vector<impl::ShareData> extractOutShares(const Node* n,
+                                                         const KeyManager& keyManager);
+};
+
+std::vector<impl::ShareData> ShareExtractor::extractOutShares(const Node* n,
+                                                              const KeyManager& keyManager)
+{
+    std::vector<impl::ShareData> shares;
+    if (n->outshares)
+    {
+        for (const auto& outShare: *n->outshares)
+        {
+            const Share* share = outShare.second.get();
+            assert(!share->pcr);
+            if (share->user) // public links have no user
+            {
+                const bool verified =
+                    !keyManager.isUnverifiedOutShare(n->nodehandle,
+                                                     toHandle(share->user->userhandle));
+                shares.emplace_back(n->nodehandle, share, verified);
+            }
+        }
+    }
+    return shares;
+}
+
+std::vector<impl::ShareData> ShareExtractor::extractPendingShares(const Node* n,
+                                                                  const KeyManager& keyManager)
+{
+    std::vector<impl::ShareData> shares;
+    if (n->pendingshares)
+    {
+        for (const auto& pendingShare: *n->pendingshares)
+        {
+            const Share* share = pendingShare.second.get();
+            if (share->pcr)
+            {
+                const bool verified =
+                    !keyManager.isUnverifiedOutShare(n->nodehandle, share->pcr->targetemail);
+
+                shares.emplace_back(n->nodehandle, share, verified);
+            }
+        }
+    }
+    return shares;
+}
+
+vector<impl::ShareData> ShareExtractor::extractShares(const sharedNode_vector& outshares,
+                                                      const KeyManager& keyManager)
+{
+    vector<impl::ShareData> shares;
+    for (const auto& n: outshares)
+    {
+        auto outSharesOfThisNode = extractOutShares(n.get(), keyManager);
+        std::move(std::begin(outSharesOfThisNode),
+                  std::end(outSharesOfThisNode),
+                  std::back_inserter(shares));
+
+        auto pendingSharesOfThisNode = extractPendingShares(n.get(), keyManager);
+        std::move(std::begin(pendingSharesOfThisNode),
+                  std::end(pendingSharesOfThisNode),
+                  std::back_inserter(shares));
+    }
+    return shares;
+}
+
 MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime, uint64_t nodehandle,
                                  const string *nodekey, const string *fileattrstring, const char *fingerprint, const char *originalFingerprint, MegaHandle owner, MegaHandle parentHandle,
                                  const char *privateauth, const char *publicauth, bool ispublic, bool isForeign, const char *chatauth, bool isNodeKeyDecrypted)
@@ -11823,7 +11900,11 @@ bool MegaApiImpl::isPendingShare(MegaNode *megaNode)
     return node->pendingshares != NULL;
 }
 
-sharedNode_vector MegaApiImpl::getOutShares()
+//
+// Retrieve nodes that have any outgoing shares (including pending ones). Each node appears
+// only once in the list.
+//
+sharedNode_vector MegaApiImpl::getSharedNodes() const
 {
     sharedNode_vector outshares = client->mNodeManager.getNodesWithOutShares();
 
@@ -11850,56 +11931,18 @@ sharedNode_vector MegaApiImpl::getOutShares()
     return outshares;
 }
 
-MegaShareList *MegaApiImpl::getOutShares(int order)
+MegaShareList* MegaApiImpl::getOutShares(int order)
 {
     SdkMutexGuard guard(sdkMutex);
 
-    sharedNode_vector outshares = getOutShares();
+    // Get nodes having any outgoing shares
+    sharedNode_vector sharedNodes = getSharedNodes();
 
-    std::map<NodeHandle, std::set<Share *>> nodeSharesMap;
-    for (const auto& n : outshares)
-    {
-        if (n->outshares)
-        {
-            for (auto &share : *n->outshares)
-            {
-                assert(!share.second->pcr);
-                if (share.second->user) // public links have no user
-                {
-                    nodeSharesMap[n->nodeHandle()].insert(share.second.get()); // not kept
-                }
-            }
-        }
+    // Sort nodes
+    MegaApiImpl::sortByComparatorFunction(sharedNodes, order, *client);
 
-        if (n->pendingshares)
-        {
-            for (auto &share : *n->pendingshares)
-            {
-                if (share.second->pcr)
-                {
-                    nodeSharesMap[n->nodeHandle()].insert(share.second.get());  // not kept
-                }
-            }
-        }
-    }
-
-    MegaApiImpl::sortByComparatorFunction(outshares, order, *client);
-
-    vector<impl::ShareData> shares;
-    for (const auto& n: outshares)
-    {
-        for (const Share* share: nodeSharesMap[n->nodeHandle()])
-        {
-            const bool isUnverified =
-                share->pcr ?
-                    client->mKeyManager.isUnverifiedOutShare(n->nodehandle,
-                                                             share->pcr->targetemail) :
-                    client->mKeyManager.isUnverifiedOutShare(n->nodehandle,
-                                                             toHandle(share->user->userhandle));
-
-            shares.emplace_back(n->nodehandle, share, !isUnverified);
-        }
-    }
+    // Extract shares from nodes
+    const auto shares = ShareExtractor::extractShares(sharedNodes, client->mKeyManager);
 
     return new MegaShareListPrivate(shares);
 }
