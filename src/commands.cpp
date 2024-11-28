@@ -985,7 +985,7 @@ CommandSetAttr::CommandSetAttr(MegaClient*,
     addToNodePendingCommands(n.get());
 }
 
-const char* CommandSetAttr::getJSON(MegaClient* client)
+const char* CommandSetAttr::getJSON(MegaClient* clientOfRequest)
 {
     // We generate the command just before sending, so it's up to date for any external changes that occured in the meantime
     // And we can also take into account any changes we have sent for this node that have not yet been applied by actionpackets
@@ -995,7 +995,7 @@ const char* CommandSetAttr::getJSON(MegaClient* client)
     cmd("a");
 
     string at;
-    if (shared_ptr<Node> n = client->nodeByHandle(h))
+    if (shared_ptr<Node> n = clientOfRequest->nodeByHandle(h))
     {
         assert(n == mNode);
         AttrMap m = n->attrs;
@@ -1016,7 +1016,7 @@ const char* CommandSetAttr::getJSON(MegaClient* client)
         if (SymmCipher* cipher = n->nodecipher())
         {
             m.getjson(&at);
-            client->makeattr(cipher, &at, at.c_str(), int(at.size()));
+            clientOfRequest->makeattr(cipher, &at, at.c_str(), int(at.size()));
         }
         else
         {
@@ -1027,7 +1027,7 @@ const char* CommandSetAttr::getJSON(MegaClient* client)
 
         if (at.size() > MAX_NODE_ATTRIBUTE_SIZE)
         {
-            client->sendevent(99484, "Node attribute exceed maximun size");
+            clientOfRequest->sendevent(99484, "Node attribute exceed maximun size");
             LOG_err << "Node attribute exceed maximun size";
             h.setUndef();  // dummy command to generate an error, with no effect
             mNode.reset();
@@ -1054,7 +1054,7 @@ const char* CommandSetAttr::getJSON(MegaClient* client)
 
 bool CommandSetAttr::procresult(Result r, JSON&)
 {
-    removeFromNodePendingCommands(h, client);
+    removeFromNodePendingCommands(h);
     if (completion) completion(h, generationError ? Error(generationError) : r.errorOrOK());
     return r.wasErrorOrOK();
 }
@@ -1661,12 +1661,12 @@ CommandLogout::CommandLogout(MegaClient *client, Completion completion, bool kee
     tag = client->reqtag;
 }
 
-const char* CommandLogout::getJSON(MegaClient* client)
+const char* CommandLogout::getJSON(MegaClient* clientOfRequest)
 {
     if (!incrementedCount)
     {
         // only set this once we are about to send the command, in case there are others ahead of it in the queue
-        client->loggingout++;
+        clientOfRequest->loggingout++;
         // only set it once in case of retries due to -3.
         incrementedCount = true;
     }
@@ -2488,12 +2488,12 @@ bool CommandSetPendingContact::procresult(Result r, JSON& json)
     }
 }
 
-void CommandSetPendingContact::doComplete(handle handle, error result, opcactions_t actions)
+void CommandSetPendingContact::doComplete(handle handle, error e, opcactions_t actions)
 {
     if (!mCompletion)
-        return client->app->setpcr_result(handle, result, actions);
+        return client->app->setpcr_result(handle, e, actions);
 
-    mCompletion(handle, result, actions);
+    mCompletion(handle, e, actions);
 }
 
 CommandUpdatePendingContact::CommandUpdatePendingContact(MegaClient* client, handle p, ipcactions_t action, Completion completion)
@@ -2529,13 +2529,12 @@ bool CommandUpdatePendingContact::procresult(Result r, JSON&)
     return r.wasErrorOrOK();
 }
 
-
-void CommandUpdatePendingContact::doComplete(error result, ipcactions_t actions)
+void CommandUpdatePendingContact::doComplete(error e, ipcactions_t actions)
 {
     if (!mCompletion)
-        return client->app->updatepcr_result(result, actions);
+        return client->app->updatepcr_result(e, actions);
 
-    mCompletion(result, actions);
+    mCompletion(e, actions);
 }
 
 CommandEnumerateQuotaItems::CommandEnumerateQuotaItems(MegaClient* client)
@@ -3172,12 +3171,12 @@ bool CommandRemoveContact::procresult(Result r, JSON&)
     return r.wasErrorOrOK();
 }
 
-void CommandRemoveContact::doComplete(error result)
+void CommandRemoveContact::doComplete(error e)
 {
     if (!mCompletion)
-        return client->app->removecontact_result(result);
+        return client->app->removecontact_result(e);
 
-    mCompletion(result);
+    mCompletion(e);
 }
 
 CommandPutMultipleUAVer::CommandPutMultipleUAVer(MegaClient *client, const userattr_map *attrs, int ctag, std::function<void (Error)> completion)
@@ -7004,15 +7003,15 @@ CommandFetchNodes::~CommandFetchNodes()
     assert(!mNodeTreeIsChanging.owns_lock());
 }
 
-const char* CommandFetchNodes::getJSON(MegaClient* client)
+const char* CommandFetchNodes::getJSON(MegaClient* clientOfRequest)
 {
     // reset all the sc channel state, prevent sending sc requests while fetchnodes is sent
     // we wait until this moment, because when `f` is queued, there may be
     // other commands queued ahead of it, and those may need sc responses in order
     // to fully complete, and so we can't reset these members at that time.
-    client->resetScForFetchnodes();
+    clientOfRequest->resetScForFetchnodes();
 
-    return Command::getJSON(client);
+    return Command::getJSON(clientOfRequest);
 }
 
 // purge and rebuild node/user tree
