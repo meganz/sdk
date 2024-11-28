@@ -65,7 +65,7 @@ struct MEGA_API File: public FileFingerprint
         MegaClient* client,
         UploadHandle fileAttrMatchHandle,
         const UploadToken& ultoken,
-        const FileNodeKey& filekey,
+        const FileNodeKey& newFileKey,
         putsource_t source,
         NodeHandle ovHandle,
         std::function<void(const Error&,

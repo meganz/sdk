@@ -3035,13 +3035,14 @@ string LocalNode::debugGetParentList()
 }
 
 // locate child by localname or slocalname
-LocalNode* LocalNode::childbyname(LocalPath* localname)
+LocalNode* LocalNode::childbyname(LocalPath* localChildName)
 {
     localnode_map::iterator it;
 
-    if (!localname || ((it = children.find(*localname)) == children.end() && (it = schildren.find(*localname)) == schildren.end()))
+    if (!localChildName || ((it = children.find(*localChildName)) == children.end() &&
+                            (it = schildren.find(*localChildName)) == schildren.end()))
     {
-        return NULL;
+        return nullptr;
     }
 
     return it->second;
@@ -3570,7 +3571,9 @@ bool LocalNode::loadFilters(const LocalPath& path)
     return fc->mLoadSucceeded;
 }
 
-ExclusionState LocalNode::calcExcluded(RemotePathPair namePath, nodetype_t type, bool inherited) const
+ExclusionState LocalNode::calcExcluded(RemotePathPair namePath,
+                                       nodetype_t applicableType,
+                                       bool inherited) const
 {
     // This specialization only makes sense for directories.
     assert(this->type == FOLDERNODE);
@@ -3586,7 +3589,7 @@ ExclusionState LocalNode::calcExcluded(RemotePathPair namePath, nodetype_t type,
             inherited = inherited || node != this;
 
             // Check for a filter match.
-            auto result = node->filterChainRO().match(namePath, type, inherited);
+            auto result = node->filterChainRO().match(namePath, applicableType, inherited);
 
             // Was the file matched by any filters?
             if (result != ES_UNMATCHED)
@@ -3782,7 +3785,9 @@ LocalNode::exclusionState(const PathType& path, nodetype_t type, m_off_t size) c
 template ExclusionState LocalNode::exclusionState(const LocalPath& path, nodetype_t type, m_off_t size) const;
 template ExclusionState LocalNode::exclusionState(const RemotePath& path, nodetype_t type, m_off_t size) const;
 
-ExclusionState LocalNode::exclusionState(const string& name, nodetype_t type, m_off_t size) const
+ExclusionState LocalNode::exclusionState(const string& name,
+                                         nodetype_t applicableType,
+                                         m_off_t size) const
 {
     assert(this->type == FOLDERNODE);
 
@@ -3791,7 +3796,7 @@ ExclusionState LocalNode::exclusionState(const string& name, nodetype_t type, m_
     auto fsType = sync->mFilesystemType;
     LocalPath absoluteName = LocalPath::fromRelativeName(name, *fsAccess, fsType);
 
-    return exclusionState(absoluteName, type, size);
+    return exclusionState(absoluteName, applicableType, size);
 }
 
 ExclusionState LocalNode::exclusionState() const

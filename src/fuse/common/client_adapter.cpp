@@ -1439,26 +1439,25 @@ void ClientUpload::bound(BoundCallback callback,
                               std::placeholders::_1));
 }
 
-void ClientUpload::completed(Transfer* transfer, putsource_t)
+void ClientUpload::completed(Transfer* upload, putsource_t)
 {
     // Sanity.
-    assert(transfer);
+    assert(upload);
 
     // Instantiate bind callback.
-    BindCallback bind =
-      std::bind(&ClientUpload::bind,
-                this,
-                std::placeholders::_1,
-                transfer->filekey,
-                std::placeholders::_2,
-                std::move(mSelf),
-                transfer->uploadhandle,
-                *transfer->ultoken);
+    BindCallback bind = std::bind(&ClientUpload::bind,
+                                  this,
+                                  std::placeholders::_1,
+                                  upload->filekey,
+                                  std::placeholders::_2,
+                                  std::move(mSelf),
+                                  upload->uploadhandle,
+                                  *upload->ultoken);
 
     // Instantiate bind handle.
     auto bindHandle = ([&] {
         // Convenience.
-        auto data = reinterpret_cast<const char*>(&transfer->filekey);
+        auto data = reinterpret_cast<const char*>(&upload->filekey);
         auto size = static_cast<std::size_t>(FILENODEKEYLENGTH);
 
         // Return bind handle.

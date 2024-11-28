@@ -6023,9 +6023,9 @@ MegaFile::MegaFile() : File()
     megaTransfer = NULL;
 }
 
-void MegaFile::setTransfer(MegaTransferPrivate *transfer)
+void MegaFile::setTransfer(MegaTransferPrivate* newTransfer)
 {
-    this->megaTransfer = transfer;
+    megaTransfer = newTransfer;
 }
 
 MegaTransferPrivate *MegaFile::getTransfer()
@@ -6562,9 +6562,15 @@ MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProvider* prov
     init(api, appKey, std::move(gfxproc), basePath, userAgent, workerThreadCount, clientType);
 }
 
-void MegaApiImpl::init(MegaApi *api, const char *appKey, std::unique_ptr<GfxProc> gfxproc, const char *basePath, const char *userAgent, unsigned clientWorkerThreadCount, int clientType)
+void MegaApiImpl::init(MegaApi* publicApi,
+                       const char* newAppKey,
+                       std::unique_ptr<GfxProc> gfxproc,
+                       const char* newBasePath,
+                       const char* userAgent,
+                       unsigned clientWorkerThreadCount,
+                       int clientType)
 {
-    this->api = api;
+    api = publicApi;
 
     maxRetries = 7;
     currentTransfer = NULL;
@@ -6609,10 +6615,10 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, std::unique_ptr<GfxProc
     fsAccess.reset(new MegaFileSystemAccess);
 
     dbAccess = nullptr;
-    if (basePath)
+    if (newBasePath)
     {
-        dbAccess = new MegaDbAccess(LocalPath::fromAbsolutePath(basePath));
-        this->basePath = basePath;
+        dbAccess = new MegaDbAccess(LocalPath::fromAbsolutePath(newBasePath));
+        basePath = newBasePath;
     }
 
     gfxAccess = gfxproc.release();
@@ -6627,11 +6633,19 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, std::unique_ptr<GfxProc
     }
 
     nocache = false;
-    if (appKey)
+    if (newAppKey)
     {
-        this->appKey = appKey;
+        appKey = newAppKey;
     }
-    client = new MegaClient(this, waiter, httpio, dbAccess, gfxAccess, appKey, userAgent, clientWorkerThreadCount, MegaClient::ClientType(clientType));
+    client = new MegaClient(this,
+                            waiter,
+                            httpio,
+                            dbAccess,
+                            gfxAccess,
+                            newAppKey,
+                            userAgent,
+                            clientWorkerThreadCount,
+                            MegaClient::ClientType(clientType));
 
 #if defined(_WIN32)
     httpio->unlock();
@@ -23984,10 +23998,10 @@ void MegaApiImpl::setProxySettings(MegaProxy* proxySettings, MegaRequestListener
     waiter->notify();
 }
 
-void MegaApiImpl::getLastAvailableVersion(const char* appKey, MegaRequestListener* listener)
+void MegaApiImpl::getLastAvailableVersion(const char* anyAppKey, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_APP_VERSION, listener);
-    request->setText(appKey);
+    request->setText(anyAppKey);
 
     request->performRequest = [this, request]()
         {
@@ -37846,13 +37860,13 @@ const MegaTextChatPeerList *MegaTextChatPrivate::getPeerList() const
     return peers;
 }
 
-void MegaTextChatPrivate::setPeerList(const MegaTextChatPeerList *peers)
+void MegaTextChatPrivate::setPeerList(const MegaTextChatPeerList* newPeers)
 {
-    if (this->peers)
+    if (peers)
     {
-        delete this->peers;
+        delete peers;
     }
-    this->peers = peers ? peers->copy() : NULL;
+    peers = newPeers ? newPeers->copy() : nullptr;
 }
 
 bool MegaTextChatPrivate::isGroup() const
@@ -38354,18 +38368,18 @@ int64_t MegaEventPrivate::getNumber() const
     return number;
 }
 
-void MegaEventPrivate::setText(const char *text)
+void MegaEventPrivate::setText(const char* newText)
 {
-    if(this->text)
+    if (text)
     {
-        delete [] this->text;
+        delete[] text;
     }
-    this->text = MegaApi::strdup(text);
+    text = MegaApi::strdup(newText);
 }
 
-void MegaEventPrivate::setNumber(int64_t number)
+void MegaEventPrivate::setNumber(int64_t newNumber)
 {
-    this->number = number;
+    number = newNumber;
 }
 
 MegaHandle MegaEventPrivate::getHandle() const

@@ -1687,8 +1687,9 @@ bool CommandLogout::procresult(Result r, JSON&)
         Completion completion = std::move(mCompletion);
         bool keepSyncConfigsFile = mKeepSyncConfigsFile;
         LOG_debug << "setting mOnCSCompletion for final logout processing";  // track possible lack of logout callbacks
-        client->mOnCSCompletion = [=](MegaClient* client){
-            client->locallogout(true, keepSyncConfigsFile);
+        client->mOnCSCompletion = [=](MegaClient* clientToLogout)
+        {
+            clientToLogout->locallogout(true, keepSyncConfigsFile);
             completion(API_OK);
         };
     }
@@ -2120,7 +2121,7 @@ CommandSetShare::CommandSetShare(MegaClient* client, std::shared_ptr<Node> n, Us
 }
 
 // process user element (email/handle pairs)
-bool CommandSetShare::procuserresult(MegaClient* client, JSON& json)
+bool CommandSetShare::procuserresult(MegaClient* ownClient, JSON& json)
 {
     while (json.enterobject())
     {
@@ -2142,7 +2143,7 @@ bool CommandSetShare::procuserresult(MegaClient* client, JSON& json)
                 case EOO:
                     if (!ISUNDEF(uh) && m)
                     {
-                        client->mapuser(uh, m);
+                        ownClient->mapuser(uh, m);
                     }
                     return true;
 

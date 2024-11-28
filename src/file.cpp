@@ -352,11 +352,15 @@ void File::completed(Transfer* t, putsource_t source)
     }
 }
 
-
-void File::sendPutnodesOfUpload(MegaClient* client, UploadHandle fileAttrMatchHandle, const UploadToken& ultoken,
-                        const FileNodeKey& filekey, putsource_t source, NodeHandle ovHandle,
-                        CommandPutNodes::Completion&& completion,
-                        const m_time_t* overrideMtime, bool canChangeVault)
+void File::sendPutnodesOfUpload(MegaClient* client,
+                                UploadHandle fileAttrMatchHandle,
+                                const UploadToken& ultoken,
+                                const FileNodeKey& newFileKey,
+                                putsource_t source,
+                                NodeHandle ovHandle,
+                                CommandPutNodes::Completion&& completion,
+                                const m_time_t* overrideMtime,
+                                bool canChangeVault)
 {
     vector<NewNode> newnodes(1);
     NewNode* newnode = &newnodes[0];
@@ -372,8 +376,9 @@ void File::sendPutnodesOfUpload(MegaClient* client, UploadHandle fileAttrMatchHa
     newnode->uploadtoken = ultoken;
 
     // file's crypto key
-    static_assert(sizeof(filekey) == FILENODEKEYLENGTH, "File completed: filekey size doesn't match with FILENODEKEYLENGTH");
-    newnode->nodekey.assign((char*)&filekey, FILENODEKEYLENGTH);
+    static_assert(sizeof(newFileKey) == FILENODEKEYLENGTH,
+                  "File completed: filekey size doesn't match with FILENODEKEYLENGTH");
+    newnode->nodekey.assign((char*)&newFileKey, FILENODEKEYLENGTH);
     newnode->type = FILENODE;
     newnode->parenthandle = UNDEF;
 
@@ -394,8 +399,10 @@ void File::sendPutnodesOfUpload(MegaClient* client, UploadHandle fileAttrMatchHa
     attrs.getjson(&tattrstring);
 
     newnode->attrstring.reset(new string);
-    MegaClient::makeattr(client->getRecycledTemporaryTransferCipher(filekey.bytes.data(), FILENODE),
-                         newnode->attrstring, tattrstring.c_str());
+    MegaClient::makeattr(
+        client->getRecycledTemporaryTransferCipher(newFileKey.bytes.data(), FILENODE),
+        newnode->attrstring,
+        tattrstring.c_str());
 
     if (targetuser.size())
     {

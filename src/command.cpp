@@ -259,9 +259,9 @@ void Command::cmd(const char* cmd)
     commandStr = cmd;
 }
 
-void Command::notself(MegaClient *client)
+void Command::notself(MegaClient* clientToIgnoreActionPackets)
 {
-    jsonWriter.notself(client);
+    jsonWriter.notself(clientToIgnoreActionPackets);
 }
 
 // add comma separator unless first element
