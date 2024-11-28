@@ -2063,16 +2063,16 @@ shared_ptr<Node> NodeManager::getNodeFromDataBase(NodeHandle handle)
 sharedNode_vector NodeManager::getRootNodesAndInshares()
 {
     assert(mMutex.owns_lock());
-    sharedNode_vector rootnodes;
+    sharedNode_vector allRootNodes;
 
-    rootnodes = getRootNodes_internal();
+    allRootNodes = getRootNodes_internal();
     if (!mClient.loggedIntoFolder()) // logged into user's account: incoming shared folders
     {
         sharedNode_vector inshares = mClient.getInShares();
-        rootnodes.insert(rootnodes.end(), inshares.begin(), inshares.end());
+        allRootNodes.insert(allRootNodes.end(), inshares.begin(), inshares.end());
     }
 
-    return rootnodes;
+    return allRootNodes;
 }
 
 sharedNode_vector NodeManager::processUnserializedNodes(const vector<pair<NodeHandle, NodeSerialized>>& nodesFromTable, CancelToken cancelFlag)

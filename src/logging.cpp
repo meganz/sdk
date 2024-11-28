@@ -41,13 +41,13 @@ long long SimpleLogger::maxPayloadLogSize  = 10240;
 std::string SimpleLogger::getTime()
 {
     char ts[50];
-    time_t t = std::time(NULL);
+    time_t currentTime = std::time(NULL);
     std::tm tm{};
 
 #ifdef WIN32
-    gmtime_s(&tm, &t);
+    gmtime_s(&tm, &currentTime);
 #else
-    gmtime_r(&t, &tm);
+    gmtime_r(&currentTime, &tm);
 #endif
 
     if (std::strftime(ts, sizeof(ts), "%H:%M:%S", &tm)) return ts;

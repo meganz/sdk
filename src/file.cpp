@@ -624,7 +624,7 @@ void SyncUpload_inClient::sendPutnodesOfUpload(MegaClient* client, NodeHandle ov
                              targettype_t t,
                              vector<NewNode>& nn,
                              bool targetOverride,
-                             int tag,
+                             int ownTag,
                              const map<string, string>& fileHandles)
         {
             // Is the originating transfer still alive?
@@ -658,7 +658,7 @@ void SyncUpload_inClient::sendPutnodesOfUpload(MegaClient* client, NodeHandle ov
 
             // since we used a completion function, putnodes_result is not called.
             // but the intermediate layer still needs that in order to call the client app back:
-            client->app->putnodes_result(e, t, nn, targetOverride, tag, fileHandles);
+            client->app->putnodes_result(e, t, nn, targetOverride, ownTag, fileHandles);
         },
         nullptr,
         syncThreadSafeState->mCanChangeVault);

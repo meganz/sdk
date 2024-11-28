@@ -3361,7 +3361,7 @@ bool CommandPutUAVer::procresult(Result r, JSON& json)
             mCompletion(API_EINTERNAL);
             return false;
         }
-        attr_t at = User::string2attr(string(ptr, (end-ptr)).c_str());
+        attr_t attributeType = User::string2attr(string(ptr, (end - ptr)).c_str());
 
         if (!(ptr = json.getvalue()) || !(end = strchr(ptr, '"')))
         {
@@ -3370,7 +3370,7 @@ bool CommandPutUAVer::procresult(Result r, JSON& json)
         }
         string v = string(ptr, (end-ptr));
 
-        if (at == ATTR_UNKNOWN || v.empty() || (this->at != at))
+        if (attributeType == ATTR_UNKNOWN || v.empty() || (at != attributeType))
         {
             LOG_err << "Error in CommandPutUAVer. Undefined attribute or version";
             mCompletion(API_EINTERNAL);
@@ -3380,12 +3380,12 @@ bool CommandPutUAVer::procresult(Result r, JSON& json)
         {
             User *u = client->ownuser();
 
-            if (at == ATTR_KEYS && !client->mKeyManager.fromKeysContainer(av))
+            if (attributeType == ATTR_KEYS && !client->mKeyManager.fromKeysContainer(av))
             {
                 LOG_err << "Error processing new established value for the Key Manager";
 
                 // if there's a previous version, better keep that value in cache
-                const UserAttribute* attribute = client->ownuser()->getAttribute(at);
+                const UserAttribute* attribute = client->ownuser()->getAttribute(attributeType);
                 if (attribute && !attribute->isNotExisting() && !attribute->version().empty())
                 {
                     LOG_warn << "Replacing ^!keys value by previous version "
@@ -3395,10 +3395,10 @@ bool CommandPutUAVer::procresult(Result r, JSON& json)
                 }
             }
 
-            u->setAttribute(at, av, v);
+            u->setAttribute(attributeType, av, v);
             u->setTag(tag ? tag : -1);
 
-            if (at == ATTR_UNSHAREABLE_KEY)
+            if (attributeType == ATTR_UNSHAREABLE_KEY)
             {
                 LOG_info << "Unshareable key successfully created";
                 client->unshareablekey.swap(av);
@@ -3466,7 +3466,7 @@ bool CommandPutUA::procresult(Result r, JSON& json)
             mCompletion(API_EINTERNAL);
             return false;
         }
-        attr_t at = User::string2attr(string(ptr, (end - ptr)).c_str());
+        attr_t attributeType = User::string2attr(string(ptr, (end - ptr)).c_str());
 
         if (!(ptr = json.getvalue()) || !(end = strchr(ptr, '"')))
         {
@@ -3475,7 +3475,7 @@ bool CommandPutUA::procresult(Result r, JSON& json)
         }
         string v = string(ptr, (end - ptr));
 
-        if (at == ATTR_UNKNOWN || v.empty() || (this->at != at))
+        if (attributeType == ATTR_UNKNOWN || v.empty() || (at != attributeType))
         {
             LOG_err << "Error in CommandPutUA. Undefined attribute or version";
             mCompletion(API_EINTERNAL);
@@ -3490,11 +3490,11 @@ bool CommandPutUA::procresult(Result r, JSON& json)
             mCompletion(API_EACCESS);
             return true;
         }
-        u->setAttribute(at, av, v);
+        u->setAttribute(attributeType, av, v);
         u->setTag(tag ? tag : -1);
         client->notifyuser(u);
 
-        if (at == ATTR_DISABLE_VERSIONS)
+        if (attributeType == ATTR_DISABLE_VERSIONS)
         {
             client->versions_disabled = (av == "1");
             if (client->versions_disabled)
@@ -3506,7 +3506,7 @@ bool CommandPutUA::procresult(Result r, JSON& json)
                 LOG_info << "File versioning is enabled";
             }
         }
-        else if (at == ATTR_NO_CALLKIT)
+        else if (attributeType == ATTR_NO_CALLKIT)
         {
             LOG_info << "CallKit is " << ((av == "1") ? "disabled" : "enabled");
         }
@@ -9911,7 +9911,7 @@ bool CommandFolderLinkInfo::procresult(Result r, JSON& json)
     string attr;
     string key;
     handle owner = UNDEF;
-    handle ph = 0;
+    handle parentHandle = 0;
     m_off_t currentSize = 0;
     m_off_t versionsSize  = 0;
     int numFolders = 0;
@@ -9927,7 +9927,7 @@ bool CommandFolderLinkInfo::procresult(Result r, JSON& json)
             break;
 
         case MAKENAMEID2('p','h'):
-            ph = json.gethandle(MegaClient::NODEHANDLE);
+            parentHandle = json.gethandle(MegaClient::NODEHANDLE);
             break;
 
         case 'u':
@@ -9963,14 +9963,23 @@ bool CommandFolderLinkInfo::procresult(Result r, JSON& json)
                 client->app->folderlinkinfo_result(API_EKEY, UNDEF, UNDEF, NULL, NULL, 0, 0, 0, 0, 0);
                 return false;
             }
-            if (ph != this->ph)
+            if (parentHandle != ph)
             {
                 LOG_err << "Folder link information: public handle doesn't match";
                 client->app->folderlinkinfo_result(API_EINTERNAL, UNDEF, UNDEF, NULL, NULL, 0, 0, 0, 0, 0);
                 return false;
             }
 
-            client->app->folderlinkinfo_result(API_OK, owner, ph, &attr, &key, currentSize, numFiles, numFolders, versionsSize, numVersions);
+            client->app->folderlinkinfo_result(API_OK,
+                                               owner,
+                                               parentHandle,
+                                               &attr,
+                                               &key,
+                                               currentSize,
+                                               numFiles,
+                                               numFolders,
+                                               versionsSize,
+                                               numVersions);
             return true;
 
         default:
@@ -11344,10 +11353,10 @@ bool CommandScheduledMeetingFetchEvents::procresult(Command::Result r, JSON& jso
 
 bool CommandFetchAds::procresult(Command::Result r, JSON& json)
 {
-    string_map result;
+    string_map ads;
     if (r.wasStrictlyError())
     {
-        mCompletion(r.errorOrOK(), result);
+        mCompletion(r.errorOrOK(), ads);
         return true;
     }
 
@@ -11357,7 +11366,7 @@ bool CommandFetchAds::procresult(Command::Result r, JSON& json)
         if (json.isnumeric())
         {
             // -9 or any other error for the provided ad unit (error results order must match)
-            result[*adUnit] = std::to_string(json.getint());
+            ads[*adUnit] = std::to_string(json.getint());
         }
         else if (json.enterobject())
         {
@@ -11381,20 +11390,20 @@ bool CommandFetchAds::procresult(Command::Result r, JSON& json)
                         if (!id.empty() && !iu.empty())
                         {
                             assert(id == *adUnit);
-                            result[id] = iu;
+                            ads[id] = iu;
                         }
                         else
                         {
                             error = true;
-                            result.clear();
+                            ads.clear();
                         }
                         break;
 
                     default:
                         if (!json.storeobject())
                         {
-                            result.clear();
-                            mCompletion(API_EINTERNAL, result);
+                            ads.clear();
+                            mCompletion(API_EINTERNAL, ads);
                             return false;
                         }
                         break;
@@ -11404,12 +11413,12 @@ bool CommandFetchAds::procresult(Command::Result r, JSON& json)
         }
         else
         {
-            result.clear();
+            ads.clear();
             error = true;
         }
     }
 
-    mCompletion((error ? API_EINTERNAL : API_OK), result);
+    mCompletion((error ? API_EINTERNAL : API_OK), ads);
 
     return !error;
 }

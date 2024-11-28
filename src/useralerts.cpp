@@ -98,8 +98,7 @@ bool UserAlertRaw::gethandletypearray(nameid nid, vector<handletype>& v) const
                 handletype ht;
                 ht.h = UNDEF;
                 ht.t = -1;
-                bool fields = true;
-                while (fields)
+                for (bool reading = true; reading;)
                 {
                     switch (j.getnameid())
                     {
@@ -110,7 +109,7 @@ bool UserAlertRaw::gethandletypearray(nameid nid, vector<handletype>& v) const
                         ht.t = int(j.getint());
                         break;
                     case EOO:
-                        fields = false;
+                        reading = false;
                         break;
                     default:
                         j.storeobject(NULL);
