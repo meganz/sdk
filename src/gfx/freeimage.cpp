@@ -519,8 +519,6 @@ bool GfxProviderFreeImage::readbitmapFfmpeg(const LocalPath& imagePath, int /*si
                         return false;
                     }
 
-                    LOG_verbose << "SUCCESS loading freeimage from memory: " << imagePath;
-
                     // Invert any rotation if necessary.
                     if (rotation)
                     {
@@ -535,10 +533,10 @@ bool GfxProviderFreeImage::readbitmapFfmpeg(const LocalPath& imagePath, int /*si
                         }
                     }
 
-                    LOG_debug << "Video image ready";
-
                     w = static_cast<int>(FreeImage_GetWidth(dib));
                     h = static_cast<int>(FreeImage_GetHeight(dib));
+
+                    LOG_debug << "Video image ready";
 
                     return w > 0 && h > 0;
                 }
