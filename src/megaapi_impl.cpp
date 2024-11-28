@@ -7898,68 +7898,23 @@ MegaShareList *MegaApiImpl::getUnverifiedOutShares(int order)
 {
     SdkMutexGuard guard(sdkMutex);
 
-    sharedNode_vector outshares = client->mNodeManager.getNodesWithOutShares();
+    // Get shared nodes
+    sharedNode_vector sharedNodes = getSharedNodes();
 
-    // Avoid duplicate nodes present in both outshares and pending shares
-    sharedNode_vector pendingShares = client->mNodeManager.getNodesWithPendingOutShares();
-    for (auto& pendingShare : pendingShares)
+    // Sort in place
+    MegaApiImpl::sortByComparatorFunction(sharedNodes, order, *client);
+
+    // Predicate if a share is unverified or not
+    auto isUnverified = [](const impl::ShareData& data)
     {
-        bool found = false;
-        for (auto& node : outshares)
-        {
-            if (node->nodeHandle() == pendingShare->nodeHandle())
-            {
-                found = true;
-                break;
-            }
-        }
+        return !data.isVerified();
+    };
 
-        if (!found)
-        {
-            outshares.push_back(pendingShare);
-        }
-    }
+    // Extract unverified shares
+    const auto unverifiedShares =
+        ShareExtractor::extractShares(sharedNodes, client->mKeyManager, isUnverified);
 
-    std::map<NodeHandle, std::set<Share *>> nodeSharesMap;
-    for (auto& n : outshares)
-    {
-        if (n->outshares)
-        {
-            for (auto &share : *n->outshares)
-            {
-                if (share.second->user && client->mKeyManager.isUnverifiedOutShare(n->nodehandle, toHandle(share.second->user->userhandle)))  // public links have no user
-                {
-                    nodeSharesMap[n->nodeHandle()].insert(share.second.get());  // not stored
-                }
-            }
-        }
-
-        if (n->pendingshares)
-        {
-            for (auto &share : *n->pendingshares)
-            {
-                assert(share.second->pcr);
-                if (share.second->pcr &&
-                        client->mKeyManager.isUnverifiedOutShare(n->nodehandle, share.second->pcr->targetemail))
-                {
-                    nodeSharesMap[n->nodeHandle()].insert(share.second.get()); // not stored
-                }
-            }
-        }
-    }
-
-    MegaApiImpl::sortByComparatorFunction(outshares, order, *client);
-
-    vector<impl::ShareData> shares;
-    for (const auto& n: outshares)
-    {
-        for (const Share* share: nodeSharesMap[n->nodeHandle()])
-        {
-            shares.emplace_back(n->nodehandle, share, false);
-        }
-    }
-
-    return new MegaShareListPrivate(shares);
+    return new MegaShareListPrivate(unverifiedShares);
 }
 
 void MegaApiImpl::share(MegaNode* node, MegaUser *user, int access, MegaRequestListener *listener)
