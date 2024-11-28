@@ -51,6 +51,8 @@
 #include "mega/gfx/GfxProcCG.h"
 #endif
 
+#include "impl/share.h"
+
 // FUSE
 #include <mega/fuse/common/mount_flags.h>
 #include <mega/fuse/common/mount_result.h>
@@ -993,7 +995,7 @@ private:
 class MegaSharePrivate : public MegaShare
 {
 	public:
-        static MegaShare* fromShare(MegaHandle nodeHandle, const Share* share, bool verified);
+        static MegaShare* fromShare(const impl::ShareData& data);
         MegaShare *copy() override;
         ~MegaSharePrivate() override;
         const char *getUser() override;
@@ -1004,7 +1006,7 @@ class MegaSharePrivate : public MegaShare
         bool isVerified() override;
 
 	protected:
-        MegaSharePrivate(MegaHandle nodeHandle, const Share* share, bool verified);
+        MegaSharePrivate(const impl::ShareData& data);
         MegaSharePrivate(MegaShare* share);
 
         MegaHandle nodehandle;
@@ -2480,10 +2482,7 @@ class MegaShareListPrivate : public MegaShareList
 {
 	public:
         MegaShareListPrivate();
-        MegaShareListPrivate(const Share* const* newlist,
-                             const MegaHandle* nodeHandleList,
-                             const byte* verified,
-                             int size);
+        MegaShareListPrivate(const std::vector<impl::ShareData>& shares);
         ~MegaShareListPrivate() override;
         MegaShare* get(int i) override;
         int size() override;
