@@ -4607,7 +4607,8 @@ class MegaRequest
             TYPE_GET_SURVEY = 198,
             TYPE_ANSWER_SURVEY = 199,
             TYPE_CHANGE_SYNC_ROOT = 200,
-            TOTAL_OF_REQUEST_TYPES = 201,
+            TYPE_GET_MY_IP = 201,
+            TOTAL_OF_REQUEST_TYPES = 202,
         };
 
         virtual ~MegaRequest();
@@ -23461,6 +23462,20 @@ class MegaApi
          * @param listener A tracker for this request
          */
         void setWelcomePdfCopied(bool copied, MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Gets the public IP address and country code.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_MY_IP.
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getName - Returns the country code.
+         * - MegaRequest::getText - Returns the public IP address.
+         *
+         * @param listener MegaRequestListener to track this request.
+         */
+        void getMyIp(MegaRequestListener* listener = nullptr);
 
     protected:
         MegaApiImpl *pImpl = nullptr;

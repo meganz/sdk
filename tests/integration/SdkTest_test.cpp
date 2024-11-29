@@ -8327,6 +8327,18 @@ TEST_F(SdkTest, SdkSimpleCommands)
     gSessionIDs[0] = "invalid";
     err = synchronousGetMiscFlags(0);
     ASSERT_EQ(API_OK, err) << "Get misc flags failed (error: " << err << ")";
+
+    auto validateString = [](const char* value)
+    {
+        ASSERT_NE(value, nullptr);
+        ASSERT_NE(*value, '\0');
+    };
+
+    RequestTracker listener{megaApi[0].get()};
+    megaApi[0]->getMyIp(&listener);
+    ASSERT_EQ(listener.waitForResult(), API_OK);
+    ASSERT_NO_FATAL_FAILURE(validateString(listener.request->getName())); // Country code
+    ASSERT_NO_FATAL_FAILURE(validateString(listener.request->getText())); // IP address}
 }
 
 TEST_F(SdkTest, SdkHeartbeatCommands)
