@@ -95,99 +95,6 @@ std::unique_ptr<GfxProc> createGfxProc(MegaGfxProcessor* processor)
 }
 namespace mega {
 
-class ShareExtractor
-{
-public:
-    using Filter = std::function<bool(const impl::ShareData&)>;
-
-    // Extract both out and pending shares, if filter(data) returns false, the share data is dropped
-    static vector<impl::ShareData> extractShares(const sharedNode_vector& outshares,
-                                                 const KeyManager& keyManager,
-                                                 Filter filter = nullptr);
-
-private:
-    static std::vector<impl::ShareData> extractPendingShares(const Node* n,
-                                                             const KeyManager& keyManager,
-                                                             Filter filter);
-
-    static std::vector<impl::ShareData> extractOutShares(const Node* n,
-                                                         const KeyManager& keyManager,
-                                                         Filter filter);
-};
-
-std::vector<impl::ShareData> ShareExtractor::extractOutShares(const Node* n,
-                                                              const KeyManager& keyManager,
-                                                              Filter filter)
-{
-    std::vector<impl::ShareData> shares;
-    if (n->outshares)
-    {
-        for (const auto& outShare: *n->outshares)
-        {
-            const Share* share = outShare.second.get();
-            assert(!share->pcr);
-            if (share->user) // public links have no user
-            {
-                const bool verified =
-                    !keyManager.isUnverifiedOutShare(n->nodehandle,
-                                                     toHandle(share->user->userhandle));
-                impl::ShareData data{n->nodehandle, share, verified};
-                if (!filter || filter(data)) // no filter or filter() returns true
-                {
-                    shares.push_back(std::move(data));
-                }
-            }
-        }
-    }
-    return shares;
-}
-
-std::vector<impl::ShareData> ShareExtractor::extractPendingShares(const Node* n,
-                                                                  const KeyManager& keyManager,
-                                                                  Filter filter)
-{
-    std::vector<impl::ShareData> shares;
-    if (n->pendingshares)
-    {
-        for (const auto& pendingShare: *n->pendingshares)
-        {
-            const Share* share = pendingShare.second.get();
-            if (share->pcr)
-            {
-                const bool verified =
-                    !keyManager.isUnverifiedOutShare(n->nodehandle, share->pcr->targetemail);
-
-                impl::ShareData data{n->nodehandle, share, verified};
-                if (!filter || filter(data)) // no filter or filter() returns true
-                {
-                    shares.push_back(std::move(data));
-                }
-            }
-        }
-    }
-    return shares;
-}
-
-vector<impl::ShareData> ShareExtractor::extractShares(const sharedNode_vector& outshares,
-                                                      const KeyManager& keyManager,
-                                                      Filter filter)
-{
-    vector<impl::ShareData> shares;
-    for (const auto& n: outshares)
-    {
-        auto outSharesOfThisNode = extractOutShares(n.get(), keyManager, filter);
-        std::move(std::begin(outSharesOfThisNode),
-                  std::end(outSharesOfThisNode),
-                  std::back_inserter(shares));
-
-        auto pendingSharesOfThisNode = extractPendingShares(n.get(), keyManager, filter);
-        std::move(std::begin(pendingSharesOfThisNode),
-                  std::end(pendingSharesOfThisNode),
-                  std::back_inserter(shares));
-    }
-    return shares;
-}
-
 MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime, uint64_t nodehandle,
                                  const string *nodekey, const string *fileattrstring, const char *fingerprint, const char *originalFingerprint, MegaHandle owner, MegaHandle parentHandle,
                                  const char *privateauth, const char *publicauth, bool ispublic, bool isForeign, const char *chatauth, bool isNodeKeyDecrypted)
@@ -7912,7 +7819,7 @@ MegaShareList *MegaApiImpl::getUnverifiedOutShares(int order)
 
     // Extract unverified shares
     const auto unverifiedShares =
-        ShareExtractor::extractShares(sharedNodes, client->mKeyManager, isUnverified);
+        impl::ShareExtractor::extractShares(sharedNodes, client->mKeyManager, isUnverified);
 
     return new MegaShareListPrivate(unverifiedShares);
 }
@@ -11913,7 +11820,7 @@ MegaShareList* MegaApiImpl::getOutShares(int order)
     MegaApiImpl::sortByComparatorFunction(sharedNodes, order, *client);
 
     // Extract shares from nodes
-    const auto shares = ShareExtractor::extractShares(sharedNodes, client->mKeyManager);
+    const auto shares = impl::ShareExtractor::extractShares(sharedNodes, client->mKeyManager);
 
     return new MegaShareListPrivate(shares);
 }
