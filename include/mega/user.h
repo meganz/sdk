@@ -100,11 +100,19 @@ struct MEGA_API User : public Cacheable
 
     // user's public key
     AsymmCipher pubk;
+
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable: 4201) // nameless struct
+#endif
     struct
     {
         bool pubkrequested : 1;
         bool isTemporary : 1;
     };
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 
     // actions to take after arrival of the public key
     deque<std::unique_ptr<PubKeyAction>> pkrs;

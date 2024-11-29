@@ -411,7 +411,12 @@ const int SETNODEKEYLENGTH = SymmCipher::KEYLENGTH;
 const unsigned MAXNODESUPLOAD = 1000;
 typedef union {
     std::array<byte, FILENODEKEYLENGTH> bytes;
-    struct {
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable: 4201) // nameless struct
+#endif
+    struct
+    {
         std::array<byte, FOLDERNODEKEYLENGTH> key;
         union {
             std::array<byte, 8> iv_bytes;
@@ -422,6 +427,9 @@ typedef union {
             uint64_t crc_u64;
         };
     };
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 } FileNodeKey;
 
 const int UPLOADTOKENLEN = 36;
