@@ -1660,35 +1660,34 @@ class MegaRequestPrivate : public MegaRequest
 
         ~MegaRequestPrivate() override;
         MegaRequest *copy() override;
-        void setNodeHandle(MegaHandle nodeHandle);
-        void setLink(const char* link);
-        void setParentHandle(MegaHandle parentHandle);
-        void setSessionKey(const char* sessionKey);
-        void setName(const char* name);
-        void setEmail(const char* email);
-        void setPassword(const char* email);
-        void setNewPassword(const char* email);
-        void setPrivateKey(const char* privateKey);
-        void setAccess(int access);
-        void setNumRetry(int ds);
-        void setNextRetryDelay(int delay);
-        void setPublicNode(MegaNode* publicNode, bool copyChildren = false);
-        void setNumDetails(int numDetails);
-        void setFile(const char* file);
-        void setParamType(int type);
-        void setText(const char* text);
-        void setNumber(long long number);
-        void setFlag(bool flag);
-        void setTransferTag(int transfer);
-        void setListener(MegaRequestListener *listener);
-        void setTotalBytes(long long totalBytes);
-        void setTransferredBytes(long long transferredBytes);
-        void setTag(int tag);
+        void setNodeHandle(MegaHandle newNodeHandle);
+        void setLink(const char* newLink);
+        void setParentHandle(MegaHandle newParentHandle);
+        void setSessionKey(const char* newSessionKey);
+        void setName(const char* newName);
+        void setEmail(const char* newEmail);
+        void setPassword(const char* pass);
+        void setNewPassword(const char* pass);
+        void setPrivateKey(const char* newPrivateKey);
+        void setAccess(int newAccess);
+        void setNumRetry(int count);
+        void setPublicNode(MegaNode* newPublicNode, bool copyChildren = false);
+        void setNumDetails(int count);
+        void setFile(const char* newFile);
+        void setParamType(int newType);
+        void setText(const char* newText);
+        void setNumber(long long newNumber);
+        void setFlag(bool newFlag);
+        void setTransferTag(int newTag);
+        void setListener(MegaRequestListener* newListener);
+        void setTotalBytes(long long byteCount);
+        void setTransferredBytes(long long byteCount);
+        void setTag(int newTag);
         void addProduct(const Product& product);
         void setCurrency(std::unique_ptr<CurrencyData> currencyData);
-        void setProxy(Proxy *proxy);
+        void setProxy(Proxy* newProxy);
         Proxy *getProxy();
-        void setTimeZoneDetails(MegaTimeZoneDetails *timeZoneDetails);
+        void setTimeZoneDetails(MegaTimeZoneDetails* newDetails);
 
         int getType() const override;
         const char *getRequestString() const override;
@@ -1741,7 +1740,7 @@ class MegaRequestPrivate : public MegaRequest
         MegaTextChatPeerList *getMegaTextChatPeerList() const override;
         void setMegaTextChatPeerList(MegaTextChatPeerList *chatPeers);
         MegaTextChatList *getMegaTextChatList() const override;
-        void setMegaTextChatList(MegaTextChatList *chatList);
+        void setMegaTextChatList(MegaTextChatList* newChatList);
         MegaScheduledMeetingList* getMegaScheduledMeetingList() const override;
 #endif
         MegaStringMap *getMegaStringMap() const override;
@@ -1754,7 +1753,7 @@ class MegaRequestPrivate : public MegaRequest
         MegaFolderInfo *getMegaFolderInfo() const override;
         void setMegaFolderInfo(const MegaFolderInfo *);
         const MegaPushNotificationSettings *getMegaPushNotificationSettings() const override;
-        void setMegaPushNotificationSettings(const MegaPushNotificationSettings *settings);
+        void setMegaPushNotificationSettings(const MegaPushNotificationSettings* newSettings);
         MegaBackgroundMediaUpload *getMegaBackgroundMediaUploadPtr() const override;
         void setMegaBackgroundMediaUploadPtr(MegaBackgroundMediaUpload *);  // non-owned pointer
         void setMegaStringList(const MegaStringList* stringList);
