@@ -23256,4 +23256,10 @@ void MegaClient::JSCDataRetrieved(GetJSCDataCallback& callback,
     callback(std::move(data), API_OK);
 }
 
+// Call "wmip" command.
+void MegaClient::getMyIp(CommandGetMyIP::Cb&& completion)
+{
+    reqs.add(new CommandGetMyIP(this, std::move(completion)));
+}
+
 } // namespace
