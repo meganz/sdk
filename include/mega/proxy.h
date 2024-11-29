@@ -32,9 +32,9 @@ public:
     enum ProxyType {NONE = 0, AUTO = 1, CUSTOM = 2};
 
     Proxy();
-    void setProxyType(int proxyType);
-    void setProxyURL(std::string *proxyURL);
-    void setCredentials(std::string *username, std::string *password);
+    void setProxyType(int newType);
+    void setProxyURL(std::string* newURL);
+    void setCredentials(std::string* newUsername, std::string* newPassword);
     int getProxyType();
     std::string getProxyURL();
     bool credentialsNeeded();
