@@ -39,3 +39,16 @@ target_link_libraries(SDKGoBindings
     PRIVATE
     MEGA::SDKlib
 )
+
+add_custom_command(
+    OUTPUT ${GO_OUTPUT_DIR}/go.mod
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_SOURCE_DIR}/bindings/go/go.mod ${GO_OUTPUT_DIR}/go.mod
+    DEPENDS ${CMAKE_SOURCE_DIR}/bindings/go/go.mod
+    COMMENT "Copying go.mod to ${GO_OUTPUT_DIR}"
+)
+
+add_custom_target(CopyGoMod ALL
+    DEPENDS ${GO_OUTPUT_DIR}/go.mod
+)
+
+add_dependencies(SDKGoBindings CopyGoMod)
