@@ -36,7 +36,7 @@ public:
     using Filter = std::function<bool(const ShareData&)>;
 
     // Extract both out and pending shares, if filter(data) returns false, the share data is dropped
-    static vector<ShareData> extractShares(const sharedNode_vector& outshares,
+    static vector<ShareData> extractShares(const sharedNode_vector& sharedNodes,
                                            const KeyManager& keyManager,
                                            Filter filter = nullptr);
 

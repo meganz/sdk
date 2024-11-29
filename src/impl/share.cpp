@@ -79,22 +79,19 @@ vector<ShareData> ShareExtractor::extractPendingShares(const Node* n,
     return shares;
 }
 
-vector<ShareData> ShareExtractor::extractShares(const sharedNode_vector& outshares,
+vector<ShareData> ShareExtractor::extractShares(const sharedNode_vector& sharedNodes,
                                                 const KeyManager& keyManager,
                                                 Filter filter)
 {
     vector<ShareData> shares;
-    for (const auto& n: outshares)
+    auto outputIt = std::back_inserter(shares);
+    for (const auto& n: sharedNodes)
     {
-        auto outSharesOfThisNode = extractOutShares(n.get(), keyManager, filter);
-        std::move(std::begin(outSharesOfThisNode),
-                  std::end(outSharesOfThisNode),
-                  std::back_inserter(shares));
+        auto outShares = extractOutShares(n.get(), keyManager, filter);
+        std::move(outShares.begin(), outShares.end(), outputIt);
 
-        auto pendingSharesOfThisNode = extractPendingShares(n.get(), keyManager, filter);
-        std::move(std::begin(pendingSharesOfThisNode),
-                  std::end(pendingSharesOfThisNode),
-                  std::back_inserter(shares));
+        auto pendingShares = extractPendingShares(n.get(), keyManager, filter);
+        std::move(pendingShares.begin(), pendingShares.end(), outputIt);
     }
     return shares;
 }
