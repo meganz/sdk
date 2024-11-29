@@ -21,6 +21,8 @@
 
 #import <Foundation/Foundation.h>
 
+NS_ASSUME_NONNULL_BEGIN
+
 /**
  * @brief Provides information about the contents of a folder
  *
@@ -31,18 +33,6 @@
  *
  */
 @interface MEGAFolderInfo : NSObject
-
-/**
- * @brief Creates a copy of this MEGAFolderInfo object.
- *
- * The resulting object is fully independent of the source MEGAFolderInfo,
- * it contains a copy of all internal attributes, so it will be valid after
- * the original object is deleted.
- *
- *
- * @return Clone of the MEGAFolderInfo object.
- */
-- (instancetype)clone;
 
 /**
  * The number of file versions inside the folder
@@ -77,5 +67,6 @@
  */
 @property (readonly, nonatomic) long long versionsSize;
 
-
 @end
+
+NS_ASSUME_NONNULL_END

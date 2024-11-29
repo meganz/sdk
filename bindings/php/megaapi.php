@@ -803,7 +803,7 @@ class MegaApiPHP
 
     function startDownload($node, $localPath, $listener = null)
     {
-        $this->megaApi->startDownload($node, $localPath, null, null, false, null, 3, 2, $this->createDelegateTransferListener($listener));
+        $this->megaApi->startDownload($node, $localPath, null, null, false, null, 3, 2, false, $this->createDelegateTransferListener($listener));
     }
 
     function cancelTransfer($transfer, $listener = null)

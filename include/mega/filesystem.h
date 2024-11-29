@@ -22,11 +22,13 @@
 #ifndef MEGA_FILESYSTEM_H
 #define MEGA_FILESYSTEM_H 1
 
-#include <atomic>
+#include "filefingerprint.h"
+#include "scoped_helpers.h"
 #include "types.h"
 #include "utils.h"
 #include "waiter.h"
-#include "filefingerprint.h"
+
+#include <atomic>
 
 namespace mega {
 
@@ -55,6 +57,97 @@ typedef void (*asyncfscallback)(void *);
 
 struct MEGA_API AsyncIOContext;
 
+// Opaque filesystem fingerprint.
+class fsfp_t
+{
+    // Legacy filesystem fingerprint.
+    //
+    // Not necessarily unique or persistent.
+    //
+    // ntfs-3g or any FUSE filesystem would be an example of where
+    // this value is not very meaningful.
+    //
+    // Legacy XFS would be an example of a filesystem where this
+    // value while unique at runtime is not persistent.
+    //
+    // Maintained for backwards compatibility.
+    std::uint64_t mFingerprint = 0;
+
+    // Filesystem UUID.
+    //
+    // Should be unique and persistent across all systems.
+    std::string mUUID;
+
+public:
+    fsfp_t() = default;
+
+    fsfp_t(std::uint64_t fingerprint,
+           std::string uuid);
+
+    fsfp_t(const fsfp_t& other) = default;
+
+    fsfp_t(fsfp_t&& other) = default;
+
+    operator bool() const;
+
+    bool operator!() const;
+
+    fsfp_t& operator=(const fsfp_t& rhs) = default;
+
+    fsfp_t& operator=(fsfp_t&& rhs) = default;
+
+    bool operator==(const fsfp_t& rhs) const;
+
+    bool operator<(const fsfp_t& rhs) const;
+
+    bool operator!=(const fsfp_t& rhs) const;
+
+    bool equivalent(const fsfp_t& rhs) const;
+
+    std::uint64_t fingerprint() const;
+
+    void reset();
+
+    const std::string& uuid() const;
+
+    std::string toString() const;
+}; // fsfp_t
+
+// Keeps track of known filesystem fingerprints.
+class fsfp_tracker_t
+{
+    // Compare IDs by reference.
+    struct Less
+    {
+        bool operator()(const fsfp_t* lhs,
+                        const fsfp_t* rhs) const;
+    }; // Less
+
+    // Fingerprint and reference count.
+    using Entry = std::pair<fsfp_ptr_t, std::size_t>;
+
+    // Maps fingerprints to fingerprint entry.
+    using Map = std::map<const fsfp_t*, Entry, Less>;
+
+    // Tracks which fingerprints we're aware of.
+    Map mFingerprints;
+
+public:
+    fsfp_tracker_t() = default;
+
+    fsfp_tracker_t(const fsfp_tracker_t&) = delete;
+
+    fsfp_tracker_t& operator=(const fsfp_tracker_t&) = delete;
+
+    // Add an ID to the tracker.
+    fsfp_ptr_t add(const fsfp_t& id);
+
+    // Retrieve an ID from the tracker.
+    fsfp_ptr_t get(const fsfp_t& id) const;
+
+    // Remove an ID from the tracker.
+    bool remove(const fsfp_t& id);
+}; // fsfp_tracker_t
 
 // LocalPath represents a path in the local filesystem, and wraps up common operations in a convenient fashion.
 // On mac/linux, local paths are in utf8 but in windows local paths are utf16, that is wrapped up here.
@@ -63,15 +156,6 @@ struct MEGA_API FileSystemAccess;
 class MEGA_API LocalPath;
 class MEGA_API Sync;
 struct MEGA_API FSNode;
-
-class ScopedLengthRestore {
-    LocalPath& path;
-    size_t length;
-public:
-    // On destruction, puts the LocalPath length back to what it was on construction of this class
-    ScopedLengthRestore(LocalPath&);
-    ~ScopedLengthRestore();
-};
 
 extern CodeCounter::ScopeStats g_compareUtfTimings;
 
@@ -92,12 +176,14 @@ class MEGA_API LocalPath
     bool isFromRoot = false;
 
     // only functions that need to call the OS or 3rdParty libraries - normal code should have no access (or accessor) to localpath
-    friend class ScopedLengthRestore;
+    friend struct ResizeTraits<LocalPath>;
+    friend struct SizeTraits<LocalPath>;
     friend class ScopedSyncPathRestore;
     friend class WinFileSystemAccess;
     friend class PosixFileSystemAccess;
     friend struct WinDirAccess;
     friend struct WinDirNotify;
+    friend class LinuxDirNotify;
     friend class MacDirNotify;
     friend class PosixDirNotify;
     friend class WinFileAccess;
@@ -106,12 +192,7 @@ class MEGA_API LocalPath
     friend void AddHiddenFileAttribute(LocalPath& path);
     friend class GfxProviderFreeImage;
     friend struct FileSystemAccess;
-    friend int computeReversePathMatchScore(const LocalPath& path1, const LocalPath& path2, const FileSystemAccess& fsaccess);
-#ifdef USE_IOS
-    friend const string adjustBasePath(const LocalPath& name);
-#else
-    friend const string& adjustBasePath(const LocalPath& name);
-#endif
+
     friend int compareUtf(const string&, bool unescaping1, const string&, bool unescaping2, bool caseInsensitive);
     friend int compareUtf(const string&, bool unescaping1, const LocalPath&, bool unescaping2, bool caseInsensitive);
     friend int compareUtf(const LocalPath&, bool unescaping1, const string&, bool unescaping2, bool caseInsensitive);
@@ -159,9 +240,16 @@ public:
     // returns the internal representation copied into a string buffer, for backward compatibility
     string platformEncoded() const;
 
+    // Returns a reference to the string's internal representation.
+    //
+    // Mostly useful when we need to call platform-specific functions and
+    // don't want to incur the cost of a copy.
+    auto asPlatformEncoded(bool stripPrefix) const -> string_type;
+
     bool empty() const;
     void clear();
     void truncate(size_t bytePos);
+
     LocalPath leafName() const;
 
     /*
@@ -201,7 +289,6 @@ public:
 
     // get the index of the leaf name.  A trailing separator is considered part of the leaf.
     size_t getLeafnameByteIndex() const;
-    bool backEqual(size_t bytePos, const LocalPath& compareTo) const;
     LocalPath subpathFrom(size_t bytePos) const;
     LocalPath subpathTo(size_t bytePos) const;
 
@@ -242,13 +329,69 @@ public:
     wchar_t driveLetter();
 #endif
 
+    // Does this path represent a filesystem root?
+    //
+    // Relative paths are never considered to be a root path.
+    //
+    // On UNIX systems, this predicate returns true if and only if the
+    // path denotes /.
+    //
+    // On Windows systems, this predicate returns true if and only if the
+    // path specifies a drive such as C:\.
+    bool isRootPath() const;
+
     // Generates a name for a temporary file
     static LocalPath tmpNameLocal();
 
     bool operator==(const LocalPath& p) const { return localpath == p.localpath; }
     bool operator!=(const LocalPath& p) const { return localpath != p.localpath; }
     bool operator<(const LocalPath& p) const { return localpath < p.localpath; }
+
+    // Try to avoid using this function as much as you can.
+    //
+    // It's present for efficiency reasons and is really only meant for
+    // specific cases when we are using a LocalPath instance in a system
+    // call.
+    const string_type& rawValue() const
+    {
+        return localpath;
+    }
+
+    bool extension(std::string& extension) const
+    {
+        return extensionOf(localpath, extension);
+    }
+
+    std::string extension() const
+    {
+        return extensionOf(localpath);
+    }
+
+    // Check if this path is "related" to another.
+    //
+    // Two paths are related if:
+    // - They are effectively identical.
+    // - One path contains another.
+    bool related(const LocalPath& other) const;
 };
+
+template<>
+struct ResizeTraits<LocalPath>
+{
+    static void resize(LocalPath& instance, std::size_t newSize)
+    {
+        instance.localpath.resize(newSize);
+    }
+}; // ResizeTraits<T>
+
+template<>
+struct SizeTraits<LocalPath>
+{
+    static std::size_t size(const LocalPath& instance)
+    {
+        return instance.localpath.size();
+    }
+}; // SizeTraits<T>
 
 inline std::ostream& operator<<(std::ostream& os, const LocalPath& p)
 {
@@ -527,11 +670,14 @@ struct FSLogging
 
     FSLogging(Setting s) : setting(s) {}
 
-    bool doLog(int os_errorcode, FileAccess& fsaccess);
+    bool doLog(int os_errorcode);
 
     static FSLogging noLogging;
     static FSLogging logOnError;
     static FSLogging logExceptFileNotFound;
+
+private:
+    static bool isFileNotFound(int error);
 };
 
 
@@ -605,11 +751,21 @@ struct MEGA_API FileAccess
     // After calling openf(), make sure to close the file again quickly with closef().
     void closef();
 
+    // Close an already open file.
+    virtual void fclose() = 0;
+
     // absolute position write
     virtual bool fwrite(const byte *, unsigned, m_off_t) = 0;
 
+    // Stat an already open file.
+    virtual bool fstat(m_time_t& modified, m_off_t& size) = 0;
+
+    // Convenience version of the above.
+    // Updates mtime and size.
+    bool fstat();
+
     // Truncate a file.
-    virtual bool ftruncate() = 0;
+    virtual bool ftruncate(m_off_t size = 0) = 0;
 
     FileAccess(Waiter *waiter);
     virtual ~FileAccess();
@@ -625,13 +781,6 @@ struct MEGA_API FileAccess
     AsyncIOContext *asyncfopen(const LocalPath&, bool, bool, m_off_t = 0);
     AsyncIOContext* asyncfread(string*, unsigned, unsigned, m_off_t, FSLogging fsl);
     AsyncIOContext* asyncfwrite(const byte *, unsigned, m_off_t);
-
-    // return a description of OS error,
-    // errno on unix. Defaults to the number itself.
-    virtual std::string getErrorMessage(int error) const;
-
-    // error is errno on unix or a DWORD on windows
-    virtual bool isErrorFileNotFound(int error) const = 0;
 
 protected:
     virtual AsyncIOContext* newasynccontext();
@@ -677,20 +826,25 @@ struct MEGA_API DirAccess
 
 struct Notification
 {
+    bool fromDebris(const Sync& sync) const;
+    bool invalidated() const;
+
+    enum ScanRequirement
+    {
+        NEEDS_PARENT_SCAN, // normal case.  For a plain path (eg. file), we would scan the parent to see if the item at this path chagned
+        FOLDER_NEEDS_SELF_SCAN,  // But, if the notification means that we should scan the contents of the actual path rather than the parent, set this flag.
+        FOLDER_NEEDS_SCAN_RECURSIVE  // And sometimes we need to scan recursively from that point (eg. glitch in stream of incoming notifications)
+    };
+
     dstime timestamp;
+    ScanRequirement scanRequirement = NEEDS_PARENT_SCAN;
     LocalPath path;
     LocalNode* localnode = nullptr;
-    bool recursive = false;
 
     Notification() {}
-
-    Notification(dstime ts, const LocalPath& p, LocalNode* ln, bool recursive)
-      : timestamp(ts)
-      , path(p)
-      , localnode(ln)
-      , recursive(recursive)
-    {
-    }
+    Notification(dstime ts, ScanRequirement sr, const LocalPath& p, LocalNode* ln)
+        : timestamp(ts), scanRequirement(sr), path(p), localnode(ln)
+        {}
 };
 
 struct NotificationDeque : ThreadSafeDeque<Notification>
@@ -711,13 +865,8 @@ struct NotificationDeque : ThreadSafeDeque<Notification>
 // filesystem change notification, highly coupled to Syncs and LocalNodes.
 struct MEGA_API DirNotify
 {
-    typedef enum { EXTRA, DIREVENTS, RETRY, NUMQUEUES } notifyqueue;
-
-    // notifyq[EXTRA] is like DIREVENTS, but delays its processing (for network filesystems)
-    // notifyq[DIREVENTS] is fed with filesystem changes
-    // notifyq[RETRY] receives transient errors that need to be retried
     // Thread safe so that a separate thread can listen for filesystem notifications (for windows for now, maybe more platforms later)
-    NotificationDeque notifyq[NUMQUEUES];
+    NotificationDeque fsEventq;
 
 private:
     // these next few fields may be updated by notification-reading threads
@@ -741,26 +890,17 @@ public:
     // base path
     LocalPath localbasepath;
 
-    virtual void addnotify(LocalNode*, const LocalPath&) { }
-    virtual void delnotify(LocalNode*) { }
+    void notify(NotificationDeque&, LocalNode *, Notification::ScanRequirement, LocalPath&&, bool = false);
 
-    void notify(notifyqueue queue,
-                LocalNode* node,
-                LocalPath&& path,
-                bool immediate,
-                bool recursive);
-
-    // ignore this (debris folder)
-    LocalPath ignore;
-
-    Sync *sync;
-
-    DirNotify(const LocalPath&, const LocalPath&, Sync* s);
+    DirNotify(const LocalPath& rootPath);
     virtual ~DirNotify() {}
 
     bool empty();
 };
 #endif
+
+// For directoryScan(...).
+struct MEGA_API FSNode;
 
 // generic host filesystem access interface
 struct MEGA_API FileSystemAccess : public EventTrigger
@@ -784,7 +924,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 #ifdef ENABLE_SYNC
     // instantiate DirNotify object (default to periodic scanning handler if no
     // notification configured) with given root path
-    virtual DirNotify* newdirnotify(const LocalPath&, const LocalPath&, Waiter*, LocalNode* syncroot);
+    virtual DirNotify* newdirnotify(LocalNode& root, const LocalPath& rootPath, Waiter* waiter);
 #endif
 
     // Extracts the character encoded by the escape sequence %ab at s,
@@ -792,7 +932,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // which must be part of a null terminated c-style string
     bool decodeEscape(const char* s, char& escapedChar) const;
 
-    bool islocalfscompatible(unsigned char, bool isEscape, FileSystemType = FS_UNKNOWN) const;
+    bool islocalfscompatible(const int character, const FileSystemType type) const;
     void escapefsincompatible(string*, FileSystemType fileSystemType) const;
 
     static const char *fstypetostring(FileSystemType type);
@@ -828,7 +968,10 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     virtual bool chdirlocal(LocalPath&) const = 0;
 
     // obtain lowercased extension
-    virtual bool getextension(const LocalPath&, std::string&) const = 0;
+    static bool getextension(const LocalPath& path, std::string& extension)
+    {
+        return path.extension(extension);
+    }
 
     // check if synchronization is supported for a specific path
     virtual bool issyncsupported(const LocalPath&, bool&, SyncError&, SyncWarning&) = 0;
@@ -853,13 +996,6 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // set whenever an operation fails due to a transient condition (e.g. locking violation)
     bool transient_error = false;
 
-#ifdef ENABLE_SYNC
-    // set whenever there was a global file notification error or permanent failure
-    // (this is in addition to the DirNotify-local error)
-    bool notifyerr;
-    bool notifyfailed;
-#endif
-
     // set whenever an operation fails because the target already exists
     bool target_exists = false;
 
@@ -873,8 +1009,6 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // append id for stats
     virtual void statsid(string*) const { }
 
-    MegaClient* client = nullptr;
-
     FileSystemAccess();
 
     MEGA_DISABLE_COPY_MOVE(FileSystemAccess);
@@ -885,10 +1019,10 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     static bool cwd_static(LocalPath& path);
     virtual bool cwd(LocalPath& path) const = 0;
 
-#ifdef ENABLE_SYNC
     // Retrieve the fingerprint of the filesystem containing the specified path.
-    virtual fsfp_t fsFingerprint(const LocalPath& path) const = 0;
+    fsfp_t fsFingerprint(const LocalPath& path) const;
 
+#ifdef ENABLE_SYNC
     // True if the filesystem indicated by the specified path has stable FSIDs.
     virtual bool fsStableIDs(const LocalPath& path) const = 0;
 
@@ -926,6 +1060,39 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     // Specify the minimum permissions for newly created files.
     static void setMinimumFilePermissions(int permissions);
+
+    // return a description of OS error,
+    // errno on unix. Defaults to the number itself.
+    static std::string getErrorMessage(int error);
+
+    // Check if the specified file is "hidden."
+    //
+    // On UNIX systems, this function will only return true if the
+    // file specified by path begins with the period character.
+    //
+    // That is, "a" would not be hidden but ".a" would be.
+    //
+    // On Windows systems, this function will only return true if the
+    // file specified by the path has its "hidden" attribute set.
+    //
+    // Returns:
+    // >0 if the file is hidden.
+    // =0 if the file is not hidden.
+    // <0 if the file cannot be accessed.
+    static int isFileHidden(const LocalPath& path,
+                            FSLogging logWhen = FSLogging::logOnError);
+
+    // Mark the specified file as "hidden."
+    //
+    // On UNIX systems, this function is a no-op and always returns true.
+    //
+    // On Windows systems, this function will set the file's "hidden"
+    // attribute.
+    //
+    // Returns:
+    // True if the file's hidden attribute was set.
+    static bool setFileHidden(const LocalPath& path,
+                              FSLogging logWhen = FSLogging::logOnError);
 
 protected:
     // Specifies the minimum permissions allowed for directories.

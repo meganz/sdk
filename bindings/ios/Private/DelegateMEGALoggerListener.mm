@@ -48,7 +48,10 @@ void DelegateMEGALoggerListener::log(const char *time, int logLevel, const char 
             [messages addObject:[NSString stringWithUTF8String:directMessages[i]]];
         }
 #endif
-        [listener logWithTime:(time ? [NSString stringWithUTF8String:time] : nil) logLevel:(MEGALogLevel)logLevel source:(source ? [NSString stringWithUTF8String:source] : nil) message:(message ? [NSString stringWithUTF8String:message] : nil)
+        [listener logWithTime:(time ? [NSString stringWithUTF8String:time] : @"")
+                     logLevel:(MEGALogLevel)logLevel
+                       source:(source ? [NSString stringWithUTF8String:source] : @"")
+                      message:(message ? [NSString stringWithUTF8String:message] : @"")
 #ifdef ENABLE_LOG_PERFORMANCE
                directMessages:messages.copy numberMessages:(NSInteger)numberMessages
 #endif

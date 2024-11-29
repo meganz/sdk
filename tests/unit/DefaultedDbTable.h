@@ -55,7 +55,7 @@ public:
     {
         return false;
     }
-    bool getNodeByFingerprint(const std::string& fingerprint, mega::NodeSerialized&) override
+    bool getNodeByFingerprint(const std::string&, mega::NodeSerialized&, mega::NodeHandle&) override
     {
         return false;
     }
@@ -68,37 +68,35 @@ public:
         return false;
         //throw NotImplemented(__func__);
     }
+
     bool getNodesWithSharesOrLink(std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>&, mega::ShareType_t) override
     {
         return false;
-        //throw NotImplemented(__func__);
     }
-    bool getChildren(mega::NodeHandle parentHandle, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& children, mega::CancelToken cancelFlag) override
-    {
-        return false;
-    }
-    bool getChildrenFromType(mega::NodeHandle parentHandle, mega::nodetype_t nodeType, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& children, mega::CancelToken cancelFlag) override
-    {
-        return false;
-    }
+
     uint64_t getNumberOfChildren(mega::NodeHandle parentHandle) override
     {
         return 0;
     }
-    bool searchForNodesByName(const std::string&, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>&, mega::CancelToken cancelFlag) override
+    bool getChildren(const mega::NodeSearchFilter&, int, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>&, mega::CancelToken, const mega::NodeSearchPage&) override
     {
         return false;
         //throw NotImplemented(__func__);
     }
-    bool searchForNodesByNameNoRecursive(const std::string& name, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& nodes, mega::NodeHandle parentHandle, mega::CancelToken cancelFlag)
+    bool searchNodes(const mega::NodeSearchFilter&, int, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>&, mega::CancelToken, const mega::NodeSearchPage&) override
     {
         return false;
+        //throw NotImplemented(__func__);
     }
-    bool searchInShareOrOutShareByName(const std::string& name, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& nodes, mega::ShareType_t shareType, mega::CancelToken cancelFlag) override
+    bool getAllNodeTags(const std::string&, std::set<std::string>&, mega::CancelToken) override
     {
         return false;
+        // throw NotImplemented(__func__);
     }
-    bool getRecentNodes(unsigned maxcount, mega::m_time_t since, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>&) override
+
+    bool getRecentNodes(const mega::NodeSearchPage& page,
+                        mega::m_time_t since,
+                        std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>&) override
     {
         return false;
     }
@@ -126,16 +124,7 @@ public:
     {
       return 0;
     }
-    bool getNodesByMimetype(mega::MimeType_t mimeType, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized> >& nodes, mega::Node::Flags requiredFlags, mega::Node::Flags excludeFlags, mega::CancelToken cancelFlag) override
-    {
-        return false;
-    }
 
-    bool getNodesByMimetypeExclusiveRecursive(mega::MimeType_t mimeType, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& nodes, mega::Node::Flags requiredFlags, mega::Node::Flags excludeFlags, mega::Node::Flags excludeRecursiveFlags, mega::NodeHandle anscestorHandle, mega::CancelToken cancelFlag) override
-
-    {
-        return false;
-    }
     void updateCounter(mega::NodeHandle, const std::string&) override
     {
 
@@ -187,15 +176,11 @@ public:
     }
     void abort() override
     {
-        //throw NotImplemented{__func__};
+        // throw NotImplemented{__func__};
     }
     void remove() override
     {
         //throw NotImplemented{__func__};
-    }
-    bool inTransaction() const override
-    {
-        return false;
     }
 };
 

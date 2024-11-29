@@ -16,32 +16,17 @@
  * program.
  */
 
-#include <array>
-#include <tuple>
-
-#include <gtest/gtest.h>
-
-#include <mega/base64.h>
-#include <mega/filesystem.h>
-#include <mega/utils.h>
 #include "megafs.h"
 
+#include <gtest/gtest.h>
+#include <mega/base64.h>
 #include <mega/db.h>
 #include <mega/db/sqlite.h>
+#include <mega/filesystem.h>
 #include <mega/json.h>
-#include "../integration/process.h"
-
-TEST(utils, hashCombine_integer)
-{
-    size_t hash = 0;
-    mega::hashCombine(hash, 42);
-#ifdef _WIN32
-    // MSVC's std::hash gives different values than that of gcc/clang
-    ASSERT_EQ(sizeof(hash) == 4 ? 286246808ul : 10203658983813110072ull, hash);
-#else
-    ASSERT_EQ(2654435811ull, hash);
-#endif
-}
+#include <mega/process.h>
+#include <mega/scoped_helpers.h>
+#include <mega/utils.h>
 
 TEST(utils, readLines)
 {
@@ -68,6 +53,35 @@ TEST(utils, readLines)
     ASSERT_TRUE(::mega::readLines(input, output));
     ASSERT_EQ(output.size(), expected.size());
     ASSERT_TRUE(std::equal(expected.begin(), expected.end(), output.begin()));
+}
+
+TEST(Filesystem, EscapesControlCharactersIfNecessary)
+{
+    using namespace mega;
+
+    FSACCESS_CLASS fsAccess;
+
+    // Cloud should never receive unescaped control characters.
+    // If it does, make sure we escape accordingly.
+    const string input("\0\r\n", 3);
+
+    // Most restrictive escaping policy.
+    {
+        string name = input;
+
+        fsAccess.escapefsincompatible(&name, FS_UNKNOWN);
+
+        ASSERT_EQ(name, "%00%0d%0a");
+    }
+
+    // Least restrictive escaping policy.
+    {
+        string name = input;
+
+        fsAccess.escapefsincompatible(&name, FS_EXT);
+
+        ASSERT_EQ(name, "%00\r\n");
+    }
 }
 
 TEST(Filesystem, EscapesReservedCharacters)
@@ -834,6 +848,68 @@ TEST(Utils, replace_string)
     ASSERT_EQ(Utils::replace(string("abc"), "", "@"), "abc");
 }
 
+TEST(Utils, natural_sorting)
+{
+    // Comparison between symbols
+    ASSERT_EQ(naturalsorting_compare("!", "!"), 0);
+    ASSERT_GT(naturalsorting_compare("@", "!"), 0);
+    ASSERT_LT(naturalsorting_compare("#", "$"), 0);
+
+    // Comparison between symbols and numbers
+    ASSERT_LT(naturalsorting_compare("#", "0"), 0);
+    ASSERT_LT(naturalsorting_compare("!", "9"), 0);
+    ASSERT_GT(naturalsorting_compare("9", "#"), 0);
+
+    // Comparison between symbols and letters
+    ASSERT_LT(naturalsorting_compare("&", "a"), 0);
+    ASSERT_LT(naturalsorting_compare("!", "Z"), 0);
+    ASSERT_GT(naturalsorting_compare("a", "#"), 0);
+
+    // Comparison between numbers and letters
+    ASSERT_LT(naturalsorting_compare("9", "a"), 0);
+    ASSERT_GT(naturalsorting_compare("a", "1"), 0);
+    ASSERT_LT(naturalsorting_compare("1", "A"), 0);
+
+    // Comparison between symbols and letters (case no sensitive)
+    ASSERT_EQ(naturalsorting_compare("A", "a"), 0);
+    ASSERT_GT(naturalsorting_compare("B", "a"), 0);
+    ASSERT_LT(naturalsorting_compare("a", "C"), 0);
+
+    // Comparison between strings containing letters and numbers
+    ASSERT_GT(naturalsorting_compare("a1", "a0"), 0);
+    ASSERT_LT(naturalsorting_compare("a1", "a2"), 0);
+
+    // Comparison between strings containing letters and symbols
+    ASSERT_LT(naturalsorting_compare("a!", "a#"), 0);
+    ASSERT_LT(naturalsorting_compare("a#", "a@"), 0);
+
+    // Comparison between strings containing letters, numbers and symbols
+    ASSERT_LT(naturalsorting_compare("1a!", "1a#"), 0);
+    ASSERT_LT(naturalsorting_compare("!a1", "a1#"), 0);
+    ASSERT_LT(naturalsorting_compare("!a1", "1#a"), 0);
+    ASSERT_GT(naturalsorting_compare("a1!", "1a#"), 0);
+    ASSERT_GT(naturalsorting_compare("a!1", "1a#"), 0);
+    ASSERT_GT(naturalsorting_compare("2a!", "1a#"), 0);
+    ASSERT_EQ(naturalsorting_compare("1a&", "1a&"), 0);
+
+    // Comparison between strings with different lengths
+    ASSERT_GT(naturalsorting_compare("abc", "ab"), 0);
+    ASSERT_LT(naturalsorting_compare("ab", "abc"), 0);
+
+    // Comparison between strings containing white spaces
+    ASSERT_LT(naturalsorting_compare("a ", "a!"), 0);
+    ASSERT_GT(naturalsorting_compare("a#", "a "), 0);
+
+    // Comparison between numbers of different lengths
+    ASSERT_GT(naturalsorting_compare("10", "2"), 0);
+    ASSERT_GT(naturalsorting_compare("100", "20"), 0);
+
+    // Comparison between numbers containing zeros at the beginning
+    ASSERT_EQ(naturalsorting_compare("00123", "123"), 0);
+    ASSERT_LT(naturalsorting_compare("00123", "124"), 0);
+    ASSERT_GT(naturalsorting_compare("0124", "00123"), 0);
+}
+
 TEST(RemotePath, nextPathComponent)
 {
     // Absolute path.
@@ -1105,17 +1181,16 @@ class SprintfTest
 
 TEST_F(SprintfTest, nulTerminateWhenBufferFull)
 {
-    const char* countToSix = "123456";
+    std::string countToSix("123456");
     // g++ detects if we don't use a variable
 
-    char buf[3] = { 'x', 'x', 'x' };
+    std::string buf(countToSix.size(), 'x');
+
     // with macro commented out
-    snprintf(buf, 3, "%s", countToSix);
+    snprintf(buf.data(), 3, "%s", countToSix.data());
     ASSERT_EQ(buf[0], '1');
     ASSERT_EQ(buf[1], '2');
     ASSERT_EQ(buf[2], '\0');
-
-    snprintf(buf, 3, "%s", countToSix);
 }
 
 TEST_F(SprintfTest, Multiple) {
@@ -1124,7 +1199,7 @@ TEST_F(SprintfTest, Multiple) {
     snprintf(ebuf, sizeof ebuf, "%s", "1234");
     // technique developed to used snprintf()
     char* ptr = strchr(ebuf, 0);
-    snprintf(ptr, sizeof ebuf - (ptr - ebuf), "%s", "ABCDEFGH");
+    snprintf(ptr, sizeof ebuf - static_cast<size_t>(ptr - ebuf), "%s", "ABCDEFGH");
     ASSERT_EQ(ebuf[0], '1');
     ASSERT_EQ(ebuf[1], '2');
     ASSERT_EQ(ebuf[2], '3');
@@ -1143,4 +1218,387 @@ TEST_F(SprintfTest, ResizeAndPrint) {
     replace(sprice.begin(), sprice.end(), ',', '.');
     // sprince = "1.20\0\0\0\..."
     ASSERT_EQ((string)sprice.c_str(), "1.20");
+}
+
+TEST(extensionOf, fails_when_extension_contains_invalid_characters)
+{
+    using ::mega::extensionOf;
+
+    std::string computed;
+
+    // Characters below '.'
+    ASSERT_FALSE(extensionOf(std::string("a.-"), computed));
+    ASSERT_TRUE(computed.empty());
+
+    // Characters above 'z'.
+    ASSERT_FALSE(extensionOf(std::string("a.{"), computed));
+    ASSERT_TRUE(computed.empty());
+}
+
+TEST(extensionOf, fails_when_extension_isnt_present)
+{
+    using ::mega::extensionOf;
+
+    std::string computed;
+
+    // No extension.
+    ASSERT_FALSE(extensionOf(std::string("a"), computed));
+    ASSERT_TRUE(computed.empty());
+
+    // Empty string.
+    ASSERT_FALSE(extensionOf(std::string(), computed));
+    ASSERT_TRUE(computed.empty());
+}
+
+TEST(extensionOf, succeeds)
+{
+    using ::mega::extensionOf;
+
+    std::string computed;
+
+    // Multicharacter extension.
+    ASSERT_TRUE(extensionOf(std::string("a.BcD"), computed));
+    ASSERT_EQ(computed, ".bcd");
+
+    // Single character extension.
+    ASSERT_TRUE(extensionOf(std::wstring(L".a"), computed));
+    ASSERT_EQ(computed, ".a");
+
+    // Empty extension.
+    ASSERT_TRUE(extensionOf(std::string("."), computed));
+    ASSERT_EQ(computed, ".");
+}
+
+TEST(fromHex, fails_when_empty_string)
+{
+    EXPECT_FALSE(fromHex<short>(nullptr, nullptr).second);
+    EXPECT_FALSE(fromHex<short>("").second);
+}
+
+TEST(fromHex, fails_when_invalid_character)
+{
+    EXPECT_FALSE(fromHex<short>('q').second);
+    EXPECT_FALSE(fromHex<short>('_').second);
+}
+
+TEST(fromHex, fails_when_out_of_range)
+{
+    EXPECT_FALSE(fromHex<signed char>("80").second);
+    EXPECT_FALSE(fromHex<short>("8000").second);
+    EXPECT_FALSE(fromHex<unsigned char>("100").second);
+    EXPECT_FALSE(fromHex<unsigned short>("10000").second);
+}
+
+TEST(fromHex, succeeds)
+{
+    auto s8 = fromHex<signed char>("7f");
+    EXPECT_TRUE(s8.second);
+    EXPECT_EQ(s8.first, 0x7f);
+
+    auto s16 = fromHex<short>("7fff");
+    EXPECT_TRUE(s16.second);
+    EXPECT_EQ(s16.first, 0x7fff);
+
+    auto u8 = fromHex<unsigned char>("ff");
+    EXPECT_TRUE(u8.second);
+    EXPECT_EQ(u8.first, 0xff);
+
+    auto u16 = fromHex<unsigned short>("ffff");
+    EXPECT_TRUE(u16.second);
+    EXPECT_EQ(u16.first, 0xffff);
+}
+
+TEST(Split, no_delimiter)
+{
+    auto input  = std::string();
+    auto result = split(input, '.');
+
+    // Empty string.
+    EXPECT_EQ(result.first.first, input.data());
+    EXPECT_FALSE(result.first.second);
+    EXPECT_FALSE(result.second.first);
+    EXPECT_FALSE(result.second.second);
+
+    // No delimiter.
+    input  = "abc";
+    result = split(input, '.');
+
+    EXPECT_EQ(result.first.first, input.data());
+    EXPECT_EQ(result.first.second, input.size());
+    EXPECT_FALSE(result.second.first);
+    EXPECT_FALSE(result.second.second);
+}
+
+TEST(Split, with_delimiter)
+{
+    auto input  = std::string("a.");
+    auto result = split(input, '.');
+
+    // Delimiter only.
+    EXPECT_EQ(result.first.first, input.data());
+    EXPECT_EQ(result.first.second, 1u);
+    EXPECT_EQ(result.second.first, &input[1]);
+    EXPECT_EQ(result.second.second, 1u);
+
+    // Delimiter and tail.
+    input  = "abc.qrs";
+    result = split(input, '.');
+
+    EXPECT_EQ(result.first.first,  input.data());
+    EXPECT_EQ(result.first.second, 3u);
+    EXPECT_EQ(result.second.first, &input[3]);
+    EXPECT_EQ(result.second.second, 4u);
+}
+
+TEST(EscapeWildCars, UseCases)
+{
+    EXPECT_EQ(escapeWildCards("hello"), "hello");
+    EXPECT_EQ(escapeWildCards("hel*lo"), "hel\\*lo");
+    EXPECT_EQ(escapeWildCards("*hello*"), "\\*hello\\*");
+    EXPECT_EQ(escapeWildCards("\\*hello*"), "\\*hello\\*");
+    EXPECT_EQ(escapeWildCards("\\*hello\\*"), "\\*hello\\*");
+    EXPECT_EQ(escapeWildCards("hel\\\\*lo"), "hel\\\\\\*lo");
+}
+
+TEST(ScopedHelpers, ScopedDestructor)
+{
+    // So we can test various binding styles.
+    struct Functor
+    {
+        void memberNoArguments() {}
+
+        void memberWithArguments(std::string) {}
+
+        static void rawNoArguments() {}
+
+        static void rawWithArguments(std::string) {}
+    }; // Functor
+
+    // Make sure we can bind raw function pointers.
+    {
+        auto x = makeScopedDestructor(&Functor::rawNoArguments);
+
+        // This also tests that convertible arguments are allowed.
+        auto y = makeScopedDestructor(&Functor::rawWithArguments, "Test");
+    }
+
+    // Make sure we can bind member function pointers.
+    {
+        auto f = Functor();
+        auto x = makeScopedDestructor(&Functor::memberNoArguments, &f);
+        auto y = makeScopedDestructor(&Functor::memberWithArguments, &f, "Test");
+    }
+
+    // Make sure we can bind lambda functions.
+    auto x = 0;
+
+    // Lambda without parameters.
+    {
+        auto y = makeScopedDestructor(
+            [&x]()
+            {
+                ++x;
+            });
+    }
+
+    // Make sure the destructor was executed.
+    EXPECT_EQ(x, 1);
+
+    // Lambda with parameters.
+    {
+        auto y = makeScopedDestructor(
+            [&x](int v)
+            {
+                x += v;
+            },
+            3);
+
+        // Make sure convertible arguments are accepted.
+        auto z = makeScopedDestructor([](std::string) {}, "Test");
+    }
+
+    // Make sure destructor was executed.
+    EXPECT_EQ(x, 4);
+}
+
+TEST(ScopedHelpers, ScopedLengthRestorer)
+{
+    // Test with local path.
+    {
+        auto x = LocalPath::fromAbsolutePath("x");
+        auto originalSize = SizeTraits<LocalPath>::size(x);
+
+        {
+            auto r = makeScopedSizeRestorer(x);
+            x.appendWithSeparator(LocalPath::fromRelativePath("y"), true);
+            EXPECT_NE(SizeTraits<LocalPath>::size(x), originalSize);
+        }
+
+        EXPECT_EQ(SizeTraits<LocalPath>::size(x), originalSize);
+    }
+
+    // Test with vector.
+    {
+        std::vector<std::string> x(1, "foo");
+
+        auto originalSize = x.size();
+
+        {
+            auto r = makeScopedSizeRestorer(x);
+            x.emplace_back("bar");
+        }
+
+        EXPECT_EQ(x.size(), originalSize);
+    }
+
+    // Test with explicit new size given.
+    {
+        std::string x;
+
+        {
+            auto r = makeScopedSizeRestorer(x, 32);
+            EXPECT_EQ(x.size(), 32);
+        }
+
+        EXPECT_TRUE(x.empty());
+    }
+}
+
+TEST(ScopedHelpers, ScopedValue)
+{
+    const std::string originalValue = "before";
+    std::string value = originalValue;
+
+    {
+        const std::string expectedValue = "After";
+
+        // Also tests that conertible arguments are accepted.
+        auto guard = makeScopedValue(value, expectedValue.c_str());
+
+        // Make sure value's value was changed.
+        ASSERT_EQ(value, expectedValue);
+    }
+
+    // Make sure value's value was restored.
+    ASSERT_EQ(value, originalValue);
+}
+
+TEST(ScopedHelpers, MakePtrFrom)
+{
+    struct Dummy
+    {
+        static void destructor(Dummy* dummy)
+        {
+            delete dummy;
+        }
+    }; // Dummy
+
+    // Shared pointer, default deleter.
+    {
+        auto x = makeSharedFrom(new Dummy);
+
+        // Verify type signature.
+        static_assert(std::is_same_v<decltype(x), std::shared_ptr<Dummy>>);
+    }
+
+    // Shared pointer, custom deleter.
+    {
+        auto x = makeSharedFrom(new Dummy, &Dummy::destructor);
+
+        // Verify type signature.
+        static_assert(std::is_same_v<decltype(x), std::shared_ptr<Dummy>>);
+
+        // Verify deleter.
+        auto d = std::get_deleter<void (*)(Dummy*)>(x);
+        ASSERT_TRUE(d);
+        EXPECT_EQ(*d, &Dummy::destructor);
+    }
+
+    // Unique pointer, default deleter.
+    {
+        auto x = makeUniqueFrom(new Dummy);
+
+        // Verify type signature.
+        using ComputedType = decltype(x);
+        using ExpectedType = std::unique_ptr<Dummy, std::default_delete<Dummy>>;
+
+        static_assert(std::is_same_v<ComputedType, ExpectedType>);
+    }
+
+    // Unique pointer, custom deleter.
+    {
+        auto x = makeUniqueFrom(new Dummy, &Dummy::destructor);
+
+        using ComputedType = decltype(x);
+        using ExpectedType = std::unique_ptr<Dummy, void (*)(Dummy*)>;
+
+        static_assert(std::is_same_v<ComputedType, ExpectedType>);
+    }
+}
+
+TEST(LikeCompare, ExactMatch)
+{
+    ASSERT_TRUE(likeCompare("hello", "hello"));
+    ASSERT_TRUE(likeCompare("he1lo", "he1lo"));
+    ASSERT_TRUE(likeCompare("hélloé", "hélloé"));
+    ASSERT_TRUE(likeCompare("你好", "你好"));
+
+    ASSERT_FALSE(likeCompare("hello1", "hello"));
+    ASSERT_FALSE(likeCompare("helo", "he1lo"));
+    ASSERT_FALSE(likeCompare("héllo", "hélloé"));
+    ASSERT_FALSE(likeCompare("你好", "你好!"));
+}
+
+TEST(LikeCompare, MatchOne)
+{
+    ASSERT_TRUE(likeCompare("hell?", "hello"));
+    ASSERT_TRUE(likeCompare("héll?é", "hélloé"));
+    ASSERT_TRUE(likeCompare("你?", "你好"));
+
+    ASSERT_FALSE(likeCompare("hello?", "hello"));
+    ASSERT_FALSE(likeCompare("hel?o", "he1lo"));
+    ASSERT_FALSE(likeCompare("héll?", "hélloé"));
+    ASSERT_FALSE(likeCompare("你?", "你好!"));
+}
+
+TEST(LikeCompare, MatchAll)
+{
+    ASSERT_TRUE(likeCompare("h*o", "hello"));
+    ASSERT_TRUE(likeCompare("*é", "hélloé"));
+    ASSERT_TRUE(likeCompare("*", "你好"));
+
+    ASSERT_FALSE(likeCompare("he1*lo", "hello"));
+    ASSERT_FALSE(likeCompare("*你", "你好!"));
+}
+
+TEST(LikeCompare, CaseInsensitiveMatch)
+{
+    ASSERT_TRUE(likeCompare("HELLO", "hello"));
+    ASSERT_TRUE(likeCompare("HÉllOé", "hélloé"));
+}
+
+TEST(LikeCompare, AccentInsensitiveMatch)
+{
+    ASSERT_TRUE(likeCompare("HÉllOé", "HElloe"));
+    ASSERT_TRUE(likeCompare("façade", "facade"));
+    ASSERT_TRUE(likeCompare("nghiÃªn", "nghiAªn"));
+}
+
+// \\* is \* in c++ string. It is the escaping of the character * in the pattern, which makes it
+// match only the single character *.
+TEST(LikeCompare, EscapeMatch)
+{
+    ASSERT_TRUE(likeCompare("H\\*Elloe", "H*Elloe"));
+    ASSERT_TRUE(likeCompare("\\*你*", "*你好!"));
+
+    ASSERT_FALSE(likeCompare("H\\*", "H*Elloe"));
+    ASSERT_FALSE(likeCompare("\\*你", "**你"));
+}
+
+TEST(LikeCompare, CombinedMatch)
+{
+    ASSERT_TRUE(likeCompare("HÉ?l*e", "heLloé"));
+    ASSERT_TRUE(likeCompare("你ç?*", "你c好!"));
+
+    ASSERT_FALSE(likeCompare("HÉ?l*e\\*", "heLloé"));
 }

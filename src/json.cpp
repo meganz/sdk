@@ -28,6 +28,11 @@
 #include "mega/mega_utf8proc.h"
 
 namespace mega {
+
+std::atomic<bool> gLogJSONRequests{false};
+
+#define JSON_verbose if (gLogJSONRequests) LOG_verbose
+
 // store array or object in string s
 // reposition after object
 bool JSON::storeobject(string* s)
@@ -497,11 +502,9 @@ const char* JSON::getvalue()
     return r;
 }
 
-fsfp_t JSON::getfsfp()
+std::uint64_t JSON::getfsfp()
 {
-    fsfp_t fsfp;
-    fsfp.id = gethandle(sizeof(fsfp_t));
-    return fsfp;
+    return gethandle(sizeof(std::uint64_t));
 }
 
 uint64_t JSON::getuint64()
@@ -520,7 +523,7 @@ uint64_t JSON::getuint64()
         ptr++;
     }
 
-    if (!std::isdigit(*ptr))
+    if (!is_digit(*ptr))
     {
         LOG_err << "Parse error (getuint64)";
         return std::numeric_limits<uint64_t>::max();
@@ -780,7 +783,7 @@ string JSON::stripWhitespace(const char* text)
             result.append(temp);
             result.push_back('"');
         }
-        else if (std::isspace(*reader.pos))
+        else if (is_space(*reader.pos))
             ++reader.pos;
         else
             result.push_back(*reader.pos++);
@@ -860,7 +863,7 @@ void JSONWriter::arg_B64(const char* n, const string& data)
     arg(n, (const byte*)data.data(), int(data.size()));
 }
 
-void JSONWriter::arg_fsfp(const char* n, fsfp_t fp)
+void JSONWriter::arg_fsfp(const char* n, std::uint64_t fp)
 {
     arg(n, (const byte*)&fp, int(sizeof(fp)));
 }
@@ -1069,6 +1072,437 @@ string JSONWriter::escape(const char* data, size_t length) const
     }
 
     return result;
+}
+
+JSONSplitter::JSONSplitter()
+{
+    clear();
+}
+
+void JSONSplitter::clear()
+{
+    mPos = nullptr;
+    mLastPos = nullptr;
+    mLastName.clear();
+    mStack.clear();
+    mCurrentPath.clear();
+    mProcessedBytes = 0;
+    mExpectValue = 1;
+    mStarting = true;
+    mFinished = false;
+    mFailed = false;
+}
+
+m_off_t JSONSplitter::processChunk(std::map<string, std::function<bool (JSON *)> > *filters, const char *data)
+{
+    if (hasFailed() || hasFinished())
+    {
+        return 0;
+    }
+
+    if (filters)
+    {
+        auto filterit = filters->find("<");
+        if (filterit != filters->end())
+        {
+            JSON jsonData("");
+            auto& callback = filterit->second;
+            if (!callback(&jsonData))
+            {
+                LOG_err << "Error starting the processing of a chunk";
+            }
+        }
+    }
+
+    mPos = data;
+    mLastPos = data;
+
+    // Skip the data that was already processed during the previous call
+    mPos += mProcessedBytes;
+    mProcessedBytes = 0;
+
+    if (mStarting)
+    {
+        if (filters)
+        {
+            auto filterit = filters->find("");
+            if (filterit != filters->end())
+            {
+                JSON jsonData("");
+                auto& callback = filterit->second;
+                if (!callback(&jsonData))
+                {
+                    LOG_err << "Parsing error processing first streaming filter"
+                            << " Data: " << data;
+                    parseError(filters);
+                    return 0;
+                }
+            }
+        }
+        mStarting = false;
+    }
+
+    JSON_verbose << "JSON starting processChunk at path " << mCurrentPath
+                 << " ExpectValue: " << mExpectValue << " LastName: " << mLastName
+                 << " Data: " << std::string(data, strlen(data) < 32 ? strlen(data) : 32)
+                 << " Start: " << std::string(mPos, strlen(mPos) < 32 ? strlen(mPos) : 32);
+
+    while (*mPos)
+    {
+        char c = *mPos;
+        if (c == '[' || c == '{')
+        {
+            if (!mExpectValue)
+            {
+                LOG_err << "Malformed JSON - unexpected object or array";
+                parseError(filters);
+                return 0;
+            }
+
+            mStack.push_back(c + mLastName);
+            mCurrentPath.append(mStack.back());
+
+            JSON_verbose << "JSON starting path: " << mCurrentPath;
+            if (filters && filters->find(mCurrentPath) != filters->end())
+            {
+                // a filter is configured for this path - recurse
+                mLastPos = mPos;
+            }
+
+            mPos++;
+            mLastName.clear();
+            mExpectValue = c == '[';
+        }
+        else if (c == ']' || c == '}')
+        {
+            if (mExpectValue < 0)
+            {
+                LOG_err << "Malformed JSON - premature closure";
+                parseError(filters);
+                return 0;
+            }
+
+            char open = mStack[mStack.size() - 1][0];
+            if (!mStack.size() || (c == ']' && open != '[') || (c == '}' && open != '{'))
+            {
+                LOG_err << "Malformed JSON - mismatched close";
+                parseError(filters);
+                return 0;
+            }
+
+            mLastName.clear();
+            mPos++;
+
+            // check if this concludes an exfiltrated object and return it if so
+            if (filters)
+            {
+                std::string filter;
+                if (mStack.size() == 1 && c == '}' && mLastPos == data
+                    && strncmp(data, "{\"err\":", 7) == 0)
+                {
+                    // error response
+                    filter = "#";
+                }
+                else
+                {
+                    // regular closure
+                    filter = mCurrentPath;
+                }
+
+                auto filterit = filters->find(filter);
+                if (filterit != filters->end() && filterit->second)
+                {
+                    JSON_verbose << "JSON object/array callback for path: " << filter
+                                 << " Data: " << std::string(mLastPos, mPos - mLastPos);
+
+                    JSON jsonData(mLastPos);
+                    auto& callback = filterit->second;
+                    if (!callback(&jsonData))
+                    {
+                        LOG_err << "Parsing error processing streaming filter: " << filter
+                                << " Data: " << std::string(mLastPos, mPos - mLastPos);
+                        parseError(filters);
+                        return 0;
+                    }
+
+                    // Callbacks should consume the exact amount of JSON, except the last one
+                    if (mCurrentPath != "{" && jsonData.pos != mPos)
+                    {
+                        // I'm not aborting the parsing here because no errors were detected during the processing
+                        // so probably the callback just ignored some data that it didn't need.
+                        // Anyway it would be good to check this when it happens to fix it.
+                        LOG_warn << (mPos - jsonData.pos) << " bytes were not processed by the following streaming filter: " << filter;
+                        assert(false);
+                    }
+
+                    mLastPos = mPos;
+                }
+            }
+
+            JSON_verbose << "JSON finishing path: " << mCurrentPath;
+            mCurrentPath.resize(mCurrentPath.size() - mStack.back().size());
+            mStack.pop_back();
+            mExpectValue = 0;
+
+            if (!mStack.size())
+            {
+                assert(mCurrentPath.empty());
+
+                mLastPos = mPos;
+                mFinished = true;
+                break;
+            }
+        }
+        else if (c == ',')
+        {
+            if (mExpectValue)
+            {
+                LOG_err << "Malformed JSON - stray comma";
+                parseError(filters);
+                return 0;
+            }
+
+            if (mLastPos == mPos)
+            {
+                mLastPos++;
+            }
+
+            mPos++;
+            mExpectValue = mStack[mStack.size() - 1][0] == '[';
+        }
+        else if (c == '"')
+        {
+            int t = strEnd();
+            if (t < 0)
+            {
+                JSON_verbose << "JSON chunk finished parsing a string."
+                             << " Data: " << mPos;
+                break;
+            }
+
+            if (mExpectValue)
+            {
+                if (filters)
+                {
+                    std::string filter = mCurrentPath + c + mLastName;
+                    auto filterit = filters->find(filter);
+                    if (filterit != filters->end() && filterit->second)
+                    {
+                        JSON_verbose << "JSON string value callback for: " << filter
+                                     << " Data: " << std::string(mPos, t);
+
+                        JSON jsonData(mPos);
+                        auto& callback = filterit->second;
+                        if (!callback(&jsonData))
+                        {
+                            LOG_err << "Parsing error processing streaming filter: " << filter
+                                    << " Data: " << std::string(mPos, t);
+                            parseError(filters);
+                            return 0;
+                        }
+
+                        mLastPos = mPos + t;
+                    }
+                }
+
+                JSON_verbose << "JSON string value parsed at path " << mCurrentPath
+                             << " Data: " << mLastName << " = " << std::string(mPos + 1, t - 2);
+
+                mPos += t;
+                mExpectValue = 0;
+                mLastName.clear();
+            }
+            else
+            {
+                // we need at least one char after end of property string
+                if (!mPos[t])
+                {
+                    break;
+                }
+
+                if (mPos[t] != ':')
+                {
+                    LOG_err << "Malformed JSON - no : found after property name";
+                    parseError(filters);
+                    return 0;
+                }
+
+                JSON_verbose << "JSON property name parsed at path " << mCurrentPath
+                             << " Data: " << std::string(mPos + 1, t - 2);
+
+                mLastName =  std::string(mPos + 1, t - 2);
+                mPos += t + 1;
+                mExpectValue = -1;
+            }
+        }
+        else if ((c >= '0' && c <= '9') || c == '.' || c == '-')
+        {
+            if (!mExpectValue)
+            {
+                LOG_err << "Malformed JSON - unexpected number";
+                parseError(filters);
+                return 0;
+            }
+
+            int j = numEnd();
+            if (j < 0 || !mPos[j])
+            {
+                JSON_verbose << "JSON chunk finished parsing a number."
+                             << " Data: " << mPos;
+                break;
+            }
+
+            JSON_verbose << "JSON number parsed at path " << mCurrentPath
+                         << " Data: " << mLastName << " = " << std::string(mPos, j);
+
+            mPos += j;
+            mExpectValue = 0;
+
+            if (!mStack.size())
+            {
+                assert(mCurrentPath.empty());
+
+                if (filters && mLastPos == mPos - j)
+                {
+                    assert(mLastPos == data);
+
+                    auto filterit = filters->find("#");
+                    if (filterit != filters->end())
+                    {
+                        JSON jsonData(mLastPos);
+                        JSON_verbose << "JSON error callback."
+                                     << " Data: " << std::string(mLastPos, j);
+
+                        auto& callback = filterit->second;
+                        if (!callback(&jsonData))
+                        {
+                            LOG_err << "Parsing error processing error streaming filter"
+                                    << " Data: " << std::string(mLastPos, j);
+                            parseError(filters);
+                            return 0;
+                        }
+                    }
+                }
+
+                mLastPos = mPos;
+                mFinished = true;
+                break;
+            }
+        }
+        else if (c == ' ')
+        {
+            // a concession to the API team's aesthetic sense
+            mPos++;
+        }
+        else
+        {
+            LOG_err << "Malformed JSON - bogus char at position " << (mPos - data);
+            parseError(filters);
+            return 0;
+        }
+    }
+
+    if (filters && !chunkProcessingFinishedSuccessfully(filters))
+    {
+        LOG_err << "Error finishing the processing of a chunk";
+    }
+
+    mProcessedBytes = mPos - mLastPos;
+    m_off_t consumedBytes = mLastPos - data;
+
+    JSON_verbose << "JSON leaving processChunk at path " << mCurrentPath << "."
+                 << " Data: " << std::string(mPos, strlen(mPos) < 32 ? strlen(mPos) : 32)
+                 << " Processed: " << mProcessedBytes << " Consumed: " << consumedBytes
+                 << " Next start: " << std::string(mLastPos, strlen(mLastPos) < 32 ? strlen(mLastPos) : 32);
+
+    return consumedBytes;
+}
+
+bool JSONSplitter::hasFinished()
+{
+    return mFinished;
+}
+
+bool JSONSplitter::hasFailed()
+{
+    return mFailed;
+}
+
+bool JSONSplitter::isStarting()
+{
+    return mStarting;
+}
+
+int JSONSplitter::strEnd()
+{
+    const char* ptr = mPos;
+    while ((ptr = strchr(ptr + 1, '"')))
+    {
+        const char *e = ptr;
+        while (*(--e) == '\\')
+        {
+            // noop
+        }
+
+        if ((ptr - e) & 1)
+        {
+            return int(ptr + 1 - mPos);
+        }
+    }
+
+    return -1;
+}
+
+int JSONSplitter::numEnd()
+{
+    const char* ptr = mPos;
+    while (*ptr && strchr("0123456789-+eE.", *ptr))
+    {
+        ptr++;
+    }
+
+    if (ptr > mPos)
+    {
+        return int(ptr - mPos);
+    }
+
+    return -1;
+}
+
+void JSONSplitter::parseError(std::map<string, std::function<bool (JSON *)> > *filters)
+{
+    if (filters)
+    {
+        auto filterit = filters->find("E");
+        if (filterit != filters->end() && filterit->second)
+        {
+            JSON jsonData(mPos);
+            auto& callback = filterit->second;
+            callback(&jsonData);
+        }
+
+        if (!chunkProcessingFinishedSuccessfully(filters))
+        {
+            LOG_err << "Error finishing the processing of a chunk after error";
+        }
+    }
+    mFailed = true;
+    assert(false);
+}
+
+bool JSONSplitter::chunkProcessingFinishedSuccessfully(std::map<std::string, std::function<bool(JSON*)>>* filters)
+{
+    auto filterit = filters->find(">");
+    if (filterit != filters->end())
+    {
+        JSON jsonData("");
+        auto& callback = filterit->second;
+        if (!callback(&jsonData))
+        {
+            return false;
+        }
+    }
+    return true;
 }
 
 } // namespace

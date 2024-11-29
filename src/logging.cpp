@@ -34,17 +34,16 @@ ExclusiveLogger g_exclusiveLogger;
 Logger *SimpleLogger::logger = &g_externalLogger;
 
 // by the default, display logs with level equal or less than logInfo
-enum LogLevel SimpleLogger::logCurrentLevel = logInfo;
+std::atomic<LogLevel> SimpleLogger::logCurrentLevel{logInfo};
 long long SimpleLogger::maxPayloadLogSize  = 10240;
 
 thread_local bool SimpleLogger::mThreadLocalLoggingDisabled = false;
 
 #ifdef ENABLE_LOG_PERFORMANCE
 
-#ifdef WIN32
 thread_local std::array<char, LOGGER_CHUNKS_SIZE> SimpleLogger::mBuffer;
-#else
-__thread std::array<char, LOGGER_CHUNKS_SIZE> SimpleLogger::mBuffer;
+#ifndef NDEBUG
+thread_local const SimpleLogger* SimpleLogger::mBufferOwner = nullptr;
 #endif
 
 #else

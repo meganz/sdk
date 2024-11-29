@@ -40,8 +40,20 @@ typedef NS_ENUM(NSUInteger, Event) {
 #endif
     EventReqStatProgress = 15,
     EventReloading = 16,
-    EventReload = 17,
+    EventFatalError = 17,
     EventUpgradeSecurity = 18,
+    EventDowngradeAttack = 19,
+    EventConfirmUserEmail = 20,
+    EventCreditCardExpiry = 21,
+};
+
+typedef NS_ENUM(NSInteger, ReasonError) {
+    ReasonErrorUnknown = -1,                // Unknown reason
+    ReasonErrorNoError = 0,                 // No error
+    ReasonErrorFailureUnserializeNode = 1,  // Failure when node is unserialized from DB
+    ReasonErrorDBIOFailure = 2,             // Input/output error at DB layer
+    ReasonErrorDBFull = 3,                  // Failure at DB layer because disk is full
+    ReasonErrorDBIndexOverflow = 4,         // Index used to primary key at db overflow
 };
 
 NS_ASSUME_NONNULL_BEGIN
@@ -64,11 +76,25 @@ NS_ASSUME_NONNULL_BEGIN
  */
 @property (nonatomic, readonly, nullable) NSString *text;
 
-/**
- * @brief A number relative to this event
- *
- */
+/// Number relative to this event
+///
+/// For `EventStorageSumChanged`, this number is the new storage sum.
+///
+/// For `EventReqStatProgress`, this number is the per mil progress of a long-running
+/// API operation, or -1 if there isn't any operation in progress.
+///
+/// For `EventFatalError`, these values can be taken:
+///  - `ReasonErrorUnknown` = -1 -> Unknown reason
+///  - `ReasonErrorNoError` = 0 -> No error
+///  - `ReasonErrorFailureUnserializeNode` = 1 -> Failure when node is unserialized from DB
+///  - `ReasonErrorDBIOFailure` = 2 -> Input/output error at DB layer
+///  - `ReasonErrorDBFull` = 3 -> Failure at DB layer because disk is full
+///  - `ReasonErrorDBIndexOverflow` = 4 -> Index used to primary key at db overflow
+///
 @property (nonatomic, readonly) NSInteger number;
+
+/// Readable description of the event
+@property (nonatomic, readonly, nullable) NSString *eventString;
 
 NS_ASSUME_NONNULL_END
 

@@ -2,6 +2,7 @@
 #ifndef TEST_H
 #define TEST_H 1
 
+#include <chrono>
 #include <sstream>
 #include <string>
 #include <thread>
@@ -18,14 +19,10 @@
 
 #include <mega.h>
 #include <megaapi_impl.h>
-#include "stdfs.h"
+#include "../stdfs.h"
 
 using namespace ::mega;
 using namespace ::std;
-
-
-extern string_vector envVarAccount;
-extern string_vector envVarPass;
 
 std::string logTime();
 void WaitMillisec(unsigned n);
@@ -85,11 +82,7 @@ private:
 extern std::string USER_AGENT;
 extern bool gResumeSessions;
 extern bool gScanOnly;
-extern int gMaxAccounts;
 extern bool gManualVerification;
-
-// the directory the checked-in test data is in
-fs::path getTestDataDir();
 
 LogStream out();
 
@@ -129,15 +122,192 @@ fs::path makeNewTestRoot();
 
 std::unique_ptr<::mega::FileSystemAccess> makeFsAccess();
 fs::path makeReusableClientFolder(const string& subfolder);
+
+class RequestRetryRecorder
+{
+    // Convenience.
+    using Milliseconds = std::chrono::milliseconds;
+
+    // Describes a particular class of retry.
+    struct RetryEntry
+    {
+        // How many times did this class of retry occur?
+        std::size_t mCount = 0;
+
+        // What was the longest time we spent performing this retry?
+        Milliseconds mLongest = Milliseconds::min();
+
+        // And the shortest time?
+        Milliseconds mShortest = Milliseconds::max();
+    }; // Entry
+
+    // Maps retry class to retry entry.
+    using RetryEntryMap = std::map<retryreason_t, RetryEntry>;
+
+    // Translates a retry entry into a human-readable string.
+    std::string report(const RetryEntryMap::value_type& entry) const
+    {
+        std::ostringstream ostream;
+
+        ostream << "Requests retried due to "
+                << toString(entry.first)
+                << " "
+                << entry.second.mCount
+                << " time(s) [duration "
+                << entry.second.mShortest.count()
+                << "ms-"
+                << entry.second.mLongest.count()
+                << "ms]";
+
+        return ostream.str();
+    }
+
+    // Tracks statistics about a specific retry class.
+    RetryEntryMap mEntries;
+
+    // Serializes access to mEnties.
+    mutable std::mutex mEntriesLock;
+
+    // Who's the current recorder?
+    static RequestRetryRecorder* mInstance;
+
+public:
+    RequestRetryRecorder()
+      : mEntries()
+      , mEntriesLock()
+    {
+        // Only one instance should ever exist at a time.
+        assert(!mInstance);
+
+        mInstance = this;
+    }
+
+    RequestRetryRecorder(const RequestRetryRecorder&) = delete;
+
+    ~RequestRetryRecorder()
+    {
+        assert(mInstance == this);
+
+        mInstance = nullptr;
+    }
+
+    RequestRetryRecorder& operator=(const RequestRetryRecorder&) = delete;
+
+    // Obtain a reference to the current recorder.
+    static RequestRetryRecorder& instance()
+    {
+        assert(mInstance);
+
+        return *mInstance;
+    }
+
+    // Record a retry period.
+    void record(retryreason_t reason, Milliseconds duration)
+    {
+        // Acquire lock.
+        std::lock_guard<std::mutex> guard(mEntriesLock);
+
+        // Get our hands on the specified entry.
+        auto& entry = mEntries[reason];
+
+        // Populate entry.
+        entry.mCount = entry.mCount + 1;
+        entry.mLongest = std::max(entry.mLongest, duration);
+        entry.mShortest = std::min(entry.mShortest, duration);
+    }
+
+    // Transform recorded retry entries to a human-readable string.
+    template<typename Printer>
+    void report(Printer&& printer) const
+    {
+        // Acquire lock.
+        std::lock_guard<std::mutex> guard(mEntriesLock);
+
+        // Print entries.
+        for (auto& i : mEntries)
+            printer(report(i));
+    }
+
+    void reset()
+    {
+        // Acquire lock.
+        std::lock_guard<std::mutex> guard(mEntriesLock);
+
+        // Clear recorded request retries.
+        mEntries.clear();
+    }
+}; // RequestRetryRecorder
+
+class RequestRetryTracker
+{
+    // Convenience.
+    using HRClock = std::chrono::high_resolution_clock;
+    using HRTimePoint = HRClock::time_point;
+
+    // Why did our request need to be retried?
+    retryreason_t mReason = RETRY_NONE;
+
+    // When were we notified that the request was retried?
+    HRTimePoint mWhen = HRTimePoint::max();
+
+public:
+    // Signal that a request is being retried.
+    void track(const std::string& clientName, retryreason_t reason)
+    {
+        // Coalesce contiguous retries of the same class.
+        if (mReason == reason)
+            return;
+
+        // Convenience.
+        auto now = HRClock::now();
+
+        // We were already tracking an existing retry.
+        if (mReason != RETRY_NONE)
+        {
+            // Convenience.
+            using std::chrono::duration_cast;
+            using std::chrono::milliseconds;
+
+            // How long did it take until our request succeeded?
+            auto elapsed = duration_cast<milliseconds>(now - mWhen);
+
+            // Log how long the request took.
+            out() << clientName
+                  << ": request retry completed: reason: "
+                  << toString(mReason)
+                  << ", duration: "
+                  << elapsed.count()
+                  << "ms";
+
+            // Record statistics about the retry.
+            RequestRetryRecorder::instance().record(mReason, elapsed);
+        }
+
+        // Latch new reason and timestamp.
+        mReason = reason;
+        mWhen = now;
+
+        // No request is being retried.
+        if (mReason == RETRY_NONE)
+            return;
+
+        out() << clientName
+              << ": request retry begun: reason: "
+              << toString(mReason);
+    }
+}; // RequestRetryTracker
+
 #ifdef ENABLE_SYNC
 
 template<typename T>
 using shared_promise = std::shared_ptr<promise<T>>;
 
 using PromiseBoolSP     = shared_promise<bool>;
+using PromiseErrorSP    = shared_promise<Error>;
 using PromiseHandleSP   = shared_promise<handle>;
 using PromiseStringSP   = shared_promise<string>;
 using PromiseUnsignedSP = shared_promise<unsigned>;
+using PromiseVoidSP     = shared_promise<void>;
 
 struct Model
 {
@@ -181,8 +351,51 @@ struct Model
     ModelNode* addfolder(const string& path);
     ModelNode* addnode(const string& path, ModelNode::nodetype type);
     ModelNode* copynode(const string& src, const string& dst);
+    /**
+     * @brief Create a folder-type ModelNode with the specified name.
+     *
+     * @param utf8Name The name of the folder to be created, in UTF-8 encoding
+     * @return The created folder ModelNode
+     */
     unique_ptr<ModelNode> makeModelSubfolder(const string& utf8Name);
+    /**
+     * @brief Create a file type ModelNode with the specified name.
+     * If content parameter is empty, the content is the specified name,
+     * otherwise it is content itself.
+     *
+     * @param utf8Name The name of the folder to be created, in UTF-8 encoding.
+     * @param content  The content of the file. If it is empty, the content is file name utf8Name.
+     *                 Default value is empty.
+     * @return The created file ModelNode
+     */
     unique_ptr<ModelNode> makeModelSubfile(const string& utf8Name, string content = {});
+    /**
+     * @brief Create a folder tree whose depth is with a specified depth and its root folder is named prefix.
+     *
+     * The structure is as follows:
+     * - Each folder, except for the leaf folders, has `n` child folders. Child folders are named after
+     * their parent name with the format <parentName>_<index>, starting with index 0.
+     * - Each folder has `filesperdir` number of child files. Child files are named after their parent name
+     * with the format file<index>_<parentName>.
+     *
+     * Examples:
+     *   buildModelSubdirs(f, 2, 2, 1)
+     *   root -- level 1 -- level 2
+     *   f    -- file0_f
+     *        -- f_0     -- file0_f_0
+     *                   -- f_0_0      -- file0_f_0_0
+     *                   -- f_0_1      -- file0_f_0_1
+     *        -- f_1     -- file0_f_1
+     *                   -- f_1_0      -- file0_f_1_0
+     *                   -- f_1_1      -- file0_f_1_1
+     *
+     * @param prefix       The name of the root folder
+     * @param n            The number of child folders under each folder except the leaf folder.
+     * @param recurselevel The depth of folder tree. For example, 0 means only root folder.
+     *                     1 means one level folder under the root.
+     * @param filesperdir  The number of files under each folder
+     * @return the root folder ModelNode
+     */
     unique_ptr<ModelNode> buildModelSubdirs(const string& prefix, int n, int recurselevel, int filesperdir);
     ModelNode* childnodebyname(ModelNode* n, const std::string& s);
     ModelNode* findnode(string path, ModelNode* startnode = nullptr);
@@ -219,7 +432,7 @@ public:
 
     CloudItem(handle nodeHandle);
 
-    Node* resolve(StandardClient& client) const;
+    std::shared_ptr<Node> resolve(StandardClient& client) const;
 
 private:
     NodeHandle mNodeHandle;
@@ -231,10 +444,148 @@ struct SyncOptions
 {
     string drivePath = string(1, '\0');
     string excludePath;
+    string logName;
     bool legacyExclusionsEligible = false;
     bool isBackup = false;
     bool uploadIgnoreFile = false;
 }; // SyncOptions
+
+struct SyncStallInfoTests
+{
+    SyncStallInfo::CloudStallInfoMap cloud;
+    SyncStallInfo::LocalStallInfoMap local;
+
+    void extractFrom(SyncStallInfo& stallInfo)
+    {
+        for (auto& syncStallInfoMapPair : stallInfo.syncStallInfoMaps)
+        {
+            auto& syncStallInfoMap = syncStallInfoMapPair.second;
+            for (auto& stallEntry: syncStallInfoMap.cloud) cloud.insert(stallEntry);
+            for (auto& stallEntry: syncStallInfoMap.local) local.insert(stallEntry);
+        }
+    }
+
+    void clear()
+    {
+        cloud.clear();
+        local.clear();
+    }
+
+    bool empty() const
+    {
+        return cloud.empty() && local.empty();
+    }
+
+}; // SyncStallInfoTests
+
+class StandardSyncController
+  : public SyncController
+{
+    using Callback = std::function<bool(const fs::path&)>;
+
+    bool call(const Callback& callback, const LocalPath& path) const;
+
+    void set(Callback& callback, Callback value);
+
+    Callback mDeferPutnode;
+    Callback mDeferPutnodeCompletion;
+    Callback mDeferUpload;
+    mutable std::mutex mLock;
+
+public:
+    StandardSyncController() = default;
+
+    bool deferPutnode(const LocalPath& path) const override;
+
+    bool deferPutnodeCompletion(const LocalPath& path) const override;
+
+    bool deferUpload(const LocalPath& path) const override;
+
+    void setDeferPutnodeCallback(Callback callback);
+
+    void setDeferPutnodeCompletionCallback(Callback callback);
+
+    void setDeferUploadCallback(Callback callback);
+}; // StandardSyncController
+
+// Convenience.
+template<typename T>
+class SynchronizedFunction;
+
+template<typename R, typename... P>
+class SynchronizedFunction<R(P...)>
+{
+    std::function<R(P...)> mFunction;
+    mutable std::mutex mLock;
+
+public:
+    SynchronizedFunction(std::function<R(P...)> function = nullptr)
+      : mFunction(std::move(function))
+    {
+    }
+
+    operator bool() const
+    {
+        return operator!=(nullptr);
+    }
+
+    R operator()(P... arguments)
+    {
+        std::function<R(P...)> function;
+
+        {
+            std::lock_guard guard(mLock);
+            function = mFunction;
+        }
+
+        function(arguments...);
+    }
+
+    SynchronizedFunction& operator=(const SynchronizedFunction& rhs)
+    {
+        if (this == &rhs)
+            return *this;
+
+        std::unique_lock l(mLock, std::defer_lock);
+        std::unique_lock r(mLock, std::defer_lock);
+
+        std::lock(l, r);
+
+        mFunction = rhs.mFunction;
+
+        return *this;
+    }
+
+    SynchronizedFunction& operator=(std::function<R(P...)> rhs)
+    {
+        std::lock_guard guard(mLock);
+
+        mFunction = std::move(rhs);
+
+        return *this;
+    }
+
+    SynchronizedFunction& operator=(std::nullptr_t)
+    {
+        std::lock_guard guard(mLock);
+
+        mFunction = nullptr;
+
+        return *this;
+    }
+
+    bool operator==(std::nullptr_t) const
+    {
+        std::lock_guard guard(mLock);
+
+        return mFunction == nullptr;
+    }
+
+    bool operator!=(std::nullptr_t) const
+    {
+        return !(*this == nullptr);
+    }
+}; // SynchronizedFunction<(R, P...)>
 
 struct StandardClient : public MegaApp
 {
@@ -245,7 +596,7 @@ struct StandardClient : public MegaApp
 
     string client_dbaccess_path;
     std::unique_ptr<HttpIO> httpio;
-    std::recursive_mutex clientMutex;
+    mutable std::recursive_mutex clientMutex;
     MegaClient client;
     std::atomic<bool> clientthreadexit{false};
     bool fatalerror = false;
@@ -306,35 +657,62 @@ struct StandardClient : public MegaApp
 
     void onCallback();
 
-    std::function<void(const SyncConfig&)> onAutoResumeResult;
+    SynchronizedFunction<void(const SyncConfig&)> onAutoResumeResult;
+    SynchronizedFunction<void(const SyncConfig&)> onRemovedSync;
 
     void sync_added(const SyncConfig& config) override;
+    void sync_removed(const SyncConfig& config) override;
 
-    bool received_syncs_restored = false;
+    std::atomic<bool> received_syncs_restored{false};
     void syncs_restored(SyncError syncError) override;
 
-    bool received_node_actionpackets = false;
+    std::atomic<bool> received_node_actionpackets{false};
     std::condition_variable nodes_updated_cv;
 
-    void nodes_updated(Node** nodes, int numNodes) override;
+    void nodes_updated(sharedNode_vector* nodes, int numNodes) override;
     bool waitForNodesUpdated(unsigned numSeconds);
     void syncupdate_stateconfig(const SyncConfig& config) override;
 
-    bool received_user_alerts = false;
+    std::atomic<bool> received_user_alerts{false};
     std::condition_variable user_alerts_updated_cv;
 
     void useralerts_updated(UserAlert::Base**, int) override;
     bool waitForUserAlertsUpdated(unsigned numSeconds);
 
-    std::function<void(const SyncConfig&)> mOnSyncStateConfig;
+    std::atomic<bool> received_user_actionpackets{false};
+    std::mutex user_actionpackets_mutex;
+    std::condition_variable user_updated_cv;
+    void users_updated(User**users, int size) override;
+
+    // If none lambda is register with createsOnUserUpdateLamda, any user action package generates an event for stop waiting period.
+    // If a lambda is register, waiting period only finished if lambda returns true when it is called
+    // Once waiting period is finised, removeOnUserUpdateLamda should be called
+    bool waitForUserUpdated(unsigned numSeconds);
+    std::mutex mUserActionPackageMutex;
+    std::function<bool(User*)> mCheckUserChange;
+    void createsOnUserUpdateLamda(std::function<bool(User*)> onUserUpdateLambda);
+    // Should be called to remove registered lamda
+    void removeOnUserUpdateLamda();
+
+    SynchronizedFunction<void(const SyncConfig&)> mOnSyncStateConfig;
 
     void syncupdate_scanning(bool b) override;
+
+    std::atomic<bool> mStallDetected{false};
+    std::atomic<bool> mConflictsDetected{false};
+    std::atomic<bool> mTotalStallsUpdated{false};
+    std::atomic<bool> mTotalConflictsUpdated{false};
+
+    void syncupdate_conflicts(bool state) override;
+    void syncupdate_stalled(bool state) override;
+    void syncupdate_totalconflicts(bool state) override;
+    void syncupdate_totalstalls(bool state) override;
     void file_added(File* file) override;
     void file_complete(File* file) override;
 
 #ifdef DEBUG
     using SyncDebugNotificationHandler =
-        std::function<void(const SyncConfig&, int, const Notification&)>;
+        SynchronizedFunction<void(const SyncConfig&, int, const Notification&)>;
 
     SyncDebugNotificationHandler mOnSyncDebugNotification;
 
@@ -342,9 +720,6 @@ struct StandardClient : public MegaApp
         int queue,
         const Notification& notification) override;
 #endif // DEBUG
-
-    bool sync_syncable(Sync* sync, const char* name, LocalPath& path, Node*) override;
-    bool sync_syncable(Sync*, const char*, LocalPath&) override;
 
     std::atomic<unsigned> transfersAdded{0}, transfersRemoved{0}, transfersPrepared{0}, transfersFailed{0}, transfersUpdated{0}, transfersComplete{0};
 
@@ -358,14 +733,20 @@ struct StandardClient : public MegaApp
             mOnTransferAdded(*transfer);
     }
 
-    std::function<void(Transfer&)> mOnTransferAdded;
+    SynchronizedFunction<void(Transfer&)> mOnTransferAdded;
 
     void transfer_removed(Transfer*) override { onCallback(); ++transfersRemoved; }
     void transfer_prepare(Transfer*) override { onCallback(); ++transfersPrepared; }
     void transfer_failed(Transfer*,  const Error&, dstime = 0) override { onCallback(); ++transfersFailed; }
     void transfer_update(Transfer*) override { onCallback(); ++transfersUpdated; }
 
-    std::function<void(Transfer*)> onTransferCompleted;
+    SynchronizedFunction<void(Transfer*)> onTransferCompleted;
+
+
+    bool waitForAttrDeviceIdIsSet(unsigned numSeconds, bool& updated);
+    bool waitForAttrMyBackupIsSet(unsigned numSeconds, bool& newBackupIsSet);
+
+    bool isUserAttributeSet(attr_t attr, unsigned numSeconds, error& err);
 
     void transfer_complete(Transfer* transfer) override
     {
@@ -376,6 +757,8 @@ struct StandardClient : public MegaApp
 
         ++transfersComplete;
     }
+
+    RequestRetryTracker mRetryTracker;
 
     void notify_retry(dstime t, retryreason_t r) override;
     void request_error(error e) override;
@@ -437,10 +820,14 @@ struct StandardClient : public MegaApp
     public:
         BasicPutNodesCompletion(std::function<void(const Error&)>&& callable)
             : mCallable(std::move(callable))
-        {
-        }
+        {}
 
-        void operator()(const Error& e, targettype_t, vector<NewNode>&, bool, int tag)
+        void operator()(const Error& e,
+                        targettype_t,
+                        vector<NewNode>&,
+                        bool,
+                        int tag,
+                        const map<string, string>& /*fileHandles*/)
         {
             mCallable(e);
         }
@@ -474,7 +861,7 @@ struct StandardClient : public MegaApp
                   PromiseBoolSP result);
 
     void uploadFolderTree_recurse(handle parent, handle& h, const fs::path& p, vector<NewNode>& newnodes);
-    void uploadFolderTree(fs::path p, Node* n2, PromiseBoolSP pb);
+    void uploadFolderTree(fs::path p, CloudItem n2, PromiseBoolSP pb);
 
     // Necessary to make sure we release the file once we're done with it.
     struct FileGet : public File {
@@ -505,8 +892,33 @@ struct StandardClient : public MegaApp
 
         void completed(Transfer* t, putsource_t source) override
         {
-            File::completed(t, source);
-            if (completion) completion(true);
+            // do the same thing as File::completed(t, source), but only execute our functor completion() after putnodes completes
+
+            assert(!transfer || t == transfer);
+            assert(source == PUTNODES_APP);  // derived class for sync doesn't use this code path
+            assert(t->type == PUT);
+            
+            auto finalCompletion = move(completion);
+            sendPutnodesOfUpload(
+                t->client,
+                t->uploadhandle,
+                *t->ultoken,
+                t->filekey,
+                source,
+                NodeHandle(),
+                [finalCompletion](const Error&,
+                                  targettype_t,
+                                  vector<NewNode>&,
+                                  bool targetOverride,
+                                  int tag,
+                                  const std::map<std::string, std::string>& fileHandles)
+                {
+                    if (finalCompletion)
+                        finalCompletion(true);
+                },
+                nullptr,
+                false);
+
             delete this;
         }
 
@@ -517,7 +929,7 @@ struct StandardClient : public MegaApp
         }
     }; // FilePut
 
-    bool uploadFolderTree(fs::path p, Node* n2);
+    bool uploadFolderTree(fs::path p, const CloudItem& item);
 
     void uploadFile(const fs::path& path, const string& name, const Node* parent, TransferDbCommitter& committer, std::function<void(bool)>&& completion, VersioningOption vo = NoVersioning);
     void uploadFile(const fs::path& path, const string& name, const Node* parent, std::function<void(bool)>&& completion, VersioningOption vo = NoVersioning);
@@ -543,7 +955,7 @@ struct StandardClient : public MegaApp
     class TreeProcPrintTree : public TreeProc
     {
     public:
-        void proc(MegaClient* client, Node* n) override
+        void proc(MegaClient* client, std::shared_ptr<Node> n) override
         {
             //out() << "fetchnodes tree: " << n->displaypath();;
         }
@@ -551,10 +963,10 @@ struct StandardClient : public MegaApp
 
     // mark node as removed and notify
 
-    std::function<void (StandardClient& mc, PromiseBoolSP pb)> onFetchNodes;
+    SynchronizedFunction<void(StandardClient& mc, PromiseBoolSP pb)> onFetchNodes;
 
-    void fetchnodes(bool noCache, PromiseBoolSP pb);
-    bool fetchnodes(bool noCache = false);
+    void fetchnodes(bool noCache, bool loadSyncs, bool reloadingMidSession, PromiseBoolSP pb);
+    bool fetchnodes(bool noCache, bool loadSyncs, bool reloadingMidSession);
     NewNode makeSubfolder(const string& utf8Name);
 
     void catchup(std::function<void(error)> completion);
@@ -579,12 +991,12 @@ struct StandardClient : public MegaApp
     bool syncSet(handle backupId, SyncInfo& info) const;
     SyncInfo syncSet(handle backupId);
     SyncInfo syncSet(handle backupId) const;
-    Node* getcloudrootnode();
-    Node* gettestbasenode();
-    Node* getcloudrubbishnode();
-    Node* getsyncdebrisnode();
-    Node* drillchildnodebyname(Node* n, const string& path);
-    vector<Node*> drillchildnodesbyname(Node* n, const string& path);
+    std::shared_ptr<Node> getcloudrootnode();
+    std::shared_ptr<Node> gettestbasenode();
+    std::shared_ptr<Node> getcloudrubbishnode();
+    std::shared_ptr<Node> getsyncdebrisnode();
+    std::shared_ptr<Node> drillchildnodebyname(std::shared_ptr<Node> n, const string& path);
+    vector<std::shared_ptr<Node>> drillchildnodesbyname(Node* n, const string& path);
 
     // setupBackup is implicitly in Vault
     handle setupBackup_mainthread(const string& rootPath);
@@ -642,6 +1054,7 @@ struct StandardClient : public MegaApp
     bool recursiveConfirm(Model::ModelNode* mn, LocalNode* n, int& descendants, const string& identifier, int depth, bool& firstreported, bool expectFail, bool skipIgnoreFile);
     bool recursiveConfirm(Model::ModelNode* mn, fs::path p, int& descendants, const string& identifier, int depth, bool ignoreDebris, bool& firstreported, bool expectFail, bool skipIgnoreFile);
     Sync* syncByBackupId(handle backupId);
+    bool setSyncPausedByBackupId(handle id, bool pause);
     void enableSyncByBackupId(handle id, PromiseBoolSP result, const string& logname);
     bool enableSyncByBackupId(handle id, const string& logname);
     void backupIdForSyncPath(const fs::path& path, PromiseHandleSP result);
@@ -673,10 +1086,16 @@ struct StandardClient : public MegaApp
 
     handle lastPutnodesResultFirstHandle = UNDEF;
 
-    void putnodes_result(const Error& e, targettype_t tt, vector<NewNode>& nn, bool targetOverride, int tag) override;
+    void putnodes_result(const Error& e,
+                         targettype_t tt,
+                         vector<NewNode>& nn,
+                         bool targetOverride,
+                         int tag,
+                         const std::map<std::string, std::string>& fileHandles) override;
     void catchup_result() override;
-    void disableSync(handle id, SyncError error, bool enabled, PromiseBoolSP result);
-    bool disableSync(handle id, SyncError error, bool enabled);
+
+    void disableSync(handle id, SyncError error, bool enabled, bool keepSyncDB, PromiseBoolSP result);
+    bool disableSync(handle id, SyncError error, bool enabled, bool keepSyncDB);
 
     template<typename ResultType, typename Callable>
     ResultType withWait(Callable&& callable, ResultType&& defaultValue = ResultType())
@@ -709,7 +1128,7 @@ struct StandardClient : public MegaApp
 
     bool deleteremotedebris();
     void deleteremotedebris(PromiseBoolSP result);
-    void deleteremotenodes(vector<Node*> ns, PromiseBoolSP pb);
+    void deleteremotenodes(vector<std::shared_ptr<Node> > ns, PromiseBoolSP pb);
 
     bool movenode(const CloudItem& source,
                   const CloudItem& target,
@@ -721,9 +1140,13 @@ struct StandardClient : public MegaApp
                   PromiseBoolSP result);
 
     void movenodetotrash(string path, PromiseBoolSP pb);
-    void exportnode(Node* n, int del, m_time_t expiry, bool writable, bool megaHosted, promise<Error>& pb);
+    void exportnode(std::shared_ptr<Node> n, int del, m_time_t expiry, bool writable, bool megaHosted, promise<Error>& pb);
     void getpubliclink(Node* n, int del, m_time_t expiry, bool writable, bool megaHosted, promise<Error>& pb);
     void waitonsyncs(chrono::seconds d = chrono::seconds(2));
+    bool conflictsDetected(list<NameConflict>& conflicts);
+    bool stallsDetected(SyncStallInfoTests& stalls);
+    bool syncStallDetected(SyncStallInfoTests& si) const;
+    bool login_reset(bool noCache = false);
     bool login_reset(const string& user, const string& pw, bool noCache = false, bool resetBaseCloudFolder = true);
     bool resetBaseFolderMulticlient(StandardClient* c2 = nullptr, StandardClient* c3 = nullptr, StandardClient* c4 = nullptr);
     void cleanupForTestReuse(int loginIndex);
@@ -735,14 +1158,16 @@ struct StandardClient : public MegaApp
     handle copySyncConfig(const SyncConfig& config);
     bool login(const string& user, const string& pw);
     bool login_fetchnodes(const string& user, const string& pw, bool makeBaseFolder = false, bool noCache = false);
-    bool login_fetchnodes(const string& session);
+    bool login_fetchnodesFromSession(const string& session);
     bool delSync_mainthread(handle backupId);
     bool confirmModel_mainthread(Model::ModelNode* mnode, handle backupId, bool ignoreDebris = false, int confirm = CONFIRM_ALL, bool expectFail = false, bool skipIgnoreFile = true);
     bool match(handle id, const Model::ModelNode* source);
     void match(handle id, const Model::ModelNode* source, PromiseBoolSP result);
     bool match(NodeHandle handle, const Model::ModelNode* source);
     void match(NodeHandle handle, const Model::ModelNode* source, PromiseBoolSP result);
-    bool waitFor(std::function<bool(StandardClient&)> predicate, const std::chrono::seconds &timeout, const std::chrono::milliseconds &sleepIncrement);
+    bool waitFor(std::function<bool(StandardClient&)> predicate,
+                 std::chrono::seconds timeout,
+                 std::chrono::milliseconds sleepIncrement = std::chrono::milliseconds(500));
     bool match(const Node& destination, const Model::ModelNode& source) const;
     bool makeremotenodes(const string& prefix, int depth, int fanout);
     bool backupOpenDrive(const fs::path& drivePath);
@@ -762,15 +1187,7 @@ struct StandardClient : public MegaApp
             mOnMoveBegin(source, target);
     }
 
-    function<void(const LocalPath&, const LocalPath&)> mOnMoveBegin;
-
-    void putnodes_begin(const LocalPath& path) override
-    {
-        if (mOnPutnodesBegin)
-            mOnPutnodesBegin(path);
-    }
-
-    std::function<void(const LocalPath&)> mOnPutnodesBegin;
+    SynchronizedFunction<void(const LocalPath&, const LocalPath&)> mOnMoveBegin;
 #endif // ! NDEBUG
 
     void backupOpenDrive(const fs::path& drivePath, PromiseBoolSP result);
@@ -791,20 +1208,38 @@ struct StandardClient : public MegaApp
     void rmcontact(const string& email, PromiseBoolSP result);
     bool rmcontact(const string& email);
 
-    void share(const CloudItem& item, const string& email, accesslevel_t permissions, PromiseBoolSP result);
-    bool share(const CloudItem& item, const string& email, accesslevel_t permissions);
+    void  opensharedialog(const CloudItem& item, PromiseErrorSP result);
+    Error opensharedialog(const CloudItem& item);
+
+    void  share(const CloudItem& item, const string& email, accesslevel_t permissions, PromiseErrorSP result);
+    Error share(const CloudItem& item, const string& email, accesslevel_t permissions);
 
     void upgradeSecurity(PromiseBoolSP result);
 
-    function<void(File&)> mOnFileAdded;
-    function<void(File&)> mOnFileComplete;
-    function<void(const SyncConfig&)> mOnFilterError;
-    function<void(bool)> mOnStall;
-    function<void(bool)> mOnConflictsDetected;
+    SynchronizedFunction<void(File&)> mOnFileAdded;
+    SynchronizedFunction<void(File&)> mOnFileComplete;
+    SynchronizedFunction<void(bool)> mOnStall;
+    SynchronizedFunction<void(bool)> mOnConflictsDetected;
+    SynchronizedFunction<void(bool)> mOnTotalStallsUpdate;
+    SynchronizedFunction<void(bool)> mOnTotalConflictsUpdate;
+
+    void setHasImmediateStall(HasImmediateStallPredicate predicate);
+
+    void setIsImmediateStall(IsImmediateStallPredicate predicate);
+
+    void setSyncController(SyncControllerPtr controller);
+
+    void setDownloadSpeed(m_off_t downloadSpeed);
+
+    void setUploadSpeed(m_off_t uploadSpeed);
+
+    void prepareOneFolder(NewNode* node, const std::string& name, bool canChangeVault);
+    void prepareOneFolder(NewNode* node, const char* name, bool canChangeVault);
+
+    bool requestsCompleted() const;
+
+    bool transfersCompleted(direction_t type) const;
 };
-
-
-
 
 struct StandardClientInUseEntry
 {
@@ -909,10 +1344,106 @@ public:
     void SetUp() override;
 };
 
-// copy a file from sdk/tests/integration to destination
-void copyFileFromTestData(fs::path filename, fs::path destination = ".");
-
 fs::path getLinkExtractSrciptPath();
+
+// Convenience.
+bool isFileHidden(const LocalPath& path);
+bool isFileHidden(const fs::path& path);
+
+// Useful utilities.
+bool createFile(const fs::path& path,
+                const void* data,
+                const size_t data_length);
+
+bool createFile(const fs::path &path,
+                const std::string &data);
+
+bool createFile(const fs::path& path,
+                const std::string& data,
+                std::chrono::seconds delta);
+
+std::string randomData(const std::size_t length);
+
+
+#ifndef _WIN32
+// Helper class to handle directory permissions
+class PermissionHandler
+{
+    fs::path mDPath;
+    std::optional<fs::perms> mOriginalPermissions{std::nullopt};
+    bool mPermissionsRemoved{false};
+
+public:
+    explicit PermissionHandler(const std::string& dPath) : mDPath(dPath)
+    {
+        try
+        {
+            // Retrieve and store the current permissions
+            mOriginalPermissions = fs::status(mDPath).permissions();
+        }
+        catch (const fs::filesystem_error& e)
+        {
+            LOG_debug << "Failed to retrieve original permissions for directory: '" << mDPath << "': " << e.what();
+        }
+    }
+
+    ~PermissionHandler() { restorePermissions(); }
+
+    bool removePermissions(fs::perms permissionsToRemove)
+    {
+        if (!mOriginalPermissions)
+        {
+            LOG_debug << "Original permissions needed";
+            return false;
+        }
+        if (mPermissionsRemoved)
+        {
+            LOG_debug << "Permissions were already removed before, they should be restored first";
+            return false;
+        }
+
+        try
+        {
+            fs::permissions(mDPath, *mOriginalPermissions & ~permissionsToRemove, fs::perm_options::replace);
+            mPermissionsRemoved = true;
+            LOG_verbose << "Successfuly removed permissions for directory: " << mDPath;
+        }
+        catch (const fs::filesystem_error& e)
+        {
+            LOG_debug << "Failed to remove permissions for directory: " << mDPath << " with error: " << e.what();
+            mPermissionsRemoved = false;
+        }
+        return mPermissionsRemoved;
+    }
+
+    bool restorePermissions()
+    {
+        if (!mOriginalPermissions)
+        {
+            LOG_debug << "Original permissions needed";
+            return false;
+        }
+        if (!mPermissionsRemoved) return true;
+
+        try
+        {
+            fs::permissions(mDPath, *mOriginalPermissions, fs::perm_options::replace);
+            mPermissionsRemoved = false; // This restores the flag, as the permissions have been restored too.
+            LOG_verbose << "Successfuly restored permissions for directory: " << mDPath;
+        }
+        catch (const fs::filesystem_error& e)
+        {
+            LOG_debug << "Failed to restore permissions for directory: " << mDPath << " with error: " << e.what();
+        }
+        return !mPermissionsRemoved;
+    }
+
+    bool originalPermissionsAvailable() const
+    {
+        return mOriginalPermissions.has_value();
+    }
+};
+#endif
 
 #endif // TEST_H
 

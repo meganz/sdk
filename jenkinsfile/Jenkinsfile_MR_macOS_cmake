@@ -1,0 +1,229 @@
+pipeline {
+    agent none
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '135', daysToKeepStr: '21'))
+        gitLabConnection('GitLabConnectionJenkins')
+    }
+
+
+    environment {
+        BUILD_OPTIONS = ''
+        TESTS_PARALLEL = ''
+        APIURL_TO_TEST = ''
+    }
+
+    stages {
+        stage('Update Gitlab CommitStatus') {
+            agent any
+            steps {
+                updateGitlabCommitStatus(name: 'Build & test macOS', state: 'running')
+                script{
+                    COMMIT_ID = env.GIT_COMMIT
+                    println GIT_COMMIT
+                }
+            }
+        }
+        stage('Build'){
+            agent { label 'osx && arm64' }
+            stages{
+                stage('clean previous runs'){
+                    steps{
+                        deleteDir()
+                    }
+                }
+                stage('Get parameters'){
+                    parallel{
+                        stage('Get build and run paramters'){
+                            steps {
+                                script{
+                                    BUILD_OPTIONS = sh(script: 'echo "$gitlabTriggerPhrase" | grep BUILD_OPTIONS | awk -F "BUILD_OPTIONS="  \'{print \$2}\' | cut -d"\\"" -f2 || :', returnStdout: true).trim()
+                                    TESTS_PARALLEL = sh(script: 'echo "$gitlabTriggerPhrase" | grep "\\-\\-sequence" >/dev/null 2>&1 && echo "" || echo "--INSTANCES:10"', returnStdout: true).trim()
+                                    GTEST_REPEAT = sh(script: 'echo "$gitlabTriggerPhrase" | grep --only-matching "\\-\\-gtest_repeat=[^ ]*" | awk -F "gtest_repeat="  \'{print "--gtest_repeat="\$2}\'|| :', returnStdout: true).trim()
+                                    GTEST_FILTER = sh(script: 'echo "$gitlabTriggerPhrase" | grep --only-matching "\\-\\-gtest_filter=[^ ]*" | awk -F "gtest_filter="  \'{print "--gtest_filter="\$2}\'|| :', returnStdout: true).trim()
+                                    println BUILD_OPTIONS
+                                    println TESTS_PARALLEL
+                                    println GTEST_REPEAT
+                                    println GTEST_FILTER
+                                }
+                            }
+                        }
+
+                        stage('Get API URL'){
+                            steps {
+                                script{
+                                    APIURL_TO_TEST = sh(script: 'echo "$gitlabMergeRequestDescription" | grep USE_APIURL_TO_TEST | awk -F "USE_APIURL_TO_TEST="  \'{print \$2}\' | cut -d" " -f1', returnStdout: true).trim()
+                                    println APIURL_TO_TEST
+                                    if (APIURL_TO_TEST == ""){
+                                        APIURL_TO_TEST = "https://g.api.mega.co.nz/"
+                                        echo "APIURL_TO_TEST was not found on description so ${APIURL_TO_TEST} will be used by default"
+                                    }
+                                    echo "APIURL_TO_TEST will be ${APIURL_TO_TEST}"
+                                }
+                            }
+                        }
+                    }
+                }
+
+
+                stage('Checkout macOS'){
+                    steps {
+                        checkout([
+                            $class: 'GitSCM',
+                            branches: [[name: "origin/${env.gitlabSourceBranch}"]],
+                            userRemoteConfigs: [[ url: "${env.GIT_URL_SDK}", credentialsId: "12492eb8-0278-4402-98f0-4412abfb65c1" ]],
+                            extensions: [
+                                [$class: "UserIdentity",name: "jenkins", email: "jenkins@jenkins"],
+                                [$class: 'PreBuildMerge', options: [fastForwardMode: 'FF', mergeRemote: "origin", mergeStrategy: 'DEFAULT', mergeTarget: "${env.gitlabTargetBranch}"]]
+                                ]
+                        ])
+                        script{
+                            mac_sources_workspace = WORKSPACE
+                            sh "echo ${BUILD_OPTIONS}"
+                        }
+                    }
+                }
+                stage('Build macOS'){
+                    options{
+                        timeout(time: 120, unit: 'MINUTES')
+                    }
+                    environment{
+                        PATH = "/usr/local/bin:${env.PATH}"
+                        VCPKGPATH = "${env.HOME}/jenkins/vcpkg"
+                        BUILD_DIR = "build_dir"
+                        BUILD_DIR_X64 = "build_dir_x64"
+                    }
+                    steps{
+                        dir(mac_sources_workspace){
+                            //Build SDK for arm64
+                            sh "echo Building SDK for arm64"
+                            sh "rm -rf ${BUILD_DIR}; mkdir ${BUILD_DIR}"
+                            sh "cmake -DENABLE_SDKLIB_WERROR=ON -DENABLE_CHAT=ON -DCMAKE_BUILD_TYPE=Debug -DVCPKG_ROOT=${VCPKGPATH} ${BUILD_OPTIONS} -DCMAKE_VERBOSE_MAKEFILE=ON \
+                            -S ${mac_sources_workspace} -B ${mac_sources_workspace}/${BUILD_DIR}"
+                            sh "cmake --build ${mac_sources_workspace}/${BUILD_DIR} -j3"
+
+                            //Build SDK for x64
+                            sh "echo \"Building SDK for x64 (crosscompiling)\""
+                            sh "rm -rf ${BUILD_DIR_X64}; mkdir ${BUILD_DIR_X64}"
+                            sh "cmake -DENABLE_SDKLIB_WERROR=ON -DENABLE_CHAT=ON -DCMAKE_BUILD_TYPE=Debug -DVCPKG_ROOT=${VCPKGPATH} ${BUILD_OPTIONS} -DCMAKE_VERBOSE_MAKEFILE=ON \
+                            -DCMAKE_OSX_ARCHITECTURES=x86_64 -DENABLE_SDKLIB_EXAMPLES=OFF -DENABLE_SDKLIB_TESTS=OFF -DENABLE_ISOLATED_GFX=OFF \
+                            -S ${mac_sources_workspace} -B ${mac_sources_workspace}/${BUILD_DIR_X64}"
+                            sh "cmake --build ${mac_sources_workspace}/${BUILD_DIR_X64} -j3"
+                        }
+                    }
+                }
+                stage('Run macOS tests'){
+                    options{
+                        timeout(time: 250, unit: 'MINUTES')
+                    }
+                    environment {
+                        MEGA_PWD = credentials('MEGA_PWD_DEFAULT')
+                        MEGA_PWD_AUX = credentials('MEGA_PWD_DEFAULT')
+                        MEGA_PWD_AUX2 = credentials('MEGA_PWD_DEFAULT')
+                        MEGA_REAL_PWD=credentials('MEGA_REAL_PWD_TEST')
+                        BUILD_DIR = "build_dir"
+                        }
+                    steps{
+                        script {
+                            def lockLabel = ''
+                            if ("${APIURL_TO_TEST}" == 'https://g.api.mega.co.nz/') {
+                                lockLabel = 'SDK_Concurrent_Test_Accounts'
+                            } else  {
+                                lockLabel = 'SDK_Concurrent_Test_Accounts_Staging'
+                            }
+                            lock(label: lockLabel, variable: 'ACCOUNTS_COMBINATION', quantity: 1, resourceSelectStrategy: "random", resource: null){
+                                dir(mac_sources_workspace){
+                                    script{
+                                        env.MEGA_EMAIL = "${env.ACCOUNTS_COMBINATION}"
+                                        echo "${env.ACCOUNTS_COMBINATION}"
+                                    }
+                                    sh "echo Running tests"
+                                    sh """#!/bin/zsh
+                                    set -x
+                                    cd ${env.BUILD_DIR}
+
+                                    ./tests/unit/test_unit &
+                                    pid=\$!
+                                    wait \$pid || FAILED=1
+
+                                    if [ -z \"\$FAILED\" ]; then
+                                        ./tools/gfxworker/tests/integration/gfxworker_test_integration &
+                                        pid=\$!
+                                        wait \$pid || FAILED=2
+                                    fi
+
+                                    if [ -z \"\$FAILED\" ]; then
+                                        if [ -z \"${TESTS_PARALLEL}\" ]; then
+                                            # Sequential run
+                                            ./tests/integration/test_integration --CI --USERAGENT:${env.USER_AGENT_TESTS_SDK} --APIURL:${APIURL_TO_TEST} ${GTEST_FILTER} ${GTEST_REPEAT} &
+                                            pid=\$!
+                                            wait \$pid || FAILED=3
+                                        else
+                                            # Parallel run
+                                            ./tests/integration/test_integration --CI --USERAGENT:${env.USER_AGENT_TESTS_SDK} --APIURL:${APIURL_TO_TEST} ${GTEST_FILTER} ${GTEST_REPEAT} ${TESTS_PARALLEL} 2>&1 | tee tests.stdout
+                                            [ \"\${pipestatus[1]}\" != \"0\" ] && FAILED=3
+                                        fi
+                                    fi
+
+                                    if [ -n \"\$FAILED\" ]; then
+                                        if [ \"\$FAILED\" -le 2 ]; then
+                                            procFailed=\$pid
+                                        else # FAILED=3
+                                            if [ -z \"${TESTS_PARALLEL}\" ]; then
+                                                # Sequential run
+                                                procFailed=\$pid
+                                            else
+                                                # Parallel run
+                                                procFailed=`grep \"<< PROCESS\" tests.stdout | sed 's/.*PID:\\([0-9]*\\).*/\\1/' | tr '\\n' ' '`
+                                            fi
+                                        fi
+                                        if [ -n \"\$procFailed\" ]; then
+                                            sleep 10
+                                            for i in `echo \$procFailed`; do
+                                                last_core=`grep \"test_.*\$i\" -rn \$HOME/Library/Logs/DiagnosticReports | cut -d':' -f1`
+                                                if [ -n \"\$last_core\" ]; then
+                                                    cat \"\$last_core\"
+                                                    rm \"\$last_core\"
+                                                fi
+                                            done
+                                        fi
+                                    fi
+
+                                    gzip -c test_integration.log > test_integration_${BUILD_ID}.log.gz || :
+                                    rm test_integration.log || :
+                                    if [ -n \"\$FAILED\" ]; then
+                                        exit \"\$FAILED\"
+                                    fi
+                                    """
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            post{
+                always {
+                    archiveArtifacts artifacts: 'build_dir/test_integration*log*, build_dir/examples-*.tar.gz', fingerprint: true
+                    deleteDir()
+                }
+            }
+        }
+    }
+    post {
+        success {
+            updateGitlabCommitStatus(name: 'Build & test macOS', state: 'success')
+            addGitLabMRComment(comment: ":white_check_mark: ${currentBuild.projectName} :green_apple: <b>macOS</b> SUCCEEDED :muscle:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${COMMIT_ID}" )
+        }
+        unstable {
+            updateGitlabCommitStatus(name: 'Build & test macOS', state: 'failed')
+            addGitLabMRComment(comment: ":interrobang: ${currentBuild.projectName} :green_apple: <b>macOS</b> UNSTABLE  :confused:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${COMMIT_ID}" )      
+        }
+        aborted {
+            updateGitlabCommitStatus(name: 'Build & test macOS', state: 'canceled')
+            addGitLabMRComment(comment: ":interrobang: ${currentBuild.projectName} :green_apple: <b>macOS</b> ABORTED  :confused:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${COMMIT_ID}" )
+        }
+        failure {
+            updateGitlabCommitStatus(name: 'Build & test macOS', state: 'failed')
+            addGitLabMRComment(comment: ":red_circle: ${currentBuild.projectName} :green_apple: <b>macOS</b> FAILURE  :worried:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${COMMIT_ID}" )                
+        }
+    }
+}

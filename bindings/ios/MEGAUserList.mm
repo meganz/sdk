@@ -49,20 +49,16 @@ using namespace mega;
     }
 }
 
-- (instancetype)clone {
-    return self.userList ? [[MEGAUserList alloc] initWithUserList:self.userList->copy() cMemoryOwn:YES] : nil;
-}
-
 - (MegaUserList *)getCPtr {
     return self.userList;
 }
 
-- (MEGAUser *)userAtIndex:(NSInteger)index {
+- (nullable MEGAUser *)userAtIndex:(NSInteger)index {
     return self.userList ? [[MEGAUser alloc] initWithMegaUser:self.userList->get((int)index)->copy() cMemoryOwn:YES] : nil;
 }
 
-- (NSNumber *)size {
-    return self.userList ? [[NSNumber alloc] initWithInt:self.userList->size()] : nil;
+- (NSInteger)size {
+    return self.userList ? self.userList->size() : 0;
 }
 
 @end

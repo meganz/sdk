@@ -20,6 +20,8 @@
  */
 #import <Foundation/Foundation.h>
 
+NS_ASSUME_NONNULL_BEGIN
+
 @class MEGAUserAlert;
 
 /**
@@ -42,19 +44,6 @@
 @property (readonly, nonatomic) NSInteger size;
 
 /**
- * @brief Creates a copy of this MEGAUserAlertList object.
- *
- * The resulting object is fully independent of the source MEGAUserAlertList,
- * it contains a copy of all internal attributes, so it will be valid after
- * the original object is deleted.
- *
- * You are the owner of the returned object.
- *
- * @return Copy of the MEGAUserAlertList object.
- */
-- (instancetype)clone;
-
-/**
  * @brief Returns the MEGAUserAlert at the position index in the MEGAUserAlertList
  *
  * The MEGAUserAlertList retains the ownership of the returned MEGAUserAlert. It will be only valid until
@@ -65,6 +54,8 @@
  * @param index Position of the MEGAUserAlert that we want to get for the list
  * @return MEGAUserAlert at the position index in the list
  */
-- (MEGAUserAlert *)usertAlertAtIndex:(NSInteger)index;
+- (nullable MEGAUserAlert *)usertAlertAtIndex:(NSInteger)index;
+
+NS_ASSUME_NONNULL_END
 
 @end

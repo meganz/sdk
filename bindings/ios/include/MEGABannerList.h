@@ -22,6 +22,8 @@
 #import <Foundation/Foundation.h>
 #import "MEGABanner.h"
 
+NS_ASSUME_NONNULL_BEGIN
+
 /**
 * @brief List of MEGABanner objects
 *
@@ -35,8 +37,6 @@
  * @brief The number of banners in the list
  */
 @property (nonatomic, readonly) NSInteger size;
-
-- (nonnull instancetype)clone;
 
 /**
 * @brief Returns the MEGABanner at position index in the MEGABannerList
@@ -52,3 +52,5 @@
 - (nullable MEGABanner *)bannerAtIndex:(NSInteger)index;
 
 @end
+
+NS_ASSUME_NONNULL_END

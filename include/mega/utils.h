@@ -26,25 +26,21 @@
 #include <condition_variable>
 #include <thread>
 #include <mutex>
+#include <shared_mutex>
 
 #include "types.h"
 #undef SSIZE_MAX
 #include "mega/mega_utf8proc.h"
 #undef SSIZE_MAX
 
-namespace mega {
-// convert 1...8 character ID to int64 integer (endian agnostic)
-#define MAKENAMEID1(a) (nameid)(a)
-#define MAKENAMEID2(a, b) (nameid)(((a) << 8) + (b))
-#define MAKENAMEID3(a, b, c) (nameid)(((a) << 16) + ((b) << 8) + (c))
-#define MAKENAMEID4(a, b, c, d) (nameid)(((a) << 24) + ((b) << 16) + ((c) << 8) + (d))
-#define MAKENAMEID5(a, b, c, d, e) (nameid)((((uint64_t)a) << 32) + ((b) << 24) + ((c) << 16) + ((d) << 8) + (e))
-#define MAKENAMEID6(a, b, c, d, e, f) (nameid)((((uint64_t)a) << 40) + (((uint64_t)b) << 32) + ((c) << 24) + ((d) << 16) + ((e) << 8) + (f))
-#define MAKENAMEID7(a, b, c, d, e, f, g) (nameid)((((uint64_t)a) << 48) + (((uint64_t)b) << 40) + (((uint64_t)c) << 32) + ((d) << 24) + ((e) << 16) + ((f) << 8) + (g))
-#define MAKENAMEID8(a, b, c, d, e, f, g, h) (nameid)((((uint64_t)a) << 56) + (((uint64_t)b) << 48) + (((uint64_t)c) << 40) + (((uint64_t)d) << 32) + ((e) << 24) + ((f) << 16) + ((g) << 8) + (h))
+// Include ICU headers
+#include <unicode/uchar.h>
 
+namespace mega {
 std::string toNodeHandle(handle nodeHandle);
 std::string toNodeHandle(NodeHandle nodeHandle);
+NodeHandle toNodeHandle(const byte* data);  // consider moving functionality to NodeHandle
+NodeHandle toNodeHandle(const std::string* data);
 std::string toHandle(handle h);
 std::pair<bool, TypeOfLink> toTypeOfLink (nodetype_t type);
 #define LOG_NODEHANDLE(x) toNodeHandle(x)
@@ -88,8 +84,9 @@ struct MEGA_API PaddedCBC
      * @param iv Optional initialisation vector for encryption. Will use a
      *     zero IV if not given. If `iv` is a zero length string, a new IV
      *     for encryption will be generated and available through the reference.
+     * @return true if encryption was successful.
      */
-    static void encrypt(PrnGen &rng, string* data, SymmCipher* key, string* iv = NULL);
+    static bool encrypt(PrnGen &rng, string* data, SymmCipher* key, string* iv = NULL);
 
     /**
      * @brief Decrypts a string and strips the padding.
@@ -101,7 +98,7 @@ struct MEGA_API PaddedCBC
      * @param key AES key for decryption.
      * @param iv Optional initialisation vector for encryption. Will use a
      *     zero IV if not given.
-     * @return Void.
+     * @return true if decryption was successful.
      */
     static bool decrypt(string* data, SymmCipher* key, string* iv = NULL);
 };
@@ -253,8 +250,6 @@ struct MEGA_API MemAccess
 };
 
 #ifdef _WIN32
-int mega_snprintf(char *s, size_t n, const char *format, ...);
-
 // get the Windows error message in UTF-8
 std::string winErrorMessage(DWORD error);
 
@@ -480,22 +475,18 @@ public:
     // --- environment functions that work with Unicode UTF-8 on Windows (set/unset/get) ---
 
     static bool hasenv(const std::string& key);
-    // sets *out_found if found
-    static std::string getenv(const std::string& key, bool* out_found);
+    static std::pair<std::string, bool> getenv(const std::string& key);
     // return def if value not found
     static std::string getenv(const std::string& key, const std::string& def);
     static void setenv(const std::string& key, const std::string& value);
     static void unsetenv(const std::string& key);
 };
 
-// for pre-c++11 where this version is not defined yet.
-long long abs(long long n);
-
 extern m_time_t m_time(m_time_t* tt = NULL);
 extern struct tm* m_localtime(m_time_t, struct tm *dt);
 extern struct tm* m_gmtime(m_time_t, struct tm *dt);
 extern m_time_t m_mktime(struct tm*);
-extern int m_clock_getmonotonictime(struct timespec *t);
+extern dstime m_clock_getmonotonictimeDS();
 // Similar behaviour to mktime but it receives a struct tm with a date in UTC and return mktime in UTC
 extern m_time_t m_mktime_UTC(const struct tm *src);
 
@@ -600,6 +591,7 @@ struct CacheableWriter
     void serializecstr(const char* field, bool storeNull);  // may store the '\0' also for backward compatibility. Only use for utf8!  (std::string storing double byte chars will only store 1 byte)
     void serializepstr(const string* field);  // uses string size() not strlen
     void serializestring(const string& field);
+    void serializestring_u32(const string& field); // use uint32_t for the size field
     void serializecompressedu64(uint64_t field);
     void serializecompressedi64(int64_t field) { serializecompressedu64(static_cast<uint64_t>(field)); }
 
@@ -614,7 +606,6 @@ struct CacheableWriter
     void serializehandle(handle field);
     void serializenodehandle(handle field);
     void serializeNodeHandle(NodeHandle field);
-    void serializefsfp(fsfp_t field);
     void serializebool(bool field);
     void serializebyte(byte field);
     void serializedouble(double field);
@@ -636,6 +627,7 @@ struct CacheableReader
     bool unserializebinary(byte* data, size_t len);
     bool unserializecstr(string& s, bool removeNull); // set removeNull if this field stores the terminating '\0' at the end
     bool unserializestring(string& s);
+    bool unserializestring_u32(string& s);
     bool unserializecompressedu64(uint64_t& field);
     bool unserializecompressedi64(int64_t& field) { return unserializecompressedu64(reinterpret_cast<uint64_t&>(field)); }
 
@@ -652,7 +644,6 @@ struct CacheableReader
     bool unserializehandle(handle& s);
     bool unserializenodehandle(handle& s);
     bool unserializeNodeHandle(NodeHandle& s);
-    bool unserializefsfp(fsfp_t& s);
     bool unserializebool(bool& s);
     bool unserializechunkmacs(chunkmac_map& m);
     bool unserializefingerprint(FileFingerprint& fp);
@@ -663,14 +654,6 @@ struct CacheableReader
     void eraseused(string& d); // must be the same string, unchanged
     bool hasdataleft() { return end > ptr; }
 };
-
-template<typename T, typename U>
-void hashCombine(T& seed, const U& v)
-{
-    static_assert(std::is_integral<T>::value, "T is not integral");
-    // the magic number is the twos complement version of the golden ratio
-    seed ^= std::hash<U>{}(v) + 0x9e3779b9 + (seed<<6) + (seed>>2);
-}
 
 struct FileAccess;
 struct InputStreamAccess;
@@ -777,6 +760,36 @@ public:
         return mNotifications.size();
     }
 
+};
+
+template<class K, class V>
+class ThreadSafeKeyValue
+{
+    // This is a thread-safe key-value container restricted to accepting only numeric values.
+    // Only the needed interfaces were implemented. Add new ones as they become useful.
+public:
+    std::unique_ptr<V> get(const K& key) const
+    {
+        std::shared_lock lock(mMutex);
+        auto it = mStorage.find(key);
+        return it == mStorage.end() ? nullptr : std::make_unique<V>(it->second);
+    }
+
+    void set(const K& key, const V& value)
+    {
+        std::unique_lock lock(mMutex);
+        mStorage[key] = value;
+    }
+
+    void clear()
+    {
+        std::unique_lock lock(mMutex);
+        return mStorage.clear();
+    }
+
+private:
+    mutable std::shared_mutex mMutex;
+    std::map<K, V> mStorage;
 };
 
 template<typename CharT>
@@ -932,7 +945,7 @@ public:
             return false;
         }
 
-        (void)get();
+        get();
 
         return true;
     }
@@ -1066,6 +1079,431 @@ void reportWindowsError(const std::string& message, DWORD error = 0xFFFFFFFF);
 
 // returns the direction type of a connection
 string connDirectionToStr(direction_t directionType);
+
+// Translate retry reason into a human-friendly string.
+const char* toString(retryreason_t reason);
+
+enum class CharType : uint8_t
+{
+    CSYMBOL = 0,
+    CDIGIT = 1,
+    CALPHA = 2,
+};
+
+// Wrapper functions for std::isspace and std::isdigit
+// Not considering EOF values
+
+/**
+ * @brief Checks if a character is a whitespace character.
+ *
+ * @param ch The character to check
+ * @return true if the character is a space, otherwise returns false.
+ */
+bool is_space(unsigned int ch);
+
+/**
+ * @brief Checks if a character is a digit.
+ *
+ * @param ch The character to check
+ * @return true if the character is a digit (0-9), otherwise returns false.
+ */
+bool is_digit(unsigned int ch);
+
+/**
+ * @brief Checks if a character is a symbol.
+ *
+ * Note: this function is only valid for monobyte characters.
+ *
+ * @param ch The character to check
+ * @return true if the character is a symbol, otherwise returns false
+ */
+bool is_symbol(unsigned int ch);
+
+/**
+ * @brief Determines the type of a given character.
+ *
+ * Valid values returned by this function are:
+ * - CharType::CSYMBOL if the character is a symbol
+ * - CharType::CDIGIT if the character is a digit
+ * - CharType::CALPHA if the character is alphabetic
+ *
+ * @param ch The character to be classified
+ * @return CharType representing the type of the character
+ */
+CharType getCharType(const unsigned int ch);
+
+template<typename Container = std::set<std::string>>
+Container splitString(const string& str, char delimiter)
+{
+    Container tokens;
+    std::string token;
+    std::istringstream tokenStream(str);
+    while (std::getline(tokenStream, token, delimiter))
+    {
+        tokens.insert(tokens.end(), token);
+    }
+
+    return tokens;
+}
+
+template<typename Iter>
+std::string joinStrings(
+    const Iter begin,
+    const Iter end,
+    const std::string& separator,
+    const std::function<std::string(const std::string&)> transform =
+        [](const std::string& a) -> std::string
+    {
+        return a;
+    })
+{
+    Iter position = begin;
+    std::string result;
+    if (position != end)
+    {
+        result += transform(*position++);
+    }
+
+    while (position != end)
+    {
+        result += separator + transform(*position++);
+    }
+    return result;
+}
+
+static constexpr char WILDCARD_MATCH_ONE = '?';
+static constexpr char WILDCARD_MATCH_ALL = '*';
+static constexpr char ESCAPE_CHARACTER = '\\';
+
+std::string escapeWildCards(const std::string& pattern);
+
+/**
+ * @class TextPattern
+ * @brief Helper class to store a text that will be used in a regex like search
+ *
+ * It stores the original text and an associated pattern to be used directly in the search adding
+ * wild cards in both sides of the original text if needed. Example:
+ * - text: hello -> pattern: *hello*
+ * - text: * -> pattern: *
+ *
+ */
+class TextPattern
+{
+public:
+    TextPattern(const std::string& text);
+    TextPattern(const char* text);
+
+    TextPattern() = default;
+    ~TextPattern() = default;
+    TextPattern(const TextPattern& other) = default;
+    TextPattern& operator=(const TextPattern& other) = default;
+    TextPattern(TextPattern&& other) noexcept = default;
+    TextPattern& operator=(TextPattern&& other) noexcept = default;
+
+    const std::string& getText() const
+    {
+        return mText;
+    }
+
+    const std::string& getPattern() const
+    {
+        return mPattern;
+    }
+
+private:
+    std::string mText;
+    std::string mPattern;
+
+    void recalcPattern();
+    static bool isOnlyWildCards(const std::string& text);
+};
+
+std::set<std::string>::iterator getTagPosition(std::set<std::string>& tokens,
+                                               const std::string& pattern,
+                                               const bool stripAccents = true);
+
+/*
+ * Compare two UTF-8 strings for equality where the first string is
+ * a "LIKE" expression. It is case and aceent insensitive.
+ *
+ * @param pattern the like pattern
+ * @param str the UFT-8 string to compare against
+ * @param esc the escape character
+ * @param stripAccents True if accents should be stripped before comparison.
+ *
+ * @return true if the are the same and false if they are different
+ */
+bool likeCompare(const char* pattern,
+                 const char* str,
+                 const UChar32 esc = static_cast<UChar32>(ESCAPE_CHARACTER),
+                 const bool stripAccents = true);
+
+// Get the current process ID
+unsigned long getCurrentPid();
+
+// Convenience.
+template<typename T>
+struct IsStringType : std::false_type { };
+
+template<>
+struct IsStringType<std::string> : std::true_type { };
+
+template<>
+struct IsStringType<std::wstring> : std::true_type { };
+
+// Retrieve a file's extension.
+template<typename StringType>
+auto extensionOf(const StringType& path, std::string& extension)
+  -> typename std::enable_if<IsStringType<StringType>::value, bool>::type;
+
+template<typename StringType>
+auto extensionOf(const StringType& path)
+  -> typename std::enable_if<IsStringType<StringType>::value, std::string>::type;
+
+// Translate a character representing a hexadecimal digit to an integer.
+template<typename T>
+auto fromHex(char character)
+  -> typename std::enable_if<std::is_integral<T>::value,
+                             std::pair<T, bool>
+                            >::type
+{
+    // Ensure the character's in lowercase.
+    character |= ' ';
+
+    // Character's a decimal digit.
+    if (character >= '0' && character <= '9')
+        return std::make_pair(static_cast<T>(character - '0'), true);
+
+    // Character's a hexadecimal digit.
+    if (character >= 'a' && character <= 'f')
+        return std::make_pair(static_cast<T>(character - 'W'), true);
+
+    // Character's not a valid hexadecimal digit.
+    return std::make_pair(0, false);
+}
+
+// Translate a string of hexadecimal digits to an integer.
+//
+// NOTE: The string should be trimmed of any whitespace.
+template<typename T>
+auto fromHex(const char* current, const char* end)
+  -> typename std::enable_if<std::is_integral<T>::value,
+                             std::pair<T, bool>
+                            >::type
+{
+    // What's the largest value that T can represent?
+    constexpr auto maximum = std::numeric_limits<T>::max();
+
+    // Convenience.
+    constexpr auto undefined = std::make_pair(T{}, false);
+
+    // An empty string doesn't contain a valid hex number.
+    if (current == end)
+        return undefined;
+
+    // Our accumulated value.
+    T value{};
+
+    for ( ; current != end; ++current)
+    {
+        // Try and convert the current character to an integer.
+        auto result = fromHex<T>(*current);
+
+        // Character wasn't a valid hexadecimal digit.
+        if (!result.second)
+            return undefined;
+
+        // Make sure we don't wrap.
+        if (value && maximum / value < 16)
+            return undefined;
+
+        // Scale the value by 16.
+        value *= 16;
+
+        // Again, make sure we don't wrap.
+        if (maximum - value < result.first)
+            return undefined;
+
+        // Include the new digit in our running total.
+        value += result.first;
+    }
+
+    // Return value to caller.
+    return std::make_pair(value, true);
+}
+
+template<typename T>
+auto fromHex(const char* begin, std::size_t size)
+  -> typename std::enable_if<std::is_integral<T>::value,
+                             std::pair<T, bool>
+                            >::type
+{
+    return fromHex<T>(begin, begin + size);
+}
+
+// Translate a string of hexadecimal digits to an integer.
+//
+// NOTE: The string should be trimmed of any whitespace.
+template<typename T>
+auto fromHex(const std::string& value)
+  -> typename std::enable_if<std::is_integral<T>::value,
+                             std::pair<T, bool>
+                            >::type
+{
+    return fromHex<T>(value.data(), value.size());
+}
+
+// Convenience.
+using SplitFragment =
+  std::pair<const char*, std::size_t>;
+
+using SplitResult =
+  std::pair<SplitFragment, SplitFragment>;
+
+// Split a string into two halves around a specific delimiter.
+//
+// NOTE: The second half includes the delimiter, if present.
+SplitResult split(const char* begin, const char* end, char delimiter);
+SplitResult split(const char* begin, const std::size_t size, char delimiter);
+SplitResult split(const std::string& value, char delimiter);
+
+/**
+ * @brief Sorts input char strings using natural sorting ignoring case
+ *
+ * This function is only valid for comparing monobyte characters.
+ * The default natural ascending order implemented by this function is:
+ * Symbols < Numbers < Alphabetic_characters(# < 1 < a).
+ *
+ * Valid values returned by this function are:
+ *  - if i == j returns 0
+ *  - if i goes first returns a number greater than 0 (>=1)
+ *  - if j goes first returns a number smaller than 0 (<=1)
+ *
+ * @param i Pointer to the first null-terminated string.
+ * @param j Pointer to the second null-terminated string.
+ *
+ * @returns the order between 2 characters
+ */
+int naturalsorting_compare(const char* i, const char* j);
+
+/**
+ * @class NaturalSortingComparator
+ * @brief A helper struct to be used in container templates such as std::set to force natural
+ * sorting
+ */
+struct NaturalSortingComparator
+{
+    bool operator()(const std::string& lhs, const std::string& rhs) const
+    {
+        return naturalsorting_compare(lhs.c_str(), rhs.c_str()) < 0;
+    }
+};
+
+/**
+ * @class MrProper
+ *
+ * @brief Ensures execution of a cleanup function when the object goes out of scope.
+ *
+ * It accepts a std::function<void()> during construction, which it executes once upon destruction.
+ * This is useful for resource management and ensuring cleanup in cases of exceptions.
+ *
+ * Example usage:
+ *     void function() {
+ *         MrProper cleaner([](){ std::cout << "Cleanup action executed.\n"; });
+ *         // Any code here that might throw or return early
+ *     }
+ *
+ * The class is non-copyable and non-movable to ensure the cleanup action is tightly bound to the
+ * scope where it is declared.
+ */
+struct MrProper
+{
+    using CleanupFunction = std::function<void()>;
+    CleanupFunction mOnRelease;
+
+    ~MrProper()
+    {
+        mOnRelease();
+    }
+
+    explicit MrProper(std::function<void()> f):
+        mOnRelease(f)
+    {}
+
+    MrProper() = delete;
+    MrProper(const MrProper&) = delete;
+    MrProper(MrProper&&) = delete;
+    MrProper& operator=(const MrProper&) = delete;
+    MrProper& operator=(MrProper&&) = delete;
+};
+
+/**
+ * @brief Ensures the given string has an asterisk in front and back. If the string is empty, "*" is
+ * returned.
+ *
+ * @note The input argument is passed by copy intentionally to operate on it.
+ */
+std::string ensureAsteriskSurround(std::string str);
+
+/**
+ * @brief Returns the index where the last '.' can be found in the fileName
+ *
+ * If there is not '.' in the input string, fileName.size() is returned
+ *
+ * @note This index is intended to be used with std::string::substr like:
+ * size_t dotPos = fileExtensionDotPosition(fileName);
+ * std::stirng basename = fileName.substr(0, dotPos);
+ * std::stirng extension = fileName.substr(dotPos); // It will contain the '.' if present
+ */
+size_t fileExtensionDotPosition(const std::string& fileName);
+
+// Helper function to combine hashes
+inline uint64_t hashCombine(uint64_t seed, uint64_t value)
+{
+    // the magic number is the twos complement version of the golden ratio
+    return seed ^ (value + 0x9e3779b97f4a7c15 + (seed << 12) + (seed >> 4));
+}
+
+/**
+ * @class Timer
+ * @brief A very simple helper struct to measure performance of some code pieces while developing a
+ * time consuming part or refactoring.
+ *
+ * Example usage:
+ * void exampleFunction() {
+ *     {
+ *         Timer t("Elapsed time: ", " ms");
+ *         // Code block whose execution time you want to measure
+ *         std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Simulate work
+ *     } // Timer destructs here, and the elapsed time is printed.
+ * }
+ */
+template<typename DurUnit = std::chrono::milliseconds>
+struct Timer
+{
+    Timer(const std::string& prefixMsg = "", const std::string& posfixMsg = ""):
+        mPreMsg{prefixMsg},
+        mPosMsg{posfixMsg},
+        mStartTime{std::chrono::steady_clock::now()} // Correct initialization
+    {}
+
+    ~Timer()
+    {
+        const auto end = std::chrono::steady_clock::now();
+        const auto dur = end - mStartTime; // Duration between start and end
+        std::cout << mPreMsg << std::chrono::duration_cast<DurUnit>(dur).count() << mPosMsg << "\n";
+    }
+
+private:
+    std::string mPreMsg;
+    std::string mPosMsg;
+    std::chrono::time_point<std::chrono::steady_clock> mStartTime; // Fixed time_point type
+};
+
+/**
+ * @brief Returns std::this_thread:get_id() converted to a string
+ */
+std::string getThisThreadIdStr();
 
 } // namespace mega
 

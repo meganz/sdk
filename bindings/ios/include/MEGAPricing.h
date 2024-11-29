@@ -21,6 +21,8 @@
 #import <Foundation/Foundation.h>
 #import "MEGAAccountDetails.h"
 
+NS_ASSUME_NONNULL_BEGIN
+
 /**
  * @brief Details about pricing plans
  *
@@ -32,19 +34,6 @@
  * @brief Number of available products to upgrade the account.
  */
 @property (readonly, nonatomic) NSInteger products;
-
-/**
- * @brief Creates a copy of this MEGAPricing object.
- *
- * The resulting object is fully independent of the source MEGAPricing,
- * it contains a copy of all internal attributes, so it will be valid after
- * the original object is deleted.
- *
- * You are the owner of the returned object.
- *
- * @return Copy of the MEGAPricing object.
- */
-- (instancetype)clone;
 
 /**
  * @brief Get the handle of a product.
@@ -64,6 +53,9 @@
  * - MEGAAccountTypeProII = 2
  * - MEGAAccountTypeProIII = 3
  * - MEGAAccountTypeLite = 4
+ * - MEGAAccountTypeStarter = 11
+ * - MEGAAccountTypeBasic = 12
+ * - MEGAAccountTypeEssential = 13
  * - MEGAAccountTypeBusiness = 100
  * - MEGAAccountTypeProFlexi = 101
  */
@@ -110,7 +102,7 @@
  * @param index Product index (from 0 to [MEGAPricing products])
  * @return Description of the product
  */
-- (NSString *)descriptionAtProductIndex:(NSInteger)index;
+- (nullable NSString *)descriptionAtProductIndex:(NSInteger)index;
 
 /**
  * @brief Get the iOS ID of the product
@@ -118,6 +110,18 @@
  * @param index Product index (from 0 to [MEGAPricing products])
  * @return iOS ID of the product
  */
-- (NSString *)iOSIDAtProductIndex:(NSInteger)index;
+- (nullable NSString *)iOSIDAtProductIndex:(NSInteger)index;
+
+/**
+ * @brief Get trial duration in days
+ *
+ * The returned value will be 0 if the plan is not eligible for trial.
+ *
+ * @param index Product index (from 0 to [MEGAPricing products])
+ * @return Trial duration in days
+ */
+- (unsigned int)trialDurationInDaysAtProductIndex:(NSInteger)index;
+
+NS_ASSUME_NONNULL_END
 
 @end

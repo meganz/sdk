@@ -21,6 +21,8 @@
 #import <Foundation/Foundation.h>
 #import "MEGAShare.h"
 
+NS_ASSUME_NONNULL_BEGIN
+
 /**
  * @brief List of MEGAShare objects.
  *
@@ -33,7 +35,7 @@
 /**
  * @brief Number of MEGAShare objects in the list.
  */
-@property (readonly, nonatomic) NSNumber *size;
+@property (readonly, nonatomic) NSInteger size;
 
 /**
  * @brief Returns the MEGAShare at the position index in the MEGAShareList.
@@ -43,6 +45,8 @@
  * @param index Position of the MEGAShare that we want to get for the list.
  * @return MEGAShare at the position index in the list.
  */
-- (MEGAShare *)shareAtIndex:(NSInteger)index;
+- (nullable MEGAShare *)shareAtIndex:(NSInteger)index;
+
+NS_ASSUME_NONNULL_END
 
 @end

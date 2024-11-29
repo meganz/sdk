@@ -54,10 +54,6 @@ using namespace mega;
     }
 }
 
-- (instancetype)clone {
-    return self.megaTimeZoneDetails ? [[MEGATimeZoneDetails alloc] initWithMegaTimeZoneDetails:self.megaTimeZoneDetails->copy() cMemoryOwn:YES] : nil;
-}
-
 - (NSInteger)numTimeZones {
     return self.megaTimeZoneDetails ? self.megaTimeZoneDetails->getNumTimeZones() : 0;
 }
@@ -66,7 +62,7 @@ using namespace mega;
     return self.megaTimeZoneDetails ? self.megaTimeZoneDetails->getDefault() : 0;
 }
 
-- (NSString *)timeZoneAtIndex:(NSInteger)index {
+- (nullable NSString *)timeZoneAtIndex:(NSInteger)index {
     return self.megaTimeZoneDetails ? [[NSString alloc] initWithUTF8String:self.megaTimeZoneDetails->getTimeZone((int)index)] : nil;
 }
 

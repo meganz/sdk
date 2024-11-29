@@ -19,19 +19,12 @@
  * program.
  */
 
-#ifndef HTTPIO_CLASS
-#define HTTPIO_CLASS CurlHttpIO
+#pragma once
 
 #include "mega.h"
 
 #ifdef USE_OPENSSL
-#ifdef _WIN32
-#pragma warning( disable : 4191) // Disable warning for Windows. Starting on OpenSSL 3
-#endif
 #include <openssl/ssl.h>
-#ifdef _WIN32
-#pragma warning( default : 4191) // // Restore default bahaviour
-#endif
 #endif
 
 #include <curl/curl.h>
@@ -42,7 +35,7 @@
 
 namespace mega {
 
-extern bool g_netLoggingOn;
+extern std::atomic<bool> g_netLoggingOn;
 
 struct MEGA_API SockInfo
 {
@@ -217,6 +210,8 @@ public:
     bool doio(void) override;
     bool multidoio(CURLM *curlmhandle);
 
+    void measureLatency(CURL* easy_handle, HttpReq* req);
+
     void addevents(Waiter*, int) override;
 
     void setuseragent(string*) override;
@@ -300,5 +295,3 @@ struct MEGA_API CurlDNSEntry
 };
 
 } // namespace
-
-#endif

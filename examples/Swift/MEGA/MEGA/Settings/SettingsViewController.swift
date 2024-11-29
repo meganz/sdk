@@ -20,6 +20,7 @@
 */
 
 import UIKit
+import MEGASdk
 
 class SettingsViewController: UIViewController, MEGARequestDelegate {
     
@@ -29,7 +30,7 @@ class SettingsViewController: UIViewController, MEGARequestDelegate {
     @IBOutlet weak var spaceUsedLabel: UILabel!
     @IBOutlet weak var accountTypeLabel: UILabel!
     
-    let megaapi : MEGASdk! = (UIApplication.shared.delegate as! AppDelegate).megaapi
+    let megaapi = (UIApplication.shared.delegate as! AppDelegate).megaapi
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -44,8 +45,8 @@ class SettingsViewController: UIViewController, MEGARequestDelegate {
     }
     
     func setUserAvatar() {
-        let user = megaapi.myUser
-        let avatarFilePath = Helper.pathForUser(user!, path: FileManager.SearchPathDirectory.cachesDirectory, directory: "thumbs")
+        guard let user = megaapi.myUser else { return }
+        let avatarFilePath = Helper.pathForUser(user, path: FileManager.SearchPathDirectory.cachesDirectory, directory: "thumbs")
         let fileExists = FileManager.default.fileExists(atPath: avatarFilePath)
         
         if !fileExists {
@@ -66,13 +67,13 @@ class SettingsViewController: UIViewController, MEGARequestDelegate {
     
     // MARK: - MEGA Request delegate
     
-    func onRequestStart(_ api: MEGASdk!, request: MEGARequest!) {
+    func onRequestStart(_ api: MEGASdk, request: MEGARequest) {
         if request.type == MEGARequestType.MEGARequestTypeLogout {
             SVProgressHUD.show(withStatus: "Logout")
         }
     }
     
-    func onRequestFinish(_ api: MEGASdk!, request: MEGARequest!, error: MEGAError!) {
+    func onRequestFinish(_ api: MEGASdk, request: MEGARequest, error: MEGAError) {
         if error.type != MEGAErrorType.apiOk {
             return
         }
@@ -118,11 +119,12 @@ class SettingsViewController: UIViewController, MEGARequestDelegate {
             setUserAvatar()
             
         case MEGARequestType.MEGARequestTypeAccountDetails:
-            spaceUsedLabel.text = "\(ByteCountFormatter.string(fromByteCount: request.megaAccountDetails.storageUsed.int64Value, countStyle: ByteCountFormatter.CountStyle.memory)) of \(ByteCountFormatter.string(fromByteCount: request.megaAccountDetails.storageMax.int64Value, countStyle: ByteCountFormatter.CountStyle.memory))"
-            let progress = request.megaAccountDetails.storageUsed.floatValue / request.megaAccountDetails.storageMax.floatValue
+            guard let megaAccountDetails = request.megaAccountDetails else { return }
+            spaceUsedLabel.text = "\(ByteCountFormatter.string(fromByteCount: megaAccountDetails.storageUsed, countStyle: ByteCountFormatter.CountStyle.memory)) of \(ByteCountFormatter.string(fromByteCount: megaAccountDetails.storageMax, countStyle: ByteCountFormatter.CountStyle.memory))"
+            let progress = Float(megaAccountDetails.storageUsed / megaAccountDetails.storageMax)
             spaceUsedProgressView.setProgress(progress, animated: true)
             
-            switch request.megaAccountDetails.type {
+            switch megaAccountDetails.type {
             case MEGAAccountType.free:
                 accountTypeLabel.text = "Account Type: FREE"
                 

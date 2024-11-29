@@ -64,7 +64,7 @@ public:
 				std::cout << "***** Showing files/folders in the root folder:" << std::endl;
 				MegaNode *root = api->getRootNode();
 				MegaNodeList *list = api->getChildren(root);
-			
+
 				for(int i=0; i < list->size(); i++)
 				{
 					MegaNode *node = list->get(i);
@@ -72,7 +72,7 @@ public:
 						std::cout << "*****   File:   ";
 					else
 						std::cout << "*****   Folder: ";
-				
+
 					std::cout << node->getName() << std::endl;
 				}
 				std::cout << "***** Done" << std::endl;
@@ -123,10 +123,10 @@ public:
 
 		finished = true;
 	}
-	
+
 	virtual void onTransferUpdate(MegaApi *api, MegaTransfer *transfer)
 	{
-		std::cout << "***** Transfer progress: " << transfer->getTransferredBytes() << "/" << transfer->getTotalBytes() << std::endl; 
+		std::cout << "***** Transfer progress: " << transfer->getTransferredBytes() << "/" << transfer->getTotalBytes() << std::endl;
 	}
 
 	virtual void onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* error)
@@ -205,7 +205,7 @@ int main()
 
 	//Login. You can get the result in the onRequestFinish callback of your listener
 	megaApi->login(MEGA_EMAIL, MEGA_PASSWORD);
-	
+
 	//You can use the main thread to show a GUI or anything else. MegaApi runs in a background thread.
 	while(!listener.finished)
 	{

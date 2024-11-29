@@ -12,8 +12,7 @@ you hold the keys, and you decide who you grant or deny access to your files.
 This SDK brings you all the power of our client applications and let you create
 your own or analyze the security of our products. Are you ready to start? Please continue reading.
 
-SDK Contents
-------------
+## SDK Contents
 
 In this SDK, you can find our low level SDK, that was already released few months after the MEGA launch,
 a new intermediate layer to make it easier to use and to bind with other programming languages, and
@@ -23,7 +22,6 @@ In the `examples` folder you can find example apps using:
 
 1. The low level SDK:
   - megacli (a powerful command line tool that allows to use all SDK features)
-  - megasimplesync (a command line tool that allows to use the synchronization engine)
 
 2. The intermediate layer:
   - An example app for Visual Studio in `examples/win32`
@@ -32,114 +30,144 @@ In the `examples` folder you can find example apps using:
 
 [MEGAcmd](examples/megacmd), a higher level command line application that uses the SDK to provide interactive and scriptable access to MEGA, can be found [here](https://github.com/meganz/megacmd).
 
-Building
---------
 
-There are two methods - the one we are using now for most platforms is with vcpkg and cmake, and the prior system based on autotools still works for POSIX based systems.
+## How to build the SDK library
 
-### Platform Dependencies
+For the SDK development and compilation we mainly use CMake as the cross-platform project configuration tool. We also use VCPKG to manage the required dependencies to build the SDK in most platforms: Windows, MacOS and Linux.
 
-Some dependencies are different for each platform because the SDK uses generic interfaces to get some features and they have different implementations.
-- Network (cURL with OpenSSL/c-ares or WinHTTP)
-- Filesystem access (Posix or Win32)
-- Graphics management (FreeImage or iOS frameworks)
-- Threads/mutexes (pthread threads, or C++11)
-- Drive Notifications (udev for Posix, WMI/WBEM for Win32, or Apple frameworks)
+The prior autotools and qmake build systems are still available but obsolete, so their usage is discouraged.
 
-### Building with vcpkg and cmake 
+### Building tools
 
-This is the method that works for Windows - it also works for other platforms (and for those, autotools is also an option).
-We use vcpkg, cmake, and provide scripts to build the 3rd party libraries and set up the project.
+Some common development tools should be available in the system to be able to build the MEGA SDK and the needed dependencies:
 
-#### Build the SDK and 3rdParty Dependencies with vcpkg + cmake
-* The steps to do so are already prepared in the build_from_scratch.cmake script.  It contains instructions too.
-* To get started with it, eg for windows, follow these steps:
-	* mkdir mybuild
-	* cd mybuild
-	* git clone https://github.com/meganz/sdk.git
-	* cd sdk\contrib\cmake
-	* <on Win, choose VS version by editing vcpkg_extra_triplets\xNN-windows-mega.cmake>
-	* cmake -DTRIPLET=x64-windows-mega -DEXTRA_ARGS="-DUSE_PDFIUM=0" -P build_from_scratch.cmake
-* Visual Studio solution is generated at mybuild\sdk\build-x64-windows-mega
-* That folder contains Debug and Release subfolders which contain build products
-* Similar steps work for other platforms too (Linux with triplet x64-linux-mega (including WSL), Mac with triplet x64-osx-mega or arm64-osx-mega).
+- Git: Use the one from your system package manager or install it from https://git-scm.com
+- CMake 3.18 or higher: Use the one from your system package manager or install it from https://cmake.org
 
-### Building with POSIX Autotools  (Linux/Darwin/BSD/OSX ...)
+#### Windows
 
-For platforms with Autotools, first set up needed libraries and then the generic way to build and install it is:
+Ensure you have installed Visual Studio, with the necessary components for building C++ sources, and the Windows SDK on your system:
 
-	sh autogen.sh
-	./configure
-	make
-	sudo make install
+ - [Visual Studio 2019](https://visualstudio.microsoft.com/vs/older-downloads/)
+ - MSVC v142
+ - Windows 10 SDK (10.0.19041.0)
 
-Notice that you would need Autotools installed in your system (in Linux this normally entails having `autoconf` and `libtool` packages installed).
+#### MacOS
 
-That compilation will include the examples using our low level SDK (`megacli` and `megasimplesync`). 
-You also have specific build instructions for OSX (`doc/OSX.txt`) and FreeBSD (`doc/FreeBSD.txt`)
-and a build script to automatically download and build the SDK along with all its dependencies (`contrib/build_sdk.sh`)
+Xcode and the Developer tools are needed. To install the
+Developer tools, run the following command and follow the instructions:
 
-For other platforms, or if you want to see how to use the new intermediate layer,
-the easiest way is to get a smooth start is to build one of the examples in subfolders
-of the `examples` folder.
+	$ xcode-select --install
 
-All these folders contains a README.md file with information about how to get the project up and running,
-including the installation of all required dependencies.
+The following packages should be available in the system as well:
 
-#### Dependencies for POSIX Autotools:
+ - autoconf, autoconf-archive, automake, pkg-config and nasm.
 
-Install the following development packages, if available, or download
-and compile their respective sources (package names are for
-Debian and RedHat derivatives, respectively):
+You can use any package manager if you have one installed or build and install them from sources
 
-* cURL (`libcurl4-openssl-dev`, `libcurl-devel`), compiled with `--enable-ssl`
-* c-ares (`libc-ares-dev`, `libcares-devel`, `c-ares-devel`)
-* OpenSSL (`libssl-dev`, `openssl-devel`)
-* Crypto++ (`libcrypto++-dev`, `libcryptopp-devel`)
-* zlib (`zlib1g-dev`, `zlib-devel`)
-* SQLite (`libsqlite3-dev`, `sqlite-devel`) or configure `--without-sqlite`
-* FreeImage (`libfreeimage-dev`, `freeimage-devel`) or configure `--without-freeimage`
-* pthread
+#### Linux
 
-Optional dependencies:
-* Libraw (`libraw-dev`, `libraw-devel`)
-* Sodium (`libsodium-dev`, `libsodium-devel`), configure `--with-sodium`
-* MediaInfoLib (optional, see third_party/README_MediaInfo.txt)
-* libudev (`libudev-dev`, `libudev-devel`)
+For debian-based distributions, you can install the needed compilers and tools using the following command:
 
-Filesystem event monitoring: The provided filesystem layer implements the Linux `inotify` and the MacOS `fsevents` interfaces.
+	sudo apt install build-essential curl zip unzip autoconf autoconf-archive nasm
 
-PDF thumbnail generation: The PDFium library is detected automatically by the configure step if installed. There is a helper script located at `contrib/build_pdfium` to install it in a Linux system (`/usr`). To download, build and install it in the system, run the following:
+Package names may vary for other Linux distros, but it should build successfully with similar packages to the ones listed above.
 
-	cd contrib/build_pdfium
-	build.sh -b
-	sudo build.sh -i
+### Prepare the sources
 
-Library will be installed under `/usr/lib/` and headers under `/usr/include/`. Once installed, the generated workspace folder could be removed to free up space.
+First of all, prepare a directory of your choice to work with the MEGA SDK. The `mega` directory
+will be used as the workspace directory in the examples in this document.
 
-To build the reference `megacli` example, you may also need to install:
-* GNU Readline (`libreadline-dev`, `readline-devel`)
-on Mac, you will probably need to download the source and build it yourself, and adjust the project to refer to that version.
+	mkdir mega
+	cd mega
 
-For Android, we provide an additional implementation of the graphics subsystem using Android libraries.
+Then, clone the MEGA SDK repository to obtain the source code for the MEGA SDK.
 
-For iOS, we provide an additional implementation of the graphics subsystem using Objective C frameworks.
+	git clone https://github.com/meganz/sdk
 
+Next to the MEGA SDK, clone the VCPKG repository. If you are already using VCPKG and have a local clone of the VCPKG repository, you can skip this step and use the VCPKG you already have in your system.
 
-Usage
------
+	git clone https://github.com/microsoft/vcpkg
+
+**Note**: VCPKG local repository needs to be updated from time to time. If never done, it will eventually fail to find new dependencies or others updated to versions newer than what it already had.
+The solution is simple: go to VCPKG local repository and run `git pull`.
+
+### Configuration
+
+The following instructions are for configuring the project from the CLI, but cmake-gui or any editor or IDE
+compatible with CMake should be suitable if the same CMake parameters are configured.
+
+The SDK is configured likne any other regular CMake project. The only parameter that is always needed is the VCPKG directory
+to manage the third-party dependencies. To configure the SDK with the dafault options, from the workspace (`mega` directory), run CMake:
+
+	cmake -DVCPKG_ROOT=vcpkg -DCMAKE_BUILD_TYPE=Debug -S sdk -B build_dir
+
+**Note**: The `-DCMAKE_BUILD_TYPE=<Debug|Release>` may not be needed for multiconfig generators, like Visual Studio.
+
+In the command above, relative paths have been used for simplicity. If you want to change the location of VCPKG, the SDK or the build directory, simply provide a valid relative or absolute path for any of them.
+
+During the configuration of the project, VCPKG will build and configure the necessary libraries for the platform. It may take a while on the first run, but once the libraries are built, VCPKG will retrieve them from the binary cache.
+
+Some options to configure the SDK library can be found in the [sdklib_options.cmake](cmake/modules/sdklib_options.cmake) file, like ENABLE_SYNC or USE_PDFIUM.
+The options to manage the examples and tests are in the [CMakeLists.txt](CMakeLists.txt).
+
+### Building the sources
+
+Once the MEGA SDK is configured, simply build the complete project:
+
+	cmake --build build_dir
+
+You can specify `--target=<target>` like `SDKlib` or `megacli`, or just leave the command as it is to build all the tagets.
+Additionally, `-j<N>` can be added to manage concurrency and speed up the build.
+
+Once the build is finished, binaries will be available in the `build_dir`
+
+### Run megacli
+
+To run the example app `megacli`, go to the `examples` directory in the `build_dir` and execute the `megacli` binary.
+
+## Minimum supported OS versions
+
+### Android
+
+- Android 8.0
+
+### DMS
+
+- DMS 7.2
+
+### GNU/Linux
+
+- Arch
+- Debian 11
+- Fedora 38
+- OpenSUSE Leap 15.5
+- Raspberry Pi OS Lite (Debian 11)
+- Ubuntu 20.04 LTS
+
+### iOS
+
+- iOS 15
+
+### macOS
+
+- macOS 10.15 (Intel)
+- macOS 11.1 (Apple silicon)
+
+### Windows
+
+- Windows 7
+- Windows Server 2008
+
+## Usage
 
 The low level SDK doesn't have inline documentation yet. If you want to use it,
-please check one of our example apps (`examples/megacli`, `examples/megasimplesync`).
+please check our example app `examples/megacli`.
 
-The new intermediate layer has been documented using Doxygen. The only public header that you need
-to include to use is `include/megaapi.h`. You can read the documentation in that header file,
-or download the same documentation in HTML format from this link:
+The intermediate layer has been documented using Doxygen. The only public header that you need
+to include to use is `include/megaapi.h`. You can read the documentation in that header file.
 
-https://mega.nz/#!7glwEQBT!Fy9cwPpCmuaVdEkW19qwBLaiMeyufB1kseqisOAxfi8
-
-Additional info
----------------
+## Additional info
 
 ### Folder syncing
 

@@ -54,18 +54,18 @@ ScheduledRules::ScheduledRules(const int freq, const int interval, const m_time_
     : mFreq(isValidFreq(freq) ? static_cast<freq_type_t>(freq) : FREQ_INVALID),
       mInterval(isValidInterval(interval) ? interval : INTERVAL_INVALID),
       mUntil(isValidUntil(until) ? until : mega_invalid_timestamp),
-      mByWeekDay(byWeekDay ? mega::make_unique<rules_vector>(*byWeekDay) : nullptr),
-      mByMonthDay(byMonthDay ? mega::make_unique<rules_vector>(*byMonthDay) : nullptr),
-      mByMonthWeekDay(byMonthWeekDay ? mega::make_unique<rules_map>(*byMonthWeekDay) : nullptr)
+      mByWeekDay(byWeekDay ? std::make_unique<rules_vector>(*byWeekDay) : nullptr),
+      mByMonthDay(byMonthDay ? std::make_unique<rules_vector>(*byMonthDay) : nullptr),
+      mByMonthWeekDay(byMonthWeekDay ? std::make_unique<rules_map>(*byMonthWeekDay) : nullptr)
 {}
 
 ScheduledRules::ScheduledRules(const ScheduledRules* rules)
     : mFreq(isValidFreq(rules->freq()) ? rules->freq() : FREQ_INVALID),
       mInterval(isValidInterval(rules->interval()) ? rules->interval() : INTERVAL_INVALID),
       mUntil(rules->until()),
-      mByWeekDay(rules->byWeekDay() ? mega::make_unique<rules_vector>(*rules->byWeekDay()) : nullptr),
-      mByMonthDay(rules->byMonthDay() ? mega::make_unique<rules_vector>(*rules->byMonthDay()) : nullptr),
-      mByMonthWeekDay(rules->byMonthWeekDay() ? mega::make_unique<rules_map>(*rules->byMonthWeekDay()) : nullptr)
+      mByWeekDay(rules->byWeekDay() ? std::make_unique<rules_vector>(*rules->byWeekDay()) : nullptr),
+      mByMonthDay(rules->byMonthDay() ? std::make_unique<rules_vector>(*rules->byMonthDay()) : nullptr),
+      mByMonthWeekDay(rules->byMonthWeekDay() ? std::make_unique<rules_map>(*rules->byMonthWeekDay()) : nullptr)
 {}
 
 const char* ScheduledRules::freqToString () const
@@ -179,11 +179,11 @@ ScheduledRules* ScheduledRules::unserialize(const string& in)
         return logAndFail(std::string());
     }
 
-    const bool hasInterval        = expansions[0];
-    const bool hasUntil           = expansions[1];
-    const bool hasByWeekDay       = expansions[2];
-    const bool hasByMonthDay      = expansions[3];
-    const bool hasByMonthWeekDay  = expansions[4];
+    const bool hasInterval = expansions[0] > 0;
+    const bool hasUntil = expansions[1] > 0;
+    const bool hasByWeekDay = expansions[2] > 0;
+    const bool hasByMonthDay = expansions[3] > 0;
+    const bool hasByMonthWeekDay = expansions[4] > 0;
 
     int interval = INTERVAL_INVALID;
     if (hasInterval && !r.unserializei32(interval)) { return logAndFail("interval"); }
@@ -194,7 +194,10 @@ ScheduledRules* ScheduledRules::unserialize(const string& in)
     const auto unserializeVector = [&r, &logAndFail](rules_vector& outVec, const string& errMsg) -> bool
     {
         uint32_t s = 0;
-        if (!r.unserializeu32(s))                   { return logAndFail(errMsg + " vector size"); }
+        if (!r.unserializeu32(s))
+        {
+            return logAndFail(errMsg + " vector size") != nullptr;
+        }
 
         outVec.reserve(s);
         for (size_t i = 0; i < s; ++i)
@@ -204,7 +207,10 @@ ScheduledRules* ScheduledRules::unserialize(const string& in)
             {
                 outVec.emplace_back(element);
             }
-            else                                    { return logAndFail(errMsg); }
+            else
+            {
+                return logAndFail(errMsg) != nullptr;
+            }
         }
 
         return true;
@@ -372,8 +378,8 @@ bool ScheduledMeeting::serialize(string& out) const
     const bool hasAttributes = !attributes().empty();
     const bool hasOverrides = MegaClient::isValidMegaTimeStamp(overrides());
     const bool hasCancelled = cancelled() > -1;
-    const bool hasflags = flags();
-    const bool hasRules = rules();
+    const bool hasflags = flags() != nullptr;
+    const bool hasRules = rules() != nullptr;
 
     CacheableWriter w(out);
     w.serializehandle(schedId());
@@ -441,12 +447,12 @@ ScheduledMeeting* ScheduledMeeting::unserialize(const string& in, const handle c
         return logAndFail("");
     }
 
-    const bool hasParentSchedId   = expansions[0];
-    const bool hasAttributes      = expansions[1];
-    const bool hasOverrides       = expansions[2];
-    const bool hasCancelled       = expansions[3];
-    const bool hasflags           = expansions[4];
-    const bool hasRules           = expansions[5];
+    const bool hasParentSchedId = expansions[0] > 0;
+    const bool hasAttributes = expansions[1] > 0;
+    const bool hasOverrides = expansions[2] > 0;
+    const bool hasCancelled = expansions[3] > 0;
+    const bool hasflags = expansions[4] > 0;
+    const bool hasRules = expansions[5] > 0;
 
     handle parentSchedId = UNDEF;
     if (hasParentSchedId && !r.unserializehandle(parentSchedId)) { return logAndFail("parent Schedule id"); }
@@ -646,7 +652,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
             return NULL;
         }
 
-        userpriv = make_unique<userpriv_vector>();
+        userpriv = std::make_unique<userpriv_vector>();
 
         for (unsigned short i = 0; i < ll; i++)
         {
@@ -862,7 +868,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     chat->flags = flags;
     chat->attachedNodes = attachedNodes;
     chat->unifiedKey = unifiedKey;
-    chat->meeting = meetingRoom;
+    chat->meeting = meetingRoom != 0;
     chat->chatOptions = chatOptions;
 
     for (auto& sm : schedMeetings)
@@ -907,7 +913,7 @@ void TextChat::addUserPrivileges(handle uid, privilege_t p)
 {
     if (!userpriv)
     {
-        userpriv = make_unique<userpriv_vector>();
+        userpriv = std::make_unique<userpriv_vector>();
     }
     userpriv->emplace_back(uid, p);
 }
@@ -1297,9 +1303,18 @@ bool TextChat::addOrUpdateChatOptions(int speakRequest, int waitingRoom, int ope
     }
 
     ChatOptions currentOptions(static_cast<uint8_t>(chatOptions));
-    if (speakRequest != -1) { currentOptions.updateSpeakRequest(speakRequest); }
-    if (waitingRoom != -1)  { currentOptions.updateWaitingRoom(waitingRoom); }
-    if (openInvite != -1)   { currentOptions.updateOpenInvite(openInvite); }
+    if (speakRequest != -1)
+    {
+        currentOptions.updateSpeakRequest(speakRequest != 0);
+    }
+    if (waitingRoom != -1)
+    {
+        currentOptions.updateWaitingRoom(waitingRoom != 0);
+    }
+    if (openInvite != -1)
+    {
+        currentOptions.updateOpenInvite(openInvite != 0);
+    }
 
     if (!currentOptions.isValid())
     {

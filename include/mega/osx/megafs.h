@@ -45,13 +45,16 @@ public:
 #ifdef ENABLE_SYNC
     bool initFilesystemNotificationSystem() override;
 
-    DirNotify* newdirnotify(const LocalPath& rootPath,
-                            const LocalPath& ignoreName,
-                            Waiter* waiter,
-                            LocalNode* root) override;
+    DirNotify* newdirnotify(LocalNode& root,
+                            const LocalPath& rootPath,
+                            Waiter* waiter) override;
 #endif // ENABLE_SYNC
 
 private:
+    // This function ensures that all tasks in the dispatch
+    // queue are completed.
+    void flushDispatchQueue();
+
     // What queue executes our notification callbacks?
     dispatch_queue_t mDispatchQueue;
     
@@ -65,8 +68,7 @@ class MEGA_API MacDirNotify
   : public DirNotify
 {
 public:
-    MacDirNotify(const LocalPath& ignoreName,
-                 MacFileSystemAccess& owner,
+    MacDirNotify(MacFileSystemAccess& owner,
                  LocalNode& root,
                  const LocalPath& rootPath,
                  Waiter& waiter);

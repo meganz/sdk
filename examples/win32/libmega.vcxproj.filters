@@ -21,6 +21,7 @@
     <ClCompile Include="..\..\src\mega_evt_tls.cpp" />
     <ClCompile Include="..\..\src\mega_zxcvbn.cpp" />
     <ClCompile Include="..\..\src\raid.cpp" />
+    <ClCompile Include="..\..\src\raidproxy.cpp" />
     <ClCompile Include="..\..\src\posix\net.cpp" />
     <ClCompile Include="..\..\src\testhooks.cpp" />
     <ClCompile Include="..\..\src\thread\win32thread.cpp" />
@@ -46,6 +47,7 @@
     <ClCompile Include="..\..\src\sync.cpp" />
     <ClCompile Include="..\..\src\transfer.cpp" />
     <ClCompile Include="..\..\src\transferslot.cpp" />
+    <ClCompile Include="..\..\src\transferstats.cpp" />
     <ClCompile Include="..\..\src\treeproc.cpp" />
     <ClCompile Include="..\..\src\user.cpp" />
     <ClCompile Include="..\..\src\useralerts.cpp" />
@@ -83,6 +85,7 @@
     <ClInclude Include="..\..\include\mega\mega_evt_queue.h" />
     <ClInclude Include="..\..\include\mega\posix\meganet.h" />
     <ClInclude Include="..\..\include\mega\raid.h" />
+    <ClInclude Include="..\..\include\mega\raidproxy.h" />
     <ClInclude Include="..\..\include\mega\thread\win32thread.h" />
     <ClInclude Include="..\..\include\mega\win32\megaconsole.h" />
     <ClInclude Include="..\..\include\mega\win32\megaconsolewaiter.h" />
@@ -103,6 +106,7 @@
     <ClInclude Include="..\..\include\mega\thread.h" />
     <ClInclude Include="..\..\include\mega\transfer.h" />
     <ClInclude Include="..\..\include\mega\transferslot.h" />
+    <ClInclude Include="..\..\include\mega\transferstats.h" />
     <ClInclude Include="..\..\include\mega\treeproc.h" />
     <ClInclude Include="..\..\include\mega\types.h" />
     <ClInclude Include="..\..\include\mega\user.h" />

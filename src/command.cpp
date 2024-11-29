@@ -31,7 +31,6 @@ Command::Command()
     client = NULL;
     tag = 0;
     batchSeparately = false;
-    suppressSID = false;
 }
 
 Command::~Command()
@@ -41,6 +40,19 @@ Command::~Command()
 void Command::cancel()
 {
     canceled = true;
+}
+
+void Command::addToNodePendingCommands(Node* node)
+{
+    node->mPendingChanges.push_back(this);
+}
+
+void Command::removeFromNodePendingCommands(NodeHandle h, MegaClient* client)
+{
+    if (auto node = client->nodeByHandle(h))
+    {
+        node->mPendingChanges.erase(this);
+    }
 }
 
 // returns completed command JSON string

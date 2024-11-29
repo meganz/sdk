@@ -19,6 +19,7 @@
  * program.
  */
 #import <Foundation/Foundation.h>
+#import "PasswordNodeData.h"
 
 typedef NS_ENUM (NSInteger, MEGANodeType) {
     MEGANodeTypeUnknown = -1,
@@ -54,7 +55,26 @@ typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
     MEGANodeChangeTypeNew            = 0x400,
     MEGANodeChangeTypeName           = 0x800,
     MEGANodeChangeTypeFavourite      = 0x1000,
+    MEGANodeChangeTypeSensitive      = 0x4000
 };
+
+typedef NS_ENUM (NSInteger, MEGANodeFormatType) {
+    MEGANodeFormatTypeUnknown = 0,
+    MEGANodeFormatTypePhoto,
+    MEGANodeFormatTypeAudio,
+    MEGANodeFormatTypeVideo,
+    MEGANodeFormatTypeDocument,
+    MEGANodeFormatTypePdf,
+    MEGANodeFormatTypePresentation,
+    MEGANodeFormatTypeArchive,
+    MEGANodeFormatTypeProgram,
+    MEGANodeFormatTypeMisc,
+    MEGANodeFormatTypeSpreadsheet,
+    MEGANodeFormatTypeAllDocs,
+    MEGANodeFormatTypeOthers
+};
+
+@class MEGAStringList;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -148,6 +168,20 @@ NS_ASSUME_NONNULL_BEGIN
  * @return YES if node is marked as favourite, otherwise return NO (attribute is not set).
  */
 @property (readonly, nonatomic, getter=isFavourite) BOOL favourite;
+
+/**
+ * @brief Get the attribute of the node representing if node is marked as sensitive.
+ *
+ * @return YES if node is marked as sensitive, otherwise return NO (attribute is not set).
+ */
+@property (readonly, nonatomic) BOOL isMarkedSensitive;
+
+/**
+ * @brief Get the attribute of the node representing the description
+ *
+ * @return Node description
+ */
+@property (readonly, nonatomic, nullable) NSString *description;
 
 /**
  * @brief Get the attribute of the node representing its label.
@@ -284,17 +318,14 @@ NS_ASSUME_NONNULL_BEGIN
 @property (readonly, nonatomic, nullable) NSString *deviceId;
 
 /**
- * @brief Creates a copy of this MEGANode object.
- *
- * The resulting object is fully independent of the source MEGANode,
- * it contains a copy of all internal attributes, so it will be valid after
- * the original object is deleted.
- *
- * You are the owner of the returned object.
- *
- * @return Copy of the MEGANode object.
+* @brief The Password Node Data if the node is a Password Node.
+*/
+@property (readonly, nonatomic, nullable) PasswordNodeData *passwordNodeData;
+
+/**
+ * @breif Get a list of tags from a node.
  */
-- (nullable instancetype)clone;
+@property (readonly, nonatomic, nullable) MEGAStringList *tags;
 
 /**
  * @brief Returns a BOOL value that indicates if the node represents a file (type == MEGANodeTypeFile)
@@ -516,6 +547,14 @@ NS_ASSUME_NONNULL_BEGIN
  */
 - (BOOL)isNodeKeyDecrypted;
 
+/**
+ * @brief Returns true if this MegaNode is a Password Node
+ *
+ * Only MegaNodes created with MegaApi::createPasswordNode return true in this function.
+ *
+ * @return true if this node is a Password Node
+ */
+- (BOOL)isPasswordNode;
 
 + (nullable NSString *)stringForNodeLabel:(MEGANodeLabel)nodeLabel;
 

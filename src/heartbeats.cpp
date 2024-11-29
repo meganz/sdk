@@ -81,20 +81,27 @@ void HeartBeatSyncInfo::updateSPHBStatus(UnifiedSync& us)
 
     if (us.mSync)
     {
-        switch(us.mSync->localroot->ts)
+        if (!us.mConfig.mError)
         {
-        case TREESTATE_SYNCED:
-            status = CommandBackupPutHeartBeat::UPTODATE;
-            break;
-        case TREESTATE_PENDING:
-            status = CommandBackupPutHeartBeat::PENDING;
-            break;
-        case TREESTATE_SYNCING:
-            status = CommandBackupPutHeartBeat::SYNCING;
-            break;
-        default:
-            status = CommandBackupPutHeartBeat::UNKNOWN;
-            break;
+            if (us.syncs.isSyncStalled(us.mConfig.mBackupId) ||
+                us.mSync->localroot->conflicts != TREE_RESOLVED)
+            {
+                status = CommandBackupPutHeartBeat::STALLED;
+            }
+            else if (!us.mConfig.mFinishedInitialScanning)
+            {
+                // only consider it "scanning" until it first completes scanning.  Later scanning (even though we do it) interferes with the % display in Backup Centre
+                status = CommandBackupPutHeartBeat::PENDING; // = scanning
+            }
+            else if (us.mSync->localroot->mightHaveMoves() ||
+                     us.mSync->localroot->syncRequired())
+            {
+                status = CommandBackupPutHeartBeat::SYNCING;
+            }
+            else
+            {
+                status = CommandBackupPutHeartBeat::UPTODATE;
+            }
         }
     }
 
@@ -153,30 +160,31 @@ CommandBackupPut::SPState BackupInfoSync::calculatePauseActiveState(bool pauseDo
 
 CommandBackupPut::SPState BackupInfoSync::getSyncState(const UnifiedSync& us, bool pauseDown, bool pauseUp)
 {
-    SyncError error = us.mConfig.mError;
-    syncstate_t state = us.mSync ? us.mSync->state() : SYNC_FAILED;
-
-    return getSyncState(error, state, pauseDown, pauseUp);
+    return getSyncState(us.mConfig.mError,
+                        us.mConfig.mRunState,
+                        pauseDown, pauseUp);
 }
 
-CommandBackupPut::SPState BackupInfoSync::getSyncState(SyncError error, syncstate_t state, bool pauseDown, bool pauseUp)
+CommandBackupPut::SPState BackupInfoSync::getSyncState(SyncError error, SyncRunState s, bool pauseDown, bool pauseUp)
 {
-    if (state == SYNC_DISABLED && error != NO_SYNC_ERROR)
+    switch (s)
     {
-        return CommandBackupPut::TEMPORARY_DISABLED;
+        case SyncRunState::Pending:
+        case SyncRunState::Loading:
+        case SyncRunState::Run:
+            return calculatePauseActiveState(pauseDown, pauseUp);
+
+        case SyncRunState::Pause:
+            return CommandBackupPut::TEMPORARY_DISABLED;
+
+        case SyncRunState::Suspend:
+            return error > NO_SYNC_ERROR ? CommandBackupPut::FAILED : CommandBackupPut::TEMPORARY_DISABLED;
+
+        case SyncRunState::Disable:
+            return error > NO_SYNC_ERROR ? CommandBackupPut::FAILED : CommandBackupPut::DISABLED;
     }
-    else if (state != SYNC_FAILED && state != SYNC_CANCELED && state != SYNC_DISABLED)
-    {
-        return calculatePauseActiveState(pauseDown, pauseUp);
-    }
-    else if (!(state != SYNC_CANCELED && (state != SYNC_DISABLED || error != NO_SYNC_ERROR)))
-    {
-        return CommandBackupPut::DISABLED;
-    }
-    else
-    {
-        return CommandBackupPut::FAILED;
-    }
+
+    return CommandBackupPut::DISABLED;
 }
 
 CommandBackupPut::SPState BackupInfoSync::getSyncState(const SyncConfig& config, bool pauseDown, bool pauseUp)
@@ -273,7 +281,7 @@ void BackupMonitor::updateOrRegisterSync(UnifiedSync& us)
                 mc.reqs.add(new CommandBackupPut(&mc, currentInfo, nullptr));
             });
     }
-    us.mBackupInfo = ::mega::make_unique<BackupInfoSync>(currentInfo);
+    us.mBackupInfo = std::make_unique<BackupInfoSync>(currentInfo);
 }
 
 bool BackupInfoSync::operator==(const BackupInfoSync& o) const
@@ -336,7 +344,8 @@ void BackupMonitor::beatBackupInfo(UnifiedSync& us)
         m_off_t inflightProgress = 0;
         if (us.mSync)
         {
-            inflightProgress = us.mSync->getInflightProgress();
+            // to be figured out for sync rework
+            //inflightProgress = us.mSync->getInflightProgress();
         }
 
         auto reportCounts = hbs->mSnapshotTransferCounts;

@@ -53,10 +53,6 @@ using namespace mega;
     }
 }
 
-- (instancetype)clone {
-    return self.pricing ? [[MEGAPricing alloc] initWithMegaPricing:self.pricing->copy() cMemoryOwn:YES] : nil;
-}
-
 - (NSInteger)products {
     return self.pricing ? self.pricing->getNumProducts() : 0;
 }
@@ -95,6 +91,10 @@ using namespace mega;
 
 - (NSString *)iOSIDAtProductIndex:(NSInteger)index {
     return self.pricing ? [[NSString alloc] initWithUTF8String:self.pricing->getIosID((int)index)] : nil;
+}
+
+- (unsigned int)trialDurationInDaysAtProductIndex:(NSInteger)index {
+    return self.pricing ? self.pricing->getTrialDurationInDays((int)index) : 0;
 }
 
 @end

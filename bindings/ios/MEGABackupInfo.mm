@@ -90,12 +90,12 @@ using namespace mega;
     return nil;
 }
 
-- (MEGASyncState)state {
-    return (MEGASyncState) (self.megaBackupInfo ? self.megaBackupInfo->state() : MEGASyncStateUnknown);
+- (BackUpState)state {
+    return (BackUpState) (self.megaBackupInfo ? self.megaBackupInfo->state() : BackUpStateUnknown);
 }
 
-- (MEGABackupSubstate)substate {
-    return (MEGABackupSubstate) (self.megaBackupInfo ? self.megaBackupInfo->substate() : MEGABackupSubstateNoSyncError);
+- (BackUpSubState)substate {
+    return (BackUpSubState) (self.megaBackupInfo ? self.megaBackupInfo->substate() : BackUpSubStateNoSyncError);
 }
 
 - (NSString *)extra {
@@ -136,6 +136,12 @@ using namespace mega;
 
 - (uint64_t)lastSync {
     return self.megaBackupInfo ? self.megaBackupInfo->lastSync() : ::mega::INVALID_HANDLE;
+}
+
+- (NSString *)userAgent {
+    if(!self.megaBackupInfo) return nil;
+    
+    return self.megaBackupInfo->deviceUserAgent() ? [[NSString alloc] initWithUTF8String:self.megaBackupInfo->deviceUserAgent()] : nil;
 }
 
 @end

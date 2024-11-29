@@ -98,7 +98,7 @@ void EdDSA::signKey(const unsigned char *key, const unsigned long long keyLength
     for (int i = 0; i < 8; i++)
     {
         digit = ts & 0xFF;
-        tsstr.insert(0, 1, digit);
+        tsstr.insert(0, 1, static_cast<char>(digit));
         ts >>= 8;
     }
 
@@ -130,8 +130,10 @@ bool EdDSA::verifyKey(const unsigned char *pubk, const unsigned long long pubkLe
 
     string signature = sig->substr(8);
 
-    return verify((unsigned char*) message.data(), message.length(),
-                  (unsigned char*) signature.data(), signingPubKey);
+    return verify((unsigned char*)message.data(),
+                  message.length(),
+                  (unsigned char*)signature.data(),
+                  signingPubKey) != 0;
 }
 
 const std::string ECDH::TLV_KEY= "prCu255";
@@ -145,7 +147,7 @@ ECDH::ECDH()
     }
 
     // create a new key pair
-    crypto_box_keypair(this->pubKey, this->privKey);
+    crypto_box_keypair(mPubKey, mPrivKey);
 
     initializationOK = true;
 }
@@ -153,8 +155,8 @@ ECDH::ECDH()
 
 ECDH::ECDH (const ECDH& aux)
 {
-    std::copy(aux.getPrivKey(), aux.getPrivKey() + ECDH::PRIVATE_KEY_LENGTH, privKey);
-    std::copy(aux.getPubKey(), aux.getPubKey() + ECDH::PUBLIC_KEY_LENGTH, pubKey);
+    std::copy(aux.getPrivKey(), aux.getPrivKey() + ECDH::PRIVATE_KEY_LENGTH, mPrivKey);
+    std::copy(aux.getPubKey(), aux.getPubKey() + ECDH::PUBLIC_KEY_LENGTH, mPubKey);
 }
 
 ECDH::ECDH(const string& privKey)
@@ -171,16 +173,37 @@ ECDH::ECDH(const string& privKey)
         return;
     }
 
-    memcpy(this->privKey, privKey.data(), PRIVATE_KEY_LENGTH);
+    memcpy(mPrivKey, privKey.data(), PRIVATE_KEY_LENGTH);
 
     // derive public key from privKey
-    crypto_scalarmult_base(this->pubKey, this->privKey);
+    crypto_scalarmult_base(mPubKey, mPrivKey);
 
     initializationOK = true;
 }
 
 ECDH::~ECDH()
 {
+}
+
+ECDH::ECDH(const unsigned char *privk, const std::string &pubk)
+{
+    assert(privk);
+    if (!privk) return;
+
+    std::copy(privk, privk + PRIVATE_KEY_LENGTH, mPrivKey);
+    std::copy(pubk.data(), pubk.data() + PUBLIC_KEY_LENGTH, mPubKey);
+}
+
+int ECDH::doComputeSymmetricKey(const unsigned char* privk, const unsigned char* pubk, std::string& output) const
+{
+    assert(privk && pubk);
+    if (!privk || !pubk) return -1; // return some non-0 value
+
+    output.resize(DERIVED_KEY_LENGTH);
+    unsigned char* outputPtr = reinterpret_cast<unsigned char*>(const_cast<char*>(output.data()));
+    int ret = crypto_scalarmult(outputPtr, privk, pubk); // 0: success
+
+    return ret;
 }
 
 int ECDH::encrypt(unsigned char *encmsg, const unsigned char *msg,
@@ -211,11 +234,8 @@ bool ECDH::deriveSharedKeyWithSalt(const unsigned char* pubkey, const unsigned c
         return false;
     }
 
-    int err = 0;
     std::string sharedSecret;
-    sharedSecret.resize(::mega::ECDH::DERIVED_KEY_LENGTH);
-    auto ssPtr = reinterpret_cast<const unsigned char *>(sharedSecret.data());
-    err = crypto_scalarmult(const_cast<unsigned char*>(ssPtr), getPrivKey(), pubkey);
+    int err = doComputeSymmetricKey(mPrivKey, pubkey, sharedSecret);
     if (err)
     {
         LOG_err << "derivePrivKeyWithSalt: crypto_scalarmult err: " << err;

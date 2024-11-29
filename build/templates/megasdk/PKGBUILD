@@ -1,0 +1,82 @@
+##
+ # @file build/templates/sdk/PKGBUILD
+ # @brief script to generate package sdk for ArchLinux
+ #
+ # (c) 2013-2016 by Mega Limited, Auckland, New Zealand
+ #
+ # This file is part of the MEGA SDK - Client Access Engine.
+ #
+ # SDK is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY; without even the implied warranty of
+ # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ #
+ # @copyright Simplified (2-clause) BSD License.
+ #
+ # You should have received a copy of the license along with this
+ # program.
+##
+
+pkgname=megasdk
+pkgver=megasdk_VERSION
+pkgrel=`cat MEGA_BUILD_ID || echo "1"`
+epoch=
+pkgdesc="MEGA SDK - Client Access Engine"
+arch=('i686' 'x86_64')
+url="https://mega.io/developers"
+license=("https://github.com/meganz/sdk/blob/master/LICENSE")
+groups=()
+depends=('glibc>=2.37')
+makedepends=('unzip' 'wget' 'ca-certificates' 'cmake' 'zip' 'python3' 'autoconf-archive' 'nasm')
+checkdepends=()
+optdepends=()
+provides=("megasdk=${pkgver}")
+replaces=()
+backup=()
+options=(!lto) # ffmpeg is not relocatable
+install=megasdk.install
+changelog= #TODO
+source=("./${pkgname}_$pkgver.tar.gz"
+)
+noextract=()
+md5sums=('MD5SUM') # generated with makepkg -g
+validpgpkeys=()
+
+prepare() {
+	cd "$pkgname-$pkgver"
+	if [ -f /opt/vcpkg.tar.gz ]; then
+		tar xzf /opt/vcpkg.tar.gz
+	fi
+}
+
+build() {
+	set -x
+
+	cd "$pkgname-$pkgver"
+	megasrcdir="${PWD}"
+	megabuilddir="${megasrcdir}/build_dir"
+
+	if [ -d "${megasrcdir}/vcpkg" ]; then
+		export VCPKG_DEFAULT_BINARY_CACHE=/opt/persistent/vcpkg_cache
+		mkdir -p ${VCPKG_DEFAULT_BINARY_CACHE}
+		vcpkg_root="-DVCPKG_ROOT=${megasrcdir}/vcpkg"
+	fi
+
+	cmake --version
+	cmake ${vcpkg_root} -DCMAKE_VERBOSE_MAKEFILE=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo -S "${megasrcdir}" -B "${megabuilddir}"
+	cmake --build "${megabuilddir}" ${BUILD_PARALLEL_JOBS}
+
+
+	touch build-stamp
+}
+
+check() {
+	cd "$pkgname-$pkgver"
+}
+
+package() {
+	cd "$pkgname-$pkgver"
+	megasrcdir="${srcdir}/${pkgname}-${pkgver}"
+	megabuilddir="${megasrcdir}/build_dir"
+
+	cmake --install "${megabuilddir}" --prefix $pkgdir
+}

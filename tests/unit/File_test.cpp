@@ -53,7 +53,11 @@ void checkFiles(const mega::File& exp, const mega::File& act)
     ASSERT_TRUE(std::equal(exp.filekey, exp.filekey + mega::FILENODEKEYLENGTH, act.filekey));
     ASSERT_EQ(exp.targetuser, act.targetuser);
     ASSERT_EQ(nullptr, act.transfer);
-    ASSERT_EQ(static_cast<const mega::FileFingerprint&>(exp), static_cast<const mega::FileFingerprint&>(act));
+    if (static_cast<const mega::FileFingerprint&>(exp).isvalid ||
+        static_cast<const mega::FileFingerprint&>(act).isvalid)
+    {
+        ASSERT_EQ(static_cast<const mega::FileFingerprint&>(exp), static_cast<const mega::FileFingerprint&>(act));
+    }
 }
 
 }

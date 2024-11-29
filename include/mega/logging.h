@@ -186,12 +186,7 @@ public:
 
 class SimpleLogger
 {
-public:
-    // flag to turn off logging on the log-output thread, to prevent possible deadlock cycles.
-    static thread_local bool mThreadLocalLoggingDisabled;
-
-private:
-    enum LogLevel level;
+    LogLevel level;
 
 #ifndef ENABLE_LOG_PERFORMANCE
     std::ostringstream ostr;
@@ -200,13 +195,18 @@ private:
 
     std::string getTime();
 #else
-
-#ifdef WIN32
     static thread_local std::array<char, LOGGER_CHUNKS_SIZE> mBuffer;
-#else
-    static __thread std::array<char, LOGGER_CHUNKS_SIZE> mBuffer;
-#endif
     std::array<char, LOGGER_CHUNKS_SIZE>::iterator mBufferIt;
+#ifndef NDEBUG
+    // Detect and warn against multiple instances of this class created in the same thread.
+    // If multiple instances are used in the same thread, the messages from the last created one will
+    // overwrite and corrupt the messages of others, by overwriting mBuffer.
+    //
+    // An alternative approach aiming to allow such cases, would be to overload operator,(), but that will
+    // require to no longer use LoggerVoidify(), and create a "null logger" for the cases when requested
+    // log level needs to be ignored. That would also incur a small performance penalty for the latter case.
+    static thread_local const SimpleLogger* mBufferOwner;
+#endif
 
     using DiffType = std::array<char, LOGGER_CHUNKS_SIZE>::difference_type;
     using NumBuf = char[24];
@@ -259,6 +259,12 @@ private:
             logger->log(nullptr, level, nullptr, mBuffer.data());
         }
         mBufferIt = mBuffer.begin();
+    }
+
+    template<typename T>
+    void logValue(const std::atomic<T>& value)
+    {
+        logValue(value.load());
     }
 
     template<typename T>
@@ -378,14 +384,17 @@ private:
     }
 #endif
 
-public:
     static Logger *logger;
 
-    static enum LogLevel logCurrentLevel;
+    static std::atomic<LogLevel> logCurrentLevel;
 
     static long long maxPayloadLogSize; //above this, the msg will be truncated by [ ... ]
 
-    SimpleLogger(const enum LogLevel ll, const char* filename, const int line)
+public:
+    // flag to turn off logging on the log-output thread, to prevent possible deadlock cycles.
+    static thread_local bool mThreadLocalLoggingDisabled;
+
+    SimpleLogger(const LogLevel ll, const char* filename, const int line)
     : level{ll}
 #ifdef ENABLE_LOG_PERFORMANCE
     , mBufferIt{mBuffer.begin()}
@@ -395,7 +404,16 @@ public:
     {
         if (mThreadLocalLoggingDisabled) return;
 
-#ifndef ENABLE_LOG_PERFORMANCE
+#ifdef ENABLE_LOG_PERFORMANCE
+#ifndef NDEBUG
+        // Multiple instances in the same thread will lead to message corruption!
+        if (!mBufferOwner)
+        {
+            mBufferOwner = this;
+        }
+        assert(mBufferOwner == this);
+#endif
+#else
         if (!logger)
         {
             return;
@@ -449,13 +467,20 @@ public:
         {
             delete s;
         }
+
+#ifndef NDEBUG
+        if (mBufferOwner == this)
+        {
+            mBufferOwner = nullptr;
+        }
+#endif
 #else
         if (logger)
             logger->log(t.c_str(), level, fname.c_str(), ostr.str().c_str());
 #endif
     }
 
-    static const char *toStr(enum LogLevel ll)
+    static const char *toStr(LogLevel ll)
     {
         switch (ll)
         {
@@ -583,7 +608,7 @@ public:
     SimpleLogger& operator<<(const DirectMessage &obj)
     {
 #ifndef ENABLE_LOG_PERFORMANCE
-        ostr.write(obj.constChar(), obj.size());
+        ostr.write(obj.constChar(), static_cast<std::streamsize>(obj.size()));
 #else
         // careful using constChar() without taking size() into account: *this << obj.constChar(); ended up with 2MB+ lines from fetchnodes.
 
@@ -610,9 +635,13 @@ public:
     }
 
     // set the current log level. all logs which are higher than this level won't be handled
-    static void setLogLevel(enum LogLevel ll)
+    static void setLogLevel(LogLevel ll)
     {
-        SimpleLogger::logCurrentLevel = ll;
+        logCurrentLevel = ll;
+    }
+    inline static LogLevel getLogLevel()
+    {
+        return logCurrentLevel;
     }
 
     // set the limit of size to requests payload
@@ -620,11 +649,27 @@ public:
     {
         maxPayloadLogSize = size;
     }
+    inline static const long long& getMaxPayloadLogSize()
+    {
+        return maxPayloadLogSize;
+    }
 
     // Log messages forwarded from the client app though the configured logging mechanisms.
     // These do not go through the LOG_<level> macros.
+    //
+    // When ENABLE_LOG_PERFORMANCE is on, this must not be called during the lifetime of an
+    // existing instance created in the same thread. Otherwise this will overwrite the message
+    // of the existing instance. That would be a rare case, but could be achieved by writing
+    // LOG_info << "foo", SimpleLogger::postLog(logInfo, "bar", filename, line);
     static void postLog(LogLevel logLevel, const char *message, const char *filename, int line)
     {
+#ifdef ENABLE_LOG_PERFORMANCE
+#ifndef NDEBUG
+        assert(!mBufferOwner);
+        if (mBufferOwner) return;
+#endif
+#endif
+
         if (logCurrentLevel < logLevel) return;
         SimpleLogger logger(logLevel, filename ? filename : "", line);
         if (message) logger << message;
@@ -651,27 +696,64 @@ struct LoggerVoidify
 };
 
 #define LOG_verbose \
-    ::mega::SimpleLogger::logCurrentLevel < ::mega::logMax ? (void)0 : \
+    ::mega::SimpleLogger::getLogLevel() < ::mega::logMax ? (void)0 : \
         ::mega::LoggerVoidify() & ::mega::SimpleLogger(::mega::logMax, ::mega::log_file_leafname(__FILE__), __LINE__)
 
 #define LOG_debug \
-    ::mega::SimpleLogger::logCurrentLevel < ::mega::logDebug ? (void)0 : \
+    ::mega::SimpleLogger::getLogLevel() < ::mega::logDebug ? (void)0 : \
         ::mega::LoggerVoidify() & ::mega::SimpleLogger(::mega::logDebug, ::mega::log_file_leafname(__FILE__), __LINE__)
 
 #define LOG_info \
-    ::mega::SimpleLogger::logCurrentLevel < ::mega::logInfo ? (void)0 : \
+    ::mega::SimpleLogger::getLogLevel() < ::mega::logInfo ? (void)0 : \
         ::mega::LoggerVoidify() & ::mega::SimpleLogger(::mega::logInfo, ::mega::log_file_leafname(__FILE__), __LINE__)
 
 #define LOG_warn \
-    ::mega::SimpleLogger::logCurrentLevel < ::mega::logWarning ? (void)0 : \
+    ::mega::SimpleLogger::getLogLevel() < ::mega::logWarning ? (void)0 : \
         ::mega::LoggerVoidify() & ::mega::SimpleLogger(::mega::logWarning, ::mega::log_file_leafname(__FILE__), __LINE__)
 
 #define LOG_err \
-    ::mega::SimpleLogger::logCurrentLevel < ::mega::logError ? (void)0 : \
+    ::mega::SimpleLogger::getLogLevel() < ::mega::logError ? (void)0 : \
         ::mega::LoggerVoidify() & ::mega::SimpleLogger(::mega::logError, ::mega::log_file_leafname(__FILE__), __LINE__)
 
 #define LOG_fatal \
     ::mega::SimpleLogger(::mega::logFatal, ::mega::log_file_leafname(__FILE__), __LINE__)
+
+/**
+ * @brief Checks if the current time is within an active time window.
+ *
+ * This function uses static timing to manage cycles of active and rest periods, determining if the
+ * current call is made within an active time span.
+ *
+ * @tparam Duration The type of the chrono duration e.g. std::chrono::seconds, std::chrono::minutes.
+ * @param sleepDuration The duration of the inactivity period.
+ * @param activeDuration The duration of the active period.
+ */
+template<typename TimeUnit>
+inline bool isWithinActivePeriod(const TimeUnit sleepDuration, const TimeUnit activeDuration)
+{
+    using namespace std::chrono;
+    static const auto startTime = steady_clock::now();
+
+    const auto elapsed = duration_cast<TimeUnit>(steady_clock::now() - startTime);
+
+    const TimeUnit period = sleepDuration + activeDuration;
+    const TimeUnit currentPhase = elapsed % period;
+
+    return currentPhase >= sleepDuration && currentPhase < period;
+}
+
+#define LOG_generic_timed(LOG_LEVEL, SLEEP_DUR, ACTIVE_DUR) \
+::mega::SimpleLogger::getLogLevel() < LOG_LEVEL || !isWithinActivePeriod(SLEEP_DUR, ACTIVE_DUR) ? \
+    (void)0 : \
+    ::mega::LoggerVoidify() & \
+        ::mega::SimpleLogger(LOG_LEVEL, ::mega::log_file_leafname(__FILE__), __LINE__)
+
+#define LOG_verbose_timed(SLEEP, ACTIVE) LOG_generic_timed(::mega::logMax, SLEEP, ACTIVE)
+#define LOG_debug_timed(SLEEP, ACTIVE) LOG_generic_timed(::mega::logDebug, SLEEP, ACTIVE)
+#define LOG_info_timed(SLEEP, ACTIVE) LOG_generic_timed(::mega::logInfo, SLEEP, ACTIVE)
+#define LOG_warn_timed(SLEEP, ACTIVE) LOG_generic_timed(::mega::logWarning, SLEEP, ACTIVE)
+#define LOG_err_timed(SLEEP, ACTIVE) LOG_generic_timed(::mega::logError, SLEEP, ACTIVE)
+#define LOG_fatal_timed(SLEEP, ACTIVE) LOG_generic_timed(::mega::logFatal, SLEEP, ACTIVE)
 
 #if (defined(ANDROID) || defined(__ANDROID__))
 inline void crashlytics_log(const char* msg)

@@ -39,7 +39,8 @@ extern JavaVM *MEGAjvm;
 
 namespace mega {
 
-bool g_netLoggingOn = false;
+std::atomic<bool> g_netLoggingOn{false};
+
 #define NET_verbose if (g_netLoggingOn) LOG_verbose
 #define NET_debug if (g_netLoggingOn) LOG_debug
 
@@ -390,7 +391,7 @@ bool CurlHttpIO::ipv6available()
 
     if (ipv6_works != -1)
     {
-        return ipv6_works;
+        return ipv6_works != 0;
     }
 
     curl_socket_t s = socket(PF_INET6, SOCK_DGRAM, 0);
@@ -409,7 +410,7 @@ bool CurlHttpIO::ipv6available()
 #endif
     }
 
-    return ipv6_works;
+    return ipv6_works != 0;
 }
 
 #ifdef MEGA_USE_C_ARES
@@ -1078,7 +1079,7 @@ void CurlHttpIO::addevents(Waiter* w, int)
             timeoutds++;
         }
 
-        if ((unsigned long)timeoutds < waiter->maxds)
+        if (timeoutds < waiter->maxds)
         {
             waiter->maxds = dstime(timeoutds);
         }
@@ -1390,7 +1391,7 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
         return;
     }
 
-    bool ares_pending = httpctx->ares_pending;
+    bool ares_pending = httpctx->ares_pending != 0;
     if (httpctx->hostip.size())
     {
         LOG_debug << "Name resolution finished";
@@ -1451,6 +1452,50 @@ struct curl_slist* CurlHttpIO::clone_curl_slist(struct curl_slist* inlist)
     return outlist;
 }
 
+// Generate cash function
+// FIXME: make async/make multithreaded
+std::string gencash(const string& token, uint8_t easiness)
+{
+    // Calculate threshold from easiness
+    // easiness: encoded threshold (maximum acceptable value in the first 32 byte of the
+    // hash (little endian) - the lower, the harder to solve)
+    uint32_t threshold =
+        static_cast<uint32_t>((((easiness & 63) << 1) + 1) << ((easiness >> 6) * 7 + 3));
+    
+    // Token is 64 chars in B64, we need the 48 bytes in binary
+    string tokenBinary = Base64::atob(token);
+
+    // Buffer to hold 4-byte prefix + 262144 * 48 bytes of the token
+    std::vector<uint8_t> buffer(4 + 262144 * 48); // total size = 12582916
+    for (auto i = 0; i < 262144; ++i)
+    {
+        std::copy(tokenBinary.begin(), tokenBinary.end(), buffer.begin() + 4 + i * 48);
+    }
+
+    uint32_t* prefixptr = reinterpret_cast<uint32_t*>(buffer.data());
+
+    for (;;)
+    {
+        // increment prefix (the final result, but not its correctness, will depend on the CPU's endianness)
+	// we do not have an explicit abort condition (the actual easiness will be lenient enough)
+	(*prefixptr)++;
+
+        // SHA-256 hash
+        HashSHA256 hasher;
+        hasher.add((const byte*)buffer.data(), static_cast<unsigned>(buffer.size()));
+
+        string hash;
+        hasher.get(&hash);
+
+        if (htonl(*(reinterpret_cast<uint32_t*>(hash.data()))) <= threshold)
+        {
+            // success - return the prefix
+            string prefixToReturn(buffer.begin(), buffer.begin() + 4);
+            return Base64::btoa(prefixToReturn);
+        }
+    }
+}
+
 void CurlHttpIO::send_request(CurlHttpContext* httpctx)
 {
     CurlHttpIO* httpio = httpctx->httpio;
@@ -1466,7 +1511,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
     }
     else
     {
-        if (req->out->size() < size_t(SimpleLogger::maxPayloadLogSize))
+        if (gLogJSONRequests || req->out->size() < size_t(SimpleLogger::getMaxPayloadLogSize()))
         {
             LOG_debug << httpctx->req->logname << "Sending " << req->out->size() << ": " << DirectMessage(req->out->c_str(), req->out->size())
                       << " (at ds: " << Waiter::ds << ")";
@@ -1474,14 +1519,23 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         else
         {
             LOG_debug << httpctx->req->logname << "Sending " << req->out->size() << ": "
-                      << DirectMessage(req->out->c_str(), static_cast<size_t>(SimpleLogger::maxPayloadLogSize / 2))
+                      << DirectMessage(req->out->c_str(), static_cast<size_t>(SimpleLogger::getMaxPayloadLogSize() / 2))
                       << " [...] "
-                      << DirectMessage(req->out->c_str() + req->out->size() - SimpleLogger::maxPayloadLogSize / 2, static_cast<size_t>(SimpleLogger::maxPayloadLogSize / 2));
+                      << DirectMessage(req->out->c_str() + req->out->size() - SimpleLogger::getMaxPayloadLogSize() / 2, static_cast<size_t>(SimpleLogger::getMaxPayloadLogSize() / 2));
         }
     }
 
     httpctx->headers = clone_curl_slist(req->type == REQ_JSON ? httpio->contenttypejson : httpio->contenttypebinary);
     httpctx->posturl = req->posturl;
+
+    if (!req->mHashcashToken.empty())
+    {
+        string nextValue = gencash(req->mHashcashToken, req->mHashcashEasiness);
+        string xHashcashHeader{"X-Hashcash: 1:" + req->mHashcashToken + ":" + std::move(nextValue)};
+        httpctx->headers = curl_slist_append(httpctx->headers, xHashcashHeader.c_str());
+        LOG_warn << "X-Hashcash computed: " << xHashcashHeader;
+        req->mHashcashToken.clear();
+    }
 
 #ifdef MEGA_USE_C_ARES
     if(httpio->proxyip.size())
@@ -2162,7 +2216,7 @@ m_off_t CurlHttpIO::postpos(void* handle)
 
     if (httpctx->curl)
     {
-        curl_easy_getinfo(httpctx->curl, CURLINFO_SIZE_UPLOAD, &bytes);
+        curl_easy_getinfo(httpctx->curl, CURLINFO_SIZE_UPLOAD_T, &bytes);
     }
 
     return (m_off_t)bytes;
@@ -2230,8 +2284,10 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
 
             if (msg->msg == CURLMSG_DONE)
             {
+                measureLatency(msg->easy_handle, req);
+
                 CURLcode errorCode = msg->data.result;
-                if (errorCode != CURLE_OK)
+                if (errorCode != CURLE_OK && errorCode != CURLE_HTTP_RETURNED_ERROR && errorCode != CURLE_WRITE_ERROR)
                 {
                     LOG_debug << req->logname << "CURLMSG_DONE with error " << errorCode << ": " << curl_easy_strerror(errorCode);
 
@@ -2333,9 +2389,14 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                     {
                         LOG_debug << req->logname << "[received " << (req->buf ? req->bufpos : (int)req->in.size()) << " bytes of raw data]";
                     }
+                    else if (req->mChunked && static_cast<size_t>(req->bufpos) != req->in.size())
+                    {
+                        LOG_debug << req->logname << "[received " << req->bufpos << " bytes of chunked data]";
+                    }
                     else
                     {
-                        if (req->in.size() < size_t(SimpleLogger::maxPayloadLogSize))
+                        if (gLogJSONRequests ||
+                            req->in.size() < size_t(SimpleLogger::getMaxPayloadLogSize()))
                         {
                             LOG_debug << req->logname << "Received " << req->in.size() << ": " << DirectMessage(req->in.c_str(), req->in.size())
                                       << " (at ds: " << Waiter::ds << ")";
@@ -2343,9 +2404,9 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                         else
                         {
                             LOG_debug << req->logname << "Received " << req->in.size() << ": "
-                                      << DirectMessage(req->in.c_str(), static_cast<size_t>(SimpleLogger::maxPayloadLogSize / 2))
+                                      << DirectMessage(req->in.c_str(), static_cast<size_t>(SimpleLogger::getMaxPayloadLogSize() / 2))
                                       << " [...] "
-                                      << DirectMessage(req->in.c_str() + req->in.size() - SimpleLogger::maxPayloadLogSize / 2, static_cast<size_t>(SimpleLogger::maxPayloadLogSize / 2));
+                                      << DirectMessage(req->in.c_str() + req->in.size() - SimpleLogger::getMaxPayloadLogSize() / 2, static_cast<size_t>(SimpleLogger::getMaxPayloadLogSize() / 2));
                         }
                     }
                 }
@@ -2354,7 +2415,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                 req->status = ((req->httpstatus == 200 || (req->mExpectRedirect && req->isRedirection() && req->mRedirectURL.size()))
                                && errorCode != CURLE_PARTIAL_FILE
                                && (req->contentlength < 0
-                                   || req->contentlength == (req->buf ? req->bufpos : (int)req->in.size())))
+                                   || req->contentlength == ((req->buf || req->mChunked) ? req->bufpos : (int)req->in.size())))
                         ? REQ_SUCCESS : REQ_FAILURE;
 
                 if (req->status == REQ_SUCCESS)
@@ -2465,7 +2526,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
 
         if (req)
         {
-            inetstatus(req->httpstatus);
+            inetstatus(req->httpstatus != 0);
 
             CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
             if (httpctx)
@@ -2490,6 +2551,45 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
     result = statechange;
     statechange = false;
     return result;
+}
+
+// Measure latency and connect time
+void CurlHttpIO::measureLatency(CURL* easy_handle, HttpReq* req)
+{
+    if (auto httpReqXfer = dynamic_cast<HttpReqXfer*>(req))
+    {
+        double start_transfer_time = -1;
+        double connect_time = -1;
+
+        CURLcode start_transfer_time_res =
+            curl_easy_getinfo(easy_handle, CURLINFO_STARTTRANSFER_TIME, &start_transfer_time);
+        CURLcode connect_time_res =
+            curl_easy_getinfo(easy_handle, CURLINFO_CONNECT_TIME, &connect_time);
+
+        if (start_transfer_time_res == CURLE_OK)
+        {
+            start_transfer_time *= 1000; // Convert to milliseconds
+            httpReqXfer->mStartTransferTime = start_transfer_time;
+        }
+        else
+        {
+            LOG_warn << "Failed to get start transfer time info: "
+                     << curl_easy_strerror(start_transfer_time_res);
+        }
+
+        if (connect_time_res == CURLE_OK)
+        {
+            connect_time *= 1000; // Convert to milliseconds
+            httpReqXfer->mConnectTime = connect_time;
+        }
+        else
+        {
+            LOG_warn << "Failed to get connect time info: " << curl_easy_strerror(connect_time_res);
+        }
+
+        LOG_verbose << "Connect time and start transfer latency for request " << req->logname
+                    << ": " << connect_time << " ms - " << start_transfer_time << " ms";
+    }
 }
 
 // callback for incoming HTTP payload
@@ -2573,7 +2673,7 @@ size_t CurlHttpIO::read_data(void* ptr, size_t size, size_t nmemb, void* source)
         bool isApi = (req->type == REQ_JSON);
         if (!isApi)
         {
-            long maxbytes = long( (httpio->maxspeed[PUT] - httpio->uploadSpeed) * (SpeedController::SPEED_MEAN_MAX_INTERVAL_DS / 10) - httpio->partialdata[PUT] );
+            long maxbytes = long( ((httpio->maxspeed[PUT] - httpio->uploadSpeed) * SpeedController::SPEED_MEAN_CIRCULAR_BUFFER_SIZE_SECONDS) - httpio->partialdata[PUT] );
             if (maxbytes <= 0)
             {
                 httpio->pausedrequests[PUT].insert(httpctx->curl);
@@ -2605,11 +2705,11 @@ size_t CurlHttpIO::write_data(void* ptr, size_t size, size_t nmemb, void* target
         if (httpio->maxspeed[GET])
         {
             CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
-            bool isUpload = httpctx->data ? httpctx->len : req->out->size();
+            bool isUpload = (httpctx->data ? httpctx->len : req->out->size()) > 0;
             bool isApi = (req->type == REQ_JSON);
             if (!isApi && !isUpload)
             {
-                if ((httpio->downloadSpeed + 10 * (httpio->partialdata[GET] + len) / SpeedController::SPEED_MEAN_MAX_INTERVAL_DS) > httpio->maxspeed[GET])
+                if ((httpio->downloadSpeed + ((httpio->partialdata[GET] + len) / static_cast<m_off_t>(SpeedController::SPEED_MEAN_CIRCULAR_BUFFER_SIZE_SECONDS))) > httpio->maxspeed[GET])
                 {
                     CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
                     httpio->pausedrequests[GET].insert(httpctx->curl);
@@ -2673,6 +2773,40 @@ size_t CurlHttpIO::check_header(void* ptr, size_t size, size_t nmemb, void* targ
     else if (len > 15 && !memcmp(ptr, "Content-Type:", 13))
     {
         req->contenttype.assign((char *)ptr + 13, len - 15);
+    }
+    else if (len >= (11 + 7) && !memcmp(ptr, "X-Hashcash:", 11))
+    {
+        // trim trailing CRLF
+        while (len > 11 && static_cast<uint8_t*>(ptr)[len - 1] < ' ') len--;
+
+        string buffer{(char*)ptr + 11, len - 11};
+        LOG_warn << "X-Hashcash received:" << buffer;
+
+        // Example of hashcash header
+        // 1:100:1731410499:RUvIePV2PNO8ofg8xp1aT5ugBcKSEzwKoLBw9o4E6F_fmn44eC3oMpv388UtFl2K
+        // <version>:<easiness>:<timestamp>:<b64token>
+
+        std::stringstream ss(buffer);
+        vector<string> hc;
+        for (size_t i = 0; i < 4; i++)
+        {
+            string buf;
+            if (!getline(ss, buf, ':'))
+                break;
+            hc.push_back(move(buf));
+        }
+        if (hc.size() != 4 // incomplete data
+            || stoi(hc[0]) != 1 // header version
+            || stoi(hc[1]) < 0 || stoi(hc[1]) > 255 // invalid easiness [0, 255]
+            || hc[3].size() != 64)  // token is 64 chars in B64
+        {
+            req->mHashcashToken.clear();
+        }
+        else
+        {
+            req->mHashcashToken = hc[3].substr(0, 64);
+            req->mHashcashEasiness = static_cast<uint8_t>(stoi(hc[1]));
+        }
     }
     else
     {

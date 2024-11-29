@@ -21,6 +21,8 @@
 
 #import <Foundation/Foundation.h>
 
+NS_ASSUME_NONNULL_BEGIN
+
 /**
  * @brief Provides information about timezones
  *
@@ -32,17 +34,6 @@
  */
 
 @interface MEGATimeZoneDetails : NSObject
-
-/**
- * @brief Creates a copy of this MEGATimeZoneDetails object.
- *
- * The resulting object is fully independent of the source MEGATimeZoneDetails,
- * it contains a copy of all internal attributes, so it will be valid after
- * the original object is deleted.
- *
- * @return Clone of the MEGATimeZoneDetails object.
- */
-- (instancetype)clone;
 
 /**
  * @brief The number of timezones in this object
@@ -63,7 +54,7 @@
  * @param index Index in the list (it must be lower than [MEGATimeZoneDetails numTimeZones])
  * @return Timezone at an index
  */
-- (NSString *)timeZoneAtIndex:(NSInteger)index;
+- (nullable NSString *)timeZoneAtIndex:(NSInteger)index;
 
 /**
  * @brief Returns the current time offset of the time zone at an index, respect to UTC (in seconds, it can be negative)
@@ -73,4 +64,7 @@
  * @see [MEGATimeZoneDetails timeZoneAtIndex:]
  */
 - (NSInteger)timeOffsetAtIndex:(NSInteger)index;
+
+NS_ASSUME_NONNULL_END
+
 @end

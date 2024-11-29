@@ -22,12 +22,16 @@
 #ifndef MEGA_PUBKEYACTION_H
 #define MEGA_PUBKEYACTION_H 1
 
-#include "mega/megaclient.h"
-#include "mega/user.h"
+#include "mega/command.h"
 #include "mega/node.h"
+#include "mega/user.h"
 
 namespace mega {
 // action to be performed upon arrival of a user's public key
+
+// forward declaration to avoid cyclic include with megaclient.h
+class MegaClient;
+
 class MEGA_API PubKeyAction
 {
 public:
@@ -38,32 +42,6 @@ public:
 
     PubKeyAction();
     virtual ~PubKeyAction() { }
-};
-
-class MEGA_API PubKeyActionCreateShare : public PubKeyAction
-{
-    handle h;   // node to create share on
-    accesslevel_t a;    // desired access level
-    string selfemail;  // optional personal representation when sharing to a non-contact
-    bool mWritable = false;
-
-    std::function<void(Error, bool writable)> completion;
-
-public:
-    void proc(MegaClient*, User*);
-
-    PubKeyActionCreateShare(handle, accesslevel_t, int, bool writable, const char*,
-	    std::function<void(Error, bool writable)> completion);
-};
-
-class MEGA_API PubKeyActionSendShareKey : public PubKeyAction
-{
-    handle sh;  // share node the key was requested on
-
-public:
-    void proc(MegaClient*, User*);
-
-    PubKeyActionSendShareKey(handle);
 };
 
 class MEGA_API PubKeyActionPutNodes : public PubKeyAction

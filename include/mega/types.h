@@ -53,23 +53,8 @@ typedef char __static_check_01__[sizeof(bool) == sizeof(char) ? 1 : -1];
 typedef int64_t m_off_t;
 
 namespace mega {
-
-// opaque filesystem fingerprint (eg on windows, volume serial number).  Let's make it a proper type so the compiler helps us not mix it up with other IDs
-struct fsfp_t
-{
-    uint64_t id = 0;
-    fsfp_t() {}
-    fsfp_t(uint64_t i) : id(i) {}
-    operator bool() { return id != 0; }
-};
-
-// within ::mega namespace, byte is unsigned char (avoids ambiguity when std::byte from c++17 and perhaps other defined ::byte are available)
-#if defined(USE_CRYPTOPP) && (CRYPTOPP_VERSION >= 600) && ((__cplusplus >= 201103L) || (__RPCNDR_H_VERSION__ == 500))
-using byte = CryptoPP::byte;
-#elif __RPCNDR_H_VERSION__ != 500
-typedef unsigned char byte;
-
-#endif
+    // within ::mega namespace, byte is unsigned char (avoids ambiguity when std::byte from c++17 and perhaps other defined ::byte are available)
+    using byte = unsigned char;
 }
 
 #ifdef USE_CRYPTOPP
@@ -79,11 +64,13 @@ typedef unsigned char byte;
 #endif
 
 #include "mega/crypto/sodium.h"
+#include "mega/user_attribute_types.h"
 
-#include <memory>
-#include <string>
 #include <chrono>
+#include <memory>
 #include <mutex>
+#include <string>
+#include <thread>
 
 namespace mega {
 
@@ -114,14 +101,19 @@ using std::wstring;
 #endif
 
 // forward declaration
+struct AccountDetails;
+struct AchievementsDetails;
 struct AttrMap;
 class BackoffTimer;
 class Command;
 class CommandPubKeyRequest;
+struct BusinessPlan;
+struct CurrencyData;
 struct DirectRead;
 struct DirectReadNode;
 struct DirectReadSlot;
 struct FileAccess;
+struct FileSystemAccess;
 struct FileAttributeFetch;
 struct FileAttributeFetchChannel;
 struct FileFingerprint;
@@ -146,6 +138,7 @@ struct PendingContactRequest;
 class TransferList;
 struct Achievement;
 class SyncConfig;
+class LocalPath;
 
 namespace UserAlert
 {
@@ -162,10 +155,10 @@ constexpr m_time_t mega_invalid_timestamp = 0;
 inline bool isValidTimeStamp(m_time_t t) { return t != mega_invalid_timestamp; }
 
 // monotonously increasing time in deciseconds
-typedef uint32_t dstime;
+using dstime = int64_t;
 
-#define NEVER (~(dstime)0)
-#define EVER(ds) ((ds+1))
+#define NEVER std::numeric_limits<dstime>::max()
+#define EVER(ds) (ds != NEVER)
 
 #define STRINGIFY(x) # x
 #define TOSTRING(x) STRINGIFY(x)
@@ -223,7 +216,22 @@ typedef enum ErrorCodes : int
     API_EMASTERONLY = -27,          ///< Access denied for sub-users (only for business accounts)
     API_EBUSINESSPASTDUE = -28,     ///< Business account expired
     API_EPAYWALL = -29,             ///< Over Disk Quota Paywall
+    API_ESUBUSERKEYMISSING = -30, ///< A business error where a subuser has not yet encrypted
+                                  /// their master key for the admin user and tries to perform
+                                  /// a disallowed command (currently u and p)
+
     LOCAL_ENOSPC = -1000,           ///< Insufficient space
+    LOCAL_ETIMEOUT = -1001,         ///< A request timed out.
+    LOCAL_ABANDONED = -1002,        ///< Request abandoned due to local logout.
+
+    API_FUSE_EBADF = -2000,
+    API_FUSE_EISDIR = -2001,
+    API_FUSE_ENAMETOOLONG = -2002,
+    API_FUSE_ENOTDIR = -2003,
+    API_FUSE_ENOTEMPTY = -2004,
+    API_FUSE_ENOTFOUND = -2005,
+    API_FUSE_EPERM = -2006,
+    API_FUSE_EROFS = -2007,
 } error;
 
 class Error
@@ -268,6 +276,13 @@ private:
 
 // returned by loggedin()
 typedef enum { NOTLOGGEDIN = 0, EPHEMERALACCOUNT, CONFIRMEDACCOUNT, FULLACCOUNT, EPHEMERALACCOUNTPLUSPLUS } sessiontype_t;
+
+enum class PasswordEntryError : uint8_t
+{
+    OK = 0,
+    PARSE_ERROR,
+    MISSING_PASSWORD,
+};
 
 // node/user handles are 8-11 base64 characters, case sensitive, and thus fit
 // in a 64-bit int
@@ -347,8 +362,10 @@ typedef list<struct File*> file_list;
 
 // node types:
 typedef enum {
+    TYPE_NESTED_MOUNT = -5,
+    TYPE_SYMLINK = -4,
     TYPE_DONOTSYNC = -3,
-    TYPE_SPECIAL = -2,
+    TYPE_SPECIAL = -2, // but not include SYMLINK
     TYPE_UNKNOWN = -1,
     FILENODE = 0,    // FILE - regular file nodes
     FOLDERNODE,      // FOLDER - regular folder nodes
@@ -376,6 +393,9 @@ typedef enum { MIME_TYPE_UNKNOWN    = 0,
                MIME_TYPE_ARCHIVE    = 7,    // archiveExtensions
                MIME_TYPE_PROGRAM    = 8,    // programExtensions
                MIME_TYPE_MISC       = 9,    // miscExtensions
+               MIME_TYPE_SPREADSHEET = 10,  // spreadsheetExtensions
+               MIME_TYPE_ALL_DOCS   = 11,   // any of {document, pdf, presentation, spreadsheet}
+               MIME_TYPE_OTHERS     = 12,   // any other file not included in previous types
              } MimeType_t;
 
 typedef enum { LBL_UNKNOWN = 0, LBL_RED = 1, LBL_ORANGE = 2, LBL_YELLOW = 3, LBL_GREEN = 4,
@@ -419,9 +439,6 @@ public:
     bool notified = false;
 };
 
-// numeric representation of string (up to 8 chars)
-typedef uint64_t nameid;
-
 // access levels:
 // RDONLY - cannot add, rename or delete
 // RDWR - cannot rename or delete
@@ -434,8 +451,7 @@ typedef enum { OPCA_ADD = 0, OPCA_DELETE, OPCA_REMIND} opcactions_t;
 // operations for incoming pending contacts
 typedef enum { IPCA_ACCEPT = 0, IPCA_DENY, IPCA_IGNORE} ipcactions_t;
 
-
-typedef vector<Node*> node_vector;
+typedef vector<std::shared_ptr<Node> > sharedNode_vector;
 
 // contact visibility:
 // HIDDEN - not shown
@@ -448,15 +464,9 @@ typedef enum { PUTNODES_APP, PUTNODES_SYNC, PUTNODES_SYNCDEBRIS } putsource_t;
 typedef map<pair<UploadHandle, fatype>, pair<handle, int> > fa_map;
 
 
-enum class SyncRunState { Pending, Loading, Run, Pause, Suspend, Disable };
-
-typedef enum {
-    SYNC_DISABLED = -3, //user disabled (if no syncError, otherwise automatically disabled . i.e SYNC_TEMPORARY_DISABLED)
-    SYNC_FAILED = -2,
-    SYNC_CANCELED = -1, // being deleted
-    SYNC_INITIALSCAN = 0,
-    SYNC_ACTIVE
-} syncstate_t;
+enum class SyncRunState { Pending, Loading, Run,
+    Pause, /* do not use this state in new code; pausing a sync should actually use Suspend state */
+    Suspend, Disable };
 
 typedef enum
 {
@@ -492,8 +502,8 @@ enum SyncError {
     STORAGE_OVERQUOTA = 9,                  // Account reached storage overquota
     ACCOUNT_EXPIRED = 10,                   // Your plan has expired
     FOREIGN_TARGET_OVERSTORAGE = 11,        // Sync transfer fails (upload into an inshare whose account is overquota)
-    REMOTE_PATH_HAS_CHANGED = 12,           // Remote path has changed (currently unused: not an error)
-    REMOTE_PATH_DELETED = 13,               // (obsolete -> unified with REMOTE_NODE_NOT_FOUND) Remote path has been deleted
+    REMOTE_PATH_HAS_CHANGED = 12, // (obsolete -> changing remote path is not an error)
+    // REMOTE_PATH_DELETED = 13,               // (obsolete -> unified with REMOTE_NODE_NOT_FOUND)
     SHARE_NON_FULL_ACCESS = 14,             // Existing inbound share sync or part thereof lost full access
     LOCAL_FILESYSTEM_MISMATCH = 15,         // Filesystem fingerprint does not match the one stored for the synchronization
     PUT_NODES_ERROR = 16,                   // Error processing put nodes result
@@ -507,8 +517,8 @@ enum SyncError {
     UNKNOWN_TEMPORARY_ERROR = 24,           // Unknown temporary error
     TOO_MANY_ACTION_PACKETS = 25,           // Too many changes in account, local state discarded
     LOGGED_OUT = 26,                        // Logged out
-    WHOLE_ACCOUNT_REFETCHED = 27,           // The whole account was reloaded, missed actionpacket changes could not have been applied
-    MISSING_PARENT_NODE = 28,               // Setting a new parent to a parent whose LocalNode is missing its corresponding Node crossref
+    //WHOLE_ACCOUNT_REFETCHED = 27,         // obsolete. was: The whole account was reloaded, missed actionpacket changes could not have been applied
+    //MISSING_PARENT_NODE = 28,             // obsolete. was: Setting a new parent to a parent whose LocalNode is missing its corresponding Node crossref
     BACKUP_MODIFIED = 29,                   // Backup has been externally modified.
     BACKUP_SOURCE_NOT_BELOW_DRIVE = 30,     // Backup source path not below drive path.
     SYNC_CONFIG_WRITE_FAILURE = 31,         // Unable to write sync config to disk.
@@ -528,6 +538,7 @@ enum SyncError {
     FILESYSTEM_FILE_IDS_ARE_UNSTABLE = 45,  // On MAC in particular, the FSID of a file in an exFAT drive can and does change spontaneously and frequently
     FILESYSTEM_ID_UNAVAILABLE = 46,         // If we can't get a filesystem's id
     UNABLE_TO_RETRIEVE_DEVICE_ID = 47,      // Unable to retrieve the ID of current device
+    LOCAL_PATH_MOUNTED = 48,                // The local path is a FUSE mount.
 };
 
 enum SyncWarning {
@@ -542,25 +553,40 @@ typedef enum { SYNCDEL_NONE, SYNCDEL_DELETED, SYNCDEL_INFLIGHT, SYNCDEL_BIN,
 
 typedef vector<LocalNode*> localnode_vector;
 
-typedef map<handle, LocalNode*> handlelocalnode_map;
+// fsid is not necessarily unique because multiple filesystems may be involved
+// Hence, we use a multimap and check other parameters too when looking for a match.
+typedef multimap<handle, LocalNode*> fsid_localnode_map;
+
+// A similar type for looking up LocalNode by node handle, analagously
+// Keep the type separate by inheriting
+typedef multimap<NodeHandle, LocalNode*> nodehandle_localnode_map;
 
 typedef set<LocalNode*> localnode_set;
 
 typedef multimap<uint32_t, LocalNode*> idlocalnode_map;
 
-struct UnlinkOrDebris {
-    bool unlink = false;
-    bool debris = false;
-    bool canChangeVault = false;
-    UnlinkOrDebris(bool u, bool d, bool v) : unlink(u), debris(d), canChangeVault(v) {}
-};
+#ifdef USE_INOTIFY
 
-typedef map<Node*, UnlinkOrDebris> unlink_or_debris_set;
+using WatchEntry = pair<LocalNode*, handle>;
+using WatchMap = multimap<int, WatchEntry>;
+using WatchMapIterator = WatchMap::iterator;
 
+#endif // USE_INOTIFY
+
+enum WatchResult
+{
+    // Unable to add a watch due to bad path, etc.
+    WR_FAILURE,
+    // Unable to add a watch due to resource limits.
+    WR_FATAL,
+    // Successfully added a watch.
+    WR_SUCCESS
+}; // WatchResult
+
+typedef set<Node*> node_set;
 
 // enumerates a node's children
-// FIXME: switch to forward_list once C++11 becomes more widely available
-typedef list<Node*> node_list;
+typedef list<std::shared_ptr<Node> > sharedNode_list;
 
 // undefined node handle
 const handle UNDEF = ~(handle)0;
@@ -719,51 +745,6 @@ typedef map<string, string> string_map;
 typedef multimap<int64_t, int64_t> integer_map;
 typedef string_map TLV_map;
 
-// user attribute types
-typedef enum {
-    ATTR_UNKNOWN = -1,
-    ATTR_AVATAR = 0,                        // public - char array - non-versioned
-    ATTR_FIRSTNAME = 1,                     // public - char array - non-versioned
-    ATTR_LASTNAME = 2,                      // public - char array - non-versioned
-    ATTR_AUTHRING = 3,                      // private - byte array
-    ATTR_LAST_INT = 4,                      // private - byte array
-    ATTR_ED25519_PUBK = 5,                  // public - byte array - versioned
-    ATTR_CU25519_PUBK = 6,                  // public - byte array - versioned
-    ATTR_KEYRING = 7,                       // private - byte array - versioned
-    ATTR_SIG_RSA_PUBK = 8,                  // public - byte array - versioned
-    ATTR_SIG_CU255_PUBK = 9,                // public - byte array - versioned
-    ATTR_COUNTRY = 10,                      // public - char array - non-versioned
-    ATTR_BIRTHDAY = 11,                     // public - char array - non-versioned
-    ATTR_BIRTHMONTH = 12,                   // public - char array - non-versioned
-    ATTR_BIRTHYEAR = 13,                    // public - char array - non-versioned
-    ATTR_LANGUAGE = 14,                     // private, non-encrypted - char array in B64 - non-versioned
-    ATTR_PWD_REMINDER = 15,                 // private, non-encrypted - char array in B64 - non-versioned
-    ATTR_DISABLE_VERSIONS = 16,             // private, non-encrypted - char array in B64 - non-versioned
-    ATTR_CONTACT_LINK_VERIFICATION = 17,    // private, non-encrypted - char array in B64 - versioned
-    ATTR_RICH_PREVIEWS = 18,                // private - byte array
-    ATTR_RUBBISH_TIME = 19,                 // private, non-encrypted - char array in B64 - non-versioned
-    ATTR_LAST_PSA = 20,                     // private - char array
-    ATTR_STORAGE_STATE = 21,                // private - non-encrypted - char array in B64 - non-versioned
-    ATTR_GEOLOCATION = 22,                  // private - byte array - non-versioned
-    ATTR_CAMERA_UPLOADS_FOLDER = 23,        // private - byte array - non-versioned
-    ATTR_MY_CHAT_FILES_FOLDER = 24,         // private - byte array - non-versioned
-    ATTR_PUSH_SETTINGS = 25,                // private - non-encrypted - char array in B64 - non-versioned
-    ATTR_UNSHAREABLE_KEY = 26,              // private - char array - versioned
-    ATTR_ALIAS = 27,                        // private - byte array - versioned
-    //ATTR_AUTHRSA = 28,                    // (deprecated) private - byte array
-    ATTR_AUTHCU255 = 29,                    // private - byte array
-    ATTR_DEVICE_NAMES = 30,                 // private - byte array - versioned
-    ATTR_MY_BACKUPS_FOLDER = 31,            // private - non-encrypted - char array in B64 - non-versioned
-    //ATTR_BACKUP_NAMES = 32,               // (deprecated) private - byte array - versioned
-    ATTR_COOKIE_SETTINGS = 33,              // private - byte array - non-versioned
-    ATTR_JSON_SYNC_CONFIG_DATA = 34,        // private - byte array - non-versioned
-    //ATTR_DRIVE_NAMES = 35,                // (merged with ATTR_DEVICE_NAMES and removed) private - byte array - versioned
-    ATTR_NO_CALLKIT = 36,                   // private, non-encrypted - char array in B64 - non-versioned
-    ATTR_KEYS = 37,                         // private, non-encrypted (but encrypted to derived key from MK) - binary blob, non-versioned
-    ATTR_APPS_PREFS = 38,                   // private - byte array - versioned (apps preferences)
-    ATTR_CC_PREFS   = 39,                   // private - byte array - versioned (content consumption preferences)
-
-} attr_t;
 typedef map<attr_t, string> userattr_map;
 
 typedef enum {
@@ -784,7 +765,20 @@ typedef enum { RECOVER_WITH_MASTERKEY = 9, RECOVER_WITHOUT_MASTERKEY = 10, CANCE
 
 typedef enum { EMAIL_REMOVED = 0, EMAIL_PENDING_REMOVED = 1, EMAIL_PENDING_ADDED = 2, EMAIL_FULLY_ACCEPTED = 3 } emailstatus_t;
 
-typedef enum { RETRY_NONE = 0, RETRY_CONNECTIVITY = 1, RETRY_SERVERS_BUSY = 2, RETRY_API_LOCK = 3, RETRY_RATE_LIMIT = 4, RETRY_LOCAL_LOCK = 5, RETRY_UNKNOWN = 6} retryreason_t;
+#define DEFINE_RETRY_REASONS(expander) \
+    expander(0, RETRY_NONE) \
+    expander(1, RETRY_CONNECTIVITY) \
+    expander(2, RETRY_SERVERS_BUSY) \
+    expander(3, RETRY_API_LOCK) \
+    expander(4, RETRY_RATE_LIMIT) \
+    expander(5, RETRY_LOCAL_LOCK) \
+    expander(6, RETRY_UNKNOWN)
+
+typedef enum {
+#define DEFINE_RETRY_REASON(index, name) name = index,
+    DEFINE_RETRY_REASONS(DEFINE_RETRY_REASON)
+#undef DEFINE_RETRY_REASON
+} retryreason_t;
 
 typedef enum {
     STORAGE_UNKNOWN = -9,
@@ -820,7 +814,7 @@ struct recentaction
     handle parent;
     bool updated;
     bool media;
-    node_vector nodes;
+    sharedNode_vector nodes;
 };
 typedef vector<recentaction> recentactions_vector;
 
@@ -834,8 +828,12 @@ typedef enum {
     ACCOUNT_TYPE_PROII = 2,
     ACCOUNT_TYPE_PROIII = 3,
     ACCOUNT_TYPE_LITE = 4,
+    ACCOUNT_TYPE_STARTER = 11,
+    ACCOUNT_TYPE_BASIC = 12,
+    ACCOUNT_TYPE_ESSENTIAL = 13,
     ACCOUNT_TYPE_BUSINESS = 100,
-    ACCOUNT_TYPE_PRO_FLEXI = 101
+    ACCOUNT_TYPE_PRO_FLEXI = 101,
+    ACCOUNT_TYPE_FEATURE = 99999
 } AccountType;
 
 typedef enum
@@ -863,17 +861,8 @@ typedef enum {
     REASON_ERROR_DB_IO              = 2,
     REASON_ERROR_DB_FULL            = 3,
     REASON_ERROR_DB_INDEX_OVERFLOW  = 4,
+    REASON_ERROR_NO_JSCD = 5,
 } ErrorReason;
-
-// inside 'mega' namespace, since use C++11 and can't rely on C++14 yet, provide make_unique for the most common case.
-// This keeps our syntax small, while making sure the compiler ensures the object is deleted when no longer used.
-// Sometimes there will be ambiguity about std::make_unique vs mega::make_unique if cpp files "use namespace std", in which case specify ::mega::.
-// It's better that we use the same one in older and newer compilers so we detect any issues.
-template<class T, class... constructorArgs>
-unique_ptr<T> make_unique(constructorArgs&&... args)
-{
-    return (unique_ptr<T>(new T(std::forward<constructorArgs>(args)...)));
-}
 
 //#define MEGA_MEASURE_CODE   // uncomment this to track time spent in major subsystems, and log it every 2 minutes, with extra control from megacli
 
@@ -989,6 +978,7 @@ public:
         STATUS_BUSINESS = 2,
         STATUS_BLOCKED = 3,
         STATUS_PRO_LEVEL = 4,
+        STATUS_FEATURE_LEVEL = 5,
     };
 
     CacheableStatus(Type type, int64_t value);
@@ -1060,12 +1050,12 @@ public:
 
     // getters
     ChatOptions_t value() const             { return mChatOptions; }
-    bool areEqual(ChatOptions_t val)        { return mChatOptions == val; }
+    bool areEqual(ChatOptions_t val) const  { return mChatOptions == val; }
     bool speakRequest() const               { return mChatOptions & kSpeakRequest; }
     bool waitingRoom() const                { return mChatOptions & kWaitingRoom; }
     bool openInvite() const                 { return mChatOptions & kOpenInvite; }
-    bool isValid()                          { return static_cast<unsigned int>(mChatOptions) <= static_cast<unsigned int>(maxValidValue); }
-    bool isEmpty()                          { return mChatOptions == kEmpty; }
+    bool isValid() const                    { return static_cast<unsigned int>(mChatOptions) <= static_cast<unsigned int>(maxValidValue); }
+    bool isEmpty() const                    { return mChatOptions == kEmpty; }
 
 protected:
     ChatOptions_t mChatOptions = kEmpty;
@@ -1083,64 +1073,65 @@ enum VersioningOption
     UseServerVersioningFlag   // One of those two will occur, based on the API's current state of that flag
 };
 
-// cross reference pointers.  For the case where two classes have pointers to each other, and they should
-// either always be NULL or if one refers to the other, the other refers to the one.
-// This class makes sure that the two pointers are always consistent, and also prevents copy/move (unless the pointers are NULL)
-template<class TO, class FROM>
-FROM*& crossref_other_ptr_ref(TO* s);  // to be supplied for each pair of classes (to assign to the right member thereof) (gets around circular declarations)
+enum class SyncWaitReason {
+    NoReason = 0,
+    FileIssue,
+    MoveOrRenameCannotOccur,
+    DeleteOrMoveWaitingOnScanning,
+    DeleteWaitingOnMoves,
+    UploadIssue,
+    DownloadIssue,
+    CannotCreateFolder,
+    CannotPerformDeletion,
+    SyncItemExceedsSupportedTreeDepth,
+    FolderMatchedAgainstFile,
+    LocalAndRemoteChangedSinceLastSyncedState_userMustChoose,
+    LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose,
+    NamesWouldClashWhenSynced,
 
-template <class  TO, class  FROM>
-class MEGA_API  crossref_ptr
-{
-    friend class crossref_ptr<FROM, TO>;
-
-    template<class A, class B>
-    friend B*& crossref_other_ptr_ref(A* s);  // friend so that specialization can access `ptr`
-
-    TO* ptr = nullptr;
-
-public:
-    crossref_ptr() = default;
-
-    ~crossref_ptr()
-    {
-        reset();
-    }
-
-    void crossref(TO* to, FROM* from)
-    {
-        assert(to && from);
-        assert(ptr == nullptr);
-        assert( !(crossref_other_ptr_ref<TO, FROM>(to)) );
-        ptr = to;
-        crossref_other_ptr_ref<TO, FROM>(ptr) = from;
-    }
-
-    void reset()
-    {
-        if (ptr)
-        {
-            assert( !!(crossref_other_ptr_ref<TO, FROM>(ptr)) );
-            crossref_other_ptr_ref<TO, FROM>(ptr) = nullptr;
-            ptr = nullptr;
-        }
-    }
-
-    void store_unchecked(TO* p) { ptr = p; }
-    TO*  release_unchecked() { auto p = ptr; ptr = nullptr; return p;  }
-
-    TO* get()              { return ptr; }
-    TO* operator->() const { assert(ptr != (void*)~0); return ptr; }
-    operator TO*() const   { assert(ptr != (void*)~0); return ptr; }
-
-    // no copying
-    crossref_ptr(const crossref_ptr&) = delete;
-    void operator=(const crossref_ptr&) = delete;
-
-    // only allow move if the pointers are null (check at runtime with assert)
-    crossref_ptr(crossref_ptr&& p) { assert(!p.ptr); }
-    void operator=(crossref_ptr&& p) { assert(!p.ptr); ptr = p; }
+    SyncWaitReason_LastPlusOne
 };
+
+enum class PathProblem : unsigned short {
+    NoProblem = 0,
+    FileChangingFrequently,
+    IgnoreRulesUnknown,
+    DetectedHardLink,
+    DetectedSymlink,
+    DetectedSpecialFile,
+    DifferentFileOrFolderIsAlreadyPresent,
+    ParentFolderDoesNotExist,
+    FilesystemErrorDuringOperation,
+    NameTooLongForFilesystem,
+    CannotFingerprintFile,
+    DestinationPathInUnresolvedArea,
+    MACVerificationFailure,
+    UnknownDownloadIssue,
+    DeletedOrMovedByUser,
+    FileFolderDeletedByUser,
+    MoveToDebrisFolderFailed,
+    IgnoreFileMalformed,
+    FilesystemErrorListingFolder,
+    FilesystemErrorIdentifyingFolderContent,  // Deprecated after SDK-3206
+    WaitingForScanningToComplete,
+    WaitingForAnotherMoveToComplete,
+    SourceWasMovedElsewhere,
+    FilesystemCannotStoreThisName,
+    CloudNodeInvalidFingerprint,
+    CloudNodeIsBlocked,
+
+    PutnodeDeferredByController,
+    PutnodeCompletionDeferredByController,
+    PutnodeCompletionPending,
+    UploadDeferredByController,
+
+    DetectedNestedMount,
+
+    PathProblem_LastPlusOne
+};
+
+const char* syncWaitReasonDebugString(SyncWaitReason r);
+const char* syncPathProblemDebugString(PathProblem r);
 
 class CancelToken
 {
@@ -1201,9 +1192,83 @@ public:
 
 typedef std::map<NodeHandle, Node*> nodePtr_map;
 
+enum ExclusionState : unsigned char
+{
+    // Node's definitely excluded.
+    ES_EXCLUDED,
+    // Node's definitely included.
+    ES_INCLUDED,
+    // Node has an indeterminate exclusion state.
+    ES_UNKNOWN,
+    // No rule matched (so a higher level .megaignore should be checked)
+    ES_UNMATCHED
+}; // ExclusionState
+
+struct StorageInfo
+{
+    m_off_t mAvailable = 0;
+    m_off_t mCapacity = 0;
+    m_off_t mUsed = 0;
+}; // StorageInfo
+
+struct JSCData
+{
+    // Verifies that the sync config database hasn't been tampered with.
+    std::string authenticationKey;
+
+    // Used to encipher the sync config database's content.
+    std::string cipherKey;
+
+    // The name of this user's sync config databases.
+    std::string fileName;
+}; // JSCData
+
 #ifdef ENABLE_CHAT
+
+class ScheduledFlags;
+class ScheduledMeeting;
+class ScheduledRules;
+class TextChat;
+
+using textchat_map = map<handle, TextChat*>;
+using textchat_vector = vector<TextChat*>;
+
 static constexpr int sfu_invalid_id = -1;
-#endif
+
+#endif // ENABLE_CHAT
+
+// Opaque filesystem fingerprint.
+class fsfp_t;
+
+// Convenience.
+using fsfp_ptr_t = std::shared_ptr<fsfp_t>;
+
+// Convenience.
+using FileAccessPtr = std::unique_ptr<FileAccess>;
+using FileAccessSharedPtr = std::shared_ptr<FileAccess>;
+using FileAccessWeakPtr = std::weak_ptr<FileAccess>;
+
+template<typename T>
+using FromNodeHandleMap = std::map<NodeHandle, T>;
+
+using NodeHandleQueue = std::deque<NodeHandle>;
+using NodeHandleSet = std::set<NodeHandle>;
+using NodeHandleVector = std::vector<NodeHandle>;
+
+// For metaprogramming.
+template<typename T>
+struct IsPath;
+
+// Convenience.
+template<typename P, typename T>
+struct EnableIfPath
+  : std::enable_if<IsPath<P>::value, T>
+{
+}; // EnableIfPath<P, T>
+
+template<typename T>
+using FromStringMap = std::map<std::string, T>;
+
 } // namespace mega
 
 #define MEGA_DISABLE_COPY(class_name) \
@@ -1241,5 +1306,206 @@ struct StringKeyPair
     : privKey(std::move(privKey)), pubKey(std::move(pubKey))
     {}
 };
+
+// A simple busy-wait lock for lightweight mutual exclusion.
+class Spinlock
+{
+    // Is the spinlock currently locked?
+    std::atomic_flag mLocked;
+
+public:
+    Spinlock()
+      : mLocked()
+    {
+        // Necessary until C++20.
+        mLocked.clear();
+    }
+
+    Spinlock(const Spinlock& other) = delete;
+
+    Spinlock& operator=(const Spinlock& rhs) = delete;
+
+    // Acquire exclusive ownership of this lock.
+    void lock()
+    {
+        // Poll until the loop is acquired.
+        while (!try_lock())
+            ;
+    }
+
+    // Try and acquire exclusive ownership of this lock.
+    bool try_lock()
+    {
+        return !mLocked.test_and_set();
+    }
+
+    // Release exclusive ownership of this lock.
+    void unlock()
+    {
+        mLocked.clear();
+    }
+}; // Spinlock
+
+namespace detail
+{
+
+template<typename T>
+struct IsRecursiveMutex
+  : std::false_type
+{
+}; // IsRecursiveMutex<T>
+
+template<>
+struct IsRecursiveMutex<std::recursive_mutex>
+  : std::true_type
+{
+}; // IsRecursiveMutex<std::recursive_mutex>
+
+template<typename T, bool IsRecursive = IsRecursiveMutex<T>::value>
+class CheckableMutex
+{
+    T mMutex;
+    std::atomic<std::thread::id> mOwner;
+
+public:
+    CheckableMutex()
+      : mMutex()
+      , mOwner(std::thread::id())
+    {
+    }
+
+    CheckableMutex(const CheckableMutex& other) = delete;
+
+    CheckableMutex& operator=(const CheckableMutex& rhs) = delete;
+
+    void lock()
+    {
+        auto id = std::this_thread::get_id();
+
+        assert(mOwner != id);
+
+        mMutex.lock();
+        mOwner = id;
+    }
+
+    bool owns_lock() const
+    {
+        return mOwner == std::this_thread::get_id();
+    }
+
+    bool try_lock()
+    {
+        auto id = std::this_thread::get_id();
+
+        if (mMutex.try_lock())
+        {
+            mOwner = id;
+            return true;
+        }
+
+        return false;
+    }
+
+    void unlock()
+    {
+        assert(mOwner == std::this_thread::get_id());
+
+        mOwner = std::thread::id();
+        mMutex.unlock();
+    }
+}; // CheckableMutex<T, false>
+
+template<typename T>
+class CheckableMutex<T, true>
+{
+    std::uint32_t mCount;
+    mutable Spinlock mLock;
+    T mMutex;
+    std::thread::id mOwner;
+
+public:
+    CheckableMutex()
+      : mCount(0)
+      , mLock()
+      , mMutex()
+      , mOwner()
+    {
+    }
+
+    CheckableMutex(const CheckableMutex& other) = delete;
+
+    CheckableMutex& operator=(const CheckableMutex& rhs) = delete;
+
+    void lock()
+    {
+        auto id = std::this_thread::get_id();
+
+        mMutex.lock();
+
+        std::lock_guard<Spinlock> guard(mLock);
+
+        mCount = mCount + 1;
+        mOwner = id;
+    }
+
+    bool owns_lock() const
+    {
+        auto id = std::this_thread::get_id();
+
+        std::lock_guard<Spinlock> guard(mLock);
+
+        return mOwner == id && mCount > 0;
+    }
+
+    bool try_lock()
+    {
+        auto id = std::this_thread::get_id();
+
+        if (!mMutex.try_lock())
+            return false;
+
+        std::lock_guard<Spinlock> guard(mLock);
+
+        mCount = mCount + 1;
+        mOwner = id;
+
+        return true;
+    }
+
+    void unlock()
+    {
+        std::lock_guard<Spinlock> guard(mLock);
+
+        assert(mCount);
+        assert(mOwner == std::this_thread::get_id());
+
+        if (!--mCount)
+            mOwner = std::thread::id();
+
+        mMutex.unlock();
+    }
+}; // CheckableMutex<T, true>
+
+} // detail
+
+// API supports user/node attributes up to 16KB. This constant is used to restrict clients sending larger values
+static constexpr size_t MAX_NODE_ATTRIBUTE_SIZE = 64 * 1024; // 64kB
+static constexpr size_t MAX_FILE_ATTRIBUTE_SIZE = 16 * 1024 * 1024; // 16MB
+
+
+using detail::CheckableMutex;
+
+// For convenience.
+#ifdef USE_IOS
+
+#define IOS_ONLY(i) i
+#define IOS_OR_POSIX(i, p) i
+
+#else  // USE_IOS
+
+#define IOS_ONLY(i)
+#define IOS_OR_POSIX(i, p) p
+
+#endif // ! USE_IOS
 
 #endif

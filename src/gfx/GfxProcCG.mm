@@ -20,10 +20,12 @@
  */
 
 #include "mega.h"
-#include <MobileCoreServices/UTCoreTypes.h>
 #import <AVFoundation/AVFoundation.h>
+#if TARGET_OS_IPHONE
 #import <UIKit/UIImage.h>
-#import <MobileCoreServices/UTType.h>
+#else
+#import <AppKit/NSImage.h>
+#endif
 #import <QuickLookThumbnailing/QuickLookThumbnailing.h>
 
 const CGFloat COMPRESSION_QUALITY = 0.8f;
@@ -48,24 +50,27 @@ GfxProviderCG::~GfxProviderCG() {
 }
 
 const char* GfxProviderCG::supportedformats() {
-    return ".bmp.cr2.crw.cur.dng.gif.heic.ico.j2c.jp2.jpf.jpeg.jpg.nef.orf.pbm.pdf.pgm.png.pnm.ppm.psd.raf.rw2.rwl.tga.tif.tiff.3g2.3gp.avi.m4v.mov.mp4.mqv.qt.webp.";
+    return ".bmp.cr2.crw.cur.dng.gif.heic.ico.j2c.jp2.jpf.jpeg.jpg.nef.orf.pbm.pdf.pgm.png.pnm.ppm.psd.raf.rw2.rwl.tga.tif.tiff.3g2.3gp.avi.m4v.mov.mp4.mqv.qt.webp.jxl.avif.";
 }
 
 const char* GfxProviderCG::supportedvideoformats() {
     return NULL;
 }
 
-bool GfxProviderCG::readbitmap(FileSystemAccess* fa, const LocalPath& name, int size) {
-    string absolutename;
-    NSString *sourcePath;
-    if (PosixFileSystemAccess::appbasepath && !name.beginsWithSeparator()) {
-        absolutename = PosixFileSystemAccess::appbasepath;
-        absolutename.append(name.platformEncoded());
-        sourcePath = [NSString stringWithCString:absolutename.c_str() encoding:[NSString defaultCStringEncoding]];
-    } else {
-        sourcePath = [NSString stringWithCString:name.platformEncoded().c_str() encoding:[NSString defaultCStringEncoding]];
-    }
-    
+bool GfxProviderCG::readbitmap(const LocalPath& path, int size) {
+    // Convenience.
+    using mega::detail::AdjustBasePathResult;
+    using mega::detail::adjustBasePath;
+
+    // Ensure provided path is absolute.
+    AdjustBasePathResult absolutePath = adjustBasePath(path);
+
+    // Make absolute path usable to Cocoa.
+    NSString* sourcePath =
+      [NSString stringWithCString: absolutePath.c_str()
+                encoding: [NSString defaultCStringEncoding]];
+
+    // Couldn't create a Cocoa-friendly path.
     if (sourcePath == nil) {
         return false;
     }
@@ -95,13 +100,13 @@ bool GfxProviderCG::readbitmap(FileSystemAccess* fa, const LocalPath& name, int 
                 CFDictionaryRef imageProperties = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, imageOptions);
                 if (imageProperties) {
                     CFNumberRef width = (CFNumberRef)CFDictionaryGetValue(imageProperties, kCGImagePropertyPixelWidth);
-                    CFNumberRef heigth = (CFNumberRef)CFDictionaryGetValue(imageProperties, kCGImagePropertyPixelHeight);
-                    if (width && heigth) {
+                    CFNumberRef height = (CFNumberRef)CFDictionaryGetValue(imageProperties, kCGImagePropertyPixelHeight);
+                    if (width && height) {
                         CGFloat value;
                         if (CFNumberGetValue(width, kCFNumberCGFloatType, &value)) {
                             w = value;
                         }
-                        if (CFNumberGetValue(heigth, kCFNumberCGFloatType, &value)) {
+                        if (CFNumberGetValue(height, kCFNumberCGFloatType, &value)) {
                             h = value;
                         }
                     }
@@ -140,13 +145,13 @@ static inline CGRect tileRect(size_t w, size_t h)
     return res;
 }
 
-int GfxProviderCG::maxSizeForThumbnail(const int rw, const int rh) {
-    if (rh) { // rectangular rw*rh bounding box
-        return std::max(rw, rh);
-    }
-    // square rw*rw crop thumbnail
-    return ceil(rw * ((double)std::max(w, h) / (double)std::min(w, h)));
+#if !(TARGET_OS_IPHONE)
+static inline NSData* dataForImage(CGImageRef image) {
+    NSBitmapImageRep *bitmap = [[NSBitmapImageRep alloc] initWithCGImage:image];
+    NSDictionary *properties = @{NSImageCompressionFactor : @(COMPRESSION_QUALITY)};
+    return [bitmap representationUsingType:NSBitmapImageFileTypeJPEG properties:properties];
 }
+#endif
 
 bool GfxProviderCG::resizebitmap(int rw, int rh, string* jpegout) {
     jpegout->clear();
@@ -176,12 +181,20 @@ bool GfxProviderCG::resizebitmap(int rw, int rh, string* jpegout) {
         } else {
             if (isThumbnail) {
                 CGImageRef newImage = CGImageCreateWithImageInRect(thumbnail.CGImage, tileRect(CGImageGetWidth(thumbnail.CGImage), CGImageGetHeight(thumbnail.CGImage)));
+#if TARGET_OS_IPHONE
                 data = UIImageJPEGRepresentation([UIImage imageWithCGImage:newImage], COMPRESSION_QUALITY);
                 if (newImage) {
                     CFRelease(newImage);
                 }
+#else
+                data = dataForImage(newImage);
+#endif
             } else {
+#if TARGET_OS_IPHONE
                 data = UIImageJPEGRepresentation(thumbnail.UIImage, COMPRESSION_QUALITY);
+#else
+                data = dataForImage(thumbnail.CGImage);
+#endif
             }
         }
         if (this->semaphore) {

@@ -1,4 +1,6 @@
 #include "QTMegaListener.h"
+
+#include "QTMegaApiManager.h"
 #include "QTMegaEvent.h"
 
 #include <QCoreApplication>
@@ -6,7 +8,8 @@
 using namespace mega;
 using namespace std;
 
-QTMegaListener::QTMegaListener(MegaApi *megaApi, MegaListener *listener) : QObject()
+QTMegaListener::QTMegaListener(MegaApi* megaApi, MegaListener* listener):
+    QObject()
 {
     this->megaApi = megaApi;
 	this->listener = listener;
@@ -15,7 +18,7 @@ QTMegaListener::QTMegaListener(MegaApi *megaApi, MegaListener *listener) : QObje
 QTMegaListener::~QTMegaListener()
 {
     this->listener = NULL;
-    if (megaApi)
+    if (QTMegaApiManager::isMegaApiValid(megaApi))
     {
         megaApi->removeListener(this);
     }
@@ -23,11 +26,6 @@ QTMegaListener::~QTMegaListener()
 
 void QTMegaListener::onRequestStart(MegaApi *api, MegaRequest *request)
 {
-    if (request->getType() == MegaRequest::TYPE_DELETE)
-    {
-        megaApi = NULL;
-    }
-
     QTMegaEvent *event = new QTMegaEvent(api, (QEvent::Type)QTMegaEvent::OnRequestStart);
     event->setRequest(request->copy());
     QCoreApplication::postEvent(this, event, INT_MIN);
@@ -167,7 +165,39 @@ void QTMegaListener::onGlobalSyncStateChanged(MegaApi *api)
     QTMegaEvent *event = new QTMegaEvent(api, (QEvent::Type)QTMegaEvent::OnGlobalSyncStateChanged);
     QCoreApplication::postEvent(this, event, INT_MIN);
 }
+
+void QTMegaListener::onSyncRemoteRootChanged(MegaApi* api, MegaSync* sync)
+{
+    QTMegaEvent* event = new QTMegaEvent(api, (QEvent::Type)QTMegaEvent::OnSyncRemoteRootChanged);
+    event->setSync(sync->copy());
+    QCoreApplication::postEvent(this, event, INT_MIN);
+}
 #endif
+
+void QTMegaListener::onMountAdded(MegaApi *api, const char* path, int result)
+{
+    postMountEvent(QTMegaEvent::OnMountAdded, api, path, result);
+}
+
+void QTMegaListener::onMountChanged(MegaApi *api, const char* path, int result)
+{
+    postMountEvent(QTMegaEvent::OnMountChanged, api, path, result);
+}
+
+void QTMegaListener::onMountDisabled(MegaApi *api, const char* path, int result)
+{
+    postMountEvent(QTMegaEvent::OnMountDisabled, api, path, result);
+}
+
+void QTMegaListener::onMountEnabled(MegaApi *api, const char* path, int result)
+{
+    postMountEvent(QTMegaEvent::OnMountEnabled, api, path, result);
+}
+
+void QTMegaListener::onMountRemoved(MegaApi *api, const char* path, int result)
+{
+    postMountEvent(QTMegaEvent::OnMountRemoved, api, path, result);
+}
 
 void QTMegaListener::customEvent(QEvent *e)
 {
@@ -235,8 +265,51 @@ void QTMegaListener::customEvent(QEvent *e)
         case QTMegaEvent::OnGlobalSyncStateChanged:
             if(listener) listener->onGlobalSyncStateChanged(event->getMegaApi());
             break;
+        case QTMegaEvent::OnSyncRemoteRootChanged:
+            if (listener)
+                listener->onSyncRemoteRootChanged(event->getMegaApi(), event->getSync());
+            break;
 #endif
+        case QTMegaEvent::OnMountAdded:
+            onMountEvent(&MegaListener::onMountAdded, *event);
+            break;
+        case QTMegaEvent::OnMountChanged:
+            onMountEvent(&MegaListener::onMountChanged, *event);
+            break;
+        case QTMegaEvent::OnMountDisabled:
+            onMountEvent(&MegaListener::onMountDisabled, *event);
+            break;
+        case QTMegaEvent::OnMountEnabled:
+            onMountEvent(&MegaListener::onMountEnabled, *event);
+            break;
+        case QTMegaEvent::OnMountRemoved:
+            onMountEvent(&MegaListener::onMountRemoved, *event);
+            break;
         default:
             break;
     }
 }
+
+void QTMegaListener::onMountEvent(FuseEventHandler handler, const QTMegaEvent& event)
+{
+    if (!listener)
+        return;
+
+    (listener->*handler)(event.getMegaApi(),
+                         event.getMountPath().c_str(),
+                         event.getMountResult());
+}
+
+void QTMegaListener::postMountEvent(QTMegaEvent::MegaType eventType,
+                                    MegaApi *api,
+                                    const std::string& path,
+                                    int result)
+{
+    QTMegaEvent *event = new QTMegaEvent(api, (QEvent::Type)eventType);
+
+    event->setMountPath(path);
+    event->setMountResult(result);
+
+    QCoreApplication::postEvent(this, event, INT_MIN);
+}
+

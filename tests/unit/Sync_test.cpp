@@ -16,26 +16,26 @@
  * program.
  */
 
-#include <memory>
-#include <numeric>
-
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
-
-#include <mega/megaclient.h>
-#include <mega/megaapp.h>
-#include <mega/types.h>
-#include <mega/heartbeats.h>
-#include <mega/sync.h>
-#include <mega/filesystem.h>
-
 #include "constants.h"
-#include "FsNode.h"
 #include "DefaultedDbTable.h"
 #include "DefaultedDirAccess.h"
 #include "DefaultedFileAccess.h"
 #include "DefaultedFileSystemAccess.h"
+#include "FsNode.h"
 #include "utils.h"
+
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
+#include <mega/filesystem.h>
+#include <mega/heartbeats.h>
+#include <mega/megaapp.h>
+#include <mega/megaclient.h>
+#include <mega/scoped_helpers.h>
+#include <mega/sync.h>
+#include <mega/types.h>
+
+#include <memory>
+#include <numeric>
 
 #ifdef ENABLE_SYNC
 
@@ -411,7 +411,7 @@ TEST_F(SyncConfigIOContextTest, GetSlotsOrderedByModificationTime)
         {
             using std::to_string;
 
-            ScopedLengthRestore restorer(configPath);
+            auto restorer = makeScopedSizeRestorer(configPath);
 
             // Generate suffix.
             LocalPath suffixPath =
@@ -424,7 +424,7 @@ TEST_F(SyncConfigIOContextTest, GetSlotsOrderedByModificationTime)
             EXPECT_TRUE(Utilities::randomFile(configPath));
 
             // Set the modification time.
-            EXPECT_TRUE(fsAccess().setmtimelocal(configPath, i * 1000));
+            EXPECT_TRUE(fsAccess().setmtimelocal(configPath, static_cast<m_time_t>(i * 1000)));
         }
     }
 
@@ -465,7 +465,7 @@ TEST_F(SyncConfigIOContextTest, GetSlotsOrderedBySlotSuffix)
         {
             using std::to_string;
 
-            ScopedLengthRestore restorer(configPath);
+            auto restorer = makeScopedSizeRestorer(configPath);
 
             // Generate suffix.
             LocalPath suffixPath =
@@ -640,7 +640,7 @@ TEST_F(SyncConfigIOContextTest, Serialize)
         config.mBackupId = 1;
         config.mEnabled = false;
         config.mError = NO_SYNC_ERROR;
-        config.mFilesystemFingerprint.id = 1;
+        config.mFilesystemFingerprint = fsfp_t(2, "1");
         config.mLocalPath = Utilities::randomPathAbsolute();
         config.mName = Utilities::randomBase64();
         config.mOriginalPathOfRemoteRootNode = Utilities::randomBase64();
@@ -654,7 +654,7 @@ TEST_F(SyncConfigIOContextTest, Serialize)
         config.mBackupId = 2;
         config.mEnabled = true;
         config.mError = UNKNOWN_ERROR;
-        config.mFilesystemFingerprint.id = 2;
+        config.mFilesystemFingerprint = fsfp_t(2, "2");
         config.mLocalPath = Utilities::randomPathAbsolute();
         config.mName = Utilities::randomBase64();
         config.mOriginalPathOfRemoteRootNode = Utilities::randomBase64();
@@ -687,7 +687,7 @@ TEST_F(SyncConfigIOContextTest, Serialize)
         EXPECT_EQ(a.mBackupId, b.mBackupId);
         EXPECT_EQ(a.mEnabled, b.mEnabled);
         EXPECT_EQ(a.mError, b.mError);
-        EXPECT_EQ(a.mFilesystemFingerprint.id, b.mFilesystemFingerprint.id);
+        EXPECT_EQ(a.mFilesystemFingerprint, b.mFilesystemFingerprint);
         EXPECT_EQ(a.mLocalPath, b.mLocalPath);
         EXPECT_EQ(a.mName, b.mName);
         EXPECT_EQ(a.mOriginalPathOfRemoteRootNode, b.mOriginalPathOfRemoteRootNode);
@@ -792,7 +792,7 @@ TEST_F(SyncConfigStoreTest, Read)
         EXPECT_EQ(a.mBackupId, b.mBackupId);
         EXPECT_EQ(a.mEnabled, b.mEnabled);
         EXPECT_EQ(a.mError, b.mError);
-        EXPECT_EQ(a.mFilesystemFingerprint.id, b.mFilesystemFingerprint.id);
+        EXPECT_EQ(a.mFilesystemFingerprint, b.mFilesystemFingerprint);
         EXPECT_EQ(a.mLocalPath, b.mLocalPath);
         EXPECT_EQ(a.mName, b.mName);
         EXPECT_EQ(a.mOriginalPathOfRemoteRootNode, b.mOriginalPathOfRemoteRootNode);

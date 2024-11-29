@@ -18,7 +18,7 @@ class QTMegaGlobalListener : public QObject, public MegaGlobalListener
     Q_OBJECT
 
 public:
-    explicit QTMegaGlobalListener(MegaApi *megaApi, MegaGlobalListener *parent=NULL);
+    explicit QTMegaGlobalListener(MegaApi* megaApi, MegaGlobalListener* parent = NULL);
     ~QTMegaGlobalListener() override;
 
     void onUsersUpdate(MegaApi* api, MegaUserList *users) override;
@@ -35,7 +35,7 @@ public:
 protected:
     void customEvent(QEvent * event) override;
 
-    MegaApi *megaApi;
+    MegaApi* megaApi;
     MegaGlobalListener *listener;
 };
 }

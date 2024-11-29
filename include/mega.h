@@ -38,37 +38,37 @@
 
 // project includes
 #include "mega/account.h"
-#include "mega/http.h"
-#include "mega/proxy.h"
 #include "mega/attrmap.h"
 #include "mega/backofftimer.h"
 #include "mega/base64.h"
 #include "mega/command.h"
 #include "mega/console.h"
+#include "mega/db.h"
+#include "mega/file.h"
 #include "mega/fileattributefetch.h"
 #include "mega/filefingerprint.h"
-#include "mega/file.h"
 #include "mega/filesystem.h"
-#include "mega/db.h"
+#include "mega/http.h"
 #include "mega/json.h"
+#include "mega/logging.h"
+#include "mega/megaapp.h"
+#include "mega/megaclient.h"
+#include "mega/node.h"
+#include "mega/pendingcontactrequest.h"
+#include "mega/proxy.h"
 #include "mega/pubkeyaction.h"
 #include "mega/request.h"
+#include "mega/scoped_helpers.h"
 #include "mega/serialize64.h"
 #include "mega/share.h"
 #include "mega/sharenodekeys.h"
-#include "mega/treeproc.h"
-#include "mega/user.h"
-#include "mega/pendingcontactrequest.h"
-#include "mega/utils.h"
-#include "mega/logging.h"
-#include "mega/waiter.h"
-
-#include "mega/node.h"
 #include "mega/sync.h"
 #include "mega/transfer.h"
 #include "mega/transferslot.h"
-#include "mega/megaapp.h"
-#include "mega/megaclient.h"
+#include "mega/treeproc.h"
+#include "mega/user.h"
+#include "mega/utils.h"
+#include "mega/waiter.h"
 
 // target-specific headers
 #include "mega/thread/posixthread.h"
@@ -77,7 +77,7 @@
 #ifdef USE_IOS
 #include "mega/posix/megawaiter.h"
 #include "mega/posix/meganet.h"
-#include "mega/posix/megafs.h"
+#include "mega/osx/megafs.h"
 #include "mega/posix/megaconsole.h"
 #include "mega/posix/megaconsolewaiter.h"
 #else
@@ -120,9 +120,6 @@
 #endif
 #if defined(REQUIRE_USE_MEDIAINFO) && !defined(USE_MEDIAINFO)
 #error compilation with USE_MEDIAINFO is required
-#endif
-#if defined(REQUIRE_USE_PCRE) && !defined(USE_PCRE)
-#error compilation with USE_PCRE is required
 #endif
 
 #endif

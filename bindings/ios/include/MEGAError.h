@@ -20,6 +20,8 @@
  */
 #import <Foundation/Foundation.h>
 
+NS_ASSUME_NONNULL_BEGIN
+
 /**
  * @brief Declaration of API error codes.
  */
@@ -149,19 +151,6 @@ typedef NS_ENUM(NSInteger, MEGALinkErrorCode) {
 @property (readonly, nonatomic) MEGALinkErrorCode linkStatus;
 
 /**
- * @brief Creates a copy of this MEGAError object.
- *
- * The resulting object is fully independent of the source MEGAError,
- * it contains a copy of all internal attributes, so it will be valid after
- * the original object is deleted.
- *
- * You are the owner of the returned object.
- *
- * @return Copy of the MEGAError object.
- */
-- (instancetype)clone;
-
-/**
  * @brief Provides the error description associated with an error code.
  *
  * This function returns a pointer to a statically allocated buffer.
@@ -170,7 +159,7 @@ typedef NS_ENUM(NSInteger, MEGALinkErrorCode) {
  * @param errorCode Error code for which the description will be returned.
  * @return Description associated with the error code.
  */
-- (NSString *)nameWithErrorCode:(NSInteger)errorCode;
+- (nullable NSString *)nameWithErrorCode:(NSInteger)errorCode;
 
 /**
  * @brief Provides the error description associated with an error code
@@ -180,6 +169,8 @@ typedef NS_ENUM(NSInteger, MEGALinkErrorCode) {
  * @param context Context to provide a more accurate description (MEGAErrorContext)
  * @return Description associated with the error code
  */
-+ (NSString *)errorStringWithErrorCode:(NSInteger)errorCode context:(MEGAErrorContext)context;
++ (nullable NSString *)errorStringWithErrorCode:(NSInteger)errorCode context:(MEGAErrorContext)context;
+
+NS_ASSUME_NONNULL_END
 
 @end

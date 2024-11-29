@@ -20,7 +20,6 @@
  */
 
 #import <Foundation/Foundation.h>
-#import <AssetsLibrary/AssetsLibrary.h>
 
 #import "MEGAAccountDetails.h"
 #import "MEGAAchievementsDetails.h"
@@ -55,6 +54,13 @@
 #import "MEGABackupInfoList.h"
 #import "MEGAScheduledCopy.h"
 #import "MEGAScheduledCopyDelegate.h"
+#import "BackUpState.h"
+#import "BackUpSubState.h"
+#import "MEGASearchFilter.h"
+#import "MEGASearchFilterTimeFrame.h"
+#import "MEGASearchPage.h"
+#import "PasswordNodeData.h"
+#import "MEGANotification.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -85,14 +91,6 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
     MEGASortOrderTypeLabelDesc,
     MEGASortOrderTypeFavouriteAsc,
     MEGASortOrderTypeFavouriteDesc
-};
-
-typedef NS_ENUM (NSInteger, MEGANodeFormatType) {
-    MEGANodeFormatTypeUnknown = 0,
-    MEGANodeFormatTypePhoto,
-    MEGANodeFormatTypeAudio,
-    MEGANodeFormatTypeVideo,
-    MEGANodeFormatTypeDocument,
 };
 
 typedef NS_ENUM (NSInteger, MEGAFolderTargetType) {
@@ -147,6 +145,7 @@ typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
     MEGAUserAttributeNoCallKit               = 36, // private - byte array
     MEGAUserAttributeAppsPreferences         = 38, // private - byte array - versioned (apps preferences)
     MEGAUserAttributeContentConsumptionPreferences = 39, // private - byte array - versioned (content consumption preferences)
+    MEGAUserAttributeLastReadNotification    = 44, // private - char array
 };
 
 typedef NS_ENUM(NSInteger, MEGANodeAttribute) {
@@ -154,7 +153,9 @@ typedef NS_ENUM(NSInteger, MEGANodeAttribute) {
     MEGANodeAttributeCoordinates    = 1,
     MEGANodeAttributeOriginalFingerprint = 2,
     MEGANodeAttributeLabel = 3,
-    MEGANodeAttributeFav = 4
+    MEGANodeAttributeFav = 4,
+    MEGANodeAttributeSen = 6,
+    MEGANodeDescription = 7
 };
 
 typedef NS_ENUM(NSInteger, MEGASetAttribute) {
@@ -252,61 +253,6 @@ typedef NS_ENUM(NSInteger, BackUpType) {
     BackUpTypeMediaUploads = 4
 };
 
-typedef NS_ENUM(NSUInteger, BackUpState) {
-    BackUpStateActive = 1,
-    BackUpStateFailed = 2,
-    BackUpStateTemporaryDisabled = 3,
-    BackUpStateDisabled = 4,
-    BackUpStatePauseUp = 5,
-    BackUpStatePauseDown = 6,
-    BackUpStatePauseFull = 7
-};
-
-typedef NS_ENUM(NSUInteger, BackUpSubState) {
-    BackUpSubStateNoSyncError = 0,
-    BackUpSubStateUnknownError = 1,
-    BackUpSubStateUnsupportedFileSystem = 2, //File system type is not supported
-    BackUpSubStateInvalidRemoteType = 3, //Remote type is not a folder that can be synced
-    BackUpSubStateInvalidLocalType = 4, //Local path does not refer to a folder
-    BackUpSubStateInitialScanFailed = 5, //The initial scan failed
-    BackUpSubStateLocalPathTemporaryUnavailable = 6, //Local path is temporarily unavailable: this is fatal when adding a sync
-    BackUpSubStateLocalPathUnavailable = 7, //Local path is not available (can't be open)
-    BackUpSubStateRemoteNodeNotFound = 8, //Remote node does no longer exists
-    BackUpSubStateStorageOverquota = 9, //Account reached storage overquota
-    BackUpSubStateAccountExpired = 10, //Account expired (business or pro flexi)
-    BackUpSubStateForeignTargetOverstorage = 11, //Sync transfer fails (upload into an inshare whose account is overquota)
-    BackUpSubStateRemotePathHasChanged = 12, // Remote path has changed (currently unused: not an error)
-    BackUpSubStateShareNonFullAccess = 14, //Existing inbound share sync or part thereof lost full access
-    BackUpSubStateLocalFilesystemMismatch = 15, //Filesystem fingerprint does not match the one stored for the synchronization
-    BackUpSubStatePutNodesError = 16, // Error processing put nodes result
-    BackUpSubStateActiveSyncBelowPath = 17, // There's a synced node below the path to be synced
-    BackUpSubStateActiveSyncAbovePath = 18, // There's a synced node above the path to be synced
-    BackUpSubStateRemoteNodeMovedToRubbish = 19, // Moved to rubbish
-    BackUpSubStateRremoteNodeInsideRubbish = 20, // Attempted to be added in rubbish
-    BackUpSubStateVBoxSharedFolderUnsupported = 21, // Found unsupported VBoxSharedFolderFS
-    BackUpSubStateLocalPathSyncCollision = 22, //Local path includes a synced path or is included within one
-    BackUpSubStateAccountBlocked = 23, // Account blocked
-    BackUpSubStateUnknownTemporaryError = 24, // unknown temporary error
-    BackUpSubStateTooManyActionPackets = 25, // Too many changes in account, local state discarded
-    BackUpSubStateLoggedOut = 26, // Logged out
-    BackUpSubStateWholeAccountRefetched = 27, // The whole account was reloaded, missed actionpacket changes could not have been applied
-    BackUpSubStateMissingParentNode = 28, // Setting a new parent to a parent whose LocalNode is missing its corresponding Node crossref
-    BackUpSubStateBackupModified = 29, // Backup has been externally modified.
-    BackUpSubStateBackupSourceNotBelowDrive = 30,     // Backup source path not below drive path.
-    BackUpSubStateSyncConfigWriteFailure = 31,         // Unable to write sync config to disk.
-    BackUpSubStateActiveSyncSamePath = 32,             // There's a synced node at the path to be synced
-    BackUpSubStateCouldNotMoveCloudNodes = 33,        // rename() failed
-    BackUpSubStateCouldNotCreateIgnoreFile = 34,      // Couldn't create a sync's initial ignore file.
-    BackUpSubStateSyncConfigReadFailure = 35,          // Couldn't read sync configs from disk.
-    BackUpSubStateUnknownDrivePath = 36,                // Sync's drive path isn't known.
-    BackUpSubStateInvalidScanInterval = 37,             // The user's specified an invalid scan interval.
-    BackUpSubStateNotificationSystemUnavailable = 38,   // Filesystem notification subsystem has encountered an unrecoverable error.
-    BackUpSubStateUnableToAddWatch = 39,               // Unable to add a filesystem watch.
-    BackUpSubStateUnableToRetrieveRootFSID = 40,      // Unable to retrieve a sync root's FSID.
-    BackUpSubStateUnableToOpenDatabase = 41,           // Unable to open state cache database.
-    BackUpSubStateInsufficientDiskSpace = 42,
-};
-
 typedef NS_ENUM(NSUInteger, BackupHeartbeatStatus) {
     BackupHeartbeatStatusUpToDate = 1,
     BackupHeartbeatStatusSyncing = 2,
@@ -345,6 +291,12 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
     AdsFlagIgnoreIP         = 0x1000, // Show ads even if the user is on a blacklisted IP (MEGA ips).
     AdsFlagIgnorePRO        = 0x2000, // Show ads even if the current user or file owner is a PRO user.
     AdsFlagIgnoreRollout    = 0x4000  // Ignore the rollout logic which only servers ads to 10% of users based on their IP.
+};
+
+typedef NS_ENUM(NSInteger, MEGAClientType) {
+    MEGAClientTypeDefault = 0, // Cloud storage
+    MEGAClientTypeVPN = 1, // VPN
+    MEGAClientTypePasswordManager = 2  // Password Manager
 };
 
 /**
@@ -498,7 +450,7 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
 /**
  * @brief The total number of nodes in the account
  */
-@property (readonly, nonatomic) NSUInteger totalNodes;
+@property (readonly, nonatomic) unsigned long long totalNodes;
 
 /**
  * @brief The master key of the account.
@@ -537,6 +489,17 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * YES if enabled, NO otherwise.
  */
 @property (readonly, nonatomic, getter=isContactVerificationWarningEnabled) BOOL isContactVerificationWarningEnabled;
+
+/**
+ * @brief Check if the logged in account is considered new
+ *
+ * This will NOT return a valid value until the callback onEvent with
+ * type EventMiscFlagsReady is received. You can also rely on the completion of
+ * a fetchnodes to check this value.
+ *
+ * YES if account is considered new. Otherwise, NO.
+ */
+@property (readonly, nonatomic, getter=isNewAccount) BOOL newAccount;
 
 #pragma mark - Business
 
@@ -641,6 +604,23 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
 - (nullable instancetype)initWithAppKey:(NSString *)appKey userAgent:(nullable NSString *)userAgent basePath:(nullable NSString *)basePath;
 
 /**
+ * @brief Constructor suitable for most applications.
+ * @param appKey AppKey of your application.
+ * You can generate your AppKey for free here:
+ * - https://mega.co.nz/#sdk
+ *
+ * @param userAgent User agent to use in network requests.
+ * If you pass nil to this parameter, a default user agent will be used.
+ *
+ * @param basePath Base path to store the local cache.
+ * If you pass nil to this parameter, the SDK won't use any local cache.
+ *
+ * @param clientType The client type of the application: Default (Cloud Storage), VPN or Password Manager.
+ *
+ */
+- (nullable instancetype)initWithAppKey:(NSString *)appKey userAgent:(nullable NSString *)userAgent basePath:(nullable NSString *)basePath clientType:(MEGAClientType)clientType;
+
+/**
  * @brief Delete MegaApi object
  */
 - (void)deleteMegaApi;
@@ -683,6 +663,16 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * @param delegate Delegate that will receive all events about transfers.
  */
 - (void)addMEGATransferDelegate:(id<MEGATransferDelegate>)delegate;
+
+/**
+ * @brief Register a delegate to receive all events about transfers.
+ *
+ * You can use [MEGASdk removeMEGATransferDelegate:] to stop receiving events.
+ *
+ * @param delegate Delegate that will receive all events about transfers.
+ * @param queueType ListenerQueueType to receive the MEGARequest events on.
+ */
+- (void)addMEGATransferDelegate:(id<MEGATransferDelegate>)delegate queueType:(ListenerQueueType)queueType;
 
 /**
  * @brief Register a delegate to receive global events.
@@ -2681,6 +2671,70 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  */
 - (void)acknowledgeUserAlerts;
 
+#pragma mark - Notifications
+
+/**
+ * @brief Set last read notification for Notification Center
+ *
+ * The type associated with this request is MEGARequestTypeSetAttrUser
+ * 
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeLastReadNotification
+ * - [MEGARequest number] - Returns the ID to be set as last read
+ *
+ * Note that any notifications with ID equal to or less than the given one will be marked as seen
+ * in Notification Center.
+ *
+ * @param notificationId ID of the notification to be set as last read. Value `0` is an invalid ID.
+ * Passing `0` will clear a previously set last read value.
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)setLastReadNotificationWithNotificationId:(uint32_t)notificationId delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get last read notification for Notification Center
+ *
+ * The type associated with this request is MEGARequestTypeSetAttrUser
+ *
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeLastReadNotification
+ *
+ * When onRequestFinish received MEGAErrorTypeApiOk, valid data in the MegaRequest object is:
+ * - [MEGARequest number] - Returns the ID of the last read Notification
+ * Note that when the ID returned here was `0` it means that no ID was set as last read.
+ * Note that the value returned here should be treated like a 32bit unsigned int.
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getLastReadNotificationWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get the list of IDs for enabled notifications
+ *
+ * You take the ownership of the returned value
+ *
+ * @return List of IDs for enabled notifications
+ */
+- (nullable MEGAIntegerList *)getEnabledNotifications;
+
+/**
+ * @brief Get list of available notifications for Notification Center
+ *
+ * The associated request type with this request is MEGARequestTypeGetNotifications
+ *
+ * When onRequestFinish received MEGAErrorTypeApiOk, valid data in the MegaRequest object is:
+ * - [MegaRequest megaNotifications] - Returns the list of notifications
+ *
+ * When onRequestFinish errored, the error code associated to the MegaError can be:
+ * - MEGAErrorTypeApiENoent - No such notifications exist, and MegaRequest::getMegaNotifications
+ *   will return a non-null, empty list.
+ * - MEGAErrorTypeApiEAccess - No user was logged in.
+ * - MEGAErrorTypeApiEInternal - Received answer could not be read.
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getNotificationsWithDelegate:(id<MEGARequestDelegate>)delegate;
+
 #pragma mark - Filesystem changes Requests
 
 /**
@@ -3354,6 +3408,26 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
 - (void)publicNodeForMegaFileLink:(NSString *)megaFileLink delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
+ * @brief Get downloads urls for a node
+ *
+ * The associated request type with this request is MEGARequestTypeGetDownloadUrls
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk
+ * - [MEGARequest name] - Returns semicolon-separated download URL(s) to the file
+ * - [MEGARequest link] - Returns semicolon-separated IPv4 of the server in the URL(s)
+ * -  [MEGARequest text] - Returns semicolon-separated IPv6 of the server in the URL(s)
+ *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEBusinessPastDue
+ *
+ * @param node Node to get the downloads URLs
+ * @param singleUrl Always return one URL (even for raided files)
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getDownloadUrl:(MEGANode *)node singleUrl:(BOOL)singleUrl delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
  * @brief Get a MEGANode from a public link to a file.
  *
  * A public node can be imported using [MEGASdk copyNode:newParent:] or downloaded using [MEGASdk startDownloadNode:localPath:].
@@ -3491,6 +3565,59 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  */
 - (void)setNodeFavourite:(MEGANode *)node favourite:(BOOL)favourite;
 
+/**
+ * @brief Mark a node as sensitive
+ *
+ * @note Descendants will inherit the sensitive property.
+ *
+ * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node that receive the attribute
+ * - [MEGARequest numDetails] - Returns 1 if node is set as favourite, otherwise return 0
+ * - [MEGARequest flag] - Returns YES (official attribute)
+ * - [MEGARequest paramType] - Returns MEGANodeAttributeSen
+ *
+ * @param node Node that will receive the information.
+ * @param sensitive if true set node as sensitive, otherwise remove the attribute
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)setNodeSensitive:(MEGANode *)node sensitive:(BOOL)sensitive delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Mark a node as sensitive
+ *
+ * @note Descendants will inherit the sensitive property.
+ *
+ * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node that receive the attribute
+ * - [MEGARequest numDetails] - Returns 1 if node is set as favourite, otherwise return 0
+ * - [MEGARequest flag] - Returns YES (official attribute)
+ * - [MEGARequest paramType] - Returns MEGANodeAttributeSen
+ *
+ * @param node Node that will receive the information.
+ * @param sensitive if true set node as sensitive, otherwise remove the attribute
+ */
+- (void)setNodeSensitive:(MEGANode *)node sensitive:(BOOL)sensitive;
+
+/**
+ * @brief Set node description as a node attribute
+ *
+ * To remove node description, set description to nil
+ * The associated request type with this request is MEGARequestTypeSetAttrNode
+ * Valid data in the MegaRequest object received on callbacks: 
+ * - [MEGARequest nodeHandle] - Returns the handle of the node that received the attribute
+ * - [MEGARequest flag] - Returns true (official  * attribute)
+ * - MEGARequest paramType]  - Returns MEGANodeDescription
+ * - [MEGARequest getText] - Returns node description
+ * If the size of the description is greater than 3000, onRequestFinish will be called with the error code MEGAErrorTypeApiEArgs.
+ * If the MEGA account is a business account and its status is expired, onRequestFinish will be called with the error code MEGAErrorTypeApiEBusinessPastDue.
+ *
+ * @param description Description of the node. Set nil to remove.
+ * @param node Node that will receive the information.
+ * @param delegate MEGARequestListener to track this request
+ */
+- (void)setDescription:(nullable NSString *)description forNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Get a list of favourite nodes.
@@ -3548,9 +3675,10 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * - MEGAErrorTypeApiEAccess - Permissions Error
  *
  * @param name the name that should be given to the new Set
+ * @param type the type that should be given to the new Set
  * @param delegate MEGARequestDelegate to track this request
  */
--(void)createSet:(nullable NSString *)name delegate:(id<MEGARequestDelegate>)delegate;
+-(void)createSet:(nullable NSString *)name type:(MEGASetType)type delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Generate a public link of a Set in MEGA
@@ -4132,23 +4260,6 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  */
 - (void)openShareDialog:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate;
 
-/**
- * @brief Allows to change the hardcoded value of the "secure" flag
- *
- * With this feature flag set, the client will manage encryption keys for
- * shared folders in a secure way. Legacy clients won't be able to decrypt
- * shared folders created with this flag enabled.
- *
- * Manual verification of credentials of users (both sharers AND sharees) is
- * required in order to decrypt shared folders correctly.
- *
- * @note This flag should be changed before login+fetchnodes. Otherwise, it may
- * result on unexpected behavior.
- *
- * @param enable New value of the flag
- */
-- (void)setShareSecureFlag:(BOOL)enable;
-
 #pragma mark - Attributes Requests
 
 /**
@@ -4495,25 +4606,29 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
 + (nullable NSString *)avatarSecondaryColorForBase64UserHandle:(nullable NSString *)base64UserHandle;
 
 /**
- * @brief Set the avatar of the MEGA account.
+ * @brief Set/Remove the avatar of the MEGA account
  *
  * The associated request type with this request is MEGARequestTypeSetAttrFile.
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest file] - Returns the source path
  *
  * @param sourceFilePath Source path of the file that will be set as avatar.
+ * If nil, the existing avatar will be removed (if any). 
  * @param delegate Delegate to track this request.
+ * In case the avatar never existed before, removing the avatar returns MEGAErrorApiENoent.
  */
 - (void)setAvatarUserWithSourceFilePath:(nullable NSString *)sourceFilePath delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
- * @brief Set the avatar of the MEGA account.
+ * @brief Set/Remove the avatar of the MEGA account
  *
  * The associated request type with this request is MEGARequestTypeSetAttrFile.
  * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest file] - Returns the source path
+ * - [MEGARequest file] - Returns the source path (optional)
  *
  * @param sourceFilePath Source path of the file that will be set as avatar.
+ * If nil, the existing avatar will be removed (if any).
+ * In case the avatar never existed before, removing the avatar returns MEGAErrorApiENoent.
  */
 - (void)setAvatarUserWithSourceFilePath:(nullable NSString *)sourceFilePath;
 
@@ -5525,10 +5640,12 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * @brief Cancel credit card subscriptions of the account
  *
  * The associated request type with this request is MEGARequestTypeCreditCardCancelSubscriptions
- * @param reason Reason for the cancellation.
+ * @param reason Reason for the cancellation. It can be nil.
+ * @param subscriptionId The subscription ID for the cancellation. It can be nil.
+ * @param canContact Whether the user has permitted MEGA to contact them for the cancellation.
  * @param delegate MEGARequestDelegate to track this request
  */
-- (void)creditCardCancelSubscriptions:(nullable NSString *)reason delegate:(id<MEGARequestDelegate>)delegate;
+- (void)creditCardCancelSubscriptions:(nullable NSString *)reason subscriptionId:(nullable NSString *)subscriptionId canContact:(BOOL)canContact delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Change the password of the MEGA account.
@@ -5774,6 +5891,28 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  *
  */
 - (void)isMasterKeyExported;
+
+/**
+ * @brief Get Terms of Service for VPN visibility.
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest access] - Returns YES if the Terms Of Service should be visible for user
+ *
+ * If the corresponding user attribute is not set yet, the request will fail with the
+ * error code MEGAErrorTypeApiENoent.
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getVisibleTermsOfServiceWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Set Terms of Service for VPN visibility.
+ *
+ * @param visible True to set Terms of Service visibility on, false otherwise.
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)setVisibleTermsOfService:(BOOL)visible delegate:(id<MEGARequestDelegate>)delegate;
 
 #ifdef ENABLE_CHAT
 
@@ -7536,13 +7675,15 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * @brief Get the child node with the provided name.
  *
  * If the node doesn't exist, this function returns nil.
+ * It's possible to have multiple nodes with the same name.
+ * This function will return one of them.
  *
  * @param parent Parent node.
  * @param name Name of the node.
- * @param type Type of the node.
+ * @param type Type of the node. Allowed types: MEGANodeTypeFile and MEGANodeTypeFolder.
  * @return The MEGANode that has the selected parent, name and type.
  */
-- (nullable MEGANode *)childNodeForParent:(MEGANode *)parent name:(NSString *)name type:(NSInteger)type;
+- (nullable MEGANode *)childNodeForParent:(MEGANode *)parent name:(NSString *)name type:(MEGANodeType)type;
 
 /**
  * @brief Get all versions of a file
@@ -8029,406 +8170,58 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
 - (BOOL)isNodeInRubbish:(MEGANode *)node;
 
 /**
- * @brief Search nodes containing a search string in their name.
+* @brief Ascertain if the node is marked as sensitive or a descendent of such
+*
+* see [MEGANode isMarkedSensitive] to see if the node is sensitive
+*
+* @param node node to inspect
+*/
+-(BOOL)isNodeInheritingSensitivity:(MEGANode *)node;
+
+/**
+ * @brief Retrieve all unique node tags present across all nodes in the account
+ *
+ * @note If the searchString contains invalid characters, such as ',', an empty list will be
+ * returned.
+ *
+ * @note This function allows to cancel the processing at any time by passing a
+ * MEGACancelToken and calling to [MEGACancelToken cancel] .
+ *
+ *
+ * @param searchString Optional parameter to filter the tags based on a specific search
+ * string. If set to nil, all node tags will be retrieved.
+ * @param cancelToken MEGACancelToken to be able to cancel the processing at any time.
+ *
+ * @return All the unique node tags that match the search criteria.
+ */
+- (nullable NSArray<NSString *> *)nodeTagsForSearchString:(nullable NSString *)searchString cancelToken:(MEGACancelToken *)cancelToken;
+
+/**
+ * @brief Search nodes with applied filter recursively.
  *
  * The search is case-insensitive.
  *
- * @param node The parent node of the tree to explore.
- * @param searchString Search string. The search is case-insensitive.
- * @param recursive YES if you want to seach recursively in the node tree.
- * NO if you want to seach in the children of the node only
+ * @param filter Filter we should apply to the current search.
+ * @param orderType Order type we should apply to the current search.
+ * @param page Paged criteria for request
  *
  * @return List of nodes that contain the desired string in their name.
  */
-- (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString recursive:(BOOL)recursive;
+- (MEGANodeList *)searchWith:(MEGASearchFilter *)filter orderType:(MEGASortOrderType)orderType page:(nullable MEGASearchPage *)page cancelToken:(MEGACancelToken *)cancelToken;
 
 /**
- * @brief Search nodes containing a search string in their name.
+ * @brief Search nodes with applied filter non-recursively.
  *
  * The search is case-insensitive.
  *
- * @param node The parent node of the tree to explore.
- * @param searchString Search string. The search is case-insensitive.
- * @param cancelToken MEGACancelToken to be able to cancel the processing at any time.
- * @param recursive YES if you want to seach recursively in the node tree.
- * NO if you want to seach in the children of the node only
- * @param order MEGASortOrderType for the returned list.
- * Valid values for this parameter are:
- * - MEGASortOrderTypeNone = 0
- * Undefined order
- *
- * - MEGASortOrderTypeDefaultAsc = 1
- * Folders first in alphabetical order, then files in the same order
- *
- * - MEGASortOrderTypeDefaultDesc = 2
- * Files first in reverse alphabetical order, then folders in the same order
- *
- * - MEGASortOrderTypeSizeAsc = 3
- * Sort by size, ascending
- *
- * - MEGASortOrderTypeSizeDesc = 4
- * Sort by size, descending
- *
- * - MEGASortOrderTypeCreationAsc = 5
- * Sort by creation time in MEGA, ascending
- *
- * - MEGASortOrderTypeCreationDesc = 6
- * Sort by creation time in MEGA, descending
- *
- * - MEGASortOrderTypeModificationAsc = 7
- * Sort by modification time of the original file, ascending
- *
- * - MEGASortOrderTypeModificationDesc = 8
- * Sort by modification time of the original file, descending
- *
- * - MEGASortOrderTypePhotoAsc = 11
- * Sort with photos first, then by date ascending
- *
- * - MEGASortOrderTypePhotoDesc = 12
- * Sort with photos first, then by date descending
- *
- * - MEGASortOrderTypeVideoAsc = 13
- * Sort with videos first, then by date ascending
- *
- * - MEGASortOrderTypeVideoDesc = 14
- * Sort with videos first, then by date descending
- *
- * - MEGASortOrderTypeLinkCreationAsc = 15
- *
- * - MEGASortOrderTypeLinkCreationDesc = 16
- *
- * - MEGASortOrderTypeLabelAsc = 17
- * Sort by color label, ascending. With this order, folders are returned first, then files
- *
- * - MEGASortOrderTypeLabelDesc = 18
- * Sort by color label, descending. With this order, folders are returned first, then files
- *
- * - MEGASortOrderTypeFavouriteAsc = 19
- * Sort nodes with favourite attr first. With this order, folders are returned first, then files
- *
- * - MEGASortOrderTypeFavouriteDesc = 20
- * Sort nodes with favourite attr last. With this order, folders are returned first, then files
+ * @param filter Filter we should apply to the current search.
+ * @param orderType Order type we should apply to the current search.
+ * @param page Paged criteria for request
+ * NO if you want to search in the children of the node only
  *
  * @return List of nodes that contain the desired string in their name.
  */
-- (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString cancelToken:(MEGACancelToken *)cancelToken recursive:(BOOL)recursive order:(MEGASortOrderType)order;
-
-/**
- * @brief Search nodes containing a search string in their name.
- *
- * The search is case-insensitive.
- *
- * @param node The parent node of the tree to explore.
- * @param searchString Search string. The search is case-insensitive.
- *
- * @return List of nodes that contain the desired string in their name.
- */
-- (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString;
-
-/**
- * @brief Search nodes containing a search string in their name.
- *
- * The search is case-insensitive.
- *
- * @param node The parent node of the tree to explore.
- * @param searchString Search string. The search is case-insensitive.
- * If the search string is not provided but nodeFormatType has any value apart from MEGANodeFormatTypeUnknown
- * this method will return a list that contains nodes of the same type as provided.
- * @param cancelToken MEGACancelToken to be able to cancel the processing at any time.
- * @param recursive YES if you want to seach recursively in the node tree.
- * NO if you want to seach in the children of the node only
- * @param orderType MEGASortOrderType for the returned list.
- * Valid values for this parameter are:
- * - MEGASortOrderTypeNone = 0
- * Undefined order
- *
- * - MEGASortOrderTypeDefaultAsc = 1
- * Folders first in alphabetical order, then files in the same order
- *
- * - MEGASortOrderTypeDefaultDesc = 2
- * Files first in reverse alphabetical order, then folders in the same order
- *
- * - MEGASortOrderTypeSizeAsc = 3
- * Sort by size, ascending
- *
- * - MEGASortOrderTypeSizeDesc = 4
- * Sort by size, descending
- *
- * - MEGASortOrderTypeCreationAsc = 5
- *  Sort by creation time in MEGA, ascending
- *
- * - MEGASortOrderTypeCreationDesc = 6
- * Sort by creation time in MEGA, descending
- *
- * - MEGASortOrderTypeModificationAsc = 7
- * Sort by modification time of the original file, ascending
- *
- * - MEGASortOrderTypeModificationDesc = 8
- * Sort by modification time of the original file, descending
- *
- * - MEGASortOrderTypePhotoAsc = 11
- * Sort with photos first, then by date ascending
- *
- * - MEGASortOrderTypePhotoDesc = 12
- * Sort with photos first, then by date descending
- *
- * - MEGASortOrderTypeVideoAsc = 13
- * Sort with videos first, then by date ascending
- *
- * - MEGASortOrderTypeVideoDesc = 14
- * Sort with videos first, then by date descending
- * 
- * - MEGASortOrderTypeLinkCreationAsc = 15
- *
- * - MEGASortOrderTypeLinkCreationDesc = 16
- *
- * - MEGASortOrderTypeLabelAsc = 17
- * Sort by color label, ascending. With this order, folders are returned first, then files
- *
- * - MEGASortOrderTypeLabelDesc = 18
- * Sort by color label, descending. With this order, folders are returned first, then files
- *
- * - MEGASortOrderTypeFavouriteAsc = 19
- * Sort nodes with favourite attr first. With this order, folders are returned first, then files
- *
- * - MEGASortOrderTypeFavouriteDesc = 20
- * Sort nodes with favourite attr last. With this order, folders are returned first, then files
- *
- * @param nodeFormatType Type of nodes requested in the search
- * Valid values for this parameter are:
- * - MEGANodeFormatTypeUnknown = 0
- * - MEGANodeFormatTypePhoto = 1
- * - MEGANodeFormatTypeAudio = 2
- * - MEGANodeFormatTypeVideo = 3
- * - MEGANodeFormatTypeDocument = 4
- *
- * @param folderTargetType Target type where this method will search
- * Valid values for this parameter are
- * - MEGAFolderTargetTypeInShare = 0
- * - MEGAFolderTargetTypeOutShare = 1
- * - MEGAFolderTargetTypePublicLink = 2
- * - MEGAFolderTargetTypeRootNode = 3
- * - MEGAFolderTargetTypeAll = 4
- *
- * @return List of nodes that contain the desired string in their name.
- */
-- (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node
-                           searchString:(nullable NSString *)searchString
-                            cancelToken:(MEGACancelToken *)cancelToken
-                              recursive:(BOOL)recursive
-                              orderType:(MEGASortOrderType)orderType
-                         nodeFormatType:(MEGANodeFormatType)nodeFormatType
-                       folderTargetType:(MEGAFolderTargetType)folderTargetType;
-
-/**
- * @brief Search nodes in InShares containing a search string in their name.
- *
- * The search is case-insensitive.
- *
- * @param searchString Search string. The search is case-insensitive.
- * If the search string is not provided but nodeFormatType has any value apart from MEGANodeFormatTypeUnknown
- * this method will return a list that contains nodes of the same type as provided.
- * @param cancelToken MEGACancelToken to be able to cancel the processing at any time.
- * @param orderType MEGASortOrderType for the returned list.
- * Valid values for this parameter are:
- * - MEGASortOrderTypeNone = 0
- * Undefined order
- *
- * - MEGASortOrderTypeDefaultAsc = 1
- * Folders first in alphabetical order, then files in the same order
- *
- * - MEGASortOrderTypeDefaultDesc = 2
- * Files first in reverse alphabetical order, then folders in the same order
- *
- * - MEGASortOrderTypeSizeAsc = 3
- * Sort by size, ascending
- *
- * - MEGASortOrderTypeSizeDesc = 4
- * Sort by size, descending
- *
- * - MEGASortOrderTypeCreationAsc = 5
- *  Sort by creation time in MEGA, ascending
- *
- * - MEGASortOrderTypeCreationDesc = 6
- * Sort by creation time in MEGA, descending
- *
- * - MEGASortOrderTypeModificationAsc = 7
- * Sort by modification time of the original file, ascending
- *
- * - MEGASortOrderTypeModificationDesc = 8
- * Sort by modification time of the original file, descending
- *
- * - MEGASortOrderTypePhotoAsc = 11
- * Sort with photos first, then by date ascending
- *
- * - MEGASortOrderTypePhotoDesc = 12
- * Sort with photos first, then by date descending
- *
- * - MEGASortOrderTypeVideoAsc = 13
- * Sort with videos first, then by date ascending
- *
- * - MEGASortOrderTypeVideoDesc = 14
- * Sort with videos first, then by date descending
- *
- * - MEGASortOrderTypeLinkCreationAsc = 15
- *
- * - MEGASortOrderTypeLinkCreationDesc = 16
- *
- * - MEGASortOrderTypeLabelAsc = 17
- * Sort by color label, ascending. With this order, folders are returned first, then files
- *
- * - MEGASortOrderTypeLabelDesc = 18
- * Sort by color label, descending. With this order, folders are returned first, then files
- *
- * - MEGASortOrderTypeFavouriteAsc = 19
- * Sort nodes with favourite attr first. With this order, folders are returned first, then files
- *
- * - MEGASortOrderTypeFavouriteDesc = 20
- * Sort nodes with favourite attr last. With this order, folders are returned first, then files
- *
- * @return List of inShares nodes that contain the desired string in their name.
- */
-- (MEGANodeList *)nodeListSearchOnInSharesByString:(NSString *)searchString cancelToken:(MEGACancelToken *)cancelToken order:(MEGASortOrderType)orderType;
-
-/**
- * @brief Search nodes in OutShares containing a search string in their name.
- *
- * The search is case-insensitive.
- *
- * @param searchString Search string. The search is case-insensitive.
- * If the search string is not provided but nodeFormatType has any value apart from MEGANodeFormatTypeUnknown
- * this method will return a list that contains nodes of the same type as provided.
- * @param cancelToken MEGACancelToken to be able to cancel the processing at any time.
- * @param orderType MEGASortOrderType for the returned list.
- * Valid values for this parameter are:
- * - MEGASortOrderTypeNone = 0
- * Undefined order
- *
- * - MEGASortOrderTypeDefaultAsc = 1
- * Folders first in alphabetical order, then files in the same order
- *
- * - MEGASortOrderTypeDefaultDesc = 2
- * Files first in reverse alphabetical order, then folders in the same order
- *
- * - MEGASortOrderTypeSizeAsc = 3
- * Sort by size, ascending
- *
- * - MEGASortOrderTypeSizeDesc = 4
- * Sort by size, descending
- *
- * - MEGASortOrderTypeCreationAsc = 5
- *  Sort by creation time in MEGA, ascending
- *
- * - MEGASortOrderTypeCreationDesc = 6
- * Sort by creation time in MEGA, descending
- *
- * - MEGASortOrderTypeModificationAsc = 7
- * Sort by modification time of the original file, ascending
- *
- * - MEGASortOrderTypeModificationDesc = 8
- * Sort by modification time of the original file, descending
- *
- * - MEGASortOrderTypePhotoAsc = 11
- * Sort with photos first, then by date ascending
- *
- * - MEGASortOrderTypePhotoDesc = 12
- * Sort with photos first, then by date descending
- *
- * - MEGASortOrderTypeVideoAsc = 13
- * Sort with videos first, then by date ascending
- *
- * - MEGASortOrderTypeVideoDesc = 14
- * Sort with videos first, then by date descending
- *
- * - MEGASortOrderTypeLinkCreationAsc = 15
- *
- * - MEGASortOrderTypeLinkCreationDesc = 16
- *
- * - MEGASortOrderTypeLabelAsc = 17
- * Sort by color label, ascending. With this order, folders are returned first, then files
- *
- * - MEGASortOrderTypeLabelDesc = 18
- * Sort by color label, descending. With this order, folders are returned first, then files
- *
- * - MEGASortOrderTypeFavouriteAsc = 19
- * Sort nodes with favourite attr first. With this order, folders are returned first, then files
- *
- * - MEGASortOrderTypeFavouriteDesc = 20
- * Sort nodes with favourite attr last. With this order, folders are returned first, then files
- *
- * @return List of OutShares nodes that contain the desired string in their name.
- */
-- (MEGANodeList *)nodeListSearchOnOutSharesByString:(NSString *)searchString cancelToken:(MEGACancelToken *)cancelToken order:(MEGASortOrderType)orderType;
-
-/**
- * @brief Search nodes in PublicLinks containing a search string in their name.
- *
- * The search is case-insensitive.
- *
- * @param searchString Search string. The search is case-insensitive.
- * If the search string is not provided but nodeFormatType has any value apart from MEGANodeFormatTypeUnknown
- * this method will return a list that contains nodes of the same type as provided.
- * @param cancelToken MEGACancelToken to be able to cancel the processing at any time.
- * @param orderType MEGASortOrderType for the returned list.
- * Valid values for this parameter are:
- * - MEGASortOrderTypeNone = 0
- * Undefined order
- *
- * - MEGASortOrderTypeDefaultAsc = 1
- * Folders first in alphabetical order, then files in the same order
- *
- * - MEGASortOrderTypeDefaultDesc = 2
- * Files first in reverse alphabetical order, then folders in the same order
- *
- * - MEGASortOrderTypeSizeAsc = 3
- * Sort by size, ascending
- *
- * - MEGASortOrderTypeSizeDesc = 4
- * Sort by size, descending
- *
- * - MEGASortOrderTypeCreationAsc = 5
- *  Sort by creation time in MEGA, ascending
- *
- * - MEGASortOrderTypeCreationDesc = 6
- * Sort by creation time in MEGA, descending
- *
- * - MEGASortOrderTypeModificationAsc = 7
- * Sort by modification time of the original file, ascending
- *
- * - MEGASortOrderTypeModificationDesc = 8
- * Sort by modification time of the original file, descending
- *
- * - MEGASortOrderTypePhotoAsc = 11
- * Sort with photos first, then by date ascending
- *
- * - MEGASortOrderTypePhotoDesc = 12
- * Sort with photos first, then by date descending
- *
- * - MEGASortOrderTypeVideoAsc = 13
- * Sort with videos first, then by date ascending
- *
- * - MEGASortOrderTypeVideoDesc = 14
- * Sort with videos first, then by date descending
- *
- * - MEGASortOrderTypeLinkCreationAsc = 15
- *
- * - MEGASortOrderTypeLinkCreationDesc = 16
- *
- * - MEGASortOrderTypeLabelAsc = 17
- * Sort by color label, ascending. With this order, folders are returned first, then files
- *
- * - MEGASortOrderTypeLabelDesc = 18
- * Sort by color label, descending. With this order, folders are returned first, then files
- *
- * - MEGASortOrderTypeFavouriteAsc = 19
- * Sort nodes with favourite attr first. With this order, folders are returned first, then files
- *
- * - MEGASortOrderTypeFavouriteDesc = 20
- * Sort nodes with favourite attr last. With this order, folders are returned first, then files
- *
- * @return List of PublicLinks nodes that contain the desired string in their name.
- */
-- (MEGANodeList *)nodeListSearchOnPublicLinksByString:(NSString *)searchString cancelToken:(MEGACancelToken *)cancelToken order:(MEGASortOrderType)orderType;
+- (MEGANodeList *)searchNonRecursivelyWith:(MEGASearchFilter *)filter orderType:(MEGASortOrderType)orderType page:(nullable MEGASearchPage *)page cancelToken:(MEGACancelToken *)cancelToken;
 
 /// Get a list of buckets, each bucket containing a list of recently added/modified nodes
 ///
@@ -8436,9 +8229,9 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
 ///
 /// Valid data in the MEGARequest object received on callbacks:
 ///
-/// - [MEGARequest number] - Returns the number of days since nodes will be considerated
-/// 
-/// - [MEGARequest paramType] - Returns the maximun number of nodes
+/// - [MEGARequest number] - Returns the number of days since nodes will be considered
+///
+/// - [MEGARequest paramType] - Returns the maximum number of nodes
 ///
 /// The associated request type with this request is MEGARequestTypeGetRecentActions
 /// Valid data in the MegaRequest object received in onRequestFinish when the error code
@@ -8451,31 +8244,9 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
 ///
 /// @param days Age of actions since added/modified nodes will be considered (in days)
 /// @param maxNodes Maximum amount of nodes to be considered
+/// @param excludeSensitives Set to true to filter out sensitive nodes (Nodes are considered
 /// @param delegate MEGARequestDelegate to track this request
-- (void)getRecentActionsAsyncSinceDays:(NSInteger)days maxNodes:(NSInteger)maxNodes delegate:(id<MEGARequestDelegate>)delegate;
-
-/// Get a list of buckets, each bucket containing a list of recently added/modified nodes
-///
-/// Each bucket contains files that were added/modified in a set, by a single user.
-///
-/// Valid data in the MEGARequest object received on callbacks:
-///
-/// - [MEGARequest number] - Returns the number of days since nodes will be considerated
-///
-/// - [MEGARequest paramType] - Returns the maximun number of nodes
-///
-/// The associated request type with this request is MEGARequestTypeGetRecentActions
-/// Valid data in the MegaRequest object received in onRequestFinish when the error code
-/// is MEGAErrorTypeApiOk:
-/// 
-/// - [MEGARequest recentActionsBuckets] - Returns an array of buckets recently added/modified nodes
-///
-/// The recommended values for the following parameters are to consider
-/// interactions during the last 30 days and maximum 500 nodes.
-///
-/// @param days Age of actions since added/modified nodes will be considered (in days)
-/// @param maxNodes Maximum amount of nodes to be considered
-- (void)getRecentActionsAsyncSinceDays:(NSInteger)days maxNodes:(NSInteger)maxNodes;
+- (void)getRecentActionsAsyncSinceDays:(NSInteger)days maxNodes:(NSInteger)maxNodes excludeSensitives:(BOOL)excludeSensitives delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Process a node tree using a MEGATreeProcessorDelegate implementation
@@ -9185,7 +8956,6 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  */
 + (nullable NSString *)mimeTypeByExtension:(NSString *)extension;
 
-#ifdef ENABLE_CHAT
 /**
  * @brief Register a device token for iOS push notifications
  *
@@ -9241,8 +9011,6 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * @param deviceToken NSString representing the device token to be registered.
  */
 - (void)registeriOSVoIPdeviceToken:(NSString *)deviceToken;
-
-#endif
 
 /**
  * @brief Get the MEGA Achievements of the account logged in
@@ -9887,7 +9655,7 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * @param subState BackUpState type backup sub-state
  * @param delegate MEGARequestDelegate to track this request
 */
-- (void)updateBackup:(MEGAHandle)backupId backupType:(BackUpType)type targetNode:(MEGANode *)node folderPath:(nullable NSString *)path backupName:(NSString *)name state:(BackUpState)state subState:(BackUpSubState)subState delegate:(id<MEGARequestDelegate>)delegate;
+- (void)updateBackup:(MEGAHandle)backupId backupType:(BackUpType)type targetNode:(nullable MEGANode *)node folderPath:(nullable NSString *)path backupName:(nullable NSString *)name state:(BackUpState)state subState:(BackUpSubState)subState delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Fetch information about all registered backups for Backup Centre
@@ -9966,21 +9734,29 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * - name - Returns device name.
  *
  * @param delegate MEGARequestDelegate to track this request
+ *
+ * @deprecated This version of the function is deprecated. Please use the non-deprecated one below.
  */
-- (void)getDeviceNameWithDelegate:(id<MEGARequestDelegate>)delegate;
+- (void)getDeviceNameWithDelegate:(id<MEGARequestDelegate>)delegate __attribute__((deprecated("Use [MEGASdk getDeviceName:delegate] instead of this function.")));
 
 /**
- * @brief Sets device name
+ * @brief Returns the name previously set for a device
  *
- * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
  * Valid data in the MEGARequest object received on callbacks:
  * - paramType - Returns the attribute type MEGAUserAttributeDeviceNames
+ * - text - Returns passed device id (or the value returned by deviceId()
+ * if deviceId was initially passed as null).
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
  * - name - Returns device name.
  *
- * @param name String with device name
+ * @param deviceId The id of the device to get the name for. If null, the value returned
+ * by deviceId() will be used instead.
  * @param delegate MEGARequestDelegate to track this request
  */
-- (void)setDeviceName:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate;
+- (void)getDeviceName:(nullable NSString *)deviceId delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Sets name for specific device
@@ -9995,7 +9771,7 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * @param name String with device name
  * @param delegate MEGARequestDelegate to track this request
  */
-- (void)renameDevice:(NSString *)deviceId newName:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate;
+- (void)renameDevice:(nullable NSString *)deviceId newName:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate;
 
 #pragma mark - Cookie Dialog
 
@@ -10108,6 +9884,15 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  */
 - (NSInteger)getABTestValue:(NSString*)flag;
 
+#pragma mark - Remote feature flags
+/**
+ * @brief Get the value for the flag with the given name,
+ * if present among either A/B Test or Feature flags.
+ * @param flag Name or key of the value to be retrieved
+ * @return A integer with the value of the flag, value above 0 means feature enabled
+ */
+- (NSInteger)remoteFeatureFlagValue:(NSString *)flag;
+
 #pragma mark - Ads
 /**
  * @brief Fetch ads
@@ -10162,6 +9947,201 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * @param delegate MEGARequestDelegate to track this request
  */
 - (void)queryAds:(AdsFlag)adFlags publicHandle:(MEGAHandle)publicHandle delegate:(id<MEGARequestDelegate>)delegate;
+
+/// Enable or disable the request status monitor
+///
+/// - Note: When it's enabled, the request status monitor generates events of type
+/// `EventReqStatProgress` with the per mille progress in
+/// the field [MEGAEvent number], or -1 if there isn't any operation in progress.
+///
+/// - Parameters:
+///    - enable: YES to enable the request status monitor, or No to disable it
+- (void)enableRequestStatusMonitor:(BOOL)enable;
+
+/// Get the status of the request status monitor
+/// - Returns: YES when the request status monitor is enabled, or NO if it's disabled
+@property (readonly, nonatomic, getter=isRequestStatusMonitorEnabled) BOOL requestStatusMonitorEnabled;
+
+#pragma mark - VPN
+
+/**
+ * @brief Gets a list with the available regions for MEGA VPN.
+ *
+ * The associated request type with this request is MEGARequestTypeGetVPNRegions.
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest megaStringList] - Returns the list with the VPN regions.
+ *
+ * @param delegate MEGARequestDelegate to track this request.
+ */
+- (void)getVpnRegionsWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Gets the MEGA VPN credentials currently active for the user.
+ *
+ * Important consideration:
+ * These credentials do NOT contain the User Private Key, which is required for VPN connection.
+ * Credentials containing the User Private Key are generated by
+ * [MEGASdk putVpnCredentialWithRegion] and cannot be retrieved afterwards.
+ *
+ * The associated request type with this request is MEGARequestTypeGetVPNCredentials.
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest megaVpnCredentials] - Returns the MEGAVPNCredentials object.
+ *
+ * On the onRequestFinish error, the error code associated to the MEGAError can be:
+ * - MEGAErrorTypeApiENoent - The user has no credentials registered.
+ *
+ * @param delegate MEGARequestDelegate to track this request.
+ */
+- (void)getVpnCredentialsWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Adds new MEGA VPN credentials on an empty slot.
+ *
+ * A pair of private and public keys are generated for the user during this request.
+ * The User Public Key value is intended for use with [MEGASdk checkVpnCredentialWithUserPubKey].
+ * The User Private Key value is included in the VPN credentials.
+ * Once returned, neither of these keys can be retrieved, not even using [MEGASdk getVpnCredentialsWithDelegate].
+ *
+ * The user must be a PRO user and have unoccupied VPN slots in order to add new VPN credentials.
+ *
+ * The associated request type with this request is MEGARequestTypePutVPNCredential.
+ *
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest text] - Returns the VPN region used for the VPN credentials.
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest number] - Returns the SlotID attached to the new VPN credentials.
+ * - [MEGARequest password] - Returns the User Public Key used to register the new VPN credentials.
+ * - [MEGARequest sessionKey] - Returns a string with the new VPN credentials.
+ *
+ * On the onRequestFinish error, the error code associated to the MEGAError can be:
+ * - MEGAErrorTypeApiEArgs - Public Key does not have a correct format/length.
+ * - MEGAErrorTypeApiEAccess - User is not PRO.
+ *                            - User is not logged in.
+ *                            - Public Key is already taken.
+ * - MEGAErrorTypeApiETooMany - User has too many registered credentials.
+ *
+ * @param region The VPN region to be used on the new VPN credential.
+ * @param delegate MEGARequestDelegate to track this request.
+ */
+- (void)putVpnCredentialWithRegion:(NSString *)region delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Delete the current MEGA VPN credentials used on a slot.
+ *
+ * The associated request type with this request is MEGARequestTypeDeleteVPNCredential.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest number] - Returns the SlotID used as a parameter for credential removal.
+ *
+ * On the onRequestFinish error, the error code associated to the MEGAError can be:
+ * - MEGAErrorTypeApiEArgs - SlotID is not valid.
+ * - MEGAErrorTypeApiENoEnt - SlotID is not occupied.
+ *
+ * @param slotID The SlotID from which to remove the VPN credentials.
+ * @param delegate MEGARequestDelegate to track this request.
+ */
+- (void)delVpnCredentialWithSlotID:(NSInteger)slotID delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Check the current status of MEGA VPN credentials using the User Public Key.
+ *
+ * The User Public Key is obtained from [MEGASdk putVpnCredentialWithRegion].
+ *
+ * The associated request type with this request is MEGARequestTypeCheckVPNCredential.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest text] - Returns the User Public Key used as a parameter to verify the status of the VPN credentials.
+ *
+ * On the onRequestFinish error, the error code associated to the MEGAError can be:
+ * - MEGAErrorTypeApiEAccess - Public Key is not valid.
+ *
+ * @param userPubKey The User Public Key used to register the VPN credentials.
+ * @param delegate MEGARequestDelegate to track this request.
+ */
+- (void)checkVpnCredentialWithUserPubKey:(NSString *)userPubKey delegate:(id<MEGARequestDelegate>)delegate;
+
+#pragma mark - Password Manager
+
+/**
+ * @brief Get Password Manager Base folder node from the MEGA account
+ *
+ * The associated request type with this request is MegaRequest::TYPE_CREATE_PASSWORD_MANAGER_BASE
+ * Valid data in the MegaRequest object received on callbacks:
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MegaError::API_OK:
+ * - MegaRequest::getNodeHandle - Handle of the folder
+ *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getPasswordManagerBaseWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+ /**
+ * @brief Returns true if provided MegaHandle is of a Password Node Folder
+ *
+ * A folder is considered a Password Node Folder if Password Manager Base is its
+ * ancestor.
+ *
+ * @param node MegaHandle of the node to check if it is a Password Node Folder
+ */
+- (BOOL)isPasswordNodeFolderWithHandle:(MEGAHandle)node;
+
+/**
+ * @brief Create a new Password Node in your Password Manager tree
+ *
+ * The associated request type with this request is MegaRequest::TYPE_CREATE_PASSWORD_NODE
+ * Valid data in the MegaRequest object received on callbacks:
+ * - MegaRequest::getParentHandle - Handle of the parent provided as an argument
+ * - MegaRequest::getName - name for the new Password Node provided as an argument
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MegaError::API_OK:
+ * - MegaRequest::getNodeHandle - Handle of the new Password Node
+ *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+ *
+ * @param name Name for the new Password Node
+ * @param data The data of the new Password Node
+ * @param parent Parent folder for the new Password Node
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)createPasswordNodeWithName:(NSString *)name data:(PasswordNodeData *)data parent:(MEGAHandle)parent delegate:(id<MEGARequestDelegate>)delegate;
+
+ /**
+ * @brief Update a Password Node in the MEGA account according to the parameters
+ *
+ * The associated request type with this request is MegaRequest::TYPE_UPDATE_PASSWORD_NODE
+ * Valid data in the MegaRequest object received on callbacks:
+ * - MegaRequest::getNodeHandle - handle provided of the Password Node to update
+ *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+ *
+ * @param node Node to modify
+ * @param newData The new data of the Password Node to update
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)updatePasswordNodeWithHandle:(MEGAHandle)node newData:(PasswordNodeData *)newData delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Generate a new pseudo-randomly characters-based password
+ *
+ * @param includeCapitalLetters indicating if at least 1 upper case letter shall be included
+ * @param includeDigits indicating if at least 1 digit shall be included
+ * @param includeSymbols bool indicating if at least 1 symbol from !@#$%^&*() shall be included
+ * @param length unsigned int with the number of characters that will be included.
+ *        Minimum valid length is 8 and maximum valid is 64.
+ * @return newly generated password string, or nil if the password generation fails due to invalid length parameter.
+ */
++ (nullable NSString *)generateRandomPasswordWithCapitalLetters:(BOOL)includeCapitalLetters digits:(BOOL)includeDigits symbols:(BOOL)includeSymbols length:(int)length;
 
 @end
 

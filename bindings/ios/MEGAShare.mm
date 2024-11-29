@@ -49,10 +49,6 @@ using namespace mega;
     }
 }
 
-- (instancetype)clone {
-    return self.megaShare ? [[MEGAShare alloc] initWithMegaShare:self.megaShare->copy() cMemoryOwn:YES] : nil;
-}
-
 - (MegaShare *)getCPtr {
     return self.megaShare;
 }

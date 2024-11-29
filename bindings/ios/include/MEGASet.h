@@ -23,6 +23,12 @@
 
 #import <Foundation/Foundation.h>
 
+typedef NS_ENUM (NSInteger, MEGASetType) {
+    MEGASetTypeInvalid = -1,
+    MEGASetTypeAlbum = 0,
+    MEGASetTypePlaylist
+};
+
 typedef NS_ENUM(NSUInteger, MEGASetChangeType) {
     MEGASetChangeTypeNew           = 0x01,
     MEGASetChangeTypeName          = 0x02,
@@ -80,14 +86,33 @@ NS_ASSUME_NONNULL_BEGIN
  *
  * @return timestamp value.
  */
-@property (readonly, nonatomic) NSDate *timestamp;
+@property (readonly, nonatomic, nullable) NSDate *timestamp;
 
 /**
  * @brief Returns creation timestamp of current Set.
  *
  * @return timestamp value.
  */
-@property (readonly, nonatomic) NSDate *timestampCreated;
+@property (readonly, nonatomic, nullable) NSDate *timestampCreated;
+
+/**
+ * @brief Type of the current set.
+ *
+ * Valid values are:
+ *
+ * - MEGASetTypeInvalid = -1
+ * Invalid type
+ *
+ * - MEGASetTypeAlbum = 0
+ * Set is an album
+ *
+ * - MEGASetTypePlaylist = 1
+ * Set is a playlist
+ *
+ * @return type value.
+ */
+
+@property (readonly, nonatomic) MEGASetType type;
 
 /**
  * @brief Returns name of current Set.

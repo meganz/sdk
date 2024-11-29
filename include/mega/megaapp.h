@@ -22,6 +22,11 @@
 #ifndef MEGA_APP_H
 #define MEGA_APP_H 1
 
+#include <mega/types.h>
+
+// FUSE.
+#include <mega/fuse/common/mount_event_forward.h>
+
 namespace mega {
 
 struct Notification;
@@ -37,6 +42,7 @@ struct CurrencyData;
 struct TLVstore;
 struct AchievementsDetails;
 class Sync;
+struct Product;
 
 // callback interface
 struct MEGA_API MegaApp
@@ -99,7 +105,10 @@ struct MEGA_API MegaApp
     virtual void setelements_updated(SetElement**, int) { }
 
     // nodes have been updated
-    virtual void nodes_updated(Node**, int) { }
+    virtual void nodes_updated(sharedNode_vector*, int) { }
+
+    // new actionpackets arrived with a new sequence tag
+    virtual void sequencetag_update(const string&) { }
 
     // nodes have been updated
     virtual void pcrs_updated(PendingContactRequest**, int) { }
@@ -140,13 +149,16 @@ struct MEGA_API MegaApp
 #ifndef NDEBUG
     // So that tests can make a change as soon as a cloud node is moved.
     virtual void move_begin(const LocalPath&, const LocalPath&) { };
-
-    // So that tests can make a change as soon as a putnodes is sent.
-    virtual void putnodes_begin(const LocalPath&) { };
 #endif // ! NDEBUG
 
     // node addition has failed
-    virtual void putnodes_result(const Error&, targettype_t, vector<NewNode>&, bool targetOverride, int tag) { }
+    virtual void putnodes_result(const Error&,
+                                 targettype_t,
+                                 vector<NewNode>&,
+                                 bool targetOverride,
+                                 int tag,
+                                 const std::map<std::string, std::string>& fileHandles = {})
+    {}
 
     // outgoing pending contact result
     virtual void setpcr_result(handle, error, opcactions_t) { }
@@ -164,9 +176,7 @@ struct MEGA_API MegaApp
     virtual void putfa_result(handle, fatype, error) { }
 
     // purchase transactions
-    virtual void enumeratequotaitems_result(unsigned, handle, unsigned, int, int, unsigned, unsigned,
-                                            unsigned, unsigned, const char*, const char*, const char*,
-                                            unique_ptr<BusinessPlan>) { }
+    virtual void enumeratequotaitems_result(const Product& product) {}
     virtual void enumeratequotaitems_result(unique_ptr<CurrencyData>) {}
     virtual void enumeratequotaitems_result(error) { }
     virtual void additem_result(error) { }
@@ -203,7 +213,10 @@ struct MEGA_API MegaApp
     virtual void openfilelink_result(handle, const byte*, m_off_t, string*, string*, int) { }
 
     // pread result
-    virtual dstime pread_failure(const Error&, int, void*, dstime) { return ~(dstime)0; }
+    virtual dstime pread_failure(const Error&, int, void*, dstime)
+    {
+        return NEVER;
+    }
     virtual bool pread_data(byte*, m_off_t, m_off_t, m_off_t, m_off_t, void*) { return false; }
 
     // event reporting result
@@ -299,13 +312,20 @@ struct MEGA_API MegaApp
     virtual void transfer_update(Transfer*) { }
     virtual void transfer_complete(Transfer*) { }
 
+    // ----- sync callbacks below, which occur on the syncs thread
+    // ----- (other callbacks occur on the client thread)
+
     // sync status updates and events
     virtual void syncupdate_stateconfig(const SyncConfig& config) { }
     virtual void syncupdate_stats(handle backupId, const PerSyncStats&) { }
     virtual void syncupdate_syncing(bool) { }
     virtual void syncupdate_scanning(bool) { }
-    virtual void syncupdate_local_lockretry(bool) { }
+    virtual void syncupdate_stalled(bool) { }
+    virtual void syncupdate_conflicts(bool) { }
+    virtual void syncupdate_totalstalls(bool) { }
+    virtual void syncupdate_totalconflicts(bool) { }
     virtual void syncupdate_treestate(const SyncConfig &, const LocalPath&, treestate_t, nodetype_t) { }
+    virtual bool isSyncStalledChanged() { return false; } // flag for syncupdate_totalstalls or syncupdate_totalstalls is set
 
 #ifdef DEBUG
     // Called right before the sync engine processes a filesystem notification.
@@ -313,17 +333,6 @@ struct MEGA_API MegaApp
                                         int queue,
                                         const Notification& notification) { };
 #endif // DEBUG
-
-    // sync filename filter
-    virtual bool sync_syncable(Sync*, const char*, LocalPath&, Node*)
-    {
-        return true;
-    }
-
-    virtual bool sync_syncable(Sync*, const char*, LocalPath&)
-    {
-        return true;
-    }
 
     // after a root node of a sync changed its path
     virtual void syncupdate_remote_root_changed(const SyncConfig &) { }
@@ -339,6 +348,9 @@ struct MEGA_API MegaApp
 
     // after a sync has been removed
     virtual void sync_removed(const SyncConfig& config) { }
+
+    // ----- that's the end of the sync callbacks, which occur on the syncs thread
+    // ----- (other callbacks occur on the client thread)
 
     // Notify fatal errors (ie. DB, node unserialization, ...) to apps
     virtual void notifyError(const char*, ErrorReason) { }
@@ -427,10 +439,15 @@ struct MEGA_API MegaApp
     // provides the per mil progress of a long-running API operation or -1 if there isn't any operation in progress
     virtual void reqstat_progress(int) { }
 
+    virtual void notify_creditCardExpiry() { }
+
     virtual ~MegaApp() { }
 
     // External drive notifications
     virtual void drive_presence_changed(bool appeared, const LocalPath& driveRoot) { }
+
+    // Called when a mount has been added, disabled, enabled or removed.
+    virtual void onFuseEvent(const fuse::MountEvent&) { }
 };
 } // namespace
 

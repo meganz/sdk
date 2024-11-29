@@ -135,7 +135,7 @@ struct DemoApp : public MegaApp
 
     void users_updated(User**, int) override;
     void useralerts_updated(UserAlert::Base** ua, int count) override;
-    void nodes_updated(Node**, int count) override;
+    void nodes_updated(sharedNode_vector* nodes, int count) override;
     void pcrs_updated(PendingContactRequest**, int) override;
     void nodes_current() override;
     void account_updated() override;
@@ -143,6 +143,8 @@ struct DemoApp : public MegaApp
     void notify_confirm_user_email(handle user, const char *email) override;
     void sets_updated(Set**, int) override;
     void setelements_updated(SetElement**, int) override;
+
+    void sequencetag_update(const string&) override;
 
 #ifdef ENABLE_CHAT
     void chatcreate_result(TextChat *, error) override;
@@ -176,7 +178,12 @@ struct DemoApp : public MegaApp
 
     void fetchnodes_result(const Error&) override;
 
-    void putnodes_result(const Error&, targettype_t, vector<NewNode>&, bool targetOverride, int tag) override;
+    void putnodes_result(const Error&,
+                         targettype_t,
+                         vector<NewNode>&,
+                         bool targetOverride,
+                         int tag,
+                         const std::map<std::string, std::string>& fileHandles) override;
 
     void setpcr_result(handle, error, opcactions_t) override;
     void updatepcr_result(error, ipcactions_t) override;
@@ -228,11 +235,9 @@ struct DemoApp : public MegaApp
 
     void syncupdate_syncing(bool) override;
     void syncupdate_scanning(bool) override;
-    void syncupdate_local_lockretry(bool) override;
+    void syncupdate_stalled(bool stalled) override;
+    void syncupdate_conflicts(bool conflicts) override;
     void syncupdate_treestate(const SyncConfig& config, const LocalPath&, treestate_t, nodetype_t) override;
-
-    bool sync_syncable(Sync*, const char*, LocalPath&, Node*) override;
-    bool sync_syncable(Sync*, const char*, LocalPath&) override;
 #endif
 
     void upgrading_security() override;
@@ -243,9 +248,7 @@ struct DemoApp : public MegaApp
     void userattr_update(User*, int, const char*) override;
     void resetSmsVerifiedPhoneNumber_result(error e) override;
 
-    void enumeratequotaitems_result(unsigned, handle, unsigned, int, int, unsigned, unsigned,
-                                    unsigned, unsigned, const char*, const char*, const char*,
-                                    std::unique_ptr<BusinessPlan>) override;
+    void enumeratequotaitems_result(const Product& product) override;
     void enumeratequotaitems_result(unique_ptr<CurrencyData>) override;
     void enumeratequotaitems_result(error) override;
     void additem_result(error) override;
@@ -287,7 +290,7 @@ struct DemoAppFolder : public DemoApp
     void login_result(error);
     void fetchnodes_result(const Error&);
 
-    void nodes_updated(Node **n, int count);
+    void nodes_updated(sharedNode_vector* nodes, int count);
     void users_updated(User**, int) {}
     void pcrs_updated(PendingContactRequest**, int) {}
 };
@@ -327,6 +330,7 @@ void exec_rm(autocomplete::ACState& s);
 void exec_mv(autocomplete::ACState& s);
 void exec_cp(autocomplete::ACState& s);
 void exec_du(autocomplete::ACState& s);
+void exec_syncrescan(autocomplete::ACState& s);
 void exec_nodecounter(autocomplete::ACState& s);
 void exec_numberofnodes(autocomplete::ACState& s);
 void exec_numberofchildren(autocomplete::ACState& s);
@@ -351,7 +355,6 @@ void exec_putbps(autocomplete::ACState& s);
 void exec_killsession(autocomplete::ACState& s);
 void exec_whoami(autocomplete::ACState& s);
 void exec_verifycredentials(autocomplete::ACState& s);
-void exec_secure(autocomplete::ACState& s);
 void exec_manualverif(autocomplete::ACState &s);
 void exec_passwd(autocomplete::ACState& s);
 void exec_reset(autocomplete::ACState& s);
@@ -399,10 +402,11 @@ void exec_history(autocomplete::ACState& s);
 void exec_help(autocomplete::ACState& s);
 void exec_quit(autocomplete::ACState& s);
 void exec_find(autocomplete::ACState& s);
-#ifdef USE_FILESYSTEM
+void exec_nodedescription(autocomplete::ACState& s);
+void exec_nodesensitive(autocomplete::ACState& s);
+void exec_nodeTag(autocomplete::ACState& s);
 void exec_treecompare(autocomplete::ACState& s);
 void exec_querytransferquota(autocomplete::ACState& s);
-#endif
 void exec_metamac(autocomplete::ACState& s);
 void exec_resetverifiedphonenumber(autocomplete::ACState& s);
 void exec_banner(autocomplete::ACState& s);
@@ -423,6 +427,7 @@ void exec_syncimport(autocomplete::ACState& s);
 void exec_syncopendrive(autocomplete::ACState& s);
 void exec_synclist(autocomplete::ACState& s);
 void exec_syncremove(autocomplete::ACState& s);
+void exec_syncstatus(autocomplete::ACState& s);
 void exec_syncxable(autocomplete::ACState& s);
 
 #endif // ENABLE_SYNC
@@ -437,3 +442,12 @@ void exec_putvpncredential(autocomplete::ACState& s);
 void exec_delvpncredential(autocomplete::ACState& s);
 void exec_checkvpncredential(autocomplete::ACState& s);
 /* MEGA VPN commands END */
+
+void exec_fetchcreditcardinfo(autocomplete::ACState&);
+void exec_passwordmanager(autocomplete::ACState&);
+void exec_generatepassword(autocomplete::ACState&);
+void exec_importpasswordsfromgooglefile(autocomplete::ACState&);
+void exec_getpricing(autocomplete::ACState&);
+
+void exec_collectAndPrintTransferStats(autocomplete::ACState&);
+void exec_hashcash(autocomplete::ACState&);

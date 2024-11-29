@@ -20,14 +20,16 @@
  */
 
 #include "mega/utils.h"
-#include "mega/logging.h"
-#include "mega/megaclient.h"
-#include "mega/base64.h"
-#include "mega/serialize64.h"
-#include "mega/filesystem.h"
 
-#include <iomanip>
+#include "mega/base64.h"
+#include "mega/filesystem.h"
+#include "mega/logging.h"
+#include "mega/mega_utf8proc.h"
+#include "mega/megaclient.h"
+#include "mega/serialize64.h"
+
 #include <cctype>
+#include <iomanip>
 
 #if defined(_WIN32) && defined(_MSC_VER)
 #include <sys/timeb.h>
@@ -58,6 +60,26 @@ string toNodeHandle(handle nodeHandle)
 string toNodeHandle(NodeHandle nodeHandle)
 {
     return toNodeHandle(nodeHandle.as8byte());
+}
+
+NodeHandle toNodeHandle(const byte* data)
+{
+    NodeHandle ret;
+    if (data)
+    {
+        handle h = 0;  // most significant non-used-for-the-handle bytes must be zeroed
+        memcpy(&h, data, MegaClient::NODEHANDLE);
+        ret.set6byte(h);
+    }
+
+    return ret;
+}
+
+NodeHandle toNodeHandle(const std::string* data)
+{
+    if(data) return toNodeHandle(reinterpret_cast<const byte*>(data->c_str()));
+
+    return NodeHandle{};
 }
 
 string toHandle(handle h)
@@ -197,6 +219,13 @@ void CacheableWriter::serializestring(const string& field)
     dest.append(field.data(), ll);
 }
 
+void CacheableWriter::serializestring_u32(const string& field)
+{
+    uint32_t ll = (uint32_t)field.size();
+    dest.append((char*)&ll, sizeof(ll));
+    dest.append(field.data(), ll);
+}
+
 void CacheableWriter::serializecompressedu64(uint64_t field)
 {
     byte buf[sizeof field+1];
@@ -250,11 +279,6 @@ void CacheableWriter::serializenodehandle(handle field)
 void CacheableWriter::serializeNodeHandle(NodeHandle field)
 {
     serializenodehandle(field.as8byte());
-}
-
-void CacheableWriter::serializefsfp(fsfp_t field)
-{
-    dest.append((char*)&field.id, sizeof(field.id));
 }
 
 void CacheableWriter::serializebool(bool field)
@@ -333,6 +357,30 @@ bool CacheableReader::unserializestring(string& s)
     }
 
     unsigned short len = MemAccess::get<unsigned short>(ptr);
+    ptr += sizeof(len);
+
+    if (ptr + len > end)
+    {
+        return false;
+    }
+
+    if (len)
+    {
+        s.assign(ptr, len);
+    }
+    ptr += len;
+    fieldnum += 1;
+    return true;
+}
+
+bool CacheableReader::unserializestring_u32(string& s)
+{
+    if (ptr + sizeof(uint32_t) > end)
+    {
+        return false;
+    }
+
+    uint32_t len = MemAccess::get<uint32_t>(ptr);
     ptr += sizeof(len);
 
     if (ptr + len > end)
@@ -860,18 +908,6 @@ bool CacheableReader::unserializeNodeHandle(NodeHandle& field)
     return true;
 }
 
-bool CacheableReader::unserializefsfp(fsfp_t& field)
-{
-    if (ptr + sizeof(fsfp_t) > end)
-    {
-        return false;
-    }
-    field.id = MemAccess::get<uint64_t>(ptr);
-    ptr += sizeof(uint64_t);
-    fieldnum += 1;
-    return true;
-}
-
 bool CacheableReader::unserializebool(bool& field)
 {
     if (ptr + sizeof(bool) > end)
@@ -956,9 +992,9 @@ bool CacheableReader::unserializedirection(direction_t& field)
  * @param iv Optional initialisation vector for encryption. Will use a
  *     zero IV if not given. If `iv` is a zero length string, a new IV
  *     for encryption will be generated and available through the reference.
- * @return Void.
+ * @return true if encryption was successful.
  */
-void PaddedCBC::encrypt(PrnGen &rng, string* data, SymmCipher* key, string* iv)
+bool PaddedCBC::encrypt(PrnGen &rng, string* data, SymmCipher* key, string* iv)
 {
     if (iv)
     {
@@ -984,21 +1020,18 @@ void PaddedCBC::encrypt(PrnGen &rng, string* data, SymmCipher* key, string* iv)
     // Pad to block size and encrypt.
     data->append("E");
     data->resize((data->size() + key->BLOCKSIZE - 1) & - key->BLOCKSIZE, 'P');
-    if (iv)
-    {
-        key->cbc_encrypt((byte*)data->data(), data->size(),
-                         (const byte*)iv->data());
-    }
-    else
-    {
-        key->cbc_encrypt((byte*)data->data(), data->size());
-    }
+    byte* dd = reinterpret_cast<byte*>(const_cast<char*>(data->data())); // make sure it works for pre-C++17 compilers
+    bool encrypted = iv ?
+        key->cbc_encrypt(dd, data->size(), reinterpret_cast<const byte*>(iv->data())) :
+        key->cbc_encrypt(dd, data->size());
 
     // Truncate IV back to the first 8 bytes only..
     if (iv)
     {
         iv->resize(8);
     }
+
+    return encrypted;
 }
 
 /**
@@ -1011,7 +1044,7 @@ void PaddedCBC::encrypt(PrnGen &rng, string* data, SymmCipher* key, string* iv)
  * @param key AES key for decryption.
  * @param iv Optional initialisation vector for encryption. Will use a
  *     zero IV if not given.
- * @return Void.
+ * @return true if decryption was successful.
  */
 bool PaddedCBC::decrypt(string* data, SymmCipher* key, string* iv)
 {
@@ -1033,14 +1066,13 @@ bool PaddedCBC::decrypt(string* data, SymmCipher* key, string* iv)
     }
 
     // Decrypt and unpad.
-    if (iv)
+    byte* dd = reinterpret_cast<byte*>(const_cast<char*>(data->data())); // make sure it works for pre-C++17 compilers
+    bool encrypted = iv ?
+        key->cbc_decrypt(dd, data->size(), reinterpret_cast<const byte*>(iv->data())) :
+        key->cbc_decrypt(dd, data->size());
+    if (!encrypted)
     {
-        key->cbc_decrypt((byte*)data->data(), data->size(),
-                         (const byte*)iv->data());
-    }
-    else
-    {
-        key->cbc_decrypt((byte*)data->data(), data->size());
+        return false;
     }
 
     size_t p = data->find_last_of('E');
@@ -1178,7 +1210,10 @@ bool PayCrypter::encryptPayload(const string *cleartext, string *result)
     //AES-CBC encryption
     string encResult;
     SymmCipher sym(encKey);
-    sym.cbc_encrypt_pkcs_padding(cleartext, iv, &encResult);
+    if (!sym.cbc_encrypt_pkcs_padding(cleartext, iv, &encResult))
+    {
+        return false;
+    }
 
     //Prepare the message to authenticate (IV + cipher text)
     string toAuthenticate((char *)iv, IV_BYTES);
@@ -1218,7 +1253,7 @@ bool PayCrypter::rsaEncryptKeys(const string *cleartext, const byte *pubkdata, i
     size_t keylen = keyString.size();
 
     //Resize to add padding
-    keyString.resize(asym.key[AsymmCipher::PUB_PQ].ByteCount() - 2);
+    keyString.resize(asym.getKey(AsymmCipher::PUB_PQ).ByteCount() - 2);
 
     //Add padding
     if(randompadding)
@@ -1259,26 +1294,6 @@ bool PayCrypter::hybridEncrypt(const string *cleartext, const byte *pubkdata, in
     return true;
 }
 
-#ifdef _WIN32
-int mega_snprintf(char *s, size_t n, const char *format, ...)
-{
-    va_list args;
-    int ret;
-
-    if (!s || n <= 0)
-    {
-        return -1;
-    }
-
-    va_start(args, format);
-    ret = vsnprintf(s, n, format, args);
-    va_end(args);
-
-    s[n - 1] = '\0'; // correct in snpritnf() in VS 2019
-    return ret;
-}
-#endif
-
 string * TLVstore::tlvRecordsToContainer(PrnGen &rng, SymmCipher *key, encryptionsetting_t encSetting)
 {
     // decide nonce/IV and auth. tag lengths based on the `mode`
@@ -1292,11 +1307,11 @@ string * TLVstore::tlvRecordsToContainer(PrnGen &rng, SymmCipher *key, encryptio
     }
 
     // serialize the TLV records
-    string *container = tlvRecordsToContainer();
+    std::unique_ptr<string> container(tlvRecordsToContainer());
 
     // generate IV array
-    byte *iv = new byte[ivlen];
-    rng.genblock(iv, ivlen);
+    std::vector<byte> iv(ivlen);
+    rng.genblock(iv.data(), ivlen);
 
     string cipherText;
 
@@ -1304,21 +1319,24 @@ string * TLVstore::tlvRecordsToContainer(PrnGen &rng, SymmCipher *key, encryptio
 
     if (encMode == AES_MODE_CCM)   // CCM or GCM_BROKEN (same than CCM)
     {
-        key->ccm_encrypt(container, iv, ivlen, taglen, &cipherText);
+        if (!key->ccm_encrypt(container.get(), iv.data(), ivlen, taglen, &cipherText))
+        {
+            return nullptr;
+        }
     }
     else if (encMode == AES_MODE_GCM)   // then use GCM
     {
-        key->gcm_encrypt(container, iv, ivlen, taglen, &cipherText);
+        if (!key->gcm_encrypt(container.get(), iv.data(), ivlen, taglen, &cipherText))
+        {
+            return nullptr;
+        }
     }
 
     string *result = new string;
     result->resize(1);
     result->at(0) = static_cast<char>(encSetting);
-    result->append((char*) iv, ivlen);
+    result->append((char*) iv.data(), ivlen);
     result->append((char*) cipherText.data(), cipherText.length()); // includes auth. tag
-
-    delete [] iv;
-    delete container;
 
     return result;
 }
@@ -1884,53 +1902,43 @@ std::string Utils::replace(const std::string& str, const std::string& search, co
 
 bool Utils::hasenv(const std::string &key)
 {
-    bool r = false;
-    getenv(key, &r);
-    return r;
+    [[maybe_unused]] const auto [_, hasValue] = getenv(key);
+    return hasValue;
 }
 
-std::string Utils::getenv(const std::string& key, const std::string& def) 
+std::string Utils::getenv(const std::string& key, const std::string& def)
 {
-    bool found = false;
-    string r = getenv(key, &found);
-    if (!found) return def;
-    return r;
+    const auto [value, hasValue] = getenv(key);
+    return hasValue ? value : def;
 }
 
-std::string Utils::getenv(const std::string& key, bool* out_found)\
+std::pair<std::string, bool> Utils::getenv(const std::string& key)
 {
-    // sets *out_found to if found
 #ifdef WIN32
     // on Windows the charset is not UTF-8 by default
-    WCHAR buf[32 * 1024];
+    std::array<WCHAR, 32 * 1024> buf;
     wstring keyW;
     LocalPath::path2local(&key, &keyW);
-    DWORD size = GetEnvironmentVariable(keyW.c_str(), buf, sizeof(buf) / sizeof(buf[0]));
-    if (size == 0)
+    const auto foundSize = ::GetEnvironmentVariable(keyW.c_str(),
+                                                    buf.data(),
+                                                    static_cast<DWORD>(buf.size()));
+    // Not found
+    if (foundSize == 0)
     {
-        if (out_found) *out_found = false;
-        return "";
+        return {"", false};
     }
-    else 
-    {
-        if (out_found) *out_found = true;
-
-        string ret;
-        wstring input(buf, size);
-        LocalPath::local2path(&input, &ret, false);
-        return ret;
-    }
+    // Found
+    string ret;
+    wstring input(buf.data(), foundSize);
+    LocalPath::local2path(&input, &ret, false);
+    return {std::move(ret), true};
 #else
-    const char* value = ::getenv(key.c_str());
-    if (out_found)
+    if (const char* value = ::getenv(key.c_str()))
     {
-        *out_found = value != nullptr;
+        return {value, true};
     }
-    if (value)
-    {
-        return value;
-    }
-    return "";
+    // Not found
+    return {"", false};
 #endif
 }
 
@@ -2009,31 +2017,13 @@ string Utils::trim(const string& str, const string& trimchrs)
     return str.substr(s, e - s + 1);
 }
 
-long long abs(long long n)
-{
-    // for pre-c++11 where this version is not defined yet
-    return n >= 0 ? n : -n;
-}
-
 struct tm* m_localtime(m_time_t ttime, struct tm *dt)
 {
     // works for 32 or 64 bit time_t
-    time_t t = time_t(ttime);
-#if (__cplusplus >= 201103L) && defined (__STDC_LIB_EXT1__) && defined(__STDC_WANT_LIB_EXT1__)
-    localtime_s(&t, dt);
-#elif _MSC_VER >= 1400 || defined(__MINGW32__) // MSVCRT (2005+): std::localtime is threadsafe
-    struct tm *newtm = localtime(&t);
-    if (newtm)
-    {
-        memcpy(dt, newtm, sizeof(struct tm));
-    }
-    else
-    {
-        memset(dt, 0, sizeof(struct tm));
-    }
-#elif _WIN32
-#error "localtime is not thread safe in this compiler; please use a later one"
-#else //POSIX
+    time_t t = static_cast<time_t>(ttime);
+#ifdef _WIN32
+    localtime_s(dt, &t);
+#else
     localtime_r(&t, dt);
 #endif
     return dt;
@@ -2042,22 +2032,10 @@ struct tm* m_localtime(m_time_t ttime, struct tm *dt)
 struct tm* m_gmtime(m_time_t ttime, struct tm *dt)
 {
     // works for 32 or 64 bit time_t
-    time_t t = time_t(ttime);
-#if (__cplusplus >= 201103L) && defined (__STDC_LIB_EXT1__) && defined(__STDC_WANT_LIB_EXT1__)
-    gmtime_s(&t, dt);
-#elif _MSC_VER >= 1400 || defined(__MINGW32__) // MSVCRT (2005+): std::gmtime is threadsafe
-    struct tm *newtm = gmtime(&t);
-    if (newtm)
-    {
-        memcpy(dt, newtm, sizeof(struct tm));
-    }
-    else
-    {
-        memset(dt, 0, sizeof(struct tm));
-    }
-#elif _WIN32
-#error "gmtime is not thread safe in this compiler; please use a later one"
-#else //POSIX
+    time_t t = static_cast<time_t>(ttime);
+#ifdef _WIN32
+    gmtime_s(dt, &t);
+#else
     gmtime_r(&t, dt);
 #endif
     return dt;
@@ -2080,32 +2058,13 @@ m_time_t m_mktime(struct tm* stm)
     return mktime(stm);
 }
 
-int m_clock_getmonotonictime(timespec *t)
+dstime m_clock_getmonotonictimeDS()
 {
-#ifdef __APPLE__
-    struct timeval now;
-    int rv = gettimeofday(&now, NULL);
-    if (rv)
-    {
-        return rv;
-    }
-    t->tv_sec = now.tv_sec;
-    t->tv_nsec = now.tv_usec * 1000;
-    return 0;
-#elif defined(_WIN32) && defined(_MSC_VER)
-    struct __timeb64 tb;
-    _ftime64(&tb);
-    t->tv_sec = tb.time;
-    t->tv_nsec = long(tb.millitm) * 1000000;
-    return 0;
-#else
-#ifdef CLOCK_BOOTTIME
-    return clock_gettime(CLOCK_BOOTTIME, t);
-#else
-    return clock_gettime(CLOCK_MONOTONIC, t);
-#endif
-#endif
+    using namespace std::chrono;
 
+    auto timeMs = duration_cast<milliseconds>(steady_clock::now().time_since_epoch());
+
+    return duration<dstime, std::milli>(timeMs).count() / 100;
 }
 
 m_time_t m_mktime_UTC(const struct tm *src)
@@ -2596,6 +2555,8 @@ std::string CacheableStatus::typeToStr(CacheableStatus::Type type)
         return "blocked";
     case STATUS_PRO_LEVEL:
         return "pro-level";
+    case STATUS_FEATURE_LEVEL:
+        return "feature-level";
     default:
         return "undefined";
     }
@@ -2613,7 +2574,7 @@ std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &
     static const unsigned int SZ_1024K = 1l << 20;
     static const unsigned int SZ_128K  = 128l << 10;
 
-    std::unique_ptr<byte[]> buffer(new byte[SZ_1024K + SymmCipher::BLOCKSIZE]);
+    auto buffer = std::make_unique<byte[]>(SZ_1024K + SymmCipher::BLOCKSIZE);
     chunkmac_map chunkMacs;
     unsigned int chunkLength = 0;
     m_off_t current = 0;
@@ -2822,7 +2783,7 @@ bool readLines(const std::string& input, string_vector& destination)
         while (delim < end && *delim != '\r' && *delim != '\n')
         {
             ++delim;
-            whitespace += std::isspace(*whitespace) > 0;
+            whitespace += is_space(*whitespace);
         }
 
         if (delim != whitespace)
@@ -2890,6 +2851,74 @@ bool wildcardMatch(const char *pszString, const char *pszMatch)
     }
     return !*pszMatch;
 }
+
+const char* syncWaitReasonDebugString(SyncWaitReason r)
+{
+    switch(r)
+    {
+        case SyncWaitReason::NoReason:                                      return "NoReason";
+        case SyncWaitReason::FileIssue:                                     return "FileIssue";
+        case SyncWaitReason::MoveOrRenameCannotOccur:                       return "MoveOrRenameCannotOccur";
+        case SyncWaitReason::DeleteOrMoveWaitingOnScanning:                 return "DeleteOrMoveWaitingOnScanning";
+        case SyncWaitReason::DeleteWaitingOnMoves:                          return "DeleteWaitingOnMoves";
+        case SyncWaitReason::UploadIssue:                                   return "UploadIssue";
+        case SyncWaitReason::DownloadIssue:                                 return "DownloadIssue";
+        case SyncWaitReason::CannotCreateFolder:                            return "CannotCreateFolder";
+        case SyncWaitReason::CannotPerformDeletion:                         return "CannotPerformDeletion";
+        case SyncWaitReason::SyncItemExceedsSupportedTreeDepth:             return "SyncItemExceedsSupportedTreeDepth";
+        case SyncWaitReason::FolderMatchedAgainstFile:                      return "FolderMatchedAgainstFile";
+        case SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose: return "BothChangedSinceLastSynced";
+        case SyncWaitReason::LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose: return "LocalAndRemotePreviouslyUnsyncedDiffer";
+        case SyncWaitReason::NamesWouldClashWhenSynced:                     return "NamesWouldClashWhenSynced";
+
+        case SyncWaitReason::SyncWaitReason_LastPlusOne: break;
+    }
+    return "<out of range>";
+}
+
+const char* syncPathProblemDebugString(PathProblem r)
+{
+    switch (r)
+    {
+    case PathProblem::NoProblem: return "NoProblem";
+    case PathProblem::FileChangingFrequently: return "FileChangingFrequently";
+    case PathProblem::IgnoreRulesUnknown: return "IgnoreRulesUnknown";
+    case PathProblem::DetectedHardLink: return "DetectedHardLink";
+    case PathProblem::DetectedSymlink: return "DetectedSymlink";
+    case PathProblem::DetectedSpecialFile: return "DetectedSpecialFile";
+    case PathProblem::DifferentFileOrFolderIsAlreadyPresent: return "DifferentFileOrFolderIsAlreadyPresent";
+    case PathProblem::ParentFolderDoesNotExist: return "ParentFolderDoesNotExist";
+    case PathProblem::FilesystemErrorDuringOperation: return "FilesystemErrorDuringOperation";
+    case PathProblem::NameTooLongForFilesystem: return "NameTooLongForFilesystem";
+    case PathProblem::CannotFingerprintFile: return "CannotFingerprintFile";
+    case PathProblem::DestinationPathInUnresolvedArea: return "DestinationPathInUnresolvedArea";
+    case PathProblem::MACVerificationFailure: return "MACVerificationFailure";
+    case PathProblem::UnknownDownloadIssue:
+        return "UnknownDownloadIssue";
+    case PathProblem::DeletedOrMovedByUser: return "DeletedOrMovedByUser";
+    case PathProblem::FileFolderDeletedByUser: return "FileFolderDeletedByUser";
+    case PathProblem::MoveToDebrisFolderFailed: return "MoveToDebrisFolderFailed";
+    case PathProblem::IgnoreFileMalformed: return "IgnoreFileMalformed";
+    case PathProblem::FilesystemErrorListingFolder: return "FilesystemErrorListingFolder";
+    case PathProblem::FilesystemErrorIdentifyingFolderContent: return "FilesystemErrorIdentifyingFolderContent"; // Deprecated after SDK-3206
+    case PathProblem::WaitingForScanningToComplete: return "WaitingForScanningToComplete";
+    case PathProblem::WaitingForAnotherMoveToComplete: return "WaitingForAnotherMoveToComplete";
+    case PathProblem::SourceWasMovedElsewhere: return "SourceWasMovedElsewhere";
+    case PathProblem::FilesystemCannotStoreThisName: return "FilesystemCannotStoreThisName";
+    case PathProblem::CloudNodeInvalidFingerprint: return "CloudNodeInvalidFingerprint";
+    case PathProblem::CloudNodeIsBlocked: return "CloudNodeIsBlocked";
+
+    case PathProblem::PutnodeDeferredByController: return "PutnodeDeferredByController";
+    case PathProblem::PutnodeCompletionDeferredByController: return "PutnodeCompletionDeferredByController";
+    case PathProblem::PutnodeCompletionPending: return "PutnodeCompletionPending";
+    case PathProblem::UploadDeferredByController: return "UploadDeferredByController";
+
+    case PathProblem::DetectedNestedMount: return "DetectedNestedMount";
+
+    case PathProblem::PathProblem_LastPlusOne: break;
+    }
+    return "<out of range>";
+};
 
 UploadHandle UploadHandle::next()
 {
@@ -3045,7 +3074,7 @@ bool platformSetRLimitNumFile(int newNumFileLimit)
             LOG_err << "Error calling setrlimit: " << e;
             return false;
         }
-        else 
+        else
         {
             LOG_info << "rlimit for NOFILE is: " << rl.rlim_cur;
         }
@@ -3209,5 +3238,508 @@ string connDirectionToStr(mega::direction_t directionType)
     }
 }
 
-} // namespace mega
+const char* toString(retryreason_t reason)
+{
+    switch (reason)
+    {
+#define DEFINE_RETRY_CLAUSE(index, name) case name: return #name;
+        DEFINE_RETRY_REASONS(DEFINE_RETRY_CLAUSE)
+#undef DEFINE_RETRY_CLAUSE
+    }
 
+    assert(false && "Unknown retry reason");
+
+    return "RETRY_UNKNOWN";
+}
+
+bool is_space(unsigned int ch)
+{
+    return std::isspace(static_cast<unsigned char>(ch)) != 0;
+}
+
+bool is_digit(unsigned int ch)
+{
+    return std::isdigit(static_cast<unsigned char>(ch)) != 0;
+}
+
+bool is_symbol(unsigned int ch)
+{
+    return std::isalnum(static_cast<unsigned char>(ch)) == 0;
+}
+
+CharType getCharType(const unsigned int ch)
+{
+    if (is_symbol(ch))
+    {
+        return CharType::CSYMBOL;
+    }
+    else if (is_digit(ch))
+    {
+        return CharType::CDIGIT;
+    }
+    return CharType::CALPHA;
+}
+
+std::string escapeWildCards(const std::string& pattern)
+{
+    std::string newString;
+    newString.reserve(pattern.size());
+    bool isEscaped = false;
+
+    for (const char& character : pattern)
+    {
+        if ((character == WILDCARD_MATCH_ONE || character == WILDCARD_MATCH_ALL) && !isEscaped)
+        {
+            newString.push_back(ESCAPE_CHARACTER);
+        }
+        newString.push_back(character);
+        isEscaped = character == ESCAPE_CHARACTER && !isEscaped;
+    }
+
+    return newString;
+}
+
+TextPattern::TextPattern(const std::string& text):
+    mText{text}
+{
+    recalcPattern();
+}
+
+TextPattern::TextPattern(const char* text)
+{
+    if (text)
+    {
+        mText = text;
+        recalcPattern();
+    }
+}
+
+void TextPattern::recalcPattern()
+{
+    if (mText.empty() || isOnlyWildCards(mText))
+    {
+        mPattern.clear();
+        return;
+    }
+    mPattern = WILDCARD_MATCH_ALL + mText + WILDCARD_MATCH_ALL;
+}
+
+bool TextPattern::isOnlyWildCards(const std::string& text)
+{
+    return std::all_of(std::begin(text),
+                       std::end(text),
+                       [](auto&& c) -> bool
+                       {
+                           return c == WILDCARD_MATCH_ALL;
+                       });
+}
+
+std::set<std::string>::iterator getTagPosition(std::set<std::string>& tokens,
+                                               const std::string& pattern,
+                                               bool stripAccents)
+{
+    return std::find_if(
+        tokens.begin(),
+        tokens.end(),
+        [&](const std::string& token)
+        {
+            return likeCompare(pattern.c_str(), token.c_str(), ESCAPE_CHARACTER, stripAccents);
+        });
+}
+
+bool foldCaseAccentEqual(uint32_t codePoint1, uint32_t codePoint2, bool stripAccents)
+{
+    // 8 is big enough decompose one unicode point
+    using Buffer = std::array<utf8proc_int32_t, 8>;
+
+    // convenience.
+    auto options = UTF8PROC_CASEFOLD | UTF8PROC_COMPOSE | UTF8PROC_NULLTERM | UTF8PROC_STABLE;
+
+    // Strip accents if desired.
+    if (stripAccents)
+    {
+        options |= UTF8PROC_STRIPMARK;
+    }
+
+    auto foldCaseAccent = [options](uint32_t codePoint, Buffer& buff)
+    {
+        return utf8proc_decompose_char((utf8proc_int32_t)codePoint,
+                                       buff.data(),
+                                       static_cast<utf8proc_ssize_t>(buff.size()),
+                                       static_cast<utf8proc_option_t>(options),
+                                       nullptr);
+    };
+
+    Buffer buf1{0};
+    Buffer buf2{0};
+    if (foldCaseAccent(codePoint1, buf1) >= 0 && foldCaseAccent(codePoint2, buf2) >= 0)
+    {
+        return buf1 == buf2;
+    }
+
+    // Fallback if fold case and accent above has errors, better than we couldn't search
+    return u_foldCase(codePoint1, U_FOLD_CASE_DEFAULT) ==
+           u_foldCase(codePoint1, U_FOLD_CASE_DEFAULT);
+}
+
+// This code has been taken from sqlite repository (https://www.sqlite.org/src/file?name=ext/icu/icu.c)
+
+/*
+** This lookup table is used to help decode the first byte of
+** a multi-byte UTF8 character. It is copied here from SQLite source
+** code file utf8.c.
+*/
+static const unsigned char icuUtf8Trans1[] = {
+    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+    0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+    0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
+    0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f,
+    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+    0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+    0x00, 0x01, 0x02, 0x03, 0x00, 0x01, 0x00, 0x00,
+};
+
+#define SQLITE_ICU_READ_UTF8(zIn, c)                  \
+c = *(zIn++);                                         \
+    if (c>=0xc0){                                     \
+        c = icuUtf8Trans1[c-0xc0];                    \
+        while ((*zIn & 0xc0)==0x80){                  \
+            c = (c<<6) + (0x3f & *(zIn++));           \
+    }                                                 \
+}
+
+#define SQLITE_ICU_SKIP_UTF8(zIn)                     \
+assert(*zIn);                                         \
+    if (*(zIn++)>=0xc0){                              \
+        while ((*zIn & 0xc0)==0x80){zIn++;}           \
+}
+
+int icuLikeCompare(const uint8_t* zPattern, // LIKE pattern
+                   const uint8_t* zString, // The UTF-8 string to compare against
+                   const UChar32 uEsc, // The escape character
+                   const bool stripAccents) // Whether we should strip accents
+{
+    // Define Linux wildcards
+    static const uint32_t MATCH_ONE = static_cast<uint32_t>(WILDCARD_MATCH_ONE);
+    static const uint32_t MATCH_ALL = static_cast<uint32_t>(WILDCARD_MATCH_ALL);
+
+
+    int prevEscape = 0;     //True if the previous character was uEsc
+
+    while (1)
+    {
+        // Read (and consume) the next character from the input pattern.
+        uint32_t uPattern;
+        SQLITE_ICU_READ_UTF8(zPattern, uPattern);
+        if(uPattern == 0)
+            break;
+
+        /* There are now 4 possibilities:
+        **
+        **     1. uPattern is an unescaped match-all character "*",
+        **     2. uPattern is an unescaped match-one character "?",
+        **     3. uPattern is an unescaped escape character, or
+        **     4. uPattern is to be handled as an ordinary character
+        */
+        if (uPattern == MATCH_ALL && !prevEscape && uPattern != (uint32_t)uEsc)
+        {
+            // Case 1
+            uint8_t c;
+
+            // Skip any MATCH_ALL or MATCH_ONE characters that follow a
+            // MATCH_ALL. For each MATCH_ONE, skip one character in the
+            // test string
+            while ((c = *zPattern) == MATCH_ALL || c == MATCH_ONE)
+            {
+                if (c == MATCH_ONE)
+                {
+                    if (*zString == 0) return 0;
+                    SQLITE_ICU_SKIP_UTF8(zString);
+                }
+
+                zPattern++;
+            }
+
+            if (*zPattern == 0)
+                return 1;
+
+            while (*zString)
+            {
+                if (icuLikeCompare(zPattern, zString, uEsc, stripAccents))
+                {
+                    return 1;
+                }
+
+                SQLITE_ICU_SKIP_UTF8(zString);
+            }
+
+            return 0;
+        }
+        else if (uPattern == MATCH_ONE && !prevEscape && uPattern != (uint32_t)uEsc)
+        {
+            // Case 2
+            if( *zString==0 ) return 0;
+            SQLITE_ICU_SKIP_UTF8(zString);
+
+        }
+        else if (uPattern == (uint32_t)uEsc && !prevEscape)
+        {
+            // Case 3
+            prevEscape = 1;
+
+        }
+        else
+        {
+            // Case 4
+            uint32_t uString;
+            SQLITE_ICU_READ_UTF8(zString, uString);
+            if (!foldCaseAccentEqual(uString, uPattern, stripAccents))
+            {
+                return 0;
+            }
+
+            prevEscape = 0;
+        }
+    }
+
+    return *zString == 0;
+}
+
+bool likeCompare(const char* pattern, const char* str, const UChar32 esc, bool stripAccents)
+{
+    return static_cast<bool>(icuLikeCompare(reinterpret_cast<const uint8_t*>(pattern),
+                                            reinterpret_cast<const uint8_t*>(str),
+                                            esc,
+                                            stripAccents));
+}
+
+// Get the current process ID
+unsigned long getCurrentPid()
+{
+#ifdef WIN32
+    return GetCurrentProcessId();
+#else
+    return getpid();
+#endif
+}
+
+template<typename StringType>
+auto extensionOf(const StringType& path, std::string& extension)
+  -> typename std::enable_if<IsStringType<StringType>::value, bool>::type
+{
+    // Ensure destination is empty.
+    extension.clear();
+
+    // Try and determine where the file's extension begins.
+    auto i = path.find_last_of('.');
+
+    // File doesn't contain any extension.
+    if (i == path.npos)
+        return false;
+
+    // Assume remainder of path is a valid extension.
+    extension.reserve(path.size() - i);
+
+    // Copy extension from path, making sure each character is lowercased.
+    while (i < path.size())
+    {
+        // Latch character.
+        auto character = static_cast<char>(path[i++]);
+
+        // Invalid extension character.
+        if (character < '.' || character > 'z')
+            return extension.clear(), false;
+
+        // Push lowercase character.
+        extension.push_back(character | ' ');
+    }
+
+    // Let the caller know we extracted the path's extension.
+    return true;
+}
+
+template<typename StringType>
+auto extensionOf(const StringType& path)
+  -> typename std::enable_if<IsStringType<StringType>::value, std::string>::type
+{
+    std::string extension;
+
+    extensionOf(path, extension);
+
+    return extension;
+}
+
+// So getExtension(...)'s definition doesn't have to be in the headers.
+template bool extensionOf(const std::string&, std::string&);
+template bool extensionOf(const std::wstring&, std::string&);
+
+template std::string extensionOf(const std::string&);
+template std::string extensionOf(const std::wstring&);
+
+SplitResult split(const char* begin, const char* end, char delimiter)
+{
+    SplitResult result;
+
+    // Assume string doesn't contain the delimiter.
+    result.first.first   = begin;
+    result.first.second  = end - begin;
+    result.second.first  = nullptr;
+    result.second.second = 0;
+
+    // Search for the delimiter.
+    auto* current = std::find(begin, end, delimiter);
+
+    // String contains the delimiter.
+    if (current != end)
+    {
+        // Tweak result as necessary.
+        result.first.second  = current - begin;
+        result.second.first  = current;
+        result.second.second = end - current;
+    }
+
+    // Return result to caller.
+    return result;
+}
+
+SplitResult split(const char* begin, std::size_t size, char delimiter)
+{
+    return split(begin, begin + size, delimiter);
+}
+
+SplitResult split(const std::string& value, char delimiter)
+{
+    return split(value.data(), value.size(), delimiter);
+}
+
+int naturalsorting_compare(const char* i, const char* j)
+{
+    static uint64_t maxNumber = (ULONG_MAX - 57) / 10; // 57 --> ASCII code for '9'
+    bool stringMode = true;
+
+    while (*i && *j)
+    {
+        if (stringMode)
+        {
+            char char_i, char_j;
+            while ((char_i = *i) && (char_j = *j))
+            {
+                CharType iCharType = getCharType(static_cast<unsigned int>(*i));
+                CharType jCharType = getCharType(static_cast<unsigned int>(*j));
+                if (iCharType == jCharType)
+                {
+                    if (iCharType == CharType::CSYMBOL || iCharType == CharType::CALPHA)
+                    {
+                        if (int difference = strncasecmp(reinterpret_cast<const char*>(&char_i),
+                                                         reinterpret_cast<const char*>(&char_j),
+                                                         1);
+                            difference)
+                        {
+                            return difference;
+                        }
+
+                        ++i;
+                        ++j;
+                    }
+                    else if (iCharType == CharType::CDIGIT)
+                    {
+                        stringMode = false;
+                        break;
+                    }
+                }
+                else
+                {
+                    return iCharType < jCharType ? -1 : 1;
+                }
+            }
+        }
+        else // we are comparing numbers on both strings
+        {
+            uint64_t number_i = 0;
+            unsigned int i_overflow_count = 0;
+            while (*i && is_digit(*i))
+            {
+                number_i = number_i * 10 + (*i - 48); // '0' ASCII code is 48
+                ++i;
+
+                // check the number won't overflow upon addition of next char
+                if (number_i >= maxNumber)
+                {
+                    number_i -= maxNumber;
+                    i_overflow_count++;
+                }
+            }
+
+            uint64_t number_j = 0;
+            unsigned int j_overflow_count = 0;
+            while (*j && is_digit(*j))
+            {
+                number_j = number_j * 10 + (*j - 48);
+                ++j;
+
+                // check the number won't overflow upon addition of next char
+                if (number_j >= maxNumber)
+                {
+                    number_j -= maxNumber;
+                    j_overflow_count++;
+                }
+            }
+
+            int difference = i_overflow_count - j_overflow_count;
+            if (difference)
+            {
+                return difference;
+            }
+
+            if (number_i != number_j)
+            {
+                return number_i > number_j ? 1 : -1;
+            }
+
+            stringMode = true;
+        }
+    }
+
+    if (*j)
+    {
+        return -1;
+    }
+
+    if (*i)
+    {
+        return 1;
+    }
+
+    return 0;
+}
+
+std::string ensureAsteriskSurround(std::string str)
+{
+    if (str.empty())
+        return "*";
+
+    if (str.front() != '*')
+        str.insert(str.begin(), '*');
+
+    if (str.back() != '*')
+        str.push_back('*');
+
+    return str;
+}
+
+size_t fileExtensionDotPosition(const std::string& fileName)
+{
+    if (size_t dotPos = fileName.rfind('.'); dotPos == std::string::npos)
+        return fileName.size();
+    else
+        return dotPos;
+}
+
+std::string getThisThreadIdStr()
+{
+    std::stringstream ss;
+    ss << std::this_thread::get_id();
+    return ss.str();
+}
+} // namespace mega

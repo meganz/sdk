@@ -10,15 +10,17 @@
 #endif
 
 #include "megaapi.h"
+#include "QTMegaEvent.h"
 
 namespace mega
 {
+
 class QTMegaListener : public QObject, public MegaListener
 {
 	Q_OBJECT
 
 public:
-    explicit QTMegaListener(MegaApi *megaApi, MegaListener *parent=NULL);
+    explicit QTMegaListener(MegaApi* megaApi, MegaListener* parent = NULL);
     ~QTMegaListener() override;
 
 	void onRequestStart(MegaApi* api, MegaRequest *request) override;
@@ -43,12 +45,29 @@ public:
     void onSyncAdded(MegaApi *api,  MegaSync *sync) override;
     void onSyncDeleted(MegaApi *api,  MegaSync *sync) override;
     void onGlobalSyncStateChanged(MegaApi* api) override;
+    void onSyncRemoteRootChanged(MegaApi* api, MegaSync* sync) override;
 #endif
+
+    void onMountAdded(MegaApi* api, const char* path, int result) override;
+    void onMountChanged(MegaApi* api, const char* path, int result) override;
+    void onMountDisabled(MegaApi* api, const char* path, int result) override;
+    void onMountEnabled(MegaApi* api, const char* path, int result) override;
+    void onMountRemoved(MegaApi* api, const char* path, int result) override;
 
 protected:
     void customEvent(QEvent * event) override;
 
-    MegaApi *megaApi;
-	MegaListener *listener;
+    using FuseEventHandler =
+      void (MegaListener::*)(MegaApi*, const char*, int);
+
+    void onMountEvent(FuseEventHandler handler, const QTMegaEvent& event);
+
+    void postMountEvent(QTMegaEvent::MegaType eventType,
+                        MegaApi *api,
+                        const std::string& path,
+                        int result);
+
+    MegaApi* megaApi;
+    MegaListener *listener;
 };
 }

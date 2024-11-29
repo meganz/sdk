@@ -38,19 +38,6 @@ NS_ASSUME_NONNULL_BEGIN
 @interface MEGARecentActionBucket : NSObject
 
 /**
- * @brief Creates a copy of this MEGARecentActionBucket object.
- *
- * The resulting object is fully independent of the source MEGARecentActionBucket,
- * it contains a copy of all internal attributes, so it will be valid after
- * the original object is deleted.
- *
- * You are the owner of the returned object
- *
- * @return Copy of the MEGARecentActionBucket object
- */
-- (instancetype)clone;
-
-/**
  * @brief Returns a timestamp reflecting when these changes occurred
  *
  * @return Timestamp indicating when the changes occurred

@@ -55,6 +55,8 @@ typedef NS_ENUM(NSUInteger, MEGAInviteAction) {
  *
  */
 
+NS_ASSUME_NONNULL_BEGIN
+
 @interface MEGAContactRequest : NSObject
 
 /**
@@ -65,27 +67,27 @@ typedef NS_ENUM(NSUInteger, MEGAInviteAction) {
 /**
  * @brief The email of the request creator
  */
-@property (readonly, nonatomic) NSString *sourceEmail;
+@property (nullable, readonly, nonatomic) NSString *sourceEmail;
 
 /**
  * @brief The message that the creator of the contact request has added
  */
-@property (readonly, nonatomic) NSString *sourceMessage;
+@property (nullable, readonly, nonatomic) NSString *sourceMessage;
 
 /**
  * @brief The email of the recipient or nil if the current account is the recipient
  */
-@property (readonly, nonatomic) NSString *targetEmail;
+@property (nullable, readonly, nonatomic) NSString *targetEmail;
 
 /**
  * @brief The creation time of the contact request (in seconds since the Epoch)
  */
-@property (readonly, nonatomic) NSDate *creationTime;
+@property (nullable, readonly, nonatomic) NSDate *creationTime;
 
 /**
  * @brief The last update time of the contact request (in seconds since the Epoch)
  */
-@property (readonly, nonatomic) NSDate *modificationTime;
+@property (nullable, readonly, nonatomic) NSDate *modificationTime;
 
 /**
  * @brief The status of the contact request
@@ -120,3 +122,5 @@ typedef NS_ENUM(NSUInteger, MEGAInviteAction) {
 - (BOOL)isOutgoing;
 
 @end
+
+NS_ASSUME_NONNULL_END

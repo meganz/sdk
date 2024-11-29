@@ -52,6 +52,8 @@ struct MEGA_API FileFingerprint : public Cacheable
     // Generates a fingerprint by iterating through `is`
     bool genfingerprint(InputStreamAccess* is, m_time_t cmtime, bool ignoremtime = false);
 
+    // Includes CRC and mtime
+    // Be wary that these must be used in pair; do not mix with serialize pair
     void serializefingerprint(string* d) const;
     int unserializefingerprint(const string* d);
 
@@ -60,6 +62,8 @@ struct MEGA_API FileFingerprint : public Cacheable
     FileFingerprint(const FileFingerprint&);
     FileFingerprint& operator=(const FileFingerprint& other);
 
+    // Includes size, CRC, mtime, and isvalid
+    // Be wary that these must be used in pair; do not mix with serializefingerprint pair
     bool serialize(string* d) const override;
     static unique_ptr<FileFingerprint> unserialize(const char*& ptr, const char* end);
 
@@ -67,6 +71,8 @@ struct MEGA_API FileFingerprint : public Cacheable
     const FileFingerprint& fingerprint() const { return *this; }
 
     string fingerprintDebugString() const;
+
+    bool EqualExceptValidFlag(const FileFingerprint& rhs) const;
 };
 
 // orders transfers by file fingerprints, ordered by size / mtime / sparse CRC
@@ -79,26 +85,5 @@ struct MEGA_API FileFingerprintCmp
 bool operator==(const FileFingerprint& lhs, const FileFingerprint& rhs);
 bool operator!=(const FileFingerprint& lhs, const FileFingerprint& rhs);
 
-// A light-weight fingerprint only based on size and mtime
-struct MEGA_API LightFileFingerprint
-{
-    m_off_t size = -1;
-    m_time_t mtime = 0;
-
-    LightFileFingerprint() = default;
-
-    MEGA_DEFAULT_COPY_MOVE(LightFileFingerprint)
-
-    // Establishes a new fingerprint not involving I/O
-    bool genfingerprint(m_off_t filesize, m_time_t filemtime);
-};
-
-// Orders light file fingerprints by size and mtime in terms of "<"
-struct MEGA_API LightFileFingerprintCmp
-{
-    bool operator()(const LightFileFingerprint* a, const LightFileFingerprint* b) const;
-};
-
-bool operator==(const LightFileFingerprint& lhs, const LightFileFingerprint& rhs);
 
 } // mega

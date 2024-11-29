@@ -1,7 +1,45 @@
-pipeline {
-    agent { label 'osx && arm64' }
+import groovy.json.JsonSlurperClassic
 
-    options { 
+// Uploads a file to a Gitlab project
+// Requires env.GITLAB_BASE_URL
+String uploadFileToGitLab(String fileName, String projectId) {
+    String link = ""
+    String response = ""
+    withCredentials([string(credentialsId: 'gitlab-api-token', variable: 'TOKEN')]) {
+        response = sh(script: "curl -s --request POST --header 'PRIVATE-TOKEN:$TOKEN' --form file=@${fileName} ${env.GITLAB_BASE_URL}/api/v4/projects/${projectId}/uploads", returnStdout: true).trim()
+    }
+    link = new JsonSlurperClassic().parseText(response).markdown
+    echo "Logs uploaded to: ${link}"
+    return link
+}
+
+// Downloads the console log from this Jenkins build
+void downloadJenkinsConsoleLog(String fileName) {
+    withCredentials([usernameColonPassword(credentialsId: 'jenkins-ro', variable: 'CREDENTIALS')]) {
+        sh "curl -u '${CREDENTIALS}' ${BUILD_URL}consoleText -o ${fileName}"
+    }
+}
+
+// Downloads the logs of the build, uploads them to the gitlab project
+// And return the URL
+String getLogsUrl(String projectId) {
+    String message = ""
+    String fileName = "build.log"
+    String logUrl = ""
+    downloadJenkinsConsoleLog(fileName)
+    return uploadFileToGitLab(fileName, projectId)
+}
+
+// Post a failure message in MR
+void commentFailedBuild() {
+    logUrl = getLogsUrl(env.PROJECT_ID)
+    addGitLabMRComment(comment: ":red_circle: ${currentBuild.projectName} :green_apple: <b>SDK iOS</b> FAILURE  :worried:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}<br/>Logs: ${logUrl}" )
+    updateGitlabCommitStatus(name: 'Build iOS', state: 'failed')
+}
+
+pipeline {
+    agent none
+    options {
         buildDiscarder(logRotator(numToKeepStr: '135', daysToKeepStr: '21'))
         gitLabConnection('GitLabConnectionJenkins')
     }
@@ -15,183 +53,176 @@ pipeline {
     }
 
     stages {
-        stage('clean previous runs and update gitlab commit status'){
-            steps{
-                deleteDir()
-                updateGitlabCommitStatus(name: 'Build iOS', state: 'running')
-            }
-        }
-        stage('Get build parameters'){
-            parallel{
-                stage('Get build options'){
-                    when {
-                        allOf {
-                            expression { env.gitlabTriggerPhrase != null }
-                            expression { env.gitlabTriggerPhrase.contains('BUILD_OPTIONS') }
-                        }
-                    }
-                    steps {
-                        script{
-                            BUILD_OPTIONS = sh(script: 'echo "$gitlabTriggerPhrase" | grep BUILD_OPTIONS | awk -F "BUILD_OPTIONS="  \'{print \$2}\' | cut -d"\"" -f2', returnStdout: true).trim()
-                            println BUILD_OPTIONS
-                        }
-                    }
-                    post{
-                        always {
-                            script{                        
-                                if (currentBuild.currentResult == 'FAILURE'){
-                                    addGitLabMRComment(comment: ":red_circle: ${env.JOB_NAME} FAILURE when getting the additional build parameters :worried:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}" )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                stage('Get MEGAchat branch'){
-                    steps {
-                        script{
-                            env.MEGACHAT_BRANCH = sh(script: 'echo "$gitlabMergeRequestDescription" | grep MEGACHAT_BRANCH_TO_TEST | awk -F "MEGACHAT_BRANCH_TO_TEST="  \'{print \$2}\' | cut -d" " -f1', returnStdout: true).trim()
-                            if (MEGACHAT_BRANCH == ""){
-                                echo "MEGACHAT_BRANCH was not found on description so develop will be used by default"
-                                env.MEGACHAT_BRANCH = "develop"
-                            }
-                            println MEGACHAT_BRANCH
-                        }
-                    }
-                    post{
-                        always {
-                            script{                        
-                                if (currentBuild.currentResult == 'FAILURE'){
-                                    addGitLabMRComment(comment: ":red_circle: ${env.JOB_NAME} FAILURE when getting the MEGAchat branch :worried:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}" )
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                stage('Get iOS branch'){
-                    steps {
-                        script{
-                            env.IOS_BRANCH = sh(script: 'echo "$gitlabMergeRequestDescription" | grep IOS_BRANCH_TO_TEST | awk -F "IOS_BRANCH_TO_TEST="  \'{print \$2}\' | cut -d" " -f1', returnStdout: true).trim()
-                            if (IOS_BRANCH == ""){
-                                echo "IOS_BRANCH was not found on description so develop will be used by default"
-                                env.IOS_BRANCH = "develop"
-                            }
-                            println IOS_BRANCH
-                        }
-                    }
-                    post{
-                        always {
-                            script{                        
-                                if (currentBuild.currentResult == 'FAILURE'){
-                                    addGitLabMRComment(comment: ":red_circle: ${env.JOB_NAME} FAILURE when getting the iOS branch :worried:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}" )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        stage('Checkout SDK MEGAchat and iOS'){
+        stage('Update Gitlab commitStatus') {
+            agent any
             steps {
-                //Clone iOS
-                sh "echo Cloning iOS branch ${IOS_BRANCH}"
-                checkout([
-                    $class: 'GitSCM', 
-                    branches: [[name: "origin/${IOS_BRANCH}"]],
-                    userRemoteConfigs: [[ url: "${env.GIT_URL_IOS}", credentialsId: "12492eb8-0278-4402-98f0-4412abfb65c1" ]],
-                    extensions: [
-                        [$class: "UserIdentity",name: "jenkins", email: "jenkins@jenkins"]
-                        ]
-                ])
-                dir('Modules/DataSource/MEGAChatSDK/Sources/MEGAChatSDK'){  
-
-                    //Clone MEGAchat
-                    sh "echo Cloning megachat branch ${env.MEGACHAT_BRANCH}"
-                    checkout([
-                        $class: 'GitSCM', 
-                        branches: [[name: "origin/${env.MEGACHAT_BRANCH}"]],
-                        userRemoteConfigs: [[ url: "${env.GIT_URL_MEGACHAT}", credentialsId: "12492eb8-0278-4402-98f0-4412abfb65c1" ]],
-                        extensions: [
-                            [$class: "UserIdentity",name: "jenkins", email: "jenkins@jenkins"]
-                            ]
-                    ])
-                }
-                dir('Modules/DataSource/MEGASDK/Sources/MEGASDK'){  
-                    //Clone SDK (with PreBuildMerge)                      
-                    checkout([
-                        $class: 'GitSCM', 
-                        branches: [[name: "origin/${env.gitlabSourceBranch}"]],
-                        userRemoteConfigs: [[ url: "${GIT_URL_SDK}", credentialsId: "12492eb8-0278-4402-98f0-4412abfb65c1" ]],
-                        extensions: [
-                            [$class: "UserIdentity",name: "jenkins", email: "jenkins@jenkins"],
-                            [$class: 'PreBuildMerge', options: [fastForwardMode: 'FF', mergeRemote: "origin", mergeStrategy: 'DEFAULT', mergeTarget: "${env.gitlabTargetBranch}"]]
-                            ]
-                    ])
-                }
-                sh "git submodule update --init iMEGA/Vendor/SVProgressHUD"
-                sh "git submodule update --init iMEGA/Vendor/LTHPasscodeViewController"
+                updateGitlabCommitStatus(name: 'Build iOS', state: 'running')
                 script{
-                    ios_sources_workspace = WORKSPACE
-                    sdk_sources_workspace = "${ios_sources_workspace}/Modules/DataSource/MEGASDK/Sources/MEGASDK"
-                    megachat_sources_workspace = "${ios_sources_workspace}/Modules/DataSource/MEGAChatSDK/Sources/MEGAChatSDK"
+                    COMMIT_ID = env.GIT_COMMIT
+                    println GIT_COMMIT
                 }
             }
         }
-
-        stage('Build SDK and iOS'){
-            environment {
-                PATH = "/usr/local/bin:${env.PATH}"
-                LIBTOOLIZE = "/usr/local/bin/glibtoolize"
-            }
-            options{
-                timeout(time: 200, unit: 'MINUTES')
-            }
-            steps{
-                sh "bundle config set --local path 'vendor/bundle'"
-                sh "bundle install"
-                dir("${megachat_sources_workspace}/src"){
-                    sh "cmake -P genDbSchema.cmake"
-                }
-                script {
-                    if (params.IOS_REBUILD_3RDPARTY == "true") {
-                        dir("${sdk_sources_workspace}/bindings/ios/3rdparty"){
-                            sh "sh build-all.sh --enable-chat"   
-                        }                                   
+        stage('Build'){
+            agent { label 'osx && arm64' }
+            stages {
+                stage('clean previous runs'){
+                    steps{
+                        deleteDir()
                     }
-                    else {
-                        sh "bundle exec fastlane configure_sdk_and_chat_library use_cache:true"
-                    }   
                 }
-                withCredentials([gitUsernamePassword(credentialsId: 'jenkins_sdk_token_with_user', gitToolName: 'Default')]) {
-                        sh "bundle exec fastlane update_plugins"
-                        sh "bundle exec fastlane build_simulator"
+                stage('Get build parameters'){
+                    parallel{
+                        stage('Get build options'){
+                            when {
+                                allOf {
+                                    expression { env.gitlabTriggerPhrase != null }
+                                    expression { env.gitlabTriggerPhrase.contains('BUILD_OPTIONS') }
+                                }
+                            }
+                            steps {
+                                script{
+                                    BUILD_OPTIONS = sh(script: 'echo "$gitlabTriggerPhrase" | grep BUILD_OPTIONS | awk -F "BUILD_OPTIONS="  \'{print \$2}\' | cut -d"\"" -f2', returnStdout: true).trim()
+                                    println BUILD_OPTIONS
+                                }
+                            }
+                        }
+
+                        stage('Get MEGAchat branch'){
+                            steps {
+                                script{
+                                    env.MEGACHAT_BRANCH = sh(script: 'echo "$gitlabMergeRequestDescription" | grep MEGACHAT_BRANCH_TO_TEST | awk -F "MEGACHAT_BRANCH_TO_TEST="  \'{print \$2}\' | cut -d" " -f1', returnStdout: true).trim()
+                                    if (MEGACHAT_BRANCH == ""){
+                                        echo "MEGACHAT_BRANCH was not found on description so develop will be used by default"
+                                        env.MEGACHAT_BRANCH = "develop"
+                                    }
+                                    println MEGACHAT_BRANCH
+                                }
+                            }
+                        }
+
+                        stage('Get iOS branch'){
+                            steps {
+                                script{
+                                    env.IOS_BRANCH = sh(script: 'echo "$gitlabMergeRequestDescription" | grep IOS_BRANCH_TO_TEST | awk -F "IOS_BRANCH_TO_TEST="  \'{print \$2}\' | cut -d" " -f1', returnStdout: true).trim()
+                                    if (IOS_BRANCH == ""){
+                                        echo "IOS_BRANCH was not found on description so develop will be used by default"
+                                        env.IOS_BRANCH = "develop"
+                                    }
+                                    println IOS_BRANCH
+                                }
+                            }
+                        }
+                    }
+                }
+
+                stage('Checkout SDK MEGAchat and iOS'){
+                    steps {
+                        //Clone iOS
+                        sh "echo Cloning iOS branch \"${IOS_BRANCH}\""
+                        checkout([
+                            $class: 'GitSCM',
+                            branches: [[name: "origin/${IOS_BRANCH}"]],
+                            userRemoteConfigs: [[ url: "${env.GIT_URL_IOS}", credentialsId: "12492eb8-0278-4402-98f0-4412abfb65c1" ]],
+                            extensions: [
+                                [$class: "UserIdentity",name: "jenkins", email: "jenkins@jenkins"]
+                                ]
+                        ])
+                        dir('Modules/DataSource/MEGAChatSDK/Sources/MEGAChatSDK'){
+
+                            //Clone MEGAchat
+                            sh "echo Cloning megachat branch \"${env.MEGACHAT_BRANCH}\""
+                            checkout([
+                                $class: 'GitSCM',
+                                branches: [[name: "origin/${env.MEGACHAT_BRANCH}"]],
+                                userRemoteConfigs: [[ url: "${env.GIT_URL_MEGACHAT}", credentialsId: "12492eb8-0278-4402-98f0-4412abfb65c1" ]],
+                                extensions: [
+                                    [$class: "UserIdentity",name: "jenkins", email: "jenkins@jenkins"]
+                                    ]
+                            ])
+                        }
+                        dir('Modules/DataSource/MEGASDK/Sources/MEGASDK'){
+                            //Clone SDK (with PreBuildMerge)
+                            checkout([
+                                $class: 'GitSCM',
+                                branches: [[name: "origin/${env.gitlabSourceBranch}"]],
+                                userRemoteConfigs: [[ url: "${GIT_URL_SDK}", credentialsId: "12492eb8-0278-4402-98f0-4412abfb65c1" ]],
+                                extensions: [
+                                    [$class: "UserIdentity",name: "jenkins", email: "jenkins@jenkins"],
+                                    [$class: 'PreBuildMerge', options: [fastForwardMode: 'FF', mergeRemote: "origin", mergeStrategy: 'DEFAULT', mergeTarget: "${env.gitlabTargetBranch}"]]
+                                    ]
+                            ])
+                        }
+                        sh "git submodule update --init iMEGA/Vendor/SVProgressHUD"
+                        sh "git submodule update --init iMEGA/Vendor/LTHPasscodeViewController"
+                        withCredentials([gitUsernamePassword(credentialsId: 'jenkins_sdk_token_with_user', gitToolName: 'Default')]) {
+                            sh "git submodule update --init Modules/MEGASharedRepo"
+                        }
+                        script{
+                            ios_sources_workspace = WORKSPACE
+                            sdk_sources_workspace = "${ios_sources_workspace}/Modules/DataSource/MEGASDK/Sources/MEGASDK"
+                            megachat_sources_workspace = "${ios_sources_workspace}/Modules/DataSource/MEGAChatSDK/Sources/MEGAChatSDK"
+                        }
+                    }
+                }
+
+                stage('Build SDK and iOS'){
+                    environment {
+                        PATH = "/usr/local/bin:${env.PATH}"
+                        LIBTOOLIZE = "/usr/local/bin/glibtoolize"
+                    }
+                    options{
+                        timeout(time: 200, unit: 'MINUTES')
+                    }
+                    steps{
+                        sh "bundle config set --local path 'vendor/bundle'"
+                        sh "bundle install"
+                        dir("${megachat_sources_workspace}/src"){
+                            sh "cmake -P genDbSchema.cmake"
+                        }
+                        script {
+                            if (params.IOS_REBUILD_3RDPARTY == "true") {
+                                dir("${sdk_sources_workspace}/bindings/ios/3rdparty"){
+                                    sh "sh build-all.sh --enable-chat"
+                                }
+                            }
+                            else {
+                                sh "bundle exec fastlane configure_sdk_and_chat_library use_cache:true"
+                            }
+                        }
+                        withCredentials([gitUsernamePassword(credentialsId: 'jenkins_sdk_token_with_user', gitToolName: 'Default')]) {
+                                sh "bundle exec fastlane update_plugins"
+                                sh "bundle exec fastlane build_simulator"
+                        }
+                    }
+                }
+            }
+            post{
+                always {
+                    deleteDir()
+                }
+                failure {
+                    node('linux') { // We need an agent able to download logs from Jenkins.
+                        script {
+                            commentFailedBuild()
+                        }
+                    }
                 }
             }
         }
     }
-            
-    post{
-        always {
-            script{
-                if (currentBuild.currentResult == 'SUCCESS'){
-                    addGitLabMRComment(comment: ":white_check_mark: ${currentBuild.projectName} :green_apple: <b>SDK iOS</b> SUCCEEDED :muscle:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}" )
-                    updateGitlabCommitStatus(name: 'Build iOS', state: 'success')
-                }                                
-                if (currentBuild.currentResult == 'FAILURE'){
-                    addGitLabMRComment(comment: ":red_circle: ${currentBuild.projectName} :green_apple: <b>SDK iOS</b> FAILURE  :worried:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}" )
-                    updateGitlabCommitStatus(name: 'Build iOS', state: 'failed')
-                }
-                if (currentBuild.currentResult == 'ABORTED'){
-                    addGitLabMRComment(comment: ":interrobang: ${currentBuild.projectName} :green_apple: <b>SDK iOS</b> ABORTED  :confused:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}" )
-                    updateGitlabCommitStatus(name: 'Build iOS', state: 'canceled')
-                }                                
-                if (currentBuild.currentResult == 'UNSTABLE'){
-                    addGitLabMRComment(comment: ":interrobang: ${currentBuild.projectName} :green_apple: <b>SDK iOS</b> UNSTABLE  :confused:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}" )
-                    updateGitlabCommitStatus(name: 'Build iOS', state: 'failed')
-                }
-            }
+    post {
+        success {
+            updateGitlabCommitStatus(name: 'Build iOS', state: 'success')
+            addGitLabMRComment(comment: ":white_check_mark: ${currentBuild.projectName} :green_apple: <b>SDK iOS</b> SUCCEEDED :muscle:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${COMMIT_ID}" )
+        }
+        unstable {
+            updateGitlabCommitStatus(name: 'Build iOS', state: 'failed')
+            addGitLabMRComment(comment: ":interrobang: ${currentBuild.projectName} :green_apple: <b>SDK iOS</b> UNSTABLE  :confused:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${COMMIT_ID}" )      
+        }
+        aborted {
+            updateGitlabCommitStatus(name: 'Build iOS', state: 'canceled')
+            addGitLabMRComment(comment: ":interrobang: ${currentBuild.projectName} :green_apple: <b>SDK iOS</b> ABORTED  :confused:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${COMMIT_ID}" )
         }
     }
 }

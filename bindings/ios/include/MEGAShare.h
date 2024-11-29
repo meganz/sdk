@@ -41,6 +41,9 @@ typedef NS_ENUM (NSInteger, MEGAShareType) {
  * Do not inherit from this class. You can get current active sharings using [MEGASdk outSharesForNode:]
  *
  */
+
+NS_ASSUME_NONNULL_BEGIN
+
 @interface MEGAShare : NSObject
 
 /**
@@ -49,7 +52,7 @@ typedef NS_ENUM (NSInteger, MEGAShareType) {
  * For public shared folders, this property is nil.
  *
  */
-@property (readonly, nonatomic) NSString *user;
+@property (nullable, readonly, nonatomic) NSString *user;
 
 /**
  * @brief The handle of the folder that is being shared.
@@ -81,7 +84,7 @@ typedef NS_ENUM (NSInteger, MEGAShareType) {
 /**
  * @brief The timestamp when the sharing was created (in seconds since the epoch)
  */
-@property (readonly, nonatomic) NSDate *timestamp;
+@property (nullable, readonly, nonatomic) NSDate *timestamp;
 
 /**
 * @brief YES if the sharing is pending, otherwise NO.
@@ -99,17 +102,6 @@ typedef NS_ENUM (NSInteger, MEGAShareType) {
  */
 @property (nonatomic, readonly, getter=isVerified) BOOL verified;
 
-/**
- * @brief Creates a copy of this MEGAShare object.
- *
- * The resulting object is fully independent of the source MEGAShare,
- * it contains a copy of all internal attributes, so it will be valid after
- * the original object is deleted.
- *
- * You are the owner of the returned object
- *
- * @return Copy of the MEGAShare object
- */
-- (instancetype)clone;
-
 @end
+
+NS_ASSUME_NONNULL_END

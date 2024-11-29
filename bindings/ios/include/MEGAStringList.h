@@ -21,6 +21,8 @@
 
 #import <Foundation/Foundation.h>
 
+NS_ASSUME_NONNULL_BEGIN
+
 /**
  * @brief List of strings
  *
@@ -34,8 +36,6 @@
  */
 @property (nonatomic, readonly) NSInteger size;
 
-- (instancetype)clone;
-
 /**
  * @brief Returns the string at the position i in the MEGAStringList
  *
@@ -44,6 +44,13 @@
  * @param index Position of the string that we want to get for the list
  * @return string at the position index in the list
  */
-- (NSString *)stringAtIndex:(NSInteger)index;
+- (nullable NSString *)stringAtIndex:(NSInteger)index;
+/**
+ * @brief Returns values from MEGAStringList mapped to a NSString array
+ *
+ */
+- (nullable NSArray<NSString *>*)toStringArray;
+
+NS_ASSUME_NONNULL_END
 
 @end

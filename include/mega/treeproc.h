@@ -32,7 +32,7 @@ namespace mega {
 class MEGA_API TreeProc
 {
 public:
-    virtual void proc(MegaClient*, Node*) = 0;
+    virtual void proc(MegaClient*, std::shared_ptr<Node>) = 0;
 
     virtual ~TreeProc() { }
 };
@@ -40,7 +40,7 @@ public:
 class MEGA_API TreeProcDel : public TreeProc
 {
 public:
-    void proc(MegaClient*, Node*);
+    void proc(MegaClient*, std::shared_ptr<Node>);
     void setOriginatingUser(const handle& handle);
 private:
     handle mOriginatingUser = mega::UNDEF;
@@ -49,7 +49,7 @@ private:
 class MEGA_API TreeProcApplyKey : public TreeProc
 {
 public:
-    void proc(MegaClient*, Node*);
+    void proc(MegaClient*, std::shared_ptr<Node>);
 };
 
 class MEGA_API TreeProcCopy : public TreeProc
@@ -58,41 +58,38 @@ public:
     vector<NewNode> nn;
     unsigned nc = 0;
     bool allocated = false;
+    bool resetSensitive = false; // Used when importing foreign nodes
 
     void allocnodes(void);
 
-    void proc(MegaClient*, Node*);
+    void proc(MegaClient*, std::shared_ptr<Node>);
 };
 
 class MEGA_API TreeProcShareKeys : public TreeProc
 {
     ShareNodeKeys snk;
-    Node* sn;
+    std::shared_ptr<Node> sn;
+    bool includeParentChain;
 
 public:
-    void proc(MegaClient*, Node*);
+    void proc(MegaClient*, std::shared_ptr<Node>);
     void get(Command*);
 
-    TreeProcShareKeys(Node* = NULL);
+    TreeProcShareKeys(std::shared_ptr<Node>, bool);
 };
 
 class MEGA_API TreeProcForeignKeys : public TreeProc
 {
 public:
-    void proc(MegaClient*, Node*);
+    void proc(MegaClient*, std::shared_ptr<Node>);
 };
 
 #ifdef ENABLE_SYNC
-class MEGA_API TreeProcDelSyncGet : public TreeProc
-{
-public:
-    void proc(MegaClient*, Node*);
-};
 
 class MEGA_API LocalTreeProc
 {
 public:
-    virtual void proc(MegaClient*, LocalNode*) = 0;
+    virtual void proc(FileSystemAccess&, LocalNode*) = 0;
 
     virtual ~LocalTreeProc() { }
 };
@@ -100,24 +97,17 @@ public:
 class MEGA_API LocalTreeProcMove : public LocalTreeProc
 {
     Sync *newsync;
-    bool recreate;
 
 public:
-    LocalTreeProcMove(Sync*, bool);
-    void proc(MegaClient*, LocalNode*);
+    LocalTreeProcMove(Sync*);
+    void proc(FileSystemAccess&, LocalNode*);
     int nc;
 };
 
 class MEGA_API LocalTreeProcUpdateTransfers : public LocalTreeProc
 {
 public:
-    void proc(MegaClient*, LocalNode*);
-};
-
-class MEGA_API LocalTreeProcUnlinkNodes : public LocalTreeProc
-{
-public:
-    void proc(MegaClient*, LocalNode*);
+    void proc(FileSystemAccess&, LocalNode*);
 };
 
 #endif

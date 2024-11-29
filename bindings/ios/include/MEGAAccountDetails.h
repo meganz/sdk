@@ -2,7 +2,7 @@
  * @file MEGAAccountDetails.h
  * @brief Details about a MEGA account
  *
- * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
+ * (c) 2024 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -19,23 +19,16 @@
  * program.
  */
 #import <Foundation/Foundation.h>
+#import "MEGAAccountFeature.h"
+#import "MEGAAccountFeature.h"
+#import "MEGAAccountPlan.h"
+#import "MEGAAccountSubscription.h"
+#import "MEGASubscriptionStatus.h"
+#import "MEGAAccountType.h"
 #import "MEGAPaymentMethod.h"
+#import "MEGAStringIntegerMap.h"
 
-typedef NS_ENUM (NSInteger, MEGAAccountType) {
-    MEGAAccountTypeFree = 0,
-    MEGAAccountTypeProI = 1,
-    MEGAAccountTypeProII = 2,
-    MEGAAccountTypeProIII = 3,
-    MEGAAccountTypeLite = 4,
-    MEGAAccountTypeBusiness = 100,
-    MEGAAccountTypeProFlexi = 101
-};
-
-typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
-    MEGASubscriptionStatusNone = 0,
-    MEGASubscriptionStatusValid = 1,
-    MEGASubscriptionStatusInvalid = 2
-};
+NS_ASSUME_NONNULL_BEGIN
 
 /**
  * @brief Details about a MEGA account.
@@ -45,7 +38,7 @@ typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
 /**
  * @brief Used storage for the account (in bytes).
  */
-@property (readonly, nonatomic) NSNumber *storageUsed;
+@property (readonly, nonatomic) long long storageUsed;
 
 /**
  * @brief The used storage by versions (in bytes)
@@ -55,17 +48,17 @@ typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
 /**
  * @brief Maximum storage for the account (in bytes).
  */
-@property (readonly, nonatomic) NSNumber *storageMax;
+@property (readonly, nonatomic) long long storageMax;
 
 /**
- * @brief Used bandwidth for the account (in bytes).
+ * @brief Used bandwidth allowance including own, free and served to other users (in bytes).
  */
-@property (readonly, nonatomic) NSNumber *transferOwnUsed;
+@property (readonly, nonatomic) long long transferUsed;
 
 /**
  * @brief Maximum available bandwidth for the account (in bytes).
  */
-@property (readonly, nonatomic) NSNumber *transferMax;
+@property (readonly, nonatomic) long long transferMax;
 
 /**
  * @brief PRO level of the MEGA account.
@@ -76,6 +69,9 @@ typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
  * - MEGAAccountTypeProII = 2
  * - MEGAAccountTypeProIII = 3
  * - MEGAAccountTypeLite = 4
+ * - MEGAAccountTypeStarter = 11
+ * - MEGAAccountTypeBasic = 12
+ * - MEGAAccountTypeEssential = 13
  * - MEGAAccountTypeBusiness = 100
  * - MEGAAccountTypeProFlexi = 101
  */
@@ -117,7 +113,7 @@ typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
  * @brief The subscription method. For example "Credit Card".
  *
  */
-@property (readonly, nonatomic) NSString *subscriptionMethod;
+@property (readonly, nonatomic, nullable) NSString *subscriptionMethod;
 
 /**
  * @brief The subscription method. For example 16.
@@ -132,7 +128,7 @@ typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
  * Example return values: "1 M", "1 Y".
  *
  */
-@property (readonly, nonatomic) NSString *subscriptionCycle;
+@property (readonly, nonatomic, nullable) NSString *subscriptionCycle;
 
 /**
  * @brief The number of nodes with account usage info
@@ -152,17 +148,33 @@ typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
 @property (readonly, nonatomic) NSInteger numberUsageItems;
 
 /**
- * @brief Creates a copy of this MEGAAccountDetails object.
- *
- * The resulting object is fully independent of the source MEGAAccountDetails,
- * it contains a copy of all internal attributes, so it will be valid after
- * the original object is deleted.
- *
- * You are the owner of the returned object.
- *
- * @return Copy of the MEGAAccountDetails object.
+ * @brief Number of active MegaAccountFeature objects associated with the account.
  */
-- (instancetype)clone;
+@property (readonly, nonatomic) NSInteger numActiveFeatures;
+
+/**
+ * @brief Get feature account level for feature-related subscriptions.
+ *
+ * @return Level for feature-related subscriptions.
+ */
+@property (readonly, nonatomic) int64_t subscriptionLevel;
+
+/**
+ * @brief Returns the active MegaAccountFeature object associated with an index.
+ *
+ * You take the ownership of the returned value.
+ *
+ * @param index Index of the object.
+ * @return MegaAccountFeature object.
+ */
+- (nullable MEGAAccountFeature *)activeFeatureAtIndex:(NSInteger)index;
+
+/**
+ * @brief Subscription features for the account.
+ *
+ * You take the ownership of the returned value.
+ */
+@property (readonly, nonatomic) NSDictionary<NSString *, NSNumber *> *subscriptionFeatures;
 
 /**
  * @brief Get the used storage in for a node.
@@ -173,7 +185,7 @@ typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
  * @return Used storage (in bytes).
  * @see [MEGASdk rootNode], [MEGASdk rubbishNode], [MEGASdk inboxNode].
  */
-- (NSNumber *)storageUsedForHandle:(uint64_t)handle;
+- (long long)storageUsedForHandle:(uint64_t)handle;
 
 /**
  * @brief Get the number of files in a node.
@@ -184,7 +196,7 @@ typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
  * @return Number of files in the node.
  * @see [MEGASdk rootNode], [MEGASdk rubbishNode], [MEGASdk inboxNode].
  */
-- (NSNumber *)numberFilesForHandle:(uint64_t)handle;
+- (long long)numberFilesForHandle:(uint64_t)handle;
 
 /**
  * @brief Get the number of folders in a node.
@@ -195,7 +207,7 @@ typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
  * @return Number of folders in the node.
  * @see [MEGASdk rootNode], [MEGASdk rubbishNode], [MEGASdk inboxNode].
  */
-- (NSNumber *)numberFoldersForHandle:(uint64_t)handle;
+- (long long)numberFoldersForHandle:(uint64_t)handle;
 
 /**
  * @brief Get the used storage by versions in for a node
@@ -219,6 +231,41 @@ typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
  */
 - (long long)numberOfVersionFilesForHandle:(uint64_t)handle;
 
-+ (NSString *)stringForAccountType:(MEGAAccountType)accountType;
++ (nullable NSString *)stringForAccountType:(MEGAAccountType)accountType;
+
+/**
+ * @brief Get the number of active plans in the account.
+ *
+ * @return Number of active plans
+ */
+@property (readonly, nonatomic) NSInteger numberOfPlans;
+
+/**
+ * @brief Returns the MEGAAccountPlan object associated with an index
+ *
+ * @param index Index of the object
+ * @return MEGAAccountPlan object
+ */
+- (nullable MEGAAccountPlan *)planAtIndex:(NSInteger)index;
+
+/**
+ * @brief Get the number of active subscriptions in the account.
+ *
+ * You can use [MEGAAccountDetails subscription] to get each of those objects.
+ *
+ * @return Number of active subscriptions
+ */
+@property (readonly, nonatomic) NSInteger numberOfSubscriptions;
+
+/**
+ * @brief Returns the MEGAAccountSubscription object associated with an index
+ *
+ *
+ * @param index Index of the object
+ * @return MEGAAccountSubscription object
+ */
+- (nullable MEGAAccountSubscription *)subscriptionAtIndex:(NSInteger)index;
+
+NS_ASSUME_NONNULL_END
 
 @end

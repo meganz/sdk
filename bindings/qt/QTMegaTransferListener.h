@@ -18,7 +18,7 @@ class QTMegaTransferListener : public QObject, public MegaTransferListener
 	Q_OBJECT
 
 public:
-    QTMegaTransferListener(MegaApi *megaApi,MegaTransferListener *listener);
+    QTMegaTransferListener(MegaApi* megaApi, MegaTransferListener* listener);
     ~QTMegaTransferListener() override;
 
 public:
@@ -26,11 +26,14 @@ public:
     void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* e) override;
     void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) override;
     void onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* e) override;
+    void onFolderTransferUpdate(mega::MegaApi*, mega::MegaTransfer* transfer, int stage,
+        uint32_t foldercount, uint32_t createdfoldercount, uint32_t filecount,
+        const char*, const char*)override;
 
 protected:
     void customEvent(QEvent * event) override;
 
-    MegaApi *megaApi;
-	MegaTransferListener *listener;
+    MegaApi* megaApi;
+    MegaTransferListener* listener;
 };
 }

@@ -22,6 +22,8 @@
 #ifndef FSACCESS_CLASS
 #define FSACCESS_CLASS WinFileSystemAccess
 
+#include "mega.h"
+
 #define DEBRISFOLDER "Rubbish"
 
 namespace mega {
@@ -59,7 +61,7 @@ public:
     unique_ptr<DirAccess>  newdiraccess() override;
 
 #ifdef ENABLE_SYNC
-    DirNotify* newdirnotify(const LocalPath&, const LocalPath&, Waiter*, LocalNode* syncroot) override;
+    DirNotify* newdirnotify(LocalNode& root, const LocalPath& rootPath, Waiter* waiter) override;
 #endif
 
     bool issyncsupported(const LocalPath&, bool&, SyncError&, SyncWarning&) override;
@@ -73,7 +75,6 @@ public:
     bool mkdirlocal(const LocalPath&, bool hidden, bool logAlreadyExistsError) override;
     bool setmtimelocal(const LocalPath&, m_time_t) override;
     bool chdirlocal(LocalPath&) const override;
-    bool getextension(const LocalPath&, string&) const override;
     bool expanselocalpath(const LocalPath& path, LocalPath& absolutepath) override;
 
     void addevents(Waiter*, int) override;
@@ -98,8 +99,6 @@ public:
     bool cwd(LocalPath& path) const override;
 
 #ifdef ENABLE_SYNC
-    fsfp_t fsFingerprint(const LocalPath& path) const override;
-
     bool fsStableIDs(const LocalPath& path) const override;
 
     std::set<WinDirNotify*> dirnotifys;
@@ -146,10 +145,11 @@ private:
     static void notifierThreadFunction();
 
 public:
+    WinDirNotify(LocalNode& root,
+                 const LocalPath& rootPath,
+                 WinFileSystemAccess* owner,
+                 Waiter* waiter);
 
-    void addnotify(LocalNode*, const LocalPath&) override;
-
-    WinDirNotify(const LocalPath&, const LocalPath&, WinFileSystemAccess* owner, Waiter* waiter, LocalNode* syncroot);
     ~WinDirNotify();
 };
 #endif
@@ -177,9 +177,12 @@ public:
                     bool async, DirAccess* iteratingDir, bool ignoreAttributes, bool skipcasecheck, LocalPath* actualLeafNameIfDifferent);
     void updatelocalname(const LocalPath&, bool force) override;
     bool fread(string *, unsigned, unsigned, m_off_t);
+    void fclose() override;
     bool fwrite(const byte *, unsigned, m_off_t);
 
-    bool ftruncate() override;
+    bool fstat(m_time_t& modified, m_off_t& size) override;
+
+    bool ftruncate(m_off_t size) override;
 
     bool sysread(byte *, unsigned, m_off_t) override;
     bool sysstat(m_time_t*, m_off_t*, FSLogging) override;
@@ -196,9 +199,6 @@ public:
 
     WinFileAccess(Waiter *w);
     ~WinFileAccess();
-
-    std::string getErrorMessage(int error) const override;
-    bool isErrorFileNotFound(int error) const override;
 
 protected:
     AsyncIOContext* newasynccontext() override;

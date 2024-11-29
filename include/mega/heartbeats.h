@@ -40,10 +40,12 @@ struct Syncs;
 
 class HeartBeatBackupInfo
 {
+    bool mModified = false;
+
 public:
     HeartBeatBackupInfo();
-    HeartBeatBackupInfo(HeartBeatBackupInfo&&) = default;
-    HeartBeatBackupInfo& operator=(HeartBeatBackupInfo&&) = default;
+    HeartBeatBackupInfo(HeartBeatBackupInfo&&) = delete;
+    HeartBeatBackupInfo& operator=(HeartBeatBackupInfo&&) = delete;
     virtual ~HeartBeatBackupInfo() = default;
 
     virtual m_time_t lastAction() const;
@@ -55,8 +57,7 @@ public:
     virtual void setLastAction(const m_time_t &lastAction);
     virtual void setLastSyncedItem(const handle &lastItemUpdated);
 
-    bool mModified = false;
-    bool mSending = false;
+    std::atomic<bool> mSending{false};
 
 protected:
     handle mLastItemUpdated = UNDEF; // handle of node most recently updated
@@ -92,7 +93,7 @@ public:
 
     static BackupType getSyncType(const SyncConfig& config);
     static CommandBackupPut::SPState getSyncState (const UnifiedSync &, bool pauseDown, bool pauseUp);
-    static CommandBackupPut::SPState getSyncState(SyncError error, syncstate_t state, bool pauseDown, bool pauseUp);
+    static CommandBackupPut::SPState getSyncState(SyncError error, SyncRunState, bool pauseDown, bool pauseUp);
     static CommandBackupPut::SPState getSyncState(const SyncConfig& config, bool pauseDown, bool pauseUp);
     static handle getDriveId(const UnifiedSync&);
 

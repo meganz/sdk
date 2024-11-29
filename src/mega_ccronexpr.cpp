@@ -29,6 +29,7 @@
 #include <string.h>
 #include <math.h>
 #include <inttypes.h>
+#include <string>
 
 #include "mega/mega_ccronexpr.h"
 
@@ -111,9 +112,8 @@ void* cronMalloc(size_t n);
 void cronFree(void* p);
 #endif
 
-struct tm* cron_time(time_t* date, struct tm* out) {
+struct tm* cron_time(time_t* date, [[maybe_unused]] struct tm* out) {
 #ifdef __MINGW32__
-    (void)(out); /* To avoid unused warning */
     return gmtime(date);
 #else /* __MINGW32__ */
 #ifdef _WIN32
@@ -502,52 +502,53 @@ static char* to_string(int num) {
     return str;
 }
 
-static char* str_replace(char *orig, const char *rep, const char *with) {
-// disable warnings in Release build
-#if defined(__GNUC__) && !defined(__APPLE__) && !defined(__ANDROID__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wstringop-overflow"
-#endif
-    char *result; /* the return string */
-    char *ins; /* the next insert point */
-    char *tmp; /* varies */
-    size_t len_rep; /* length of rep */
-    size_t len_with; /* length of with */
-    size_t len_front; /* distance between rep and end of last rep */
-    int count; /* number of replacements */
-    if (!orig) return NULL;
-    if (!rep) rep = "";
-    if (!with) with = "";
-    len_rep = strlen(rep);
-    len_with = strlen(with);
-
-    ins = orig;
-    for (count = 0; NULL != (tmp = strstr(ins, rep)); ++count) {
-        ins = tmp + len_rep;
-    }
-
-    /* first time through the loop, all the variable are set correctly
-     from here on,
-     tmp points to the end of the result string
-     ins points to the next occurrence of rep in orig
-     orig points to the remainder of orig after "end of rep"
-     */
-    size_t len_orig = strlen(orig);
-    tmp = result = (char*) cronMalloc(len_orig + (len_with - len_rep) * count + 1);
-    if (!result) return NULL;
-
-    while (count--) {
-        ins = strstr(orig, rep);
-        len_front = ins - orig;
-        tmp = strncpy(tmp, orig, len_front) + len_front;
-        tmp = strncpy(tmp, with, len_with + 1) + len_with;
-        orig += len_front + len_rep; /* move to next "end of rep" */
-    }
-    strncpy(tmp, orig, len_orig + 1);
+static char* string_to_char_ptr(const std::string& str)
+{
+    char* result = (char*) cronMalloc(str.length() + 1);
+    result[str.length()] = '\0';
+    size_t i = 0;
+    for (auto c: str) { result[i++] = c; }
     return result;
-#if defined(__GNUC__) && !defined(__APPLE__) && !defined(__ANDROID__)
-#pragma GCC diagnostic pop
-#endif
+}
+
+static char* str_replace(char *orig, const char *rep, const char *with)
+{
+    if (!orig) return nullptr; // Nothing to do
+
+    size_t orig_len = strlen(orig);
+    if (!rep)
+        return strdupl(orig, orig_len); // We do not want to replace anything
+
+    size_t rep_len = strlen(rep);
+    if (rep_len == 0)
+        return strdupl(orig, orig_len);
+
+    const char* aux_with = with ? with : "";
+    size_t with_len = strlen(aux_with);
+
+    std::string aux_result {orig};
+
+    size_t start_pos = 0;
+    size_t count = 0;
+    while ((start_pos = aux_result.find(rep, start_pos)) != std::string::npos)
+    {
+        ++count;
+        start_pos += rep_len;
+    }
+    if (!count)
+        return strdupl(orig, orig_len);
+
+    if (rep_len < with_len)
+    {
+        aux_result.reserve(orig_len + (with_len - rep_len) * count + 1);
+    }
+    start_pos = 0;
+    while ((start_pos = aux_result.find(rep, start_pos)) != std::string::npos)
+    {
+        aux_result.replace(start_pos, rep_len, with);
+        start_pos += with_len;
+    }
+    return string_to_char_ptr(aux_result);
 }
 
 static unsigned int parse_uint(const char* str, int* errcode) {

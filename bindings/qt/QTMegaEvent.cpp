@@ -3,9 +3,10 @@
 using namespace mega;
 using namespace std;
 
-QTMegaEvent::QTMegaEvent(MegaApi *megaApi, Type type) : QEvent(type)
+QTMegaEvent::QTMegaEvent(MegaApi* api, Type type):
+    QEvent(type)
 {
-    this->megaApi = megaApi;
+    megaApi = api;
     request = NULL;
     transfer = NULL;
     error = NULL;
@@ -39,7 +40,7 @@ QTMegaEvent::~QTMegaEvent()
 #endif
 }
 
-MegaApi *QTMegaEvent::getMegaApi()
+MegaApi *QTMegaEvent::getMegaApi() const
 {
     return megaApi;
 }
@@ -155,3 +156,23 @@ void QTMegaEvent::setNewState(int newState)
     this->newState = newState;
 }
 #endif
+
+const std::string& QTMegaEvent::getMountPath() const
+{
+    return mMountPath;
+}
+
+int QTMegaEvent::getMountResult() const
+{
+    return mMountResult;
+}
+
+void QTMegaEvent::setMountPath(const std::string& path)
+{
+    mMountPath = path;
+}
+
+void QTMegaEvent::setMountResult(int result)
+{
+    mMountResult = result;
+}

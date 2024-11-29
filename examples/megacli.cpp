@@ -19,11 +19,26 @@
  * program.
  */
 
-#include "mega.h"
 #include "megacli.h"
-#include <fstream>
-#include <bitset>
+
+#include "mega.h"
+#include "mega/arguments.h"
+#include "mega/filesystem.h"
+#include "mega/gfx.h"
+#include "mega/pwm_file_parser.h"
 #include "mega/testhooks.h"
+#include "mega/user_attribute.h"
+
+#include <bitset>
+#include <charconv>
+#include <chrono>
+#include <exception>
+#include <fstream>
+#include <iostream>
+#include <stdexcept>
+#include <string>
+#include <string_view>
+#include <vector>
 
 #if defined(_WIN32) && defined(_DEBUG)
 // so we can delete a secret internal CrytpoPP singleton
@@ -60,6 +75,10 @@
 #include "mega/gfx/freeimage.h"
 #endif
 
+#ifdef ENABLE_ISOLATED_GFX
+#include "mega/gfx/isolatedprocess.h"
+#endif
+
 #ifdef WIN32
 #include <winioctl.h>
 #endif
@@ -67,6 +86,12 @@
 namespace ac = ::mega::autocomplete;
 
 #include <iomanip>
+
+// FUSE
+#include <mega/fuse/common/mount_info.h>
+#include <mega/fuse/common/mount_result.h>
+#include <mega/fuse/common/normalized_path.h>
+#include <mega/fuse/common/service_flags.h>
 
 using namespace mega;
 using std::cout;
@@ -135,6 +160,67 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
     TransferDbCommitter& committer, int& total, bool recursive, VersioningOption vo,
     std::function<std::function<void()>(LocalPath)> onCompletedGenerator, bool noRetries, bool allowDuplicateVersions);
 
+
+static std::string USAGE = R"(
+Mega command line
+Usage:
+  megacli [OPTION...]
+
+  -h                   Show help
+  -v                   Verbose
+  -c=arg               Client type. default|vpn|password_manager (default: default))"
+#if defined(ENABLE_ISOLATED_GFX)
+R"(
+  -e=arg               Use the isolated gfx processor. This gives executable binary path
+  -n=arg               Endpoint name (default: mega_gfxworker_megacli)
+)"
+#endif
+;
+struct Config
+{
+    std::string executable;
+
+    std::string endpointName;
+
+    std::string clientType;
+
+    static Config fromArguments(const Arguments& arguments);
+};
+
+Config Config::fromArguments(const Arguments& arguments)
+{
+    Config config;
+
+#if defined(ENABLE_ISOLATED_GFX)
+    // executable
+    config.executable = arguments.getValue("-e", "");
+
+    FSACCESS_CLASS fsAccess;
+    if (!config.executable.empty() && !fsAccess.fileExistsAt(LocalPath::fromAbsolutePath(config.executable)))
+    {
+        throw std::runtime_error("Couldn't find Executable: " + config.executable);
+    }
+
+    // endpoint name
+    config.endpointName = arguments.getValue("-n", "mega_gfxworker_megacli");
+#endif
+
+    config.clientType = arguments.getValue("-c", "default");
+
+    return config;
+}
+
+static std::unique_ptr<IGfxProvider> createGfxProvider([[maybe_unused]] const Config& config)
+{
+#if defined(ENABLE_ISOLATED_GFX)
+    GfxIsolatedProcess::Params params{config.endpointName, config.executable};
+    if (auto provider = GfxProviderIsolatedProcess::create(params))
+    {
+        return provider;
+    }
+#endif
+    return IGfxProvider::createInternalGfxProvider();
+}
 
 #ifdef ENABLE_SYNC
 
@@ -240,6 +326,9 @@ const char* errorstring(error e)
             return "Business account has expired";
         case API_EPAYWALL:
             return "Over Disk Quota Paywall";
+        case API_ESUBUSERKEYMISSING:
+            return "A business error where a subuser has not yet encrypted their master key for "
+                   "the admin user and tries to perform a disallowed command (currently u and p)";
         case LOCAL_ENOSPC:
             return "Insufficient disk space";
         default:
@@ -367,17 +456,29 @@ void AppFilePut::completed(Transfer* t, putsource_t source)
     assert(t->type == PUT);
 
     auto onCompleted_foward = onCompleted;
-    sendPutnodesOfUpload(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(),
-        [onCompleted_foward](const Error& e, targettype_t, vector<NewNode>&, bool targetOverride, int tag){
-
+    sendPutnodesOfUpload(
+        t->client,
+        t->uploadhandle,
+        *t->ultoken,
+        t->filekey,
+        source,
+        NodeHandle(),
+        [onCompleted_foward](const Error& e,
+                             targettype_t,
+                             vector<NewNode>&,
+                             bool targetOverride,
+                             int tag,
+                             const map<string, string>& /*fileHandles*/)
+        {
             if (e)
             {
                 cout << "Putnodes error is breaking upload/download cycle: " << e << endl;
             }
-            else if (onCompleted_foward) onCompleted_foward();
-
+            else if (onCompleted_foward)
+                onCompleted_foward();
         },
-        nullptr, nullptr, false);
+        nullptr,
+        false);
 
     delete this;
 }
@@ -548,23 +649,35 @@ void DemoApp::syncupdate_syncing(bool active)
     }
 }
 
+void DemoApp::syncupdate_stalled(bool stalled)
+{
+    if (stalled)
+    {
+        conlock(cout) << "Sync - stalled" << endl;
+    }
+    else
+    {
+        conlock(cout) << "Sync - stall ended" << endl;
+    }
+}
+
+void DemoApp::syncupdate_conflicts(bool conflicts)
+{
+    if (conflicts)
+    {
+        conlock(cout) << "Sync - conflicting paths detected" << endl;
+    }
+    else
+    {
+        conlock(cout) << "Sync - all conflicting paths resolved" << endl;
+    }
+}
+
 // flags to turn off cout output that can be too volumnous/time consuming
 bool syncout_local_change_detection = true;
 bool syncout_remote_change_detection = true;
 bool syncout_transfer_activity = true;
 bool syncout_folder_sync_state = false;
-
-void DemoApp::syncupdate_local_lockretry(bool locked)
-{
-    if (locked)
-    {
-        conlock(cout) << "Sync - waiting for local filesystem lock" << endl;
-    }
-    else
-    {
-        conlock(cout) << "Sync - local filesystem lock issue resolved, continuing..." << endl;
-    }
-}
 
 static const char* treestatename(treestate_t ts)
 {
@@ -594,25 +707,6 @@ void DemoApp::syncupdate_treestate(const SyncConfig &, const LocalPath& lp, tree
             conlock(cout) << "Sync - state change of folder " << lp.toPath(false) << " to " << treestatename(ts) << endl;
         }
     }
-}
-
-// generic name filter
-// FIXME: configurable regexps
-static bool is_syncable(const char* name)
-{
-    return *name != '.' && *name != '~' && strcmp(name, "Thumbs.db") && strcmp(name, "desktop.ini");
-}
-
-// determines whether remote node should be synced
-bool DemoApp::sync_syncable(Sync *, const char *, LocalPath&, Node *n)
-{
-    return is_syncable(n->displayname());
-}
-
-// determines whether local file should be synced
-bool DemoApp::sync_syncable(Sync *, const char *name, LocalPath&)
-{
-    return is_syncable(name);
 }
 #endif
 
@@ -981,14 +1075,14 @@ void DemoApp::printChatInformation(TextChat *chat)
 
     cout << "\tPeers:";
 
-    if (chat->getOwnPrivileges())
+    if (chat->getUserPrivileges())
     {
         cout << "\t\t(userhandle)\t(privilege level)" << endl;
-        for (unsigned i = 0; i < chat->getUserPrivileges()->size(); i++)
+        for (const auto& up : *chat->getUserPrivileges())
         {
-            Base64Str<sizeof(handle)> hstr(chat->getUserPrivileges()->at(i).first);
+            Base64Str<sizeof(handle)> hstr(up.first);
             cout << "\t\t\t" << hstr;
-            cout << "\t" << DemoApp::getPrivilegeString(chat->getUserPrivileges()->at(i).second) << endl;
+            cout << "\t" << DemoApp::getPrivilegeString(up.second) << endl;
         }
     }
     else
@@ -1123,7 +1217,11 @@ void DemoApp::fetchnodes_result(const Error& e)
 
         if (pdf_to_import)
         {
-            client->getwelcomepdf();
+            client->importOrDelayWelcomePdf();
+        }
+        else if (client->shouldWelcomePdfImported())
+        {
+            client->importWelcomePdfIfDelayed();
         }
 
         if (client->ephemeralSessionPlusPlus)
@@ -1134,7 +1232,12 @@ void DemoApp::fetchnodes_result(const Error& e)
     }
 }
 
-void DemoApp::putnodes_result(const Error& e, targettype_t t, vector<NewNode>& nn, bool targetOverride, int tag)
+void DemoApp::putnodes_result(const Error& e,
+                              targettype_t t,
+                              vector<NewNode>& nn,
+                              bool targetOverride,
+                              int tag,
+                              const map<string, string>& /*fileHandles*/)
 {
     if (t == USER_HANDLE)
     {
@@ -1174,10 +1277,10 @@ void DemoApp::putnodes_result(const Error& e, targettype_t t, vector<NewNode>& n
     {
         for (auto &newNode : nn)
         {
-            Node* n = client->nodebyhandle(newNode.mAddedHandle);
+            std::shared_ptr<Node> n = client->nodebyhandle(newNode.mAddedHandle);
             if (n)
             {
-                i->second(n);
+                i->second(n.get());
             }
         }
 
@@ -1221,7 +1324,7 @@ void DemoApp::updatepcr_result(error e, ipcactions_t action)
 void DemoApp::fa_complete(handle h, fatype type, const char* /*data*/, uint32_t len)
 {
     cout << "Got attribute of type " << type << " (" << len << " byte(s))";
-    Node *n = client->nodebyhandle(h);
+    std::shared_ptr<Node> n = client->nodebyhandle(h);
     if (n)
     {
         cout << " for " << n->displayname() << endl;
@@ -1296,6 +1399,11 @@ void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
              << "\tperformance: " << bs[2] << endl
              << "\tadvertising: " << bs[3] << endl
              << "\tthird party: " << bs[4] << endl;
+    }
+
+    if (type == ATTR_FIRSTNAME || type == ATTR_LASTNAME)
+    {
+        cout << string((char*)data, l) << endl;
     }
 
     if (type == ATTR_KEYS)
@@ -1399,13 +1507,55 @@ void DemoApp::senddevcommand_result(int value)
 
 void exec_devcommand(autocomplete::ACState& s)
 {
-    const char *email = nullptr;
-    if (s.words.size() == 3)
+    const std::string_view subcommand {s.words[1].s};
+
+    std::string email;
+    const bool isEmailProvided = s.extractflagparam("-e", email);
+    std::string campaign;
+    const bool isCampaingProvided = s.extractflagparam("-c", campaign);
+    std::string groupId;
+    const bool isGroupIdProvided = s.extractflagparam("-g", groupId);
+
+    const auto printElement = [](const auto& p){ std::cout << " " << p; };
+    if (subcommand == "abs")
     {
-        email = s.words[2].s.c_str();
+        if (isEmailProvided) std::cout << "devcommand abs will ignore unrequired -e provided\n";
+
+        std::vector<std::string> req;
+        if (!isCampaingProvided) req.emplace_back("-c");
+        if (!isGroupIdProvided) req.emplace_back("-g");
+        if (!req.empty())
+        {
+            std::cout << "devcommand abs is missing required";
+            std::for_each(std::begin(req), std::end(req), printElement);
+            std::cout << " options\n";
+            return;
+        }
+
+        size_t l;
+        const int g = std::stoi(groupId, &l); // it's okay throwing in megacli for non-numeric
+        if(l != groupId.size())
+        {
+            std::cout << "abs param -g must be a natural number: " << groupId << " provided\n";
+            return;
+        }
+
+        client->senddevcommand(subcommand.data(), nullptr, 0, 0, g, campaign.c_str());
     }
-    const char *subcommand = s.words[1].s.c_str();
-    client->senddevcommand(subcommand, email);
+    else
+    {
+        std::vector<std::string> param;
+        if (isCampaingProvided) param.emplace_back("-c");
+        if (isGroupIdProvided) param.emplace_back("-g");
+        if (!param.empty())
+        {
+            std::cout << "devcommand " << subcommand << " will ignore unrequired";
+            std::for_each(std::begin(param), std::end(param), printElement);
+            std::cout << " provided options\n";
+        }
+
+        client->senddevcommand(subcommand.data(), isEmailProvided ? email.c_str() : nullptr);
+    }
 }
 #endif
 
@@ -1504,7 +1654,7 @@ static void listtrees()
     for (user_map::iterator uit = client->users.begin(); uit != client->users.end(); uit++)
     {
         User* u = &uit->second;
-        Node* n;
+        std::shared_ptr<Node> n;
 
         if (u->show == VISIBLE || u->sharing.size())
         {
@@ -1521,7 +1671,7 @@ static void listtrees()
 
     if (clientFolder && !clientFolder->mNodeManager.getRootNodeFiles().isUndef())
     {
-        Node *n = clientFolder->nodeByHandle(clientFolder->mNodeManager.getRootNodeFiles());
+        std::shared_ptr<Node> n = clientFolder->nodeByHandle(clientFolder->mNodeManager.getRootNodeFiles());
         if (n)
         {
             cout << "FOLDERLINK on " << n->displayname() << ":" << endl;
@@ -1544,7 +1694,7 @@ bool showattrs = false;
 // * : and / filename components, as well as the \, must be escaped by \.
 // (correct UTF-8 encoding is assumed)
 // returns NULL if path malformed or not found
-static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart = NULL)
+static std::shared_ptr<Node> nodebypath(const char* ptr, string* user = NULL, string* namepart = NULL)
 {
     if (!ptr)
     {
@@ -1553,12 +1703,12 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
 
     vector<string> c;
     string s;
-    int l = 0;
+    size_t l = 0;
     const char* bptr = ptr;
     int remote = 0;
     int folderlink = 0;
-    Node* n = nullptr;
-    Node* nn;
+    std::shared_ptr<Node> n;
+    std::shared_ptr<Node> nn;
 
 
     // special case access by handle, same syntax as megacmd
@@ -1579,7 +1729,7 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
                 {
                     if (ptr > bptr)
                     {
-                        s.append(bptr, ptr - bptr);
+                        s.append(bptr, static_cast<size_t>(ptr - bptr));
                     }
 
                     bptr = ++ptr;
@@ -1608,7 +1758,7 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
 
                     if (ptr > bptr)
                     {
-                        s.append(bptr, ptr - bptr);
+                        s.append(bptr, static_cast<size_t>(ptr - bptr));
                     }
 
                     bptr = ptr + 1;
@@ -1744,7 +1894,7 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
     }
 
     // parse relative path
-    while (n && l < (int)c.size())
+    while (n && l < c.size())
     {
         if (c[l] != ".")
         {
@@ -1762,17 +1912,17 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
                 {
                     if (folderlink)
                     {
-                        nn = clientFolder->childnodebyname(n, c[l].c_str());
+                        nn = clientFolder->childnodebyname(n.get(), c[l].c_str());
                     }
                     else
                     {
-                        nn = client->childnodebyname(n, c[l].c_str());
+                        nn = client->childnodebyname(n.get(), c[l].c_str());
                     }
 
                     if (!nn)
                     {
                         // mv command target? return name part of not found
-                        if (namepart && l == (int) c.size() - 1)
+                        if (namepart && l == c.size() - 1)
                         {
                             *namepart = c[l];
                             return n;
@@ -1839,10 +1989,10 @@ static void listallshares()
 {
     cout << "Outgoing shared folders:" << endl;
 
-    node_vector outshares = client->mNodeManager.getNodesWithOutShares();
+    sharedNode_vector outshares = client->mNodeManager.getNodesWithOutShares();
     for (auto& share : outshares)
     {
-        listnodeshares(share, false);
+        listnodeshares(share.get(), false);
     }
 
     cout << "Incoming shared folders:" << endl;
@@ -1851,7 +2001,7 @@ static void listallshares()
         uit != client->users.end(); uit++)
     {
         User* u = &uit->second;
-        Node* n;
+        std::shared_ptr<Node> n;
 
         if (u->show == VISIBLE && u->sharing.size())
         {
@@ -1874,18 +2024,18 @@ static void listallshares()
     cout << "Pending outgoing shared folders:" << endl;
 
     // pending outgoing
-    node_vector pendingoutshares = client->mNodeManager.getNodesWithPendingOutShares();
+    sharedNode_vector pendingoutshares = client->mNodeManager.getNodesWithPendingOutShares();
     for (auto& share : pendingoutshares)
     {
-        listnodependingshares(share);
+        listnodependingshares(share.get());
     }
 
     cout << "Public folder links:" << endl;
 
-    node_vector links = client->mNodeManager.getNodesWithLinks();
+    sharedNode_vector links = client->mNodeManager.getNodesWithLinks();
     for (auto& share : links)
     {
-        listnodeshares(share, true);
+        listnodeshares(share.get(), true);
     }
 
 }
@@ -1946,12 +2096,12 @@ static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstre
                     }
                 }
 
-                node_list nodeChildren = client->mNodeManager.getChildren(n);
+                sharedNode_list nodeChildren = client->mNodeManager.getChildren(n);
                 if (nodeChildren.size())
                 {
                     Node *version = n;
                     int i = 0;
-                    while (nodeChildren.size() && (version = nodeChildren.back()))
+                    while (nodeChildren.size() && (version = nodeChildren.back().get()))
                     {
                         i++;
                         if (handles_on)
@@ -1987,7 +2137,9 @@ static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstre
                 break;
             }
             case FOLDERNODE:
-                stream << "folder";
+                if (n->isPasswordNode())            stream << "password entry";
+                else if (n->isPasswordNodeFolder()) stream << "password folder";
+                else                                stream << "folder";
 
                 if (handles_on)
                 {
@@ -2065,9 +2217,9 @@ static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstre
 
     if (n->type != FILENODE)
     {
-        for (Node* node : client->getChildren(n))
+        for (auto& node : client->getChildren(n))
         {
-            dumptree(node, recurse, depth + 1, NULL, toFile);
+            dumptree(node.get(), recurse, depth + 1, NULL, toFile);
         }
     }
 }
@@ -2109,7 +2261,7 @@ static void local_dumptree(const fs::path& de, int recurse, int depth = 0)
 
 static void nodepath(NodeHandle h, string* path)
 {
-    Node* n = client->nodeByHandle(h);
+    std::shared_ptr<Node> n = client->nodeByHandle(h);
     *path = n ? n->displaypath() : "";
 }
 
@@ -2180,7 +2332,7 @@ public:
     }
 
     // determine node tree size (nn = NULL) or write node tree to new nodes array
-    void proc(MegaClient* mc, Node* n)
+    void proc(MegaClient* mc, std::shared_ptr<Node> n)
     {
         if (populated)
         {
@@ -2651,7 +2803,7 @@ public:
                         json.leavearray();
                         if (tempurls.size() == 6)
                         {
-                            if (Node* n = client->nodebyhandle(h))
+                            if (std::shared_ptr<Node> n = client->nodebyhandle(h))
                             {
                                 cout << n->displaypath() << endl;
 
@@ -2707,7 +2859,7 @@ void getDepthFirstFileHandles(Node* n, deque<handle>& q)
     {
         if (c->type > FILENODE)
         {
-            getDepthFirstFileHandles(c, q);
+            getDepthFirstFileHandles(c.get(), q);
         }
     }
 }
@@ -2716,10 +2868,10 @@ void exec_find(autocomplete::ACState& s)
 {
     if (s.words[1].s == "raided")
     {
-        if (Node* n = client->nodeByHandle(cwd))
+        if (std::shared_ptr<Node> n = client->nodeByHandle(cwd))
         {
             auto q = std::make_shared<FileFindCommand::Stack>();
-            getDepthFirstFileHandles(n, *q);
+            getDepthFirstFileHandles(n.get(), *q);
             q->filesLeft = q->size();
             cout << "<find checking " << q->size() << " files>" << endl;
             if (q->empty())
@@ -2744,12 +2896,13 @@ bool recurse_findemptysubfoldertrees(Node* n, bool moveToTrash)
         return false;
     }
 
-    std::vector<Node*> emptyFolders;
+    sharedNode_vector emptyFolders;
     bool empty = true;
-    Node* trash = client->nodeByHandle(client->mNodeManager.getRootNodeRubbish());
-    for (auto c : client->getChildren(n))
+    std::shared_ptr<Node> trash = client->nodeByHandle(client->mNodeManager.getRootNodeRubbish());
+    sharedNode_list children = client->getChildren(n);
+    for (auto& c : children)
     {
-        bool subfolderEmpty = recurse_findemptysubfoldertrees(c, moveToTrash);
+        bool subfolderEmpty = recurse_findemptysubfoldertrees(c.get(), moveToTrash);
         if (subfolderEmpty)
         {
             emptyFolders.push_back(c);
@@ -2758,7 +2911,7 @@ bool recurse_findemptysubfoldertrees(Node* n, bool moveToTrash)
     }
     if (!empty)
     {
-        for (auto c : emptyFolders)
+        for (auto& c : emptyFolders)
         {
             if (moveToTrash)
             {
@@ -2777,9 +2930,9 @@ bool recurse_findemptysubfoldertrees(Node* n, bool moveToTrash)
 void exec_findemptysubfoldertrees(autocomplete::ACState& s)
 {
     bool moveToTrash = s.extractflag("-movetotrash");
-    if (Node* n = client->nodeByHandle(cwd))
+    if (std::shared_ptr<Node> n = client->nodeByHandle(cwd))
     {
-        if (recurse_findemptysubfoldertrees(n, moveToTrash))
+        if (recurse_findemptysubfoldertrees(n.get(), moveToTrash))
         {
             cout << "the search root path only contains empty folders: " << n->displaypath() << endl;
         }
@@ -2822,7 +2975,7 @@ bool recursiveCompare(Node* mn, fs::path p)
 
     std::string path = p.u8string();
     auto fileSystemType = client->fsaccess->getlocalfstype(LocalPath::fromAbsolutePath(path));
-    multimap<string, Node*> ms;
+    multimap<string, shared_ptr<Node> > ms;
     multimap<string, fs::path> ps;
     for (auto& m : client->getChildren(mn))
     {
@@ -2844,7 +2997,7 @@ bool recursiveCompare(Node* mn, fs::path p)
         ++next_p;
         for (auto i = er.first; i != er.second; ++i)
         {
-            if (recursiveCompare(i->second, p_iter->second))
+            if (recursiveCompare(i->second.get(), p_iter->second))
             {
                 ms.erase(i);
                 ps.erase(p_iter);
@@ -2866,9 +3019,9 @@ bool recursiveCompare(Node* mn, fs::path p)
     };
 }
 #endif
-Node* nodeFromRemotePath(const string& s)
+std::shared_ptr<Node> nodeFromRemotePath(const string& s)
 {
-    Node* n;
+    std::shared_ptr<Node> n;
     if (s.empty())
     {
         n = client->nodeByHandle(cwd);
@@ -2915,7 +3068,7 @@ void exec_sendDeferred(autocomplete::ACState& s)
 void exec_codeTimings(autocomplete::ACState& s)
 {
     bool reset = s.extractflag("-reset");
-    cout << client->performanceStats.report(reset, client->httpio, client->waiter, client->reqs) << flush;
+    cout << client->performanceStats.report(reset, client->httpio, client->waiter.get(), client->reqs) << flush;
 }
 
 #endif
@@ -2936,7 +3089,7 @@ void setAppendAndUploadOnCompletedUploads(string local_path, int count, bool all
         TransferDbCommitter committer(client->tctable);
         int total = 0;
         auto lp = LocalPath::fromAbsolutePath(local_path);
-        uploadLocalPath(FILENODE, lp.leafName().toPath(false), lp, client->nodeByHandle(cwd), "", committer, total, false, ClaimOldVersion, nullptr, false, allowDuplicateVersions);
+        uploadLocalPath(FILENODE, lp.leafName().toPath(false), lp, client->nodeByHandle(cwd).get(), "", committer, total, false, ClaimOldVersion, nullptr, false, allowDuplicateVersions);
 
         if (count > 0)
         {
@@ -2966,10 +3119,10 @@ fs::path pathFromLocalPath(const string& s, bool mustexist)
 void exec_treecompare(autocomplete::ACState& s)
 {
     fs::path p = pathFromLocalPath(s.words[1].s, true);
-    Node* n = nodeFromRemotePath(s.words[2].s);
+    std::shared_ptr<Node> n = nodeFromRemotePath(s.words[2].s);
     if (n && !p.empty())
     {
-        recursiveCompare(n, p);
+        recursiveCompare(n.get(), p);
     }
 }
 
@@ -3025,7 +3178,15 @@ void exec_generatetestfilesfolders(autocomplete::ACState& s)
     if (!p.empty())
     {
         int totalfilecount = 0, totalfoldercount = 0;
-        buildLocalFolders(p, nameprefix, folderwidth, folderdepth, filecount, filesize, totalfilecount, totalfoldercount, nullptr);
+        buildLocalFolders(p,
+                          nameprefix,
+                          folderwidth,
+                          folderdepth,
+                          filecount,
+                          static_cast<uint64_t>(filesize),
+                          totalfilecount,
+                          totalfoldercount,
+                          nullptr);
         cout << "created " << totalfilecount << " files and " << totalfoldercount << " folders" << endl;
     }
     else
@@ -3043,7 +3204,7 @@ void checkReportCycleFails()
     for (auto& i : cycleUploadChunkFails) cout << i.first << " " << i.second;
 }
 
-Node* cycleUploadDownload_cloudWorkingFolder = nullptr;
+std::shared_ptr<Node> cycleUploadDownload_cloudWorkingFolder = nullptr;
 void cycleDownload(LocalPath lp, int count);
 void cycleUpload(LocalPath lp, int count)
 {
@@ -3055,7 +3216,7 @@ void cycleUpload(LocalPath lp, int count)
     string leaf = upload_lp.leafName().toPath(false);
 
     int total = 0;
-    uploadLocalPath(FILENODE, leaf, upload_lp, cycleUploadDownload_cloudWorkingFolder, "", committer, total, false, NoVersioning,
+    uploadLocalPath(FILENODE, leaf, upload_lp, cycleUploadDownload_cloudWorkingFolder.get(), "", committer, total, false, NoVersioning,
         [lp, count](LocalPath)
         {
             return [lp, count]()
@@ -3068,9 +3229,9 @@ void cycleUpload(LocalPath lp, int count)
     if (count > 0)
     {
         string leaf2 = lp.leafName().toPath(false) + "_" + std::to_string(count-1);
-        if (Node* lastuploaded = client->childnodebyname(cycleUploadDownload_cloudWorkingFolder, leaf2.c_str(), true))
+        if (std::shared_ptr<Node> lastuploaded = client->childnodebyname(cycleUploadDownload_cloudWorkingFolder.get(), leaf2.c_str(), true))
         {
-            client->unlink(lastuploaded, false, client->nextreqtag(), false, nullptr);
+            client->unlink(lastuploaded.get(), false, client->nextreqtag(), false, nullptr);
         }
     }
 
@@ -3082,7 +3243,7 @@ void cycleDownload(LocalPath lp, int count)
 
     string leaf = lp.leafName().toPath(false) + "_" + std::to_string(count);
 
-    Node* uploaded = client->childnodebyname(cycleUploadDownload_cloudWorkingFolder, leaf.c_str(), true);
+    std::shared_ptr<Node> uploaded = client->childnodebyname(cycleUploadDownload_cloudWorkingFolder.get(), leaf.c_str(), true);
 
     if (!uploaded)
     {
@@ -3097,7 +3258,7 @@ void cycleDownload(LocalPath lp, int count)
     string newleaf = lp.leafName().toPath(false);
     newleaf += "_" + std::to_string(count + 1);
 
-    auto f = new AppFileGet(uploaded, NodeHandle(), NULL, -1, 0, &newleaf, NULL, lp.parentPath().toPath(false));
+    auto f = new AppFileGet(uploaded.get(), NodeHandle(), NULL, -1, 0, &newleaf, NULL, lp.parentPath().toPath(false));
     f->noRetries = true;
 
     f->onCompleted = [lp, count]()
@@ -3176,7 +3337,15 @@ void exec_cycleUploadDownload(autocomplete::ACState& s)
     {
         int totalfilecount = 0, totalfoldercount = 0;
         vector<LocalPath> localPaths;
-        buildLocalFolders(p, nameprefix, 1, 1, filecount, filesize, totalfilecount, totalfoldercount, &localPaths);
+        buildLocalFolders(p,
+                          nameprefix,
+                          1,
+                          1,
+                          filecount,
+                          static_cast<uint64_t>(filesize),
+                          totalfilecount,
+                          totalfoldercount,
+                          &localPaths);
         cout << "created " << totalfilecount << " files and " << totalfoldercount << " folders" << endl;
 
         for (auto& fp : localPaths)
@@ -3239,7 +3408,7 @@ void exec_generatesparsefile(autocomplete::ACState& s)
     CloseHandle(hFile);
 #endif //WIN32
 
-    fs::resize_file(p, filesize);
+    fs::resize_file(p, static_cast<std::uintmax_t>(filesize));
     cout << "File size:  " << fs::file_size(p) << '\n'
         << "Free space: " << fs::space(p).free << '\n';
 }
@@ -3347,7 +3516,7 @@ void exec_quit(ac::ACState&)
 
 void exec_showattributes(autocomplete::ACState& s)
 {
-    if (const Node* n = nodeFromRemotePath(s.words[1].s))
+    if (const std::shared_ptr<Node> n = nodeFromRemotePath(s.words[1].s))
     {
         for (auto pair : n->attrs.map)
         {
@@ -3551,13 +3720,13 @@ void exec_timelocal(autocomplete::ACState& s)
 
             if (!get)
             {
-                if (::mega::abs(set_time - fp.mtime) <= 2)
+                if (abs(set_time - fp.mtime) <= 2)
                 {
-                    cout << "mtime read back is within 2 seconds, so success. Actual difference: " << ::mega::abs(set_time - fp.mtime) << endl;
+                    cout << "mtime read back is within 2 seconds, so success. Actual difference: " << abs(set_time - fp.mtime) << endl;
                 }
                 else
                 {
-                    cout << "ERROR Silent failure in setmtimelocal, difference is " << ::mega::abs(set_time - fp.mtime) << endl;
+                    cout << "ERROR Silent failure in setmtimelocal, difference is " << abs(set_time - fp.mtime) << endl;
                 }
             }
         }
@@ -3584,14 +3753,14 @@ void putua_map(const std::string& b64key, const std::string& b64value, attr_t at
 
     std::unique_ptr<TLVstore> tlv;
 
-    const std::string* oldValue = ownUser->getattr(attrtype);
-    if (!oldValue)  // attr doesn't exist -> create it
+    const UserAttribute* attribute = ownUser->getAttribute(attrtype);
+    if (!attribute || attribute->isNotExisting()) // attr doesn't exist -> create it
     {
         tlv.reset(new TLVstore());
         const string& realValue = Base64::atob(b64value);
         tlv->set(b64key, realValue); // real value, non-B64
     }
-    else if (!ownUser->isattrvalid(attrtype)) // not fetched yet or outdated
+    else if (attribute->isExpired())
     {
         cout << "User attribute is outdated";
         cout << "Fetch the attribute first" << endl;
@@ -3599,7 +3768,7 @@ void putua_map(const std::string& b64key, const std::string& b64value, attr_t at
     }
     else
     {
-        tlv.reset(TLVstore::containerToTLVrecords(oldValue, &client->key));
+        tlv.reset(TLVstore::containerToTLVrecords(&attribute->value(), &client->key));
 
         string_map attrMap;
         attrMap[b64key] = b64value; // User::mergeUserAttribute() expects B64 values
@@ -3734,22 +3903,22 @@ void exec_getmybackups(autocomplete::ACState&)
         return;
     }
 
-    const string* buf = u->getattr(ATTR_MY_BACKUPS_FOLDER);
-    if (!buf)
+    const UserAttribute* attribute = u->getAttribute(ATTR_MY_BACKUPS_FOLDER);
+    if (!attribute || attribute->isNotExisting())
     {
         cout << "\"My Backups\" folder has not been set." << endl;
         return;
     }
 
     handle h = 0;
-    memcpy(&h, buf->data(), MegaClient::NODEHANDLE);
+    memcpy(&h, attribute->value().data(), MegaClient::NODEHANDLE);
     if (!h || h == UNDEF)
     {
         cout << "Invalid handle stored for \"My Backups\" folder." << endl;
         return;
     }
 
-    Node* n = client->nodebyhandle(h);
+    std::shared_ptr<Node> n = client->nodebyhandle(h);
     if (!n)
     {
         cout << "\"My Backups\" folder could not be found." << toHandle(h) << endl;
@@ -3760,11 +3929,44 @@ void exec_getmybackups(autocomplete::ACState&)
 }
 
 #ifdef ENABLE_SYNC
+void exec_backupcentreUpdateState(const string& backupIdStr, CommandBackupPut::SPState newState)
+{
+    handle backupId = 0;
+    Base64::atob(backupIdStr.c_str(), (byte*)&backupId, MegaClient::BACKUPHANDLE);
+
+    // determine if it's a backup or other type of sync
+    SyncConfig c;
+    bool found = client->syncs.configById(backupId, c);
+    string syncType = found && c.isBackup() ? "backup" : "sync";
+
+    client->updateStateInBC(backupId,
+                            newState,
+                            [newState, syncType, backupId](const Error& e)
+                            {
+                                string newStateStr =
+                                    newState == CommandBackupPut::TEMPORARY_DISABLED ? "pause" :
+                                                                                       "resume";
+                                if (e == API_OK)
+                                {
+                                    cout << "Backup Centre - " << newStateStr << "d " << syncType
+                                         << ' ' << toHandle(backupId) << endl;
+                                }
+                                else
+                                {
+                                    cout << "Backup Centre - Failed to " << newStateStr << ' '
+                                         << syncType << ' ' << toHandle(backupId) << " ("
+                                         << errorstring(e) << ')' << endl;
+                                }
+                            });
+}
+
 void exec_backupcentre(autocomplete::ACState& s)
 {
     bool delFlag = s.extractflag("-del");
     bool purgeFlag = s.extractflag("-purge");
     bool stopFlag = s.extractflag("-stop");
+    bool pauseFlag = s.extractflag("-pause");
+    bool resumeFlag = s.extractflag("-resume");
 
     if (s.words.size() == 1)
     {
@@ -3836,7 +4038,7 @@ void exec_backupcentre(autocomplete::ACState& s)
             Base64::atob(s.words[2].s.c_str(), (byte*)&hDest, MegaClient::NODEHANDLE);
 
             // validation
-            Node* targetDest = client->nodebyhandle(hDest);
+            std::shared_ptr<Node> targetDest = client->nodebyhandle(hDest);
             if (!targetDest)
             {
                 cout << "Backup Centre - Move destination " << s.words[2].s << " not found" << endl;
@@ -3870,7 +4072,7 @@ void exec_backupcentre(autocomplete::ACState& s)
             }
             else
             {
-                cout << "Backup Centre - Failed to " << (isBackup ? "remove Backup " : "stop sync") << toHandle(backupId);
+                cout << "Backup Centre - Failed to " << (isBackup ? "remove Backup " : "stop sync ") << toHandle(backupId);
                 if (isBackup)
                 {
                     cout << " and " << (hDest == UNDEF ? "deleted" : "moved") << " its contents";
@@ -3878,6 +4080,13 @@ void exec_backupcentre(autocomplete::ACState& s)
                 cout << " (" << errorstring(e) << ')' << endl;
             }
         });
+    }
+
+    else if ((pauseFlag || resumeFlag) && s.words.size() == 2) // pause/resume sync (any kind)
+    {
+        exec_backupcentreUpdateState(s.words[1].s,
+                                     pauseFlag ? CommandBackupPut::TEMPORARY_DISABLED :
+                                                 CommandBackupPut::ACTIVE);
     }
 }
 #endif
@@ -3939,6 +4148,597 @@ void exec_syncoutput(autocomplete::ACState& s)
     }
 }
 #endif
+
+static void exec_fusedb(autocomplete::ACState& state)
+{
+    using namespace fuse;
+
+    // Upgrade or downgrade?
+    auto function = ([&]() {
+        if (state.words[2].s == "downgrade")
+            return &fuse::Service::downgrade;
+
+        return &fuse::Service::upgrade;
+    })();
+
+    // What version are we moving to?
+    auto version = ([&]() {
+        std::istringstream istream(state.words[4].s);
+        std::size_t result = 0;
+
+        istream >> result;
+
+        return result;
+    })();
+
+    // Try and downgrade / upgrade the specified database.
+    auto path = localPathArg(state.words[3].s);
+    auto result = (client->mFuseService.*function)(path, version);
+
+    if (result != MOUNT_SUCCESS)
+    {
+        std::cerr << "Unable to "
+                  << state.words[2].s
+                  << " the database \""
+                  << state.words[3].s
+                  << "\" to version "
+                  << state.words[4].s
+                  << ": "
+                  << toString(result)
+                  << std::endl;
+
+        return;
+    }
+
+    auto command = state.words[2].s;
+
+    command.front() =
+      static_cast<char>(std::toupper(command.front()));
+
+    std::cout << command
+              << "d database \""
+              << state.words[3].s
+              << "\" to version "
+              << state.words[4].s
+              << std::endl;
+}
+
+static bool isFullAccount(const std::string& message)
+{
+    if (client->loggedin() == FULLACCOUNT)
+        return true;
+
+    std::cerr << message << std::endl;
+
+    return false;
+}
+
+static void exec_fuseflags(autocomplete::ACState& state)
+{
+    using std::chrono::seconds;
+    using std::stoul;
+
+    auto parseCacheFlags = [&](fuse::InodeCacheFlags& flags) {
+        std::string ageThreshold;
+        std::string interval;
+        std::string maxSize;
+        std::string sizeThreshold;
+
+        state.extractflagparam("-cache-clean-age-threshold", ageThreshold);
+        state.extractflagparam("-cache-clean-interval", interval);
+        state.extractflagparam("-cache-clean-size-threshold", sizeThreshold);
+        state.extractflagparam("-cache-max-size", maxSize);
+
+        if (!ageThreshold.empty())
+            flags.mCleanAgeThreshold = seconds(stoul(ageThreshold));
+
+        if (!interval.empty())
+            flags.mCleanInterval = seconds(stoul(interval));
+
+        if (!maxSize.empty())
+            flags.mMaxSize = stoul(maxSize);
+
+        if (!sizeThreshold.empty())
+            flags.mCleanSizeThreshold = stoul(sizeThreshold);
+    }; // parseCacheFlags
+
+    auto parseExecutorFlags =
+      [&](fuse::TaskExecutorFlags& flags, const std::string& type) {
+        std::string idle;
+        std::string max;
+        std::string min;
+
+        state.extractflagparam("-" + type + "-max-thread-count", max);
+        state.extractflagparam("-" + type + "-max-thread-idle-time", idle);
+        state.extractflagparam("-" + type + "-min-thread-count", min);
+
+        if (!idle.empty())
+            flags.mIdleTime = seconds(stoul(idle));
+
+        if (!max.empty())
+            flags.mMaxWorkers = stoul(max);
+
+        if (!min.empty())
+            flags.mMinWorkers = stoul(min);
+    }; // parseExecutorFlags
+
+    std::string flushDelay;
+    std::string logLevel;
+
+    state.extractflagparam("-flush-delay", flushDelay);
+    state.extractflagparam("-log-level", logLevel);
+
+    auto flags = client->mFuseService.serviceFlags();
+
+    if (!flushDelay.empty())
+        flags.mFlushDelay = std::chrono::seconds(std::stoul(flushDelay));
+
+    if (!logLevel.empty())
+        flags.mLogLevel = fuse::toLogLevel(logLevel);
+
+    parseCacheFlags(flags.mInodeCacheFlags);
+    parseExecutorFlags(flags.mMountExecutorFlags, "mount");
+    parseExecutorFlags(flags.mServiceExecutorFlags, "service");
+
+    client->mFuseService.serviceFlags(flags);
+
+    std::cout << "Cache Clean Age Threshold: "
+              << flags.mInodeCacheFlags.mCleanAgeThreshold.count()
+              << "\n"
+              << "Cache Clean Interval: "
+              << flags.mInodeCacheFlags.mCleanInterval.count()
+              << "\n"
+              << "Cache Clean Size Threshold: "
+              << flags.mInodeCacheFlags.mCleanSizeThreshold
+              << "\n"
+              << "Cache Max Size: "
+              << flags.mInodeCacheFlags.mMaxSize
+              << "\n"
+              << "Flush Delay: "
+              << flags.mFlushDelay.count()
+              << "s\n"
+              << "Log Level: "
+              << toString(flags.mLogLevel)
+              << "\n"
+              << "Mount Max Thread Count: "
+              << flags.mMountExecutorFlags.mMaxWorkers
+              << "\n"
+              << "Mount Max Thread Idle Time: "
+              << flags.mMountExecutorFlags.mIdleTime.count()
+              << "s\n"
+              << "Mount Min Thread Count: "
+              << flags.mMountExecutorFlags.mMinWorkers
+              << "\n"
+              << "Service Max Thread Count: "
+              << flags.mServiceExecutorFlags.mMaxWorkers
+              << "\n"
+              << "Service Max Thread Idle Time: "
+              << flags.mServiceExecutorFlags.mIdleTime.count()
+              << "s\n"
+              << "Service Min Thread Count: "
+              << flags.mServiceExecutorFlags.mMinWorkers
+              << std::endl;
+}
+
+static void exec_fusemountadd(autocomplete::ACState& state)
+{
+    if (!isFullAccount("You must be logged in to add a FUSE mount."))
+        return;
+
+    using namespace fuse;
+
+    MountInfo info;
+
+    state.extractflagparam("-name", info.mFlags.mName);
+
+    info.mFlags.mPersistent = state.extractflag("-persistent");
+    info.mFlags.mReadOnly = state.extractflag("-read-only");
+
+    const auto sourcePath = state.words[3].s;
+    const auto sourceNode = nodebypath(sourcePath.c_str());
+
+    if (!sourceNode)
+    {
+        std::cerr << "Unable to add a mount against \""
+                  << sourcePath
+                  << "\" as the node does not exist."
+                  << std::endl;
+        return;
+    }
+
+    if (info.mFlags.mName.empty())
+    {
+        info.mFlags.mName = sourceNode->displayname();
+
+        if (!sourceNode->parent)
+            info.mFlags.mName = "MEGA";
+    }
+
+    auto targetPath = state.words[4].s;
+
+    info.mHandle = sourceNode->nodeHandle();
+    info.mPath = localPathArg(targetPath);
+
+    auto result = client->mFuseService.add(info);
+
+    if (result != MOUNT_SUCCESS)
+    {
+        std::cerr << "Failed to add mount against \""
+                  << sourcePath
+                  << "\" at \""
+                  << targetPath
+                  << "\": "
+                  << toString(result)
+                  << std::endl;
+
+        return;
+    }
+
+    std::cout << "Successfully added mount against \""
+              << sourcePath
+              << "\" at \""
+              << targetPath
+              << "\"."
+              << std::endl;
+}
+
+static void exec_fusemountdisable(autocomplete::ACState& state)
+{
+    if (!isFullAccount("You must be logged in to disable FUSE mounts."))
+        return;
+
+    using namespace fuse;
+
+    auto name = std::string();
+    auto path = std::string();
+
+    if (state.extractflagparam("-name", name))
+    {
+        auto paths = client->mFuseService.paths(name);
+
+        if (paths.size() > 1)
+        {
+            std::cerr << "Multiple mounts are associated with the name \""
+                      << name
+                      << "\"."
+                      << std::endl;
+
+            return;
+        }
+
+        if (paths.empty())
+        {
+            std::cerr << "There are no mounts named \""
+                      << name
+                      << "\"."
+                      << std::endl;
+
+            return;
+        }
+
+        path = paths.front().toPath(false);
+    }
+
+    state.extractflagparam("-path", path);
+
+    auto callback = [=](MountResult result) {
+        if (result == MOUNT_SUCCESS)
+        {
+            std::cout << "Successfully disabled mount \""
+                      << path
+                      << "\"."
+                      << std::endl;
+            return;
+        }
+
+        std::cerr << "Failed to disable mount \""
+                  << path
+                  << "\": "
+                  << toString(result)
+                  << std::endl;
+    };
+
+    auto remember = state.extractflag("-remember");
+
+    client->mFuseService.disable(std::move(callback),
+                                 localPathArg(path),
+                                 remember);
+}
+
+static void exec_fusemountenable(autocomplete::ACState& state)
+{
+    if (!isFullAccount("You must be logged in to enable FUSE mounts."))
+        return;
+
+    using fuse::MOUNT_SUCCESS;
+
+    auto name = std::string();
+    auto path = std::string();
+
+    if (state.extractflagparam("-name", name))
+    {
+        auto paths = client->mFuseService.paths(name);
+
+        if (paths.size() > 1)
+        {
+            std::cerr << "Multiple mounts are associated with the name \""
+                      << name
+                      << "\"."
+                      << std::endl;
+
+            return;
+        }
+
+        if (paths.empty())
+        {
+            std::cerr << "There are no mounts named \""
+                      << name
+                      << "\"."
+                      << std::endl;
+
+            return;
+        }
+
+        path = paths.front().toPath(false);
+    }
+
+    state.extractflagparam("-path", path);
+
+    auto remember = state.extractflag("-remember");
+
+    auto result = client->mFuseService.enable(localPathArg(path), remember);
+
+    if (result == MOUNT_SUCCESS)
+    {
+        std::cout << "Successfully enabled mount at \""
+                  << path
+                  << "\"."
+                  << std::endl;
+
+        return;
+    }
+
+    std::cerr << "Failed to enable mount at \""
+              << path
+              << "\": "
+              << toString(result)
+              << std::endl;
+}
+
+static void exec_fusemountflags(autocomplete::ACState& state)
+{
+    if (!isFullAccount("You must be logged in to alter FUSE mount flags."))
+        return;
+
+    auto name = std::string();
+    auto path = std::string();
+
+    if (state.extractflagparam("-by-name", name))
+    {
+        auto paths = client->mFuseService.paths(name);
+
+        if (paths.size() > 1)
+        {
+            std::cerr << "Multiple mounts are associated with the name \""
+                      << name
+                      << "\"."
+                      << std::endl;
+
+            return;
+        }
+
+        if (paths.empty())
+        {
+            std::cerr << "There are no mounts named \""
+                      << name
+                      << "\"."
+                      << std::endl;
+
+            return;
+        }
+
+        path = paths.front().toPath(false);
+    }
+
+    state.extractflagparam("-by-path", path);
+
+    auto flags = client->mFuseService.flags(localPathArg(path));
+
+    if (!flags)
+    {
+        std::cerr << "Couldn't retrieve flags for mount at \""
+                  << path
+                  << "\"."
+                  << std::endl;
+
+        return;
+    }
+
+    auto disabled = state.extractflag("-disabled-at-startup");
+    auto enabled  = state.extractflag("-enabled-at-startup");
+
+    if (disabled && enabled)
+    {
+        std::cerr << "A mount is either disabled or enabled at startup."
+                  << std::endl;
+
+        return;
+    }
+
+    flags->mEnableAtStartup |= enabled;
+    flags->mEnableAtStartup &= !disabled;
+    flags->mPersistent |= enabled || disabled;
+
+    state.extractflagparam("-name", flags->mName);
+
+    auto readOnly = state.extractflag("-read-only");
+    auto writable = state.extractflag("-writable");
+
+    if (readOnly && writable)
+    {
+        std::cerr << "A mount is either read-only or writable."
+                  << std::endl;
+
+        return;
+    }
+
+    flags->mReadOnly |= readOnly;
+    flags->mReadOnly &= !writable;
+
+    auto persistent = state.extractflag("-persistent");
+    auto transient  = state.extractflag("-transient");
+
+    if (persistent && transient)
+    {
+        std::cerr << "A mount is either persistent or transient."
+                  << std::endl;
+
+        return;
+    }
+
+    flags->mPersistent |= persistent;
+    flags->mPersistent &= !transient;
+
+    auto result = client->mFuseService.flags(localPathArg(path), *flags);
+
+    if (result != fuse::MOUNT_SUCCESS)
+    {
+        std::cerr << "Unable to update mount flags: "
+                  << toString(result)
+                  << std::endl;
+
+        return;
+    }
+
+    std::cout << "Enabled at startup: "
+              << flags->mEnableAtStartup
+              << "\n"
+              << "Name: "
+              << flags->mName
+              << "\n"
+              << "Persistent: "
+              << flags->mPersistent
+              << "\n"
+              << "Read-Only: "
+              << flags->mReadOnly
+              << std::endl;
+}
+
+static void exec_fusemountlist(autocomplete::ACState& state)
+{
+    if (!isFullAccount("You must be logged in to list FUSE mounts."))
+        return;
+
+    auto active = state.extractflag("-only-active");
+    auto mounts = client->mFuseService.get(active);
+
+    if (mounts.empty())
+    {
+        std::cout << "There are no FUSE mounts."
+                  << std::endl;
+        return;
+    }
+
+    for (auto i = 0u; i < mounts.size(); ++i)
+    {
+        const auto& info = mounts[i];
+
+        auto sourceNode = client->nodeByHandle(info.mHandle);
+        std::string sourcePath = "N/A";
+
+        if (sourceNode)
+            sourcePath = sourceNode->displaypath();
+
+        std::cout << "Mount #"
+                  << (i + 1)
+                  << ":\n"
+                  << "  Enabled at Startup: "
+                  << (info.mFlags.mEnableAtStartup ? "Yes" : "No")
+                  << "\n"
+                  << "  Enabled: "
+                  << client->mFuseService.enabled(info.mPath)
+                  << "\n"
+                  << "  Name: \""
+                  << info.mFlags.mName
+                  << "\"\n"
+                  << "  Read "
+                  << (info.mFlags.mReadOnly ? "Only" : "Write")
+                  << "\n"
+                  << "  Source Handle: "
+                  << toNodeHandle(info.mHandle)
+                  << "\n"
+                  << "  Source Path: "
+                  << sourcePath
+                  << "\n"
+                  << "  Target Path: "
+                  << info.mPath.toPath(true)
+                  << "\n"
+                  << std::endl;
+    }
+
+    std::cout << "Listed "
+              << mounts.size()
+              << " FUSE mount(s)."
+              << std::endl;
+}
+
+static void exec_fusemountremove(autocomplete::ACState& state)
+{
+    if (!isFullAccount("You must be logged in to remove a FUSE mount."))
+        return;
+
+    using namespace fuse;
+
+    auto name = std::string();
+    auto path = std::string();
+
+    if (state.extractflagparam("-name", name))
+    {
+        auto paths = client->mFuseService.paths(name);
+
+        if (paths.size() > 1)
+        {
+            std::cerr << "Multiple mounts are associated with the name \""
+                      << name
+                      << "\"."
+                      << std::endl;
+
+            return;
+        }
+
+        if (paths.empty())
+        {
+            std::cerr << "There are no mounts named \""
+                      << name
+                      << "\"."
+                      << std::endl;
+
+            return;
+        }
+
+        path = paths.front().toPath(false);
+    }
+
+    state.extractflagparam("-path", path);
+
+    auto result = client->mFuseService.remove(localPathArg(path));
+
+    if (result == MOUNT_SUCCESS)
+    {
+        std::cout << "Successfully removed mount against \""
+                  << path
+                  << "\"."
+                  << std::endl;
+
+        return;
+    }
+
+    std::cerr << "Failed to remove mount against \""
+              << path
+              << "\": "
+              << toString(result)
+              << std::endl;
+}
 
 MegaCLILogger gLogger;
 
@@ -4008,7 +4808,18 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_numberofnodes, sequence(text("nn")));
     p->Add(exec_numberofchildren, sequence(text("nc"), opt(remoteFSPath(client, &cwd))));
     p->Add(exec_searchbyname, sequence(text("sbn"), param("name"), opt(param("nodeHandle")), opt(flag("-norecursive")), opt(flag("-nosensitive"))));
-
+    p->Add(exec_nodedescription,
+           sequence(text("nodedescription"),
+                    remoteFSPath(client, &cwd),
+                    opt(either(flag("-remove"), sequence(flag("-set"), param("description"))))));
+    p->Add(exec_nodesensitive,
+           sequence(text("nodesensitive"), remoteFSPath(client, &cwd), opt(flag("-remove"))));
+    p->Add(exec_nodeTag,
+           sequence(text("nodetag"),
+                    remoteFSPath(client, &cwd),
+                    opt(either(sequence(flag("-remove"), param("tag")),
+                               sequence(flag("-add"), param("tag")),
+                               sequence(flag("-update"), param("newtag"), param("oldtag"))))));
 
 #ifdef ENABLE_SYNC
     p->Add(exec_setdevicename, sequence(text("setdevicename"), param("device_name")));
@@ -4020,11 +4831,13 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_backupcentre, sequence(text("backupcentre"), opt(either(
                                        sequence(flag("-del"), param("backup_id"), opt(param("move_to_handle"))),
                                        sequence(flag("-purge")),
-                                       sequence(flag("-stop"), param("backup_id"))))));
+                                       sequence(either(flag("-stop"), flag("-pause"), flag("-resume")), param("backup_id"))))));
 
     p->Add(exec_syncadd,
            sequence(text("sync"),
                     text("add"),
+                    opt(flag("-scan-only")),
+                    opt(sequence(flag("-scan-interval"), param("interval-secs"))),
                     either(
                         sequence(flag("-backup"),
                             opt(sequence(flag("-external"), param("drivePath"))),
@@ -4073,10 +4886,17 @@ autocomplete::ACN autocompleteSyntax()
                                     remoteFSFolder(client, &cwd))),
                     opt(param("backupdestinationfolder"))));
 
+    p->Add(exec_syncstatus,
+           sequence(text("sync"),
+                    text("status"),
+                    opt(param("id"))));
+
     p->Add(exec_syncxable, sequence(text("sync"),
             either(text("run"), text("pause"), text("suspend"), text("disable")),
             opt(sequence(flag("-error"), param("errorID"))),
             param("id")));
+
+    p->Add(exec_syncrescan, sequence(text("sync"), text("rescan"), param("id")));
 
     p->Add(exec_syncoutput,
            sequence(text("sync"),
@@ -4112,20 +4932,26 @@ autocomplete::ACN autocompleteSyntax()
                                                                           sequence(text("load"), localFSFile())))));
 #ifdef DEBUG
     p->Add(exec_delua, sequence(text("delua"), param("attrname")));
-    p->Add(exec_devcommand, sequence(text("devcommand"), param("subcommand"), opt(param("email"))));
+    p->Add(exec_devcommand, sequence(text("devcommand"), param("subcommand"),
+                                     opt(sequence(flag("-e"), param("email"))),
+                                     opt(sequence(flag("-c"), param("campaign"),
+                                                  flag("-g"), param("group_id")))));
 #endif
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
     p->Add(exec_simulatecondition, sequence(text("simulatecondition"), opt(text("ETOOMANY"))));
 #endif
     p->Add(exec_alerts, sequence(text("alerts"), opt(either(text("new"), text("old"), wholenumber(10), text("notify"), text("seen")))));
-    p->Add(exec_recentactions, sequence(text("recentactions"), param("hours"), param("maxcount")));
+    p->Add(exec_recentactions,
+           sequence(text("recentactions"),
+                    param("hours"),
+                    param("maxcount"),
+                    opt(flag("-nosensitive"))));
     p->Add(exec_recentnodes, sequence(text("recentnodes"), param("hours"), param("maxcount")));
 
     p->Add(exec_putbps, sequence(text("putbps"), opt(either(wholenumber(100000), text("auto"), text("none")))));
     p->Add(exec_killsession, sequence(text("killsession"), either(text("all"), param("sessionid"))));
     p->Add(exec_whoami, sequence(text("whoami"), repeat(either(flag("-storage"), flag("-transfer"), flag("-pro"), flag("-transactions"), flag("-purchases"), flag("-sessions")))));
     p->Add(exec_verifycredentials, sequence(text("credentials"), either(text("show"), text("status"), text("verify"), text("reset")), opt(contactEmail(client))));
-    p->Add(exec_secure, sequence(text("secure"), opt(either(flag("-on"), flag("-off")))));
     p->Add(exec_manualverif, sequence(text("verification"), opt(either(flag("-on"), flag("-off")))));
     p->Add(exec_passwd, sequence(text("passwd")));
     p->Add(exec_reset, sequence(text("reset"), contactEmail(client), opt(text("mk"))));
@@ -4253,7 +5079,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_setsandelements,
         sequence(text("setsandelements"),
                  either(text("list"),
-                        sequence(text("newset"), opt(param("name"))),
+                        sequence(text("newset"), param("type"), opt(param("name"))),
                         sequence(text("updateset"), param("id"), opt(sequence(flag("-n"), opt(param("name")))), opt(sequence(flag("-c"), opt(param("cover"))))),
                         sequence(text("removeset"), param("id")),
                         sequence(text("newelement"), param("setid"), param("nodehandle"),
@@ -4282,6 +5108,157 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_checkvpncredential, sequence(text("checkvpncredential"), param("userpublickey")));
     /* MEGA VPN commands END */
 
+    p->Add(exec_fetchcreditcardinfo, text("cci"));
+
+    p->Add(exec_passwordmanager,
+           sequence(text("pwdman"),
+                    either(text("list"),
+                           text("getbase"),
+                           text("createbase"),
+                           text("removebase"),
+                           sequence(text("newfolder"), param("parenthandle"), param("name")),
+                           sequence(text("renamefolder"), param("handle"), param("name")),
+                           sequence(text("removefolder"), param("handle")),
+                           sequence(text("newentry"),
+                                    param("parenthandle"),
+                                    param("name"),
+                                    param("pwd"),
+                                    opt(sequence(flag("-url"), param("url"))),
+                                    opt(sequence(flag("-u"), param("username"))),
+                                    opt(sequence(flag("-n"), param("notes")))),
+                           sequence(text("newentries"),
+                                    param("parenthandle"),
+                                    repeat(sequence(param("name"), param("uname"), param("pwd")))),
+                           sequence(text("getentrydata"), param("nodehandle")),
+                           sequence(text("renameentry"), param("nodehandle"), param("name")),
+                           sequence(text("updateentry"),
+                                    param("nodehandle"),
+                                    opt(sequence(flag("-p"), param("pwd"))),
+                                    opt(sequence(flag("-url"), param("url"))),
+                                    opt(sequence(flag("-u"), param("username"))),
+                                    opt(sequence(flag("-n"), param("note")))),
+                           sequence(text("removeentry"), param("nodehandle")))));
+
+    p->Add(exec_generatepassword,
+           sequence(text("generatepassword"),
+                    either(sequence(text("chars"),
+                                    param("length"),
+                                    opt(flag("-useUpper")),
+                                    opt(flag("-useDigits")),
+                                    opt(flag("-useSymbols")))
+                        )));
+
+    p->Add(exec_importpasswordsfromgooglefile,
+           sequence(text("importpasswordsgoogle"), localFSPath("file"), param("parenthandle")));
+
+    p->Add(exec_fusedb,
+           sequence(text("fuse"),
+                    text("db"),
+                    either(text("downgrade"),
+                           text("upgrade")),
+                    localFSFile("database"),
+                    wholenumber(0)));
+
+    p->Add(exec_fuseflags,
+           sequence(text("fuse"),
+                    text("flags"),
+                    repeat(either(sequence(flag("-cache-clean-age-threshold"),
+                                           wholenumber("seconds", 5 * 60)),
+                                  sequence(flag("-cache-clean-interval"),
+                                           wholenumber("seconds", 5 * 60)),
+                                  sequence(flag("-cache-clean-size-threshold"),
+                                           wholenumber("count", 64)),
+                                  sequence(flag("-cache-max-size"),
+                                           wholenumber("count", 256)),
+                                  sequence(flag("-flush-delay"),
+                                           wholenumber("seconds", 4)),
+                                  sequence(flag("-log-level"),
+                                           either(text("DEBUG"),
+                                                  text("ERROR"),
+                                                  text("INFO"),
+                                                  text("WARNING"))),
+                                  sequence(flag("-mount-max-thread-count"),
+                                           wholenumber("count", 16)),
+                                  sequence(flag("-mount-max-thread-idle-time"),
+                                           wholenumber("seconds", 16)),
+                                  sequence(flag("-mount-min-thread-count"),
+                                           wholenumber("count", 0)),
+                                  sequence(flag("-service-max-thread-count"),
+                                           wholenumber("count", 16)),
+                                  sequence(flag("-service-max-thread-idle-time"),
+                                           wholenumber("seconds", 16)),
+                                  sequence(flag("-service-min-thread-count"),
+                                           wholenumber("count", 0))))));
+
+    p->Add(exec_fusemountadd,
+           sequence(text("fuse"),
+                    text("mount"),
+                    text("add"),
+                    repeat(either(sequence(flag("-name"),
+                                           param("name")),
+                                  flag("-persistent"),
+                                  flag("-read-only"))),
+                    remoteFSFolder(client, &cwd, "source"),
+                    localFSFolder("target")));
+
+    p->Add(exec_fusemountdisable,
+           sequence(text("fuse"),
+                    text("mount"),
+                    text("disable"),
+                    sequence(either(sequence(flag("-name"),
+                                             param("name")),
+                                    sequence(flag("-path"),
+                                             localFSFolder("target"))),
+                             opt(flag("-remember")))));
+
+    p->Add(exec_fusemountenable,
+           sequence(text("fuse"),
+                    text("mount"),
+                    text("enable"),
+                    sequence(either(sequence(flag("-name"),
+                                             param("name")),
+                                    sequence(flag("-path"),
+                                             localFSFolder("target"))),
+                             opt(flag("-remember")))));
+
+    p->Add(exec_fusemountflags,
+           sequence(text("fuse"),
+                    text("mount"),
+                    text("flags"),
+                    either(sequence(flag("-by-name"),
+                                    param("name")),
+                           sequence(flag("-by-path"),
+                                    localFSFolder("target"))),
+                    repeat(either(flag("-disabled-at-startup"),
+                                  flag("-enabled-at-startup"),
+                                  sequence(flag("-name"),
+                                           param("name")),
+                                  flag("-persistent"),
+                                  flag("-read-only"),
+                                  flag("-transient"),
+                                  flag("-writable")))));
+
+    p->Add(exec_fusemountlist,
+           sequence(text("fuse"),
+                    text("mount"),
+                    text("list"),
+                    opt(flag("-only-active"))));
+
+    p->Add(exec_fusemountremove,
+           sequence(text("fuse"),
+                    text("mount"),
+                    text("remove"),
+                    either(sequence(flag("-name"),
+                                    param("name")),
+                           sequence(flag("-path"),
+                                    localFSFolder("target")))));
+
+    p->Add(exec_getpricing, text("getpricing"));
+
+    p->Add(exec_collectAndPrintTransferStats,
+           sequence(text("getTransferStats"), opt(either(flag("-uploads"), flag("-downloads")))));
+
+    p->Add(exec_hashcash, sequence(text("hashcash"), opt(either(flag("-on"), flag("-off")))));
     return autocompleteTemplate = std::move(p);
 }
 
@@ -4294,7 +5271,7 @@ bool recursiveget(fs::path&& localpath, Node* n, bool folders, unsigned& queued)
         if (!folders)
         {
             TransferDbCommitter committer(client->tctable);
-            auto file = ::mega::make_unique<AppFileGet>(n, NodeHandle(), nullptr, -1, 0, nullptr, nullptr, localpath.u8string());
+            auto file = std::make_unique<AppFileGet>(n, NodeHandle(), nullptr, -1, 0, nullptr, nullptr, localpath.u8string());
             error result = startxfer(committer, std::move(file), *n, client->nextreqtag());
             queued += result == API_OK ? 1 : 0;
         }
@@ -4315,9 +5292,9 @@ bool recursiveget(fs::path&& localpath, Node* n, bool folders, unsigned& queued)
                 return false;
             }
         }
-        for (Node* node : client->getChildren(n))
+        for (auto& node : client->getChildren(n))
         {
-            if (!recursiveget(std::move(newpath), node, folders, queued))
+            if (!recursiveget(std::move(newpath), node.get(), folders, queued))
             {
                 return false;
             }
@@ -4336,13 +5313,13 @@ bool regexget(const string& expression, Node* n, unsigned& queued)
         if (n->type == FOLDERNODE || n->type == ROOTNODE)
         {
             TransferDbCommitter committer(client->tctable);
-            for (Node* node : client->getChildren(n))
+            for (auto& node : client->getChildren(n))
             {
                 if (node->type == FILENODE)
                 {
                     if (regex_search(string(node->displayname()), re))
                     {
-                        auto file = ::mega::make_unique<AppFileGet>(node);
+                        auto file = std::make_unique<AppFileGet>(node.get());
                         error result = startxfer(committer, std::move(file), *node, client->nextreqtag());
                         queued += result == API_OK ? 1 : 0;
                     }
@@ -4362,6 +5339,7 @@ struct Login
 {
     string email, password, salt, pin;
     int version;
+    bool succeeded = false;
 
     Login() : version(0)
     {
@@ -4396,6 +5374,14 @@ struct Login
         {
             cout << "Login unexpected error" << endl;
         }
+    }
+
+    void fetchnodes(MegaClient* mc)
+    {
+        assert(succeeded);
+        cout << "Retrieving account after a succesful login..." << endl;
+        mc->fetchnodes(false, true, false);
+        succeeded = false;
     }
 };
 static Login login;
@@ -4577,7 +5563,7 @@ static void process_line(char* l)
 
 void exec_ls(autocomplete::ACState& s)
 {
-    Node* n;
+    std::shared_ptr<Node> n;
     bool recursive = s.extractflag("-R");
     string toFilename;
     bool toFileFlag = s.extractflagparam("-tofile", toFilename);
@@ -4599,7 +5585,7 @@ void exec_ls(autocomplete::ACState& s)
 
     if (n)
     {
-        dumptree(n, recursive, 0, NULL, toFileFlag ? &toFile : nullptr);
+        dumptree(n.get(), recursive, 0, NULL, toFileFlag ? &toFile : nullptr);
     }
 }
 
@@ -4607,7 +5593,7 @@ void exec_cd(autocomplete::ACState& s)
 {
     if (s.words.size() > 1)
     {
-        if (Node* n = nodebypath(s.words[1].s.c_str()))
+        if (std::shared_ptr<Node> n = nodebypath(s.words[1].s.c_str()))
         {
             if (n->type == FILENODE)
             {
@@ -4634,13 +5620,15 @@ void exec_rm(autocomplete::ACState& s)
     string childregexstring;
     bool useregex = s.extractflagparam("-regexchild", childregexstring);
 
-    if (Node* n = nodebypath(s.words[1].s.c_str()))
+    if (std::shared_ptr<Node> n = nodebypath(s.words[1].s.c_str()))
     {
-        vector<Node*> v;
+        vector<std::shared_ptr<Node> > v;
+        sharedNode_list children;
         if (useregex)
         {
             std::regex re(childregexstring);
-            for (Node* c : client->getChildren(n))
+            children = client->getChildren(n.get());
+            for (auto& c : children)
             {
                 if (std::regex_match(c->displayname(), re))
                 {
@@ -4653,9 +5641,9 @@ void exec_rm(autocomplete::ACState& s)
             v.push_back(n);
         }
 
-        for (auto d : v)
+        for (auto& d : v)
         {
-            error e = client->unlink(d, false, 0, false);
+            error e = client->unlink(d.get(), false, 0, false);
 
             if (e)
             {
@@ -4671,7 +5659,7 @@ void exec_rm(autocomplete::ACState& s)
 
 void exec_mv(autocomplete::ACState& s)
 {
-    Node *n, *tn;
+    std::shared_ptr<Node> n, tn;
     string newname;
 
     if (s.words.size() > 2)
@@ -4698,9 +5686,9 @@ void exec_mv(autocomplete::ACState& s)
                     }
                     else
                     {
-                        if ((e = client->checkmove(n, tn)) == API_OK)
+                        if ((e = client->checkmove(n.get(), tn.get())) == API_OK)
                         {
-                            if (!client->checkaccess(n, RDWR))
+                            if (!client->checkaccess(n.get(), RDWR))
                             {
                                 cout << "Write access denied" << endl;
 
@@ -4731,9 +5719,9 @@ void exec_mv(autocomplete::ACState& s)
                             return;
                         }
 
-                        if ((e = client->checkmove(n, tn->parent)) == API_OK)
+                        if ((e = client->checkmove(n.get(), tn->parent.get())) == API_OK)
                         {
-                            if (!client->checkaccess(n, RDWR))
+                            if (!client->checkaccess(n.get(), RDWR))
                             {
                                 cout << "Write access denied" << endl;
 
@@ -4751,7 +5739,7 @@ void exec_mv(autocomplete::ACState& s)
                             if (n != tn)
                             {
                                 // ...delete target...
-                                e = client->unlink(tn, false, 0, false);
+                                e = client->unlink(tn.get(), false, 0, false);
 
                                 if (e)
                                 {
@@ -4765,7 +5753,7 @@ void exec_mv(autocomplete::ACState& s)
                     }
                     else
                     {
-                        e = client->checkmove(n, tn);
+                        e = client->checkmove(n.get(), tn.get());
                     }
                 }
 
@@ -4801,7 +5789,7 @@ void exec_mv(autocomplete::ACState& s)
 
 void exec_cp(autocomplete::ACState& s)
 {
-    Node *n, *tn;
+    std::shared_ptr<Node> n, tn;
     string targetuser;
     string newname;
     error e;
@@ -4820,7 +5808,7 @@ void exec_cp(autocomplete::ACState& s)
         {
             if ((tn = nodebypath(s.words[2].s.c_str(), &targetuser, &newname)))
             {
-                if (!client->checkaccess(tn, RDWR))
+                if (!client->checkaccess(tn.get(), RDWR))
                 {
                     cout << "Write access denied" << endl;
 
@@ -4840,7 +5828,7 @@ void exec_cp(autocomplete::ACState& s)
                         }
 
                         // ...delete target...
-                        e = client->unlink(tn, false, 0, false);
+                        e = client->unlink(tn.get(), false, 0, false);
 
                         if (e)
                         {
@@ -4896,10 +5884,10 @@ void exec_cp(autocomplete::ACState& s)
 
             if (tn && n->type == FILENODE && !allowDuplicateVersions)
             {
-                Node *ovn = client->childnodebyname(tn, sname.c_str(), true);
+                std::shared_ptr<Node> ovn = client->childnodebyname(tn.get(), sname.c_str(), true);
                 if (ovn)
                 {
-                    if (n->isvalid && ovn->isvalid && *(FileFingerprint*)n == *(FileFingerprint*)ovn)
+                    if (n->isvalid && ovn->isvalid && *(FileFingerprint*)n.get() == *(FileFingerprint*)ovn.get())
                     {
                         cout << "Skipping identical node" << endl;
                         return;
@@ -4971,11 +5959,12 @@ void exec_du(autocomplete::ACState &s)
 {
     bool listfolders = s.extractflag("-listfolders");
 
-    Node *n;
+    std::shared_ptr<Node> n;
 
     if (s.words.size() > 1)
     {
-        if (!(n = nodebypath(s.words[1].s.c_str())))
+        n = nodebypath(s.words[1].s.c_str());
+        if (!n)
         {
             cout << s.words[1].s << ": No such file or directory" << endl;
             return;
@@ -4993,12 +5982,12 @@ void exec_du(autocomplete::ACState &s)
 
     if (listfolders)
     {
-        auto list = client->getChildren(n);
-        vector<Node*> vec(list.begin(), list.end());
-        std::sort(vec.begin(), vec.end(), [](Node* a, Node* b){
+        auto list = client->getChildren(n.get());
+        vector<shared_ptr<Node> > vec(list.begin(), list.end());
+        std::sort(vec.begin(), vec.end(), [](shared_ptr<Node> & a, shared_ptr<Node> & b){
             return a->getCounter().files + a->getCounter().folders <
                    b->getCounter().files + b->getCounter().folders; });
-        for (Node* f : vec)
+        for (auto& f : vec)
         {
             if (f->type == FOLDERNODE)
             {
@@ -5022,7 +6011,7 @@ void exec_du(autocomplete::ACState &s)
 
 void exec_get(autocomplete::ACState& s)
 {
-    Node *n;
+    std::shared_ptr<Node> n;
     string regularexpression;
     if (s.extractflag("-r"))
     {
@@ -5042,12 +6031,12 @@ void exec_get(autocomplete::ACState& s)
         {
             unsigned queued = 0;
             cout << "creating folders: " << endl;
-            if (recursiveget(fs::current_path(), n, true, queued))
+            if (recursiveget(fs::current_path(), n.get(), true, queued))
             {
                 if (!foldersonly)
                 {
                     cout << "queueing files..." << endl;
-                    bool alldone = recursiveget(fs::current_path(), n, false, queued);
+                    bool alldone = recursiveget(fs::current_path(), n.get(), false, queued);
                     cout << "queued " << queued << " files for download" << (!alldone ? " before failure" : "") << endl;
                 }
             }
@@ -5069,7 +6058,7 @@ void exec_get(autocomplete::ACState& s)
         else
         {
             unsigned queued = 0;
-            if (regexget(regularexpression, n, queued))
+            if (regexget(regularexpression, n.get(), queued))
             {
                 cout << "queued " << queued << " files for download" << endl;
             }
@@ -5083,16 +6072,33 @@ void exec_get(autocomplete::ACState& s)
         {
             cout << "Checking link..." << endl;
 
-            client->reqs.add(new CommandGetFile(client, key, FILENODEKEYLENGTH, ph, false, nullptr, nullptr, nullptr, false,
-                [key, ph](const Error &e, m_off_t size, dstime /*timeleft*/,
-                   std::string* filename, std::string* fingerprint, std::string* fileattrstring,
-                   const std::vector<std::string> &/*tempurls*/, const std::vector<std::string> &/*ips*/)
+            client->reqs.add(new CommandGetFile(
+                client,
+                key,
+                FILENODEKEYLENGTH,
+                false,
+                ph,
+                false,
+                nullptr,
+                nullptr,
+                nullptr,
+                false,
+                [key, ph](const Error& e,
+                          m_off_t size,
+                          dstime /*timeleft*/,
+                          std::string* filename,
+                          std::string* fingerprint,
+                          std::string* fileattrstring,
+                          const std::vector<std::string>& /*tempurls*/,
+                          const std::vector<std::string>& /*ips*/,
+                          const std::string& /*fileHandle*/)
                 {
                     if (!fingerprint) // failed processing the command
                     {
                         if (e == API_ETOOMANY && e.hasExtraInfo())
                         {
-                             cout << "Link check failed: " << DemoApp::getExtraInfoErrorString(e) << endl;
+                            cout << "Link check failed: " << DemoApp::getExtraInfoErrorString(e)
+                                 << endl;
                         }
                         else
                         {
@@ -5124,7 +6130,7 @@ void exec_get(autocomplete::ACState& s)
                         cout << "Initiating download..." << endl;
 
                         TransferDbCommitter committer(client->tctable);
-                        auto file = ::mega::make_unique<AppFileGet>(nullptr, NodeHandle().set6byte(ph), (byte*)key, size, 0, filename, fingerprint);
+                        auto file = std::make_unique<AppFileGet>(nullptr, NodeHandle().set6byte(ph), (byte*)key, size, 0, filename, fingerprint);
                         startxfer(committer, std::move(file), *filename, client->nextreqtag());
                     }
 
@@ -5164,7 +6170,7 @@ void exec_get(autocomplete::ACState& s)
                     pread_file_end = offset + count;
                 }
 
-                client->pread(n, offset, count, NULL);
+                client->pread(n.get(), offset, count, NULL);
             }
             else
             {
@@ -5173,7 +6179,7 @@ void exec_get(autocomplete::ACState& s)
                 // queue specified file...
                 if (n->type == FILENODE)
                 {
-                    auto f = ::mega::make_unique<AppFileGet>(n);
+                    auto f = std::make_unique<AppFileGet>(n.get());
 
                     string::size_type index = s.words[1].s.find(":");
                     // node from public folder link
@@ -5193,12 +6199,12 @@ void exec_get(autocomplete::ACState& s)
                 else
                 {
                     // ...or all files in the specified folder (non-recursive)
-                    for (Node* node : client->getChildren(n))
+                    for (auto& node : client->getChildren(n.get()))
                     {
                         if (node->type == FILENODE)
                         {
-                            auto f = ::mega::make_unique<AppFileGet>(node);
-                            startxfer(committer, std::move(f), *node, client->nextreqtag());
+                            auto f = std::make_unique<AppFileGet>(node.get());
+                            startxfer(committer, std::move(f), *node.get(), client->nextreqtag());
                         }
                     }
                 }
@@ -5216,7 +6222,7 @@ void exec_get(autocomplete::ACState& s)
  * Node contents are fetched one page at a time, defaulting to 1KB of data.
  * Improvement: Get console layout and use width*height for precise pagination.
  */
-static Node    *more_node = nullptr; // Remote node that we are paging through
+static std::shared_ptr<Node> more_node = nullptr; // Remote node that we are paging through
 static m_off_t  more_offset = 0; // Current offset in the remote file
 static const m_off_t MORE_BYTES = 1024;
 
@@ -5232,7 +6238,7 @@ void exec_more(autocomplete::ACState& s)
         m_off_t count = (more_offset + MORE_BYTES <= more_node->size)
                 ? MORE_BYTES : (more_node->size - more_offset);
 
-        client->pread(more_node, more_offset, count, NULL);
+        client->pread(more_node.get(), more_offset, count, NULL);
     }
 }
 
@@ -5243,7 +6249,7 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
     std::function<std::function<void()>(LocalPath)> onCompletedGenerator, bool noRetries, bool allowDuplicateVersions)
 {
 
-    Node *previousNode = client->childnodebyname(parent, name.c_str(), false);
+    std::shared_ptr<Node> previousNode = client->childnodebyname(parent, name.c_str(), false);
 
     if (type == FILENODE)
     {
@@ -5257,7 +6263,7 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
             {
                 if (previousNode->type == FILENODE)
                 {
-                    if (!allowDuplicateVersions && fp.isvalid && previousNode->isvalid && fp == *((FileFingerprint *)previousNode))
+                    if (!allowDuplicateVersions && fp.isvalid && previousNode->isvalid && fp == *((FileFingerprint *)previousNode.get()))
                     {
                         cout << "Identical file already exist. Skipping transfer of " << name << endl;
                         return;
@@ -5298,7 +6304,7 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
             else
             {
                 // upload into existing folder with the same name
-                uploadLocalFolderContent(localname, previousNode, vo, true);
+                uploadLocalFolderContent(localname, previousNode.get(), vo, true);
             }
         }
         else
@@ -5402,7 +6408,7 @@ void exec_put(autocomplete::ACState& s)
     string targetuser;
     string newname;
     int total = 0;
-    Node* n = NULL;
+    std::shared_ptr<Node> n;
 
     VersioningOption vo = UseLocalVersioningFlag;
     if (s.extractflag("-noversion")) vo = NoVersioning;
@@ -5455,7 +6461,7 @@ void exec_put(autocomplete::ACState& s)
             {
                 cout << "Queueing " << leafNameUtf8 << "..." << endl;
             }
-            uploadLocalPath(type, leafNameUtf8, itemlocalname, n, targetuser, committer, total, recursive, vo, nullptr, false, allowDuplicateVersions);
+            uploadLocalPath(type, leafNameUtf8, itemlocalname, n.get(), targetuser, committer, total, recursive, vo, nullptr, false, allowDuplicateVersions);
         }
     }
 
@@ -5657,31 +6663,28 @@ void exec_open(autocomplete::ACState& s)
         if (!clientFolder)
         {
             using namespace mega;
-#ifdef GFX_CLASS
-            auto gfx = new GfxProc(::mega::make_unique<GFX_CLASS>());
-            gfx->startProcessingThread();
-#endif
+
+            auto provider = IGfxProvider::createInternalGfxProvider();
+            GfxProc* gfx = provider ? new GfxProc(std::move(provider)) : nullptr;
+            if (gfx) gfx->startProcessingThread();
 
             // create a new MegaClient with a different MegaApp to process callbacks
             // from the client logged into a folder. Reuse the waiter and httpio
-            clientFolder = new MegaClient(new DemoAppFolder,
-                                          client->waiter,
-                                          client->httpio,
-                #ifdef DBACCESS_CLASS
-                                          new DBACCESS_CLASS(*startDir),
-                #else
-                                          NULL,
-                #endif
-                #ifdef GFX_CLASS
-                                          gfx,
-                #else
-                                          NULL,
-                #endif
-                                          "Gk8DyQBS",
-                                          "megacli_folder/" TOSTRING(MEGA_MAJOR_VERSION)
-                                          "." TOSTRING(MEGA_MINOR_VERSION)
-                                          "." TOSTRING(MEGA_MICRO_VERSION),
-                                          2);
+            clientFolder =
+                new MegaClient(new DemoAppFolder,
+                               client->waiter,
+                               client->httpio,
+#ifdef DBACCESS_CLASS
+                               new DBACCESS_CLASS(*startDir),
+#else
+                               NULL,
+#endif
+                               gfx,
+                               "Gk8DyQBS",
+                               "megacli_folder/" TOSTRING(MEGA_MAJOR_VERSION) "." TOSTRING(
+                                   MEGA_MINOR_VERSION) "." TOSTRING(MEGA_MICRO_VERSION),
+                               2,
+                               client->getClientType());
         }
         else
         {
@@ -5700,6 +6703,17 @@ void exec_open(autocomplete::ACState& s)
         cout << "Invalid folder link." << endl;
     }
 }
+#ifdef ENABLE_SYNC
+
+void exec_syncrescan(autocomplete::ACState& s)
+{
+    handle backupId = 0;
+    Base64::atob(s.words[2].s.c_str(), (byte*)&backupId, int(sizeof(backupId)));
+
+    client->syncs.setSyncsNeedFullSync(true, true, backupId);
+}
+
+#endif
 
 #ifdef USE_FILESYSTEM
 void exec_lpwd(autocomplete::ACState& s)
@@ -5804,6 +6818,7 @@ void exec_begin(autocomplete::ACState& s)
     if (s.words.size() == 1)
     {
         cout << "Creating ephemeral session..." << endl;
+
         pdf_to_import = true;
         client->createephemeral();
     }
@@ -5861,11 +6876,11 @@ void exec_share(autocomplete::ACState& s)
     case 3:	    // remove outgoing share to specified e-mail address
     case 4:	    // add outgoing share to specified e-mail address
     case 5:     // user specified a personal representation to appear as for the invitation
-        if (Node* n = nodebypath(s.words[1].s.c_str()))
+        if (std::shared_ptr<Node> n = nodebypath(s.words[1].s.c_str()))
         {
             if (s.words.size() == 2)
             {
-                listnodeshares(n, false);
+                listnodeshares(n.get(), false);
             }
             else
             {
@@ -5901,7 +6916,7 @@ void exec_share(autocomplete::ACState& s)
                 handle nodehandle = n->nodehandle;
                 std::function<void()> completeShare = [nodehandle, s, a, writable, personal_representation]()
                 {
-                    Node* n = client->nodebyhandle(nodehandle);
+                    std::shared_ptr<Node> n = client->nodebyhandle(nodehandle);
                     if (!n)
                     {
                         cout << "Node not found." << endl;
@@ -5923,7 +6938,7 @@ void exec_share(autocomplete::ACState& s)
 
                 if (a != ACCESS_UNKNOWN)
                 {
-                    client->openShareDialog(n, [completeShare](Error e)
+                    client->openShareDialog(n.get(), [completeShare](Error e)
                     {
                         if (e)
                         {
@@ -6047,7 +7062,7 @@ void exec_mkdir(autocomplete::ACState& s)
     {
         string newname;
 
-        Node* n;
+        std::shared_ptr<Node> n;
         if (exactLeafName)
         {
             n = client->nodeByHandle(cwd);
@@ -6060,7 +7075,7 @@ void exec_mkdir(autocomplete::ACState& s)
 
         if (n)
         {
-            if (!client->checkaccess(n, RDWR))
+            if (!client->checkaccess(n.get(), RDWR))
             {
                 cout << "Write access denied" << endl;
 
@@ -6097,7 +7112,7 @@ void exec_mkdir(autocomplete::ACState& s)
 
 void exec_getfa(autocomplete::ACState& s)
 {
-    Node* n;
+    std::shared_ptr<Node> n;
     int cancel = s.words.size() > 2 && s.words.back().s == "cancel";
 
     if (s.words.size() < 3)
@@ -6126,7 +7141,7 @@ void exec_getfa(autocomplete::ACState& s)
         }
         else
         {
-            for (Node* node : client->getChildren(n))
+            for (auto& node : client->getChildren(n.get()))
             {
                 if (node->type == FILENODE && node->hasfileattribute(type))
                 {
@@ -6221,9 +7236,9 @@ void exec_putua(autocomplete::ACState& s)
         else if (s.words[2].s == "set64")
         {
             int len = int(s.words[3].s.size() * 3 / 4 + 3);
-            byte *value = new byte[len];
+            byte* value = new byte[static_cast<size_t>(len)];
             int valuelen = Base64::atob(s.words[3].s.data(), value, len);
-            client->putua(attrtype, value, valuelen);
+            client->putua(attrtype, value, static_cast<unsigned>(valuelen));
             delete [] value;
             return;
         }
@@ -6396,7 +7411,7 @@ void exec_debug(autocomplete::ACState& s)
         }
     }
 
-    cout << "Debug level set to " << SimpleLogger::logCurrentLevel << endl;
+    cout << "Debug level set to " << SimpleLogger::getLogLevel() << endl;
     cout << "Log to console: " << (gLogger.logToConsole ? "on" : "off") << endl;
     cout << "Log to file: " << (gLogger.mLogFile.is_open() ? gLogger.mLogFileName : "<off>") << endl;
 
@@ -6539,7 +7554,7 @@ void exec_chatc(autocomplete::ACState& s)
             numUsers++;
         }
 
-        client->createChat(group, false, userpriv);
+        client->createChat(group != 0, false, userpriv);
         delete userpriv;
     }
 }
@@ -7005,9 +8020,10 @@ void exec_verifycredentials(autocomplete::ACState& s)
 
     if (s.words[1].s == "show")
     {
-        if (u->isattrvalid(ATTR_ED25519_PUBK))
+        const UserAttribute* attribute = u->getAttribute(ATTR_ED25519_PUBK);
+        if (attribute && attribute->isValid())
         {
-            cout << "Credentials: " << AuthRing::fingerprint(*u->getattr(ATTR_ED25519_PUBK), true) << endl;
+            cout << "Credentials: " << AuthRing::fingerprint(attribute->value(), true) << endl;
         }
         else
         {
@@ -7023,7 +8039,7 @@ void exec_verifycredentials(autocomplete::ACState& s)
     else if (s.words[1].s == "verify")
     {
         error e;
-        if ((e = client->verifyCredentials(u->userhandle)))
+        if ((e = client->verifyCredentials(u->userhandle, nullptr)))
         {
             cout << "Verification failed. Error: " << errorstring(e) << endl;
             return;
@@ -7032,7 +8048,7 @@ void exec_verifycredentials(autocomplete::ACState& s)
     else if (s.words[1].s == "reset")
     {
         error e;
-        if ((e = client->resetCredentials(u->userhandle)))
+        if ((e = client->resetCredentials(u->userhandle, nullptr)))
         {
             cout << "Reset verification failed. Error: " << errorstring(e) << endl;
             return;
@@ -7044,7 +8060,7 @@ void exec_export(autocomplete::ACState& s)
 {
     void exportnode_result(Error e, handle h, handle ph);
 
-    Node* n;
+    std::shared_ptr<Node> n;
     int deltmp = 0;
     int etstmp = 0;
 
@@ -7067,9 +8083,16 @@ void exec_export(autocomplete::ACState& s)
         cout << "Exporting..." << endl;
 
         error e;
-        if ((e = client->exportnode(n, deltmp, etstmp, writable, megaHosted, gNextClientTag++, [](Error e, handle h, handle ph){
-            exportnode_result(e, h, ph);
-        })))
+        if ((e = client->exportnode(n,
+                                    deltmp,
+                                    etstmp,
+                                    writable,
+                                    megaHosted,
+                                    gNextClientTag++,
+                                    [](Error e, handle h, handle ph, string&&)
+                                    {
+                                        exportnode_result(e, h, ph);
+                                    })))
         {
             cout << s.words[1].s << ": Export rejected (" << errorstring(e) << ")" << endl;
         }
@@ -7160,7 +8183,7 @@ void exec_reload(autocomplete::ACState& s)
 
     cwd = NodeHandle();
     client->cachedscsn = UNDEF;
-    client->fetchnodes(nocache);
+    client->fetchnodes(nocache, false, true);
 }
 
 void exec_logout(autocomplete::ACState& s)
@@ -7441,11 +8464,23 @@ void exec_alerts(autocomplete::ACState& s)
         }
         else if (s.words[1].s == "test_payment")
         {
-            client->useralerts.add(new UserAlert::Payment(true, 1, time(NULL) + 86000 * 1, client->useralerts.nextId()));
+            client->useralerts.add(new UserAlert::Payment(true,
+                                                          1,
+                                                          time(NULL) + 86000 * 1,
+                                                          client->useralerts.nextId(),
+                                                          name_id::psts));
+        }
+        else if (s.words[1].s == "test_payment_v2")
+        {
+            client->useralerts.add(new UserAlert::Payment(true,
+                                                          1,
+                                                          time(NULL) + 86000 * 1,
+                                                          client->useralerts.nextId(),
+                                                          name_id::psts_v2));
         }
         else if (atoi(s.words[1].s.c_str()) > 0)
         {
-            showN = atoi(s.words[1].s.c_str());
+            showN = static_cast<size_t>(atoi(s.words[1].s.c_str()));
         }
     }
     if (showold || shownew || showN > 0)
@@ -7586,6 +8621,10 @@ void exec_version(autocomplete::ACState& s)
 
 #ifdef HAVE_PDFIUM
     cout << "* PDFium" << endl;
+#endif
+
+#ifdef HAVE_FFMPEG
+    cout << "* FFmpeg" << endl;
 #endif
 
 #ifdef ENABLE_SYNC
@@ -7769,12 +8808,12 @@ void exec_mediainfo(autocomplete::ACState& s)
     }
     else if (s.words.size() == 3 && s.words[1].s == "show")
     {
-        if (Node *n = nodebypath(s.words[2].s.c_str()))
+        if (std::shared_ptr<Node> n = nodebypath(s.words[2].s.c_str()))
         {
             switch (n->type)
             {
             case FILENODE:
-                cout << showMediaInfo(n, client->mediaFileInfo, false) << endl;
+                cout << showMediaInfo(n.get(), client->mediaFileInfo, false) << endl;
                 break;
 
             case FOLDERNODE:
@@ -7782,17 +8821,19 @@ void exec_mediainfo(autocomplete::ACState& s)
             case VAULTNODE:
             case RUBBISHNODE:
             {
-                for (Node* m : client->getChildren(n))
+                for (auto& m : client->getChildren(n.get()))
                 {
                     if (m->type == FILENODE && m->hasfileattribute(fa_media))
                     {
-                        cout << m->displayname() << "   " << showMediaInfo(m, client->mediaFileInfo, true) << endl;
+                        cout << m->displayname() << "   " << showMediaInfo(m.get(), client->mediaFileInfo, true) << endl;
                     }
                 }
                 break;
             }
             case TYPE_DONOTSYNC:
+            case TYPE_NESTED_MOUNT:
             case TYPE_SPECIAL:
+            case TYPE_SYMLINK:
             case TYPE_UNKNOWN:
                 cout << "node type is inappropriate for mediainfo: " << n->type << endl;
                 break;
@@ -7866,7 +8907,41 @@ void exec_recentnodes(autocomplete::ACState& s)
 {
     if (s.words.size() == 3)
     {
-        node_vector nv = client->mNodeManager.getRecentNodes(atoi(s.words[2].s.c_str()), m_time() - 60 * 60 * atoi(s.words[1].s.c_str()));
+        int maxElements{};
+        if (auto [ptr, ec] = std::from_chars(s.words[2].s.data(),
+                                             s.words[2].s.data() + s.words[2].s.size(),
+                                             maxElements);
+            ec != std::errc{})
+        {
+            std::cout << "Invalid max elements parameter" << endl;
+            return;
+        }
+
+        int time{};
+        if (auto [ptr, ec] = std::from_chars(s.words[1].s.data(),
+                                             s.words[1].s.data() + s.words[1].s.size(),
+                                             time);
+            ec != std::errc{})
+        {
+            std::cout << "Invalid duration parameter" << endl;
+            return;
+        }
+
+        NodeSearchFilter filter;
+        filter.byAncestors({client->mNodeManager.getRootNodeFiles().as8byte(),
+                            client->mNodeManager.getRootNodeVault().as8byte(),
+                            UNDEF});
+
+        filter.byCreationTimeLowerLimitInSecs(m_time() - 60 * 60 * time);
+        filter.bySensitivity(NodeSearchFilter::BoolFilter::onlyTrue);
+        filter.byNodeType(FILENODE);
+        filter.setIncludedShares(IN_SHARES);
+        sharedNode_vector nv =
+            client->mNodeManager.searchNodes(filter,
+                                             OrderByClause::CTIME_DESC,
+                                             CancelToken(),
+                                             NodeSearchPage{0, static_cast<size_t>(maxElements)});
+
         for (unsigned i = 0; i < nv.size(); ++i)
         {
             cout << nv[i]->displaypath() << endl;
@@ -7894,7 +8969,12 @@ void exec_autocomplete(autocomplete::ACState& s)
 
 void exec_recentactions(autocomplete::ACState& s)
 {
-    recentactions_vector nvv = client->getRecentActions(atoi(s.words[2].s.c_str()), m_time() - 60 * 60 * atoi(s.words[1].s.c_str()));
+    const bool excludeSens = s.extractflag("-nosensitive");
+    recentactions_vector nvv =
+        client->getRecentActions(static_cast<unsigned>(atoi(s.words[2].s.c_str())),
+                                 m_time() - 60 * 60 * atoi(s.words[1].s.c_str()),
+                                 excludeSens);
+
     for (unsigned i = 0; i < nvv.size(); ++i)
     {
         if (i != 0)
@@ -7933,7 +9013,7 @@ void exec_setmaxloglinesize(autocomplete::ACState& s)
 {
     if (s.words.size() > 1)
     {
-        SimpleLogger::maxPayloadLogSize = atoi(s.words[1].s.c_str());
+        SimpleLogger::setMaxPayloadLogSize(atoll(s.words[1].s.c_str()));
     }
 }
 
@@ -8000,7 +9080,7 @@ void exec_driveid(autocomplete::ACState& s)
             return;
 
         default:
-            assert(!"Uexpected result from readDriveID(...)");
+            assert(false && "Unexpected result from readDriveID(...)");
             cerr << "Unexpected result from readDriveId(...): "
                  << errorstring(result)
                  << endl;
@@ -8222,8 +9302,10 @@ void DemoApp::login_result(error e)
     if (!e)
     {
         login.reset();
-        cout << "Login successful, retrieving account..." << endl;
-        client->fetchnodes();
+        cout << "Login successful." << endl;
+        // Delay fetchnodes to give time to the SDK to finish and unlock the internal
+        // "nodeTreeMutex".
+        login.succeeded = true;
     }
     else if (e == API_EMFAREQUIRED)
     {
@@ -8355,7 +9437,7 @@ void DemoApp::getprivatekey_result(error e,  const byte *privk, const size_t len
         key.ecb_decrypt(privkbuf, len_privk);
 
         AsymmCipher uk;
-        if (!uk.setkey(AsymmCipher::PRIVKEY, privkbuf, unsigned(len_privk)))
+        if (!uk.setkey(AsymmCipher::PRIVKEY, privkbuf, static_cast<int>(len_privk)))
         {
             cout << "The master key doesn't seem to be correct." << endl;
 
@@ -8464,7 +9546,7 @@ void DemoApp::ephemeral_result(handle uh, const byte* pw)
         cout << Base64::btoa(session) << endl;
     }
 
-    client->fetchnodes();
+    client->fetchnodes(false, false, false);
 }
 
 void DemoApp::cancelsignup_result(error)
@@ -8579,7 +9661,7 @@ void exportnode_result(Error e, handle h, handle ph)
         return;
     }
 
-    Node* n;
+    std::shared_ptr<Node> n;
 
     if ((n = client->nodebyhandle(h)))
     {
@@ -8656,7 +9738,7 @@ void DemoApp::openfilelink_result(const Error& e)
 void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
                                   string* a, string* /*fa*/, int)
 {
-    Node* n;
+    std::shared_ptr<Node> n;
 
     if (!key)
     {
@@ -8669,7 +9751,8 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
     string attrstring;
 
     attrstring.resize(a->length()*4/3+4);
-    attrstring.resize(Base64::btoa((const byte *)a->data(), int(a->length()), (char *)attrstring.data()));
+    attrstring.resize(static_cast<size_t>(
+        Base64::btoa((const byte*)a->data(), int(a->length()), (char*)attrstring.data())));
 
     SymmCipher nodeKey;
     nodeKey.setkey(key, FILENODE);
@@ -8728,7 +9811,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
         attr_map::iterator it = attrs.map.find('n');
         if (it != attrs.map.end())
         {
-            Node *ovn = client->childnodebyname(n, it->second.c_str(), true);
+            std::shared_ptr<Node> ovn = client->childnodebyname(n.get(), it->second.c_str(), true);
             if (ovn)
             {
                 attr_map::iterator it2 = attrs.map.find('c');
@@ -8738,7 +9821,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
                     if (ffp.unserializefingerprint(&it2->second))
                     {
                         ffp.size = size;
-                        if (ffp.isvalid && ovn->isvalid && ffp == *(FileFingerprint*)ovn)
+                        if (ffp.isvalid && ovn->isvalid && ffp == *(FileFingerprint*)ovn.get())
                         {
                             cout << "Success. (identical node skipped)" << endl;
                             pdf_to_import = false;
@@ -8854,7 +9937,7 @@ bool DemoApp::pread_data(byte* data, m_off_t len, m_off_t pos, m_off_t, m_off_t,
     }
     else if (pread_file)
     {
-        pread_file->write((const char*)data, (size_t)len);
+        pread_file->write((const char*)data, static_cast<std::streamsize>(len));
         cout << "Received " << len << " partial read byte(s) at position " << pos << endl;
         if (pread_file_end == pos + len)
         {
@@ -8887,7 +9970,7 @@ dstime DemoApp::pread_failure(const Error &e, int retry, void* /*appdata*/, dsti
             delete pread_file;
             pread_file = NULL;
         }
-        return ~(dstime)0;
+        return NEVER;
     }
 }
 
@@ -8911,27 +9994,29 @@ void DemoApp::clearing()
 // nodes have been modified
 // (nodes with their removed flag set will be deleted immediately after returning from this call,
 // at which point their pointers will become invalid at that point.)
-void DemoApp::nodes_updated(Node** n, int count)
+void DemoApp::nodes_updated(sharedNode_vector* nodes, int count)
 {
     int c[2][6] = { { 0 } };
 
-    if (n)
+    if (nodes)
     {
+        auto it = nodes->begin();
         while (count--)
         {
-            if ((*n)->type < 6)
+            if ((*it)->type < 6)
             {
-                c[!(*n)->changed.removed][(*n)->type]++;
-                n++;
+                c[!(*it)->changed.removed][(*it)->type]++;
+                it++;
             }
         }
     }
     else
     {
-        node_vector nodes = client->mNodeManager.getRootNodes();
-        node_vector inshares = client->mNodeManager.getNodesWithInShares();
-        nodes.insert(nodes.end(), inshares.begin(), inshares.end());
-        for (auto& node : nodes)
+        sharedNode_vector rootNodes = client->mNodeManager.getRootNodes();
+
+        sharedNode_vector inshares = client->mNodeManager.getNodesWithInShares();
+        rootNodes.insert(rootNodes.end(), inshares.begin(), inshares.end());
+        for (auto& node : rootNodes)
         {
             if (!node->parent) // No take account nested inshares
             {
@@ -8981,8 +10066,16 @@ void DemoApp::notify_confirm_user_email(handle user, const char *email)
 {
     if (client->loggedin() == EPHEMERALACCOUNT || client->loggedin() == EPHEMERALACCOUNTPLUSPLUS)
     {
-        LOG_debug << "Account has been confirmed with user " << user << " and email " << email << ". Proceed to login with credentials.";
-        cout << "Account has been confirmed with user " << toHandle(user) << " and email " << email << ". Proceed to login with credentials.";
+        LOG_debug << "Account has been confirmed with user " << toHandle(user) << " and email " << email << ". Proceed to login with credentials.";
+        cout << "Account has been confirmed with user " << toHandle(user) << " and email " << email << ". Proceed to login with credentials." << endl;
+    }
+}
+
+void DemoApp::sequencetag_update(const string& st)
+{
+    if(gVerboseMode)
+    {
+        conlock(cout) << "Latest seqTag: " << st << endl;
     }
 }
 
@@ -9058,14 +10151,57 @@ void DemoApp::setelements_updated(SetElement** el, int count)
     }
 }
 
-void DemoApp::enumeratequotaitems_result(unsigned, handle, unsigned, int, int, unsigned, unsigned, unsigned, unsigned, const char*, const char*, const char*, std::unique_ptr<BusinessPlan>)
+void DemoApp::enumeratequotaitems_result(const Product& product)
 {
-    // FIXME: implement
+    if (product.planType != 1) // All plans but Business
+    {
+        cout << "\n" << product.description << ":\n";
+        cout << "\tPro level: " << product.proLevel << "\n";
+        cout << "\tStorage: " << product.gbStorage << "\n";
+        cout << "\tTransfer: " << product.gbTransfer << "\n";
+        cout << "\tMonths: " << product.months << "\n";
+        cout << "\tAmount: " << product.amount << "\n";
+        cout << "\tAmount per month: " << product.amountMonth << "\n";
+        cout << "\tLocal price: " << product.localPrice << "\n";
+        cout << "\tFeatures:\n";
+        if (product.features.empty())
+        {
+            cout << "\t\t[none]\n";
+        }
+        else
+        {
+            for (const auto& f: product.features)
+            {
+                cout << "\t\t" << f.first << ": " << f.second << '\n';
+            }
+        }
+        cout << "\tiOS ID: " << product.iosid << "\n";
+        cout << "\tAndroid ID: " << product.androidid << "\n";
+        cout << "\tTest Category: " << product.testCategory << "\n";
+        cout << "\tTrial Days: " << product.trialDays << endl;
+    }
+    else // Business plan (type == 1)
+    {
+        cout << "\n" << product.description << ":\n";
+        cout << "\tMinimum users: " << product.businessPlan->minUsers << "\n";
+        cout << "\tStorage per user: " << product.businessPlan->gbStoragePerUser << "\n";
+        cout << "\tTransfer per user: " << product.businessPlan->gbTransferPerUser << "\n";
+        cout << "\tPrice per user: " << product.businessPlan->pricePerUser << "\n";
+        cout << "\tLocal price per user: " << product.businessPlan->localPricePerUser << "\n";
+        cout << "\tPrice per storage: " << product.businessPlan->pricePerStorage << "\n";
+        cout << "\tLocal price per storage: " << product.businessPlan->localPricePerStorage << "\n";
+        cout << "\tGigabytes per storage: " << product.businessPlan->gbPerStorage << "\n";
+        cout << "\tPrice per transfer: " << product.businessPlan->pricePerTransfer << "\n";
+        cout << "\tLocal price per transfer: " << product.businessPlan->localPricePerTransfer
+             << "\n";
+        cout << "\tGigabytes per transfer: " << product.businessPlan->gbPerTransfer << "\n";
+        cout << "\tTest Category: " << product.testCategory << endl;
+    }
 }
 
 void DemoApp::enumeratequotaitems_result(unique_ptr<CurrencyData> data)
 {
-    cout << "Currency data: " << endl;
+    cout << "\nCurrency data: " << endl;
     cout << "\tName: " << data->currencyName;
     cout << "\tSymbol: " << Base64::atob(data->currencySymbol);
     if (data->localCurrencyName.size())
@@ -9073,11 +10209,15 @@ void DemoApp::enumeratequotaitems_result(unique_ptr<CurrencyData> data)
         cout << "\tName (local): " << data->localCurrencyName;
         cout << "\tSymbol (local): " << Base64::atob(data->localCurrencySymbol);
     }
+    cout << endl;
 }
 
-void DemoApp::enumeratequotaitems_result(error)
+void DemoApp::enumeratequotaitems_result(error e)
 {
-    // FIXME: implement
+    if (e != API_OK)
+    {
+        cout << "Error retrieving pricing plans, error code " << e << endl;
+    }
 }
 
 void DemoApp::additem_result(error)
@@ -9214,8 +10354,55 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
 
     if (pro)
     {
-        cout << "\tPro level: " << ad->pro_level << endl;
-        cout << "\tSubscription type: " << ad->subscription_type << endl;
+        cout << "\tAccount Subscriptions:" << endl;
+        for (const auto& sub: ad->subscriptions)
+        {
+            cout << "\t\t* ID: " << sub.id << endl;
+            cout << "\t\t\t Status(type): ";
+            switch (sub.type)
+            {
+                case 'S':
+                    cout << "VALID";
+                    break;
+                case 'R':
+                    cout << "INVALID";
+                    break;
+                default:
+                    cout << "NONE";
+                    break;
+            }
+            cout << " (" << sub.type << ")" << endl;
+            cout << "\t\t\t Cycle: " << sub.cycle << endl;
+            cout << "\t\t\t Payment Method: " << sub.paymentMethod << endl;
+            cout << "\t\t\t Payment Method ID: " << sub.paymentMethodId << endl;
+            cout << "\t\t\t Renew time: " << sub.renew << endl;
+            cout << "\t\t\t Account level: " << sub.level << endl;
+            cout << "\t\t\t Is Trial: " << (sub.isTrial ? "Yes" : "No") << endl;
+            cout << "\t\t\t Features: ";
+            for (const auto& f: sub.features)
+            {
+                cout << f << ", ";
+            }
+            cout << endl;
+        }
+
+        cout << "\tAccount Plans:" << endl;
+        for (const auto& plan: ad->plans)
+        {
+            cout << "\t\t* Plan details: " << endl;
+            cout << "\t\t\t Account level: " << plan.level << endl;
+            cout << "\t\t\t Is Trial: " << (plan.isTrial ? "Yes" : "No") << endl;
+            cout << "\t\t\t Features: ";
+            for (const auto& f: plan.features)
+            {
+                cout << f << ", ";
+            }
+            cout << endl;
+            cout << "\t\t\t Expiration time: " << plan.expiration << endl;
+            cout << "\t\t\t Plan type: " << plan.type << endl;
+            cout << "\t\t\t Related subscription id: " << plan.subscriptionId << endl;
+        }
+
         cout << "\tAccount balance:" << endl;
 
         for (vector<AccountBalance>::iterator it = ad->balances.begin(); it != ad->balances.end(); it++)
@@ -9419,7 +10606,7 @@ char** my_rl_completion(const char* /*text*/, int /*start*/, int end)
 {
     rl_attempted_completion_over = 1;
 
-    std::string line(rl_line_buffer, end);
+    std::string line(rl_line_buffer, static_cast<size_t>(end));
     ac::CompletionState acs = ac::autoComplete(line, line.size(), autocompleteTemplate, true);
 
     if (acs.completions.empty())
@@ -9495,7 +10682,7 @@ void megacli()
                     if ((*it)->fa)
                     {
                         xferrate[(*it)->transfer->type]
-                            += (*it)->mTransferSpeed.calculateSpeed();
+                            += (*it)->mTransferSpeed.getCircularMeanSpeed();
                     }
                 }
                 xferrate[GET] /= 1024;
@@ -9639,6 +10826,13 @@ void megacli()
         client->exec();
         if (clientFolder) clientFolder->exec();
 
+        if (login.succeeded)
+        {
+            // Continue with fetchnodes
+            login.fetchnodes(client);
+            client->exec();
+        }
+
         if (puts && !appxferq[PUT].size())
         {
             cout << "Uploads complete" << endl;
@@ -9685,7 +10879,7 @@ static void registerSignalHandlers()
     action.sa_handler = &onFatalSignal;
 
     // Restore default signal handler after invoking our own.
-    action.sa_flags = SA_NODEFER | SA_RESETHAND;
+    action.sa_flags = static_cast<int>(SA_NODEFER | SA_RESETHAND);
 
     // Don't ignore any signals.
     sigemptyset(&action.sa_mask);
@@ -9698,6 +10892,26 @@ static void registerSignalHandlers()
 
 #endif // ! NO_READLINE
 
+MegaClient::ClientType getClientTypeFromArgs(const std::string& clientType)
+{
+    if (clientType == "vpn")
+    {
+        return MegaClient::ClientType::VPN;
+    }
+    if (clientType == "password_manager")
+    {
+        return MegaClient::ClientType::PASSWORD_MANAGER;
+    }
+    if (clientType != "default")
+    {
+        cout << "WARNING: Invalid argument " << clientType
+             << ". Valid possibilities are: vpn, password_manager, default.\nUsing default instead."
+             << endl;
+    }
+
+    return MegaClient::ClientType::DEFAULT;
+}
+
 int main(int argc, char* argv[])
 {
 #if defined(_WIN32) && defined(_DEBUG)
@@ -9708,13 +10922,34 @@ int main(int argc, char* argv[])
     registerSignalHandlers();
 #endif // NO_READLINE
 
-    // On Mac, we need to be passed a special file descriptor that has permissions allowing filesystem notifications.
-    // This is how MEGAsync and the integration tests work.  (running a sudo also works but then the program has too much power)
-    // The program megacli_fsloader in CMakeLists is the one that gets the special descriptor and starts megacli (mac only).
-    std::vector<char*> myargv1(argv, argv + argc);
+    auto arguments = ArgumentsParser::parse(argc, argv);
+
+    if (arguments.contains("-h"))
+    {
+        cout << USAGE << endl;
+        return 0;
+    }
+
+    if (arguments.contains("-v"))
+    {
+        cout << "Arguments: \n"
+             << arguments;
+    }
+
+    // config from arguments
+    Config config;
+    try
+    {
+        config = Config::fromArguments(arguments);
+    }
+    catch(const std::exception& e)
+    {
+        cout << "Error: " << e.what() << endl;
+        cout << USAGE << endl;
+        return -1;
+    }
 
     SimpleLogger::setLogLevel(logMax);
-    //SimpleLogger::setOutputClass(&gLogger);
     auto gLoggerAddr = &gLogger;
     g_externalLogger.addMegaLogger(&gLogger,
 
@@ -9732,15 +10967,12 @@ int main(int argc, char* argv[])
 
     console = new CONSOLE_CLASS;
 
-#ifdef GFX_CLASS
-    auto gfx = new GfxProc(::mega::make_unique<GFX_CLASS>());
-    gfx->startProcessingThread();
-#else
-    mega::GfxProc* gfx = nullptr;
-#endif
+    std::unique_ptr<IGfxProvider> provider = createGfxProvider(config);
+    mega::GfxProc* gfx = provider ? new GfxProc(std::move(provider)) : nullptr;
+    if (gfx) gfx->startProcessingThread();
 
     // Needed so we can get the cwd.
-    auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>();
+    auto fsAccess = std::make_unique<FSACCESS_CLASS>();
 
 #ifdef __APPLE__
     // Try and raise the file descriptor limit as high as we can.
@@ -9756,7 +10988,7 @@ int main(int argc, char* argv[])
 
     fsAccess.reset();
 
-    auto httpIO = new HTTPIO_CLASS;
+    auto httpIO = new CurlHttpIO;
 
 #ifdef WIN32
     auto waiter = std::make_shared<CONSOLE_WAIT_CLASS>(static_cast<CONSOLE_CLASS*>(console));
@@ -9773,9 +11005,10 @@ int main(int argc, char* argv[])
         nullptr;
 #endif
 
+    auto clientType = getClientTypeFromArgs(config.clientType);
 
     // instantiate app components: the callback processor (DemoApp),
-    // the HTTP I/O engine (WinHttpIO) and the MegaClient itself
+    // the HTTP I/O engine and the MegaClient itself
     client = new MegaClient(demoApp,
                             waiter,
                             httpIO,
@@ -9785,7 +11018,8 @@ int main(int argc, char* argv[])
                             "megacli/" TOSTRING(MEGA_MAJOR_VERSION)
                             "." TOSTRING(MEGA_MINOR_VERSION)
                             "." TOSTRING(MEGA_MICRO_VERSION),
-                            2);
+                            2,
+                            clientType);
 
     ac::ACN acs = autocompleteSyntax();
 #if defined(WIN32) && defined(NO_READLINE)
@@ -9837,7 +11071,7 @@ void DemoAppFolder::login_result(error e)
     else
     {
         cout << "Folder link loaded, retrieving account..." << endl;
-        clientFolder->fetchnodes();
+        clientFolder->fetchnodes(false, true, false);
     }
 }
 
@@ -9877,25 +11111,26 @@ void DemoAppFolder::fetchnodes_result(const Error& e)
     }
 }
 
-void DemoAppFolder::nodes_updated(Node** n, int count)
+void DemoAppFolder::nodes_updated(sharedNode_vector* nodes, int count)
 {
     int c[2][6] = { { 0 } };
 
-    if (n)
+    if (nodes)
     {
+        auto it = nodes->begin();
         while (count--)
         {
-            if ((*n)->type < 6)
+            if ((*it)->type < 6)
             {
-                c[!(*n)->changed.removed][(*n)->type]++;
-                n++;
+                c[!(*it)->changed.removed][(*it)->type]++;
+                it++;
             }
         }
     }
     else
     {
-        node_vector nodes = client->mNodeManager.getRootNodes();
-        for (auto& node : nodes)
+        sharedNode_vector rootNodes = client->mNodeManager.getRootNodes();
+        for (auto& node : rootNodes)
         {
             c[1][node->type] ++;
             c[1][FOLDERNODE] += static_cast<int>(node->getCounter().folders);
@@ -9909,7 +11144,7 @@ void DemoAppFolder::nodes_updated(Node** n, int count)
 
 void exec_metamac(autocomplete::ACState& s)
 {
-    Node *node = nodebypath(s.words[2].s.c_str());
+    std::shared_ptr<Node> node = nodebypath(s.words[2].s.c_str());
     if (!node || node->type != FILENODE)
     {
         cerr << s.words[2].s
@@ -10025,7 +11260,8 @@ void exec_syncadd(autocomplete::ACState& s)
     bool backup = s.extractflag("-backup");
     bool external = s.extractflagparam("-external", drive);
     bool named = s.extractflagparam("-name", syncname);
-
+    bool scanOnly = s.extractflag("-scan-only");
+    bool scanIntervalSpecified = s.extractflagparam("-scan-interval", scanInterval);
     LocalPath sourcePath = localPathArg(s.words[2].s);
 
     if (!named)
@@ -10042,17 +11278,31 @@ void exec_syncadd(autocomplete::ACState& s)
             syncname,
             NodeHandle(),
             string(),
-            0,
+            fsfp_t(),
             std::move(drivePath),
             true,
             backup ? SyncConfig::TYPE_BACKUP : SyncConfig::TYPE_TWOWAY);
+
+
+    // Scan interval
+    if (scanIntervalSpecified)
+    {
+        auto i = atoi(scanInterval.c_str());
+
+        if (i >= 0)
+            config.mScanIntervalSec = static_cast<unsigned>(i);
+    }
+
+    // Scan only.
+    if (scanOnly)
+        config.mChangeDetectionMethod = CDM_PERIODIC_SCANNING;
 
 
     if (!backup) // regular sync
     {
         // Does the target node exist?
         const string& targetPath = s.words[3].s;
-        auto* targetNode = nodebypath(targetPath.c_str());
+        std::shared_ptr<Node> targetNode = nodebypath(targetPath.c_str());
 
         if (!targetNode)
         {
@@ -10065,7 +11315,7 @@ void exec_syncadd(autocomplete::ACState& s)
         config.mRemoteNode = targetNode ? NodeHandle().set6byte(targetNode->nodehandle) : NodeHandle();
         config.mOriginalPathOfRemoteRootNode = targetNode ? targetNode->displaypath() : string();
 
-        client->addsync(std::move(config), false, sync_completion, "");
+        client->addsync(std::move(config), sync_completion, "", "");
     }
 
     else // backup
@@ -10094,7 +11344,7 @@ void exec_syncadd(autocomplete::ACState& s)
             }
             else
             {
-                client->addsync(std::move(sc), false, [revertOnError](error e, SyncError se, handle h){
+                client->addsync(std::move(sc), [revertOnError](error e, SyncError se, handle h){
 
                     if (e != API_OK)
                     {
@@ -10106,7 +11356,7 @@ void exec_syncadd(autocomplete::ACState& s)
                     }
                     sync_completion(e, se, h);
 
-                }, "");
+                }, "", "");
             }
         });
     }
@@ -10183,7 +11433,7 @@ void exec_syncimport(autocomplete::ACState& s)
     for (char buffer[512]; istream; )
     {
         istream.read(buffer, sizeof(buffer));
-        data.append(buffer, istream.gcount());
+        data.append(buffer, static_cast<size_t>(istream.gcount()));
     }
 
     if (!istream.eof())
@@ -10237,7 +11487,7 @@ void exec_syncexport(autocomplete::ACState& s)
     auto flags = std::ios::binary | std::ios::out | std::ios::trunc;
     ofstream ostream(s.words[2].s, flags);
 
-    ostream.write(configs.data(), configs.size());
+    ostream.write(configs.data(), static_cast<std::streamsize>(configs.size()));
     ostream.close();
 
     if (!ostream.good())
@@ -10348,9 +11598,86 @@ void exec_synclist(autocomplete::ACState& s)
             << (config.isExternal() ? "EX" : "IN")
             << "TERNAL "
             << SyncConfig::synctypename(config.getType())
-            << "\n"
-            << endl;
-      }
+            << "\n";
+
+        // Display change detection method.
+        cout << "  Change Detection Method: "
+             << changeDetectionMethodToString(config.mChangeDetectionMethod)
+             << "\n";
+
+        if (CDM_PERIODIC_SCANNING == config.mChangeDetectionMethod)
+        {
+            // Display scan interval.
+            cout << "  Scan Interval (seconds): "
+                 << config.mScanIntervalSec
+                 << "\n";
+        }
+
+        std::promise<bool> synchronous;
+        client->syncs.collectSyncNameConflicts(config.mBackupId, [&synchronous](list<NameConflict>&& conflicts){
+            for (auto& c : conflicts)
+            {
+                if (!c.cloudPath.empty() || !c.clashingCloud.empty())
+                {
+                    cout << "  Cloud Path conflict at " << c.cloudPath << ": ";
+                    for (auto& n : c.clashingCloud)
+                    {
+                        cout << n.name << " ";
+                    }
+                    cout << "\n";
+                }
+                if (!c.localPath.empty() || !c.clashingLocalNames.empty())
+                {
+                    cout << "  Local Path conflict at " << c.localPath.toPath(false) << ": ";
+                    for (auto& n : c.clashingLocalNames)
+                    {
+                        cout << n.toPath(false) << " ";
+                    }
+                    cout << "\n";
+                }
+            }
+            cout << std::flush;
+            synchronous.set_value(true);
+        }, false);  // false so executes on sync thread - we are blocked here on client thread in single-threaded megacli.
+        synchronous.get_future().get();
+    }
+
+    SyncStallInfo stall;
+    if (client->syncs.syncStallDetected(stall))
+    {
+        auto cl = conlock(cout);
+        cout << "Stalled (mutually unresolvable changes detected)!" << endl;
+        for (auto& syncStallInfoMapPair : stall.syncStallInfoMaps)
+        {
+            cout << "=== [SyncID: " << syncStallInfoMapPair.first << "]" << endl;
+            auto& syncStallInfoMap = syncStallInfoMapPair.second;
+            cout << "noProgress: " << syncStallInfoMap.noProgress << ", noProgressCount: " << syncStallInfoMap.noProgressCount << " [HasProgressLack: " << std::string(syncStallInfoMap.hasProgressLack() ? "true" : "false") << "]" << endl;
+            for (auto& p : syncStallInfoMap.cloud)
+            {
+                cout << "stall issue: " << syncWaitReasonDebugString(p.second.reason) << endl;
+                string r1 = p.second.cloudPath1.debugReport();
+                string r2 = p.second.cloudPath2.debugReport();
+                string r3 = p.second.localPath1.debugReport();
+                string r4 = p.second.localPath2.debugReport();
+                if (!r1.empty()) cout << "    MEGA:" << r1 << endl;
+                if (!r2.empty()) cout << "    MEGA:" << r2 << endl;
+                if (!r3.empty()) cout << "    here:" << r3 << endl;
+                if (!r4.empty()) cout << "    here:" << r4 << endl;
+            }
+            for (auto& p : syncStallInfoMap.local)
+            {
+                cout << "stall issue: " << syncWaitReasonDebugString(p.second.reason) << endl;
+                string r1 = p.second.cloudPath1.debugReport();
+                string r2 = p.second.cloudPath2.debugReport();
+                string r3 = p.second.localPath1.debugReport();
+                string r4 = p.second.localPath2.debugReport();
+                if (!r1.empty()) cout << "    MEGA:" << r1 << endl;
+                if (!r2.empty()) cout << "    MEGA:" << r2 << endl;
+                if (!r3.empty()) cout << "    here:" << r3 << endl;
+                if (!r4.empty()) cout << "    here:" << r4 << endl;
+            }
+        }
+    }
 }
 
 void exec_syncremove(autocomplete::ACState& s)
@@ -10374,7 +11701,7 @@ void exec_syncremove(autocomplete::ACState& s)
     if (s.words.size() > bkpDestPos)
     {
         // get final destination
-        Node* destination = nodebypath(s.words[bkpDestPos].s.c_str());
+        std::shared_ptr<Node> destination = nodebypath(s.words[bkpDestPos].s.c_str());
         if (destination)
         {
             bkpDest = destination->nodehandle;
@@ -10460,7 +11787,128 @@ void exec_syncremove(autocomplete::ACState& s)
         };
     }
 
-    client->syncs.deregisterThenRemoveSync(v[0].mBackupId, completion, false);
+    client->syncs.deregisterThenRemoveSyncById(v[0].mBackupId, std::move(completion));
+}
+
+void exec_syncstatus(autocomplete::ACState& s)
+{
+    // Are we logged in?
+    if (client->loggedin() != FULLACCOUNT)
+    {
+        cerr << "You must be logged in to display the status of syncs."
+             << endl;
+        return;
+    }
+
+    // sync status [id]
+    handle id = UNDEF;
+
+    // Is the user interested in a particular sync?
+    if (s.words.size() == 3)
+        Base64::atob(s.words[2].s.c_str(),
+                     reinterpret_cast<byte*>(&id),
+                     sizeof(id));
+
+    // Compute the aggregate transfer speed of the specified syncs.
+    map<handle, size_t> speeds;
+
+    for (auto* slot : client->tslots)
+    {
+        // No FA? Not in progress.
+        if (!slot->fa)
+            continue;
+
+        // Determine the transfer's current speed.
+        auto speed = slot->mTransferSpeed.getCircularMeanSpeed();
+
+        // Find out which syncs, if any, are related to this transfer.
+        for (auto* file : slot->transfer->files)
+        {
+            // Not a sync transfer? Not interested!
+            if (!file->syncxfer)
+                continue;
+
+            // Get our hands on this sync's thread-safe state.
+            auto state = static_cast<SyncTransfer_inClient*>(file)->syncThreadSafeState;
+
+            // Is it a sync we're interested in?
+            if (id != UNDEF && id != state->backupId())
+                continue;
+
+            // Make sure the speed's never negative.
+            speed = std::max<m_off_t>(0, speed);
+
+            // Add this transfer's speed to the sync's aggregate total.
+            speeds[state->backupId()] += static_cast<size_t>(speed);
+        }
+    }
+
+    // Convenience.
+    using SV = vector<SyncStatusInfo>;
+
+    std::promise<SV> waiter;
+
+    // Retrieve status information from the engine.
+    client->syncs.getSyncStatusInfo(id, [&](SV info) {
+        waiter.set_value(std::move(info));
+    }, false);
+
+    // Wait for the engine to gather our information.
+    auto results = waiter.get_future().get();
+
+    // Was anything actually retrieved?
+    if (results.empty())
+    {
+        // Was the user interested in a specific sync?
+        if (id != UNDEF)
+        {
+            cerr << "Couldn't find an active sync with the ID: "
+                 << toHandle(id)
+                 << endl;
+            return;
+        }
+
+        // User was interested in all active syncs.
+        cerr << "There are no active syncs to report on."
+             << endl;
+        return;
+    }
+
+    // Translate size to a suffixed string.
+    auto toSuffixedString = [](size_t value) {
+        if (value < 1024)
+            return std::to_string(value) + "B";
+
+        const char* suffix = "?KMGTPE";
+
+        while (value >= 1024)
+            ++suffix, value /= 1024;
+
+        return std::to_string(value) + *suffix + "B";
+    };
+
+    // Display status information to the user.
+    for (auto& info : results)
+    {
+        cout << "Sync "
+             << toHandle(info.mBackupID)
+             << ":\n"
+             << "  Name: "
+             << info.mName
+             << "\n"
+             << "  Total number of synced nodes: "
+             << info.mTotalSyncedNodes
+             << "\n"
+             << "  Total size of synced files: "
+             << toSuffixedString(info.mTotalSyncedBytes)
+             << "\n"
+             << "  Transfer progress: "
+             << info.mTransferCounts.progress(0) * 100.0
+             << "%\n"
+             << "  Transfer speed: "
+             << toSuffixedString(speeds[info.mBackupID])
+             << "/s\n";
+    }
 }
 
 void exec_syncxable(autocomplete::ACState& s)
@@ -10505,11 +11953,9 @@ void exec_syncxable(autocomplete::ACState& s)
     case SyncRunState::Pending:
     case SyncRunState::Loading:
     case SyncRunState::Run:
-    case SyncRunState::Pause:
     {
         // sync enable id
-        bool pause = targetState == SyncRunState::Pause;
-        client->syncs.enableSyncByBackupId(backupId, pause, false, true, true, [pause](error err, SyncError serr, handle)
+        client->syncs.enableSyncByBackupId(backupId, true, [](error err, SyncError serr, handle)
             {
                 if (err)
                 {
@@ -10519,26 +11965,29 @@ void exec_syncxable(autocomplete::ACState& s)
                 }
                 else
                 {
-                    cout << (pause ? "Sync Paused." : "Sync Running.") << endl;
+                    cout << "Sync Running." << endl;
                 }
             }, true, "");
 
         break;
     }
+    case SyncRunState::Pause:
     case SyncRunState::Suspend:
-    {
-        cout << "not supported yet" << endl;
-        break;
-    }
     case SyncRunState::Disable:
     {
+        if (targetState == SyncRunState::Pause)
+        {
+            LOG_warn << "[exec_syncxable] Target state: SyncRunState::Pause. Sync will be suspended";
+        }
+        bool keepSyncDb = targetState == SyncRunState::Pause || targetState == SyncRunState::Suspend;
+
         client->syncs.disableSyncByBackupId(
             backupId,
-            withError,
             static_cast<SyncError>(withError ? atoi(errIdString.c_str()) : 0),
             false,
+            keepSyncDb,
             [targetState](){
-                cout << (targetState == SyncRunState::Suspend ? "Sync Suspended." : "Sync Disabled.") << endl;
+                cout << (targetState == SyncRunState::Suspend || targetState == SyncRunState::Pause ? "Sync Suspended." : "Sync Disabled.") << endl;
                 });
         break;
     }
@@ -10546,6 +11995,17 @@ void exec_syncxable(autocomplete::ACState& s)
 }
 
 #endif // ENABLE_SYNC
+
+std::string setTypeToString(Set::SetType t)
+{
+    const std::string tStr = std::to_string(t);
+    switch (t)
+    {
+    case Set::TYPE_ALBUM: return "Photo Album (" + tStr + ")";
+    case Set::TYPE_PLAYLIST: return "Video Playlist (" + tStr + ")";
+    default:               return "Unexpected Set Type with value " + tStr;
+    }
+}
 
 void printSet(const Set* s)
 {
@@ -10556,6 +12016,7 @@ void printSet(const Set* s)
     }
 
     cout << "Set " << toHandle(s->id()) << endl;
+    cout << "\ttype: " << setTypeToString(s->type()) << endl;
     cout << "\tpublic id: " << toHandle(s->publicId()) << endl;
     cout << "\tkey: " << Base64::btoa(s->key()) << endl;
     cout << "\tuser: " << toHandle(s->user()) << endl;
@@ -10635,12 +12096,20 @@ void exec_setsandelements(autocomplete::ACState& s)
 
     else if (command == "newset")
     {
-        const char* name = (s.words.size() == 3) ? s.words[2].s.c_str() : nullptr;
+        if (s.words.size() < 3)
+        {
+            cout << "Wrong number of parameters. Try again\n";
+            return;
+        }
+
+        const char* name = (s.words.size() == 4) ? s.words[3].s.c_str() : nullptr;
         Set newset;
         if (name)
         {
             newset.setName(name);
         }
+        Set::SetType t = static_cast<Set::SetType>(stoi(s.words[2].s));
+        newset.setType(t);
 
         client->putSet(std::move(newset), [](Error e, const Set* s)
             {
@@ -10856,7 +12325,7 @@ void exec_setsandelements(autocomplete::ACState& s)
             {
                 cout << "\tElement found in owned Set\n";
 
-                std::unique_ptr<Node> mn(client->nodebyhandle(element->node()));
+                std::shared_ptr<Node> mn(client->nodebyhandle(element->node()));
 
                 if (!mn)
                 {
@@ -10888,7 +12357,7 @@ void exec_setsandelements(autocomplete::ACState& s)
         cout << "\tInitiating download..." << endl;
 
         TransferDbCommitter committer(client->tctable);
-        auto file = ::mega::make_unique<AppFileGet>(nullptr,
+        auto file = std::make_unique<AppFileGet>(nullptr,
                                                     NodeHandle().set6byte(element->node()),
                                                     reinterpret_cast<const byte*>(element->key().c_str()), fileSize, tm,
                                                     &fileName, &fingerprint);
@@ -10988,13 +12457,8 @@ void exec_getABTestValue(autocomplete::ACState &s)
 {
     string flag = s.words[1].s;
 
-    auto it = client->mABTestFlags.find(flag);
-
-    string value = "0 (not set)";
-    if (it != client->mABTestFlags.end())
-    {
-        value = std::to_string(it->second);
-    }
+    unique_ptr<uint32_t> v = client->mABTestFlags.get(flag);
+    string value = v ? std::to_string(*v) : "(not set)";
 
     cout << "[" << flag<< "]:" << value << endl;
 }
@@ -11059,11 +12523,12 @@ void exec_numberofnodes(autocomplete::ACState &s)
 
 void exec_numberofchildren(autocomplete::ACState &s)
 {
-    Node *n;
+    std::shared_ptr<Node> n;
 
     if (s.words.size() > 1)
     {
-        if (!(n = nodebypath(s.words[1].s.c_str())))
+        n = nodebypath(s.words[1].s.c_str());
+        if (!n)
         {
             cout << s.words[1].s << ": No such file or directory" << endl;
             return;
@@ -11104,30 +12569,33 @@ void exec_searchbyname(autocomplete::ACState &s)
             return;
         }
 
-        std::string searchString = s.words[1].s;
-        Node::Flags exclusiveRecuriveFlags;
-        exclusiveRecuriveFlags.set(Node::FLAGS_IS_MARKED_SENSTIVE, noSensitive);
-        node_vector nodes = client->mNodeManager.search(nodeHandle, searchString.c_str(), recursive, Node::Flags(), Node::Flags(), exclusiveRecuriveFlags, CancelToken());
+        NodeSearchFilter filter;
+        filter.byAncestors({nodeHandle.as8byte(), UNDEF, UNDEF});
+        filter.byName(s.words[1].s);
+        filter.bySensitivity(noSensitive ? NodeSearchFilter::BoolFilter::onlyTrue :
+                                           NodeSearchFilter::BoolFilter::disabled);
+
+        sharedNode_vector nodes;
+        if (recursive)
+        {
+            nodes = client->mNodeManager.searchNodes(filter,
+                                                     0 /*Order none*/,
+                                                     CancelToken(),
+                                                     NodeSearchPage{0, 0});
+        }
+        else
+        {
+            nodes = client->mNodeManager.getChildren(filter,
+                                                     0 /*Order none*/,
+                                                     CancelToken(),
+                                                     NodeSearchPage{0, 0});
+        }
 
         for (const auto& node : nodes)
         {
             cout << "Node: " << node->nodeHandle() << "    Name: " << node->displayname() << endl;
         }
     }
-}
-
-void exec_secure(autocomplete::ACState &s)
-{
-    if (s.extractflag("-on"))
-    {
-        client->mKeyManager.setSecureFlag(true);
-    }
-    else if (s.extractflag("-off"))
-    {
-        client->mKeyManager.setSecureFlag(false);
-    }
-
-    cout << "Secure flag: " << (client->mKeyManager.isSecure() ? "true" : "false") << endl;
 }
 
 void exec_manualverif(autocomplete::ACState &s)
@@ -11147,14 +12615,14 @@ void exec_getvpnregions(autocomplete::ACState& s)
 {
     cout << "Getting the list of VPN regions" << endl;
     client->getVpnRegions([]
-            (const Error& e, std::vector<std::string>&& vpnRegions)
+            (const Error& e, std::vector<VpnRegion>&& vpnRegions)
             {
                 if (e == API_OK)
                 {
                     cout << "List of VPN regions:" << endl;
                     for (size_t i = 0; i < vpnRegions.size(); i++)
                     {
-                        cout << (i+1) << ". " << vpnRegions[i] << "." << endl;
+                        cout << (i+1) << ". " << vpnRegions[i].getName() << "." << endl;
                     }
                 }
                 else
@@ -11175,19 +12643,19 @@ void exec_getvpncredentials(autocomplete::ACState& s)
         {
             slotID = std::stoi(slotIDstr);
         }
-        catch (std::exception const &ex)
+        catch (const std::exception& ex)
         {
             cout << "Could not convert param SlotID(" << slotIDstr << ") to integer. Exception: " << ex.what() << endl;
             return;
         }
     }
     bool showVpnRegions = !s.extractflag("-noregions");
-    
+
     client->getVpnCredentials([slotID, showVpnRegions]
             (const Error& e,
             CommandGetVpnCredentials::MapSlotIDToCredentialInfo&& mapSlotIDToCredentialInfo, /* Map of SlotID: { ClusterID, IPv4, IPv6, DeviceID } */
             CommandGetVpnCredentials::MapClusterPublicKeys&& mapClusterPubKeys, /* Map of ClusterID: Cluster Public Key */
-            std::vector<std::string>&& vpnRegions /* VPN Regions */)
+            std::vector<VpnRegion>&& vpnRegions /* VPN Regions */)
             {
                 if (e == API_OK)
                 {
@@ -11273,7 +12741,7 @@ void exec_getvpncredentials(autocomplete::ACState& s)
                             cout << "===================================================" << endl;
                             for (size_t i = 0; i < vpnRegions.size(); i++)
                             {
-                                cout << (i+1) << ". " << vpnRegions[i] << "." << endl;
+                                cout << (i+1) << ". " << vpnRegions[i].getName() << "." << endl;
                             }
                             cout << "===================================================" << endl;
                         }
@@ -11292,7 +12760,7 @@ void exec_getvpncredentials(autocomplete::ACState& s)
                     }
                     cout << "'" << endl;
                 }
-                
+
             });
 }
 
@@ -11429,3 +12897,631 @@ void exec_checkvpncredential(autocomplete::ACState& s)
             });
 }
 /* MEGA VPN commands */
+
+void exec_fetchcreditcardinfo(autocomplete::ACState&)
+{
+    client->fetchCreditCardInfo([](const Error& e, const std::map<std::string, std::string>& creditCardInfo)
+    {
+        if (e == API_OK)
+        {
+            cout << "Credit card info: " << endl;
+            for (const auto& it: creditCardInfo)
+            {
+                cout << "   " << it.first << ": " << it.second << endl;
+            }
+        }
+        else
+        {
+            cout << "Error requesting credit card info: " << e << endl;
+        }
+    });
+}
+
+void exec_passwordmanager(autocomplete::ACState& s)
+{
+    static const set<string> nonLoggedInCmds {};
+
+    const auto command = s.words[1].s;
+    const auto commandRequiresLoggingIn = [&command]() -> bool
+    {
+        return nonLoggedInCmds.find(command) == nonLoggedInCmds.end();
+    };
+    const auto isClientLoggedIn = []() -> bool
+    {
+        return client->loggedin() == FULLACCOUNT;
+    };
+
+    // Are we logged in?
+    if (commandRequiresLoggingIn() && !isClientLoggedIn())
+    {
+        cerr << "You must be logged in to manipulate Password items. "
+             << (nonLoggedInCmds.empty() ? "" : "Except for the following commands:")
+             << "\n";
+        for (const auto& c : nonLoggedInCmds) cerr << "\t" << c << "\n";
+        return;
+    }
+
+    const auto moreParamsThan = [&s](size_t min) -> bool
+    {
+        if (s.words.size() <= min)
+        {
+            cout << "Wrong parameters\n";
+            return false;
+        }
+        return true;
+    };
+    const auto getNodeHandleFromParam = [&s](size_t paramPos) -> NodeHandle
+    {
+        handle nh;
+        Base64::atob(s.words[paramPos].s.c_str(), (byte*)&nh, MegaClient::NODEHANDLE);
+        return NodeHandle{}.set6byte(nh);
+    };
+    const auto createPwdData = [](std::string&& pwd,
+                                  std::string&& url,
+                                  std::string&& userName,
+                                  std::string&& notes)
+    {
+        // patch to allow setting to null taking into account that extractflag doesn't accept ""
+        const string EMPTY = "EMPTY";
+        auto pwdData = std::make_unique<AttrMap>();
+        if (!pwd.empty())
+        {
+            if (pwd == EMPTY) pwd.clear();
+            pwdData->map[AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_PWD)] = std::move(pwd);
+        }
+        if (!url.empty())
+        {
+            if (url == EMPTY) url.clear();
+            pwdData->map[AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_URL)] = std::move(url);
+        }
+        if (!userName.empty())
+        {
+            if (userName == EMPTY) userName.clear();
+            pwdData->map[AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_USERNAME)] = std::move(userName);
+        }
+        if (!notes.empty())
+        {
+            if (notes == EMPTY) notes.clear();
+            pwdData->map[AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_NOTES)] = std::move(notes);
+        }
+        return pwdData;
+    };
+    const auto printEntryDetails = [](NodeHandle nh)
+    {
+        auto pwdNode = client->nodeByHandle(nh);
+        assert(pwdNode);
+        assert(pwdNode->isPasswordNode());
+
+        auto jsonPwdData = pwdNode->attrs.map[AttrMap::string2nameid(MegaClient::NODE_ATTR_PASSWORD_MANAGER)];
+        AttrMap pwdData;
+        pwdData.fromjson(jsonPwdData.c_str());
+        cout << "Password data for entry " << pwdNode->attrs.map['n'] << " (" << toNodeHandle(nh) << "):\n";
+        const auto printAttr = [&pwdData](const char* attr) -> void
+        {
+            const auto nid = AttrMap::string2nameid(attr);
+            cout << "\t" << attr << ": " << (pwdData.map.contains(nid) ? pwdData.map[nid] : "") << "\n";
+        };
+        printAttr(MegaClient::PWM_ATTR_PASSWORD_PWD);
+        printAttr(MegaClient::PWM_ATTR_PASSWORD_USERNAME);
+        printAttr(MegaClient::PWM_ATTR_PASSWORD_URL);
+        printAttr(MegaClient::PWM_ATTR_PASSWORD_NOTES);
+    };
+
+    if (command == "list")
+    {
+        auto n = client->nodeByHandle(client->getPasswordManagerBase());
+        if (n)
+        {
+            dumptree(n.get(), true, 1, nullptr, nullptr);
+        }
+    }
+    else if (command == "getbase")
+    {
+        cout << "Password Base handle is " << toNodeHandle(client->getPasswordManagerBase()) << "\n";
+    }
+    else if (command == "createbase")
+    {
+        const UserAttribute* attribute = client->ownuser()->getAttribute(ATTR_PWM_BASE);
+        if (attribute && attribute->isValid())
+        {
+            assert(attribute->value().size() == MegaClient::NODEHANDLE);
+            std::cout << "Password Manager Base already exists "
+                      << toNodeHandle(&attribute->value()) << ". Skipping creation\n";
+            return;
+        }
+
+        const auto cb = [](Error e, std::unique_ptr<NewNode> nn)
+        {
+            if (e == API_OK)
+            {
+                assert(nn);
+                auto nh = nn->nodeHandle();
+                // forced getUA because ATTR_PWM_BASE is not deletable / updatable
+                client->getua(client->ownuser(), ATTR_PWM_BASE, -1, nullptr, [nh](byte*, unsigned, attr_t)
+                {
+                    std::cout << "Password Manager Base created with handle " << toNodeHandle(nh) << "\n";
+                });
+            }
+            else
+            {
+                std::cout << "Error " << errorstring(e) << " during the creation of Password Manager Base\n";
+            }
+        };
+
+        client->createPasswordManagerBase(-1, cb);
+    }
+    else if (command == "removebase")  // only doable in dev / debug conditions
+    {
+        #ifdef NDEBUG
+        std::cout << "This command is only available in debug conditions for dev puporses\nn";
+        #else
+        const auto nhBase = client->getPasswordManagerBase();
+        const auto mnBase = client->nodeByHandle(nhBase);
+
+        client->senddevcommand("pwmhd", client->ownuser()->email.c_str());
+
+        // forced erasing the user attribute and base folder node from Vault
+        client->ownuser()->removeAttribute(ATTR_PWM_BASE);
+        if (!mnBase) return;  // just in case there was a previous state where the node was deleted
+        const bool keepVersions = false;
+        const int tag = -1;
+        const bool canChangeVault = true;
+        auto cb = [nhBase](NodeHandle nh, Error e)
+        {
+            assert(nh == nhBase);
+            const auto msg = "Password Manager Base " + toNodeHandle(nhBase);
+            if (e == API_OK)
+            {
+                std::cout << msg << " and descendants erased\n";
+            }
+            else
+            {
+                std::cout << "Error " << errorstring(e) << " erasing " << msg << "\n";
+            }
+
+        };
+        client->unlink(mnBase.get(), keepVersions, tag, canChangeVault, std::move(cb));
+        #endif
+    }
+    else if (command == "newfolder")
+    {
+        if (!moreParamsThan(3)) return;
+
+        auto ph = getNodeHandleFromParam(2);
+        auto name = s.words[3].s.c_str();
+        auto n = client->nodeByHandle(ph);
+        if (!n)
+        {
+            cout << "Parent node with handle " << toNodeHandle(ph) << " not found\n";
+            return;
+        }
+
+        client->createFolder(n, name, 0);
+    }
+    else if (command == "renamefolder" || command == "renameentry")
+    {
+        if (!moreParamsThan(3)) return;
+
+        auto nh = getNodeHandleFromParam(2);
+        auto newName = s.words[3].s.c_str();
+        CommandSetAttr::Completion cb = [](NodeHandle nh, Error e)
+        {
+            if (e == API_OK) cout << "Node " << toNodeHandle(nh) << " renamed successfully\n";
+            else cout << "Error renaming the node." << errorstring(e) << "\n";
+        };
+
+        client->renameNode(nh, newName, std::move(cb));
+    }
+    else if (command == "removefolder" || command == "removeentry")
+    {
+        if (!moreParamsThan(2)) return;
+
+        auto nh = getNodeHandleFromParam(2);
+        client->removeNode(nh, false, 0);
+    }
+    else if (command == "newentry")
+    {
+        if (!moreParamsThan(4)) return;
+
+        auto ph = getNodeHandleFromParam(2);
+        auto nParent = client->nodeByHandle(ph);
+        if (!nParent)
+        {
+            cout << "Wrong parent handle provided " << toNodeHandle(ph) << "\n";
+        }
+
+        auto name = s.words[3].s.c_str();
+        auto pwd = s.words[4].s.c_str();
+        assert(*name && *pwd);
+
+        string url; s.extractflagparam("-url", url);
+        string userName; s.extractflagparam("-u", userName);
+        string notes; s.extractflagparam("-n", notes);
+
+        auto pwdData = createPwdData(std::string{pwd},
+                                     std::move(url),
+                                     std::move(userName),
+                                     std::move(notes));
+
+        client->createPasswordNode(name, std::move(pwdData), nParent, 0);
+    }
+    else if (command == "newentries")
+    {
+        if (s.words.size() <= 3)
+        {
+            cout << "Nothing to do\n";
+            return;
+        }
+        auto ph = getNodeHandleFromParam(2);
+        auto nParent = client->nodeByHandle(ph);
+        if (!nParent)
+        {
+            cout << "Wrong parent handle provided " << toNodeHandle(ph) << "\n";
+            return;
+        }
+        size_t currentReadIndex = 3;
+        const size_t nWords = s.words.size();
+        std::map<std::string, std::unique_ptr<AttrMap>> info;
+        while (currentReadIndex < nWords)
+        {
+            auto name = s.words[currentReadIndex++].s.c_str();
+            auto userName = s.words[currentReadIndex++].s.c_str();
+            auto pwd = s.words[currentReadIndex++].s.c_str();
+            assert(*name && *userName && *pwd);
+            auto pwdData = createPwdData(std::string{pwd}, "", std::string{userName}, "");
+            info[std::move(name)] = std::move(pwdData);
+        }
+        client->createPasswordNodes(std::move(info), nParent, 0);
+    }
+    else if (command == "getentrydata")
+    {
+        if (!moreParamsThan(2)) return;
+
+        auto nh = getNodeHandleFromParam(2);
+        auto pwdNode = client->nodeByHandle(nh);
+        if (!pwdNode)
+        {
+            cout << "No node found with provided handle " << toNodeHandle(nh) << "\n";
+            return;
+        }
+        if (!pwdNode->isPasswordNode())
+        {
+            cout << "Node handle provided " << toNodeHandle(nh) << " isn't a Password Node's\n";
+            return;
+        }
+
+        printEntryDetails(nh);
+    }
+    else if (command == "updateentry")
+    {
+        if (!moreParamsThan(3)) return;
+
+        auto nh = getNodeHandleFromParam(2);
+        auto n = client->nodeByHandle(nh);
+        if (!(n && n->isPasswordNode()))
+        {
+            cout << "Wrong Password node handle provided " << toNodeHandle(nh) << "\n";
+        }
+
+        string pwd; s.extractflagparam("-p", pwd);
+        string url; s.extractflagparam("-url", url);
+        string userName; s.extractflagparam("-u", userName);
+        string notes; s.extractflagparam("-n", notes);
+
+        auto pwdData = createPwdData(std::move(pwd),
+                                     std::move(url),
+                                     std::move(userName),
+                                     std::move(notes));
+
+        auto cb = [printEntryDetails](NodeHandle nh, Error e)
+        {
+            if (e == API_OK) printEntryDetails(nh);
+            else std::cout << "Error: " << errorstring(e) << "\n";
+        };
+
+        client->updatePasswordNode(nh, std::move(pwdData), std::move(cb));
+    }
+    else
+    {
+        cout << command << " not recognized. Ignoring it\n";
+    }
+
+    if (!client->isClientType(MegaClient::ClientType::PASSWORD_MANAGER))
+    {
+        std::cout << "\n*****\n"
+                  << "* Password Manager commands executed in a non-Password Manager MegaClient type.\n"
+                  << "* Be wary of implications regarding fetch nodes and action packets received.\n"
+                  << "* Check megacli help to start it as a Password Manager MegaClient type.\n"
+                  << "*****\n\n";
+    }
+}
+
+void exec_generatepassword(autocomplete::ACState& s)
+{
+    const auto command = s.words[1].s;
+
+    if (command == "chars")
+    {
+        if (s.words.size() < 3)
+        {
+            cout << "Wrong parameters";
+            return;
+        }
+
+        const auto length = static_cast<unsigned>(std::stoul(s.words[2].s));
+        const bool useUpper = s.extractflag("-useUpper");
+        const bool useDigits = s.extractflag("-useDigits");
+        const bool useSymb = s.extractflag("-useSymbols");
+
+        auto pwd = MegaClient::generatePasswordChars(useUpper, useDigits, useSymb, length);
+
+        if (pwd.empty()) cout << "Error generating the password. Please check the logs (if active)\n";
+        else cout << "Characers-based password successfully generated: " << pwd << "\n";
+    }
+}
+
+void exec_importpasswordsfromgooglefile(autocomplete::ACState& s)
+{
+    auto localname = localPathArg(s.words[1].s);
+    handle nh;
+    Base64::atob(s.words[2].s.c_str(), (byte*)&nh, MegaClient::NODEHANDLE);
+    NodeHandle parentHandle{};
+    parentHandle.set6byte(nh);
+
+    if (parentHandle.isUndef())
+    {
+        cout << "Parent handle is undef" << endl;
+        return;
+    }
+
+    std::shared_ptr<Node> parent = client->mNodeManager.getNodeByHandle(parentHandle);
+    if (!parent || !parent->isPasswordNodeFolder())
+    {
+        cout << "Invalid parent" << endl;
+        return;
+    }
+
+    using namespace pwm::import;
+    PassFileParseResult parserResult =
+        readPasswordImportFile(localname.platformEncoded(), FileSource::GOOGLE_PASSWORD);
+    if (parserResult.mErrCode != PassFileParseResult::ErrCode::OK)
+    {
+        cout << "Error importing file: " << parserResult.mErrMsg << endl;
+        return;
+    }
+
+    sharedNode_list children = client->getChildren(parent.get());
+    std::vector<std::string> childrenNames;
+    std::transform(children.begin(),
+                   children.end(),
+                   std::back_inserter(childrenNames),
+                   [](const std::shared_ptr<Node>& child) -> std::string
+                   {
+                       return child->displayname();
+                   });
+    ncoll::NameCollisionSolver solver{std::move(childrenNames)};
+
+    const auto [badEntries, goodEntries] =
+        MegaClient::validatePasswordEntries(std::move(parserResult.mResults), solver);
+
+    std::cout << "Imported passwords: " << goodEntries.size()
+              << "  Row with Error: " << badEntries.size() << endl;
+
+    client->createPasswordNodes(std::move(goodEntries), parent, 0);
+
+    if (!client->isClientType(MegaClient::ClientType::PASSWORD_MANAGER))
+    {
+        std::cout
+            << "\n*****\n"
+            << "* Password Manager commands executed in a non-Password Manager MegaClient type.\n"
+            << "* Be wary of implications regarding fetch nodes and action packets received.\n"
+            << "* Check megacli help to start it as a Password Manager MegaClient type.\n"
+            << "*****\n\n";
+    }
+}
+
+void exec_nodedescription(autocomplete::ACState& s)
+{
+    std::shared_ptr<Node> n = nodebypath(s.words[1].s.c_str());
+    if (!n)
+    {
+        cout << s.words[1].s << ": No such file or directory" << endl;
+        return;
+    }
+
+    const bool removeDescription = s.extractflag("-remove");
+    const bool setDescription = s.extractflag("-set");
+    const auto descNameId = AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_DESCRIPTION);
+
+    auto modifyDescription = [descNameId](const std::string& description, std::shared_ptr<Node> n)
+    {
+        AttrMap attrMap;
+        attrMap.map[descNameId] = description;
+        client->setattr(
+            n,
+            std::move(attrMap.map),
+            [](NodeHandle h, Error e)
+            {
+                if (e == API_OK)
+                    cout << "Description modified correctly" << endl;
+                else
+                    cout << "Error modifying description: " << e << "  Node: " << h << endl;
+            },
+            false);
+    };
+
+    if (removeDescription)
+    {
+        modifyDescription("", n);
+    }
+    else if (setDescription)
+    {
+        modifyDescription(s.words[2].s, n);
+    }
+    else if (auto it = n->attrs.map.find(descNameId); it != n->attrs.map.end())
+    {
+        cout << "Description: " << it->second << endl;
+    }
+    else
+    {
+        cout << "Description not set\n";
+    }
+}
+
+void exec_nodesensitive(autocomplete::ACState& s)
+{
+    std::shared_ptr<Node> n = nodebypath(s.words[1].s.c_str());
+    if (!n)
+    {
+        cout << s.words[1].s << ": No such file or directory" << endl;
+        return;
+    }
+
+    const bool removeSensitive = s.extractflag("-remove");
+    const auto attrId = AttrMap::string2nameid(MegaClient::NODE_ATTR_SEN);
+
+    AttrMap attrMap;
+    if (removeSensitive)
+        attrMap.map[attrId] = "";
+    else
+        attrMap.map[attrId] = "1";
+
+    client->setattr(
+        n,
+        std::move(attrMap.map),
+        [removeSensitive](NodeHandle h, Error e)
+        {
+            if (e == API_OK)
+                cout << "Node marked as " << (removeSensitive ? "no" : "") << " sensitive" << endl;
+            else
+                cout << "Error setting sensitivity: " << e << "  Node: " << h << endl;
+        },
+        false);
+}
+
+void exec_nodeTag(autocomplete::ACState& s)
+{
+    std::shared_ptr<Node> n = nodebypath(s.words[1].s.c_str());
+    if (!n)
+    {
+        cout << s.words[1].s << ": No such file or directory\n";
+        return;
+    }
+
+    const bool removeTag = s.extractflag("-remove");
+    const bool addTag = s.extractflag("-add");
+    const bool updateTag = s.extractflag("-update");
+    const auto tagNameId = AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_TAGS);
+
+    if (removeTag)
+    {
+        client->removeTagFromNode(n,
+                                  s.words[2].s,
+                                  [](NodeHandle h, Error e)
+                                  {
+                                      if (e == API_OK)
+                                          cout << "Tag removed correctly\n";
+                                  });
+    }
+    else if (addTag)
+    {
+        client->addTagToNode(n,
+                             s.words[2].s,
+                             [](NodeHandle h, Error e)
+                             {
+                                 if (e == API_OK)
+                                     cout << "Tag added correctly\n";
+                             });
+    }
+    else if (updateTag)
+    {
+        client->updateTagNode(n,
+                              s.words[2].s,
+                              s.words[3].s,
+                              [](NodeHandle h, Error e)
+                              {
+                                  if (e == API_OK)
+                                      cout << "Tag updated correctly\n";
+                              });
+    }
+    else if (auto it = n->attrs.map.find(tagNameId); it != n->attrs.map.end())
+    {
+        cout << "Tags: " << it->second << endl;
+    }
+    else
+    {
+        cout << "None tag is defined\n";
+    }
+}
+
+void exec_getpricing(autocomplete::ACState& s)
+{
+    cout << "Getting pricing plans... " << endl;
+    client->purchase_enumeratequotaitems();
+}
+
+void exec_collectAndPrintTransferStats(autocomplete::ACState& state)
+{
+    bool uploadsOnly = state.extractflag("-uploads");
+    bool downloadsOnly = state.extractflag("-downloads");
+    assert(!(uploadsOnly && downloadsOnly));
+
+    auto collectAndPrintTransfersMetricsFromType = [](direction_t transferType)
+    {
+        std::cout << "\n===================================================================\n";
+        std::cout << (transferType == PUT ? "[UploadStatistics]" : "[DownloadStatistics]") << "\n";
+        std::cout << "Number of transfers: " << client->mTransferStatsManager.size(transferType)
+                  << "\n";
+        std::cout << "Max entries: " << client->mTransferStatsManager.getMaxEntries(transferType)
+                  << "\n";
+        std::cout << "Max age in seconds: "
+                  << client->mTransferStatsManager.getMaxAgeSeconds(transferType) << "\n";
+        std::cout << "-------------------------------------------------------------------\n";
+        ::mega::stats::TransferStats::Metrics metrics =
+            client->mTransferStatsManager.collectAndPrintMetrics(transferType);
+        std::cout << metrics.toString() << "\n";
+        std::cout << "-------------------------------------------------------------------\n";
+        std::cout << "JSON format:\n";
+        std::cout << metrics.toJson() << "\n";
+        std::cout << "===================================================================\n\n";
+    };
+
+    if (!downloadsOnly)
+    {
+        collectAndPrintTransfersMetricsFromType(PUT);
+    }
+
+    if (!uploadsOnly)
+    {
+        collectAndPrintTransfersMetricsFromType(GET);
+    }
+}
+
+void exec_hashcash(autocomplete::ACState& s)
+{
+    const static string originalUserAgent = client->useragent;
+    const static string hashcashUserAgent = "HashcashDemo";
+
+    if (s.words.size() == 1)
+    {
+        cout << "Hashcash demo is "
+             << ((client->useragent == hashcashUserAgent) ? "enabled" : "disabled") << endl;
+        return;
+    }
+
+    if (s.extractflag("-on"))
+    {
+        g_APIURL_default = "https://staging.api.mega.co.nz/";
+        client->useragent = hashcashUserAgent;
+    }
+    else if (s.extractflag("-off"))
+    {
+        g_APIURL_default = "https://g.api.mega.co.nz/";
+        client->useragent = originalUserAgent;
+    }
+
+    client->httpio->APIURL = g_APIURL_default;
+    string tempUserAgent = client->useragent;
+    client->httpio->setuseragent(&tempUserAgent);
+    client->disconnect();
+}

@@ -19,7 +19,11 @@
  * program.
  */
 #import "MEGAAccountDetails.h"
+#import "MEGAAccountPlan+init.h"
+#import "MEGAAccountFeature+init.h"
+#import "MEGAAccountSubscription+init.h"
 #import "megaapi.h"
+#import "MEGAStringIntegerMap+init.h"
 
 using namespace mega;
 
@@ -49,51 +53,47 @@ using namespace mega;
     }
 }
 
-- (instancetype)clone {
-    return self.accountDetails ? [[MEGAAccountDetails alloc] initWithMegaAccountDetails:self.accountDetails->copy() cMemoryOwn:YES] : nil;
-}
-
-- (MegaAccountDetails *)getCPtr {
+- (nullable MegaAccountDetails *)getCPtr {
     return self.accountDetails;
 }
 
-- (NSNumber *)storageUsed {
-    return self.accountDetails ? [[NSNumber alloc] initWithLongLong:self.accountDetails->getStorageUsed()] : nil;
+- (long long)storageUsed {
+    return self.accountDetails ? self.accountDetails->getStorageUsed(): -1;
 }
 
 - (long long)versionStorageUsed {
-    return self.accountDetails ? self.accountDetails->getVersionStorageUsed() : 0;
+    return self.accountDetails ? self.accountDetails->getVersionStorageUsed(): -1;
 }
 
-- (NSNumber *)storageMax {
-    return self.accountDetails ? [[NSNumber alloc] initWithLongLong:self.accountDetails->getStorageMax()] : nil;
+- (long long)storageMax {
+    return self.accountDetails ? self.accountDetails->getStorageMax(): -1;
 }
 
-- (NSNumber *)transferOwnUsed {
-    return self.accountDetails ? [[NSNumber alloc] initWithLongLong:self.accountDetails->getTransferOwnUsed()] : nil;
+- (long long)transferUsed {
+    return self.accountDetails ? self.accountDetails->getTransferUsed(): -1;
 }
 
-- (NSNumber *)transferMax {
-    return self.accountDetails ? [[NSNumber alloc] initWithLongLong:self.accountDetails->getTransferMax()] : nil;
+- (long long)transferMax {
+    return self.accountDetails ? self.accountDetails->getTransferMax(): -1;
 }
 
 - (MEGAAccountType)type {
-    return (MEGAAccountType) (self.accountDetails ? self.accountDetails->getProLevel() : 0);
+    return (MEGAAccountType) (self.accountDetails ? self.accountDetails->getProLevel(): 0);
 }
 
 - (NSInteger)proExpiration {
-    return self.accountDetails ? self.accountDetails->getProExpiration() : 0;
+    return self.accountDetails ? self.accountDetails->getProExpiration(): -1;
 }
 
-- (MEGASubscriptionStatus)subscriptionStatus {
-    return (MEGASubscriptionStatus) (self.accountDetails ? self.accountDetails->getSubscriptionStatus() : 0);
+- (MEGASubscriptionStatus)subscriptionStatus __attribute__((deprecated("Use new API version 2 interfaces"))) {
+    return (MEGASubscriptionStatus) (self.accountDetails ? self.accountDetails->getSubscriptionStatus(): -1);
 }
 
-- (NSInteger)subscriptionRenewTime {
-    return self.accountDetails ? self.accountDetails->getSubscriptionRenewTime() : 0;
+- (NSInteger)subscriptionRenewTime __attribute__((deprecated("Use new API version 2 interfaces"))) {
+    return self.accountDetails ? self.accountDetails->getSubscriptionRenewTime(): -1;
 }
 
-- (NSString *)subscriptionMethod {
+- (nullable NSString *)subscriptionMethod __attribute__((deprecated("Use new API version 2 interfaces"))) {
     const char *val = self.accountDetails ? self.accountDetails->getSubscriptionMethod() : nil;
     if (!val) return nil;
     
@@ -103,11 +103,11 @@ using namespace mega;
     return ret;    
 }
 
-- (MEGAPaymentMethod)subscriptionMethodId {
-    return (MEGAPaymentMethod) (self.accountDetails ? self.accountDetails->getSubscriptionMethodId() : 0);
+- (MEGAPaymentMethod)subscriptionMethodId __attribute__((deprecated("Use new API version 2 interfaces"))) {
+    return (MEGAPaymentMethod) (self.accountDetails ? self.accountDetails->getSubscriptionMethodId(): -1);
 }
 
-- (NSString *)subscriptionCycle {
+- (nullable NSString *)subscriptionCycle __attribute__((deprecated("Use new API version 2 interfaces"))) {
     const char *val = self.accountDetails ? self.accountDetails->getSubscriptionCycle() : nil;
     if (!val) return nil;
     
@@ -118,30 +118,77 @@ using namespace mega;
 }
 
 - (NSInteger)numberUsageItems {
-    return self.accountDetails ? self.accountDetails->getNumUsageItems() : 0;
+    return self.accountDetails ? self.accountDetails->getNumUsageItems(): -1;
 }
 
-- (NSNumber *)storageUsedForHandle:(uint64_t)handle {
-    return self.accountDetails ? [[NSNumber alloc] initWithLongLong:self.accountDetails->getStorageUsed(handle)] : nil;
+- (NSInteger)numActiveFeatures {
+    return self.accountDetails ? self.accountDetails->getNumActiveFeatures() : -1;
 }
 
-- (NSNumber *)numberFilesForHandle:(uint64_t)handle {
-    return self.accountDetails ? [[NSNumber alloc] initWithLongLong:self.accountDetails->getNumFiles(handle)] : nil;
+- (int64_t)subscriptionLevel __attribute__((deprecated("Use new API version 2 interfaces"))) {
+    return self.accountDetails ? self.accountDetails->getSubscriptionLevel() : -1;
 }
 
-- (NSNumber *)numberFoldersForHandle:(uint64_t)handle {
-    return self.accountDetails ? [[NSNumber alloc] initWithLongLong:self.accountDetails->getNumFolders(handle)] : nil;
+- (nullable MEGAAccountFeature *)activeFeatureAtIndex:(NSInteger)index {
+    if (!self.accountDetails) {
+        return nil;
+    }
+    MegaAccountFeature *feature = self.accountDetails->getActiveFeature((int)index);
+    if (!feature) {
+        return nil;
+    }
+    return [[MEGAAccountFeature alloc] initWithMegaAccountFeature:feature cMemoryOwn:YES];
+}
+
+- (NSDictionary<NSString *, NSNumber *> *)subscriptionFeatures __attribute__((deprecated("Use new API version 2 interfaces"))) {
+    if (!self.accountDetails) {
+        return nil;
+    }
+    MegaStringIntegerMap* featuresMap = self.accountDetails->getSubscriptionFeatures();
+    if (!featuresMap) {
+        return nil;
+    }
+    MEGAStringIntegerMap *megaStringIntegerMap = [[MEGAStringIntegerMap alloc] initWithMegaStringIntegerMap:featuresMap cMemoryOwn:YES];
+    return [megaStringIntegerMap toDictionary];
+}
+
+- (long long)storageUsedForHandle:(uint64_t)handle {
+    return self.accountDetails ? self.accountDetails->getStorageUsed(handle): -1;
+}
+
+- (long long)numberFilesForHandle:(uint64_t)handle {
+    return self.accountDetails ? self.accountDetails->getNumFiles(handle): -1;
+}
+
+- (long long)numberFoldersForHandle:(uint64_t)handle {
+    return self.accountDetails ? self.accountDetails->getNumFolders(handle): -1;
 }
 
 - (long long)versionStorageUsedForHandle:(uint64_t)handle {
-    return self.accountDetails ? self.accountDetails->getVersionStorageUsed(handle) : 0;
+    return self.accountDetails ? self.accountDetails->getVersionStorageUsed(handle): -1;
 }
 
 - (long long)numberOfVersionFilesForHandle:(uint64_t)handle {
-    return self.accountDetails ? self.accountDetails->getNumVersionFiles(handle) : 0;
+    return self.accountDetails ? self.accountDetails->getNumVersionFiles(handle): -1;
 }
 
-+ (NSString *)stringForAccountType:(MEGAAccountType)accountType {
+- (NSInteger)numberOfPlans {
+    return self.accountDetails ? self.accountDetails->getNumPlans(): 0;
+}
+
+- (nullable MEGAAccountPlan *)planAtIndex:(NSInteger)index {
+    return self.accountDetails ? [[MEGAAccountPlan alloc] initWithMegaAccountPlan: self.accountDetails->getPlan((int)index) cMemoryOwn:YES] : nil;
+}
+
+- (NSInteger)numberOfSubscriptions {
+    return self.accountDetails ? self.accountDetails->getNumSubscriptions() : 0;
+}
+
+- (nullable MEGAAccountSubscription *)subscriptionAtIndex:(NSInteger)index {
+    return self.accountDetails ? [[MEGAAccountSubscription alloc] initWithMegaAccountSubscription:self.accountDetails->getSubscription((int)index) cMemoryOwn:YES] : nil;
+}
+
++ (nullable NSString *)stringForAccountType:(MEGAAccountType)accountType {
     NSString *result;
     switch (accountType) {
         case MEGAAccountTypeFree:
@@ -170,6 +217,18 @@ using namespace mega;
             
         case MEGAAccountTypeProFlexi:
             result = @"Pro Flexi";
+            break;
+            
+        case MEGAAccountTypeStarter:
+            result = @"Starter";
+            break;
+            
+        case MEGAAccountTypeBasic:
+            result = @"Basic";
+            break;
+            
+        case MEGAAccountTypeEssential:
+            result = @"Essential";
             break;
             
         default:

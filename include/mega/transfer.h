@@ -44,6 +44,51 @@ struct TransferCategory
 
 class TransferDbCommitter;
 
+#ifdef ENABLE_SYNC
+class TransferBackstop
+{
+    // A class to help track transfers that completed but haven't had
+    // putnodes sent yet, and may be abandoned by the owning sync.  If
+    // that happens, we still need to inform the app about the transfer final state.
+
+    mutex m;
+
+    // map by transfer tag
+    map<int, shared_ptr<SyncTransfer_inClient>> pendingPutnodes;
+
+public:
+
+    void remember(int tag, shared_ptr<SyncTransfer_inClient> wp)
+    {
+        lock_guard<mutex> g(m);
+        pendingPutnodes[tag] = move(wp);
+    }
+
+    void forget(int tag)
+    {
+        lock_guard<mutex> g(m);
+        pendingPutnodes.erase(tag);
+    }
+
+    vector<shared_ptr<SyncTransfer_inClient>> getAbandoned()
+    {
+        lock_guard<mutex> g(m);
+        vector<shared_ptr<SyncTransfer_inClient>> v;
+        v.reserve(pendingPutnodes.size());
+        for (auto i = pendingPutnodes.begin(); i != pendingPutnodes.end(); )
+        {
+            if (i->second.use_count() == 1)
+            {
+                v.push_back(i->second);
+                i = pendingPutnodes.erase(i);
+            }
+            else ++i;
+       }
+       return v;
+    }
+};
+#endif
+
 // pending/active up/download ordered by file fingerprint (size - mtime - sparse CRC)
 struct MEGA_API Transfer : public FileFingerprint
 {
@@ -57,7 +102,7 @@ struct MEGA_API Transfer : public FileFingerprint
     // file is removed
     file_list files;
 
-    unique_ptr<FileDistributor> downloadDistributor;
+    shared_ptr<FileDistributor> downloadDistributor;
 
     // failures/backoff
     unsigned failcount;
@@ -160,6 +205,15 @@ struct MEGA_API Transfer : public FileFingerprint
     // whether the Transfer needs to remove itself from the list it's in (for quick shutdown we can skip)
     bool mOptimizedDelete = false;
 
+    // whether it is a Transfer for support (i.e., an upload for the Support team)
+    bool isForSupport() const;
+
+    // whether the transfer is a Sync upload transfer
+    bool mIsSyncUpload = false;
+
+    // Add stats for this transfer to the MEGAclient. The client must be valid at this point.
+    bool addTransferStats();
+
 private:
     FileDistributor::TargetNameExistsResolution toTargetNameExistsResolution(CollisionResolution resolution);
 };
@@ -221,6 +275,158 @@ private:
     void prepareIncreasePriority(Transfer *transfer, transfer_list::iterator srcit, transfer_list::iterator dstit, TransferDbCommitter& committer);
     void prepareDecreasePriority(Transfer *transfer, transfer_list::iterator it, transfer_list::iterator dstit);
     bool isReady(Transfer *transfer);
+};
+
+/**
+ * @brief Represents unused connection in a Raided Streaming Transfer.
+ * This struct stores the connection number, the reason why is unused, and the number of backoff
+ * retries (in case of reason is UN_TEMP_ERR) before it can be reused again
+ */
+struct UnusedConn
+{
+public:
+    static constexpr unsigned int defaultBackoffRetries{5};
+    static constexpr std::array httpErrCodes = {
+        0, // NETWORK ERROR
+        403, // FORBIDDEN
+        404, // NOT FOUND
+        429, // TOO MANY REQUESTS
+        500, // INTERNAL SERVER ERROR
+        503, // SERVICE UNAVALIABLE
+    };
+
+    enum unusedReason
+    {
+        UN_INVALID = 0, // INVALID REASON
+        UN_NOT_ERR = 1, // CONNECTION CAN BE USED
+        UN_TEMP_ERR = 2, // CONNECTION CAN BE USED AFTER A BACKOFF
+        UN_DEFINITIVE_ERR = 3, // CONNECTION CANNOT BE USED ANYMORE
+        UN_RETRY_IMMEDIATELY = 4, // ENTIRE TRANSFER MUST BE RETRIED IMMEDIATELY
+    };
+
+    /**
+     * @brief Returns an unusedReason given a HTTP status code.
+     *
+     * @note Currently this method never returns UN_DEFINITIVE_ERR UN_DEFINITIVE_ERR is only set
+     * if same connection has failed more than once and failedParts has exceeded
+     * MAX_FAILED_RAIDED_PARTS
+     *
+     * @return An unusedReason given a HTTP status code.
+     */
+    static unusedReason getReasonFromHttpStatus(const int httpstatus)
+    {
+        switch (httpstatus)
+        {
+            case 404:
+            case 429:
+                return UN_RETRY_IMMEDIATELY;
+            case 0:
+            case 403:
+            case 503:
+            case 500:
+                return UN_TEMP_ERR;
+            default:
+                assert(false);
+                return UN_INVALID;
+        }
+    }
+
+    /**
+     * @brief Checks if the provided HTTP status code is handled.
+     *
+     * @note if this method returns false entire transfer should be retried
+     * as there's no specific code to handle that HTTP status
+     *
+     * @return true if the HTTP status code is valid, otherwise returns false.
+     */
+    static bool isHandledHttpStatus(const int httpstatus)
+    {
+        return std::find(httpErrCodes.begin(), httpErrCodes.end(), httpstatus) !=
+               httpErrCodes.end();
+    }
+
+    /**
+     * @brief Checks if mReason is an error reason
+     *
+     * @return true if the reason is `UN_TEMP_ERR` or `UN_DEFINITIVE_ERR`, otherwise returns false.
+     */
+    static bool isErrReason(const unusedReason& reason)
+    {
+        return reason == UN_TEMP_ERR || reason == UN_DEFINITIVE_ERR;
+    }
+
+    /**
+     * @brief Gets the number of the unused connection.
+     *
+     * @return The number of the unused connection.
+     */
+    size_t getNum() const;
+
+    /**
+     * @brief Checks if the current reason is a temporary error.
+     *
+     * This method checks if the unused connection is a temporary error reason (`UN_TEMP_ERR`).
+     *
+     * @return true if the reason is `UN_TEMP_ERR`, otherwise returns false.
+     */
+    bool isTempErrReason() const;
+
+    /**
+     * @brief Checks if mReason is an error reason
+     * @see isErrReason(const unusedReason& reason)
+     * @return true if the reason is an error reason, otherwise returns false.
+     */
+    bool isErrReason() const;
+
+    /**
+     * @brief Sets the unused connection info.
+     *
+     * This method sets the unused state of the connection, the connection number and clears
+     * mNumBackoffRetries. If reason is UN_TEMP_ERR, it also reset mNumBackoffRetries to
+     * defaultBackoffRetries
+     *
+     * @param num The number of connection
+     * @param reason The reason for marking the connection as unused
+     *
+     * @return true if the reason is valid and the connection state was updated successfully,
+     *         false if the reason is invalid.
+     */
+    bool setUnused(const size_t num, const unusedReason reason);
+
+    /**
+     * @brief Resets the unused connection state.
+     */
+    void clear();
+
+    /**
+     * @brief Decrements the temporary backoff retries counter.
+     *
+     * This method decrements the number of backoff retries, only if mReason is UN_TEMP_ERR and if
+     * it's greater than 0, otherwise it returns. If mNumBackoffRetries reaches 0 after decrement,
+     * it also resets mReason to UN_NOT_ERR
+     *
+     * If mNumBackoffRetries is greater that 0 and mReason is UN_TEMP_ERR it means that this
+     * connection cannot be used temporarily, until mNumBackoffRetries is 0 and mReason is
+     * UN_NOT_ERR
+     *
+     * @see searchAndDisconnectSlowestConnection
+     */
+    void decTempBackoffRetries();
+
+private:
+    /**
+     * @brief Checks if reason provided by param is a valid unusedReason.
+     *
+     * @return true if the reason is valid, otherwise returns false.
+     */
+    static bool isValidUnusedReason(unusedReason reason)
+    {
+        return reason == UN_NOT_ERR || reason == UN_TEMP_ERR || reason == UN_DEFINITIVE_ERR;
+    }
+
+    unsigned int mNumBackoffRetries{};
+    unusedReason mReason{UN_NOT_ERR};
+    size_t mNum{};
 };
 
 /**
@@ -328,10 +534,46 @@ public:
     */
     static constexpr m_off_t SLOWEST_TO_FASTEST_THROUGHPUT_RATIO[2] { 4, 5 };
 
+    /**
+     * @brief Max times a failed raided part of a DirectRead, is allowed to be replaced by another
+     * one.
+     *
+     * @see DirectReadSlot::retry
+     */
+    static constexpr int MAX_FAILED_RAIDED_PARTS = 1;
+
+    /**
+     * @brief Max different failed raided parts of a DirectRead allowed
+     *
+     * @see DirectReadSlot::retryOnError
+     */
+    static constexpr int MAX_DIFFERENT_FAILED_RAIDED_CONNS = 1;
 
     /* ===================*\
      *      Methods       *
     \* ===================*/
+
+    /**
+     * @brief Retries the entire direct read transfer upon a failure.
+     *
+     * This function is called when a transfer has failed, and it is responsible for
+     * resetting any failed parts and retrying the operation.
+     *
+     * @param err The error code that caused the failure
+     * @param timeleft The time after which the transfer is retried
+     */
+    void retryEntireTransfer(const Error& e, dstime timeleft = 0);
+
+    /**
+     * @brief Manages low speed raided direct read transfer
+     *
+     * The function finds the slowest connection, and replaces it by unused connection if posible,
+     * Otherwise entire transfer is retried.
+     *
+     * @note This function is called from watchOverDirectReadPerformance that monitors the speed of
+     * the entire raided transfer.
+     */
+    void onLowSpeedRaidedTransfer();
 
     /**
     *   @brief Main i/o loop (process every HTTP req from req vector).
@@ -339,6 +581,12 @@ public:
     *   @return True if connection must be retried, False to continue as normal.
     */
     bool doio();
+
+    /**
+     * @brief Manages a HTTP req failure filtering by httpstatus and performing required action (i.e
+     * retry HTTP req)
+     */
+    void onFailure(std::unique_ptr<HttpReq>& req, const size_t connectionNum);
 
     /**
     *   @brief Flag value getter to check if a given request is allowed to request a further chunk.
@@ -386,6 +634,35 @@ public:
     m_off_t getThroughput(size_t connectionNum) const;
 
     /**
+     * @brief Retries a DirectRead transfer, handling both RAIDED and non RAIDED transfers.
+     *
+     * This method attempts to retry a DirectRead transfer. If the transfer is non RAIDED,
+     * it directly triggers a retry. If it's RAIDED, it replaces that part with unused RAID
+     * connection, and retries only that part.
+     *
+     * @note In case of RAIDED transfer and mFailedRaidedParts has reached or exceeded
+     * MAX_FAILED_RAIDED_PARTS, entire transfer will be retried
+     *
+     * @param connectionNum The connection number to retry.
+     */
+    void retryOnError(const size_t connectionNum, const int httpstatus);
+
+    /**
+     * @brief Check if there are in-flight requests
+     *
+     * @return True if there are in-flight requests, otherwise returns false
+     */
+    bool exitDueReqsOnFlight() const;
+
+    /**
+     * @brief Replace unused connection by connectionNum
+     * @param connectionNum The connection number
+     * @return a pair of booleans, where first represents if connection could be replaced at
+     * DirectReadBufferManager level, and second one if new "usable" connection could be reset fine
+     */
+    std::pair<bool, bool> replaceUnusedConnection(size_t connectionNum);
+
+    /**
     *   @brief Search for the slowest connection and switch it with the actual unused connection.
     *
     *   This method is called between requests:
@@ -398,6 +675,19 @@ public:
     *   @see DirectReadSlot::MAX_SLOW_CONECCTION_SWITCHES
     */
     bool searchAndDisconnectSlowestConnection(size_t connectionNum = 0);
+
+    /**
+     * @brief Checks if the minimum comparable throughput is met for a specific connection.
+     *
+     * @param connectionNum The index of the connection
+     * @return true if the throughput for the specified connection meets the minimum comparable
+     * threshold, otherwise returns false
+     */
+    bool isMinComparableThroughputForThisConnection(const size_t connectionNum)
+    {
+        return mThroughput[connectionNum].second &&
+               mThroughput[connectionNum].first >= mMinComparableThroughput;
+    }
 
     /**
     *   @brief Decrease counter for requests with REQ_INFLIGHT status
@@ -432,11 +722,65 @@ public:
     bool watchOverDirectReadPerformance();
 
     /**
+     * @brief Checks if connection is done
+     * @param connectionNum The index of the connection
+     *
+     * @return true if connection is done, otherwise returns false
+     */
+    bool isConnectionDone(const size_t connectionNum);
+
+    /**
     *   @brief Builds a DirectReadSlot attached to a DirectRead object.
     *
     *   Insert DirectReadSlot object in MegaClient's DirectRead list to start fetching operations.
     */
     DirectReadSlot(DirectRead*);
+
+    /**
+     * @brief Increments the count of failed raided parts.
+     *
+     * This method increments the counter of failed raided parts, and stores connNum at
+     * mFailedRaidedParts.
+     *
+     * @param connNum The number of connection
+     * @return The updated count of failed raided parts.
+     */
+    std::size_t recordFailedRaidedPart(size_t connNum)
+    {
+        mFailedRaidedParts.emplace(connNum);
+        return ++mFailedRaidedPartsCounter;
+    }
+
+    /**
+     * @brief decrements the count of failed raided parts.
+     *
+     * @return The updated count of failed raided parts.
+     */
+    std::size_t decrementFailedRaidedPartsCounter()
+    {
+        return --mFailedRaidedPartsCounter;
+    }
+
+    /**
+     * @brief gets the number of different failed raided parts (connections).
+     *
+     * @return The number of different failed raided parts.
+     */
+    std::size_t getDifferentRaidedPartsFailed() const
+    {
+        return mFailedRaidedParts.size();
+    }
+
+    /**
+     * @brief Resets the count of failed raided parts.
+     *
+     * This method sets the counter of failed raided parts to 0.
+     */
+    void clearFailedRaidedParts()
+    {
+        mFailedRaidedParts.clear();
+        mFailedRaidedPartsCounter = 0;
+    }
 
     /**
     *   @brief Destroy DirectReadSlot and stop any pendant operation.
@@ -483,6 +827,17 @@ private:
     std::vector<std::unique_ptr<HttpReq>> mReqs;
 
     /**
+     * @brief Number of failed raided parts of a DirectRead.
+     * @see DirectReadSlot::retry
+     */
+    size_t mFailedRaidedPartsCounter{};
+
+    /**
+     * @brief Set of failed raided parts of a DirectRead.
+     */
+    std::set<size_t> mFailedRaidedParts;
+
+    /**
     *   @brief Pair of <Bytes downloaded> and <Total milliseconds> for throughput calculations.
     *
     *   Values are reset by default between different chunk requests.
@@ -510,7 +865,7 @@ private:
     *   This value is used for detecting the slowest start connection and further search and disconnect new slowest connections.
     *   It must be synchronized with RaidBufferManager value, which is the one to be cached (so we keep it if reseting the DirectReadSlot).
     */
-    size_t mUnusedRaidConnection;
+    UnusedConn mUnusedConn;
 
     /**
     *   @brief Current total switches done, i.e.: the slowest connection being switched with the unused connection.
@@ -696,6 +1051,7 @@ struct MEGA_API DirectReadNode
     DirectReadNode(MegaClient*, handle, bool, SymmCipher*, int64_t, const char*, const char*, const char*);
     ~DirectReadNode();
 };
-} // namespace
+
+} // namespace mega
 
 #endif

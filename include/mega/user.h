@@ -25,6 +25,10 @@
 #include "attrmap.h"
 
 namespace mega {
+
+class UserAttribute;
+class UserAttributeManager;
+
 // user/contact
 struct MEGA_API User : public Cacheable
 {
@@ -88,6 +92,10 @@ struct MEGA_API User : public Cacheable
         bool keys : 1;
         bool aPrefs : 1;    // apps preferences
         bool ccPrefs : 1;   // content consumption preferences
+        bool enableTestNotifications : 1; // list of IDs for enabled notifications
+        bool lastReadNotification : 1; // ID of last read notification
+        bool lastActionedBanner : 1; // ID of last actioner banner
+        bool enableTestSurveys: 1; // list of handles for enabled test surveys
     } changed;
 
     // user's public key
@@ -102,11 +110,7 @@ struct MEGA_API User : public Cacheable
     deque<std::unique_ptr<PubKeyAction>> pkrs;
 
 private:
-    // persistent attributes (keyring, firstname...)
-    userattr_map attrs;
-
-    // version of each attribute
-    userattr_map attrsv;
+    std::unique_ptr<UserAttributeManager> mAttributeManager;
 
     // source tag
     int tag;
@@ -116,17 +120,20 @@ public:
 
     bool serialize(string*) const override;
     static User* unserialize(class MegaClient *, string*);
+    bool unserializeAttributes(const char*& from, const char* upTo, char formatVersion);
 
     void removepkrs(MegaClient*);
 
-    // attribute methods: set/get/invalidate...
-    void setattr(attr_t at, string *av, string *v);
-    const string *getattr(attr_t at);
-    const string *getattrversion(attr_t at);
-    void invalidateattr(attr_t at);
-    bool isattrvalid(attr_t at);
-    void removeattr(attr_t at, const string *version = nullptr);
-    int updateattr(attr_t at, string *av, string *v);
+    // attribute methods: set/get/expire...
+    void setAttribute(attr_t at, const string& value, const string& version);
+    bool updateAttributeIfDifferentVersion(attr_t at, const string& value, const string& version);
+    void setAttributeExpired(attr_t at);
+    const UserAttribute* getAttribute(attr_t at) const;
+    void removeAttribute(attr_t at);
+    void removeAttributeUpdateVersion(attr_t at, const string& version); // remove in up2/upv V3 ?
+
+    // Set this to avoid requesting attributes already known to not exist from server.
+    void cacheNonExistingAttributes();
 
     static string attr2string(attr_t at);
     static string attr2longname(attr_t at);
@@ -134,6 +141,7 @@ public:
     static int needversioning(attr_t at);
     static char scope(attr_t at);
     static bool isAuthring(attr_t at);
+    static size_t getMaxAttributeSize(attr_t at);
 
     enum {
         PWD_LAST_SUCCESS = 0x01,
@@ -159,6 +167,7 @@ public:
     void resetTag();
 
     User(const char* = NULL);
+    ~User() override;
 
     // merges the new values in the given TLV. Returns true if TLV is changed.
     static bool mergeUserAttribute(attr_t type, const string_map &newValuesMap, TLVstore &tlv);

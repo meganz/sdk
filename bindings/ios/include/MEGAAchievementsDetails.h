@@ -22,6 +22,8 @@
 #import <Foundation/Foundation.h>
 #import "MEGAStringList.h"
 
+NS_ASSUME_NONNULL_BEGIN
+
 typedef NS_ENUM(NSUInteger, MEGAAchievement) {
     MEGAAchievementWelcome = 1,
     MEGAAchievementInvite = 3,
@@ -192,7 +194,7 @@ typedef NS_ENUM(NSUInteger, MEGAAchievement) {
  * @param index Position of the award in the list of unlocked awards
  * @return The timestamp of the award (when it was unlocked) in position \c index
  */
-- (NSDate *)awardTimestampAtIndex:(NSUInteger)index;
+- (nullable NSDate *)awardTimestampAtIndex:(NSUInteger)index;
 
 /**
  * @brief Get the expiration timestamp of the award
@@ -207,7 +209,7 @@ typedef NS_ENUM(NSUInteger, MEGAAchievement) {
  * @param index Position of the award in the list of unlocked awards
  * @return The expiration timestamp of the award in position \c index
  */
-- (NSDate *)awardExpirationAtIndex:(NSUInteger)index;
+- (nullable NSDate *)awardExpirationAtIndex:(NSUInteger)index;
 
 /**
  * @brief Get the list of referred emails for the award
@@ -217,7 +219,7 @@ typedef NS_ENUM(NSUInteger, MEGAAchievement) {
  * @param index Position of the award in the list of unlocked awards
  * @return The list of invited emails for the award in position \c index
  */
-- (MEGAStringList *)awardEmailsAtIndex:(NSUInteger)index;
+- (nullable MEGAStringList *)awardEmailsAtIndex:(NSUInteger)index;
 
 /**
  * @brief Get the id of the award associated with the reward
@@ -261,6 +263,6 @@ typedef NS_ENUM(NSUInteger, MEGAAchievement) {
  */
 - (NSInteger)rewardExpireAtIndex:(NSUInteger)index;
 
-- (instancetype)clone;
-
 @end
+
+NS_ASSUME_NONNULL_END
