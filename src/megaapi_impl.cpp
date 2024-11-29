@@ -2134,53 +2134,53 @@ MegaNodeList *MegaNodePrivate::getChildren()
     return children;
 }
 
-void MegaNodePrivate::setPrivateAuth(const char *privateAuth)
+void MegaNodePrivate::setPrivateAuth(const char* newPrivateAuth)
 {
-    if (!privateAuth || !privateAuth[0])
+    if (!newPrivateAuth || !newPrivateAuth[0])
     {
-        this->privateAuth.clear();
+        privateAuth.clear();
     }
     else
     {
-        this->privateAuth = privateAuth;
+        privateAuth = newPrivateAuth;
     }
 }
 
-void MegaNodePrivate::setPublicAuth(const char *publicAuth)
+void MegaNodePrivate::setPublicAuth(const char* newPublicAuth)
 {
-    if (!publicAuth || !publicAuth[0])
+    if (!newPublicAuth || !newPublicAuth[0])
     {
-        this->publicAuth.clear();
+        publicAuth.clear();
     }
     else
     {
-        this->publicAuth = publicAuth;
+        publicAuth = newPublicAuth;
     }
 }
 
-void MegaNodePrivate::setChatAuth(const char *chatAuth)
+void MegaNodePrivate::setChatAuth(const char* newChatAuth)
 {
-    delete [] this->chatAuth;
-    if (!chatAuth || !chatAuth[0])
+    delete[] chatAuth;
+    if (!newChatAuth || !newChatAuth[0])
     {
-        this->chatAuth = NULL;
-        this->foreign = false;
+        chatAuth = NULL;
+        foreign = false;
     }
     else
     {
-        this->chatAuth = MegaApi::strdup(chatAuth);
-        this->foreign = true;
+        chatAuth = MegaApi::strdup(newChatAuth);
+        foreign = true;
     }
 }
 
-void MegaNodePrivate::setForeign(bool foreign)
+void MegaNodePrivate::setForeign(bool isForeign)
 {
-    this->foreign = foreign;
+    foreign = isForeign;
 }
 
-void MegaNodePrivate::setChildren(MegaNodeList *children)
+void MegaNodePrivate::setChildren(MegaNodeList* newChildren)
 {
-    this->children = children;
+    children = newChildren;
 }
 
 void MegaNodePrivate::setName(const char *newName)
