@@ -19367,6 +19367,13 @@ TEST_F(SdkTest, SdkNodeTag)
     ASSERT_EQ(addTag(mh, cafeWithoutAccent), API_OK);
     ASSERT_EQ(addTag(mh, cafeWithAccent), API_OK);
 
+    // Make sure we can add distinct tags that sort equivalently.
+    std::string equivalentWithoutPrefix = "0123";
+    std::string equivalentWithPrefix = "00123";
+
+    ASSERT_EQ(addTag(mh, equivalentWithoutPrefix), API_OK);
+    ASSERT_EQ(addTag(mh, equivalentWithPrefix), API_OK);
+
     // Tags are case insensitive.
     ASSERT_EQ(addTag(mh, tag4Lowercase), API_EEXIST);
 
@@ -19415,7 +19422,9 @@ TEST_F(SdkTest, SdkNodeTag)
     ASSERT_NE(allTags, nullptr);
     auto allTagsV = stringListToVector(*allTags);
     EXPECT_THAT(allTagsV,
-                testing::ElementsAreArray({cafeWithAccent,
+                testing::ElementsAreArray({equivalentWithPrefix,
+                                           equivalentWithoutPrefix,
+                                           cafeWithAccent,
                                            cafeWithoutAccent,
                                            subdirtag4,
                                            subdirtag14,

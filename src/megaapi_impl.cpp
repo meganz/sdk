@@ -913,9 +913,9 @@ MegaStringList* MegaNodePrivate::getTags()
 {
     const char* str = getOfficialAttr(MegaClient::NODE_ATTRIBUTE_TAGS);
     std::string tags = str ? str : "";
-    const auto tokens =
-        splitString<std::set<std::string, NaturalSortingComparator>>(tags,
-                                                                     MegaClient::TAG_DELIMITER);
+    const auto tokens = splitString<std::multiset<std::string, NaturalSortingComparator>>(
+        tags,
+        MegaClient::TAG_DELIMITER);
     MegaStringListPrivate* stringList = new MegaStringListPrivate();
     for (const auto& token: tokens)
     {
