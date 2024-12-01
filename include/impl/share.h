@@ -1,5 +1,6 @@
 #pragma once
 
+#include "mega.h"
 #include "megaapi.h"
 
 namespace mega
@@ -27,6 +28,26 @@ private:
     const Share* mShare;
 
     bool mVerified;
+};
+
+class ShareExtractor
+{
+public:
+    using Filter = std::function<bool(const ShareData&)>;
+
+    // Extract both out and pending shares, if filter(data) returns false, the share data is dropped
+    static vector<ShareData> extractShares(const sharedNode_vector& sharedNodes,
+                                           const KeyManager& keyManager,
+                                           Filter filter = nullptr);
+
+private:
+    static std::vector<ShareData> extractPendingShares(const Node* n,
+                                                       const KeyManager& keyManager,
+                                                       Filter filter);
+
+    static std::vector<ShareData> extractOutShares(const Node* n,
+                                                   const KeyManager& keyManager,
+                                                   Filter filter);
 };
 
 } // namespace impl

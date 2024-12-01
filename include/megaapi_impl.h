@@ -3702,7 +3702,8 @@ class MegaApiImpl : public MegaApp
         MegaShareList *getOutShares(int order);
         MegaShareList *getOutShares(MegaNode *node);
 private:
-        sharedNode_vector getOutShares();
+    sharedNode_vector getSharedNodes() const;
+
 public:
         MegaShareList *getPendingOutShares();
         MegaShareList *getPendingOutShares(MegaNode *megaNode);

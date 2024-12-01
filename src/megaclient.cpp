@@ -22035,7 +22035,7 @@ bool KeyManager::promotePendingShares()
     return attributeUpdated;
 }
 
-bool KeyManager::isUnverifiedOutShare(handle nodeHandle, const string& uid)
+bool KeyManager::isUnverifiedOutShare(handle nodeHandle, const string& uid) const
 {
     auto it = mPendingOutShares.find(nodeHandle);
     if (it == mPendingOutShares.end())
