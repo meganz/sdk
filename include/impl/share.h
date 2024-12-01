@@ -22,6 +22,8 @@ public:
 
     bool isVerified() const;
 
+    m_time_t creationTime() const;
+
 private:
     MegaHandle mNodeHandle;
 
@@ -48,6 +50,24 @@ private:
     static std::vector<ShareData> extractOutShares(const Node* n,
                                                    const KeyManager& keyManager,
                                                    Filter filter);
+};
+
+class ShareSorter
+{
+public:
+    ShareSorter(int order):
+        mOrder(order)
+    {}
+
+    // Sort in place
+    void sort(std::vector<ShareData>& shares) const;
+
+private:
+    void sortByCreationTimeAsc(std::vector<ShareData>& shares) const;
+
+    void sortByCreationTimeDesc(std::vector<ShareData>& shares) const;
+
+    int mOrder{MegaApi::ORDER_NONE};
 };
 
 } // namespace impl

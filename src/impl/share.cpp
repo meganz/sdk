@@ -26,6 +26,11 @@ bool ShareData::isVerified() const
     return mVerified;
 }
 
+m_time_t ShareData::creationTime() const
+{
+    return mShare->ts;
+}
+
 vector<ShareData> ShareExtractor::extractOutShares(const Node* n,
                                                    const KeyManager& keyManager,
                                                    Filter filter)
@@ -94,6 +99,39 @@ vector<ShareData> ShareExtractor::extractShares(const sharedNode_vector& sharedN
         std::move(pendingShares.begin(), pendingShares.end(), outputIt);
     }
     return shares;
+}
+
+void ShareSorter::sort(std::vector<ShareData>& shares) const
+{
+    switch (mOrder)
+    {
+        case MegaApi::ORDER_SHARE_CREATION_ASC:
+            return sortByCreationTimeAsc(shares);
+        case MegaApi::ORDER_SHARE_CREATION_DESC:
+            return sortByCreationTimeDesc(shares);
+        default:
+            return;
+    }
+}
+
+void ShareSorter::sortByCreationTimeAsc(std::vector<ShareData>& shares) const
+{
+    std::sort(std::begin(shares),
+              std::end(shares),
+              [](const ShareData& a, const ShareData& b)
+              {
+                  return a.creationTime() > b.creationTime();
+              });
+}
+
+void ShareSorter::sortByCreationTimeDesc(std::vector<ShareData>& shares) const
+{
+    std::sort(std::begin(shares),
+              std::end(shares),
+              [](const ShareData& a, const ShareData& b)
+              {
+                  return a.creationTime() < b.creationTime();
+              });
 }
 
 } // namespace impl

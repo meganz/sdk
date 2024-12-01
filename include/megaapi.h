@@ -17755,8 +17755,13 @@ class MegaApi
             /*deprecated*/ ORDER_PHOTO_ASC, /*deprecated*/ ORDER_PHOTO_DESC,
             /*deprecated*/ ORDER_VIDEO_ASC, /*deprecated*/ ORDER_VIDEO_DESC,
             ORDER_LINK_CREATION_ASC, ORDER_LINK_CREATION_DESC,
-            ORDER_LABEL_ASC, ORDER_LABEL_DESC, ORDER_FAV_ASC, ORDER_FAV_DESC,};
-
+            ORDER_LABEL_ASC,
+            ORDER_LABEL_DESC,
+            ORDER_FAV_ASC,
+            ORDER_FAV_DESC,
+            ORDER_SHARE_CREATION_ASC,
+            ORDER_SHARE_CREATION_DESC,
+        };
 
         enum { FILE_TYPE_DEFAULT = 0, // FILE_TYPE_UNKNOWN already exists at WinBase.h
                FILE_TYPE_PHOTO,
@@ -18512,10 +18517,16 @@ class MegaApi
          * Sort by size, small elements last
          *
          * - MegaApi::ORDER_CREATION_ASC = 5
-         * Sort by creation time in MEGA, older elements first
+         * Sort by node creation time in MEGA, older elements first
          *
          * - MegaApi::ORDER_CREATION_DESC = 6
-         * Sort by creation time in MEGA, older elements last
+         * Sort by node creation time in MEGA, older elements last
+         *
+         * - MegaApi::ORDER_SHARE_CREATION_ASC = 20
+         * Sort by share creation time in MEGA, older elements first
+         *
+         * - MegaApi::ORDER_SHARE_CREATION_DESC = 21
+         * Sort by share creation time in MEGA, older elements last
          *
          * @return List of MegaShare objects
          */
@@ -18583,10 +18594,16 @@ class MegaApi
          * Sort by size, small elements last
          *
          * - MegaApi::ORDER_CREATION_ASC = 5
-         * Sort by creation time in MEGA, older elements first
+         * Sort by node creation time in MEGA, older elements first
          *
          * - MegaApi::ORDER_CREATION_DESC = 6
-         * Sort by creation time in MEGA, older elements last
+         * Sort by node creation time in MEGA, older elements last
+         *
+         * - MegaApi::ORDER_SHARE_CREATION_ASC = 20
+         * Sort by share creation time in MEGA, older elements first
+         *
+         * - MegaApi::ORDER_SHARE_CREATION_DESC = 21
+         * Sort by share creation time in MEGA, older elements last
          *
          * @return List of MegaShare objects
          */
