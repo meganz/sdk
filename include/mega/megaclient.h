@@ -888,7 +888,7 @@ public:
     void putFileAttributes(handle h, fatype t, const std::string& encryptedAttributes, int tag);
 
     // attach file attribute to upload or node handle
-    bool putfa(NodeOrUploadHandle, fatype, SymmCipher*, int tag, std::unique_ptr<string>);
+    error putfa(NodeOrUploadHandle, fatype, SymmCipher*, int tag, std::unique_ptr<string>);
 
     // move as many as possible from pendingfa to activefa
     void activatefa();

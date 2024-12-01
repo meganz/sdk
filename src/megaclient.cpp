@@ -5907,11 +5907,11 @@ void MegaClient::pendingattrstring(UploadHandle h, string* fa)
 // Upload file attribute data to fa servers. node handle can be UNDEF if we are giving fa handle back to the app
 // Used for attaching file attribute to a Node, or prepping for Node creation after upload, or getting fa handle for app.
 // FIXME: to avoid unnecessary roundtrips to the attribute servers, also cache locally
-bool MegaClient::putfa(NodeOrUploadHandle th,
-                       fatype t,
-                       SymmCipher* cypher,
-                       int tag,
-                       std::unique_ptr<string> data)
+error MegaClient::putfa(NodeOrUploadHandle th,
+                        fatype t,
+                        SymmCipher* cypher,
+                        int tag,
+                        std::unique_ptr<string> data)
 {
     // CBC-encrypt attribute data (padded to next multiple of BLOCKSIZE)
     data->resize((data->size() + SymmCipher::BLOCKSIZE - 1) & -SymmCipher::BLOCKSIZE);
@@ -5925,19 +5925,14 @@ bool MegaClient::putfa(NodeOrUploadHandle th,
         // Clarity.
         LOG_err << "Exceeded size for file attribute: " << tag;
 
-        restag = tag;
-
-        // Let the application know we couldn't upload this attribute.
-        app->putfa_result(th.as8byte(), t, API_EARGS);
-
         // Let the caller know we couldn't upload this attribute.
-        return false;
+        return API_EARGS;
     }
 
     if (!cypher->cbc_encrypt((byte*)data->data(), data->size()))
     {
         LOG_err << "Failed to CBC encrypt Node attribute data.";
-        return false;
+        return API_EKEY;
     }
 
     queuedfa.emplace_back(new HttpReqFA(th, t, usehttps, tag, std::move(data), true, this));
@@ -5945,7 +5940,8 @@ bool MegaClient::putfa(NodeOrUploadHandle th,
 
     // no other file attribute storage request currently in progress? POST this one.
     activatefa();
-    return true;
+
+    return API_OK;
 }
 
 void MegaClient::activatefa()
