@@ -68,7 +68,7 @@ bool GfxProviderCG::readbitmap(const LocalPath& path, int size) {
     // Make absolute path usable to Cocoa.
     NSString* sourcePath =
       [NSString stringWithCString: absolutePath.c_str()
-                encoding: [NSString defaultCStringEncoding]];
+                encoding:NSUTF8StringEncoding];
 
     // Couldn't create a Cocoa-friendly path.
     if (sourcePath == nil) {
