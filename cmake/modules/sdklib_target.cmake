@@ -456,34 +456,3 @@ configure_file(
     cmake/modules/sdklib.pc.in
     ${CMAKE_CURRENT_BINARY_DIR}/sdklib.pc @ONLY
     )
-
-## Installation ##
-if(SDKLIB_STANDALONE)
-
-    message(STATUS "Current installation path for SDKlib files: ${CMAKE_INSTALL_PREFIX}")
-
-    # Install library: Lib, export targets, pub headers.
-    install(TARGETS SDKlib
-        EXPORT "sdklibTargets"
-        PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-        INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-        )
-
-    # Install export file
-    install(EXPORT "sdklibTargets"
-        FILE "sdklibTargets.cmake"
-        NAMESPACE MEGA::
-        DESTINATION cmake
-        )
-
-    # Install config files
-    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/sdklibConfig.cmake DESTINATION cmake)
-    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/sdklib.pc DESTINATION pkgconfig)
-    install(FILES ${SDKLIB_PUB_HEADERS} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-
-    # Export targets to be used from the build directory.
-    export(EXPORT "sdklibTargets"
-        FILE "${CMAKE_CURRENT_BINARY_DIR}/cmake/sdklibTargets.cmake"
-        NAMESPACE MEGA::
-        )
-endif()
