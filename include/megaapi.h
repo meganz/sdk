@@ -14848,7 +14848,9 @@ class MegaApi
         /**
          * @brief Submit a purchase receipt for verification
          *
-         * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+         * The associated request type with this request is
+         * MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+         *
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNumber - Returns the payment gateway
          * - MegaRequest::getText - Returns the purchase receipt
@@ -14863,13 +14865,19 @@ class MegaApi
          * @param receipt Purchase receipt
          * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
          * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated This version of the function is deprecated. Please, use the non-deprecated
+         * ones.
          */
+        MEGA_DEPRECATED
         void submitPurchaseReceipt(int gateway, const char* receipt, MegaHandle lastPublicHandle, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Submit a purchase receipt for verification
          *
-         * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+         * The associated request type with this request is
+         * MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+         *
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNumber - Returns the payment gateway
          * - MegaRequest::getText - Returns the purchase receipt
@@ -14893,7 +14901,11 @@ class MegaApi
          *
          * @param lastAccessTimestamp Timestamp of the last access
          * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated This version of the function is deprecated. Please, use the non-deprecated
+         * one.
          */
+        MEGA_DEPRECATED
         void submitPurchaseReceipt(int gateway, const char *receipt, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener =  NULL);
 
         /**
