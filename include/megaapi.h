@@ -14753,7 +14753,11 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          *
          * @see MegaApi::getPricing
+         *
+         * @deprecated This version of the function is deprecated. Please, use the non-deprecated
+         * one.
          */
+        MEGA_DEPRECATED
         void getPaymentId(MegaHandle productHandle, MegaHandle lastPublicHandle, MegaRequestListener *listener = NULL);
 
         /**
@@ -14781,7 +14785,11 @@ class MegaApi
          * @param lastAccessTimestamp Timestamp of the last access
          * @param listener MegaRequestListener to track this request
          * @see MegaApi::getPricing
+         *
+         * @deprecated This version of the function is deprecated. Please, use the non-deprecated
+         * one.
          */
+        MEGA_DEPRECATED
         void getPaymentId(MegaHandle productHandle, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener = NULL);
 
         /**
