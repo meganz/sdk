@@ -1,7 +1,84 @@
 #include "SdkTest_test.h"
 
 class SdkTestShare: public SdkTest
-{};
+{
+protected:
+    struct Party
+    {
+        PerApi& api;
+        bool wait; // wait for response
+    };
+
+    void createShareAtoB(MegaNode* node, const Party& partyA, const Party& partyB);
+
+    // Use mApi[0] as party A and mApi[1] as party B
+    void createShareAtoB(MegaNode* node, bool waitForA = true, bool waitForB = true);
+
+    // Remove a share ensuring node changes are notified.
+    // Use mApi[0] and mApi[1]
+    void removeShareAtoB(MegaNode* node);
+
+    // Reset both accounts credentials verification
+    // Use mApi[0] and mApi[1]
+    void resetAllCredentials();
+};
+
+void SdkTestShare::createShareAtoB(MegaNode* node, const Party& partyA, const Party& partyB)
+{
+    partyA.api.mOnNodesUpdateCompletion = createOnNodesUpdateLambda(node->getHandle(),
+                                                                    MegaNode::CHANGE_TYPE_OUTSHARE,
+                                                                    partyA.api.nodeUpdated);
+    partyB.api.mOnNodesUpdateCompletion = createOnNodesUpdateLambda(node->getHandle(),
+                                                                    MegaNode::CHANGE_TYPE_INSHARE,
+                                                                    mApi[1].nodeUpdated);
+    ASSERT_NO_FATAL_FAILURE(
+        shareFolder(node, partyB.api.email.c_str(), MegaShare::ACCESS_READWRITE));
+
+    if (partyA.wait)
+    {
+        ASSERT_TRUE(waitForResponse(&partyA.api.nodeUpdated))
+            << "Node update not received after " << maxTimeout << " seconds";
+    }
+
+    if (partyB.wait)
+    {
+        ASSERT_TRUE(waitForResponse(&partyB.api.nodeUpdated))
+            << "Node update not received after " << maxTimeout << " seconds";
+    }
+
+    resetOnNodeUpdateCompletionCBs();
+    partyA.api.nodeUpdated = partyB.api.nodeUpdated = false;
+}
+
+void SdkTestShare::createShareAtoB(MegaNode* node, bool waitForA, bool waitForB)
+{
+    createShareAtoB(node, {mApi[0], waitForA}, {mApi[1], waitForB});
+}
+
+void SdkTestShare::removeShareAtoB(MegaNode* node)
+{
+    mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(node->getHandle(),
+                                                                 MegaNode::CHANGE_TYPE_OUTSHARE,
+                                                                 mApi[0].nodeUpdated);
+    mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(node->getHandle(),
+                                                                 MegaNode::CHANGE_TYPE_REMOVED,
+                                                                 mApi[1].nodeUpdated);
+    ASSERT_NO_FATAL_FAILURE(shareFolder(node, mApi[1].email.c_str(), MegaShare::ACCESS_UNKNOWN));
+    ASSERT_TRUE(waitForResponse(&mApi[0].nodeUpdated))
+        << "Node update not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated))
+        << "Node update not received after " << maxTimeout << " seconds";
+    resetOnNodeUpdateCompletionCBs();
+    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
+}
+
+void SdkTestShare::resetAllCredentials()
+{
+    ASSERT_NO_FATAL_FAILURE(resetCredentials(0, mApi[1].email));
+    ASSERT_NO_FATAL_FAILURE(resetCredentials(1, mApi[0].email));
+    ASSERT_FALSE(areCredentialsVerified(0, mApi[1].email));
+    ASSERT_FALSE(areCredentialsVerified(1, mApi[0].email));
+}
 
 /**
  * @brief TEST_F TestSharesContactVerification
@@ -30,59 +107,6 @@ TEST_F(SdkTestShare, TestSharesContactVerification)
     string folder12 = "EnhancedSecurityShares-21";
     string folder13 = "EnhancedSecurityShares-22";
     string folder2 = "EnhancedSecurityShares-23";
-
-    // Auxiliar function to create a share ensuring node changes are notified.
-    auto createShareAtoB = [this](MegaNode* node, bool waitForA = true, bool waitForB = true)
-    {
-        mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(node->getHandle(),
-                                                                     MegaNode::CHANGE_TYPE_OUTSHARE,
-                                                                     mApi[0].nodeUpdated);
-        mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(node->getHandle(),
-                                                                     MegaNode::CHANGE_TYPE_INSHARE,
-                                                                     mApi[1].nodeUpdated);
-        ASSERT_NO_FATAL_FAILURE(
-            shareFolder(node, mApi[1].email.c_str(), MegaShare::ACCESS_READWRITE));
-        if (waitForA)
-        {
-            ASSERT_TRUE(waitForResponse(&mApi[0].nodeUpdated))
-                << "Node update not received after " << maxTimeout << " seconds";
-        }
-        if (waitForB)
-        {
-            ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated))
-                << "Node update not received after " << maxTimeout << " seconds";
-        }
-        resetOnNodeUpdateCompletionCBs();
-        mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
-    };
-
-    // Auxiliar function to remove a share ensuring node changes are notified.
-    auto removeShareAtoB = [this](MegaNode* node)
-    {
-        mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(node->getHandle(),
-                                                                     MegaNode::CHANGE_TYPE_OUTSHARE,
-                                                                     mApi[0].nodeUpdated);
-        mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(node->getHandle(),
-                                                                     MegaNode::CHANGE_TYPE_REMOVED,
-                                                                     mApi[1].nodeUpdated);
-        ASSERT_NO_FATAL_FAILURE(
-            shareFolder(node, mApi[1].email.c_str(), MegaShare::ACCESS_UNKNOWN));
-        ASSERT_TRUE(waitForResponse(&mApi[0].nodeUpdated))
-            << "Node update not received after " << maxTimeout << " seconds";
-        ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated))
-            << "Node update not received after " << maxTimeout << " seconds";
-        resetOnNodeUpdateCompletionCBs();
-        mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
-    };
-
-    // Auxiliar function to reset both accounts credentials verification
-    auto resetAllCredentials = [this]()
-    {
-        ASSERT_NO_FATAL_FAILURE(resetCredentials(0, mApi[1].email));
-        ASSERT_NO_FATAL_FAILURE(resetCredentials(1, mApi[0].email));
-        ASSERT_FALSE(areCredentialsVerified(0, mApi[1].email));
-        ASSERT_FALSE(areCredentialsVerified(1, mApi[0].email));
-    };
 
     std::unique_ptr<MegaNode> remoteRootNode(megaApi[0]->getRootNode());
     ASSERT_NE(remoteRootNode.get(), nullptr);
