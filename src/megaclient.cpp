@@ -21094,8 +21094,6 @@ void MegaClient::sc_aer()
 
 error MegaClient::readExportedSet(JSON& j, Set& s)
 {
-    static constexpr uint64_t ETD_REMOVED = 4294967275; // Defined by API
-    static constexpr uint64_t ATD_REMOVED = 4294967274; // Defined by API
     handle publicHandle{UNDEF};
     PublicLinkSet::LinkDeletionReason reason{PublicLinkSet::LinkDeletionReason::NO_REMOVED};
     bool removed{false};
@@ -21120,7 +21118,8 @@ error MegaClient::readExportedSet(JSON& j, Set& s)
         // The presence of this parameter indicates a takeup/takedown. 0 means takeup and 1 means
         // takedown
         case MAKENAMEID2('t', 'd'):
-            takeDown = j.getint();
+            containsTakenDownInfo = true;
+            isDown = j.getint() == 1;
             break;
 
         // The presence of this parameter indicates a set public handle removal
@@ -21130,21 +21129,7 @@ error MegaClient::readExportedSet(JSON& j, Set& s)
             break;
 
         case name_id::c:
-            switch (j.getint())
-            {
-                case 0:
-                    reason = PublicLinkSet::LinkDeletionReason::BY_USER;
-                    break;
-                case ETD_REMOVED:
-                    reason = PublicLinkSet::LinkDeletionReason::ETD;
-                    break;
-                case ATD_REMOVED:
-                    reason = PublicLinkSet::LinkDeletionReason::ATD;
-                    break;
-                default:
-                    reason = PublicLinkSet::LinkDeletionReason::DISPUTE;
-                    break;
-            }
+            reason = PublicLinkSet::apiCodeToDeletionReason(j.getint());
             break;
 
         default: // skip 'i' and any unknown/unexpected member
@@ -21165,7 +21150,7 @@ error MegaClient::readExportedSet(JSON& j, Set& s)
             {
                 useralerts.add(new UserAlert::SetTakedown(isDown,
                                                           !isDown,
-                                                          static_cast<m_off_t>(reason),
+                                                          reason,
                                                           s.id(),
                                                           m_time(),
                                                           useralerts.nextId()));

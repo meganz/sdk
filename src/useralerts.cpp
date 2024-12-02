@@ -1354,14 +1354,14 @@ UserAlert::SetTakedown::SetTakedown(UserAlertRaw& un, unsigned int id):
     int n = un.getint(MAKENAMEID2('t', 'd'), -1);
     isTakedown = n == 1;
     isReinstate = n == 0;
-    reason = un.getint(MAKENAMEID1('c'), 0);
+    reason = PublicLinkSet::apiCodeToDeletionReason(un.getint(MAKENAMEID1('c'), 0));
     setId = un.gethandle('s', MegaClient::SETHANDLE, UNDEF);
     pst.relevant = isTakedown || isReinstate;
 }
 
 UserAlert::SetTakedown::SetTakedown(bool down,
                                     bool reinstate,
-                                    m_off_t downReason,
+                                    PublicLinkSet::LinkDeletionReason downReason,
                                     handle sId,
                                     m_time_t timestamp,
                                     unsigned int id):
@@ -1395,8 +1395,8 @@ void UserAlert::SetTakedown::text(string& header, string& title, MegaClient* mc)
     if (isTakedown)
     {
         header = "Takedown notice";
-        s << "Your publicly shared set (" << name
-          << ") has been taken down due to reason with number " << reason << ".";
+        s << "Your publicly shared set (" << name << ") has been taken down due to reason: "
+          << PublicLinkSet::LinkDeletionReasonToString(reason) << ".";
     }
     else if (isReinstate)
     {
@@ -1412,7 +1412,7 @@ bool UserAlert::SetTakedown::serialize(string* d) const
     CacheableWriter w(*d);
     w.serializebool(isTakedown);
     w.serializebool(isReinstate);
-    w.serializei64(reason);
+    w.serializeu8(static_cast<uint8_t>(reason));
     w.serializehandle(setId);
     w.serializeexpansionflags();
 
@@ -1429,15 +1429,20 @@ UserAlert::SetTakedown* UserAlert::SetTakedown::unserialize(string* d, unsigned 
 
     bool takedown = false;
     bool reinstate = false;
-    m_off_t reason = 0;
+    uint8_t reasonId = 0;
     handle setId = UNDEF;
     unsigned char expF[8];
 
     CacheableReader r(*d);
-    if (r.unserializebool(takedown) && r.unserializebool(reinstate) && r.unserializei64(reason) &&
+    if (r.unserializebool(takedown) && r.unserializebool(reinstate) && r.unserializeu8(reasonId) &&
         r.unserializehandle(setId) && r.unserializeexpansionflags(expF, 0))
     {
-        auto* td = new SetTakedown(takedown, reinstate, reason, setId, p->timestamp, id);
+        auto* td = new SetTakedown(takedown,
+                                   reinstate,
+                                   static_cast<PublicLinkSet::LinkDeletionReason>(reasonId),
+                                   setId,
+                                   p->timestamp,
+                                   id);
         td->setRelevant(p->relevant);
         td->setSeen(p->seen);
         return td;

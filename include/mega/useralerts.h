@@ -24,6 +24,8 @@
 
 #include "json.h"
 #include "name_id.h"
+#include "setandelement.h"
+#include "utils.h"
 
 #include <bitset>
 
@@ -305,13 +307,13 @@ namespace UserAlert
     {
         bool isTakedown;
         bool isReinstate;
-        m_off_t reason;
+        PublicLinkSet::LinkDeletionReason reason;
         handle setId;
 
         SetTakedown(UserAlertRaw& un, unsigned int id);
         SetTakedown(bool down,
                     bool reinstate,
-                    m_off_t downReason,
+                    PublicLinkSet::LinkDeletionReason downReason,
                     handle sId,
                     m_time_t timestamp,
                     unsigned int id);

@@ -256,6 +256,43 @@ namespace mega {
             ATD,
         };
 
+        static constexpr uint64_t ETD_REMOVED_API_CODE = 4294967275; // Defined by API
+        static constexpr uint64_t ATD_REMOVED_API_CODE = 4294967274; // Defined by API
+
+        static LinkDeletionReason apiCodeToDeletionReason(const int64_t apiCode)
+        {
+            switch (apiCode)
+            {
+                case 0:
+                    return LinkDeletionReason::BY_USER;
+                case ETD_REMOVED_API_CODE:
+                    return LinkDeletionReason::ETD;
+                case ATD_REMOVED_API_CODE:
+                    return LinkDeletionReason::ATD;
+                default:
+                    return LinkDeletionReason::DISPUTE;
+            }
+        }
+
+        static std::string LinkDeletionReasonToString(const LinkDeletionReason reason)
+        {
+            switch (reason)
+            {
+                case LinkDeletionReason::NO_REMOVED:
+                    return "not removed";
+                case LinkDeletionReason::BY_USER:
+                    return "by user";
+                case LinkDeletionReason::DISPUTE:
+                    return "dispute";
+                case LinkDeletionReason::ETD:
+                    return "ETD";
+                case LinkDeletionReason::ATD:
+                    return "ATD";
+            }
+            // Silent compilation warning
+            return "";
+        }
+
         PublicLinkSet(handle publicId):
             mPublicId(publicId)
         {}
