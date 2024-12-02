@@ -23,6 +23,7 @@ target_sources(test_integration
     Sync_test.cpp
     one_question_survey_test.cpp
     integration_test_utils.cpp
+    DisableBackupSync_test.cpp
 )
 
 target_sources_conditional(test_integration
