@@ -75,12 +75,17 @@ std::unique_ptr<::mega::MegaSync> waitForSyncState(MegaApi* megaApi,
                             });
 }
 
-handle syncFolder(MegaApi* megaApi,
-                  const std::string& localRootPath,
-                  const MegaHandle remoteRootHandle)
+static handle createSyncAux(MegaApi* megaApi,
+                            const MegaSync::SyncType syncType,
+                            const std::string& localRootPath,
+                            const MegaHandle remoteRootHandle,
+                            const std::string& backupName)
 {
     if (!megaApi)
-        return mega::UNDEF;
+        return UNDEF;
+
+    if (syncType == MegaSync::TYPE_BACKUP && remoteRootHandle != UNDEF)
+        return UNDEF;
 
     using namespace testing;
     NiceMock<MockRequestListener> rl;
@@ -88,7 +93,7 @@ handle syncFolder(MegaApi* megaApi,
     const auto& expectedReqType =
         Pointee(Property(&MegaRequest::getType, MegaRequest::TYPE_ADD_SYNC));
     const auto expectedSyncErr =
-        Pointee(Property(&::mega::MegaError::getSyncError, MegaSync::NO_SYNC_ERROR));
+        Pointee(Property(&MegaError::getSyncError, MegaSync::NO_SYNC_ERROR));
     handle backupId = UNDEF;
     EXPECT_CALL(rl, onRequestFinish(_, expectedReqType, AllOf(expectedErr, expectedSyncErr)))
         .WillOnce(
@@ -98,9 +103,9 @@ handle syncFolder(MegaApi* megaApi,
                 rl.markAsFinished();
             });
 
-    megaApi->syncFolder(MegaSync::TYPE_TWOWAY,
+    megaApi->syncFolder(syncType,
                         localRootPath.c_str(),
-                        nullptr,
+                        backupName.empty() ? nullptr : backupName.c_str(),
                         remoteRootHandle,
                         nullptr,
                         &rl);
@@ -108,14 +113,25 @@ handle syncFolder(MegaApi* megaApi,
     if (backupId == UNDEF)
         return UNDEF;
 
-    // Ensure it is running
-    std::unique_ptr<MegaSync> sync = sdk_test::waitForSyncState(megaApi,
-                                                                backupId,
-                                                                MegaSync::RUNSTATE_RUNNING,
-                                                                MegaSync::NO_SYNC_ERROR);
+    std::unique_ptr<MegaSync> sync =
+        waitForSyncState(megaApi, backupId, MegaSync::RUNSTATE_RUNNING, MegaSync::NO_SYNC_ERROR);
     if (!sync)
         return UNDEF;
     return backupId;
+}
+
+handle syncFolder(MegaApi* megaApi,
+                  const std::string& localRootPath,
+                  const MegaHandle remoteRootHandle)
+{
+    return createSyncAux(megaApi, MegaSync::TYPE_TWOWAY, localRootPath, remoteRootHandle, "");
+}
+
+handle backupFolder(MegaApi* megaApi,
+                    const std::string& localRootPath,
+                    const std::string& backupName)
+{
+    return createSyncAux(megaApi, MegaSync::TYPE_BACKUP, localRootPath, UNDEF, backupName);
 }
 
 bool removeSync(MegaApi* megaApi, const handle backupID)

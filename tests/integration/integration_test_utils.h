@@ -62,6 +62,20 @@ std::unique_ptr<::mega::MegaSync> waitForSyncState(::mega::MegaApi* megaApi,
                           const ::mega::MegaHandle remoteRootHandle);
 
 /**
+ * @brief Synchronously start a BACKUP sync with the given local path
+ *
+ * It will also wait until the new sync is in RUNSTATE_RUNNING state.
+ *
+ * @param megaApi The api to request the sync creation
+ * @param localRootPath The local path to backup
+ * @param backupName The name of the backup. By default, it will use the name of the root directory
+ * @return The backupId of the new sync.
+ */
+::mega::handle backupFolder(::mega::MegaApi* megaApi,
+                            const std::string& localRootPath,
+                            const std::string& backupName = "");
+
+/**
  * @brief Synchronously removes the sync with the given backupId
  *
  * @return true if the operation succeed, false otherwise
