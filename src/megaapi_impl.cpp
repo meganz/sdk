@@ -28135,6 +28135,29 @@ void MegaApiImpl::getWelcomePdfCopied(MegaRequestListener* listener)
     getUserAttr(nullptr, MegaApi::USER_ATTR_WELCOME_PDF_COPIED, nullptr, 0, listener);
 }
 
+void MegaApiImpl::getMyIp(MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_MY_IP, listener);
+
+    request->performRequest = [this, request]()
+    {
+        client->getMyIp(
+            [this, request](const Error& e, string&& countryCode, string&& ipAddress)
+            {
+                if (!e)
+                {
+                    request->setName(countryCode.c_str());
+                    request->setText(ipAddress.c_str());
+                }
+                fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
+            });
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 /* END MEGAAPIIMPL */
 
 int TransferQueue::getLastPushedTag() const

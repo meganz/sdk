@@ -6221,6 +6221,11 @@ void MegaApi::setWelcomePdfCopied(bool copied, MegaRequestListener* listener)
     pImpl->setWelcomePdfCopied(copied, listener);
 }
 
+void MegaApi::getMyIp(MegaRequestListener* listener)
+{
+    pImpl->getMyIp(listener);
+}
+
 /* END MEGAAPI */
 
 MegaHashSignature::MegaHashSignature(const char *base64Key)

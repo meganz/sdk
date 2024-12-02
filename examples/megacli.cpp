@@ -5297,6 +5297,8 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_thumbnail,
            sequence(text("thumbnail"), localFSFile("destinationPath"), localFSFile("sourcePath")));
 
+    p->Add(exec_getmyip, text("getmyip"));
+
     return autocompleteTemplate = std::move(p);
 }
 
@@ -13588,4 +13590,20 @@ void exec_hashcash(autocomplete::ACState& s)
     string tempUserAgent = client->useragent;
     client->httpio->setuseragent(&tempUserAgent);
     client->disconnect();
+}
+
+void exec_getmyip(autocomplete::ACState&)
+{
+    client->getMyIp(
+        [](const Error& e, string&& countryCode, string&& ipAddress)
+        {
+            if (e)
+            {
+                cout << "Error requesting IP address: " << e << endl;
+                return;
+            }
+
+            cout << "Country Code: " << countryCode << endl;
+            cout << "IP address: " << ipAddress << endl;
+        });
 }

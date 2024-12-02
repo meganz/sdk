@@ -2906,6 +2906,8 @@ public:
      */
     void getJSCData(GetJSCDataCallback callback);
 
+    void getMyIp(CommandGetMyIP::Cb&& completion);
+
     // FUSE client adapter.
     fuse::ClientAdapter mFuseClientAdapter;
 

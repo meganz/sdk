@@ -12532,4 +12532,72 @@ bool CommandAnswerSurvey::procresult(Result r, JSON&)
     return false;
 }
 
+CommandGetMyIP::CommandGetMyIP(MegaClient* client, Cb&& completion)
+{
+    assert(completion);
+
+    cmd("wmip");
+    tag = client->reqtag;
+
+    mCompletion = std::move(completion);
+}
+
+bool CommandGetMyIP::procresult(Command::Result r, JSON& json)
+{
+    if (!r.hasJsonObject())
+    {
+        if (mCompletion)
+        {
+            if (r.wasErrorOrOK())
+            {
+                mCompletion(r.errorOrOK(), {}, {});
+            }
+            else
+            {
+                mCompletion(API_EINTERNAL, {}, {});
+            }
+        }
+        return true;
+    }
+
+    string countryCode;
+    string ipAddress;
+    // Parse country code and IP address
+    for (bool finished = false; !finished;)
+    {
+        switch (json.getnameid())
+        {
+            case MAKENAMEID2('c', 'c'): // Country code
+                json.storeobject(&countryCode);
+                break;
+            case MAKENAMEID2('i', 'p'): // My public IP address
+                json.storeobject(&ipAddress);
+                break;
+            default:
+                if (!json.storeobject())
+                {
+                    if (mCompletion)
+                    {
+                        mCompletion(API_EINTERNAL, {}, {});
+                    }
+                    return false;
+                }
+                break;
+            case EOO:
+            {
+                finished = true;
+            }
+            break;
+        }
+    }
+
+    if (mCompletion)
+    {
+        mCompletion((countryCode.empty() || ipAddress.empty()) ? API_EINTERNAL : API_OK,
+                    std::move(countryCode),
+                    std::move(ipAddress));
+    }
+    return true;
+}
+
 } // namespace
