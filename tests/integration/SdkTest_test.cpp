@@ -20361,3 +20361,135 @@ TEST_F(SdkTest, HashCash)
         << " Login error  " << loginResult << " for account " << mApi[0].email;
     megaApi[0]->getClient()->httpio->setuseragent(&USER_AGENT); // stop hashcash, speed up cleanup
 }
+
+/**
+ * @brief SdkTestRemovePublicLinkSet
+ *
+ *  - Login client 1 and client 2 with same account
+ *  - Create a set
+ *  - Generate a public link
+ *  - Resume session with client 1 and check if Set is recover properly
+ *  - Remove public link
+ *  - Resume session with client 1 and check if Set is recover properly
+ *  - Generate a public link again
+ *  - Resume session with client 1 and check if Set is recover properly
+ */
+TEST_F(SdkTest, SdkTestRemovePublicLinkSet)
+{
+    LOG_info << "___TEST SdkTestRemovePublicLinkSet";
+    int primaryClientIdx = 0;
+    int secondaryClientIdx = 1;
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // Client 2 is other client from user 1
+    const auto [email, pass] = getEnvVarAccounts().getVarValues(0);
+    ASSERT_FALSE(email.empty() || pass.empty());
+    mApi.resize(2);
+    megaApi.resize(2);
+    configureTestInstance(secondaryClientIdx, email, pass); // index 1 = User B
+    auto loginTracker = std::make_unique<RequestTracker>(megaApi[secondaryClientIdx].get());
+    megaApi[secondaryClientIdx]->login(email.c_str(), pass.c_str(), loginTracker.get());
+    ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to account " << email;
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(secondaryClientIdx));
+
+    const MrProper cleanUp(
+        [this, secondaryClientIdx]()
+        {
+            // remove secondary instance to avoid failure at tear down
+            logout(secondaryClientIdx, false, maxTimeout);
+            mApi.erase(mApi.end() - 1);
+            megaApi.erase(megaApi.end() - 1);
+        });
+
+    LOG_debug << "# Create set";
+    const string name = "Set-test";
+
+    mApi[secondaryClientIdx].setUpdated = false;
+    RequestTracker trackerCreateSet{megaApi[primaryClientIdx].get()};
+    megaApi[primaryClientIdx]->createSet(name.c_str(), MegaSet::SET_TYPE_ALBUM, &trackerCreateSet);
+    ASSERT_EQ(trackerCreateSet.waitForResult(), API_OK);
+    const MegaHandle sh = trackerCreateSet.request->getMegaSet()->id();
+    ASSERT_TRUE(waitForResponse(&mApi[secondaryClientIdx].setUpdated));
+    std::unique_ptr<MegaSet> setSecondAccount{megaApi[secondaryClientIdx]->getSet(sh)};
+    ASSERT_TRUE(setSecondAccount);
+
+    LOG_debug << "Set handle: " << Base64Str<MegaClient::USERHANDLE>(sh);
+
+    auto exportSet = [this, sh](int primaryClientIdx, int secondaryClientIdx)
+    {
+        std::unique_ptr<MegaSet> set{megaApi[primaryClientIdx]->getSet(sh)};
+        mApi[secondaryClientIdx].setUpdated = false;
+        RequestTracker trackerExportSet{megaApi[primaryClientIdx].get()};
+        megaApi[primaryClientIdx]->exportSet(set->id(), &trackerExportSet);
+        ASSERT_EQ(trackerExportSet.waitForResult(), API_OK);
+        ASSERT_TRUE(waitForResponse(&mApi[secondaryClientIdx].setUpdated));
+        MegaSet* exportedSet = trackerExportSet.request->getMegaSet();
+        ASSERT_TRUE(exportedSet->isExported());
+        ASSERT_EQ(exportedSet->id(), set->id());
+        ASSERT_TRUE(exportedSet->getLinkDeletionReason() == MegaSet::DELETION_LINK_NO_REMOVED);
+        std::unique_ptr<MegaSet> setSecondAccount{megaApi[secondaryClientIdx]->getSet(sh)};
+        ASSERT_TRUE(setSecondAccount);
+        ASSERT_TRUE(setSecondAccount->getLinkDeletionReason() == MegaSet::DELETION_LINK_NO_REMOVED);
+    };
+
+    auto disableExportSet = [this, sh](int primaryClientIdx, int secondaryClientIdx)
+    {
+        std::unique_ptr<MegaSet> set{megaApi[primaryClientIdx]->getSet(sh)};
+        mApi[secondaryClientIdx].setUpdated = false;
+        RequestTracker trackerDisableSet{megaApi[primaryClientIdx].get()};
+        megaApi[primaryClientIdx]->disableExportSet(sh, &trackerDisableSet);
+        ASSERT_EQ(trackerDisableSet.waitForResult(), API_OK);
+        ASSERT_TRUE(waitForResponse(&mApi[secondaryClientIdx].setUpdated));
+        MegaSet* noExportedSet = megaApi[primaryClientIdx]->getSet(sh);
+        ASSERT_FALSE(noExportedSet->isExported());
+        ASSERT_EQ(noExportedSet->id(), set->id());
+        ASSERT_TRUE(noExportedSet->getLinkDeletionReason() == MegaSet::DELETION_LINK_BY_USER);
+        std::unique_ptr<MegaSet> setSecondAccount{megaApi[secondaryClientIdx]->getSet(sh)};
+        ASSERT_TRUE(setSecondAccount);
+        ASSERT_TRUE(setSecondAccount->getLinkDeletionReason() == MegaSet::DELETION_LINK_BY_USER);
+    };
+
+    auto checkDeletionReasonAfterResumeSession = [this, sh](int deletionReason, int index)
+    {
+        PerApi& target = mApi[index];
+        target.resetlastEvent();
+        std::unique_ptr<char[]> session(megaApi[index]->dumpSession());
+        ASSERT_NO_FATAL_FAILURE(locallogout());
+        ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
+        ASSERT_NO_FATAL_FAILURE(fetchnodes(index));
+        // make sure that client is up to date (upon logout, recent changes might not be committed
+        // to DB)
+        ASSERT_TRUE(WaitFor(
+            [&target]()
+            {
+                return target.lastEventsContain(MegaEvent::EVENT_NODES_CURRENT);
+            },
+            10000))
+            << "Timeout expired to receive actionpackets";
+
+        std::unique_ptr<MegaSet> setPrimaryAccount{megaApi[index]->getSet(sh)};
+        ASSERT_TRUE(setPrimaryAccount);
+        ASSERT_EQ(setPrimaryAccount->getLinkDeletionReason(), deletionReason);
+    };
+
+    LOG_debug << "# Check if Set is exported (false)";
+    ASSERT_FALSE(megaApi[primaryClientIdx]->isExportedSet(sh)) << "Set should not be public yet";
+
+    LOG_debug << "# Enable Set export (creates public link)";
+    ASSERT_NO_FATAL_FAILURE(exportSet(primaryClientIdx, secondaryClientIdx));
+
+    LOG_debug << "# Check state after resume session 1";
+    checkDeletionReasonAfterResumeSession(MegaSet::DELETION_LINK_NO_REMOVED, primaryClientIdx);
+
+    LOG_debug << "# Disable public link";
+    ASSERT_NO_FATAL_FAILURE(disableExportSet(primaryClientIdx, secondaryClientIdx));
+
+    LOG_debug << "# Check state after resume session 2";
+    checkDeletionReasonAfterResumeSession(MegaSet::DELETION_LINK_BY_USER, primaryClientIdx);
+
+    LOG_debug << "# Enable Set export again";
+    ASSERT_NO_FATAL_FAILURE(exportSet(primaryClientIdx, secondaryClientIdx));
+
+    LOG_debug << "# Check state after resume session 3";
+    checkDeletionReasonAfterResumeSession(MegaSet::DELETION_LINK_NO_REMOVED, primaryClientIdx);
+}
