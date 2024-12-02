@@ -690,7 +690,13 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         std::string mS4;
         const char *chatAuth;
         uint64_t changed;
-        struct {
+
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable: 4201) // nameless struct
+#endif
+        struct
+        {
             bool thumbnailAvailable : 1;
             bool previewAvailable : 1;
             bool isPublicNode : 1;
@@ -698,6 +704,10 @@ class MegaNodePrivate : public MegaNode, public Cacheable
             bool inShare : 1;
             bool foreign : 1;
         };
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
+
         PublicLink *plink;
         bool mNewLinkFormat;
         std::string *sharekey;   // for plinks of folders
@@ -1328,6 +1338,10 @@ protected:
         CollisionChecker::Result    mCollisionCheckResult;
         FileSystemType              mFsType;
 
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable: 4201) // nameless struct
+#endif
         struct
         {
             bool syncTransfer : 1;
@@ -1338,6 +1352,10 @@ protected:
             bool foreignOverquota : 1;
             bool forceNewUpload : 1;
         };
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable: 4201) // nameless struct
+#endif
 
         int64_t startTime;
         int64_t updateTime;
