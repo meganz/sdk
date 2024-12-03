@@ -16673,15 +16673,14 @@ std::pair<error, SyncError> MegaClient::isLocalPathSyncable(const LocalPath& new
     return {API_OK, NO_SYNC_ERROR};
 }
 
-std::pair<error, SyncError> MegaClient::isValidLocalSyncRoot(const LocalPath& rootPath,
-                                                             const handle excludeBackupId) const
+std::pair<error, SyncError> MegaClient::isValidLocalSyncRoot(const LocalPath& rootPath) const
 {
     if (!rootPath.isAbsolute())
         return {API_EARGS, NO_SYNC_ERROR};
 
     SyncConfig testConfig;
     testConfig.mLocalPath = rootPath;
-    testConfig.mBackupId = excludeBackupId;
+    testConfig.mBackupId = UNDEF;
     testConfig.mError = NO_SYNC_ERROR;
     bool isnetwork;
     std::unique_ptr<FileAccess> faccess;
@@ -16940,7 +16939,7 @@ void MegaClient::changeSyncRoot(const handle backupId,
     if (noNode)
     {
         auto newRootPath = LocalPath::fromAbsolutePath(newLocalRootPath);
-        if (const auto [err, syncErr] = isValidLocalSyncRoot(newRootPath, UNDEF); err != API_OK)
+        if (const auto [err, syncErr] = isValidLocalSyncRoot(newRootPath); err != API_OK)
         {
             LOG_err << "changeSyncRoot: Invalid new local root. Error: "
                     << SyncConfig::syncErrorToStr(syncErr);
