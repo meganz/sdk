@@ -12412,7 +12412,7 @@ void BackupBehavior::doTest(const string& initialContent,
     ASSERT_TRUE(cu.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
 
     // Add and start a backup sync.
-    const auto idU = cu.setupSync_mainthread("su", "s", true, true);
+    const auto idU = cu.setupSync_mainthread("su", "s", true, false);
     ASSERT_NE(idU, UNDEF);
 
     // Add a file for the engine to synchronize.
@@ -12429,18 +12429,16 @@ void BackupBehavior::doTest(const string& initialContent,
     // Make sure the file made it to the cloud.
     ASSERT_TRUE(cu.confirmModel_mainthread(m.root.get(), idU));
 
-    // Update file.
+    // Update file maintaining the mtime
     {
+        const auto mtime = fs::last_write_time(cu.fsBasePath / "su" / "f");
+
         // Update the file's content.
         m.addfile("f", updatedContent);
-
         // Write the file.
         m.generate(cu.fsBasePath / "su", true);
 
-        // do not Rewind the file's mtime here. Let the callback just above do it.
-        // otherwise, on checking the fs notification we will conclude "Self filesystem notification skipped"
-        // possibly we could do it this way after sync rework is merged.
-        // fs::last_write_time(cu.fsBasePath / "su" / "f", mtime);
+        fs::last_write_time(cu.fsBasePath / "su" / "f", mtime);
 
         cu.triggerPeriodicScanEarly(idU);
     }
@@ -12464,7 +12462,7 @@ void BackupBehavior::doTest(const string& initialContent,
         ASSERT_TRUE(cd.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
 
         // Add and start a new sync.
-        auto idD = cd.setupSync_mainthread("sd", "s", false, true);
+        auto idD = cd.setupSync_mainthread("sd", "s", false, false);
         ASSERT_NE(idD, UNDEF);
 
         // Wait for the sync to complete.
