@@ -300,38 +300,6 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %}
 #endif
 
-#ifdef SWIGPHP
-
-%typemap(directorin) SWIGTYPE* 
-%{ 
-  ZVAL_UNDEF($input);
-  SWIG_SetPointerZval($input, (void *)$1, $1_descriptor, ($owner)|2);
-%}
-
-//Rename overloaded functions
-%rename (getInSharesAll, fullname=1) mega::MegaApi::getInShares();
-%rename (getOutSharesAll, fullname=1) mega::MegaApi::getOutShares();
-%rename (getTransfersAll, fullname=1) mega::MegaApi::getTransfers();
-%rename (getRootNodeOf, fullname=1) mega::MegaApi::getRootNode(MegaNode*);
-%rename (searchAll, fullname=1) mega::MegaApi::search(const char*);
-%rename (getNodeByFingerprintInFolder, fullname=1) mega::MegaApi::getNodeByFingerprint(const char*, MegaNode*);
-%rename (getFingerprintByInputStream, fullname=1) mega::MegaApi::getFingerprint(MegaInputStream*, int64_t);
-%rename (pauseTransfersByDirection, fullname=1) mega::MegaApi::pauseTransfers(bool, int, MegaRequestListener*);
-%rename (exportNodeWithTime, fullname=1) mega::MegaApi::exportNode(MegaNode*, int64_t, MegaRequestListener*);
-%rename (getMyAvatar, fullname=1) mega::MegaApi::getUserAvatar(const char*, MegaRequestListener*);
-%rename (getMyAvatar, fullname=1) mega::MegaApi::getUserAvatar(const char*);
-%rename (copyNodeWithName, fullname=1) mega::MegaApi::copyNode(MegaNode*, MegaNode*, const char*, MegaRequestListener*);
-%rename (loginToFolderWithKey, fullname = 1) mega::MegaApi::loginToFolder(const char*, const char *, MegaRequestListener*);
-%rename (moveNodeWithName, fullname=1) mega::MegaApi::moveNode(MegaNode*, MegaNode*, const char*, MegaRequestListener*);
-%rename (inviteContactWithLink, fullname=1) mega::MegaApi::inviteContact(const char*, const char*, int, MegaHandle, MegaRequestListener*);
-%rename (getInSharesFromUser, fullname=1) mega::MegaApi::getInShares(MegaUser*, int);
-
-%typemap(typecheck, precedence=SWIG_TYPECHECK_INTEGER) const char * {
-  $1 = (Z_TYPE($input) == IS_NULL || (Z_TYPE($input) == IS_STRING)) ? 1 : 0;
-}
-
-#endif
-
 %ignore mega::MegaApi::MEGA_DEBRIS_FOLDER;
 %ignore mega::MegaNode::getNodeKey;
 %ignore mega::MegaNode::getAttrString;
