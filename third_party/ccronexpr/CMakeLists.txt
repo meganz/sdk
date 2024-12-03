@@ -3,7 +3,7 @@ add_library(ccronexpr STATIC
     ccronexpr.cpp
 )
 
-target_include_directories(ccronexpr
+target_include_directories(ccronexpr SYSTEM
     PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
