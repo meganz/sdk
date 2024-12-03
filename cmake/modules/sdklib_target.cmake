@@ -414,7 +414,6 @@ if(ENABLE_SDKLIB_WERROR)
         WINDOWS /WX
         UNIX  $<$<CONFIG:Debug>: -Werror
                                  -Wno-error=deprecated-declarations> # Kept as a warning, do not promote to error.
-        APPLE $<$<CONFIG:Debug>: -Wno-string-conversion>
     )
     if(APPLE)
         set_source_files_properties( # Temporary until sign-conversion warnings are fixed on this files too (SDK-4567, SDK-4568 and SDK-4570)

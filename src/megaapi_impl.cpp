@@ -12606,7 +12606,7 @@ int MegaApiImpl::calcRecommendedProLevel(MegaPricing& pricing, MegaAccountDetail
         int planStorageGb = pricing.getGBStorage(i);
         if (planStorageGb < 0)
         {
-            assert(!"business plan, should never happen");
+            assert(false && "business plan, should never happen");
             continue;
         }
         uint64_t planStorageBytes = (uint64_t)planStorageGb * (uint64_t)(1024 * 1024 * 1024);
@@ -21173,7 +21173,7 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
             User *ownUser = client->finduser(client->me);
             if (!ownUser)
             {
-                assert("Setting attribute without having logged in");
+                assert(false && "Setting attribute without having logged in");
                 return API_EACCESS;
             }
 

@@ -615,7 +615,7 @@ bool Process::checkStatus()
         }
         else
         {
-            assert(!"waitpid() but not exited not signalled");
+            assert(false && "waitpid() but not exited not signalled");
             setWaitFailureStatus(); // otherwise may spin forever
         }
         return true;
