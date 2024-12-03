@@ -3029,9 +3029,9 @@ MegaTransfer* MegaTransferPrivate::copy()
     return new MegaTransferPrivate(this);
 }
 
-void MegaTransferPrivate::setTransfer(Transfer *transfer)
+void MegaTransferPrivate::setTransfer(Transfer* newTransfer)
 {
-    this->transfer = transfer;
+    transfer = newTransfer;
 }
 
 Transfer* MegaTransferPrivate::getTransfer() const
@@ -3233,9 +3233,9 @@ const char *MegaTransferPrivate::getAppData() const
     return this->appData;
 }
 
-void MegaTransferPrivate::setState(int state)
+void MegaTransferPrivate::setState(int newState)
 {
-    this->state = state;
+    state = newState;
 }
 
 int MegaTransferPrivate::getState() const
@@ -3477,50 +3477,52 @@ MegaTransferPrivate *MegaTransferPrivate::unserialize(string *d)
     return transfer;
 }
 
-void MegaTransferPrivate::setTag(int tag)
+void MegaTransferPrivate::setTag(int newTag)
 {
-    this->tag = tag;
+    tag = newTag;
 }
 
-void MegaTransferPrivate::setSpeed(long long speed)
+void MegaTransferPrivate::setSpeed(long long newSpeed)
 {
-    this->speed = speed;
+    speed = newSpeed;
 }
 
-void MegaTransferPrivate::setMeanSpeed(long long meanSpeed)
+void MegaTransferPrivate::setMeanSpeed(long long newMeanSpeed)
 {
-    this->meanSpeed = meanSpeed;
+    meanSpeed = newMeanSpeed;
 }
 
-void MegaTransferPrivate::setDeltaSize(long long deltaSize)
+void MegaTransferPrivate::setDeltaSize(long long newDeltaSize)
 {
-    this->deltaSize = deltaSize;
+    deltaSize = newDeltaSize;
 }
 
-void MegaTransferPrivate::setUpdateTime(int64_t updateTime)
+void MegaTransferPrivate::setUpdateTime(int64_t newUpdateTime)
 {
-    this->updateTime = updateTime;
+    updateTime = newUpdateTime;
 }
-void MegaTransferPrivate::setPublicNode(MegaNode *publicNode, bool copyChildren)
+
+void MegaTransferPrivate::setPublicNode(MegaNode* newPublicNode, bool copyChildren)
 {
-    if (this->publicNode)
+    if (publicNode)
     {
-        delete this->publicNode;
+        delete publicNode;
     }
 
-    if (!publicNode)
+    if (!newPublicNode)
     {
-        this->publicNode = NULL;
+        publicNode = nullptr;
     }
     else
     {
-        MegaNodePrivate *nodePrivate = new MegaNodePrivate(publicNode);
-        MegaNodeListPrivate *children = dynamic_cast<MegaNodeListPrivate *>(publicNode->getChildren());
+        MegaNodePrivate* nodePrivate = new MegaNodePrivate(newPublicNode);
+        MegaNodeListPrivate* children =
+            dynamic_cast<MegaNodeListPrivate*>(newPublicNode->getChildren());
         if (children && copyChildren)
         {
             nodePrivate->setChildren(new MegaNodeListPrivate(children, true));
         }
-        this->publicNode = nodePrivate;
+        publicNode = nodePrivate;
     }
 }
 
@@ -3529,9 +3531,9 @@ void MegaTransferPrivate::setNodeToUndelete(MegaNode* toUndelete)
     nodeToUndelete.reset(toUndelete ? toUndelete->copy() : nullptr);
 }
 
-void MegaTransferPrivate::setSyncTransfer(bool syncTransfer)
+void MegaTransferPrivate::setSyncTransfer(bool isSyncTransfer)
 {
-    this->syncTransfer = syncTransfer;
+    syncTransfer = isSyncTransfer;
 }
 
 void MegaTransferPrivate::setSourceFileTemporary(bool temporary)
@@ -3539,52 +3541,52 @@ void MegaTransferPrivate::setSourceFileTemporary(bool temporary)
     this->temporarySourceFile = temporary;
 }
 
-void MegaTransferPrivate::setStartFirst(bool startFirst)
+void MegaTransferPrivate::setStartFirst(bool beFirst)
 {
-    this->startFirst = startFirst;
+    startFirst = beFirst;
 }
 
-void MegaTransferPrivate::setBackupTransfer(bool backupTransfer)
+void MegaTransferPrivate::setBackupTransfer(bool isBackupTransfer)
 {
-    this->backupTransfer = backupTransfer;
+    backupTransfer = isBackupTransfer;
 }
 
-void MegaTransferPrivate::setForeignOverquota(bool foreignOverquota)
+void MegaTransferPrivate::setForeignOverquota(bool isForeignOverquota)
 {
-    this->foreignOverquota = foreignOverquota;
+    foreignOverquota = isForeignOverquota;
 }
 
-void MegaTransferPrivate::setForceNewUpload(bool forceNewUpload)
+void MegaTransferPrivate::setForceNewUpload(bool isForceNewUpload)
 {
-    this->forceNewUpload = forceNewUpload;
+    forceNewUpload = isForceNewUpload;
 }
 
-void MegaTransferPrivate::setStreamingTransfer(bool streamingTransfer)
+void MegaTransferPrivate::setStreamingTransfer(bool isStreamingTransfer)
 {
-    this->streamingTransfer = streamingTransfer;
+    streamingTransfer = isStreamingTransfer;
 }
 
-void MegaTransferPrivate::setStartTime(int64_t startTime)
+void MegaTransferPrivate::setStartTime(int64_t newStartTime)
 {
-    if (!this->startTime)
+    if (!startTime)
     {
-        this->startTime = startTime;
+        startTime = newStartTime;
     }
 }
 
-void MegaTransferPrivate::setTransferredBytes(long long transferredBytes)
+void MegaTransferPrivate::setTransferredBytes(long long newByteCount)
 {
-    this->transferredBytes = transferredBytes;
+    transferredBytes = newByteCount;
 }
 
-void MegaTransferPrivate::setTotalBytes(long long totalBytes)
+void MegaTransferPrivate::setTotalBytes(long long newByteCount)
 {
-    this->totalBytes = totalBytes;
+    totalBytes = newByteCount;
 }
 
-void MegaTransferPrivate::setLastBytes(char *lastBytes)
+void MegaTransferPrivate::setLastBytes(char* newLastBytes)
 {
-    this->lastBytes = lastBytes;
+    lastBytes = newLastBytes;
 }
 
 void MegaTransferPrivate::setLastError(const MegaError *e)
@@ -3592,19 +3594,19 @@ void MegaTransferPrivate::setLastError(const MegaError *e)
    lastError.reset(e ? e->copy() : nullptr);
 }
 
-void MegaTransferPrivate::setFolderTransferTag(int tag)
+void MegaTransferPrivate::setFolderTransferTag(int newFolderTag)
 {
-    this->folderTransferTag = tag;
+    folderTransferTag = newFolderTag;
 }
 
-void MegaTransferPrivate::setNotificationNumber(long long notificationNumber)
+void MegaTransferPrivate::setNotificationNumber(long long number)
 {
-    this->notificationNumber = notificationNumber;
+    notificationNumber = number;
 }
 
-void MegaTransferPrivate::setListener(MegaTransferListener *listener)
+void MegaTransferPrivate::setListener(MegaTransferListener* newTransferListener)
 {
-    this->listener = listener;
+    listener = newTransferListener;
 }
 
 void MegaTransferPrivate::setTargetOverride(bool targetOverride)
@@ -3696,62 +3698,66 @@ size_t MegaTransferPrivate::getTotalRecursiveOperation() const
     return recursiveOperation ? recursiveOperation->getTransfersTotalCount() : 0;
 }
 
-void MegaTransferPrivate::setPath(const char* path)
+void MegaTransferPrivate::setPath(const char* newPath)
 {
-    if(this->path) delete [] this->path;
-    this->path = MegaApi::strdup(path);
-    if(!this->path) return;
+    if (path)
+        delete[] path;
+    path = MegaApi::strdup(newPath);
+    if (!path)
+        return;
 
-    for (int i = int(strlen(path) - 1); i >= 0; i--)
+    for (int i = int(strlen(newPath) - 1); i >= 0; i--)
     {
-        if (path[i] == LocalPath::localPathSeparator_utf8)
+        if (newPath[i] == LocalPath::localPathSeparator_utf8)
         {
-            setFileName(&(path[i + 1]));
-            char* parentFolderPath = MegaApi::strdup(path);
+            setFileName(&(newPath[i + 1]));
+            char* parentFolderPath = MegaApi::strdup(newPath);
             parentFolderPath[i + 1] = '\0';
             setParentPath(parentFolderPath);
             delete[] parentFolderPath;
             return;
         }
     }
-    setFileName(path);
+    setFileName(newPath);
 }
 
-void MegaTransferPrivate::setParentPath(const char* path)
+void MegaTransferPrivate::setParentPath(const char* newParentPath)
 {
-    if(this->parentPath) delete [] this->parentPath;
-    this->parentPath =  MegaApi::strdup(path);
+    if (parentPath)
+        delete[] parentPath;
+    parentPath = MegaApi::strdup(newParentPath);
 }
 
-void MegaTransferPrivate::setFileName(const char* fileName)
+void MegaTransferPrivate::setFileName(const char* newFileName)
 {
-    if(this->fileName) delete [] this->fileName;
-    this->fileName =  MegaApi::strdup(fileName);
+    if (fileName)
+        delete[] fileName;
+    fileName = MegaApi::strdup(newFileName);
 }
 
-void MegaTransferPrivate::setNodeHandle(MegaHandle nodeHandle)
+void MegaTransferPrivate::setNodeHandle(MegaHandle newNodeHandle)
 {
-    this->nodeHandle = nodeHandle;
+    nodeHandle = newNodeHandle;
 }
 
-void MegaTransferPrivate::setParentHandle(MegaHandle parentHandle)
+void MegaTransferPrivate::setParentHandle(MegaHandle newParentHandle)
 {
-    this->parentHandle = parentHandle;
+    parentHandle = newParentHandle;
 }
 
-void MegaTransferPrivate::setStartPos(long long startPos)
+void MegaTransferPrivate::setStartPos(long long newStartPos)
 {
-    this->startPos = startPos;
+    startPos = newStartPos;
 }
 
-void MegaTransferPrivate::setEndPos(long long endPos)
+void MegaTransferPrivate::setEndPos(long long newEndPos)
 {
-    this->endPos = endPos;
+    endPos = newEndPos;
 }
 
-void MegaTransferPrivate::setNumRetry(int retry)
+void MegaTransferPrivate::setNumRetry(int newRetryCount)
 {
-    this->retry = retry;
+    retry = newRetryCount;
 }
 
 void MegaTransferPrivate::setStage(unsigned stage)
@@ -3759,14 +3765,14 @@ void MegaTransferPrivate::setStage(unsigned stage)
     this->mStage = static_cast<uint8_t>(stage);
 }
 
-void MegaTransferPrivate::setMaxRetries(int maxRetries)
+void MegaTransferPrivate::setMaxRetries(int newMaxRetryCount)
 {
-    this->maxRetries = maxRetries;
+    maxRetries = newMaxRetryCount;
 }
 
-void MegaTransferPrivate::setTime(int64_t time)
+void MegaTransferPrivate::setTime(int64_t newTime)
 {
-    this->time = time;
+    time = newTime;
 }
 
 const char * MegaTransferPrivate::getTransferString() const
