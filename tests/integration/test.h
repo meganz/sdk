@@ -710,17 +710,6 @@ struct StandardClient : public MegaApp
     void file_added(File* file) override;
     void file_complete(File* file) override;
 
-#ifdef DEBUG
-    using SyncDebugNotificationHandler =
-        SynchronizedFunction<void(const SyncConfig&, int, const Notification&)>;
-
-    SyncDebugNotificationHandler mOnSyncDebugNotification;
-
-    void syncdebug_notification(const SyncConfig& config,
-        int queue,
-        const Notification& notification) override;
-#endif // DEBUG
-
     std::atomic<unsigned> transfersAdded{0}, transfersRemoved{0}, transfersPrepared{0}, transfersFailed{0}, transfersUpdated{0}, transfersComplete{0};
 
     void transfer_added(Transfer* transfer) override

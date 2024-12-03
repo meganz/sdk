@@ -1597,16 +1597,6 @@ void StandardClient::removeOnUserUpdateLamda()
     received_user_actionpackets = false;
 }
 
-#ifdef DEBUG
-void StandardClient::syncdebug_notification(const SyncConfig& config,
-                            int queue,
-                            const Notification& notification)
-{
-    if (mOnSyncDebugNotification)
-        mOnSyncDebugNotification(config, queue, notification);
-}
-#endif // DEBUG
-
 void StandardClient::syncupdate_scanning(bool b)
 {
     if (logcb)
@@ -4580,10 +4570,6 @@ void StandardClient::cleanupForTestReuse(int loginIndex)
 #ifndef NDEBUG // match the conditon in the header
     mOnMoveBegin = nullptr;
 #endif
-#ifdef DEBUG
-    mOnSyncDebugNotification = nullptr;
-#endif // DEBUG
-
 
     LOG_debug << clientname << "cleaning transfers for client reuse";
 
@@ -12445,21 +12431,8 @@ void BackupBehavior::doTest(const string& initialContent,
 
     // Update file.
     {
-        // Capture file's current mtime.
-        auto mtime = fs::last_write_time(cu.fsBasePath / "su" / "f");
-
         // Update the file's content.
         m.addfile("f", updatedContent);
-
-        // Hook callback so we can tweak the mtime.
-        cu.mOnSyncDebugNotification = [&](const SyncConfig&, int, const Notification&)
-        {
-            // Roll back the mtime now that we know it will be processed.
-            fs::last_write_time(cu.fsBasePath / "su" / "f", mtime);
-
-            // No need for the engine to call us again.
-            cu.mOnSyncDebugNotification = nullptr;
-        };
 
         // Write the file.
         m.generate(cu.fsBasePath / "su", true);
