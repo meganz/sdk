@@ -11722,7 +11722,11 @@ class MegaApi
          *
          * @param lastAccessTimestamp Timestamp of the last access
          * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated This version of the function is deprecated. Please, use the non-deprecated
+         * one.
          */
+        MEGA_DEPRECATED
         void createAccount(const char* email, const char* password, const char* firstname, const char* lastname, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener = NULL);
 
         /**
