@@ -5,6 +5,8 @@
 
 #ifdef ENABLE_SYNC
 
+#include "gtest_common.h"
+#include "integration/mock_listeners.h"
 #include "integration_test_utils.h"
 #include "sdk_test_utils.h"
 #include "SdkTest_test.h"
@@ -30,6 +32,7 @@ public:
     {
         SdkTest::SetUp();
         ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+        ASSERT_NO_FATAL_FAILURE(setAccountDeviceName());
         createInitialLocalFiles();
         mBackupId = backupFolder(megaApi[0].get(), getLocalTmpDir().u8string());
         ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocal());
@@ -169,6 +172,25 @@ private:
     void createInitialLocalFiles() const
     {
         sdk_test::createFile(getLocalTmpDir() / "testFile", 1);
+    }
+
+    void setAccountDeviceName() const
+    {
+        std::unique_ptr<MegaStringMap> devices;
+        ASSERT_NO_FATAL_FAILURE(getDeviceNames(megaApi[0].get(), devices));
+        ASSERT_TRUE(devices);
+
+        // There are already available devices
+        if (devices->size() != 0)
+            return;
+
+        const std::string deviceName = "Jenkins " + getCurrentTimestamp(true);
+        const std::string deviceId = megaApi[0]->getDeviceId();
+        devices->set(deviceId.c_str(), deviceName.c_str());
+        NiceMock<MockRequestListener> rl;
+        rl.setErrorExpectations(API_OK);
+        megaApi[0]->setUserAttribute(MegaApi::USER_ATTR_DEVICE_NAMES, devices.get(), &rl);
+        ASSERT_TRUE(rl.waitForFinishOrTimeout(3min));
     }
 };
 

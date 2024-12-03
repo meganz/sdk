@@ -204,4 +204,19 @@ std::optional<std::vector<std::string>> getCloudFirstChildrenNames(MegaApi* mega
         return {};
     return toNamesVector(*childrenNodeList);
 }
+
+void getDeviceNames(MegaApi* megaApi, std::unique_ptr<MegaStringMap>& output)
+{
+    NiceMock<MockRequestListener> rl;
+    const auto expectedErr = Pointee(Property(&MegaError::getErrorCode, API_OK));
+    EXPECT_CALL(rl, onRequestFinish(_, _, expectedErr))
+        .WillOnce(
+            [&output, &rl](MegaApi*, MegaRequest* req, MegaError*)
+            {
+                output.reset(req->getMegaStringMap()->copy());
+                rl.markAsFinished();
+            });
+    megaApi->getUserAttribute(MegaApi::USER_ATTR_DEVICE_NAMES, &rl);
+    ASSERT_TRUE(rl.waitForFinishOrTimeout(3min));
+}
 }
