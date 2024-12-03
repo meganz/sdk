@@ -4653,26 +4653,6 @@ class MegaRequest
         virtual const char* toString() const;
 
         /**
-         * @brief Returns a readable string that shows the type of request
-         *
-         * This function provides exactly the same result as MegaRequest::getRequestString.
-         * It's provided for a better Python compatibility
-         *
-         * @return Readable string showing the type of request
-         */
-        virtual const char* __str__() const;
-
-        /**
-         * @brief Returns a readable string that shows the type of request
-         *
-         * This function provides exactly the same result as MegaRequest::getRequestString.
-         * It's provided for a better PHP compatibility
-         *
-         * @return Readable string showing the type of request
-         */
-        virtual const char* __toString() const;
-
-        /**
          * @brief Returns the handle of a node related to the request
          *
          * This value is valid for these requests:
@@ -5827,26 +5807,6 @@ class MegaTransfer
          * @return Readable string showing the type of transfer (UPLOAD, DOWNLOAD)
          */
         virtual const char* toString() const;
-
-        /**
-         * @brief Returns a readable string that shows the type of the transfer
-         *
-         * This function provides exactly the same result as MegaTransfer::getTransferString (UPLOAD, DOWNLOAD)
-         * It's provided for a better Python compatibility
-         *
-         * @return Readable string showing the type of transfer (UPLOAD, DOWNLOAD)
-         */
-        virtual const char* __str__() const;
-
-        /**
-         * @brief Returns a readable string that shows the type of the transfer
-         *
-         * This function provides exactly the same result as MegaTransfer::getTransferString (UPLOAD, DOWNLOAD)
-         * It's provided for a better PHP compatibility
-         *
-         * @return Readable string showing the type of transfer (UPLOAD, DOWNLOAD)
-         */
-        virtual const char *__toString() const;
 
         /**
          * @brief Returns the starting time of the request (in deciseconds)
@@ -8046,33 +8006,6 @@ public:
 		 * @return Readable description of the error
 		 */
         virtual const char* toString() const;
-
-		/**
-		 * @brief Returns a readable description of the error
-		 *
-		 * This function returns a pointer to a statically allocated buffer.
-		 * You don't have to free the returned pointer
-		 *
-		 * This function provides exactly the same result as MegaError::getErrorString.
-		 * It's provided for a better Python compatibility
-		 *
-		 * @return Readable description of the error
-		 */
-        virtual const char* __str__() const;
-
-		/**
-		 * @brief Returns a readable description of the error
-		 *
-		 * This function returns a pointer to a statically allocated buffer.
-		 * You don't have to free the returned pointer
-		 *
-		 * This function provides exactly the same result as MegaError::getErrorString.
-		 * It's provided for a better PHP compatibility
-		 *
-		 * @return Readable description of the error
-		 */
-        virtual const char* __toString() const;
-
 		/**
 		 * @brief Provides the error description associated with an error code
 		 *
