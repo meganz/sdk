@@ -33,20 +33,31 @@ protected:
 class SdkTestShareOrder: public SdkTestShare
 {
 protected:
-    struct HandleUserPair
+    class HandleUserPair
     {
-        MegaHandle handle;
+    public:
+        HandleUserPair(MegaHandle handle, const std::string& user, int64_t timestamp = 0):
+            mHandle(handle),
+            mUser(user),
+            mTimestamp(timestamp)
+        {}
 
-        std::string user;
+    private:
+        MegaHandle mHandle;
+
+        std::string mUser;
+
+        int64_t mTimestamp; // only for trace purpose
 
         friend bool operator==(const HandleUserPair& lhs, const HandleUserPair& rhs)
         {
-            return lhs.handle == rhs.handle && lhs.user == rhs.user;
+            return lhs.mHandle == rhs.mHandle && lhs.mUser == rhs.mUser;
         }
 
         friend void PrintTo(const HandleUserPair& handleUserPair, std::ostream* os)
         {
-            *os << "{" << toNodeHandle(handleUserPair.handle) << ", " << handleUserPair.user << "}";
+            *os << "{" << toNodeHandle(handleUserPair.mHandle) << ", " << handleUserPair.mUser
+                << ", " << handleUserPair.mTimestamp << "}";
         }
     };
 
@@ -176,7 +187,7 @@ std::vector<SdkTestShareOrder::HandleUserPair>
     for (int i = 0; i < shareList->size(); ++i)
     {
         auto share = shareList->get(i);
-        ret.push_back({share->getNodeHandle(), share->getUser()});
+        ret.push_back({share->getNodeHandle(), share->getUser(), share->getTimestamp()});
     }
     return ret;
 }
