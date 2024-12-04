@@ -5907,18 +5907,32 @@ void MegaClient::pendingattrstring(UploadHandle h, string* fa)
 // Upload file attribute data to fa servers. node handle can be UNDEF if we are giving fa handle back to the app
 // Used for attaching file attribute to a Node, or prepping for Node creation after upload, or getting fa handle for app.
 // FIXME: to avoid unnecessary roundtrips to the attribute servers, also cache locally
-bool MegaClient::putfa(NodeOrUploadHandle th,
-                       fatype t,
-                       SymmCipher* cypher,
-                       int tag,
-                       std::unique_ptr<string> data)
+error MegaClient::putfa(NodeOrUploadHandle th,
+                        fatype t,
+                        SymmCipher* cypher,
+                        int tag,
+                        std::unique_ptr<string> data)
 {
     // CBC-encrypt attribute data (padded to next multiple of BLOCKSIZE)
     data->resize((data->size() + SymmCipher::BLOCKSIZE - 1) & -SymmCipher::BLOCKSIZE);
+
+    // Make sure the attribute isn't too large.
+    if (data->size() >= MAX_FILE_ATTRIBUTE_SIZE)
+    {
+        // Monitoring.
+        sendevent(99485, "Exceeded size for file attribute");
+
+        // Clarity.
+        LOG_err << "Exceeded size for file attribute: " << tag;
+
+        // Let the caller know we couldn't upload this attribute.
+        return API_EARGS;
+    }
+
     if (!cypher->cbc_encrypt((byte*)data->data(), data->size()))
     {
         LOG_err << "Failed to CBC encrypt Node attribute data.";
-        return false;
+        return API_EKEY;
     }
 
     queuedfa.emplace_back(new HttpReqFA(th, t, usehttps, tag, std::move(data), true, this));
@@ -5926,7 +5940,8 @@ bool MegaClient::putfa(NodeOrUploadHandle th,
 
     // no other file attribute storage request currently in progress? POST this one.
     activatefa();
-    return true;
+
+    return API_OK;
 }
 
 void MegaClient::activatefa()
@@ -9162,11 +9177,18 @@ void MegaClient::putnodes(const char* user, vector<NewNode>&& newnodes, int tag,
 void MegaClient::putFileAttributes(handle h, fatype t, const string& encryptedAttributes, int tag)
 {
     std::shared_ptr<Node> node = mNodeManager.getNodeByHandle(NodeHandle().set6byte(h));
-    if (node && node->fileattrstring.size() + encryptedAttributes.size() >= MAX_FILE_ATTRIBUTE_SIZE)
+
+    // Make sure the node's file attribute string is within acceptable limits.
+    if (node && node->fileattrstring.size() + encryptedAttributes.size() >= MAX_NODE_ATTRIBUTE_SIZE)
     {
-        sendevent(99485, "Exceeded size for file attribute");
-        LOG_err << "Exceede size for file attribute: " << t;
+        // Monitoring.
+        sendevent(99485, "Exceeded size for node attribute");
+
+        // Clarity.
+        LOG_err << "Exceeded size for node attribute: " << t;
         restag = tag;
+
+        // Let app know the request failed.
         app->putfa_result(h, t, API_EARGS);
         return;
     }

@@ -21478,48 +21478,55 @@ void MegaApiImpl::getUserEmail(MegaHandle h, MegaRequestListener* listener)
 
 error MegaApiImpl::performRequest_setAttrFile(MegaRequestPrivate* request)
 {
-            const char* srcFilePath = request->getFile();
-            int type = request->getParamType();
-            std::shared_ptr<Node> node = request->getNodeHandle() == INVALID_HANDLE ? nullptr : client->nodebyhandle(request->getNodeHandle());
-            MegaHandle fileattrhandle = (uint64_t)request->getNumber();
-            auto bu = static_cast<MegaBackgroundMediaUploadPrivate*>(request->getMegaBackgroundMediaUploadPtr());
+    const char* srcFilePath = request->getFile();
+    int type = request->getParamType();
+    std::shared_ptr<Node> node = request->getNodeHandle() == INVALID_HANDLE ?
+                                     nullptr :
+                                     client->nodebyhandle(request->getNodeHandle());
+    MegaHandle fileattrhandle = (uint64_t)request->getNumber();
+    auto bu =
+        static_cast<MegaBackgroundMediaUploadPrivate*>(request->getMegaBackgroundMediaUploadPtr());
 
-            if (!srcFilePath)
-            {
-                if (!node || fileattrhandle == INVALID_HANDLE) { return API_EARGS; }
+    if (!srcFilePath)
+    {
+        if (!node || fileattrhandle == INVALID_HANDLE)
+        {
+            return API_EARGS;
+        }
 
-                string fileattr;
-                appendFileAttribute(fileattr, type, fileattrhandle);
-                client->putFileAttributes(node->nodehandle, fatype(type), fileattr, request->getTag());
-            }
-            else
-            {
-                if (!node == !bu) { return API_EARGS; }
+        string fileattr;
+        appendFileAttribute(fileattr, type, fileattrhandle);
+        client->putFileAttributes(node->nodehandle, fatype(type), fileattr, request->getTag());
+        return API_OK;
+    }
 
-                auto localpath = LocalPath::fromAbsolutePath(srcFilePath);
+    if (!node == !bu)
+    {
+        return API_EARGS;
+    }
 
-                std::unique_ptr<string> attributedata(new string);
-                std::unique_ptr<FileAccess> f(fsAccess->newfileaccess());
-                if (!f->fopen(localpath, 1, 0, FSLogging::logOnError))
-                {
-                    return API_EREAD;
-                }
+    auto localpath = LocalPath::fromAbsolutePath(srcFilePath);
 
-                // make the string a little bit larger initially with SymmCipher::BLOCKSIZE to avoid heap activity growing it for the encryption
-                attributedata->reserve(size_t(f->size + SymmCipher::BLOCKSIZE));
-                if (!f->fread(attributedata.get(), unsigned(f->size), 0, 0, FSLogging::logOnError))
-                {
-                    return API_EREAD;
-                }
+    std::unique_ptr<string> attributedata(new string);
+    std::unique_ptr<FileAccess> f(fsAccess->newfileaccess());
+    if (!f->fopen(localpath, 1, 0, FSLogging::logOnError))
+    {
+        return API_EREAD;
+    }
 
-                SymmCipher* cipher = bu ? bu->nodecipher(client) : node->nodecipher();
-                if (!cipher ||
-                    !client->putfa(NodeOrUploadHandle(node ? node->nodeHandle() : NodeHandle()), static_cast<fatype>(type), cipher, request->getTag(), std::move(attributedata)))
-                {
-                    return API_EKEY;
-                }
-            }
-            return API_OK;
+    // make the string a little bit larger initially with SymmCipher::BLOCKSIZE to avoid heap
+    // activity growing it for the encryption
+    attributedata->reserve(size_t(f->size + SymmCipher::BLOCKSIZE));
+    if (!f->fread(attributedata.get(), unsigned(f->size), 0, 0, FSLogging::logOnError))
+    {
+        return API_EREAD;
+    }
+
+    return client->putfa(NodeOrUploadHandle(node ? node->nodeHandle() : NodeHandle()),
+                         static_cast<fatype>(type),
+                         bu ? bu->nodecipher(client) : node->nodecipher(),
+                         request->getTag(),
+                         std::move(attributedata));
 }
 
 error MegaApiImpl::performRequest_setAttrNode(MegaRequestPrivate* request)

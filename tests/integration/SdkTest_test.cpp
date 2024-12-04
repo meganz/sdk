@@ -20229,3 +20229,59 @@ TEST_F(SdkTest, CreditCardCancelSubscriptions)
         ASSERT_EQ(listener.waitForResult(), API_OK);
     }
 }
+
+TEST_F(SdkTest, FailsWhenThumbnailIsTooLarge)
+{
+    // Convenience.
+    using NodePtr = std::unique_ptr<MegaNode>;
+
+    using fs::u8path;
+    using ::mega::MegaApi;
+    using sdk_test::LocalTempFile;
+
+    // Clarity.
+    constexpr auto KiB = 1024u;
+    constexpr auto MiB = 1024u * KiB;
+
+    // Make sure an account is ready for us to use.
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // Convenience.
+    auto& client = *megaApi[0];
+
+    // Get our hands on the user's root node.
+    NodePtr root(client.getRootNode());
+
+    // Make sure we could retrieve the root node.
+    ASSERT_TRUE(root.get()) << "Couldn't retrieve a reference to the user's root node";
+
+    // Create a file for us to upload to the cloud.
+    LocalTempFile content(u8path("content"), 16 * MiB);
+
+    // Upload the file to the cloud so we have a node to play with.
+    TransferTracker tracker(&client);
+
+    client.startUpload("content",
+                       root.get(),
+                       nullptr,
+                       MegaApi::INVALID_CUSTOM_MOD_TIME,
+                       nullptr,
+                       false,
+                       false,
+                       nullptr,
+                       &tracker);
+
+    // Wait for the upload to complete.
+    ASSERT_EQ(tracker.waitForResult(), API_OK) << "Couldn't upload file to cloud";
+
+    // Get our hands on our newly created node.
+    NodePtr node(client.getNodeByHandle(tracker.resultNodeHandle));
+
+    // Make sure our node exists in the cloud.
+    ASSERT_TRUE(node.get()) << "Couldn't retrieve a reference to our newly uploaded file";
+
+    // Try and add our file's content as a thumbnail.
+    //
+    // This should fail as thumbnails must be < 16MiB.
+    ASSERT_EQ(setThumbnail(client, node.get(), "content"), API_EARGS);
+}

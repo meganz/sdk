@@ -348,6 +348,11 @@ public:
 
     bool eq(NodeOrUploadHandle b) const { return h == b.h && mIsNodeHandle == b.mIsNodeHandle; }
     bool operator<(const NodeOrUploadHandle& rhs) const { return h < rhs.h || (h == rhs.h && int(mIsNodeHandle) < int(rhs.mIsNodeHandle)); }
+
+    handle as8byte() const
+    {
+        return h;
+    }
 };
 
 inline bool operator==(NodeOrUploadHandle a, NodeOrUploadHandle b) { return a.eq(b); }
