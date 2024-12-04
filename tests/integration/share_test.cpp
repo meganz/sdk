@@ -287,7 +287,7 @@ TEST_F(SdkTestShare, TestSharesContactVerification)
     std::unique_ptr<MegaNode> inshareNode(megaApi[1]->getNodeByHandle(nh));
     ASSERT_NE(inshareNode.get(), nullptr);
     ASSERT_TRUE(WaitFor(
-        [this, nh]()
+        [this, nh = nh]()
         {
             return unique_ptr<MegaNode>(megaApi[1]->getNodeByHandle(nh))->isNodeKeyDecrypted();
         },
@@ -354,7 +354,7 @@ TEST_F(SdkTestShare, TestSharesContactVerification)
     inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
     ASSERT_NE(inshareNode.get(), nullptr);
     ASSERT_TRUE(WaitFor(
-        [this, nh]()
+        [this, nh = nh]()
         {
             return unique_ptr<MegaNode>(megaApi[1]->getNodeByHandle(nh))->isNodeKeyDecrypted();
         },
@@ -570,7 +570,7 @@ TEST_F(SdkTestShare, TestSharesContactVerification)
     inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
     ASSERT_NE(inshareNode.get(), nullptr);
     ASSERT_TRUE(WaitFor(
-        [this, nh]()
+        [this, nh = nh]()
         {
             return unique_ptr<MegaNode>(megaApi[1]->getNodeByHandle(nh))->isNodeKeyDecrypted();
         },
@@ -780,7 +780,7 @@ TEST_F(SdkTestShare, TestSharesContactVerification)
     inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
     ASSERT_NE(inshareNode.get(), nullptr);
     ASSERT_TRUE(WaitFor(
-        [this, nh]()
+        [this, nh = nh]()
         {
             return unique_ptr<MegaNode>(megaApi[1]->getNodeByHandle(nh))->isNodeKeyDecrypted();
         },
@@ -974,7 +974,7 @@ TEST_F(SdkTestShare, TestSharesContactVerification)
     inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
     ASSERT_NE(inshareNode.get(), nullptr);
     ASSERT_TRUE(WaitFor(
-        [this, nh]()
+        [this, nh = nh]()
         {
             return unique_ptr<MegaNode>(megaApi[1]->getNodeByHandle(nh))->isNodeKeyDecrypted();
         },
