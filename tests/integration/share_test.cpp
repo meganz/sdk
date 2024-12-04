@@ -1,12 +1,26 @@
 #include "SdkTest_test.h"
 
+#include <gmock/gmock.h>
+
 class SdkTestShare: public SdkTest
 {
 protected:
     struct Party
     {
-        PerApi& api;
+        unsigned apiIndex;
         bool wait; // wait for response
+    };
+
+    struct HandleUserPair
+    {
+        MegaHandle handle;
+
+        std::string user;
+
+        friend bool operator==(const HandleUserPair& lhs, const HandleUserPair& rhs)
+        {
+            return lhs.handle == rhs.handle && lhs.user == rhs.user;
+        }
     };
 
     void createShareAtoB(MegaNode* node, const Party& partyA, const Party& partyB);
@@ -18,41 +32,57 @@ protected:
     // Use mApi[0] and mApi[1]
     void removeShareAtoB(MegaNode* node);
 
-    // Reset both accounts credentials verification
-    // Use mApi[0] and mApi[1]
-    void resetAllCredentials();
+    // Reset credential between two accounts
+    void resetCredential(unsigned apiIndexA, unsigned apiIndexB);
+
+    void addContactsAndVerifyCredential(unsigned apiIndexA, unsigned apiIndexB);
+
+    std::vector<HandleUserPair> toHandleUserPair(MegaShareList* shareList);
+
+    std::pair<MegaHandle, std::unique_ptr<MegaNode>> createFolder(unsigned int apiIndex,
+                                                                  const char* name,
+                                                                  MegaNode* parent);
+
+private:
 };
 
 void SdkTestShare::createShareAtoB(MegaNode* node, const Party& partyA, const Party& partyB)
 {
-    partyA.api.mOnNodesUpdateCompletion = createOnNodesUpdateLambda(node->getHandle(),
-                                                                    MegaNode::CHANGE_TYPE_OUTSHARE,
-                                                                    partyA.api.nodeUpdated);
-    partyB.api.mOnNodesUpdateCompletion = createOnNodesUpdateLambda(node->getHandle(),
-                                                                    MegaNode::CHANGE_TYPE_INSHARE,
-                                                                    mApi[1].nodeUpdated);
+    assert(partyA.apiIndex < mApi.size());
+    assert(partyB.apiIndex < mApi.size());
+
+    // convinience
+    auto& apiA = mApi[partyA.apiIndex];
+    auto& apiB = mApi[partyB.apiIndex];
+
+    apiA.mOnNodesUpdateCompletion = createOnNodesUpdateLambda(node->getHandle(),
+                                                              MegaNode::CHANGE_TYPE_OUTSHARE,
+                                                              apiA.nodeUpdated);
+    apiB.mOnNodesUpdateCompletion = createOnNodesUpdateLambda(node->getHandle(),
+                                                              MegaNode::CHANGE_TYPE_INSHARE,
+                                                              apiB.nodeUpdated);
     ASSERT_NO_FATAL_FAILURE(
-        shareFolder(node, partyB.api.email.c_str(), MegaShare::ACCESS_READWRITE));
+        shareFolder(node, apiB.email.c_str(), MegaShare::ACCESS_READWRITE, partyA.apiIndex));
 
     if (partyA.wait)
     {
-        ASSERT_TRUE(waitForResponse(&partyA.api.nodeUpdated))
+        ASSERT_TRUE(waitForResponse(&apiA.nodeUpdated))
             << "Node update not received after " << maxTimeout << " seconds";
     }
 
     if (partyB.wait)
     {
-        ASSERT_TRUE(waitForResponse(&partyB.api.nodeUpdated))
+        ASSERT_TRUE(waitForResponse(&apiB.nodeUpdated))
             << "Node update not received after " << maxTimeout << " seconds";
     }
 
     resetOnNodeUpdateCompletionCBs();
-    partyA.api.nodeUpdated = partyB.api.nodeUpdated = false;
+    apiA.nodeUpdated = apiB.nodeUpdated = false;
 }
 
 void SdkTestShare::createShareAtoB(MegaNode* node, bool waitForA, bool waitForB)
 {
-    createShareAtoB(node, {mApi[0], waitForA}, {mApi[1], waitForB});
+    createShareAtoB(node, {0, waitForA}, {1, waitForB});
 }
 
 void SdkTestShare::removeShareAtoB(MegaNode* node)
@@ -72,14 +102,74 @@ void SdkTestShare::removeShareAtoB(MegaNode* node)
     mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
 }
 
-void SdkTestShare::resetAllCredentials()
+void SdkTestShare::resetCredential(unsigned apiIndexA, unsigned apiIndexB)
 {
-    ASSERT_NO_FATAL_FAILURE(resetCredentials(0, mApi[1].email));
-    ASSERT_NO_FATAL_FAILURE(resetCredentials(1, mApi[0].email));
-    ASSERT_FALSE(areCredentialsVerified(0, mApi[1].email));
-    ASSERT_FALSE(areCredentialsVerified(1, mApi[0].email));
+    if (areCredentialsVerified(apiIndexA, mApi[apiIndexB].email))
+    {
+        ASSERT_NO_FATAL_FAILURE(resetCredentials(apiIndexA, mApi[apiIndexB].email));
+        ASSERT_FALSE(areCredentialsVerified(apiIndexA, mApi[apiIndexB].email));
+    }
+    if (areCredentialsVerified(apiIndexB, mApi[apiIndexA].email))
+    {
+        ASSERT_NO_FATAL_FAILURE(resetCredentials(apiIndexB, mApi[apiIndexA].email));
+        ASSERT_FALSE(areCredentialsVerified(apiIndexB, mApi[apiIndexA].email));
+    }
 }
 
+void SdkTestShare::addContactsAndVerifyCredential(unsigned fromApiIndex, unsigned toApiIndex)
+{
+    mApi[fromApiIndex].contactRequestUpdated = mApi[toApiIndex].contactRequestUpdated = false;
+    ASSERT_NO_FATAL_FAILURE(inviteContact(fromApiIndex,
+                                          mApi[toApiIndex].email,
+                                          "TestSharesContactVerification contact request A to B",
+                                          MegaContactRequest::INVITE_ACTION_ADD));
+    ASSERT_TRUE(waitForResponse(&mApi[fromApiIndex].contactRequestUpdated))
+        << "Inviting contact timeout: " << maxTimeout << " seconds.";
+    ASSERT_TRUE(waitForResponse(&mApi[toApiIndex].contactRequestUpdated))
+        << "Waiting for invitation timeout: " << maxTimeout << " seconds.";
+    ASSERT_NO_FATAL_FAILURE(getContactRequest(toApiIndex, false));
+
+    mApi[fromApiIndex].contactRequestUpdated = mApi[toApiIndex].contactRequestUpdated = false;
+    ASSERT_NO_FATAL_FAILURE(
+        replyContact(mApi[toApiIndex].cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT));
+    ASSERT_TRUE(waitForResponse(&mApi[toApiIndex].contactRequestUpdated))
+        << "Accepting contact timeout: " << maxTimeout << " seconds";
+    ASSERT_TRUE(waitForResponse(&mApi[fromApiIndex].contactRequestUpdated))
+        << "Waiting for invitation acceptance timeout: " << maxTimeout << " seconds";
+
+    // Verify credentials:
+    LOG_verbose << "TestSharesContactVerification :  Verify A and B credentials";
+    ASSERT_NO_FATAL_FAILURE(verifyCredentials(fromApiIndex, mApi[toApiIndex].email));
+    ASSERT_NO_FATAL_FAILURE(verifyCredentials(toApiIndex, mApi[fromApiIndex].email));
+    ASSERT_TRUE(areCredentialsVerified(fromApiIndex, mApi[toApiIndex].email));
+    ASSERT_TRUE(areCredentialsVerified(toApiIndex, mApi[fromApiIndex].email));
+}
+
+std::vector<SdkTestShare::HandleUserPair> SdkTestShare::toHandleUserPair(MegaShareList* shareList)
+{
+    std::vector<SdkTestShare::HandleUserPair> ret;
+
+    if (!shareList)
+    {
+        return ret;
+    }
+
+    for (int i = 0; i < shareList->size(); ++i)
+    {
+        auto share = shareList->get(i);
+        ret.push_back({share->getNodeHandle(), share->getUser()});
+    }
+    return ret;
+}
+
+std::pair<MegaHandle, std::unique_ptr<MegaNode>> SdkTestShare::createFolder(unsigned int apiIndex,
+                                                                            const char* name,
+                                                                            MegaNode* parent)
+{
+    MegaHandle nh = SdkTest::createFolder(apiIndex, name, parent);
+    std::unique_ptr<MegaNode> node{megaApi[apiIndex]->getNodeByHandle(nh)};
+    return {nh, std::move(node)};
+}
 /**
  * @brief TEST_F TestSharesContactVerification
  *
@@ -155,9 +245,8 @@ TEST_F(SdkTestShare, TestSharesContactVerification)
 
     fs::path basePath = fs::u8path(folder11.c_str());
 
-    MegaHandle nh = createFolder(0, basePath.u8string().c_str(), remoteRootNode.get());
+    auto [nh, remoteBaseNode] = createFolder(0, basePath.u8string().c_str(), remoteRootNode.get());
     ASSERT_NE(nh, UNDEF) << "Error creating remote basePath";
-    std::unique_ptr<MegaNode> remoteBaseNode(megaApi[0]->getNodeByHandle(nh));
     ASSERT_NE(remoteBaseNode.get(), nullptr);
 
     // Verify credentials:
@@ -338,7 +427,7 @@ TEST_F(SdkTestShare, TestSharesContactVerification)
     inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
     ASSERT_EQ(inshareNode.get(), nullptr);
 
-    ASSERT_NO_FATAL_FAILURE(resetAllCredentials());
+    ASSERT_NO_FATAL_FAILURE(resetCredential(0, 1));
 
     //
     // 1-2: A has verified B, but B has not verified A. B verifies A after creating the share.
@@ -346,9 +435,9 @@ TEST_F(SdkTestShare, TestSharesContactVerification)
 
     basePath = fs::u8path(folder12.c_str()); // Use a different node
 
-    nh = createFolder(0, basePath.u8string().c_str(), remoteRootNode.get());
+    std::tie(nh, remoteBaseNode) =
+        createFolder(0, basePath.u8string().c_str(), remoteRootNode.get());
     ASSERT_NE(nh, UNDEF) << "Error creating remote basePath";
-    remoteBaseNode.reset(megaApi[0]->getNodeByHandle(nh));
     ASSERT_NE(remoteBaseNode.get(), nullptr);
 
     // Verify credentials
@@ -520,7 +609,7 @@ TEST_F(SdkTestShare, TestSharesContactVerification)
 
     // Reset credentials:
     LOG_verbose << "TestSharesContactVerification :  Reset credentials";
-    ASSERT_NO_FATAL_FAILURE(resetAllCredentials());
+    ASSERT_NO_FATAL_FAILURE(resetCredential(0, 1));
 
     //
     // 1-3: None are verified. Then A verifies B and later B verifies A.
@@ -528,9 +617,9 @@ TEST_F(SdkTestShare, TestSharesContactVerification)
 
     basePath = fs::u8path(folder13.c_str()); // Use a different node
 
-    nh = createFolder(0, basePath.u8string().c_str(), remoteRootNode.get());
+    std::tie(nh, remoteBaseNode) =
+        createFolder(0, basePath.u8string().c_str(), remoteRootNode.get());
     ASSERT_NE(nh, UNDEF) << "Error creating remote basePath";
-    remoteBaseNode.reset(megaApi[0]->getNodeByHandle(nh));
     ASSERT_NE(remoteBaseNode.get(), nullptr);
 
     // Create share.
@@ -730,7 +819,7 @@ TEST_F(SdkTestShare, TestSharesContactVerification)
 
     // Reset credentials
     LOG_verbose << "TestSharesContactVerification :  Reset credentials";
-    ASSERT_NO_FATAL_FAILURE(resetAllCredentials());
+    ASSERT_NO_FATAL_FAILURE(resetCredential(0, 1));
 
     // Delete contacts
     LOG_verbose << "TestSharesContactVerification :  Remove Contact";
@@ -746,7 +835,8 @@ TEST_F(SdkTestShare, TestSharesContactVerification)
 
     basePath = fs::u8path(folder2.c_str()); // Use a different node
 
-    nh = createFolder(0, basePath.u8string().c_str(), remoteRootNode.get());
+    std::tie(nh, remoteBaseNode) =
+        createFolder(0, basePath.u8string().c_str(), remoteRootNode.get());
     ASSERT_NE(nh, UNDEF) << "Error creating remote basePath";
     remoteBaseNode.reset(megaApi[0]->getNodeByHandle(nh));
     ASSERT_NE(remoteBaseNode.get(), nullptr);
@@ -923,7 +1013,7 @@ TEST_F(SdkTestShare, TestSharesContactVerification)
 
     // Reset credentials
     LOG_verbose << "TestSharesContactVerification :  Reset credentials";
-    ASSERT_NO_FATAL_FAILURE(resetAllCredentials());
+    ASSERT_NO_FATAL_FAILURE(resetCredential(0, 1));
 
     // Delete contacts
     LOG_verbose << "TestSharesContactVerification :  Remove Contact";
@@ -932,4 +1022,92 @@ TEST_F(SdkTestShare, TestSharesContactVerification)
     ASSERT_FALSE(user == nullptr) << "Not user for contact email: " << mApi[1].email;
     ASSERT_EQ(MegaUser::VISIBILITY_HIDDEN, user->getVisibility())
         << "Contact is still visible after removing it." << mApi[1].email;
+}
+
+TEST_F(SdkTestShare, GetOutSharesOrUnverifiedOutSharesOrderedByCreationTime)
+{
+    LOG_info << "___TEST TestSharesContactVerification___";
+
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(3));
+    megaApi[0]->setManualVerificationFlag(true);
+    megaApi[1]->setManualVerificationFlag(true);
+    megaApi[2]->setManualVerificationFlag(true);
+
+    // Ensure no account has the other verified from previous unfinished tests.
+    ASSERT_NO_FATAL_FAILURE(resetCredential(0, 1));
+    ASSERT_NO_FATAL_FAILURE(resetCredential(0, 2));
+
+    LOG_info << "Invite from account 0 to 1 and verify credential";
+    ASSERT_NO_FATAL_FAILURE(addContactsAndVerifyCredential(0, 1));
+
+    // Root node
+    std::unique_ptr<MegaNode> remoteRootNode(megaApi[0]->getRootNode());
+    ASSERT_NE(remoteRootNode.get(), nullptr);
+
+    LOG_info << "Create share folders";
+    auto [handle1, shareNode1] = createFolder(0, "share1", remoteRootNode.get());
+    auto [handle2, shareNode2] = createFolder(0, "share2", remoteRootNode.get());
+    auto [handle3, shareNode3] = createFolder(0, "share3", remoteRootNode.get());
+    ASSERT_THAT(shareNode1, testing::NotNull());
+    ASSERT_THAT(shareNode2, testing::NotNull());
+    ASSERT_THAT(shareNode3, testing::NotNull());
+
+    LOG_info << "Share folders from account 0 to account 1 share node 2,1 and 3 in order";
+    ASSERT_NO_FATAL_FAILURE(createShareAtoB(shareNode2.get(), false, false));
+    ASSERT_NO_FATAL_FAILURE(createShareAtoB(shareNode1.get(), false, false));
+    ASSERT_NO_FATAL_FAILURE(createShareAtoB(shareNode3.get(), false, false));
+
+    LOG_info << "Share folders from account 0 to account 2 share node 2,1 and 3 in order";
+    ASSERT_NO_FATAL_FAILURE(createShareAtoB(shareNode2.get(), {0, false}, {2, false}));
+    ASSERT_NO_FATAL_FAILURE(createShareAtoB(shareNode1.get(), {0, false}, {2, false}));
+    ASSERT_NO_FATAL_FAILURE(createShareAtoB(shareNode3.get(), {0, false}, {2, false}));
+
+    auto user1 = mApi[1].email;
+    auto user2 = mApi[2].email;
+    std::vector<HandleUserPair> shares;
+    ASSERT_TRUE(WaitFor(
+        [this, &shares]()
+        {
+            shares = toHandleUserPair(megaApi[0]->getOutShares(MegaApi::ORDER_SHARE_CREATION_ASC));
+            return shares.size() == 6;
+        },
+        60 * 1000));
+    ASSERT_THAT(shares,
+                testing::ElementsAreArray(std::vector<HandleUserPair>{
+                    {handle2, user1},
+                    {handle1, user1},
+                    {handle3, user1},
+                    {handle2, user2},
+                    {handle1, user2},
+                    {handle3, user2},
+    }));
+
+    shares =
+        toHandleUserPair(megaApi[0]->getUnverifiedOutShares(MegaApi::ORDER_SHARE_CREATION_ASC));
+    ASSERT_THAT(shares,
+                testing::ElementsAreArray(std::vector<HandleUserPair>{
+                    {handle2, user2},
+                    {handle1, user2},
+                    {handle3, user2},
+    }));
+
+    shares = toHandleUserPair(megaApi[0]->getOutShares(MegaApi::ORDER_SHARE_CREATION_DESC));
+    ASSERT_THAT(shares,
+                testing::ElementsAreArray(std::vector<HandleUserPair>{
+                    {handle3, user2},
+                    {handle1, user2},
+                    {handle2, user2},
+                    {handle3, user1},
+                    {handle1, user1},
+                    {handle2, user1},
+    }));
+
+    shares =
+        toHandleUserPair(megaApi[0]->getUnverifiedOutShares(MegaApi::ORDER_SHARE_CREATION_DESC));
+    ASSERT_THAT(shares,
+                testing::ElementsAreArray(std::vector<HandleUserPair>{
+                    {handle3, user2},
+                    {handle1, user2},
+                    {handle2, user2},
+    }));
 }

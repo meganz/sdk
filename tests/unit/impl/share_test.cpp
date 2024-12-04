@@ -20,6 +20,7 @@ protected:
 void ShareSorterTest::SetUp()
 {
     Test::SetUp();
+    // Share with a smaller timestamp is created earlier
     mShares = {
         Share{nullptr, mega::RDONLY, 20},
         Share{nullptr, mega::RDONLY, 10},
@@ -35,17 +36,17 @@ void ShareSorterTest::SetUp()
 TEST_F(ShareSorterTest, SortByShareCreationTimeAscendingly)
 {
     ShareSorter{::mega::MegaApi::ORDER_SHARE_CREATION_ASC}.sort(mShareDatas);
-    ASSERT_EQ(mShareDatas[0].getNodeHandle(), 3);
+    ASSERT_EQ(mShareDatas[0].getNodeHandle(), 2);
     ASSERT_EQ(mShareDatas[1].getNodeHandle(), 1);
-    ASSERT_EQ(mShareDatas[2].getNodeHandle(), 2);
+    ASSERT_EQ(mShareDatas[2].getNodeHandle(), 3);
 }
 
 TEST_F(ShareSorterTest, SortByShareCreationTimeDescendingly)
 {
     ShareSorter{::mega::MegaApi::ORDER_SHARE_CREATION_DESC}.sort(mShareDatas);
-    ASSERT_EQ(mShareDatas[0].getNodeHandle(), 2);
+    ASSERT_EQ(mShareDatas[0].getNodeHandle(), 3);
     ASSERT_EQ(mShareDatas[1].getNodeHandle(), 1);
-    ASSERT_EQ(mShareDatas[2].getNodeHandle(), 3);
+    ASSERT_EQ(mShareDatas[2].getNodeHandle(), 2);
 }
 
 TEST_F(ShareSorterTest, SortByOthersDoesNotChangeOrder)
