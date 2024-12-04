@@ -16673,36 +16673,17 @@ std::pair<error, SyncError> MegaClient::isLocalPathSyncable(const LocalPath& new
     return {API_OK, NO_SYNC_ERROR};
 }
 
-std::pair<error, SyncError> MegaClient::isValidLocalSyncRoot(const LocalPath& rootPath) const
+std::tuple<error, SyncError, SyncWarning, std::unique_ptr<FileAccess>, bool>
+    MegaClient::isValidLocalSyncRoot(const LocalPath& localPath,
+                                     const handle backupIdToExclude) const
 {
-    if (!rootPath.isAbsolute())
-        return {API_EARGS, NO_SYNC_ERROR};
-
-    SyncConfig testConfig;
-    testConfig.mLocalPath = rootPath;
-    testConfig.mBackupId = UNDEF;
-    testConfig.mError = NO_SYNC_ERROR;
-    bool isnetwork;
-    std::unique_ptr<FileAccess> faccess;
-    const auto error = isValidLocalSyncRoot(testConfig, faccess, isnetwork);
-    return {error, testConfig.mError};
-}
-
-error MegaClient::isValidLocalSyncRoot(SyncConfig& syncConfig,
-                                       std::unique_ptr<FileAccess>& openedLocalFolder,
-                                       bool& isnetwork) const
-{
-    const auto setErrorAndReturn = [&syncConfig](error e, SyncError syncError) -> error
-    {
-        syncConfig.mEnabled = syncError != NO_SYNC_ERROR;
-        syncConfig.mError = syncError;
-        return e;
-    };
+    if (!localPath.isAbsolute())
+        return {API_EARGS, NO_SYNC_ERROR, NO_SYNC_WARNING, nullptr, false};
 
     const auto rootPathWithoutEndingSeparator = std::invoke(
-        [&config = std::as_const(syncConfig)]() -> LocalPath
+        [&localPath]() -> LocalPath
         {
-            auto rootPath = config.getLocalPath();
+            auto rootPath = localPath;
             rootPath.trimNonDriveTrailingSeparator();
             return rootPath;
         });
@@ -16710,20 +16691,19 @@ error MegaClient::isValidLocalSyncRoot(SyncConfig& syncConfig,
     if (!mFuseService.syncable(rootPathWithoutEndingSeparator))
     {
         LOG_warn << "Trying to sync in a FUSE mount: " << rootPathWithoutEndingSeparator;
-        return setErrorAndReturn(API_EFAILED, LOCAL_PATH_MOUNTED);
+        return {API_EFAILED, LOCAL_PATH_MOUNTED, NO_SYNC_WARNING, nullptr, false};
     }
 
-    isnetwork = false;
-    if (!fsaccess->issyncsupported(rootPathWithoutEndingSeparator,
-                                   isnetwork,
-                                   syncConfig.mError,
-                                   syncConfig.mWarning))
+    bool isnetwork = false;
+    SyncError auxSErr;
+    SyncWarning syncWarning = NO_SYNC_WARNING;
+    if (!fsaccess->issyncsupported(rootPathWithoutEndingSeparator, isnetwork, auxSErr, syncWarning))
     {
         LOG_warn << "Unsupported filesystem";
-        return setErrorAndReturn(API_EFAILED, UNSUPPORTED_FILE_SYSTEM);
+        return {API_EFAILED, UNSUPPORTED_FILE_SYSTEM, syncWarning, nullptr, false};
     }
 
-    openedLocalFolder = fsaccess->newfileaccess();
+    std::unique_ptr openedLocalFolder = fsaccess->newfileaccess();
     if (!openedLocalFolder->fopen(rootPathWithoutEndingSeparator,
                                   true,
                                   false,
@@ -16733,24 +16713,26 @@ error MegaClient::isValidLocalSyncRoot(SyncConfig& syncConfig,
     {
         LOG_warn << "Cannot open rootpath for sync: " << rootPathWithoutEndingSeparator;
         if (openedLocalFolder->retry)
-            return setErrorAndReturn(API_ETEMPUNAVAIL, LOCAL_PATH_TEMPORARY_UNAVAILABLE);
-        return setErrorAndReturn(API_ENOENT, LOCAL_PATH_UNAVAILABLE);
+            return {API_ETEMPUNAVAIL,
+                    LOCAL_PATH_TEMPORARY_UNAVAILABLE,
+                    syncWarning,
+                    nullptr,
+                    false};
+        return {API_ENOENT, LOCAL_PATH_UNAVAILABLE, syncWarning, nullptr, false};
     }
 
     if (openedLocalFolder->type != FOLDERNODE)
     {
         LOG_warn << "Cannot sync non-folder";
-        return setErrorAndReturn(API_EACCESS, INVALID_LOCAL_TYPE);
+        return {API_EACCESS, INVALID_LOCAL_TYPE, syncWarning, nullptr, false};
     }
 
-    if (const auto [e, syncError] =
-            isLocalPathSyncable(syncConfig.getLocalPath(), syncConfig.mBackupId);
-        e != API_OK)
+    if (const auto [e, syncError] = isLocalPathSyncable(localPath, backupIdToExclude); e != API_OK)
     {
-        LOG_warn << "Local path not syncable: " << syncConfig.getLocalPath();
-        return setErrorAndReturn(e, syncError);
+        LOG_warn << "Local path not syncable: " << localPath;
+        return {e, syncError, syncWarning, nullptr, false};
     }
-    return API_OK;
+    return {API_OK, NO_SYNC_ERROR, syncWarning, std::move(openedLocalFolder), isnetwork};
 }
 
 error MegaClient::checkSyncConfig(SyncConfig& syncConfig,
@@ -16843,9 +16825,17 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig,
         }
     }
 
-    isnetwork = false;
-    if (error e = isValidLocalSyncRoot(syncConfig, openedLocalFolder, isnetwork); e != API_OK)
-        return e;
+    auto [err, sErr, sWarn, openedLocalFolderAux, isnetworkAux] =
+        isValidLocalSyncRoot(syncConfig.getLocalPath(), syncConfig.mBackupId);
+    isnetwork = isnetworkAux;
+    openedLocalFolder = std::move(openedLocalFolderAux);
+    syncConfig.mWarning = sWarn;
+    if (err != API_OK)
+    {
+        syncConfig.mError = sErr;
+        syncConfig.mEnabled = sErr != NO_SYNC_ERROR;
+        return err;
+    }
 
     rootpath = syncConfig.getLocalPath();
     rootpath.trimNonDriveTrailingSeparator();
@@ -16939,7 +16929,9 @@ void MegaClient::changeSyncRoot(const handle backupId,
     if (noNode)
     {
         auto newRootPath = LocalPath::fromAbsolutePath(newLocalRootPath);
-        if (const auto [err, syncErr] = isValidLocalSyncRoot(newRootPath); err != API_OK)
+        if (const auto [err, syncErr, syncWarn, fa, isnet] =
+                isValidLocalSyncRoot(newRootPath, UNDEF);
+            err != API_OK)
         {
             LOG_err << "changeSyncRoot: Invalid new local root. Error: "
                     << SyncConfig::syncErrorToStr(syncErr);

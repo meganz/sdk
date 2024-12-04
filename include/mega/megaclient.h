@@ -1075,48 +1075,41 @@ public:
      * - Confirming the path exists, is accessible, and is a directory.
      * - Checking for conflicts with existing sync configurations to prevent overlapping sync areas.
      *
-     * Based on the validation results, the function updates the `syncConfig`'s `mError`,
-     * `mEnabled`, and `mWarning` fields accordingly.
-     *
-     * @param[in,out] syncConfig The `SyncConfig` containing the local path to validate. May
-     * be modified with error or warning details.
-     * @param[out] openedLocalFolder A unique pointer to a `FileAccess` object representing the
-     * opened local folder if validation succeeds.
-     * @param[out] isnetwork Set to `true` if the local path is on a network filesystem.
-     *
-     * @return
-     * - `API_OK` if the local path is valid and synchronization can proceed.
-     * - An error code otherwise, with details provided in `syncConfig`'s `mError` field.
-     *
-     * Possible error codes include:
-     * - `API_EFAILED`: The path is above or below a FUSE mount point or the filesystem is
-     * unsupported.
-     * - `API_ETEMPUNAVAIL`: The local path is temporarily unavailable.
-     * - `API_ENOENT`: The local path does not exist or cannot be found.
-     * - `API_EACCESS`: The path is not a directory or cannot be accessed.
-     * - `API_EARGS`: The local path conflicts with existing synchronization paths.
-     *
-     * @note
-     * - If validation fails due to an error, `syncConfig.mEnabled` is set to `false`.
-     * - The `syncConfig.mError` field provides detailed error information.
-     * - The function checks against existing active sync configurations to prevent overlapping sync
-     * directories.
-     */
-    error isValidLocalSyncRoot(SyncConfig& syncConfig,
-                               std::unique_ptr<FileAccess>& openedLocalFolder,
-                               bool& isnetwork) const;
-
-    /**
-     * @brief Overloaded version that checks whether the given path is valid for a new sync.
-     *
-     * For the possible errors, see documentation of overload above.
-     *
-     * Additionally, this overload will return {API_EARGS, NO_SYNC_ERROR} in case the given root
-     * path is not an absolute path.
-     *
      * @param rootPath The path to validate
+     * @param excludeBackupId A backup ID to exclude from the check done by the
+     * `isLocalPathSyncable` method. This is useful when updating an existing sync, allowing it to
+     * bypass itself during the validation. Pass `UNDEF` if you don't want to skip any sync during
+     * the validation.
+     *
+     * @return A `std::tuple` containing:
+     * - `error`: An error code indicating the result of the check.
+     * - `SyncError`: A detailed sync error code providing more context.
+     * - `SyncWarning`: A sync warning code returned by `FileSystemAccess::issyncsupported`.
+     * - `std::unique_ptr<FileAccess>`: An object representing the opened local folder.
+     * - `bool`: Set to `true` if the local path is valid and it belongs to a network filesystem.
+     *
+     * The possible returned error combinations are:
+     *   - `API_OK`:
+     *      + `NO_SYNC_ERROR` if the path is a valid root for a sync.
+     *   - `API_EARGS`:
+     *      + `NO_SYNC_ERROR` if the given path is not absolute.
+     *      + `LOCAL_PATH_UNAVAILABLE` if the provided `newPath` is empty.
+     *      + `LOCAL_PATH_SYNC_COLLISION` if the path conflicts with an existing sync path.
+     * - `API_EFAILED`:
+     *      + `LOCAL_PATH_MOUNTED` if the path is above or below a FUSE mount point
+     *      + `UNSUPPORTED_FILE_SYSTEM` if the filesystem is unsupported.
+     * - `API_ETEMPUNAVAIL`:
+     *      + `LOCAL_PATH_TEMPORARY_UNAVAILABLE` if the local path is temporarily unavailable.
+     * - `API_ENOENT`:
+     *      + `LOCAL_PATH_UNAVAILABLE` if the local path cannot be accessed.
+     * - `API_EACCESS`:
+     *      + `INVALID_LOCAL_TYPE` if the path is not a directory.
+     *
+     * @note If erro is not API_OK, the third and fourth return values are set to nullptr and false
+     * respectively.
      */
-    std::pair<error, SyncError> isValidLocalSyncRoot(const LocalPath& rootPath) const;
+    std::tuple<error, SyncError, SyncWarning, std::unique_ptr<FileAccess>, bool>
+        isValidLocalSyncRoot(const LocalPath& rootPath, const handle backupIdToExclude) const;
 
     /**
      * @brief Validates a SyncConfig and prepares it for synchronization.
