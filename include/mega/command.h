@@ -812,6 +812,10 @@ public:
 
 protected:
     void parseUserAttribute(JSON& json, std::string& value, std::string &version, bool asciiToBinary = true);
+    bool updatePrivateEncryptedUserAttribute(User* u,
+                                             const std::string& value,
+                                             const std::string& version,
+                                             mega::attr_t at);
     std::function<void(string*, string*, string*, error)> mCompletion;
 };
 

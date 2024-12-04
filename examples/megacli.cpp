@@ -7248,7 +7248,7 @@ void exec_putua(autocomplete::ACState& s)
             byte* value = new byte[static_cast<size_t>(len)];
             int valuelen = Base64::atob(s.words[3].s.data(), value, len);
             client->putua(attrtype, value, static_cast<unsigned>(valuelen));
-            delete [] value;
+            delete[] value;
             return;
         }
         else if (s.words[2].s == "load")
@@ -7258,7 +7258,7 @@ void exec_putua(autocomplete::ACState& s)
 
             if (loadfile(localpath, &data))
             {
-                client->putua(attrtype, (const byte*) data.data(), unsigned(data.size()));
+                client->putua(attrtype, (const byte*)data.data(), unsigned(data.size()));
             }
             else
             {
@@ -7270,14 +7270,17 @@ void exec_putua(autocomplete::ACState& s)
     }
     else if (s.words.size() == 5)
     {
-        if (s.words[2].s == "map")  // putua <attrtype> map <attrKey> <attrValue>
+        if (s.words[2].s == "map") // putua <attrtype> map <attrKey> <attrValue>
         {
             // received <attrKey> will be B64 encoded
             // received <attrValue> will have the real text value
-            if (attrtype == ATTR_DEVICE_NAMES       // TLV: { B64enc DeviceId hash, device name } or { ext:B64enc DriveId, drive name }
-                    || attrtype == ATTR_ALIAS)      // TLV: { B64enc User handle, alias }
+            if (User::scope(attrtype) == ATTR_SCOPE_PRIVATE_ENCRYPTED)
             {
                 putua_map(s.words[3].s, Base64::btoa(s.words[4].s), attrtype);
+            }
+            else
+            {
+                cout << "Attribute not private, cannot be set as a map" << endl;
             }
         }
     }

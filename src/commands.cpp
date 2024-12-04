@@ -3709,16 +3709,18 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                             // decrypt the data
                             std::unique_ptr<string_map> records{
                                 tlv::containerToRecords(value, client->key)};
-                            if (!records)
+                            if (records || (value.empty() && !version.empty()))
+                            {
+                                u->setAttribute(at, value, version);
+                                mCompletionTLV(std::move(records), at);
+                            }
+                            else
                             {
                                 LOG_err << "Cannot extract TLV records for private attribute "
                                         << User::attr2string(at);
                                 mCompletionErr(API_EINTERNAL);
-                                return false;
+                                return true;
                             }
-
-                            u->setAttribute(at, value, version);
-                            mCompletionTLV(std::move(records), at);
 
                             break;
                         }
@@ -3792,7 +3794,7 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                         {
                             LOG_err << "Unknown received attribute: " << User::attr2string(at);
                             mCompletionErr(API_EINTERNAL);
-                            return false;
+                            return true;
                         }
 
                     }   // switch (scope)
@@ -4141,6 +4143,31 @@ CommandGetUserData::CommandGetUserData(
             this->client->app->userdata_result(name, pubk, privk, e);
         };
 
+}
+
+bool CommandGetUserData::updatePrivateEncryptedUserAttribute(User* u,
+                                                             const std::string& value,
+                                                             const std::string& version,
+                                                             mega::attr_t at)
+{
+    // Empty private encrypted attribute with empty version means removal; non-empty version
+    // indicates it was explicitly emptied.
+    if (!version.empty())
+    {
+        if (value.empty() || tlv::containerToRecords(value, client->key)) // validation
+        {
+            return u->updateAttributeIfDifferentVersion(at, value, version);
+        }
+        else
+        {
+            LOG_err << "Cannot extract TLV records for " << at;
+        }
+    }
+    else
+    {
+        u->removeAttribute(at);
+    }
+    return false;
 }
 
 bool CommandGetUserData::procresult(Result r, JSON& json)
@@ -4811,76 +4838,38 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                     u->removeAttribute(ATTR_NO_CALLKIT);
                 }
 
-                if (chatFolder.size())
-                {
-                    if (tlv::containerToRecords(chatFolder, client->key)) // validation
-                    {
-                        changes |= u->updateAttributeIfDifferentVersion(ATTR_MY_CHAT_FILES_FOLDER,
-                                                                        chatFolder,
-                                                                        versionChatFolder);
-                    }
-                    else
-                    {
-                        LOG_err << "Cannot extract TLV records for ATTR_MY_CHAT_FILES_FOLDER";
-                    }
-                }
-                else
-                {
-                    u->removeAttribute(ATTR_MY_CHAT_FILES_FOLDER);
-                }
+                changes |= updatePrivateEncryptedUserAttribute(u,
+                                                               deviceNames,
+                                                               versionDeviceNames,
+                                                               ATTR_DEVICE_NAMES);
 
-                if (cameraUploadFolder.size())
-                {
-                    if (tlv::containerToRecords(cameraUploadFolder,
-                                                client->key)) // validation
-                    {
-                        changes |= u->updateAttributeIfDifferentVersion(ATTR_CAMERA_UPLOADS_FOLDER,
-                                                                        cameraUploadFolder,
-                                                                        versionCameraUploadFolder);
-                    }
-                    else
-                    {
-                        LOG_err << "Cannot extract TLV records for ATTR_CAMERA_UPLOADS_FOLDER";
-                    }
-                }
-                else
-                {
-                    u->removeAttribute(ATTR_CAMERA_UPLOADS_FOLDER);
-                }
+                changes |= updatePrivateEncryptedUserAttribute(u,
+                                                               chatFolder,
+                                                               versionChatFolder,
+                                                               ATTR_MY_CHAT_FILES_FOLDER);
 
-                if (!myBackupsFolder.empty())
-                {
-                    changes |= u->updateAttributeIfDifferentVersion(ATTR_MY_BACKUPS_FOLDER,
-                                                                    myBackupsFolder,
-                                                                    versionMyBackupsFolder);
-                }
-                else
-                {
-                    u->removeAttribute(ATTR_MY_BACKUPS_FOLDER);
-                }
+                changes |= updatePrivateEncryptedUserAttribute(u,
+                                                               cameraUploadFolder,
+                                                               versionCameraUploadFolder,
+                                                               ATTR_CAMERA_UPLOADS_FOLDER);
 
-                if (!appPrefs.empty())
-                {
-                    changes |= u->updateAttributeIfDifferentVersion(ATTR_APPS_PREFS,
-                                                                    appPrefs,
-                                                                    versionAppPrefs);
-                }
-                else
-                {
-                    u->removeAttribute(ATTR_APPS_PREFS);
-                }
+                changes |= updatePrivateEncryptedUserAttribute(u,
+                                                               appPrefs,
+                                                               versionAppPrefs,
+                                                               ATTR_APPS_PREFS);
 
-                if (!ccPrefs.empty())
-                {
-                    changes |= u->updateAttributeIfDifferentVersion(ATTR_CC_PREFS,
-                                                                    ccPrefs,
-                                                                    versionCcPrefs);
-                }
-                else
-                {
-                    u->removeAttribute(ATTR_CC_PREFS);
-                }
+                changes |=
+                    updatePrivateEncryptedUserAttribute(u, ccPrefs, versionCcPrefs, ATTR_CC_PREFS);
 
+#ifdef ENABLE_SYNC
+                changes |= updatePrivateEncryptedUserAttribute(u,
+                                                               jsonSyncConfigData,
+                                                               jsonSyncConfigDataVersion,
+                                                               ATTR_JSON_SYNC_CONFIG_DATA);
+#endif // ENABLE_SYNC
+
+                // `ug` response excludes alias if empty, even with a version. Use `uga` to
+                // differentiate between removal and explicit emptying.
                 if (aliases.size())
                 {
                     if (tlv::containerToRecords(aliases, client->key)) // validation
@@ -4894,9 +4883,16 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                         LOG_err << "Cannot extract TLV records for ATTR_ALIAS";
                     }
                 }
+
+                if (!myBackupsFolder.empty())
+                {
+                    changes |= u->updateAttributeIfDifferentVersion(ATTR_MY_BACKUPS_FOLDER,
+                                                                    myBackupsFolder,
+                                                                    versionMyBackupsFolder);
+                }
                 else
                 {
-                    u->removeAttribute(ATTR_ALIAS);
+                    u->removeAttribute(ATTR_MY_BACKUPS_FOLDER);
                 }
 
                 if (unshareableKey.size() == Base64Str<SymmCipher::BLOCKSIZE>::STRLEN)
@@ -4923,24 +4919,6 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 else
                 {
                     LOG_err << "Unshareable key wrong length";
-                }
-
-                if (deviceNames.size())
-                {
-                    if (tlv::containerToRecords(deviceNames, client->key)) // validation
-                    {
-                        changes |= u->updateAttributeIfDifferentVersion(ATTR_DEVICE_NAMES,
-                                                                        deviceNames,
-                                                                        versionDeviceNames);
-                    }
-                    else
-                    {
-                        LOG_err << "Cannot extract TLV records for ATTR_DEVICE_NAMES";
-                    }
-                }
-                else
-                {
-                    u->removeAttribute(ATTR_DEVICE_NAMES);
                 }
 
                 if (!cookieSettings.empty())
@@ -5000,20 +4978,6 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 {
                     u->removeAttribute(ATTR_ENABLE_TEST_SURVEYS);
                 }
-
-#ifdef ENABLE_SYNC
-                if (!jsonSyncConfigData.empty())
-                {
-                    // Tell the rest of the SDK that the attribute's changed.
-                    changes |= u->updateAttributeIfDifferentVersion(ATTR_JSON_SYNC_CONFIG_DATA,
-                                                                    jsonSyncConfigData,
-                                                                    jsonSyncConfigDataVersion);
-                }
-                else
-                {
-                    u->removeAttribute(ATTR_JSON_SYNC_CONFIG_DATA);
-                }
-#endif // ENABLE_SYNC
 
                 if (keys.size())
                 {
