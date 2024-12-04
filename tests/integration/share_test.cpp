@@ -11,6 +11,28 @@ protected:
         bool wait; // wait for response
     };
 
+    void createShareAtoB(MegaNode* node, const Party& partyA, const Party& partyB);
+
+    // Use mApi[0] as party A and mApi[1] as party B
+    void createShareAtoB(MegaNode* node, bool waitForA = true, bool waitForB = true);
+
+    // Remove a share ensuring node changes are notified.
+    // Use mApi[0] and mApi[1]
+    void removeShareAtoB(MegaNode* node);
+
+    // Reset credential between two accounts
+    void resetCredential(unsigned apiIndexA, unsigned apiIndexB);
+
+    void addContactsAndVerifyCredential(unsigned apiIndexA, unsigned apiIndexB);
+
+    std::pair<MegaHandle, std::unique_ptr<MegaNode>> createFolder(unsigned int apiIndex,
+                                                                  const char* name,
+                                                                  MegaNode* parent);
+};
+
+class SdkTestShareOrder: public SdkTestShare
+{
+protected:
     struct HandleUserPair
     {
         MegaHandle handle;
@@ -28,25 +50,9 @@ protected:
         }
     };
 
-    void createShareAtoB(MegaNode* node, const Party& partyA, const Party& partyB);
-
-    // Use mApi[0] as party A and mApi[1] as party B
-    void createShareAtoB(MegaNode* node, bool waitForA = true, bool waitForB = true);
-
-    // Remove a share ensuring node changes are notified.
-    // Use mApi[0] and mApi[1]
-    void removeShareAtoB(MegaNode* node);
-
-    // Reset credential between two accounts
-    void resetCredential(unsigned apiIndexA, unsigned apiIndexB);
-
-    void addContactsAndVerifyCredential(unsigned apiIndexA, unsigned apiIndexB);
-
     std::vector<HandleUserPair> toHandleUserPair(MegaShareList* shareList);
 
-    std::pair<MegaHandle, std::unique_ptr<MegaNode>> createFolder(unsigned int apiIndex,
-                                                                  const char* name,
-                                                                  MegaNode* parent);
+    bool waitForOutShare(MegaApi& api, unsigned expectedNum);
 };
 
 void SdkTestShare::createShareAtoB(MegaNode* node, const Party& partyA, const Party& partyB)
@@ -148,9 +154,19 @@ void SdkTestShare::addContactsAndVerifyCredential(unsigned fromApiIndex, unsigne
     ASSERT_TRUE(areCredentialsVerified(toApiIndex, mApi[fromApiIndex].email));
 }
 
-std::vector<SdkTestShare::HandleUserPair> SdkTestShare::toHandleUserPair(MegaShareList* shareList)
+std::pair<MegaHandle, std::unique_ptr<MegaNode>> SdkTestShare::createFolder(unsigned int apiIndex,
+                                                                            const char* name,
+                                                                            MegaNode* parent)
 {
-    std::vector<SdkTestShare::HandleUserPair> ret;
+    MegaHandle nh = SdkTest::createFolder(apiIndex, name, parent);
+    std::unique_ptr<MegaNode> node{megaApi[apiIndex]->getNodeByHandle(nh)};
+    return {nh, std::move(node)};
+}
+
+std::vector<SdkTestShareOrder::HandleUserPair>
+    SdkTestShareOrder::toHandleUserPair(MegaShareList* shareList)
+{
+    std::vector<SdkTestShareOrder::HandleUserPair> ret;
 
     if (!shareList)
     {
@@ -165,14 +181,17 @@ std::vector<SdkTestShare::HandleUserPair> SdkTestShare::toHandleUserPair(MegaSha
     return ret;
 }
 
-std::pair<MegaHandle, std::unique_ptr<MegaNode>> SdkTestShare::createFolder(unsigned int apiIndex,
-                                                                            const char* name,
-                                                                            MegaNode* parent)
+bool SdkTestShareOrder::waitForOutShare(MegaApi& api, unsigned expectedNum)
 {
-    MegaHandle nh = SdkTest::createFolder(apiIndex, name, parent);
-    std::unique_ptr<MegaNode> node{megaApi[apiIndex]->getNodeByHandle(nh)};
-    return {nh, std::move(node)};
+    return WaitFor(
+        [&api, expectedNum]()
+        {
+            return unique_ptr<MegaShareList>(api.getOutShares())->size() ==
+                   static_cast<int>(expectedNum);
+        },
+        60 * 1000);
 }
+
 /**
  * @brief TEST_F TestSharesContactVerification
  *
@@ -1027,7 +1046,7 @@ TEST_F(SdkTestShare, TestSharesContactVerification)
         << "Contact is still visible after removing it." << mApi[1].email;
 }
 
-TEST_F(SdkTestShare, GetOutSharesOrUnverifiedOutSharesOrderedByCreationTime)
+TEST_F(SdkTestShareOrder, GetOutSharesOrUnverifiedOutSharesOrderedByCreationTime)
 {
     LOG_info << "___TEST TestSharesContactVerification___";
 
@@ -1056,28 +1075,27 @@ TEST_F(SdkTestShare, GetOutSharesOrUnverifiedOutSharesOrderedByCreationTime)
     ASSERT_THAT(shareNode3, testing::NotNull());
 
     LOG_info << "Share folders from account 0 to account 1 share node 2,1 and 3 in order";
-    ASSERT_NO_FATAL_FAILURE(createShareAtoB(shareNode2.get(), false, false));
-    ASSERT_NO_FATAL_FAILURE(createShareAtoB(shareNode1.get(), false, false));
-    ASSERT_NO_FATAL_FAILURE(createShareAtoB(shareNode3.get(), false, false));
+    // Wait after each sharing for order
+    auto& api = *megaApi[0].get();
+    ASSERT_NO_FATAL_FAILURE(createShareAtoB(shareNode2.get()));
+    ASSERT_TRUE(waitForOutShare(api, 1));
+    ASSERT_NO_FATAL_FAILURE(createShareAtoB(shareNode1.get()));
+    ASSERT_TRUE(waitForOutShare(api, 2));
+    ASSERT_NO_FATAL_FAILURE(createShareAtoB(shareNode3.get()));
+    ASSERT_TRUE(waitForOutShare(api, 3));
 
     LOG_info << "Share folders from account 0 to account 2 share node 2,1 and 3 in order";
     ASSERT_NO_FATAL_FAILURE(createShareAtoB(shareNode2.get(), {0, false}, {2, false}));
+    ASSERT_TRUE(waitForOutShare(api, 4));
     ASSERT_NO_FATAL_FAILURE(createShareAtoB(shareNode1.get(), {0, false}, {2, false}));
+    ASSERT_TRUE(waitForOutShare(api, 5));
     ASSERT_NO_FATAL_FAILURE(createShareAtoB(shareNode3.get(), {0, false}, {2, false}));
+    ASSERT_TRUE(waitForOutShare(api, 6));
 
     auto user1 = mApi[1].email;
     auto user2 = mApi[2].email;
-    std::vector<HandleUserPair> shares;
-    std::vector<HandleUserPair> expectedShares;
-
-    ASSERT_TRUE(WaitFor(
-        [this, &shares]()
-        {
-            shares = toHandleUserPair(megaApi[0]->getOutShares(MegaApi::ORDER_SHARE_CREATION_ASC));
-            return shares.size() == 6;
-        },
-        60 * 1000));
-    expectedShares = std::vector<HandleUserPair>{
+    auto shares = toHandleUserPair(megaApi[0]->getOutShares(MegaApi::ORDER_SHARE_CREATION_ASC));
+    auto expectedShares = std::vector<HandleUserPair>{
         {handle2, user1},
         {handle1, user1},
         {handle3, user1},
