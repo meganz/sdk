@@ -151,8 +151,6 @@ public:
     long long getLinkStatus() const override;
     const char* getErrorString() const override;
     const char* toString() const override;
-    const char* __str__() const override;
-    const char* __toString() const override;
 
 private:
     long long mValue = 0;
@@ -1253,8 +1251,6 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         int getType() const override;
         const char * getTransferString() const override;
         const char* toString() const override;
-        const char* __str__() const override;
-        const char* __toString() const override;
         virtual int64_t getStartTime() const override;
         long long getTransferredBytes() const override;
         long long getTotalBytes() const override;
@@ -1710,8 +1706,6 @@ class MegaRequestPrivate : public MegaRequest
         int getType() const override;
         const char *getRequestString() const override;
         const char* toString() const override;
-        const char* __str__() const override;
-        const char* __toString() const override;
         MegaHandle getNodeHandle() const override;
         const char* getLink() const override;
         MegaHandle getParentHandle() const override;

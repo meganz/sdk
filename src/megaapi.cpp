@@ -939,16 +939,6 @@ const char *MegaRequest::toString() const
 	return NULL;
 }
 
-const char *MegaRequest::__str__() const
-{
-	return NULL;
-}
-
-const char *MegaRequest::__toString() const
-{
-	return NULL;
-}
-
 MegaHandle MegaRequest::getNodeHandle() const
 {
 	return INVALID_HANDLE;
@@ -1242,16 +1232,6 @@ const char *MegaTransfer::getTransferString() const
 }
 
 const char *MegaTransfer::toString() const
-{
-	return NULL;
-}
-
-const char *MegaTransfer::__str__() const
-{
-	return NULL;
-}
-
-const char *MegaTransfer::__toString() const
 {
 	return NULL;
 }
@@ -1629,16 +1609,6 @@ const char* MegaError::getErrorString(int errorCode, ErrorContexts context)
 }
 
 const char* MegaError::toString() const
-{
-    return getErrorString();
-}
-
-const char* MegaError::__str__() const
-{
-    return getErrorString();
-}
-
-const char *MegaError::__toString() const
 {
     return getErrorString();
 }

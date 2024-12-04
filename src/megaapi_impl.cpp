@@ -3819,16 +3819,6 @@ const char * MegaTransferPrivate::toString() const
     return getTransferString();
 }
 
-const char * MegaTransferPrivate::__str__() const
-{
-    return getTransferString();
-}
-
-const char *MegaTransferPrivate::__toString() const
-{
-    return getTransferString();
-}
-
 MegaContactRequestPrivate::MegaContactRequestPrivate(PendingContactRequest *request)
 {
     handle = request->id;
@@ -5047,16 +5037,6 @@ int MegaRequestPrivate::getTransferTag() const
 }
 
 const char *MegaRequestPrivate::toString() const
-{
-    return getRequestString();
-}
-
-const char *MegaRequestPrivate::__str__() const
-{
-    return getRequestString();
-}
-
-const char *MegaRequestPrivate::__toString() const
 {
     return getRequestString();
 }
@@ -28873,16 +28853,6 @@ const char* MegaErrorPrivate::getErrorString() const
 }
 
 const char* MegaErrorPrivate::toString() const
-{
-    return getErrorString();
-}
-
-const char* MegaErrorPrivate::__str__() const
-{
-    return getErrorString();
-}
-
-const char *MegaErrorPrivate::__toString() const
 {
     return getErrorString();
 }
