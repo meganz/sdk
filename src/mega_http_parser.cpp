@@ -2413,8 +2413,8 @@ http_parser_parse_url(const char *buf, size_t buflen, int is_connect,
         break;
 
       default:
-        assert(!"Unexpected state");
-        return 1;
+          assert(false && "Unexpected state");
+          return 1;
     }
 
     /* Nothing's changed; soldier on */

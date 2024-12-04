@@ -22741,7 +22741,7 @@ string KeyManager::serializePendingOutshares() const
                 if (uid.size() >= 256)
                 {
                     LOG_err << "Incorrect email size in pending outshare: " << uid;
-                    assert(!"Incorrect email size in pending outshare");
+                    assert(false && "Incorrect email size in pending outshare");
                     continue;
                 }
                 len = static_cast<byte>(uid.size());
@@ -22751,7 +22751,7 @@ string KeyManager::serializePendingOutshares() const
                 if (uid.size() != 11)
                 {
                     LOG_err << "Incorrect user handle in pending outshare: " << uid;
-                    assert(!"Incorrect user handle in pending outshare");
+                    assert(false && "Incorrect user handle in pending outshare");
                     continue;
                 }
             }
