@@ -268,9 +268,11 @@ void HttpIO::getMEGADNSservers(string* dnsservers, bool getfromnetwork)
 
         struct addrinfo hints = {};
         hints.ai_family = AF_UNSPEC;
-
-#ifndef __MINGW32__
-        hints.ai_flags = AI_V4MAPPED | AI_ADDRCONFIG;
+#ifdef AI_V4MAPPED
+        hints.ai_flags |= AI_V4MAPPED;
+#endif
+#ifdef AI_ADDRCONFIG
+        hints.ai_flags |= AI_ADDRCONFIG;
 #endif
 
         if (!getaddrinfo("ns.mega.co.nz", NULL, &hints, &aiList))
