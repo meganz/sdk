@@ -21,6 +21,11 @@ protected:
         {
             return lhs.handle == rhs.handle && lhs.user == rhs.user;
         }
+
+        friend void PrintTo(const HandleUserPair& handleUserPair, std::ostream* os)
+        {
+            *os << "{" << toNodeHandle(handleUserPair.handle) << ", " << handleUserPair.user << "}";
+        }
     };
 
     void createShareAtoB(MegaNode* node, const Party& partyA, const Party& partyB);
@@ -42,8 +47,6 @@ protected:
     std::pair<MegaHandle, std::unique_ptr<MegaNode>> createFolder(unsigned int apiIndex,
                                                                   const char* name,
                                                                   MegaNode* parent);
-
-private:
 };
 
 void SdkTestShare::createShareAtoB(MegaNode* node, const Party& partyA, const Party& partyB)
@@ -1065,6 +1068,8 @@ TEST_F(SdkTestShare, GetOutSharesOrUnverifiedOutSharesOrderedByCreationTime)
     auto user1 = mApi[1].email;
     auto user2 = mApi[2].email;
     std::vector<HandleUserPair> shares;
+    std::vector<HandleUserPair> expectedShares;
+
     ASSERT_TRUE(WaitFor(
         [this, &shares]()
         {
@@ -1072,42 +1077,42 @@ TEST_F(SdkTestShare, GetOutSharesOrUnverifiedOutSharesOrderedByCreationTime)
             return shares.size() == 6;
         },
         60 * 1000));
-    ASSERT_THAT(shares,
-                testing::ElementsAreArray(std::vector<HandleUserPair>{
-                    {handle2, user1},
-                    {handle1, user1},
-                    {handle3, user1},
-                    {handle2, user2},
-                    {handle1, user2},
-                    {handle3, user2},
-    }));
+    expectedShares = std::vector<HandleUserPair>{
+        {handle2, user1},
+        {handle1, user1},
+        {handle3, user1},
+        {handle2, user2},
+        {handle1, user2},
+        {handle3, user2},
+    };
+    ASSERT_THAT(shares, testing::ElementsAreArray(expectedShares));
 
     shares =
         toHandleUserPair(megaApi[0]->getUnverifiedOutShares(MegaApi::ORDER_SHARE_CREATION_ASC));
-    ASSERT_THAT(shares,
-                testing::ElementsAreArray(std::vector<HandleUserPair>{
-                    {handle2, user2},
-                    {handle1, user2},
-                    {handle3, user2},
-    }));
+    expectedShares = std::vector<HandleUserPair>{
+        {handle2, user2},
+        {handle1, user2},
+        {handle3, user2},
+    };
+    ASSERT_THAT(shares, testing::ElementsAreArray(expectedShares));
 
     shares = toHandleUserPair(megaApi[0]->getOutShares(MegaApi::ORDER_SHARE_CREATION_DESC));
-    ASSERT_THAT(shares,
-                testing::ElementsAreArray(std::vector<HandleUserPair>{
-                    {handle3, user2},
-                    {handle1, user2},
-                    {handle2, user2},
-                    {handle3, user1},
-                    {handle1, user1},
-                    {handle2, user1},
-    }));
+    expectedShares = std::vector<HandleUserPair>{
+        {handle3, user2},
+        {handle1, user2},
+        {handle2, user2},
+        {handle3, user1},
+        {handle1, user1},
+        {handle2, user1},
+    };
+    ASSERT_THAT(shares, testing::ElementsAreArray(expectedShares));
 
     shares =
         toHandleUserPair(megaApi[0]->getUnverifiedOutShares(MegaApi::ORDER_SHARE_CREATION_DESC));
-    ASSERT_THAT(shares,
-                testing::ElementsAreArray(std::vector<HandleUserPair>{
-                    {handle3, user2},
-                    {handle1, user2},
-                    {handle2, user2},
-    }));
+    expectedShares = std::vector<HandleUserPair>{
+        {handle3, user2},
+        {handle1, user2},
+        {handle2, user2},
+    };
+    ASSERT_THAT(shares, testing::ElementsAreArray(expectedShares));
 }
