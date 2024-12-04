@@ -28,7 +28,7 @@ In the `examples` folder you can find example apps using:
   - An example app for Android (using Java bindings based on SWIG) in `examples/android`
   - An example app for iOS (using Objective-C bindings) in `examples/iOS`
 
-[MEGAcmd](examples/megacmd), a higher level command line application that uses the SDK to provide interactive and scriptable access to MEGA, can be found [here](https://github.com/meganz/megacmd). You can use it by running megacmd-server and talk to it from PHP/Python code, for instance.
+[MEGAcmd](https://github.com/meganz/megacmd), a higher level command line application that uses the SDK to provide interactive and scriptable access to MEGA. You can use it by running megacmd-server and talk to it from PHP/Python code, for instance.
 
 ## How to build the SDK library
 
