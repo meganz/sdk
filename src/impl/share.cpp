@@ -120,7 +120,7 @@ void ShareSorter::sortByCreationTimeAsc(std::vector<ShareData>& shares) const
               std::end(shares),
               [](const ShareData& a, const ShareData& b)
               {
-                  return a.creationTime() > b.creationTime();
+                  return a.creationTime() < b.creationTime();
               });
 }
 
@@ -130,7 +130,7 @@ void ShareSorter::sortByCreationTimeDesc(std::vector<ShareData>& shares) const
               std::end(shares),
               [](const ShareData& a, const ShareData& b)
               {
-                  return a.creationTime() < b.creationTime();
+                  return a.creationTime() > b.creationTime();
               });
 }
 
