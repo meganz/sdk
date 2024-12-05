@@ -10208,35 +10208,79 @@ TEST_F(SdkTest, FetchAds)
     LOG_info << "___TEST FetchAds";
     LOG_debug << "\t# Test suite 1: Fetching ads with non-ads account";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-    std::unique_ptr<MegaStringList> stringList = std::unique_ptr<MegaStringList>(MegaStringList::createInstance());
-    std::unique_ptr<RequestTracker> tr = asyncFetchAds(0, MegaApi::ADS_FORCE_ADS, stringList.get(), INVALID_HANDLE);
+    std::unique_ptr<MegaStringList> stringList =
+        std::unique_ptr<MegaStringList>(MegaStringList::createInstance());
+    std::unique_ptr<RequestTracker> tr =
+        asyncFetchAds(0, MegaApi::ADS_FORCE_ADS, stringList.get(), INVALID_HANDLE);
     ASSERT_EQ(API_EARGS, tr->waitForResult()) << "Fetch Ads succeeded with invalid arguments";
-    const std::string dummyAd {"dummyAdUnit"};
+
+    // Test the invalid Ad code
+    const std::string dummyAd{"dummyAdUnit"};
     stringList->add(dummyAd.c_str());
     tr = asyncFetchAds(0, MegaApi::ADS_FORCE_ADS, stringList.get(), INVALID_HANDLE);
-    const auto ab_adse = megaApi[0]->getABTestValue("adse");
-    const auto ab_adsi = megaApi[0]->getABTestValue("adsi");
-    LOG_debug << "Account 0 " << megaApi[0]->getMyUserHandle() << " (" << megaApi[0]->getMyEmail()
-              << ") ab_adse: " << ab_adse << " ab_adsi: " << ab_adsi;
-    const bool isUserAllowedToFetchAds = ab_adse > 0u || ab_adsi > 0u;
-    if (isUserAllowedToFetchAds)
+    ASSERT_EQ(API_OK, tr->waitForResult()) << "Fetch Ads request failed when it wasn't expected";
+    ASSERT_TRUE(tr->request);
+    auto adsLink = tr->request->getMegaStringMap();
+    ASSERT_TRUE(adsLink && adsLink->size() == 1);
+    ASSERT_STREQ(adsLink->get(dummyAd.c_str()), "-9")
+        << "Fetch Ads should have received -9 for dummy Ad case";
+
+    tr = asyncQueryAds(0, MegaApi::ADS_DEFAULT, INVALID_HANDLE);
+    ASSERT_EQ(API_OK, tr->waitForResult()) << "Query Ads request failed when it wasn't expected";
+    const int showAd = tr->request->getNumDetails();
+
+    if (showAd == 0)
     {
-        ASSERT_EQ(API_OK, tr->waitForResult()) << "Fetch Ads request failed when it wasn't expected";
-        ASSERT_TRUE(tr->request);
-        auto ads = tr->request->getMegaStringMap();
-        ASSERT_TRUE(ads && ads->size() == 1);
-        ASSERT_STREQ(ads->get(dummyAd.c_str()), "-9") << "Fetch Ads should have received -9 for dummy Ad case";
+        // Show Ads
+        const char valiAdSlot[] = "ANDFB";
+        stringList.reset(MegaStringList::createInstance());
+        stringList->add(valiAdSlot);
+        tr = asyncFetchAds(0, MegaApi::ADS_DEFAULT, stringList.get(), INVALID_HANDLE);
+        ASSERT_EQ(API_OK, tr->waitForResult())
+            << "Fetch Ads failed when it was expected to receive Ads";
+        const MegaStringMap* ads = tr->request->getMegaStringMap();
+        ASSERT_TRUE(ads) << "Fetch Ads should have received Ads link";
     }
     else
     {
-        ASSERT_EQ(API_ENOENT, tr->waitForResult()) << "Fetch Ads didn't fail when it was expected to (dummy Ad case)";
+        // Do not show ad - Try fetching ad with default flag
+        tr = asyncFetchAds(0, MegaApi::ADS_DEFAULT, stringList.get(), INVALID_HANDLE);
+        ASSERT_EQ(API_ENOENT, tr->waitForResult())
+            << "Fetch Ads didn't fail when it was expected to (correct Ad case)";
+        const MegaStringMap* ads = tr->request->getMegaStringMap();
+        ASSERT_FALSE(ads)
+            << "Fetch Ads should have been nullptr to expected error code in `request`";
+    }
+
+    stringList.reset(MegaStringList::createInstance());
+    stringList->add(dummyAd.c_str());
+    tr = asyncFetchAds(0, MegaApi::ADS_DEFAULT, stringList.get(), INVALID_HANDLE);
+    const auto ab_adse = megaApi[0]->getFlag("adse", false);
+    const auto ab_adsi = megaApi[0]->getFlag("adsi", false);
+    LOG_debug << "Account 0 " << megaApi[0]->getMyUserHandle() << " (" << megaApi[0]->getMyEmail()
+              << ") ab_adse: " << ab_adse->getGroup() << " ab_adsi: " << ab_adsi->getGroup();
+    const bool isUserAllowedToFetchAds = ab_adse->getGroup() > 0u || ab_adsi->getGroup() > 0u;
+    if (isUserAllowedToFetchAds)
+    {
+        ASSERT_EQ(API_OK, tr->waitForResult())
+            << "Fetch Ads request failed when it wasn't expected";
+        ASSERT_TRUE(tr->request);
+        auto ads = tr->request->getMegaStringMap();
+        ASSERT_TRUE(ads && ads->size() == 1);
+        ASSERT_STREQ(ads->get(dummyAd.c_str()), "-9")
+            << "Fetch Ads should have received -9 for dummy Ad case";
+    }
+    else
+    {
+        ASSERT_EQ(API_ENOENT, tr->waitForResult())
+            << "Fetch Ads didn't fail when it was expected to (dummy Ad case)";
         const MegaStringMap* ads = tr->request->getMegaStringMap();
         ASSERT_FALSE(ads)
             << "Fetch Ads should have been nullptr due to expected error code `request`";
         const char valiAdSlot[] = "ANDFB";
         stringList.reset(MegaStringList::createInstance());
         stringList->add(valiAdSlot);
-        tr = asyncFetchAds(0, MegaApi::ADS_FORCE_ADS, stringList.get(), INVALID_HANDLE);
+        tr = asyncFetchAds(0, MegaApi::ADS_DEFAULT, stringList.get(), INVALID_HANDLE);
         ASSERT_EQ(API_ENOENT, tr->waitForResult())
             << "Fetch Ads didn't fail when it was expected to (correct Ad case)";
         ads = tr->request->getMegaStringMap();
