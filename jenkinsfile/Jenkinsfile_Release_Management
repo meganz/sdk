@@ -29,7 +29,7 @@ pipeline {
         jira_url = "${env.JIRA_BASE_URL}"
         confluence_url = "${env.CONFLUENCE_BASE_URL}"
         confluence_page_id = "3640225"
-        github_push_remote_url = "git@github.com:meganz/sdk.git"
+        github_push_remote_url = "https://github.com/meganz/sdk.git"
     }
 
     stages {
@@ -85,9 +85,9 @@ pipeline {
             }
             steps {
                 withCredentials([
-                    usernamePassword(credentialsId: 'SDK_JIRA', usernameVariable: 'JIRA_USERNAME', passwordVariable: 'JIRA_PASSWORD'),
-                    usernamePassword(credentialsId: 'SDK_JIRA', usernameVariable: 'CONFLUENCE_USER', passwordVariable: 'CONFLUENCE_PASSWORD')
-                    ]){
+                    string(credentialsId: 'SDK_JIRA_PERSONAL_ACCESS_TOKEN', variable: 'JIRA_TOKEN'),
+                    string(credentialsId: 'SDK_CONFLUENCE_PERSONAL_ACCESS_TOKEN', variable: 'CONFLUENCE_TOKEN')
+                ]){
                     dir("automation"){
                         sh 'cat config.toml'
                         sh 'printenv'
@@ -112,9 +112,9 @@ pipeline {
             }
             steps {
                 withCredentials([
-                    usernamePassword(credentialsId: 'SDK_JIRA', usernameVariable: 'JIRA_USERNAME', passwordVariable: 'JIRA_PASSWORD'),
-                    usernamePassword(credentialsId: 'SDK_JIRA', usernameVariable: 'CONFLUENCE_USER', passwordVariable: 'CONFLUENCE_PASSWORD')
-                    ]){
+                    string(credentialsId: 'SDK_JIRA_PERSONAL_ACCESS_TOKEN', variable: 'JIRA_TOKEN'),
+                    string(credentialsId: 'SDK_CONFLUENCE_PERSONAL_ACCESS_TOKEN', variable: 'CONFLUENCE_TOKEN')
+                ]){
                     dir("automation"){
                         sh 'cat config.toml'
                         sh 'printenv'
@@ -139,9 +139,9 @@ pipeline {
             }
             steps {
                 withCredentials([
-                    usernamePassword(credentialsId: 'SDK_JIRA', usernameVariable: 'JIRA_USERNAME', passwordVariable: 'JIRA_PASSWORD'),
-                    usernamePassword(credentialsId: 'SDK_JIRA', usernameVariable: 'CONFLUENCE_USER', passwordVariable: 'CONFLUENCE_PASSWORD')
-                    ]){
+                    string(credentialsId: 'SDK_JIRA_PERSONAL_ACCESS_TOKEN', variable: 'JIRA_TOKEN'),
+                    string(credentialsId: 'SDK_CONFLUENCE_PERSONAL_ACCESS_TOKEN', variable: 'CONFLUENCE_TOKEN')
+                ]){
                     dir("automation"){
                         sh 'cat config.toml'
                         sh 'printenv'
@@ -166,9 +166,9 @@ pipeline {
             }
             steps {
                 withCredentials([
-                    usernamePassword(credentialsId: 'SDK_JIRA', usernameVariable: 'JIRA_USERNAME', passwordVariable: 'JIRA_PASSWORD'),
-                    usernamePassword(credentialsId: 'SDK_JIRA', usernameVariable: 'CONFLUENCE_USER', passwordVariable: 'CONFLUENCE_PASSWORD')
-                    ]){
+                    string(credentialsId: 'SDK_JIRA_PERSONAL_ACCESS_TOKEN', variable: 'JIRA_TOKEN'),
+                    string(credentialsId: 'SDK_CONFLUENCE_PERSONAL_ACCESS_TOKEN', variable: 'CONFLUENCE_TOKEN')
+                ]){
                     dir("automation"){
                         sh 'cat config.toml'
                         sh 'printenv'
