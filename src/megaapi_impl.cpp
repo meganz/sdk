@@ -1686,6 +1686,38 @@ void MegaApiImpl::changeSyncRemoteRoot(const MegaHandle syncBackupId,
     waiter->notify();
 }
 
+void MegaApiImpl::changeSyncLocalRoot(const MegaHandle syncBackupId,
+                                      const char* newLocalSyncRootPath,
+                                      MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request =
+        new MegaRequestPrivate(MegaRequest::TYPE_CHANGE_SYNC_ROOT, listener);
+
+    request->setNodeHandle(syncBackupId);
+    request->setFile(newLocalSyncRootPath);
+    request->performRequest = [this, request]()
+    {
+        handle syncBackupId = request->getNodeHandle();
+        const char* newRootPath = request->getFile();
+        if (syncBackupId == UNDEF || !newRootPath || newRootPath[0] == '\0')
+        {
+            return API_EARGS;
+        }
+        client->changeSyncRoot(syncBackupId,
+                               UNDEF,
+                               newRootPath,
+                               [this, request](error e, SyncError se)
+                               {
+                                   fireOnRequestFinish(request,
+                                                       std::make_unique<MegaErrorPrivate>(e, se));
+                               });
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 MegaSyncStallPrivate::MegaSyncStallPrivate(const SyncStallEntry& e)
 :info(e)
 {}

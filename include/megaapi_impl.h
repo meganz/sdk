@@ -3647,6 +3647,10 @@ class MegaApiImpl : public MegaApp
                                   const MegaHandle newRootNodeHandle,
                                   MegaRequestListener* listener);
 
+        void changeSyncLocalRoot(const MegaHandle syncBackupId,
+                                 const char* newLocalSyncRootPath,
+                                 MegaRequestListener* listener);
+
         AddressedStallFilter mAddressedStallFilter;
 
 #endif // ENABLE_SYNC

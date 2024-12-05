@@ -18,26 +18,6 @@ using namespace sdk_test;
 using namespace testing;
 
 /**
- * @brief Custom matcher for MegaSyncStall given a matcher for the local path and another for the
- * stall reason.
- */
-MATCHER_P2(MatchesStall, pathMatcher, reasonMatcher, "")
-{
-    const MegaSyncStall* stall = arg;
-    if (!stall)
-    {
-        *result_listener << "Stall is null";
-        return false;
-    }
-
-    std::string actualPath = stall->path(false, 0);
-    auto actualReason = stall->reason();
-
-    return ExplainMatchResult(pathMatcher, actualPath, result_listener) &&
-           ExplainMatchResult(reasonMatcher, actualReason, result_listener);
-}
-
-/**
  * @class SdkTestSyncNodeOperations
  * @brief Test fixture designed to test operations involving node operations and syncs
  *
@@ -58,7 +38,7 @@ public:
 
     void TearDown() override
     {
-        ASSERT_NO_FATAL_FAILURE(removeSync(mBackupId));
+        ASSERT_TRUE(removeSync(megaApi[0].get(), mBackupId));
         SdkTestNodesSetUp::TearDown();
     }
 
@@ -166,38 +146,20 @@ public:
 
     void suspendSync()
     {
-        NiceMock<MockRequestListener> reqListener;
-        EXPECT_CALL(reqListener,
-                    onRequestFinish(_, _, Pointee(Property(&MegaError::getErrorCode, API_OK))));
-        megaApi[0]->setSyncRunState(getBackupId(),
-                                    MegaSync::SyncRunningState::RUNSTATE_SUSPENDED,
-                                    &reqListener);
-        ASSERT_TRUE(reqListener.waitForFinishOrTimeout(MAX_TIMEOUT))
-            << "Timeout exceeded when trying to suspend the sync";
+        ASSERT_TRUE(sdk_test::suspendSync(megaApi[0].get(), mBackupId))
+            << "Error when trying to suspend the sync";
     }
 
     void disableSync()
     {
-        NiceMock<MockRequestListener> reqListener;
-        EXPECT_CALL(reqListener,
-                    onRequestFinish(_, _, Pointee(Property(&MegaError::getErrorCode, API_OK))));
-        megaApi[0]->setSyncRunState(getBackupId(),
-                                    MegaSync::SyncRunningState::RUNSTATE_DISABLED,
-                                    &reqListener);
-        ASSERT_TRUE(reqListener.waitForFinishOrTimeout(MAX_TIMEOUT))
-            << "Timeout exceeded when trying to disable the sync";
+        ASSERT_TRUE(sdk_test::disableSync(megaApi[0].get(), mBackupId))
+            << "Error when trying to disable the sync";
     }
 
     void resumeSync()
     {
-        NiceMock<MockRequestListener> reqListener;
-        EXPECT_CALL(reqListener,
-                    onRequestFinish(_, _, Pointee(Property(&MegaError::getErrorCode, API_OK))));
-        megaApi[0]->setSyncRunState(getBackupId(),
-                                    MegaSync::SyncRunningState::RUNSTATE_RUNNING,
-                                    &reqListener);
-        ASSERT_TRUE(reqListener.waitForFinishOrTimeout(MAX_TIMEOUT))
-            << "Timeout exceeded when trying to resume the sync";
+        ASSERT_TRUE(sdk_test::resumeSync(megaApi[0].get(), mBackupId))
+            << "Error when trying to resume the sync";
     }
 
     /**
@@ -215,24 +177,9 @@ public:
                       MegaHandle& backupId)
     {
         LOG_verbose << "SdkTestSyncNodeOperations : Initiate sync";
-        const auto syncNode = getNodeByPath(remotePath);
-        ASSERT_EQ(API_OK,
-                  synchronousSyncFolder(0,
-                                        nullptr,
-                                        MegaSync::TYPE_TWOWAY,
-                                        localPath.c_str(),
-                                        nullptr,
-                                        syncNode->getHandle(),
-                                        nullptr))
-            << "API Error adding a new sync";
-        ASSERT_EQ(MegaSync::NO_SYNC_ERROR, mApi[0].lastSyncError);
-        std::unique_ptr<MegaSync> sync = sdk_test::waitForSyncState(megaApi[0].get(),
-                                                                    syncNode.get(),
-                                                                    MegaSync::RUNSTATE_RUNNING,
-                                                                    MegaSync::NO_SYNC_ERROR);
-        ASSERT_TRUE(sync && sync->getRunState() == MegaSync::RUNSTATE_RUNNING);
-        ASSERT_EQ(MegaSync::NO_SYNC_ERROR, sync->getError());
-        backupId = sync->getBackupId();
+        backupId = sdk_test::syncFolder(megaApi[0].get(),
+                                        localPath,
+                                        getNodeByPath(remotePath)->getHandle());
     }
 
     /**
@@ -244,17 +191,10 @@ public:
     {
         const auto areLocalAndCloudSynched = [this]() -> bool
         {
-            const auto childrenLocalName = getLocalFirstChildrenNames();
-            const auto childrenCloudName = getCloudFirstChildrenNames();
-            return childrenCloudName && childrenCloudName->size() == childrenLocalName.size() &&
-                   std::all_of(begin(childrenLocalName),
-                               end(childrenLocalName),
-                               [remoteRoot = std::string{getSync()->getLastKnownMegaFolder()},
-                                this](const std::string& childName) -> bool
-                               {
-                                   return megaApi[0]->getNodeByPath(
-                                              (remoteRoot + "/" + childName).c_str()) != nullptr;
-                               });
+            const auto childrenCloudName =
+                getCloudFirstChildrenNames(megaApi[0].get(), getSync()->getMegaHandle());
+            return childrenCloudName && Value(getLocalFirstChildrenNames(),
+                                              UnorderedElementsAreArray(*childrenCloudName));
         };
         ASSERT_TRUE(waitFor(areLocalAndCloudSynched, MAX_TIMEOUT, 10s));
     }
@@ -321,29 +261,14 @@ public:
      */
     void thereIsAStall(const std::string_view fileName) const
     {
-        // Define the matcher for the request
-        const auto hasOneStall = Pointee(Property(&MegaSyncStallList::size, 1));
-        const auto getStall = [](const MegaSyncStallList& stallList) -> const MegaSyncStall*
-        {
-            return stallList.get(0);
-        };
-        const auto goodStallList =
-            AllOf(hasOneStall,
-                  Pointee(ResultOf(
-                      getStall,
-                      MatchesStall(EndsWith(fileName),
-                                   MegaSyncStall::SyncStallReason::
-                                       LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose))));
-        const auto goodRequest =
-            Pointee(Property(&MegaRequest::getMegaSyncStallList, goodStallList));
-
-        // Prepare the mock listener
-        NiceMock<MockRequestListener> reqList;
-        const auto expectedErr = Pointee(Property(&::mega::MegaError::getErrorCode, API_OK));
-        EXPECT_CALL(reqList, onRequestFinish(_, goodRequest, expectedErr));
-
-        megaApi[0]->getMegaSyncStallList(&reqList);
-        ASSERT_TRUE(reqList.waitForFinishOrTimeout(MAX_TIMEOUT));
+        const auto stalls = sdk_test::getStalls(megaApi[0].get());
+        ASSERT_EQ(stalls.size(), 1);
+        ASSERT_TRUE(stalls[0]);
+        const auto& stall = *stalls[0];
+        ASSERT_THAT(stall.path(false, 0), EndsWith(fileName));
+        ASSERT_THAT(
+            stall.reason(),
+            MegaSyncStall::SyncStallReason::LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose);
     }
 
     /**
@@ -365,42 +290,12 @@ public:
      */
     std::vector<std::string> getLocalFirstChildrenNames() const
     {
-        std::vector<std::string> result;
-        const auto pushName = [&result](const std::filesystem::path& path)
-        {
-            if (const auto name = path.filename().string();
-                name.front() != '.' && name != DEBRISFOLDER)
-                result.emplace_back(std::move(name));
-        };
-        std::filesystem::directory_iterator children{getLocalTmpDir()};
-        std::for_each(begin(children), end(children), pushName);
-        return result;
-    }
-
-    /**
-     * @brief Returns a vector with the names of the first successor nodes inside the cloud root
-     * node. nullopt is returned in case the remote root node does not exist.
-     */
-    std::optional<std::vector<std::string>> getCloudFirstChildrenNames() const
-    {
-        const auto nodeHandle = getSync()->getMegaHandle();
-        if (nodeHandle == UNDEF)
-            return {};
-        std::unique_ptr<MegaNode> rootNode{megaApi[0]->getNodeByHandle(nodeHandle)};
-        if (!rootNode)
-            return {};
-        std::unique_ptr<MegaNodeList> childrenNodeList{megaApi[0]->getChildren(rootNode.get())};
-        if (!childrenNodeList)
-            return {};
-        return toNamesVector(*childrenNodeList);
-    }
-
-    void removeSync(const MegaHandle backupId)
-    {
-        LOG_verbose << "SdkTestSyncNodeOperations : Remove sync";
-        const auto rt = std::make_unique<RequestTracker>(megaApi[0].get());
-        megaApi[0]->removeSync(backupId, rt.get());
-        ASSERT_EQ(rt->waitForResult(), API_OK);
+        return sdk_test::getLocalFirstChildrenNames_if(getLocalTmpDir(),
+                                                       [](const std::string& name)
+                                                       {
+                                                           return name.front() != '.' &&
+                                                                  name != DEBRISFOLDER;
+                                                       });
     }
 
     enum class MoveOp
@@ -528,9 +423,9 @@ TEST_F(SdkTestSyncNodeOperations, MoveSyncToAnotherSync)
     ASSERT_NO_FATAL_FAILURE(initiateSync(tempLocalDir2Name, "dir2/", dir2SyncId));
     // Make sure it is removed after exiting the scope
     const auto autoRemove = MrProper(
-        [&dir2SyncId, this]()
+        [&dir2SyncId, &api = megaApi[0]]()
         {
-            ASSERT_NO_FATAL_FAILURE(removeSync(dir2SyncId));
+            ASSERT_TRUE(removeSync(api.get(), dir2SyncId));
         });
 
     ASSERT_NO_FATAL_FAILURE(ensureSyncNodeIsRunning("dir1"));
