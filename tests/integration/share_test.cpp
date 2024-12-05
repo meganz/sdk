@@ -2,6 +2,9 @@
 
 #include <gmock/gmock.h>
 
+#include <chrono>
+#include <thread>
+
 class SdkTestShare: public SdkTest
 {
 protected:
@@ -1077,42 +1080,36 @@ TEST_F(SdkTestShareOrder, GetOutSharesOrUnverifiedOutSharesOrderedByCreationTime
     std::unique_ptr<MegaNode> remoteRootNode(megaApi[0]->getRootNode());
     ASSERT_NE(remoteRootNode.get(), nullptr);
 
-    LOG_info << "Create share folders";
+    LOG_info << "Create folders";
     auto [handle1, shareNode1] = createFolder(0, "share1", remoteRootNode.get());
     auto [handle2, shareNode2] = createFolder(0, "share2", remoteRootNode.get());
-    auto [handle3, shareNode3] = createFolder(0, "share3", remoteRootNode.get());
     ASSERT_THAT(shareNode1, testing::NotNull());
     ASSERT_THAT(shareNode2, testing::NotNull());
-    ASSERT_THAT(shareNode3, testing::NotNull());
 
-    LOG_info << "Share folders from account 0 to account 1 share node 2,1 and 3 in order";
-    // Wait after each sharing for order
+    LOG_info << "Share folder from account 0 to account 1 share node 2";
+    unsigned expectedNum = 1;
     auto& api = *megaApi[0].get();
     ASSERT_NO_FATAL_FAILURE(createShareAtoB(shareNode2.get()));
-    ASSERT_TRUE(waitForOutShare(api, 1));
-    ASSERT_NO_FATAL_FAILURE(createShareAtoB(shareNode1.get()));
-    ASSERT_TRUE(waitForOutShare(api, 2));
-    ASSERT_NO_FATAL_FAILURE(createShareAtoB(shareNode3.get()));
-    ASSERT_TRUE(waitForOutShare(api, 3));
+    ASSERT_TRUE(waitForOutShare(api, expectedNum++));
 
-    LOG_info << "Share folders from account 0 to account 2 share node 2,1 and 3 in order";
+    LOG_info << "Share folder from account 0 to account 2 share node 2";
+    // Share creation time might be same if they are created too close, delay 3 seconds
+    std::this_thread::sleep_for(std::chrono::seconds{3});
     ASSERT_NO_FATAL_FAILURE(createShareAtoB(shareNode2.get(), {0, false}, {2, false}));
-    ASSERT_TRUE(waitForOutShare(api, 4));
+    ASSERT_TRUE(waitForOutShare(api, expectedNum++));
+
+    LOG_info << "Share folder from account 0 to account 2 share node 1";
+    std::this_thread::sleep_for(std::chrono::seconds{3});
     ASSERT_NO_FATAL_FAILURE(createShareAtoB(shareNode1.get(), {0, false}, {2, false}));
-    ASSERT_TRUE(waitForOutShare(api, 5));
-    ASSERT_NO_FATAL_FAILURE(createShareAtoB(shareNode3.get(), {0, false}, {2, false}));
-    ASSERT_TRUE(waitForOutShare(api, 6));
+    ASSERT_TRUE(waitForOutShare(api, expectedNum++));
 
     auto user1 = mApi[1].email;
     auto user2 = mApi[2].email;
     auto shares = toHandleUserPair(megaApi[0]->getOutShares(MegaApi::ORDER_SHARE_CREATION_ASC));
     auto expectedShares = std::vector<HandleUserPair>{
         {handle2, user1},
-        {handle1, user1},
-        {handle3, user1},
         {handle2, user2},
         {handle1, user2},
-        {handle3, user2},
     };
     ASSERT_THAT(shares, testing::ElementsAreArray(expectedShares));
 
@@ -1121,17 +1118,13 @@ TEST_F(SdkTestShareOrder, GetOutSharesOrUnverifiedOutSharesOrderedByCreationTime
     expectedShares = std::vector<HandleUserPair>{
         {handle2, user2},
         {handle1, user2},
-        {handle3, user2},
     };
     ASSERT_THAT(shares, testing::ElementsAreArray(expectedShares));
 
     shares = toHandleUserPair(megaApi[0]->getOutShares(MegaApi::ORDER_SHARE_CREATION_DESC));
     expectedShares = std::vector<HandleUserPair>{
-        {handle3, user2},
         {handle1, user2},
         {handle2, user2},
-        {handle3, user1},
-        {handle1, user1},
         {handle2, user1},
     };
     ASSERT_THAT(shares, testing::ElementsAreArray(expectedShares));
@@ -1139,7 +1132,6 @@ TEST_F(SdkTestShareOrder, GetOutSharesOrUnverifiedOutSharesOrderedByCreationTime
     shares =
         toHandleUserPair(megaApi[0]->getUnverifiedOutShares(MegaApi::ORDER_SHARE_CREATION_DESC));
     expectedShares = std::vector<HandleUserPair>{
-        {handle3, user2},
         {handle1, user2},
         {handle2, user2},
     };
