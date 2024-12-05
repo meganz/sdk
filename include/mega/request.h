@@ -55,7 +55,7 @@ public:
     void servererror(const std::string &e, MegaClient* client);
 
     void process(MegaClient* client);
-    bool processCmdJSON(Command* cmd, bool couldBeError, JSON& json);
+    bool processCmdJSON(Command* cmd, bool couldBeError, JSON& jsonResponse);
     bool processSeqTag(Command* cmd, bool withJSON, bool& parsedOk, bool inSeqTagArray, JSON& processingJson);
 
     m_off_t processChunk(const char* chunk, MegaClient*);

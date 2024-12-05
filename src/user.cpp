@@ -829,11 +829,11 @@ bool User::setChanged(attr_t at)
     return true;
 }
 
-void User::setTag(int tag)
+void User::setTag(int newTag)
 {
-    if (this->tag != 0)    // external changes prevail
+    if (tag != 0) // external changes prevail
     {
-        this->tag = tag;
+        tag = newTag;
     }
 }
 

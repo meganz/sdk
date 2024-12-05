@@ -734,9 +734,9 @@ void ConsoleProgressBar::show() const
         std::cout << '\r';
 }
 
-void ConsoleProgressBar::setPrefix(const std::string &value)
+void ConsoleProgressBar::setPrefix(const std::string& newPrefix)
 {
-    prefix = value;
+    prefix = newPrefix;
 }
 
 ConsoleProgressBar::ConsoleProgressBar(size_t imax, bool writeNewLine)

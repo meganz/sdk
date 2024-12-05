@@ -1900,8 +1900,8 @@ public:
     std::string getValidDataToString() const;
     static const char* getEventString(int type);
 
-    void setText(const char* text);
-    void setNumber(int64_t number);
+    void setText(const char* newText);
+    void setNumber(int64_t newNumber);
     void setHandle(const MegaHandle &handle);
 
 protected:
@@ -2233,7 +2233,7 @@ public:
     int getOwnPrivilege() const override;
     int getShard() const override;
     const MegaTextChatPeerList *getPeerList() const override;
-    void setPeerList(const MegaTextChatPeerList *peers) override;
+    void setPeerList(const MegaTextChatPeerList* newPeers) override;
     bool isGroup() const override;
     MegaHandle getOriginatingUser() const override;
     const char *getTitle() const override;
@@ -2644,7 +2644,7 @@ struct MegaFile : public File
 {
     MegaFile();
 
-    void setTransfer(MegaTransferPrivate *transfer);
+    void setTransfer(MegaTransferPrivate* newTransfer);
     MegaTransferPrivate *getTransfer();
     bool serialize(string*) const override;
 
@@ -3801,7 +3801,8 @@ public:
 
         const char *getVersion();
         char *getOperatingSystemVersion();
-        void getLastAvailableVersion(const char *appKey, MegaRequestListener *listener = NULL);
+        void getLastAvailableVersion(const char* anyAppKey,
+                                     MegaRequestListener* listener = nullptr);
         void getLocalSSLCertificate(MegaRequestListener *listener = NULL);
         void queryDNS(const char *hostname, MegaRequestListener *listener = NULL);
         void downloadFile(const char *url, const char *dstpath, MegaRequestListener *listener = NULL);
@@ -4142,7 +4143,13 @@ public:
         void getMyIp(MegaRequestListener* listener);
 
     private:
-        void init(MegaApi *api, const char *appKey, std::unique_ptr<GfxProc> gfxproc, const char *basePath /*= NULL*/, const char *userAgent /*= NULL*/, unsigned clientWorkerThreadCount /*= 1*/, int clientType);
+        void init(MegaApi* publicApi,
+                  const char* newAppKey,
+                  std::unique_ptr<GfxProc> gfxproc,
+                  const char* newBasePath /*= NULL*/,
+                  const char* userAgent /*= NULL*/,
+                  unsigned clientWorkerThreadCount /*= 1*/,
+                  int clientType);
 
         static void *threadEntryPoint(void *param);
 

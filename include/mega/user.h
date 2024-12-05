@@ -170,7 +170,7 @@ public:
 
     bool setChanged(attr_t at);
 
-    void setTag(int tag);
+    void setTag(int newTag);
     int getTag();
     void resetTag();
 
