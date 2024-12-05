@@ -1247,7 +1247,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                     if (transfer->type == GET)
                     {
                         // raid reassembly can have several chunks to complete at the end of the file - keep processing till they are all done
-                        auto outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
+                        outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
                         if (outputPiece)
                         {
                             LOG_verbose << "Conn " << i << " : raid reassembly still has chunks to complete -> change REQ_DONE to REQ_SUCCESS (set up to do the actual write on the next loop, as if it was a retry)";

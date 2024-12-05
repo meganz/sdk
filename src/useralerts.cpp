@@ -2632,13 +2632,14 @@ bool UserAlerts::procsc_useralert(JSON& jsonsc)
 
                 if (b->email().empty() && b->user() != UNDEF)
                 {
-                    map<handle, UserAlertPendingContact>::iterator i = pendingContactUsers.find(b->user());
-                    if (i != pendingContactUsers.end())
+                    map<handle, UserAlertPendingContact>::iterator itContact =
+                        pendingContactUsers.find(b->user());
+                    if (itContact != pendingContactUsers.end())
                     {
-                        b->setEmail(i->second.m);
-                        if (b->email().empty() && !i->second.m2.empty())
+                        b->setEmail(itContact->second.m);
+                        if (b->email().empty() && !itContact->second.m2.empty())
                         {
-                            b->setEmail(i->second.m2[0]);
+                            b->setEmail(itContact->second.m2[0]);
                         }
                     }
                 }

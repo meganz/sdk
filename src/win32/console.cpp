@@ -591,7 +591,7 @@ bool WinConsole::consolePeekNonBlocking()
         if (action != ConsoleModel::nullAction)
         {
             CONSOLE_SCREEN_BUFFER_INFO sbi;
-            BOOL ok = GetConsoleScreenBufferInfo(hOutput, &sbi);
+            ok = GetConsoleScreenBufferInfo(hOutput, &sbi);
             assert(ok);
             unsigned consoleWidth = ok ? sbi.dwSize.X : 50;
 
@@ -658,8 +658,8 @@ bool WinConsole::consolePeekBlocking()
     {
         while(!irs.empty())
         {
-            INPUT_RECORD &ir = irs.front();
-            ConsoleModel::lineEditAction action = interpretLineEditingKeystroke(ir);
+            INPUT_RECORD& firstRecord = irs.front();
+            ConsoleModel::lineEditAction action = interpretLineEditingKeystroke(firstRecord);
 
             if ((action != ConsoleModel::nullAction || isCharacterGeneratingKeypress) && checkPromptOnce)
             {
@@ -677,9 +677,9 @@ bool WinConsole::consolePeekBlocking()
             }
             else if (isCharacterGeneratingKeypress)
             {
-                for (int i = ir.Event.KeyEvent.wRepeatCount; i--; )
+                for (int i = firstRecord.Event.KeyEvent.wRepeatCount; i--;)
                 {
-                    model.addInputChar(ir.Event.KeyEvent.uChar.UnicodeChar);
+                    model.addInputChar(firstRecord.Event.KeyEvent.uChar.UnicodeChar);
                 }
                 if (model.newlinesBuffered)  // todo: address case where multiple newlines were added from this one record (as we may get stuck in wait())
                 {

@@ -344,17 +344,23 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
 
                         if (ok)
                         {
-                            byte buf[3];
+                            byte bufCoords[3];
                             int number = 0;
-                            if (Base64::atob((const char *)coords.substr(0, 4).data(), buf, sizeof(buf)) == sizeof(buf))
+                            if (Base64::atob((const char*)coords.substr(0, 4).data(),
+                                             bufCoords,
+                                             sizeof(bufCoords)) == sizeof(bufCoords))
                             {
-                                number = (buf[2] << 16) | (buf[1] << 8) | (buf[0]);
+                                number =
+                                    (bufCoords[2] << 16) | (bufCoords[1] << 8) | (bufCoords[0]);
                                 latitude = -90 + 180 * (double)number / 0xFFFFFF;
                             }
 
-                            if (Base64::atob((const char *)coords.substr(4, 4).data(), buf, sizeof(buf)) == sizeof(buf))
+                            if (Base64::atob((const char*)coords.substr(4, 4).data(),
+                                             bufCoords,
+                                             sizeof(bufCoords)) == sizeof(bufCoords))
                             {
-                                number = (buf[2] << 16) | (buf[1] << 8) | (buf[0]);
+                                number =
+                                    (bufCoords[2] << 16) | (bufCoords[1] << 8) | (bufCoords[0]);
                                 longitude = -180 + 360 * (double)number / 0x01000000;
                             }
                         }
@@ -1619,10 +1625,10 @@ void MegaApiImpl::clearStalledPath(MegaSyncStall* stall)
                                                    client->syncs.completedPassCount.load());
         }
     }
-    else if (auto ptr = dynamic_cast<MegaSyncNameConflictStallPrivate*>(stall))
+    else if (auto syncStall = dynamic_cast<MegaSyncNameConflictStallPrivate*>(stall))
     {
-        mAddressedStallFilter.filterNameConfict(ptr->mConflict.cloudPath,
-                                                ptr->mConflict.localPath,
+        mAddressedStallFilter.filterNameConfict(syncStall->mConflict.cloudPath,
+                                                syncStall->mConflict.localPath,
                                                 client->syncs.completedPassCount.load());
     }
 }
@@ -2641,16 +2647,16 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
          }
          else
          {
-             if (auto* p = dynamic_cast<UserAlert::UpdatedScheduledMeeting*>(b))
+             if (auto* updateAlert = dynamic_cast<UserAlert::UpdatedScheduledMeeting*>(b))
              {
                  type = TYPE_SCHEDULEDMEETING_UPDATED;
-                 userHandle = p->user();
-                 email = p->email();
-                 nodeHandle = p->mChatid;
-                 schedMeetingId = p->mSchedMeetingHandle;
-                 mPcrHandle = p->mParentSchedId;
-                 numbers.push_back(p->mStartDateTime);
-                 schedMeetingChangeset = p->mUpdatedChangeset;
+                 userHandle = updateAlert->user();
+                 email = updateAlert->email();
+                 nodeHandle = updateAlert->mChatid;
+                 schedMeetingId = updateAlert->mSchedMeetingHandle;
+                 mPcrHandle = updateAlert->mParentSchedId;
+                 numbers.push_back(updateAlert->mStartDateTime);
+                 schedMeetingChangeset = updateAlert->mUpdatedChangeset;
              }
              else
              {
@@ -9998,7 +10004,7 @@ int MegaApiImpl::syncPathState(string* platformEncoded)
         syncPathStateLockTimeout = true;
 
         // store up to 1000 paths for lookup later when we can lock mLocalNodeChangeMutex
-        lock_guard<mutex> g(syncPathStateDeferredSetMutex);
+        lock_guard<mutex> syncPathStateLock(syncPathStateDeferredSetMutex);
         if (syncPathStateDeferredSet.size() < 1024)
         {
             syncPathStateDeferredSet.insert(localpath);
@@ -10021,7 +10027,7 @@ int MegaApiImpl::syncPathState(string* platformEncoded)
         // issue notifications for the OS to ask about the paths we skipped while we couldn't lock the mutex
         auto tmp = std::make_shared<set<LocalPath>>();
         {
-            lock_guard<mutex> g(syncPathStateDeferredSetMutex);
+            lock_guard<mutex> syncPathStateLock(syncPathStateDeferredSetMutex);
             tmp->swap(syncPathStateDeferredSet);
         }
         LOG_verbose << "Issuing updates for OS path icon ovelays for . " << tmp->size() << " paths";
@@ -12140,9 +12146,9 @@ bool MegaApiImpl::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, boo
         sharedNode_list nodeList = client->getChildren(node.get());
         for (sharedNode_list::iterator it = nodeList.begin(); it != nodeList.end(); )
         {
-            Node* node = it->get();
+            Node* sharedNode = it->get();
             it++;
-            unique_ptr<MegaNode> megaNode(MegaNodePrivate::fromNode(node));
+            unique_ptr<MegaNode> megaNode(MegaNodePrivate::fromNode(sharedNode));
             if (recursive)
             {
                 if (!processMegaTree(megaNode.get(), processor))
@@ -13954,11 +13960,11 @@ void MegaApiImpl::folderlinkinfo_result(error e, handle owner, handle /*ph*/, st
                 fingerprint = MegaNodePrivate::addAppPrefixToFingerprint(fingerprint, ffp.size);
 
                 // Normalize node name to UTF-8 string
-                attr_map::iterator it = attrs.map.find('n');
-                if (it != attrs.map.end() && !it->second.empty())
+                attr_map::iterator itAttribute = attrs.map.find('n');
+                if (itAttribute != attrs.map.end() && !itAttribute->second.empty())
                 {
-                    LocalPath::utf8_normalize(&(it->second));
-                    fileName = it->second.c_str();
+                    LocalPath::utf8_normalize(&(itAttribute->second));
+                    fileName = itAttribute->second.c_str();
                 }
 
                 MegaFolderInfoPrivate *folderInfo = new MegaFolderInfoPrivate(numFiles, numFolders - 1, numVersions, currentSize, versionsSize);
@@ -15462,11 +15468,11 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
         fingerprint = MegaNodePrivate::addAppPrefixToFingerprint(fingerprint, ffp.size);
 
         // Normalize node name to UTF-8 string
-        attr_map::iterator it = attrs.map.find('n');
-        if (it != attrs.map.end() && !it->second.empty())
+        attr_map::iterator itAttribute = attrs.map.find('n');
+        if (itAttribute != attrs.map.end() && !itAttribute->second.empty())
         {
-            LocalPath::utf8_normalize(&(it->second));
-            fileName = it->second.c_str();
+            LocalPath::utf8_normalize(&(itAttribute->second));
+            fileName = itAttribute->second.c_str();
             validName = fileName;
         }
         delete [] buf;
@@ -22872,18 +22878,26 @@ void MegaApiImpl::setScheduledCopy(const char* localFolder, MegaNode* parent, bo
                 bool attendPastBackups= request->getFlag();
                 //TODO: add existence of local folder check (optional??)
 
-                MegaScheduledCopyController *mbc = new MegaScheduledCopyController(this, tag, tagForFolderTansferTag, request->getNodeHandle(),
-                                                                     utf8name.c_str(), attendPastBackups, speriod.c_str(),
-                                                                     request->getNumber(), request->getNumRetry());
-                mbc->setBackupListener(request->getBackupListener()); //TODO: should we add this in setScheduledCopy?
-                if (mbc->isValid())
+                MegaScheduledCopyController* newScheduledCopyController =
+                    new MegaScheduledCopyController(this,
+                                                    tag,
+                                                    tagForFolderTansferTag,
+                                                    request->getNodeHandle(),
+                                                    utf8name.c_str(),
+                                                    attendPastBackups,
+                                                    speriod.c_str(),
+                                                    request->getNumber(),
+                                                    request->getNumRetry());
+                // TODO: should we add this in setScheduledCopy?
+                newScheduledCopyController->setBackupListener(request->getBackupListener());
+                if (newScheduledCopyController->isValid())
                 {
-                    backupsMap[tag] = mbc;
+                    backupsMap[tag] = newScheduledCopyController;
                     request->setTransferTag(tag);
                 }
                 else
                 {
-                    delete mbc;
+                    delete newScheduledCopyController;
                     return API_EARGS;
                 }
             }

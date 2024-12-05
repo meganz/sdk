@@ -659,10 +659,10 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
             handle uh = MemAccess::get<handle>(ptr);
             ptr += sizeof uh;
 
-            privilege_t priv = MemAccess::get<privilege_t>(ptr);
-            ptr += sizeof priv;
+            privilege_t peerPrivilege = MemAccess::get<privilege_t>(ptr);
+            ptr += sizeof(peerPrivilege);
 
-            userpriv->push_back(userpriv_pair(uh, priv));
+            userpriv->push_back(userpriv_pair(uh, peerPrivilege));
         }
 
         if (priv == PRIV_RM)    // clear peerlist if removed

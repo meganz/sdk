@@ -2711,7 +2711,6 @@ size_t CurlHttpIO::write_data(void* ptr, size_t size, size_t nmemb, void* target
             {
                 if ((httpio->downloadSpeed + ((httpio->partialdata[GET] + len) / static_cast<m_off_t>(SpeedController::SPEED_MEAN_CIRCULAR_BUFFER_SIZE_SECONDS))) > httpio->maxspeed[GET])
                 {
-                    CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
                     httpio->pausedrequests[GET].insert(httpctx->curl);
                     httpio->arerequestspaused[GET] = true;
                     return CURL_WRITEFUNC_PAUSE;
