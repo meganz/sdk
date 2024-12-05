@@ -420,7 +420,6 @@ if(ENABLE_SDKLIB_WERROR)
             src/db/sqlite.cpp
             src/commands.cpp
             src/megaapi_impl.cpp
-            src/megaclient.cpp
             src/raid.cpp
             src/raidproxy.cpp
             src/transfer.cpp

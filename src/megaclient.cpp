@@ -326,8 +326,10 @@ string MegaClient::generateViewId(PrnGen& rng)
     rng.genblock((byte*)&viewId, sizeof(viewId));
 
     // Incorporate current timestamp in ms into the generated value for uniqueness
-    uint64_t tsInMs = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-    viewId ^= tsInMs;
+    long long tsInMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+                           std::chrono::system_clock::now().time_since_epoch())
+                           .count();
+    viewId ^= static_cast<uint64_t>(tsInMs);
 
     return Utils::uint64ToHexString(viewId);
 }
@@ -361,12 +363,12 @@ bool MegaClient::decryptkey(const char* sk,
             return false;
         }
 
-        byte* buf = new byte[sl];
+        byte* buf = new byte[static_cast<size_t>(sl)];
 
         sl = Base64::atob(sk, buf, sl);
 
         // decrypt and set session ID for subsequent API communication
-        if (!asymkey.decrypt(buf, sl, tk, tl))
+        if (!asymkey.decrypt(buf, static_cast<size_t>(sl), tk, static_cast<size_t>(tl)))
         {
             delete[] buf;
             LOG_warn << "Corrupt or invalid RSA node key";
@@ -383,7 +385,7 @@ bool MegaClient::decryptkey(const char* sk,
             return false;
         }
 
-        sc->ecb_decrypt(tk, tl);
+        sc->ecb_decrypt(tk, static_cast<size_t>(tl));
     }
 
     return true;
@@ -2102,8 +2104,9 @@ void MegaClient::exec()
                     restag = it->first;
                     app->http_result(req->httpstatus ? API_OK : API_EFAILED,
                                      req->httpstatus,
-                                     req->buf ? (byte *)req->buf : (byte *)req->in.data(),
-                                     int(req->buf ? req->bufpos : req->in.size()));
+                                     req->buf ? (byte*)req->buf : (byte*)req->in.data(),
+                                     req->buf ? static_cast<int>(req->bufpos) :
+                                                static_cast<int>(req->in.size()));
                     delete req;
                     pendinghttp.erase(it++);
                     break;
@@ -3949,7 +3952,8 @@ void MegaClient::dispatchTransfers()
                     byte keyctriv[SymmCipher::KEYLENGTH + sizeof(int64_t)];
                     rng.genblock(keyctriv, sizeof keyctriv);
                     memcpy(nexttransfer->transferkey.data(), keyctriv, SymmCipher::KEYLENGTH);
-                    nexttransfer->ctriv = MemAccess::get<uint64_t>((const char*)keyctriv + SymmCipher::KEYLENGTH);
+                    nexttransfer->ctriv = static_cast<int64_t>(
+                        MemAccess::get<uint64_t>((const char*)keyctriv + SymmCipher::KEYLENGTH));
                 }
                 else
                 {
@@ -5022,7 +5026,7 @@ bool MegaClient::procsc()
                             fnstats.timeToCurrent = Waiter::ds - fnstats.startTime;
                         }
                         uint64_t numNodes = mNodeManager.getNodeCount();
-                        fnstats.nodesCurrent = numNodes;
+                        fnstats.nodesCurrent = static_cast<long long>(numNodes);
 
                         if (mKeyManager.generation())
                         {
@@ -5521,7 +5525,7 @@ size_t MegaClient::procreqstat()
     oss << " [" << curr << "/" << end << "]";
     LOG_debug << oss.str();
 
-    app->reqstat_progress(1000 * curr / end);
+    app->reqstat_progress(static_cast<int>(1000u * curr / end));
 
     return pos;
 }
@@ -5800,7 +5804,8 @@ error MegaClient::getfa(handle h, string *fileattrstring, const string &nodekey,
 
     pp = p - 1;
 
-    while (pp && fileattrstring->at(pp - 1) >= '0' && fileattrstring->at(pp - 1) <= '9')
+    while (pp && fileattrstring->at(static_cast<size_t>(pp - 1)) >= '0' &&
+           fileattrstring->at(static_cast<size_t>(pp - 1)) <= '9')
     {
         pp--;
     }
@@ -5914,7 +5919,8 @@ error MegaClient::putfa(NodeOrUploadHandle th,
                         std::unique_ptr<string> data)
 {
     // CBC-encrypt attribute data (padded to next multiple of BLOCKSIZE)
-    data->resize((data->size() + SymmCipher::BLOCKSIZE - 1) & -SymmCipher::BLOCKSIZE);
+    data->resize((data->size() + SymmCipher::BLOCKSIZE - 1) &
+                 ~(static_cast<size_t>(SymmCipher::BLOCKSIZE) - 1));
 
     // Make sure the attribute isn't too large.
     if (data->size() >= MAX_FILE_ATTRIBUTE_SIZE)
@@ -8440,7 +8446,7 @@ void MegaClient::notifypurge(void)
         // check all notified nodes for removed status and purge
         for (i = 0; i < t; i++)
         {
-            PendingContactRequest* pcr = pcrnotify[i];
+            PendingContactRequest* pcr = pcrnotify[static_cast<size_t>(i)];
 
             if (pcr->removed())
             {
@@ -8466,7 +8472,7 @@ void MegaClient::notifypurge(void)
 
         for (i = 0; i < t; i++)
         {
-            User *u = usernotify[i];
+            User* u = usernotify[static_cast<size_t>(i)];
 
             u->notified = false;
             u->resetTag();
@@ -8597,7 +8603,7 @@ shared_ptr<Node> MegaClient::nodeByPath(const char* path, std::shared_ptr<Node> 
                 {
                     if (path > bptr)
                     {
-                        s.append(bptr, path - bptr);
+                        s.append(bptr, static_cast<size_t>(path - bptr));
                     }
 
                     bptr = ++path;
@@ -8625,7 +8631,7 @@ shared_ptr<Node> MegaClient::nodeByPath(const char* path, std::shared_ptr<Node> 
 
                     if (path > bptr)
                     {
-                        s.append(bptr, path - bptr);
+                        s.append(bptr, static_cast<size_t>(path - bptr));
                     }
 
                     bptr = path + 1;
@@ -8743,9 +8749,9 @@ shared_ptr<Node> MegaClient::nodeByPath(const char* path, std::shared_ptr<Node> 
     // parse relative path
     while (n && l < (int)c.size())
     {
-        if (c[l] != ".")
+        if (c[static_cast<size_t>(l)] != ".")
         {
-            if (c[l] == "..")
+            if (c[static_cast<size_t>(l)] == "..")
             {
                 if (n->parent)
                 {
@@ -8755,7 +8761,7 @@ shared_ptr<Node> MegaClient::nodeByPath(const char* path, std::shared_ptr<Node> 
             else
             {
                 // locate child node (explicit ambiguity resolution: not implemented)
-                if (c[l].size())
+                if (c[static_cast<size_t>(l)].size())
                 {
                     std::shared_ptr<Node> nn;
 
@@ -8763,12 +8769,15 @@ shared_ptr<Node> MegaClient::nodeByPath(const char* path, std::shared_ptr<Node> 
                     {
                     case FILENODE:
                     case FOLDERNODE:
-                        nn = childnodebynametype(n.get(), c[l].c_str(),
-                            l + 1 < int(c.size()) ? FOLDERNODE : type); // only the last leaf could be a file
+                        nn = childnodebynametype(n.get(),
+                                                 c[static_cast<size_t>(l)].c_str(),
+                                                 l + 1 < int(c.size()) ?
+                                                     FOLDERNODE :
+                                                     type); // only the last leaf could be a file
                         break;
                     case TYPE_UNKNOWN:
                     default:
-                        nn = childnodebyname(n.get(), c[l].c_str());
+                        nn = childnodebyname(n.get(), c[static_cast<size_t>(l)].c_str());
                         break;
                     }
 
@@ -8861,20 +8870,20 @@ void MegaClient::makeattr(SymmCipher* key, string* attrstring, const char* json,
         l = int(strlen(json));
     }
     int ll = (l + 6 + SymmCipher::KEYLENGTH - 1) & - SymmCipher::KEYLENGTH;
-    byte* buf = new byte[ll];
+    byte* buf = new byte[static_cast<size_t>(ll)];
 
     memcpy(buf, "MEGA{", 5); // check for the presence of the magic number "MEGA"
-    memcpy(buf + 5, json, l);
+    memcpy(buf + 5, json, static_cast<size_t>(l));
     buf[l + 5] = '}';
-    memset(buf + 6 + l, 0, ll - l - 6);
+    memset(buf + 6 + l, 0, static_cast<size_t>(ll - l - 6));
 
-    if (!key->cbc_encrypt(buf, ll))
+    if (!key->cbc_encrypt(buf, static_cast<size_t>(ll)))
     {
         LOG_err << "Failed to CBC encrypt attribute";  // Is refactoring needed to add return value for current function?
         assert(false);
     }
 
-    attrstring->assign((char*)buf, ll);
+    attrstring->assign((char*)buf, static_cast<size_t>(ll));
 
     delete[] buf;
 }
@@ -9615,7 +9624,7 @@ char* MegaClient::utf8_to_a32forjs(const char* str, int* len)
 
     int t = int(strlen(str));
     int t2 = 4 * ((t + 3) >> 2);
-    char* result = new char[t2]();
+    char* result = new char[static_cast<size_t>(t2)]();
     uint32_t* a32 = (uint32_t*)result;
     uint32_t unicode;
 
@@ -9638,7 +9647,7 @@ char* MegaClient::utf8_to_a32forjs(const char* str, int* len)
                 return NULL;
             }
 
-            unicode = (c & 0x1f) << 6;
+            unicode = static_cast<uint32_t>((c & 0x1f) << 6);
             unicode |= str[i++] & 0x3f;
         }
         else if ((c & 0xf0) == 0xe0)
@@ -9649,8 +9658,8 @@ char* MegaClient::utf8_to_a32forjs(const char* str, int* len)
                 return NULL;
             }
 
-            unicode = (c & 0x0f) << 12;
-            unicode |= (str[i++] & 0x3f) << 6;
+            unicode = static_cast<uint32_t>((c & 0x0f) << 12);
+            unicode |= static_cast<uint32_t>((str[i++] & 0x3f) << 6);
             unicode |= str[i++] & 0x3f;
         }
         else if ((c & 0xf8) == 0xf0)
@@ -9664,9 +9673,9 @@ char* MegaClient::utf8_to_a32forjs(const char* str, int* len)
                 return NULL;
             }
 
-            unicode = (c & 0x07) << 18;
-            unicode |= (str[i++] & 0x3f) << 12;
-            unicode |= (str[i++] & 0x3f) << 6;
+            unicode = static_cast<uint32_t>((c & 0x07) << 18);
+            unicode |= static_cast<uint32_t>((str[i++] & 0x3f) << 12);
+            unicode |= static_cast<uint32_t>((str[i++] & 0x3f) << 6);
             unicode |= str[i++] & 0x3f;
 
             // management of surrogate pairs like the JavaScript code
@@ -9704,13 +9713,13 @@ error MegaClient::pw_key(const char* utf8pw, byte* keyBuffer) const
     }
 
     int n = (t + 15) / 16;
-    SymmCipher* keys = new SymmCipher[n];
+    SymmCipher* keys = new SymmCipher[static_cast<size_t>(n)];
 
     for (int i = 0; i < n; i++)
     {
         int valid = (i != (n - 1)) ? SymmCipher::BLOCKSIZE : (t - SymmCipher::BLOCKSIZE * i);
-        memcpy(keyBuffer, pw + i * SymmCipher::BLOCKSIZE, valid);
-        memset(keyBuffer + valid, 0, SymmCipher::BLOCKSIZE - valid);
+        memcpy(keyBuffer, pw + i * SymmCipher::BLOCKSIZE, static_cast<size_t>(valid));
+        memset(keyBuffer + valid, 0, static_cast<size_t>(SymmCipher::BLOCKSIZE - valid));
         keys[i].setkey(keyBuffer);
     }
 
@@ -9752,9 +9761,7 @@ SymmCipher* MegaClient::getRecycledTemporaryNodeCipher(const byte* newKey)
 // compute generic string hash
 void MegaClient::stringhash(const char* s, byte* hash, SymmCipher* cipher)
 {
-    int t;
-
-    t = static_cast<int>(strlen(s) & - SymmCipher::BLOCKSIZE);
+    int t = static_cast<int>(strlen(s) & ~(static_cast<size_t>(SymmCipher::BLOCKSIZE) - 1));
 
     strncpy((char*)hash, s + t, SymmCipher::BLOCKSIZE);
 
@@ -10110,7 +10117,7 @@ int MegaClient::readnode(JSON* j,
 
                 if (nn && nni >= 0 && nni < int(nn->size()))
                 {
-                    auto& nn_nni = (*nn)[nni];
+                    auto& nn_nni = (*nn)[static_cast<size_t>(nni)];
                     nn_nni.added = true;
                     nn_nni.mAddedHandle = h;
                 }
@@ -11459,7 +11466,8 @@ string MegaClient::sessiontransferdata(const char *url, string *session)
     string json = ss.str();
     string base64;
     base64.resize(json.size() * 4 / 3 + 4);
-    base64.resize(Base64::btoa((byte *)json.data(), int(json.size()), (char *)base64.data()));
+    base64.resize(static_cast<size_t>(
+        Base64::btoa((byte*)json.data(), int(json.size()), (char*)base64.data())));
     std::replace(base64.begin(), base64.end(), '-', '+');
     std::replace(base64.begin(), base64.end(), '_', '/');
     return base64;
@@ -11486,12 +11494,16 @@ void MegaClient::opensctable()
         if (sid.size() >= SIDLEN)
         {
             dbname.resize((SIDLEN - sizeof key.key) * 4 / 3 + 3);
-            dbname.resize(Base64::btoa((const byte*)sid.data() + sizeof key.key, SIDLEN - sizeof key.key, (char*)dbname.c_str()));
+            dbname.resize(static_cast<size_t>(Base64::btoa((const byte*)sid.data() + sizeof key.key,
+                                                           SIDLEN - sizeof key.key,
+                                                           (char*)dbname.c_str())));
         }
         else if (loggedIntoFolder())
         {
-            dbname.resize(NODEHANDLE * 4 / 3 + 3);
-            dbname.resize(Base64::btoa((const byte*)&mFolderLink.mPublicHandle, NODEHANDLE, (char*)dbname.c_str()));
+            dbname.resize(static_cast<size_t>(NODEHANDLE * 4 / 3 + 3));
+            dbname.resize(static_cast<size_t>(Base64::btoa((const byte*)&mFolderLink.mPublicHandle,
+                                                           NODEHANDLE,
+                                                           (char*)dbname.c_str())));
         }
 
         if (dbname.size())
@@ -11542,12 +11554,16 @@ void MegaClient::doOpenStatusTable()
         if (sid.size() >= SIDLEN)
         {
             dbname.resize((SIDLEN - sizeof key.key) * 4 / 3 + 3);
-            dbname.resize(Base64::btoa((const byte*)sid.data() + sizeof key.key, SIDLEN - sizeof key.key, (char*)dbname.c_str()));
+            dbname.resize(static_cast<size_t>(Base64::btoa((const byte*)sid.data() + sizeof key.key,
+                                                           SIDLEN - sizeof key.key,
+                                                           (char*)dbname.c_str())));
         }
         else if (loggedIntoFolder())
         {
-            dbname.resize(NODEHANDLE * 4 / 3 + 3);
-            dbname.resize(Base64::btoa((const byte*)&mFolderLink.mPublicHandle, NODEHANDLE, (char*)dbname.c_str()));
+            dbname.resize(static_cast<size_t>(NODEHANDLE * 4 / 3 + 3));
+            dbname.resize(static_cast<size_t>(Base64::btoa((const byte*)&mFolderLink.mPublicHandle,
+                                                           NODEHANDLE,
+                                                           (char*)dbname.c_str())));
         }
         else
         {
@@ -12513,7 +12529,7 @@ error MegaClient::creditcardstore(const char *ccplain)
 
     HashSHA256 hash;
     string binaryhash;
-    hash.add((byte *)hashstring, int(strlen(hashstring)));
+    hash.add((byte*)hashstring, static_cast<unsigned>(strlen(hashstring)));
     hash.get(&binaryhash);
 
     static const char hexchars[] = "0123456789abcdef";
@@ -12528,7 +12544,8 @@ error MegaClient::creditcardstore(const char *ccplain)
 
     string base64cc;
     base64cc.resize(ccenc.size()*4/3+4);
-    base64cc.resize(Base64::btoa((byte *)ccenc.data(), int(ccenc.size()), (char *)base64cc.data()));
+    base64cc.resize(static_cast<size_t>(
+        Base64::btoa((byte*)ccenc.data(), int(ccenc.size()), (char*)base64cc.data())));
     std::replace( base64cc.begin(), base64cc.end(), '-', '+');
     std::replace( base64cc.begin(), base64cc.end(), '_', '/');
 
@@ -13998,7 +14015,7 @@ error MegaClient::decryptlink(const char *link, const char *pwd, string* decrypt
     // Decode the link
     int linkLen = 1 + 1 + 6 + 32 + 32 + 32;   // maximum size in binary, for file links
     string linkBin;
-    linkBin.resize(linkLen);
+    linkBin.resize(static_cast<size_t>(linkLen));
     linkLen = Base64::atob(ptr, (byte*)linkBin.data(), linkLen);
 
     ptr = (char *)linkBin.data();
@@ -14478,7 +14495,8 @@ void MegaClient::setkeypair()
     // add random padding and ECB-encrypt with master key
     unsigned t = unsigned(privks.size());
 
-    privks.resize((t + SymmCipher::BLOCKSIZE - 1) & - SymmCipher::BLOCKSIZE);
+    privks.resize((t + SymmCipher::BLOCKSIZE - 1) &
+                  ~(static_cast<size_t>(SymmCipher::BLOCKSIZE) - 1));
     rng.genblock((byte*)(privks.data() + t), privks.size() - t);
 
     key.ecb_encrypt((byte*)privks.data(), (byte*)privks.data(), privks.size());
@@ -14787,13 +14805,17 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
     if (sid.size() >= SIDLEN)
     {
         dbname.resize((SIDLEN - sizeof key.key) * 4 / 3 + 3);
-        dbname.resize(Base64::btoa((const byte*)sid.data() + sizeof key.key, SIDLEN - sizeof key.key, (char*)dbname.c_str()));
+        dbname.resize(static_cast<size_t>(Base64::btoa((const byte*)sid.data() + sizeof key.key,
+                                                       SIDLEN - sizeof key.key,
+                                                       (char*)dbname.c_str())));
         tckey = key;
     }
     else if (loggedIntoFolder())
     {
-        dbname.resize(NODEHANDLE * 4 / 3 + 3);
-        dbname.resize(Base64::btoa((const byte*)&mFolderLink.mPublicHandle, NODEHANDLE, (char*)dbname.c_str()));
+        dbname.resize(static_cast<size_t>(NODEHANDLE * 4 / 3 + 3));
+        dbname.resize(static_cast<size_t>(Base64::btoa((const byte*)&mFolderLink.mPublicHandle,
+                                                       NODEHANDLE,
+                                                       (char*)dbname.c_str())));
         tckey = key;
     }
     else
@@ -14902,13 +14924,16 @@ void MegaClient::disabletransferresumption(const char *loggedoutid)
     if (sid.size() >= SIDLEN)
     {
         dbname.resize((SIDLEN - sizeof key.key) * 4 / 3 + 3);
-        dbname.resize(Base64::btoa((const byte*)sid.data() + sizeof key.key, SIDLEN - sizeof key.key, (char*)dbname.c_str()));
-
+        dbname.resize(static_cast<size_t>(Base64::btoa((const byte*)sid.data() + sizeof key.key,
+                                                       SIDLEN - sizeof key.key,
+                                                       (char*)dbname.c_str())));
     }
     else if (loggedIntoFolder())
     {
-        dbname.resize(NODEHANDLE * 4 / 3 + 3);
-        dbname.resize(Base64::btoa((const byte*)&mFolderLink.mPublicHandle, NODEHANDLE, (char*)dbname.c_str()));
+        dbname.resize(static_cast<size_t>(NODEHANDLE * 4 / 3 + 3));
+        dbname.resize(static_cast<size_t>(Base64::btoa((const byte*)&mFolderLink.mPublicHandle,
+                                                       NODEHANDLE,
+                                                       (char*)dbname.c_str())));
     }
     else
     {
@@ -15068,7 +15093,7 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
             WAIT_CLASS::bumpds();
             fnstats.mode = FetchNodesStats::MODE_DB;
             fnstats.cache = FetchNodesStats::API_NO_CACHE;
-            fnstats.nodesCached = mNodeManager.getNodeCount();
+            fnstats.nodesCached = static_cast<long long>(mNodeManager.getNodeCount());
             fnstats.timeToCached = Waiter::ds - fnstats.startTime;
             fnstats.timeToResult = fnstats.timeToCached;
 
@@ -20999,7 +21024,7 @@ void MegaClient::clearsetelementnotify(handle setID)
     {
         if (setelementnotify[i - 1]->set() == setID)
         {
-            setelementnotify.erase(setelementnotify.begin() + i - 1);
+            setelementnotify.erase(setelementnotify.begin() + static_cast<long>(i) - 1);
         }
     }
 }
@@ -21490,7 +21515,7 @@ void KeyManager::init(const string& prEd25519, const string& prCu25519, const st
     }
 
     mVersion = 1;
-    mCreationTime = static_cast<int32_t>(time(nullptr));
+    mCreationTime = static_cast<uint32_t>(time(nullptr));
     mIdentity = mClient.me;
     mGeneration = 1;
     mPrivEd25519 = prEd25519;
@@ -22392,43 +22417,57 @@ void KeyManager::tryCommit(Error e, std::function<void ()> completion)
 void KeyManager::updateAttribute(std::function<void (Error)> completion)
 {
     string buf = toKeysContainer();
-    mClient.putua(ATTR_KEYS, (byte*)buf.data(), (int)buf.size(), 0, UNDEF, 0, 0, [this, completion](Error e)
-    {
-        if (!e)
-        {
-            completion(API_OK);
-            return;
-        }
+    mClient.putua(ATTR_KEYS,
+                  (byte*)buf.data(),
+                  static_cast<unsigned>(buf.size()),
+                  0,
+                  UNDEF,
+                  0,
+                  0,
+                  [this, completion](Error e)
+                  {
+                      if (!e)
+                      {
+                          completion(API_OK);
+                          return;
+                      }
 
-        User *ownUser = mClient.finduser(mClient.me);
-        if (!ownUser)
-        {
-            LOG_err << "[keymgr] Not logged in during commit";
-            completion(API_OK); // Returning API_OK to stop the loop
-            return;
-        }
+                      User* ownUser = mClient.finduser(mClient.me);
+                      if (!ownUser)
+                      {
+                          LOG_err << "[keymgr] Not logged in during commit";
+                          completion(API_OK); // Returning API_OK to stop the loop
+                          return;
+                      }
 
-        LOG_warn << "[keymgr] Error setting the value of ^!keys: (" << e << ")";
-        if (e != API_EEXPIRED)
-        {
-            completion(e);
-            return;
-        }
+                      LOG_warn << "[keymgr] Error setting the value of ^!keys: (" << e << ")";
+                      if (e != API_EEXPIRED)
+                      {
+                          completion(e);
+                          return;
+                      }
 
-        mClient.sendevent(99462, "KeyMgr / Versioning clash for ^!keys");
+                      mClient.sendevent(99462, "KeyMgr / Versioning clash for ^!keys");
 
-        mClient.reqs.add(new CommandGetUA(&mClient, ownUser->uid.c_str(), ATTR_KEYS, nullptr, 0,
-        [completion](error err)
-        {
-            LOG_err << "[keymgr] Error getting the value of ^!keys (" << err << ")";
-            completion(err);
-        },
-        [completion](byte*, unsigned, attr_t)
-        {
-            LOG_debug << "[keymgr] Success getting the value of ^!keys";
-            completion(API_EEXPIRED);
-        }, nullptr));
-    });
+                      mClient.reqs.add(new CommandGetUA(
+                          &mClient,
+                          ownUser->uid.c_str(),
+                          ATTR_KEYS,
+                          nullptr,
+                          0,
+                          [completion](error err)
+                          {
+                              LOG_err << "[keymgr] Error getting the value of ^!keys (" << err
+                                      << ")";
+                              completion(err);
+                          },
+                          [completion](byte*, unsigned, attr_t)
+                          {
+                              LOG_debug << "[keymgr] Success getting the value of ^!keys";
+                              completion(API_EEXPIRED);
+                          },
+                          nullptr));
+                  });
 }
 
 bool KeyManager::getPostRegistration() const
@@ -22447,10 +22486,10 @@ bool KeyManager::unserialize(KeyManager& km, const string &keysContainer)
     size_t offset = headerSize;
     while (offset <= blobLength)
     {
-        byte tag = blob[offset - headerSize];
-        size_t len = (static_cast<byte>(blob[offset - 3]) << 16) +
-                     (static_cast<byte>(blob[offset - 2]) << 8) +
-                      static_cast<byte>(blob[offset - 1]);
+        byte tag = static_cast<byte>(blob[offset - headerSize]);
+        size_t len = static_cast<size_t>((static_cast<byte>(blob[offset - 3]) << 16) +
+                                         (static_cast<byte>(blob[offset - 2]) << 8) +
+                                         static_cast<byte>(blob[offset - 1]));
 
         if (offset + len > blobLength)
         {
