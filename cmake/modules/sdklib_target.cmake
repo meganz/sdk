@@ -396,7 +396,6 @@ endif()
 target_platform_compile_options(
     TARGET SDKlib
     WINDOWS /W4
-            /wd4324 # structure was padded due to alignment specifier (common in Sodium)
             #TODO: remove some of those gradually.  also consider: /wd4503 /wd4996 /wd4702
     UNIX $<$<CONFIG:Debug>:-ggdb3> -Wall -Wextra -Wconversion
 )
