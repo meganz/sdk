@@ -17680,7 +17680,6 @@ std::function<bool (Node*, Node*)> MegaApiImpl::getComparatorFunction(int order,
         case MegaApi::ORDER_FAV_ASC: return MegaApiImpl::nodeComparatorFavASC;
         case MegaApi::ORDER_FAV_DESC: return MegaApiImpl::nodeComparatorFavDESC;
         case MegaApi::ORDER_SHARE_CREATION_ASC:
-            return nullptr;
         case MegaApi::ORDER_SHARE_CREATION_DESC:
             return nullptr;
     }
