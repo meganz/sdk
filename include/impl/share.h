@@ -55,19 +55,13 @@ private:
 class ShareSorter
 {
 public:
-    ShareSorter(int order):
-        mOrder(order)
-    {}
-
     // Sort in place
-    void sort(std::vector<ShareData>& shares) const;
+    static void sort(std::vector<ShareData>& shares, int order = MegaApi::ORDER_NONE);
 
 private:
-    void sortByCreationTimeAsc(std::vector<ShareData>& shares) const;
+    using CompFunc = std::function<bool(const ShareData&, const ShareData&)>;
 
-    void sortByCreationTimeDesc(std::vector<ShareData>& shares) const;
-
-    int mOrder{MegaApi::ORDER_NONE};
+    static CompFunc getComparator(int order);
 };
 
 } // namespace impl

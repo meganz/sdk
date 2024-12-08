@@ -101,37 +101,35 @@ vector<ShareData> ShareExtractor::extractShares(const sharedNode_vector& sharedN
     return shares;
 }
 
-void ShareSorter::sort(std::vector<ShareData>& shares) const
+void ShareSorter::sort(std::vector<ShareData>& shares, int order)
 {
-    switch (mOrder)
+    switch (order)
     {
         case MegaApi::ORDER_SHARE_CREATION_ASC:
-            return sortByCreationTimeAsc(shares);
         case MegaApi::ORDER_SHARE_CREATION_DESC:
-            return sortByCreationTimeDesc(shares);
+            return std::sort(std::begin(shares), std::end(shares), getComparator(order));
         default:
             return;
     }
 }
 
-void ShareSorter::sortByCreationTimeAsc(std::vector<ShareData>& shares) const
+ShareSorter::CompFunc ShareSorter::getComparator(int order)
 {
-    std::sort(std::begin(shares),
-              std::end(shares),
-              [](const ShareData& a, const ShareData& b)
-              {
-                  return a.creationTime() < b.creationTime();
-              });
-}
-
-void ShareSorter::sortByCreationTimeDesc(std::vector<ShareData>& shares) const
-{
-    std::sort(std::begin(shares),
-              std::end(shares),
-              [](const ShareData& a, const ShareData& b)
-              {
-                  return a.creationTime() > b.creationTime();
-              });
+    switch (order)
+    {
+        case MegaApi::ORDER_SHARE_CREATION_ASC:
+            return [](const ShareData& a, const ShareData& b)
+            {
+                return a.creationTime() < b.creationTime();
+            };
+        case MegaApi::ORDER_SHARE_CREATION_DESC:
+            return [](const ShareData& a, const ShareData& b)
+            {
+                return a.creationTime() > b.creationTime();
+            };
+        default:
+            return {};
+    }
 }
 
 } // namespace impl

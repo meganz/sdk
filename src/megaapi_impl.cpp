@@ -7847,7 +7847,7 @@ MegaShareList *MegaApiImpl::getUnverifiedOutShares(int order)
         impl::ShareExtractor::extractShares(sharedNodes, client->mKeyManager, isUnverified);
 
     // Sort shares in place
-    impl::ShareSorter{order}.sort(unverifiedShares);
+    impl::ShareSorter::sort(unverifiedShares, order);
 
     return new MegaShareListPrivate(unverifiedShares);
 }
@@ -11851,7 +11851,7 @@ MegaShareList* MegaApiImpl::getOutShares(int order)
     auto shares = impl::ShareExtractor::extractShares(sharedNodes, client->mKeyManager);
 
     // Sort shares in place
-    impl::ShareSorter{order}.sort(shares);
+    impl::ShareSorter::sort(shares, order);
 
     return new MegaShareListPrivate(shares);
 }

@@ -35,7 +35,7 @@ void ShareSorterTest::SetUp()
 
 TEST_F(ShareSorterTest, SortByShareCreationTimeAscendingly)
 {
-    ShareSorter{::mega::MegaApi::ORDER_SHARE_CREATION_ASC}.sort(mShareDatas);
+    ShareSorter::sort(mShareDatas, ::mega::MegaApi::ORDER_SHARE_CREATION_ASC);
     ASSERT_EQ(mShareDatas[0].getNodeHandle(), 2);
     ASSERT_EQ(mShareDatas[1].getNodeHandle(), 1);
     ASSERT_EQ(mShareDatas[2].getNodeHandle(), 3);
@@ -43,7 +43,7 @@ TEST_F(ShareSorterTest, SortByShareCreationTimeAscendingly)
 
 TEST_F(ShareSorterTest, SortByShareCreationTimeDescendingly)
 {
-    ShareSorter{::mega::MegaApi::ORDER_SHARE_CREATION_DESC}.sort(mShareDatas);
+    ShareSorter::sort(mShareDatas, ::mega::MegaApi::ORDER_SHARE_CREATION_DESC);
     ASSERT_EQ(mShareDatas[0].getNodeHandle(), 3);
     ASSERT_EQ(mShareDatas[1].getNodeHandle(), 1);
     ASSERT_EQ(mShareDatas[2].getNodeHandle(), 2);
@@ -51,12 +51,12 @@ TEST_F(ShareSorterTest, SortByShareCreationTimeDescendingly)
 
 TEST_F(ShareSorterTest, SortByOthersDoesNotChangeOrder)
 {
-    ShareSorter{::mega::MegaApi::ORDER_NONE}.sort(mShareDatas);
+    ShareSorter::sort(mShareDatas, ::mega::MegaApi::ORDER_NONE);
     ASSERT_EQ(mShareDatas[0].getNodeHandle(), 1);
     ASSERT_EQ(mShareDatas[1].getNodeHandle(), 2);
     ASSERT_EQ(mShareDatas[2].getNodeHandle(), 3);
 
-    ShareSorter{::mega::MegaApi::ORDER_CREATION_DESC}.sort(mShareDatas);
+    ShareSorter::sort(mShareDatas, ::mega::MegaApi::ORDER_CREATION_DESC);
     ASSERT_EQ(mShareDatas[0].getNodeHandle(), 1);
     ASSERT_EQ(mShareDatas[1].getNodeHandle(), 2);
     ASSERT_EQ(mShareDatas[2].getNodeHandle(), 3);
