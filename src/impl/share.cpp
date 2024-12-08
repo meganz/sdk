@@ -103,13 +103,9 @@ vector<ShareData> ShareExtractor::extractShares(const sharedNode_vector& sharedN
 
 void ShareSorter::sort(std::vector<ShareData>& shares, int order)
 {
-    switch (order)
+    if (auto comp = getComparator(order); comp)
     {
-        case MegaApi::ORDER_SHARE_CREATION_ASC:
-        case MegaApi::ORDER_SHARE_CREATION_DESC:
-            return std::sort(std::begin(shares), std::end(shares), getComparator(order));
-        default:
-            return;
+        return std::sort(std::begin(shares), std::end(shares), comp);
     }
 }
 
