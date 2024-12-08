@@ -46,6 +46,19 @@ bool AttrMap::getBool(const char* name) const {
     return value;
 }
 
+std::optional<std::string> AttrMap::getString(std::string_view name) const
+{
+    // Try and locate the specified attribute.
+    auto i = map.find(string2nameid(name.data()));
+
+    // Couldn't find the attribute.
+    if (i == map.end())
+        return std::nullopt;
+
+    // Return attribute value to caller.
+    return std::optional<std::string>(std::in_place, i->second);
+}
+
 int AttrMap::nameid2string(nameid id, char* buf)
 {
     char* ptr = buf;
