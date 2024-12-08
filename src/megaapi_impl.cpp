@@ -909,18 +909,10 @@ const char* MegaNodePrivate::getDescription()
 
 MegaStringList* MegaNodePrivate::getTags()
 {
-    const char* str = getOfficialAttr(MegaClient::NODE_ATTRIBUTE_TAGS);
-    std::string tags = str ? str : "";
-    const auto tokens = splitString<std::multiset<std::string, NaturalSortingComparator>>(
-        tags,
-        MegaClient::TAG_DELIMITER);
-    MegaStringListPrivate* stringList = new MegaStringListPrivate();
-    for (const auto& token: tokens)
-    {
-        stringList->add(token.c_str());
-    }
+    if (auto delimitedTags = getOfficialAttr(MegaClient::NODE_ATTRIBUTE_TAGS))
+        return new MegaStringListPrivate(MegaClient::getNodeTags(delimitedTags));
 
-    return stringList;
+    return new MegaStringListPrivate();
 }
 
 int64_t MegaNodePrivate::getSize()

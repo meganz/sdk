@@ -778,6 +778,8 @@ public:
     static void makeattr(SymmCipher*, const std::unique_ptr<string>&, const char*, int = -1);
 
     error addTagToNode(std::shared_ptr<Node> node, const std::string& tag, CommandSetAttr::Completion&& c);
+    static std::vector<std::string> getNodeTags(const std::string& delimitedTags);
+    std::vector<std::string> getNodeTags(std::shared_ptr<Node> node);
     error removeTagFromNode(std::shared_ptr<Node> node, const std::string& tag, CommandSetAttr::Completion&& c);
     error updateTagNode(std::shared_ptr<Node>, const std::string& newTag, const std::string& oldTag, CommandSetAttr::Completion&& c);
 
