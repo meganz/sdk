@@ -1768,7 +1768,7 @@ extern time_t stringToTimestamp(string stime, date_time_format_t format)
     struct tm dt;
     memset(&dt, 0, sizeof(struct tm));
 #ifdef _WIN32
-    for (int i = 0; i < stime.size(); i++)
+    for (size_t i = 0; i < stime.size(); i++)
     {
         if ( (stime.at(i) < '0') || (stime.at(i) > '9') )
         {
