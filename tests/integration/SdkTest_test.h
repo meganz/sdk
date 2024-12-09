@@ -295,7 +295,7 @@ public:
         bool userFirstNameUpdated = false;
         bool setUpdated;
         bool setElementUpdated;
-        bool contactRequestUpdated;
+        bool contactRequestUpdated{false};
         bool accountUpdated;
         bool nodeUpdated; // flag to check specific updates for a node (upon onNodesUpdate)
 
@@ -768,7 +768,7 @@ public:
     void verifyCredentials(unsigned apiIndex, string email);
     void resetCredentials(unsigned apiIndex, string email);
     bool areCredentialsVerified(unsigned apiIndex, string email);
-    void shareFolder(MegaNode *n, const char *email, int action);
+    void shareFolder(MegaNode* n, const char* email, int action, unsigned apiIndex = 0);
 
 #ifdef ENABLE_CHAT
     void createChatScheduledMeeting(const unsigned apiIndex, MegaHandle& chatid);

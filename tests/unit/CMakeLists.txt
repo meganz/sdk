@@ -38,6 +38,7 @@ target_sources(test_unit
     Transferstats_test.cpp
     User_test.cpp
     user_attributes_test.cpp
+    impl/share_test.cpp
     utils.cpp
     utils_test.cpp
     pwm_file_parser_test.cpp

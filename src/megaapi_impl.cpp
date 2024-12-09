@@ -7875,8 +7875,11 @@ MegaShareList *MegaApiImpl::getUnverifiedOutShares(int order)
     };
 
     // Extract unverified shares
-    const auto unverifiedShares =
+    auto unverifiedShares =
         impl::ShareExtractor::extractShares(sharedNodes, client->mKeyManager, isUnverified);
+
+    // Sort shares in place
+    impl::ShareSorter::sort(unverifiedShares, order);
 
     return new MegaShareListPrivate(unverifiedShares);
 }
@@ -11873,11 +11876,14 @@ MegaShareList* MegaApiImpl::getOutShares(int order)
     // Get nodes having any outgoing shares
     sharedNode_vector sharedNodes = getSharedNodes();
 
-    // Sort nodes
+    // Sort nodes in place
     MegaApiImpl::sortByComparatorFunction(sharedNodes, order, *client);
 
     // Extract shares from nodes
-    const auto shares = impl::ShareExtractor::extractShares(sharedNodes, client->mKeyManager);
+    auto shares = impl::ShareExtractor::extractShares(sharedNodes, client->mKeyManager);
+
+    // Sort shares in place
+    impl::ShareSorter::sort(shares, order);
 
     return new MegaShareListPrivate(shares);
 }
@@ -17705,6 +17711,9 @@ std::function<bool (Node*, Node*)> MegaApiImpl::getComparatorFunction(int order,
         case MegaApi::ORDER_LABEL_DESC: return MegaApiImpl::nodeComparatorLabelDESC;
         case MegaApi::ORDER_FAV_ASC: return MegaApiImpl::nodeComparatorFavASC;
         case MegaApi::ORDER_FAV_DESC: return MegaApiImpl::nodeComparatorFavDESC;
+        case MegaApi::ORDER_SHARE_CREATION_ASC:
+        case MegaApi::ORDER_SHARE_CREATION_DESC:
+            return nullptr;
     }
     assert(false);
     return nullptr;

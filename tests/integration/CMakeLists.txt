@@ -22,6 +22,7 @@ target_sources(test_integration
     SdkTestChangeLocalSyncRoot_test.cpp
     Sync_test.cpp
     one_question_survey_test.cpp
+    share_test.cpp
     integration_test_utils.cpp
 )
 

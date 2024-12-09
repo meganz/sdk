@@ -22,6 +22,8 @@ public:
 
     bool isVerified() const;
 
+    m_time_t creationTime() const;
+
 private:
     MegaHandle mNodeHandle;
 
@@ -48,6 +50,18 @@ private:
     static std::vector<ShareData> extractOutShares(const Node* n,
                                                    const KeyManager& keyManager,
                                                    Filter filter);
+};
+
+class ShareSorter
+{
+public:
+    // Sort in place
+    static void sort(std::vector<ShareData>& shares, int order = MegaApi::ORDER_NONE);
+
+private:
+    using CompFunc = std::function<bool(const ShareData&, const ShareData&)>;
+
+    static CompFunc getComparator(int order);
 };
 
 } // namespace impl
