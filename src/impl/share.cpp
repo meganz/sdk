@@ -101,6 +101,19 @@ vector<ShareData> ShareExtractor::extractShares(const sharedNode_vector& sharedN
     return shares;
 }
 
+vector<ShareData> ShareExtractor::extractPendingShares(const sharedNode_vector& sharedNodes,
+                                                       const KeyManager& keyManager)
+{
+    vector<ShareData> shares;
+    auto outputIt = std::back_inserter(shares);
+    for (const auto& n: sharedNodes)
+    {
+        auto pendingShares = extractPendingShares(n.get(), keyManager, nullptr);
+        std::move(pendingShares.begin(), pendingShares.end(), outputIt);
+    }
+    return shares;
+}
+
 void ShareSorter::sort(std::vector<ShareData>& shares, int order)
 {
     if (auto comp = getComparator(order); comp)

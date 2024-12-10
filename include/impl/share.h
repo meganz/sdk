@@ -42,6 +42,10 @@ public:
                                            const KeyManager& keyManager,
                                            Filter filter = nullptr);
 
+    // Extract pending shares, if filter(data) returns false, the share data is dropped
+    static vector<ShareData> extractPendingShares(const sharedNode_vector& sharedNodes,
+                                                  const KeyManager& keyManager);
+
 private:
     static std::vector<ShareData> extractPendingShares(const Node* n,
                                                        const KeyManager& keyManager,
