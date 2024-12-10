@@ -81,7 +81,6 @@ pipeline {
                 docker {
                     image 'meganz/sdk-release-management:${env.BUILD_NUMBER}'
                     reuseNode true
-                    args '-v ${WORKSPACE}:/mega/sdk/'
                 }
             }
             steps {
@@ -108,7 +107,6 @@ pipeline {
                 docker {
                     image "meganz/sdk-release-management:${env.BUILD_NUMBER}"
                     reuseNode true
-                    args '-v ${WORKSPACE}:/mega/sdk/'
                 }
             }
             steps {
@@ -135,7 +133,6 @@ pipeline {
                 docker {
                     image "meganz/sdk-release-management:${env.BUILD_NUMBER}"
                     reuseNode true
-                    args '-v ${WORKSPACE}:/mega/sdk/'
                 }
             }
             steps {
@@ -162,7 +159,6 @@ pipeline {
                 docker {
                     image "meganz/sdk-release-management:${env.BUILD_NUMBER}"
                     reuseNode true
-                    args '-v ${WORKSPACE}:/mega/sdk/'
                 }
             }
             steps {
