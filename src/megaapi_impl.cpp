@@ -194,16 +194,8 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
         delete [] fileAttributeString;
     }
 
-    if (string* tempNodekey = node->getNodeKey())
-    {
-        nodekey = *tempNodekey;
-    }
-    else
-    {
-        LOG_err << "Invalid nodekey of provided node";
-        assert(tempNodekey != nullptr);
-    }
-
+    assert(node->getNodeKey() && "node key cannot be null");
+    this->nodekey = *node->getNodeKey();
     this->changed = node->getChanges();
     this->thumbnailAvailable = node->hasThumbnail();
     this->previewAvailable = node->hasPreview();
