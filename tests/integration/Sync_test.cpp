@@ -11501,7 +11501,10 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
 
             for (int up = 0; up < 2; ++up)
             {
-                //if (!up) continue;
+                // if (!up) continue;
+                //  We don't allow changes in the cloud for a backup sync
+                if (up == 0 && syncType == TwoWaySyncSymmetryCase::type_backupSync)
+                    continue;
 
                 for (int action = 0; action < (int)TwoWaySyncSymmetryCase::action_numactions; ++action)
                 {
