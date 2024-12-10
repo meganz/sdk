@@ -4604,6 +4604,10 @@ TEST_F(SdkTest, SdkTestShares)
 
     auto sl = std::unique_ptr<MegaShareList>{megaApi[0]->getOutShares()};
     ASSERT_EQ(1, sl->size()) << "Outgoing share failed";
+    // Test another interface
+    sl.reset(megaApi[0]->getOutShares(n1.get()));
+    ASSERT_EQ(1, sl->size()) << "Outgoing share failed";
+
     MegaShare* s = sl->get(0);
 
     n1.reset(megaApi[0]->getNodeByHandle(hfolder1));    // get an updated version of the node
@@ -4981,6 +4985,9 @@ TEST_F(SdkTest, SdkTestShares)
 
     sl.reset(megaApi[0]->getOutShares());
     ASSERT_EQ(0, sl->size()) << "Outgoing share revocation failed";
+    // Test another interface
+    sl.reset(megaApi[0]->getOutShares(n1.get()));
+    ASSERT_EQ(0, sl->size()) << "Outgoing share revocation failed";
 
     contact.reset(megaApi[1]->getContact(mApi[0].email.c_str()));
     nl.reset(megaApi[1]->getInShares(contact.get()));
@@ -5024,6 +5031,9 @@ TEST_F(SdkTest, SdkTestShares)
 
     sl.reset(megaApi[0]->getPendingOutShares(node.get()));
     ASSERT_EQ(1, sl->size()) << "Pending outgoing share failed";
+    // Test another interface
+    sl.reset(megaApi[0]->getOutShares(node.get()));
+    ASSERT_EQ(1, sl->size()) << "Pending outgoing share failed";
     s = sl->get(0);
     node.reset(megaApi[0]->getNodeByHandle(s->getNodeHandle()));
 
@@ -5041,6 +5051,9 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(check1, true);
 
     sl.reset(megaApi[0]->getPendingOutShares());
+    ASSERT_EQ(2, sl->size()) << "Pending outgoing share failed";
+    // Test another interface
+    sl.reset(megaApi[0]->getOutShares());
     ASSERT_EQ(2, sl->size()) << "Pending outgoing share failed";
 
     // --- Create a file public link ---
