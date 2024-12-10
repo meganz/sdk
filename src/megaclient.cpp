@@ -4547,7 +4547,7 @@ void MegaClient::logout(bool keepSyncConfigsFile, CommandLogout::Completion comp
 #endif
 }
 
-void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
+void MegaClient::locallogout(bool removecaches, [[maybe_unused]] bool keepSyncsConfigFile)
 {
     LOG_debug << clientname << "executing locallogout processing";  // track possible lack of logout callbacks
     executingLocalLogout = true;
