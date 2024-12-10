@@ -30,6 +30,7 @@ pipeline {
         confluence_url = "${env.CONFLUENCE_BASE_URL}"
         confluence_page_id = "3640225"
         github_push_remote_url = "https://github.com/meganz/sdk.git"
+        GNUPGHOME = "${WORKSPACE}/.gnupg"
     }
 
     stages {
