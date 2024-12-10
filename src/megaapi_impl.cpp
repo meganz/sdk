@@ -6925,7 +6925,7 @@ char *MegaApiImpl::getMyRSAPrivateKey()
     return MegaApi::strdup(client->mPrivKey.c_str());
 }
 
-void MegaApiImpl::setLogExtraForModules(bool networking, bool syncs)
+void MegaApiImpl::setLogExtraForModules(bool networking, [[maybe_unused]] bool syncs)
 {
     g_netLoggingOn = networking;
 #ifdef ENABLE_SYNC
