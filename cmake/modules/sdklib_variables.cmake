@@ -16,5 +16,5 @@ include(detect_host_architecture)
 include(set_osx_deployment_target)
 set_osx_deployment_target(
     ARM64 "11.1"
-    x86_64 "10.13"
+    x86_64 "10.15"
 )

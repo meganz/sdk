@@ -35,7 +35,7 @@ PosixConsole::PosixConsole()
 
     oldlflag = term.c_lflag;
     oldvtime = term.c_cc[VTIME];
-    term.c_lflag &= ~ICANON;
+    term.c_lflag &= static_cast<tcflag_t>(~ICANON);
     term.c_cc[VTIME] = 1;
 
     if (tcsetattr(STDIN_FILENO, TCSANOW, &term) < 0)
@@ -69,8 +69,8 @@ void PosixConsole::readpwchar(char* pw_buf, int pw_buf_size, int* pw_buf_pos, ch
         }
         else if (c == 13)
         {
-            *line = (char*) malloc(*pw_buf_pos + 1);
-            memcpy(*line, pw_buf, *pw_buf_pos);
+            *line = (char*)malloc(static_cast<size_t>(*pw_buf_pos + 1));
+            memcpy(*line, pw_buf, static_cast<size_t>(*pw_buf_pos));
             (*line)[*pw_buf_pos] = 0;
         }
         else if (*pw_buf_pos < pw_buf_size)

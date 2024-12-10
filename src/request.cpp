@@ -57,9 +57,9 @@ string Request::get(MegaClient* client, char reqidCounter[10], string& idempoten
         for (int i = 0; i < (int)cmds.size(); i++)
         {
             req.append(i ? ",{" : "{");
-            req.append(cmds[i]->getJSON(client));
+            req.append(cmds[static_cast<size_t>(i)]->getJSON(client));
             req.append("}");
-            ++counts[cmds[i]->commandStr];
+            ++counts[cmds[static_cast<size_t>(i)]->commandStr];
         }
 
         req.append("]");
@@ -325,7 +325,7 @@ Command* Request::getCurrentCommand()
     return cmds[processindex].get();
 }
 
-void Request::serverresponse(std::string&& movestring, MegaClient* client)
+void Request::serverresponse(std::string&& movestring, MegaClient*)
 {
     assert(processindex == 0);
     jsonresponse = std::move(movestring);

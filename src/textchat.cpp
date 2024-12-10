@@ -428,7 +428,7 @@ ScheduledMeeting* ScheduledMeeting::unserialize(const string& in, const handle c
     constexpr unsigned int flagsSize = 6;
     unsigned char expansions[8]; // must be defined with size 8
 
-    const auto logAndFail = [](const string& msg) -> ScheduledMeeting*
+    const auto logAndFail = [](const string& /*msg*/) -> ScheduledMeeting*
     {
         LOG_err << "Failure at schedule meeting unserialization ";
         assert(false);
@@ -705,7 +705,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     hasAttachments = MemAccess::get<char>(ptr);
     ptr += sizeof hasAttachments;
 
-    flags = MemAccess::get<char>(ptr);
+    flags = MemAccess::get<byte>(ptr);
     ptr += sizeof(char);
 
     char mode = MemAccess::get<char>(ptr);

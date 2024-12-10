@@ -326,7 +326,7 @@ auto Model::FileNode::file() -> FileNode*
     return this;
 }
 
-auto Model::FileNode::from(const Client& client, NodeInfo info) -> NodePtr
+auto Model::FileNode::from(const Client&, NodeInfo info) -> NodePtr
 {
     // Instantiate file.
     auto file = std::make_unique<FileNode>(std::move(info.mName));

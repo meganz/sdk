@@ -35,6 +35,7 @@
 #import "MEGASet.h"
 #import "MEGASetElement.h"
 #import "MEGAVPNCredentials.h"
+#import "MEGAVPNRegion.h"
 #import "MEGANotificationList.h"
 
 NS_ASSUME_NONNULL_BEGIN
@@ -663,6 +664,25 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  *  @return an object of MEGAVPNCredentials
  */
 @property (readonly, nonatomic, nullable) MEGAVPNCredentials *megaVpnCredentials;
+
+/**
+ * @brief Provide all available VPN Regions, including their details.
+ *
+ * The data included for each Region is the following:
+ * - Name (example: hMLKTUojS6o, 1MvzBCx1Uf4)
+ * - Country Code (example: ES, LU)
+ * - Country Name (example: Spain, Luxembourg)
+ * - Region Name (optional) (example: Esch-sur-Alzette)
+ * - Town Name (Optional) (example: Bettembourg)
+ * - Map of {ClusterID, Cluster}.
+ * - For each Cluster:
+ *    · Host.
+ *    · DNS IP list (as a MEGAStringList).
+ *
+ * @return An array of MEGAVPNRegion objects with available VPN Regions, if the relevant request was sent;
+ * Returns empty if otherwise.
+ */
+@property (readonly, nonatomic) NSArray<MEGAVPNRegion *> *megaVpnRegions;
 
 /**
  * @brief Get list of available notifications for Notification Center

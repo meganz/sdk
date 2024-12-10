@@ -38,7 +38,7 @@ SqliteDbAccess::~SqliteDbAccess()
 {
 }
 
-LocalPath SqliteDbAccess::databasePath(const FileSystemAccess& fsAccess,
+LocalPath SqliteDbAccess::databasePath(const FileSystemAccess&,
                                        const string& name,
                                        const int version) const
 {
@@ -291,6 +291,20 @@ bool SqliteDbAccess::probe(FileSystemAccess& fsAccess, const string& name) const
     dbPath = databasePath(fsAccess, name, LEGACY_DB_VERSION);
 
     return fileAccess->isfile(dbPath);
+}
+
+std::optional<std::filesystem::path>
+    SqliteDbAccess::getExistingDbPath(const FileSystemAccess& fsAccess,
+                                      const std::string& fname) const
+{
+    auto expectedPath = databasePath(fsAccess, fname, DbAccess::DB_VERSION).rawValue();
+    if (std::filesystem::exists(expectedPath))
+        return expectedPath;
+
+    expectedPath = databasePath(fsAccess, fname, DbAccess::LEGACY_DB_VERSION).rawValue();
+    if (std::filesystem::exists(expectedPath))
+        return expectedPath;
+    return {};
 }
 
 const LocalPath& SqliteDbAccess::rootPath() const

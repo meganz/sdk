@@ -993,7 +993,7 @@ private:
 class MegaSharePrivate : public MegaShare
 {
 	public:
-        static MegaShare *fromShare(MegaHandle nodeMegaHandle, Share *share, bool verified);
+        static MegaShare* fromShare(MegaHandle nodeHandle, const Share* share, bool verified);
         MegaShare *copy() override;
         ~MegaSharePrivate() override;
         const char *getUser() override;
@@ -1004,13 +1004,13 @@ class MegaSharePrivate : public MegaShare
         bool isVerified() override;
 
 	protected:
-        MegaSharePrivate(MegaHandle nodehandle, Share *share, bool verified);
-		MegaSharePrivate(MegaShare *share);
+        MegaSharePrivate(MegaHandle nodeHandle, const Share* share, bool verified);
+        MegaSharePrivate(MegaShare* share);
 
-		MegaHandle nodehandle;
-		const char *user;
-		int access;
-		int64_t ts;
+        MegaHandle nodehandle;
+        const char* user;
+        int access;
+        int64_t ts;
         bool pending;
         bool mVerified;
 };
@@ -1101,6 +1101,26 @@ public:
     const char* getName() const override
     {
         return mRegion.getName().c_str();
+    }
+
+    const char* getCountryCode() const override
+    {
+        return mRegion.getCountryCode().c_str();
+    }
+
+    const char* getCountryName() const override
+    {
+        return mRegion.getCountryName().c_str();
+    }
+
+    const char* getRegionName() const override
+    {
+        return mRegion.getRegionName().c_str();
+    }
+
+    const char* getTownName() const override
+    {
+        return mRegion.getTownName().c_str();
     }
 
     MegaVpnClusterMapPrivate* getClusters() const override;
@@ -1710,7 +1730,9 @@ class MegaRequestPrivate : public MegaRequest
 
 #ifdef ENABLE_SYNC
         MegaSyncStallList* getMegaSyncStallList() const override;
+        MegaSyncStallMap* getMegaSyncStallMap() const override;
         void setMegaSyncStallList(unique_ptr<MegaSyncStallList>&& stalls);
+        void setMegaSyncStallMap(std::unique_ptr<MegaSyncStallMap>&& sm);
 #endif // ENABLE_SYNC
 
 #ifdef ENABLE_CHAT
@@ -1837,6 +1859,7 @@ class MegaRequestPrivate : public MegaRequest
 
 #ifdef ENABLE_SYNC
         unique_ptr<MegaSyncStallList> mSyncStallList;
+        unique_ptr<MegaSyncStallMap> mSyncStallMap;
 #endif // ENABLE_SYNC
 
         unique_ptr<MegaNotificationList> mMegaNotifications;
@@ -2457,7 +2480,10 @@ class MegaShareListPrivate : public MegaShareList
 {
 	public:
         MegaShareListPrivate();
-        MegaShareListPrivate(Share** newlist, MegaHandle *MegaHandlelist, byte *verified, int size);
+        MegaShareListPrivate(const Share* const* newlist,
+                             const MegaHandle* nodeHandleList,
+                             const byte* verified,
+                             int size);
         ~MegaShareListPrivate() override;
         MegaShare* get(int i) override;
         int size() override;
@@ -2910,7 +2936,7 @@ public:
         return -1;
     }
 
-    bool couldSuggestIgnoreThisPath(bool cloudSide, int index) const override
+    bool couldSuggestIgnoreThisPath(bool /*cloudSide*/, int /*index*/) const override
     {
         return false;
     }
@@ -2968,8 +2994,8 @@ public:
 class MegaSyncStallListPrivate : public MegaSyncStallList
 {
     public:
+        MegaSyncStallListPrivate() = default;
         MegaSyncStallListPrivate(SyncProblems&&, AddressedStallFilter& filter);
-
         MegaSyncStallListPrivate* copy() const override;
 
         const MegaSyncStall* get(size_t i) const override;
@@ -2979,8 +3005,46 @@ class MegaSyncStallListPrivate : public MegaSyncStallList
             return mStalls.size();
         }
 
+        void addStall(std::shared_ptr<MegaSyncStall> s)
+        {
+            assert(!!s);
+            mStalls.push_back(s);
+        }
+
     protected:
         std::vector<std::shared_ptr<MegaSyncStall>> mStalls;
+};
+
+class MegaSyncStallMapPrivate: public MegaSyncStallMap
+{
+public:
+    MegaSyncStallMapPrivate(SyncProblems&& sp, AddressedStallFilter& filter);
+
+    MegaSyncStallMapPrivate* copy() const override
+    {
+        return new MegaSyncStallMapPrivate(*this);
+    }
+
+    const MegaSyncStallList* get(const MegaHandle key) const override
+    {
+        if (const auto& it = mStallsMap.find(key); it != mStallsMap.end())
+        {
+            return &it->second;
+        }
+        return nullptr;
+    }
+
+    size_t size() const override
+    {
+        return mStallsMap.size();
+    }
+
+    MegaHandleList* getKeys() const override;
+
+protected:
+    MegaSyncStallMapPrivate() = default;
+    const std::map<MegaHandle, MegaSyncStallListPrivate>& getMap() const;
+    std::map<MegaHandle, MegaSyncStallListPrivate> mStallsMap;
 };
 
 #endif // ENABLE_SYNC
@@ -3514,6 +3578,11 @@ class MegaApiImpl : public MegaApp
                                                         std::shared_ptr<Node> parent,
                                                         MegaRequestPrivate* request);
 
+        void sendUserfeedback(const int rating,
+                              const char* comment,
+                              const bool transferFeedback,
+                              const int transferType);
+
     public:
 #ifdef ENABLE_SYNC
         //Sync
@@ -3559,9 +3628,14 @@ class MegaApiImpl : public MegaApp
         MegaSync *getSyncByNode(MegaNode *node);
         MegaSync *getSyncByPath(const char * localPath);
         void getMegaSyncStallList(MegaRequestListener* listener);
+        void getMegaSyncStallMap(MegaRequestListener* listener);
         void clearStalledPath(MegaSyncStall*);
 
         void moveToDebris(const char* path, MegaHandle syncBackupId, MegaRequestListener* listener = nullptr);
+
+        void changeSyncRemoteRoot(const MegaHandle syncBackupId,
+                                  const MegaHandle newRootNodeHandle,
+                                  MegaRequestListener* listener);
 
         AddressedStallFilter mAddressedStallFilter;
 
@@ -4500,7 +4574,7 @@ public:
         void getUserAttr(const std::string& email, attr_t type, const char* ph, MegaRequestPrivate* request);
         void getua_completion(error, MegaRequestPrivate* request);
         void getua_completion(byte*, unsigned, attr_t, MegaRequestPrivate* request);
-        void getua_completion(TLVstore *, attr_t, MegaRequestPrivate* request);
+        void getua_completion(unique_ptr<string_map>, attr_t, MegaRequestPrivate* request);
         static char *getAvatarColor(handle userhandle);
         static char *getAvatarSecondaryColor(handle userhandle);
         bool isGlobalNotifiable(MegaPushNotificationSettingsPrivate* pushSettings);
@@ -4578,6 +4652,7 @@ public:
         void performRequest_setLastActionedBanner(MegaRequestPrivate* request);
         error getLastActionedBanner_getua_result(byte* data, unsigned len, MegaRequestPrivate* request);
         void performRequest_enableTestSurveys(MegaRequestPrivate* request);
+        error performRequest_getSyncStalls(MegaRequestPrivate* request);
 };
 
 class MegaHashSignatureImpl

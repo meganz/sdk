@@ -42,7 +42,7 @@
 #pragma warning(pop)
 #endif
 
-#ifdef __FreeBSD__
+#if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__DragonFly__)
 #include <netinet/in.h>
 #endif
 
@@ -311,9 +311,6 @@ struct MEGA_API HttpIO : public EventTrigger
     // get proxy settings from the system
     virtual Proxy *getautoproxy();
 
-    // get DNS servers as configured in the system
-    void getDNSserversFromIos(string &dnsServers);
-    
     // get alternative DNS servers
     void getMEGADNSservers(string* dnsservers, bool getfromnetwork);
 

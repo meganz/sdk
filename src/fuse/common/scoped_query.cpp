@@ -16,8 +16,8 @@ ScopedQuery::ScopedQuery()
 {
 }
 
-ScopedQuery::ScopedQuery(Badge<Transaction> badge, Query& query)
-  : mQuery(&query)
+ScopedQuery::ScopedQuery(Badge<Transaction>, Query& query):
+    mQuery(&query)
 {
     query.clear();
 }

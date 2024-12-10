@@ -46,13 +46,13 @@ pipeline {
                 sh "echo Building SDK for Apple Silicon / arm64"
                 sh "rm -rf ${BUILD_DIR}; mkdir ${BUILD_DIR}"
                 sh "cmake -DCMAKE_PREFIX_PATH=${QTPATH}/arm64 -DENABLE_SDKLIB_WERROR=ON -DENABLE_QT_BINDINGS=ON -DENABLE_LOG_PERFORMANCE=ON -DUSE_LIBUV=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo -DVCPKG_ROOT=${VCPKGPATH} -DCMAKE_VERBOSE_MAKEFILE=ON -S ${WORKSPACE} -B ${WORKSPACE}/${BUILD_DIR}"
-                sh "cmake --build ${WORKSPACE}/${BUILD_DIR} -j1"
+                sh "cmake --build ${WORKSPACE}/${BUILD_DIR} -j2"
 
                 //Build SDK for x64
                 sh "echo \"Building SDK for intel / x64 (crosscompiling)\""
                 sh "rm -rf ${BUILD_DIR_X64}; mkdir ${BUILD_DIR_X64}"
                 sh "cmake -DCMAKE_PREFIX_PATH=${QTPATH}/x86_64 -DENABLE_SDKLIB_WERROR=ON -DENABLE_QT_BINDINGS=ON -DENABLE_LOG_PERFORMANCE=ON -DUSE_LIBUV=ON -DENABLE_SDKLIB_EXAMPLES=OFF -DENABLE_SDKLIB_TESTS=OFF -DENABLE_ISOLATED_GFX=OFF -DCMAKE_BUILD_TYPE=RelWithDebInfo -DVCPKG_ROOT=${VCPKGPATH} -DCMAKE_VERBOSE_MAKEFILE=ON -DCMAKE_OSX_ARCHITECTURES=x86_64 -S ${WORKSPACE} -B ${WORKSPACE}/${BUILD_DIR_X64}"
-                sh "cmake --build ${WORKSPACE}/${BUILD_DIR_X64} -j1"
+                sh "cmake --build ${WORKSPACE}/${BUILD_DIR_X64} -j2"
             }
         }
     }

@@ -890,6 +890,15 @@ public:
     // notify delayed upload completion subsystem about new file attribute
     void checkfacompletion(UploadHandle, Transfer* = NULL, bool uploadCompleted = false);
 
+    // attach/update/delete a user attribute using encryption
+    void putua(attr_t at,
+               string_map&& records,
+               int ctag = -1,
+               handle lastPublicHandle = UNDEF,
+               int phtype = 0,
+               int64_t ts = 0,
+               std::function<void(Error)> completion = nullptr);
+
     // attach/update/delete a user attribute
     void putua(attr_t at, const byte* av = NULL, unsigned avl = 0, int ctag = -1, handle lastPublicHandle = UNDEF, int phtype = 0, int64_t ts = 0,
         std::function<void(Error)> completion = nullptr);
@@ -981,17 +990,40 @@ public:
      * @brief Check if a given node is syncable
      * @param remotenode We want to validate if a sync can be enabled using this node as remote
      * root.
-     * @param isinshare filled with whether the node is within an inshare.
-     * @param syncError filled with SyncError with the sync error that makes the node unsyncable
      * @param excludeSelf if true, we will asume the given node is already the root of a sync and we
      * want to validate if it can still be synced. In other words, while iterating active syncs we
      * will scape the one having remotenode as root.
-     * @return API_OK if syncable. (regular) error otherwise
+     * @return A std::pair with information about the API and Sync errors. API_OK, NO_SYNC_ERROR if
+     * the node is syncable.
      */
-    error isnodesyncable(std::shared_ptr<Node> remotenode,
-                         bool* isinshare = NULL,
-                         SyncError* syncError = nullptr,
-                         const bool excludeSelf = false);
+    std::pair<error, SyncError> isnodesyncable(std::shared_ptr<Node> remotenode,
+                                               const bool excludeSelf = false);
+
+    /**
+     * @brief Checks if the given remotenode is related with any active sync
+     *
+     * @param remotenode The node to check
+     * @param excludeSelf if true, we will asume the given node is already the root of an active
+     * sync. This sync will be skipped during the evaluation.
+     * @return NO_SYNC_ERROR if the given node is not related with any of the active syncs.
+     * Otherwise:
+     *   - ACTIVE_SYNC_SAME_PATH: If the given node is already the root of an active sync
+     *   - ACTIVE_SYNC_BELOW_PATH: If the given node contains an active sync
+     *   - ACTIVE_SYNC_ABOVE_PATH: If the given node is contained in an active sync
+     */
+    SyncError anyActiveSyncAboveOrBelow(const Node& remotenode, const bool excludeSelf);
+
+    /**
+     * @brief Checks whether the current user has full access to the given node.
+     *
+     * This will be always the case for nodes that are not part of an inbound shared node. If the
+     * node is or is contained in an inbound shared node, this function checks that the user has
+     * full access to the node being shared.
+     *
+     * @param remotenode The node to check
+     * @return true if the current user has full access to the node, false otherwise
+     */
+    bool userHasRestrictedAccessToNode(const Node& remotenode);
 
     /**
      * @brief is local path syncable
@@ -1075,6 +1107,25 @@ public:
      * @see Syncs::importSyncConfigs
      */
     void importSyncConfigs(const char* configs, std::function<void(error)> completion);
+
+    /**
+     * @brief Changes the local/remote root of a sync to a different path/node
+     *
+     * @note This function only allows changing the local or the remote roots at once. To decide
+     * which one would be changes, one of newRemoteRootNodeHandle or newLocalRootPath must be
+     * UNDEF or nullptr respectively. Otherwise an API_EARGS will be returned
+     *
+     * @param backupId The backup id of the sync to be modified
+     * @param newRemoteRootNodeHandle The handle of the node that will be used for the new root on
+     * the cloud
+     * @param newLocalRootPath The path to the new root of the sync locally
+     * @param completion A completion function to be called once the logic is done, with the
+     * corresponding error.
+     */
+    void changeSyncRoot(const handle backupId,
+                        const handle newRemoteRootNodeHandle,
+                        const char* const newLocalRootPath,
+                        std::function<void(error, SyncError)>&& completion);
 
 public:
 
@@ -2917,7 +2968,7 @@ private:
      */
     void JSCDataRetrieved(GetJSCDataCallback& callback,
                           Error result,
-                          TLVstore* store);
+                          std::unique_ptr<string_map> store);
 
     // Last known capacity retrieved from the cloud.
     m_off_t mLastKnownCapacity = -1;

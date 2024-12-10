@@ -15,8 +15,8 @@ class GfxSerializationHelper
 public:
     static void serialize(CacheableWriter& writer, const GfxDimension& source)
     {
-        writer.serializeu32(source.w());
-        writer.serializeu32(source.h());
+        writer.serializeu32(static_cast<uint32_t>(source.w()));
+        writer.serializeu32(static_cast<uint32_t>(source.h()));
     }
     static void serialize(CacheableWriter& writer, const std::string& source)
     {
@@ -45,8 +45,8 @@ public:
         {
             return false;
         }
-        target.setW(w);
-        target.setH(h);
+        target.setW(static_cast<int>(w));
+        target.setH(static_cast<int>(h));
         return true;
     }
     static bool unserialize(CacheableReader& reader, std::string& target)

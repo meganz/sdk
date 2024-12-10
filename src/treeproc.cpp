@@ -158,7 +158,7 @@ void LocalTreeProcMove::proc(FileSystemAccess&, LocalNode* localnode)
     nc++;
 }
 
-void LocalTreeProcUpdateTransfers::proc(FileSystemAccess& fsa, LocalNode *localnode)
+void LocalTreeProcUpdateTransfers::proc(FileSystemAccess&, LocalNode* localnode)
 {
     // Only updating the localname thread safe field.
     // Transfers are managed from the megaclient thread

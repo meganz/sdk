@@ -253,56 +253,6 @@ Proxy *HttpIO::getautoproxy()
     return proxy;
 }
 
-// this method allows to retrieve DNS servers as configured in the system. Note that, under Wifi connections,
-// it usually returns the gateway (192.168.1.1 or similar), so the DNS requests done by c-ares represent a
-// an access to the local network, which we aim to avoid since iOS 14 requires explicit permission given by the user.
-void HttpIO::getDNSserversFromIos(string& dnsServers)
-{
-#if TARGET_OS_IPHONE
-    // Workaround to get the IP of valid DNS servers on iOS
-     __res_state res;
-     bool valid;
-     if (res_ninit(&res) == 0)
-     {
-         union res_sockaddr_union u[MAXNS];
-         int nscount = res_getservers(&res, u, MAXNS);
-
-         for (int i = 0; i < nscount; i++)
-         {
-             char straddr[INET6_ADDRSTRLEN];
-             straddr[0] = 0;
-             valid = false;
-
-             if (u[i].sin.sin_family == PF_INET)
-             {
-                 valid = mega_inet_ntop(PF_INET, &u[i].sin.sin_addr, straddr, sizeof(straddr)) == straddr;
-             }
-
-             if (u[i].sin6.sin6_family == PF_INET6)
-             {
-                 valid = mega_inet_ntop(PF_INET6, &u[i].sin6.sin6_addr, straddr, sizeof(straddr)) == straddr;
-             }
-
-             if (valid && straddr[0])
-             {
-                 if (dnsServers.size())
-                 {
-                     dnsServers.append(",");
-                 }
-                 dnsServers.append(straddr);
-             }
-         }
-
-         res_ndestroy(&res);
-     }
-
-     if (!dnsServers.size())
-     {
-         LOG_warn << "Failed to get DNS servers from OS";
-     }
-#endif
-}
-
 void HttpIO::getMEGADNSservers(string* dnsservers, bool getfromnetwork)
 {
     if (!dnsservers)
@@ -674,7 +624,7 @@ byte* HttpReq::reserveput(unsigned* len)
             in.resize(static_cast<size_t>(bufpos + *len));
         }
 
-        *len = static_cast<unsigned>(in.size() - bufpos);
+        *len = static_cast<unsigned>(in.size() - static_cast<unsigned>(bufpos));
 
         return (byte*)in.data() + bufpos;
     }
@@ -689,7 +639,7 @@ m_off_t HttpReq::transferred(MegaClient*)
     }
     else
     {
-        return in.size();
+        return static_cast<m_off_t>(in.size());
     }
 }
 
@@ -730,7 +680,8 @@ void HttpReqDL::prepare(const char* tempurl, SymmCipher* /*key*/,
 
         if (size)
         {
-            buf = new byte[(size + SymmCipher::BLOCKSIZE - 1) & - SymmCipher::BLOCKSIZE];
+            buf = new byte[(size + SymmCipher::BLOCKSIZE - 1) &
+                           ~(static_cast<size_t>(SymmCipher::BLOCKSIZE) - 1)];
         }
         buflen = size;
     }
@@ -779,7 +730,7 @@ void EncryptByChunks::updateCRC(byte* data, unsigned size, unsigned offset)
     }
     if (ll)
     {
-        data += (size - ll);
+        data += (size - static_cast<size_t>(ll));
         while (ll--)
         {
             crc[ll] ^= data[ll];
@@ -801,7 +752,13 @@ bool EncryptByChunks::encrypt(m_off_t pos, m_off_t npos, string& urlSuffix)
 
         // The chunk is fully encrypted but finished==false for now,
         // we only set finished after confirmation of the chunk uploading.
-        macs->ctr_encrypt(startpos, key, buf, unsigned(chunksize), startpos, ctriv, false);
+        macs->ctr_encrypt(startpos,
+                          key,
+                          buf,
+                          unsigned(chunksize),
+                          startpos,
+                          static_cast<int64_t>(ctriv),
+                          false);
 
         LOG_debug << "Encrypted chunk: " << startpos << " - " << endpos << "   Size: " << chunksize;
 
@@ -1063,7 +1020,7 @@ void SpeedController::updateCircularBufferWithWeightedAverageForDeltaExceedingLi
 
     // Calculate the number of index positions to advance in the circular buffer
     auto deltaIndexPositions = deltaTimeFromPreviousCall / DS_PER_SECOND;
-    nextIndex(mCircularCurrentIndex, deltaIndexPositions);
+    nextIndex(mCircularCurrentIndex, static_cast<size_t>(deltaIndexPositions));
 
     // Exclude the actual second from the delta calculation
     delta = (aggregatedDeltaValuePerSecond * (SPEED_MEAN_CIRCULAR_BUFFER_SIZE_SECONDS - 1));

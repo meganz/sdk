@@ -94,6 +94,7 @@ class MegaIntegerMap;
 class MegaIntegerList;
 class MegaSyncStall;
 class MegaSyncStallList;
+class MegaSyncStallMap;
 class MegaFuseExecutorFlags;
 class MegaFuseFlags;
 class MegaFuseInodeCacheFlags;
@@ -4605,7 +4606,8 @@ class MegaRequest
             TYPE_GET_ACTIVE_SURVEY_TRIGGER_ACTIONS = 197,
             TYPE_GET_SURVEY = 198,
             TYPE_ANSWER_SURVEY = 199,
-            TOTAL_OF_REQUEST_TYPES = 200,
+            TYPE_CHANGE_SYNC_ROOT = 200,
+            TOTAL_OF_REQUEST_TYPES = 201,
         };
 
         virtual ~MegaRequest();
@@ -5509,13 +5511,29 @@ class MegaRequest
          */
         virtual MegaSyncStallList* getMegaSyncStallList() const;
 
+        /**
+         * @brief
+         * Returns a reference to this request's MegaSyncStallMap instance.
+         *
+         * This value is valid only for the following requests:
+         * - MegaApi::getMegaSyncStallMap
+         *
+         * @return
+         * A reference to this request's getMegaSyncStallMap instance.
+         */
+        virtual MegaSyncStallMap* getMegaSyncStallMap() const;
+
 #endif // ENABLE_SYNC
 
         /**
          * @brief Provide all available VPN Regions, including their details.
          *
          * The data included for each Region is the following:
-         * - Name (example: NZ, JP, CA-WEST etc.)
+         * - Name (example: hMLKTUojS6o, 1MvzBCx1Uf4)
+         * - Country Code (example: ES, LU)
+         * - Country Name (example: Spain, Luxembourg)
+         * - Region Name (optional) (example: Esch-sur-Alzette)
+         * - Town Name (Optional) (example: Bettembourg)
          * - Map of {ClusterID, Cluster}.
          * - For each Cluster:
          *    · Host.
@@ -7447,6 +7465,53 @@ class MegaSyncStallList
         virtual size_t getHash() const;
 };
 
+/**
+ * @brief A Map of BackupId to list of synchronization stall conflicts @see MegaSyncStall
+ */
+class MegaSyncStallMap
+{
+public:
+    MegaSyncStallMap() = default;
+    virtual ~MegaSyncStallMap() = default;
+    virtual MegaSyncStallMap* copy() const;
+
+    /**
+     * @brief Returns the number of elements in the MegaSyncStallMap.
+     *
+     * @return The number of elements in the MegaSyncStallMap.
+     */
+    virtual size_t size() const;
+
+    /**
+     * @brief Get an unique identifier that is calculated combining the hashes of all the
+     * elements in the container. The order of the elements also affects the final hash.
+     *
+     * @return A combined hash value of all MegaSyncStall elements in the map.
+     */
+    virtual size_t getHash() const;
+
+    /**
+     * @brief Retrieves a MegaSyncStallList object associated with the given key.
+     *
+     * The SDK retains the ownership of the MegaSyncStall object.
+     *
+     * @param key MegaHandle to look for in the stalls map.
+     * @return A pointer to the MegaSyncStallList object associated with the key, or nullptr if not
+     * found.
+     */
+    virtual const MegaSyncStallList* get(const MegaHandle key) const;
+
+    /**
+     * @brief Retrieves a list of all keys present in the MegaSyncStallMap.
+     *
+     * This method creates and returns a MegaHandleList containing all the keys
+     * currently present in the internal map of stalls.
+     *
+     * @return A MegaHandleList containing all keys(BackupId's) from the stalls map.
+     */
+    virtual MegaHandleList* getKeys() const;
+};
+
 #endif // ENABLE_SYNC
 
 
@@ -7806,6 +7871,7 @@ public:
         API_EAPPKEY = -22,              ///< Invalid or missing application key.
         API_ESSL = -23,                 ///< SSL verification failed
         API_EGOINGOVERQUOTA = -24,      ///< Not enough quota
+        API_EROLLEDBACK = -25, ///< A strongly-grouped request was rolled back.
         API_EMFAREQUIRED = -26,         ///< Multi-factor authentication required
         API_EMASTERONLY = -27,          ///< Access denied for sub-users (only for business accounts)
         API_EBUSINESSPASTDUE = -28,     ///< Business account expired
@@ -8504,10 +8570,13 @@ class MegaGlobalListener
         /**
          * @brief This function is called when there are new or updated contacts in the account
          *
-         * The SDK retains the ownership of the MegaUserList in the second parameter. The list and all the
-         * MegaUser objects that it contains will be valid until this function returns. If you want to save the
-         * list, use MegaUserList::copy. If you want to save only some of the MegaUser objects, use MegaUser::copy
-         * for those objects.
+         * When the full account is reloaded or a large number of server notifications arrives at
+         * once, the second parameter will be NULL.
+         *
+         * The SDK retains the ownership of the MegaUserList in the second parameter. The list and
+         * all the MegaUser objects that it contains will be valid until this function returns. If
+         * you want to save the list, use MegaUserList::copy. If you want to save only some of the
+         * MegaUser objects, use MegaUser::copy for those objects.
          *
          * @param api MegaApi object connected to the account
          * @param users List that contains the new or updated contacts
@@ -8515,16 +8584,20 @@ class MegaGlobalListener
         virtual void onUsersUpdate(MegaApi* api, MegaUserList *users);
 
         /**
-        * @brief This function is called when there are new or updated user alerts in the account
-        *
-        * The SDK retains the ownership of the MegaUserAlertList in the second parameter. The list and all the
-        * MegaUserAlert objects that it contains will be valid until this function returns. If you want to save the
-        * list, use MegaUserAlertList::copy. If you want to save only some of the MegaUserAlert objects, use MegaUserAlert::copy
-        * for those objects.
-        *
-        * @param api MegaApi object connected to the account
-        * @param alerts List that contains the new or updated alerts
-        */
+         * @brief This function is called when there are new or updated user alerts in the account
+         *
+         * When there is a problem parsing the incoming information from the server or the full
+         * account is reloaded or a large number of server notifications arrives at once, the second
+         * parameter will be NULL.
+         *
+         * The SDK retains the ownership of the MegaUserAlertList in the second parameter. The list
+         * and all the MegaUserAlert objects that it contains will be valid until this function
+         * returns. If you want to save the list, use MegaUserAlertList::copy. If you want to save
+         * only some of the MegaUserAlert objects, use MegaUserAlert::copy for those objects.
+         *
+         * @param api MegaApi object connected to the account
+         * @param alerts List that contains the new or updated alerts
+         */
         virtual void onUserAlertsUpdate(MegaApi* api, MegaUserAlertList *alerts);
 
         /**
@@ -8556,10 +8629,13 @@ class MegaGlobalListener
         /**
          * @brief This function is called when a Set has been updated (created / updated / removed)
          *
-         * The SDK retains the ownership of the MegaSetList in the second parameter. The list and all the
-         * MegaSet objects that it contains will be valid until this function returns. If you want to save the
-         * list, use MegaSetList::copy. If you want to save only some of the MegaSet objects, use MegaSet::copy
-         * for them.
+         * When the full account is reloaded or a large number of server notifications arrives at
+         * once, the second parameter will be NULL.
+         *
+         * The SDK retains the ownership of the MegaSetList in the second parameter. The list and
+         * all the MegaSet objects that it contains will be valid until this function returns. If
+         * you want to save the list, use MegaSetList::copy. If you want to save only some of the
+         * MegaSet objects, use MegaSet::copy for them.
          *
          * @param api MegaApi object connected to the account
          * @param sets List that contains the new or updated Sets
@@ -8567,12 +8643,16 @@ class MegaGlobalListener
         virtual void onSetsUpdate(MegaApi* api, MegaSetList* sets);
 
         /**
-         * @brief This function is called when a Set-Element has been updated (created / updated / removed)
+         * @brief This function is called when a Set-Element has been updated (created / updated /
+         * removed)
          *
-         * The SDK retains the ownership of the MegaSetElementList in the second parameter. The list and all the
-         * MegaSetElement objects that it contains will be valid until this function returns. If you want to save the
-         * list, use MegaSetElementList::copy. If you want to save only some of the MegaSetElement objects, use
-         * MegaSetElement::copy for them.
+         * When the full account is reloaded or a large number of server notifications arrives at
+         * once, the second parameter will be NULL.
+         *
+         * The SDK retains the ownership of the MegaSetElementList in the second parameter. The list
+         * and all the MegaSetElement objects that it contains will be valid until this function
+         * returns. If you want to save the list, use MegaSetElementList::copy. If you want to save
+         * only some of the MegaSetElement objects, use MegaSetElement::copy for them.
          *
          * @param api MegaApi object connected to the account
          * @param elements List that contains the new or updated Set-Elements
@@ -8633,12 +8713,16 @@ class MegaGlobalListener
         /**
          * @brief This function is called when there are new or updated chats
          *
-         * This callback is also used to initialize the list of chats available during the fetchnodes request.
+         * When the full account is reloaded or a large number of server notifications arrives at
+         * once, the second parameter will be NULL.
          *
-         * The SDK retains the ownership of the MegaTextChatList in the second parameter. The list and all the
-         * MegaTextChat objects that it contains will be valid until this function returns. If you want to save the
-         * list, use MegaTextChatList::copy. If you want to save only some of the MegaTextChat objects, use
-         * MegaTextChat::copy for those objects.
+         * This callback is also used to initialize the list of chats available during the
+         * fetchnodes request.
+         *
+         * The SDK retains the ownership of the MegaTextChatList in the second parameter. The list
+         * and all the MegaTextChat objects that it contains will be valid until this function
+         * returns. If you want to save the list, use MegaTextChatList::copy. If you want to save
+         * only some of the MegaTextChat objects, use MegaTextChat::copy for those objects.
          *
          * @param api MegaApi object connected to the account
          * @param chats List that contains the new or updated chats
@@ -8976,29 +9060,36 @@ class MegaListener
         virtual void onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* error);
 
         /**
-        * @brief This function is called when there are new or updated contacts in the account
-        *
-        * The SDK retains the ownership of the MegaUserList in the second parameter. The list and all the
-        * MegaUser objects that it contains will be valid until this function returns. If you want to save the
-        * list, use MegaUserList::copy. If you want to save only some of the MegaUser objects, use MegaUser::copy
-        * for those objects.
-        *
-        * @param api MegaApi object connected to the account
-        * @param users List that contains the new or updated contacts
-        */
+         * @brief This function is called when there are new or updated contacts in the account
+         *
+         * When the full account is reloaded or a large number of server notifications arrives at
+         * once, the second parameter will be NULL.
+         *
+         * The SDK retains the ownership of the MegaUserList in the second parameter. The list and
+         * all the MegaUser objects that it contains will be valid until this function returns. If
+         * you want to save the list, use MegaUserList::copy. If you want to save only some of the
+         * MegaUser objects, use MegaUser::copy for those objects.
+         *
+         * @param api MegaApi object connected to the account
+         * @param users List that contains the new or updated contacts
+         */
         virtual void onUsersUpdate(MegaApi* api, MegaUserList *users);
 
         /**
-        * @brief This function is called when there are new or updated user alerts in the account
-        *
-        * The SDK retains the ownership of the MegaUserAlertList in the second parameter. The list and all the
-        * MegaUserAlert objects that it contains will be valid until this function returns. If you want to save the
-        * list, use MegaUserAlertList::copy. If you want to save only some of the MegaUserAlert objects, use MegaUserAlert::copy
-        * for those objects.
-        *
-        * @param api MegaApi object connected to the account
-        * @param alerts List that contains the new or updated alerts
-        */
+         * @brief This function is called when there are new or updated user alerts in the account
+         *
+         * When there is a problem parsing the incoming information from the server or the full
+         * account is reloaded or a large number of server notifications arrives at once, the second
+         * parameter will be NULL.
+         *
+         * The SDK retains the ownership of the MegaUserAlertList in the second parameter. The list
+         * and all the MegaUserAlert objects that it contains will be valid until this function
+         * returns. If you want to save the list, use MegaUserAlertList::copy. If you want to save
+         * only some of the MegaUserAlert objects, use MegaUserAlert::copy for those objects.
+         *
+         * @param api MegaApi object connected to the account
+         * @param alerts List that contains the new or updated alerts
+         */
         virtual void onUserAlertsUpdate(MegaApi* api, MegaUserAlertList *alerts);
 
         /**
@@ -9030,10 +9121,13 @@ class MegaListener
         /**
          * @brief This function is called when a Set has been updated (created / updated / removed)
          *
-         * The SDK retains the ownership of the MegaSetList in the second parameter. The list and all the
-         * MegaSet objects that it contains will be valid until this function returns. If you want to save the
-         * list, use MegaSetList::copy. If you want to save only some of the MegaSet objects, use MegaSet::copy
-         * for them.
+         * When the full account is reloaded or a large number of server notifications arrives at
+         * once, the second parameter will be NULL.
+         *
+         * The SDK retains the ownership of the MegaSetList in the second parameter. The list and
+         * all the MegaSet objects that it contains will be valid until this function returns. If
+         * you want to save the list, use MegaSetList::copy. If you want to save only some of the
+         * MegaSet objects, use MegaSet::copy for them.
          *
          * @param api MegaApi object connected to the account
          * @param sets List that contains the new or updated Sets
@@ -9041,12 +9135,16 @@ class MegaListener
         virtual void onSetsUpdate(MegaApi* api, MegaSetList* sets);
 
         /**
-         * @brief This function is called when a Set-Element has been updated (created / updated / removed)
+         * @brief This function is called when a Set-Element has been updated (created / updated /
+         * removed)
          *
-         * The SDK retains the ownership of the MegaSetElementList in the second parameter. The list and all the
-         * MegaSetElement objects that it contains will be valid until this function returns. If you want to save the
-         * list, use MegaSetElementList::copy. If you want to save only some of the MegaSetElement objects, use
-         * MegaSetElement::copy for them.
+         * When the full account is reloaded or a large number of server notifications arrives at
+         * once, the second parameter will be NULL.
+         *
+         * The SDK retains the ownership of the MegaSetElementList in the second parameter. The list
+         * and all the MegaSetElement objects that it contains will be valid until this function
+         * returns. If you want to save the list, use MegaSetElementList::copy. If you want to save
+         * only some of the MegaSetElement objects, use MegaSetElement::copy for them.
          *
          * @param api MegaApi object connected to the account
          * @param elements List that contains the new or updated Set-Elements
@@ -9269,10 +9367,13 @@ class MegaListener
     /**
      * @brief This function is called when there are new or updated chats
      *
-     * The SDK retains the ownership of the MegaTextChatList in the second parameter. The list and all the
-     * MegaTextChat objects that it contains will be valid until this function returns. If you want to save the
-     * list, use MegaTextChatList::copy. If you want to save only some of the MegaTextChat objects, use
-     * MegaTextChat::copy for those objects.
+     * When the full account is reloaded or a large number of server notifications arrives at once,
+     * the second parameter will be NULL.
+     *
+     * The SDK retains the ownership of the MegaTextChatList in the second parameter. The list and
+     * all the MegaTextChat objects that it contains will be valid until this function returns. If
+     * you want to save the list, use MegaTextChatList::copy. If you want to save only some of the
+     * MegaTextChat objects, use MegaTextChat::copy for those objects.
      *
      * @param api MegaApi object connected to the account
      * @param chats List that contains the new or updated chats
@@ -10426,6 +10527,26 @@ class MegaApi
             TRANSFER_STATS_UPLOAD = 1,
             TRANSFER_STATS_BOTH = 2,
             TRANSFER_STATS_MAX = TRANSFER_STATS_BOTH,
+        };
+
+        /**
+         * @enum ActionType
+         * @brief Enumeration representing different types of trigger actions for surveys.
+         *
+         * This enum is used to define actions that will trigger specific surveys.
+         * Each action is associated with a particular user activity.
+         */
+        enum SurveyTriggerActionId
+        {
+            ACT_END_UPLOAD = 1,
+            ACT_END_MEETING = 2,
+            ACT_CLOSING_DOC = 3,
+            ACT_END_VIDEO = 4,
+            ACT_END_AUDIO = 5,
+            ACT_INIT_BACKUP = 6,
+            ACT_END_PHOTO_UPLOAD = 7,
+            ACT_END_ALBUM_UPLOAD = 8,
+            ACT_SHARE_FOLDER_FILE = 9,
         };
 
         static constexpr int64_t INVALID_CUSTOM_MOD_TIME = -1;
@@ -17242,27 +17363,35 @@ class MegaApi
         long long getNumLocalNodes();
 
         /**
-         * @brief
-         * Query the sync engine to find out what is causing sync stalls
+         * @brief Query the sync engine to find out what is causing sync stalls
          *
-         * The type of this request is MegaRequest::TYPE_GET_SYNC_STALL_LIST.
+         * The associated request type with this request is MegaRequest::TYPE_GET_SYNC_STALL_LIST.
          *
-         * @param listener
-         * A MegaRequestListener with which to track the request.
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code is
+         * MegaError::API_OK:
+         * - MegaRequest::getMegaSyncStallList -  Returns a List of synchronization stall conflicts
          *
-         * @param detailed
-         * Set to true if you want to receive as much information as
-         * possible detailing any problems the sync engine has detected.
+         * @param listener A MegaRequestListener with which to track the request.
          *
-         * If this flag is false, the engine will tell you whether it had
-         * detected any name conflicts or stalls but it will not include any
-         * information about those conflicts or stalls.
-         *
-         * If the flag is true, the engine will include detailed information
-         * about any detected name conflicts or stalls.
          */
         void getMegaSyncStallList(MegaRequestListener* listener);
 
+        /**
+         * @brief Query the sync engine to find out what is causing sync stalls
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_SYNC_STALL_LIST.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getFlag - Returns true
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code is
+         * MegaError::API_OK:
+         * - MegaRequest::getMegaSyncStallMap -  Returns a Map of BackupId to synchronization stall
+         * conflicts list
+         *
+         * @param listener A MegaRequestListener with which to track the request.
+         *
+         */
+        void getMegaSyncStallMap(MegaRequestListener* listener);
 
         /**
          * @brief
@@ -17293,6 +17422,52 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void moveToDebris(const char* path, MegaHandle syncBackupId, MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Change the node that is being used as remote root for a sync.
+         *
+         * @important If the sync is active when executing this method, it will be temporary
+         * suspended to perform the change, meaning that any ongoing transfer will be automatically
+         * stopped.
+         *
+         * @note This operation is only allowed with syncs of TYPE_TWOWAY.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHANGE_SYNC_ROOT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParentHandle - Returns the handle of the new remote root in MEGA
+         * - MegaRequest::getNodeHandle - Returns the affected sync backupId
+         * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+         * - MegaRequest::getNumDetails - If different than NO_SYNC_ERROR, it returns additional
+         * info about the specific sync error (MegaSync::Error). It could happen both when the
+         * request has succeeded (API_OK) and also in some cases of failure, when the request error
+         * is not accurate enough.
+         *
+         * On the onRequestFinish callback, the error code associated with the MegaError
+         * (MegaError::getErrorCode()) and the SyncError (if relevant, MegaError::getSyncError())
+         * can be:
+         * - MegaError::API_OK:
+         *     + SyncError::NO_SYNC_ERROR the new root has been changed successfully
+         * - MegaError::API_EARGS:
+         *     + SyncError::NO_SYNC_ERROR The given syncBackupId or newRootNodeHandle are UNDEF
+         *     + SyncError::REMOTE_NODE_NOT_FOUND The given newRootNodeHandle does not map to an
+         *       existing node in the cloud
+         *     + SyncError::UNKNOWN_ERROR The given syncBackupId does not map to an existing two way
+         *       sync
+         * - MegaError::API_EEXISTS:
+         *     + SyncError::UNKNOWN_ERROR the given newRootNodeHandle matches with the one that is
+         *       already the root of the sync
+         *
+         * Additionally, error codes associated to the MegaApi::isNodeSyncableWithError() method
+         * can also be reported by this method. See MegaApi::isNodeSyncableWithError() for specific
+         * SyncError codes depending on the specific MegaError code.
+         *
+         * @param syncBackupId handle of the sync to change its remote root
+         * @param newRootNodeHandle Handle of the MEGA node to set as new sync remote root
+         * @param listener MegaRequestListener to track this request
+         */
+        void changeSyncRemoteRoot(const MegaHandle syncBackupId,
+                                  const MegaHandle newRootNodeHandle,
+                                  MegaRequestListener* listener = nullptr);
 
 #endif // ENABLE_SYNC
 
@@ -18108,13 +18283,33 @@ class MegaApi
          *
          * This method returns both verified and not verified shares.
          *
-         * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
-         * MegaApi::ORDER_DEFAULT_DESC
-         *
          * You take the ownership of the returned value
          *
          * @param user MegaUser sharing folders with this account
          * @param order Sorting order to use
+         *
+         * Valid values for this parameter are:
+         * - MegaApi::ORDER_NONE = 0
+         * Undefined order
+         *
+         * - MegaApi::ORDER_DEFAULT_ASC = 1
+         * Alphabetical order, e.g. bar, Car, foo
+         *
+         * - MegaApi::ORDER_DEFAULT_DESC = 2
+         * Alphabetical inverse order, e.g. foo, Car, bar
+         *
+         * - MegaApi::ORDER_SIZE_ASC = 3
+         * Sort by size, small elements first
+         *
+         * - MegaApi::ORDER_SIZE_DESC = 4
+         * Sort by size, small elements last
+         *
+         * - MegaApi::ORDER_CREATION_ASC = 5
+         * Sort by creation time in MEGA, older elements first
+         *
+         * - MegaApi::ORDER_CREATION_DESC = 6
+         * Sort by creation time in MEGA, older elements last
+         *
          * @return List of MegaNode objects that this user is sharing with this account
          */
         MegaNodeList *getInShares(MegaUser* user, int order = ORDER_NONE);
@@ -18124,12 +18319,32 @@ class MegaApi
          *
          * This method returns both verified and not verified shares.
          *
-         * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
-         * MegaApi::ORDER_DEFAULT_DESC
-         *
          * You take the ownership of the returned value
          *
          * @param order Sorting order to use
+         *
+         * Valid values for this parameter are:
+         * - MegaApi::ORDER_NONE = 0
+         * Undefined order
+         *
+         * - MegaApi::ORDER_DEFAULT_ASC = 1
+         * Alphabetical order, e.g. bar, Car, foo
+         *
+         * - MegaApi::ORDER_DEFAULT_DESC = 2
+         * Alphabetical inverse order, e.g. foo, Car, bar
+         *
+         * - MegaApi::ORDER_SIZE_ASC = 3
+         * Sort by size, small elements first
+         *
+         * - MegaApi::ORDER_SIZE_DESC = 4
+         * Sort by size, small elements last
+         *
+         * - MegaApi::ORDER_CREATION_ASC = 5
+         * Sort by creation time in MEGA, older elements first
+         *
+         * - MegaApi::ORDER_CREATION_DESC = 6
+         * Sort by creation time in MEGA, older elements last
+         *
          * @return List of MegaNode objects that other users are sharing with this account
          */
         MegaNodeList *getInShares(int order = ORDER_NONE);
@@ -18139,12 +18354,32 @@ class MegaApi
          *
          * This method returns verified shares.
          *
-         * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
-         * MegaApi::ORDER_DEFAULT_DESC
-         *
          * You take the ownership of the returned value
          *
          * @param order Sorting order to use
+         *
+         * Valid values for this parameter are:
+         * - MegaApi::ORDER_NONE = 0
+         * Undefined order
+         *
+         * - MegaApi::ORDER_DEFAULT_ASC = 1
+         * Alphabetical order, e.g. bar, Car, foo
+         *
+         * - MegaApi::ORDER_DEFAULT_DESC = 2
+         * Alphabetical inverse order, e.g. foo, Car, bar
+         *
+         * - MegaApi::ORDER_SIZE_ASC = 3
+         * Sort by size, small elements first
+         *
+         * - MegaApi::ORDER_SIZE_DESC = 4
+         * Sort by size, small elements last
+         *
+         * - MegaApi::ORDER_CREATION_ASC = 5
+         * Sort by creation time in MEGA, older elements first
+         *
+         * - MegaApi::ORDER_CREATION_DESC = 6
+         * Sort by creation time in MEGA, older elements last
+         *
          * @return List of MegaShare objects that other users are sharing with this account
          */
         MegaShareList *getInSharesList(int order = ORDER_NONE);
@@ -18155,6 +18390,29 @@ class MegaApi
          * You take the ownership of the returned value
          *
          * @param order Sorting order to use
+         *
+         * Valid values for this parameter are:
+         * - MegaApi::ORDER_NONE = 0
+         * Undefined order
+         *
+         * - MegaApi::ORDER_DEFAULT_ASC = 1
+         * Alphabetical order, e.g. bar, Car, foo
+         *
+         * - MegaApi::ORDER_DEFAULT_DESC = 2
+         * Alphabetical inverse order, e.g. foo, Car, bar
+         *
+         * - MegaApi::ORDER_SIZE_ASC = 3
+         * Sort by size, small elements first
+         *
+         * - MegaApi::ORDER_SIZE_DESC = 4
+         * Sort by size, small elements last
+         *
+         * - MegaApi::ORDER_CREATION_ASC = 5
+         * Sort by creation time in MEGA, older elements first
+         *
+         * - MegaApi::ORDER_CREATION_DESC = 6
+         * Sort by creation time in MEGA, older elements last
+         *
          * @return List of MegaShare objects that other users are sharing with this account
          */
         MegaShareList *getUnverifiedInShares(int order = ORDER_NONE);
@@ -18233,13 +18491,32 @@ class MegaApi
          * @brief Get a list with all active and pending outbound sharings
          *
          * This method returns both, verified and unverified shares.
-         *
-         * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
-         * MegaApi::ORDER_DEFAULT_DESC
-         *
          * You take the ownership of the returned value
          *
          * @param order Sorting order to use
+         *
+         * Valid values for this parameter are:
+         * - MegaApi::ORDER_NONE = 0
+         * Undefined order
+         *
+         * - MegaApi::ORDER_DEFAULT_ASC = 1
+         * Alphabetical order, e.g. bar, Car, foo
+         *
+         * - MegaApi::ORDER_DEFAULT_DESC = 2
+         * Alphabetical inverse order, e.g. foo, Car, bar
+         *
+         * - MegaApi::ORDER_SIZE_ASC = 3
+         * Sort by size, small elements first
+         *
+         * - MegaApi::ORDER_SIZE_DESC = 4
+         * Sort by size, small elements last
+         *
+         * - MegaApi::ORDER_CREATION_ASC = 5
+         * Sort by creation time in MEGA, older elements first
+         *
+         * - MegaApi::ORDER_CREATION_DESC = 6
+         * Sort by creation time in MEGA, older elements last
+         *
          * @return List of MegaShare objects
          */
         MegaShareList *getOutShares(int order = ORDER_NONE);
@@ -18288,6 +18565,29 @@ class MegaApi
          * You take the ownership of the returned value
          *
          * @param order Sorting order to use
+         *
+         * Valid values for this parameter are:
+         * - MegaApi::ORDER_NONE = 0
+         * Undefined order
+         *
+         * - MegaApi::ORDER_DEFAULT_ASC = 1
+         * Alphabetical order, e.g. bar, Car, foo
+         *
+         * - MegaApi::ORDER_DEFAULT_DESC = 2
+         * Alphabetical inverse order, e.g. foo, Car, bar
+         *
+         * - MegaApi::ORDER_SIZE_ASC = 3
+         * Sort by size, small elements first
+         *
+         * - MegaApi::ORDER_SIZE_DESC = 4
+         * Sort by size, small elements last
+         *
+         * - MegaApi::ORDER_CREATION_ASC = 5
+         * Sort by creation time in MEGA, older elements first
+         *
+         * - MegaApi::ORDER_CREATION_DESC = 6
+         * Sort by creation time in MEGA, older elements last
+         *
          * @return List of MegaShare objects
          */
         MegaShareList *getUnverifiedOutShares(int order = ORDER_NONE);
@@ -22950,6 +23250,8 @@ class MegaApi
          * relevant for that A/B Test flag (via a request of type MegaRequest::TYPE_AB_TEST_ACTIVE,
          * for which the response is not be relevant for the calling app)
          *
+         * You take the ownership of the returned value
+         *
          * @param flagName Name or key of the value to be retrieved (and possibly be sent to API as active).
          * @param commit Determine whether an A/B Test flag will be sent to API as active.
          *
@@ -23096,6 +23398,10 @@ class MegaApi
          *
          * This function answers a survey that the user has been asked to complete.
          *
+         * @note: If triggerActionId is MegaApi::ACT_END_UPLOAD, response and comment params, must
+         * be valid null terminated c-style strings, and response must contains a string with a
+         * valid rating value between 1 and 5
+         *
          * The associated request type for this function is MegaRequest::TYPE_ANSWER_SURVEY.
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the survey handle.
@@ -23106,11 +23412,14 @@ class MegaApi
          * If the request fails, the MegaError code in onRequestFinish can be:
          * - EACCESS   - Invalid user ID.
          * - EARGS     - Invalid arguments such as invalid survey handle/invalid trigger action ID.
+         * Also if triggerActionId is MegaApi::ACT_END_UPLOAD, and no valid rating value is provided
+         * at response, or comment param is nullptr.
          * - ENOENT    - Survey not found, trigger action not found, or survey disabled.
          * - EINTERNAL - Received answer could not be read.
          *
          * @param surveyHandle The survey handle
-         * @param triggerActionId The trigger action ID
+         * @param triggerActionId The trigger action ID. Valid values for this field are defined at
+         * MegaApi::SurveyTriggerActionId
          * @param response The response to the survey
          * @param comment The response to tell us more
          * @param listener MegaRequestListener to track this request
@@ -24935,7 +25244,11 @@ protected:
 /**
  * @brief Container to store information of a VPN Region.
  *
- *  - Name (example: NZ, JP, CA-WEST etc.)
+ *  - Name (example: hMLKTUojS6o, 1MvzBCx1Uf4)
+ *  - Country Code (example: ES, LU)
+ *  - Country Name (example: Spain, Luxembourg)
+ *  - Region Name (optional) (example: Esch-sur-Alzette)
+ *  - Town Name (Optional) (example: Bettembourg)
  *  - Clusters (contain information like host, DNS list, possibly others)
  *
  * Instances of this class are immutable.
@@ -24952,6 +25265,50 @@ public:
      * @return the name of this VPN Region, always not-null.
      */
     virtual const char* getName() const = 0;
+
+    /**
+     * @brief Get the country code where the VPN Region is located.
+     *
+     * The caller does not take ownership of the returned value, which is valid as long as current
+     * instance is valid.
+     *
+     * @return the country code for this VPN Region, always not-null.
+     */
+    virtual const char* getCountryCode() const = 0;
+
+    /**
+     * @brief Get the name of the country where the VPN Region is located.
+     *
+     * The caller does not take ownership of the returned value, which is valid as long as current
+     * instance is valid.
+     *
+     * @return the country name for this VPN Region, always not-null.
+     */
+    virtual const char* getCountryName() const = 0;
+
+    /**
+     * @brief Get the name of the country region where this VPN Region is located.
+     *
+     * Optional value. It may be empty for certain VPN Regions
+     *
+     * The caller does not take ownership of the returned value, which is valid as long as current
+     * instance is valid.
+     *
+     * @return the country region name for this VPN Region, always not-null.
+     */
+    virtual const char* getRegionName() const = 0;
+
+    /**
+     * @brief Get the name name of the town where this VPN is located.
+     *
+     * Optional value. It may be empty for certain VPN Regions
+     *
+     * The caller does not take ownership of the returned value, which is valid as long as current
+     * instance is valid.
+     *
+     * @return the name of the Town for this VPN Region, always not-null.
+     */
+    virtual const char* getTownName() const = 0;
 
     /**
      * @brief Get a container with all Clusters of this VPN Region.

@@ -80,6 +80,7 @@ set(SDKLIB_HEADERS
     include/mega/name_collision.h
     include/mega/name_id.h
     include/mega/pwm_file_parser.h
+    include/mega/tlv.h
     include/mega/user_attribute.h
     include/mega/user_attribute_definition.h
     include/mega/user_attribute_manager.h
@@ -145,6 +146,7 @@ set(SDKLIB_SOURCES
     src/process.cpp
     src/name_collision.cpp
     src/pwm_file_parser.cpp
+    src/tlv.cpp
     src/user_attribute.cpp
     src/user_attribute_definition.cpp
     src/user_attribute_manager.cpp
@@ -391,7 +393,6 @@ target_platform_compile_options(
     TARGET SDKlib
     WINDOWS /W4
             /wd4201 # nameless struct/union (nonstandard)
-            /wd4100 # unreferenced formal parameter
             /wd4706 # assignment within conditional
             /wd4458 # identifier hides class member
             /wd4324 # structure was padded due to alignment specifier (common in Sodium)
@@ -399,7 +400,7 @@ target_platform_compile_options(
             /wd4266 # derived class did not override all overloads of a virtual function
             /we4800 # Implicit conversion from 'type' to bool. Possible information loss
             #TODO: remove some of those gradually.  also consider: /wd4503 /wd4996 /wd4702
-    UNIX $<$<CONFIG:Debug>:-ggdb3> -Wall -Wextra -Wconversion -Wno-unused-parameter
+    UNIX $<$<CONFIG:Debug>:-ggdb3> -Wall -Wextra -Wconversion
 )
 
 if(ENABLE_SDKLIB_WERROR)
@@ -408,12 +409,33 @@ if(ENABLE_SDKLIB_WERROR)
         WINDOWS /WX
         UNIX  $<$<CONFIG:Debug>: -Werror
                                  -Wno-error=deprecated-declarations> # Kept as a warning, do not promote to error.
-        APPLE $<$<CONFIG:Debug>: -Wno-sign-conversion
-                                 -Wno-string-conversion
-                                 -Wno-shorten-64-to-32                
-                                 -Wno-unused-value
-                                 -Wno-unqualified-std-cast-call>
+        APPLE $<$<CONFIG:Debug>: -Wno-string-conversion>
     )
+    if(APPLE)
+        set_source_files_properties( # Temporary until sign-conversion warnings are fixed on this files too (SDK-4567, SDK-4568 and SDK-4570)
+            src/db/sqlite.cpp
+            src/commands.cpp
+            src/megaapi_impl.cpp
+            src/megaclient.cpp
+            src/raid.cpp
+            src/raidproxy.cpp
+            src/transfer.cpp
+            src/transferslot.cpp
+            src/utils.cpp
+            PROPERTIES 
+            COMPILE_FLAGS "-Wno-sign-conversion"
+        )
+    endif()
+    if(APPLE)
+        set_source_files_properties(
+            src/mega_ccronexpr.cpp
+            src/mega_http_parser.cpp
+            src/mega_utf8proc.cpp
+            src/mega_zxcvbn.cpp
+            PROPERTIES 
+            COMPILE_FLAGS "-Wno-sign-conversion"
+        )
+    endif()
 endif()
 
 ## Create config files ##

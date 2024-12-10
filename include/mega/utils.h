@@ -21,14 +21,14 @@
 
 #ifndef MEGA_UTILS_H
 #define MEGA_UTILS_H 1
+#include "types.h"
 
-#include <type_traits>
+#include <charconv>
 #include <condition_variable>
-#include <thread>
 #include <mutex>
 #include <shared_mutex>
-
-#include "types.h"
+#include <thread>
+#include <type_traits>
 #undef SSIZE_MAX
 #include "mega/mega_utf8proc.h"
 #undef SSIZE_MAX
@@ -254,95 +254,6 @@ struct MEGA_API MemAccess
 std::string winErrorMessage(DWORD error);
 
 #endif
-
-struct MEGA_API TLVstore
-{
-private:
-    TLV_map tlv;
-
- public:
-
-    /**
-     * @brief containerToTLVrecords Builds a TLV object with records from an encrypted container
-     * @param data Binary byte array representing the encrypted container
-     * @param key Master key to decrypt the container
-     * @return A new TLVstore object. You take the ownership of the object.
-     */
-    static TLVstore * containerToTLVrecords(const string *data, SymmCipher *key);
-
-    /**
-     * @brief Builds a TLV object with records from a container
-     * @param data Binary byte array representing the TLV records
-     * @return A new TLVstore object. You take the ownership of the object.
-     */
-    static TLVstore * containerToTLVrecords(const string *data);
-
-    /**
-     * @brief Converts the TLV records into an encrypted byte array
-     * @param key Master key to decrypt the container
-     * @param encSetting Block encryption mode to be used by AES
-     * @return A new string holding the encrypted byte array. You take the ownership of the string.
-     */
-    string *tlvRecordsToContainer(PrnGen &rng, SymmCipher *key, encryptionsetting_t encSetting = AES_GCM_12_16);
-
-    /**
-     * @brief Converts the TLV records into a byte array
-     * @return A new string holding the byte array. You take the ownership of the string.
-     */
-    string *tlvRecordsToContainer();
-
-    /**
-     * @brief get Get the value for a given key
-     *
-     * In case the type is found, it will update value parameter and return true.
-     * In case the type is not found, it will return false and value will not be changed.
-     *
-     * @param type Type of the value (without scope nor non-historic modifiers).
-     * @param value Set to corresponding value if type was found.
-     * @return True if type was found, false otherwise.
-     */
-    bool get(string type, string& value) const;
-
-    /**
-     * @brief Get a reference to the TLV_map associated to this TLVstore
-     *
-     * The TLVstore object retains the ownership of the returned object. It will be
-     * valid until this TLVstore object is deleted.
-     *
-     * @return The TLV_map associated to this TLVstore
-     */
-    const TLV_map *getMap() const;
-
-    /**
-     * @brief Get a list of the keys contained in the TLV
-     *
-     * You take ownership of the returned value.
-     *
-     * @return A new vector with the keys included in the TLV
-     */
-    vector<string> *getKeys() const;
-
-    /**
-     * @brief add Adds a new record to the container
-     * @param type Type for the new value (without scope nor non-historic modifiers).
-     * @param value New value to be set.
-     */
-    void set(string type, string value);
-
-    /**
-     * @brief Removes a record from the container
-     * @param type Type for the value to be removed (without scope nor non-historic modifiers).
-     */
-    void reset(string type);
-
-    size_t size();
-
-    static unsigned getTaglen(int mode);
-    static unsigned getIvlen(int mode);
-    static encryptionmode_t getMode(int mode);
-
-    ~TLVstore();
-};
 
 class Utils {
 public:
@@ -1504,6 +1415,53 @@ private:
  * @brief Returns std::this_thread:get_id() converted to a string
  */
 std::string getThisThreadIdStr();
+
+/**
+ * @brief Converts a number of any arithmetic type to its string representation.
+ *
+ * @tparam T The type of the number to be converted. It must be an arithmetic type (e.g., int,
+ * float, double).
+ *
+ * @param number The number to be converted to a string.
+ * @return A `std::string` representing the number. If conversion fails or the type is not
+ * arithmetic, an empty string is returned.
+ *
+ * @note This function only supports arithmetic types. The function will return an empty string if
+ * the number cannot be successfully converted.
+ */
+template<typename T>
+std::string numberToString(T number)
+{
+    static_assert(std::is_arithmetic_v<T>, "invalid numeric type");
+
+    char buffer[64];
+    if (auto [ptr, ec] = std::to_chars(buffer, buffer + sizeof(buffer), number); ec == std::errc())
+    {
+        return std::string(buffer, ptr);
+    }
+
+    return {};
+}
+
+/**
+ * @brief helper type for std::visit
+ *
+ * @example Usage example (see https://en.cppreference.com/w/cpp/utility/variant/visit):
+ *   std::visit(overloaded{
+ *          [](auto arg) { std::cout << arg << ' '; },
+ *          [](double arg) { std::cout << std::fixed << arg << ' '; },
+ *          [](const std::string& arg) { std::cout << std::quoted(arg) << ' '; }
+ *      }, v);
+ */
+template<class... Ts>
+struct overloaded: Ts...
+{
+    using Ts::operator()...;
+};
+
+// explicit deduction guide (not needed as of C++20)
+template<class... Ts>
+overloaded(Ts...) -> overloaded<Ts...>;
 
 } // namespace mega
 

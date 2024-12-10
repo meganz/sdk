@@ -241,7 +241,7 @@ bool GfxProviderFreeImage::isFfmpegFile(const string& ext)
     return false;
 }
 
-bool GfxProviderFreeImage::readbitmapFfmpeg(const LocalPath& imagePath, int size)
+bool GfxProviderFreeImage::readbitmapFfmpeg(const LocalPath& imagePath, int /*size*/)
 {
 #ifndef DEBUG
     av_log_set_level(AV_LOG_PANIC);
@@ -277,7 +277,7 @@ bool GfxProviderFreeImage::readbitmapFfmpeg(const LocalPath& imagePath, int size
         if (formatContext->streams[i]->codecpar && formatContext->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO)
         {
             videoStream = formatContext->streams[i];
-            videoStreamIdx = i;
+            videoStreamIdx = static_cast<int>(i);
             break;
         }
     }
@@ -432,7 +432,7 @@ bool GfxProviderFreeImage::readbitmapFfmpeg(const LocalPath& imagePath, int size
                     const int legacy_align = 1;
                     int imagesize = av_image_get_buffer_size(targetPixelFormat, width, height, legacy_align);
                     FIMEMORY fmemory;
-                    fmemory.data = malloc(imagesize);
+                    fmemory.data = malloc(static_cast<size_t>(imagesize));
                     if (!fmemory.data)
                     {
                         LOG_warn << "Error allocating image copy buffer";
@@ -464,8 +464,8 @@ bool GfxProviderFreeImage::readbitmapFfmpeg(const LocalPath& imagePath, int size
 
                     LOG_debug << "Video image ready";
 
-                    w = FreeImage_GetWidth(dib);
-                    h = FreeImage_GetHeight(dib);
+                    w = static_cast<int>(FreeImage_GetWidth(dib));
+                    h = static_cast<int>(FreeImage_GetHeight(dib));
 
                     return w > 0 && h > 0;
                 }
@@ -498,7 +498,7 @@ bool GfxProviderFreeImage::isPdfFile(const string &ext)
     return false;
 }
 
-bool GfxProviderFreeImage::readbitmapPdf(const LocalPath& imagePath, int size)
+bool GfxProviderFreeImage::readbitmapPdf(const LocalPath& imagePath, int /*size*/)
 {
     std::lock_guard<std::mutex> g(gfxMutex);
     if (!pdfiumInitialized)

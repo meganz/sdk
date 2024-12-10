@@ -89,6 +89,12 @@ public:
      */
     std::unique_ptr<MegaNode> getNodeByPath(const std::string& path) const;
 
+    /**
+     * @brief Given the path relative to the root of the test dir, returns the handle of the node
+     * with that path (if exists, nullopt otherwise)
+     */
+    std::optional<MegaHandle> getNodeHandleByPath(const std::string& path) const;
+
 protected:
     /**
      * @brief Create the getRootTestDir() and sets store it internally

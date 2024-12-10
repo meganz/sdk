@@ -336,7 +336,7 @@ void InodeDB::childAdded(const Inode& inode,
     static_cast<void>(result);
 }
 
-void InodeDB::childRemoved(const Inode& inode,
+void InodeDB::childRemoved([[maybe_unused]] const Inode& inode,
                            const std::string& name,
                            NodeHandle parentHandle)
 {
@@ -1252,7 +1252,7 @@ Error InodeDB::move(FileInodeRef source,
     return API_OK;
 }
 
-void InodeDB::remove(const DirectoryInode& inode, InodeDBLock lock)
+void InodeDB::remove(const DirectoryInode& inode, InodeDBLock)
 {
     // Leave a record of what we've done.
     FUSEDebugF("Removing inode %s from memory",

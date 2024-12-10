@@ -11,6 +11,7 @@ class JiraProject:
     - rename NextRelease to the new version
     - create new NextRelease version
     - get release notes
+    - check all tickets on a release are resolved or closed
     """
 
     _NEXT_RELEASE = "NextRelease"
@@ -49,6 +50,7 @@ class JiraProject:
         assert self._version is not None
         assert self._version.released == False
         self._version_id = self._version.id
+        self._check_all_tickets_are_resolved_or_closed()
 
     def update_current_version(self, to_version: str, used_by_apps: str):
         from datetime import date
@@ -203,22 +205,30 @@ class JiraProject:
         all_versions = self._jira.project_versions(self._project_key)
         for v in all_versions:
             assert isinstance(v, Version)
+
             if (
-                not v.archived
-                and not v.released
-                and v.name != self._version.name
-                and re.match(r"^v(\d)+\.(\d+)\.(\d+)$", v.name)
+                v.archived
+                or not v.released
+                or v.name == self._version.name
+                or v.name == self._NEXT_RELEASE
             ):
-                old_major, old_minor, old_micro = (
-                    int(n) for n in v.name[1:].split(".")
-                )
-                assert new_major < old_major or (
-                    new_major == old_major
-                    and (
-                        new_minor < old_minor
-                        or (new_minor == old_minor and new_micro < old_micro)
-                    )
-                ), f"Release {v.name} must be closed before continuing"
+                continue
+
+            match = re.match(r"^v(\d+)\.(\d+)\.(\d+)$", v.name)
+            if not match:
+                continue
+            old_major, old_minor, old_micro = map(int, match.groups())
+            if (
+                new_major,
+                new_minor,
+                new_micro,
+            ) < (
+                old_major,
+                old_minor,
+                old_micro,
+            ):
+                return False
+        return True
 
     def get_next_version(self) -> tuple[int, int, int]:
         highest_existing_version = self._get_highest_existing_version()
@@ -297,3 +307,17 @@ class JiraProject:
                     fixVersions.append({"name": v.name})
             fixVersions.append({"name": self._version.name})
             issue.update({"fixVersions": fixVersions})
+
+    def _check_all_tickets_are_resolved_or_closed(self):
+        jql_query = (
+            f'project = "{self._project_key}" AND fixVersion = "{self._version.name}" '
+            f'AND status NOT IN ("Resolved", "Closed")'
+        )
+        issues = self._jira.search_issues(jql_query)
+
+        assert not issues, (
+            f"The following tickets are not resolved or closed for Fix Version '{self._version.name}':\n"
+            + "\n".join(
+                f"- {issue.key} -> {issue.fields.status.name}" for issue in issues
+            )
+        )

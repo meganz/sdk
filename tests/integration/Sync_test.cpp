@@ -22,8 +22,10 @@
 // Many of these tests are still being worked on.
 
 #include "env_var_accounts.h"
+#include "gmock/gmock.h"
 #include "gtest_common.h"
 #include "mega/scoped_helpers.h"
+#include "mega/tlv.h"
 #include "mega/user_attribute.h"
 #include "test.h"
 
@@ -1261,7 +1263,7 @@ void StandardClient::ResultProc::prepresult(resultprocenum rpe, int tag, std::fu
     client.client.waiter->notify();
 }
 
-void StandardClient::ResultProc::processresult(resultprocenum rpe, error e, handle h, int tag)
+void StandardClient::ResultProc::processresult(resultprocenum rpe, error e, handle, int tag)
 {
     if (tag == 0 && rpe != CATCHUP)
     {
@@ -1513,7 +1515,7 @@ void StandardClient::syncupdate_stateconfig(const SyncConfig& config)
         mOnSyncStateConfig(config);
 }
 
-void StandardClient::useralerts_updated(UserAlert::Base** alerts, int numAlerts)
+void StandardClient::useralerts_updated(UserAlert::Base** /*alerts*/, int numAlerts)
 {
     if (logcb)
     {
@@ -1710,7 +1712,7 @@ bool StandardClient::isUserAttributeSet(attr_t attr, unsigned int numSeconds, er
         user_attribute_updated_cv.notify_one();
     };
 
-    auto completionTLV = [&](TLVstore*, attr_t)
+    auto completionTLV = [&](unique_ptr<string_map>, attr_t)
     {
         std::lock_guard<std::recursive_mutex> g(attr_cv_mutex);
         err = API_OK;
@@ -1737,23 +1739,24 @@ bool StandardClient::waitForAttrDeviceIdIsSet(unsigned int numSeconds, bool& upd
     error err = API_EINTERNAL;
     isUserAttributeSet(attr_t::ATTR_DEVICE_NAMES, numSeconds, err);
 
-    std::unique_ptr<TLVstore> tlv;
+    string_map records;
     std::string deviceIdHash = client.getDeviceidHash();
     if (err == API_OK)
     {
-        const UserAttribute* attribute = client.ownuser()->getAttribute(ATTR_DEVICE_NAMES);
-        tlv.reset(TLVstore::containerToTLVrecords(&attribute->value(), &client.key));
-        std::string buffer;
-        if (tlv->get(deviceIdHash, buffer))
+        if (const UserAttribute* attribute = client.ownuser()->getAttribute(ATTR_DEVICE_NAMES))
         {
-            return true;  // Device id is found
+            if (std::unique_ptr<string_map> oldRecords{
+                    tlv::containerToRecords(attribute->value(), client.key)})
+            {
+                if (oldRecords->find(deviceIdHash) != oldRecords->end())
+                {
+                    return true; // Device id is found
+                }
+                records.swap(*oldRecords);
+            }
         }
     }
-    else if (err == API_ENOENT)
-    {
-        tlv.reset(new TLVstore);
-    }
-    else
+    else if (err != API_ENOENT)
     {
         return false; // Unexpected error has been detected
     }
@@ -1761,33 +1764,40 @@ bool StandardClient::waitForAttrDeviceIdIsSet(unsigned int numSeconds, bool& upd
     std::string timestamp = getCurrentTimestamp(true);
     std::string deviceName = "Jenkins " + timestamp;
 
-    tlv->set(deviceIdHash, deviceName);
+    records.emplace(deviceIdHash, deviceName);
     bool attrDeviceNamePut = false;
     std::recursive_mutex attrDeviceNamePut_mutex;
     std::condition_variable_any attrDeviceNamePut_cv;
     std::atomic_bool replyReceived{false};
-    // serialize and encrypt the TLV container
-    std::unique_ptr<string> container(tlv->tlvRecordsToContainer(client.rng, &client.key));
     std::unique_lock<std::recursive_mutex> g(attrDeviceNamePut_mutex);
-    resultproc.prepresult(COMPLETION, ++next_request_tag,
-        [&](){
-            client.putua(attr_t::ATTR_DEVICE_NAMES, (::mega::byte *)container->data(), unsigned(container->size()), -1, UNDEF, 0, 0, [&](Error e)
-            {
-                std::lock_guard<std::recursive_mutex> g(attrDeviceNamePut_mutex);
-                if (e == API_OK)
-                {
-                    attrDeviceNamePut = true;
-                }
-                else
-                {
-                    LOG_err << "Error setting device id user attribute";
-                }
+    resultproc.prepresult(
+        COMPLETION,
+        ++next_request_tag,
+        [&]()
+        {
+            client.putua(attr_t::ATTR_DEVICE_NAMES,
+                         std::move(records),
+                         -1,
+                         UNDEF,
+                         0,
+                         0,
+                         [&](Error e)
+                         {
+                             std::lock_guard<std::recursive_mutex> g(attrDeviceNamePut_mutex);
+                             if (e == API_OK)
+                             {
+                                 attrDeviceNamePut = true;
+                             }
+                             else
+                             {
+                                 LOG_err << "Error setting device id user attribute";
+                             }
 
-                replyReceived = true;
-                attrDeviceNamePut_cv.notify_one();
-            });
-        }, nullptr);
-
+                             replyReceived = true;
+                             attrDeviceNamePut_cv.notify_one();
+                         });
+        },
+        nullptr);
 
     attrDeviceNamePut_cv.wait_for(g, std::chrono::seconds(numSeconds), [&replyReceived](){ return replyReceived.load(); });
 
@@ -1867,7 +1877,7 @@ void StandardClient::file_complete(File* file)
     }
 }
 
-void StandardClient::notify_retry(dstime when, retryreason_t reason)
+void StandardClient::notify_retry(dstime /*when*/, retryreason_t reason)
 {
     onCallback();
 
@@ -2073,11 +2083,15 @@ void StandardClient::loginFromSession(const string& session, PromiseBoolSP pb)
 #if defined(MEGA_MEASURE_CODE) || defined(DEBUG)
 void StandardClient::sendDeferredAndReset()
 {
-    auto futureResult = thread_do<bool>([&](StandardClient& sc, PromiseBoolSP pb) {
-        client.reqs.deferRequests = nullptr;
-        client.reqs.sendDeferred();
-        pb->set_value(true);
-    }, __FILE__, __LINE__);
+    auto futureResult = thread_do<bool>(
+        [&](StandardClient&, PromiseBoolSP pb)
+        {
+            client.reqs.deferRequests = nullptr;
+            client.reqs.sendDeferred();
+            pb->set_value(true);
+        },
+        __FILE__,
+        __LINE__);
     futureResult.get();
 }
 #endif
@@ -2476,7 +2490,7 @@ void StandardClient::uploadFile(const fs::path& sourcePath,
                                            targettype_t,
                                            vector<NewNode>&,
                                            bool,
-                                           int tag,
+                                           int /*tag*/,
                                            const map<string, string>& /*fileHandles*/)
             {
                 EXPECT_EQ(result, API_OK);
@@ -2797,7 +2811,7 @@ void StandardClient::makeCloudSubdirs(const string& prefix, int depth, int fanou
                                      targettype_t,
                                      vector<NewNode>& nodes,
                                      bool,
-                                     int tag,
+                                     int /*tag*/,
                                      const map<string, string>& /*fileHandles*/)
         {
             lastPutnodesResultFirstHandle = nodes.empty() ? UNDEF : nodes[0].mAddedHandle;
@@ -2997,7 +3011,7 @@ void StandardClient::setupBackup_inThread(const string& rootPath,
         {
             client.addsync(
                 std::move(sc),
-                [revertOnError, result](error e, SyncError se, handle h)
+                [revertOnError, result](error e, SyncError, handle h)
                 {
                     if (e && revertOnError)
                         revertOnError(nullptr);
@@ -3959,9 +3973,9 @@ void StandardClient::unlink_result(handle h, error e)
 }
 
 void StandardClient::putnodes_result(const Error& e,
-                                     targettype_t tt,
+                                     targettype_t,
                                      vector<NewNode>& nn,
-                                     bool targetOverride,
+                                     bool /*targetOverride*/,
                                      int tag,
                                      const map<string, string>& /*fileHandles*/)
 {
@@ -4110,11 +4124,21 @@ void StandardClient::movenodetotrash(string path, PromiseBoolSP pb)
     std::shared_ptr<Node> p = getcloudrubbishnode();
     if (n && p && n->parent)
     {
-        resultproc.prepresult(COMPLETION, ++next_request_tag,
+        resultproc.prepresult(
+            COMPLETION,
+            ++next_request_tag,
             [pb, n, p, this]()
             {
-                client.rename(n, p, SYNCDEL_NONE, NodeHandle(), nullptr, false,
-                    [pb](NodeHandle h, Error e) { pb->set_value(!e); });
+                client.rename(n,
+                              p,
+                              SYNCDEL_NONE,
+                              NodeHandle(),
+                              nullptr,
+                              false,
+                              [pb](NodeHandle, Error e)
+                              {
+                                  pb->set_value(!e);
+                              });
             },
             nullptr);
         return;
@@ -4169,7 +4193,6 @@ void StandardClient::getpubliclink(Node* n, int del, m_time_t expiry, bool writa
         nullptr);
 }
 
-
 void StandardClient::waitonsyncs(chrono::seconds d)
 {
     auto start = chrono::steady_clock::now();
@@ -4177,14 +4200,18 @@ void StandardClient::waitonsyncs(chrono::seconds d)
     {
         bool any_add_del = client.syncs.syncBusyState;
 
-        thread_do<bool>([&any_add_del, this](StandardClient& mc, PromiseBoolSP pb)
+        thread_do<bool>(
+            [&any_add_del, this](StandardClient&, PromiseBoolSP pb)
             {
                 if (!client.multi_transfers[GET].empty() || !client.multi_transfers[PUT].empty())
                 {
                     any_add_del = true;
                 }
                 pb->set_value(true);
-            }, __FILE__, __LINE__).get();
+            },
+            __FILE__,
+            __LINE__)
+            .get();
 
         if (any_add_del || debugging)
         {
@@ -4198,6 +4225,20 @@ void StandardClient::waitonsyncs(chrono::seconds d)
         WaitMillisec(500);
     }
 
+}
+
+void StandardClient::syncproblemsDetected(SyncProblems& problems)
+{
+    PromiseBoolSP pb(new promise<bool>());
+    client.syncs.syncRun(
+        [&]()
+        {
+            problems.mStallsDetected = client.syncs.stallsDetected(problems.mStalls);
+            problems.mConflictsDetected = client.syncs.conflictsDetected(problems.mConflictsMap);
+            pb->set_value(true);
+        },
+        "StandardClient::syncproblemsDetected");
+    EXPECT_TRUE(debugTolerantWaitOnFuture(pb->get_future(), 45));
 }
 
 bool StandardClient::conflictsDetected(list<NameConflict>& conflicts)
@@ -4454,36 +4495,56 @@ void StandardClient::cleanupForTestReuse(int loginIndex)
 
     // delete everything from Vault
     std::atomic<int> requestcount{0};
-    p1 = thread_do<bool>([=, &requestcount](StandardClient& sc, PromiseBoolSP pb) {
-
-        if (auto vault = sc.client.nodeByHandle(sc.client.mNodeManager.getRootNodeVault()))
+    p1 = thread_do<bool>(
+        [=, &requestcount](StandardClient& sc, PromiseBoolSP)
         {
-            for (auto n : sc.client.mNodeManager.getChildren(vault.get()))
+            if (auto vault = sc.client.nodeByHandle(sc.client.mNodeManager.getRootNodeVault()))
             {
-                LOG_debug << "vault child: " << n->displaypath();
-                for (auto& n2 : sc.client.mNodeManager.getChildren(n.get()))
+                for (auto n: sc.client.mNodeManager.getChildren(vault.get()))
                 {
-                    LOG_debug << "Unlinking: " << n2->displaypath();
-                    ++requestcount;
-                    sc.client.unlink(n2.get(), false, 0, true, [&requestcount](NodeHandle, Error){ --requestcount; });
+                    LOG_debug << "vault child: " << n->displaypath();
+                    for (auto& n2: sc.client.mNodeManager.getChildren(n.get()))
+                    {
+                        LOG_debug << "Unlinking: " << n2->displaypath();
+                        ++requestcount;
+                        sc.client.unlink(n2.get(),
+                                         false,
+                                         0,
+                                         true,
+                                         [&requestcount](NodeHandle, Error)
+                                         {
+                                             --requestcount;
+                                         });
+                    }
                 }
             }
-        }
-    }, __FILE__, __LINE__);
+        },
+        __FILE__,
+        __LINE__);
 
     // delete everything from //bin
-    p1 = thread_do<bool>([=, &requestcount](StandardClient& sc, PromiseBoolSP pb) {
-
-        if (auto bin = sc.client.nodeByHandle(sc.client.mNodeManager.getRootNodeRubbish()))
+    p1 = thread_do<bool>(
+        [=, &requestcount](StandardClient& sc, PromiseBoolSP)
         {
-            for (auto n : sc.client.mNodeManager.getChildren(bin.get()))
+            if (auto bin = sc.client.nodeByHandle(sc.client.mNodeManager.getRootNodeRubbish()))
             {
-                LOG_debug << "Unlinking from bin: " << n->displaypath();
-                ++requestcount;
-                sc.client.unlink(n.get(), false, 0, false, [&requestcount](NodeHandle, Error){ --requestcount; });
+                for (auto n: sc.client.mNodeManager.getChildren(bin.get()))
+                {
+                    LOG_debug << "Unlinking from bin: " << n->displaypath();
+                    ++requestcount;
+                    sc.client.unlink(n.get(),
+                                     false,
+                                     0,
+                                     false,
+                                     [&requestcount](NodeHandle, Error)
+                                     {
+                                         --requestcount;
+                                     });
+                }
             }
-        }
-    }, __FILE__, __LINE__);
+        },
+        __FILE__,
+        __LINE__);
 
     int limit = 100;
     while (requestcount.load() > 0 && --limit)
@@ -4953,6 +5014,73 @@ void StandardClient::backupOpenDrive(const fs::path& drivePath, PromiseBoolSP re
 void StandardClient::triggerPeriodicScanEarly(handle backupID)
 {
     client.syncs.triggerPeriodicScanEarly(backupID).get();
+}
+
+void StandardClient::checkSyncProblems(const handle backupId,
+                                       const int /*backupIdsCount*/,
+                                       const unsigned int totalExpectedConflicts,
+                                       const LocalPath& localPath,
+                                       const std::string& f1,
+                                       const std::string& f2)
+{
+    SyncProblems problems;
+    syncproblemsDetected(problems);
+    auto itCn = problems.mConflictsMap.find(backupId);
+    ASSERT_NE(itCn, problems.mConflictsMap.end())
+        << "BackupId (" << toHandle(backupId) << ") not found in ConflictsMap";
+    auto& conflicts = itCn->second;
+    ASSERT_EQ(conflicts.size(), totalExpectedConflicts) << "Unexpected ConflictsMap size";
+
+    const auto isExpectedConflict = [&localPath, &f1, &f2](const NameConflict& nc)
+    {
+        return nc.localPath == localPath &&
+               std::find(nc.clashingLocalNames.begin(),
+                         nc.clashingLocalNames.end(),
+                         LocalPath::fromRelativePath(f1)) != nc.clashingLocalNames.end() &&
+               std::find(nc.clashingLocalNames.begin(),
+                         nc.clashingLocalNames.end(),
+                         LocalPath::fromRelativePath(f2)) != nc.clashingLocalNames.end();
+    };
+
+    using namespace testing;
+    EXPECT_THAT(conflicts, Contains(Truly(isExpectedConflict)));
+}
+
+void StandardClient::createHardLink(const fs::path& src,
+                                    const fs::path& dst,
+                                    LocalPath& sourcePath,
+                                    LocalPath& targetPath)
+{
+    auto fsAccess = client.fsaccess.get();
+    sourcePath = LocalPath::fromAbsolutePath(src.u8string());
+    targetPath = LocalPath::fromAbsolutePath(dst.u8string());
+    ASSERT_TRUE(fsAccess->hardLink(sourcePath, targetPath));
+}
+
+void StandardClient::checkStallIssues(const handle /*backupId*/,
+                                      const unsigned int expectedStalls,
+                                      LocalPath& sourcePath,
+                                      LocalPath& targetPath)
+{
+    SyncProblems problems;
+    syncproblemsDetected(problems);
+    ASSERT_EQ(problems.mStalls.syncStallInfoMaps.size(), expectedStalls)
+        << "Unexpected syncStallInfoMaps size";
+
+    SyncStallInfoTests stalls;
+    stalls.extractFrom(problems.mStalls);
+    ASSERT_FALSE(stalls.local.empty()) << "No stall issues detected";
+
+    const auto isExpectedStall = [&sourcePath, &targetPath](const SyncStallEntry& sr) -> bool
+    {
+        return sr.localPath1.localPath == sourcePath && sr.localPath2.localPath == targetPath &&
+               sr.reason == SyncWaitReason::FileIssue &&
+               sr.localPath1.problem == PathProblem::DetectedHardLink &&
+               sr.localPath2.problem == PathProblem::DetectedHardLink;
+    };
+    using namespace testing;
+    EXPECT_THAT(stalls.local, Contains(Pair(_, Truly(isExpectedStall))))
+        << "Expected stall issue could not be found";
 }
 
 handle StandardClient::getNodeHandle(const CloudItem& item)
@@ -7459,9 +7587,23 @@ TEST_F(SyncTest, PutnodesForMultipleFolders)
     auto targethandle = standardclient->client.mNodeManager.getRootNodeFiles();
 
     std::atomic<bool> putnodesDone{false};
-    standardclient->resultproc.prepresult(StandardClient::PUTNODES,  ++next_request_tag,
-        [&](){ standardclient->client.putnodes(targethandle, NoVersioning, std::move(newnodes), nullptr, standardclient->client.reqtag, false); },
-        [&putnodesDone](error e) { putnodesDone = true; return true; });
+    standardclient->resultproc.prepresult(
+        StandardClient::PUTNODES,
+        ++next_request_tag,
+        [&]()
+        {
+            standardclient->client.putnodes(targethandle,
+                                            NoVersioning,
+                                            std::move(newnodes),
+                                            nullptr,
+                                            standardclient->client.reqtag,
+                                            false);
+        },
+        [&putnodesDone](error)
+        {
+            putnodesDone = true;
+            return true;
+        });
 
     while (!putnodesDone)
     {
@@ -7784,7 +7926,7 @@ TEST_F(SyncTest, BasicSync_CreateAndReplaceLinkLocally)
     ASSERT_TRUE(clientA1->confirmModel_mainthread(model.findnode("f"), backupId1));
 
     // Necessary as clientA2 has downloaded files.
-    model.movetosynctrash(move(linkedNode), "f");
+    model.movetosynctrash(std::move(linkedNode), "f");
     model.ensureLocalDebrisTmpLock("f");
 
     ASSERT_TRUE(clientA2->confirmModel_mainthread(model.findnode("f"), backupId2));
@@ -8239,6 +8381,172 @@ TEST_F(SyncTest, DetectsAndReportsNameClashes)
     ASSERT_TRUE(client->waitFor(SyncConflictState(false), TIMEOUT));
     conflicts.clear();
     ASSERT_FALSE(client->conflictsDetected(conflicts));
+}
+
+/**
+ * @brief TEST_F DetectsAndReportsSyncProblems
+ *
+ * Tests Synchronization when there are sync problems (name conflicts and stall issues).
+ *
+ * # Test1: generate two name conflicts in sync folder 1
+ * - U1: creates a directory tree in cloud drive (/x1)
+ * - U1: creates a tree in local FS (root/s/d1)
+ * - U1: creates a local file (root/s/d1/f0)
+ * - U1: creates a local file (root/s/d1/f%30)
+ * - U1: synchronizes d1 with x1
+ * - U1: wait for syncs
+ * - U1 checks if name conflict has been detected and it's the expected one
+ * - U1: creates a local file (root/s/d/f10)
+ * - U1: creates a local file (root/s/d/f1%30)
+ * - U1: synchronizes d1 with x1
+ * - U1: wait for syncs
+ * - U1 checks if name conflict has been detected and it's the expected one
+ *
+ * # Test2: generate two name conflicts in sync folder 2
+ * - U1: creates a directory tree in cloud drive (/x2)
+ * - U1: creates a tree in local FS (root/s/d2)
+ * - U1: creates a local file (root/s/d2/f0)
+ * - U1: creates a local file (root/s/d2/f%30)
+ * - U1: synchronizes d2 with x2
+ * - U1: wait for syncs
+ * - U1 checks if name conflict has been detected and it's the expected one
+ * - U1: creates a local file (root/s/d2/f10)
+ * - U1: creates a local file (root/s/d2/f1%30)
+ * - U1: synchronizes d2 with x2
+ * - U1: wait for syncs
+ * - U1 checks if name conflict has been detected and it's the expected one
+ *
+ * # Test3: generate a stall issue in sync folder 3
+ * - U1: creates a directory tree in cloud drive (/x3)
+ * - U1: creates a tree in local FS (root/s/d3)
+ * - U1: creates a local file (root/s/d3/n0)
+ * - U1: creates a hardlink from n1 into path (root/s/d3/e/n5)
+ * - U1: wait for syncs and check if stall issue has been detected and it's the expected one
+ *
+ * # Test4: generate a stall issue in sync folder 4
+ * - U1: creates a directory tree in cloud drive (/x4)
+ * - U1: creates a tree in local FS (root/s/d4)
+ * - U1: creates a local file (root/s/d4/n0)
+ * - U1: creates a hardlink from n1 into path (root/s/d4/e/n5)
+ * - U1: wait for syncs and check if stall issue has been detected and it's the expected one
+ */
+TEST_F(SyncTest, DetectsAndReportsSyncProblems)
+{
+    const auto TESTFOLDER = makeNewTestRoot();
+    const auto TIMEOUT = chrono::seconds(8);
+    StandardClientInUse client = g_clientManager->getCleanStandardClient(0, TESTFOLDER);
+    client->client.versions_disabled = true; // allowing creating files with the same name.
+    ASSERT_TRUE(client->resetBaseFolderMulticlient());
+    const std::string rootdir = "s";
+    const auto root = client->fsBasePath / rootdir;
+
+    LOG_debug << "#### Test1(DetectsAndReportsSyncProblems): generate two name conflicts in sync "
+                 "folder 1 ####";
+    const std::string ldir1 = "d1";
+    const std::string rdir1 = "x1";
+    fs::create_directories(root / ldir1);
+    ASSERT_TRUE(client->makeCloudSubdirs(rdir1, 0, 0));
+    ASSERT_TRUE(CatchupClients(client));
+    const handle backupId1 =
+        client->setupSync_mainthread((root / ldir1).u8string(), rdir1, false, true);
+    ASSERT_NE(backupId1, UNDEF) << "Invalid BackupId";
+
+    const std::string f11 = "f0";
+    const std::string f12 = "f%30";
+    createNameFile(root / ldir1, f11);
+    createNameFile(root / ldir1, f12);
+    waitonsyncs(TIMEOUT, client);
+    ASSERT_TRUE(client->waitFor(SyncConflictState(true), TIMEOUT))
+        << "Name conflicts were not detected";
+    ASSERT_TRUE(
+        client->waitFor(SyncTotalConflictsStateUpdate(false),
+                        TIMEOUT)); // First state change - not new updates should be notified
+    auto& ln1 = client->syncByBackupId(backupId1)->localroot->localname;
+    ASSERT_NO_FATAL_FAILURE(client->checkSyncProblems(backupId1, 1u, 1u, ln1, f11, f12));
+
+    const std::string f13 = "f10";
+    const std::string f14 = "f1%30";
+    createNameFile(root / ldir1, f13);
+    createNameFile(root / ldir1, f14);
+    waitonsyncs(TIMEOUT, client);
+    ASSERT_TRUE(client->waitFor(SyncTotalConflictsStateUpdate(true), TIMEOUT));
+    ASSERT_NO_FATAL_FAILURE(client->checkSyncProblems(backupId1, 1u, 2u, ln1, f13, f14));
+
+    LOG_debug << "#### Test2(DetectsAndReportsSyncProblems): generate two name conflicts in sync "
+                 "folder 2 ####";
+    // Create directory tree required for test
+    const std::string ldir2 = "d2";
+    const std::string rdir2 = "x2";
+    fs::create_directories(root / ldir2);
+    ASSERT_TRUE(client->makeCloudSubdirs(rdir2, 0, 0));
+    ASSERT_TRUE(CatchupClients(client));
+    const handle backupId2 =
+        client->setupSync_mainthread((root / ldir2).u8string(), rdir2, false, true);
+    ASSERT_NE(backupId2, UNDEF) << "Invalid BackupId";
+
+    const std::string f21 = "f0";
+    const std::string f22 = "f%30";
+    createNameFile(root / ldir2, f21);
+    createNameFile(root / ldir2, f22);
+    waitonsyncs(TIMEOUT, client);
+    ASSERT_TRUE(client->waitFor(SyncTotalConflictsStateUpdate(true), TIMEOUT));
+    auto& ln2 = client->syncByBackupId(backupId2)->localroot->localname;
+    ASSERT_NO_FATAL_FAILURE(client->checkSyncProblems(backupId2, 2u, 1u, ln2, f21, f22));
+
+    const std::string f23 = "f10";
+    const std::string f24 = "f1%30";
+    createNameFile(root / ldir2, f23);
+    createNameFile(root / ldir2, f24);
+    waitonsyncs(TIMEOUT, client);
+    ASSERT_TRUE(client->waitFor(SyncTotalConflictsStateUpdate(true), TIMEOUT));
+    ASSERT_NO_FATAL_FAILURE(client->checkSyncProblems(backupId2, 2u, 2u, ln2, f23, f24));
+
+    LOG_debug << "#### Test3(DetectsAndReportsSyncProblems): generate a stall issue in sync folder "
+                 "1 ####";
+    const std::string ldir3 = "d3";
+    const std::string rdir3 = "x3";
+    fs::create_directories(root / ldir3);
+    ASSERT_TRUE(client->makeCloudSubdirs(rdir3, 0, 0));
+    ASSERT_TRUE(CatchupClients(client));
+    const handle backupId3 =
+        client->setupSync_mainthread((root / ldir3).u8string(), rdir3, false, true);
+    ASSERT_NE(backupId3, UNDEF) << "Invalid BackupId";
+    fs::create_directories(root / ldir3 / "e");
+    createNameFile(root / ldir3, "n0");
+    waitonsyncs(TIMEOUT, client);
+
+    LocalPath sPath1;
+    LocalPath tPath1;
+    client->createHardLink(root / ldir3 / "n0", root / ldir3 / "e" / "n5", sPath1, tPath1);
+
+    waitonsyncs(TIMEOUT, client);
+    ASSERT_TRUE(client->waitFor(SyncStallState(true), TIMEOUT));
+    ASSERT_TRUE(
+        client->waitFor(SyncTotalStallsStateUpdate(false),
+                        TIMEOUT)); // First time stall state, the update flag should be unset
+    ASSERT_NO_FATAL_FAILURE(client->checkStallIssues(backupId3, 1u, sPath1, tPath1));
+
+    LOG_debug << "#### Test4(DetectsAndReportsSyncProblems): generate a stall issue in sync folder "
+                 "2 ####";
+    const std::string ldir4 = "d4";
+    const std::string rdir4 = "x4";
+    fs::create_directories(root / ldir4);
+    ASSERT_TRUE(client->makeCloudSubdirs(rdir4, 0, 0));
+    ASSERT_TRUE(CatchupClients(client));
+    const handle backupId4 =
+        client->setupSync_mainthread((root / ldir4).u8string(), rdir4, false, true);
+    ASSERT_NE(backupId4, UNDEF) << "Invalid BackupId";
+    fs::create_directories(root / ldir4 / "e");
+    createNameFile(root / ldir4, "n0");
+    waitonsyncs(TIMEOUT, client);
+
+    LocalPath sPath2;
+    LocalPath tPath2;
+    client->createHardLink(root / ldir4 / "n0", root / ldir4 / "e" / "n5", sPath2, tPath2);
+
+    waitonsyncs(TIMEOUT, client);
+    ASSERT_TRUE(client->waitFor(SyncTotalStallsStateUpdate(true), TIMEOUT));
+    ASSERT_NO_FATAL_FAILURE(client->checkStallIssues(backupId4, 2u, sPath2, tPath2));
 }
 #endif
 
@@ -11790,13 +12098,15 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
         m.generate(cb.fsBasePath / "s");
 
         // Disable the sync when it starts uploading a file.
-        cb.mOnFileAdded = [&cb, &id](File& file) {
-
+        cb.mOnFileAdded = [&cb, &id](File&)
+        {
             // the upload has been set super slow so there's loads of time.
 
             // get the single sync
             SyncConfig config;
-            ASSERT_TRUE(cb.client.syncs.syncConfigByBackupId(id, config)) << "BackupId: " << id << ". SyncVec is empty: " << (cb.client.syncs.mNumSyncsActive > 0);
+            ASSERT_TRUE(cb.client.syncs.syncConfigByBackupId(id, config))
+                << "BackupId: " << id
+                << ". SyncVec is empty: " << (cb.client.syncs.mNumSyncsActive > 0);
 
             // Make sure the sync's in mirroring mode.
             ASSERT_EQ(config.mBackupId, id);
@@ -11843,8 +12153,8 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
         // Log out the client when we try and upload a file.
         std::promise<void> waiter;
 
-        cb.mOnFileAdded = [&cb, &waiter, &id](File& file) {
-
+        cb.mOnFileAdded = [&cb, &waiter, &id](File&)
+        {
             // get the single sync
             SyncConfig config;
             ASSERT_TRUE(cb.client.syncs.syncConfigByBackupId(id, config));
@@ -12142,7 +12452,8 @@ void BackupBehavior::doTest(const string& initialContent,
         m.addfile("f", updatedContent);
 
         // Hook callback so we can tweak the mtime.
-        cu.mOnSyncDebugNotification = [&](const SyncConfig&, int, const Notification& notification) {
+        cu.mOnSyncDebugNotification = [&](const SyncConfig&, int, const Notification&)
+        {
             // Roll back the mtime now that we know it will be processed.
             fs::last_write_time(cu.fsBasePath / "su" / "f", mtime);
 

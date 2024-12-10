@@ -122,7 +122,7 @@ void FileAttributeFetchChannel::parse(int /*fac*/, bool final)
             }
             else
             {
-                req.purge(ptr - req.data());
+                req.purge(static_cast<size_t>(ptr - req.data()));
             }
 
             break;

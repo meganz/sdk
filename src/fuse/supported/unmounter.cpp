@@ -99,22 +99,20 @@ Unmounter::~Unmounter()
     FUSEDebug1("Unmounter destroyed");
 }
 
-void Unmounter::unmount(MountDisabledCallback callback,
-                        MountPtr mount)
+void Unmounter::unmount(MountDisabledCallback callback, MountPtr mount)
 {
-    auto wrapper = [this](Activity& activity,
+    auto wrapper = [this](Activity&,
                           MountDisabledCallback& callback,
                           MountWeakPtr mount,
                           LocalPath& path,
-                          const Task& task) {
+                          const Task& task)
+    {
         // Don't bother unmounting as we're being torn down.
         if (task.cancelled())
             return emitEvent(std::move(callback), path, MOUNT_ABORTED);
 
         // Try and unmount the specified mount.
-        unmount(std::move(callback),
-                std::move(mount),
-                std::move(path));
+        unmount(std::move(callback), std::move(mount), std::move(path));
     }; // wrapper
 
     auto path = mount->path();

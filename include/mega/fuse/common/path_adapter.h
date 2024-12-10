@@ -126,7 +126,7 @@ public:
     }
 
     // Translate component into a cloud-friendly form.
-    const std::string toName(const FileSystemAccess& fsAccess) const
+    const std::string toName(const FileSystemAccess&) const
     {
         // Return transcoded path to caller.
         return TraitsType::toUTF8(mPath, mLength);

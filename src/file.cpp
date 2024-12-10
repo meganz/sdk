@@ -301,7 +301,7 @@ File *File::unserialize(string *d)
         }
     }
 
-    d->erase(0, ptr - d->data());
+    d->erase(0, static_cast<size_t>(ptr - d->data()));
     return file;
 }
 
@@ -578,7 +578,7 @@ void SyncTransfer_inClient::terminated(error e)
     selfKeepAlive.reset();  // deletes this object! (if abandoned by sync)
 }
 
-void SyncTransfer_inClient::completed(Transfer* t, putsource_t source)
+void SyncTransfer_inClient::completed(Transfer*, [[maybe_unused]] putsource_t source)
 {
     assert(source == PUTNODES_SYNC);
 
@@ -678,10 +678,10 @@ void SyncUpload_inClient::sendPutnodesToCloneNode(MegaClient* client, NodeHandle
         PUTNODES_SYNC,
         ovHandle,
         [self, stts, client](const Error& e,
-                             targettype_t t,
+                             targettype_t /*t*/,
                              vector<NewNode>& nn,
-                             bool targetOverride,
-                             int tag,
+                             bool /*targetOverride*/,
+                             int /*tag*/,
                              const map<string, string>& /*fileHandles*/)
         {
             // Is the originating transfer still alive?
@@ -744,7 +744,7 @@ SyncUpload_inClient::SyncUpload_inClient(NodeHandle targetFolder, const LocalPat
     transfer = nullptr;
     tag = 0;
 
-    syncThreadSafeState = move(stss);
+    syncThreadSafeState = std::move(stss);
     syncThreadSafeState->transferBegin(PUT, size);
 
     sourceFsid = fsid;
@@ -805,7 +805,7 @@ SyncDownload_inClient::SyncDownload_inClient(CloudNode& n, const LocalPath& cloc
 
     setLocalname(clocalname);
 
-    syncThreadSafeState = move(stss);
+    syncThreadSafeState = std::move(stss);
     syncThreadSafeState->transferBegin(GET, size);
 }
 
@@ -830,7 +830,7 @@ SyncDownload_inClient::~SyncDownload_inClient()
     }
 }
 
-void SyncDownload_inClient::prepare(FileSystemAccess& fsaccess)
+void SyncDownload_inClient::prepare(FileSystemAccess&)
 {
     if (transfer->localfilename.empty())
     {

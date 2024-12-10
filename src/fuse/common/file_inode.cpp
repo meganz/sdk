@@ -22,7 +22,7 @@ namespace mega
 namespace fuse
 {
 
-void FileInode::remove(RefBadge badge, InodeDBLock lock)
+void FileInode::remove(RefBadge, InodeDBLock lock)
 {
     // Remove this file from the inode database.
     mInodeDB.remove(*this, std::move(lock));
@@ -260,9 +260,7 @@ void FileInode::modified(bool modified)
     mInodeDB.modified(id(), modified);
 }
 
-Error FileInode::move(InodeBadge badge,
-                      const std::string& name,
-                      DirectoryInodeRef parent)
+Error FileInode::move(InodeBadge, const std::string& name, DirectoryInodeRef parent)
 {
     // Sanity.
     assert(parent);
@@ -308,7 +306,7 @@ ErrorOr<platform::FileContextPtr> FileInode::open(Mount& mount,
                                               flags);
 }
 
-Error FileInode::replace(InodeBadge badge,
+Error FileInode::replace(InodeBadge,
                          InodeRef other,
                          const std::string& otherName,
                          DirectoryInodeRef otherParent)

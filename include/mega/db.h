@@ -26,6 +26,9 @@
 #include "logging.h"
 #include "node.h"
 
+#include <filesystem>
+#include <optional>
+
 namespace mega {
 // generic host transactional database access interface
 class DBTableTransactionCommitter;
@@ -297,6 +300,9 @@ struct MEGA_API DbAccess
 
     // Check if the specified database exists on disk.
     virtual bool probe(FileSystemAccess& fsAccess, const string& name) const = 0;
+
+    virtual std::optional<std::filesystem::path>
+        getExistingDbPath(const FileSystemAccess& fsAccess, const std::string& fname) const = 0;
 
     // Where are we storing our databases?
     virtual const LocalPath& rootPath() const = 0;

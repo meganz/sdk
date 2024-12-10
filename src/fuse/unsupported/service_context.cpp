@@ -47,7 +47,7 @@ ErrorOr<InodeInfo> ServiceContext::describe(const NormalizedPath&) const
 
 void ServiceContext::disable(MountDisabledCallback callback,
                              const LocalPath& path,
-                             bool remember)
+                             bool /*remember*/)
 {
     callback(MOUNT_UNKNOWN);
 

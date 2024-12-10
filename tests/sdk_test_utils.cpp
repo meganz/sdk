@@ -156,10 +156,34 @@ void processDirChildName(const DirNodeInfo& dir, std::vector<std::string>& names
 
 }
 
+std::vector<std::string> DirNodeInfo::getChildrenNames() const
+{
+    std::vector<std::string> result;
+    result.reserve(childs.size());
+    std::transform(std::begin(childs),
+                   std::end(childs),
+                   std::back_inserter(result),
+                   [](const auto& child) -> std::string
+                   {
+                       return getNodeName(child);
+                   });
+    return result;
+}
+
 std::vector<std::string> getNodeNames(const NodeInfo& node)
 {
     std::vector<std::string> result;
     processNodeName(node, result);
     return result;
+}
+
+std::string getNodeName(const NodeInfo& node)
+{
+    return std::visit(
+        [](const auto& n) -> std::string
+        {
+            return n.name;
+        },
+        node);
 }
 }

@@ -212,6 +212,7 @@ typedef enum ErrorCodes : int
     API_EAPPKEY = -22,              ///< Invalid or missing application key.
     API_ESSL = -23,                 ///< SSL verification failed
     API_EGOINGOVERQUOTA = -24,      ///< Not enough quota
+    API_EROLLEDBACK = -25, ///< A strongly-grouped request was rolled back.
     API_EMFAREQUIRED = -26,         ///< Multi-factor authentication required
     API_EMASTERONLY = -27,          ///< Access denied for sub-users (only for business accounts)
     API_EBUSINESSPASTDUE = -28,     ///< Business account expired
@@ -743,23 +744,8 @@ typedef map<handle, unique_ptr<PendingContactRequest>> handlepcr_map;
 typedef vector<string> string_vector;
 typedef map<string, string> string_map;
 typedef multimap<int64_t, int64_t> integer_map;
-typedef string_map TLV_map;
 
 typedef map<attr_t, string> userattr_map;
-
-typedef enum {
-
-    AES_CCM_12_16 = 0x00,
-    AES_CCM_10_16 = 0x01,
-    AES_CCM_10_08 = 0x02,
-    AES_GCM_12_16_BROKEN = 0x03, // Same as 0x00 (due to a legacy bug)
-    AES_GCM_10_08_BROKEN = 0x04, // Same as 0x02 (due to a legacy bug)
-    AES_GCM_12_16 = 0x10,
-    AES_GCM_10_08 = 0x11
-
-} encryptionsetting_t;
-
-typedef enum { AES_MODE_UNKNOWN, AES_MODE_CCM, AES_MODE_GCM } encryptionmode_t;
 
 typedef enum { RECOVER_WITH_MASTERKEY = 9, RECOVER_WITHOUT_MASTERKEY = 10, CANCEL_ACCOUNT = 21, CHANGE_EMAIL = 12 } recovery_t;
 
@@ -901,7 +887,7 @@ namespace CodeCounter
             return s;
         }
 #else
-        ScopeStats(std::string s) {}
+        ScopeStats(std::string) {}
 #endif
     };
 
@@ -960,7 +946,7 @@ namespace CodeCounter
             }
         }
 #else
-        ScopeTimer(ScopeStats& sm) {}
+        ScopeTimer(ScopeStats&) {}
         void complete() {}
 #endif
     };

@@ -49,6 +49,7 @@
 #import "MEGADataInputStream.h"
 #import "MEGACancelToken+init.h"
 #import "MEGAPushNotificationSettings+init.h"
+#import "MEGACancelSubscriptionReasonList+init.h"
 
 #import <set>
 #import <pthread.h>
@@ -2203,6 +2204,12 @@ using namespace mega;
     }
 }
 
+- (void)creditCardCancelSubscriptionsWithReasons:(nullable MEGACancelSubscriptionReasonList *)reasonList subscriptionId:(nullable NSString *)subscriptionId canContact:(BOOL)canContact delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->creditCardCancelSubscriptions(reasonList.getCPtr, subscriptionId.UTF8String, canContact, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
 - (void)changePassword:(NSString *)oldPassword newPassword:(NSString *)newPassword delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->changePassword(oldPassword.UTF8String, newPassword.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
@@ -4047,7 +4054,9 @@ using namespace mega;
 - (NSInteger)remoteFeatureFlagValue:(NSString *)flag {
     if (self.megaApi == nil) return 0;
     MegaFlag *flagValue = self.megaApi->getFlag(flag.UTF8String);
-    return flagValue->getGroup();
+    uint32_t group = flagValue->getGroup();
+    delete flagValue;
+    return NSInteger(group);
 }
 
 #pragma mark - Ads

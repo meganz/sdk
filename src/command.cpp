@@ -20,8 +20,10 @@
  */
 
 #include "mega/command.h"
+
 #include "mega/base64.h"
 #include "mega/megaclient.h"
+#include "mega/tlv.h"
 
 namespace mega {
 Command::Command()
@@ -157,7 +159,7 @@ void Command::createSchedMeetingJson(const ScheduledMeeting* schedMeeting)
 
     if (schedMeeting->flags() && !schedMeeting->flags()->isEmpty())
     {
-        arg("f", static_cast<long>(schedMeeting->flags()->getNumericValue()));
+        arg("f", static_cast<m_off_t>(schedMeeting->flags()->getNumericValue()));
     }
 
     if (MegaClient::isValidMegaTimeStamp(schedMeeting->overrides()))

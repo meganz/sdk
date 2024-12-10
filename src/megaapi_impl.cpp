@@ -19,7 +19,6 @@
  * program.
  */
 
-#include <numeric>
 #define _LARGE_FILES
 
 #define _GNU_SOURCE 1
@@ -27,21 +26,25 @@
 
 #define USE_VARARGS
 #define PREFER_STDARG
+#include "megaapi_impl.h"
+
 #include "mega/mediafileattribute.h"
 #include "mega/scoped_helpers.h"
+#include "mega/tlv.h"
 #include "mega/user_attribute.h"
 #include "megaapi.h"
-#include "megaapi_impl.h"
 
 #ifdef ENABLE_ISOLATED_GFX
 #include "mega/gfx/isolatedprocess.h"
 #endif
 
-#include <iomanip>
 #include <algorithm>
-#include <functional>
 #include <cctype>
+#include <charconv>
+#include <functional>
+#include <iomanip>
 #include <locale>
+#include <numeric>
 #include <thread>
 
 #ifndef _WIN32
@@ -1382,8 +1385,7 @@ MegaError* MegaApiImpl::isNodeSyncableWithError(MegaNode* megaNode) {
         return new MegaErrorPrivate(MegaError::API_ENOENT);
     }
 
-    SyncError se = SyncError::NO_SYNC_ERROR;
-    error e = client->isnodesyncable(node, nullptr, &se);
+    const auto [e, se] = client->isnodesyncable(node);
     return new MegaErrorPrivate(e, se);
 }
 
@@ -1557,29 +1559,27 @@ void AddressedStallFilter::clear()
     addressedNameConflictLocalStalls.clear();
 }
 
-
 void MegaApiImpl::getMegaSyncStallList(MegaRequestListener* listener)
 {
     auto request = new MegaRequestPrivate(MegaRequest::TYPE_GET_SYNC_STALL_LIST, listener);
 
-    request->performRequest = [this, request]() -> error {
+    request->performRequest = [this, request]() -> error
+    {
+        return performRequest_getSyncStalls(request);
+    };
 
-        auto completion = [this, request](unique_ptr<SyncProblems> problems) {
+    requestQueue.push(request);
+    waiter->notify();
+}
 
-            mAddressedStallFilter.removeOldFilters(client->syncs.completedPassCount.load());
+void MegaApiImpl::getMegaSyncStallMap(MegaRequestListener* listener)
+{
+    auto request = new MegaRequestPrivate(MegaRequest::TYPE_GET_SYNC_STALL_LIST, listener);
+    request->setFlag(true);
 
-            // If the user already addressed some sync issues but the sync hasn't made another pass
-            // to generate a new stall list, then the filter will hide those for now
-            auto error = std::make_unique<MegaErrorPrivate>(API_OK);
-            auto stalls = std::make_unique<MegaSyncStallListPrivate>(move(*problems), mAddressedStallFilter);
-
-            request->setMegaSyncStallList(std::move(stalls));
-
-            fireOnRequestFinish(request, std::move(error));
-        };
-
-        client->syncs.getSyncProblems(std::move(completion), true);
-        return API_OK;
+    request->performRequest = [this, request]() -> error
+    {
+        return performRequest_getSyncStalls(request);
     };
 
     requestQueue.push(request);
@@ -1632,6 +1632,38 @@ void MegaApiImpl::moveToDebris(const char* path, MegaHandle syncBackupId, MegaRe
                                                      fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
                                                  });
 
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::changeSyncRemoteRoot(const MegaHandle syncBackupId,
+                                       const MegaHandle newRootNodeHandle,
+                                       MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request =
+        new MegaRequestPrivate(MegaRequest::TYPE_CHANGE_SYNC_ROOT, listener);
+
+    request->setNodeHandle(syncBackupId);
+    request->setParentHandle(newRootNodeHandle);
+    request->performRequest = [this, request]()
+    {
+        handle syncBackupId = request->getNodeHandle();
+        handle newRootNodeHandle = request->getParentHandle();
+        if (newRootNodeHandle == UNDEF || syncBackupId == UNDEF)
+        {
+            return API_EARGS;
+        }
+        client->changeSyncRoot(syncBackupId,
+                               newRootNodeHandle,
+                               nullptr,
+                               [this, request](error e, SyncError se)
+                               {
+                                   fireOnRequestFinish(request,
+                                                       std::make_unique<MegaErrorPrivate>(e, se));
+                               });
         return API_OK;
     };
 
@@ -1893,6 +1925,53 @@ MegaSyncStallListPrivate::MegaSyncStallListPrivate(SyncProblems&& sp, AddressedS
     }
 }
 
+MegaSyncStallMapPrivate::MegaSyncStallMapPrivate(SyncProblems&& sp, AddressedStallFilter& filter)
+{
+    for (const auto& [syncId, nameConflictList]: sp.mConflictsMap)
+    {
+        auto& stallList = mStallsMap[syncId];
+        for (const auto& nc: nameConflictList)
+        {
+            if (!filter.addressedNameConfict(nc.cloudPath, nc.localPath))
+            {
+                stallList.addStall(std::make_shared<MegaSyncNameConflictStallPrivate>(nc));
+            }
+        }
+    }
+
+    for (const auto& [syncId, stalledSyncMap]: sp.mStalls.syncStallInfoMaps)
+    {
+        auto addStalls =
+            [&stallList = mStallsMap[syncId], &filter](const auto& stallMap, auto filterFunc)
+        {
+            for (const auto& stall: stallMap)
+            {
+                if (!std::invoke(filterFunc, filter, stall.first))
+                {
+                    stallList.addStall(std::make_shared<MegaSyncStallPrivate>(stall.second));
+                }
+            }
+        };
+
+        addStalls(stalledSyncMap.cloud, &AddressedStallFilter::addressedCloudStall);
+        addStalls(stalledSyncMap.local, &AddressedStallFilter::addressedLocalStall);
+    }
+}
+
+MegaHandleList* MegaSyncStallMapPrivate::getKeys() const
+{
+    MegaHandleList* list = MegaHandleList::createInstance();
+    for (const auto& stall: mStallsMap)
+    {
+        list->addMegaHandle(stall.first);
+    }
+    return list;
+}
+
+const std::map<MegaHandle, MegaSyncStallListPrivate>& MegaSyncStallMapPrivate::getMap() const
+{
+    return mStallsMap;
+}
 #endif // ENABLE_SYNC
 
 MegaScheduledCopy *MegaApiImpl::getScheduledCopyByTag(int tag)
@@ -2775,9 +2854,9 @@ MegaShare *MegaSharePrivate::copy()
     return new MegaSharePrivate(this);
 }
 
-MegaSharePrivate::MegaSharePrivate(uint64_t handle, Share *share, bool verified)
+MegaSharePrivate::MegaSharePrivate(MegaHandle nodeHandle, const Share* share, bool verified)
 {
-    this->nodehandle = handle;
+    this->nodehandle = nodeHandle;
     this->user = share->user ? MegaApi::strdup(share->user->email.c_str()) : NULL;
     if ((!user || !*user) && share->pcr)
     {
@@ -2790,9 +2869,9 @@ MegaSharePrivate::MegaSharePrivate(uint64_t handle, Share *share, bool verified)
     this->mVerified = verified;
 }
 
-MegaShare *MegaSharePrivate::fromShare(uint64_t nodeuint64_t, Share *share, bool verified)
+MegaShare* MegaSharePrivate::fromShare(MegaHandle nodeHandle, const Share* share, bool verified)
 {
-    return new MegaSharePrivate(nodeuint64_t, share, verified);
+    return new MegaSharePrivate(nodeHandle, share, verified);
 }
 
 MegaSharePrivate::~MegaSharePrivate()
@@ -4023,6 +4102,11 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
 #ifdef ENABLE_SYNC
     if (request->mSyncStallList)
         mSyncStallList.reset(request->mSyncStallList->copy());
+
+    if (request->mSyncStallMap)
+    {
+        mSyncStallMap.reset(request->mSyncStallMap->copy());
+    }
 #endif // ENABLE_SYNC
     this->mStringList.reset(request->mStringList ? request->mStringList->copy() : nullptr);
     this->mMegaVpnRegions.reset(request->mMegaVpnRegions ? request->mMegaVpnRegions->copy() :
@@ -4080,11 +4164,20 @@ MegaSyncStallList* MegaRequestPrivate::getMegaSyncStallList() const
     return mSyncStallList.get();
 }
 
+MegaSyncStallMap* MegaRequestPrivate::getMegaSyncStallMap() const
+{
+    return mSyncStallMap.get();
+}
+
 void MegaRequestPrivate::setMegaSyncStallList(unique_ptr<MegaSyncStallList>&& sl)
 {
     mSyncStallList = std::move(sl);
 }
 
+void MegaRequestPrivate::setMegaSyncStallMap(std::unique_ptr<MegaSyncStallMap>&& sm)
+{
+    mSyncStallMap = std::move(sm);
+}
 #endif // ENABLE_SYNC
 
 #ifdef ENABLE_CHAT
@@ -4903,6 +4996,8 @@ const char *MegaRequestPrivate::getRequestString() const
             return "TYPE_GET_SURVEY";
         case TYPE_ANSWER_SURVEY:
             return "TYPE_ANSWER_SURVEY";
+        case TYPE_CHANGE_SYNC_ROOT:
+            return "TYPE_CHANGE_SYNC_ROOT";
     }
     return "UNKNOWN";
 }
@@ -5758,7 +5853,10 @@ MegaShareListPrivate::MegaShareListPrivate()
     s = 0;
 }
 
-MegaShareListPrivate::MegaShareListPrivate(Share** newlist, uint64_t *uint64_tlist, byte *verified, int size)
+MegaShareListPrivate::MegaShareListPrivate(const Share* const* newlist,
+                                           const MegaHandle* nodeHandleList,
+                                           const byte* verified,
+                                           int size)
 {
     list = NULL; s = size;
     if(!size) return;
@@ -5766,7 +5864,7 @@ MegaShareListPrivate::MegaShareListPrivate(Share** newlist, uint64_t *uint64_tli
     list = new MegaShare*[size];
     for(int i=0; i<size; i++)
     {
-        list[i] = MegaSharePrivate::fromShare(uint64_tlist[i], newlist[i], verified[i] > 0);
+        list[i] = MegaSharePrivate::fromShare(nodeHandleList[i], newlist[i], verified[i] > 0);
     }
 }
 
@@ -6152,12 +6250,12 @@ void MegaFileGet::progress()
 #endif
 }
 
-void MegaFileGet::completed(Transfer*, putsource_t source)
+void MegaFileGet::completed(Transfer*, putsource_t /*source*/)
 {
     delete this;
 }
 
-void MegaFileGet::terminated(error e)
+void MegaFileGet::terminated(error)
 {
     delete this;
 }
@@ -6257,7 +6355,7 @@ void MegaFilePut::completed(Transfer* t, putsource_t source)
     delete this;
 }
 
-void MegaFilePut::terminated(error e)
+void MegaFilePut::terminated(error)
 {
     delete this;
 }
@@ -7985,11 +8083,14 @@ char* MegaApiImpl::getPrivateKey(int type)
         const UserAttribute* attribute = u->getAttribute(ATTR_KEYRING);
         if (attribute && attribute->isValid())
         {
-            unique_ptr<TLVstore> tlvRecords(
-                TLVstore::containerToTLVrecords(&attribute->value(), &client->key));
-            if (tlvRecords &&  (type == MegaApi::PRIVATE_KEY_ED25519 || type == MegaApi::PRIVATE_KEY_CU25519))
+            unique_ptr<string_map> records{
+                tlv::containerToRecords(attribute->value(), client->key)};
+            if (records &&
+                (type == MegaApi::PRIVATE_KEY_ED25519 || type == MegaApi::PRIVATE_KEY_CU25519))
             {
-                tlvRecords->get(type == MegaApi::PRIVATE_KEY_ED25519 ? EdDSA::TLV_KEY : ECDH::TLV_KEY, privateKey);
+                privateKey = type == MegaApi::PRIVATE_KEY_ED25519 ?
+                                 std::move((*records)[EdDSA::TLV_KEY]) :
+                                 std::move((*records)[ECDH::TLV_KEY]);
             }
             else
             {
@@ -8845,36 +8946,44 @@ void MegaApiImpl::setUserAttr(int type, const char *value, MegaRequestListener *
 void MegaApiImpl::getUserAttr(User* user, attr_t type, MegaRequestPrivate* request)
 {
     assert(request);
-    client->getua(user, type, -1,
-    [this, request](error e)
-    {
-        getua_completion(e, request);
-    },
-    [this, request](byte* data, unsigned len, attr_t type)
-    {
-        getua_completion(data, len, type, request);
-    },
-    [this, request](TLVstore *tlv, attr_t type)
-    {
-        getua_completion(tlv, type, request);
-    });
+    client->getua(
+        user,
+        type,
+        -1,
+        [this, request](error e)
+        {
+            getua_completion(e, request);
+        },
+        [this, request](byte* data, unsigned len, attr_t type)
+        {
+            getua_completion(data, len, type, request);
+        },
+        [this, request](unique_ptr<string_map> records, attr_t type)
+        {
+            getua_completion(std::move(records), type, request);
+        });
 }
 
 void MegaApiImpl::getUserAttr(const string& email, attr_t type, const char* ph, MegaRequestPrivate* request)
 {
     assert(request);
-    client->getua(email.c_str(), type, ph, -1, [this, request](error e)
-    {
-        getua_completion(e, request);
-    },
-    [this, request](byte* data, unsigned len, attr_t type)
-    {
-        getua_completion(data, len, type, request);
-    },
-    [this, request](TLVstore *tlv, attr_t type)
-    {
-        getua_completion(tlv, type, request);
-    });
+    client->getua(
+        email.c_str(),
+        type,
+        ph,
+        -1,
+        [this, request](error e)
+        {
+            getua_completion(e, request);
+        },
+        [this, request](byte* data, unsigned len, attr_t type)
+        {
+            getua_completion(data, len, type, request);
+        },
+        [this, request](unique_ptr<string_map> records, attr_t type)
+        {
+            getua_completion(std::move(records), type, request);
+        });
 }
 
 char *MegaApiImpl::getAvatarColor(handle userhandle)
@@ -10327,9 +10436,9 @@ char *MegaApiImpl::escapeFsIncompatible(const char *filename, const char *dstPat
     return MegaApi::strdup(name.c_str());
 }
 
-char *MegaApiImpl::unescapeFsIncompatible(const char *name, const char *path)
+char* MegaApiImpl::unescapeFsIncompatible(const char* name, const char* /*path*/)
 {
-    if(!name)
+    if (!name)
     {
         return NULL;
     }
@@ -13745,7 +13854,7 @@ void MegaApiImpl::setchatretentiontime_result(error e)
     fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
 }
 
-void MegaApiImpl::chats_updated(textchat_map *chats, int count)
+void MegaApiImpl::chats_updated(textchat_map* chats, int /*count*/)
 {
     if (chats)
     {
@@ -15606,7 +15715,7 @@ void MegaApiImpl::getua_completion(error e, MegaRequestPrivate* request)
                     && request->getType() == MegaRequest::TYPE_SET_ATTR_USER)
         {
             // The attribute doesn't exists so we have to create it
-            TLVstore tlv;
+            string_map records;
             MegaStringMap *stringMap = request->getMegaStringMap();
             std::unique_ptr<MegaStringList> keys(stringMap->getKeys());
             attr_t type = static_cast<attr_t>(request->getParamType());
@@ -15615,15 +15724,19 @@ void MegaApiImpl::getua_completion(error e, MegaRequestPrivate* request)
             for (int i = 0; i < keys->size(); i++)
             {
                 const char *key = keys->get(i);
-                tlv.set(keyPrefix + key, Base64::atob(stringMap->get(key)));
+                records.emplace(keyPrefix + key, Base64::atob(stringMap->get(key)));
             }
 
-            // serialize and encrypt the TLV container
-            std::unique_ptr<string> container(tlv.tlvRecordsToContainer(client->rng, &client->key));
-            client->putua(type, (byte *)container->data(), unsigned(container->size()), client->restag, UNDEF, 0, 0, [this, request](Error e)
-            {
-                fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
-            });
+            client->putua(type,
+                          std::move(records),
+                          client->restag,
+                          UNDEF,
+                          0,
+                          0,
+                          [this, request](Error e)
+                          {
+                              fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
+                          });
             return;
         }
         else if ((request->getType() == MegaRequest::TYPE_GET_ATTR_USER)
@@ -15865,13 +15978,16 @@ void MegaApiImpl::getua_completion(byte* data, unsigned len, attr_t type, MegaRe
     fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
 }
 
-void MegaApiImpl::getua_completion(TLVstore *tlv, attr_t type, MegaRequestPrivate* request)
+void MegaApiImpl::getua_completion(unique_ptr<string_map> uaRecords,
+                                   attr_t type,
+                                   MegaRequestPrivate* request)
 {
     error e = API_OK;
     assert(type == static_cast<attr_t>(request->getParamType()));
 
-    if (tlv)
+    if (uaRecords)
     {
+        string_map& records = *uaRecords;
         if (request->getType() == MegaRequest::TYPE_SET_ATTR_USER)
         {
             const string_map *newValuesMap = static_cast<MegaStringMapPrivate*>(request->getMegaStringMap())->getMap();
@@ -15880,7 +15996,7 @@ void MegaApiImpl::getua_completion(TLVstore *tlv, attr_t type, MegaRequestPrivat
             if (type == ATTR_DEVICE_NAMES)
             {
                 // allow only unique names for Devices and Drives
-                if (haveDuplicatedValues(*tlv->getMap(), *newValuesMap)) // ignores keys
+                if (haveDuplicatedValues(records, *newValuesMap)) // ignores keys
                 {
                     e = API_EEXIST;
                     LOG_err << "Attribute " << User::attr2string(type) << " attempted to add duplicated value (2): "
@@ -15899,14 +16015,19 @@ void MegaApiImpl::getua_completion(TLVstore *tlv, attr_t type, MegaRequestPrivat
                 }
             }
 
-            if (User::mergeUserAttribute(type, *newValuesMap, *tlv))
+            if (User::mergeUserAttribute(type, *newValuesMap, records))
             {
-                // serialize and encrypt the TLV container
-                std::unique_ptr<string> container(tlv->tlvRecordsToContainer(client->rng, &client->key));
-                client->putua(type, (byte *)container->data(), unsigned(container->size()), client->restag, UNDEF, 0, 0, [this, request](Error e)
-                {
-                    fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
-                });
+                client->putua(type,
+                              string_map{records},
+                              client->restag,
+                              UNDEF,
+                              0,
+                              0,
+                              [this, request](Error e)
+                              {
+                                  fireOnRequestFinish(request,
+                                                      std::make_unique<MegaErrorPrivate>(e));
+                              });
             }
             else
             {
@@ -15919,7 +16040,7 @@ void MegaApiImpl::getua_completion(TLVstore *tlv, attr_t type, MegaRequestPrivat
 
         // TLV data usually includes byte arrays with zeros in the middle, so values
         // must be converted into Base64 strings to avoid problems
-        std::unique_ptr<MegaStringMap> stringMap(new MegaStringMapPrivate(tlv->getMap(), true));
+        std::unique_ptr<MegaStringMap> stringMap(new MegaStringMapPrivate(&records, true));
         request->setMegaStringMap(stringMap.get());
         switch (request->getParamType())
         {
@@ -15985,20 +16106,15 @@ void MegaApiImpl::getua_completion(TLVstore *tlv, attr_t type, MegaRequestPrivat
             case MegaApi::USER_ATTR_ALIAS:
             {
                 // If a handle was set in the request, we have to find it in the corresponding map and return it
-                const char *h = request->getText();
-                if (h)
+                if (const char* h = request->getText())
                 {
-                    string key{h};
-                    string buffer;
-
-                    if (!tlv || !tlv->get(key, buffer))
+                    if (auto it = records.find(h); it != records.end())
                     {
-                        e = API_ENOENT;
-                        break;
+                        request->setName(it->second.c_str());
                     }
                     else
                     {
-                        request->setName(buffer.c_str());
+                        e = API_ENOENT;
                     }
                 }
                 break;
@@ -16787,8 +16903,9 @@ void MegaApiImpl::fireOnRequestStart(MegaRequestPrivate *request)
     }
 }
 
-
-void MegaApiImpl::fireOnRequestFinish(MegaRequestPrivate *request, unique_ptr<MegaErrorPrivate> e, bool callbackIsFromSyncThread)
+void MegaApiImpl::fireOnRequestFinish(MegaRequestPrivate* request,
+                                      unique_ptr<MegaErrorPrivate> e,
+                                      [[maybe_unused]] bool callbackIsFromSyncThread)
 {
     assert(callbackIsFromSyncThread || threadId == std::this_thread::get_id());
 #ifdef ENABLE_SYNC
@@ -19903,6 +20020,58 @@ std::pair<bool, error> MegaApiImpl::checkCreateFolderPrecons(const char* name,
     return std::make_pair(true, API_OK);
 }
 
+void MegaApiImpl::sendUserfeedback(const int rating,
+                                   const char* comment,
+                                   const bool transferFeedback,
+                                   const int transferType)
+{
+    auto sendFeedback = [this](const int rating,
+                               const std::string& base64comment,
+                               const bool transferFeedback,
+                               const direction_t transferType)
+    {
+        std::ostringstream feedback;
+        if (transferFeedback)
+        {
+            std::string ts =
+                client->mTransferStatsManager.metricsToJsonForTransferType(transferType);
+            feedback << R"({\"r\":\")" << rating << R"(\",\"m\":\")" << base64comment
+                     << R"(\",\"u\":\")" << toHandle(client->me) << R"(\",)" << ts << "}";
+        }
+        else
+        {
+            feedback << R"({\"r\":\")" << rating << R"(\",\"m\":\")" << base64comment
+                     << R"(\",\"u\":\")" << toHandle(client->me) << R"(\"})";
+        }
+        client->userfeedbackstore(feedback.str().c_str());
+    };
+
+    std::string base64comment{};
+    if (comment)
+    {
+        base64comment = Base64::btoa(comment);
+    }
+
+    if (transferFeedback)
+    {
+        if (transferType == MegaApi::TRANSFER_STATS_DOWNLOAD ||
+            transferType == MegaApi::TRANSFER_STATS_BOTH)
+        {
+            sendFeedback(rating, base64comment, transferFeedback, GET);
+        }
+
+        if (transferType == MegaApi::TRANSFER_STATS_UPLOAD ||
+            transferType == MegaApi::TRANSFER_STATS_BOTH)
+        {
+            sendFeedback(rating, base64comment, transferFeedback, PUT);
+        }
+    }
+    else
+    {
+        sendFeedback(rating, base64comment, transferFeedback, NONE);
+    }
+}
+
 void MegaApiImpl::createFolder(const char* name, MegaNode* parent, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_FOLDER, listener);
@@ -21157,7 +21326,7 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                     return API_EARGS;
                 }
 
-                std::unique_ptr<TLVstore> tlv;
+                string_map destination;
                 if (type == ATTR_ALIAS
                         || type == ATTR_CAMERA_UPLOADS_FOLDER
                         || type == ATTR_DEVICE_NAMES
@@ -21171,15 +21340,10 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                         getUserAttr(ownUser, type, request);
                         return API_OK;
                     }
-                    else
+                    else if (auto old = tlv::containerToRecords(attribute->value(), client->key))
                     {
-                        tlv.reset(
-                            TLVstore::containerToTLVrecords(&attribute->value(), &client->key));
+                        destination.swap(*old);
                     }
-                }
-                else
-                {
-                    tlv.reset(new TLVstore);
                 }
 
                 const string_map *newValuesMap = static_cast<MegaStringMapPrivate*>(stringMap)->getMap();
@@ -21188,7 +21352,7 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                 if (type == ATTR_DEVICE_NAMES)
                 {
                     // allow only unique names for Devices and Drives
-                    if (haveDuplicatedValues(*tlv->getMap(), *newValuesMap))
+                    if (haveDuplicatedValues(destination, *newValuesMap))
                     {
                         LOG_err << "Attribute " << User::attr2string(type) << " attempted to add duplicated value (1): "
                             << Base64::atob(newValuesMap->begin()->second); // will only have a single value
@@ -21205,11 +21369,15 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                     }
                 }
 
-                if (User::mergeUserAttribute(type, *newValuesMap, *tlv.get()))
+                if (User::mergeUserAttribute(type, *newValuesMap, destination))
                 {
-                    // serialize and encrypt the TLV container
-                    std::unique_ptr<string> container(tlv->tlvRecordsToContainer(client->rng, &client->key));
-                    client->putua(type, (byte *)container->data(), unsigned(container->size()), -1, UNDEF, 0, 0, std::move(putuaCompletion));
+                    client->putua(type,
+                                  std::move(destination),
+                                  -1,
+                                  UNDEF,
+                                  0,
+                                  0,
+                                  std::move(putuaCompletion));
                 }
                 else
                 {
@@ -23519,27 +23687,6 @@ void MegaApiImpl::submitFeedback(int rating,
 
     request->performRequest = [this, request]()
     {
-        auto sendFeedback = [this](const int rating,
-                                   const std::string& base64message,
-                                   const bool transferFeedback,
-                                   const direction_t transferType)
-        {
-            std::ostringstream feedback;
-            if (transferFeedback)
-            {
-                std::string ts =
-                    client->mTransferStatsManager.metricsToJsonForTransferType(transferType);
-                feedback << R"({\"r\":\")" << rating << R"(\",\"m\":\")" << base64message
-                         << R"(\",\"u\":\")" << toHandle(client->me) << R"(\",)" << ts << "}";
-            }
-            else
-            {
-                feedback << R"({\"r\":\")" << rating << R"(\",\"m\":\")" << base64message
-                         << R"(\",\"u\":\")" << toHandle(client->me) << R"(\"})";
-            }
-            client->userfeedbackstore(feedback.str().c_str());
-        };
-
         const int rating{static_cast<int>(request->getNumber())};
         if (rating < 1 || rating > 5)
         {
@@ -23555,30 +23702,9 @@ void MegaApiImpl::submitFeedback(int rating,
             return API_EARGS;
         }
 
-        std::string base64message{};
-        if (const char* message = request->getText(); message)
-        {
-            base64message = Base64::btoa(message);
-        }
-
-        if (const bool transferFeedback{request->getFlag()}; transferFeedback)
-        {
-            if (transferType == MegaApi::TRANSFER_STATS_DOWNLOAD ||
-                transferType == MegaApi::TRANSFER_STATS_BOTH)
-            {
-                sendFeedback(rating, base64message, transferFeedback, GET);
-            }
-
-            if (transferType == MegaApi::TRANSFER_STATS_UPLOAD ||
-                transferType == MegaApi::TRANSFER_STATS_BOTH)
-            {
-                sendFeedback(rating, base64message, transferFeedback, PUT);
-            }
-        }
-        else
-        {
-            sendFeedback(rating, base64message, transferFeedback, NONE);
-        }
+        const bool transferFeedback{request->getFlag()};
+        const char* comment{request->getText()};
+        sendUserfeedback(rating, comment, transferFeedback, transferType);
         return API_OK;
     };
 
@@ -27136,13 +27262,14 @@ void MegaApiImpl::getPasswordManagerBase(MegaRequestListener* listener)
                 fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
             }
         };
-        CommandGetUA::CompletionBytes cb = [this, request](byte* data, unsigned len, attr_t type) -> void
+        CommandGetUA::CompletionBytes cb =
+            [this, request](byte* /*data*/, unsigned /*len*/, attr_t /*type*/) -> void
         {
             request->setNodeHandle(client->getPasswordManagerBase().as8byte());
             assert(!ISUNDEF(request->getNodeHandle()));
             fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
         };
-        CommandGetUA::CompletionTLV ctlv = [this, request](TLVstore*, attr_t) -> void
+        CommandGetUA::CompletionTLV ctlv = [this, request](unique_ptr<string_map>, attr_t) -> void
         {
             LOG_err << "Password Manager: ERROR CompletionTLV callback evaluated from CommandGetUA";
             assert(false);
@@ -27882,11 +28009,68 @@ void MegaApiImpl::answerSurvey(MegaHandle surveyHandle,
             fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
         };
 
-        CommandAnswerSurvey::Answer answer{
-            request->getNodeHandle(), // survey handle
-            static_cast<unsigned int>(request->getParamType()), // triger action ID
-            request->getText(), // response
-            request->getFile()}; // comment
+        auto parseRating = [](const char* response) -> std::pair<ErrorCodes, int>
+        {
+            assert(response);
+            int rating{};
+            if (auto [ptr, ec] =
+                    std::from_chars(response, response + std::strlen(response), rating);
+                ec != std::errc{})
+            {
+                LOG_err
+                    << "Request (TYPE_ANSWER_SURVEY). Cannot convert rating into a numeric value: "
+                    << rating;
+                return {API_EARGS, rating};
+            }
+
+            if (rating < 1 || rating > 5)
+            {
+                LOG_err << "Request (TYPE_ANSWER_SURVEY). Rating value is out of valid range: "
+                        << rating;
+                return {API_EARGS, rating};
+            }
+
+            return {API_OK, rating};
+        };
+
+        const unsigned int triggerActionId{static_cast<unsigned int>(request->getParamType())};
+        if (triggerActionId < MegaApi::ACT_END_UPLOAD ||
+            triggerActionId > MegaApi::ACT_SHARE_FOLDER_FILE)
+        {
+            LOG_err << "Request (TYPE_ANSWER_SURVEY). triggerActionId value is out of valid range: "
+                    << triggerActionId;
+            return API_EARGS;
+        }
+
+        const char* response{request->getText()};
+        const char* comment{request->getFile()};
+        if (const auto sendTransferFeedback = triggerActionId == MegaApi::ACT_END_UPLOAD;
+            sendTransferFeedback)
+        {
+            if (!response)
+            {
+                LOG_err << "Request (TYPE_ANSWER_SURVEY). Invalid response param";
+                return API_EARGS;
+            }
+
+            // if no comment is provided send empty string comment.
+            const std::string c{comment ? comment : ""};
+            auto [err, rating] = parseRating(response);
+            if (err != API_OK)
+            {
+                return err;
+            }
+
+            sendUserfeedback(rating,
+                             c.c_str(),
+                             true /*transferFeedback*/,
+                             MegaApi::TRANSFER_STATS_UPLOAD);
+        }
+
+        CommandAnswerSurvey::Answer answer{request->getNodeHandle(), // survey handle
+                                           triggerActionId,
+                                           response,
+                                           comment};
 
         client->answerSurvey(answer, std::move(completion));
         return API_OK;
@@ -27961,6 +28145,34 @@ void MegaApiImpl::performRequest_enableTestSurveys(MegaRequestPrivate* request)
                       fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
                   });
 }
+
+#ifdef ENABLE_SYNC
+error MegaApiImpl::performRequest_getSyncStalls(MegaRequestPrivate* request)
+{
+    const auto completion = [this, request](std::unique_ptr<SyncProblems> problems)
+    {
+        mAddressedStallFilter.removeOldFilters(client->syncs.completedPassCount.load());
+        // If the user already addressed some sync issues but the sync hasn't made another pass
+        // to generate a new stall list, then the filter will hide those for now
+        if (const auto getMap = request->getFlag(); getMap)
+        {
+            auto stallsMap = std::make_unique<MegaSyncStallMapPrivate>(std::move(*problems),
+                                                                       mAddressedStallFilter);
+            request->setMegaSyncStallMap(std::move(stallsMap));
+        }
+        else
+        {
+            auto stallsList = std::make_unique<MegaSyncStallListPrivate>(std::move(*problems),
+                                                                         mAddressedStallFilter);
+            request->setMegaSyncStallList(std::move(stallsList));
+        }
+        fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
+    };
+
+    client->syncs.getSyncProblems(std::move(completion), true);
+    return API_OK;
+}
+#endif
 
 void MegaApiImpl::enableTestSurveys(const MegaHandleList* surveyHandles,
                                     MegaRequestListener* listener)
@@ -30067,7 +30279,7 @@ MegaFolderUploadController::batchResult MegaFolderUploadController::createNextFo
                                          targettype_t,
                                          vector<NewNode>&,
                                          bool,
-                                         int tag,
+                                         int /*tag*/,
                                          const map<string, string>& /*fileHandles*/)
             {
                 // double check our object still exists on request completion
@@ -31057,7 +31269,7 @@ void MegaScheduledCopyController::onTransferUpdate(MegaApi *, MegaTransfer *t)
     megaApi->fireOnBackupUpdate(this);
 }
 
-void MegaScheduledCopyController::onTransferTemporaryError(MegaApi *, MegaTransfer *t, MegaError *e)
+void MegaScheduledCopyController::onTransferTemporaryError(MegaApi*, MegaTransfer*, MegaError* e)
 {
     LOG_verbose << " at MegaScheduledCopyController::onTransferTemporaryError";
 
@@ -32852,22 +33064,22 @@ void MegaTCPServer::closeTCPConnection(MegaTCPContext *tcpctx)
     }
 }
 
-void MegaTCPServer::processOnAsyncEventClose(MegaTCPContext *tcpctx) // without this closing breaks!
+void MegaTCPServer::processOnAsyncEventClose(MegaTCPContext*) // without this closing breaks!
 {
     LOG_debug << "At supposed to be virtual processOnAsyncEventClose";
 }
 
-void MegaTCPServer::processOnExitHandleClose(MegaTCPServer *tcpServer) // without this closing breaks!
+void MegaTCPServer::processOnExitHandleClose(MegaTCPServer*) // without this closing breaks!
 {
     LOG_debug << "At supposed to be virtual processOnExitHandleClose";
 }
 
-void MegaTCPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, const uv_buf_t *buf)
+void MegaTCPServer::processReceivedData(MegaTCPContext*, ssize_t /*nread*/, const uv_buf_t*)
 {
     LOG_debug << "At supposed to be virtual processReceivedData";
 }
 
-void MegaTCPServer::processAsyncEvent(MegaTCPContext *tcpctx)
+void MegaTCPServer::processAsyncEvent(MegaTCPContext*)
 {
     LOG_debug << "At supposed to be virtual processAsyncEvent";
 }
@@ -33018,14 +33230,12 @@ void MegaHTTPServer::processOnAsyncEventClose(MegaTCPContext* tcpctx)
     httpctx->node = NULL;
 }
 
-bool MegaHTTPServer::respondNewConnection(MegaTCPContext* tcpctx)
+bool MegaHTTPServer::respondNewConnection(MegaTCPContext*)
 {
     return true;
 }
 
-void MegaHTTPServer::processOnExitHandleClose(MegaTCPServer *tcpServer)
-{
-}
+void MegaHTTPServer::processOnExitHandleClose(MegaTCPServer*) {}
 
 MegaHTTPServer::~MegaHTTPServer()
 {
@@ -35125,7 +35335,7 @@ MegaTCPContext* MegaFTPServer::initializeContext(uv_stream_t *server_handle)
     return ftpctx;
 }
 
-void MegaFTPServer::processWriteFinished(MegaTCPContext *tcpctx, int status)
+void MegaFTPServer::processWriteFinished(MegaTCPContext*, int status)
 {
     LOG_verbose << "MegaFTPServer::processWriteFinished. status=" << status;
 }
@@ -36633,7 +36843,7 @@ void MegaFTPServer::processAsyncEvent(MegaTCPContext *tcpctx)
     uv_mutex_unlock(&ftpctx->mutex_responses);
 }
 
-void MegaFTPServer::processOnAsyncEventClose(MegaTCPContext* tcpctx)
+void MegaFTPServer::processOnAsyncEventClose(MegaTCPContext*)
 {
     LOG_verbose << "At MegaFTPServer::processOnAsyncEventClose";
 }
@@ -36682,10 +36892,7 @@ bool MegaFTPServer::respondNewConnection(MegaTCPContext* tcpctx)
 
 }
 
-void MegaFTPServer::processOnExitHandleClose(MegaTCPServer *tcpServer)
-{
-
-}
+void MegaFTPServer::processOnExitHandleClose(MegaTCPServer*) {}
 
 MegaFTPContext::MegaFTPContext()
 {
@@ -36720,11 +36927,9 @@ MegaFTPContext::~MegaFTPContext()
     uv_mutex_destroy(&mutex_nodeToDownload);
 }
 
-void MegaFTPContext::onTransferStart(MegaApi *, MegaTransfer *transfer)
-{
-}
+void MegaFTPContext::onTransferStart(MegaApi*, MegaTransfer*) {}
 
-bool MegaFTPContext::onTransferData(MegaApi *, MegaTransfer *transfer, char *buffer, size_t size)
+bool MegaFTPContext::onTransferData(MegaApi*, MegaTransfer*, char* /*buffer*/, size_t /*size*/)
 {
     LOG_verbose << "MegaFTPContext::onTransferData";
     return true;
@@ -37305,9 +37510,7 @@ bool MegaFTPDataServer::respondNewConnection(MegaTCPContext* tcpctx)
     return false;
 }
 
-void MegaFTPDataServer::processOnExitHandleClose(MegaTCPServer *tcpServer)
-{
-}
+void MegaFTPDataServer::processOnExitHandleClose(MegaTCPServer*) {}
 
 void MegaFTPDataServer::sendNextBytes(MegaFTPDataContext *ftpdatactx)
 {
@@ -37464,7 +37667,7 @@ void MegaFTPDataContext::onTransferFinish(MegaApi *, MegaTransfer *, MegaError *
     uv_async_send(&asynchandle);
 }
 
-void MegaFTPDataContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError *)
+void MegaFTPDataContext::onRequestFinish(MegaApi*, MegaRequest*, MegaError*)
 {
     if (finished)
     {

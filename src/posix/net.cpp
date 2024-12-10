@@ -183,7 +183,7 @@ void CurlHttpIO::locking_function(int mode, int lockNumber, const char *, int)
 }
 
 #if OPENSSL_VERSION_NUMBER >= 0x10000000 || defined (LIBRESSL_VERSION_NUMBER)
-void CurlHttpIO::id_function(CRYPTO_THREADID* id)
+void CurlHttpIO::id_function([[maybe_unused]] CRYPTO_THREADID* id)
 {
     CRYPTO_THREADID_set_pointer(id, (void *)THREAD_CLASS::currentThreadId());
 }
@@ -509,7 +509,7 @@ void CurlHttpIO::filterDNSservers()
     }
 }
 
-void CurlHttpIO::addaresevents(Waiter *waiter)
+void CurlHttpIO::addaresevents([[maybe_unused]] Waiter* waiter)
 {
 #ifdef MEGA_MEASURE_CODE
     CodeCounter::ScopeTimer ccst(countAddAresEventsCode);
@@ -2683,7 +2683,7 @@ size_t CurlHttpIO::read_data(void* ptr, size_t size, size_t nmemb, void* source)
 
             if (nread > (size_t)maxbytes)
             {
-                nread = maxbytes;
+                nread = static_cast<size_t>(maxbytes);
             }
             httpio->partialdata[PUT] += nread;
         }
@@ -2722,14 +2722,14 @@ size_t CurlHttpIO::write_data(void* ptr, size_t size, size_t nmemb, void* target
 
         if (len)
         {
-            req->put(ptr, len, true);
+            req->put(ptr, static_cast<unsigned>(len), true);
         }
 
         httpio->lastdata = Waiter::ds;
         req->lastdata = Waiter::ds;
     }
 
-    return len;
+    return static_cast<size_t>(len);
 }
 
 // set contentlength according to Original-Content-Length header
@@ -2793,7 +2793,7 @@ size_t CurlHttpIO::check_header(void* ptr, size_t size, size_t nmemb, void* targ
             string buf;
             if (!getline(ss, buf, ':'))
                 break;
-            hc.push_back(move(buf));
+            hc.push_back(std::move(buf));
         }
         if (hc.size() != 4 // incomplete data
             || stoi(hc[0]) != 1 // header version
@@ -2844,10 +2844,10 @@ int CurlHttpIO::seek_data(void *userp, curl_off_t offset, int origin)
         newoffset = offset;
         break;
     case SEEK_CUR:
-        newoffset = req->outpos + offset;
+        newoffset = static_cast<curl_off_t>(req->outpos) + offset;
         break;
     case SEEK_END:
-        newoffset = totalsize + offset;
+        newoffset = static_cast<curl_off_t>(totalsize) + offset;
         break;
     default:
         LOG_err << "Invalid origin in seek function: " << origin;

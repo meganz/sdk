@@ -421,9 +421,8 @@ void MountDB::current()
     MountDBLock guard(*this);
 
     // Calls our current handler.
-    auto current = [this](Activity& activity,
-                          void (MountDB::*onCurrent)(),
-                          const Task& task) {
+    auto current = [this](Activity&, void (MountDB::*onCurrent)(), const Task& task)
+    {
         // Task hasn't been cancelled.
         if (!task.cancelled())
             (this->*onCurrent)();

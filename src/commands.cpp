@@ -26,6 +26,7 @@
 #include "mega/heartbeats.h"
 #include "mega/mediafileattribute.h"
 #include "mega/megaapp.h"
+#include "mega/tlv.h"
 #include "mega/transfer.h"
 #include "mega/transferslot.h"
 #include "mega/types.h"
@@ -38,8 +39,14 @@
 
 namespace mega {
 
-CommandPutFA::CommandPutFA(NodeOrUploadHandle cth, fatype ctype, bool usehttps, int ctag, size_t size, bool getIP, CommandPutFA::Cb &&completion)
-    : mCompletion(std::move(completion))
+CommandPutFA::CommandPutFA(NodeOrUploadHandle cth,
+                           fatype /*ctype*/,
+                           bool usehttps,
+                           int ctag,
+                           size_t size,
+                           bool getIP,
+                           CommandPutFA::Cb&& completion):
+    mCompletion(std::move(completion))
 {
     cmd("ufa");
     arg("s", size);
@@ -214,6 +221,8 @@ CommandGetFA::CommandGetFA(MegaClient *client, int p, handle fahref)
     }
 
     arg("r", 1);
+
+    arg("v", 3);
 }
 
 bool CommandGetFA::procresult(Result r, JSON& json)
@@ -240,6 +249,7 @@ bool CommandGetFA::procresult(Result r, JSON& json)
     }
 
     const char* p = NULL;
+    std::vector<string> ips;
 
     for (;;)
     {
@@ -249,6 +259,10 @@ bool CommandGetFA::procresult(Result r, JSON& json)
                 p = json.getvalue();
                 break;
 
+            case MAKENAMEID2('i', 'p'):
+                loadIpsFromJson(ips, json);
+                break;
+
             case EOO:
                 if (it != client->fafcs.end())
                 {
@@ -256,6 +270,12 @@ bool CommandGetFA::procresult(Result r, JSON& json)
                     {
                         JSON::copystring(&it->second->posturl, p);
                         it->second->urltime = Waiter::ds;
+                        size_t ipCount = ips.size();
+                        if (!cacheresolvedurls({it->second->posturl}, std::move(ips)))
+                        {
+                            LOG_err << "Unpaired IPs received for URLs in `ufa` command. "
+                                    << ipCount << " IPs for one URL.";
+                        }
                         it->second->dispatch();
                     }
                     else
@@ -294,7 +314,7 @@ bool CommandGetFA::procresult(Result r, JSON& json)
     }
 }
 
-CommandAttachFA::CommandAttachFA(MegaClient *client, handle nh, fatype t, handle ah, int ctag)
+CommandAttachFA::CommandAttachFA(MegaClient*, handle nh, fatype t, handle ah, int ctag)
 {
     mSeqtagArray = true;
     cmd("pfa");
@@ -312,7 +332,11 @@ CommandAttachFA::CommandAttachFA(MegaClient *client, handle nh, fatype t, handle
     tag = ctag;
 }
 
-CommandAttachFA::CommandAttachFA(MegaClient *client, handle nh, fatype t, const std::string& encryptedAttributes, int ctag)
+CommandAttachFA::CommandAttachFA(MegaClient*,
+                                 handle nh,
+                                 fatype t,
+                                 const std::string& encryptedAttributes,
+                                 int ctag)
 {
     mSeqtagArray = true;
     cmd("pfa");
@@ -945,9 +969,13 @@ bool CommandGetFile::procresult(Result r, JSON& json)
     }
 }
 
-CommandSetAttr::CommandSetAttr(MegaClient* client, std::shared_ptr<Node> n, attr_map&& attrMapUpdates, Completion&& c, bool canChangeVault)
-    : mAttrMapUpdates(attrMapUpdates)
-    , mCanChangeVault(canChangeVault)
+CommandSetAttr::CommandSetAttr(MegaClient*,
+                               std::shared_ptr<Node> n,
+                               attr_map&& attrMapUpdates,
+                               Completion&& c,
+                               bool canChangeVault):
+    mAttrMapUpdates(attrMapUpdates),
+    mCanChangeVault(canChangeVault)
 {
     h = n->nodeHandle();
     mNode = n;
@@ -1024,8 +1052,7 @@ const char* CommandSetAttr::getJSON(MegaClient* client)
     return jsonWriter.getstring().c_str();
 }
 
-
-bool CommandSetAttr::procresult(Result r, JSON& json)
+bool CommandSetAttr::procresult(Result r, JSON&)
 {
     removeFromNodePendingCommands(h, client);
     if (completion) completion(h, generationError ? Error(generationError) : r.errorOrOK());
@@ -1490,10 +1517,10 @@ CommandMoveNode::CommandMoveNode(MegaClient* client, std::shared_ptr<Node> n, st
     tpsk.get(this);
 
     tag = client->reqtag;
-    completion = move(c);
+    completion = std::move(c);
 }
 
-bool CommandMoveNode::procresult(Result r, JSON& json)
+bool CommandMoveNode::procresult(Result r, JSON&)
 {
     if (r.wasErrorOrOK())
     {
@@ -1513,8 +1540,13 @@ bool CommandMoveNode::procresult(Result r, JSON& json)
     return r.wasErrorOrOK();
 }
 
-CommandDelNode::CommandDelNode(MegaClient* client, NodeHandle th, bool keepversions, int cmdtag, std::function<void(NodeHandle, Error)>&& f, bool canChangeVault)
-    : mResultFunction(std::move(f))
+CommandDelNode::CommandDelNode(MegaClient*,
+                               NodeHandle th,
+                               bool keepversions,
+                               int cmdtag,
+                               std::function<void(NodeHandle, Error)>&& f,
+                               bool canChangeVault):
+    mResultFunction(std::move(f))
 {
     cmd("d");
 
@@ -1586,7 +1618,7 @@ CommandDelVersions::CommandDelVersions(MegaClient* client)
     tag = client->reqtag;
 }
 
-bool CommandDelVersions::procresult(Result r, JSON& json)
+bool CommandDelVersions::procresult(Result r, JSON&)
 {
     client->app->unlinkversions_result(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -1612,7 +1644,7 @@ CommandKillSessions::CommandKillSessions(MegaClient* client, handle sessionid)
     tag = client->reqtag;
 }
 
-bool CommandKillSessions::procresult(Result r, JSON& json)
+bool CommandKillSessions::procresult(Result r, JSON&)
 {
     client->app->sessions_killed(h, r.errorOrOK());
     return r.wasErrorOrOK();
@@ -1641,7 +1673,7 @@ const char* CommandLogout::getJSON(MegaClient* client)
     return jsonWriter.getstring().c_str();
 }
 
-bool CommandLogout::procresult(Result r, JSON& json)
+bool CommandLogout::procresult(Result r, JSON&)
 {
     assert(r.wasErrorOrOK());
     if (client->loggingout > 0)
@@ -2490,7 +2522,7 @@ CommandUpdatePendingContact::CommandUpdatePendingContact(MegaClient* client, han
     mCompletion = std::move(completion);
 }
 
-bool CommandUpdatePendingContact::procresult(Result r, JSON& json)
+bool CommandUpdatePendingContact::procresult(Result r, JSON&)
 {
     doComplete(r.errorOrOK(), this->action);
 
@@ -3119,7 +3151,7 @@ CommandRemoveContact::CommandRemoveContact(MegaClient* client, const char* m, vi
     mCompletion = std::move(completion);
 }
 
-bool CommandRemoveContact::procresult(Result r, JSON& json)
+bool CommandRemoveContact::procresult(Result r, JSON&)
 {
     assert(r.hasJsonObject() || r.wasStrictlyError());
 
@@ -3217,17 +3249,17 @@ bool CommandPutMultipleUAVer::procresult(Result r, JSON& json)
 
                 if (type == ATTR_KEYRING)
                 {
-                    TLVstore *tlvRecords = TLVstore::containerToTLVrecords(&attrs[type], &client->key);
-                    if (tlvRecords)
+                    if (unique_ptr<string_map> records{
+                            tlv::containerToRecords(attrs[type], client->key)})
                     {
-                        string prEd255;
-                        if (tlvRecords->get(EdDSA::TLV_KEY, prEd255) && prEd255.size() == EdDSA::SEED_KEY_LENGTH)
+                        string prEd255{std::move((*records)[EdDSA::TLV_KEY])};
+                        if (prEd255.size() == EdDSA::SEED_KEY_LENGTH)
                         {
                             client->signkey = new EdDSA(client->rng, (unsigned char *) prEd255.data());
                         }
 
-                        string prCu255;
-                        if (tlvRecords->get(ECDH::TLV_KEY, prCu255) && prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
+                        string prCu255{std::move((*records)[ECDH::TLV_KEY])};
+                        if (prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
                         {
                             client->chatkey = new ECDH(prCu255);
                         }
@@ -3242,8 +3274,6 @@ bool CommandPutMultipleUAVer::procresult(Result r, JSON& json)
                         {
                             client->sendevent(99420, "Signing and chat keys attached OK", 0);
                         }
-
-                        delete tlvRecords;
                     }
                     else
                     {
@@ -3385,7 +3415,7 @@ bool CommandPutUAVer::procresult(Result r, JSON& json)
 CommandPutUA::CommandPutUA(MegaClient* /*client*/, attr_t at, const byte* av, unsigned avl, int ctag, handle lph, int phtype, int64_t ts,
                            std::function<void(Error)> completion)
 {
-    mV3 = false;
+    mSeqtagArray = true;
 
     this->at = at;
     this->av.assign((const char*)av, avl);
@@ -3488,8 +3518,14 @@ bool CommandPutUA::procresult(Result r, JSON& json)
     return true;
 }
 
-CommandGetUA::CommandGetUA(MegaClient* /*client*/, const char* uid, attr_t at, const char* ph, int ctag,
-                           CompletionErr completionErr, CompletionBytes completionBytes, CompletionTLV compltionTLV)
+CommandGetUA::CommandGetUA(MegaClient* /*client*/,
+                           const char* uid,
+                           attr_t at,
+                           const char* ph,
+                           int ctag,
+                           CompletionErr completionErr,
+                           CompletionBytes completionBytes,
+                           CompletionTLV completionTLV)
 {
     mV3 = true;
 
@@ -3507,10 +3543,11 @@ CommandGetUA::CommandGetUA(MegaClient* /*client*/, const char* uid, attr_t at, c
             client->app->getua_result(b, l, e);
         };
 
-    mCompletionTLV = compltionTLV ? std::move(compltionTLV) :
-        [this](TLVstore* t, attr_t e) {
-            client->app->getua_result(t, e);
-        };
+    mCompletionTLV = completionTLV ? std::move(completionTLV) :
+                                     [this](unique_ptr<string_map> t, attr_t e)
+    {
+        client->app->getua_result(std::move(t), e);
+    };
 
     if (ph && ph[0])
     {
@@ -3655,18 +3692,19 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                     {
                         case ATTR_SCOPE_PRIVATE_ENCRYPTED:
                         {
-                            // decrypt the data and build the TLV records
-                            std::unique_ptr<TLVstore> tlvRecords { TLVstore::containerToTLVrecords(&value, &client->key) };
-                            if (!tlvRecords)
+                            // decrypt the data
+                            std::unique_ptr<string_map> records{
+                                tlv::containerToRecords(value, client->key)};
+                            if (!records)
                             {
-                                LOG_err << "Cannot extract TLV records for private attribute " << User::attr2string(at);
+                                LOG_err << "Cannot extract TLV records for private attribute "
+                                        << User::attr2string(at);
                                 mCompletionErr(API_EINTERNAL);
                                 return false;
                             }
 
-                            // store the value for private user attributes (re-encrypted version of serialized TLV)
                             u->setAttribute(at, value, version);
-                            mCompletionTLV(tlvRecords.get(), at);
+                            mCompletionTLV(std::move(records), at);
 
                             break;
                         }
@@ -3853,7 +3891,7 @@ CommandSendDevCommand::CommandSendDevCommand(MegaClient* client,
     tag = client->reqtag;
 }
 
-bool CommandSendDevCommand::procresult(Result r, JSON& json)
+bool CommandSendDevCommand::procresult(Result r, JSON&)
 {
     client->app->senddevcommand_result(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -4074,7 +4112,10 @@ void CommandPubKeyRequest::invalidateUser()
     u = NULL;
 }
 
-CommandGetUserData::CommandGetUserData(MegaClient *client, int tag, std::function<void(string*, string*, string*, error)> completion)
+CommandGetUserData::CommandGetUserData(
+    MegaClient*,
+    int tag,
+    std::function<void(string*, string*, string*, error)> completion)
 {
     cmd("ug");
     arg("v", 1);
@@ -4757,13 +4798,10 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
                 if (chatFolder.size())
                 {
-                    unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&chatFolder, &client->key));
-                    if (tlvRecords)
+                    if (tlv::containerToRecords(chatFolder, client->key)) // validation
                     {
-                        // store the value for private user attributes (decrypted version of serialized TLV)
-                        unique_ptr<string> tlvString(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
                         changes |= u->updateAttributeIfDifferentVersion(ATTR_MY_CHAT_FILES_FOLDER,
-                                                                        *tlvString,
+                                                                        chatFolder,
                                                                         versionChatFolder);
                     }
                     else
@@ -4778,13 +4816,11 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
                 if (cameraUploadFolder.size())
                 {
-                    unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&cameraUploadFolder, &client->key));
-                    if (tlvRecords)
+                    if (tlv::containerToRecords(cameraUploadFolder,
+                                                client->key)) // validation
                     {
-                        // store the value for private user attributes (decrypted version of serialized TLV)
-                        unique_ptr<string> tlvString(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
                         changes |= u->updateAttributeIfDifferentVersion(ATTR_CAMERA_UPLOADS_FOLDER,
-                                                                        *tlvString,
+                                                                        cameraUploadFolder,
                                                                         versionCameraUploadFolder);
                     }
                     else
@@ -4832,13 +4868,10 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
                 if (aliases.size())
                 {
-                    unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&aliases, &client->key));
-                    if (tlvRecords)
+                    if (tlv::containerToRecords(aliases, client->key)) // validation
                     {
-                        // store the value for private user attributes (decrypted version of serialized TLV)
-                        unique_ptr<string> tlvString(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
                         changes |= u->updateAttributeIfDifferentVersion(ATTR_ALIAS,
-                                                                        *tlvString,
+                                                                        aliases,
                                                                         versionAliases);
                     }
                     else
@@ -4879,13 +4912,10 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
                 if (deviceNames.size())
                 {
-                    unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&deviceNames, &client->key));
-                    if (tlvRecords)
+                    if (tlv::containerToRecords(deviceNames, client->key)) // validation
                     {
-                        // store the value for private user attributes (decrypted version of serialized TLV)
-                        unique_ptr<string> tlvString(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
                         changes |= u->updateAttributeIfDifferentVersion(ATTR_DEVICE_NAMES,
-                                                                        *tlvString,
+                                                                        deviceNames,
                                                                         versionDeviceNames);
                     }
                     else
@@ -5919,7 +5949,7 @@ CommandGetUserTransactions::CommandGetUserTransactions(MegaClient* client, std::
     tag = client->reqtag;
 }
 
-bool CommandGetUserTransactions::procresult(Result r, JSON& json)
+bool CommandGetUserTransactions::procresult(Result, JSON& json)
 {
     details->transactions.clear();
 
@@ -5961,7 +5991,7 @@ CommandGetUserPurchases::CommandGetUserPurchases(MegaClient* client, std::shared
     tag = client->reqtag;
 }
 
-bool CommandGetUserPurchases::procresult(Result r, JSON& json)
+bool CommandGetUserPurchases::procresult(Result, JSON& json)
 {
     client->restag = tag;
 
@@ -6009,7 +6039,7 @@ CommandGetUserSessions::CommandGetUserSessions(MegaClient* client, std::shared_p
     tag = client->reqtag;
 }
 
-bool CommandGetUserSessions::procresult(Result r, JSON& json)
+bool CommandGetUserSessions::procresult(Result, JSON& json)
 {
     details->sessions.clear();
 
@@ -6482,7 +6512,7 @@ CommandCancelSignup::CommandCancelSignup(MegaClient *client)
     tag = client->reqtag;
 }
 
-bool CommandCancelSignup::procresult(Result r, JSON& json)
+bool CommandCancelSignup::procresult(Result r, JSON&)
 {
     client->app->cancelsignup_result(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -6529,7 +6559,13 @@ CommandSendSignupLink2::CommandSendSignupLink2(MegaClient* client, const char* e
     tag = client->reqtag;
 }
 
-CommandSendSignupLink2::CommandSendSignupLink2(MegaClient* client, const char* email, const char* name, byte *clientrandomvalue, byte *encmasterkey, byte *hashedauthkey, int ctag)
+CommandSendSignupLink2::CommandSendSignupLink2(MegaClient*,
+                                               const char* email,
+                                               const char* name,
+                                               byte* clientrandomvalue,
+                                               byte* encmasterkey,
+                                               byte* hashedauthkey,
+                                               int ctag)
 {
     cmd("uc2");
     arg("n", (byte*)name, int(strlen(name)));
@@ -6542,7 +6578,7 @@ CommandSendSignupLink2::CommandSendSignupLink2(MegaClient* client, const char* e
     tag = ctag;
 }
 
-bool CommandSendSignupLink2::procresult(Result r, JSON& json)
+bool CommandSendSignupLink2::procresult(Result r, JSON&)
 {
     client->app->sendsignuplink_result(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -7209,7 +7245,7 @@ CommandSubmitPurchaseReceipt::CommandSubmitPurchaseReceipt(MegaClient *client, i
     tag = client->reqtag;
 }
 
-bool CommandSubmitPurchaseReceipt::procresult(Result r, JSON& json)
+bool CommandSubmitPurchaseReceipt::procresult(Result r, JSON&)
 {
     client->app->submitpurchasereceipt_result(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -7228,7 +7264,7 @@ CommandCreditCardStore::CommandCreditCardStore(MegaClient* client, const char *c
     tag = client->reqtag;
 }
 
-bool CommandCreditCardStore::procresult(Result r, JSON& json)
+bool CommandCreditCardStore::procresult(Result r, JSON&)
 {
     client->app->creditcardstore_result(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -7326,7 +7362,7 @@ CommandCreditCardCancelSubscriptions::CommandCreditCardCancelSubscriptions(
     tag = client->reqtag;
 }
 
-bool CommandCreditCardCancelSubscriptions::procresult(Result r, JSON& json)
+bool CommandCreditCardCancelSubscriptions::procresult(Result r, JSON&)
 {
     client->app->creditcardcancelsubscriptions_result(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -7471,7 +7507,7 @@ CommandSendReport::CommandSendReport(MegaClient *client, const char *type, const
     tag = client->reqtag;
 }
 
-bool CommandSendReport::procresult(Result r, JSON& json)
+bool CommandSendReport::procresult(Result r, JSON&)
 {
     client->app->userfeedbackstore_result(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -7507,7 +7543,7 @@ CommandSendEvent::CommandSendEvent(MegaClient *client, int type, const char *des
     tag = client->reqtag;
 }
 
-bool CommandSendEvent::procresult(Result r, JSON& json)
+bool CommandSendEvent::procresult(Result r, JSON&)
 {
     client->app->sendevent_result(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -7523,7 +7559,7 @@ CommandSupportTicket::CommandSupportTicket(MegaClient *client, const char *messa
     tag = client->reqtag;
 }
 
-bool CommandSupportTicket::procresult(Result r, JSON& json)
+bool CommandSupportTicket::procresult(Result r, JSON&)
 {
     client->app->supportticket_result(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -7536,7 +7572,7 @@ CommandCleanRubbishBin::CommandCleanRubbishBin(MegaClient *client)
     tag = client->reqtag;
 }
 
-bool CommandCleanRubbishBin::procresult(Result r, JSON& json)
+bool CommandCleanRubbishBin::procresult(Result r, JSON&)
 {
     client->app->cleanrubbishbin_result(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -7556,7 +7592,7 @@ CommandGetRecoveryLink::CommandGetRecoveryLink(MegaClient *client, const char *e
     tag = client->reqtag;
 }
 
-bool CommandGetRecoveryLink::procresult(Result r, JSON& json)
+bool CommandGetRecoveryLink::procresult(Result r, JSON&)
 {
     client->app->getrecoverylink_result(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -7701,7 +7737,7 @@ CommandConfirmRecoveryLink::CommandConfirmRecoveryLink(MegaClient *client, const
     tag = client->reqtag;
 }
 
-bool CommandConfirmRecoveryLink::procresult(Result r, JSON& json)
+bool CommandConfirmRecoveryLink::procresult(Result r, JSON&)
 {
     client->app->confirmrecoverylink_result(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -7715,7 +7751,7 @@ CommandConfirmCancelLink::CommandConfirmCancelLink(MegaClient *client, const cha
     tag = client->reqtag;
 }
 
-bool CommandConfirmCancelLink::procresult(Result r, JSON& json)
+bool CommandConfirmCancelLink::procresult(Result r, JSON&)
 {
     MegaApp *app = client->app;
     app->confirmcancellink_result(r.errorOrOK());
@@ -7734,7 +7770,7 @@ CommandResendVerificationEmail::CommandResendVerificationEmail(MegaClient *clien
     tag = client->reqtag;
 }
 
-bool CommandResendVerificationEmail::procresult(Result r, JSON& json)
+bool CommandResendVerificationEmail::procresult(Result r, JSON&)
 {
     client->app->resendverificationemail_result(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -7746,7 +7782,7 @@ CommandResetSmsVerifiedPhoneNumber::CommandResetSmsVerifiedPhoneNumber(MegaClien
     tag = client->reqtag;
 }
 
-bool CommandResetSmsVerifiedPhoneNumber::procresult(Result r, JSON& json)
+bool CommandResetSmsVerifiedPhoneNumber::procresult(Result r, JSON&)
 {
     if (r.wasError(API_OK))
     {
@@ -7765,7 +7801,7 @@ CommandValidatePassword::CommandValidatePassword(MegaClient *client, const char 
     tag = client->reqtag;
 }
 
-bool CommandValidatePassword::procresult(Result r, JSON& json)
+bool CommandValidatePassword::procresult(Result r, JSON&)
 {
     if (r.wasErrorOrOK())
     {
@@ -7801,7 +7837,7 @@ CommandGetEmailLink::CommandGetEmailLink(MegaClient *client, const char *email, 
     tag = client->reqtag;
 }
 
-bool CommandGetEmailLink::procresult(Result r, JSON& json)
+bool CommandGetEmailLink::procresult(Result r, JSON&)
 {
     client->app->getemaillink_result(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -7829,7 +7865,7 @@ CommandConfirmEmailLink::CommandConfirmEmailLink(MegaClient *client, const char 
     tag = client->reqtag;
 }
 
-bool CommandConfirmEmailLink::procresult(Result r, JSON& json)
+bool CommandConfirmEmailLink::procresult(Result r, JSON&)
 {
     if (r.wasError(API_OK))
     {
@@ -8221,7 +8257,7 @@ CommandSetChatOptions::CommandSetChatOptions(MegaClient* client, handle chatid, 
     tag = client->reqtag;
 }
 
-bool CommandSetChatOptions::procresult(Result r, JSON& json)
+bool CommandSetChatOptions::procresult(Result r, JSON&)
 {
     if (r.wasError(API_OK))
     {
@@ -8277,7 +8313,7 @@ CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, handle u
     tag = client->reqtag;
 }
 
-bool CommandChatInvite::procresult(Result r, JSON& json)
+bool CommandChatInvite::procresult(Result r, JSON&)
 {
     if (r.wasError(API_OK))
     {
@@ -8324,7 +8360,7 @@ CommandChatRemove::CommandChatRemove(MegaClient *client, handle chatid, handle u
     tag = client->reqtag;
 }
 
-bool CommandChatRemove::procresult(Result r, JSON& json)
+bool CommandChatRemove::procresult(Result r, JSON&)
 {
     if (r.wasError(API_OK))
     {
@@ -8415,7 +8451,7 @@ CommandChatGrantAccess::CommandChatGrantAccess(MegaClient *client, handle chatid
     tag = client->reqtag;
 }
 
-bool CommandChatGrantAccess::procresult(Result r, JSON& json)
+bool CommandChatGrantAccess::procresult(Result r, JSON&)
 {
     if (r.wasError(API_OK))
     {
@@ -8455,7 +8491,7 @@ CommandChatRemoveAccess::CommandChatRemoveAccess(MegaClient *client, handle chat
     tag = client->reqtag;
 }
 
-bool CommandChatRemoveAccess::procresult(Result r, JSON& json)
+bool CommandChatRemoveAccess::procresult(Result r, JSON&)
 {
     if (r.wasError(API_OK))
     {
@@ -8494,7 +8530,7 @@ CommandChatUpdatePermissions::CommandChatUpdatePermissions(MegaClient *client, h
     tag = client->reqtag;
 }
 
-bool CommandChatUpdatePermissions::procresult(Result r, JSON& json)
+bool CommandChatUpdatePermissions::procresult(Result r, JSON&)
 {
     if (r.wasError(API_OK))
     {
@@ -8543,7 +8579,7 @@ CommandChatTruncate::CommandChatTruncate(MegaClient *client, handle chatid, hand
     tag = client->reqtag;
 }
 
-bool CommandChatTruncate::procresult(Result r, JSON& json)
+bool CommandChatTruncate::procresult(Result r, JSON&)
 {
     if (r.wasError(API_OK))
     {
@@ -8579,7 +8615,7 @@ CommandChatSetTitle::CommandChatSetTitle(MegaClient *client, handle chatid, cons
     tag = client->reqtag;
 }
 
-bool CommandChatSetTitle::procresult(Result r, JSON& json)
+bool CommandChatSetTitle::procresult(Result r, JSON&)
 {
     if (r.wasError(API_OK))
     {
@@ -8640,7 +8676,7 @@ CommandRegisterPushNotification::CommandRegisterPushNotification(MegaClient *cli
     tag = client->reqtag;
 }
 
-bool CommandRegisterPushNotification::procresult(Result r, JSON& json)
+bool CommandRegisterPushNotification::procresult(Result r, JSON&)
 {
     client->app->registerpushnotification_result(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -8662,7 +8698,7 @@ CommandArchiveChat::CommandArchiveChat(MegaClient *client, handle chatid, bool a
     tag = client->reqtag;
 }
 
-bool CommandArchiveChat::procresult(Result r, JSON& json)
+bool CommandArchiveChat::procresult(Result r, JSON&)
 {
     if (r.wasError(API_OK))
     {
@@ -8696,7 +8732,7 @@ CommandSetChatRetentionTime::CommandSetChatRetentionTime(MegaClient *client, han
     tag = client->reqtag;
 }
 
-bool CommandSetChatRetentionTime::procresult(Result r, JSON& json)
+bool CommandSetChatRetentionTime::procresult(Result r, JSON&)
 {
     client->app->setchatretentiontime_result(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -8962,7 +8998,7 @@ CommandChatLinkClose::CommandChatLinkClose(MegaClient *client, handle chatid, co
     tag = client->reqtag;
 }
 
-bool CommandChatLinkClose::procresult(Result r, JSON& json)
+bool CommandChatLinkClose::procresult(Result r, JSON&)
 {
     if (r.wasError(API_OK))
     {
@@ -8997,7 +9033,7 @@ CommandChatLinkJoin::CommandChatLinkJoin(MegaClient *client, handle publichandle
     tag = client->reqtag;
 }
 
-bool CommandChatLinkJoin::procresult(Result r, JSON& json)
+bool CommandChatLinkJoin::procresult(Result r, JSON&)
 {
     client->app->chatlinkjoin_result(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -9407,7 +9443,7 @@ CommandContactLinkDelete::CommandContactLinkDelete(MegaClient *client, handle h)
     tag = client->reqtag;
 }
 
-bool CommandContactLinkDelete::procresult(Result r, JSON& json)
+bool CommandContactLinkDelete::procresult(Result r, JSON&)
 {
     client->app->contactlinkdelete_result(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -9428,7 +9464,7 @@ CommandKeepMeAlive::CommandKeepMeAlive(MegaClient *client, int type, bool enable
     tag = client->reqtag;
 }
 
-bool CommandKeepMeAlive::procresult(Result r, JSON& json)
+bool CommandKeepMeAlive::procresult(Result r, JSON&)
 {
     client->app->keepmealive_result(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -9506,7 +9542,7 @@ CommandMultiFactorAuthDisable::CommandMultiFactorAuthDisable(MegaClient *client,
     tag = client->reqtag;
 }
 
-bool CommandMultiFactorAuthDisable::procresult(Result r, JSON& json)
+bool CommandMultiFactorAuthDisable::procresult(Result r, JSON&)
 {
     client->app->multifactorauthdisable_result(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -9676,7 +9712,7 @@ CommandSetLastAcknowledged::CommandSetLastAcknowledged(MegaClient* client)
     tag = client->reqtag;
 }
 
-bool CommandSetLastAcknowledged::procresult(Result r, JSON& json)
+bool CommandSetLastAcknowledged::procresult(Result r, JSON&)
 {
     if (r.succeeded())
     {
@@ -9715,7 +9751,7 @@ bool CommandSMSVerificationSend::isPhoneNumber(const string& s)
     return s.size() > 6;
 }
 
-bool CommandSMSVerificationSend::procresult(Result r, JSON& json)
+bool CommandSMSVerificationSend::procresult(Result r, JSON&)
 {
     client->app->smsverificationsend_result(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -10058,7 +10094,7 @@ CommandBackupPutHeartBeat::CommandBackupPutHeartBeat(MegaClient* client, handle 
     tag = client->reqtag;
 }
 
-bool CommandBackupPutHeartBeat::procresult(Result r, JSON& json)
+bool CommandBackupPutHeartBeat::procresult(Result r, JSON&)
 {
     if (mCompletion) mCompletion(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -10075,7 +10111,7 @@ CommandBackupRemove::CommandBackupRemove(MegaClient* client,
     mCompletion = completion;
 }
 
-bool CommandBackupRemove::procresult(Result r, JSON& json)
+bool CommandBackupRemove::procresult(Result r, JSON&)
 {
     if (mCompletion)
     {
@@ -10289,7 +10325,7 @@ CommandDismissBanner::CommandDismissBanner(MegaClient* client, int id, m_time_t 
     tag = client->reqtag;
 }
 
-bool CommandDismissBanner::procresult(Result r, JSON& json)
+bool CommandDismissBanner::procresult(Result r, JSON&)
 {
     client->app->dismissbanner_result(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -10494,7 +10530,7 @@ CommandRemoveSet::CommandRemoveSet(MegaClient* cl, handle id, std::function<void
     notself(cl); // don't process its Action Packet after sending this
 }
 
-bool CommandRemoveSet::procresult(Result r, JSON& json)
+bool CommandRemoveSet::procresult(Result r, JSON&)
 {
     Error e = API_OK;
     bool parsedOk = procerrorcode(r, e);
@@ -11034,7 +11070,7 @@ CommandMeetingJoin::CommandMeetingJoin(MegaClient *client, handle chatid, handle
     tag = client->reqtag;
 }
 
-bool CommandMeetingEnd::procresult(Command::Result r, JSON& json)
+bool CommandMeetingEnd::procresult(Command::Result r, JSON&)
 {
     mCompletion(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -11188,7 +11224,7 @@ CommandScheduledMeetingRemove::CommandScheduledMeetingRemove(MegaClient* client,
     tag = client->reqtag;
 }
 
-bool CommandScheduledMeetingRemove::procresult(Command::Result r, JSON& json)
+bool CommandScheduledMeetingRemove::procresult(Command::Result r, JSON&)
 {
     if (!r.wasErrorOrOK())
     {
@@ -11441,108 +11477,190 @@ CommandGetVpnRegions::CommandGetVpnRegions(MegaClient* client, Cb&& completion)
     mCompletion(std::move(completion))
 {
     cmd("vpnr");
-    arg("v", 4); // include the DNS targets for each cluster in each region in response
+    arg("v", 5); // include the DNS targets for each cluster in each region in response
+    arg("t", 1); // Retrieve server location information
 
     tag = client->reqtag;
 }
 
 bool CommandGetVpnRegions::parseRegions(JSON& json, vector<VpnRegion>* vpnRegions)
 {
-    bool storeData = vpnRegions != nullptr;
     string buffer;
-    string* pBuffer = storeData ? &buffer : nullptr;
-    for (; json.storeobject(pBuffer);) // region name
+    string* pBuffer = vpnRegions ? &buffer : nullptr;
+    for (; json.storeobject(pBuffer);) // Iterate over regions
     {
         if (*json.pos == ':') // work around lack of functionality in enterobject()
             ++json.pos;
         if (!json.enterobject())
             return false;
 
-        std::optional<VpnRegion> region{storeData ? std::make_optional(std::move(buffer)) :
-                                                    std::nullopt};
+        std::optional<VpnRegion> region{vpnRegions ? std::make_optional(std::move(buffer)) :
+                                                     std::nullopt};
         buffer.clear();
 
-        for (; json.storeobject(pBuffer);) // cluster ID
+        for (bool finishedRegion = false; !finishedRegion;)
         {
-            int clusterID{};
-            if (storeData)
+            switch (json.getnameid())
             {
-                auto [ptr, ec] =
-                    std::from_chars(buffer.c_str(), buffer.c_str() + buffer.size(), clusterID);
-                if (ec != std::errc())
-                    return false;
-            }
-
-            if (*json.pos == ':')
-                ++json.pos;
-            if (!json.enterobject())
-                return false;
-
-            std::optional<string> host{storeData ? std::make_optional<string>() : std::nullopt};
-            std::optional<vector<string>> dns{storeData ? std::make_optional<vector<string>>() :
-                                                          std::nullopt};
-
-            for (bool hasData = true; hasData;) // host, dns
-            {
-                switch (json.getnameid())
+                case MAKENAMEID1('c'): // Clusters list
+                    if (!json.enterobject()) // Enter clusters object
+                    {
+                        return false;
+                    }
+                    if (!CommandGetVpnRegions::parseClusters(json,
+                                                             region ? &region.value() : nullptr))
+                    {
+                        return false;
+                    }
+                    if (!json.leaveobject()) // leave clusters object
+                    {
+                        return false;
+                    }
+                    break;
+                case MAKENAMEID2('c', 'c'): // Country code
                 {
-                    case 'h':
-                        if (!json.storeobject(pBuffer))
-                            return false;
-                        if (storeData)
-                        {
-                            host = std::move(buffer);
-                            buffer.clear();
-                        }
-                        break;
-
-                    case MAKENAMEID3('d', 'n', 's'):
-                        if (!json.enterarray())
-                            return false;
-
-                        while (json.storeobject(pBuffer))
-                        {
-                            if (storeData)
-                            {
-                                dns->emplace_back(std::move(buffer));
-                                buffer.clear();
-                            }
-                        }
-
-                        if (!json.leavearray())
-                            return false;
-                        break;
-
-                    case EOO:
-                        hasData = false;
-                        break;
-
-                    default:
-                        if (!json.storeobject())
-                            return false;
+                    string countryCode;
+                    json.storeobject(&countryCode);
+                    if (region)
+                    {
+                        region->setCountryCode(std::move(countryCode));
+                    }
                 }
-            }
-            if (!json.leaveobject())
-                return false;
-
-            if (storeData)
-            {
-                region->addCluster(clusterID, {std::move(host.value()), std::move(dns.value())});
-            }
-
-            if (*json.pos == '}')
-            {
-                json.leaveobject();
                 break;
+                case MAKENAMEID2('c', 'n'): // Country name
+                {
+                    string countryName;
+                    json.storeobject(&countryName);
+                    if (region)
+                    {
+                        region->setCountryName(std::move(countryName));
+                    }
+                }
+                break;
+                case MAKENAMEID2('r', 'n'): // Region name (optional)
+                {
+                    string regionName;
+                    json.storeobject(&regionName);
+                    if (region)
+                    {
+                        region->setRegionName(std::move(regionName));
+                    }
+                }
+                break;
+                case MAKENAMEID2('t', 'n'): // Town name (optional)
+                {
+                    string townName;
+                    json.storeobject(&townName);
+                    if (region)
+                    {
+                        region->setTownName(std::move(townName));
+                    }
+                }
+                break;
+                default:
+                    if (!json.storeobject())
+                    {
+                        return false;
+                    }
+                    break;
+                case EOO:
+                    // Mandatory values can't be empty.
+                    if (region &&
+                        (region->getCountryCode().empty() || region->getCountryName().empty()))
+                    {
+                        return false;
+                    }
+                    finishedRegion = true;
+                    break;
             }
         }
 
-        if (storeData)
+        // Leave region object
+        if (!json.leaveobject())
+            return false;
+
+        if (region)
         {
             vpnRegions->emplace_back(std::move(region.value()));
         }
     }
 
+    return true;
+}
+
+bool CommandGetVpnRegions::parseClusters(JSON& json, VpnRegion* vpnRegion)
+{
+    string buffer;
+    string* pBuffer = vpnRegion ? &buffer : nullptr;
+
+    for (; json.storeobject(pBuffer);) // cluster ID
+    {
+        int clusterID{};
+        if (vpnRegion)
+        {
+            auto [ptr, ec] =
+                std::from_chars(buffer.c_str(), buffer.c_str() + buffer.size(), clusterID);
+            if (ec != std::errc())
+                return false;
+        }
+
+        if (*json.pos == ':')
+            ++json.pos;
+        if (!json.enterobject())
+            return false;
+
+        std::optional<string> host{vpnRegion ? std::make_optional<string>() : std::nullopt};
+        std::optional<vector<string>> dns{vpnRegion ? std::make_optional<vector<string>>() :
+                                                      std::nullopt};
+
+        for (bool hasData = true; hasData;) // host, dns
+        {
+            switch (json.getnameid())
+            {
+                case 'h':
+                    if (!json.storeobject(pBuffer))
+                        return false;
+                    if (host)
+                    {
+                        host = std::move(buffer);
+                        buffer.clear();
+                    }
+                    break;
+
+                case MAKENAMEID3('d', 'n', 's'):
+                    if (!json.enterarray())
+                        return false;
+
+                    while (json.storeobject(pBuffer))
+                    {
+                        if (dns)
+                        {
+                            dns->emplace_back(std::move(buffer));
+                            buffer.clear();
+                        }
+                    }
+
+                    if (!json.leavearray())
+                        return false;
+                    break;
+
+                case EOO:
+                    hasData = false;
+                    break;
+
+                default:
+                    if (!json.storeobject())
+                        return false;
+            }
+        }
+        if (!json.leaveobject())
+            return false;
+
+        if (host && dns)
+        {
+            vpnRegion->addCluster(clusterID, {std::move(host.value()), std::move(dns.value())});
+        }
+    }
     return true;
 }
 
@@ -11573,7 +11691,7 @@ CommandGetVpnCredentials::CommandGetVpnCredentials(MegaClient* client, Cb&& comp
     mCompletion(std::move(completion))
 {
     cmd("vpng");
-    arg("v", 4); // include the DNS targets for each cluster in each region in response
+    arg("v", 5); // include the DNS targets for each cluster in each region in response
 
     tag = client->reqtag;
 }
@@ -11723,7 +11841,7 @@ CommandPutVpnCredential::CommandPutVpnCredential(MegaClient* client,
 {
     cmd("vpnp");
     arg("k", (byte*)mUserKeyPair.pubKey.c_str(), static_cast<int>(mUserKeyPair.pubKey.size()));
-    arg("v", 4); // include the DNS targets for each cluster in each region in response
+    arg("v", 5); // include the DNS targets for each cluster in each region in response
 
     tag = client->reqtag;
 }
@@ -11835,7 +11953,7 @@ CommandDelVpnCredential::CommandDelVpnCredential(MegaClient* client, int slotID,
     tag = client->reqtag;
 }
 
-bool CommandDelVpnCredential::procresult(Command::Result r, JSON& json)
+bool CommandDelVpnCredential::procresult(Command::Result r, JSON&)
 {
     if (mCompletion)
     {
@@ -11853,7 +11971,7 @@ CommandCheckVpnCredential::CommandCheckVpnCredential(MegaClient* client, string&
     mCompletion = std::move(completion);
 }
 
-bool CommandCheckVpnCredential::procresult(Command::Result r, JSON& json)
+bool CommandCheckVpnCredential::procresult(Command::Result r, JSON&)
 {
     if (mCompletion)
     {
@@ -12394,7 +12512,7 @@ CommandAnswerSurvey::CommandAnswerSurvey(MegaClient* client,
     tag = client->reqtag;
 }
 
-bool CommandAnswerSurvey::procresult(Result r, JSON& json)
+bool CommandAnswerSurvey::procresult(Result r, JSON&)
 {
     if (r.wasErrorOrOK())
     {

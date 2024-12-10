@@ -30,13 +30,20 @@ class DefaultedFileSystemAccess: public mega::FileSystemAccess
 public:
     using FileSystemAccess::getlocalfstype;
 
-    bool issyncsupported(const mega::LocalPath&, bool& b, mega::SyncError& se, mega::SyncWarning& sw) override { b = false; se = mega::NO_SYNC_ERROR; sw = mega::NO_SYNC_WARNING; return true;}
-
-
-    DefaultedFileSystemAccess()
+    bool issyncsupported(const mega::LocalPath&,
+                         bool& b,
+                         mega::SyncError& se,
+                         mega::SyncWarning& sw) override
     {
+        b = false;
+        se = mega::NO_SYNC_ERROR;
+        sw = mega::NO_SYNC_WARNING;
+        return true;
     }
-    std::unique_ptr<mega::FileAccess> newfileaccess(bool followSymLinks = true) override
+
+    DefaultedFileSystemAccess() {}
+
+    std::unique_ptr<mega::FileAccess> newfileaccess(bool /*followSymLinks*/ = true) override
     {
         throw NotImplemented{__func__};
     }
@@ -80,7 +87,9 @@ public:
     {
         throw NotImplemented{__func__};
     }
-    bool expanselocalpath(const mega::LocalPath& path, mega::LocalPath& absolutepath) override
+
+    bool expanselocalpath(const mega::LocalPath& /*path*/,
+                          mega::LocalPath& /*absolutepath*/) override
     {
         throw NotImplemented{__func__};
     }

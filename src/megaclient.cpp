@@ -24,6 +24,7 @@
 #include "mega/mediafileattribute.h"
 #include "mega/scoped_helpers.h"
 #include "mega/testhooks.h"
+#include "mega/tlv.h"
 #include "mega/user_attribute.h"
 
 #include <cryptopp/hkdf.h> // required for derive key of master key
@@ -332,7 +333,12 @@ string MegaClient::generateViewId(PrnGen& rng)
 }
 
 // decrypt key (symmetric or asymmetric)
-bool MegaClient::decryptkey(const char* sk, byte* tk, int tl, SymmCipher* sc, int type, handle node)
+bool MegaClient::decryptkey(const char* sk,
+                            byte* tk,
+                            int tl,
+                            SymmCipher* sc,
+                            int /*type*/,
+                            handle /*node*/)
 {
     int sl;
     const char* ptr = sk;
@@ -876,10 +882,10 @@ error MegaClient::setbackupfolder(const char* foldername, int tag, std::function
 
     // 2. upon completion of putnodes(), set the user's attribute `^!bak`
     auto addua = [addua_completion, this](const Error& e,
-                                          targettype_t handletype,
+                                          [[maybe_unused]] targettype_t handletype,
                                           vector<NewNode>& nodes,
                                           bool /*targetOverride*/,
-                                          int tag,
+                                          int /*tag*/,
                                           const map<string, string>& /*fileHandles*/)
     {
         if (e != API_OK)
@@ -924,20 +930,25 @@ void MegaClient::updateStateInBC(handle bkpId, CommandBackupPut::SPState newStat
     };
 
     // step 3: set sds attribute
-    auto updateSds = [this, bkpId, newState, bkpRoot, setAttrCompletion, finalCompletion](const Error& updateStateErr, handle backupId) mutable
+    auto updateSds = [this, bkpId, newState, bkpRoot, setAttrCompletion, finalCompletion](
+                         const Error& updateStateErr,
+                         [[maybe_unused]] handle backupId) mutable
     {
         assert(backupId == UNDEF || bkpId == backupId);
 
         if (updateStateErr != API_OK)
         {
-            LOG_err << "Update backup/sync: failed to update " << toHandle(bkpId) << ", error: " << error(updateStateErr);
+            LOG_err << "Update backup/sync: failed to update " << toHandle(bkpId)
+                    << ", error: " << error(updateStateErr);
             // Don't break execution here in case of error. Still try to set 'sds' node attribute.
         }
 
         std::shared_ptr<Node> bkpRootNode = nodebyhandle(*bkpRoot);
         if (!bkpRootNode)
         {
-            LOG_err << "Update backup/sync: root node not found to set SDS attribute for when updating " << toHandle(bkpId);
+            LOG_err
+                << "Update backup/sync: root node not found to set SDS attribute for when updating "
+                << toHandle(bkpId);
             finalCompletion(API_ENOENT);
             return;
         }
@@ -6911,21 +6922,26 @@ void MegaClient::sc_userattr()
                         {
                             if (attribute->version() != *ituav)
                             {
+                                bool alreadyExisting = !attribute->isNotExisting();
                                 u->setAttributeExpired(type);
                                 switch(type)
                                 {
                                     case ATTR_KEYRING:
-                                    {
-                                        assert(false);
-                                        resetKeyring();
+                                        if (alreadyExisting)
+                                        {
+                                            assert(false);
+                                            resetKeyring();
+                                        }
                                         break;
-                                    }
 
                                     case ATTR_MY_BACKUPS_FOLDER:
                                         // There should be no actionpackets for this attribute. It
                                         // is created and never updated afterwards.
-                                        LOG_err
-                                            << "The node handle for My backups folder has changed";
+                                        if (alreadyExisting)
+                                        {
+                                            LOG_err << "The node handle for My backups folder has "
+                                                       "changed";
+                                        }
                                         [[fallthrough]];
 
                                     // some attributes should be fetched upon invalidation
@@ -6935,18 +6951,22 @@ void MegaClient::sc_userattr()
                                     case ATTR_DEVICE_NAMES:
                                     case ATTR_JSON_SYNC_CONFIG_DATA:
                                     {
-                                        if ((type == ATTR_AUTHRING || type == ATTR_AUTHCU255) && mKeyManager.generation())
+                                        if ((type == ATTR_AUTHRING || type == ATTR_AUTHCU255) &&
+                                            mKeyManager.generation())
                                         {
                                             // legacy authrings not useful anymore
-                                            LOG_warn << "Ignoring update of : " << User::attr2string(type);
+                                            LOG_warn << "Ignoring update of : "
+                                                     << User::attr2string(type);
                                             break;
                                         }
-                                        if (type == ATTR_JSON_SYNC_CONFIG_DATA)
+                                        if (type == ATTR_JSON_SYNC_CONFIG_DATA && alreadyExisting)
                                         {
-                                            // this user's attribute should be set only once and never change
-                                            // afterwards. If it has changed, it may indicate a race condition
-                                            // setting the attribute from another client at the same time
-                                            LOG_warn << "Sync config data has changed, when it should not";
+                                            // this user's attribute should be set only once and
+                                            // never change afterwards. If it has changed, it
+                                            // may indicate a race condition setting the
+                                            // attribute from another client at the same time
+                                            LOG_warn << "Sync config data has changed, when it "
+                                                        "should not";
                                             assert(false);
                                         }
                                         // mCurrentSeqtagSeen is true if the next command response
@@ -8980,7 +9000,7 @@ error MegaClient::setattr(std::shared_ptr<Node> n, attr_map&& updates, CommandSe
     }
 
     // we only update the values stored in the node once the command completes successfully
-    reqs.add(new CommandSetAttr(this, n, move(updates), move(c), canChangeVault));
+    reqs.add(new CommandSetAttr(this, n, std::move(updates), std::move(c), canChangeVault));
 
     return API_OK;
 }
@@ -9338,7 +9358,8 @@ error MegaClient::rename(std::shared_ptr<Node> n, std::shared_ptr<Node> p, syncd
     // rewrite keys of foreign nodes that are moved out of an outbound share
     rewriteforeignkeys(n);
 
-    reqs.add(new CommandMoveNode(this, n, p, syncdel, prevparenthandle, move(c), canChangeVault));
+    reqs.add(
+        new CommandMoveNode(this, n, p, syncdel, prevparenthandle, std::move(c), canChangeVault));
 
     return API_OK;
 }
@@ -9531,7 +9552,12 @@ error MegaClient::unlink(Node* n, bool keepversions, int tag, bool canChangeVaul
     }
 
     bool kv = (keepversions && n->type == FILENODE);
-    reqs.add(new CommandDelNode(this, n->nodeHandle(), kv, tag, move(resultFunction), canChangeVault));
+    reqs.add(new CommandDelNode(this,
+                                n->nodeHandle(),
+                                kv,
+                                tag,
+                                std::move(resultFunction),
+                                canChangeVault));
 
     return API_OK;
 }
@@ -9762,10 +9788,17 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
     return j->leavearray();
 }
 
-
-int MegaClient::readnode(JSON* j, int notify, putsource_t source, vector<NewNode>* nn, bool modifiedByThisClient, bool applykeys,
-                         mega::NodeManager::MissingParentNodes &missingParentNodes, handle &previousHandleForAlert, set<NodeHandle> *allParents,
-                         Node* priorActionpacketDeletedNode, bool* firstHandleMatchesDelete)
+int MegaClient::readnode(JSON* j,
+                         int notify,
+                         putsource_t /*source*/,
+                         vector<NewNode>* nn,
+                         bool modifiedByThisClient,
+                         bool applykeys,
+                         mega::NodeManager::MissingParentNodes& missingParentNodes,
+                         handle& previousHandleForAlert,
+                         set<NodeHandle>* allParents,
+                         Node* priorActionpacketDeletedNode,
+                         bool* firstHandleMatchesDelete)
 {
     std::shared_ptr<Node> n;
 
@@ -11901,11 +11934,11 @@ void MegaClient::upgradeSecurity(std::function<void(Error)> completion)
     const UserAttribute* attribute = u->getAttribute(ATTR_KEYRING);
     if (attribute && attribute->isValid())
     {
-        unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&attribute->value(), &key));
-        if (tlvRecords)
+        unique_ptr<string_map> records{tlv::containerToRecords(attribute->value(), key)};
+        if (records)
         {
-            tlvRecords->get(EdDSA::TLV_KEY, prEd255);
-            tlvRecords->get(ECDH::TLV_KEY, prCu255);
+            prEd255.swap((*records)[EdDSA::TLV_KEY]);
+            prCu255.swap((*records)[ECDH::TLV_KEY]);
         }
         else
         {
@@ -12492,6 +12525,32 @@ error MegaClient::removecontact(const char* email, visibility_t show, CommandRem
     return API_OK;
 }
 
+void MegaClient::putua(attr_t at,
+                       string_map&& records,
+                       int ctag,
+                       handle lastPublicHandle,
+                       int phtype,
+                       int64_t ts,
+                       std::function<void(Error)> completion)
+{
+    // serialize and encrypt the TLV container
+    unique_ptr<string> container(tlv::recordsToContainer(std::move(records), rng, key));
+    if (!container)
+    {
+        completion ? completion(API_EINTERNAL) : app->putua_result(API_EINTERNAL);
+        return;
+    }
+
+    putua(at,
+          reinterpret_cast<byte*>(container->data()),
+          static_cast<unsigned>(container->size()),
+          ctag,
+          lastPublicHandle,
+          phtype,
+          ts,
+          std::move(completion));
+}
+
 /**
  * @brief Attach/update/delete a user attribute.
  *
@@ -12653,20 +12712,21 @@ bool MegaClient::getua(User* u, const attr_t at, int ctag, mega::CommandGetUA::C
         if (attribute && attribute->isValid() &&
             at != ATTR_AVATAR) // value of Avatar is always empty
         {
-            const string* cachedav = &attribute->value();
+            const string& cachedav = attribute->value();
             if (User::scope(at) == ATTR_SCOPE_PRIVATE_ENCRYPTED) // TLV encoding
             {
-                TLVstore *tlv = TLVstore::containerToTLVrecords(cachedav, &key);
+                unique_ptr<string_map> records{tlv::containerToRecords(cachedav, key)};
                 restag = tag;
-                completionTLV ? completionTLV(tlv, at) : app->getua_result(tlv, at);
-                delete tlv;
+                completionTLV ? completionTLV(std::move(records), at) :
+                                app->getua_result(std::move(records), at);
                 return true;
             }
             else
             {
                 restag = tag;
-                completionBytes ? completionBytes((byte*) cachedav->data(), unsigned(cachedav->size()), at)
-                                : app->getua_result((byte*) cachedav->data(), unsigned(cachedav->size()), at);
+                completionBytes ?
+                    completionBytes((byte*)cachedav.data(), unsigned(cachedav.size()), at) :
+                    app->getua_result((byte*)cachedav.data(), unsigned(cachedav.size()), at);
                 return true;
             }
         }
@@ -12740,9 +12800,19 @@ void MegaClient::loginResult(CommandLogin::Completion completion,
         if (isFullyLoggedIn)
         {
             // initiate automatic upgrade to V2
-            unique_ptr<TLVstore> tlv(TLVstore::containerToTLVrecords(&v1PswdVault->first, &v1PswdVault->second));
             string pwd;
-            if (tlv && tlv->get("p", pwd))
+            bool upgrade = false;
+            unique_ptr<string_map> records{
+                tlv::containerToRecords(v1PswdVault->first, v1PswdVault->second)};
+            if (records)
+            {
+                if (auto it = records->find("p"); it != records->end())
+                {
+                    pwd.swap(it->second);
+                    upgrade = true;
+                }
+            }
+            if (upgrade)
             {
                 if (pwd.empty())
                 {
@@ -12831,13 +12901,14 @@ void MegaClient::saveV1Pwd(const char* pwd)
         rng.genblock(pwkey.data(), pwkey.size());
         SymmCipher pwcipher(pwkey.data());
 
-        TLVstore tlv;
-        tlv.set("p", pwd);
-        unique_ptr<string> tlvStr(tlv.tlvRecordsToContainer(rng, &pwcipher));
-
-        if (tlvStr)
+        unique_ptr<string> encrypted{
+            tlv::recordsToContainer({{"p", pwd}},
+            rng, pwcipher)
+        };
+        if (encrypted)
         {
-            mV1PswdVault.reset(new pair<string, SymmCipher>(std::move(*tlvStr), std::move(pwcipher)));
+            mV1PswdVault.reset(
+                new pair<string, SymmCipher>(std::move(*encrypted), std::move(pwcipher)));
         }
     }
 }
@@ -14155,8 +14226,9 @@ error MegaClient::changepw(const char* password, const char *pin)
     // Confirm account version, not rely on cached values
     string spwd = password ? password : string();
     string spin = pin ? pin : string();
-    getuserdata(reqtag,
-        [this, u, spwd, spin](string* name, string* pubk, string* privk, error e)
+    getuserdata(
+        reqtag,
+        [this, u, spwd, spin](string* /*name*/, string* /*pubk*/, string* /*privk*/, error e)
         {
             if (e != API_OK)
             {
@@ -14166,25 +14238,25 @@ error MegaClient::changepw(const char* password, const char *pin)
 
             switch (accountversion)
             {
-            case 1:
-                e = changePasswordV1(u, spwd.c_str(), spin.c_str());
-                break;
+                case 1:
+                    e = changePasswordV1(u, spwd.c_str(), spin.c_str());
+                    break;
 
-            default:
-                LOG_warn << "Unexpected account version v" << accountversion << " processed as v2";
-                // fallthrough
+                default:
+                    LOG_warn << "Unexpected account version v" << accountversion
+                             << " processed as v2";
+                    [[fallthrough]];
 
-            case 2:
-                e = changePasswordV2(spwd.c_str(), spin.c_str());
-                break;
+                case 2:
+                    e = changePasswordV2(spwd.c_str(), spin.c_str());
+                    break;
             }
 
             if (e != API_OK)
             {
                 app->changepw_result(e);
             }
-        }
-    );
+        });
 
     return API_OK;
 }
@@ -15190,12 +15262,11 @@ void MegaClient::initializekeys()
         const UserAttribute* attribute = u->getAttribute(ATTR_KEYRING);
         if (attribute && attribute->isValid())
         {
-            unique_ptr<TLVstore> tlvRecords(
-                TLVstore::containerToTLVrecords(&attribute->value(), &key));
-            if (tlvRecords)
+            unique_ptr<string_map> records{tlv::containerToRecords(attribute->value(), key)};
+            if (records)
             {
-                tlvRecords->get(EdDSA::TLV_KEY, prEd255);
-                tlvRecords->get(ECDH::TLV_KEY, prCu255);
+                prEd255.swap((*records)[EdDSA::TLV_KEY]);
+                prCu255.swap((*records)[ECDH::TLV_KEY]);
             }
             else
             {
@@ -15400,8 +15471,8 @@ void MegaClient::initializekeys()
             mKeyManager.init(prEd255, prCu255, mPrivKey);
 
             // We are initializing the keys, so it's safe to assume that authrings are empty
-            mAuthRings.emplace(ATTR_AUTHRING, AuthRing(ATTR_AUTHRING, TLVstore()));
-            mAuthRings.emplace(ATTR_AUTHCU255, AuthRing(ATTR_AUTHCU255, TLVstore()));
+            mAuthRings.emplace(ATTR_AUTHRING, AuthRing(ATTR_AUTHRING));
+            mAuthRings.emplace(ATTR_AUTHCU255, AuthRing(ATTR_AUTHCU255));
 
             // Not using mKeyManager::commit() here to set ^!keys along with the other attributes.
             // Since the account is being initialized, putua should not fail.
@@ -15410,13 +15481,15 @@ void MegaClient::initializekeys()
 
             // save private keys into the *!keyring attribute (for backwards compatibility, so legacy
             // clients can retrieve chat and signing key for accounts created with ^!keys support)
-            TLVstore tlvRecords;
-            tlvRecords.set(EdDSA::TLV_KEY, string((const char*)signkey->keySeed, EdDSA::SEED_KEY_LENGTH));
-            tlvRecords.set(ECDH::TLV_KEY, string((const char*)chatkey->getPrivKey(), ECDH::PRIVATE_KEY_LENGTH));
-            unique_ptr<string> tlvContainer(tlvRecords.tlvRecordsToContainer(rng, &key));
-
-            buf.assign(tlvContainer->data(), tlvContainer->size());
-            attrs[ATTR_KEYRING] = buf;
+            string_map records{
+                {EdDSA::TLV_KEY,
+                 string{reinterpret_cast<const char*>(signkey->keySeed), EdDSA::SEED_KEY_LENGTH}},
+                {ECDH::TLV_KEY,
+                 string{reinterpret_cast<const char*>(chatkey->getPrivKey()),
+                        ECDH::PRIVATE_KEY_LENGTH}                                               },
+            };
+            unique_ptr<string> container{tlv::recordsToContainer(std::move(records), rng, key)};
+            attrs[ATTR_KEYRING] = container ? std::move(*container) : string{};
 
             // create signatures of public RSA and Cu25519 keys
             if (loggedin() != EPHEMERALACCOUNTPLUSPLUS) // Ephemeral++ don't have RSA keys until confirmation, but need chat and signing key
@@ -15495,12 +15568,13 @@ void MegaClient::loadAuthrings()
                 {
                     if (attribute->isValid())
                     {
-                        std::unique_ptr<TLVstore> tlvRecords(
-                            TLVstore::containerToTLVrecords(&attribute->value(), &key));
-                        if (tlvRecords)
+                        unique_ptr<string_map> records{
+                            tlv::containerToRecords(attribute->value(), key)};
+                        if (records)
                         {
-                            mAuthRings.emplace(at, AuthRing(at, *tlvRecords));
-                            LOG_info << "Authring succesfully loaded from cache: " << User::attr2string(at);
+                            mAuthRings.emplace(at, AuthRing(at, *records));
+                            LOG_info << "Authring succesfully loaded from cache: "
+                                     << User::attr2string(at);
                         }
                         else
                         {
@@ -15518,7 +15592,7 @@ void MegaClient::loadAuthrings()
                 {
                     // It does not exist yet in the account. Will be created upon retrieval of contact keys.
                     LOG_warn << User::attr2string(at) << " not found in cache. Setting an empty one.";
-                    mAuthRings.emplace(at, AuthRing(at, TLVstore()));
+                    mAuthRings.emplace(at, AuthRing(at));
                 }
             }
 
@@ -16418,118 +16492,95 @@ error MegaClient::addtimer(TimerWithBackoff *twb)
 
 #ifdef ENABLE_SYNC
 
-error MegaClient::isnodesyncable(std::shared_ptr<Node> remotenode,
-                                 bool* isinshare,
-                                 SyncError* syncError,
-                                 const bool excludeSelf)
+std::pair<error, SyncError> MegaClient::isnodesyncable(std::shared_ptr<Node> remotenode,
+                                                       const bool excludeSelf)
 {
-    // cannot sync files, rubbish bins or vault
-    if (remotenode->type != FOLDERNODE && remotenode->type != ROOTNODE)
+    if (!remotenode)
     {
-        if(syncError)
-        {
-            *syncError = INVALID_REMOTE_TYPE;
-        }
-        return API_EACCESS;
+        LOG_err << "Calling isnodesyncable with a null node. This should not happen";
+        assert(false && "Calling isnodesyncable with a null node. This should not happen");
+        return {API_EARGS, REMOTE_NODE_NOT_FOUND};
     }
 
-    // any active syncs below?
+    if (remotenode->type != FOLDERNODE && remotenode->type != ROOTNODE)
+        return {API_EACCESS, INVALID_REMOTE_TYPE};
 
-    auto activeConfigs = syncs.getConfigs(true);
-    for (auto& sc : activeConfigs)
+    if (remotenode->firstancestor()->type == RUBBISHNODE)
+        return {API_EACCESS, REMOTE_NODE_INSIDE_RUBBISH};
+
+    if (auto syncError = anyActiveSyncAboveOrBelow(*remotenode, excludeSelf);
+        syncError != NO_SYNC_ERROR)
+        return {API_EEXIST, syncError};
+
+    if (userHasRestrictedAccessToNode(*remotenode))
+        return {API_EACCESS, SHARE_NON_FULL_ACCESS};
+
+    return {API_OK, NO_SYNC_ERROR};
+}
+
+SyncError MegaClient::anyActiveSyncAboveOrBelow(const Node& remotenode, const bool excludeSelf)
+{
+    const auto activeConfigs = syncs.getConfigs(true);
+    for (const auto& syncConfig: activeConfigs)
     {
-        if (excludeSelf && sc.mRemoteNode == remotenode->nodeHandle())
+        if (excludeSelf && syncConfig.mRemoteNode == remotenode.nodeHandle())
             continue;
 
-        if (std::shared_ptr<Node> syncRoot = nodeByHandle(sc.mRemoteNode))
-        {
-            bool above = remotenode->isbelow(syncRoot.get());
-            bool below = syncRoot->isbelow(remotenode.get());
-            if (above && below)
-            {
-                if (syncError) *syncError = ACTIVE_SYNC_SAME_PATH;
-                return API_EEXIST;
-            }
-            else if (below)
-            {
-                if (syncError) *syncError = ACTIVE_SYNC_BELOW_PATH;
-                return API_EEXIST;
-            }
-            else if (above)
-            {
-                if (syncError) *syncError = ACTIVE_SYNC_ABOVE_PATH;
-                return API_EEXIST;
-            }
-        }
+        std::shared_ptr<Node> syncRoot = nodeByHandle(syncConfig.mRemoteNode);
+        if (!syncRoot)
+            continue;
+
+        bool thereIsSyncRootAbove = remotenode.isbelow(syncRoot.get());
+        bool thereIsSyncRootBelow = syncRoot->isbelow(&remotenode);
+        if (thereIsSyncRootAbove && thereIsSyncRootBelow)
+            return ACTIVE_SYNC_SAME_PATH;
+        if (thereIsSyncRootBelow)
+            return ACTIVE_SYNC_BELOW_PATH;
+        if (thereIsSyncRootAbove)
+            return ACTIVE_SYNC_ABOVE_PATH;
     }
+    return NO_SYNC_ERROR;
+}
 
-    // any active syncs above? or node within //bin or inside non full access inshare
-    std::shared_ptr<Node> n = remotenode;
-    bool inshare = false;
-
-    do {
-
-        if (n->inshare && !inshare)
-        {
-            // we need FULL access to sync
-            // FIXME: allow downsyncing from RDONLY and limited syncing to RDWR shares
-            if (n->inshare->access != FULL)
+bool MegaClient::userHasRestrictedAccessToNode(const Node& targetNode)
+{
+    bool firstInShareAncestorHasRestrictedAccess = true;
+    if (const bool anyAncestorInShare = targetNode.matchesOrHasAncestorMatching(
+            [&firstInShareAncestorHasRestrictedAccess](const Node& node) -> bool
             {
-                if(syncError)
+                if (node.inshare)
                 {
-                    *syncError = SHARE_NON_FULL_ACCESS;
+                    firstInShareAncestorHasRestrictedAccess = node.inshare->access != FULL;
+                    return true;
                 }
-                return API_EACCESS;
-            }
+                return false;
+            });
+        !anyAncestorInShare)
+        return false; // No restrictions if not inside an inshare
 
-            inshare = true;
-        }
+    if (firstInShareAncestorHasRestrictedAccess)
+        return true;
 
-        if (n->nodeHandle() == mNodeManager.getRootNodeRubbish())
-        {
-            if(syncError)
-            {
-                *syncError = REMOTE_NODE_INSIDE_RUBBISH;
-            }
-            return API_EACCESS;
-        }
-    } while ((n = n->parent));
-
-    if (inshare)
+    // if target node is inside an inshare with full perms, we need to ensure we have full access to
+    // all the descendants. For that we evaluate all the nodes being shared that are inside target
+    const auto isSuccessorOfTargetNodeAndHasNotFullAccess =
+        [remotenodeHandle = targetNode.nodeHandle(), this](const handle nh) -> bool
     {
-        // this sync is located in an inbound share - make sure that there
-        // are no access restrictions in place anywhere in the sync's tree
-        for (user_map::iterator uit = users.begin(); uit != users.end(); uit++)
-        {
-            User* u = &uit->second;
-
-            if (u->sharing.size())
-            {
-                for (handle_set::iterator sit = u->sharing.begin(); sit != u->sharing.end(); sit++)
-                {
-                    if ((n = nodebyhandle(*sit)) && n->inshare && n->inshare->access != FULL)
-                    {
-                        do {
-                            if (n == remotenode)
-                            {
-                                if(syncError)
-                                {
-                                    *syncError = SHARE_NON_FULL_ACCESS;
-                                }
-                                return API_EACCESS;
-                            }
-                        } while ((n = n->parent));
-                    }
-                }
-            }
-        }
-    }
-
-    if (isinshare)
+        const auto testNode = nodebyhandle(nh);
+        return testNode && testNode->inshare && testNode->inshare->access != FULL &&
+               (testNode->hasNHOrHasAncestorWithNH(remotenodeHandle));
+    };
+    const auto isUserSharingNotFullAccessNodeUnderTarget =
+        [&isSuccessorOfTargetNodeAndHasNotFullAccess](const auto& idUserPair) -> bool
     {
-        *isinshare = inshare;
-    }
-    return API_OK;
+        const auto& userSharings = idUserPair.second.sharing;
+        return std::any_of(std::begin(userSharings),
+                           std::end(userSharings),
+                           isSuccessorOfTargetNodeAndHasNotFullAccess);
+    };
+    return std::any_of(std::begin(users),
+                       std::end(users),
+                       isUserSharingNotFullAccessNodeUnderTarget);
 }
 
 error MegaClient::isLocalPathSyncable(const LocalPath& newPath, handle excludeBackupId, SyncError *syncError)
@@ -16617,9 +16668,10 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
         return API_ENOENT;
     }
 
-    if (error e = isnodesyncable(remotenode, &inshare, &syncConfig.mError))
+    if (const auto [e, syncError] = isnodesyncable(remotenode); e)
     {
         LOG_debug << "Node is not syncable for sync add";
+        syncConfig.mError = syncError;
         syncConfig.mEnabled = false;
         return e;
     }
@@ -16763,6 +16815,12 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
         return API_EFAILED;
     }
 
+    // This only matters if there were no errors
+    inshare = remotenode->matchesOrHasAncestorMatching(
+        [](const Node& node) -> bool
+        {
+            return node.inshare != nullptr;
+        });
     return API_OK;
 }
 
@@ -16795,6 +16853,45 @@ void MegaClient::importSyncConfigs(const char* configs, std::function<void(error
 {
     // Kick off the import.
     syncs.importSyncConfigs(configs, std::move(completion));
+}
+
+void MegaClient::changeSyncRoot(const handle backupId,
+                                const handle newRemoteRootNodeHandle,
+                                const char* const newLocalRootPath,
+                                std::function<void(error, SyncError)>&& completion)
+{
+    const bool noNode = newRemoteRootNodeHandle == UNDEF;
+    const bool noPath = newLocalRootPath == nullptr;
+    if ((noNode && noPath) || (!noNode && !noPath))
+    {
+        if (noNode)
+            LOG_err << "changeSyncRoot invoked with null local and remote new roots";
+        else
+            LOG_err << "changeSyncRoot invoked with both new local and remote node. Only accepts "
+                       "one at a time";
+        return completion(API_EARGS, NO_SYNC_ERROR);
+    }
+
+    if (noNode)
+        return syncs.changeSyncLocalRoot(backupId, newLocalRootPath, std::move(completion));
+
+    // When changing remote root, validate the new target
+    const auto newRootNode = nodebyhandle(newRemoteRootNodeHandle);
+
+    if (!newRootNode)
+    {
+        LOG_err << "changeSyncRoot: Invalid new root node handle";
+        return completion(API_EARGS, REMOTE_NODE_NOT_FOUND);
+    }
+
+    if (const auto [err, syncErr] = isnodesyncable(newRootNode); err != API_OK)
+    {
+        LOG_err << "changeSyncRoot: Given new root node is not syncable. Error: "
+                << SyncConfig::syncErrorToStr(syncErr);
+        return completion(err, syncErr);
+    }
+
+    syncs.changeSyncRemoteRoot(backupId, std::move(newRootNode), std::move(completion));
 }
 
 void MegaClient::addsync(SyncConfig&& config, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath)
@@ -16969,11 +17066,10 @@ void MegaClient::preparebackup(SyncConfig sc, std::function<void(Error, SyncConf
             return completion(API_EINCOMPLETE, sc, nullptr);
         }
 
-        string deviceName;
-        std::unique_ptr<TLVstore> tlvRecords(
-            TLVstore::containerToTLVrecords(&attribute->value(), &key));
+        std::unique_ptr<string_map> records(tlv::containerToRecords(attribute->value(), key));
         const string& deviceNameKey = isInternalDrive ? deviceId : User::attributePrefixInTLV(ATTR_DEVICE_NAMES, true) + deviceId;
-        if (!tlvRecords || !tlvRecords->get(deviceNameKey, deviceName) || deviceName.empty())
+        const string& deviceName = records ? (*records)[deviceNameKey] : string {};
+        if (deviceName.empty())
         {
             LOG_err << "Add backup: device/drive name not found";
             return completion(API_EINCOMPLETE, sc, nullptr);
@@ -17017,57 +17113,57 @@ void MegaClient::preparebackup(SyncConfig sc, std::function<void(Error, SyncConf
              [completion, sc, this](const Error& e,
                                     targettype_t,
                                     vector<NewNode>& nn,
-                                    bool targetOverride,
-                                    int tag,
+                                    bool /*targetOverride*/,
+                                    int /*tag*/,
                                     const map<string, string>& /*fileHandles*/)
              {
-                if (e)
-                {
-                    completion(e, sc, nullptr);
-                }
-                else
-                {
-                    handle newBackupNodeHandle = nn.back().mAddedHandle;
+                 if (e)
+                 {
+                     completion(e, sc, nullptr);
+                 }
+                 else
+                 {
+                     handle newBackupNodeHandle = nn.back().mAddedHandle;
 
-                    SyncConfig updatedConfig = sc;
-                    updatedConfig.mRemoteNode.set6byte(newBackupNodeHandle);
+                     SyncConfig updatedConfig = sc;
+                     updatedConfig.mRemoteNode.set6byte(newBackupNodeHandle);
 
-                    if (std::shared_ptr<Node> backupRoot = nodeByHandle(updatedConfig.mRemoteNode))
-                    {
-                        updatedConfig.mOriginalPathOfRemoteRootNode = backupRoot->displaypath();
-                    }
-                    else
-                    {
-                        LOG_err << "Node created for backup is missing already";
-                        completion(API_EEXIST, updatedConfig, nullptr);
-                    }
+                     if (std::shared_ptr<Node> backupRoot = nodeByHandle(updatedConfig.mRemoteNode))
+                     {
+                         updatedConfig.mOriginalPathOfRemoteRootNode = backupRoot->displaypath();
+                     }
+                     else
+                     {
+                         LOG_err << "Node created for backup is missing already";
+                         completion(API_EEXIST, updatedConfig, nullptr);
+                     }
 
-                    // Offer the option to the caller, to remove the new Backup node if a later
-                    // step fails
-                    UndoFunction undoOnFail =
+                     // Offer the option to the caller, to remove the new Backup node if a later
+                     // step fails
+                     UndoFunction undoOnFail =
                          [newBackupNodeHandle, this](std::function<void()> continuation)
-                    {
-                        if (std::shared_ptr<Node> n = nodebyhandle(newBackupNodeHandle))
-                        {
-                            unlink(n.get(),
-                                   false,
-                                   0,
-                                   true,
-                                   [continuation](NodeHandle, Error)
-                                   {
-                                       if (continuation)
-                                           continuation();
-                                   });
-                        }
-                        else
-                        {
-                            if (continuation)
-                                continuation();
-                        }
-                    };
+                     {
+                         if (std::shared_ptr<Node> n = nodebyhandle(newBackupNodeHandle))
+                         {
+                             unlink(n.get(),
+                                    false,
+                                    0,
+                                    true,
+                                    [continuation](NodeHandle, Error)
+                                    {
+                                        if (continuation)
+                                            continuation();
+                                    });
+                         }
+                         else
+                         {
+                             if (continuation)
+                                 continuation();
+                         }
+                     };
 
-                    completion(API_OK, updatedConfig, undoOnFail);
-                }
+                     completion(API_OK, updatedConfig, undoOnFail);
+                 }
              });
 }
 
@@ -17075,14 +17171,17 @@ void MegaClient::preparebackup(SyncConfig sc, std::function<void(Error, SyncConf
 // dupes)
 void MegaClient::movetosyncdebris(Node* dn, bool inshare, std::function<void(NodeHandle, Error)>&& completion, bool canChangeVault)
 {
-    execmovetosyncdebris(dn, move(completion), canChangeVault, inshare);
+    execmovetosyncdebris(dn, std::move(completion), canChangeVault, inshare);
 }
 
 void MegaClient::execmovetosyncdebris(Node* requestedNode, std::function<void(NodeHandle, Error)>&& completion, bool canChangeVault, bool isInshare)
 {
     if (requestedNode)
     {
-        pendingDebris.emplace_back(requestedNode->nodeHandle(), move(completion), isInshare, canChangeVault);
+        pendingDebris.emplace_back(requestedNode->nodeHandle(),
+                                   std::move(completion),
+                                   isInshare,
+                                   canChangeVault);
     }
 
     if (std::shared_ptr<Node> debrisTarget = getOrCreateSyncdebrisFolder())
@@ -17094,7 +17193,13 @@ void MegaClient::execmovetosyncdebris(Node* requestedNode, std::function<void(No
                 if (!rec.mIsInshare)
                 {
                     LOG_debug << "Moving to cloud Syncdebris: " << n->displaypath() << " in " << debrisTarget->displaypath() << " Nhandle: " << LOG_NODEHANDLE(n->nodehandle);
-                    rename(n, debrisTarget, SYNCDEL_DEBRISDAY, n->parent ? n->parent->nodeHandle() : NodeHandle(), nullptr, rec.mCanChangeVault, move(rec.completion));
+                    rename(n,
+                           debrisTarget,
+                           SYNCDEL_DEBRISDAY,
+                           n->parent ? n->parent->nodeHandle() : NodeHandle(),
+                           nullptr,
+                           rec.mCanChangeVault,
+                           std::move(rec.completion));
                 }
                 else
                 {
@@ -17230,20 +17335,21 @@ std::shared_ptr<Node> MegaClient::getOrCreateSyncdebrisFolder()
         binNode->nodeHandle(),
         NULL,
         NoVersioning,
-        move(nnVec),
+        std::move(nnVec),
         0,
         PUTNODES_SYNCDEBRIS,
         nullptr,
         [this](const Error&,
                targettype_t,
                vector<NewNode>&,
-               bool targetOverride,
-               int tag,
+               bool /*targetOverride*/,
+               int /*tag*/,
                const map<string, string>& /*fileHandles*/)
         {
             syncdebrisadding = false;
             // on completion, send the queued nodes
-            LOG_debug << "Daily cloud SyncDebris folder created. Trigger remaining debris moves: " << pendingDebris.size();
+            LOG_debug << "Daily cloud SyncDebris folder created. Trigger remaining debris moves: "
+                      << pendingDebris.size();
             execmovetosyncdebris(nullptr, nullptr, false, false);
         },
         false,
@@ -17255,23 +17361,18 @@ std::shared_ptr<Node> MegaClient::getOrCreateSyncdebrisFolder()
 
 string MegaClient::cypherTLVTextWithMasterKey(const char* name, const string& text)
 {
-    TLVstore tlv;
-    tlv.set(name, text);
-    std::unique_ptr<string> tlvStr(tlv.tlvRecordsToContainer(rng, &key));
-
-    return Base64::btoa(*tlvStr);
+    string_map records{
+        {name, text}
+    };
+    unique_ptr<string> container(tlv::recordsToContainer(std::move(records), rng, key));
+    return Base64::btoa(*container);
 }
 
 string MegaClient::decypherTLVTextWithMasterKey(const char* name, const string& encoded)
 {
     string unencoded = Base64::atob(encoded);
-    string value;
-
-    unique_ptr<TLVstore> tlv(TLVstore::containerToTLVrecords(&unencoded, &key));
-    if (tlv)
-        tlv->get(name, value);
-
-    return value;
+    unique_ptr<string_map> records{tlv::containerToRecords(unencoded, key)};
+    return records ? (*records)[name] : string{};
 }
 
 // inject file into transfer subsystem
@@ -19651,13 +19752,7 @@ string MegaClient::encryptAttrs(const string_map& attrs, const string& encryptio
         return string();
     }
 
-    TLVstore tlvRecords;
-    for (const auto& a : attrs)
-    {
-        tlvRecords.set(a.first, a.second);
-    }
-
-    unique_ptr<string> encrAttrs(tlvRecords.tlvRecordsToContainer(rng, &tmpnodecipher));
+    unique_ptr<string> encrAttrs(tlv::recordsToContainer(string_map{attrs}, rng, tmpnodecipher));
 
     if (!encrAttrs || encrAttrs->empty())
     {
@@ -19684,14 +19779,16 @@ bool MegaClient::decryptAttrs(const string& attrs, const string& decrKey, string
         return false;
     }
 
-    unique_ptr<TLVstore> sTlv(TLVstore::containerToTLVrecords(&attrs, &tmpnodecipher));
-    if (!sTlv)
+    unique_ptr<string_map> records{tlv::containerToRecords(attrs, tmpnodecipher)};
+    if (records)
+    {
+        output.swap(*records);
+    }
+    else
     {
         LOG_err << "Sets: Failed to build TLV container of attrs";
         return false;
     }
-
-    output = *sTlv->getMap();
 
     return true;
 }
@@ -22850,7 +22947,7 @@ void KeyManager::updateAuthring(attr_t at, string& value)
     mClient.mAuthRings.erase(at);
     if (authring.empty())
     {
-        mClient.mAuthRings.emplace(at, AuthRing(at, TLVstore()));
+        mClient.mAuthRings.emplace(at, AuthRing(at));
     }
     else
     {
@@ -22985,20 +23082,12 @@ void MegaClient::createJSCData(GetJSCDataCallback callback)
     // Convenience.
     constexpr auto Length = SymmCipher::KEYLENGTH;
 
-    // Instantiate a TLV store to contain the JSC data.
-    TLVstore store;
-
-    // Key used to authenticate the sync configuration database.
-    store.set("ak", rng.genstring(Length));
-
-    // Key used to encrypt the sync configuration database.
-    store.set("ck", rng.genstring(Length));
-
-    // The name of the sync configuration database.
-    store.set("fn", rng.genstring(Length));
-
-    // Translate the store into an encrypted binary blob.
-    unique_ptr<string> content(store.tlvRecordsToContainer(rng, &key));
+    // Instantiate store to contain the JSC data.
+    string_map store{
+        {"ak", rng.genstring(Length)}, // Key used to authenticate the sync configuration database.
+        {"ck", rng.genstring(Length)}, // Key used to encrypt the sync configuration database.
+        {"fn", rng.genstring(Length)}, // The name of the sync configuration database.
+    };
 
     // Convenience.
     using std::bind;
@@ -23006,8 +23095,7 @@ void MegaClient::createJSCData(GetJSCDataCallback callback)
 
     // Try and create the JSCD attribute.
     putua(ATTR_JSON_SYNC_CONFIG_DATA,
-          reinterpret_cast<const byte*>(content->data()),
-          static_cast<unsigned>(content->size()),
+          std::move(store),
           0,
           UNDEF,
           0,
@@ -23083,7 +23171,7 @@ void MegaClient::JSCDataCreated(GetJSCDataCallback& callback,
 
 void MegaClient::JSCDataRetrieved(GetJSCDataCallback& callback,
                                   Error result,
-                                  TLVstore* store)
+                                  unique_ptr<string_map> store)
 {
     // Sanity.
     assert(callback);
@@ -23103,9 +23191,12 @@ void MegaClient::JSCDataRetrieved(GetJSCDataCallback& callback,
     JSCData data;
 
     // Extract JSC data.
-    store->get("ak", data.authenticationKey);
-    store->get("ck", data.cipherKey);
-    store->get("fn", data.fileName);
+    if (store)
+    {
+        data.authenticationKey.swap((*store)["ak"]);
+        data.cipherKey.swap((*store)["ck"]);
+        data.fileName.swap((*store)["fn"]);
+    }
 
     // Saves a little typing.
     auto valid = [](const std::string& datum) {

@@ -597,7 +597,14 @@ int PosixFileAccess::stealFileDescriptor()
     return toret;
 }
 
-bool PosixFileAccess::fopen(const LocalPath& f, bool read, bool write, FSLogging fsl, DirAccess* iteratingDir, bool, bool skipcasecheck, LocalPath* actualLeafNameIfDifferent)
+bool PosixFileAccess::fopen(const LocalPath& f,
+                            bool read,
+                            bool write,
+                            FSLogging fsl,
+                            DirAccess* iteratingDir,
+                            bool,
+                            [[maybe_unused]] bool skipcasecheck,
+                            LocalPath* /*actualLeafNameIfDifferent*/)
 {
     struct stat statbuf;
 
@@ -627,7 +634,7 @@ bool PosixFileAccess::fopen(const LocalPath& f, bool read, bool write, FSLogging
             if ((fname = strrchr(fstr.c_str(), '/')))
             {
                 fname++;
-                fnamesize = fstr.size() - (fname - fstr.c_str());
+                fnamesize = fstr.size() - (static_cast<size_t>(fname - fstr.c_str()));
             }
             else
             {
@@ -658,8 +665,6 @@ bool PosixFileAccess::fopen(const LocalPath& f, bool read, bool write, FSLogging
             }
         }
     }
-#else
-    (void)skipcasecheck; // avoid unused parameter warning
 #endif
 
 #ifndef HAVE_FDOPENDIR
@@ -874,7 +879,7 @@ bool PosixFileSystemAccess::cwd_static(LocalPath& path)
 // wake up from filesystem updates
 
 #ifdef __linux__
-void LinuxFileSystemAccess::addevents(Waiter* waiter, int flags)
+void LinuxFileSystemAccess::addevents([[maybe_unused]] Waiter* waiter, int /*flags*/)
 {
 #ifdef ENABLE_SYNC
 
@@ -892,7 +897,7 @@ void LinuxFileSystemAccess::addevents(Waiter* waiter, int flags)
 }
 
 // read all pending inotify events and queue them for processing
-int LinuxFileSystemAccess::checkevents(Waiter* waiter)
+int LinuxFileSystemAccess::checkevents([[maybe_unused]] Waiter* waiter)
 {
     int result = 0;
 
@@ -950,7 +955,10 @@ int LinuxFileSystemAccess::checkevents(Waiter* waiter)
             }
 
             auto localName = LocalPath::fromPlatformEncodedRelative(name);
-            notifier.notify(notifier.fsEventq, &node, Notification::NEEDS_PARENT_SCAN, move(localName));
+            notifier.notify(notifier.fsEventq,
+                            &node,
+                            Notification::NEEDS_PARENT_SCAN,
+                            std::move(localName));
 
             // We need to rescan the directory if it's changed permissions.
             //
@@ -1068,7 +1076,9 @@ bool PosixFileSystemAccess::copylocal(const LocalPath& oldname, const LocalPath&
         if ((tfd = open(newnamestr.c_str(), O_WRONLY | O_CREAT | O_TRUNC, defaultfilepermissions)) >= 0)
         {
             umask(mode);
-            while (((t = read(sfd, buf, sizeof buf)) > 0) && write(tfd, buf, t) == t);
+            while (((t = read(sfd, buf, sizeof buf)) > 0) &&
+                   write(tfd, buf, static_cast<size_t>(t)) == t)
+                ;
 #endif
             close(tfd);
         }
@@ -1621,7 +1631,7 @@ void PosixFileSystemAccess::statsid(string *id) const
 
     if (len > 0)
     {
-        id->append(buff, len);
+        id->append(buff, static_cast<size_t>(len));
     }
 #endif
 }
@@ -1630,11 +1640,11 @@ void PosixFileSystemAccess::statsid(string *id) const
 #if defined(__linux__)
 
 LinuxDirNotify::LinuxDirNotify(LinuxFileSystemAccess& owner,
-    LocalNode& root,
-    const LocalPath& rootPath)
-    : DirNotify(rootPath)
-    , mOwner(owner)
-    , mNotifiersIt(owner.mNotifiers.insert(owner.mNotifiers.end(), this))
+                               LocalNode& /*root*/,
+                               const LocalPath& rootPath):
+    DirNotify(rootPath),
+    mOwner(owner),
+    mNotifiersIt(owner.mNotifiers.insert(owner.mNotifiers.end(), this))
 {
     // Assume our owner couldn't initialize.
     setFailed(-owner.mNotifyFd, "Unable to create filesystem monitor.");
@@ -1960,16 +1970,11 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
 
                 // Leave a trail for debuggers.
                 LOG_warn << "directoryScan: "
-                         << "Encountered a nested mount: "
-                         << path
-                         << ". Expected device "
-                         << major(device)
-                         << ":"
-                         << minor(device)
-                         << ", got device "
-                         << major(metadata.st_dev)
-                         << ":"
-                         << minor(metadata.st_dev);
+                         << "Encountered a nested mount: " << path << ". Expected device "
+                         << major(static_cast<unsigned>(device)) << ":"
+                         << minor(static_cast<unsigned>(device)) << ", got device "
+                         << major(static_cast<unsigned>(metadata.st_dev)) << ":"
+                         << minor(static_cast<unsigned>(metadata.st_dev));
             }
 
             continue;

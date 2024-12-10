@@ -1,8 +1,8 @@
 /**
  * @file MEGAVPNCredentials.h
- * @brief List of strings
+ * @brief Container to store information of a VPN Cluster.
  *
- * (c) 2023- by Mega Limited, Auckland, New Zealand
+ * (c) 2024 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -21,6 +21,9 @@
 #import <Foundation/Foundation.h>
 #import "MEGAIntegerList.h"
 #import "MEGAStringList.h"
+#import "MEGAVPNRegion.h"
+
+NS_ASSUME_NONNULL_BEGIN
 
 @interface MEGAVPNCredentials : NSObject
 
@@ -39,12 +42,19 @@
 - (MEGAStringList *)vpnRegions;
 
 /**
+ * @brief Get the list of the available VPN regions, including the clusters for each region.
+ *
+ * @return An NSArray of MEGAVPNRegion objects.
+ */
+- (NSArray<MEGAVPNRegion *> *)vpnRegionsDetailed;
+
+/**
  * @brief Gets the IPv4 address associated with a given SlotID.
  *
  * @param slotID The SlotID for which the IPv4 address is requested.
  * @return A string containing the IPv4 address.
  */
-- (NSString *)ipv4ForSlotID:(NSInteger)slotID;
+- (nullable NSString *)ipv4ForSlotID:(NSInteger)slotID;
 
 /**
  * @brief Gets the IPv6 address associated with a given SlotID.
@@ -52,7 +62,7 @@
  * @param slotID The SlotID for which the IPv6 address is requested.
  * @return A string containing the IPv6 address.
  */
-- (NSString *)ipv6ForSlotID:(NSInteger)slotID;
+- (nullable NSString *)ipv6ForSlotID:(NSInteger)slotID;
 
 /**
  * @brief Gets the DeviceID associated with a given SlotID.
@@ -60,7 +70,7 @@
  * @param slotID The SlotID for which the DeviceID is requested.
  * @return A string containing the DeviceID.
  */
-- (NSString *)deviceIDForSlotID:(NSInteger)slotID;
+- (nullable NSString *)deviceIDForSlotID:(NSInteger)slotID;
 
 /**
  * @brief Gets the ClusterID associated with a given SlotID.
@@ -76,6 +86,8 @@
  * @param clusterID The ClusterID for which the Public Key is requested.
  * @return A string containing the Cluster Public Key.
  */
-- (NSString *)clusterPublicKeyForClusterID:(NSInteger)clusterID;
+- (nullable NSString *)clusterPublicKeyForClusterID:(NSInteger)clusterID;
 
 @end
+
+NS_ASSUME_NONNULL_END

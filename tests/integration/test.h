@@ -826,7 +826,7 @@ struct StandardClient : public MegaApp
                         targettype_t,
                         vector<NewNode>&,
                         bool,
-                        int tag,
+                        int /*tag*/,
                         const map<string, string>& /*fileHandles*/)
         {
             mCallable(e);
@@ -872,7 +872,7 @@ struct StandardClient : public MegaApp
             delete this;
         }
 
-        void terminated(error e) override
+        void terminated(error) override
         {
             result->set_value(false);
             delete this;
@@ -897,8 +897,8 @@ struct StandardClient : public MegaApp
             assert(!transfer || t == transfer);
             assert(source == PUTNODES_APP);  // derived class for sync doesn't use this code path
             assert(t->type == PUT);
-            
-            auto finalCompletion = move(completion);
+
+            auto finalCompletion = std::move(completion);
             sendPutnodesOfUpload(
                 t->client,
                 t->uploadhandle,
@@ -909,9 +909,9 @@ struct StandardClient : public MegaApp
                 [finalCompletion](const Error&,
                                   targettype_t,
                                   vector<NewNode>&,
-                                  bool targetOverride,
-                                  int tag,
-                                  const std::map<std::string, std::string>& fileHandles)
+                                  bool /*targetOverride*/,
+                                  int /*tag*/,
+                                  const std::map<std::string, std::string>& /*fileHandles*/)
                 {
                     if (finalCompletion)
                         finalCompletion(true);
@@ -922,7 +922,7 @@ struct StandardClient : public MegaApp
             delete this;
         }
 
-        void terminated(error e) override
+        void terminated(error) override
         {
             if (completion) completion(false);
             delete this;
@@ -955,9 +955,9 @@ struct StandardClient : public MegaApp
     class TreeProcPrintTree : public TreeProc
     {
     public:
-        void proc(MegaClient* client, std::shared_ptr<Node> n) override
+        void proc(MegaClient*, std::shared_ptr<Node> /*n*/) override
         {
-            //out() << "fetchnodes tree: " << n->displaypath();;
+            // out() << "fetchnodes tree: " << n->displaypath();
         }
     };
 
@@ -1143,6 +1143,11 @@ struct StandardClient : public MegaApp
     void exportnode(std::shared_ptr<Node> n, int del, m_time_t expiry, bool writable, bool megaHosted, promise<Error>& pb);
     void getpubliclink(Node* n, int del, m_time_t expiry, bool writable, bool megaHosted, promise<Error>& pb);
     void waitonsyncs(chrono::seconds d = chrono::seconds(2));
+    /**
+     * @brief Collect syncs problems (stall issues and name conflicts)
+     * @param problems SyncProblems struct where sync problems will be stored
+     */
+    void syncproblemsDetected(SyncProblems& problems);
     bool conflictsDetected(list<NameConflict>& conflicts);
     bool stallsDetected(SyncStallInfoTests& stalls);
     bool syncStallDetected(SyncStallInfoTests& si) const;
@@ -1172,6 +1177,64 @@ struct StandardClient : public MegaApp
     bool makeremotenodes(const string& prefix, int depth, int fanout);
     bool backupOpenDrive(const fs::path& drivePath);
     void triggerPeriodicScanEarly(handle backupID);
+
+    /**
+     * @brief Checks synchronization problems for a given backupId.
+     *
+     * This function validates synchronization issues (conflicts) related to the specified backup
+     * by:
+     * - Ensuring that the backup ID exists in the conflicts map.
+     * - Verifying that the number of conflicts matches the expected count.
+     * - Checking that the last conflict entry has the expected local path.
+     * - Comparing the clashing local names with the provided file names.
+     *
+     * @param backupId The handle representing the ID of the backup to check.
+     * @param backupIdsCount The total number of backup IDs.
+     * @param expectedConflicts The total expected number of conflicts for the given backup.
+     * @param localPath The expected local path associated with the most recent conflict.
+     * @param f1 The first file name expected to be clashing in the conflict.
+     * @param f2 The second file name expected to be clashing in the conflict.
+     */
+    void checkSyncProblems(const handle backupId,
+                           const int backupIdsCount,
+                           const unsigned int totalExpectedConflicts,
+                           const LocalPath& localPath,
+                           const std::string& f1,
+                           const std::string& f2);
+
+    /**
+     * @brief Creates a hard link from a File node.
+     *
+     * @param src The source file path for the hard link
+     * @param dst The destination file path for the hard link
+     * @param sourcePath A reference to a `LocalPath` object where the source path will be stored.
+     * @param targetPath A reference to a `LocalPath` object where the destination path will be
+     * stored.
+     */
+    void createHardLink(const fs::path& src,
+                        const fs::path& dst,
+                        LocalPath& sourcePath,
+                        LocalPath& targetPath);
+
+    /**
+     * @brief Checks for synchronization stall issues related to a specific BackupId.
+     *
+     * This function validates synchronization stall issues by checking the number of detected
+     * stalls. It verifies the following:
+     * - The expected number of stalls matches the actual size of the stall info maps.
+     * - At least one stall issue is detected.
+     * - A specific stall issue involving the given source and target paths is present,
+     *   along with the correct reasons and path problems.
+     *
+     * @param backupId The handle representing the ID of the backup to check.
+     * @param expectedStalls The expected number of stall issues detected for the given backup.
+     * @param sourcePath A reference to a `LocalPath` object representing the source file path
+     * @param targetPath A reference to a `LocalPath` object representing the target file path
+     */
+    void checkStallIssues(const handle backupId,
+                          const unsigned int expectedStalls,
+                          LocalPath& sourcePath,
+                          LocalPath& targetPath);
 
     handle getNodeHandle(const CloudItem& item);
     void getNodeHandle(const CloudItem& item, PromiseHandleSP result);

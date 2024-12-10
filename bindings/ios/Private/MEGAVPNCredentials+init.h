@@ -1,6 +1,6 @@
 /**
- * @file MEGAStringList+init.h
- * @brief Private functions of MEGAStringList
+ * @file MEGAVPNCredentials+init.h
+ * @brief Private functions of MEGAVPNCredentials
  *
  * (c) 2023- by Mega Limited, Auckland, New Zealand
  *

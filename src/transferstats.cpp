@@ -348,7 +348,7 @@ m_off_t calculateWeightedAverage(const vector<m_off_t>& values, const vector<m_o
         std::round(static_cast<double>(weightedSum) / static_cast<double>(totalWeight)));
 }
 
-void checkTransferTypeValidity(const direction_t type)
+void checkTransferTypeValidity([[maybe_unused]] const direction_t type)
 {
     assert((type == PUT || type == GET) && "Only uploads (PUT) or downloads (GET) are allowed");
 }

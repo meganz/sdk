@@ -276,7 +276,8 @@ void BackupMonitor::updateOrRegisterSync(UnifiedSync& us)
     auto currentInfo = BackupInfoSync(us, syncs.mDownloadsPaused, syncs.mUploadsPaused);
     if (!us.mBackupInfo || currentInfo != *us.mBackupInfo)
     {
-        syncs.queueClient([currentInfo](MegaClient& mc, DBTableTransactionCommitter& committer)
+        syncs.queueClient(
+            [currentInfo](MegaClient& mc, DBTableTransactionCommitter&)
             {
                 mc.reqs.add(new CommandBackupPut(&mc, currentInfo, nullptr));
             });
@@ -362,15 +363,21 @@ void BackupMonitor::beatBackupInfo(UnifiedSync& us)
         auto lastAction = hbs->lastAction();
         auto lastItemUpdated = hbs->lastItemUpdated();
 
-        syncs.queueClient([=](MegaClient& mc, DBTableTransactionCommitter& committer)
+        syncs.queueClient(
+            [=](MegaClient& mc, DBTableTransactionCommitter&)
             {
-                mc.reqs.add(
-                    new CommandBackupPutHeartBeat(&mc, backupId, status,
-                        progress, pendingUps, pendingDowns,
-                        lastAction, lastItemUpdated,
-                        [hbs](Error){
-                            hbs->mSending = false;
-                        }));
+                mc.reqs.add(new CommandBackupPutHeartBeat(&mc,
+                                                          backupId,
+                                                          status,
+                                                          static_cast<int8_t>(progress),
+                                                          pendingUps,
+                                                          pendingDowns,
+                                                          lastAction,
+                                                          lastItemUpdated,
+                                                          [hbs](Error)
+                                                          {
+                                                              hbs->mSending = false;
+                                                          }));
             });
 
         if (progress >= 100)
