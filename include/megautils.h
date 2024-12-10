@@ -44,11 +44,13 @@ std::vector<std::string> stringListToVector(const MegaStringList& l);
  */
 std::vector<std::vector<std::string>> bucketsToVector(const MegaRecentActionBucketList& buckets);
 
+#ifdef ENABLE_SYNC
 /**
  * @brief Convert a MegaSyncStallList into a vector of unique_ptr to its components. To own the
  * elements, the function copies each element in the list.
  */
 std::vector<std::unique_ptr<MegaSyncStall>> toSyncStallVector(const MegaSyncStallList& stallList);
+#endif
 }
 
 #endif // MEGAUTILS_H

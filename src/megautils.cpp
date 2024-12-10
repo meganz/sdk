@@ -61,6 +61,7 @@ std::vector<std::vector<std::string>> bucketsToVector(const MegaRecentActionBuck
     return result;
 }
 
+#ifdef ENABLE_SYNC
 std::vector<std::unique_ptr<MegaSyncStall>> toSyncStallVector(const MegaSyncStallList& stallList)
 {
     std::vector<std::unique_ptr<MegaSyncStall>> result;
@@ -71,4 +72,5 @@ std::vector<std::unique_ptr<MegaSyncStall>> toSyncStallVector(const MegaSyncStal
     }
     return result;
 }
+#endif
 }
