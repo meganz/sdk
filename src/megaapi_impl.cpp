@@ -196,12 +196,12 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
 
     if (string* tempNodekey = node->getNodeKey())
     {
-        nodekey.swap(*tempNodekey);
+        nodekey = *tempNodekey;
     }
     else
     {
+        LOG_err << "Invalid nodekey of provided node";
         assert(tempNodekey != nullptr);
-        nodekey.clear();
     }
 
     this->changed = node->getChanges();
