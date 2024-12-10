@@ -31879,43 +31879,56 @@ StreamingBuffer::~StreamingBuffer()
     delete [] buffer;
 }
 
-void StreamingBuffer::init(size_t capacity)
+void StreamingBuffer::init(size_t newCapacity)
 {
-    assert(capacity > 0);
+    assert(newCapacity > 0);
     // Recalculate maxBufferSize and maxOutputSize.
     calcMaxBufferAndMaxOutputSize();
-    // Truncate capacity if needed
-    if (capacity > maxBufferSize)
+    // Truncate new capacity if needed
+    if (newCapacity > maxBufferSize)
     {
         size_t bytesPerSecond = getBytesPerSecond();
-        LOG_warn << "[Streaming] Truncating requested capacity due to being greater than maxBufferSize."
-                 << " Capacity requested = " << capacity << " bytes"
-                 << ", truncated to = " << maxBufferSize << " bytes"
-                 << " [file size = " << fileSize << " bytes"
-                 << ", total duration = " << (duration ? (std::to_string(duration).append(" secs")) : "not a media file")
-                 << (duration ? std::string(", estimated duration in truncated buffer: ").append(std::to_string(maxBufferSize / bytesPerSecond)).append(" secs")
-                                    .append(", max length to be served: ").append(std::to_string(maxOutputSize / bytesPerSecond)).append(" secs")
-                                    .append(", bytes per second: ").append(std::to_string(bytesPerSecond / 1024)).append(" KB/s")
-                                : "")
-                 << "]";
-        capacity = maxBufferSize;
+        LOG_warn
+            << "[Streaming] Truncating requested capacity due to being greater than maxBufferSize."
+            << " Capacity requested = " << newCapacity << " bytes"
+            << ", truncated to = " << maxBufferSize << " bytes"
+            << " [file size = " << fileSize << " bytes"
+            << ", total duration = "
+            << (duration ? (std::to_string(duration).append(" secs")) : "not a media file")
+            << (duration ? std::string(", estimated duration in truncated buffer: ")
+                               .append(std::to_string(maxBufferSize / bytesPerSecond))
+                               .append(" secs")
+                               .append(", max length to be served: ")
+                               .append(std::to_string(maxOutputSize / bytesPerSecond))
+                               .append(" secs")
+                               .append(", bytes per second: ")
+                               .append(std::to_string(bytesPerSecond / 1024))
+                               .append(" KB/s") :
+                           "")
+            << "]";
+        newCapacity = maxBufferSize;
     }
     else
     {
         LOG_debug << "[Streaming] Init StreamingBuffer."
-                 << " Capacity requested = " << capacity << " bytes"
-                 << " [file size = " << fileSize << " bytes"
-                 << ", total duration = " << (duration ? (std::to_string(duration).append(" secs")) : "not a media file")
-                 << (duration ? std::string(", estimated duration in buffer: ").append(std::to_string(partialDuration(capacity)).append(" secs")) : "")
-                 << "]";
+                  << " Capacity requested = " << newCapacity << " bytes"
+                  << " [file size = " << fileSize << " bytes"
+                  << ", total duration = "
+                  << (duration ? (std::to_string(duration).append(" secs")) : "not a media file")
+                  << (duration ?
+                          std::string(", estimated duration in buffer: ")
+                              .append(
+                                  std::to_string(partialDuration(newCapacity)).append(" secs")) :
+                          "")
+                  << "]";
     }
 
-    this->capacity = static_cast<unsigned>(capacity);
-    this->buffer = new char[this->capacity];
+    capacity = static_cast<unsigned>(newCapacity);
+    this->buffer = new char[capacity];
     this->inpos = 0;
     this->outpos = 0;
     this->size = 0;
-    this->free = this->capacity;
+    this->free = capacity;
 }
 
 void StreamingBuffer::calcMaxBufferAndMaxOutputSize()
@@ -32087,22 +32100,23 @@ void StreamingBuffer::setMaxOutputSize(unsigned int outputSize)
     }
 }
 
-void StreamingBuffer::setFileSize(m_off_t fileSize)
+void StreamingBuffer::setFileSize(m_off_t newFileSize)
 {
-    this->fileSize = fileSize;
-    LOG_debug << "[Streaming] File size set to " << this->fileSize << " bytes";
+    fileSize = newFileSize;
+    LOG_debug << "[Streaming] File size set to " << fileSize << " bytes";
 }
 
-void StreamingBuffer::setDuration(int duration)
+void StreamingBuffer::setDuration(int newDuration)
 {
-    if (!duration)
+    if (!newDuration)
     {
-        // Param 'duration' is documented in MegaNode::getDuration() to be -1 if it's not defined.
-        // Hence, if it's 0, the file should be a media file... which has a duration of 0 seconds.
+        // Param 'newDuration' is documented in MegaNode::getDuration() to be -1 if it's not
+        // defined. Hence, if it's 0, the file should be a media file... which has a duration of 0
+        // seconds.
         LOG_warn << "[Streaming] Duration value is 0 seconds for this media file!";
     }
-    this->duration = duration > 0 ? duration : 0;
-    LOG_debug << "[Streaming] File duration set to " << this->duration << " secs";
+    duration = newDuration > 0 ? newDuration : 0;
+    LOG_debug << "[Streaming] File duration set to " << duration << " secs";
 }
 
 m_off_t StreamingBuffer::getBytesPerSecond() const
@@ -32215,9 +32229,9 @@ MegaTCPServer::~MegaTCPServer()
     LOG_verbose << "MegaTCPServer::~MegaTCPServer END";
 }
 
-bool MegaTCPServer::start(int port, bool localOnly)
+bool MegaTCPServer::start(int newPort, bool newLocalOnly)
 {
-    if (started && this->port == port && this->localOnly == localOnly)
+    if (started && port == newPort && localOnly == newLocalOnly)
     {
         LOG_verbose << "MegaTCPServer::start Alread started at that port, returning " << started;
         return true;
@@ -32227,13 +32241,13 @@ bool MegaTCPServer::start(int port, bool localOnly)
         stop();
     }
 
-    this->port = port;
-    this->localOnly = localOnly;
+    port = newPort;
+    localOnly = newLocalOnly;
 
     thread->start(threadEntryPoint, this);
     uv_sem_wait(&semaphoreStartup);
 
-    LOG_verbose << "MegaTCPServer::start. port = " << port << ", returning " << started;
+    LOG_verbose << "MegaTCPServer::start. port = " << newPort << ", returning " << started;
     return started;
 }
 
@@ -33109,10 +33123,10 @@ MegaTCPContext * MegaHTTPServer::initializeContext(uv_stream_t *server_handle)
     http_parser_init(&httpctx->parser, HTTP_REQUEST);
 
     // Set connection data
-    MegaHTTPServer *server = (MegaHTTPServer *)(server_handle->data);
+    MegaHTTPServer* httpServer = (MegaHTTPServer*)(server_handle->data);
 
-    httpctx->server = server;
-    httpctx->megaApi = server->megaApi;
+    httpctx->server = httpServer;
+    httpctx->megaApi = httpServer->megaApi;
     httpctx->parser.data = httpctx;
     httpctx->tcphandle.data = httpctx;
     httpctx->asynchandle.data = httpctx;
@@ -35095,37 +35109,42 @@ MegaHTTPContext::~MegaHTTPContext()
     uv_mutex_destroy(&mutex_responses);
 }
 
-void MegaHTTPContext::onTransferStart(MegaApi *, MegaTransfer *transfer)
+void MegaHTTPContext::onTransferStart(MegaApi*, MegaTransfer* httpTransfer)
 {
-    if (this->transfer)
+    if (transfer)
     {
-        this->transfer->setTag(transfer->getTag());
+        transfer->setTag(httpTransfer->getTag());
     }
 }
 
-bool MegaHTTPContext::onTransferData(MegaApi *, MegaTransfer *transfer, char *buffer, size_t size)
+bool MegaHTTPContext::onTransferData(MegaApi*,
+                                     MegaTransfer* httpTransfer,
+                                     char* buffer,
+                                     size_t dataSize)
 {
-    LOG_verbose << "Streaming data received: " << transfer->getTransferredBytes()
-                << " Size: " << size
-                << " Queued: " << this->tcphandle.write_queue_size
-                << " " << streamingBuffer.bufferStatus();
+    LOG_verbose << "Streaming data received: " << httpTransfer->getTransferredBytes()
+                << " Size: " << dataSize << " Queued: " << this->tcphandle.write_queue_size << " "
+                << streamingBuffer.bufferStatus();
 
     if (finished)
     {
-        LOG_info << "Removing streaming transfer after " << transfer->getTransferredBytes() << " bytes";
+        LOG_info << "Removing streaming transfer after " << httpTransfer->getTransferredBytes()
+                 << " bytes";
         return false;
     }
 
     // append the data to the buffer
     uv_mutex_lock(&mutex);
-    long long remaining = size + (transfer->getTotalBytes() - transfer->getTransferredBytes());
+    long long remaining =
+        dataSize + (httpTransfer->getTotalBytes() - httpTransfer->getTransferredBytes());
     long long availableSpace = streamingBuffer.availableSpace();
-    if ((remaining > availableSpace) && ((availableSpace - size) < static_cast<long long>(DirectReadSlot::MAX_DELIVERY_CHUNK)))
+    if ((remaining > availableSpace) &&
+        ((availableSpace - dataSize) < static_cast<long long>(DirectReadSlot::MAX_DELIVERY_CHUNK)))
     {
         LOG_debug << "[Streaming] Buffer full: Pausing streaming. " << streamingBuffer.bufferStatus();
         pause = true;
     }
-    streamingBuffer.append(buffer, size);
+    streamingBuffer.append(buffer, dataSize);
     uv_mutex_unlock(&mutex);
 
     // notify the HTTP server
@@ -35321,9 +35340,9 @@ MegaTCPContext* MegaFTPServer::initializeContext(uv_stream_t *server_handle)
     MegaFTPContext* ftpctx = new MegaFTPContext();
 
     // Set connection data
-    MegaFTPServer *server = (MegaFTPServer *)(server_handle->data);
-    ftpctx->server = server;
-    ftpctx->megaApi = server->megaApi;
+    MegaFTPServer* ftpServer = (MegaFTPServer*)(server_handle->data);
+    ftpctx->server = ftpServer;
+    ftpctx->megaApi = ftpServer->megaApi;
     ftpctx->tcphandle.data = ftpctx;
     ftpctx->asynchandle.data = ftpctx;
 
@@ -37107,9 +37126,9 @@ MegaTCPContext* MegaFTPDataServer::initializeContext(uv_stream_t *server_handle)
     MegaFTPDataContext* ftpctx = new MegaFTPDataContext();
 
     // Set connection data
-    MegaFTPDataServer *server = (MegaFTPDataServer *)(server_handle->data);
-    ftpctx->server = server;
-    ftpctx->megaApi = server->megaApi;
+    MegaFTPDataServer* ftpDataServer = (MegaFTPDataServer*)(server_handle->data);
+    ftpctx->server = ftpDataServer;
+    ftpctx->megaApi = ftpDataServer->megaApi;
     ftpctx->tcphandle.data = ftpctx;
     ftpctx->asynchandle.data = ftpctx;
 
@@ -37607,37 +37626,43 @@ void MegaFTPDataContext::setControlCodeUponDataClose(int code, string msg)
     controlResponseMessage = msg;
 }
 
-void MegaFTPDataContext::onTransferStart(MegaApi *, MegaTransfer *transfer)
+void MegaFTPDataContext::onTransferStart(MegaApi*, MegaTransfer* ftpDataTransfer)
 {
-    this->transfer->setTag(transfer->getTag());
+    transfer->setTag(ftpDataTransfer->getTag());
 }
 
-bool MegaFTPDataContext::onTransferData(MegaApi *, MegaTransfer *transfer, char *buffer, size_t size)
+bool MegaFTPDataContext::onTransferData(MegaApi*,
+                                        MegaTransfer* ftpDataTransfer,
+                                        char* buffer,
+                                        size_t dataSize)
 {
-    LOG_verbose << "Streaming data received: " << transfer->getTransferredBytes()
-                << " Size: " << size
-                << " Remaining from transfer: "   << (size + (transfer->getTotalBytes() - transfer->getTransferredBytes()) )
-                << " Remaining to write TCP: "   << (this->size - bytesWritten)
+    LOG_verbose << "Streaming data received: " << ftpDataTransfer->getTransferredBytes()
+                << " Size: " << dataSize << " Remaining from transfer: "
+                << (dataSize +
+                    (ftpDataTransfer->getTotalBytes() - ftpDataTransfer->getTransferredBytes()))
+                << " Remaining to write TCP: " << (size - bytesWritten)
                 << " Queued: " << this->tcphandle.write_queue_size
                 << " Buffered: " << streamingBuffer.availableData()
                 << " Free: " << streamingBuffer.availableSpace();
 
     if (finished)
     {
-        LOG_info << "Removing streaming transfer after " << transfer->getTransferredBytes() << " bytes";
+        LOG_info << "Removing streaming transfer after " << ftpDataTransfer->getTransferredBytes()
+                 << " bytes";
         return false;
     }
 
     // append the data to the buffer
     uv_mutex_lock(&mutex);
-    long long remaining = size + (transfer->getTotalBytes() - transfer->getTransferredBytes());
+    long long remaining =
+        dataSize + (ftpDataTransfer->getTotalBytes() - ftpDataTransfer->getTransferredBytes());
     long long availableSpace = streamingBuffer.availableSpace();
-    if (remaining > availableSpace && availableSpace < (2 * m_off_t(size)))
+    if (remaining > availableSpace && availableSpace < (2 * m_off_t(dataSize)))
     {
         LOG_debug << "[Streaming] Buffer full: Pausing streaming. " << streamingBuffer.bufferStatus();
         pause = true;
     }
-    streamingBuffer.append(buffer, size);
+    streamingBuffer.append(buffer, dataSize);
     uv_mutex_unlock(&mutex);
 
     // notify the HTTP server

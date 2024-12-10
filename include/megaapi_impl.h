@@ -4709,7 +4709,7 @@ public:
     StreamingBuffer();
     ~StreamingBuffer();
     // Allocate buffer and reset class members
-    void init(size_t capacity);
+    void init(size_t newCapacity);
     // Reset positions for body writting ("forgets" buffered external data such as headers, which use the same buffer) [Default: 0 -> the whole buffer]
     void reset(bool freeData, size_t sizeToReset = 0);
     // Add data to the buffer. This will mainly come from the Transfer (or from a cache file if it's included someday).
@@ -4729,9 +4729,9 @@ public:
     // Set upper bound limit for chunk size to write to the consumer
     void setMaxOutputSize(unsigned int outputSize);
     // Set file size
-    void setFileSize(m_off_t fileSize);
+    void setFileSize(m_off_t newFileSize);
     // Set media length in seconds
-    void setDuration(int duration);
+    void setDuration(int newDuration);
     // Rate between file size and its duration (only for media files)
     m_off_t getBytesPerSecond() const;
     // Get upper bound limit for capacity
@@ -4908,7 +4908,7 @@ public:
 
     MegaTCPServer(MegaApiImpl *megaApi, std::string basePath, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string(), bool useIPv6 = false);
     virtual ~MegaTCPServer();
-    bool start(int port, bool localOnly = true);
+    bool start(int newPort, bool newLocalOnly = true);
     void stop(bool doNotWait = false);
     int getPort();
     bool isLocalOnly();
@@ -4986,8 +4986,9 @@ public:
     uv_mutex_t mutex_responses;
     std::list<std::string> responses;
 
-    virtual void onTransferStart(MegaApi *, MegaTransfer *transfer);
-    virtual bool onTransferData(MegaApi *, MegaTransfer *transfer, char *buffer, size_t size);
+    virtual void onTransferStart(MegaApi*, MegaTransfer* httpTransfer);
+    virtual bool
+        onTransferData(MegaApi*, MegaTransfer* httpTransfer, char* buffer, size_t dataSize);
     virtual void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e);
     virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e);
 };
@@ -5256,8 +5257,9 @@ public:
     string controlResponseMessage;
     int controlResponseCode;
 
-    virtual void onTransferStart(MegaApi *, MegaTransfer *transfer);
-    virtual bool onTransferData(MegaApi *, MegaTransfer *transfer, char *buffer, size_t size);
+    virtual void onTransferStart(MegaApi*, MegaTransfer* ftpDataTransfer);
+    virtual bool
+        onTransferData(MegaApi*, MegaTransfer* ftpDataTransfer, char* buffer, size_t dataSize);
     virtual void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e);
     virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e);
 };
