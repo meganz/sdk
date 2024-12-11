@@ -37,19 +37,19 @@ class ShareExtractor
 public:
     using Filter = std::function<bool(const ShareData&)>;
 
-    // Extract both out and pending shares, if filter(data) returns false, the share data is dropped
-    static vector<ShareData> extractShares(const sharedNode_vector& sharedNodes,
-                                           const KeyManager& keyManager,
-                                           Filter filter = nullptr);
+    // Extract out shares, if filter(data) returns false, the out share is dropped
+    static vector<ShareData> extractOutShares(const sharedNode_vector& sharedNodes,
+                                              const KeyManager& keyManager,
+                                              Filter filter = nullptr);
 
-    // Extract pending shares
-    static vector<ShareData> extractPendingShares(const sharedNode_vector& sharedNodes,
-                                                  const KeyManager& keyManager);
+    // Extract pending out shares
+    static vector<ShareData> extractPendingOutShares(const sharedNode_vector& sharedNodes,
+                                                     const KeyManager& keyManager);
 
 private:
-    static std::vector<ShareData> extractPendingShares(const Node* n,
-                                                       const KeyManager& keyManager,
-                                                       Filter filter);
+    static std::vector<ShareData> extractPendingOutShares(const Node* n,
+                                                          const KeyManager& keyManager,
+                                                          Filter filter);
 
     static std::vector<ShareData> extractOutShares(const Node* n,
                                                    const KeyManager& keyManager,

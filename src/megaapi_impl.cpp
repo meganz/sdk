@@ -7876,7 +7876,7 @@ MegaShareList *MegaApiImpl::getUnverifiedOutShares(int order)
 
     // Extract unverified shares
     auto unverifiedShares =
-        impl::ShareExtractor::extractShares(sharedNodes, client->mKeyManager, isUnverified);
+        impl::ShareExtractor::extractOutShares(sharedNodes, client->mKeyManager, isUnverified);
 
     // Sort shares in place
     impl::ShareSorter::sort(unverifiedShares, order);
@@ -11880,7 +11880,7 @@ MegaShareList* MegaApiImpl::getOutShares(int order)
     MegaApiImpl::sortByComparatorFunction(sharedNodes, order, *client);
 
     // Extract shares from nodes
-    auto shares = impl::ShareExtractor::extractShares(sharedNodes, client->mKeyManager);
+    auto shares = impl::ShareExtractor::extractOutShares(sharedNodes, client->mKeyManager);
 
     // Sort shares in place
     impl::ShareSorter::sort(shares, order);
@@ -11900,7 +11900,7 @@ MegaShareList* MegaApiImpl::getOutShares(MegaNode *megaNode)
     }
 
     return new MegaShareListPrivate(
-        impl::ShareExtractor::extractShares({node}, client->mKeyManager));
+        impl::ShareExtractor::extractOutShares({node}, client->mKeyManager));
 }
 
 MegaShareList *MegaApiImpl::getPendingOutShares()
@@ -11910,7 +11910,7 @@ MegaShareList *MegaApiImpl::getPendingOutShares()
     sharedNode_vector nodes = client->mNodeManager.getNodesWithPendingOutShares();
 
     return new MegaShareListPrivate(
-        impl::ShareExtractor::extractPendingShares(nodes, client->mKeyManager));
+        impl::ShareExtractor::extractPendingOutShares(nodes, client->mKeyManager));
 }
 
 MegaShareList *MegaApiImpl::getPendingOutShares(MegaNode *megaNode)
@@ -11928,7 +11928,7 @@ MegaShareList *MegaApiImpl::getPendingOutShares(MegaNode *megaNode)
     }
 
     return new MegaShareListPrivate(
-        impl::ShareExtractor::extractPendingShares({node}, client->mKeyManager));
+        impl::ShareExtractor::extractPendingOutShares({node}, client->mKeyManager));
 }
 
 bool MegaApiImpl::isPrivateNode(MegaHandle h)
