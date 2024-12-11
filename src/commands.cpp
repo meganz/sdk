@@ -5740,13 +5740,13 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
                         LOG_warn << "Using default almost overstorage threshold";
                     }
 
-                    if (details->storage_used >= details->storage_max)
+                    if (details->storage_used > details->storage_max)
                     {
                         LOG_debug << "Account full";
                         bool isPaywall = (client->ststatus == STORAGE_PAYWALL);
                         client->activateoverquota(0, isPaywall);
                     }
-                    else if (details->storage_used >= (details->storage_max / 10000 * uslw))
+                    else if (details->storage_used > (details->storage_max / 10000 * uslw))
                     {
                         LOG_debug << "Few storage space available";
                         client->setstoragestatus(STORAGE_ORANGE);
