@@ -5046,6 +5046,8 @@ const char *MegaRequestPrivate::getRequestString() const
             return "TYPE_ANSWER_SURVEY";
         case TYPE_CHANGE_SYNC_ROOT:
             return "TYPE_CHANGE_SYNC_ROOT";
+        case TYPE_GET_MY_IP:
+            return "TYPE_GET_MY_IP";
     }
     return "UNKNOWN";
 }
