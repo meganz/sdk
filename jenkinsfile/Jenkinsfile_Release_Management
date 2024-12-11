@@ -19,7 +19,7 @@ pipeline {
         //JIRA_SDK_CREDS = credentials('SDK_JIRA')
         SLACK_TOKEN = credentials('sdk_slack_bot_releases')
         GITLAB_TOKEN = credentials('SDK_releases_gitlab_token')
-        gpg_keygrip = credentials('sdk_gpg_keygrip_release_management')
+        GPG_KEYGRIP = credentials('sdk_gpg_keygrip_release_management')
         gpg_key = credentials('sdk_gpg_key_release_management')
         GITHUB_TOKEN = credentials('sdk_github_token')
         project_name = "SDK"
