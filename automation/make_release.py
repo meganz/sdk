@@ -18,7 +18,7 @@ args = parser.parse_args()
 # Check for required environment variables
 required_env_vars = [
     "GITLAB_TOKEN",
-    "JIRA_TOKEN"
+    "JIRA_TOKEN",
     "SLACK_TOKEN",
     "GPG_KEYGRIP",
     "GPG_PASSWORD",
