@@ -79,7 +79,7 @@ pipeline {
             }
             agent {
                 docker {
-                    image 'meganz/sdk-release-management:${env.BUILD_NUMBER}'
+                    image "meganz/sdk-release-management:${env.BUILD_NUMBER}"
                     reuseNode true
                 }
             }
