@@ -542,6 +542,45 @@ private:
     // true when the NodeManager has been inicialized and contains a valid filesystem
     bool mInitialized = false;
 
+    // minimum expected number of root nodes
+    static constexpr uint8_t MIN_NUM_ROOT_NODES{3};
+
+    // flag that determines if null root nodes error has been detected
+    uint8_t mNullRootNodesErr{};
+
+    /**
+     * @brief Increments the error state for null root nodes
+     *
+     * The error state is incremented only up to a maximum value of 2. This prevents to send server
+     * event more than once per execution
+     */
+    void enableNullRootNodesErr()
+    {
+        if (mNullRootNodesErr < 2u)
+        {
+            ++mNullRootNodesErr;
+        }
+    }
+
+    /**
+     * @brief Resets the error state for null root nodes
+     */
+    void resetNullRootNodesErr()
+    {
+        mNullRootNodesErr = 0u;
+    }
+
+    /**
+     * @brief Returns true if the null root nodes error server event must be sent (1 per execution)
+     *
+     * @return true if the null root nodes error server event must be sent, false in case it has
+     * already been sent
+     */
+    bool reportNullRootNodesErr() const
+    {
+        return mNullRootNodesErr == 1u;
+    }
+
     // These are all the "internal" versions of the public interfaces.
     // This is to avoid confusion where public functions used to call other public functions
     // but that introudces confusion about where the mutex gets locked.

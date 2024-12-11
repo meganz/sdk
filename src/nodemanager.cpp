@@ -147,6 +147,7 @@ void NodeManager::reset_internal()
     assert(mMutex.owns_lock());
     setTable_internal(nullptr);
     cleanNodes_internal();
+    resetNullRootNodesErr();
 }
 
 bool NodeManager::setrootnode(std::shared_ptr<Node> node)
@@ -601,8 +602,27 @@ uint64_t NodeManager::getNodeCount_internal()
 
     for (auto& node : roots)
     {
-        NodeCounter nc = node->getCounter();
-        count += nc.files + nc.folders + nc.versions;
+        if (node)
+        {
+            NodeCounter nc = node->getCounter();
+            count += nc.files + nc.folders + nc.versions;
+        }
+        else
+        {
+            enableNullRootNodesErr();
+        }
+    }
+
+    if (reportNullRootNodesErr())
+    {
+        roots.size() >= MIN_NUM_ROOT_NODES ?
+            mClient.sendevent(99490, "Null rootnode/s detected", 0) :
+            mClient.sendevent(99491,
+                              "Null rootnode/s detected and wrong number of root nodes retrieved",
+                              0);
+        LOG_err << "getNodeCount_internal: Null rootnode/s detected. Number of root nodes: "
+                << roots.size();
+        assert(false);
     }
 
     // add roots to the count if logged into account (and fetchnodes is done <- roots are ready)
