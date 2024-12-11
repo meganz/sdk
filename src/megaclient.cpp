@@ -1871,7 +1871,6 @@ void MegaClient::init()
     // actions in server-client stream)
     resetId(sessionid, sizeof sessionid, rng);
 
-    notifyStorageChangeOnStateCurrent = false;
     mNotifiedSumSize = 0;
 
     mCurrentSeqtag.clear();
@@ -5192,13 +5191,6 @@ bool MegaClient::procsc()
                             syncsAlreadyLoadedOnStatecurrent = true;
                         }
 #endif
-
-                        if (notifyStorageChangeOnStateCurrent)
-                        {
-                            app->notify_storage(STORAGE_CHANGE);
-                            notifyStorageChangeOnStateCurrent = false;
-                        }
-
                         if (tctable && cachedfiles.size())
                         {
                             TransferDbCommitter committer(tctable);
@@ -7244,21 +7236,10 @@ void MegaClient::sc_userattr()
                         if (!fetchingnodes)
                         {
                             // silently fetch-upon-update these critical attributes
-                            if (type == ATTR_DISABLE_VERSIONS || type == ATTR_PUSH_SETTINGS)
+                            if (type == ATTR_DISABLE_VERSIONS || type == ATTR_PUSH_SETTINGS ||
+                                type == ATTR_STORAGE_STATE)
                             {
                                 getua(u, type, 0);
-                            }
-                            else if (type == ATTR_STORAGE_STATE)
-                            {
-                                if (!statecurrent)
-                                {
-                                    notifyStorageChangeOnStateCurrent = true;
-                                }
-                                else
-                                {
-                                    LOG_debug << "Possible storage status change";
-                                    app->notify_storage(STORAGE_CHANGE);
-                                }
                             }
                         }
                     }

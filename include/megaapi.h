@@ -9085,6 +9085,7 @@ class MegaGlobalListener
          */
         virtual void onChatsUpdate(MegaApi* api, MegaTextChatList *chats);
 #endif
+
         /**
          * The details about the event, like the type of event and optionally any
          * additional parameter, is received in the \c params parameter.
@@ -9116,15 +9117,16 @@ class MegaGlobalListener
          *      - MegaEvent::getHandle: user handle for the confirmed account
          *      - MegaEvent::getText: email address used to confirm the account
          *
-         *  - MegaEvent::EVENT_CHANGE_TO_HTTPS: when the SDK automatically starts using HTTPS for all
-         * its communications. This happens when the SDK is able to detect that MEGA servers can't be
-         * reached using HTTP or that HTTP communications are being tampered. Transfers of files and
-         * file attributes (thumbnails and previews) use HTTP by default to save CPU usage. Since all data
-         * is already end-to-end encrypted, it's only needed to use HTTPS if HTTP doesn't work. Anyway,
-         * applications can force the SDK to always use HTTPS using MegaApi::useHttpsOnly. It's recommended
-         * that applications that receive one of these events save that information on its settings and
-         * automatically enable HTTPS on next executions of the app to not force the SDK to detect the problem
-         * and automatically switch to HTTPS every time that the application starts.
+         *  - MegaEvent::EVENT_CHANGE_TO_HTTPS: when the SDK automatically starts using HTTPS for
+         * all its communications. This happens when the SDK is able to detect that MEGA servers
+         * can't be reached using HTTP or that HTTP communications are being tampered. Transfers of
+         * files and file attributes (thumbnails and previews) use HTTP by default to save CPU
+         * usage. Since all data is already end-to-end encrypted, it's only needed to use HTTPS if
+         * HTTP doesn't work. Anyway, applications can force the SDK to always use HTTPS using
+         * MegaApi::useHttpsOnly. It's recommended that applications that receive one of these
+         * events save that information on its settings and automatically enable HTTPS on next
+         * executions of the app to not force the SDK to detect the problem and automatically switch
+         * to HTTPS every time that the application starts.
          *
          *  - MegaEvent::EVENT_DISCONNECT: when the SDK performs a disconnect to reset all the
          * existing open-connections, since they have become unusable. It's recommended that the app
@@ -9152,7 +9154,8 @@ class MegaGlobalListener
          *              Subuser of business account has been removed.
          *
          *          - MegaApi::ACCOUNT_BLOCKED_VERIFICATION_EMAIL = 700
-         *              The account is temporary blocked and needs to be verified by email (Weak Account Protection).
+         *              The account is temporary blocked and needs to be verified by email (Weak
+         * Account Protection).
          *
          * - MegaEvent::EVENT_STORAGE: when the status of the storage changes.
          *
@@ -9169,10 +9172,8 @@ class MegaGlobalListener
          *     The account is full. Uploads have been stopped
          *
          *     - MegaApi::STORAGE_STATE_CHANGE = 3
-         *     There is a possible significant change in the storage state.
-         *     It's needed to call MegaApi::getAccountDetails to check the storage status.
-         *     After calling it, this callback will be called again with the corresponding
-         *     state if there is really a change.
+         *     This value is no longer notified. Instead, the SDK will automatically
+         *     retrieve the current storage state and notify directly its value to the app.
          *
          *     - MegaApi::STORAGE_STATE_PAYWALL = 4
          *     The account has been full for a long time. Now most of actions are disallowed.
@@ -9199,8 +9200,9 @@ class MegaGlobalListener
          *
          * - MegaEvent::EVENT_KEY_MODIFIED: when the key of a user has changed.
          *
-         * For this event type, MegaEvent::getHandle provides the handle of the user whose key has been modified.
-         * For this event type, MegaEvent::getNumber provides type of key that has been modified.
+         * For this event type, MegaEvent::getHandle provides the handle of the user whose key has
+         * been modified. For this event type, MegaEvent::getNumber provides type of key that has
+         * been modified.
          *
          * The posible values are:
          *  - Public chat key (Cu25519)     = 0
@@ -9211,21 +9213,23 @@ class MegaGlobalListener
          *
          * - MegaEvent::EVENT_MISC_FLAGS_READY: when the miscellaneous flags are available/updated.
          *
-         * - MegaEvent::EVENT_REQSTAT_PROGRESS: Provides the per mil progress of a long-running API operation
-         *  in MegaEvent::getNumber, or -1 if there isn't any operation in progress.
+         * - MegaEvent::EVENT_REQSTAT_PROGRESS: Provides the per mil progress of a long-running API
+         * operation in MegaEvent::getNumber, or -1 if there isn't any operation in progress.
          *
-         * - MegaEvent::EVENT_RELOADING: when the API server has forced a full reload. The app should show a
-         * similar UI to the one displayed during the initial load (fetchnodes).
+         * - MegaEvent::EVENT_RELOADING: when the API server has forced a full reload. The app
+         * should show a similar UI to the one displayed during the initial load (fetchnodes).
          *
          * - MegaEvent::EVENT_RELOAD: App should force a reload when receives this event.
          *
          * - MegaEvent::EVENT_UPGRADE_SECURITY: Account upgraded. Cryptography relies now on keys
          * attribute information. See MegaApi::upgradeSecurity
          *
-         * - MegaEvent::EVENT_DOWNGRADE_ATTACK: A downgrade attack has been detected. Removed shares may have reappeared. Please tread carefully.
+         * - MegaEvent::EVENT_DOWNGRADE_ATTACK: A downgrade attack has been detected. Removed shares
+         * may have reappeared. Please tread carefully.
          *
-         * - MegaEvent::EVENT_CREDIT_CARD_EXPIRY: Credit card is due to expire soon or a new card has been registered. After receiving this event,
-         * app should call to MegaApi::fetchCreditCardInfo to receive info about credit card
+         * - MegaEvent::EVENT_CREDIT_CARD_EXPIRY: Credit card is due to expire soon or a new card
+         * has been registered. After receiving this event, app should call to
+         * MegaApi::fetchCreditCardInfo to receive info about credit card
          *
          * @param api MegaApi object connected to the account
          * @param event Details about the event
@@ -9716,229 +9720,230 @@ class MegaListener
      * @param api MegaApi object connected to the account
      * @param chats List that contains the new or updated chats
      */
-    virtual void onChatsUpdate(MegaApi* api, MegaTextChatList *chats);
+    virtual void onChatsUpdate(MegaApi* api, MegaTextChatList* chats);
 #endif
 
-        /**
-         * The details about the event, like the type of event and optionally any
-         * additional parameter, is received in the \c params parameter.
-         *
-         * You can check the type of event by calling MegaEvent::getType
-         *
-         * The SDK retains the ownership of the details of the event (\c event).
-         * Don't use them after this functions returns.
-         *
-         * Currently, the following type of events are notified:
-         *
-         *  - MegaEvent::EVENT_COMMIT_DB: when the SDK commits the ongoing DB transaction.
-         *  This event can be used to keep synchronization between the SDK cache and the
-         *  cache managed by the app thanks to the sequence number.
-         *
-         *  Valid data in the MegaEvent object received in the callback:
-         *      - MegaEvent::getText: sequence number recorded by the SDK when this event happened
-         *
-         *  - MegaEvent::EVENT_ACCOUNT_CONFIRMATION: when a new account is finally confirmed
-         * by the user by confirming the signup link.
-         *
-         *   Valid data in the MegaEvent object received in the callback:
-         *      - MegaEvent::getText: email address used to confirm the account
-         *
-         *  - MegaEvent::EVENT_CONFIRM_USER_EMAIL: when a new account is finally confirmed
-         * by confirming the signup link.
-         *
-         *   Valid data in the MegaEvent object received in the callback:
-         *      - MegaEvent::getHandle: user handle for the confirmed account
-         *      - MegaEvent::getText: email address used to confirm the account
-         *
-         *  - MegaEvent::EVENT_CHANGE_TO_HTTPS: when the SDK automatically starts using HTTPS for all
-         * its communications. This happens when the SDK is able to detect that MEGA servers can't be
-         * reached using HTTP or that HTTP communications are being tampered. Transfers of files and
-         * file attributes (thumbnails and previews) use HTTP by default to save CPU usage. Since all data
-         * is already end-to-end encrypted, it's only needed to use HTTPS if HTTP doesn't work. Anyway,
-         * applications can force the SDK to always use HTTPS using MegaApi::useHttpsOnly. It's recommended
-         * that applications that receive one of these events save that information on its settings and
-         * automatically enable HTTPS on next executions of the app to not force the SDK to detect the problem
-         * and automatically switch to HTTPS every time that the application starts.
-         *
-         *  - MegaEvent::EVENT_DISCONNECT: when the SDK performs a disconnect to reset all the
-         * existing open-connections, since they have become unusable. It's recommended that the app
-         * receiving this event reset its connections with other servers, since the disconnect
-         * performed by the SDK is due to a network change or IP addresses becoming invalid.
-         *
-         *  - MegaEvent::EVENT_ACCOUNT_BLOCKED: when the account get blocked, typically because of
-         * infringement of the Mega's terms of service repeatedly. This event is followed by an automatic
-         * logout.
-         *
-         *  Valid data in the MegaEvent object received in the callback:
-         *      - MegaEvent::getText: message to show to the user.
-         *      - MegaEvent::getNumber: code representing the reason for being blocked.
-         *
-         *          - MegaApi::ACCOUNT_BLOCKED_TOS_COPYRIGHT = 200
-         *              Suspension only for multiple copyright violations.
-         *
-         *          - MegaApi::ACCOUNT_BLOCKED_TOS_NON_COPYRIGHT = 300
-         *              Suspension message for any type of suspension, but copyright suspension.
-         *
-         *          - MegaApi::ACCOUNT_BLOCKED_SUBUSER_DISABLED = 400
-         *              Subuser of the business account has been disabled.
-         *
-         *          - MegaApi::ACCOUNT_BLOCKED_SUBUSER_REMOVED = 401
-         *              Subuser of business account has been removed.
-         *
-         *          - MegaApi::ACCOUNT_BLOCKED_VERIFICATION_EMAIL = 700
-         *              The account is temporary blocked and needs to be verified by email (Weak Account Protection).
-         *
-         * - MegaEvent::EVENT_STORAGE: when the status of the storage changes.
-         *
-         * For this event type, MegaEvent::getNumber provides the current status of the storage
-         *
-         * There are three possible storage states:
-         *     - MegaApi::STORAGE_STATE_GREEN = 0
-         *     There are no storage problems
-         *
-         *     - MegaApi::STORAGE_STATE_ORANGE = 1
-         *     The account is almost full
-         *
-         *     - MegaApi::STORAGE_STATE_RED = 2
-         *     The account is full. Uploads have been stopped
-         *
-         *     - MegaApi::STORAGE_STATE_CHANGE = 3
-         *     There is a possible significant change in the storage state.
-         *     It's needed to call MegaApi::getAccountDetails to check the storage status.
-         *     After calling it, this callback will be called again with the corresponding
-         *     state if there is really a change.
-         *
-         *     - MegaApi::STORAGE_STATE_PAYWALL = 4
-         *     The account has been full for a long time. Now most of actions are disallowed.
-         *     It's needed to call MegaApi::getUserData in order to retrieve the deadline/warnings
-         *     timestamps. @see MegaApi::getOverquotaDeadlineTs and MegaApi::getOverquotaWarningsTs.
-         *
-         * - MegaEvent::EVENT_NODES_CURRENT: when all external changes have been received
-         *
-         * - MegaEvent::EVENT_MEDIA_INFO_READY: when codec-mappings have been received
-         *
-         * - MegaEvent::EVENT_STORAGE_SUM_CHANGED: when the storage sum has changed.
-         *
-         * For this event type, MegaEvent::getNumber provides the new storage sum.
-         *
-         * - MegaEvent::EVENT_BUSINESS_STATUS: when the status of a business account has changed.
-         *
-         * For this event type, MegaEvent::getNumber provides the new business status.
-         *
-         * The posible values are:
-         *  - BUSINESS_STATUS_EXPIRED = -1
-         *  - BUSINESS_STATUS_INACTIVE = 0
-         *  - BUSINESS_STATUS_ACTIVE = 1
-         *  - BUSINESS_STATUS_GRACE_PERIOD = 2
-         *
-         * - MegaEvent::EVENT_KEY_MODIFIED: when the key of a user has changed.
-         *
-         * For this event type, MegaEvent::getHandle provides the handle of the user whose key has been modified.
-         * For this event type, MegaEvent::getNumber provides type of key that has been modified.
-         *
-         * The posible values are:
-         *  - Public chat key (Cu25519)     = 0
-         *  - Public signing key (Ed25519)  = 1
-         *  - Public RSA key                = 2
-         *  - Signature of chat key         = 3
-         *  - Signature of RSA key          = 4
-         *
-         * - MegaEvent::EVENT_MISC_FLAGS_READY: when the miscellaneous flags are available/updated.
-         *
-         * - MegaEvent::EVENT_REQSTAT_PROGRESS: Provides the per mil progress of a long-running API operation
-         *  in MegaEvent::getNumber, or -1 if there isn't any operation in progress.
-         *
-         * - MegaEvent::EVENT_RELOADING: when the API server has forced a full reload. The app should show a
-         * similar UI to the one displayed during the initial load (fetchnodes).
-         *
-         * - MegaEvent::EVENT_RELOAD: App should force a reload when receives this event.
-         *
-         * - MegaEvent::EVENT_UPGRADE_SECURITY: Account upgraded. Cryptography relies now on keys
-         * attribute information. See MegaApi::upgradeSecurity
-         *
-         * - MegaEvent::EVENT_DOWNGRADE_ATTACK: A downgrade attack has been detected. Removed shares may have reappeared. Please tread carefully.
-         *
-         * @param api MegaApi object connected to the account
-         * @param event Details about the event
-         */
-        virtual void onEvent(MegaApi* api, MegaEvent *event);
+    /**
+     * The details about the event, like the type of event and optionally any
+     * additional parameter, is received in the \c params parameter.
+     *
+     * You can check the type of event by calling MegaEvent::getType
+     *
+     * The SDK retains the ownership of the details of the event (\c event).
+     * Don't use them after this functions returns.
+     *
+     * Currently, the following type of events are notified:
+     *
+     *  - MegaEvent::EVENT_COMMIT_DB: when the SDK commits the ongoing DB transaction.
+     *  This event can be used to keep synchronization between the SDK cache and the
+     *  cache managed by the app thanks to the sequence number.
+     *
+     *  Valid data in the MegaEvent object received in the callback:
+     *      - MegaEvent::getText: sequence number recorded by the SDK when this event happened
+     *
+     *  - MegaEvent::EVENT_ACCOUNT_CONFIRMATION: when a new account is finally confirmed
+     * by the user by confirming the signup link.
+     *
+     *   Valid data in the MegaEvent object received in the callback:
+     *      - MegaEvent::getText: email address used to confirm the account
+     *
+     *  - MegaEvent::EVENT_CONFIRM_USER_EMAIL: when a new account is finally confirmed
+     * by confirming the signup link.
+     *
+     *   Valid data in the MegaEvent object received in the callback:
+     *      - MegaEvent::getHandle: user handle for the confirmed account
+     *      - MegaEvent::getText: email address used to confirm the account
+     *
+     *  - MegaEvent::EVENT_CHANGE_TO_HTTPS: when the SDK automatically starts using HTTPS for all
+     * its communications. This happens when the SDK is able to detect that MEGA servers can't be
+     * reached using HTTP or that HTTP communications are being tampered. Transfers of files and
+     * file attributes (thumbnails and previews) use HTTP by default to save CPU usage. Since all
+     * data is already end-to-end encrypted, it's only needed to use HTTPS if HTTP doesn't work.
+     * Anyway, applications can force the SDK to always use HTTPS using MegaApi::useHttpsOnly. It's
+     * recommended that applications that receive one of these events save that information on its
+     * settings and automatically enable HTTPS on next executions of the app to not force the SDK to
+     * detect the problem and automatically switch to HTTPS every time that the application starts.
+     *
+     *  - MegaEvent::EVENT_DISCONNECT: when the SDK performs a disconnect to reset all the
+     * existing open-connections, since they have become unusable. It's recommended that the app
+     * receiving this event reset its connections with other servers, since the disconnect
+     * performed by the SDK is due to a network change or IP addresses becoming invalid.
+     *
+     *  - MegaEvent::EVENT_ACCOUNT_BLOCKED: when the account get blocked, typically because of
+     * infringement of the Mega's terms of service repeatedly. This event is followed by an
+     * automatic logout.
+     *
+     *  Valid data in the MegaEvent object received in the callback:
+     *      - MegaEvent::getText: message to show to the user.
+     *      - MegaEvent::getNumber: code representing the reason for being blocked.
+     *
+     *          - MegaApi::ACCOUNT_BLOCKED_TOS_COPYRIGHT = 200
+     *              Suspension only for multiple copyright violations.
+     *
+     *          - MegaApi::ACCOUNT_BLOCKED_TOS_NON_COPYRIGHT = 300
+     *              Suspension message for any type of suspension, but copyright suspension.
+     *
+     *          - MegaApi::ACCOUNT_BLOCKED_SUBUSER_DISABLED = 400
+     *              Subuser of the business account has been disabled.
+     *
+     *          - MegaApi::ACCOUNT_BLOCKED_SUBUSER_REMOVED = 401
+     *              Subuser of business account has been removed.
+     *
+     *          - MegaApi::ACCOUNT_BLOCKED_VERIFICATION_EMAIL = 700
+     *              The account is temporary blocked and needs to be verified by email (Weak Account
+     * Protection).
+     *
+     * - MegaEvent::EVENT_STORAGE: when the status of the storage changes.
+     *
+     * For this event type, MegaEvent::getNumber provides the current status of the storage
+     *
+     * There are three possible storage states:
+     *     - MegaApi::STORAGE_STATE_GREEN = 0
+     *     There are no storage problems
+     *
+     *     - MegaApi::STORAGE_STATE_ORANGE = 1
+     *     The account is almost full
+     *
+     *     - MegaApi::STORAGE_STATE_RED = 2
+     *     The account is full. Uploads have been stopped
+     *
+     *     - MegaApi::STORAGE_STATE_CHANGE = 3
+     *     This value is no longer notified. Instead, the SDK will automatically
+     *     retrieve the current storage state and notify directly its value to the app.
+     *
+     *     - MegaApi::STORAGE_STATE_PAYWALL = 4
+     *     The account has been full for a long time. Now most of actions are disallowed.
+     *     It's needed to call MegaApi::getUserData in order to retrieve the deadline/warnings
+     *     timestamps. @see MegaApi::getOverquotaDeadlineTs and MegaApi::getOverquotaWarningsTs.
+     *
+     * - MegaEvent::EVENT_NODES_CURRENT: when all external changes have been received
+     *
+     * - MegaEvent::EVENT_MEDIA_INFO_READY: when codec-mappings have been received
+     *
+     * - MegaEvent::EVENT_STORAGE_SUM_CHANGED: when the storage sum has changed.
+     *
+     * For this event type, MegaEvent::getNumber provides the new storage sum.
+     *
+     * - MegaEvent::EVENT_BUSINESS_STATUS: when the status of a business account has changed.
+     *
+     * For this event type, MegaEvent::getNumber provides the new business status.
+     *
+     * The posible values are:
+     *  - BUSINESS_STATUS_EXPIRED = -1
+     *  - BUSINESS_STATUS_INACTIVE = 0
+     *  - BUSINESS_STATUS_ACTIVE = 1
+     *  - BUSINESS_STATUS_GRACE_PERIOD = 2
+     *
+     * - MegaEvent::EVENT_KEY_MODIFIED: when the key of a user has changed.
+     *
+     * For this event type, MegaEvent::getHandle provides the handle of the user whose key has been
+     * modified. For this event type, MegaEvent::getNumber provides type of key that has been
+     * modified.
+     *
+     * The posible values are:
+     *  - Public chat key (Cu25519)     = 0
+     *  - Public signing key (Ed25519)  = 1
+     *  - Public RSA key                = 2
+     *  - Signature of chat key         = 3
+     *  - Signature of RSA key          = 4
+     *
+     * - MegaEvent::EVENT_MISC_FLAGS_READY: when the miscellaneous flags are available/updated.
+     *
+     * - MegaEvent::EVENT_REQSTAT_PROGRESS: Provides the per mil progress of a long-running API
+     * operation in MegaEvent::getNumber, or -1 if there isn't any operation in progress.
+     *
+     * - MegaEvent::EVENT_RELOADING: when the API server has forced a full reload. The app should
+     * show a similar UI to the one displayed during the initial load (fetchnodes).
+     *
+     * - MegaEvent::EVENT_RELOAD: App should force a reload when receives this event.
+     *
+     * - MegaEvent::EVENT_UPGRADE_SECURITY: Account upgraded. Cryptography relies now on keys
+     * attribute information. See MegaApi::upgradeSecurity
+     *
+     * - MegaEvent::EVENT_DOWNGRADE_ATTACK: A downgrade attack has been detected. Removed shares may
+     * have reappeared. Please tread carefully.
+     *
+     * @param api MegaApi object connected to the account
+     * @param event Details about the event
+     */
+    virtual void onEvent(MegaApi* api, MegaEvent* event);
 
-        virtual ~MegaListener();
+    virtual ~MegaListener();
 
-        /**
-         * @brief
-         * Called when a mount is being added to the database.
-         *
-         * @param api
-         * The API instance where the mount is being added.
-         *
-         * @param name
-         * THe name identifying the mount that was added.
-         *
-         * @param megaMountResult
-         * An element of the MegaMount::Result enumeration.
-         */
-        virtual void onMountAdded(MegaApi* api, const char* name, int megaMountResult);
+    /**
+     * @brief
+     * Called when a mount is being added to the database.
+     *
+     * @param api
+     * The API instance where the mount is being added.
+     *
+     * @param path
+     * A path identifying the mount that was added.
+     *
+     * @param megaMountResult
+     * An element of the MegaMount::Result enumeration.
+     */
+    virtual void onMountAdded(MegaApi* api, const char* path, int megaMountResult);
 
-        /**
-         * @brief
-         * Called when a mount's flags are being changed.
-         *
-         * @param api
-         * The API instance where the mount is being added.
-         *
-         * @param name
-         * The name identifying the mount that has changed.
-         *
-         * @param megaMountResult
-         * An element of the MegaMount::Result enumeration.
-         */
-        virtual void onMountChanged(MegaApi* api, const char* name, int megaMountResult);
+    /**
+     * @brief
+     * Called when a mount's flags are being changed.
+     *
+     * @param api
+     * The API instance where the mount is being added.
+     *
+     * @param path
+     * A path identifying the mount that has changed.
+     *
+     * @param megaMountResult
+     * An element of the MegaMount::Result enumeration.
+     */
+    virtual void onMountChanged(MegaApi* api, const char* path, int megaMountResult);
 
-        /**
-         * @brief
-         * Called when a mount is being disabled.
-         *
-         * @param api
-         * The API instance where the mount is being added.
-         *
-         * @param name
-         * The name identifying the mount that has been disabled.
-         *
-         * @param megaMountResult
-         * An element of the MegaMount::Result enumeration.
-         */
-        virtual void onMountDisabled(MegaApi* api, const char* name, int megaMountResult);
+    /**
+     * @brief
+     * Called when a mount is being disabled.
+     *
+     * @param api
+     * The API instance where the mount is being added.
+     *
+     * @param path
+     * A path identifying the mount that has been disabled.
+     *
+     * @param megaMountResult
+     * An element of the MegaMount::Result enumeration.
+     */
+    virtual void onMountDisabled(MegaApi* api, const char* path, int megaMountResult);
 
-        /**
-         * @brief
-         * Called when a mount is being enabled.
-         *
-         * @param api
-         * The API instance where the mount is being enabled.
-         *
-         * @param name
-         * The name identifying the mount that has been enabled.
-         *
-         * @param megaMountResult
-         * An element of the MegaMount::Result enumeration.
-         */
-        virtual void onMountEnabled(MegaApi* api, const char* name, int megaMountResult);
+    /**
+     * @brief
+     * Called when a mount is being enabled.
+     *
+     * @param api
+     * The API instance where the mount is being enabled.
+     *
+     * @param path
+     * A path identifying the mount that has been enabled.
+     *
+     * @param megaMountResult
+     * An element of the MegaMount::Result enumeration.
+     */
+    virtual void onMountEnabled(MegaApi* api, const char* path, int megaMountResult);
 
-        /**
-         * @brief
-         * Called when a mount is being removed from the database.
-         *
-         * @param api
-         * The API instance where the mount is being removed.
-         *
-         * @param name
-         * The name identifying the mount that has been removed.
-         *
-         * @param megaMountResult
-         * An element of the MegaMount::Result enumeration.
-         */
-        virtual void onMountRemoved(MegaApi* api, const char* name, int megaMountResult);
+    /**
+     * @brief
+     * Called when a mount is being removed from the database.
+     *
+     * @param api
+     * The API instance where the mount is being removed.
+     *
+     * @param path
+     * A path identifying the mount that has been removed.
+     *
+     * @param megaMountResult
+     * An element of the MegaMount::Result enumeration.
+     */
+    virtual void onMountRemoved(MegaApi* api, const char* path, int megaMountResult);
 };
 
 /**
@@ -10749,7 +10754,7 @@ class MegaApi
             STORAGE_STATE_GREEN = 0,
             STORAGE_STATE_ORANGE = 1,
             STORAGE_STATE_RED = 2,
-            STORAGE_STATE_CHANGE = 3,
+            STORAGE_STATE_CHANGE = 3, /** @obsolete not notified any more */
             STORAGE_STATE_PAYWALL = 4,
         };
 

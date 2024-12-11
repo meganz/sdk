@@ -1785,9 +1785,6 @@ public:
     // next internal upload handle (call UploadHandle::next() to update value)
     UploadHandle mUploadHandle;
 
-    // just one notification after fetchnodes and catch-up actionpackets
-    bool notifyStorageChangeOnStateCurrent = false;
-
     // maximum number of concurrent transfers (uploads + downloads)
     static const unsigned MAXTOTALTRANSFERS;
 

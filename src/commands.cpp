@@ -3858,6 +3858,31 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                             {
                                 LOG_info << "CallKit is " << ((!strcmp(value.data(), "1")) ? "disabled" : "enabled");
                             }
+                            else if (at == ATTR_STORAGE_STATE)
+                            {
+                                storagestatus_t state = STORAGE_UNKNOWN;
+                                if (!strcmp(value.data(), "0"))
+                                    state = STORAGE_GREEN;
+                                else if (!strcmp(value.data(), "1"))
+                                    state = STORAGE_ORANGE;
+                                else if (!strcmp(value.data(), "2"))
+                                    state = STORAGE_RED;
+
+                                if (state == STORAGE_UNKNOWN)
+                                {
+                                    LOG_err << "Storage state unknown: " << state;
+                                    break;
+                                }
+                                else if (state == STORAGE_RED)
+                                {
+                                    bool isPaywall = (client->ststatus == STORAGE_PAYWALL);
+                                    client->activateoverquota(0, isPaywall);
+                                }
+                                else
+                                {
+                                    client->setstoragestatus(state);
+                                }
+                            }
                             break;
                         }
                         default: // legacy attributes without explicit scope or unknown attribute
