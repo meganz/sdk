@@ -4824,6 +4824,41 @@ void exec_tag_list_at(autocomplete::ACState& state)
     listTags(client->getNodeTags(std::move(node)));
 }
 
+void exec_tag_list_below(autocomplete::ACState& state)
+{
+    // Assume the user wants to list all tags below the roots.
+    NodeHandle handle;
+
+    // User wants to list all tags below a particular node.
+    if (state.words.size() > 2)
+    {
+        // Try and locate the node speciifed by the user.
+        auto node = nodebypath(state.words[3].s.c_str());
+
+        // Couldn't find the specified node.
+        if (!node)
+        {
+            conlock(std::cout) << "Couldn't find a node at " << state.words[3].s << std::endl;
+            return;
+        }
+
+        // Capture the node's handle.
+        handle = node->nodeHandle();
+    }
+
+    // Retrieve tags.
+    auto tags = client->getNodeTagsBelow(handle);
+
+    // No tags.
+    if (!tags)
+        return;
+
+    using NaturalStringMultiSet = std::multiset<std::string, NaturalSortingComparator>;
+
+    // List tags in natural order.
+    listTags(NaturalStringMultiSet(tags->begin(), tags->end()));
+}
+
 autocomplete::ACN autocompleteSyntax()
 {
     using namespace autocomplete;
@@ -5361,6 +5396,13 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(
         exec_tag_list_at,
         sequence(text("tag"), text("list"), text("at"), remoteFSPath(client, &cwd, "node-path")));
+
+    p->Add(exec_tag_list_below,
+           sequence(text("tag"),
+                    text("list"),
+                    text("below"),
+                    opt(remoteFSPath(client, &cwd, "node-path"))));
+
     return autocompleteTemplate = std::move(p);
 }
 
@@ -10966,6 +11008,7 @@ MegaClient::ClientType getClientTypeFromArgs(const std::string& clientType)
 
 int main(int argc, char* argv[])
 {
+    std::system("reset");
 #if defined(_WIN32) && defined(_DEBUG)
     _CrtSetBreakAlloc(124);  // set this to an allocation number to hunt leaks.  Prior to 124 and prior are from globals/statics so won't be detected by this
 #endif
