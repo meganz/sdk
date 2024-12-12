@@ -7879,7 +7879,7 @@ MegaShareList *MegaApiImpl::getUnverifiedOutShares(int order)
 
     // Extract unverified shares
     auto unverifiedShares =
-        impl::ShareExtractor::extractShares(sharedNodes, client->mKeyManager, isUnverified);
+        impl::ShareExtractor::extractOutShares(sharedNodes, client->mKeyManager, isUnverified);
 
     // Sort shares in place
     impl::ShareSorter::sort(unverifiedShares, order);
@@ -11883,7 +11883,7 @@ MegaShareList* MegaApiImpl::getOutShares(int order)
     MegaApiImpl::sortByComparatorFunction(sharedNodes, order, *client);
 
     // Extract shares from nodes
-    auto shares = impl::ShareExtractor::extractShares(sharedNodes, client->mKeyManager);
+    auto shares = impl::ShareExtractor::extractOutShares(sharedNodes, client->mKeyManager);
 
     // Sort shares in place
     impl::ShareSorter::sort(shares, order);
@@ -11902,47 +11902,8 @@ MegaShareList* MegaApiImpl::getOutShares(MegaNode *megaNode)
         return new MegaShareListPrivate();
     }
 
-    if(!node->outshares && !node->pendingshares)
-    {
-        return new MegaShareListPrivate();
-    }
-
-    vector<impl::ShareData> shares;
-
-    if (node->outshares)
-    {
-        for (share_map::iterator it = node->outshares->begin(); it != node->outshares->end(); it++)
-        {
-            Share *share = it->second.get();  // temporary
-            assert(!share->pcr);
-            if (share->user)    // public links have no user
-            {
-                const bool verified =
-                    !client->mKeyManager.isUnverifiedOutShare(node->nodehandle,
-                                                              toHandle(share->user->userhandle));
-                shares.emplace_back(node->nodehandle, share, verified);
-            }
-        }
-    }
-
-    if (node->pendingshares)
-    {
-        for (share_map::iterator it = node->pendingshares->begin(); it != node->pendingshares->end(); it++)
-        {
-            Share *share = it->second.get();  // temporary
-            assert(share->pcr);
-            assert(!share->user);
-            if (share->pcr)
-            {
-                const bool verified =
-                    !client->mKeyManager.isUnverifiedOutShare(node->nodehandle,
-                                                              share->pcr->targetemail);
-                shares.emplace_back(node->nodehandle, share, verified);
-            }
-        }
-    }
-
-    return new MegaShareListPrivate(shares);
+    return new MegaShareListPrivate(
+        impl::ShareExtractor::extractOutShares({node}, client->mKeyManager));
 }
 
 MegaShareList *MegaApiImpl::getPendingOutShares()
@@ -11951,22 +11912,8 @@ MegaShareList *MegaApiImpl::getPendingOutShares()
 
     sharedNode_vector nodes = client->mNodeManager.getNodesWithPendingOutShares();
 
-    vector<impl::ShareData> shares;
-    for (const auto& n : nodes)
-    {
-        assert(n->pendingshares);
-        for (auto &share : *n->pendingshares)
-        {
-            if (share.second->pcr)
-            {
-                const bool verified =
-                    !client->mKeyManager.isUnverifiedOutShare(n->nodehandle,
-                                                              share.second->pcr->targetemail);
-                shares.emplace_back(n->nodehandle, share.second.get(), verified);
-            }
-        }
-    }
-    return new MegaShareListPrivate(shares);
+    return new MegaShareListPrivate(
+        impl::ShareExtractor::extractPendingOutShares(nodes, client->mKeyManager));
 }
 
 MegaShareList *MegaApiImpl::getPendingOutShares(MegaNode *megaNode)
@@ -11978,21 +11925,13 @@ MegaShareList *MegaApiImpl::getPendingOutShares(MegaNode *megaNode)
 
     SdkMutexGuard g(sdkMutex);
     std::shared_ptr<Node> node = client->nodebyhandle(megaNode->getHandle());
-    if(!node || !node->pendingshares)
+    if (!node)
     {
         return new MegaShareListPrivate();
     }
 
-    vector<impl::ShareData> shares;
-    for (share_map::iterator it = node->pendingshares->begin(); it != node->pendingshares->end(); it++)
-    {
-        const bool verified =
-            !client->mKeyManager.isUnverifiedOutShare(node->nodehandle,
-                                                      it->second->pcr->targetemail);
-        shares.emplace_back(node->nodehandle, it->second.get(), verified);
-    }
-
-    return new MegaShareListPrivate(shares);
+    return new MegaShareListPrivate(
+        impl::ShareExtractor::extractPendingOutShares({node}, client->mKeyManager));
 }
 
 bool MegaApiImpl::isPrivateNode(MegaHandle h)

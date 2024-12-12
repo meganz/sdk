@@ -58,9 +58,9 @@ vector<ShareData> ShareExtractor::extractOutShares(const Node* n,
     return shares;
 }
 
-vector<ShareData> ShareExtractor::extractPendingShares(const Node* n,
-                                                       const KeyManager& keyManager,
-                                                       Filter filter)
+vector<ShareData> ShareExtractor::extractPendingOutShares(const Node* n,
+                                                          const KeyManager& keyManager,
+                                                          Filter filter)
 {
     vector<ShareData> shares;
     if (n->pendingshares)
@@ -84,9 +84,9 @@ vector<ShareData> ShareExtractor::extractPendingShares(const Node* n,
     return shares;
 }
 
-vector<ShareData> ShareExtractor::extractShares(const sharedNode_vector& sharedNodes,
-                                                const KeyManager& keyManager,
-                                                Filter filter)
+vector<ShareData> ShareExtractor::extractOutShares(const sharedNode_vector& sharedNodes,
+                                                   const KeyManager& keyManager,
+                                                   Filter filter)
 {
     vector<ShareData> shares;
     auto outputIt = std::back_inserter(shares);
@@ -95,7 +95,20 @@ vector<ShareData> ShareExtractor::extractShares(const sharedNode_vector& sharedN
         auto outShares = extractOutShares(n.get(), keyManager, filter);
         std::move(outShares.begin(), outShares.end(), outputIt);
 
-        auto pendingShares = extractPendingShares(n.get(), keyManager, filter);
+        auto pendingShares = extractPendingOutShares(n.get(), keyManager, filter);
+        std::move(pendingShares.begin(), pendingShares.end(), outputIt);
+    }
+    return shares;
+}
+
+vector<ShareData> ShareExtractor::extractPendingOutShares(const sharedNode_vector& sharedNodes,
+                                                          const KeyManager& keyManager)
+{
+    vector<ShareData> shares;
+    auto outputIt = std::back_inserter(shares);
+    for (const auto& n: sharedNodes)
+    {
+        auto pendingShares = extractPendingOutShares(n.get(), keyManager, nullptr);
         std::move(pendingShares.begin(), pendingShares.end(), outputIt);
     }
     return shares;

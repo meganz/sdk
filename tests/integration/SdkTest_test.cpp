@@ -4449,11 +4449,6 @@ TEST_F(SdkTest, SdkTestShares)
     LOG_info << "___TEST Shares___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
 
-    MegaShareList *sl;
-    MegaShare *s;
-    MegaNodeList *nl;
-    MegaNode *n;
-
     // Initialize a test scenario : create some folders/files to share
 
     // Create some nodes to share
@@ -4607,9 +4602,13 @@ TEST_F(SdkTest, SdkTestShares)
 
     // --- Check the outgoing share ---
 
-    sl = megaApi[0]->getOutShares();
+    auto sl = std::unique_ptr<MegaShareList>{megaApi[0]->getOutShares()};
     ASSERT_EQ(1, sl->size()) << "Outgoing share failed";
-    s = sl->get(0);
+    // Test another interface
+    sl.reset(megaApi[0]->getOutShares(n1.get()));
+    ASSERT_EQ(1, sl->size()) << "Outgoing share failed";
+
+    MegaShare* s = sl->get(0);
 
     n1.reset(megaApi[0]->getNodeByHandle(hfolder1));    // get an updated version of the node
 
@@ -4619,22 +4618,18 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_TRUE(n1->isShared()) << "Wrong sharing information at outgoing share";
     ASSERT_TRUE(n1->isOutShare()) << "Wrong sharing information at outgoing share";
 
-    delete sl;
-
-
     // --- Check the incoming share ---
 
-    sl = megaApi[1]->getInSharesList();
+    sl.reset(megaApi[1]->getInSharesList());
     ASSERT_EQ(1, sl->size()) << "Incoming share not received in auxiliar account";
-    delete sl;
 
     // Wait for the inshare node to be decrypted
     ASSERT_TRUE(WaitFor([this, &n1]() { return unique_ptr<MegaNode>(megaApi[1]->getNodeByHandle(n1->getHandle()))->isNodeKeyDecrypted(); }, 60*1000));
 
     std::unique_ptr<MegaUser> contact(megaApi[1]->getContact(mApi[0].email.c_str()));
-    nl = megaApi[1]->getInShares(contact.get());
+    auto nl = std::unique_ptr<MegaNodeList>{megaApi[1]->getInShares(contact.get())};
     ASSERT_EQ(1, nl->size()) << "Incoming share not received in auxiliar account";
-    n = nl->get(0);
+    MegaNode* n = nl->get(0);
 
     ASSERT_EQ(hfolder1, n->getHandle()) << "Wrong node handle of incoming share";
     ASSERT_STREQ(foldername1, n->getName()) << "Wrong folder name of incoming share";
@@ -4719,8 +4714,6 @@ TEST_F(SdkTest, SdkTestShares)
     // Different handle! the node must have been copied due to differing accounts
     std::unique_ptr<MegaNode> nodeMovedFile(megaApi[1]->getNodeByHandle(movedNodeHandle));
     ASSERT_EQ(nodeMovedFile->getRestoreHandle(), hfolder2) << "Incorrect restore handle for file in Rubbish Bin";
-
-    delete nl;
 
     // check the corresponding user alert
     ASSERT_TRUE(checkAlert(1, "New shared folder from " + mApi[0].email, mApi[0].email + ":Shared-folder"));
@@ -4913,13 +4906,11 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(check2, true);
 
     contact.reset(megaApi[1]->getContact(mApi[0].email.c_str()));
-    nl = megaApi[1]->getInShares(contact.get());
+    nl.reset(megaApi[1]->getInShares(contact.get()));
     ASSERT_EQ(1, nl->size()) << "Incoming share not received in auxiliar account";
     n = nl->get(0);
 
     ASSERT_EQ(API_OK, megaApi[1]->checkAccess(n, MegaShare::ACCESS_READWRITE).getErrorCode()) << "Wrong access level of incoming share";
-
-    delete nl;
 
     // --- Sharee leaves the inshare ---
     // Testing APs caused by actions done in the sharee account.
@@ -4937,14 +4928,14 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(check1, true);
     ASSERT_EQ(check2, true);
 
-    sl = megaApi[0]->getOutShares();
-    ASSERT_EQ(0, sl->size()) << "Leaving the inshare failed. Outshare is still active in the first account.";
-    delete sl;
+    sl.reset(megaApi[0]->getOutShares());
+    ASSERT_EQ(0, sl->size())
+        << "Leaving the inshare failed. Outshare is still active in the first account.";
 
     contact.reset(megaApi[1]->getContact(mApi[0].email.c_str()));
-    nl = megaApi[1]->getInShares(contact.get());
-    ASSERT_EQ(0, nl->size()) << "Leaving the inshare failed. Inshare is still active in the second account.";
-    delete nl;
+    nl.reset(megaApi[1]->getInShares(contact.get()));
+    ASSERT_EQ(0, nl->size())
+        << "Leaving the inshare failed. Inshare is still active in the second account.";
 
     // Number of nodes should be the ones in the account only.
     auto nodeCountAfterShareeLeavesShare = megaApi[1]->getNumNodes();
@@ -4963,17 +4954,15 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(check1, true);
     ASSERT_EQ(check2, true);
 
-    sl = megaApi[0]->getOutShares();
+    sl.reset(megaApi[0]->getOutShares());
     ASSERT_EQ(1, sl->size()) << "Outgoing share failed. Sharing again after sharee left the share.";
-    delete sl;
 
     // Wait for the inshare node to be decrypted
     ASSERT_TRUE(WaitFor([this, &n1]() { return unique_ptr<MegaNode>(megaApi[1]->getNodeByHandle(n1->getHandle()))->isNodeKeyDecrypted(); }, 60*1000));
 
     contact.reset(megaApi[1]->getContact(mApi[0].email.c_str()));
-    nl = megaApi[1]->getInShares(contact.get());
+    nl.reset(megaApi[1]->getInShares(contact.get()));
     ASSERT_EQ(1, nl->size()) << "Incoming share failed. Sharing again after sharee left the share.";
-    delete nl;
 
     // Number of nodes restored after sharing again.
     auto nodeCountAfterShareAgainIfShareeLeaves = megaApi[1]->getNumNodes();
@@ -4994,14 +4983,15 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(check1, true);
     ASSERT_EQ(check2, true);
 
-    sl = megaApi[0]->getOutShares();
+    sl.reset(megaApi[0]->getOutShares());
     ASSERT_EQ(0, sl->size()) << "Outgoing share revocation failed";
-    delete sl;
+    // Test another interface
+    sl.reset(megaApi[0]->getOutShares(n1.get()));
+    ASSERT_EQ(0, sl->size()) << "Outgoing share revocation failed";
 
     contact.reset(megaApi[1]->getContact(mApi[0].email.c_str()));
-    nl = megaApi[1]->getInShares(contact.get());
+    nl.reset(megaApi[1]->getInShares(contact.get()));
     ASSERT_EQ(0, nl->size()) << "Incoming share revocation failed";
-    delete nl;
 
     // check the corresponding user alert
     {
@@ -5024,12 +5014,12 @@ TEST_F(SdkTest, SdkTestShares)
     snprintf(emailfake, sizeof(emailfake), "%d@nonexistingdomain.com", rand()%1000000);
     // carefull, antispam rejects too many tries without response for the same address
 
-    n = megaApi[0]->getNodeByHandle(hfolder2);
+    auto node = std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder2)};
 
     mApi[0].contactRequestUpdated = false;
     mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(hfolder2, MegaNode::CHANGE_TYPE_PENDINGSHARE, check1);
 
-    ASSERT_NO_FATAL_FAILURE( shareFolder(n, emailfake, MegaShare::ACCESS_FULL) );
+    ASSERT_NO_FATAL_FAILURE(shareFolder(node.get(), emailfake, MegaShare::ACCESS_FULL));
     ASSERT_TRUE( waitForResponse(&check1) )   // at the target side (main account)
             << "Node update not received after " << maxTimeout << " seconds";
     ASSERT_TRUE( waitForResponse(&mApi[0].contactRequestUpdated) )   // at the target side (main account)
@@ -5039,18 +5029,17 @@ TEST_F(SdkTest, SdkTestShares)
     resetOnNodeUpdateCompletionCBs();
     ASSERT_EQ(check1, true);
 
-    sl = megaApi[0]->getPendingOutShares(n);   delete n;
+    sl.reset(megaApi[0]->getPendingOutShares(node.get()));
+    ASSERT_EQ(1, sl->size()) << "Pending outgoing share failed";
+    // Test another interface
+    sl.reset(megaApi[0]->getOutShares(node.get()));
     ASSERT_EQ(1, sl->size()) << "Pending outgoing share failed";
     s = sl->get(0);
-    n = megaApi[0]->getNodeByHandle(s->getNodeHandle());
+    node.reset(megaApi[0]->getNodeByHandle(s->getNodeHandle()));
 
-//    ASSERT_STREQ(emailfake, s->getUser()) << "Wrong email address of outgoing share"; User is not created yet
-    ASSERT_FALSE(n->isShared()) << "Node is already shared, must be pending";
-    ASSERT_FALSE(n->isOutShare()) << "Node is already shared, must be pending";
-    ASSERT_FALSE(n->isInShare()) << "Node is already shared, must be pending";
-
-    delete sl;
-    delete n;
+    ASSERT_FALSE(node->isShared()) << "Node is already shared, must be pending";
+    ASSERT_FALSE(node->isOutShare()) << "Node is already shared, must be pending";
+    ASSERT_FALSE(node->isInShare()) << "Node is already shared, must be pending";
 
     mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(dummyNode1->getHandle(), MegaNode::CHANGE_TYPE_PENDINGSHARE, check1);
     ASSERT_NO_FATAL_FAILURE( shareFolder(dummyNode1.get(), emailfake, MegaShare::ACCESS_FULL) );
@@ -5061,10 +5050,11 @@ TEST_F(SdkTest, SdkTestShares)
     resetOnNodeUpdateCompletionCBs();
     ASSERT_EQ(check1, true);
 
-    sl = megaApi[0]->getPendingOutShares();
+    sl.reset(megaApi[0]->getPendingOutShares());
     ASSERT_EQ(2, sl->size()) << "Pending outgoing share failed";
-    delete sl;
-
+    // Test another interface
+    sl.reset(megaApi[0]->getOutShares());
+    ASSERT_EQ(2, sl->size()) << "Pending outgoing share failed";
 
     // --- Create a file public link ---
 
