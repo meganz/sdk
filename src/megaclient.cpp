@@ -8958,6 +8958,20 @@ std::vector<std::string> MegaClient::getNodeTags(std::shared_ptr<Node> node)
     return getNodeTags(*delimitedTags);
 }
 
+auto MegaClient::getNodeTagsBelow(CancelToken cancelToken,
+                                  NodeHandle handle,
+                                  const std::string& pattern)
+    -> std::optional<std::set<std::string>>
+{
+    return mNodeManager.getNodeTagsBelow(std::move(cancelToken), handle, pattern);
+}
+
+auto MegaClient::getNodeTagsBelow(NodeHandle handle, const std::string& pattern)
+    -> std::optional<std::set<std::string>>
+{
+    return getNodeTagsBelow(CancelToken(), handle, pattern);
+}
+
 error MegaClient::removeTagFromNode(std::shared_ptr<Node> node,
                                     const string& tag,
                                     CommandSetAttr::Completion&& c)

@@ -780,6 +780,33 @@ public:
     error addTagToNode(std::shared_ptr<Node> node, const std::string& tag, CommandSetAttr::Completion&& c);
     static std::vector<std::string> getNodeTags(const std::string& delimitedTags);
     std::vector<std::string> getNodeTags(std::shared_ptr<Node> node);
+
+    /*
+     * @brief
+     * Get all node tags below a specified node.
+     *
+     * @param cancelToken
+     * A token that can be used to terminate the query's execution prematurely.
+     *
+     * @param handle
+     * A handle specifying which node we want to list tags below.
+     *
+     * If undefined, the query will list tags below all root nodes.
+     *
+     * @param pattern
+     * An optional pattern that can be used to filter which tags we list.
+     *
+     * @returns
+     * std::nullopt on failure.
+     * std::set<std::string> on success.
+     */
+    auto getNodeTagsBelow(CancelToken cancelToken,
+                          NodeHandle handle,
+                          const std::string& pattern = {}) -> std::optional<std::set<std::string>>;
+
+    auto getNodeTagsBelow(NodeHandle handle, const std::string& pattern = {})
+        -> std::optional<std::set<std::string>>;
+
     error removeTagFromNode(std::shared_ptr<Node> node, const std::string& tag, CommandSetAttr::Completion&& c);
     error updateTagNode(std::shared_ptr<Node>, const std::string& newTag, const std::string& oldTag, CommandSetAttr::Completion&& c);
 

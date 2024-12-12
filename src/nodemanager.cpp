@@ -687,6 +687,33 @@ std::set<std::string> NodeManager::getAllNodeTags(const char* searchString, Canc
     return getAllNodeTags_internal(searchString, cancelFlag);
 }
 
+auto NodeManager::getNodeTagsBelow(CancelToken cancelToken,
+                                   NodeHandle handle,
+                                   const std::string& pattern)
+    -> std::optional<std::set<std::string>>
+{
+    // Make sure we have exclusive access to the database.
+    LockGuard guard(mMutex);
+
+    // Convenience.
+    static const auto warning = [](const char* message)
+    {
+        LOG_warn << "getNodeTagsBelow: " << message;
+        return std::nullopt;
+    }; // warning
+
+    // Make sure the database is sane and that some nodes exist.
+    if (!mTable || mNodes.empty())
+        return warning("The database hasn't been opened or there are no nodes present");
+
+    // Make sure the caller isn't trying to filter by multiple tags simultaneously.
+    if (pattern.find(MegaClient::TAG_DELIMITER) != std::string::npos)
+        return warning("You can't filter by multiple tags at the same time");
+
+    // Try and retrieve the tags below the specified node.
+    return mTable->getNodeTagsBelow(std::move(cancelToken), handle, pattern);
+}
+
 std::set<std::string> NodeManager::getAllNodeTags_internal(const char* searchString,
                                                            CancelToken cancelFlag)
 {

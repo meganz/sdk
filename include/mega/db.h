@@ -148,6 +148,34 @@ public:
                                 std::set<std::string>& tags,
                                 CancelToken cancelFlag) = 0;
 
+    /**
+     * @brief
+     * Returns a set of all distinct tags below a set of specified parents.
+     *
+     * @param cancelToken
+     * A cancel token that can be used to abort the query.
+     *
+     * @param handle
+     * Handle specifing the node we should search for tags below.
+     *
+     * @param pattern
+     * A search pattern that can used to filter which tags are returned.
+     *
+     * An empty pattern specifies that there are no constraints as to what
+     * tags should be returned.
+     *
+     * A non-empty pattern specifies that only the tags matching that
+     * pattern should be returned. Wildcards are accepted.
+     *
+     * @return
+     * A set of tags if successful.
+     * nullopt if unsuccessful.
+     */
+    virtual auto getNodeTagsBelow(CancelToken cancelToken,
+                                  NodeHandle handle,
+                                  const std::string& pattern)
+        -> std::optional<std::set<std::string>> = 0;
+
     virtual bool getRecentNodes(const NodeSearchPage& page,
                                 m_time_t since,
                                 std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) = 0;

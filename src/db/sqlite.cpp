@@ -1230,6 +1230,9 @@ void SqliteAccountState::finalise()
     sqlite3_finalize(mStmtAllNodeTags);
     mStmtAllNodeTags = nullptr;
 
+    sqlite3_finalize(mStmtNodeTagsBelow);
+    mStmtNodeTagsBelow = nullptr;
+
     sqlite3_finalize(mStmtNodesByFp);
     mStmtNodesByFp = nullptr;
 
@@ -1775,6 +1778,181 @@ bool SqliteAccountState::getAllNodeTags(const std::string& searchString,
         return true;
     };
     return processSqlQueryAllNodeTags(mStmtAllNodeTags, tags, alwaysTrueF);
+}
+
+auto SqliteAccountState::getNodeTagsBelow(CancelToken cancelToken,
+                                          NodeHandle handle,
+                                          const std::string& pattern)
+    -> std::optional<std::set<std::string>>
+{
+    // Convenience.
+    static auto failed = [](const std::string& message)
+    {
+        LOG_err << "SqliteAccountState::getNodeTagsBelow: " << message;
+        return std::nullopt;
+    }; // failed
+
+    static auto couldntBindParameter = [](auto index)
+    {
+        static const std::string message = "Couldn't bind parameter ?";
+        return failed(message + std::to_string(index));
+    }; // couldntBindParameter
+
+    // Our database isn't in a usable state.
+    if (!db)
+        return failed("Invalid database");
+
+    // Transmit to global error handler on return.
+    auto result = SQLITE_OK;
+
+    // Transmits our result to the global error handler on return.
+    auto cleanup = makeScopedDestructor(
+        [&]()
+        {
+            // Remove any active progress handler.
+            sqlite3_progress_handler(db, -1, nullptr, nullptr);
+            // Transmit result to global error handler.
+            errorHandler(result, "Get node tags below", true);
+            // Make sure our statement's in a reusable state.
+            sqlite3_reset(mStmtNodeTagsBelow);
+        }); // cleanup
+
+    // Caller wants to be able to abort the query.
+    if (cancelToken.exists())
+    {
+        sqlite3_progress_handler(db,
+                                 NUM_VIRTUAL_MACHINE_INSTRUCTIONS,
+                                 SqliteAccountState::progressHandler,
+                                 static_cast<void*>(&cancelToken));
+    }
+
+    // Statement needs to be instantiated.
+    if (!mStmtNodeTagsBelow)
+    {
+        auto query = "with recursive tags (nodehandle, tags, type) as ( "
+                     "select n.nodehandle "
+                     "     , n.tags "
+                     "     , n.type "
+                     "  from nodes as n "
+                     " where ((?1 = 0 and n.parenthandle = -1) "
+                     "        or (?1 = 1 and n.nodehandle = ?2)) "
+                     "    and n.type != 0 "
+                     " union "
+                     "select n.nodehandle "
+                     "     , n.tags "
+                     "     , n.type "
+                     "  from tags as t "
+                     " inner join nodes as n "
+                     "    on n.parenthandle = t.nodehandle "
+                     "   and t.type != 0 "
+                     " where n.type != 0 "
+                     "    or n.tags is not null "
+                     "   and n.tags != '' "
+                     ") "
+                     "select distinct "
+                     "       tags "
+                     "  from tags "
+                     " where tags is not null "
+                     "   and tags != '' "
+                     "   and (?3 = 0 or tags regexp ?4)";
+
+        // Try and instantiate our statement.
+        result = sqlite3_prepare_v2(db, query, -1, &mStmtNodeTagsBelow, nullptr);
+
+        // Couldn't instantiate statement.
+        if (result != SQLITE_OK)
+            return failed("Couldn't prepare query");
+    }
+
+    // Clarity.
+    enum ParameterIndex
+    {
+        PARAM_HAS_ROOT_HANDLE = 1,
+        PARAM_ROOT_HANDLE,
+        PARAM_HAS_PATTERN,
+        PARAM_PATTERN
+    }; // ParameterIndex
+
+    // Let the query know if we have a search root.
+    result = sqlite3_bind_int64(mStmtNodeTagsBelow, PARAM_HAS_ROOT_HANDLE, !handle.isUndef());
+
+    // Couldn't bind parameter.
+    if (result != API_OK)
+        return couldntBindParameter(PARAM_HAS_ROOT_HANDLE);
+
+    // Let the query know which node we're searching below.
+    result = sqlite3_bind_int64(mStmtNodeTagsBelow,
+                                PARAM_ROOT_HANDLE,
+                                static_cast<std::int64_t>(handle.as8byte()));
+
+    // Couldn't bind parameter.
+    if (result != API_OK)
+        return couldntBindParameter(PARAM_ROOT_HANDLE);
+
+    // Generate effective pattern.
+    auto effectivePattern = ensureAsteriskSurround(pattern);
+
+    // Let the query know if the caller's provided a pattern.
+    result = sqlite3_bind_int(mStmtNodeTagsBelow, PARAM_HAS_PATTERN, !pattern.empty());
+
+    // Couldn't bind parameter.
+    if (result != API_OK)
+        return couldntBindParameter(PARAM_HAS_PATTERN);
+
+    // Let the query know what the pattern is.
+    result = sqlite3_bind_text(mStmtNodeTagsBelow,
+                               PARAM_PATTERN,
+                               effectivePattern.c_str(),
+                               static_cast<int>(effectivePattern.size()),
+                               SQLITE_STATIC);
+
+    // Couldn't bind parameter.
+    if (result != API_OK)
+        return couldntBindParameter(PARAM_PATTERN);
+
+    std::set<std::string> tags;
+
+    // Process each result row.
+    while (result != SQLITE_DONE)
+    {
+        // Try and retrieve a row from the database.
+        result = sqlite3_step(mStmtNodeTagsBelow);
+
+        // Couldn't get a row from the database.
+        if (result != SQLITE_DONE && result != SQLITE_ROW)
+            return failed("Couldn't retrieve row from database");
+
+        // Get our hands on this node's delimited list of tags.
+        auto* data = reinterpret_cast<const char*>(sqlite3_column_blob(mStmtNodeTagsBelow, 0));
+
+        // How large is the node's delimited list of tags?
+        auto size = sqlite3_column_bytes(mStmtNodeTagsBelow, 0);
+
+        // Delimited list of tags is null or empty.
+        if (!data || !size)
+            continue;
+
+        // Separate individual tags.
+        auto individualTags =
+            splitString<decltype(tags)>(std::string(data, size), MegaClient::TAG_DELIMITER);
+
+        // Collect the tags that satisfy our pattern.
+        for (auto i = individualTags.begin(); i != individualTags.end();)
+        {
+            // Convenience.
+            auto j = i++;
+
+            // Not interested in this node.
+            if (!pattern.empty() && !likeCompare(effectivePattern.c_str(), j->c_str(), 0))
+                continue;
+
+            // Move tag into tags set.
+            tags.insert(individualTags.extract(j));
+        }
+    }
+
+    // Return tags to caller.
+    return std::optional<decltype(tags)>(std::in_place, std::move(tags));
 }
 
 bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter,

@@ -97,6 +97,12 @@ public:
         // throw NotImplemented(__func__);
     }
 
+    auto getNodeTagsBelow(mega::CancelToken, mega::NodeHandle, const std::string&)
+        -> std::optional<std::set<std::string>> override
+    {
+        return std::nullopt;
+    }
+
     bool getRecentNodes(const mega::NodeSearchPage&,
                         mega::m_time_t /*since*/,
                         std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>&) override
