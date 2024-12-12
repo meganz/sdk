@@ -147,7 +147,7 @@ void NodeManager::reset_internal()
     assert(mMutex.owns_lock());
     setTable_internal(nullptr);
     cleanNodes_internal();
-    resetNullRootNodesErr();
+    mNullRootNodesReported = false;
 }
 
 bool NodeManager::setrootnode(std::shared_ptr<Node> node)
@@ -336,7 +336,7 @@ bool NodeManager::updateNode_internal(Node *node)
     return true;
 }
 
-void NodeManager::nullRootNodesErrDetected(const size_t rootNodesSize)
+void NodeManager::reportNullRootNodes(const size_t rootNodesSize)
 {
     if (mNullRootNodesReported)
     {
@@ -618,8 +618,7 @@ uint64_t NodeManager::getNodeCount_internal()
     uint64_t count = 0;
     sharedNode_vector roots = getRootNodesAndInshares();
 
-    bool nullRootNodesDetected{false};
-    for (auto& node : roots)
+    for (auto& node: roots)
     {
         if (node)
         {
@@ -628,13 +627,8 @@ uint64_t NodeManager::getNodeCount_internal()
         }
         else
         {
-            nullRootNodesDetected = true;
+            reportNullRootNodes(roots.size());
         }
-    }
-
-    if (nullRootNodesDetected)
-    {
-        nullRootNodesErrDetected(roots.size());
     }
 
     // add roots to the count if logged into account (and fetchnodes is done <- roots are ready)

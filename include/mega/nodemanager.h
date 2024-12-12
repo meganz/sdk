@@ -548,14 +548,6 @@ private:
     // flag that determines if null root nodes error has already been reported
     bool mNullRootNodesReported{false};
 
-    /**
-     * @brief Resets the reported state for null root nodes error
-     */
-    void resetNullRootNodesErr()
-    {
-        mNullRootNodesReported = false;
-    }
-
     // These are all the "internal" versions of the public interfaces.
     // This is to avoid confusion where public functions used to call other public functions
     // but that introudces confusion about where the mutex gets locked.
@@ -575,7 +567,7 @@ private:
      * This method sends an event to stats server and prints a log error to inform about this
      * scenario.
      */
-    void nullRootNodesErrDetected(const size_t rootNodesSize);
+    void reportNullRootNodes(const size_t rootNodesSize);
 
     std::shared_ptr<Node> getNodeByHandle_internal(NodeHandle handle);
     sharedNode_list getChildren_internal(const Node* parent,
