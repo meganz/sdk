@@ -125,8 +125,8 @@ class RaidReq
     size_t mParitySize;                                       // size of mParity
     std::array<m_off_t, RAIDPARTS> mPartpos{};                // incoming part positions relative to dataline
     std::array<unsigned, RAIDPARTS> mFeedlag{};               // accumulated remfeed at shiftata() to identify slow sources
-    alignas(RAIDSECTOR) std::unique_ptr<byte[]> mData;        // always starts on a RAID line boundary
-    alignas(RAIDSECTOR) std::unique_ptr<byte[]> mParity;      // parity sectors
+    std::unique_ptr<byte[]> mData; // always starts on a RAID line boundary
+    std::unique_ptr<byte[]> mParity; // parity sectors
     std::unique_ptr<char[]> mInvalid;                         // bitfield indicating which sectors have yet to be received
 
     m_off_t mDataline{};                                      // data's position relative to the file's beginning in RAID lines
