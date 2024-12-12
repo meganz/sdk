@@ -336,6 +336,24 @@ bool NodeManager::updateNode_internal(Node *node)
     return true;
 }
 
+void NodeManager::nullRootNodesErrDetected(const size_t rootNodesSize)
+{
+    if (mNullRootNodesReported)
+    {
+        return;
+    }
+
+    rootNodesSize >= rootnodes.MIN_NUM_ROOT_NODES ?
+        mClient.sendevent(99490, "Null rootnode/s detected", 0) :
+        mClient.sendevent(99491,
+                          "Null rootnode/s detected and wrong number of root nodes retrieved",
+                          0);
+    LOG_err << "getNodeCount_internal: Null rootnode/s detected. Number of root nodes: "
+            << rootNodesSize;
+    mNullRootNodesReported = true;
+    assert(false);
+}
+
 std::shared_ptr<Node> NodeManager::getNodeByHandle(NodeHandle handle)
 {
     LockGuard g(mMutex);
@@ -600,6 +618,7 @@ uint64_t NodeManager::getNodeCount_internal()
     uint64_t count = 0;
     sharedNode_vector roots = getRootNodesAndInshares();
 
+    bool nullRootNodesDetected{false};
     for (auto& node : roots)
     {
         if (node)
@@ -609,20 +628,13 @@ uint64_t NodeManager::getNodeCount_internal()
         }
         else
         {
-            enableNullRootNodesErr();
+            nullRootNodesDetected = true;
         }
     }
 
-    if (reportNullRootNodesErr())
+    if (nullRootNodesDetected)
     {
-        roots.size() >= MIN_NUM_ROOT_NODES ?
-            mClient.sendevent(99490, "Null rootnode/s detected", 0) :
-            mClient.sendevent(99491,
-                              "Null rootnode/s detected and wrong number of root nodes retrieved",
-                              0);
-        LOG_err << "getNodeCount_internal: Null rootnode/s detected. Number of root nodes: "
-                << roots.size();
-        assert(false);
+        nullRootNodesErrDetected(roots.size());
     }
 
     // add roots to the count if logged into account (and fetchnodes is done <- roots are ready)

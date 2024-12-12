@@ -456,6 +456,9 @@ private:
         NodeHandle rubbish;
         std::map<nodetype_t, std::shared_ptr<Node> > mRootNodes;
 
+        // minimum expected number of root nodes (min num of root nodes may vary depending on
+        // client type i.e password manager)
+        static constexpr uint8_t MIN_NUM_ROOT_NODES{3};
         // returns true if the 'h' provided matches any of the rootnodes.
         // (when logged into folder links, the handle of the folder is set to 'files')
         bool isRootNode(NodeHandle h) const { return (h == files || h == vault || h == rubbish); }
@@ -542,43 +545,15 @@ private:
     // true when the NodeManager has been inicialized and contains a valid filesystem
     bool mInitialized = false;
 
-    // minimum expected number of root nodes
-    static constexpr uint8_t MIN_NUM_ROOT_NODES{3};
-
-    // flag that determines if null root nodes error has been detected
-    uint8_t mNullRootNodesErr{};
+    // flag that determines if null root nodes error has already been reported
+    bool mNullRootNodesReported{false};
 
     /**
-     * @brief Increments the error state for null root nodes
-     *
-     * The error state is incremented only up to a maximum value of 2. This prevents to send server
-     * event more than once per execution
-     */
-    void enableNullRootNodesErr()
-    {
-        if (mNullRootNodesErr < 2u)
-        {
-            ++mNullRootNodesErr;
-        }
-    }
-
-    /**
-     * @brief Resets the error state for null root nodes
+     * @brief Resets the reported state for null root nodes error
      */
     void resetNullRootNodesErr()
     {
-        mNullRootNodesErr = 0u;
-    }
-
-    /**
-     * @brief Returns true if the null root nodes error server event must be sent (1 per execution)
-     *
-     * @return true if the null root nodes error server event must be sent, false in case it has
-     * already been sent
-     */
-    bool reportNullRootNodesErr() const
-    {
-        return mNullRootNodesErr == 1u;
+        mNullRootNodesReported = false;
     }
 
     // These are all the "internal" versions of the public interfaces.
@@ -594,6 +569,13 @@ private:
     void reset_internal();
     bool addNode_internal(std::shared_ptr<Node> node, bool notify, bool isFetching, MissingParentNodes& missingParentNodes);
     bool updateNode_internal(Node* node);
+
+    /**
+     * @brief Manages null root nodes error server event (just once in NodeManager lifetime)
+     * This method sends an event to stats server and prints a log error to inform about this
+     * scenario.
+     */
+    void nullRootNodesErrDetected(const size_t rootNodesSize);
 
     std::shared_ptr<Node> getNodeByHandle_internal(NodeHandle handle);
     sharedNode_list getChildren_internal(const Node* parent,
