@@ -3029,7 +3029,8 @@ string LocalNode::debugGetParentList()
 
     for (const LocalNode* l = this; l != nullptr; l = l->parent)
     {
-        s += l->localname.toPath(false) + "(" + std::to_string((long long)(void*)l) + ") ";
+        s += l->localname.toPath(false) + "(" + std::to_string(reinterpret_cast<uintptr_t>(l)) +
+             ") ";
     }
     return s;
 }
