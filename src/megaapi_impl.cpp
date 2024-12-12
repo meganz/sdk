@@ -790,7 +790,7 @@ int MegaNodePrivate::getDuration()
                 && mediaProperties.shortformat != 254 // 254 = No information available
                 && mediaProperties.playtime > 0)
         {
-            return mediaProperties.playtime;
+            return static_cast<int>(mediaProperties.playtime);
         }
     }
 
@@ -824,7 +824,7 @@ int MegaNodePrivate::getWidth()
                     && mediaProperties.shortformat != 254 // 254 = No information available
                     && mediaProperties.width > 0)
             {
-                width = mediaProperties.width;
+                width = static_cast<int>(mediaProperties.width);
             }
         }
     }
@@ -844,7 +844,7 @@ int MegaNodePrivate::getHeight()
                     && mediaProperties.shortformat != 254 // 254 = No information available
                     && mediaProperties.height > 0)
             {
-                height = mediaProperties.height;
+                height = static_cast<int>(mediaProperties.height);
             }
         }
     }
@@ -884,7 +884,7 @@ int MegaNodePrivate::getVideocodecid()
                 && mediaProperties.shortformat != 254 // 254 = No information available
                 && mediaProperties.videocodecid > 0)
             {
-                videocodecid = mediaProperties.videocodecid;
+                videocodecid = static_cast<int>(mediaProperties.videocodecid);
             }
         }
     }
@@ -1114,8 +1114,8 @@ string MegaNodePrivate::addAppPrefixToFingerprint(const string& fp, const m_off_
     }
 
     byte bsize[sizeof(nodeSize) + 1];
-    int l = Serialize64::serialize(bsize, nodeSize);
-    unique_ptr<char[]> buf(new char[l * 4 / 3 + 4]);
+    int l = Serialize64::serialize(bsize, static_cast<uint64_t>(nodeSize));
+    unique_ptr<char[]> buf(new char[static_cast<size_t>(l * 4 / 3 + 4)]);
     char ssize = static_cast<char>('A' + Base64::btoa(bsize, l, buf.get()));
 
     string result(1, ssize);
@@ -1134,7 +1134,7 @@ string MegaNodePrivate::removeAppPrefixFromFingerprint(const char* appFpParam, m
         return string{};
     }
 
-    const size_t sizelen = appFp[0] - 'A';
+    const size_t sizelen = static_cast<size_t>(appFp[0] - 'A');
     if (sizelen > (sizeof(m_off_t) * 4/3 + 4) || appFp.size() <= (sizelen + 1))
     {
         LOG_err << "Internal error: fingerprint validation failed. Fingerprint with sizelen: " << sizelen
@@ -1146,7 +1146,7 @@ string MegaNodePrivate::removeAppPrefixFromFingerprint(const char* appFpParam, m
     {
         m_off_t nSize = 0;
         int len = sizeof(nSize);
-        auto buf = std::make_unique<byte[]>(len);
+        auto buf = std::make_unique<byte[]>(static_cast<size_t>(len));
         Base64::atob(appFp.c_str() + 1, buf.get(), len);
         int l = Serialize64::unserialize(buf.get(), len, (uint64_t*)&nSize);
         if (l <= 0)
@@ -2565,8 +2565,8 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         userHandle = p->user();
         email = p->email();
         nodeHandle = p->parentHandle;
-        numbers.push_back(p->folderNodeHandles.size());
-        numbers.push_back(p->fileNodeHandles.size());
+        numbers.push_back(static_cast<int64_t>(p->folderNodeHandles.size()));
+        numbers.push_back(static_cast<int64_t>(p->fileNodeHandles.size()));
         handles.assign(begin(p->folderNodeHandles), end(p->folderNodeHandles));
         handles.insert(end(handles), begin(p->fileNodeHandles), end(p->fileNodeHandles));
     }
@@ -2577,7 +2577,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         type = TYPE_REMOVEDSHAREDNODES;
         userHandle = p->user();
         email = p->email();
-        numbers.push_back(p->nodeHandles.size());
+        numbers.push_back(static_cast<int64_t>(p->nodeHandles.size()));
     }
     break;
     case name_id::u:
@@ -2586,7 +2586,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         type = TYPE_UPDATEDSHAREDNODES;
         userHandle = p->user();
         email = p->email();
-        numbers.push_back(p->nodeHandles.size());
+        numbers.push_back(static_cast<int64_t>(p->nodeHandles.size()));
     }
     break;
     case name_id::psts:
@@ -3488,7 +3488,7 @@ MegaTransferPrivate *MegaTransferPrivate::unserialize(string *d)
     bool isPublic = MemAccess::get<bool>(ptr);
     ptr += sizeof(bool);
 
-    d->erase(0, ptr - d->data());
+    d->erase(0, static_cast<size_t>(ptr - d->data()));
 
     if (isPublic)
     {
@@ -5156,7 +5156,9 @@ MegaBannerListPrivate* MegaBannerListPrivate::copy() const
 
 const MegaBanner* MegaBannerListPrivate::get(int i) const
 {
-    return (i >= 0 && static_cast<size_t>(i) < mVector.size()) ? &(mVector[i]) : nullptr;
+    return (i >= 0 && static_cast<size_t>(i) < mVector.size()) ?
+               &(mVector[static_cast<size_t>(i)]) :
+               nullptr;
 }
 
 int MegaBannerListPrivate::size() const
@@ -5398,7 +5400,7 @@ const char *MegaStringListPrivate::get(int i) const
     if((i < 0) || (static_cast<size_t>(i) >= mList.size()))
         return nullptr;
 
-    return mList[i].c_str();
+    return mList[static_cast<size_t>(i)].c_str();
 }
 
 int MegaStringListPrivate::size() const
@@ -5505,7 +5507,7 @@ const MegaStringList* MegaStringTablePrivate::get(int i) const
 {
     if (i >= 0 && i < size())
     {
-        return mTable[i].get();
+        return mTable[static_cast<size_t>(i)].get();
     }
     return nullptr;
 }
@@ -5527,7 +5529,7 @@ MegaNodeListPrivate::MegaNodeListPrivate(Node** newlist, int size)
     list = NULL; s = size;
     if(!size) return;
 
-    list = new MegaNode*[size];
+    list = new MegaNode*[static_cast<size_t>(size)];
     for(int i=0; i<size; i++)
         list[i] = MegaNodePrivate::fromNode(newlist[i]);
 }
@@ -5541,7 +5543,7 @@ MegaNodeListPrivate::MegaNodeListPrivate(const MegaNodeListPrivate *nodeList, bo
         return;
     }
 
-    list = new MegaNode*[s];
+    list = new MegaNode*[static_cast<size_t>(s)];
     for (int i = 0; i<s; i++)
     {
         MegaNode *node = nodeList->get(i);
@@ -5561,9 +5563,9 @@ MegaNodeListPrivate::MegaNodeListPrivate(sharedNode_vector& v)
     s = static_cast<int>(v.size());
     if (!s) return;
 
-    list = new MegaNode*[s];
+    list = new MegaNode*[static_cast<size_t>(s)];
     for (int i = 0; i < s; i++)
-        list[i] = MegaNodePrivate::fromNode(v[i].get());
+        list[i] = MegaNodePrivate::fromNode(v[static_cast<size_t>(i)].get());
 }
 
 MegaNodeListPrivate::MegaNodeListPrivate(sharedNode_list& l)
@@ -5572,7 +5574,7 @@ MegaNodeListPrivate::MegaNodeListPrivate(sharedNode_list& l)
     s = static_cast<int>(l.size());
     if (!s) return;
 
-    list = new MegaNode*[s];
+    list = new MegaNode*[static_cast<size_t>(s)];
     int i = 0;
     for (auto& node : l)
     {
@@ -5614,7 +5616,7 @@ void MegaNodeListPrivate::addNode(std::unique_ptr<MegaNode> node)
 {
     MegaNode** copyList = list;
     s = s + 1;
-    list = new MegaNode*[s];
+    list = new MegaNode*[static_cast<size_t>(s)];
     for (int i = 0; i < s - 1; ++i)
     {
         list[i] = copyList[i];
@@ -5632,7 +5634,7 @@ void MegaNodeListPrivate::addNode(MegaNode *node)
 {
     MegaNode** copyList = list;
     s = s + 1;
-    list = new MegaNode*[s];
+    list = new MegaNode*[static_cast<size_t>(s)];
     for (int i = 0; i < s - 1; ++i)
     {
         list[i] = copyList[i];
@@ -5660,7 +5662,7 @@ MegaUserListPrivate::MegaUserListPrivate(User** newlist, int size)
     if(!size)
         return;
 
-    list = new MegaUser*[size];
+    list = new MegaUser*[static_cast<size_t>(size)];
     for(int i=0; i<size; i++)
         list[i] = MegaUserPrivate::fromUser(newlist[i]);
 }
@@ -5673,7 +5675,7 @@ MegaUserListPrivate::MegaUserListPrivate(MegaUserListPrivate *userList)
         list = NULL;
         return;
     }
-    list = new MegaUser*[s];
+    list = new MegaUser*[static_cast<size_t>(s)];
     for (int i = 0; i<s; i++)
         list[i] = new MegaUserPrivate(userList->get(i));
 }
@@ -5721,7 +5723,7 @@ MegaUserAlertListPrivate::MegaUserAlertListPrivate(UserAlert::Base** newlist, in
     if (!size)
         return;
 
-    list = new MegaUserAlert*[size];
+    list = new MegaUserAlert*[static_cast<size_t>(size)];
     for (int i = 0; i < size; i++)
     {
         list[i] = new MegaUserAlertPrivate(newlist[i], mc);
@@ -5731,7 +5733,7 @@ MegaUserAlertListPrivate::MegaUserAlertListPrivate(UserAlert::Base** newlist, in
 MegaUserAlertListPrivate::MegaUserAlertListPrivate(const MegaUserAlertListPrivate &userList)
 {
     s = userList.size();
-    list = s ? new MegaUserAlert*[s] : NULL;
+    list = s ? new MegaUserAlert*[static_cast<size_t>(s)] : NULL;
     for (int i = 0; i < s; ++i)
     {
         list[i] = userList.get(i)->copy();
@@ -5848,17 +5850,17 @@ MegaRecentActionBucketListPrivate::MegaRecentActionBucketListPrivate(recentactio
     if (!s)
         return;
 
-    list = new MegaRecentActionBucketPrivate*[s];
+    list = new MegaRecentActionBucketPrivate*[static_cast<size_t>(s)];
     for (int i = 0; i < s; i++)
     {
-        list[i] = new MegaRecentActionBucketPrivate(v[i], mc);
+        list[i] = new MegaRecentActionBucketPrivate(v[static_cast<size_t>(i)], mc);
     }
 }
 
 MegaRecentActionBucketListPrivate::MegaRecentActionBucketListPrivate(const MegaRecentActionBucketListPrivate &o)
 {
     s = o.size();
-    list = s ? new MegaRecentActionBucketPrivate*[s] : NULL;
+    list = s ? new MegaRecentActionBucketPrivate*[static_cast<size_t>(s)] : NULL;
     for (int i = 0; i < s; ++i)
     {
         list[i] = (MegaRecentActionBucketPrivate*)o.get(i)->copy();
@@ -5960,7 +5962,7 @@ MegaTransferListPrivate::MegaTransferListPrivate(MegaTransfer** newlist, int siz
     if(!size)
         return;
 
-    list = new MegaTransfer*[size];
+    list = new MegaTransfer*[static_cast<size_t>(size)];
     for(int i=0; i<size; i++)
         list[i] = newlist[i]->copy();
 }
@@ -6003,7 +6005,7 @@ MegaContactRequestListPrivate::MegaContactRequestListPrivate(PendingContactReque
     if(!size)
         return;
 
-    list = new MegaContactRequest*[size];
+    list = new MegaContactRequest*[static_cast<size_t>(size)];
     for(int i=0; i<size; i++)
         list[i] = new MegaContactRequestPrivate(newlist[i]);
 }
@@ -6045,7 +6047,7 @@ MegaContactRequestListPrivate::MegaContactRequestListPrivate(MegaContactRequestL
         list = NULL;
         return;
     }
-    list = new MegaContactRequest*[s];
+    list = new MegaContactRequest*[static_cast<size_t>(s)];
     for (int i = 0; i < s; i++)
         list[i] = new MegaContactRequestPrivate(requestList->get(i));
 }
@@ -6127,7 +6129,7 @@ MegaFile *MegaFile::unserialize(string *d)
     }
     ptr += 8;
 
-    d->erase(0, ptr - d->data());
+    d->erase(0, static_cast<size_t>(ptr - d->data()));
 
     transfer->setSourceFileTemporary(megaFile->temporaryfile);
 
@@ -7123,7 +7125,8 @@ void MegaApiImpl::base64ToBinary(const char *base64string, unsigned char **binar
 {
     string data;
     data.resize(strlen(base64string) * 3 / 4 + 3);
-    data.resize(Base64::atob(base64string, (byte*)data.data(), int(data.size())));
+    data.resize(
+        static_cast<size_t>(Base64::atob(base64string, (byte*)data.data(), int(data.size()))));
     *binarysize = data.size();
     *binary = new unsigned char[*binarysize];
     memcpy(*binary, data.data(), *binarysize);
@@ -8834,7 +8837,7 @@ void MegaApiImpl::setNodeAttribute(MegaNode *node, int type, const char *srcFile
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_FILE, listener);
     if (srcFilePath) request->setFile(srcFilePath);
-    request->setNumber(srcFilePath ? INVALID_HANDLE : attributehandle);
+    request->setNumber(static_cast<long long>(srcFilePath ? INVALID_HANDLE : attributehandle));
     request->setParamType(type);
     request->setNodeHandle(node ? node->getHandle() : INVALID_HANDLE);
     request->setMegaBackgroundMediaUploadPtr(nullptr);
@@ -8854,7 +8857,7 @@ void MegaApiImpl::putNodeAttribute(MegaBackgroundMediaUpload* bu, int type, cons
     request->setFile(srcFilePath);
     request->setParamType(type);
     request->setMegaBackgroundMediaUploadPtr(bu);
-    request->setNumber(INVALID_HANDLE);
+    request->setNumber(static_cast<long long>(INVALID_HANDLE));
     request->setParentHandle(INVALID_HANDLE);
 
     request->performRequest = [this, request]()
@@ -12175,7 +12178,8 @@ MegaNode *MegaApiImpl::createForeignFileNode(MegaHandle handle, const char *key,
     string nodekey;
     string fileattrsting;
     nodekey.resize(strlen(key) * 3 / 4 + 3);
-    nodekey.resize(Base64::atob(key, (byte *)nodekey.data(), int(nodekey.size())));
+    nodekey.resize(
+        static_cast<size_t>(Base64::atob(key, (byte*)nodekey.data(), int(nodekey.size()))));
 
     string fingerprintStr;
     string sdkFingerprintStr;
@@ -12621,7 +12625,7 @@ int MegaApiImpl::calcRecommendedProLevel(MegaPricing& pricing, MegaAccountDetail
         return currProLevel;
         // business can not upgrade, flexi can only change to free so we do not recommend that
     int orderedCurrProLevel = orderProLevel(currProLevel);
-    uint64_t usedStorageBytes = details.getStorageUsed();
+    uint64_t usedStorageBytes = static_cast<uint64_t>(details.getStorageUsed());
     int bestProLevel = -1;
     uint64_t bestStorageBytes = UINT64_MAX;
     for (int i = 0; i <= pricing.getNumProducts(); ++i)
@@ -12672,11 +12676,11 @@ char* strcasestr(const char* string, const char* substring)
     {
         for (j = 0; substring[j]; j++)
         {
-            unsigned char c1 = string[i + j];
+            unsigned char c1 = static_cast<unsigned char>(string[i + j]);
             if (!c1)
                 return NULL;
 
-            unsigned char c2 = substring[j];
+            unsigned char c2 = static_cast<unsigned char>(substring[j]);
             if (toupper(c1) != toupper(c2))
                 break;
         }
@@ -12991,7 +12995,8 @@ char *MegaApiImpl::getCRC(const char *filePath)
 
     string result;
     result.resize((sizeof fp.crc) * 4 / 3 + 4);
-    result.resize(Base64::btoa((const byte *)fp.crc.data(), sizeof fp.crc, (char*)result.c_str()));
+    result.resize(static_cast<size_t>(
+        Base64::btoa((const byte*)fp.crc.data(), sizeof fp.crc, (char*)result.c_str())));
     return MegaApi::strdup(result.c_str());
 }
 
@@ -13005,7 +13010,8 @@ char *MegaApiImpl::getCRCFromFingerprint(const char *fingerprint)
 
     string result;
     result.resize((sizeof fp->crc) * 4 / 3 + 4);
-    result.resize(Base64::btoa((const byte *)fp->crc.data(), sizeof fp->crc,(char*)result.c_str()));
+    result.resize(static_cast<size_t>(
+        Base64::btoa((const byte*)fp->crc.data(), sizeof fp->crc, (char*)result.c_str())));
     return MegaApi::strdup(result.c_str());
 }
 
@@ -13022,7 +13028,9 @@ char *MegaApiImpl::getCRC(MegaNode *n)
 
     string result;
     result.resize((sizeof node->crc) * 4 / 3 + 4);
-    result.resize(Base64::btoa((const byte *)node->crc.data(), sizeof node->crc.data(), (char*)result.c_str()));
+    result.resize(static_cast<size_t>(Base64::btoa((const byte*)node->crc.data(),
+                                                   sizeof node->crc.data(),
+                                                   (char*)result.c_str())));
     return MegaApi::strdup(result.c_str());
 }
 
@@ -13594,7 +13602,7 @@ void MegaApiImpl::getlocalsslcertificate_result(m_time_t ts, string *certdata, e
             {
                 int remaining = int(end - data);
                 int dataSize = (remaining > 64) ? 64 : remaining;
-                result.append(data, dataSize);
+                result.append(data, static_cast<size_t>(dataSize));
                 result.append("\n");
                 data += dataSize;
             }
@@ -13967,7 +13975,12 @@ void MegaApiImpl::folderlinkinfo_result(error e, handle owner, handle /*ph*/, st
                     fileName = itAttribute->second.c_str();
                 }
 
-                MegaFolderInfoPrivate *folderInfo = new MegaFolderInfoPrivate(numFiles, numFolders - 1, numVersions, currentSize, versionsSize);
+                MegaFolderInfoPrivate* folderInfo =
+                    new MegaFolderInfoPrivate(static_cast<int>(numFiles),
+                                              static_cast<int>(numFolders) - 1,
+                                              static_cast<int>(numVersions),
+                                              currentSize,
+                                              versionsSize);
                 request->setMegaFolderInfo(folderInfo);
                 request->setParentHandle(owner);
                 request->setText(fileName.c_str());
@@ -14410,13 +14423,26 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
             string firstname = request->getName() ? request->getName() : "";
             if (!firstname.empty())
             {
-                client->putua(ATTR_FIRSTNAME, (const byte*) request->getName(), int(strlen(request->getName())), -1,
-                              request->getNodeHandle(), request->getAccess(), request->getTransferredBytes(), [](Error){});
+                client->putua(ATTR_FIRSTNAME,
+                              (const byte*)request->getName(),
+                              static_cast<unsigned int>(strlen(request->getName())),
+                              -1,
+                              request->getNodeHandle(),
+                              request->getAccess(),
+                              request->getTransferredBytes(),
+                              [](Error) {});
             }
             string lastname = request->getText() ? request->getText() : "";
             if (!lastname.empty())
             {
-                client->putua(ATTR_LASTNAME, (const byte*) request->getText(), int(strlen(request->getText())), -1, UNDEF, 0, 0, [](Error){});
+                client->putua(ATTR_LASTNAME,
+                              (const byte*)request->getText(),
+                              static_cast<unsigned int>(strlen(request->getText())),
+                              -1,
+                              UNDEF,
+                              0,
+                              0,
+                              [](Error) {});
             }
             client->reqtag = creqtag;   // restore current reqtag, for future requests
 
@@ -14807,9 +14833,15 @@ void MegaApiImpl::enumeratequotaitems_result(error e)
                 int nextTag = client->nextreqtag();
                 request->setTag(nextTag);
                 requestMap[nextTag]=request;
-                client->purchase_additem(0, request->getNodeHandle(), pricing->getAmount(i),
-                                         currency->getCurrencySymbol(), 0, NULL, request->getParentHandle(),
-                                         phtype, ts);
+                client->purchase_additem(0,
+                                         request->getNodeHandle(),
+                                         static_cast<unsigned int>(pricing->getAmount(i)),
+                                         currency->getCurrencySymbol(),
+                                         0,
+                                         NULL,
+                                         request->getParentHandle(),
+                                         phtype,
+                                         ts);
                 break;
             }
         }
@@ -15060,7 +15092,7 @@ void MegaApiImpl::http_result(error e, int httpCode, byte *data, int size)
             || request->getType() == MegaRequest::TYPE_QUERY_DNS)
     {
         string result;
-        result.assign((const char *)data, size);
+        result.assign((const char*)data, static_cast<size_t>(size));
         request->setText(result.c_str());
     }
     else if (request->getType() == MegaRequest::TYPE_DOWNLOAD_FILE)
@@ -15079,7 +15111,7 @@ void MegaApiImpl::http_result(error e, int httpCode, byte *data, int size)
             }
             else if (size)
             {
-                if (!f->fwrite((const byte*)data, size, 0))
+                if (!f->fwrite((const byte*)data, static_cast<unsigned int>(size), 0))
                 {
                     e = API_EWRITE;
                 }
@@ -15453,7 +15485,8 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
 
     string attrstring;
     attrstring.resize(a->length()*4/3+4);
-    attrstring.resize(Base64::btoa((const byte *)a->data(), int(a->length()), (char *)attrstring.data()));
+    attrstring.resize(static_cast<size_t>(
+        Base64::btoa((const byte*)a->data(), int(a->length()), (char*)attrstring.data())));
 
     bool isNodeKeyDecrypted;
     string keystring;
@@ -15941,7 +15974,8 @@ void MegaApiImpl::getua_completion(byte* data, unsigned len, attr_t type, MegaRe
         {
             string str;
             str.resize(len * 4 / 3 + 4);
-            str.resize(Base64::btoa(data, len, (char*)str.data()));
+            str.resize(
+                static_cast<size_t>(Base64::btoa(data, static_cast<int>(len), (char*)str.data())));
             request->setText(str.c_str());
         }
         break;
@@ -19688,7 +19722,7 @@ void MegaApiImpl::removeSet(MegaHandle sid, MegaRequestListener* listener)
 void MegaApiImpl::putSetElement(MegaHandle sid, MegaHandle eid, MegaHandle node, int optionFlags, int64_t order, const char* name, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_PUT_SET_ELEMENT, listener);
-    request->setTotalBytes(sid);
+    request->setTotalBytes(static_cast<long long>(sid));
     request->setParentHandle(eid);
     request->setNodeHandle(node);
     request->setParamType(optionFlags);
@@ -19698,7 +19732,7 @@ void MegaApiImpl::putSetElement(MegaHandle sid, MegaHandle eid, MegaHandle node,
     request->performRequest = [this, request]()
         {
             SetElement el;
-            el.setSet(request->getTotalBytes());
+            el.setSet(static_cast<handle>(request->getTotalBytes()));
             el.setId(request->getParentHandle());
             el.setNode(request->getNodeHandle());
             if (request->getParamType() & MegaApi::OPTION_ELEMENT_ORDER)
@@ -19733,18 +19767,20 @@ void MegaApiImpl::putSetElement(MegaHandle sid, MegaHandle eid, MegaHandle node,
 void MegaApiImpl::removeSetElement(MegaHandle sid, MegaHandle eid, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SET_ELEMENT, listener);
-    request->setTotalBytes(sid);
+    request->setTotalBytes(static_cast<long long>(sid));
     request->setParentHandle(eid);
 
     request->performRequest = [this, request]()
-        {
-            client->removeSetElement(request->getTotalBytes(), request->getParentHandle(),
-                [this, request](Error e)
-                {
-                    fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
-                });
-            return API_OK;
-        };
+    {
+        client->removeSetElement(static_cast<handle>(request->getTotalBytes()),
+                                 request->getParentHandle(),
+                                 [this, request](Error e)
+                                 {
+                                     fireOnRequestFinish(request,
+                                                         std::make_unique<MegaErrorPrivate>(e));
+                                 });
+        return API_OK;
+    };
 
     requestQueue.push(request);
     waiter->notify();
@@ -21811,8 +21847,10 @@ void MegaApiImpl::getFavourites(MegaNode* node, int count, MegaRequestListener* 
 
                 if (count != 1 || favouriteNodes.empty())
                 {
-                   std::vector<NodeHandle> favs = client->mNodeManager.getFavouritesNodeHandles(node->nodeHandle(), count);
-                   favouriteNodes.insert(favouriteNodes.end(), favs.begin(), favs.end());
+                    std::vector<NodeHandle> favs =
+                        client->mNodeManager.getFavouritesNodeHandles(node->nodeHandle(),
+                                                                      static_cast<uint32_t>(count));
+                    favouriteNodes.insert(favouriteNodes.end(), favs.begin(), favs.end());
                 }
 
                 std::vector<handle> handles;
@@ -22167,9 +22205,10 @@ void MegaApiImpl::querySignupLink(const char* link, MegaRequestListener* listene
             {
                 ptr = tptr + strlen(MegaClient::newsignupLinkPrefix());
 
-                unsigned len = unsigned((strlen(link)-(ptr-link))*3/4+4);
+                unsigned len = static_cast<unsigned>(
+                    (strlen(link) - static_cast<size_t>(ptr - link)) * 3 / 4 + 4);
                 byte *c = new byte[len];
-                len = Base64::atob(ptr,c,len);
+                len = static_cast<unsigned>(Base64::atob(ptr, c, static_cast<int>(len)));
 
                 if (len > 8)
                 {
@@ -23370,7 +23409,7 @@ void MegaApiImpl::reportEvent(const char* details, MegaRequestListener* listener
 
             string event = "A"; //Application event
             int size = int(strlen(details));
-            char *base64details = new char[size * 4 / 3 + 4];
+            char* base64details = new char[static_cast<size_t>(size * 4 / 3 + 4)];
             Base64::btoa((byte *)details, size, base64details);
             client->reportevent(event.c_str(), base64details);
             delete [] base64details;
@@ -23440,8 +23479,9 @@ void MegaApiImpl::submitPurchaseReceipt(int gateway, const char* receipt, MegaHa
                     || type == MegaApi::PAYMENT_METHOD_WINDOWS_STORE || type == MegaApi::PAYMENT_METHOD_HUAWEI_WALLET)
             {
                 int len = int(strlen(receipt));
-                base64receipt.resize(len * 4 / 3 + 4);
-                base64receipt.resize(Base64::btoa((byte *)receipt, len, (char *)base64receipt.data()));
+                base64receipt.resize(static_cast<size_t>(len * 4 / 3 + 4));
+                base64receipt.resize(static_cast<size_t>(
+                    Base64::btoa((byte*)receipt, len, (char*)base64receipt.data())));
             }
             else // MegaApi::PAYMENT_METHOD_ITUNES
             {
@@ -23540,10 +23580,10 @@ void MegaApiImpl::creditCardStore(const char* address1, const char* address2, co
             scv2 = cv2;
         }
 
-        int tam = int(256 + sfirstname.size() + slastname.size() + screditcard.size()
-            + sexpire_month.size() + sexpire_year.size() + scv2.size() + saddress1.size()
-            + saddress2.size() + scity.size() + sprovince.size() + spostalcode.size()
-            + scountry.size() + email.size());
+        size_t tam = 256 + sfirstname.size() + slastname.size() + screditcard.size() +
+                     sexpire_month.size() + sexpire_year.size() + scv2.size() + saddress1.size() +
+                     saddress2.size() + scity.size() + sprovince.size() + spostalcode.size() +
+                     scountry.size() + email.size();
 
         char* ccplain = new char[tam];
         snprintf(ccplain, tam, "{\"first_name\":\"%s\",\"last_name\":\"%s\","
@@ -25065,7 +25105,7 @@ void MegaApiImpl::getFileAttributeUploadURL(MegaHandle nodehandle, int64_t fullF
             assert(intFaType >= 0 && (intFaType < (1 << (sizeof(fatype)*8)))); // Value of intFaType <= (2^(fatype_numbits) - 1)
             fatype faType = static_cast<fatype>(intFaType); // if the assert above is true, int should fit fine into a fatype (uint16_t)
             bool forceSSL = request->getFlag();
-            long long fullSize = request->getNumber();
+            size_t fullSize = static_cast<size_t>(request->getNumber());
 
             NodeOrUploadHandle nuh(NodeHandle().set6byte(nodeHandle));
 
@@ -25535,20 +25575,22 @@ void MegaApiImpl::sendBackupHeartbeat(MegaHandle backupId, int status, int progr
     request->setNodeHandle(lastNode);
 
     request->performRequest = [this, request]()
-        {
-            client->reqs.add(new CommandBackupPutHeartBeat(client,
-                                                           (MegaHandle)request->getParentHandle(),
-                                                           CommandBackupPutHeartBeat::SPHBStatus(request->getAccess()),
-                                                           (uint8_t)request->getNumDetails(),
-                                                           (uint32_t)request->getParamType(),
-                                                           (uint32_t)request->getTransferTag(),
-                                                           request->getNumber(),
-                                                           request->getNodeHandle(),
-                                                           [this, request](Error e) {
-                                                               fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
-                                                           }));
-            return API_OK;
-        };
+    {
+        client->reqs.add(new CommandBackupPutHeartBeat(
+            client,
+            (MegaHandle)request->getParentHandle(),
+            CommandBackupPutHeartBeat::SPHBStatus(request->getAccess()),
+            static_cast<int8_t>(request->getNumDetails()),
+            (uint32_t)request->getParamType(),
+            (uint32_t)request->getTransferTag(),
+            request->getNumber(),
+            request->getNodeHandle(),
+            [this, request](Error e)
+            {
+                fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
+            }));
+        return API_OK;
+    };
 
     requestQueue.push(request);
     waiter->notify();
@@ -25750,15 +25792,15 @@ void MegaApiImpl::getRecentActionsAsyncInternal(unsigned days,
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_RECENT_ACTIONS, listener);
     request->setNumber(days);
-    request->setParamType(maxnodes);
+    request->setParamType(static_cast<int>(maxnodes));
     if (optExcludeSensitives)
         request->setFlag(*optExcludeSensitives);
 
     request->performRequest =
         [this, request, withExcludeSensitives = (optExcludeSensitives != nullptr)]()
     {
-        int maxnodes = request->getParamType();
-        if (maxnodes <= 0)
+        unsigned maxnodes = static_cast<unsigned>(request->getParamType());
+        if (maxnodes == 0)
         {
             return API_EARGS;
         }
@@ -26659,7 +26701,7 @@ void MegaApiImpl::putSetElements(MegaHandle sid, const MegaHandleList* nodes, co
 {
     assert(nodes && nodes->size() && (!names || names->size() == static_cast<int>(nodes->size())));
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_PUT_SET_ELEMENTS, listener);
-    request->setTotalBytes(sid);
+    request->setTotalBytes(static_cast<long long>(sid));
     request->setMegaHandleList(nodes);
     request->setMegaStringList(names);
 
@@ -26671,8 +26713,8 @@ void MegaApiImpl::putSetElements(MegaHandle sid, const MegaHandleList* nodes, co
         for (size_t i = 0u; i < els.size(); ++i)
         {
             SetElement& el = els[i];
-            el.setSet(request->getTotalBytes());
-            el.setNode(nodes->get(static_cast<int>(i)));
+            el.setSet(static_cast<handle>(request->getTotalBytes()));
+            el.setNode(nodes->get(static_cast<unsigned int>(i)));
             if (names)
             {
                 el.setName(names->get(static_cast<int>(i)));
@@ -26705,7 +26747,7 @@ void MegaApiImpl::putSetElements(MegaHandle sid, const MegaHandleList* nodes, co
 void MegaApiImpl::removeSetElements(MegaHandle sid, const MegaHandleList* eids, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SET_ELEMENTS, listener);
-    request->setTotalBytes(sid);
+    request->setTotalBytes(static_cast<long long>(sid));
     request->setMegaHandleList(eids);
 
     request->performRequest = [this, request]()
@@ -26719,10 +26761,12 @@ void MegaApiImpl::removeSetElements(MegaHandle sid, const MegaHandleList* eids, 
         std::vector<handle> eids(eidsList->size());
         for (size_t i = 0u; i < eids.size(); ++i)
         {
-            eids[i] = eidsList->get(static_cast<int>(i));
+            eids[i] = eidsList->get(static_cast<unsigned int>(i));
         }
 
-        client->removeSetElements(request->getTotalBytes(), std::move(eids),
+        client->removeSetElements(
+            static_cast<handle>(request->getTotalBytes()),
+            std::move(eids),
             [this, request](Error e, const vector<int64_t>* elErrs)
             {
                 if (e == API_OK && elErrs)
@@ -26816,7 +26860,7 @@ MegaSetListPrivate::MegaSetListPrivate(const Set *const* sets, int count)
 {
     if (sets && count)
     {
-        mSets.reserve(count);
+        mSets.reserve(static_cast<size_t>(count));
         for (int i = 0; i < count; ++i)
         {
             const Set& s = *sets[i];
@@ -26845,7 +26889,7 @@ MegaSetElementListPrivate::MegaSetElementListPrivate(const SetElement* const* el
 {
     if (elements && count)
     {
-        mElements.reserve(count);
+        mElements.reserve(static_cast<size_t>(count));
         for (int i = 0; i < count; ++i)
         {
             const SetElement& el = *elements[i];
@@ -28430,8 +28474,8 @@ MegaHashSignatureImpl::MegaHashSignatureImpl(const char *base64Key)
 
     string pubks;
     int len = int(strlen(base64Key)/4*3+3);
-    pubks.resize(len);
-    pubks.resize(Base64::atob(base64Key, (byte *)pubks.data(), len));
+    pubks.resize(static_cast<size_t>(len));
+    pubks.resize(static_cast<size_t>(Base64::atob(base64Key, (byte*)pubks.data(), len)));
     asymmCypher->setkey(AsymmCipher::PUBKEY,(byte*)pubks.data(), int(pubks.size()));
 }
 
@@ -28761,7 +28805,8 @@ MegaAccountFeature* MegaAccountDetailsPrivate::getActiveFeature(int featureIndex
 {
     if (static_cast<size_t>(featureIndex) < details.activeFeatures.size())
     {
-        return MegaAccountFeaturePrivate::fromAccountFeature(&(details.activeFeatures[featureIndex]));
+        return MegaAccountFeaturePrivate::fromAccountFeature(
+            &(details.activeFeatures[static_cast<size_t>(featureIndex)]));
     }
     return nullptr;
 }
@@ -28931,7 +28976,7 @@ handle MegaPricingPrivate::getHandle(int productIndex)
 {
     if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
     {
-        return products[productIndex].productHandle;
+        return products[static_cast<size_t>(productIndex)].productHandle;
     }
 
     return UNDEF;
@@ -28941,7 +28986,7 @@ int MegaPricingPrivate::getProLevel(int productIndex)
 {
     if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
     {
-        return products[productIndex].proLevel;
+        return static_cast<int>(products[static_cast<size_t>(productIndex)].proLevel);
     }
 
     return 0;
@@ -28951,7 +28996,7 @@ int MegaPricingPrivate::getGBStorage(int productIndex)
 {
     if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
     {
-        return products[productIndex].gbStorage;
+        return products[static_cast<size_t>(productIndex)].gbStorage;
     }
 
     return 0;
@@ -28961,7 +29006,7 @@ int MegaPricingPrivate::getGBTransfer(int productIndex)
 {
     if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
     {
-        return products[productIndex].gbTransfer;
+        return products[static_cast<size_t>(productIndex)].gbTransfer;
     }
 
     return 0;
@@ -28971,7 +29016,7 @@ int MegaPricingPrivate::getMonths(int productIndex)
 {
     if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
     {
-        return products[productIndex].months;
+        return static_cast<int>(products[static_cast<size_t>(productIndex)].months);
     }
 
     return 0;
@@ -28981,7 +29026,7 @@ int MegaPricingPrivate::getAmount(int productIndex)
 {
     if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
     {
-        return products[productIndex].amount;
+        return static_cast<int>(products[static_cast<size_t>(productIndex)].amount);
     }
 
     return 0;
@@ -28991,7 +29036,7 @@ int mega::MegaPricingPrivate::getLocalPrice(int productIndex)
 {
     if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
     {
-        return products[productIndex].localPrice;
+        return static_cast<int>(products[static_cast<size_t>(productIndex)].localPrice);
     }
 
     return 0;
@@ -29001,7 +29046,7 @@ const char *MegaPricingPrivate::getDescription(int productIndex)
 {
     if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
     {
-        return products[productIndex].description.c_str();
+        return products[static_cast<size_t>(productIndex)].description.c_str();
     }
 
     return nullptr;
@@ -29011,7 +29056,7 @@ const char *MegaPricingPrivate::getIosID(int productIndex)
 {
     if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
     {
-        return products[productIndex].iosid.c_str();
+        return products[static_cast<size_t>(productIndex)].iosid.c_str();
     }
 
     return nullptr;
@@ -29021,7 +29066,7 @@ const char *MegaPricingPrivate::getAndroidID(int productIndex)
 {
     if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
     {
-        return products[productIndex].androidid.c_str();
+        return products[static_cast<size_t>(productIndex)].androidid.c_str();
     }
 
     return nullptr;
@@ -29041,7 +29086,7 @@ bool MegaPricingPrivate::isType(int productIndex, unsigned t) const
 {
     if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
     {
-        return products[productIndex].planType == t;
+        return products[static_cast<size_t>(productIndex)].planType == t;
     }
 
     return false;
@@ -29051,7 +29096,7 @@ int MegaPricingPrivate::getAmountMonth(int productIndex)
 {
     if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
     {
-        return products[productIndex].amountMonth;
+        return static_cast<int>(products[static_cast<size_t>(productIndex)].amountMonth);
     }
 
     return 0;
@@ -29074,9 +29119,9 @@ int MegaPricingPrivate::getGBStoragePerUser(int productIndex)
 {
     // some Pro plans don't have a valid pointer, only business plans
     if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size() &&
-        products[productIndex].businessPlan)
+        products[static_cast<size_t>(productIndex)].businessPlan)
     {
-        return products[productIndex].businessPlan->gbStoragePerUser;
+        return products[static_cast<size_t>(productIndex)].businessPlan->gbStoragePerUser;
     }
 
     return 0;
@@ -29086,9 +29131,9 @@ int MegaPricingPrivate::getGBTransferPerUser(int productIndex)
 {
     // some Pro plans don't have a valid pointer, only business plans
     if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size() &&
-        products[productIndex].businessPlan)
+        products[static_cast<size_t>(productIndex)].businessPlan)
     {
-        return products[productIndex].businessPlan->gbTransferPerUser;
+        return products[static_cast<size_t>(productIndex)].businessPlan->gbTransferPerUser;
     }
 
     return 0;
@@ -29098,9 +29143,9 @@ unsigned int MegaPricingPrivate::getMinUsers(int productIndex)
 {
     // some Pro plans don't have a valid pointer, only business plans
     if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size() &&
-        products[productIndex].businessPlan)
+        products[static_cast<size_t>(productIndex)].businessPlan)
     {
-        return products[productIndex].businessPlan->minUsers;
+        return products[static_cast<size_t>(productIndex)].businessPlan->minUsers;
     }
 
     return 0;
@@ -29110,9 +29155,9 @@ unsigned int MegaPricingPrivate::getPricePerUser(int productIndex)
 {
     // some Pro plans don't have a valid pointer, only business plans
     if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size() &&
-        products[productIndex].businessPlan)
+        products[static_cast<size_t>(productIndex)].businessPlan)
     {
-        return products[productIndex].businessPlan->pricePerUser;
+        return products[static_cast<size_t>(productIndex)].businessPlan->pricePerUser;
     }
 
     return 0;
@@ -29122,9 +29167,9 @@ unsigned int MegaPricingPrivate::getLocalPricePerUser(int productIndex)
 {
     // some Pro plans don't have a valid pointer, only business plans
     if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size() &&
-        products[productIndex].businessPlan)
+        products[static_cast<size_t>(productIndex)].businessPlan)
     {
-        return products[productIndex].businessPlan->localPricePerUser;
+        return products[static_cast<size_t>(productIndex)].businessPlan->localPricePerUser;
     }
 
     return 0;
@@ -29134,9 +29179,9 @@ unsigned int MegaPricingPrivate::getPricePerStorage(int productIndex)
 {
     // some Pro plans don't have a valid pointer, only business plans
     if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size() &&
-        products[productIndex].businessPlan)
+        products[static_cast<size_t>(productIndex)].businessPlan)
     {
-        return products[productIndex].businessPlan->pricePerStorage;
+        return products[static_cast<size_t>(productIndex)].businessPlan->pricePerStorage;
     }
 
     return 0;
@@ -29146,9 +29191,9 @@ unsigned int MegaPricingPrivate::getLocalPricePerStorage(int productIndex)
 {
     // some Pro plans don't have a valid pointer, only business plans
     if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size() &&
-        products[productIndex].businessPlan)
+        products[static_cast<size_t>(productIndex)].businessPlan)
     {
-        return products[productIndex].businessPlan->localPricePerStorage;
+        return products[static_cast<size_t>(productIndex)].businessPlan->localPricePerStorage;
     }
 
     return 0;
@@ -29158,9 +29203,9 @@ int MegaPricingPrivate::getGBPerStorage(int productIndex)
 {
     // some Pro plans don't have a valid pointer, only business plans
     if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size() &&
-        products[productIndex].businessPlan)
+        products[static_cast<size_t>(productIndex)].businessPlan)
     {
-        return products[productIndex].businessPlan->gbPerStorage;
+        return products[static_cast<size_t>(productIndex)].businessPlan->gbPerStorage;
     }
 
     return 0;
@@ -29170,9 +29215,9 @@ unsigned int MegaPricingPrivate::getPricePerTransfer(int productIndex)
 {
     // some Pro plans don't have a valid pointer, only business plans
     if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size() &&
-        products[productIndex].businessPlan)
+        products[static_cast<size_t>(productIndex)].businessPlan)
     {
-        return products[productIndex].businessPlan->pricePerTransfer;
+        return products[static_cast<size_t>(productIndex)].businessPlan->pricePerTransfer;
     }
 
     return 0;
@@ -29182,9 +29227,9 @@ unsigned int MegaPricingPrivate::getLocalPricePerTransfer(int productIndex)
 {
     // some Pro plans don't have a valid pointer, only business plans
     if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size() &&
-        products[productIndex].businessPlan)
+        products[static_cast<size_t>(productIndex)].businessPlan)
     {
-        return products[productIndex].businessPlan->localPricePerTransfer;
+        return products[static_cast<size_t>(productIndex)].businessPlan->localPricePerTransfer;
     }
 
     return 0;
@@ -29194,9 +29239,9 @@ int MegaPricingPrivate::getGBPerTransfer(int productIndex)
 {
     // some Pro plans don't have a valid pointer, only business plans
     if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size() &&
-        products[productIndex].businessPlan)
+        products[static_cast<size_t>(productIndex)].businessPlan)
     {
-        return products[productIndex].businessPlan->gbPerTransfer;
+        return products[static_cast<size_t>(productIndex)].businessPlan->gbPerTransfer;
     }
 
     return 0;
@@ -29210,7 +29255,7 @@ MegaStringIntegerMap* MegaPricingPrivate::getFeatures(int productIndex) const
     }
 
     MegaStringIntegerMapPrivate* returnFeatures = new MegaStringIntegerMapPrivate();
-    for (const auto& feature: products[productIndex].features)
+    for (const auto& feature: products[static_cast<size_t>(productIndex)].features)
     {
         returnFeatures->set(feature.first, feature.second);
     }
@@ -29221,7 +29266,7 @@ unsigned int MegaPricingPrivate::getTestCategory(int productIndex) const
 {
     if ((unsigned)productIndex < products.size())
     {
-        return products[productIndex].testCategory;
+        return products[static_cast<size_t>(productIndex)].testCategory;
     }
 
     return 0;
@@ -29231,7 +29276,7 @@ unsigned int MegaPricingPrivate::getTrialDurationInDays(int productIndex) const
 {
     if ((unsigned)productIndex < products.size())
     {
-        return products[productIndex].trialDays;
+        return products[static_cast<size_t>(productIndex)].trialDays;
     }
 
     return 0;
@@ -29435,7 +29480,7 @@ MegaSyncListPrivate::MegaSyncListPrivate(MegaSyncPrivate** newlist, int size)
     list = NULL; s = size;
     if(!size) return;
 
-    list = new MegaSync*[size];
+    list = new MegaSync*[static_cast<size_t>(size)];
     for(int i=0; i<size; i++)
         list[i] = newlist[i]->copy();
 }
@@ -29449,7 +29494,7 @@ MegaSyncListPrivate::MegaSyncListPrivate(const MegaSyncListPrivate *syncList)
         return;
     }
 
-    list = new MegaSync*[s];
+    list = new MegaSync*[static_cast<size_t>(s)];
     for (int i = 0; i<s; i++)
     {
         list[i] = new MegaSyncPrivate(static_cast<MegaSyncPrivate *>(syncList->get(i)));
@@ -29488,7 +29533,7 @@ void MegaSyncListPrivate::addSync(MegaSync *sync)
 {
     MegaSync** copyList = list;
     s = s + 1;
-    list = new MegaSync*[s];
+    list = new MegaSync*[static_cast<size_t>(s)];
     for (int i = 0; i < s - 1; ++i)
     {
         list[i] = copyList[i];
@@ -31394,7 +31439,7 @@ void MegaScheduledCopyController::setPeriodstring(const string &value)
             // we determine a max number of executions to skip.
 
             int maxBackupToSkip = maxBackups + 10;
-            int64_t* starttimes = new int64_t[maxBackupToSkip];
+            int64_t* starttimes = new int64_t[static_cast<size_t>(maxBackupToSkip)];
             int64_t next = lastbackuptime-offsetds;
             int64_t previousnext = next;
 
@@ -37723,7 +37768,7 @@ MegaTextChatPeerList *MegaTextChatPeerListPrivate::copy() const
 {
     MegaTextChatPeerListPrivate *ret = new MegaTextChatPeerListPrivate;
 
-    for (int i = 0; i < size(); i++)
+    for (size_t i = 0; i < static_cast<size_t>(size()); i++)
     {
         ret->addPeer(list.at(i).first, list.at(i).second);
     }
@@ -37744,7 +37789,7 @@ MegaHandle MegaTextChatPeerListPrivate::getPeerHandle(int i) const
     }
     else
     {
-        return list.at(i).first;
+        return list.at(static_cast<size_t>(i)).first;
     }
 }
 
@@ -37756,7 +37801,7 @@ int MegaTextChatPeerListPrivate::getPeerPrivilege(int i) const
     }
     else
     {
-        return list.at(i).second;
+        return list.at(static_cast<size_t>(i)).second;
     }
 }
 
@@ -38297,8 +38342,8 @@ void MegaScheduledMeetingListPrivate::clear()
 MegaTransferDataPrivate::MegaTransferDataPrivate(TransferList *transferList, long long notificationNumber)
 {
     numDownloads = int(transferList->transfers[GET].size());
-    downloadTags.reserve(numDownloads);
-    downloadPriorities.reserve(numDownloads);
+    downloadTags.reserve(static_cast<size_t>(numDownloads));
+    downloadPriorities.reserve(static_cast<size_t>(numDownloads));
     for (auto it = transferList->begin(GET); it != transferList->end(GET); it++)
     {
         Transfer *transfer = (*it);
@@ -38312,8 +38357,8 @@ MegaTransferDataPrivate::MegaTransferDataPrivate(TransferList *transferList, lon
     numDownloads = int(downloadTags.size());
 
     numUploads = int(transferList->transfers[PUT].size());
-    uploadTags.reserve(numUploads);
-    uploadPriorities.reserve(numUploads);
+    uploadTags.reserve(static_cast<size_t>(numUploads));
+    uploadPriorities.reserve(static_cast<size_t>(numUploads));
     for (auto it = transferList->begin(PUT); it != transferList->end(PUT); it++)
     {
         Transfer *transfer = (*it);
@@ -38362,22 +38407,22 @@ int MegaTransferDataPrivate::getNumUploads() const
 
 int MegaTransferDataPrivate::getDownloadTag(int i) const
 {
-    return downloadTags[i];
+    return downloadTags[static_cast<size_t>(i)];
 }
 
 int MegaTransferDataPrivate::getUploadTag(int i) const
 {
-    return uploadTags[i];
+    return uploadTags[static_cast<size_t>(i)];
 }
 
 unsigned long long MegaTransferDataPrivate::getDownloadPriority(int i) const
 {
-    return downloadPriorities[i];
+    return downloadPriorities[static_cast<size_t>(i)];
 }
 
 unsigned long long MegaTransferDataPrivate::getUploadPriority(int i) const
 {
-    return uploadPriorities[i];
+    return uploadPriorities[static_cast<size_t>(i)];
 }
 
 long long MegaTransferDataPrivate::getNotificationNumber() const
@@ -38614,11 +38659,11 @@ MegaIntegerList* MegaIntegerListPrivate::copy() const
 int64_t MegaIntegerListPrivate::get(int i) const
 {
     if (i >= static_cast<int>(mIntegers.size()))
-        {
-                return -1;
-        }
+    {
+        return -1;
+    }
 
-    return mIntegers.at(i);
+    return mIntegers.at(static_cast<size_t>(i));
 }
 
 void MegaIntegerListPrivate::add(long long i)
@@ -38689,7 +38734,8 @@ long long MegaAchievementsDetailsPrivate::getBaseStorage()
 
 long long MegaAchievementsDetailsPrivate::getClassStorage(int class_id)
 {
-    achievements_map::iterator it = details.achievements.find(class_id);
+    achievements_map::iterator it =
+        details.achievements.find(static_cast<achievement_class_id>(class_id));
     if (it != details.achievements.end())
     {
         return it->second.storage;
@@ -38700,7 +38746,8 @@ long long MegaAchievementsDetailsPrivate::getClassStorage(int class_id)
 
 long long MegaAchievementsDetailsPrivate::getClassTransfer(int class_id)
 {
-    achievements_map::iterator it = details.achievements.find(class_id);
+    achievements_map::iterator it =
+        details.achievements.find(static_cast<achievement_class_id>(class_id));
     if (it != details.achievements.end())
     {
         return it->second.transfer;
@@ -38711,7 +38758,8 @@ long long MegaAchievementsDetailsPrivate::getClassTransfer(int class_id)
 
 int MegaAchievementsDetailsPrivate::getClassExpire(int class_id)
 {
-    achievements_map::iterator it = details.achievements.find(class_id);
+    achievements_map::iterator it =
+        details.achievements.find(static_cast<achievement_class_id>(class_id));
     if (it != details.achievements.end())
     {
         return it->second.expire;
@@ -38729,7 +38777,7 @@ int MegaAchievementsDetailsPrivate::getAwardClass(unsigned int index)
 {
     if (index < details.awards.size())
     {
-        return details.awards.at(index).achievement_class;
+        return static_cast<int>(details.awards.at(index).achievement_class);
     }
 
     return 0;
@@ -39035,7 +39083,7 @@ const char *MegaTimeZoneDetailsPrivate::getTimeZone(int index) const
 {
     if (index >= 0 && index < int(timeZones.size()))
     {
-        return timeZones[index].c_str();
+        return timeZones[static_cast<size_t>(index)].c_str();
     }
     return "";
 }
@@ -39044,7 +39092,7 @@ int MegaTimeZoneDetailsPrivate::getTimeOffset(int index) const
 {
     if (index >= 0 && index < int(timeZoneOffsets.size()))
     {
-        return timeZoneOffsets[index];
+        return timeZoneOffsets[static_cast<size_t>(index)];
     }
     return 0;
 }
@@ -39919,12 +39967,12 @@ MegaFuseInodeCacheFlagsPrivate::MegaFuseInodeCacheFlagsPrivate(fuse::InodeCacheF
 
 size_t MegaFuseInodeCacheFlagsPrivate::getCleanAgeThreshold() const
 {
-    return mFlags.mCleanAgeThreshold.count();
+    return static_cast<size_t>(mFlags.mCleanAgeThreshold.count());
 }
 
 size_t MegaFuseInodeCacheFlagsPrivate::getCleanInterval() const
 {
-    return mFlags.mCleanInterval.count();
+    return static_cast<size_t>(mFlags.mCleanInterval.count());
 }
 
 size_t MegaFuseInodeCacheFlagsPrivate::getCleanSizeThreshold() const
@@ -39978,7 +40026,7 @@ const fuse::ServiceFlags& MegaFuseFlagsPrivate::getFlags() const
 
 size_t MegaFuseFlagsPrivate::getFlushDelay() const
 {
-    return mFlags.mFlushDelay.count();
+    return static_cast<size_t>(mFlags.mFlushDelay.count());
 }
 
 int MegaFuseFlagsPrivate::getLogLevel() const

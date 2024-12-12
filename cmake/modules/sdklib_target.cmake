@@ -419,7 +419,6 @@ if(ENABLE_SDKLIB_WERROR)
         set_source_files_properties( # Temporary until sign-conversion warnings are fixed on this files too (SDK-4567, SDK-4568 and SDK-4570)
             src/db/sqlite.cpp
             src/commands.cpp
-            src/megaapi_impl.cpp
             src/raid.cpp
             src/raidproxy.cpp
             src/transfer.cpp
