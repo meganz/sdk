@@ -7175,8 +7175,8 @@ void Sync::purgeStaleDownloads()
         }
 
         // Remove "dead" temporaries.
-        for (auto& path : paths)
-            client.fsaccess->unlinklocal(path);
+        for (const auto& tempPath: paths)
+            client.fsaccess->unlinklocal(tempPath);
     });
 }
 
@@ -8159,9 +8159,9 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
                                 LOG_debug << syncname << "Removing " << s->children.size() << " child LocalNodes from excluded " << s->getLocalPath();
                                 vector<LocalNode*> cs;
                                 cs.reserve(s->children.size());
-                                for (auto& i : s->children)
+                                for (auto& child: s->children)
                                 {
-                                    cs.push_back(i.second);
+                                    cs.push_back(child.second);
                                 }
                                 // this technique might seem a bit roundabout, but deletion will cause these to
                                 // remove themselves from s->children. // we can't have that happening while we iterate that map.
@@ -8528,7 +8528,10 @@ bool Sync::syncItem_checkMoves(SyncRow& row, SyncRow& parentRow, SyncPath& fullP
 
     // Don't try and synchronize special files.
     if (checkSpecialFile(row, parentRow, fullPath))
-        return row.itemProcessed = true, false;
+    {
+        row.itemProcessed = true;
+        return false;
+    }
 
     // First deal with detecting local moves/renames and propagating correspondingly
     // Independent of the syncItem() combos below so we don't have duplicate checks in those.
@@ -8542,7 +8545,6 @@ bool Sync::syncItem_checkMoves(SyncRow& row, SyncRow& parentRow, SyncPath& fullP
           row.syncNode->fsid_lastSynced != row.fsNode->fsid ||
           (mCaseInsensitive && row.hasCaseInsensitiveLocalNameChange())))
     {
-        bool rowResult;
         if (checkLocalPathForMovesRenames(row, parentRow, fullPath, rowResult, belowRemovedCloudNode))
         {
             row.itemProcessed = true;
@@ -8556,7 +8558,6 @@ bool Sync::syncItem_checkMoves(SyncRow& row, SyncRow& parentRow, SyncPath& fullP
           row.syncNode->syncedCloudNodeHandle != row.cloudNode->handle ||
           (mCaseInsensitive && row.hasCaseInsensitiveCloudNameChange())))
     {
-        bool rowResult;
         if (checkCloudPathForMovesRenames(row, parentRow, fullPath, rowResult, belowRemovedFsNode))
         {
             row.itemProcessed = true;
@@ -9285,7 +9286,7 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
     {
     case SRT_CSF:
     {
-        CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemCSF);
+        CodeCounter::ScopeTimer csfTime(syncs.mClient.performanceStats.syncItemCSF);
 
         // Are we part of a move and was our source a download-in-progress?
         resolve_checkMoveDownloadComplete(row, fullPath);
@@ -9359,7 +9360,7 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
     }
     case SRT_XSF:
     {
-        CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemXSF);
+        CodeCounter::ScopeTimer xsfTime(syncs.mClient.performanceStats.syncItemXSF);
 
         if (row.syncNode->type == TYPE_DONOTSYNC ||
             row.isLocalOnlyIgnoreFile() ||
@@ -9405,7 +9406,7 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
     }
     case SRT_CSX:
     {
-        CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemCSX);
+        CodeCounter::ScopeTimer csxTime(syncs.mClient.performanceStats.syncItemCSX);
 
         // local item not present
         if (isBackupAndMirroring())
@@ -9482,14 +9483,14 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
     }
     case SRT_XSX:
     {
-        CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemXSX);
+        CodeCounter::ScopeTimer xsxTime(syncs.mClient.performanceStats.syncItemXSX);
 
         // local and cloud disappeared; remove sync item also
         return resolve_delSyncNode(row, parentRow, fullPath, confirmDeleteCount);
     }
     case SRT_CXF:
     {
-        CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemCXF);
+        CodeCounter::ScopeTimer cxfTime(syncs.mClient.performanceStats.syncItemCXF);
 
         // we have to check both, due to the size parameter
         auto cloudside = parentRow.exclusionState(row.fsNode->localname, row.fsNode->type, row.fsNode->fingerprint.size);
@@ -9540,7 +9541,7 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
     }
     case SRT_XXF:
     {
-        CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemXXF);
+        CodeCounter::ScopeTimer xxfTime(syncs.mClient.performanceStats.syncItemXXF);
 
         // Don't create a sync node for this file unless we know that it's included.
         if (parentRow.exclusionState(*row.fsNode) != ES_INCLUDED)
@@ -9552,7 +9553,7 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
     }
     case SRT_CXX:
     {
-        CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemCXX);
+        CodeCounter::ScopeTimer cxxTime(syncs.mClient.performanceStats.syncItemCXX);
 
         // Don't create sync nodes unless we know the row is included.
         if (parentRow.exclusionState(*row.cloudNode) != ES_INCLUDED)

@@ -2465,7 +2465,8 @@ void MegaClient::exec()
                             if ((!pendingcs->mChunked && *pendingcs->in.c_str() == '[')
                                 || (pendingcs->mChunked && (reqs.chunkedProgress() || *pendingcs->in.c_str() == '[' || pendingcs->in.empty())))
                             {
-                                CodeCounter::ScopeTimer ccst(performanceStats.csSuccessProcessingTime);
+                                CodeCounter::ScopeTimer successProcessingTime(
+                                    performanceStats.csSuccessProcessingTime);
 
                                 if (fetchingnodes && fnstats.timeToFirstByte == NEVER)
                                 {
@@ -3166,7 +3167,7 @@ void MegaClient::exec()
 
         if (!syncs.clientThreadActions.empty())
         {
-            CodeCounter::ScopeTimer ccst(performanceStats.clientThreadActions);
+            CodeCounter::ScopeTimer clientActionTime(performanceStats.clientThreadActions);
 
             dstime ctr_start = waiter->ds;
             size_t ctr_N = 0;
@@ -16529,13 +16530,14 @@ void MegaClient::abortreads(handle h, bool p, m_off_t offset, m_off_t count)
     {
         drn = it->second;
 
-        for (dr_list::iterator it = drn->reads.begin(); it != drn->reads.end(); )
+        for (dr_list::iterator itRead = drn->reads.begin(); itRead != drn->reads.end();)
         {
-            if ((offset < 0 || offset == (*it)->offset) && (count < 0 || count == (*it)->count))
+            if ((offset < 0 || offset == (*itRead)->offset) &&
+                (count < 0 || count == (*itRead)->count))
             {
-                app->pread_failure(API_EINCOMPLETE, (*it)->drn->retries, (*it)->appdata, 0);
+                app->pread_failure(API_EINCOMPLETE, (*itRead)->drn->retries, (*itRead)->appdata, 0);
 
-                delete *(it++);
+                delete *(itRead++);
             }
             else it++;
         }
@@ -17658,8 +17660,8 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
             // Note that these multi_cachedtransfers always have an empty Files list, those are not attached when loading from db
             // Only the Transfer's own localpath field tells us the path it was uploading
 
-            auto range = multi_cachedtransfers[d].equal_range(f);
-            for (auto it = range.first; it != range.second; ++it)
+            auto rangeCached = multi_cachedtransfers[d].equal_range(f);
+            for (auto& it = rangeCached.first; it != rangeCached.second; ++it)
             {
                 assert(it->second->files.empty());
                 if (it->second->localfilename.empty()) continue;
@@ -17696,7 +17698,7 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
                 // got suspended (eg by app exit), and we are considering the File of one of the others
                 // than the actual file path that was being uploaded.
 
-                for (auto it = range.first; it != range.second; ++it)
+                for (auto& it = rangeCached.first; it != rangeCached.second; ++it)
                 {
                     assert(it->second->files.empty());
                     if (it->second->localfilename.empty()) continue;
