@@ -147,6 +147,7 @@ void NodeManager::reset_internal()
     assert(mMutex.owns_lock());
     setTable_internal(nullptr);
     cleanNodes_internal();
+    mNullRootNodesReported = false;
 }
 
 bool NodeManager::setrootnode(std::shared_ptr<Node> node)
@@ -333,6 +334,24 @@ bool NodeManager::updateNode_internal(Node *node)
     putNodeInDb(node);
 
     return true;
+}
+
+void NodeManager::reportNullRootNodes(const size_t rootNodesSize)
+{
+    if (mNullRootNodesReported)
+    {
+        return;
+    }
+
+    rootNodesSize >= rootnodes.MIN_NUM_ROOT_NODES ?
+        mClient.sendevent(99490, "Null rootnode/s detected", 0) :
+        mClient.sendevent(99491,
+                          "Null rootnode/s detected and wrong number of root nodes retrieved",
+                          0);
+    LOG_err << "getNodeCount_internal: Null rootnode/s detected. Number of root nodes: "
+            << rootNodesSize;
+    mNullRootNodesReported = true;
+    assert(false);
 }
 
 std::shared_ptr<Node> NodeManager::getNodeByHandle(NodeHandle handle)
@@ -599,10 +618,17 @@ uint64_t NodeManager::getNodeCount_internal()
     uint64_t count = 0;
     sharedNode_vector roots = getRootNodesAndInshares();
 
-    for (auto& node : roots)
+    for (auto& node: roots)
     {
-        NodeCounter nc = node->getCounter();
-        count += nc.files + nc.folders + nc.versions;
+        if (node)
+        {
+            NodeCounter nc = node->getCounter();
+            count += nc.files + nc.folders + nc.versions;
+        }
+        else
+        {
+            reportNullRootNodes(roots.size());
+        }
     }
 
     // add roots to the count if logged into account (and fetchnodes is done <- roots are ready)
