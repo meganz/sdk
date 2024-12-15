@@ -433,6 +433,16 @@ public:
     bool ready();
 
 private:
+    class NoKeyLogger
+    {
+    public:
+        void log(const Node& node) const;
+
+    private:
+        // How many no key nodes has been counted for logging
+        mutable std::atomic_int mCount{1};
+    };
+
     MegaClient& mClient;
 
 #if defined(DEBUG)
@@ -447,6 +457,9 @@ private:
 
     // interface to handle accesses to "nodes" table
     DBTableNodes* mTable = nullptr;
+
+    // logger with rate limitting for no key
+    static NoKeyLogger mNoKeyLogger;
 
     // root nodes (files, vault, rubbish)
     struct Rootnodes

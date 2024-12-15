@@ -1273,7 +1273,7 @@ bool SqliteAccountState::put(Node *node)
         sqlite3_bind_int64(mStmtPutNode, 1, node->nodehandle);
         sqlite3_bind_int64(mStmtPutNode, 2, node->parenthandle);
 
-        std::string name = node->displayname();
+        std::string name = node->displayname(Node::NO_LOG_NO_KEY);
         sqlite3_bind_text(mStmtPutNode, 3, name.c_str(), static_cast<int>(name.length()), SQLITE_STATIC);
 
         string fp;

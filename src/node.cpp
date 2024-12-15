@@ -986,10 +986,10 @@ bool Node::hasName() const
 }
 
 // return file/folder name or special status strings
-const char* Node::displayname() const
+const char* Node::displayname(NoLog log) const
 {
     // not yet decrypted
-    if (attrstring)
+    if (attrstring && !(log & NO_LOG_NO_KEY))
     {
         LOG_debug << NO_KEY << " " << type << " " << size << " " << Base64Str<MegaClient::NODEHANDLE>(nodehandle);
         return NO_KEY.c_str();
