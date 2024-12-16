@@ -5371,6 +5371,8 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
         return true;
     }
 
+    details->pro_until = 0;
+
     details->subscriptions.clear();
     details->plans.clear();
 
@@ -5524,6 +5526,12 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
 
             case MAKENAMEID3('r', 't', 't'):
                 details->transfer_hist_valid = !json.getint();
+                break;
+
+            case MAKENAMEID6('s', 'u', 'n', 't', 'i', 'l'):
+                // Expiration time of the latest PRO plan.
+                // This expiration time could be higher than the currently active PRO plan
+                details->pro_until = json.getint();
                 break;
 
             case MAKENAMEID7('b', 'a', 'l', 'a', 'n', 'c', 'e'):

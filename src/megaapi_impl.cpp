@@ -28481,15 +28481,7 @@ int MegaAccountDetailsPrivate::getProLevel()
 
 int64_t MegaAccountDetailsPrivate::getProExpiration()
 {
-    for (const auto& plan: details.plans)
-    {
-        if (plan.isProPlan())
-        {
-            return plan.expiration;
-        }
-    }
-
-    return MEGA_INVALID_TIMESTAMP;
+    return details.pro_until;
 }
 
 int MegaAccountDetailsPrivate::getSubscriptionStatus()

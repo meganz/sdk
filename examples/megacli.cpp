@@ -10431,7 +10431,7 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
             cout << endl;
         }
 
-        cout << "\tAccount Plans:" << endl;
+        cout << "\tAccount Active Plans:" << endl;
         for (const auto& plan: ad->plans)
         {
             cout << "\t\t* Plan details: " << endl;
@@ -10448,11 +10448,13 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
             cout << "\t\t\t Related subscription id: " << plan.subscriptionId << endl;
         }
 
+        cout << "\tLatest PRO plan expiration: " << ad->pro_until << endl;
+
         cout << "\tAccount balance:" << endl;
 
         for (vector<AccountBalance>::iterator it = ad->balances.begin(); it != ad->balances.end(); it++)
         {
-            printf("\tBalance: %.3s %.02f\n", it->currency, it->amount);
+            printf("\t\tBalance: %.3s %.02f\n", it->currency, it->amount);
         }
     }
 
