@@ -15904,7 +15904,7 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
     if (signatureType == ATTR_SIG_CU255_PUBK)
     {
         // retrieve public key whose signature wants to be verified, from cache
-        const UserAttribute* attribute = user->getAttribute(signatureType);
+        const UserAttribute* attribute = user->getAttribute(ATTR_CU25519_PUBK);
         if (!attribute || !attribute->isValid())
         {
             LOG_warn << "Failed to verify signature " << User::attr2string(signatureType)
