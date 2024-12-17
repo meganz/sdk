@@ -1813,7 +1813,7 @@ auto SqliteAccountState::getNodeTagsBelow(CancelToken cancelToken,
         auto* data = reinterpret_cast<const char*>(sqlite3_column_blob(mStmtNodeTagsBelow, 0));
 
         // How large is the node's delimited list of tags?
-        auto size = sqlite3_column_bytes(mStmtNodeTagsBelow, 0);
+        auto size = static_cast<std::size_t>(sqlite3_column_bytes(mStmtNodeTagsBelow, 0));
 
         // Delimited list of tags is null or empty.
         if (!data || !size)
