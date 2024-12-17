@@ -17,7 +17,6 @@ pipeline {
         string(name: 'SDK_BRANCH', defaultValue: 'develop', description: 'Define a custom SDK branch.')
     }
     environment {
-        gitlab_token = credentials('jenkins_sdk_token')
         SDK_BRANCH = "${params.SDK_BRANCH}"
     }
 
