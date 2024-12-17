@@ -1754,27 +1754,27 @@ auto SqliteAccountState::getNodeTagsBelow(CancelToken cancelToken,
     // Clarity.
     enum ParameterIndex
     {
-        PARAM_HAS_ROOT_HANDLE = 1,
-        PARAM_ROOT_HANDLE,
+        PARAM_HAS_NODE_HANDLE = 1,
+        PARAM_NODE_HANDLE,
         PARAM_HAS_PATTERN,
         PARAM_PATTERN
     }; // ParameterIndex
 
     // Let the query know if we have a search root.
-    result = sqlite3_bind_int64(mStmtNodeTagsBelow, PARAM_HAS_ROOT_HANDLE, !handle.isUndef());
+    result = sqlite3_bind_int64(mStmtNodeTagsBelow, PARAM_HAS_NODE_HANDLE, !handle.isUndef());
 
     // Couldn't bind parameter.
     if (result != API_OK)
-        return couldntBindParameter(PARAM_HAS_ROOT_HANDLE);
+        return couldntBindParameter(PARAM_HAS_NODE_HANDLE);
 
     // Let the query know which node we're searching below.
     result = sqlite3_bind_int64(mStmtNodeTagsBelow,
-                                PARAM_ROOT_HANDLE,
+                                PARAM_NODE_HANDLE,
                                 static_cast<std::int64_t>(handle.as8byte()));
 
     // Couldn't bind parameter.
     if (result != API_OK)
-        return couldntBindParameter(PARAM_ROOT_HANDLE);
+        return couldntBindParameter(PARAM_NODE_HANDLE);
 
     // Generate effective pattern.
     auto effectivePattern = ensureAsteriskSurround(pattern);
