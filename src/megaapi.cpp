@@ -2947,9 +2947,33 @@ void MegaApi::updateNodeTag(MegaNode* node, const char* newTag, const char* oldT
     pImpl->updateNodeTag(node, newTag, oldTag, listener);
 }
 
-MegaStringList* MegaApi::getAllNodeTags(const char* searchString, MegaCancelToken* cancelToken)
+MegaStringList* MegaApi::getAllNodeTags(const char* pattern, MegaCancelToken* cancelToken)
 {
-    return pImpl->getAllNodeTags(searchString, convertToCancelToken(cancelToken));
+    return getAllNodeTagsBelow(UNDEF, pattern, cancelToken);
+}
+
+MegaStringList* MegaApi::getAllNodeTagsBelow(const MegaNode* node,
+                                             const char* pattern,
+                                             MegaCancelToken* cancelToken)
+{
+    // Sanity.
+    assert(node);
+
+    // Caller's provided a sane node.
+    if (node)
+        return getAllNodeTagsBelow(node->getHandle(), pattern, cancelToken);
+
+    // Caller didn't provide a sane node.
+    return MegaStringList::createInstance();
+}
+
+MegaStringList* MegaApi::getAllNodeTagsBelow(MegaHandle handle,
+                                             const char* pattern,
+                                             MegaCancelToken* cancelToken)
+{
+    return pImpl->getAllNodeTagsBelow(handle,
+                                      pattern ? pattern : "",
+                                      convertToCancelToken(cancelToken));
 }
 
 void MegaApi::exportNode(MegaNode *node, MegaRequestListener *listener)

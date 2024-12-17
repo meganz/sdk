@@ -8592,7 +8592,9 @@ void MegaApiImpl::updateNodeTag(MegaNode* node, const char* newTag, const char* 
     CRUDNodeTagOperation(node, MegaApi::TAG_NODE_UPDATE, newTag, oldTag, listener);
 }
 
-MegaStringList* MegaApiImpl::getAllNodeTags(const char* searchString, CancelToken cancelToken)
+MegaStringList* MegaApiImpl::getAllNodeTagsBelow(MegaHandle handle,
+                                                 const std::string& pattern,
+                                                 CancelToken cancelToken)
 {
     // Try and retrieve all tags below this account's root nodes.
     auto tags = ([&]() {
@@ -8601,8 +8603,8 @@ MegaStringList* MegaApiImpl::getAllNodeTags(const char* searchString, CancelToke
 
         // Ask the client for the list of tags.
         return client->getNodeTagsBelow(std::move(cancelToken),
-                                        NodeHandle(),
-                                        searchString ? searchString : "");
+                                        NodeHandle().set6byte(handle),
+                                        pattern);
     })();
 
     // Couldn't get a list of tags.
