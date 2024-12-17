@@ -1830,7 +1830,7 @@ auto SqliteAccountState::getNodeTagsBelow(CancelToken cancelToken,
             auto j = i++;
 
             // Not interested in this node.
-            if (!pattern.empty() && !likeCompare(effectivePattern.c_str(), j->c_str(), 0))
+            if (!pattern.empty() && !likeCompare(effectivePattern.c_str(), j->c_str(), false))
                 continue;
 
             // Move tag into tags set.
