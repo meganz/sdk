@@ -4804,8 +4804,18 @@ static void listTags(const T& tags)
 
 void exec_tag_list_all(autocomplete::ACState&)
 {
-    // List all tags in this account.
-    listTags(client->mNodeManager.getAllNodeTags(nullptr, CancelToken()));
+    // Retrieve all tags in this account.
+    auto tags = client->getNodeTagsBelow(NodeHandle());
+
+    // No tags.
+    if (!tags)
+        return;
+
+    // Convenience.
+    using NaturalStringMultiSet = std::multiset<std::string, NaturalSortingComparator>;
+
+    // List tags in natural order.
+    listTags(NaturalStringMultiSet(tags->begin(), tags->end()));
 }
 
 void exec_tag_list_at(autocomplete::ACState& state)

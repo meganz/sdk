@@ -85,10 +85,6 @@ public:
     bool getChildren(const mega::NodeSearchFilter& filter, int order, std::vector<std::pair<NodeHandle, NodeSerialized>>& children, CancelToken cancelFlag, const NodeSearchPage& page) override;
     bool searchNodes(const mega::NodeSearchFilter& filter, int order, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag, const NodeSearchPage& page) override;
 
-    bool getAllNodeTags(const std::string& searchString,
-                        std::set<std::string>& tags,
-                        CancelToken cancelFlag) override;
-
     /*
      * @brief
      * Get all node tags below a specified node.
@@ -169,10 +165,6 @@ private:
     // Allow at least the following containers:
     bool processSqlQueryNodes(sqlite3_stmt *stmt, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& nodes);
 
-    bool processSqlQueryAllNodeTags(sqlite3_stmt* stmt,
-                                    std::set<std::string>& tags,
-                                    std::function<bool(const std::string&)> isValidTagF);
-
     // if add a new sqlite3_stmt update finalise()
     sqlite3_stmt* mStmtPutNode = nullptr;
     sqlite3_stmt* mStmtUpdateNode = nullptr;
@@ -186,7 +178,6 @@ private:
     sqlite3_stmt* mStmtNumChildren = nullptr;
     std::map<size_t, sqlite3_stmt*> mStmtGetChildren;
     std::map<size_t, sqlite3_stmt*> mStmtSearchNodes;
-    sqlite3_stmt* mStmtAllNodeTags = nullptr;
     sqlite3_stmt* mStmtNodeTagsBelow = nullptr;
     sqlite3_stmt* mStmtNodesByFp = nullptr;
     sqlite3_stmt* mStmtNodeByFp = nullptr;

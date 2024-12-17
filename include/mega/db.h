@@ -135,20 +135,6 @@ public:
     virtual bool searchNodes(const NodeSearchFilter& filter, int order, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag, const NodeSearchPage& page) = 0;
 
     /**
-     * @brief Retrieves all the different tags for all the nodes stored in the db and inserts them
-     * into the tags parameter.
-     *
-     * @param searchString If not empty, only tags containing it will be returned. It can contain
-     * wild cards (*).
-     * @param tags Output parameter to store the tags.
-     * @param cancelFlag to cancel the processing at any time
-     * @return true if no errors were encountered, false otherwise.
-     */
-    virtual bool getAllNodeTags(const std::string& searchString,
-                                std::set<std::string>& tags,
-                                CancelToken cancelFlag) = 0;
-
-    /**
      * @brief
      * Returns a set of all distinct tags below a set of specified parents.
      *

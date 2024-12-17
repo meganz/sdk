@@ -300,8 +300,6 @@ public:
 
     sharedNode_vector searchNodes(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page);
 
-    std::set<std::string> getAllNodeTags(const char* searchString, CancelToken cancelFlag);
-
     /*
      * @brief
      * Get all node tags below a specified node.
@@ -569,8 +567,6 @@ private:
     sharedNode_vector processUnserializedNodes(const std::vector<std::pair<NodeHandle, NodeSerialized>>& nodesFromTable, CancelToken cancelFlag);
     sharedNode_vector getChildren_internal(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page);
     sharedNode_vector getRecentNodes_internal(const NodeSearchPage& page, m_time_t since);
-
-    std::set<std::string> getAllNodeTags_internal(const char* searchString, CancelToken cancelFlag);
 
     // node temporary in memory, which will be removed upon write to DB
     std::shared_ptr<Node> mNodeToWriteInDb;

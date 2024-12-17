@@ -91,11 +91,6 @@ public:
         return false;
         //throw NotImplemented(__func__);
     }
-    bool getAllNodeTags(const std::string&, std::set<std::string>&, mega::CancelToken) override
-    {
-        return false;
-        // throw NotImplemented(__func__);
-    }
 
     auto getNodeTagsBelow(mega::CancelToken, mega::NodeHandle, const std::string&)
         -> std::optional<std::set<std::string>> override
