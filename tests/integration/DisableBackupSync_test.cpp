@@ -22,12 +22,16 @@ using namespace testing;
 
 /**
  * @class DisableBackupSync
- * @brief Test fixture that creates a backup sync waits until all the files have been uploaded and
+ * @brief Test fixture that creates a backup sync, waits until all the files have been uploaded and
  * then disables it.
  */
 class DisableBackupSync: public SdkTest
 {
 public:
+    static constexpr auto MAX_TIMEOUT = 3min; // Timeout for operations in this tests suite
+    static constexpr auto TIME_DELTA_CONSECUTIVE_TRIES = 10s; // Time to wait between consecutive
+                                                              // calls in a waitFor or some sleeps
+
     void SetUp() override
     {
         SdkTest::SetUp();
@@ -50,9 +54,9 @@ public:
     }
 
     /**
-     * @brief Waits until all direct successors from both remote and local roots of the sync matches
+     * @brief Waits until all direct successors from both remote and local roots of the sync match.
      *
-     * Asserts false if a timeout is overpassed.
+     * Asserts false if a timeout is exceeded.
      */
     void waitForSyncToMatchCloudAndLocal() const
     {
@@ -63,17 +67,17 @@ public:
             return childrenCloudName && Value(getLocalFirstChildrenNames(),
                                               UnorderedElementsAreArray(*childrenCloudName));
         };
-        ASSERT_TRUE(waitFor(areLocalAndCloudSynched, 3min, 10s));
+        ASSERT_TRUE(waitFor(areLocalAndCloudSynched, MAX_TIMEOUT, TIME_DELTA_CONSECUTIVE_TRIES));
     }
 
     /**
-     * @brief Resume the sync, wait for local and cloud to match assert it is running and there is
+     * @brief Resume the sync, wait for local and cloud to match assert it is running and there are
      * no stall issues.
      */
     void resumeAndValidateOK() const
     {
         ASSERT_TRUE(resumeSync(megaApi[0].get(), getBackupId()));
-        std::this_thread::sleep_for(10s);
+        std::this_thread::sleep_for(TIME_DELTA_CONSECUTIVE_TRIES);
         ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocal());
         ASSERT_EQ(getSyncRunState(), std::optional{MegaSync::RUNSTATE_RUNNING});
         ASSERT_TRUE(getStalls(megaApi[0].get()).empty());
@@ -92,7 +96,7 @@ public:
             const auto node = getNodeByPath(nodePath);
             return node && node->getSize() == nodeSize;
         };
-        waitFor(confirmSize, 3min, 10s);
+        waitFor(confirmSize, MAX_TIMEOUT, TIME_DELTA_CONSECUTIVE_TRIES);
     }
 
     /**
@@ -190,7 +194,7 @@ private:
         NiceMock<MockRequestListener> rl;
         rl.setErrorExpectations(API_OK);
         megaApi[0]->setUserAttribute(MegaApi::USER_ATTR_DEVICE_NAMES, devices.get(), &rl);
-        ASSERT_TRUE(rl.waitForFinishOrTimeout(3min));
+        ASSERT_TRUE(rl.waitForFinishOrTimeout(MAX_TIMEOUT));
     }
 };
 
@@ -236,9 +240,9 @@ TEST_F(DisableBackupSync, CreateNewLocalFile)
 
 /**
  * @brief DisableBackupSync.RenameLocalFile:
- * - Rename local file while the sync is disabled
- * - Resume it
- * - Confirm the movement is detected and the backup keeps running
+ * - Rename a local file while the sync is disabled.
+ * - Resume the sync.
+ * - Confirm that the move is detected and the backup keeps running.
  */
 TEST_F(DisableBackupSync, RenameLocalFile)
 {
