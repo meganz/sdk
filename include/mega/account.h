@@ -113,6 +113,10 @@ struct MEGA_API AccountDetails
 {
     vector<AccountSubscription> subscriptions;
 
+    // Expiration time of the latest PRO plan.
+    // This expiration time could be higher than the currently active PRO plan
+    m_time_t pro_until = 0;
+
     // quota related to the session account
     m_off_t storage_used = 0;
     m_off_t storage_max = 0;

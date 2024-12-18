@@ -24201,8 +24201,11 @@ public:
     virtual int getProLevel();
 
     /**
-     * @brief Get the expiration time for the current PRO plan
-     * @return Expiration time for the current PRO plan (in seconds since the Epoch)
+     * @brief Get the expiration time of the latest PRO plan
+     *
+     * The expiration time could be higher than the expiration time of the active PRO plan
+     *
+     * @return Expiration time for the latest PRO plan (in seconds since the Epoch)
      */
     virtual int64_t getProExpiration();
 
