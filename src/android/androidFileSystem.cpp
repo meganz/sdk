@@ -2,9 +2,9 @@
 #include <mega/filesystem.h>
 #include <mega/logging.h>
 
-extern jclass fileWrapper;
-extern jclass integerClass;
-extern JavaVM* MEGAjvm;
+jclass fileWrapper = nullptr;
+jclass integerClass = nullptr;
+JavaVM* MEGAjvm = nullptr;
 
 namespace mega
 {
