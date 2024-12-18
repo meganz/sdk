@@ -526,6 +526,7 @@ class ReleaseProcess:
         assert self._jira
         assert self._version_v_prefixed
         self._jira.create_new_version_for_patch(self._version_v_prefixed, for_apps)
+        self._jira.setup_release(self._version_v_prefixed)
 
     def add_fix_version_to_tickets(self, tickets: list[str]):
         assert self._jira
