@@ -204,14 +204,15 @@ private:
     std::unique_ptr<std::list<Command*>> chain;
 };
 
-
 // filesystem node
 struct MEGA_API Node : public NodeCore, FileFingerprint
 {
     // Define what shouldn't be logged
-    using NoLog = uint32_t;
-    static constexpr uint32_t NO_LOG_NONE = 0; // NONE: all is logged
-    static constexpr uint32_t NO_LOG_NO_KEY = 1; // NO KEY
+    enum LogCondition : uint32_t
+    {
+        LOG_CONDITION_NONE = 0, // NONE: all is logged
+        LOG_CONDITION_DISABLE_NO_KEY = 1 // NO KEY is not logged
+    };
 
     static const std::string BLANK;
     static const std::string CRYPTO_ERROR;
@@ -265,7 +266,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     void setattr();
 
     // display name (UTF-8)
-    const char* displayname(NoLog log = NO_LOG_NONE) const;
+    const char* displayname(LogCondition log = LOG_CONDITION_NONE) const;
 
     // check if the name matches (UTF-8)
     bool hasName(const string&) const;
