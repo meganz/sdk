@@ -20,13 +20,15 @@
  */
 
 #include "mega/nodemanager.h"
-#include "mega/megaclient.h"
+
 #include "mega/base64.h"
 #include "mega/megaapp.h"
+#include "mega/megaclient.h"
 #include "mega/share.h"
 
-
 namespace mega {
+
+NodeManager::NoKeyLogger NodeManager::mNoKeyLogger{};
 
 bool NodeSearchFilter::isValidNodeType(const nodetype_t nodeType) const
 {
@@ -115,6 +117,17 @@ bool NodeSearchFilter::isDocType(const MimeType_t t)
             return true;
         default:
             return false;
+    }
+}
+
+// Log the first 256 entries and then every 256 entries
+void NodeManager::NoKeyLogger::log(const Node& n) const
+{
+    auto current = mCount.fetch_add(1);
+    if (current <= 256 || (current % 256 == 0))
+    {
+        LOG_debug << "Storing an encrypted node[" << current << "]: " << n.type << " " << n.size
+                  << " " << Base64Str<MegaClient::NODEHANDLE>(n.nodehandle);
     }
 }
 
@@ -1454,13 +1467,6 @@ void NodeManager::notifyPurge()
         {
             std::shared_ptr<Node> n = nodesToReport[i];
 
-            if (n->attrstring)
-            {
-                // make this just a warning to avoid auto test failure
-                // this can happen if another client adds a folder in our share and the key for us is not available yet
-                LOG_warn << "NO_KEY node: " << n->type << " " << n->size << " " << toNodeHandle(n->nodehandle) << " " << n->nodekeyUnchecked().size();
-            }
-
             if (n->changed.removed)
             {
                 // remove inbound share
@@ -2176,13 +2182,12 @@ void NodeManager::putNodeInDb(Node* node) const
     if (node->attrstring)
     {
         // Last attempt to decrypt the node before storing it.
-        LOG_debug << "Trying to store an encrypted node";
         node->applykey();
         node->setattr();
 
         if (node->attrstring)
         {
-            LOG_debug << "Storing an encrypted node.";
+            mNoKeyLogger.log(*node);
         }
     }
 
