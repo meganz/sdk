@@ -1398,9 +1398,9 @@ bool DirectReadSlot::processAnyOutputPieces()
     while (continueDirectRead && (outputPiece = mDr->drbuf.getAsyncOutputBufferPointer(0)))
     {
         size_t len = outputPiece->buf.datalen();
-        mSpeed = mSpeedController.calculateSpeed(len);
+        mSpeed = mSpeedController.calculateSpeed(static_cast<m_off_t>(len));
         mMeanSpeed = mSpeedController.getMeanSpeed();
-        mDr->drn->client->httpio->updatedownloadspeed(len);
+        mDr->drn->client->httpio->updatedownloadspeed(static_cast<m_off_t>(len));
 
         if (mDr->appdata)
         {
@@ -1410,7 +1410,12 @@ bool DirectReadSlot::processAnyOutputPieces()
             LOG_verbose << "DirectReadSlot -> Delivering assembled part ->"
                         << "len = " << len << ", speed = " << mSpeed << ", meanSpeed = " << (mMeanSpeed / 1024) << " KB/s"
                         << ", slotThroughput = " << ((calcThroughput(mSlotThroughput.first, mSlotThroughput.second) * 1000) / 1024) << " KB/s]" << " [this = " << this << "]";
-            continueDirectRead = mDr->drn->client->app->pread_data(outputPiece->buf.datastart(), len, mPos, mSpeed, mMeanSpeed, mDr->appdata);
+            continueDirectRead = mDr->drn->client->app->pread_data(outputPiece->buf.datastart(),
+                                                                   static_cast<m_off_t>(len),
+                                                                   mPos,
+                                                                   mSpeed,
+                                                                   mMeanSpeed,
+                                                                   mDr->appdata);
         }
         else
         {
@@ -1897,17 +1902,21 @@ bool DirectReadSlot::doio()
 {
     bool isRaid = mDr->drbuf.isRaid();
     unsigned numParts = isRaid ? EFFECTIVE_RAIDPARTS : 1;
-    unsigned minSpeedPerConnection = mDr->drn->client->minstreamingrate < 0 ? // Default limit
-                                        (MIN_BYTES_PER_SECOND / numParts) :
-                                     mDr->drn->client->minstreamingrate > 0 ? // Custom limit
-                                        (mDr->drn->client->minstreamingrate / numParts) :
-                                        1; // No limit (1 B/s)
-    if (isRaid) { minSpeedPerConnection = (minSpeedPerConnection + RAIDSECTOR - 1) & - RAIDSECTOR; } // round up to a RAIDSECTOR divisible value
-    for (int connectionNum = static_cast<int>(mReqs.size()); connectionNum--; )
+    unsigned minSpeedPerConnection =
+        mDr->drn->client->minstreamingrate < 0 ? // Default limit
+            (MIN_BYTES_PER_SECOND / numParts) :
+            mDr->drn->client->minstreamingrate > 0 ? // Custom limit
+                (static_cast<unsigned>(mDr->drn->client->minstreamingrate) / numParts) :
+                1; // No limit (1 B/s)
+    if (isRaid)
+    {
+        minSpeedPerConnection =
+            (minSpeedPerConnection + RAIDSECTOR - 1) & ~(static_cast<unsigned>(RAIDSECTOR) - 1);
+    } // round up to a RAIDSECTOR divisible value
+    for (unsigned int connectionNum = static_cast<unsigned int>(mReqs.size()); connectionNum--;)
     {
         std::unique_ptr<HttpReq>& req = mReqs[connectionNum];
-        bool isNotUnusedConnection =
-            !isRaid || (static_cast<unsigned>(connectionNum) != mUnusedConn.getNum());
+        bool isNotUnusedConnection = !isRaid || (connectionNum != mUnusedConn.getNum());
         bool submitCondition = req && isNotUnusedConnection &&
                                (req->status == REQ_INFLIGHT || req->status == REQ_SUCCESS);
 
@@ -2490,10 +2499,11 @@ void TransferList::movetransfer(transfer_list::iterator it, transfer_list::itera
     {
         LOG_warn << "There is no space for the move. Adjusting priorities.";
         int positions = dstindex;
-        uint64_t fixedPriority = transfers[transfer->type][0]->priority - PRIORITY_STEP * (positions + 1);
+        uint64_t fixedPriority = transfers[transfer->type][0]->priority -
+                                 PRIORITY_STEP * (static_cast<uint64_t>(positions) + 1);
         for (int i = 0; i < positions; i++)
         {
-            Transfer *t = transfers[transfer->type][i];
+            Transfer* t = transfers[transfer->type][static_cast<size_t>(i)];
             LOG_debug << "Adjusting priority of transfer " << i << " to " << fixedPriority;
             t->priority = fixedPriority;
             client->transfercacheadd(t, &committer);

@@ -419,8 +419,6 @@ if(ENABLE_SDKLIB_WERROR)
         set_source_files_properties( # Temporary until sign-conversion warnings are fixed on this files too (SDK-4567, SDK-4568 and SDK-4570)
             src/raid.cpp
             src/raidproxy.cpp
-            src/transfer.cpp
-            src/transferslot.cpp
             PROPERTIES 
             COMPILE_FLAGS "-Wno-sign-conversion"
         )
