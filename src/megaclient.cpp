@@ -6145,6 +6145,13 @@ bool MegaClient::setstoragestatus(storagestatus_t status)
 
         app->notify_storage(ststatus);
 
+#ifdef ENABLE_SYNC
+        if (status == STORAGE_RED || status == STORAGE_PAYWALL) // transitioning to OQ
+        {
+            syncs.disableSyncs(STORAGE_OVERQUOTA, false, true);
+        }
+#endif
+
         switch (previousStatus)
         {
         case STORAGE_UNKNOWN:
@@ -6161,9 +6168,6 @@ bool MegaClient::setstoragestatus(storagestatus_t status)
         // fall-through
         case STORAGE_RED:
             // Transition from OQ.
-#ifdef ENABLE_SYNC
-            syncs.disableSyncs(STORAGE_OVERQUOTA, false, true);
-#endif
             abortbackoff(true);
         default:
             break;
