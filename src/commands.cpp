@@ -49,7 +49,7 @@ CommandPutFA::CommandPutFA(NodeOrUploadHandle cth,
     mCompletion(std::move(completion))
 {
     cmd("ufa");
-    arg("s", size);
+    arg("s", static_cast<m_off_t>(size));
 
     if (cth.isNodeHandle())
     {
@@ -903,7 +903,9 @@ bool CommandGetFile::procresult(Result r, JSON& json)
                 // decrypt at and set filename
                 SymmCipher * cipherer = client->getRecycledTemporaryTransferCipher(filekey, mFileKeyType);
                 const char* eos = strchr(at, '"');
-                buf.reset(Node::decryptattr(cipherer, at, eos ? eos - at : strlen(at)));
+                buf.reset(Node::decryptattr(cipherer,
+                                            at,
+                                            eos ? static_cast<size_t>(eos - at) : strlen(at)));
                 if (!buf)
                 {
                     callFailedCompletion(API_EKEY);
@@ -1947,7 +1949,7 @@ bool CommandLogin::procresult(Result r, JSON& json)
 
                     // account does not have an RSA keypair set: verify
                     // password using symmetric challenge
-                    if (!client->checktsid(sidbuf, len_tsid))
+                    if (!client->checktsid(sidbuf, static_cast<unsigned int>(len_tsid)))
                     {
                         LOG_warn << "Error checking tsid";
                         client->loginResult(std::move(mCompletion), API_ENOENT);
@@ -1978,9 +1980,10 @@ bool CommandLogin::procresult(Result r, JSON& json)
                     else
                     {
                         // decrypt and set private key
-                        client->key.ecb_decrypt(privkbuf, len_privk);
+                        client->key.ecb_decrypt(privkbuf, static_cast<size_t>(len_privk));
                         client->mPrivKey.resize(AsymmCipher::MAXKEYLENGTH * 2);
-                        client->mPrivKey.resize(Base64::btoa(privkbuf, len_privk, (char *)client->mPrivKey.data()));
+                        client->mPrivKey.resize(static_cast<size_t>(
+                            Base64::btoa(privkbuf, len_privk, (char*)client->mPrivKey.data())));
 
                         if (!client->asymkey.setkey(AsymmCipher::PRIVKEY, privkbuf, len_privk))
                         {
@@ -2001,10 +2004,16 @@ bool CommandLogin::procresult(Result r, JSON& json)
                         byte buf[sizeof me];
 
                         // decrypt and set session ID for subsequent API communication
-                        if (!client->asymkey.decrypt(sidbuf, len_csid, sidbuf, MegaClient::SIDLEN)
-                                // additionally, check that the user's handle included in the session matches the own user's handle (me)
-                                || (Base64::atob((char*)sidbuf + SymmCipher::KEYLENGTH, buf, sizeof buf) != sizeof buf)
-                                || (me != MemAccess::get<handle>((const char*)buf)))
+                        if (!client->asymkey.decrypt(sidbuf,
+                                                     static_cast<size_t>(len_csid),
+                                                     sidbuf,
+                                                     MegaClient::SIDLEN)
+                            // additionally, check that the user's handle included in the session
+                            // matches the own user's handle (me)
+                            ||
+                            (Base64::atob((char*)sidbuf + SymmCipher::KEYLENGTH, buf, sizeof buf) !=
+                             sizeof buf) ||
+                            (me != MemAccess::get<handle>((const char*)buf)))
                         {
                             client->loginResult(std::move(mCompletion), API_EINTERNAL);
                             return true;
@@ -2873,7 +2882,7 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                                 break;
                             }
                             case MAKENAMEID4('m', 'i', 'n', 'u'):   // minimum number of user required to purchase
-                                bizPlan->minUsers = static_cast<int>(json.getint());
+                                bizPlan->minUsers = json.getuint32();
                                 break;
                             case EOO:
                                 readingBd = false;
@@ -3326,7 +3335,7 @@ CommandPutUAVer::CommandPutUAVer(MegaClient* client, attr_t at, const byte* av, 
     }
     else
     {
-        element(av, avl);
+        element(av, static_cast<int>(avl));
     }
 
     const UserAttribute* attribute = client->ownuser()->getAttribute(at);
@@ -3362,14 +3371,15 @@ bool CommandPutUAVer::procresult(Result r, JSON& json)
             mCompletion(API_EINTERNAL);
             return false;
         }
-        attr_t attributeType = User::string2attr(string(ptr, (end - ptr)).c_str());
+        attr_t attributeType =
+            User::string2attr(string(ptr, static_cast<size_t>(end - ptr)).c_str());
 
         if (!(ptr = json.getvalue()) || !(end = strchr(ptr, '"')))
         {
             mCompletion(API_EINTERNAL);
             return false;
         }
-        string v = string(ptr, (end-ptr));
+        string v = string(ptr, static_cast<size_t>(end - ptr));
 
         if (attributeType == ATTR_UNKNOWN || v.empty() || (at != attributeType))
         {
@@ -3432,11 +3442,11 @@ CommandPutUA::CommandPutUA(MegaClient* /*client*/, attr_t at, const byte* av, un
     // if removing avatar, do not Base64 encode the attribute value
     if (at == ATTR_AVATAR && !strcmp((const char *)av, "none"))
     {
-        arg(an.c_str(),(const char *)av, avl);
+        arg(an.c_str(), (const char*)av, static_cast<int>(avl));
     }
     else
     {
-        arg(an.c_str(), av, avl);
+        arg(an.c_str(), av, static_cast<int>(avl));
     }
 
     if (!ISUNDEF(lph))
@@ -3467,14 +3477,15 @@ bool CommandPutUA::procresult(Result r, JSON& json)
             mCompletion(API_EINTERNAL);
             return false;
         }
-        attr_t attributeType = User::string2attr(string(ptr, (end - ptr)).c_str());
+        attr_t attributeType =
+            User::string2attr(string(ptr, static_cast<size_t>(end - ptr)).c_str());
 
         if (!(ptr = json.getvalue()) || !(end = strchr(ptr, '"')))
         {
             mCompletion(API_EINTERNAL);
             return false;
         }
-        string v = string(ptr, (end - ptr));
+        string v = string(ptr, static_cast<size_t>(end - ptr));
 
         if (attributeType == ATTR_UNKNOWN || v.empty() || (at != attributeType))
         {
@@ -3639,7 +3650,7 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                         mCompletionErr(API_EINTERNAL);
                         return false;
                     }
-                    buf.assign(ptr, (end-ptr));
+                    buf.assign(ptr, static_cast<size_t>(end - ptr));
                     break;
                 }
                 case 'v':
@@ -3649,7 +3660,7 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                         mCompletionErr(API_EINTERNAL);
                         return false;
                     }
-                    version.assign(ptr, (end-ptr));
+                    version.assign(ptr, static_cast<size_t>(end - ptr));
                     break;
                 }
                 case EOO:
@@ -3668,7 +3679,8 @@ bool CommandGetUA::procresult(Result r, JSON& json)
 
                     // convert from ASCII to binary the received data
                     value.resize(buf.size() / 4 * 3 + 3);
-                    value.resize(Base64::atob(buf.data(), (byte *)value.data(), int(value.size())));
+                    value.resize(static_cast<size_t>(
+                        Base64::atob(buf.data(), (byte*)value.data(), int(value.size()))));
 
                     // Some attributes don't keep historic records, ie. *!authring or *!lstint
                     // (none of those attributes are used by the SDK yet)
@@ -3837,7 +3849,7 @@ bool CommandDelUA::procresult(Result r, JSON& json)
 
         User *u = client->ownuser();
         attr_t at = User::string2attr(an.c_str());
-        string version(ptr, (end-ptr));
+        string version(ptr, static_cast<size_t>(end - ptr));
 
         // store version in order to avoid double users update from corresponding AP
         u->removeAttributeUpdateVersion(at, version);
@@ -3988,7 +4000,7 @@ CommandKeyCR::CommandKeyCR(MegaClient* /*client*/, sharedNode_vector* rshares, s
     beginarray();
     for (int i = 0; i < (int)rshares->size(); i++)
     {
-        element((*rshares)[i]->nodehandle, MegaClient::NODEHANDLE);
+        element((*rshares)[static_cast<size_t>(i)]->nodehandle, MegaClient::NODEHANDLE);
     }
 
     endarray();
@@ -3996,7 +4008,7 @@ CommandKeyCR::CommandKeyCR(MegaClient* /*client*/, sharedNode_vector* rshares, s
     beginarray();
     for (int i = 0; i < (int)rnodes->size(); i++)
     {
-        element((*rnodes)[i]->nodehandle, MegaClient::NODEHANDLE);
+        element((*rnodes)[static_cast<size_t>(i)]->nodehandle, MegaClient::NODEHANDLE);
     }
 
     endarray();
@@ -4608,9 +4620,10 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
             if (len_privk)
             {
-                client->key.ecb_decrypt(privkbuf, len_privk);
+                client->key.ecb_decrypt(privkbuf, static_cast<size_t>(len_privk));
                 privk.resize(AsymmCipher::MAXKEYLENGTH * 2);
-                privk.resize(Base64::btoa(privkbuf, len_privk, (char *)privk.data()));
+                privk.resize(
+                    static_cast<size_t>(Base64::btoa(privkbuf, len_privk, (char*)privk.data())));
 
                 // RSA private key should be already assigned at login
                 assert(privk == client->mPrivKey);
@@ -5462,7 +5475,7 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
                         ns->files = uint32_t(json.getint());
                         ns->folders = uint32_t(json.getint());
                         ns->version_bytes = json.getint();
-                        ns->version_files = json.getint32();
+                        ns->version_files = static_cast<uint32_t>(json.getint32());
 
 #ifdef _DEBUG
                         // TODO: remove this debugging block once local count is confirmed to work correctly 100%
@@ -6264,7 +6277,8 @@ bool CommandGetPH::procresult(Result r, JSON& json)
                 // we want at least the attributes
                 if (s >= 0)
                 {
-                    a.resize(Base64::atob(a.c_str(), (byte*)a.data(), int(a.size())));
+                    a.resize(static_cast<size_t>(
+                        Base64::atob(a.c_str(), (byte*)a.data(), int(a.size()))));
 
                     if (op == 2)    // importing WelcomePDF for new account
                     {
@@ -6599,7 +6613,7 @@ CommandConfirmSignupLink2::CommandConfirmSignupLink2(MegaClient* client,
     mSeqtagArray = true;
 
     cmd("ud2");
-    arg("c", code, len);
+    arg("c", code, static_cast<int>(len));
 
     tag = client->reqtag;
 }
@@ -6645,8 +6659,8 @@ CommandSetKeyPair::CommandSetKeyPair(MegaClient* client, const byte* privk,
     mSeqtagArray = true;
 
     cmd("up");
-    arg("privk", privk, privklen);
-    arg("pubk", pubk, pubklen);
+    arg("privk", privk, static_cast<int>(privklen));
+    arg("pubk", pubk, static_cast<int>(pubklen));
 
     tag = client->reqtag;
 
@@ -6663,7 +6677,9 @@ bool CommandSetKeyPair::procresult(Result r, JSON& json)
 
         client->key.ecb_decrypt(privkBuffer.get(), len);
         client->mPrivKey.resize(AsymmCipher::MAXKEYLENGTH * 2);
-        client->mPrivKey.resize(Base64::btoa(privkBuffer.get(), len, (char *)client->mPrivKey.data()));
+        client->mPrivKey.resize(static_cast<size_t>(Base64::btoa(privkBuffer.get(),
+                                                                 static_cast<int>(len),
+                                                                 (char*)client->mPrivKey.data())));
 
         client->app->setkeypair_result(API_OK);
         return true;
@@ -7211,7 +7227,7 @@ bool CommandFetchNodes::parsingFinished()
 
     WAIT_CLASS::bumpds();
     client->fnstats.timeToCached = Waiter::ds - client->fnstats.startTime;
-    client->fnstats.nodesCached = client->mNodeManager.getNodeCount();
+    client->fnstats.nodesCached = static_cast<long long>(client->mNodeManager.getNodeCount());
 #ifdef ENABLE_SYNC
     if (mLoadSyncs)
         client->syncs.loadSyncConfigsOnFetchnodesComplete(true);
@@ -7413,14 +7429,18 @@ bool CommandCopySession::procresult(Result r, JSON& json)
                     return false;
                 }
 
-                if (!client->asymkey.decrypt(sidbuf, len_csid, sidbuf, MegaClient::SIDLEN))
+                if (!client->asymkey.decrypt(sidbuf,
+                                             static_cast<size_t>(len_csid),
+                                             sidbuf,
+                                             MegaClient::SIDLEN))
                 {
                     client->app->copysession_result(NULL, API_EINTERNAL);
                     return false;
                 }
 
                 session.resize(MegaClient::SIDLEN * 4 / 3 + 4);
-                session.resize(Base64::btoa(sidbuf, MegaClient::SIDLEN, (char *)session.data()));
+                session.resize(static_cast<size_t>(
+                    Base64::btoa(sidbuf, MegaClient::SIDLEN, (char*)session.data())));
                 client->app->copysession_result(&session, API_OK);
                 return true;
 
@@ -7706,7 +7726,9 @@ bool CommandGetPrivateKey::procresult(Result r, JSON& json)
         }
         else
         {
-            client->app->getprivatekey_result((error)API_OK, privkbuf, len_privk);
+            client->app->getprivatekey_result((error)API_OK,
+                                              privkbuf,
+                                              static_cast<size_t>(len_privk));
             return true;
         }
     }
@@ -9301,7 +9323,7 @@ bool CommandGetWelcomePDF::procresult(Result r, JSON& json)
                     LOG_err << "Failed to import welcome PDF: invalid response";
                     return false;
                 }
-                key.assign((const char *) keybuf, len_key);
+                key.assign((const char*)keybuf, static_cast<size_t>(len_key));
                 client->reqs.add(new CommandGetPH(client, ph, (const byte*) key.data(), 2));
                 if (client->wasWelcomePdfImportDelayed())
                 {
@@ -9692,7 +9714,7 @@ bool CommandFetchTimeZone::procresult(Result r, JSON& json)
                 {
                     for (int i = 0; i < (int)timezones.size(); i++)
                     {
-                        if (timezones[i] == defaulttz)
+                        if (timezones[static_cast<size_t>(i)] == defaulttz)
                         {
                             defaulttzindex = i;
                             break;
@@ -9751,7 +9773,7 @@ bool CommandSMSVerificationSend::isPhoneNumber(const string& s)
 {
     for (auto i = s.size(); i--; )
     {
-        if (!(is_digit(s[i]) || (i == 0 && s[i] == '+')))
+        if (!(is_digit(static_cast<unsigned int>(s[i])) || (i == 0 && s[i] == '+')))
         {
             return false;
         }
@@ -9784,7 +9806,7 @@ bool CommandSMSVerificationCheck::isVerificationCode(const string& s)
 {
     for (const char c : s)
     {
-        if (!is_digit(c))
+        if (!is_digit(static_cast<unsigned int>(c)))
         {
             return false;
         }
@@ -9985,10 +10007,10 @@ bool CommandFolderLinkInfo::procresult(Result r, JSON& json)
                                                &attr,
                                                &key,
                                                currentSize,
-                                               numFiles,
-                                               numFolders,
+                                               static_cast<uint32_t>(numFiles),
+                                               static_cast<uint32_t>(numFolders),
                                                versionsSize,
-                                               numVersions);
+                                               static_cast<uint32_t>(numVersions));
             return true;
 
         default:
@@ -10204,14 +10226,30 @@ bool CommandBackupSyncFetch::procresult(Result r, JSON& json)
                             if (nid == EOO) break;
                             switch (nid)
                             {
-                            case MAKENAMEID2('t', 's'):     d.hbTimestamp = json.getint(); break;
-                            case MAKENAMEID1('s'):          d.hbStatus = json.getint32(); break;
-                            case MAKENAMEID1('p'):          d.hbProgress = json.getint32(); break;
-                            case MAKENAMEID2('q', 'u'):     d.uploads = json.getint32(); break;
-                            case MAKENAMEID2('q', 'd'):     d.downloads = json.getint32(); break;
-                            case MAKENAMEID3('l', 't', 's'):d.lastActivityTs = json.getint32(); break;
-                            case MAKENAMEID2('l', 'h'):     d.lastSyncedNodeHandle = json.gethandle(MegaClient::NODEHANDLE); break;
-                            default: if (!skipUnknownField()) return false;
+                                case MAKENAMEID2('t', 's'):
+                                    d.hbTimestamp = json.getuint64();
+                                    break;
+                                case MAKENAMEID1('s'):
+                                    d.hbStatus = json.getint32();
+                                    break;
+                                case MAKENAMEID1('p'):
+                                    d.hbProgress = json.getint32();
+                                    break;
+                                case MAKENAMEID2('q', 'u'):
+                                    d.uploads = json.getint32();
+                                    break;
+                                case MAKENAMEID2('q', 'd'):
+                                    d.downloads = json.getint32();
+                                    break;
+                                case MAKENAMEID3('l', 't', 's'):
+                                    d.lastActivityTs = json.getuint64();
+                                    break;
+                                case MAKENAMEID2('l', 'h'):
+                                    d.lastSyncedNodeHandle = json.gethandle(MegaClient::NODEHANDLE);
+                                    break;
+                                default:
+                                    if (!skipUnknownField())
+                                        return false;
                             }
                         }
                         if (cantLeaveObject()) return false;
@@ -11441,7 +11479,7 @@ CommandFetchAds::CommandFetchAds(MegaClient* client, int adFlags, const std::vec
 
     if (!ISUNDEF(publicHandle))
     {
-        arg("p", publicHandle);
+        arg("p", static_cast<m_off_t>(publicHandle));
     }
 
     beginarray("au");
@@ -11482,7 +11520,7 @@ CommandQueryAds::CommandQueryAds(MegaClient* client, int adFlags, handle publicH
     arg("ad", adFlags);
     if (!ISUNDEF(publicHandle))
     {
-        arg("ph", publicHandle);
+        arg("ph", static_cast<m_off_t>(publicHandle));
     }
 
     tag = client->reqtag;

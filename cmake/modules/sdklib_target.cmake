@@ -417,13 +417,10 @@ if(ENABLE_SDKLIB_WERROR)
     endif()
     if(APPLE)
         set_source_files_properties( # Temporary until sign-conversion warnings are fixed on this files too (SDK-4567, SDK-4568 and SDK-4570)
-            src/db/sqlite.cpp
-            src/commands.cpp
             src/raid.cpp
             src/raidproxy.cpp
             src/transfer.cpp
             src/transferslot.cpp
-            src/utils.cpp
             PROPERTIES 
             COMPILE_FLAGS "-Wno-sign-conversion"
         )
