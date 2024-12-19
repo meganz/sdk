@@ -183,9 +183,9 @@ public:
     }
 
     /**
-     * @brief Waits until all direct successors from both remote and local roots of the sync matches
+     * @brief Waits until all direct successors from both remote and local roots of the sync match.
      *
-     * Asserts false if a timeout is overpassed.
+     * Asserts false if a timeout is exceeded.
      */
     void waitForSyncToMatchCloudAndLocal()
     {

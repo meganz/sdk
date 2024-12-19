@@ -338,11 +338,6 @@ struct MEGA_API MegaApp
     virtual void syncupdate_treestate(const SyncConfig &, const LocalPath&, treestate_t, nodetype_t) { }
     virtual bool isSyncStalledChanged() { return false; } // flag for syncupdate_totalstalls or syncupdate_totalstalls is set
 
-#ifdef DEBUG
-    // Called right before the sync engine processes a filesystem notification.
-    virtual void syncdebug_notification(const SyncConfig&, int /*queue*/, const Notification&){};
-#endif // DEBUG
-
     // after a root node of a sync changed its path
     virtual void syncupdate_remote_root_changed(const SyncConfig &) { }
 

@@ -62,6 +62,20 @@ std::unique_ptr<::mega::MegaSync> waitForSyncState(::mega::MegaApi* megaApi,
                           const ::mega::MegaHandle remoteRootHandle);
 
 /**
+ * @brief Synchronously start a BACKUP sync with the given local path
+ *
+ * It will also wait until the new sync is in RUNSTATE_RUNNING state.
+ *
+ * @param megaApi The api to request the sync creation
+ * @param localRootPath The local path to backup
+ * @param backupName The name of the backup. By default, it will use the name of the root directory
+ * @return The backupId of the new sync.
+ */
+::mega::handle backupFolder(::mega::MegaApi* megaApi,
+                            const std::string& localRootPath,
+                            const std::string& backupName = "");
+
+/**
  * @brief Synchronously removes the sync with the given backupId
  *
  * @return true if the operation succeed, false otherwise
@@ -113,6 +127,15 @@ std::vector<std::unique_ptr<::mega::MegaSyncStall>> getStalls(::mega::MegaApi* m
  */
 std::optional<std::vector<std::string>>
     getCloudFirstChildrenNames(::mega::MegaApi* megaApi, const ::mega::MegaHandle nodeHandle);
+
+/**
+ * @brief Get the map resulting from invoking
+ * MegaApi::getUserAttribute(MegaApi::USER_ATTR_DEVICE_NAMES) and put it in the output parameter.
+ *
+ * This function `ASSERT`s on the result from the internal request and also it asserts false if the
+ * timeout is exceeded while waiting for it.
+ */
+void getDeviceNames(::mega::MegaApi* megaApi, std::unique_ptr<::mega::MegaStringMap>& output);
 }
 
 #endif // INCLUDE_INTEGRATION_INTEGRATION_TEST_UTILS_H_
