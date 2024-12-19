@@ -6159,16 +6159,15 @@ bool MegaClient::setstoragestatus(storagestatus_t status)
             {
                 break;
             }
+            [[fallthrough]];
         case STORAGE_PAYWALL:
-            if (previousStatus == STORAGE_PAYWALL)
-            {
-                mOverquotaDeadlineTs = 0;
-                mOverquotaWarningTs.clear();
-            }
-        // fall-through
+            mOverquotaDeadlineTs = 0;
+            mOverquotaWarningTs.clear();
+            [[fallthrough]];
         case STORAGE_RED:
             // Transition from OQ.
             abortbackoff(true);
+            break;
         default:
             break;
         }

@@ -810,7 +810,6 @@ typedef enum {
     STORAGE_PAYWALL = 4,    // storage is full and user didn't remedy despite of warnings
 } storagestatus_t;
 
-
 enum SmsVerificationState {
     // These values (except unknown) are delivered from the servers
     SMS_STATE_UNKNOWN = -1,       // Flag was not received

@@ -3545,4 +3545,17 @@ std::string getThisThreadIdStr()
     return ss.str();
 }
 
+storagestatus_t getStorageStateFromString(const string& value)
+{
+    storagestatus_t state = STORAGE_UNKNOWN;
+    if (!strcmp(value.data(), "0") || value.empty())
+        state = STORAGE_GREEN;
+    else if (!strcmp(value.data(), "1"))
+        state = STORAGE_ORANGE;
+    else if (!strcmp(value.data(), "2"))
+        state = STORAGE_RED;
+
+    return state;
+}
+
 } // namespace mega

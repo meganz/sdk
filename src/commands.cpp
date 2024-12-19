@@ -3860,17 +3860,11 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                             }
                             else if (at == ATTR_STORAGE_STATE)
                             {
-                                storagestatus_t state = STORAGE_UNKNOWN;
-                                if (!strcmp(value.data(), "0"))
-                                    state = STORAGE_GREEN;
-                                else if (!strcmp(value.data(), "1"))
-                                    state = STORAGE_ORANGE;
-                                else if (!strcmp(value.data(), "2"))
-                                    state = STORAGE_RED;
-
+                                storagestatus_t state = getStorageStateFromString(value);
                                 if (state == STORAGE_UNKNOWN)
                                 {
                                     LOG_err << "Storage state unknown: " << state;
+                                    assert(false && "Storage state unknown");
                                     break;
                                 }
                                 else if (state == STORAGE_RED)
@@ -4369,6 +4363,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
     std::string sds, sdsVersion;
 
     bool uspw = false;
+    string userStorageLevel, versionUserStorageLevel;
     vector<m_time_t> warningTs;
     m_time_t deadlineTs = -1;
 
@@ -4693,6 +4688,10 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
             }
             break;
         }
+
+        case makeNameid("^!usl"):
+            parseUserAttribute(json, userStorageLevel, versionUserStorageLevel);
+            break;
 
         case makeNameid("^!csp"):
             parseUserAttribute(json, cookieSettings, versionCookieSettings);
@@ -5206,6 +5205,14 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                     u->removeAttribute(ATTR_SYNC_DESIRED_STATE);
                 }
 
+                if (!userStorageLevel.empty())
+                {
+                    changes |= u->updateAttributeIfDifferentVersion(ATTR_STORAGE_STATE,
+                                                                    userStorageLevel,
+                                                                    versionUserStorageLevel);
+                }
+                // else (API should never delete it, once created)
+
                 if (changes)
                 {
                     u->setTag(tag ? tag : -1);
@@ -5287,6 +5294,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 client->setBusinessStatus(BIZ_STATUS_INACTIVE);
             }
 
+            storagestatus_t state = getStorageStateFromString(userStorageLevel);
             if (uspw)
             {
                 if (deadlineTs == -1 || warningTs.empty())
@@ -5300,6 +5308,24 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                     client->activateoverquota(0, true);
                 }
 
+                if (state != STORAGE_RED)
+                {
+                    client->sendevent(99492, "Paywall enabled, but storage level not red");
+                    assert(false && "Paywall enabled, but storage level not red");
+                }
+            }
+
+            if (state != STORAGE_UNKNOWN)
+            {
+                if (state == STORAGE_RED)
+                {
+                    bool isPaywall = (client->ststatus == STORAGE_PAYWALL);
+                    client->activateoverquota(0, isPaywall);
+                }
+                else // orange and green
+                {
+                    client->setstoragestatus(state);
+                }
             }
 
             mCompletion(&name, &pubk, &privk, API_OK);
@@ -5732,6 +5758,7 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
             case EOO:
                 assert(!mStorage || (got_storage && got_storage_used) || client->loggedIntoFolder());
 
+                // TODO: replace this block by one based on `usl`
                 if (mStorage)
                 {
                     if (uslw <= 0)
