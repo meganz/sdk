@@ -337,11 +337,11 @@ bool WinFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
      return true;
 }
 
-bool WinFileAccess::ftruncate(m_off_t size)
+bool WinFileAccess::ftruncate(m_off_t newSize)
 {
-    assert(size >= 0);
+    assert(newSize >= 0);
 
-    auto& position = reinterpret_cast<LARGE_INTEGER&>(size);
+    auto& position = reinterpret_cast<LARGE_INTEGER&>(newSize);
 
     // Set the file pointer to the start of the file.
     if (SetFilePointerEx(hFile, position, nullptr, FILE_BEGIN))
@@ -385,7 +385,7 @@ m_time_t FileTime_to_POSIX(FILETIME* ft)
     return t;
 }
 
-bool WinFileAccess::fstat(m_time_t& modified, m_off_t& size)
+bool WinFileAccess::fstat(m_time_t& modified, m_off_t& fileSize)
 {
     BY_HANDLE_FILE_INFORMATION info;
 
@@ -411,13 +411,13 @@ bool WinFileAccess::fstat(m_time_t& modified, m_off_t& size)
     temp.HighPart = info.nFileSizeHigh;
 
     modified = FileTime_to_POSIX(&info.ftLastWriteTime);
-    size = temp.QuadPart;
+    fileSize = temp.QuadPart;
 
     // Let the caller know we've retrieved the file's info.
     return true;
 }
 
-bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size, FSLogging fsl)
+bool WinFileAccess::sysstat(m_time_t* modificationTime, m_off_t* fileSize, FSLogging fsl)
 {
     assert(!nonblocking_localname.empty());
     WIN32_FILE_ATTRIBUTE_DATA fad;
@@ -450,8 +450,8 @@ bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size, FSLogging fsl)
 
     retry = false;
     type = FILENODE;
-    *mtime = FileTime_to_POSIX(&fad.ftLastWriteTime);
-    *size = ((m_off_t)fad.nFileSizeHigh << 32) + (m_off_t)fad.nFileSizeLow;
+    *modificationTime = FileTime_to_POSIX(&fad.ftLastWriteTime);
+    *fileSize = ((m_off_t)fad.nFileSizeHigh << 32) + (m_off_t)fad.nFileSizeLow;
 
     return true;
 }
@@ -1441,11 +1441,11 @@ VOID CALLBACK WinDirNotify::completion(DWORD dwErrorCode, DWORD dwBytes, LPOVERL
     }
 }
 
-void WinDirNotify::process(DWORD dwBytes)
+void WinDirNotify::process(DWORD bytesTransferred)
 {
     assert( std::this_thread::get_id() == smNotifierThread->get_id());
 
-    if (!dwBytes)
+    if (!bytesTransferred)
     {
         // No bytes delivered indicates the OS could not deliver some notifications.
         // Maybe it ran out of buffer (maybe we were too slow)
@@ -1462,10 +1462,13 @@ void WinDirNotify::process(DWORD dwBytes)
     }
     else
     {
-        assert(dwBytes >= offsetof(FILE_NOTIFY_INFORMATION, FileName)); // 3 uint32_t.  The filename can be entirely absent, with the filename length field 0  (via samba share from qnap device)
+        assert(bytesTransferred >=
+               offsetof(FILE_NOTIFY_INFORMATION,
+                        FileName)); // 3 uint32_t.  The filename can be entirely absent, with the
+                                    // filename length field 0  (via samba share from qnap device)
 
         string processbuf;
-        if (dwBytes <= 4096)
+        if (bytesTransferred <= 4096)
         {
             processbuf = notifybuf;  // even under high load, usually the buffer is under 4k.
         }
@@ -1786,9 +1789,11 @@ unique_ptr<DirAccess> WinFileSystemAccess::newdiraccess()
 }
 
 #ifdef ENABLE_SYNC
-DirNotify* WinFileSystemAccess::newdirnotify(LocalNode& root, const LocalPath& rootPath, Waiter* waiter)
+DirNotify* WinFileSystemAccess::newdirnotify(LocalNode& root,
+                                             const LocalPath& rootPath,
+                                             Waiter* notificationWaiter)
 {
-    return new WinDirNotify(root, rootPath, this, waiter);
+    return new WinDirNotify(root, rootPath, this, notificationWaiter);
 }
 #endif
 

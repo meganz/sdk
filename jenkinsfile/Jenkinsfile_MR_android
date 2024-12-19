@@ -138,8 +138,15 @@ pipeline {
                                 stage('Download prebuilt third-party-sources for example'){
                                     steps {
                                         dir("${env.THIRD_PARTY_SOURCES_EXAMPLE_PATH}"){
-                                            sh "pwd"
-                                            sh "jf rt download third-party-sources-sdk/3rdparty-sdk-android-example.tar.gz ."
+                                            withCredentials([string(credentialsId: 'MEGASDK_ARTIFACTORY_TOKEN', variable: 'MEGASDK_ARTIFACTORY_TOKEN')]) {
+                                                sh """
+                                                    jf rt download \
+                                                        --url ${REPO_URL} \
+                                                        --access-token ${MEGASDK_ARTIFACTORY_TOKEN} \
+                                                        third-party-sources-sdk/3rdparty-sdk-android-example.tar.gz \
+                                                        .
+                                                """
+                                            }
                                             sh "tar -xf 3rdparty-sdk-android-example.tar.gz --skip-old-files"
                                             sh "rm 3rdparty-sdk-android-example.tar.gz"
                                         }
@@ -170,7 +177,15 @@ pipeline {
                                                     if ("${UPLOAD_THIRD_PARTY_SOURCES_EXAMPLE}" == "true"){
                                                         sh "rm curl/crashlytics.h.ready"
                                                         sh "tar -czf 3rdparty-sdk-android-example.tar.gz cryptopp curl icu libuv mediainfo openssl sodium sqlite"
-                                                        sh "jf rt upload 3rdparty-sdk-android-example.tar.gz third-party-sources-sdk/"
+                                                        withCredentials([string(credentialsId: 'MEGASDK_ARTIFACTORY_TOKEN', variable: 'MEGASDK_ARTIFACTORY_TOKEN')]) {
+                                                            sh """
+                                                                jf rt upload \
+                                                                    --url ${REPO_URL} \
+                                                                    --access-token ${MEGASDK_ARTIFACTORY_TOKEN} \
+                                                                    3rdparty-sdk-android-example.tar.gz \
+                                                                    third-party-sources-sdk/
+                                                            """
+                                                        }
                                                         sh "rm 3rdparty-sdk-android-example.tar.gz"
                                                     }
                                                 }
@@ -248,7 +263,15 @@ pipeline {
                                 stage('Download prebuilt third-party-sources'){
                                     steps {
                                         dir("${env.THIRD_PARTY_SOURCES_ANDROID_PATH}"){
-                                            sh "jf rt download third-party-sources-sdk/3rdparty-sdk.tar.gz ."
+                                            withCredentials([string(credentialsId: 'MEGASDK_ARTIFACTORY_TOKEN', variable: 'MEGASDK_ARTIFACTORY_TOKEN')]) {
+                                                sh """
+                                                    jf rt download \
+                                                        --url ${REPO_URL} \
+                                                        --access-token ${MEGASDK_ARTIFACTORY_TOKEN} \
+                                                        third-party-sources-sdk/3rdparty-sdk.tar.gz \
+                                                        .
+                                                """
+                                            }
                                             sh "tar -xf 3rdparty-sdk.tar.gz --skip-old-files"
                                             sh "rm 3rdparty-sdk.tar.gz"
                                         }
@@ -279,7 +302,15 @@ pipeline {
                                                 if ("${UPLOAD_THIRD_PARTY_SOURCES}" == "true"){
                                                     sh "rm curl/crashlytics.h.ready"
                                                     sh "tar -czf 3rdparty-sdk.tar.gz cryptopp curl icu libuv libwebsockets mediainfo pdfviewer sodium sqlite"
-                                                    sh "jf rt upload 3rdparty-sdk.tar.gz third-party-sources-sdk/"
+                                                    withCredentials([string(credentialsId: 'MEGASDK_ARTIFACTORY_TOKEN', variable: 'MEGASDK_ARTIFACTORY_TOKEN')]) {
+                                                        sh """
+                                                            jf rt upload \
+                                                                --url ${REPO_URL} \
+                                                                --access-token ${MEGASDK_ARTIFACTORY_TOKEN} \
+                                                                3rdparty-sdk.tar.gz \
+                                                                third-party-sources-sdk/
+                                                        """
+                                                    }
                                                     sh "rm 3rdparty-sdk.tar.gz"
                                                 }
                                             }

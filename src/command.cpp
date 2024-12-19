@@ -49,7 +49,7 @@ void Command::addToNodePendingCommands(Node* node)
     node->mPendingChanges.push_back(this);
 }
 
-void Command::removeFromNodePendingCommands(NodeHandle h, MegaClient* client)
+void Command::removeFromNodePendingCommands(NodeHandle h)
 {
     if (auto node = client->nodeByHandle(h))
     {
@@ -259,9 +259,9 @@ void Command::cmd(const char* cmd)
     commandStr = cmd;
 }
 
-void Command::notself(MegaClient *client)
+void Command::notself(MegaClient* clientToIgnoreActionPackets)
 {
-    jsonWriter.notself(client);
+    jsonWriter.notself(clientToIgnoreActionPackets);
 }
 
 // add comma separator unless first element

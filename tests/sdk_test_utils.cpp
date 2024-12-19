@@ -118,6 +118,29 @@ LocalTempDir::~LocalTempDir()
     }
 }
 
+bool LocalTempDir::move(const fs::path& newLocation)
+{
+    if (std::filesystem::exists(newLocation))
+    {
+        LOG_err
+            << "Moving " << mDirPath.string() << " to " << newLocation.string()
+            << " will overwrite the target path. Romove it before proceeding with the operation.";
+        return false;
+    }
+    try
+    {
+        std::filesystem::rename(mDirPath, newLocation);
+    }
+    catch (const std::exception& e)
+    {
+        LOG_err << "Error moving directory from " << mDirPath.string() << " to "
+                << newLocation.string() << ". Error: " << e.what();
+        return false;
+    }
+    mDirPath = newLocation;
+    return true;
+}
+
 namespace
 {
 
@@ -185,5 +208,23 @@ std::string getNodeName(const NodeInfo& node)
             return n.name;
         },
         node);
+}
+
+std::vector<std::string>
+    getLocalFirstChildrenNames_if(const std::filesystem::path& localPath,
+                                  std::function<bool(const std::string&)> filter)
+{
+    if (!std::filesystem::is_directory(localPath))
+        return {};
+    std::vector<std::string> result;
+    const auto pushName = [&result, &filter](const std::filesystem::path& path)
+    {
+        const auto name = path.filename().string();
+        if (!filter || filter(name))
+            result.emplace_back(std::move(name));
+    };
+    std::filesystem::directory_iterator children{localPath};
+    std::for_each(begin(children), end(children), pushName);
+    return result;
 }
 }

@@ -200,7 +200,11 @@ int GfxProc::checkevents(Waiter *)
                 // The file attribute will either be added to an existing node
                 // or added to the eventual putnodes if this was started as part of an upload transfer
                 mCheckEventsKey.setkey(job->key);
-                if (!client->putfa(job->h, job->imagetypes[i], &mCheckEventsKey, 0, std::unique_ptr<string>(job->images[i])))
+                if (client->putfa(job->h,
+                                  job->imagetypes[i],
+                                  &mCheckEventsKey,
+                                  0,
+                                  std::unique_ptr<string>(job->images[i])) != API_OK)
                 {
                     continue; // no needexec for this one
                 }
@@ -364,7 +368,9 @@ std::string GfxProc::generateOneImage(const LocalPath& localfilepath, const GfxD
     return images[0];
 }
 
-bool GfxProc::savefa(const LocalPath& localfilepath, const GfxDimension& dimension, LocalPath& localdstpath)
+bool GfxProc::savefa(const LocalPath& localfilepath,
+                     const GfxDimension& dimension,
+                     const LocalPath& localdstpath)
 {
     if (!isgfx(localfilepath))
     {

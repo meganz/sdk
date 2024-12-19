@@ -348,6 +348,11 @@ public:
 
     bool eq(NodeOrUploadHandle b) const { return h == b.h && mIsNodeHandle == b.mIsNodeHandle; }
     bool operator<(const NodeOrUploadHandle& rhs) const { return h < rhs.h || (h == rhs.h && int(mIsNodeHandle) < int(rhs.mIsNodeHandle)); }
+
+    handle as8byte() const
+    {
+        return h;
+    }
 };
 
 inline bool operator==(NodeOrUploadHandle a, NodeOrUploadHandle b) { return a.eq(b); }
@@ -411,7 +416,12 @@ const int SETNODEKEYLENGTH = SymmCipher::KEYLENGTH;
 const unsigned MAXNODESUPLOAD = 1000;
 typedef union {
     std::array<byte, FILENODEKEYLENGTH> bytes;
-    struct {
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable: 4201) // nameless struct
+#endif
+    struct
+    {
         std::array<byte, FOLDERNODEKEYLENGTH> key;
         union {
             std::array<byte, 8> iv_bytes;
@@ -422,6 +432,9 @@ typedef union {
             uint64_t crc_u64;
         };
     };
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 } FileNodeKey;
 
 const int UPLOADTOKENLEN = 36;

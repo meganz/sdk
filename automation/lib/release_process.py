@@ -29,13 +29,12 @@ class ReleaseProcess:
         self._project_name = project_name
         self._version_v_prefixed = ""
 
-    def setup_project_management(self, url: str, user: str, password: str):
+    def setup_project_management(self, url: str, token: str):
         assert self._jira is None
         print("Jira initializing", flush=True)
         self._jira = JiraProject(
             url,
-            user,
-            password,
+            token,
             self._project_name,
         )
         print("v Jira initialized", flush=True)
@@ -273,7 +272,7 @@ class ReleaseProcess:
         )
 
     # STEP 7: Update and rename previous NextRelease version; create new NextRelease version
-    def manage_versions(self, url: str, user: str, password: str, apps: str):
+    def manage_versions(self, apps: str):
         assert self._new_version is not None
         assert self._jira is not None
         self._jira.update_current_version(
@@ -359,14 +358,11 @@ class ReleaseProcess:
         assert self._jira is not None, "Init Jira connection first"
         self._jira.earlier_versions_are_closed()
 
-    def setup_wiki(self, url: str, user: str, password: str):
-        if url and user and password:
+    def setup_wiki(self, url: str, token: str):
+        if url and token:
             print("Confluence initializing", flush=True)
-            self._wiki = Confluence(url=url, username=user, password=password)
-            user_details = self._wiki.get_user_details_by_username(user)
-            if isinstance(user_details, dict):
-                self._user_key = user_details["userKey"]
-            print("v Confluence initialized", flush=True)
+            self._wiki = Confluence(url=url, token=token)
+            print("v Confluence configured", flush=True)
 
     # STEP 1 (close): GitLab: Create tag "vX.Y.Z" from last commit of branch "release/vX.Y.Z"
     def create_release_tag(self):
@@ -454,9 +450,9 @@ class ReleaseProcess:
         assert self._jira is not None, "Init Jira connection first"
         self._jira.update_version_close_release()
 
-    # STEP 7 (close): Confluence: Rotate own name to the end of the list of release captains
+    # STEP 7 (close): Confluence: Rotate the first name to the end of the list of release captains
     def move_release_captain_last(self, page_id: str):
-        if self._user_key is None:
+        if self._wiki is None:
             print("Wiki connection not available, rotate Release Captain yourself !")
             return
 
@@ -469,11 +465,10 @@ class ReleaseProcess:
 
         # move current user last
         re_pattern = (
-            "<h[1-6]>Release Captain schedule</h[1-6]>.*"
-            "<ol(\\s.*?)?>"
-            "(<li>.*?</li>)*"
-            '(<li><ac:link><ri:user ri:userkey="' + self._user_key + '" />.*?</li>)'
-            ".*(</ol>)"
+            "<h[1-6]>Release Captain schedule</h[1-6]>.*?"
+            "<ol(\\s.*?)?>"   # Opening tag
+            "(<li>.*?</li>)"  # Match first item in the list. Current captain
+            ".*?(</ol>)"      # Skip the rest of the list and matches closing tag.
         )
         match = re.search(re_pattern, content)
         if match is None:
@@ -482,14 +477,15 @@ class ReleaseProcess:
             )
             return
 
-        my_user_start = match.start(3)
-        my_user_end = match.end(3)
-        list_end_tag_start = match.start(4)
+        completeMatch = match.group(0)
+        captain = match.group(2)
+        closingTag = match.group(3)
+
         new_content = (
-            content[:my_user_start]
-            + content[my_user_end:list_end_tag_start]
-            + content[my_user_start:my_user_end]
-            + content[list_end_tag_start:]
+            content[:match.start(0)]
+            + completeMatch.replace(captain, "").replace(closingTag, captain)
+            + closingTag
+            + content[match.end(0):]
         )
         self._wiki.update_page(page_id, page["title"], new_content)
         print("v Release Captain rotated")

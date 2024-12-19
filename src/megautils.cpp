@@ -60,4 +60,17 @@ std::vector<std::vector<std::string>> bucketsToVector(const MegaRecentActionBuck
     }
     return result;
 }
+
+#ifdef ENABLE_SYNC
+std::vector<std::unique_ptr<MegaSyncStall>> toSyncStallVector(const MegaSyncStallList& stallList)
+{
+    std::vector<std::unique_ptr<MegaSyncStall>> result;
+    result.reserve(stallList.size());
+    for (size_t i = 0; i < stallList.size(); ++i)
+    {
+        result.emplace_back(std::unique_ptr<MegaSyncStall>(stallList.get(i)->copy()));
+    }
+    return result;
+}
+#endif
 }

@@ -342,9 +342,9 @@ public:
      * PROXY_AUTO is currently supported on Windows only, for other platforms
      * PROXY_NONE will be used as the automatic detected value.
      *
-     * @param proxyType Sets the type of the proxy
+     * @param newProxyType Sets the type of the proxy
      */
-    void setProxyType(int proxyType);
+    void setProxyType(int newProxyType);
 
     /**
      * @brief Sets the URL of the proxy
@@ -353,9 +353,9 @@ public:
      *
      * This is a valid example: http://127.0.0.1:8080
      *
-     * @param proxyURL URL of the proxy: "<scheme>://<hostname|ip>:<port>"
+     * @param newProxyURL URL of the proxy: "<scheme>://<hostname|ip>:<port>"
      */
-    void setProxyURL(const char *proxyURL);
+    void setProxyURL(const char* newProxyURL);
 
     /**
      * @brief Set the credentials needed to use the proxy
@@ -363,10 +363,10 @@ public:
      * If you don't need to use any credentials, do not use this function
      * or pass NULL in the first parameter.
      *
-     * @param username Username to access the proxy, or NULL if credentials aren't needed
-     * @param password Password to access the proxy
+     * @param newUsername Username to access the proxy, or NULL if credentials aren't needed
+     * @param newPassword Password to access the proxy
      */
-    void setCredentials(const char *username, const char *password);
+    void setCredentials(const char* newUsername, const char* newPassword);
 
     /**
      * @brief Returns the current proxy type of the object
@@ -4607,7 +4607,8 @@ class MegaRequest
             TYPE_GET_SURVEY = 198,
             TYPE_ANSWER_SURVEY = 199,
             TYPE_CHANGE_SYNC_ROOT = 200,
-            TOTAL_OF_REQUEST_TYPES = 201,
+            TYPE_GET_MY_IP = 201,
+            TOTAL_OF_REQUEST_TYPES = 202,
         };
 
         virtual ~MegaRequest();
@@ -4650,26 +4651,6 @@ class MegaRequest
          * @return Readable string showing the type of request
          */
         virtual const char* toString() const;
-
-        /**
-         * @brief Returns a readable string that shows the type of request
-         *
-         * This function provides exactly the same result as MegaRequest::getRequestString.
-         * It's provided for a better Python compatibility
-         *
-         * @return Readable string showing the type of request
-         */
-        virtual const char* __str__() const;
-
-        /**
-         * @brief Returns a readable string that shows the type of request
-         *
-         * This function provides exactly the same result as MegaRequest::getRequestString.
-         * It's provided for a better PHP compatibility
-         *
-         * @return Readable string showing the type of request
-         */
-        virtual const char* __toString() const;
 
         /**
          * @brief Returns the handle of a node related to the request
@@ -5826,26 +5807,6 @@ class MegaTransfer
          * @return Readable string showing the type of transfer (UPLOAD, DOWNLOAD)
          */
         virtual const char* toString() const;
-
-        /**
-         * @brief Returns a readable string that shows the type of the transfer
-         *
-         * This function provides exactly the same result as MegaTransfer::getTransferString (UPLOAD, DOWNLOAD)
-         * It's provided for a better Python compatibility
-         *
-         * @return Readable string showing the type of transfer (UPLOAD, DOWNLOAD)
-         */
-        virtual const char* __str__() const;
-
-        /**
-         * @brief Returns a readable string that shows the type of the transfer
-         *
-         * This function provides exactly the same result as MegaTransfer::getTransferString (UPLOAD, DOWNLOAD)
-         * It's provided for a better PHP compatibility
-         *
-         * @return Readable string showing the type of transfer (UPLOAD, DOWNLOAD)
-         */
-        virtual const char *__toString() const;
 
         /**
          * @brief Returns the starting time of the request (in deciseconds)
@@ -8045,33 +8006,6 @@ public:
 		 * @return Readable description of the error
 		 */
         virtual const char* toString() const;
-
-		/**
-		 * @brief Returns a readable description of the error
-		 *
-		 * This function returns a pointer to a statically allocated buffer.
-		 * You don't have to free the returned pointer
-		 *
-		 * This function provides exactly the same result as MegaError::getErrorString.
-		 * It's provided for a better Python compatibility
-		 *
-		 * @return Readable description of the error
-		 */
-        virtual const char* __str__() const;
-
-		/**
-		 * @brief Returns a readable description of the error
-		 *
-		 * This function returns a pointer to a statically allocated buffer.
-		 * You don't have to free the returned pointer
-		 *
-		 * This function provides exactly the same result as MegaError::getErrorString.
-		 * It's provided for a better PHP compatibility
-		 *
-		 * @return Readable description of the error
-		 */
-        virtual const char* __toString() const;
-
 		/**
 		 * @brief Provides the error description associated with an error code
 		 *
@@ -11721,7 +11655,11 @@ class MegaApi
          *
          * @param lastAccessTimestamp Timestamp of the last access
          * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated This version of the function is deprecated. Please, use the non-deprecated
+         * one.
          */
+        MEGA_DEPRECATED
         void createAccount(const char* email, const char* password, const char* firstname, const char* lastname, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener = NULL);
 
         /**
@@ -14752,7 +14690,11 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          *
          * @see MegaApi::getPricing
+         *
+         * @deprecated This version of the function is deprecated. Please, use the non-deprecated
+         * one.
          */
+        MEGA_DEPRECATED
         void getPaymentId(MegaHandle productHandle, MegaHandle lastPublicHandle, MegaRequestListener *listener = NULL);
 
         /**
@@ -14780,7 +14722,11 @@ class MegaApi
          * @param lastAccessTimestamp Timestamp of the last access
          * @param listener MegaRequestListener to track this request
          * @see MegaApi::getPricing
+         *
+         * @deprecated This version of the function is deprecated. Please, use the non-deprecated
+         * one.
          */
+        MEGA_DEPRECATED
         void getPaymentId(MegaHandle productHandle, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener = NULL);
 
         /**
@@ -14847,7 +14793,9 @@ class MegaApi
         /**
          * @brief Submit a purchase receipt for verification
          *
-         * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+         * The associated request type with this request is
+         * MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+         *
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNumber - Returns the payment gateway
          * - MegaRequest::getText - Returns the purchase receipt
@@ -14862,13 +14810,19 @@ class MegaApi
          * @param receipt Purchase receipt
          * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
          * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated This version of the function is deprecated. Please, use the non-deprecated
+         * ones.
          */
+        MEGA_DEPRECATED
         void submitPurchaseReceipt(int gateway, const char* receipt, MegaHandle lastPublicHandle, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Submit a purchase receipt for verification
          *
-         * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+         * The associated request type with this request is
+         * MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+         *
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNumber - Returns the payment gateway
          * - MegaRequest::getText - Returns the purchase receipt
@@ -14892,7 +14846,11 @@ class MegaApi
          *
          * @param lastAccessTimestamp Timestamp of the last access
          * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated This version of the function is deprecated. Please, use the non-deprecated
+         * one.
          */
+        MEGA_DEPRECATED
         void submitPurchaseReceipt(int gateway, const char *receipt, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener =  NULL);
 
         /**
@@ -17453,6 +17411,9 @@ class MegaApi
          *       existing node in the cloud
          *     + SyncError::UNKNOWN_ERROR The given syncBackupId does not map to an existing two way
          *       sync
+         * - MegaError::API_EWRITE:
+         *     + SyncError::SYNC_CONFIG_WRITE_FAILURE We couldn't write into the database to commit
+         *       the change.
          * - MegaError::API_EEXISTS:
          *     + SyncError::UNKNOWN_ERROR the given newRootNodeHandle matches with the one that is
          *       already the root of the sync
@@ -17468,6 +17429,60 @@ class MegaApi
         void changeSyncRemoteRoot(const MegaHandle syncBackupId,
                                   const MegaHandle newRootNodeHandle,
                                   MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Change the local path that is being used as root for a sync.
+         *
+         * Currently, this operation is only allowed with syncs of TYPE_TWOWAY.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHANGE_SYNC_ROOT.
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getFile - Returns the path of the new local folder to use as root
+         * - MegaRequest::getNodeHandle - Returns the affected sync backup ID.
+         * - MegaRequest::getListener - Returns the MegaRequestListener to track this request.
+         * - MegaRequest::getNumDetails - If different than NO_SYNC_ERROR, it returns additional
+         *   info for the specific sync error (MegaSync::Error). This can occur both when the
+         *   request has succeeded (API_OK) and in some cases of failure when the request error is
+         *   not sufficiently descriptive.
+         *
+         * On the onRequestFinish callback, the error code associated with the MegaError
+         * (MegaError::getErrorCode()) and the SyncError (if relevant, MegaError::getSyncError())
+         * can be:
+         * - MegaError::API_OK:
+         *     + SyncError::NO_SYNC_ERROR the new root has been changed successfully
+         * - MegaError::API_EARGS:
+         *     + SyncError::LOCAL_PATH_UNAVAILABLE the given path is nullptr or is empty
+         *     + SyncError::UNKNOWN_ERROR The given backupId does not match any of the registered
+         *       syncs
+         *     + SyncError::LOCAL_PATH_SYNC_COLLISION The local path conflicts with existing
+         *       synchronization paths (nested syncs are not allowed)
+         *     + SyncError::FILESYSTEM_ID_UNAVAILABLE unable to get the file system fingerprint with
+         *       the given path
+         *     + SyncError::LOCAL_FILESYSTEM_MISMATCH The given path is in a different file system
+         *       comparing with the previous one. We don't allow this operation
+         *     + SyncError::UNABLE_TO_RETRIEVE_ROOT_FSID The new root directory cannot be opened
+         * - MegaError::API_EWRITE:
+         *     + SyncError::SYNC_CONFIG_WRITE_FAILURE We couldn't write into the database to commit
+         *       the change.
+         * - MegaError::API_EFAILED:
+         *     + SyncError::LOCAL_PATH_MOUNTED trying to sync bellow a FUSE mount point
+         *     + SyncError::UNSUPPORTED_FILE_SYSTEM the given path is in a not supported file system
+         * - MegaError::API_ETEMPUNAVAIL:
+         *     + SyncError::LOCAL_PATH_TEMPORARY_UNAVAILABLE the given new path is temporarily
+         *       unavailable
+         * - MegaError::API_ENOENT:
+         *     + SyncError::LOCAL_PATH_UNAVAILABLE the given new path is not available
+         * - MegaError::API_EACCESS:
+         *     + SyncError::INVALID_LOCAL_TYPE the given path is not a directory
+         *
+         * @param syncBackupId The handle (backup ID) of the sync whose local root is to be changed.
+         * @param newLocalSyncRootPath The new local path to set as the sync root.
+         * @param listener A MegaRequestListener to track this request. This parameter is optional.
+         */
+        void changeSyncLocalRoot(const MegaHandle syncBackupId,
+                                 const char* newLocalSyncRootPath,
+                                 MegaRequestListener* listener = nullptr);
 
 #endif // ENABLE_SYNC
 
@@ -17755,8 +17770,13 @@ class MegaApi
             /*deprecated*/ ORDER_PHOTO_ASC, /*deprecated*/ ORDER_PHOTO_DESC,
             /*deprecated*/ ORDER_VIDEO_ASC, /*deprecated*/ ORDER_VIDEO_DESC,
             ORDER_LINK_CREATION_ASC, ORDER_LINK_CREATION_DESC,
-            ORDER_LABEL_ASC, ORDER_LABEL_DESC, ORDER_FAV_ASC, ORDER_FAV_DESC,};
-
+            ORDER_LABEL_ASC,
+            ORDER_LABEL_DESC,
+            ORDER_FAV_ASC,
+            ORDER_FAV_DESC,
+            ORDER_SHARE_CREATION_ASC,
+            ORDER_SHARE_CREATION_DESC,
+        };
 
         enum { FILE_TYPE_DEFAULT = 0, // FILE_TYPE_UNKNOWN already exists at WinBase.h
                FILE_TYPE_PHOTO,
@@ -18512,10 +18532,16 @@ class MegaApi
          * Sort by size, small elements last
          *
          * - MegaApi::ORDER_CREATION_ASC = 5
-         * Sort by creation time in MEGA, older elements first
+         * Sort by node creation time in MEGA, older elements first
          *
          * - MegaApi::ORDER_CREATION_DESC = 6
-         * Sort by creation time in MEGA, older elements last
+         * Sort by node creation time in MEGA, older elements last
+         *
+         * - MegaApi::ORDER_SHARE_CREATION_ASC = 20
+         * Sort by share creation time in MEGA, older elements first
+         *
+         * - MegaApi::ORDER_SHARE_CREATION_DESC = 21
+         * Sort by share creation time in MEGA, older elements last
          *
          * @return List of MegaShare objects
          */
@@ -18583,10 +18609,16 @@ class MegaApi
          * Sort by size, small elements last
          *
          * - MegaApi::ORDER_CREATION_ASC = 5
-         * Sort by creation time in MEGA, older elements first
+         * Sort by node creation time in MEGA, older elements first
          *
          * - MegaApi::ORDER_CREATION_DESC = 6
-         * Sort by creation time in MEGA, older elements last
+         * Sort by node creation time in MEGA, older elements last
+         *
+         * - MegaApi::ORDER_SHARE_CREATION_ASC = 20
+         * Sort by share creation time in MEGA, older elements first
+         *
+         * - MegaApi::ORDER_SHARE_CREATION_DESC = 21
+         * Sort by share creation time in MEGA, older elements last
          *
          * @return List of MegaShare objects
          */
@@ -23461,6 +23493,20 @@ class MegaApi
          * @param listener A tracker for this request
          */
         void setWelcomePdfCopied(bool copied, MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Gets the public IP address and country code.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_MY_IP.
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getName - Returns the country code.
+         * - MegaRequest::getText - Returns the public IP address.
+         *
+         * @param listener MegaRequestListener to track this request.
+         */
+        void getMyIp(MegaRequestListener* listener = nullptr);
 
     protected:
         MegaApiImpl *pImpl = nullptr;

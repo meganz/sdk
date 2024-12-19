@@ -615,7 +615,7 @@ bool Process::checkStatus()
         }
         else
         {
-            assert(!"waitpid() but not exited not signalled");
+            assert(false && "waitpid() but not exited not signalled");
             setWaitFailureStatus(); // otherwise may spin forever
         }
         return true;
@@ -734,9 +734,9 @@ void ConsoleProgressBar::show() const
         std::cout << '\r';
 }
 
-void ConsoleProgressBar::setPrefix(const std::string &value)
+void ConsoleProgressBar::setPrefix(const std::string& newPrefix)
 {
-    prefix = value;
+    prefix = newPrefix;
 }
 
 ConsoleProgressBar::ConsoleProgressBar(size_t imax, bool writeNewLine)

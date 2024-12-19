@@ -509,7 +509,7 @@ void CurlHttpIO::filterDNSservers()
     }
 }
 
-void CurlHttpIO::addaresevents([[maybe_unused]] Waiter* waiter)
+void CurlHttpIO::addaresevents([[maybe_unused]] Waiter* eventWaiter)
 {
 #ifdef MEGA_MEASURE_CODE
     CodeCounter::ScopeTimer ccst(countAddAresEventsCode);
@@ -564,13 +564,13 @@ void CurlHttpIO::addaresevents([[maybe_unused]] Waiter* waiter)
 #else
             if (readable)
             {
-                MEGA_FD_SET(info.fd, &((PosixWaiter *)waiter)->rfds);
-                ((PosixWaiter *)waiter)->bumpmaxfd(info.fd);
+                MEGA_FD_SET(info.fd, &((PosixWaiter*)eventWaiter)->rfds);
+                ((PosixWaiter*)eventWaiter)->bumpmaxfd(info.fd);
             }
             if (writeable)
             {
-                MEGA_FD_SET(info.fd, &((PosixWaiter *)waiter)->wfds);
-                ((PosixWaiter *)waiter)->bumpmaxfd(info.fd);
+                MEGA_FD_SET(info.fd, &((PosixWaiter*)eventWaiter)->wfds);
+                ((PosixWaiter*)eventWaiter)->bumpmaxfd(info.fd);
             }
 #endif
         }
@@ -589,7 +589,7 @@ void CurlHttpIO::addaresevents([[maybe_unused]] Waiter* waiter)
 
 #endif // #ifdef MEGA_USE_C_ARES
 
-void CurlHttpIO::addcurlevents(Waiter *waiter, direction_t d)
+void CurlHttpIO::addcurlevents(Waiter* eventWaiter, direction_t d)
 {
 #ifdef MEGA_MEASURE_CODE
     CodeCounter::ScopeTimer ccst(countAddCurlEventsCode);
@@ -616,14 +616,14 @@ void CurlHttpIO::addcurlevents(Waiter *waiter, direction_t d)
 
         if (info.mode & SockInfo::READ)
         {
-            MEGA_FD_SET(info.fd, &((PosixWaiter *)waiter)->rfds);
-            ((PosixWaiter *)waiter)->bumpmaxfd(info.fd);
+            MEGA_FD_SET(info.fd, &((PosixWaiter*)eventWaiter)->rfds);
+            ((PosixWaiter*)eventWaiter)->bumpmaxfd(info.fd);
         }
 
         if (info.mode & SockInfo::WRITE)
         {
-            MEGA_FD_SET(info.fd, &((PosixWaiter *)waiter)->wfds);
-            ((PosixWaiter *)waiter)->bumpmaxfd(info.fd);
+            MEGA_FD_SET(info.fd, &((PosixWaiter*)eventWaiter)->wfds);
+            ((PosixWaiter*)eventWaiter)->bumpmaxfd(info.fd);
         }
 #endif
    }
@@ -632,7 +632,7 @@ void CurlHttpIO::addcurlevents(Waiter *waiter, direction_t d)
     if (anyWriters)
     {
         // so long as we are writing at least one socket, keep looping until the socket is full, then start waiting on its associated event
-        static_cast<WinWaiter*>(waiter)->maxds = 0;
+        static_cast<WinWaiter*>(eventWaiter)->maxds = 0;
     }
 #endif
 }

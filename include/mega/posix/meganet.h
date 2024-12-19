@@ -183,13 +183,13 @@ protected:
     typedef std::map<curl_socket_t, SockInfo> SockInfoMap;
 
 #ifdef MEGA_USE_C_ARES
-    void addaresevents(Waiter *waiter);
+    void addaresevents(Waiter* eventWaiter);
     void closearesevents();
     void processaresevents();
     SockInfoMap aressockets;
     m_time_t arestimeout;
 #endif
-    void addcurlevents(Waiter *waiter, direction_t d);
+    void addcurlevents(Waiter* eventWaiter, direction_t d);
     int checkevents(Waiter*) override;
     void closecurlevents(direction_t d);
     void processcurlevents(direction_t d);

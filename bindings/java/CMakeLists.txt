@@ -6,7 +6,7 @@ include(UseSWIG)
 set(JAVA_OUTPUT_DIR ${CMAKE_BINARY_DIR}/bindings/java/nz/mega/sdk)
 
 # Define the interface file and its properties
-set(SWIG_INTERFACE_FILE ${CMAKE_SOURCE_DIR}/bindings/megaapi.i)
+set(SWIG_INTERFACE_FILE ${CMAKE_CURRENT_LIST_DIR}/../megaapi.i)
 set_source_files_properties(${SWIG_INTERFACE_FILE} PROPERTIES
     CPLUSPLUS ON
 )
@@ -20,7 +20,7 @@ if(USE_LIBUV)
     list(APPEND ADDITIONAL_SWIG_DEFINES -DHAVE_LIBUV)
 endif()
 
-set(CMAKE_SWIG_FLAGS -c++ -package "nz.mega.sdk" ${ADDITIONAL_SWIG_DEFINES} -I${CMAKE_SOURCE_DIR}/include)
+set(CMAKE_SWIG_FLAGS -c++ -package "nz.mega.sdk" ${ADDITIONAL_SWIG_DEFINES} -I${CMAKE_CURRENT_LIST_DIR}/../../include)
 
 # Generate java binding files
 swig_add_library(SDKJavaBindings
@@ -31,7 +31,7 @@ swig_add_library(SDKJavaBindings
 
 # For Android we do not need JNI
 if(ANDROID)
-    set(JNI_INCLUDE_DIRS 
+    set(JNI_INCLUDE_DIRS
         ${ANDROID_NDK_HOME}/sysroot/usr/include
         ${ANDROID_NDK_HOME}/sysroot/usr/include/${ANDROID_ABI}
     )

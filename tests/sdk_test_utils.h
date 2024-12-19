@@ -77,6 +77,19 @@ public:
     LocalTempDir(LocalTempDir&&) noexcept = default;
     LocalTempDir& operator=(LocalTempDir&&) noexcept = default;
 
+    const fs::path& getPath() const
+    {
+        return mDirPath;
+    }
+
+    /**
+     * @brief Move the current temp dir to the given location
+     *
+     * @return true if the operation succeeded, false there was an error or if there is already a
+     * file/directory in the given newLocation.
+     */
+    bool move(const fs::path& newLocation);
+
 private:
     fs::path mDirPath;
 };
@@ -270,6 +283,19 @@ bool waitFor(const std::function<bool()>& predicate,
     }
     return false;
 }
+
+/**
+ * @brief Get the names of the files/directories that are contained within the given path.
+ *
+ * Note: if the path does not point to a directory, an empty vector is returned
+ *
+ * @param localPath The path to evaluate their children
+ * @param filter Required named-based condition to be included in the results.
+ * @return A vector with the names of the children
+ */
+std::vector<std::string>
+    getLocalFirstChildrenNames_if(const std::filesystem::path& localPath,
+                                  std::function<bool(const std::string&)> filter = nullptr);
 }
 
 #endif // INCLUDE_TESTS_SDK_TEST_UTILS_H_
