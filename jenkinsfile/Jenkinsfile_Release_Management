@@ -22,6 +22,7 @@ pipeline {
         GPG_KEYGRIP = credentials('sdk_gpg_keygrip_release_management')
         gpg_key = credentials('sdk_gpg_key_release_management')
         GITHUB_TOKEN = credentials('sdk_github_token')
+        GITHUB_USER = credentials('sdk_github_username')
         project_name = "SDK"
         slack_channel = "sdk"
         slack_channel_dev_requests = "sdk_devs_only"
@@ -29,8 +30,10 @@ pipeline {
         jira_url = "${env.JIRA_BASE_URL}"
         confluence_url = "${env.CONFLUENCE_BASE_URL}"
         confluence_page_id = "3640225"
-        github_push_remote_url = "https://github.com/meganz/sdk.git"
+        github_push_remote_url = "https://${GITHUB_USER}:${GITHUB_TOKEN}@github.com/meganz/sdk.git"
         GNUPGHOME = "${WORKSPACE}/.gnupg"
+        JIRA_TOKEN = credentials('SDK_JIRA_PERSONAL_ACCESS_TOKEN')
+        CONFLUENCE_TOKEN = credentials('SDK_CONFLUENCE_PERSONAL_ACCESS_TOKEN')
     }
 
     stages {
@@ -84,17 +87,12 @@ pipeline {
                 }
             }
             steps {
-                withCredentials([
-                    string(credentialsId: 'SDK_JIRA_PERSONAL_ACCESS_TOKEN', variable: 'JIRA_TOKEN'),
-                    string(credentialsId: 'SDK_CONFLUENCE_PERSONAL_ACCESS_TOKEN', variable: 'CONFLUENCE_TOKEN')
-                ]){
-                    dir("automation"){
-                        sh 'cat config.toml'
-                        sh 'printenv'
-                        sh 'gpg --batch --import $gpg_key'                     
-                        sh 'gpg --list-secret-keys'
-                        sh 'python3 ./make_release.py config.toml'
-                    }
+                dir("automation"){
+                    sh 'cat config.toml'
+                    sh 'printenv'
+                    sh 'gpg --batch --import $gpg_key'                     
+                    sh 'gpg --list-secret-keys'
+                    sh 'python3 ./make_release.py config.toml'
                 }
             }
         }
@@ -110,17 +108,12 @@ pipeline {
                 }
             }
             steps {
-                withCredentials([
-                    string(credentialsId: 'SDK_JIRA_PERSONAL_ACCESS_TOKEN', variable: 'JIRA_TOKEN'),
-                    string(credentialsId: 'SDK_CONFLUENCE_PERSONAL_ACCESS_TOKEN', variable: 'CONFLUENCE_TOKEN')
-                ]){
-                    dir("automation"){
-                        sh 'cat config.toml'
-                        sh 'printenv'
-                        sh 'gpg --batch --import $gpg_key'                     
-                        sh 'gpg --list-secret-keys'
-                        sh 'python3 ./make_another_rc.py config.toml'
-                    }
+                dir("automation"){
+                    sh 'cat config.toml'
+                    sh 'printenv'
+                    sh 'gpg --batch --import $gpg_key'                     
+                    sh 'gpg --list-secret-keys'
+                    sh 'python3 ./make_another_rc.py config.toml'
                 }
             }
         }
@@ -136,17 +129,12 @@ pipeline {
                 }
             }
             steps {
-                withCredentials([
-                    string(credentialsId: 'SDK_JIRA_PERSONAL_ACCESS_TOKEN', variable: 'JIRA_TOKEN'),
-                    string(credentialsId: 'SDK_CONFLUENCE_PERSONAL_ACCESS_TOKEN', variable: 'CONFLUENCE_TOKEN')
-                ]){
-                    dir("automation"){
-                        sh 'cat config.toml'
-                        sh 'printenv'
-                        sh 'gpg --batch --import $gpg_key'                     
-                        sh 'gpg --list-secret-keys'
-                        sh 'python3 ./close_release.py config.toml'
-                    }
+                dir("automation"){
+                    sh 'cat config.toml'
+                    sh 'printenv'
+                    sh 'gpg --batch --import $gpg_key'                     
+                    sh 'gpg --list-secret-keys'
+                    sh 'python3 ./close_release.py config.toml'
                 }
             }
         }
@@ -162,17 +150,12 @@ pipeline {
                 }
             }
             steps {
-                withCredentials([
-                    string(credentialsId: 'SDK_JIRA_PERSONAL_ACCESS_TOKEN', variable: 'JIRA_TOKEN'),
-                    string(credentialsId: 'SDK_CONFLUENCE_PERSONAL_ACCESS_TOKEN', variable: 'CONFLUENCE_TOKEN')
-                ]){
-                    dir("automation"){
-                        sh 'cat config.toml'
-                        sh 'printenv'
-                        sh 'gpg --batch --import $gpg_key'                     
-                        sh 'gpg --list-secret-keys'
-                        sh 'python3 ./patch_release.py config.toml'
-                    }
+                dir("automation"){
+                    sh 'cat config.toml'
+                    sh 'printenv'
+                    sh 'gpg --batch --import $gpg_key'                     
+                    sh 'gpg --list-secret-keys'
+                    sh 'python3 ./patch_release.py config.toml'
                 }
             }
         }
