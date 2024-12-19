@@ -1181,7 +1181,9 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                     if (!reqs[i])
                     {
                         reqs[i].reset(transfer->type == PUT ? (HttpReqXfer*)new HttpReqUL() : (HttpReqXfer*)new HttpReqDL());
-                        reqs[i]->logname = client->clientname + (transfer->type == PUT ? "U" : "D") + std::to_string(++client->transferHttpCounter) + " ";
+                        reqs[i]->setLogName(client->clientname +
+                                            (transfer->type == PUT ? "U" : "D") +
+                                            std::to_string(++client->transferHttpCounter) + " ");
                     }
 
                     bool prepare = true;

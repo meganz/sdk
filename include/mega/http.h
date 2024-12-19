@@ -391,9 +391,6 @@ struct MEGA_API HttpReq
     // object - NULL otherwise
     HttpIO* httpio;
 
-    // identify different channels from different MegaClients etc in the log
-    string logname;
-
     // set url and content type for subsequent requests
     void setreq(const char*, contenttype_t);
 
@@ -464,6 +461,33 @@ struct MEGA_API HttpReq
 
     // true if HTTP response status code is 3xx redirection
     bool isRedirection() const { return (httpstatus / 100) == 3; }
+
+    /**
+     * @brief Get an unique identifier for this object
+     */
+    uint32_t getId() const
+    {
+        return reqId;
+    }
+
+    const std::string& getLogName() const
+    {
+        return logname;
+    }
+
+    void setLogName(const std::string& newLogName)
+    {
+        logname = newLogName + logname;
+    }
+
+private:
+    static std::atomic_uint32_t nextReqId;
+    const uint32_t reqId;
+
+    // identify different channels from different MegaClients etc in the log
+    std::string logname;
+
+    void prepareMethod(HttpIO* clientHttpIo, const httpmethod_t reqMethod);
 };
 
 struct MEGA_API GenericHttpReq : public HttpReq
