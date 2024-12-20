@@ -31866,7 +31866,8 @@ bool MegaFolderDownloadController::genDownloadTransfersForFiles(
 
 
 #ifdef HAVE_LIBUV
-StreamingBuffer::StreamingBuffer()
+StreamingBuffer::StreamingBuffer(const std::string& logName):
+    logname{logName}
 {
     this->capacity = 0;
     this->buffer = NULL;
@@ -31895,6 +31896,7 @@ void StreamingBuffer::init(size_t newCapacity)
     {
         size_t bytesPerSecond = getBytesPerSecond();
         LOG_warn
+            << getLogName()
             << "[Streaming] Truncating requested capacity due to being greater than maxBufferSize."
             << " Capacity requested = " << newCapacity << " bytes"
             << ", truncated to = " << maxBufferSize << " bytes"
@@ -31916,7 +31918,7 @@ void StreamingBuffer::init(size_t newCapacity)
     }
     else
     {
-        LOG_debug << "[Streaming] Init StreamingBuffer."
+        LOG_debug << getLogName() << "[Streaming] Init StreamingBuffer."
                   << " Capacity requested = " << newCapacity << " bytes"
                   << " [file size = " << fileSize << " bytes"
                   << ", total duration = "
@@ -31974,7 +31976,10 @@ void StreamingBuffer::reset(bool freeData, size_t sizeToReset)
     {
         sizeToReset = size;
     }
-    LOG_warn << "[Streaming] Reset streaming buffer. Actual size: " << size << ", free: " << free << ", capacity = " << capacity << ", size to reset: " << sizeToReset << "] [inpos = " << inpos << ", outpos = " << outpos << "]";
+    LOG_warn << getLogName() << "[Streaming] Reset streaming buffer. Actual size: " << size
+             << ", free: " << free << ", capacity = " << capacity
+             << ", size to reset: " << sizeToReset << "] [inpos = " << inpos
+             << ", outpos = " << outpos << "]";
     this->inpos = this->inpos >= sizeToReset ?
                         this->inpos - sizeToReset :
                         this->capacity - (sizeToReset - this->inpos);
@@ -31998,9 +32003,9 @@ size_t StreamingBuffer::append(const char *buf, size_t len)
 
     if (free < len)
     {
-        LOG_debug << "[Streaming] Not enough available space, len will be truncated. "
-                  << " [requested = " << len
-                  << ", buffered = " << free
+        LOG_debug << getLogName()
+                  << "[Streaming] Not enough available space, len will be truncated. "
+                  << " [requested = " << len << ", buffered = " << free
                   << ", discarded = " << (len - free) << "]";
         len = free;
     }
@@ -32021,8 +32026,12 @@ size_t StreamingBuffer::append(const char *buf, size_t len)
     else
     {
         size_t num = static_cast<size_t>(static_cast<int>(len) - remaining);
-        LOG_debug << "[Streaming] Length exceeds limits of circular buffer. Writting a piece of " << num << " bytes to the end and the others " << remaining << " bytes from the beginning"
-                    << " [current index = " << currentIndex << ", len = " << len << ", capacity = " << capacity << "]";
+        LOG_debug << getLogName()
+                  << "[Streaming] Length exceeds limits of circular buffer. Writting a piece of "
+                  << num << " bytes to the end and the others " << remaining
+                  << " bytes from the beginning"
+                  << " [current index = " << currentIndex << ", len = " << len
+                  << ", capacity = " << capacity << "]";
         memcpy(buffer + currentIndex, buf, num);
         memcpy(buffer, buf + num, static_cast<size_t>(remaining));
     }
@@ -32058,9 +32067,11 @@ uv_buf_t StreamingBuffer::nextBuffer()
     size_t len = size < maxOutputSize ? size : maxOutputSize;
     if (outpos + len > capacity)
     {
-        LOG_debug << "[Streaming] Available length exceeds limits of circular buffer: "
-                    << "Truncating output buffer length to " << (capacity-outpos) << " bytes"
-                    << " [outpos = " << outpos << ", len = " << len << ", capacity = " << capacity << "]";
+        LOG_debug << getLogName()
+                  << "[Streaming] Available length exceeds limits of circular buffer: "
+                  << "Truncating output buffer length to " << (capacity - outpos) << " bytes"
+                  << " [outpos = " << outpos << ", len = " << len << ", capacity = " << capacity
+                  << "]";
         len = capacity - outpos;
     }
 
@@ -32075,14 +32086,17 @@ uv_buf_t StreamingBuffer::nextBuffer()
 
 void StreamingBuffer::freeData(size_t len)
 {
-    LOG_verbose << "[Streaming] Streaming buffer free data: len = " << len << ", actual free = " << free << ", new free = " << (free+len) << ", size = " << size << " [capacity = " << capacity << "]";
+    LOG_verbose << getLogName() << "[Streaming] Streaming buffer free data: len = " << len
+                << ", actual free = " << free << ", new free = " << (free + len)
+                << ", size = " << size << " [capacity = " << capacity << "]";
     // update the internal state
     free += len;
 }
 
 void StreamingBuffer::setMaxBufferSize(unsigned int bufferSize)
 {
-    LOG_debug << "[Streaming] Set new max buffer size for StreamingBuffer: " << bufferSize;
+    LOG_debug << getLogName()
+              << "[Streaming] Set new max buffer size for StreamingBuffer: " << bufferSize;
     if (bufferSize)
     {
         this->maxBufferSize = bufferSize;
@@ -32095,7 +32109,8 @@ void StreamingBuffer::setMaxBufferSize(unsigned int bufferSize)
 
 void StreamingBuffer::setMaxOutputSize(unsigned int outputSize)
 {
-    LOG_debug << "[Streaming] Set new max output size for StreamingBuffer: " << outputSize;
+    LOG_debug << getLogName()
+              << "[Streaming] Set new max output size for StreamingBuffer: " << outputSize;
     if (outputSize)
     {
         this->maxOutputSize = outputSize;
@@ -32109,7 +32124,7 @@ void StreamingBuffer::setMaxOutputSize(unsigned int outputSize)
 void StreamingBuffer::setFileSize(m_off_t newFileSize)
 {
     fileSize = newFileSize;
-    LOG_debug << "[Streaming] File size set to " << fileSize << " bytes";
+    LOG_debug << getLogName() << "[Streaming] File size set to " << fileSize << " bytes";
 }
 
 void StreamingBuffer::setDuration(int newDuration)
@@ -32119,17 +32134,17 @@ void StreamingBuffer::setDuration(int newDuration)
         // Param 'newDuration' is documented in MegaNode::getDuration() to be -1 if it's not
         // defined. Hence, if it's 0, the file should be a media file... which has a duration of 0
         // seconds.
-        LOG_warn << "[Streaming] Duration value is 0 seconds for this media file!";
+        LOG_warn << getLogName() << "[Streaming] Duration value is 0 seconds for this media file!";
     }
     duration = newDuration > 0 ? newDuration : 0;
-    LOG_debug << "[Streaming] File duration set to " << duration << " secs";
+    LOG_debug << getLogName() << "[Streaming] File duration set to " << duration << " secs";
 }
 
 m_off_t StreamingBuffer::getBytesPerSecond() const
 {
     if (fileSize < duration)
     {
-        LOG_err << "[Streaming] File size is smaller than its duration in seconds!"
+        LOG_err << getLogName() << "[Streaming] File size is smaller than its duration in seconds!"
                 << " [file size = " << fileSize << " bytes"
                 << " , duration = " << duration << " secs]";
     }
@@ -33144,14 +33159,14 @@ void MegaHTTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, 
 {
     MegaHTTPContext* httpctx = dynamic_cast<MegaHTTPContext *>(tcpctx);
 
-    LOG_debug << "Received " << nread << " bytes";
+    LOG_debug << httpctx->getLogName() << "Received " << nread << " bytes";
 
     ssize_t parsed = -1;
     if (nread >= 0)
     {
         if (nread == 0 && httpctx->parser.method == HTTP_PUT) //otherwise it will fail for files >65k in GVFS-DAV
         {
-            LOG_debug << " Skipping parsing 0 length data for HTTP_PUT";
+            LOG_debug << httpctx->getLogName() << " Skipping parsing 0 length data for HTTP_PUT";
             parsed = 0;
         }
         else
@@ -33160,11 +33175,13 @@ void MegaHTTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, 
         }
     }
 
-    LOG_verbose << " at onDataReceived, received " << nread << " parsed = " << parsed;
+    LOG_verbose << httpctx->getLogName() << " at onDataReceived, received " << nread
+                << " parsed = " << parsed;
 
     if (parsed < 0 || nread < 0 || parsed < nread || httpctx->parser.upgrade)
     {
-        LOG_debug << "Finishing request. Connection reset by peer or unsupported data";
+        LOG_debug << httpctx->getLogName()
+                  << "Finishing request. Connection reset by peer or unsupported data";
         closeConnection(httpctx);
     }
 }
@@ -33174,23 +33191,24 @@ void MegaHTTPServer::processWriteFinished(MegaTCPContext* tcpctx, int status)
     MegaHTTPContext* httpctx = dynamic_cast<MegaHTTPContext *>(tcpctx);
     if (httpctx->finished)
     {
-        LOG_debug << "HTTP link closed, ignoring the result of the write";
+        LOG_debug << httpctx->getLogName() << "HTTP link closed, ignoring the result of the write";
         return;
     }
 
     httpctx->bytesWritten += httpctx->lastBufferLen;
-    LOG_verbose << "Bytes written: " << httpctx->lastBufferLen << " Remaining: " << (httpctx->size - httpctx->bytesWritten);
+    LOG_verbose << httpctx->getLogName() << "Bytes written: " << httpctx->lastBufferLen
+                << " Remaining: " << (httpctx->size - httpctx->bytesWritten);
     httpctx->lastBuffer = NULL;
 
     if (status < 0 || httpctx->size == httpctx->bytesWritten)
     {
         if (status < 0)
         {
-            LOG_warn << "Finishing request. Write failed: " << status;
+            LOG_warn << httpctx->getLogName() << "Finishing request. Write failed: " << status;
         }
         else
         {
-            LOG_debug << "Finishing request. All data sent";
+            LOG_debug << httpctx->getLogName() << "Finishing request. All data sent";
             if (httpctx->resultCode == API_EINTERNAL)
             {
                 httpctx->resultCode = API_OK;
@@ -33215,8 +33233,8 @@ void MegaHTTPServer::processWriteFinished(MegaTCPContext* tcpctx, int status)
             m_off_t start = httpctx->rangeStart + httpctx->rangeWritten + httpctx->streamingBuffer.availableData();
             m_off_t len =  httpctx->rangeEnd - httpctx->rangeStart - httpctx->rangeWritten - httpctx->streamingBuffer.availableData();
 
-            LOG_debug << "[Streaming] Resuming streaming from " << start << " len: " << len
-                      << " " << httpctx->streamingBuffer.bufferStatus();
+            LOG_debug << httpctx->getLogName() << "[Streaming] Resuming streaming from " << start
+                      << " len: " << len << " " << httpctx->streamingBuffer.bufferStatus();
             httpctx->megaApi->startStreaming(httpctx->node, start, len, httpctx);
         }
     }
@@ -33340,22 +33358,22 @@ int MegaHTTPServer::onUrlReceived(http_parser *parser, const char *url, size_t l
 {
     MegaHTTPContext* httpctx = (MegaHTTPContext*) parser->data;
     httpctx->path.assign(url, length);
-    LOG_debug << "URL received: " << httpctx->path;
+    LOG_debug << httpctx->getLogName() << "URL received: " << httpctx->path;
 
     if (length < 9 || url[0] != '/' || (length >= 10 && url[9] != '/' && url[9] != '!'))
     {
-        LOG_debug << "URL without node handle";
+        LOG_debug << httpctx->getLogName() << "URL without node handle";
         return 0;
     }
 
     size_t index = 9;
     httpctx->nodehandle.assign(url + 1, 8);
-    LOG_debug << "Node handle: " << httpctx->nodehandle;
+    LOG_debug << httpctx->getLogName() << "Node handle: " << httpctx->nodehandle;
 
     if (length > 53 && url[index] == '!')
     {
         httpctx->nodekey.assign(url + 10, 43);
-        LOG_debug << "Link key: " << httpctx->nodekey;
+        LOG_debug << httpctx->getLogName() << "Link key: " << httpctx->nodekey;
         index = 53;
 
         if (length > 54 && url[index] == '!')
@@ -33370,7 +33388,7 @@ int MegaHTTPServer::onUrlReceived(http_parser *parser, const char *url, size_t l
                if ((endptr == endsize || endptr == endparam) && errno != ERANGE)
                {
                    httpctx->nodesize = size;
-                   LOG_debug << "Link size: " << size;
+                   LOG_debug << httpctx->getLogName() << "Link size: " << size;
                    index += (endptr - startsize) + 1;
                    if (url[index] == '!')
                    {
@@ -33384,22 +33402,23 @@ int MegaHTTPServer::onUrlReceived(http_parser *parser, const char *url, size_t l
                        {
                            assert(auth.size() == 8);
                            httpctx->nodepubauth = auth;
-                           LOG_debug << "Link public auth: " << auth;
+                           LOG_debug << httpctx->getLogName() << "Link public auth: " << auth;
                        }
                        else if (*typeauth == 'c')
                        {
                            assert(auth.size() == 8);
                            httpctx->nodechatauth = auth;
-                           LOG_debug << "Chat link auth: " << auth;
+                           LOG_debug << httpctx->getLogName() << "Chat link auth: " << auth;
                        }
                        else if (*typeauth == 'f')
                        {
                            httpctx->nodeprivauth = auth;
-                           LOG_debug << "Link private auth: " << auth;
+                           LOG_debug << httpctx->getLogName() << "Link private auth: " << auth;
                        }
                        else
                        {
-                           LOG_err << "Unknown type of auth token: " << *typeauth;
+                           LOG_err << httpctx->getLogName()
+                                   << "Unknown type of auth token: " << *typeauth;
                        }
                        index += auth.size() + 1;
                    }
@@ -33410,7 +33429,7 @@ int MegaHTTPServer::onUrlReceived(http_parser *parser, const char *url, size_t l
 
     if (length > index && url[index] != '/')
     {
-        LOG_warn << "Invalid URL";
+        LOG_warn << httpctx->getLogName() << "Invalid URL";
         return 0;
     }
 
@@ -33426,12 +33445,12 @@ int MegaHTTPServer::onUrlReceived(http_parser *parser, const char *url, size_t l
             string subpathrelative = nodename.substr(psep + 1);
             nodename = nodename.substr(0, psep);
             URLCodec::unescape(&subpathrelative, &httpctx->subpathrelative);
-            LOG_debug << "subpathrelative: " << httpctx->subpathrelative;
+            LOG_debug << httpctx->getLogName() << "subpathrelative: " << httpctx->subpathrelative;
         }
 
         URLCodec::unescape(&nodename, &httpctx->nodename);
         LocalPath::utf8_normalize(&httpctx->nodename);
-        LOG_debug << "Node name: " << httpctx->nodename;
+        LOG_debug << httpctx->getLogName() << "Node name: " << httpctx->nodename;
     }
 
     return 0;
@@ -33446,7 +33465,7 @@ int MegaHTTPServer::onHeaderField(http_parser *parser, const char *at, size_t le
     if (length == 5 && !memcmp(at, "Range", 5))
     {
         httpctx->range = true;
-        LOG_debug << "Range header detected";
+        LOG_debug << httpctx->getLogName() << "Range header detected";
     }
 
     return 0;
@@ -33459,7 +33478,8 @@ int MegaHTTPServer::onHeaderValue(http_parser *parser, const char *at, size_t le
     size_t index;
     char *endptr;
 
-    LOG_verbose << " onHeaderValue: " << httpctx->lastheader << " = " << value;
+    LOG_verbose << httpctx->getLogName() << " onHeaderValue: " << httpctx->lastheader << " = "
+                << value;
     if (httpctx->lastheader == "depth")
     {
         httpctx->depth = atoi(value.c_str());
@@ -33478,7 +33498,7 @@ int MegaHTTPServer::onHeaderValue(http_parser *parser, const char *at, size_t le
     }
     else if (httpctx->range)
     {
-        LOG_debug << "Range header value: " << value;
+        LOG_debug << httpctx->getLogName() << "Range header value: " << value;
         httpctx->range = false;
         if (length > 7 && !memcmp(at, "bytes=", 6)
                 && ((index = value.find_first_of('-')) != string::npos))
@@ -33500,7 +33520,8 @@ int MegaHTTPServer::onHeaderValue(http_parser *parser, const char *at, size_t le
                 }
                 httpctx->rangeEnd = number;
             }
-            LOG_debug << "Range value parsed: " << httpctx->rangeStart << " - " << httpctx->rangeEnd;
+            LOG_debug << httpctx->getLogName() << "Range value parsed: " << httpctx->rangeStart
+                      << " - " << httpctx->rangeEnd;
         }
     }
     return 0;
@@ -33944,7 +33965,8 @@ void MegaHTTPServer::returnHttpCodeBasedOnRequestError(MegaHTTPContext* httpctx,
         break;
     }
 
-    LOG_debug << "HTTP petition failed. request error = " << reqError << " HTTP status to return = " << httpreturncode;
+    LOG_debug << httpctx->getLogName() << "HTTP petition failed. request error = " << reqError
+              << " HTTP status to return = " << httpreturncode;
     string errorMessage = e->getErrorString(reqError);
     return returnHttpCode(httpctx, httpreturncode, errorMessage, synchronous);
 }
@@ -33985,10 +34007,10 @@ void MegaHTTPServer::returnHttpCodeAsync(MegaHTTPContext* httpctx, int errorCode
 
 int MegaHTTPServer::onMessageComplete(http_parser *parser)
 {
-    LOG_debug << "Message complete";
     MegaNode *node = NULL;
     std::ostringstream response;
     MegaHTTPContext* httpctx = (MegaHTTPContext*) parser->data;
+    LOG_debug << httpctx->getLogName() << "Message complete";
     httpctx->bytesWritten = 0;
     httpctx->size = 0;
     httpctx->streamingBuffer.setMaxBufferSize(httpctx->server->getMaxBufferSize());
@@ -34011,10 +34033,12 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
     case HTTP_UNLOCK:
     case HTTP_PROPPATCH:
     case HTTP_PROPFIND:
-        LOG_debug << "Request method: " << getHTTPMethodName(parser->method);
+        LOG_debug << httpctx->getLogName()
+                  << "Request method: " << getHTTPMethodName(parser->method);
         break;
     default:
-        LOG_debug << "Method not allowed: " << getHTTPMethodName(parser->method);
+        LOG_debug << httpctx->getLogName()
+                  << "Method not allowed: " << getHTTPMethodName(parser->method);
         response << "HTTP/1.1 405 Method not allowed\r\n"
                     "Connection: close\r\n"
                     "\r\n";
@@ -34027,7 +34051,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
 
     if (httpctx->path == "/favicon.ico")
     {
-        LOG_debug << "Favicon requested";
+        LOG_debug << httpctx->getLogName() << "Favicon requested";
         response << "HTTP/1.1 301 Moved Permanently\r\n"
                     "Location: ";
         response << MegaClient::MEGAURL;
@@ -34069,7 +34093,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
     handle h = MegaApi::base64ToHandle(httpctx->nodehandle.c_str());
     if (!httpctx->server->isHandleAllowed(h))
     {
-        LOG_debug << "Forbidden due to the restricted mode";
+        LOG_debug << httpctx->getLogName() << "Forbidden due to the restricted mode";
         response << "HTTP/1.1 403 Forbidden\r\n"
                     "Connection: close\r\n"
                   << "\r\n";
@@ -34083,7 +34107,8 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
 
     if (parser->method == HTTP_OPTIONS)
     {
-        LOG_debug << "Returning HTTP_OPTIONS for a " << (httpserver->isHandleWebDavAllowed(h) ? "" : "non ") << "WEBDAV URI";
+        LOG_debug << httpctx->getLogName() << "Returning HTTP_OPTIONS for a "
+                  << (httpserver->isHandleWebDavAllowed(h) ? "" : "non ") << "WEBDAV URI";
         response << "HTTP/1.1 200 OK\r\n";
 
         if (httpserver->isHandleWebDavAllowed(h))
@@ -34112,7 +34137,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             && (parser->method != HTTP_PUT) && (parser->method != HTTP_HEAD)
             && !httpserver->isHandleWebDavAllowed(h))
     {
-        LOG_debug << "Forbidden due to not webdav allowed";
+        LOG_debug << httpctx->getLogName() << "Forbidden due to not webdav allowed";
         returnHttpCode(httpctx, 405);
         delete node;
         return 0;
@@ -34122,7 +34147,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
     {
         if (!httpctx->nodehandle.size() || !httpctx->nodekey.size())
         {
-            LOG_warn << "URL not found: " << httpctx->path;
+            LOG_warn << httpctx->getLogName() << "URL not found: " << httpctx->path;
             response << "HTTP/1.1 404 Not Found\r\n"
                         "Connection: close\r\n"
                       << "\r\n";
@@ -34134,7 +34159,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         }
         else if (httpctx->nodesize >= 0)
         {
-            LOG_debug << "Getting foreign node";
+            LOG_debug << httpctx->getLogName() << "Getting foreign node";
             node = httpctx->megaApi->createForeignFileNode(
                         h, httpctx->nodekey.c_str(),
                         httpctx->nodename.c_str(),
@@ -34149,7 +34174,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
                                           TypeOfLink::FILE,
                                           httpNodeHandle,
                                           httpctx->nodekey.c_str());
-            LOG_debug << "Getting public link: " << link;
+            LOG_debug << httpctx->getLogName() << "Getting public link: " << link;
             httpctx->megaApi->getPublicNode(link.c_str(), httpctx);
             httpctx->transfer.reset(new MegaTransferPrivate(MegaTransfer::TYPE_LOCAL_TCP_DOWNLOAD));
             httpctx->transfer->setPath(httpctx->path.c_str());
@@ -34190,14 +34215,16 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
 
                 if (dotpos == httpctx->nodename.find_last_of('.') && !memcmp(originalname.data(), httpctx->nodename.data(), originalname.size()))
                 {
-                    LOG_debug << "Possible subtitles file";
+                    LOG_debug << httpctx->getLogName() << "Possible subtitles file";
                     MegaNode *parent = httpctx->megaApi->getParentNode(node);
                     if (parent)
                     {
                         MegaNode *child = httpctx->megaApi->getChildNode(parent, httpctx->nodename.c_str());
                         if (child)
                         {
-                            LOG_debug << "Matching file found: " << httpctx->nodename << " - " << node->getName();
+                            LOG_debug << httpctx->getLogName()
+                                      << "Matching file found: " << httpctx->nodename << " - "
+                                      << node->getName();
                             subtitles = true;
                             delete node;
                             node = child;
@@ -34209,7 +34236,8 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
 
             if (!subtitles)
             {
-                LOG_warn << "Invalid name: " << httpctx->nodename << " - " << node->getName();
+                LOG_warn << httpctx->getLogName() << "Invalid name: " << httpctx->nodename << " - "
+                         << node->getName();
                 response << "HTTP/1.1 404 Not Found\r\n"
                             "Connection: close\r\n"
                          << "\r\n";
@@ -34708,7 +34736,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
 
             if (newParentNode->getHandle() == node->getHandle())
             {
-                LOG_warn << "HTTP_MOVE trying to mov a node into itself";
+                LOG_warn << httpctx->getLogName() << "HTTP_MOVE trying to mov a node into itself";
                 returnHttpCode(httpctx, 500);
                 delete node;
                 delete baseNode;
@@ -34897,7 +34925,7 @@ int MegaHTTPServer::streamNode(MegaHTTPContext *httpctx)
         return 0;
     }
 
-    LOG_debug << "Requesting range. From " << start << "  size " << len;
+    LOG_debug << httpctx->getLogName() << "Requesting range. From " << start << "  size " << len;
     httpctx->rangeWritten = 0;
     if (start || len)
     {
@@ -34907,7 +34935,7 @@ int MegaHTTPServer::streamNode(MegaHTTPContext *httpctx)
     else
     {
         MegaHTTPServer *httpserver = ((MegaHTTPServer *)httpctx->server);
-        LOG_debug << "Skipping startStreaming call since empty file";
+        LOG_debug << httpctx->getLogName() << "Skipping startStreaming call since empty file";
         httpserver->processWriteFinished(httpctx, 0);
     }
     return 0;
@@ -34915,7 +34943,7 @@ int MegaHTTPServer::streamNode(MegaHTTPContext *httpctx)
 
 void MegaHTTPServer::sendHeaders(MegaHTTPContext *httpctx, string *headers)
 {
-    LOG_debug << "Response headers: " << *headers;
+    LOG_debug << httpctx->getLogName() << "Response headers: " << *headers;
     httpctx->streamingBuffer.append(headers->data(), headers->size());
     uv_buf_t resbuf = httpctx->streamingBuffer.nextBuffer();
     httpctx->size += headers->size();
@@ -34935,7 +34963,8 @@ void MegaHTTPServer::sendHeaders(MegaHTTPContext *httpctx, string *headers)
         int err = evt_tls_write(httpctx->evt_tls, resbuf.base, resbuf.len, onWriteFinished_tls);
         if (err <= 0)
         {
-            LOG_warn << "Finishing due to an error sending the response: " << err;
+            LOG_warn << httpctx->getLogName()
+                     << "Finishing due to an error sending the response: " << err;
             closeConnection(httpctx);
         }
     }
@@ -34947,7 +34976,8 @@ void MegaHTTPServer::sendHeaders(MegaHTTPContext *httpctx, string *headers)
         if (int err = uv_write(req, (uv_stream_t*)&httpctx->tcphandle, &resbuf, 1, onWriteFinished))
         {
             delete req;
-            LOG_warn << "Finishing due to an error sending the response: " << err;
+            LOG_warn << httpctx->getLogName()
+                     << "Finishing due to an error sending the response: " << err;
             closeTCPConnection(httpctx);
         }
 #ifdef ENABLE_EVT_TLS
@@ -34961,13 +34991,13 @@ void MegaHTTPServer::processAsyncEvent(MegaTCPContext* tcpctx)
 
     if (httpctx->finished)
     {
-        LOG_debug << "HTTP link closed, ignoring async event";
+        LOG_debug << httpctx->getLogName() << "HTTP link closed, ignoring async event";
         return;
     }
 
     if (httpctx->failed)
     {
-        LOG_warn << "Streaming transfer failed. Closing connection.";
+        LOG_warn << httpctx->getLogName() << "Streaming transfer failed. Closing connection.";
         closeConnection(httpctx);
         return;
     }
@@ -34987,11 +35017,11 @@ void MegaHTTPServer::processAsyncEvent(MegaTCPContext* tcpctx)
         {
             if (!httpctx->node)
             {
-                LOG_warn << "Public link not found";
+                LOG_warn << httpctx->getLogName() << "Public link not found";
             }
             else
             {
-                LOG_warn << "Invalid name for public link";
+                LOG_warn << httpctx->getLogName() << "Invalid name for public link";
             }
 
             httpctx->resultCode = 404;
@@ -35011,13 +35041,14 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx)
 {
     if (httpctx->finished)
     {
-        LOG_debug << "HTTP link closed, aborting write";
+        LOG_debug << httpctx->getLogName() << "HTTP link closed, aborting write";
         return;
     }
 
     if (httpctx->lastBuffer)
     {
-        LOG_verbose << "[Streaming] Skipping write due to another ongoing write";
+        LOG_verbose << httpctx->getLogName()
+                    << "[Streaming] Skipping write due to another ongoing write";
         return;
     }
 
@@ -35030,7 +35061,8 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx)
 
     if (httpctx->tcphandle.write_queue_size > httpctx->streamingBuffer.availableCapacity() / 8)
     {
-        LOG_warn << "[Streaming] Skipping write. Too much queued data. " << httpctx->streamingBuffer.bufferStatus();
+        LOG_warn << httpctx->getLogName() << "[Streaming] Skipping write. Too much queued data. "
+                 << httpctx->streamingBuffer.bufferStatus();
         uv_mutex_unlock(&httpctx->mutex);
         return;
     }
@@ -35040,11 +35072,12 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx)
 
     if (!resbuf.len)
     {
-        LOG_debug << "[Streaming] Skipping write. No data available. " << httpctx->streamingBuffer.bufferStatus();
+        LOG_debug << httpctx->getLogName() << "[Streaming] Skipping write. No data available. "
+                  << httpctx->streamingBuffer.bufferStatus();
         return;
     }
 
-    LOG_verbose << "Writing " << resbuf.len << " bytes";
+    LOG_verbose << httpctx->getLogName() << "Writing " << resbuf.len << " bytes";
     httpctx->rangeWritten += resbuf.len;
     httpctx->lastBuffer = resbuf.base;
     httpctx->lastBufferLen = resbuf.len;
@@ -35056,7 +35089,8 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx)
         int err = evt_tls_write(httpctx->evt_tls, resbuf.base, resbuf.len, onWriteFinished_tls);
         if (err <= 0)
         {
-            LOG_warn << "[Streaming] Finishing due to an error sending the response: " << err;
+            LOG_warn << httpctx->getLogName()
+                     << "[Streaming] Finishing due to an error sending the response: " << err;
             evt_tls_close(httpctx->evt_tls, on_evt_tls_close);
         }
     }
@@ -35069,7 +35103,6 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx)
         if (int err = uv_write(req, (uv_stream_t*)&httpctx->tcphandle, &resbuf, 1, onWriteFinished))
         {
             delete req;
-            LOG_warn << "[Streaming] Finishing due to an error in uv_write: " << err;
             httpctx->finished = true;
             if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
             {
@@ -35081,7 +35114,12 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx)
 #endif
 }
 
-MegaHTTPContext::MegaHTTPContext()
+std::atomic_uint32_t MegaHTTPContext::nextId{0u};
+
+MegaHTTPContext::MegaHTTPContext():
+    contextId{nextId++},
+    logname{"(HttpCtx#" + std::to_string(contextId) + ") "},
+    streamingBuffer(logname)
 {
     rangeStart = -1;
     rangeEnd = -1;
@@ -35132,14 +35170,14 @@ bool MegaHTTPContext::onTransferData(MegaApi*,
                                      char* buffer,
                                      size_t dataSize)
 {
-    LOG_verbose << "Streaming data received: " << httpTransfer->getTransferredBytes()
+    LOG_verbose << logname << "Streaming data received: " << httpTransfer->getTransferredBytes()
                 << " Size: " << dataSize << " Queued: " << this->tcphandle.write_queue_size << " "
                 << streamingBuffer.bufferStatus();
 
     if (finished)
     {
-        LOG_info << "Removing streaming transfer after " << httpTransfer->getTransferredBytes()
-                 << " bytes";
+        LOG_info << logname << "Removing streaming transfer after "
+                 << httpTransfer->getTransferredBytes() << " bytes";
         return false;
     }
 
@@ -35151,7 +35189,8 @@ bool MegaHTTPContext::onTransferData(MegaApi*,
     if ((remaining > availableSpace) &&
         ((availableSpace - dataSize) < static_cast<long long>(DirectReadSlot::MAX_DELIVERY_CHUNK)))
     {
-        LOG_debug << "[Streaming] Buffer full: Pausing streaming. " << streamingBuffer.bufferStatus();
+        LOG_debug << logname << "[Streaming] Buffer full: Pausing streaming. "
+                  << streamingBuffer.bufferStatus();
         pause = true;
     }
     streamingBuffer.append(buffer, dataSize);
@@ -35166,7 +35205,7 @@ void MegaHTTPContext::onTransferFinish(MegaApi *, MegaTransfer *, MegaError *e)
 {
     if (finished)
     {
-        LOG_debug << "HTTP link closed, ignoring the result of the transfer";
+        LOG_debug << logname << "HTTP link closed, ignoring the result of the transfer";
         return;
     }
 
@@ -35188,7 +35227,7 @@ void MegaHTTPContext::onTransferFinish(MegaApi *, MegaTransfer *, MegaError *e)
 
     if (ecode != API_OK && ecode != API_EINCOMPLETE)
     {
-        LOG_warn << "Transfer failed with error code: " << ecode;
+        LOG_warn << logname << "Transfer failed with error code: " << ecode;
         failed = true;
     }
     uv_async_send(&asynchandle);
@@ -35198,7 +35237,7 @@ void MegaHTTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError
 {
     if (finished)
     {
-        LOG_debug << "HTTP link closed, ignoring the result of the request";
+        LOG_debug << logname << "HTTP link closed, ignoring the result of the request";
         return;
     }
     MegaHTTPServer* httpserver = dynamic_cast<MegaHTTPServer *>(server);

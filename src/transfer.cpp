@@ -2129,13 +2129,16 @@ bool DirectReadSlot::doio()
                         req->posturl = adjustURLPort(mDr->drbuf.tempURL(connectionNum));
                         req->posturl.append(buf);
                         LOG_debug << "DirectReadSlot [conn " << connectionNum << "] Request chunk of size " << (posrange.second - posrange.first) << " (request status = " << req->status.load() << ")" << " [this = " << this << "]";
-                        LOG_debug << "POST URL: " << req->posturl;
+                        LOG_debug << req->getLogName() << "POST URL: " << req->posturl;
 
                         mThroughput[connectionNum].first = 0;
                         mThroughput[connectionNum].second = 0;
                         req->in.reserve(mMaxChunkSize + (mMaxChunkSize/2));
                         req->post(mDr->drn->client); // status will go to inflight or fail
-                        LOG_verbose << "DirectReadSlot [conn " << connectionNum << "] POST done (new request status = " << req->status.load() << ")" << " [this = " << this << "]";
+                        LOG_verbose << req->getLogName() << "DirectReadSlot [conn " << connectionNum
+                                    << "] POST done (new request status = " << req->status.load()
+                                    << ")"
+                                    << " [this = " << this << "]";
 
                         mDr->drbuf.transferPos(connectionNum) = posrange.second;
                         increaseReqsInflight();

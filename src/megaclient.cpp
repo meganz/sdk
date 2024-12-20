@@ -2686,7 +2686,7 @@ void MegaClient::exec()
                     abortlockrequest();
                     pendingcs = new HttpReq();
                     pendingcs->protect = true;
-                    pendingcs->logname = clientname + "cs ";
+                    pendingcs->setLogName(clientname + "cs ");
                     pendingcs_serverBusySent = false;
 
                     bool v3;
@@ -2949,7 +2949,7 @@ void MegaClient::exec()
             if (useralerts.begincatchup)
             {
                 pendingscUserAlerts.reset(new HttpReq());
-                pendingscUserAlerts->logname = clientname + "sc50 ";
+                pendingscUserAlerts->setLogName(clientname + "sc50 ");
                 pendingscUserAlerts->protect = true;
                 pendingscUserAlerts->posturl = httpio->APIURL;
                 pendingscUserAlerts->posturl.append("sc");  // notifications/useralerts on sc rather than wsc, no timeout
@@ -2961,7 +2961,7 @@ void MegaClient::exec()
             else
             {
                 pendingsc.reset(new HttpReq());
-                pendingsc->logname = clientname + "sc ";
+                pendingsc->setLogName(clientname + "sc ");
                 if (mPendingCatchUps && !mReceivingCatchUp)
                 {
                     scnotifyurl.clear();
@@ -3068,7 +3068,7 @@ void MegaClient::exec()
                     std::string reqstaturl = mReqStatCS->mRedirectURL;
                     LOG_debug << "Accessing reqstat URL: " << reqstaturl;
                     mReqStatCS.reset(new HttpReq());
-                    mReqStatCS->logname = clientname + "reqstat ";
+                    mReqStatCS->setLogName(clientname + "reqstat ");
                     mReqStatCS->posturl = reqstaturl;
                     mReqStatCS->type = REQ_BINARY;
                     mReqStatCS->binary = true;
@@ -3222,7 +3222,7 @@ void MegaClient::exec()
             {
                 LOG_debug << clientname << "Sending lock request";
                 workinglockcs.reset(new HttpReq());
-                workinglockcs->logname = clientname + "accountBusyCheck ";
+                workinglockcs->setLogName(clientname + "accountBusyCheck ");
                 workinglockcs->posturl = httpio->APIURL;
                 workinglockcs->posturl.append("cs?");
                 workinglockcs->posturl.append(getAuthURI());
@@ -3241,7 +3241,7 @@ void MegaClient::exec()
         {
             LOG_debug << clientname << "Sending reqstat request";
             mReqStatCS.reset(new HttpReq());
-            mReqStatCS->logname = clientname + "reqstat ";
+            mReqStatCS->setLogName(clientname + "reqstat ");
             mReqStatCS->mExpectRedirect = true;
             mReqStatCS->posturl = httpio->APIURL;
             mReqStatCS->posturl.append("cs/rs?sid=");
