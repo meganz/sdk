@@ -12665,18 +12665,17 @@ class MegaApi
         /**
          * @brief Get Password Manager Base folder node from the MEGA account
          *
-         * The associated request type with this request is MegaRequest::TYPE_CREATE_PASSWORD_MANAGER_BASE
-         * Valid data in the MegaRequest object received on callbacks:
+         * The associated request type with this request is
+         * MegaRequest::TYPE_CREATE_PASSWORD_MANAGER_BASE Valid data in the MegaRequest object
+         * received on callbacks:
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getNodeHandle - Handle of the folder
          *
-         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
-         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
-         *
-         * A successfully completed a fetchNodes request is required before calling getNodeByHandle with
-         * the MegaHandle returned by this request. Otherwise, getNodeByHandle will return NULL.
+         * A successfully completed fetchNodes request is required before calling getNodeByHandle
+         * with the MegaHandle returned by this request. Otherwise, getNodeByHandle will return
+         * NULL.
          *
          * @param listener MegaRequestListener to track this request
          */
