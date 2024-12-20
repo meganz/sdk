@@ -27222,18 +27222,9 @@ void MegaApiImpl::getPasswordManagerBase(MegaRequestListener* listener)
         // 2. Check node existance (pwmh user attribute)
         CommandGetUA::CompletionErr ce = [this, request](error e) -> void
         {
-            if (API_ENOENT == e)
-            {
-                LOG_debug << "Password Manager: pwmh user attribute not found. Requesting creation";
-                // 3. Create the node (via pwmp) if user attribute doesn't exist
-                createPasswordManagerBase(request);  // it will trigger onRequestFinish
-            }
-            else
-            {
-                LOG_err << "Password Manager: pwmh user attribute request failed unexpectedly with "
-                        << "error " << e << ". Finishing request";
-                fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
-            }
+            LOG_err << "Password Manager: pwmh user attribute request failed unexpectedly with "
+                    << "error " << e << ". Finishing request";
+            fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
         };
         CommandGetUA::CompletionBytes cb =
             [this, request](byte* /*data*/, unsigned /*len*/, attr_t /*type*/) -> void
