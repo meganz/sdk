@@ -184,9 +184,9 @@ bool TransferSlot::createconnectionsonce()
         }
 #endif
         LOG_debug << "Populating transfer slot with " << connections << " connections, max request size of " << maxRequestSize << " bytes [transferbuf.isNewRaid() = " << transferbuf.isNewRaid() << "] [isDownload = " << (transfer->type == GET) << "]";
-        reqs.resize(connections);
-        mReqSpeeds.resize(connections);
-        asyncIO = new AsyncIOContext*[connections]();
+        reqs.resize(static_cast<size_t>(connections));
+        mReqSpeeds.resize(static_cast<size_t>(connections));
+        asyncIO = new AsyncIOContext*[static_cast<size_t>(connections)]();
 
         if (transferbuf.isNewRaid())
         {
@@ -210,7 +210,7 @@ TransferSlot::~TransferSlot()
 
         if (fa && fa->asyncavailable())
         {
-            for (int i = 0; i < connections; i++)
+            for (unsigned int i = 0; static_cast<int>(i) < connections; i++)
             {
                 if (reqs[i] && reqs[i]->status == REQ_ASYNCIO && asyncIO[i])
                 {
@@ -240,7 +240,7 @@ TransferSlot::~TransferSlot()
             }
         }
 
-        for (int i = 0; i < connections; i++)
+        for (unsigned int i = 0; static_cast<int>(i) < connections; i++)
         {
             if (HttpReqDL *downloadRequest = static_cast<HttpReqDL*>(reqs[i].get()))
             {
@@ -278,7 +278,7 @@ TransferSlot::~TransferSlot()
         while (anyData)
         {
             anyData = false;
-            for (int i = 0; i < connections; ++i)
+            for (unsigned int i = 0; static_cast<int>(i) < connections; ++i)
             {
                 // synchronous writes for all remaining outstanding data (for raid, there can be a sequence of output pieces.  for non-raid, one piece per connection)
                 // check each connection first and then all that were not yet on a connection
@@ -402,7 +402,7 @@ void TransferSlot::disconnect()
 {
     for (int i = connections; i--;)
     {
-        disconnect(i);
+        disconnect(static_cast<unsigned int>(i));
     }
 }
 
@@ -635,7 +635,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
     }
 
     // main loop over connections
-    for (int i = connections; i--; )
+    for (unsigned int i = static_cast<unsigned int>(connections); i--;)
     {
         if (reqs[i])
         {
@@ -645,7 +645,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                 LOG_debug << "Connection " << slowestStartConnection << " is the slowest to reply, using the other 5.";
                 reqs[slowestStartConnection].reset();
                 transferbuf.resetPart(slowestStartConnection);
-                i = connections;
+                i = static_cast<unsigned int>(connections);
                 continue;
             }
 
@@ -736,7 +736,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                             // and we have uploaded a small chunk and received the result before even finishing (re-)encrypting
                             // chunk A.  But we do need to include its chunkmacs in the mac-of-macs or we'll assign a wrong mac
                             // to the Node, and think the file is corrupt on download.
-                            for (int j = connections; j--; )
+                            for (unsigned int j = static_cast<unsigned int>(connections); j--;)
                             {
                                 if (j != i && reqs[j] &&
                                     reqs[j]->status == REQ_ENCRYPTING)
@@ -751,7 +751,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
 
                             // any other connections that have not reported back yet, or we haven't processed yet,
                             // must have completed also - make sure to include their chunk MACs in the mac-of-macs
-                            for (int j = connections; j--; )
+                            for (unsigned int j = static_cast<unsigned int>(connections); j--;)
                             {
                                 if (j != i && reqs[j] &&
                                     (reqs[j]->status == REQ_INFLIGHT
@@ -774,8 +774,9 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                             updatecontiguousprogress();
 
                             memcpy(&transfer->filekey.key, transfer->transferkey.data(), sizeof transfer->transferkey);
-                            transfer->filekey.iv_u64 = transfer->ctriv;
-                            transfer->filekey.crc_u64 = macsmac(&transfer->chunkmacs);
+                            transfer->filekey.iv_u64 = static_cast<uint64_t>(transfer->ctriv);
+                            transfer->filekey.crc_u64 =
+                                static_cast<uint64_t>(macsmac(&transfer->chunkmacs));
                             SymmCipher::xorblock(transfer->filekey.iv_bytes.data(), transfer->filekey.key.data());
 
                             client->transfercacheadd(transfer, &committer);
@@ -874,7 +875,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                         // If this upload chunk is the earliest (lowest pos), then release the ones that were waiting
                         // This scheme prevents us from too big a gap between earlierst and latest (which could cause a -4 reply)
                         bool earliestInFlight = true;
-                        for (int j = connections; j--; )
+                        for (unsigned int j = static_cast<unsigned int>(connections); j--;)
                         {
                             if (j != i && reqs[j] &&
                                (reqs[j]->status == REQ_INFLIGHT || reqs[j]->status == REQ_SUCCESS) &&
@@ -999,7 +1000,11 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
 
                             p += outputPiece->buf.datalen();
 
-                            LOG_debug << "Conn " << i << " : Writing data asynchronously at " << outputPiece->pos << " to " << (outputPiece->pos + outputPiece->buf.datalen()) << " (size: " << outputPiece->buf.datalen() << ")";
+                            LOG_debug << "Conn " << i << " : Writing data asynchronously at "
+                                      << outputPiece->pos << " to "
+                                      << (static_cast<size_t>(outputPiece->pos) +
+                                          outputPiece->buf.datalen())
+                                      << " (size: " << outputPiece->buf.datalen() << ")";
                             asyncIO[i] = fa->asyncfwrite(outputPiece->buf.datastart(), static_cast<unsigned>(outputPiece->buf.datalen()), outputPiece->pos);
                             reqs[i]->status = REQ_ASYNCIO;
                         }
@@ -1067,7 +1072,11 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                                 client->mAsyncQueue.push([req, transferkey, ctriv, finaltempurl, pos, npos](SymmCipher& sc)
                                     {
                                         sc.setkey(transferkey.data());
-                                        req->prepare(finaltempurl.c_str(), &sc, ctriv, pos, npos);
+                                        req->prepare(finaltempurl.c_str(),
+                                                     &sc,
+                                                     static_cast<uint64_t>(ctriv),
+                                                     pos,
+                                                     npos);
                                         req->status = REQ_PREPARED;
                                     }, true);   // discardable - if the transfer or client are being destroyed, we won't be sending that data.
                             }
@@ -1093,7 +1102,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                                     // Check connections again looking for postponed chunks
                                     delete asyncIO[i];
                                     asyncIO[i] = NULL;
-                                    i = connections;
+                                    i = static_cast<unsigned int>(connections);
                                     continue;
                                 }
                             }
@@ -1133,7 +1142,8 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
 
                 case REQ_FAILURE:
                     {
-                        auto failValue = processRequestFailure(client, reqs[i], backoff, i);
+                        auto failValue =
+                            processRequestFailure(client, reqs[i], backoff, static_cast<int>(i));
                         if (failValue.first != API_OK)
                         {
                             LOG_warn << "Conn " << i << " : Request Failed with code " << failValue.first << ". Transfer failed (backoff: " << failValue.second << ")";
@@ -1154,7 +1164,13 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
             {
                 bool newInputBufferSupplied = false;
                 bool pauseConnectionInputForRaid = false;
-                std::pair<m_off_t, m_off_t> posrange = transferbuf.nextNPosForConnection(i, maxRequestSize, connections, newInputBufferSupplied, pauseConnectionInputForRaid, client->httpio->uploadSpeed);
+                std::pair<m_off_t, m_off_t> posrange =
+                    transferbuf.nextNPosForConnection(i,
+                                                      maxRequestSize,
+                                                      static_cast<unsigned int>(connections),
+                                                      newInputBufferSupplied,
+                                                      pauseConnectionInputForRaid,
+                                                      client->httpio->uploadSpeed);
 
                 // we might have a raid-reassembled block to write, or a previously loaded block, or a skip block to process.
                 bool newOutputBufferSupplied = false;
@@ -1268,7 +1284,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
         // Get the number of reqs in flight and the position of the earliest for...
         int numInflight = 0;
         m_off_t earliestPosInFlight = 0;
-        for (int i = connections; i--; )
+        for (unsigned int i = static_cast<unsigned int>(connections); i--;)
         {
             if (reqs[i] && reqs[i]->status == REQ_INFLIGHT)
             {
@@ -1281,7 +1297,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
         }
         // ...avoid a gap greater than 256MB between start-pos of the earliest and the end-pos of the latest request
         // (the request should wait, so the gap doesn't grow over that limit)
-        for (int i = connections; i--; )
+        for (unsigned int i = static_cast<unsigned int>(connections); i--;)
         {
             if (reqs[i])
             {
@@ -1303,7 +1319,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
     }
 
     // Finally see if any requests are now fit to post
-    for (int i = connections; i--; )
+    for (unsigned int i = static_cast<unsigned int>(connections); i--;)
     {
         if (reqs[i] && !failure)
         {
@@ -1315,7 +1331,11 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                     {
                         assert(cloudRaid != nullptr);
                         LOG_verbose << "Conn " << i << " : balancedRequest Size: " << reqs[i]->size << ". Pos: " << reqs[i]->pos << ". Progressreported = " << progressreported << ", progresscompleted = " << transfer->progresscompleted << " [req = " << (void*)reqs[i].get() << "]";
-                        if (!cloudRaid->balancedRequest(i, transferbuf.tempUrlVector(), reqs[i]->size, reqs[i]->pos, reqs[i]->size))
+                        if (!cloudRaid->balancedRequest(static_cast<int>(i),
+                                                        transferbuf.tempUrlVector(),
+                                                        reqs[i]->size,
+                                                        reqs[i]->pos,
+                                                        reqs[i]->size))
                         {
                             reqs[i]->status = REQ_FAILURE;
                         }
@@ -1427,7 +1447,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
         }
 
         bool chunkfailed = false;
-        for (int i = connections; i--; )
+        for (unsigned int i = static_cast<unsigned int>(connections); i--;)
         {
             if (reqs[i] && reqs[i]->status == REQ_INFLIGHT)
             {
@@ -1476,7 +1496,7 @@ bool TransferSlot::tryRaidRecoveryFromHttpGetError(unsigned connectionNum, bool 
             reqs[connectionNum]->status = REQ_READY;
 
             // if the file is nearly complete then some connections might have stopped, but need restarting as they could have skipped portions
-            for (unsigned j = connections; j--; )
+            for (unsigned j = static_cast<unsigned>(connections); j--;)
             {
                 if (reqs[j] && reqs[j]->status == REQ_DONE)
                 {
@@ -1541,8 +1561,9 @@ void TransferSlot::prepareRequest(const std::shared_ptr<HttpReqXfer>& httpReq, c
     LOG_debug << "[TransferSlot::prepareRequest] pos = " << pos << ", npos = " << npos << ", tempURL = '" << finaltempURL << "'";
     httpReq->prepare(finaltempURL.c_str(),
                      transfer->transfercipher(),
-                     transfer->ctriv,
-                     pos, npos);
+                     static_cast<uint64_t>(transfer->ctriv),
+                     pos,
+                     npos);
     httpReq->pos = pos;
     httpReq->status = REQ_PREPARED;
 }
@@ -1605,12 +1626,14 @@ std::pair<error, dstime> TransferSlot::processRequestFailure(MegaClient* client,
         // - 404 means "malformed or expired URL" - can be immediately fixed by getting a fresh one from the API
         // - 503 means "the API gave you good information, but I don't have the file" - cannot be fixed (at least not immediately) by getting a fresh URL
         // for raid parts and 503, it's appropriate to try another raid source
-        else if (!tryRaidRecoveryFromHttpGetError(channel, true))
+        else if (!tryRaidRecoveryFromHttpGetError(static_cast<unsigned int>(channel), true))
         {
             return std::make_pair(API_EAGAIN, 0);
         }
     }
-    else if (httpReq->httpstatus == 0 && (transferbuf.isNewRaid() || tryRaidRecoveryFromHttpGetError(channel, true)))
+    else if (httpReq->httpstatus == 0 &&
+             (transferbuf.isNewRaid() ||
+              tryRaidRecoveryFromHttpGetError(static_cast<unsigned int>(channel), true)))
     {
         LOG_warn << "Conn " << channel << " : status 0 NETWORK ERROR OR TIMEOUT -> (if is new raid -> REQ_READY)" << " [httpReq = " << (void*)httpReq.get() << "]";
         if (transferbuf.isNewRaid())
