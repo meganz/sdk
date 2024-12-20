@@ -4706,7 +4706,7 @@ public:
 class StreamingBuffer
 {
 public:
-    StreamingBuffer();
+    StreamingBuffer(const std::string& logName = {});
     ~StreamingBuffer();
     // Allocate buffer and reset class members
     void init(size_t newCapacity);
@@ -4741,6 +4741,11 @@ public:
     // Get the actual buffer state for debugging purposes
     std::string bufferStatus() const;
 
+    const std::string& getLogName() const
+    {
+        return logname;
+    }
+
     static const unsigned int MAX_BUFFER_SIZE = 2097152;
     static const unsigned int MAX_OUTPUT_SIZE = MAX_BUFFER_SIZE / 10;
 
@@ -4749,6 +4754,8 @@ private:
     m_off_t partialDuration(m_off_t partialSize) const;
     // Recalculate maxBufferSize and maxOutputSize taking into accout the byteRate (for media files) and DirectReadSlot read chunk size.
     void calcMaxBufferAndMaxOutputSize();
+
+    std::string logname{};
 
 protected:
     // Circular buffer to store data to feed the consumer
@@ -4936,6 +4943,10 @@ class MegaTCServer;
 class MegaHTTPServer;
 class MegaHTTPContext : public MegaTCPContext
 {
+private:
+    static std::atomic_uint32_t nextId;
+    const uint32_t contextId;
+    std::string logname;
 
 public:
     MegaHTTPContext();
@@ -4991,6 +5002,11 @@ public:
         onTransferData(MegaApi*, MegaTransfer* httpTransfer, char* buffer, size_t dataSize);
     virtual void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e);
     virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e);
+
+    const std::string& getLogName() const
+    {
+        return logname;
+    }
 };
 
 class MegaHTTPServer: public MegaTCPServer
