@@ -27211,13 +27211,6 @@ void MegaApiImpl::getPasswordManagerBase(MegaRequestListener* listener)
 
     request->performRequest = [this, request]()
     {
-        if (getBusinessStatus() == BIZ_STATUS_EXPIRED)
-        {
-            LOG_debug << "Password Manager: Business account has expired";
-            fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_EBUSINESSPASTDUE));
-            return API_EBUSINESSPASTDUE;
-        }
-
         // 1. Shortcut: if already present, nothing to be done
         if (!client->getPasswordManagerBase().isUndef())
         {
@@ -27318,13 +27311,6 @@ void MegaApiImpl::createPasswordNode(const char* name, const MegaNode::PasswordN
 
     request->performRequest = [this, request, pwData]() -> error
     {
-        if (getBusinessStatus() == BIZ_STATUS_EXPIRED)
-        {
-            LOG_debug << "createPasswordNode: Business account has expired";
-            fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_EBUSINESSPASTDUE));
-            return API_EBUSINESSPASTDUE;
-        }
-
         auto name = request->getName();
         auto parent = client->nodebyhandle(request->getParentHandle());
         auto data = toPasswordNodeData(pwData);
@@ -27350,13 +27336,6 @@ void MegaApiImpl::updatePasswordNode(MegaHandle h, const MegaNode::PasswordNodeD
 
     request->performRequest = [this, request, pwData]() -> error
     {
-        if (getBusinessStatus() == BIZ_STATUS_EXPIRED)
-        {
-            LOG_debug << "updatePasswordNode: Business account has expired";
-            fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_EBUSINESSPASTDUE));
-            return API_EBUSINESSPASTDUE;
-        }
-
         auto nhPwdNode = NodeHandle{}.set6byte(request->getNodeHandle());
         auto data = toPasswordNodeData(pwData);
         CommandSetAttr::Completion cbRequest = [this, request](NodeHandle nh, Error e)
