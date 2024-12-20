@@ -4275,6 +4275,12 @@ void Syncs::changeSyncRemoteRootInThread(const handle backupId,
 
     const auto& unifSync = (*it);
     auto& config = unifSync->mConfig;
+    if (config.isBackup())
+    {
+        LOG_err << "Trying to change remote root of a backup sync. Operation not supported yet";
+        return completion(API_EARGS, UNKNOWN_ERROR);
+    }
+
     const auto newRootNH = newRootNode->nodeHandle();
     if (config.mRemoteNode == newRootNH)
     {
