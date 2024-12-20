@@ -1,5 +1,6 @@
 #include "integration_test_utils.h"
 
+#include "gtest_common.h"
 #include "integration/mock_listeners.h"
 #include "mega/logging.h"
 #include "megautils.h"
@@ -218,5 +219,24 @@ void getDeviceNames(MegaApi* megaApi, std::unique_ptr<MegaStringMap>& output)
             });
     megaApi->getUserAttribute(MegaApi::USER_ATTR_DEVICE_NAMES, &rl);
     ASSERT_TRUE(rl.waitForFinishOrTimeout(3min));
+}
+
+void ensureAccountDeviceName(MegaApi* megaApi)
+{
+    std::unique_ptr<MegaStringMap> devices;
+    ASSERT_NO_FATAL_FAILURE(getDeviceNames(megaApi, devices));
+    ASSERT_TRUE(devices);
+
+    // There are already available devices
+    if (devices->size() != 0)
+        return;
+
+    const std::string deviceName = "Jenkins " + getCurrentTimestamp(true);
+    const std::string deviceId = megaApi->getDeviceId();
+    devices->set(deviceId.c_str(), deviceName.c_str());
+    NiceMock<MockRequestListener> rl;
+    rl.setErrorExpectations(API_OK);
+    megaApi->setUserAttribute(MegaApi::USER_ATTR_DEVICE_NAMES, devices.get(), &rl);
+    ASSERT_TRUE(rl.waitForFinishOrTimeout(MAX_TIMEOUT));
 }
 }
