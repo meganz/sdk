@@ -382,7 +382,7 @@ public:
 
     // display in stdout
     void show() const;
-    void setPrefix(const std::string &value);
+    void setPrefix(const std::string& newPrefix);
 };
 
 // must be outside mega namespace

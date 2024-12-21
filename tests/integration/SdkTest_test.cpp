@@ -1958,9 +1958,8 @@ void SdkTest::deleteScheduledMeeting(unsigned apiIndex, MegaHandle& chatid)
 }
 #endif
 
-void SdkTest::shareFolder(MegaNode *n, const char *email, int action)
+void SdkTest::shareFolder(MegaNode* n, const char* email, int action, unsigned apiIndex)
 {
-    unsigned int apiIndex = 0;
     auto shareFolderErr = synchronousShare(apiIndex, n, email, action);
     if (shareFolderErr == API_EKEY)
     {
@@ -8327,6 +8326,18 @@ TEST_F(SdkTest, SdkSimpleCommands)
     gSessionIDs[0] = "invalid";
     err = synchronousGetMiscFlags(0);
     ASSERT_EQ(API_OK, err) << "Get misc flags failed (error: " << err << ")";
+
+    auto validateString = [](const char* value)
+    {
+        ASSERT_NE(value, nullptr);
+        ASSERT_NE(*value, '\0');
+    };
+
+    RequestTracker listener{megaApi[0].get()};
+    megaApi[0]->getMyIp(&listener);
+    ASSERT_EQ(listener.waitForResult(), API_OK);
+    ASSERT_NO_FATAL_FAILURE(validateString(listener.request->getName())); // Country code
+    ASSERT_NO_FATAL_FAILURE(validateString(listener.request->getText())); // IP address}
 }
 
 TEST_F(SdkTest, SdkHeartbeatCommands)
@@ -10196,35 +10207,79 @@ TEST_F(SdkTest, FetchAds)
     LOG_info << "___TEST FetchAds";
     LOG_debug << "\t# Test suite 1: Fetching ads with non-ads account";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-    std::unique_ptr<MegaStringList> stringList = std::unique_ptr<MegaStringList>(MegaStringList::createInstance());
-    std::unique_ptr<RequestTracker> tr = asyncFetchAds(0, MegaApi::ADS_FORCE_ADS, stringList.get(), INVALID_HANDLE);
+    std::unique_ptr<MegaStringList> stringList =
+        std::unique_ptr<MegaStringList>(MegaStringList::createInstance());
+    std::unique_ptr<RequestTracker> tr =
+        asyncFetchAds(0, MegaApi::ADS_FORCE_ADS, stringList.get(), INVALID_HANDLE);
     ASSERT_EQ(API_EARGS, tr->waitForResult()) << "Fetch Ads succeeded with invalid arguments";
-    const std::string dummyAd {"dummyAdUnit"};
+
+    // Test the invalid Ad code
+    const std::string dummyAd{"dummyAdUnit"};
     stringList->add(dummyAd.c_str());
     tr = asyncFetchAds(0, MegaApi::ADS_FORCE_ADS, stringList.get(), INVALID_HANDLE);
-    const auto ab_adse = megaApi[0]->getABTestValue("adse");
-    const auto ab_adsi = megaApi[0]->getABTestValue("adsi");
-    LOG_debug << "Account 0 " << megaApi[0]->getMyUserHandle() << " (" << megaApi[0]->getMyEmail()
-              << ") ab_adse: " << ab_adse << " ab_adsi: " << ab_adsi;
-    const bool isUserAllowedToFetchAds = ab_adse > 0u || ab_adsi > 0u;
-    if (isUserAllowedToFetchAds)
+    ASSERT_EQ(API_OK, tr->waitForResult()) << "Fetch Ads request failed when it wasn't expected";
+    ASSERT_TRUE(tr->request);
+    auto adsLink = tr->request->getMegaStringMap();
+    ASSERT_TRUE(adsLink && adsLink->size() == 1);
+    ASSERT_STREQ(adsLink->get(dummyAd.c_str()), "-9")
+        << "Fetch Ads should have received -9 for dummy Ad case";
+
+    tr = asyncQueryAds(0, MegaApi::ADS_DEFAULT, INVALID_HANDLE);
+    ASSERT_EQ(API_OK, tr->waitForResult()) << "Query Ads request failed when it wasn't expected";
+    const int showAd = tr->request->getNumDetails();
+
+    if (showAd == 0)
     {
-        ASSERT_EQ(API_OK, tr->waitForResult()) << "Fetch Ads request failed when it wasn't expected";
-        ASSERT_TRUE(tr->request);
-        auto ads = tr->request->getMegaStringMap();
-        ASSERT_TRUE(ads && ads->size() == 1);
-        ASSERT_STREQ(ads->get(dummyAd.c_str()), "-9") << "Fetch Ads should have received -9 for dummy Ad case";
+        // Show Ads
+        const char valiAdSlot[] = "ANDFB";
+        stringList.reset(MegaStringList::createInstance());
+        stringList->add(valiAdSlot);
+        tr = asyncFetchAds(0, MegaApi::ADS_DEFAULT, stringList.get(), INVALID_HANDLE);
+        ASSERT_EQ(API_OK, tr->waitForResult())
+            << "Fetch Ads failed when it was expected to receive Ads";
+        const MegaStringMap* ads = tr->request->getMegaStringMap();
+        ASSERT_TRUE(ads) << "Fetch Ads should have received Ads link";
     }
     else
     {
-        ASSERT_EQ(API_ENOENT, tr->waitForResult()) << "Fetch Ads didn't fail when it was expected to (dummy Ad case)";
+        // Do not show ad - Try fetching ad with default flag
+        tr = asyncFetchAds(0, MegaApi::ADS_DEFAULT, stringList.get(), INVALID_HANDLE);
+        ASSERT_EQ(API_ENOENT, tr->waitForResult())
+            << "Fetch Ads didn't fail when it was expected to (correct Ad case)";
+        const MegaStringMap* ads = tr->request->getMegaStringMap();
+        ASSERT_FALSE(ads)
+            << "Fetch Ads should have been nullptr to expected error code in `request`";
+    }
+
+    stringList.reset(MegaStringList::createInstance());
+    stringList->add(dummyAd.c_str());
+    tr = asyncFetchAds(0, MegaApi::ADS_DEFAULT, stringList.get(), INVALID_HANDLE);
+    const auto ab_adse = megaApi[0]->getFlag("adse", false);
+    const auto ab_adsi = megaApi[0]->getFlag("adsi", false);
+    LOG_debug << "Account 0 " << megaApi[0]->getMyUserHandle() << " (" << megaApi[0]->getMyEmail()
+              << ") ab_adse: " << ab_adse->getGroup() << " ab_adsi: " << ab_adsi->getGroup();
+    const bool isUserAllowedToFetchAds = ab_adse->getGroup() > 0u || ab_adsi->getGroup() > 0u;
+    if (isUserAllowedToFetchAds)
+    {
+        ASSERT_EQ(API_OK, tr->waitForResult())
+            << "Fetch Ads request failed when it wasn't expected";
+        ASSERT_TRUE(tr->request);
+        auto ads = tr->request->getMegaStringMap();
+        ASSERT_TRUE(ads && ads->size() == 1);
+        ASSERT_STREQ(ads->get(dummyAd.c_str()), "-9")
+            << "Fetch Ads should have received -9 for dummy Ad case";
+    }
+    else
+    {
+        ASSERT_EQ(API_ENOENT, tr->waitForResult())
+            << "Fetch Ads didn't fail when it was expected to (dummy Ad case)";
         const MegaStringMap* ads = tr->request->getMegaStringMap();
         ASSERT_FALSE(ads)
             << "Fetch Ads should have been nullptr due to expected error code `request`";
         const char valiAdSlot[] = "ANDFB";
         stringList.reset(MegaStringList::createInstance());
         stringList->add(valiAdSlot);
-        tr = asyncFetchAds(0, MegaApi::ADS_FORCE_ADS, stringList.get(), INVALID_HANDLE);
+        tr = asyncFetchAds(0, MegaApi::ADS_DEFAULT, stringList.get(), INVALID_HANDLE);
         ASSERT_EQ(API_ENOENT, tr->waitForResult())
             << "Fetch Ads didn't fail when it was expected to (correct Ad case)";
         ads = tr->request->getMegaStringMap();
@@ -12165,446 +12220,6 @@ TEST_F(SdkTest, SdkTestAudioFileThumbnail)
     std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByPath(AUDIO_FILENAME.c_str(), rootnode.get()));
     ASSERT_TRUE(node->hasPreview() && node->hasThumbnail());
 }
-
-
-/**
- * @brief TEST_F TestSharesContactVerification
- *
- * Test contact verification for shares
- *
- */
-TEST_F(SdkTest, TestSharesContactVerification)
-{
-    // What we are going to test here:
-    // 1: Create a share between A and B, being A and B already contacts in the following scenarios:
-    //    1-1: A and B credentials already verified by both.
-    //    1-2: A has verified B, but B has not verified A. B verifies A after creating the share.
-    //    1-3: None are verified. Then A verifies B and later B verifies A.
-    // 2: Create a share between A and B, being A and B no contacts.
-
-    LOG_info << "___TEST TestSharesContactVerification___";
-
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
-    // The idea of the test is to ensure manual verification works as expected, so force it to true
-    megaApi[0]->setManualVerificationFlag(true);
-    megaApi[1]->setManualVerificationFlag(true);
-
-    // Define all folers needed for the tests.
-    string folder11 = "EnhancedSecurityShares-1";
-    string folder12 = "EnhancedSecurityShares-21";
-    string folder13 = "EnhancedSecurityShares-22";
-    string folder2 = "EnhancedSecurityShares-23";
-
-    // Auxiliar function to create a share ensuring node changes are notified.
-    auto createShareAtoB = [this](MegaNode* node, bool waitForA = true, bool waitForB = true)
-    {
-        mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(node->getHandle(), MegaNode::CHANGE_TYPE_OUTSHARE, mApi[0].nodeUpdated);
-        mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(node->getHandle(), MegaNode::CHANGE_TYPE_INSHARE, mApi[1].nodeUpdated);
-        ASSERT_NO_FATAL_FAILURE(shareFolder(node, mApi[1].email.c_str(), MegaShare::ACCESS_READWRITE));
-        if (waitForA) { ASSERT_TRUE(waitForResponse(&mApi[0].nodeUpdated)) << "Node update not received after " << maxTimeout << " seconds"; }
-        if (waitForB) { ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated)) << "Node update not received after " << maxTimeout << " seconds"; }
-        resetOnNodeUpdateCompletionCBs();
-        mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
-    };
-
-    // Auxiliar function to remove a share ensuring node changes are notified.
-    auto removeShareAtoB = [this](MegaNode* node)
-    {
-        mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(node->getHandle(), MegaNode::CHANGE_TYPE_OUTSHARE, mApi[0].nodeUpdated);
-        mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(node->getHandle(), MegaNode::CHANGE_TYPE_REMOVED, mApi[1].nodeUpdated);
-        ASSERT_NO_FATAL_FAILURE(shareFolder(node, mApi[1].email.c_str(), MegaShare::ACCESS_UNKNOWN));
-        ASSERT_TRUE(waitForResponse(&mApi[0].nodeUpdated)) << "Node update not received after " << maxTimeout << " seconds";
-        ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated)) << "Node update not received after " << maxTimeout << " seconds";
-        resetOnNodeUpdateCompletionCBs();
-        mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
-    };
-
-    // Auxiliar function to reset both accounts credentials verification
-    auto resetAllCredentials = [this]()
-    {
-        ASSERT_NO_FATAL_FAILURE(resetCredentials(0, mApi[1].email));
-        ASSERT_NO_FATAL_FAILURE(resetCredentials(1, mApi[0].email));
-        ASSERT_FALSE(areCredentialsVerified(0, mApi[1].email));
-        ASSERT_FALSE(areCredentialsVerified(1, mApi[0].email));
-    };
-
-    std::unique_ptr<MegaNode> remoteRootNode(megaApi[0]->getRootNode());
-    ASSERT_NE(remoteRootNode.get(), nullptr);
-
-    //
-    // 1: Create a share between A and B, being A and B already contacts.
-    //
-
-    // Make accounts contacts
-    LOG_verbose << "TestSharesContactVerification :  Make account contacts";
-    mApi[0].contactRequestUpdated = mApi[1].contactRequestUpdated = false;
-    ASSERT_NO_FATAL_FAILURE(inviteContact(0, mApi[1].email, "TestSharesContactVerification contact request A to B", MegaContactRequest::INVITE_ACTION_ADD));
-    ASSERT_TRUE(waitForResponse(&mApi[0].contactRequestUpdated)) << "Inviting contact timeout: " << maxTimeout << " seconds.";
-    ASSERT_TRUE(waitForResponse(&mApi[1].contactRequestUpdated)) << "Waiting for invitation timeout: " << maxTimeout << " seconds.";
-    ASSERT_NO_FATAL_FAILURE(getContactRequest(1, false));
-
-    mApi[0].contactRequestUpdated = mApi[1].contactRequestUpdated = false;
-    ASSERT_NO_FATAL_FAILURE(replyContact(mApi[1].cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT));
-    ASSERT_TRUE(waitForResponse(&mApi[1].contactRequestUpdated)) << "Accepting contact timeout: " << maxTimeout << " seconds";
-    ASSERT_TRUE(waitForResponse(&mApi[0].contactRequestUpdated)) << "Waiting for invitation acceptance timeout: " << maxTimeout << " seconds";
-
-    mApi[0].cr.reset();
-    mApi[1].cr.reset();
-
-    // Ensure no account has the other verified from previous unfinished tests.
-    if (areCredentialsVerified(0, mApi[1].email)) {ASSERT_NO_FATAL_FAILURE(resetCredentials(0, mApi[1].email));}
-    if (areCredentialsVerified(1, mApi[0].email)) {ASSERT_NO_FATAL_FAILURE(resetCredentials(1, mApi[0].email));}
-
-    //
-    // 1-1: A and B credentials already verified by both.
-    //
-
-    fs::path basePath = fs::u8path(folder11.c_str());
-
-    MegaHandle nh = createFolder(0, basePath.u8string().c_str(), remoteRootNode.get());
-    ASSERT_NE(nh, UNDEF) << "Error creating remote basePath";
-    std::unique_ptr<MegaNode> remoteBaseNode(megaApi[0]->getNodeByHandle(nh));
-    ASSERT_NE(remoteBaseNode.get(), nullptr);
-
-    // Verify credentials:
-    LOG_verbose << "TestSharesContactVerification :  Verify A and B credentials";
-    ASSERT_NO_FATAL_FAILURE(verifyCredentials(0, mApi[1].email));
-    ASSERT_NO_FATAL_FAILURE(verifyCredentials(1, mApi[0].email));
-    ASSERT_TRUE(areCredentialsVerified(0, mApi[1].email));
-    ASSERT_TRUE(areCredentialsVerified(1, mApi[0].email));
-
-    // Create share.
-    // B should end with a new inshare and able to decrypt the new node.
-    LOG_verbose << "TestSharesContactVerification :  Share a folder from A to B";
-    ASSERT_NO_FATAL_FAILURE(createShareAtoB(remoteBaseNode.get()));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 1; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 1; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
-    std::unique_ptr<MegaNode> inshareNode(megaApi[1]->getNodeByHandle(nh));
-    ASSERT_NE(inshareNode.get(), nullptr);
-    ASSERT_TRUE(WaitFor([this, nh]() { return unique_ptr<MegaNode>(megaApi[1]->getNodeByHandle(nh))->isNodeKeyDecrypted(); }, 60*1000))  << "Cannot decrypt inshare in B account.";
-
-    // Remove share
-    LOG_verbose << "TestSharesContactVerification :  Remove shared folder from A to B";
-    ASSERT_NO_FATAL_FAILURE(removeShareAtoB(remoteBaseNode.get()));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 0; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 0; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
-    inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
-    ASSERT_EQ(inshareNode.get(), nullptr);
-
-    // Share the same node again
-    LOG_verbose << "TestSharesContactVerification :  Share again the same folder from A to B";
-    ASSERT_NO_FATAL_FAILURE(createShareAtoB(remoteBaseNode.get()));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 1; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 1; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
-    inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
-    ASSERT_NE(inshareNode.get(), nullptr);
-    ASSERT_TRUE(WaitFor([this, nh]() { return unique_ptr<MegaNode>(megaApi[1]->getNodeByHandle(nh))->isNodeKeyDecrypted(); }, 60*1000))  << "Cannot decrypt inshare in B account.";
-
-    /*
-     * TODO: uncomment this block to test "Reset credentials" when SDK supports APIv3 for up2/upv commands
-     *
-     * This test is prone to a race condition that may result on having no inshare, but unverified inshare.
-     *
-     * It happens when the client receives a "pk" action packet after reset credentials. Why that "pk"? because
-     * currently the SDK cannot differentiate between action packets related to its own user's attribute updates
-     * (^!keys) and other client's updates. In consequence, if the action packet is received before the response
-     * to the "upv", the SDK will fetch the attribute ("uga") and upon receiving the value, it will reapply the
-     * promotion of the outshare, sending a duplicated "pk" for the same share handle.
-     *
-     * This race between the sc and cs channels will be removed when the SDK adds support for the APIv3 / sn-tagging,
-     * since the "upv" will be matched with the corresponding action packet, eliminating the race.
-     * */
-
-//    // Reset credentials
-//    LOG_verbose << "TestSharesContactVerification :  Reset credentials";
-//    ASSERT_NO_FATAL_FAILURE(resetAllCredentials());
-//    // Established share remains in the same status.
-//    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 1; }, 60*1000));
-//    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
-//    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 1; }, 60*1000));
-//    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
-//    inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
-//    ASSERT_NE(inshareNode.get(), nullptr);
-//    ASSERT_TRUE(inshareNode->isNodeKeyDecrypted()) << "Cannot decrypt inshare in B account.";
-
-    // Remove share
-    LOG_verbose << "TestSharesContactVerification :  Remove shared folder from A to B";
-    ASSERT_NO_FATAL_FAILURE(removeShareAtoB(remoteBaseNode.get()));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 0; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 0; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
-    inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
-    ASSERT_EQ(inshareNode.get(), nullptr);
-
-    ASSERT_NO_FATAL_FAILURE(resetAllCredentials());
-
-    //
-    // 1-2: A has verified B, but B has not verified A. B verifies A after creating the share.
-    //
-
-    basePath = fs::u8path(folder12.c_str()); // Use a different node
-
-    nh = createFolder(0, basePath.u8string().c_str(), remoteRootNode.get());
-    ASSERT_NE(nh, UNDEF) << "Error creating remote basePath";
-    remoteBaseNode.reset(megaApi[0]->getNodeByHandle(nh));
-    ASSERT_NE(remoteBaseNode.get(), nullptr);
-
-    // Verify credentials
-    LOG_verbose << "TestSharesContactVerification :  Verify B credentials:";
-    ASSERT_NO_FATAL_FAILURE(verifyCredentials(0, mApi[1].email));
-    ASSERT_TRUE(areCredentialsVerified(0, mApi[1].email));
-    ASSERT_FALSE(areCredentialsVerified(1, mApi[0].email));
-
-    // Create share
-    // B should end with an unverified inshare and be unable to decrypt the node.
-    LOG_verbose << "TestSharesContactVerification :  Share a folder from A to B";
-    ASSERT_NO_FATAL_FAILURE(createShareAtoB(remoteBaseNode.get()));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 1; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 0; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 1; }, 60*1000));
-    inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
-    ASSERT_NE(inshareNode.get(), nullptr);
-    ASSERT_FALSE(inshareNode->isNodeKeyDecrypted()) << "Inshare is decrypted in B account, and it should be not.";
-
-    // Remove share
-    LOG_verbose << "TestSharesContactVerification :  Remove shared folder from A to B";
-    ASSERT_NO_FATAL_FAILURE(removeShareAtoB(remoteBaseNode.get()));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 0; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 0; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
-    inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
-    ASSERT_EQ(inshareNode.get(), nullptr);
-
-    // Share the same node again
-    LOG_verbose << "TestSharesContactVerification :  Share again the same folder from A to B";
-    ASSERT_NO_FATAL_FAILURE(createShareAtoB(remoteBaseNode.get()));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 1; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 0; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 1; }, 60*1000));
-    inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
-    ASSERT_NE(inshareNode.get(), nullptr);
-    ASSERT_FALSE(inshareNode->isNodeKeyDecrypted()) << "Inshare is decrypted in B account, and it should be not.";
-
-    // Verify A credentials in B account
-    // B unverified inshare should end as a functional inshare. It should be able to decrypt the new node.
-    LOG_verbose << "TestSharesContactVerification :  Verify A credentials";
-    mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(nh, MegaNode::CHANGE_TYPE_NAME, mApi[1].nodeUpdated); // file name is set when decrypted.
-    ASSERT_NO_FATAL_FAILURE(verifyCredentials(1, mApi[0].email));
-    ASSERT_TRUE(areCredentialsVerified(1, mApi[0].email));
-    ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated)) << "Node update not received after " << maxTimeout << " seconds";
-    resetOnNodeUpdateCompletionCBs();
-    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 1; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
-    inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
-    ASSERT_NE(inshareNode.get(), nullptr);
-    ASSERT_TRUE(WaitFor([this, nh]() { return unique_ptr<MegaNode>(megaApi[1]->getNodeByHandle(nh))->isNodeKeyDecrypted(); }, 60*1000))  << "Cannot decrypt inshare in B account.";
-
-    // Remove share
-    LOG_verbose << "TestSharesContactVerification :  Remove shared folder from A to B";
-    ASSERT_NO_FATAL_FAILURE(removeShareAtoB(remoteBaseNode.get()));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 0; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 0; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
-    inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
-    ASSERT_EQ(inshareNode.get(), nullptr);
-
-    // Reset credentials:
-    LOG_verbose << "TestSharesContactVerification :  Reset credentials";
-    ASSERT_NO_FATAL_FAILURE(resetAllCredentials());
-
-
-    //
-    // 1-3: None are verified. Then A verifies B and later B verifies A.
-    //
-
-    basePath = fs::u8path(folder13.c_str()); // Use a different node
-
-    nh = createFolder(0, basePath.u8string().c_str(), remoteRootNode.get());
-    ASSERT_NE(nh, UNDEF) << "Error creating remote basePath";
-    remoteBaseNode.reset(megaApi[0]->getNodeByHandle(nh));
-    ASSERT_NE(remoteBaseNode.get(), nullptr);
-
-    // Create share.
-    // A should end with an unverified outshare and B should have an unverified inshare and unable to decrypt the new node.
-    LOG_verbose << "TestSharesContactVerification :  Share a folder from A to B";
-    ASSERT_NO_FATAL_FAILURE(createShareAtoB(remoteBaseNode.get()));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 1; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 1; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 1; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
-    inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
-    ASSERT_NE(inshareNode.get(), nullptr);
-    ASSERT_FALSE(inshareNode->isNodeKeyDecrypted()) << "Inshare is decrypted in B account, and it should be not.";
-
-    // Remove share
-    LOG_verbose << "TestSharesContactVerification :  Remove shared folder from A to B";
-    ASSERT_NO_FATAL_FAILURE(removeShareAtoB(remoteBaseNode.get()));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 0; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 0; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
-    inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
-    ASSERT_EQ(inshareNode.get(), nullptr);
-
-    // Share the same node again
-    LOG_verbose << "TestSharesContactVerification :  Share again the same folder from A to B";
-    ASSERT_NO_FATAL_FAILURE(createShareAtoB(remoteBaseNode.get()));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 1; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 1; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 1; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
-    inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
-    ASSERT_NE(inshareNode.get(), nullptr);
-    ASSERT_FALSE(inshareNode->isNodeKeyDecrypted()) << "Inshare is decrypted in B account, and it should be not.";
-
-    // Verify B credentials in A account
-    // Unverified outshare in A should disappear and be a regular outshare. No changes expected in B, the share should still be unverified.
-    LOG_verbose << "TestSharesContactVerification :  Verify B credentials";
-    ASSERT_NO_FATAL_FAILURE(verifyCredentials(0, mApi[1].email));
-    ASSERT_TRUE(areCredentialsVerified(0, mApi[1].email));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 1; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 0; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 1; }, 60*1000));
-    inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
-    ASSERT_NE(inshareNode.get(), nullptr);
-    ASSERT_FALSE(inshareNode->isNodeKeyDecrypted()) << "Inshare is decrypted in B account, and it should be not.";
-
-    // Verify A credentials in B account
-    // B unverified inshare should end as a functional inshare. It should be able to decrypt the new node.
-    LOG_verbose << "TestSharesContactVerification :  Verify A credentials";
-    mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(nh, MegaNode::CHANGE_TYPE_NAME, mApi[1].nodeUpdated);
-    ASSERT_NO_FATAL_FAILURE(verifyCredentials(1, mApi[0].email));
-    ASSERT_TRUE(areCredentialsVerified(1, mApi[0].email));
-    ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated)) << "Node update not received after " << maxTimeout << " seconds";
-    resetOnNodeUpdateCompletionCBs();
-    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 1; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
-    inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
-    ASSERT_NE(inshareNode.get(), nullptr);
-    ASSERT_TRUE(WaitFor([this, nh]() { return unique_ptr<MegaNode>(megaApi[1]->getNodeByHandle(nh))->isNodeKeyDecrypted(); }, 60*1000))  << "Cannot decrypt inshare in B account.";
-
-    // Remove share
-    LOG_verbose << "TestSharesContactVerification :  Remove shared folder from A to B";
-    ASSERT_NO_FATAL_FAILURE(removeShareAtoB(remoteBaseNode.get()));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 0; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 0; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
-    inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
-    ASSERT_EQ(inshareNode.get(), nullptr);
-
-    // Reset credentials
-    LOG_verbose << "TestSharesContactVerification :  Reset credentials";
-    ASSERT_NO_FATAL_FAILURE(resetAllCredentials());
-
-    // Delete contacts
-    LOG_verbose << "TestSharesContactVerification :  Remove Contact";
-    ASSERT_EQ( API_OK, removeContact(0, mApi[1].email) );
-    unique_ptr<MegaUser> user(megaApi[0]->getContact(mApi[1].email.c_str()));
-    ASSERT_FALSE(user == nullptr) << "Not user for contact email: " << mApi[1].email;
-    ASSERT_EQ(MegaUser::VISIBILITY_HIDDEN, user->getVisibility()) << "Contact is still visible after removing it." << mApi[1].email;
-
-    //
-    // 2: Create a share between A and B, being A and B no contacts.
-    //
-
-    basePath = fs::u8path(folder2.c_str()); // Use a different node
-
-    nh = createFolder(0, basePath.u8string().c_str(), remoteRootNode.get());
-    ASSERT_NE(nh, UNDEF) << "Error creating remote basePath";
-    remoteBaseNode.reset(megaApi[0]->getNodeByHandle(nh));
-    ASSERT_NE(remoteBaseNode.get(), nullptr);
-
-    // Create share.
-    // Since are no contacts, B should receive a contact request.
-    LOG_verbose << "TestSharesContactVerification :  Share a folder from A to B";
-    mApi[0].contactRequestUpdated = mApi[1].contactRequestUpdated = false;
-    ASSERT_NO_FATAL_FAILURE(createShareAtoB(remoteBaseNode.get(), false, false));
-    ASSERT_TRUE(waitForResponse(&mApi[0].contactRequestUpdated)) << "Inviting contact timeout: " << maxTimeout << " seconds.";
-    ASSERT_TRUE(waitForResponse(&mApi[1].contactRequestUpdated)) << "Waiting for invitation timeout: " << maxTimeout << " seconds.";
-    ASSERT_NO_FATAL_FAILURE(getContactRequest(1, false));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 1; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 1; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 0; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
-    inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
-    ASSERT_EQ(inshareNode.get(), nullptr);
-
-    // B accepts the contact request.
-    // Now B should end with an inshare without 'pk' yet, so "verified".
-    mApi[0].contactRequestUpdated = mApi[1].contactRequestUpdated = false;
-    ASSERT_NO_FATAL_FAILURE(replyContact(mApi[1].cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT));
-    ASSERT_TRUE(waitForResponse(&mApi[1].contactRequestUpdated)) << "Accepting contact timeout: " << maxTimeout << " seconds";
-    ASSERT_TRUE(waitForResponse(&mApi[0].contactRequestUpdated)) << "Waiting for invitation acceptance timeout: " << maxTimeout << " seconds";
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 1; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 1; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 1; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
-
-    // Verify B credentials in A account
-    // Unverified outshare in A should disappear and be a regular outshare. No changes expected in B, the share should still be unverified.
-    LOG_verbose << "TestSharesContactVerification :  Verify B credentials";
-    ASSERT_NO_FATAL_FAILURE(verifyCredentials(0, mApi[1].email));
-    ASSERT_TRUE(areCredentialsVerified(0, mApi[1].email));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 1; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 0; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 1; }, 60*1000));
-    inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
-    ASSERT_NE(inshareNode.get(), nullptr);
-    ASSERT_FALSE(inshareNode->isNodeKeyDecrypted()) << "Inshare is decrypted in B account, and it should be not.";
-
-    // Verify A credentials in B account
-    // B unverified inshare should end as a functional inshare. It should be able to decrypt the new node.
-    LOG_verbose << "TestSharesContactVerification :  Verify A credentials";
-    mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(nh, MegaNode::CHANGE_TYPE_NAME, mApi[1].nodeUpdated);
-    ASSERT_NO_FATAL_FAILURE(verifyCredentials(1, mApi[0].email));
-    ASSERT_TRUE(areCredentialsVerified(1, mApi[0].email));
-    ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated)) << "Node update not received after " << maxTimeout << " seconds";
-    resetOnNodeUpdateCompletionCBs();
-    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 1; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
-    inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
-    ASSERT_NE(inshareNode.get(), nullptr);
-    ASSERT_TRUE(WaitFor([this, nh]() { return unique_ptr<MegaNode>(megaApi[1]->getNodeByHandle(nh))->isNodeKeyDecrypted(); }, 60*1000))  << "Cannot decrypt inshare in B account.";
-
-    // Remove share
-    LOG_verbose << "TestSharesContactVerification :  Remove shared folder from A to B";
-    ASSERT_NO_FATAL_FAILURE(removeShareAtoB(remoteBaseNode.get()));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 0; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 0; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
-    inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
-    ASSERT_EQ(inshareNode.get(), nullptr);
-
-    // Reset credentials
-    LOG_verbose << "TestSharesContactVerification :  Reset credentials";
-    ASSERT_NO_FATAL_FAILURE(resetAllCredentials());
-
-    // Delete contacts
-    LOG_verbose << "TestSharesContactVerification :  Remove Contact";
-    ASSERT_EQ(API_OK, removeContact(0, mApi[1].email) );
-    user.reset(megaApi[0]->getContact(mApi[1].email.c_str()));
-    ASSERT_FALSE(user == nullptr) << "Not user for contact email: " << mApi[1].email;
-    ASSERT_EQ(MegaUser::VISIBILITY_HIDDEN, user->getVisibility()) << "Contact is still visible after removing it." << mApi[1].email;
-}
-
 
 /**
  * @brief TEST_F SearchNodesByCreationTime
@@ -15119,22 +14734,22 @@ TEST_F(SdkTest, SdkUserAlerts)
     // --- Move sub-folder from Root (owned) back to share ---
     ASSERT_EQ(API_OK, doMoveNode(A1idx, nullptr, nSubfolder.get(), nSharedFolder.get()))
         << "Moving sub-folder from Root (owned) to share failed";
-    // NOTE: This did not create a NewSharedNodes alert (even when it contained files). Notified as a potential bug.
+    // Notifies and suppresses the previous RemovedSharedNode alert
+    ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
+        << "Suppressed remove share alert not received by B1 after " << maxTimeout << " seconds";
+    ASSERT_NE(B1dtls.userAlertList, nullptr) << "Suppressed RemovedSharedNode";
+    ASSERT_EQ(B1dtls.userAlertList->size(), 1) << "Suppressed RemovedSharedNode";
+    ASSERT_EQ(B1dtls.userAlertList->get(0)->getType(), MegaUserAlert::TYPE_REMOVEDSHAREDNODES)
+        << "Suppressed RemovedSharedNode";
+    ASSERT_TRUE(B1dtls.userAlertList->get(0)->isRemoved()) << "Suppressed RemovedSharedNode";
 
     // --- Move file from Root (owned) to share ---
+    B1dtls.userAlertsUpdated = false;
+    B1dtls.userAlertList.reset();
     std::unique_ptr<MegaNode> nfile2(A1.getNodeByHandle(hUpfile));
     ASSERT_NE(nfile2, nullptr);
     ASSERT_EQ(API_OK, doMoveNode(A1idx, nullptr, nfile2.get(), nSubfolder.get()))
         << "Moving file from Root (owned) to shared folder failed";
-
-    // ignore notification about single TYPE_REMOVEDSHAREDNODES alert marked as removed
-    if (B1dtls.userAlertList && B1dtls.userAlertList->size() == 1 &&
-        B1dtls.userAlertList->get(0)->getType() == MegaUserAlert::TYPE_REMOVEDSHAREDNODES &&
-        B1dtls.userAlertList->get(0)->isRemoved())
-    {
-        B1dtls.userAlertsUpdated = false;
-        B1dtls.userAlertList.reset();
-    }
 
     // NewSharedNodes
     ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
@@ -19367,6 +18982,13 @@ TEST_F(SdkTest, SdkNodeTag)
     ASSERT_EQ(addTag(mh, cafeWithoutAccent), API_OK);
     ASSERT_EQ(addTag(mh, cafeWithAccent), API_OK);
 
+    // Make sure we can add distinct tags that sort equivalently.
+    std::string equivalentWithoutPrefix = "0123";
+    std::string equivalentWithPrefix = "00123";
+
+    ASSERT_EQ(addTag(mh, equivalentWithoutPrefix), API_OK);
+    ASSERT_EQ(addTag(mh, equivalentWithPrefix), API_OK);
+
     // Tags are case insensitive.
     ASSERT_EQ(addTag(mh, tag4Lowercase), API_EEXIST);
 
@@ -19415,7 +19037,9 @@ TEST_F(SdkTest, SdkNodeTag)
     ASSERT_NE(allTags, nullptr);
     auto allTagsV = stringListToVector(*allTags);
     EXPECT_THAT(allTagsV,
-                testing::ElementsAreArray({cafeWithAccent,
+                testing::ElementsAreArray({equivalentWithPrefix,
+                                           equivalentWithoutPrefix,
+                                           cafeWithAccent,
                                            cafeWithoutAccent,
                                            subdirtag4,
                                            subdirtag14,
@@ -20207,4 +19831,60 @@ TEST_F(SdkTest, CreditCardCancelSubscriptions)
             &listener);
         ASSERT_EQ(listener.waitForResult(), API_OK);
     }
+}
+
+TEST_F(SdkTest, FailsWhenThumbnailIsTooLarge)
+{
+    // Convenience.
+    using NodePtr = std::unique_ptr<MegaNode>;
+
+    using fs::u8path;
+    using ::mega::MegaApi;
+    using sdk_test::LocalTempFile;
+
+    // Clarity.
+    constexpr auto KiB = 1024u;
+    constexpr auto MiB = 1024u * KiB;
+
+    // Make sure an account is ready for us to use.
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // Convenience.
+    auto& client = *megaApi[0];
+
+    // Get our hands on the user's root node.
+    NodePtr root(client.getRootNode());
+
+    // Make sure we could retrieve the root node.
+    ASSERT_TRUE(root.get()) << "Couldn't retrieve a reference to the user's root node";
+
+    // Create a file for us to upload to the cloud.
+    LocalTempFile content(u8path("content"), 16 * MiB);
+
+    // Upload the file to the cloud so we have a node to play with.
+    TransferTracker tracker(&client);
+
+    client.startUpload("content",
+                       root.get(),
+                       nullptr,
+                       MegaApi::INVALID_CUSTOM_MOD_TIME,
+                       nullptr,
+                       false,
+                       false,
+                       nullptr,
+                       &tracker);
+
+    // Wait for the upload to complete.
+    ASSERT_EQ(tracker.waitForResult(), API_OK) << "Couldn't upload file to cloud";
+
+    // Get our hands on our newly created node.
+    NodePtr node(client.getNodeByHandle(tracker.resultNodeHandle));
+
+    // Make sure our node exists in the cloud.
+    ASSERT_TRUE(node.get()) << "Couldn't retrieve a reference to our newly uploaded file";
+
+    // Try and add our file's content as a thumbnail.
+    //
+    // This should fail as thumbnails must be < 16MiB.
+    ASSERT_EQ(setThumbnail(client, node.get(), "content"), API_EARGS);
 }

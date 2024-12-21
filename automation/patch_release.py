@@ -16,8 +16,7 @@ args = parser.parse_args()
 # Check for required environment variables
 required_env_vars = [
     "GITLAB_TOKEN",
-    "JIRA_USERNAME",
-    "JIRA_PASSWORD",
+    "JIRA_TOKEN",
     "SLACK_TOKEN",
     "GPG_KEYGRIP",
     "GPG_PASSWORD",
@@ -44,8 +43,7 @@ release.setup_local_repo(args["private_remote_name"], "", "")
 
 release.setup_project_management(
     args["jira_url"],
-    os.environ["JIRA_USERNAME"],
-    os.environ["JIRA_PASSWORD"],
+    os.environ["JIRA_TOKEN"],
 )
 
 slack_token = os.environ.get("SLACK_TOKEN", "")

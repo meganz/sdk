@@ -92,24 +92,24 @@ string Request::get(MegaClient* client, char reqidCounter[10], string& idempoten
     return cachedJSON;
 }
 
-bool Request::processCmdJSON(Command* cmd, bool couldBeError, JSON& json)
+bool Request::processCmdJSON(Command* cmd, bool couldBeError, JSON& jsonResponse)
 {
     Error e;
-    if (couldBeError && cmd->checkError(e, json))
+    if (couldBeError && cmd->checkError(e, jsonResponse))
     {
-        return cmd->procresult(Command::Result(Command::CmdError, e), json);
+        return cmd->procresult(Command::Result(Command::CmdError, e), jsonResponse);
     }
-    else if (json.enterobject())
+    else if (jsonResponse.enterobject())
     {
-        return cmd->procresult(Command::CmdObject, json) && json.leaveobject();
+        return cmd->procresult(Command::CmdObject, jsonResponse) && jsonResponse.leaveobject();
     }
-    else if (json.enterarray())
+    else if (jsonResponse.enterarray())
     {
-        return cmd->procresult(Command::CmdArray, json) && json.leavearray();
+        return cmd->procresult(Command::CmdArray, jsonResponse) && jsonResponse.leavearray();
     }
     else
     {
-        return cmd->procresult(Command::CmdItem, json);
+        return cmd->procresult(Command::CmdItem, jsonResponse);
     }
 }
 

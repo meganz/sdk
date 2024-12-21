@@ -18,8 +18,7 @@ args = parser.parse_args()
 # Check for required environment variables
 required_env_vars = [
     "GITLAB_TOKEN",
-    "JIRA_USERNAME",
-    "JIRA_PASSWORD",
+    "JIRA_TOKEN",
     "SLACK_TOKEN",
     "GPG_KEYGRIP",
     "GPG_PASSWORD",
@@ -44,8 +43,7 @@ release = ReleaseProcess(
 # prerequisites for making a release
 release.setup_project_management(
     args["jira_url"],
-    os.environ["JIRA_USERNAME"],
-    os.environ["JIRA_PASSWORD"],
+    os.environ["JIRA_TOKEN"]
 )
 release.set_release_version_to_make(args["release_version"])
 
@@ -83,8 +81,6 @@ release.open_mr_for_release_branch(args["public_branch"])
 # STEP 7: Rename previous NextRelease version; create new NextRelease version
 release.manage_versions(
     args["jira_url"],
-    os.environ["JIRA_USERNAME"],
-    os.environ["JIRA_PASSWORD"],
     args["target_apps"],
 )
 

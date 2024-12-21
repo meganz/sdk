@@ -16,8 +16,7 @@ args = parser.parse_args()
 # Check for required environment variables
 required_env_vars = [
     "GITLAB_TOKEN",
-    "JIRA_USERNAME",
-    "JIRA_PASSWORD",
+    "JIRA_TOKEN",
     "SLACK_TOKEN",
 ]
 
@@ -39,7 +38,7 @@ release = ReleaseProcess(
 
 # prerequisites for a new RC
 release.setup_project_management(
-    args["jira_url"], os.environ["JIRA_USERNAME"], os.environ["JIRA_PASSWORD"]
+    args["jira_url"], os.environ["JIRA_TOKEN"]
 )
 slack_token = os.environ.get("SLACK_TOKEN", "")
 slack_channel_dev = args.get("slack_channel_dev_requests", "")

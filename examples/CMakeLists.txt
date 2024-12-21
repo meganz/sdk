@@ -20,7 +20,6 @@ if(ENABLE_SDKLIB_WERROR)
         TARGET megacli
         WINDOWS /WX
         UNIX  $<$<CONFIG:Debug>: -Werror>
-        APPLE $<$<CONFIG:Debug>: -Wno-string-conversion>
     )
 endif()
 

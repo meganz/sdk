@@ -985,7 +985,7 @@ CommandSetAttr::CommandSetAttr(MegaClient*,
     addToNodePendingCommands(n.get());
 }
 
-const char* CommandSetAttr::getJSON(MegaClient* client)
+const char* CommandSetAttr::getJSON(MegaClient* clientOfRequest)
 {
     // We generate the command just before sending, so it's up to date for any external changes that occured in the meantime
     // And we can also take into account any changes we have sent for this node that have not yet been applied by actionpackets
@@ -995,7 +995,7 @@ const char* CommandSetAttr::getJSON(MegaClient* client)
     cmd("a");
 
     string at;
-    if (shared_ptr<Node> n = client->nodeByHandle(h))
+    if (shared_ptr<Node> n = clientOfRequest->nodeByHandle(h))
     {
         assert(n == mNode);
         AttrMap m = n->attrs;
@@ -1016,7 +1016,7 @@ const char* CommandSetAttr::getJSON(MegaClient* client)
         if (SymmCipher* cipher = n->nodecipher())
         {
             m.getjson(&at);
-            client->makeattr(cipher, &at, at.c_str(), int(at.size()));
+            clientOfRequest->makeattr(cipher, &at, at.c_str(), int(at.size()));
         }
         else
         {
@@ -1027,7 +1027,7 @@ const char* CommandSetAttr::getJSON(MegaClient* client)
 
         if (at.size() > MAX_NODE_ATTRIBUTE_SIZE)
         {
-            client->sendevent(99484, "Node attribute exceed maximun size");
+            clientOfRequest->sendevent(99484, "Node attribute exceed maximun size");
             LOG_err << "Node attribute exceed maximun size";
             h.setUndef();  // dummy command to generate an error, with no effect
             mNode.reset();
@@ -1054,7 +1054,7 @@ const char* CommandSetAttr::getJSON(MegaClient* client)
 
 bool CommandSetAttr::procresult(Result r, JSON&)
 {
-    removeFromNodePendingCommands(h, client);
+    removeFromNodePendingCommands(h);
     if (completion) completion(h, generationError ? Error(generationError) : r.errorOrOK());
     return r.wasErrorOrOK();
 }
@@ -1661,12 +1661,12 @@ CommandLogout::CommandLogout(MegaClient *client, Completion completion, bool kee
     tag = client->reqtag;
 }
 
-const char* CommandLogout::getJSON(MegaClient* client)
+const char* CommandLogout::getJSON(MegaClient* clientOfRequest)
 {
     if (!incrementedCount)
     {
         // only set this once we are about to send the command, in case there are others ahead of it in the queue
-        client->loggingout++;
+        clientOfRequest->loggingout++;
         // only set it once in case of retries due to -3.
         incrementedCount = true;
     }
@@ -1687,8 +1687,9 @@ bool CommandLogout::procresult(Result r, JSON&)
         Completion completion = std::move(mCompletion);
         bool keepSyncConfigsFile = mKeepSyncConfigsFile;
         LOG_debug << "setting mOnCSCompletion for final logout processing";  // track possible lack of logout callbacks
-        client->mOnCSCompletion = [=](MegaClient* client){
-            client->locallogout(true, keepSyncConfigsFile);
+        client->mOnCSCompletion = [=](MegaClient* clientToLogout)
+        {
+            clientToLogout->locallogout(true, keepSyncConfigsFile);
             completion(API_OK);
         };
     }
@@ -2120,7 +2121,7 @@ CommandSetShare::CommandSetShare(MegaClient* client, std::shared_ptr<Node> n, Us
 }
 
 // process user element (email/handle pairs)
-bool CommandSetShare::procuserresult(MegaClient* client, JSON& json)
+bool CommandSetShare::procuserresult(MegaClient* ownClient, JSON& json)
 {
     while (json.enterobject())
     {
@@ -2142,7 +2143,7 @@ bool CommandSetShare::procuserresult(MegaClient* client, JSON& json)
                 case EOO:
                     if (!ISUNDEF(uh) && m)
                     {
-                        client->mapuser(uh, m);
+                        ownClient->mapuser(uh, m);
                     }
                     return true;
 
@@ -2488,12 +2489,12 @@ bool CommandSetPendingContact::procresult(Result r, JSON& json)
     }
 }
 
-void CommandSetPendingContact::doComplete(handle handle, error result, opcactions_t actions)
+void CommandSetPendingContact::doComplete(handle handle, error e, opcactions_t actions)
 {
     if (!mCompletion)
-        return client->app->setpcr_result(handle, result, actions);
+        return client->app->setpcr_result(handle, e, actions);
 
-    mCompletion(handle, result, actions);
+    mCompletion(handle, e, actions);
 }
 
 CommandUpdatePendingContact::CommandUpdatePendingContact(MegaClient* client, handle p, ipcactions_t action, Completion completion)
@@ -2529,13 +2530,12 @@ bool CommandUpdatePendingContact::procresult(Result r, JSON&)
     return r.wasErrorOrOK();
 }
 
-
-void CommandUpdatePendingContact::doComplete(error result, ipcactions_t actions)
+void CommandUpdatePendingContact::doComplete(error e, ipcactions_t actions)
 {
     if (!mCompletion)
-        return client->app->updatepcr_result(result, actions);
+        return client->app->updatepcr_result(e, actions);
 
-    mCompletion(result, actions);
+    mCompletion(e, actions);
 }
 
 CommandEnumerateQuotaItems::CommandEnumerateQuotaItems(MegaClient* client)
@@ -3172,12 +3172,12 @@ bool CommandRemoveContact::procresult(Result r, JSON&)
     return r.wasErrorOrOK();
 }
 
-void CommandRemoveContact::doComplete(error result)
+void CommandRemoveContact::doComplete(error e)
 {
     if (!mCompletion)
-        return client->app->removecontact_result(result);
+        return client->app->removecontact_result(e);
 
-    mCompletion(result);
+    mCompletion(e);
 }
 
 CommandPutMultipleUAVer::CommandPutMultipleUAVer(MegaClient *client, const userattr_map *attrs, int ctag, std::function<void (Error)> completion)
@@ -3362,7 +3362,7 @@ bool CommandPutUAVer::procresult(Result r, JSON& json)
             mCompletion(API_EINTERNAL);
             return false;
         }
-        attr_t at = User::string2attr(string(ptr, (end-ptr)).c_str());
+        attr_t attributeType = User::string2attr(string(ptr, (end - ptr)).c_str());
 
         if (!(ptr = json.getvalue()) || !(end = strchr(ptr, '"')))
         {
@@ -3371,7 +3371,7 @@ bool CommandPutUAVer::procresult(Result r, JSON& json)
         }
         string v = string(ptr, (end-ptr));
 
-        if (at == ATTR_UNKNOWN || v.empty() || (this->at != at))
+        if (attributeType == ATTR_UNKNOWN || v.empty() || (at != attributeType))
         {
             LOG_err << "Error in CommandPutUAVer. Undefined attribute or version";
             mCompletion(API_EINTERNAL);
@@ -3381,12 +3381,12 @@ bool CommandPutUAVer::procresult(Result r, JSON& json)
         {
             User *u = client->ownuser();
 
-            if (at == ATTR_KEYS && !client->mKeyManager.fromKeysContainer(av))
+            if (attributeType == ATTR_KEYS && !client->mKeyManager.fromKeysContainer(av))
             {
                 LOG_err << "Error processing new established value for the Key Manager";
 
                 // if there's a previous version, better keep that value in cache
-                const UserAttribute* attribute = client->ownuser()->getAttribute(at);
+                const UserAttribute* attribute = client->ownuser()->getAttribute(attributeType);
                 if (attribute && !attribute->isNotExisting() && !attribute->version().empty())
                 {
                     LOG_warn << "Replacing ^!keys value by previous version "
@@ -3396,10 +3396,10 @@ bool CommandPutUAVer::procresult(Result r, JSON& json)
                 }
             }
 
-            u->setAttribute(at, av, v);
+            u->setAttribute(attributeType, av, v);
             u->setTag(tag ? tag : -1);
 
-            if (at == ATTR_UNSHAREABLE_KEY)
+            if (attributeType == ATTR_UNSHAREABLE_KEY)
             {
                 LOG_info << "Unshareable key successfully created";
                 client->unshareablekey.swap(av);
@@ -3467,7 +3467,7 @@ bool CommandPutUA::procresult(Result r, JSON& json)
             mCompletion(API_EINTERNAL);
             return false;
         }
-        attr_t at = User::string2attr(string(ptr, (end - ptr)).c_str());
+        attr_t attributeType = User::string2attr(string(ptr, (end - ptr)).c_str());
 
         if (!(ptr = json.getvalue()) || !(end = strchr(ptr, '"')))
         {
@@ -3476,7 +3476,7 @@ bool CommandPutUA::procresult(Result r, JSON& json)
         }
         string v = string(ptr, (end - ptr));
 
-        if (at == ATTR_UNKNOWN || v.empty() || (this->at != at))
+        if (attributeType == ATTR_UNKNOWN || v.empty() || (at != attributeType))
         {
             LOG_err << "Error in CommandPutUA. Undefined attribute or version";
             mCompletion(API_EINTERNAL);
@@ -3491,11 +3491,11 @@ bool CommandPutUA::procresult(Result r, JSON& json)
             mCompletion(API_EACCESS);
             return true;
         }
-        u->setAttribute(at, av, v);
+        u->setAttribute(attributeType, av, v);
         u->setTag(tag ? tag : -1);
         client->notifyuser(u);
 
-        if (at == ATTR_DISABLE_VERSIONS)
+        if (attributeType == ATTR_DISABLE_VERSIONS)
         {
             client->versions_disabled = (av == "1");
             if (client->versions_disabled)
@@ -3507,7 +3507,7 @@ bool CommandPutUA::procresult(Result r, JSON& json)
                 LOG_info << "File versioning is enabled";
             }
         }
-        else if (at == ATTR_NO_CALLKIT)
+        else if (attributeType == ATTR_NO_CALLKIT)
         {
             LOG_info << "CallKit is " << ((av == "1") ? "disabled" : "enabled");
         }
@@ -7004,15 +7004,15 @@ CommandFetchNodes::~CommandFetchNodes()
     assert(!mNodeTreeIsChanging.owns_lock());
 }
 
-const char* CommandFetchNodes::getJSON(MegaClient* client)
+const char* CommandFetchNodes::getJSON(MegaClient* clientOfRequest)
 {
     // reset all the sc channel state, prevent sending sc requests while fetchnodes is sent
     // we wait until this moment, because when `f` is queued, there may be
     // other commands queued ahead of it, and those may need sc responses in order
     // to fully complete, and so we can't reset these members at that time.
-    client->resetScForFetchnodes();
+    clientOfRequest->resetScForFetchnodes();
 
-    return Command::getJSON(client);
+    return Command::getJSON(clientOfRequest);
 }
 
 // purge and rebuild node/user tree
@@ -9912,7 +9912,7 @@ bool CommandFolderLinkInfo::procresult(Result r, JSON& json)
     string attr;
     string key;
     handle owner = UNDEF;
-    handle ph = 0;
+    handle parentHandle = 0;
     m_off_t currentSize = 0;
     m_off_t versionsSize  = 0;
     int numFolders = 0;
@@ -9928,7 +9928,7 @@ bool CommandFolderLinkInfo::procresult(Result r, JSON& json)
             break;
 
         case MAKENAMEID2('p','h'):
-            ph = json.gethandle(MegaClient::NODEHANDLE);
+            parentHandle = json.gethandle(MegaClient::NODEHANDLE);
             break;
 
         case 'u':
@@ -9964,14 +9964,23 @@ bool CommandFolderLinkInfo::procresult(Result r, JSON& json)
                 client->app->folderlinkinfo_result(API_EKEY, UNDEF, UNDEF, NULL, NULL, 0, 0, 0, 0, 0);
                 return false;
             }
-            if (ph != this->ph)
+            if (parentHandle != ph)
             {
                 LOG_err << "Folder link information: public handle doesn't match";
                 client->app->folderlinkinfo_result(API_EINTERNAL, UNDEF, UNDEF, NULL, NULL, 0, 0, 0, 0, 0);
                 return false;
             }
 
-            client->app->folderlinkinfo_result(API_OK, owner, ph, &attr, &key, currentSize, numFiles, numFolders, versionsSize, numVersions);
+            client->app->folderlinkinfo_result(API_OK,
+                                               owner,
+                                               parentHandle,
+                                               &attr,
+                                               &key,
+                                               currentSize,
+                                               numFiles,
+                                               numFolders,
+                                               versionsSize,
+                                               numVersions);
             return true;
 
         default:
@@ -11345,10 +11354,10 @@ bool CommandScheduledMeetingFetchEvents::procresult(Command::Result r, JSON& jso
 
 bool CommandFetchAds::procresult(Command::Result r, JSON& json)
 {
-    string_map result;
+    string_map ads;
     if (r.wasStrictlyError())
     {
-        mCompletion(r.errorOrOK(), result);
+        mCompletion(r.errorOrOK(), ads);
         return true;
     }
 
@@ -11358,7 +11367,7 @@ bool CommandFetchAds::procresult(Command::Result r, JSON& json)
         if (json.isnumeric())
         {
             // -9 or any other error for the provided ad unit (error results order must match)
-            result[*adUnit] = std::to_string(json.getint());
+            ads[*adUnit] = std::to_string(json.getint());
         }
         else if (json.enterobject())
         {
@@ -11382,20 +11391,20 @@ bool CommandFetchAds::procresult(Command::Result r, JSON& json)
                         if (!id.empty() && !iu.empty())
                         {
                             assert(id == *adUnit);
-                            result[id] = iu;
+                            ads[id] = iu;
                         }
                         else
                         {
                             error = true;
-                            result.clear();
+                            ads.clear();
                         }
                         break;
 
                     default:
                         if (!json.storeobject())
                         {
-                            result.clear();
-                            mCompletion(API_EINTERNAL, result);
+                            ads.clear();
+                            mCompletion(API_EINTERNAL, ads);
                             return false;
                         }
                         break;
@@ -11405,12 +11414,12 @@ bool CommandFetchAds::procresult(Command::Result r, JSON& json)
         }
         else
         {
-            result.clear();
+            ads.clear();
             error = true;
         }
     }
 
-    mCompletion((error ? API_EINTERNAL : API_OK), result);
+    mCompletion((error ? API_EINTERNAL : API_OK), ads);
 
     return !error;
 }
@@ -12522,6 +12531,74 @@ bool CommandAnswerSurvey::procresult(Result r, JSON&)
     }
 
     return false;
+}
+
+CommandGetMyIP::CommandGetMyIP(MegaClient* client, Cb&& completion)
+{
+    assert(completion);
+
+    cmd("wmip");
+    tag = client->reqtag;
+
+    mCompletion = std::move(completion);
+}
+
+bool CommandGetMyIP::procresult(Command::Result r, JSON& json)
+{
+    if (!r.hasJsonObject())
+    {
+        if (mCompletion)
+        {
+            if (r.wasErrorOrOK())
+            {
+                mCompletion(r.errorOrOK(), {}, {});
+            }
+            else
+            {
+                mCompletion(API_EINTERNAL, {}, {});
+            }
+        }
+        return true;
+    }
+
+    string countryCode;
+    string ipAddress;
+    // Parse country code and IP address
+    for (bool finished = false; !finished;)
+    {
+        switch (json.getnameid())
+        {
+            case MAKENAMEID2('c', 'c'): // Country code
+                json.storeobject(&countryCode);
+                break;
+            case MAKENAMEID2('i', 'p'): // My public IP address
+                json.storeobject(&ipAddress);
+                break;
+            default:
+                if (!json.storeobject())
+                {
+                    if (mCompletion)
+                    {
+                        mCompletion(API_EINTERNAL, {}, {});
+                    }
+                    return false;
+                }
+                break;
+            case EOO:
+            {
+                finished = true;
+            }
+            break;
+        }
+    }
+
+    if (mCompletion)
+    {
+        mCompletion((countryCode.empty() || ipAddress.empty()) ? API_EINTERNAL : API_OK,
+                    std::move(countryCode),
+                    std::move(ipAddress));
+    }
+    return true;
 }
 
 } // namespace

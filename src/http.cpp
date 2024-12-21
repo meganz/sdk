@@ -268,9 +268,11 @@ void HttpIO::getMEGADNSservers(string* dnsservers, bool getfromnetwork)
 
         struct addrinfo hints = {};
         hints.ai_family = AF_UNSPEC;
-
-#ifndef __MINGW32__
-        hints.ai_flags = AI_V4MAPPED | AI_ADDRCONFIG;
+#ifdef AI_V4MAPPED
+        hints.ai_flags |= AI_V4MAPPED;
+#endif
+#ifdef AI_ADDRCONFIG
+        hints.ai_flags |= AI_ADDRCONFIG;
 #endif
 
         if (!getaddrinfo("ns.mega.co.nz", NULL, &hints, &aiList))
@@ -650,14 +652,21 @@ HttpReqDL::HttpReqDL()
 }
 
 // prepare file chunk download
-void HttpReqDL::prepare(const char* tempurl, SymmCipher* /*key*/,
-                        uint64_t /*ctriv*/, m_off_t pos,
+void HttpReqDL::prepare(const char* tempurl,
+                        SymmCipher* /*key*/,
+                        uint64_t /*ctriv*/,
+                        m_off_t downloadPosition,
                         m_off_t npos)
 {
     if (tempurl && *tempurl)
     {
         char urlbuf[512];
-        snprintf(urlbuf, sizeof urlbuf, "%s/%" PRIu64 "-%" PRIu64, tempurl, pos, npos ? npos - 1 : 0);
+        snprintf(urlbuf,
+                 sizeof urlbuf,
+                 "%s/%" PRIu64 "-%" PRIu64,
+                 tempurl,
+                 downloadPosition,
+                 npos ? npos - 1 : 0);
         setreq(urlbuf, REQ_BINARY);
     }
     else
@@ -665,8 +674,8 @@ void HttpReqDL::prepare(const char* tempurl, SymmCipher* /*key*/,
         setreq(nullptr, REQ_BINARY);
     }
 
-    dlpos = pos;
-    size = (unsigned)(npos - pos);
+    dlpos = downloadPosition;
+    size = (unsigned)(npos - downloadPosition);
     buffer_released = false;
 
     if (!buf || buflen != size)
@@ -793,17 +802,19 @@ byte* EncryptBufferByChunks::nextbuffer(unsigned bufsize)
 }
 
 // prepare chunk for uploading: mac and encrypt
-void HttpReqUL::prepare(const char* tempurl, SymmCipher* key,
-                        uint64_t ctriv, m_off_t pos,
+void HttpReqUL::prepare(const char* tempurl,
+                        SymmCipher* key,
+                        uint64_t ctriv,
+                        m_off_t uploadPosition,
                         m_off_t npos)
 {
     EncryptBufferByChunks eb((byte*)out->data(), key, &mChunkmacs, ctriv);
 
     string urlSuffix;
-    eb.encrypt(pos, npos, urlSuffix);
+    eb.encrypt(uploadPosition, npos, urlSuffix);
 
     // unpad for POSTing
-    size = (unsigned)(npos - pos);
+    size = (unsigned)(npos - uploadPosition);
     out->resize(size);
 
     setreq((tempurl + urlSuffix).c_str(), REQ_BINARY);

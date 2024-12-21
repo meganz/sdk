@@ -8,8 +8,8 @@ pipeline {
     }
     parameters {
         booleanParam(name: 'RESULT_TO_SLACK', defaultValue: true, description: 'Should the job result be sent to slack?')
-        booleanParam(name: 'CUSTOM_ARCH', defaultValue: false, description: 'If true, will use ARCH_TO_BUILD. If false, will build all architectures')
-        string(name: 'ARCH_TO_BUILD', defaultValue: 'alpine', description: 'Only used if CUSTOM_ARCH is true')  
+        booleanParam(name: 'CUSTOM_PLATFORM', defaultValue: false, description: 'If true, will use PLATFORM_TO_BUILD. If false, will build for all platforms')
+        string(name: 'PLATFORM_TO_BUILD', defaultValue: 'alpine', description: 'Only used if CUSTOM_PLATFORM is true')
         string(name: 'SDK_BRANCH', defaultValue: 'develop', description: 'Define a custom SDK branch.')
     }
     environment {
@@ -47,47 +47,47 @@ pipeline {
             }
         }
 
-        stage ('Build custom architecture'){
+        stage ('Build custom platform'){
             when { 
                 beforeAgent true
-                expression { params.CUSTOM_ARCH == true } 
+                expression { params.CUSTOM_PLATFORM == true }
             }
             steps {
-                echo "Do Build for ${params.ARCH_TO_BUILD}"
+                echo "Do Build for ${params.PLATFORM_TO_BUILD}"
                 dir(sdk_sources_workspace){
                     sh """ 
-                        docker run --name dsm-builder-${params.ARCH_TO_BUILD}-${env.BUILD_NUMBER} --rm \
+                        docker run --name dsm-builder-${params.PLATFORM_TO_BUILD}-${env.BUILD_NUMBER} --rm \
                             -v ${sdk_sources_workspace}:/mega/sdk \
                             -v ${VCPKGPATH}:/mega/vcpkg \
                             -v ${VCPKGPATH_CACHE}:/mega/.cache/vcpkg \
-                            -e ARCH=${params.ARCH_TO_BUILD} meganz/dsm-build-env:${env.BUILD_NUMBER}
+                            -e PLATFORM=${params.PLATFORM_TO_BUILD} meganz/dsm-build-env:${env.BUILD_NUMBER}
                     """
                 }
             }
             post{
                 aborted {
-                    sh "docker kill android-builder-${params.ARCH_TO_BUILD}-${env.BUILD_NUMBER}"
+                    sh "docker kill android-builder-${params.PLATFORM_TO_BUILD}-${env.BUILD_NUMBER}"
                     script {
-                        failedTargets.add("${params.ARCH_TO_BUILD}")
+                        failedTargets.add("${params.PLATFORM_TO_BUILD}")
                     }
                 }
                 failure {
                     script {
-                        failedTargets.add("${params.ARCH_TO_BUILD}")
+                        failedTargets.add("${params.PLATFORM_TO_BUILD}")
                     }
                 }
             }           
         }
 
-        stage ('Build all distributions'){
+        stage ('Build all platforms'){
             when {
                 beforeAgent true
-                expression { params.CUSTOM_ARCH == false }
+                expression { params.CUSTOM_PLATFORM == false }
             }
             matrix {
                 axes {
                     axis { 
-                        name 'ARCH'; 
+                        name 'PLATFORM';
                         values 'alpine', 'alpine4k', 'apollolake', 'armada37xx', 'armada38x',
                                'avoton','braswell', 'broadwell', 'broadwellnk', 'broadwellnkv2',
                                'broadwellntbap', 'bromolow', 'denverton', 'epyc7002',
@@ -99,27 +99,27 @@ pipeline {
                     stage('Build') {
                         agent { label "${build_agent}" }
                         steps {
-                            echo "Do Build for DSM - ${ARCH}"
+                            echo "Do Build for DSM - ${PLATFORM}"
                             dir(sdk_sources_workspace){
                                 sh """ 
-                                    docker run --name dsm-builder-${ARCH}-${env.BUILD_NUMBER} --rm \
+                                    docker run --name dsm-builder-${PLATFORM}-${env.BUILD_NUMBER} --rm \
                                         -v ${sdk_sources_workspace}:/mega/sdk \
                                         -v ${VCPKGPATH}:/mega/vcpkg \
                                         -v ${VCPKGPATH_CACHE}:/mega/.cache/vcpkg \
-                                        -e ARCH=${ARCH} meganz/dsm-build-env:${env.BUILD_NUMBER}
+                                        -e PLATFORM=${PLATFORM} meganz/dsm-build-env:${env.BUILD_NUMBER}
                                 """
                             }
                         }
                         post{
                             aborted {
-                                sh "docker kill android-builder-${ARCH}-${env.BUILD_NUMBER}"
+                                sh "docker kill android-builder-${PLATFORM}-${env.BUILD_NUMBER}"
                                 script {
-                                    failedTargets.add("${ARCH}")
+                                    failedTargets.add("${PLATFORM}")
                                 }
                             }
                             failure {
                                 script {
-                                    failedTargets.add("${ARCH}")
+                                    failedTargets.add("${PLATFORM}")
                                 }
                             }
                         }

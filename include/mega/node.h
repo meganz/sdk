@@ -710,6 +710,10 @@ struct MEGA_API LocalNode
     unsigned expectedSelfNotificationCount = 0;
     //dstime lastScanTime = 0;
 
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable: 4201) // nameless struct
+#endif
     struct
     {
         // Already-synced syncs on startup should not re-fingerprint files that match the synced fingerprint by fsid/size/mtime
@@ -777,6 +781,9 @@ struct MEGA_API LocalNode
         // eg. Synology SMB network drive from windows, and filenames with trailing spaces
         unsigned localFSCannotStoreThisName : 1;
     };
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 
     // Fields which are hardly ever used.
     // We keep the average memory use by only alloating these when used.
@@ -1039,6 +1046,10 @@ struct MEGA_API LocalNode
     void setSubtreeNeedsRefingerprint();
 
 private:
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable: 4201) // nameless struct
+#endif
     struct
     {
         // The node's exclusion state.
@@ -1050,9 +1061,14 @@ private:
         // Whether we need to reload this node's ignore file.
         bool mWaitingForIgnoreFileLoad : 1;
     };
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 
     // Query whether a file is excluded by a name filter.
-    ExclusionState calcExcluded(RemotePathPair namePath, nodetype_t type, bool inherited) const;
+    ExclusionState calcExcluded(RemotePathPair namePath,
+                                nodetype_t applicableType,
+                                bool inherited) const;
 
     // Query whether a file is excluded by a size filter.
     ExclusionState calcExcluded(const RemotePathPair& namePath, m_off_t size) const;
@@ -1082,7 +1098,9 @@ public:
     exclusionState(const PathType& path, nodetype_t type, m_off_t size) const;
 
     // Specialization of above intended for cloud name queries.
-    ExclusionState exclusionState(const string& name, nodetype_t type, m_off_t size) const;
+    ExclusionState exclusionState(const string& name,
+                                  nodetype_t applicableType,
+                                  m_off_t size) const;
 
     // Query this node's exclusion state.
     ExclusionState exclusionState() const;

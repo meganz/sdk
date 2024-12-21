@@ -61,7 +61,9 @@ public:
     unique_ptr<DirAccess>  newdiraccess() override;
 
 #ifdef ENABLE_SYNC
-    DirNotify* newdirnotify(LocalNode& root, const LocalPath& rootPath, Waiter* waiter) override;
+    DirNotify* newdirnotify(LocalNode& root,
+                            const LocalPath& rootPath,
+                            Waiter* notificationWaiter) override;
 #endif
 
     bool issyncsupported(const LocalPath&, bool&, SyncError&, SyncWarning&) override;
@@ -133,7 +135,7 @@ private:
     OVERLAPPED overlapped;
 
     static VOID CALLBACK completion(DWORD dwErrorCode, DWORD dwBytes, LPOVERLAPPED lpOverlapped);
-    void process(DWORD wNumberOfBytesTransfered);
+    void process(DWORD bytesTransferred);
     void readchanges();
 
     static std::atomic<unsigned> smNotifierCount;
@@ -180,9 +182,9 @@ public:
     void fclose() override;
     bool fwrite(const byte *, unsigned, m_off_t);
 
-    bool fstat(m_time_t& modified, m_off_t& size) override;
+    bool fstat(m_time_t& modified, m_off_t& fileSize) override;
 
-    bool ftruncate(m_off_t size) override;
+    bool ftruncate(m_off_t newSize) override;
 
     bool sysread(byte *, unsigned, m_off_t) override;
     bool sysstat(m_time_t*, m_off_t*, FSLogging) override;

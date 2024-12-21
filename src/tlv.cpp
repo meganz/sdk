@@ -1,6 +1,7 @@
 #include "mega/tlv.h"
 
 #include "mega/logging.h"
+#include "mega/scoped_helpers.h"
 #include "mega/types.h"
 
 using namespace std;
@@ -14,13 +15,13 @@ namespace tlv
 unique_ptr<std::map<std::string, std::string>> containerToRecords(const string& container,
                                                                   SymmCipher& key)
 {
-    auto tlv{TLVstore::containerToTLVrecords(&container, &key)};
+    auto tlv = makeUniqueFrom(TLVstore::containerToTLVrecords(&container, &key));
     return tlv ? std::make_unique<std::map<std::string, std::string>>(tlv->moveMap()) : nullptr;
 }
 
 unique_ptr<std::map<std::string, std::string>> containerToRecords(const string& container)
 {
-    auto tlv{TLVstore::containerToTLVrecords(&container)};
+    auto tlv = makeUniqueFrom(TLVstore::containerToTLVrecords(&container));
     return tlv ? std::make_unique<std::map<std::string, std::string>>(tlv->moveMap()) : nullptr;
 }
 

@@ -91,22 +91,20 @@ pipeline {
                         VCPKGPATH = "${env.HOME}/jenkins/vcpkg"
                         BUILD_DIR = "build_dir"
                         BUILD_DIR_X64 = "build_dir_x64"
+                        COMMON_CMAKE_OPTIONS = "-DCMAKE_BUILD_TYPE=Debug -DCMAKE_VERBOSE_MAKEFILE=ON -DENABLE_CHAT=ON -DENABLE_SDKLIB_WERROR=ON -DVCPKG_ROOT=${VCPKGPATH} ${BUILD_OPTIONS}"
                     }
                     steps{
                         dir(mac_sources_workspace){
                             //Build SDK for arm64
                             sh "echo Building SDK for arm64"
                             sh "rm -rf ${BUILD_DIR}; mkdir ${BUILD_DIR}"
-                            sh "cmake -DENABLE_SDKLIB_WERROR=ON -DENABLE_CHAT=ON -DCMAKE_BUILD_TYPE=Debug -DVCPKG_ROOT=${VCPKGPATH} ${BUILD_OPTIONS} -DCMAKE_VERBOSE_MAKEFILE=ON \
-                            -S ${mac_sources_workspace} -B ${mac_sources_workspace}/${BUILD_DIR}"
+                            sh "cmake ${COMMON_CMAKE_OPTIONS} -S ${mac_sources_workspace} -B ${mac_sources_workspace}/${BUILD_DIR}"
                             sh "cmake --build ${mac_sources_workspace}/${BUILD_DIR} -j3"
 
                             //Build SDK for x64
                             sh "echo \"Building SDK for x64 (crosscompiling)\""
                             sh "rm -rf ${BUILD_DIR_X64}; mkdir ${BUILD_DIR_X64}"
-                            sh "cmake -DENABLE_SDKLIB_WERROR=ON -DENABLE_CHAT=ON -DCMAKE_BUILD_TYPE=Debug -DVCPKG_ROOT=${VCPKGPATH} ${BUILD_OPTIONS} -DCMAKE_VERBOSE_MAKEFILE=ON \
-                            -DCMAKE_OSX_ARCHITECTURES=x86_64 -DENABLE_SDKLIB_EXAMPLES=OFF -DENABLE_SDKLIB_TESTS=OFF -DENABLE_ISOLATED_GFX=OFF \
-                            -S ${mac_sources_workspace} -B ${mac_sources_workspace}/${BUILD_DIR_X64}"
+                            sh "cmake ${COMMON_CMAKE_OPTIONS} -DCMAKE_OSX_ARCHITECTURES=x86_64 -S ${mac_sources_workspace} -B ${mac_sources_workspace}/${BUILD_DIR_X64}"
                             sh "cmake --build ${mac_sources_workspace}/${BUILD_DIR_X64} -j3"
                         }
                     }

@@ -1534,12 +1534,12 @@ bool NodeManager::loadNodes_internal()
         return false;
     }
 
-    sharedNode_vector rootnodes = getRootNodes_internal();
+    sharedNode_vector allRootNodes = getRootNodes_internal();
     // We can't base in `user.sharing` because it's set yet. We have to get from DB
     sharedNode_vector inshares =
         getNodesWithSharesOrLink_internal(ShareType_t::IN_SHARES); // it includes nested inshares
 
-    for (auto &node : rootnodes)
+    for (const auto& node: allRootNodes)
     {
         getChildren_internal(node.get());
     }
@@ -2063,16 +2063,16 @@ shared_ptr<Node> NodeManager::getNodeFromDataBase(NodeHandle handle)
 sharedNode_vector NodeManager::getRootNodesAndInshares()
 {
     assert(mMutex.owns_lock());
-    sharedNode_vector rootnodes;
+    sharedNode_vector allRootNodes;
 
-    rootnodes = getRootNodes_internal();
+    allRootNodes = getRootNodes_internal();
     if (!mClient.loggedIntoFolder()) // logged into user's account: incoming shared folders
     {
         sharedNode_vector inshares = mClient.getInShares();
-        rootnodes.insert(rootnodes.end(), inshares.begin(), inshares.end());
+        allRootNodes.insert(allRootNodes.end(), inshares.begin(), inshares.end());
     }
 
-    return rootnodes;
+    return allRootNodes;
 }
 
 sharedNode_vector NodeManager::processUnserializedNodes(const vector<pair<NodeHandle, NodeSerialized>>& nodesFromTable, CancelToken cancelFlag)

@@ -45,7 +45,12 @@ PendingContactRequest::PendingContactRequest(const handle id,const char *oemail,
     memset(&changed, 0, sizeof changed);
 }
 
-void PendingContactRequest::update(const char *oemail, const char *temail, const m_time_t ts, const m_time_t uts, const char *msg, bool outgoing)
+void PendingContactRequest::update(const char* oemail,
+                                   const char* temail,
+                                   const m_time_t newTs,
+                                   const m_time_t newUts,
+                                   const char* newMessage,
+                                   bool outgoing)
 {
     if (oemail)
     {
@@ -55,11 +60,11 @@ void PendingContactRequest::update(const char *oemail, const char *temail, const
     {
         JSON::copystring(&(this->targetemail), temail);
     }
-    this->ts = ts;
-    this->uts = uts;
-    if (msg)
+    ts = newTs;
+    uts = newUts;
+    if (newMessage)
     {
-        JSON::copystring(&(this->msg), msg);
+        JSON::copystring(&(msg), newMessage);
     }
 
     this->isoutgoing = outgoing;

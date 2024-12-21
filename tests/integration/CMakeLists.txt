@@ -19,8 +19,10 @@ target_sources(test_integration
     SdkTestTransferStats_test.cpp
     sdk_test_user_attributes.cpp
     SdkTestSyncNodeOperations_test.cpp
+    SdkTestChangeLocalSyncRoot_test.cpp
     Sync_test.cpp
     one_question_survey_test.cpp
+    share_test.cpp
     integration_test_utils.cpp
 )
 
@@ -52,7 +54,6 @@ if(ENABLE_SDKLIB_WERROR)
         TARGET test_integration
         WINDOWS /WX
         UNIX  $<$<CONFIG:Debug>: -Werror>
-        APPLE $<$<CONFIG:Debug>: -Wno-string-conversion>
     )
 endif()
 

@@ -4750,6 +4750,30 @@ static void exec_fusemountremove(autocomplete::ACState& state)
               << std::endl;
 }
 
+static void exec_thumbnail(autocomplete::ACState& state)
+{
+    // Clarity.
+    const auto& destination = state.words[1].s;
+    const auto& source = state.words[2].s;
+
+    // Try writing a thumbnail for source to destination.
+    auto result = client->gfx->savefa(localPathArg(source),
+                                      GfxProc::DIMENSIONS[GfxProc::THUMBNAIL],
+                                      localPathArg(destination));
+
+    auto* message = "Saved generated thumbnail for ";
+    auto* ostream = &std::cout;
+
+    // Couldn't write a thumbnail for some reason.
+    if (!result)
+    {
+        message = "Couldn't save generated thumbnail for ";
+        ostream = &std::cerr;
+    }
+
+    *ostream << message << source << " to " << destination << std::endl;
+}
+
 MegaCLILogger gLogger;
 
 autocomplete::ACN autocompleteSyntax()
@@ -5269,6 +5293,12 @@ autocomplete::ACN autocompleteSyntax()
            sequence(text("getTransferStats"), opt(either(flag("-uploads"), flag("-downloads")))));
 
     p->Add(exec_hashcash, sequence(text("hashcash"), opt(either(flag("-on"), flag("-off")))));
+
+    p->Add(exec_thumbnail,
+           sequence(text("thumbnail"), localFSFile("destinationPath"), localFSFile("sourcePath")));
+
+    p->Add(exec_getmyip, text("getmyip"));
+
     return autocompleteTemplate = std::move(p);
 }
 
@@ -13560,4 +13590,20 @@ void exec_hashcash(autocomplete::ACState& s)
     string tempUserAgent = client->useragent;
     client->httpio->setuseragent(&tempUserAgent);
     client->disconnect();
+}
+
+void exec_getmyip(autocomplete::ACState&)
+{
+    client->getMyIp(
+        [](const Error& e, string&& countryCode, string&& ipAddress)
+        {
+            if (e)
+            {
+                cout << "Error requesting IP address: " << e << endl;
+                return;
+            }
+
+            cout << "Country Code: " << countryCode << endl;
+            cout << "IP address: " << ipAddress << endl;
+        });
 }

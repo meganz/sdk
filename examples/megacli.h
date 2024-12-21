@@ -451,3 +451,4 @@ void exec_getpricing(autocomplete::ACState&);
 
 void exec_collectAndPrintTransferStats(autocomplete::ACState&);
 void exec_hashcash(autocomplete::ACState&);
+void exec_getmyip(autocomplete::ACState& s);

@@ -102,11 +102,11 @@ string ACState::quoted_word::getQuoted()
 
 bool ACState::extractflag(const string& flag)
 {
-    for (auto i = words.begin(); i != words.end(); ++i)
+    for (auto it = words.begin(); it != words.end(); ++it)
     {
-        if (i->s == flag && !i->q.quoted)
+        if (it->s == flag && !it->q.quoted)
         {
-            words.erase(i);
+            words.erase(it);
             return true;
         }
     }
@@ -115,16 +115,16 @@ bool ACState::extractflag(const string& flag)
 
 bool ACState::extractflagparam(const string& flag, string& param)
 {
-    for (auto i = words.begin(); i != words.end(); ++i)
+    for (auto it = words.begin(); it != words.end(); ++it)
     {
-        if (i->s == flag)
+        if (it->s == flag)
         {
-            auto j = i;
+            auto j = it;
             ++j;
             if (j != words.end())
             {
                 param = j->s;
-                words.erase(i, ++j);
+                words.erase(it, ++j);
                 return true;
             }
         }

@@ -297,7 +297,7 @@ public:
     const handle_set& getSchedMeetingsChanged() const;
     void clearSchedMeetingsChanged();
     const vector<std::unique_ptr<ScheduledMeeting>>& getUpdatedOcurrences() const;
-    void setTag(int tag);
+    void setTag(int newTag);
     int getTag() const;
     void resetTag();
 
@@ -342,7 +342,7 @@ public:
     bool updateSchedMeeting(std::unique_ptr<ScheduledMeeting> sm);
 
     // returns a scheduled meeting (if any) whose schedId is equal to provided id. Otherwise returns nullptr
-    const ScheduledMeeting* getSchedMeetingById(handle id) const;
+    const ScheduledMeeting* getSchedMeetingById(handle meetingID) const;
 
     // returns a map of schedId to ScheduledMeeting
     const map<handle/*schedId*/, std::unique_ptr<ScheduledMeeting>>& getSchedMeetings() const;
