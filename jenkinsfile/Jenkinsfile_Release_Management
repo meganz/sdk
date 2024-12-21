@@ -1,0 +1,189 @@
+pipeline {
+    agent { label 'docker' }
+
+    options { 
+        buildDiscarder(logRotator(numToKeepStr: '25', daysToKeepStr: '30'))
+        gitLabConnection('GitLabConnectionJenkins')
+    }
+    parameters {
+        choice(name: 'ACTION', choices: ['Create_Release', 'Create_Release_Candidate', 'Close_Release', 'Patch_Release'], description: 'Pick an action')
+        string(name: 'SLACK_THREAD_ANNOUNCE', defaultValue: '', description: 'Id of thread root message')
+        string(name: 'TARGET_APPS', defaultValue: '', description: 'e.g. Android 1.0.1 / iOS 1.2 / MEGAsync 9.9.9 RC1')
+        string(name: 'RELEASE_VERSION', defaultValue: '', description: 'Optionally define a release version for Create Release. It must exist for Patch Release. Default is 1.0.0.')   
+        string(name: 'TICKETS', defaultValue: '', description: 'Comma separated tickets (patch release or create rc)')
+        string(name: 'BRANCH_FOR_MR', defaultValue: '', description: 'Branch for MR (create release candidate)')
+        string(name: 'MR_DESCRIPTION', defaultValue: '', description: 'MR Description (create release candidate)')
+        password(name: 'GPG_PASSWORD', defaultValue: '', description: 'Enter the password')
+    }
+    environment {
+        //JIRA_SDK_CREDS = credentials('SDK_JIRA')
+        SLACK_TOKEN = credentials('sdk_slack_bot_releases')
+        GITLAB_TOKEN = credentials('SDK_releases_gitlab_token')
+        gpg_keygrip = credentials('sdk_gpg_keygrip_release_management')
+        gpg_key = credentials('sdk_gpg_key_release_management')
+        GITHUB_TOKEN = credentials('sdk_github_token')
+        project_name = "SDK"
+        slack_channel = "sdk"
+        slack_channel_dev_requests = "sdk_devs_only"
+        gitlab_url = "${env.GITLAB_BASE_URL}"
+        jira_url = "${env.JIRA_BASE_URL}"
+        confluence_url = "${env.CONFLUENCE_BASE_URL}"
+        confluence_page_id = "3640225"
+        github_push_remote_url = "git@github.com:meganz/sdk.git"
+    }
+
+    stages {
+        stage('Replace config file'){
+            steps {
+                dir("automation"){
+                    sh 'cp config.toml.template config.toml'
+                    script {
+                        sh """
+                            sed -i 's|project_name = ""|project_name = "${env.project_name}"|' config.toml
+                            sed -i 's|target_apps = ""|target_apps = "${params.TARGET_APPS}"|' config.toml
+                            sed -i 's|gitlab_url = ""|gitlab_url = "${env.gitlab_url}"|' config.toml
+                            sed -i 's|jira_url = ""|jira_url = "${env.jira_url}"|' config.toml
+                            sed -i 's|slack_channel_dev_requests = ""|slack_channel_dev_requests = "${env.slack_channel_dev_requests}"|' config.toml
+                            sed -i 's|slack_channel_announce = ""|slack_channel_announce = "${env.slack_channel}"|' config.toml
+                            sed -i 's|slack_thread_announce = ""|slack_thread_announce = "${params.SLACK_THREAD_ANNOUNCE}"|' config.toml
+                            sed -i 's|release_version = ""|release_version = "${params.RELEASE_VERSION}"|' config.toml
+                            sed -i 's|github_push_remote_url = ""|github_push_remote_url = "${env.github_push_remote_url}"|' config.toml
+                            sed -i 's|confluence_url = ""|confluence_url = "${env.confluence_url}"|' config.toml
+                            sed -i 's|tickets = ""|tickets = "${params.TICKETS}"|' config.toml
+                            sed -i 's|branch_for_mr = ""|branch_for_mr = "${params.BRANCH_FOR_MR}"|' config.toml
+                            sed -i 's|mr_description = ""|mr_description = "${params.MR_DESCRIPTION}"|' config.toml
+                        """
+                    }
+                    sh 'cat config.toml'
+                }
+            }            
+        }
+        stage('Build docker image') {
+            steps {
+                sh "cp automation/requirements.txt dockerfile/requirements.txt"
+                dir ("dockerfile") {
+                    sh """
+                        docker build \
+                            -f release-management.dockerfile \
+                            -t meganz/sdk-release-management:${env.BUILD_NUMBER} \
+                            .
+                    """
+                }
+            }
+        }
+        stage('Create Release'){
+            when { 
+                beforeAgent true
+                expression { params.ACTION == "Create_Release" }
+            }
+            agent {
+                docker {
+                    image 'meganz/sdk-release-management:${env.BUILD_NUMBER}'
+                    reuseNode true
+                    args '-v ${WORKSPACE}:/mega/sdk/'
+                }
+            }
+            steps {
+                withCredentials([
+                    usernamePassword(credentialsId: 'SDK_JIRA', usernameVariable: 'JIRA_USERNAME', passwordVariable: 'JIRA_PASSWORD'),
+                    usernamePassword(credentialsId: 'SDK_JIRA', usernameVariable: 'CONFLUENCE_USER', passwordVariable: 'CONFLUENCE_PASSWORD')
+                    ]){
+                    dir("automation"){
+                        sh 'cat config.toml'
+                        sh 'printenv'
+                        sh 'gpg --batch --import $gpg_key'                     
+                        sh 'gpg --list-secret-keys'
+                        sh 'python3 ./make_release.py config.toml'
+                    }
+                }
+            }
+        }
+        stage ('Create Release Candidate'){
+            when { 
+                beforeAgent true
+                expression { params.ACTION == "Create_Release_CANDIDATE" } 
+            }
+            agent {
+                docker {
+                    image "meganz/sdk-release-management:${env.BUILD_NUMBER}"
+                    reuseNode true
+                    args '-v ${WORKSPACE}:/mega/sdk/'
+                }
+            }
+            steps {
+                withCredentials([
+                    usernamePassword(credentialsId: 'SDK_JIRA', usernameVariable: 'JIRA_USERNAME', passwordVariable: 'JIRA_PASSWORD'),
+                    usernamePassword(credentialsId: 'SDK_JIRA', usernameVariable: 'CONFLUENCE_USER', passwordVariable: 'CONFLUENCE_PASSWORD')
+                    ]){
+                    dir("automation"){
+                        sh 'cat config.toml'
+                        sh 'printenv'
+                        sh 'gpg --batch --import $gpg_key'                     
+                        sh 'gpg --list-secret-keys'
+                        sh 'python3 ./make_another_rc.py config.toml'
+                    }
+                }
+            }
+        }
+        stage ('Close Release'){
+            when { 
+                beforeAgent true
+                expression { params.ACTION == "Close_Release" }
+            }
+            agent {
+                docker {
+                    image "meganz/sdk-release-management:${env.BUILD_NUMBER}"
+                    reuseNode true
+                    args '-v ${WORKSPACE}:/mega/sdk/'
+                }
+            }
+            steps {
+                withCredentials([
+                    usernamePassword(credentialsId: 'SDK_JIRA', usernameVariable: 'JIRA_USERNAME', passwordVariable: 'JIRA_PASSWORD'),
+                    usernamePassword(credentialsId: 'SDK_JIRA', usernameVariable: 'CONFLUENCE_USER', passwordVariable: 'CONFLUENCE_PASSWORD')
+                    ]){
+                    dir("automation"){
+                        sh 'cat config.toml'
+                        sh 'printenv'
+                        sh 'gpg --batch --import $gpg_key'                     
+                        sh 'gpg --list-secret-keys'
+                        sh 'python3 ./close_release.py config.toml'
+                    }
+                }
+            }
+        }
+        stage ('Patch Release'){
+            when { 
+                beforeAgent true
+                expression { params.ACTION == "Patch_Release" }
+            }
+            agent {
+                docker {
+                    image "meganz/sdk-release-management:${env.BUILD_NUMBER}"
+                    reuseNode true
+                    args '-v ${WORKSPACE}:/mega/sdk/'
+                }
+            }
+            steps {
+                withCredentials([
+                    usernamePassword(credentialsId: 'SDK_JIRA', usernameVariable: 'JIRA_USERNAME', passwordVariable: 'JIRA_PASSWORD'),
+                    usernamePassword(credentialsId: 'SDK_JIRA', usernameVariable: 'CONFLUENCE_USER', passwordVariable: 'CONFLUENCE_PASSWORD')
+                    ]){
+                    dir("automation"){
+                        sh 'cat config.toml'
+                        sh 'printenv'
+                        sh 'gpg --batch --import $gpg_key'                     
+                        sh 'gpg --list-secret-keys'
+                        sh 'python3 ./patch_release.py config.toml'
+                    }
+                }
+            }
+        }
+    }
+    post {
+        always {
+            sh "docker image rm meganz/sdk-release-management:${env.BUILD_NUMBER}"
+            deleteDir() /* clean up our workspace */
+        }
+    }
+}

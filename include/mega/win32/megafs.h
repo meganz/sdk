@@ -22,6 +22,8 @@
 #ifndef FSACCESS_CLASS
 #define FSACCESS_CLASS WinFileSystemAccess
 
+#include "mega.h"
+
 #define DEBRISFOLDER "Rubbish"
 
 namespace mega {
@@ -56,49 +58,60 @@ public:
 
     bool getlocalfstype(const LocalPath& path, FileSystemType& type) const override;
 
-    DirAccess* newdiraccess() override;
-    DirNotify* newdirnotify(LocalPath&, LocalPath&, Waiter*) override;
+    unique_ptr<DirAccess>  newdiraccess() override;
+
+#ifdef ENABLE_SYNC
+    DirNotify* newdirnotify(LocalNode& root, const LocalPath& rootPath, Waiter* waiter) override;
+#endif
 
     bool issyncsupported(const LocalPath&, bool&, SyncError&, SyncWarning&) override;
 
-    void tmpnamelocal(LocalPath&) const override;
-
-    void path2local(const std::string*, std::string*) const override;
-    void local2path(const std::string*, std::string*) const override;
-
-    void local2path(const std::wstring*, std::string*) const override;
-    void path2local(const std::string*, std::wstring*) const override;
-
     bool getsname(const LocalPath&, LocalPath&) const override;
 
-    bool renamelocal(LocalPath&, LocalPath&, bool) override;
-    bool copylocal(LocalPath&, LocalPath&, m_time_t) override;
-    bool unlinklocal(LocalPath&) override;
-    bool rmdirlocal(LocalPath&) override;
-    bool mkdirlocal(LocalPath&, bool) override;
-    bool setmtimelocal(LocalPath&, m_time_t) override;
+    bool renamelocal(const LocalPath&, const LocalPath&, bool) override;
+    bool copylocal(const LocalPath&, const LocalPath&, m_time_t) override;
+    bool unlinklocal(const LocalPath&) override;
+    bool rmdirlocal(const LocalPath&) override;
+    bool mkdirlocal(const LocalPath&, bool hidden, bool logAlreadyExistsError) override;
+    bool setmtimelocal(const LocalPath&, m_time_t) override;
     bool chdirlocal(LocalPath&) const override;
-    bool getextension(const LocalPath&, string&) const override;
-    bool expanselocalpath(LocalPath& path, LocalPath& absolutepath) override;
+    bool expanselocalpath(const LocalPath& path, LocalPath& absolutepath) override;
 
     void addevents(Waiter*, int) override;
 
     static bool istransient(DWORD);
     bool istransientorexists(DWORD);
 
+    bool exists(const LocalPath& path) const;
+    bool isPathError(DWORD error) const;
+
     void osversion(string*, bool includeArchExtraInfo) const override;
     void statsid(string*) const override;
 
-    static void emptydirlocal(LocalPath&, dev_t = 0);
+    static void emptydirlocal(const LocalPath&, dev_t = 0);
+
+    ScanResult directoryScan(const LocalPath& path, handle expectedFsid,
+        map<LocalPath, FSNode>& known, std::vector<FSNode>& results, bool followSymlinks, unsigned& nFingerprinted) override;
 
     WinFileSystemAccess();
     ~WinFileSystemAccess();
 
     bool cwd(LocalPath& path) const override;
 
+#ifdef ENABLE_SYNC
+    bool fsStableIDs(const LocalPath& path) const override;
+
     std::set<WinDirNotify*> dirnotifys;
+#endif
+
+    bool hardLink(const LocalPath& source, const LocalPath& target) override;
+
+    m_off_t availableDiskSpace(const LocalPath& drivePath) override;
+
+    static bool checkForSymlink(const LocalPath& lp);
 };
 
+#ifdef ENABLE_SYNC
 struct MEGA_API WinDirNotify : public DirNotify
 {
 private:
@@ -132,17 +145,15 @@ private:
     static void notifierThreadFunction();
 
 public:
+    WinDirNotify(LocalNode& root,
+                 const LocalPath& rootPath,
+                 WinFileSystemAccess* owner,
+                 Waiter* waiter);
 
-    void addnotify(LocalNode*, const LocalPath&) override;
-
-    fsfp_t fsfingerprint() const override;
-    bool fsstableids() const override;
-
-    WinDirNotify(LocalPath&, const LocalPath&, WinFileSystemAccess* owner, Waiter* waiter);
     ~WinDirNotify();
 };
+#endif
 
-#ifndef WINDOWS_PHONE
 struct MEGA_API WinAsyncIOContext : public AsyncIOContext
 {
     WinAsyncIOContext();
@@ -151,7 +162,6 @@ struct MEGA_API WinAsyncIOContext : public AsyncIOContext
 
     OVERLAPPED *overlapped;
 };
-#endif
 
 class MEGA_API WinFileAccess : public FileAccess
 {
@@ -161,17 +171,22 @@ public:
     HANDLE hFind;
     WIN32_FIND_DATAW ffd;
 
-    bool fopen(LocalPath&, bool read, bool write, DirAccess* iteratingDir, bool ignoreAttributes) override;
-    bool fopen_impl(LocalPath&, bool read, bool write, bool async, DirAccess* iteratingDir, bool ignoreAttributes);
+    bool fopen(const LocalPath&, bool read, bool write, FSLogging,
+               DirAccess* iteratingDir, bool ignoreAttributes, bool skipcasecheck, LocalPath* actualLeafNameIfDifferent) override;
+    bool fopen_impl(const LocalPath&, bool read, bool write, FSLogging,
+                    bool async, DirAccess* iteratingDir, bool ignoreAttributes, bool skipcasecheck, LocalPath* actualLeafNameIfDifferent);
     void updatelocalname(const LocalPath&, bool force) override;
     bool fread(string *, unsigned, unsigned, m_off_t);
+    void fclose() override;
     bool fwrite(const byte *, unsigned, m_off_t);
 
-    bool ftruncate() override;
+    bool fstat(m_time_t& modified, m_off_t& size) override;
+
+    bool ftruncate(m_off_t size) override;
 
     bool sysread(byte *, unsigned, m_off_t) override;
-    bool sysstat(m_time_t*, m_off_t*) override;
-    bool sysopen(bool async = false) override;
+    bool sysstat(m_time_t*, m_off_t*, FSLogging) override;
+    bool sysopen(bool async, FSLogging) override;
     void sysclose() override;
 
     // async interface
@@ -186,13 +201,11 @@ public:
     ~WinFileAccess();
 
 protected:
-#ifndef WINDOWS_PHONE
     AsyncIOContext* newasynccontext() override;
     static VOID CALLBACK asyncopfinished(
             DWORD        dwErrorCode,
             DWORD        dwNumberOfBytesTransfered,
             LPOVERLAPPED lpOverlapped);
-#endif
 };
 } // namespace
 

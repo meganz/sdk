@@ -20,20 +20,21 @@
 */
 
 import UIKit
+import MEGASdk
 
 class ContactsTableViewController: UITableViewController, MEGARequestDelegate {
 
     var users : MEGAUserList!
     var filterUsers = [MEGAUser]()
     
-    let megaapi : MEGASdk! = (UIApplication.shared.delegate as! AppDelegate).megaapi
+    let megaapi = (UIApplication.shared.delegate as! AppDelegate).megaapi
     
     override func viewDidLoad() {
         super.viewDidLoad()
         
         users = megaapi.contacts()
         
-        for i in 0  ..< users.size.intValue  {
+        for i in 0  ..< users.size  {
             let user = users.user(at: i)
             if user?.visibility == MEGAUserVisibility.visible {
                 filterUsers.append(user!)
@@ -74,7 +75,7 @@ class ContactsTableViewController: UITableViewController, MEGARequestDelegate {
             megaapi.getAvatarUser(user, destinationFilePath: avatarFilePath, delegate: self)
         }
         
-        let numFilesShares = megaapi.inShares(for: user).size.intValue
+        let numFilesShares = megaapi.inShares(for: user).size
         
         if numFilesShares == 0 {
             cell.shareLabel.text = "No folders shared"
@@ -90,25 +91,24 @@ class ContactsTableViewController: UITableViewController, MEGARequestDelegate {
 
     // MARK: - MEGA Request delegate
     
-    func onRequestFinish(_ api: MEGASdk!, request: MEGARequest!, error: MEGAError!) {
+    func onRequestFinish(_ api: MEGASdk, request: MEGARequest, error: MEGAError) {
         if error.type != MEGAErrorType.apiOk {
             return
         }
         
         switch request.type {
         case MEGARequestType.MEGARequestTypeGetAttrUser:
-            for tableViewCell in tableView.visibleCells as! [ContactTableViewCell] {
-                if request?.email == tableViewCell.nameLabel.text {
-                    let filename = request.email
-                    let avatarURL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-                    let avatarFilePath = avatarURL.appendingPathComponent("thumbs").appendingPathComponent(filename!)
-                    let fileExists = FileManager.default.fileExists(atPath: avatarFilePath.path)
-                    
-                    if fileExists {
-                        tableViewCell.avatarImageView.image = UIImage(named: avatarFilePath.path)
-                        tableViewCell.avatarImageView.layer.cornerRadius = tableViewCell.avatarImageView.frame.size.width/2
-                        tableViewCell.avatarImageView.layer.masksToBounds = true
-                    }
+            guard let cells = tableView.visibleCells as? [ContactTableViewCell] else { break }
+            for tableViewCell in cells where request.email == tableViewCell.nameLabel.text {
+                let filename = request.email
+                let avatarURL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+                let avatarFilePath = avatarURL.appendingPathComponent("thumbs").appendingPathComponent(filename!)
+                let fileExists = FileManager.default.fileExists(atPath: avatarFilePath.path)
+                
+                if fileExists {
+                    tableViewCell.avatarImageView.image = UIImage(named: avatarFilePath.path)
+                    tableViewCell.avatarImageView.layer.cornerRadius = tableViewCell.avatarImageView.frame.size.width/2
+                    tableViewCell.avatarImageView.layer.masksToBounds = true
                 }
             }
         default:

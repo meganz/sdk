@@ -25,6 +25,10 @@
 #include "attrmap.h"
 
 namespace mega {
+
+class UserAttribute;
+class UserAttributeManager;
+
 // user/contact
 struct MEGA_API User : public Cacheable
 {
@@ -53,7 +57,6 @@ struct MEGA_API User : public Cacheable
     {
         bool keyring : 1;   // private keys
         bool authring : 1;  // authentication information of the contact (signing key)
-        bool authrsa : 1;   // authentication information of the contact (RSA key)
         bool authcu255 : 1; // authentication information of the contact (Cu25519 key)
         bool lstint : 1;    // last interaction with the contact
         bool puEd255 : 1;   // public key for Ed25519
@@ -69,6 +72,7 @@ struct MEGA_API User : public Cacheable
         bool language : 1;      // preferred language code
         bool pwdReminder : 1;   // password-reminder-dialog information
         bool disableVersions : 1;   // disable fileversioning
+        bool noCallKit : 1;   // disable CallKit
         bool contactLinkVerification : 1; // Verify contact requests with contact links
         bool richPreviews : 1;  // enable messages with rich previews
         bool lastPsa : 1;
@@ -80,11 +84,18 @@ struct MEGA_API User : public Cacheable
         bool pushSettings : 1;  // push notification settings
         bool alias : 1; // user's aliases
         bool unshareablekey : 1;    // key to encrypt unshareable node attributes
-        bool devicenames : 1; // device names
+        bool devicenames : 1; // device or external drive names
         bool myBackupsFolder : 1; // target folder for My Backups
-        bool backupNames : 1; // backup names
         bool cookieSettings : 1; // bit map to indicate whether some cookies are enabled or not
         bool jsonSyncConfigData : 1;
+        bool drivenames : 1;    // drive names
+        bool keys : 1;
+        bool aPrefs : 1;    // apps preferences
+        bool ccPrefs : 1;   // content consumption preferences
+        bool enableTestNotifications : 1; // list of IDs for enabled notifications
+        bool lastReadNotification : 1; // ID of last read notification
+        bool lastActionedBanner : 1; // ID of last actioner banner
+        bool enableTestSurveys: 1; // list of handles for enabled test surveys
     } changed;
 
     // user's public key
@@ -99,11 +110,7 @@ struct MEGA_API User : public Cacheable
     deque<std::unique_ptr<PubKeyAction>> pkrs;
 
 private:
-    // persistent attributes (keyring, firstname...)
-    userattr_map attrs;
-
-    // version of each attribute
-    userattr_map attrsv;
+    std::unique_ptr<UserAttributeManager> mAttributeManager;
 
     // source tag
     int tag;
@@ -111,17 +118,22 @@ private:
 public:
     void set(visibility_t, m_time_t);
 
-    bool serialize(string*) override;
+    bool serialize(string*) const override;
     static User* unserialize(class MegaClient *, string*);
+    bool unserializeAttributes(const char*& from, const char* upTo, char formatVersion);
 
-    // attribute methods: set/get/invalidate...
-    void setattr(attr_t at, string *av, string *v);
-    const string *getattr(attr_t at);
-    const string *getattrversion(attr_t at);
-    void invalidateattr(attr_t at);
-    bool isattrvalid(attr_t at);
-    void removeattr(attr_t at, const string *version = nullptr);
-    int updateattr(attr_t at, string *av, string *v);
+    void removepkrs(MegaClient*);
+
+    // attribute methods: set/get/expire...
+    void setAttribute(attr_t at, const string& value, const string& version);
+    bool updateAttributeIfDifferentVersion(attr_t at, const string& value, const string& version);
+    void setAttributeExpired(attr_t at);
+    const UserAttribute* getAttribute(attr_t at) const;
+    void removeAttribute(attr_t at);
+    void removeAttributeUpdateVersion(attr_t at, const string& version); // remove in up2/upv V3 ?
+
+    // Set this to avoid requesting attributes already known to not exist from server.
+    void cacheNonExistingAttributes();
 
     static string attr2string(attr_t at);
     static string attr2longname(attr_t at);
@@ -129,6 +141,7 @@ public:
     static int needversioning(attr_t at);
     static char scope(attr_t at);
     static bool isAuthring(attr_t at);
+    static size_t getMaxAttributeSize(attr_t at);
 
     enum {
         PWD_LAST_SUCCESS = 0x01,
@@ -154,15 +167,23 @@ public:
     void resetTag();
 
     User(const char* = NULL);
+    ~User() override;
 
-    // merges the new values in the given TLV. Returns true if TLV is changed.
-    static bool mergeUserAttribute(attr_t type, const string_map &newValuesMap, TLVstore &tlv);
+    // merges the new values in the given destination. Returns true if it was changed.
+    static bool mergeUserAttribute(attr_t type,
+                                   const string_map& newValuesMap,
+                                   string_map& destination);
+    static string attributePrefixInTLV(attr_t type, bool modifier);
 };
 
 class AuthRing
 {
 public:
-    AuthRing(attr_t type, const TLVstore &authring);
+    // create authring of 'type' from the encrypted data
+    AuthRing(attr_t type, const string_map& authring = {});
+
+    // create authring of 'type' from the TLV value (undecrypted already, no Type nor Length)
+    AuthRing(attr_t type, const string& authring);
 
     // return true if authring has changed (data can be pubKey or keySignature depending on authMethod)
     void add(handle uh, const std::string &fingerprint, AuthMethod authMethod);
@@ -170,11 +191,11 @@ public:
     // assumes the key is already tracked for uh (otherwise, it will throw)
     void update(handle uh, AuthMethod authMethod);
 
-    // return false if uh was not tracked
-    bool remove(handle uh);
-
-    // return the authring as tlv container, ready to set as user's attribute
+    // return the authring as tlv container, ready to set as user's attribute [*!authring | *!authCu255 | *!authRSA]
     std::string *serialize(PrnGen &rng, SymmCipher &key) const;
+
+    // return a binary buffer compatible with Webclient, to store authrings in user's attribute ^!keys
+    std::string serializeForJS() const;
 
     // false if uh is not tracked in the authring
     bool isTracked(handle uh) const;
@@ -209,10 +230,19 @@ public:
     // returns a human-friendly string for a given authentication method
     static string authMethodToStr(AuthMethod authMethod);
 
+    static string toString(const AuthRing& authRing);
+
+    bool needsUpdate() const { return mNeedsUpdate; }
+
 private:
     attr_t mType;
     map<handle, string> mFingerprint;
     map<handle, AuthMethod> mAuthMethod;
+
+    // indicates if the authring has changed and needs to update value in server
+    bool mNeedsUpdate = false;
+
+    bool deserialize(const std::string &authValue);
 };
 
 } // namespace

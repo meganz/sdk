@@ -20,6 +20,8 @@
  */
 #import "MEGANode.h"
 #import "megaapi.h"
+#import "PasswordNodeData.h"
+#import "MEGAStringList+init.h"
 
 using namespace mega;
 
@@ -47,10 +49,6 @@ using namespace mega;
     if (self.cMemoryOwn) {
         delete _megaNode;
     }
-}
-
-- (instancetype)clone {
-    return self.megaNode ? [[MEGANode alloc] initWithMegaNode:self.megaNode->copy() cMemoryOwn:YES] : nil;
 }
 
 - (BOOL)isEqual:(id)object {
@@ -85,6 +83,23 @@ using namespace mega;
     return self.megaNode->getFingerprint() ? [[NSString alloc] initWithUTF8String:self.megaNode->getFingerprint()] : nil;
 }
 
+- (PasswordNodeData *)passwordNodeData {
+    if (!self.megaNode || self.megaNode->getPasswordData() == nil) return nil;
+
+    MegaNode::PasswordNodeData *data = self.megaNode->getPasswordData();
+
+    if (data->password() == nil) return nil;
+
+    NSString *pwd = [NSString stringWithUTF8String:data->password()];
+    NSString *notes = data->notes() ? [NSString stringWithUTF8String:data->notes()] : nil;
+    NSString *url = data->url() ? [NSString stringWithUTF8String:data->url()] : nil;
+    NSString *un = data->userName() ? [NSString stringWithUTF8String:data->userName()] : nil;
+
+    PasswordNodeData *passwordNodeData = [[PasswordNodeData alloc] initWithPassword:pwd notes:notes url:url userName:un];
+
+    return passwordNodeData;
+}
+
 - (NSInteger)duration {
     return self.megaNode ? self.megaNode->getDuration() : -1;
 }
@@ -107,6 +122,16 @@ using namespace mega;
 
 - (BOOL)isFavourite {
     return self.megaNode ? self.megaNode->isFavourite() : NO;
+}
+
+- (BOOL)isMarkedSensitive {
+    return self.megaNode ? self.megaNode->isMarkedSensitive() : NO;
+}
+
+- (nullable NSString *)description {
+    if(!self.megaNode || !self.megaNode->getDescription()) return nil;
+
+    return [NSString.alloc initWithUTF8String:self.megaNode->getDescription()];
 }
 
 - (MEGANodeLabel)label {
@@ -165,10 +190,6 @@ using namespace mega;
     return self.megaNode ? self.megaNode->getParentHandle() : ::mega::INVALID_HANDLE;
 }
 
-- (NSInteger)tag {
-    return self.megaNode ? self.megaNode->getTag() : 0;
-}
-
 - (int64_t)expirationTime {
     return self.megaNode ? self.megaNode->getExpirationTime() : -1;
 }
@@ -195,6 +216,16 @@ using namespace mega;
     return self.megaNode ? self.megaNode->getOwner() : ::mega::INVALID_HANDLE;
 }
 
+- (NSString *)deviceId {
+    if (self.megaNode) {
+        const char *val = self.megaNode->getDeviceId();
+        if (val) {
+            return [NSString stringWithUTF8String:val];
+        }
+    }
+    return nil;
+}
+
 - (BOOL)isFile {
     return self.megaNode ? self.megaNode->isFile() : NO;
 }
@@ -212,7 +243,7 @@ using namespace mega;
 }
 
 - (MEGANodeChangeType)getChanges {
-    return (MEGANodeChangeType) self.megaNode->getChanges();
+    return (MEGANodeChangeType) (self.megaNode ? self.megaNode->getChanges() : 0);
 }
 
 - (BOOL)hasThumbnail {
@@ -249,6 +280,22 @@ using namespace mega;
 
 - (BOOL)isTakenDown {
     return self.megaNode ? self.megaNode->isTakenDown() : NO;
+}
+
+- (BOOL)isForeign {
+    return self.megaNode ? self.megaNode->isForeign() : NO;
+}
+
+- (BOOL)isNodeKeyDecrypted {
+    return self.megaNode ? self.megaNode->isNodeKeyDecrypted() : NO;
+}
+
+- (BOOL)isPasswordNode {
+    return self.megaNode ? self.megaNode->isPasswordNode() : NO;
+}
+
+- (MEGAStringList *)tags {
+    return self.megaNode ? [[MEGAStringList alloc] initWithMegaStringList:self.megaNode->getTags() cMemoryOwn:YES] : nil;
 }
 
 + (NSString *)stringForNodeLabel:(MEGANodeLabel)nodeLabel {

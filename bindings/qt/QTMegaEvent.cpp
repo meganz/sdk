@@ -3,9 +3,10 @@
 using namespace mega;
 using namespace std;
 
-QTMegaEvent::QTMegaEvent(MegaApi *megaApi, Type type) : QEvent(type)
+QTMegaEvent::QTMegaEvent(MegaApi* api, Type type):
+    QEvent(type)
 {
-    this->megaApi = megaApi;
+    megaApi = api;
     request = NULL;
     transfer = NULL;
     error = NULL;
@@ -16,6 +17,7 @@ QTMegaEvent::QTMegaEvent(MegaApi *megaApi, Type type) : QEvent(type)
 
 #ifdef ENABLE_SYNC
     sync = NULL;
+    syncStats = NULL;
     localPath = NULL;
     newState = 0;
 #endif
@@ -33,11 +35,12 @@ QTMegaEvent::~QTMegaEvent()
 
 #ifdef ENABLE_SYNC
     delete sync;
+    delete syncStats;
     delete localPath;
 #endif
 }
 
-MegaApi *QTMegaEvent::getMegaApi()
+MegaApi *QTMegaEvent::getMegaApi() const
 {
     return megaApi;
 }
@@ -118,6 +121,11 @@ MegaSync *QTMegaEvent::getSync()
     return sync;
 }
 
+MegaSyncStats *QTMegaEvent::getSyncStats()
+{
+    return syncStats;
+}
+
 string *QTMegaEvent::getLocalPath()
 {
     return localPath;
@@ -133,6 +141,11 @@ void QTMegaEvent::setSync(MegaSync *sync)
     this->sync = sync;
 }
 
+void QTMegaEvent::setSyncStats(MegaSyncStats *stats)
+{
+    this->syncStats = stats;
+}
+
 void QTMegaEvent::setLocalPath(string *localPath)
 {
     this->localPath = localPath;
@@ -143,3 +156,23 @@ void QTMegaEvent::setNewState(int newState)
     this->newState = newState;
 }
 #endif
+
+const std::string& QTMegaEvent::getMountPath() const
+{
+    return mMountPath;
+}
+
+int QTMegaEvent::getMountResult() const
+{
+    return mMountResult;
+}
+
+void QTMegaEvent::setMountPath(const std::string& path)
+{
+    mMountPath = path;
+}
+
+void QTMegaEvent::setMountResult(int result)
+{
+    mMountResult = result;
+}

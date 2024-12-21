@@ -3,7 +3,7 @@
 <?php
 
 ini_set('display_errors', 'On');
-error_reporting(E_ALL);
+error_reporting(E_ERROR);
 
 set_time_limit(0);
 set_include_path(get_include_path() . PATH_SEPARATOR . "../../bindings/php");
@@ -22,11 +22,6 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputOption;
-
-if (!PHP_ZTS)
-{
-   print("WARNING: Your version of PHP is not thread-safe (ZTS).\nThe MEGA SDK uses a worker thread to send callbacks to apps so this app could crash for that reason.\n");
-}
 
 $megaapi = NULL;
 $cwd = NULL;
@@ -462,7 +457,15 @@ class GetCommand extends Command
 			return;
 		}
 			
-		$megaapi->startDownload($node, "./");
+		$megaapi->startDownload($node
+		, "./"	 /*local path*/
+		, null 	 /*custom name*/
+		, null	 /*app data*/
+		, false	 /*start first*/
+		, null	 /*cancel token*/
+		, 3      /*collision check COLLISION_CHECK_FINGERPRINT*/
+		, 2      /*collision resolution COLLISION_RESOLUTION_NEW_WITH_N*/
+		, null); /*listener*/
     }
 }
 
@@ -487,7 +490,15 @@ class PutCommand extends Command
 		}
 		
 		$path = $input->getArgument('path');
-		$megaapi->startUpload($path, $cwd);
+		$megaapi->startUpload($path
+                ,$cwd           /*parent node*/
+		, null  	/*filename*/
+		, 0     	/*mtime*/
+		, null  	/*appData*/
+		, false 	/*isSourceTemporary*/
+		, false 	/*startFirst*/
+		, null		/*cancelToken*/
+		, null);  	/*listener*/
     }
 }
 
@@ -665,9 +676,11 @@ class QuitCommand extends ExitCommand
 }
 
 MegaApi::setLogLevel(MegaApi::LOG_LEVEL_ERROR);
+MegaApi::setLogToConsole(true);
+
 $applistener = new AppListener();
 
-$megaapi = new MegaApiPHP("API_KEY", "PHP megacli");
+$megaapi = new MegaApiPHP("API_KEY", "PHP megacli", ".");
 $megaapi->addListener($applistener);
 
 $application  = new Application('MEGA', 'PHP');
@@ -688,7 +701,10 @@ $application->add(new WhoamiCommand());
 $application->add(new PasswdCommand());
 $application->add(new MountCommand());
 $application->add(new MvCommand());
-$application->run();
+
+$shell = new Shell($application);
+$shell->run();
+
 ?>
 
 

@@ -22,6 +22,8 @@
 #ifndef CONSOLE_CLASS
 #define CONSOLE_CLASS PosixConsole
 
+#include "mega/console.h"
+
 namespace mega {
 struct PosixConsole : public Console
 {

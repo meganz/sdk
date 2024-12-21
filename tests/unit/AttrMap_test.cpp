@@ -19,11 +19,13 @@
 #include <gtest/gtest.h>
 
 #include <mega/attrmap.h>
+#include <map>
+#include <string>
 
 TEST(AttrMap, serialize_unserialize)
 {
     mega::AttrMap map;
-    map.map = {
+    map.map = std::map<mega::nameid, std::string>{
         {13, "foo"},
         {42, "blah"},
     };
@@ -48,7 +50,7 @@ TEST(AttrMap, unserialize_32bit)
     const std::string d(rawData.data(), rawData.size());
 
     mega::AttrMap expMap;
-    expMap.map = {
+    expMap.map = std::map<mega::nameid, std::string>{
         {13, "foo"},
         {42, "blah"},
     };

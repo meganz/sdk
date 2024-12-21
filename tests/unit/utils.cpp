@@ -34,6 +34,8 @@ namespace {
 
 std::mt19937 gRandomGenerator{1};
 
+::mega::FSACCESS_CLASS g_fsa;
+
 } // anonymous
 
 mega::handle nextFsId()
@@ -42,7 +44,7 @@ mega::handle nextFsId()
     return fsId++;
 }
 
-std::shared_ptr<mega::MegaClient> makeClient(mega::MegaApp& app, mega::FileSystemAccess& fsaccess)
+std::shared_ptr<mega::MegaClient> makeClient(mega::MegaApp& app, mega::DbAccess* dbAccess)
 {
     struct HttpIo : mega::HttpIO
     {
@@ -62,68 +64,27 @@ std::shared_ptr<mega::MegaClient> makeClient(mega::MegaApp& app, mega::FileSyste
         delete httpio;
     };
 
+    using namespace mega;
+    auto waiter = std::make_shared<WAIT_CLASS>();
+
     std::shared_ptr<mega::MegaClient> client{new mega::MegaClient{
-            &app, nullptr, httpio, &fsaccess, nullptr, nullptr, "XXX", "unit_test", 0
+            &app, waiter, httpio, dbAccess, nullptr, "XXX", "unit_test", 0
         }, deleter};
 
     return client;
 }
 
-mega::Node& makeNode(mega::MegaClient& client, const mega::nodetype_t type, const mega::handle handle, mega::Node* const parent)
+mega::Node& makeNode(mega::MegaClient& client, const mega::nodetype_t type, mega::NodeHandle handle, mega::Node* const parent)
 {
-    assert(client.nodes.find(handle) == client.nodes.end());
-    mega::node_vector dp;
-    const auto ph = parent ? parent->nodehandle : mega::UNDEF;
-    auto n = new mega::Node{&client, &dp, handle, ph, type, -1, mega::UNDEF, nullptr, 0}; // owned by the client
-    n->setkey(reinterpret_cast<const mega::byte*>(std::string((type == mega::FILENODE) ? mega::FILENODEKEYLENGTH : mega::FOLDERNODEKEYLENGTH, 'X').c_str()));
-    return *n;
-}
-
-#ifdef ENABLE_SYNC
-std::unique_ptr<mega::UnifiedSync> makeSync(mega::MegaClient& client, const std::string& localname)
-{
-    mega::FSACCESS_CLASS fsaccess;
-    std::string localdebris = gLocalDebris;
-    auto& n = makeNode(client, mega::FOLDERNODE, std::hash<std::string>{}(localname));
-    auto localdebrisLP = ::mega::LocalPath::fromPath(localdebris, fsaccess);
-    mega::SyncConfig config{::mega::LocalPath::fromPath(localname, *client.fsaccess), localname, n.nodehandle, std::string(), 0};
-
-    auto us = new mega::UnifiedSync(client, config);
-
-    us->mSync.reset(new mega::Sync(*us, nullptr, &localdebrisLP, &n, false));
-    us->mSync->state = mega::SYNC_CANCELED;
-
-    return std::unique_ptr<mega::UnifiedSync>(us);
-}
-
-std::unique_ptr<mega::LocalNode> makeLocalNode(mega::Sync& sync, mega::LocalNode& parent,
-                                               mega::nodetype_t type, const std::string& name,
-                                               const mega::FileFingerprint& ffp)
-{
-    std::string tmpname = name;
-    mega::FSACCESS_CLASS fsaccess;
-    auto l = std::unique_ptr<mega::LocalNode>{new mega::LocalNode};
-    auto path = parent.getLocalPath();
-    path.appendWithSeparator(::mega::LocalPath::fromPath(tmpname, fsaccess), true);
-    l->init(&sync, type, &parent, path, sync.client->fsaccess->fsShortname(path));
-    l->setfsid(nextFsId(), sync.client->fsidnode);
-    static_cast<mega::FileFingerprint&>(*l) = ffp;
-    return l;
-}
-#endif
-
-void collectAllFsNodes(std::map<mega::LocalPath, const mt::FsNode*>& nodes, const mt::FsNode& node)
-{
-    const auto path = node.getPath();
-    assert(nodes.find(path) == nodes.end());
-    nodes[path] = &node;
-    if (node.getType() == mega::FOLDERNODE)
+    assert(client.nodeByHandle(handle) == nullptr);
+    const auto ph = parent ? parent->nodeHandle() : ::mega::NodeHandle();
+    auto n = new mega::Node{client, handle, ph, type, -1, mega::UNDEF, nullptr, 0}; // owned by the client
+    if (type == mega::FILENODE || type == mega::FOLDERNODE || type == mega::TYPE_UNKNOWN)
     {
-        for (const auto child : node.getChildren())
-        {
-            collectAllFsNodes(nodes, *child);
-        }
+        n->setkey(reinterpret_cast<const mega::byte*>(std::string((type == mega::FILENODE) ? mega::FILENODEKEYLENGTH : mega::FOLDERNODEKEYLENGTH, 'X').c_str()));
     }
+
+    return *n;
 }
 
 std::uint16_t nextRandomInt()

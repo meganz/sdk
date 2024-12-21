@@ -19,8 +19,8 @@
  * program.
  */
 
-#ifndef FSACCESS_CLASS
-#define FSACCESS_CLASS PosixFileSystemAccess
+#ifndef MEGA_POSIX_FS_H
+#define MEGA_POSIX_FS_H
 
 #ifdef  __APPLE__
 // Apple calls it sendfile, but it isn't
@@ -28,7 +28,7 @@
 #define O_DIRECT 0
 #include <sys/param.h>
 #include <sys/mount.h>
-#elif defined(__FreeBSD__)
+#elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__DragonFly__)
 #include <sys/mount.h>
 #else
 #include <sys/vfs.h>
@@ -44,6 +44,16 @@
 #define DEBRISFOLDER ".debris"
 
 namespace mega {
+
+namespace detail {
+
+using AdjustBasePathResult =
+  IOS_OR_POSIX(std::string, const std::string&);
+
+AdjustBasePathResult adjustBasePath(const LocalPath& path);
+
+} // detail
+
 struct MEGA_API PosixDirAccess : public DirAccess
 {
     DIR* dp;
@@ -66,76 +76,65 @@ class MEGA_API PosixFileSystemAccess : public FileSystemAccess
 public:
     using FileSystemAccess::getlocalfstype;
 
-    int notifyfd;
-
-#ifdef USE_INOTIFY
-    typedef map<int, LocalNode*> wdlocalnode_map;
-    wdlocalnode_map wdnodes;
-
-    // skip the IN_FROM component in moves if followed by IN_TO
-    LocalNode* lastlocalnode;
-    uint32_t lastcookie;
-    string lastname;
-#endif
-
-#ifdef USE_IOS
-    static char *appbasepath;
-#endif
-
-    bool notifyerr;
     int defaultfilepermissions;
     int defaultfolderpermissions;
 
-    std::unique_ptr<FileAccess> newfileaccess(bool followSymLinks = true) override;
-    DirAccess* newdiraccess() override;
-    DirNotify* newdirnotify(LocalPath&, LocalPath&, Waiter*) override;
+    unique_ptr<FileAccess> newfileaccess(bool followSymLinks = true) override;
+    unique_ptr<DirAccess>  newdiraccess() override;
 
     bool getlocalfstype(const LocalPath& path, FileSystemType& type) const override;
-    bool issyncsupported(const LocalPath& localpathArg, bool& isnetwork, SyncError& syncError, SyncWarning& syncWarning);
-
-    void tmpnamelocal(LocalPath&) const override;
-
-    void local2path(const string*, string*) const override;
-    void path2local(const string*, string*) const override;
+    bool issyncsupported(const LocalPath& localpathArg, bool& isnetwork, SyncError& syncError, SyncWarning& syncWarning) override;
 
     bool getsname(const LocalPath&, LocalPath&) const override;
 
-    bool renamelocal(LocalPath&, LocalPath&, bool) override;
-    bool copylocal(LocalPath&, LocalPath&, m_time_t) override;
+    bool renamelocal(const LocalPath&, const LocalPath&, bool) override;
+    bool copylocal(const LocalPath&, const LocalPath&, m_time_t) override;
     bool rubbishlocal(string*);
-    bool unlinklocal(LocalPath&) override;
-    bool rmdirlocal(LocalPath&) override;
-    bool mkdirlocal(LocalPath&, bool) override;
-    bool setmtimelocal(LocalPath&, m_time_t) override;
+    bool unlinklocal(const LocalPath&) override;
+    bool rmdirlocal(const LocalPath&) override;
+    bool mkdirlocal(const LocalPath&, bool hidden, bool logAlreadyExistsError) override;
+    bool setmtimelocal(const LocalPath&, m_time_t) override;
     bool chdirlocal(LocalPath&) const override;
-    bool getextension(const LocalPath&, std::string&) const override;
-    bool expanselocalpath(LocalPath& path, LocalPath& absolutepath) override;
-
-    void addevents(Waiter*, int) override;
-    int checkevents(Waiter*) override;
+    bool expanselocalpath(const LocalPath& path, LocalPath& absolutepath) override;
 
     void osversion(string*, bool includeArchitecture) const override;
     void statsid(string*) const override;
 
-    static void emptydirlocal(LocalPath&, dev_t = 0);
+    static void emptydirlocal(const LocalPath&, dev_t = 0);
 
-    int getdefaultfilepermissions();
-    void setdefaultfilepermissions(int);
-    int getdefaultfolderpermissions();
-    void setdefaultfolderpermissions(int);
+    int getdefaultfilepermissions() override;
+    void setdefaultfilepermissions(int) override;
+    int getdefaultfolderpermissions() override;
+    void setdefaultfolderpermissions(int) override;
 
-    PosixFileSystemAccess(int = -1);
-    ~PosixFileSystemAccess();
+    PosixFileSystemAccess();
 
+    static bool cwd_static(LocalPath& path);
     bool cwd(LocalPath& path) const override;
+
+    ScanResult directoryScan(const LocalPath& path,
+                             handle expectedFsid,
+                             map<LocalPath, FSNode>& known,
+                             std::vector<FSNode>& results,
+                             bool followSymLinks,
+                             unsigned& nFingerprinted) override;
+
+#ifdef ENABLE_SYNC
+    bool fsStableIDs(const LocalPath& path) const override;
+
+#endif // ENABLE_SYNC
+
+    bool hardLink(const LocalPath& source, const LocalPath& target) override;
+
+    m_off_t availableDiskSpace(const LocalPath& drivePath) override;
 };
 
 #ifdef HAVE_AIO_RT
 struct MEGA_API PosixAsyncIOContext : public AsyncIOContext
 {
     PosixAsyncIOContext();
-    virtual ~PosixAsyncIOContext();
-    virtual void finish();
+    ~PosixAsyncIOContext() override;
+    void finish() override;
 
     struct aiocb *aiocb;
 };
@@ -155,17 +154,21 @@ public:
     DIR* dp;
 #endif
 
-    bool fopen(LocalPath&, bool read, bool write, DirAccess* iteratingDir = nullptr, bool ignoreAttributes = false) override;
+    bool fopen(const LocalPath&, bool read, bool write, FSLogging,
+               DirAccess* iteratingDir = nullptr, bool ignoreAttributes = false, bool skipcasecheck = false, LocalPath* actualLeafNameIfDifferent = nullptr) override;
 
     void updatelocalname(const LocalPath&, bool force) override;
     bool fread(string *, unsigned, unsigned, m_off_t);
+    void fclose() override;
     bool fwrite(const byte *, unsigned, m_off_t) override;
 
-    bool ftruncate() override;
+    bool fstat(m_time_t& modified, m_off_t& size) override;
+
+    bool ftruncate(m_off_t size) override;
 
     bool sysread(byte *, unsigned, m_off_t) override;
-    bool sysstat(m_time_t*, m_off_t*) override;
-    bool sysopen(bool async = false) override;
+    bool sysstat(m_time_t*, m_off_t*, FSLogging) override;
+    bool sysopen(bool async, FSLogging) override;
     void sysclose() override;
 
     PosixFileAccess(Waiter *w, int defaultfilepermissions = 0600, bool followSymLinks = true);
@@ -180,7 +183,7 @@ public:
 
 #ifdef HAVE_AIO_RT
 protected:
-    virtual AsyncIOContext* newasynccontext();
+    AsyncIOContext* newasynccontext() override;
     static void asyncopfinished(union sigval sigev_value);
 #endif
 
@@ -189,19 +192,75 @@ private:
 
 };
 
-class MEGA_API PosixDirNotify : public DirNotify
+#ifdef __linux__
+
+#define FSACCESS_CLASS LinuxFileSystemAccess
+
+class LinuxFileSystemAccess
+  : public PosixFileSystemAccess
 {
 public:
-    PosixFileSystemAccess* fsaccess;
+    friend class LinuxDirNotify;
 
-    void addnotify(LocalNode*, const LocalPath&) override;
-    void delnotify(LocalNode*) override;
+    ~LinuxFileSystemAccess();
 
-    fsfp_t fsfingerprint() const override;
-    bool fsstableids() const override;
+    void addevents(Waiter* waiter, int flags) override;
 
-    PosixDirNotify(LocalPath&, const LocalPath&);
-};
+    int checkevents(Waiter* waiter) override;
+
+#ifdef ENABLE_SYNC
+
+    bool initFilesystemNotificationSystem() override;
+
+    DirNotify* newdirnotify(LocalNode& root,
+                            const LocalPath& rootPath,
+                            Waiter* waiter) override;
+
+private:
+    // Tracks which notifiers were created by this instance.
+    list<DirNotify*> mNotifiers;
+
+    // Inotify descriptor.
+    int mNotifyFd = -EINVAL;
+
+    // Tracks which nodes are associated with what inotify handle.
+    WatchMap mWatches;
+
+#endif // ENABLE_SYNC
+}; // LinuxFileSystemAccess
+
+#ifdef ENABLE_SYNC
+
+// Convenience.
+using AddWatchResult = pair<WatchMapIterator, WatchResult>;
+
+class LinuxDirNotify
+  : public DirNotify
+{
+public:
+    LinuxDirNotify(LinuxFileSystemAccess& owner,
+                   LocalNode& root,
+                   const LocalPath& rootPath);
+
+    ~LinuxDirNotify();
+
+    AddWatchResult addWatch(LocalNode& node,
+                            const LocalPath& path,
+                            handle fsid);
+
+    void removeWatch(WatchMapIterator entry);
+
+private:
+    // The LFSA that we are associated with.
+    LinuxFileSystemAccess& mOwner;
+
+    // Our position in our owner's mNotifiers list.
+    list<DirNotify*>::iterator mNotifiersIt;
+}; // LinuxDirNotify
+
+#endif // ENABLE_SYNC
+
+#endif // __linux__
 
 } // namespace
 

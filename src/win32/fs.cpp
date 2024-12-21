@@ -19,51 +19,206 @@
  * program.
  */
 
+#include <cctype>
 #include <cwctype>
+#include <iomanip>
 
 #include "mega.h"
+#include <limits>
 #include <wow64apiset.h>
 
-#if defined(_WIN32) || defined(WINDOWS_PHONE)
-#include <winsock2.h>
-#include <Windows.h>
+#if defined(_WIN32)
+#include <winioctl.h>
 #endif
 
 namespace mega {
 
-WinFileSystemAccess gWfsa;
-
-int sanitizedriveletter(std::wstring& localpath);
-
-LocalPath NormalizeAbsolute(const LocalPath& path)
+class ScopedFileHandle
 {
-    LocalPath result = path;
+public:
+    ScopedFileHandle()
+      : mHandle(INVALID_HANDLE_VALUE)
+    {
+    }
+
+    ScopedFileHandle(HANDLE handle)
+      : mHandle(handle)
+    {
+    }
+
+    MEGA_DISABLE_COPY(ScopedFileHandle);
+
+    ScopedFileHandle(ScopedFileHandle&& other)
+      : mHandle(other.mHandle)
+    {
+        other.mHandle = INVALID_HANDLE_VALUE;
+    }
+
+    ~ScopedFileHandle()
+    {
+        if (mHandle != INVALID_HANDLE_VALUE)
+            CloseHandle(mHandle);
+    }
+
+    ScopedFileHandle& operator=(ScopedFileHandle&& rhs)
+    {
+        using std::swap;
+
+        ScopedFileHandle temp(std::move(rhs));
+
+        swap(*this, temp);
+
+        return *this;
+    }
+
+    operator bool() const
+    {
+        return mHandle != INVALID_HANDLE_VALUE;
+    }
+
+    HANDLE get() const
+    {
+        return mHandle;
+    }
+
+    void reset(HANDLE handle)
+    {
+        operator=(ScopedFileHandle(handle));
+    }
+
+    void reset()
+    {
+        operator=(ScopedFileHandle());
+    }
+
+private:
+    HANDLE mHandle;
+};
+
+auto LocalPath::asPlatformEncoded(bool skipPrefix) const -> string_type
+{
+    // Caller wants the prefix intact.
+    if (!skipPrefix)
+        return localpath;
+
+    // Path doesn't begin with the prefix.
+    if (localpath.size() < 4 || localpath.compare(0, 4, L"\\\\?\\"))
+        return localpath;
+
+    // Path doesn't begin wih the UNC prefix.
+    if (localpath.size() < 8 || localpath.compare(4, 4, L"UNC\\"))
+        return localpath.substr(4);
+
+    return localpath.substr(8);
+}
+
+bool LocalPath::isRootPath() const
+{
+    if (!isFromRoot)
+        return false;
+
+    static const std::wstring prefix = L"\\\\?\\";
+
+    std::size_t length = localpath.size();
+    std::size_t offset = 0;
+
+    // Skip namespace prefix if present.
+    if (localpath.size() > prefix.size()
+        && !localpath.compare(0, prefix.size(), prefix))
+        offset = prefix.size();
+
+    // Path is too short to contain a drive letter.
+    if (offset + 2 > localpath.size())
+        return false;
 
     // Convenience.
-    wstring& raw = result.localpath;
+    std::wint_t drive = localpath[offset++];
 
-    // Absolute paths should never be empty.
-    assert(!raw.empty());
+    // Drive letter's outside domain of wchar_t.
+    if (drive < WCHAR_MIN || drive > WCHAR_MAX)
+        return false;
 
-    // Add a drive separator if necessary.
-    if (raw.back() == L':')
+    // Drive letter isn't actually a drive letter.
+    if (!std::iswalpha(drive))
+        return false;
+
+    // Path doesn't contain drive letter separator.
+    if (localpath[offset++] != L':')
+        return false;
+
+    // Path must end with a directory separator.
+    if (length > offset)
+        return localpath[offset++] == L'\\' && length == offset;
+
+    return true;
+}
+
+void FileSystemAccess::setMinimumDirectoryPermissions(int)
+{
+}
+
+void FileSystemAccess::setMinimumFilePermissions(int)
+{
+}
+
+int FileSystemAccess::isFileHidden(const LocalPath& path, FSLogging logWhen)
+{
+    // Try and determine the file's current attributes.
+    auto attributes = GetFileAttributesW(path.localpath.c_str());
+
+    // Successfully retrieved the file's attributes.
+    if (attributes != INVALID_FILE_ATTRIBUTES)
+        return (attributes & FILE_ATTRIBUTE_HIDDEN) > 0;
+
+    // Why couldn't we get the file's attributes?
+    auto error = GetLastError();
+
+    // Log the error, if necessary.
+    if (logWhen.doLog(error))
     {
-        raw.push_back(L'\\');
+        LOG_warn << "Unable to retrieve file attributes: path: "
+                 << path
+                 << ", error code: "
+                 << error
+                 << ", error message: "
+                 << getErrorMessage(error);
     }
 
-    if (raw.size() > 1)
+    // Couldn't retrieve the file's attributes.
+    return -1;
+}
+
+bool FileSystemAccess::setFileHidden(const LocalPath& path, FSLogging logWhen)
+{
+    // Try and retrieve the file's current attributes.
+    auto attributes = GetFileAttributesW(path.localpath.c_str());
+
+    // File's already marked as hidden.
+    if ((attributes & FILE_ATTRIBUTE_HIDDEN))
+        return true;
+
+    // File's now marked as hidden.
+    if (attributes != INVALID_FILE_ATTRIBUTES
+        && SetFileAttributesW(path.localpath.c_str(),
+                              attributes | FILE_ATTRIBUTE_HIDDEN))
+        return true;
+
+    // Why couldn't we get (or set) the file's attributes?
+    auto error = GetLastError();
+
+    // Log error, if necessary.
+    if (logWhen.doLog(error))
     {
-        // Remove trailing separator if we're not the root.
-        if (raw.back() == L'\\')
-        {
-            if (raw[raw.size() - 2] != L':')
-            {
-                raw.pop_back();
-            }
-        }
+        LOG_warn << "Unable to set file attributes: path: "
+                 << path
+                 << ", error code: "
+                 << error
+                 << ", error message: "
+                 << getErrorMessage(error);
     }
 
-    return result;
+    // Couldn't set the file's hidden attribute.
+    return false;
 }
 
 int platformCompareUtf(const string& p1, bool unescape1, const string& p2, bool unescape2)
@@ -96,15 +251,7 @@ WinFileAccess::WinFileAccess(Waiter *w) : FileAccess(w)
 
 WinFileAccess::~WinFileAccess()
 {
-    if (hFile != INVALID_HANDLE_VALUE)
-    {
-        CloseHandle(hFile);
-        assert(hFind == INVALID_HANDLE_VALUE);
-    }
-    else if (hFind != INVALID_HANDLE_VALUE)
-    {
-        FindClose(hFind);
-    }
+    fclose();
 }
 
 bool WinFileAccess::sysread(byte* dst, unsigned len, m_off_t pos)
@@ -135,6 +282,22 @@ bool WinFileAccess::sysread(byte* dst, unsigned len, m_off_t pos)
         return false;
     }
     return true;
+}
+
+void WinFileAccess::fclose()
+{
+    if (hFile != INVALID_HANDLE_VALUE)
+    {
+        CloseHandle(hFile);
+        assert(hFind == INVALID_HANDLE_VALUE);
+    }
+    else if (hFind != INVALID_HANDLE_VALUE)
+    {
+        FindClose(hFind);
+    }
+
+    hFile = INVALID_HANDLE_VALUE;
+    hFind = INVALID_HANDLE_VALUE;
 }
 
 bool WinFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
@@ -174,14 +337,14 @@ bool WinFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
      return true;
 }
 
-bool WinFileAccess::ftruncate()
+bool WinFileAccess::ftruncate(m_off_t size)
 {
-    LARGE_INTEGER zero;
+    assert(size >= 0);
 
-    zero.QuadPart = 0x0;
+    auto& position = reinterpret_cast<LARGE_INTEGER&>(size);
 
     // Set the file pointer to the start of the file.
-    if (SetFilePointerEx(hFile, zero, nullptr, FILE_BEGIN))
+    if (SetFilePointerEx(hFile, position, nullptr, FILE_BEGIN))
     {
         // Truncate the file.
         if (SetEndOfFile(hFile))
@@ -192,6 +355,9 @@ bool WinFileAccess::ftruncate()
 
     // Why couldn't we truncate the file?
     auto error = GetLastError();
+
+    // Latch the error.
+    errorcode = error;
 
     // Is it a transient error?
     retry = WinFileSystemAccess::istransient(error);
@@ -219,7 +385,39 @@ m_time_t FileTime_to_POSIX(FILETIME* ft)
     return t;
 }
 
-bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
+bool WinFileAccess::fstat(m_time_t& modified, m_off_t& size)
+{
+    BY_HANDLE_FILE_INFORMATION info;
+
+    // Try and retrieve information the currently open file.
+    if (!GetFileInformationByHandle(hFile, &info))
+    {
+        // Couldn't get information about the file.
+        auto error = GetLastError();
+
+        // Latch the error.
+        errorcode = error;
+
+        // Was the error transient?
+        retry = WinFileSystemAccess::istransient(error);
+
+        // Let the caller know we couldn't get the file's info.
+        return false;
+    }
+
+    LARGE_INTEGER temp;
+
+    temp.LowPart = info.nFileSizeLow;
+    temp.HighPart = info.nFileSizeHigh;
+
+    modified = FileTime_to_POSIX(&info.ftLastWriteTime);
+    size = temp.QuadPart;
+
+    // Let the caller know we've retrieved the file's info.
+    return true;
+}
+
+bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size, FSLogging fsl)
 {
     assert(!nonblocking_localname.empty());
     WIN32_FILE_ATTRIBUTE_DATA fad;
@@ -228,15 +426,19 @@ bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
     if (!GetFileAttributesExW(nonblocking_localname.localpath.c_str(), GetFileExInfoStandard, (LPVOID)&fad))
     {
         DWORD e = GetLastError();
+        if (fsl.doLog(e))
+        {
+            LOG_warn << "Unable to stat: GetFileAttributesExW('" << nonblocking_localname << "'): error code: " << e << ": " << WinFileSystemAccess::getErrorMessage(e);
+        }
         errorcode = e;
         retry = WinFileSystemAccess::istransient(e);
         return false;
     }
 
     errorcode = 0;
-    if (SimpleLogger::logCurrentLevel >= logDebug && skipattributes(fad.dwFileAttributes))
+    if (SimpleLogger::getLogLevel() >= logDebug && skipattributes(fad.dwFileAttributes))
     {
-        LOG_debug << "Incompatible attributes (" << fad.dwFileAttributes << ") for file " << nonblocking_localname.toPath(gWfsa);
+        LOG_debug << "Incompatible attributes (" << fad.dwFileAttributes << ") for file " << nonblocking_localname;
     }
 
     if (fad.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
@@ -254,7 +456,7 @@ bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
     return true;
 }
 
-bool WinFileAccess::sysopen(bool async)
+bool WinFileAccess::sysopen(bool async, FSLogging fsl)
 {
     assert(hFile == INVALID_HANDLE_VALUE);
     assert(!nonblocking_localname.empty());
@@ -264,20 +466,18 @@ bool WinFileAccess::sysopen(bool async)
         sysclose();
     }
 
-#ifdef WINDOWS_PHONE
-    hFile = CreateFile2(localname.localpath.data(), GENERIC_READ,
-                        FILE_SHARE_WRITE | FILE_SHARE_READ,
-                        OPEN_EXISTING, NULL);
-#else
     hFile = CreateFileW(nonblocking_localname.localpath.c_str(), GENERIC_READ,
                         FILE_SHARE_WRITE | FILE_SHARE_READ,
                         NULL, OPEN_EXISTING, async ? FILE_FLAG_OVERLAPPED : 0, NULL);
-#endif
 
     if (hFile == INVALID_HANDLE_VALUE)
     {
         DWORD e = GetLastError();
-        LOG_debug << "Unable to open file (sysopen). Error code: " << e;
+        errorcode = e;
+        if (fsl.doLog(errorcode))
+        {
+            LOG_err << "Unable to open file '" << nonblocking_localname << "': (CreateFileW). Error code: " << e << ": " << WinFileSystemAccess::getErrorMessage(e);
+        }
         retry = WinFileSystemAccess::istransient(e);
         return false;
     }
@@ -296,8 +496,6 @@ void WinFileAccess::sysclose()
         hFile = INVALID_HANDLE_VALUE;
     }
 }
-
-#ifndef WINDOWS_PHONE
 
 WinAsyncIOContext::WinAsyncIOContext() : AsyncIOContext()
 {
@@ -360,35 +558,27 @@ VOID WinFileAccess::asyncopfinished(DWORD dwErrorCode, DWORD dwNumberOfBytesTran
     }
 }
 
-#endif
-
 bool WinFileAccess::asyncavailable()
 {
-#ifdef WINDOWS_PHONE
-	return false;
-#endif
     return true;
 }
 
 void WinFileAccess::asyncsysopen(AsyncIOContext *context)
 {
-#ifndef WINDOWS_PHONE
     bool read = context->access & AsyncIOContext::ACCESS_READ;
     bool write = context->access & AsyncIOContext::ACCESS_WRITE;
 
-    context->failed = !fopen_impl(context->openPath, read, write, true, nullptr, false);
+    context->failed = !fopen_impl(context->openPath, read, write, FSLogging::logOnError, true, nullptr, false, false, nullptr);
     context->retry = retry;
     context->finished = true;
     if (context->userCallback)
     {
         context->userCallback(context->userData);
     }
-#endif
 }
 
 void WinFileAccess::asyncsysread(AsyncIOContext *context)
 {
-#ifndef WINDOWS_PHONE
     if (!context)
     {
         return;
@@ -431,12 +621,10 @@ void WinFileAccess::asyncsysread(AsyncIOContext *context)
             winContext->userCallback(winContext->userData);
         }
     }
-#endif
 }
 
 void WinFileAccess::asyncsyswrite(AsyncIOContext *context)
 {
-#ifndef WINDOWS_PHONE
     if (!context)
     {
         return;
@@ -478,7 +666,6 @@ void WinFileAccess::asyncsyswrite(AsyncIOContext *context)
             winContext->userCallback(winContext->userData);
         }
     }
-#endif
 }
 
 // update local name
@@ -487,7 +674,6 @@ void WinFileAccess::updatelocalname(const LocalPath& name, bool force)
     if (force || !nonblocking_localname.empty())
     {
         nonblocking_localname = name;
-        sanitizedriveletter(nonblocking_localname.localpath);
     }
 }
 
@@ -506,26 +692,19 @@ bool WinFileAccess::skipattributes(DWORD dwAttributes)
 // CreateFile() operation without first looking at the attributes?
 // FIXME #2: How to convert a CreateFile()-opened directory directly to a hFind
 // without doing a FindFirstFile()?
-bool WinFileAccess::fopen(LocalPath& name, bool read, bool write, DirAccess* iteratingDir, bool ignoreAttributes)
+bool WinFileAccess::fopen(const LocalPath& name, bool read, bool write, FSLogging fsl,
+                          DirAccess* iteratingDir, bool ignoreAttributes, bool skipcasecheck, LocalPath* actualLeafNameIfDifferent)
 {
-    return fopen_impl(name, read, write, false, iteratingDir, ignoreAttributes);
+    fopenSucceeded = fopen_impl(name, read, write, fsl, false, iteratingDir, ignoreAttributes, skipcasecheck, actualLeafNameIfDifferent);
+    return fopenSucceeded;
 }
 
-bool WinFileAccess::fopen_impl(LocalPath& namePath, bool read, bool write, bool async, DirAccess* iteratingDir, bool ignoreAttributes)
+bool WinFileAccess::fopen_impl(const LocalPath& namePath, bool read, bool write, FSLogging fsl,
+                               bool async, DirAccess* iteratingDir, bool ignoreAttributes, bool skipcasecheck, LocalPath* actualLeafNameIfDifferent)
 {
     WIN32_FIND_DATA fad = { 0 };
     assert(hFile == INVALID_HANDLE_VALUE);
-
-#ifdef WINDOWS_PHONE
-    FILE_ID_INFO bhfi = { 0 };
-#else
     BY_HANDLE_FILE_INFORMATION bhfi = { 0 };
-#endif
-
-    bool skipcasecheck = false;
-
-    ScopedLengthRestore restoreNamePath(namePath);
-    sanitizedriveletter(namePath.localpath);
 
     if (write)
     {
@@ -576,6 +755,16 @@ bool WinFileAccess::fopen_impl(LocalPath& namePath, bool read, bool write, bool 
             }
         }
 
+        if (actualLeafNameIfDifferent)
+        {
+            auto actualFilename = LocalPath::fromPlatformEncodedRelative(wstring(fad.cFileName));
+
+            if (actualFilename != namePath.leafName())
+            {
+                *actualLeafNameIfDifferent = std::move(actualFilename);
+            }
+        }
+
         if (!skipcasecheck)
         {
             LocalPath filename = namePath.leafName();
@@ -584,7 +773,8 @@ bool WinFileAccess::fopen_impl(LocalPath& namePath, bool read, bool write, bool 
                 filename.localpath != wstring(fad.cAlternateFileName) &&
                 filename.localpath != L"." && filename.localpath != L"..")
             {
-                LOG_warn << "fopen failed due to invalid case";
+                LOG_warn << "fopen failed due to invalid case: '" << filename
+                         << "' vs '" << LocalPath::fromPlatformEncodedRelative(wstring(fad.cFileName)) << "'";
                 retry = false;
                 return false;
             }
@@ -594,47 +784,45 @@ bool WinFileAccess::fopen_impl(LocalPath& namePath, bool read, bool write, bool 
         // also, ignore some other obscure filesystem object categories
         if (!ignoreAttributes && skipattributes(fad.dwFileAttributes))
         {
-            if (SimpleLogger::logCurrentLevel >= logDebug)
+            if (SimpleLogger::getLogLevel() >= logDebug)
             {
-                LOG_debug << "Excluded: " << namePath.toPath(gWfsa) << "   Attributes: " << fad.dwFileAttributes;
+                LOG_debug << "Excluded: " << namePath << "   Attributes: " << fad.dwFileAttributes;
             }
             retry = false;
             return false;
         }
 
         type = (fad.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ? FOLDERNODE : FILENODE;
+
+        if (fad.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)
+        {
+            if (WinFileSystemAccess::checkForSymlink(namePath))
+            {
+                mIsSymLink = true;
+            }
+        }
     }
+
+    auto desiredAccess = 0u;
+
+    // Caller's interested in reading.
+    if (read)
+        desiredAccess |= GENERIC_READ;
+
+    // Caller's interested in writing.
+    if (write)
+        desiredAccess |= GENERIC_WRITE;
 
     // (race condition between GetFileAttributesEx()/FindFirstFile() possible -
     // fixable with the current Win32 API?)
-#ifdef WINDOWS_PHONE
-    CREATEFILE2_EXTENDED_PARAMETERS ex = { 0 };
-    ex.dwSize = sizeof(ex);
-
-    if (type == FOLDERNODE)
-    {
-        ex.dwFileFlags = FILE_FLAG_BACKUP_SEMANTICS;
-    }
-    else if (async)
-    {
-        ex.dwFileFlags = FILE_FLAG_OVERLAPPED;
-    }
-
-    hFile = CreateFile2(name.data(),
-                        read ? GENERIC_READ : (write ? GENERIC_WRITE : 0),
-                        FILE_SHARE_WRITE | FILE_SHARE_READ,
-                        !write ? OPEN_EXISTING : OPEN_ALWAYS,
-                        &ex);
-#else
     hFile = CreateFileW(namePath.localpath.c_str(),
-                        read ? GENERIC_READ : (write ? GENERIC_WRITE : 0),
+                        desiredAccess,
                         FILE_SHARE_WRITE | FILE_SHARE_READ,
                         NULL,
                         !write ? OPEN_EXISTING : OPEN_ALWAYS,
                         (type == FOLDERNODE) ? FILE_FLAG_BACKUP_SEMANTICS
                                              : (async ? FILE_FLAG_OVERLAPPED : 0),
                         NULL);
-#endif
 
     // FIXME: verify that keeping the directory opened quashes the possibility
     // of a race condition between CreateFile() and FindFirstFile()
@@ -642,35 +830,28 @@ bool WinFileAccess::fopen_impl(LocalPath& namePath, bool read, bool write, bool 
     if (hFile == INVALID_HANDLE_VALUE)
     {
         DWORD e = GetLastError();
-        LOG_debug << "Unable to open file. Error code: " << e;
+        if (fsl.doLog(e))
+        {
+            LOG_err << "Unable to open file. '" << namePath << "' error code : " << e << " : " << WinFileSystemAccess::getErrorMessage(e);
+        }
+        errorcode = e;
         retry = WinFileSystemAccess::istransient(e);
         return false;
     }
 
     mtime = FileTime_to_POSIX(&fad.ftLastWriteTime);
 
-#ifdef WINDOWS_PHONE
-    if (!write && (fsidvalid = !!GetFileInformationByHandleEx(hFile, FileIdInfo, &bhfi, sizeof(bhfi))))
-    {
-        fsid = *(handle*)&bhfi.FileId;
-    }
-#else
     if (!write && (fsidvalid = !!GetFileInformationByHandle(hFile, &bhfi)))
     {
         fsid = ((handle)bhfi.nFileIndexHigh << 32) | (handle)bhfi.nFileIndexLow;
     }
-#endif
 
     if (type == FOLDERNODE)
     {
-        ScopedLengthRestore undoStar(namePath);
-        namePath.appendWithSeparator(LocalPath::fromPlatformEncoded(std::string((const char*)(const wchar_t*)L"*", 2)), true);
+        LocalPath withStar = namePath;
+        withStar.appendWithSeparator(LocalPath::fromPlatformEncodedRelative(L"*"), true);
 
-#ifdef WINDOWS_PHONE
-        hFind = FindFirstFileExW((LPCWSTR)searchName->data(), FindExInfoBasic, &ffd, FindExSearchNameMatch, NULL, 0);
-#else
-        hFind = FindFirstFileW(namePath.localpath.c_str(), &ffd);
-#endif
+        hFind = FindFirstFileW(withStar.localpath.c_str(), &ffd);
 
         if (hFind == INVALID_HANDLE_VALUE)
         {
@@ -689,11 +870,6 @@ bool WinFileAccess::fopen_impl(LocalPath& namePath, bool read, bool write, bool 
     if (!write)
     {
         size = ((m_off_t)fad.nFileSizeHigh << 32) + (m_off_t)fad.nFileSizeLow;
-        if (!size)
-        {
-            LOG_debug << "Zero-byte file. mtime: " << mtime << "  ctime: " << FileTime_to_POSIX(&fad.ftCreationTime)
-                      << "  attrs: " << fad.dwFileAttributes << "  access: " << FileTime_to_POSIX(&fad.ftLastAccessTime);
-        }
     }
 
     return true;
@@ -701,18 +877,17 @@ bool WinFileAccess::fopen_impl(LocalPath& namePath, bool read, bool write, bool 
 
 WinFileSystemAccess::WinFileSystemAccess()
 {
-    notifyerr = false;
-    notifyfailed = false;
 }
 
 WinFileSystemAccess::~WinFileSystemAccess()
 {
+#ifdef ENABLE_SYNC
     assert(!dirnotifys.size());
+#endif
 }
 
 bool WinFileSystemAccess::cwd(LocalPath& path) const
 {
-#ifndef WINDOWS_PHONE
     DWORD nRequired = GetCurrentDirectoryW(0, nullptr);
 
     if (!nRequired)
@@ -720,26 +895,34 @@ bool WinFileSystemAccess::cwd(LocalPath& path) const
         return false;
     }
 
-    path.localpath.resize(nRequired);
-
-    DWORD nWritten = GetCurrentDirectoryW(nRequired, &path.localpath[0]);
-    path.localpath.resize(nWritten); // doesn't include terminator now
-    return nWritten > 0;
-#else // WINDOWS_PHONE
-    return false;
-#endif // ! WINDOWS_PHONE
-}
-
-// append \ to bare Windows drive letter paths
-int sanitizedriveletter(std::wstring& localpath)
-{
-    if (localpath.size() > 1 && localpath.back() == L':')
+    wstring buf;
+    buf.resize(nRequired);
+    DWORD nWritten = GetCurrentDirectoryW(nRequired, &buf[0]);
+    while (!buf.empty() && buf.back() == 0)
     {
-        localpath.append(L"\\");
-        return 1;
+        buf.pop_back();
     }
 
-    return 0;
+    path = LocalPath::fromPlatformEncodedAbsolute(std::move(buf));
+
+    return nWritten > 0;
+}
+
+bool WinFileSystemAccess::hardLink(const LocalPath& source, const LocalPath& target)
+{
+    if (!CreateHardLinkW(target.localpath.c_str(), source.localpath.c_str(), nullptr))
+    {
+        LOG_warn << "Unable to create hard link from "
+                 << source
+                 << " to "
+                 << target
+                 << ". Error code was: "
+                 << GetLastError();
+
+        return false;
+    }
+
+    return true;
 }
 
 bool WinFileSystemAccess::istransient(DWORD e)
@@ -760,96 +943,13 @@ bool WinFileSystemAccess::istransientorexists(DWORD e)
     return istransient(e);
 }
 
-void WinFileSystemAccess::addevents(Waiter* w, int)
-{
-}
-
-// generate unique local filename in the same fs as relatedpath
-void WinFileSystemAccess::tmpnamelocal(LocalPath& localname) const
-{
-    static unsigned tmpindex;
-    char buf[128];
-
-    sprintf(buf, ".getxfer.%lu.%u.mega", GetCurrentProcessId(), tmpindex++);
-    localname = LocalPath::fromName(buf, *this, FS_UNKNOWN);
-}
-
-// convert UTF-8 to Windows Unicode
-void WinFileSystemAccess::path2local(const string* path, string* local) const
-{
-    // make space for the worst case
-    local->resize((path->size() + 1) * sizeof(wchar_t));
-
-    int len = MultiByteToWideChar(CP_UTF8, 0,
-                                  path->c_str(),
-                                  -1,
-                                  (wchar_t*)local->data(),
-                                  int(local->size() / sizeof(wchar_t) + 1));
-    if (len)
-    {
-        // resize to actual result
-        local->resize(sizeof(wchar_t) * (len - 1));
-    }
-    else
-    {
-        local->clear();
-    }
-}
-
-// convert UTF-8 to Windows Unicode
-void WinFileSystemAccess::path2local(const string* path, std::wstring* local) const
-{
-    // make space for the worst case
-    local->resize(path->size() + 2);
-
-    int len = MultiByteToWideChar(CP_UTF8, 0,
-        path->c_str(),
-        -1,
-        const_cast<wchar_t*>(local->data()),
-        int(local->size()));
-    if (len)
-    {
-        // resize to actual result
-        local->resize(len - 1);
-    }
-    else
-    {
-        local->clear();
-    }
-}
-
-// convert Windows Unicode to UTF-8
-void WinFileSystemAccess::local2path(const string* local, string* path) const
-{
-    path->resize((local->size() + 1) * 4 / sizeof(wchar_t) + 1);
-
-    path->resize(WideCharToMultiByte(CP_UTF8, 0, (wchar_t*)local->data(),
-                                     int(local->size() / sizeof(wchar_t)),
-                                     (char*)path->data(),
-                                     int(path->size()),
-                                     NULL, NULL));
-    normalize(path);
-}
-
-void WinFileSystemAccess::local2path(const std::wstring* local, string* path) const
-{
-    path->resize((local->size() * sizeof(wchar_t) + 1) * 4 / sizeof(wchar_t) + 1);
-
-    path->resize(WideCharToMultiByte(CP_UTF8, 0, local->data(),
-        int(local->size()),
-        (char*)path->data(),
-        int(path->size()),
-        NULL, NULL));
-
-    normalize(path);
-}
+void WinFileSystemAccess::addevents(Waiter*, int) {}
 
 // write short name of the last path component to sname
 bool WinFileSystemAccess::getsname(const LocalPath& namePath, LocalPath& snamePath) const
 {
-#ifdef WINDOWS_PHONE
-    return false;
-#else
+    assert(namePath.isAbsolute());
+
     const std::wstring& name = namePath.localpath;
     std::wstring& sname = snamePath.localpath;
 
@@ -869,7 +969,7 @@ bool WinFileSystemAccess::getsname(const LocalPath& namePath, LocalPath& snamePa
     if (!rr)
     {
         DWORD e = GetLastError();
-        LOG_warn << "Unable to get short path name: " << namePath.toPath(gWfsa) << ". Error code: " << e;
+        LOG_warn << "Unable to get short path name: " << namePath << ". Error code: " << e;
         sname.clear();
         return false;
     }
@@ -882,50 +982,62 @@ bool WinFileSystemAccess::getsname(const LocalPath& namePath, LocalPath& snamePa
     {
         sname.erase(0, ptr - sname.data() + 1);
     }
-    return sname.size();
-#endif
+    return sname.size() > 0;
 }
 
 // FIXME: if a folder rename fails because the target exists, do a top-down
 // recursive copy/delete
-bool WinFileSystemAccess::renamelocal(LocalPath& oldnamePath, LocalPath& newnamePath, bool replace)
+bool WinFileSystemAccess::renamelocal(const LocalPath& oldnamePath, const LocalPath& newnamePath, bool replace)
 {
+    assert(oldnamePath.isAbsolute());
+    assert(newnamePath.isAbsolute());
     bool r = !!MoveFileExW(oldnamePath.localpath.c_str(), newnamePath.localpath.c_str(), replace ? MOVEFILE_REPLACE_EXISTING : 0);
 
     if (!r)
     {
         DWORD e = GetLastError();
-        if (SimpleLogger::logCurrentLevel >= logWarning && !skip_errorreport)
-        {
-            LOG_warn << "Unable to move file: " << oldnamePath.toPath(gWfsa) <<
-                        " to " << newnamePath.toPath(gWfsa) << ". Error code: " << e;
-        }
+
+        target_name_too_long = isPathError(e)
+                               && exists(oldnamePath)
+                               && exists(newnamePath.parentPath());
+
         transient_error = istransientorexists(e);
+
+        if (!target_exists || !skip_targetexists_errorreport)
+        {
+            LOG_warn << "Unable to move file: " << oldnamePath <<
+                        " to " << newnamePath << ". Error code: " << e;
+        }
     }
 
     return r;
 }
 
-bool WinFileSystemAccess::copylocal(LocalPath& oldnamePath, LocalPath& newnamePath, m_time_t)
+bool WinFileSystemAccess::copylocal(const LocalPath& oldnamePath, const LocalPath& newnamePath, m_time_t)
 {
-#ifdef WINDOWS_PHONE
-    bool r = SUCCEEDED(CopyFile2(oldnamePath.localpath.c_str(), newnamePath.localpath.c_str(), NULL));
-#else
+    assert(oldnamePath.isAbsolute());
+    assert(newnamePath.isAbsolute());
     bool r = !!CopyFileW(oldnamePath.localpath.c_str(), newnamePath.localpath.c_str(), FALSE);
-#endif
 
     if (!r)
     {
         DWORD e = GetLastError();
+
         LOG_debug << "Unable to copy file. Error code: " << e;
+
+        target_name_too_long = isPathError(e)
+                               && exists(oldnamePath)
+                               && exists(newnamePath.parentPath());
+
         transient_error = istransientorexists(e);
     }
 
     return r;
 }
 
-bool WinFileSystemAccess::rmdirlocal(LocalPath& namePath)
+bool WinFileSystemAccess::rmdirlocal(const LocalPath& namePath)
 {
+    assert(namePath.isAbsolute());
     bool r = !!RemoveDirectoryW(namePath.localpath.data());
     if (!r)
     {
@@ -937,8 +1049,9 @@ bool WinFileSystemAccess::rmdirlocal(LocalPath& namePath)
     return r;
 }
 
-bool WinFileSystemAccess::unlinklocal(LocalPath& namePath)
+bool WinFileSystemAccess::unlinklocal(const LocalPath& namePath)
 {
+    assert(namePath.isAbsolute());
     bool r = !!DeleteFileW(namePath.localpath.data());
 
     if (!r)
@@ -953,55 +1066,36 @@ bool WinFileSystemAccess::unlinklocal(LocalPath& namePath)
 
 // delete all files and folders contained in the specified folder
 // (does not recurse into mounted devices)
-void WinFileSystemAccess::emptydirlocal(LocalPath& namePath, dev_t basedev)
+void WinFileSystemAccess::emptydirlocal(const LocalPath& nameParam, dev_t basedev)
 {
+    assert(nameParam.isAbsolute());
     HANDLE hDirectory, hFind;
     dev_t currentdev;
 
-    ScopedLengthRestore restoreNamePath(namePath);
-    sanitizedriveletter(namePath.localpath);
-
     WIN32_FILE_ATTRIBUTE_DATA fad;
-    if (!GetFileAttributesExW(namePath.localpath.c_str(), GetFileExInfoStandard, (LPVOID)&fad)
+    if (!GetFileAttributesExW(nameParam.localpath.c_str(), GetFileExInfoStandard, (LPVOID)&fad)
         || !(fad.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
         || fad.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)
     {
         return;
     }
 
-#ifdef WINDOWS_PHONE
-    CREATEFILE2_EXTENDED_PARAMETERS ex = { 0 };
-    ex.dwSize = sizeof(ex);
-    ex.dwFileFlags = FILE_FLAG_BACKUP_SEMANTICS;
-    hDirectory = CreateFile2(name.data(), GENERIC_READ, FILE_SHARE_WRITE | FILE_SHARE_READ,
-                        OPEN_EXISTING, &ex);
-#else
-    hDirectory = CreateFileW(namePath.localpath.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
+    hDirectory = CreateFileW(nameParam.localpath.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
                              NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
-#endif
     if (hDirectory == INVALID_HANDLE_VALUE)
     {
         // discard not accessible folders
         return;
     }
 
-#ifdef WINDOWS_PHONE
-    FILE_ID_INFO fi = { 0 };
-    if(!GetFileInformationByHandleEx(hDirectory, FileIdInfo, &fi, sizeof(fi)))
-#else
     BY_HANDLE_FILE_INFORMATION fi;
     if (!GetFileInformationByHandle(hDirectory, &fi))
-#endif
     {
         currentdev = 0;
     }
     else
     {
-    #ifdef WINDOWS_PHONE
-        currentdev = fi.VolumeSerialNumber + 1;
-    #else
         currentdev = fi.dwVolumeSerialNumber + 1;
-    #endif
     }
     CloseHandle(hDirectory);
     if (basedev && currentdev != basedev)
@@ -1010,6 +1104,7 @@ void WinFileSystemAccess::emptydirlocal(LocalPath& namePath, dev_t basedev)
         return;
     }
 
+    LocalPath namePath = nameParam;
     bool removed;
     for (;;)
     {
@@ -1018,14 +1113,9 @@ void WinFileSystemAccess::emptydirlocal(LocalPath& namePath, dev_t basedev)
 
         WIN32_FIND_DATAW ffd;
         {
-            ScopedLengthRestore restoreNamePath2(namePath);
-            namePath.appendWithSeparator(LocalPath::fromPlatformEncoded(L"*"), true);
-
-            #ifdef WINDOWS_PHONE
-                hFind = FindFirstFileExW(namePath.localpath.c_str(), FindExInfoBasic, &ffd, FindExSearchNameMatch, NULL, 0);
-            #else
-                hFind = FindFirstFileW(namePath.localpath.c_str(), &ffd);
-            #endif
+            auto restoreNamePath2 = makeScopedSizeRestorer(namePath);
+            namePath.appendWithSeparator(LocalPath::fromRelativePath("*"), true);
+            hFind = FindFirstFileW(namePath.localpath.c_str(), &ffd);
         }
 
         if (hFind == INVALID_HANDLE_VALUE)
@@ -1042,8 +1132,8 @@ void WinFileSystemAccess::emptydirlocal(LocalPath& namePath, dev_t basedev)
                     || (ffd.cFileName[1] && ((ffd.cFileName[1] != '.')
                     || ffd.cFileName[2]))))
             {
-                ScopedLengthRestore restoreNamePath3(namePath);
-                namePath.appendWithSeparator(LocalPath::fromPlatformEncoded(ffd.cFileName), true);
+                auto restoreNamePath3 = makeScopedSizeRestorer(namePath);
+                namePath.appendWithSeparator(LocalPath::fromPlatformEncodedRelative(ffd.cFileName), true);
                 if (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
                 {
                     emptydirlocal(namePath, currentdev);
@@ -1065,8 +1155,9 @@ void WinFileSystemAccess::emptydirlocal(LocalPath& namePath, dev_t basedev)
     }
 }
 
-bool WinFileSystemAccess::mkdirlocal(LocalPath& namePath, bool hidden)
+bool WinFileSystemAccess::mkdirlocal(const LocalPath& namePath, bool hidden, bool logAlreadyExistsError)
 {
+    assert(namePath.isAbsolute());
     const std::wstring& name = namePath.localpath;
 
     bool r = !!CreateDirectoryW(name.data(), NULL);
@@ -1074,37 +1165,31 @@ bool WinFileSystemAccess::mkdirlocal(LocalPath& namePath, bool hidden)
     if (!r)
     {
         DWORD e = GetLastError();
-        LOG_debug << "Unable to create folder. Error code: " << e;
+
+        target_name_too_long = isPathError(e) && exists(namePath.parentPath());
         transient_error = istransientorexists(e);
+
+        if (!target_exists || logAlreadyExistsError)
+        {
+            LOG_debug << "Unable to create folder. Error code: " << e << " for: " << namePath;
+        }
     }
     else if (hidden)
     {
-#ifdef WINDOWS_PHONE
-        WIN32_FILE_ATTRIBUTE_DATA a = { 0 };
-        BOOL res = GetFileAttributesExW(name.data(), GetFileExInfoStandard, &a);
-
-        if (res)
-        {
-            SetFileAttributesW(name.data(), a.dwFileAttributes | FILE_ATTRIBUTE_HIDDEN);
-        }
-#else
         DWORD a = GetFileAttributesW(name.data());
 
         if (a != INVALID_FILE_ATTRIBUTES)
         {
             SetFileAttributesW(name.data(), a | FILE_ATTRIBUTE_HIDDEN);
         }
-#endif
     }
 
     return r;
 }
 
-bool WinFileSystemAccess::setmtimelocal(LocalPath& namePath, m_time_t mtime)
+bool WinFileSystemAccess::setmtimelocal(const LocalPath& namePath, m_time_t mtime)
 {
-#ifdef WINDOWS_PHONE
-    return false;
-#else
+    assert(namePath.isAbsolute());
     FILETIME lwt;
     LONGLONG ll;
     HANDLE hFile;
@@ -1134,80 +1219,35 @@ bool WinFileSystemAccess::setmtimelocal(LocalPath& namePath, m_time_t mtime)
 
     CloseHandle(hFile);
 
-    return r;
-#endif
+    return r != 0;
 }
 
 bool WinFileSystemAccess::chdirlocal(LocalPath& namePath) const
 {
-#ifdef WINDOWS_PHONE
-    return false;
-#else
+    assert(namePath.isAbsolute());
     int r = SetCurrentDirectoryW(namePath.localpath.c_str());
-    return r;
-#endif
+    return r != 0;
 }
 
-// return lowercased ASCII file extension, including the . separator
-bool WinFileSystemAccess::getextension(const LocalPath& filenamePath, std::string &extension) const
+bool WinFileSystemAccess::expanselocalpath(const LocalPath& pathArg, LocalPath& absolutepathArg)
 {
-    const wchar_t* ptr = filenamePath.localpath.data() + filenamePath.localpath.size();
-
-    char c;
-    size_t i, j;
-    size_t size = filenamePath.localpath.size();
-
-    for (i = 0; i < size; i++)
-    {
-        if (*--ptr == '.')
-        {
-            extension.reserve(i+1);
-
-            for (j = 0; j <= i; j++)
-            {
-                if (*ptr < '.' || *ptr > 'z') return false;
-
-                c = (char)*(ptr++);
-
-                // tolower()
-                if (c >= 'A' && c <= 'Z') c |= ' ';
-
-                extension.push_back(c);
-            }
-			return true;
-		}
-	}
-
-    return false;
-}
-
-bool WinFileSystemAccess::expanselocalpath(LocalPath& pathArg, LocalPath& absolutepathArg)
-{
-#ifdef WINDOWS_PHONE
-    wchar_t full[_MAX_PATH];
-    if (_wfullpath(full, pathArg.localpath.data(), _MAX_PATH))
-    {
-        absolutepathArg.localpath = full;
-        return true;
-    }
-    absolutepathArg.localpath = pathArg.localpath;
-    return false;
-#else
-
-    int len = GetFullPathNameW(pathArg.localpath.data(), 0, NULL, NULL);
+    int len = GetFullPathNameW(pathArg.localpath.c_str(), 0, NULL, NULL);
+    // just get size including NUL terminator
     if (len <= 0)
     {
-        absolutepathArg.localpath = pathArg.localpath;
+        absolutepathArg = pathArg;
         return false;
     }
 
     absolutepathArg.localpath.resize(len);
-    int newlen = GetFullPathNameW(pathArg.localpath.data(), len, const_cast<wchar_t*>(absolutepathArg.localpath.data()), NULL);
+    int newlen = GetFullPathNameW(pathArg.localpath.c_str(), len, const_cast<wchar_t*>(absolutepathArg.localpath.data()), NULL);
+    // length not including terminating NUL
     if (newlen <= 0 || newlen >= len)
     {
-        absolutepathArg.localpath = pathArg.localpath;
+        absolutepathArg = pathArg;
         return false;
     }
+    absolutepathArg.localpath.resize(newlen);
 
     if (memcmp(absolutepathArg.localpath.data(), L"\\\\?\\", 8))
     {
@@ -1221,17 +1261,30 @@ bool WinFileSystemAccess::expanselocalpath(LocalPath& pathArg, LocalPath& absolu
         }
     }
 
+    absolutepathArg.isFromRoot = true;
     return true;
-#endif
+}
+
+bool WinFileSystemAccess::exists(const LocalPath& path) const
+{
+    auto attributes = GetFileAttributesW(path.localpath.c_str());
+
+    return attributes != INVALID_FILE_ATTRIBUTES;
+}
+
+bool WinFileSystemAccess::isPathError(DWORD error) const
+{
+    return error == ERROR_DIRECTORY
+           || error == ERROR_FILE_NOT_FOUND
+           || error == ERROR_FILENAME_EXCED_RANGE
+           || error == ERROR_INVALID_NAME
+           || error == ERROR_PATH_NOT_FOUND;
 }
 
 void WinFileSystemAccess::osversion(string* u, bool includeArchExtraInfo) const
 {
     char buf[128];
 
-#ifdef WINDOWS_PHONE
-    sprintf(buf, "Windows Phone");
-#else
     typedef LONG MEGANTSTATUS;
     typedef struct _MEGAOSVERSIONINFOW {
         DWORD dwOSVersionInfoSize;
@@ -1264,14 +1317,12 @@ void WinFileSystemAccess::osversion(string* u, bool includeArchExtraInfo) const
             strcat(buf, "/64");  // if the app 32/64 bit matches the OS, then no need to specify the OS separately, so we only need to cover the WOW 32 bit on 64 bit case.
         }
     }
-#endif
 
     u->append(buf);
 }
 
 void WinFileSystemAccess::statsid(string *id) const
 {
-#ifndef WINDOWS_PHONE
     LONG hr;
     HKEY hKey = NULL;
     hr = RegOpenKeyEx(HKEY_LOCAL_MACHINE, L"Software\\Microsoft\\Cryptography", 0,
@@ -1291,71 +1342,94 @@ void WinFileSystemAccess::statsid(string *id) const
         {
             std::wstring localdata(pszData);
             string utf8data;
-            local2path(&localdata, &utf8data);
+            LocalPath::local2path(&localdata, &utf8data, true);  // true because that was the case historically
             id->append(utf8data);
         }
         RegCloseKey(hKey);
     }
-#endif
 }
 
-// set DirNotify's root LocalNode
-void WinDirNotify::addnotify(LocalNode* l, const LocalPath&)
+fsfp_t FileSystemAccess::fsFingerprint(const LocalPath& path) const
 {
+    // Convenience.
+    static auto failed = []() {
+        auto error = GetLastError();
+
+        LOG_err << "Unable to determine volume ID: "
+                << getErrorMessage(error);
+
+        return fsfp_t();
+    };  // failed
+
+    // Try and open the specified file.
+    ScopedFileHandle handle = CreateFileW(path.localpath.c_str(),
+                                          FILE_LIST_DIRECTORY,
+                                          FILE_SHARE_READ | FILE_SHARE_WRITE,
+                                          nullptr,
+                                          OPEN_EXISTING,
+                                          FILE_FLAG_BACKUP_SEMANTICS,
+                                          nullptr);
+
+    // Couldn't open the specified file.
+    if (!handle)
+        return failed();
+
+    BY_HANDLE_FILE_INFORMATION info;
+
+    // Try and retrieve information about the specified file.
+    if (!GetFileInformationByHandle(handle.get(), &info))
+        return failed();
+
+    // Convert serial number to a string.
+    std::ostringstream ostream;
+
+    ostream << std::hex
+            << std::setfill('0')
+            << std::setw(16)
+            << info.dwVolumeSerialNumber;
+
+    // Return ID to caller.
+    return fsfp_t(info.dwVolumeSerialNumber + 1, ostream.str());
+}
+
 #ifdef ENABLE_SYNC
-    if (!l->parent)
-    {
-        localrootnode = l;
-    }
-#endif
-}
 
-fsfp_t WinDirNotify::fsfingerprint() const
+bool WinFileSystemAccess::fsStableIDs(const LocalPath& path) const
 {
-#ifdef WINDOWS_PHONE
-	FILE_ID_INFO fi = { 0 };
-	if(!GetFileInformationByHandleEx(hDirectory, FileIdInfo, &fi, sizeof(fi)))
-#else
-	BY_HANDLE_FILE_INFORMATION fi;
-	if (!GetFileInformationByHandle(hDirectory, &fi))
-#endif
-    {
-        LOG_err << "Unable to get fsfingerprint. Error code: " << GetLastError();
-        return 0;
-    }
-
-#ifdef WINDOWS_PHONE
-	return fi.VolumeSerialNumber + 1;
-#else
-    return fi.dwVolumeSerialNumber + 1;
-#endif
-}
-
-bool WinDirNotify::fsstableids() const
-{
-#ifdef WINDOWS_PHONE
-#error "Not implemented"
-#endif
     TCHAR volume[MAX_PATH + 1];
-    if (GetVolumePathNameW(localbasepath.localpath.data(), volume, MAX_PATH + 1))
+    if (GetVolumePathNameW(path.localpath.c_str(), volume, MAX_PATH + 1))
     {
-        TCHAR fs[MAX_PATH + 1];
-        if (GetVolumeInformation(volume, NULL, 0, NULL, NULL, NULL, fs, MAX_PATH + 1))
+        TCHAR fs[MAX_PATH + 1] = { 0, };
+        BOOL gotVolInfo = GetVolumeInformation(volume, NULL, 0, NULL, NULL, NULL, fs, MAX_PATH + 1);
+        if (!gotVolInfo)
         {
-            LOG_info << "Filesystem type: " << fs;
+            // Maybe it's a subst drive (created using something like "subst a: c:\Source" DOS command).
+            // In such cases, the volume path might include additional characters after ":\\", e.g. "C:\\SomeFolder".
+            // To resolve that, we truncate the volume path to end after ":\\" and retry.
+            wchar_t* volSep = wcsstr(volume, L":\\");
+            if (volSep && *(volSep + 2))
+            {
+                *(volSep + 2) = L'\0'; // Truncate the volume path
+                gotVolInfo = GetVolumeInformation(volume, NULL, 0, NULL, NULL, NULL, fs, MAX_PATH + 1);
+            }
+        }
+
+        if (gotVolInfo)
+        {
+            LOG_info << "Filesystem type: " << LocalPath::fromPlatformEncodedRelative(std::wstring(fs));
             return _wcsicmp(fs, L"FAT")
                 && _wcsicmp(fs, L"FAT32")
                 && _wcsicmp(fs, L"exFAT");
         }
     }
-    LOG_err << "Failed to get filesystem type. Error code: " << GetLastError();
+    LOG_err << "Failed to get filesystem type for path: '" << path << "'. Error code: " << GetLastError();
+    assert(false);
     return true;
 }
 
 VOID CALLBACK WinDirNotify::completion(DWORD dwErrorCode, DWORD dwBytes, LPOVERLAPPED lpOverlapped)
 {
     assert( std::this_thread::get_id() == smNotifierThread->get_id());
-#ifndef WINDOWS_PHONE
     WinDirNotify *dirnotify = (WinDirNotify*)lpOverlapped->hEvent;
     if (!dirnotify->mOverlappedExit && dwErrorCode != ERROR_OPERATION_ABORTED)
     {
@@ -1365,27 +1439,30 @@ VOID CALLBACK WinDirNotify::completion(DWORD dwErrorCode, DWORD dwBytes, LPOVERL
     {
         dirnotify->mOverlappedEnabled = false;
     }
-#endif
 }
 
 void WinDirNotify::process(DWORD dwBytes)
 {
     assert( std::this_thread::get_id() == smNotifierThread->get_id());
 
-#ifndef WINDOWS_PHONE
     if (!dwBytes)
     {
-#ifdef ENABLE_SYNC
+        // No bytes delivered indicates the OS could not deliver some notifications.
+        // Maybe it ran out of buffer (maybe we were too slow)
+        // Incrementing mErrorCount will cause a full rescan of the sync
+        // We used to send an additional notification with localnode and empty path to
+        // trigger it but that is not needed anymore
+
         int errCount = ++mErrorCount;
-        LOG_err << "Empty filesystem notification: " << (localrootnode ? localrootnode->name.c_str() : "NULL")
+        LOG_err << "Empty filesystem notification: " << (localrootnode ? localrootnode->localname.toPath(false).c_str() : "NULL")
                 << " errors: " << errCount;
+
+        // reissue request for notifications
         readchanges();
-        notify(DIREVENTS, localrootnode, LocalPath());
-#endif
     }
     else
     {
-        assert(dwBytes >= offsetof(FILE_NOTIFY_INFORMATION, FileName) + sizeof(wchar_t));
+        assert(dwBytes >= offsetof(FILE_NOTIFY_INFORMATION, FileName)); // 3 uint32_t.  The filename can be entirely absent, with the filename length field 0  (via samba share from qnap device)
 
         string processbuf;
         if (dwBytes <= 4096)
@@ -1408,54 +1485,17 @@ void WinDirNotify::process(DWORD dwBytes)
         {
             FILE_NOTIFY_INFORMATION* fni = (FILE_NOTIFY_INFORMATION*)ptr;
 
-            // skip the local debris folder
-            // also, we skip the old name in case of renames
-            if (fni->Action != FILE_ACTION_RENAMED_OLD_NAME
-                && (fni->FileNameLength < ignore.localpath.size()
-                    || memcmp(fni->FileName, ignore.localpath.data(), ignore.localpath.size() * sizeof(wchar_t))
-                    || (fni->FileNameLength > ignore.localpath.size()
-                        && fni->FileName[ignore.localpath.size() - 1] == L'\\')))
-            {
-                if (SimpleLogger::logCurrentLevel >= logDebug)
-                {
 #ifdef ENABLE_SYNC
-                    // Outputting this logging on the notification thread slows it down considerably, risking missing notifications.
-                    // Let's skip it and log the ones received on the notify queue
+            //LOG_verbose << "FS notification: " << fni->Action << " " << LocalPath::fromPlatformEncoded(std::wstring(fni->FileName, fni->FileNameLength / sizeof(fni->FileName[0]))).toPath();
 
-                    //string local, path;
-                    //local.assign((char*)fni->FileName, fni->FileNameLength);
-                    //path.resize((local.size() + 1) * 4 / sizeof(wchar_t));
-                    //path.resize(WideCharToMultiByte(CP_UTF8, 0, (wchar_t*)local.data(),
-                    //                                 int(local.size() / sizeof(wchar_t)),
-                    //                                 (char*)path.data(),
-                    //                                 int(path.size() + 1),
-                    //                                 NULL, NULL));
+            //FILE_ACTION_RENAMED_OLD_NAME: we let this one through now.  Eg for move of folder out of the sync.  Though, we should also get FILE_ACTION_MODIFIED for its containing folder.  Belt & braces.
 
-                    //LOG_debug << "Filesystem notification. Root: " << (localrootnode ? localrootnode->name.c_str() : "NULL") << "   Path: " << path;
+            auto scanRequirement = fni->Action == FILE_ACTION_MODIFIED  // FILE_ACTION_MODIFIED: for directories, if an entry was added or removed.  Or if accessibilty permissions of this folder changed.
+                ? Notification::FOLDER_NEEDS_SELF_SCAN
+                : Notification::NEEDS_PARENT_SCAN;
+            notify(fsEventq, localrootnode, scanRequirement,
+                LocalPath::fromPlatformEncodedRelative(std::wstring(fni->FileName, fni->FileNameLength / sizeof(fni->FileName[0]))));
 #endif
-                }
-#ifdef ENABLE_SYNC
-                notify(DIREVENTS, localrootnode, LocalPath::fromPlatformEncoded(std::wstring(fni->FileName, fni->FileNameLength / sizeof(fni->FileName[0]))));
-#endif
-            }
-            else if (SimpleLogger::logCurrentLevel >= logDebug)
-            {
-#ifdef ENABLE_SYNC
-                // Outputting this logging on the notification thread slows it down considerably, risking missing notifications.
-                // Let's skip it and log the ones received on the notify queue
-
-                //string local, path;
-                //local.assign((char*)fni->FileName, fni->FileNameLength);
-                //path.resize((local.size() + 1) * 4 / sizeof(wchar_t));
-                //path.resize(WideCharToMultiByte(CP_UTF8, 0, (wchar_t*)local.data(),
-                //                                 int(local.size() / sizeof(wchar_t)),
-                //                                 (char*)path.data(),
-                //                                 int(path.size() + 1),
-                //                                 NULL, NULL));
-                //LOG_debug << "Skipped filesystem notification. Root: " << (localrootnode ? localrootnode->name.c_str() : "NULL") << "   Path: " << path;
-#endif
-            }
-
 
             if (!fni->NextEntryOffset)
             {
@@ -1465,7 +1505,6 @@ void WinDirNotify::process(DWORD dwBytes)
             ptr += fni->NextEntryOffset;
         }
     }
-#endif
     clientWaiter->notify();
 }
 
@@ -1474,10 +1513,9 @@ void WinDirNotify::readchanges()
 {
     assert( std::this_thread::get_id() == smNotifierThread->get_id());
 
-#ifndef WINDOWS_PHONE
     if (notifybuf.size() != 65534)
     {
-        // Use 65534 for the buffer size becaues (from doco):
+        // Use 65534 for the buffer size because (from doco):
         // ReadDirectoryChangesW fails with ERROR_INVALID_PARAMETER when the buffer length is greater than 64 KB and the application is
         // monitoring a directory over the network. This is due to a packet size limitation with the underlying file sharing protocols.
         notifybuf.resize(65534);
@@ -1488,7 +1526,8 @@ void WinDirNotify::readchanges()
                             | FILE_NOTIFY_CHANGE_DIR_NAME
                             | FILE_NOTIFY_CHANGE_LAST_WRITE
                             | FILE_NOTIFY_CHANGE_SIZE
-                            | FILE_NOTIFY_CHANGE_CREATION,
+                            | FILE_NOTIFY_CHANGE_CREATION
+                            | FILE_NOTIFY_CHANGE_SECURITY,  // so we can know if we lose/gain access to a scan-blocked folder
                               &dwBytes, &overlapped, completion);
 
     if (readRet)
@@ -1513,7 +1552,6 @@ void WinDirNotify::readchanges()
             setFailed(e, "Fatal error returned by ReadDirectoryChangesW");
         }
     }
-#endif
 }
 
 std::mutex WinDirNotify::smNotifyMutex;
@@ -1554,11 +1592,20 @@ void WinDirNotify::notifierThreadFunction()
     LOG_debug << "Filesystem notify thread stopped";
 }
 
-WinDirNotify::WinDirNotify(LocalPath& localbasepath, const LocalPath& ignore, WinFileSystemAccess* owner, Waiter* waiter) : DirNotify(localbasepath, ignore)
+WinDirNotify::WinDirNotify(LocalNode& root,
+                           const LocalPath& rootPath,
+                           WinFileSystemAccess* owner,
+                           Waiter* waiter)
+  : DirNotify(rootPath)
 {
+    assert(rootPath.isAbsolute());
     fsaccess = owner;
     fsaccess->dirnotifys.insert(this);
     clientWaiter = waiter;
+
+#ifdef ENABLE_SYNC
+    localrootnode = &root;
+#endif // ENABLE_SYNC
 
     {
         // If this is the first Notifier created, start the thread that queries the OS for notifications.
@@ -1569,18 +1616,17 @@ WinDirNotify::WinDirNotify(LocalPath& localbasepath, const LocalPath& ignore, Wi
             smEventHandle = CreateEvent(NULL, FALSE, FALSE, NULL);
 
             // One thread to notify them all
-            smNotifierThread.reset(new std::thread([](){ notifierThreadFunction(); }));
+            smNotifierThread.reset(new std::thread([](){
+                // Process directory enumeration requests.
+                notifierThreadFunction();
+            }));
         }
     }
 
-#ifndef WINDOWS_PHONE
     ZeroMemory(&overlapped, sizeof(overlapped));
     overlapped.hEvent = this;
     mOverlappedEnabled = false;
     mOverlappedExit = false;
-
-    ScopedLengthRestore restoreLocalbasePath(localbasepath);
-    sanitizedriveletter(localbasepath.localpath);
 
     // ReadDirectoryChangesW: If you opened the file using the short name, you can receive change notifications for the short name.  (so make sure it's a long name)
     std::wstring longname;
@@ -1605,11 +1651,26 @@ WinDirNotify::WinDirNotify(LocalPath& localbasepath, const LocalPath& ignore, Wi
     {
         setFailed(0, "");
 
+        // So we know when we've asked the system for directory notifications.
+        std::promise<void> requested;
+
         {
             std::lock_guard<std::mutex> g(smNotifyMutex);
-            smQueue.push_back([this](){ readchanges(); });
+
+            smQueue.push_back([&requested, this](){
+                // Ask the system to report directory change notifications.
+                readchanges();
+
+                // Let queuing thread know we've asked the system for notifications.
+                requested.set_value();
+            });
         }
+
+        // Let notification thread know there's work to do.
         SetEvent(smEventHandle);
+
+        // Wait until the notification thread has processed our request.
+        requested.get_future().get();
     }
     else
     {
@@ -1617,14 +1678,12 @@ WinDirNotify::WinDirNotify(LocalPath& localbasepath, const LocalPath& ignore, Wi
         setFailed(err, "CreateFileW was unable to open the folder");
         LOG_err << "Unable to initialize filesystem notifications. Error: " << err;
     }
-#endif
 }
 
 WinDirNotify::~WinDirNotify()
 {
     mOverlappedExit = true;
 
-#ifndef WINDOWS_PHONE
     if (hDirectory != INVALID_HANDLE_VALUE)
     {
         if (mOverlappedEnabled)
@@ -1643,7 +1702,6 @@ WinDirNotify::~WinDirNotify()
         CloseHandle(hDirectory);
     }
     fsaccess->dirnotifys.erase(this);
-#endif
 
     {
         if (--smNotifierCount == 0)
@@ -1656,13 +1714,17 @@ WinDirNotify::~WinDirNotify()
             smNotifierThread->join();
             smNotifierThread.reset();
             CloseHandle(smEventHandle);
-            smQueue.clear();
+            {
+                std::lock_guard<std::mutex> g(smNotifyMutex);
+                smQueue.clear();
+            }
         }
     }
 
 }
+#endif   // ENABLE_SYNC
 
-std::unique_ptr<FileAccess> WinFileSystemAccess::newfileaccess(bool followSymLinks)
+std::unique_ptr<FileAccess> WinFileSystemAccess::newfileaccess(bool /*followSymLinks*/)
 {
     return std::unique_ptr<FileAccess>(new WinFileAccess(waiter));
 }
@@ -1718,15 +1780,17 @@ bool WinFileSystemAccess::getlocalfstype(const LocalPath& path, FileSystemType& 
     return type = FS_UNKNOWN, false;
 }
 
-DirAccess* WinFileSystemAccess::newdiraccess()
+unique_ptr<DirAccess> WinFileSystemAccess::newdiraccess()
 {
-    return new WinDirAccess();
+    return unique_ptr<DirAccess>(new WinDirAccess());
 }
 
-DirNotify* WinFileSystemAccess::newdirnotify(LocalPath& localpath, LocalPath& ignore, Waiter* waiter)
+#ifdef ENABLE_SYNC
+DirNotify* WinFileSystemAccess::newdirnotify(LocalNode& root, const LocalPath& rootPath, Waiter* waiter)
 {
-    return new WinDirNotify(localpath, ignore, this, waiter);
+    return new WinDirNotify(root, rootPath, this, waiter);
 }
+#endif
 
 bool WinFileSystemAccess::issyncsupported(const LocalPath& localpathArg, bool& isnetwork, SyncError& syncError, SyncWarning& syncWarning)
 {
@@ -1737,7 +1801,6 @@ bool WinFileSystemAccess::issyncsupported(const LocalPath& localpathArg, bool& i
     syncError = NO_SYNC_ERROR;
     syncWarning = NO_SYNC_WARNING;
 
-#ifndef WINDOWS_PHONE
     path.resize(MAX_PATH * sizeof(WCHAR));
     fsname.resize(MAX_PATH * sizeof(WCHAR));
 
@@ -1775,13 +1838,275 @@ bool WinFileSystemAccess::issyncsupported(const LocalPath& localpathArg, bool& i
     }
 
     string utf8fsname;
-    local2path(&fsname, &utf8fsname);
+    LocalPath::local2path(&fsname, &utf8fsname, false);
     LOG_debug << "Filesystem type: " << utf8fsname;
-
-#endif
 
     return result;
 }
+
+bool reuseFingerprint(const FSNode& lhs, const FSNode& rhs)
+{
+    // it might look like fingerprint.crc comparison has been missed out here
+    // but that is intentional.  The point is to avoid re-fingerprinting files
+    // when we rescan a folder, if we already have good info about them and
+    // nothing we can see from outside the file had changed,
+    // mtime is the same, and no notifications arrived
+    // for this particular file.
+    return lhs.type == rhs.type
+        && lhs.fsid == rhs.fsid
+        && lhs.fingerprint.mtime == rhs.fingerprint.mtime
+        && lhs.fingerprint.size == rhs.fingerprint.size;
+};
+
+bool  WinFileSystemAccess::checkForSymlink(const LocalPath& lp)
+{
+
+    ScopedFileHandle rightTypeHandle = CreateFileW(lp.localpath.c_str(),
+        GENERIC_READ,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        NULL,
+        OPEN_EXISTING,
+        FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS,
+        NULL);
+
+    typedef struct _REPARSE_DATA_BUFFER {
+        ULONG  ReparseTag;
+        USHORT ReparseDataLength;
+        USHORT Reserved;
+        union {
+            struct {
+                USHORT SubstituteNameOffset;
+                USHORT SubstituteNameLength;
+                USHORT PrintNameOffset;
+                USHORT PrintNameLength;
+                ULONG  Flags;
+                WCHAR  PathBuffer[1];
+            } SymbolicLinkReparseBuffer;
+            struct {
+                USHORT SubstituteNameOffset;
+                USHORT SubstituteNameLength;
+                USHORT PrintNameOffset;
+                USHORT PrintNameLength;
+                WCHAR  PathBuffer[1];
+            } MountPointReparseBuffer;
+            struct {
+                UCHAR DataBuffer[1];
+            } GenericReparseBuffer;
+        } DUMMYUNIONNAME;
+    } REPARSE_DATA_BUFFER, *PREPARSE_DATA_BUFFER;
+
+    union rightSizeBuffer {
+        REPARSE_DATA_BUFFER rdb;
+        char pad[MAXIMUM_REPARSE_DATA_BUFFER_SIZE];
+    } rdb;
+
+    DWORD bytesReturned = 0;
+
+    if (rightTypeHandle.get() != INVALID_HANDLE_VALUE  &&
+        DeviceIoControl(
+        rightTypeHandle.get(),
+        FSCTL_GET_REPARSE_POINT,
+        NULL,
+        0,
+        &rdb,
+        sizeof(rdb),
+        &bytesReturned,
+        NULL))
+    {
+        return rdb.rdb.ReparseTag == IO_REPARSE_TAG_SYMLINK;
+    }
+
+    return false;
+}
+
+ScanResult WinFileSystemAccess::directoryScan(const LocalPath& path,
+                                              handle expectedFsid,
+                                              map<LocalPath, FSNode>& known,
+                                              std::vector<FSNode>& results,
+                                              [[maybe_unused]] bool followSymLinks,
+                                              unsigned& nFingerprinted)
+{
+    assert(path.isAbsolute());
+    assert(!followSymLinks && "Symlinks are not supported on Windows!");
+
+    ScopedFileHandle rightTypeHandle = CreateFileW(path.localpath.c_str(),
+        GENERIC_READ,
+        FILE_SHARE_READ |
+        FILE_SHARE_WRITE |
+        FILE_SHARE_DELETE,
+        NULL,
+        OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS,
+        NULL);
+
+    if (rightTypeHandle.get() == INVALID_HANDLE_VALUE)
+    {
+        LOG_warn << "Failed to directoryScan, no handle for: " << path;
+        return SCAN_INACCESSIBLE;
+    }
+
+    BY_HANDLE_FILE_INFORMATION bhfi = { 0 };
+    if (!GetFileInformationByHandle(rightTypeHandle.get(), &bhfi))
+    {
+        LOG_warn << "Failed to directoryScan, no info for: " << path;
+        return SCAN_INACCESSIBLE;
+    }
+
+    auto folderFsid = ((handle)bhfi.nFileIndexHigh << 32) | (handle)bhfi.nFileIndexLow;
+    if (folderFsid != expectedFsid)
+    {
+        LOG_warn << "Failed to directoryScan, mismatch on expected FSID: " << path;
+        return SCAN_FSID_MISMATCH;
+    }
+
+    if (!(bhfi.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+    {
+        LOG_warn << "Failed to directoryScan, not a directory: " << path;
+        return SCAN_INACCESSIBLE;
+    }
+
+    alignas(8) byte bytes[1024 * 10];
+
+    if (GetFileInformationByHandleEx( rightTypeHandle.get(),
+        FileIdBothDirectoryRestartInfo,  // starts the listing from the beginning
+        bytes, sizeof(bytes)))
+    {
+        do
+        {
+            bool loopDone = false;
+            for (byte* ptr = bytes; !loopDone;)
+            {
+                auto info = reinterpret_cast<FILE_ID_BOTH_DIR_INFO*>(ptr);
+                if (!info->NextEntryOffset) loopDone = true;
+                else ptr += info->NextEntryOffset;
+
+                FSNode result;
+                result.localname = LocalPath::fromPlatformEncodedRelative(wstring(info->FileName, info->FileNameLength/2));
+                assert(result.localname.localpath.back() != 0);
+
+                if (result.localname.localpath == L"." ||
+                    result.localname.localpath == L"..")
+                {
+                    continue;
+                }
+
+                // Are we dealing with a reparse point?
+                if ((info->FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT))
+                {
+                    auto filePath = path;
+
+                    filePath.appendWithSeparator(result.localname, false);
+
+                    LOG_warn << "directoryScan: "
+                             << "Encountered a reparse point: "
+                             << filePath;
+
+                    // Provide basic information about the reparse point.
+                    result.fingerprint.mtime = FileTime_to_POSIX((FILETIME*)&info->LastWriteTime);
+                    result.fingerprint.size = (m_off_t)info->EndOfFile.QuadPart;
+                    result.fsid = (handle)info->FileId.QuadPart;
+                    result.isSymlink = checkForSymlink(filePath);
+                    result.type = result.isSymlink ? TYPE_SYMLINK : TYPE_SPECIAL;
+
+
+                    results.emplace_back(std::move(result));
+
+                    // Process the next directory entry.
+                    continue;
+                }
+
+                // For now at least, do the same as the old system: ignore system+hidden.
+                // desktop.ini seem to be at least one problem solved this way, they are
+                // (at least sometimes) unopenable
+                // anyway, so no valid fingerprint can be extracted.
+                if (WinFileAccess::skipattributes(info->FileAttributes))
+                {
+                    result.type = TYPE_DONOTSYNC;
+                    LOG_debug << "do-not-sync path identified by attributes: " << path;
+                }
+                else
+                {
+                    result.type = (info->FileAttributes & FILE_ATTRIBUTE_DIRECTORY) ? FOLDERNODE : FILENODE;
+                }
+                result.fsid = (handle) info->FileId.QuadPart;
+
+                result.fingerprint.mtime = FileTime_to_POSIX((FILETIME*)&info->LastWriteTime);
+                result.fingerprint.size = (m_off_t)info->EndOfFile.QuadPart;
+
+                if (info->ShortNameLength > 0)
+                {
+                    wstring wstr(info->ShortName, info->ShortNameLength/2);
+                    assert(wstr.back() != 0);
+                    if (wstr != result.localname.localpath)
+                    {
+                        result.shortname.reset(new LocalPath(LocalPath::fromPlatformEncodedRelative(std::move(wstr))));
+                    }
+                }
+
+                if (result.shortname &&
+                    *result.shortname == result.localname)
+                {
+                    result.shortname.reset();
+                }
+
+                    //// Warn about symlinks.
+                    //if (result.isSymlink)
+                    //{
+                    //    LOG_debug << "Interrogated path is a symlink: "
+                    //        << path.toPath();
+                    //}
+
+                if (result.type == FOLDERNODE)
+                {
+                    memset(result.fingerprint.crc.data(), 0, sizeof(result.fingerprint.crc));
+                }
+                else if (result.type == FILENODE)
+                {
+                    // Fingerprint the file if it's new or changed
+                    // (caller has to not supply 'known' items we aready know changed in case mtime+size is still a match)
+                    auto it = known.find(result.localname);
+                    if (it != known.end() && reuseFingerprint(it->second, result))
+                    {
+                        result.fingerprint = std::move(it->second.fingerprint);
+                        known.erase(it);
+                    }
+                    else
+                    {
+                        LocalPath p = path;
+                        p.appendWithSeparator(result.localname, false);
+                        auto fa = newfileaccess();
+                        if (fa->fopen(p, true, false, FSLogging::logOnError))
+                        {
+                            result.fingerprint.genfingerprint(fa.get());
+                            nFingerprinted += 1;
+                        }
+                        else
+                        {
+                            // The file may be opened exclusively by another process
+                            // In this case, the fingerprint (the crc portion) is invalid (for now)
+                        }
+                    }
+                }
+
+                results.push_back(std::move(result));
+            }
+        }
+        while (GetFileInformationByHandleEx( rightTypeHandle.get(),
+            FileIdBothDirectoryInfo,  // continues but does not restart
+            bytes, sizeof(bytes)));
+
+    }
+
+    auto err = GetLastError();
+    if (err != ERROR_NO_MORE_FILES)
+    {
+        LOG_err << "Failed in directoryScan, error " << err;
+        return SCAN_INACCESSIBLE;
+    }
+
+    return SCAN_SUCCESS;
+}
+
 
 bool WinDirAccess::dopen(LocalPath* nameArg, FileAccess* f, bool glob)
 {
@@ -1801,18 +2126,18 @@ bool WinDirAccess::dopen(LocalPath* nameArg, FileAccess* f, bool glob)
         std::wstring name = nameArg->localpath;
         if (!glob)
         {
-            name.append(L"\\*");
+            if (!name.empty() && name.back() != L'\\')
+            {
+                name.append(L"\\");
+            }
+            name.append(L"*");
         }
 
-#ifdef WINDOWS_PHONE
-        hFind = FindFirstFileExW(name.c_str(), FindExInfoBasic, &ffd, FindExSearchNameMatch, NULL, 0);
-#else
         hFind = FindFirstFileW(name.c_str(), &ffd);
-#endif
 
         if (glob)
         {
-            if (size_t index = nameArg->getLeafnameByteIndex(gWfsa))
+            if (size_t index = nameArg->getLeafnameByteIndex())
             {
                 globbase = *nameArg;
                 globbase.truncate(index);
@@ -1844,6 +2169,8 @@ bool WinDirAccess::dnext(LocalPath& /*path*/, LocalPath& nameArg, bool /*follows
           || (ffd.cFileName[1] && ((ffd.cFileName[1] != '.') || ffd.cFileName[2]))))
         {
             nameArg.localpath.assign(ffd.cFileName, wcslen(ffd.cFileName));
+            nameArg.isFromRoot = false;
+
             if (!globbase.empty())
             {
                 nameArg.prependWithSeparator(globbase);
@@ -1860,7 +2187,7 @@ bool WinDirAccess::dnext(LocalPath& /*path*/, LocalPath& nameArg, bool /*follows
         }
         else
         {
-            if (ffdvalid && SimpleLogger::logCurrentLevel >= logDebug)
+            if (ffdvalid && SimpleLogger::getLogLevel() >= logDebug)
             {
                 if (*ffd.cFileName != '.' && (ffd.cFileName[1] && ((ffd.cFileName[1] != '.') || ffd.cFileName[2])))
                     LOG_debug << "Excluded: " << ffd.cFileName << "   Attributes: " << ffd.dwFileAttributes;
@@ -1887,4 +2214,38 @@ WinDirAccess::~WinDirAccess()
         FindClose(hFind);
     }
 }
+
+m_off_t WinFileSystemAccess::availableDiskSpace(const LocalPath& drivePath)
+{
+    m_off_t maximumBytes = std::numeric_limits<m_off_t>::max();
+    ULARGE_INTEGER numBytes;
+
+    if (!GetDiskFreeSpaceExW(drivePath.localpath.c_str(), &numBytes, nullptr, nullptr))
+    {
+        auto result = GetLastError();
+
+        LOG_warn << "Unable to retrieve available disk space for: "
+                 << drivePath
+                 << ". Error code was: "
+                 << result;
+
+         return maximumBytes;
+    }
+
+    if (numBytes.QuadPart >= (uint64_t)maximumBytes)
+        return maximumBytes;
+
+    return (m_off_t)numBytes.QuadPart;
+}
+
+std::string FileSystemAccess::getErrorMessage(int error)
+{
+    return winErrorMessage(error);
+}
+
+bool FSLogging::isFileNotFound(int error)
+{
+    return error == ERROR_FILE_NOT_FOUND;
+}
+
 } // namespace

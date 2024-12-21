@@ -51,10 +51,6 @@ using namespace mega;
     }
 }
 
-- (instancetype)clone {
-    return self.megaAchievementsDetails ? [[MEGAAchievementsDetails alloc] initWithMegaAchievementsDetails:self.megaAchievementsDetails->copy() cMemoryOwn:YES] : nil;
-}
-
 - (mega::MegaAchievementsDetails *)getCPtr {
     return self.megaAchievementsDetails;
 }

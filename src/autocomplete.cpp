@@ -27,21 +27,9 @@
 #include <algorithm>
 
 #if !defined(__MINGW32__) && !defined(__ANDROID__) && (!defined(__GNUC__) || (__GNUC__*100+__GNUC_MINOR__) >= 503)
-
-#define HAVE_FILESYSTEM
-
-#if (__cplusplus >= 201700L)
+    #define HAVE_FILESYSTEM
     #include <filesystem>
     namespace fs = std::filesystem;
-#else
-#ifdef WIN32
-    #include <filesystem>
-    namespace fs = std::experimental::filesystem;
-#else
-    #include <experimental/filesystem>
-    namespace fs = std::experimental::filesystem;
-#endif
-#endif
 #endif
 
 namespace mega {
@@ -350,8 +338,11 @@ std::ostream& Text::describe(std::ostream& s) const
 
 bool ExportedLink::isLink(const string& s, bool file, bool folder)
 {
-    bool filestr = (s.find("#!") != string::npos || s.find("file/") != string::npos);
-    bool folderstr = (s.find("#F!") != string::npos || s.find("folder/") != string::npos);
+    bool filestr = (s.find("https://mega.nz/#!") != string::npos || s.find("https://mega.nz/file/") != string::npos) ||
+                   (s.find("https://mega.co.nz/#!") != string::npos || s.find("https://mega.co.nz/file/") != string::npos);
+    bool folderstr = (s.find("https://mega.nz/#F!") != string::npos || s.find("https://mega.nz/folder/") != string::npos) ||
+                     (s.find("https://mega.co.nz/#F!") != string::npos || s.find("https://mega.co.nz/folder/") != string::npos);
+
     if (file && !folder)
     {
         return filestr;
@@ -486,15 +477,15 @@ void Either::Add(ExecFn f, ACN n)
 bool Either::addCompletions(ACState& s)
 {
     bool stop = true;
-    int n = s.i;
-    int best_s_i = s.i;
+    unsigned n = s.i;
+    unsigned best_s_i = s.i;
     for (auto& p : eithers)
     {
-        s.i = n;
+        s.i = static_cast<unsigned>(n);
         if (!p->addCompletions(s))
         {
             stop = false;
-            best_s_i = std::max<int>(s.i, best_s_i);
+            best_s_i = std::max<unsigned>(s.i, best_s_i);
         }
     }
     s.i = best_s_i;
@@ -528,7 +519,7 @@ std::ostream& Either::describe(std::ostream& s) const
         std::ostringstream s2;
         for (int i = 0; i < int(eithers.size() * 2) - 1; ++i)
         {
-            (i & 1 ? s2 << "|" : s2 << *eithers[i / 2]);
+            (i & 1 ? s2 << "|" : s2 << *eithers[static_cast<size_t>(i / 2)]);
         }
         std::string str = s2.str();
         if (str.find(' ') == std::string::npos)
@@ -543,8 +534,9 @@ std::ostream& Either::describe(std::ostream& s) const
     return s;
 }
 
-WholeNumber::WholeNumber(size_t def_val)
-    : defaultvalue(def_val)
+WholeNumber::WholeNumber(const std::string& description, size_t defaultValue)
+  : defaultvalue(defaultValue)
+  , description(description)
 {
 }
 
@@ -559,7 +551,7 @@ bool WholeNumber::addCompletions(ACState& s)
     {
         for (char c : s.word().s)
         {
-            if (!isdigit(c))
+            if (!is_digit(static_cast<unsigned>(c)))
             {
                 return true;
             }
@@ -576,7 +568,7 @@ bool WholeNumber::match(ACState& s) const
     {
         for (char c : s.word().s)
         {
-            if (!isdigit(c))
+            if (!is_digit(static_cast<unsigned>(c)))
             {
                 return false;
             }
@@ -590,7 +582,7 @@ bool WholeNumber::match(ACState& s) const
 
 std::ostream& WholeNumber::describe(std::ostream& s) const
 {
-    return s << "N";
+    return s << description;
 }
 
 
@@ -683,7 +675,7 @@ MegaFS::MegaFS(bool files, bool folders, MegaClient* c, ::mega::NodeHandle* curD
 {
 }
 
-Node* addShareRootCompletions(ACState& s, MegaClient* client, string& pathprefix)
+shared_ptr<Node> addShareRootCompletions(ACState& s, MegaClient* client, string& pathprefix)
 {
     const string& path = s.word().s;
     string::size_type t = path.find_first_of(":/");
@@ -702,7 +694,7 @@ Node* addShareRootCompletions(ACState& s, MegaClient* client, string& pathprefix
                 string::size_type pos = path.find_first_of("/", t + 1);
                 for (handle h : u.second.sharing)
                 {
-                    if (Node* n = client->nodebyhandle(h))
+                    if (shared_ptr<Node> n = client->nodebyhandle(h))
                     {
                         if (pos == string::npos)
                         {
@@ -727,7 +719,7 @@ bool MegaFS::addCompletions(ACState& s)
     {
         if (client && cwd)
         {
-            Node* n = NULL;
+            shared_ptr<Node> n;
             std::string pathprefix;
             if (!s.word().s.empty() && s.word().s[0] == '/')
             {
@@ -736,12 +728,12 @@ bool MegaFS::addCompletions(ACState& s)
                     if (s.word().s.size() >= 5 && !strncmp(s.word().s.c_str(), "//in/", 5))
                     {
                         pathprefix = "//in/";
-                        n = client->nodebyhandle(client->rootnodes[1]);
+                        n = client->nodeByHandle(client->mNodeManager.getRootNodeVault());
                     }
                     else if (s.word().s.size() >= 6 && !strncmp(s.word().s.c_str(), "//bin/", 6))
                     {
                         pathprefix = "//bin/";
-                        n = client->nodebyhandle(client->rootnodes[2]);
+                        n = client->nodeByHandle(client->mNodeManager.getRootNodeRubbish());
                     }
                     else
                     {
@@ -753,7 +745,7 @@ bool MegaFS::addCompletions(ACState& s)
                 else
                 {
                     pathprefix = "/";
-                    n = client->nodebyhandle(client->rootnodes[0]);
+                    n = client->nodeByHandle(client->mNodeManager.getRootNodeFiles());
                 }
             }
             else
@@ -782,8 +774,8 @@ bool MegaFS::addCompletions(ACState& s)
                 }
                 else
                 {
-                    Node* nodematch = NULL;
-                    for (Node* subnode : n->children)
+                    shared_ptr<Node> nodematch = NULL;
+                    for (auto& subnode : client->getChildren(n.get()))
                     {
                         if (subnode->type == FOLDERNODE && subnode->displayname() == folderName)
                         {
@@ -805,7 +797,7 @@ bool MegaFS::addCompletions(ACState& s)
                 // iterate specified folder
                 if (n)
                 {
-                    for (Node* subnode : n->children)
+                    for (auto& subnode : client->getChildren(n.get()))
                     {
                         if ((reportFolders && subnode->type == FOLDERNODE) ||
                             (reportFiles && subnode->type == FILENODE))
@@ -888,6 +880,98 @@ bool MegaContactEmail::match(ACState& s) const
     return false;
 }
 
+#ifdef ENABLE_SYNC
+
+BackupID::BackupID(MegaClient& client, bool onlyActive)
+  : mClient(client)
+  , mOnlyActive(onlyActive)
+{
+}
+
+bool BackupID::addCompletions(ACState& state)
+{
+    auto ids = backupIDs();
+
+    if (state.atCursor())
+    {
+        for (auto& id : filter(ids, state))
+            state.addCompletion(std::move(id));
+
+        return true;
+    }
+
+    return match(ids, state);
+}
+
+std::ostream& BackupID::describe(std::ostream& ostream) const
+{
+    return ostream << "BackupID";
+}
+
+string_vector& BackupID::filter(string_vector& ids, const ACState& state) const
+{
+    if (state.i >= state.words.size())
+        return ids;
+
+    auto& word = state.words.back();
+    auto& prefix = word.s;
+
+    if (prefix.empty())
+        return ids;
+
+    auto predicate = [&prefix](const string& id) {
+        return prefix.size() > id.size()
+               || id.compare(0, prefix.size(), prefix);
+    };
+
+    auto i = remove_if(ids.begin(), ids.end(), predicate);
+    ids.erase(i, ids.end());
+
+    return ids;
+}
+
+bool BackupID::match(ACState& state) const
+{
+    return state.i < state.words.size()
+           && match(backupIDs(), state);
+}
+
+string_vector BackupID::backupIDs() const
+{
+    string_vector result;
+    handle_set seen;
+
+    for (auto& config : mClient.syncs.getConfigs(mOnlyActive))
+    {
+        if (seen.emplace(config.mBackupId).second)
+            result.emplace_back(toHandle(config.mBackupId));
+    }
+
+    return result;
+}
+
+bool BackupID::match(const string_vector& ids, ACState& state) const
+{
+    auto& word = state.words[state.i];
+
+    if (word.s.empty() || (!word.q.quoted && word.s[0] == '-'))
+        return false;
+
+    auto i = find(ids.begin(), ids.end(), word.s);
+
+    if (i != ids.end())
+        return ++state.i, true;
+
+    return false;
+}
+
+ACN backupID(MegaClient& client, bool onlyActive)
+{
+    return make_shared<BackupID>(client, onlyActive);
+}
+
+#endif // ENABLE_SYNC
+
 std::ostream& MegaContactEmail::describe(std::ostream& s) const
 {
     return s << "<email>";
@@ -965,13 +1049,14 @@ ACState prepACState(const std::string line, size_t insertPos, bool unixStyle)
     do
     {
         linepos = identifyNextWord(line, linepos.second);
-        std::string word = line.substr(linepos.first, linepos.second - linepos.first);
+        std::string word = line.substr(static_cast<size_t>(linepos.first),
+                                       static_cast<size_t>(linepos.second - linepos.first));
         last = linepos.first == linepos.second;
         bool cursorInWord = linepos.first <= int(insertPos) && int(insertPos) <= linepos.second;
         if (cursorInWord)
         {
             last = true;
-            word.erase(insertPos - linepos.first, std::string::npos);
+            word.erase(insertPos - static_cast<size_t>(linepos.first), std::string::npos);
             linepos.second = int(insertPos);  // keep everything to the right of the cursor
         }
         if (!acs.words.empty() && linepos.first == acs.wordPos.back().second)
@@ -1101,7 +1186,7 @@ unsigned utf8GlyphCount(const string &str)
     int c, i, ix, q;
     for (q = 0, i = 0, ix = int(str.length()); i < ix; i++, q++)
     {
-        c = (unsigned char)str[i];
+        c = (unsigned char)str[static_cast<size_t>(i)];
 
         if (c >= 0 && c <= 127) i += 0;
         else if ((c & 0xE0) == 0xC0) i += 1;
@@ -1109,13 +1194,13 @@ unsigned utf8GlyphCount(const string &str)
         else if ((c & 0xF8) == 0xF0) i += 3;
         else q++; // invalid utf8 - leave lots of space
     }
-    return q;
+    return static_cast<unsigned>(q);
 }
 
 const string& CompletionState::unixColumnEntry(int row, int col, int rows)
 {
     static string emptyString;
-    size_t index = unixListCount + col * rows + row;
+    size_t index = unixListCount + static_cast<size_t>(col * rows + row);
     return index < completions.size() ? completions[index].s : emptyString;
 }
 
@@ -1143,15 +1228,17 @@ void applyCompletion(CompletionState& s, bool forwards, unsigned consoleWidth, C
         if (!s.unixStyle)
         {
             int index = ((!forwards && s.lastAppliedIndex == -1) ? -1 : (s.lastAppliedIndex + (forwards ? 1 : -1))) + (int)s.completions.size();
-            index %= s.completions.size();
+            index = static_cast<int>(static_cast<unsigned>(index) % s.completions.size());
 
             // restore quotes if it had them already
-            auto& c = s.completions[index];
+            auto& c = s.completions[static_cast<size_t>(index)];
             std::string w = c.s;
             s.originalWord.q.applyQuotes(w);
             w += (s.completions.size() == 1 && !c.couldExtend) ? " " : "";
-            s.line.replace(s.wordPos.first, s.wordPos.second - s.wordPos.first, w);
-            s.wordPos.second = int(w.size() + s.wordPos.first);
+            s.line.replace(static_cast<size_t>(s.wordPos.first),
+                           static_cast<size_t>(s.wordPos.second - s.wordPos.first),
+                           w);
+            s.wordPos.second = int(w.size() + static_cast<unsigned>(s.wordPos.first));
             s.lastAppliedIndex = index;
 
             if (s.completions.size()==1)
@@ -1181,8 +1268,10 @@ void applyCompletion(CompletionState& s, bool forwards, unsigned consoleWidth, C
                 }
                 s.originalWord.q.applyQuotes(exactChars);
                 exactChars += (s.completions.size() == 1 && !s.completions[0].couldExtend) ? " " : "";
-                s.line.replace(s.wordPos.first, s.wordPos.second - s.wordPos.first, exactChars);
-                s.wordPos.second = int(exactChars.size() + s.wordPos.first);
+                s.line.replace(static_cast<size_t>(s.wordPos.first),
+                               static_cast<size_t>(s.wordPos.second - s.wordPos.first),
+                               exactChars);
+                s.wordPos.second = int(exactChars.size() + static_cast<unsigned>(s.wordPos.first));
                 s.firstPressDone = true;
                 s.unixListCount = 0;
                 if (s.completions.size() == 1)
@@ -1196,7 +1285,8 @@ void applyCompletion(CompletionState& s, bool forwards, unsigned consoleWidth, C
                 unsigned rows = 1, cols = 0, sumwidth = 0;
                 for (unsigned c = 0; ;)
                 {
-                    unsigned width = s.calcUnixColumnWidthInGlyphs(c, rows);
+                    unsigned width =
+                        s.calcUnixColumnWidthInGlyphs(static_cast<int>(c), static_cast<int>(rows));
                     if (width == 0)
                     {
                         cols = c;
@@ -1231,18 +1321,22 @@ void applyCompletion(CompletionState& s, bool forwards, unsigned consoleWidth, C
                     }
                 }
 
-                rows = std::max<int>(rows, 1);
-                cols = std::max<int>(cols, 1);
+                rows = std::max<unsigned>(rows, 1);
+                cols = std::max<unsigned>(cols, 1);
                 for (unsigned c = 0; c < cols; ++c)
                 {
-                    textOut.columnwidths.push_back(s.calcUnixColumnWidthInGlyphs(c, rows) + (c == 0 ? 6 : 3));
+                    textOut.columnwidths.push_back(static_cast<int>(
+                        s.calcUnixColumnWidthInGlyphs(static_cast<int>(c), static_cast<int>(rows)) +
+                        (c == 0 ? 6 : 3)));
                 }
                 for (unsigned r = 0; r < rows; ++r)
                 {
                     textOut.stringgrid.push_back(vector<string>());
                     for (unsigned c = 0; c < cols; ++c)
                     {
-                        const string& entry = s.unixColumnEntry(r, c, rows);
+                        const string& entry = s.unixColumnEntry(static_cast<int>(r),
+                                                                static_cast<int>(c),
+                                                                static_cast<int>(rows));
                         if (!entry.empty())
                         {
                             textOut.stringgrid[r].push_back((c == 0 ? "   " : "") + entry);
@@ -1267,7 +1361,7 @@ void applyCompletion(CompletionState& s, bool forwards, unsigned consoleWidth, C
 
 ACN either(ACN n1, ACN n2, ACN n3, ACN n4, ACN n5, ACN n6, ACN n7, ACN n8, ACN n9, ACN n10, ACN n11, ACN n12, ACN n13)
 {
-    auto n = std::unique_ptr<Either>(new Either());
+    auto n = std::make_shared<Either>();
     n->Add(n1);
     n->Add(n2);
     n->Add(n3);
@@ -1281,7 +1375,7 @@ ACN either(ACN n1, ACN n2, ACN n3, ACN n4, ACN n5, ACN n6, ACN n7, ACN n8, ACN n
     n->Add(n11);
     n->Add(n12);
     n->Add(n13);
-    return std::move(n);
+    return n;
 }
 
 static ACN sequenceBuilder(ACN n1, ACN n2)
@@ -1325,9 +1419,14 @@ ACN repeat(ACN n)
 }
 
 
-ACN wholenumber(size_t defaultvalue)
+ACN wholenumber(const std::string& description, size_t defaultValue)
 {
-    return std::make_shared<WholeNumber>(defaultvalue);
+    return std::make_shared<WholeNumber>(description, defaultValue);
+}
+
+ACN wholenumber(size_t defaultValue)
+{
+    return wholenumber("N", defaultValue);
 }
 
 ACN localFSPath(const std::string descriptionPrefix)

@@ -93,7 +93,7 @@ bool getProxyConfiguration(CFDictionaryRef dict, int proxyType, Proxy* proxy)
     CFNumberRef proxyEnabledRef = (CFNumberRef)getValueFromKey(dict, proxyEnableKey, CFNumberGetTypeID());
     if (proxyEnabledRef && CFNumberGetValue(proxyEnabledRef, kCFNumberIntType, &isEnabled) && (isEnabled != 0))
     {
-        if ([(NSDictionary*)dict valueForKey: proxyType == HTTP_PROXY ? @"HTTPUser" : @"HTTPSUser"] != nil)
+        if ([(__bridge NSDictionary*)dict valueForKey: proxyType == HTTP_PROXY ? @"HTTPUser" : @"HTTPSUser"] != nil)
         {
             // Username set, skip proxy configuration. We only allow proxies withouth user/pw credentials
             // to not have to request the password to the user to read the keychain
@@ -105,7 +105,7 @@ bool getProxyConfiguration(CFDictionaryRef dict, int proxyType, Proxy* proxy)
         {
             CFIndex length = CFStringGetLength(hostRef);
             CFIndex maxSize = CFStringGetMaximumSizeForEncoding(length, kCFStringEncodingUTF8) + 1;
-            char *buffer = new char[maxSize];
+            char *buffer = new char[static_cast<size_t>(maxSize)];
             if (CFStringGetCString(hostRef, buffer, maxSize, kCFStringEncodingUTF8))
             {
                 CFNumberRef portRef = (CFNumberRef)getValueFromKey(dict, portKey, CFNumberGetTypeID());

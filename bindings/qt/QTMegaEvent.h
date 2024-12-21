@@ -1,7 +1,15 @@
 #pragma once
 
 #include <megaapi.h>
+
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+#endif
 #include <QEvent>
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 
 namespace mega
 {
@@ -18,29 +26,34 @@ public:
         OnTransferStart,
         OnTransferTemporaryError,
         OnTransferUpdate,
+        OnTransferFolderUpdate,
         OnTransferFinish,
         OnUsersUpdate,
         OnUserAlertsUpdate,
         OnNodesUpdate,
         OnAccountUpdate,
         OnReloadNeeded,
-        OnEvent
+        OnEvent,
 #if ENABLE_SYNC
-        ,
         OnSyncStateChanged,
+        OnSyncStatsUpdated,
         OnFileSyncStateChanged,
         OnSyncAdded,
-        OnSyncDisabled,
-        OnSyncEnabled,
         OnSyncDeleted,
-        OnGlobalSyncStateChanged
+        OnGlobalSyncStateChanged,
+        OnSyncRemoteRootChanged,
 #endif
+        OnMountAdded,
+        OnMountChanged,
+        OnMountDisabled,
+        OnMountEnabled,
+        OnMountRemoved
     };
 
-    QTMegaEvent(MegaApi *megaApi, Type type);
-    ~QTMegaEvent();
+    QTMegaEvent(MegaApi* api, Type type);
+    ~QTMegaEvent() override;
 
-    MegaApi *getMegaApi();
+    MegaApi *getMegaApi() const;
     MegaRequest* getRequest();
     MegaTransfer* getTransfer();
     MegaError* getError();
@@ -60,14 +73,22 @@ public:
 #ifdef ENABLE_SYNC
     MegaSync *getSync();
     void setSync(MegaSync *sync);
+    void setSyncStats(MegaSyncStats *stats);
+    MegaSyncStats *getSyncStats();
     std::string *getLocalPath();
     void setLocalPath(std::string *localPath);
     int getNewState();
     void setNewState(int newState);
 #endif
 
+    const std::string& getMountPath() const;
+    int getMountResult() const;
+
+    void setMountPath(const std::string& path);
+    void setMountResult(int result);
+
 private:
-    MegaApi *megaApi;
+    MegaApi* megaApi;
     MegaRequest *request;
     MegaTransfer *transfer;
     MegaError *error;
@@ -78,9 +99,13 @@ private:
 
 #ifdef ENABLE_SYNC
     MegaSync *sync;
+    MegaSyncStats *syncStats = nullptr;
     std::string* localPath;
     int newState;
 #endif
+
+    std::string mMountPath;
+    int mMountResult;
 };
 
 }

@@ -20,6 +20,7 @@
 */
 
 import UIKit
+import MEGASdk
 
 class Helper {
     
@@ -207,9 +208,9 @@ class Helper {
             }
             
         case MEGANodeType.file:
-            let im : String! = workaround.icons[(node.name.lowercased() as NSString).pathExtension]
+            let im = workaround.icons[(node.name!.lowercased() as NSString).pathExtension]
             if im != nil {
-                return UIImage(named: im)!
+                return UIImage(named: im!)!
             }
             
             

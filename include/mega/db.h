@@ -23,25 +23,50 @@
 #define MEGA_DB_H 1
 
 #include "filesystem.h"
+#include "logging.h"
+#include "node.h"
+
+#include <filesystem>
+#include <optional>
 
 namespace mega {
 // generic host transactional database access interface
 class DBTableTransactionCommitter;
 
+// Class to load serialized node from data base
+class NodeSerialized
+{
+public:
+    std::string mNode;
+    std::string mNodeCounter;
+};
+
+enum class DBError
+{
+    DB_ERROR_UNKNOWN = 0,
+    DB_ERROR_FULL = 1,
+    DB_ERROR_IO = 2,
+    DB_ERROR_INDEX_OVERFLOW = 3,
+};
+
+using DBErrorCallback = std::function<void(DBError)>;
+
+
 class MEGA_API DbTable
 {
-    static const int IDSPACING = 16;
     PrnGen &rng;
 
 protected:
     bool mCheckAlwaysTransacted = false;
     DBTableTransactionCommitter* mTransactionCommitter = nullptr;
+    DBErrorCallback mDBErrorCallBack;
     friend class DBTableTransactionCommitter;
     void checkTransaction();
     // should be called by the subclass' destructor
     void resetCommitter();
 
 public:
+    static const int IDSPACING = 16;
     // for a full sequential get: rewind to first record
     virtual void rewind() = 0;
 
@@ -75,23 +100,91 @@ public:
     // permanantly remove all database info
     virtual void remove() = 0;
 
-    // whether an unmatched begin() has been issued
-    virtual bool inTransaction() const = 0;
-
     void checkCommitter(DBTableTransactionCommitter*);
 
     // autoincrement
     uint32_t nextid;
 
-    DbTable(PrnGen &rng, bool alwaysTransacted);
-    virtual ~DbTable() { }
+    DbTable(PrnGen &rng, bool alwaysTransacted, DBErrorCallback dBErrorCallBack);
+    virtual ~DbTable() = default;
     DBTableTransactionCommitter *getTransactionCommitter() const;
+};
+
+class NodeSearchFilter;
+class NodeSearchPage;
+
+class MEGA_API DBTableNodes
+{
+public:
+
+    // add or update a node
+    virtual bool put(Node* node) = 0;
+
+    // remove one node from 'nodes' table
+    virtual bool remove(NodeHandle nodehandle) = 0;
+
+    // remove all nodes from 'nodes' table (truncate)
+    virtual bool removeNodes() = 0;
+
+    // get nodes and queries about nodes
+    virtual bool getNode(NodeHandle nodehandle, NodeSerialized& nodeSerialized) = 0;
+    virtual bool getNodesByOrigFingerprint(const std::string& fingerprint, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) = 0;
+
+    virtual uint64_t getNumberOfChildren(NodeHandle parentHandle) = 0;
+    virtual bool getChildren(const NodeSearchFilter& filter, int order, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag, const NodeSearchPage& page) = 0;
+    virtual bool searchNodes(const NodeSearchFilter& filter, int order, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag, const NodeSearchPage& page) = 0;
+
+    /**
+     * @brief Retrieves all the different tags for all the nodes stored in the db and inserts them
+     * into the tags parameter.
+     *
+     * @param searchString If not empty, only tags containing it will be returned. It can contain
+     * wild cards (*).
+     * @param tags Output parameter to store the tags.
+     * @param cancelFlag to cancel the processing at any time
+     * @return true if no errors were encountered, false otherwise.
+     */
+    virtual bool getAllNodeTags(const std::string& searchString,
+                                std::set<std::string>& tags,
+                                CancelToken cancelFlag) = 0;
+
+    virtual bool getRecentNodes(const NodeSearchPage& page,
+                                m_time_t since,
+                                std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) = 0;
+    virtual bool getNodesByFingerprint(const std::string& fingerprint, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) = 0;
+    virtual bool getNodeByFingerprint(const std::string& fingerprint, mega::NodeSerialized& node, NodeHandle& handle) = 0;
+    virtual bool getRootNodes(std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) = 0;
+
+    virtual bool getNodesWithSharesOrLink(std::vector<std::pair<NodeHandle, NodeSerialized>>&, ShareType_t shareType) = 0;
+
+    virtual bool getFavouritesHandles(NodeHandle node, uint32_t count, std::vector<mega::NodeHandle>& nodes) = 0;
+    virtual bool childNodeByNameType(NodeHandle parentHandle, const std::string& name, nodetype_t nodeType, std::pair<NodeHandle, NodeSerialized>& node) = 0;
+
+    virtual bool isAncestor(NodeHandle node, NodeHandle ancestror, CancelToken cancelFlag) = 0;
+
+    // count of items in 'nodes' table. Returns 0 if error
+    virtual uint64_t getNumberOfNodes() = 0;
+
+    // count of children nodes of by type
+    virtual uint64_t getNumberOfChildrenByType(NodeHandle parentHandle, nodetype_t nodeType) = 0;
+
+
+    // -- get node properties --
+
+    virtual bool getNodeSizeTypeAndFlags(NodeHandle node, m_off_t& size, nodetype_t& nodeType, uint64_t& oldFlags) = 0;
+
+    virtual void updateCounter(NodeHandle nodeHandle, const std::string& nodeCounterBlob) = 0;
+
+    virtual void updateCounterAndFlags(NodeHandle nodeHandle, uint64_t flags, const std::string& nodeCounterBlob) = 0;
+
+    virtual void createIndexes() = 0;
 };
 
 class MEGA_API DBTableTransactionCommitter
 {
     DbTable* mTable;
     bool mStarted = false;
+    std::thread::id threadId;
 
 public:
     void beginOnce()
@@ -120,7 +213,7 @@ public:
         mTable = nullptr;
     }
 
-    ~DBTableTransactionCommitter()
+    virtual ~DBTableTransactionCommitter()
     {
         if (mTable)
         {
@@ -130,12 +223,13 @@ public:
     }
 
     explicit DBTableTransactionCommitter(unique_ptr<DbTable>& t)
-        : mTable(t.get())
+        : mTable(t.get()), threadId(std::this_thread::get_id())
     {
         if (mTable)
         {
             if (mTable->mTransactionCommitter)
             {
+                assert(mTable->mTransactionCommitter->threadId == threadId);
                 mTable = nullptr;  // we are nested; this one does nothing.  This can occur during eg. putnodes response when the core sdk and the intermediate layer both do db work.
             }
             else
@@ -147,6 +241,30 @@ public:
 
 
     MEGA_DISABLE_COPY_MOVE(DBTableTransactionCommitter)
+};
+
+
+class MEGA_API TransferDbCommitter : public DBTableTransactionCommitter
+{
+public:
+
+    uint32_t addFileCount = 0;
+    uint32_t addTransferCount = 0;
+    uint32_t removeFileCount = 0;
+    uint32_t removeTransferCount = 0;
+
+    explicit TransferDbCommitter(unique_ptr<DbTable>& t) : DBTableTransactionCommitter(t) {}
+
+    ~TransferDbCommitter()
+    {
+        if (addFileCount || addTransferCount || removeFileCount || removeTransferCount)
+        {
+            LOG_debug << "Committed transfer db with new transfers : " << addTransferCount <<
+                            " and new transfer files: " << addFileCount <<
+                            " removed transfers: " << removeTransferCount <<
+                            " and removed transfer files: " << removeFileCount;
+        }
+    }
 };
 
 enum DbOpenFlag
@@ -161,15 +279,32 @@ struct MEGA_API DbAccess
 {
     static const int LEGACY_DB_VERSION;
     static const int DB_VERSION;
+    static const int LAST_DB_VERSION_WITHOUT_NOD;
+    static const int LAST_DB_VERSION_WITHOUT_SRW;
 
     DbAccess();
 
     virtual ~DbAccess() { }
 
-    virtual DbTable* open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags = 0x0) = 0;
+    virtual bool checkDbFileAndAdjustLegacy(FileSystemAccess& fsAccess, const string& name, const int flags, LocalPath& dbPath) = 0;
 
+    // Compute the path of a database with this name.
+    virtual LocalPath databasePath(const FileSystemAccess& fsAccess,
+                                   const string& name,
+                                   const int version) const = 0;
+
+    virtual DbTable* open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags, DBErrorCallback dBErrorCallBack) = 0;
+
+    // use this method to get a `DbTable` that also implements `DbTableNodes` interface
+    virtual DbTable* openTableWithNodes(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags, DBErrorCallback dBErrorCallBack) = 0;
+
+    // Check if the specified database exists on disk.
     virtual bool probe(FileSystemAccess& fsAccess, const string& name) const = 0;
 
+    virtual std::optional<std::filesystem::path>
+        getExistingDbPath(const FileSystemAccess& fsAccess, const std::string& fname) const = 0;
+
+    // Where are we storing our databases?
     virtual const LocalPath& rootPath() const = 0;
 
     int currentDbVersion;

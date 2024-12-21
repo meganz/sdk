@@ -41,7 +41,7 @@ namespace
 void checkFiles(const mega::File& exp, const mega::File& act)
 {
     ASSERT_EQ(exp.name, act.name);
-    ASSERT_EQ(exp.localname, act.localname);
+    ASSERT_EQ(exp.getLocalname(), act.getLocalname());
     ASSERT_EQ(exp.h, act.h);
     ASSERT_EQ(exp.hprivate, act.hprivate);
     ASSERT_EQ(exp.hforeign, act.hforeign);
@@ -53,7 +53,11 @@ void checkFiles(const mega::File& exp, const mega::File& act)
     ASSERT_TRUE(std::equal(exp.filekey, exp.filekey + mega::FILENODEKEYLENGTH, act.filekey));
     ASSERT_EQ(exp.targetuser, act.targetuser);
     ASSERT_EQ(nullptr, act.transfer);
-    ASSERT_EQ(static_cast<const mega::FileFingerprint&>(exp), static_cast<const mega::FileFingerprint&>(act));
+    if (static_cast<const mega::FileFingerprint&>(exp).isvalid ||
+        static_cast<const mega::FileFingerprint&>(act).isvalid)
+    {
+        ASSERT_EQ(static_cast<const mega::FileFingerprint&>(exp), static_cast<const mega::FileFingerprint&>(act));
+    }
 }
 
 }
@@ -61,11 +65,10 @@ void checkFiles(const mega::File& exp, const mega::File& act)
 TEST(File, serialize_unserialize)
 {
     mega::MegaApp app;
-    ::mega::FSACCESS_CLASS fsaccess;
-    auto client = mt::makeClient(app, fsaccess);
+    auto client = mt::makeClient(app);
     mega::File file;
     file.name = "foo";
-    file.localname = ::mega::LocalPath::fromPath(file.name, fsaccess);
+    file.setLocalname(::mega::LocalPath::fromAbsolutePath(file.name));
     file.h.set6byte(42);
     file.hprivate = true;
     file.hforeign = true;
@@ -87,49 +90,4 @@ TEST(File, serialize_unserialize)
     checkFiles(file, *newFile);
 }
 
-#ifndef WIN32   // data was recorded with "mock" utf-8 not the actual utf-16
-TEST(File, unserialize_32bit)
-{
-    mega::MegaApp app;
-    ::mega::FSACCESS_CLASS fsaccess;
-    auto client = mt::makeClient(app, fsaccess);
-    mega::File file;
-    file.name = "foo";
-    file.localname = ::mega::LocalPath::fromPath(file.name, fsaccess);
-    file.h.set6byte(42);
-    file.hprivate = true;
-    file.hforeign = true;
-    file.syncxfer = true;
-    file.temporaryfile = true;
-    file.privauth = "privauth";
-    file.pubauth = "pubauth";
-    file.chatauth = new char[4]{'b', 'a', 'r', '\0'}; // owned by file
-    std::fill(file.filekey, file.filekey + mega::FILENODEKEYLENGTH, 'X');
-    file.targetuser = "targetuser";
-    file.transfer = new mega::Transfer{client.get(), mega::GET}; // owned by client
-    file.transfer->files.push_back(&file);
-    file.file_it = file.transfer->files.begin();
 
-    // This is the result of serialization on 32bit Windows
-    const std::array<unsigned char, 133> rawData = {
-        0x03, 0xff, 0xff, 0xff,
-        0xff, 0xff, 0xff, 
-        0xff, 0xff, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x00,
-        0x66, 0x6f, 0x6f, 0x03, 0x00, 0x66, 0x6f, 0x6f, 0x0a, 0x00, 0x74, 0x61,
-        0x72, 0x67, 0x65, 0x74, 0x75, 0x73, 0x65, 0x72, 0x08, 0x00, 0x70, 0x72,
-        0x69, 0x76, 0x61, 0x75, 0x74, 0x68, 0x07, 0x00, 0x70, 0x75, 0x62, 0x61,
-        0x75, 0x74, 0x68, 0x2a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x58,
-        0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58,
-        0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58,
-        0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x01, 0x01, 0x01, 0x01, 0x01,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x62, 0x61,
-        0x72
-    };
-    std::string d(reinterpret_cast<const char*>(rawData.data()), rawData.size());
-
-    auto newFile = std::unique_ptr<mega::File>{mega::File::unserialize(&d)};
-    checkFiles(file, *newFile);
-}
-#endif

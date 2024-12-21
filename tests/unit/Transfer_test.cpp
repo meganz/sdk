@@ -33,14 +33,14 @@ void checkTransfers(const mega::Transfer& exp, const mega::Transfer& act)
 {
     ASSERT_EQ(exp.type, act.type);
     ASSERT_EQ(exp.localfilename, act.localfilename);
-    ASSERT_TRUE(std::equal(exp.filekey, exp.filekey + mega::FILENODEKEYLENGTH, act.filekey));
+    ASSERT_EQ(exp.filekey.bytes, act.filekey.bytes);
     ASSERT_EQ(exp.ctriv, act.ctriv);
     ASSERT_EQ(exp.metamac, act.metamac);
     ASSERT_TRUE(std::equal(exp.transferkey.data(),
                            exp.transferkey.data() + mega::SymmCipher::KEYLENGTH,
                            act.transferkey.data()));
     ASSERT_EQ(exp.lastaccesstime, act.lastaccesstime);
-    ASSERT_TRUE(std::equal(exp.ultoken.get(), exp.ultoken.get() + mega::NewNode::UPLOADTOKENLEN, act.ultoken.get()));
+    ASSERT_EQ(*exp.ultoken, *act.ultoken);
     ASSERT_EQ(exp.tempurls, act.tempurls);
     ASSERT_EQ(exp.state, act.state);
     ASSERT_EQ(exp.priority, act.priority);
@@ -50,22 +50,23 @@ void checkTransfers(const mega::Transfer& exp, const mega::Transfer& act)
 
 TEST(Transfer, serialize_unserialize)
 {
+    using ::mega::byte;
+
     mega::MegaApp app;
-    ::mega::FSACCESS_CLASS fsaccess;
-    auto client = mt::makeClient(app, fsaccess);
+    auto client = mt::makeClient(app);
 
     mega::Transfer tf{client.get(), mega::GET};
     std::string lfn = "foo";
-    tf.localfilename = ::mega::LocalPath::fromPath(lfn, fsaccess);
-    std::fill(tf.filekey, tf.filekey + mega::FILENODEKEYLENGTH, 'X');
+    tf.localfilename = ::mega::LocalPath::fromAbsolutePath(lfn);
+    std::fill(&tf.filekey.bytes[0], &tf.filekey.bytes[0] + sizeof(tf.filekey), 'X');
     tf.ctriv = 1;
     tf.metamac = 2;
     std::fill(tf.transferkey.data(),
               tf.transferkey.data() + mega::SymmCipher::KEYLENGTH,
               'Y');
     tf.lastaccesstime = 3;
-    tf.ultoken.reset(new mega::byte[mega::NewNode::UPLOADTOKENLEN]);
-    std::fill(tf.ultoken.get(), tf.ultoken.get() + mega::NewNode::UPLOADTOKENLEN, 'Z');
+    tf.ultoken.reset(new mega::UploadToken);
+    std::fill((byte*)tf.ultoken.get(), (byte*)tf.ultoken.get() + mega::UPLOADTOKENLEN, 'Z');
     tf.tempurls = {
         "http://bar1.com",
         "http://bar2.com",
@@ -80,75 +81,9 @@ TEST(Transfer, serialize_unserialize)
     std::string d;
     ASSERT_TRUE(tf.serialize(&d));
 
-    mega::transfer_map tfMap;
+    mega::transfer_multimap tfMap;
     auto newTf = std::unique_ptr<mega::Transfer>{mega::Transfer::unserialize(client.get(), &d, &tfMap)};
     checkTransfers(tf, *newTf);
 }
 
-#ifndef WIN32
-TEST(Transfer, unserialize_32bit)
-{
-    mega::MegaApp app;
-    ::mega::FSACCESS_CLASS fsaccess;
-    auto client = mt::makeClient(app, fsaccess);
 
-    mega::Transfer tf{client.get(), mega::GET};
-    std::string lfn = "foo";
-    tf.localfilename = ::mega::LocalPath::fromPath(lfn, fsaccess);
-    std::fill(tf.filekey, tf.filekey + mega::FILENODEKEYLENGTH, 'X');
-    tf.ctriv = 1;
-    tf.metamac = 2;
-    std::fill(tf.transferkey.data(),
-              tf.transferkey.data() + mega::SymmCipher::KEYLENGTH,
-              'Y');
-    tf.lastaccesstime = 3;
-    tf.ultoken.reset(new mega::byte[mega::NewNode::UPLOADTOKENLEN]);
-    std::fill(tf.ultoken.get(), tf.ultoken.get() + mega::NewNode::UPLOADTOKENLEN, 'Z');
-    tf.tempurls = {
-        "http://bar1.com",
-        "http://bar2.com",
-        "http://bar3.com",
-        "http://bar4.com",
-        "http://bar5.com",
-        "http://bar6.com",
-    };
-    tf.state = mega::TRANSFERSTATE_PAUSED;
-    tf.priority = 4;
-
-    // This is the result of serialization on 32bit Windows
-    const std::array<unsigned char, 293> rawData = {
-        0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x66, 0x6f, 0x6f, 0x58, 0x58, 0x58,
-        0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58,
-        0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58,
-        0x58, 0x58, 0x58, 0x58, 0x58, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x59, 0x59, 0x59,
-        0x59, 0x59, 0x59, 0x59, 0x59, 0x59, 0x59, 0x59, 0x59, 0x59, 0x59, 0x59,
-        0x59, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0xff, 0xff, 0xff,
-        0xff, 0xff, 0xff,
-        0xff, 0xff, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x5a, 0x5a, 0x5a, 0x5a, 0x5a, 0x5a,
-        0x5a, 0x5a, 0x5a, 0x5a, 0x5a, 0x5a, 0x5a, 0x5a, 0x5a, 0x5a, 0x5a, 0x5a,
-        0x5a, 0x5a, 0x5a, 0x5a, 0x5a, 0x5a, 0x5a, 0x5a, 0x5a, 0x5a, 0x5a, 0x5a,
-        0x5a, 0x5a, 0x5a, 0x5a, 0x5a, 0x5a, 0x5f, 0x00, 0x68, 0x74, 0x74, 0x70,
-        0x3a, 0x2f, 0x2f, 0x62, 0x61, 0x72, 0x31, 0x2e, 0x63, 0x6f, 0x6d, 0x00,
-        0x68, 0x74, 0x74, 0x70, 0x3a, 0x2f, 0x2f, 0x62, 0x61, 0x72, 0x32, 0x2e,
-        0x63, 0x6f, 0x6d, 0x00, 0x68, 0x74, 0x74, 0x70, 0x3a, 0x2f, 0x2f, 0x62,
-        0x61, 0x72, 0x33, 0x2e, 0x63, 0x6f, 0x6d, 0x00, 0x68, 0x74, 0x74, 0x70,
-        0x3a, 0x2f, 0x2f, 0x62, 0x61, 0x72, 0x34, 0x2e, 0x63, 0x6f, 0x6d, 0x00,
-        0x68, 0x74, 0x74, 0x70, 0x3a, 0x2f, 0x2f, 0x62, 0x61, 0x72, 0x35, 0x2e,
-        0x63, 0x6f, 0x6d, 0x00, 0x68, 0x74, 0x74, 0x70, 0x3a, 0x2f, 0x2f, 0x62,
-        0x61, 0x72, 0x36, 0x2e, 0x63, 0x6f, 0x6d, 0x03, 0x04, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00
-    };
-    std::string d(reinterpret_cast<const char*>(rawData.data()), rawData.size());
-
-    mega::transfer_map tfMap;
-    auto newTf = std::unique_ptr<mega::Transfer>{mega::Transfer::unserialize(client.get(), &d, &tfMap)};
-    checkTransfers(tf, *newTf);
-}
-#endif

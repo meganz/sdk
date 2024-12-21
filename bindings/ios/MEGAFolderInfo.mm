@@ -50,10 +50,6 @@ using namespace mega;
     }
 }
 
-- (instancetype)clone {
-    return self.megaFolderInfo ? [[MEGAFolderInfo alloc] initWithMegaFolderInfo:self.megaFolderInfo->copy() cMemoryOwn:YES] : nil;
-}
-
 - (MegaFolderInfo *)getCPtr {
     return self.megaFolderInfo;
 }

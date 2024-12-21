@@ -28,6 +28,8 @@
 #include <limits.h>
 #include <string.h>
 #include <math.h>
+#include <inttypes.h>
+#include <string>
 
 #include "mega/mega_ccronexpr.h"
 
@@ -58,7 +60,8 @@ static const char* MONTHS_ARR[] = { "FOO", "JAN", "FEB", "MAR", "APR", "MAY", "J
 #define CRON_MAX_STR_LEN_TO_SPLIT 256
 #define CRON_MAX_NUM_TO_SRING 1000000000
 /* computes number of digits in decimal number */
-#define CRON_NUM_OF_DIGITS(num) (abs(num) < 10 ? 1 : \
+#define CRON_NUM_OF_DIGITS(num) ((num < 0 ? 1 : 0) + \
+                                (abs(num) < 10 ? 1 : \
                                 (abs(num) < 100 ? 2 : \
                                 (abs(num) < 1000 ? 3 : \
                                 (abs(num) < 10000 ? 4 : \
@@ -66,7 +69,7 @@ static const char* MONTHS_ARR[] = { "FOO", "JAN", "FEB", "MAR", "APR", "MAY", "J
                                 (abs(num) < 1000000 ? 6 : \
                                 (abs(num) < 10000000 ? 7 : \
                                 (abs(num) < 100000000 ? 8 : \
-                                (abs(num) < 1000000000 ? 9 : 10)))))))))
+                                (abs(num) < 1000000000 ? 9 : 10))))))))))
 
 #ifndef _WIN32
 struct tm *gmtime_r(const time_t *timep, struct tm *result);
@@ -109,9 +112,8 @@ void* cronMalloc(size_t n);
 void cronFree(void* p);
 #endif
 
-struct tm* cron_time(time_t* date, struct tm* out) {
+struct tm* cron_time(time_t* date, [[maybe_unused]] struct tm* out) {
 #ifdef __MINGW32__
-    (void)(out); /* To avoid unused warning */
     return gmtime(date);
 #else /* __MINGW32__ */
 #ifdef _WIN32
@@ -144,14 +146,14 @@ void cron_set_bit(uint8_t* rbyte, int idx) {
     uint8_t j = (uint8_t) (idx / 8);
     uint8_t k = (uint8_t) (idx % 8);
 
-    rbyte[j] |= (1 << k);
+    rbyte[j] = static_cast<uint8_t>(rbyte[j] | (1 << k));
 }
 
 void cron_del_bit(uint8_t* rbyte, int idx) {
     uint8_t j = (uint8_t) (idx / 8);
     uint8_t k = (uint8_t) (idx % 8);
 
-    rbyte[j] &= ~(1 << k);
+    rbyte[j] = static_cast<uint8_t>(rbyte[j] & ~(1 << k));
 }
 
 uint8_t cron_get_bit(const uint8_t* rbyte, int idx) {
@@ -488,50 +490,65 @@ static int to_upper(char* str) {
 
 static char* to_string(int num) {
     if (abs(num) >= CRON_MAX_NUM_TO_SRING) return NULL;
-    char* str = (char*) cronMalloc(CRON_NUM_OF_DIGITS(num) + 1);
+    size_t size = CRON_NUM_OF_DIGITS(num) + 1;
+    char* str = (char*) cronMalloc(size);
     if (!str) return NULL;
-    int res = sprintf(str, "%d", num);
-    if (res < 0) return NULL;
+    int res = snprintf(str, size, "%d", num);
+    if (res < 0)
+    {
+        cronFree(str);
+        return NULL;
+    }
     return str;
 }
 
-static char* str_replace(char *orig, const char *rep, const char *with) {
-    char *result; /* the return string */
-    char *ins; /* the next insert point */
-    char *tmp; /* varies */
-    size_t len_rep; /* length of rep */
-    size_t len_with; /* length of with */
-    size_t len_front; /* distance between rep and end of last rep */
-    int count; /* number of replacements */
-    if (!orig) return NULL;
-    if (!rep) rep = "";
-    if (!with) with = "";
-    len_rep = strlen(rep);
-    len_with = strlen(with);
-
-    ins = orig;
-    for (count = 0; NULL != (tmp = strstr(ins, rep)); ++count) {
-        ins = tmp + len_rep;
-    }
-
-    /* first time through the loop, all the variable are set correctly
-     from here on,
-     tmp points to the end of the result string
-     ins points to the next occurrence of rep in orig
-     orig points to the remainder of orig after "end of rep"
-     */
-    tmp = result = (char*) cronMalloc(strlen(orig) + (len_with - len_rep) * count + 1);
-    if (!result) return NULL;
-
-    while (count--) {
-        ins = strstr(orig, rep);
-        len_front = ins - orig;
-        tmp = strncpy(tmp, orig, len_front) + len_front;
-        tmp = strcpy(tmp, with) + len_with;
-        orig += len_front + len_rep; /* move to next "end of rep" */
-    }
-    strcpy(tmp, orig);
+static char* string_to_char_ptr(const std::string& str)
+{
+    char* result = (char*) cronMalloc(str.length() + 1);
+    result[str.length()] = '\0';
+    size_t i = 0;
+    for (auto c: str) { result[i++] = c; }
     return result;
+}
+
+static char* str_replace(char *orig, const char *rep, const char *with)
+{
+    if (!orig) return nullptr; // Nothing to do
+
+    size_t orig_len = strlen(orig);
+    if (!rep)
+        return strdupl(orig, orig_len); // We do not want to replace anything
+
+    size_t rep_len = strlen(rep);
+    if (rep_len == 0)
+        return strdupl(orig, orig_len);
+
+    const char* aux_with = with ? with : "";
+    size_t with_len = strlen(aux_with);
+
+    std::string aux_result {orig};
+
+    size_t start_pos = 0;
+    size_t count = 0;
+    while ((start_pos = aux_result.find(rep, start_pos)) != std::string::npos)
+    {
+        ++count;
+        start_pos += rep_len;
+    }
+    if (!count)
+        return strdupl(orig, orig_len);
+
+    if (rep_len < with_len)
+    {
+        aux_result.reserve(orig_len + (with_len - rep_len) * count + 1);
+    }
+    start_pos = 0;
+    while ((start_pos = aux_result.find(rep, start_pos)) != std::string::npos)
+    {
+        aux_result.replace(start_pos, rep_len, with);
+        start_pos += with_len;
+    }
+    return string_to_char_ptr(aux_result);
 }
 
 static unsigned int parse_uint(const char* str, int* errcode) {

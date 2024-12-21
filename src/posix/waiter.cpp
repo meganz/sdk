@@ -27,7 +27,6 @@
 #endif
 
 namespace mega {
-dstime Waiter::ds;
 
 PosixWaiter::PosixWaiter()
 {
@@ -64,16 +63,6 @@ void PosixWaiter::init(dstime ds)
     MEGA_FD_ZERO(&ignorefds);
 }
 
-// update monotonously increasing timestamp in deciseconds
-void Waiter::bumpds()
-{
-    timespec ts;
-
-    m_clock_getmonotonictime(&ts);
-
-    ds = ts.tv_sec * 10 + ts.tv_nsec / 100000000;
-}
-
 // update maxfd for select()
 void PosixWaiter::bumpmaxfd(int fd)
 {
@@ -96,8 +85,9 @@ bool PosixWaiter::fd_filter(int nfds, mega_fd_set_t* fds, mega_fd_set_t* ignoref
 }
 
 // wait for supplied events (sockets, filesystem changes), plus timeout + application events
-// maxds specifies the maximum amount of time to wait in deciseconds (or ~0 if no timeout scheduled)
-// returns application-specific bitmask. bit 0 set indicates that exec() needs to be called.
+// maxds specifies the maximum amount of time to wait in deciseconds (or
+// NEVER if no timeout scheduled) returns application-specific bitmask.
+// bit 0 set indicates that exec() needs to be called.
 int PosixWaiter::wait()
 {
     int numfd = 0;
@@ -108,18 +98,22 @@ int PosixWaiter::wait()
 
     bumpmaxfd(m_pipe[0]);
 
-    if (maxds + 1)
+    if (EVER(maxds))
     {
         dstime us = 1000000 / 10 * maxds;
 
         tv.tv_sec = us / 1000000;
-        tv.tv_usec = us - tv.tv_sec * 1000000;
+        tv.tv_usec = (suseconds_t)(us - tv.tv_sec * 1000000);
     }
 
 #ifdef USE_POLL
-    dstime us = 1000000 / 10 * maxds;
-
-    auto total = rfds.size() +  wfds.size() +  efds.size();
+    // wait infinite (-1) if maxds is max dstime OR it would overflow platform's int
+    int timeoutInMs = -1;
+    if (EVER(maxds) && maxds <= std::numeric_limits<int>::max() / 100)
+    {
+        timeoutInMs = static_cast<int>(maxds) * 100;
+    }
+    auto total = rfds.size() + wfds.size() + efds.size();
     struct pollfd fds[total];
 
     int polli = 0;
@@ -143,10 +137,9 @@ int PosixWaiter::wait()
         fds[polli].events = POLLEX_SET;
         polli++;
     }
-
-    numfd = poll(fds, total,  us);
+    numfd = poll(fds, total, timeoutInMs);
 #else
-    numfd = select(maxfd + 1, &rfds, &wfds, &efds, maxds + 1 ? &tv : NULL);
+    numfd = select(maxfd + 1, &rfds, &wfds, &efds, EVER(maxds) ? &tv : NULL);
 #endif
 
     // empty pipe
@@ -191,7 +184,11 @@ void PosixWaiter::notify()
     std::lock_guard<std::mutex> g(mMutex);
     if (!alreadyNotified)
     {
-        write(m_pipe[1], "0", 1);
+        auto w = write(m_pipe[1], "0", 1);
+        if (w <= 0)
+        {
+            LOG_warn << "PosixWaiter::notify(), write returned " << w;
+        }
         alreadyNotified = true;
     }
 }

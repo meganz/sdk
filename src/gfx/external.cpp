@@ -24,65 +24,37 @@
 
 namespace mega {
 
-GfxProcExternal::GfxProcExternal()
-{
-    processor = NULL;
-}
-
-void GfxProcExternal::setProcessor(MegaGfxProcessor *processor)
+void GfxProviderExternal::setProcessor(MegaGfxProcessor *processor)
 {
 	this->processor = processor;
 }
 
-bool GfxProcExternal::isgfx(string* name)
-{
-	if(!processor) return false;
-
-    size_t p = name->find_last_of('.');
-
-    if (!(p + 1))
-    {
-        return false;
-    }
-
-    string ext(*name,p);
-
-    tolower_string(ext);
-
-    char* ptr =
-            strstr((char*) ".jpg.png.bmp.tif.tiff.jpeg.cut.dds.exr.g3.gif.hdr.ico.iff.ilbm"
-            ".jbig.jng.jif.koala.pcd.mng.pcx.pbm.pgm.ppm.pfm.pict.pic.pct.pds.raw.3fr.ari"
-            ".arw.bay.crw.cr2.cap.dcs.dcr.dng.drf.eip.erf.fff.iiq.k25.kdc.mdc.mef.mos.mrw"
-            ".nef.nrw.obm.orf.pef.ptx.pxn.r3d.raf.raw.rwl.rw2.rwz.sr2.srf.srw.x3f.ras.tga"
-            ".xbm.xpm.jp2.j2k.jpf.jpx.", ext.c_str());
-
-    return ptr && ptr[ext.size()] == '.';
-}
-
-bool GfxProcExternal::readbitmap(FileAccess* /*fa*/, const LocalPath& localname, int /*size*/)
+bool GfxProviderExternal::readbitmap(const LocalPath& localname, int /*size*/)
 {
     if(!processor) return false;
 
-	bool result = processor->readBitmap(localname.platformEncoded().c_str());
-	if(!result) return false;
+    bool result = processor->readBitmap(localname.platformEncoded().c_str());
+    if(!result) return false;
 
-	w = processor->getWidth();
+    w = processor->getWidth();
     if(w <= 0)
     {
         return false;
     }
 
-	h = processor->getHeight();
+    h = processor->getHeight();
     if(h <= 0)
     {
         return false;
     }
 
-	return true;
+    return true;
 }
 
-bool GfxProcExternal::resizebitmap(int rw, int rh, string* jpegout)
+bool GfxProviderExternal::resizebitmap(int rw, int rh, string* jpegout)
 {
+    if(!processor) return false;
+
     int px, py;
 
     if (!w || !h) return false;
@@ -90,14 +62,27 @@ bool GfxProcExternal::resizebitmap(int rw, int rh, string* jpegout)
     if (!w || !h) return false;
 
     int size = processor->getBitmapDataSize(w, h, px, py, rw, rh);
-    jpegout->resize(size);
     if(size <= 0) return false;
+    jpegout->resize(static_cast<size_t>(size));
 
     return processor->getBitmapData((char *)jpegout->data(), jpegout->size());
 }
 
-void GfxProcExternal::freebitmap()
+void GfxProviderExternal::freebitmap()
 {
-	processor->freeBitmap();
+    if(!processor) return;
+
+    processor->freeBitmap();
 }
+
+const char *GfxProviderExternal::supportedformats()
+{
+    return processor ? processor->supportedImageFormats() : nullptr;
+}
+
+const char *GfxProviderExternal::supportedvideoformats()
+{
+    return processor ? processor->supportedVideoFormats() : nullptr;
+}
+
 } // namespace

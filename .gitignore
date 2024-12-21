@@ -1,105 +1,15 @@
-/SDK.log
-# Compiled Object files
-*.slo
-*.lo
-*.o
-*.obj
-*.lo
-*.pyc
-
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
-
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
-
-# Executables
-*.exe
-*.out
-*.app
-/tests/test_unit
-/tests/test_integration
-/tests/tool_purge_account
-examples/megacli
-examples/megasimplesync
-examples/linux/megafuse
-
-# Autotool stuff
-.deps
-/Makefile
-/include/Makefile
-Makefile.in
-aclocal.m4
-autom4te.cache
-/include/mega/config.h
-/include/mega/config.h.in
-configure
-depcomp
-*.swp
-install-sh
-libtool
-ltmain.sh
-missing
-.libs
-stamp-h1
-.dirstamp
-libmega.pc
-*.db
-.ycm_extra_conf.py
-test-driver
-m4/libtool.m4
-m4/ltoptions.m4
-m4/ltsugar.m4
-m4/ltversion.m4
-m4/lt~obsolete.m4
-compile
-clean
-config.guess
-config.log
-config.status
-config.sub
-py-compile
-/sdk_build
-
-# Documentation generator
-doc/_build
-doc/api
-doc/lib
-doc/sphinx_api
-doc/Doxyfile
-doc/example/lsmega
-
 # Editor and IDE stuff
+*.user
 *~
-.project
-.cproject
-.settings
+.vs
 *.vscode
-*~
-Debug
-Release
-/contrib/QtCreator/build-*
-/contrib/QtCreator/MEGAsdk.pro.user
-/contrib/QtCreator/MEGAcli/MEGAcli.pro.user
-/contrib/QtCreator/MEGAtests/MEGAtests.pro.user
-/contrib/QtCreator/MEGAsymplesync/MEGAsymplesync.pro.user
-/contrib/QtCreator/megacli.creator.user
-/contrib/build-MEGAsdk-Desktop-*
-/contrib/cmake/cmake-build-*
-/contrib/build-cmake-Desktop-*
-/contrib/cmake/CMakeLists.txt.user
-/contrib/cmake/.idea
-/contrib/cmake/build
-/contrib/cmake/build3rdParty/build
-megaclient_statecache*
+*.autosave
 
-# Mega SDK runtime
-*.db-journal
+# clangd index
+.cache
 
-/third_party/Makefile
-/third_party/3rdparty
+# Building stuff
+build-*Debug
+build-*Release
+/third_party/crashlytics*h
+*.toml

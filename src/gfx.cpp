@@ -21,23 +21,50 @@
 
 #include "mega.h"
 #include "mega/gfx.h"
+#include "mega/logging.h"
+#include "mega/gfx/GfxProcCG.h"
+#include <numeric>
+#include <tuple>
 
 namespace mega {
-const int GfxProc::dimensions[][2] = {
+
+// from low resolution to high resolution. gendimensionsputfa relies on this order.
+const std::vector<GfxDimension> GfxProc::DIMENSIONS = {
     { 200, 0 },     // THUMBNAIL: square thumbnail, cropped from near center
     { 1000, 1000 }  // PREVIEW: scaled version inside 1000x1000 bounding square
 };
 
-const int GfxProc::dimensionsavatar[][2] = {
+const std::vector<GfxDimension> GfxProc::DIMENSIONS_AVATAR = {
     { 250, 0 }      // AVATAR250X250: square thumbnail, cropped from near center
 };
 
+std::unique_ptr<IGfxProvider> IGfxProvider::createInternalGfxProvider()
+{
+#if USE_FREEIMAGE
+    return std::make_unique<::mega::GfxProviderFreeImage>();
+#elif USE_IOS
+    return std::make_unique<GfxProviderCG>();
+#else
+    return nullptr;
+#endif
+}
+
 bool GfxProc::isgfx(const LocalPath& localfilename)
 {
-    const char* supported;
+    const char* supported = nullptr;
 
-    if (!(supported = supportedformats()))
+    if (!(supported = mGfxProvider->supportedformats()))
     {
+        // We don't have supported formats, so the build was without FREEIMAGE or other graphics processing libraries
+        // Therefore we cannot graphics process any file, so return false so that we don't try.
+        return false;
+    }
+
+    if (0 == strcmp(supported, "all"))
+    {
+        // special case for client app provided MegaGfxProcessor
+        // and for our Android app.  If they don't supply a list
+        // of extensions, then we don't filter.
         return true;
     }
 
@@ -58,11 +85,19 @@ bool GfxProc::isgfx(const LocalPath& localfilename)
 
 bool GfxProc::isvideo(const LocalPath& localfilename)
 {
-    const char* supported;
+    const char* supported = nullptr;
 
-    if (!(supported = supportedvideoformats()))
+    if (!(supported = mGfxProvider->supportedvideoformats()))
     {
         return false;
+    }
+
+    if (0 == strcmp(supported, "all"))
+    {
+        // special case for client app provided MegaGfxProcessor
+        // and for our Android app.  If they don't supply a list
+        // of extensions, then we don't filter.
+        return true;
     }
 
     string ext;
@@ -80,21 +115,23 @@ bool GfxProc::isvideo(const LocalPath& localfilename)
     return false;
 }
 
-const char* GfxProc::supportedformats()
-{
-    return NULL;
-}
-
-const char* GfxProc::supportedvideoformats()
-{
-    return NULL;
-}
-
 void *GfxProc::threadEntryPoint(void *param)
 {
     GfxProc* gfxProcessor = (GfxProc*)param;
     gfxProcessor->loop();
     return NULL;
+}
+
+std::vector<GfxDimension> GfxProc::getJobDimensions(GfxJob *job)
+{
+    std::vector<GfxDimension> jobDimensions;
+    for (auto i : job->imagetypes)
+    {
+        assert(i < DIMENSIONS.size());
+        jobDimensions.push_back(DIMENSIONS[i]);
+    }
+
+    return jobDimensions;
 }
 
 void GfxProc::loop()
@@ -112,44 +149,15 @@ void GfxProc::loop()
                 break;
             }
 
-            mutex.lock();
             LOG_debug << "Processing media file: " << job->h;
 
-            // (this assumes that the width of the largest dimension is max)
-            if (readbitmap(NULL, job->localfilename, dimensions[sizeof dimensions/sizeof dimensions[0]-1][0]))
+            auto images = generateImages(job->localfilename, getJobDimensions(job));
+            for (auto& image : images)
             {
-                for (unsigned i = 0; i < job->imagetypes.size(); i++)
-                {
-                    // successively downscale the original image
-                    string* jpeg = new string();
-                    int w = dimensions[job->imagetypes[i]][0];
-                    int h = dimensions[job->imagetypes[i]][1];
-
-                    if (this->w < w && this->h < h)
-                    {
-                        LOG_debug << "Skipping upsizing of preview or thumbnail";
-                        w = this->w;
-                        h = this->h;
-                    }
-
-                    if (!resizebitmap(w, h, jpeg))
-                    {
-                        delete jpeg;
-                        jpeg = NULL;
-                    }
-                    job->images.push_back(jpeg);
-                }
-                freebitmap();
-            }
-            else
-            {
-                for (unsigned i = 0; i < job->imagetypes.size(); i++)
-                {
-                    job->images.push_back(NULL);
-                }
+                string* jpeg = image.empty() ? nullptr : new string(std::move(image));
+                job->images.push_back(jpeg);
             }
 
-            mutex.unlock();
             responses.push(job);
             client->waiter->notify();
         }
@@ -187,47 +195,39 @@ int GfxProc::checkevents(Waiter *)
             {
                 LOG_debug << "Media file correctly processed. Attaching file attribute: " << job->h;
 
-                // store the file attribute data - it will be attached to the file
-                // immediately if the upload has already completed; otherwise, once
-                // the upload completes
+                // thumbnail/preview has been extracted from the main image.
+                // Now we upload those to the file attribute servers
+                // The file attribute will either be added to an existing node
+                // or added to the eventual putnodes if this was started as part of an upload transfer
                 mCheckEventsKey.setkey(job->key);
-                int creqtag = client->reqtag;
-                client->reqtag = 0;
-                client->putfa(job->h, job->imagetypes[i], &mCheckEventsKey, std::unique_ptr<string>(job->images[i]), job->flag);
-                client->reqtag = creqtag;
+                if (!client->putfa(job->h, job->imagetypes[i], &mCheckEventsKey, 0, std::unique_ptr<string>(job->images[i])))
+                {
+                    continue; // no needexec for this one
+                }
             }
             else
             {
                 LOG_debug << "Unable to process media file: " << job->h;
 
-                Transfer *transfer = NULL;
-                handletransfer_map::iterator htit = client->faputcompletion.find(job->h);
-                if (htit != client->faputcompletion.end())
+                if (job->h.isNodeHandle())
                 {
-                    transfer = htit->second;
+                    // This case is for the automatic "Restoring missing attributes" case (from syncup() or from download completion).
+                    // It doesn't matter much if we can't do it
+                    // App requests don't come by this route (they supply already generated preview/thumnnail) so no need to make any callbacks
+                    LOG_warn << "Media file processing failed for existing Node";
                 }
                 else
                 {
-                    // check if the failed attribute belongs to an active upload
-                    for (transfer_map::iterator it = client->transfers[PUT].begin(); it != client->transfers[PUT].end(); it++)
+                    if (auto it = client->fileAttributesUploading.lookupExisting(job->h.uploadHandle()))
                     {
-                        if (it->second->uploadhandle == job->h)
-                        {
-                            transfer = it->second;
-                            break;
-                        }
+                        // reduce the number of required attributes to let the upload continue
+                        it->pendingfa.erase(job->imagetypes[i]);
+                        client->checkfacompletion(job->h.uploadHandle());
                     }
-                }
-
-                if (transfer)
-                {
-                    // reduce the number of required attributes to let the upload continue
-                    transfer->minfa--;
-                    client->checkfacompletion(job->h);
-                }
-                else
-                {
-                    LOG_debug << "Transfer related to media file not found: " << job->h;
+                    else
+                    {
+                        LOG_debug << "Transfer related to media file not found: " << job->h;
+                    }
                 }
             }
             needexec = true;
@@ -238,7 +238,46 @@ int GfxProc::checkevents(Waiter *)
     return needexec ? Waiter::NEEDEXEC : 0;
 }
 
-void GfxProc::transform(int& w, int& h, int& rw, int& rh, int& px, int& py)
+std::vector<std::string> IGfxLocalProvider::generateImages(const LocalPath& localfilepath,
+                                                           const std::vector<GfxDimension>& dimensions)
+{
+    std::vector<std::string> images(dimensions.size());
+
+    int maxDimension = std::accumulate(
+        dimensions.begin(),
+        dimensions.end(),
+        0,
+        [](int max, const GfxDimension& d) { return std::max(max, std::max(d.w(), d.h())); });
+
+    if (readbitmap(localfilepath, maxDimension))
+    {
+        for (unsigned int i = 0; i < dimensions.size(); ++i)
+        {
+            string jpeg;
+            int targetWidth = dimensions[i].w(), targetHeight = dimensions[i].h();
+            if (width() < targetWidth && height() < targetHeight)
+            {
+                LOG_debug << "Skipping upsizing of local preview";
+                targetWidth = width();
+                targetHeight = height();
+            }
+            // LOG_verbose << "resizebitmap w/h: " << targetWidth << "/" << targetHeight;
+            if (resizebitmap(targetWidth, targetHeight, &jpeg))
+            {
+                images[i] = std::move(jpeg);
+            }
+        }
+        freebitmap();
+    }
+    else
+    {
+        LOG_err << "Error reading bitmap for " << localfilepath;
+    }
+
+    return images;
+}
+
+void IGfxLocalProvider::transform(int& w, int& h, int& rw, int& rh, int& px, int& py)
 {
     if (rh)
     {
@@ -282,77 +321,66 @@ void GfxProc::transform(int& w, int& h, int& rw, int& rh, int& px, int& py)
 }
 
 // load bitmap image, generate all designated sizes, attach to specified upload/node handle
-// FIXME: move to a worker thread to keep the engine nonblocking
-int GfxProc::gendimensionsputfa(FileAccess* /*fa*/, const LocalPath& localfilename, handle th, SymmCipher* key, int missing, bool checkAccess)
+int GfxProc::gendimensionsputfa(const LocalPath& localfilename, NodeOrUploadHandle th, SymmCipher* key, int missing)
 {
-    if (SimpleLogger::logCurrentLevel >= logDebug)
-    {
-        LOG_debug << "Creating thumb/preview for " << localfilename.toPath(*client->fsaccess);
-    }
+    LOG_debug << "Creating thumb/preview for " << localfilename;
 
     GfxJob *job = new GfxJob();
     job->h = th;
-    job->flag = checkAccess;
     memcpy(job->key, key->key, SymmCipher::KEYLENGTH);
     job->localfilename = localfilename;
-    for (fatype i = sizeof dimensions/sizeof dimensions[0]; i--; )
+
+    int generatingAttrs = 0;
+    for (fatype i = static_cast<fatype>(DIMENSIONS.size()); i--; )
     {
         if (missing & (1 << i))
         {
             job->imagetypes.push_back(i);
+            generatingAttrs += 1 << i;
         }
     }
 
-    if (!job->imagetypes.size())
+    if (!generatingAttrs)
     {
         delete job;
         return 0;
     }
 
-    // get the count before it might be popped off and processed already
-    auto count = int(job->imagetypes.size());
-
     requests.push(job);
     waiter.notify();
-    return count;
+    return generatingAttrs;
 }
 
-bool GfxProc::savefa(const LocalPath& localfilepath, int width, int height, LocalPath& localdstpath)
+std::vector<std::string> GfxProc::generateImages(const LocalPath& localfilepath, const std::vector<GfxDimension>& dimensions)
+{
+    std::lock_guard<std::mutex> g(mutex);
+    return mGfxProvider->generateImages(localfilepath, dimensions);
+}
+
+std::string GfxProc::generateOneImage(const LocalPath& localfilepath, const GfxDimension& dimension)
+{
+    std::lock_guard<std::mutex> g(mutex);
+    auto images = mGfxProvider->generateImages(localfilepath, std::vector<GfxDimension>{ dimension });
+    return images[0];
+}
+
+bool GfxProc::savefa(const LocalPath& localfilepath, const GfxDimension& dimension, LocalPath& localdstpath)
 {
     if (!isgfx(localfilepath))
     {
         return false;
     }
 
-    mutex.lock();
-    if (!readbitmap(NULL, localfilepath, width > height ? width : height))
-    {
-        mutex.unlock();
-        return false;
-    }
+    string jpeg = generateOneImage(localfilepath, dimension);
 
-    int w = width;
-    int h = height;
-    if (this->w < w && this->h < h)
-    {
-        LOG_debug << "Skipping upsizing of local preview";
-        w = this->w;
-        h = this->h;
-    }
-
-    string jpeg;
-    bool success = resizebitmap(w, h, &jpeg);
-    freebitmap();
-    mutex.unlock();
-
-    if (!success)
+    if (jpeg.empty())
     {
         return false;
     }
 
     auto f = client->fsaccess->newfileaccess();
     client->fsaccess->unlinklocal(localdstpath);
-    if (!f->fopen(localdstpath, false, true))
+    if (!f->fopen(localdstpath, false, true, FSLogging::logOnError))
     {
         return false;
     }
@@ -365,10 +393,9 @@ bool GfxProc::savefa(const LocalPath& localfilepath, int width, int height, Loca
     return true;
 }
 
-GfxProc::GfxProc()
+GfxProc::GfxProc(std::unique_ptr<IGfxProvider> middleware)
+    : mGfxProvider(std::move(middleware))
 {
-    client = NULL;
-    finished = false;
 }
 
 void GfxProc::startProcessingThread()

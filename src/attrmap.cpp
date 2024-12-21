@@ -21,6 +21,8 @@
 
 #include "mega/attrmap.h"
 
+#include <mega/json.h>
+
 namespace mega {
 // approximate raw storage size of serialized AttrMap, not taking JSON escaping
 // or name length into account
@@ -31,10 +33,17 @@ unsigned AttrMap::storagesize(int perrecord) const
 
     for (attr_map::const_iterator it = map.begin(); it != map.end(); it++)
     {
-        t += static_cast<unsigned>(perrecord + it->second.size());
+        t += static_cast<unsigned>(static_cast<unsigned>(perrecord) + it->second.size());
     }
 
     return t;
+}
+
+bool AttrMap::getBool(const char* name) const {
+    nameid id = string2nameid(name);
+    attr_map::const_iterator iter = map.find(id);
+    bool value = iter != map.end() && iter->second == "1";
+    return value;
 }
 
 int AttrMap::nameid2string(nameid id, char* buf)
@@ -43,7 +52,7 @@ int AttrMap::nameid2string(nameid id, char* buf)
 
     for (int i = 64; (i -= 8) >= 0;)
     {
-        if ((*ptr = ((id >> i) & 0xff)))
+        if ((*ptr = static_cast<char>( (id >> i) & 0xff)))
         {
             ptr++;
         }
@@ -56,28 +65,33 @@ string AttrMap::nameid2string(nameid id)
 {
     string s;
     s.resize(10);
-    s.resize(nameid2string(id, const_cast<char*>(s.data())));
+    s.resize(static_cast<size_t>(nameid2string(id, const_cast<char*>(s.data()))));
     return s;
 }
 
-
-nameid AttrMap::string2nameid(const char *a)
+nameid AttrMap::string2nameid(const char* n)
 {
-    if (!a)
+    if (!n)
     {
         return 0;
     }
 
-    size_t len = strlen(a);
+    size_t len = strlen(n);
     if (len > 8)
     {
         return 0;
     }
 
+    uint64_t a[8] = {0};
+    for (size_t i = 0; i < len; ++i)
+    {
+        a[i] = static_cast<uint64_t>(n[i]);
+    }
+
     switch (len)
     {
         case 1:
-            return *a;
+            return static_cast<nameid>(*a);
         case 2:
             return MAKENAMEID2(a[0], a[1]);
         case 3:
@@ -127,7 +141,7 @@ const char* AttrMap::unserialize(const char* ptr , const char *end)
     unsigned short ll;
     nameid id;
 
-    while ((ptr < end) && (l = *ptr++))
+    while ((ptr < end) && (l = static_cast<unsigned char>(*ptr++)))
     {
         id = 0;
 
@@ -141,7 +155,7 @@ const char* AttrMap::unserialize(const char* ptr , const char *end)
             id = (id << 8) + (unsigned char)*ptr++;
         }
 
-        ll = MemAccess::get<short>(ptr);
+        ll = static_cast<unsigned short>(MemAccess::get<short>(ptr));
         ptr += sizeof ll;
 
         if (ptr + ll > end)
@@ -154,6 +168,33 @@ const char* AttrMap::unserialize(const char* ptr , const char *end)
     }
 
     return ptr;
+}
+
+bool AttrMap::hasUpdate(nameid attrId, const attr_map& updates) const
+{
+    auto curIt = map.find(attrId);
+    auto updIt = updates.find(attrId);
+    return updIt != updates.end() && // is present in updates AND
+           ((curIt == map.end() && !updIt->second.empty()) || // is not present here and has non-empty value in updates OR
+            (curIt != map.end() && curIt->second != updIt->second)); // is present here but has different value in updates
+}
+
+bool AttrMap::hasDifferentValue(nameid attrId, const attr_map& otherAttrs) const
+{
+    auto curIt = map.find(attrId);
+    auto otherIt = otherAttrs.find(attrId);
+    return (curIt != map.end() && otherIt == otherAttrs.end()) || // present only here OR
+           (curIt == map.end() && otherIt != otherAttrs.end()) || // present only in other attrs OR
+           (curIt != map.end() && otherIt != otherAttrs.end() && curIt->second != otherIt->second); // have different values
+}
+
+void AttrMap::applyUpdates(const attr_map& updates)
+{
+    for (auto& u : updates)
+    {
+        if (u.second.empty()) map.erase(u.first);
+        else map[u.first] = u.second;
+    }
 }
 
 // generate JSON object containing attr_map
@@ -176,7 +217,7 @@ void AttrMap::getjson(string* s) const
         {
             // no JSON escaping here, as no escape characters are allowed in
             // attribute names
-            s->append(buf, nameid2string(id, buf));
+            s->append(buf, static_cast<size_t>(nameid2string(id, buf)));
             s->append("\":\"");
 
             // JSON-escape value
@@ -189,7 +230,7 @@ void AttrMap::getjson(string* s) const
                 {
                     if (ptr > pptr)
                     {
-                        s->append(pptr, ptr - pptr);
+                        s->append(pptr, static_cast<size_t>(ptr - pptr));
                     }
 
                     if (i >= 0)
@@ -228,7 +269,7 @@ void AttrMap::getjson(string* s) const
 
                             default:
                                 s->append("u00");
-                                sprintf(buf, "%02x", (unsigned char)*ptr);
+                                snprintf(buf, sizeof(buf), "%02x", (unsigned char)*ptr);
                                 s->append(buf);
                         }
 
@@ -241,4 +282,20 @@ void AttrMap::getjson(string* s) const
         }
     }
 }
+
+void AttrMap::fromjson(const char* buf)
+{
+    if (!buf) return;
+
+    JSON json;
+    json.begin(buf);
+    nameid name;
+    string* t;
+
+    while ((name = json.getnameid()) != EOO && json.storeobject((t = &map[name])))
+    {
+        JSON::unescape(t);
+    }
+}
+
 } // namespace

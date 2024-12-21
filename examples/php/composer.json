@@ -1,6 +1,6 @@
 {
     "require": {
-        "symfony/console": "2.*"
+        "symfony/console": "2.0.*"
     }
 }
 

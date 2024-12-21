@@ -55,10 +55,19 @@ struct AppFileGet : public AppFile
 {
     void start() override;
     void update();
-    void completed(Transfer*, LocalNode*) override;
-    void terminated() override;
+    void completed(Transfer*, putsource_t source) override;
+    void terminated(error e) override;
 
-    AppFileGet(Node*, NodeHandle = NodeHandle(), byte* = NULL, m_off_t = -1, m_time_t = 0, string* = NULL, string* = NULL, const string& targetfolder = "");
+    std::function<void()> onCompleted;
+
+    bool noRetries = false;
+    bool failed(error e, MegaClient* c) override
+    {
+        if (noRetries) return false;
+        return File::failed(e, c);
+    }
+
+    AppFileGet(Node*, NodeHandle = NodeHandle(), const byte* = NULL, m_off_t = -1, m_time_t = 0, const string* = NULL, const string* = NULL, const string& targetfolder = "");
     ~AppFileGet();
 };
 
@@ -66,10 +75,19 @@ struct AppFilePut : public AppFile
 {
     void start() override;
     void update();
-    void completed(Transfer*, LocalNode*) override;
-    void terminated() override;
+    void completed(Transfer*, putsource_t source) override;
+    void terminated(error e) override;
 
     void displayname(string*);
+
+    std::function<void()> onCompleted;
+
+    bool noRetries = false;
+    bool failed(error e, MegaClient* c) override
+    {
+        if (noRetries) return false;
+        return File::failed(e, c);
+    }
 
     AppFilePut(const LocalPath&, NodeHandle, const char*);
     ~AppFilePut();
@@ -78,12 +96,6 @@ struct AppFilePut : public AppFile
 struct AppReadContext
 {
     SymmCipher key;
-};
-
-class TreeProcListOutShares : public TreeProc
-{
-public:
-    void proc(MegaClient*, Node*);
 };
 
 struct DemoApp : public MegaApp
@@ -107,9 +119,7 @@ struct DemoApp : public MegaApp
     void whyamiblocked_result(int) override;
 
     void sendsignuplink_result(error) override;
-    void querysignuplink_result(error) override;
-    void querysignuplink_result(handle, const char*, const char*, const byte*, const byte*, const byte*, size_t) override;
-    void confirmsignuplink_result(error) override;
+
     void confirmsignuplink2_result(handle, const char*, const char*, error) override;
     void setkeypair_result(error) override;
 
@@ -125,11 +135,16 @@ struct DemoApp : public MegaApp
 
     void users_updated(User**, int) override;
     void useralerts_updated(UserAlert::Base** ua, int count) override;
-    void nodes_updated(Node**, int) override;
+    void nodes_updated(sharedNode_vector* nodes, int count) override;
     void pcrs_updated(PendingContactRequest**, int) override;
     void nodes_current() override;
     void account_updated() override;
     void notify_confirmation(const char *email) override;
+    void notify_confirm_user_email(handle user, const char *email) override;
+    void sets_updated(Set**, int) override;
+    void setelements_updated(SetElement**, int) override;
+
+    void sequencetag_update(const string&) override;
 
 #ifdef ENABLE_CHAT
     void chatcreate_result(TextChat *, error) override;
@@ -144,7 +159,11 @@ struct DemoApp : public MegaApp
     virtual void chatpresenceurl_result(string *, error) override;
     void chatlink_result(handle, error) override;
     void chatlinkclose_result(error) override;
-    void chatlinkurl_result(handle, int, string*, string*, int, m_time_t, error) override;
+    void chatlinkurl_result(handle chatid, int shard, string* url, string* ct, int numPeers,
+                            m_time_t ts, bool meetingRoom, int chatOptions,
+                            const std::vector<std::unique_ptr<ScheduledMeeting>>* smList,
+                            handle callid, error e) override;
+
     void chatlinkjoin_result(error) override;
 
     void chats_updated(textchat_map*, int) override;
@@ -155,16 +174,16 @@ struct DemoApp : public MegaApp
     void richlinkrequest_result(string*, error) override;
 #endif
 
-    void setattr_result(handle, error) override;
-    void rename_result(handle, error) override;
     void unlink_result(handle, error) override;
 
     void fetchnodes_result(const Error&) override;
 
-    void putnodes_result(const Error&, targettype_t, vector<NewNode>&, bool targetOverride) override;
-
-    void share_result(error, bool writable) override;
-    void share_result(int, error, bool writable) override;
+    void putnodes_result(const Error&,
+                         targettype_t,
+                         vector<NewNode>&,
+                         bool targetOverride,
+                         int tag,
+                         const std::map<std::string, std::string>& fileHandles) override;
 
     void setpcr_result(handle, error, opcactions_t) override;
     void updatepcr_result(error, ipcactions_t) override;
@@ -178,7 +197,7 @@ struct DemoApp : public MegaApp
     void putua_result(error) override;
     void getua_result(error) override;
     void getua_result(byte*, unsigned, attr_t) override;
-    void getua_result(TLVstore *, attr_t) override;
+    void getua_result(unique_ptr<string_map>, attr_t) override;
 #ifdef DEBUG
     void delua_result(error) override;
     void senddevcommand_result(int) override;
@@ -192,16 +211,10 @@ struct DemoApp : public MegaApp
     // sessionid is undef if all sessions except the current were killed
     void sessions_killed(handle sessionid, error e) override;
 
-    void exportnode_result(error) override;
-    void exportnode_result(handle, handle) override;
-
     void openfilelink_result(const Error&) override;
     void openfilelink_result(handle, const byte*, m_off_t, string*, string*, int) override;
 
     void folderlinkinfo_result(error, handle, handle, string *, string*, m_off_t, uint32_t, uint32_t, m_off_t, uint32_t) override;
-
-    void checkfile_result(handle, const Error&) override;
-    void checkfile_result(handle, error, byte*, m_off_t, m_time_t, m_time_t, string*, string*, string*) override;
 
     dstime pread_failure(const Error&, int, void*, dstime) override;
     bool pread_data(byte*, m_off_t, m_off_t, m_off_t, m_off_t, void*) override;
@@ -214,46 +227,34 @@ struct DemoApp : public MegaApp
     void transfer_complete(Transfer*) override;
 
 #ifdef ENABLE_SYNC
-    void syncupdate_stateconfig(handle backupId) override;
-    void syncupdate_active(handle backupId, bool active) override;
-    void sync_auto_resume_result(const UnifiedSync&, bool attempted) override;
-    void sync_removed(handle backupId) override;
+    void syncupdate_stateconfig(const SyncConfig& config) override;
+    void sync_added(const SyncConfig&) override;
+    void sync_removed(const SyncConfig& config) override;
 
+    void syncs_restored(SyncError syncError) override;
+
+    void syncupdate_syncing(bool) override;
     void syncupdate_scanning(bool) override;
-    void syncupdate_local_folder_addition(Sync*, LocalNode*, const char*) override;
-    void syncupdate_local_folder_deletion(Sync* , LocalNode*) override;
-    void syncupdate_local_file_addition(Sync*, LocalNode*, const char*) override;
-    void syncupdate_local_file_deletion(Sync*, LocalNode*) override;
-    void syncupdate_local_file_change(Sync*, LocalNode*, const char*) override;
-    void syncupdate_local_move(Sync*, LocalNode*, const char*) override;
-    void syncupdate_local_lockretry(bool) override;
-    void syncupdate_get(Sync*, Node*, const char*) override;
-    void syncupdate_put(Sync*, LocalNode*, const char*) override;
-    void syncupdate_remote_file_addition(Sync*, Node*) override;
-    void syncupdate_remote_file_deletion(Sync*, Node*) override;
-    void syncupdate_remote_folder_addition(Sync*, Node*) override;
-    void syncupdate_remote_folder_deletion(Sync*, Node*) override;
-    void syncupdate_remote_copy(Sync*, const char*) override;
-    void syncupdate_remote_move(Sync*, Node*, Node*) override;
-    void syncupdate_remote_rename(Sync*, Node*, const char*) override;
-    void syncupdate_treestate(LocalNode*) override;
-
-    bool sync_syncable(Sync*, const char*, LocalPath&, Node*) override;
-    bool sync_syncable(Sync*, const char*, LocalPath&) override;
+    void syncupdate_stalled(bool stalled) override;
+    void syncupdate_conflicts(bool conflicts) override;
+    void syncupdate_treestate(const SyncConfig& config, const LocalPath&, treestate_t, nodetype_t) override;
 #endif
+
+    void upgrading_security() override;
+    void downgrade_attack() override;
 
     void changepw_result(error) override;
 
     void userattr_update(User*, int, const char*) override;
     void resetSmsVerifiedPhoneNumber_result(error e) override;
 
-    void enumeratequotaitems_result(unsigned, handle, unsigned, int, int, unsigned, unsigned, unsigned, const char*, const char*, const char*, const char*) override;
+    void enumeratequotaitems_result(const Product& product) override;
+    void enumeratequotaitems_result(unique_ptr<CurrencyData>) override;
     void enumeratequotaitems_result(error) override;
     void additem_result(error) override;
     void checkout_result(const char*, error) override;
 
     void getmegaachievements_result(AchievementsDetails*, error) override;
-    void getwelcomepdf_result(handle, string*, error) override;
 
     void contactlinkcreate_result(error, handle) override;
     void contactlinkquery_result(error, handle, string*, string*, string*, string*) override;
@@ -266,14 +267,22 @@ struct DemoApp : public MegaApp
     void getbanners_result(vector< tuple<int, string, string, string, string, string, string> >&& banners) override;
 
     void dismissbanner_result(error) override;
-    void backupremove_result(const Error&, handle /*backup id*/) override;
 
-    void reload(const char*) override;
+    void reqstat_progress(int) override;
+
+    void notifyError(const char*, ErrorReason errorReason) override;
+    void reloading() override;
     void clearing() override;
 
     void notify_retry(dstime, retryreason_t) override;
+    void getuseremail_result(string*, error) override;
 
-    string getExtraInfoErrorString(const Error&);
+    static string getExtraInfoErrorString(const Error&);
+
+protected:
+#ifdef USE_DRIVE_NOTIFICATIONS
+    void drive_presence_changed(bool appeared, const LocalPath& driveRoot) override;
+#endif // USE_DRIVE_NOTIFICATIONS
 };
 
 struct DemoAppFolder : public DemoApp
@@ -281,7 +290,7 @@ struct DemoAppFolder : public DemoApp
     void login_result(error);
     void fetchnodes_result(const Error&);
 
-    void nodes_updated(Node **, int);
+    void nodes_updated(sharedNode_vector* nodes, int count);
     void users_updated(User**, int) {}
     void pcrs_updated(PendingContactRequest**, int) {}
 };
@@ -293,13 +302,13 @@ void exec_login(autocomplete::ACState& s);
 void exec_begin(autocomplete::ACState& s);
 void exec_signup(autocomplete::ACState& s);
 void exec_cancelsignup(autocomplete::ACState& s);
-void exec_confirm(autocomplete::ACState& s);
 void exec_session(autocomplete::ACState& s);
 void exec_mount(autocomplete::ACState& s);
 void exec_ls(autocomplete::ACState& s);
 void exec_cd(autocomplete::ACState& s);
 void exec_pwd(autocomplete::ACState& s);
 void exec_lcd(autocomplete::ACState& s);
+void exec_llockfile(autocomplete::ACState& s);
 void exec_lls(autocomplete::ACState& s);
 void exec_lpwd(autocomplete::ACState& s);
 void exec_lmkdir(autocomplete::ACState& s);
@@ -321,12 +330,20 @@ void exec_rm(autocomplete::ACState& s);
 void exec_mv(autocomplete::ACState& s);
 void exec_cp(autocomplete::ACState& s);
 void exec_du(autocomplete::ACState& s);
+void exec_syncrescan(autocomplete::ACState& s);
+void exec_nodecounter(autocomplete::ACState& s);
+void exec_numberofnodes(autocomplete::ACState& s);
+void exec_numberofchildren(autocomplete::ACState& s);
+void exec_searchbyname(autocomplete::ACState &s);
 void exec_export(autocomplete::ACState& s);
+void exec_encryptLink(autocomplete::ACState& s);
+void exec_decryptLink(autocomplete::ACState& s);
 void exec_share(autocomplete::ACState& s);
 void exec_invite(autocomplete::ACState& s);
 void exec_clink(autocomplete::ACState& s);
 void exec_ipc(autocomplete::ACState& s);
 void exec_showpcr(autocomplete::ACState& s);
+void exec_getemail(autocomplete::ACState& s);
 void exec_users(autocomplete::ACState& s);
 void exec_getua(autocomplete::ACState& s);
 void exec_putua(autocomplete::ACState& s);
@@ -338,6 +355,7 @@ void exec_putbps(autocomplete::ACState& s);
 void exec_killsession(autocomplete::ACState& s);
 void exec_whoami(autocomplete::ACState& s);
 void exec_verifycredentials(autocomplete::ACState& s);
+void exec_manualverif(autocomplete::ACState &s);
 void exec_passwd(autocomplete::ACState& s);
 void exec_reset(autocomplete::ACState& s);
 void exec_recover(autocomplete::ACState& s);
@@ -348,7 +366,6 @@ void exec_recon(autocomplete::ACState& s);
 void exec_reload(autocomplete::ACState& s);
 void exec_logout(autocomplete::ACState& s);
 void exec_locallogout(autocomplete::ACState& s);
-void exec_symlink(autocomplete::ACState& s);
 void exec_version(autocomplete::ACState& s);
 void exec_debug(autocomplete::ACState& s);
 void exec_verbose(autocomplete::ACState& s);
@@ -372,9 +389,9 @@ void exec_chatl(autocomplete::ACState& s);
 void exec_chatsm(autocomplete::ACState& s);
 void exec_chatlu(autocomplete::ACState& s);
 void exec_chatlj(autocomplete::ACState& s);
-void exec_enabletransferresumption(autocomplete::ACState& s);
 void exec_setmaxdownloadspeed(autocomplete::ACState& s);
 void exec_setmaxuploadspeed(autocomplete::ACState& s);
+void exec_setmaxloglinesize(autocomplete::ACState& s);
 void exec_handles(autocomplete::ACState& s);
 void exec_httpsonly(autocomplete::ACState& s);
 void exec_mfac(autocomplete::ACState& s);
@@ -385,23 +402,52 @@ void exec_history(autocomplete::ACState& s);
 void exec_help(autocomplete::ACState& s);
 void exec_quit(autocomplete::ACState& s);
 void exec_find(autocomplete::ACState& s);
-#ifdef USE_FILESYSTEM
+void exec_nodedescription(autocomplete::ACState& s);
+void exec_nodesensitive(autocomplete::ACState& s);
+void exec_nodeTag(autocomplete::ACState& s);
 void exec_treecompare(autocomplete::ACState& s);
 void exec_querytransferquota(autocomplete::ACState& s);
-#endif
 void exec_metamac(autocomplete::ACState& s);
 void exec_resetverifiedphonenumber(autocomplete::ACState& s);
 void exec_banner(autocomplete::ACState& s);
+void exec_drivemonitor(autocomplete::ACState& s);
+void exec_driveid(autocomplete::ACState& s);
+void exec_randomfile(autocomplete::ACState& s);
+void exec_getABTestValue(autocomplete::ACState& s);
+void exec_sendABTestActive(autocomplete::ACState& s);
+void exec_contactVerificationWarning(autocomplete::ACState& s);
 
 #ifdef ENABLE_SYNC
 
 void exec_syncadd(autocomplete::ACState& s);
-void exec_syncbackupadd(autocomplete::ACState& s);
-void exec_syncbackupremove(autocomplete::ACState& s);
-void exec_syncbackuprestore(autocomplete::ACState& s);
+void exec_syncrename(autocomplete::ACState& s);
+void exec_syncclosedrive(autocomplete::ACState& s);
+void exec_syncexport(autocomplete::ACState& s);
+void exec_syncimport(autocomplete::ACState& s);
+void exec_syncopendrive(autocomplete::ACState& s);
 void exec_synclist(autocomplete::ACState& s);
 void exec_syncremove(autocomplete::ACState& s);
+void exec_syncstatus(autocomplete::ACState& s);
 void exec_syncxable(autocomplete::ACState& s);
 
 #endif // ENABLE_SYNC
 
+void exec_setsandelements(autocomplete::ACState& s);
+void exec_reqstat(autocomplete::ACState& s);
+
+/* MEGA VPN commands */
+void exec_getvpnregions(autocomplete::ACState& s);
+void exec_getvpncredentials(autocomplete::ACState& s);
+void exec_putvpncredential(autocomplete::ACState& s);
+void exec_delvpncredential(autocomplete::ACState& s);
+void exec_checkvpncredential(autocomplete::ACState& s);
+/* MEGA VPN commands END */
+
+void exec_fetchcreditcardinfo(autocomplete::ACState&);
+void exec_passwordmanager(autocomplete::ACState&);
+void exec_generatepassword(autocomplete::ACState&);
+void exec_importpasswordsfromgooglefile(autocomplete::ACState&);
+void exec_getpricing(autocomplete::ACState&);
+
+void exec_collectAndPrintTransferStats(autocomplete::ACState&);
+void exec_hashcash(autocomplete::ACState&);

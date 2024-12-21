@@ -14,7 +14,6 @@
 #include "webrtc/rtc_base/logging.h"
 #include "webrtc/rtc_base/ssl_adapter.h"
 #include "webrtc/sdk/android/native_api/base/init.h"
-#include "webrtc/sdk/android/src/jni/class_reference_holder.h"
 #include "webrtc/sdk/android/src/jni/jni_generator_helper.h"
 #include "webrtc/sdk/android/src/jni/jni_helpers.h"
 #include "webrtc/sdk/android/native_api/jni/class_loader.h"
@@ -112,7 +111,7 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
     }
 #endif
 
-#if defined(__ANDROID__) && ARES_VERSION >= 0x010F00
+#if (defined(ANDROID) || defined(__ANDROID__)) && ARES_VERSION >= 0x010F00
     ares_library_init_jvm(jvm);
 #endif
 
@@ -303,12 +302,11 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 
 #ifdef SWIGPHP
 
-#ifndef SWIGPHP7
-//Disable the management of director parameters
-//to workaround several SWIG bugs
-%typemap(directorin) SWIGTYPE* %{ %}
-%typemap(directorout) SWIGTYPE* %{ %}
-#endif
+%typemap(directorin) SWIGTYPE* 
+%{ 
+  ZVAL_UNDEF($input);
+  SWIG_SetPointerZval($input, (void *)$1, $1_descriptor, ($owner)|2);
+%}
 
 //Rename overloaded functions
 %rename (getInSharesAll, fullname=1) mega::MegaApi::getInShares();
@@ -323,17 +321,14 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %rename (getMyAvatar, fullname=1) mega::MegaApi::getUserAvatar(const char*, MegaRequestListener*);
 %rename (getMyAvatar, fullname=1) mega::MegaApi::getUserAvatar(const char*);
 %rename (copyNodeWithName, fullname=1) mega::MegaApi::copyNode(MegaNode*, MegaNode*, const char*, MegaRequestListener*);
+%rename (loginToFolderWithKey, fullname = 1) mega::MegaApi::loginToFolder(const char*, const char *, MegaRequestListener*);
+%rename (moveNodeWithName, fullname=1) mega::MegaApi::moveNode(MegaNode*, MegaNode*, const char*, MegaRequestListener*);
+%rename (inviteContactWithLink, fullname=1) mega::MegaApi::inviteContact(const char*, const char*, int, MegaHandle, MegaRequestListener*);
+%rename (getInSharesFromUser, fullname=1) mega::MegaApi::getInShares(MegaUser*, int);
 
-%rename ("$ignore", fullname=1) mega::MegaApi::startUpload(const char*, MegaNode*, int64_t, MegaTransferListener*);
-%rename ("$ignore", fullname=1) mega::MegaApi::startUpload(const char*, MegaNode*, int64_t);
-%rename ("$ignore", fullname=1) mega::MegaApi::startUpload(const char*, MegaNode*, const char*, MegaTransferListener*);
-%rename ("$ignore", fullname=1) mega::MegaApi::startUpload(const char*, MegaNode*, const char*);
-%rename ("$ignore", fullname=1) mega::MegaApi::startUpload(const char*, MegaNode*, const char*, int64_t, MegaTransferListener*);
-%rename ("$ignore", fullname=1) mega::MegaApi::startUpload(const char*, MegaNode*, const char*, int64_t);
-%rename ("$ignore", fullname=1) mega::MegaApi::startUpload(const char*, MegaNode*, int64_t, bool, MegaTransferListener*);
-%rename ("$ignore", fullname=1) mega::MegaApi::startUpload(const char*, MegaNode*, int64_t, bool);
-%rename ("$ignore", fullname=1) mega::MegaApi::createAccount(const char*, const char*, const char*, MegaRequestListener*);
-%rename ("$ignore", fullname=1) mega::MegaApi::createAccount(const char*, const char*, const char*);
+%typemap(typecheck, precedence=SWIG_TYPECHECK_INTEGER) const char * {
+  $1 = (Z_TYPE($input) == IS_NULL || (Z_TYPE($input) == IS_STRING)) ? 1 : 0;
+}
 
 #endif
 
@@ -344,7 +339,6 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %ignore mega::MegaNode::getPublicAuth;
 %ignore mega::MegaApi::createForeignFileNode;
 %ignore mega::MegaApi::createForeignFolderNode;
-%ignore mega::MegaListener::onSyncStateChanged;
 %ignore mega::MegaListener::onSyncFileStateChanged;
 %ignore mega::MegaTransfer::getListener;
 %ignore mega::MegaRequest::getListener;
@@ -363,6 +357,14 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %newobject mega::MegaShareList::copy;
 %newobject mega::MegaUser::copy;
 %newobject mega::MegaUserList::copy;
+%newobject mega::MegaSetElement::copy;
+%newobject mega::MegaSet::copy;
+%newobject mega::MegaEvent::copy;
+%newobject mega::MegaSync::copy;
+%newobject mega::MegaSyncStats::copy;
+%newobject mega::MegaRecentActionBucket::copy;
+%newobject mega::MegaRecentActionBucketList::copy;
+%newobject mega::MegaStringMap::copy;
 %newobject mega::MegaContactRequest::copy;
 %newobject mega::MegaContactRequestList::copy;
 %newobject mega::MegaStringList::copy;
@@ -389,6 +391,7 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %newobject mega::MegaApi::exportMasterKey;
 %newobject mega::MegaApi::getTransfers;
 %newobject mega::MegaApi::getTransferByTag;
+%newobject mega::MegaApi::getTransferData;
 %newobject mega::MegaApi::getChildTransfers;
 %newobject mega::MegaApi::getChildren;
 %newobject mega::MegaApi::getChildNode;
@@ -410,6 +413,7 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %newobject mega::MegaApi::getFingerprint;
 %newobject mega::MegaApi::getNodeByFingerprint;
 %newobject mega::MegaApi::getNodesByFingerprint;
+%newobject mega::MegaApi::getNodesByOriginalFingerprint;
 %newobject mega::MegaApi::getExportableNodeByFingerprint;
 %newobject mega::MegaApi::getCRC;
 %newobject mega::MegaApi::getNodeByCRC;
@@ -432,11 +436,25 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %newobject mega::MegaRequest::getMegaAchievementsDetails;
 %newobject mega::MegaAccountDetails::getSubscriptionMethod;
 %newobject mega::MegaAccountDetails::getSubscriptionCycle;
+%newobject mega::MegaAccountDetails::copy;
+%newobject mega::MegaAccountDetails::getBalance;
+%newobject mega::MegaAccountDetails::getSession;
+%newobject mega::MegaAccountDetails::getPurchase;
+%newobject mega::MegaAccountDetails::getTransaction;
+%newobject mega::MegaAccountDetails::getPlan;
+%newobject mega::MegaAccountDetails::getSubscription;
 
 %newobject mega::MegaApi::getMimeType;
+
+%newobject mega::MegaNode::PasswordNodeData::createInstance;
+%newobject mega::MegaNode::unserialize;
+%newobject mega::MegaNode::getTags;
+%newobject mega::MegaNode::getCustomAttrNames;
 
 typedef long long time_t;
 typedef long long uint64_t;
 typedef long long int64_t;
+typedef long long uint32_t;
+typedef long long int32_t;
 
 %include "megaapi.h"

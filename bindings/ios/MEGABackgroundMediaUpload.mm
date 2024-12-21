@@ -42,7 +42,12 @@
 }
 
 - (instancetype)initWithMEGASdk:(MEGASdk *)sdk {
-    return [self initWithBackgroundMediaUpload:mega::MegaBackgroundMediaUpload::createInstance(sdk.getCPtr)];
+    mega::MegaApi *api = sdk.getCPtr;
+    if (api) {
+        return [self initWithBackgroundMediaUpload:mega::MegaBackgroundMediaUpload::createInstance(api)];
+    } else {
+        return nil;
+    }
 }
 
 - (void)dealloc {
@@ -89,8 +94,13 @@
 }
 
 + (instancetype)unserializByData:(NSData *)data MEGASdk:(MEGASdk *)sdk {
-    mega::MegaBackgroundMediaUpload *mediaUpload = mega::MegaBackgroundMediaUpload::unserialize((const char *)data.bytes, sdk.getCPtr);
-    return [[self alloc] initWithBackgroundMediaUpload:mediaUpload];
+    mega::MegaApi *api = sdk.getCPtr;
+    if (api) {
+        mega::MegaBackgroundMediaUpload *mediaUpload = mega::MegaBackgroundMediaUpload::unserialize((const char *)data.bytes, api);
+        return [[self alloc] initWithBackgroundMediaUpload:mediaUpload];
+    } else {
+        return nil;
+    }
 }
 
 @end

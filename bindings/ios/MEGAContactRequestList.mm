@@ -50,16 +50,12 @@ using namespace mega;
     }
 }
 
-- (instancetype)clone {
-    return self.megaContactRequestList ? [[MEGAContactRequestList alloc] initWithMegaContactRequestList:self.megaContactRequestList->copy() cMemoryOwn:YES] : nil;
-}
-
 - (MegaContactRequestList *)getCPtr {
     return self.megaContactRequestList;
 }
 
-- (NSNumber *)size {
-    return self.megaContactRequestList ? [[NSNumber alloc] initWithInt:self.megaContactRequestList->size()] : nil;
+- (NSInteger)size {
+    return self.megaContactRequestList ? self.megaContactRequestList->size() : -1;
 }
 
 - (MEGAContactRequest *)contactRequestAtIndex:(NSInteger)index {

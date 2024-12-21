@@ -53,7 +53,7 @@ using namespace mega;
     return self.shareList;
 }
 
-- (MEGAShare *)shareAtIndex:(NSInteger)index {
+- (nullable MEGAShare *)shareAtIndex:(NSInteger)index {
     if (self.shareList == NULL) {
         return nil;
     }
@@ -67,8 +67,8 @@ using namespace mega;
     }
 }
 
-- (NSNumber *)size {
-    return self.shareList ? [[NSNumber alloc] initWithInt:self.shareList->size()] : nil;
+- (NSInteger)size {
+    return self.shareList ? self.shareList->size() : -1;
 }
 
 @end

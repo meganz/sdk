@@ -24,8 +24,8 @@
 
 @interface MEGASdk (init)
 
-- (void)freeRequestListener:(DelegateMEGARequestListener *)delegate;
-- (void)freeTransferListener:(DelegateMEGATransferListener *)delegate;
-- (mega::MegaApi *)getCPtr;
+- (void)freeRequestListener:(nullable DelegateMEGARequestListener *)delegate;
+- (void)freeTransferListener:(nullable DelegateMEGATransferListener *)delegate;
+- (nullable mega::MegaApi *)getCPtr;
 
 @end

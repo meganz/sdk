@@ -63,10 +63,12 @@ SSL *evt_get_ssl(const evt_tls_t *tls)
 static void tls_begin(void)
 {
     SSL_library_init();
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+    // the following functions have been deprecated and are no longer needed starting with OpenSSL v1.1.0
     SSL_load_error_strings();
     ERR_load_BIO_strings();
+#endif
     OpenSSL_add_all_algorithms();
-    ERR_load_crypto_strings();
 }
 
 evt_tls_t *evt_ctx_get_tls(evt_ctx_t *d_eng)
@@ -178,7 +180,7 @@ int evt_ctx_init(evt_ctx_t *tls)
         return -1;
     }
 
-    long options = SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3;
+    uint32_t options = SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3;
     SSL_CTX_set_options(tls->ctx, options);
 
 #if defined(SSL_MODE_RELEASE_BUFFERS)
@@ -204,8 +206,11 @@ int evt_ctx_init(evt_ctx_t *tls)
 
 int evt_ctx_init_ex(evt_ctx_t *tls, const char *crtf, const char *key)
 {
+#ifndef NDEBUG
     int r = 0;
-    r = evt_ctx_init( tls);
+    r =
+#endif
+    evt_ctx_init( tls);
     assert( 0 == r);
     return evt_ctx_set_crt_key(tls, crtf, key);
 }
@@ -223,7 +228,7 @@ int evt_ctx_is_key_set(evt_ctx_t *t)
 static int evt__send_pending(evt_tls_t *conn)
 {
     assert( conn != NULL);
-    int pending = BIO_pending(conn->app_bio);
+    int pending = (int)BIO_pending(conn->app_bio);
     if ( !(pending > 0) )
         return 0;
 
@@ -239,7 +244,7 @@ static int evt__send_pending(evt_tls_t *conn)
     return p;
 }
 
-static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, int sz)
+static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, size_t sz)
 {
     int r = 0;
     int bytes = 0;
@@ -260,7 +265,7 @@ static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, int sz)
                 break;
             }
             // fall through to process possible data queued after the handshake
-        }
+        } // fall-through
 
         case EVT_TLS_OP_READ: {
             r = SSL_read(conn->ssl, tbuf, sizeof(tbuf));
@@ -280,7 +285,7 @@ static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, int sz)
 
         case EVT_TLS_OP_WRITE: {
             assert( sz > 0 && "number of bytes to write should be positive");
-            r = SSL_write(conn->ssl, buf, sz);
+            r = SSL_write(conn->ssl, buf, int(sz));
             if ( 0 == r) goto handle_shutdown;
             do {
                 bytes = evt__send_pending(conn);
@@ -322,7 +327,7 @@ static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, int sz)
         r = SSL_shutdown(conn->ssl);
         //it might be possible that peer send close_notify and close the network
         //hence, no check if sending is complete
-        bytes = evt__send_pending(conn);
+        evt__send_pending(conn);
         if ( (1 == r)  && conn->close_cb ) {
             conn->close_cb(conn, r);
         }
@@ -377,7 +382,7 @@ int evt_tls_accept(evt_tls_t *tls, evt_handshake_cb cb)
     return 0;
 }
 
-int evt_tls_write(evt_tls_t *c, void *msg, int str_len, evt_write_cb on_write)
+int evt_tls_write(evt_tls_t *c, void *msg, size_t str_len, evt_write_cb on_write)
 {
     c->write_cb = on_write;
     return evt__tls__op(c, EVT_TLS_OP_WRITE, msg, str_len);
@@ -449,7 +454,11 @@ void evt_ctx_free(evt_ctx_t *ctx)
 
 
 // adapted from Openssl's s23_srvr.c code
-int evt_is_tls_stream(const char *bfr, const ssize_t nrd)
+int evt_is_tls_stream(const char *bfr, const ssize_t
+#ifndef NDEBUG
+                      nrd
+#endif
+                      )
 {
     int is_tls = 0;
     assert( nrd >= 11);

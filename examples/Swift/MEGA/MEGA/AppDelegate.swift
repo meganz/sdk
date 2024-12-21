@@ -20,15 +20,17 @@
 */
 
 import UIKit
+import MEGASdk
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate, MEGARequestDelegate {
     
     var window: UIWindow?
-    let megaapi: MEGASdk = MEGASdk(appKey: "iOS Swift/1.0", userAgent: "hNF3ELhK", basePath: nil)
+    let megaapi = MEGASdk(appKey: "", userAgent: nil, basePath: FileManager.default.temporaryDirectory.path)!
     
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        MEGASdk.setLogLevel(MEGALogLevel.debug)
+        MEGASdk.setLogLevel(.max)
+        MEGASdk.setLogToConsole(true)
         
         
         let storyboard = UIStoryboard(name: "Main", bundle: nil)
@@ -40,7 +42,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, MEGARequestDelegate {
             
         } else {
             let loginVC = storyboard.instantiateViewController(withIdentifier: "LoginViewControllerID") 
-            window?.rootViewController = loginVC;
+            window?.rootViewController = loginVC
         }
         
         return true
@@ -70,13 +72,13 @@ class AppDelegate: UIResponder, UIApplicationDelegate, MEGARequestDelegate {
     
     // MARK: - MEGA Request delegate
     
-    func onRequestStart(_ api: MEGASdk!, request: MEGARequest!) {
+    func onRequestStart(_ api: MEGASdk, request: MEGARequest) {
         if request.type == MEGARequestType.MEGARequestTypeFetchNodes {
             SVProgressHUD.show(withStatus: "Updating nodes...")
         }
     }
     
-    func onRequestFinish(_ api: MEGASdk!, request: MEGARequest!, error: MEGAError!) {
+    func onRequestFinish(_ api: MEGASdk, request: MEGARequest, error: MEGAError) {
         if error.type != MEGAErrorType.apiOk {
             return
         }

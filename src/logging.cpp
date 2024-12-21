@@ -22,103 +22,163 @@
  * Public License, see http://www.gnu.org/copyleft/gpl.txt for details.
  */
 
-#if defined(WINDOWS_PHONE) && !defined(__STDC_LIMIT_MACROS)
-#define __STDC_LIMIT_MACROS
-#endif
-
 #include "mega/logging.h"
 
 #include <ctime>
 
-#if defined(WINDOWS_PHONE)
-#include <stdint.h>
-#endif
-
 namespace mega {
 
+ExternalLogger g_externalLogger;
+ExclusiveLogger g_exclusiveLogger;
 
-std::ostream& operator<<(std::ostream& s, NodeHandle h)
-{
-    return s << toNodeHandle(h);
-}
-
-SimpleLogger& operator<<(SimpleLogger& s, NodeHandle h)
-{
-    return s << toNodeHandle(h);
-}
-
-Logger *SimpleLogger::logger = nullptr;
+Logger *SimpleLogger::logger = &g_externalLogger;
 
 // by the default, display logs with level equal or less than logInfo
-enum LogLevel SimpleLogger::logCurrentLevel = logInfo;
+std::atomic<LogLevel> SimpleLogger::logCurrentLevel{logInfo};
 long long SimpleLogger::maxPayloadLogSize  = 10240;
 
-#ifdef ENABLE_LOG_PERFORMANCE
-
-#ifdef WIN32
-thread_local std::array<char, LOGGER_CHUNKS_SIZE> SimpleLogger::mBuffer;
-#else
-__thread std::array<char, LOGGER_CHUNKS_SIZE> SimpleLogger::mBuffer;
-#endif
-
-#else
-// static member initialization
-std::mutex SimpleLogger::outputs_mutex;
-OutputMap SimpleLogger::outputs;
-
+#ifndef ENABLE_LOG_PERFORMANCE
 std::string SimpleLogger::getTime()
 {
     char ts[50];
     time_t t = std::time(NULL);
+    std::tm tm{};
 
-    if (!std::strftime(ts, sizeof(ts), "%H:%M:%S", std::gmtime(&t))) {
-        ts[0] = '\0';
-    }
-    return ts;
-}
+#ifdef WIN32
+    gmtime_s(&tm, &t);
+#else
+    gmtime_r(&t, &tm);
+#endif
 
-void SimpleLogger::flush()
-{
-    for (auto& o : outputs)
-    {
-        OutputStreams::iterator iter;
-        OutputStreams vec;
+    if (std::strftime(ts, sizeof(ts), "%H:%M:%S", &tm)) return ts;
 
-        {
-            std::lock_guard<std::mutex> guard(outputs_mutex);
-            vec = o;
-        }
-
-        for (iter = vec.begin(); iter != vec.end(); iter++)
-        {
-            std::ostream *os = *iter;
-            os->flush();
-        }
-    }
-}
-
-OutputStreams SimpleLogger::getOutput(enum LogLevel ll)
-{
-    assert(unsigned(ll) < outputs.size());
-    std::lock_guard<std::mutex> guard(outputs_mutex);
-    return outputs[ll];
-}
-
-void SimpleLogger::addOutput(enum LogLevel ll, std::ostream *os)
-{
-    assert(unsigned(ll) < outputs.size());
-    std::lock_guard<std::mutex> guard(outputs_mutex);
-    outputs[ll].push_back(os);
-}
-
-void SimpleLogger::setAllOutputs(std::ostream *os)
-{
-    std::lock_guard<std::mutex> guard(outputs_mutex);
-    for (auto& o : outputs)
-    {
-        o.push_back(os);
-    }
+    return {};
 }
 #endif
+
+std::ostream& operator<< (std::ostream& ostr, const std::error_code &value)
+{
+    return ostr << value.category().name() << ": " << value.message();
+}
+
+std::ostream& operator<< (std::ostream& ostr, const std::system_error &se)
+{
+    return ostr << se.code().category().name() << ": " << se.what();
+}
+
+
+
+ExternalLogger::ExternalLogger()
+{
+    logToConsole = false;
+}
+
+ExternalLogger::~ExternalLogger()
+{
+}
+
+void ExternalLogger::addMegaLogger(void* id, LogCallback lc)
+{
+    std::lock_guard<std::recursive_mutex> g(mutex);
+    megaLoggers[id] = lc;
+}
+
+void ExternalLogger::removeMegaLogger(void* id)
+{
+    std::lock_guard<std::recursive_mutex> g(mutex);
+    megaLoggers.erase(id);
+}
+
+void ExternalLogger::setLogToConsole(bool enable)
+{
+    this->logToConsole = enable;
+}
+
+void ExternalLogger::log(const char *time, int loglevel, const char *source, const char *message
+#ifdef ENABLE_LOG_PERFORMANCE
+    , const char **directMessages = nullptr, size_t *directMessagesSizes = nullptr, unsigned numberMessages = 0
+#endif
+)
+{
+    if (!time)
+    {
+        time = "";
+    }
+
+    if (!source)
+    {
+        source = "";
+    }
+
+    if (!message)
+    {
+        message = "";
+    }
+
+    lock_guard<std::recursive_mutex> g(mutex);
+
+    // solve the mystery of why the mutex is recursive
+    // if we hit the assert, it's due to logging from inside the processing of the logging?
+    assert(!alreadyLogging);
+    alreadyLogging = true;
+
+
+    for (auto& logger : megaLoggers)
+    {
+        logger.second(time, loglevel, source, message
+#ifdef ENABLE_LOG_PERFORMANCE
+            , directMessages, directMessagesSizes, numberMessages
+#endif
+        );
+
+        if (useOnlyFirstMegaLogger)
+        {
+            break;
+        }
+    }
+
+    if (logToConsole)
+    {
+        std::cout << "[" << time << "][" << SimpleLogger::toStr((LogLevel)loglevel) << "] ";
+        if (message) std::cout << message;
+#ifdef ENABLE_LOG_PERFORMANCE
+        for (unsigned i = 0; i < numberMessages; ++i)
+        {
+            std::cout.write(directMessages[i], directMessagesSizes[i]);
+        }
+#endif
+        std::cout << std::endl;
+    }
+    alreadyLogging = false;
+}
+
+
+void ExclusiveLogger::log(const char *time, int loglevel, const char *source, const char *message
+#ifdef ENABLE_LOG_PERFORMANCE
+    , const char **directMessages = nullptr, size_t *directMessagesSizes = nullptr, unsigned numberMessages = 0
+#endif
+)
+{
+    if (!time)
+    {
+        time = "";
+    }
+
+    if (!source)
+    {
+        source = "";
+    }
+
+    if (!message)
+    {
+        message = "";
+    }
+
+    exclusiveCallback(time, loglevel, source, message
+#ifdef ENABLE_LOG_PERFORMANCE
+            , directMessages, directMessagesSizes, numberMessages
+#endif
+    );
+}
 
 } // namespace

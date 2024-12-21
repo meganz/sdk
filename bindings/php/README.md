@@ -13,10 +13,14 @@ adaptation for other platforms.
 
 ## Prerequisites  
 ```
-    Install `PHP` in your system  
-    Install `SWIG` in your system (it's required to generate PHP bindings)  
-    Install the required PHP dependendy `Symfony Console`, You can use `Composer` for that  
+    Install `PHP` in your system (`sudo apt install php php-dev` in Ubuntu).
+    Install `SWIG` in your system (`sudo apt install swig` in Ubuntu. Required to generate PHP bindings).
+    Install `composer` in your system (`sudo apt install composer` in Ubuntu. Required to install PHP dependencies of the console app).
 ```
+
+The last versions of SWIG and PHP that we have checked are:
+- PHP 7.4.3
+- SWIG 4.0.1
 
 ## How to build and run the project:  
 
@@ -24,7 +28,7 @@ adaptation for other platforms.
 
 ```
         ./autogen.sh
-        ./configure --disable-silent-rules --enable-php --disable-examples    
+        ./configure --enable-php 
 ```  
 
 - Build the shared libraries and packages:
@@ -32,7 +36,9 @@ adaptation for other platforms.
         make
 ```  
 
-**Note:** if your PHP version is later than `5.3.0`, you will need to make some adjustements in configuration file `php.ini`
+**Note:** Only PHP 7 is supported at the moment. 
+
+You will need to make some adjustements in configuration file `php.ini`
 
 - To check your PHP version, you can run this command: `php -v`
 - To locate file `php.ini`, you can run this command in linux: `php -i | grep "Loaded Configuration File"`
@@ -49,5 +55,8 @@ Add this line at the end of the file
 
 ## Run megacli with PHP  
 ```
- php <SDK>/examples/php/megacli.php
+ cd <SDK>/examples/php
+ composer install
+ php megacli.php
 ```
+

@@ -163,7 +163,16 @@ public class CrudExample implements MegaRequestListenerInterface,
         // Upload a file (create).
         log.info("*** start: upload ***");
         synchronized(myListener.continueEvent) {
-            megaApi.startUpload("README.md", cwd, myListener);
+            megaApi.startUpload("README.md"
+            , cwd   /*parent node*/
+            , null  /*filename*/
+            , 0     /*mtime*/
+            , null  /*appData*/
+            , false /*isSourceTemporary*/
+            , false /*startFirst*/
+            , null  /*cancelToken*/
+            , myListener);
+
             while (!myListener.wasSignalled) {
                 try {
                     myListener.continueEvent.wait();
@@ -180,7 +189,16 @@ public class CrudExample implements MegaRequestListenerInterface,
         node = megaApi.getNodeByPath("README.md", cwd);
         if (node != null) {
             synchronized(myListener.continueEvent) {
-                megaApi.startDownload(node, "README_returned.md", myListener);
+                megaApi.startDownload(node
+                , "README_returned.md" /*local path*/
+                , null 		/*custom name*/
+                , null			/*app data*/
+                , false		/*start first*/
+                , null			/*cancel token*/
+                , MegaTransfer.COLLISION_CHECK_FINGERPRINT /* collisionCheck*/
+                , MegaTransfer.COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution*/
+                , myListener);
+
                 while (!myListener.wasSignalled) {
                     try {
                         myListener.continueEvent.wait();
@@ -201,7 +219,16 @@ public class CrudExample implements MegaRequestListenerInterface,
         log.info("*** start: update ***");
         MegaNode oldNode = megaApi.getNodeByPath("README.md", cwd);
         synchronized(myListener.continueEvent) {
-            megaApi.startUpload("README.md", cwd, myListener);
+            megaApi.startUpload("README.md"
+            , cwd   /*parent node*/
+            , null  /*filename*/
+            , 0     /*mtime*/
+            , null  /*appData*/
+            , false /*isSourceTemporary*/
+            , false /*startFirst*/
+            , null  /*cancelToken*/
+            , myListener);
+
             while (!myListener.wasSignalled) {
                 try {
                     myListener.continueEvent.wait();

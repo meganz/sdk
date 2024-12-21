@@ -64,7 +64,7 @@ public:
 				std::cout << "***** Showing files/folders in the root folder:" << std::endl;
 				MegaNode *root = api->getRootNode();
 				MegaNodeList *list = api->getChildren(root);
-			
+
 				for(int i=0; i < list->size(); i++)
 				{
 					MegaNode *node = list->get(i);
@@ -72,7 +72,7 @@ public:
 						std::cout << "*****   File:   ";
 					else
 						std::cout << "*****   Folder: ";
-				
+
 					std::cout << node->getName() << std::endl;
 				}
 				std::cout << "***** Done" << std::endl;
@@ -80,7 +80,16 @@ public:
 				delete list;
 
 				std::cout << "***** Uploading the image MEGA.png" << std::endl;
-				api->startUpload("MEGA.png", root);
+
+				api->startUpload("MEGA.png"
+				, root		/*parent*/
+				, nullptr	/*filename*/
+				, 0     	/*mtime*/
+				, nullptr	/*appData*/
+				, false		/*isSourceTemporary*/
+				, false		/*startFirst*/
+				, nullptr);	/*cancelToken*/
+
 				delete root;
 
 				break;
@@ -114,10 +123,10 @@ public:
 
 		finished = true;
 	}
-	
+
 	virtual void onTransferUpdate(MegaApi *api, MegaTransfer *transfer)
 	{
-		std::cout << "***** Transfer progress: " << transfer->getTransferredBytes() << "/" << transfer->getTotalBytes() << std::endl; 
+		std::cout << "***** Transfer progress: " << transfer->getTransferredBytes() << "/" << transfer->getTotalBytes() << std::endl;
 	}
 
 	virtual void onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* error)
@@ -144,6 +153,22 @@ public:
 		}
 
 		std::cout << "***** There are " << nodes->size() << " new or updated node/s in your account" << std::endl;
+	}
+
+	virtual void onSetsUpdate(MegaApi* api, MegaSetList *sets)
+	{
+		if (sets)
+		{
+			std::cout << "***** There are " << sets->size() << " new or updated Set/s in your account" << std::endl;
+		}
+	}
+
+	virtual void onSetElementsUpdate(MegaApi* api, MegaSetElementList *elements)
+	{
+		if (elements)
+		{
+			std::cout << "***** There are " << elements->size() << " new or updated Set-Element/s in your account" << std::endl;
+		}
 	}
 };
 
@@ -180,7 +205,7 @@ int main()
 
 	//Login. You can get the result in the onRequestFinish callback of your listener
 	megaApi->login(MEGA_EMAIL, MEGA_PASSWORD);
-	
+
 	//You can use the main thread to show a GUI or anything else. MegaApi runs in a background thread.
 	while(!listener.finished)
 	{
@@ -193,7 +218,7 @@ int main()
 
 #ifdef HAVE_LIBUV
 	std::cout << "Do you want to enable the local HTTP server (y/n)?" << std::endl;
-	char c = getchar();
+	int c = getchar();
 	if (c == 'y' || c == 'Y')
 	{
 		megaApi->httpServerStart();

@@ -36,10 +36,6 @@
   #define __STDC_FORMAT_MACROS
 #endif
 
-#ifdef WINDOWS_PHONE
-#define __STDC_LIMIT_MACROS
-#endif
-
 // (inttypes.h is not present in Microsoft Visual Studio < 2015)
 #if (defined (MSC_VER) && (_MSC_VER < 1900)) && !defined(HAVE_INTTYPES_H)
   #define PRIu32 "I32u"
@@ -77,21 +73,24 @@
 #endif
 
 #include <specstrings.h>
+
+#pragma push_macro("NOMINMAX")
+#ifndef NOMINMAX
+    #define NOMINMAX
+#endif
 #include <winsock2.h>
 #include <windows.h>
+#pragma pop_macro("NOMINMAX")
 
-#ifndef WINDOWS_PHONE
 #ifdef __MINGW32__
  //#include <wincrypt.h> // x509 define clashes with webrtc
 #endif
  //#include <wincrypt.h> // x509 define clashes with webrtc
  #include <shlwapi.h>
-#endif
 
 #include <shellapi.h>
 
 #define atoll _atoi64
-#define snprintf mega_snprintf
 #define strncasecmp _strnicmp
 #define strtoull _strtoui64
 #if _MSC_VER <= 1800 && !defined (__MINGW32__)// Visual Studio 2013

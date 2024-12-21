@@ -94,6 +94,8 @@ void FileAttributeFetchChannel::dispatch()
 void FileAttributeFetchChannel::parse(int /*fac*/, bool final)
 {
 #pragma pack(push,1)
+    // structure of data on the wire
+    // do not read fields directly
     struct FaHeader
     {
         handle h;
@@ -120,13 +122,16 @@ void FileAttributeFetchChannel::parse(int /*fac*/, bool final)
             }
             else
             {
-                req.purge(ptr - req.data());
+                req.purge(static_cast<size_t>(ptr - req.data()));
             }
 
             break;
         }
 
-        it = fafs[1].find(((FaHeader*)ptr)->h);
+        // read aligned properly
+        handle h;
+        memcpy(&h, &((FaHeader*)ptr)->h, sizeof(h));
+        it = fafs[1].find(h);
 
         ptr += sizeof(FaHeader);
 
@@ -137,9 +142,13 @@ void FileAttributeFetchChannel::parse(int /*fac*/, bool final)
 
             if (!(falen & (SymmCipher::BLOCKSIZE - 1)))
             {
-                if (client->tmpnodecipher.setkey(&it->second->nodekey))
+                SymmCipher *cipher = client->getRecycledTemporaryNodeCipher(&it->second->nodekey);
+                if (cipher)
                 {
-                    client->tmpnodecipher.cbc_decrypt((byte*)ptr, falen);
+                    if (!cipher->cbc_decrypt((byte*)ptr, falen))
+                    {
+                        LOG_err << "Failed to CBC decrypt file attributes";
+                    }
                     client->app->fa_complete(it->second->nodehandle, it->second->type, ptr, falen);
                 }
 

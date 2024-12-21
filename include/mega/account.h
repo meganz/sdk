@@ -22,6 +22,7 @@
 #ifndef MEGA_ACCOUNT_H
 #define MEGA_ACCOUNT_H 1
 
+#include "types.h"
 
 namespace mega {
 // account details/history
@@ -40,6 +41,7 @@ struct MEGA_API AccountSession
     int current;
     handle id;
     int alive;
+    string deviceid;
 };
 
 struct MEGA_API AccountPurchase
@@ -59,6 +61,12 @@ struct MEGA_API AccountTransaction
     double delta;
 };
 
+struct MEGA_API AccountFeature
+{
+    m_time_t expiryTimestamp = 0;
+    string featureId;
+};
+
 
 // subtree's total storage footprint (excluding the root folder itself)
 struct MEGA_API NodeStorage
@@ -72,16 +80,38 @@ struct MEGA_API NodeStorage
 
 typedef map<handle, NodeStorage> handlestorage_map;
 
+struct MEGA_API AccountSubscription
+{
+    string id; // Encrypted subscription ID
+    char type = 0; // 'S' for active payment provider, 'R' otherwise
+    string cycle; // Subscription billing period
+    string paymentMethod; // Payment provider name
+    int32_t paymentMethodId = 0; // Payment provider ID
+    m_time_t renew = mega_invalid_timestamp; // Renewal time
+    int32_t level = ACCOUNT_TYPE_FREE; // Account level
+    vector<string> features; // List of features the subscription grants
+    bool isTrial = false; // If the subscription is related to an active trial
+};
+
+struct MEGA_API AccountPlan
+{
+    int32_t level = ACCOUNT_TYPE_FREE; // Account level
+    vector<string> features; // List of features the plan grants
+    m_time_t expiration = mega_invalid_timestamp; // The time the plan expires
+    int32_t type = 0; // Why the plan was granted: payment, achievement, etc. Not included in
+                      // Bussiness/Pro Flexi
+    string subscriptionId; // The relating subscription ID if the plan relates to a subscription.
+    bool isTrial = false; // If the plan is related to an active trial
+
+    bool isProPlan() const
+    {
+        return level > ACCOUNT_TYPE_FREE && level != ACCOUNT_TYPE_FEATURE;
+    }
+};
+
 struct MEGA_API AccountDetails
 {
-    // subscription information (summarized)
-    int pro_level = 0;
-    char subscription_type = 'O';
-    char subscription_cycle[4];
-    m_time_t subscription_renew = 0;
-    string subscription_method;
-
-    m_time_t pro_until = 0;
+    vector<AccountSubscription> subscriptions;
 
     // quota related to the session account
     m_off_t storage_used = 0;
@@ -113,6 +143,12 @@ struct MEGA_API AccountDetails
     vector<AccountSession> sessions;
     vector<AccountPurchase> purchases;
     vector<AccountTransaction> transactions;
+
+    // Features
+    vector<AccountFeature> activeFeatures;
+
+    // Active plans for the account. Both PRO and feature plans.
+    vector<AccountPlan> plans;
 };
 
 // award classes with the award values the class is supposed to get
@@ -153,6 +189,55 @@ struct MEGA_API AchievementsDetails
     vector<Award> awards;
     vector<Reward> rewards;
 };
+
+struct MEGA_API BusinessPlan
+{
+    int gbStoragePerUser = 0;   // -1 means unlimited
+    int gbTransferPerUser = 0;   // -1 means unlimited
+
+    unsigned int minUsers = 0;
+
+    unsigned int pricePerUser = 0;
+    unsigned int localPricePerUser = 0;
+
+    unsigned int pricePerStorage = 0;
+    unsigned int localPricePerStorage = 0;
+    int gbPerStorage = 0;
+
+    unsigned int pricePerTransfer = 0;
+    unsigned int localPricePerTransfer = 0;
+    int gbPerTransfer = 0;
+};
+
+struct MEGA_API CurrencyData
+{
+    std::string currencySymbol;         // ie. €, encoded in B64url
+    std::string currencyName;           // ie. EUR
+
+    std::string localCurrencySymbol;    // ie. $, encoded in B64url
+    std::string localCurrencyName;      // ie. NZD
+};
+
+struct MEGA_API Product
+{
+    unsigned int planType = ~(unsigned)0;
+    handle productHandle = UNDEF;
+    unsigned int proLevel = 0;
+    int gbStorage = -1;
+    int gbTransfer = -1;
+    unsigned int months = 0;
+    unsigned int amount = 0;
+    unsigned int amountMonth = 0;
+    unsigned int localPrice = 0;
+    std::string description;
+    std::map<std::string, uint32_t> features;
+    std::string iosid;
+    std::string androidid;
+    unsigned int testCategory = 0;
+    std::shared_ptr<BusinessPlan> businessPlan;
+    unsigned int trialDays = 0;
+};
+
 } // namespace
 
 #endif

@@ -20,8 +20,9 @@
  */
 
 #include "mega/pubkeyaction.h"
+
 #include "mega/megaapp.h"
-#include "mega/command.h"
+#include "mega/megaclient.h"
 
 namespace mega {
 PubKeyAction::PubKeyAction()
@@ -29,8 +30,9 @@ PubKeyAction::PubKeyAction()
     cmd = NULL;
 }
 
-PubKeyActionPutNodes::PubKeyActionPutNodes(vector<NewNode>&& newnodes, int ctag)
-    : nn(move(newnodes))
+PubKeyActionPutNodes::PubKeyActionPutNodes(vector<NewNode>&& newnodes, int ctag, CommandPutNodes::Completion&& c)
+    : nn(std::move(newnodes))
+    , completion(std::move(c))
 {
     tag = ctag;
 }
@@ -47,84 +49,35 @@ void PubKeyActionPutNodes::proc(MegaClient* client, User* u)
         {
             if (!(t = u->pubk.encrypt(client->rng, (const byte*)nn[i].nodekey.data(), nn[i].nodekey.size(), buf, sizeof buf)))
             {
-                client->app->putnodes_result(API_EINTERNAL, USER_HANDLE, nn);
+                if (completion)
+                    completion(API_EINTERNAL, USER_HANDLE, nn, false, tag, {});
+                else
+                    client->app->putnodes_result(API_EINTERNAL, USER_HANDLE, nn, false, tag, {});
                 return;
             }
 
-            nn[i].nodekey.assign((char*)buf, t);
+            nn[i].nodekey.assign((char*)buf, static_cast<size_t>(t));
         }
 
-        client->reqs.add(new CommandPutNodes(client, UNDEF, u->uid.c_str(), move(nn), tag));
+        client->reqs.add(new CommandPutNodes(client,
+                                             NodeHandle(),
+                                             u->uid.c_str(),
+                                             NoVersioning,
+                                             std::move(nn),
+                                             tag,
+                                             PUTNODES_APP,
+                                             nullptr,
+                                             std::move(completion),
+                                             false, // canChangeVault
+                                             {})); // customerIpPort
+        // 'canChangeVault' is false here because this code path is to write to user's Inbox, which should not require "vw:1"
     }
     else
     {
-        client->app->putnodes_result(API_ENOENT, USER_HANDLE, nn);
-    }
-}
-
-// sharekey distribution request for handle h
-PubKeyActionSendShareKey::PubKeyActionSendShareKey(handle h)
-{
-    sh = h;
-}
-
-void PubKeyActionSendShareKey::proc(MegaClient* client, User* u)
-{
-    Node* n;
-
-    // only the share owner distributes share keys
-    if (u && u->pubk.isvalid() && (n = client->nodebyhandle(sh)) && n->sharekey && client->checkaccess(n, OWNER))
-    {
-        int t;
-        byte buf[AsymmCipher::MAXKEYLENGTH];
-
-        if ((t = u->pubk.encrypt(client->rng, n->sharekey->key, SymmCipher::KEYLENGTH, buf, sizeof buf)))
-        {
-            client->reqs.add(new CommandShareKeyUpdate(client, sh, u->uid.c_str(), buf, t));
-        }
-    }
-}
-
-void PubKeyActionCreateShare::proc(MegaClient* client, User* u)
-{
-    Node* n;
-    int newshare;
-
-    // node vanished: bail
-    if (!(n = client->nodebyhandle(h)))
-    {
-        return client->app->share_result(API_ENOENT, mWritable);
-    }
-
-    // do we already have a share key for this node?
-    if ((newshare = !n->sharekey))
-    {
-        // no: create
-        byte key[SymmCipher::KEYLENGTH];
-
-        client->rng.genblock(key, sizeof key);
-
-        n->sharekey = new SymmCipher(key);
-    }
-
-    // we have all ingredients ready: the target user's public key, the share
-    // key and all nodes to share
-    client->restag = tag;
-    client->reqs.add(new CommandSetShare(client, n, u, a, newshare, NULL, mWritable, selfemail.c_str()));
-}
-
-
-// share node sh with access level sa
-PubKeyActionCreateShare::PubKeyActionCreateShare(handle sh, accesslevel_t sa, int ctag, bool writable, const char* personal_representation)
-{
-    h = sh;
-    a = sa;
-    tag = ctag;
-    mWritable = writable;
-
-    if (personal_representation)
-    {
-        selfemail = personal_representation;
+        if (completion)
+            completion(API_ENOENT, USER_HANDLE, nn, false, tag, {});
+        else
+            client->app->putnodes_result(API_ENOENT, USER_HANDLE, nn, false, tag, {});
     }
 }
 

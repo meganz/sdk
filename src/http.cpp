@@ -26,7 +26,7 @@
 #include "mega/base64.h"
 #include "mega/testhooks.h"
 
-#if defined(WIN32) && !defined(WINDOWS_PHONE)
+#if defined(WIN32)
 #include <winhttp.h>
 #endif
 
@@ -96,6 +96,10 @@ HttpIO::HttpIO()
     lastdata = NEVER;
     downloadSpeed = 0;
     uploadSpeed = 0;
+
+    lock_guard<mutex> g(g_APIURL_default_mutex);
+    APIURL = g_APIURL_default;
+    disablepkp = g_disablepkp_default;
 }
 
 // signal Internet status - if the Internet was down for more than one minute,
@@ -144,7 +148,7 @@ Proxy *HttpIO::getautoproxy()
     Proxy* proxy = new Proxy();
     proxy->setProxyType(Proxy::NONE);
 
-#if defined(WIN32) && !defined(WINDOWS_PHONE)
+#if defined(WIN32)
     WINHTTP_CURRENT_USER_IE_PROXY_CONFIG ieProxyConfig = { 0 };
 
     if (WinHttpGetIEProxyConfigForCurrentUser(&ieProxyConfig) == TRUE)
@@ -249,7 +253,7 @@ Proxy *HttpIO::getautoproxy()
     return proxy;
 }
 
-void HttpIO::getMEGADNSservers(string *dnsservers, bool getfromnetwork)
+void HttpIO::getMEGADNSservers(string* dnsservers, bool getfromnetwork)
 {
     if (!dnsservers)
     {
@@ -259,8 +263,8 @@ void HttpIO::getMEGADNSservers(string *dnsservers, bool getfromnetwork)
     dnsservers->clear();
     if (getfromnetwork)
     {
-        struct addrinfo *aiList = NULL;
-        struct addrinfo *hp;
+        struct addrinfo* aiList = NULL;
+        struct addrinfo* hp;
 
         struct addrinfo hints = {};
         hints.ai_family = AF_UNSPEC;
@@ -279,18 +283,18 @@ void HttpIO::getMEGADNSservers(string *dnsservers, bool getfromnetwork)
 
                 if (hp->ai_family == AF_INET)
                 {
-                    sockaddr_in *addr = (sockaddr_in *)hp->ai_addr;
+                    sockaddr_in* addr = (sockaddr_in*)hp->ai_addr;
                     mega_inet_ntop(hp->ai_family, &addr->sin_addr, straddr, sizeof(straddr));
                 }
-                else if(hp->ai_family == AF_INET6)
+                else if (hp->ai_family == AF_INET6)
                 {
-                    sockaddr_in6 *addr = (sockaddr_in6 *)hp->ai_addr;
+                    sockaddr_in6* addr = (sockaddr_in6*)hp->ai_addr;
                     mega_inet_ntop(hp->ai_family, &addr->sin6_addr, straddr, sizeof(straddr));
                 }
 
                 if (straddr[0])
                 {
-                    if(dnsservers->size())
+                    if (dnsservers->size())
                     {
                         dnsservers->append(",");
                     }
@@ -305,63 +309,13 @@ void HttpIO::getMEGADNSservers(string *dnsservers, bool getfromnetwork)
 
     if (!getfromnetwork || !dnsservers->size())
     {
-        *dnsservers = MEGA_DNS_SERVERS;
+        *dnsservers = DNS_SERVERS;
         LOG_info << "Using hardcoded MEGA DNS servers: " << *dnsservers;
     }
     else
     {
         LOG_info << "Using current MEGA DNS servers: " << *dnsservers;
     }
-}
-
-// this method allows to retrieve DNS servers as configured in the system. Note that, under Wifi connections,
-// it usually returns the gateway (192.168.1.1 or similar), so the DNS requests done by c-ares represent a
-// an access to the local network, which we aim to avoid since iOS 14 requires explicit permission given by the user.
-void HttpIO::getDNSserversFromIos(string& dnsServers)
-{
-#if TARGET_OS_IPHONE
-    // Workaround to get the IP of valid DNS servers on iOS
-     __res_state res;
-     bool valid;
-     if (res_ninit(&res) == 0)
-     {
-         union res_sockaddr_union u[MAXNS];
-         int nscount = res_getservers(&res, u, MAXNS);
-
-         for (int i = 0; i < nscount; i++)
-         {
-             char straddr[INET6_ADDRSTRLEN];
-             straddr[0] = 0;
-             valid = false;
-
-             if (u[i].sin.sin_family == PF_INET)
-             {
-                 valid = mega_inet_ntop(PF_INET, &u[i].sin.sin_addr, straddr, sizeof(straddr)) == straddr;
-             }
-
-             if (u[i].sin6.sin6_family == PF_INET6)
-             {
-                 valid = mega_inet_ntop(PF_INET6, &u[i].sin6.sin6_addr, straddr, sizeof(straddr)) == straddr;
-             }
-
-             if (valid && straddr[0])
-             {
-                 if (dnsServers.size())
-                 {
-                     dnsServers.append(",");
-                 }
-                 dnsServers.append(straddr);
-             }
-         }
-
-         res_ndestroy(&res);
-     }
-
-     if (!dnsServers.size())
-     {
-         LOG_warn << "Failed to get DNS servers from OS";
-     }
-#endif
 }
 
 bool HttpIO::setmaxdownloadspeed(m_off_t)
@@ -461,6 +415,7 @@ void HttpReq::disconnect()
 
 HttpReq::HttpReq(bool b)
 {
+    LOG_verbose << "[HttpReq::HttpReq] CONSTRUCTOR CALL [this = " << this << "]";
     binary = b;
     status = REQ_READY;
     buf = NULL;
@@ -473,12 +428,14 @@ HttpReq::HttpReq(bool b)
     buflen = 0;
     protect = false;
     minspeed = false;
+    mChunked = false;
 
     init();
 }
 
 HttpReq::~HttpReq()
 {
+    LOG_verbose << "[HttpReq::~HttpReq] DESTRUCTOR CALL [this = " << this << "]";
     if (httpio)
     {
         httpio->cancel(this);
@@ -500,6 +457,22 @@ void HttpReq::init()
     outpos = 0;
     in.clear();
     contenttype.clear();
+    mRedirectURL.clear();
+}
+
+const char* HttpReq::getMethodString()
+{
+    switch(method)
+    {
+    case METHOD_POST:
+        return "POST";
+    case METHOD_GET:
+        return "GET";
+    case METHOD_NONE:
+        return "NONE";
+    default:
+        return "UNKNOWN_METHOD";
+    }
 }
 
 void HttpReq::setreq(const char* u, contenttype_t t)
@@ -556,17 +529,17 @@ void HttpReq::http_buf_t::swap(http_buf_t& other)
     size_t te = end; end = other.end; other.end = te;
 }
 
-bool HttpReq::http_buf_t::isNull()
+bool HttpReq::http_buf_t::isNull() const
 {
     return buf == NULL;
 }
 
-byte* HttpReq::http_buf_t::datastart()
+byte* HttpReq::http_buf_t::datastart() const
 {
     return buf + start;
 }
 
-size_t HttpReq::http_buf_t::datalen()
+size_t HttpReq::http_buf_t::datalen() const
 {
     return end - start;
 }
@@ -602,12 +575,21 @@ size_t HttpReq::size()
 void HttpReq::purge(size_t numbytes)
 {
     inpurge += numbytes;
+
+    if (mChunked)
+    {
+        // Immediate purge because there are several places
+        // in the code directly accesing HttpReq::in instead
+        // of HttpReq::data() and HttpReq::size()
+        in.erase(0, inpurge);
+        inpurge = 0;
+    }
 }
 
 // set total response size
 void HttpReq::setcontentlength(m_off_t len)
 {
-    if (!buf && type != REQ_BINARY)
+    if (!buf && type != REQ_BINARY && !mChunked)
     {
         in.reserve(static_cast<size_t>(len));
     }
@@ -642,7 +624,7 @@ byte* HttpReq::reserveput(unsigned* len)
             in.resize(static_cast<size_t>(bufpos + *len));
         }
 
-        *len = static_cast<unsigned>(in.size() - bufpos);
+        *len = static_cast<unsigned>(in.size() - static_cast<unsigned>(bufpos));
 
         return (byte*)in.data() + bufpos;
     }
@@ -657,7 +639,7 @@ m_off_t HttpReq::transferred(MegaClient*)
     }
     else
     {
-        return in.size();
+        return static_cast<m_off_t>(in.size());
     }
 }
 
@@ -672,10 +654,16 @@ void HttpReqDL::prepare(const char* tempurl, SymmCipher* /*key*/,
                         uint64_t /*ctriv*/, m_off_t pos,
                         m_off_t npos)
 {
-    char urlbuf[512];
-
-    snprintf(urlbuf, sizeof urlbuf, "%s/%" PRIu64 "-%" PRIu64, tempurl, pos, npos ? npos - 1 : 0);
-    setreq(urlbuf, REQ_BINARY);
+    if (tempurl && *tempurl)
+    {
+        char urlbuf[512];
+        snprintf(urlbuf, sizeof urlbuf, "%s/%" PRIu64 "-%" PRIu64, tempurl, pos, npos ? npos - 1 : 0);
+        setreq(urlbuf, REQ_BINARY);
+    }
+    else
+    {
+        setreq(nullptr, REQ_BINARY);
+    }
 
     dlpos = pos;
     size = (unsigned)(npos - pos);
@@ -692,7 +680,8 @@ void HttpReqDL::prepare(const char* tempurl, SymmCipher* /*key*/,
 
         if (size)
         {
-            buf = new byte[(size + SymmCipher::BLOCKSIZE - 1) & - SymmCipher::BLOCKSIZE];
+            buf = new byte[(size + SymmCipher::BLOCKSIZE - 1) &
+                           ~(static_cast<size_t>(SymmCipher::BLOCKSIZE) - 1)];
         }
         buflen = size;
     }
@@ -720,7 +709,8 @@ void EncryptByChunks::updateCRC(byte* data, unsigned size, unsigned offset)
         size -= ll;
         while (ll--)
         {
-            crc[ol++] ^= *data++;
+            crc[ol++] ^= *data;
+            ++data;
         }
     }
 
@@ -740,7 +730,7 @@ void EncryptByChunks::updateCRC(byte* data, unsigned size, unsigned offset)
     }
     if (ll)
     {
-        data += (size - ll);
+        data += (size - static_cast<size_t>(ll));
         while (ll--)
         {
             crc[ll] ^= data[ll];
@@ -757,12 +747,19 @@ bool EncryptByChunks::encrypt(m_off_t pos, m_off_t npos, string& urlSuffix)
     m_off_t chunksize = endpos - startpos;
     while (chunksize)
     {
-        byte mac[SymmCipher::BLOCKSIZE] = { 0 };
         buf = nextbuffer(unsigned(chunksize));
         if (!buf) return false;
-        key->ctr_crypt(buf, unsigned(chunksize), startpos, ctriv, mac, 1);
-        memcpy((*macs)[startpos].mac, mac, sizeof mac);
-        (*macs)[startpos].finished = false;  // finished is only set true after confirmation of the chunk uploading.
+
+        // The chunk is fully encrypted but finished==false for now,
+        // we only set finished after confirmation of the chunk uploading.
+        macs->ctr_encrypt(startpos,
+                          key,
+                          buf,
+                          unsigned(chunksize),
+                          startpos,
+                          static_cast<int64_t>(ctriv),
+                          false);
+
         LOG_debug << "Encrypted chunk: " << startpos << " - " << endpos << "   Size: " << chunksize;
 
         updateCRC(buf, unsigned(chunksize), unsigned(startpos - pos));
@@ -775,7 +772,7 @@ bool EncryptByChunks::encrypt(m_off_t pos, m_off_t npos, string& urlSuffix)
     buf = nextbuffer(0);   // last call in case caller does buffer post-processing (such as write to file as we go)
 
     ostringstream s;
-    s << "/" << pos << "?c=" << Base64Str<EncryptByChunks::CRCSIZE>(crc);
+    s << "/" << pos << "?d=" << Base64Str<EncryptByChunks::CRCSIZE>(crc);
     urlSuffix = s.str();
 
     return !!buf;
@@ -823,15 +820,37 @@ m_off_t HttpReqUL::transferred(MegaClient* client)
     return 0;
 }
 
+GenericHttpReq::GenericHttpReq(PrnGen &rng, bool binary)
+    : HttpReq(binary), bt(rng), maxbt(rng)
+{
+    tag = 0;
+    maxretries = 0;
+    numretry = 0;
+    isbtactive = false;
+}
+
+
+/********************\
+ *  SpeedController  *
+\********************/
+
 SpeedController::SpeedController()
 {
-    memset(mCircularBuf.data(), 0, sizeof(mCircularBuf));
+    requestStarted();
 }
 
 void SpeedController::requestStarted()
 {
+    dstime currentTime = Waiter::ds;
+
     mRequestPos = 0;
-    mRequestStart = mLastRequestUpdate = Waiter::ds;
+    mRequestStart = mLastRequestUpdate = currentTime;
+
+    // Increment the initial time by the time since the last circular update
+    // (almost equivalent to mLastRequestUpdate). This ensures an accurate total
+    // mean calculation, including previous data for the same connection.
+    mInitialTime += mCircularCurrentTime ? (currentTime - mCircularCurrentTime) : currentTime;
+    mCircularCurrentTime = currentTime;
 }
 
 m_off_t SpeedController::requestProgressed(m_off_t newPos)
@@ -847,71 +866,222 @@ m_off_t SpeedController::requestProgressed(m_off_t newPos)
     return 0;
 }
 
-m_off_t SpeedController::lastRequestSpeed()
+m_off_t SpeedController::lastRequestMeanSpeed() const
 {
-    dstime deltaDs = mLastRequestUpdate - mRequestStart;
-    return mRequestPos * 10 / (deltaDs ? deltaDs : 1);
+    // If deltaDs is 0 we consider it as 1, it won't be really accurate (the mean value will be lower than it should), but better than returning a 0
+    // For example, mRequestPos = 50 bytes; deltaDs = 0 [real value = 0.5]. 50 bytes per 0.5 ds = 100 bytes per decisecond = 1000 bytes per second
+    // However, as we deltaDs is an integer value truncated to 0, we would have: 50 bytes * 10 decisecondsPerSecond / 1 = 500 bytes per second.
+    // Lower than it should be, but better than just returning a 0.
+    dstime deltaDs = std::max<dstime>(1, mLastRequestUpdate - mRequestStart);
+    return aggregateProgressForTimePeriod(DS_PER_SECOND, deltaDs, mRequestPos);
 }
 
-dstime SpeedController::requestElapsedDs()
+dstime SpeedController::requestElapsedDs() const
 {
     return Waiter::ds - mRequestStart;
 }
 
-m_off_t SpeedController::calculateSpeed(long long numBytes)
-{
-    assert(numBytes >= 0);
-    dstime currentTime = Waiter::ds;
-    if (numBytes <= 0 && mLastCalcTime == currentTime)
-    {
-        return (mCircularCurrentSum * 10) / SPEED_MEAN_MAX_INTERVAL_DS;
-    }
-
-    for (int i = SPEED_MEAN_MAX_INTERVAL_DS; i--; )
-    {
-        if (mCircularCurrentTime < currentTime)
-        {
-            ++mCircularCurrentTime;
-            if (++mCircularCurrentIndex == SPEED_MEAN_MAX_INTERVAL_DS)
-                mCircularCurrentIndex = 0;
-            mCircularCurrentSum -= mCircularBuf[mCircularCurrentIndex];
-            mCircularBuf[mCircularCurrentIndex] = 0;
-        }
-        else
-            break;
-    }
-
-    mCircularCurrentTime = currentTime;
-    mCircularBuf[mCircularCurrentIndex] += numBytes;
-    mCircularCurrentSum += numBytes;
-
-    m_off_t speed = (mCircularCurrentSum * 10) / SPEED_MEAN_MAX_INTERVAL_DS;
-
-    if (numBytes)
-    {
-        if (!mMeanSpeedStart)
-            mMeanSpeedStart = currentTime;
-        dstime delta = currentTime - mMeanSpeedStart;
-        mMeanSpeedSum += numBytes;
-        mMeanSpeed = delta ? (mMeanSpeedSum * 10 / delta) : mMeanSpeedSum;
-    }
-    mLastCalcTime = currentTime;
-
-    return speed;
-}
-
-m_off_t SpeedController::getMeanSpeed()
+m_off_t SpeedController::getMeanSpeed() const
 {
     return mMeanSpeed;
 }
 
-GenericHttpReq::GenericHttpReq(PrnGen &rng, bool binary)
-    : HttpReq(binary), bt(rng), maxbt(rng)
+// Get the current circular speed by aggregating progress (from deciseconds to seconds) over the circular time period (SPEED_MEAN_CIRCULAR_BUFFER_SIZE_SECONDS).
+m_off_t SpeedController::getCircularMeanSpeed() const
 {
-    tag = 0;
-    maxretries = 0;
-    numretry = 0;
-    isbtactive = false;
+    assert(mCircularCurrentTime >= mInitialTime);
+    if (mCircularCurrentSum == 0)
+    {
+        // Return zero speed if circular buffer is empty.
+        return 0;
+    }
+    dstime deltaTimeFromBeginning = std::max<dstime>(1, mCircularCurrentTime - mInitialTime); // See comment in "calculateMeanSpeed()" to understand why we do this.
+    dstime totalSumTime = deltaTimeFromBeginning >= ((SPEED_MEAN_CIRCULAR_BUFFER_SIZE_SECONDS - 1) * DS_PER_SECOND) ?
+                                (((SPEED_MEAN_CIRCULAR_BUFFER_SIZE_SECONDS - 1) * DS_PER_SECOND) + calculateCurrentSecondOffsetInDs()) : // We always have a "current/incomplete second"
+                                deltaTimeFromBeginning;
+    assert(totalSumTime > 0);
+    return aggregateProgressForTimePeriod(DS_PER_SECOND, totalSumTime, mCircularCurrentSum);
+}
+
+// Calculate the total mean speed by aggregating progress (from deciseconds to seconds) over the total time period.
+m_off_t SpeedController::calculateMeanSpeed()
+{
+    // Same comment than in lastRequestMeanSpeed().
+    // If deltaDs is 0 we consider it as 1, it won't be really accurate (the mean value will be lower than it should), but better than returning a 0
+    // For example, mRequestPos = 50 bytes; deltaDs = 0 [real value = 0.5]. 50 bytes per 0.5 ds = 100 bytes per decisecond = 1000 bytes per second
+    // However, as we deltaDs is an integer value truncated to 0, we would have: 50 bytes * 10 decisecondsPerSecond / 1 = 500 bytes per second.
+    // Lower than it should be, but better than just returning a 0.
+    assert(mInitialTime > 0);
+    dstime deltaTimeFromBeginning = std::max<dstime>(1, Waiter::ds - mInitialTime);
+    return aggregateProgressForTimePeriod(DS_PER_SECOND, deltaTimeFromBeginning, mTotalSumBytes);
+}
+
+// Calculate the circular mean speed by aggregating progress (from deciseconds to seconds) over the circular time period
+m_off_t SpeedController::calculateSpeed(m_off_t delta)
+{
+    dstime currentTime = Waiter::ds;
+    if (mInitialTime == 0 || mCircularCurrentTime == 0)
+    {
+        // Waiter::ds wasn't initialized when SpeedController was constructed.
+        if (currentTime == 0)
+        {
+            LOG_err << "[SpeedController::calculateSpeed] Waiter::ds is not initialized yet!!!! We cannot calculate anything!!! And we will lose this delta!!!!";
+            assert(false && "Waiter::ds is not initialized yet, and it is needed for speed calculation");
+            return 0;
+        }
+        requestStarted();
+    }
+    if (delta < 0)
+    {
+        // If delta is negative it is due to retries, failures or reconnections, so part of the requests had to start again from an earlier position
+        // In this case, we can count this delta as a "zero", even if it will decrease the mean speed. We cannot really know which amount of the new progress value
+        // (smaller than before, hence the negative delta) belongs to new transferred data, and how much was "lost" due to the retry.
+        // So it's fine to assume it even if it will decrease the circular mean speed during some seconds.
+        // The total mean speed (getMeanSpeed) will remain practically unaffected, as we will keep updating it with positive delta values right after the next call to calculateSpeed()
+        LOG_warn << "[SpeedController::calculateSpeed] delta (" << delta << ") is smaller than 0 -> truncating it to 0";
+        delta = 0;
+    }
+
+    dstime deltaTimeFromPreviousCall = currentTime - mCircularCurrentTime;
+    assert((currentTime == mCircularCurrentTime) || (deltaTimeFromPreviousCall > 0));
+    if (deltaTimeFromPreviousCall > 0)
+    {
+        // Check if the time difference from the previous call, converted to seconds, is within the allowed buffer size.
+        if ((deltaTimeFromPreviousCall / DS_PER_SECOND) <= SPEED_MEAN_CIRCULAR_BUFFER_SIZE_SECONDS)
+        {
+            updateCircularBufferWithinLimit(delta, deltaTimeFromPreviousCall);
+        }
+        else
+        {
+            updateCircularBufferWithWeightedAverageForDeltaExceedingLimit(delta, deltaTimeFromPreviousCall);
+        }
+    }
+    else
+    {
+        // We are within the current decisecond, i.e, same decisecond than the one from last call.
+        mCircularBuf[mCircularCurrentIndex] += delta;
+    }
+    // Update circular buffer and total sum used for the mean speed
+    mCircularCurrentSum += delta;
+    mTotalSumBytes += delta;
+    mMeanSpeed = calculateMeanSpeed();
+    assert(mCircularCurrentSum >= 0);
+    assert(mMeanSpeed >= 0);
+
+    return getCircularMeanSpeed();
+}
+
+// Calculate speed within circular buffer size limit
+void SpeedController::updateCircularBufferWithinLimit(m_off_t delta, dstime deltaTimeFromPreviousCall)
+{
+    // Calculate the current second's offset in deciseconds
+    dstime circularCurrentTimeOffset = calculateCurrentSecondOffsetInDs();
+    // Calculate remaining deciseconds to complete the current second
+    dstime circularCurrentTimeRemainingOffsetToSecond = (DS_PER_SECOND - circularCurrentTimeOffset) % DS_PER_SECOND;
+    // Calculate the current delta offset to update for the current incomplete second
+    // If deltaTimeFromPreviousCall is greater than circularCurrentTimeRemainingOffsetToSecond, then we will truncate the offset to that limit
+    dstime currentSecondDeltaOffset = std::min<dstime>(deltaTimeFromPreviousCall, circularCurrentTimeRemainingOffsetToSecond);
+    // Update circular buffer for the current incomplete second with the calculated value above
+    mCircularBuf[mCircularCurrentIndex] += aggregateProgressForTimePeriod(currentSecondDeltaOffset, deltaTimeFromPreviousCall, delta);
+    // Now we can update the circular current time
+    mCircularCurrentTime = Waiter::ds;
+
+    if ((deltaTimeFromPreviousCall - currentSecondDeltaOffset) > 0)
+    {
+        // Update circular buffer for each full second in deltaTimeFromPreviousCall
+        dstime numSeconds = (deltaTimeFromPreviousCall - circularCurrentTimeRemainingOffsetToSecond) / DS_PER_SECOND;
+        for (dstime i = numSeconds; i--; )
+        {
+            nextIndex(mCircularCurrentIndex);
+            mCircularCurrentSum -= mCircularBuf[mCircularCurrentIndex];
+            mCircularBuf[mCircularCurrentIndex] = aggregateProgressForTimePeriod(DS_PER_SECOND, deltaTimeFromPreviousCall, delta);
+        }
+        // Update circular buffer for the new current incomplete second
+        nextIndex(mCircularCurrentIndex);
+        mCircularCurrentSum -= mCircularBuf[mCircularCurrentIndex];
+        mCircularBuf[mCircularCurrentIndex] = aggregateProgressForTimePeriod(calculateCurrentSecondOffsetInDs(), deltaTimeFromPreviousCall, delta);
+    }
+}
+
+/*
+ * Calculates the weighted average per second when delta exceeds circular buffer size:
+ * If the time difference from the previous call exceeds the circular buffer size,
+ * calculate a weighted average (per second) between the delta and deltaTimeFromPreviousCall,
+ * and update each position of the circular buffer (each one corresponds to a second) with this value.
+ * Note: The position for the current incomplete second should be filled weighted to the current offset in deciseconds.
+*/
+void SpeedController::updateCircularBufferWithWeightedAverageForDeltaExceedingLimit(m_off_t& delta, dstime deltaTimeFromPreviousCall)
+{
+    // Calculate aggregated delta value per second
+    m_off_t aggregatedDeltaValuePerSecond = aggregateProgressForTimePeriod(DS_PER_SECOND, deltaTimeFromPreviousCall, delta);
+
+    // Fill circular buffer with aggregatedDeltaValuePerSecond
+    std::fill(mCircularBuf.begin(), mCircularBuf.end(), aggregatedDeltaValuePerSecond);
+
+    // Calculate the number of index positions to advance in the circular buffer
+    auto deltaIndexPositions = deltaTimeFromPreviousCall / DS_PER_SECOND;
+    nextIndex(mCircularCurrentIndex, static_cast<size_t>(deltaIndexPositions));
+
+    // Exclude the actual second from the delta calculation
+    delta = (aggregatedDeltaValuePerSecond * (SPEED_MEAN_CIRCULAR_BUFFER_SIZE_SECONDS - 1));
+
+    // Update circular buffer for the incomplete second if present
+    mCircularCurrentTime = Waiter::ds;
+    dstime circularCurrentTimeOffset = calculateCurrentSecondOffsetInDs();
+    if (circularCurrentTimeOffset)
+    {
+        // Calculate the ponderated average progress for the current second:
+        // - Time to aggregate: circularCurrentTimeOffset (the decisecond offset for the current second)
+        // - Total time: DS_PER_SECOND (10 deciseconds or 1 second, corresponding to aggregatedDeltaValuePerSecond)
+        // - Bytes to aggregate: aggregatedDeltaValuePerSecond
+        // - Result: the ponderated average progress for the decisecond time within the current second
+        // Example: If aggregatedDeltaValuePerSecond = 100 KB and circularCurrentTimeOffset = 5 deciseconds,
+        //          then ponderatedProgressForCurrentSecond = (5 deciseconds * 100 KB / 10 deciseconds) = 50 KB
+        auto ponderatedProgressForCurrentSecond = aggregateProgressForTimePeriod(circularCurrentTimeOffset, DS_PER_SECOND, aggregatedDeltaValuePerSecond);
+        mCircularBuf[mCircularCurrentIndex] = ponderatedProgressForCurrentSecond;
+        delta += ponderatedProgressForCurrentSecond;
+    }
+    else
+    {
+        mCircularBuf[mCircularCurrentIndex] = 0; // Current second (with no offset) starts from 0
+    }
+    mCircularCurrentSum = 0; // Reset the current sum (it must be updated with the current delta value) after calling this method
+}
+
+// Calculate offset in deciseconds for the current second starting from the initial time
+dstime SpeedController::calculateCurrentSecondOffsetInDs() const
+{
+    return (mCircularCurrentTime - mInitialTime) % DS_PER_SECOND;
+}
+
+void SpeedController::nextIndex(size_t &currentCircularBufIndex, size_t positionsToAdvance) const
+{
+    currentCircularBufIndex = (currentCircularBufIndex + positionsToAdvance) % SPEED_MEAN_CIRCULAR_BUFFER_SIZE_SECONDS;
+}
+
+/*
+ * Aggregate instantaneous delta values over a specified time subperiod to calculate a weighted average.
+ *
+ * Calculates the total progress over the given time period by aggregating
+ * the provided delta values, considering the total time and bytes to aggregate.
+ *
+ * @param timePeriodToAggregate The duration of the time subperiod in deciseconds.
+ * @param totalTime The total duration of the time period in deciseconds.
+ * @param bytesToAggregate The delta value to aggregate over the time period.
+ * @return The aggregated progress over the specified time period.
+ *
+ * Example:
+ * If 200 bytes correspond to 20 deciseconds (2 seconds) and are aggregated
+ * over a period of 10 deciseconds (1 second), the calculation would be:
+ * (10 * 200) / 20 = 100 bytes per second.
+ */
+m_off_t SpeedController::aggregateProgressForTimePeriod(dstime timePeriodToAggregate, dstime totalTime, m_off_t bytesToAggregate) const
+{
+    if (timePeriodToAggregate <= 0 || totalTime <= 0)
+    {
+        return 0;
+    }
+    return (timePeriodToAggregate * bytesToAggregate) / totalTime;
 }
 
 } // namespace

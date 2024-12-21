@@ -41,6 +41,11 @@ public:
 
     static void itoa(int64_t, string *);
     static int64_t atoi(string *);
+
+    // modify a base64 string to standard conversion:
+    // 1. Trailing(s) '=' if needed to have a "correct" length (ex: from 32 to 44)
+    // 2. '+/' instead of '-_'
+    static void toStandard(string& b64str);
 };
 
 template <unsigned BINARYSIZE>

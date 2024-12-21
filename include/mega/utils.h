@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file mega/utils.h
  * @brief Mega SDK various utilities and helper classes
  *
@@ -21,46 +21,43 @@
 
 #ifndef MEGA_UTILS_H
 #define MEGA_UTILS_H 1
-
-#include <type_traits>
-#include <condition_variable>
-#include <thread>
-#include <mutex>
-
 #include "types.h"
 
+#include <charconv>
+#include <condition_variable>
+#include <mutex>
+#include <shared_mutex>
+#include <thread>
+#include <type_traits>
 #undef SSIZE_MAX
 #include "mega/mega_utf8proc.h"
 #undef SSIZE_MAX
 
-#include "mega/logging.h"
-
-// Needed for Windows Phone (MSVS 2013 - C++ version 9.8)
-#if defined(_WIN32) && _MSC_VER <= 1800 && __cplusplus < 201103L && !defined(_TIMESPEC_DEFINED) && ! __struct_timespec_defined
-struct timespec
-{
-    long long	tv_sec; 	/* seconds */
-    long        tv_nsec;	/* nanoseconds */
-};
-# define __struct_timespec_defined  1
-#endif
+// Include ICU headers
+#include <unicode/uchar.h>
 
 namespace mega {
-// convert 1...8 character ID to int64 integer (endian agnostic)
-#define MAKENAMEID1(a) (nameid)(a)
-#define MAKENAMEID2(a, b) (nameid)(((a) << 8) + (b))
-#define MAKENAMEID3(a, b, c) (nameid)(((a) << 16) + ((b) << 8) + (c))
-#define MAKENAMEID4(a, b, c, d) (nameid)(((a) << 24) + ((b) << 16) + ((c) << 8) + (d))
-#define MAKENAMEID5(a, b, c, d, e) (nameid)((((uint64_t)a) << 32) + ((b) << 24) + ((c) << 16) + ((d) << 8) + (e))
-#define MAKENAMEID6(a, b, c, d, e, f) (nameid)((((uint64_t)a) << 40) + (((uint64_t)b) << 32) + ((c) << 24) + ((d) << 16) + ((e) << 8) + (f))
-#define MAKENAMEID7(a, b, c, d, e, f, g) (nameid)((((uint64_t)a) << 48) + (((uint64_t)b) << 40) + (((uint64_t)c) << 32) + ((d) << 24) + ((e) << 16) + ((f) << 8) + (g))
-#define MAKENAMEID8(a, b, c, d, e, f, g, h) (nameid)((((uint64_t)a) << 56) + (((uint64_t)b) << 48) + (((uint64_t)c) << 40) + (((uint64_t)d) << 32) + ((e) << 24) + ((f) << 16) + ((g) << 8) + (h))
-
 std::string toNodeHandle(handle nodeHandle);
 std::string toNodeHandle(NodeHandle nodeHandle);
+NodeHandle toNodeHandle(const byte* data);  // consider moving functionality to NodeHandle
+NodeHandle toNodeHandle(const std::string* data);
 std::string toHandle(handle h);
+std::pair<bool, TypeOfLink> toTypeOfLink (nodetype_t type);
 #define LOG_NODEHANDLE(x) toNodeHandle(x)
 #define LOG_HANDLE(x) toHandle(x)
+class SimpleLogger;
+class LocalPath;
+SimpleLogger& operator<<(SimpleLogger&, NodeHandle h);
+SimpleLogger& operator<<(SimpleLogger&, UploadHandle h);
+SimpleLogger& operator<<(SimpleLogger&, NodeOrUploadHandle h);
+SimpleLogger& operator<<(SimpleLogger& s, const LocalPath& lp);
+
+typedef enum
+{
+    FORMAT_SCHEDULED_COPY = 0,  // 20221205123045
+    FORMAT_ISO8601        = 1,  // 20221205T123045
+} date_time_format_t;
+
 std::string backupTypeToStr(BackupType type);
 
 struct MEGA_API ChunkedHash
@@ -87,9 +84,9 @@ struct MEGA_API PaddedCBC
      * @param iv Optional initialisation vector for encryption. Will use a
      *     zero IV if not given. If `iv` is a zero length string, a new IV
      *     for encryption will be generated and available through the reference.
-     * @return Void.
+     * @return true if encryption was successful.
      */
-    static void encrypt(PrnGen &rng, string* data, SymmCipher* key, string* iv = NULL);
+    static bool encrypt(PrnGen &rng, string* data, SymmCipher* key, string* iv = NULL);
 
     /**
      * @brief Decrypts a string and strips the padding.
@@ -101,7 +98,7 @@ struct MEGA_API PaddedCBC
      * @param key AES key for decryption.
      * @param iv Optional initialisation vector for encryption. Will use a
      *     zero IV if not given.
-     * @return Void.
+     * @return true if decryption was successful.
      */
     static bool decrypt(string* data, SymmCipher* key, string* iv = NULL);
 };
@@ -253,103 +250,10 @@ struct MEGA_API MemAccess
 };
 
 #ifdef _WIN32
-int mega_snprintf(char *s, size_t n, const char *format, ...);
+// get the Windows error message in UTF-8
+std::string winErrorMessage(DWORD error);
+
 #endif
-
-struct MEGA_API TLVstore
-{
-private:
-    TLV_map tlv;
-
- public:
-
-    /**
-     * @brief containerToTLVrecords Builds a TLV object with records from an encrypted container
-     * @param data Binary byte array representing the encrypted container
-     * @param key Master key to decrypt the container
-     * @return A new TLVstore object. You take the ownership of the object.
-     */
-    static TLVstore * containerToTLVrecords(const string *data, SymmCipher *key);
-
-    /**
-     * @brief Builds a TLV object with records from a container
-     * @param data Binary byte array representing the TLV records
-     * @return A new TLVstore object. You take the ownership of the object.
-     */
-    static TLVstore * containerToTLVrecords(const string *data);
-
-    /**
-     * @brief Converts the TLV records into an encrypted byte array
-     * @param key Master key to decrypt the container
-     * @param encSetting Block encryption mode to be used by AES
-     * @return A new string holding the encrypted byte array. You take the ownership of the string.
-     */
-    string *tlvRecordsToContainer(PrnGen &rng, SymmCipher *key, encryptionsetting_t encSetting = AES_GCM_12_16);
-
-    /**
-     * @brief Converts the TLV records into a byte array
-     * @return A new string holding the byte array. You take the ownership of the string.
-     */
-    string *tlvRecordsToContainer();
-
-    /**
-     * @brief get Get the value for a given key
-     *
-     * In case the type is not found, it will throw. A previous call to TLVStore::find()
-     * might be necessary in order to check the existence of the type in advance.
-     *
-     * @param type Type of the value (without scope nor non-historic modifiers).
-     * @return String containing the array with the value.
-     */
-    std::string get(string type) const;
-
-    /**
-     * @brief Get a reference to the TLV_map associated to this TLVstore
-     *
-     * The TLVstore object retains the ownership of the returned object. It will be
-     * valid until this TLVstore object is deleted.
-     *
-     * @return The TLV_map associated to this TLVstore
-     */
-    const TLV_map *getMap() const;
-
-    /**
-     * @brief Get a list of the keys contained in the TLV
-     *
-     * You take ownership of the returned value.
-     *
-     * @return A new vector with the keys included in the TLV
-     */
-    vector<string> *getKeys() const;
-
-    /**
-     * @brief find Checks whether a type of value is available in the TLV container.
-     * @param type Type of the value (without scope nor non-historic modifiers).
-     * @return True if the type of value is found, false otherwise.
-     */
-    bool find(string type) const;
-
-    /**
-     * @brief add Adds a new record to the container
-     * @param type Type for the new value (without scope nor non-historic modifiers).
-     * @param value New value to be set.
-     */
-    void set(string type, string value);
-
-    /**
-     * @brief Removes a record from the container
-     * @param type Type for the value to be removed (without scope nor non-historic modifiers).
-     */
-    void reset(string type);
-
-    size_t size();
-
-    static unsigned getTaglen(int mode);
-    static unsigned getIvlen(int mode);
-    static encryptionmode_t getMode(int mode);
-
-    ~TLVstore();
-};
 
 class Utils {
 public:
@@ -388,7 +292,7 @@ public:
         std::unique_ptr<char[]> result(new char[size]);
         for (size_t i = 0; i < size; ++i)
         {
-            result[i] = (data[i >> 2] >> (24 - (i & 3) * 8)) & 255;
+            result[i] = static_cast<char>((data[i >> 2] >> (24 - (i & 3) * 8)) & 255);
         }
         return std::string (result.get(), size);
     }
@@ -415,6 +319,21 @@ public:
 
     static std::string stringToHex(const std::string& input);
     static std::string hexToString(const std::string& input);
+    /**
+     * @brief Converts a hexadecimal string to a uint64_t value. The input string may or may not have the hex prefix "0x".
+     *
+     * @param input The hexadecimal string to be converted (ex: "78b1bbbda5f32526", "0x10FF, "0x0001")
+     * @return The uint64_t value corresponding to the input hexadecimal string.
+    */
+    static uint64_t hexStringToUint64(const std::string &input);
+    /**
+     * @brief Converts a 8-byte numeric value to a 16-character lowercase hexadecimal string, with zero-padding if necessary.
+     *
+     * @param input The uint64_t value to be converted to a hexadecimal string.
+     * @return A 16-character lowercase hexadecimal string representation of the input value (ex: "78b1bbbda5f32526").
+     *
+    */
+    static std::string uint64ToHexString(uint64_t input);
 
     static int32_t toLower(const int32_t c)
     {
@@ -425,6 +344,9 @@ public:
     {
         return utf8proc_toupper(c);
     }
+
+    static string toUpperUtf8(const string& text);
+    static string toLowerUtf8(const string& text);
 
     // Platform-independent case-insensitive comparison.
     static int icasecmp(const std::string& lhs,
@@ -443,18 +365,49 @@ public:
     static int pcasecmp(const std::wstring& lhs,
                         const std::wstring& rhs,
                         const size_t length);
-};
 
-// for pre-c++11 where this version is not defined yet.
-long long abs(long long n);
+    static std::string replace(const std::string& str,
+                               char search,
+                               char replace);
+    static std::string replace(const std::string& str,
+                               const std::string& search,
+                               const std::string& replacement);
+
+    // join({"a", "new", "loom"}, "; ") -> "a; new; loom"
+    static std::string join(const std::vector<std::string>& items, const std::string& with);
+    static bool startswith(const std::string& str, const std::string& start);
+    static bool startswith(const std::string& str, char chr);
+    static bool endswith(const std::string& str, char chr);
+    static const std::string _trimDefaultChars;
+    // return string with trimchrs removed from front and back of given string str
+    static string trim(const string& str, const string& trimchars = _trimDefaultChars);
+
+
+    // --- environment functions that work with Unicode UTF-8 on Windows (set/unset/get) ---
+
+    static bool hasenv(const std::string& key);
+    static std::pair<std::string, bool> getenv(const std::string& key);
+    // return def if value not found
+    static std::string getenv(const std::string& key, const std::string& def);
+    static void setenv(const std::string& key, const std::string& value);
+    static void unsetenv(const std::string& key);
+};
 
 extern m_time_t m_time(m_time_t* tt = NULL);
 extern struct tm* m_localtime(m_time_t, struct tm *dt);
 extern struct tm* m_gmtime(m_time_t, struct tm *dt);
 extern m_time_t m_mktime(struct tm*);
-extern int m_clock_getmonotonictime(struct timespec *t);
+extern dstime m_clock_getmonotonictimeDS();
 // Similar behaviour to mktime but it receives a struct tm with a date in UTC and return mktime in UTC
 extern m_time_t m_mktime_UTC(const struct tm *src);
+
+/**
+ * Converts a datetime from string format into a Unix timestamp
+ * Allowed input formats:
+ *  + FORMAT_SCHEDULED_COPY  => 20221205123045   => output format: Unix timestamp in deciseconds
+ *  + FORMAT_ISO8601         => 20221205T123045  => output format: Unix timestamp in seconds
+*/
+extern time_t stringToTimestamp(string stime, date_time_format_t format);
 
 std::string rfc1123_datetime( time_t time );
 std::string webdavurlescape(const std::string &value);
@@ -468,17 +421,76 @@ int macOSmajorVersion();
 #endif
 
 // file chunk macs
-class chunkmac_map : public map<m_off_t, ChunkMAC>
+class chunkmac_map
 {
+
+    struct ChunkMAC
+    {
+        // do not change the size or layout, it is directly serialized to db from whatever the binary format is for this compiler/platform
+        byte mac[SymmCipher::BLOCKSIZE];
+
+        // For a partially completed chunk, offset is the number of bytes processed (from the start of the chunk)
+        // For a finished chunk, it's 0
+        // When we start consolidating from the front for macsmac calculation, it's -1 (and finished==true)
+        unsigned int offset = 0;
+
+        // True when the entire chunk has been processed.
+        // For the special case of the first record being the macsmac calculation to this point,
+        // finished == true and offset == -1, and mac == macsmac to the end of this block.
+        bool finished = false;
+
+        // True when the chunk is not entirely processed.
+        // Offset is only increased by downloads, so (!offset) should always be true for uploads.
+        bool notStarted() { return !finished && !offset; }
+
+        // the very first record can be the macsmac calculation so far, from the start to some contiguous point
+        bool isMacsmacSoFar() { return finished && offset == unsigned(-1); }
+    };
+
+    map<m_off_t, ChunkMAC> mMacMap;
+
+    // we collapse the leading consecutive entries, for large files.
+    // this is the map key for how far that collapsing has progressed
+    m_off_t macsmacSoFarPos = -1;
+
+    m_off_t progresscontiguous = 0;
+
+
 public:
     int64_t macsmac(SymmCipher *cipher);
     int64_t macsmac_gaps(SymmCipher *cipher, size_t g1, size_t g2, size_t g3, size_t g4);
     void serialize(string& d) const;
     bool unserialize(const char*& ptr, const char* end);
-    void calcprogress(m_off_t size, m_off_t& chunkpos, m_off_t& completedprogress, m_off_t* lastblockprogress = nullptr);
+    void calcprogress(m_off_t size, m_off_t& chunkpos, m_off_t& completedprogress, m_off_t* sumOfPartialChunks = nullptr);
     m_off_t nextUnprocessedPosFrom(m_off_t pos);
     m_off_t expandUnprocessedPiece(m_off_t pos, m_off_t npos, m_off_t fileSize, m_off_t maxReqSize);
+    m_off_t hasUnfinishedGap(m_off_t fileSize);
     void finishedUploadChunks(chunkmac_map& macs);
+    bool finishedAt(m_off_t pos);
+    m_off_t updateContiguousProgress(m_off_t fileSize);
+    void updateMacsmacProgress(SymmCipher *cipher);
+    void copyEntriesTo(chunkmac_map& other);
+    void copyEntryTo(m_off_t pos, chunkmac_map& other);
+    void debugLogOuputMacs();
+
+    void ctr_encrypt(m_off_t chunkid, SymmCipher *cipher, byte *chunkstart, unsigned chunksize, m_off_t startpos, int64_t ctriv, bool finishesChunk);
+    void ctr_decrypt(m_off_t chunkid, SymmCipher *cipher, byte *chunkstart, unsigned chunksize, m_off_t startpos, int64_t ctriv, bool finishesChunk);
+
+    size_t size() const
+    {
+        return mMacMap.size();
+    }
+    void clear()
+    {
+        mMacMap.clear();
+        macsmacSoFarPos = -1;
+        progresscontiguous = 0;
+    }
+    void swap(chunkmac_map& other) {
+        mMacMap.swap(other.mMacMap);
+        std::swap(macsmacSoFarPos, other.macsmacSoFarPos);
+        std::swap(progresscontiguous, other.progresscontiguous);
+    }
 };
 
 struct CacheableWriter
@@ -490,12 +502,21 @@ struct CacheableWriter
     void serializecstr(const char* field, bool storeNull);  // may store the '\0' also for backward compatibility. Only use for utf8!  (std::string storing double byte chars will only store 1 byte)
     void serializepstr(const string* field);  // uses string size() not strlen
     void serializestring(const string& field);
-    void serializecompressed64(int64_t field);
+    void serializestring_u32(const string& field); // use uint32_t for the size field
+    void serializecompressedu64(uint64_t field);
+    void serializecompressedi64(int64_t field) { serializecompressedu64(static_cast<uint64_t>(field)); }
+
+    // DO NOT add size_t or other types that are different sizes in different builds, eg 32/64 bit compilation
+    void serializei8(int8_t field);
+    void serializei32(int32_t field);
     void serializei64(int64_t field);
+    void serializeu64(uint64_t field);
     void serializeu32(uint32_t field);
+    void serializeu16(uint16_t field);
+    void serializeu8(uint8_t field);
     void serializehandle(handle field);
     void serializenodehandle(handle field);
-    void serializefsfp(fsfp_t field);
+    void serializeNodeHandle(NodeHandle field);
     void serializebool(bool field);
     void serializebyte(byte field);
     void serializedouble(double field);
@@ -517,30 +538,33 @@ struct CacheableReader
     bool unserializebinary(byte* data, size_t len);
     bool unserializecstr(string& s, bool removeNull); // set removeNull if this field stores the terminating '\0' at the end
     bool unserializestring(string& s);
-    bool unserializecompressed64(uint64_t& field);
+    bool unserializestring_u32(string& s);
+    bool unserializecompressedu64(uint64_t& field);
+    bool unserializecompressedi64(int64_t& field) { return unserializecompressedu64(reinterpret_cast<uint64_t&>(field)); }
+
+    // DO NOT add size_t or other types that are different sizes in different builds, eg 32/64 bit compilation
+    bool unserializei8(int8_t& s);
+    bool unserializei32(int32_t& s);
     bool unserializei64(int64_t& s);
+    bool unserializeu16(uint16_t &s);
     bool unserializeu32(uint32_t& s);
+    bool unserializeu8(uint8_t& field);
+    bool unserializeu64(uint64_t& s);
     bool unserializebyte(byte& s);
     bool unserializedouble(double& s);
     bool unserializehandle(handle& s);
     bool unserializenodehandle(handle& s);
-    bool unserializefsfp(fsfp_t& s);
+    bool unserializeNodeHandle(NodeHandle& s);
     bool unserializebool(bool& s);
     bool unserializechunkmacs(chunkmac_map& m);
+    bool unserializefingerprint(FileFingerprint& fp);
+    bool unserializedirection(direction_t& field);  // historic; size varies by compiler.  todo: Remove when we next roll the transfer db version
 
     bool unserializeexpansionflags(unsigned char field[8], unsigned usedFlagCount);
 
     void eraseused(string& d); // must be the same string, unchanged
     bool hasdataleft() { return end > ptr; }
 };
-
-template<typename T, typename U>
-void hashCombine(T& seed, const U& v)
-{
-    static_assert(std::is_integral<T>::value, "T is not integral");
-    // the magic number is the twos complement version of the golden ratio
-    seed ^= std::hash<U>{}(v) + 0x9e3779b9 + (seed<<6) + (seed>>2);
-}
 
 struct FileAccess;
 struct InputStreamAccess;
@@ -549,6 +573,10 @@ class SymmCipher;
 std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, FileAccess &ifAccess, const int64_t iv);
 
 std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &isAccess, const int64_t iv);
+
+bool CompareLocalFileMetaMacWithNodeKey(FileAccess* fa, const std::string& nodeKey, int type);
+
+bool CompareLocalFileMetaMacWithNode(FileAccess* fa, Node* node);
 
 // Helper class for MegaClient.  Suitable for expansion/templatizing for other use caes.
 // Maintains a small thread pool for executing independent operations such as encrypt/decrypt a block of data
@@ -643,6 +671,36 @@ public:
         return mNotifications.size();
     }
 
+};
+
+template<class K, class V>
+class ThreadSafeKeyValue
+{
+    // This is a thread-safe key-value container restricted to accepting only numeric values.
+    // Only the needed interfaces were implemented. Add new ones as they become useful.
+public:
+    std::unique_ptr<V> get(const K& key) const
+    {
+        std::shared_lock lock(mMutex);
+        auto it = mStorage.find(key);
+        return it == mStorage.end() ? nullptr : std::make_unique<V>(it->second);
+    }
+
+    void set(const K& key, const V& value)
+    {
+        std::unique_lock lock(mMutex);
+        mStorage[key] = value;
+    }
+
+    void clear()
+    {
+        std::unique_lock lock(mMutex);
+        return mStorage.clear();
+    }
+
+private:
+    mutable std::shared_mutex mMutex;
+    std::map<K, V> mStorage;
 };
 
 template<typename CharT>
@@ -790,7 +848,7 @@ public:
 
         return result;
     }
-    
+
     bool match(const int32_t character)
     {
         if (peek() != character)
@@ -798,7 +856,7 @@ public:
             return false;
         }
 
-        (void)get();
+        get();
 
         return true;
     }
@@ -809,7 +867,10 @@ public:
 
         if (mCurrent < mEnd)
         {
-            ptrdiff_t nConsumed = traits_type::get(result, mCurrent, mEnd);
+            #ifndef NDEBUG
+            ptrdiff_t nConsumed =
+            #endif
+                traits_type::get(result, mCurrent, mEnd);
             assert(nConsumed > 0);
         }
 
@@ -844,8 +905,564 @@ inline int hexval(const int c)
     return ((c & 0xf) + (c >> 6)) | ((c >> 3) & 0x8);
 }
 
-bool islchex(const int c);
+bool islchex_high(const int c);
+bool islchex_low(const int c);
 
-} // namespace
+// gets a safe url by replacing private parts to be used in logs
+std::string getSafeUrl(const std::string &posturl);
 
-#endif
+bool readLines(FileAccess& ifAccess, string_vector& destination);
+bool readLines(InputStreamAccess& isAccess, string_vector& destination);
+bool readLines(const std::string& input, string_vector& destination);
+
+bool wildcardMatch(const string& text, const string& pattern);
+bool wildcardMatch(const char* text, const char* pattern);
+
+struct MEGA_API FileSystemAccess;
+
+// generate a new drive id
+handle generateDriveId(PrnGen& rng);
+
+// return API_OK if success and set driveID handle to the drive id read from the drive,
+// otherwise return error code and set driveId to UNDEF
+error readDriveId(FileSystemAccess& fsAccess, const char* pathToDrive, handle& driveId);
+error readDriveId(FileSystemAccess& fsAccess, const LocalPath& pathToDrive, handle& driveId);
+
+// return API_OK if success, otherwise error code
+error writeDriveId(FileSystemAccess& fsAccess, const char* pathToDrive, handle driveId);
+
+int platformGetRLimitNumFile();
+
+bool platformSetRLimitNumFile(int newNumFileLimit = -1);
+
+void debugLogHeapUsage();
+
+bool haveDuplicatedValues(const string_map& readableVals, const string_map& b64Vals);
+
+struct SyncTransferCount
+{
+    bool operator==(const SyncTransferCount& rhs) const;
+    bool operator!=(const SyncTransferCount& rhs) const;
+    void operator-=(const SyncTransferCount& rhs);
+
+    uint32_t mCompleted = 0;
+    uint32_t mPending = 0;
+    uint64_t mCompletedBytes = 0;
+    uint64_t mPendingBytes = 0;
+};
+
+struct SyncTransferCounts
+{
+    bool operator==(const SyncTransferCounts& rhs) const;
+    bool operator!=(const SyncTransferCounts& rhs) const;
+    void operator-=(const SyncTransferCounts& rhs);
+
+    // returns progress 0.0 to 1.0
+    double progress(m_off_t inflightProgress) const;
+
+    SyncTransferCount mDownloads;
+    SyncTransferCount mUploads;
+};
+
+// creates a new id filling `id` with random bytes, up to `length`
+void resetId(char* id, size_t length, PrnGen& rng);
+
+// write messsage and strerror(aerrno) to log as an error
+void reportError(const std::string& message, int aerrno = -1);
+
+#ifdef WIN32
+
+// as per (non C library standard) unix API
+inline void sleep(int sec) {
+    Sleep(sec * 1000);
+}
+
+// as per (non C library standard) unix API
+// sleep for given number of microseconds
+inline void usleep(int microsec) {
+    Sleep(microsec / 1000);
+}
+
+// print messgae: error-num: error-description
+void reportWindowsError(const std::string& message, DWORD error = 0xFFFFFFFF);
+
+#endif // WIN32
+
+// returns the direction type of a connection
+string connDirectionToStr(direction_t directionType);
+
+// Translate retry reason into a human-friendly string.
+const char* toString(retryreason_t reason);
+
+enum class CharType : uint8_t
+{
+    CSYMBOL = 0,
+    CDIGIT = 1,
+    CALPHA = 2,
+};
+
+// Wrapper functions for std::isspace and std::isdigit
+// Not considering EOF values
+
+/**
+ * @brief Checks if a character is a whitespace character.
+ *
+ * @param ch The character to check
+ * @return true if the character is a space, otherwise returns false.
+ */
+bool is_space(unsigned int ch);
+
+/**
+ * @brief Checks if a character is a digit.
+ *
+ * @param ch The character to check
+ * @return true if the character is a digit (0-9), otherwise returns false.
+ */
+bool is_digit(unsigned int ch);
+
+/**
+ * @brief Checks if a character is a symbol.
+ *
+ * Note: this function is only valid for monobyte characters.
+ *
+ * @param ch The character to check
+ * @return true if the character is a symbol, otherwise returns false
+ */
+bool is_symbol(unsigned int ch);
+
+/**
+ * @brief Determines the type of a given character.
+ *
+ * Valid values returned by this function are:
+ * - CharType::CSYMBOL if the character is a symbol
+ * - CharType::CDIGIT if the character is a digit
+ * - CharType::CALPHA if the character is alphabetic
+ *
+ * @param ch The character to be classified
+ * @return CharType representing the type of the character
+ */
+CharType getCharType(const unsigned int ch);
+
+template<typename Container = std::set<std::string>>
+Container splitString(const string& str, char delimiter)
+{
+    Container tokens;
+    std::string token;
+    std::istringstream tokenStream(str);
+    while (std::getline(tokenStream, token, delimiter))
+    {
+        tokens.insert(tokens.end(), token);
+    }
+
+    return tokens;
+}
+
+template<typename Iter>
+std::string joinStrings(
+    const Iter begin,
+    const Iter end,
+    const std::string& separator,
+    const std::function<std::string(const std::string&)> transform =
+        [](const std::string& a) -> std::string
+    {
+        return a;
+    })
+{
+    Iter position = begin;
+    std::string result;
+    if (position != end)
+    {
+        result += transform(*position++);
+    }
+
+    while (position != end)
+    {
+        result += separator + transform(*position++);
+    }
+    return result;
+}
+
+static constexpr char WILDCARD_MATCH_ONE = '?';
+static constexpr char WILDCARD_MATCH_ALL = '*';
+static constexpr char ESCAPE_CHARACTER = '\\';
+
+std::string escapeWildCards(const std::string& pattern);
+
+/**
+ * @class TextPattern
+ * @brief Helper class to store a text that will be used in a regex like search
+ *
+ * It stores the original text and an associated pattern to be used directly in the search adding
+ * wild cards in both sides of the original text if needed. Example:
+ * - text: hello -> pattern: *hello*
+ * - text: * -> pattern: *
+ *
+ */
+class TextPattern
+{
+public:
+    TextPattern(const std::string& text);
+    TextPattern(const char* text);
+
+    TextPattern() = default;
+    ~TextPattern() = default;
+    TextPattern(const TextPattern& other) = default;
+    TextPattern& operator=(const TextPattern& other) = default;
+    TextPattern(TextPattern&& other) noexcept = default;
+    TextPattern& operator=(TextPattern&& other) noexcept = default;
+
+    const std::string& getText() const
+    {
+        return mText;
+    }
+
+    const std::string& getPattern() const
+    {
+        return mPattern;
+    }
+
+private:
+    std::string mText;
+    std::string mPattern;
+
+    void recalcPattern();
+    static bool isOnlyWildCards(const std::string& text);
+};
+
+std::set<std::string>::iterator getTagPosition(std::set<std::string>& tokens,
+                                               const std::string& pattern,
+                                               const bool stripAccents = true);
+
+/*
+ * Compare two UTF-8 strings for equality where the first string is
+ * a "LIKE" expression. It is case and aceent insensitive.
+ *
+ * @param pattern the like pattern
+ * @param str the UFT-8 string to compare against
+ * @param esc the escape character
+ * @param stripAccents True if accents should be stripped before comparison.
+ *
+ * @return true if the are the same and false if they are different
+ */
+bool likeCompare(const char* pattern,
+                 const char* str,
+                 const UChar32 esc = static_cast<UChar32>(ESCAPE_CHARACTER),
+                 const bool stripAccents = true);
+
+// Get the current process ID
+unsigned long getCurrentPid();
+
+// Convenience.
+template<typename T>
+struct IsStringType : std::false_type { };
+
+template<>
+struct IsStringType<std::string> : std::true_type { };
+
+template<>
+struct IsStringType<std::wstring> : std::true_type { };
+
+// Retrieve a file's extension.
+template<typename StringType>
+auto extensionOf(const StringType& path, std::string& extension)
+  -> typename std::enable_if<IsStringType<StringType>::value, bool>::type;
+
+template<typename StringType>
+auto extensionOf(const StringType& path)
+  -> typename std::enable_if<IsStringType<StringType>::value, std::string>::type;
+
+// Translate a character representing a hexadecimal digit to an integer.
+template<typename T>
+auto fromHex(char character)
+  -> typename std::enable_if<std::is_integral<T>::value,
+                             std::pair<T, bool>
+                            >::type
+{
+    // Ensure the character's in lowercase.
+    character |= ' ';
+
+    // Character's a decimal digit.
+    if (character >= '0' && character <= '9')
+        return std::make_pair(static_cast<T>(character - '0'), true);
+
+    // Character's a hexadecimal digit.
+    if (character >= 'a' && character <= 'f')
+        return std::make_pair(static_cast<T>(character - 'W'), true);
+
+    // Character's not a valid hexadecimal digit.
+    return std::make_pair(0, false);
+}
+
+// Translate a string of hexadecimal digits to an integer.
+//
+// NOTE: The string should be trimmed of any whitespace.
+template<typename T>
+auto fromHex(const char* current, const char* end)
+  -> typename std::enable_if<std::is_integral<T>::value,
+                             std::pair<T, bool>
+                            >::type
+{
+    // What's the largest value that T can represent?
+    constexpr auto maximum = std::numeric_limits<T>::max();
+
+    // Convenience.
+    constexpr auto undefined = std::make_pair(T{}, false);
+
+    // An empty string doesn't contain a valid hex number.
+    if (current == end)
+        return undefined;
+
+    // Our accumulated value.
+    T value{};
+
+    for ( ; current != end; ++current)
+    {
+        // Try and convert the current character to an integer.
+        auto result = fromHex<T>(*current);
+
+        // Character wasn't a valid hexadecimal digit.
+        if (!result.second)
+            return undefined;
+
+        // Make sure we don't wrap.
+        if (value && maximum / value < 16)
+            return undefined;
+
+        // Scale the value by 16.
+        value *= 16;
+
+        // Again, make sure we don't wrap.
+        if (maximum - value < result.first)
+            return undefined;
+
+        // Include the new digit in our running total.
+        value += result.first;
+    }
+
+    // Return value to caller.
+    return std::make_pair(value, true);
+}
+
+template<typename T>
+auto fromHex(const char* begin, std::size_t size)
+  -> typename std::enable_if<std::is_integral<T>::value,
+                             std::pair<T, bool>
+                            >::type
+{
+    return fromHex<T>(begin, begin + size);
+}
+
+// Translate a string of hexadecimal digits to an integer.
+//
+// NOTE: The string should be trimmed of any whitespace.
+template<typename T>
+auto fromHex(const std::string& value)
+  -> typename std::enable_if<std::is_integral<T>::value,
+                             std::pair<T, bool>
+                            >::type
+{
+    return fromHex<T>(value.data(), value.size());
+}
+
+// Convenience.
+using SplitFragment =
+  std::pair<const char*, std::size_t>;
+
+using SplitResult =
+  std::pair<SplitFragment, SplitFragment>;
+
+// Split a string into two halves around a specific delimiter.
+//
+// NOTE: The second half includes the delimiter, if present.
+SplitResult split(const char* begin, const char* end, char delimiter);
+SplitResult split(const char* begin, const std::size_t size, char delimiter);
+SplitResult split(const std::string& value, char delimiter);
+
+/**
+ * @brief Sorts input char strings using natural sorting ignoring case
+ *
+ * This function is only valid for comparing monobyte characters.
+ * The default natural ascending order implemented by this function is:
+ * Symbols < Numbers < Alphabetic_characters(# < 1 < a).
+ *
+ * Valid values returned by this function are:
+ *  - if i == j returns 0
+ *  - if i goes first returns a number greater than 0 (>=1)
+ *  - if j goes first returns a number smaller than 0 (<=1)
+ *
+ * @param i Pointer to the first null-terminated string.
+ * @param j Pointer to the second null-terminated string.
+ *
+ * @returns the order between 2 characters
+ */
+int naturalsorting_compare(const char* i, const char* j);
+
+/**
+ * @class NaturalSortingComparator
+ * @brief A helper struct to be used in container templates such as std::set to force natural
+ * sorting
+ */
+struct NaturalSortingComparator
+{
+    bool operator()(const std::string& lhs, const std::string& rhs) const
+    {
+        return naturalsorting_compare(lhs.c_str(), rhs.c_str()) < 0;
+    }
+};
+
+/**
+ * @class MrProper
+ *
+ * @brief Ensures execution of a cleanup function when the object goes out of scope.
+ *
+ * It accepts a std::function<void()> during construction, which it executes once upon destruction.
+ * This is useful for resource management and ensuring cleanup in cases of exceptions.
+ *
+ * Example usage:
+ *     void function() {
+ *         MrProper cleaner([](){ std::cout << "Cleanup action executed.\n"; });
+ *         // Any code here that might throw or return early
+ *     }
+ *
+ * The class is non-copyable and non-movable to ensure the cleanup action is tightly bound to the
+ * scope where it is declared.
+ */
+struct MrProper
+{
+    using CleanupFunction = std::function<void()>;
+    CleanupFunction mOnRelease;
+
+    ~MrProper()
+    {
+        mOnRelease();
+    }
+
+    explicit MrProper(std::function<void()> f):
+        mOnRelease(f)
+    {}
+
+    MrProper() = delete;
+    MrProper(const MrProper&) = delete;
+    MrProper(MrProper&&) = delete;
+    MrProper& operator=(const MrProper&) = delete;
+    MrProper& operator=(MrProper&&) = delete;
+};
+
+/**
+ * @brief Ensures the given string has an asterisk in front and back. If the string is empty, "*" is
+ * returned.
+ *
+ * @note The input argument is passed by copy intentionally to operate on it.
+ */
+std::string ensureAsteriskSurround(std::string str);
+
+/**
+ * @brief Returns the index where the last '.' can be found in the fileName
+ *
+ * If there is not '.' in the input string, fileName.size() is returned
+ *
+ * @note This index is intended to be used with std::string::substr like:
+ * size_t dotPos = fileExtensionDotPosition(fileName);
+ * std::stirng basename = fileName.substr(0, dotPos);
+ * std::stirng extension = fileName.substr(dotPos); // It will contain the '.' if present
+ */
+size_t fileExtensionDotPosition(const std::string& fileName);
+
+// Helper function to combine hashes
+inline uint64_t hashCombine(uint64_t seed, uint64_t value)
+{
+    // the magic number is the twos complement version of the golden ratio
+    return seed ^ (value + 0x9e3779b97f4a7c15 + (seed << 12) + (seed >> 4));
+}
+
+/**
+ * @class Timer
+ * @brief A very simple helper struct to measure performance of some code pieces while developing a
+ * time consuming part or refactoring.
+ *
+ * Example usage:
+ * void exampleFunction() {
+ *     {
+ *         Timer t("Elapsed time: ", " ms");
+ *         // Code block whose execution time you want to measure
+ *         std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Simulate work
+ *     } // Timer destructs here, and the elapsed time is printed.
+ * }
+ */
+template<typename DurUnit = std::chrono::milliseconds>
+struct Timer
+{
+    Timer(const std::string& prefixMsg = "", const std::string& posfixMsg = ""):
+        mPreMsg{prefixMsg},
+        mPosMsg{posfixMsg},
+        mStartTime{std::chrono::steady_clock::now()} // Correct initialization
+    {}
+
+    ~Timer()
+    {
+        const auto end = std::chrono::steady_clock::now();
+        const auto dur = end - mStartTime; // Duration between start and end
+        std::cout << mPreMsg << std::chrono::duration_cast<DurUnit>(dur).count() << mPosMsg << "\n";
+    }
+
+private:
+    std::string mPreMsg;
+    std::string mPosMsg;
+    std::chrono::time_point<std::chrono::steady_clock> mStartTime; // Fixed time_point type
+};
+
+/**
+ * @brief Returns std::this_thread:get_id() converted to a string
+ */
+std::string getThisThreadIdStr();
+
+/**
+ * @brief Converts a number of any arithmetic type to its string representation.
+ *
+ * @tparam T The type of the number to be converted. It must be an arithmetic type (e.g., int,
+ * float, double).
+ *
+ * @param number The number to be converted to a string.
+ * @return A `std::string` representing the number. If conversion fails or the type is not
+ * arithmetic, an empty string is returned.
+ *
+ * @note This function only supports arithmetic types. The function will return an empty string if
+ * the number cannot be successfully converted.
+ */
+template<typename T>
+std::string numberToString(T number)
+{
+    static_assert(std::is_arithmetic_v<T>, "invalid numeric type");
+
+    char buffer[64];
+    if (auto [ptr, ec] = std::to_chars(buffer, buffer + sizeof(buffer), number); ec == std::errc())
+    {
+        return std::string(buffer, ptr);
+    }
+
+    return {};
+}
+
+/**
+ * @brief helper type for std::visit
+ *
+ * @example Usage example (see https://en.cppreference.com/w/cpp/utility/variant/visit):
+ *   std::visit(overloaded{
+ *          [](auto arg) { std::cout << arg << ' '; },
+ *          [](double arg) { std::cout << std::fixed << arg << ' '; },
+ *          [](const std::string& arg) { std::cout << std::quoted(arg) << ' '; }
+ *      }, v);
+ */
+template<class... Ts>
+struct overloaded: Ts...
+{
+    using Ts::operator()...;
+};
+
+// explicit deduction guide (not needed as of C++20)
+template<class... Ts>
+overloaded(Ts...) -> overloaded<Ts...>;
+
+} // namespace mega
+
+#endif // MEGA_UTILS_H

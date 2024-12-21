@@ -1,11 +1,14 @@
 #include "QTMegaGlobalListener.h"
+
+#include "QTMegaApiManager.h"
 #include "QTMegaEvent.h"
 
 #include <QCoreApplication>
 
 using namespace mega;
 
-QTMegaGlobalListener::QTMegaGlobalListener(MegaApi *megaApi, MegaGlobalListener *listener) : QObject()
+QTMegaGlobalListener::QTMegaGlobalListener(MegaApi* megaApi, MegaGlobalListener* listener):
+    QObject()
 {
     this->megaApi = megaApi;
     this->listener = listener;
@@ -14,7 +17,10 @@ QTMegaGlobalListener::QTMegaGlobalListener(MegaApi *megaApi, MegaGlobalListener 
 QTMegaGlobalListener::~QTMegaGlobalListener()
 {
     this->listener = NULL;
-    megaApi->removeGlobalListener(this);
+    if (QTMegaApiManager::isMegaApiValid(megaApi))
+    {
+        megaApi->removeGlobalListener(this);
+    }
 }
 
 void QTMegaGlobalListener::onUsersUpdate(MegaApi *api, MegaUserList *users)
@@ -57,10 +63,16 @@ void QTMegaGlobalListener::onEvent(MegaApi *api, MegaEvent *e)
     QCoreApplication::postEvent(this, event, INT_MIN);
 }
 
+void QTMegaGlobalListener::onGlobalSyncStateChanged(MegaApi *api)
+{
+    QTMegaEvent *event = new QTMegaEvent(api, (QEvent::Type)QTMegaEvent::OnGlobalSyncStateChanged);
+    QCoreApplication::postEvent(this, event, INT_MIN);
+}
+
 void QTMegaGlobalListener::customEvent(QEvent *e)
 {
     QTMegaEvent *event = (QTMegaEvent *)e;
-    switch(event->type())
+    switch(QTMegaEvent::MegaType(event->type()))
     {
         case QTMegaEvent::OnUsersUpdate:
             if(listener) listener->onUsersUpdate(event->getMegaApi(), event->getUsers());
@@ -79,6 +91,9 @@ void QTMegaGlobalListener::customEvent(QEvent *e)
             break;
         case QTMegaEvent::OnEvent:
             if(listener) listener->onEvent(event->getMegaApi(), event->getEvent());
+            break;
+        case QTMegaEvent::OnGlobalSyncStateChanged:
+            if(listener) listener->onGlobalSyncStateChanged(event->getMegaApi());
             break;
         default:
             break;

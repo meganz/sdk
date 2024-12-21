@@ -27,15 +27,21 @@
 #include "mega/command.h"
 #include "mega/logging.h"
 #include "mega/heartbeats.h"
+#include "mega/megaapp.h"
 
 namespace mega {
+
+mutex File::localname_mutex;
+
 File::File()
+    :mCollisionResolution(CollisionResolution::RenameNewWithN)
 {
     transfer = NULL;
     chatauth = NULL;
     hprivate = true;
     hforeign = false;
     syncxfer = false;
+    fromInsycShare = false;
     temporaryfile = false;
     tag = 0;
 }
@@ -50,7 +56,19 @@ File::~File()
     delete [] chatauth;
 }
 
-bool File::serialize(string *d)
+LocalPath File::getLocalname() const
+{
+    lock_guard<mutex> g(localname_mutex);
+    return localname_multithreaded;
+}
+
+void File::setLocalname(const LocalPath& ln)
+{
+    lock_guard<mutex> g(localname_mutex);
+    localname_multithreaded = ln;
+}
+
+bool File::serialize(string *d) const
 {
     char type = char(transfer->type);
     d->append((const char*)&type, sizeof(type));
@@ -68,7 +86,7 @@ bool File::serialize(string *d)
     d->append((char*)&ll, sizeof(ll));
     d->append(name.data(), ll);
 
-    auto tmpstr = localname.platformEncoded();
+    auto tmpstr = getLocalname().platformEncoded();
     ll = (unsigned short)tmpstr.size();
     d->append((char*)&ll, sizeof(ll));
     d->append(tmpstr.data(), ll);
@@ -103,6 +121,8 @@ bool File::serialize(string *d)
     char hasChatAuth = (chatauth && chatauth[0]) ? 1 : 0;
     d->append((char *)&hasChatAuth, 1);
 
+    d->append((char*)&mCollisionResolution, 1);
+
     d->append("\0\0\0\0\0\0\0", 8);
 
     if (hasChatAuth)
@@ -125,20 +145,19 @@ File *File::unserialize(string *d)
 
     d->erase(0, 1);
 
-    FileFingerprint *fp = FileFingerprint::unserialize(d);
+    const char* ptr = d->data();
+    const char* end = ptr + d->size();
+
+    auto fp = FileFingerprint::unserialize(ptr, end);
     if (!fp)
     {
         LOG_err << "Error unserializing File: Unable to unserialize FileFingerprint";
         return NULL;
     }
 
-    const char* ptr = d->data();
-    const char* end = ptr + d->size();
-
     if (ptr + sizeof(unsigned short) > end)
     {
         LOG_err << "File unserialization failed - serialized string too short";
-        delete fp;
         return NULL;
     }
 
@@ -148,7 +167,6 @@ File *File::unserialize(string *d)
     if (ptr + namelen + sizeof(unsigned short) > end)
     {
         LOG_err << "File unserialization failed - name too long";
-        delete fp;
         return NULL;
     }
     const char *name = ptr;
@@ -160,7 +178,6 @@ File *File::unserialize(string *d)
     if (ptr + localnamelen + sizeof(unsigned short) > end)
     {
         LOG_err << "File unserialization failed - localname too long";
-        delete fp;
         return NULL;
     }
     const char *localname = ptr;
@@ -172,7 +189,6 @@ File *File::unserialize(string *d)
     if (ptr + targetuserlen + sizeof(unsigned short) > end)
     {
         LOG_err << "File unserialization failed - targetuser too long";
-        delete fp;
         return NULL;
     }
     const char *targetuser = ptr;
@@ -184,7 +200,6 @@ File *File::unserialize(string *d)
     if (ptr + privauthlen + sizeof(unsigned short) > end)
     {
         LOG_err << "File unserialization failed - private auth too long";
-        delete fp;
         return NULL;
     }
     const char *privauth = ptr;
@@ -192,22 +207,30 @@ File *File::unserialize(string *d)
 
     unsigned short pubauthlen = MemAccess::get<unsigned short>(ptr);
     ptr += sizeof(pubauthlen);
-    if (ptr + pubauthlen + sizeof(handle) + FILENODEKEYLENGTH + sizeof(bool)
-            + sizeof(bool) + sizeof(bool) + 10 > end)
+    if (ptr + pubauthlen 
+            + sizeof(handle) 
+            + FILENODEKEYLENGTH 
+            + sizeof(bool)      //hprivate
+            + sizeof(bool)      //hforeign
+            + sizeof(bool)      //syncxfer
+            + sizeof(bool)      //temporaryfile
+            + sizeof(char)      //hasChatAuth
+            + sizeof(uint8_t)   //collisionResolution
+            + 8                 //8 '0'
+            > end)
     {
         LOG_err << "File unserialization failed - public auth too long";
-        delete fp;
         return NULL;
     }
     const char *pubauth = ptr;
     ptr += pubauthlen;
 
     File *file = new File();
-    *(FileFingerprint *)file = *(FileFingerprint *)fp;
-    delete fp;
+    *(FileFingerprint *)file = *fp;
+    fp.reset();
 
     file->name.assign(name, namelen);
-    file->localname = LocalPath::fromPlatformEncoded(std::string(localname, localnamelen));
+    file->setLocalname(LocalPath::fromPlatformEncodedAbsolute(std::string(localname, localnamelen)));
     file->targetuser.assign(targetuser, targetuserlen);
     file->privauth.assign(privauth, privauthlen);
     file->pubauth.assign(pubauth, pubauthlen);
@@ -232,6 +255,16 @@ File *File::unserialize(string *d)
 
     char hasChatAuth = MemAccess::get<char>(ptr);
     ptr += sizeof(char);
+
+    uint8_t collisionResolutionUint8 = MemAccess::get<uint8_t>(ptr);
+    ptr += sizeof(uint8_t);
+    if (collisionResolutionUint8 < static_cast<uint8_t>(CollisionResolution::Begin) || collisionResolutionUint8 >= static_cast<uint8_t>(CollisionResolution::End))
+    {
+        LOG_err << "File unserialization failed - collision resolution " << collisionResolutionUint8 << " not valid";
+        delete file;
+        return NULL;
+    }
+    file->setCollisionResolution(static_cast<CollisionResolution>(collisionResolutionUint8));
 
     if (memcmp(ptr, "\0\0\0\0\0\0\0", 8))
     {
@@ -268,13 +301,36 @@ File *File::unserialize(string *d)
         }
     }
 
-    d->erase(0, ptr - d->data());
+    d->erase(0, static_cast<size_t>(ptr - d->data()));
     return file;
 }
 
-void File::prepare()
+bool File::isFuseTransfer() const
 {
-    transfer->localfilename = localname;
+    return false;
+}
+
+void File::logicalPath(LocalPath logicalPath)
+{
+    std::lock_guard<std::mutex> guard(localname_mutex);
+
+    mLogicalPath = std::move(logicalPath);
+}
+
+LocalPath File::logicalPath() const
+{
+    std::lock_guard<std::mutex> guard(localname_mutex);
+
+    if (mLogicalPath.empty())
+        return localname_multithreaded;
+
+    return mLogicalPath;
+}
+
+void File::prepare(FileSystemAccess&)
+{
+    transfer->localfilename = getLocalname();
+    assert(transfer->localfilename.isAbsolute());
 }
 
 void File::start()
@@ -285,131 +341,180 @@ void File::progress()
 {
 }
 
-void File::completed(Transfer* t, LocalNode* l)
+void File::completed(Transfer* t, putsource_t source)
 {
+    assert(!transfer || t == transfer);
+    assert(source == PUTNODES_APP);  // derived class for sync doesn't use this code path
+
     if (t->type == PUT)
     {
-        vector<NewNode> newnodes(1);
-        NewNode* newnode = &newnodes[0];
-
-        // build new node
-        newnode->source = NEW_UPLOAD;
-
-        // upload handle required to retrieve/include pending file attributes
-        newnode->uploadhandle = t->uploadhandle;
-
-        // reference to uploaded file
-        memcpy(newnode->uploadtoken, t->ultoken.get(), sizeof newnode->uploadtoken);
-
-        // file's crypto key
-        newnode->nodekey.assign((char*)t->filekey, FILENODEKEYLENGTH);
-        newnode->type = FILENODE;
-        newnode->parenthandle = UNDEF;
-#ifdef ENABLE_SYNC
-        if (l)
-        {
-            l->newnode.crossref(newnode, l);
-            newnode->syncid = l->syncid;
-        }
-#endif
-        AttrMap attrs;
-        t->client->honorPreviousVersionAttrs(previousNode, attrs);
-
-        // store filename
-        attrs.map['n'] = name;
-
-        // store fingerprint
-        t->serializefingerprint(&attrs.map['c']);
-
-        string tattrstring;
-
-        attrs.getjson(&tattrstring);
-
-        newnode->attrstring.reset(new string);
-        t->client->makeattr(t->transfercipher(), newnode->attrstring, tattrstring.c_str());
-
-        if (targetuser.size())
-        {
-            // drop file into targetuser's inbox
-            int creqtag = t->client->reqtag;
-            t->client->reqtag = tag;
-            t->client->putnodes(targetuser.c_str(), move(newnodes));
-            t->client->reqtag = creqtag;
-        }
-        else
-        {
-            handle th = h.as8byte();
-
-            // inaccessible target folder - use //bin instead
-            if (!t->client->nodebyhandle(th))
-            {
-                th = t->client->rootnodes[RUBBISHNODE - ROOTNODE];
-            }
-#ifdef ENABLE_SYNC
-            if (l)
-            {
-                // tag the previous version in the synced folder (if any) or move to SyncDebris
-                if (l->node && l->node->parent && l->node->parent->localnode)
-                {
-                    if (t->client->versions_disabled)
-                    {
-                        t->client->movetosyncdebris(l->node, l->sync->inshare);
-                        t->client->execsyncdeletions();
-                    }
-                    else
-                    {
-                        newnode->ovhandle = l->node->nodehandle;
-                    }
-                }
-
-                t->client->syncadding++;
-            }
-#endif
-            if (!t->client->versions_disabled && ISUNDEF(newnode->ovhandle))
-            {
-                newnode->ovhandle = t->client->getovhandle(t->client->nodebyhandle(th), &name);
-            }
-
-            t->client->reqs.add(new CommandPutNodes(t->client,
-                                                                  th, NULL,
-                                                                  move(newnodes),
-                                                                  tag,
-#ifdef ENABLE_SYNC
-                                                                  l ? PUTNODES_SYNC : PUTNODES_APP));
-#else
-                                                                  PUTNODES_APP));
-#endif
-        }
+        sendPutnodesOfUpload(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(), nullptr, nullptr, false);
     }
 }
 
-void File::terminated()
+
+void File::sendPutnodesOfUpload(MegaClient* client, UploadHandle fileAttrMatchHandle, const UploadToken& ultoken,
+                        const FileNodeKey& filekey, putsource_t source, NodeHandle ovHandle,
+                        CommandPutNodes::Completion&& completion,
+                        const m_time_t* overrideMtime, bool canChangeVault)
+{
+    vector<NewNode> newnodes(1);
+    NewNode* newnode = &newnodes[0];
+
+    // build new node
+    newnode->source = NEW_UPLOAD;
+    newnode->canChangeVault = canChangeVault;
+
+    // upload handle required to retrieve/include pending file attributes
+    newnode->uploadhandle = fileAttrMatchHandle;
+
+    // reference to uploaded file
+    newnode->uploadtoken = ultoken;
+
+    // file's crypto key
+    static_assert(sizeof(filekey) == FILENODEKEYLENGTH, "File completed: filekey size doesn't match with FILENODEKEYLENGTH");
+    newnode->nodekey.assign((char*)&filekey, FILENODEKEYLENGTH);
+    newnode->type = FILENODE;
+    newnode->parenthandle = UNDEF;
+
+    AttrMap attrs;
+    MegaClient::honorPreviousVersionAttrs(previousNode.get(), attrs);
+
+    // store filename
+    attrs.map['n'] = name;
+
+    // store fingerprint
+    auto oldMtime = mtime;
+    if (overrideMtime) mtime = *overrideMtime;
+    serializefingerprint(&attrs.map['c']);
+    if (overrideMtime) mtime = oldMtime;
+
+    string tattrstring;
+
+    attrs.getjson(&tattrstring);
+
+    newnode->attrstring.reset(new string);
+    MegaClient::makeattr(client->getRecycledTemporaryTransferCipher(filekey.bytes.data(), FILENODE),
+                         newnode->attrstring, tattrstring.c_str());
+
+    if (targetuser.size())
+    {
+        // drop file into targetuser's inbox (obsolete feature, kept for sending logs to helpdesk)
+        client->putnodes(targetuser.c_str(), std::move(newnodes), tag, std::move(completion));
+    }
+    else
+    {
+        NodeHandle th = h;
+
+
+        if (syncxfer)
+        {
+            newnode->ovhandle = ovHandle;
+        }
+        else if (mVersioningOption != NoVersioning)  // todo: resolve clash with mVersioningOption vs fixNameConflicts
+        {
+            // for manual upload, let the API apply the `ov` according to the global versions_disabled flag.
+            // with versions on, the API will make the ov the first version of this new node
+            // with versions off, the API will permanently delete `ov`, replacing it with this (and attaching the ov's old versions)
+            std::shared_ptr<Node> n = client->nodeByHandle(th);
+            if (std::shared_ptr<Node> ovNode = client->getovnode(n.get(), &name))
+            {
+                newnode->ovhandle = ovNode->nodeHandle();
+            }
+        }
+
+        client->reqs.add(new CommandPutNodes(client,
+                                             th,
+                                             NULL,
+                                             mVersioningOption,
+                                             std::move(newnodes),
+                                             tag,
+                                             source,
+                                             nullptr,
+                                             std::move(completion),
+                                             canChangeVault,
+                                             {})); // customerIpPort
+    }
+}
+
+void File::sendPutnodesToCloneNode(MegaClient* client,
+                                   Node* nodeToClone,
+                                   putsource_t source,
+                                   NodeHandle ovHandle,
+                                   CommandPutNodes::Completion&& completion,
+                                   bool canChangeVault)
+{
+    vector<NewNode> newnodes(1);
+    NewNode* newnode = &newnodes[0];
+
+    // build new node
+    newnode->source = NEW_NODE;
+    newnode->canChangeVault = canChangeVault;
+    newnode->nodehandle = nodeToClone->nodehandle;
+
+    // file's crypto key
+    newnode->nodekey = nodeToClone->nodekey();
+    assert(newnode->nodekey.size() == FILENODEKEYLENGTH);
+
+    // copy attrs
+    AttrMap attrs;
+    attrs.map = nodeToClone->attrs.map;
+    attr_map::iterator it = attrs.map.find(AttrMap::string2nameid("rr"));
+    if (it != attrs.map.end())
+    {
+        LOG_debug << "Removing rr attribute for clone";
+        attrs.map.erase(it);
+    }
+    newnode->type = FILENODE;
+    newnode->parenthandle = UNDEF;
+
+    // store filename
+    attrs.map['n'] = name;
+
+    string tattrstring;
+    attrs.getjson(&tattrstring);
+
+    newnode->attrstring.reset(new string);
+    MegaClient::makeattr(client->getRecycledTemporaryTransferCipher((byte*)newnode->nodekey.data(), FILENODE),
+                         newnode->attrstring, tattrstring.c_str());
+
+    if (targetuser.size())
+    {
+        // drop file into targetuser's inbox (obsolete feature, kept for sending logs to helpdesk)
+        client->putnodes(targetuser.c_str(), std::move(newnodes), tag, std::move(completion));
+    }
+    else
+    {
+        NodeHandle th = h;
+        assert(syncxfer);
+        newnode->ovhandle = ovHandle;
+        client->reqs.add(new CommandPutNodes(client,
+                                             th,
+                                             NULL,
+                                             mVersioningOption,
+                                             std::move(newnodes),
+                                             tag,
+                                             source,
+                                             nullptr,
+                                             std::move(completion),
+                                             canChangeVault,
+                                             {})); // customerIpPort
+    }
+}
+
+
+void File::terminated(error)
 {
 
 }
 
 // do not retry crypto errors or administrative takedowns; retry other types of
 // failuresup to 16 times, except I/O errors (6 times)
-bool File::failed(error e)
+bool File::failed(error e, MegaClient*)
 {
     if (e == API_EKEY)
     {
-        if (!transfer->hascurrentmetamac)
-        {
-            // several integrity check errors uploading chunks
-            return transfer->failcount < 1;
-        }
-
-        if (transfer->hasprevmetamac && transfer->prevmetamac == transfer->currentmetamac)
-        {
-            // integrity check failed after download, two times with the same value
-            return false;
-        }
-
-        // integrity check failed once, try again
-        transfer->prevmetamac = transfer->currentmetamac;
-        transfer->hasprevmetamac = true;
-        return transfer->failcount < 16;
+        return false; // mac error; do not retry
     }
 
     return  // Non fatal errors, up to 16 retries
@@ -431,7 +536,7 @@ void File::displayname(string* dname)
     }
     else
     {
-        Node* n;
+        shared_ptr<Node> n;
 
         if ((n = transfer->client->nodeByHandle(h)))
         {
@@ -444,161 +549,314 @@ void File::displayname(string* dname)
     }
 }
 
+string File::displayname()
+{
+    string result;
+
+    displayname(&result);
+
+    return result;
+}
+
 #ifdef ENABLE_SYNC
-SyncFileGet::SyncFileGet(Sync* csync, Node* cn, const LocalPath& clocalname)
+
+void SyncTransfer_inClient::terminated(error e)
 {
-    sync = csync;
+    mError = e;
 
-    n = cn;
-    h = n->nodeHandle();
-    *(FileFingerprint*)this = *n;
-    localname = clocalname;
+    File::terminated(e);
 
-    syncxfer = true;
-    n->syncget = this;
-
-    sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(0, 1, size, 0) ;
-}
-
-SyncFileGet::~SyncFileGet()
-{
-    if (n)
+    if (e == API_EOVERQUOTA)
     {
-        n->syncget = NULL;
+        syncThreadSafeState->client()->syncs.disableSyncByBackupId(syncThreadSafeState->backupId(), FOREIGN_TARGET_OVERSTORAGE, false, true, nullptr);
     }
+
+    // We shouldn't call terminated twice but, if we do, all the calls must be done before notifying
+    // the apps
+    assert(!wasTerminated || !terminatedReasonAlreadyKnown);
+    wasTerminated = true;
+    selfKeepAlive.reset();  // deletes this object! (if abandoned by sync)
 }
 
-// create sync-specific temp download directory and set unique filename
-void SyncFileGet::prepare()
+void SyncTransfer_inClient::completed(Transfer*, [[maybe_unused]] putsource_t source)
 {
-    if (transfer->localfilename.empty())
-    {
-        LocalPath tmpname = LocalPath::fromName("tmp", *sync->client->fsaccess, sync->mFilesystemType);
+    assert(source == PUTNODES_SYNC);
 
-        if (!sync->tmpfa)
+    // do not allow the base class to submit putnodes immediately
+    //File::completed(t, source);
+
+    assert(!wasCompleted);
+    wasCompleted = true;
+    selfKeepAlive.reset();  // deletes this object! (if abandoned by sync)
+}
+
+void SyncUpload_inClient::completed(Transfer* t, putsource_t source)
+{
+    // Keep the info required for putnodes and wait for
+    // the sync thread to validate and activate the putnodes
+
+    uploadHandle = t->uploadhandle;
+    uploadToken = *t->ultoken;
+    fileNodeKey = t->filekey;
+
+    SyncTransfer_inClient::completed(t, source);
+}
+
+void SyncUpload_inClient::sendPutnodesOfUpload(MegaClient* client, NodeHandle ovHandle)
+{
+    // Always called from the client thread
+    weak_ptr<SyncThreadsafeState> stts = syncThreadSafeState;
+
+    // So we know whether it's safe to update putnodesCompleted.
+    weak_ptr<SyncUpload_inClient> self = shared_from_this();
+
+    // since we are now sending putnodes, no need to remember puts to inform the client on abandonment
+    syncThreadSafeState->client()->transferBackstop.forget(tag);
+
+    File::sendPutnodesOfUpload(
+        client,
+        uploadHandle,
+        uploadToken,
+        fileNodeKey,
+        PUTNODES_SYNC,
+        ovHandle,
+        [self, stts, client](const Error& e,
+                             targettype_t t,
+                             vector<NewNode>& nn,
+                             bool targetOverride,
+                             int tag,
+                             const map<string, string>& fileHandles)
         {
-            sync->tmpfa = sync->client->fsaccess->newfileaccess();
-
-            int i = 3;
-            while (i--)
+            // Is the originating transfer still alive?
+            if (auto s = self.lock())
             {
-                LOG_verbose << "Creating tmp folder";
-                transfer->localfilename = sync->localdebris;
-                sync->client->fsaccess->mkdirlocal(transfer->localfilename, true);
+                // Then track the result of its putnodes request.
+                s->putnodesFailed = e != API_OK;
 
-                transfer->localfilename.appendWithSeparator(tmpname, true);
-                sync->client->fsaccess->mkdirlocal(transfer->localfilename);
-
-                // lock it
-                LocalPath lockname = LocalPath::fromName("lock", *sync->client->fsaccess, sync->mFilesystemType);
-                transfer->localfilename.appendWithSeparator(lockname, true);
-
-                if (sync->tmpfa->fopen(transfer->localfilename, false, true))
+                // Capture the handle if the putnodes was successful.
+                if (!s->putnodesFailed)
                 {
-                    break;
+                    assert(!nn.empty());
+                    s->putnodesResultHandle.set6byte(nn.front().mAddedHandle);
+                }
+
+                // Let the engine know the putnodes has completed.
+                s->wasPutnodesCompleted.store(true);
+            }
+
+            if (auto s = stts.lock())
+            {
+                if (e == API_EACCESS)
+                {
+                    client->sendevent(99402, "API_EACCESS putting node in sync transfer", 0);
+                }
+                else if (e == API_EOVERQUOTA)
+                {
+                    client->syncs.disableSyncByBackupId(s->backupId(),  FOREIGN_TARGET_OVERSTORAGE, false, true, nullptr);
                 }
             }
 
-            // if we failed to create the tmp dir three times in a row, fall
-            // back to the sync's root
-            if (i < 0)
+            // since we used a completion function, putnodes_result is not called.
+            // but the intermediate layer still needs that in order to call the client app back:
+            client->app->putnodes_result(e, t, nn, targetOverride, tag, fileHandles);
+        },
+        nullptr,
+        syncThreadSafeState->mCanChangeVault);
+}
+
+void SyncUpload_inClient::sendPutnodesToCloneNode(MegaClient* client, NodeHandle ovHandle, Node* nodeToClone)
+{
+    // Always called from the client thread
+    weak_ptr<SyncThreadsafeState> stts = syncThreadSafeState;
+
+    // So we know whether it's safe to update putnodesCompleted.
+    weak_ptr<SyncUpload_inClient> self = shared_from_this();
+
+    File::sendPutnodesToCloneNode(
+        client,
+        nodeToClone,
+        PUTNODES_SYNC,
+        ovHandle,
+        [self, stts, client](const Error& e,
+                             targettype_t /*t*/,
+                             vector<NewNode>& nn,
+                             bool /*targetOverride*/,
+                             int /*tag*/,
+                             const map<string, string>& /*fileHandles*/)
+        {
+            // Is the originating transfer still alive?
+            if (auto s = self.lock())
             {
-                sync->tmpfa.reset();
+                // Then track the result of its putnodes request.
+                s->putnodesFailed = e != API_OK;
+
+                // Capture the handle if the putnodes was successful.
+                if (!s->putnodesFailed)
+                {
+                    assert(!nn.empty());
+                    s->putnodesResultHandle.set6byte(nn.front().mAddedHandle);
+                }
+
+                // Let the engine know the putnodes has completed.
+                s->wasPutnodesCompleted.store(true);
             }
-        }
 
-        if (sync->tmpfa)
-        {
-            transfer->localfilename = sync->localdebris;
-            transfer->localfilename.appendWithSeparator(tmpname, true);
-        }
-        else
-        {
-            transfer->localfilename = sync->localroot->localname;
-        }
-
-        LocalPath tmpfilename;
-        sync->client->fsaccess->tmpnamelocal(tmpfilename);
-        transfer->localfilename.appendWithSeparator(tmpfilename, true);
-    }
-
-    if (n->parent && n->parent->localnode)
-    {
-        n->parent->localnode->treestate(TREESTATE_SYNCING);
-    }
-}
-
-bool SyncFileGet::failed(error e)
-{
-    bool retry = File::failed(e);
-
-    if (n->parent && n->parent->localnode)
-    {
-        n->parent->localnode->treestate(TREESTATE_PENDING);
-
-        if (!retry && (e == API_EBLOCKED || e == API_EKEY))
-        {
-            if (e == API_EKEY)
+            if (auto s = stts.lock())
             {
-                int creqtag = n->parent->client->reqtag;
-                n->parent->client->reqtag = 0;
-                n->parent->client->sendevent(99433, "Undecryptable file");
-                n->parent->client->reqtag = creqtag;
+                if (e == API_EACCESS)
+                {
+                    client->sendevent(99402, "API_EACCESS putting node in sync transfer", 0);
+                }
+                else if (e == API_EOVERQUOTA)
+                {
+                    client->syncs.disableSyncByBackupId(s->backupId(),
+                                                        FOREIGN_TARGET_OVERSTORAGE,
+                                                        false,
+                                                        true,
+                                                        nullptr);
+                }
             }
-            n->parent->client->movetosyncdebris(n, n->parent->localnode->sync->inshare);
-        }
-    }
-
-    return retry;
+        },
+        syncThreadSafeState->mCanChangeVault);
 }
 
-void SyncFileGet::progress()
+SyncUpload_inClient::SyncUpload_inClient(NodeHandle targetFolder, const LocalPath& fullPath,
+        const string& nodeName, const FileFingerprint& ff, shared_ptr<SyncThreadsafeState> stss,
+        handle fsid, const LocalPath& localname, bool fromInshare)
 {
-    File::progress();
-    if (n->parent && n->parent->localnode && n->parent->localnode->ts != TREESTATE_SYNCING)
+    *static_cast<FileFingerprint*>(this) = ff;
+
+    // normalized name (UTF-8 with unescaped special chars)
+    // todo: we did unescape them though?
+    name = nodeName;
+
+    // setting the full path means it works like a normal non-sync transfer
+    setLocalname(fullPath);
+
+    h = targetFolder;
+
+    hprivate = false;
+    hforeign = false;
+    syncxfer = true;
+    fromInsycShare = fromInshare;
+    temporaryfile = false;
+    chatauth = nullptr;
+    transfer = nullptr;
+    tag = 0;
+
+    syncThreadSafeState = std::move(stss);
+    syncThreadSafeState->transferBegin(PUT, size);
+
+    sourceFsid = fsid;
+    sourceLocalname = localname;
+}
+
+SyncUpload_inClient::~SyncUpload_inClient()
+{
+    if (!wasTerminated && !wasCompleted)
     {
-        n->parent->localnode->treestate(TREESTATE_SYNCING);
+        assert(wasRequesterAbandoned);
+        transfer = nullptr;  // don't try to remove File from Transfer from the wrong thread
     }
-}
 
-// update localname (parent's localnode)
-void SyncFileGet::updatelocalname()
-{
-    attr_map::iterator ait;
-
-    if ((ait = n->attrs.map.find('n')) != n->attrs.map.end())
+    if (wasCompleted && wasPutnodesCompleted)
     {
-        if (n->parent && n->parent->localnode)
-        {
-            localname = n->parent->localnode->getLocalPath();
-            localname.appendWithSeparator(LocalPath::fromName(ait->second, *sync->client->fsaccess, sync->mFilesystemType), true);
-        }
+        syncThreadSafeState->transferComplete(PUT, size);
     }
-}
-
-// add corresponding LocalNode (by path), then self-destruct
-void SyncFileGet::completed(Transfer*, LocalNode*)
-{
-    sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(0, -1, 0, size);
-
-    LocalNode *ll = sync->checkpath(NULL, &localname, nullptr, nullptr, false, nullptr);
-    if (ll && ll != (LocalNode*)~0 && n
-            && (*(FileFingerprint *)ll) == (*(FileFingerprint *)n))
+    else
     {
-        LOG_debug << "LocalNode created, associating with remote Node";
-        ll->setnode(n);
-        ll->treestate(TREESTATE_SYNCED);
-        ll->sync->statecacheadd(ll);
-        ll->sync->cachenodes();
+        syncThreadSafeState->transferFailed(PUT, size);
     }
-    delete this;
+
+    if (!uploadHandle.isUndef())
+    {
+        // Remove file attributes if they weren't removed upon ~Transfer destructor
+        syncThreadSafeState->client()->fileAttributesUploading.erase(uploadHandle);
+    }
+
+    if (putnodesStarted)
+    {
+        syncThreadSafeState->removeExpectedUpload(h, name);
+    }
 }
 
-void SyncFileGet::terminated()
+void SyncUpload_inClient::prepare(FileSystemAccess&)
 {
-    sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(0, -1, -size, 0);
+    transfer->localfilename = getLocalname();
 
-    delete this;
+    // is this transfer in progress? update file's filename.
+    if (transfer->slot && transfer->slot->fa && !transfer->slot->fa->nonblocking_localname.empty())
+    {
+        transfer->slot->fa->updatelocalname(transfer->localfilename, false);
+    }
+
+    //todo: localNode.treestate(TREESTATE_SYNCING);
 }
+
+SyncDownload_inClient::SyncDownload_inClient(CloudNode& n, const LocalPath& clocalname, bool fromInshare,
+        shared_ptr<SyncThreadsafeState> stss, const FileFingerprint& overwriteFF)
+{
+    h = n.handle;
+    *(FileFingerprint*)this = n.fingerprint;
+    okToOverwriteFF = overwriteFF;
+
+    syncxfer = true;
+    fromInsycShare = fromInshare;
+
+    setLocalname(clocalname);
+
+    syncThreadSafeState = std::move(stss);
+    syncThreadSafeState->transferBegin(GET, size);
+}
+
+SyncDownload_inClient::~SyncDownload_inClient()
+{
+    if (!wasTerminated && !wasCompleted)
+    {
+        assert(wasRequesterAbandoned);
+        transfer = nullptr;  // don't try to remove File from Transfer from the wrong thread
+    }
+
+    if (!wasDistributed && downloadDistributor)
+        downloadDistributor->removeTarget();
+
+    if (wasCompleted)
+    {
+        syncThreadSafeState->transferComplete(GET, size);
+    }
+    else
+    {
+        syncThreadSafeState->transferFailed(GET, size);
+    }
+}
+
+void SyncDownload_inClient::prepare(FileSystemAccess&)
+{
+    if (transfer->localfilename.empty())
+    {
+        // set unique filename in sync-specific temp download directory
+        transfer->localfilename = syncThreadSafeState->syncTmpFolder();
+        transfer->localfilename.appendWithSeparator(LocalPath::tmpNameLocal(), true);
+
+    }
+}
+
+bool SyncDownload_inClient::failed(error e, MegaClient* mc)
+{
+    // Squirrel away the error for later use.
+    mError = e;
+
+    // Should we retry the download?
+    if (File::failed(e, mc))
+        return true;
+
+    // MAC validation error?
+    if (e == API_EKEY)
+        mc->sendevent(99433, "Undecryptable file", 0);
+
+    return false;
+}
+
+
 #endif
 } // namespace

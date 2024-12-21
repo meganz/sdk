@@ -24,6 +24,7 @@
 
 @interface MEGAHandleList (init)
 
+- (instancetype)initWithMemoryOwn:(BOOL)cMemoryOwn;
 - (instancetype)initWithMegaHandleList:(mega::MegaHandleList *)megaHandleList cMemoryOwn:(BOOL)cMemoryOwn;
 - (mega::MegaHandleList *)getCPtr;
 

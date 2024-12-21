@@ -1,13 +1,18 @@
-APP_PLATFORM=android-21
+
+APP_PLATFORM=android-26
+
 NDK_TOOLCHAIN_VERSION=clang
-APP_STL := c++_static
-APP_ABI := armeabi-v7a x86 arm64-v8a x86_64
+APP_STL := c++_shared
 APP_OPTIM := release
 APP_PIE := false
 
-# then enable c++11 extentions in source code
-APP_CPPFLAGS += -std=c++11 -Wno-extern-c-compat -mno-unaligned-access -fexceptions -frtti
+APP_CPPFLAGS += -Wno-extern-c-compat -fexceptions -frtti -std=c++17
+ifeq ($(TARGET_ARCH_ABI),armeabi-v7a)
+    APP_CPPFLAGS += -mno-unaligned-access
+else ifeq ($(TARGET_ARCH_ABI),arm64-v8a)
+    APP_CPPFLAGS += -mno-unaligned-access
+endif
 
+APP_LDFLAGS += -v -Wl,-allow-multiple-definition
 DISABLE_WEBRTC = true
 USE_LIBWEBSOCKETS = false
-

@@ -25,14 +25,15 @@
 
 namespace mega {
 // create share keys
-TreeProcShareKeys::TreeProcShareKeys(Node* n)
+TreeProcShareKeys::TreeProcShareKeys(std::shared_ptr<Node> n, bool includeParentChain)
+    : sn(n)
+    , includeParentChain(includeParentChain)
 {
-    sn = n;
 }
 
-void TreeProcShareKeys::proc(MegaClient*, Node* n)
+void TreeProcShareKeys::proc(MegaClient*, std::shared_ptr<Node> n)
 {
-    snk.add(n, sn, sn != NULL);
+    snk.add(n, sn, includeParentChain);
 }
 
 void TreeProcShareKeys::get(Command* c)
@@ -40,7 +41,7 @@ void TreeProcShareKeys::get(Command* c)
     snk.get(c);
 }
 
-void TreeProcForeignKeys::proc(MegaClient* client, Node* n)
+void TreeProcForeignKeys::proc(MegaClient* client, std::shared_ptr<Node> n)
 {
     if (n->foreignkey)
     {
@@ -50,40 +51,25 @@ void TreeProcForeignKeys::proc(MegaClient* client, Node* n)
     }
 }
 
-// total disk space / node count
-TreeProcDU::TreeProcDU()
-{
-    numbytes = 0;
-    numfiles = 0;
-    numfolders = 0;
-}
-
-void TreeProcDU::proc(MegaClient*, Node* n)
-{
-    if (n->type == FILENODE)
-    {
-        numbytes += n->size;
-        numfiles++;
-    }
-    else
-    {
-        numfolders++;
-    }
-}
-
 // mark node as removed and notify
-void TreeProcDel::proc(MegaClient* client, Node* n)
+void TreeProcDel::proc(MegaClient* client, std::shared_ptr<Node> n)
 {
     n->changed.removed = true;
-    n->tag = client->reqtag;
-    client->notifynode(n);
-    if (n->owner != client->me)
+    client->mNodeManager.notifyNode(n);
+    handle userHandle = ISUNDEF(mOriginatingUser) ? n->owner : mOriginatingUser;
+
+    if (userHandle != client->me)
     {
-        client->useralerts.noteSharedNode(n->owner, n->type, 0, NULL);
+        client->useralerts.noteSharedNode(userHandle, n->type, 0, n.get());
     }
 }
 
-void TreeProcApplyKey::proc(MegaClient *client, Node *n)
+void TreeProcDel::setOriginatingUser(const handle &handle)
+{
+    mOriginatingUser = handle;
+}
+
+void TreeProcApplyKey::proc(MegaClient *client, std::shared_ptr<Node> n)
 {
     if (n->attrstring)
     {
@@ -91,30 +77,77 @@ void TreeProcApplyKey::proc(MegaClient *client, Node *n)
         if (!n->attrstring)
         {
             n->changed.attrs = true;
-            client->notifynode(n);
+            client->mNodeManager.notifyNode(n);
         }
     }
 }
 
-#ifdef ENABLE_SYNC
-// stop sync get
-void TreeProcDelSyncGet::proc(MegaClient*, Node* n)
+void TreeProcCopy::allocnodes()
 {
-    if (n->syncget)
-    {
-        delete n->syncget;
-        n->syncget = NULL;
-    }
+    nn.resize(nc);
+    allocated = true;
 }
 
-LocalTreeProcMove::LocalTreeProcMove(Sync* sync, bool recreate)
+// determine node tree size (nn = NULL) or write node tree to new nodes array
+void TreeProcCopy::proc(MegaClient* client, std::shared_ptr<mega::Node> n)
 {
-    this->newsync = sync;
-    this->recreate = recreate;
+    if (allocated)
+    {
+        string attrstring;
+        SymmCipher key;
+        assert(nc > 0);
+        NewNode* t = &nn[--nc];
+
+        // copy node
+        t->source = NEW_NODE;
+        t->type = n->type;
+        t->nodehandle = n->nodehandle;
+        t->parenthandle = n->parent ? n->parent->nodehandle : UNDEF;
+
+        // copy key (if file) or generate new key (if folder)
+        if (n->type == FILENODE) t->nodekey = n->nodekey();
+        else
+        {
+            byte buf[FOLDERNODEKEYLENGTH];
+            client->rng.genblock(buf,sizeof buf);
+            t->nodekey.assign((char*)buf,FOLDERNODEKEYLENGTH);
+        }
+
+        t->attrstring.reset(new string);
+        if(t->nodekey.size())
+        {
+            key.setkey((const byte*)t->nodekey.data(),n->type);
+
+            AttrMap tattrs;
+            tattrs.map = n->attrs.map;
+            nameid rrname = AttrMap::string2nameid("rr");
+            attr_map::iterator it = tattrs.map.find(rrname);
+            if (it != tattrs.map.end())
+            {
+                LOG_debug << "Removing rr attribute";
+                tattrs.map.erase(it);
+            }
+            if (resetSensitive && tattrs.map.erase(AttrMap::string2nameid("sen")))
+            {
+                LOG_debug << "Removing sen attribute";
+            }
+
+            tattrs.getjson(&attrstring);
+            client->makeattr(&key, t->attrstring, attrstring.c_str());
+        }
+    }
+    else nc++;
+}
+
+#ifdef ENABLE_SYNC
+
+LocalTreeProcMove::LocalTreeProcMove(Sync* sync)
+{
+    newsync = sync;
     nc = 0;
 }
 
-void LocalTreeProcMove::proc(MegaClient*, LocalNode* localnode)
+void LocalTreeProcMove::proc(FileSystemAccess&, LocalNode* localnode)
 {
     if (newsync != localnode->sync)
     {
@@ -122,28 +155,15 @@ void LocalTreeProcMove::proc(MegaClient*, LocalNode* localnode)
         localnode->sync = newsync;
         newsync->statecacheadd(localnode);
     }
-
-    if (recreate)
-    {
-        localnode->created = false;
-        localnode->node.reset();
-    }
-
     nc++;
 }
 
-void LocalTreeProcUpdateTransfers::proc(MegaClient *, LocalNode *localnode)
+void LocalTreeProcUpdateTransfers::proc(FileSystemAccess&, LocalNode* localnode)
 {
-    if (localnode->transfer && !localnode->transfer->localfilename.empty())
-    {
-        LOG_debug << "Updating transfer path";
-        localnode->prepare();
-    }
-}
+    // Only updating the localname thread safe field.
+    // Transfers are managed from the megaclient thread
 
-void LocalTreeProcUnlinkNodes::proc(MegaClient *, LocalNode *localnode)
-{
-    localnode->node.reset();
+    localnode->updateTransferLocalname();
 }
 
 #endif

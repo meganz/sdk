@@ -19,8 +19,7 @@
  * program.
  */
 
-#ifndef HTTPIO_CLASS
-#define HTTPIO_CLASS CurlHttpIO
+#pragma once
 
 #include "mega.h"
 
@@ -29,9 +28,14 @@
 #endif
 
 #include <curl/curl.h>
+
+#ifdef MEGA_USE_C_ARES
 #include <ares.h>
+#endif
 
 namespace mega {
+
+extern std::atomic<bool> g_netLoggingOn;
 
 struct MEGA_API SockInfo
 {
@@ -88,7 +92,9 @@ protected:
     CURLM* curlm[3];
 
     CURLSH* curlsh;
+#ifdef MEGA_USE_C_ARES
     ares_channel ares;
+#endif
     string proxyurl;
     string proxyscheme;
     string proxyhost;
@@ -124,7 +130,9 @@ protected:
     static int upload_timer_callback(CURLM *multi, long timeout_ms, void *userp);
 
 #if defined(USE_OPENSSL) && !defined(OPENSSL_IS_BORINGSSL)
+public: // so we can delete it on program end
     static std::recursive_mutex **sslMutexes;
+protected:
     static void locking_function(int mode, int lockNumber, const char *, int);
 
 #if OPENSSL_VERSION_NUMBER >= 0x10000000
@@ -134,8 +142,10 @@ protected:
 #endif
 #endif
 
-#if defined(__ANDROID__) && ARES_VERSION >= 0x010F00
+#ifdef MEGA_USE_C_ARES
+#if (defined(ANDROID) || defined(__ANDROID__)) && ARES_VERSION >= 0x010F00
     static void initialize_android();
+#endif
 #endif
 
 #ifdef USE_OPENSSL
@@ -143,35 +153,46 @@ protected:
     static int cert_verify_callback(X509_STORE_CTX*, void*);
 #endif
 
+#ifdef MEGA_USE_C_ARES
     static void proxy_ready_callback(void*, int, int, struct hostent*);
     static void ares_completed_callback(void*, int, int, struct hostent*);
+#endif
+
     static void send_request(CurlHttpContext*);
     void request_proxy_ip();
     static struct curl_slist* clone_curl_slist(struct curl_slist*);
-    static bool crackurl(string*, string*, string*, int*);
+    static bool crackurl(const string*, string*, string*, int*);
     static int debug_callback(CURL*, curl_infotype, char*, size_t, void*);
     bool ipv6available();
+#ifdef MEGA_USE_C_ARES
     void filterDNSservers();
+#endif
 
     bool curlipv6;
     bool reset;
     bool statechange;
     bool dnsok;
+#ifdef MEGA_USE_C_ARES
     string dnsservers;
+#endif
     curl_slist* contenttypejson;
     curl_slist* contenttypebinary;
     WAIT_CLASS* waiter;
     bool disconnecting;
 
+    typedef std::map<curl_socket_t, SockInfo> SockInfoMap;
+
+#ifdef MEGA_USE_C_ARES
     void addaresevents(Waiter *waiter);
+    void closearesevents();
+    void processaresevents();
+    SockInfoMap aressockets;
+    m_time_t arestimeout;
+#endif
     void addcurlevents(Waiter *waiter, direction_t d);
     int checkevents(Waiter*) override;
-    void closearesevents();
     void closecurlevents(direction_t d);
-    void processaresevents();
     void processcurlevents(direction_t d);
-    typedef std::map<curl_socket_t, SockInfo> SockInfoMap;
-    SockInfoMap aressockets;
     SockInfoMap curlsockets[3];
     m_time_t curltimeoutreset[3];
     bool arerequestspaused[3];
@@ -179,8 +200,6 @@ protected:
     set<CURL *>pausedrequests[3];
     m_off_t partialdata[2];
     m_off_t maxspeed[2];
-    bool curlsocketsprocessed;
-    m_time_t arestimeout;
 
 public:
     void post(HttpReq*, const char* = 0, unsigned = 0) override;
@@ -191,11 +210,15 @@ public:
     bool doio(void) override;
     bool multidoio(CURLM *curlmhandle);
 
+    void measureLatency(CURL* easy_handle, HttpReq* req);
+
     void addevents(Waiter*, int) override;
 
     void setuseragent(string*) override;
     void setproxy(Proxy*);
+#ifdef MEGA_USE_C_ARES
     void setdnsservers(const char*);
+#endif
     void disconnect() override;
 
     // set max download speed
@@ -210,21 +233,27 @@ public:
     // get max upload speed
     m_off_t getmaxuploadspeed() override;
 
+    bool cacheresolvedurls(const std::vector<string>& urls, std::vector<string>&& ips) override;
+
     CurlHttpIO();
     ~CurlHttpIO();
 
 #ifdef WIN32
     HANDLE mSocketsWaitEvent;
+    bool mSocketsWaitEvent_curl_call_needed = false;
 #endif
 
 private:
     static int instanceCount;
-
+    friend class MegaClient;
     CodeCounter::ScopeStats countCurlHttpIOAddevents = { "curl-httpio-addevents" };
-    CodeCounter::ScopeStats countAddAresEventsCode = { "ares-add-events" };
     CodeCounter::ScopeStats countAddCurlEventsCode = { "curl-add-events" };
-    CodeCounter::ScopeStats countProcessAresEventsCode = { "ares-process-events" };
     CodeCounter::ScopeStats countProcessCurlEventsCode = { "curl-process-events" };
+
+#ifdef MEGA_USE_C_ARES
+    CodeCounter::ScopeStats countAddAresEventsCode = { "ares-add-events" };
+    CodeCounter::ScopeStats countProcessAresEventsCode = { "ares-process-events" };
+#endif
 };
 
 struct MEGA_API CurlHttpContext
@@ -246,7 +275,9 @@ struct MEGA_API CurlHttpContext
     string posturl;
     unsigned len;
     const char* data;
+#ifdef MEGA_USE_C_ARES
     int ares_pending;
+#endif
 };
 
 struct MEGA_API CurlDNSEntry
@@ -264,5 +295,3 @@ struct MEGA_API CurlDNSEntry
 };
 
 } // namespace
-
-#endif

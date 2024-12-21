@@ -42,7 +42,9 @@
 }
 
 - (void)dealloc {
-    delete _megaCancelToken;
+    if (_megaCancelToken) {
+        delete _megaCancelToken;
+    }
 }
 
 - (mega::MegaCancelToken *)getCPtr {
@@ -53,8 +55,10 @@
     return self.megaCancelToken->isCancelled();
 }
 
-- (void)cancelWithNewValue:(BOOL)newValue {
-    self.megaCancelToken->cancel(newValue);
+- (void)cancel {
+    if (_megaCancelToken) {
+        self.megaCancelToken->cancel();
+    }
 }
 
 @end

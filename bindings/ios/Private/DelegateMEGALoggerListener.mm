@@ -31,8 +31,30 @@ id<MEGALoggerDelegate>DelegateMEGALoggerListener::getUserListener() {
     return listener;
 }
 
-void DelegateMEGALoggerListener::log(const char *time, int logLevel, const char *source, const char *message) {
-    if (listener != nil && [listener respondsToSelector:@selector(logWithTime:logLevel:source:message:)]) {        
-        [listener logWithTime:(time ? [NSString stringWithUTF8String:time] : nil) logLevel:(NSInteger)logLevel source:(source ? [NSString stringWithUTF8String:source] : nil) message:(message ? [NSString stringWithUTF8String:message] : nil)];
+void DelegateMEGALoggerListener::log(const char *time, int logLevel, const char *source, const char *message
+#ifdef ENABLE_LOG_PERFORMANCE
+                                     , const char **directMessages, size_t *directMessagesSizes, int numberMessages
+#endif
+) {
+    if (listener != nil && [listener respondsToSelector:@selector(logWithTime:logLevel:source:message:
+#ifdef ENABLE_LOG_PERFORMANCE
+                                                                  directMessages:numberMessages:
+#endif
+                                                                  )]) {
+        
+#ifdef ENABLE_LOG_PERFORMANCE
+        NSMutableArray <NSString *> *messages = [NSMutableArray arrayWithCapacity:numberMessages];
+        for (int i = 0; i < numberMessages; i++) {
+            [messages addObject:[NSString stringWithUTF8String:directMessages[i]]];
+        }
+#endif
+        [listener logWithTime:(time ? [NSString stringWithUTF8String:time] : @"")
+                     logLevel:(MEGALogLevel)logLevel
+                       source:(source ? [NSString stringWithUTF8String:source] : @"")
+                      message:(message ? [NSString stringWithUTF8String:message] : @"")
+#ifdef ENABLE_LOG_PERFORMANCE
+               directMessages:messages.copy numberMessages:(NSInteger)numberMessages
+#endif
+        ];
     }
 }

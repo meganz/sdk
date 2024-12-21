@@ -19,3 +19,7 @@ It shows a shell like the one in the `megacli` example that allows to:
 To build and run the project with PHP bindings, please refer to this section: 
 [Build/Install PHP Bindings](https://github.com/meganz/sdk/tree/develop/bindings/php)
 
+After that, having a terminal open in this folder run `composer install` to install dependencies.
+
+Finally, open the example console app running `php megacli.php`.
+

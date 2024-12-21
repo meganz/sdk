@@ -158,3 +158,15 @@ Files included in this repository based on `evt-tls`:
 - `src/mega_evt_tls.cpp` (based on `evt_tls.c`)
 - `include/mega/mega_evt_tls.h` (based on `evt_tls.h`)
 - `include/mega/mega_evt_queue.h` (based on `queue.h`)
+
+#### vincentlaucsb/csv-parser
+A high-performance, fully-featured CSV parser and serializer for modern C++.
+
+https://github.com/vincentlaucsb/csv-parser
+
+License: MIT
+
+https://github.com/vincentlaucsb/csv-parser/blob/master/LICENSE
+
+Files included in this repository based on `vincentlaucsb/csv-parser`:
+- `include/mega/mega_csv.h` (based on `csv.hpp`)

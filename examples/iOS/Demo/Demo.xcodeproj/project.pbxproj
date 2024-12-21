@@ -3,23 +3,17 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 46;
+	objectVersion = 60;
 	objects = {
 
 /* Begin PBXBuildFile section */
 		4114CBC81A07E9C100B7D475 /* OfflineTableViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 4114CBC71A07E9C100B7D475 /* OfflineTableViewController.m */; };
-		4135AE9C19F5882E00A8A56A /* MWPhotoBrowser.bundle in Resources */ = {isa = PBXBuildFile; fileRef = 4135AE9B19F5882E00A8A56A /* MWPhotoBrowser.bundle */; };
-		4135AEA819F58ED700A8A56A /* libMWPhotoBrowser.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 4135AEA619F58A2500A8A56A /* libMWPhotoBrowser.a */; };
-		414295FB1B13399800639A20 /* libMEGASDK.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 414295FA1B13399800639A20 /* libMEGASDK.a */; };
 		41663FAB1A01571E0035F7D6 /* SettingsViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 41663FAA1A01571E0035F7D6 /* SettingsViewController.m */; };
 		4168127719EE6E5700C72800 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 4168127619EE6E5700C72800 /* main.m */; };
 		4168127A19EE6E5700C72800 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 4168127919EE6E5700C72800 /* AppDelegate.m */; };
 		4168127D19EE6E5700C72800 /* LoginViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 4168127C19EE6E5700C72800 /* LoginViewController.m */; };
 		4168128019EE6E5700C72800 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 4168127E19EE6E5700C72800 /* Main.storyboard */; };
 		4168128519EE6E5700C72800 /* LaunchScreen.xib in Resources */ = {isa = PBXBuildFile; fileRef = 4168128319EE6E5700C72800 /* LaunchScreen.xib */; };
-		4168129F19EE72EE00C72800 /* libz.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 4168129E19EE72EE00C72800 /* libz.dylib */; };
-		416812A119EE72F400C72800 /* libsqlite3.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 416812A019EE72F400C72800 /* libsqlite3.dylib */; };
-		416812A319EE73A000C72800 /* libc++.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 416812A219EE73A000C72800 /* libc++.dylib */; };
 		416812A819EE8E9500C72800 /* CloudDriveTableViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 416812A719EE8E9500C72800 /* CloudDriveTableViewController.m */; };
 		416812AF19EE8FAC00C72800 /* SVProgressHUD.bundle in Resources */ = {isa = PBXBuildFile; fileRef = 416812AC19EE8FAC00C72800 /* SVProgressHUD.bundle */; };
 		416812B019EE8FAC00C72800 /* SVProgressHUD.m in Sources */ = {isa = PBXBuildFile; fileRef = 416812AE19EE8FAC00C72800 /* SVProgressHUD.m */; };
@@ -37,41 +31,13 @@
 		41C681E71A2363700088F2E6 /* ContactTableViewCell.m in Sources */ = {isa = PBXBuildFile; fileRef = 41C681E61A2363700088F2E6 /* ContactTableViewCell.m */; };
 		41C681EA1A2363E20088F2E6 /* ContactsTableViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 41C681E91A2363E20088F2E6 /* ContactsTableViewController.m */; };
 		41C681F31A23658C0088F2E6 /* MEGASdkManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 41C681F21A23658C0088F2E6 /* MEGASdkManager.m */; };
-		41D4EADD19EED5270097C00F /* libresolv.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 41D4EADC19EED5270097C00F /* libresolv.dylib */; };
-		943D11F91A25F25100318442 /* MEGAphoto.m in Sources */ = {isa = PBXBuildFile; fileRef = 943D11F81A25F25100318442 /* MEGAphoto.m */; };
-		A88EE2211F0A63FB00AECF76 /* ImageIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41AB68FD1A094459003FE608 /* ImageIO.framework */; };
-		A88EE2221F0A641400AECF76 /* MobileCoreServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41AB68F91A0943FE003FE608 /* MobileCoreServices.framework */; };
-		A88EE2251F0A642F00AECF76 /* MapKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41ACFBC61A1155AC00905ACF /* MapKit.framework */; };
-		A8BF10C121ED1114006B283A /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A8BF10C021ED1114006B283A /* AVFoundation.framework */; };
-		A8BF10C321ED111A006B283A /* CoreMedia.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A8BF10C221ED1119006B283A /* CoreMedia.framework */; };
-		A8BF10C421ED1175006B283A /* libcares.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A88EE2151F0A63B600AECF76 /* libcares.a */; };
-		A8BF10C521ED1175006B283A /* libcrypto.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A88EE2161F0A63B600AECF76 /* libcrypto.a */; };
-		A8BF10C621ED1175006B283A /* libcryptopp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A88EE2171F0A63B600AECF76 /* libcryptopp.a */; };
-		A8BF10C721ED1175006B283A /* libcurl.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A88EE2181F0A63B600AECF76 /* libcurl.a */; };
-		A8BF10C821ED1175006B283A /* libmediainfo.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A8BF10BD21ED10E5006B283A /* libmediainfo.a */; };
-		A8BF10C921ED1175006B283A /* libsodium.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A88EE2231F0A642300AECF76 /* libsodium.a */; };
-		A8BF10CA21ED1175006B283A /* libssl.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A88EE2191F0A63B600AECF76 /* libssl.a */; };
-		A8BF10CB21ED1175006B283A /* libuv.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A88EE21A1F0A63B600AECF76 /* libuv.a */; };
-		A8BF10CC21ED1175006B283A /* libzen.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A8BF10BB21ED10E5006B283A /* libzen.a */; };
+		A8CCCFF82AE1954B00E3CCAB /* MEGASdk in Frameworks */ = {isa = PBXBuildFile; productRef = A8CCCFF72AE1954B00E3CCAB /* MEGASdk */; };
 		E80D15911A236C7100148421 /* Helper.m in Sources */ = {isa = PBXBuildFile; fileRef = E80D15901A236C7100148421 /* Helper.m */; };
 /* End PBXBuildFile section */
 
-/* Begin PBXContainerItemProxy section */
-		4135AEA519F58A2500A8A56A /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 4135AEA119F58A2500A8A56A /* MWPhotoBrowser.xcodeproj */;
-			proxyType = 2;
-			remoteGlobalIDString = 4C6F96C414AF704100F8389A;
-			remoteInfo = MWPhotoBrowser;
-		};
-/* End PBXContainerItemProxy section */
-
 /* Begin PBXFileReference section */
 		4114CBC61A07E9C100B7D475 /* OfflineTableViewController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = OfflineTableViewController.h; path = Offline/OfflineTableViewController.h; sourceTree = "<group>"; };
-		4114CBC71A07E9C100B7D475 /* OfflineTableViewController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; lineEnding = 0; name = OfflineTableViewController.m; path = Offline/OfflineTableViewController.m; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objc; };
-		4135AE9B19F5882E00A8A56A /* MWPhotoBrowser.bundle */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.plug-in"; path = MWPhotoBrowser.bundle; sourceTree = "<group>"; };
-		4135AEA119F58A2500A8A56A /* MWPhotoBrowser.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = MWPhotoBrowser.xcodeproj; sourceTree = "<group>"; };
-		414295FA1B13399800639A20 /* libMEGASDK.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libMEGASDK.a; path = "../../../bindings/ios/build/Debug-iphoneos/libMEGASDK.a"; sourceTree = "<group>"; };
+		4114CBC71A07E9C100B7D475 /* OfflineTableViewController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; lineEnding = 0; name = OfflineTableViewController.m; path = Offline/OfflineTableViewController.m; sourceTree = "<group>"; };
 		41663FA91A01571E0035F7D6 /* SettingsViewController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = SettingsViewController.h; path = Settings/SettingsViewController.h; sourceTree = "<group>"; };
 		41663FAA1A01571E0035F7D6 /* SettingsViewController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; lineEnding = 0; name = SettingsViewController.m; path = Settings/SettingsViewController.m; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objc; };
 		4168127119EE6E5700C72800 /* Demo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Demo.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -80,14 +46,11 @@
 		4168127819EE6E5700C72800 /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
 		4168127919EE6E5700C72800 /* AppDelegate.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AppDelegate.m; sourceTree = "<group>"; };
 		4168127B19EE6E5700C72800 /* LoginViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = LoginViewController.h; path = Login/LoginViewController.h; sourceTree = "<group>"; };
-		4168127C19EE6E5700C72800 /* LoginViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; lineEnding = 0; name = LoginViewController.m; path = Login/LoginViewController.m; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objc; };
+		4168127C19EE6E5700C72800 /* LoginViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; lineEnding = 0; name = LoginViewController.m; path = Login/LoginViewController.m; sourceTree = "<group>"; };
 		4168127F19EE6E5700C72800 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		4168128419EE6E5700C72800 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = Base.lproj/LaunchScreen.xib; sourceTree = "<group>"; };
-		4168129E19EE72EE00C72800 /* libz.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libz.dylib; path = usr/lib/libz.dylib; sourceTree = SDKROOT; };
-		416812A019EE72F400C72800 /* libsqlite3.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libsqlite3.dylib; path = usr/lib/libsqlite3.dylib; sourceTree = SDKROOT; };
-		416812A219EE73A000C72800 /* libc++.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = "libc++.dylib"; path = "usr/lib/libc++.dylib"; sourceTree = SDKROOT; };
 		416812A619EE8E9500C72800 /* CloudDriveTableViewController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = CloudDriveTableViewController.h; path = CloudDrive/CloudDriveTableViewController.h; sourceTree = "<group>"; };
-		416812A719EE8E9500C72800 /* CloudDriveTableViewController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; lineEnding = 0; name = CloudDriveTableViewController.m; path = CloudDrive/CloudDriveTableViewController.m; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objc; };
+		416812A719EE8E9500C72800 /* CloudDriveTableViewController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; lineEnding = 0; name = CloudDriveTableViewController.m; path = CloudDrive/CloudDriveTableViewController.m; sourceTree = "<group>"; };
 		416812AB19EE8FAC00C72800 /* SVProgressHUD-Prefix.pch */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "SVProgressHUD-Prefix.pch"; sourceTree = "<group>"; };
 		416812AC19EE8FAC00C72800 /* SVProgressHUD.bundle */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.plug-in"; path = SVProgressHUD.bundle; sourceTree = "<group>"; };
 		416812AD19EE8FAC00C72800 /* SVProgressHUD.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SVProgressHUD.h; sourceTree = "<group>"; };
@@ -118,18 +81,6 @@
 		41C681E91A2363E20088F2E6 /* ContactsTableViewController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = ContactsTableViewController.m; path = Contacts/ContactsTableViewController.m; sourceTree = "<group>"; };
 		41C681F11A23658C0088F2E6 /* MEGASdkManager.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGASdkManager.h; sourceTree = "<group>"; };
 		41C681F21A23658C0088F2E6 /* MEGASdkManager.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = MEGASdkManager.m; sourceTree = "<group>"; };
-		41D4EADC19EED5270097C00F /* libresolv.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libresolv.dylib; path = usr/lib/libresolv.dylib; sourceTree = SDKROOT; };
-		943D11F71A25F25100318442 /* MEGAphoto.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = MEGAphoto.h; path = CloudDrive/MEGAphoto.h; sourceTree = "<group>"; };
-		943D11F81A25F25100318442 /* MEGAphoto.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = MEGAphoto.m; path = CloudDrive/MEGAphoto.m; sourceTree = "<group>"; };
-		A88EE2151F0A63B600AECF76 /* libcares.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libcares.a; path = ../../../bindings/ios/3rdparty/lib/libcares.a; sourceTree = "<group>"; };
-		A88EE2161F0A63B600AECF76 /* libcrypto.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libcrypto.a; path = ../../../bindings/ios/3rdparty/lib/libcrypto.a; sourceTree = "<group>"; };
-		A88EE2171F0A63B600AECF76 /* libcryptopp.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libcryptopp.a; path = ../../../bindings/ios/3rdparty/lib/libcryptopp.a; sourceTree = "<group>"; };
-		A88EE2181F0A63B600AECF76 /* libcurl.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libcurl.a; path = ../../../bindings/ios/3rdparty/lib/libcurl.a; sourceTree = "<group>"; };
-		A88EE2191F0A63B600AECF76 /* libssl.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libssl.a; path = ../../../bindings/ios/3rdparty/lib/libssl.a; sourceTree = "<group>"; };
-		A88EE21A1F0A63B600AECF76 /* libuv.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libuv.a; path = ../../../bindings/ios/3rdparty/lib/libuv.a; sourceTree = "<group>"; };
-		A88EE2231F0A642300AECF76 /* libsodium.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libsodium.a; path = ../../../bindings/ios/3rdparty/lib/libsodium.a; sourceTree = "<group>"; };
-		A8BF10BB21ED10E5006B283A /* libzen.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libzen.a; path = ../../../bindings/ios/3rdparty/lib/libzen.a; sourceTree = "<group>"; };
-		A8BF10BD21ED10E5006B283A /* libmediainfo.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libmediainfo.a; path = ../../../bindings/ios/3rdparty/lib/libmediainfo.a; sourceTree = "<group>"; };
 		A8BF10C021ED1114006B283A /* AVFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVFoundation.framework; path = System/Library/Frameworks/AVFoundation.framework; sourceTree = SDKROOT; };
 		A8BF10C221ED1119006B283A /* CoreMedia.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreMedia.framework; path = System/Library/Frameworks/CoreMedia.framework; sourceTree = SDKROOT; };
 		E80D158F1A236C7100148421 /* Helper.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Helper.h; sourceTree = "<group>"; };
@@ -145,49 +96,13 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A8BF10C421ED1175006B283A /* libcares.a in Frameworks */,
-				A8BF10C521ED1175006B283A /* libcrypto.a in Frameworks */,
-				A8BF10C621ED1175006B283A /* libcryptopp.a in Frameworks */,
-				A8BF10C721ED1175006B283A /* libcurl.a in Frameworks */,
-				A8BF10C821ED1175006B283A /* libmediainfo.a in Frameworks */,
-				A8BF10C921ED1175006B283A /* libsodium.a in Frameworks */,
-				A8BF10CA21ED1175006B283A /* libssl.a in Frameworks */,
-				A8BF10CB21ED1175006B283A /* libuv.a in Frameworks */,
-				A8BF10CC21ED1175006B283A /* libzen.a in Frameworks */,
-				A8BF10C321ED111A006B283A /* CoreMedia.framework in Frameworks */,
-				A8BF10C121ED1114006B283A /* AVFoundation.framework in Frameworks */,
-				A88EE2251F0A642F00AECF76 /* MapKit.framework in Frameworks */,
-				A88EE2221F0A641400AECF76 /* MobileCoreServices.framework in Frameworks */,
-				A88EE2211F0A63FB00AECF76 /* ImageIO.framework in Frameworks */,
-				414295FB1B13399800639A20 /* libMEGASDK.a in Frameworks */,
-				4135AEA819F58ED700A8A56A /* libMWPhotoBrowser.a in Frameworks */,
-				41D4EADD19EED5270097C00F /* libresolv.dylib in Frameworks */,
-				416812A319EE73A000C72800 /* libc++.dylib in Frameworks */,
-				416812A119EE72F400C72800 /* libsqlite3.dylib in Frameworks */,
-				4168129F19EE72EE00C72800 /* libz.dylib in Frameworks */,
+				A8CCCFF82AE1954B00E3CCAB /* MEGASdk in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		4135AE9419F5880C00A8A56A /* MWPhotoBrowser */ = {
-			isa = PBXGroup;
-			children = (
-				4135AEA119F58A2500A8A56A /* MWPhotoBrowser.xcodeproj */,
-				4135AE9B19F5882E00A8A56A /* MWPhotoBrowser.bundle */,
-			);
-			path = MWPhotoBrowser;
-			sourceTree = "<group>";
-		};
-		4135AEA219F58A2500A8A56A /* Products */ = {
-			isa = PBXGroup;
-			children = (
-				4135AEA619F58A2500A8A56A /* libMWPhotoBrowser.a */,
-			);
-			name = Products;
-			sourceTree = "<group>";
-		};
 		4168126819EE6E5700C72800 = {
 			isa = PBXGroup;
 			children = (
@@ -239,24 +154,10 @@
 			children = (
 				A8BF10C221ED1119006B283A /* CoreMedia.framework */,
 				A8BF10C021ED1114006B283A /* AVFoundation.framework */,
-				A8BF10BD21ED10E5006B283A /* libmediainfo.a */,
-				A8BF10BB21ED10E5006B283A /* libzen.a */,
-				A88EE2231F0A642300AECF76 /* libsodium.a */,
-				A88EE2151F0A63B600AECF76 /* libcares.a */,
-				A88EE2161F0A63B600AECF76 /* libcrypto.a */,
-				A88EE2171F0A63B600AECF76 /* libcryptopp.a */,
-				A88EE2181F0A63B600AECF76 /* libcurl.a */,
-				A88EE2191F0A63B600AECF76 /* libssl.a */,
-				A88EE21A1F0A63B600AECF76 /* libuv.a */,
-				414295FA1B13399800639A20 /* libMEGASDK.a */,
 				41ACFBC61A1155AC00905ACF /* MapKit.framework */,
 				41AB68FD1A094459003FE608 /* ImageIO.framework */,
 				41AB68F91A0943FE003FE608 /* MobileCoreServices.framework */,
 				417BBFF019F57FF10081D102 /* AssetsLibrary.framework */,
-				41D4EADC19EED5270097C00F /* libresolv.dylib */,
-				416812A219EE73A000C72800 /* libc++.dylib */,
-				416812A019EE72F400C72800 /* libsqlite3.dylib */,
-				4168129E19EE72EE00C72800 /* libz.dylib */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -265,7 +166,6 @@
 			isa = PBXGroup;
 			children = (
 				41AD803A1A2745580015B79B /* SSKeychain */,
-				4135AE9419F5880C00A8A56A /* MWPhotoBrowser */,
 				416812AA19EE8FAC00C72800 /* SVProgressHUD */,
 			);
 			path = vendor;
@@ -329,8 +229,6 @@
 			isa = PBXGroup;
 			children = (
 				41AFC1101A2C746B00867F17 /* Cloud.storyboard */,
-				943D11F71A25F25100318442 /* MEGAphoto.h */,
-				943D11F81A25F25100318442 /* MEGAphoto.m */,
 				416812A619EE8E9500C72800 /* CloudDriveTableViewController.h */,
 				416812A719EE8E9500C72800 /* CloudDriveTableViewController.m */,
 				41B4553919F1218000439D45 /* NodeTableViewCell.h */,
@@ -380,6 +278,9 @@
 			dependencies = (
 			);
 			name = Demo;
+			packageProductDependencies = (
+				A8CCCFF72AE1954B00E3CCAB /* MEGASdk */,
+			);
 			productName = Demo;
 			productReference = 4168127119EE6E5700C72800 /* Demo.app */;
 			productType = "com.apple.product-type.application";
@@ -390,8 +291,9 @@
 		4168126919EE6E5700C72800 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
+				BuildIndependentTargetsInParallel = YES;
 				CLASSPREFIX = "";
-				LastUpgradeCheck = 1010;
+				LastUpgradeCheck = 1500;
 				ORGANIZATIONNAME = MEGA;
 				TargetAttributes = {
 					4168127019EE6E5700C72800 = {
@@ -402,7 +304,7 @@
 			};
 			buildConfigurationList = 4168126C19EE6E5700C72800 /* Build configuration list for PBXProject "Demo" */;
 			compatibilityVersion = "Xcode 3.2";
-			developmentRegion = English;
+			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
@@ -410,30 +312,17 @@
 				es,
 			);
 			mainGroup = 4168126819EE6E5700C72800;
+			packageReferences = (
+				A8CCCFF62AE1954B00E3CCAB /* XCLocalSwiftPackageReference "../../.." */,
+			);
 			productRefGroup = 4168127219EE6E5700C72800 /* Products */;
 			projectDirPath = "";
-			projectReferences = (
-				{
-					ProductGroup = 4135AEA219F58A2500A8A56A /* Products */;
-					ProjectRef = 4135AEA119F58A2500A8A56A /* MWPhotoBrowser.xcodeproj */;
-				},
-			);
 			projectRoot = "";
 			targets = (
 				4168127019EE6E5700C72800 /* Demo */,
 			);
 		};
 /* End PBXProject section */
-
-/* Begin PBXReferenceProxy section */
-		4135AEA619F58A2500A8A56A /* libMWPhotoBrowser.a */ = {
-			isa = PBXReferenceProxy;
-			fileType = archive.ar;
-			path = libMWPhotoBrowser.a;
-			remoteRef = 4135AEA519F58A2500A8A56A /* PBXContainerItemProxy */;
-			sourceTree = BUILT_PRODUCTS_DIR;
-		};
-/* End PBXReferenceProxy section */
 
 /* Begin PBXResourcesBuildPhase section */
 		4168126F19EE6E5700C72800 /* Resources */ = {
@@ -448,7 +337,6 @@
 				41AFC11A1A2C746B00867F17 /* Offline.storyboard in Resources */,
 				41B09CB41A26479000CCBC49 /* Images.xcassets in Resources */,
 				416812AF19EE8FAC00C72800 /* SVProgressHUD.bundle in Resources */,
-				4135AE9C19F5882E00A8A56A /* MWPhotoBrowser.bundle in Resources */,
 				41AFC11B1A2C746B00867F17 /* Settings.storyboard in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -465,7 +353,6 @@
 				41C681E71A2363700088F2E6 /* ContactTableViewCell.m in Sources */,
 				41C681EA1A2363E20088F2E6 /* ContactsTableViewController.m in Sources */,
 				41AD80401A2745580015B79B /* SSKeychainQuery.m in Sources */,
-				943D11F91A25F25100318442 /* MEGAphoto.m in Sources */,
 				4168127A19EE6E5700C72800 /* AppDelegate.m in Sources */,
 				4114CBC81A07E9C100B7D475 /* OfflineTableViewController.m in Sources */,
 				41C681F31A23658C0088F2E6 /* MEGASdkManager.m in Sources */,
@@ -569,6 +456,7 @@
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
 				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
@@ -579,6 +467,7 @@
 				ENABLE_BITCODE = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu99;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -624,6 +513,7 @@
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
 				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
@@ -634,6 +524,7 @@
 				ENABLE_BITCODE = NO;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu99;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -656,8 +547,11 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				INFOPLIST_FILE = Demo/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 8.0;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)/../../../bindings/ios/3rdparty/lib",
@@ -666,7 +560,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "MEGA.$(PRODUCT_NAME:rfc1034identifier)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE = "";
-				USER_HEADER_SEARCH_PATHS = "../../../bindings/ios ../../../include/** Demo/vendor/MWPhotoBrowser/**";
+				USER_HEADER_SEARCH_PATHS = "";
 			};
 			name = Debug;
 		};
@@ -677,8 +571,11 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				INFOPLIST_FILE = Demo/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 8.0;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)/../../../bindings/ios/3rdparty/lib",
@@ -687,7 +584,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "MEGA.$(PRODUCT_NAME:rfc1034identifier)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE = "";
-				USER_HEADER_SEARCH_PATHS = "../../../bindings/ios ../../../include/** Demo/vendor/MWPhotoBrowser/**";
+				USER_HEADER_SEARCH_PATHS = "";
 			};
 			name = Release;
 		};
@@ -713,6 +610,20 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		A8CCCFF62AE1954B00E3CCAB /* XCLocalSwiftPackageReference "../../.." */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../../..;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A8CCCFF72AE1954B00E3CCAB /* MEGASdk */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = MEGASdk;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 4168126919EE6E5700C72800 /* Project object */;
 }

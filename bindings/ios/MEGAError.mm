@@ -49,10 +49,6 @@ using namespace mega;
     }
 }
 
-- (instancetype)clone {
-    return self.megaError ? [[MEGAError alloc] initWithMegaError:self.megaError->copy() cMemoryOwn:YES] : nil;
-}
-
 - (MegaError *)getCPtr {
     return self.megaError;
 }
@@ -81,11 +77,11 @@ using namespace mega;
     return self.megaError ? MEGALinkErrorCode(self.megaError->getLinkStatus()) : MEGALinkErrorCodeUnknown;
 }
 
-- (NSString *)nameWithErrorCode:(NSInteger)errorCode {
+- (nullable NSString *)nameWithErrorCode:(NSInteger)errorCode {
     return MegaError::getErrorString((int)errorCode) ? [[NSString alloc] initWithUTF8String:MegaError::getErrorString((int)errorCode)] : nil;
 }
 
-+ (NSString *)errorStringWithErrorCode:(NSInteger)errorCode context:(MEGAErrorContext)context {
++ (nullable NSString *)errorStringWithErrorCode:(NSInteger)errorCode context:(MEGAErrorContext)context {
     return MegaError::getErrorString((int)errorCode, (MegaError::ErrorContexts)context) ? [[NSString alloc] initWithUTF8String:MegaError::getErrorString((int)errorCode, (MegaError::ErrorContexts)context)] : nil;
 }
 

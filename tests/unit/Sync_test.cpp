@@ -16,1295 +16,34 @@
  * program.
  */
 
-#include <memory>
-#include <numeric>
-
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
-
-#include <mega/megaclient.h>
-#include <mega/megaapp.h>
-#include <mega/types.h>
-#include <mega/heartbeats.h>
-#include <mega/sync.h>
-#include <mega/filesystem.h>
-
 #include "constants.h"
-#include "FsNode.h"
 #include "DefaultedDbTable.h"
 #include "DefaultedDirAccess.h"
 #include "DefaultedFileAccess.h"
 #include "DefaultedFileSystemAccess.h"
+#include "FsNode.h"
 #include "utils.h"
 
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
+#include <mega/filesystem.h>
+#include <mega/heartbeats.h>
+#include <mega/megaapp.h>
+#include <mega/megaclient.h>
+#include <mega/scoped_helpers.h>
+#include <mega/sync.h>
+#include <mega/types.h>
+
+#include <memory>
+#include <numeric>
+
 #ifdef ENABLE_SYNC
-
-namespace {
-
-class MockApp : public mega::MegaApp
-{
-public:
-
-    bool sync_syncable(mega::Sync*, const char*, mega::LocalPath& localpath) override
-    {
-        return mNotSyncablePaths.find(localpath) == mNotSyncablePaths.end();
-    }
-
-    bool sync_syncable(mega::Sync*, const char*, mega::LocalPath& localpath, mega::Node*) override
-    {
-        return mNotSyncablePaths.find(localpath) == mNotSyncablePaths.end();
-    }
-
-    void addNotSyncablePath(const mega::LocalPath& path)
-    {
-        mNotSyncablePaths.insert(path);
-    }
-
-private:
-    std::set<mega::LocalPath> mNotSyncablePaths;
-};
-
-class MockFileAccess : public mt::DefaultedFileAccess
-{
-public:
-    explicit MockFileAccess(std::map<mega::LocalPath, const mt::FsNode*>& fsNodes)
-    : mFsNodes{fsNodes}
-    {}
-
-    ~MockFileAccess()
-    {
-        assert(sOpenFileCount <= 2); // Ensure there's not more than two files open at a time
-        if (mOpen)
-        {
-            --sOpenFileCount;
-        }
-    }
-
-    MEGA_DISABLE_COPY_MOVE(MockFileAccess)
-
-    bool fopen(mega::LocalPath& path, bool, bool, mega::DirAccess* iteratingDir, bool) override
-    {
-        mPath = path;
-        return sysopen();
-    }
-
-    bool sysstat(mega::m_time_t* curr_mtime, m_off_t* curr_size) override
-    {
-        *curr_mtime = mtime;
-        *curr_size = size;
-        return true;
-    }
-
-    bool sysopen(bool async = false) override
-    {
-        const auto fsNodePair = mFsNodes.find(mPath);
-        if (fsNodePair != mFsNodes.end())
-        {
-            mCurrentFsNode = fsNodePair->second;
-            if (!mCurrentFsNode->getOpenable())
-            {
-                return false;
-            }
-            fsid = mCurrentFsNode->getFsId();
-            fsidvalid = fsid != mega::UNDEF;
-            size = mCurrentFsNode->getSize();
-            mtime = mCurrentFsNode->getMTime();
-            type = mCurrentFsNode->getType();
-            mOpen = true;
-            ++sOpenFileCount;
-            return true;
-        }
-        else
-        {
-            return false;
-        }
-    }
-
-    bool sysread(mega::byte* buffer, unsigned size, m_off_t offset) override
-    {
-        assert(mOpen);
-        assert(mCurrentFsNode);
-        if (!mCurrentFsNode->getReadable())
-        {
-            return false;
-        }
-        const auto& content = mCurrentFsNode->getContent();
-        assert(static_cast<unsigned>(offset) + size <= content.size());
-        std::copy(content.begin() + static_cast<unsigned>(offset), content.begin() + static_cast<unsigned>(offset) + size, buffer);
-        return true;
-    }
-
-    void sysclose() override
-    {}
-
-private:
-    static int sOpenFileCount;
-    mega::LocalPath mPath;
-    bool mOpen = false;
-    const mt::FsNode* mCurrentFsNode{};
-    std::map<mega::LocalPath, const mt::FsNode*>& mFsNodes;
-};
-
-int MockFileAccess::sOpenFileCount{0};
-
-class MockDirAccess : public mt::DefaultedDirAccess
-{
-public:
-    explicit MockDirAccess(std::map<mega::LocalPath, const mt::FsNode*>& fsNodes)
-    : mFsNodes{fsNodes}
-    {}
-
-    MEGA_DISABLE_COPY_MOVE(MockDirAccess)
-
-    bool dopen(mega::LocalPath* path, mega::FileAccess* fa, bool) override
-    {
-        assert(fa->type == mega::FOLDERNODE);
-        const auto fsNodePair = mFsNodes.find(*path);
-        if (fsNodePair != mFsNodes.end())
-        {
-            mCurrentFsNode = fsNodePair->second;
-            return mCurrentFsNode->getOpenable();
-        }
-        else
-        {
-            return false;
-        }
-    }
-
-    bool dnext(mega::LocalPath& localpath, mega::LocalPath& localname, bool = true, mega::nodetype_t* = NULL) override
-    {
-        assert(mCurrentFsNode);
-        assert(mCurrentFsNode->getPath() == localpath);
-        const auto& children = mCurrentFsNode->getChildren();
-        if (mCurrentChildIndex < children.size())
-        {
-            localname = children[mCurrentChildIndex]->getName();
-            ++mCurrentChildIndex;
-            return true;
-        }
-        else
-        {
-            mCurrentChildIndex = 0;
-            mCurrentFsNode = nullptr;
-            return false;
-        }
-    }
-
-private:
-    const mt::FsNode* mCurrentFsNode{};
-    std::size_t mCurrentChildIndex{};
-    std::map<mega::LocalPath, const mt::FsNode*>& mFsNodes;
-};
-
-class MockFileSystemAccess : public mt::DefaultedFileSystemAccess
-{
-public:
-    explicit MockFileSystemAccess(std::map<mega::LocalPath, const mt::FsNode*>& fsNodes)
-    : mFsNodes{fsNodes}
-    {}
-
-    std::unique_ptr<mega::FileAccess> newfileaccess(bool) override
-    {
-        return std::unique_ptr<mega::FileAccess>{new MockFileAccess{mFsNodes}};
-    }
-
-    mega::DirAccess* newdiraccess() override
-    {
-        return new MockDirAccess{mFsNodes};
-    }
-
-    void local2path(const std::string* local, std::string* path) const override
-    {
-        *path = *local;
-    }
-
-    void path2local(const std::string* local, std::string* path) const override
-    {
-        *path = *local;
-    }
-
-    bool getsname(const mega::LocalPath&, mega::LocalPath&) const override
-    {
-        return false;
-    }
-
-private:
-    std::map<mega::LocalPath, const mt::FsNode*>& mFsNodes;
-};
-
-struct Fixture
-{
-    explicit Fixture(std::string localname)
-    : mUnifiedSync{mt::makeSync(*mClient, std::move(localname))}
-    , mSync{mUnifiedSync->mSync}
-    {}
-
-    MEGA_DISABLE_COPY_MOVE(Fixture)
-
-    MockApp mApp;
-    std::map<mega::LocalPath, const mt::FsNode*> mFsNodes;
-    MockFileSystemAccess mFsAccess{mFsNodes};
-    std::shared_ptr<mega::MegaClient> mClient = mt::makeClient(mApp, mFsAccess);
-    mega::handlelocalnode_map& mLocalNodes = mClient->fsidnode;
-    std::unique_ptr<mega::UnifiedSync> mUnifiedSync;
-    std::unique_ptr<mega::Sync>& mSync;
-
-    bool iteratorsCorrect(mega::LocalNode& l) const
-    {
-        if (l.fsid_it == mLocalNodes.end())
-        {
-            return false;
-        }
-        auto localNodePair = mLocalNodes.find(l.fsid);
-        if (l.fsid_it != localNodePair)
-        {
-            return false;
-        }
-        if (&l != localNodePair->second)
-        {
-            return false;
-        }
-        return true;
-    }
-};
-
-}
-
-namespace {
-
-using mega::LocalPath;
-using std::string;
-
-/*
- * Shim to make following test less painful.
- */
-int computeReversePathMatchScore(const string& path1,
-                                 const string& path2)
-{
-#if defined(_WIN32)
-    mega::WinFileSystemAccess wfa;
-    auto localpath1 = LocalPath::fromPath(path1, wfa);
-    auto localpath2 = LocalPath::fromPath(path2, wfa);
-
-    return mega::computeReversePathMatchScore(localpath1,
-                                              localpath2,
-                                              mt::DefaultedFileSystemAccess());
-#else
-    return mega::computeReversePathMatchScore(
-        LocalPath::fromPlatformEncoded(path1),
-        LocalPath::fromPlatformEncoded(path2),
-        mt::DefaultedFileSystemAccess());
-
-#endif
-}
-
-void test_computeReversePathMatchScore()
-{
-    string sepstr;
-    sepstr.push_back(LocalPath::localPathSeparator);
-    ASSERT_EQ(0, computeReversePathMatchScore("", ""));
-    ASSERT_EQ(0, computeReversePathMatchScore("", sepstr + "a"));
-    ASSERT_EQ(0, computeReversePathMatchScore(sepstr + "b", ""));
-    ASSERT_EQ(0, computeReversePathMatchScore("a", "b"));
-    ASSERT_EQ(2, computeReversePathMatchScore("cc", "cc"));
-    ASSERT_EQ(0, computeReversePathMatchScore(sepstr, sepstr));
-    ASSERT_EQ(0, computeReversePathMatchScore(sepstr + "b", sepstr + "a"));
-    ASSERT_EQ(2, computeReversePathMatchScore(sepstr + "cc", sepstr + "cc"));
-    ASSERT_EQ(0, computeReversePathMatchScore(sepstr + "b", sepstr + "b" + sepstr));
-    ASSERT_EQ(2, computeReversePathMatchScore(sepstr + "a" + sepstr + "b", sepstr + "a" + sepstr + "b"));
-    ASSERT_EQ(2, computeReversePathMatchScore(sepstr + "a" + sepstr + "c" + sepstr + "a" + sepstr + "b", sepstr + "a" + sepstr + "b"));
-    ASSERT_EQ(3, computeReversePathMatchScore(sepstr + "aaa" + sepstr + "bbbb" + sepstr + "ccc", sepstr + "aaa" + sepstr + "bbb" + sepstr + "ccc"));
-    ASSERT_EQ(2, computeReversePathMatchScore("a" + sepstr + "b", "a" + sepstr + "b"));
-
-    const string base = sepstr + "a" + sepstr + "b";
-    const string reference = sepstr + "c12" + sepstr + "e34";
-
-    ASSERT_EQ(6, computeReversePathMatchScore(base + reference, base + sepstr + "a65" + reference));
-    ASSERT_EQ(6, computeReversePathMatchScore(base + reference, base + sepstr + ".debris" + reference));
-    ASSERT_EQ(6, computeReversePathMatchScore(base + reference, base + sepstr + "ab" + reference));
-}
-
-}
-
-TEST(Sync, computeReverseMatchScore_oneByteSeparator)
-{
-    test_computeReversePathMatchScore();
-}
-
-/*TEST(Sync, assignFilesystemIds_whenFilesystemFingerprintsMatchLocalNodes)
-{
-    Fixture fx{"d"};
-
-    // Level 0
-    mt::FsNode d{nullptr, mega::FOLDERNODE, "d"};
-    mega::LocalNode& ld = *fx.mSync->localroot;
-    static_cast<mega::FileFingerprint&>(ld) = d.getFingerprint();
-
-    // Level 1
-    mt::FsNode d_0{&d, mega::FOLDERNODE, "d_0"};
-    auto ld_0 = mt::makeLocalNode(*fx.mSync, ld, mega::FOLDERNODE, "d_0", d_0.getFingerprint());
-    mt::FsNode d_1{&d, mega::FOLDERNODE, "d_1"};
-    auto ld_1 = mt::makeLocalNode(*fx.mSync, ld, mega::FOLDERNODE, "d_1", d_1.getFingerprint());
-    mt::FsNode f_2{&d, mega::FILENODE, "f_2"};
-    auto lf_2 = mt::makeLocalNode(*fx.mSync, ld, mega::FILENODE, "f_2", f_2.getFingerprint());
-
-    // Level 2
-    mt::FsNode f_0_0{&d_0, mega::FILENODE, "f_0_0"};
-    auto lf_0_0 = mt::makeLocalNode(*fx.mSync, *ld_0, mega::FILENODE, "f_0_0", f_0_0.getFingerprint());
-    mt::FsNode f_0_1{&d_0, mega::FILENODE, "f_0_1"};
-    auto lf_0_1 = mt::makeLocalNode(*fx.mSync, *ld_0, mega::FILENODE, "f_0_1", f_0_1.getFingerprint());
-    mt::FsNode f_1_0{&d_1, mega::FILENODE, "f_1_0"};
-    auto lf_1_0 = mt::makeLocalNode(*fx.mSync, *ld_1, mega::FILENODE, "f_1_0", f_1_0.getFingerprint());
-    mt::FsNode d_1_1{&d_1, mega::FOLDERNODE, "d_1_1"};
-    auto ld_1_1 = mt::makeLocalNode(*fx.mSync, *ld_1, mega::FOLDERNODE, "d_1_1", d_1_1.getFingerprint());
-
-    // Level 3
-    mt::FsNode f_1_1_0{&d_1_1, mega::FILENODE, "f_1_1_0"};
-    auto lf_1_1_0 = mt::makeLocalNode(*fx.mSync, *ld_1_1, mega::FILENODE, "f_1_1_0", f_1_1_0.getFingerprint());
-
-    mt::collectAllFsNodes(fx.mFsNodes, d);
-
-    auto localdebris = LocalPath::fromPath("d/" + mt::gLocalDebris, fx.mFsAccess);
-    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, localdebris);
-
-    ASSERT_TRUE(success);
-
-    // assert that directories have correct fs IDs
-    ASSERT_EQ(mega::UNDEF, ld.fsid);
-    ASSERT_EQ(d_0.getFsId(), ld_0->fsid);
-    ASSERT_EQ(d_1.getFsId(), ld_1->fsid);
-    ASSERT_EQ(d_1_1.getFsId(), ld_1_1->fsid);
-
-    // assert that all file `LocalNode`s have same fs IDs as the corresponding `FsNode`s
-    ASSERT_EQ(f_2.getFsId(), lf_2->fsid);
-    ASSERT_EQ(f_0_0.getFsId(), lf_0_0->fsid);
-    ASSERT_EQ(f_0_1.getFsId(), lf_0_1->fsid);
-    ASSERT_EQ(f_1_0.getFsId(), lf_1_0->fsid);
-    ASSERT_EQ(f_1_1_0.getFsId(), lf_1_1_0->fsid);
-
-    // assert that the local node map is correct
-    constexpr std::size_t fileCount = 8;
-    ASSERT_EQ(fileCount, fx.mLocalNodes.size());
-
-    ASSERT_FALSE(fx.iteratorsCorrect(ld));
-    ASSERT_TRUE(fx.iteratorsCorrect(*ld_0));
-    ASSERT_TRUE(fx.iteratorsCorrect(*ld_1));
-    ASSERT_TRUE(fx.iteratorsCorrect(*ld_1_1));
-    ASSERT_TRUE(fx.iteratorsCorrect(*lf_2));
-    ASSERT_TRUE(fx.iteratorsCorrect(*lf_0_0));
-    ASSERT_TRUE(fx.iteratorsCorrect(*lf_0_1));
-    ASSERT_TRUE(fx.iteratorsCorrect(*lf_1_0));
-    ASSERT_TRUE(fx.iteratorsCorrect(*lf_1_1_0));
-}
-
-TEST(Sync, assignFilesystemIds_whenFilesystemFingerprintsMatchLocalNodes_oppositeDeclarationOrder)
-{
-    Fixture fx{"d"};
-
-    // Level 0
-    mt::FsNode d{nullptr, mega::FOLDERNODE, "d"};
-    mega::LocalNode& ld = *fx.mSync->localroot;
-    static_cast<mega::FileFingerprint&>(ld) = d.getFingerprint();
-
-    // Level 1
-    mt::FsNode d_0{&d, mega::FOLDERNODE, "d_0"};
-    auto ld_0 = mt::makeLocalNode(*fx.mSync, ld, mega::FOLDERNODE, "d_0", d_0.getFingerprint());
-
-    // Level 2
-
-    // reverse order of declaration should still lead to same results (files vs localnodes)
-    mt::FsNode f_0_1{&d_0, mega::FILENODE, "f_0_1"};
-    mt::FsNode f_0_0{&d_0, mega::FILENODE, "f_0_0"};
-    auto lf_0_0 = mt::makeLocalNode(*fx.mSync, *ld_0, mega::FILENODE, "f_0_0", f_0_0.getFingerprint());
-    auto lf_0_1 = mt::makeLocalNode(*fx.mSync, *ld_0, mega::FILENODE, "f_0_1", f_0_1.getFingerprint());
-
-    mt::collectAllFsNodes(fx.mFsNodes, d);
-
-    auto localdebris = LocalPath::fromPath("d/" + mt::gLocalDebris, fx.mFsAccess);
-    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, localdebris);
-
-    ASSERT_TRUE(success);
-
-    // assert that directories have correct fs IDs
-    ASSERT_EQ(mega::UNDEF, ld.fsid);
-    ASSERT_EQ(d_0.getFsId(), ld_0->fsid);
-
-    // assert that all file `LocalNode`s have same fs IDs as the corresponding `FsNode`s
-    ASSERT_EQ(f_0_0.getFsId(), lf_0_0->fsid);
-    ASSERT_EQ(f_0_1.getFsId(), lf_0_1->fsid);
-
-    // assert that the local node map is correct
-    constexpr std::size_t fileCount = 3;
-    ASSERT_EQ(fileCount, fx.mLocalNodes.size());
-
-    ASSERT_FALSE(fx.iteratorsCorrect(ld));
-    ASSERT_TRUE(fx.iteratorsCorrect(*ld_0));
-    ASSERT_TRUE(fx.iteratorsCorrect(*lf_0_0));
-    ASSERT_TRUE(fx.iteratorsCorrect(*lf_0_1));
-}
-
-TEST(Sync, assignFilesystemIds_whenNoLocalNodesMatchFilesystemFingerprints)
-{
-    Fixture fx{"d"};
-
-    // Level 0
-    mt::FsNode d{nullptr, mega::FOLDERNODE, "d"};
-    mega::LocalNode& ld = *fx.mSync->localroot;
-
-    // Level 1
-    mt::FsNode d_0{&d, mega::FOLDERNODE, "d_0"};
-    auto ld_0 = mt::makeLocalNode(*fx.mSync, ld, mega::FOLDERNODE, "d_0");
-    mt::FsNode d_1{&d, mega::FOLDERNODE, "d_1"};
-    auto ld_1 = mt::makeLocalNode(*fx.mSync, ld, mega::FOLDERNODE, "d_1");
-    mt::FsNode f_2{&d, mega::FILENODE, "f_2"};
-    auto lf_2 = mt::makeLocalNode(*fx.mSync, ld, mega::FILENODE, "f_2");
-
-    // Level 2
-    mt::FsNode f_0_0{&d_0, mega::FILENODE, "f_0_0"};
-    auto lf_0_0 = mt::makeLocalNode(*fx.mSync, *ld_0, mega::FILENODE, "f_0_0");
-    mt::FsNode f_0_1{&d_0, mega::FILENODE, "f_0_1"};
-    auto lf_0_1 = mt::makeLocalNode(*fx.mSync, *ld_0, mega::FILENODE, "f_0_1");
-    mt::FsNode f_1_0{&d_1, mega::FILENODE, "f_1_0"};
-    auto lf_1_0 = mt::makeLocalNode(*fx.mSync, *ld_1, mega::FILENODE, "f_1_0");
-    mt::FsNode d_1_1{&d_1, mega::FOLDERNODE, "d_1_1"};
-    auto ld_1_1 = mt::makeLocalNode(*fx.mSync, *ld_1, mega::FOLDERNODE, "d_1_1");
-
-    // Level 3
-    mt::FsNode f_1_1_0{&d_1_1, mega::FILENODE, "f_1_1_0"};
-    auto lf_1_1_0 = mt::makeLocalNode(*fx.mSync, *ld_1_1, mega::FILENODE, "f_1_1_0");
-
-    mt::collectAllFsNodes(fx.mFsNodes, d);
-
-    auto localdebris = LocalPath::fromPath("d/" + mt::gLocalDebris, fx.mFsAccess);
-    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, localdebris);
-
-    ASSERT_TRUE(success);
-
-    // assert that files and directories have invalid fs IDs (no fingerprint matches)
-    ASSERT_EQ(mega::UNDEF, ld.fsid);
-    ASSERT_EQ(mega::UNDEF, ld_0->fsid);
-    ASSERT_EQ(mega::UNDEF, ld_1->fsid);
-    ASSERT_EQ(mega::UNDEF, ld_1_1->fsid);
-    ASSERT_EQ(mega::UNDEF, lf_2->fsid);
-    ASSERT_EQ(mega::UNDEF, lf_0_0->fsid);
-    ASSERT_EQ(mega::UNDEF, lf_0_1->fsid);
-    ASSERT_EQ(mega::UNDEF, lf_1_0->fsid);
-    ASSERT_EQ(mega::UNDEF, lf_1_1_0->fsid);
-}
-
-TEST(Sync, assignFilesystemIds_whenTwoLocalNodesHaveSameFingerprint)
-{
-    Fixture fx{"d"};
-
-    // Level 0
-    mt::FsNode d{nullptr, mega::FOLDERNODE, "d"};
-    mega::LocalNode& ld = *fx.mSync->localroot;
-    static_cast<mega::FileFingerprint&>(ld) = d.getFingerprint();
-
-    // Level 1
-    mt::FsNode d_0{&d, mega::FOLDERNODE, "d_0"};
-    auto ld_0 = mt::makeLocalNode(*fx.mSync, ld, mega::FOLDERNODE, "d_0", d_0.getFingerprint());
-    mt::FsNode d_1{&d, mega::FOLDERNODE, "d_1"};
-    auto ld_1 = mt::makeLocalNode(*fx.mSync, ld, mega::FOLDERNODE, "d_1", d_1.getFingerprint());
-    mt::FsNode f_2{&d, mega::FILENODE, "f_2"};
-    auto lf_2 = mt::makeLocalNode(*fx.mSync, ld, mega::FILENODE, "f_2", f_2.getFingerprint());
-
-    // Level 2
-    mt::FsNode f_0_0{&d_0, mega::FILENODE, "f_0_0"};
-    auto lf_0_0 = mt::makeLocalNode(*fx.mSync, *ld_0, mega::FILENODE, "f_0_0", f_0_0.getFingerprint());
-    mt::FsNode f_0_1{&d_0, mega::FILENODE, "f_0_1"};
-    auto lf_0_1 = mt::makeLocalNode(*fx.mSync, *ld_0, mega::FILENODE, "f_0_1", f_0_1.getFingerprint());
-    mt::FsNode f_1_0{&d_1, mega::FILENODE, "f_1_0"};
-    auto lf_1_0 = mt::makeLocalNode(*fx.mSync, *ld_1, mega::FILENODE, "f_1_0", f_1_0.getFingerprint());
-    mt::FsNode d_1_1{&d_1, mega::FOLDERNODE, "d_1_1"};
-    auto ld_1_1 = mt::makeLocalNode(*fx.mSync, *ld_1, mega::FOLDERNODE, "d_1_1", d_1_1.getFingerprint());
-
-    // Level 3
-    mt::FsNode f_1_1_0{&d_1_1, mega::FILENODE, "f_1_1_0"};
-    f_1_1_0.assignContentFrom(f_1_0);
-    auto lf_1_1_0 = mt::makeLocalNode(*fx.mSync, *ld_1_1, mega::FILENODE, "f_1_1_0", f_1_1_0.getFingerprint());
-
-    mt::collectAllFsNodes(fx.mFsNodes, d);
-
-    auto localdebris = LocalPath::fromPath("d/" + mt::gLocalDebris, fx.mFsAccess);
-    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, localdebris);
-
-    ASSERT_TRUE(success);
-
-    // assert that directories have correct fs IDs
-    ASSERT_EQ(mega::UNDEF, ld.fsid);
-    ASSERT_EQ(d_0.getFsId(), ld_0->fsid);
-    ASSERT_EQ(d_1.getFsId(), ld_1->fsid);
-    ASSERT_EQ(d_1_1.getFsId(), ld_1_1->fsid);
-
-    // assert that all file `LocalNode`s have same fs IDs as the corresponding `FsNode`s
-    ASSERT_EQ(f_2.getFsId(), lf_2->fsid);
-    ASSERT_EQ(f_0_0.getFsId(), lf_0_0->fsid);
-    ASSERT_EQ(f_0_1.getFsId(), lf_0_1->fsid);
-    ASSERT_EQ(f_1_0.getFsId(), lf_1_0->fsid);
-    ASSERT_EQ(f_1_1_0.getFsId(), lf_1_1_0->fsid);
-
-    // assert that the local node map is correct
-    constexpr std::size_t fileCount = 8;
-    ASSERT_EQ(fileCount, fx.mLocalNodes.size());
-
-    ASSERT_FALSE(fx.iteratorsCorrect(ld));
-    ASSERT_TRUE(fx.iteratorsCorrect(*ld_0));
-    ASSERT_TRUE(fx.iteratorsCorrect(*ld_1));
-    ASSERT_TRUE(fx.iteratorsCorrect(*ld_1_1));
-    ASSERT_TRUE(fx.iteratorsCorrect(*lf_2));
-    ASSERT_TRUE(fx.iteratorsCorrect(*lf_0_0));
-    ASSERT_TRUE(fx.iteratorsCorrect(*lf_0_1));
-    ASSERT_TRUE(fx.iteratorsCorrect(*lf_1_0));
-    ASSERT_TRUE(fx.iteratorsCorrect(*lf_1_1_0));
-}
-
-TEST(Sync, assignFilesystemIds_whenSomeFsIdIsNotValid)
-{
-    Fixture fx{"d"};
-
-    // Level 0
-    mt::FsNode d{nullptr, mega::FOLDERNODE, "d"};
-    mega::LocalNode& ld = *fx.mSync->localroot;
-    static_cast<mega::FileFingerprint&>(ld) = d.getFingerprint();
-
-    // Level 1
-    mt::FsNode f_0{&d, mega::FILENODE, "f_0"};
-    f_0.setFsId(mega::UNDEF);
-    auto lf_0 = mt::makeLocalNode(*fx.mSync, ld, mega::FILENODE, "f_0", f_0.getFingerprint());
-
-    mt::collectAllFsNodes(fx.mFsNodes, d);
-
-    auto localdebris = LocalPath::fromPath("d/" + mt::gLocalDebris, fx.mFsAccess);
-    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, localdebris);
-
-    ASSERT_FALSE(success);
-
-    // assert that directories have correct fs IDs
-    ASSERT_EQ(mega::UNDEF, ld.fsid);
-
-    // file node must have undef fs ID
-    ASSERT_EQ(mega::UNDEF, lf_0->fsid);
-
-    // assert that the local node map is correct
-    constexpr std::size_t fileCount = 0;
-    ASSERT_EQ(fileCount, fx.mLocalNodes.size());
-
-    ASSERT_FALSE(fx.iteratorsCorrect(ld));
-    ASSERT_FALSE(fx.iteratorsCorrect(*lf_0));
-}
-
-TEST(Sync, assignFilesystemIds_whenSomeFileCannotBeOpened)
-{
-    Fixture fx{"d"};
-
-    // Level 0
-    mt::FsNode d{nullptr, mega::FOLDERNODE, "d"};
-    mega::LocalNode& ld = *fx.mSync->localroot;
-    static_cast<mega::FileFingerprint&>(ld) = d.getFingerprint();
-
-    // Level 1
-    mt::FsNode f_0{&d, mega::FILENODE, "f_0"};
-    f_0.setOpenable(false);
-    auto lf_0 = mt::makeLocalNode(*fx.mSync, ld, mega::FILENODE, "f_0", f_0.getFingerprint());
-
-    mt::collectAllFsNodes(fx.mFsNodes, d);
-
-    auto localdebris = LocalPath::fromPath("d/" + mt::gLocalDebris, fx.mFsAccess);
-    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, localdebris);
-
-    ASSERT_FALSE(success);
-}
-
-TEST(Sync, assignFilesystemIds_whenRootDirCannotBeOpened)
-{
-    Fixture fx{"d"};
-
-    // Level 0
-    mt::FsNode d{nullptr, mega::FOLDERNODE, "d"};
-    d.setOpenable(false);
-    mega::LocalNode& ld = *fx.mSync->localroot;
-    static_cast<mega::FileFingerprint&>(ld) = d.getFingerprint();
-
-    // Level 1
-    mt::FsNode f_0{&d, mega::FILENODE, "f_0"};
-    auto lf_0 = mt::makeLocalNode(*fx.mSync, ld, mega::FILENODE, "f_0", f_0.getFingerprint());
-
-    mt::collectAllFsNodes(fx.mFsNodes, d);
-
-    auto localdebris = LocalPath::fromPath("d/" + mt::gLocalDebris, fx.mFsAccess);
-    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, localdebris);
-
-    ASSERT_FALSE(success);
-}
-
-TEST(Sync, assignFilesystemIds_whenSubDirCannotBeOpened)
-{
-    Fixture fx{"d"};
-
-    // Level 0
-    mt::FsNode d{nullptr, mega::FOLDERNODE, "d"};
-    mega::LocalNode& ld = *fx.mSync->localroot;
-    static_cast<mega::FileFingerprint&>(ld) = d.getFingerprint();
-
-    // Level 1
-    mt::FsNode f_0{&d, mega::FILENODE, "f_0"};
-    auto lf_0 = mt::makeLocalNode(*fx.mSync, ld, mega::FILENODE, "f_0", f_0.getFingerprint());
-    mt::FsNode d_0{&d, mega::FOLDERNODE, "d_0"};
-    d_0.setOpenable(false);
-    auto ld_0 = mt::makeLocalNode(*fx.mSync, ld, mega::FOLDERNODE, "d_0", d_0.getFingerprint());
-
-    mt::collectAllFsNodes(fx.mFsNodes, d);
-
-    auto localdebris = LocalPath::fromPath("d/" + mt::gLocalDebris, fx.mFsAccess);
-    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, localdebris);
-
-    ASSERT_FALSE(success);
-
-    // assert that directories have invalid fs IDs
-    ASSERT_EQ(mega::UNDEF, ld.fsid);
-    ASSERT_EQ(mega::UNDEF, ld_0->fsid);
-
-    // check file nodes
-    ASSERT_EQ(f_0.getFsId(), lf_0->fsid);
-
-    // assert that the local node map is correct
-    constexpr std::size_t fileCount = 1;
-    ASSERT_EQ(fileCount, fx.mLocalNodes.size());
-
-    ASSERT_FALSE(fx.iteratorsCorrect(ld));
-    ASSERT_TRUE(fx.iteratorsCorrect(*lf_0));
-    ASSERT_FALSE(fx.iteratorsCorrect(*ld_0));
-}
-
-TEST(Sync, assignFilesystemIds_forSingleFile)
-{
-    Fixture fx{"d"};
-
-    // Level 0
-    mt::FsNode d{nullptr, mega::FOLDERNODE, "d"};
-    mega::LocalNode& ld = *fx.mSync->localroot;
-    static_cast<mega::FileFingerprint&>(ld) = d.getFingerprint();
-
-    // Level 1
-    mt::FsNode f_0{&d, mega::FILENODE, "f_0"};
-    auto lf_0 = mt::makeLocalNode(*fx.mSync, ld, mega::FILENODE, "f_0", f_0.getFingerprint());
-
-    mt::collectAllFsNodes(fx.mFsNodes, d);
-
-    auto localdebris = LocalPath::fromPath("d/" + mt::gLocalDebris, fx.mFsAccess);
-    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, localdebris);
-
-    ASSERT_TRUE(success);
-
-    ASSERT_EQ(mega::UNDEF, ld.fsid);
-    ASSERT_EQ(f_0.getFsId(), lf_0->fsid);
-
-    // assert that the local node map is correct
-    constexpr std::size_t fileCount = 1;
-    ASSERT_EQ(fileCount, fx.mLocalNodes.size());
-
-    ASSERT_FALSE(fx.iteratorsCorrect(ld));
-    ASSERT_TRUE(fx.iteratorsCorrect(*lf_0));
-}
-
-TEST(Sync, assignFilesystemIds_whenPathIsNotSyncableThroughApp)
-{
-    Fixture fx{"d"};
-    fx.mApp.addNotSyncablePath(LocalPath::fromPath("d/f_1", fx.mFsAccess));
-
-    // Level 0
-    mt::FsNode d{nullptr, mega::FOLDERNODE, "d"};
-    mega::LocalNode& ld = *fx.mSync->localroot;
-    static_cast<mega::FileFingerprint&>(ld) = d.getFingerprint();
-
-    // Level 1
-    mt::FsNode f_0{&d, mega::FILENODE, "f_0"};
-    auto lf_0 = mt::makeLocalNode(*fx.mSync, ld, mega::FILENODE, "f_0", f_0.getFingerprint());
-    mt::FsNode f_1{&d, mega::FILENODE, "f_1"};
-
-    mt::collectAllFsNodes(fx.mFsNodes, d);
-
-    auto localdebris = LocalPath::fromPath("d/" + mt::gLocalDebris, fx.mFsAccess);
-    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, localdebris);
-
-    ASSERT_TRUE(success);
-
-    ASSERT_EQ(mega::UNDEF, ld.fsid);
-    ASSERT_EQ(f_0.getFsId(), lf_0->fsid);
-
-    constexpr std::size_t fileCount = 1;
-    ASSERT_EQ(fileCount, fx.mLocalNodes.size());
-
-    ASSERT_FALSE(fx.iteratorsCorrect(ld));
-    ASSERT_TRUE(fx.iteratorsCorrect(*lf_0));
-}
-
-TEST(Sync, assignFilesystemIds_whenDebrisIsPartOfFiles)
-{
-    Fixture fx{"d"};
-
-    // Level 0
-    mt::FsNode d{nullptr, mega::FOLDERNODE, "d"};
-    mega::LocalNode& ld = *fx.mSync->localroot;
-    static_cast<mega::FileFingerprint&>(ld) = d.getFingerprint();
-
-    // Level 1
-    mt::FsNode f_0{&d, mega::FILENODE, "f_0"};
-    auto lf_0 = mt::makeLocalNode(*fx.mSync, ld, mega::FILENODE, "f_0", f_0.getFingerprint());
-    mt::FsNode d_1{&d, mega::FOLDERNODE, mt::gLocalDebris};
-
-    // Level 2
-    mt::FsNode f_1_0{&d_1, mega::FILENODE, "f_1_0"};
-
-    mt::collectAllFsNodes(fx.mFsNodes, d);
-
-    auto localdebris = LocalPath::fromPath("d/" + mt::gLocalDebris, fx.mFsAccess);
-    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, localdebris);
-
-    ASSERT_TRUE(success);
-
-    // assert that directories have correct fs IDs
-    ASSERT_EQ(mega::UNDEF, ld.fsid);
-
-    // assert that all file `LocalNode`s have same fs IDs as the corresponding `FsNode`s
-    ASSERT_EQ(f_0.getFsId(), lf_0->fsid);
-
-    // assert that the local node map is correct
-    constexpr std::size_t fileCount = 1;
-    ASSERT_EQ(fileCount, fx.mLocalNodes.size());
-
-    ASSERT_FALSE(fx.iteratorsCorrect(ld));
-    ASSERT_TRUE(fx.iteratorsCorrect(*lf_0));
-}
-
-TEST(Sync, assignFilesystemIds_preferredPathMatchAssignsFinalFsId)
-{
-    Fixture fx{"d"};
-
-    // Level 0
-    mt::FsNode d{nullptr, mega::FOLDERNODE, "d"};
-    mega::LocalNode& ld = *fx.mSync->localroot;
-    static_cast<mega::FileFingerprint&>(ld) = d.getFingerprint();
-
-    // Level 1
-    mt::FsNode f_0{&d, mega::FILENODE, "f_0"};
-    auto lf_0 = mt::makeLocalNode(*fx.mSync, ld, mega::FILENODE, "f_0", f_0.getFingerprint());
-    mt::FsNode d_1{&d, mega::FOLDERNODE, "d_1"};
-
-    // the local node for f_1_0 is still at level 1 but the file moved to level 2 under a new folder (d_1)
-    auto lf_1 = mt::makeLocalNode(*fx.mSync, ld, mega::FILENODE, "f_1_0", f_0.getFingerprint());
-
-    // Level 2
-    mt::FsNode f_1_0{&d_1, mega::FILENODE, "f_1_0"};
-    f_1_0.assignContentFrom(f_0);
-
-    mt::collectAllFsNodes(fx.mFsNodes, d);
-
-    auto localdebris = LocalPath::fromPath("d/" + mt::gLocalDebris, fx.mFsAccess);
-    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, localdebris);
-
-    ASSERT_TRUE(success);
-
-    // assert that directories have correct fs IDs
-    ASSERT_EQ(mega::UNDEF, ld.fsid);
-
-    // assert that all file `LocalNode`s have same fs IDs as the corresponding `FsNode`s
-    ASSERT_EQ(f_0.getFsId(), lf_0->fsid);
-    ASSERT_EQ(f_1_0.getFsId(), lf_1->fsid);
-
-    // assert that the local node map is correct
-    constexpr std::size_t fileCount = 2;
-    ASSERT_EQ(fileCount, fx.mLocalNodes.size());
-
-    ASSERT_TRUE(fx.iteratorsCorrect(*lf_0));
-    ASSERT_TRUE(fx.iteratorsCorrect(*lf_1));
-}
-
-TEST(Sync, assignFilesystemIds_whenFolderWasMoved_differentLeafName)
-{
-    Fixture fx{"d"};
-
-    // Level 0
-    mt::FsNode d{nullptr, mega::FOLDERNODE, "d"};
-    mega::LocalNode& ld = *fx.mSync->localroot;
-    static_cast<mega::FileFingerprint&>(ld) = d.getFingerprint();
-
-    // Level 1
-    mt::FsNode d_0_renamed{&d, mega::FOLDERNODE, "d_0_renamed"};
-    auto ld_0 = mt::makeLocalNode(*fx.mSync, ld, mega::FOLDERNODE, "d_0", d_0_renamed.getFingerprint());
-
-    // Level 2
-    mt::FsNode f_0_0{&d_0_renamed, mega::FILENODE, "f_0_0"};
-    auto lf_0_0 = mt::makeLocalNode(*fx.mSync, *ld_0, mega::FILENODE, "f_0_0", f_0_0.getFingerprint());
-    mt::FsNode f_0_1{&d_0_renamed, mega::FILENODE, "f_0_1"};
-    auto lf_0_1 = mt::makeLocalNode(*fx.mSync, *ld_0, mega::FILENODE, "f_0_1", f_0_1.getFingerprint());
-
-    mt::collectAllFsNodes(fx.mFsNodes, d);
-
-    auto localdebris = LocalPath::fromPath("d/" + mt::gLocalDebris, fx.mFsAccess);
-    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, localdebris);
-
-    ASSERT_TRUE(success);
-
-    // assert that directories have correct fs IDs
-    ASSERT_EQ(mega::UNDEF, ld.fsid);
-    ASSERT_EQ(mega::UNDEF, ld_0->fsid);
-
-    // assert that all file `LocalNode`s have same fs IDs as the corresponding `FsNode`s
-    ASSERT_EQ(f_0_0.getFsId(), lf_0_0->fsid);
-    ASSERT_EQ(f_0_1.getFsId(), lf_0_1->fsid);
-
-    // assert that the local node map is correct
-    constexpr std::size_t fileCount = 2;
-    ASSERT_EQ(fileCount, fx.mLocalNodes.size());
-
-    ASSERT_FALSE(fx.iteratorsCorrect(ld));
-    ASSERT_FALSE(fx.iteratorsCorrect(*ld_0));
-    ASSERT_TRUE(fx.iteratorsCorrect(*lf_0_0));
-    ASSERT_TRUE(fx.iteratorsCorrect(*lf_0_1));
-}
-
-TEST(Sync, assignFilesystemIds_whenFolderWasMoved_sameLeafName)
-{
-    Fixture fx{"d"};
-
-    // Level 0
-    mt::FsNode d{nullptr, mega::FOLDERNODE, "d"};
-    mega::LocalNode& ld = *fx.mSync->localroot;
-    static_cast<mega::FileFingerprint&>(ld) = d.getFingerprint();
-
-    // Level 1
-    mt::FsNode d_0_renamed{&d, mega::FOLDERNODE, "d_0_renamed"};
-    auto ld_0 = mt::makeLocalNode(*fx.mSync, ld, mega::FOLDERNODE, "d_0", d_0_renamed.getFingerprint());
-
-    // Level 2
-    mt::FsNode d_0{&d_0_renamed, mega::FOLDERNODE, "d_0"};
-
-    // Level 3
-    mt::FsNode f_0_0{&d_0, mega::FILENODE, "f_0_0"};
-    auto lf_0_0 = mt::makeLocalNode(*fx.mSync, *ld_0, mega::FILENODE, "f_0_0", f_0_0.getFingerprint());
-    mt::FsNode f_0_1{&d_0, mega::FILENODE, "f_0_1"};
-    auto lf_0_1 = mt::makeLocalNode(*fx.mSync, *ld_0, mega::FILENODE, "f_0_1", f_0_1.getFingerprint());
-
-    mt::collectAllFsNodes(fx.mFsNodes, d);
-
-    auto localdebris = LocalPath::fromPath("d/" + mt::gLocalDebris, fx.mFsAccess);
-    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, localdebris);
-
-    ASSERT_TRUE(success);
-
-    // assert that directories have correct fs IDs
-    ASSERT_EQ(mega::UNDEF, ld.fsid);
-    ASSERT_EQ(d_0.getFsId(), ld_0->fsid);
-
-    // assert that all file `LocalNode`s have same fs IDs as the corresponding `FsNode`s
-    ASSERT_EQ(f_0_0.getFsId(), lf_0_0->fsid);
-    ASSERT_EQ(f_0_1.getFsId(), lf_0_1->fsid);
-
-    // assert that the local node map is correct
-    constexpr std::size_t fileCount = 3;
-    ASSERT_EQ(fileCount, fx.mLocalNodes.size());
-
-    ASSERT_FALSE(fx.iteratorsCorrect(ld));
-    ASSERT_TRUE(fx.iteratorsCorrect(*ld_0));
-    ASSERT_TRUE(fx.iteratorsCorrect(*lf_0_0));
-    ASSERT_TRUE(fx.iteratorsCorrect(*lf_0_1));
-}
-
-TEST(Sync, assignFilesystemIds_whenFileWasCopied)
-{
-    Fixture fx{"d"};
-
-    // Level 0
-    mt::FsNode d{nullptr, mega::FOLDERNODE, "d"};
-    mega::LocalNode& ld = *fx.mSync->localroot;
-    static_cast<mega::FileFingerprint&>(ld) = d.getFingerprint();
-
-    // Level 1
-    mt::FsNode f_0{&d, mega::FILENODE, "f_0"};
-    mt::FsNode d_0{&d, mega::FOLDERNODE, "d_0"};
-
-    auto lf_0 = mt::makeLocalNode(*fx.mSync, ld, mega::FILENODE, "f_0", f_0.getFingerprint());
-
-    // Level 2
-    mt::FsNode f_1{&d_0, mega::FILENODE, "f_0"}; // same name as `f_0`
-    f_1.assignContentFrom(f_0); // file was copied maintaining mtime
-
-    mt::collectAllFsNodes(fx.mFsNodes, d);
-
-    auto localdebris = LocalPath::fromPath("d/" + mt::gLocalDebris, fx.mFsAccess);
-    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, localdebris);
-
-    ASSERT_TRUE(success);
-
-    // assert that directories have correct fs IDs
-    ASSERT_EQ(mega::UNDEF, ld.fsid);
-
-    // assert that all file `LocalNode`s have same fs IDs as the corresponding `FsNode`s
-    ASSERT_EQ(f_0.getFsId(), lf_0->fsid);
-
-    // assert that the local node map is correct
-    constexpr std::size_t fileCount = 1;
-    ASSERT_EQ(fileCount, fx.mLocalNodes.size());
-
-    ASSERT_FALSE(fx.iteratorsCorrect(ld));
-    ASSERT_TRUE(fx.iteratorsCorrect(*lf_0));
-}
-
-TEST(Sync, assignFilesystemIds_whenFileWasMoved_differentLeafName)
-{
-    Fixture fx{"d"};
-
-    // Level 0
-    mt::FsNode d{nullptr, mega::FOLDERNODE, "d"};
-    mega::LocalNode& ld = *fx.mSync->localroot;
-    static_cast<mega::FileFingerprint&>(ld) = d.getFingerprint();
-
-    // Level 1
-    mt::FsNode f_0{&d, mega::FILENODE, "f_0_renamed"};
-    auto lf_0 = mt::makeLocalNode(*fx.mSync, ld, mega::FILENODE, "f_0", f_0.getFingerprint());
-
-    mt::collectAllFsNodes(fx.mFsNodes, d);
-
-    auto localdebris = LocalPath::fromPath("d/" + mt::gLocalDebris, fx.mFsAccess);
-    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, localdebris);
-
-    ASSERT_TRUE(success);
-
-    ASSERT_EQ(mega::UNDEF, ld.fsid);
-    ASSERT_EQ(mega::UNDEF, lf_0->fsid);
-
-    // assert that the local node map is correct
-    constexpr std::size_t fileCount = 0;
-    ASSERT_EQ(fileCount, fx.mLocalNodes.size());
-
-    ASSERT_FALSE(fx.iteratorsCorrect(ld));
-    ASSERT_FALSE(fx.iteratorsCorrect(*lf_0));
-}
-
-TEST(Sync, assignFilesystemIds_whenFileWasMoved_sameLeafName)
-{
-    Fixture fx{"d"};
-
-    // Level 0
-    mt::FsNode d{nullptr, mega::FOLDERNODE, "d"};
-    mega::LocalNode& ld = *fx.mSync->localroot;
-    static_cast<mega::FileFingerprint&>(ld) = d.getFingerprint();
-
-    // Level 1
-    mt::FsNode d_0{&d, mega::FOLDERNODE, "d_0"};
-
-    // Level 2
-    mt::FsNode f_0{&d_0, mega::FILENODE, "f_0"};
-
-    auto lf_0 = mt::makeLocalNode(*fx.mSync, ld, mega::FILENODE, "f_0", f_0.getFingerprint()); // still at level 1
-
-    mt::collectAllFsNodes(fx.mFsNodes, d);
-
-    auto localdebris = LocalPath::fromPath("d/" + mt::gLocalDebris, fx.mFsAccess);
-    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, localdebris);
-
-    ASSERT_TRUE(success);
-
-    ASSERT_EQ(mega::UNDEF, ld.fsid);
-    ASSERT_EQ(f_0.getFsId(), lf_0->fsid);
-
-    // assert that the local node map is correct
-    constexpr std::size_t fileCount = 1;
-    ASSERT_EQ(fileCount, fx.mLocalNodes.size());
-
-    ASSERT_FALSE(fx.iteratorsCorrect(ld));
-    ASSERT_TRUE(fx.iteratorsCorrect(*lf_0));
-}
-
-TEST(Sync, assignFilesystemIds_emptyFolderStaysUnassigned)
-{
-    Fixture fx{"d"};
-
-    // Level 0
-    mt::FsNode d{nullptr, mega::FOLDERNODE, "d"};
-    mega::LocalNode& ld = *fx.mSync->localroot;
-    static_cast<mega::FileFingerprint&>(ld) = d.getFingerprint();
-
-    // Level 1
-    mt::FsNode d_0{&d, mega::FOLDERNODE, "d_0"};
-    auto ld_0 = mt::makeLocalNode(*fx.mSync, ld, mega::FOLDERNODE, "d_0");
-
-    mt::collectAllFsNodes(fx.mFsNodes, d);
-
-    auto localdebris = LocalPath::fromPath("d/" + mt::gLocalDebris, fx.mFsAccess);
-    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, localdebris);
-
-    ASSERT_TRUE(success);
-
-    ASSERT_EQ(mega::UNDEF, ld.fsid);
-    ASSERT_EQ(mega::UNDEF, ld_0->fsid);
-
-    // assert that the local node map is correct
-    constexpr std::size_t fileCount = 0;
-    ASSERT_EQ(fileCount, fx.mLocalNodes.size());
-
-    ASSERT_FALSE(fx.iteratorsCorrect(ld));
-    ASSERT_FALSE(fx.iteratorsCorrect(*ld_0));
-}
-
-#ifdef NDEBUG
-TEST(Sync, assignFilesystemIds_whenRootPathIsNotAFolder_hittingAssert)
-{
-    Fixture fx{"d"};
-
-    // Level 0
-    mt::FsNode d{nullptr, mega::FILENODE, "d"};
-
-    mt::collectAllFsNodes(fx.mFsNodes, d);
-
-    auto localdebris = LocalPath::fromPath("d/" + mt::gLocalDebris, fx.mFsAccess);
-    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, localdebris);
-
-    ASSERT_FALSE(success);
-}
-#endif
-
-#ifdef NDEBUG
-TEST(Sync, assignFilesystemIds_whenFileTypeIsUnexpected_hittingAssert)
-{
-    Fixture fx{"d"};
-
-    // Level 0
-    mt::FsNode d{nullptr, mega::FOLDERNODE, "d"};
-    mega::LocalNode& ld = *fx.mSync->localroot;
-    static_cast<mega::FileFingerprint&>(ld) = d.getFingerprint();
-
-    // Level 1
-    mt::FsNode f_0{&d, mega::TYPE_UNKNOWN, "f_0"};
-    auto lf_0 = mt::makeLocalNode(*fx.mSync, ld, mega::FILENODE, "f_0", f_0.getFingerprint());
-
-    mt::collectAllFsNodes(fx.mFsNodes, d);
-
-    auto localdebris = LocalPath::fromPath("d/" + mt::gLocalDebris, fx.mFsAccess);
-    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, localdebris);
-
-    ASSERT_FALSE(success);
-}
-#endif
-*/
-
-
 
 namespace mega {
     enum { TYPE_TWOWAY = SyncConfig::TYPE_TWOWAY };
     enum { TYPE_UP = SyncConfig::TYPE_UP };
     enum { TYPE_DOWN = SyncConfig::TYPE_DOWN };
 };
-
-/*
-TEST(Sync, SyncConfig_defaultOptions)
-{
-    const mega::SyncConfig config{"foo", "foo", 42, "remote",123};
-    ASSERT_TRUE(config.getEnabled());
-    ASSERT_EQ("foo", config.getLocalPath());
-    ASSERT_EQ(42, config.getRemoteNode());
-    ASSERT_EQ(123, config.getLocalFingerprint());
-    ASSERT_TRUE(config.getRegExps().empty());
-    ASSERT_EQ(mega::TYPE_TWOWAY, config.getType());
-    ASSERT_TRUE(config.isUpSync());
-    ASSERT_TRUE(config.isDownSync());
-    ASSERT_TRUE(config.syncDeletions());
-    ASSERT_FALSE(config.forceOverwrite());
-    test_SyncConfig_serialization(config);
-}
-
-TEST(Sync, SyncConfig_defaultOptions_inactive)
-{
-    mega::SyncConfig config{"foo", "foo", 42, "remote",123};
-    config.setEnabled(false);
-    ASSERT_FALSE(config.getEnabled());
-    ASSERT_EQ("foo", config.getLocalPath());
-    ASSERT_EQ(42, config.getRemoteNode());
-    ASSERT_EQ(123, config.getLocalFingerprint());
-    ASSERT_TRUE(config.getRegExps().empty());
-    ASSERT_EQ(mega::TYPE_TWOWAY, config.getType());
-    ASSERT_TRUE(config.isUpSync());
-    ASSERT_TRUE(config.isDownSync());
-    ASSERT_TRUE(config.syncDeletions());
-    ASSERT_FALSE(config.forceOverwrite());
-    test_SyncConfig_serialization(config);
-}
-
-TEST(Sync, SyncConfig_defaultOptions_butWithRegExps)
-{
-    const std::vector<std::string> regExps{"aa", "bbb"};
-    const mega::SyncConfig config{"foo", "foo", 42, "remote",123, regExps};
-    ASSERT_TRUE(config.getEnabled());
-    ASSERT_EQ("foo", config.getLocalPath());
-    ASSERT_EQ(42, config.getRemoteNode());
-    ASSERT_EQ(123, config.getLocalFingerprint());
-    ASSERT_EQ(regExps, config.getRegExps());
-    ASSERT_EQ(mega::TYPE_TWOWAY, config.getType());
-    ASSERT_TRUE(config.isUpSync());
-    ASSERT_TRUE(config.isDownSync());
-    ASSERT_TRUE(config.syncDeletions());
-    ASSERT_FALSE(config.forceOverwrite());
-    test_SyncConfig_serialization(config);
-}
-
-TEST(Sync, SyncConfig_upSync_syncDelFalse_overwriteFalse)
-{
-    const std::vector<std::string> regExps{"aa", "bbb"};
-    const mega::SyncConfig config{"foo", "foo", 42, "remote",123, regExps, true, mega::SyncConfig::TYPE_UP};
-    ASSERT_TRUE(config.getEnabled());
-    ASSERT_EQ("foo", config.getLocalPath());
-    ASSERT_EQ(42, config.getRemoteNode());
-    ASSERT_EQ(123, config.getLocalFingerprint());
-    ASSERT_EQ(regExps, config.getRegExps());
-    ASSERT_EQ(mega::TYPE_UP, config.getType());
-    ASSERT_TRUE(config.isUpSync());
-    ASSERT_FALSE(config.isDownSync());
-    ASSERT_FALSE(config.syncDeletions());
-    ASSERT_FALSE(config.forceOverwrite());
-    test_SyncConfig_serialization(config);
-}
-
-TEST(Sync, SyncConfig_upSync_syncDelTrue_overwriteTrue)
-{
-    const std::vector<std::string> regExps{"aa", "bbb"};
-    const mega::SyncConfig config{"foo", "foo", 42, "remote",123, regExps, true, mega::SyncConfig::TYPE_UP, true, true};
-    ASSERT_TRUE(config.getEnabled());
-    ASSERT_EQ("foo", config.getLocalPath());
-    ASSERT_EQ(42, config.getRemoteNode());
-    ASSERT_EQ(123, config.getLocalFingerprint());
-    ASSERT_EQ(regExps, config.getRegExps());
-    ASSERT_EQ(mega::TYPE_UP, config.getType());
-    ASSERT_TRUE(config.isUpSync());
-    ASSERT_FALSE(config.isDownSync());
-    ASSERT_TRUE(config.syncDeletions());
-    ASSERT_TRUE(config.forceOverwrite());
-    test_SyncConfig_serialization(config);
-}
-
-TEST(Sync, SyncConfig_downSync_syncDelFalse_overwriteFalse)
-{
-    const std::vector<std::string> regExps{"aa", "bbb"};
-    const mega::SyncConfig config{"foo", "foo", 42, "remote",123, regExps, true, mega::SyncConfig::TYPE_DOWN};
-    ASSERT_TRUE(config.getEnabled());
-    ASSERT_EQ("foo", config.getLocalPath());
-    ASSERT_EQ(42, config.getRemoteNode());
-    ASSERT_EQ(123, config.getLocalFingerprint());
-    ASSERT_EQ(regExps, config.getRegExps());
-    ASSERT_EQ(mega::TYPE_DOWN, config.getType());
-    ASSERT_FALSE(config.isUpSync());
-    ASSERT_TRUE(config.isDownSync());
-    ASSERT_FALSE(config.syncDeletions());
-    ASSERT_FALSE(config.forceOverwrite());
-    test_SyncConfig_serialization(config);
-}
-
-TEST(Sync, SyncConfig_downSync_syncDelTrue_overwriteTrue)
-{
-    const std::vector<std::string> regExps{"aa", "bbb"};
-    const mega::SyncConfig config{"foo", "foo", 42, "remote",123, regExps, true, mega::SyncConfig::TYPE_DOWN, true, true};
-    ASSERT_TRUE(config.getEnabled());
-    ASSERT_EQ("foo", config.getLocalPath());
-    ASSERT_EQ(42, config.getRemoteNode());
-    ASSERT_EQ(123, config.getLocalFingerprint());
-    ASSERT_EQ(regExps, config.getRegExps());
-    ASSERT_EQ(mega::SyncConfig::TYPE_DOWN, config.getType());
-    ASSERT_FALSE(config.isUpSync());
-    ASSERT_TRUE(config.isDownSync());
-    ASSERT_TRUE(config.syncDeletions());
-    ASSERT_TRUE(config.forceOverwrite());
-    test_SyncConfig_serialization(config);
-}
-*/
-
-#if 0
-namespace
-{
-
-class MockDbTable : public mt::DefaultedDbTable
-{
-public:
-    using mt::DefaultedDbTable::DefaultedDbTable;
-    void rewind() override
-    {
-        mIndex = 0;
-    }
-    bool next(uint32_t* id, std::string* data) override
-    {
-        if (mIndex >= mData->size())
-        {
-            return false;
-        }
-        *id = (*mData)[mIndex].first;
-        *data = (*mData)[mIndex].second;
-        ++mIndex;
-        return true;
-    }
-    bool put(uint32_t id, char* data, unsigned size) override
-    {
-        del(id);
-        mData->emplace_back(id, std::string{data, size});
-        return true;
-    }
-    bool del(uint32_t id) override
-    {
-        mData->erase(std::remove_if(mData->begin(), mData->end(),
-                                   [id](const std::pair<uint32_t, std::string>& p)
-                                   {
-                                       return p.first == id;
-                                   }),
-                     mData->end());
-        return true;
-    }
-    void truncate() override
-    {
-        mData->clear();
-    }
-
-    bool inTransaction() const override
-    {
-        return true;
-    }
-
-    std::vector<std::pair<uint32_t, std::string>>* mData = nullptr;
-
-private:
-    size_t mIndex = 0;
-};
-
-class MockDbAccess : public mega::DbAccess
-{
-public:
-    MockDbAccess(std::vector<std::pair<uint32_t, std::string>>& data)
-        : mData{data}
-    {}
-    mega::DbTable* open(mega::PrnGen &rng, mega::FileSystemAccess&, const std::string&, const int flags) override
-    {
-        auto table = new MockDbTable{rng, (flags & mega::DB_OPEN_FLAG_TRANSACTED) > 0};
-        table->mData = &mData;
-        return table;
-    }
-
-    bool probe(mega::FileSystemAccess&, const string&) const override
-    {
-        return true;
-    }
-
-    const mega::LocalPath &rootPath() const override
-    {
-        static mega::LocalPath const dummy;
-
-        return dummy;
-    }
-
-private:
-    std::vector<std::pair<uint32_t, std::string>>& mData;
-};
-
-}
-#endif
-
 
 namespace SyncConfigTests
 {
@@ -1319,7 +58,7 @@ public:
       : mFSAccess(fsAccess)
       , mPath(path)
     {
-        mFSAccess.mkdirlocal(mPath, false);
+        mFSAccess.mkdirlocal(mPath, false, true);
     }
 
     ~Directory()
@@ -1328,7 +67,7 @@ public:
         mFSAccess.rmdirlocal(mPath);
     }
 
-    MEGA_DISABLE_COPY_MOVE(Directory);
+    MEGA_DISABLE_COPY_MOVE(Directory)
 
     operator const LocalPath&() const
     {
@@ -1392,7 +131,7 @@ public:
     {
         auto fileAccess = mFSAccess.newfileaccess(false);
 
-        if (!fileAccess->fopen(path, false, true))
+        if (!fileAccess->fopen(path, false, true, FSLogging::logOnError))
         {
             return false;
         }
@@ -1415,22 +154,26 @@ public:
     {
         LocalPath result = prefix;
 
-        result.appendWithSeparator(randomPath(n), false);
+        result.appendWithSeparator(randomPathRelative(n), false);
 
         return result;
     }
 
-    static LocalPath randomPath(const size_t n = 16)
+    static LocalPath randomPathAbsolute(const size_t n = 16)
     {
-        return LocalPath::fromPath(randomBase64(n), mFSAccess);
+        return LocalPath::fromAbsolutePath(randomBase64(n));
+    }
+    static LocalPath randomPathRelative(const size_t n = 16)
+    {
+        return LocalPath::fromRelativePath(randomBase64(n));
     }
 
     static LocalPath separator()
     {
 #ifdef _WIN32
-        return LocalPath::fromPath("\\", mFSAccess);
+        return LocalPath::fromRelativePath("\\");
 #else // _WIN32
-        return LocalPath::fromPath("/", mFSAccess);
+        return LocalPath::fromRelativePath("/");
 #endif // ! _WIN32
     }
 
@@ -1462,6 +205,9 @@ public:
                                     rng)
         {
             // Perform real behavior by default.
+            ON_CALL(*this, driveID(_))
+              .WillByDefault(Invoke(this, &IOContext::driveIDConcrete));
+
             ON_CALL(*this, getSlotsInOrder(_, _))
               .WillByDefault(Invoke(this, &IOContext::getSlotsInOrderConcrete));
 
@@ -1478,6 +224,8 @@ public:
               .WillByDefault(Invoke(this, &IOContext::writeConcrete));
         }
 
+        MOCK_CONST_METHOD1(driveID, handle(const LocalPath&));
+
         MOCK_METHOD2(getSlotsInOrder, error(const LocalPath&, vector<unsigned int>&));
 
         MOCK_METHOD3(read, error(const LocalPath&, string&, unsigned int));
@@ -1490,6 +238,11 @@ public:
 
     private:
         // Delegate to real behavior.
+        handle driveIDConcrete(const LocalPath& drivePath)
+        {
+            return SyncConfigIOContext::driveID(drivePath);
+        }
+
         error getSlotsInOrderConcrete(const LocalPath& dbPath,
                                       vector<unsigned int>& slotsVec)
         {
@@ -1586,7 +339,7 @@ TEST_F(SyncConfigIOContextTest, GetBadPath)
     vector<unsigned int> slotsVec;
 
     // Generate a bogus path.
-    const auto drivePath = Utilities::randomPath();
+    const auto drivePath = Utilities::randomPathAbsolute();
 
     // Try to read slots from an invalid path.
     EXPECT_NE(ioContext().getSlotsInOrder(drivePath, slotsVec), API_OK);
@@ -1598,7 +351,7 @@ TEST_F(SyncConfigIOContextTest, GetBadPath)
 TEST_F(SyncConfigIOContextTest, GetNoSlots)
 {
     // Make sure the drive path exists.
-    Directory drive(fsAccess(), Utilities::randomPath());
+    Directory drive(fsAccess(), Utilities::randomPathAbsolute());
 
     // Generate some malformed slots for this user.
     {
@@ -1606,15 +359,15 @@ TEST_F(SyncConfigIOContextTest, GetNoSlots)
 
         // This file will be ignored as it has no slot suffix.
         configPath.appendWithSeparator(
-          LocalPath::fromPath(configName(), fsAccess()), false);
+          LocalPath::fromRelativePath(configName()), false);
         EXPECT_TRUE(Utilities::randomFile(configPath));
 
         // This file will be ignored as it has a malformed slot suffix.
-        configPath.append(LocalPath::fromPath(".", fsAccess()));
+        configPath.append(LocalPath::fromRelativePath("."));
         EXPECT_TRUE(Utilities::randomFile(configPath));
 
         // This file will be ignored as it has an invalid slot suffix.
-        configPath.append(LocalPath::fromPath("Q", fsAccess()));
+        configPath.append(LocalPath::fromRelativePath("Q"));
         EXPECT_TRUE(Utilities::randomFile(configPath));
     }
 
@@ -1623,9 +376,9 @@ TEST_F(SyncConfigIOContextTest, GetNoSlots)
         LocalPath configPath = drive;
 
         configPath.appendWithSeparator(
-          LocalPath::fromPath(configPrefix(), fsAccess()), false);
-        configPath.append(Utilities::randomPath());
-        configPath.append(LocalPath::fromPath(".0", fsAccess()));
+          LocalPath::fromRelativePath(configPrefix()), false);
+        configPath.append(Utilities::randomPathRelative());
+        configPath.append(LocalPath::fromRelativePath(".0"));
 
         EXPECT_TRUE(Utilities::randomFile(configPath));
     }
@@ -1644,7 +397,7 @@ TEST_F(SyncConfigIOContextTest, GetSlotsOrderedByModificationTime)
     const size_t NUM_SLOTS = 3;
 
     // Make sure drive path exists.
-    Directory drive(fsAccess(), Utilities::randomPath());
+    Directory drive(fsAccess(), Utilities::randomPathAbsolute());
 
     // Generate some slots for this user.
     {
@@ -1652,17 +405,17 @@ TEST_F(SyncConfigIOContextTest, GetSlotsOrderedByModificationTime)
 
         // Generate suitable config path prefix.
         configPath.appendWithSeparator(
-          LocalPath::fromPath(configName(), fsAccess()), false);
+          LocalPath::fromRelativePath(configName()), false);
 
         for (size_t i = 0; i < NUM_SLOTS; ++i)
         {
             using std::to_string;
 
-            ScopedLengthRestore restorer(configPath);
+            auto restorer = makeScopedSizeRestorer(configPath);
 
             // Generate suffix.
             LocalPath suffixPath =
-              LocalPath::fromPath("." + to_string(i), fsAccess());
+              LocalPath::fromRelativePath("." + to_string(i));
 
             // Complete config path.
             configPath.append(suffixPath);
@@ -1671,7 +424,7 @@ TEST_F(SyncConfigIOContextTest, GetSlotsOrderedByModificationTime)
             EXPECT_TRUE(Utilities::randomFile(configPath));
 
             // Set the modification time.
-            EXPECT_TRUE(fsAccess().setmtimelocal(configPath, i * 1000));
+            EXPECT_TRUE(fsAccess().setmtimelocal(configPath, static_cast<m_time_t>(i * 1000)));
         }
     }
 
@@ -1698,7 +451,7 @@ TEST_F(SyncConfigIOContextTest, GetSlotsOrderedBySlotSuffix)
     const size_t NUM_SLOTS = 3;
 
     // Make sure drive path exists.
-    Directory drive(fsAccess(), Utilities::randomPath());
+    Directory drive(fsAccess(), Utilities::randomPathAbsolute());
 
     // Generate some slots for this user.
     {
@@ -1706,17 +459,17 @@ TEST_F(SyncConfigIOContextTest, GetSlotsOrderedBySlotSuffix)
 
         // Generate suitable config path prefix.
         configPath.appendWithSeparator(
-          LocalPath::fromPath(configName(), fsAccess()), false);
+          LocalPath::fromRelativePath(configName()), false);
 
         for (size_t i = 0; i < NUM_SLOTS; ++i)
         {
             using std::to_string;
 
-            ScopedLengthRestore restorer(configPath);
+            auto restorer = makeScopedSizeRestorer(configPath);
 
             // Generate suffix.
             LocalPath suffixPath =
-              LocalPath::fromPath("." + to_string(i), fsAccess());
+              LocalPath::fromRelativePath("." + to_string(i));
 
             // Complete config path.
             configPath.append(suffixPath);
@@ -1751,7 +504,7 @@ TEST_F(SyncConfigIOContextTest, GetSlotsOrderedBySlotSuffix)
 TEST_F(SyncConfigIOContextTest, Read)
 {
     // Make sure the drive path exists.
-    Directory drive(fsAccess(), Utilities::randomPath());
+    Directory drive(fsAccess(), Utilities::randomPathAbsolute());
 
     // Try writing some data out and reading it back again.
     {
@@ -1782,15 +535,15 @@ TEST_F(SyncConfigIOContextTest, ReadBadData)
     string data;
 
     // Make sure the drive path exists.
-    Directory drive(fsAccess(), Utilities::randomPath());
+    Directory drive(fsAccess(), Utilities::randomPathAbsolute());
 
     // Generate slot path.
     LocalPath slotPath = drive;
 
     slotPath.appendWithSeparator(
-      LocalPath::fromPath(configName(), fsAccess()), false);
+      LocalPath::fromRelativePath(configName()), false);
 
-    slotPath.append(LocalPath::fromPath(".0", fsAccess()));
+    slotPath.append(LocalPath::fromRelativePath(".0"));
 
     // Try loading a file that's too short to be valid.
     EXPECT_TRUE(Utilities::randomFile(slotPath, 1));
@@ -1805,7 +558,7 @@ TEST_F(SyncConfigIOContextTest, ReadBadData)
 
 TEST_F(SyncConfigIOContextTest, ReadBadPath)
 {
-    const LocalPath drivePath = Utilities::randomPath();
+    const LocalPath drivePath = Utilities::randomPathAbsolute();
     string data;
 
     // Try and read data from an insane path.
@@ -1816,7 +569,7 @@ TEST_F(SyncConfigIOContextTest, ReadBadPath)
 TEST_F(SyncConfigIOContextTest, RemoveSlot)
 {
     // Make sure drive path exists.
-    Directory drive(fsAccess(), Utilities::randomPath());
+    Directory drive(fsAccess(), Utilities::randomPathAbsolute());
 
     // Generate a slot for this user.
     {
@@ -1824,10 +577,10 @@ TEST_F(SyncConfigIOContextTest, RemoveSlot)
 
         // Generate path prefix.
         configPath.appendWithSeparator(
-            LocalPath::fromPath(configName(), fsAccess()), false);
+            LocalPath::fromRelativePath(configName()), false);
 
         // Generate suffix.
-        configPath.append(LocalPath::fromPath(".0", fsAccess()));
+        configPath.append(LocalPath::fromRelativePath(".0"));
 
         // Populate slot.
         EXPECT_TRUE(Utilities::randomFile(configPath));
@@ -1836,13 +589,13 @@ TEST_F(SyncConfigIOContextTest, RemoveSlot)
     // Remove the slot.
     EXPECT_EQ(ioContext().remove(drive.path(), 0), API_OK);
 
-    // Remove should fail as the slot's already gone.
-    EXPECT_EQ(ioContext().remove(drive.path(), 0), API_EWRITE);
+    // Remove again won't fail since we don't want errors in the log that are not actually problems
+    EXPECT_EQ(ioContext().remove(drive.path(), 0), API_OK);
 }
 
 TEST_F(SyncConfigIOContextTest, RemoveSlots)
 {
-    const auto drivePath = Utilities::randomPath();
+    const auto drivePath = Utilities::randomPathAbsolute();
 
     // No slots to remove.
     EXPECT_CALL(ioContext(),
@@ -1858,7 +611,7 @@ TEST_F(SyncConfigIOContextTest, RemoveSlots)
                 getSlotsInOrder(Eq(drivePath), _))
       .WillRepeatedly(DoAll(SetArgReferee<1>(slotsVec),
                             Return(API_OK)));
-    
+
     // All slots should be removed successfully.
     EXPECT_CALL(ioContext(),
                 remove(Eq(drivePath), _))
@@ -1887,52 +640,62 @@ TEST_F(SyncConfigIOContextTest, Serialize)
         config.mBackupId = 1;
         config.mEnabled = false;
         config.mError = NO_SYNC_ERROR;
-        config.mLocalFingerprint = 1;
-        config.mLocalPath = Utilities::randomPath();
+        config.mFilesystemFingerprint = fsfp_t(2, "1");
+        config.mLocalPath = Utilities::randomPathAbsolute();
         config.mName = Utilities::randomBase64();
-        config.mOrigninalPathOfRemoteRootNode = Utilities::randomBase64();
-        config.mRemoteNode = UNDEF;
+        config.mOriginalPathOfRemoteRootNode = Utilities::randomBase64();
+        config.mRemoteNode = NodeHandle();
         config.mWarning = NO_SYNC_WARNING;
         config.mSyncType = SyncConfig::TYPE_TWOWAY;
+        config.mBackupState = SYNC_BACKUP_NONE;
 
         written.emplace_back(config);
 
         config.mBackupId = 2;
         config.mEnabled = true;
         config.mError = UNKNOWN_ERROR;
-        config.mLocalFingerprint = 2;
-        config.mLocalPath = Utilities::randomPath();
+        config.mFilesystemFingerprint = fsfp_t(2, "2");
+        config.mLocalPath = Utilities::randomPathAbsolute();
         config.mName = Utilities::randomBase64();
-        config.mOrigninalPathOfRemoteRootNode = Utilities::randomBase64();
-        config.mRegExps = {"a", "b"};
-        config.mRemoteNode = 3;
+        config.mOriginalPathOfRemoteRootNode = Utilities::randomBase64();
+        config.mRemoteNode.set6byte(3);
         config.mWarning = LOCAL_IS_FAT;
         config.mSyncType = SyncConfig::TYPE_BACKUP;
+        config.mBackupState = SYNC_BACKUP_MIRROR;
 
         written.emplace_back(config);
     }
 
     // Serialize the database.
     {
-        vector<const SyncConfig*> configs;
-
-        for (auto &config : written)
-        {
-            configs.emplace_back(&config);
-        }
-
-        ioContext().serialize(configs, writer);
+        ioContext().serialize(written, writer);
         EXPECT_FALSE(writer.getstring().empty());
     }
 
     // Deserialize the database.
     {
         JSON reader(writer.getstring());
-        EXPECT_TRUE(ioContext().deserialize(read, reader));
+        EXPECT_TRUE(ioContext().deserialize(read, reader, false));
     }
 
     // Are the databases identical?
-    EXPECT_EQ(read, written);
+    ASSERT_EQ(read.size(), written.size());
+    for (auto i = read.size(); i--; )
+    {
+        auto& a = read[i];
+        auto& b = written[i];
+        EXPECT_EQ(a.mBackupId, b.mBackupId);
+        EXPECT_EQ(a.mEnabled, b.mEnabled);
+        EXPECT_EQ(a.mError, b.mError);
+        EXPECT_EQ(a.mFilesystemFingerprint, b.mFilesystemFingerprint);
+        EXPECT_EQ(a.mLocalPath, b.mLocalPath);
+        EXPECT_EQ(a.mName, b.mName);
+        EXPECT_EQ(a.mOriginalPathOfRemoteRootNode, b.mOriginalPathOfRemoteRootNode);
+        EXPECT_EQ(a.mRemoteNode, b.mRemoteNode);
+        EXPECT_EQ(a.mWarning, b.mWarning);
+        EXPECT_EQ(a.mSyncType, b.mSyncType);
+        EXPECT_EQ(a.mBackupState, b.mBackupState);
+    }
 }
 
 TEST_F(SyncConfigIOContextTest, SerializeEmpty)
@@ -1941,7 +704,7 @@ TEST_F(SyncConfigIOContextTest, SerializeEmpty)
 
     // Serialize an empty database.
     {
-        static const vector<const SyncConfig*> empty;
+        static const SyncConfigVector empty;
 
         // Does serializing an empty database yield an empty array?
         ioContext().serialize(empty, writer);
@@ -1954,18 +717,18 @@ TEST_F(SyncConfigIOContextTest, SerializeEmpty)
         JSON reader(writer.getstring());
 
         // Can we deserialize an empty database?
-        EXPECT_TRUE(ioContext().deserialize(configs, reader));
+        EXPECT_TRUE(ioContext().deserialize(configs, reader, true));
         EXPECT_TRUE(configs.empty());
     }
 }
 
 TEST_F(SyncConfigIOContextTest, WriteBadPath)
 {
-    const LocalPath drivePath = Utilities::randomPath();
+    const LocalPath drivePath = Utilities::randomPathAbsolute();
     const string data = Utilities::randomBytes(64);
 
     auto dbPath = drivePath;
-    dbPath.appendWithSeparator(Utilities::randomPath(), false);
+    dbPath.appendWithSeparator(Utilities::randomPathRelative(), false);
 
     // Try and write data to an insane path.
     EXPECT_NE(ioContext().write(dbPath, data, 0), API_OK);
@@ -1981,823 +744,397 @@ public:
     }
 }; // SyncConfigStoreTest
 
-TEST_F(SyncConfigStoreTest, Add)
+TEST_F(SyncConfigStoreTest, Read)
 {
-    Directory db(fsAccess(), Utilities::randomPath());
-    Directory drive(fsAccess(), Utilities::randomPath());
-
-    SyncConfigStore store(db, ioContext());
-    SyncConfigVector configs;
-
-    EXPECT_EQ(store.create(drive, configs), API_OK);
-    EXPECT_TRUE(configs.empty());
-    EXPECT_TRUE(store.opened(drive));
-
-    SyncConfig config;
-
-    config.mBackupId = 1;
-    config.mExternalDrivePath = drive;
-    config.mLocalPath = Utilities::randomPath(drive);
-    config.mRemoteNode = 2;
-
-    const auto* c = store.add(config);
-    ASSERT_NE(c, nullptr);
-    EXPECT_EQ(*c, config);
-
-    EXPECT_EQ(store.getByBackupID(1), c);
-    EXPECT_EQ(store.getByRootHandle(2), c);
-}
-
-TEST_F(SyncConfigStoreTest, AddUnknownDrive)
-{
-    Directory db(fsAccess(), Utilities::randomPath());
-
-    SyncConfigStore store(db, ioContext());
-
-    SyncConfig config;
-
-    config.mBackupId = 1;
-    config.mLocalPath = Utilities::randomPath(db);
-    config.mRemoteNode = 2;
-
-    EXPECT_EQ(store.add(config), nullptr);
-    EXPECT_EQ(store.getByBackupID(1), nullptr);
-    EXPECT_EQ(store.getByRootHandle(2), nullptr);
-}
-
-TEST_F(SyncConfigStoreTest, AddUpdate)
-{
-    Directory db(fsAccess(), Utilities::randomPath());
-    Directory drive(fsAccess(), Utilities::randomPath());
-
-    SyncConfigStore store(db, ioContext());
-    SyncConfigVector configs;
-
-    EXPECT_EQ(store.create(drive, configs), API_OK);
-    EXPECT_TRUE(configs.empty());
-    EXPECT_TRUE(store.opened(drive));
-
-    SyncConfig config;
-
-    config.mBackupId = 1;
-    config.mExternalDrivePath = drive;
-    config.mLocalPath = Utilities::randomPath(drive);
-    config.mRemoteNode = 2;
-
-    const auto* c = store.add(config);
-    ASSERT_NE(c, nullptr);
-    EXPECT_EQ(*c, config);
-    EXPECT_EQ(store.getByBackupID(1), c);
-    EXPECT_EQ(store.getByRootHandle(2), c);
-
-    EXPECT_TRUE(store.dirty());
-
-    config.mRemoteNode = 3;
-
-    EXPECT_EQ(store.add(config), c);
-    EXPECT_EQ(*c, config);
-    EXPECT_EQ(store.getByBackupID(1), c);
-    EXPECT_EQ(store.getByRootHandle(3), c);
-}
-
-TEST_F(SyncConfigStoreTest, Close)
-{
-    Directory db(fsAccess(), Utilities::randomPath());
-    SyncConfigStore store(db, ioContext());
-
-    SyncConfigVector configs;
-
-    EXPECT_EQ(store.create(LocalPath(), configs), API_OK);
-    EXPECT_TRUE(configs.empty());
-    EXPECT_TRUE(store.opened(LocalPath()));
-
-    EXPECT_EQ(store.close(LocalPath()), API_OK);
-    EXPECT_FALSE(store.opened(LocalPath()));
-}
-
-TEST_F(SyncConfigStoreTest, CloseCantFlushDirtyDrive)
-{
-    Directory db(fsAccess(), Utilities::randomPath());
-    SyncConfigStore store(db, ioContext());
-
-    SyncConfigVector configs;
-
-    EXPECT_EQ(store.create(LocalPath(), configs), API_OK);
-    EXPECT_TRUE(store.opened(LocalPath()));
-
-    SyncConfig config;
-
-    config.mBackupId = 1;
-    config.mLocalPath = Utilities::randomPath();
-    config.mRemoteNode = 2;
-
-    const auto* c = store.add(config);
-    ASSERT_NE(c, nullptr);
-    EXPECT_EQ(*c, config);
-
-    EXPECT_TRUE(store.dirty());
-
-    EXPECT_CALL(ioContext(),
-                write(Eq(db.path()), _, _))
-      .WillOnce(Return(API_EWRITE));
-
-    EXPECT_EQ(store.close(LocalPath()), API_EWRITE);
-    EXPECT_FALSE(store.dirty());
-    EXPECT_FALSE(store.opened(LocalPath()));
-}
-
-TEST_F(SyncConfigStoreTest, CloseDirtyDrive)
-{
-    Directory db(fsAccess(), Utilities::randomPath());
-    SyncConfigStore store(db, ioContext());
-
-    SyncConfigVector configs;
-
-    EXPECT_EQ(store.create(LocalPath(), configs), API_OK);
-    EXPECT_TRUE(configs.empty());
-    EXPECT_TRUE(store.opened(LocalPath()));
-
-    SyncConfig config;
-
-    config.mBackupId = 1;
-    config.mLocalPath = Utilities::randomPath(db);
-    config.mRemoteNode = 2;
-
-    const auto* c = store.add(config);
-    ASSERT_NE(c, nullptr);
-    EXPECT_EQ(*c, config);
-    EXPECT_EQ(store.getByBackupID(1), c);
-    EXPECT_EQ(store.getByRootHandle(2), c);
-
-    EXPECT_TRUE(store.dirty());
-
-    EXPECT_CALL(ioContext(),
-                write(Eq(db.path()), _, 0));
-
-    EXPECT_EQ(store.close(LocalPath()), API_OK);
-    EXPECT_EQ(store.getByBackupID(1), nullptr);
-    EXPECT_EQ(store.getByRootHandle(2), nullptr);
-    EXPECT_FALSE(store.dirty());
-    EXPECT_FALSE(store.opened(LocalPath()));
-}
-
-TEST_F(SyncConfigStoreTest, CloseUnknownDrive)
-{
-    Directory db(fsAccess(), Utilities::randomPath());
-    SyncConfigStore store(db, ioContext());
-
-    EXPECT_EQ(store.close(LocalPath()), API_ENOENT);
-    EXPECT_EQ(store.close(Utilities::randomPath()), API_ENOENT);
-}
-
-TEST_F(SyncConfigStoreTest, Configs)
-{
-    Directory db(fsAccess(), Utilities::randomPath());
-    Directory drive(fsAccess(), Utilities::randomPath());
-
-    SyncConfigStore store(db, ioContext());
-
-    SyncConfigVector configs;
-    SyncConfig configA;
-    SyncConfig configB;
-
-    EXPECT_EQ(store.create(LocalPath(), configs), API_OK);
-    EXPECT_TRUE(configs.empty());
-    EXPECT_TRUE(store.opened(LocalPath()));
-
-    EXPECT_EQ(store.create(drive, configs), API_OK);
-    EXPECT_TRUE(configs.empty());
-    EXPECT_TRUE(store.opened(drive));
-
-    configA.mBackupId = 1;
-    configA.mLocalPath = Utilities::randomPath();
-    configA.mRemoteNode = 2;
-
-    const auto* cA = store.add(configA);
-    ASSERT_NE(cA, nullptr);
-    EXPECT_EQ(*cA, configA);
-
-    configB.mBackupId = 2;
-    configB.mExternalDrivePath = drive;
-    configB.mLocalPath = Utilities::randomPath(drive);
-    configB.mRemoteNode = 2;
-
-    const auto* cB = store.add(configB);
-    ASSERT_NE(cB, nullptr);
-    EXPECT_EQ(*cB, configB);
-
-    configs = store.configs(LocalPath());
-    ASSERT_FALSE(configs.empty());
-    EXPECT_EQ(configs.front(), configA);
-
-    configs = store.configs(drive);
-    ASSERT_FALSE(configs.empty());
-    EXPECT_EQ(configs.front(), configB);
-}
-
-TEST_F(SyncConfigStoreTest, ConfigsUnknownDrive)
-{
-    Directory db(fsAccess(), Utilities::randomPath());
-    Directory drive(fsAccess(), Utilities::randomPath());
-
-    SyncConfigStore store(db, ioContext());
-
-    SyncConfigVector configs;
-    SyncConfig config;
-
-    EXPECT_EQ(store.create(drive, configs), API_OK);
-    EXPECT_TRUE(configs.empty());
-    EXPECT_TRUE(store.opened(drive));
-
-    config.mBackupId = 1;
-    config.mLocalPath = Utilities::randomPath(drive);
-    config.mExternalDrivePath = drive;
-    config.mRemoteNode = 2;
-
-    const auto* c = store.add(config);
-    ASSERT_NE(c, nullptr);
-    EXPECT_EQ(*c, config);
-
-    configs = store.configs(drive);
-    ASSERT_FALSE(configs.empty());
-    EXPECT_EQ(configs.front(), config);
-
-    EXPECT_TRUE(store.configs(LocalPath()).empty());
-}
-
-TEST_F(SyncConfigStoreTest, Create)
-{
-    Directory db(fsAccess(), Utilities::randomPath());
-    Directory drive(fsAccess(), Utilities::randomPath());
-
-    SyncConfigStore store(db, ioContext());
-    SyncConfigVector configs;
-
-    // Create an internal sync config database.
-    EXPECT_EQ(store.create(LocalPath(), configs), API_OK);
-    EXPECT_TRUE(configs.empty());
-    EXPECT_TRUE(store.opened(LocalPath()));
-
-    // Create an external sync config database.
-    EXPECT_EQ(store.create(drive, configs), API_OK);
-    EXPECT_TRUE(configs.empty());
-    EXPECT_TRUE(store.opened(drive));
-}
-
-TEST_F(SyncConfigStoreTest, CreateAlreadyOpen)
-{
-    Directory db(fsAccess(), Utilities::randomPath());
-
-    SyncConfigStore store(db, ioContext());
-
-    SyncConfigVector configs;
-
-    EXPECT_EQ(store.create(LocalPath(), configs), API_OK);
-    EXPECT_TRUE(store.opened(LocalPath()));
-
-    EXPECT_EQ(store.create(LocalPath(), configs), API_EEXIST);
-}
-
-TEST_F(SyncConfigStoreTest, CreateCantReadExisting)
-{
-    static const vector<unsigned> slots = {1};
-
-    Directory db(fsAccess(), Utilities::randomPath());
-    SyncConfigStore store(db, ioContext());
-
-    Expectation get =
-      EXPECT_CALL(ioContext(),
-                  getSlotsInOrder(Eq(db.path()), _))
-        .WillOnce(DoAll(SetArgReferee<1>(slots),
-                        Return(API_OK)));
-
-    Expectation read =
-      EXPECT_CALL(ioContext(),
-                  read(Eq(db.path()), _, Eq(1)))
-        .After(get)
-        .WillOnce(Return(API_EREAD));
-
-    SyncConfigVector configs;
-
-    EXPECT_EQ(store.create(LocalPath(), configs), API_EREAD);
-    EXPECT_FALSE(store.opened(LocalPath()));
-}
-
-TEST_F(SyncConfigStoreTest, CreateExisting)
-{
-    Directory db(fsAccess(), Utilities::randomPath());
-    Directory drive(fsAccess(), Utilities::randomPath());
+    Directory db(fsAccess(), Utilities::randomPathAbsolute());
 
     SyncConfigVector written;
 
-    // Create
+    // Create a database for later reading.
     {
         SyncConfigStore store(db, ioContext());
 
-        EXPECT_EQ(store.create(drive, written), API_OK);
-        EXPECT_TRUE(store.opened(drive));
-        EXPECT_TRUE(written.empty());
+        // Read empty so that the drive is known.
+        EXPECT_EQ(store.read(LocalPath(), written, false), API_ENOENT);
 
+        // Drive should be known.
+        ASSERT_TRUE(store.driveKnown(LocalPath()));
+
+        // Create a config for writing.
         SyncConfig config;
 
         config.mBackupId = 1;
-        config.mExternalDrivePath = drive;
-        config.mLocalPath = Utilities::randomPath(drive);
-        config.mName = config.mLocalPath.toPath(fsAccess());
-        config.mRemoteNode = 2;
-
-        EXPECT_NE(store.add(config), nullptr);
-        EXPECT_TRUE(store.dirty());
+        config.mLocalPath = Utilities::randomPathAbsolute();
+        config.mRemoteNode.set6byte(2);
 
         written.emplace_back(config);
 
-        config.mBackupId = 2;
-        config.mExternalDrivePath = drive;
-        config.mLocalPath = Utilities::randomPath(drive);
-        config.mName = "Sync";
-        config.mRemoteNode = 3;
-
-        EXPECT_NE(store.add(config), nullptr);
-        EXPECT_TRUE(store.dirty());
-
-        written.emplace_back(config);
-
-        EXPECT_EQ(store.flush(), API_OK);
-        EXPECT_FALSE(store.dirty());
+        // Write database to disk.
+        EXPECT_EQ(store.write(LocalPath(), written), API_OK);
     }
 
-    // Read
     SyncConfigStore store(db, ioContext());
+
     SyncConfigVector read;
 
-    EXPECT_EQ(store.create(drive, read), API_OK);
-    EXPECT_EQ(store.configs(drive), written);
-    EXPECT_FALSE(store.dirty());
-    EXPECT_TRUE(store.opened(drive));
-    EXPECT_EQ(read, written);
-}
+    // Read database back.
+    EXPECT_EQ(store.read(LocalPath(), read, false), API_OK);
 
-TEST_F(SyncConfigStoreTest, Destruct)
-{
-    Directory db(fsAccess(), Utilities::randomPath());
+    // Drive should now be known.
+    EXPECT_TRUE(store.driveKnown(LocalPath()));
 
-    EXPECT_CALL(ioContext(),
-                write(Eq(db.path()), _, Eq(0)))
-      .Times(1);
-
+    // Configs should be precisely what we wrote.
+    ASSERT_EQ(read.size(), written.size());
+    for (auto i = read.size(); i--; )
     {
-        SyncConfigStore store(db, ioContext());
-
-        SyncConfigVector configs;
-
-        EXPECT_EQ(store.create(LocalPath(), configs), API_OK);
-        EXPECT_TRUE(store.opened(LocalPath()));
-
-        SyncConfig config;
-
-        config.mBackupId = 1;
-        config.mLocalPath = Utilities::randomPath();
-        config.mName = config.mLocalPath.toPath(fsAccess());
-        config.mRemoteNode = 2;
-
-        const auto* c = store.add(config);
-        ASSERT_NE(c, nullptr);
-        EXPECT_EQ(*c, config);
-
-        EXPECT_EQ(store.getByBackupID(1), c);
-        EXPECT_EQ(store.getByRootHandle(2), c);
-
-        EXPECT_TRUE(store.dirty());
+        auto& a = read[i];
+        auto& b = written[i];
+        EXPECT_EQ(a.mBackupId, b.mBackupId);
+        EXPECT_EQ(a.mEnabled, b.mEnabled);
+        EXPECT_EQ(a.mError, b.mError);
+        EXPECT_EQ(a.mFilesystemFingerprint, b.mFilesystemFingerprint);
+        EXPECT_EQ(a.mLocalPath, b.mLocalPath);
+        EXPECT_EQ(a.mName, b.mName);
+        EXPECT_EQ(a.mOriginalPathOfRemoteRootNode, b.mOriginalPathOfRemoteRootNode);
+        EXPECT_EQ(a.mRemoteNode, b.mRemoteNode);
+        EXPECT_EQ(a.mWarning, b.mWarning);
+        EXPECT_EQ(a.mSyncType, b.mSyncType);
+        EXPECT_EQ(a.mBackupState, b.mBackupState);
     }
 }
 
-TEST_F(SyncConfigStoreTest, Dirty)
+TEST_F(SyncConfigStoreTest, ReadEmpty)
 {
-    Directory db(fsAccess(), Utilities::randomPath());
+    Directory db(fsAccess(), Utilities::randomPathAbsolute());
 
     SyncConfigStore store(db, ioContext());
 
-    SyncConfigVector configs;
-    SyncConfig config;
-
-    EXPECT_EQ(store.create(LocalPath(), configs), API_OK);
-    EXPECT_TRUE(store.opened(LocalPath()));
-
-    config.mBackupId = 1;
-    config.mLocalPath = Utilities::randomPath();
-    config.mRemoteNode = 2;
-
-    EXPECT_FALSE(store.dirty());
-
-    const auto* c = store.add(config);
-    ASSERT_NE(c, nullptr);
-    EXPECT_EQ(*c, config);
-    EXPECT_TRUE(store.dirty());
-
-    EXPECT_EQ(store.flush(), API_OK);
-    EXPECT_FALSE(store.dirty());
-
-    config.mRemoteNode = 3;
-
-    EXPECT_EQ(store.add(config), c);
-    EXPECT_EQ(*c, config);
-    EXPECT_TRUE(store.dirty());
-
-    EXPECT_EQ(store.flush(), API_OK);
-    EXPECT_FALSE(store.dirty());
-
-    EXPECT_EQ(store.removeByBackupID(1), API_OK);
-    EXPECT_TRUE(store.dirty());
-}
-
-TEST_F(SyncConfigStoreTest, FlushCleanDrive)
-{
-    Directory db(fsAccess(), Utilities::randomPath());
-    SyncConfigStore store(db, ioContext());
-
-    SyncConfigVector configs;
-
-    EXPECT_EQ(store.create(LocalPath(), configs), API_OK);
-    EXPECT_TRUE(store.opened(LocalPath()));
-    EXPECT_FALSE(store.dirty());
-
+    // No slots available for reading.
     EXPECT_CALL(ioContext(),
-                write(Eq(db.path()), _, _))
+                getSlotsInOrder(Eq(db.path()), _))
+      .WillOnce(Return(API_ENOENT));
+
+    // No attempts should be made to read from disk.
+    EXPECT_CALL(ioContext(),
+                read(Eq(db.path()), _, _))
       .Times(0);
 
-    EXPECT_EQ(store.flush(LocalPath()), API_OK);
-    EXPECT_EQ(store.flush(), API_OK);
-}
-
-TEST_F(SyncConfigStoreTest, FlushFail)
-{
-    Directory db(fsAccess(), Utilities::randomPath());
-    SyncConfigStore store(db, ioContext());
-
     SyncConfigVector configs;
 
-    EXPECT_EQ(store.create(LocalPath(), configs), API_OK);
-    EXPECT_TRUE(store.opened(LocalPath()));
+    // Read should inform the caller that no database is present.
+    EXPECT_EQ(store.read(LocalPath(), configs, false), API_ENOENT);
+
+    // Configs should remain empty.
+    EXPECT_TRUE(configs.empty());
+
+    // Drive should be known as read didn't signal a fatal error.
+    EXPECT_TRUE(store.driveKnown(LocalPath()));
+
+    // Store should remain clean.
     EXPECT_FALSE(store.dirty());
+}
 
-    SyncConfig config;
+TEST_F(SyncConfigStoreTest, ReadFailNoDriveID)
+{
+    Directory db(fsAccess(), Utilities::randomPathAbsolute());
+    Directory drive(fsAccess(), Utilities::randomPathAbsolute());
 
-    config.mBackupId = 1;
-    config.mLocalPath = Utilities::randomPath();
-    config.mRemoteNode = 2;
+    SyncConfigStore store(db, ioContext());
 
-    const auto* c = store.add(config);
-    ASSERT_NE(c, nullptr);
-    EXPECT_EQ(*c, config);
-
-    EXPECT_TRUE(store.dirty());
-
+    // Shouldn't try to read slots if we can't read the drive ID.
     EXPECT_CALL(ioContext(),
-                write(Eq(db.path()), _, _))
-      .WillRepeatedly(Return(API_EWRITE));
+                getSlotsInOrder(_, _))
+      .Times(0);
 
-    EXPECT_EQ(store.flush(LocalPath()), API_EWRITE);
-    EXPECT_FALSE(store.dirty());
-
-    config.mRemoteNode = 3;
-
-    EXPECT_EQ(store.add(config), c);
-    EXPECT_EQ(*c, config);
-    EXPECT_TRUE(store.dirty());
-
-    EXPECT_EQ(store.flush(), API_EWRITE);
-    EXPECT_FALSE(store.dirty());
-
-    config.mRemoteNode = 4;
-
-    EXPECT_EQ(store.add(config), c);
-    EXPECT_EQ(*c, config);
-    EXPECT_TRUE(store.dirty());
-
-    vector<LocalPath> drives;
-
-    EXPECT_EQ(store.flush(drives), API_EWRITE);
-    ASSERT_EQ(drives.size(), 1);
-    EXPECT_EQ(drives.back(), LocalPath());
-    EXPECT_FALSE(store.dirty());
-}
-
-TEST_F(SyncConfigStoreTest, FlushUnknownDrive)
-{
-    Directory db(fsAccess(), Utilities::randomPath());
-    SyncConfigStore store(db, ioContext());
-
-    EXPECT_FALSE(store.dirty());
-    EXPECT_EQ(store.flush(LocalPath()), API_ENOENT);
-}
-
-TEST_F(SyncConfigStoreTest, Get)
-{
-    Directory db(fsAccess(), Utilities::randomPath());
-    SyncConfigStore store(db, ioContext());
+    // Read of drive ID should fail.
+    EXPECT_CALL(ioContext(),
+                driveID(Eq(drive.path())))
+      .WillOnce(Return(UNDEF));
 
     SyncConfigVector configs;
 
-    EXPECT_EQ(store.create(LocalPath(), configs), API_OK);
-    EXPECT_TRUE(store.opened(LocalPath()));
+    // Read should report a fatal read error.
+    EXPECT_EQ(store.read(drive, configs, true), API_EREAD);
 
-    SyncConfig configA;
-    SyncConfig configB;
+    // Drive shouldn't be known.
+    EXPECT_FALSE(store.driveKnown(drive));
 
-    configA.mBackupId = 1;
-    configA.mLocalPath = Utilities::randomPath();
-    configA.mRemoteNode = 2;
+    // No slots available for reading.
+    EXPECT_CALL(ioContext(),
+                getSlotsInOrder(_, _))
+      .WillOnce(Return(API_ENOENT));
 
-    configB.mBackupId = 2;
-    configB.mLocalPath = Utilities::randomPath();
-    configB.mRemoteNode = 3;
+    // Drive ID read should succeed.
+    EXPECT_CALL(ioContext(),
+                driveID(Eq(drive.path())))
+      .WillOnce(Return(1u));
 
-    const auto* cA = store.add(configA);
-    ASSERT_NE(cA, nullptr);
-    EXPECT_EQ(*cA, configA);
+    // Read should report no entries.
+    EXPECT_EQ(store.read(drive, configs, true), API_ENOENT);
 
-    const auto* cB = store.add(configB);
-    ASSERT_NE(cB, nullptr);
-    EXPECT_EQ(*cB, configB);
+    // Drive should now be known.
+    EXPECT_TRUE(store.driveKnown(drive));
 
-    cA = store.getByBackupID(1);
-    ASSERT_NE(cA, nullptr);
-    EXPECT_EQ(*cA, configA);
-
-    cB = store.getByBackupID(2);
-    ASSERT_NE(cB, nullptr);
-    EXPECT_EQ(*cB, configB);
-
-    EXPECT_EQ(store.getByBackupID(3), nullptr);
-    EXPECT_EQ(store.getByBackupID(UNDEF), nullptr);
-
-    cA = store.getByRootHandle(2);
-    ASSERT_NE(cA, nullptr);
-    EXPECT_EQ(*cA, configA);
-
-    cB = store.getByRootHandle(3);
-    ASSERT_NE(cB, nullptr);
-    EXPECT_EQ(*cB, configB);
-
-    EXPECT_EQ(store.getByRootHandle(4), nullptr);
-    EXPECT_EQ(store.getByRootHandle(UNDEF), nullptr);
+    // Drive ID should be cached.
+    EXPECT_EQ(store.driveID(drive), 1u);
 }
 
-TEST_F(SyncConfigStoreTest, OpenAlreadyOpen)
+TEST_F(SyncConfigStoreTest, ReadFail)
 {
-    Directory db(fsAccess(), Utilities::randomPath());
+    Directory db(fsAccess(), Utilities::randomPathAbsolute());
 
     SyncConfigStore store(db, ioContext());
 
-    SyncConfigVector configs;
-
-    EXPECT_EQ(store.create(LocalPath(), configs), API_OK);
-    EXPECT_TRUE(store.opened(LocalPath()));
-
-    EXPECT_EQ(store.open(LocalPath(), configs), API_EEXIST);
-    EXPECT_TRUE(store.opened(LocalPath()));
-}
-
-TEST_F(SyncConfigStoreTest, OpenExisting)
-{
-    Directory db(fsAccess(), Utilities::randomPath());
-    SyncConfigVector written;
-
-    // Create
-    {
-        SyncConfigStore store(db, ioContext());
-
-        EXPECT_EQ(store.create(LocalPath(), written), API_OK);
-        EXPECT_TRUE(store.opened(LocalPath()));
-
-        SyncConfig config;
-
-        config.mBackupId = 1;
-        config.mLocalPath = Utilities::randomPath();
-        config.mName = config.mLocalPath.toPath(fsAccess());
-        config.mRemoteNode = 2;
-
-        EXPECT_NE(store.add(config), nullptr);
-        written.emplace_back(config);
-
-        config.mBackupId = 2;
-        config.mLocalPath = Utilities::randomPath();
-        config.mName = "Sync";
-        config.mRemoteNode = 3;
-
-        EXPECT_NE(store.add(config), nullptr);
-        written.emplace_back(config);
-
-        EXPECT_EQ(store.flush(), API_OK);
-    }
-
-    SyncConfigStore store(db, ioContext());
-    SyncConfigVector read;
-
-    EXPECT_EQ(store.open(LocalPath(), read), API_OK);
-    EXPECT_EQ(store.configs(LocalPath()), written);
-    EXPECT_FALSE(store.dirty());
-    EXPECT_TRUE(store.opened(LocalPath()));
-    EXPECT_EQ(read, written);
-}
-
-TEST_F(SyncConfigStoreTest, OpenFail)
-{
-    Directory db(fsAccess(), Utilities::randomPath());
-
-    SyncConfigStore store(db, ioContext());
-
-    SyncConfigVector configs;
-
-    EXPECT_EQ(store.open(LocalPath(), configs), API_ENOENT);
-    EXPECT_FALSE(store.opened(LocalPath()));
-
-    static const vector<unsigned int> slots = {1};
-
+    // Return a single slot for reading.
     Expectation get =
       EXPECT_CALL(ioContext(),
                   getSlotsInOrder(Eq(db.path()), _))
-        .WillOnce(DoAll(SetArgReferee<1>(slots),
+        .WillOnce(DoAll(SetArgReferee<1>(vector<unsigned>{0}),
                         Return(API_OK)));
 
+    // Attempts to read the slot should fail.
     Expectation read =
       EXPECT_CALL(ioContext(),
-                  read(Eq(db.path()), _, Eq(1)))
+                  read(Eq(db.path()), _, Eq(0u)))
         .After(get)
         .WillOnce(Return(API_EREAD));
 
-    EXPECT_EQ(store.open(LocalPath(), configs), API_EREAD);
-    EXPECT_FALSE(store.opened(LocalPath()));
-}
-
-TEST_F(SyncConfigStoreTest, Remove)
-{
-    Directory db(fsAccess(), Utilities::randomPath());
-    Directory drive(fsAccess(), Utilities::randomPath());
-
-    SyncConfigStore store(db, ioContext());
-
     SyncConfigVector configs;
 
-    EXPECT_EQ(store.create(drive, configs), API_OK);
-    EXPECT_TRUE(store.opened(drive));
+    // Read should report a fatal read error.
+    EXPECT_EQ(store.read(LocalPath(), configs, false), API_EREAD);
 
-    SyncConfig configA;
-    SyncConfig configB;
-
-    configA.mBackupId = 1;
-    configA.mExternalDrivePath = drive;
-    configA.mLocalPath = Utilities::randomPath(drive);
-    configA.mRemoteNode = 2;
-
-    configB.mBackupId = 2;
-    configB.mExternalDrivePath = drive;
-    configB.mLocalPath = Utilities::randomPath(drive);
-    configB.mRemoteNode = 3;
-
-    const auto* cA = store.add(configA);
-    ASSERT_NE(cA, nullptr);
-    EXPECT_EQ(*cA, configA);
-
-    const auto* cB = store.add(configB);
-    ASSERT_NE(cB, nullptr);
-    EXPECT_EQ(*cB, configB);
-
-    EXPECT_TRUE(store.dirty());
-    EXPECT_EQ(store.flush(), API_OK);
-    EXPECT_FALSE(store.dirty());
-
-    EXPECT_EQ(store.removeByBackupID(1), API_OK);
-    EXPECT_EQ(store.getByBackupID(1), nullptr);
-    EXPECT_EQ(store.getByRootHandle(2), nullptr);
-
-    EXPECT_TRUE(store.dirty());
-    EXPECT_EQ(store.flush(), API_OK);
-    EXPECT_FALSE(store.dirty());
-
-    EXPECT_EQ(store.removeByRootHandle(3), API_OK);
-    EXPECT_EQ(store.getByBackupID(2), nullptr);
-    EXPECT_EQ(store.getByRootHandle(3), nullptr);
-
-    EXPECT_TRUE(store.dirty());
-    EXPECT_EQ(store.flush(), API_OK);
-    EXPECT_FALSE(store.dirty());
-
-    EXPECT_EQ(store.removeByBackupID(1), API_ENOENT);
-    EXPECT_EQ(store.removeByBackupID(UNDEF), API_ENOENT);
-    EXPECT_EQ(store.removeByRootHandle(3), API_ENOENT);
-    EXPECT_EQ(store.removeByRootHandle(UNDEF), API_ENOENT);
-    EXPECT_FALSE(store.dirty());
-}
-
-TEST_F(SyncConfigStoreTest, Truncate)
-{
-    const auto& BACKUP_CONFIG_DIR =
-      SyncConfigStore::BACKUP_CONFIG_DIR;
-
-    Directory db(fsAccess(), Utilities::randomPath());
-    Directory drive(fsAccess(), Utilities::randomPath());
-
-    SyncConfigStore store(db, ioContext());
-
-    SyncConfigVector configs;
-    SyncConfig config;
-
-    EXPECT_EQ(store.create(LocalPath(), configs), API_OK);
-    EXPECT_TRUE(store.opened(LocalPath()));
+    // Configs should remain empty.
     EXPECT_TRUE(configs.empty());
 
-    config.mBackupId = 1;
-    config.mLocalPath = Utilities::randomPath();
-    config.mRemoteNode = 2;
+    // Drive should remain unknown as read failed fatally.
+    EXPECT_FALSE(store.driveKnown(LocalPath()));
 
-    const auto* c = store.add(config);
-    ASSERT_NE(c, nullptr);
-    EXPECT_EQ(*c, config);
-
-    EXPECT_NE(store.getByBackupID(1), nullptr);
-    EXPECT_NE(store.getByRootHandle(2), nullptr);
-
-    configs = store.configs(LocalPath());
-    ASSERT_FALSE(configs.empty());
-    EXPECT_EQ(configs.back(), config);
-
-    EXPECT_EQ(store.create(drive, configs), API_OK);
-    EXPECT_TRUE(store.opened(drive));
-    EXPECT_TRUE(configs.empty());
-
-    config.mBackupId = 2;
-    config.mExternalDrivePath = drive;
-    config.mLocalPath = Utilities::randomPath(drive);
-    config.mRemoteNode = 3;
-
-    c = store.add(config);
-    ASSERT_NE(c, nullptr);
-    EXPECT_EQ(*c, config);
-
-    EXPECT_NE(store.getByBackupID(2), nullptr);
-    EXPECT_NE(store.getByRootHandle(3), nullptr);
-
-    configs = store.configs(drive);
-    ASSERT_FALSE(configs.empty());
-    EXPECT_EQ(configs.back(), config);
-
-    LocalPath driveDBPath = drive;
-    driveDBPath.appendWithSeparator(BACKUP_CONFIG_DIR, false);
-
-    Expectation remove0 =
-      EXPECT_CALL(ioContext(),
-                  remove(Eq(driveDBPath)))
-        .WillOnce(Return(API_OK));
-
-    EXPECT_EQ(store.truncate(drive), API_OK);
-    EXPECT_TRUE(store.configs(drive).empty());
-    EXPECT_TRUE(store.opened(drive));
-    EXPECT_NE(store.getByBackupID(1), nullptr);
-    EXPECT_NE(store.getByRootHandle(2), nullptr);
-    EXPECT_EQ(store.getByBackupID(2), nullptr);
-    EXPECT_EQ(store.getByRootHandle(3), nullptr);
-
-    Expectation remove1 =
-      EXPECT_CALL(ioContext(),
-                  remove(Eq(db.path())))
-        .After(remove0)
-        .WillOnce(Return(API_OK));
-
-    EXPECT_EQ(store.truncate(LocalPath()), API_OK);
-    EXPECT_TRUE(store.configs(LocalPath()).empty());
-    EXPECT_TRUE(store.opened(LocalPath()));
-    EXPECT_EQ(store.getByBackupID(1), nullptr);
-    EXPECT_EQ(store.getByRootHandle(2), nullptr);
-
+    // Store should remain clean.
     EXPECT_FALSE(store.dirty());
 }
 
-TEST_F(SyncConfigStoreTest, TruncateFail)
+TEST_F(SyncConfigStoreTest, ReadFailFallback)
 {
-    Directory db(fsAccess(), Utilities::randomPath());
+    Directory db(fsAccess(), Utilities::randomPathAbsolute());
+
+    SyncConfigStore store(db, ioContext());
+
+    // Return three slots for reading.
+    Expectation get =
+      EXPECT_CALL(ioContext(),
+                  getSlotsInOrder(Eq(db.path()), _))
+        .WillOnce(DoAll(SetArgReferee<1>(vector<unsigned>{2, 1, 0}),
+                        Return(API_OK)));
+
+    // Attempts to read slots 2 and 1 should fail.
+    Expectation read21 =
+      EXPECT_CALL(ioContext(),
+                  read(Eq(db.path()), _, _))
+        .Times(2)
+        .After(get)
+        .WillRepeatedly(Return(API_EREAD));
+
+    // Attempts to read slot 0 should succeed.
+    Expectation read0 =
+      EXPECT_CALL(ioContext(),
+                  read(Eq(db.path()), _, Eq(0u)))
+        .After(read21)
+        .WillOnce(DoAll(SetArgReferee<1>(emptyDB()),
+                        Return(API_OK)));
+
+    SyncConfigVector configs;
+
+    // Read should succeed.
+    EXPECT_EQ(store.read(LocalPath(), configs, false), API_OK);
+
+    // Configs should remain empty.
+    EXPECT_TRUE(configs.empty());
+
+    // Drive should be known as the read eventually succeeded.
+    EXPECT_TRUE(store.driveKnown(LocalPath()));
+
+    // Should should remain clean.
+    EXPECT_FALSE(store.dirty());
+}
+
+TEST_F(SyncConfigStoreTest, WriteDirty)
+{
+    Directory db(fsAccess(), Utilities::randomPathAbsolute());
 
     SyncConfigStore store(db, ioContext());
 
     SyncConfigVector configs;
 
-    EXPECT_EQ(store.create(LocalPath(), configs), API_OK);
-    EXPECT_TRUE(store.opened(LocalPath()));
+    // Perform a read such that the drive is known.
+    EXPECT_EQ(store.read(LocalPath(), configs, false), API_ENOENT);
 
+    SyncConfigVector internal;
+
+    // Populate configs.
+    {
+        SyncConfig config;
+
+        // External
+        config.mBackupId = 1;
+        config.mExternalDrivePath = Utilities::randomPathAbsolute();
+        config.mLocalPath = Utilities::randomPath(config.mExternalDrivePath);
+        config.mRemoteNode.set6byte(2);
+
+        configs.emplace_back(config);
+
+        // Internal
+        config.mBackupId = 2;
+        config.mExternalDrivePath.clear();
+        config.mLocalPath = Utilities::randomPathAbsolute();
+        config.mRemoteNode.set6byte(3);
+
+        configs.emplace_back(config);
+        internal.emplace_back(config);
+    }
+
+    // Mark internal database for writing.
+    store.markDriveDirty(LocalPath());
+
+    // Serialize configs for later comparison.
+    JSONWriter writer;
+
+    ioContext().serialize(internal, writer);
+
+    // First attempt to write the database should fail.
+    // Subsequent attempts should succeed.
+    EXPECT_CALL(ioContext(),
+                write(Eq(db.path()), Eq(writer.getstring()), Eq(0u)))
+      .Times(2)
+      .WillOnce(Return(API_EWRITE))
+      .WillRepeatedly(Return(API_OK));
+
+    // First attempt to write dirty databases should fail.
+    store.writeDirtyDrives(configs);
+
+    // Store should be clean.
+    EXPECT_FALSE(store.dirty());
+
+    // Mark drive as dirty.
+    store.markDriveDirty(LocalPath());
+
+    // Second attempt to write dirty databases should succeed.
+    store.writeDirtyDrives(configs);
+
+    // Store should now be clean.
+    EXPECT_FALSE(store.dirty());
+}
+
+TEST_F(SyncConfigStoreTest, WriteEmpty)
+{
+    Directory db(fsAccess(), Utilities::randomPathAbsolute());
+
+    SyncConfigStore store(db, ioContext());
+
+    SyncConfigVector configs;
+
+    // Read empty so that the drive is known.
+    EXPECT_EQ(store.read(LocalPath(), configs, false), API_ENOENT);
+
+    // Drive should now be known.
+    ASSERT_TRUE(store.driveKnown(LocalPath()));
+
+    // Attempt to remove the database should fail.
     EXPECT_CALL(ioContext(),
                 remove(Eq(db.path())))
-      .WillRepeatedly(Return(API_EWRITE));
+      .WillOnce(Return(API_EWRITE));
 
-    EXPECT_EQ(store.truncate(LocalPath()), API_EWRITE);
-    EXPECT_EQ(store.truncate(), API_EWRITE);
+    // Mark drive as dirty.
+    store.markDriveDirty(LocalPath());
+
+    // Write should fail.
+    EXPECT_EQ(store.write(LocalPath(), configs), API_EWRITE);
+
+    // Store should be clean.
+    EXPECT_FALSE(store.dirty());
+
+    // Mark drive as dirty.
+    store.markDriveDirty(LocalPath());
+
+    // Next attempt to remove should succeed.
+    EXPECT_CALL(ioContext(),
+                remove(Eq(db.path())))
+      .WillOnce(Return(API_OK));
+
+    // Write should succeed.
+    EXPECT_EQ(store.write(LocalPath(), configs), API_OK);
+
+    // Store should now be clean.
+    EXPECT_FALSE(store.dirty());
 }
 
-TEST_F(SyncConfigStoreTest, TruncateUnknownDrive)
+TEST_F(SyncConfigStoreTest, Write)
 {
-    Directory db(fsAccess(), Utilities::randomPath());
+    Directory db(fsAccess(), Utilities::randomPathAbsolute());
+
     SyncConfigStore store(db, ioContext());
 
-    EXPECT_EQ(store.truncate(LocalPath()), API_ENOENT);
+    SyncConfigVector configs;
+
+    // Read empty so that the drive is known.
+    EXPECT_EQ(store.read(LocalPath(), configs, false), API_ENOENT);
+
+    // Drive should be known.
+    ASSERT_TRUE(store.driveKnown(LocalPath()));
+
+    // Populate config vector.
+    {
+        SyncConfig config;
+
+        config.mBackupId = 2;
+        config.mLocalPath = Utilities::randomPathAbsolute();
+        config.mRemoteNode.set6byte(3);
+
+        configs.emplace_back(config);
+    }
+
+    // Serialize configs for later comparison.
+    JSONWriter writer;
+
+    ioContext().serialize(configs, writer);
+
+    // Attempts to write the first slot should fail.
+    EXPECT_CALL(ioContext(),
+                write(Eq(db.path()), Eq(writer.getstring()), Eq(0u)))
+      .WillOnce(Return(API_EWRITE));
+
+    // No databases should be removed in anticipation as the write failed.
+    EXPECT_CALL(ioContext(),
+                remove(Eq(db.path()), Eq(1u)))
+      .Times(0);
+
+    // Mark drive as being dirty.
+    store.markDriveDirty(LocalPath());
+
+    // Write should fail.
+    EXPECT_EQ(store.write(LocalPath(), configs), API_EWRITE);
+
+    // Store should be clean.
+    EXPECT_FALSE(store.dirty());
+
+    // Mark drive as dirty.
+    store.markDriveDirty(LocalPath());
+
+    // Attempts to write the first slot should succeed.
+    EXPECT_CALL(ioContext(),
+                write(Eq(db.path()), Eq(writer.getstring()), Eq(0u)))
+      .WillOnce(Return(API_OK));
+
+    // Next slot should be removed in anticipation of future writes.
+    EXPECT_CALL(ioContext(),
+                remove(Eq(db.path()), Eq(1u)))
+      .WillOnce(Return(API_OK));
+
+    // Write should succeed.
+    EXPECT_EQ(store.write(LocalPath(), configs), API_OK);
+
+    // Store should be clean.
+    EXPECT_FALSE(store.dirty());
 }
 
 } // SyncConfigTests

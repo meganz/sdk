@@ -31,17 +31,9 @@ class FsNode;
 
 mega::handle nextFsId();
 
-std::shared_ptr<mega::MegaClient> makeClient(mega::MegaApp& app, mega::FileSystemAccess& fsaccess);
+std::shared_ptr<mega::MegaClient> makeClient(mega::MegaApp& app, mega::DbAccess* dbAccess  = nullptr);
 
-mega::Node& makeNode(mega::MegaClient& client, mega::nodetype_t type, mega::handle handle, mega::Node* parent = nullptr);
-
-#ifdef ENABLE_SYNC
-std::unique_ptr<mega::UnifiedSync> makeSync(mega::MegaClient& client, const std::string& localname);
-
-std::unique_ptr<mega::LocalNode> makeLocalNode(mega::Sync& sync, mega::LocalNode& parent,
-                                               mega::nodetype_t type, const std::string& name,
-                                               const mega::FileFingerprint& ffp = {});
-#endif
+mega::Node& makeNode(mega::MegaClient& client, mega::nodetype_t type, mega::NodeHandle handle, mega::Node* parent = nullptr);
 
 void collectAllFsNodes(std::map<mega::LocalPath, const mt::FsNode*>& nodes, const mt::FsNode& node);
 

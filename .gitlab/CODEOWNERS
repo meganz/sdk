@@ -1,0 +1,28 @@
+#all sdk_devs can approve MRs that change anything in the repo...
+
+* @SDK/sdk_devs
+
+
+# ... except MRs relative to bindings, which needs approval by the corresponding App's team
+
+/bindings/ios/ @mobile/iOS
+/bindings/java/ @mobile/Android
+/bindings/megaapi.i @mobile/Android
+/bindings/qt/ @desktop
+/src/gfx/GfxProcCG.mm @mobile/iOS
+/src/osx/osxutils.mm @mobile/iOS @desktop
+/Package.swift @mobile/iOS
+/examples/Swift @mobile/iOS
+/examples/SwiftUI @mobile/iOS
+
+# Changes to Jenkinsfiles need approval by sdk_devops
+/jenkinsfile/ @SDK/sdk_devops
+
+# Changes to pipelines in GitLab CI, like gitleaks and alike,
+# need approval by one SDK team leader
+/.gitlab-ci.yml @SDK/sdk_tls
+
+# Changes to .clang-format need approval by tls-owning-clang-format
+# (it requires 2 approvals, 1 from MEGAsync team, 1 from SDK team)
+/.clang-format @SDK/tls-owning-clang-format [2]
+

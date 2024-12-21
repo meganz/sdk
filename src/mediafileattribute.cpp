@@ -47,9 +47,9 @@ uint32_t GetMediaInfoVersion()
         unsigned column = 1;
         for (size_t i = s.size(); i--; )
         {
-            if (isdigit(s[i]))
+            if (is_digit(static_cast<unsigned>(s[i])))
             {
-                version += column * (s[i] - '0');
+                version += column * static_cast<uint32_t>(s[i] - '0');
                 column *= 10;
             }
             else if (s[i] == 'v')
@@ -72,14 +72,14 @@ MediaFileInfo::MediaFileInfo()
     LOG_debug << "MediaInfo version: " << GetMediaInfoVersion();
 }
 
-void MediaFileInfo::requestCodecMappingsOneTime(MegaClient* client, LocalPath* ifSuitableFilename)
+void MediaFileInfo::requestCodecMappingsOneTime(MegaClient* client, const LocalPath& ifSuitableFilename)
 {
     if (!mediaCodecsReceived && !mediaCodecsRequested)
     {
-        if (ifSuitableFilename)
+        if (!ifSuitableFilename.empty())
         {
             string ext;
-            if (!client->fsaccess->getextension(*ifSuitableFilename, ext)
+            if (!client->fsaccess->getextension(ifSuitableFilename, ext)
                 || !MediaProperties::isMediaFilenameExt(ext))
             {
                 return;
@@ -157,16 +157,16 @@ static void ReadShortFormats(std::vector<MediaFileInfo::MediaCodecs::shortformat
         while ((working = json.enterarray()))
         {
             MediaFileInfo::MediaCodecs::shortformatrec rec;
-            unsigned id = atoi(json.getvalue());
+            unsigned id = static_cast<unsigned>(atoi(json.getvalue()));
             assert(id < 256);
             std::string a, b, c;
             working = json.storeobject(&a) && json.storeobject(&b) && json.storeobject(&c);
             if (working)
             {
                 rec.shortformatid = byte(id);
-                rec.containerid = atoi(a.c_str());
-                rec.videocodecid = atoi(b.c_str());
-                rec.audiocodecid = atoi(c.c_str());
+                rec.containerid = static_cast<unsigned>(atoi(a.c_str()));
+                rec.videocodecid = static_cast<unsigned>(atoi(b.c_str()));
+                rec.audiocodecid = static_cast<unsigned>(atoi(c.c_str()));
                 vec.push_back(rec);
             }
             json.leavearray();
@@ -175,12 +175,12 @@ static void ReadShortFormats(std::vector<MediaFileInfo::MediaCodecs::shortformat
     }
 }
 
-void MediaFileInfo::onCodecMappingsReceiptStatic(MegaClient* client, int codecListVersion)
+void MediaFileInfo::onCodecMappingsReceiptStatic(MegaClient* client, JSON& json, int codecListVersion)
 {
-    client->mediaFileInfo.onCodecMappingsReceipt(client, codecListVersion);
+    client->mediaFileInfo.onCodecMappingsReceipt(client, json, codecListVersion);
 }
 
-void MediaFileInfo::onCodecMappingsReceipt(MegaClient* client, int codecListVersion)
+void MediaFileInfo::onCodecMappingsReceipt(MegaClient* client, JSON& json, int codecListVersion)
 {
     if (codecListVersion < 0)
     {
@@ -193,40 +193,46 @@ void MediaFileInfo::onCodecMappingsReceipt(MegaClient* client, int codecListVers
     {
         LOG_debug << "Media codec mappings correctly received";
 
-        downloadedCodecMapsVersion = codecListVersion;
+        downloadedCodecMapsVersion = static_cast<uint32_t>(codecListVersion);
         assert(downloadedCodecMapsVersion < 10000);
-        client->json.enterarray();
-        ReadIdRecords(mediaCodecs.containers, client->json);
-        ReadIdRecords(mediaCodecs.videocodecs, client->json);
-        ReadIdRecords(mediaCodecs.audiocodecs, client->json);
-        ReadShortFormats(mediaCodecs.shortformats, client->json);
-        client->json.leavearray();
+        json.enterarray();
+        ReadIdRecords(mediaCodecs.containers, json);
+        ReadIdRecords(mediaCodecs.videocodecs, json);
+        ReadIdRecords(mediaCodecs.audiocodecs, json);
+        ReadShortFormats(mediaCodecs.shortformats, json);
+        json.leavearray();
         mediaCodecsReceived = true;
 
         // update any download transfers we already processed
         for (size_t i = queuedForDownloadTranslation.size(); i--; )
         {
             queuedvp& q = queuedForDownloadTranslation[i];
-            sendOrQueueMediaPropertiesFileAttributesForExistingFile(q.vp, q.fakey, client, q.handle);
+            sendOrQueueMediaPropertiesFileAttributesForExistingFile(q.vp, q.fakey, client, q.handle.nodeHandle());
         }
         queuedForDownloadTranslation.clear();
     }
 
     // resume any upload transfers that were waiting for this
-    for (std::map<handle, queuedvp>::iterator i = uploadFileAttributes.begin(); i != uploadFileAttributes.end(); )
+    for (std::map<UploadHandle, queuedvp>::iterator i = uploadFileAttributes.begin(); i != uploadFileAttributes.end(); )
     {
-        handle th = i->second.handle;
+        UploadHandle th = i->second.handle.uploadHandle();
         ++i;   // the call below may remove this item from the map
 
         // indicate that file attribute 8 can be retrieved now, allowing the transfer to complete
-        client->pendingfa[pair<handle, fatype>(th, fatype(fa_media))] = pair<handle, int>(0, 0);
+        if (auto uploadFAPtr = client->fileAttributesUploading.lookupExisting(th))
+        {
+            if (auto faPtr = uploadFAPtr->pendingfa.lookupExisting(fatype(fa_media)))
+            {
+                faPtr->valueIsSet = true;
+            }
+        }
         client->checkfacompletion(th);
     }
 
     client->app->mediadetection_ready();
 }
 
-unsigned MediaFileInfo::queueMediaPropertiesFileAttributesForUpload(MediaProperties& vp, uint32_t fakey[4], MegaClient* client, handle uploadHandle)
+unsigned MediaFileInfo::queueMediaPropertiesFileAttributesForUpload(MediaProperties& vp, uint32_t fakey[4], MegaClient* client, UploadHandle uploadHandle, Transfer* transfer)
 {
     if (mediaCodecsFailed)
     {
@@ -234,21 +240,19 @@ unsigned MediaFileInfo::queueMediaPropertiesFileAttributesForUpload(MediaPropert
     }
 
     MediaFileInfo::queuedvp q;
-    q.handle = uploadHandle;
+    q.handle = NodeOrUploadHandle(uploadHandle);
     q.vp = vp;
     memcpy(q.fakey, fakey, sizeof(q.fakey));
     uploadFileAttributes[uploadHandle] = q;
     LOG_debug << "Media attribute enqueued for upload";
 
-    if (mediaCodecsReceived)
-    {
-        // indicate we have this attribute ready to go. Otherwise the transfer will be put on hold till we can
-        client->pendingfa[pair<handle, fatype>(uploadHandle, fatype(fa_media))] = pair<handle, int>(0, 0);
-    }
+    // indicate we have this attribute.  If we have the codec mappings, it can be encoded.  If not, hold the transfer until we do have it
+    client->fileAttributesUploading.setFileAttributePending(uploadHandle, fatype(fa_media), transfer, mediaCodecsReceived);
+
     return 1;
 }
 
-void MediaFileInfo::sendOrQueueMediaPropertiesFileAttributesForExistingFile(MediaProperties& vp, uint32_t fakey[4], MegaClient* client, handle fileHandle)
+void MediaFileInfo::sendOrQueueMediaPropertiesFileAttributesForExistingFile(MediaProperties& vp, uint32_t fakey[4], MegaClient* client, NodeHandle fileHandle)
 {
     if (mediaCodecsFailed)
     {
@@ -258,7 +262,7 @@ void MediaFileInfo::sendOrQueueMediaPropertiesFileAttributesForExistingFile(Medi
     if (!mediaCodecsReceived)
     {
         MediaFileInfo::queuedvp q;
-        q.handle = fileHandle;
+        q.handle = NodeOrUploadHandle(fileHandle);
         q.vp = vp;
         memcpy(q.fakey, fakey, sizeof(q.fakey));
         queuedForDownloadTranslation.push_back(q);
@@ -268,13 +272,13 @@ void MediaFileInfo::sendOrQueueMediaPropertiesFileAttributesForExistingFile(Medi
     {
         LOG_debug << "Sending media attributes";
         std::string mediafileattributes = vp.convertMediaPropertyFileAttributes(fakey, client->mediaFileInfo);
-        client->reqs.add(new CommandAttachFA(client, fileHandle, fa_media, mediafileattributes.c_str(), 0));
+        client->putFileAttributes(fileHandle.as8byte(), fa_media, mediafileattributes.c_str(), 0);
     }
 }
 
-void MediaFileInfo::addUploadMediaFileAttributes(handle& uploadhandle, std::string* s)
+void MediaFileInfo::addUploadMediaFileAttributes(UploadHandle uploadhandle, std::string* s)
 {
-    std::map<handle, MediaFileInfo::queuedvp>::iterator i = uploadFileAttributes.find(uploadhandle);
+    std::map<UploadHandle, MediaFileInfo::queuedvp>::iterator i = uploadFileAttributes.find(uploadhandle);
     if (i != uploadFileAttributes.end())
     {
         if (!mediaCodecsFailed)
@@ -526,7 +530,7 @@ std::string MediaProperties::encodeMediaPropertiesAttributes(MediaProperties vp,
 
         memset(v, 0, sizeof v);
         v[3] = (vp.audiocodecid >> 4) & 255;
-        v[2] = ((vp.videocodecid >> 8) & 15) + ((vp.audiocodecid & 15) << 4);
+        v[2] = static_cast<byte>(((vp.videocodecid >> 8) & 15) + ((vp.audiocodecid & 15) << 4));
         v[1] = vp.videocodecid & 255;
         v[0] = byte(vp.containerid);
         result.append("/");
@@ -544,22 +548,22 @@ MediaProperties MediaProperties::decodeMediaPropertiesAttributes(const std::stri
     if (ppo && pos + 3 + 11 <= (int)attrs.size())
     {
         std::string binary;
-        Base64::atob(attrs.substr(pos + 3, 11), binary);
+        Base64::atob(attrs.substr(static_cast<size_t>(pos + 3), 11), binary);
         assert(binary.size() == 8);
         byte v[8];
         memcpy(v, binary.data(), std::min<size_t>(sizeof v, binary.size()));
         xxteaDecrypt((uint32_t*)v, sizeof(v)/4, fakey);
 
-        r.width = (v[0] >> 1) + ((v[1] & 127) << 7);
+        r.width = static_cast<uint32_t>((v[0] >> 1) + ((v[1] & 127) << 7));
         if (v[0] & 1) r.width = (r.width << 3) + 16384;
 
-        r.height = v[2] + ((v[3] & 63) << 8);
+        r.height = static_cast<uint32_t>(v[2] + ((v[3] & 63) << 8));
         if (v[1] & 128) r.height = (r.height << 3) + 16384;
 
-        r.fps = (v[3] >> 7) + ((v[4] & 63) << 1);
+        r.fps = static_cast<uint32_t>((v[3] >> 7) + ((v[4] & 63) << 1));
         if (v[3] & 64) r.fps = (r.fps << 3) + 128;
 
-        r.playtime = (v[4] >> 7) + (v[5] << 1) + (v[6] << 9);
+        r.playtime = static_cast<uint32_t>((v[4] >> 7) + (v[5] << 1) + (v[6] << 9));
         if (v[4] & 64) r.playtime = r.playtime * 60 + 131100;
 
         if (!(r.shortformat = v[7]))
@@ -568,14 +572,14 @@ MediaProperties MediaProperties::decodeMediaPropertiesAttributes(const std::stri
             int pos = ppo - 1;
             if (ppo && pos + 3 + 11 <= (int)attrs.size())
             {
-                Base64::atob(attrs.substr(pos + 3, 11), binary);
+                Base64::atob(attrs.substr(static_cast<size_t>(pos + 3), 11), binary);
                 assert(binary.size() == 8);
                 memcpy(v, binary.data(), std::min<size_t>(sizeof v, binary.size()));
                 xxteaDecrypt((uint32_t*)v, sizeof(v) / 4, fakey);
 
                 r.containerid = v[0];
-                r.videocodecid = v[1] + ((v[2] & 15) << 8);
-                r.audiocodecid = (v[2] >> 4) + (v[3] << 4);
+                r.videocodecid = static_cast<uint32_t>(v[1] + ((v[2] & 15) << 8));
+                r.audiocodecid = static_cast<uint32_t>((v[2] >> 4) + (v[3] << 4));
             }
         }
     }
@@ -585,16 +589,25 @@ MediaProperties MediaProperties::decodeMediaPropertiesAttributes(const std::stri
 
 #ifdef USE_MEDIAINFO
 
-bool MediaProperties::isMediaFilenameExt(const std::string& ext)
+const char* MediaProperties::supportedformatsMediaInfoAudio()
 {
-    static const char* supportedformats =
-        ".264.265.3g2.3ga.3gp.3gpa.3gpp.3gpp2.aac.aacp.ac3.act.adts.aif.aifc.aiff.als.apl.at3.avc"
-        ".avi.dd+.dde.divx.dts.dtshd.eac3.ec3.evo.f4a.f4b.f4v.flac.gvi.h261.h263.h264.h265.hevc.isma"
-        ".ismt.ismv.ivf.jpm.k3g.m1a.m1v.m2a.m2p.m2s.m2t.m2v.m4a.m4b.m4p.m4s.m4t.m4v.m4v.mac.mkv.mk3d"
-        ".mka.mks.mlp.mov.mp1.mp1v.mp2.mp2v.mp3.mp4.mp4v.mpa1.mpa2.mpeg.mpg.mpgv.mpv.mqv.ogg.ogm.ogv"
-        ".omg.opus.qt.sls.spx.thd.tmf.trp.ts.ty.vc1.vob.vr.w64.wav.webm.wma.wmv.";
+    // list compiled from https://github.com/MediaArea/MediaInfoLib/blob/v19.09/Source/Resource/Text/DataBase/Format.csv
+    static constexpr char audioformats[] =
+        ".aa3.aac.aacp.aaf.ac3.act.adts.aes3.aif.aifc.aiff.als.amr.ape.at3.at9.atrac.atrac3.atrac9.au.caf"
+        ".dd+.dts.dtshd.eac3.ec3.fla.flac.kar.la.m1a.m2a.mac.mid.midi.mlp.mp1.mp2.mp3.mpa.mpa1.mpa2.mtv"
+        ".oga.ogg.oma.omg.opus.mpc.mp+.qcp.ra.rka.s3m.shn.spdif.spx.tak.thd.vqf.w64.wav.wma.wv.wvc.xm.";
 
-    for (const char* ptr = supportedformats; NULL != (ptr = strstr(ptr, ext.c_str())); ptr += ext.size())
+    static_assert(sizeof(audioformats) > 1 &&
+                  audioformats[0] == '.' &&
+                  audioformats[sizeof(audioformats) - 2] == '.',
+                  "Supported audio formats need to start and end with '.'");
+
+    return audioformats;
+}
+
+bool MediaProperties::isMediaFilenameExtAudio(const std::string& ext)
+{
+    for (const char* ptr = supportedformatsMediaInfoAudio(); (ptr = strstr(ptr, ext.c_str())); ptr += ext.size())
     {
         if (ptr[ext.size()] == '.')
         {
@@ -603,6 +616,93 @@ bool MediaProperties::isMediaFilenameExt(const std::string& ext)
     }
     return false;
 }
+
+const char* MediaProperties::supportedformatsMediaInfo()
+{
+    static constexpr char nonaudioformats[] =
+        ".264.265.3g2.3ga.3gp.3gpa.3gpp.3gpp2.apl.avc.avi.dde.divx.evo.f4a.f4b.f4v.gvi.h261.h263.h264.h265.hevc"
+        ".isma.ismt.ismv.ivf.jpm.k3g.m1v.m2p.m2s.m2t.m2v.m4a.m4b.m4p.m4s.m4t.m4v.mk3d.mka.mks.mkv.mov.mp1v.mp2v"
+        ".mp4.mp4v.mpeg.mpg.mpgv.mpv.mqv.ogm.ogv.qt.sls.tmf.trp.ts.ty.vc1.vob.vr.webm.wmv.";
+
+    static_assert(sizeof(nonaudioformats) > 1 &&
+                  nonaudioformats[0] == '.' &&
+                  nonaudioformats[sizeof(nonaudioformats) - 2] == '.',
+                  "Supported formats need to start and end with '.'");
+
+    static const std::string allFormats = string(nonaudioformats) + supportedformatsMediaInfoAudio(); // this is thread safe in C++11
+
+    return allFormats.c_str();
+}
+
+bool MediaProperties::isMediaFilenameExt(const std::string& ext)
+{
+    for (const char* ptr = MediaProperties::supportedformatsMediaInfo(); NULL != (ptr = strstr(ptr, ext.c_str())); ptr += ext.size())
+    {
+        if (ptr[ext.size()] == '.')
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+template<class T>
+StringPair MediaProperties::getCoverFromId3v2(const T& file)
+{
+    MediaInfoLib::MediaInfo mi;
+    mi.Option(__T("Cover_Data"), __T("base64")); // set this _before_ opening the file
+
+    ZenLib::Ztring zFile(file.c_str()); // make this work with both narrow and wide std strings
+    if (!mi.Open(zFile))
+    {
+        LOG_err << "MediaInfo: could not open local file to retrieve Cover: " << zFile.To_UTF8();
+        return std::make_pair(std::string(), std::string());
+    }
+
+    // MIME (type/subtype) of the cover image.
+    // According to id3v2 specs, it is "always an ISO-8859-1 text string".
+    // Supported values are one of {"image/jpeg", "image/png"}.
+    // However, allow "image/jpg" variant too because it occured for flac (MediaInfo bug?).
+    const MediaInfoLib::String& coverMime = mi.Get(MediaInfoLib::Stream_General, 0, __T("Cover_Mime"));
+    std::string syntheticExt;
+    if (coverMime == __T("image/jpeg") || coverMime == __T("image/jpg"))
+    {
+        syntheticExt = "jpg";
+    }
+    else if (coverMime == __T("image/png"))
+    {
+        syntheticExt = "png";
+    }
+    else
+    {
+        if (!coverMime.empty())
+        {
+            LOG_warn << "MediaInfo: Cover_Mime contained garbage, ignored Cover for file " << zFile.To_UTF8();
+        }
+
+        return std::make_pair(std::string(), std::string());
+    }
+
+    // Cover data: binary data, base64 encoded.
+    ZenLib::Ztring coverData = mi.Get(MediaInfoLib::Stream_General, 0, __T("Cover_Data"));
+    std::string data = coverData.To_UTF8();
+    if (data.empty())
+    {
+        return std::make_pair(std::string(), std::string());
+    }
+    data = mega::Base64::atob(data);
+
+    return std::make_pair(data, syntheticExt);
+}
+
+// forward-declare this so the compiler will generate it (same conditional compilation as LocalPath::localpath)
+#if defined(_WIN32)
+template
+StringPair MediaProperties::getCoverFromId3v2(const std::wstring&);
+#else
+template
+StringPair MediaProperties::getCoverFromId3v2(const std::string&);
+#endif
 
 static inline uint32_t coalesce(uint32_t a, uint32_t b)
 {
@@ -639,15 +739,15 @@ bool MediaFileInfo::timeToRetryMediaPropertyExtraction(const std::string& fileat
 
 bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, LocalPath& filename, FileAccess* fa, unsigned maxBytesToRead, unsigned maxSeconds)
 {
-    if (!fa->fopen(filename, true, false))
+    if (!fa->fopen(filename, true, false, FSLogging::logOnError))
     {
         LOG_err << "could not open local file for mediainfo";
         return false;
     }
 
     m_off_t filesize = fa->size;
-    size_t totalBytesRead = 0, jumps = 0;
-    mi.Open_Buffer_Init(filesize, 0);
+    size_t totalBytesRead = 0;
+    mi.Open_Buffer_Init(static_cast<ZenLib::int64u>(filesize), 0);
     m_off_t readpos = 0;
     m_time_t startTime = 0;
 
@@ -663,7 +763,7 @@ bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, LocalPath& filenam
             break;
         }
 
-        if (totalBytesRead > maxBytesToRead || (startTime != 0 && ((m_time() - startTime) > maxSeconds))) 
+        if (totalBytesRead > maxBytesToRead || (startTime != 0 && ((m_time() - startTime) > maxSeconds)))
         {
             if (hasVideo && vidDuration)
             {
@@ -676,7 +776,7 @@ bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, LocalPath& filenam
             return false;
         }
 
-        if (!fa->frawread(buf, n, readpos, true))
+        if (!fa->frawread(buf, n, readpos, true, FSLogging::logOnError))
         {
             LOG_err << "could not read local file";
             mi.Open_Buffer_Finalize();
@@ -714,12 +814,12 @@ bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, LocalPath& filenam
             }
         }
 
-        m_off_t requestPos = mi.Open_Buffer_Continue_GoTo_Get();
+        m_off_t requestPos = static_cast<m_off_t>(mi.Open_Buffer_Continue_GoTo_Get());
         if (requestPos != (m_off_t)-1)
         {
             readpos = requestPos;
-            mi.Open_Buffer_Init(filesize, readpos);
-            jumps += 1;
+            mi.Open_Buffer_Init(static_cast<ZenLib::int64u>(filesize),
+                                static_cast<ZenLib::int64u>(readpos));
         }
     }
 
@@ -804,9 +904,9 @@ void MediaProperties::extractMediaPropertyFileAttributes(LocalPath& localFilenam
                     fps = vro.To_int32u();
                 }
 
-                if (SimpleLogger::logCurrentLevel >= logDebug)
+                if (SimpleLogger::getLogLevel() >= logDebug)
                 {
-                    LOG_debug << "MediaInfo on " << localFilename.toPath(*fsa) << " | " << vw.To_Local() << " " << vh.To_Local() << " " << vd.To_Local() << " " << vr.To_Local() << " |\"" << gci.To_Local() << "\",\"" << gf.To_Local() << "\",\"" << vci.To_Local() << "\",\"" << vcf.To_Local() << "\",\"" << aci.To_Local() << "\",\"" << acf.To_Local() << "\"";
+                    LOG_debug << "MediaInfo on " << localFilename << " | " << vw.To_Local() << " " << vh.To_Local() << " " << vd.To_Local() << " " << vr.To_Local() << " |\"" << gci.To_Local() << "\",\"" << gf.To_Local() << "\",\"" << vci.To_Local() << "\",\"" << vcf.To_Local() << "\",\"" << aci.To_Local() << "\",\"" << acf.To_Local() << "\"";
                 }
             }
         }

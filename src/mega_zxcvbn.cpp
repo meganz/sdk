@@ -524,19 +524,19 @@ static void AddLeetChr(uint8_t c, int IsLeet, uint8_t *Leeted, uint8_t *UnLeet)
     const uint8_t *p = CharBinSearch(c, L33TChr, sizeof L33TChr - 1, 1);
     if (p)
     {
-        int i = p - L33TChr;
+        size_t i = p - L33TChr;
         if (IsLeet > 0)
         {
-            Leeted[i] += 1;
+            Leeted[i] = static_cast<uint8_t>(Leeted[i] + 1);
         }
         else if (IsLeet < 0)
         {
-            Leeted[i] += 1;
-            UnLeet[i] -= 1;
+            Leeted[i] = static_cast<uint8_t>(Leeted[i] + 1);
+            UnLeet[i] = static_cast<uint8_t>(UnLeet[i] - 1);
         }
         else
         {
-            UnLeet[i] += 1;
+            UnLeet[i] = static_cast<uint8_t>(UnLeet[i] + 1);
         }
     }
 }
@@ -629,9 +629,8 @@ static void DoDictMatch(const uint8_t *Passwd, int Start, int MaxLen, DictWork_t
     for(Len = 0; *Passwd && (Len < MaxLen); ++Len, ++Passwd)
     {
         uint8_t c;
-        int w, x, y, z;
+        int w, x, y;
         const uint8_t *q;
-        z = 0;
         if (!Len && Wrk->First)
         {
             c = Wrk->First;
@@ -647,7 +646,7 @@ static void DoDictMatch(const uint8_t *Passwd, int Start, int MaxLen, DictWork_t
             /* Make it lowercase and update lowercase, uppercase counts */
             if (isupper(c))
             {
-                c = tolower(c);
+                c = static_cast<uint8_t>(tolower(c));
                 ++Caps;
             }
             else if (islower(c))
@@ -660,7 +659,7 @@ static void DoDictMatch(const uint8_t *Passwd, int Start, int MaxLen, DictWork_t
             {
                 /* Found, see if used before */
                 unsigned int j;
-                unsigned int i = (q - L33TCnv ) / LEET_NORM_MAP_SIZE;
+                unsigned int i = static_cast<unsigned int>((q - L33TCnv ) / LEET_NORM_MAP_SIZE);
                 if (Wrk->LeetCnv[i])
                 {
                     /* Used before, so limit characters to try */
@@ -690,7 +689,7 @@ static void DoDictMatch(const uint8_t *Passwd, int Start, int MaxLen, DictWork_t
                             w.LeetCnv[i] = *r;
                             AddLeetChr(*r, -1, w.Leeted, w.UnLeet);
                         }
-                        DoDictMatch(Pwd, Passwd - Pwd, MaxLen - Len, &w, Result, Extra, Lev+1);
+                        DoDictMatch(Pwd, static_cast<int>(Passwd - Pwd), MaxLen - Len, &w, Result, Extra, Lev+1);
                     }
                 }
                 return;
@@ -712,13 +711,13 @@ static void DoDictMatch(const uint8_t *Passwd, int Start, int MaxLen, DictWork_t
             return;
         }
         /* Add all the end counts of the child nodes before the one that matches */
-        x = (q - Wrk->PossChars);
+        x = static_cast<int>(q - Wrk->PossChars);
         y = (NodeData >> BITS_CHILD_PATT_INDEX) & ((1 << BITS_CHILD_MAP_INDEX) - 1);
         NodeLoc = ChildLocs[x+y];
         for(w=0; w<x; ++w)
         {
             unsigned int Cloc = ChildLocs[w+y];
-            z = EndCountSml[Cloc];
+            int z = EndCountSml[Cloc];
             if (Cloc < NumLargeCounts)
                 z += EndCountLge[Cloc]*256;
             Ord += z;
@@ -791,11 +790,11 @@ static void UserMatch(ZxcMatch_t **Result, const char *Words[], const uint8_t *P
         while(*Wrd)
         {
             const uint8_t *q;
-            uint8_t d = tolower(*Wrd++);
+            uint8_t d = static_cast<uint8_t>(tolower(*Wrd++));
             uint8_t c = *Pwd++;
             if (isupper(c))
             {
-                c = tolower(c);
+                c = static_cast<uint8_t>(tolower(c));
                 ++Caps;
             }
             else if (islower(c))
@@ -808,7 +807,7 @@ static void UserMatch(ZxcMatch_t **Result, const char *Words[], const uint8_t *P
             {
                 /* Found, see if used before */
                 unsigned int j;
-                unsigned int i = (q - L33TCnv ) / LEET_NORM_MAP_SIZE;
+                unsigned int i = static_cast<unsigned int>((q - L33TCnv ) / LEET_NORM_MAP_SIZE);
                 if (LeetChr[i])
                 {
                     /* Used before, so limit characters to try */
@@ -817,7 +816,7 @@ static void UserMatch(ZxcMatch_t **Result, const char *Words[], const uint8_t *P
                     TempLeet[2] = 0;
                     q = TempLeet;
                 }
-                c = d+1;
+                c = static_cast<uint8_t>(d+1);
                 for(j = 0; (*q > ' ') && (j < LEET_NORM_MAP_SIZE); ++j, ++q)
                 {
                     if (d == *q)
@@ -1471,7 +1470,7 @@ static void SequenceMatch(ZxcMatch_t **Result, const uint8_t *Passwd, int Start,
         ++Len;
         while(1)
         {
-            Next = Passwd[0] + Dir;
+            Next = static_cast<uint8_t>(Passwd[0] + Dir);
             if (IsDigits && (Dir > 0) && (Next == ('9' + 1)) && (Passwd[1] == '0'))
             {
                 /* Incrementing digits, consider '0' to be same as a 'ten' character */ 
@@ -1567,7 +1566,7 @@ double ZxcvbnMatch(const char *Pwd, const char *UserDict[], ZxcMatch_t **Info)
     ZxcMatch_t *Zp;
     Node_t *Np;
     double e;
-    int Len = strlen(Pwd);
+    int Len = static_cast<int>(strlen(Pwd));
     const uint8_t *Passwd = (const uint8_t *)Pwd;
     uint8_t *RevPwd;
     /* Create the paths */

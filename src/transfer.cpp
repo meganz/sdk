@@ -20,15 +20,17 @@
  */
 
 #include "mega/transfer.h"
-#include "mega/megaclient.h"
-#include "mega/transferslot.h"
-#include "mega/megaapp.h"
-#include "mega/sync.h"
-#include "mega/logging.h"
+
 #include "mega/base64.h"
+#include "mega/logging.h"
 #include "mega/mediafileattribute.h"
-#include "megawaiter.h"
+#include "mega/megaapp.h"
+#include "mega/megaclient.h"
+#include "mega/sync.h"
+#include "mega/testhooks.h"
+#include "mega/transferslot.h"
 #include "mega/utils.h"
+#include "megawaiter.h"
 
 namespace mega {
 
@@ -64,8 +66,6 @@ Transfer::Transfer(MegaClient* cclient, direction_t ctype)
     client = cclient;
     size = 0;
     failcount = 0;
-    uploadhandle = 0;
-    minfa = 0;
     pos = 0;
     ctriv = 0;
     metamac = 0;
@@ -73,8 +73,6 @@ Transfer::Transfer(MegaClient* cclient, direction_t ctype)
     slot = NULL;
     asyncopencontext = NULL;
     progresscompleted = 0;
-    hasprevmetamac = false;
-    hascurrentmetamac = false;
     finished = false;
     lastaccesstime = 0;
     ultoken = NULL;
@@ -84,16 +82,24 @@ Transfer::Transfer(MegaClient* cclient, direction_t ctype)
 
     skipserialization = false;
 
-    faputcompletion_it = client->faputcompletion.end();
-    transfers_it = client->transfers[type].end();
+    transfers_it = client->multi_transfers[type].end();
 }
 
 // delete transfer with underlying slot, notify files
 Transfer::~Transfer()
 {
-    if (faputcompletion_it != client->faputcompletion.end())
+    auto keepDownloadTarget = false;
+
+    TransferDbCommitter* committer = nullptr;
+    if (client->tctable && client->tctable->getTransactionCommitter())
     {
-        client->faputcompletion.erase(faputcompletion_it);
+        committer = dynamic_cast<TransferDbCommitter*>(client->tctable->getTransactionCommitter());
+        assert(committer);
+    }
+
+    if (!uploadhandle.isUndef() && !mIsSyncUpload) // For sync uploads, we will delete the attributes upon SyncUpload_inClient destruction
+    {
+        client->fileAttributesUploading.erase(uploadhandle);
     }
 
     for (file_list::iterator it = files.begin(); it != files.end(); it++)
@@ -104,14 +110,43 @@ Transfer::~Transfer()
         }
 
         (*it)->transfer = NULL;
-        (*it)->terminated();
+
+        auto terminatedErrCode = API_OK;
+        if (type == GET)
+        {
+#ifdef ENABLE_SYNC
+            if (auto dl = dynamic_cast<SyncDownload_inClient*>(*it))
+            {
+                assert((*it)->syncxfer);
+                // Let's forward the error from previous possible failed() calls to the terminated
+                // command instad of terminating with API_OK
+                terminatedErrCode = dl->mError;
+
+                // Keep sync downloads whose Mac failed, so the user can decide to keep them or not
+                if (dl->mError == API_EKEY)
+                {
+                    keepDownloadTarget = true;
+                    dl->setLocalname(localfilename);
+                }
+            }
+            else
+#endif
+            {
+                assert(!(*it)->syncxfer);
+                if (downloadDistributor)
+                    downloadDistributor->removeTarget();
+            }
+        }
+
+        // this File may be deleted by this call.  So call after the tests above
+        (*it)->terminated(terminatedErrCode);
     }
 
     if (!mOptimizedDelete)
     {
-        if (transfers_it != client->transfers[type].end())
+        if (transfers_it != client->multi_transfers[type].end())
         {
-            client->transfers[type].erase(transfers_it);
+            client->multi_transfers[type].erase(transfers_it);
         }
 
         client->transferlist.removetransfer(this);
@@ -124,8 +159,7 @@ Transfer::~Transfer()
 
     if (asyncopencontext)
     {
-        delete asyncopencontext;
-        asyncopencontext = NULL;
+        asyncopencontext.reset();
         client->asyncfopens--;
     }
 
@@ -133,14 +167,17 @@ Transfer::~Transfer()
     {
         if (type == GET && !localfilename.empty())
         {
-            client->fsaccess->unlinklocal(localfilename);
+            if (!keepDownloadTarget)
+                client->fsaccess->unlinklocal(localfilename);
         }
-        client->transfercachedel(this, nullptr);
+        client->transfercachedel(this, committer);
     }
 }
 
-bool Transfer::serialize(string *d)
+bool Transfer::serialize(string *d) const
 {
+    assert(localfilename.empty() || localfilename.isAbsolute());
+
     unsigned short ll;
 
     d->append((const char*)&type, sizeof(type));
@@ -150,7 +187,7 @@ bool Transfer::serialize(string *d)
     d->append((char*)&ll, sizeof(ll));
     d->append(tmpstr.data(), ll);
 
-    d->append((const char*)filekey, sizeof(filekey));
+    d->append((const char*)&filekey.bytes, sizeof(filekey.bytes));
     d->append((const char*)&ctriv, sizeof(ctriv));
     d->append((const char*)&metamac, sizeof(metamac));
     d->append((const char*)transferkey.data(), sizeof (transferkey));
@@ -176,7 +213,7 @@ bool Transfer::serialize(string *d)
     {
         hasUltoken = 2;
         d->append((const char*)&hasUltoken, sizeof(char));
-        d->append((const char*)ultoken.get(), NewNode::UPLOADTOKENLEN);
+        d->append((const char*)ultoken.get(), UPLOADTOKENLEN);
     }
     else
     {
@@ -198,132 +235,99 @@ bool Transfer::serialize(string *d)
     char s = static_cast<char>(state);
     d->append((const char*)&s, sizeof(s));
     d->append((const char*)&priority, sizeof(priority));
-    d->append("", 1);
+
+    CacheableWriter cw(*d);
+    // version. Originally, 0.  Version 1 adds expansion flags, which then work in the usual way
+    cw.serializeu8(1);
+
+    // 8 expansion flags, in the normal manner.  First flag is for whether downloadFileHandle is present
+    cw.serializeexpansionflags(downloadFileHandle.isUndef() ? 0 : 1);
+
+    if (!downloadFileHandle.isUndef())
+    {
+        cw.serializeNodeHandle(downloadFileHandle);
+    }
+
+#ifdef DEBUG
+    // very quick debug only double check
+    string tempstr = *d;
+    transfer_multimap tempmap[2];
+    unique_ptr<Transfer> t(unserialize(client, &tempstr, tempmap));
+    assert(t);
+    assert(t->localfilename == localfilename);
+    assert(t->tempurls == tempurls);
+    assert(t->state == (state == TRANSFERSTATE_PAUSED ? TRANSFERSTATE_PAUSED : TRANSFERSTATE_NONE));
+    assert(t->priority == priority);
+    assert(t->fingerprint() == fingerprint() || (!t->fingerprint().isvalid && !fingerprint().isvalid));
+    assert(t->badfp == badfp || (!t->badfp.isvalid && !badfp.isvalid));
+    assert(t->downloadFileHandle == downloadFileHandle);
+#endif
+
+
     return true;
 }
 
-Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* transfers)
+Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_multimap* multi_transfers)
 {
-    unsigned short ll;
-    const char* ptr = d->data();
-    const char* end = ptr + d->size();
-
-    if (ptr + sizeof(direction_t) + sizeof(ll) > end)
-    {
-        LOG_err << "Transfer unserialization failed - serialized string too short (direction)";
-        return NULL;
-    }
+    CacheableReader r(*d);
 
     direction_t type;
-    type = MemAccess::get<direction_t>(ptr);
-    ptr += sizeof(direction_t);
-
-    if (type != GET && type != PUT)
+    string filepath;
+    if (!r.unserializedirection(type) ||
+        (type != GET && type != PUT) ||
+        !r.unserializestring(filepath))
     {
         assert(false);
-        LOG_err << "Transfer unserialization failed - neither get nor put";
-        return NULL;
+        LOG_err << "Transfer unserialization failed at field " << r.fieldnum;
+        return nullptr;
     }
 
-    ll = MemAccess::get<unsigned short>(ptr);
-    ptr += sizeof(ll);
-
-    if (ptr + ll + FILENODEKEYLENGTH + sizeof(int64_t)
-            + sizeof(int64_t) + SymmCipher::KEYLENGTH
-            + sizeof(ll) > end)
+    unique_ptr<Transfer> t(new Transfer(client, type));
+    if (!filepath.empty())
     {
-        LOG_err << "Transfer unserialization failed - serialized string too short (filepath)";
-        return NULL;
+        t->localfilename = LocalPath::fromPlatformEncodedAbsolute(filepath);
     }
 
-    const char *filepath = ptr;
-    ptr += ll;
+    int8_t hasUltoken;  // value 1 was for OLDUPLOADTOKENLEN, but that was from 2016
 
-    Transfer *t = new Transfer(client, type);
-
-    memcpy(t->filekey, ptr, sizeof t->filekey);
-    ptr += sizeof(t->filekey);
-
-    t->ctriv = MemAccess::get<int64_t>(ptr);
-    ptr += sizeof(int64_t);
-
-    t->metamac = MemAccess::get<int64_t>(ptr);
-    ptr += sizeof(int64_t);
-
-    memcpy(t->transferkey.data(), ptr, SymmCipher::KEYLENGTH);
-    ptr += SymmCipher::KEYLENGTH;
-
-    t->localfilename = LocalPath::fromPlatformEncoded(std::string(filepath, ll));
-
-    if (!t->chunkmacs.unserialize(ptr, end))
+    if (!r.unserializebinary(t->filekey.bytes.data(), sizeof(t->filekey)) ||
+        !r.unserializei64(t->ctriv) ||
+        !r.unserializei64(t->metamac) ||
+        !r.unserializebinary(t->transferkey.data(), SymmCipher::KEYLENGTH) ||
+        !r.unserializechunkmacs(t->chunkmacs) ||
+        !r.unserializefingerprint(*t) ||
+        !r.unserializefingerprint(t->badfp) ||
+        !r.unserializei64(t->lastaccesstime) ||
+        !r.unserializei8(hasUltoken) ||
+        (hasUltoken && hasUltoken != 2))
     {
-        LOG_err << "Transfer unserialization failed - chunkmacs too long";
-        delete t;
-        return NULL;
-    }
-
-    d->erase(0, ptr - d->data());
-
-    FileFingerprint *fp = FileFingerprint::unserialize(d);
-    if (!fp)
-    {
-        LOG_err << "Error unserializing Transfer: Unable to unserialize FileFingerprint";
-        delete t;
-        return NULL;
-    }
-
-    *(FileFingerprint *)t = *(FileFingerprint *)fp;
-    delete fp;
-
-    fp = FileFingerprint::unserialize(d);
-    t->badfp = *fp;
-    delete fp;
-
-    ptr = d->data();
-    end = ptr + d->size();
-
-    if (ptr + sizeof(m_time_t) + sizeof(char) > end)
-    {
-        LOG_err << "Transfer unserialization failed - fingerprint too long";
-        delete t;
-        return NULL;
-    }
-
-    t->lastaccesstime = MemAccess::get<m_time_t>(ptr);
-    ptr += sizeof(m_time_t);
-
-
-    char hasUltoken = MemAccess::get<char>(ptr);
-    ptr += sizeof(char);
-
-    ll = hasUltoken ? ((hasUltoken == 1) ? NewNode::OLDUPLOADTOKENLEN + 1 : NewNode::UPLOADTOKENLEN) : 0;
-    if (hasUltoken < 0 || hasUltoken > 2
-            || (ptr + ll + sizeof(unsigned short) > end))
-    {
-        LOG_err << "Transfer unserialization failed - invalid ultoken";
-        delete t;
-        return NULL;
+        LOG_err << "Transfer unserialization failed at field " << r.fieldnum;
+        return nullptr;
     }
 
     if (hasUltoken)
     {
-        t->ultoken.reset(new byte[NewNode::UPLOADTOKENLEN]());
-        memcpy(t->ultoken.get(), ptr, ll);
-        ptr += ll;
+        t->ultoken.reset(new UploadToken);
     }
 
-    ll = MemAccess::get<unsigned short>(ptr);
-    ptr += sizeof(ll);
-
-    if (ptr + ll + 10 > end)
-    {
-        LOG_err << "Transfer unserialization failed - temp URL too long";
-        delete t;
-        return NULL;
-    }
-
+    unsigned char expansionflags[8] = { 0 };
     std::string combinedUrls;
-    combinedUrls.assign(ptr, ll);
+    int8_t state;
+    int8_t version;
+    if ((hasUltoken && !r.unserializebinary(t->ultoken->data(), UPLOADTOKENLEN)) ||
+        !r.unserializestring(combinedUrls) ||
+        !r.unserializei8(state) ||
+        !r.unserializeu64(t->priority) ||
+        !r.unserializei8(version) ||
+        (version > 0 && !r.unserializeexpansionflags(expansionflags, 1)) ||
+        (expansionflags[0] && !r.unserializeNodeHandle(t->downloadFileHandle)))
+    {
+        LOG_err << "Transfer unserialization failed at field " << r.fieldnum;
+        return nullptr;
+    }
+    assert(!r.hasdataleft());
+
+    size_t ll = combinedUrls.size();
     for (size_t p = 0; p < ll; )
     {
         size_t n = combinedUrls.find('\0');
@@ -334,59 +338,70 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     if (!t->tempurls.empty() && t->tempurls.size() != 1 && t->tempurls.size() != RAIDPARTS)
     {
         LOG_err << "Transfer unserialization failed - temp URL incorrect components";
-        delete t;
-        return NULL;
+        return nullptr;
     }
-    ptr += ll;
 
-    char state = MemAccess::get<char>(ptr);
-    ptr += sizeof(char);
     if (state == TRANSFERSTATE_PAUSED)
     {
         LOG_debug << "Unserializing paused transfer";
         t->state = TRANSFERSTATE_PAUSED;
     }
 
-    t->priority =  MemAccess::get<uint64_t>(ptr);
-    ptr += sizeof(uint64_t);
-
-    if (*ptr)
-    {
-        LOG_err << "Transfer unserialization failed - invalid version";
-        delete t;
-        return NULL;
-    }
-    ptr++;
-
     t->chunkmacs.calcprogress(t->size, t->pos, t->progresscompleted);
 
-    transfers[type].insert(pair<FileFingerprint*, Transfer*>(t, t));
-    return t;
+    multi_transfers[type].insert(pair<FileFingerprint*, Transfer*>(t.get(), t.get()));
+    return t.release();
 }
 
 SymmCipher *Transfer::transfercipher()
 {
-    client->tmptransfercipher.setkey(transferkey.data());
-    return &client->tmptransfercipher;
+    return client->getRecycledTemporaryTransferCipher(transferkey.data());
 }
 
-void Transfer::removeTransferFile(error e, File* f, DBTableTransactionCommitter* committer)
+void Transfer::removeCancelledTransferFiles(TransferDbCommitter* committer)
+{
+    // remove transfer files whose MegaTransfer associated has been cancelled (via cancel token)
+    for (file_list::iterator it = files.begin(); it != files.end();)
+    {
+        file_list::iterator auxit = it++;
+        if ((*auxit)->cancelToken.isCancelled())
+        {
+            removeTransferFile(API_EINCOMPLETE, *auxit, committer);
+        }
+    }
+}
+
+void Transfer::removeTransferFile(error e, File* f, TransferDbCommitter* committer)
 {
     Transfer *transfer = f->transfer;
     client->filecachedel(f, committer);
+    assert(*f->file_it == f);
     transfer->files.erase(f->file_it);
     client->app->file_removed(f, e);
     f->transfer = NULL;
-    f->terminated();
+    f->terminated(e);
+}
+
+void Transfer::removeAndDeleteSelf(transferstate_t finalState)
+{
+    finished = true;
+    state = finalState;
+    client->app->transfer_removed(this);
+
+    // this will also remove the transfer from internal lists etc.
+    // those use a lazy delete (ie mark for later deletion) so that we don't invalidate iterators.
+    delete this;
 }
 
 // transfer attempt failed, notify all related files, collect request on
 // whether to abort the transfer, kill transfer if unanimous
-void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, dstime timeleft)
+void Transfer::failed(const Error& e, TransferDbCommitter& committer, dstime timeleft)
 {
     bool defer = false;
 
     LOG_debug << "Transfer failed with error " << e;
+
+    DEBUG_TEST_HOOK_DOWNLOAD_FAILED(e);
 
     if (e == API_EOVERQUOTA || e == API_EPAYWALL)
     {
@@ -424,8 +439,11 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
             }
         }
     }
-    else if (e == API_EARGS || (e == API_EBLOCKED && type == GET) || (e == API_ETOOMANY && type == GET && e.hasExtraInfo()))
+    else if (e == API_EARGS || (e == API_EBLOCKED && type == GET) ||
+             (e == API_ETOOMANY && type == GET && e.hasExtraInfo()) ||
+             (e == API_ESUBUSERKEYMISSING))
     {
+        assert(e != API_ESUBUSERKEYMISSING || type == PUT);
         client->app->transfer_failed(this, e);
     }
     else if (e != API_EBUSINESSPASTDUE)
@@ -433,30 +451,17 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
         bt.backoff();
         state = TRANSFERSTATE_RETRYING;
         client->app->transfer_failed(this, e, timeleft);
-        client->looprequested = true;
         ++client->performanceStats.transferTempErrors;
     }
-
-#ifdef ENABLE_SYNC
-    bool alreadyDisabled = false;
-#endif
 
     for (file_list::iterator it = files.begin(); it != files.end();)
     {
         // Remove files with foreign targets, if transfer failed with a (foreign) storage overquota
         if (e == API_EOVERQUOTA
-                && !timeleft
-                && client->isForeignNode((*it)->h))
+            && ((*it)->isFuseTransfer()
+                || (!timeleft && client->isForeignNode((*it)->h))))
         {
-            File *f = (*it++);
-
-#ifdef ENABLE_SYNC
-            if (f->syncxfer)
-            {
-                client->disableSyncContainingNode(f->h.as8byte(), FOREIGN_TARGET_OVERSTORAGE, true);  // still try to resume at startup
-            }
-#endif
-            removeTransferFile(API_EOVERQUOTA, f, &committer);
+            removeTransferFile(e, *it++, &committer);
             continue;
         }
 
@@ -465,7 +470,8 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
          * the actionpacket will eventually remove the target and the sync-engine will force to
          * disable the synchronization of the folder. For non-sync-transfers, remove the file directly.
          */
-        if (e == API_EARGS || (e == API_EBLOCKED && type == GET) || (e == API_ETOOMANY && type == GET && e.hasExtraInfo()))
+        if (e == API_EARGS || (e == API_EBLOCKED && type == GET) ||
+            (e == API_ETOOMANY && type == GET && e.hasExtraInfo()) || (e == API_ESUBUSERKEYMISSING))
         {
              File *f = (*it++);
              if (f->syncxfer && e == API_EARGS)
@@ -479,7 +485,7 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
              continue;
         }
 
-        if (((*it)->failed(e) && (e != API_EBUSINESSPASTDUE))
+        if (((*it)->failed(e, client) && (e != API_EBUSINESSPASTDUE))
                 || (e == API_ENOENT // putnodes returned -9, file-storage server unavailable
                     && type == PUT
                     && tempurls.empty()
@@ -499,11 +505,19 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
         ultoken.reset();
         pos = 0;
 
-        if (slot && slot->fa && (slot->fa->mtime != mtime || slot->fa->size != size))
+        if (slot && slot->fa)
         {
-            LOG_warn << "Modification detected during active upload. Size: " << size << "  Mtime: " << mtime
-                     << "    FaSize: " << slot->fa->size << "  FaMtime: " << slot->fa->mtime;
-            defer = false;
+            if (!slot->fa->fopenSucceeded)
+            {
+                LOG_warn << "fopen failed for upload.";
+                defer = false;
+            }
+            else if (slot->fa->mtime != mtime || slot->fa->size != size)
+            {
+                LOG_warn << "Modification detected during active upload. Size: " << size << "  Mtime: " << mtime
+                         << "    FaSize: " << slot->fa->size << "  FaMtime: " << slot->fa->mtime;
+                defer = false;
+            }
         }
     }
 
@@ -514,13 +528,21 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
         slot = NULL;
         client->transfercacheadd(this, &committer);
 
-        LOG_debug << "Deferring transfer " << failcount << " during " << (bt.retryin() * 100) << " ms";
+        LOG_debug << "Deferring transfer " << failcount << " during " << (bt.retryin() * 100) << " ms" << " [this = " << this << "]";
     }
     else
     {
-        LOG_debug << "Removing transfer";
+        LOG_debug << "Removing transfer" << " [this = " << this << "]";
         state = TRANSFERSTATE_FAILED;
         finished = true;
+
+#ifdef ENABLE_SYNC
+        if (e == API_EBUSINESSPASTDUE)
+        {
+            LOG_debug << "Disabling syncs on account of API_EBUSINESSPASTDUE error on transfer";
+            client->syncs.disableSyncs(ACCOUNT_EXPIRED, false, true);
+        }
+#endif
 
         for (file_list::iterator it = files.begin(); it != files.end(); it++)
         {
@@ -530,15 +552,12 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
                 && e != API_EOVERQUOTA
                 && e != API_EPAYWALL)
             {
-                client->syncdownrequired = true;
-            }
-
-            if (e == API_EBUSINESSPASTDUE && !alreadyDisabled)
-            {
-                client->syncs.disableSyncs(BUSINESS_EXPIRED, true); // still try to resume on start
-                alreadyDisabled = true;
+                // Get the sync to check that folder again so it doesn't just recreate that same transfer
+                LOG_debug << "Trigger sync parent path scan for failed transfer of " << (*it)->getLocalname();
+                client->syncs.triggerSync((*it)->getLocalname().parentPath(), type == PUT);
             }
 #endif
+
 
             client->app->file_removed(*it, e);
         }
@@ -568,33 +587,62 @@ void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ LocalPath&
         !client->mediaFileInfo.mediaCodecsFailed)
     {
         // for upload, the key is in the transfer.  for download, the key is in the node.
-        uint32_t* attrKey = fileAttributeKeyPtr((type == PUT) ? filekey : (byte*)node->nodekey().data());
+        uint32_t* attrKey = fileAttributeKeyPtr((type == PUT) ? filekey.bytes.data() : (byte*)node->nodekey().data());
 
         if (type == PUT || !node->hasfileattribute(fa_media) || client->mediaFileInfo.timeToRetryMediaPropertyExtraction(node->fileattrstring, attrKey))
         {
             // if we don't have the codec id mappings yet, send the request
-            client->mediaFileInfo.requestCodecMappingsOneTime(client, NULL);
+            client->mediaFileInfo.requestCodecMappingsOneTime(client, LocalPath());
 
             // always get the attribute string; it may indicate this version of the mediaInfo library was unable to interpret the file
             MediaProperties vp;
-            vp.extractMediaPropertyFileAttributes(localpath, client->fsaccess);
+            vp.extractMediaPropertyFileAttributes(localpath, client->fsaccess.get());
 
             if (type == PUT)
             {
-                minfa += client->mediaFileInfo.queueMediaPropertiesFileAttributesForUpload(vp, attrKey, client, uploadhandle);
+                client->mediaFileInfo.queueMediaPropertiesFileAttributesForUpload(vp, attrKey, client, uploadhandle, this);
             }
             else
             {
-                client->mediaFileInfo.sendOrQueueMediaPropertiesFileAttributesForExistingFile(vp, attrKey, client, node->nodehandle);
+                client->mediaFileInfo.sendOrQueueMediaPropertiesFileAttributesForExistingFile(vp, attrKey, client, node->nodeHandle());
             }
         }
     }
 #endif
 }
 
+bool Transfer::isForSupport() const
+{
+    return type == PUT && !files.empty() && files.back()->targetuser == MegaClient::SUPPORT_USER_HANDLE;
+}
+
+bool Transfer::addTransferStats()
+{
+    if (!client)
+    {
+        LOG_err << "[Transfer::addTransferStats] called with a NULL MEGAclient";
+        assert(false && "[Transfer::addTransferStats] called with a NULL MEGAclient");
+        return false;
+    }
+    return client->mTransferStatsManager.addTransferStats(this);
+}
+
+FileDistributor::TargetNameExistsResolution Transfer::toTargetNameExistsResolution(CollisionResolution resolution)
+{
+    switch (resolution) {
+        case CollisionResolution::Overwrite:
+            return FileDistributor::TargetNameExistsResolution::OverwriteTarget;
+        case CollisionResolution::RenameExistingToOldN:
+            return FileDistributor::TargetNameExistsResolution::RenameExistingToOldN;
+        case CollisionResolution::RenameNewWithN: // fall through
+        default:
+            return FileDistributor::TargetNameExistsResolution::RenameWithBracketedNumber;
+    }
+}
+
 // transfer completion: copy received file locally, set timestamp(s), verify
 // fingerprint, notify app, notify files
-void Transfer::complete(DBTableTransactionCommitter& committer)
+void Transfer::complete(TransferDbCommitter& committer)
 {
     CodeCounter::ScopeTimer ccst(client->performanceStats.transferComplete);
 
@@ -603,11 +651,10 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 
     if (type == GET)
     {
-        LOG_debug << "Download complete: " << (files.size() ? LOG_NODEHANDLE(files.front()->h) : "NO_FILES") << " " << files.size();
+
+        LOG_debug << client->clientname << "Download complete: " << (files.size() ? LOG_NODEHANDLE(files.front()->h) : "NO_FILES") << " " << files.size() << (files.size() ? files.front()->name : "");
 
         bool transient_error = false;
-        LocalPath tmplocalname;
-        LocalPath localname;
         bool success;
 
         // disconnect temp file from slot...
@@ -619,18 +666,19 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
         // set timestamp (subsequent moves & copies are assumed not to alter mtime)
         success = client->fsaccess->setmtimelocal(localfilename, mtime);
 
-#ifdef ENABLE_SYNC
         if (!success)
         {
             transient_error = client->fsaccess->transient_error;
             LOG_debug << "setmtimelocal failed " << transient_error;
         }
-#endif
+
+        // try to catch failing cases in the debugger (seen on synology SMB drive after the file was moved to final destination)
+        assert(FSNode::debugConfirmOnDiskFingerprintOrLogWhy(*client->fsaccess, localfilename, *this));
 
         // verify integrity of file
         auto fa = client->fsaccess->newfileaccess();
         FileFingerprint fingerprint;
-        Node* n = nullptr;
+        std::shared_ptr<Node> n;
         bool fixfingerprint = false;
         bool fixedfingerprint = false;
         bool syncxfer = false;
@@ -643,7 +691,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
             }
 
             if (!fixedfingerprint && (n = client->nodeByHandle((*it)->h))
-                 && !(*(FileFingerprint*)this == *(FileFingerprint*)n))
+                 && !(this->EqualExceptValidFlag(*n)))
             {
                 LOG_debug << "Wrong fingerprint already fixed";
                 fixedfingerprint = true;
@@ -655,7 +703,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
             }
         }
 
-        if (!fixedfingerprint && success && fa->fopen(localfilename, true, false))
+        if (!fixedfingerprint && success && fa->fopen(localfilename, true, false, FSLogging::logOnError))
         {
             fingerprint.genfingerprint(fa.get());
             if (isvalid && !(fingerprint == *(FileFingerprint*)this))
@@ -689,7 +737,6 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                 }
             }
         }
-#ifdef ENABLE_SYNC
         else
         {
             if (syncxfer && !fixedfingerprint && success)
@@ -698,7 +745,6 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                 LOG_debug << "Unable to validate fingerprint " << transient_error;
             }
         }
-#endif
         fa.reset();
 
         char me64[12];
@@ -708,7 +754,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
         {
             if (fingerprint.isvalid)
             {
-                // set FileFingerprint on source node(s) if missing
+                // set FileFingerprint on source node(s) if missing or invalid
                 set<handle> nodes;
                 for (file_list::iterator it = files.begin(); it != files.end(); it++)
                 {
@@ -718,14 +764,36 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                         nodes.insert(n->nodehandle);
 
                         if ((!n->isvalid || fixfingerprint)
-                                && !(fingerprint == *(FileFingerprint*)n)
+                                && !(fingerprint == *(FileFingerprint*)n.get())
                                 && fingerprint.size == this->size)
                         {
-                            LOG_debug << "Fixing fingerprint";
-                            *(FileFingerprint*)n = fingerprint;
+                            attr_map attrUpdate;
+                            fingerprint.serializefingerprint(&attrUpdate['c']);
 
-                            n->serializefingerprint(&n->attrs.map['c']);
-                            client->setattr(n);
+                            // the fingerprint is still wrong, but....
+                            // is it already being fixed?
+                            AttrMap pendingAttrs;
+                            if (!n->mPendingChanges.empty())
+                            {
+                                pendingAttrs = n->attrs;
+                                n->mPendingChanges.forEachCommand([&pendingAttrs](Command* cmd)
+                                {
+                                    if (auto cmdSetAttr = dynamic_cast<CommandSetAttr*>(cmd))
+                                    {
+                                        cmdSetAttr->applyUpdatesTo(pendingAttrs);
+                                    }
+                                });
+                            }
+
+                            if (pendingAttrs.hasDifferentValue('c', attrUpdate))
+                            {
+                                LOG_debug << "Fixing fingerprint";
+                                client->setattr(n, std::move(attrUpdate), nullptr, false);
+                            }
+                            else
+                            {
+                                LOG_debug << "Fingerprint already being fixed";
+                            }
                         }
                     }
                 }
@@ -738,127 +806,43 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                 (*it)->updatelocalname();
             }
 
+            if (!downloadDistributor)
+            {
+                // we keep the old one in case there was a temporary_error previously
+                downloadDistributor.reset(new FileDistributor(localfilename, files.size(), mtime, *this));
+            }
+
             set<string> keys;
             // place file in all target locations - use up to one renames, copy
             // operations for the rest
             // remove and complete successfully completed files
             for (file_list::iterator it = files.begin(); it != files.end(); )
             {
+                if ((*it)->syncxfer)
+                {
+                    // leave sync items for later, they will be passed to the sync thread
+                    ++it;
+                    continue;
+                }
+
                 transient_error = false;
                 success = false;
-                localname = (*it)->localname;
 
-                if (localname != localfilename)
+                auto finalpath = (*it)->getLocalname();
+
+                // it may update the path to include (n) if there is a clash
+                bool name_too_long = false;
+                auto r = toTargetNameExistsResolution((*it)->getCollisionResolution());
+                success = downloadDistributor->distributeTo(finalpath, *client->fsaccess, r, transient_error, name_too_long, nullptr);
+
+                if (success)
                 {
-                    fa = client->fsaccess->newfileaccess();
-                    if (fa->fopen(localname) || fa->type == FOLDERNODE)
-                    {
-                        // the destination path already exists
-        #ifdef ENABLE_SYNC
-                        if((*it)->syncxfer)
-                        {
-                            bool foundOne = false;
-                            client->syncs.forEachRunningSync([&](Sync* sync){
-
-                                LocalNode *localNode = sync->localnodebypath(NULL, localname);
-                                if (localNode && !foundOne)
-                                {
-                                    LOG_debug << "Overwriting a local synced file. Moving the previous one to debris";
-
-                                    // try to move to local debris
-                                    if(!sync->movetolocaldebris(localname))
-                                    {
-                                        transient_error = client->fsaccess->transient_error;
-                                    }
-
-                                    foundOne = true;
-                                }
-                            });
-
-                            if (!foundOne)
-                            {
-                                LOG_err << "LocalNode for destination file not found";
-
-                                if(client->syncs.hasRunningSyncs())
-                                {
-                                    // try to move to debris in the first sync
-                                    if(!client->syncs.firstRunningSync()->movetolocaldebris(localname))
-                                    {
-                                        transient_error = client->fsaccess->transient_error;
-                                    }
-                                }
-                            }
-                        }
-                        else
-        #endif
-                        {
-                            LOG_debug << "The destination file exist (not synced). Saving with a different name";
-
-                            // the destination path isn't synced, save with a (x) suffix
-                            LocalPath localnewname;
-                            unsigned num = 0;
-                            do
-                            {
-                                num++;
-                                localnewname = localname.insertFilenameCounter(num, *client->fsaccess);
-                            } while (fa->fopen(localnewname) || fa->type == FOLDERNODE);
-
-
-                            (*it)->localname = localnewname;
-                            localname = localnewname;
-                        }
-                    }
-                    else
-                    {
-                        transient_error = fa->retry;
-                    }
-
-                    if (transient_error)
-                    {
-                        LOG_warn << "Transient error checking if the destination file exist";
-                        it++;
-                        continue;
-                    }
+                    (*it)->setLocalname(finalpath);  // so the app may report an accurate final name
                 }
-
-                if (files.size() == 1 && tmplocalname.empty())
+                else if (transient_error)
                 {
-                    if (localfilename != localname)
-                    {
-                        LOG_debug << "Renaming temporary file to target path";
-                        if (client->fsaccess->renamelocal(localfilename, localname))
-                        {
-                            tmplocalname = localname;
-                            success = true;
-                        }
-                        else if (client->fsaccess->transient_error)
-                        {
-                            transient_error = true;
-                        }
-                    }
-                    else
-                    {
-                        tmplocalname = localname;
-                        success = true;
-                    }
-                }
-
-                if (!success)
-                {
-                    if((!tmplocalname.empty() ? tmplocalname : localfilename) == localname)
-                    {
-                        LOG_debug << "Identical node downloaded to the same folder";
-                        success = true;
-                    }
-                    else if (client->fsaccess->copylocal(!tmplocalname.empty() ? tmplocalname : localfilename,
-                                                   localname, mtime))
-                    {
-                        success = true;
-                    }
-                    else if (client->fsaccess->transient_error)
-                    {
-                        transient_error = true;
-                    }
+                    it++;
+                    continue;
                 }
 
                 if (success)
@@ -866,9 +850,10 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                     // set missing node attributes
                     if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodeByHandle((*it)->h)))
                     {
+                        auto localname = (*it)->getLocalname();
                         if (!client->gfxdisabled && client->gfx && client->gfx->isgfx(localname) &&
                             keys.find(n->nodekey()) == keys.end() &&    // this file hasn't been processed yet
-                            client->checkaccess(n, OWNER))
+                            client->checkaccess(n.get(), OWNER))
                         {
                             keys.insert(n->nodekey());
 
@@ -882,71 +867,100 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 
                                 if (missingattr)
                                 {
-                                    client->gfx->gendimensionsputfa(NULL, localname, n->nodehandle, n->nodecipher(), missingattr);
+                                    client->gfx->gendimensionsputfa(localname, NodeOrUploadHandle(n->nodeHandle()), n->nodecipher(), missingattr);
                                 }
 
-                                addAnyMissingMediaFileAttributes(n, localname);
+                                addAnyMissingMediaFileAttributes(n.get(), localname);
                             }
                         }
                     }
                 }
 
-                if (success || !transient_error)
+                if (success)
                 {
-                    if (success)
-                    {
-                        // prevent deletion of associated Transfer object in completed()
-                        client->filecachedel(*it, &committer);
-                        client->app->file_complete(*it);
-                        (*it)->transfer = NULL;
-                        (*it)->completed(this, NULL);
-                    }
-
-                    if (success || !(*it)->failed(API_EAGAIN))
-                    {
-                        File* f = (*it);
-                        files.erase(it++);
-                        if (!success)
-                        {
-                            LOG_warn << "Unable to complete transfer due to a persistent error";
-                            client->filecachedel(f, &committer);
-#ifdef ENABLE_SYNC
-                            if (f->syncxfer)
-                            {
-                                client->syncdownrequired = true;
-                            }
-#endif
-                            client->app->file_removed(f, API_EWRITE);
-                            f->transfer = NULL;
-                            f->terminated();
-                        }
-                    }
-                    else
-                    {
-                        failcount++;
-                        LOG_debug << "Persistent error completing file. Failcount: " << failcount;
-                        it++;
-                    }
+                    // prevent deletion of associated Transfer object in completed()
+                    client->filecachedel(*it, &committer);
+                    client->app->file_complete(*it);
+                    (*it)->transfer = NULL;
+                    (*it)->completed(this, (*it)->syncxfer ? PUTNODES_SYNC : PUTNODES_APP);
+                    files.erase(it++);
                 }
-                else
+                else if (transient_error)
                 {
                     LOG_debug << "Transient error completing file";
                     it++;
                 }
+                else if (!(*it)->failed(API_EAGAIN, client))
+                {
+                    File* f = (*it);
+                    files.erase(it++);
+
+                    LOG_warn << "Unable to complete transfer due to a persistent error";
+                    client->filecachedel(f, &committer);
+#ifdef ENABLE_SYNC
+                    if (f->syncxfer)
+                    {
+                        client->syncs.setSyncsNeedFullSync(false, false, UNDEF);
+                    }
+                    else
+#endif
+                    {
+                        downloadDistributor->removeTarget();
+                    }
+
+                    client->app->file_removed(f, API_EWRITE);
+                    f->transfer = NULL;
+                    f->terminated(API_EWRITE);
+                }
+                else
+                {
+                    failcount++;
+                    LOG_debug << "Persistent error completing file. Failcount: " << failcount;
+                    if (name_too_long)
+                    {
+                        LOG_warn << "Error is: name too long";
+                    }
+                    it++;
+                }
             }
 
-            if (tmplocalname.empty() && !files.size())
+#ifdef ENABLE_SYNC
+            for (file_list::iterator it = files.begin(); it != files.end(); )
             {
-                client->fsaccess->unlinklocal(localfilename);
+                // now that the file itself is moved (if started as a manual download),
+                // we can let the sync copy (or move) for the sync cases
+                File* f = *it;
+
+                // pass the distribution responsibility to the sync, for sync requested downloads
+                if (f->syncxfer)
+                {
+                    auto dl = dynamic_cast<SyncDownload_inClient*>(f);
+                    assert(dl);
+                    dl->downloadDistributor = downloadDistributor;
+
+                    client->filecachedel(f, &committer);
+                    client->app->file_complete(f);
+                    f->transfer = NULL;
+                    f->completed(this, PUTNODES_SYNC);  // sets wasCompleted == true, and the sync thread can then call the distributor
+                    it = files.erase(it);
+                }
+                else it++;
+            }
+#endif // ENABLE_SYNC
+
+            if (!files.size())
+            {
+                // check if we should delete the download at downloaded path
+                downloadDistributor.reset();
             }
         }
 
-        if (!files.size())
+        if (files.empty()) // all processed
         {
             state = TRANSFERSTATE_COMPLETED;
-            localfilename = localname;
+            assert(localfilename.isAbsolute());
             finished = true;
-            client->looprequested = true;
+
             client->app->transfer_complete(this);
             localfilename.clear();
             delete this;
@@ -963,9 +977,9 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
             slot->retrybt.backoff(11);
         }
     }
-    else
+    else // type == PUT
     {
-        LOG_debug << "Upload complete: " << (files.size() ? files.front()->name : "NO_FILES") << " " << files.size();
+        LOG_debug << client->clientname << "Upload complete: " << (files.size() ? files.front()->name : "NO_FILES") << " " << files.size();
 
         if (slot->fa)
         {
@@ -976,25 +990,12 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
         for (file_list::iterator it = files.begin(); it != files.end(); )
         {
             File *f = (*it);
-            LocalPath *localpath = &f->localname;
+            LocalPath localpath = f->getLocalname();
 
-#ifdef ENABLE_SYNC
-            LocalPath synclocalpath;
-            LocalNode *ll = dynamic_cast<LocalNode *>(f);
-            if (ll)
-            {
-                LOG_debug << "Verifying sync upload";
-                synclocalpath = ll->getLocalPath();
-                localpath = &synclocalpath;
-            }
-            else
-            {
-                LOG_debug << "Verifying regular upload";
-            }
-#endif
+            LOG_debug << "Verifying upload";
 
             auto fa = client->fsaccess->newfileaccess();
-            bool isOpen = fa->fopen(*localpath);
+            bool isOpen = fa->fopen(localpath, FSLogging::logOnError);
             if (!isOpen)
             {
                 if (client->fsaccess->transient_error)
@@ -1006,7 +1007,8 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                 }
             }
 
-            if (!isOpen || f->genfingerprint(fa.get()))
+            if (!f->syncxfer &&  // for syncs, it's ok if the file moved/renamed elsewhere since
+               (!isOpen || f->genfingerprint(fa.get())))
             {
                 if (!isOpen)
                 {
@@ -1017,12 +1019,6 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                     LOG_warn << "Modification detected after upload";
                 }
 
-#ifdef ENABLE_SYNC
-                if (f->syncxfer)
-                {
-                    client->syncdownrequired = true;
-                }
-#endif
                 it++; // the next line will remove the current item and invalidate that iterator
                 removeTransferFile(API_EREAD, f, &committer);
             }
@@ -1045,8 +1041,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
         }
 
         // if this transfer is put on hold, do not complete
-        client->checkfacompletion(uploadhandle, this);
-        return;
+        client->checkfacompletion(uploadhandle, this, true);
     }
 }
 
@@ -1055,6 +1050,9 @@ void Transfer::completefiles()
     // notify all files and give them an opportunity to self-destruct
     vector<uint32_t> &ids = client->pendingtcids[tag];
     vector<LocalPath> *pfs = NULL;
+#ifdef ENABLE_SYNC
+    bool wakeSyncs = false;
+#endif // ENABLE_SYNC
 
     for (file_list::iterator it = files.begin(); it != files.end(); )
     {
@@ -1066,15 +1064,41 @@ void Transfer::completefiles()
             {
                 pfs = &client->pendingfiles[tag];
             }
-            pfs->push_back(f->localname);
+            pfs->push_back(f->getLocalname());
         }
 
         client->app->file_complete(f);
+
+#ifdef ENABLE_SYNC
+        if (f->syncxfer && type == PUT)
+        {
+            if (SyncUpload_inClient* put = dynamic_cast<SyncUpload_inClient*>(f))
+            {
+                // We are about to hand over responsibility for putnodes to the sync
+                // However, if the sync gets shut down before that is sent, or the
+                // operation turns out to be invalidated (eg. uploaded file deleted before putnodes)
+                // then we must inform the app of the final transfer outcome.
+                client->transferBackstop.remember(put->tag, put->selfKeepAlive);
+                wakeSyncs = true;
+                mIsSyncUpload = true; // This will prevent the deletion of file attributes upon Transfer destruction
+            }
+        }
+#endif // ENABLE_SYNC
+
         f->transfer = NULL;
-        f->completed(this, NULL);
+        f->completed(this, f->syncxfer ? PUTNODES_SYNC : PUTNODES_APP);
         files.erase(it++);
     }
     ids.push_back(dbid);
+
+#ifdef ENABLE_SYNC
+    if (wakeSyncs)
+    {
+        // for a sync that is only uploading, there's no other mechansim to wake it up early between tree recursions
+        client->syncs.skipWait = true;
+        client->syncs.waiter->notify();
+    }
+#endif // ENABLE_SYNC
 }
 
 DirectReadNode::DirectReadNode(MegaClient* cclient, handle ch, bool cp, SymmCipher* csymmcipher, int64_t cctriv, const char *privauth, const char *pubauth, const char *cauth)
@@ -1131,7 +1155,7 @@ void DirectReadNode::dispatch()
 {
     if (reads.empty())
     {
-        LOG_debug << "Removing DirectReadNode";
+        LOG_debug << "Removing DirectReadNode" << " [this = " << this << "]";
         delete this;
     }
     else
@@ -1156,7 +1180,7 @@ void DirectReadNode::retry(const Error& e, dstime timeleft)
 {
     if (reads.empty())
     {
-        LOG_warn << "Removing DirectReadNode. No reads to retry.";
+        LOG_warn << "Removing DirectReadNode. No reads to retry" << " [this = " << this << "]";
         delete this;
         return;
     }
@@ -1165,26 +1189,49 @@ void DirectReadNode::retry(const Error& e, dstime timeleft)
 
     retries++;
 
-    LOG_warn << "Streaming transfer retry due to error " << e;
+    LOG_warn << "[DirectReadNode::retry] Streaming transfer retry due to error " << e << " [this = " << this << "]";
     if (client->autodownport)
     {
         client->usealtdownport = !client->usealtdownport;
     }
 
-    // signal failure to app , obtain minimum desired retry time
-    for (dr_list::iterator it = reads.begin(); it != reads.end(); it++)
+    // signal failure to app, obtain minimum desired retry time
+    for (dr_list::iterator it = reads.begin(); it != reads.end(); )
     {
-        (*it)->abort();
-
-        if (e)
+        if ((*it)->appdata)
         {
-            dstime retryds = client->app->pread_failure(e, retries, (*it)->appdata, timeleft);
+            (*it)->abort();
 
-            if (retryds < minretryds && !(e == API_ETOOMANY && e.hasExtraInfo()))
+            if (e)
             {
-                minretryds = retryds;
+                LOG_debug << "[DirectReadNode::retry] Calling pread_failure for DirectRead (" << (void*)(*it) << ")" << " [this = " << this << "]";
+                dstime retryds = client->app->pread_failure(e, retries, (*it)->appdata, timeleft);
+
+                if (retryds < minretryds && !(e == API_ETOOMANY && e.hasExtraInfo()))
+                {
+                    minretryds = retryds;
+                }
             }
         }
+        else
+        {
+            // This situation should never happen
+            client->sendevent(99472, "DirectRead detected with a null transfer");
+        }
+        if (!(*it)->appdata) // It may have been deleted after pread_failure
+        {
+            // Transfer is deleted
+            LOG_warn << "[DirectReadNode::retry] No appdata (transfer has been deleted) for this DirectRead (" << (void*)(*it) << "). Deleting affected DirectRead" << " [this = " << this << "]";
+            delete *(it++);
+        }
+        else it++;
+    }
+
+    if (reads.empty()) // Check again if there are DirectReads left to retry
+    {
+        LOG_warn << "Removing DirectReadNode. No reads left to retry" << " [this = " << this << "]";
+        delete this;
+        return;
     }
 
     if (e == API_EOVERQUOTA && timeleft)
@@ -1218,7 +1265,7 @@ void DirectReadNode::retry(const Error& e, dstime timeleft)
         else
         {
             // cancellation desired
-            LOG_debug << "Removing DirectReadNode. Too many errors.";
+            LOG_debug << "[DirectReadNode::retry] Removing DirectReadNode. Too many errors" << " [this = " << this << "]";
             delete this;
         }
     }
@@ -1239,7 +1286,9 @@ void DirectReadNode::cmdresult(const Error &e, dstime timeleft)
             if (dr->drbuf.tempUrlVector().empty())
             {
                 // DirectRead starting
-                dr->drbuf.setIsRaid(dr->drn->tempurls, dr->offset, dr->offset + dr->count, dr->drn->size, 2097152);  // 2 MB max buffer usage approx for streaming
+                m_off_t streamingMaxReqSize = dr->drMaxReqSize();
+                LOG_debug << "Direct read node size = " << dr->drn->size << ", streaming max request size: " << streamingMaxReqSize;
+                dr->drbuf.setIsRaid(dr->drn->tempurls, dr->offset, dr->offset + dr->count, dr->drn->size, streamingMaxReqSize, false);
             }
             else
             {
@@ -1281,195 +1330,866 @@ void DirectReadNode::enqueue(m_off_t offset, m_off_t count, int reqtag, void* ap
     new DirectRead(this, count, offset, reqtag, appdata);
 }
 
+size_t UnusedConn::getNum() const
+{
+    return mNum;
+}
+
+bool UnusedConn::isTempErrReason() const
+{
+    auto isTempErr = mReason == UN_TEMP_ERR;
+    assert(!isTempErr || mNumBackoffRetries > 0);
+    return isTempErr;
+}
+
+bool UnusedConn::isErrReason() const
+{
+    return isErrReason(mReason);
+}
+
+bool UnusedConn::setUnused(const size_t num, const unusedReason reason)
+{
+    if (!isValidUnusedReason(reason))
+    {
+        LOG_err << "setUnused: Invalid reason: " << reason;
+        assert(false);
+        return false;
+    }
+
+    if (num == mNum)
+    {
+        return false;
+    }
+
+    mNum = num;
+    mReason = reason;
+    mNumBackoffRetries = reason == UN_TEMP_ERR ? defaultBackoffRetries : 0;
+    return true;
+}
+
+void UnusedConn::clear()
+{
+    mNum = 0;
+    mNumBackoffRetries = 0;
+    mReason = UN_NOT_ERR;
+}
+
+void UnusedConn::decTempBackoffRetries()
+{
+    if (!isTempErrReason())
+    {
+        return;
+    }
+
+    if (mNumBackoffRetries > 0)
+    {
+        if (--mNumBackoffRetries == 0)
+        {
+            mReason = UN_NOT_ERR;
+        }
+    }
+}
+
 bool DirectReadSlot::processAnyOutputPieces()
 {
     bool continueDirectRead = true;
+
     std::shared_ptr<TransferBufferManager::FilePiece> outputPiece;
-    while (continueDirectRead && (outputPiece = dr->drbuf.getAsyncOutputBufferPointer(0)))
+    while (continueDirectRead && (outputPiece = mDr->drbuf.getAsyncOutputBufferPointer(0)))
     {
         size_t len = outputPiece->buf.datalen();
-        speed = speedController.calculateSpeed();
-        meanSpeed = speedController.getMeanSpeed();
-        dr->drn->client->httpio->updatedownloadspeed(len);
-        continueDirectRead = dr->drn->client->app->pread_data(outputPiece->buf.datastart(), len, pos, speed, meanSpeed, dr->appdata);
+        mSpeed = mSpeedController.calculateSpeed(len);
+        mMeanSpeed = mSpeedController.getMeanSpeed();
+        mDr->drn->client->httpio->updatedownloadspeed(len);
 
-        dr->drbuf.bufferWriteCompleted(0, true);
+        if (mDr->appdata)
+        {
+            mSlotThroughput.first += static_cast<m_off_t>(len);
+            auto lastDataTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - mSlotStartTime).count();
+            mSlotThroughput.second = static_cast<m_off_t>(lastDataTime);
+            LOG_verbose << "DirectReadSlot -> Delivering assembled part ->"
+                        << "len = " << len << ", speed = " << mSpeed << ", meanSpeed = " << (mMeanSpeed / 1024) << " KB/s"
+                        << ", slotThroughput = " << ((calcThroughput(mSlotThroughput.first, mSlotThroughput.second) * 1000) / 1024) << " KB/s]" << " [this = " << this << "]";
+            continueDirectRead = mDr->drn->client->app->pread_data(outputPiece->buf.datastart(), len, mPos, mSpeed, mMeanSpeed, mDr->appdata);
+        }
+        else
+        {
+            LOG_err << "DirectReadSlot tried to deliver an assembled part, but the transfer doesn't exist anymore. Aborting" << " [this = " << this << "]";
+            mDr->drn->client->sendevent(99472, "DirectRead detected with a null transfer");
+            continueDirectRead = false;
+        }
+        mDr->drbuf.bufferWriteCompleted(0, true);
 
         if (continueDirectRead)
         {
-            pos += len;
-            dr->drn->partiallen += len;
-            dr->progress += len;
+            mPos += len;
+            mDr->drn->partiallen += len;
+            mDr->progress += len;
+            mMinComparableThroughput = static_cast<m_off_t>(len);
         }
     }
     return continueDirectRead;
 }
 
+bool DirectReadSlot::waitForPartsInFlight() const
+{
+    return DirectReadSlot::WAIT_FOR_PARTS_IN_FLIGHT &&
+            mDr->drbuf.isRaid() &&
+            mWaitForParts;
+}
+
+unsigned DirectReadSlot::usedConnections() const
+{
+    assert(mDr->drbuf.isRaid());
+    if (!mDr->drbuf.isRaid() || mReqs.empty())
+    {
+        LOG_warn << "DirectReadSlot -> usedConnections() being used when it shouldn't" << " [this = " << this << "]";
+    }
+    return static_cast<unsigned>(mReqs.size()) -
+           ((mUnusedConn.getNum() != static_cast<unsigned>(mReqs.size())) ? 1 : 0);
+}
+
+bool DirectReadSlot::resetConnection(size_t connectionNum)
+{
+    LOG_debug << "DirectReadSlot [conn " << connectionNum << "] -> resetConnection" << " [this = " << this << "]";
+    assert(connectionNum < mReqs.size());
+    if (connectionNum >= mReqs.size())
+    {
+        return false;
+    }
+    if (mReqs[connectionNum])
+    {
+        mReqs[connectionNum]->disconnect();
+        mReqs[connectionNum]->status = REQ_READY;
+        mThroughput[connectionNum].first = 0;
+        mThroughput[connectionNum].second = 0;
+    }
+    mDr->drbuf.resetPart(static_cast<unsigned>(connectionNum));
+    return true;
+}
+
+m_off_t DirectReadSlot::getThroughput(size_t connectionNum) const
+{
+    assert(connectionNum < mReqs.size());
+    m_off_t connectionThroughPut = calcThroughput(mThroughput[connectionNum].first, mThroughput[connectionNum].second);
+    return connectionThroughPut;
+}
+
+m_off_t DirectReadSlot::calcThroughput(m_off_t numBytes, m_off_t timeCount) const
+{
+    m_off_t throughput = (numBytes && timeCount) ?
+                            numBytes / timeCount :
+                            0;
+    return throughput;
+}
+
+void DirectReadSlot::retryOnError(const size_t connectionNum, const int httpstatus)
+{
+    if (!mDr->drbuf.isRaid())
+    {
+        LOG_verbose << "DirectReadSlot::retry: Retrying DirectRead Transfer";
+        retryEntireTransfer(API_EREAD);
+    }
+    else
+    {
+        assert(mReqs.size() <= RAIDPARTS);
+        if (!UnusedConn::isHandledHttpStatus(httpstatus))
+        {
+            LOG_err << "DirectReadSlot::retry [Raided] transfer due httpstatus: " << httpstatus;
+            retryEntireTransfer(API_EREAD);
+            return;
+        }
+
+        if (connectionNum >= mReqs.size())
+        {
+            LOG_err << "DirectReadSlot::retry [Raided]: Invalid connectionNum (out of bounds)";
+            assert(false);
+            return;
+        }
+
+        if (std::unique_ptr<HttpReq>& failedReq = mReqs[connectionNum]; !failedReq)
+        {
+            LOG_err << "DirectReadSlot::retry [Raided]: Invalid connectionNum (not found)";
+            assert(false);
+            return;
+        }
+
+        if (connectionNum == mUnusedConn.getNum())
+        {
+            LOG_err << "DirectReadSlot::retry [Raided]: connectionNum provided matches the "
+                       "unused connectionNum.";
+            assert(false);
+            return;
+        }
+
+        auto reason = UnusedConn::getReasonFromHttpStatus(httpstatus);
+        if (reason == UnusedConn::UN_RETRY_IMMEDIATELY)
+        {
+            LOG_debug << "DirectReadSlot::retry [Raided] [conn " << connectionNum
+                      << "] has been failed with httpstatus: " << httpstatus
+                      << ". Retry entire transfer immediately";
+            retryEntireTransfer(API_EREAD);
+            return;
+        }
+
+        if (!UnusedConn::isErrReason(reason))
+        {
+            LOG_err << "DirectReadSlot::retry [Raided]: invalid reason: " << reason
+                    << " httpstatus: " << httpstatus;
+            assert(false);
+            retryEntireTransfer(API_EREAD);
+            return;
+        }
+
+        auto failedParts = recordFailedRaidedPart(connectionNum);
+        std::string msg = "DirectReadSlot::retry [Raided] [conn " + std::to_string(connectionNum) +
+                          "] has been failed (" + std::to_string(failedParts) + " time/s)";
+
+        if (failedParts > MAX_FAILED_RAIDED_PARTS)
+        {
+            if (getDifferentRaidedPartsFailed() > MAX_DIFFERENT_FAILED_RAIDED_CONNS)
+            {
+                msg += "We will retry entire transfer";
+                LOG_debug << msg;
+                retryEntireTransfer(API_EREAD);
+                return;
+            }
+            else if (mUnusedConn.isErrReason())
+            {
+                msg += "We cannot replace failed part by unused one as it's also failed. Retry "
+                       "entire transfer";
+                LOG_debug << msg;
+                retryEntireTransfer(API_EREAD);
+                return;
+            }
+            else
+            {
+                // If same connection has failed more than once and failedParts has exceeded
+                // MAX_FAILED_RAIDED_PARTS then discard that connection by setting as unused with a
+                // non-retriable reason
+                msg += "We will definetively disable [Conn " + std::to_string(connectionNum) +
+                       "] and ";
+                reason = UnusedConn::UN_DEFINITIVE_ERR;
+                decrementFailedRaidedPartsCounter();
+            }
+        }
+
+        msg += "We will replace that part by [conn " + std::to_string(mUnusedConn.getNum()) + "]";
+        LOG_debug << msg;
+        assert(mDr->drbuf.setUnusedRaidConnection(static_cast<unsigned>(connectionNum)));
+        assert(resetConnection(mUnusedConn.getNum()));
+        assert(mUnusedConn.setUnused(connectionNum, reason));
+        assert(resetConnection(mUnusedConn.getNum()));
+    }
+}
+
+void DirectReadSlot::retryEntireTransfer(const Error& e, dstime timeleft)
+{
+    clearFailedRaidedParts();
+    mUnusedConn.clear();
+    mDr->drn->retry(e, timeleft);
+}
+
+void DirectReadSlot::onLowSpeedRaidedTransfer()
+{
+    if (!mDr->drbuf.isRaid() ||
+        mNumSlowConnectionsSwitches >=
+            DirectReadSlot::MAX_SLOW_CONNECTION_SWITCHES || // Limit for connection switches
+        mUnusedConn.isErrReason()) // mUnusedConn has failed (no matter if temp or definitive err),
+                                   // and another one has detected too slow (retry entire transfer)
+    {
+        LOG_warn << "DirectReadSlot: onLowSpeedRaidedTransfer -> Transfer speed too low for "
+                    "streaming. Retrying entire transfer"
+                 << " [this = " << this << "]";
+        retryEntireTransfer(API_EREAD);
+        return;
+    }
+
+    size_t slowestConnectionIndex = mReqs.size(); // init to invalid conn num
+    m_off_t slowestThroughput = 0; // init slowest throughput
+
+    for (size_t i = 0; i < mReqs.size(); ++i)
+    {
+        if (!mReqs[i] || i == mUnusedConn.getNum())
+        {
+            continue;
+        }
+
+        if (!isConnectionDone(i) && isMinComparableThroughputForThisConnection(i))
+        {
+            m_off_t currentThroughput = getThroughput(i);
+            if (auto invalidIdx = slowestConnectionIndex == mReqs.size();
+                invalidIdx || currentThroughput < slowestThroughput)
+            {
+                slowestConnectionIndex = i;
+                slowestThroughput = currentThroughput;
+            }
+        }
+    }
+
+    assert(slowestConnectionIndex != mUnusedConn.getNum());
+    if (slowestConnectionIndex >= mReqs.size())
+    {
+        LOG_warn << "DirectReadSlot: onLowSpeedRaidedTransfer -> Cannot find another raided part "
+                    "for replacement. Retrying entire transfer"
+                 << " [this = " << this << "]";
+        retryEntireTransfer(API_EAGAIN);
+    }
+    else
+    {
+        replaceUnusedConnection(slowestConnectionIndex);
+    }
+}
+
+bool DirectReadSlot::exitDueReqsOnFlight() const
+{
+    // If there is any `valid` connection inflight we don't switch (we only switch when the
+    // status is REQ_READY for all reqs to avoid disconnections)
+    if (mNumReqsInflight > 1)
+    {
+        return true;
+    }
+    else if (mNumReqsInflight == 1)
+    {
+        for (size_t i = 0; i < mReqs.size(); ++i)
+        {
+            if (i == mUnusedConn.getNum())
+            {
+                // Altough "unused connection" is taken into account to increase
+                // mNumReqsInflight (for convenience), it's not an effective request in flight
+                continue;
+            }
+            if (const std::unique_ptr<HttpReq>& req = mReqs[i]; req && req->httpstatus == REQ_READY)
+            {
+                continue;
+            }
+            return true;
+        }
+    }
+    return false;
+}
+
+std::pair<bool, bool> DirectReadSlot::replaceUnusedConnection(size_t connectionNum)
+{
+    if (mDr->drbuf.setUnusedRaidConnection(static_cast<unsigned>(connectionNum)))
+    {
+        if (mUnusedConn.getNum() != mReqs.size())
+        {
+            resetConnection(mUnusedConn.getNum());
+        }
+        mUnusedConn.setUnused(connectionNum, UnusedConn::UN_NOT_ERR);
+        ++mNumSlowConnectionsSwitches;
+        LOG_verbose << "DirectReadSlot [conn " << connectionNum << "]"
+                    << " Continuing after setting slow connection"
+                    << " [total slow connections switches = " << mNumSlowConnectionsSwitches << "]"
+                    << " [this = " << this << "]";
+        return {true, resetConnection(mUnusedConn.getNum())};
+    }
+    return {false, false};
+}
+
+bool DirectReadSlot::searchAndDisconnectSlowestConnection(size_t connectionNum)
+{
+    assert(connectionNum < mReqs.size());
+    if (!mDr->drbuf.isRaid())
+    {
+        return false;
+    }
+
+    if (mUnusedConn.isErrReason())
+    {
+        if (mUnusedConn.isTempErrReason())
+        {
+            // if unused connection is temporarily failed (UN_TEMP_ERR), decrements retries backoff
+            // and then checks if connection can be reused now, if false return. At next call to
+            // this method will decrements counter again, until it reaches 0 and it's status is
+            // UN_NOT_ERR
+            mUnusedConn.decTempBackoffRetries();
+            if (mUnusedConn.isTempErrReason())
+            {
+                return false;
+            }
+        }
+        else
+        {
+            // avoid reusing unused connection if it failed due a non recoverable error
+            return false;
+        }
+    }
+
+    if (mNumSlowConnectionsSwitches >= DirectReadSlot::MAX_SLOW_CONNECTION_SWITCHES ||
+        exitDueReqsOnFlight())
+    {
+        return false;
+    }
+
+    std::unique_ptr<HttpReq>& req = mReqs[connectionNum];
+    if (!req || (connectionNum == mUnusedConn.getNum()))
+    {
+        return false;
+    }
+
+    if (isMinComparableThroughputForThisConnection(connectionNum))
+    {
+        size_t slowestConnection = connectionNum;
+        size_t fastestConnection = connectionNum;
+        size_t numReqs = mReqs.size();
+        bool minComparableThroughputForOtherConnection = true;
+        for (size_t otherConnection = numReqs; (otherConnection-- > 0) && minComparableThroughputForOtherConnection;)
+        {
+            if ((otherConnection != connectionNum) && (otherConnection != mUnusedConn.getNum()))
+            {
+                bool otherConnectionIsDone = isConnectionDone(otherConnection);
+                bool otherConnectionHasEnoughDataToCompare = mThroughput[otherConnection].second && mThroughput[otherConnection].first >= mMinComparableThroughput;
+                bool compareCondition = otherConnectionHasEnoughDataToCompare && !otherConnectionIsDone;
+                if (compareCondition)
+                {
+                    m_off_t otherConnectionThroughput = getThroughput(otherConnection);
+                    m_off_t slowestConnectionThroughput = getThroughput(slowestConnection);
+                    m_off_t fastestConnectionThroughput = getThroughput(fastestConnection);
+                    if (otherConnectionThroughput < slowestConnectionThroughput)
+                    {
+                        slowestConnection = otherConnection;
+                    }
+                    if (otherConnectionThroughput > fastestConnectionThroughput)
+                    {
+                        fastestConnection = otherConnection;
+                    }
+                }
+                else // If we don't have enough throughput data for one connection, or any connection is done (we shouldn't reset it at that point), then we just skip this
+                {
+                    // Cannot compare... will need to wait
+                    slowestConnection = numReqs;
+                    fastestConnection = numReqs;
+                    minComparableThroughputForOtherConnection = false;
+                }
+            }
+        }
+        LOG_verbose << "DirectReadSlot [conn " << connectionNum << "]"
+                    << " Test slow connection -> slowest connection = " << slowestConnection
+                    << ", fastest connection = " << fastestConnection
+                    << ", unused raid connection = " << mUnusedConn.getNum()
+                    << ", mMinComparableThroughput = " << (mMinComparableThroughput / 1024)
+                    << " KB/s"
+                    << " [this = " << this << "]";
+        if (((slowestConnection == connectionNum) ||
+             ((slowestConnection != numReqs) && (mReqs[slowestConnection]->status == REQ_READY))) &&
+            (fastestConnection != slowestConnection))
+        {
+            m_off_t slowestConnectionThroughput = getThroughput(slowestConnection);
+            m_off_t fastestConnectionThroughput = getThroughput(fastestConnection);
+            if (fastestConnectionThroughput * SLOWEST_TO_FASTEST_THROUGHPUT_RATIO[0]
+                        >
+                slowestConnectionThroughput * SLOWEST_TO_FASTEST_THROUGHPUT_RATIO[1])
+            {
+                LOG_warn << "DirectReadSlot [conn " << connectionNum << "]"
+                         << " Connection " << slowestConnection
+                         << " is slow, trying the other 5 cloudraid connections"
+                         << " [slowest speed = " << ((slowestConnectionThroughput * 1000 / 1024))
+                         << " KB/s"
+                         << ", fastest speed = " << ((fastestConnectionThroughput * 1000 / 1024))
+                         << " KB/s"
+                         << ", mMinComparableThroughput = " << (mMinComparableThroughput / 1024)
+                         << " KB/s]"
+                         << " [total slow connections switches = " << mNumSlowConnectionsSwitches
+                         << "]"
+                         << " [current unused raid connection = " << mUnusedConn.getNum() << "]"
+                         << " [this = " << this << "]";
+
+                if (const auto& [exit, res] = replaceUnusedConnection(connectionNum); exit)
+                {
+                    return res;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+bool DirectReadSlot::decreaseReqsInflight()
+{
+    if (mDr->drbuf.isRaid())
+    {
+        LOG_verbose << "Decreasing counter of total requests inflight: " << mNumReqsInflight << " - 1" << " [this = " << this << "]";
+        assert(mNumReqsInflight > 0);
+        --mNumReqsInflight;
+        if ((mUnusedConn.getNum() < mReqs.size()) &&
+            (mReqs[mUnusedConn.getNum()]->status != REQ_DONE) &&
+            (mNumReqsInflight == (static_cast<unsigned>(mReqs.size()) - usedConnections())))
+        {
+            mNumReqsInflight = 0;
+        }
+        if (mNumReqsInflight == 0)
+        {
+            LOG_verbose << "Wait for parts set to false" << " [this = " << this << "]";
+            // waitForParts could be true at this point if there were connections with REQ_DONE status which didn't increase the inflight counter
+            mWaitForParts = false;
+            mMaxChunkSubmitted = 0;
+        }
+        return true;
+    }
+    return false;
+}
+
+bool DirectReadSlot::increaseReqsInflight()
+{
+    if (mDr->drbuf.isRaid())
+    {
+        LOG_verbose << "Increasing counter of total requests inflight: " << mNumReqsInflight << " + 1 = " << (mNumReqsInflight + 1) << " [this = " << this << "]";
+        assert(mNumReqsInflight < mReqs.size());
+        ++mNumReqsInflight;
+        if (mNumReqsInflight == static_cast<unsigned>(mReqs.size()))
+        {
+            assert(!mWaitForParts);
+            LOG_verbose << "Wait for parts set to true" << " [this = " << this << "]";
+            mWaitForParts = true;
+        }
+        return true;
+    }
+    return false;
+}
+
+bool DirectReadSlot::isConnectionDone(const size_t connectionNum)
+{
+    return mReqs[connectionNum] &&
+           (mReqs[connectionNum]->status == REQ_DONE ||
+            (mReqs[connectionNum]->pos ==
+             mDr->drbuf.transferSize(static_cast<unsigned>(connectionNum))));
+}
+
+bool DirectReadSlot::watchOverDirectReadPerformance()
+{
+    auto dsSinceLastWatch = Waiter::ds - mDr->drn->partialstarttime;
+    if (dsSinceLastWatch > MEAN_SPEED_INTERVAL_DS)
+    {
+        m_off_t meanspeed = (10 * mDr->drn->partiallen) / dsSinceLastWatch;
+
+        int minspeed = mDr->drn->client->minstreamingrate;
+        if (minspeed < 0)
+        {
+            LOG_warn << "DirectReadSlot: Watchdog -> Set min speed as MIN_BYTES_PER_SECOND(" << MIN_BYTES_PER_SECOND << ") to compare with average speed." << " [this = " << this << "]";
+            minspeed = MIN_BYTES_PER_SECOND;
+        }
+        LOG_debug << "DirectReadSlot: Watchdog -> Mean speed: " << meanspeed << " B/s. Min speed: " << minspeed << " B/s [Partial len: " << mDr->drn->partiallen << ". Ds: " << dsSinceLastWatch << "]" << " [this = " << this << "]";
+        if (minspeed != 0 && meanspeed < minspeed)
+        {
+            if (!mDr->appdata)
+            {
+                // It's better for this check to be here instead of above: this way we can know if the transfer speed is to low, even if the transfer is already deleted at this point.
+                LOG_err << "DirectReadSlot: Watchdog -> Transfer speed too low for streaming, but transfer is already deleted. Skipping retry" << " [this = " << this << "]";
+                mDr->drn->client->sendevent(99472, "DirectRead detected with a null transfer");
+                return false;
+            }
+            LOG_warn << "DirectReadSlot: Watchdog -> Transfer speed too low for streaming. Retrying" << " [this = " << this << "]";
+            onLowSpeedRaidedTransfer();
+            return true;
+        }
+        else
+        {
+            mDr->drn->partiallen = 0;
+            mDr->drn->partialstarttime = Waiter::ds;
+        }
+    }
+    return false;
+}
+
 bool DirectReadSlot::doio()
 {
-    for (unsigned connectionNum = unsigned(reqs.size()); connectionNum--; )
+    bool isRaid = mDr->drbuf.isRaid();
+    unsigned numParts = isRaid ? EFFECTIVE_RAIDPARTS : 1;
+    unsigned minSpeedPerConnection = mDr->drn->client->minstreamingrate < 0 ? // Default limit
+                                        (MIN_BYTES_PER_SECOND / numParts) :
+                                     mDr->drn->client->minstreamingrate > 0 ? // Custom limit
+                                        (mDr->drn->client->minstreamingrate / numParts) :
+                                        1; // No limit (1 B/s)
+    if (isRaid) { minSpeedPerConnection = (minSpeedPerConnection + RAIDSECTOR - 1) & - RAIDSECTOR; } // round up to a RAIDSECTOR divisible value
+    for (int connectionNum = static_cast<int>(mReqs.size()); connectionNum--; )
     {
-        HttpReq* req = reqs[connectionNum];
+        std::unique_ptr<HttpReq>& req = mReqs[connectionNum];
+        bool isNotUnusedConnection =
+            !isRaid || (static_cast<unsigned>(connectionNum) != mUnusedConn.getNum());
+        bool submitCondition = req && isNotUnusedConnection &&
+                               (req->status == REQ_INFLIGHT || req->status == REQ_SUCCESS);
 
-        if (req->status == REQ_INFLIGHT || req->status == REQ_SUCCESS)
+        if (submitCondition)
         {
             if (req->in.size())
             {
-                unsigned n = unsigned(req->in.size());
+                unsigned n = static_cast<unsigned>(req->in.size());
+                auto lastDataTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - req->postStartTime).count();
+                m_off_t chunkTime = static_cast<m_off_t>(lastDataTime) - mThroughput[connectionNum].second;
 
+                unsigned minChunkSize;
+                m_off_t maxChunkSize, aggregatedThroughput;
                 if (req->status == REQ_INFLIGHT)
                 {
-                    // raid reassembly logic needs to operate on whole raidlines
-                    n -= n % RAIDSECTOR;
+                    m_off_t updatedThroughput = calcThroughput(mThroughput[connectionNum].first + n, mThroughput[connectionNum].second + chunkTime) * 1000;
+                    m_off_t chunkThroughput = calcThroughput(static_cast<m_off_t>(n), chunkTime) * 1000;
+                    aggregatedThroughput = (chunkThroughput + updatedThroughput) / 2;
+                    maxChunkSize = aggregatedThroughput;
+                    // 16KB as min chunk divisible size to submit. If the user's speed is even lower than 16KB/s per connection, then respect the minSpeedPerConnection.
+                    // This is to avoid small chunks to be assembled (if raid) and delivered.
+                    unsigned minChunkDivisibleSize = maxChunkSize < (16 * 1024) ? minSpeedPerConnection : 16 * 1024; // 16KB is divisible by RAIDSECTOR: works for RAID and NON-RAID
+
+                    if (mMaxChunkSubmitted && maxChunkSize && ((std::max(static_cast<unsigned>(maxChunkSize), mMaxChunkSubmitted) / std::min(static_cast<unsigned>(maxChunkSize), mMaxChunkSubmitted)) == 1))
+                    {
+                        // Avoid small chunks due to fragmentation caused by similar (but different) chunk sizes (compared to max submitted chunk size)
+                        maxChunkSize = mMaxChunkSubmitted;
+                    }
+                    minChunkSize = std::max(static_cast<unsigned>(maxChunkSize), minChunkDivisibleSize);
+                    n = (n >= minChunkSize) ?
+                            (n / minChunkDivisibleSize) * minChunkDivisibleSize :
+                            0;
+                }
+                else
+                {
+                    minChunkSize = 0;
+                    maxChunkSize = n;
+                    aggregatedThroughput = 0;
+                }
+
+                assert(!mDr->drbuf.isRaid() || (req->status == REQ_SUCCESS) || ((n % RAIDSECTOR) == 0));
+                if ((mDr->drbuf.isRaid() && (req->status != REQ_SUCCESS) && ((n % RAIDSECTOR) != 0)))
+                {
+                    LOG_err << "DirectReadSlot [conn " << connectionNum << "] ERROR: (isRaid() && (req->status != REQ_SUCCESS) && ((n % RAIDSECTOR) != 0)"
+                            << " n = " << n
+                            << ", req->in.size = " << req->in.size()
+                            << ", req->status = " << req->status.load()
+                            << ", adapted maxChunkSize = " << maxChunkSize
+                            << ", mMaxChunkSize = " << mMaxChunkSize
+                            << ", submitted = " << mThroughput[connectionNum].first << " [this = " << this << "]";
                 }
 
                 if (n)
                 {
-
+                    mThroughput[connectionNum].first += static_cast<m_off_t>(n);
+                    mThroughput[connectionNum].second += chunkTime;
+                    LOG_verbose << "DirectReadSlot [conn " << connectionNum << "] ->"
+                                << " FilePiece's going to be submitted: n = " << n
+                                << ", req->in.size = " << req->in.size()
+                                << ", req->in.capacity = " << req->in.capacity()
+                                << " [minChunkSize = " << minChunkSize
+                                << ", mMaxChunkSize = " << mMaxChunkSize
+                                << ", reqs.size = " << mReqs.size() << ", req->status = "
+                                << std::string(req->status == REQ_READY    ? "REQ_READY" :
+                                               req->status == REQ_INFLIGHT ? "REQ_INFLIGHT" :
+                                               req->status == REQ_SUCCESS  ? "REQ_SUCCESS" :
+                                                                             "REQ_SOMETHING")
+                                << ", req->httpstatus = " << req->httpstatus
+                                << ", req->contentlength = " << req->contentlength
+                                << ", numReqsInflight = " << mNumReqsInflight
+                                << ", unusedRaidConnection = " << mUnusedConn.getNum() << "]"
+                                << " [chunk throughput = "
+                                << ((calcThroughput(static_cast<m_off_t>(n), chunkTime) * 1000) /
+                                    1024)
+                                << " KB/s"
+                                << ", average throughput = "
+                                << (getThroughput(connectionNum) * 1000 / 1024) << " KB/s"
+                                << ", aggregated throughput = " << (aggregatedThroughput / 1024)
+                                << " KB/s"
+                                << ", maxChunkSize = " << (maxChunkSize / 1024) << " KBs]"
+                                << ", [req->pos_pre = " << (req->pos)
+                                << ", req->pos_now = " << (req->pos + n) << "]"
+                                << " [this = " << this << "]";
                     RaidBufferManager::FilePiece* np = new RaidBufferManager::FilePiece(req->pos, n);
-                    memcpy(np->buf.datastart(), req->in.data(), n);
+                    memcpy(np->buf.datastart(), req->in.c_str(), n);
 
                     req->in.erase(0, n);
                     req->contentlength -= n;
                     req->bufpos = 0;
                     req->pos += n;
 
-                    dr->drbuf.submitBuffer(connectionNum, np);
+                    unsigned submittingConnection = isRaid ? connectionNum : 0;
+                    mDr->drbuf.submitBuffer(submittingConnection, np);
 
-                    if (req->httpio)
+                    if (n > mMaxChunkSubmitted)
                     {
-                        req->httpio->lastdata = Waiter::ds;
-                        req->lastdata = Waiter::ds;
-                    }
-
-                    dr->drn->schedule(DirectReadSlot::TIMEOUT_DS);
-
-                    // we might have a raid-reassembled block to write now, or this very block in non-raid
-                    if (!processAnyOutputPieces())
-                    {
-                        // app-requested abort
-                        delete dr;
-                        return true;
+                        mMaxChunkSubmitted = n;
                     }
                 }
+
+                if (req->httpio)
+                {
+                    req->httpio->lastdata = Waiter::ds;
+                }
+                req->lastdata = Waiter::ds;
+
+                // we might have a raid-reassembled block to write now, or this very block in non-raid
+                if (n && !processAnyOutputPieces())
+                {
+                    LOG_debug << "DirectReadSlot [conn " << connectionNum << "] Transfer is finished after processing pending output pieces. Removing DirectRead" << " [this = " << this << "]";
+                    delete mDr;
+                    return true;
+                }
+
+                mDr->drn->schedule(DirectReadSlot::TEMPURL_TIMEOUT_DS);
             }
 
-            if (req->status == REQ_SUCCESS)
+            if (req->status == REQ_SUCCESS && !req->in.size())
             {
+                decreaseReqsInflight();
                 req->status = REQ_READY;
             }
         }
 
-        if (req->status == REQ_READY)
+        if (!req || req->status == REQ_READY)
         {
-            bool newBufferSupplied = false, pauseForRaid = false;
-            std::pair<m_off_t, m_off_t> posrange = dr->drbuf.nextNPosForConnection(connectionNum, newBufferSupplied, pauseForRaid);
-
-            // we might have a raid-reassembled block to write, or a previously loaded block, or a skip block to process.
-            processAnyOutputPieces();
-
-            if (!newBufferSupplied && !pauseForRaid)
+            bool waitForOthers = isRaid ? waitForPartsInFlight() : false;
+            if (!waitForOthers)
             {
-                if (posrange.first >= posrange.second)
+                if (searchAndDisconnectSlowestConnection(connectionNum))
                 {
-                    req->status = REQ_DONE;
-                    bool allDone = true;
-                    for (size_t i = reqs.size(); i--; )
-                    {
-                        if (reqs[i]->status != REQ_DONE)
-                        {
-                            allDone = false;
-                        }
-                    }
-                    if (allDone)
-                    {
-                        dr->drn->schedule(DirectReadSlot::TEMPURL_TIMEOUT_DS);
+                    LOG_verbose
+                        << "DirectReadSlot [conn " << connectionNum
+                        << "] Continue DirectReadSlot loop after disconnecting slow connection "
+                        << mUnusedConn.getNum() << " [this = " << this << "]";
+                }
+                bool newBufferSupplied = false, pauseForRaid = false;
+                std::pair<m_off_t, m_off_t> posrange = mDr->drbuf.nextNPosForConnection(connectionNum, newBufferSupplied, pauseForRaid);
 
-                        // remove and delete completed read request, then remove slot
-                        delete dr;
+                if (newBufferSupplied)
+                {
+                    if (static_cast<unsigned>(connectionNum) == mUnusedConn.getNum())
+                    {
+                        // Count the "unused connection" (restored by parity) as a req inflight, so we avoid to exec this piece of code needlessly
+                        increaseReqsInflight();
+                    }
+                    // we might have a raid-reassembled block to write, or a previously loaded block, or a skip block to process.
+                    if (!processAnyOutputPieces())
+                    {
+                        LOG_debug << "DirectReadSlot [conn " << connectionNum << "] Transfer is finished after processing pending output pieces (on new buffer supplied). Removing DirectRead" << " [this = " << this << "]";
+                        delete mDr;
                         return true;
                     }
                 }
-                else
+                else if (!pauseForRaid)
                 {
-                    char buf[128];
-                    sprintf(buf, "/%" PRIu64 "-", posrange.first);
-                    if (dr->count)
+                    if (posrange.first >= posrange.second)
                     {
-                        sprintf(strchr(buf, 0), "%" PRIu64, posrange.second - 1);
+                        if (req)
+                        {
+                            LOG_verbose << "DirectReadSlot [conn " << connectionNum << "] Request status set to DONE" << " [this = " << this << "]";
+                            req->status = REQ_DONE;
+                        }
+                        bool allDone = true;
+                        for (size_t i = mReqs.size(); i--;)
+                        {
+                            if (mReqs[i] && mReqs[i]->status != REQ_DONE)
+                            {
+                                allDone = false;
+                            }
+                        }
+                        if (allDone)
+                        {
+                            LOG_debug << "DirectReadSlot [conn " << connectionNum << "] All requests are DONE: Delete read request and direct read slot" << " [this = " << this << "]";
+
+                            // remove and delete completed read request, then remove slot
+                            delete mDr;
+                            return true;
+                        }
                     }
+                    else
+                    {
+                        if (!mDr->appdata)
+                        {
+                            LOG_err << "DirectReadSlot [conn " << connectionNum << "] There is a chunk request, but transfer is already deleted. This should never happen. Aborting" << " [this = " << this << "]";
+                            mDr->drn->client->sendevent(99472, "DirectRead detected with a null transfer");
+                            delete mDr;
+                            return true;
+                        }
 
-                    req->pos = posrange.first;
-                    req->posturl = adjustURLPort(dr->drbuf.tempURL(connectionNum));
-                    req->posturl.append(buf);
-                    LOG_debug << "POST URL: " << req->posturl;
-                    req->post(dr->drn->client);  // status will go to inflight or fail
+                        if (static_cast<size_t>(connectionNum) == mUnusedConn.getNum())
+                        {
+                            LOG_err << "DirectReadSlot [conn " << connectionNum
+                                    << "] We are processing unused connection";
+                            assert(false);
+                        }
 
-                    dr->drbuf.transferPos(connectionNum) = posrange.second;
+                        if (!req)
+                        {
+                            mReqs[connectionNum] = std::make_unique<HttpReq>(true);
+                        }
+
+                        if (!mDr->drbuf.isRaid())
+                        {
+                            // Chunk size limit for non-raid: MAX_DELIVERY_CHUNK.
+                            // If the whole chunk is requested (file size), with the same request all the time,
+                            // the throughput could be too low for long periods of time, depending on the actual TCP congestion algorithm.
+                            posrange.second = std::min(posrange.second, posrange.first + DirectReadSlot::MAX_DELIVERY_CHUNK);
+                        }
+
+                        char buf[128];
+                        snprintf(buf, sizeof(buf), "/%" PRIu64 "-", posrange.first);
+                        if (mDr->count)
+                        {
+                            snprintf(strchr(buf, 0), sizeof(buf) - strlen(buf), "%" PRIu64, posrange.second - 1);
+                        }
+
+                        req->pos = posrange.first;
+                        req->posturl = adjustURLPort(mDr->drbuf.tempURL(connectionNum));
+                        req->posturl.append(buf);
+                        LOG_debug << "DirectReadSlot [conn " << connectionNum << "] Request chunk of size " << (posrange.second - posrange.first) << " (request status = " << req->status.load() << ")" << " [this = " << this << "]";
+                        LOG_debug << "POST URL: " << req->posturl;
+
+                        mThroughput[connectionNum].first = 0;
+                        mThroughput[connectionNum].second = 0;
+                        req->in.reserve(mMaxChunkSize + (mMaxChunkSize/2));
+                        req->post(mDr->drn->client); // status will go to inflight or fail
+                        LOG_verbose << "DirectReadSlot [conn " << connectionNum << "] POST done (new request status = " << req->status.load() << ")" << " [this = " << this << "]";
+
+                        mDr->drbuf.transferPos(connectionNum) = posrange.second;
+                        increaseReqsInflight();
+                    }
                 }
             }
         }
 
-        if (req->status == REQ_FAILURE)
+        if (req && req->status == REQ_FAILURE)
         {
-            if (req->httpstatus == 509)
-            {
-                if (req->timeleft < 0)
-                {
-                    int creqtag = dr->drn->client->reqtag;
-                    dr->drn->client->reqtag = 0;
-                    dr->drn->client->sendevent(99408, "Overquota without timeleft");
-                    dr->drn->client->reqtag = creqtag;
-                }
-
-                dstime backoff;
-
-                LOG_warn << "Bandwidth overquota from storage server for streaming transfer";
-                if (req->timeleft > 0)
-                {
-                    backoff = dstime(req->timeleft * 10);
-                }
-                else
-                {
-                    // default retry interval
-                    backoff = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS * 10;
-                }
-
-                dr->drn->retry(API_EOVERQUOTA, backoff);
-            }
-            else
-            {
-                // a failure triggers a complete abort and retry of all pending reads for this node, including getting updated URL(s)
-                dr->drn->retry(API_EREAD);
-            }
+            LOG_warn << "DirectReadSlot [conn " << connectionNum
+                     << "] Request status is FAILURE [Request status = " << req->status.load()
+                     << ", HTTP status = " << req->httpstatus << "]"
+                     << " [this = " << this << "]";
+            onFailure(req, static_cast<size_t>(connectionNum));
             return true;
         }
 
-        if (Waiter::ds - dr->drn->partialstarttime > MEAN_SPEED_INTERVAL_DS)
+        if (watchOverDirectReadPerformance())
         {
-            m_off_t meanspeed = (10 * dr->drn->partiallen) / (Waiter::ds - dr->drn->partialstarttime);
-
-            LOG_debug << "Mean speed (B/s): " << meanspeed;
-            int minspeed = dr->drn->client->minstreamingrate;
-            if (minspeed < 0)
-            {
-                minspeed = MIN_BYTES_PER_SECOND;
-            }
-            if (minspeed != 0 && meanspeed < minspeed)
-            {
-                LOG_warn << "Transfer speed too low for streaming. Retrying";
-                dr->drn->retry(API_EAGAIN);
-                return true;
-            }
-            else
-            {
-                dr->drn->partiallen = 0;
-                dr->drn->partialstarttime = Waiter::ds;
-            }
+            LOG_debug << "DirectReadSlot [conn " << connectionNum << "] DirectReadSlot will be retried" << " [this = " << this << "]";
+            return true;
         }
     }
 
     return false;
+}
+
+void DirectReadSlot::onFailure(std::unique_ptr<HttpReq>& req, const size_t connectionNum)
+{
+    decreaseReqsInflight();
+    if (!mDr->appdata)
+    {
+        LOG_err << "DirectReadSlot [conn " << connectionNum
+                << "] Request failed, but transfer is already deleted. Aborting"
+                << " [this = " << this << "]";
+        mDr->drn->client->sendevent(99472, "DirectRead detected with a null transfer");
+        delete mDr;
+    }
+    else
+    {
+        if (auto isBwOverquotaErr = req->httpstatus == 509; isBwOverquotaErr)
+        {
+            LOG_warn
+                << "DirectReadSlot Bandwidth overquota from storage server for streaming transfer"
+                << " [this = " << this << "]";
+            dstime backoff = mDr->drn->client->overTransferQuotaBackoff(req.get());
+            retryEntireTransfer(API_EOVERQUOTA, backoff);
+        }
+        else
+        {
+            retryOnError(connectionNum, req->httpstatus);
+        }
+    }
 }
 
 // abort active read, remove from pending queue
@@ -1485,9 +2205,18 @@ void DirectRead::abort()
     }
 }
 
+m_off_t DirectRead::drMaxReqSize() const
+{
+    m_off_t numParts = drn->tempurls.size() == RAIDPARTS ?
+                                    static_cast<m_off_t>(EFFECTIVE_RAIDPARTS) :
+                                    static_cast<m_off_t>(drn->tempurls.size());
+    return std::max(drn->size / numParts, TransferSlot::MAX_REQ_SIZE);
+}
+
 DirectRead::DirectRead(DirectReadNode* cdrn, m_off_t ccount, m_off_t coffset, int creqtag, void* cappdata)
     : drbuf(this)
 {
+    LOG_debug << "[DirectRead::DirectRead] New DirectRead [cappdata = " << cappdata << "]" << " [this = " << this << "]";
     drn = cdrn;
 
     count = ccount;
@@ -1503,7 +2232,9 @@ DirectRead::DirectRead(DirectReadNode* cdrn, m_off_t ccount, m_off_t coffset, in
     if (!drn->tempurls.empty())
     {
         // we already have tempurl(s): queue for immediate fetching
-        drbuf.setIsRaid(drn->tempurls, offset, offset + count, drn->size, 2097152);  // 2 MB max buffer usage approx
+        m_off_t streamingMaxReqSize = drMaxReqSize();
+        LOG_debug << "Direct read start -> direct read node size = " << drn->size << ", streaming max request size: " << streamingMaxReqSize;
+        drbuf.setIsRaid(drn->tempurls, offset, offset + count, drn->size, streamingMaxReqSize, false);
         drq_it = drn->client->drq.insert(drn->client->drq.end(), this);
     }
     else
@@ -1515,6 +2246,7 @@ DirectRead::DirectRead(DirectReadNode* cdrn, m_off_t ccount, m_off_t coffset, in
 
 DirectRead::~DirectRead()
 {
+    LOG_debug << "Deleting DirectRead" << " [this = " << this << "]";
     abort();
 
     if (reads_it != drn->reads.end())
@@ -1534,7 +2266,7 @@ std::string DirectReadSlot::adjustURLPort(std::string url)
         {
             if (portstartindex == string::npos)
             {
-                if (dr->drn->client->usealtdownport)
+                if (mDr->drn->client->usealtdownport)
                 {
                     LOG_debug << "Enabling alternative port for streaming transfer";
                     url.insert(portendindex, ":8080");
@@ -1542,7 +2274,7 @@ std::string DirectReadSlot::adjustURLPort(std::string url)
             }
             else
             {
-                if (!dr->drn->client->usealtdownport)
+                if (!mDr->drn->client->usealtdownport)
                 {
                     LOG_debug << "Disabling alternative port for streaming transfer";
                     url.erase(portstartindex, portendindex - portstartindex);
@@ -1556,36 +2288,59 @@ std::string DirectReadSlot::adjustURLPort(std::string url)
 // request DirectRead's range via tempurl
 DirectReadSlot::DirectReadSlot(DirectRead* cdr)
 {
-    dr = cdr;
+    LOG_debug << "[DirectReadSlot::DirectReadSlot] New DirectReadSlot [cdr = " << (void*)cdr << "]" << " [this = " << this << "]";
+    mDr = cdr;
 
-    pos = dr->offset + dr->progress;
-    dr->nextrequestpos = pos;
+    mPos = mDr->offset + mDr->progress;
+    mDr->nextrequestpos = mPos;
 
-    speed = meanSpeed = 0;
+    mSpeed = mMeanSpeed = 0;
 
-    assert(reqs.empty());
-    for (size_t i = dr->drbuf.tempUrlVector().size(); i--; )
+    assert(mReqs.empty());
+    size_t numReqs = mDr->drbuf.isRaid() ? mDr->drbuf.tempUrlVector().size() : 1;
+    assert(mDr->drbuf.isRaid() ? (numReqs == RAIDPARTS) : 1);
+    for (size_t i = numReqs; i--; )
     {
-        reqs.push_back(new HttpReq(true));
-        reqs.back()->status = REQ_READY;
-        reqs.back()->type = REQ_BINARY;
+        mReqs.push_back(std::make_unique<HttpReq>(true));
+        mReqs.back()->status = REQ_READY;
+        mReqs.back()->type = REQ_BINARY;
     }
+    LOG_verbose << "[DirectReadSlot::DirectReadSlot] Num requests: " << numReqs
+                << " [this = " << this << "]";
+    mThroughput.resize(mReqs.size());
+    mUnusedConn.clear();
+    auto auxUnused = mDr->drbuf.isRaid() ? mDr->drbuf.getUnusedRaidConnection() : mReqs.size();
+    mUnusedConn.setUnused(auxUnused, UnusedConn::UN_NOT_ERR);
+    if (mDr->drbuf.isRaid() && mUnusedConn.getNum() == RAIDPARTS)
+    {
+        LOG_verbose << "[DirectReadSlot::DirectReadSlot] Set initial unused raid connection to 0"
+                    << " [this = " << this << "]";
+        mDr->drbuf.setUnusedRaidConnection(0);
+        mUnusedConn.setUnused(0, UnusedConn::UN_NOT_ERR);
+    }
+    mNumSlowConnectionsSwitches = 0;
+    mNumReqsInflight = 0;
+    mWaitForParts = false;
+    mMaxChunkSubmitted = 0;
+    clearFailedRaidedParts();
 
-    drs_it = dr->drn->client->drss.insert(dr->drn->client->drss.end(), this);
+    mDrs_it = mDr->drn->client->drss.insert(mDr->drn->client->drss.end(), this);
 
-    dr->drn->partiallen = 0;
-    dr->drn->partialstarttime = Waiter::ds;
+    mDr->drn->partiallen = 0;
+    mDr->drn->partialstarttime = Waiter::ds;
+    mMaxChunkSize = static_cast<unsigned>(static_cast<unsigned>(DirectReadSlot::MAX_DELIVERY_CHUNK) / (mReqs.size() == static_cast<unsigned>(RAIDPARTS) ? (static_cast<unsigned>(EFFECTIVE_RAIDPARTS)) : mReqs.size()));
+    if (mDr->drbuf.isRaid())
+    {
+        mMaxChunkSize -= mMaxChunkSize % RAIDSECTOR;
+    }
+    mMinComparableThroughput = DirectReadSlot::DEFAULT_MIN_COMPARABLE_THROUGHPUT;
+    mSlotStartTime = std::chrono::steady_clock::now();
 }
 
 DirectReadSlot::~DirectReadSlot()
 {
-    dr->drn->client->drss.erase(drs_it);
-
-    LOG_debug << "Deleting DirectReadSlot";
-    for (size_t i = reqs.size(); i--; )
-    {
-        delete reqs[i];
-    }
+    mDr->drn->client->drss.erase(mDrs_it);
+    LOG_debug << "Deleting DirectReadSlot" << " [this = " << this << "]";
 }
 
 bool priority_comparator(const LazyEraseTransferPtr& i, const LazyEraseTransferPtr& j)
@@ -1598,7 +2353,7 @@ TransferList::TransferList()
     currentpriority = PRIORITY_START;
 }
 
-void TransferList::addtransfer(Transfer *transfer, DBTableTransactionCommitter& committer, bool startFirst)
+void TransferList::addtransfer(Transfer *transfer, TransferDbCommitter& committer, bool startFirst)
 {
     if (transfer->state != TRANSFERSTATE_PAUSED)
     {
@@ -1643,7 +2398,7 @@ void TransferList::removetransfer(Transfer *transfer)
     }
 }
 
-void TransferList::movetransfer(Transfer *transfer, Transfer *prevTransfer, DBTableTransactionCommitter& committer)
+void TransferList::movetransfer(Transfer *transfer, Transfer *prevTransfer, TransferDbCommitter& committer)
 {
     transfer_list::iterator dstit;
     if (getIterator(prevTransfer, dstit))
@@ -1652,7 +2407,7 @@ void TransferList::movetransfer(Transfer *transfer, Transfer *prevTransfer, DBTa
     }
 }
 
-void TransferList::movetransfer(Transfer *transfer, unsigned int position, DBTableTransactionCommitter& committer)
+void TransferList::movetransfer(Transfer *transfer, unsigned int position, TransferDbCommitter& committer)
 {
     transfer_list::iterator dstit;
     if (position >= transfers[transfer->type].size())
@@ -1671,7 +2426,7 @@ void TransferList::movetransfer(Transfer *transfer, unsigned int position, DBTab
     }
 }
 
-void TransferList::movetransfer(Transfer *transfer, transfer_list::iterator dstit, DBTableTransactionCommitter& committer)
+void TransferList::movetransfer(Transfer *transfer, transfer_list::iterator dstit, TransferDbCommitter& committer)
 {
     transfer_list::iterator it;
     if (getIterator(transfer, it))
@@ -1680,7 +2435,7 @@ void TransferList::movetransfer(Transfer *transfer, transfer_list::iterator dsti
     }
 }
 
-void TransferList::movetransfer(transfer_list::iterator it, transfer_list::iterator dstit, DBTableTransactionCommitter& committer)
+void TransferList::movetransfer(transfer_list::iterator it, transfer_list::iterator dstit, TransferDbCommitter& committer)
 {
     if (it == dstit)
     {
@@ -1768,29 +2523,29 @@ void TransferList::movetransfer(transfer_list::iterator it, transfer_list::itera
     client->app->transfer_update(transfer);
 }
 
-void TransferList::movetofirst(Transfer *transfer, DBTableTransactionCommitter& committer)
+void TransferList::movetofirst(Transfer *transfer, TransferDbCommitter& committer)
 {
     movetransfer(transfer, transfers[transfer->type].begin(), committer);
 }
 
-void TransferList::movetofirst(transfer_list::iterator it, DBTableTransactionCommitter& committer)
+void TransferList::movetofirst(transfer_list::iterator it, TransferDbCommitter& committer)
 {
     Transfer *transfer = (*it);
     movetransfer(it, transfers[transfer->type].begin(), committer);
 }
 
-void TransferList::movetolast(Transfer *transfer, DBTableTransactionCommitter& committer)
+void TransferList::movetolast(Transfer *transfer, TransferDbCommitter& committer)
 {
     movetransfer(transfer, transfers[transfer->type].end(), committer);
 }
 
-void TransferList::movetolast(transfer_list::iterator it, DBTableTransactionCommitter& committer)
+void TransferList::movetolast(transfer_list::iterator it, TransferDbCommitter& committer)
 {
     Transfer *transfer = (*it);
     movetransfer(it, transfers[transfer->type].end(), committer);
 }
 
-void TransferList::moveup(Transfer *transfer, DBTableTransactionCommitter& committer)
+void TransferList::moveup(Transfer *transfer, TransferDbCommitter& committer)
 {
     transfer_list::iterator it;
     if (getIterator(transfer, it))
@@ -1804,7 +2559,7 @@ void TransferList::moveup(Transfer *transfer, DBTableTransactionCommitter& commi
     }
 }
 
-void TransferList::moveup(transfer_list::iterator it, DBTableTransactionCommitter& committer)
+void TransferList::moveup(transfer_list::iterator it, TransferDbCommitter& committer)
 {
     if (it == transfers[it->transfer->type].begin())
     {
@@ -1815,7 +2570,7 @@ void TransferList::moveup(transfer_list::iterator it, DBTableTransactionCommitte
     movetransfer(it, dstit, committer);
 }
 
-void TransferList::movedown(Transfer *transfer, DBTableTransactionCommitter& committer)
+void TransferList::movedown(Transfer *transfer, TransferDbCommitter& committer)
 {
     transfer_list::iterator it;
     if (getIterator(transfer, it))
@@ -1832,7 +2587,7 @@ void TransferList::movedown(Transfer *transfer, DBTableTransactionCommitter& com
     }
 }
 
-void TransferList::movedown(transfer_list::iterator it, DBTableTransactionCommitter& committer)
+void TransferList::movedown(transfer_list::iterator it, TransferDbCommitter& committer)
 {
     if (it == transfers[it->transfer->type].end())
     {
@@ -1843,7 +2598,7 @@ void TransferList::movedown(transfer_list::iterator it, DBTableTransactionCommit
     movetransfer(it, dstit, committer);
 }
 
-error TransferList::pause(Transfer *transfer, bool enable, DBTableTransactionCommitter& committer)
+error TransferList::pause(Transfer *transfer, bool enable, TransferDbCommitter& committer)
 {
     if (!transfer)
     {
@@ -1924,11 +2679,12 @@ bool TransferList::getIterator(Transfer *transfer, transfer_list::iterator& it, 
     {
         return true;
     }
-    LOG_debug << "Transfer not found";
     return false;
 }
 
-std::array<vector<Transfer*>, 6> TransferList::nexttransfers(std::function<bool(Transfer*)>& continuefunction)
+std::array<vector<Transfer*>, 6> TransferList::nexttransfers(std::function<bool(Transfer*)>& continuefunction,
+                                                             std::function<bool(direction_t)>& directionContinuefunction,
+                                                             TransferDbCommitter& committer)
 {
     std::array<vector<Transfer*>, 6> chosenTransfers;
 
@@ -1938,6 +2694,20 @@ std::array<vector<Transfer*>, 6> TransferList::nexttransfers(std::function<bool(
     {
         for (Transfer *transfer : transfers[direction])
         {
+            if (!transfer->slot)
+            {
+                // check for cancellation here before we go to the trouble of requesting a download/upload URL
+                transfer->removeCancelledTransferFiles(&committer);
+                if (transfer->files.empty())
+                {
+                    transfer->removeAndDeleteSelf(TRANSFERSTATE_CANCELLED);
+                    continue;
+                }
+            }
+
+            // don't traverse the whole list if we already have as many as we are going to get
+            if (!directionContinuefunction(direction)) break;
+
             bool continueLarge = true;
             bool continueSmall = true;
 
@@ -1982,7 +2752,7 @@ Transfer *TransferList::transferat(direction_t direction, unsigned int position)
     return NULL;
 }
 
-void TransferList::prepareIncreasePriority(Transfer *transfer, transfer_list::iterator /*srcit*/, transfer_list::iterator dstit, DBTableTransactionCommitter& committer)
+void TransferList::prepareIncreasePriority(Transfer *transfer, transfer_list::iterator /*srcit*/, transfer_list::iterator dstit, TransferDbCommitter& committer)
 {
     assert(transfer->type == PUT || transfer->type == GET);
     if (dstit == transfers[transfer->type].end())

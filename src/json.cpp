@@ -19,13 +19,20 @@
  * program.
  */
 #include <cctype>
+#include <cstdint>
 
 #include "mega/json.h"
 #include "mega/base64.h"
 #include "mega/megaclient.h"
 #include "mega/logging.h"
+#include "mega/mega_utf8proc.h"
 
 namespace mega {
+
+std::atomic<bool> gLogJSONRequests{false};
+
+#define JSON_verbose if (gLogJSONRequests) LOG_verbose
+
 // store array or object in string s
 // reposition after object
 bool JSON::storeobject(string* s)
@@ -106,16 +113,70 @@ bool JSON::storeobject(string* s)
             {
                 if (*pos == '"')
                 {
-                    s->assign(pos + 1, ptr - pos - 2);
+                    s->assign(pos + 1, static_cast<size_t>(ptr - pos - 2));
                 }
                 else
                 {
-                    s->assign(pos, ptr - pos);
+                    s->assign(pos, static_cast<size_t>(ptr - pos));
                 }
             }
 
             pos = ptr;
             return true;
+        }
+    }
+}
+
+bool JSON::storeKeyValueFromObject(string& key, string& value)
+{
+    // this one can be used when the key is not a nameid
+    if (!storeobject(&key) || *pos != ':')
+    {
+        return false;
+    }
+
+    ++pos;
+
+    return storeobject(&value);
+}
+
+bool JSON::skipnullvalue()
+{
+    // this applies only to values, after ':'
+    if (!pos)
+        return false;
+
+    switch (*pos)
+    {
+    case ',':         // empty value, i.e.  "foo":,
+        ++pos;
+    // fall through
+    case ']':         // empty value, i.e.  "foo":]
+    case'}':          // empty value, i.e.  "foo":}
+        return true;
+
+    default:          // some other value, don't skip it
+        return false;
+
+    case 'n':
+        if (strncmp(pos, "null", 4))
+            return false; // not enough information to skip it
+
+        assert(false); // the MEGA servers should never send null.  Investigation needed.
+
+        // let's peak at what's after "null"
+        switch (*(pos + 4))
+        {
+        case ',':     // null value, i.e.  "foo":null,
+            ++pos;
+        // fall through
+        case ']':     // null value, i.e.  "foo":null]
+        case '}':     // null value, i.e.  "foo":null}
+            pos += 4;
+            return true;
+
+        default:      // some other value, don't skip it
+            return false;
         }
     }
 }
@@ -143,10 +204,20 @@ nameid JSON::getnameid(const char* ptr) const
 
     while (*ptr && *ptr != '"')
     {
-        id = (id << 8) + *ptr++;
+        id = (id << 8) + static_cast<nameid>(*ptr++);
     }
 
     return id;
+}
+
+nameid JSON::getnameid()
+{
+    return getNameidSkipNull(true);
+}
+
+nameid JSON::getnameidvalue()
+{
+    return getNameidSkipNull(false);
 }
 
 std::string JSON::getname()
@@ -198,7 +269,7 @@ std::string JSON::getnameWithoutAdvance() const
 // pos points to [,]"name":...
 // returns nameid and repositons pos after :
 // no unescaping supported
-nameid JSON::getnameid()
+nameid JSON::getNameidSkipNull(bool skipnullvalues)
 {
     const char* ptr = pos;
     nameid id = 0;
@@ -212,20 +283,26 @@ nameid JSON::getnameid()
     {
         while (*ptr && *ptr != '"')
         {
-            id = (id << 8) + *ptr++;
+            id = (id << 8) + static_cast<nameid>(*ptr++);
         }
 
         assert(*ptr == '"'); // if either assert fails, check the json syntax, it might be something new/changed
         pos = ptr + 1;
-        assert(*pos == ':' || *pos == ',');
 
-        if (*pos != '}' && *pos != ']')
+        if (*pos == ':' || *pos == ',' )
         {
-            pos++;  // don't skip the following char if we're at the end of a structure eg. actionpacket with only {"a":"xyz"}
+            pos++;
+        }
+        else
+        {
+            // don't skip the char if we're at the end of a structure eg. actionpacket with only {"a":"xyz"}
+            assert(*pos == '}' || *pos == ']');
         }
     }
 
-    return id;
+    bool skippedNull = id && skipnullvalues && skipnullvalue();
+
+    return skippedNull ? getnameid() : id;
 }
 
 // specific string comparison/skipping
@@ -292,8 +369,9 @@ bool JSON::storebinary(string* dst)
             return false;
         }
 
-        dst->resize((ptr - pos - 1) / 4 * 3 + 3);
-        dst->resize(Base64::atob(pos + 1, (byte*)dst->data(), int(dst->size())));
+        dst->resize(static_cast<size_t>((ptr - pos - 1) / 4 * 3 + 3));
+        dst->resize(
+            static_cast<size_t>(Base64::atob(pos + 1, (byte*)dst->data(), int(dst->size()))));
 
         // skip string
         storeobject();
@@ -346,6 +424,11 @@ handle JSON::gethandle(int size)
     return UNDEF;
 }
 
+NodeHandle JSON::getNodeHandle()
+{
+    return NodeHandle().set6byte(gethandle(6));
+}
+
 // decode integer
 m_off_t JSON::getint()
 {
@@ -369,10 +452,10 @@ m_off_t JSON::getint()
         return -1;
     }
 
-    handle r = atoll(ptr);
+    handle r = static_cast<handle>(atoll(ptr));
     storeobject();
 
-    return r;
+    return static_cast<m_off_t>(r);
 }
 
 // decode float
@@ -420,9 +503,9 @@ const char* JSON::getvalue()
     return r;
 }
 
-fsfp_t JSON::getfp()
+std::uint64_t JSON::getfsfp()
 {
-    return gethandle(sizeof(fsfp_t));
+    return gethandle(sizeof(std::uint64_t));
 }
 
 uint64_t JSON::getuint64()
@@ -441,7 +524,7 @@ uint64_t JSON::getuint64()
         ptr++;
     }
 
-    if (!std::isdigit(*ptr))
+    if (!is_digit(static_cast<unsigned>(*ptr)))
     {
         LOG_err << "Parse error (getuint64)";
         return std::numeric_limits<uint64_t>::max();
@@ -594,7 +677,7 @@ void JSON::unescape(string* s)
                     l = 2;
             }
 
-            s->replace(i, l, &c, 1);
+            s->replace(i, static_cast<size_t>(l), &c, 1);
         }
     }
 }
@@ -655,6 +738,61 @@ void JSON::begin(const char* json)
     pos = json;
 }
 
+// copy remainder of quoted string (no unescaping, use for base64 data only)
+void JSON::copystring(string* s, const char* p)
+{
+    if (p)
+    {
+        const char* pp;
+
+        if ((pp = strchr(p, '"')))
+        {
+            s->assign(p, static_cast<size_t>(pp - p));
+        }
+        else
+        {
+            *s = p;
+        }
+    }
+    else
+    {
+        s->clear();
+    }
+}
+
+string JSON::stripWhitespace(const string& text)
+{
+    return stripWhitespace(text.c_str());
+}
+
+string JSON::stripWhitespace(const char* text)
+{
+    JSON reader(text);
+    string result;
+
+    while (*reader.pos)
+    {
+        if (*reader.pos == '"')
+        {
+            string temp;
+
+            result.push_back('"');
+
+            if (!reader.storeobject(&temp))
+                return result;
+
+            result.append(temp);
+            result.push_back('"');
+        }
+        else if (is_space(static_cast<unsigned>(*reader.pos)))
+            ++reader.pos;
+        else
+            result.push_back(*reader.pos++);
+    }
+
+    return result;
+}
+
 JSONWriter::JSONWriter()
   : mJson()
   , mLevels()
@@ -688,6 +826,7 @@ void JSONWriter::arg(const char* name, const char* value, int quotes)
     mJson.append(name);
     mJson.append(quotes ? "\":\"" : "\":");
     mJson.append(value);
+
     if (quotes)
     {
         mJson.append("\"");
@@ -703,9 +842,15 @@ void JSONWriter::arg(const char* name, handle h, int len)
     arg(name, buf);
 }
 
+void JSONWriter::arg(const char* name, NodeHandle h)
+{
+    arg(name, h.as8byte(), 6);
+}
+
+
 void JSONWriter::arg(const char* name, const byte* value, int len)
 {
-    char* buf = new char[len * 4 / 3 + 4];
+    char* buf = new char[static_cast<size_t>(len * 4 / 3 + 4)];
 
     Base64::btoa(value, len, buf);
 
@@ -719,16 +864,26 @@ void JSONWriter::arg_B64(const char* n, const string& data)
     arg(n, (const byte*)data.data(), int(data.size()));
 }
 
-void JSONWriter::arg_fsfp(const char* n, fsfp_t fp)
+void JSONWriter::arg_fsfp(const char* n, std::uint64_t fp)
 {
     arg(n, (const byte*)&fp, int(sizeof(fp)));
+}
+
+void JSONWriter::arg_stringWithEscapes(const char* name, const string& value, int quote)
+{
+    arg(name, escape(value.c_str(), value.size()), quote);
+}
+
+void JSONWriter::arg_stringWithEscapes(const char* name, const char* value, int quote)
+{
+    arg(name, escape(value, strlen(value)), quote);
 }
 
 void JSONWriter::arg(const char* name, m_off_t n)
 {
     char buf[32];
 
-    sprintf(buf, "%" PRId64, n);
+    snprintf(buf, sizeof(buf), "%" PRId64, n);
 
     arg(name, buf, 0);
 }
@@ -748,7 +903,7 @@ void JSONWriter::appendraw(const char* s)
 
 void JSONWriter::appendraw(const char* s, int len)
 {
-    mJson.append(s, len);
+    mJson.append(s, static_cast<size_t>(len));
 }
 
 void JSONWriter::beginarray()
@@ -794,15 +949,11 @@ void JSONWriter::endobject()
 
 void JSONWriter::element(int n)
 {
-    char buf[24];
-
-    sprintf(buf, "%d", n);
-
     if (elements())
     {
         mJson.append(",");
     }
-    mJson.append(buf);
+    mJson.append(std::to_string(n));
 }
 
 void JSONWriter::element(handle h, int len)
@@ -818,23 +969,28 @@ void JSONWriter::element(handle h, int len)
 
 void JSONWriter::element(const byte* data, int len)
 {
-    char* buf = new char[len * 4 / 3 + 4];
+    char* buf = new char[static_cast<size_t>(len * 4 / 3 + 4)];
 
     len = Base64::btoa(data, len, buf);
 
     mJson.append(elements() ? ",\"" : "\"");
-    mJson.append(buf, len);
+    mJson.append(buf, static_cast<size_t>(len));
 
     delete[] buf;
 
     mJson.append("\"");
 }
 
-void JSONWriter::element(const char* buf)
+void JSONWriter::element(const char* data)
 {
     mJson.append(elements() ? ",\"" : "\"");
-    mJson.append(buf, strlen(buf));
+    mJson.append(data);
     mJson.append("\"");
+}
+
+void JSONWriter::element(const string& data)
+{
+    element(data.c_str());
 }
 
 void JSONWriter::element_B64(const string& s)
@@ -844,7 +1000,7 @@ void JSONWriter::element_B64(const string& s)
 
 void JSONWriter::openobject()
 {
-    mLevels[++mLevel] = 0;
+    mLevels[static_cast<size_t>(++mLevel)] = 0;
 }
 
 void JSONWriter::closeobject()
@@ -869,13 +1025,487 @@ size_t JSONWriter::size() const
 
 int JSONWriter::elements()
 {
-    if (!mLevels[mLevel])
+    assert(mLevel >= 0);
+
+    if (!mLevels[static_cast<size_t>(mLevel)])
     {
-        mLevels[mLevel] = 1;
+        mLevels[static_cast<size_t>(mLevel)] = 1;
         return 0;
     }
 
     return 1;
+}
+
+string JSONWriter::escape(const char* data, size_t length) const
+{
+    const utf8proc_uint8_t* current = reinterpret_cast<const utf8proc_uint8_t *>(data);
+    utf8proc_ssize_t remaining = static_cast<utf8proc_ssize_t>(length);
+    utf8proc_int32_t codepoint = 0;
+    string result;
+
+    while (remaining > 0)
+    {
+        auto read = utf8proc_iterate(current, remaining, &codepoint);
+        assert(codepoint >= 0);
+        assert(read > 0);
+
+        current += read;
+        remaining -= read;
+
+        if (read > 1)
+        {
+            result.append(current - read, current);
+            continue;
+        }
+
+        switch (codepoint)
+        {
+        case '"':
+            result.append("\\\"");
+            break;
+        case '\\':
+            result.append("\\\\");
+            break;
+        default:
+            result.push_back(static_cast<char>(current[-1]));
+            break;
+        }
+    }
+
+    return result;
+}
+
+JSONSplitter::JSONSplitter()
+{
+    clear();
+}
+
+void JSONSplitter::clear()
+{
+    mPos = nullptr;
+    mLastPos = nullptr;
+    mLastName.clear();
+    mStack.clear();
+    mCurrentPath.clear();
+    mProcessedBytes = 0;
+    mExpectValue = 1;
+    mStarting = true;
+    mFinished = false;
+    mFailed = false;
+}
+
+m_off_t JSONSplitter::processChunk(std::map<string, std::function<bool (JSON *)> > *filters, const char *data)
+{
+    if (hasFailed() || hasFinished())
+    {
+        return 0;
+    }
+
+    if (filters)
+    {
+        auto filterit = filters->find("<");
+        if (filterit != filters->end())
+        {
+            JSON jsonData("");
+            auto& callback = filterit->second;
+            if (!callback(&jsonData))
+            {
+                LOG_err << "Error starting the processing of a chunk";
+            }
+        }
+    }
+
+    mPos = data;
+    mLastPos = data;
+
+    // Skip the data that was already processed during the previous call
+    mPos += mProcessedBytes;
+    mProcessedBytes = 0;
+
+    if (mStarting)
+    {
+        if (filters)
+        {
+            auto filterit = filters->find("");
+            if (filterit != filters->end())
+            {
+                JSON jsonData("");
+                auto& callback = filterit->second;
+                if (!callback(&jsonData))
+                {
+                    LOG_err << "Parsing error processing first streaming filter"
+                            << " Data: " << data;
+                    parseError(filters);
+                    return 0;
+                }
+            }
+        }
+        mStarting = false;
+    }
+
+    JSON_verbose << "JSON starting processChunk at path " << mCurrentPath
+                 << " ExpectValue: " << mExpectValue << " LastName: " << mLastName
+                 << " Data: " << std::string(data, strlen(data) < 32 ? strlen(data) : 32)
+                 << " Start: " << std::string(mPos, strlen(mPos) < 32 ? strlen(mPos) : 32);
+
+    while (*mPos)
+    {
+        char c = *mPos;
+        if (c == '[' || c == '{')
+        {
+            if (!mExpectValue)
+            {
+                LOG_err << "Malformed JSON - unexpected object or array";
+                parseError(filters);
+                return 0;
+            }
+
+            mStack.push_back(c + mLastName);
+            mCurrentPath.append(mStack.back());
+
+            JSON_verbose << "JSON starting path: " << mCurrentPath;
+            if (filters && filters->find(mCurrentPath) != filters->end())
+            {
+                // a filter is configured for this path - recurse
+                mLastPos = mPos;
+            }
+
+            mPos++;
+            mLastName.clear();
+            mExpectValue = c == '[';
+        }
+        else if (c == ']' || c == '}')
+        {
+            if (mExpectValue < 0)
+            {
+                LOG_err << "Malformed JSON - premature closure";
+                parseError(filters);
+                return 0;
+            }
+
+            char open = mStack[mStack.size() - 1][0];
+            if (!mStack.size() || (c == ']' && open != '[') || (c == '}' && open != '{'))
+            {
+                LOG_err << "Malformed JSON - mismatched close";
+                parseError(filters);
+                return 0;
+            }
+
+            mLastName.clear();
+            mPos++;
+
+            // check if this concludes an exfiltrated object and return it if so
+            if (filters)
+            {
+                std::string filter;
+                if (mStack.size() == 1 && c == '}' && mLastPos == data
+                    && strncmp(data, "{\"err\":", 7) == 0)
+                {
+                    // error response
+                    filter = "#";
+                }
+                else
+                {
+                    // regular closure
+                    filter = mCurrentPath;
+                }
+
+                auto filterit = filters->find(filter);
+                if (filterit != filters->end() && filterit->second)
+                {
+                    JSON_verbose << "JSON object/array callback for path: " << filter << " Data: "
+                                 << std::string(mLastPos, static_cast<size_t>(mPos - mLastPos));
+
+                    JSON jsonData(mLastPos);
+                    auto& callback = filterit->second;
+                    if (!callback(&jsonData))
+                    {
+                        LOG_err << "Parsing error processing streaming filter: " << filter
+                                << " Data: "
+                                << std::string(mLastPos, static_cast<size_t>(mPos - mLastPos));
+                        parseError(filters);
+                        return 0;
+                    }
+
+                    // Callbacks should consume the exact amount of JSON, except the last one
+                    if (mCurrentPath != "{" && jsonData.pos != mPos)
+                    {
+                        // I'm not aborting the parsing here because no errors were detected during the processing
+                        // so probably the callback just ignored some data that it didn't need.
+                        // Anyway it would be good to check this when it happens to fix it.
+                        LOG_warn << (mPos - jsonData.pos) << " bytes were not processed by the following streaming filter: " << filter;
+                        assert(false);
+                    }
+
+                    mLastPos = mPos;
+                }
+            }
+
+            JSON_verbose << "JSON finishing path: " << mCurrentPath;
+            mCurrentPath.resize(mCurrentPath.size() - mStack.back().size());
+            mStack.pop_back();
+            mExpectValue = 0;
+
+            if (!mStack.size())
+            {
+                assert(mCurrentPath.empty());
+
+                mLastPos = mPos;
+                mFinished = true;
+                break;
+            }
+        }
+        else if (c == ',')
+        {
+            if (mExpectValue)
+            {
+                LOG_err << "Malformed JSON - stray comma";
+                parseError(filters);
+                return 0;
+            }
+
+            if (mLastPos == mPos)
+            {
+                mLastPos++;
+            }
+
+            mPos++;
+            mExpectValue = mStack[mStack.size() - 1][0] == '[';
+        }
+        else if (c == '"')
+        {
+            int t = strEnd();
+            if (t < 0)
+            {
+                JSON_verbose << "JSON chunk finished parsing a string."
+                             << " Data: " << mPos;
+                break;
+            }
+
+            if (mExpectValue)
+            {
+                if (filters)
+                {
+                    std::string filter = mCurrentPath + c + mLastName;
+                    auto filterit = filters->find(filter);
+                    if (filterit != filters->end() && filterit->second)
+                    {
+                        JSON_verbose << "JSON string value callback for: " << filter
+                                     << " Data: " << std::string(mPos, static_cast<size_t>(t));
+
+                        JSON jsonData(mPos);
+                        auto& callback = filterit->second;
+                        if (!callback(&jsonData))
+                        {
+                            LOG_err << "Parsing error processing streaming filter: " << filter
+                                    << " Data: " << std::string(mPos, static_cast<size_t>(t));
+                            parseError(filters);
+                            return 0;
+                        }
+
+                        mLastPos = mPos + t;
+                    }
+                }
+
+                JSON_verbose << "JSON string value parsed at path " << mCurrentPath
+                             << " Data: " << mLastName << " = "
+                             << std::string(mPos + 1, static_cast<size_t>(t - 2));
+
+                mPos += t;
+                mExpectValue = 0;
+                mLastName.clear();
+            }
+            else
+            {
+                // we need at least one char after end of property string
+                if (!mPos[t])
+                {
+                    break;
+                }
+
+                if (mPos[t] != ':')
+                {
+                    LOG_err << "Malformed JSON - no : found after property name";
+                    parseError(filters);
+                    return 0;
+                }
+
+                JSON_verbose << "JSON property name parsed at path " << mCurrentPath
+                             << " Data: " << std::string(mPos + 1, static_cast<size_t>(t - 2));
+
+                mLastName = std::string(mPos + 1, static_cast<size_t>(t - 2));
+                mPos += t + 1;
+                mExpectValue = -1;
+            }
+        }
+        else if ((c >= '0' && c <= '9') || c == '.' || c == '-')
+        {
+            if (!mExpectValue)
+            {
+                LOG_err << "Malformed JSON - unexpected number";
+                parseError(filters);
+                return 0;
+            }
+
+            int j = numEnd();
+            if (j < 0 || !mPos[j])
+            {
+                JSON_verbose << "JSON chunk finished parsing a number."
+                             << " Data: " << mPos;
+                break;
+            }
+
+            JSON_verbose << "JSON number parsed at path " << mCurrentPath << " Data: " << mLastName
+                         << " = " << std::string(mPos, static_cast<size_t>(j));
+
+            mPos += j;
+            mExpectValue = 0;
+
+            if (!mStack.size())
+            {
+                assert(mCurrentPath.empty());
+
+                if (filters && mLastPos == mPos - j)
+                {
+                    assert(mLastPos == data);
+
+                    auto filterit = filters->find("#");
+                    if (filterit != filters->end())
+                    {
+                        JSON jsonData(mLastPos);
+                        JSON_verbose << "JSON error callback."
+                                     << " Data: " << std::string(mLastPos, static_cast<size_t>(j));
+
+                        auto& callback = filterit->second;
+                        if (!callback(&jsonData))
+                        {
+                            LOG_err << "Parsing error processing error streaming filter"
+                                    << " Data: " << std::string(mLastPos, static_cast<size_t>(j));
+                            parseError(filters);
+                            return 0;
+                        }
+                    }
+                }
+
+                mLastPos = mPos;
+                mFinished = true;
+                break;
+            }
+        }
+        else if (c == ' ')
+        {
+            // a concession to the API team's aesthetic sense
+            mPos++;
+        }
+        else
+        {
+            LOG_err << "Malformed JSON - bogus char at position " << (mPos - data);
+            parseError(filters);
+            return 0;
+        }
+    }
+
+    if (filters && !chunkProcessingFinishedSuccessfully(filters))
+    {
+        LOG_err << "Error finishing the processing of a chunk";
+    }
+
+    mProcessedBytes = mPos - mLastPos;
+    m_off_t consumedBytes = mLastPos - data;
+
+    JSON_verbose << "JSON leaving processChunk at path " << mCurrentPath << "."
+                 << " Data: " << std::string(mPos, strlen(mPos) < 32 ? strlen(mPos) : 32)
+                 << " Processed: " << mProcessedBytes << " Consumed: " << consumedBytes
+                 << " Next start: " << std::string(mLastPos, strlen(mLastPos) < 32 ? strlen(mLastPos) : 32);
+
+    return consumedBytes;
+}
+
+bool JSONSplitter::hasFinished()
+{
+    return mFinished;
+}
+
+bool JSONSplitter::hasFailed()
+{
+    return mFailed;
+}
+
+bool JSONSplitter::isStarting()
+{
+    return mStarting;
+}
+
+int JSONSplitter::strEnd()
+{
+    const char* ptr = mPos;
+    while ((ptr = strchr(ptr + 1, '"')))
+    {
+        const char *e = ptr;
+        while (*(--e) == '\\')
+        {
+            // noop
+        }
+
+        if ((ptr - e) & 1)
+        {
+            return int(ptr + 1 - mPos);
+        }
+    }
+
+    return -1;
+}
+
+int JSONSplitter::numEnd()
+{
+    const char* ptr = mPos;
+    while (*ptr && strchr("0123456789-+eE.", *ptr))
+    {
+        ptr++;
+    }
+
+    if (ptr > mPos)
+    {
+        return int(ptr - mPos);
+    }
+
+    return -1;
+}
+
+void JSONSplitter::parseError(std::map<string, std::function<bool (JSON *)> > *filters)
+{
+    if (filters)
+    {
+        auto filterit = filters->find("E");
+        if (filterit != filters->end() && filterit->second)
+        {
+            JSON jsonData(mPos);
+            auto& callback = filterit->second;
+            callback(&jsonData);
+        }
+
+        if (!chunkProcessingFinishedSuccessfully(filters))
+        {
+            LOG_err << "Error finishing the processing of a chunk after error";
+        }
+    }
+    mFailed = true;
+    assert(false);
+}
+
+bool JSONSplitter::chunkProcessingFinishedSuccessfully(std::map<std::string, std::function<bool(JSON*)>>* filters)
+{
+    auto filterit = filters->find(">");
+    if (filterit != filters->end())
+    {
+        JSON jsonData("");
+        auto& callback = filterit->second;
+        if (!callback(&jsonData))
+        {
+            return false;
+        }
+    }
+    return true;
 }
 
 } // namespace

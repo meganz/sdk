@@ -20,6 +20,7 @@
  */
 #import "MEGAUserAlert.h"
 #import "megaapi.h"
+#import "MEGAStringList+init.h"
 
 using namespace mega;
 
@@ -69,7 +70,7 @@ using namespace mega;
     return (MEGAUserAlertType)(self.megaUserAlert ? self.megaUserAlert->getType() : 0);
 }
 
-- (NSString *)typeString {
+- (nullable NSString *)typeString {
     if (!self.megaUserAlert) return nil;
     
     return self.megaUserAlert->getTypeString() ? [[NSString alloc] initWithUTF8String:self.megaUserAlert->getTypeString()] : nil;
@@ -83,31 +84,35 @@ using namespace mega;
     return self.megaUserAlert ? self.megaUserAlert->getNodeHandle() : ::mega::INVALID_HANDLE;
 }
 
-- (NSString *)email {
+- (uint64_t)pendingContactRequestHandle {
+    return self.megaUserAlert ? self.megaUserAlert->getPcrHandle() : ::mega::INVALID_HANDLE;
+}
+
+- (nullable NSString *)email {
     if (!self.megaUserAlert) return nil;
     
     return self.megaUserAlert->getEmail() ? [[NSString alloc] initWithUTF8String:self.megaUserAlert->getEmail()] : nil;
 }
 
-- (NSString *)path {
+- (nullable NSString *)path {
     if (!self.megaUserAlert) return nil;
     
     return self.megaUserAlert->getPath()? [[NSString alloc] initWithUTF8String:self.megaUserAlert->getPath()] : nil;
 }
 
-- (NSString *)name {
+- (nullable NSString *)name {
     if (!self.megaUserAlert) return nil;
     
     return self.megaUserAlert->getName() ? [[NSString alloc] initWithUTF8String:self.megaUserAlert->getName()] : nil;
 }
 
-- (NSString *)heading {
+- (nullable NSString *)heading {
     if (!self.megaUserAlert) return nil;
     
     return self.megaUserAlert->getHeading() ? [[NSString alloc] initWithUTF8String:self.megaUserAlert->getHeading()] : nil;
 }
 
-- (NSString *)title {
+- (nullable NSString *)title {
     if (!self.megaUserAlert) return nil;
     
     return self.megaUserAlert->getTitle() ? [[NSString alloc] initWithUTF8String:self.megaUserAlert->getTitle()] : nil;
@@ -117,9 +122,13 @@ using namespace mega;
     return self.megaUserAlert ? self.megaUserAlert->isOwnChange() : NO;
 }
 
-- (instancetype)clone {
-    return self.megaUserAlert ? [[MEGAUserAlert alloc] initWithMegaUserAlert:self.megaUserAlert->copy() cMemoryOwn:YES] : nil;
+#ifdef ENABLE_CHAT
+
+- (uint64_t)scheduledMeetingId {
+    return self.megaUserAlert ? self.megaUserAlert->getSchedId() : ::mega::INVALID_HANDLE;
 }
+
+#endif
 
 - (int64_t)numberAtIndex:(NSUInteger)index {
     return self.megaUserAlert ? self.megaUserAlert->getNumber((unsigned int) index) : -1;
@@ -129,10 +138,64 @@ using namespace mega;
     return self.megaUserAlert ? self.megaUserAlert->getTimestamp((unsigned int) index) : -1;
 }
 
-- (NSString *)stringAtIndex:(NSUInteger)index {
+- (nullable NSString *)stringAtIndex:(NSUInteger)index {
     if (!self.megaUserAlert) return nil;
     
     return self.megaUserAlert->getString((unsigned int)index) ? [[NSString alloc] initWithUTF8String:self.megaUserAlert->getString((unsigned int)index)] : nil;
 }
+
+#ifdef ENABLE_CHAT
+
+- (BOOL)hasScheduledMeetingChangeType:(MEGAUserAlertScheduledMeetingChangeType)changeType {
+    if (!self.megaUserAlert) return NO;
+    
+    return self.megaUserAlert->hasSchedMeetingChanged(int(changeType));
+}
+
+- (nullable MEGAStringList *)titleList {
+    return self.megaUserAlert ? [MEGAStringList.alloc initWithMegaStringList:self.megaUserAlert->getUpdatedTitle() cMemoryOwn:YES] : nil;
+}
+
+- (nullable NSArray<NSDate *> *)startDateList {
+    if (!self.megaUserAlert || !self.megaUserAlert->getUpdatedStartDate()) { return nil; }
+    
+    MegaIntegerList *integerList = self.megaUserAlert->getUpdatedStartDate()->copy();
+    NSMutableArray<NSDate *> *dateArray = [NSMutableArray arrayWithCapacity:integerList->size()];
+
+    for (int i = 0; i < integerList->size(); i++) {
+        NSInteger timeInterval = integerList->get(i);
+        if (timeInterval != -1) {
+            NSDate *date = [NSDate dateWithTimeIntervalSince1970:integerList->get(i)];
+            if (date != nil) {
+                [dateArray addObject:date];
+            }
+        }
+    }
+    
+    delete integerList;
+    return dateArray;
+}
+
+- (nullable NSArray<NSDate *> *)endDateList {
+    if (!self.megaUserAlert || !self.megaUserAlert->getUpdatedEndDate()) { return nil; }
+    
+    MegaIntegerList *integerList = self.megaUserAlert->getUpdatedEndDate()->copy();
+    NSMutableArray<NSDate *> *dateArray = [NSMutableArray arrayWithCapacity:integerList->size()];
+
+    for (int i = 0; i < integerList->size(); i++) {
+        NSInteger timeInterval = integerList->get(i);
+        if (timeInterval != -1) {
+            NSDate *date = [NSDate dateWithTimeIntervalSince1970:integerList->get(i)];
+            if (date != nil) {
+                [dateArray addObject:date];
+            }
+        }
+    }
+    
+    delete integerList;
+    return dateArray;
+}
+
+#endif
 
 @end

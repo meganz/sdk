@@ -20,12 +20,15 @@
  */
 
 #include "mega/utils.h"
-#include "mega/logging.h"
-#include "mega/megaclient.h"
-#include "mega/base64.h"
-#include "mega/serialize64.h"
-#include "mega/filesystem.h"
 
+#include "mega/base64.h"
+#include "mega/filesystem.h"
+#include "mega/logging.h"
+#include "mega/mega_utf8proc.h"
+#include "mega/megaclient.h"
+#include "mega/serialize64.h"
+
+#include <cctype>
 #include <iomanip>
 
 #if defined(_WIN32) && defined(_MSC_VER)
@@ -36,7 +39,16 @@
 #include <sys/sysctl.h>
 #endif
 
+#ifdef WIN32
+#include <direct.h>
+#else
+#include <sys/time.h>
+#include <sys/resource.h>
+#endif // ! WIN32
+
 namespace mega {
+
+std::atomic<uint32_t> CancelToken::tokensCancelledCount{0};
 
 string toNodeHandle(handle nodeHandle)
 {
@@ -49,12 +61,85 @@ string toNodeHandle(NodeHandle nodeHandle)
 {
     return toNodeHandle(nodeHandle.as8byte());
 }
+
+NodeHandle toNodeHandle(const byte* data)
+{
+    NodeHandle ret;
+    if (data)
+    {
+        handle h = 0;  // most significant non-used-for-the-handle bytes must be zeroed
+        memcpy(&h, data, MegaClient::NODEHANDLE);
+        ret.set6byte(h);
+    }
+
+    return ret;
+}
+
+NodeHandle toNodeHandle(const std::string* data)
+{
+    if(data) return toNodeHandle(reinterpret_cast<const byte*>(data->c_str()));
+
+    return NodeHandle{};
+}
+
 string toHandle(handle h)
 {
     char base64Handle[14];
     Base64::btoa((byte*)&(h), sizeof h, base64Handle);
     return string(base64Handle);
 }
+
+std::pair<bool, TypeOfLink> toTypeOfLink(nodetype_t type)
+{
+    bool error = false;
+    TypeOfLink lType = TypeOfLink::FOLDER;
+    switch(type)
+    {
+    case FOLDERNODE: break;
+    case FILENODE:
+        lType = TypeOfLink::FILE;
+        break;
+    default:
+        error = true;
+        break;
+    }
+
+    return std::make_pair(error, lType);
+}
+
+std::ostream& operator<<(std::ostream& s, NodeHandle h)
+{
+    return s << toNodeHandle(h);
+}
+
+SimpleLogger& operator<<(SimpleLogger& s, NodeHandle h)
+{
+    return s << toNodeHandle(h);
+}
+
+SimpleLogger& operator<<(SimpleLogger& s, UploadHandle h)
+{
+    return s << toHandle(h.h);
+}
+
+SimpleLogger& operator<<(SimpleLogger& s, NodeOrUploadHandle h)
+{
+    if (h.isNodeHandle())
+    {
+        return s << "nh:" << h.nodeHandle();
+    }
+    else
+    {
+        return s << "uh:" << h.uploadHandle();
+    }
+}
+
+SimpleLogger& operator<<(SimpleLogger& s, const LocalPath& lp)
+{
+    // when logging, do not normalize the string, or we can't diagnose failures to match differently encoded utf8 strings
+    return s << lp.toPath(false);
+}
+
 
 string backupTypeToStr(BackupType type)
 {
@@ -79,7 +164,7 @@ string backupTypeToStr(BackupType type)
     return "UNKNOWN";
 }
 
-void AddHiddenFileAttribute(mega::LocalPath& path)
+void AddHiddenFileAttribute([[maybe_unused]] mega::LocalPath& path)
 {
 #ifdef _WIN32
     WIN32_FILE_ATTRIBUTE_DATA fad;
@@ -88,7 +173,7 @@ void AddHiddenFileAttribute(mega::LocalPath& path)
 #endif
 }
 
-void RemoveHiddenFileAttribute(mega::LocalPath& path)
+void RemoveHiddenFileAttribute([[maybe_unused]] mega::LocalPath& path)
 {
 #ifdef _WIN32
     WIN32_FILE_ATTRIBUTE_DATA fad;
@@ -134,10 +219,27 @@ void CacheableWriter::serializestring(const string& field)
     dest.append(field.data(), ll);
 }
 
-void CacheableWriter::serializecompressed64(int64_t field)
+void CacheableWriter::serializestring_u32(const string& field)
+{
+    uint32_t ll = (uint32_t)field.size();
+    dest.append((char*)&ll, sizeof(ll));
+    dest.append(field.data(), ll);
+}
+
+void CacheableWriter::serializecompressedu64(uint64_t field)
 {
     byte buf[sizeof field+1];
     dest.append((const char*)buf, Serialize64::serialize(buf, field));
+}
+
+void CacheableWriter::serializei8(int8_t field)
+{
+    dest.append((char*)&field, sizeof(field));
+}
+
+void CacheableWriter::serializei32(int32_t field)
+{
+    dest.append((char*)&field, sizeof(field));
 }
 
 void CacheableWriter::serializei64(int64_t field)
@@ -145,7 +247,21 @@ void CacheableWriter::serializei64(int64_t field)
     dest.append((char*)&field, sizeof(field));
 }
 
+void CacheableWriter::serializeu64(uint64_t field)
+{
+    dest.append((char*)&field, sizeof(field));
+}
+
 void CacheableWriter::serializeu32(uint32_t field)
+{
+    dest.append((char*)&field, sizeof(field));
+}
+
+void CacheableWriter::serializeu16(uint16_t field)
+{
+    dest.append((char*)&field, sizeof(field));
+}
+void CacheableWriter::serializeu8(uint8_t field)
 {
     dest.append((char*)&field, sizeof(field));
 }
@@ -160,9 +276,9 @@ void CacheableWriter::serializenodehandle(handle field)
     dest.append((const char*)&field, MegaClient::NODEHANDLE);
 }
 
-void CacheableWriter::serializefsfp(fsfp_t field)
+void CacheableWriter::serializeNodeHandle(NodeHandle field)
 {
-    dest.append((char*)&field, sizeof(field));
+    serializenodehandle(field.as8byte());
 }
 
 void CacheableWriter::serializebool(bool field)
@@ -257,6 +373,30 @@ bool CacheableReader::unserializestring(string& s)
     return true;
 }
 
+bool CacheableReader::unserializestring_u32(string& s)
+{
+    if (ptr + sizeof(uint32_t) > end)
+    {
+        return false;
+    }
+
+    uint32_t len = MemAccess::get<uint32_t>(ptr);
+    ptr += sizeof(len);
+
+    if (ptr + len > end)
+    {
+        return false;
+    }
+
+    if (len)
+    {
+        s.assign(ptr, len);
+    }
+    ptr += len;
+    fieldnum += 1;
+    return true;
+}
+
 bool CacheableReader::unserializebinary(byte* data, size_t len)
 {
     if (ptr + len > end)
@@ -275,10 +415,10 @@ void chunkmac_map::serialize(string& d) const
 {
     unsigned short ll = (unsigned short)size();
     d.append((char*)&ll, sizeof(ll));
-    for (const_iterator it = begin(); it != end(); it++)
+    for (auto& it : mMacMap)
     {
-        d.append((char*)&it->first, sizeof(it->first));
-        d.append((char*)&it->second, sizeof(it->second));
+        d.append((char*)&it.first, sizeof(it.first));
+        d.append((char*)&it.second, sizeof(it.second));
     }
 }
 
@@ -297,47 +437,69 @@ bool chunkmac_map::unserialize(const char*& ptr, const char* end)
         m_off_t pos = MemAccess::get<m_off_t>(ptr);
         ptr += sizeof(m_off_t);
 
-        memcpy(&((*this)[pos]), ptr, sizeof(ChunkMAC));
+        memcpy(&(mMacMap[pos]), ptr, sizeof(ChunkMAC));
         ptr += sizeof(ChunkMAC);
+
+        if (mMacMap[pos].isMacsmacSoFar())
+        {
+            macsmacSoFarPos = pos;
+            assert(i == 0);
+        }
+        else
+        {
+            assert(pos > macsmacSoFarPos);
+        }
     }
     return true;
 }
 
-void chunkmac_map::calcprogress(m_off_t size, m_off_t& chunkpos, m_off_t& progresscompleted, m_off_t* lastblockprogress)
+void chunkmac_map::calcprogress(m_off_t size, m_off_t& chunkpos, m_off_t& progresscompleted, m_off_t* sumOfPartialChunks)
 {
     chunkpos = 0;
     progresscompleted = 0;
 
-    for (chunkmac_map::iterator it = begin(); it != end(); ++it)
+    for (auto& it : mMacMap)
     {
-        m_off_t chunkceil = ChunkedHash::chunkceil(it->first, size);
+        m_off_t chunkceil = ChunkedHash::chunkceil(it.first, size);
 
-        if (chunkpos == it->first && it->second.finished)
+        if (it.second.isMacsmacSoFar())
+        {
+            assert(chunkpos == 0);
+            macsmacSoFarPos = it.first;
+
+            chunkpos = chunkceil;
+            progresscompleted = chunkceil;
+        }
+        else if (chunkpos == it.first && it.second.finished)
         {
             chunkpos = chunkceil;
             progresscompleted = chunkceil;
         }
-        else if (it->second.finished)
+        else if (it.second.finished)
         {
-            m_off_t chunksize = chunkceil - ChunkedHash::chunkfloor(it->first);
+            m_off_t chunksize = chunkceil - ChunkedHash::chunkfloor(it.first);
             progresscompleted += chunksize;
         }
         else
         {
-            progresscompleted += it->second.offset;
-            if (lastblockprogress)
+            progresscompleted += it.second.offset;  // sum of completed portions
+            if (sumOfPartialChunks)
             {
-                *lastblockprogress += it->second.offset;
+                *sumOfPartialChunks += it.second.offset;
             }
         }
     }
+
+    progresscontiguous = chunkpos;
 }
 
 m_off_t chunkmac_map::nextUnprocessedPosFrom(m_off_t pos)
 {
-    for (const_iterator it = find(ChunkedHash::chunkfloor(pos));
-        it != end();
-        it = find(ChunkedHash::chunkfloor(pos)))
+    assert(pos > macsmacSoFarPos);
+
+    for (auto it = mMacMap.find(ChunkedHash::chunkfloor(pos));
+        it != mMacMap.end();
+        it = mMacMap.find(ChunkedHash::chunkfloor(pos)))
     {
         if (it->second.finished)
         {
@@ -354,22 +516,181 @@ m_off_t chunkmac_map::nextUnprocessedPosFrom(m_off_t pos)
 
 m_off_t chunkmac_map::expandUnprocessedPiece(m_off_t pos, m_off_t npos, m_off_t fileSize, m_off_t maxReqSize)
 {
-    for (iterator it = find(npos);
-        npos < fileSize && (npos - pos) <= maxReqSize && (it == end() || (!it->second.finished && !it->second.offset));
-        it = find(npos))
+    assert(pos > macsmacSoFarPos);
+
+    for (auto it = mMacMap.find(npos);
+        npos < fileSize &&
+        (npos - pos) < maxReqSize &&
+        (it == mMacMap.end() || it->second.notStarted());
+        it = mMacMap.find(npos))
     {
         npos = ChunkedHash::chunkceil(npos, fileSize);
     }
     return npos;
 }
 
+m_off_t chunkmac_map::hasUnfinishedGap(m_off_t fileSize)
+{
+    bool sawUnfinished = false;
+
+    for (auto it = mMacMap.begin();
+        it != mMacMap.end(); )
+    {
+        if (!it->second.finished)
+        {
+            sawUnfinished = true;
+        }
+
+        auto nextpos = ChunkedHash::chunkceil(it->first, fileSize);
+        auto expected_it = mMacMap.find(nextpos);
+
+        if (sawUnfinished && expected_it != mMacMap.end() && expected_it->second.finished)
+        {
+            return true;
+        }
+
+        ++it;
+        if (it != expected_it)
+        {
+            sawUnfinished = true;
+        }
+    }
+    return false;
+}
+
+
+void chunkmac_map::ctr_encrypt(m_off_t chunkid, SymmCipher *cipher, byte *chunkstart, unsigned chunksize, m_off_t startpos, int64_t ctriv, bool finishesChunk)
+{
+    assert(chunkid == startpos);
+    assert(startpos > macsmacSoFarPos);
+
+    // encrypt is always done on whole chunks
+    auto& chunk = mMacMap[chunkid];
+    cipher->ctr_crypt(chunkstart, unsigned(chunksize), startpos, ctriv, chunk.mac, true, true);
+    chunk.offset = 0;
+    chunk.finished = finishesChunk;  // when encrypting for uploads, only set finished after confirmation of the chunk uploading.
+}
+
+
+void chunkmac_map::ctr_decrypt(m_off_t chunkid, SymmCipher *cipher, byte *chunkstart, unsigned chunksize, m_off_t startpos, int64_t ctriv, bool finishesChunk)
+{
+    assert(chunkid > macsmacSoFarPos);
+    assert(startpos >= chunkid);
+    assert(startpos + chunksize <= ChunkedHash::chunkceil(chunkid));
+    ChunkMAC& chunk = mMacMap[chunkid];
+
+    cipher->ctr_crypt(chunkstart, chunksize, startpos, ctriv, chunk.mac, false, chunk.notStarted());
+
+    if (finishesChunk)
+    {
+        chunk.finished = true;
+        chunk.offset = 0;
+    }
+    else
+    {
+        assert(startpos + chunksize < ChunkedHash::chunkceil(chunkid));
+        chunk.finished = false;
+        chunk.offset += chunksize;
+    }
+}
+
 void chunkmac_map::finishedUploadChunks(chunkmac_map& macs)
 {
-    for (auto& m : macs)
+    for (auto& m : macs.mMacMap)
     {
+        assert(m.first > macsmacSoFarPos);
+        assert(mMacMap.find(m.first) == mMacMap.end() || !mMacMap[m.first].isMacsmacSoFar());
+
         m.second.finished = true;
-        (*this)[m.first] = m.second;
+        mMacMap[m.first] = m.second;
         LOG_verbose << "Upload chunk completed: " << m.first;
+    }
+}
+
+bool chunkmac_map::finishedAt(m_off_t pos)
+{
+    assert(pos > macsmacSoFarPos);
+
+    auto pcit = mMacMap.find(pos);
+    return pcit != mMacMap.end()
+        && pcit->second.finished;
+}
+
+m_off_t chunkmac_map::updateContiguousProgress(m_off_t fileSize)
+{
+    assert(progresscontiguous > macsmacSoFarPos);
+
+    while (finishedAt(progresscontiguous))
+    {
+        progresscontiguous = ChunkedHash::chunkceil(progresscontiguous, fileSize);
+    }
+    return progresscontiguous;
+}
+
+void chunkmac_map::updateMacsmacProgress(SymmCipher *cipher)
+{
+    bool updated = false;
+    while (macsmacSoFarPos + 1024 * 1024 * 5 < progresscontiguous  // never go past contiguous-from-start section
+           && size() > 32 * 3 + 5)   // leave enough room for the mac-with-late-gaps corrective calculation to occur
+    {
+        if (mMacMap.begin()->second.isMacsmacSoFar())
+        {
+            auto it = mMacMap.begin();
+            auto& calcSoFar = it->second;
+            auto& next = (++it)->second;
+
+            assert(it->first == ChunkedHash::chunkfloor(it->first));
+            SymmCipher::xorblock(next.mac, calcSoFar.mac);
+            cipher->ecb_encrypt(calcSoFar.mac);
+            memcpy(next.mac, calcSoFar.mac, sizeof(next.mac));
+
+            macsmacSoFarPos = it->first;
+            next.offset = unsigned(-1);
+            assert(next.isMacsmacSoFar());
+            mMacMap.erase(mMacMap.begin());
+        }
+        else if (mMacMap.begin()->first == 0 && finishedAt(0))
+        {
+            auto& first = mMacMap.begin()->second;
+
+            byte mac[SymmCipher::BLOCKSIZE] = { 0 };
+            SymmCipher::xorblock(first.mac, mac);
+            cipher->ecb_encrypt(mac);
+            memcpy(first.mac, mac, sizeof(mac));
+
+            first.offset = unsigned(-1);
+            assert(first.isMacsmacSoFar());
+            macsmacSoFarPos = 0;
+        }
+        updated = true;
+    }
+
+    if (updated)
+    {
+        LOG_verbose << "Macsmac calculation advanced to " << mMacMap.begin()->first;
+    }
+}
+
+void chunkmac_map::copyEntriesTo(chunkmac_map& other)
+{
+    for (auto& e : mMacMap)
+    {
+        assert(e.first > macsmacSoFarPos);
+        other.mMacMap[e.first] = e.second;
+    }
+}
+
+void chunkmac_map::copyEntryTo(m_off_t pos, chunkmac_map& other)
+{
+    assert(pos > macsmacSoFarPos);
+    mMacMap[pos] = other.mMacMap[pos];
+}
+
+void chunkmac_map::debugLogOuputMacs()
+{
+    for (auto& it : mMacMap)
+    {
+        LOG_debug << "macs: " << it.first << " " << Base64Str<SymmCipher::BLOCKSIZE>(it.second.mac) << " " << it.second.finished;
     }
 }
 
@@ -378,12 +699,19 @@ int64_t chunkmac_map::macsmac(SymmCipher *cipher)
 {
     byte mac[SymmCipher::BLOCKSIZE] = { 0 };
 
-    for (chunkmac_map::iterator it = begin(); it != end(); it++)
+    for (auto& it : mMacMap)
     {
-        assert(it->first == ChunkedHash::chunkfloor(it->first));
-        // LOG_debug << "macsmac input: " << it->first << ": " << Base64Str<sizeof it->second.mac>(it->second.mac);
-        SymmCipher::xorblock(it->second.mac, mac);
-        cipher->ecb_encrypt(mac);
+        if (it.second.isMacsmacSoFar())
+        {
+            assert(it.first == mMacMap.begin()->first);
+            memcpy(mac, it.second.mac, sizeof(mac));
+        }
+        else
+        {
+            assert(it.first == ChunkedHash::chunkfloor(it.first));
+            SymmCipher::xorblock(it.second.mac, mac);
+            cipher->ecb_encrypt(mac);
+        }
     }
 
     uint32_t* m = (uint32_t*)mac;
@@ -391,7 +719,6 @@ int64_t chunkmac_map::macsmac(SymmCipher *cipher)
     m[0] ^= m[1];
     m[1] = m[2] ^ m[3];
 
-    // LOG_debug << "macsmac final: " << Base64Str<sizeof int64_t>(mac);
     return MemAccess::get<int64_t>((const char*)mac);
 }
 
@@ -399,14 +726,25 @@ int64_t chunkmac_map::macsmac_gaps(SymmCipher *cipher, size_t g1, size_t g2, siz
 {
     byte mac[SymmCipher::BLOCKSIZE] = { 0 };
 
-    int n = 0;
-    for (chunkmac_map::iterator it = begin(); it != end(); it++, n++)
+    size_t n = 0;
+    for (auto it = mMacMap.begin(); it != mMacMap.end(); it++, n++)
     {
-        if ((n >= g1 && n < g2) || (n >= g3 && n < g4)) continue;
+        if (it->second.isMacsmacSoFar())
+        {
+            memcpy(mac, it->second.mac, sizeof(mac));
+            for (m_off_t pos = 0; pos <= it->first; pos = ChunkedHash::chunkceil(pos))
+            {
+                ++n;
+            }
+        }
+        else
+        {
+            if ((n >= g1 && n < g2) || (n >= g3 && n < g4)) continue;
 
-        assert(it->first == ChunkedHash::chunkfloor(it->first));
-        SymmCipher::xorblock(it->second.mac, mac);
-        cipher->ecb_encrypt(mac);
+            assert(it->first == ChunkedHash::chunkfloor(it->first));
+            SymmCipher::xorblock(it->second.mac, mac);
+            cipher->ecb_encrypt(mac);
+        }
     }
 
     uint32_t* m = (uint32_t*)mac;
@@ -427,7 +765,18 @@ bool CacheableReader::unserializechunkmacs(chunkmac_map& m)
     return false;
 }
 
-bool CacheableReader::unserializecompressed64(uint64_t& field)
+bool CacheableReader::unserializefingerprint(FileFingerprint& fp)
+{
+    if (auto newfp = fp.unserialize(ptr, end))   // ptr is adjusted by reference
+    {
+        fp = *newfp;
+        fieldnum += 1;
+        return true;
+    }
+    return false;
+}
+
+bool CacheableReader::unserializecompressedu64(uint64_t& field)
 {
     int fieldSize;
     if ((fieldSize = Serialize64::unserialize((byte*)ptr, static_cast<int>(end - ptr), &field)) < 0)
@@ -439,6 +788,30 @@ bool CacheableReader::unserializecompressed64(uint64_t& field)
     {
         ptr += fieldSize;
     }
+    return true;
+}
+
+bool CacheableReader::unserializei8(int8_t& field)
+{
+    if (ptr + sizeof(int8_t) > end)
+    {
+        return false;
+    }
+    field = MemAccess::get<int8_t>(ptr);
+    ptr += sizeof(int8_t);
+    fieldnum += 1;
+    return true;
+}
+
+bool CacheableReader::unserializei32(int32_t& field)
+{
+    if (ptr + sizeof(int32_t) > end)
+    {
+        return false;
+    }
+    field = MemAccess::get<int32_t>(ptr);
+    ptr += sizeof(int32_t);
+    fieldnum += 1;
     return true;
 }
 
@@ -454,6 +827,18 @@ bool CacheableReader::unserializei64(int64_t& field)
     return true;
 }
 
+bool CacheableReader::unserializeu16(uint16_t &field)
+{
+    if (ptr + sizeof(uint16_t) > end)
+    {
+        return false;
+    }
+    field = MemAccess::get<uint16_t>(ptr);
+    ptr += sizeof(uint16_t);
+    fieldnum += 1;
+    return true;
+}
+
 bool CacheableReader::unserializeu32(uint32_t& field)
 {
     if (ptr + sizeof(uint32_t) > end)
@@ -462,6 +847,30 @@ bool CacheableReader::unserializeu32(uint32_t& field)
     }
     field = MemAccess::get<uint32_t>(ptr);
     ptr += sizeof(uint32_t);
+    fieldnum += 1;
+    return true;
+}
+
+bool CacheableReader::unserializeu8(uint8_t& field)
+{
+    if (ptr + sizeof(uint8_t) > end)
+    {
+        return false;
+    }
+    field = MemAccess::get<uint8_t>(ptr);
+    ptr += sizeof(uint8_t);
+    fieldnum += 1;
+    return true;
+}
+
+bool CacheableReader::unserializeu64(uint64_t& field)
+{
+    if (ptr + sizeof(uint64_t) > end)
+    {
+        return false;
+    }
+    field = MemAccess::get<uint64_t>(ptr);
+    ptr += sizeof(uint64_t);
     fieldnum += 1;
     return true;
 }
@@ -491,15 +900,11 @@ bool CacheableReader::unserializenodehandle(handle& field)
     return true;
 }
 
-bool CacheableReader::unserializefsfp(fsfp_t& field)
+bool CacheableReader::unserializeNodeHandle(NodeHandle& field)
 {
-    if (ptr + sizeof(fsfp_t) > end)
-    {
-        return false;
-    }
-    field = MemAccess::get<fsfp_t>(ptr);
-    ptr += sizeof(fsfp_t);
-    fieldnum += 1;
+    handle h;
+    if (!unserializenodehandle(h)) return false;
+    field.set6byte(h);
     return true;
 }
 
@@ -561,411 +966,20 @@ bool CacheableReader::unserializeexpansionflags(unsigned char field[8], unsigned
     return true;
 }
 
-#ifdef ENABLE_CHAT
-TextChat::TextChat()
+bool CacheableReader::unserializedirection(direction_t& field)
 {
-    id = UNDEF;
-    priv = PRIV_UNKNOWN;
-    shard = -1;
-    userpriv = NULL;
-    group = false;
-    ou = UNDEF;
-    resetTag();
-    ts = 0;
-    flags = 0;
-    publicchat = false;
-
-    memset(&changed, 0, sizeof(changed));
-}
-
-TextChat::~TextChat()
-{
-    delete userpriv;
-}
-
-bool TextChat::serialize(string *d)
-{
-    unsigned short ll;
-
-    d->append((char*)&id, sizeof id);
-    d->append((char*)&priv, sizeof priv);
-    d->append((char*)&shard, sizeof shard);
-
-    ll = (unsigned short)(userpriv ? userpriv->size() : 0);
-    d->append((char*)&ll, sizeof ll);
-    if (userpriv)
-    {
-        userpriv_vector::iterator it = userpriv->begin();
-        while (it != userpriv->end())
-        {
-            handle uh = it->first;
-            d->append((char*)&uh, sizeof uh);
-
-            privilege_t priv = it->second;
-            d->append((char*)&priv, sizeof priv);
-
-            it++;
-        }
-    }
-
-    d->append((char*)&group, sizeof group);
-
-    // title is a binary array
-    ll = (unsigned short)title.size();
-    d->append((char*)&ll, sizeof ll);
-    d->append(title.data(), ll);
-
-    d->append((char*)&ou, sizeof ou);
-    d->append((char*)&ts, sizeof(ts));
-
-    char hasAttachments = attachedNodes.size() != 0;
-    d->append((char*)&hasAttachments, 1);
-
-    d->append((char*)&flags, 1);
-
-    char mode = publicchat ? 1 : 0;
-    d->append((char*)&mode, 1);
-
-    char hasUnifiedKey = unifiedKey.size() ? 1 : 0;
-    d->append((char *)&hasUnifiedKey, 1);
-
-    d->append("\0\0\0\0\0\0", 6); // additional bytes for backwards compatibility
-
-    if (hasAttachments)
-    {
-        ll = (unsigned short)attachedNodes.size();  // number of nodes with granted access
-        d->append((char*)&ll, sizeof ll);
-
-        for (attachments_map::iterator it = attachedNodes.begin(); it != attachedNodes.end(); it++)
-        {
-            d->append((char*)&it->first, sizeof it->first); // nodehandle
-
-            ll = (unsigned short)it->second.size(); // number of users with granted access to the node
-            d->append((char*)&ll, sizeof ll);
-            for (set<handle>::iterator ituh = it->second.begin(); ituh != it->second.end(); ituh++)
-            {
-                d->append((char*)&(*ituh), sizeof *ituh);   // userhandle
-            }
-        }
-    }
-
-    if (hasUnifiedKey)
-    {
-        ll = (unsigned short) unifiedKey.size();
-        d->append((char *)&ll, sizeof ll);
-        d->append((char*) unifiedKey.data(), unifiedKey.size());
-    }
-
-    return true;
-}
-
-TextChat* TextChat::unserialize(class MegaClient *client, string *d)
-{
-    handle id;
-    privilege_t priv;
-    int shard;
-    userpriv_vector *userpriv = NULL;
-    bool group;
-    string title;   // byte array
-    handle ou;
-    m_time_t ts;
-    byte flags;
-    char hasAttachments;
-    attachments_map attachedNodes;
-    bool publicchat;
-    string unifiedKey;
-
-    unsigned short ll;
-    const char* ptr = d->data();
-    const char* end = ptr + d->size();
-
-    if (ptr + sizeof(handle) + sizeof(privilege_t) + sizeof(int) + sizeof(short) > end)
-    {
-        return NULL;
-    }
-
-    id = MemAccess::get<handle>(ptr);
-    ptr += sizeof id;
-
-    priv = MemAccess::get<privilege_t>(ptr);
-    ptr += sizeof priv;
-
-    shard = MemAccess::get<int>(ptr);
-    ptr += sizeof shard;
-
-    ll = MemAccess::get<unsigned short>(ptr);
-    ptr += sizeof ll;
-    if (ll)
-    {
-        if (ptr + ll * (sizeof(handle) + sizeof(privilege_t)) > end)
-        {
-            return NULL;
-        }
-
-        userpriv = new userpriv_vector();
-
-        for (unsigned short i = 0; i < ll; i++)
-        {
-            handle uh = MemAccess::get<handle>(ptr);
-            ptr += sizeof uh;
-
-            privilege_t priv = MemAccess::get<privilege_t>(ptr);
-            ptr += sizeof priv;
-
-            userpriv->push_back(userpriv_pair(uh, priv));
-        }
-
-        if (priv == PRIV_RM)    // clear peerlist if removed
-        {
-            delete userpriv;
-            userpriv = NULL;
-        }
-    }
-
-    if (ptr + sizeof(bool) + sizeof(unsigned short) > end)
-    {
-        delete userpriv;
-        return NULL;
-    }
-
-    group = MemAccess::get<bool>(ptr);
-    ptr += sizeof group;
-
-    ll = MemAccess::get<unsigned short>(ptr);
-    ptr += sizeof ll;
-    if (ll)
-    {
-        if (ptr + ll > end)
-        {
-            delete userpriv;
-            return NULL;
-        }
-        title.assign(ptr, ll);
-    }
-    ptr += ll;
-
-    if (ptr + sizeof(handle) + sizeof(m_time_t) + sizeof(char) + 9 > end)
-    {
-        delete userpriv;
-        return NULL;
-    }
-
-    ou = MemAccess::get<handle>(ptr);
-    ptr += sizeof ou;
-
-    ts = MemAccess::get<m_time_t>(ptr);
-    ptr += sizeof(m_time_t);
-
-    hasAttachments = MemAccess::get<char>(ptr);
-    ptr += sizeof hasAttachments;
-
-    flags = MemAccess::get<char>(ptr);
-    ptr += sizeof(char);
-
-    char mode = MemAccess::get<char>(ptr);
-    publicchat = (mode == 1);
-    ptr += sizeof(char);
-
-    char hasUnifiedKey = MemAccess::get<char>(ptr);
-    ptr += sizeof(char);
-
-    for (int i = 6; i--;)
-    {
-        if (ptr + MemAccess::get<unsigned char>(ptr) < end)
-        {
-            ptr += MemAccess::get<unsigned char>(ptr) + 1;
-        }
-    }
-
-    if (hasAttachments)
-    {
-        unsigned short numNodes = 0;
-        if (ptr + sizeof numNodes > end)
-        {
-            delete userpriv;
-            return NULL;
-        }
-
-        numNodes = MemAccess::get<unsigned short>(ptr);
-        ptr += sizeof numNodes;
-
-        for (int i = 0; i < numNodes; i++)
-        {
-            handle h = UNDEF;
-            unsigned short numUsers = 0;
-            if (ptr + sizeof h + sizeof numUsers > end)
-            {
-                delete userpriv;
-                return NULL;
-            }
-
-            h = MemAccess::get<handle>(ptr);
-            ptr += sizeof h;
-
-            numUsers = MemAccess::get<unsigned short>(ptr);
-            ptr += sizeof numUsers;
-
-            handle uh = UNDEF;
-            if (ptr + (numUsers * sizeof(uh)) > end)
-            {
-                delete userpriv;
-                return NULL;
-            }
-
-            for (int j = 0; j < numUsers; j++)
-            {
-                uh = MemAccess::get<handle>(ptr);
-                ptr += sizeof uh;
-
-                attachedNodes[h].insert(uh);
-            }
-        }
-    }
-
-    if (hasUnifiedKey)
-    {
-        unsigned short keylen = 0;
-        if (ptr + sizeof keylen > end)
-        {
-            delete userpriv;
-            return NULL;
-        }
-
-        keylen = MemAccess::get<unsigned short>(ptr);
-        ptr += sizeof keylen;
-
-        if (ptr + keylen > end)
-        {
-            delete userpriv;
-            return NULL;
-        }
-
-        unifiedKey.assign(ptr, keylen);
-        ptr += keylen;
-    }
-
-    if (ptr < end)
-    {
-        delete userpriv;
-        return NULL;
-    }
-
-    if (client->chats.find(id) == client->chats.end())
-    {
-        client->chats[id] = new TextChat();
-    }
-    else
-    {
-        LOG_warn << "Unserialized a chat already in RAM";
-    }
-    TextChat* chat = client->chats[id];
-    chat->id = id;
-    chat->priv = priv;
-    chat->shard = shard;
-    chat->userpriv = userpriv;
-    chat->group = group;
-    chat->title = title;
-    chat->ou = ou;
-    chat->resetTag();
-    chat->ts = ts;
-    chat->flags = flags;
-    chat->attachedNodes = attachedNodes;
-    chat->publicchat = publicchat;
-    chat->unifiedKey = unifiedKey;
-
-    memset(&chat->changed, 0, sizeof(chat->changed));
-
-    return chat;
-}
-
-void TextChat::setTag(int tag)
-{
-    if (this->tag != 0)    // external changes prevail
-    {
-        this->tag = tag;
-    }
-}
-
-int TextChat::getTag()
-{
-    return tag;
-}
-
-void TextChat::resetTag()
-{
-    tag = -1;
-}
-
-bool TextChat::setNodeUserAccess(handle h, handle uh, bool revoke)
-{
-    if (revoke)
-    {
-        attachments_map::iterator uhit = attachedNodes.find(h);
-        if (uhit != attachedNodes.end())
-        {
-            uhit->second.erase(uh);
-            if (uhit->second.empty())
-            {
-                attachedNodes.erase(h);
-                changed.attachments = true;
-            }
-            return true;
-        }
-    }
-    else
-    {
-        attachedNodes[h].insert(uh);
-        changed.attachments = true;
-        return true;
-    }
-
-    return false;
-}
-
-bool TextChat::setFlags(byte newFlags)
-{
-    if (flags == newFlags)
+    // TODO:  this one should be removed when we next update the transfer db format.  sizeof(direction_t) is not the same for all compilers.  And could even change if someone edits the enum
+    if (ptr + sizeof(direction_t) > end)
     {
         return false;
     }
 
-    flags = newFlags;
-    changed.flags = true;
-
+    field = MemAccess::get<direction_t>(ptr);
+    ptr += sizeof(direction_t);
+    fieldnum += 1;
     return true;
 }
 
-bool TextChat::isFlagSet(uint8_t offset) const
-{
-    return (flags >> offset) & 1U;
-}
-
-bool TextChat::setMode(bool publicchat)
-{
-    if (this->publicchat == publicchat)
-    {
-        return false;
-    }
-
-    this->publicchat = publicchat;
-    changed.mode = true;
-
-    return true;
-}
-
-bool TextChat::setFlag(bool value, uint8_t offset)
-{
-    if (bool((flags >> offset) & 1U) == value)
-    {
-        return false;
-    }
-
-    flags ^= (1U << offset);
-    changed.flags = true;
-
-    return true;
-}
-#endif
 
 /**
  * @brief Encrypts a string after padding it to block length.
@@ -978,9 +992,9 @@ bool TextChat::setFlag(bool value, uint8_t offset)
  * @param iv Optional initialisation vector for encryption. Will use a
  *     zero IV if not given. If `iv` is a zero length string, a new IV
  *     for encryption will be generated and available through the reference.
- * @return Void.
+ * @return true if encryption was successful.
  */
-void PaddedCBC::encrypt(PrnGen &rng, string* data, SymmCipher* key, string* iv)
+bool PaddedCBC::encrypt(PrnGen &rng, string* data, SymmCipher* key, string* iv)
 {
     if (iv)
     {
@@ -1006,21 +1020,18 @@ void PaddedCBC::encrypt(PrnGen &rng, string* data, SymmCipher* key, string* iv)
     // Pad to block size and encrypt.
     data->append("E");
     data->resize((data->size() + key->BLOCKSIZE - 1) & - key->BLOCKSIZE, 'P');
-    if (iv)
-    {
-        key->cbc_encrypt((byte*)data->data(), data->size(),
-                         (const byte*)iv->data());
-    }
-    else
-    {
-        key->cbc_encrypt((byte*)data->data(), data->size());
-    }
+    byte* dd = reinterpret_cast<byte*>(const_cast<char*>(data->data())); // make sure it works for pre-C++17 compilers
+    bool encrypted = iv ?
+        key->cbc_encrypt(dd, data->size(), reinterpret_cast<const byte*>(iv->data())) :
+        key->cbc_encrypt(dd, data->size());
 
     // Truncate IV back to the first 8 bytes only..
     if (iv)
     {
         iv->resize(8);
     }
+
+    return encrypted;
 }
 
 /**
@@ -1033,7 +1044,7 @@ void PaddedCBC::encrypt(PrnGen &rng, string* data, SymmCipher* key, string* iv)
  * @param key AES key for decryption.
  * @param iv Optional initialisation vector for encryption. Will use a
  *     zero IV if not given.
- * @return Void.
+ * @return true if decryption was successful.
  */
 bool PaddedCBC::decrypt(string* data, SymmCipher* key, string* iv)
 {
@@ -1055,14 +1066,13 @@ bool PaddedCBC::decrypt(string* data, SymmCipher* key, string* iv)
     }
 
     // Decrypt and unpad.
-    if (iv)
+    byte* dd = reinterpret_cast<byte*>(const_cast<char*>(data->data())); // make sure it works for pre-C++17 compilers
+    bool encrypted = iv ?
+        key->cbc_decrypt(dd, data->size(), reinterpret_cast<const byte*>(iv->data())) :
+        key->cbc_decrypt(dd, data->size());
+    if (!encrypted)
     {
-        key->cbc_decrypt((byte*)data->data(), data->size(),
-                         (const byte*)iv->data());
-    }
-    else
-    {
-        key->cbc_decrypt((byte*)data->data(), data->size());
+        return false;
     }
 
     size_t p = data->find_last_of('E');
@@ -1200,7 +1210,10 @@ bool PayCrypter::encryptPayload(const string *cleartext, string *result)
     //AES-CBC encryption
     string encResult;
     SymmCipher sym(encKey);
-    sym.cbc_encrypt_pkcs_padding(cleartext, iv, &encResult);
+    if (!sym.cbc_encrypt_pkcs_padding(cleartext, iv, &encResult))
+    {
+        return false;
+    }
 
     //Prepare the message to authenticate (IV + cipher text)
     string toAuthenticate((char *)iv, IV_BYTES);
@@ -1240,7 +1253,7 @@ bool PayCrypter::rsaEncryptKeys(const string *cleartext, const byte *pubkdata, i
     size_t keylen = keyString.size();
 
     //Resize to add padding
-    keyString.resize(asym.key[AsymmCipher::PUB_PQ].ByteCount() - 2);
+    keyString.resize(asym.getKey(AsymmCipher::PUB_PQ).ByteCount() - 2);
 
     //Add padding
     if(randompadding)
@@ -1281,333 +1294,6 @@ bool PayCrypter::hybridEncrypt(const string *cleartext, const byte *pubkdata, in
     return true;
 }
 
-#ifdef _WIN32
-int mega_snprintf(char *s, size_t n, const char *format, ...)
-{
-    va_list args;
-    int ret;
-
-    if (!s || n <= 0)
-    {
-        return -1;
-    }
-
-    va_start(args, format);
-    ret = vsnprintf(s, n, format, args);
-    va_end(args);
-
-    s[n - 1] = '\0';
-    return ret;
-}
-#endif
-
-string * TLVstore::tlvRecordsToContainer(PrnGen &rng, SymmCipher *key, encryptionsetting_t encSetting)
-{
-    // decide nonce/IV and auth. tag lengths based on the `mode`
-    unsigned ivlen = TLVstore::getIvlen(encSetting);
-    unsigned taglen = TLVstore::getTaglen(encSetting);
-    encryptionmode_t encMode = TLVstore::getMode(encSetting);
-
-    if (!ivlen || !taglen || encMode == AES_MODE_UNKNOWN)
-    {
-        return NULL;
-    }
-
-    // serialize the TLV records
-    string *container = tlvRecordsToContainer();
-
-    // generate IV array
-    byte *iv = new byte[ivlen];
-    rng.genblock(iv, ivlen);
-
-    string cipherText;
-
-    // encrypt the bytes using the specified mode
-
-    if (encMode == AES_MODE_CCM)   // CCM or GCM_BROKEN (same than CCM)
-    {
-        key->ccm_encrypt(container, iv, ivlen, taglen, &cipherText);
-    }
-    else if (encMode == AES_MODE_GCM)   // then use GCM
-    {
-        key->gcm_encrypt(container, iv, ivlen, taglen, &cipherText);
-    }
-
-    string *result = new string;
-    result->resize(1);
-    result->at(0) = static_cast<char>(encSetting);
-    result->append((char*) iv, ivlen);
-    result->append((char*) cipherText.data(), cipherText.length()); // includes auth. tag
-
-    delete [] iv;
-    delete container;
-
-    return result;
-}
-
-string* TLVstore::tlvRecordsToContainer()
-{
-    string *result = new string;
-    size_t offset = 0;
-    size_t length;
-
-    for (TLV_map::iterator it = tlv.begin(); it != tlv.end(); it++)
-    {
-        // copy Type
-        result->append(it->first);
-        offset += it->first.length() + 1;   // keep the NULL-char for Type string
-
-        // set Length of value
-        length = it->second.length();
-        result->resize(offset + 2);
-        result->at(offset) = static_cast<char>(length >> 8);
-        result->at(offset + 1) = static_cast<char>(length & 0xFF);
-        offset += 2;
-
-        // copy the Value
-        result->append((char*)it->second.data(), it->second.length());
-        offset += it->second.length();
-    }
-
-    return result;
-}
-
-std::string TLVstore::get(string type) const
-{
-    return tlv.at(type);
-}
-
-const TLV_map * TLVstore::getMap() const
-{
-    return &tlv;
-}
-
-vector<string> *TLVstore::getKeys() const
-{
-    vector<string> *keys = new vector<string>;
-    for (string_map::const_iterator it = tlv.begin(); it != tlv.end(); it++)
-    {
-        keys->push_back(it->first);
-    }
-    return keys;
-}
-
-bool TLVstore::find(string type) const
-{
-    return (tlv.find(type) != tlv.end());
-}
-
-void TLVstore::set(string type, string value)
-{
-    tlv[type] = value;
-}
-
-void TLVstore::reset(std::string type)
-{
-    tlv.erase(type);
-}
-
-size_t TLVstore::size()
-{
-    return tlv.size();
-}
-
-unsigned TLVstore::getTaglen(int mode)
-{
-
-    switch (mode)
-    {
-    case AES_CCM_10_16:
-    case AES_CCM_12_16:
-    case AES_GCM_12_16_BROKEN:
-    case AES_GCM_12_16:
-        return 16;
-
-    case AES_CCM_10_08:
-    case AES_GCM_10_08_BROKEN:
-    case AES_GCM_10_08:
-        return 8;
-
-    default:    // unknown block encryption mode
-        return 0;
-    }
-}
-
-unsigned TLVstore::getIvlen(int mode)
-{
-    switch (mode)
-    {
-    case AES_CCM_12_16:
-    case AES_GCM_12_16_BROKEN:
-    case AES_GCM_12_16:
-        return 12;
-
-    case AES_CCM_10_08:
-    case AES_GCM_10_08_BROKEN:
-    case AES_CCM_10_16:
-    case AES_GCM_10_08:
-        return 10;
-
-    default:    // unknown block encryption mode
-        return 0;
-    }
-}
-
-encryptionmode_t TLVstore::getMode(int mode)
-{
-    switch (mode)
-    {
-    case AES_CCM_12_16:
-    case AES_GCM_12_16_BROKEN:
-    case AES_CCM_10_16:
-    case AES_CCM_10_08:
-    case AES_GCM_10_08_BROKEN:
-        return AES_MODE_CCM;
-
-    case AES_GCM_12_16:
-    case AES_GCM_10_08:
-        return AES_MODE_GCM;
-
-    default:    // unknown block encryption mode
-        return AES_MODE_UNKNOWN;
-    }
-}
-
-TLVstore * TLVstore::containerToTLVrecords(const string *data)
-{
-    if (data->empty())
-    {
-        return NULL;
-    }
-
-    TLVstore *tlv = new TLVstore();
-
-    size_t offset = 0;
-
-    string type;
-    size_t typelen;
-    string value;
-    unsigned valuelen;
-    size_t pos;
-
-    size_t datalen = data->length();
-
-    while (offset < datalen)
-    {
-        // get the length of the Type string
-        pos = data->find('\0', offset);
-        typelen = pos - offset;
-
-        // if no valid TLV record in the container, but remaining bytes...
-        if (pos == string::npos || offset + typelen + 3 > datalen)
-        {
-            delete tlv;
-            return NULL;
-        }
-
-        // get the Type string
-        type.assign((char*)&(data->data()[offset]), typelen);
-        offset += typelen + 1;        // +1: NULL character
-
-        // get the Length of the value
-        valuelen = (unsigned char)data->at(offset) << 8
-                 | (unsigned char)data->at(offset + 1);
-        offset += 2;
-
-        // if there's not enough data for value...
-        if (offset + valuelen > datalen)
-        {
-            delete tlv;
-            return NULL;
-        }
-
-        // get the Value
-        value.assign((char*)&(data->data()[offset]), valuelen);  // value may include NULL characters, read as a buffer
-        offset += valuelen;
-
-        // add it to the map
-        tlv->set(type, value);
-    }
-
-    return tlv;
-}
-
-
-TLVstore * TLVstore::containerToTLVrecords(const string *data, SymmCipher *key)
-{
-    if (data->empty())
-    {
-        return NULL;
-    }
-
-    unsigned offset = 0;
-    encryptionsetting_t encSetting = (encryptionsetting_t) data->at(offset);
-    offset++;
-
-    unsigned ivlen = TLVstore::getIvlen(encSetting);
-    unsigned taglen = TLVstore::getTaglen(encSetting);
-    encryptionmode_t encMode = TLVstore::getMode(encSetting);
-
-    if (encMode == AES_MODE_UNKNOWN || !ivlen || !taglen ||  data->size() < offset+ivlen+taglen)
-    {
-        return NULL;
-    }
-
-    byte *iv = new byte[ivlen];
-    memcpy(iv, &(data->data()[offset]), ivlen);
-    offset += ivlen;
-
-    unsigned cipherTextLen = unsigned(data->length() - offset);
-    string cipherText = data->substr(offset, cipherTextLen);
-
-    unsigned clearTextLen = cipherTextLen - taglen;
-    string clearText;
-
-    bool decrypted = false;
-    if (encMode == AES_MODE_CCM)   // CCM or GCM_BROKEN (same than CCM)
-    {
-       decrypted = key->ccm_decrypt(&cipherText, iv, ivlen, taglen, &clearText);
-    }
-    else if (encMode == AES_MODE_GCM)  // GCM
-    {
-       decrypted = key->gcm_decrypt(&cipherText, iv, ivlen, taglen, &clearText);
-    }
-
-    delete [] iv;
-
-    if (!decrypted)  // the decryption has failed (probably due to authentication)
-    {
-        return NULL;
-    }
-    else if (clearText.empty()) // If decryption succeeded but attribute is empty, generate an empty TLV
-    {
-        return new TLVstore();
-    }
-
-    TLVstore *tlv = TLVstore::containerToTLVrecords(&clearText);
-    if (!tlv) // 'data' might be affected by the legacy bug: strings encoded in UTF-8 instead of Unicode
-    {
-        // retry TLV decoding after conversion from 'UTF-8 chars' to 'Unicode chars'
-        LOG_warn << "Retrying TLV records decoding with UTF-8 patch";
-
-        string clearTextUnicode;
-        if (!Utils::utf8toUnicode((const byte*)clearText.data(), clearTextLen, &clearTextUnicode))
-        {
-            LOG_err << "Invalid UTF-8 encoding";
-        }
-        else
-        {
-            tlv = TLVstore::containerToTLVrecords(&clearTextUnicode);
-        }
-    }
-
-    return tlv;
-}
-
-TLVstore::~TLVstore()
-{
-}
-
 size_t Utils::utf8SequenceSize(unsigned char c)
 {
     int aux = static_cast<int>(c);
@@ -1621,6 +1307,63 @@ size_t Utils::utf8SequenceSize(unsigned char c)
         return 1;
     }
 }
+
+string  Utils::toUpperUtf8(const string& text)
+{
+    string result;
+
+    auto n = utf8proc_ssize_t(text.size());
+    auto d = text.data();
+
+    for (;;)
+    {
+        utf8proc_int32_t c;
+        auto nn = utf8proc_iterate((utf8proc_uint8_t *)d, n, &c);
+
+        if (nn == 0) break;
+
+        assert(nn <= n);
+        d += nn;
+        n -= nn;
+
+        c = utf8proc_toupper(c);
+
+        char buff[8];
+        auto charLen = utf8proc_encode_char(c, (utf8proc_uint8_t *)buff);
+        result.append(buff, charLen);
+    }
+
+    return result;
+}
+
+string  Utils::toLowerUtf8(const string& text)
+{
+    string result;
+
+    auto n = utf8proc_ssize_t(text.size());
+    auto d = text.data();
+
+    for (;;)
+    {
+        utf8proc_int32_t c;
+        auto nn = utf8proc_iterate((utf8proc_uint8_t *)d, n, &c);
+
+        if (nn == 0) break;
+
+        assert(nn <= n);
+        d += nn;
+        n -= nn;
+
+        c = utf8proc_tolower(c);
+
+        char buff[8];
+        auto charLen = utf8proc_encode_char(c, (utf8proc_uint8_t *)buff);
+        result.append(buff, charLen);
+    }
+
+    return result;
+}
+
 
 bool Utils::utf8toUnicode(const uint8_t *src, unsigned srclen, string *result)
 {
@@ -1656,7 +1399,7 @@ bool Utils::utf8toUnicode(const uint8_t *src, unsigned srclen, string *result)
                 if ((utf8cp1 == 0xC2 || utf8cp1 == 0xC3) && utf8cp2 >= 0x80 && utf8cp2 <= 0xBF)
                 {
                     unicodecp = ((utf8cp1 & 0x1F) <<  6) + (utf8cp2 & 0x3F);
-                    res[rescount++] = unicodecp & 0xFF;
+                    res[rescount++] = static_cast<byte>(unicodecp & 0xFF);
                 }
                 else
                 {
@@ -1719,6 +1462,23 @@ std::string Utils::hexToString(const std::string &input)
     return output;
 }
 
+uint64_t Utils::hexStringToUint64(const std::string &input)
+{
+    uint64_t output;
+    std::stringstream outputStream;
+    outputStream << std::hex << input;
+    outputStream >> output;
+    return output;
+}
+
+std::string Utils::uint64ToHexString(uint64_t input)
+{
+    std::stringstream outputStream;
+    outputStream << std::hex << std::setfill('0') << std::setw(16) << input;
+    std::string output = outputStream.str();
+    return output;
+}
+
 int Utils::icasecmp(const std::string& lhs,
                     const std::string& rhs,
                     const size_t length)
@@ -1775,31 +1535,162 @@ int Utils::pcasecmp(const std::wstring& lhs,
 #endif // ! _WIN32
 }
 
-long long abs(long long n)
+std::string Utils::replace(const std::string& str, char search, char replacement) {
+    string r;
+    for (std::string::size_type o = 0;;) {
+        std::string::size_type i = str.find(search, o);
+        if (i == string::npos) {
+            r.append(str.substr(o));
+            break;
+        }
+        r.append(str.substr(o, i-o));
+        r += replacement;
+        o = i + 1;
+    }
+    return r;
+}
+
+std::string Utils::replace(const std::string& str, const std::string& search, const std::string& replacement) {
+    if (search.empty())
+        return str;
+    string r;
+    for (std::string::size_type o = 0;;) {
+        std::string::size_type i = str.find(search, o);
+        if (i == string::npos) {
+            r.append(str.substr(o));
+            break;
+        }
+        r.append(str.substr(o, i - o));
+        r += replacement;
+        o = i + search.length();
+    }
+    return r;
+}
+
+bool Utils::hasenv(const std::string &key)
 {
-    // for pre-c++11 where this version is not defined yet
-    return n >= 0 ? n : -n;
+    [[maybe_unused]] const auto [_, hasValue] = getenv(key);
+    return hasValue;
+}
+
+std::string Utils::getenv(const std::string& key, const std::string& def)
+{
+    const auto [value, hasValue] = getenv(key);
+    return hasValue ? value : def;
+}
+
+std::pair<std::string, bool> Utils::getenv(const std::string& key)
+{
+#ifdef WIN32
+    // on Windows the charset is not UTF-8 by default
+    std::array<WCHAR, 32 * 1024> buf;
+    wstring keyW;
+    LocalPath::path2local(&key, &keyW);
+    const auto foundSize = ::GetEnvironmentVariable(keyW.c_str(),
+                                                    buf.data(),
+                                                    static_cast<DWORD>(buf.size()));
+    // Not found
+    if (foundSize == 0)
+    {
+        return {"", false};
+    }
+    // Found
+    string ret;
+    wstring input(buf.data(), foundSize);
+    LocalPath::local2path(&input, &ret, false);
+    return {std::move(ret), true};
+#else
+    if (const char* value = ::getenv(key.c_str()))
+    {
+        return {value, true};
+    }
+    // Not found
+    return {"", false};
+#endif
+}
+
+void Utils::setenv(const std::string& key, const std::string& value)
+{
+#ifdef WIN32
+    std::wstring keyW;
+    LocalPath::path2local(&key, &keyW);
+
+    std::wstring valueW;
+    LocalPath::path2local(&value, &valueW);
+
+    // on Windows the charset is not UTF-8 by default
+    SetEnvironmentVariable(keyW.c_str(), valueW.c_str());
+
+    // ::getenv() reads the process environment not calling the operating system
+    _putenv_s(key.c_str(), value.c_str());
+#else
+    ::setenv(key.c_str(), value.c_str(), true);
+#endif
+}
+
+void Utils::unsetenv(const std::string& key)
+{
+#ifdef WIN32
+    std::wstring keyW;
+    LocalPath::path2local(&key, &keyW);
+
+    SetEnvironmentVariable(keyW.c_str(), L"");
+    // ::getenv() reads the process environment not calling the operating system
+    _putenv_s(key.c_str(), ""); // removes the env var
+#else
+    ::unsetenv(key.c_str());
+#endif
+}
+
+std::string Utils::join(const std::vector<std::string>& items, const std::string& with)
+{
+    string r;
+    bool first = true;
+    for (const string& str : items)
+    {
+        if (!first) r.append(with);
+        r.append(str);
+        first = false;
+    }
+    return r;
+}
+
+bool Utils::startswith(const std::string& str, const std::string& start)
+{
+    if (str.length() < start.length()) return false;
+    return memcmp(str.data(), start.data(), start.length()) == 0;
+}
+
+bool Utils::startswith(const std::string &str, char chr)
+{
+    return str.length() >= 1 && chr == str.front();
+}
+
+bool Utils::endswith(const std::string &str, char chr)
+{
+    return str.length() >= 1 && chr == str.back();
+}
+
+const std::string Utils::_trimDefaultChars(" \t\r\n\0", 5);
+// space, \t, \0, \r, \n
+
+// return string with trimchrs removed from front and back of given string str
+string Utils::trim(const string& str, const string& trimchrs)
+{
+    string::size_type s = str.find_first_not_of(trimchrs);
+    if (s == string::npos) return "";
+    string::size_type e = str.find_last_not_of(trimchrs);
+    if (e == string::npos) return "";	// impossible
+    return str.substr(s, e - s + 1);
 }
 
 struct tm* m_localtime(m_time_t ttime, struct tm *dt)
 {
     // works for 32 or 64 bit time_t
-    time_t t = time_t(ttime);
-#if (__cplusplus >= 201103L) && defined (__STDC_LIB_EXT1__) && defined(__STDC_WANT_LIB_EXT1__)
-    localtime_s(&t, dt);
-#elif _MSC_VER >= 1400 || defined(__MINGW32__) // MSVCRT (2005+): std::localtime is threadsafe
-    struct tm *newtm = localtime(&t);
-    if (newtm)
-    {
-        memcpy(dt, newtm, sizeof(struct tm));
-    }
-    else
-    {
-        memset(dt, 0, sizeof(struct tm));
-    }
-#elif _WIN32
-#error "localtime is not thread safe in this compiler; please use a later one"
-#else //POSIX
+    time_t t = static_cast<time_t>(ttime);
+#ifdef _WIN32
+    localtime_s(dt, &t);
+#else
     localtime_r(&t, dt);
 #endif
     return dt;
@@ -1808,28 +1699,16 @@ struct tm* m_localtime(m_time_t ttime, struct tm *dt)
 struct tm* m_gmtime(m_time_t ttime, struct tm *dt)
 {
     // works for 32 or 64 bit time_t
-    time_t t = time_t(ttime);
-#if (__cplusplus >= 201103L) && defined (__STDC_LIB_EXT1__) && defined(__STDC_WANT_LIB_EXT1__)
-    gmtime_s(&t, dt);
-#elif _MSC_VER >= 1400 || defined(__MINGW32__) // MSVCRT (2005+): std::gmtime is threadsafe
-    struct tm *newtm = gmtime(&t);
-    if (newtm)
-    {
-        memcpy(dt, newtm, sizeof(struct tm));
-    }
-    else
-    {
-        memset(dt, 0, sizeof(struct tm));
-    }
-#elif _WIN32
-#error "gmtime is not thread safe in this compiler; please use a later one"
-#else //POSIX
+    time_t t = static_cast<time_t>(ttime);
+#ifdef _WIN32
+    gmtime_s(dt, &t);
+#else
     gmtime_r(&t, dt);
 #endif
     return dt;
 }
 
-m_time_t m_time(m_time_t* tt)
+m_time_t m_time(m_time_t* tt )
 {
     // works for 32 or 64 bit time_t
     time_t t = time(NULL);
@@ -1846,32 +1725,13 @@ m_time_t m_mktime(struct tm* stm)
     return mktime(stm);
 }
 
-int m_clock_getmonotonictime(timespec *t)
+dstime m_clock_getmonotonictimeDS()
 {
-#ifdef __APPLE__
-    struct timeval now;
-    int rv = gettimeofday(&now, NULL);
-    if (rv)
-    {
-        return rv;
-    }
-    t->tv_sec = now.tv_sec;
-    t->tv_nsec = now.tv_usec * 1000;
-    return 0;
-#elif defined(_WIN32) && defined(_MSC_VER)
-    struct __timeb64 tb;
-    _ftime64(&tb);
-    t->tv_sec = tb.time;
-    t->tv_nsec = long(tb.millitm) * 1000000;
-    return 0;
-#else
-#ifdef CLOCK_BOOTTIME
-    return clock_gettime(CLOCK_BOOTTIME, t);
-#else
-    return clock_gettime(CLOCK_MONOTONIC, t);
-#endif
-#endif
+    using namespace std::chrono;
 
+    auto timeMs = duration_cast<milliseconds>(steady_clock::now().time_since_epoch());
+
+    return duration<dstime, std::milli>(timeMs).count() / 100;
 }
 
 m_time_t m_mktime_UTC(const struct tm *src)
@@ -1890,6 +1750,57 @@ m_time_t m_mktime_UTC(const struct tm *src)
     t += dst.tm_gmtoff - dst.tm_isdst * 3600;
 #endif
     return t;
+}
+
+extern time_t stringToTimestamp(string stime, date_time_format_t format)
+{
+    if ((format == FORMAT_SCHEDULED_COPY && stime.size() != 14)
+       || (format == FORMAT_ISO8601 && stime.size() != 15))
+    {
+        return 0;
+    }
+
+    if (format == FORMAT_ISO8601)
+    {
+        stime.erase(8, 1); // remove T from stime (20220726T133000)
+    }
+
+    struct tm dt;
+    memset(&dt, 0, sizeof(struct tm));
+#ifdef _WIN32
+    for (int i = 0; i < stime.size(); i++)
+    {
+        if ( (stime.at(i) < '0') || (stime.at(i) > '9') )
+        {
+            return 0; //better control of this?
+        }
+    }
+
+    dt.tm_year = atoi(stime.substr(0,4).c_str()) - 1900;
+    dt.tm_mon = atoi(stime.substr(4,2).c_str()) - 1;
+    dt.tm_mday = atoi(stime.substr(6,2).c_str());
+    dt.tm_hour = atoi(stime.substr(8,2).c_str());
+    dt.tm_min = atoi(stime.substr(10,2).c_str());
+    dt.tm_sec = atoi(stime.substr(12,2).c_str());
+#else
+    strptime(stime.c_str(), "%Y%m%d%H%M%S", &dt);
+#endif
+
+    if (format == FORMAT_SCHEDULED_COPY)
+    {
+        // let mktime interprete if time has Daylight Saving Time flag correction
+        // TODO: would this work cross platformly? At least I believe it'll be consistent with localtime. Otherwise, we'd need to save that
+        dt.tm_isdst = -1;
+        return (mktime(&dt))*10;  // deciseconds
+    }
+    else
+    {
+        // user manually selects a date and a time to start the scheduled meeting in a specific time zone (independent fields on API)
+        // so users should take into account daylight saving for the time zone they specified
+        // this method should convert the specified string dateTime into Unix timestamp (UTC)
+        dt.tm_isdst = 0;
+        return mktime(&dt); // seconds
+    }
 }
 
 std::string rfc1123_datetime( time_t time )
@@ -2243,44 +2154,19 @@ int macOSmajorVersion()
 }
 #endif
 
-void NodeCounter::operator += (const NodeCounter& o)
-{
-    storage += o.storage;
-    versionStorage += o.versionStorage;
-    files += o.files;
-    folders += o.folders;
-    versions += o.versions;
-}
-
-void NodeCounter::operator -= (const NodeCounter& o)
-{
-    storage -= o.storage;
-    versionStorage -= o.versionStorage;
-    files -= o.files;
-    folders -= o.folders;
-    versions -= o.versions;
-}
-
-
-CacheableStatus::CacheableStatus(int64_t type, int64_t value)
-    : mType{type}, mValue{value}
+CacheableStatus::CacheableStatus(mega::CacheableStatus::Type type, int64_t value)
+    : mType(type)
+    , mValue(value)
 { }
 
 
-// This should be a const-method but can't be due to the broken Cacheable interface.
-// Do not mutate members in this function! Hence, we forward to a private const-method.
-bool CacheableStatus::serialize(std::string* data)
-{
-    return const_cast<const CacheableStatus*>(this)->serialize(*data);
-}
-
 CacheableStatus* CacheableStatus::unserialize(class MegaClient *client, const std::string& data)
 {
-    int64_t type;
+    int64_t typeBuf;
     int64_t value;
 
-    CacheableReader reader{data};
-    if (!reader.unserializei64(type))
+    CacheableReader reader(data);
+    if (!reader.unserializei64(typeBuf))
     {
         return nullptr;
     }
@@ -2289,13 +2175,14 @@ CacheableStatus* CacheableStatus::unserialize(class MegaClient *client, const st
         return nullptr;
     }
 
+    CacheableStatus::Type type = static_cast<CacheableStatus::Type>(typeBuf);
     client->mCachedStatus.loadCachedStatus(type, value);
     return client->mCachedStatus.getPtr(type);
 }
 
-bool CacheableStatus::serialize(std::string& data) const
+bool CacheableStatus::serialize(std::string* data) const
 {
-    CacheableWriter writer{data};
+    CacheableWriter writer{*data};
     writer.serializei64(mType);
     writer.serializei64(mValue);
     return true;
@@ -2306,7 +2193,7 @@ int64_t CacheableStatus::value() const
     return mValue;
 }
 
-int64_t CacheableStatus::type() const
+CacheableStatus::Type CacheableStatus::type() const
 {
     return mType;
 }
@@ -2314,6 +2201,32 @@ int64_t CacheableStatus::type() const
 void CacheableStatus::setValue(const int64_t value)
 {
     mValue = value;
+}
+
+std::string CacheableStatus::typeToStr()
+{
+    return CacheableStatus::typeToStr(mType);
+}
+
+std::string CacheableStatus::typeToStr(CacheableStatus::Type type)
+{
+    switch (type)
+    {
+    case STATUS_UNKNOWN:
+        return "unknown";
+    case STATUS_STORAGE:
+        return "storage";
+    case STATUS_BUSINESS:
+        return "business";
+    case STATUS_BLOCKED:
+        return "blocked";
+    case STATUS_PRO_LEVEL:
+        return "pro-level";
+    case STATUS_FEATURE_LEVEL:
+        return "feature-level";
+    default:
+        return "undefined";
+    }
 }
 
 std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, FileAccess &ifAccess, const int64_t iv)
@@ -2328,7 +2241,7 @@ std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &
     static const unsigned int SZ_1024K = 1l << 20;
     static const unsigned int SZ_128K  = 128l << 10;
 
-    std::unique_ptr<byte[]> buffer(new byte[SZ_1024K + SymmCipher::BLOCKSIZE]);
+    auto buffer = std::make_unique<byte[]>(SZ_1024K + SymmCipher::BLOCKSIZE);
     chunkmac_map chunkMacs;
     unsigned int chunkLength = 0;
     m_off_t current = 0;
@@ -2345,18 +2258,29 @@ std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &
 
         memset(&buffer[chunkLength], 0, SymmCipher::BLOCKSIZE);
 
-        cipher.ctr_crypt(&buffer[0],
-                         chunkLength,
-                         current,
-                         iv,
-                         chunkMacs[current].mac,
-                         1);
+        chunkMacs.ctr_encrypt(current, &cipher, buffer.get(), chunkLength, current, iv, true);
 
         current += chunkLength;
         remaining -= chunkLength;
     }
 
     return std::make_pair(true, chunkMacs.macsmac(&cipher));
+}
+
+bool CompareLocalFileMetaMacWithNodeKey(FileAccess* fa, const std::string& nodeKey, int type)
+{
+    SymmCipher cipher;
+    const char* iva = &nodeKey[SymmCipher::KEYLENGTH];
+    int64_t remoteIv = MemAccess::get<int64_t>(iva);
+    int64_t remoteMac = MemAccess::get<int64_t>(iva + sizeof(int64_t));
+    cipher.setkey((byte*)&nodeKey[0], type);
+    auto result = generateMetaMac(cipher, *fa, remoteIv);
+    return result.first && result.second == remoteMac;
+}
+
+bool CompareLocalFileMetaMacWithNode(FileAccess* fa, Node* node)
+{
+    return CompareLocalFileMetaMacWithNodeKey(fa, node->nodekey(), node->type);
 }
 
 void MegaClientAsyncQueue::push(std::function<void(SymmCipher&)> f, bool discardable)
@@ -2428,6 +2352,7 @@ void MegaClientAsyncQueue::asyncThreadLoop()
         {
             std::unique_lock<std::mutex> g(mMutex);
             mConditionVariable.wait(g, [this]() { return !mQueue.empty(); });
+            assert(!mQueue.empty());
             f = std::move(mQueue.front().f);
             if (!f) return;   // nullptr is not popped, and causes all the threads to exit
             mQueue.pop_front();
@@ -2437,10 +2362,1051 @@ void MegaClientAsyncQueue::asyncThreadLoop()
     }
 }
 
-bool islchex(const int c)
+bool islchex_high(const int c)
 {
+    // this one constrains two characters to the 0..127 range
+    return (c >= '0' && c <= '7');
+}
+
+bool islchex_low(const int c)
+{
+    // this one is the low nibble, unconstrained
     return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
 }
 
-} // namespace
+std::string getSafeUrl(const std::string &posturl)
+{
+#if !defined(__clang__) && defined(__GNUC__) && __GNUC__ <= 4
+    string safeurl;
+    safeurl.append(posturl);
+#else
+    string safeurl = posturl;
+#endif
+    size_t sid = safeurl.find("sid=");
+    if (sid != string::npos)
+    {
+        sid += 4;
+        size_t end = safeurl.find("&", sid);
+        if (end == string::npos)
+        {
+            end = safeurl.size();
+        }
+        safeurl.replace(sid, end - sid, end - sid, 'X');
+    }
+    size_t authKey = safeurl.find("&n=");
+    if (authKey != string::npos)
+    {
+        authKey += 3/*&n=*/ + 8/*public handle*/;
+        size_t end = safeurl.find("&", authKey);
+        if (end == string::npos)
+        {
+            end = safeurl.size();
+        }
+        safeurl.replace(authKey, end - authKey, end - authKey, 'X');
+    }
+    return safeurl;
+}
 
+bool readLines(FileAccess& ifAccess, string_vector& destination)
+{
+    FileInputStream isAccess(&ifAccess);
+    return readLines(isAccess, destination);
+}
+
+bool readLines(InputStreamAccess& isAccess, string_vector& destination)
+{
+    const auto length = static_cast<unsigned int>(isAccess.size());
+
+    std::string input(length, '\0');
+
+    return isAccess.read((byte*)input.data(), length)
+           && readLines(input, destination);
+}
+
+bool readLines(const std::string& input, string_vector& destination)
+{
+    const char *current = input.data();
+    const char *end = current + input.size();
+
+    // we assume utf8.  Skip the BOM if there is one
+    if (input.size() > 2 &&
+        static_cast<unsigned char>(current[0]) == 0xEF &&
+        static_cast<unsigned char>(current[1]) == 0xBB &&
+        static_cast<unsigned char>(current[2]) == 0xBF)
+    {
+        current += 3;
+    }
+
+    while (current < end && (*current == '\r' || *current == '\n'))
+    {
+        ++current;
+    }
+
+    while (current < end)
+    {
+        const char *delim = current;
+        const char *whitespace = current;
+
+        while (delim < end && *delim != '\r' && *delim != '\n')
+        {
+            ++delim;
+            whitespace += is_space(*whitespace);
+        }
+
+        if (delim != whitespace)
+        {
+            destination.emplace_back(current, delim);
+        }
+
+        while (delim < end && (*delim == '\r' || *delim == '\n'))
+        {
+            ++delim;
+        }
+
+        current = delim;
+    }
+
+    return true;
+}
+
+bool wildcardMatch(const string& text, const string& pattern)
+{
+    return wildcardMatch(text.c_str(), pattern.c_str());
+}
+
+bool wildcardMatch(const char *pszString, const char *pszMatch)
+//  cf. http://www.planet-source-code.com/vb/scripts/ShowCode.asp?txtCodeId=1680&lngWId=3
+{
+    const char *cp = nullptr;
+    const char *mp = nullptr;
+
+    while ((*pszString) && (*pszMatch != '*'))
+    {
+        if ((*pszMatch != *pszString) && (*pszMatch != '?'))
+        {
+            return false;
+        }
+        pszMatch++;
+        pszString++;
+    }
+
+    while (*pszString)
+    {
+        if (*pszMatch == '*')
+        {
+            if (!*++pszMatch)
+            {
+                return true;
+            }
+            mp = pszMatch;
+            cp = pszString + 1;
+        }
+        else if ((*pszMatch == *pszString) || (*pszMatch == '?'))
+        {
+            pszMatch++;
+            pszString++;
+        }
+        else
+        {
+            pszMatch = mp;
+            pszString = cp++;
+        }
+    }
+    while (*pszMatch == '*')
+    {
+        pszMatch++;
+    }
+    return !*pszMatch;
+}
+
+const char* syncWaitReasonDebugString(SyncWaitReason r)
+{
+    switch(r)
+    {
+        case SyncWaitReason::NoReason:                                      return "NoReason";
+        case SyncWaitReason::FileIssue:                                     return "FileIssue";
+        case SyncWaitReason::MoveOrRenameCannotOccur:                       return "MoveOrRenameCannotOccur";
+        case SyncWaitReason::DeleteOrMoveWaitingOnScanning:                 return "DeleteOrMoveWaitingOnScanning";
+        case SyncWaitReason::DeleteWaitingOnMoves:                          return "DeleteWaitingOnMoves";
+        case SyncWaitReason::UploadIssue:                                   return "UploadIssue";
+        case SyncWaitReason::DownloadIssue:                                 return "DownloadIssue";
+        case SyncWaitReason::CannotCreateFolder:                            return "CannotCreateFolder";
+        case SyncWaitReason::CannotPerformDeletion:                         return "CannotPerformDeletion";
+        case SyncWaitReason::SyncItemExceedsSupportedTreeDepth:             return "SyncItemExceedsSupportedTreeDepth";
+        case SyncWaitReason::FolderMatchedAgainstFile:                      return "FolderMatchedAgainstFile";
+        case SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose: return "BothChangedSinceLastSynced";
+        case SyncWaitReason::LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose: return "LocalAndRemotePreviouslyUnsyncedDiffer";
+        case SyncWaitReason::NamesWouldClashWhenSynced:                     return "NamesWouldClashWhenSynced";
+
+        case SyncWaitReason::SyncWaitReason_LastPlusOne: break;
+    }
+    return "<out of range>";
+}
+
+const char* syncPathProblemDebugString(PathProblem r)
+{
+    switch (r)
+    {
+    case PathProblem::NoProblem: return "NoProblem";
+    case PathProblem::FileChangingFrequently: return "FileChangingFrequently";
+    case PathProblem::IgnoreRulesUnknown: return "IgnoreRulesUnknown";
+    case PathProblem::DetectedHardLink: return "DetectedHardLink";
+    case PathProblem::DetectedSymlink: return "DetectedSymlink";
+    case PathProblem::DetectedSpecialFile: return "DetectedSpecialFile";
+    case PathProblem::DifferentFileOrFolderIsAlreadyPresent: return "DifferentFileOrFolderIsAlreadyPresent";
+    case PathProblem::ParentFolderDoesNotExist: return "ParentFolderDoesNotExist";
+    case PathProblem::FilesystemErrorDuringOperation: return "FilesystemErrorDuringOperation";
+    case PathProblem::NameTooLongForFilesystem: return "NameTooLongForFilesystem";
+    case PathProblem::CannotFingerprintFile: return "CannotFingerprintFile";
+    case PathProblem::DestinationPathInUnresolvedArea: return "DestinationPathInUnresolvedArea";
+    case PathProblem::MACVerificationFailure: return "MACVerificationFailure";
+    case PathProblem::UnknownDownloadIssue:
+        return "UnknownDownloadIssue";
+    case PathProblem::DeletedOrMovedByUser: return "DeletedOrMovedByUser";
+    case PathProblem::FileFolderDeletedByUser: return "FileFolderDeletedByUser";
+    case PathProblem::MoveToDebrisFolderFailed: return "MoveToDebrisFolderFailed";
+    case PathProblem::IgnoreFileMalformed: return "IgnoreFileMalformed";
+    case PathProblem::FilesystemErrorListingFolder: return "FilesystemErrorListingFolder";
+    case PathProblem::FilesystemErrorIdentifyingFolderContent: return "FilesystemErrorIdentifyingFolderContent"; // Deprecated after SDK-3206
+    case PathProblem::WaitingForScanningToComplete: return "WaitingForScanningToComplete";
+    case PathProblem::WaitingForAnotherMoveToComplete: return "WaitingForAnotherMoveToComplete";
+    case PathProblem::SourceWasMovedElsewhere: return "SourceWasMovedElsewhere";
+    case PathProblem::FilesystemCannotStoreThisName: return "FilesystemCannotStoreThisName";
+    case PathProblem::CloudNodeInvalidFingerprint: return "CloudNodeInvalidFingerprint";
+    case PathProblem::CloudNodeIsBlocked: return "CloudNodeIsBlocked";
+
+    case PathProblem::PutnodeDeferredByController: return "PutnodeDeferredByController";
+    case PathProblem::PutnodeCompletionDeferredByController: return "PutnodeCompletionDeferredByController";
+    case PathProblem::PutnodeCompletionPending: return "PutnodeCompletionPending";
+    case PathProblem::UploadDeferredByController: return "UploadDeferredByController";
+
+    case PathProblem::DetectedNestedMount: return "DetectedNestedMount";
+
+    case PathProblem::PathProblem_LastPlusOne: break;
+    }
+    return "<out of range>";
+};
+
+UploadHandle UploadHandle::next()
+{
+    do
+    {
+        // Since we start with UNDEF, the first update would overwrite the whole handle and at least 1 byte further, causing data corruption
+        if (h == UNDEF) h = 0;
+
+        byte* ptr = (byte*)(&h + 1);
+
+        while (!++*--ptr);
+    }
+    while ((h & 0xFFFF000000000000) == 0 || // if the top two bytes were all 0 then it could clash with NodeHandles
+            h == UNDEF);
+
+
+    return *this;
+}
+
+handle generateDriveId(PrnGen& rng)
+{
+    handle driveId;
+
+    rng.genblock((byte *)&driveId, sizeof(driveId));
+    driveId |= m_time(nullptr);
+
+    return driveId;
+}
+
+error readDriveId(FileSystemAccess& fsAccess, const char* pathToDrive, handle& driveId)
+{
+    if (pathToDrive && strlen(pathToDrive))
+        return readDriveId(fsAccess, LocalPath::fromAbsolutePath(pathToDrive), driveId);
+
+    driveId = UNDEF;
+
+    return API_EREAD;
+}
+
+error readDriveId(FileSystemAccess& fsAccess, const LocalPath& pathToDrive, handle& driveId)
+{
+    assert(!pathToDrive.empty());
+
+    driveId = UNDEF;
+
+    auto path = pathToDrive;
+
+    path.appendWithSeparator(LocalPath::fromRelativePath(".megabackup"), false);
+    path.appendWithSeparator(LocalPath::fromRelativePath("drive-id"), false);
+
+    auto fileAccess = fsAccess.newfileaccess(false);
+
+    if (!fileAccess->fopen(path, true, false, FSLogging::logExceptFileNotFound))
+    {
+        // This case is valid when only checking for file existence
+        return API_ENOENT;
+    }
+
+    if (!fileAccess->frawread((byte*)&driveId, sizeof(driveId), 0, false, FSLogging::logOnError))
+    {
+        LOG_err << "Unable to read drive-id from file: " << path;
+        return API_EREAD;
+    }
+
+    return API_OK;
+}
+
+error writeDriveId(FileSystemAccess& fsAccess, const char* pathToDrive, handle driveId)
+{
+    auto path = LocalPath::fromAbsolutePath(pathToDrive);
+
+    path.appendWithSeparator(LocalPath::fromRelativePath(".megabackup"), false);
+
+    // Try and create the backup configuration directory
+    if (!(fsAccess.mkdirlocal(path, false, false) || fsAccess.target_exists))
+    {
+        LOG_err << "Unable to create config DB directory: " << path;
+
+        // Couldn't create the directory and it doesn't exist.
+        return API_EWRITE;
+    }
+
+    path.appendWithSeparator(LocalPath::fromRelativePath("drive-id"), false);
+
+    // Open the file for writing
+    auto fileAccess = fsAccess.newfileaccess(false);
+    if (!fileAccess->fopen(path, false, true, FSLogging::logOnError))
+    {
+        LOG_err << "Unable to open file to write drive-id: " << path;
+        return API_EWRITE;
+    }
+
+    // Write the drive-id to file
+    if (!fileAccess->fwrite((byte*)&driveId, sizeof(driveId), 0))
+    {
+        LOG_err << "Unable to write drive-id to file: " << path;
+        return API_EWRITE;
+    }
+
+    return API_OK;
+}
+
+int platformGetRLimitNumFile()
+{
+#ifndef WIN32
+    struct rlimit rl{0,0};
+    if (0 < getrlimit(RLIMIT_NOFILE, &rl))
+    {
+        auto e = errno;
+        LOG_err << "Error calling getrlimit: " << e;
+        return -1;
+    }
+
+    return int(rl.rlim_cur);
+#else
+    LOG_err << "Code for calling getrlimit is not available yet (or not relevant) on this platform";
+    return -1;
+#endif
+}
+
+bool platformSetRLimitNumFile([[maybe_unused]] int newNumFileLimit)
+{
+#ifndef WIN32
+    struct rlimit rl{0,0};
+    if (0 < getrlimit(RLIMIT_NOFILE, &rl))
+    {
+        auto e = errno;
+        LOG_err << "Error calling getrlimit: " << e;
+        return false;
+    }
+    else
+    {
+        LOG_info << "rlimit for NOFILE before change is: " << rl.rlim_cur << ", " << rl.rlim_max;
+
+        if (newNumFileLimit < 0)
+        {
+            rl.rlim_cur = rl.rlim_max;
+        }
+        else
+        {
+            rl.rlim_cur = rlim_t(newNumFileLimit);
+
+            if (rl.rlim_cur > rl.rlim_max)
+            {
+                LOG_info << "Requested rlimit (" << newNumFileLimit << ") will be replaced by maximum allowed value (" << rl.rlim_max << ")";
+                rl.rlim_cur = rl.rlim_max;
+            }
+        }
+
+        if (0 < setrlimit(RLIMIT_NOFILE, &rl))
+        {
+            auto e = errno;
+            LOG_err << "Error calling setrlimit: " << e;
+            return false;
+        }
+        else
+        {
+            LOG_info << "rlimit for NOFILE is: " << rl.rlim_cur;
+        }
+    }
+    return true;
+#else
+    LOG_err << "Code for calling setrlimit is not available yet (or not relevant) on this platform";
+    return false;
+#endif
+}
+
+void debugLogHeapUsage()
+{
+#ifdef DEBUG
+#ifdef WIN32
+    _CrtMemState state;
+    _CrtMemCheckpoint(&state);
+
+    LOG_debug << "MEM use.  Heap: " << state.lTotalCount << " highwater: " << state.lHighWaterCount
+        << " _FREE_BLOCK/" << state.lCounts[_FREE_BLOCK] << "/" << state.lSizes[_FREE_BLOCK]
+        << " _NORMAL_BLOCK/" << state.lCounts[_NORMAL_BLOCK] << "/" << state.lSizes[_NORMAL_BLOCK]
+        << " _CRT_BLOCK/" << state.lCounts[_CRT_BLOCK] << "/" << state.lSizes[_CRT_BLOCK]
+        << " _IGNORE_BLOCK/" << state.lCounts[_IGNORE_BLOCK] << "/" << state.lSizes[_IGNORE_BLOCK]
+        << " _CLIENT_BLOCK/" << state.lCounts[_CLIENT_BLOCK] << "/" << state.lSizes[_CLIENT_BLOCK];
+#endif
+#endif
+}
+
+bool haveDuplicatedValues(const string_map& readableVals, const string_map& b64Vals)
+{
+    return
+        any_of(readableVals.begin(), readableVals.end(), [&b64Vals](const string_map::value_type& p1)
+            {
+                return any_of(b64Vals.begin(), b64Vals.end(), [&p1](const string_map::value_type& p2)
+                    {
+                        return p1.first != p2.first && p1.second == Base64::atob(p2.second);
+                    });
+            });
+}
+
+void SyncTransferCount::operator-=(const SyncTransferCount& rhs)
+{
+    mCompleted -= rhs.mCompleted;
+    mCompletedBytes -= rhs.mCompletedBytes;
+    mPending -= rhs.mPending;
+    mPendingBytes -= rhs.mPendingBytes;
+}
+
+bool SyncTransferCount::operator==(const SyncTransferCount& rhs) const
+{
+    return mCompleted == rhs.mCompleted
+        && mCompletedBytes == rhs.mCompletedBytes
+        && mPending == rhs.mPending
+        && mPendingBytes == rhs.mPendingBytes;
+}
+
+bool SyncTransferCount::operator!=(const SyncTransferCount& rhs) const
+{
+    return !(*this == rhs);
+}
+
+void SyncTransferCounts::operator-=(const SyncTransferCounts& rhs)
+{
+    mDownloads -= rhs.mDownloads;
+    mUploads -= rhs.mUploads;
+}
+
+bool SyncTransferCounts::operator==(const SyncTransferCounts& rhs) const
+{
+    return mDownloads == rhs.mDownloads && mUploads == rhs.mUploads;
+}
+
+bool SyncTransferCounts::operator!=(const SyncTransferCounts& rhs) const
+{
+    return !(*this == rhs);
+}
+
+double SyncTransferCounts::progress(m_off_t inflightProgress) const
+{
+    auto pending = mDownloads.mPendingBytes + mUploads.mPendingBytes;
+
+    if (!pending)
+        return 1.0; // 100%
+
+    auto completed = mDownloads.mCompletedBytes + mUploads.mCompletedBytes + inflightProgress;
+    auto progress = static_cast<double>(completed) / static_cast<double>(pending);
+
+    return std::min(1.0, progress);
+}
+
+#ifdef WIN32
+
+// get the Windows error message in UTF-8
+std::string winErrorMessage(DWORD error)
+{
+    if (error == 0xFFFFFFFF)
+        error = GetLastError();
+
+    LPWSTR lpMsgBuf = nullptr;
+    if (!FormatMessage(
+        FORMAT_MESSAGE_ALLOCATE_BUFFER |
+        FORMAT_MESSAGE_FROM_SYSTEM |
+        FORMAT_MESSAGE_IGNORE_INSERTS,
+        NULL,
+        error,
+        MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), // Default language
+        (LPWSTR)&lpMsgBuf, // FORMAT_MESSAGE_ALLOCATE_BUFFER treats the buffer like a pointer
+        0,
+        NULL))
+    {
+        // Handle the error.
+        return "[Unknown error " + std::to_string(error) + "]";
+    }
+
+    std::wstring wstr(lpMsgBuf);
+    // Free the buffer.
+
+    LocalFree(lpMsgBuf);
+
+    std::string r;
+    LocalPath::local2path(&wstr, &r, false);
+
+    // remove trailing \r\n
+    return Utils::trim(r);
+}
+
+void reportWindowsError(const std::string& message, DWORD error) {
+
+    if (error == 0xFFFFFFFF)
+        error = GetLastError();
+    // in case streaming touches the operating system
+
+    LOG_err << message << ": " << error << ": " << winErrorMessage(error);
+}
+
+#else
+
+void reportError(const std::string& message, int aerrno) {
+
+    if (aerrno == -1)
+        aerrno = errno;
+    // in case streaming touches the operating system
+
+    LOG_err << message << ": " << aerrno << ": " << strerror(aerrno);
+}
+
+#endif
+
+string connDirectionToStr(mega::direction_t directionType)
+{
+    switch (directionType)
+    {
+        case GET:
+            return "GET";
+        case PUT:
+            return "PUT";
+        case API:
+            return "API";
+        default:
+            return "UNKNOWN";
+    }
+}
+
+const char* toString(retryreason_t reason)
+{
+    switch (reason)
+    {
+#define DEFINE_RETRY_CLAUSE(index, name) case name: return #name;
+        DEFINE_RETRY_REASONS(DEFINE_RETRY_CLAUSE)
+#undef DEFINE_RETRY_CLAUSE
+    }
+
+    assert(false && "Unknown retry reason");
+
+    return "RETRY_UNKNOWN";
+}
+
+bool is_space(unsigned int ch)
+{
+    return std::isspace(static_cast<unsigned char>(ch)) != 0;
+}
+
+bool is_digit(unsigned int ch)
+{
+    return std::isdigit(static_cast<unsigned char>(ch)) != 0;
+}
+
+bool is_symbol(unsigned int ch)
+{
+    return std::isalnum(static_cast<unsigned char>(ch)) == 0;
+}
+
+CharType getCharType(const unsigned int ch)
+{
+    if (is_symbol(ch))
+    {
+        return CharType::CSYMBOL;
+    }
+    else if (is_digit(ch))
+    {
+        return CharType::CDIGIT;
+    }
+    return CharType::CALPHA;
+}
+
+std::string escapeWildCards(const std::string& pattern)
+{
+    std::string newString;
+    newString.reserve(pattern.size());
+    bool isEscaped = false;
+
+    for (const char& character : pattern)
+    {
+        if ((character == WILDCARD_MATCH_ONE || character == WILDCARD_MATCH_ALL) && !isEscaped)
+        {
+            newString.push_back(ESCAPE_CHARACTER);
+        }
+        newString.push_back(character);
+        isEscaped = character == ESCAPE_CHARACTER && !isEscaped;
+    }
+
+    return newString;
+}
+
+TextPattern::TextPattern(const std::string& text):
+    mText{text}
+{
+    recalcPattern();
+}
+
+TextPattern::TextPattern(const char* text)
+{
+    if (text)
+    {
+        mText = text;
+        recalcPattern();
+    }
+}
+
+void TextPattern::recalcPattern()
+{
+    if (mText.empty() || isOnlyWildCards(mText))
+    {
+        mPattern.clear();
+        return;
+    }
+    mPattern = WILDCARD_MATCH_ALL + mText + WILDCARD_MATCH_ALL;
+}
+
+bool TextPattern::isOnlyWildCards(const std::string& text)
+{
+    return std::all_of(std::begin(text),
+                       std::end(text),
+                       [](auto&& c) -> bool
+                       {
+                           return c == WILDCARD_MATCH_ALL;
+                       });
+}
+
+std::set<std::string>::iterator getTagPosition(std::set<std::string>& tokens,
+                                               const std::string& pattern,
+                                               bool stripAccents)
+{
+    return std::find_if(
+        tokens.begin(),
+        tokens.end(),
+        [&](const std::string& token)
+        {
+            return likeCompare(pattern.c_str(), token.c_str(), ESCAPE_CHARACTER, stripAccents);
+        });
+}
+
+bool foldCaseAccentEqual(uint32_t codePoint1, uint32_t codePoint2, bool stripAccents)
+{
+    // 8 is big enough decompose one unicode point
+    using Buffer = std::array<utf8proc_int32_t, 8>;
+
+    // convenience.
+    auto options = UTF8PROC_CASEFOLD | UTF8PROC_COMPOSE | UTF8PROC_NULLTERM | UTF8PROC_STABLE;
+
+    // Strip accents if desired.
+    if (stripAccents)
+    {
+        options |= UTF8PROC_STRIPMARK;
+    }
+
+    auto foldCaseAccent = [options](uint32_t codePoint, Buffer& buff)
+    {
+        return utf8proc_decompose_char((utf8proc_int32_t)codePoint,
+                                       buff.data(),
+                                       static_cast<utf8proc_ssize_t>(buff.size()),
+                                       static_cast<utf8proc_option_t>(options),
+                                       nullptr);
+    };
+
+    Buffer buf1{0};
+    Buffer buf2{0};
+    if (foldCaseAccent(codePoint1, buf1) >= 0 && foldCaseAccent(codePoint2, buf2) >= 0)
+    {
+        return buf1 == buf2;
+    }
+
+    // Fallback if fold case and accent above has errors, better than we couldn't search
+    return u_foldCase(codePoint1, U_FOLD_CASE_DEFAULT) ==
+           u_foldCase(codePoint1, U_FOLD_CASE_DEFAULT);
+}
+
+// This code has been taken from sqlite repository (https://www.sqlite.org/src/file?name=ext/icu/icu.c)
+
+/*
+** This lookup table is used to help decode the first byte of
+** a multi-byte UTF8 character. It is copied here from SQLite source
+** code file utf8.c.
+*/
+static const unsigned char icuUtf8Trans1[] = {
+    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+    0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+    0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
+    0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f,
+    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+    0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+    0x00, 0x01, 0x02, 0x03, 0x00, 0x01, 0x00, 0x00,
+};
+
+#define SQLITE_ICU_READ_UTF8(zIn, c)                  \
+c = *(zIn++);                                         \
+    if (c>=0xc0){                                     \
+        c = icuUtf8Trans1[c-0xc0];                    \
+        while ((*zIn & 0xc0)==0x80){                  \
+            c = (c<<6) + (0x3f & *(zIn++));           \
+    }                                                 \
+}
+
+#define SQLITE_ICU_SKIP_UTF8(zIn)                     \
+assert(*zIn);                                         \
+    if (*(zIn++)>=0xc0){                              \
+        while ((*zIn & 0xc0)==0x80){zIn++;}           \
+}
+
+int icuLikeCompare(const uint8_t* zPattern, // LIKE pattern
+                   const uint8_t* zString, // The UTF-8 string to compare against
+                   const UChar32 uEsc, // The escape character
+                   const bool stripAccents) // Whether we should strip accents
+{
+    // Define Linux wildcards
+    static const uint32_t MATCH_ONE = static_cast<uint32_t>(WILDCARD_MATCH_ONE);
+    static const uint32_t MATCH_ALL = static_cast<uint32_t>(WILDCARD_MATCH_ALL);
+
+
+    int prevEscape = 0;     //True if the previous character was uEsc
+
+    while (1)
+    {
+        // Read (and consume) the next character from the input pattern.
+        uint32_t uPattern;
+        SQLITE_ICU_READ_UTF8(zPattern, uPattern);
+        if(uPattern == 0)
+            break;
+
+        /* There are now 4 possibilities:
+        **
+        **     1. uPattern is an unescaped match-all character "*",
+        **     2. uPattern is an unescaped match-one character "?",
+        **     3. uPattern is an unescaped escape character, or
+        **     4. uPattern is to be handled as an ordinary character
+        */
+        if (uPattern == MATCH_ALL && !prevEscape && uPattern != (uint32_t)uEsc)
+        {
+            // Case 1
+            uint8_t c;
+
+            // Skip any MATCH_ALL or MATCH_ONE characters that follow a
+            // MATCH_ALL. For each MATCH_ONE, skip one character in the
+            // test string
+            while ((c = *zPattern) == MATCH_ALL || c == MATCH_ONE)
+            {
+                if (c == MATCH_ONE)
+                {
+                    if (*zString == 0) return 0;
+                    SQLITE_ICU_SKIP_UTF8(zString);
+                }
+
+                zPattern++;
+            }
+
+            if (*zPattern == 0)
+                return 1;
+
+            while (*zString)
+            {
+                if (icuLikeCompare(zPattern, zString, uEsc, stripAccents))
+                {
+                    return 1;
+                }
+
+                SQLITE_ICU_SKIP_UTF8(zString);
+            }
+
+            return 0;
+        }
+        else if (uPattern == MATCH_ONE && !prevEscape && uPattern != (uint32_t)uEsc)
+        {
+            // Case 2
+            if( *zString==0 ) return 0;
+            SQLITE_ICU_SKIP_UTF8(zString);
+
+        }
+        else if (uPattern == (uint32_t)uEsc && !prevEscape)
+        {
+            // Case 3
+            prevEscape = 1;
+
+        }
+        else
+        {
+            // Case 4
+            uint32_t uString;
+            SQLITE_ICU_READ_UTF8(zString, uString);
+            if (!foldCaseAccentEqual(uString, uPattern, stripAccents))
+            {
+                return 0;
+            }
+
+            prevEscape = 0;
+        }
+    }
+
+    return *zString == 0;
+}
+
+bool likeCompare(const char* pattern, const char* str, const UChar32 esc, bool stripAccents)
+{
+    return static_cast<bool>(icuLikeCompare(reinterpret_cast<const uint8_t*>(pattern),
+                                            reinterpret_cast<const uint8_t*>(str),
+                                            esc,
+                                            stripAccents));
+}
+
+// Get the current process ID
+unsigned long getCurrentPid()
+{
+#ifdef WIN32
+    return GetCurrentProcessId();
+#else
+    return getpid();
+#endif
+}
+
+template<typename StringType>
+auto extensionOf(const StringType& path, std::string& extension)
+  -> typename std::enable_if<IsStringType<StringType>::value, bool>::type
+{
+    // Ensure destination is empty.
+    extension.clear();
+
+    // Try and determine where the file's extension begins.
+    auto i = path.find_last_of('.');
+
+    // File doesn't contain any extension.
+    if (i == path.npos)
+        return false;
+
+    // Assume remainder of path is a valid extension.
+    extension.reserve(path.size() - i);
+
+    // Copy extension from path, making sure each character is lowercased.
+    while (i < path.size())
+    {
+        // Latch character.
+        auto character = static_cast<char>(path[i++]);
+
+        // Invalid extension character.
+        if (character < '.' || character > 'z')
+            return extension.clear(), false;
+
+        // Push lowercase character.
+        extension.push_back(character | ' ');
+    }
+
+    // Let the caller know we extracted the path's extension.
+    return true;
+}
+
+template<typename StringType>
+auto extensionOf(const StringType& path)
+  -> typename std::enable_if<IsStringType<StringType>::value, std::string>::type
+{
+    std::string extension;
+
+    extensionOf(path, extension);
+
+    return extension;
+}
+
+// So getExtension(...)'s definition doesn't have to be in the headers.
+template bool extensionOf(const std::string&, std::string&);
+template bool extensionOf(const std::wstring&, std::string&);
+
+template std::string extensionOf(const std::string&);
+template std::string extensionOf(const std::wstring&);
+
+SplitResult split(const char* begin, const char* end, char delimiter)
+{
+    SplitResult result;
+
+    // Assume string doesn't contain the delimiter.
+    result.first.first   = begin;
+    result.first.second  = end - begin;
+    result.second.first  = nullptr;
+    result.second.second = 0;
+
+    // Search for the delimiter.
+    auto* current = std::find(begin, end, delimiter);
+
+    // String contains the delimiter.
+    if (current != end)
+    {
+        // Tweak result as necessary.
+        result.first.second  = current - begin;
+        result.second.first  = current;
+        result.second.second = end - current;
+    }
+
+    // Return result to caller.
+    return result;
+}
+
+SplitResult split(const char* begin, std::size_t size, char delimiter)
+{
+    return split(begin, begin + size, delimiter);
+}
+
+SplitResult split(const std::string& value, char delimiter)
+{
+    return split(value.data(), value.size(), delimiter);
+}
+
+int naturalsorting_compare(const char* i, const char* j)
+{
+    static uint64_t maxNumber = (ULONG_MAX - 57) / 10; // 57 --> ASCII code for '9'
+    bool stringMode = true;
+
+    while (*i && *j)
+    {
+        if (stringMode)
+        {
+            char char_i, char_j;
+            while ((char_i = *i) && (char_j = *j))
+            {
+                CharType iCharType = getCharType(static_cast<unsigned int>(*i));
+                CharType jCharType = getCharType(static_cast<unsigned int>(*j));
+                if (iCharType == jCharType)
+                {
+                    if (iCharType == CharType::CSYMBOL || iCharType == CharType::CALPHA)
+                    {
+                        if (int difference = strncasecmp(reinterpret_cast<const char*>(&char_i),
+                                                         reinterpret_cast<const char*>(&char_j),
+                                                         1);
+                            difference)
+                        {
+                            return difference;
+                        }
+
+                        ++i;
+                        ++j;
+                    }
+                    else if (iCharType == CharType::CDIGIT)
+                    {
+                        stringMode = false;
+                        break;
+                    }
+                }
+                else
+                {
+                    return iCharType < jCharType ? -1 : 1;
+                }
+            }
+        }
+        else // we are comparing numbers on both strings
+        {
+            uint64_t number_i = 0;
+            unsigned int i_overflow_count = 0;
+            while (*i && is_digit(*i))
+            {
+                number_i = number_i * 10 + (*i - 48); // '0' ASCII code is 48
+                ++i;
+
+                // check the number won't overflow upon addition of next char
+                if (number_i >= maxNumber)
+                {
+                    number_i -= maxNumber;
+                    i_overflow_count++;
+                }
+            }
+
+            uint64_t number_j = 0;
+            unsigned int j_overflow_count = 0;
+            while (*j && is_digit(*j))
+            {
+                number_j = number_j * 10 + (*j - 48);
+                ++j;
+
+                // check the number won't overflow upon addition of next char
+                if (number_j >= maxNumber)
+                {
+                    number_j -= maxNumber;
+                    j_overflow_count++;
+                }
+            }
+
+            int difference = i_overflow_count - j_overflow_count;
+            if (difference)
+            {
+                return difference;
+            }
+
+            if (number_i != number_j)
+            {
+                return number_i > number_j ? 1 : -1;
+            }
+
+            stringMode = true;
+        }
+    }
+
+    if (*j)
+    {
+        return -1;
+    }
+
+    if (*i)
+    {
+        return 1;
+    }
+
+    return 0;
+}
+
+std::string ensureAsteriskSurround(std::string str)
+{
+    if (str.empty())
+        return "*";
+
+    if (str.front() != '*')
+        str.insert(str.begin(), '*');
+
+    if (str.back() != '*')
+        str.push_back('*');
+
+    return str;
+}
+
+size_t fileExtensionDotPosition(const std::string& fileName)
+{
+    if (size_t dotPos = fileName.rfind('.'); dotPos == std::string::npos)
+        return fileName.size();
+    else
+        return dotPos;
+}
+
+std::string getThisThreadIdStr()
+{
+    std::stringstream ss;
+    ss << std::this_thread::get_id();
+    return ss.str();
+}
+} // namespace mega

@@ -4,7 +4,7 @@ include $(CLEAR_VARS)
 LOCAL_MODULE := zenlib
 LOCAL_C_INCLUDES := $(LOCAL_PATH)/ZenLib/Source $(LOCAL_PATH)/ZenLib/Source/ZenLib
 LOCAL_EXPORT_C_INCLUDES := $(LOCAL_PATH)/ZenLib/Source
-LOCAL_CFLAGS := -fvisibility=hidden -fvisibility-inlines-hidden -fdata-sections -ffunction-sections -DUNICODE -D_LARGE_FILES
+LOCAL_CFLAGS := -fexceptions -frtti -fvisibility=hidden -fvisibility-inlines-hidden -fdata-sections -ffunction-sections -DUNICODE -D_LARGE_FILES
 ifeq ($(TARGET_ARCH_ABI),x86_64)
 	LOCAL_CFLAGS += -D_FILE_OFFSET_BITS=64
 else ifeq ($(TARGET_ARCH_ABI),arm64-v8a)
@@ -34,6 +34,7 @@ LOCAL_SRC_FILES := $(addprefix ZenLib/Source/ZenLib/, \
                        Format/Http/Http_Handler.cpp \
                        Format/Http/Http_Request.cpp \
                        Format/Http/Http_Utils.cpp)
+LOCAL_LDFLAGS += "-Wl,-z,max-page-size=16384"
 include $(BUILD_STATIC_LIBRARY)
 
 
@@ -45,7 +46,7 @@ LOCAL_C_INCLUDES := $(LOCAL_PATH)/mediainfo/Source $(LOCAL_PATH)/mediainfo/Sourc
                     $(LOCAL_PATH)/mediainfo/Source/ThirdParty/sha1-gladman $(LOCAL_PATH)/mediainfo/Source/ThirdParty/sha2-gladman
                     
 LOCAL_EXPORT_C_INCLUDES := $(LOCAL_PATH)/mediainfo/Source
-LOCAL_CFLAGS := -fvisibility=hidden -fvisibility-inlines-hidden -fdata-sections -ffunction-sections -DMEDIAINFO_MINIMIZESIZE -DMEDIAINFO_MINIMAL_YES -DMEDIAINFO_ARCHIVE_NO -DMEDIAINFO_IMAGE_NO \
+LOCAL_CFLAGS := -fexceptions -frtti -fvisibility=hidden -fvisibility-inlines-hidden -fdata-sections -ffunction-sections -DMEDIAINFO_MINIMIZESIZE -DMEDIAINFO_MINIMAL_YES -DMEDIAINFO_ARCHIVE_NO -DMEDIAINFO_IMAGE_NO \
     -DMEDIAINFO_TAG_NO -DMEDIAINFO_TEXT_NO -DMEDIAINFO_SWF_NO -DMEDIAINFO_FLV_NO -DMEDIAINFO_HDSF4M_NO -DMEDIAINFO_CDXA_NO -DMEDIAINFO_DPG_NO -DMEDIAINFO_PMP_NO -DMEDIAINFO_RM_NO -DMEDIAINFO_WTV_NO -DMEDIAINFO_MXF_NO \
     -DMEDIAINFO_DCP_NO -DMEDIAINFO_AAF_NO -DMEDIAINFO_BDAV_NO -DMEDIAINFO_BDMV_NO -DMEDIAINFO_DVDV_NO -DMEDIAINFO_GXF_NO -DMEDIAINFO_MIXML_NO -DMEDIAINFO_SKM_NO -DMEDIAINFO_NUT_NO -DMEDIAINFO_TSP_NO -DMEDIAINFO_HLS_NO \
     -DMEDIAINFO_DXW_NO -DMEDIAINFO_DVDIF_NO -DMEDIAINFO_DASHMPD_NO -DMEDIAINFO_AIC_NO -DMEDIAINFO_AVSV_NO -DMEDIAINFO_CANOPUS_NO -DMEDIAINFO_FFV1_NO -DMEDIAINFO_FLIC_NO -DMEDIAINFO_HUFFYUV_NO -DMEDIAINFO_PRORES_NO -DMEDIAINFO_Y4M_NO \
@@ -283,6 +284,7 @@ LOCAL_SRC_FILES := $(addprefix mediainfo/Source/, \
 	ThirdParty/tinyxml2/tinyxml2.cpp)
 
 LOCAL_EXPORT_CFLAGS := -DUSE_MEDIAINFO -DUNICODE
+LOCAL_LDFLAGS += "-Wl,-z,max-page-size=16384"
 LOCAL_STATIC_LIBRARIES := zenlib
 include $(BUILD_STATIC_LIBRARY)
 

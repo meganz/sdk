@@ -1,10 +1,14 @@
 #include "QTMegaRequestListener.h"
+
+#include "QTMegaApiManager.h"
 #include "QTMegaEvent.h"
+
 #include <QCoreApplication>
 
 using namespace mega;
 
-QTMegaRequestListener::QTMegaRequestListener(MegaApi *megaApi, MegaRequestListener *listener) : QObject()
+QTMegaRequestListener::QTMegaRequestListener(MegaApi* megaApi, MegaRequestListener* listener):
+    QObject()
 {
     this->megaApi = megaApi;
 	this->listener = listener;
@@ -13,7 +17,7 @@ QTMegaRequestListener::QTMegaRequestListener(MegaApi *megaApi, MegaRequestListen
 QTMegaRequestListener::~QTMegaRequestListener()
 {
     this->listener = NULL;
-    if (megaApi)
+    if (QTMegaApiManager::isMegaApiValid(megaApi))
     {
         megaApi->removeRequestListener(this);
     }
@@ -21,11 +25,6 @@ QTMegaRequestListener::~QTMegaRequestListener()
 
 void QTMegaRequestListener::onRequestStart(MegaApi *api, MegaRequest *request)
 {
-    if (request->getType() == MegaRequest::TYPE_DELETE)
-    {
-        megaApi = NULL;
-    }
-
     QTMegaEvent *event = new QTMegaEvent(api, (QEvent::Type)QTMegaEvent::OnRequestStart);
     event->setRequest(request->copy());
     QCoreApplication::postEvent(this, event, INT_MIN);
@@ -57,7 +56,7 @@ void QTMegaRequestListener::onRequestTemporaryError(MegaApi *api, MegaRequest *r
 void QTMegaRequestListener::customEvent(QEvent *e)
 {
     QTMegaEvent *event = (QTMegaEvent *)e;
-    switch(event->type())
+    switch(QTMegaEvent::MegaType(event->type()))
     {
         case QTMegaEvent::OnRequestStart:
             if(listener) listener->onRequestStart(event->getMegaApi(), event->getRequest());

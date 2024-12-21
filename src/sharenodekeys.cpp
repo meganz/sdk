@@ -24,14 +24,15 @@
 #include "mega/base64.h"
 #include "mega/megaclient.h"
 #include "mega/command.h"
+#include "mega/logging.h"
 
 namespace mega {
 // add share node and return its index
-int ShareNodeKeys::addshare(Node* sn)
+int ShareNodeKeys::addshare(std::shared_ptr<Node> sn)
 {
     for (int i = static_cast<int>(shares.size()); i--;)
     {
-        if (shares[i] == sn)
+        if (shares[static_cast<size_t>(i)] == sn)
         {
             return i;
         }
@@ -42,18 +43,24 @@ int ShareNodeKeys::addshare(Node* sn)
     return static_cast<int>(shares.size() - 1);
 }
 
-void ShareNodeKeys::add(Node* n, Node* sn, int specific)
+void ShareNodeKeys::add(std::shared_ptr<Node> n, std::shared_ptr<Node> sn, bool includeParentChain)
 {
     if (!sn)
     {
         sn = n;
     }
 
-    add(n->nodekey(), n->nodehandle, sn, specific);
+    if (n->attrstring)  // invalid nodekey or undecryptable attributes
+    {
+        LOG_err << "Skip CR request for node: " << toNodeHandle(n->nodehandle) << " (invalid node key)";
+        return;
+    }
+
+    add(n->nodekey(), n->nodehandle, sn, includeParentChain);
 }
 
 // add a nodecore (!sn: all relevant shares, otherwise starting from sn, fixed: only sn)
-void ShareNodeKeys::add(const string& nodekey, handle nodehandle, Node* sn, int specific, const byte* item, int itemlen)
+void ShareNodeKeys::add(const string& nodekey, handle nodehandle, std::shared_ptr<Node> sn, bool includeParentChain, const byte* item, int itemlen)
 {
     char buf[96];
     char* ptr;
@@ -65,7 +72,7 @@ void ShareNodeKeys::add(const string& nodekey, handle nodehandle, Node* sn, int 
     do {
         if (sn->sharekey)
         {
-            sprintf(buf, ",%d,%d,\"", addshare(sn), (int)items.size());
+            snprintf(buf, sizeof(buf), ",%d,%d,\"", addshare(sn), (int)items.size());
 
             sn->sharekey->ecb_encrypt((byte*)nodekey.data(), key, nodekey.size());
 
@@ -73,10 +80,10 @@ void ShareNodeKeys::add(const string& nodekey, handle nodehandle, Node* sn, int 
             ptr += Base64::btoa(key, int(nodekey.size()), ptr);
             *ptr++ = '"';
 
-            keys.append(buf, ptr - buf);
+            keys.append(buf, static_cast<size_t>(ptr - buf));
             addnode = 1;
         }
-    } while (!specific && (sn = sn->parent));
+    } while (includeParentChain && (sn = sn->parent));
 
     if (addnode)
     {
@@ -84,7 +91,7 @@ void ShareNodeKeys::add(const string& nodekey, handle nodehandle, Node* sn, int 
 
         if (item)
         {
-            items[items.size() - 1].assign((const char*)item, itemlen);
+            items[items.size() - 1].assign((const char*)item, static_cast<size_t>(itemlen));
         }
         else
         {

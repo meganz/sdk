@@ -27,29 +27,31 @@ using namespace mega;
 // (test vectors from 'tlvstore_test.js', in Webclient)
 TEST(Crypto, AES_GCM)
 {
-//    string keyStr = "dGQhii+B7+eLLHRiOA690w==";   // Base64
-    string keyStr = "dGQhii-B7-eLLHRiOA690w";     // Base64 URL encoding
+//    string keyStr = "dGQhii+B7+eLLHRiOA690w==";   //gitleaks:allow
+    string keyStr = "dGQhii-B7-eLLHRiOA690w";     //gitleaks:allow Base64 URL encoding
     unsigned keyLen = SymmCipher::KEYLENGTH;
     byte* keyBytes = new byte[keyLen];
-    keyLen = Base64::atob(keyStr.data(), keyBytes, keyLen);
+    keyLen = static_cast<unsigned>(Base64::atob(keyStr.data(), keyBytes, static_cast<int>(keyLen)));
 
     string ivStr = "R8q1njARXS7urWv3";
     unsigned ivLen = 12;
     byte* ivBytes = new byte[ivLen];
-    ivLen = Base64::atob(ivStr.data(), ivBytes, ivLen);
+    ivLen = static_cast<unsigned>(Base64::atob(ivStr.data(), ivBytes, static_cast<int>(ivLen)));
 
     unsigned tagLen = 16;
 
     string plainStr = "dGQhwoovwoHDr8OnwossdGI4DsK9w5M";
     auto plainLen = plainStr.length();
     byte* plainBytes = new byte[plainLen];
-    plainLen = Base64::atob(plainStr.data(), plainBytes, static_cast<int>(plainLen));
+    plainLen =
+        static_cast<size_t>(Base64::atob(plainStr.data(), plainBytes, static_cast<int>(plainLen)));
     string plainText((const char*)plainBytes, plainLen);
 
     string cipherStr = "L3zqVYAOsRk7zMg2KsNTVShcad8TjIQ7umfsvia21QO0XTj8vaeR";
     auto cipherLen = cipherStr.length();
     byte* cipherBytes = new byte[cipherLen];
-    cipherLen = Base64::atob(cipherStr.data(), cipherBytes, static_cast<int>(cipherLen));
+    cipherLen = static_cast<size_t>(
+        Base64::atob(cipherStr.data(), cipherBytes, static_cast<int>(cipherLen)));
     string cipherText((const char*)cipherBytes, cipherLen);
 
     SymmCipher key;
@@ -59,14 +61,14 @@ TEST(Crypto, AES_GCM)
 
     // Test AES_GCM_12_16 encryption
     result.clear();
-    key.gcm_encrypt(&plainText, ivBytes, ivLen, tagLen, &result);
+    ASSERT_TRUE(key.gcm_encrypt(&plainText, ivBytes, ivLen, tagLen, &result)) << "GCM encryption failed";
 
     ASSERT_STREQ(result.data(), cipherText.data()) << "GCM encryption: cipher text doesn't match the expected value";
 
 
     // Test AES_GCM_12_16 decryption
     result.clear();
-    key.gcm_decrypt(&cipherText, ivBytes, ivLen, tagLen, &result);
+    ASSERT_TRUE(key.gcm_decrypt(&cipherText, ivBytes, ivLen, tagLen, &result)) << "GCM decryption failed";
 
     ASSERT_STREQ(result.data(), plainText.data()) << "GCM decryption: plain text doesn't match the expected value";
 
@@ -97,13 +99,14 @@ TEST(Crypto, xxTea)
     }
 
     {
-        int32_t key2[4] = { 0, -1, (-1 << 24) - 1, (-2<<24)-1 };
+        uint32_t key2[4] = { 0, 0xFFFFFFFF,  0xFEFFFFFF, 0xFDFFFFFF };
         uint32_t data2[16];
-        for (unsigned i = sizeof(data2) / sizeof(data2[0]); i--; ) data2[i] = -(int32_t)i;
+        for (unsigned i = sizeof(data2) / sizeof(data2[0]); i--;)
+            data2[i] = -i;
         uint32_t encCmpData2[16] = { 1331968695, 2520133218, 2881973170, 783802011, 1812010991, 1359505125, 15067484, 3344073997, 4210258643, 824383226, 3584459687, 2866083302, 881254637, 502181030, 680349945, 1722488731 };
-        xxteaEncrypt(data2, 16, (uint32_t*)key2);
+        xxteaEncrypt(data2, 16, key2);
         ASSERT_TRUE(0 == memcmp(data2, encCmpData2, sizeof(data2)));
-        xxteaDecrypt(data2, 16, (uint32_t*)key2);
+        xxteaDecrypt(data2, 16, key2);
         for (unsigned i = sizeof(data2) / sizeof(data2[0]); i--; )
         {
             ASSERT_TRUE(data2[i] == uint32_t(-(int)i));
@@ -148,14 +151,14 @@ TEST(Crypto, AES_CCM)
 
     // Test AES_CCM_12_16 encryption
     result.clear();
-    key.ccm_encrypt(&plainText, ivBytes, sizeof ivBytes, tagLen, &result);
+    ASSERT_TRUE(key.ccm_encrypt(&plainText, ivBytes, sizeof ivBytes, tagLen, &result)) << "CCM encryption failed";
 
     ASSERT_STREQ(result.data(), cipherText.data()) << "CCM encryption: cipher text doesn't match the expected value";
 
 
     // Test AES_CCM_12_16 decryption
     result.clear();
-    key.ccm_decrypt(&cipherText, ivBytes, sizeof ivBytes, tagLen, &result);
+    ASSERT_TRUE(key.ccm_decrypt(&cipherText, ivBytes, sizeof ivBytes, tagLen, &result)) << "CCM decryption failed";
 
     ASSERT_STREQ(result.data(), plainText.data()) << "CCM decryption: plain text doesn't match the expected value";
 }
@@ -189,7 +192,7 @@ TEST(Crypto, Ed25519_Signing)
                           "dcvskHUydAL0qNOqbCwvt1Y7xIQfclR0SQE/AbwuJui0mt3"
                           "PuGjM42T/DQ==";
     string estr         = "AQE=";
-    
+
     string fpRSAstr     = "GN2sWsukWnEarqVPS7mE5sPro38";                            // Base64 url encoded
     string fpRSAhex     = "18ddac5acba45a711aaea54f4bb984e6c3eba37f";
 
@@ -212,7 +215,9 @@ TEST(Crypto, Ed25519_Signing)
 
     string puEd255bin;
     puEd255bin.resize(puEd255str.size() * 3 / 4 + 3);
-    puEd255bin.resize(Base64::atob(puEd255str.data(), (byte*) puEd255bin.data(), static_cast<int>(puEd255bin.size())));
+    puEd255bin.resize(static_cast<size_t>(Base64::atob(puEd255str.data(),
+                                                       (byte*)puEd255bin.data(),
+                                                       static_cast<int>(puEd255bin.size()))));
     ASSERT_TRUE(!memcmp(puEd255bin.data(), signkey.pubKey, EdDSA::PUBLIC_KEY_LENGTH))
             << "Public Ed25519 key doesn't match the derived public key";
 
@@ -222,11 +227,13 @@ TEST(Crypto, Ed25519_Signing)
 
     string pqbin;
     pqbin.resize(pqstr.size() * 3 / 4 + 3);
-    pqbin.resize(Base64::atob(pqstr.data(), (byte*) pqbin.data(), static_cast<int>(pqbin.size())));
+    pqbin.resize(static_cast<size_t>(
+        Base64::atob(pqstr.data(), (byte*)pqbin.data(), static_cast<int>(pqbin.size()))));
 
     string ebin;
     ebin.resize(estr.size() * 3 / 4 + 3);
-    ebin.resize(Base64::atob(estr.data(), (byte*) ebin.data(), static_cast<int>(ebin.size())));
+    ebin.resize(static_cast<size_t>(
+        Base64::atob(estr.data(), (byte*)ebin.data(), static_cast<int>(ebin.size()))));
 
     string pubRSAbin;
     pubRSAbin.append(pqbin.data(), pqbin.size());
@@ -238,8 +245,9 @@ TEST(Crypto, Ed25519_Signing)
 
     string sigRSAbin;
     sigRSAbin.resize(sigRSAstr.size() * 4 / 3 + 4);
-    sigRSAbin.resize(Base64::atob(sigRSAstr.data(), (byte *) sigRSAbin.data(), static_cast<int>(sigRSAbin.size())));
-
+    sigRSAbin.resize(static_cast<size_t>(Base64::atob(sigRSAstr.data(),
+                                                      (byte*)sigRSAbin.data(),
+                                                      static_cast<int>(sigRSAbin.size()))));
 
     // ____ Check signature of RSA public key ____
 
@@ -302,3 +310,94 @@ TEST(Crypto, Ed25519_Signing)
 }
 
 #endif
+
+TEST(Crypto, SymmCipher_xorblock_bytes)
+{
+    byte src[10] = { (byte)0, (byte)1, (byte)2, (byte)3, (byte)4, (byte)5, (byte)6, (byte)7, (byte)8, (byte)9 };
+    byte dest[10] = { (byte)20, (byte)30, (byte)40, (byte)50, (byte)60, (byte)70, (byte)80, (byte)90, (byte)100, (byte)110 };
+    SymmCipher::xorblock(src, dest, sizeof(dest));
+    byte result[10] = { (byte)(0 ^ (byte)20), (byte)(1 ^ (byte)30), (byte)(2 ^ (byte)40), (byte)(3 ^ (byte)50), (byte)(4 ^ (byte)60), (byte)(5 ^ (byte)70), (byte)(6 ^ (byte)80), (byte)(7 ^ (byte)90), (byte)(8 ^ (byte)100), (byte)(9 ^ (byte)110) };
+    ASSERT_EQ(memcmp(dest, result, sizeof(dest)), 0);
+}
+
+TEST(Crypto, SymmCipher_xorblock_block_aligned)
+{
+    byte src[SymmCipher::BLOCKSIZE];
+    byte n = 0;
+    std::generate(src, src + sizeof(src), [&n]() {return n++; });
+    ASSERT_EQ(reinterpret_cast<ptrdiff_t>(src) % static_cast<ptrdiff_t>(sizeof(ptrdiff_t)), 0);
+
+    byte dest[SymmCipher::BLOCKSIZE];
+    n = 100;
+    std::generate(dest, dest + sizeof(src), [&n]() { return n = static_cast<byte>(n + 3); });
+    ASSERT_EQ(reinterpret_cast<ptrdiff_t>(dest) % static_cast<ptrdiff_t>(sizeof(ptrdiff_t)), 0);
+
+    byte result[SymmCipher::BLOCKSIZE];
+    byte* output = result;
+    std::transform(src, src + sizeof(src), dest, output, [](byte a, byte b) { return (byte)(a ^ b); });
+    SymmCipher::xorblock(src, dest); // aligned case
+
+    ASSERT_EQ(memcmp(dest, result, sizeof(dest)), 0);
+}
+
+TEST(Crypto, SymmCipher_xorblock_block_unaligned)
+{
+    byte src[SymmCipher::BLOCKSIZE + 1];
+    byte n = 0;
+    std::generate(src, src + sizeof(src), [&n]() {return n++; });
+
+    byte dest[SymmCipher::BLOCKSIZE];
+    n = 100;
+    std::generate(dest, dest + sizeof(dest), [&n]() { return n = static_cast<byte>(n + 3); });
+
+    byte result[SymmCipher::BLOCKSIZE];
+    byte* output = result;
+    std::transform(src + 1, src + sizeof(src), dest, output, [](byte a, byte b) { return (byte)(a ^ b); });
+    SymmCipher::xorblock(src + 1, dest); // un-aligned case
+
+    ASSERT_EQ(memcmp(dest, result, sizeof(dest)), 0);
+}
+
+// Test SymmCipher::isZeroKey
+//
+// Test whether a key is a zerokey or generated with a zerokey
+// Use different data structures (byte[], byte*, std::vector<byte>, std::string)
+//
+// 1) Test a 16-byte key all zeros - isZeroKey should be true
+// 2) Test a 16-byte key all ones - isZeroKey should be false
+// 3) Test a 32-byte key all zeros - isZeroKey should be true
+// 4) Test a 32-byte key all ones - isZeroKey should be true
+// 5) Test a 32-byte key half zeros, half ones - isZeroKey should be false
+// 6) Test a 32-byte key: "0123456789ABCDEF0123456789ABCDEF" - isZeroKey should be true //gitleaks:allow
+TEST(Crypto, SymmCipher_isZeroKey)
+{
+    // 1) Test a 16-byte key all zeros - isZeroKey should be true
+    byte key_test1[SymmCipher::BLOCKSIZE] = {};
+    ASSERT_EQ(SymmCipher::isZeroKey(key_test1, SymmCipher::BLOCKSIZE), true);
+
+    // 2) Test a 16-byte key all ones - isZeroKey should be false
+    auto key_test2 = std::make_unique<byte[]>(SymmCipher::BLOCKSIZE);
+    std::memset(key_test2.get(), 1, SymmCipher::BLOCKSIZE);
+    ASSERT_EQ(SymmCipher::isZeroKey(key_test2.get(), SymmCipher::BLOCKSIZE), false);
+
+    // 3) Test a 32-byte key all zeros - isZeroKey should be true
+    std::vector<byte> key_test3(FILENODEKEYLENGTH, 0);
+    ASSERT_EQ(SymmCipher::isZeroKey(key_test3.data(), FILENODEKEYLENGTH), true);
+
+    // 4) Test a 32-byte key all ones - isZeroKey should be true
+    std::string key_test4(FILENODEKEYLENGTH, 1);
+    ASSERT_EQ(SymmCipher::isZeroKey(reinterpret_cast<byte*>(key_test4.data()), FILENODEKEYLENGTH), true);
+
+    // 5) Test a 32-byte key half zeros, half ones - isZeroKey should be false
+    byte key_test5[FILENODEKEYLENGTH];
+    std::memset(key_test5, 0, SymmCipher::BLOCKSIZE);
+    std::memset(key_test5 + SymmCipher::BLOCKSIZE, 1, SymmCipher::BLOCKSIZE);
+    ASSERT_EQ(SymmCipher::isZeroKey(key_test5, FILENODEKEYLENGTH), false);
+
+    // 6) Test a 32-byte key: "0123456789ABCDEF0123456789ABCDEF" - isZeroKey should be true //gitleaks:allow
+    std::string key_test6;
+    key_test6.resize(FILENODEKEYLENGTH);
+    key_test6.replace(0, SymmCipher::BLOCKSIZE, "0123456789ABCDEF");
+    key_test6.replace(SymmCipher::BLOCKSIZE, SymmCipher::BLOCKSIZE, "0123456789ABCDEF");
+    ASSERT_EQ(SymmCipher::isZeroKey(reinterpret_cast<byte*>(key_test6.data()), FILENODEKEYLENGTH), true);
+}
