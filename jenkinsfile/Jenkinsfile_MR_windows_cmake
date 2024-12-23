@@ -99,7 +99,7 @@ pipeline {
                             sh "cmake --build '${windows_sources_workspace}'\\\\build_dir\\\\ --config Debug -j 1"
                             sh "echo Building SDK x86"
                             sh "mkdir build_dir_x86"
-                            sh "cmake -DENABLE_SDKLIB_WERROR=OFF -DENABLE_CHAT=ON -DVCPKG_ROOT='${VCPKGPATH}' ${BUILD_OPTIONS} -DCMAKE_VERBOSE_MAKEFILE=ON -DCMAKE_GENERATOR_PLATFORM=Win32 -S '${windows_sources_workspace}' -B '${windows_sources_workspace}'\\\\build_dir_x86\\\\"
+                            sh "cmake -DENABLE_CHAT=ON -DVCPKG_ROOT='${VCPKGPATH}' ${BUILD_OPTIONS} -DCMAKE_VERBOSE_MAKEFILE=ON -DCMAKE_GENERATOR_PLATFORM=Win32 -S '${windows_sources_workspace}' -B '${windows_sources_workspace}'\\\\build_dir_x86\\\\"
                             sh "cmake --build '${windows_sources_workspace}'\\\\build_dir_x86\\\\ --config Debug -j 1"
                         }
                     }
