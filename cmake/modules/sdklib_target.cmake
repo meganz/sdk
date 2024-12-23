@@ -416,14 +416,6 @@ if(ENABLE_SDKLIB_WERROR)
         )
     endif()
     if(APPLE)
-        set_source_files_properties( # Temporary until sign-conversion warnings are fixed on this files too (SDK-4567, SDK-4568 and SDK-4570)
-            src/raid.cpp
-            src/raidproxy.cpp
-            PROPERTIES 
-            COMPILE_FLAGS "-Wno-sign-conversion"
-        )
-    endif()
-    if(APPLE)
         set_source_files_properties(
             src/mega_ccronexpr.cpp
             src/mega_http_parser.cpp

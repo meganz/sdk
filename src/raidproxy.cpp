@@ -52,8 +52,10 @@ void PartFetcher::setposrem()
 
     // determine the next suitable read range to ensure the availability
     // of EFFECTIVE_RAIDPARTS sources based on ongoing reads and stored readahead data.
-    for (m_off_t i = RAIDPARTS; i--; )
+    for (m_off_t index = RAIDPARTS; index--;)
     {
+        uint64_t i = static_cast<uint64_t>(index);
+
         // compile boundaries of data chunks that have been or are being fetched
         // (we do not record the beginning, as position 0 is implicitly valid)
 
@@ -274,7 +276,7 @@ bool PartFetcher::setsource(const std::string& partUrl, RaidReq* crr, uint8_t cp
     mPartStartPos = rr->mReqStartPos / EFFECTIVE_RAIDPARTS;
     assert(mPartStartPos % RAIDSECTOR == 0);
 
-    mSourcesize = RaidReq::raidPartSize(part, rr->mFilesize);
+    mSourcesize = static_cast<m_off_t>(RaidReq::raidPartSize(part, rr->mFilesize));
     LOG_debug << "[PartFetcher::setsource] part = " << (int)cpart << ", partStartPos = " << mPartStartPos << ", sourcesize = " << mSourcesize << " [this = " << this << "]";
     return true;
 }
@@ -468,7 +470,8 @@ int64_t PartFetcher::io()
             while (mRemfeed && mInbuf->datalen())
             {
                 size_t bufSize = mInbuf->datalen();
-                if (mRemfeed < static_cast<m_off_t>(bufSize)) bufSize = mRemfeed;
+                if (mRemfeed < static_cast<m_off_t>(bufSize))
+                    bufSize = static_cast<size_t>(mRemfeed);
 
                 mRemfeed -= bufSize;
                 mRem -= bufSize;
@@ -476,7 +479,7 @@ int64_t PartFetcher::io()
                 // completed a read: reset consecutive_errors
                 if (!mRem && mConsecutiveErrors) mConsecutiveErrors = 0;
 
-                rr->procdata(part, mInbuf->datastart(), mPos, bufSize);
+                rr->procdata(part, mInbuf->datastart(), mPos, static_cast<m_off_t>(bufSize));
 
                 if (!mConnected)
                 {
@@ -517,7 +520,7 @@ int64_t PartFetcher::io()
             }
             else
             {
-                setremfeed(mInbuf->datalen());
+                setremfeed(static_cast<m_off_t>(mInbuf->datalen()));
             }
         }
         assert(httpReq->status == REQ_READY || httpReq->status == REQ_INFLIGHT || httpReq->status == REQ_SUCCESS || httpReq->status == REQ_FAILURE || httpReq->status == REQ_PREPARED);
@@ -634,7 +637,7 @@ m_off_t PartFetcher::progress() const
             if (mInbuf)
             {
                 assert(httpReq->buffer_released);
-                reqsProgress = mInbuf->datalen();
+                reqsProgress = static_cast<m_off_t>(mInbuf->datalen());
             }
             else
             {
@@ -673,13 +676,14 @@ m_off_t PartFetcher::progress() const
 
 /* -------------- RaidReq --------------*/
 
-RaidReq::RaidReq(const Params& p, RaidReqPool& rrp, const std::shared_ptr<CloudRaid>& cloudRaid)
-    : mPool(rrp),
+RaidReq::RaidReq(const Params& p, RaidReqPool& rrp, const std::shared_ptr<CloudRaid>& cloudRaid):
+    mPool(rrp),
     mCloudRaid(cloudRaid),
-    mRem(p.reqlen),
+    mRem(static_cast<m_off_t>(p.reqlen)),
     mFilesize(p.filesize),
     mReqStartPos(p.reqStartPos),
-    mPaddedpartsize((raidPartSize(0, mFilesize) + RAIDSECTOR - 1) & -RAIDSECTOR),
+    mPaddedpartsize((static_cast<m_off_t>(raidPartSize(0, mFilesize)) + RAIDSECTOR - 1) &
+                    -RAIDSECTOR),
     lastdata(Waiter::ds)
 {
     assert(p.tempUrls.size() > 0);
@@ -695,7 +699,7 @@ RaidReq::RaidReq(const Params& p, RaidReqPool& rrp, const std::shared_ptr<CloudR
     calculateNumLinesAndBufferSizes();
     mData.reset(new byte[mDataSize]);
     mParity.reset(new byte[mParitySize]);
-    mInvalid.reset(new char[mNumLines]);
+    mInvalid.reset(new char[static_cast<size_t>(mNumLines)]);
     std::fill(mData.get(), mData.get() + mDataSize, 0);
     std::fill(mParity.get(), mParity.get() + mParitySize, 0);
     std::fill(mInvalid.get(), mInvalid.get() + mNumLines, (1 << RAIDPARTS) - 1);
@@ -749,7 +753,7 @@ void RaidReq::calculateNumLinesAndBufferSizes()
     mNumLines = std::min<m_off_t>((mFilesize + RAIDLINE - 1) / RAIDLINE, MAX_NUMLINES);
 
     // Calculate the required size for data buffer (padded to RAIDLINE)
-    mDataSize = mNumLines * RAIDLINE;
+    mDataSize = static_cast<size_t>(mNumLines * RAIDLINE);
 
     // Calculate the required size for parity buffer (padded to RAIDSECTOR)
     mParitySize = static_cast<size_t>(SECTORSPERPART(mNumLines));
@@ -784,12 +788,16 @@ void RaidReq::shiftdata(m_off_t len)
 
         if (eobData > shiftby)
         {
-            memmove(mData.get(), mData.get() + (shiftby * RAIDLINE), (eobData - shiftby) * RAIDLINE);
+            memmove(mData.get(),
+                    mData.get() + (shiftby * RAIDLINE),
+                    static_cast<size_t>((eobData - shiftby) * RAIDLINE));
         }
 
         if (eobAll > shiftby)
         {
-            memmove(mInvalid.get(), mInvalid.get() + shiftby, eobAll - shiftby);
+            memmove(mInvalid.get(),
+                    mInvalid.get() + shiftby,
+                    static_cast<size_t>(eobAll - shiftby));
             std::fill(mInvalid.get() + eobAll - shiftby, mInvalid.get() + eobAll, (1 << RAIDPARTS) - 1);
         }
         else
@@ -802,7 +810,9 @@ void RaidReq::shiftdata(m_off_t len)
 
         if (mPartpos[0] > shiftby)
         {
-            memmove(mParity.get(), mParity.get() + shiftby, mPartpos[0] - shiftby);
+            memmove(mParity.get(),
+                    mParity.get() + shiftby,
+                    static_cast<size_t>(mPartpos[0] - shiftby));
         }
 
         // shift mPartpos[] by the dataline increment and retrigger data flow
@@ -989,8 +999,9 @@ void RaidReq::procdata(uint8_t part, byte* ptr, m_off_t pos, m_off_t len)
         if (itReadAhead == mFetcher[part].mReadahead.end() || itReadAhead->second.second < ahead_len)
         {
             byte* p = itReadAhead != mFetcher[part].mReadahead.end() ?
-                            static_cast<byte*>(std::realloc(itReadAhead->second.first, ahead_len)) :
-                            static_cast<byte*>(malloc(ahead_len));
+                          static_cast<byte*>(std::realloc(itReadAhead->second.first,
+                                                          static_cast<size_t>(ahead_len))) :
+                          static_cast<byte*>(malloc(static_cast<size_t>(ahead_len)));
             std::copy(ahead_ptr, ahead_ptr + ahead_len, p);
             mFetcher[part].mReadahead[ahead_pos] = pair<byte*, unsigned>(p, static_cast<unsigned>(ahead_len));
         }
@@ -1015,8 +1026,8 @@ void RaidReq::procdata(uint8_t part, byte* ptr, m_off_t pos, m_off_t len)
     m_off_t until = (t + len) / RAIDSECTOR; // Number of sectors - corresponding to the number of lines for this part (for each part, N_RAIDSECTORS == N_RAIDLINES)
     for (m_off_t i = t / RAIDSECTOR; i < until; i++)
     {
-        assert(mInvalid[i] & partmask);
-        mInvalid[i] -= partmask;
+        assert(mInvalid[static_cast<size_t>(i)] & partmask);
+        mInvalid[static_cast<size_t>(i)] -= partmask;
     }
 
     // copy (partial) blocks to data or parity buf
@@ -1060,7 +1071,7 @@ void RaidReq::procdata(uint8_t part, byte* ptr, m_off_t pos, m_off_t len)
     auto old_completed = mCompleted;
     for (; mCompleted < until; mCompleted++)
     {
-        unsigned char mask = mInvalid[mCompleted];
+        unsigned char mask = static_cast<unsigned char>(mInvalid[static_cast<size_t>(mCompleted)]);
         std::bitset<CHAR_BIT * sizeof(unsigned char)> bits(mask);
         auto bitsSet = bits.count();
 
@@ -1145,7 +1156,7 @@ m_off_t RaidReq::readdata(byte* buf, m_off_t len)
         if (t > 0)
         {
             if ((t + lenCompleted) > len) t = len - lenCompleted;
-            memmove(buf + lenCompleted, mData.get() + mSkip, t);
+            memmove(buf + lenCompleted, mData.get() + mSkip, static_cast<size_t>(t));
             lenCompleted += t;
 
             shiftdata(t);
@@ -1379,9 +1390,12 @@ size_t RaidReq::raidPartSize(uint8_t part, size_t fullfilesize)
     if (t < 0) t = 0;
     else if (t > RAIDSECTOR) t = RAIDSECTOR;
 
-    LOG_debug << "[RaidReq::raidPartSize] return (fullfilesize - r) / EFFECTIVE_RAIDPARTS + t = (" << fullfilesize << " -  " << r << ") / (" << EFFECTIVE_RAIDPARTS << ") + " << t << " = " << ((fullfilesize - r) / EFFECTIVE_RAIDPARTS) << " + " << t << " = " << ((fullfilesize - r) / EFFECTIVE_RAIDPARTS + t);
+    LOG_debug << "[RaidReq::raidPartSize] return (fullfilesize - r) / EFFECTIVE_RAIDPARTS + t = ("
+              << fullfilesize << " - " << r << ") / (" << EFFECTIVE_RAIDPARTS << ") + " << t
+              << " = " << ((static_cast<m_off_t>(fullfilesize) - r) / EFFECTIVE_RAIDPARTS) << " + "
+              << t << " = " << ((static_cast<m_off_t>(fullfilesize) - r) / EFFECTIVE_RAIDPARTS + t);
 
-    return (fullfilesize - r) / EFFECTIVE_RAIDPARTS + t;
+    return static_cast<size_t>((static_cast<m_off_t>(fullfilesize) - r) / EFFECTIVE_RAIDPARTS + t);
 }
 
 /* -------------- RaidReq END --------------*/
