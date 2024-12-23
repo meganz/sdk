@@ -136,6 +136,14 @@ std::optional<std::vector<std::string>>
  * timeout is exceeded while waiting for it.
  */
 void getDeviceNames(::mega::MegaApi* megaApi, std::unique_ptr<::mega::MegaStringMap>& output);
+
+/**
+ * @brief Ensures there is at least one device visible to the given megaApi instance. This is
+ * required to enable the creation of backup syncs for instance.
+ *
+ * If there are no devices, a new one is created with the name "Jenkins " + timestamp
+ */
+void ensureAccountDeviceName(::mega::MegaApi* megaApi);
 }
 
 #endif // INCLUDE_INTEGRATION_INTEGRATION_TEST_UTILS_H_

@@ -7,6 +7,7 @@
 #ifdef ENABLE_SYNC
 
 #include "integration_test_utils.h"
+#include "mega/utils.h"
 #include "megautils.h"
 #include "mock_listeners.h"
 #include "sdk_test_utils.h"
@@ -503,6 +504,43 @@ TEST_F(SdkTestSyncNodeOperations, ChangeSyncRemoteRootErrors)
 
     // Just make sure that after all the attempts the sync is still running fine
     ASSERT_NO_FATAL_FAILURE(ensureSyncNodeIsRunning("dir1"));
+}
+
+/**
+ * @brief SdkTestSyncNodeOperations.ChangeSyncRemoteRootErrorOnBackup
+ *
+ * Checks that changing the remote root of a backup returns an error (not allowed operation).
+ */
+TEST_F(SdkTestSyncNodeOperations, ChangeSyncRemoteRootErrorOnBackup)
+{
+    static const std::string logPre{
+        "SdkTestSyncNodeOperations.ChangeSyncRemoteRootErrorOnBackup : "};
+
+    LOG_verbose << logPre << "Create a backup";
+    ASSERT_NO_FATAL_FAILURE(ensureAccountDeviceName(megaApi[0].get()));
+    LocalTempDir tmpDir{"auxChangeSyncRemoteRootErrorOnBackupDir"};
+
+    const auto backupId = backupFolder(megaApi[0].get(), tmpDir.getPath().u8string());
+    ASSERT_NE(backupId, UNDEF) << "Error initiating the backup";
+    const MrProper defer{[backupId, &api = megaApi[0]]()
+                         {
+                             removeSync(api.get(), backupId);
+                         }};
+
+    LOG_verbose << logPre << "Wait for the backup to enter in RUNNING state";
+    const auto backup = waitForSyncState(megaApi[0].get(),
+                                         backupId,
+                                         MegaSync::RUNSTATE_RUNNING,
+                                         MegaSync::NO_SYNC_ERROR);
+    ASSERT_TRUE(backup) << "Unable to get the backup in RUNNING state";
+
+    LOG_verbose << logPre << "Trying to change the remote root of a backup sync";
+    NiceMock<MockRequestListener> mockListener;
+    mockListener.setErrorExpectations(API_EARGS, UNKNOWN_ERROR);
+    const auto dir1Handle = getNodeHandleByPath("dir2");
+    ASSERT_TRUE(dir1Handle);
+    megaApi[0]->changeSyncRemoteRoot(backupId, *dir1Handle, &mockListener);
+    EXPECT_TRUE(mockListener.waitForFinishOrTimeout(MAX_TIMEOUT));
 }
 
 /**
