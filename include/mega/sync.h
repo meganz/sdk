@@ -114,6 +114,15 @@ public:
     // check if we need to notify the App about error/enable flag changes
     bool stateFieldsChanged();
 
+    /**
+     * @brief In case this is an external backup, returns true if this is a backup sync and the
+     * given path belongs to the external drive. Always true for non-external backups.
+     */
+    bool isGoodPathForExternalBackup(const LocalPath& path)
+    {
+        return !isExternal() || (isBackup() && mExternalDrivePath.isContainingPathOf(path));
+    }
+
     string syncErrorToStr();
     static string syncErrorToStr(SyncError errorCode);
 

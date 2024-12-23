@@ -17432,8 +17432,6 @@ class MegaApi
         /**
          * @brief Change the local path that is being used as root for a sync.
          *
-         * Currently, this operation is only allowed with syncs of TYPE_TWOWAY.
-         *
          * The associated request type with this request is MegaRequest::TYPE_CHANGE_SYNC_ROOT.
          *
          * Valid data in the MegaRequest object received on callbacks:
@@ -17461,6 +17459,8 @@ class MegaApi
          *     + SyncError::LOCAL_FILESYSTEM_MISMATCH The given path is in a different file system
          *       comparing with the previous one. We don't allow this operation
          *     + SyncError::UNABLE_TO_RETRIEVE_ROOT_FSID The new root directory cannot be opened
+         *     + SyncError::BACKUP_SOURCE_NOT_BELOW_DRIVE The new root directory is not contained in
+         *       the previous external path. That operation is not allowed.
          * - MegaError::API_EWRITE:
          *     + SyncError::SYNC_CONFIG_WRITE_FAILURE We couldn't write into the database to commit
          *       the change.
