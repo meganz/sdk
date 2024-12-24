@@ -1867,13 +1867,13 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter,
                 "OR (" + idAncestor2 + " != " + undefStr + " AND nodehandle = " + idAncestor2 + ") "
                 "OR (" + idAncestor3 + " != " + undefStr + " AND nodehandle = " + idAncestor3 + ") "
                 "OR (" + idIncShares + " != " + noShareStr + " AND nodehandle IN "
-                    "(SELECT nodehandle FROM nodes WHERE share = " + idIncShares + ")))";
+                    "(SELECT nodehandle FROM nodes WHERE share & " + idIncShares + " != 0)))";
 
         static const std::string nodesOfShares =
             "nodesOfShares(" + columnsForNodeAndFilters + ") \n"
             "AS (SELECT " + columnsForNodeAndFilters + " \n"
                 "FROM nodes \n"
-                "WHERE " + idIncShares + " != " + noShareStr + " AND share = " + idIncShares + ")";
+                "WHERE " + idIncShares + " != " + noShareStr + " AND share & " + idIncShares + " != 0)";
 
         static const std::string nodesCTE =
             "nodesCTE(" + columnsForNodeAndFilters + ") \n"
