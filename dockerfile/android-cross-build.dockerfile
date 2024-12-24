@@ -80,19 +80,9 @@ CMD ["sh", "-c", "\
         -DVCPKG_ROOT=/mega/vcpkg \
         -DCMAKE_BUILD_TYPE=Debug \
         -DVCPKG_TARGET_TRIPLET=${VCPKG_TRIPLET} \
-        -DENABLE_CHAT=ON \
-        -DENABLE_JAVA_BINDINGS=ON \
-        -DENABLE_SDKLIB_EXAMPLES=OFF \
-        -DENABLE_SDKLIB_TESTS=OFF \
-        -DUSE_FREEIMAGE=OFF \
-        -DUSE_FFMPEG=OFF \
-        -DUSE_LIBUV=ON \
-        -DUSE_PDFIUM=OFF \
-        -DUSE_READLINE=OFF \
         -DCMAKE_SYSTEM_NAME=Android \
         -DCMAKE_ANDROID_API=26 \
         -DCMAKE_ANDROID_ARCH_ABI=${ANDROID_ARCH} \
-        -DCMAKE_ANDROID_NDK=${ANDROID_NDK_HOME} \
-        -DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON && \
+        -DCMAKE_ANDROID_NDK=${ANDROID_NDK_HOME} && \
     cmake --build buildAndroid' && \
     exec /bin/bash"]
