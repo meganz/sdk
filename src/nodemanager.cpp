@@ -1274,7 +1274,7 @@ size_t NodeManager::getNumberOfChildrenFromNode_internal(NodeHandle parentHandle
         return parentIt->second.mChildren ? parentIt->second.mChildren->size() : 0;
     }
 
-    return mTable->getNumberOfChildren(parentHandle);
+    return static_cast<size_t>(mTable->getNumberOfChildren(parentHandle));
 }
 
 size_t NodeManager::getNumberOfChildrenByType(NodeHandle parentHandle, nodetype_t nodeType)
@@ -1295,7 +1295,7 @@ size_t NodeManager::getNumberOfChildrenByType_internal(NodeHandle parentHandle, 
 
     assert(nodeType == FILENODE || nodeType == FOLDERNODE);
 
-    return mTable->getNumberOfChildrenByType(parentHandle, nodeType);
+    return static_cast<size_t>(mTable->getNumberOfChildrenByType(parentHandle, nodeType));
 }
 
 bool NodeManager::isAncestor(NodeHandle nodehandle, NodeHandle ancestor, CancelToken cancelFlag)

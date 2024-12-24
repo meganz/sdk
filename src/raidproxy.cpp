@@ -54,7 +54,7 @@ void PartFetcher::setposrem()
     // of EFFECTIVE_RAIDPARTS sources based on ongoing reads and stored readahead data.
     for (m_off_t index = RAIDPARTS; index--;)
     {
-        uint64_t i = static_cast<uint64_t>(index);
+        size_t i = static_cast<size_t>(index);
 
         // compile boundaries of data chunks that have been or are being fetched
         // (we do not record the beginning, as position 0 is implicitly valid)

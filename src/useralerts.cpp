@@ -861,7 +861,7 @@ UserAlert::NewSharedNodes* UserAlert::NewSharedNodes::unserialize(string* d, uns
         uint64_t n = 0;
         if (r.unserializecompressedu64(n))
         {
-            vector<handle> vh1(n, 0);
+            vector<handle> vh1(static_cast<size_t>(n), 0);
             if (n)
             {
                 for (auto& h1 : vh1)
@@ -876,7 +876,7 @@ UserAlert::NewSharedNodes* UserAlert::NewSharedNodes::unserialize(string* d, uns
             n = 0;
             if (r.unserializecompressedu64(n))
             {
-                vector<handle> vh2(n, 0);
+                vector<handle> vh2(static_cast<size_t>(n), 0);
                 if (n)
                 {
                     for (auto& h2 : vh2)
@@ -970,7 +970,7 @@ UserAlert::RemovedSharedNode* UserAlert::RemovedSharedNode::unserialize(string* 
     CacheableReader r(*d);
     if (r.unserializecompressedu64(n))
     {
-        vector<handle> vh(n, 0);
+        vector<handle> vh(static_cast<size_t>(n), 0);
         if (n)
         {
             for (auto& h : vh)
@@ -1055,7 +1055,7 @@ UserAlert::UpdatedSharedNode* UserAlert::UpdatedSharedNode::unserialize(string* 
     CacheableReader r(*d);
     if (r.unserializecompressedu64(n))
     {
-        vector<handle> vh(n, 0);
+        vector<handle> vh(static_cast<size_t>(n), 0);
         if (n)
         {
             for (auto& h : vh)

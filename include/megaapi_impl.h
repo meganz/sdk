@@ -5810,10 +5810,10 @@ struct hash<::mega::LocalPath>
 {
     std::size_t operator()(const ::mega::LocalPath& lp) const noexcept
     {
-        std::size_t seed = 0;
+        uint64_t seed = 0;
         seed = ::mega::hashCombine(seed, std::hash<std::string>{}(lp.toPath(false)));
         seed = ::mega::hashCombine(seed, std::hash<bool>{}(lp.isAbsolute()));
-        return seed;
+        return static_cast<size_t>(seed);
     }
 };
 
@@ -5822,10 +5822,10 @@ struct hash<::mega::NameConflict::NameHandle>
 {
     std::size_t operator()(const ::mega::NameConflict::NameHandle& nh) const noexcept
     {
-        std::size_t seed = 0;
+        uint64_t seed = 0;
         seed = ::mega::hashCombine(seed, std::hash<std::string>{}(nh.name));
         seed = ::mega::hashCombine(seed, std::hash<::mega::NodeHandle>{}(nh.handle));
-        return seed;
+        return static_cast<size_t>(seed);
     }
 };
 
@@ -5834,7 +5834,7 @@ struct hash<::mega::NameConflict>
 {
     std::size_t operator()(const ::mega::NameConflict& nc) const noexcept
     {
-        std::size_t seed = 0;
+        uint64_t seed = 0;
         const std::hash<::mega::LocalPath> lpHashGet{};
         const std::hash<::mega::NameConflict::NameHandle> nhHashGet{};
 
@@ -5852,7 +5852,7 @@ struct hash<::mega::NameConflict>
                       {
                           seed = ::mega::hashCombine(seed, lpHashGet(lp));
                       });
-        return seed;
+        return static_cast<size_t>(seed);
     }
 };
 
@@ -5862,11 +5862,11 @@ struct hash<::mega::SyncStallEntry::StallCloudPath>
 {
     std::size_t operator()(const ::mega::SyncStallEntry::StallCloudPath& scp) const noexcept
     {
-        std::size_t seed = 0;
+        uint64_t seed = 0;
         seed = ::mega::hashCombine(seed, std::hash<int>{}(static_cast<int>(scp.problem)));
         seed = ::mega::hashCombine(seed, std::hash<std::string>{}(scp.cloudPath));
         seed = ::mega::hashCombine(seed, std::hash<::mega::NodeHandle>{}(scp.cloudHandle));
-        return seed;
+        return static_cast<size_t>(seed);
     }
 };
 
@@ -5875,10 +5875,10 @@ struct hash<::mega::SyncStallEntry::StallLocalPath>
 {
     std::size_t operator()(const ::mega::SyncStallEntry::StallLocalPath& slp) const noexcept
     {
-        std::size_t seed = 0;
+        uint64_t seed = 0;
         seed = ::mega::hashCombine(seed, std::hash<int>{}(static_cast<int>(slp.problem)));
         seed = ::mega::hashCombine(seed, std::hash<::mega::LocalPath>{}(slp.localPath));
-        return seed;
+        return static_cast<size_t>(seed);
     }
 };
 
@@ -5888,7 +5888,7 @@ struct hash<::mega::SyncStallEntry>
     std::size_t operator()(const ::mega::SyncStallEntry& sse) const noexcept
     {
         using ::mega::SyncStallEntry;
-        std::size_t seed = 0;
+        uint64_t seed = 0;
         seed = ::mega::hashCombine(seed, std::hash<int>{}(static_cast<int>(sse.reason)));
         seed = ::mega::hashCombine(seed, std::hash<bool>{}(sse.alertUserImmediately));
         seed = ::mega::hashCombine(seed, std::hash<bool>{}(sse.detectionSideIsMEGA));
@@ -5900,7 +5900,7 @@ struct hash<::mega::SyncStallEntry>
         const std::hash<SyncStallEntry::StallLocalPath> lpHashGet{};
         seed = ::mega::hashCombine(seed, lpHashGet(sse.localPath1));
         seed = ::mega::hashCombine(seed, lpHashGet(sse.localPath2));
-        return seed;
+        return static_cast<size_t>(seed);
     }
 };
 

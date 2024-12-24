@@ -6737,7 +6737,7 @@ size_t MegaSyncStallList::getHash() const
     {
         hash = hashCombine(hash, get(i)->getHash());
     }
-    return hash;
+    return static_cast<size_t>(hash);
 }
 
 const MegaSyncStall* MegaSyncStallList::get(size_t /*i*/) const
@@ -6763,7 +6763,7 @@ size_t MegaSyncStallMap::getHash() const
     {
         hash = hashCombine(hash, get(keys->get(i))->getHash());
     }
-    return hash;
+    return static_cast<size_t>(hash);
 }
 
 const MegaSyncStallList* MegaSyncStallMap::get(const MegaHandle) const

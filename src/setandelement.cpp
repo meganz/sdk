@@ -273,7 +273,7 @@ namespace mega {
         auto ct = static_cast<uint64_t>(changeType);
         if (validChangeType(ct, CH_SIZE))
         {
-            mChanges[ct] = 1;
+            mChanges[static_cast<size_t>(ct)] = 1;
         }
     }
 
@@ -301,7 +301,7 @@ namespace mega {
         auto ct = static_cast<uint64_t>(changeType);
         if (validChangeType(ct, CH_EL_SIZE))
         {
-            mChanges[ct] = 1;
+            mChanges[static_cast<size_t>(ct)] = 1;
         }
     }
 
