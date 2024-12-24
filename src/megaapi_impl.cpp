@@ -3728,18 +3728,31 @@ void MegaTransferPrivate::setPath(const char* newPath)
     if (!path)
         return;
 
-    for (int i = int(strlen(newPath) - 1); i >= 0; i--)
+    LocalPath localPath;
+    if (LocalPath::isURIPath(path))
     {
-        if (newPath[i] == LocalPath::localPathSeparator_utf8)
-        {
-            setFileName(&(newPath[i + 1]));
-            char* parentFolderPath = MegaApi::strdup(newPath);
-            parentFolderPath[i + 1] = '\0';
-            setParentPath(parentFolderPath);
-            delete[] parentFolderPath;
-            return;
-        }
+        localPath = LocalPath::fromAbsolutePath(path);
     }
+    else
+    {
+        localPath = LocalPath::fromPlatformEncodedRelative(path);
+    }
+
+    std::string name = localPath.leafName().rawValue().c_str();
+    if (name.size())
+    {
+        setFileName(name.c_str());
+        std::string stringPath = path;
+        size_t pos = stringPath.rfind(name);
+        if (pos != std::string::npos)
+        {
+            stringPath.erase(pos, name.length());
+        }
+
+        setParentPath(stringPath.c_str());
+        return;
+    }
+
     setFileName(newPath);
 }
 
@@ -30107,7 +30120,8 @@ MegaFolderUploadController::scanFolder_result MegaFolderUploadController::scanFo
 
     LocalPath localname;
     nodetype_t dirEntryType;
-    while (da->dnext(localPath, localname, false, &dirEntryType))
+    LocalPath childPath = localPath;
+    while (da->dnext(childPath, localname, false, &dirEntryType))
     {
         if (isStoppedOrCancelled("MegaFolderUploadController::scanFolder"))
         {
@@ -30117,19 +30131,23 @@ MegaFolderUploadController::scanFolder_result MegaFolderUploadController::scanFo
         megaApi->fireOnFolderTransferUpdate(transfer, MegaTransfer::STAGE_SCAN, foldercount, 0, filecount, &localPath, &localname);
 
         auto restoreLen = makeScopedSizeRestorer(localPath);
-        localPath.appendWithSeparator(localname, false);
+        if (!childPath.isURI())
+        {
+            childPath.appendWithSeparator(childPath, false);
+        }
+
         if (dirEntryType == FILENODE)
         {
             // Do the fingerprinting for uploads on the scan thread, so we don't lock the main mutex for so long
             FileFingerprint fp;
             auto fa = fsaccess->newfileaccess();
-            if (fa->fopen(localPath, true, false, FSLogging::logOnError))
+            if (fa->fopen(childPath, true, false, FSLogging::logOnError))
             {
                 fp.genfingerprint(fa.get());
             }
 
             // if we couldn't get the fingerprint, !isvalid and we'll fail the transfer
-            tree.files.emplace_back(localPath, fp);
+            tree.files.emplace_back(childPath, fp);
 
             filecount += 1;
         }
@@ -30138,7 +30156,7 @@ MegaFolderUploadController::scanFolder_result MegaFolderUploadController::scanFo
             // generate new subtree
             unique_ptr<Tree> newTreeNode(new Tree);
             newTreeNode->folderName = localname.toName(*fsaccess);
-            newTreeNode->fsType = fsaccess->getlocalfstype(localPath);
+            newTreeNode->fsType = fsaccess->getlocalfstype(childPath);
 
             // generate fresh random key and node attributes
             MegaClient::putnodes_prepareOneFolder(&newTreeNode->newnode, newTreeNode->folderName, rng, tmpnodecipher, false);
@@ -30147,7 +30165,7 @@ MegaFolderUploadController::scanFolder_result MegaFolderUploadController::scanFo
             newTreeNode->newnode.nodehandle = nextUploadId();
             newTreeNode->newnode.parenthandle = tree.newnode.nodehandle;
 
-            scanFolder_result sr = scanFolder(*newTreeNode, localPath, foldercount, filecount);
+            scanFolder_result sr = scanFolder(*newTreeNode, childPath, foldercount, filecount);
             if (sr != scanFolder_succeeded)
             {
                 recursive--;
