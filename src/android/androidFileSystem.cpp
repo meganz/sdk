@@ -23,7 +23,6 @@
 #include <mega/filesystem.h>
 #include <mega/logging.h>
 
-extern jclass fileWrapperProvider;
 extern jclass fileWrapper;
 extern JavaVM* MEGAjvm;
 
@@ -38,10 +37,10 @@ AndroidFileWrapper::AndroidFileWrapper(const std::string& path):
 {
     JNIEnv* env = nullptr;
     MEGAjvm->AttachCurrentThread(&env, NULL);
-    jmethodID getAndroidFileMethod = env->GetStaticMethodID(
-        fileWrapperProvider,
-        GET_ANDROID_FILE,
-        "(Ljava/lang/String;)Lmega/privacy/android/domain/entity/file/FileWrapper;");
+    jmethodID getAndroidFileMethod =
+        env->GetStaticMethodID(fileWrapper,
+                               GET_ANDROID_FILE,
+                               "(Ljava/lang/String;)Lmega/privacy/android/app/utils/FileWrapper;");
     if (getAndroidFileMethod == nullptr)
     {
         env->ExceptionDescribe();
@@ -50,7 +49,7 @@ AndroidFileWrapper::AndroidFileWrapper(const std::string& path):
         return;
     }
 
-    mAndroidFileObject = env->CallStaticObjectMethod(fileWrapperProvider,
+    mAndroidFileObject = env->CallStaticObjectMethod(fileWrapper,
                                                      getAndroidFileMethod,
                                                      env->NewStringUTF(mPath.c_str()));
 }
@@ -191,6 +190,7 @@ bool AndroidPlatformURIHelper::isURI(const std::string& path)
     MEGAjvm->AttachCurrentThread(&env, NULL);
     jmethodID methodID =
         env->GetStaticMethodID(fileWrapperProvider, IS_PATH, "(Ljava/lang/String;)Z");
+
     if (methodID == nullptr)
     {
         env->ExceptionDescribe();
@@ -200,9 +200,7 @@ bool AndroidPlatformURIHelper::isURI(const std::string& path)
         return false;
     }
 
-    return !env->CallStaticBooleanMethod(fileWrapperProvider,
-                                         methodID,
-                                         env->NewStringUTF(path.c_str()));
+    return !env->CallStaticBooleanMethod(fileWrapper, methodID, env->NewStringUTF(path.c_str()));
 }
 
 std::string AndroidPlatformURIHelper::getName(const std::string& path)

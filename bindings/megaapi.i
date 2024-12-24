@@ -33,7 +33,6 @@ jmethodID startVideoCaptureMID = NULL;
 jmethodID stopVideoCaptureMID = NULL;
 jmethodID deviceListMID = NULL;
 jobject surfaceTextureHelper = NULL;
-jclass fileWrapperProvider = NULL;
 jclass fileWrapper = NULL;
 
 
@@ -114,15 +113,7 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
     }
 #endif
 
-    jclass localfileWrapperProvider = jenv->FindClass("mega/privacy/android/app/utils/FileWrapperProvider");
-    fileWrapperProvider = (jclass)jenv->NewGlobalRef(localfileWrapperProvider);
-    if (!fileWrapperProvider)
-    {
-        jenv->ExceptionDescribe();
-        jenv->ExceptionClear();
-    }
-
-    jclass localfileWrapper = jenv->FindClass("mega/privacy/android/domain/entity/file/FileWrapper");
+    jclass localfileWrapper = jenv->FindClass("mega/privacy/android/app/utils/FileWrapper");
     fileWrapper = (jclass)jenv->NewGlobalRef(localfileWrapper);
     if (!fileWrapper)
     {
@@ -130,7 +121,7 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
         jenv->ExceptionClear();
     }
 
-    jenv->DeleteLocalRef(localfileWrapperProvider);
+    jenv->DeleteLocalRef(localfileWrapper);
 
 
 #if (defined(ANDROID) || defined(__ANDROID__)) && ARES_VERSION >= 0x010F00

@@ -45,7 +45,7 @@ public:
 private:
     jobject mAndroidFileObject{nullptr};
     std::string mPath;
-    static constexpr char GET_ANDROID_FILE[] = "getAndroidFile";
+    static constexpr char GET_ANDROID_FILE[] = "getFromUri";
     static constexpr char GET_FILE_DESCRIPTOR[] = "getFileDescriptor";
     static constexpr char IS_FOLDER[] = "isFolder";
     static constexpr char GET_NAME[] = "getName";
