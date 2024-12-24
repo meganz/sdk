@@ -1,12 +1,5 @@
 package nz.mega.sdk;
 
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.net.URLConnection;
-
 import android.content.ContentResolver;
 import android.content.Context;
 import android.database.Cursor;
@@ -20,8 +13,14 @@ import android.media.ThumbnailUtils;
 import android.net.Uri;
 import android.provider.BaseColumns;
 import android.provider.MediaStore;
-
 import androidx.exifinterface.media.ExifInterface;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URLConnection;
 
 public class AndroidGfxProcessor extends MegaGfxProcessor {
     Rect size;
@@ -45,9 +44,12 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
     public static boolean isVideoFile(String path) {
         try {
             String mimeType = URLConnection.guessContentTypeFromName(path);
+            if (mimeType == null) {
+                Uri uri = Uri.parse(path);
+                mimeType = context.getContentResolver().getType(uri);
+            }
             return mimeType != null && mimeType.startsWith("video");
-        }
-        catch(Exception e){
+        } catch (Exception e) {
             return false;
         }
     }
@@ -59,6 +61,7 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
             try {
 
                 MediaMetadataRetriever retriever = new MediaMetadataRetriever();
+                setMediaMetadataRetrieverDataSource(retriever, path);
                 retriever.setDataSource(path);
                 int width;
                 int height;
@@ -76,13 +79,15 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
                 rect.right = width;
                 rect.bottom = height;
             } catch (Exception e) {
+                System.out.println("Error in getImageDimensions for video: " + e);
             }
         }
         else{
             try {
                 BitmapFactory.Options options = new BitmapFactory.Options();
                 options.inJustDecodeBounds = true;
-                BitmapFactory.decodeStream(new FileInputStream(path), null, options);
+                InputStream inputStream = getInputStreamFromPath(path);
+                BitmapFactory.decodeStream(inputStream, null, options);
 
                 if ((options.outWidth > 0) && (options.outHeight > 0)) {
                     if ((orientation < 5) || (orientation > 8)) {
@@ -98,6 +103,31 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
         }
 
         return rect;
+    }
+
+    private static InputStream getInputStreamFromPath(String path) {
+        try {
+            Uri uri = Uri.parse(path);
+            String scheme = uri == null ? null : uri.getScheme();
+            if (scheme != null && scheme.equals("content")) {
+                return context.getContentResolver().openInputStream(uri);
+            } else {
+                return new FileInputStream(path);
+            }
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static void setMediaMetadataRetrieverDataSource(MediaMetadataRetriever retriever,
+                                                            String path) {
+        Uri uri = Uri.parse(path);
+        String scheme = uri == null ? null : uri.getScheme();
+        if (scheme != null && scheme.equals("content")) {
+            retriever.setDataSource(context, Uri.parse(path));
+        } else {
+            retriever.setDataSource(path);
+        }
     }
 
     public boolean readBitmap(String path) {
@@ -155,7 +185,7 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
 
                 MediaMetadataRetriever retriever = new MediaMetadataRetriever();
                 try{
-                    retriever.setDataSource(path);
+                    setMediaMetadataRetrieverDataSource(retriever, path);
                     bmThumbnail = retriever.getFrameAtTime();
                 }
                 catch(Exception e1){
@@ -213,7 +243,8 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
                 BitmapFactory.Options options = new BitmapFactory.Options();
                 options.inJustDecodeBounds = false;
                 options.inSampleSize = scale;
-                Bitmap tmp = BitmapFactory.decodeStream(new FileInputStream(path), null, options);
+                InputStream inputStream = getInputStreamFromPath(path);
+                Bitmap tmp = BitmapFactory.decodeStream(inputStream, null, options);
                 tmp = fixExifOrientation(tmp, orientation);
                 return Bitmap.createScaledBitmap(tmp, w, h, true);
             } catch (Exception e) {
