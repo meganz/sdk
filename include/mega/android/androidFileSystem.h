@@ -101,4 +101,17 @@ protected:
     bool mFollowSymLinks{true};
 };
 
+class MEGA_API AndroidDirAccess: public DirAccess
+{
+public:
+    bool dopen(LocalPath* path, FileAccess* f, bool doglob) override;
+    bool dnext(LocalPath& path, LocalPath& name, bool followsymlinks, nodetype_t* type) override;
+
+private:
+    std::unique_ptr<AndroidFileWrapper> mFileWrapper;
+    std::vector<AndroidFileWrapper> mChildren;
+    size_t mIndex{0};
+};
+}
+
 #endif // ANDROIDFILESYSTEM_H

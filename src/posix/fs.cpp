@@ -2420,7 +2420,11 @@ std::unique_ptr<FileAccess> PosixFileSystemAccess::newfileaccess(bool followSymL
 
 unique_ptr<DirAccess>  PosixFileSystemAccess::newdiraccess()
 {
+#ifndef __ANDROID__
     return unique_ptr<DirAccess>(new PosixDirAccess());
+#else
+    return unique_ptr<DirAccess>(new AndroidDirAccess());
+#endif
 }
 
 #ifdef __linux__

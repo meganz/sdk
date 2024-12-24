@@ -422,4 +422,53 @@ void AndroidFileAccess::sysclose()
     }
 }
 
+bool AndroidDirAccess::dopen(LocalPath* path, FileAccess* f, bool doglob)
+{
+    mIndex = 0;
+    if (f)
+    {
+        mFileWrapper = static_cast<AndroidFileAccess*>(f)->stealFileWrapper();
+    }
+    else
+    {
+        assert(path);
+        std::string fstr = path->rawValue();
+        assert(!mFileWrapper);
+
+        mFileWrapper = std::make_unique<AndroidFileWrapper>(fstr);
+    }
+
+    if (!mFileWrapper->exists())
+    {
+        return false;
+    }
+
+    mChildren = mFileWrapper->getChildren();
+    return true;
+}
+
+bool AndroidDirAccess::dnext(LocalPath& path,
+                             LocalPath& name,
+                             bool followsymlinks,
+                             nodetype_t* type)
+{
+    // TODO handle symLinks
+    if (mChildren.size() <= mIndex)
+    {
+        return false;
+    }
+
+    AndroidFileWrapper& next = mChildren[mIndex];
+    path = std::move(LocalPath::fromPlatformEncodedAbsolute(next.getPath()));
+    name = std::move(LocalPath::fromPlatformEncodedRelative(next.getName()));
+    if (type)
+    {
+        *type = next.isFolder() ? FOLDERNODE : FILENODE;
+    }
+
+    mIndex++;
+
+    return true;
+}
+
 } // namespace
