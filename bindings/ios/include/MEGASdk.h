@@ -8209,6 +8209,55 @@ typedef NS_ENUM(NSInteger, MEGAClientType) {
 - (nullable NSArray<NSString *> *)nodeTagsForSearchString:(nullable NSString *)searchString cancelToken:(MEGACancelToken *)cancelToken;
 
 /**
+ * @brief Add new tag stored as node attribute
+ *
+ * The associated request type with this request is MEGARequestTypeNodeTag
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node that received the tag
+ * - [MEGARequest paramType] - Returns operation type (0 - Add tag, 1 - Remove tag, 2 - Update tag)
+ * - [MEGARequest getText] - Returns tag
+ *
+ * ',' is an invalid character to be used in a tag. If it is contained in the tag,
+ * onRequestFinish will be called with the error code MEGAErrorTypeApiEArgs.
+ *
+ * If the length of all tags is higher than 3000 onRequestFinish will be called with
+ * the error code MEGAErrorTypeApiEArgs
+ *
+ * If tag already exists, onRequestFinish will be called with the error code MEGAErrorTypeApiEExist
+ *
+ * If number of tags exceed the maximum number of tags (10),
+ * onRequestFinish will be called with the error code MEGAErrorTypeApiETooMany
+ *
+ * If the MEGA account is a business account and its status is expired, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEBusinessPastDue.
+ *
+ * @param tag New tag
+ * @param node Node that will receive the information.
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)addTag:(NSString *)tag toNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Remove a tag stored as a node attribute
+ *
+ * The associated request type with this request is MEGARequestTypeNodeTag
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node that received the tag
+ * - [MEGARequest paramType] - Returns operation type (0 - Add tag, 1 - Remove tag, 2 - Update tag)
+ * - [MEGARequest getText] - Returns tag
+ *
+ * If tag doesn't exist, onRequestFinish will be called with the error code MEGAErrorTypeApiENoent
+ *
+ * If the MEGA account is a business account and its status is expired, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEBusinessPastDue.
+ *
+ * @param tag Tag to be removed
+ * @param node Node that will receive the information.
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)removeTag:(NSString *)tag fromNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
  * @brief Search nodes with applied filter recursively.
  *
  * The search is case-insensitive.

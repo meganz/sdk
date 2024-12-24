@@ -219,7 +219,8 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeDeleteVPNCredentials,
     MEGARequestTypeCheckVPNCredentials,
     MEGARequestTypeGetNotifications,
-    TotalOfRequestTypes
+    MEGARequestTypeNodeTag = 186,
+    TotalOfRequestTypes = 202
 };
 
 typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
