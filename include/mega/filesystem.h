@@ -165,6 +165,27 @@ struct MEGA_API FSNode;
 
 extern CodeCounter::ScopeStats g_compareUtfTimings;
 
+class MEGA_API PlatformURIHelper
+{
+public:
+    virtual ~PlatformURIHelper(){};
+    virtual bool isURI(const std::string& path) = 0;
+    virtual std::string getName(const std::string& path) = 0;
+};
+
+class MEGA_API URIHandler
+{
+public:
+    static bool isURI(const std::string& path);
+    static std::string getName(const std::string& path);
+
+    // platformHelper should be kept alive during all program execution and ownership isn't taken
+    static void setPlatformHelper(PlatformURIHelper* platformHelper);
+
+private:
+    static PlatformURIHelper* mPlatformHelper;
+};
+
 enum class PathType
 {
     ABSOLUTE_PATH,
@@ -252,7 +273,9 @@ public:
 
     bool isURI() const
     {
-        return mPathType == PathType::URI_PATH;
+        bool ret = mPathType == PathType::URI_PATH;
+        assert(ret == LocalPath::isURIPath(localpath));
+        return ret;
     };
 
     // UTF-8 normalization
@@ -337,7 +360,7 @@ public:
     static LocalPath fromAbsolutePath(const string& path);
     static LocalPath fromRelativePath(const string& path);
     static LocalPath fromURIPath(const std::string& path);
-    static bool isUri(const std::string& path);
+    static bool isURIPath(const std::string& path);
 
     // Create a LocalPath from a utf8 string, making any character conversions (escaping) necessary
     // for characters that are disallowed on that filesystem.  fsaccess is used to do the conversion.
@@ -382,14 +405,12 @@ public:
 
     bool extension(std::string& extension) const
     {
-        assert(!isURI());
-        return extensionOf(localpath, extension);
+        return extensionOf(leafName().rawValue(), extension);
     }
 
     std::string extension() const
     {
-        assert(!isURI());
-        return extensionOf(localpath);
+        return extensionOf(leafName().rawValue());
     }
 
     // Check if this path is "related" to another.

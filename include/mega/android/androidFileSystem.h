@@ -52,6 +52,21 @@ private:
     static constexpr char GET_CHILDREN_URIS[] = "getChildrenUris";
 };
 
+class MEGA_API AndroidPlatformURIHelper: public PlatformURIHelper
+{
+public:
+    bool isURI(const std::string& path) override;
+    std::string getName(const std::string& path) override;
+
+private:
+    AndroidPlatformURIHelper();
+
+    ~AndroidPlatformURIHelper() override {}
+
+    static AndroidPlatformURIHelper mPlatformHelper;
+    static int mNumInstances;
+};
+
 class MEGA_API AndroidFileAccess: public FileAccess
 {
 public:

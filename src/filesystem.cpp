@@ -39,7 +39,7 @@
 #endif
 
 namespace mega {
-
+PlatformURIHelper* URIHandler::mPlatformHelper = nullptr;
 std::atomic<int> FileSystemAccess::mMinimumDirectoryPermissions{0700};
 std::atomic<int> FileSystemAccess::mMinimumFilePermissions{0600};
 
@@ -564,6 +564,31 @@ bool IsContainingLocalPathOf(const string& a, const char* b, size_t bLength)
 #else
     return IsContainingPathOf(a, b, bLength, '/');
 #endif
+}
+
+bool URIHandler::isURI(const std::string& path)
+{
+    if (mPlatformHelper)
+    {
+        return mPlatformHelper->isURI(path);
+    }
+
+    return false;
+}
+
+std::string URIHandler::getName(const std::string& path)
+{
+    if (mPlatformHelper)
+    {
+        return mPlatformHelper->getName(path);
+    }
+
+    return std::string();
+}
+
+void URIHandler::setPlatformHelper(PlatformURIHelper* platformHelper)
+{
+    mPlatformHelper = platformHelper;
 }
 
 // TODO: may or may not be needed
@@ -1461,13 +1486,19 @@ void LocalPath::truncate(size_t bytePos)
 LocalPath LocalPath::leafName() const
 {
     assert(invariant());
-    assert(!isURI());
-
-    auto p = localpath.find_last_of(localPathSeparator);
-    p = p == string::npos ? 0 : p + 1;
     LocalPath result;
-    result.localpath = localpath.substr(p, localpath.size() - p);
-    assert(result.invariant());
+    if (!isURI())
+    {
+        auto p = localpath.find_last_of(localPathSeparator);
+        p = p == string::npos ? 0 : p + 1;
+        result.localpath = localpath.substr(p, localpath.size() - p);
+        assert(result.invariant());
+    }
+    else
+    {
+        result = fromRelativePath(URIHandler::getName(localpath));
+    }
+
     return result;
 }
 
@@ -1765,6 +1796,11 @@ string LocalPath::toName(const FileSystemAccess& fsaccess) const
 LocalPath LocalPath::fromAbsolutePath(const string& path)
 {
     assert(!path.empty());
+    if (LocalPath::isURIPath(path))
+    {
+        return LocalPath::fromURIPath(path);
+    }
+
     LocalPath p;
     path2local(&path, &p.localpath);
     p.normalizeAbsolute();
@@ -1788,11 +1824,9 @@ LocalPath LocalPath::fromURIPath(const string& path)
     return p;
 }
 
-bool LocalPath::isUri(const string& path)
+bool LocalPath::isURIPath(const string& path)
 {
-    // Regex to match URI scheme (file, content, ...)
-    std::regex uriRegex(R"(^([a-zA-Z][a-zA-Z\d+\-.]*):)");
-    return std::regex_search(path, uriRegex);
+    return URIHandler::isURI(path);
 }
 
 LocalPath LocalPath::fromRelativeName(string path, const FileSystemAccess& fsaccess, FileSystemType fsType)
@@ -1817,6 +1851,11 @@ LocalPath LocalPath::fromPlatformEncodedRelative(string path)
 
 LocalPath LocalPath::fromPlatformEncodedAbsolute(string path)
 {
+    if (LocalPath::isURIPath(path))
+    {
+        return fromURIPath(path);
+    }
+
     LocalPath p;
 #if defined(_WIN32)
     assert(!(path.size() % 2));
@@ -1828,7 +1867,6 @@ LocalPath LocalPath::fromPlatformEncodedAbsolute(string path)
     p.normalizeAbsolute();
     return p;
 }
-
 
 #if defined(_WIN32)
 LocalPath LocalPath::fromPlatformEncodedRelative(wstring&& wpath)

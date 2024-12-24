@@ -29,6 +29,10 @@ extern JavaVM* MEGAjvm;
 
 namespace mega
 {
+
+AndroidPlatformURIHelper AndroidPlatformURIHelper::mPlatformHelper;
+int AndroidPlatformURIHelper::mNumInstances = 0;
+
 AndroidFileWrapper::AndroidFileWrapper(const std::string& path):
     mPath(path)
 {
@@ -168,6 +172,48 @@ std::vector<AndroidFileWrapper> AndroidFileWrapper::getChildren()
 bool AndroidFileWrapper::exists()
 {
     return mAndroidFileObject != nullptr;
+}
+
+AndroidPlatformURIHelper::AndroidPlatformURIHelper()
+{
+    if (mNumInstances == 0)
+    {
+        URIHandler::setPlatformHelper(this);
+    }
+
+    mNumInstances++;
+}
+
+bool AndroidPlatformURIHelper::isURI(const std::string& path)
+{
+    constexpr char IS_PATH[] = "isPath";
+    JNIEnv* env = nullptr;
+    MEGAjvm->AttachCurrentThread(&env, NULL);
+    jmethodID methodID =
+        env->GetStaticMethodID(fileWrapperProvider, IS_PATH, "(Ljava/lang/String;)Z");
+    if (methodID == nullptr)
+    {
+        env->ExceptionDescribe();
+        env->ExceptionClear();
+
+        LOG_err << "Critical error AndroidPlatformHelper::isURI";
+        return false;
+    }
+
+    return !env->CallStaticBooleanMethod(fileWrapperProvider,
+                                         methodID,
+                                         env->NewStringUTF(path.c_str()));
+}
+
+std::string AndroidPlatformURIHelper::getName(const std::string& path)
+{
+    AndroidFileWrapper fileWrapper(path);
+    if (fileWrapper.exists())
+    {
+        return fileWrapper.getName();
+    }
+
+    return std::string();
 }
 
 bool AndroidFileAccess::fopen(const LocalPath& f,
