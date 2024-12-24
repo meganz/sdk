@@ -39,6 +39,8 @@
 #endif
 
 #ifdef __ANDROID__
+#include <mega/android/androidFileSystem.h>
+
 #include <jni.h>
 extern JavaVM *MEGAjvm;
 #endif
@@ -2408,7 +2410,12 @@ bool PosixFileSystemAccess::hardLink(const LocalPath& source, const LocalPath& t
 
 std::unique_ptr<FileAccess> PosixFileSystemAccess::newfileaccess(bool followSymLinks)
 {
+#ifndef __ANDROID__
     return std::unique_ptr<FileAccess>{new PosixFileAccess{waiter, defaultfilepermissions, followSymLinks}};
+#else
+    return std::unique_ptr<FileAccess>{
+        new AndroidFileAccess{waiter, defaultfilepermissions, followSymLinks}};
+#endif
 }
 
 unique_ptr<DirAccess>  PosixFileSystemAccess::newdiraccess()
