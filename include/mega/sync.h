@@ -32,6 +32,7 @@
 
 #ifdef ENABLE_SYNC
 #include "node.h"
+#include "syncinternals.h"
 
 namespace mega {
 
@@ -1442,13 +1443,69 @@ public:
     // maps local fsid to corresponding LocalNode* (s)
     fsid_localnode_map localnodeBySyncedFsid;
     fsid_localnode_map localnodeByScannedFsid;
-    LocalNode* findLocalNodeBySyncedFsid(const fsfp_t& fsfp, mega::handle fsid, const LocalPath& originalpath, nodetype_t type, const FileFingerprint& fp,
-                                         std::function<bool(LocalNode* ln)> extraCheck, handle owningUser, bool& foundExclusionUnknown);
-    LocalNode* findLocalNodeByScannedFsid(const fsfp_t& fsfp, mega::handle fsid, const LocalPath& originalpath, nodetype_t type, const FileFingerprint* fp,
-                                         std::function<bool(LocalNode* ln)> extraCheck, handle owningUser, bool& foundExclusionUnknown);
 
-    void setSyncedFsidReused(const fsfp_t& fsfp, mega::handle fsid);
-    void setScannedFsidReused(const fsfp_t& fsfp, mega::handle fsid);
+    /**
+     * @brief Finds a LocalNode by its synced FSID.
+     *
+     * Searches for a LocalNode in the map of synced FSIDs.
+     * This is used to detect moves, while avoiding mismatches caused by FSID reuse.
+     *
+     * @param fsid The FSID of the node to be searched on the localnode map.
+     * @param targetNodeAttributes The necessary node attributes of the node looking for another
+     * node matching by FSID.
+     * @param originalPathForLogging The original path being processed for context in logs.
+     * @param extraCheck An optional callable for additional filtering of LocalNodes.
+     * @param onFingerprintMismatchDuringPutnodes Optional operation for a LocalNode that
+     * has been excluded due to fingerprint mismatch, but the source node has a putnodes operation
+     * ongoing for an upload which matches fingerprint with the target node.
+     * The param is not const intentionally, in case it needs to be considered as a potential
+     * source node, taking into account that there is a fingerprint match for the ongoing upload.
+     *
+     * @return A pair with:
+     *         bool - indicating whether an unknown exclusion was encountered. This may occur during
+     * eg. the first pass of the tree after loading from Suspended state and the corresponding node
+     * is later in the tree. The caller should decide whether to pospone the logic if an unknown
+     * exclusion was found for some node.
+     *         LocalNode* - pointer to the matching LocalNode, or nullptr if no match is found.
+     *
+     * @see findLocalNodeByFsid()
+     */
+    std::pair<bool, LocalNode*> findLocalNodeBySyncedFsid(
+        const handle fsid,
+        const NodeMatchByFSIDAttributes& targetNodeAttributes,
+        const LocalPath& originalPathForLogging,
+        std::function<bool(const LocalNode&)> extraCheck = nullptr,
+        std::function<void(LocalNode*)> onFingerprintMismatchDuringPutnodes = nullptr) const;
+
+    /**
+     * @brief Finds a LocalNode by its scanned FSID.
+     *
+     * Searches for a LocalNode in the map of scanned FSIDs. This is used to detect
+     * moves and avoid mismatches caused by FSID reuse.
+     *
+     * @param fsid The FSID of the node to be searched on the localnode map.
+     * @param targetNodeAttributes The necessary node attributes of the node looking for another
+     * node matching by FSID.
+     * @param originalPathForLogging The original path being processed for context in logs.
+     * @param extraCheck An optional callable for additional filtering of LocalNodes.
+     *
+     * @return A pair with:
+     *         bool - indicating whether an unknown exclusion was encountered. This may occur during
+     * eg. the first pass of the tree after loading from Suspended state and the corresponding node
+     * is later in the tree. The caller should decide whether to pospone the logic if an unknown
+     * exclusion was found for some node.
+     *         LocalNode* - pointer to the matching LocalNode, or nullptr if no match is found.
+     *
+     * @see findLocalNodeByFsid()
+     */
+    std::pair<bool, LocalNode*> findLocalNodeByScannedFsid(
+        const handle fsid,
+        const NodeMatchByFSIDAttributes& targetNodeAttributes,
+        const LocalPath& originalPathForLogging,
+        std::function<bool(const LocalNode&)> extraCheck = nullptr) const;
+
+    void setSyncedFsidReused(const fsfp_t& fsfp, const handle fsid);
+    void setScannedFsidReused(const fsfp_t& fsfp, const handle fsid);
 
     // maps nodehandle to corresponding LocalNode* (s)
     nodehandle_localnode_map localnodeByNodeHandle;
@@ -2078,7 +2135,6 @@ public:
         paths.clear();
     }
 };
-
 
 } // namespace
 

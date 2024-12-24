@@ -1903,9 +1903,67 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
     // We want the one that does have the corresponding synced Node still present on the cloud side.
 
     // also possible: was the file overwritten by moving an existing file over it?
-    bool foundExclusionUnknown = false;
 
-    LocalNode* sourceSyncNode = syncs.findLocalNodeBySyncedFsid(fsfp(), row.fsNode->fsid, fullPath.localPath, row.fsNode->type, row.fsNode->fingerprint, nullptr, cloudRootOwningUser, foundExclusionUnknown);
+    LocalNode* sourceSyncNodeExcludedByFingerprintDuringPutnodes{nullptr};
+    const NodeMatchByFSIDAttributes fsNodeAttributes{row.fsNode->type,
+                                                     fsfp(),
+                                                     cloudRootOwningUser,
+                                                     row.fsNode->fingerprint};
+    const auto [foundExclusionUnknown, sourceSyncNode] = syncs.findLocalNodeBySyncedFsid(
+        row.fsNode->fsid,
+        fsNodeAttributes,
+        fullPath.localPath,
+        nullptr,
+        [&sourceSyncNodeExcludedByFingerprintDuringPutnodes](LocalNode* matchedNodeByFsid)
+        {
+            sourceSyncNodeExcludedByFingerprintDuringPutnodes = matchedNodeByFsid;
+        });
+
+    if (sourceSyncNodeExcludedByFingerprintDuringPutnodes)
+    {
+        ProgressingMonitor monitor(*this, row, fullPath);
+        if (auto upload = std::dynamic_pointer_cast<SyncUpload_inClient>(
+                sourceSyncNodeExcludedByFingerprintDuringPutnodes->transferSP);
+            upload && upload->putnodesStarted)
+        {
+            // If the putnodes request has started, we need to wait.
+            LOG_debug << "Potential move-source has outstanding putnodes: "
+                      << logTriplet(row, fullPath);
+
+            // Only emit a stall for this case if:
+            // - A sync controller has been injected into the engine.
+            // - The reference to that controller is still "live."
+            if (syncs.hasSyncController())
+            {
+                // Signal a stall that observers can easily detect.
+                monitor.waitingLocal(
+                    fullPath.localPath,
+                    SyncStallEntry(
+                        SyncWaitReason::MoveOrRenameCannotOccur,
+                        false,
+                        false,
+                        {},
+                        {},
+                        {sourceSyncNodeExcludedByFingerprintDuringPutnodes->getLocalPath(),
+                         PathProblem::PutnodeCompletionPending},
+                        {fullPath.localPath, PathProblem::NoProblem}));
+            }
+        }
+        else
+        {
+            LOG_warn << "Source sync node matched by FSID has been detected as excluded by "
+                        "fingerprint while having a putnodes operation ongoing, but the upload is "
+                        "not found or putnodes has not started";
+            assert(false && "Source sync node matched by FSID excluded by fingerprint during "
+                            "putnodes operation ongoing is not meeting the requirements");
+        }
+        // Make sure we visit the source again.
+        sourceSyncNodeExcludedByFingerprintDuringPutnodes->setSyncAgain(false, true, false);
+
+        // We can't move just yet.
+        rowResult = false;
+        return true;
+    }
 
     if (foundExclusionUnknown)
     {
@@ -1941,16 +1999,19 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
             return false;
         }
 
-        auto markSiblingSourceRow = [&]() {
-            if (!row.rowSiblings)
+        auto markSiblingSourceRow = [&sourceSyncNode = std::as_const(*sourceSyncNode),
+                                     &syncNode = std::as_const(*parentRow.syncNode),
+                                     &rowSiblings = row.rowSiblings]()
+        {
+            if (!rowSiblings)
                 return false;
 
-            if (sourceSyncNode->parent != parentRow.syncNode)
+            if (&sourceSyncNode != &syncNode)
                 return false;
 
-            for (auto& sibling : *row.rowSiblings)
+            for (auto& sibling: *rowSiblings)
             {
-                if (sibling.syncNode == sourceSyncNode)
+                if (sibling.syncNode == &sourceSyncNode)
                 {
                     sibling.itemProcessed = true;
                     sibling.syncNode->setSyncAgain(true, false, false);
@@ -2050,42 +2111,6 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
             }
         }
 
-        // Check if the move source is part of an ongoing upload.
-        if (auto upload = std::dynamic_pointer_cast<SyncUpload_inClient>(sourceSyncNode->transferSP))
-        {
-            // If the putnodes request has started, we need to wait.
-            if (upload->putnodesStarted)
-            {
-                LOG_debug << "Move-source has outstanding putnodes: "
-                          << logTriplet(row, fullPath);
-
-                // Only emit a stall for this case if:
-                // - A sync controller has been injected into the engine.
-                // - The reference to that controller is still "live."
-                if (syncs.hasSyncController())
-                {
-                    // Signal a stall that observers can easily detect.
-                    monitor.waitingLocal(fullPath.localPath,
-                                         SyncStallEntry(SyncWaitReason::MoveOrRenameCannotOccur,
-                                                        false,
-                                                        false,
-                                                        {},
-                                                        {},
-                                                        {sourceSyncNode->getLocalPath(), PathProblem::PutnodeCompletionPending},
-                                                        {fullPath.localPath, PathProblem::NoProblem}));
-                }
-
-                // Make sure we visit the source again.
-                sourceSyncNode->setSyncAgain(false, true, false);
-
-                // We can't move just yet.
-                return rowResult = false, true;
-            }
-
-            // Otherwise, we can safely cancel the upload.
-            sourceSyncNode->resetTransfer(nullptr);
-        }
-
         // Is there something in the way at the move destination?
         string nameOverwritten;
 
@@ -2141,20 +2166,29 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
                 && !mScanningWasComplete)
                 problem = PathProblem::WaitingForScanningToComplete;
 
-            LocalNode* other = nullptr;
-
             // Is the file on disk visible elsewhere?
-            bool foundOtherButExclusionUnknown = false;
-            if (problem == PathProblem::NoProblem
-                && !row.syncNode->fsidSyncedReused)
-            {
-                other = syncs.findLocalNodeByScannedFsid(fsfp(), row.syncNode->fsid_lastSynced,
-                                                         fullPath.localPath,
-                                                         row.syncNode->type,
-                                                         &row.syncNode->syncedFingerprint,
-                                                         nullptr,
-                                                         cloudRootOwningUser, foundOtherButExclusionUnknown);
-            }
+            const auto [foundOtherButExclusionUnknown, other] = std::invoke(
+                [&syncs = std::as_const(syncs),
+                 &cloudRootOwningUser = std::as_const(cloudRootOwningUser),
+                 &fsfp = std::as_const(fsfp()),
+                 &syncNode = std::as_const(*row.syncNode),
+                 &fullPath = std::as_const(fullPath),
+                 problem]() -> std::pair<bool, LocalNode*>
+                {
+                    if (problem == PathProblem::NoProblem && !syncNode.fsidSyncedReused)
+                    {
+                        const NodeMatchByFSIDAttributes syncNodeAttributes{
+                            syncNode.type,
+                            fsfp,
+                            cloudRootOwningUser,
+                            syncNode.syncedFingerprint};
+
+                        return syncs.findLocalNodeByScannedFsid(syncNode.fsid_lastSynced,
+                                                                syncNodeAttributes,
+                                                                fullPath.localPath);
+                    }
+                    return {false, nullptr};
+                });
 
             // Then it's probably part of another move.
             if ((other && other != row.syncNode && other != sourceSyncNode)
@@ -9450,14 +9484,14 @@ bool Sync::resolve_checkMoveDownloadComplete(SyncRow& row, SyncPath& fullPath)
         return false;
 
     // Are we still associated with the move source?
-    bool sourceExclusionUnknown = false;
-    auto source = syncs.findLocalNodeBySyncedFsid(*movePtr->sourceFsfp,
-                                                  movePtr->sourceFsid,
-                                                  fullPath.localPath,
-                                                  movePtr->sourceType,
-                                                  movePtr->sourceFingerprint,
-                                                  nullptr,
-                                                  cloudRootOwningUser, sourceExclusionUnknown);
+    const NodeMatchByFSIDAttributes moveNodeAttributes{movePtr->sourceType,
+                                                       *movePtr->sourceFsfp,
+                                                       cloudRootOwningUser,
+                                                       movePtr->sourceFingerprint};
+    const auto [sourceExclusionUnknown, source] =
+        syncs.findLocalNodeBySyncedFsid(movePtr->sourceFsid,
+                                        moveNodeAttributes,
+                                        fullPath.localPath);
 
     if (sourceExclusionUnknown)
     {
@@ -9533,8 +9567,14 @@ bool Sync::resolve_checkMoveComplete(SyncRow& row, SyncRow& /*parentRow*/, SyncP
 
     LOG_debug << syncname << "Checking move source/target by fsid " << toHandle(movePtr->sourceFsid);
 
-    bool sourceExclusionUnknown = false;
-    LocalNode* sourceSyncNode = syncs.findLocalNodeBySyncedFsid(*movePtr->sourceFsfp, movePtr->sourceFsid, fullPath.localPath, movePtr->sourceType, movePtr->sourceFingerprint, nullptr, cloudRootOwningUser, sourceExclusionUnknown);
+    const NodeMatchByFSIDAttributes moveNodeAttributes{movePtr->sourceType,
+                                                       *movePtr->sourceFsfp,
+                                                       cloudRootOwningUser,
+                                                       movePtr->sourceFingerprint};
+    const auto [sourceExclusionUnknown, sourceSyncNode] =
+        syncs.findLocalNodeBySyncedFsid(movePtr->sourceFsid,
+                                        moveNodeAttributes,
+                                        fullPath.localPath);
 
     if (sourceExclusionUnknown)
     {
@@ -9878,26 +9918,36 @@ bool Sync::resolve_delSyncNode(SyncRow& row, SyncRow& parentRow, SyncPath& fullP
         // is the old Node or FSNode somewhere else now?  If we can't find them, then this node can't have been moved
         bool fsNodeIsElsewhere = false;
         bool cloudNodeIsElsewhere = false;
-        LocalNode* fsElsewhere = nullptr;
         string fsElsewhereLocation;
-        bool sourceFsidExclusionUnknown = false;
 
         if (!mScanningWasComplete)
         {
             fsNodeIsElsewhere = true;
         }
-        else if (row.syncNode->fsid_lastSynced != UNDEF &&
-            nullptr != (fsElsewhere = syncs.findLocalNodeByScannedFsid(fsfp(), row.syncNode->fsid_lastSynced, fullPath.localPath, row.syncNode->type, nullptr, nullptr, cloudRootOwningUser, sourceFsidExclusionUnknown)))
+        else if (row.syncNode->fsid_lastSynced != UNDEF)
         {
-            fsNodeIsElsewhere = true;
-            fsElsewhereLocation = fsElsewhere->getCloudPath(false);
-            SYNC_verbose << "LocalNode considered for deletion, but fsNode is elsewhere: " << fsElsewhere->getLocalPath() << logTriplet(row, fullPath);
-        }
-
-        if (sourceFsidExclusionUnknown)
-        {
-            SYNC_verbose << "LocalNode considered for deletion, but fsNode is elsewhere with unknown exclusion state: " << fsElsewhere->getLocalPath() << logTriplet(row, fullPath);
-            fsNodeIsElsewhere = true;
+            const NodeMatchByFSIDAttributes syncNodeAttributes{row.syncNode->type,
+                                                               fsfp(),
+                                                               cloudRootOwningUser,
+                                                               row.syncNode->syncedFingerprint};
+            const auto [sourceFsidExclusionUnknown, fsElsewhere] =
+                syncs.findLocalNodeByScannedFsid(row.syncNode->fsid_lastSynced,
+                                                 syncNodeAttributes,
+                                                 fullPath.localPath);
+            if (fsElsewhere)
+            {
+                fsNodeIsElsewhere = true;
+                fsElsewhereLocation = fsElsewhere->getCloudPath(false);
+                SYNC_verbose << "LocalNode considered for deletion, but fsNode is elsewhere: "
+                             << fsElsewhere->getLocalPath() << logTriplet(row, fullPath);
+            }
+            else if (sourceFsidExclusionUnknown)
+            {
+                fsNodeIsElsewhere = true;
+                SYNC_verbose << "LocalNode considered for deletion, but fsNode is elsewhere with "
+                                "unknown exclusion state: "
+                             << logTriplet(row, fullPath);
+            }
         }
 
         CloudNode cloudNode;
@@ -10822,114 +10872,43 @@ bool Sync::resolve_cloudNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& ful
     return false;
 }
 
-LocalNode* Syncs::findLocalNodeBySyncedFsid(const fsfp_t& fsfp,
-                                            mega::handle fsid,
-                                            const LocalPath& originalpath,
-                                            nodetype_t type,
-                                            const FileFingerprint&,
-                                            std::function<bool(LocalNode* ln)> extraCheck,
-                                            handle owningUser,
-                                            bool& foundExclusionUnknown)
+std::pair<bool, LocalNode*> Syncs::findLocalNodeBySyncedFsid(
+    const handle fsid,
+    const NodeMatchByFSIDAttributes& targetNodeAttributes,
+    const LocalPath& originalPathForLogging,
+    std::function<bool(const LocalNode&)> extraCheck,
+    std::function<void(LocalNode*)> onFingerprintMismatchDuringPutnodes) const
 {
     assert(onSyncThread());
-    if (fsid == UNDEF) return nullptr;
 
-    auto range = localnodeBySyncedFsid.equal_range(fsid);
+    FindLocalNodeByFSIDPredicate predicate(fsid,
+                                           ScannedOrSyncedContext::SYNCED,
+                                           targetNodeAttributes,
+                                           originalPathForLogging,
+                                           extraCheck,
+                                           onFingerprintMismatchDuringPutnodes);
 
-    for (auto it = range.first; it != range.second; ++it)
-    {
-        if (it->second->type != type) continue;
-        if (it->second->fsidSyncedReused)   continue;
-        if (it->second->sync->fsfp() != fsfp) continue; // they must be on the same filesystem
-
-        // we can't move a node between cloud users (eg inshare to this account, or inshare to inshare), so avoid detecting those
-        if (owningUser != UNDEF &&
-            it->second->sync->cloudRootOwningUser != owningUser)
-        {
-            continue;
-        }
-
-        switch (it->second->exclusionState())
-        {
-        case ES_INCLUDED: break;
-        case ES_UNKNOWN:  LOG_verbose << mClient.clientname << "findLocalNodeBySyncedFsid - unknown exclusion with that fsid " << toHandle(fsid) << " at: " << it->second->getLocalPath() << " checked from " << originalpath;
-                          foundExclusionUnknown = true;
-                          continue;
-        case ES_EXCLUDED: continue;
-        default: assert(false); continue;
-        }
-
-        // If we got this far, it's a good enough match to use
-        // todo: come back for other matches?
-        if (!extraCheck || extraCheck(it->second))
-        {
-            SYNCS_verbose_timed << mClient.clientname << "findLocalNodeBySyncedFsid - found " << toHandle(fsid)
-                                << " at: " << it->second->getLocalPath()
-                                << " checked from " << originalpath;
-            return it->second;
-        }
-    }
-    return nullptr;
+    return findLocalNodeByFsid(localnodeBySyncedFsid, std::move(predicate));
 }
 
-LocalNode* Syncs::findLocalNodeByScannedFsid(const fsfp_t& fsfp, mega::handle fsid,
-    const LocalPath& originalpath, nodetype_t type, const FileFingerprint* fingerprint,
-    std::function<bool(LocalNode* ln)> extraCheck, handle owningUser, bool& foundExclusionUnknown)
+std::pair<bool, LocalNode*>
+    Syncs::findLocalNodeByScannedFsid(const handle fsid,
+                                      const NodeMatchByFSIDAttributes& targetNodeAttributes,
+                                      const LocalPath& originalPathForLogging,
+                                      std::function<bool(const LocalNode&)> extraCheck) const
 {
     assert(onSyncThread());
-    if (fsid == UNDEF) return nullptr;
 
-    auto range = localnodeByScannedFsid.equal_range(fsid);
+    FindLocalNodeByFSIDPredicate predicate(fsid,
+                                           ScannedOrSyncedContext::SCANNED,
+                                           targetNodeAttributes,
+                                           originalPathForLogging,
+                                           extraCheck);
 
-    for (auto it = range.first; it != range.second; ++it)
-    {
-        if (it->second->type != type) continue;
-        if (it->second->fsidScannedReused)   continue;
-        if (it->second->sync->fsfp() != fsfp) continue; // they must be on the same filesystem
-
-        switch (it->second->exclusionState())
-        {
-        case ES_INCLUDED: break;
-        case ES_UNKNOWN:  LOG_verbose << mClient.clientname << "findLocalNodeByScannedFsid - unknown exclusion with that fsid " << toHandle(fsid) << " at: " << it->second->getLocalPath() << " checked from " << originalpath;
-                          foundExclusionUnknown = true;
-                          continue;
-        case ES_EXCLUDED: continue;
-        default: assert(false); continue;
-        }
-
-        // we can't move a node between cloud users (eg inshare to this account, or inshare to inshare), so avoid detecting those
-        if (owningUser != UNDEF &&
-            it->second->sync->cloudRootOwningUser != owningUser)
-        {
-            continue;
-        }
-
-        if (fingerprint)
-        {
-            if (type == FILENODE &&
-                (fingerprint->mtime != it->second->scannedFingerprint.mtime ||
-                    fingerprint->size != it->second->scannedFingerprint.size))
-            {
-                // fsid match, but size or mtime mismatch
-                // treat as different
-                continue;
-            }
-        }
-
-        // If we got this far, it's a good enough match to use
-        // todo: come back for other matches?
-        if (!extraCheck || extraCheck(it->second))
-        {
-            SYNCS_verbose_timed << mClient.clientname << "findLocalNodeByScannedFsid - found " << toHandle(fsid)
-                                << " at: " << it->second->getLocalPath()
-                                << " checked from " << originalpath;
-            return it->second;
-        }
-    }
-    return nullptr;
+    return findLocalNodeByFsid(localnodeByScannedFsid, std::move(predicate));
 }
 
-void Syncs::setSyncedFsidReused(const fsfp_t& fsfp, mega::handle fsid)
+void Syncs::setSyncedFsidReused(const fsfp_t& fsfp, const handle fsid)
 {
     assert(onSyncThread());
     for (auto range = localnodeBySyncedFsid.equal_range(fsid);
@@ -10941,7 +10920,7 @@ void Syncs::setSyncedFsidReused(const fsfp_t& fsfp, mega::handle fsid)
     }
 }
 
-void Syncs::setScannedFsidReused(const fsfp_t& fsfp, mega::handle fsid)
+void Syncs::setScannedFsidReused(const fsfp_t& fsfp, const handle fsid)
 {
     assert(onSyncThread());
     for (auto range = localnodeByScannedFsid.equal_range(fsid);
@@ -11004,17 +10983,20 @@ bool Syncs::findLocalNodeByNodeHandle(NodeHandle h, LocalNode*& sourceSyncNodeOr
     if (!sourceSyncNodeCurrent && sourceSyncNodeOriginal && sourceSyncNodeOriginal->fsid_lastSynced != UNDEF)
     {
         // see if we can find where the local side went, so we can report a move clash
-        sourceSyncNodeCurrent = findLocalNodeByScannedFsid(
-                sourceSyncNodeOriginal->sync->fsfp(),
-                sourceSyncNodeOriginal->fsid_lastSynced,
-                sourceSyncNodeOriginal->getLocalPath(),
-                sourceSyncNodeOriginal->type,
-                &sourceSyncNodeOriginal->syncedFingerprint,
-                nullptr, sourceSyncNodeOriginal->sync->cloudRootOwningUser, unsureDueToUnknownExclusionMoveSource);
+        const NodeMatchByFSIDAttributes sourceSyncNodeOriginalAttributes{
+            sourceSyncNodeOriginal->type,
+            sourceSyncNodeOriginal->sync->fsfp(),
+            sourceSyncNodeOriginal->sync->cloudRootOwningUser,
+            sourceSyncNodeOriginal->syncedFingerprint};
+        std::tie(unsureDueToUnknownExclusionMoveSource, sourceSyncNodeCurrent) =
+            findLocalNodeByScannedFsid(sourceSyncNodeOriginal->fsid_lastSynced,
+                                       sourceSyncNodeOriginalAttributes,
+                                       sourceSyncNodeOriginal->getLocalPath());
 
         if (unsureDueToUnknownExclusionMoveSource)
         {
-            LOG_verbose << mClient.clientname << "findLocalNodeByNodeHandle - unknown exclusion after fsid lookup";
+            LOG_verbose << mClient.clientname
+                        << "findLocalNodeByNodeHandle - unknown exclusion after fsid lookup";
         }
 
         if (!sourceSyncNodeCurrent && !sourceSyncNodeOriginal->sync->scanningWasComplete())
@@ -11151,24 +11133,32 @@ bool Sync::resolve_fsNodeGone(SyncRow& row, SyncRow& /*parentRow*/, SyncPath& fu
     assert(syncs.onSyncThread());
     ProgressingMonitor monitor(*this, row, fullPath);
 
-    LocalNode* movedLocalNode = nullptr;
-    bool unsureOfMovedLocalNodeDueToUnknownExclusions = false;
+    const auto [unsureOfMovedLocalNodeDueToUnknownExclusions, movedLocalNode] = std::invoke(
+        [&syncs = std::as_const(syncs),
+         &cloudRootOwningUser = std::as_const(cloudRootOwningUser),
+         &fsfp = std::as_const(fsfp()),
+         &syncNode = std::as_const(*row.syncNode),
+         &fullPath = std::as_const(fullPath)]() -> std::pair<bool, LocalNode*>
+        {
+            // Ignore files aren't subject to the usual move processing.
+            if (!syncNode.fsidSyncedReused && syncNode.isIgnoreFile())
+            {
+                auto extraCheck = [&syncNode](const LocalNode& n)
+                {
+                    return &n != &syncNode && !n.isIgnoreFile();
+                };
 
-    // Ignore files aren't subject to the usual move processing.
-    if (!row.syncNode->fsidSyncedReused && !row.syncNode->isIgnoreFile())
-    {
-        auto predicate = [&row](LocalNode* n) {
-            return n != row.syncNode && !n->isIgnoreFile();
-        };
-
-        movedLocalNode =
-            syncs.findLocalNodeByScannedFsid(fsfp(), row.syncNode->fsid_lastSynced,
-                fullPath.localPath,
-                row.syncNode->type,
-                &row.syncNode->syncedFingerprint,
-                std::move(predicate),
-                cloudRootOwningUser, unsureOfMovedLocalNodeDueToUnknownExclusions);
-    }
+                const NodeMatchByFSIDAttributes syncNodeAttributes{syncNode.type,
+                                                                   fsfp,
+                                                                   cloudRootOwningUser,
+                                                                   syncNode.syncedFingerprint};
+                return syncs.findLocalNodeByScannedFsid(syncNode.fsid_lastSynced,
+                                                        syncNodeAttributes,
+                                                        fullPath.localPath,
+                                                        std::move(extraCheck));
+            }
+            return {false, nullptr};
+        });
 
     if (unsureOfMovedLocalNodeDueToUnknownExclusions)
     {

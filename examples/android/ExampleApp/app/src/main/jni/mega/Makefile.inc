@@ -36,6 +36,7 @@ CPP_SOURCES= sdk/src/attrmap.cpp \
     sdk/src/share.cpp \
     sdk/src/sharenodekeys.cpp \
     sdk/src/sync.cpp \
+    sdk/src/syncinternals.cpp \
     sdk/src/transfer.cpp \
     sdk/src/transferslot.cpp \
     sdk/src/transferstats.cpp \
@@ -102,6 +103,7 @@ HEADERS= sdk/include/mega.h \
         sdk/include/mega/share.h \
         sdk/include/mega/sharenodekeys.h \
         sdk/include/mega/sync.h \
+        sdk/include/mega/syncinternals.h \
         sdk/include/mega/transfer.h \
         sdk/include/mega/transferslot.h \
         sdk/include/mega/transferstats.h \

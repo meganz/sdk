@@ -45,6 +45,7 @@
     <ClCompile Include="..\..\src\db\sqlite.cpp" />
     <ClCompile Include="3rdparty\libs\sqlite3.c" />
     <ClCompile Include="..\..\src\sync.cpp" />
+    <ClCompile Include="..\..\src\syncinternals.cpp" />
     <ClCompile Include="..\..\src\transfer.cpp" />
     <ClCompile Include="..\..\src\transferslot.cpp" />
     <ClCompile Include="..\..\src\transferstats.cpp" />
@@ -103,6 +104,7 @@
     <ClInclude Include="..\..\include\mega\crypto\sodium.h" />
     <ClInclude Include="..\..\include\mega\db\sqlite.h" />
     <ClInclude Include="..\..\include\mega\sync.h" />
+    <ClInclude Include="..\..\include\mega\syncinternals.h" />
     <ClInclude Include="..\..\include\mega\thread.h" />
     <ClInclude Include="..\..\include\mega\transfer.h" />
     <ClInclude Include="..\..\include\mega\transferslot.h" />
