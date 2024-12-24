@@ -3250,6 +3250,22 @@ using namespace mega;
     return tagsStringList.toStringArray;
 }
 
+- (void)addTag:(NSString *)tag toNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi != nil) {
+        self.megaApi->addNodeTag(node.getCPtr, tag.UTF8String, [self createDelegateMEGARequestListener:delegate
+                                                                                        singleListener:YES
+                                                                                             queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
+- (void)removeTag:(NSString *)tag fromNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi != nil) {
+        self.megaApi->removeNodeTag(node.getCPtr, tag.UTF8String, [self createDelegateMEGARequestListener:delegate
+                                                                                           singleListener:YES
+                                                                                                queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
 - (MEGAError *)checkMoveErrorExtendedForNode:(MEGANode *)node target:(MEGANode *)target {
     if (self.megaApi == nil) return nil;
     return [[MEGAError alloc] initWithMegaError:self.megaApi->checkMoveErrorExtended(node.getCPtr, target.getCPtr) cMemoryOwn:YES];
