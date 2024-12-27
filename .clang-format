@@ -1,19 +1,17 @@
 # clang-format 14 style configuration
-
+---
 # Common settings
 ColumnLimit: 100
 IndentWidth: 4
 TabWidth: 4
 UseCRLF: false
 UseTab: Never
-
 ---
 # C++
-
 #BasedOnStyle:
 AccessModifierOffset: -4
 AlignAfterOpenBracket: Align
-AlignArrayOfStructures: Left
+AlignArrayOfStructures: None
 AlignConsecutiveAssignments: None
 AlignConsecutiveBitFields: None
 AlignConsecutiveDeclarations: None
@@ -183,7 +181,8 @@ Standard: Auto
 #TypenameMacros:
 
 #WhitespaceSensitiveMacros:
-...
 ---
-Language: ObjC
+# Objective-C
 DisableFormat: true
+Language: ObjC
+...
