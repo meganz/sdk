@@ -2071,11 +2071,15 @@ MegaHandle SdkTest::createFolder(unsigned int apiIndex, const char *name, MegaNo
     return tracker.request->getNodeHandle();
 }
 
+#if 0
+// SMS verification was deprecated. This function should be removed in the future,
+// along with the rest of the code dealing with the deprecated functionality.
 void SdkTest::getCountryCallingCodes(const int /*timeout*/)
 {
     unsigned int apiIndex = 0;
     ASSERT_EQ(API_OK, synchronousGetCountryCallingCodes(apiIndex, this)) << "Get country calling codes failed";
 }
+#endif
 
 void SdkTest::getUserAttribute(MegaUser* u, int type, int /*timeout*/, int apiIndex)
 {
@@ -9634,6 +9638,9 @@ TEST_F(SdkTest, SdkUserAlias)
     ASSERT_EQ(mApi[0].getAttributeValue(), alias) << "getUserAlias returned incorrect value";
 }
 
+#if 0
+// SMS verification was deprecated. This test should be removed in the future,
+// along with the rest of the code dealing with the deprecated functionality.
 TEST_F(SdkTest, SdkGetCountryCallingCodes)
 {
     LOG_info << "___TEST SdkGetCountryCallingCodes___";
@@ -9651,6 +9658,7 @@ TEST_F(SdkTest, SdkGetCountryCallingCodes)
     ASSERT_EQ(1, de->size());
     ASSERT_EQ(0, strcmp("49", de->get(0)));
 }
+#endif
 
 TEST_F(SdkTest, DISABLED_invalidFileNames)
 {
