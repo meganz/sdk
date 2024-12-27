@@ -31864,7 +31864,7 @@ void StreamingBuffer::init(size_t newCapacity)
     // Truncate new capacity if needed
     if (newCapacity > maxBufferSize)
     {
-        size_t bytesPerSecond = getBytesPerSecond();
+        const auto bytesPerSecond = static_cast<size_t>(getBytesPerSecond());
         LOG_warn
             << getLogName()
             << "[Streaming] Truncating requested capacity due to being greater than maxBufferSize."
@@ -31921,7 +31921,7 @@ void StreamingBuffer::calcMaxBufferAndMaxOutputSize()
     size_t maxDeliveryChunksPerByteRate;
     if (duration)
     {
-        size_t bytesPerSecond = getBytesPerSecond();
+        const auto bytesPerSecond = static_cast<size_t>(getBytesPerSecond());
         // Desirable min buffer capacity: 10 seconds at least. Limit: 2x max buffer size requested by the client.
         size_t minDesirableBufferSize = std::min(10 * bytesPerSecond, maxBufferSize * 2);
         // Min buffer capacity needed to prevent data from shrinking: minNeededBufferSize at least.
@@ -37466,7 +37466,7 @@ void MegaFTPDataServer::processAsyncEvent(MegaTCPContext *tcpctx)
             ftpdatactx->streamingBuffer.setFileSize(nodeToDownload->getSize());
             ftpdatactx->streamingBuffer.setDuration(nodeToDownload->getDuration());
 
-            ftpdatactx->streamingBuffer.init(len);
+            ftpdatactx->streamingBuffer.init(static_cast<size_t>(len));
             ftpdatactx->size = len;
 
             ftpdatactx->megaApi->fireOnFtpStreamingStart(ftpdatactx->transfer);
