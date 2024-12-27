@@ -2891,7 +2891,8 @@ TEST_F(SdkTest, SdkTestNodeOperations)
         string publicLink = createPublicLink(0, fileNode.get(), 0, 1, false);
         ASSERT_TRUE(publicLink.length() > 0) << "Failed to crate public link for test file";
         std::unique_ptr<MegaNode> sharedFileNode(megaApi[0]->getNodeByHandle(sharedFileHandle));
-        ASSERT_TRUE(INVALID != sharedFileNode.get()->getPublicHandle());
+        ASSERT_NE(INVALID_HANDLE, sharedFileNode.get()->getPublicHandle())
+            << "Failed to crate public link for test file";
     }
 
     // -- Move the contaner folder (hence the file) to Rubbish bin --
@@ -2901,8 +2902,9 @@ TEST_F(SdkTest, SdkTestNodeOperations)
         // -- Test if link has been removed after moving to Rubbish bin --
         std::unique_ptr<MegaNode> sharedFileNode(megaApi[0]->getNodeByHandle(sharedFileHandle));
         ASSERT_TRUE((sharedFileNode.get())->getPublicLink() == nullptr)
-            << "Failed to remove public link for test file";
-        ASSERT_TRUE(INVALID == sharedFileNode.get()->getPublicHandle());
+            << "Failed to remove public link for test file after moving to Rubbish bin";
+        ASSERT_EQ(INVALID_HANDLE, sharedFileNode.get()->getPublicHandle())
+            << "Failed to remove public link for test file after moving to Rubbish bin";
     }
 
     // --- Remove a node ---
