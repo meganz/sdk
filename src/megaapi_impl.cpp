@@ -12606,32 +12606,6 @@ int MegaApiImpl::calcRecommendedProLevel(MegaPricing& pricing, MegaAccountDetail
     return MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI;
 }
 
-#if defined(_WIN32) || defined(__APPLE__)
-
-char* strcasestr(const char* string, const char* substring)
-{
-    int i, j;
-    for (i = 0; string[i]; i++)
-    {
-        for (j = 0; substring[j]; j++)
-        {
-            unsigned char c1 = static_cast<unsigned char>(string[i + j]);
-            if (!c1)
-                return NULL;
-
-            unsigned char c2 = static_cast<unsigned char>(substring[j]);
-            if (toupper(c1) != toupper(c2))
-                break;
-        }
-
-        if (!substring[j])
-            return (char*)string + i;
-    }
-    return NULL;
-}
-
-#endif
-
 MegaNodeList* MegaApiImpl::search(const MegaSearchFilter* filter, int order, CancelToken cancelToken, const MegaSearchPage* searchPage)
 {
     // guard against unsupported or removed order criteria
