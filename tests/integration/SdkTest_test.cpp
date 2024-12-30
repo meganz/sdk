@@ -9090,20 +9090,24 @@ TEST_F(SdkTest, SdkBackupFolder)
  * It tests the creation and removal of Backups
  *
  * Pre-requisites:
- *  - This test will use 2 clients (C1 and C2) logged in to the same account
+ *  - This test will use 2 clients (C0 and C1) logged in to the same account
  *
  * Test cases:
- *  - Test1(SdkBackupMoveOrDelete). Create a backup from C1
- *  - Test2(SdkBackupMoveOrDelete). Request backup removal (and delete its contents) from C2
- *  - Test3(SdkBackupMoveOrDelete). Create a backup from C1
- *  - Test4(SdkBackupMoveOrDelete). Request backup removal (and move its contents) from C2
- *  - Test5(SdkBackupMoveOrDelete). Create a sync from C1
- *  - Test6(SdkBackupMoveOrDelete). Request sync stop from C2
+ *  - Test1(SdkBackupMoveOrDelete). Create a backup from C0
+ *  - Test2(SdkBackupMoveOrDelete). Request backup removal (and delete its contents) from C1
+ *  - Test3(SdkBackupMoveOrDelete). Create a backup from C0
+ *  - Test4(SdkBackupMoveOrDelete). Request backup removal (and move its contents) from C1
+ *  - Test5(SdkBackupMoveOrDelete). Create a sync from C0
+ *  - Test6(SdkBackupMoveOrDelete). Request sync stop from C1
  */
 TEST_F(SdkTest, SdkBackupMoveOrDelete)
 {
+    using Sl = SyncListener;
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     LOG_info << "___TEST BackupMoveOrDelete___";
+
+    Sl sl0;
+    MegaListenerDeregisterer mld0(megaApi[0].get(), &sl0);
 
     string timestamp = getCurrentTimestamp(true);
 
@@ -9176,9 +9180,17 @@ TEST_F(SdkTest, SdkBackupMoveOrDelete)
     loginTracker = asyncRequestFetchnodes(static_cast<unsigned>(differentApiIdx));
     ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to fetch nodes for account " << differentApiIdx;
 
+    sl0.mRecvCbs[Sl::SyncDeleted] = false;
     RequestTracker removeBackupTracker(megaApi[differentApiIdx].get());
     megaApi[differentApiIdx]->removeFromBC(backupId, INVALID_HANDLE, &removeBackupTracker);
     ASSERT_EQ(removeBackupTracker.waitForResult(), API_OK) << "Failed to remove backup and delete its contents";
+    ASSERT_TRUE(WaitFor(
+        [&sl0]()
+        {
+            return sl0.mRecvCbs[Sl::SyncDeleted].load();
+        },
+        120000))
+        << "onSyncDeleted not received for C0";
 
     // Wait for this client to receive the backup removal request
     auto syncCfgRemoved = [this, &backupId]()
@@ -9186,7 +9198,7 @@ TEST_F(SdkTest, SdkBackupMoveOrDelete)
         unique_ptr<MegaSync> s(megaApi[0]->getSyncByBackupId(backupId));
         return !s;
     };
-    ASSERT_TRUE(WaitFor(syncCfgRemoved, 60000)) << "Original API could still see the removed backup after 60 seconds";
+    ASSERT_TRUE(syncCfgRemoved()) << "Original API could still see the removed backup";
 
     // Wait for the backup to be removed from remote storage
     auto bkpDeleted = [this, backupRootNodeHandle]()
@@ -9238,13 +9250,21 @@ TEST_F(SdkTest, SdkBackupMoveOrDelete)
 
     LOG_debug << "### Test4(SdkBackupMoveOrDelete). Request backup removal (and move its contents) "
                  "from C2 ###";
+    sl0.mRecvCbs[Sl::SyncDeleted] = false;
     // Request backup removal (and move its contents) from a different connection
     RequestTracker removeBackupTracker2(megaApi[static_cast<size_t>(differentApiIdx)].get());
     megaApi[differentApiIdx]->removeFromBC(backupId, moveDest, &removeBackupTracker2);
     ASSERT_EQ(removeBackupTracker2.waitForResult(), API_OK) << "Failed to remove 2nd backup and move its contents";
 
-    // Wait for this client to receive the 2nd backup removal request
-    ASSERT_TRUE(WaitFor(syncCfgRemoved, 60000)) << "Original API could still see the 2nd removed backup after 60 seconds";
+    ASSERT_TRUE(WaitFor(
+        [&sl0]()
+        {
+            return sl0.mRecvCbs[Sl::SyncDeleted].load();
+        },
+        120000))
+        << "onSyncDeleted not received for C0";
+
+    ASSERT_TRUE(syncCfgRemoved()) << "Original API could still see the 2nd removed backup";
 
     // Wait for the contents of the 2nd backup to be moved in remote storage
     auto bkpMoved = [this, backupRootNodeHandle, &moveDestNode]()
@@ -9280,13 +9300,20 @@ TEST_F(SdkTest, SdkBackupMoveOrDelete)
     ASSERT_NE(backupId, INVALID_HANDLE) << "Sync could not be found";
 
     LOG_debug << "### Test6(SdkBackupMoveOrDelete). Request sync stop from C2 ###";
+    sl0.mRecvCbs[Sl::SyncDeleted] = false;
     RequestTracker stopSyncTracker(megaApi[differentApiIdx].get());
     megaApi[differentApiIdx]->removeFromBC(backupId, INVALID_HANDLE, &stopSyncTracker);
     ASSERT_EQ(stopSyncTracker.waitForResult(), API_OK) << "Failed to stop sync";
 
-    // Wait for this client to receive the sync stop request
-    ASSERT_TRUE(WaitFor(syncCfgRemoved, 60000)) << "Original API could still see the removed sync after 60 seconds";
+    ASSERT_TRUE(WaitFor(
+        [&sl0]()
+        {
+            return sl0.mRecvCbs[Sl::SyncDeleted].load();
+        },
+        120000))
+        << "onSyncDeleted not received for C0";
 
+    ASSERT_TRUE(syncCfgRemoved()) << "Original API could still see the removed sync";
     fs::remove_all(localFolderPath, ec);
 }
 

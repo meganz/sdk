@@ -57,12 +57,28 @@ static const unsigned int waitForSyncsMs = 4000;    // Time to wait after a sync
  */
 struct SyncListener: MegaListener
 {
+    enum callbacks_t
+    {
+        SyncFileStateChanged = 1,
+        SyncAdded = 2,
+        SyncDeleted = 3,
+        SyncStateChanged = 4,
+        SyncRemoteRootChanged = 5,
+        GlobalSyncStateChanged = 6,
+        MaxCbsIdx = GlobalSyncStateChanged,
+    };
+
     enum syncstate_t
     {
         nonexistent,
         added,
         deleted
     };
+
+    /**
+     * Array of flags that informs, when SyncListener callbacks have been received
+     */
+    std::array<std::atomic<bool>, MaxCbsIdx> mRecvCbs{};
 
     std::map<handle, syncstate_t> stateMap;
 
@@ -114,6 +130,7 @@ struct SyncListener: MegaListener
     {
         // probably too frequent to output
         // out() << "onSyncFileStateChanged " << sync << newState;
+        mRecvCbs[SyncFileStateChanged] = true;
     }
 
     void onSyncAdded(MegaApi*, MegaSync* sync) override
@@ -123,6 +140,7 @@ struct SyncListener: MegaListener
 
         check(state(sync) == nonexistent);
         state(sync) = added;
+        mRecvCbs[SyncAdded] = true;
     }
 
     void onSyncDeleted(MegaApi*, MegaSync* sync) override
@@ -130,6 +148,7 @@ struct SyncListener: MegaListener
         out() << "onSyncDeleted " << toHandle(sync->getBackupId());
         check(state(sync) != nonexistent && state(sync) != deleted);
         state(sync) = nonexistent;
+        mRecvCbs[SyncDeleted] = true;
     }
 
     void onSyncStateChanged(MegaApi*, MegaSync* sync) override
@@ -143,18 +162,21 @@ struct SyncListener: MegaListener
         // called." And also: "for changes that imply other callbacks, expect that the SDK will call
         // onSyncStateChanged first, so that you can update your model only using this one."
         check(state(sync) != nonexistent);
+        mRecvCbs[SyncStateChanged] = true;
     }
 
     void onSyncRemoteRootChanged(MegaApi*, MegaSync* sync) override
     {
         out() << "onSyncRemoteRootChanged " << toHandle(sync->getBackupId())
               << " new Remote root: " << sync->getLastKnownMegaFolder();
+        mRecvCbs[SyncRemoteRootChanged] = true;
     }
 
     void onGlobalSyncStateChanged(MegaApi*) override
     {
         // just too frequent for out() really
         // out() << "onGlobalSyncStateChanged ";
+        mRecvCbs[GlobalSyncStateChanged] = true;
     }
 };
 
