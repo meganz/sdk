@@ -8933,8 +8933,8 @@ TEST_F(SdkTest, SdkBackupFolder)
     }
 
 #ifdef ENABLE_SYNC
-    // create My Backups folder
-    syncTestMyBackupsRemoteFolder(0);
+    // Make sure My Backups folder was created
+    ASSERT_NO_FATAL_FAILURE(syncTestEnsureMyBackupsRemoteFolderExists(0));
     MegaHandle mh = mApi[0].lastSyncBackupId;
 
     // Create a test root directory
@@ -9102,7 +9102,7 @@ TEST_F(SdkTest, SdkBackupMoveOrDelete)
         ASSERT_EQ(deviceName, newDeviceName) << "Getting device name failed (wrong value)";
     }
     // Make sure My Backups folder was created
-    syncTestMyBackupsRemoteFolder(0);
+    ASSERT_NO_FATAL_FAILURE(syncTestEnsureMyBackupsRemoteFolderExists(0));
 
     // Create local contents to back up
     fs::path localFolderPath = fs::current_path() / "LocalBackupFolder";
@@ -9288,7 +9288,7 @@ TEST_F(SdkTest, SdkBackupPauseResume)
         ASSERT_EQ(deviceName, newDeviceName) << "Getting device name failed (wrong value)";
     }
     // Make sure My Backups folder was created
-    ASSERT_NO_FATAL_FAILURE(syncTestMyBackupsRemoteFolder(0));
+    ASSERT_NO_FATAL_FAILURE(syncTestEnsureMyBackupsRemoteFolderExists(0));
 
     // Create local contents
     vector<fs::path> folders = {fs::current_path() / "LocalFolderPauseResume",
@@ -9520,8 +9520,8 @@ TEST_F(SdkTest, SdkExternalDriveFolder)
     ASSERT_EQ(API_OK, err) << "getDriveName failed (error: " << err << ")";
     ASSERT_EQ(driveNameFromCloud, driveName) << "getDriveName returned incorrect value";
 
-    // create My Backups folder
-    syncTestMyBackupsRemoteFolder(0);
+    // Make sure My Backups folder was created
+    ASSERT_NO_FATAL_FAILURE(syncTestEnsureMyBackupsRemoteFolderExists(0));
     MegaHandle mh = mApi[0].lastSyncBackupId;
 
     // add backup
@@ -9561,7 +9561,7 @@ TEST_F(SdkTest, SdkExternalDriveFolder)
 }
 #endif
 
-void SdkTest::syncTestMyBackupsRemoteFolder(unsigned apiIdx)
+void SdkTest::syncTestEnsureMyBackupsRemoteFolderExists(unsigned apiIdx)
 {
     mApi[apiIdx].lastSyncBackupId = UNDEF;
     int err = synchronousGetUserAttribute(apiIdx, MegaApi::USER_ATTR_MY_BACKUPS_FOLDER);
@@ -9584,7 +9584,8 @@ void SdkTest::syncTestMyBackupsRemoteFolder(unsigned apiIdx)
 
     EXPECT_NE(mApi[apiIdx].lastSyncBackupId, UNDEF);
     unique_ptr<MegaNode> n(megaApi[apiIdx]->getNodeByHandle(mApi[apiIdx].lastSyncBackupId));
-    EXPECT_NE(n, nullptr);
+    ASSERT_NE(n, nullptr)
+        << "syncTestMyBackupsRemoteFolder: My Backups Folder could not be retrieved";
 }
 
 void SdkTest::resetOnNodeUpdateCompletionCBs()

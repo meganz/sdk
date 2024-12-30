@@ -461,7 +461,7 @@ protected:
     void delSchedMeetings();
 #endif
 
-    void syncTestMyBackupsRemoteFolder(unsigned apiIdx);
+    void syncTestEnsureMyBackupsRemoteFolderExists(unsigned apiIdx);
 
     void onRequestStart(MegaApi*, MegaRequest*) override {}
 
