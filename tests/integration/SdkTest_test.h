@@ -49,6 +49,138 @@ static const unsigned int maxTimeout    = 600;      // Maximum time (seconds) to
 static const unsigned int defaultTimeout = 60;      // Normal time for most operations (seconds) to wait for response from server
 static const unsigned int waitForSyncsMs = 4000;    // Time to wait after a sync has been created and before adding new files to it
 
+/**
+ * @brief Wrapper struct of MegaListener to get all information related to a MEGA account
+ *  - make sure callbacks are consistent - added() first, nothing after deleted(), etc.
+ *
+ * @note: map by tag for now, should be backupId when that is available
+ */
+struct SyncListener: MegaListener
+{
+    enum syncstate_t
+    {
+        nonexistent,
+        added,
+        deleted
+    };
+
+    std::map<handle, syncstate_t> stateMap;
+
+    syncstate_t& state(MegaSync* sync)
+    {
+        if (stateMap.find(sync->getBackupId()) == stateMap.end())
+        {
+            stateMap[sync->getBackupId()] = nonexistent;
+        }
+        return stateMap[sync->getBackupId()];
+    }
+
+    std::vector<std::string> mErrors;
+
+    bool anyErrors = false;
+
+    bool hasAnyErrors()
+    {
+        for (auto& s: mErrors)
+        {
+            out() << "SyncListener error: " << s;
+        }
+        return anyErrors;
+    }
+
+    void check(bool b, std::string e = std::string())
+    {
+        if (!b)
+        {
+            anyErrors = true;
+            if (!e.empty())
+            {
+                mErrors.push_back(e);
+                out() << "SyncListener added error: " << e;
+            }
+        }
+    }
+
+    void clear()
+    {
+        // session was logged out (locally)
+        stateMap.clear();
+    }
+
+    void onSyncFileStateChanged(MegaApi*,
+                                MegaSync* /*sync*/,
+                                std::string* /*localPath*/,
+                                int /*newState*/) override
+    {
+        // probably too frequent to output
+        // out() << "onSyncFileStateChanged " << sync << newState;
+    }
+
+    void onSyncAdded(MegaApi*, MegaSync* sync) override
+    {
+        out() << "onSyncAdded " << toHandle(sync->getBackupId());
+        check(sync->getBackupId() != UNDEF, "sync added with undef backup Id");
+
+        check(state(sync) == nonexistent);
+        state(sync) = added;
+    }
+
+    void onSyncDeleted(MegaApi*, MegaSync* sync) override
+    {
+        out() << "onSyncDeleted " << toHandle(sync->getBackupId());
+        check(state(sync) != nonexistent && state(sync) != deleted);
+        state(sync) = nonexistent;
+    }
+
+    void onSyncStateChanged(MegaApi*, MegaSync* sync) override
+    {
+        out() << "onSyncStateChanged " << toHandle(sync->getBackupId())
+              << " runState: " << sync->getRunState();
+
+        check(sync->getBackupId() != UNDEF, "onSyncStateChanged with undef backup Id");
+
+        // MegaApi doco says: "Notice that adding a sync will not cause onSyncStateChanged to be
+        // called." And also: "for changes that imply other callbacks, expect that the SDK will call
+        // onSyncStateChanged first, so that you can update your model only using this one."
+        check(state(sync) != nonexistent);
+    }
+
+    void onSyncRemoteRootChanged(MegaApi*, MegaSync* sync) override
+    {
+        out() << "onSyncRemoteRootChanged " << toHandle(sync->getBackupId())
+              << " new Remote root: " << sync->getLastKnownMegaFolder();
+    }
+
+    void onGlobalSyncStateChanged(MegaApi*) override
+    {
+        // just too frequent for out() really
+        // out() << "onGlobalSyncStateChanged ";
+    }
+};
+
+/**
+ * @brief The MegaListenerDeregisterer Struct
+ *  - register the listener on constructions
+ *  - deregister on destruction (ie, whenever we exit the function - we may exit early if a test
+ * fails
+ */
+struct MegaListenerDeregisterer
+{
+    MegaApi* api = nullptr;
+    MegaListener* listener;
+
+    MegaListenerDeregisterer(MegaApi* a, SyncListener* l):
+        api(a),
+        listener(l)
+    {
+        api->addListener(listener);
+    }
+
+    ~MegaListenerDeregisterer()
+    {
+        api->removeListener(listener);
+    }
+};
 
 struct TransferTracker : public ::mega::MegaTransferListener
 {
