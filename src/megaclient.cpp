@@ -16539,7 +16539,10 @@ void MegaClient::abortreads(handle h, bool p, m_off_t offset, m_off_t count)
 
                 delete *(itRead++);
             }
-            else it++;
+            else
+            {
+                itRead++;
+            }
         }
     }
 }
