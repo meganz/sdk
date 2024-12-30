@@ -9084,6 +9084,22 @@ TEST_F(SdkTest, SdkBackupFolder)
 }
 
 #ifdef ENABLE_SYNC
+/**
+ * @brief TEST_F SdkBackupMoveOrDelete
+ *
+ * It tests the creation and removal of Backups
+ *
+ * Pre-requisites:
+ *  - This test will use 2 clients (C1 and C2) logged in to the same account
+ *
+ * Test cases:
+ *  - Test1(SdkBackupMoveOrDelete). Create a backup from C1
+ *  - Test2(SdkBackupMoveOrDelete). Request backup removal (and delete its contents) from C2
+ *  - Test3(SdkBackupMoveOrDelete). Create a backup from C1
+ *  - Test4(SdkBackupMoveOrDelete). Request backup removal (and move its contents) from C2
+ *  - Test5(SdkBackupMoveOrDelete). Create a sync from C1
+ *  - Test6(SdkBackupMoveOrDelete). Request sync stop from C2
+ */
 TEST_F(SdkTest, SdkBackupMoveOrDelete)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -9104,6 +9120,7 @@ TEST_F(SdkTest, SdkBackupMoveOrDelete)
     // Make sure My Backups folder was created
     ASSERT_NO_FATAL_FAILURE(syncTestEnsureMyBackupsRemoteFolderExists(0));
 
+    LOG_debug << "### Test1(SdkBackupMoveOrDelete). Create a backup from C1 ###";
     // Create local contents to back up
     fs::path localFolderPath = fs::current_path() / "LocalBackupFolder";
     std::error_code ec;
@@ -9138,6 +9155,8 @@ TEST_F(SdkTest, SdkBackupMoveOrDelete)
     }
     ASSERT_NE(backupId, INVALID_HANDLE) << "Backup could not be found";
 
+    LOG_debug << "### Test2(SdkBackupMoveOrDelete). Request backup removal (and delete its "
+                 "contents) from C2 ###";
     // Use another connection with the same credentials
     megaApi.emplace_back(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(1).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
     auto& differentApi = *megaApi.back();
@@ -9157,7 +9176,6 @@ TEST_F(SdkTest, SdkBackupMoveOrDelete)
     loginTracker = asyncRequestFetchnodes(static_cast<unsigned>(differentApiIdx));
     ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to fetch nodes for account " << differentApiIdx;
 
-    // Request backup removal (and delete its contents) from a different connection
     RequestTracker removeBackupTracker(megaApi[differentApiIdx].get());
     megaApi[differentApiIdx]->removeFromBC(backupId, INVALID_HANDLE, &removeBackupTracker);
     ASSERT_EQ(removeBackupTracker.waitForResult(), API_OK) << "Failed to remove backup and delete its contents";
@@ -9178,7 +9196,7 @@ TEST_F(SdkTest, SdkBackupMoveOrDelete)
     };
     ASSERT_TRUE(WaitFor(bkpDeleted, 60000)) << "Backup not removed after 60 seconds";
 
-    // Create another backup
+    LOG_debug << "### Test3(SdkBackupMoveOrDelete). Create a backup from C1 ###";
     backupRootNodeHandle = INVALID_HANDLE;
     err = synchronousSyncFolder(0, &backupRootNodeHandle, MegaSync::TYPE_BACKUP, localFolderPath.u8string().c_str(), backupNameStr.c_str(), INVALID_HANDLE, nullptr);
     ASSERT_EQ(err, API_OK) << "Second backup failed";
@@ -9218,6 +9236,8 @@ TEST_F(SdkTest, SdkBackupMoveOrDelete)
     };
     ASSERT_TRUE(WaitFor(bkpDestOK, 60000)) << "Other API could not see the backup destination after 60 seconds";
 
+    LOG_debug << "### Test4(SdkBackupMoveOrDelete). Request backup removal (and move its contents) "
+                 "from C2 ###";
     // Request backup removal (and move its contents) from a different connection
     RequestTracker removeBackupTracker2(megaApi[static_cast<size_t>(differentApiIdx)].get());
     megaApi[differentApiIdx]->removeFromBC(backupId, moveDest, &removeBackupTracker2);
@@ -9235,6 +9255,7 @@ TEST_F(SdkTest, SdkBackupMoveOrDelete)
     };
     ASSERT_TRUE(WaitFor(bkpMoved, 60000)) << "2nd backup not moved after 60 seconds";
 
+    LOG_debug << "### Test5(SdkBackupMoveOrDelete). Create a sync from C1 ###";
     // Create a sync
     backupRootNodeHandle = INVALID_HANDLE;
     err = synchronousSyncFolder(0, &backupRootNodeHandle, MegaSync::TYPE_TWOWAY, localFolderPath.u8string().c_str(), nullptr, moveDest, nullptr);
@@ -9258,7 +9279,7 @@ TEST_F(SdkTest, SdkBackupMoveOrDelete)
     }
     ASSERT_NE(backupId, INVALID_HANDLE) << "Sync could not be found";
 
-    // Request sync stop from a different connection
+    LOG_debug << "### Test6(SdkBackupMoveOrDelete). Request sync stop from C2 ###";
     RequestTracker stopSyncTracker(megaApi[differentApiIdx].get());
     megaApi[differentApiIdx]->removeFromBC(backupId, INVALID_HANDLE, &stopSyncTracker);
     ASSERT_EQ(stopSyncTracker.waitForResult(), API_OK) << "Failed to stop sync";
