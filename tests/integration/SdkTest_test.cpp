@@ -2864,8 +2864,7 @@ TEST_F(SdkTest, SdkTestNodeOperations)
     ASSERT_EQ(API_OK, doMoveNode(0, nullptr, n2, rubbishNode.get())) << "Cannot move node to Rubbish bin";
 
     // -- Test node movement to Rubbish bin with a file conatining public link --
-    char shareContainer[64] = "ShareIt";
-    auto sn = createFolder(0, shareContainer, rootnode);
+    auto sn = createFolder(0, "ShareIt", rootnode);
     ASSERT_NE(sn, UNDEF);
     sdk_test::LocalTempFile fLinkFile("testlink.txt", 1);
     MegaHandle sharedFileHandle = INVALID_HANDLE;

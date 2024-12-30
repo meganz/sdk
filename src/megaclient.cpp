@@ -9511,6 +9511,7 @@ void MegaClient::removeOutSharesFromSubtree(std::shared_ptr<Node> n, int tag)
         }
     }
 
+    // Remove public link for FILENODE as well
     if (n->type == FILENODE && n->plink)
     {
         exportnode(n,
