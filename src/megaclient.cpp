@@ -9519,7 +9519,7 @@ void MegaClient::removeOutSharesFromSubtree(std::shared_ptr<Node> n, int tag)
                    0,
                    false,
                    false,
-                   reqtag,
+                   tag,
                    [](Error e, handle, handle, string&&)
                    {
                        if (e != API_OK)
