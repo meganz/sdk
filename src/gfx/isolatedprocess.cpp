@@ -203,7 +203,7 @@ bool AutoStartLauncher::startUntilSuccess(Process& process)
 
 bool AutoStartLauncher::startLaunchLoopThread()
 {
-    static const milliseconds maxBackoff(400);
+    static const milliseconds maxBackoff(3000);
     static const milliseconds fastFailureThreshold(1000);
 
     // There are permanent startup failure such as missing DLL. This is not likey to happen
@@ -222,7 +222,8 @@ bool AutoStartLauncher::startLaunchLoopThread()
                 // if less than threshhold, it fails right after startup.
                 if ((used < fastFailureThreshold) && !mShuttingDown)
                 {
-                    LOG_err << "process existed too fast: " << used.count() << " backoff" << backOff.count() << "ms";
+                    // LOG_verbose << "process existed too fast: " << used.count() << " backoff "
+                    //           << backOff.count() << "ms";
                     mSleeper.sleep(backOff);
                     backOff = std::min(backOff * 2, maxBackoff); // double it and maxBackoff at most
                 }
@@ -241,11 +242,13 @@ bool AutoStartLauncher::startLaunchLoopThread()
             if (startUntilSuccess(process))
             {
                 bool ret = process.wait();
-                LOG_debug << "wait: " << ret
-                          << " hasSignal: " << process.hasTerminateBySignal()
-                          << " " << (process.hasTerminateBySignal() ? std::to_string(process.getTerminatingSignal()) : "")
-                          << " hasExited: " << process.hasExited()
-                          << " " << (process.hasExited() ? std::to_string(process.getExitCode()) : "");
+                LOG_verbose << "wait: " << ret << " hasSignal: " << process.hasTerminateBySignal()
+                            << " "
+                            << (process.hasTerminateBySignal() ?
+                                    std::to_string(process.getTerminatingSignal()) :
+                                    "")
+                            << " hasExited: " << process.hasExited() << " "
+                            << (process.hasExited() ? std::to_string(process.getExitCode()) : "");
             }
         });
 
