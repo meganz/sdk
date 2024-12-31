@@ -9511,6 +9511,25 @@ void MegaClient::removeOutSharesFromSubtree(std::shared_ptr<Node> n, int tag)
         }
     }
 
+    // Remove public link for FILENODE as well
+    if (n->type == FILENODE && n->plink)
+    {
+        exportnode(n,
+                   1,
+                   0,
+                   false,
+                   false,
+                   tag,
+                   [](Error e, handle, handle, string&&)
+                   {
+                       if (e != API_OK)
+                       {
+                           LOG_err
+                               << "Failed to remove public link upon moving file to Rubbish bin";
+                       }
+                   });
+    }
+
     for (auto& c : getChildren(n.get()))
     {
         removeOutSharesFromSubtree(c, tag);

@@ -2867,6 +2867,48 @@ TEST_F(SdkTest, SdkTestNodeOperations)
     std::unique_ptr<MegaNode> rubbishNode(megaApi[0]->getRubbishNode());
     ASSERT_EQ(API_OK, doMoveNode(0, nullptr, n2, rubbishNode.get())) << "Cannot move node to Rubbish bin";
 
+    // -- Test node movement to Rubbish bin with a file conatining public link --
+    auto sn = createFolder(0, "ShareIt", rootnode);
+    ASSERT_NE(sn, UNDEF);
+    sdk_test::LocalTempFile fLinkFile("testlink.txt", 1);
+    MegaHandle sharedFileHandle = INVALID_HANDLE;
+    std::unique_ptr<MegaNode> containerNode(megaApi[0]->getNodeByHandle(sn));
+
+    // Upload a file to a container folder
+    ASSERT_EQ(MegaError::API_OK,
+              doStartUpload(0,
+                            &sharedFileHandle,
+                            "testlink.txt",
+                            containerNode.get(),
+                            "testlink.txt",
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr,
+                            false,
+                            false,
+                            nullptr))
+        << "Cannot update the test file";
+    ASSERT_NE(sharedFileHandle, INVALID_HANDLE);
+    {
+        // -- Test public link creation ---
+        std::unique_ptr<MegaNode> fileNode(megaApi[0]->getNodeByHandle(sharedFileHandle));
+        string publicLink = createPublicLink(0, fileNode.get(), 0, 1, false);
+        ASSERT_TRUE(publicLink.length() > 0) << "Failed to crate public link for test file";
+        std::unique_ptr<MegaNode> sharedFileNode(megaApi[0]->getNodeByHandle(sharedFileHandle));
+        ASSERT_NE(INVALID_HANDLE, sharedFileNode.get()->getPublicHandle())
+            << "Failed to crate public link for test file";
+    }
+
+    // -- Move the contaner folder (hence the file) to Rubbish bin --
+    ASSERT_EQ(API_OK, doMoveNode(0, nullptr, containerNode.get(), rubbishNode.get()))
+        << "Cannot move node to Rubbish bin";
+    {
+        // -- Test if link has been removed after moving to Rubbish bin --
+        std::unique_ptr<MegaNode> sharedFileNode(megaApi[0]->getNodeByHandle(sharedFileHandle));
+        ASSERT_TRUE((sharedFileNode.get())->getPublicLink() == nullptr)
+            << "Failed to remove public link for test file after moving to Rubbish bin";
+        ASSERT_EQ(INVALID_HANDLE, sharedFileNode.get()->getPublicHandle())
+            << "Failed to remove public link for test file after moving to Rubbish bin";
+    }
 
     // --- Remove a node ---
     ASSERT_EQ(API_OK, synchronousRemove(0, n2)) << "Cannot remove a node";
