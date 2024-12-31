@@ -1602,3 +1602,133 @@ TEST(LikeCompare, CombinedMatch)
 
     ASSERT_FALSE(likeCompare("HÉ?l*e\\*", "heLloé"));
 }
+
+class CreateIdFromName: public testing::TestWithParam<uint64_t>
+{
+public:
+    static constexpr uint64_t compileTimeSeed()
+    {
+        uint64_t s = 0;
+        for (const auto c: __TIME__)
+        {
+            s <<= 8;
+            s |= static_cast<uint64_t>(c);
+        }
+        return s;
+    }
+};
+
+TEST_P(CreateIdFromName, ValidateNewImplementation)
+{
+    static constexpr uint64_t seed = CreateIdFromName::compileTimeSeed();
+    static constexpr string_view validChars{"!#$%&*+0123456789?^_abcdefghijklmnopqrstuvwxyz~"};
+    static constexpr char n[8]{validChars[seed % validChars.size()],
+                               validChars[seed * 2 % validChars.size()],
+                               validChars[seed * 3 % validChars.size()],
+                               validChars[seed * 4 % validChars.size()],
+                               validChars[seed * 5 % validChars.size()],
+                               validChars[seed * 6 % validChars.size()],
+                               validChars[seed * 7 % validChars.size()],
+                               validChars[seed * 8 % validChars.size()]};
+
+    const uint64_t nameSize = GetParam();
+    switch (nameSize)
+    {
+        case 1:
+        {
+            static constexpr char name[]{n[0], 0};
+            static_assert(makeNameid(name) == MAKENAMEID1(n[0]));
+            ASSERT_EQ(makeNameid(string{name}), MAKENAMEID1(n[0]))
+                << "Failed for \"" << name << '"';
+            static const char* constCharPtr = name;
+            ASSERT_EQ(makeNameid(constCharPtr), MAKENAMEID1(n[0]))
+                << "Failed for \"" << name << '"';
+            break;
+        }
+        case 2:
+        {
+            static constexpr char name[]{n[0], n[1], 0};
+            static_assert(makeNameid(name) == MAKENAMEID2(n[0], n[1]));
+            ASSERT_EQ(makeNameid(string{name}), MAKENAMEID2(n[0], n[1]))
+                << "Failed for \"" << name << '"';
+            static const char* constCharPtr = name;
+            ASSERT_EQ(makeNameid(constCharPtr), MAKENAMEID2(n[0], n[1]))
+                << "Failed for \"" << name << '"';
+            break;
+        }
+        case 3:
+        {
+            static constexpr char name[]{n[0], n[1], n[2], 0};
+            static_assert(makeNameid(name) == MAKENAMEID3(n[0], n[1], n[2]));
+            ASSERT_EQ(makeNameid(string{name}), MAKENAMEID3(n[0], n[1], n[2]))
+                << "Failed for \"" << name << '"';
+            static const char* constCharPtr = name;
+            ASSERT_EQ(makeNameid(constCharPtr), MAKENAMEID3(n[0], n[1], n[2]))
+                << "Failed for \"" << name << '"';
+            break;
+        }
+        case 4:
+        {
+            static constexpr char name[]{n[0], n[1], n[2], n[3], 0};
+            static_assert(makeNameid(name) == MAKENAMEID4(n[0], n[1], n[2], n[3]));
+            ASSERT_EQ(makeNameid(string{name}), MAKENAMEID4(n[0], n[1], n[2], n[3]))
+                << "Failed for \"" << name << '"';
+            static const char* constCharPtr = name;
+            ASSERT_EQ(makeNameid(constCharPtr), MAKENAMEID4(n[0], n[1], n[2], n[3]))
+                << "Failed for \"" << name << '"';
+            break;
+        }
+        case 5:
+        {
+            static constexpr char name[]{n[0], n[1], n[2], n[3], n[4], 0};
+            static_assert(makeNameid(name) == MAKENAMEID5(n[0], n[1], n[2], n[3], n[4]));
+            ASSERT_EQ(makeNameid(string{name}), MAKENAMEID5(n[0], n[1], n[2], n[3], n[4]))
+                << "Failed for \"" << name << '"';
+            static const char* constCharPtr = name;
+            ASSERT_EQ(makeNameid(constCharPtr), MAKENAMEID5(n[0], n[1], n[2], n[3], n[4]))
+                << "Failed for \"" << name << '"';
+            break;
+        }
+        case 6:
+        {
+            static constexpr char name[]{n[0], n[1], n[2], n[3], n[4], n[5], 0};
+            static_assert(makeNameid(name) == MAKENAMEID6(n[0], n[1], n[2], n[3], n[4], n[5]));
+            ASSERT_EQ(makeNameid(string{name}), MAKENAMEID6(n[0], n[1], n[2], n[3], n[4], n[5]))
+                << "Failed for \"" << name << '"';
+            static const char* constCharPtr = name;
+            ASSERT_EQ(makeNameid(constCharPtr), MAKENAMEID6(n[0], n[1], n[2], n[3], n[4], n[5]))
+                << "Failed for \"" << name << '"';
+            break;
+        }
+        case 7:
+        {
+            static constexpr char name[]{n[0], n[1], n[2], n[3], n[4], n[5], n[6], 0};
+            static_assert(makeNameid(name) ==
+                          MAKENAMEID7(n[0], n[1], n[2], n[3], n[4], n[5], n[6]));
+            ASSERT_EQ(makeNameid(string{name}),
+                      MAKENAMEID7(n[0], n[1], n[2], n[3], n[4], n[5], n[6]))
+                << "Failed for \"" << name << '"';
+            static const char* constCharPtr = name;
+            ASSERT_EQ(makeNameid(constCharPtr),
+                      MAKENAMEID7(n[0], n[1], n[2], n[3], n[4], n[5], n[6]))
+                << "Failed for \"" << name << '"';
+            break;
+        }
+        case 8:
+        {
+            static constexpr char name[]{n[0], n[1], n[2], n[3], n[4], n[5], n[6], n[7], 0};
+            static_assert(makeNameid(name) ==
+                          MAKENAMEID8(n[0], n[1], n[2], n[3], n[4], n[5], n[6], n[7]));
+            ASSERT_EQ(makeNameid(string{name}),
+                      MAKENAMEID8(n[0], n[1], n[2], n[3], n[4], n[5], n[6], n[7]))
+                << "Failed for \"" << name << '"';
+            static const char* constCharPtr = name;
+            ASSERT_EQ(makeNameid(constCharPtr),
+                      MAKENAMEID8(n[0], n[1], n[2], n[3], n[4], n[5], n[6], n[7]))
+                << "Failed for \"" << name << '"';
+            break;
+        }
+    }
+}
+
+INSTANTIATE_TEST_SUITE_P(NameidTests, CreateIdFromName, testing::Values(1, 2, 3, 4, 5, 6, 7, 8));
