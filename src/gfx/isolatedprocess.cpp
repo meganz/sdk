@@ -265,16 +265,28 @@ bool AutoStartLauncher::startLaunchLoopThread()
 // is just starting. so we'll retry in the loop, but there is no reason it
 // couldn't be shut down in 15 seconds
 //
-void AutoStartLauncher::exitLaunchLoopThread()
+// @return true if thread exits, otherwise false
+bool AutoStartLauncher::exitLaunchLoopThread()
 {
-    milliseconds backOff(10);
-    while (mThreadIsRunning && backOff < 15s)
+    milliseconds interval{10};
+    milliseconds totalWaitTime{0};
+    while (mThreadIsRunning && totalWaitTime < 15s)
     {
+        LOG_debug << "interval " << interval.count() << " totalWaitTime " << totalWaitTime.count();
         // shutdown the started process
         if (mShutdowner) mShutdowner();
-        std::this_thread::sleep_for(backOff);
-        backOff += 10ms;
+
+        // wait
+        std::this_thread::sleep_for(interval);
+
+        // Update total wait time
+        totalWaitTime += interval;
+
+        // backoff
+        interval += 10ms;
     }
+
+    return !mThreadIsRunning;
 }
 
 void AutoStartLauncher::shutDownOnce()
@@ -290,8 +302,17 @@ void AutoStartLauncher::shutDownOnce()
     // cancel sleeper, thread in sleep is woken up if it is
     mSleeper.cancel();
 
-    exitLaunchLoopThread();
-    if (mThread.joinable()) mThread.join();
+    if (exitLaunchLoopThread())
+    {
+        if (mThread.joinable())
+            mThread.join();
+    }
+    else
+    {
+        // Defensive: the thread doesn't exit, detach the thread
+        LOG_warn << "AutoStartLauncher detaching loop thread";
+        mThread.detach();
+    }
 
     LOG_info << "AutoStartLauncher is down";
 }

@@ -43,7 +43,7 @@ private:
 
     bool startLaunchLoopThread();
 
-    void exitLaunchLoopThread();
+    bool exitLaunchLoopThread();
 
     std::vector<std::string> mArgv;
 
