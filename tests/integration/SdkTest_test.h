@@ -59,13 +59,13 @@ struct SyncListener: MegaListener
 {
     enum callbacks_t
     {
-        SyncFileStateChanged = 1,
-        SyncAdded = 2,
-        SyncDeleted = 3,
-        SyncStateChanged = 4,
-        SyncRemoteRootChanged = 5,
-        GlobalSyncStateChanged = 6,
-        MaxCbsIdx = GlobalSyncStateChanged,
+        SyncFileStateChanged,
+        SyncAdded,
+        SyncDeleted,
+        SyncStateChanged,
+        SyncRemoteRootChanged,
+        GlobalSyncStateChanged,
+        CountCbs,
     };
 
     enum syncstate_t
@@ -78,7 +78,7 @@ struct SyncListener: MegaListener
     /**
      * Array of flags that informs, when SyncListener callbacks have been received
      */
-    std::array<std::atomic<bool>, MaxCbsIdx> mRecvCbs{};
+    std::array<std::atomic<bool>, CountCbs> mRecvCbs{};
 
     std::map<handle, syncstate_t> stateMap;
 
