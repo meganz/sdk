@@ -8933,8 +8933,8 @@ TEST_F(SdkTest, SdkBackupFolder)
     }
 
 #ifdef ENABLE_SYNC
-    // create My Backups folder
-    syncTestMyBackupsRemoteFolder(0);
+    // Make sure My Backups folder was created
+    ASSERT_NO_FATAL_FAILURE(syncTestEnsureMyBackupsRemoteFolderExists(0));
     MegaHandle mh = mApi[0].lastSyncBackupId;
 
     // Create a test root directory
@@ -9084,10 +9084,30 @@ TEST_F(SdkTest, SdkBackupFolder)
 }
 
 #ifdef ENABLE_SYNC
+/**
+ * @brief TEST_F SdkBackupMoveOrDelete
+ *
+ * It tests the creation and removal of Backups
+ *
+ * Pre-requisites:
+ *  - This test will use 2 clients (C0 and C1) logged in to the same account
+ *
+ * Test cases:
+ *  - Test1(SdkBackupMoveOrDelete). Create a backup from C0
+ *  - Test2(SdkBackupMoveOrDelete). Request backup removal (and delete its contents) from C1
+ *  - Test3(SdkBackupMoveOrDelete). Create a backup from C0
+ *  - Test4(SdkBackupMoveOrDelete). Request backup removal (and move its contents) from C1
+ *  - Test5(SdkBackupMoveOrDelete). Create a sync from C0
+ *  - Test6(SdkBackupMoveOrDelete). Request sync stop from C1
+ */
 TEST_F(SdkTest, SdkBackupMoveOrDelete)
 {
+    using Sl = SyncListener;
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     LOG_info << "___TEST BackupMoveOrDelete___";
+
+    Sl sl0;
+    MegaListenerDeregisterer mld0(megaApi[0].get(), &sl0);
 
     string timestamp = getCurrentTimestamp(true);
 
@@ -9102,8 +9122,9 @@ TEST_F(SdkTest, SdkBackupMoveOrDelete)
         ASSERT_EQ(deviceName, newDeviceName) << "Getting device name failed (wrong value)";
     }
     // Make sure My Backups folder was created
-    syncTestMyBackupsRemoteFolder(0);
+    ASSERT_NO_FATAL_FAILURE(syncTestEnsureMyBackupsRemoteFolderExists(0));
 
+    LOG_debug << "### Test1(SdkBackupMoveOrDelete). Create a backup from C1 ###";
     // Create local contents to back up
     fs::path localFolderPath = fs::current_path() / "LocalBackupFolder";
     std::error_code ec;
@@ -9138,6 +9159,8 @@ TEST_F(SdkTest, SdkBackupMoveOrDelete)
     }
     ASSERT_NE(backupId, INVALID_HANDLE) << "Backup could not be found";
 
+    LOG_debug << "### Test2(SdkBackupMoveOrDelete). Request backup removal (and delete its "
+                 "contents) from C2 ###";
     // Use another connection with the same credentials
     megaApi.emplace_back(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(1).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
     auto& differentApi = *megaApi.back();
@@ -9157,10 +9180,17 @@ TEST_F(SdkTest, SdkBackupMoveOrDelete)
     loginTracker = asyncRequestFetchnodes(static_cast<unsigned>(differentApiIdx));
     ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to fetch nodes for account " << differentApiIdx;
 
-    // Request backup removal (and delete its contents) from a different connection
+    sl0.mRecvCbs[Sl::SyncDeleted] = false;
     RequestTracker removeBackupTracker(megaApi[differentApiIdx].get());
     megaApi[differentApiIdx]->removeFromBC(backupId, INVALID_HANDLE, &removeBackupTracker);
     ASSERT_EQ(removeBackupTracker.waitForResult(), API_OK) << "Failed to remove backup and delete its contents";
+    ASSERT_TRUE(WaitFor(
+        [&sl0]()
+        {
+            return sl0.mRecvCbs[Sl::SyncDeleted].load();
+        },
+        120000))
+        << "onSyncDeleted not received for C0";
 
     // Wait for this client to receive the backup removal request
     auto syncCfgRemoved = [this, &backupId]()
@@ -9168,7 +9198,7 @@ TEST_F(SdkTest, SdkBackupMoveOrDelete)
         unique_ptr<MegaSync> s(megaApi[0]->getSyncByBackupId(backupId));
         return !s;
     };
-    ASSERT_TRUE(WaitFor(syncCfgRemoved, 60000)) << "Original API could still see the removed backup after 60 seconds";
+    ASSERT_TRUE(syncCfgRemoved()) << "Original API could still see the removed backup";
 
     // Wait for the backup to be removed from remote storage
     auto bkpDeleted = [this, backupRootNodeHandle]()
@@ -9178,7 +9208,7 @@ TEST_F(SdkTest, SdkBackupMoveOrDelete)
     };
     ASSERT_TRUE(WaitFor(bkpDeleted, 60000)) << "Backup not removed after 60 seconds";
 
-    // Create another backup
+    LOG_debug << "### Test3(SdkBackupMoveOrDelete). Create a backup from C1 ###";
     backupRootNodeHandle = INVALID_HANDLE;
     err = synchronousSyncFolder(0, &backupRootNodeHandle, MegaSync::TYPE_BACKUP, localFolderPath.u8string().c_str(), backupNameStr.c_str(), INVALID_HANDLE, nullptr);
     ASSERT_EQ(err, API_OK) << "Second backup failed";
@@ -9218,13 +9248,23 @@ TEST_F(SdkTest, SdkBackupMoveOrDelete)
     };
     ASSERT_TRUE(WaitFor(bkpDestOK, 60000)) << "Other API could not see the backup destination after 60 seconds";
 
+    LOG_debug << "### Test4(SdkBackupMoveOrDelete). Request backup removal (and move its contents) "
+                 "from C2 ###";
+    sl0.mRecvCbs[Sl::SyncDeleted] = false;
     // Request backup removal (and move its contents) from a different connection
     RequestTracker removeBackupTracker2(megaApi[static_cast<size_t>(differentApiIdx)].get());
     megaApi[differentApiIdx]->removeFromBC(backupId, moveDest, &removeBackupTracker2);
     ASSERT_EQ(removeBackupTracker2.waitForResult(), API_OK) << "Failed to remove 2nd backup and move its contents";
 
-    // Wait for this client to receive the 2nd backup removal request
-    ASSERT_TRUE(WaitFor(syncCfgRemoved, 60000)) << "Original API could still see the 2nd removed backup after 60 seconds";
+    ASSERT_TRUE(WaitFor(
+        [&sl0]()
+        {
+            return sl0.mRecvCbs[Sl::SyncDeleted].load();
+        },
+        120000))
+        << "onSyncDeleted not received for C0";
+
+    ASSERT_TRUE(syncCfgRemoved()) << "Original API could still see the 2nd removed backup";
 
     // Wait for the contents of the 2nd backup to be moved in remote storage
     auto bkpMoved = [this, backupRootNodeHandle, &moveDestNode]()
@@ -9235,6 +9275,7 @@ TEST_F(SdkTest, SdkBackupMoveOrDelete)
     };
     ASSERT_TRUE(WaitFor(bkpMoved, 60000)) << "2nd backup not moved after 60 seconds";
 
+    LOG_debug << "### Test5(SdkBackupMoveOrDelete). Create a sync from C1 ###";
     // Create a sync
     backupRootNodeHandle = INVALID_HANDLE;
     err = synchronousSyncFolder(0, &backupRootNodeHandle, MegaSync::TYPE_TWOWAY, localFolderPath.u8string().c_str(), nullptr, moveDest, nullptr);
@@ -9258,14 +9299,21 @@ TEST_F(SdkTest, SdkBackupMoveOrDelete)
     }
     ASSERT_NE(backupId, INVALID_HANDLE) << "Sync could not be found";
 
-    // Request sync stop from a different connection
+    LOG_debug << "### Test6(SdkBackupMoveOrDelete). Request sync stop from C2 ###";
+    sl0.mRecvCbs[Sl::SyncDeleted] = false;
     RequestTracker stopSyncTracker(megaApi[differentApiIdx].get());
     megaApi[differentApiIdx]->removeFromBC(backupId, INVALID_HANDLE, &stopSyncTracker);
     ASSERT_EQ(stopSyncTracker.waitForResult(), API_OK) << "Failed to stop sync";
 
-    // Wait for this client to receive the sync stop request
-    ASSERT_TRUE(WaitFor(syncCfgRemoved, 60000)) << "Original API could still see the removed sync after 60 seconds";
+    ASSERT_TRUE(WaitFor(
+        [&sl0]()
+        {
+            return sl0.mRecvCbs[Sl::SyncDeleted].load();
+        },
+        120000))
+        << "onSyncDeleted not received for C0";
 
+    ASSERT_TRUE(syncCfgRemoved()) << "Original API could still see the removed sync";
     fs::remove_all(localFolderPath, ec);
 }
 
@@ -9288,7 +9336,7 @@ TEST_F(SdkTest, SdkBackupPauseResume)
         ASSERT_EQ(deviceName, newDeviceName) << "Getting device name failed (wrong value)";
     }
     // Make sure My Backups folder was created
-    ASSERT_NO_FATAL_FAILURE(syncTestMyBackupsRemoteFolder(0));
+    ASSERT_NO_FATAL_FAILURE(syncTestEnsureMyBackupsRemoteFolderExists(0));
 
     // Create local contents
     vector<fs::path> folders = {fs::current_path() / "LocalFolderPauseResume",
@@ -9520,8 +9568,8 @@ TEST_F(SdkTest, SdkExternalDriveFolder)
     ASSERT_EQ(API_OK, err) << "getDriveName failed (error: " << err << ")";
     ASSERT_EQ(driveNameFromCloud, driveName) << "getDriveName returned incorrect value";
 
-    // create My Backups folder
-    syncTestMyBackupsRemoteFolder(0);
+    // Make sure My Backups folder was created
+    ASSERT_NO_FATAL_FAILURE(syncTestEnsureMyBackupsRemoteFolderExists(0));
     MegaHandle mh = mApi[0].lastSyncBackupId;
 
     // add backup
@@ -9561,7 +9609,7 @@ TEST_F(SdkTest, SdkExternalDriveFolder)
 }
 #endif
 
-void SdkTest::syncTestMyBackupsRemoteFolder(unsigned apiIdx)
+void SdkTest::syncTestEnsureMyBackupsRemoteFolderExists(unsigned apiIdx)
 {
     mApi[apiIdx].lastSyncBackupId = UNDEF;
     int err = synchronousGetUserAttribute(apiIdx, MegaApi::USER_ATTR_MY_BACKUPS_FOLDER);
@@ -9584,7 +9632,8 @@ void SdkTest::syncTestMyBackupsRemoteFolder(unsigned apiIdx)
 
     EXPECT_NE(mApi[apiIdx].lastSyncBackupId, UNDEF);
     unique_ptr<MegaNode> n(megaApi[apiIdx]->getNodeByHandle(mApi[apiIdx].lastSyncBackupId));
-    EXPECT_NE(n, nullptr);
+    ASSERT_NE(n, nullptr)
+        << "syncTestMyBackupsRemoteFolder: My Backups Folder could not be retrieved";
 }
 
 void SdkTest::resetOnNodeUpdateCompletionCBs()
@@ -10590,128 +10639,6 @@ TEST_F(SdkTest, SyncIsNodeSyncable)
     ASSERT_EQ(error->getErrorCode(), API_EEXIST);
     ASSERT_EQ(error->getSyncError(), ACTIVE_SYNC_BELOW_PATH);
 }
-
-struct SyncListener : MegaListener
-{
-    // make sure callbacks are consistent - added() first, nothing after deleted(), etc.
-
-    // map by tag for now, should be backupId when that is available
-
-    enum syncstate_t { nonexistent, added, deleted};
-
-    std::map<handle, syncstate_t> stateMap;
-
-    syncstate_t& state(MegaSync* sync)
-    {
-        if (stateMap.find(sync->getBackupId()) == stateMap.end())
-        {
-            stateMap[sync->getBackupId()] = nonexistent;
-        }
-        return stateMap[sync->getBackupId()];
-    }
-
-    std::vector<std::string> mErrors;
-
-    bool anyErrors = false;
-
-    bool hasAnyErrors()
-    {
-        for (auto &s: mErrors)
-        {
-            out() << "SyncListener error: " << s;
-        }
-        return anyErrors;
-    }
-
-    void check(bool b, std::string e = std::string())
-    {
-        if (!b)
-        {
-            anyErrors = true;
-            if (!e.empty())
-            {
-                mErrors.push_back(e);
-                out() << "SyncListener added error: " << e;
-            }
-        }
-    }
-
-    void clear()
-    {
-        // session was logged out (locally)
-        stateMap.clear();
-    }
-
-    void onSyncFileStateChanged(MegaApi*,
-                                MegaSync* /*sync*/,
-                                std::string* /*localPath*/,
-                                int /*newState*/) override
-    {
-        // probably too frequent to output
-        //out() << "onSyncFileStateChanged " << sync << newState;
-    }
-
-    void onSyncAdded(MegaApi*, MegaSync* sync) override
-    {
-        out() << "onSyncAdded " << toHandle(sync->getBackupId());
-        check(sync->getBackupId() != UNDEF, "sync added with undef backup Id");
-
-        check(state(sync) == nonexistent);
-        state(sync) = added;
-    }
-
-    void onSyncDeleted(MegaApi*, MegaSync* sync) override
-    {
-        out() << "onSyncDeleted " << toHandle(sync->getBackupId());
-        check(state(sync) != nonexistent && state(sync) != deleted);
-        state(sync) = nonexistent;
-    }
-
-    void onSyncStateChanged(MegaApi*, MegaSync* sync) override
-    {
-        out() << "onSyncStateChanged " << toHandle(sync->getBackupId()) << " runState: " << sync->getRunState();
-
-        check(sync->getBackupId() != UNDEF, "onSyncStateChanged with undef backup Id");
-
-        // MegaApi doco says: "Notice that adding a sync will not cause onSyncStateChanged to be called."
-        // And also: "for changes that imply other callbacks, expect that the SDK
-        // will call onSyncStateChanged first, so that you can update your model only using this one."
-        check(state(sync) != nonexistent);
-    }
-
-    void onSyncRemoteRootChanged(MegaApi*, MegaSync* sync) override
-    {
-        out() << "onSyncRemoteRootChanged " << toHandle(sync->getBackupId())
-              << " new Remote root: " << sync->getLastKnownMegaFolder();
-    }
-
-    void onGlobalSyncStateChanged(MegaApi*) override
-    {
-        // just too frequent for out() really
-        //out() << "onGlobalSyncStateChanged ";
-    }
-};
-
-struct MegaListenerDeregisterer
-{
-    // register the listener on constructions
-    // deregister on destruction (ie, whenever we exit the function - we may exit early if a test fails
-
-    MegaApi* api = nullptr;
-    MegaListener* listener;
-
-
-    MegaListenerDeregisterer(MegaApi* a, SyncListener* l)
-        : api(a), listener(l)
-    {
-        api->addListener(listener);
-    }
-    ~MegaListenerDeregisterer()
-    {
-        api->removeListener(listener);
-    }
-};
-
 
 TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
 {
