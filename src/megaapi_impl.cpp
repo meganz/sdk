@@ -9310,12 +9310,6 @@ bool MegaApiImpl::areTransfersPaused(int direction)
     return result;
 }
 
-//-1 -> AUTO, 0 -> NONE, >0 -> b/s
-void MegaApiImpl::setUploadLimit(int bpslimit)
-{
-    client->putmbpscap = bpslimit;
-}
-
 void MegaApiImpl::setDownloadMethod(int method)
 {
     switch(method)
@@ -25052,32 +25046,38 @@ error MegaApiImpl::performRequest_getBackgroundUploadURL(MegaRequestPrivate* req
             //if not using MegaBackgroundMediaUpload, ask for IPs
             bool getIp = !request->getMegaBackgroundMediaUploadPtr();
 
-            client->reqs.add(new CommandGetPutUrl(request->getNumber(), client->putmbpscap, request->getFlag() | client->usehttps, getIp,
-                                                  [this, request](Error e, const std::string &url, const std::vector<std::string> &ips)
-            {
-                assert(e != API_OK || !url.empty());
-                if (e == API_OK && !url.empty())
+            client->reqs.add(new CommandGetPutUrl(
+                request->getNumber(),
+                request->getFlag() | client->usehttps,
+                getIp,
+                [this,
+                 request](Error e, const std::string& url, const std::vector<std::string>& ips)
                 {
-                    if (request->getMegaBackgroundMediaUploadPtr())
+                    assert(e != API_OK || !url.empty());
+                    if (e == API_OK && !url.empty())
                     {
-                        MegaBackgroundMediaUploadPrivate* mu = static_cast<MegaBackgroundMediaUploadPrivate*>(request->getMegaBackgroundMediaUploadPtr());
-                        mu->url = url;
-                    }
-                    else
-                    {
-                        request->setName(url.c_str());
-                        if (!ips.empty())
+                        if (request->getMegaBackgroundMediaUploadPtr())
                         {
-                            request->setLink(ips.at(0).c_str());
+                            MegaBackgroundMediaUploadPrivate* mu =
+                                static_cast<MegaBackgroundMediaUploadPrivate*>(
+                                    request->getMegaBackgroundMediaUploadPtr());
+                            mu->url = url;
                         }
-                        if (ips.size() > 1)
+                        else
                         {
-                            request->setText(ips.at(1).c_str());
+                            request->setName(url.c_str());
+                            if (!ips.empty())
+                            {
+                                request->setLink(ips.at(0).c_str());
+                            }
+                            if (ips.size() > 1)
+                            {
+                                request->setText(ips.at(1).c_str());
+                            }
                         }
                     }
-                }
-                fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
-            }));
+                    fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
+                }));
             return API_OK;
 }
 

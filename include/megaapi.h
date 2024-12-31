@@ -16436,14 +16436,9 @@ class MegaApi
         bool areTransfersPaused(int direction);
 
         /**
-         * @brief Set the upload speed limit
-         *
-         * The limit will be applied on the server side when starting a transfer. Thus the limit won't be
-         * applied for already started uploads and it's applied per storage server.
-         *
-         * @param bpslimit -1 to automatically select the limit, 0 for no limit, otherwise the speed limit
-         * in bytes per second
+         * @deprecated This version of the function is deprecated. Please, use \c setMaxUploadSpeed.
          */
+        MEGA_DEPRECATED
         void setUploadLimit(int bpslimit);
 
         /**
