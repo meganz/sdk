@@ -1853,7 +1853,6 @@ MegaClient::MegaClient(MegaApp* a, shared_ptr<Waiter> w, HttpIO* h, DbAccess* d,
 
     xferpaused[PUT] = false;
     xferpaused[GET] = false;
-    putmbpscap = 0;
     mBizGracePeriodTs = 0;
     mBizExpirationTs = 0;
     mBizMode = BIZ_MODE_UNKNOWN;
@@ -4207,7 +4206,7 @@ void MegaClient::dispatchTransfers()
                         reqs.add((
                             ts->pendingcmd =
                                 (nexttransfer->type == PUT) ?
-                                    (Command*)new CommandPutFile(this, ts, putmbpscap) :
+                                    (Command*)new CommandPutFile(this, ts) :
                                     new CommandGetFile(
                                         this,
                                         ts->transfer->transferkey.data(),
@@ -4717,7 +4716,6 @@ void MegaClient::locallogout(bool removecaches, [[maybe_unused]] bool keepSyncsC
     bttimers.clear();
     xferpaused[PUT] = false;
     xferpaused[GET] = false;
-    putmbpscap = 0;
     fetchingnodes = false;
     fetchnodestag = 0;
     ststatus = STORAGE_UNKNOWN;

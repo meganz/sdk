@@ -1292,9 +1292,6 @@ public:
     // send a HTTP request
     void httprequest(const char*, int, bool = false, const char* = NULL, int = 1);
 
-    // maximum outbound throughput (per target server)
-    int putmbpscap;
-
     // User-Agent header for HTTP requests
     string useragent;
 

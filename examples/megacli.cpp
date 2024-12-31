@@ -4969,7 +4969,6 @@ autocomplete::ACN autocompleteSyntax()
                     opt(flag("-nosensitive"))));
     p->Add(exec_recentnodes, sequence(text("recentnodes"), param("hours"), param("maxcount")));
 
-    p->Add(exec_putbps, sequence(text("putbps"), opt(either(wholenumber(100000), text("auto"), text("none")))));
     p->Add(exec_killsession, sequence(text("killsession"), either(text("all"), param("sessionid"))));
     p->Add(exec_whoami, sequence(text("whoami"), repeat(either(flag("-storage"), flag("-transfer"), flag("-pro"), flag("-transactions"), flag("-purchases"), flag("-sessions")))));
     p->Add(exec_verifycredentials, sequence(text("credentials"), either(text("show"), text("status"), text("verify"), text("reset")), opt(contactEmail(client))));
@@ -7799,50 +7798,6 @@ void exec_passwd(autocomplete::ACState&)
     else
     {
         cout << "Not logged in." << endl;
-    }
-}
-
-void exec_putbps(autocomplete::ACState& s)
-{
-    if (s.words.size() > 1)
-    {
-        if (s.words[1].s == "auto")
-        {
-            client->putmbpscap = -1;
-        }
-        else if (s.words[1].s == "none")
-        {
-            client->putmbpscap = 0;
-        }
-        else
-        {
-            int t = atoi(s.words[1].s.c_str());
-
-            if (t > 0)
-            {
-                client->putmbpscap = t;
-            }
-            else
-            {
-                cout << "      putbps [limit|auto|none]" << endl;
-                return;
-            }
-        }
-    }
-
-    cout << "Upload speed limit set to ";
-
-    if (client->putmbpscap < 0)
-    {
-        cout << "AUTO (approx. 90% of your available bandwidth)" << endl;
-    }
-    else if (!client->putmbpscap)
-    {
-        cout << "NONE" << endl;
-    }
-    else
-    {
-        cout << client->putmbpscap << " byte(s)/second" << endl;
     }
 }
 

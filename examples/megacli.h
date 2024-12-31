@@ -351,7 +351,6 @@ void exec_delua(autocomplete::ACState& s);
 void exec_alerts(autocomplete::ACState& s);
 void exec_recentactions(autocomplete::ACState& s);
 void exec_recentnodes(autocomplete::ACState& s);
-void exec_putbps(autocomplete::ACState& s);
 void exec_killsession(autocomplete::ACState& s);
 void exec_whoami(autocomplete::ACState& s);
 void exec_verifycredentials(autocomplete::ACState& s);

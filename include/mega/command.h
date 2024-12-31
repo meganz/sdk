@@ -663,7 +663,7 @@ public:
     void cancel() override;
     bool procresult(Result, JSON&) override;
 
-    CommandPutFile(MegaClient *client, TransferSlot*, int);
+    CommandPutFile(MegaClient* client, TransferSlot*);
 };
 
 class MEGA_API CommandGetPutUrl : public Command
@@ -674,7 +674,7 @@ class MEGA_API CommandGetPutUrl : public Command
 public:
     bool procresult(Result, JSON&) override;
 
-    CommandGetPutUrl(m_off_t size, int putmbpscap, bool forceSSL, bool getIP, Cb completion);
+    CommandGetPutUrl(m_off_t size, bool forceSSL, bool getIP, Cb completion);
 };
 
 

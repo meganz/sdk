@@ -3498,10 +3498,7 @@ bool MegaApi::areTransfersPaused(int direction)
 }
 
 //-1 -> AUTO, 0 -> NONE, >0 -> b/s
-void MegaApi::setUploadLimit(int bpslimit)
-{
-    pImpl->setUploadLimit(bpslimit);
-}
+void MegaApi::setUploadLimit(int /*bpslimit*/) {}
 
 void MegaApi::setMaxConnections(int direction, int connections, MegaRequestListener *listener)
 {

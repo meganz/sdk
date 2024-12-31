@@ -375,7 +375,7 @@ bool CommandAttachFA::procresult(Result r, JSON& json)
 }
 
 // request upload target URL
-CommandPutFile::CommandPutFile(MegaClient* client, TransferSlot* ctslot, int ms)
+CommandPutFile::CommandPutFile(MegaClient* client, TransferSlot* ctslot)
 {
     tslot = ctslot;
 
@@ -388,7 +388,6 @@ CommandPutFile::CommandPutFile(MegaClient* client, TransferSlot* ctslot, int ms)
 
     arg("v", 3);
     arg("s", tslot->fa->size);
-    arg("ms", ms);
 
     // send minimum set of different tree's roots for API to check overquota
     set<handle> targetRoots;
@@ -517,8 +516,11 @@ bool CommandPutFile::procresult(Result r, JSON& json)
 }
 
 // request upload target URL
-CommandGetPutUrl::CommandGetPutUrl(m_off_t size, int putmbpscap, bool forceSSL, bool getIP, CommandGetPutUrl::Cb completion)
-    : mCompletion(completion)
+CommandGetPutUrl::CommandGetPutUrl(m_off_t size,
+                                   bool forceSSL,
+                                   bool getIP,
+                                   CommandGetPutUrl::Cb completion):
+    mCompletion(completion)
 {
     cmd("u");
     if (forceSSL)
@@ -534,7 +536,6 @@ CommandGetPutUrl::CommandGetPutUrl(m_off_t size, int putmbpscap, bool forceSSL, 
         arg("v", 2);
     }
     arg("s", size);
-    arg("ms", putmbpscap);
 }
 
 
