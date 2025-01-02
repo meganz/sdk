@@ -1726,11 +1726,9 @@ void DirectReadSlot::retryEntireTransfer(const Error& e, dstime timeleft)
 
 void DirectReadSlot::onLowSpeedRaidedTransfer()
 {
-    if (!mDr->drbuf.isRaid() ||
-        mNumSlowConnectionsSwitches >=
-            DirectReadSlot::MAX_SLOW_CONNECTION_SWITCHES || // Limit for connection switches
+    if (!mDr->drbuf.isRaid() || maxSlowConnsSwitchesReached() ||
         mUnusedConn.isErrReason()) // mUnusedConn has failed (no matter if temp or definitive err),
-                                   // and another one has detected too slow (retry entire transfer)
+                                   // and another one is detected too slow (retry entire transfer)
     {
         LOG_warn << "DirectReadSlot: onLowSpeedRaidedTransfer -> Transfer speed too low for "
                     "streaming. Retrying entire transfer"
@@ -1739,7 +1737,7 @@ void DirectReadSlot::onLowSpeedRaidedTransfer()
         return;
     }
 
-    size_t slowestConnectionIndex = mReqs.size(); // init to invalid conn num
+    size_t slowestConnectionIndex = mReqs.size(); // init to `invalid` conn num
     m_off_t slowestThroughput = 0; // init slowest throughput
 
     for (size_t i = 0; i < mReqs.size(); ++i)
@@ -1751,9 +1749,9 @@ void DirectReadSlot::onLowSpeedRaidedTransfer()
 
         if (!isConnectionDone(i) && isMinComparableThroughputForThisConnection(i))
         {
-            m_off_t currentThroughput = getThroughput(i);
-            if (auto invalidIdx = slowestConnectionIndex == mReqs.size();
-                invalidIdx || currentThroughput < slowestThroughput)
+            const auto invalidIdx = slowestConnectionIndex == mReqs.size();
+            const m_off_t currentThroughput = getThroughput(i);
+            if (invalidIdx || currentThroughput < slowestThroughput)
             {
                 slowestConnectionIndex = i;
                 slowestThroughput = currentThroughput;
@@ -1861,8 +1859,7 @@ std::pair<size_t, size_t>
         {
             bool otherConnectionIsDone = isConnectionDone(otherConnection);
             bool otherConnectionHasEnoughDataToCompare =
-                mThroughput[otherConnection].second &&
-                mThroughput[otherConnection].first >= mMinComparableThroughput;
+                isMinComparableThroughputForThisConnection(otherConnection);
             bool compareCondition = otherConnectionHasEnoughDataToCompare && !otherConnectionIsDone;
             if (compareCondition)
             {
@@ -2011,27 +2008,45 @@ bool DirectReadSlot::isConnectionDone(const size_t connectionNum) const
 bool DirectReadSlot::watchOverDirectReadPerformance()
 {
     auto dsSinceLastWatch = Waiter::ds - mDr->drn->partialstarttime;
-    if (dsSinceLastWatch > MEAN_SPEED_INTERVAL_DS)
+    auto getMinAndMeanSpeed = [this, dsSinceLastWatch]() -> std::pair<int, m_off_t>
     {
-        m_off_t meanspeed = (10 * mDr->drn->partiallen) / dsSinceLastWatch;
-
+        // if minstreamingrate is zero, there's no minimum acceptable rate for streaming.
+        const m_off_t meanspeed = (10 * mDr->drn->partiallen) / dsSinceLastWatch;
         int minspeed = mDr->drn->client->minstreamingrate;
         if (minspeed < 0)
         {
-            LOG_warn << "DirectReadSlot: Watchdog -> Set min speed as MIN_BYTES_PER_SECOND(" << MIN_BYTES_PER_SECOND << ") to compare with average speed." << " [this = " << this << "]";
+            LOG_warn << "DirectReadSlot: Watchdog -> Set min speed as MIN_BYTES_PER_SECOND("
+                     << MIN_BYTES_PER_SECOND << ") to compare with average speed."
+                     << " [this = " << this << "]";
             minspeed = MIN_BYTES_PER_SECOND;
         }
-        LOG_debug << "DirectReadSlot: Watchdog -> Mean speed: " << meanspeed << " B/s. Min speed: " << minspeed << " B/s [Partial len: " << mDr->drn->partiallen << ". Ds: " << dsSinceLastWatch << "]" << " [this = " << this << "]";
+
+        LOG_debug << "DirectReadSlot: Watchdog -> Mean speed: " << meanspeed
+                  << " B/s. Min speed: " << minspeed
+                  << " B/s [Partial len: " << mDr->drn->partiallen << ". Ds: " << dsSinceLastWatch
+                  << "]"
+                  << " [this = " << this << "]";
+        return {minspeed, meanspeed};
+    };
+
+    if (dsSinceLastWatch > MEAN_SPEED_INTERVAL_DS)
+    {
+        auto [minspeed, meanspeed] = getMinAndMeanSpeed();
         if (minspeed != 0 && meanspeed < minspeed)
         {
             if (!mDr->hasValidCallback())
             {
-                // It's better for this check to be here instead of above: this way we can know if the transfer speed is to low, even if the transfer is already deleted at this point.
-                LOG_err << "DirectReadSlot: Watchdog -> Transfer speed too low for streaming, but transfer is already deleted. Skipping retry" << " [this = " << this << "]";
+                // It's better for this check to be here instead of above: this way we can know if
+                // the transfer speed is to low, even if the transfer is already deleted at this
+                // point.
+                LOG_err << "DirectReadSlot: Watchdog -> Transfer speed too low for streaming, but "
+                           "transfer is already deleted. Skipping retry"
+                        << " [this = " << this << "]";
                 mDr->drn->client->sendevent(99472, "DirectRead detected with a null transfer");
                 return false;
             }
-            LOG_warn << "DirectReadSlot: Watchdog -> Transfer speed too low for streaming. Retrying" << " [this = " << this << "]";
+            LOG_warn << "DirectReadSlot: Watchdog -> Transfer speed too low for streaming. Retrying"
+                     << " [this = " << this << "]";
             onLowSpeedRaidedTransfer();
             return true;
         }
