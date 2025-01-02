@@ -7472,17 +7472,6 @@ typedef NS_ENUM(NSInteger, MEGAClientType) {
 - (BOOL)areTransferPausedForDirection:(NSInteger)direction;
 
 /**
- * @brief Set the upload speed limit.
- *
- * The limit will be applied on the server side when starting a transfer. Thus the limit won't be
- * applied for already started uploads and it's applied per storage server.
- *
- * @param bpsLimit -1 to automatically select the limit, 0 for no limit, otherwise the speed limit
- * in bytes per second.
- */
-- (void)setUploadLimitWithBpsLimit:(NSInteger)bpsLimit;
-
-/**
  * @brief Request the URL suitable for uploading a media file.
  *
  * This function requests the URL needed for uploading the file. The URL will need the urlSuffix

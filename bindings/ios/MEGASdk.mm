@@ -2862,12 +2862,6 @@ using namespace mega;
     return self.megaApi->areTransfersPaused((int)direction);
 }
 
-- (void)setUploadLimitWithBpsLimit:(NSInteger)bpsLimit {
-    if (self.megaApi) {
-        self.megaApi->setUploadLimit((int)bpsLimit);
-    }
-}
-
 - (void)requestBackgroundUploadURLWithFileSize:(int64_t)filesize mediaUpload:(MEGABackgroundMediaUpload *)mediaUpload delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->backgroundMediaUploadRequestUploadURL(filesize, mediaUpload.getCPtr, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
