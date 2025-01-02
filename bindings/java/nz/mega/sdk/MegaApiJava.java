@@ -7819,19 +7819,6 @@ public class MegaApiJava {
     }
 
     /**
-     * Set the upload speed limit
-     * <p>
-     * The limit will be applied on the server side when starting a transfer. Thus the limit won't be
-     * applied for already started uploads and it's applied per storage server.
-     *
-     * @param bpslimit -1 to automatically select the limit, 0 for no limit, otherwise the speed limit
-     *                 in bytes per second
-     */
-    public void setUploadLimit(int bpslimit) {
-        megaApi.setUploadLimit(bpslimit);
-    }
-
-    /**
      * Set the transfer method for downloads
      * <p>
      * Valid methods are:
