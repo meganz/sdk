@@ -292,6 +292,9 @@ private:
  * @brief Represents unused connection in a Raided Streaming Transfer.
  * This struct stores the connection number, the reason why is unused, and the number of backoff
  * retries (in case of reason is UN_TEMP_ERR) before it can be reused again
+ *
+ * @note A bandwidth overquota error (509) cannot affect only a specific raided part, it applies to
+ * the entire transfer. Therefore, we won't add this error code or manage it in this struct.
  */
 struct UnusedConn
 {
@@ -666,12 +669,46 @@ public:
     bool exitDueReqsOnFlight() const;
 
     /**
+     * @brief Determines if the unused connection can currently be reused.
+     *
+     * If unused connection is temporarily failed (UN_TEMP_ERR), this method also decrements retries
+     * backoff and then checks if connection can be reused now
+     *
+     * @return `true` if the unused connection can currently be reused, `false` otherwise.
+     */
+    bool canReuseUnusedConnection();
+
+    /**
      * @brief Replace unused connection by connectionNum
      * @param connectionNum The connection number
      * @return a pair of booleans, where first represents if connection could be replaced at
      * DirectReadBufferManager level, and second one if new "usable" connection could be reset fine
      */
     std::pair<bool, bool> replaceUnusedConnection(size_t connectionNum);
+
+    /**
+     * @brief Identifies the slowest and fastest connections (ignoring unused connection)
+     *
+     * @param connectionNum The index of the connection to compare others against.
+     * @return A `std::pair` where:
+     *         - The first element is the index of the slowest connection.
+     *         - The second element is the index of the fastest connection.
+     *         If no valid comparison can be made, both values will be set to `mReqs.size()`.
+     */
+    std::pair<size_t, size_t> searchSlowestAndFastestConns(const size_t connectionNum) const;
+
+    /**
+     * @brief Determines if the slowest connection can be replaced by the unused connection.
+     *
+     * @param connectionNum The index of the connection being evaluated.
+     * @param slowestConnection The index of the slowest connection identified.
+     * @param fastestConnection The index of the fastest connection identified.
+     * @return `true` if the slowest connection can be switched out for the unused connection,
+     *         `false` otherwise.
+     */
+    bool canSwitchSlowestByUnusedConn(const size_t connectionNum,
+                                      const size_t slowestConnection,
+                                      const size_t fastestConnection) const;
 
     /**
     *   @brief Search for the slowest connection and switch it with the actual unused connection.
@@ -685,7 +722,7 @@ public:
     *   @see DirectReadSlot::MIN_COMPARABLE_THROUGHPUT
     *   @see DirectReadSlot::MAX_SLOW_CONECCTION_SWITCHES
     */
-    bool searchAndDisconnectSlowestConnection(size_t connectionNum = 0);
+    bool searchAndDisconnectSlowestConnection(const size_t connectionNum = 0);
 
     /**
      * @brief Checks if the minimum comparable throughput is met for a specific connection.
@@ -694,7 +731,7 @@ public:
      * @return true if the throughput for the specified connection meets the minimum comparable
      * threshold, otherwise returns false
      */
-    bool isMinComparableThroughputForThisConnection(const size_t connectionNum)
+    bool isMinComparableThroughputForThisConnection(const size_t connectionNum) const
     {
         return mThroughput[connectionNum].second &&
                mThroughput[connectionNum].first >= mMinComparableThroughput;
@@ -738,7 +775,7 @@ public:
      *
      * @return true if connection is done, otherwise returns false
      */
-    bool isConnectionDone(const size_t connectionNum);
+    bool isConnectionDone(const size_t connectionNum) const;
 
     /**
     *   @brief Builds a DirectReadSlot attached to a DirectRead object.
@@ -956,6 +993,17 @@ private:
     /* =======================*\
      *   Private aux methods  *
     \* =======================*/
+
+    /**
+     * @brief Checks if the maximum number of slow connection switches has been reached or exceeded.
+     *
+     * @return `true` if the maximum number of slow connection switches has been reached or
+     * exceeded, `false` otherwise.
+     */
+    bool maxSlowConnsSwitchesReached() const
+    {
+        return mNumSlowConnectionsSwitches >= DirectReadSlot::MAX_SLOW_CONNECTION_SWITCHES;
+    }
 
     /**
     *   @brief Adjust URL port in URL for streaming (8080).

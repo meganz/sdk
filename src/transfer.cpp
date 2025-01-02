@@ -1803,33 +1803,8 @@ bool DirectReadSlot::exitDueReqsOnFlight() const
     return false;
 }
 
-std::pair<bool, bool> DirectReadSlot::replaceUnusedConnection(size_t connectionNum)
+bool DirectReadSlot::canReuseUnusedConnection()
 {
-    if (mDr->drbuf.setUnusedRaidConnection(static_cast<unsigned>(connectionNum)))
-    {
-        if (mUnusedConn.getNum() != mReqs.size())
-        {
-            resetConnection(mUnusedConn.getNum());
-        }
-        mUnusedConn.setUnused(connectionNum, UnusedConn::UN_NOT_ERR);
-        ++mNumSlowConnectionsSwitches;
-        LOG_verbose << "DirectReadSlot [conn " << connectionNum << "]"
-                    << " Continuing after setting slow connection"
-                    << " [total slow connections switches = " << mNumSlowConnectionsSwitches << "]"
-                    << " [this = " << this << "]";
-        return {true, resetConnection(mUnusedConn.getNum())};
-    }
-    return {false, false};
-}
-
-bool DirectReadSlot::searchAndDisconnectSlowestConnection(size_t connectionNum)
-{
-    assert(connectionNum < mReqs.size());
-    if (!mDr->drbuf.isRaid())
-    {
-        return false;
-    }
-
     if (mUnusedConn.isErrReason())
     {
         if (mUnusedConn.isTempErrReason())
@@ -1850,91 +1825,133 @@ bool DirectReadSlot::searchAndDisconnectSlowestConnection(size_t connectionNum)
             return false;
         }
     }
+    return true;
+}
 
-    if (mNumSlowConnectionsSwitches >= DirectReadSlot::MAX_SLOW_CONNECTION_SWITCHES ||
-        exitDueReqsOnFlight())
+std::pair<bool, bool> DirectReadSlot::replaceUnusedConnection(size_t connectionNum)
+{
+    if (mDr->drbuf.setUnusedRaidConnection(static_cast<unsigned>(connectionNum)))
     {
-        return false;
-    }
-
-    std::unique_ptr<HttpReq>& req = mReqs[connectionNum];
-    if (!req || (connectionNum == mUnusedConn.getNum()))
-    {
-        return false;
-    }
-
-    if (isMinComparableThroughputForThisConnection(connectionNum))
-    {
-        size_t slowestConnection = connectionNum;
-        size_t fastestConnection = connectionNum;
-        size_t numReqs = mReqs.size();
-        bool minComparableThroughputForOtherConnection = true;
-        for (size_t otherConnection = numReqs; (otherConnection-- > 0) && minComparableThroughputForOtherConnection;)
+        if (mUnusedConn.getNum() != mReqs.size())
         {
-            if ((otherConnection != connectionNum) && (otherConnection != mUnusedConn.getNum()))
+            resetConnection(mUnusedConn.getNum());
+        }
+        mUnusedConn.setUnused(connectionNum, UnusedConn::UN_NOT_ERR);
+        ++mNumSlowConnectionsSwitches;
+        LOG_verbose << "DirectReadSlot [conn " << connectionNum << "]"
+                    << " Continuing after setting slow connection"
+                    << " [total slow connections switches = " << mNumSlowConnectionsSwitches << "]"
+                    << " [this = " << this << "]";
+        return {true, resetConnection(mUnusedConn.getNum())};
+    }
+    return {false, false};
+}
+
+std::pair<size_t, size_t>
+    DirectReadSlot::searchSlowestAndFastestConns(const size_t connectionNum) const
+{
+    const size_t numReqs = mReqs.size();
+    size_t slowestConnection, fastestConnection = connectionNum;
+    bool minComparableThroughputForOtherConnection = true;
+
+    for (size_t otherConnection = numReqs;
+         (otherConnection-- > 0) && minComparableThroughputForOtherConnection;)
+    {
+        if ((otherConnection != connectionNum) && (otherConnection != mUnusedConn.getNum()))
+        {
+            bool otherConnectionIsDone = isConnectionDone(otherConnection);
+            bool otherConnectionHasEnoughDataToCompare =
+                mThroughput[otherConnection].second &&
+                mThroughput[otherConnection].first >= mMinComparableThroughput;
+            bool compareCondition = otherConnectionHasEnoughDataToCompare && !otherConnectionIsDone;
+            if (compareCondition)
             {
-                bool otherConnectionIsDone = isConnectionDone(otherConnection);
-                bool otherConnectionHasEnoughDataToCompare = mThroughput[otherConnection].second && mThroughput[otherConnection].first >= mMinComparableThroughput;
-                bool compareCondition = otherConnectionHasEnoughDataToCompare && !otherConnectionIsDone;
-                if (compareCondition)
+                m_off_t otherConnectionThroughput = getThroughput(otherConnection);
+                m_off_t slowestConnectionThroughput = getThroughput(slowestConnection);
+                m_off_t fastestConnectionThroughput = getThroughput(fastestConnection);
+                if (otherConnectionThroughput < slowestConnectionThroughput)
                 {
-                    m_off_t otherConnectionThroughput = getThroughput(otherConnection);
-                    m_off_t slowestConnectionThroughput = getThroughput(slowestConnection);
-                    m_off_t fastestConnectionThroughput = getThroughput(fastestConnection);
-                    if (otherConnectionThroughput < slowestConnectionThroughput)
-                    {
-                        slowestConnection = otherConnection;
-                    }
-                    if (otherConnectionThroughput > fastestConnectionThroughput)
-                    {
-                        fastestConnection = otherConnection;
-                    }
+                    slowestConnection = otherConnection;
                 }
-                else // If we don't have enough throughput data for one connection, or any connection is done (we shouldn't reset it at that point), then we just skip this
+                if (otherConnectionThroughput > fastestConnectionThroughput)
                 {
-                    // Cannot compare... will need to wait
-                    slowestConnection = numReqs;
-                    fastestConnection = numReqs;
-                    minComparableThroughputForOtherConnection = false;
+                    fastestConnection = otherConnection;
                 }
+            }
+            else // If we don't have enough throughput data for one connection, or any connection is
+                 // done (we shouldn't reset it at that point), then we just skip this
+            {
+                // Cannot compare... will need to wait
+                slowestConnection = numReqs;
+                fastestConnection = numReqs;
+                minComparableThroughputForOtherConnection = false;
             }
         }
-        LOG_verbose << "DirectReadSlot [conn " << connectionNum << "]"
-                    << " Test slow connection -> slowest connection = " << slowestConnection
-                    << ", fastest connection = " << fastestConnection
-                    << ", unused raid connection = " << mUnusedConn.getNum()
-                    << ", mMinComparableThroughput = " << (mMinComparableThroughput / 1024)
-                    << " KB/s"
-                    << " [this = " << this << "]";
-        if (((slowestConnection == connectionNum) ||
-             ((slowestConnection != numReqs) && (mReqs[slowestConnection]->status == REQ_READY))) &&
-            (fastestConnection != slowestConnection))
-        {
-            m_off_t slowestConnectionThroughput = getThroughput(slowestConnection);
-            m_off_t fastestConnectionThroughput = getThroughput(fastestConnection);
-            if (fastestConnectionThroughput * SLOWEST_TO_FASTEST_THROUGHPUT_RATIO[0]
-                        >
-                slowestConnectionThroughput * SLOWEST_TO_FASTEST_THROUGHPUT_RATIO[1])
-            {
-                LOG_warn << "DirectReadSlot [conn " << connectionNum << "]"
-                         << " Connection " << slowestConnection
-                         << " is slow, trying the other 5 cloudraid connections"
-                         << " [slowest speed = " << ((slowestConnectionThroughput * 1000 / 1024))
-                         << " KB/s"
-                         << ", fastest speed = " << ((fastestConnectionThroughput * 1000 / 1024))
-                         << " KB/s"
-                         << ", mMinComparableThroughput = " << (mMinComparableThroughput / 1024)
-                         << " KB/s]"
-                         << " [total slow connections switches = " << mNumSlowConnectionsSwitches
-                         << "]"
-                         << " [current unused raid connection = " << mUnusedConn.getNum() << "]"
-                         << " [this = " << this << "]";
+    }
 
-                if (const auto& [exit, res] = replaceUnusedConnection(connectionNum); exit)
-                {
-                    return res;
-                }
-            }
+    LOG_verbose << "DirectReadSlot [conn " << connectionNum << "]"
+                << " Test slow connection -> slowest connection = " << slowestConnection
+                << ", fastest connection = " << fastestConnection
+                << ", unused raid connection = " << mUnusedConn.getNum()
+                << ", mMinComparableThroughput = " << (mMinComparableThroughput / 1024) << " KB/s"
+                << " [this = " << this << "]";
+
+    return {slowestConnection, fastestConnection};
+}
+
+bool DirectReadSlot::canSwitchSlowestByUnusedConn(const size_t connectionNum,
+                                                  const size_t slowestConnection,
+                                                  const size_t fastestConnection) const
+{
+    if (((slowestConnection == connectionNum) ||
+         ((slowestConnection != mReqs.size()) &&
+          (mReqs[slowestConnection]->status == REQ_READY))) &&
+        (fastestConnection != slowestConnection))
+    {
+        m_off_t slowestConnectionThroughput = getThroughput(slowestConnection);
+        m_off_t fastestConnectionThroughput = getThroughput(fastestConnection);
+        if (fastestConnectionThroughput * SLOWEST_TO_FASTEST_THROUGHPUT_RATIO[0] >
+            slowestConnectionThroughput * SLOWEST_TO_FASTEST_THROUGHPUT_RATIO[1])
+        {
+            LOG_warn << "DirectReadSlot [conn " << connectionNum << "]"
+                     << " Connection " << slowestConnection
+                     << " is slow, trying the other 5 cloudraid connections"
+                     << " [slowest speed = " << ((slowestConnectionThroughput * 1000 / 1024))
+                     << " KB/s"
+                     << ", fastest speed = " << ((fastestConnectionThroughput * 1000 / 1024))
+                     << " KB/s"
+                     << ", mMinComparableThroughput = " << (mMinComparableThroughput / 1024)
+                     << " KB/s]"
+                     << " [total slow connections switches = " << mNumSlowConnectionsSwitches << "]"
+                     << " [current unused raid connection = " << mUnusedConn.getNum() << "]"
+                     << " [this = " << this << "]";
+
+            return true;
+        }
+    }
+    return false;
+}
+
+bool DirectReadSlot::searchAndDisconnectSlowestConnection(const size_t connectionNum)
+{
+    assert(connectionNum < mReqs.size());
+    if (!mDr->drbuf.isRaid() || !canReuseUnusedConnection() || maxSlowConnsSwitchesReached() ||
+        exitDueReqsOnFlight() || !mReqs[connectionNum] || (connectionNum == mUnusedConn.getNum()))
+    {
+        return false;
+    }
+
+    if (!isMinComparableThroughputForThisConnection(connectionNum))
+    {
+        return false;
+    }
+
+    auto [slowestConnection, fastestConnection] = searchSlowestAndFastestConns(connectionNum);
+    if (canSwitchSlowestByUnusedConn(connectionNum, slowestConnection, fastestConnection))
+    {
+        if (const auto& [exit, res] = replaceUnusedConnection(slowestConnection); exit)
+        {
+            return res;
         }
     }
     return false;
@@ -1983,7 +2000,7 @@ bool DirectReadSlot::increaseReqsInflight()
     return false;
 }
 
-bool DirectReadSlot::isConnectionDone(const size_t connectionNum)
+bool DirectReadSlot::isConnectionDone(const size_t connectionNum) const
 {
     return mReqs[connectionNum] &&
            (mReqs[connectionNum]->status == REQ_DONE ||
