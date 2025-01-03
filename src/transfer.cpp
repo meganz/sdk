@@ -1945,7 +1945,8 @@ std::pair<size_t, size_t>
     DirectReadSlot::searchSlowestAndFastestConns(const size_t connectionNum) const
 {
     const size_t numReqs = mReqs.size();
-    size_t slowestConnection, fastestConnection = connectionNum;
+    size_t slowestConnection = connectionNum;
+    size_t fastestConnection = connectionNum;
     bool minComparableThroughputForOtherConnection = true;
 
     for (size_t otherConnection = numReqs;
