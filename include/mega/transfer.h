@@ -579,6 +579,24 @@ public:
     void retryEntireTransfer(const Error& e, dstime timeleft = 0);
 
     /**
+     * @brief Detects and manages slow-performing RAIDED parts in a streaming transfer.
+     *
+     * This method identifies slow connections in a RAID streaming transfer by evaluating
+     * their throughput against a minimum threshold. Depending on the situation, it
+     * follows these actions:
+     * - If multiple connections are slow, the entire transfer is retried.
+     * - If a single slow connection cannot be replaced due to limitations or errors,
+     *   the entire transfer is retried.
+     * - If a single slow connection can be replaced, it switches to the unused connection.
+     * - If no slow connections detected, return appropriates values to inform caller about it.
+     *
+     * @return A pair of booleans:
+     *         - The first value indicates whether any slow connection was detected.
+     *         - The second value indicates whether the entire transfer will be retried
+     */
+    std::pair<bool, bool> detectAndManageLowRaidedParts();
+
+    /**
      * @brief Manages low speed raided direct read transfer
      *
      * The function finds the slowest connection, and replaces it by unused connection if posible,
@@ -633,18 +651,29 @@ public:
     bool resetConnection(size_t connectionNum = 0);
 
     /**
-    *   @brief Calculate throughput for a given connection: relation of bytes per millisecond.
-    *
-    *   Throughput is updated every time a new chunk is submitted to the transfer buffer.
-    *   Throughput values are reset when a new request starts.
-    *
-    *   @param connectionNum Connection index in mReq vector.
-    *   @return Connection throughput: average number of bytes fetched per millisecond.
-    *
-    *   @see DirectReadSlot::detectSlowestStartConnection()
-    *   @see DirectReadSlot::calcThroughput()
-    *   @see DirectReadSlot::mThroughPut
-    */
+     * @brief Retrieves the minimum speed per connection in Bytes per second.
+     *
+     * This method calculates the minimum allowed speed in Bytes per second for a connection,
+     * taking into account whether it's a streaming RAID transfer, and the limits configured in the
+     * client (check minstreamingrate).
+     *
+     * @return The minimum allowed speed per connection in Bytes per second, or 1 if
+     * minstreamingrate is Zero.
+     */
+    unsigned getMinSpeedPerConnBytesPerSec() const;
+
+    /**
+     *   @brief Calculate throughput for a given connection: relation of bytes per millisecond.
+     *
+     *   Throughput is updated every time a new chunk is submitted to the transfer buffer.
+     *   Throughput values are reset when a new request starts.
+     *
+     *   @param connectionNum Connection index in mReq vector.
+     *   @return Connection throughput: average number of bytes fetched per millisecond.
+     *
+     *   @see DirectReadSlot::calcThroughput()
+     *   @see DirectReadSlot::mThroughPut
+     */
     m_off_t getThroughput(size_t connectionNum) const;
 
     /**
@@ -711,17 +740,19 @@ public:
                                       const size_t fastestConnection) const;
 
     /**
-    *   @brief Search for the slowest connection and switch it with the actual unused connection.
-    *
-    *   This method is called between requests:
-    *   If WAIT_FOR_PARTS_IN_FLIGHT is true, this ensures to compare among all the connections before they POST again.
-    *   If WAIT_FOR_PARTS_IN_FLIGHT is false, any connection with a REQ_INFLIGHT status will be ignored for comparison purposes.
-    *
-    *   @param connectionNum Connection index in mReq vector.
-    *   @return True if the slowest connection has been detected and switched with the actual unused connection, False otherwise.
-    *   @see DirectReadSlot::MIN_COMPARABLE_THROUGHPUT
-    *   @see DirectReadSlot::MAX_SLOW_CONECCTION_SWITCHES
-    */
+     *   @brief Search for the slowest connection and switch it with the actual unused connection.
+     *
+     *   This method is called between requests:
+     *   If WAIT_FOR_PARTS_IN_FLIGHT is true, this ensures to compare among all the connections
+     * before they POST again. If WAIT_FOR_PARTS_IN_FLIGHT is false, any connection with a
+     * REQ_INFLIGHT status will be ignored for comparison purposes.
+     *
+     *   @param connectionNum Connection index in mReq vector.
+     *   @return True if the slowest connection has been detected and switched with the actual
+     * unused connection, False otherwise.
+     *   @see DirectReadSlot::DEFAULT_MIN_COMPARABLE_THROUGHPUT
+     *   @see DirectReadSlot::MAX_SLOW_CONECCTION_SWITCHES
+     */
     bool searchAndDisconnectSlowestConnection(const size_t connectionNum = 0);
 
     /**
@@ -886,12 +917,12 @@ private:
     std::set<size_t> mFailedRaidedParts;
 
     /**
-    *   @brief Pair of <Bytes downloaded> and <Total milliseconds> for throughput calculations.
-    *
-    *   Values are reset by default between different chunk requests.
-    *
-    *   @see DirectReadSlot::MIN_COMPARABLE_THROUGHPUT
-    */
+     *   @brief Pair of <Bytes downloaded> and <Total milliseconds> for throughput calculations.
+     *
+     *   Values are reset by default between different chunk requests.
+     *
+     *   @see DirectReadSlot::DEFAULT_MIN_COMPARABLE_THROUGHPUT
+     */
     std::vector<std::pair<m_off_t, m_off_t>> mThroughput;
 
     /**
@@ -966,17 +997,17 @@ private:
     unsigned mMaxChunkSize;
 
     /**
-    *   @brief Min submitted bytes needed for a connection to be throughput-comparable with others.
-    *
-    *   This value is set on global delivery throughput.
-    *   Ex:
-    *       1. Raid file, each connection submits 1MB.
-    *       2. Delivery chunk size from combined data is 5MB -> min comparable throughtput until next deliver will be 5MB.
-    *
-    *   @see detectSlowestStartConnection()
-    *   @see searchAndDisconnectSlowestConnection()
-    *   @see processAnyOutputPieces()
-    */
+     *   @brief Min submitted bytes needed for a connection to be throughput-comparable with others.
+     *
+     *   This value is set on global delivery throughput.
+     *   Ex:
+     *       1. Raid file, each connection submits 1MB.
+     *       2. Delivery chunk size from combined data is 5MB -> min comparable throughtput until
+     * next deliver will be 5MB.
+     *
+     *   @see searchAndDisconnectSlowestConnection()
+     *   @see processAnyOutputPieces()
+     */
     m_off_t mMinComparableThroughput;
 
     /**

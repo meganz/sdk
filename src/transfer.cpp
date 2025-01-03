@@ -1602,6 +1602,20 @@ bool DirectReadSlot::resetConnection(size_t connectionNum)
     return true;
 }
 
+unsigned DirectReadSlot::getMinSpeedPerConnBytesPerSec() const
+{
+    const bool isRaid = mDr->drbuf.isRaid();
+    const unsigned numParts = isRaid ? EFFECTIVE_RAIDPARTS : 1;
+    unsigned minSpeedPerConnBytesPerSec =
+        mDr->drn->client->minstreamingrate < 0 ? // Default limit
+            (MIN_BYTES_PER_SECOND / numParts) :
+            mDr->drn->client->minstreamingrate > 0 ? // Custom limit
+                (static_cast<unsigned>(mDr->drn->client->minstreamingrate) / numParts) :
+                1; // No limit (1 B/s)
+
+    return minSpeedPerConnBytesPerSec;
+}
+
 m_off_t DirectReadSlot::getThroughput(size_t connectionNum) const
 {
     assert(connectionNum < mReqs.size());
@@ -1722,6 +1736,88 @@ void DirectReadSlot::retryEntireTransfer(const Error& e, dstime timeleft)
     clearFailedRaidedParts();
     mUnusedConn.clear();
     mDr->drn->retry(e, timeleft);
+}
+
+std::pair<bool, bool> DirectReadSlot::detectAndManageLowRaidedParts()
+{
+    auto isConnSpeedTooSlow = [this](const size_t i)
+    {
+        if (!mDr->drn->client->minstreamingrate)
+        {
+            // if minstreamingrate == 0, no StreamingMinimumRate is set
+            return false;
+        }
+
+        // checks if there's a minimum comparable throughput to perform comparisson, and then
+        // compare conn Throughput with minimum expected speed per connection (both in Bytes/Ms)
+        return isMinComparableThroughputForThisConnection(i) &&
+               getThroughput(i) < getMinSpeedPerConnBytesPerSec() * 1000;
+    };
+
+    if (!mDr->drbuf.isRaid())
+    {
+        return {false, false};
+    }
+
+    int slowConns = 0;
+    size_t slowestConnectionIndex = mReqs.size(); // init to `invalid` conn num
+    m_off_t slowestThroughput = 0; // init slowest throughput
+    for (size_t i = 0; i < mReqs.size(); ++i)
+    {
+        if (!mReqs[i] || i == mUnusedConn.getNum())
+        {
+            continue;
+        }
+
+        // detect those connections whose Throughput is under min threshold
+        if (!isConnectionDone(i) && isConnSpeedTooSlow(i))
+        {
+            if (++slowConns > 1)
+            {
+                break;
+            }
+
+            const auto isCurrentIdxInvalid = slowestConnectionIndex == mReqs.size();
+            const m_off_t currentThroughput = getThroughput(i);
+            if (isCurrentIdxInvalid || currentThroughput < slowestThroughput)
+            {
+                slowestConnectionIndex = i;
+                slowestThroughput = currentThroughput;
+            }
+        }
+    }
+
+    if (slowConns)
+    {
+        if (slowConns > 1)
+        {
+            LOG_warn << "DirectReadSlot: onLowSpeedRaidedPartDetected -> Multiple slow raided "
+                        "parts. Retrying entire transfer"
+                     << " [this = " << this << "]";
+            retryEntireTransfer(API_EAGAIN);
+            return {true, true};
+        }
+        else if (maxSlowConnsSwitchesReached() || mUnusedConn.isErrReason())
+        {
+            // in case unused connection has failed by a temp error, we won't consider valid for
+            // replacement. This conservative aproach tries to avoid future failures with an unused
+            // connection that already failed (even if is temp error)
+            LOG_warn << "DirectReadSlot: onLowSpeedRaidedPartDetected -> Cannot find another "
+                        "raided part "
+                        "for replacement. Retrying entire transfer"
+                     << " [this = " << this << "]";
+            retryEntireTransfer(API_EAGAIN);
+            return {true, true};
+        }
+        else
+        {
+            assert(slowestConnectionIndex != mReqs.size());
+            replaceUnusedConnection(slowestConnectionIndex);
+            return {true, false};
+        }
+    }
+
+    return {false, false};
 }
 
 void DirectReadSlot::onLowSpeedRaidedTransfer()
@@ -2052,6 +2148,12 @@ bool DirectReadSlot::watchOverDirectReadPerformance()
         }
         else
         {
+            if (auto [slowConnsDetected, retryEntireTransfer] = detectAndManageLowRaidedParts();
+                slowConnsDetected)
+            {
+                return retryEntireTransfer;
+            }
+
             mDr->drn->partiallen = 0;
             mDr->drn->partialstarttime = Waiter::ds;
         }
@@ -2062,18 +2164,13 @@ bool DirectReadSlot::watchOverDirectReadPerformance()
 bool DirectReadSlot::doio()
 {
     bool isRaid = mDr->drbuf.isRaid();
-    unsigned numParts = isRaid ? EFFECTIVE_RAIDPARTS : 1;
-    unsigned minSpeedPerConnection =
-        mDr->drn->client->minstreamingrate < 0 ? // Default limit
-            (MIN_BYTES_PER_SECOND / numParts) :
-            mDr->drn->client->minstreamingrate > 0 ? // Custom limit
-                (static_cast<unsigned>(mDr->drn->client->minstreamingrate) / numParts) :
-                1; // No limit (1 B/s)
+    unsigned minSpeedPerConnBytesPerSec = getMinSpeedPerConnBytesPerSec();
     if (isRaid)
     {
-        minSpeedPerConnection =
-            (minSpeedPerConnection + RAIDSECTOR - 1) & ~(static_cast<unsigned>(RAIDSECTOR) - 1);
+        minSpeedPerConnBytesPerSec = (minSpeedPerConnBytesPerSec + RAIDSECTOR - 1) &
+                                     ~(static_cast<unsigned>(RAIDSECTOR) - 1);
     } // round up to a RAIDSECTOR divisible value
+
     for (unsigned int connectionNum = static_cast<unsigned int>(mReqs.size()); connectionNum--;)
     {
         std::unique_ptr<HttpReq>& req = mReqs[connectionNum];
@@ -2099,7 +2196,10 @@ bool DirectReadSlot::doio()
                     maxChunkSize = aggregatedThroughput;
                     // 16KB as min chunk divisible size to submit. If the user's speed is even lower than 16KB/s per connection, then respect the minSpeedPerConnection.
                     // This is to avoid small chunks to be assembled (if raid) and delivered.
-                    unsigned minChunkDivisibleSize = maxChunkSize < (16 * 1024) ? minSpeedPerConnection : 16 * 1024; // 16KB is divisible by RAIDSECTOR: works for RAID and NON-RAID
+                    unsigned minChunkDivisibleSize =
+                        maxChunkSize < (16 * 1024) ? minSpeedPerConnBytesPerSec :
+                                                     16 * 1024; // 16KB is divisible by RAIDSECTOR:
+                                                                // works for RAID and NON-RAID
 
                     if (mMaxChunkSubmitted && maxChunkSize && ((std::max(static_cast<unsigned>(maxChunkSize), mMaxChunkSubmitted) / std::min(static_cast<unsigned>(maxChunkSize), mMaxChunkSubmitted)) == 1))
                     {
