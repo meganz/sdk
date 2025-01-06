@@ -184,10 +184,17 @@ bool GfxProviderCG::resizebitmap(int rw, int rh, string* jpegout) {
                 UIImage *image = [UIImage imageWithContentsOfFile:path];
                 UIImage *thumbnail = [image imageByPreparingThumbnailOfSize:size];
                 if (thumbnail) {
-                    NSData *imageData = UIImageJPEGRepresentation(thumbnail, COMPRESSION_QUALITY);
-                    if (imageData) {
-                        data = imageData;
+                    if (isThumbnail) {
+                        CGImageRef newImage = CGImageCreateWithImageInRect(thumbnail.CGImage, tileRect(CGImageGetWidth(thumbnail.CGImage), CGImageGetHeight(thumbnail.CGImage)));
+                        data = UIImageJPEGRepresentation([UIImage imageWithCGImage:newImage], COMPRESSION_QUALITY);
+                        if (newImage) {
+                            CFRelease(newImage);
+                        }
                     } else {
+                        data = UIImageJPEGRepresentation(thumbnail, COMPRESSION_QUALITY);
+                    }
+
+                    if (!data) {
                         LOG_err << "Could not convert image to data for image for path: " << path;
                     }
                 } else {
