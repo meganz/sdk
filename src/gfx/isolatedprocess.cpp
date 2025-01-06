@@ -309,7 +309,7 @@ void AutoStartLauncher::stop()
     {
         // Defensive: the thread doesn't exit, detach the thread
         // We had such bug and it is usually a bug
-        // assert(false && "AutoStartLauncher detaching loop thread");
+        assert(false && "AutoStartLauncher detaching loop thread");
         LOG_warn << "AutoStartLauncher detaching loop thread";
         mThread.detach();
     }
