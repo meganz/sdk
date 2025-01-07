@@ -10928,7 +10928,10 @@ public class MegaApiJava {
 
         ArrayList<MegaTransfer> result = new ArrayList<>(transferList.size());
         for (int i = 0; i < transferList.size(); i++) {
-            result.add(transferList.get(i).copy());
+            MegaTransfer transfer = transferList.get(i);
+            if (transfer != null) {
+                result.add(transfer.copy());
+            }
         }
 
         return result;
