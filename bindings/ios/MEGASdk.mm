@@ -4162,6 +4162,12 @@ using namespace mega;
     }
 }
 
+- (void)importPasswordsFromFile:(NSString *)filePath fileSource:(ImportPasswordFileSource)fileSource parent:(MEGAHandle)parent delegate:(id<MEGARequestDelegate>)delegate; {
+    if (self.megaApi) {
+        self.megaApi->importPasswordsFromFile(filePath.UTF8String, (int)fileSource, parent, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    }
+}
+
 + (nullable NSString *)generateRandomPasswordWithCapitalLetters:(BOOL)includeCapitalLetters digits:(BOOL)includeDigits symbols:(BOOL)includeSymbols length:(int)length {
     const char *result = MegaApi::generateRandomCharsPassword(includeCapitalLetters, includeDigits, includeSymbols, length);
     if (!result) return nil;

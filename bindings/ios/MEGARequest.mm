@@ -40,6 +40,7 @@
 #import "MEGAVPNRegion.h"
 #import "MEGAVPNRegion+init.h"
 #import "MEGANotificationList+init.h"
+#import "MEGAIntegerList+init.h"
 
 using namespace mega;
 
@@ -231,6 +232,28 @@ using namespace mega;
         dict[@(key)] = @(map->get(key));
     }
     
+    delete keyList;
+    return [dict copy];
+}
+
+- (nullable NSDictionary<NSString *, MEGAIntegerList *> *)megaStringIntegerDictionary {
+    if (!self.megaRequest) {
+        return nil;
+    }
+    MegaStringIntegerMap *map = self.megaRequest->getMegaStringIntegerMap();
+
+    NSMutableDictionary *dict = [NSMutableDictionary dictionaryWithCapacity:map->size()];
+    MegaStringList *keyList = map->getKeys();
+
+    for (int i = 0; i < keyList->size(); i++) {
+        const char *key = keyList->get(i);
+        MegaIntegerList* errorCode = map->get(key);
+        MEGAIntegerList* value = errorCode != nil ?
+            [[MEGAIntegerList alloc] initWithMegaIntegerList:errorCode cMemoryOwn:YES] :
+            nil;
+        dict[@(key)] = value;
+    }
+
     delete keyList;
     return [dict copy];
 }

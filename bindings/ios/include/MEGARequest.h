@@ -220,6 +220,7 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeCheckVPNCredentials,
     MEGARequestTypeGetNotifications,
     MEGARequestTypeNodeTag = 186,
+    MEGARequestTypeImportPasswordsFromFile = 196,
     TotalOfRequestTypes = 202
 };
 
@@ -582,6 +583,16 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * @return Dictionary containing the key-value pairs of the attribute as string.
  */
 @property (readonly, nonatomic, nullable) NSDictionary<NSString *, NSString*> *megaStringDictionary;
+
+/**
+ * @brief Returns problematic content as key and error.
+ *
+ * This value is valid for these requests:
+ * - [MEGASdk importPasswordsFromFile:] - Import passwords from a file into your Password Manager tree.
+ *
+ * @return Dictionary containing the key-value pairs of problematic content as key and error code as value.
+ */
+@property (readonly, nonatomic, nullable) NSDictionary<NSString *, MEGAIntegerList *> *megaStringIntegerDictionary;
 
 /**
  * @brief Gets the string table response from a request mapped into a collection of NSArray of NSStrings.
