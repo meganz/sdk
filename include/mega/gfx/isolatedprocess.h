@@ -28,22 +28,20 @@ private:
     bool                    mCancelled = false;
 };
 
-class AutoStartLauncher
+class AutoStartLauncher: public std::enable_shared_from_this<AutoStartLauncher>
 {
 public:
     AutoStartLauncher(const std::vector<std::string>& argv, std::function<void()> shutdowner);
 
-    ~AutoStartLauncher();
+    bool start();
 
-    void shutDownOnce();
+    void stop();
 
 private:
 
     bool startUntilSuccess(Process& process);
 
-    bool startLaunchLoopThread();
-
-    void exitLaunchLoopThread();
+    bool exitLaunchLoopThread();
 
     std::vector<std::string> mArgv;
 
@@ -137,12 +135,14 @@ public:
 
     GfxIsolatedProcess(const Params& params);
 
+    ~GfxIsolatedProcess();
+
     const std::string& endpointName() const { return mEndpointName; }
 private:
 
     std::string mEndpointName;
 
-    AutoStartLauncher mLauncher;
+    std::shared_ptr<AutoStartLauncher> mLauncher;
 
     HelloBeater mBeater;
 };

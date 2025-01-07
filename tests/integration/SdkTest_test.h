@@ -249,22 +249,32 @@ public:
                 unsigned workerThreadCount = 1,
                 const int clientType = MegaApi::CLIENT_TYPE_DEFAULT);
 
-    MegaApiTest(const std::string& endpointName,
-                const char* appKey,
+    MegaApiTest(const char* appKey,
                 MegaGfxProvider* provider,
                 const char* basePath = nullptr,
                 const char* userAgent = nullptr,
                 unsigned workerThreadCount = 1,
                 const int clientType = MegaApi::CLIENT_TYPE_DEFAULT);
 
-    ~MegaApiTest();
-
     MegaClient* getClient();
+};
+
+class MegaApiTestDeleter
+{
+public:
+    MegaApiTestDeleter(const std::string& endpointName):
+        mEndpointName{endpointName} {};
+
+    MegaApiTestDeleter():
+        MegaApiTestDeleter(""){};
+
+    void operator()(MegaApiTest* p) const;
 
 private:
-    // the endpoint name for isolated gfx
     std::string mEndpointName;
 };
+
+using MegaApiTestPointer = std::unique_ptr<MegaApiTest, MegaApiTestDeleter>;
 
 // Fixture class with common code for most of tests
 class SdkTest : public SdkTestBase, public MegaListener, public MegaRequestListener, MegaTransferListener, MegaLogger {
@@ -417,7 +427,7 @@ public:
     };
 
     std::vector<PerApi> mApi;
-    std::vector<std::unique_ptr<MegaApiTest>> megaApi;
+    std::vector<MegaApiTestPointer> megaApi;
 
     m_off_t onTransferStart_progress;
     m_off_t onTransferUpdate_progress;
