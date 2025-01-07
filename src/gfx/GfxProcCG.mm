@@ -68,7 +68,7 @@ bool GfxProviderCG::readbitmap(const LocalPath& path, int size) {
     // Make absolute path usable to Cocoa.
     NSString* sourcePath =
       [NSString stringWithCString: absolutePath.c_str()
-                encoding: [NSString defaultCStringEncoding]];
+                encoding:NSUTF8StringEncoding];
 
     // Couldn't create a Cocoa-friendly path.
     if (sourcePath == nil) {
@@ -171,13 +171,39 @@ bool GfxProviderCG::resizebitmap(int rw, int rh, string* jpegout) {
     }
 
     CGSize size = CGSizeMake(rw, rh);
-    __block NSData *data;
+    __block NSData *data = nil;
 
     QLThumbnailGenerationRequest *request = [[QLThumbnailGenerationRequest alloc] initWithFileAtURL:(__bridge NSURL *)sourceURL size:size scale:1.0 representationTypes:QLThumbnailGenerationRequestRepresentationTypeThumbnail];
 
     [QLThumbnailGenerator.sharedGenerator generateBestRepresentationForRequest:request completionHandler:^(QLThumbnailRepresentation * _Nullable thumbnail, NSError * _Nullable error) {
         if (error) {
             LOG_err << "Error generating best representation for a request: " << error.localizedDescription;
+#if TARGET_OS_IPHONE
+            NSString *path = ((__bridge NSURL *)sourceURL).path;
+            if ([NSFileManager.defaultManager fileExistsAtPath:path]) {
+                UIImage *image = [UIImage imageWithContentsOfFile:path];
+                UIImage *thumbnail = [image imageByPreparingThumbnailOfSize:size];
+                if (thumbnail) {
+                    if (isThumbnail) {
+                        CGImageRef newImage = CGImageCreateWithImageInRect(thumbnail.CGImage, tileRect(CGImageGetWidth(thumbnail.CGImage), CGImageGetHeight(thumbnail.CGImage)));
+                        data = UIImageJPEGRepresentation([UIImage imageWithCGImage:newImage], COMPRESSION_QUALITY);
+                        if (newImage) {
+                            CFRelease(newImage);
+                        }
+                    } else {
+                        data = UIImageJPEGRepresentation(thumbnail, COMPRESSION_QUALITY);
+                    }
+
+                    if (!data) {
+                        LOG_err << "Could not convert image to data for image for path: " << path;
+                    }
+                } else {
+                    LOG_err << "Could not generate thumbnail for image at path: " << path;
+                }
+            } else {
+                LOG_err << "Could not find the image at path: " << path;
+            }
+#endif
         } else {
             if (isThumbnail) {
                 CGImageRef newImage = CGImageCreateWithImageInRect(thumbnail.CGImage, tileRect(CGImageGetWidth(thumbnail.CGImage), CGImageGetHeight(thumbnail.CGImage)));
