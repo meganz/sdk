@@ -10200,40 +10200,40 @@ typedef NS_ENUM(NSInteger, ImportPasswordFileSource) {
  * @brief Import passwords from a file into your Password Manager tree
  *
  * The associated request type with this request is
- * MegaRequest::TYPE_IMPORT_PASSWORDS_FROM_FILE. Valid data in the MegaRequest object
+ * MEGARequestTypeImportPasswordsFromFile. Valid data in the MEGARequest object
  * received on callbacks:
- * - MegaRequest::getFile - Path of the file provided as an argument.
- * - MegaRequest::getParamType - Source of the file provided as an argument (see
+ * - [MEGARequest getFile] - Path of the file provided as an argument.
+ * - [MEGARequest getParamType] - Source of the file provided as an argument (see
  * fileSource documentation).
- * - MegaRequest::getParentHandle - Handle of the parent provided as an argument.
+ * - [MEGARequest getParentHandle] - Handle of the parent provided as an argument.
  *
- * Valid data in the MegaRequest object received in onRequestFinish when the error code
- * is MegaError::API_OK:
- * - MegaRequest::getMegaHandleList - A list with all the handles for all the new imported
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest getMegaHandleList] - A list with all the handles for all the new imported
  * Password Nodes.
- * - MegaRequest::getMegaStringIntegerMap - A map with problematic content as key and error
+ * - [MEGARequest getMegaStringIntegerMap] - A map with problematic content as key and error
  * code as value
  *    Possible error codes are:
  *       IMPORTED_PASSWORD_ERROR_PARSER = 1
  *       IMPORTED_PASSWORD_ERROR_MISSINGPASSWORD = 2
  *
  * On the onRequestFinish error, the error code associated to the MegaError can be:
- * - MegaError::API_EARGS:
+ * - MEGAErrorTypeApiEArgs:
  *     + Invalid parent (parent doesn't exist or isn't password node)
  *     + Invalid fileSource
  *     + NULL at filePath
  *     + File with wrong format
- * - MegaError::API_EREAD:
+ * - MEGAErrorTypeApiERead:
  *     + File can't be opened
- * - MegaError::API_EACESS
+ * - MEGAErrorTypeApiEAccess
  *     + File is empty
  *
  * @param filePath Path to the file containing the passwords to import.
  * @param fileSource Type for the source from where the file was exported.
  * Valid values are:
- *  - IMPORT_PASSWORD_SOURCE_GOOGLE = 0
+ *  - ImportPasswordSourceGoogle = 0
  * @param parent Parent handle for node that will contain new nodes as children.
- * @param listener MegaRequestListener to track this request.
+ * @param delegate MEGARequestDelegate to track this request.
  */
 - (void)importPasswordsFromFile:(NSString *)filePath fileSource:(ImportPasswordFileSource)fileSource parent:(MEGAHandle)parent delegate:(id<MEGARequestDelegate>)delegate;
 

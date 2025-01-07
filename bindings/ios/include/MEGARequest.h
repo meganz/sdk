@@ -220,6 +220,7 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeCheckVPNCredentials,
     MEGARequestTypeGetNotifications,
     MEGARequestTypeNodeTag = 186,
+    MEGARequestTypeImportPasswordsFromFile = 196,
     TotalOfRequestTypes = 202
 };
 
