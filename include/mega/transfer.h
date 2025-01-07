@@ -290,32 +290,20 @@ private:
 
 /**
  * @brief Represents unused connection in a Raided Streaming Transfer.
- * This struct stores the connection number, the reason why is unused, and the number of backoff
- * retries (in case of reason is UN_TEMP_ERR) before it can be reused again
+ * This struct stores the connection number and the reason why is unused
  *
  * @note A bandwidth overquota error (509) cannot affect only a specific raided part, it applies to
- * the entire transfer. Therefore, we won't add this error code or manage it in this struct.
+ * the entire transfer, so it will be considered as an invalid error in this struct.
+ *
  */
 struct UnusedConn
 {
 public:
-    static constexpr unsigned int defaultBackoffRetries{5};
-    static constexpr std::array httpErrCodes = {
-        0, // NETWORK ERROR
-        403, // FORBIDDEN
-        404, // NOT FOUND
-        429, // TOO MANY REQUESTS
-        500, // INTERNAL SERVER ERROR
-        503, // SERVICE UNAVALIABLE
-    };
-
     enum unusedReason
     {
         UN_INVALID = 0, // INVALID REASON
         UN_NOT_ERR = 1, // CONNECTION CAN BE USED
-        UN_TEMP_ERR = 2, // CONNECTION CAN BE USED AFTER A BACKOFF
-        UN_DEFINITIVE_ERR = 3, // CONNECTION CANNOT BE USED ANYMORE
-        UN_RETRY_IMMEDIATELY = 4, // ENTIRE TRANSFER MUST BE RETRIED IMMEDIATELY
+        UN_DEFINITIVE_ERR = 2, // CONNECTION CANNOT BE USED ANYMORE
     };
 
     /**
@@ -331,42 +319,24 @@ public:
     {
         switch (httpstatus)
         {
-            case 404:
-            case 429:
-                return UN_RETRY_IMMEDIATELY;
-            case 0:
-            case 403:
-            case 503:
-            case 500:
-                return UN_TEMP_ERR;
-            default:
+            case 200:
+                return UN_NOT_ERR;
+            case 509:
                 assert(false);
                 return UN_INVALID;
+            default:
+                return UN_DEFINITIVE_ERR;
         }
-    }
-
-    /**
-     * @brief Checks if the provided HTTP status code is handled.
-     *
-     * @note if this method returns false entire transfer should be retried
-     * as there's no specific code to handle that HTTP status
-     *
-     * @return true if the HTTP status code is valid, otherwise returns false.
-     */
-    static bool isHandledHttpStatus(const int httpstatus)
-    {
-        return std::find(httpErrCodes.begin(), httpErrCodes.end(), httpstatus) !=
-               httpErrCodes.end();
     }
 
     /**
      * @brief Checks if mReason is an error reason
      *
-     * @return true if the reason is `UN_TEMP_ERR` or `UN_DEFINITIVE_ERR`, otherwise returns false.
+     * @return true if the reason is `UN_DEFINITIVE_ERR`, otherwise returns false.
      */
     static bool isErrReason(const unusedReason& reason)
     {
-        return reason == UN_TEMP_ERR || reason == UN_DEFINITIVE_ERR;
+        return reason == UN_DEFINITIVE_ERR;
     }
 
     /**
@@ -375,15 +345,6 @@ public:
      * @return The number of the unused connection.
      */
     size_t getNum() const;
-
-    /**
-     * @brief Checks if the current reason is a temporary error.
-     *
-     * This method checks if the unused connection is a temporary error reason (`UN_TEMP_ERR`).
-     *
-     * @return true if the reason is `UN_TEMP_ERR`, otherwise returns false.
-     */
-    bool isTempErrReason() const;
 
     /**
      * @brief Checks if mReason is an error reason
@@ -395,9 +356,7 @@ public:
     /**
      * @brief Sets the unused connection info.
      *
-     * This method sets the unused state of the connection, the connection number and clears
-     * mNumBackoffRetries. If reason is UN_TEMP_ERR, it also reset mNumBackoffRetries to
-     * defaultBackoffRetries
+     * This method sets the unused state of the connection
      *
      * @param num The number of connection
      * @param reason The reason for marking the connection as unused
@@ -411,23 +370,6 @@ public:
      * @brief Resets the unused connection state.
      */
     void clear();
-
-    /**
-     * @brief Decrements the temporary backoff retries counter.
-     *
-     * This method decrements the number of backoff retries, only if mReason is UN_TEMP_ERR and if
-     * it's greater than 0, otherwise it returns. If mNumBackoffRetries reaches 0 after decrement,
-     * it also resets mReason to UN_NOT_ERR
-     *
-     * If mNumBackoffRetries is greater that 0 and mReason is UN_TEMP_ERR it means that this
-     * connection cannot be used temporarily, until mNumBackoffRetries is 0 and mReason is
-     * UN_NOT_ERR
-     *
-     * @see searchAndDisconnectSlowestConnection
-     */
-    void decTempBackoffRetries();
-
-private:
     /**
      * @brief Checks if reason provided by param is a valid unusedReason.
      *
@@ -435,9 +377,10 @@ private:
      */
     static bool isValidUnusedReason(unusedReason reason)
     {
-        return reason == UN_NOT_ERR || reason == UN_TEMP_ERR || reason == UN_DEFINITIVE_ERR;
+        return reason == UN_NOT_ERR || reason == UN_DEFINITIVE_ERR;
     }
 
+private:
     unsigned int mNumBackoffRetries{};
     unusedReason mReason{UN_NOT_ERR};
     size_t mNum{};
@@ -523,7 +466,15 @@ public:
     *
     *   @see DirectReadSlot::searchAndDisconnectSlowestConnection()
     */
-    static constexpr unsigned MAX_SLOW_CONNECTION_SWITCHES = 6;
+    static constexpr unsigned MAX_SLOW_CONNECTION_SWITCHES = 10;
+
+    /**
+     *   @brief Max times we can detect same raided part (connection) as slow before retrying entire
+     * transfer.
+     *
+     *   @see DirectReadSlot::searchAndDisconnectSlowestConnection()
+     */
+    static constexpr unsigned MAX_SLOW_CONNECTION_DETECTED = 10;
 
     /**
     *   @brief Requests are sent in batch, and no connection is allowed to request the next chunk until the other connections have finished fetching their current one.
@@ -700,9 +651,6 @@ public:
     /**
      * @brief Determines if the unused connection can currently be reused.
      *
-     * If unused connection is temporarily failed (UN_TEMP_ERR), this method also decrements retries
-     * backoff and then checks if connection can be reused now
-     *
      * @return `true` if the unused connection can currently be reused, `false` otherwise.
      */
     bool canReuseUnusedConnection();
@@ -824,30 +772,9 @@ public:
      * @param connNum The number of connection
      * @return The updated count of failed raided parts.
      */
-    std::size_t recordFailedRaidedPart(size_t connNum)
+    std::size_t incrementFailedRaidedParts()
     {
-        mFailedRaidedParts.emplace(connNum);
         return ++mFailedRaidedPartsCounter;
-    }
-
-    /**
-     * @brief decrements the count of failed raided parts.
-     *
-     * @return The updated count of failed raided parts.
-     */
-    std::size_t decrementFailedRaidedPartsCounter()
-    {
-        return --mFailedRaidedPartsCounter;
-    }
-
-    /**
-     * @brief gets the number of different failed raided parts (connections).
-     *
-     * @return The number of different failed raided parts.
-     */
-    std::size_t getDifferentRaidedPartsFailed() const
-    {
-        return mFailedRaidedParts.size();
     }
 
     /**
@@ -857,7 +784,6 @@ public:
      */
     void clearFailedRaidedParts()
     {
-        mFailedRaidedParts.clear();
         mFailedRaidedPartsCounter = 0;
     }
 
@@ -912,11 +838,6 @@ private:
     size_t mFailedRaidedPartsCounter{};
 
     /**
-     * @brief Set of failed raided parts of a DirectRead.
-     */
-    std::set<size_t> mFailedRaidedParts;
-
-    /**
      *   @brief Pair of <Bytes downloaded> and <Total milliseconds> for throughput calculations.
      *
      *   Values are reset by default between different chunk requests.
@@ -952,6 +873,11 @@ private:
     *   @see DirectReadSlot::MAX_SLOW_CONNECTION_SWITCHES
     */
     unsigned mNumSlowConnectionsSwitches;
+
+    /**
+     * @brief maps connection id (raided part id) to number of slow speed detections
+     */
+    std::map<size_t, unsigned> mNumSlowConnectionsDetected;
 
     /**
     *   @brief Current flag value for waiting for the other connects to finish their TCP requests before any other connection is allowed to request the next chunk.
