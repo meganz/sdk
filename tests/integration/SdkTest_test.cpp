@@ -265,28 +265,30 @@ namespace
     #endif
     }
 
-    MegaApiTest* newMegaApi(const char* appKey,
-                            const char* basePath,
-                            const char* userAgent,
-                            unsigned workerThreadCount,
-                            const int clientType = MegaApi::CLIENT_TYPE_DEFAULT)
+    MegaApiTestPointer newMegaApi(const char* appKey,
+                                  const char* basePath,
+                                  const char* userAgent,
+                                  unsigned workerThreadCount,
+                                  const int clientType = MegaApi::CLIENT_TYPE_DEFAULT)
     {
-    #ifdef ENABLE_ISOLATED_GFX
+#ifdef ENABLE_ISOLATED_GFX
         const auto gfxworkerPath = sdk_test::getTestDataDir() / executableName("gfxworker");
         const auto endpointName = newEndpointName();
         std::unique_ptr<MegaGfxProvider> provider{
             MegaGfxProvider::createIsolatedInstance(endpointName.c_str(), gfxworkerPath.string().c_str())
         };
-        return new MegaApiTest(endpointName,
-                               appKey,
-                               provider.get(),
-                               basePath,
-                               userAgent,
-                               workerThreadCount,
-                               clientType);
-    #else
-        return new MegaApiTest(appKey, basePath, userAgent, workerThreadCount, clientType);
-    #endif
+        return MegaApiTestPointer{new MegaApiTest(appKey,
+                                                  provider.get(),
+                                                  basePath,
+                                                  userAgent,
+                                                  workerThreadCount,
+                                                  clientType),
+                                  MegaApiTestDeleter{endpointName}};
+#else
+        return MegaApiTestPointer{
+            new MegaApiTest(appKey, basePath, userAgent, workerThreadCount, clientType),
+            MegaApiTestDeleter{""}};
+#endif
     }
 
     enum class HasIcon
@@ -346,29 +348,14 @@ MegaApiTest::MegaApiTest(const char* appKey,
 {
 }
 
-MegaApiTest::MegaApiTest(const std::string& endpointName,
-                         const char* appKey,
+MegaApiTest::MegaApiTest(const char* appKey,
                          MegaGfxProvider* provider,
                          const char* basePath,
                          const char* userAgent,
                          unsigned workerThreadCount,
                          const int clientType):
-    MegaApi(appKey, provider, basePath, userAgent, workerThreadCount, clientType),
-    mEndpointName(endpointName)
+    MegaApi(appKey, provider, basePath, userAgent, workerThreadCount, clientType)
 {
-}
-
-MegaApiTest::~MegaApiTest()
-{
-#if !defined(WIN32) && defined(ENABLE_ISOLATED_GFX)
-    // Clean up socket file if it has been created
-    if (mEndpointName.empty()) return;
-
-    if (std::error_code errorCode = SocketUtils::removeSocketFile(mEndpointName))
-    {
-        LOG_err << "Failed to remove socket path " << mEndpointName << ": " << errorCode.message();
-    }
-#endif
 }
 
 MegaClient* MegaApiTest::getClient()
@@ -376,6 +363,25 @@ MegaClient* MegaApiTest::getClient()
     return pImpl->getMegaClient();
 }
 
+void MegaApiTestDeleter::operator()(MegaApiTest* p) const
+{
+    delete p;
+
+    // Clean up the socket file if it has been created and only after MegaApiTest is deleted.
+    // Reason: the GfxIsolatedProcess is desctructed in the subclass MegaApi
+    // Another alernative is to clean up the socket file in the GfxIsolatedProcess destructor.
+    // However it might clean up a socket file created by a new GfxIsolatedProcess is a same
+    // name is used alghouth it seems be rare.
+#if !defined(WIN32) && defined(ENABLE_ISOLATED_GFX)
+    if (mEndpointName.empty())
+        return;
+
+    if (std::error_code errorCode = SocketUtils::removeSocketFile(mEndpointName))
+    {
+        LOG_err << "Failed to remove socket path " << mEndpointName << ": " << errorCode.message();
+    }
+#endif
+}
 
 void SdkTest::SetUp()
 {
@@ -1615,11 +1621,11 @@ void SdkTest::configureTestInstance(unsigned index,
         ASSERT_FALSE(mApi[index].pwd.empty()) << "Set test account " << index << " password at the environment variable $" << passVarName;
     }
 
-    megaApi[index].reset(newMegaApi(APP_KEY.c_str(),
-                                    megaApiCacheFolder(static_cast<int>(index)).c_str(),
-                                    USER_AGENT.c_str(),
-                                    unsigned(THREADS_PER_MEGACLIENT),
-                                    clientType));
+    megaApi[index] = newMegaApi(APP_KEY.c_str(),
+                                megaApiCacheFolder(static_cast<int>(index)).c_str(),
+                                USER_AGENT.c_str(),
+                                unsigned(THREADS_PER_MEGACLIENT),
+                                clientType);
     mApi[index].megaApi = megaApi[index].get();
 
     // helps with restoring logging after tests that fiddle with log level
@@ -7171,7 +7177,10 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
                     exitresumecount += 1;
                     WaitMillisec(100);
 
-                    megaApi[0].reset(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
+                    megaApi[0] = newMegaApi(APP_KEY.c_str(),
+                                            megaApiCacheFolder(0).c_str(),
+                                            USER_AGENT.c_str(),
+                                            unsigned(THREADS_PER_MEGACLIENT));
                     mApi[0].megaApi = megaApi[0].get();
                     megaApi[0]->addListener(this);
                     megaApi[0]->setMaxDownloadSpeed(1024 * 1024);
@@ -11725,7 +11734,7 @@ TEST_F(SdkTest, DISABLED_StressTestSDKInstancesOverWritableFoldersOverWritableFo
     std::vector<std::unique_ptr<RequestTracker>> trackers;
     trackers.resize(howMany);
 
-    std::vector<std::unique_ptr<MegaApi>> exportedFolderApis;
+    std::vector<MegaApiTestPointer> exportedFolderApis;
     exportedFolderApis.resize(howMany);
 
     std::vector<std::string> exportedLinks;
@@ -11770,11 +11779,11 @@ TEST_F(SdkTest, DISABLED_StressTestSDKInstancesOverWritableFoldersOverWritableFo
     // create apis to exported folders
     for (unsigned index = 0; index < howMany; index++)
     {
-        exportedFolderApis[static_cast<size_t>(index)].reset(
+        exportedFolderApis[static_cast<size_t>(index)] =
             newMegaApi(APP_KEY.c_str(),
                        megaApiCacheFolder(static_cast<int>(index) + 10).c_str(),
                        USER_AGENT.c_str(),
-                       static_cast<unsigned>(THREADS_PER_MEGACLIENT)));
+                       static_cast<unsigned>(THREADS_PER_MEGACLIENT));
 
         // reduce log level to something beareable
         exportedFolderApis[static_cast<size_t>(index)]->setLogLevel(MegaApi::LOG_LEVEL_WARNING);
@@ -11875,7 +11884,7 @@ TEST_F(SdkTest, WritableFolderSessionResumption)
     std::vector<std::unique_ptr<RequestTracker>> trackers;
     trackers.resize(howMany);
 
-    std::vector<std::unique_ptr<MegaApi>> exportedFolderApis;
+    std::vector<MegaApiTestPointer> exportedFolderApis;
     exportedFolderApis.resize(howMany);
 
     std::vector<std::string> exportedLinks;
@@ -11926,11 +11935,11 @@ TEST_F(SdkTest, WritableFolderSessionResumption)
     // create apis to exported folders
     for (unsigned index = 0 ; index < howMany; index++ )
     {
-        exportedFolderApis[index].reset(
+        exportedFolderApis[index] =
             newMegaApi(APP_KEY.c_str(),
                        megaApiCacheFolder(static_cast<int>(index) + 10).c_str(),
                        USER_AGENT.c_str(),
-                       static_cast<unsigned>(THREADS_PER_MEGACLIENT)));
+                       static_cast<unsigned>(THREADS_PER_MEGACLIENT));
 
         // reduce log level to something beareable
         exportedFolderApis[index]->setLogLevel(MegaApi::LOG_LEVEL_WARNING);
