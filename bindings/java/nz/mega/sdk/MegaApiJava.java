@@ -10926,7 +10926,7 @@ public class MegaApiJava {
             return null;
         }
 
-        ArrayList<MegaTransfer> result = new ArrayList<>();
+        ArrayList<MegaTransfer> result = new ArrayList<>(transferList.size());
         for (int i = 0; i < transferList.size(); i++) {
             MegaTransfer transfer = transferList.get(i);
             if (transfer != null) {
