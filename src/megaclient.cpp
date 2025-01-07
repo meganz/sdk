@@ -16742,12 +16742,11 @@ std::pair<error, SyncError> MegaClient::isLocalPathSyncable(const LocalPath& new
     return {API_OK, NO_SYNC_ERROR};
 }
 
-std::tuple<error, SyncError, SyncWarning, std::unique_ptr<FileAccess>, bool>
-    MegaClient::isValidLocalSyncRoot(const LocalPath& localPath,
-                                     const handle backupIdToExclude) const
+SyncErrorInfo MegaClient::isValidLocalSyncRoot(const LocalPath& localPath,
+                                               const handle backupIdToExclude) const
 {
     if (!localPath.isAbsolute())
-        return {API_EARGS, NO_SYNC_ERROR, NO_SYNC_WARNING, nullptr, false};
+        return {API_EARGS, NO_SYNC_ERROR, NO_SYNC_WARNING};
 
     const auto rootPathWithoutEndingSeparator = std::invoke(
         [&localPath]() -> LocalPath
@@ -16760,7 +16759,7 @@ std::tuple<error, SyncError, SyncWarning, std::unique_ptr<FileAccess>, bool>
     if (!mFuseService.syncable(rootPathWithoutEndingSeparator))
     {
         LOG_warn << "Trying to sync in a FUSE mount: " << rootPathWithoutEndingSeparator;
-        return {API_EFAILED, LOCAL_PATH_MOUNTED, NO_SYNC_WARNING, nullptr, false};
+        return {API_EFAILED, LOCAL_PATH_MOUNTED, NO_SYNC_WARNING};
     }
 
     bool isnetwork = false;
@@ -16769,7 +16768,7 @@ std::tuple<error, SyncError, SyncWarning, std::unique_ptr<FileAccess>, bool>
     if (!fsaccess->issyncsupported(rootPathWithoutEndingSeparator, isnetwork, auxSErr, syncWarning))
     {
         LOG_warn << "Unsupported filesystem";
-        return {API_EFAILED, UNSUPPORTED_FILE_SYSTEM, syncWarning, nullptr, false};
+        return {API_EFAILED, UNSUPPORTED_FILE_SYSTEM, syncWarning};
     }
 
     std::unique_ptr openedLocalFolder = fsaccess->newfileaccess();
@@ -16782,93 +16781,59 @@ std::tuple<error, SyncError, SyncWarning, std::unique_ptr<FileAccess>, bool>
     {
         LOG_warn << "Cannot open rootpath for sync: " << rootPathWithoutEndingSeparator;
         if (openedLocalFolder->retry)
-            return {API_ETEMPUNAVAIL,
-                    LOCAL_PATH_TEMPORARY_UNAVAILABLE,
-                    syncWarning,
-                    nullptr,
-                    false};
-        return {API_ENOENT, LOCAL_PATH_UNAVAILABLE, syncWarning, nullptr, false};
+            return {API_ETEMPUNAVAIL, LOCAL_PATH_TEMPORARY_UNAVAILABLE, syncWarning};
+        return {API_ENOENT, LOCAL_PATH_UNAVAILABLE, syncWarning};
     }
 
     if (openedLocalFolder->type != FOLDERNODE)
     {
         LOG_warn << "Cannot sync non-folder";
-        return {API_EACCESS, INVALID_LOCAL_TYPE, syncWarning, nullptr, false};
+        return {API_EACCESS, INVALID_LOCAL_TYPE, syncWarning};
     }
 
     if (const auto [e, syncError] = isLocalPathSyncable(localPath, backupIdToExclude); e != API_OK)
     {
         LOG_warn << "Local path not syncable: " << localPath;
-        return {e, syncError, syncWarning, nullptr, false};
+        return {e, syncError, syncWarning};
     }
-    return {API_OK, NO_SYNC_ERROR, syncWarning, std::move(openedLocalFolder), isnetwork};
+    return {API_OK, NO_SYNC_ERROR, syncWarning};
 }
 
-error MegaClient::checkSyncConfig(SyncConfig& syncConfig,
-                                  LocalPath& rootpath,
-                                  std::unique_ptr<FileAccess>& openedLocalFolder,
-                                  bool& inshare,
-                                  bool& isnetwork)
+SyncErrorInfo MegaClient::checkSyncConfig(const SyncConfig& syncConfig)
 {
-    // Checking for conditions where we would not even add the sync config
-    // Though, if the config is already present but now invalid for one of these reasons, we don't remove it
-
-    syncConfig.mEnabled = true;
-    syncConfig.mError = NO_SYNC_ERROR;
-    syncConfig.mWarning = NO_SYNC_WARNING;
-
     // If failed to unserialize nodes from DB, syncs get disabled -> prevent re-enable them
     // until the account is reloaded (or the app restarts)
     if (accountShouldBeReloadedOrRestarted())
     {
         LOG_warn << "Cannot re-enable sync until account's reload (unserialize errors)";
-        syncConfig.mError = FAILURE_ACCESSING_PERSISTENT_STORAGE;
-        syncConfig.mEnabled = false;
-        return API_EINTERNAL;
+        return {API_EINTERNAL, FAILURE_ACCESSING_PERSISTENT_STORAGE, NO_SYNC_WARNING};
     }
 
     std::shared_ptr<Node> remotenode = nodeByHandle(syncConfig.mRemoteNode);
-    inshare = false;
     if (!remotenode)
     {
-        LOG_warn << "Sync root does not exist in the cloud: "
-                 << syncConfig.getLocalPath()
-                 << ": "
+        LOG_warn << "Sync root does not exist in the cloud: " << syncConfig.getLocalPath() << ": "
                  << LOG_NODEHANDLE(syncConfig.mRemoteNode);
-
-        syncConfig.mError = REMOTE_NODE_NOT_FOUND;
-        syncConfig.mEnabled = false;
-        return API_ENOENT;
+        return {API_ENOENT, REMOTE_NODE_NOT_FOUND, NO_SYNC_WARNING};
     }
 
     if (const auto [e, syncError] = isnodesyncable(remotenode); e)
     {
         LOG_debug << "Node is not syncable for sync add";
-        syncConfig.mError = syncError;
-        syncConfig.mEnabled = false;
-        return e;
+        return {e, syncError, NO_SYNC_WARNING};
     }
 
-    // Has the user requested the sync operate in periodic scanning mode?
-    if (syncConfig.mChangeDetectionMethod == CDM_PERIODIC_SCANNING)
+    // Has the user requested the sync operate in periodic scanning mode with an invalid interval?
+    if (syncConfig.mChangeDetectionMethod == CDM_PERIODIC_SCANNING && !syncConfig.mScanIntervalSec)
     {
-        // Have they specfied a valid scan interval?
-        if (!syncConfig.mScanIntervalSec)
-        {
-            LOG_debug << "No scan interval for periodic sync add";
-
-            syncConfig.mEnabled = false;
-            syncConfig.mError = INVALID_SCAN_INTERVAL;
-
-            return API_EARGS;
-        }
+        LOG_debug << "No scan interval for periodic sync add";
+        return {API_EARGS, INVALID_SCAN_INTERVAL, NO_SYNC_WARNING};
     }
 
-    if (syncs.mBackupRestrictionsEnabled && syncConfig.isBackup() && remotenode->firstancestor()->nodeHandle() != mNodeManager.getRootNodeVault())
+    if (syncs.mBackupRestrictionsEnabled && syncConfig.isBackup() &&
+        remotenode->firstancestor()->nodeHandle() != mNodeManager.getRootNodeVault())
     {
-        syncConfig.mError = INVALID_REMOTE_TYPE;
-        syncConfig.mEnabled = false;
-        return API_EARGS;
+        return {API_EARGS, INVALID_REMOTE_TYPE, NO_SYNC_WARNING};
     }
 
     if (syncConfig.isExternal())
@@ -16876,68 +16841,47 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig,
         if (!syncConfig.isBackup())
         {
             LOG_warn << "Only Backups can be external";
-            return API_EARGS;
+            return {API_EARGS, NO_SYNC_ERROR, NO_SYNC_WARNING};
         }
         if (!syncConfig.isGoodPathForExternalBackup(syncConfig.mLocalPath))
         {
             LOG_warn << "Drive path inconsistent for sync local path";
-            syncConfig.mEnabled = false;
-            syncConfig.mError = BACKUP_SOURCE_NOT_BELOW_DRIVE;
-            return API_EARGS;
+            return {API_EARGS, BACKUP_SOURCE_NOT_BELOW_DRIVE, NO_SYNC_WARNING};
         }
     }
 
-    auto [err, sErr, sWarn, openedLocalFolderAux, isnetworkAux] =
+    const auto [err, sErr, sWarn] =
         isValidLocalSyncRoot(syncConfig.getLocalPath(), syncConfig.mBackupId);
-    isnetwork = isnetworkAux;
-    openedLocalFolder = std::move(openedLocalFolderAux);
-    syncConfig.mWarning = sWarn;
     if (err != API_OK)
-    {
-        syncConfig.mError = sErr;
-        syncConfig.mEnabled = sErr != NO_SYNC_ERROR;
-        return err;
-    }
+        return {err, sErr, sWarn};
 
-    rootpath = syncConfig.getLocalPath();
-    rootpath.trimNonDriveTrailingSeparator();
-
-    //check we are not in any blocking situation
+    // check we are not in any blocking situation
     using CType = CacheableStatus::Type;
-    bool overStorage = mCachedStatus.lookup(CType::STATUS_STORAGE, STORAGE_UNKNOWN) >= STORAGE_RED;
-    bool businessExpired = mCachedStatus.lookup(CType::STATUS_BUSINESS, BIZ_STATUS_UNKNOWN) == BIZ_STATUS_EXPIRED;
-    bool blocked = mCachedStatus.lookup(CType::STATUS_BLOCKED, 0) == 1;
 
     // the order is important here: a user needs to resolve blocked in order to resolve storage
-    if (overStorage)
+    if (const bool overStorage =
+            mCachedStatus.lookup(CType::STATUS_STORAGE, STORAGE_UNKNOWN) >= STORAGE_RED;
+        overStorage)
     {
         LOG_debug << "Overstorage for sync add";
-        syncConfig.mError = STORAGE_OVERQUOTA;
-        syncConfig.mEnabled = false;
-        return API_EFAILED;
+        return {API_EFAILED, STORAGE_OVERQUOTA, sWarn};
     }
-    else if (businessExpired)
+    else if (const bool businessExpired =
+                 mCachedStatus.lookup(CType::STATUS_BUSINESS, BIZ_STATUS_UNKNOWN) ==
+                 BIZ_STATUS_EXPIRED;
+             businessExpired)
     {
         LOG_debug << "Account expired for sync add";
-        syncConfig.mError = ACCOUNT_EXPIRED;
-        syncConfig.mEnabled = false;
-        return API_EFAILED;
+        return {API_EFAILED, ACCOUNT_EXPIRED, sWarn};
     }
-    else if (blocked)
+    else if (const bool blocked = mCachedStatus.lookup(CType::STATUS_BLOCKED, 0) == 1; blocked)
     {
         LOG_debug << "Account blocked for sync add";
-        syncConfig.mError = ACCOUNT_BLOCKED;
-        syncConfig.mEnabled = false;
-        return API_EFAILED;
+        return {API_EFAILED, ACCOUNT_BLOCKED, sWarn};
     }
 
     // This only matters if there were no errors
-    inshare = remotenode->matchesOrHasAncestorMatching(
-        [](const Node& node) -> bool
-        {
-            return node.inshare != nullptr;
-        });
-    return API_OK;
+    return {API_OK, NO_SYNC_ERROR, NO_SYNC_WARNING};
 }
 
 void MegaClient::copySyncConfig(const SyncConfig& config, std::function<void(handle, error)> completion)
@@ -16991,8 +16935,7 @@ void MegaClient::changeSyncRoot(const handle backupId,
     if (noNode)
     {
         auto newRootPath = LocalPath::fromAbsolutePath(newLocalRootPath);
-        if (const auto [err, syncErr, syncWarn, fa, isnet] =
-                isValidLocalSyncRoot(newRootPath, UNDEF);
+        if (const auto [err, syncErr, syncWarn] = isValidLocalSyncRoot(newRootPath, UNDEF);
             err != API_OK)
         {
             LOG_err << "changeSyncRoot: Invalid new local root. Error: "
@@ -17027,10 +16970,8 @@ void MegaClient::addsync(SyncConfig&& config, std::function<void(error, SyncErro
     assert(config.mExternalDrivePath.empty() || config.mExternalDrivePath.isAbsolute());
     assert(config.mLocalPath.isAbsolute());
 
-    LocalPath rootpath;
-    std::unique_ptr<FileAccess> openedLocalFolder;
-    bool inshare, isnetwork;
-    error e = checkSyncConfig(config, rootpath, openedLocalFolder, inshare, isnetwork);
+    error e;
+    std::tie(e, config.mError, config.mWarning) = checkSyncConfig(config);
 
     if (e)
     {

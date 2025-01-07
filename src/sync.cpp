@@ -588,7 +588,6 @@ void SyncConfig::renameDBToMatchTarget(const SyncConfig& targetConfig,
 Sync::Sync(UnifiedSync& us,
            const string& cdebris,
            const LocalPath& clocaldebris,
-           bool cinshare,
            const string& logname,
            SyncError& e):
     syncs(us.syncs),
@@ -619,9 +618,7 @@ Sync::Sync(UnifiedSync& us,
                           nullptr,
                           Syncs::FOLDER_ONLY,
                           &cloudRootOwningUser);
-
-    isnetwork = false;
-    inshare = cinshare;
+    inshare = syncs.isCloudNodeInShare(cloudRoot);
     tmpfa = NULL;
     syncname = logname; // can be updated to be more specific in logs
 
@@ -629,6 +626,7 @@ Sync::Sync(UnifiedSync& us,
 
     mFilesystemType = syncs.fsaccess->getlocalfstype(mLocalPath);
     LOG_debug << "Sync being created on filesystem type " << mFilesystemType << ": " << FileSystemAccess::fstypetostring(mFilesystemType);
+    isnetwork = isNetworkFilesystem(mFilesystemType);
 
     localroot->init(FOLDERNODE, NULL, mLocalPath, nullptr);  // the root node must have the absolute path.  We don't store shortname, to avoid accidentally using relative paths.
     localroot->setSyncedNodeHandle(config.mRemoteNode);
@@ -4049,15 +4047,12 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool setOriginalPath,
         }
     }
 
-    LocalPath rootpath;
-    std::unique_ptr<FileAccess> openedLocalFolder;
-    bool inshare, isnetwork;
-
     error e;
     {
         // todo: even better thead safety
         lock_guard<mutex> g(mClient.nodeTreeMutex);
-        e = mClient.checkSyncConfig(us.mConfig, rootpath, openedLocalFolder, inshare, isnetwork);
+        std::tie(e, us.mConfig.mError, us.mConfig.mWarning) = mClient.checkSyncConfig(us.mConfig);
+        us.mConfig.mEnabled = e == API_OK && us.mConfig.mError == NO_SYNC_ERROR;
     }
 
     if (e)
@@ -4209,7 +4204,7 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool setOriginalPath,
     us.changedConfigState(true, true);
     mHeartBeatMonitor->updateOrRegisterSync(us);
 
-    startSync_inThread(us, debris, localdebris, inshare, isnetwork, rootpath, completion, logname);
+    startSync_inThread(us, debris, localdebris, completion, logname);
     us.mNextHeartbeat->updateSPHBStatus(us);
 }
 
@@ -4446,9 +4441,6 @@ void Syncs::manageRemoteRootLocationChange(Sync& sync) const
 void Syncs::startSync_inThread(UnifiedSync& us,
                                const string& debris,
                                const LocalPath& localdebris,
-                               bool inshare,
-                               bool isNetwork,
-                               const LocalPath& /*rootpath*/,
                                std::function<void(error, SyncError, handle)> completion,
                                const string& logname)
 {
@@ -4466,7 +4458,7 @@ void Syncs::startSync_inThread(UnifiedSync& us,
     us.changedConfigState(false, true);
 
     SyncError constructResult = NO_SYNC_ERROR;
-    us.mSync.reset(new Sync(us, debris, localdebris, inshare, logname, constructResult));
+    us.mSync.reset(new Sync(us, debris, localdebris, logname, constructResult));
 
     if (constructResult != NO_SYNC_ERROR)
     {
@@ -4496,8 +4488,6 @@ void Syncs::startSync_inThread(UnifiedSync& us,
 
         return fail(API_EFAILED, UNABLE_TO_ADD_WATCH);
     }
-
-    us.mSync->isnetwork = isNetwork;
 
     ensureDriveOpenedAndMarkDirty(us.mConfig.mExternalDrivePath);
     mSyncFlags->isInitialPass = true;
@@ -13553,6 +13543,17 @@ void Syncs::proclocaltree(LocalNode* n, LocalTreeProc* tp)
     }
 
     tp->proc(*n->sync->syncs.fsaccess, n);
+}
+
+bool Syncs::isCloudNodeInShare(const CloudNode& cn)
+{
+    lock_guard g(mClient.nodeTreeMutex);
+    std::shared_ptr<Node> n = mClient.mNodeManager.getNodeByHandle(cn.handle);
+    return n && n->matchesOrHasAncestorMatching(
+                    [](const Node& node) -> bool
+                    {
+                        return node.inshare != nullptr;
+                    });
 }
 
 bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool* isInTrash,

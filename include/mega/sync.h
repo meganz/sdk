@@ -118,7 +118,7 @@ public:
      * @brief In case this is an external backup, returns true if this is a backup sync and the
      * given path belongs to the external drive. Always true for non-external backups.
      */
-    bool isGoodPathForExternalBackup(const LocalPath& path)
+    bool isGoodPathForExternalBackup(const LocalPath& path) const
     {
         return !isExternal() || (isBackup() && mExternalDrivePath.isContainingPathOf(path));
     }
@@ -690,7 +690,7 @@ public:
     // How deep is this sync's cloud root?
     unsigned mCurrentRootDepth = 0;
 
-    Sync(UnifiedSync&, const string&, const LocalPath&, bool, const string& logname, SyncError& e);
+    Sync(UnifiedSync&, const string&, const LocalPath&, const string& logname, SyncError& e);
     ~Sync();
 
     /**
@@ -1732,10 +1732,27 @@ private:
     bool checkSyncsScanningWasComplete_inThread(); // Iterate through syncs, calling Sync::checkScanningWasComplete(). Returns false if any sync returns false.
     void unsetSyncsScanningWasComplete_inThread(); // Unset scanningWasComplete flag for every sync.
 
-    // actually start the sync (on sync thread)
-    void startSync_inThread(UnifiedSync& us, const string& debris, const LocalPath& localdebris,
-        bool inshare, bool isNetwork, const LocalPath& rootpath,
-        std::function<void(error, SyncError, handle)> completion, const string& logname);
+    /**
+     * @brief Instantiates the Sync object and stores it in the given unified sync
+     *
+     * @param[in,out] us The UnifiedSync with the configuration needed to create the sync (mConfig).
+     * It will be modified to store the new sync and to modify its state depending on the results.
+     * @param debris To be removed
+     * @param localdebris To be removed
+     * @param completion A function to be called once the process finishes with or without errors.
+     * The parameter passed to the callable are:
+     * - `error`: An error code indicating the result of the initiation.
+     * - `SyncError`: A detailed sync error code providing more context.
+     * - `handle`: the backup id of the sync being initiated
+     * @param logname The name to be passed to the Sync constructor. That will be stored in the
+     * `Sync::syncname` member and used as prefix in the logged messages.
+     */
+    void startSync_inThread(UnifiedSync& us,
+                            const string& debris,
+                            const LocalPath& localdebris,
+                            std::function<void(error, SyncError, handle)> completion,
+                            const string& logname);
+
     void prepareForLogout_inThread(bool keepSyncsConfigFile, std::function<void()> clientCompletion);
     void locallogout_inThread(bool removecaches, bool keepSyncsConfigFile, bool reopenStoreAfter);
     void loadSyncConfigsOnFetchnodesComplete_inThread(bool resetSyncConfigStore);
@@ -1778,6 +1795,14 @@ private:
             WhichCloudVersion,
             handle* owningUser = nullptr,
             vector<pair<handle, int>>* sdsBackups = nullptr);
+
+    /**
+     * @brief Check if the given cloud node is an in-share
+     *
+     * @param cn The cloud node to check
+     * @return true if the node is found and it is an inshare
+     */
+    bool isCloudNodeInShare(const CloudNode& cn);
 
     bool lookupCloudChildren(NodeHandle h, vector<CloudNode>& cloudChildren);
 
