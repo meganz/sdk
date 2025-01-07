@@ -10926,14 +10926,14 @@ public class MegaApiJava {
             return null;
         }
 
-        ArrayList<MegaTransfer> result = new ArrayList<>(transferList.size());
+        ArrayList<MegaTransfer> result = new ArrayList<>();
         for (int i = 0; i < transferList.size(); i++) {
             MegaTransfer transfer = transferList.get(i);
             if (transfer != null) {
                 result.add(transfer.copy());
             }
         }
-
+        result.trimToSize();
         return result;
     }
 
