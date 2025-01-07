@@ -585,11 +585,7 @@ void SyncConfig::renameDBToMatchTarget(const SyncConfig& targetConfig,
 
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated
-Sync::Sync(UnifiedSync& us,
-           const string& cdebris,
-           const LocalPath& clocaldebris,
-           const string& logname,
-           SyncError& e):
+Sync::Sync(UnifiedSync& us, const std::string& logname, SyncError& e):
     syncs(us.syncs),
     localroot(nullptr),
     mUnifiedSync(us),
@@ -602,8 +598,6 @@ Sync::Sync(UnifiedSync& us,
 {
     e = NO_SYNC_ERROR;
     assert(syncs.onSyncThread());
-    assert(cdebris.empty() || clocaldebris.empty());
-    assert(!cdebris.empty() || !clocaldebris.empty());
 
     localroot.reset(new LocalNode(this));
 
@@ -634,18 +628,10 @@ Sync::Sync(UnifiedSync& us,
     localroot->setCheckMovesAgain(false, true, true);
     localroot->setSyncAgain(false, true, true);
 
-    if (!cdebris.empty())
-    {
-        debris = cdebris;
-        localdebrisname = LocalPath::fromRelativePath(debris);
-        localdebris = localdebrisname;
-        localdebris.prependWithSeparator(mLocalPath);
-    }
-    else
-    {
-        localdebrisname = clocaldebris.leafName();
-        localdebris = clocaldebris;
-    }
+    debris = DEBRISFOLDER;
+    localdebrisname = LocalPath::fromRelativePath(debris);
+    localdebris = localdebrisname;
+    localdebris.prependWithSeparator(mLocalPath);
 
     // Should this sync make use of filesystem notifications?
     if (us.mConfig.mChangeDetectionMethod == CDM_NOTIFICATIONS)
@@ -4198,13 +4184,10 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool setOriginalPath,
         }
     }
 
-    string debris = DEBRISFOLDER;
-    auto localdebris = LocalPath();
-
     us.changedConfigState(true, true);
     mHeartBeatMonitor->updateOrRegisterSync(us);
 
-    startSync_inThread(us, debris, localdebris, completion, logname);
+    startSync_inThread(us, completion, logname);
     us.mNextHeartbeat->updateSPHBStatus(us);
 }
 
@@ -4439,8 +4422,6 @@ void Syncs::manageRemoteRootLocationChange(Sync& sync) const
 }
 
 void Syncs::startSync_inThread(UnifiedSync& us,
-                               const string& debris,
-                               const LocalPath& localdebris,
                                std::function<void(error, SyncError, handle)> completion,
                                const string& logname)
 {
@@ -4458,7 +4439,7 @@ void Syncs::startSync_inThread(UnifiedSync& us,
     us.changedConfigState(false, true);
 
     SyncError constructResult = NO_SYNC_ERROR;
-    us.mSync.reset(new Sync(us, debris, localdebris, logname, constructResult));
+    us.mSync.reset(new Sync(us, logname, constructResult));
 
     if (constructResult != NO_SYNC_ERROR)
     {

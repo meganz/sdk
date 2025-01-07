@@ -690,7 +690,18 @@ public:
     // How deep is this sync's cloud root?
     unsigned mCurrentRootDepth = 0;
 
-    Sync(UnifiedSync&, const string&, const LocalPath&, const string& logname, SyncError& e);
+    /**
+     * @brief Sync constructor
+     *
+     * @param[in,out] us the `UnifiedSync` object in which the new Sync will be stored. It is used
+     * to read the configuration and instantiate the Sync accordingly. Also, non-const references to
+     * some of its members (e.g. `syncs`) are also saved in the object. Additionally, some members
+     * of the config (owned by the `UnifiedSync`) are also modified inside this constructor.
+     * @param[in] logname A prefix to include in the logging messages involving this object.
+     * @param[out] e An output error code. If the object is constructed successfully, NO_SYNC_ERROR
+     */
+    Sync(UnifiedSync& us, const std::string& logname, SyncError& e);
+
     ~Sync();
 
     /**
@@ -1737,8 +1748,6 @@ private:
      *
      * @param[in,out] us The UnifiedSync with the configuration needed to create the sync (mConfig).
      * It will be modified to store the new sync and to modify its state depending on the results.
-     * @param debris To be removed
-     * @param localdebris To be removed
      * @param completion A function to be called once the process finishes with or without errors.
      * The parameter passed to the callable are:
      * - `error`: An error code indicating the result of the initiation.
@@ -1748,8 +1757,6 @@ private:
      * `Sync::syncname` member and used as prefix in the logged messages.
      */
     void startSync_inThread(UnifiedSync& us,
-                            const string& debris,
-                            const LocalPath& localdebris,
                             std::function<void(error, SyncError, handle)> completion,
                             const string& logname);
 
