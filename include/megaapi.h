@@ -11052,25 +11052,6 @@ class MegaApi
         unsigned int getABTestValue(const char* flag);
 
         /**
-         * @brief Sends to the API an A/B Test flag activation.
-         *
-         * Informs the API that a user has become relevant for an A/B Test flag.
-         * Can be called multiple times for the same account and flag.
-         *
-         * The associated request type with this request is MegaRequest::TYPE_AB_TEST_ACTIVE
-         *
-         * Valid data in the MegaRequest object received on all callbacks:
-         * - MegaRequest::getText - Returns the flag passed as parameter
-         *
-         * @param flag Flag to be be sent to the API as active.
-         * @param listener MegaRequestListener to track this request
-         *
-         * @deprecated This method will be removed in the future. The SDK already
-         * notifies the API automatically upon calls to @see getABTestValue.
-         */
-        void sendABTestActive(const char* flag, MegaRequestListener *listener = NULL);
-
-        /**
          * @brief Check if the opt-in or account unblocking SMS is allowed
          *
          * The result indicated whether the MegaApi::sendSMSVerificationCode function can be used.

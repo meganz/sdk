@@ -947,9 +947,22 @@ public:
         if (err == API_OK) recommendedLevel = (int)rt.request->getNumber();
         return err;
     }
-    template<typename ... requestArgs> int synchronousChangeEmail(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->changeEmail(args..., &rt); return rt.waitForResult(); }
-    template<typename ... requestArgs> int synchronousConfirmChangeEmail(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->confirmChangeEmail(args..., &rt); return rt.waitForResult(); }
-    template<typename ... requestArgs> int syncSendABTestActive(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->sendABTestActive(args..., &rt); return rt.waitForResult(); }
+
+    template<typename... requestArgs>
+    int synchronousChangeEmail(unsigned apiIndex, requestArgs... args)
+    {
+        RequestTracker rt(megaApi[apiIndex].get());
+        megaApi[apiIndex]->changeEmail(args..., &rt);
+        return rt.waitForResult();
+    }
+
+    template<typename... requestArgs>
+    int synchronousConfirmChangeEmail(unsigned apiIndex, requestArgs... args)
+    {
+        RequestTracker rt(megaApi[apiIndex].get());
+        megaApi[apiIndex]->confirmChangeEmail(args..., &rt);
+        return rt.waitForResult();
+    }
 #ifdef ENABLE_SYNC
     template<typename ... requestArgs> int syncMoveToDebris(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->moveToDebris(args..., &rt); return rt.waitForResult(); }
 #endif // ENABLE_SYNC

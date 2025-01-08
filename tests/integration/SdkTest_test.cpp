@@ -8477,9 +8477,6 @@ TEST_F(SdkTest, SdkSimpleCommands)
     ASSERT_EQ(API_OK, err) << "Get user email failed (error: " << err << ")";
     ASSERT_NE(mApi[0].email.find('@'), std::string::npos); // some simple validation
 
-    // sendABTestActive()
-    ASSERT_EQ(API_OK, syncSendABTestActive(0, "devtest"));
-
     // cleanRubbishBin() test (accept both success and already empty statuses)
     err = synchronousCleanRubbishBin(0);
     ASSERT_TRUE(err == API_OK || err == API_ENOENT) << "Clean rubbish bin failed (error: " << err << ")";

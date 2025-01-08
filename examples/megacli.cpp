@@ -5267,7 +5267,6 @@ autocomplete::ACN autocompleteSyntax()
 
     p->Add(exec_reqstat, sequence(text("reqstat"), opt(either(flag("-on"), flag("-off")))));
     p->Add(exec_getABTestValue, sequence(text("getabflag"), param("flag")));
-    p->Add(exec_sendABTestActive, sequence(text("setabflag"), param("flag")));
     p->Add(exec_contactVerificationWarning, sequence(text("verificationwarnings"), opt(either(flag("-on"), flag("-off")))));
 
     /* MEGA VPN commands */
@@ -12629,23 +12628,6 @@ void exec_getABTestValue(autocomplete::ACState &s)
     string value = v ? std::to_string(*v) : "(not set)";
 
     cout << "[" << flag<< "]:" << value << endl;
-}
-
-void exec_sendABTestActive(autocomplete::ACState &s)
-{
-    string flag = s.words[1].s;
-
-    client->sendABTestActive(flag.c_str(), [](Error e)
-        {
-            if (e)
-            {
-                cout << "Error sending Ab Test flag: " << e << endl;
-            }
-            else
-            {
-                cout << "Flag has been correctly sent." << endl;
-            }
-        });
 }
 
 void exec_contactVerificationWarning(autocomplete::ACState& s)
