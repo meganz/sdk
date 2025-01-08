@@ -693,8 +693,6 @@ protected:
     void onSetElementsUpdate(MegaApi *api, MegaSetElementList *elements) override;
     void onContactRequestsUpdate(MegaApi* api, MegaContactRequestList* requests) override;
 
-    void onReloadNeeded(MegaApi*) override {}
-
     void onUserAlertsUpdate(MegaApi* api, MegaUserAlertList* alerts) override;
 
 #ifdef ENABLE_SYNC

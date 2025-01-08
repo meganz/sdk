@@ -8777,17 +8777,6 @@ class MegaGlobalListener
         virtual void onContactRequestsUpdate(MegaApi* api, MegaContactRequestList* requests);
 
         /**
-         * @brief This function is called when an inconsistency is detected in the local cache
-         *
-         * @deprecated Instead this callback, MegaEvent EVENT_RELOAD will be fired
-         *
-         * You should call MegaApi::fetchNodes when this callback is received
-         *
-         * @param api MegaApi object connected to the account
-         */
-        virtual void onReloadNeeded(MegaApi* api);
-
-        /**
          * @brief This function is called when seqTag updates.
          *
          * Used for synchronization of state between webclient and app on the same device
@@ -9263,17 +9252,6 @@ class MegaListener
          * @param requests List that contains the new or updated contact requests
          */
         virtual void onContactRequestsUpdate(MegaApi* api, MegaContactRequestList* requests);
-
-        /**
-         * @brief This function is called when an inconsistency is detected in the local cache
-         *
-         * @obsolete Instead this callback, MegaEvent EVENT_RELOAD will be fired
-         *
-         * You should call MegaApi::fetchNodes when this callback is received
-         *
-         * @param api MegaApi object connected to the account
-         */
-        virtual void onReloadNeeded(MegaApi* api);
 
 #ifdef ENABLE_SYNC
     /**

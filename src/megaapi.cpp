@@ -1825,23 +1825,19 @@ MegaError *SynchronousTransferListener::getError() const
 
 
 //Global callbacks
-void MegaGlobalListener::onUsersUpdate(MegaApi *, MegaUserList *)
-{ }
+void MegaGlobalListener::onUsersUpdate(MegaApi*, MegaUserList*) {}
 
 void MegaGlobalListener::onUserAlertsUpdate(MegaApi*, MegaUserAlertList*) {}
 
-void MegaGlobalListener::onNodesUpdate(MegaApi *, MegaNodeList *)
-{ }
-void MegaGlobalListener::onAccountUpdate(MegaApi *)
-{ }
-void MegaGlobalListener::onSetsUpdate(MegaApi *, MegaSetList *)
-{ }
-void MegaGlobalListener::onSetElementsUpdate(MegaApi *, MegaSetElementList *)
-{ }
-void MegaGlobalListener::onContactRequestsUpdate(MegaApi *, MegaContactRequestList *)
-{ }
-void MegaGlobalListener::onReloadNeeded(MegaApi *)
-{ }
+void MegaGlobalListener::onNodesUpdate(MegaApi*, MegaNodeList*) {}
+
+void MegaGlobalListener::onAccountUpdate(MegaApi*) {}
+
+void MegaGlobalListener::onSetsUpdate(MegaApi*, MegaSetList*) {}
+
+void MegaGlobalListener::onSetElementsUpdate(MegaApi*, MegaSetElementList*) {}
+
+void MegaGlobalListener::onContactRequestsUpdate(MegaApi*, MegaContactRequestList*) {}
 
 void MegaGlobalListener::onEvent(MegaApi*, MegaEvent*) {}
 
@@ -1856,38 +1852,35 @@ MegaGlobalListener::~MegaGlobalListener()
 { }
 
 //All callbacks
-void MegaListener::onRequestStart(MegaApi *, MegaRequest *)
-{ }
-void MegaListener::onRequestFinish(MegaApi *, MegaRequest *, MegaError *)
-{ }
-void MegaListener::onRequestUpdate(MegaApi * , MegaRequest *)
-{ }
-void MegaListener::onRequestTemporaryError(MegaApi *, MegaRequest *, MegaError *)
-{ }
-void MegaListener::onTransferStart(MegaApi *, MegaTransfer *)
-{ }
-void MegaListener::onTransferFinish(MegaApi *, MegaTransfer *, MegaError *)
-{ }
-void MegaListener::onTransferUpdate(MegaApi *, MegaTransfer *)
-{ }
-void MegaListener::onTransferTemporaryError(MegaApi *, MegaTransfer *, MegaError *)
-{ }
-void MegaListener::onUsersUpdate(MegaApi *, MegaUserList *)
-{ }
-void MegaListener::onUserAlertsUpdate(MegaApi *, MegaUserAlertList *)
-{ }
-void MegaListener::onNodesUpdate(MegaApi *, MegaNodeList *)
-{ }
-void MegaListener::onAccountUpdate(MegaApi *)
-{ }
-void MegaListener::onSetsUpdate(MegaApi *, MegaSetList *)
-{ }
-void MegaListener::onSetElementsUpdate(MegaApi *, MegaSetElementList *)
-{ }
-void MegaListener::onContactRequestsUpdate(MegaApi *, MegaContactRequestList *)
-{ }
-void MegaListener::onReloadNeeded(MegaApi *)
-{ }
+void MegaListener::onRequestStart(MegaApi*, MegaRequest*) {}
+
+void MegaListener::onRequestFinish(MegaApi*, MegaRequest*, MegaError*) {}
+
+void MegaListener::onRequestUpdate(MegaApi*, MegaRequest*) {}
+
+void MegaListener::onRequestTemporaryError(MegaApi*, MegaRequest*, MegaError*) {}
+
+void MegaListener::onTransferStart(MegaApi*, MegaTransfer*) {}
+
+void MegaListener::onTransferFinish(MegaApi*, MegaTransfer*, MegaError*) {}
+
+void MegaListener::onTransferUpdate(MegaApi*, MegaTransfer*) {}
+
+void MegaListener::onTransferTemporaryError(MegaApi*, MegaTransfer*, MegaError*) {}
+
+void MegaListener::onUsersUpdate(MegaApi*, MegaUserList*) {}
+
+void MegaListener::onUserAlertsUpdate(MegaApi*, MegaUserAlertList*) {}
+
+void MegaListener::onNodesUpdate(MegaApi*, MegaNodeList*) {}
+
+void MegaListener::onAccountUpdate(MegaApi*) {}
+
+void MegaListener::onSetsUpdate(MegaApi*, MegaSetList*) {}
+
+void MegaListener::onSetElementsUpdate(MegaApi*, MegaSetElementList*) {}
+
+void MegaListener::onContactRequestsUpdate(MegaApi*, MegaContactRequestList*) {}
 
 void MegaListener::onEvent(MegaApi*, MegaEvent*) {}
 
