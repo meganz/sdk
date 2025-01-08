@@ -2724,13 +2724,13 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     resetOnNodeUpdateCompletionCBs();
 
     // create on existing node, no link yet
-    ASSERT_EQ(API_OK, doExportNode(0, n2.get()));
+    ASSERT_EQ(API_OK, doExportNode(0, n2.get(), 0, false, false));
 
     // create on existing node, with link already  (different command response)
-    ASSERT_EQ(API_OK, doExportNode(0, n2.get()));
+    ASSERT_EQ(API_OK, doExportNode(0, n2.get(), 0, false, false));
 
     // create on non existent node
-    ASSERT_EQ(API_EARGS, doExportNode(0, nullptr));
+    ASSERT_EQ(API_EARGS, doExportNode(0, nullptr, 0, false, false));
 }
 
 
@@ -19113,7 +19113,7 @@ TEST_F(SdkTest, SdkTestSharesWhenMegaHosted)
     ASSERT_THAT(nFolder, ::testing::NotNull());
 
     RequestTracker rt(megaApi[0].get());
-    megaApi[0]->exportNode(nFolder.get(), true /*writable*/, true /*megaHosted*/, &rt);
+    megaApi[0]->exportNode(nFolder.get(), 0, true /*writable*/, true /*megaHosted*/, &rt);
     ASSERT_EQ(rt.waitForResult(), API_OK);
 
     // Test that encryption-key was used for "sk" (share-key) sent via "l" command

@@ -2951,21 +2951,6 @@ MegaStringList* MegaApi::getAllNodeTagsBelow(MegaHandle handle,
                                       convertToCancelToken(cancelToken));
 }
 
-void MegaApi::exportNode(MegaNode *node, MegaRequestListener *listener)
-{
-    pImpl->exportNode(node, 0, false, false, listener);
-}
-
-void MegaApi::exportNode(MegaNode *node, bool writable, bool megaHosted, MegaRequestListener *listener)
-{
-    pImpl->exportNode(node, 0, writable, megaHosted, listener);
-}
-
-void MegaApi::exportNode(MegaNode *node, int64_t expireTime, MegaRequestListener *listener)
-{
-    pImpl->exportNode(node, expireTime, false, false, listener);
-}
-
 void MegaApi::exportNode(MegaNode *node, int64_t expireTime, bool writable, bool megaHosted, MegaRequestListener *listener)
 {
     pImpl->exportNode(node, expireTime, writable, megaHosted, listener);
