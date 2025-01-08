@@ -6577,11 +6577,6 @@ void MegaSearchFilterPrivate::byFavourite(int boolFilterOption)
     mFavouriteFilterOption = validateBoolFilterOption(boolFilterOption);
 }
 
-void MegaSearchFilterPrivate::bySensitivity(bool excludeSensitive)
-{
-    mExcludeSensitive = validateBoolFilterOption(static_cast<int>(excludeSensitive));
-}
-
 void MegaSearchFilterPrivate::bySensitivity(int boolFilterOption)
 {
     mExcludeSensitive = validateBoolFilterOption(boolFilterOption);

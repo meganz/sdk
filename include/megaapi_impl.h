@@ -3336,7 +3336,6 @@ public:
     void byNodeType(int nodeType) override;
     void byCategory(int mimeType) override;
     void byFavourite(int boolFilterOption) override;
-    void bySensitivity(bool excludeSensitive) override;
     void bySensitivity(int boolFilterOption) override;
     void byLocationHandle(MegaHandle ancestorHandle) override;
     void byLocation(int locationType) override;

@@ -7186,10 +7186,6 @@ void MegaSearchFilter::byFavourite(int /*boolFilterOption*/)
 {
 }
 
-void MegaSearchFilter::bySensitivity(bool /*excludeSensitive*/)
-{
-}
-
 void MegaSearchFilter::bySensitivity(int /*boolFilterOption*/)
 {
 

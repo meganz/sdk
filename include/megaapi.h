@@ -9931,17 +9931,6 @@ public:
     virtual void byFavourite(int boolFilterOption);
 
     /**
-     * @brief Set option for filtering out sensitive nodes.
-     * If not set, sensitive nodes will also be considered in searches.
-     *
-     * @note Nodes are considered sensitive if they have that property set, or one of their ancestors has it.
-     *
-     * @param excludeSensitive Set to true to filter out sensitive nodes
-     */
-    MEGA_DEPRECATED
-    virtual void bySensitivity(bool excludeSensitive);
-
-    /**
      * @brief Sets the filter option for excluding sensitive nodes.
      * If not set, it defaults to BOOL_FILTER_DISABLED.
      *
