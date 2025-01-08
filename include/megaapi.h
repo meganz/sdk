@@ -11620,24 +11620,30 @@ class MegaApi
          * - Suspended (admin full disable) = 5
          * - Suspended (admin partial disable) = 6
          * - Suspended (Emergency Takedown) = 7
-         * - Suspended until SMS verified = 8 (deprecated)
+         * - Suspended until SMS verified = 8 (obsolete)
          * - Suspended until Email verified = 9
          *
-         * Note that Action packets are not sent for a suspended user, but next command or action packet request will give a EBLOCKED error.
+         * Note that Action packets are not sent for a suspended user, but next command or action
+         * packet request will give a EBLOCKED error.
          *
          * The associated request type with this request is MegaRequest::TYPE_SEND_DEV_COMMAND.
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getName - Returns the API dev command ("us")
-         * - MegaRequest::getEmail - Returns the target email account, or NULL if target is the logged-in account
+         * - MegaRequest::getEmail - Returns the target email account, or NULL if target is the
+         * logged-in account
          * - MegaRequest::getNumDetails - Returns the user status
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
-         *  - EACCESS if the calling account is not allowed to perform this method (not a mega email account, not the right IP, etc).
-         *  - EARGS if the subcommand is not present or is invalid, if the status is out of range or the target is a business internal account
-         *  - EBLOCKED if the target account is not allowed (this could also happen if the target account does not exist)
+         *  - EACCESS if the calling account is not allowed to perform this method (not a mega email
+         * account, not the right IP, etc).
+         *  - EARGS if the subcommand is not present or is invalid, if the status is out of range or
+         * the target is a business internal account
+         *  - EBLOCKED if the target account is not allowed (this could also happen if the target
+         * account does not exist)
          *
          * @param userStatus The user status
-         * @param email Optional email of the target email's account. If null, it will use the logged-in account
+         * @param email Optional email of the target email's account. If null, it will use the
+         * logged-in account
          * @param listener MegaRequestListener to track this request
          */
         void sendUserStatusDevCommand(int userStatus, const char *email = nullptr, MegaRequestListener *listener = nullptr);
@@ -11770,51 +11776,6 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void createEphemeralAccountPlusPlus(const char* firstname, const char* lastname, MegaRequestListener *listener = NULL);
-
-        /**
-         * @brief Initialize the creation of a new MEGA account, with firstname and lastname
-         *
-         * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getEmail - Returns the email for the account
-         * - MegaRequest::getPassword - Returns the password for the account
-         * - MegaRequest::getName - Returns the firstname of the user
-         * - MegaRequest::getText - Returns the lastname of the user
-         * - MegaRequest::getNodeHandle - Returns the last public node handle accessed
-         * - MegaRequest::getAccess - Returns the type of lastPublicHandle
-         * - MegaRequest::getTransferredBytes - Returns the timestamp of the last access
-         * - MegaRequest::getParamType - Returns the value MegaApi::CREATE_ACCOUNT
-         *
-         * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_OK:
-         * - MegaRequest::getSessionKey - Returns the session id to resume the process
-         *
-         * If this request succeeds, a new ephemeral session will be created for the new user
-         * and a confirmation email will be sent to the specified email address. The app may
-         * resume the create-account process by using MegaApi::resumeCreateAccount.
-         *
-         * If an account with the same email already exists, you will get the error code
-         * MegaError::API_EEXIST in onRequestFinish
-         *
-         * @param email Email for the account
-         * @param password Password for the account
-         * @param firstname Firstname of the user
-         * @param lastname Lastname of the user
-         * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
-         * @param lastPublicHandleType Indicates the type of lastPublicHandle, valid values are:
-         *      - MegaApi::AFFILIATE_TYPE_ID = 1
-         *      - MegaApi::AFFILIATE_TYPE_FILE_FOLDER = 2
-         *      - MegaApi::AFFILIATE_TYPE_CHAT = 3
-         *      - MegaApi::AFFILIATE_TYPE_CONTACT = 4
-         *
-         * @param lastAccessTimestamp Timestamp of the last access
-         * @param listener MegaRequestListener to track this request
-         *
-         * @deprecated This version of the function is deprecated. Please, use the non-deprecated
-         * one.
-         */
-        MEGA_DEPRECATED
-        void createAccount(const char* email, const char* password, const char* firstname, const char* lastname, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Resume a registration process
@@ -13201,13 +13162,6 @@ class MegaApi
          * @return True if showing the warnings are enabled, false otherwise.
          */
         bool contactVerificationWarningEnabled();
-
-       /**
-        * @deprecated This function no longer does anything, and calls to it
-        * can simply be removed
-        */
-        MEGA_DEPRECATED
-        void setSecureFlag(bool enable);
 
         /**
          * @brief Allows to change the hardcoded value of the "Manual Verification" flag
@@ -14872,62 +14826,6 @@ class MegaApi
          * @see MegaApi::getPricing
          */
         void getPaymentId(MegaHandle productHandle, MegaRequestListener *listener = NULL);
-
-        /**
-         * @brief Get the payment URL for an upgrade
-         *
-         * The associated request type with this request is MegaRequest::TYPE_GET_PAYMENT_ID
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNodeHandle - Returns the handle of the product
-         * - MegaRequest::getParentHandle - Returns the last public node handle accessed
-         *
-         * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_OK:
-         * - MegaRequest::getLink - Payment ID
-         *
-         * @param productHandle Handle of the product (see MegaApi::getPricing)
-         * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
-         * @param listener MegaRequestListener to track this request
-         *
-         * @see MegaApi::getPricing
-         *
-         * @deprecated This version of the function is deprecated. Please, use the non-deprecated
-         * one.
-         */
-        MEGA_DEPRECATED
-        void getPaymentId(MegaHandle productHandle, MegaHandle lastPublicHandle, MegaRequestListener *listener = NULL);
-
-        /**
-         * @brief Get the payment URL for an upgrade
-         *
-         * The associated request type with this request is MegaRequest::TYPE_GET_PAYMENT_ID
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNodeHandle - Returns the handle of the product
-         *
-         * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_OK:
-         * - MegaRequest::getLink - Payment ID
-         * - MegaRequest::getParentHandle - Returns the last public node handle accessed
-         * - MegaRequest::getParamType - Returns the type of lastPublicHandle
-         * - MegaRequest::getTransferredBytes - Returns the timestamp of the last access
-         *
-         * @param productHandle Handle of the product (see MegaApi::getPricing)
-         * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
-         * @param lastPublicHandleType Indicates the type of lastPublicHandle, valid values are:
-         *      - MegaApi::AFFILIATE_TYPE_ID = 1
-         *      - MegaApi::AFFILIATE_TYPE_FILE_FOLDER = 2
-         *      - MegaApi::AFFILIATE_TYPE_CHAT = 3
-         *      - MegaApi::AFFILIATE_TYPE_CONTACT = 4
-         *
-         * @param lastAccessTimestamp Timestamp of the last access
-         * @param listener MegaRequestListener to track this request
-         * @see MegaApi::getPricing
-         *
-         * @deprecated This version of the function is deprecated. Please, use the non-deprecated
-         * one.
-         */
-        MEGA_DEPRECATED
-        void getPaymentId(MegaHandle productHandle, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Upgrade an account

@@ -2429,11 +2429,6 @@ void MegaApi::createEphemeralAccountPlusPlus(const char *firstname, const char *
     pImpl->createEphemeralAccountPlusPlus(firstname, lastname, listener);
 }
 
-void MegaApi::createAccount(const char* email, const char* password, const char* firstname, const char* lastname, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener)
-{
-    pImpl->createAccount(email, password, firstname, lastname, lastPublicHandle, lastPublicHandleType, lastAccessTimestamp, listener);
-}
-
 void MegaApi::resumeCreateAccount(const char* sid, MegaRequestListener *listener)
 {
     pImpl->resumeCreateAccount(sid, listener);
@@ -2642,10 +2637,6 @@ void MegaApi::upgradeSecurity(MegaRequestListener* listener)
 bool MegaApi::contactVerificationWarningEnabled()
 {
     return pImpl->contactVerificationWarningEnabled();
-}
-
-void MegaApi::setSecureFlag([[maybe_unused]] bool enable)
-{
 }
 
 void MegaApi::setManualVerificationFlag(bool enable)
@@ -3048,16 +3039,6 @@ void MegaApi::getPricing(MegaRequestListener *listener)
 void MegaApi::getPaymentId(MegaHandle productHandle, MegaRequestListener *listener)
 {
     pImpl->getPaymentId(productHandle, UNDEF, AFFILIATE_TYPE_INVALID, 0, listener);
-}
-
-void MegaApi::getPaymentId(MegaHandle productHandle, MegaHandle lastPublicHandle, MegaRequestListener *listener)
-{
-    pImpl->getPaymentId(productHandle, lastPublicHandle, AFFILIATE_TYPE_INVALID, 0, listener);
-}
-
-void MegaApi::getPaymentId(MegaHandle productHandle, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener)
-{
-    pImpl->getPaymentId(productHandle, lastPublicHandle, lastPublicHandleType, lastAccessTimestamp, listener);
 }
 
 void MegaApi::upgradeAccount(MegaHandle productHandle, int paymentMethod, MegaRequestListener *listener)
