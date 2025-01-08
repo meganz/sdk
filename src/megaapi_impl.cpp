@@ -7660,22 +7660,6 @@ void MegaApiImpl::cancelCreateAccount(MegaRequestListener *listener)
     waiter->notify();
 }
 
-void MegaApiImpl::sendSignupLink(const char *email, const char *name, const char *password, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SEND_SIGNUP_LINK, listener);
-    request->setEmail(email);
-    request->setPassword(password);
-    request->setName(name);
-
-    request->performRequest = [this, request]()
-    {
-        return performRequest_sendSignupLink(request);
-    };
-
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 void MegaApiImpl::resendSignupLink(const char *email, const char *name, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SEND_SIGNUP_LINK, listener);

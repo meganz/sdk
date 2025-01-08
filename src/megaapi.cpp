@@ -2444,11 +2444,6 @@ void MegaApi::cancelCreateAccount(MegaRequestListener *listener)
     pImpl->cancelCreateAccount(listener);
 }
 
-void MegaApi::sendSignupLink(const char *email, const char *name, const char *password, MegaRequestListener *listener)
-{
-    pImpl->sendSignupLink(email, name, password, listener);
-}
-
 void MegaApi::resendSignupLink(const char *email, const char *name, MegaRequestListener *listener)
 {
     pImpl->resendSignupLink(email, name, listener);

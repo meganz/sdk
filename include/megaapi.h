@@ -11852,25 +11852,8 @@ class MegaApi
          *
          * This function is useful to send the confirmation link again or to send it to a different
          * email address, in case the user mistyped the email at the registration form. It can only
-         * be used after a successful call to MegaApi::createAccount or MegaApi::resumeCreateAccount.
-         *
-         * The associated request type with this request is MegaRequest::TYPE_SEND_SIGNUP_LINK.
-         *
-         * @param email Email for the account
-         * @param name Fullname of the user (firstname + lastname)
-         * @param password Password for the account
-         * @param listener MegaRequestListener to track this request
-         *
-         * @deprecated This method will be eventually removed. Please, use the new version without the 'password' parameter
-         */
-        void sendSignupLink(const char* email, const char *name, const char *password, MegaRequestListener *listener = NULL);
-
-        /**
-         * @brief Sends the confirmation email for a new account
-         *
-         * This function is useful to send the confirmation link again or to send it to a different
-         * email address, in case the user mistyped the email at the registration form. It can only
-         * be used after a successful call to MegaApi::createAccount or MegaApi::resumeCreateAccount.
+         * be used after a successful call to MegaApi::createAccount or
+         * MegaApi::resumeCreateAccount.
          *
          * The associated request type with this request is MegaRequest::TYPE_SEND_SIGNUP_LINK.
          *

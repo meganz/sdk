@@ -738,12 +738,65 @@ public:
     // *** WARNING *** THESE FUNCTIONS RETURN VALUE ARE SUBJECT TO RACE CONDITIONS
     // convenience functions - template args just make it easy to code, no need to copy all the exact argument types with listener defaults etc. To add a new one, just copy a line and change the flag and the function called.
     // WARNING: any sort of race can result in the lastError being set from some other command - better to use the listener based ones in the next list below
-    template<typename ... Args> int synchronousCatchup(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_CATCHUP, [this, apiIndex, args...]() { megaApi[apiIndex]->catchup(args...); }); return mApi[apiIndex].lastError; }
-    template<typename ... Args> int synchronousCreateEphemeralAccountPlusPlus(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_CREATE_ACCOUNT, [this, apiIndex, args...]() { megaApi[apiIndex]->createEphemeralAccountPlusPlus(args...); }); return mApi[apiIndex].lastError; }
-    template<typename ... Args> int synchronousResumeCreateAccountEphemeralPlusPlus(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_CREATE_ACCOUNT, [this, apiIndex, args...]() { megaApi[apiIndex]->resumeCreateAccountEphemeralPlusPlus(args...); }); return mApi[apiIndex].lastError; }
-    template<typename ... Args> int synchronousCreateAccount(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_CREATE_ACCOUNT, [this, apiIndex, args...]() { megaApi[apiIndex]->createAccount(args...); }); return mApi[apiIndex].lastError; }
-    template<typename ... Args> int synchronousResumeCreateAccount(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_CREATE_ACCOUNT, [this, apiIndex, args...]() { megaApi[apiIndex]->resumeCreateAccount(args...); }); return mApi[apiIndex].lastError; }
-    template<typename ... Args> int synchronousSendSignupLink(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_SEND_SIGNUP_LINK, [this, apiIndex, args...]() { megaApi[apiIndex]->sendSignupLink(args...); }); return mApi[apiIndex].lastError; }
+    template<typename... Args>
+    int synchronousCatchup(unsigned apiIndex, Args... args)
+    {
+        synchronousRequest(apiIndex,
+                           MegaRequest::TYPE_CATCHUP,
+                           [this, apiIndex, args...]()
+                           {
+                               megaApi[apiIndex]->catchup(args...);
+                           });
+        return mApi[apiIndex].lastError;
+    }
+
+    template<typename... Args>
+    int synchronousCreateEphemeralAccountPlusPlus(unsigned apiIndex, Args... args)
+    {
+        synchronousRequest(apiIndex,
+                           MegaRequest::TYPE_CREATE_ACCOUNT,
+                           [this, apiIndex, args...]()
+                           {
+                               megaApi[apiIndex]->createEphemeralAccountPlusPlus(args...);
+                           });
+        return mApi[apiIndex].lastError;
+    }
+
+    template<typename... Args>
+    int synchronousResumeCreateAccountEphemeralPlusPlus(unsigned apiIndex, Args... args)
+    {
+        synchronousRequest(apiIndex,
+                           MegaRequest::TYPE_CREATE_ACCOUNT,
+                           [this, apiIndex, args...]()
+                           {
+                               megaApi[apiIndex]->resumeCreateAccountEphemeralPlusPlus(args...);
+                           });
+        return mApi[apiIndex].lastError;
+    }
+
+    template<typename... Args>
+    int synchronousCreateAccount(unsigned apiIndex, Args... args)
+    {
+        synchronousRequest(apiIndex,
+                           MegaRequest::TYPE_CREATE_ACCOUNT,
+                           [this, apiIndex, args...]()
+                           {
+                               megaApi[apiIndex]->createAccount(args...);
+                           });
+        return mApi[apiIndex].lastError;
+    }
+
+    template<typename... Args>
+    int synchronousResumeCreateAccount(unsigned apiIndex, Args... args)
+    {
+        synchronousRequest(apiIndex,
+                           MegaRequest::TYPE_CREATE_ACCOUNT,
+                           [this, apiIndex, args...]()
+                           {
+                               megaApi[apiIndex]->resumeCreateAccount(args...);
+                           });
+        return mApi[apiIndex].lastError;
+    }
     template<typename ... Args> int synchronousConfirmSignupLink(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_CONFIRM_ACCOUNT, [this, apiIndex, args...]() { megaApi[apiIndex]->confirmAccount(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousFastLogin(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_LOGIN, [this, apiIndex, args...]() { megaApi[apiIndex]->fastLogin(args...); }); return mApi[apiIndex].lastError; }
 
