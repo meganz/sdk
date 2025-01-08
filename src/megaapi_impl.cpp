@@ -16411,11 +16411,7 @@ void MegaApiImpl::whyamiblocked_result(int code)
     {
         string reason = "Your account was terminated due to a breach of Mega's Terms of Service, such as abuse of rights of others; sharing and/or importing illegal data; or system abuse.";
 
-        if (code == MegaApi::ACCOUNT_BLOCKED_EXCESS_DATA_USAGE)    // deprecated
-        {
-            reason = "You have been suspended due to excess data usage.";
-        }
-        else if (code == MegaApi::ACCOUNT_BLOCKED_TOS_COPYRIGHT)
+        if (code == MegaApi::ACCOUNT_BLOCKED_TOS_COPYRIGHT)
         {
             reason = "Your account has been suspended due to copyright violations. Please check your email inbox.";
         }

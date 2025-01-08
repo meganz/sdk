@@ -5824,7 +5824,8 @@ public:
         EVENT_KEY_MODIFIED              = 10,
         EVENT_MISC_FLAGS_READY          = 11,
 #ifdef ENABLE_SYNC
-        //EVENT_FIRST_SYNC_RESUMING       = 12, // (deprecated) when a first sync is about to be resumed
+        // EVENT_FIRST_SYNC_RESUMING       = 12, // (obsolete) when a first sync is about to be
+        // resumed
         EVENT_SYNCS_DISABLED            = 13, // Syncs were bulk-disabled due to a situation encountered, eg storage overquota
         EVENT_SYNCS_RESTORED            = 14, // Indicate to the app that the process of starting existing syncs after login+fetchnodes is complete.
 #endif
@@ -10386,10 +10387,11 @@ class MegaApi
             USER_ATTR_ALIAS = 27,                // private - byte array
             USER_ATTR_DEVICE_NAMES = 30,         // private - byte array
             USER_ATTR_MY_BACKUPS_FOLDER = 31,    // protected - char array in B64 - non-versioned
-            // USER_ATTR_BACKUP_NAMES = 32,      // (deprecated) private - byte array
+            // USER_ATTR_BACKUP_NAMES = 32,      // (obsolete) private - byte array
             USER_ATTR_COOKIE_SETTINGS = 33,      // private - byte array - non-versioned
             USER_ATTR_JSON_SYNC_CONFIG_DATA = 34,// private - byte array
-            // USER_ATTR_DRIVE_NAMES = 35,       // (merged with USER_ATTR_DEVICE_NAMES and removed) private - byte array
+            // USER_ATTR_DRIVE_NAMES = 35,       // (obsolete, merged with USER_ATTR_DEVICE_NAMES)
+            // private - byte array
             USER_ATTR_NO_CALLKIT = 36,           // private - byte array
             USER_ATTR_APPS_PREFS = 38,           // private - byte array - versioned
             USER_ATTR_CC_PREFS   = 39,           // private - byte array - versioned
@@ -10468,7 +10470,7 @@ class MegaApi
             RETRY_SERVERS_BUSY = 2,
             RETRY_API_LOCK = 3,
             RETRY_RATE_LIMIT = 4,
-            //RETRY_LOCAL_LOCK = 5,  // deprecated
+            // RETRY_LOCAL_LOCK = 5,  // obsolete
             RETRY_UNKNOWN = 6
         };
 
@@ -10502,7 +10504,7 @@ class MegaApi
 
         enum {
             ACCOUNT_NOT_BLOCKED = 0,
-            ACCOUNT_BLOCKED_EXCESS_DATA_USAGE = 100,        // (deprecated)
+            // ACCOUNT_BLOCKED_EXCESS_DATA_USAGE = 100,      (obsolete)
             ACCOUNT_BLOCKED_TOS_COPYRIGHT = 200,            // suspended due to copyright violations
             ACCOUNT_BLOCKED_TOS_NON_COPYRIGHT = 300,        // suspended due to multiple breaches of MEGA ToS
             ACCOUNT_BLOCKED_SUBUSER_DISABLED = 400,         // subuser disabled by business administrator
