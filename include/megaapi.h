@@ -5071,7 +5071,6 @@ class MegaRequest
          * This value is valid for these requests:
          * - MegaApi::login - Returns the password of the account
          * - MegaApi::loginToFolder - Returns the authentication key to write in public folder
-         * - MegaApi::createAccount - Returns the password for the account
          * - MegaApi::confirmAccount - Returns the password for the account
          * - MegaApi::changePassword - Returns the old password of the account (first parameter)
          *
@@ -14717,23 +14716,6 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getText - Returns the purchase receipt
-         *
-         * @param receipt Purchase receipt
-         * @param listener MegaRequestListener to track this request
-         *
-         * @deprecated This function is only compatible with Google Play payments.
-         * It only exists for compatibility with previous apps and will be removed soon.
-         * Please use the other version of MegaApi::submitPurchaseReceipt that allows
-         * to select the payment gateway.
-         */
-        void submitPurchaseReceipt(const char* receipt, MegaRequestListener *listener = NULL);
-
-        /**
-         * @brief Submit a purchase receipt for verification
-         *
-         * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
-         * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNumber - Returns the payment gateway
          * - MegaRequest::getText - Returns the purchase receipt
          *
@@ -14848,16 +14830,6 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void creditCardQuerySubscriptions(MegaRequestListener *listener = NULL);
-
-        /**
-         * @brief Cancel credit card subscriptions of the account
-         *
-         * The associated request type with this request is MegaRequest::TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS
-         * @param reason Reason for the cancellation. It can be NULL.
-         * @param listener MegaRequestListener to track this request
-         */
-        MEGA_DEPRECATED
-        void creditCardCancelSubscriptions(const char* reason, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Cancel the credit card subscriptions of the account
@@ -15187,24 +15159,6 @@ class MegaApi
         void setCameraUploadsFolder(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Set Camera Uploads secondary target folder.
-         *
-         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
-         * - MegaRequest::getFlag - Returns true
-         * - MegaRequest::getNodehandle - Returns the provided node handle
-         * - MegaRequest::getMegaStringMap - Returns a MegaStringMap.
-         * The key "sh" in the map contains the nodehandle specified as parameter encoded in B64
-         *
-         * @param nodehandle MegaHandle of the node to be used as secondary target folder
-         * @param listener MegaRequestListener to track this request
-         *
-         * @deprecated Use MegaApi::setCameraUploadsFolders instead
-         */
-        void setCameraUploadsFolderSecondary(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
-
-        /**
          * @brief Set Camera Uploads for both primary and secondary target folder.
          *
          * If only one of the target folders wants to be set, simply pass a INVALID_HANDLE to
@@ -15393,24 +15347,6 @@ class MegaApi
         const char* getDeviceId() const;
 
         /**
-         * @brief Returns the name set for this device
-         *
-         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_DEVICE_NAMES
-         *
-         * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_OK:
-         * - MegaRequest::getName - Returns device name.
-         *
-         * @param listener MegaRequestListener to track this request
-         *
-         * @deprecated This version of the function is deprecated. Please use the non-deprecated one below.
-         */
-        MEGA_DEPRECATED
-        void getDeviceName(MegaRequestListener *listener = NULL);
-
-        /**
          * @brief Returns the name previously set for a device
          *
          * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
@@ -15428,22 +15364,6 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getDeviceName(const char *deviceId, MegaRequestListener *listener = NULL);
-
-        /**
-         * @brief Sets device name
-         *
-         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_DEVICE_NAMES
-         * - MegaRequest::getName - Returns device name.
-         *
-         * @param deviceName String with device name
-         * @param listener MegaRequestListener to track this request
-         *
-         * @deprecated This version of the function is deprecated. Please use the non-deprecated one below.
-         */
-        MEGA_DEPRECATED
-        void setDeviceName(const char* deviceName, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Sets name for specified device
@@ -15717,35 +15637,6 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNumber - Returns the event type
          * - MegaRequest::getText - Returns the event message
-         *
-         * @param eventType Event type
-         * @param message Event message
-         * @param listener MegaRequestListener to track this request
-         *
-         * @note Event types are restricted to the following ranges:
-         *  - MEGAcmd:   [98900, 99000)
-         *  - MEGAchat:  [99000, 99199)
-         *  - Android:   [99200, 99300)
-         *  - iOS:       [99300, 99400)
-         *  - MEGA SDK:  [99400, 99500)
-         *  - MEGAsync:  [99500, 99600)
-         *  - Webclient: [99600, 99800]
-         *
-         * @deprecated This function is for internal usage of MEGA apps for debug purposes. This info
-         *             is sent to MEGA servers.
-         * This version of the function is deprecated. Please use the non-deprecated one below.
-        */
-        MEGA_DEPRECATED
-        void sendEvent(int eventType, const char* message, MegaRequestListener *listener = NULL);
-
-
-        /**
-         * @brief Send events to the stats server
-         *
-         * The associated request type with this request is MegaRequest::TYPE_SEND_EVENT
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNumber - Returns the event type
-         * - MegaRequest::getText - Returns the event message
          * - MegaRequest::getFlag - Returns the addJourneyId flag
          * - MegaRequest::getSessionKey - Returns the ViewID
          *
@@ -15756,7 +15647,7 @@ class MegaApi
          *               This value should have been generated with MegaApi::generateViewId method.
          * @param listener MegaRequestListener to track this request
          *
-         * @deprecated This function is for internal usage of MEGA apps for debug purposes. This info
+         * @devonly This function is for internal usage of MEGA apps for debug purposes. This info
          * is sent to MEGA servers.
          *
          * @note Event types are restricted to the following ranges:
@@ -15808,7 +15699,7 @@ class MegaApi
          * @param text Debug message
          * @param listener MegaRequestListener to track this request
          *
-         * @deprecated This function is for internal usage of MEGA apps. This feedback
+         * @devonly This function is for internal usage of MEGA apps. This feedback
          * is sent to MEGA servers.
          */
         void reportDebugEvent(const char *text, MegaRequestListener *listener = NULL);
@@ -16819,32 +16710,6 @@ class MegaApi
          * @return The same file in MEGA or NULL if the file isn't synced
          */
         MegaNode *getSyncedNode(std::string *path);
-
-
-        /**
-        * @deprecated This version of the function is deprecated.  Please use the non-deprecated one below.
-         */
-        MEGA_DEPRECATED
-        void syncFolder(const char* localFolder, const char* name, MegaNode* megaFolder, MegaRequestListener* listener = NULL);
-
-        /**
-        * @deprecated This version of the function is deprecated.  Please use the non-deprecated one below.
-         */
-        MEGA_DEPRECATED
-        void syncFolder(const char* localFolder, MegaNode* megaFolder, MegaRequestListener* listener = NULL);
-
-        /**
-        * @deprecated This version of the function is deprecated.  Please use the non-deprecated one below.
-         */
-        MEGA_DEPRECATED
-        void syncFolder(const char* localFolder, MegaHandle megaHandle, MegaRequestListener* listener = NULL);
-
-        /**
-        * @deprecated This version of the function is deprecated.  Please use the non-deprecated one below.
-         */
-        MEGA_DEPRECATED
-        void syncFolder(const char* localFolder, const char* name, MegaHandle megaHandle, MegaRequestListener* listener = NULL);
-
 
         /**
          * @brief Start a Sync or Backup between a local folder and a folder in MEGA

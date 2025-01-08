@@ -3016,11 +3016,6 @@ void MegaApi::upgradeAccount(MegaHandle productHandle, int paymentMethod, MegaRe
     pImpl->upgradeAccount(productHandle, paymentMethod, listener);
 }
 
-void MegaApi::submitPurchaseReceipt(const char *receipt, MegaRequestListener *listener)
-{
-    pImpl->submitPurchaseReceipt(MegaApi::PAYMENT_METHOD_GOOGLE_WALLET, receipt, UNDEF, AFFILIATE_TYPE_INVALID, 0, listener);
-}
-
 void MegaApi::submitPurchaseReceipt(int gateway, const char *receipt, MegaRequestListener *listener)
 {
     pImpl->submitPurchaseReceipt(gateway, receipt, UNDEF, AFFILIATE_TYPE_INVALID, 0, listener);
@@ -3049,14 +3044,6 @@ void MegaApi::creditCardStore(const char* address1, const char* address2, const 
 void MegaApi::creditCardQuerySubscriptions(MegaRequestListener *listener)
 {
     pImpl->creditCardQuerySubscriptions(listener);
-}
-
-void MegaApi::creditCardCancelSubscriptions(const char* reason, MegaRequestListener *listener)
-{
-    pImpl->creditCardCancelSubscriptions(reason,
-                                         nullptr,
-                                         CREDIT_CARD_CANCEL_SUBSCRIPTIONS_CAN_CONTACT_NO,
-                                         listener);
 }
 
 void MegaApi::creditCardCancelSubscriptions(const char* reason,
@@ -3253,11 +3240,6 @@ void MegaApi::setCameraUploadsFolder(MegaHandle nodehandle, MegaRequestListener 
     pImpl->setCameraUploadsFolder(nodehandle, false, listener);
 }
 
-void MegaApi::setCameraUploadsFolderSecondary(MegaHandle nodehandle, MegaRequestListener *listener)
-{
-    pImpl->setCameraUploadsFolder(nodehandle, true, listener);
-}
-
 void MegaApi::setCameraUploadsFolders(MegaHandle primaryFolder, MegaHandle secondaryFolder, MegaRequestListener *listener)
 {
     pImpl->setCameraUploadsFolders(primaryFolder, secondaryFolder, listener);
@@ -3313,19 +3295,9 @@ const char* MegaApi::getDeviceId() const
     return pImpl->getDeviceId();
 }
 
-void MegaApi::getDeviceName(MegaRequestListener *listener)
-{
-    pImpl->getDeviceName(nullptr, listener);
-}
-
 void MegaApi::getDeviceName(const char *deviceId, MegaRequestListener *listener)
 {
     pImpl->getDeviceName(deviceId, listener);
-}
-
-void MegaApi::setDeviceName(const char *deviceName, MegaRequestListener *listener)
-{
-    pImpl->setDeviceName(nullptr, deviceName, listener);
 }
 
 void MegaApi::setDeviceName(const char *deviceId, const char *deviceName, MegaRequestListener *listener)
@@ -3394,11 +3366,6 @@ void MegaApi::submitFeedbackForTransfers(int rating,
                                          MegaRequestListener* listener)
 {
     pImpl->submitFeedback(rating, comment, true /*transferFeedback*/, transferType, listener);
-}
-
-void MegaApi::sendEvent(int eventType, const char *message, MegaRequestListener *listener)
-{
-    pImpl->sendEvent(eventType, message, false, nullptr, listener);
 }
 
 void MegaApi::sendEvent(int eventType, const char *message, bool addJourneyId, const char *viewId, MegaRequestListener *listener)
@@ -3726,31 +3693,6 @@ MegaNode *MegaApi::getSyncedNode(string *path)
 {
     return pImpl->getSyncedNode(LocalPath::fromPlatformEncodedAbsolute(*path));
 }
-
-void MegaApi::syncFolder(const char *localFolder, const char *name, MegaNode *megaFolder, MegaRequestListener *listener)
-{
-    // deprecated
-    pImpl->syncFolder(localFolder, name, megaFolder ? megaFolder->getHandle() : INVALID_HANDLE, SyncConfig::TYPE_TWOWAY, nullptr, nullptr, listener);
-}
-
-void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener *listener)
-{
-    // deprecated
-    pImpl->syncFolder(localFolder, nullptr, megaFolder ? megaFolder->getHandle() : INVALID_HANDLE, SyncConfig::TYPE_TWOWAY, nullptr, nullptr, listener);
-}
-
-void MegaApi::syncFolder(const char *localFolder, const char *name, MegaHandle megaHandle, MegaRequestListener *listener)
-{
-    // deprecated
-    pImpl->syncFolder(localFolder, name, megaHandle, SyncConfig::TYPE_TWOWAY, nullptr, nullptr, listener);
-}
-
-void MegaApi::syncFolder(const char *localFolder, MegaHandle megaHandle, MegaRequestListener *listener)
-{
-    // deprecated
-    pImpl->syncFolder(localFolder, nullptr, megaHandle, SyncConfig::TYPE_TWOWAY, nullptr, nullptr, listener);
-}
-
 
 void MegaApi::syncFolder(MegaSync::SyncType syncType, const char* localFolder, const char* name, MegaHandle megaHandle, const char* driveRootIfExternal, MegaRequestListener* listener,
                          const char* excludePath)
