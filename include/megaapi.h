@@ -4758,7 +4758,7 @@ class MegaRequest
             TYPE_GET_CLOUD_STORAGE_USED                                     = 119,
             TYPE_SEND_SMS_VERIFICATIONCODE = 120, // (deprecated / obsolete)
             TYPE_CHECK_SMS_VERIFICATIONCODE = 121, // (deprecated / obsolete)
-            TYPE_GET_REGISTERED_CONTACTS                                    = 122,  // (obsolete)
+            // TYPE_GET_REGISTERED_CONTACTS                                    = 122,   (obsolete)
             TYPE_GET_COUNTRY_CALLING_CODES = 123, // (deprecated / obsolete)
             TYPE_VERIFY_CREDENTIALS                                         = 124,
             TYPE_GET_MISC_FLAGS                                             = 125,
