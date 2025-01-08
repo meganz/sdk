@@ -108,8 +108,8 @@ https://github.com/staticlibs/ccronexpr
 License:  Apache License 2.0
 
 Files included in this repository based on `ccronexpr`:
-- `third_party/ccronexpr/mega_ccronexpr.cpp` (based on `ccronexpr.c`)
-- `third_party/ccronexpr/mega_ccronexpr.h` (based on `ccronexpr.h`)
+- `third_party/ccronexpr/ccronexpr.cpp` (based on `ccronexpr.c`)
+- `third_party/ccronexpr/ccronexpr.h` (based on `ccronexpr.h`)
 - `third_party/ccronexpr/LICENSE` (copy of the licence of `ccronexpr`)
 
 #### http_parser
