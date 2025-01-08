@@ -671,24 +671,9 @@ char *MegaNode::getFileAttrString()
     return NULL;
 }
 
-string *MegaNode::getPrivateAuth()
-{
-    return NULL;
-}
-
 void MegaNode::setPrivateAuth(const char *)
 {
     return;
-}
-
-string *MegaNode::getPublicAuth()
-{
-    return NULL;
-}
-
-const char *MegaNode::getChatAuth()
-{
-    return NULL;
 }
 
 MegaNodeList *MegaNode::getChildren()

@@ -1527,44 +1527,13 @@ class MegaNode
         virtual char *getFileAttrString();
 
         /**
-         * @brief Return the private auth token to access this node
-         *
-         * The MegaNode object retains the ownership of the returned pointer. It will be valid until the deletion
-         * of the MegaNode object.
-         *
-         * @return Private auth token to access the node
-         * @deprecated This function is intended for internal purposes and will be probably removed in future updates.
-         */
-        virtual std::string* getPrivateAuth();
-
-        /**
          * @brief Set an auth token to access this node
+         *
+         * This function is used to authenticate private nodes from a different account.
+         *
          * @param privateAuth token to access the node
-         * @deprecated This function is intended for internal purposes and will be probably removed in future updates.
          */
         virtual void setPrivateAuth(const char *privateAuth);
-
-        /**
-         * @brief Return the public auth token to access this node
-         *
-         * The MegaNode object retains the ownership of the returned pointer. It will be valid until the deletion
-         * of the MegaNode object.
-         *
-         * @return Public auth token to access the node
-         * @deprecated This function is intended for internal purposes and will be probably removed in future updates.
-         */
-        virtual std::string* getPublicAuth();
-
-        /**
-         * @brief Return the chat auth token to access this node
-         *
-         * The MegaNode object retains the ownership of the returned pointer. It will be valid until the deletion
-         * of the MegaNode object.
-         *
-         * @return Chat auth token to access the node
-         * @deprecated This function is intended for internal purposes and will be probably removed in future updates.
-         */
-        virtual const char *getChatAuth();
 
         /**
          * @brief Returns the child nodes of an authorized folder node

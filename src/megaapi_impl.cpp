@@ -200,9 +200,9 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->thumbnailAvailable = node->hasThumbnail();
     this->previewAvailable = node->hasPreview();
     this->isPublicNode = node->isPublic();
-    this->privateAuth = *node->getPrivateAuth();
-    this->publicAuth = *node->getPublicAuth();
-    this->chatAuth = node->getChatAuth() ? MegaApi::strdup(node->getChatAuth()) : NULL;
+    this->privateAuth = *np->getPrivateAuth();
+    this->publicAuth = *np->getPublicAuth();
+    this->chatAuth = np->getChatAuth();
     this->outShares = node->isOutShare();
     this->inShare = node->isInShare();
     this->foreign = node->isForeign();
@@ -6351,17 +6351,19 @@ MegaFileGet::MegaFileGet(MegaClient *client, MegaNode *n, const LocalPath& dstPa
     hprivate = !n->isPublic();
     hforeign = n->isForeign();
 
-    if(n->getPrivateAuth()->size())
+    MegaNodePrivate* np = dynamic_cast<MegaNodePrivate*>(n);
+    assert(np);
+    if (np->getPrivateAuth()->size())
     {
-        privauth = *n->getPrivateAuth();
+        privauth = *np->getPrivateAuth();
     }
 
-    if(n->getPublicAuth()->size())
+    if (np->getPublicAuth()->size())
     {
-        pubauth = *n->getPublicAuth();
+        pubauth = *np->getPublicAuth();
     }
 
-    chatauth = n->getChatAuth() ? MegaApi::strdup(n->getChatAuth()) : NULL;
+    chatauth = np->getChatAuth() ? MegaApi::strdup(np->getChatAuth()) : NULL;
 }
 
 bool MegaFileGet::serialize(string *d) const
@@ -19384,12 +19386,21 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                         fireOnTransferStart(transfer);
                         SymmCipher cipher;
                         cipher.setkey(notOwnedNode->getNodeKey());
-                        client->pread(notOwnedNode->getHandle(), &cipher,
-                            MemAccess::get<int64_t>((const char*)notOwnedNode->getNodeKey()->data() + SymmCipher::KEYLENGTH),
-                                      startPos, totalBytes, transfer, notOwnedNode->isForeign(),
-                                      notOwnedNode->getPrivateAuth()->c_str(),
-                                      notOwnedNode->getPublicAuth()->c_str(),
-                                      notOwnedNode->getChatAuth());
+
+                        MegaNodePrivate* privateNode = dynamic_cast<MegaNodePrivate*>(notOwnedNode);
+                        assert(privateNode);
+                        client->pread(notOwnedNode->getHandle(),
+                                      &cipher,
+                                      MemAccess::get<int64_t>(
+                                          (const char*)notOwnedNode->getNodeKey()->data() +
+                                          SymmCipher::KEYLENGTH),
+                                      startPos,
+                                      totalBytes,
+                                      transfer,
+                                      notOwnedNode->isForeign(),
+                                      privateNode->getPrivateAuth()->c_str(),
+                                      privateNode->getPublicAuth()->c_str(),
+                                      privateNode->getChatAuth());
                         waiter->notify();
                     }
                 }
@@ -20410,10 +20421,12 @@ error MegaApiImpl::performRequest_copy(MegaRequestPrivate* request)
                     return API_EKEY;
                 }
 
+                MegaNodePrivate* privateNode = dynamic_cast<MegaNodePrivate*>(megaNode);
+                assert(privateNode);
+
                 string sname = megaNode->getName();
                 if (newName)
                 {
-                    MegaNodePrivate *privateNode = dynamic_cast<MegaNodePrivate *>(megaNode);
                     if (privateNode)
                     {
                         sname = newName;
@@ -20462,7 +20475,12 @@ error MegaApiImpl::performRequest_copy(MegaRequestPrivate* request)
 
                 if (target)
                 {
-                    client->putnodes(target->nodeHandle(), UseLocalVersioningFlag, std::move(tc.nn), megaNode->getChatAuth(), request->getTag(), false);
+                    client->putnodes(target->nodeHandle(),
+                                     UseLocalVersioningFlag,
+                                     std::move(tc.nn),
+                                     privateNode ? privateNode->getChatAuth() : nullptr,
+                                     request->getTag(),
+                                     false);
                 }
                 else
                 {

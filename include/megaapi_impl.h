@@ -911,7 +911,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         bool isForeign() override;
         bool isPasswordNode() const override;
         PasswordNodeData* getPasswordData() const override;
-        std::string* getPrivateAuth() override;
+        std::string* getPrivateAuth();
         MegaNodeList *getChildren() override;
         void setPrivateAuth(const char* newPrivateAuth) override;
         void setPublicAuth(const char* newPublicAuth);
@@ -919,8 +919,8 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         void setForeign(bool isForeign);
         void setChildren(MegaNodeList* newChildren);
         void setName(const char *newName);
-        std::string* getPublicAuth() override;
-        const char *getChatAuth() override;
+        std::string* getPublicAuth();
+        const char* getChatAuth();
         bool isShared() override;
         bool isOutShare() override;
         bool isInShare() override;
