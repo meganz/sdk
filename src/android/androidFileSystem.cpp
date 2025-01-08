@@ -24,6 +24,7 @@
 #include <mega/logging.h>
 
 extern jclass fileWrapper;
+extern jclass integerClass;
 extern JavaVM* MEGAjvm;
 
 namespace mega
@@ -68,7 +69,12 @@ int AndroidFileWrapper::getFileDescriptor(bool write)
 
     JNIEnv* env = nullptr;
     MEGAjvm->AttachCurrentThread(&env, NULL);
-    jmethodID methodID = env->GetMethodID(fileWrapper, GET_FILE_DESCRIPTOR, "(Z)I");
+    if (!fileWrapper)
+    {
+        LOG_err << "Critical error AndroidFileWrapper::getFileDescriptor  Invalid class";
+    }
+    jmethodID methodID =
+        env->GetMethodID(fileWrapper, "getFileDescriptor", "(Z)Ljava/lang/Integer;");
     if (methodID == nullptr)
     {
         env->ExceptionDescribe();
@@ -76,7 +82,23 @@ int AndroidFileWrapper::getFileDescriptor(bool write)
         LOG_err << "Critical error AndroidFileWrapper::getFileDescriptor";
         return -1;
     }
-    return env->CallIntMethod(mAndroidFileObject, methodID, write);
+
+    jobject fileDescriptorObj = env->CallObjectMethod(mAndroidFileObject, methodID, write);
+    if (fileDescriptorObj)
+    {
+        jmethodID intValueMethod = env->GetMethodID(integerClass, "intValue", "()I");
+        if (!intValueMethod)
+        {
+            return -1;
+        }
+
+        int fd = env->CallIntMethod(fileDescriptorObj, intValueMethod);
+        int newFd = dup(fd);
+        ::close(fd);
+        return newFd;
+    }
+
+    return -1;
 }
 
 bool AndroidFileWrapper::isFolder()
@@ -423,6 +445,7 @@ bool AndroidFileAccess::sysstat(m_time_t* mtime, m_off_t* size, FSLogging)
     if (opened)
     {
         close(fd);
+        fd = -1;
     }
 
     return true;
