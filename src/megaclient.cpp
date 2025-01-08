@@ -18794,7 +18794,8 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                     {
                         while(auxJson->ishandle(MegaClient::CHATHANDLE))
                         {
-                            childMeetingsDeleted->insert(auxJson->gethandle());
+                            childMeetingsDeleted->insert(
+                                auxJson->gethandle(MegaClient::CHATHANDLE));
                         }
                         auxJson->leavearray();
                     }
