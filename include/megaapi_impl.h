@@ -1557,8 +1557,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         bool isBackupTransfer() const override;
         bool isForeignOverquota() const override;
         bool isForceNewUpload() const override;
-        char *getLastBytes() const override;
-        MegaError getLastError() const override;
+        char* getLastBytes() const override;
         const MegaError *getLastErrorExtended() const override;
         bool isFolderTransfer() const override;
         int getFolderTransferTag() const override;

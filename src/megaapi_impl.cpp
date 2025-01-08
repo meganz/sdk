@@ -3344,11 +3344,6 @@ char * MegaTransferPrivate::getLastBytes() const
     return lastBytes;
 }
 
-MegaError MegaTransferPrivate::getLastError() const
-{
-    return lastError ? *lastError.get() : MegaTransfer::getLastError();
-}
-
 const MegaError *MegaTransferPrivate::getLastErrorExtended() const
 {
     return lastError.get();

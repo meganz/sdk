@@ -1376,11 +1376,6 @@ char *MegaTransfer::getLastBytes() const
     return NULL;
 }
 
-MegaError MegaTransfer::getLastError() const
-{
-    return API_OK;
-}
-
 const MegaError *MegaTransfer::getLastErrorExtended() const
 {
     return nullptr;
