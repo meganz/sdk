@@ -6729,16 +6729,8 @@ void MegaApiImpl::init(MegaApi* publicApi,
 
     maxRetries = 7;
     currentTransfer = NULL;
-    pendingUploads = 0;
-    pendingDownloads = 0;
-    totalUploads = 0;
-    totalDownloads = 0;
     client = NULL;
     waitingRequest = RETRY_NONE;
-    totalDownloadedBytes = 0;
-    totalUploadedBytes = 0;
-    totalDownloadBytes = 0;
-    totalUploadBytes = 0;
     notificationNumber = 0;
 
 #ifdef HAVE_LIBUV
@@ -9274,9 +9266,6 @@ void MegaApiImpl::abortPendingActions(error preverror)
         assert(transferMap.empty());
         transferMap.clear();
     }
-
-    resetTotalDownloads();
-    resetTotalUploads();
 }
 
 bool MegaApiImpl::hasToForceUpload(const Node &node, const MegaTransferPrivate &transfer) const
@@ -10336,40 +10325,6 @@ void MegaApiImpl::moveOrRemoveDeconfiguredBackupNodes(MegaHandle deconfiguredBac
 
     requestQueue.push(request);
     waiter->notify();
-}
-
-int MegaApiImpl::getNumPendingUploads()
-{
-    return pendingUploads;
-}
-
-int MegaApiImpl::getNumPendingDownloads()
-{
-    return pendingDownloads;
-}
-
-int MegaApiImpl::getTotalUploads()
-{
-    return totalUploads;
-}
-
-int MegaApiImpl::getTotalDownloads()
-{
-    return totalDownloads;
-}
-
-void MegaApiImpl::resetTotalDownloads()
-{
-    totalDownloads = 0;
-    totalDownloadBytes = 0;
-    totalDownloadedBytes = 0;
-}
-
-void MegaApiImpl::resetTotalUploads()
-{
-    totalUploads = 0;
-    totalUploadBytes = 0;
-    totalUploadedBytes = 0;
 }
 
 MegaNode *MegaApiImpl::getRootNode()
@@ -13095,21 +13050,6 @@ void MegaApiImpl::file_added(File *f)
     transfer->setTag(f->tag);
     transferMap[f->tag] = transfer;
 
-    if (t->type == GET)
-    {
-        totalDownloads++;
-        pendingDownloads++;
-        totalDownloadBytes += t->size;
-        totalDownloadedBytes += t->progresscompleted;
-    }
-    else
-    {
-        totalUploads++;
-        pendingUploads++;
-        totalUploadBytes += t->size;
-        totalUploadedBytes += t->progresscompleted;
-    }
-
     fireOnTransferStart(transfer);
 }
 
@@ -14523,11 +14463,6 @@ void MegaApiImpl::putnodes_result(const Error& inputErr,
             return;
         }
 
-        if(pendingUploads > 0)
-        {
-            pendingUploads--;
-        }
-
         //scale to get the handle of the new node
         Node *ntmp;
         if (n)
@@ -15351,10 +15286,6 @@ void MegaApiImpl::logout_result(error e, MegaRequestPrivate* request)
         error preverror = (error)request->getParamType();
         abortPendingActions(preverror);
 
-        pendingUploads = 0;
-        pendingDownloads = 0;
-        totalUploads = 0;
-        totalDownloads = 0;
         waitingRequest = RETRY_NONE;
 
         delete mTimezones;
@@ -17532,15 +17463,6 @@ void MegaApiImpl::processTransferUpdate(Transfer *tr, MegaTransferPrivate *trans
         transfer->setDeltaSize(deltaSize);
         transfer->setSpeed(tr->slot->speed);
         transfer->setMeanSpeed(tr->slot->meanSpeed);
-
-        if (tr->type == GET)
-        {
-            totalDownloadedBytes += deltaSize;
-        }
-        else
-        {
-            totalUploadedBytes += deltaSize;
-        }
     }
     else
     {
@@ -17571,20 +17493,11 @@ void MegaApiImpl::processTransferComplete(Transfer *tr, MegaTransferPrivate *tra
 
     if (tr->type == GET)
     {
-        totalDownloadedBytes += deltaSize;
-
-        if (pendingDownloads > 0)
-        {
-            pendingDownloads--;
-        }
-
         transfer->setState(MegaTransfer::STATE_COMPLETED);
         fireOnTransferFinish(transfer, std::make_unique<MegaErrorPrivate>(API_OK));
     }
     else
     {
-        totalUploadedBytes += deltaSize;
-
         transfer->setState(MegaTransfer::STATE_COMPLETING);
         transfer->setTransfer(NULL);
         fireOnTransferUpdate(transfer);
@@ -17621,36 +17534,6 @@ void MegaApiImpl::processTransferRemoved(Transfer *tr, MegaTransferPrivate *tran
 {
     if (tr)
     {
-        m_off_t deltaSize = tr->size - transfer->getTransferredBytes();
-        if (tr->type == GET)
-        {
-            totalDownloadedBytes += deltaSize;
-
-            if (pendingDownloads > 0)
-            {
-                pendingDownloads--;
-            }
-
-            if (totalDownloads > 0)
-            {
-                totalDownloads--;
-            }
-        }
-        else
-        {
-            totalUploadedBytes += deltaSize;
-
-            if (pendingUploads > 0)
-            {
-                pendingUploads--;
-            }
-
-            if (totalUploads > 0)
-            {
-                totalUploads--;
-            }
-        }
-
         transfer->setPriority(tr->priority);
     }
 
@@ -18925,9 +18808,8 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                             forceToUpload= hasToForceUpload(*previousNode.get(), *transfer);
                             if (!forceToUpload)
                             {
-                                LOG_debug << "Previous node exists and the upload is not forced: copy node handle";
-                                pendingUploads++;
-                                totalUploads++;
+                                LOG_debug << "Previous node exists and the upload is not forced: "
+                                             "copy node handle";
                                 transfer->setState(MegaTransfer::STATE_QUEUED);
                                 transferMap[nextTag] = transfer;
                                 transfer->setTag(nextTag);
@@ -18941,7 +18823,6 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                                 transfer->setSpeed(0);
                                 transfer->setMeanSpeed(0);
                                 transfer->setState(MegaTransfer::STATE_COMPLETED);
-                                pendingUploads--;
                                 fireOnTransferFinish(transfer, std::make_unique<MegaErrorPrivate>(API_OK));
                                 break;
                             }
@@ -18954,8 +18835,6 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                         std::shared_ptr<Node> samenode = client->mNodeManager.getNodeByFingerprint(fp_forCloud);
                         if (samenode && samenode->nodekey().size() && !hasToForceUpload(*samenode, *transfer))
                         {
-                            pendingUploads++;
-                            totalUploads++;
                             transfer->setState(MegaTransfer::STATE_QUEUED);
                             transferMap[nextTag] = transfer;
                             transfer->setTag(nextTag);
@@ -19005,7 +18884,6 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                             fireOnTransferUpdate(transfer);
                             break;
                         }
-
                     }
 
                     currentTransfer = transfer;
@@ -19372,15 +19250,12 @@ void MegaApiImpl::CompleteFileDownloadBySkip(MegaTransferPrivate* transfer, m_of
     transfer->setPath(localPath.toPath(false).c_str());
     transfer->setStartTime(Waiter::ds);
     transfer->setUpdateTime(Waiter::ds);
-    totalDownloads++;
-    pendingDownloads++;
     fireOnTransferStart(transfer);
     transfer->setNodeHandle(nodehandle);
     transfer->setDeltaSize(size);
     transfer->setSpeed(0);
     transfer->setMeanSpeed(0);
     transfer->setState(MegaTransfer::STATE_COMPLETED);
-    pendingDownloads--;
     fireOnTransferFinish(transfer, std::make_unique<MegaErrorPrivate>(API_OK));
 }
 
@@ -26085,22 +25960,6 @@ void MegaApiImpl::addSyncByRequest(MegaRequestPrivate* request, SyncConfig syncC
 }
 #endif
 
-void MegaApiImpl::updateStats()
-{
-    SdkMutexGuard g(sdkMutex);
-    if (pendingDownloads && !client->multi_transfers[GET].size())
-    {
-        LOG_warn << "Incorrect number of pending downloads: " << pendingDownloads;
-        pendingDownloads = 0;
-    }
-
-    if (pendingUploads && !client->multi_transfers[PUT].size())
-    {
-        LOG_warn << "Incorrect number of pending uploads: " << pendingUploads;
-        pendingUploads = 0;
-    }
-}
-
 unsigned long long MegaApiImpl::getNumNodes()
 {
     return client->totalNodes.load();
@@ -26120,26 +25979,6 @@ void MegaApiImpl::setLRUCacheSize(unsigned long long size)
 unsigned long long MegaApiImpl::getNumNodesAtCacheLRU() const
 {
     return client->mNodeManager.getNumNodesAtCacheLRU();
-}
-
-long long MegaApiImpl::getTotalDownloadedBytes()
-{
-    return totalDownloadedBytes;
-}
-
-long long MegaApiImpl::getTotalUploadedBytes()
-{
-    return totalUploadedBytes;
-}
-
-long long MegaApiImpl::getTotalDownloadBytes()
-{
-    return totalDownloadBytes;
-}
-
-long long MegaApiImpl::getTotalUploadBytes()
-{
-    return totalUploadBytes;
 }
 
 void MegaApiImpl::update()

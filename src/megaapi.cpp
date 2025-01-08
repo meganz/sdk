@@ -3912,36 +3912,6 @@ MegaScheduledCopy *MegaApi::getScheduledCopyByPath(const char *localPath)
     return pImpl->getScheduledCopyByPath(localPath);
 }
 
-int MegaApi::getNumPendingUploads()
-{
-    return pImpl->getNumPendingUploads();
-}
-
-int MegaApi::getNumPendingDownloads()
-{
-    return pImpl->getNumPendingDownloads();
-}
-
-int MegaApi::getTotalUploads()
-{
-    return pImpl->getTotalUploads();
-}
-
-int MegaApi::getTotalDownloads()
-{
-    return pImpl->getTotalDownloads();
-}
-
-void MegaApi::resetTotalDownloads()
-{
-    pImpl->resetTotalDownloads();
-}
-
-void MegaApi::resetTotalUploads()
-{
-    pImpl->resetTotalUploads();
-}
-
 MegaNode *MegaApi::getRootNode()
 {
     return pImpl->getRootNode();
@@ -4590,11 +4560,6 @@ MegaContactRequest *MegaApi::getContactRequestByHandle(MegaHandle handle)
     return pImpl->getContactRequestByHandle(handle);
 }
 
-void MegaApi::updateStats()
-{
-    pImpl->updateStats();
-}
-
 unsigned long long MegaApi::getNumNodes()
 {
     return pImpl->getNumNodes();
@@ -4613,26 +4578,6 @@ void MegaApi::setLRUCacheSize(unsigned long long size)
 unsigned long long MegaApi::getNumNodesAtCacheLRU() const
 {
     return pImpl->getNumNodesAtCacheLRU();
-}
-
-long long MegaApi::getTotalDownloadedBytes()
-{
-    return pImpl->getTotalDownloadedBytes();
-}
-
-long long MegaApi::getTotalUploadedBytes()
-{
-    return pImpl->getTotalUploadedBytes();
-}
-
-long long MegaApi::getTotalDownloadBytes()
-{
-    return pImpl->getTotalDownloadBytes();
-}
-
-long long MegaApi::getTotalUploadBytes()
-{
-    return pImpl->getTotalUploadBytes();
 }
 
 void MegaApi::update()

@@ -3950,22 +3950,10 @@ class MegaApiImpl : public MegaApp
         bool isSyncStalled();
         bool isSyncStalledChanged() override;
 
-        //Statistics
-        int getNumPendingUploads();
-        int getNumPendingDownloads();
-        int getTotalUploads();
-        int getTotalDownloads();
-        void resetTotalDownloads();
-        void resetTotalUploads();
-        void updateStats();
         void setLRUCacheSize(unsigned long long size);
         unsigned long long getNumNodesAtCacheLRU() const;
         unsigned long long getNumNodes();
         unsigned long long getAccurateNumNodes();
-        long long getTotalDownloadedBytes();
-        long long getTotalUploadedBytes();
-        long long getTotalDownloadBytes();
-        long long getTotalUploadBytes();
 
         //Filesystem
 		int getNumChildren(MegaNode* parent);
@@ -4532,14 +4520,6 @@ public:
         // sc requests to close existing wsc and immediately retrieve pending actionpackets
         RequestQueue scRequestQueue;
 
-        int pendingUploads;
-        int pendingDownloads;
-        int totalUploads;
-        int totalDownloads;
-        long long totalDownloadedBytes;
-        long long totalUploadedBytes;
-        long long totalDownloadBytes;
-        long long totalUploadBytes;
         long long notificationNumber;
         set<MegaRequestListener *> requestListeners;
         set<MegaTransferListener *> transferListeners;
