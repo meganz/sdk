@@ -4000,6 +4000,7 @@ using namespace mega;
     MegaSearchFilter *megaFilter = MegaSearchFilter::createInstance();
 
     megaFilter->byName(filter.term.UTF8String);
+    megaFilter->byDescription(filter.searchDescription.UTF8String);
     megaFilter->byNodeType((int)filter.nodeType);
     megaFilter->byCategory((int)filter.category);
     megaFilter->bySensitivity((int)filter.sensitiveFilter);
@@ -4020,6 +4021,8 @@ using namespace mega;
     if (filter.modificationTimeFrame != nil) {
         megaFilter->byModificationTime(filter.modificationTimeFrame.lowerLimit, filter.modificationTimeFrame.upperLimit);
     }
+
+    megaFilter->useAndForTextQuery(filter.useAndForTextQuery);
 
     return megaFilter;
 }
