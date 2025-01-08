@@ -39586,19 +39586,9 @@ MegaPushNotificationSettingsPrivate::~MegaPushNotificationSettingsPrivate()
 
 }
 
-bool MegaPushNotificationSettingsPrivate::isGlobalEnabled() const
-{
-    return !isGlobalDndEnabled();
-}
-
 bool MegaPushNotificationSettingsPrivate::isGlobalDndEnabled() const
 {
     return (mGlobalDND == 0 || mGlobalDND > m_time(NULL));
-}
-
-bool MegaPushNotificationSettingsPrivate::isChatsEnabled() const
-{
-    return !isGlobalChatsDndEnabled();
 }
 
 bool MegaPushNotificationSettingsPrivate::isGlobalChatsDndEnabled() const
@@ -39634,11 +39624,6 @@ int MegaPushNotificationSettingsPrivate::getGlobalScheduleEnd() const
 const char *mega::MegaPushNotificationSettingsPrivate::getGlobalScheduleTimezone() const
 {
     return MegaApi::strdup(mGlobalScheduleTimezone.c_str());
-}
-
-bool MegaPushNotificationSettingsPrivate::isChatEnabled(MegaHandle chatid) const
-{
-    return !isChatDndEnabled(chatid);
 }
 
 bool MegaPushNotificationSettingsPrivate::isChatDndEnabled(MegaHandle chatid) const

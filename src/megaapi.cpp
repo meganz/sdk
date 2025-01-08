@@ -7938,11 +7938,6 @@ MegaPushNotificationSettings *MegaPushNotificationSettings::copy() const
     return NULL;
 }
 
-bool MegaPushNotificationSettings::isGlobalEnabled() const
-{
-    return false;
-}
-
 bool MegaPushNotificationSettings::isGlobalDndEnabled() const
 {
     return false;
@@ -7983,11 +7978,6 @@ const char *MegaPushNotificationSettings::getGlobalScheduleTimezone() const
     return NULL;
 }
 
-bool MegaPushNotificationSettings::isChatEnabled(MegaHandle /*chatid*/) const
-{
-    return false;
-}
-
 bool MegaPushNotificationSettings::isChatDndEnabled(MegaHandle /*chatid*/) const
 {
     return false;
@@ -8009,11 +7999,6 @@ bool MegaPushNotificationSettings::isContactsEnabled() const
 }
 
 bool MegaPushNotificationSettings::isSharesEnabled() const
-{
-    return false;
-}
-
-bool MegaPushNotificationSettings::isChatsEnabled() const
 {
     return false;
 }

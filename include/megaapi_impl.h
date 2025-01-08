@@ -1772,7 +1772,6 @@ public:
 
     // getters
 
-    bool isGlobalEnabled() const override;
     bool isGlobalDndEnabled() const override;
     bool isGlobalChatsDndEnabled() const override;
     int64_t getGlobalDnd() const override;
@@ -1782,14 +1781,12 @@ public:
     int getGlobalScheduleEnd() const override;
     const char *getGlobalScheduleTimezone() const override;
 
-    bool isChatEnabled(MegaHandle chatid) const override;
     bool isChatDndEnabled(MegaHandle chatid) const override;
     int64_t getChatDnd(MegaHandle chatid) const override;
     bool isChatAlwaysNotifyEnabled(MegaHandle chatid) const override;
 
     bool isContactsEnabled() const override;
     bool isSharesEnabled() const override;
-    bool isChatsEnabled() const override;
 
     // setters
 

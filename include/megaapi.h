@@ -6612,19 +6612,6 @@ public:
     virtual MegaPushNotificationSettings *copy() const;
 
     /**
-     * @brief Returns whether notifications are globaly enabled or not
-     *
-     * The purpose of this method is to control the UI in order to enable
-     * the modification of the global parameters (dnd & schedule) or not.
-     *
-     * @return True if notifications are enabled, false if disabled
-     *
-     * @deprecated This method is deprecated, use isGlobalDndEnabled instead of this.
-     * Note that isGlobalDndEnabled returns the opposite value to isGlobalEnabled
-     */
-    virtual bool isGlobalEnabled() const;
-
-    /**
      * @brief Returns whether Do-Not-Disturb mode is enabled or not
      * @return True if enabled, false otherwise
      */
@@ -6689,20 +6676,6 @@ public:
     virtual const char *getGlobalScheduleTimezone() const;
 
     /**
-     * @brief Returns whether notifications for a chat are enabled or not
-     *
-     * The purpose of this method is to control the UI in order to enable
-     * the modification of the chat parameters (dnd & always notify) or not.
-     *
-     * @param chatid MegaHandle that identifies the chat room
-     * @return True if enabled, false otherwise
-     *
-     * @deprecated This method is deprecated, use isChatDndEnabled instead of this.
-     * Note that isChatDndEnabled returns the opposite value to isChatEnabled
-     */
-    virtual bool isChatEnabled(MegaHandle chatid) const;
-
-    /**
      * @brief Returns whether Do-Not-Disturb mode for a chat is enabled or not
      *
      * @param chatid MegaHandle that identifies the chat room
@@ -6745,15 +6718,6 @@ public:
      * @return True if enabled, false otherwise
      */
     virtual bool isSharesEnabled() const;
-
-    /**
-     * @brief Returns whether notifications about chats are enabled or not
-     * @return True if enabled, false otherwise
-     *
-     * @deprecated This method is deprecated, use isGlobalChatsDndEnabled instead of this.
-     * Note that isGlobalChatsDndEnabled returns the opposite result to isChatsEnabled;
-     */
-    virtual bool isChatsEnabled() const;
 
     /**
      * @brief Returns the timestamp until the chats DND mode is enabled
