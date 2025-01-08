@@ -10641,38 +10641,6 @@ class MegaApi
         MegaApi(const char *appKey, const char *basePath = NULL, const char *userAgent = NULL, unsigned workerThreadCount = 1, int clientType = CLIENT_TYPE_DEFAULT);
 
         /**
-         * @brief MegaApi Constructor that allows to use a custom GFX processor
-         *
-         * The SDK attach thumbnails and previews to all uploaded images. To generate them, it needs a graphics processor.
-         * You can build the SDK with one of the provided built-in graphics processors. If none of them is available
-         * in your app, you can implement the MegaGfxProcessor interface to provide your custom processor. Please
-         * read the documentation of MegaGfxProcessor carefully to ensure that your implementation is valid.
-         *
-         * @param appKey AppKey of your application
-         * You can pass NULL to this parameter if you don't have one. AppKey is currently no longer required.
-         *
-         * @param processor Image processor. The SDK will use it to generate previews and thumbnails
-         * If you pass NULL to this parameter, the SDK will try to use the built-in image processors.
-         *
-         * @param basePath Base path to store the local cache
-         * If you pass NULL to this parameter, the SDK won't use any local cache.
-         *
-         * @param userAgent User agent to use in network requests
-         * If you pass NULL to this parameter, a default user agent will be used
-         *
-         * @param workerThreadCount The number of worker threads for encryption or other operations
-         * Using worker threads means that synchronous function calls on MegaApi will be blocked less,
-         * and uploads and downloads can proceed more quickly on very fast connections.
-         *
-         * @param clientType Client type (default, VPN or Password Manager) enables SDK to function differently
-         *
-         * @deprecated This version of the function is deprecated. Please use MegaGfxProvider::createExternalInstance
-         * and the non-deprecated one below.
-         */
-        MEGA_DEPRECATED
-        MegaApi(const char *appKey, MegaGfxProcessor* processor, const char *basePath = NULL, const char *userAgent = NULL, unsigned workerThreadCount = 1, int clientType = CLIENT_TYPE_DEFAULT);
-
-        /**
          * @brief MegaApi Constructor that uses a given GFX provider
          *
          * The SDK attach thumbnails and previews to all uploaded images. To generate them, it needs a graphics provider.
