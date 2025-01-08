@@ -1966,10 +1966,6 @@ const char* MegaSyncStallPrivate::pathProblemDebugString(MegaSyncStall::SyncPath
         static_cast<int>(PathProblem::FilesystemErrorListingFolder) ==
             static_cast<int>(MegaSyncStall::SyncPathProblem::FilesystemErrorListingFolder),
         "");
-    static_assert(static_cast<int>(PathProblem::FilesystemErrorIdentifyingFolderContent) ==
-                      static_cast<int>(
-                          MegaSyncStall::SyncPathProblem::FilesystemErrorIdentifyingFolderContent),
-                  ""); // Deprecated after SDK-3206
     static_assert(
         static_cast<int>(PathProblem::WaitingForScanningToComplete) ==
             static_cast<int>(MegaSyncStall::SyncPathProblem::WaitingForScanningToComplete),

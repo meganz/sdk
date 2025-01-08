@@ -3111,12 +3111,9 @@ class MegaSyncStallPrivate : public MegaSyncStall
 
             int problem = pathProblem(cloudSide, index);
 
-            return problem == DetectedHardLink ||
-                   problem == DetectedNestedMount ||
-                   problem == DetectedSymlink ||
-                   problem == DetectedSpecialFile ||
-                   problem == FilesystemErrorListingFolder ||
-                   problem == FilesystemErrorIdentifyingFolderContent; // Deprecated after SDK-3206
+            return problem == DetectedHardLink || problem == DetectedNestedMount ||
+                   problem == DetectedSymlink || problem == DetectedSpecialFile ||
+                   problem == FilesystemErrorListingFolder;
         }
 
         const char* reasonDebugString() const override
