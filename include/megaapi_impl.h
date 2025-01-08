@@ -3562,8 +3562,7 @@ class MegaApiImpl : public MegaApp
         void getUserCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
         bool areCredentialsVerified(MegaUser *user);
         void verifyCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
-        void resetCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
-        char* getMyRSAPrivateKey();
+        void resetCredentials(MegaUser* user, MegaRequestListener* listener = NULL);
         void setLogExtraForModules(bool networking, bool syncs);
         static void setLogLevel(int logLevel);
         static void setMaxPayloadLogSize(long long maxSize);

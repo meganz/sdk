@@ -12583,21 +12583,6 @@ class MegaApi
         void resetCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Returns RSA private key of the currently logged-in account
-         *
-         * If the MegaApi object is not logged-in or there is no private key available,
-         * this function returns NULL.
-         *
-         * You take the ownership of the returned value.
-         * Use delete [] to free it.
-         *
-         * @deprecated
-         *
-         * @return RSA private key of the current account
-         */
-        char *getMyRSAPrivateKey();
-
-        /**
          * @brief Set the active log level
          *
          * This function sets the log level of the logging system. Any log listener registered by

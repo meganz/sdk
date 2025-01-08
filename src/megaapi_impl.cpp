@@ -7037,17 +7037,6 @@ void MegaApiImpl::resetCredentials(MegaUser *user, MegaRequestListener *listener
     waiter->notify();
 }
 
-char *MegaApiImpl::getMyRSAPrivateKey()
-{
-    SdkMutexGuard g(sdkMutex);
-    if (ISUNDEF(client->me) || client->mPrivKey.empty())
-    {
-        return nullptr;
-    }
-
-    return MegaApi::strdup(client->mPrivKey.c_str());
-}
-
 void MegaApiImpl::setLogExtraForModules(bool networking, [[maybe_unused]] bool syncs)
 {
     g_netLoggingOn = networking;
