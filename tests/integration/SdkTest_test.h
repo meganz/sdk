@@ -807,9 +807,29 @@ public:
     // apiIndex, args...]() { megaApi[apiIndex]->getCountryCallingCodes(args...); }); return
     // mApi[apiIndex].lastError; }
 
-    template<typename ... Args> int synchronousGetUserAvatar(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_GET_ATTR_USER, [this, apiIndex, args...]() { megaApi[apiIndex]->getUserAvatar(args...); }); return mApi[apiIndex].lastError; }
-    template<typename ... Args> int synchronousGetUserAttribute(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_GET_ATTR_USER, [this, apiIndex, args...]() { megaApi[apiIndex]->getUserAttribute(args...); }); return mApi[apiIndex].lastError; }
-    template<typename ... Args> int synchronousSetNodeDuration(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_SET_ATTR_NODE, [this, apiIndex, args...]() { megaApi[apiIndex]->setNodeDuration(args...); }); return mApi[apiIndex].lastError; }
+    template<typename... Args>
+    int synchronousGetUserAvatar(unsigned apiIndex, Args... args)
+    {
+        synchronousRequest(apiIndex,
+                           MegaRequest::TYPE_GET_ATTR_USER,
+                           [this, apiIndex, args...]()
+                           {
+                               megaApi[apiIndex]->getUserAvatar(args...);
+                           });
+        return mApi[apiIndex].lastError;
+    }
+
+    template<typename... Args>
+    int synchronousGetUserAttribute(unsigned apiIndex, Args... args)
+    {
+        synchronousRequest(apiIndex,
+                           MegaRequest::TYPE_GET_ATTR_USER,
+                           [this, apiIndex, args...]()
+                           {
+                               megaApi[apiIndex]->getUserAttribute(args...);
+                           });
+        return mApi[apiIndex].lastError;
+    }
     template<typename ... Args> int synchronousSetNodeCoordinates(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_SET_ATTR_NODE, [this, apiIndex, args...]() { megaApi[apiIndex]->setNodeCoordinates(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousGetSpecificAccountDetails(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_ACCOUNT_DETAILS, [this, apiIndex, args...]() { megaApi[apiIndex]->getSpecificAccountDetails(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousMediaUploadRequestURL(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_GET_BACKGROUND_UPLOAD_URL, [this, apiIndex, args...]() { megaApi[apiIndex]->backgroundMediaUploadRequestUploadURL(args...); }); return mApi[apiIndex].lastError; }
@@ -871,20 +891,118 @@ public:
         megaApi[static_cast<size_t>(apiIndex)]->fastLogin(args..., rt.get());
         return rt;
     }
-    template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestFastLogin(MegaApi *api, requestArgs... args) { auto rt = std::make_unique<RequestTracker>(api); api->fastLogin(args..., rt.get()); return rt; }
-    template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestLoginToFolder(unsigned apiIndex, requestArgs... args) { auto rt = std::make_unique<RequestTracker>(megaApi[apiIndex].get()); megaApi[apiIndex]->loginToFolder(args..., rt.get()); return rt; }
-    template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestLoginToFolder(MegaApi *api, requestArgs... args) { auto rt = std::make_unique<RequestTracker>(api); api->loginToFolder(args..., rt.get()); return rt; }
-    template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestLocalLogout(MegaApi *api, requestArgs... args) { auto rt = std::make_unique<RequestTracker>(api); api->localLogout(args..., rt.get()); return rt; }
-    template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestFetchnodes(unsigned apiIndex, requestArgs... args) { auto rt = std::make_unique<RequestTracker>(megaApi[apiIndex].get()); megaApi[apiIndex]->fetchNodes(args..., rt.get()); return rt; }
-    template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestFetchnodes(MegaApi *api, requestArgs... args) { auto rt = std::make_unique<RequestTracker>(api); api->fetchNodes(args..., rt.get()); return rt; }
-    template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestGetVisibleWelcomeDialog(unsigned apiIndex) { auto rt = std::make_unique<RequestTracker>(megaApi[apiIndex].get()); megaApi[apiIndex]->getVisibleWelcomeDialog(rt.get()); return rt; }
-    template<typename ... requestArgs> int doGetDeviceName(unsigned apiIndex, string* dvc, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->getDeviceName(args..., &rt); auto e = rt.waitForResult(); if (dvc && e == API_OK) *dvc = rt.request->getName(); return e; }
-    template<typename ... requestArgs> int doSetDeviceName(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->setDeviceName(args..., &rt); return rt.waitForResult(); }
-    template<typename ... requestArgs> int doGetDriveName(unsigned apiIndex, string* drv, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->getDriveName(args..., &rt); auto e = rt.waitForResult(); if (drv && e == API_OK) *drv = rt.request->getName(); return e; }
-    template<typename ... requestArgs> int doSetDriveName(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->setDriveName(args..., &rt); return rt.waitForResult(); }
-    template<typename ... requestArgs> int doRequestLogout(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->logout(args..., &rt); return rt.waitForResult(); }
-    template<typename ... requestArgs> int doRequestLocalLogout(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->localLogout(args..., &rt); return rt.waitForResult(); }
-    template<typename ... requestArgs> int doSetNodeDuration(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->setNodeDuration(args..., &rt); return rt.waitForResult(); }
+
+    template<typename... requestArgs>
+    std::unique_ptr<RequestTracker> asyncRequestFastLogin(MegaApi* api, requestArgs... args)
+    {
+        auto rt = std::make_unique<RequestTracker>(api);
+        api->fastLogin(args..., rt.get());
+        return rt;
+    }
+
+    template<typename... requestArgs>
+    std::unique_ptr<RequestTracker> asyncRequestLoginToFolder(unsigned apiIndex,
+                                                              requestArgs... args)
+    {
+        auto rt = std::make_unique<RequestTracker>(megaApi[apiIndex].get());
+        megaApi[apiIndex]->loginToFolder(args..., rt.get());
+        return rt;
+    }
+
+    template<typename... requestArgs>
+    std::unique_ptr<RequestTracker> asyncRequestLoginToFolder(MegaApi* api, requestArgs... args)
+    {
+        auto rt = std::make_unique<RequestTracker>(api);
+        api->loginToFolder(args..., rt.get());
+        return rt;
+    }
+
+    template<typename... requestArgs>
+    std::unique_ptr<RequestTracker> asyncRequestLocalLogout(MegaApi* api, requestArgs... args)
+    {
+        auto rt = std::make_unique<RequestTracker>(api);
+        api->localLogout(args..., rt.get());
+        return rt;
+    }
+
+    template<typename... requestArgs>
+    std::unique_ptr<RequestTracker> asyncRequestFetchnodes(unsigned apiIndex, requestArgs... args)
+    {
+        auto rt = std::make_unique<RequestTracker>(megaApi[apiIndex].get());
+        megaApi[apiIndex]->fetchNodes(args..., rt.get());
+        return rt;
+    }
+
+    template<typename... requestArgs>
+    std::unique_ptr<RequestTracker> asyncRequestFetchnodes(MegaApi* api, requestArgs... args)
+    {
+        auto rt = std::make_unique<RequestTracker>(api);
+        api->fetchNodes(args..., rt.get());
+        return rt;
+    }
+
+    template<typename... requestArgs>
+    std::unique_ptr<RequestTracker> asyncRequestGetVisibleWelcomeDialog(unsigned apiIndex)
+    {
+        auto rt = std::make_unique<RequestTracker>(megaApi[apiIndex].get());
+        megaApi[apiIndex]->getVisibleWelcomeDialog(rt.get());
+        return rt;
+    }
+
+    template<typename... requestArgs>
+    int doGetDeviceName(unsigned apiIndex, string* dvc, requestArgs... args)
+    {
+        RequestTracker rt(megaApi[apiIndex].get());
+        megaApi[apiIndex]->getDeviceName(args..., &rt);
+        auto e = rt.waitForResult();
+        if (dvc && e == API_OK)
+            *dvc = rt.request->getName();
+        return e;
+    }
+
+    template<typename... requestArgs>
+    int doSetDeviceName(unsigned apiIndex, requestArgs... args)
+    {
+        RequestTracker rt(megaApi[apiIndex].get());
+        megaApi[apiIndex]->setDeviceName(args..., &rt);
+        return rt.waitForResult();
+    }
+
+    template<typename... requestArgs>
+    int doGetDriveName(unsigned apiIndex, string* drv, requestArgs... args)
+    {
+        RequestTracker rt(megaApi[apiIndex].get());
+        megaApi[apiIndex]->getDriveName(args..., &rt);
+        auto e = rt.waitForResult();
+        if (drv && e == API_OK)
+            *drv = rt.request->getName();
+        return e;
+    }
+
+    template<typename... requestArgs>
+    int doSetDriveName(unsigned apiIndex, requestArgs... args)
+    {
+        RequestTracker rt(megaApi[apiIndex].get());
+        megaApi[apiIndex]->setDriveName(args..., &rt);
+        return rt.waitForResult();
+    }
+
+    template<typename... requestArgs>
+    int doRequestLogout(unsigned apiIndex, requestArgs... args)
+    {
+        RequestTracker rt(megaApi[apiIndex].get());
+        megaApi[apiIndex]->logout(args..., &rt);
+        return rt.waitForResult();
+    }
+
+    template<typename... requestArgs>
+    int doRequestLocalLogout(unsigned apiIndex, requestArgs... args)
+    {
+        RequestTracker rt(megaApi[apiIndex].get());
+        megaApi[apiIndex]->localLogout(args..., &rt);
+        return rt.waitForResult();
+    }
+
     template<typename ... requestArgs> int doStartUpload(unsigned apiIndex, MegaHandle* newNodeHandleResult, requestArgs... args) { TransferTracker tt(megaApi[apiIndex].get()); megaApi[apiIndex]->startUpload(args..., &tt); auto e = tt.waitForResult(); if (newNodeHandleResult) *newNodeHandleResult = tt.resultNodeHandle; return e;}
     template<typename ... requestArgs> int doStartDownload(unsigned apiIndex, requestArgs... args) { TransferTracker tt(megaApi[apiIndex].get()); megaApi[apiIndex]->startDownload(args..., &tt); auto e = tt.waitForResult(); return e;}
     template<typename ... requestArgs> int doSetFileVersionsOption(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->setFileVersionsOption(args..., &rt); return rt.waitForResult(); }

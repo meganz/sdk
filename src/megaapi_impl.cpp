@@ -8536,24 +8536,6 @@ void MegaApiImpl::setNodeS4(MegaNode *node, const char *value, MegaRequestListen
     waiter->notify();
 }
 
-
-void MegaApiImpl::setNodeDuration(MegaNode *node, int secs, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_NODE, listener);
-    if(node) request->setNodeHandle(node->getHandle());
-    request->setParamType(MegaApi::NODE_ATTR_DURATION);
-    request->setNumber(secs);
-    request->setFlag(true);     // is official attribute or not
-
-    request->performRequest = [this, request]()
-    {
-        return performRequest_setAttrNode(request);
-    };
-
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 void MegaApiImpl::setNodeLabel(MegaNode *node, int label, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_NODE, listener);

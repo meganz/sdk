@@ -14119,31 +14119,6 @@ class MegaApi
         void setNodeS4(MegaNode *node, const char *value, MegaRequestListener *listener);
 
         /**
-         * @brief Set the duration of audio/video files as a node attribute.
-         *
-         * To remove the existing duration, set it to MegaNode::INVALID_DURATION.
-         *
-         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
-         * - MegaRequest::getNumber - Returns the number of seconds for the node
-         * - MegaRequest::getFlag - Returns true (official attribute)
-         * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_DURATION
-         *
-         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
-         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
-         *
-         * @param node Node that will receive the information.
-         * @param duration Length of the audio/video in seconds.
-         * @param listener MegaRequestListener to track this request
-         *
-         * @deprecated Since the SDK started processing media information internally,
-         * it is no longer needed nor recommended to use this function, so it will
-         * be removed in a short time.
-         */
-        void setNodeDuration(MegaNode *node, int duration, MegaRequestListener *listener = NULL);
-
-        /**
          * @brief Set node label as a node attribute.
          * Valid values for label attribute are:
          *  - MegaNode::NODE_LBL_RED = 1

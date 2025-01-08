@@ -3638,8 +3638,7 @@ class MegaApiImpl : public MegaApp
         void setDriveName(const char* pathToDrive, const char *driveName, MegaRequestListener *listener = NULL);
         void getUserEmail(MegaHandle handle, MegaRequestListener *listener = NULL);
         void setCustomNodeAttribute(MegaNode *node, const char *attrName, const char *value, MegaRequestListener *listener = NULL);
-        void setNodeS4(MegaNode *node, const char *value, MegaRequestListener *listener = NULL);
-        void setNodeDuration(MegaNode *node, int secs, MegaRequestListener *listener = NULL);
+        void setNodeS4(MegaNode* node, const char* value, MegaRequestListener* listener = NULL);
         void setNodeLabel(MegaNode *node, int label, MegaRequestListener *listener = NULL);
         void setNodeFavourite(MegaNode *node, bool fav, MegaRequestListener *listener = NULL);
         void getFavourites(MegaNode* node, int count, MegaRequestListener* listener = nullptr);

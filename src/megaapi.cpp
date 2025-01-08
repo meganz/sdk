@@ -2867,11 +2867,6 @@ void MegaApi::setNodeS4(MegaNode *node, const char *value, MegaRequestListener *
     pImpl->setNodeS4(node, value, listener);
 }
 
-void MegaApi::setNodeDuration(MegaNode *node, int secs, MegaRequestListener *listener)
-{
-    pImpl->setNodeDuration(node, secs, listener);
-}
-
 void MegaApi::setNodeLabel(MegaNode *node, int label, MegaRequestListener *listener)
 {
     pImpl->setNodeLabel(node, label, listener);

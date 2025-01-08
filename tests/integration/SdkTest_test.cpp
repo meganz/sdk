@@ -2539,29 +2539,7 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     ASSERT_EQ(test_mtime, n1_mtime->getModificationTime()) << "Could not set the mtime of a file upload";
     ASSERT_EQ(ffp.mtime, n1->getModificationTime()) << "Normal file upload did not get the right mtime of the file";
 
-
-    // ___ Set invalid duration of a node ___
-
-    ASSERT_EQ(API_EARGS, synchronousSetNodeDuration(0, n1.get(), -14)) << "Unexpected error setting invalid node duration";
-
-
-    // ___ Set duration of a node ___
-
-    ASSERT_EQ(API_OK, synchronousSetNodeDuration(0, n1.get(), 929734)) << "Cannot set node duration";
-
-
     megaApi[0]->log(2, "test postlog", __FILE__, __LINE__);
-
-    n1.reset(megaApi[0]->getNodeByHandle(n1->getHandle()));
-    ASSERT_EQ(929734, n1->getDuration()) << "Duration value does not match";
-
-
-    // ___ Reset duration of a node ___
-
-    ASSERT_EQ(API_OK, synchronousSetNodeDuration(0, n1.get(), -1)) << "Cannot reset node duration";
-
-    n1.reset(megaApi[0]->getNodeByHandle(n1->getHandle()));
-    ASSERT_EQ(-1, n1->getDuration()) << "Duration value does not match";
 
     // set several values that the requests will need to consolidate, some will be in the same batch
     megaApi[0]->setCustomNodeAttribute(n1.get(), "custom1", "value1");
@@ -2574,7 +2552,6 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     megaApi[0]->setCustomNodeAttribute(n1.get(), "custom3", "value31");
     megaApi[0]->setCustomNodeAttribute(n1.get(), "custom3", "value32");
     megaApi[0]->setCustomNodeAttribute(n1.get(), "custom3", "value33");
-    ASSERT_EQ(API_OK, doSetNodeDuration(0, n1.get(), 929734)) << "Cannot set node duration";
     n1.reset(megaApi[0]->getNodeByHandle(n1->getHandle()));
 
     ASSERT_STREQ("value13", n1->getCustomAttr("custom1"));
