@@ -8720,10 +8720,7 @@ class MegaGlobalListener
         virtual void onNodesUpdate(MegaApi* api, MegaNodeList *nodes);
 
         /**
-         * @brief This function is called when the account has been updated (confirmed/upgraded/downgraded)
-         *
-         * The usage of this callback to handle the external account confirmation is deprecated.
-         * Instead, you should use MegaGlobalListener::onEvent.
+         * @brief This function is called when the account has been updated (upgraded/downgraded)
          *
          * @param api MegaApi object connected to the account
          */
@@ -9197,10 +9194,7 @@ class MegaListener
         virtual void onNodesUpdate(MegaApi* api, MegaNodeList *nodes);
 
         /**
-         * @brief This function is called when the account has been updated (confirmed/upgraded/downgraded)
-         *
-         * The usage of this callback to handle the external account confirmation is deprecated.
-         * Instead, you should use MegaListener::onEvent.
+         * @brief This function is called when the account has been updated (upgraded/downgraded)
          *
          * @param api MegaApi object connected to the account
          */
@@ -11891,10 +11885,10 @@ class MegaApi
          * Until the user successfully confirms the signup link sent to the provided email address,
          * you can resume the ephemeral session in order to change the email address, resend the
          * signup link (@see MegaApi::sendSignupLink) and also to receive notifications in case the
-         * user confirms the account using another client (MegaGlobalListener::onAccountUpdate or
-         * MegaListener::onAccountUpdate). It is also possible to cancel the registration process by
-         * MegaApi::cancelCreateAccount, which invalidates the signup link associated to the ephemeral
-         * session (the session will be still valid).
+         * user confirms the account using another client (MegaGlobalListener::onEvent or
+         * MegaListener::onEvent, EVENT_ACCOUNT_CONFIRMATION). It is also possible to cancel the
+         * registration process by MegaApi::cancelCreateAccount, which invalidates the signup link
+         * associated to the ephemeral session (the session will be still valid).
          *
          * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
          * Valid data in the MegaRequest object received on callbacks:
@@ -11909,7 +11903,6 @@ class MegaApi
          */
         void resumeCreateAccount(const char* sid, MegaRequestListener *listener = NULL);
 
-
         /**
          * @brief Resume a registration process for an Ephemeral++ account
          *
@@ -11919,10 +11912,10 @@ class MegaApi
          * Until the user successfully confirms the signup link sent to the provided email address,
          * you can resume the ephemeral session in order to change the email address, resend the
          * signup link (@see MegaApi::sendSignupLink) and also to receive notifications in case the
-         * user confirms the account using another client (MegaGlobalListener::onAccountUpdate or
-         * MegaListener::onAccountUpdate). It is also possible to cancel the registration process by
-         * MegaApi::cancelCreateAccount, which invalidates the signup link associated to the ephemeral
-         * session (the session will be still valid).
+         * user confirms the account using another client (MegaGlobalListener::onEvent or
+         * MegaListener::onEvent, EVENT_ACCOUNT_CONFIRMATION). It is also possible to cancel the
+         * registration process by MegaApi::cancelCreateAccount, which invalidates the signup link
+         * associated to the ephemeral session (the session will be still valid).
          *
          * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
          * Valid data in the MegaRequest object received on callbacks:
@@ -11932,7 +11925,8 @@ class MegaApi
          * In case the account is already confirmed, the associated request will fail with
          * error MegaError::API_EARGS.
          *
-         * @param sid Session id valid for the ephemeral++ account (@see MegaApi::createEphemeralAccountPlusPlus)
+         * @param sid Session id valid for the ephemeral++ account (@see
+         * MegaApi::createEphemeralAccountPlusPlus)
          * @param listener MegaRequestListener to track this request
          */
         void resumeCreateAccountEphemeralPlusPlus(const char* sid, MegaRequestListener *listener = NULL);
