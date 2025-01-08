@@ -2528,6 +2528,11 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
                                 if (signalMoveBegin)
                                     signalMoveBegin(mc);
 
+                                if (newName == ".gitignore")
+                                {
+                                    mc.sendevent(99493, "New .gitignore file synced up");
+                                }
+
                                 mc.setattr(n, attr_map('n', newName), [&mc, movePtr, newName](NodeHandle, Error err){
 
                                     LOG_debug << mc.clientname << "SYNC Rename completed: " << newName << " err:" << err;
