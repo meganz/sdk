@@ -4227,7 +4227,8 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
     this->setParamType(request->getParamType());
     this->setText(request->getText());
     this->setNumber(request->getNumber());
-    this->setPublicNode(request->getPublicNode());
+    std::unique_ptr<MegaNode> publicNode{request->getPublicMegaNode()};
+    this->setPublicNode(publicNode.get());
     this->setFlag(request->getFlag());
     this->setTransferTag(request->getTransferTag());
     this->setTotalBytes(request->getTotalBytes());
@@ -4684,11 +4685,6 @@ MegaCurrency *MegaRequestPrivate::getCurrency() const
 void MegaRequestPrivate::setNumDetails(int count)
 {
     numDetails = count;
-}
-
-MegaNode *MegaRequestPrivate::getPublicNode() const
-{
-    return publicNode;
 }
 
 MegaNode *MegaRequestPrivate::getPublicMegaNode() const
@@ -20394,7 +20390,8 @@ error MegaApiImpl::performRequest_copy(MegaRequestPrivate* request)
             std::shared_ptr<Node> node;
             std::shared_ptr<Node> target = client->nodebyhandle(request->getParentHandle());
             const char* email = request->getEmail();
-            MegaNode *megaNode = request->getPublicNode();
+            std::unique_ptr<MegaNode> publicNode{request->getPublicMegaNode()};
+            MegaNode* megaNode = publicNode.get();
             const char *newName = request->getName();
             NodeHandle ovhandle;
 

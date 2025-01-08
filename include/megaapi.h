@@ -5160,23 +5160,6 @@ class MegaRequest
         /**
          * @brief Returns a public node related to the request
          *
-         * The MegaRequest object retains the ownership of the returned value. It will be valid
-         * until the MegaRequest object is deleted.
-         *
-         * If you want to use the returned node beyond the deletion of the MegaRequest object,
-         * you must call MegaNode::copy or use MegaRequest::getPublicMegaNode instead
-         *
-         * @return Public node related to the request
-         *
-         * @deprecated This function will be removed in future updates. You should use
-         * MegaRequest::getPublicMegaNode instead.
-         *
-         */
-        virtual MegaNode *getPublicNode() const;
-
-        /**
-         * @brief Returns a public node related to the request
-         *
          * You take the ownership of the returned value.
          *
          * This value is valid for these requests:

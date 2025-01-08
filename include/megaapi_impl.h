@@ -1994,7 +1994,6 @@ class MegaRequestPrivate : public MegaRequest
         int getAccess() const override;
         const char* getFile() const override;
         int getNumRetry() const override;
-        MegaNode *getPublicNode() const override;
         MegaNode *getPublicMegaNode() const override;
         int getParamType() const override;
         const char *getText() const override;
