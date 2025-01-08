@@ -10237,7 +10237,6 @@ void MegaApiImpl::setSyncRunState(MegaHandle backupId, MegaSync::SyncRunningStat
 
                 return API_OK;
             }
-            case MegaSync::RUNSTATE_PAUSED:
             case MegaSync::RUNSTATE_SUSPENDED:
             case MegaSync::RUNSTATE_DISABLED:
             {
