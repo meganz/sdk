@@ -27230,6 +27230,7 @@ bool MegaApiImpl::isPasswordNodeFolder(MegaHandle h) const
 
     SdkMutexGuard g{sdkMutex};
     const auto n = client->nodebyhandle(h);
+    assert(n && "Node not found by handle");
     return n && n->isPasswordNodeFolder();
 }
 
