@@ -53,6 +53,7 @@ CPP_SOURCES= sdk/src/attrmap.cpp \
     sdk/src/posix/net.cpp  \
     sdk/src/posix/fs.cpp  \
     sdk/src/posix/waiter.cpp \
+    sdk/src/android/androidFileSystem.cpp \
     sdk/src/mega_utf8proc.cpp \
     sdk/src/gfx.cpp \
     sdk/src/gfx/external.cpp \
@@ -122,6 +123,7 @@ HEADERS= sdk/include/mega.h \
         sdk/include/mega/posix/megasys.h  \
         sdk/include/mega/posix/megafs.h  \
         sdk/include/mega/posix/megawaiter.h \
+        sdk/include/mega/android/androidFileSystem.h \
         sdk/include/mega/config-android.h \
         sdk/include/mega/mega_glob.h \
         sdk/include/mega/gfx/external.h \

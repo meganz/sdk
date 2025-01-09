@@ -34,6 +34,10 @@ class AndroidFileWrapper
 public:
     AndroidFileWrapper(const std::string& path);
     ~AndroidFileWrapper();
+    AndroidFileWrapper(const AndroidFileWrapper&) = delete;
+    AndroidFileWrapper& operator=(const AndroidFileWrapper&) = delete;
+    AndroidFileWrapper(AndroidFileWrapper&& other) noexcept;
+    AndroidFileWrapper& operator=(AndroidFileWrapper&& other) noexcept;
     bool exists();
     int getFileDescriptor(bool write);
     void close();
@@ -45,6 +49,7 @@ public:
 private:
     jobject mAndroidFileObject{nullptr};
     std::string mPath;
+    int mFd{-1};
     static constexpr char GET_ANDROID_FILE[] = "getFromUri";
     static constexpr char GET_FILE_DESCRIPTOR[] = "getFileDescriptor";
     static constexpr char IS_FOLDER[] = "isFolder";

@@ -36,28 +36,87 @@ int AndroidPlatformURIHelper::mNumInstances = 0;
 AndroidFileWrapper::AndroidFileWrapper(const std::string& path):
     mPath(path)
 {
+    if (fileWrapper == nullptr)
+    {
+        LOG_err << "Error: AndroidFileWrapper::AndroidFileWrapper class not found";
+        return;
+    }
+
     JNIEnv* env = nullptr;
     MEGAjvm->AttachCurrentThread(&env, NULL);
     jmethodID getAndroidFileMethod =
         env->GetStaticMethodID(fileWrapper,
                                GET_ANDROID_FILE,
                                "(Ljava/lang/String;)Lmega/privacy/android/app/utils/FileWrapper;");
+
     if (getAndroidFileMethod == nullptr)
     {
         env->ExceptionDescribe();
         env->ExceptionClear();
-        LOG_err << "Critical error AndroidFileWrapper::AndroidFileWrapper";
+        LOG_err << "Error: AndroidFileWrapper::AndroidFileWrapper";
         return;
     }
 
-    mAndroidFileObject = env->CallStaticObjectMethod(fileWrapper,
-                                                     getAndroidFileMethod,
-                                                     env->NewStringUTF(mPath.c_str()));
+    jstring jPath = env->NewStringUTF(mPath.c_str());
+    jobject temporalObject = env->CallStaticObjectMethod(fileWrapper, getAndroidFileMethod, jPath);
+    env->DeleteLocalRef(jPath);
+
+    if (temporalObject != nullptr)
+    {
+        mAndroidFileObject = env->NewGlobalRef(temporalObject);
+        env->DeleteLocalRef(temporalObject);
+    }
 }
 
 AndroidFileWrapper::~AndroidFileWrapper()
 {
-    // TODO: destroy mAndroidFileObject
+    if (mFd != -1)
+    {
+        ::close(mFd);
+    }
+
+    if (mAndroidFileObject)
+    {
+        JNIEnv* env = nullptr;
+        MEGAjvm->AttachCurrentThread(&env, NULL);
+        env->DeleteGlobalRef(mAndroidFileObject);
+    }
+}
+
+AndroidFileWrapper::AndroidFileWrapper(AndroidFileWrapper&& other) noexcept:
+    mAndroidFileObject(other.mAndroidFileObject),
+    mPath(std::move(other.mPath)),
+    mFd(other.mFd)
+{
+    other.mAndroidFileObject = nullptr;
+    other.mFd = -1;
+}
+
+AndroidFileWrapper& AndroidFileWrapper::operator=(AndroidFileWrapper&& other) noexcept
+{
+    if (this == &other)
+        return *this;
+
+    JNIEnv* env = nullptr;
+    MEGAjvm->AttachCurrentThread(&env, NULL);
+
+    if (mAndroidFileObject)
+    {
+        env->DeleteGlobalRef(mAndroidFileObject);
+    }
+
+    if (mFd != -1)
+    {
+        ::close(mFd);
+    }
+
+    mPath = std::move(other.mPath);
+    mAndroidFileObject = other.mAndroidFileObject;
+    mFd = other.mFd;
+    other.mAndroidFileObject = nullptr;
+    other.mFd = -1;
+
+    return *this;
 }
 
 int AndroidFileWrapper::getFileDescriptor(bool write)
@@ -67,35 +126,37 @@ int AndroidFileWrapper::getFileDescriptor(bool write)
         return -1;
     }
 
-    JNIEnv* env = nullptr;
-    MEGAjvm->AttachCurrentThread(&env, NULL);
-    if (!fileWrapper)
+    if (mFd == -1)
     {
-        LOG_err << "Critical error AndroidFileWrapper::getFileDescriptor  Invalid class";
-    }
-    jmethodID methodID =
-        env->GetMethodID(fileWrapper, "getFileDescriptor", "(Z)Ljava/lang/Integer;");
-    if (methodID == nullptr)
-    {
-        env->ExceptionDescribe();
-        env->ExceptionClear();
-        LOG_err << "Critical error AndroidFileWrapper::getFileDescriptor";
-        return -1;
-    }
+        JNIEnv* env = nullptr;
+        MEGAjvm->AttachCurrentThread(&env, NULL);
 
-    jobject fileDescriptorObj = env->CallObjectMethod(mAndroidFileObject, methodID, write);
-    if (fileDescriptorObj)
-    {
-        jmethodID intValueMethod = env->GetMethodID(integerClass, "intValue", "()I");
-        if (!intValueMethod)
+        jmethodID methodID =
+            env->GetMethodID(fileWrapper, "getFileDescriptor", "(Z)Ljava/lang/Integer;");
+        if (methodID == nullptr)
         {
+            env->ExceptionDescribe();
+            env->ExceptionClear();
+            LOG_err << "Error: AndroidFileWrapper::getFileDescriptor";
             return -1;
         }
 
-        int fd = env->CallIntMethod(fileDescriptorObj, intValueMethod);
-        int newFd = dup(fd);
-        ::close(fd);
-        return newFd;
+        jobject fileDescriptorObj = env->CallObjectMethod(mAndroidFileObject, methodID, write);
+        if (fileDescriptorObj)
+        {
+            jmethodID intValueMethod = env->GetMethodID(integerClass, "intValue", "()I");
+            if (!intValueMethod)
+            {
+                return -1;
+            }
+
+            mFd = env->CallIntMethod(fileDescriptorObj, intValueMethod);
+        }
+    }
+
+    if (mFd != -1)
+    {
+        return dup(mFd);
     }
 
     return -1;
@@ -115,7 +176,7 @@ bool AndroidFileWrapper::isFolder()
     {
         env->ExceptionDescribe();
         env->ExceptionClear();
-        LOG_err << "Critical error AndroidFileWrapper::isFolder";
+        LOG_err << "Error: AndroidFileWrapper::isFolder";
         return false;
     }
     return env->CallBooleanMethod(mAndroidFileObject, methodID);
@@ -140,7 +201,7 @@ std::string AndroidFileWrapper::getName()
     {
         env->ExceptionDescribe();
         env->ExceptionClear();
-        LOG_err << "Critical error AndroidFileWrapper::getName";
+        LOG_err << "Error: AndroidFileWrapper::getName";
         return "";
     }
 
@@ -166,7 +227,7 @@ std::vector<AndroidFileWrapper> AndroidFileWrapper::getChildren()
     {
         env->ExceptionDescribe();
         env->ExceptionClear();
-        LOG_err << "Critical error AndroidFileWrapper::getchildren";
+        LOG_err << "Error: AndroidFileWrapper::getchildren";
         return std::vector<AndroidFileWrapper>();
     }
 
@@ -182,7 +243,7 @@ std::vector<AndroidFileWrapper> AndroidFileWrapper::getChildren()
     {
         jstring element = (jstring)env->CallObjectMethod(childrenUris, getMethod, i);
         const char* elementStr = env->GetStringUTFChars(element, nullptr);
-        children.push_back(AndroidFileWrapper(elementStr));
+        children.emplace_back(elementStr);
         env->ReleaseStringUTFChars(element, elementStr);
         env->DeleteLocalRef(element);
     }
