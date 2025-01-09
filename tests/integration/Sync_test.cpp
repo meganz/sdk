@@ -1597,16 +1597,6 @@ void StandardClient::removeOnUserUpdateLamda()
     received_user_actionpackets = false;
 }
 
-#ifdef DEBUG
-void StandardClient::syncdebug_notification(const SyncConfig& config,
-                            int queue,
-                            const Notification& notification)
-{
-    if (mOnSyncDebugNotification)
-        mOnSyncDebugNotification(config, queue, notification);
-}
-#endif // DEBUG
-
 void StandardClient::syncupdate_scanning(bool b)
 {
     if (logcb)
@@ -4580,10 +4570,6 @@ void StandardClient::cleanupForTestReuse(int loginIndex)
 #ifndef NDEBUG // match the conditon in the header
     mOnMoveBegin = nullptr;
 #endif
-#ifdef DEBUG
-    mOnSyncDebugNotification = nullptr;
-#endif // DEBUG
-
 
     LOG_debug << clientname << "cleaning transfers for client reuse";
 
@@ -11515,7 +11501,10 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
 
             for (int up = 0; up < 2; ++up)
             {
-                //if (!up) continue;
+                // if (!up) continue;
+                //  We don't allow changes in the cloud for a backup sync
+                if (up == 0 && syncType == TwoWaySyncSymmetryCase::type_backupSync)
+                    continue;
 
                 for (int action = 0; action < (int)TwoWaySyncSymmetryCase::action_numactions; ++action)
                 {
@@ -11814,56 +11803,6 @@ TEST_F(SyncTest, MoveExistingIntoNewDirectoryWhilePaused)
 
     // Were the changes propagated?
     ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
-}
-
-TEST_F(SyncTest, ForeignChangesInTheCloudDisablesMonitoringBackup)
-{
-    const auto TESTROOT = makeNewTestRoot();
-    const auto TIMEOUT  = chrono::seconds(4);
-
-    StandardClientInUse c = g_clientManager->getCleanStandardClient(0, TESTROOT);
-    StandardClientInUse cu = g_clientManager->getCleanStandardClient(0, TESTROOT);
-    // Log callbacks.
-    c->logcb = true;
-    cu->logcb = true;
-    ASSERT_TRUE(cu->resetBaseFolderMulticlient(c));
-    ASSERT_TRUE(c->makeCloudSubdirs("s", 0, 0));
-    ASSERT_TRUE(CatchupClients(cu, c));
-
-    // Add and start sync.
-    const auto id = c->setupSync_mainthread("s", "s", true, false);
-    ASSERT_NE(id, UNDEF);
-
-    // Wait for initial sync to complete.
-    waitonsyncs(TIMEOUT, c);
-
-    // Make sure we're in monitoring mode.
-    ASSERT_TRUE(c->waitFor(SyncMonitoring(id), TIMEOUT));
-
-    // Make a (foreign) change to the cloud.
-    {
-        // Create a directory.
-        vector<NewNode> node(1);
-
-        cu->prepareOneFolder(&node[0], "d", false);
-
-        ASSERT_TRUE(cu->putnodes(c->syncSet(id).h, NoVersioning, std::move(node)));
-    }
-
-    // Give our sync some time to process remote changes.
-    waitonsyncs(TIMEOUT, c);
-
-    // Wait for the sync to be disabled.
-    ASSERT_TRUE(c->waitFor(SyncDisabled(id), TIMEOUT));
-
-    // Has the sync failed?
-    {
-        SyncConfig config = c->syncConfigByBackupID(id);
-
-        ASSERT_EQ(config.mBackupState, SYNC_BACKUP_MONITOR);
-        ASSERT_EQ(config.mEnabled, false);
-        ASSERT_EQ(config.mError, BACKUP_MODIFIED);
-    }
 }
 
 class BackupClient
@@ -12227,181 +12166,6 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
     ASSERT_TRUE(cb.confirmModel_mainthread(m.root.get(), id));
 }
 
-TEST_F(SyncTest, MonitoringInternalBackupResumesInMonitoringMode)
-{
-    const auto TESTROOT = makeNewTestRoot();
-    const auto TIMEOUT = chrono::seconds(8);
-
-    // Sync Backup ID.
-    handle id;
-
-    // Sync Root Handle.
-    NodeHandle rootHandle;
-
-    // Session ID.
-    string sessionID;
-
-    // Model.
-    Model m;
-
-    StandardClientInUse cf = g_clientManager->getCleanStandardClient(0, TESTROOT);
-
-    // Log callbacks.
-    cf->logcb = true;
-
-    // Log in client.
-    ASSERT_TRUE(cf->resetBaseFolderMulticlient());
-    ASSERT_TRUE(cf->makeCloudSubdirs("s", 0, 0));
-    ASSERT_TRUE(CatchupClients(cf));
-
-    // Manual resume.
-    {
-        StandardClient cb(TESTROOT, "cb");
-        // can not use ClientManager as we re-use "cb" (in filesystem) later
-
-        // Log callbacks.
-        cb.logcb = true;
-
-        // Log in client.
-        ASSERT_TRUE(cb.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
-
-        // Give the sync something to mirror.
-        m.addfile("d/f");
-        m.addfile("f");
-        m.generate(cb.fsBasePath / "s");
-
-        // Add and start backup.
-        id = cb.setupSync_mainthread("s", "s", true, false);
-        ASSERT_NE(id, UNDEF);
-
-        // Wait for the backup to complete.
-        waitonsyncs(TIMEOUT, &cb);
-
-        // Wait for transition to monitoring mode.
-        ASSERT_TRUE(cb.waitFor(SyncMonitoring(id), TIMEOUT));
-
-        // Disable the sync.
-        ASSERT_TRUE(cb.disableSync(id, NO_SYNC_ERROR, true, true));
-
-        // Make sure the sync was monitoring.
-        {
-            auto config = cb.syncConfigByBackupID(id);
-
-            ASSERT_EQ(config.mBackupState, SYNC_BACKUP_MONITOR);
-            ASSERT_EQ(config.mEnabled, true);
-            ASSERT_EQ(config.mError, UNLOADING_SYNC);
-        }
-
-        // Get our hands on the sync's root handle.
-        rootHandle = cb.syncSet(id).h;
-
-        // Make a remote change.
-        //
-        // This is so the backup will fail upon resume.
-        {
-            vector<NewNode> node(1);
-
-            cf->prepareOneFolder(&node[0], "g", false);
-
-            ASSERT_TRUE(cf->putnodes(rootHandle, NoVersioning, std::move(node)));
-        }
-
-        // Enable the backup.
-        ASSERT_TRUE(cb.enableSyncByBackupId(id, ""));
-
-        // Give the sync some time to think.
-        waitonsyncs(TIMEOUT, &cb);
-
-        // Wait for the sync to be disabled.
-        ASSERT_TRUE(cb.waitFor(SyncDisabled(id), TIMEOUT));
-
-        // Make sure it's been disabled for the right reasons.
-        {
-            auto config = cb.syncConfigByBackupID(id);
-
-            ASSERT_EQ(config.mBackupState, SYNC_BACKUP_MONITOR);
-            ASSERT_EQ(config.mEnabled, false);
-            ASSERT_EQ(config.mError, BACKUP_MODIFIED);
-        }
-
-        // Manually enable the sync.
-        // It should come up in mirror mode.
-        ASSERT_TRUE(cb.enableSyncByBackupId(id, ""));
-
-        // Let it bring the cloud in line.
-        waitonsyncs(TIMEOUT, &cb);
-
-        // Cloud should match the local disk precisely.
-        ASSERT_TRUE(cb.confirmModel_mainthread(m.root.get(), id));
-
-        // Save the session ID.
-        cb.client.dumpsession(sessionID);
-
-        // Log out the client.
-        cb.localLogout();
-    }
-
-    // Make a remote change.
-    {
-        vector<NewNode> node(1);
-
-        cf->prepareOneFolder(&node[0], "h", false);
-
-        ASSERT_TRUE(cf->putnodes(rootHandle, NoVersioning, std::move(node)));
-    }
-
-    // Automatic resume.
-    StandardClient cb(TESTROOT, "cb");
-
-    // Log callbacks.
-    cb.logcb = true;
-
-    // Hook onAutoResumeResult callback.
-    promise<void> notify;
-
-    cb.mOnSyncStateConfig = [&cb, &notify](const SyncConfig& config) {
-        // Is the sync up and running?
-        if (config.mRunState != SyncRunState::Run)
-            return;
-
-        // Then let our waiter know it can proceed.
-        notify.set_value();
-
-        // We're not interested in any further callbacks.
-        cb.mOnSyncStateConfig = nullptr;
-    };
-
-    // Log in the client.
-    ASSERT_TRUE(cb.login_fetchnodesFromSession(sessionID));
-
-    // Wait for the sync to be resumed.
-    ASSERT_TRUE(debugTolerantWaitOnFuture(notify.get_future(), 45));
-
-    // Give the sync some time to think.
-    waitonsyncs(TIMEOUT, &cb);
-
-    // Wait for the sync to be disabled.
-    ASSERT_TRUE(cb.waitFor(SyncDisabled(id), TIMEOUT));
-
-    // Make sure it's been disabled for the right reasons.
-    {
-        auto config = cb.syncConfigByBackupID(id);
-
-        ASSERT_EQ(config.mBackupState, SYNC_BACKUP_MONITOR);
-        ASSERT_EQ(config.mEnabled, false);
-        ASSERT_EQ(config.mError, BACKUP_MODIFIED);
-    }
-
-    // Re-enable the sync.
-    ASSERT_TRUE(cb.enableSyncByBackupId(id, ""));
-
-    // Wait for the sync to complete mirroring.
-    waitonsyncs(TIMEOUT, &cb);
-
-    // Cloud should mirror the disk.
-    ASSERT_TRUE(cb.confirmModel_mainthread(m.root.get(), id));
-}
-
 #ifdef DEBUG
 
 class BackupBehavior
@@ -12426,7 +12190,7 @@ void BackupBehavior::doTest(const string& initialContent,
     ASSERT_TRUE(cu.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
 
     // Add and start a backup sync.
-    const auto idU = cu.setupSync_mainthread("su", "s", true, true);
+    const auto idU = cu.setupSync_mainthread("su", "s", true, false);
     ASSERT_NE(idU, UNDEF);
 
     // Add a file for the engine to synchronize.
@@ -12443,31 +12207,16 @@ void BackupBehavior::doTest(const string& initialContent,
     // Make sure the file made it to the cloud.
     ASSERT_TRUE(cu.confirmModel_mainthread(m.root.get(), idU));
 
-    // Update file.
+    // Update file maintaining the mtime
     {
-        // Capture file's current mtime.
-        auto mtime = fs::last_write_time(cu.fsBasePath / "su" / "f");
+        const auto mtime = fs::last_write_time(cu.fsBasePath / "su" / "f");
 
         // Update the file's content.
         m.addfile("f", updatedContent);
-
-        // Hook callback so we can tweak the mtime.
-        cu.mOnSyncDebugNotification = [&](const SyncConfig&, int, const Notification&)
-        {
-            // Roll back the mtime now that we know it will be processed.
-            fs::last_write_time(cu.fsBasePath / "su" / "f", mtime);
-
-            // No need for the engine to call us again.
-            cu.mOnSyncDebugNotification = nullptr;
-        };
-
         // Write the file.
         m.generate(cu.fsBasePath / "su", true);
 
-        // do not Rewind the file's mtime here. Let the callback just above do it.
-        // otherwise, on checking the fs notification we will conclude "Self filesystem notification skipped"
-        // possibly we could do it this way after sync rework is merged.
-        // fs::last_write_time(cu.fsBasePath / "su" / "f", mtime);
+        fs::last_write_time(cu.fsBasePath / "su" / "f", mtime);
 
         cu.triggerPeriodicScanEarly(idU);
     }
@@ -12491,7 +12240,7 @@ void BackupBehavior::doTest(const string& initialContent,
         ASSERT_TRUE(cd.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
 
         // Add and start a new sync.
-        auto idD = cd.setupSync_mainthread("sd", "s", false, true);
+        auto idD = cd.setupSync_mainthread("sd", "s", false, false);
         ASSERT_NE(idD, UNDEF);
 
         // Wait for the sync to complete.

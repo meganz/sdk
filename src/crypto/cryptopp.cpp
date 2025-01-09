@@ -88,11 +88,12 @@ void SymmCipher::setkey(const byte* newkey, int type)
     aesgcm_d.SetKeyWithIV(key, KEYLENGTH, zeroiv);
 }
 
-bool SymmCipher::setkey(const string* key)
+bool SymmCipher::setkey(const string* newKey)
 {
-    if (key->size() == FILENODEKEYLENGTH || key->size() == FOLDERNODEKEYLENGTH)
+    if (newKey->size() == FILENODEKEYLENGTH || newKey->size() == FOLDERNODEKEYLENGTH)
     {
-        setkey((const byte*)key->data(), (key->size() == FOLDERNODEKEYLENGTH) ? FOLDERNODE : FILENODE);
+        setkey((const byte*)newKey->data(),
+               (newKey->size() == FOLDERNODEKEYLENGTH) ? FOLDERNODE : FILENODE);
 
         return true;
     }
@@ -100,11 +101,15 @@ bool SymmCipher::setkey(const string* key)
     return false;
 }
 
-bool SymmCipher::cbc_encrypt_with_key(const std::string& plain, std::string& cipher, const byte* key, const size_t keylen, const byte* iv)
+bool SymmCipher::cbc_encrypt_with_key(const std::string& plain,
+                                      std::string& cipher,
+                                      const byte* encryptionKey,
+                                      const size_t keylen,
+                                      const byte* iv)
 {
     try
     {
-        aescbc_e.SetKeyWithIV(key, keylen, iv ? iv: zeroiv);
+        aescbc_e.SetKeyWithIV(encryptionKey, keylen, iv ? iv : zeroiv);
         StringSource ss(plain, true, new StreamTransformationFilter(aescbc_e, new StringSink(cipher)));
         return true;
     }
@@ -115,11 +120,15 @@ bool SymmCipher::cbc_encrypt_with_key(const std::string& plain, std::string& cip
     }
 }
 
-bool SymmCipher::cbc_decrypt_with_key(const std::string& cipher, std::string& plain, const byte* key, const size_t keylen, const byte* iv)
+bool SymmCipher::cbc_decrypt_with_key(const std::string& cipher,
+                                      std::string& plain,
+                                      const byte* decryptionKey,
+                                      const size_t keylen,
+                                      const byte* iv)
 {
     try
     {
-        aescbc_d.SetKeyWithIV(key, keylen, iv ? iv: zeroiv);
+        aescbc_d.SetKeyWithIV(decryptionKey, keylen, iv ? iv : zeroiv);
         StringSource ss(cipher, true, new StreamTransformationFilter(aescbc_d, new StringSink(plain)));
         return true;
     }
@@ -401,8 +410,16 @@ bool SymmCipher::gcm_encrypt_add(const byte* data, const size_t datasize, const 
     return gcm_encrypt(data, datasize, nullptr /*key*/, 0 /*keylen*/, additionalData, additionalDatalen, iv, ivlen, taglen, result, expectedSize);
 }
 
-bool SymmCipher::gcm_encrypt(const byte* data, const size_t datasize, const byte* key, const size_t keylen, const byte* additionalData,
-                             const size_t additionalDatalen, const byte* iv, const size_t ivlen, const size_t taglen, std::string& result,
+bool SymmCipher::gcm_encrypt(const byte* data,
+                             const size_t datasize,
+                             const byte* encryptionKey,
+                             const size_t keylen,
+                             const byte* additionalData,
+                             const size_t additionalDatalen,
+                             const byte* iv,
+                             const size_t ivlen,
+                             const size_t taglen,
+                             std::string& result,
                              const size_t expectedSize)
 {
     std::string err;
@@ -416,7 +433,7 @@ bool SymmCipher::gcm_encrypt(const byte* data, const size_t datasize, const byte
 
     try
     {
-        if (!key || !keylen)
+        if (!encryptionKey || !keylen)
         {
             // resynchronizes with the provided IV
             aesgcm_e.Resynchronize(iv, static_cast<int>(ivlen));
@@ -424,7 +441,7 @@ bool SymmCipher::gcm_encrypt(const byte* data, const size_t datasize, const byte
         else
         {
             // resynchronizes with the provided Key and IV
-            aesgcm_e.SetKeyWithIV(key, keylen, iv, ivlen);
+            aesgcm_e.SetKeyWithIV(encryptionKey, keylen, iv, ivlen);
         }
 
         AuthenticatedEncryptionFilter ef (aesgcm_e, new StringSink(result), false, static_cast<int>(taglen));
@@ -475,9 +492,18 @@ bool SymmCipher::gcm_decrypt(const string *data, const byte *iv, unsigned ivlen,
     return true;
 }
 
-bool SymmCipher::gcm_decrypt(const byte* data, const size_t datalen, const byte* additionalData, const size_t additionalDatalen,
-                             const byte* key, const size_t keylength, const byte* tag, const size_t taglen, const byte* iv,
-                             const size_t ivlen, byte* result, const size_t resultSize)
+bool SymmCipher::gcm_decrypt(const byte* data,
+                             const size_t datalen,
+                             const byte* additionalData,
+                             const size_t additionalDatalen,
+                             const byte* decryptionKey,
+                             const size_t keylength,
+                             const byte* tag,
+                             const size_t taglen,
+                             const byte* iv,
+                             const size_t ivlen,
+                             byte* result,
+                             const size_t resultSize)
 {
     std::string err;
     if (!data || !datalen)                      {err = "Invalid data";}
@@ -490,7 +516,7 @@ bool SymmCipher::gcm_decrypt(const byte* data, const size_t datalen, const byte*
     }
     try
     {
-        if (!key || !keylength)
+        if (!decryptionKey || !keylength)
         {
             // resynchronizes with provided IV
             aesgcm_d.Resynchronize(iv, static_cast<int>(ivlen));
@@ -498,7 +524,7 @@ bool SymmCipher::gcm_decrypt(const byte* data, const size_t datalen, const byte*
         else
         {
             // resynchronizes with the provided Key and IV
-            aesgcm_d.SetKeyWithIV(key, keylength, iv, ivlen);
+            aesgcm_d.SetKeyWithIV(decryptionKey, keylength, iv, ivlen);
         }
 
         unsigned int flags = AuthenticatedDecryptionFilter::MAC_AT_BEGIN | AuthenticatedDecryptionFilter::THROW_EXCEPTION;
@@ -534,7 +560,7 @@ bool SymmCipher::gcm_decrypt(const byte* data, const size_t datalen, const byte*
             LOG_err << "Failed AES-GCM decryption with additional authenticated data: output size mismatch";
             return false;
         }
-        df.Get((byte*)result, maxRetrievable);
+        df.Get((byte*)result, static_cast<size_t>(maxRetrievable));
     }
     catch (CryptoPP::Exception const &e)
     {
@@ -558,17 +584,34 @@ bool SymmCipher::gcm_decrypt_add(const byte* data, const size_t datalen, const b
                        iv, ivlen, result, resultSize);
 }
 
-bool SymmCipher::gcm_decrypt_with_key(const byte* data, const size_t datalen, const byte* key, const size_t keylength,
-                                      const byte* tag, const size_t taglen, const byte* iv, const size_t ivlen,
-                                      byte* result, const size_t resultSize)
+bool SymmCipher::gcm_decrypt_with_key(const byte* data,
+                                      const size_t datalen,
+                                      const byte* decryptionKey,
+                                      const size_t keylength,
+                                      const byte* tag,
+                                      const size_t taglen,
+                                      const byte* iv,
+                                      const size_t ivlen,
+                                      byte* result,
+                                      const size_t resultSize)
 {
-    if (!key || !keylength)
+    if (!decryptionKey || !keylength)
     {
         LOG_err << "Failed AES-GCM decryption. Invalid decryption key";
         return false;
     }
-    return gcm_decrypt(data, datalen, nullptr /*additionalData*/, 0 /*additionalDatalen*/,
-                       key, keylength, tag, taglen, iv, ivlen, result, resultSize);
+    return gcm_decrypt(data,
+                       datalen,
+                       nullptr /*additionalData*/,
+                       0 /*additionalDatalen*/,
+                       decryptionKey,
+                       keylength,
+                       tag,
+                       taglen,
+                       iv,
+                       ivlen,
+                       result,
+                       resultSize);
 }
 
 void SymmCipher::serializekeyforjs(string *d)
@@ -1038,23 +1081,23 @@ bool AsymmCipher::isvalid(int type) const
     return status == S_VALID;
 }
 
-auto AsymmCipher::isvalid(const Key& key, int type) const -> Status
+auto AsymmCipher::isvalid(const Key& keyToConfirm, int type) const -> Status
 {
     assert(type >= PUBKEY && type <= PRIVKEY);
 
     if (type == PUBKEY)
     {
-        if (key[PUB_E].BitCount() && key[PUB_PQ].BitCount())
+        if (keyToConfirm[PUB_E].BitCount() && keyToConfirm[PUB_PQ].BitCount())
             return S_VALID;
 
         return S_INVALID;
     }
 
     // Convenience.
-    auto& d = key[PRIV_D];
-    auto& p = key[PRIV_P];
-    auto& u = key[PRIV_U];
-    auto& q = key[PRIV_Q];
+    auto& d = keyToConfirm[PRIV_D];
+    auto& p = keyToConfirm[PRIV_P];
+    auto& u = keyToConfirm[PRIV_U];
+    auto& q = keyToConfirm[PRIV_Q];
 
     // detect private key blob corruption.
     // prevent API-exploitable RSA oracle requiring 500+ logins

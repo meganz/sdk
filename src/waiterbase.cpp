@@ -34,9 +34,9 @@ void Waiter::bumpds()
     ds = m_clock_getmonotonictimeDS();
 }
 
-void Waiter::init(dstime ds)
+void Waiter::init(dstime timeout)
 {
-    maxds = ds;
+    maxds = timeout;
 }
 
 // add events to wakeup criteria

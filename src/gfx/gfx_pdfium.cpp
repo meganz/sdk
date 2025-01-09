@@ -95,7 +95,7 @@ std::unique_ptr<char[]> PdfiumReader::readBitmapFromPdf(int &w, int &h, int &ori
             }
             else if (pdfFile->openf(FSLogging::logOnError))
             {
-                buffer.reset(new byte[pdfFile->size]);
+                buffer.reset(new byte[static_cast<size_t>(pdfFile->size)]);
                 pdfFile->frawread(buffer.get(), static_cast<unsigned>(pdfFile->size), static_cast<m_off_t>(0), true, FSLogging::logOnError);
                 pdfFile->closef();
                 pdf_doc = FPDF_LoadMemDocument(buffer.get(), static_cast<int>(pdfFile->size), nullptr);
@@ -144,8 +144,9 @@ std::unique_ptr<char[]> PdfiumReader::readBitmapFromPdf(int &w, int &h, int &ori
                 }
 
                 // BGRA format, 4 bytes per pixel (32bits), byte order: blue, green, red, alpha.
-                std::unique_ptr<char[]> buffer(new char[static_cast<size_t>(w * h * 4)]);
-                FPDF_BITMAP bitmap = FPDFBitmap_CreateEx(w, h, FPDFBitmap_BGRA, buffer.get(), w * 4);
+                std::unique_ptr<char[]> bufferChar(new char[static_cast<size_t>(w * h * 4)]);
+                FPDF_BITMAP bitmap =
+                    FPDFBitmap_CreateEx(w, h, FPDFBitmap_BGRA, bufferChar.get(), w * 4);
                 if (!bitmap) //out of memory
                 {
                     LOG_warn << "Error generating bitmap image (OOM)";
@@ -173,7 +174,7 @@ std::unique_ptr<char[]> PdfiumReader::readBitmapFromPdf(int &w, int &h, int &ori
 #endif
                 // Needed by Qt: ROTATION_DOWN = 3
                 orientation = 3;
-                return buffer;
+                return bufferChar;
             }
             else
             {

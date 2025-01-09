@@ -34,6 +34,7 @@
 #include <charconv>
 #include <chrono>
 #include <exception>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
@@ -55,21 +56,6 @@
 #include <readline/history.h>
 #endif
 
-#if (__cplusplus >= 201703L)
-    #include <filesystem>
-    namespace fs = std::filesystem;
-    #define USE_FILESYSTEM
-#elif !defined(__MINGW32__) && !defined(__ANDROID__) && (!defined(__GNUC__) || (__GNUC__*100+__GNUC_MINOR__) >= 503)
-#define USE_FILESYSTEM
-#ifdef WIN32
-    #include <filesystem>
-    namespace fs = std::experimental::filesystem;
-#else
-    #include <experimental/filesystem>
-    namespace fs = std::experimental::filesystem;
-#endif
-#endif
-
 #include <regex>
 
 #ifdef USE_FREEIMAGE
@@ -85,6 +71,7 @@
 #endif
 
 namespace ac = ::mega::autocomplete;
+namespace fs = std::filesystem;
 
 #include <iomanip>
 
@@ -2226,7 +2213,6 @@ static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstre
     }
 }
 
-#ifdef USE_FILESYSTEM
 static void local_dumptree(const fs::path& de, int recurse, int depth = 0)
 {
     if (depth)
@@ -2259,7 +2245,6 @@ static void local_dumptree(const fs::path& de, int recurse, int depth = 0)
         }
     }
 }
-#endif
 
 static void nodepath(NodeHandle h, string* path)
 {
@@ -2951,7 +2936,6 @@ bool typematchesnodetype(nodetype_t pathtype, nodetype_t nodetype)
     }
 }
 
-#ifdef USE_FILESYSTEM
 bool recursiveCompare(Node* mn, fs::path p)
 {
     nodetype_t pathtype = fs::is_directory(p) ? FOLDERNODE : fs::is_regular_file(p) ? FILENODE : TYPE_UNKNOWN;
@@ -3020,7 +3004,7 @@ bool recursiveCompare(Node* mn, fs::path p)
         return false;
     };
 }
-#endif
+
 std::shared_ptr<Node> nodeFromRemotePath(const string& s)
 {
     std::shared_ptr<Node> n;
@@ -3106,7 +3090,6 @@ void setAppendAndUploadOnCompletedUploads(string local_path, int count, bool all
 
 std::deque<std::function<void()>> mainloopActions;
 
-#ifdef USE_FILESYSTEM
 fs::path pathFromLocalPath(const string& s, bool mustexist)
 {
     fs::path p = s.empty() ? fs::current_path() : fs::u8path(s);
@@ -3457,8 +3440,6 @@ void exec_lrenamereplace(autocomplete::ACState& s)
         fs::create_directory(p);
     }
 }
-
-#endif
 
 void exec_getcloudstorageused(autocomplete::ACState&)
 {
@@ -4750,6 +4731,30 @@ static void exec_fusemountremove(autocomplete::ACState& state)
               << std::endl;
 }
 
+static void exec_thumbnail(autocomplete::ACState& state)
+{
+    // Clarity.
+    const auto& destination = state.words[1].s;
+    const auto& source = state.words[2].s;
+
+    // Try writing a thumbnail for source to destination.
+    auto result = client->gfx->savefa(localPathArg(source),
+                                      GfxProc::DIMENSIONS[GfxProc::THUMBNAIL],
+                                      localPathArg(destination));
+
+    auto* message = "Saved generated thumbnail for ";
+    auto* ostream = &std::cout;
+
+    // Couldn't write a thumbnail for some reason.
+    if (!result)
+    {
+        message = "Couldn't save generated thumbnail for ";
+        ostream = &std::cerr;
+    }
+
+    *ostream << message << source << " to " << destination << std::endl;
+}
+
 MegaCLILogger gLogger;
 
 autocomplete::ACN autocompleteSyntax()
@@ -4777,12 +4782,15 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_cd, sequence(text("cd"), opt(remoteFSFolder(client, &cwd))));
     p->Add(exec_pwd, sequence(text("pwd")));
     p->Add(exec_lcd, sequence(text("lcd"), opt(localFSFolder())));
-    p->Add(exec_llockfile, sequence(text("llockfile"), opt(flag("-read")), opt(flag("-write")), opt(flag("-unlock")), localFSFile()));
-#ifdef USE_FILESYSTEM
+    p->Add(exec_llockfile,
+           sequence(text("llockfile"),
+                    opt(flag("-read")),
+                    opt(flag("-write")),
+                    opt(flag("-unlock")),
+                    localFSFile()));
     p->Add(exec_lls, sequence(text("lls"), opt(flag("-R")), opt(localFSFolder())));
     p->Add(exec_lpwd, sequence(text("lpwd")));
     p->Add(exec_lmkdir, sequence(text("lmkdir"), localFSFolder()));
-#endif
     p->Add(exec_import, sequence(text("import"), exportedLink(true, false)));
     p->Add(exec_folderlinkinfo, sequence(text("folderlink"), opt(param("link"))));
 
@@ -4792,12 +4800,15 @@ autocomplete::ACN autocompleteSyntax()
                     opt(param("authToken"))));
 
     p->Add(exec_put, sequence(text("put"), opt(flag("-r")), opt(flag("-noversion")), opt(flag("-version")), opt(flag("-versionreplace")), opt(flag("-allowduplicateversions")), localFSPath("localpattern"), opt(either(remoteFSPath(client, &cwd, "dst"),param("dstemail")))));
-    p->Add(exec_putq, sequence(text("putq"), repeat(either(flag("-active"), flag("-all"), flag("-count"))), opt(param("cancelslot"))));
-#ifdef USE_FILESYSTEM
-    p->Add(exec_get, sequence(text("get"), opt(sequence(flag("-r"), opt(flag("-foldersonly")))), remoteFSPath(client, &cwd), opt(sequence(param("offset"), opt(param("length"))))));
-#else
-    p->Add(exec_get, sequence(text("get"), remoteFSPath(client, &cwd), opt(sequence(param("offset"), opt(param("length"))))));
-#endif
+    p->Add(exec_putq,
+           sequence(text("putq"),
+                    repeat(either(flag("-active"), flag("-all"), flag("-count"))),
+                    opt(param("cancelslot"))));
+    p->Add(exec_get,
+           sequence(text("get"),
+                    opt(sequence(flag("-r"), opt(flag("-foldersonly")))),
+                    remoteFSPath(client, &cwd),
+                    opt(sequence(param("offset"), opt(param("length"))))));
     p->Add(exec_get, sequence(text("get"), flag("-re"), param("regularexpression")));
     p->Add(exec_get, sequence(text("get"), exportedLink(true, false), opt(sequence(param("offset"), opt(param("length"))))));
     p->Add(exec_getq, sequence(text("getq"), repeat(either(flag("-active"), flag("-all"), flag("-count"))), opt(param("cancelslot"))));
@@ -4958,7 +4969,6 @@ autocomplete::ACN autocompleteSyntax()
                     opt(flag("-nosensitive"))));
     p->Add(exec_recentnodes, sequence(text("recentnodes"), param("hours"), param("maxcount")));
 
-    p->Add(exec_putbps, sequence(text("putbps"), opt(either(wholenumber(100000), text("auto"), text("none")))));
     p->Add(exec_killsession, sequence(text("killsession"), either(text("all"), param("sessionid"))));
     p->Add(exec_whoami, sequence(text("whoami"), repeat(either(flag("-storage"), flag("-transfer"), flag("-pro"), flag("-transactions"), flag("-purchases"), flag("-sessions")))));
     p->Add(exec_verifycredentials, sequence(text("credentials"), either(text("show"), text("status"), text("verify"), text("reset")), opt(contactEmail(client))));
@@ -5043,7 +5053,6 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_codeTimings, sequence(text("codetimings"), opt(flag("-reset"))));
 #endif
 
-#ifdef USE_FILESYSTEM
     p->Add(exec_treecompare, sequence(text("treecompare"), localFSPath(), remoteFSPath(client, &cwd)));
     p->Add(exec_generatetestfilesfolders, sequence(text("generatetestfilesfolders"),
         repeat(either(  sequence(flag("-folderdepth"), param("depth")),
@@ -5062,7 +5071,6 @@ autocomplete::ACN autocompleteSyntax()
             sequence(flag("-filesize"), param("size")),
             sequence(flag("-nameprefix"), param("prefix")))), localFSFolder("localworkingfolder"), remoteFSFolder(client, &cwd, "remoteworkingfolder")));
 
-#endif
     p->Add(exec_querytransferquota, sequence(text("querytransferquota"), param("filesize")));
     p->Add(exec_getcloudstorageused, sequence(text("getcloudstorageused")));
     p->Add(exec_getuserquota, sequence(text("getuserquota"), repeat(either(flag("-storage"), flag("-transfer"), flag("-pro")))));
@@ -5269,11 +5277,15 @@ autocomplete::ACN autocompleteSyntax()
            sequence(text("getTransferStats"), opt(either(flag("-uploads"), flag("-downloads")))));
 
     p->Add(exec_hashcash, sequence(text("hashcash"), opt(either(flag("-on"), flag("-off")))));
+
+    p->Add(exec_thumbnail,
+           sequence(text("thumbnail"), localFSFile("destinationPath"), localFSFile("sourcePath")));
+
+    p->Add(exec_getmyip, text("getmyip"));
+
     return autocompleteTemplate = std::move(p);
 }
 
-
-#ifdef USE_FILESYSTEM
 bool recursiveget(fs::path&& localpath, Node* n, bool folders, unsigned& queued)
 {
     if (n->type == FILENODE)
@@ -5312,7 +5324,6 @@ bool recursiveget(fs::path&& localpath, Node* n, bool folders, unsigned& queued)
     }
     return true;
 }
-#endif
 
 bool regexget(const string& expression, Node* n, unsigned& queued)
 {
@@ -6025,7 +6036,6 @@ void exec_get(autocomplete::ACState& s)
     string regularexpression;
     if (s.extractflag("-r"))
     {
-#ifdef USE_FILESYSTEM
         // recursive get.  create local folder structure first, then queue transfer of all files
         bool foldersonly = s.extractflag("-foldersonly");
 
@@ -6051,9 +6061,6 @@ void exec_get(autocomplete::ACState& s)
                 }
             }
         }
-#else
-        cout << "Sorry, -r not supported yet" << endl;
-#endif
     }
     else if (s.extractflagparam("-re", regularexpression))
     {
@@ -6551,7 +6558,6 @@ void exec_llockfile(autocomplete::ACState& s)
 #endif
 }
 
-#ifdef USE_FILESYSTEM
 void exec_lls(autocomplete::ACState& s)
 {
     bool recursive = s.extractflag("-R");
@@ -6571,7 +6577,6 @@ void exec_lls(autocomplete::ACState& s)
         local_dumptree(ls_folder, recursive);
     }
 }
-#endif
 
 void exec_ipc(autocomplete::ACState& s)
 {
@@ -6724,12 +6729,10 @@ void exec_syncrescan(autocomplete::ACState& s)
 
 #endif
 
-#ifdef USE_FILESYSTEM
 void exec_lpwd(autocomplete::ACState&)
 {
     cout << fs::current_path().u8string() << endl;
 }
-#endif
 
 void exec_test(autocomplete::ACState&) {}
 
@@ -7798,50 +7801,6 @@ void exec_passwd(autocomplete::ACState&)
     }
 }
 
-void exec_putbps(autocomplete::ACState& s)
-{
-    if (s.words.size() > 1)
-    {
-        if (s.words[1].s == "auto")
-        {
-            client->putmbpscap = -1;
-        }
-        else if (s.words[1].s == "none")
-        {
-            client->putmbpscap = 0;
-        }
-        else
-        {
-            int t = atoi(s.words[1].s.c_str());
-
-            if (t > 0)
-            {
-                client->putmbpscap = t;
-            }
-            else
-            {
-                cout << "      putbps [limit|auto|none]" << endl;
-                return;
-            }
-        }
-    }
-
-    cout << "Upload speed limit set to ";
-
-    if (client->putmbpscap < 0)
-    {
-        cout << "AUTO (approx. 90% of your available bandwidth)" << endl;
-    }
-    else if (!client->putmbpscap)
-    {
-        cout << "NONE" << endl;
-    }
-    else
-    {
-        cout << client->putmbpscap << " byte(s)/second" << endl;
-    }
-}
-
 void exec_invite(autocomplete::ACState& s)
 {
     if (client->loggedin() != FULLACCOUNT)
@@ -8518,7 +8477,6 @@ void exec_alerts(autocomplete::ACState& s)
     }
 }
 
-#ifdef USE_FILESYSTEM
 void exec_lmkdir(autocomplete::ACState& s)
 {
     std::error_code ec;
@@ -8527,7 +8485,6 @@ void exec_lmkdir(autocomplete::ACState& s)
         cerr << "Create directory failed: " << ec.message() << endl;
     }
 }
-#endif
 
 void exec_recover(autocomplete::ACState& s)
 {
@@ -10401,7 +10358,7 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
             cout << endl;
         }
 
-        cout << "\tAccount Plans:" << endl;
+        cout << "\tAccount Active Plans:" << endl;
         for (const auto& plan: ad->plans)
         {
             cout << "\t\t* Plan details: " << endl;
@@ -10418,11 +10375,13 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
             cout << "\t\t\t Related subscription id: " << plan.subscriptionId << endl;
         }
 
+        cout << "\tLatest PRO plan expiration: " << ad->pro_until << endl;
+
         cout << "\tAccount balance:" << endl;
 
         for (vector<AccountBalance>::iterator it = ad->balances.begin(); it != ad->balances.end(); it++)
         {
-            printf("\tBalance: %.3s %.02f\n", it->currency, it->amount);
+            printf("\t\tBalance: %.3s %.02f\n", it->currency, it->amount);
         }
     }
 
@@ -13560,4 +13519,20 @@ void exec_hashcash(autocomplete::ACState& s)
     string tempUserAgent = client->useragent;
     client->httpio->setuseragent(&tempUserAgent);
     client->disconnect();
+}
+
+void exec_getmyip(autocomplete::ACState&)
+{
+    client->getMyIp(
+        [](const Error& e, string&& countryCode, string&& ipAddress)
+        {
+            if (e)
+            {
+                cout << "Error requesting IP address: " << e << endl;
+                return;
+            }
+
+            cout << "Country Code: " << countryCode << endl;
+            cout << "IP address: " << ipAddress << endl;
+        });
 }

@@ -205,21 +205,21 @@ bool Process::run(const vector<string>& args, const unordered_map<string, string
         if (dup2(childReadFd, STDOUT_FILENO) == -1)
         {
             reportError("Could not redirect stdout");
-            exit(1);
+            _exit(EXIT_FAILURE);
         }
         // stderr
         ::close(STDERR_FILENO);
         if (dup2(childReadErrorFd, STDERR_FILENO) == -1)
         {
             reportError("Could not redirect stderr");
-            exit(1);
+            _exit(EXIT_FAILURE);
         }
         
         // Prepare command-line arguments for child process
         if (args.empty())
         {
             cerr << "Process: Can not execute, no arguments given" << endl;
-            exit(1);
+            _exit(EXIT_FAILURE);
         }
         vector<char*> argv;
         for (vector<string>::const_iterator i = args.begin(); i != args.end(); ++i)
@@ -237,7 +237,7 @@ bool Process::run(const vector<string>& args, const unordered_map<string, string
         // cerr so parent process sees this
         cerr << "Could not execute '" + string(argv[0]) + "'" << ": " << savedErrno << ": " << strerror(savedErrno) << endl;
         reportError("Could not execute '" + string(argv[0]) + "'", savedErrno);
-        exit(1);
+        _exit(EXIT_FAILURE);
     }
 //    else --> parent process
 
@@ -615,7 +615,7 @@ bool Process::checkStatus()
         }
         else
         {
-            assert(!"waitpid() but not exited not signalled");
+            assert(false && "waitpid() but not exited not signalled");
             setWaitFailureStatus(); // otherwise may spin forever
         }
         return true;
@@ -734,9 +734,9 @@ void ConsoleProgressBar::show() const
         std::cout << '\r';
 }
 
-void ConsoleProgressBar::setPrefix(const std::string &value)
+void ConsoleProgressBar::setPrefix(const std::string& newPrefix)
 {
-    prefix = value;
+    prefix = newPrefix;
 }
 
 ConsoleProgressBar::ConsoleProgressBar(size_t imax, bool writeNewLine)

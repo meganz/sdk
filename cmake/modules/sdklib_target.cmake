@@ -84,6 +84,9 @@ set(SDKLIB_HEADERS
     include/mega/user_attribute_definition.h
     include/mega/user_attribute_manager.h
     include/mega/user_attribute_types.h
+
+    # megaapi_impl related headers
+    include/impl/share.h
 )
 
 set(SDKLIB_SOURCES
@@ -149,6 +152,9 @@ set(SDKLIB_SOURCES
     src/user_attribute_definition.cpp
     src/user_attribute_manager.cpp
     src/megautils.cpp
+
+    # megaapi_impl related sources
+    src/impl/share.cpp
 )
 
 target_sources(SDKlib
@@ -324,8 +330,6 @@ if (WIN32)
 
 endif()
 
-# Needed for megaapi.h. The top level projects usually don't include the config.h in the SDK, so needed SDK definitions are not available in that context.
-# Only the ones used in megaapi.h are listed below.
 target_compile_definitions(SDKlib
     PUBLIC
     $<$<BOOL:${ENABLE_LOG_PERFORMANCE}>:ENABLE_LOG_PERFORMANCE>
@@ -340,7 +344,7 @@ set_target_properties(SDKlib PROPERTIES
     DEBUG_POSTFIX "d"
 )
 
-if(ENABLE_JAVA_BINDINGS OR ENABLE_PYTHON_BINDINGS OR ENABLE_PHP_BINDINGS)
+if(ENABLE_JAVA_BINDINGS)
     set_target_properties(SDKlib PROPERTIES
         POSITION_INDEPENDENT_CODE ON
     )
@@ -390,14 +394,6 @@ endif()
 target_platform_compile_options(
     TARGET SDKlib
     WINDOWS /W4
-            /wd4201 # nameless struct/union (nonstandard)
-            /wd4706 # assignment within conditional
-            /wd4458 # identifier hides class member
-            /wd4324 # structure was padded due to alignment specifier (common in Sodium)
-            /wd4456 # declaration hides previous local declaration
-            /wd4266 # derived class did not override all overloads of a virtual function
-            /we4800 # Implicit conversion from 'type' to bool. Possible information loss
-            #TODO: remove some of those gradually.  also consider: /wd4503 /wd4996 /wd4702
     UNIX $<$<CONFIG:Debug>:-ggdb3> -Wall -Wextra -Wconversion
 )
 
@@ -407,21 +403,13 @@ if(ENABLE_SDKLIB_WERROR)
         WINDOWS /WX
         UNIX  $<$<CONFIG:Debug>: -Werror
                                  -Wno-error=deprecated-declarations> # Kept as a warning, do not promote to error.
-        APPLE $<$<CONFIG:Debug>: -Wno-string-conversion>
     )
-    if(APPLE)
-        set_source_files_properties( # Temporary until sign-conversion warnings are fixed on this files too (SDK-4567, SDK-4568 and SDK-4570)
-            src/db/sqlite.cpp
-            src/commands.cpp
-            src/megaapi_impl.cpp
-            src/megaclient.cpp
-            src/raid.cpp
-            src/raidproxy.cpp
-            src/transfer.cpp
-            src/transferslot.cpp
-            src/utils.cpp
-            PROPERTIES 
-            COMPILE_FLAGS "-Wno-sign-conversion"
+    if(WIN32)
+        set_source_files_properties(
+            src/mega_ccronexpr.cpp
+            src/mega_zxcvbn.cpp
+            PROPERTIES
+            COMPILE_FLAGS "/wd4456" # declaration hides previous local declaration
         )
     endif()
     if(APPLE)

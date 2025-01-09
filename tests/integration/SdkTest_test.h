@@ -49,6 +49,160 @@ static const unsigned int maxTimeout    = 600;      // Maximum time (seconds) to
 static const unsigned int defaultTimeout = 60;      // Normal time for most operations (seconds) to wait for response from server
 static const unsigned int waitForSyncsMs = 4000;    // Time to wait after a sync has been created and before adding new files to it
 
+/**
+ * @brief Wrapper struct of MegaListener to get all information related to a MEGA account
+ *  - make sure callbacks are consistent - added() first, nothing after deleted(), etc.
+ *
+ * @note: map by tag for now, should be backupId when that is available
+ */
+struct SyncListener: MegaListener
+{
+    enum callbacks_t
+    {
+        SyncFileStateChanged,
+        SyncAdded,
+        SyncDeleted,
+        SyncStateChanged,
+        SyncRemoteRootChanged,
+        GlobalSyncStateChanged,
+        CountCbs,
+    };
+
+    enum syncstate_t
+    {
+        nonexistent,
+        added,
+        deleted
+    };
+
+    /**
+     * Array of flags that informs, when SyncListener callbacks have been received
+     */
+    std::array<std::atomic<bool>, CountCbs> mRecvCbs{};
+
+    std::map<handle, syncstate_t> stateMap;
+
+    syncstate_t& state(MegaSync* sync)
+    {
+        if (stateMap.find(sync->getBackupId()) == stateMap.end())
+        {
+            stateMap[sync->getBackupId()] = nonexistent;
+        }
+        return stateMap[sync->getBackupId()];
+    }
+
+    std::vector<std::string> mErrors;
+
+    bool anyErrors = false;
+
+    bool hasAnyErrors()
+    {
+        for (auto& s: mErrors)
+        {
+            out() << "SyncListener error: " << s;
+        }
+        return anyErrors;
+    }
+
+    void check(bool b, std::string e = std::string())
+    {
+        if (!b)
+        {
+            anyErrors = true;
+            if (!e.empty())
+            {
+                mErrors.push_back(e);
+                out() << "SyncListener added error: " << e;
+            }
+        }
+    }
+
+    void clear()
+    {
+        // session was logged out (locally)
+        stateMap.clear();
+    }
+
+    void onSyncFileStateChanged(MegaApi*,
+                                MegaSync* /*sync*/,
+                                std::string* /*localPath*/,
+                                int /*newState*/) override
+    {
+        // probably too frequent to output
+        // out() << "onSyncFileStateChanged " << sync << newState;
+        mRecvCbs[SyncFileStateChanged] = true;
+    }
+
+    void onSyncAdded(MegaApi*, MegaSync* sync) override
+    {
+        out() << "onSyncAdded " << toHandle(sync->getBackupId());
+        check(sync->getBackupId() != UNDEF, "sync added with undef backup Id");
+
+        check(state(sync) == nonexistent);
+        state(sync) = added;
+        mRecvCbs[SyncAdded] = true;
+    }
+
+    void onSyncDeleted(MegaApi*, MegaSync* sync) override
+    {
+        out() << "onSyncDeleted " << toHandle(sync->getBackupId());
+        check(state(sync) != nonexistent && state(sync) != deleted);
+        state(sync) = nonexistent;
+        mRecvCbs[SyncDeleted] = true;
+    }
+
+    void onSyncStateChanged(MegaApi*, MegaSync* sync) override
+    {
+        out() << "onSyncStateChanged " << toHandle(sync->getBackupId())
+              << " runState: " << sync->getRunState();
+
+        check(sync->getBackupId() != UNDEF, "onSyncStateChanged with undef backup Id");
+
+        // MegaApi doco says: "Notice that adding a sync will not cause onSyncStateChanged to be
+        // called." And also: "for changes that imply other callbacks, expect that the SDK will call
+        // onSyncStateChanged first, so that you can update your model only using this one."
+        check(state(sync) != nonexistent);
+        mRecvCbs[SyncStateChanged] = true;
+    }
+
+    void onSyncRemoteRootChanged(MegaApi*, MegaSync* sync) override
+    {
+        out() << "onSyncRemoteRootChanged " << toHandle(sync->getBackupId())
+              << " new Remote root: " << sync->getLastKnownMegaFolder();
+        mRecvCbs[SyncRemoteRootChanged] = true;
+    }
+
+    void onGlobalSyncStateChanged(MegaApi*) override
+    {
+        // just too frequent for out() really
+        // out() << "onGlobalSyncStateChanged ";
+        mRecvCbs[GlobalSyncStateChanged] = true;
+    }
+};
+
+/**
+ * @brief The MegaListenerDeregisterer Struct
+ *  - register the listener on constructions
+ *  - deregister on destruction (ie, whenever we exit the function - we may exit early if a test
+ * fails
+ */
+struct MegaListenerDeregisterer
+{
+    MegaApi* api = nullptr;
+    MegaListener* listener;
+
+    MegaListenerDeregisterer(MegaApi* a, SyncListener* l):
+        api(a),
+        listener(l)
+    {
+        api->addListener(listener);
+    }
+
+    ~MegaListenerDeregisterer()
+    {
+        api->removeListener(listener);
+    }
+};
 
 struct TransferTracker : public ::mega::MegaTransferListener
 {
@@ -250,22 +404,32 @@ public:
                 unsigned workerThreadCount = 1,
                 const int clientType = MegaApi::CLIENT_TYPE_DEFAULT);
 
-    MegaApiTest(const std::string& endpointName,
-                const char* appKey,
+    MegaApiTest(const char* appKey,
                 MegaGfxProvider* provider,
                 const char* basePath = nullptr,
                 const char* userAgent = nullptr,
                 unsigned workerThreadCount = 1,
                 const int clientType = MegaApi::CLIENT_TYPE_DEFAULT);
 
-    ~MegaApiTest();
-
     MegaClient* getClient();
+};
+
+class MegaApiTestDeleter
+{
+public:
+    MegaApiTestDeleter(const std::string& endpointName):
+        mEndpointName{endpointName} {};
+
+    MegaApiTestDeleter():
+        MegaApiTestDeleter(""){};
+
+    void operator()(MegaApiTest* p) const;
 
 private:
-    // the endpoint name for isolated gfx
     std::string mEndpointName;
 };
+
+using MegaApiTestPointer = std::unique_ptr<MegaApiTest, MegaApiTestDeleter>;
 
 // Fixture class with common code for most of tests
 class SdkTest : public SdkTestBase, public MegaListener, public MegaRequestListener, MegaTransferListener, MegaLogger {
@@ -295,7 +459,7 @@ public:
         bool userFirstNameUpdated = false;
         bool setUpdated;
         bool setElementUpdated;
-        bool contactRequestUpdated;
+        bool contactRequestUpdated{false};
         bool accountUpdated;
         bool nodeUpdated; // flag to check specific updates for a node (upon onNodesUpdate)
 
@@ -418,7 +582,7 @@ public:
     };
 
     std::vector<PerApi> mApi;
-    std::vector<std::unique_ptr<MegaApiTest>> megaApi;
+    std::vector<MegaApiTestPointer> megaApi;
 
     m_off_t onTransferStart_progress;
     m_off_t onTransferUpdate_progress;
@@ -461,7 +625,7 @@ protected:
     void delSchedMeetings();
 #endif
 
-    void syncTestMyBackupsRemoteFolder(unsigned apiIdx);
+    void syncTestEnsureMyBackupsRemoteFolderExists(unsigned apiIdx);
 
     void onRequestStart(MegaApi*, MegaRequest*) override {}
 
@@ -537,7 +701,14 @@ public:
     template<typename ... Args> int synchronousSendSignupLink(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_SEND_SIGNUP_LINK, [this, apiIndex, args...]() { megaApi[apiIndex]->sendSignupLink(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousConfirmSignupLink(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_CONFIRM_ACCOUNT, [this, apiIndex, args...]() { megaApi[apiIndex]->confirmAccount(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousFastLogin(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_LOGIN, [this, apiIndex, args...]() { megaApi[apiIndex]->fastLogin(args...); }); return mApi[apiIndex].lastError; }
-    template<typename ... Args> int synchronousGetCountryCallingCodes(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_GET_COUNTRY_CALLING_CODES, [this, apiIndex, args...]() { megaApi[apiIndex]->getCountryCallingCodes(args...); }); return mApi[apiIndex].lastError; }
+
+    // SMS verification was deprecated. This function should be removed in the future,
+    // along with the rest of the code dealing with the deprecated functionality.
+    // template<typename ... Args> int synchronousGetCountryCallingCodes(unsigned apiIndex, Args...
+    // args) { synchronousRequest(apiIndex, MegaRequest::TYPE_GET_COUNTRY_CALLING_CODES, [this,
+    // apiIndex, args...]() { megaApi[apiIndex]->getCountryCallingCodes(args...); }); return
+    // mApi[apiIndex].lastError; }
+
     template<typename ... Args> int synchronousGetUserAvatar(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_GET_ATTR_USER, [this, apiIndex, args...]() { megaApi[apiIndex]->getUserAvatar(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousGetUserAttribute(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_GET_ATTR_USER, [this, apiIndex, args...]() { megaApi[apiIndex]->getUserAttribute(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousSetNodeDuration(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_SET_ATTR_NODE, [this, apiIndex, args...]() { megaApi[apiIndex]->setNodeDuration(args...); }); return mApi[apiIndex].lastError; }
@@ -768,7 +939,7 @@ public:
     void verifyCredentials(unsigned apiIndex, string email);
     void resetCredentials(unsigned apiIndex, string email);
     bool areCredentialsVerified(unsigned apiIndex, string email);
-    void shareFolder(MegaNode *n, const char *email, int action);
+    void shareFolder(MegaNode* n, const char* email, int action, unsigned apiIndex = 0);
 
 #ifdef ENABLE_CHAT
     void createChatScheduledMeeting(const unsigned apiIndex, MegaHandle& chatid);
@@ -785,7 +956,10 @@ public:
 
     MegaHandle createFolder(unsigned int apiIndex, const char *name, MegaNode *parent, int timeout = maxTimeout);
 
-    void getCountryCallingCodes(int timeout = maxTimeout);
+    // SMS verification was deprecated. This function should be removed in the future,
+    // along with the rest of the code dealing with the deprecated functionality.
+    // void getCountryCallingCodes(int timeout = maxTimeout);
+
     void explorePath(int account, MegaNode* node, int& files, int& folders);
 
     void synchronousMediaUpload(unsigned int apiIndex, int64_t fileSize, const char* filename, const char* fileEncrypted, const char* fileOutput, const char* fileThumbnail, const char* filePreview);
@@ -894,4 +1068,14 @@ public:
     }
 
     /* MegaVpnCredentials END */
+
+    template<typename... Arguments>
+    int setThumbnail(MegaApi& client, Arguments... arguments)
+    {
+        RequestTracker tracker(&client);
+
+        client.setThumbnail(arguments..., &tracker);
+
+        return tracker.waitForResult();
+    }
 };

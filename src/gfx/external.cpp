@@ -24,9 +24,9 @@
 
 namespace mega {
 
-void GfxProviderExternal::setProcessor(MegaGfxProcessor *processor)
+void GfxProviderExternal::setProcessor(MegaGfxProcessor* gfxProcessor)
 {
-	this->processor = processor;
+    processor = gfxProcessor;
 }
 
 bool GfxProviderExternal::readbitmap(const LocalPath& localname, int /*size*/)

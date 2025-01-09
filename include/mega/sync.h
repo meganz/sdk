@@ -114,6 +114,15 @@ public:
     // check if we need to notify the App about error/enable flag changes
     bool stateFieldsChanged();
 
+    /**
+     * @brief In case this is an external backup, returns true if this is a backup sync and the
+     * given path belongs to the external drive. Always true for non-external backups.
+     */
+    bool isGoodPathForExternalBackup(const LocalPath& path)
+    {
+        return !isExternal() || (isBackup() && mExternalDrivePath.isContainingPathOf(path));
+    }
+
     string syncErrorToStr();
     static string syncErrorToStr(SyncError errorCode);
 
@@ -184,8 +193,33 @@ public:
     // Name of this sync's state cache.
     string getSyncDbStateCacheName(handle fsid, NodeHandle nh, handle userId) const;
 
+    /**
+     * @brief Checks if there is a file in the system with the database with local nodes
+     * information and returns it if found.
+     *
+     * @param fsAccess The file system access needed to invoke the client's database
+     * getExistingDbPath method
+     * @param client The instance of MegaClient that has the information about the database
+     * location.
+     * @return std::nullopt if there is no database file, the path to the file otherwise.
+     */
     std::optional<std::filesystem::path> getSyncDbPath(const FileSystemAccess& fsAccess,
                                                        const MegaClient& client) const;
+
+    /**
+     * @brief If the current config has a database file, this method renames it so it matches
+     * what the target config expects.
+     *
+     * @param targetConfig The configuration that wants to take ownership of the local nodes
+     * database
+     * @param fsAccess The file system access needed to invoke the client's database
+     * getExistingDbPath method
+     * @param client The instance of MegaClient that has the information about the database
+     * location.
+     */
+    void renameDBToMatchTarget(const SyncConfig& targetConfig,
+                               const FileSystemAccess& fsAccess,
+                               const MegaClient& client) const;
 
     // How should the engine detect filesystem changes?
     ChangeDetectionMethod mChangeDetectionMethod = CDM_NOTIFICATIONS;
@@ -272,6 +306,33 @@ struct UnifiedSync
      * @return true if it should, false otherwise
      */
     bool shouldHaveDatabase() const;
+
+    /**
+     * @brief Changes all the necessary attributes in the sync config required to make effective the
+     * change in the local path the sync is using as root.
+     *
+     * These changes include:
+     * - Modify the mConfig member (specifically, its mLocalPath, mLocalPathFsid,
+     *   mFilesystemFingerprint members)
+     * - Commit config changes into the database
+     * - Rename the local nodes database to the new expected path
+     *
+     * @note This can only be called on suspended/disabled syncs.
+     *
+     * If an error different from NO_SYNC_ERROR is returned, it is guaranteed that no fields in the
+     * config were changed and the database with local nodes was not renamed.
+     *
+     * @param newPath The new path to be set.
+     * @return An error code indicating if the operation succeeded or the reason for the error:
+     * - UNKNOWN_ERROR: If the sync is running when this method gets called.
+     * - FILESYSTEM_ID_UNAVAILABLE: We can't get the file system id.
+     * - LOCAL_FILESYSTEM_MISMATCH: When changing the root path we don't allow to change the file
+     *   system the new path is in.
+     * - UNABLE_TO_RETRIEVE_ROOT_FSID: The new path cannot be opened.
+     * - SYNC_CONFIG_WRITE_FAILURE: It failed to write the configuration into the database.
+     * - NO_SYNC_ERROR: The operation succeeded.
+     */
+    SyncError changeConfigLocalRoot(const LocalPath& newPath);
 
 private:
     friend class Sync;
@@ -701,7 +762,7 @@ protected :
     void readstatecache();
 
 private:
-    LocalPath mLocalPath;
+    const LocalPath& mLocalPath;
 
     // permanent lock on the debris/tmp folder
     void createDebrisTmpLockOnce();
@@ -1573,13 +1634,21 @@ public:
      * @brief Change the local path being used as the root of a sync
      *
      * @param backupId Id of the sync to change the remote root node
-     * @param newRootNode The new root's node handle
+     * @param newValidLocalRootPath The path to the new local root. It is supposed to be valid,
+     * i.e., all the requirements stated at MegaClient's level have been validated.
      * @param completionForClient The completion function to be called after the operations finishes
      * or if some error takes place.
      */
     void changeSyncLocalRoot(const handle backupId,
-                             const std::string& newLocalRootPath,
-                             std::function<void(error, SyncError)>&& completion);
+                             LocalPath&& newValidLocalRootPath,
+                             std::function<void(error, SyncError)>&& completionForClient);
+
+    /**
+     * @brief Same as changeSyncLocalRoot but this must be called from the syncs thread.
+     */
+    void changeSyncLocalRootInThread(const handle backupId,
+                                     LocalPath&& newValidLocalRootPath,
+                                     std::function<void(error, SyncError)>&& completion);
 
     // Cause periodic-scan syncs to scan now (waiting for the next periodic scan is impractical for tests)
     std::future<size_t> triggerPeriodicScanEarly(handle backupID);

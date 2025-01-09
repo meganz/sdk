@@ -352,11 +352,15 @@ void File::completed(Transfer* t, putsource_t source)
     }
 }
 
-
-void File::sendPutnodesOfUpload(MegaClient* client, UploadHandle fileAttrMatchHandle, const UploadToken& ultoken,
-                        const FileNodeKey& filekey, putsource_t source, NodeHandle ovHandle,
-                        CommandPutNodes::Completion&& completion,
-                        const m_time_t* overrideMtime, bool canChangeVault)
+void File::sendPutnodesOfUpload(MegaClient* client,
+                                UploadHandle fileAttrMatchHandle,
+                                const UploadToken& ultoken,
+                                const FileNodeKey& newFileKey,
+                                putsource_t source,
+                                NodeHandle ovHandle,
+                                CommandPutNodes::Completion&& completion,
+                                const m_time_t* overrideMtime,
+                                bool canChangeVault)
 {
     vector<NewNode> newnodes(1);
     NewNode* newnode = &newnodes[0];
@@ -372,8 +376,9 @@ void File::sendPutnodesOfUpload(MegaClient* client, UploadHandle fileAttrMatchHa
     newnode->uploadtoken = ultoken;
 
     // file's crypto key
-    static_assert(sizeof(filekey) == FILENODEKEYLENGTH, "File completed: filekey size doesn't match with FILENODEKEYLENGTH");
-    newnode->nodekey.assign((char*)&filekey, FILENODEKEYLENGTH);
+    static_assert(sizeof(newFileKey) == FILENODEKEYLENGTH,
+                  "File completed: filekey size doesn't match with FILENODEKEYLENGTH");
+    newnode->nodekey.assign((char*)&newFileKey, FILENODEKEYLENGTH);
     newnode->type = FILENODE;
     newnode->parenthandle = UNDEF;
 
@@ -394,8 +399,10 @@ void File::sendPutnodesOfUpload(MegaClient* client, UploadHandle fileAttrMatchHa
     attrs.getjson(&tattrstring);
 
     newnode->attrstring.reset(new string);
-    MegaClient::makeattr(client->getRecycledTemporaryTransferCipher(filekey.bytes.data(), FILENODE),
-                         newnode->attrstring, tattrstring.c_str());
+    MegaClient::makeattr(
+        client->getRecycledTemporaryTransferCipher(newFileKey.bytes.data(), FILENODE),
+        newnode->attrstring,
+        tattrstring.c_str());
 
     if (targetuser.size())
     {
@@ -613,6 +620,12 @@ void SyncUpload_inClient::sendPutnodesOfUpload(MegaClient* client, NodeHandle ov
     // since we are now sending putnodes, no need to remember puts to inform the client on abandonment
     syncThreadSafeState->client()->transferBackstop.forget(tag);
 
+    if (sourceLocalname.toPath(false) == ".gitignore")
+    {
+        ovHandle.isUndef() ? client->sendevent(99493, "New .gitignore file synced up") :
+                             client->sendevent(99494, "Existing .gitignore file modified");
+    }
+
     File::sendPutnodesOfUpload(
         client,
         uploadHandle,
@@ -624,7 +637,7 @@ void SyncUpload_inClient::sendPutnodesOfUpload(MegaClient* client, NodeHandle ov
                              targettype_t t,
                              vector<NewNode>& nn,
                              bool targetOverride,
-                             int tag,
+                             int ownTag,
                              const map<string, string>& fileHandles)
         {
             // Is the originating transfer still alive?
@@ -658,7 +671,7 @@ void SyncUpload_inClient::sendPutnodesOfUpload(MegaClient* client, NodeHandle ov
 
             // since we used a completion function, putnodes_result is not called.
             // but the intermediate layer still needs that in order to call the client app back:
-            client->app->putnodes_result(e, t, nn, targetOverride, tag, fileHandles);
+            client->app->putnodes_result(e, t, nn, targetOverride, ownTag, fileHandles);
         },
         nullptr,
         syncThreadSafeState->mCanChangeVault);
@@ -668,6 +681,12 @@ void SyncUpload_inClient::sendPutnodesToCloneNode(MegaClient* client, NodeHandle
 {
     // Always called from the client thread
     weak_ptr<SyncThreadsafeState> stts = syncThreadSafeState;
+
+    if (sourceLocalname.toPath(false) == ".gitignore")
+    {
+        ovHandle.isUndef() ? client->sendevent(99493, "New .gitignore file synced up") :
+                             client->sendevent(99494, "Existing .gitignore file modified");
+    }
 
     // So we know whether it's safe to update putnodesCompleted.
     weak_ptr<SyncUpload_inClient> self = shared_from_this();

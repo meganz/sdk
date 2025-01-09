@@ -986,10 +986,10 @@ bool Node::hasName() const
 }
 
 // return file/folder name or special status strings
-const char* Node::displayname() const
+const char* Node::displayname(LogCondition log) const
 {
     // not yet decrypted
-    if (attrstring)
+    if (attrstring && !(log & LOG_CONDITION_DISABLE_NO_KEY))
     {
         LOG_debug << NO_KEY << " " << type << " " << size << " " << Base64Str<MegaClient::NODEHANDLE>(nodehandle);
         return NO_KEY.c_str();
@@ -3029,19 +3029,21 @@ string LocalNode::debugGetParentList()
 
     for (const LocalNode* l = this; l != nullptr; l = l->parent)
     {
-        s += l->localname.toPath(false) + "(" + std::to_string((long long)(void*)l) + ") ";
+        s += l->localname.toPath(false) + "(" + std::to_string(reinterpret_cast<uintptr_t>(l)) +
+             ") ";
     }
     return s;
 }
 
 // locate child by localname or slocalname
-LocalNode* LocalNode::childbyname(LocalPath* localname)
+LocalNode* LocalNode::childbyname(LocalPath* localChildName)
 {
     localnode_map::iterator it;
 
-    if (!localname || ((it = children.find(*localname)) == children.end() && (it = schildren.find(*localname)) == schildren.end()))
+    if (!localChildName || ((it = children.find(*localChildName)) == children.end() &&
+                            (it = schildren.find(*localChildName)) == schildren.end()))
     {
-        return NULL;
+        return nullptr;
     }
 
     return it->second;
@@ -3363,7 +3365,7 @@ bool LocalNodeCore::read(const string& source, uint32_t& parentID)
 
     CacheableReader r(source);
 
-    nodetype_t type;
+    nodetype_t nodeType;
     m_off_t size;
 
     if (!r.unserializei64(size)) return false;
@@ -3371,17 +3373,17 @@ bool LocalNodeCore::read(const string& source, uint32_t& parentID)
     if (size < 0 && size >= -FOLDERNODE)
     {
         // will any compiler optimize this to a const assignment?
-        type = (nodetype_t)-size;
+        nodeType = (nodetype_t)-size;
         size = 0;
     }
     else
     {
-        type = FILENODE;
+        nodeType = FILENODE;
     }
 
     handle fsid;
     handle h = 0;
-    string localname, shortname;
+    string name, shortname;
     m_time_t mtime = 0;
     int32_t crc[4];
     memset(crc, 0, sizeof crc);
@@ -3389,12 +3391,10 @@ bool LocalNodeCore::read(const string& source, uint32_t& parentID)
     unsigned char expansionflags[8] = { 0 };
     bool ns = false;
 
-    if (!r.unserializehandle(fsid) ||
-        !r.unserializeu32(parentID) ||
-        !r.unserializenodehandle(h) ||
-        !r.unserializestring(localname) ||
-        (type == FILENODE && !r.unserializebinary((byte*)crc, sizeof(crc))) ||
-        (type == FILENODE && !r.unserializecompressedi64(mtime)) ||
+    if (!r.unserializehandle(fsid) || !r.unserializeu32(parentID) || !r.unserializenodehandle(h) ||
+        !r.unserializestring(name) ||
+        (nodeType == FILENODE && !r.unserializebinary((byte*)crc, sizeof(crc))) ||
+        (nodeType == FILENODE && !r.unserializecompressedi64(mtime)) ||
         (r.hasdataleft() && !r.unserializebyte(syncable)) ||
         (r.hasdataleft() && !r.unserializeexpansionflags(expansionflags, 2)) ||
         (expansionflags[0] && !r.unserializecstr(shortname, false)) ||
@@ -3406,10 +3406,10 @@ bool LocalNodeCore::read(const string& source, uint32_t& parentID)
     }
     assert(!r.hasdataleft());
 
-    this->type = type;
+    type = nodeType;
     this->syncedFingerprint.size = size;
     this->fsid_lastSynced = fsid;
-    this->localname = LocalPath::fromPlatformEncodedRelative(localname);
+    localname = LocalPath::fromPlatformEncodedRelative(name);
     this->slocalname.reset(shortname.empty() ? nullptr : new LocalPath(LocalPath::fromPlatformEncodedRelative(shortname)));
     this->slocalname_in_db = 0 != expansionflags[0];
     this->namesSynchronized = ns;
@@ -3572,7 +3572,9 @@ bool LocalNode::loadFilters(const LocalPath& path)
     return fc->mLoadSucceeded;
 }
 
-ExclusionState LocalNode::calcExcluded(RemotePathPair namePath, nodetype_t type, bool inherited) const
+ExclusionState LocalNode::calcExcluded(RemotePathPair namePath,
+                                       nodetype_t applicableType,
+                                       bool inherited) const
 {
     // This specialization only makes sense for directories.
     assert(this->type == FOLDERNODE);
@@ -3588,7 +3590,7 @@ ExclusionState LocalNode::calcExcluded(RemotePathPair namePath, nodetype_t type,
             inherited = inherited || node != this;
 
             // Check for a filter match.
-            auto result = node->filterChainRO().match(namePath, type, inherited);
+            auto result = node->filterChainRO().match(namePath, applicableType, inherited);
 
             // Was the file matched by any filters?
             if (result != ES_UNMATCHED)
@@ -3784,16 +3786,18 @@ LocalNode::exclusionState(const PathType& path, nodetype_t type, m_off_t size) c
 template ExclusionState LocalNode::exclusionState(const LocalPath& path, nodetype_t type, m_off_t size) const;
 template ExclusionState LocalNode::exclusionState(const RemotePath& path, nodetype_t type, m_off_t size) const;
 
-ExclusionState LocalNode::exclusionState(const string& name, nodetype_t type, m_off_t size) const
+ExclusionState LocalNode::exclusionState(const string& name,
+                                         nodetype_t applicableType,
+                                         m_off_t size) const
 {
     assert(this->type == FOLDERNODE);
 
     // Consider providing a specialized implementation to avoid conversion.
     auto fsAccess = sync->syncs.fsaccess.get();
     auto fsType = sync->mFilesystemType;
-    auto localname = LocalPath::fromRelativeName(name, *fsAccess, fsType);
+    LocalPath absoluteName = LocalPath::fromRelativeName(name, *fsAccess, fsType);
 
-    return exclusionState(localname, type, size);
+    return exclusionState(absoluteName, applicableType, size);
 }
 
 ExclusionState LocalNode::exclusionState() const

@@ -671,8 +671,9 @@ public:
 #endif
 
         if (logCurrentLevel < logLevel) return;
-        SimpleLogger logger(logLevel, filename ? filename : "", line);
-        if (message) logger << message;
+        SimpleLogger simpleLogger(logLevel, filename ? filename : "", line);
+        if (message)
+            simpleLogger << message;
     }
 };
 

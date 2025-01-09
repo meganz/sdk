@@ -237,7 +237,11 @@ void RaidBufferManager::updateUrlsAndResetPos(const std::vector<std::string>& te
             for (unsigned i = RAIDPARTS; i--; )
             {
                 std::deque<FilePiece*>& connectionpieces = raidinputparts[i];
-                transferPos(i) = connectionpieces.empty() ? raidpartspos : connectionpieces.back()->pos + connectionpieces.back()->buf.datalen();
+                transferPos(i) =
+                    connectionpieces.empty() ?
+                        raidpartspos :
+                        connectionpieces.back()->pos +
+                            static_cast<m_off_t>(connectionpieces.back()->buf.datalen());
             }
         }
         else
@@ -310,12 +314,17 @@ void RaidBufferManager::submitBuffer(unsigned connectionNum, FilePiece* piece)
         }
 
         std::deque<FilePiece*>& connectionpieces = raidinputparts[connectionNum];
-        m_off_t contiguouspos = connectionpieces.empty() ? raidpartspos : connectionpieces.back()->pos + connectionpieces.back()->buf.datalen();
+        m_off_t contiguouspos =
+            connectionpieces.empty() ?
+                raidpartspos :
+                connectionpieces.back()->pos +
+                    static_cast<m_off_t>(connectionpieces.back()->buf.datalen());
 
         assert(piece->pos == contiguouspos);
         if (piece->pos == contiguouspos)
         {
-            transferPos(connectionNum) = piece->pos + piece->buf.datalen();  // in case of download piece arriving after connection failure recovery
+            // in case of download piece arriving after connection failure recovery
+            transferPos(connectionNum) = piece->pos + static_cast<m_off_t>(piece->buf.datalen());
             raidinputparts[connectionNum].push_back(piece);
         }
     }
@@ -411,10 +420,17 @@ std::pair<m_off_t, m_off_t> RaidBufferManager::nextNPosForConnection(unsigned co
             {
                 // If this chunk and the last one are greater or equal than +16 MB (or the corresponding value for MAX_CHUNK_SIZE), we'll ask for two chunks of +8 MB.
                 // Otherwise, we'll request the remaining: -15 MB
-                size_t remainingSize = maxpos - curpos;          // Remaining size (current chunk + last chunk)
-                npos = (remainingSize >= MAX_LAST_CHUNK) ?      // If the remaining size (current chunk + last chunk) is greater than MAX_LAST_CHUNK
-                            (curpos + ((remainingSize/2) & - RAIDSECTOR)) :    // Npos moved to half of the remaining size (truncated to RAIDSECTOR)
-                            maxpos;                             // Npos moved to the end
+                size_t remainingSize = static_cast<size_t>(
+                    maxpos - curpos); // Remaining size (current chunk + last chunk)
+                npos = (remainingSize >=
+                        MAX_LAST_CHUNK) ? // If the remaining size (current chunk + last chunk) is
+                                          // greater than MAX_LAST_CHUNK
+                           (curpos +
+                            static_cast<m_off_t>((remainingSize / 2) &
+                                                 ~(static_cast<size_t>(RAIDSECTOR) -
+                                                   1))) : // Npos moved to half of the remaining
+                                                          // size (truncated to RAIDSECTOR)
+                                                          maxpos; // Npos moved to the end
                 assert(npos <= maxpos);
                 LOG_debug << "Avoiding small last request (" << lastChunkSize << "), change npos to " << npos << ", new nextChunkSize = " << (npos - curpos);
             }
@@ -496,7 +512,7 @@ void RaidBufferManager::combineRaidParts(unsigned connectionNum)
     partslen -= partslen % RAIDSECTOR; // restrict to raidline boundary
 
     // for correct mac processing, we need to process the output file in pieces delimited by the chunkfloor / chunkceil algorithm
-    m_off_t newdatafilepos = outputfilepos + leftoverchunk.buf.datalen();
+    m_off_t newdatafilepos = outputfilepos + static_cast<m_off_t>(leftoverchunk.buf.datalen());
     assert(newdatafilepos + m_off_t(sumdatalen) <= acquirelimitpos);
     bool processToEnd =  (newdatafilepos + m_off_t(sumdatalen) == acquirelimitpos)   // data to the end
               &&  (newdatafilepos / EFFECTIVE_RAIDPARTS + m_off_t(xorlen) == raidPartSize(0, acquirelimitpos));  // parity to the end
@@ -505,7 +521,8 @@ void RaidBufferManager::combineRaidParts(unsigned connectionNum)
 
     if (partslen > 0 || processToEnd)
     {
-        m_off_t macchunkpos = calcOutputChunkPos(newdatafilepos + partslen * EFFECTIVE_RAIDPARTS);
+        m_off_t macchunkpos = calcOutputChunkPos(newdatafilepos + static_cast<m_off_t>(partslen) *
+                                                                      EFFECTIVE_RAIDPARTS);
 
         size_t buflen = static_cast<size_t>(processToEnd ? sumdatalen : partslen * EFFECTIVE_RAIDPARTS);
         LOG_debug << "Combining raid parts -> partslen = " << partslen << ", buflen = " << buflen << ", outputfilepos = " << outputfilepos << ", leftoverchunk = " << leftoverchunk.buf.datalen();
@@ -529,7 +546,7 @@ void RaidBufferManager::combineRaidParts(unsigned connectionNum)
         {
             // for transfers we do mac processing which must be done in chunks, delimited by chunkfloor and chunkceil.  If we don't have the right amount then hold the remainder over for next time.
             size_t excessdata = static_cast<size_t>(outputfilepos - macchunkpos);
-            FilePiece newleftover(outputfilepos - excessdata, excessdata);
+            FilePiece newleftover(outputfilepos - static_cast<m_off_t>(excessdata), excessdata);
             leftoverchunk.swap(newleftover);
             memcpy(leftoverchunk.buf.datastart(), outputrec->buf.datastart() + outputrec->buf.datalen() - excessdata, excessdata);
             outputrec->buf.end -= excessdata;
@@ -549,7 +566,8 @@ void RaidBufferManager::combineRaidParts(unsigned connectionNum)
         // don't deliver any excess data that we needed for parity calculations in the last raid line
         if (outputrec->pos + m_off_t(outputrec->buf.datalen()) > deliverlimitpos)
         {
-            size_t excess = size_t(outputrec->pos + outputrec->buf.datalen() - deliverlimitpos);
+            size_t excess = static_cast<size_t>(outputrec->pos) + outputrec->buf.datalen() -
+                            static_cast<size_t>(deliverlimitpos);
             excess = std::min<size_t>(excess, outputrec->buf.datalen());
             outputrec->buf.end -= excess;
         }
@@ -700,7 +718,7 @@ bool RaidBufferManager::FilePiece::finalize(bool parallel, m_off_t filesize, int
 
     byte *chunkstart = buf.datastart();
     m_off_t startpos = pos;
-    m_off_t finalpos = startpos + buf.datalen();
+    m_off_t finalpos = startpos + static_cast<m_off_t>(buf.datalen());
     assert(finalpos <= filesize);
     if (finalpos != filesize)
     {
@@ -1034,16 +1052,21 @@ void DirectReadBufferManager::finalize(FilePiece& fp)
     if (r)
     {
         byte buf[SymmCipher::BLOCKSIZE];
-        l = static_cast<int>(sizeof buf - r);
+        l = static_cast<int>(sizeof(buf)) - r;
 
         if (l > t)
         {
             l = t;
         }
 
-        memcpy(buf + r, fp.buf.datastart(), l);
-        directRead->drn->symmcipher.ctr_crypt(buf, sizeof buf, fp.pos - r, directRead->drn->ctriv, NULL, false);
-        memcpy(fp.buf.datastart(), buf + r, l);
+        memcpy(buf + r, fp.buf.datastart(), static_cast<size_t>(l));
+        directRead->drn->symmcipher.ctr_crypt(buf,
+                                              sizeof buf,
+                                              fp.pos - r,
+                                              static_cast<uint64_t>(directRead->drn->ctriv),
+                                              NULL,
+                                              false);
+        memcpy(fp.buf.datastart(), buf + r, static_cast<size_t>(l));
     }
     else
     {
@@ -1053,7 +1076,12 @@ void DirectReadBufferManager::finalize(FilePiece& fp)
     if (t > l)
     {
         // the buffer has some extra at the end to allow full blocksize decrypt at the end
-        directRead->drn->symmcipher.ctr_crypt(fp.buf.datastart() + l, t - l, fp.pos + l, directRead->drn->ctriv, NULL, false);
+        directRead->drn->symmcipher.ctr_crypt(fp.buf.datastart() + l,
+                                              static_cast<unsigned>(t - l),
+                                              fp.pos + l,
+                                              static_cast<uint64_t>(directRead->drn->ctriv),
+                                              NULL,
+                                              false);
     }
 }
 
@@ -1194,9 +1222,10 @@ public:
             start();
         }
         RaidProxy::RaidReq::Params raidReqParams(tempUrls, cfilesize, cstart, creqlen);
-        mRaidReqPoolArray[connection].reset(new RaidProxy::RaidReqPool());
-        mRaidReqPoolArray[connection]->request(raidReqParams, mTSlot->getcloudRaidPtr());
-        return mRaidReqPoolArray[connection]->rr() != nullptr;
+        mRaidReqPoolArray[static_cast<size_t>(connection)].reset(new RaidProxy::RaidReqPool());
+        mRaidReqPoolArray[static_cast<size_t>(connection)]->request(raidReqParams,
+                                                                    mTSlot->getcloudRaidPtr());
+        return mRaidReqPoolArray[static_cast<size_t>(connection)]->rr() != nullptr;
     }
 
     bool start()
@@ -1205,7 +1234,7 @@ public:
         {
             return false;
         }
-        mRaidReqPoolArray.resize(mConnections);
+        mRaidReqPoolArray.resize(static_cast<size_t>(mConnections));
         mStarted = true;
         if (mUnusedRaidConnection == RAIDPARTS)
         {
@@ -1230,9 +1259,9 @@ public:
     bool removeRaidReq(int connection)
     {
         LOG_verbose << "[CloudRaid::removeRaidReq] connection = " << connection << " [started = " << mStarted << "] [this = " << this << "]";
-        if (mStarted && mRaidReqPoolArray[connection])
+        if (mStarted && mRaidReqPoolArray[static_cast<size_t>(connection)])
         {
-            mRaidReqPoolArray[connection].reset();
+            mRaidReqPoolArray[static_cast<size_t>(connection)].reset();
             return true;
         }
         return false;
@@ -1245,9 +1274,9 @@ public:
             int i = mConnections;
             while (i-- > 0)
             {
-                if (mRaidReqPoolArray[i])
+                if (mRaidReqPoolArray[static_cast<size_t>(i)])
                 {
-                    mRaidReqPoolArray[i]->rr()->resumeall();
+                    mRaidReqPoolArray[static_cast<size_t>(i)]->rr()->resumeall();
                 }
             }
             return true;
@@ -1258,18 +1287,19 @@ public:
     m_off_t readData(int connection, byte* buf, m_off_t len)
     {
         m_off_t readData = -1;
-        if (mStarted && mRaidReqPoolArray[connection])
+        if (mStarted && mRaidReqPoolArray[static_cast<size_t>(connection)])
         {
-            readData = static_cast<m_off_t>(mRaidReqPoolArray[connection]->rr()->readdata(buf, len));
+            readData = static_cast<m_off_t>(
+                mRaidReqPoolArray[static_cast<size_t>(connection)]->rr()->readdata(buf, len));
         }
         return readData;
     }
 
     bool raidReqDoio(int connection)
     {
-        if (mStarted && mRaidReqPoolArray[connection])
+        if (mStarted && mRaidReqPoolArray[static_cast<size_t>(connection)])
         {
-            mRaidReqPoolArray[connection]->raidproxyio();
+            mRaidReqPoolArray[static_cast<size_t>(connection)]->raidproxyio();
             return true;
         }
         return false;
@@ -1283,9 +1313,9 @@ public:
             int i = mConnections;
             while (i-- > 0)
             {
-                if (mRaidReqPoolArray[i])
+                if (mRaidReqPoolArray[static_cast<size_t>(i)])
                 {
-                    progressCount += mRaidReqPoolArray[i]->rr()->progress();
+                    progressCount += mRaidReqPoolArray[static_cast<size_t>(i)]->rr()->progress();
                 }
             }
         }

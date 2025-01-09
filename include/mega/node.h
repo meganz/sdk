@@ -204,10 +204,16 @@ private:
     std::unique_ptr<std::list<Command*>> chain;
 };
 
-
 // filesystem node
 struct MEGA_API Node : public NodeCore, FileFingerprint
 {
+    // Define what shouldn't be logged
+    enum LogCondition : uint32_t
+    {
+        LOG_CONDITION_NONE = 0, // NONE: all is logged
+        LOG_CONDITION_DISABLE_NO_KEY = 1 // NO KEY is not logged
+    };
+
     static const std::string BLANK;
     static const std::string CRYPTO_ERROR;
     static const std::string NO_KEY;
@@ -260,7 +266,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     void setattr();
 
     // display name (UTF-8)
-    const char* displayname() const;
+    const char* displayname(LogCondition log = LOG_CONDITION_NONE) const;
 
     // check if the name matches (UTF-8)
     bool hasName(const string&) const;
@@ -710,6 +716,10 @@ struct MEGA_API LocalNode
     unsigned expectedSelfNotificationCount = 0;
     //dstime lastScanTime = 0;
 
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable: 4201) // nameless struct
+#endif
     struct
     {
         // Already-synced syncs on startup should not re-fingerprint files that match the synced fingerprint by fsid/size/mtime
@@ -777,6 +787,9 @@ struct MEGA_API LocalNode
         // eg. Synology SMB network drive from windows, and filenames with trailing spaces
         unsigned localFSCannotStoreThisName : 1;
     };
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 
     // Fields which are hardly ever used.
     // We keep the average memory use by only alloating these when used.
@@ -1039,6 +1052,10 @@ struct MEGA_API LocalNode
     void setSubtreeNeedsRefingerprint();
 
 private:
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable: 4201) // nameless struct
+#endif
     struct
     {
         // The node's exclusion state.
@@ -1050,9 +1067,14 @@ private:
         // Whether we need to reload this node's ignore file.
         bool mWaitingForIgnoreFileLoad : 1;
     };
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 
     // Query whether a file is excluded by a name filter.
-    ExclusionState calcExcluded(RemotePathPair namePath, nodetype_t type, bool inherited) const;
+    ExclusionState calcExcluded(RemotePathPair namePath,
+                                nodetype_t applicableType,
+                                bool inherited) const;
 
     // Query whether a file is excluded by a size filter.
     ExclusionState calcExcluded(const RemotePathPair& namePath, m_off_t size) const;
@@ -1082,7 +1104,9 @@ public:
     exclusionState(const PathType& path, nodetype_t type, m_off_t size) const;
 
     // Specialization of above intended for cloud name queries.
-    ExclusionState exclusionState(const string& name, nodetype_t type, m_off_t size) const;
+    ExclusionState exclusionState(const string& name,
+                                  nodetype_t applicableType,
+                                  m_off_t size) const;
 
     // Query this node's exclusion state.
     ExclusionState exclusionState() const;

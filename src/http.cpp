@@ -268,9 +268,11 @@ void HttpIO::getMEGADNSservers(string* dnsservers, bool getfromnetwork)
 
         struct addrinfo hints = {};
         hints.ai_family = AF_UNSPEC;
-
-#ifndef __MINGW32__
-        hints.ai_flags = AI_V4MAPPED | AI_ADDRCONFIG;
+#ifdef AI_V4MAPPED
+        hints.ai_flags |= AI_V4MAPPED;
+#endif
+#ifdef AI_ADDRCONFIG
+        hints.ai_flags |= AI_ADDRCONFIG;
 #endif
 
         if (!getaddrinfo("ns.mega.co.nz", NULL, &hints, &aiList))
@@ -338,68 +340,41 @@ m_off_t HttpIO::getmaxuploadspeed()
     return 0;
 }
 
-void HttpReq::post(MegaClient* client, const char* data, unsigned len)
+void HttpReq::prepareMethod(HttpIO* clientHttpIo, const httpmethod_t reqMethod)
 {
     if (httpio)
     {
-        LOG_warn << "Ensuring that the request is finished before sending it again";
+        LOG_warn << logname << "Ensuring that the request is finished before sending it again";
         httpio->cancel(this);
         init();
     }
 
-    httpio = client->httpio;
+    httpio = clientHttpIo;
     bufpos = 0;
     outpos = 0;
     notifiedbufpos = 0;
     inpurge = 0;
-    method = METHOD_POST;
+    method = reqMethod;
     contentlength = -1;
     lastdata = Waiter::ds;
+}
 
+void HttpReq::post(MegaClient* client, const char* data, unsigned len)
+{
+    prepareMethod(client->httpio, METHOD_POST);
     DEBUG_TEST_HOOK_HTTPREQ_POST(this)
-
     httpio->post(this, data, len);
 }
 
 void HttpReq::get(MegaClient *client)
 {
-    if (httpio)
-    {
-        LOG_warn << "Ensuring that the request is finished before sending it again";
-        httpio->cancel(this);
-        init();
-    }
-
-    httpio = client->httpio;
-    bufpos = 0;
-    outpos = 0;
-    notifiedbufpos = 0;
-    inpurge = 0;
-    method = METHOD_GET;
-    contentlength = -1;
-    lastdata = Waiter::ds;
-
+    prepareMethod(client->httpio, METHOD_GET);
     httpio->post(this);
 }
 
 void HttpReq::dns(MegaClient *client)
 {
-    if (httpio)
-    {
-        LOG_warn << "Ensuring that the request is finished before sending it again";
-        httpio->cancel(this);
-        init();
-    }
-
-    httpio = client->httpio;
-    bufpos = 0;
-    outpos = 0;
-    notifiedbufpos = 0;
-    inpurge = 0;
-    method = METHOD_NONE;
-    contentlength = -1;
-    lastdata = Waiter::ds;
-
+    prepareMethod(client->httpio, METHOD_NONE);
     httpio->post(this);
 }
 
@@ -413,9 +388,13 @@ void HttpReq::disconnect()
     }
 }
 
-HttpReq::HttpReq(bool b)
+std::atomic_uint32_t HttpReq::nextReqId{0u};
+
+HttpReq::HttpReq(bool b):
+    reqId{nextReqId++},
+    logname{"(Req#" + std::to_string(reqId) + ") "}
 {
-    LOG_verbose << "[HttpReq::HttpReq] CONSTRUCTOR CALL [this = " << this << "]";
+    LOG_verbose << logname << "[HttpReq::HttpReq] CONSTRUCTOR CALL [this = " << this << "]";
     binary = b;
     status = REQ_READY;
     buf = NULL;
@@ -435,7 +414,7 @@ HttpReq::HttpReq(bool b)
 
 HttpReq::~HttpReq()
 {
-    LOG_verbose << "[HttpReq::~HttpReq] DESTRUCTOR CALL [this = " << this << "]";
+    LOG_verbose << logname << "[HttpReq::~HttpReq] DESTRUCTOR CALL [this = " << this << "]";
     if (httpio)
     {
         httpio->cancel(this);
@@ -650,14 +629,21 @@ HttpReqDL::HttpReqDL()
 }
 
 // prepare file chunk download
-void HttpReqDL::prepare(const char* tempurl, SymmCipher* /*key*/,
-                        uint64_t /*ctriv*/, m_off_t pos,
+void HttpReqDL::prepare(const char* tempurl,
+                        SymmCipher* /*key*/,
+                        uint64_t /*ctriv*/,
+                        m_off_t downloadPosition,
                         m_off_t npos)
 {
     if (tempurl && *tempurl)
     {
         char urlbuf[512];
-        snprintf(urlbuf, sizeof urlbuf, "%s/%" PRIu64 "-%" PRIu64, tempurl, pos, npos ? npos - 1 : 0);
+        snprintf(urlbuf,
+                 sizeof urlbuf,
+                 "%s/%" PRIu64 "-%" PRIu64,
+                 tempurl,
+                 downloadPosition,
+                 npos ? npos - 1 : 0);
         setreq(urlbuf, REQ_BINARY);
     }
     else
@@ -665,8 +651,8 @@ void HttpReqDL::prepare(const char* tempurl, SymmCipher* /*key*/,
         setreq(nullptr, REQ_BINARY);
     }
 
-    dlpos = pos;
-    size = (unsigned)(npos - pos);
+    dlpos = downloadPosition;
+    size = (unsigned)(npos - downloadPosition);
     buffer_released = false;
 
     if (!buf || buflen != size)
@@ -793,17 +779,19 @@ byte* EncryptBufferByChunks::nextbuffer(unsigned bufsize)
 }
 
 // prepare chunk for uploading: mac and encrypt
-void HttpReqUL::prepare(const char* tempurl, SymmCipher* key,
-                        uint64_t ctriv, m_off_t pos,
+void HttpReqUL::prepare(const char* tempurl,
+                        SymmCipher* key,
+                        uint64_t ctriv,
+                        m_off_t uploadPosition,
                         m_off_t npos)
 {
     EncryptBufferByChunks eb((byte*)out->data(), key, &mChunkmacs, ctriv);
 
     string urlSuffix;
-    eb.encrypt(pos, npos, urlSuffix);
+    eb.encrypt(uploadPosition, npos, urlSuffix);
 
     // unpad for POSTing
-    size = (unsigned)(npos - pos);
+    size = (unsigned)(npos - uploadPosition);
     out->resize(size);
 
     setreq((tempurl + urlSuffix).c_str(), REQ_BINARY);

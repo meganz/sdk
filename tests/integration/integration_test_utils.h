@@ -7,13 +7,19 @@
  * (sdk_test_utils.h) so the namespace is extended (sdk_test).
  */
 
+#ifndef INCLUDE_INTEGRATION_INTEGRATION_TEST_UTILS_H_
+#define INCLUDE_INTEGRATION_INTEGRATION_TEST_UTILS_H_
+
 #include "mega/types.h"
 #include "megaapi.h"
 
 #include <memory>
+#include <optional>
 
 namespace sdk_test
 {
+
+#ifdef ENABLE_SYNC
 
 /**
  * @brief Waits for the sync state to be set to a given value and with a given error during a
@@ -40,4 +46,104 @@ std::unique_ptr<::mega::MegaSync> waitForSyncState(::mega::MegaApi* megaApi,
                                                    ::mega::MegaSync::SyncRunningState runState,
                                                    ::mega::MegaSync::Error err);
 
+/**
+ * @brief Synchronously start a TWO_WAY sync between the given local path and the remote node with
+ * the given handle.
+ *
+ * It will also wait until the new sync is in RUNSTATE_RUNNING state.
+ *
+ * @param megaApi The api to request the sync creation
+ * @param localRootPath The local root to sync
+ * @param remoteRootHandle The handle of the remote node to sync
+ * @return The backupId of the new sync.
+ */
+::mega::handle syncFolder(::mega::MegaApi* megaApi,
+                          const std::string& localRootPath,
+                          const ::mega::MegaHandle remoteRootHandle);
+
+/**
+ * @brief Synchronously start a BACKUP sync with the given local path
+ *
+ * It will also wait until the new sync is in RUNSTATE_RUNNING state.
+ *
+ * @param megaApi The api to request the sync creation
+ * @param localRootPath The local path to backup
+ * @param backupName The name of the backup. By default, it will use the name of the root directory
+ * @return The backupId of the new sync.
+ */
+::mega::handle backupFolder(::mega::MegaApi* megaApi,
+                            const std::string& localRootPath,
+                            const std::string& backupName = "");
+
+/**
+ * @brief Synchronously removes the sync with the given backupId
+ *
+ * @return true if the operation succeed, false otherwise
+ */
+bool removeSync(::mega::MegaApi* megaApi, const ::mega::handle backupID);
+
+/**
+ * @brief Synchronously change the running state of the sync with the given backupId
+ *
+ * @return true if the operation succeed, false otherwise
+ */
+bool setSyncRunState(::mega::MegaApi* megaApi,
+                     const ::mega::handle backupID,
+                     const ::mega::MegaSync::SyncRunningState state);
+
+/**
+ * @brief Synchronously resume the sync with the given backupId
+ *
+ * @return true if the operation succeed, false otherwise
+ */
+bool resumeSync(::mega::MegaApi* megaApi, const ::mega::handle backupID);
+
+/**
+ * @brief Synchronously suspend the sync with the given backupId
+ *
+ * @return true if the operation succeed, false otherwise
+ */
+bool suspendSync(::mega::MegaApi* megaApi, const ::mega::handle backupID);
+
+/**
+ * @brief Synchronously disable the sync with the given backupId
+ *
+ * @return true if the operation succeed, false otherwise
+ */
+bool disableSync(::mega::MegaApi* megaApi, const ::mega::handle backupID);
+
+/**
+ * @brief Get a vector with all the reported stalls.
+ */
+std::vector<std::unique_ptr<::mega::MegaSyncStall>> getStalls(::mega::MegaApi* megaApi);
+
+#endif
+
+/**
+ * @brief Get a vector with the names of the nodes that are children of the node with the given
+ * handle.
+ *
+ * If any of the operations to get the nodes fails, a nullopt is returned.
+ */
+std::optional<std::vector<std::string>>
+    getCloudFirstChildrenNames(::mega::MegaApi* megaApi, const ::mega::MegaHandle nodeHandle);
+
+/**
+ * @brief Get the map resulting from invoking
+ * MegaApi::getUserAttribute(MegaApi::USER_ATTR_DEVICE_NAMES) and put it in the output parameter.
+ *
+ * This function `ASSERT`s on the result from the internal request and also it asserts false if the
+ * timeout is exceeded while waiting for it.
+ */
+void getDeviceNames(::mega::MegaApi* megaApi, std::unique_ptr<::mega::MegaStringMap>& output);
+
+/**
+ * @brief Ensures there is at least one device visible to the given megaApi instance. This is
+ * required to enable the creation of backup syncs for instance.
+ *
+ * If there are no devices, a new one is created with the name "Jenkins " + timestamp
+ */
+void ensureAccountDeviceName(::mega::MegaApi* megaApi);
 }
+
+#endif // INCLUDE_INTEGRATION_INTEGRATION_TEST_UTILS_H_

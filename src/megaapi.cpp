@@ -44,29 +44,29 @@ MegaProxy::~MegaProxy()
 	delete proxyURL;
 }
 
-void MegaProxy::setProxyType(int proxyType)
+void MegaProxy::setProxyType(int newProxyType)
 {
-    this->proxyType = proxyType;
+    proxyType = newProxyType;
 }
 
-void MegaProxy::setProxyURL(const char *proxyURL)
+void MegaProxy::setProxyURL(const char* newProxyURL)
 {
-    if(this->proxyURL)
-        delete this->proxyURL;
+    if (proxyURL)
+        delete proxyURL;
 
-    this->proxyURL = MegaApi::strdup(proxyURL);
+    proxyURL = MegaApi::strdup(newProxyURL);
 }
 
-void MegaProxy::setCredentials(const char *username, const char *password)
+void MegaProxy::setCredentials(const char* newUsername, const char* newPassword)
 {
-    if(this->username)
-        delete this->username;
+    if (username)
+        delete username;
 
-    if(this->password)
-        delete this->password;
+    if (password)
+        delete password;
 
-    this->username = MegaApi::strdup(username);
-    this->password = MegaApi::strdup(password);
+    username = MegaApi::strdup(newUsername);
+    password = MegaApi::strdup(newPassword);
 }
 
 int MegaProxy::getProxyType()
@@ -939,16 +939,6 @@ const char *MegaRequest::toString() const
 	return NULL;
 }
 
-const char *MegaRequest::__str__() const
-{
-	return NULL;
-}
-
-const char *MegaRequest::__toString() const
-{
-	return NULL;
-}
-
 MegaHandle MegaRequest::getNodeHandle() const
 {
 	return INVALID_HANDLE;
@@ -1242,16 +1232,6 @@ const char *MegaTransfer::getTransferString() const
 }
 
 const char *MegaTransfer::toString() const
-{
-	return NULL;
-}
-
-const char *MegaTransfer::__str__() const
-{
-	return NULL;
-}
-
-const char *MegaTransfer::__toString() const
 {
 	return NULL;
 }
@@ -1629,16 +1609,6 @@ const char* MegaError::getErrorString(int errorCode, ErrorContexts context)
 }
 
 const char* MegaError::toString() const
-{
-    return getErrorString();
-}
-
-const char* MegaError::__str__() const
-{
-    return getErrorString();
-}
-
-const char *MegaError::__toString() const
 {
     return getErrorString();
 }
@@ -3528,10 +3498,7 @@ bool MegaApi::areTransfersPaused(int direction)
 }
 
 //-1 -> AUTO, 0 -> NONE, >0 -> b/s
-void MegaApi::setUploadLimit(int bpslimit)
-{
-    pImpl->setUploadLimit(bpslimit);
-}
+void MegaApi::setUploadLimit(int /*bpslimit*/) {}
 
 void MegaApi::setMaxConnections(int direction, int connections, MegaRequestListener *listener)
 {
@@ -3903,6 +3870,13 @@ void MegaApi::changeSyncRemoteRoot(const MegaHandle syncBackupId,
                                    MegaRequestListener* listener)
 {
     pImpl->changeSyncRemoteRoot(syncBackupId, newRootNodeHandle, listener);
+}
+
+void MegaApi::changeSyncLocalRoot(const MegaHandle syncBackupId,
+                                  const char* newLocalSyncRootPath,
+                                  MegaRequestListener* listener)
+{
+    pImpl->changeSyncLocalRoot(syncBackupId, newLocalSyncRootPath, listener);
 }
 
 MegaSync *MegaApi::getSyncByBackupId(MegaHandle backupId)
@@ -6221,6 +6195,11 @@ void MegaApi::setWelcomePdfCopied(bool copied, MegaRequestListener* listener)
     pImpl->setWelcomePdfCopied(copied, listener);
 }
 
+void MegaApi::getMyIp(MegaRequestListener* listener)
+{
+    pImpl->getMyIp(listener);
+}
+
 /* END MEGAAPI */
 
 MegaHashSignature::MegaHashSignature(const char *base64Key)
@@ -6755,7 +6734,7 @@ size_t MegaSyncStallList::getHash() const
     {
         hash = hashCombine(hash, get(i)->getHash());
     }
-    return hash;
+    return static_cast<size_t>(hash);
 }
 
 const MegaSyncStall* MegaSyncStallList::get(size_t /*i*/) const
@@ -6781,7 +6760,7 @@ size_t MegaSyncStallMap::getHash() const
     {
         hash = hashCombine(hash, get(keys->get(i))->getHash());
     }
-    return hash;
+    return static_cast<size_t>(hash);
 }
 
 const MegaSyncStallList* MegaSyncStallMap::get(const MegaHandle) const

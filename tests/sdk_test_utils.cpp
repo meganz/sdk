@@ -39,13 +39,12 @@ void copyFileFromTestData(fs::path filename, fs::path destination)
     fs::copy_file(source, destination);
 }
 
-LocalTempFile::LocalTempFile(const fs::path& _filePath, const unsigned int fileSizeBytes):
-    mFilePath(_filePath)
+void createFile(const fs::path& filePath, const unsigned int fileSizeBytes)
 {
-    std::ofstream outFile(mFilePath, std::ios::binary);
+    std::ofstream outFile(filePath, std::ios::binary);
     if (!outFile.is_open())
     {
-        const auto msg = "Can't open the file: " + _filePath.string();
+        const auto msg = "Can't open the file: " + filePath.string();
         LOG_err << msg;
         throw std::runtime_error(msg);
     }
@@ -53,17 +52,28 @@ LocalTempFile::LocalTempFile(const fs::path& _filePath, const unsigned int fileS
     outFile.write(buffer.data(), static_cast<std::streamsize>(buffer.size()));
 }
 
-LocalTempFile::LocalTempFile(const fs::path& _filePath, const std::string_view contents):
-    mFilePath(_filePath)
+void createFile(const fs::path& filePath, const std::string_view contents)
 {
-    std::ofstream outFile(mFilePath, std::ios::binary);
+    std::ofstream outFile(filePath, std::ios::binary);
     if (!outFile.is_open())
     {
-        const auto msg = "Can't open the file: " + _filePath.string();
+        const auto msg = "Can't open the file: " + filePath.string();
         LOG_err << msg;
         throw std::runtime_error(msg);
     }
     outFile.write(contents.data(), static_cast<std::streamsize>(contents.size()));
+}
+
+LocalTempFile::LocalTempFile(const fs::path& _filePath, const unsigned int fileSizeBytes):
+    mFilePath(_filePath)
+{
+    createFile(mFilePath, fileSizeBytes);
+}
+
+LocalTempFile::LocalTempFile(const fs::path& _filePath, const std::string_view contents):
+    mFilePath(_filePath)
+{
+    createFile(mFilePath, contents);
 }
 
 LocalTempFile::~LocalTempFile()
@@ -116,6 +126,29 @@ LocalTempDir::~LocalTempDir()
     {
         LOG_err << "Error removing directory: " << mDirPath.string() << ". Error: " << e.what();
     }
+}
+
+bool LocalTempDir::move(const fs::path& newLocation)
+{
+    if (std::filesystem::exists(newLocation))
+    {
+        LOG_err
+            << "Moving " << mDirPath.string() << " to " << newLocation.string()
+            << " will overwrite the target path. Romove it before proceeding with the operation.";
+        return false;
+    }
+    try
+    {
+        std::filesystem::rename(mDirPath, newLocation);
+    }
+    catch (const std::exception& e)
+    {
+        LOG_err << "Error moving directory from " << mDirPath.string() << " to "
+                << newLocation.string() << ". Error: " << e.what();
+        return false;
+    }
+    mDirPath = newLocation;
+    return true;
 }
 
 namespace
@@ -185,5 +218,23 @@ std::string getNodeName(const NodeInfo& node)
             return n.name;
         },
         node);
+}
+
+std::vector<std::string>
+    getLocalFirstChildrenNames_if(const std::filesystem::path& localPath,
+                                  std::function<bool(const std::string&)> filter)
+{
+    if (!std::filesystem::is_directory(localPath))
+        return {};
+    std::vector<std::string> result;
+    const auto pushName = [&result, &filter](const std::filesystem::path& path)
+    {
+        const auto name = path.filename().string();
+        if (!filter || filter(name))
+            result.emplace_back(std::move(name));
+    };
+    std::filesystem::directory_iterator children{localPath};
+    std::for_each(begin(children), end(children), pushName);
+    return result;
 }
 }

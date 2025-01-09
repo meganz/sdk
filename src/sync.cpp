@@ -567,16 +567,39 @@ std::optional<std::filesystem::path> SyncConfig::getSyncDbPath(const FileSystemA
     return client.dbaccess->getExistingDbPath(fsAccess, fname);
 }
 
+void SyncConfig::renameDBToMatchTarget(const SyncConfig& targetConfig,
+                                       const FileSystemAccess& fsAccess,
+                                       const MegaClient& client) const
+{
+    const auto currentDbPath = getSyncDbPath(fsAccess, client);
+    if (!currentDbPath)
+        return;
+
+    const auto newDbFileName = targetConfig.getSyncDbStateCacheName(targetConfig.mLocalPathFsid,
+                                                                    targetConfig.mRemoteNode,
+                                                                    client.me);
+    std::filesystem::path newDbPath{
+        client.dbaccess->databasePath(fsAccess, newDbFileName, DbAccess::DB_VERSION).rawValue()};
+    std::filesystem::rename(*currentDbPath, newDbPath);
+}
+
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated
-Sync::Sync(UnifiedSync& us, const string& cdebris,
-           const LocalPath& clocaldebris, bool cinshare,
-           const string& logname, SyncError& e)
-: syncs(us.syncs)
-, localroot(nullptr)
-, mUnifiedSync(us)
-, syncscanbt(us.syncs.rng)
-, threadSafeState(new SyncThreadsafeState(us.mConfig.mBackupId, &syncs.mClient, us.mConfig.isBackup())) // assuming backups are only in Vault
+Sync::Sync(UnifiedSync& us,
+           const string& cdebris,
+           const LocalPath& clocaldebris,
+           bool cinshare,
+           const string& logname,
+           SyncError& e):
+    syncs(us.syncs),
+    localroot(nullptr),
+    mUnifiedSync(us),
+    syncscanbt(us.syncs.rng),
+    threadSafeState(
+        new SyncThreadsafeState(us.mConfig.mBackupId,
+                                &syncs.mClient,
+                                us.mConfig.isBackup())), // assuming backups are only in Vault
+    mLocalPath(us.mConfig.getLocalPath())
 {
     e = NO_SYNC_ERROR;
     assert(syncs.onSyncThread());
@@ -603,8 +626,6 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
     syncname = logname; // can be updated to be more specific in logs
 
     assert(mUnifiedSync.mConfig.mRunState == SyncRunState::Loading);
-
-    mLocalPath = mUnifiedSync.mConfig.getLocalPath();
 
     mFilesystemType = syncs.fsaccess->getlocalfstype(mLocalPath);
     LOG_debug << "Sync being created on filesystem type " << mFilesystemType << ": " << FileSystemAccess::fstypetostring(mFilesystemType);
@@ -1126,6 +1147,68 @@ void UnifiedSync::resumeSync(std::function<void(error, SyncError, handle)>&& com
 bool UnifiedSync::shouldHaveDatabase() const
 {
     return syncs.mClient.dbaccess && !mConfig.isExternal();
+}
+
+SyncError UnifiedSync::changeConfigLocalRoot(const LocalPath& newPath)
+{
+    if (mSync != nullptr)
+    {
+        LOG_err << "Calling changeConfigLocalRoot on a enabled sync. Disable it first";
+        return UNKNOWN_ERROR;
+    }
+
+    if (mConfig.mLocalPath == newPath)
+        return NO_SYNC_ERROR;
+
+    if (!mConfig.isGoodPathForExternalBackup(newPath))
+        return BACKUP_SOURCE_NOT_BELOW_DRIVE;
+
+    const auto fsfp = syncs.fsaccess->fsFingerprint(newPath);
+    if (!fsfp)
+    {
+        LOG_err << "Unable to get the file system fingerprint for path " << newPath;
+        return FILESYSTEM_ID_UNAVAILABLE;
+    }
+
+    if (const auto& original_fsfp = mConfig.mFilesystemFingerprint;
+        original_fsfp && !original_fsfp.equivalent(fsfp))
+    {
+        LOG_err << "Sync root path is a different Filesystem than when the sync was created. "
+                   "Original filesystem id: "
+                << original_fsfp.toString() << "  Current: " << fsfp.toString();
+        return LOCAL_FILESYSTEM_MISMATCH;
+    }
+
+    auto fas = syncs.fsaccess->newfileaccess();
+    // we do allow, eg. mounting an exFAT drive over an NTFS folder and making a sync at that path
+    const bool reparsePointOkAtRoot = true;
+    if (!fas->fopen(newPath,
+                    true,
+                    false,
+                    FSLogging::logOnError,
+                    nullptr,
+                    reparsePointOkAtRoot,
+                    true,
+                    nullptr) ||
+        fas->fsid == UNDEF)
+    {
+        LOG_err << "Could not open sync root folder, could not get its fsid: " << newPath;
+        return UNABLE_TO_RETRIEVE_ROOT_FSID;
+    }
+
+    const auto oldConfig = mConfig;
+    mConfig.mLocalPath = newPath;
+    mConfig.mLocalPathFsid = fas->fsid;
+    mConfig.mFilesystemFingerprint = fsfp;
+    if (!syncs.commitConfigToDb(mConfig))
+    {
+        mConfig = oldConfig;
+        LOG_err
+            << "Couldn't commit the configuration into the database, cancelling remote root change";
+        return SYNC_CONFIG_WRITE_FAILURE;
+    }
+    oldConfig.renameDBToMatchTarget(mConfig, *syncs.fsaccess, syncs.mClient);
+    return NO_SYNC_ERROR;
 }
 
 // walk localpath and return corresponding LocalNode and its parent
@@ -2445,6 +2528,11 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
                                 if (signalMoveBegin)
                                     signalMoveBegin(mc);
 
+                                if (newName == ".gitignore")
+                                {
+                                    mc.sendevent(99493, "New .gitignore file synced up");
+                                }
+
                                 mc.setattr(n, attr_map('n', newName), [&mc, movePtr, newName](NodeHandle, Error err){
 
                                     LOG_debug << mc.clientname << "SYNC Rename completed: " << newName << " err:" << err;
@@ -3107,9 +3195,10 @@ bool Sync::checkCloudPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
         // It's a move or rename
         if (isBackup())
         {
-            // Backups must not change the local
-            changestate(BACKUP_MODIFIED, false, true, false);
-            rowResult = false;
+            LOG_warn << "Cloud node move detected and this is a BACKUP! Triplet: "
+                     << logTriplet(row, fullPath);
+            assert(false && "Cloud node modifications should not happen for a backup!");
+            rowResult = false; // Let's solve the issue in the syncItem step
             return true;
         }
 
@@ -3925,7 +4014,6 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool setOriginalPath,
         us.mSync.reset();
     }
 
-    auto previousConfigError = us.mConfig.mError;
     us.mConfig.mError = NO_SYNC_ERROR;
     us.mConfig.mRunState = SyncRunState::Loading;
 
@@ -4109,15 +4197,13 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool setOriginalPath,
 
         auto firstTime = config.mBackupState == SYNC_BACKUP_NONE;
         auto isExternal = config.isExternal();
-        auto wasDisabled = previousConfigError == BACKUP_MODIFIED; // Using previousConfigError as config.mError is reset earlier on this method
 
-        if (firstTime || isExternal || wasDisabled)
+        if (firstTime || isExternal)
         {
             // Then we must come up in mirroring mode.
             LOG_verbose << "Backup Sync " << toHandle(config.mBackupId)
                         << " starting in mirroring mode"
-                        << " [firstTime = " << firstTime << ", isExternal = " << isExternal
-                        << ", wasDisabled = " << wasDisabled << "]";
+                        << " [firstTime = " << firstTime << ", isExternal = " << isExternal << "]";
             us.mConfig.mBackupState = SYNC_BACKUP_MIRROR;
         }
     }
@@ -4153,14 +4239,6 @@ bool Syncs::checkSyncRemoteLocationChange(SyncConfig& config,
               << " now: " << cloudPath;
     config.mOriginalPathOfRemoteRootNode = cloudPath;
     return true;
-}
-
-void Syncs::changeSyncLocalRoot(const handle /* backupId */,
-                                const std::string& /* newLocalRootPath */,
-                                std::function<void(error, SyncError)>&& completion)
-{
-    assert(false && "Not implemented yet and this code should be unreachable from public api");
-    return completion(API_EBLOCKED, UNKNOWN_ERROR);
 }
 
 void Syncs::changeSyncRemoteRoot(const handle backupId,
@@ -4205,6 +4283,12 @@ void Syncs::changeSyncRemoteRootInThread(const handle backupId,
 
     const auto& unifSync = (*it);
     auto& config = unifSync->mConfig;
+    if (config.isBackup())
+    {
+        LOG_err << "Trying to change remote root of a backup sync. Operation not supported yet";
+        return completion(API_EARGS, UNKNOWN_ERROR);
+    }
+
     const auto newRootNH = newRootNode->nodeHandle();
     if (config.mRemoteNode == newRootNH)
     {
@@ -4261,6 +4345,76 @@ void Syncs::changeSyncRemoteRootInThread(const handle backupId,
         renameDbAndNotifyServer();
         completion(API_OK, NO_SYNC_ERROR);
     }
+}
+
+void Syncs::changeSyncLocalRoot(const handle backupId,
+                                LocalPath&& newValidLocalRootPath,
+                                std::function<void(error, SyncError)>&& completionForClient)
+{
+    assert(!onSyncThread());
+
+    // We need to change to the syncs thread to run the missing validations and commit the change
+    queueSync(
+        [this,
+         backupId,
+         newPath = std::move(newValidLocalRootPath),
+         completionForClientWrapped =
+             wrapToRunInClientThread(std::move(completionForClient), FromAnyThread::yes)]() mutable
+        {
+            changeSyncLocalRootInThread(backupId,
+                                        std::move(newPath),
+                                        std::move(completionForClientWrapped));
+        },
+        "changeSyncRemoteRoot");
+}
+
+void Syncs::changeSyncLocalRootInThread(const handle backupId,
+                                        LocalPath&& newValidLocalRootPath,
+                                        std::function<void(error, SyncError)>&& completion)
+{
+    assert(onSyncThread());
+
+    lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
+    const auto it = std::find_if(std::begin(mSyncVec),
+                                 std::end(mSyncVec),
+                                 [backupId](const auto& unifSync)
+                                 {
+                                     return unifSync && unifSync->mConfig.mBackupId == backupId;
+                                 });
+    if (it == std::end(mSyncVec))
+    {
+        LOG_err << "There are no syncs with the given backupId";
+        return completion(API_EARGS, UNKNOWN_ERROR);
+    }
+
+    const auto& unifSync = *it;
+    const bool syncWasRunning = unifSync->mSync != nullptr;
+    if (syncWasRunning)
+        unifSync->suspendSync();
+
+    const auto exitResumingIfNeeded =
+        [syncWasRunning, completion = std::move(completion), &unifSync](error e, SyncError se)
+    {
+        if (!syncWasRunning)
+            return completion(e, se);
+        unifSync->resumeSync(
+            [completion = std::move(completion), e, se](error err, SyncError serr, handle)
+            {
+                if (err)
+                    LOG_err << "Error resuming sync after local root change: " << err
+                            << ", Sync err: " << serr;
+                completion(e, se);
+            });
+    };
+
+    if (const auto syncErr = unifSync->changeConfigLocalRoot(newValidLocalRootPath);
+        syncErr != NO_SYNC_ERROR)
+    {
+        const error apiErr = syncErr == SYNC_CONFIG_WRITE_FAILURE ? API_EWRITE : API_EARGS;
+        return exitResumingIfNeeded(apiErr, syncErr);
+    }
+    mHeartBeatMonitor->updateOrRegisterSync(*unifSync);
+    exitResumingIfNeeded(API_OK, NO_SYNC_ERROR);
 }
 
 void Syncs::manageRemoteRootLocationChange(Sync& sync) const
@@ -7027,8 +7181,8 @@ void Sync::purgeStaleDownloads()
         }
 
         // Remove "dead" temporaries.
-        for (auto& path : paths)
-            client.fsaccess->unlinklocal(path);
+        for (const auto& tempPath: paths)
+            client.fsaccess->unlinklocal(tempPath);
     });
 }
 
@@ -8011,9 +8165,9 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
                                 LOG_debug << syncname << "Removing " << s->children.size() << " child LocalNodes from excluded " << s->getLocalPath();
                                 vector<LocalNode*> cs;
                                 cs.reserve(s->children.size());
-                                for (auto& i : s->children)
+                                for (auto& child: s->children)
                                 {
-                                    cs.push_back(i.second);
+                                    cs.push_back(child.second);
                                 }
                                 // this technique might seem a bit roundabout, but deletion will cause these to
                                 // remove themselves from s->children. // we can't have that happening while we iterate that map.
@@ -8380,7 +8534,10 @@ bool Sync::syncItem_checkMoves(SyncRow& row, SyncRow& parentRow, SyncPath& fullP
 
     // Don't try and synchronize special files.
     if (checkSpecialFile(row, parentRow, fullPath))
-        return row.itemProcessed = true, false;
+    {
+        row.itemProcessed = true;
+        return false;
+    }
 
     // First deal with detecting local moves/renames and propagating correspondingly
     // Independent of the syncItem() combos below so we don't have duplicate checks in those.
@@ -8394,7 +8551,6 @@ bool Sync::syncItem_checkMoves(SyncRow& row, SyncRow& parentRow, SyncPath& fullP
           row.syncNode->fsid_lastSynced != row.fsNode->fsid ||
           (mCaseInsensitive && row.hasCaseInsensitiveLocalNameChange())))
     {
-        bool rowResult;
         if (checkLocalPathForMovesRenames(row, parentRow, fullPath, rowResult, belowRemovedCloudNode))
         {
             row.itemProcessed = true;
@@ -8408,7 +8564,6 @@ bool Sync::syncItem_checkMoves(SyncRow& row, SyncRow& parentRow, SyncPath& fullP
           row.syncNode->syncedCloudNodeHandle != row.cloudNode->handle ||
           (mCaseInsensitive && row.hasCaseInsensitiveCloudNameChange())))
     {
-        bool rowResult;
         if (checkCloudPathForMovesRenames(row, parentRow, fullPath, rowResult, belowRemovedFsNode))
         {
             row.itemProcessed = true;
@@ -9137,7 +9292,7 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
     {
     case SRT_CSF:
     {
-        CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemCSF);
+        CodeCounter::ScopeTimer csfTime(syncs.mClient.performanceStats.syncItemCSF);
 
         // Are we part of a move and was our source a download-in-progress?
         resolve_checkMoveDownloadComplete(row, fullPath);
@@ -9173,8 +9328,7 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
                 LOG_warn << "CSF with cloud node change and this is a BACKUP!"
                          << " Local file will be upsynced to fix the mismatched cloud node."
                          << " Triplet: " << logTriplet(row, fullPath);
-                assert(isBackupAndMirroring() &&
-                       "CSF with cloud node change should not happen for a backup!");
+                assert(false && "CSF with cloud node change should not happen for a backup!");
             }
             else
             {
@@ -9211,7 +9365,7 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
     }
     case SRT_XSF:
     {
-        CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemXSF);
+        CodeCounter::ScopeTimer xsfTime(syncs.mClient.performanceStats.syncItemXSF);
 
         if (row.syncNode->type == TYPE_DONOTSYNC ||
             row.isLocalOnlyIgnoreFile() ||
@@ -9219,13 +9373,6 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
         {
             // we do not upload do-not-sync files (eg. system+hidden, on windows)
             return true;
-        }
-
-        // cloud item absent
-        if (isBackupAndMirroring())
-        {
-            // for backups, we only change the cloud
-            return resolve_upsync(row, parentRow, fullPath, pflsc);
         }
 
         if (!row.syncNode->syncedCloudNodeHandle.isUndef()
@@ -9241,13 +9388,15 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
                             "a BACKUP!"
                          << " This will result on the backup being disabled."
                          << " Triplet: " << logTriplet(row, fullPath);
-                // assert(false && "XSF - cloud item not present for a previously "
-                //                 "synced item should not happen for a backup!");
-                //  ToDo: uncomment this assert (or re-consider it) after SDK-4114
+                assert(false && "XSF - cloud item not present for a previously "
+                                "synced item should not happen for a backup!");
             }
-            // used to be fully synced and the fs side still has that version
-            // remove in the fs (if not part of a move)
-            return resolve_cloudNodeGone(row, parentRow, fullPath);
+            else
+            {
+                // used to be fully synced and the fs side still has that version
+                // remove in the fs (if not part of a move)
+                return resolve_cloudNodeGone(row, parentRow, fullPath);
+            }
         }
 
         // either
@@ -9257,13 +9406,12 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
     }
     case SRT_CSX:
     {
-        CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemCSX);
+        CodeCounter::ScopeTimer csxTime(syncs.mClient.performanceStats.syncItemCSX);
 
         // local item not present
-        if (isBackupAndMirroring())
+        if (isBackup())
         {
-            // in mirror mode, make the cloud the same as local
-            // if backing up and not mirroring, the resolve_downsync branch will cancel the sync
+            // make the cloud the same as local
             return resolve_fsNodeGone(row, parentRow, fullPath);
         }
 
@@ -9296,19 +9444,6 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
         }
         else if (row.syncNode->syncedCloudNodeHandle != row.cloudNode->handle)
         {
-            if (isBackup())
-            {
-                // for backups, we only change the cloud,
-                // if there was already a fsNode before,
-                // we likely had an upload before but the sync loop
-                // ended before the syncNode was updated,
-                // and the local file was removed afterwards
-                LOG_warn << "CSX with sync node different from cloud node"
-                            " and this is a backup. Cloud node will be removed."
-                         << " Triplet: " << logTriplet(row, fullPath);
-                return resolve_fsNodeGone(row, parentRow, fullPath);
-            }
-
             // the cloud item has changed too; downsync (this lets users recover from both sides changed state - user deletes the one they don't want anymore)
             return resolve_downsync(row, parentRow, fullPath, false, pflsc);
         }
@@ -9334,14 +9469,14 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
     }
     case SRT_XSX:
     {
-        CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemXSX);
+        CodeCounter::ScopeTimer xsxTime(syncs.mClient.performanceStats.syncItemXSX);
 
         // local and cloud disappeared; remove sync item also
         return resolve_delSyncNode(row, parentRow, fullPath, confirmDeleteCount);
     }
     case SRT_CXF:
     {
-        CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemCXF);
+        CodeCounter::ScopeTimer cxfTime(syncs.mClient.performanceStats.syncItemCXF);
 
         // we have to check both, due to the size parameter
         auto cloudside = parentRow.exclusionState(row.fsNode->localname, row.fsNode->type, row.fsNode->fingerprint.size);
@@ -9365,24 +9500,7 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
 
         if (bool isSyncEqual = syncEqual(*row.cloudNode, *row.fsNode); isSyncEqual || isBackup())
         {
-            if (!isSyncEqual &&
-                isBackup()) // Given the logic above, if !isSyncEqual then isBackup() is true, but
-                            // it's better to be sure in case of changes
-            {
-                // for backups, we only change the cloud: we need to first create the syncNode from
-                // the FSnode to do the upsync later
-                LOG_warn << "CXF with no sync node, cloud and local nodes are different and this "
-                            "is a BACKUP!"
-                         << " A SyncNode will be created from the FSNode so this can be later "
-                            "resolved with an upsync."
-                         << " Triplet: " << logTriplet(row, fullPath);
-                // If the backup was disabled, sync nodes would not exist at this point,
-                // and the backup will start in mirroring mode. So this case could be legit
-                // if we are in mirroring mode.
-                assert(isBackupAndMirroring() &&
-                       "CXF - sync item not present, but there are a cloud node and "
-                       "FSnode which are different for a backup!");
-            }
+            // In both cases we create the sync node from local to do the upsync later
             return resolve_makeSyncNode_fromFS(row, parentRow, fullPath, false);
         }
         else
@@ -9392,7 +9510,7 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
     }
     case SRT_XXF:
     {
-        CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemXXF);
+        CodeCounter::ScopeTimer xxfTime(syncs.mClient.performanceStats.syncItemXXF);
 
         // Don't create a sync node for this file unless we know that it's included.
         if (parentRow.exclusionState(*row.fsNode) != ES_INCLUDED)
@@ -9404,21 +9522,11 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
     }
     case SRT_CXX:
     {
-        CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemCXX);
+        CodeCounter::ScopeTimer cxxTime(syncs.mClient.performanceStats.syncItemCXX);
 
         // Don't create sync nodes unless we know the row is included.
         if (parentRow.exclusionState(*row.cloudNode) != ES_INCLUDED)
             return true;
-
-        if (isBackup())
-        {
-            LOG_warn << "CXX with only a cloud node and this is a BACKUP!"
-                     << " This will result on the backup being disabled."
-                     << " Triplet: " << logTriplet(row, fullPath);
-            // assert(isBackupAndMirroring() &&
-            //        "CXX - item exists only in the cloud, this should not happen for a backup!");
-            //  ToDo: uncomment this assert (or re-consider it) after SDK-4114
-        }
 
         // item exists remotely only
         return resolve_makeSyncNode_fromCloud(row, parentRow, fullPath, false);
@@ -10326,7 +10434,9 @@ bool Sync::resolve_downsync(SyncRow& row,
     if (isBackup())
     {
         // Backups must not change the local
-        changestate(BACKUP_MODIFIED, false, true, false);
+        LOG_err << "Something triggered a download for a backup! Cancelling it";
+        assert(false && "Something triggered a download for a backup!");
+        row.syncNode->resetTransfer(nullptr);
         return false;
     }
 
@@ -10601,6 +10711,7 @@ bool Sync::resolve_userIntervention(SyncRow& row, SyncPath& fullPath)
 
 bool Sync::resolve_cloudNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath)
 {
+    assert(!isBackup() && "This method is not allowed to be called on backups");
     enum MoveType {
         // Not a possible move.
         MT_NONE,
@@ -10762,13 +10873,6 @@ bool Sync::resolve_cloudNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& ful
     }
     else if (mMovesWereComplete)
     {
-        if (isBackup())
-        {
-            // Backups must not change the local
-            changestate(BACKUP_MODIFIED, false, true, false);
-            return false;
-        }
-
         if (movetolocaldebris(fullPath.localPath))
         {
             LOG_debug << syncname << "Moved local item to local sync debris: " << fullPath.localPath << logTriplet(row, fullPath);

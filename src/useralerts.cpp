@@ -98,8 +98,7 @@ bool UserAlertRaw::gethandletypearray(nameid nid, vector<handletype>& v) const
                 handletype ht;
                 ht.h = UNDEF;
                 ht.t = -1;
-                bool fields = true;
-                while (fields)
+                for (bool reading = true; reading;)
                 {
                     switch (j.getnameid())
                     {
@@ -110,7 +109,7 @@ bool UserAlertRaw::gethandletypearray(nameid nid, vector<handletype>& v) const
                         ht.t = int(j.getint());
                         break;
                     case EOO:
-                        fields = false;
+                        reading = false;
                         break;
                     default:
                         j.storeobject(NULL);
@@ -862,7 +861,7 @@ UserAlert::NewSharedNodes* UserAlert::NewSharedNodes::unserialize(string* d, uns
         uint64_t n = 0;
         if (r.unserializecompressedu64(n))
         {
-            vector<handle> vh1(n, 0);
+            vector<handle> vh1(static_cast<size_t>(n), 0);
             if (n)
             {
                 for (auto& h1 : vh1)
@@ -877,7 +876,7 @@ UserAlert::NewSharedNodes* UserAlert::NewSharedNodes::unserialize(string* d, uns
             n = 0;
             if (r.unserializecompressedu64(n))
             {
-                vector<handle> vh2(n, 0);
+                vector<handle> vh2(static_cast<size_t>(n), 0);
                 if (n)
                 {
                     for (auto& h2 : vh2)
@@ -971,7 +970,7 @@ UserAlert::RemovedSharedNode* UserAlert::RemovedSharedNode::unserialize(string* 
     CacheableReader r(*d);
     if (r.unserializecompressedu64(n))
     {
-        vector<handle> vh(n, 0);
+        vector<handle> vh(static_cast<size_t>(n), 0);
         if (n)
         {
             for (auto& h : vh)
@@ -1056,7 +1055,7 @@ UserAlert::UpdatedSharedNode* UserAlert::UpdatedSharedNode::unserialize(string* 
     CacheableReader r(*d);
     if (r.unserializecompressedu64(n))
     {
-        vector<handle> vh(n, 0);
+        vector<handle> vh(static_cast<size_t>(n), 0);
         if (n)
         {
             for (auto& h : vh)
@@ -2633,13 +2632,14 @@ bool UserAlerts::procsc_useralert(JSON& jsonsc)
 
                 if (b->email().empty() && b->user() != UNDEF)
                 {
-                    map<handle, UserAlertPendingContact>::iterator i = pendingContactUsers.find(b->user());
-                    if (i != pendingContactUsers.end())
+                    map<handle, UserAlertPendingContact>::iterator itContact =
+                        pendingContactUsers.find(b->user());
+                    if (itContact != pendingContactUsers.end())
                     {
-                        b->setEmail(i->second.m);
-                        if (b->email().empty() && !i->second.m2.empty())
+                        b->setEmail(itContact->second.m);
+                        if (b->email().empty() && !itContact->second.m2.empty())
                         {
-                            b->setEmail(i->second.m2[0]);
+                            b->setEmail(itContact->second.m2[0]);
                         }
                     }
                 }

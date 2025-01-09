@@ -342,9 +342,9 @@ public:
      * PROXY_AUTO is currently supported on Windows only, for other platforms
      * PROXY_NONE will be used as the automatic detected value.
      *
-     * @param proxyType Sets the type of the proxy
+     * @param newProxyType Sets the type of the proxy
      */
-    void setProxyType(int proxyType);
+    void setProxyType(int newProxyType);
 
     /**
      * @brief Sets the URL of the proxy
@@ -353,9 +353,9 @@ public:
      *
      * This is a valid example: http://127.0.0.1:8080
      *
-     * @param proxyURL URL of the proxy: "<scheme>://<hostname|ip>:<port>"
+     * @param newProxyURL URL of the proxy: "<scheme>://<hostname|ip>:<port>"
      */
-    void setProxyURL(const char *proxyURL);
+    void setProxyURL(const char* newProxyURL);
 
     /**
      * @brief Set the credentials needed to use the proxy
@@ -363,10 +363,10 @@ public:
      * If you don't need to use any credentials, do not use this function
      * or pass NULL in the first parameter.
      *
-     * @param username Username to access the proxy, or NULL if credentials aren't needed
-     * @param password Password to access the proxy
+     * @param newUsername Username to access the proxy, or NULL if credentials aren't needed
+     * @param newPassword Password to access the proxy
      */
-    void setCredentials(const char *username, const char *password);
+    void setCredentials(const char* newUsername, const char* newPassword);
 
     /**
      * @brief Returns the current proxy type of the object
@@ -4527,16 +4527,16 @@ class MegaRequest
             TYPE_GET_BACKGROUND_UPLOAD_URL                                  = 117,
             TYPE_COMPLETE_BACKGROUND_UPLOAD                                 = 118,
             TYPE_GET_CLOUD_STORAGE_USED                                     = 119,
-            TYPE_SEND_SMS_VERIFICATIONCODE                                  = 120,
-            TYPE_CHECK_SMS_VERIFICATIONCODE                                 = 121,
+            TYPE_SEND_SMS_VERIFICATIONCODE = 120, // (deprecated / obsolete)
+            TYPE_CHECK_SMS_VERIFICATIONCODE = 121, // (deprecated / obsolete)
             TYPE_GET_REGISTERED_CONTACTS                                    = 122,  // (obsolete)
-            TYPE_GET_COUNTRY_CALLING_CODES                                  = 123,
+            TYPE_GET_COUNTRY_CALLING_CODES = 123, // (deprecated / obsolete)
             TYPE_VERIFY_CREDENTIALS                                         = 124,
             TYPE_GET_MISC_FLAGS                                             = 125,
             TYPE_RESEND_VERIFICATION_EMAIL                                  = 126,
             TYPE_SUPPORT_TICKET                                             = 127,
             TYPE_SET_RETENTION_TIME                                         = 128,
-            TYPE_RESET_SMS_VERIFIED_NUMBER                                  = 129,
+            TYPE_RESET_SMS_VERIFIED_NUMBER = 129, // (deprecated / obsolete)
             TYPE_SEND_DEV_COMMAND                                           = 130,
             TYPE_GET_BANNERS                                                = 131,
             TYPE_DISMISS_BANNER                                             = 132,
@@ -4607,7 +4607,8 @@ class MegaRequest
             TYPE_GET_SURVEY = 198,
             TYPE_ANSWER_SURVEY = 199,
             TYPE_CHANGE_SYNC_ROOT = 200,
-            TOTAL_OF_REQUEST_TYPES = 201,
+            TYPE_GET_MY_IP = 201,
+            TOTAL_OF_REQUEST_TYPES = 202,
         };
 
         virtual ~MegaRequest();
@@ -4650,26 +4651,6 @@ class MegaRequest
          * @return Readable string showing the type of request
          */
         virtual const char* toString() const;
-
-        /**
-         * @brief Returns a readable string that shows the type of request
-         *
-         * This function provides exactly the same result as MegaRequest::getRequestString.
-         * It's provided for a better Python compatibility
-         *
-         * @return Readable string showing the type of request
-         */
-        virtual const char* __str__() const;
-
-        /**
-         * @brief Returns a readable string that shows the type of request
-         *
-         * This function provides exactly the same result as MegaRequest::getRequestString.
-         * It's provided for a better PHP compatibility
-         *
-         * @return Readable string showing the type of request
-         */
-        virtual const char* __toString() const;
 
         /**
          * @brief Returns the handle of a node related to the request
@@ -5826,26 +5807,6 @@ class MegaTransfer
          * @return Readable string showing the type of transfer (UPLOAD, DOWNLOAD)
          */
         virtual const char* toString() const;
-
-        /**
-         * @brief Returns a readable string that shows the type of the transfer
-         *
-         * This function provides exactly the same result as MegaTransfer::getTransferString (UPLOAD, DOWNLOAD)
-         * It's provided for a better Python compatibility
-         *
-         * @return Readable string showing the type of transfer (UPLOAD, DOWNLOAD)
-         */
-        virtual const char* __str__() const;
-
-        /**
-         * @brief Returns a readable string that shows the type of the transfer
-         *
-         * This function provides exactly the same result as MegaTransfer::getTransferString (UPLOAD, DOWNLOAD)
-         * It's provided for a better PHP compatibility
-         *
-         * @return Readable string showing the type of transfer (UPLOAD, DOWNLOAD)
-         */
-        virtual const char *__toString() const;
 
         /**
          * @brief Returns the starting time of the request (in deciseconds)
@@ -8045,33 +8006,6 @@ public:
 		 * @return Readable description of the error
 		 */
         virtual const char* toString() const;
-
-		/**
-		 * @brief Returns a readable description of the error
-		 *
-		 * This function returns a pointer to a statically allocated buffer.
-		 * You don't have to free the returned pointer
-		 *
-		 * This function provides exactly the same result as MegaError::getErrorString.
-		 * It's provided for a better Python compatibility
-		 *
-		 * @return Readable description of the error
-		 */
-        virtual const char* __str__() const;
-
-		/**
-		 * @brief Returns a readable description of the error
-		 *
-		 * This function returns a pointer to a statically allocated buffer.
-		 * You don't have to free the returned pointer
-		 *
-		 * This function provides exactly the same result as MegaError::getErrorString.
-		 * It's provided for a better PHP compatibility
-		 *
-		 * @return Readable description of the error
-		 */
-        virtual const char* __toString() const;
-
 		/**
 		 * @brief Provides the error description associated with an error code
 		 *
@@ -8776,9 +8710,8 @@ class MegaGlobalListener
          * performed by the SDK is due to a network change or IP addresses becoming invalid.
          *
          *  - MegaEvent::EVENT_ACCOUNT_BLOCKED: when the account get blocked, typically because of
-         * infringement of the Mega's terms of service repeatedly. This event is followed by an automatic
-         * logout, except for the temporary blockings (ACCOUNT_BLOCKED_VERIFICATION_SMS and
-         * ACCOUNT_BLOCKED_VERIFICATION_EMAIL)
+         * infringement of the Mega's terms of service repeatedly. This event is followed by an
+         * automatic logout, except for the temporary blockings (ACCOUNT_BLOCKED_VERIFICATION_EMAIL)
          *
          *  Valid data in the MegaEvent object received in the callback:
          *      - MegaEvent::getText: message to show to the user.
@@ -8795,9 +8728,6 @@ class MegaGlobalListener
          *
          *          - MegaApi::ACCOUNT_BLOCKED_SUBUSER_REMOVED = 401
          *              Subuser of business account has been removed.
-         *
-         *          - MegaApi::ACCOUNT_BLOCKED_VERIFICATION_SMS = 500
-         *              The account is temporary blocked and needs to be verified by an SMS code.
          *
          *          - MegaApi::ACCOUNT_BLOCKED_VERIFICATION_EMAIL = 700
          *              The account is temporary blocked and needs to be verified by email (Weak Account Protection).
@@ -9446,9 +9376,6 @@ class MegaListener
          *
          *          - MegaApi::ACCOUNT_BLOCKED_SUBUSER_REMOVED = 401
          *              Subuser of business account has been removed.
-         *
-         *          - MegaApi::ACCOUNT_BLOCKED_VERIFICATION_SMS = 500
-         *              The account is temporary blocked and needs to be verified by an SMS code.
          *
          *          - MegaApi::ACCOUNT_BLOCKED_VERIFICATION_EMAIL = 700
          *              The account is temporary blocked and needs to be verified by email (Weak Account Protection).
@@ -10450,7 +10377,9 @@ class MegaApi
             ACCOUNT_BLOCKED_TOS_NON_COPYRIGHT = 300,        // suspended due to multiple breaches of MEGA ToS
             ACCOUNT_BLOCKED_SUBUSER_DISABLED = 400,         // subuser disabled by business administrator
             ACCOUNT_BLOCKED_SUBUSER_REMOVED = 401,          // subuser removed by business administrator
-            ACCOUNT_BLOCKED_VERIFICATION_SMS = 500,         // temporary blocked, require SMS verification
+            /* SMS verification was deprecated. This symbol is deprecated. Please don't use it in
+             * new code. */
+            ACCOUNT_BLOCKED_VERIFICATION_SMS = 500, // (deprecated)
             ACCOUNT_BLOCKED_VERIFICATION_EMAIL = 700,       // temporary blocked, require email verification
         };
 
@@ -11046,8 +10975,13 @@ class MegaApi
          *
          * For not logged-in mode, you need to call MegaApi::getMiscFlags first.
          *
-         * @return 2 = Opt-in and unblock SMS allowed.  1 = Only unblock SMS allowed.  0 = No SMS allowed
+         * @return 2 = Opt-in and unblock SMS allowed.  1 = Only unblock SMS allowed.  0 = No SMS
+         * allowed
+         *
+         * @deprecated SMS verification was deprecated. This function is deprecated. Please don't
+         * use it in new code.
          */
+        MEGA_DEPRECATED
         int smsAllowedState();
 
         /**
@@ -11058,8 +10992,13 @@ class MegaApi
          *
          * You take the ownership of the returned value.
          *
-         * @return NULL if there is no verified number, otherwise a string containing that phone number.
+         * @return NULL if there is no verified number, otherwise a string containing that phone
+         * number.
+         *
+         * @deprecated SMS verification was deprecated. This function is deprecated. Please don't
+         * use it in new code.
          */
+        MEGA_DEPRECATED
         char* smsVerifiedPhoneNumber();
 
         /**
@@ -11078,12 +11017,17 @@ class MegaApi
         /**
          * @brief Reset the verified phone number for the account logged in.
          *
-         * The associated request type with this request is MegaRequest::TYPE_RESET_SMS_VERIFIED_NUMBER
+         * The associated request type with this request is
+         * MegaRequest::TYPE_RESET_SMS_VERIFIED_NUMBER.
          * If there's no verified phone number associated for the account logged in, the error code
          * provided in onRequestFinish is MegaError::API_ENOENT.
          *
          * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated SMS verification was deprecated. This function is deprecated. Please don't
+         * use it in new code.
          */
+        MEGA_DEPRECATED
         void resetSmsVerifiedPhoneNumber(MegaRequestListener *listener = NULL);
 
         /**
@@ -11532,7 +11476,7 @@ class MegaApi
          * - Suspended (admin full disable) = 5
          * - Suspended (admin partial disable) = 6
          * - Suspended (Emergency Takedown) = 7
-         * - Suspended until SMS verified = 8
+         * - Suspended until SMS verified = 8 (deprecated)
          * - Suspended until Email verified = 9
          *
          * Note that Action packets are not sent for a suspended user, but next command or action packet request will give a EBLOCKED error.
@@ -11721,7 +11665,11 @@ class MegaApi
          *
          * @param lastAccessTimestamp Timestamp of the last access
          * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated This version of the function is deprecated. Please, use the non-deprecated
+         * one.
          */
+        MEGA_DEPRECATED
         void createAccount(const char* email, const char* password, const char* firstname, const char* lastname, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener = NULL);
 
         /**
@@ -12159,9 +12107,6 @@ class MegaApi
          *
          *          - MegaApi::ACCOUNT_BLOCKED_SUBUSER_REMOVED = 401
          *              Subuser of business account has been removed.
-         *
-         *          - MegaApi::ACCOUNT_BLOCKED_VERIFICATION_SMS = 500
-         *              The account is temporary blocked and needs to be verified by an SMS code.
          *
          *          - MegaApi::ACCOUNT_BLOCKED_VERIFICATION_EMAIL = 700
          *              The account is temporary blocked and needs to be verified by email (Weak Account Protection).
@@ -12727,18 +12672,17 @@ class MegaApi
         /**
          * @brief Get Password Manager Base folder node from the MEGA account
          *
-         * The associated request type with this request is MegaRequest::TYPE_CREATE_PASSWORD_MANAGER_BASE
-         * Valid data in the MegaRequest object received on callbacks:
+         * The associated request type with this request is
+         * MegaRequest::TYPE_CREATE_PASSWORD_MANAGER_BASE Valid data in the MegaRequest object
+         * received on callbacks:
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getNodeHandle - Handle of the folder
          *
-         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
-         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
-         *
-         * A successfully completed a fetchNodes request is required before calling getNodeByHandle with
-         * the MegaHandle returned by this request. Otherwise, getNodeByHandle will return NULL.
+         * A successfully completed fetchNodes request is required before calling getNodeByHandle
+         * with the MegaHandle returned by this request. Otherwise, getNodeByHandle will return
+         * NULL.
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -14752,7 +14696,11 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          *
          * @see MegaApi::getPricing
+         *
+         * @deprecated This version of the function is deprecated. Please, use the non-deprecated
+         * one.
          */
+        MEGA_DEPRECATED
         void getPaymentId(MegaHandle productHandle, MegaHandle lastPublicHandle, MegaRequestListener *listener = NULL);
 
         /**
@@ -14780,7 +14728,11 @@ class MegaApi
          * @param lastAccessTimestamp Timestamp of the last access
          * @param listener MegaRequestListener to track this request
          * @see MegaApi::getPricing
+         *
+         * @deprecated This version of the function is deprecated. Please, use the non-deprecated
+         * one.
          */
+        MEGA_DEPRECATED
         void getPaymentId(MegaHandle productHandle, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener = NULL);
 
         /**
@@ -14847,7 +14799,9 @@ class MegaApi
         /**
          * @brief Submit a purchase receipt for verification
          *
-         * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+         * The associated request type with this request is
+         * MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+         *
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNumber - Returns the payment gateway
          * - MegaRequest::getText - Returns the purchase receipt
@@ -14862,13 +14816,19 @@ class MegaApi
          * @param receipt Purchase receipt
          * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
          * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated This version of the function is deprecated. Please, use the non-deprecated
+         * ones.
          */
+        MEGA_DEPRECATED
         void submitPurchaseReceipt(int gateway, const char* receipt, MegaHandle lastPublicHandle, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Submit a purchase receipt for verification
          *
-         * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+         * The associated request type with this request is
+         * MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+         *
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNumber - Returns the payment gateway
          * - MegaRequest::getText - Returns the purchase receipt
@@ -14892,7 +14852,11 @@ class MegaApi
          *
          * @param lastAccessTimestamp Timestamp of the last access
          * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated This version of the function is deprecated. Please, use the non-deprecated
+         * one.
          */
+        MEGA_DEPRECATED
         void submitPurchaseReceipt(int gateway, const char *receipt, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener =  NULL);
 
         /**
@@ -16472,14 +16436,9 @@ class MegaApi
         bool areTransfersPaused(int direction);
 
         /**
-         * @brief Set the upload speed limit
-         *
-         * The limit will be applied on the server side when starting a transfer. Thus the limit won't be
-         * applied for already started uploads and it's applied per storage server.
-         *
-         * @param bpslimit -1 to automatically select the limit, 0 for no limit, otherwise the speed limit
-         * in bytes per second
+         * @deprecated This version of the function is deprecated. Please, use \c setMaxUploadSpeed.
          */
+        MEGA_DEPRECATED
         void setUploadLimit(int bpslimit);
 
         /**
@@ -17453,6 +17412,9 @@ class MegaApi
          *       existing node in the cloud
          *     + SyncError::UNKNOWN_ERROR The given syncBackupId does not map to an existing two way
          *       sync
+         * - MegaError::API_EWRITE:
+         *     + SyncError::SYNC_CONFIG_WRITE_FAILURE We couldn't write into the database to commit
+         *       the change.
          * - MegaError::API_EEXISTS:
          *     + SyncError::UNKNOWN_ERROR the given newRootNodeHandle matches with the one that is
          *       already the root of the sync
@@ -17468,6 +17430,60 @@ class MegaApi
         void changeSyncRemoteRoot(const MegaHandle syncBackupId,
                                   const MegaHandle newRootNodeHandle,
                                   MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Change the local path that is being used as root for a sync.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHANGE_SYNC_ROOT.
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getFile - Returns the path of the new local folder to use as root
+         * - MegaRequest::getNodeHandle - Returns the affected sync backup ID.
+         * - MegaRequest::getListener - Returns the MegaRequestListener to track this request.
+         * - MegaRequest::getNumDetails - If different than NO_SYNC_ERROR, it returns additional
+         *   info for the specific sync error (MegaSync::Error). This can occur both when the
+         *   request has succeeded (API_OK) and in some cases of failure when the request error is
+         *   not sufficiently descriptive.
+         *
+         * On the onRequestFinish callback, the error code associated with the MegaError
+         * (MegaError::getErrorCode()) and the SyncError (if relevant, MegaError::getSyncError())
+         * can be:
+         * - MegaError::API_OK:
+         *     + SyncError::NO_SYNC_ERROR the new root has been changed successfully
+         * - MegaError::API_EARGS:
+         *     + SyncError::LOCAL_PATH_UNAVAILABLE the given path is nullptr or is empty
+         *     + SyncError::UNKNOWN_ERROR The given backupId does not match any of the registered
+         *       syncs
+         *     + SyncError::LOCAL_PATH_SYNC_COLLISION The local path conflicts with existing
+         *       synchronization paths (nested syncs are not allowed)
+         *     + SyncError::FILESYSTEM_ID_UNAVAILABLE unable to get the file system fingerprint with
+         *       the given path
+         *     + SyncError::LOCAL_FILESYSTEM_MISMATCH The given path is in a different file system
+         *       comparing with the previous one. We don't allow this operation
+         *     + SyncError::UNABLE_TO_RETRIEVE_ROOT_FSID The new root directory cannot be opened
+         *     + SyncError::BACKUP_SOURCE_NOT_BELOW_DRIVE The new root directory is not contained in
+         *       the previous external path. That operation is not allowed.
+         * - MegaError::API_EWRITE:
+         *     + SyncError::SYNC_CONFIG_WRITE_FAILURE We couldn't write into the database to commit
+         *       the change.
+         * - MegaError::API_EFAILED:
+         *     + SyncError::LOCAL_PATH_MOUNTED trying to sync bellow a FUSE mount point
+         *     + SyncError::UNSUPPORTED_FILE_SYSTEM the given path is in a not supported file system
+         * - MegaError::API_ETEMPUNAVAIL:
+         *     + SyncError::LOCAL_PATH_TEMPORARY_UNAVAILABLE the given new path is temporarily
+         *       unavailable
+         * - MegaError::API_ENOENT:
+         *     + SyncError::LOCAL_PATH_UNAVAILABLE the given new path is not available
+         * - MegaError::API_EACCESS:
+         *     + SyncError::INVALID_LOCAL_TYPE the given path is not a directory
+         *
+         * @param syncBackupId The handle (backup ID) of the sync whose local root is to be changed.
+         * @param newLocalSyncRootPath The new local path to set as the sync root.
+         * @param listener A MegaRequestListener to track this request. This parameter is optional.
+         */
+        void changeSyncLocalRoot(const MegaHandle syncBackupId,
+                                 const char* newLocalSyncRootPath,
+                                 MegaRequestListener* listener = nullptr);
 
 #endif // ENABLE_SYNC
 
@@ -17755,8 +17771,13 @@ class MegaApi
             /*deprecated*/ ORDER_PHOTO_ASC, /*deprecated*/ ORDER_PHOTO_DESC,
             /*deprecated*/ ORDER_VIDEO_ASC, /*deprecated*/ ORDER_VIDEO_DESC,
             ORDER_LINK_CREATION_ASC, ORDER_LINK_CREATION_DESC,
-            ORDER_LABEL_ASC, ORDER_LABEL_DESC, ORDER_FAV_ASC, ORDER_FAV_DESC,};
-
+            ORDER_LABEL_ASC,
+            ORDER_LABEL_DESC,
+            ORDER_FAV_ASC,
+            ORDER_FAV_DESC,
+            ORDER_SHARE_CREATION_ASC,
+            ORDER_SHARE_CREATION_DESC,
+        };
 
         enum { FILE_TYPE_DEFAULT = 0, // FILE_TYPE_UNKNOWN already exists at WinBase.h
                FILE_TYPE_PHOTO,
@@ -18512,10 +18533,16 @@ class MegaApi
          * Sort by size, small elements last
          *
          * - MegaApi::ORDER_CREATION_ASC = 5
-         * Sort by creation time in MEGA, older elements first
+         * Sort by node creation time in MEGA, older elements first
          *
          * - MegaApi::ORDER_CREATION_DESC = 6
-         * Sort by creation time in MEGA, older elements last
+         * Sort by node creation time in MEGA, older elements last
+         *
+         * - MegaApi::ORDER_SHARE_CREATION_ASC = 20
+         * Sort by share creation time in MEGA, older elements first
+         *
+         * - MegaApi::ORDER_SHARE_CREATION_DESC = 21
+         * Sort by share creation time in MEGA, older elements last
          *
          * @return List of MegaShare objects
          */
@@ -18583,10 +18610,16 @@ class MegaApi
          * Sort by size, small elements last
          *
          * - MegaApi::ORDER_CREATION_ASC = 5
-         * Sort by creation time in MEGA, older elements first
+         * Sort by node creation time in MEGA, older elements first
          *
          * - MegaApi::ORDER_CREATION_DESC = 6
-         * Sort by creation time in MEGA, older elements last
+         * Sort by node creation time in MEGA, older elements last
+         *
+         * - MegaApi::ORDER_SHARE_CREATION_ASC = 20
+         * Sort by share creation time in MEGA, older elements first
+         *
+         * - MegaApi::ORDER_SHARE_CREATION_DESC = 21
+         * Sort by share creation time in MEGA, older elements last
          *
          * @return List of MegaShare objects
          */
@@ -21707,10 +21740,10 @@ class MegaApi
         /**
          * @brief Send a verification code txt to the supplied phone number
          *
-         * Sends a 6 digit code to the user's phone. The phone number is supplied in this function call.
-         * The code is sent by SMS to the user. Once the user receives it, they can type it into the app
-         * and the call MegaApi::checkSMSVerificationCode can be used to validate the user did
-         * receive the verification code, so that really is their phone number.
+         * Sends a 6 digit code to the user's phone. The phone number is supplied in this function
+         * call. The code is sent by SMS to the user. Once the user receives it, they can type it
+         * into the app and the call MegaApi::checkSMSVerificationCode can be used to validate the
+         * user did receive the verification code, so that really is their phone number.
          *
          * The frequency with which this call can be used is very limited (the API allows at most
          * two SMS mssages sent for phone number per 24 hour period), so it's important to get the
@@ -21719,7 +21752,8 @@ class MegaApi
          *
          * Make sure to test the result of MegaApi::smsAllowedState before calling this function.
          *
-         * The associated request type with this request is MegaRequest::TYPE_SEND_SMS_VERIFICATIONCODE
+         * The associated request type with this request is
+         * MegaRequest::TYPE_SEND_SMS_VERIFICATIONCODE.
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getText - the phoneNumber as supplied to this function
          *
@@ -21733,15 +21767,21 @@ class MegaApi
          * @param phoneNumber The phone number to txt the code to, supplied by the user.
          * @param listener MegaRequestListener to track this request
          * @param reverifying_whitelisted debug usage only.  May be removed in future.
+         *
+         * @deprecated SMS verification was deprecated. This function is deprecated. Please don't
+         * use it in new code.
          */
+        MEGA_DEPRECATED
         void sendSMSVerificationCode(const char* phoneNumber, MegaRequestListener *listener = NULL, bool reverifying_whitelisted = false);
 
         /**
          * @brief Check a verification code that the user should have received via txt
          *
-         * This function validates that the user received the verification code sent by MegaApi::sendSMSVerificationCode.
+         * This function validates that the user received the verification code sent by
+         * MegaApi::sendSMSVerificationCode.
          *
-         * The associated request type with this request is MegaRequest::TYPE_CHECK_SMS_VERIFICATIONCODE
+         * The associated request type with this request is
+         * MegaRequest::TYPE_CHECK_SMS_VERIFICATIONCODE.
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getText - the verificationCode as supplied to this function
          *
@@ -21755,9 +21795,14 @@ class MegaApi
          * - MegaError::API_EEXPIRED if the phone number was verified on a different account.
          * - MegaError::API_OK is returned upon success.
          *
-         * @param verificationCode A string supplied by the user, that they should have received via txt.
+         * @param verificationCode A string supplied by the user, that they should have received via
+         * txt.
          * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated SMS verification was deprecated. This function is deprecated. Please don't
+         * use it in new code.
          */
+        MEGA_DEPRECATED
         void checkSMSVerificationCode(const char* verificationCode, MegaRequestListener *listener = NULL);
 
         /**
@@ -21770,16 +21815,21 @@ class MegaApi
          *   "AE": ["971", "13"],
          * }
          *
-         * The associated request type with this request is MegaRequest::TYPE_GET_COUNTRY_CALLING_CODES
-         * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_OK:
+         * The associated request type with this request is
+         * MegaRequest::TYPE_GET_COUNTRY_CALLING_CODES.
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code is
+         * MegaError::API_OK:
          * - MegaRequest::getMegaStringListMap where the keys are two-letter country codes and the
          *   values a list of calling codes.
          *
-         * For this command, there are currently no command specific error codes returned by the API.
+         * For this command, there are currently no command specific error codes returned by the
+         * API.
          *
          * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated This function is deprecated. Please don't use it in new code.
          */
+        MEGA_DEPRECATED
         void getCountryCallingCodes(MegaRequestListener *listener = NULL);
 
         /**
@@ -23462,6 +23512,20 @@ class MegaApi
          */
         void setWelcomePdfCopied(bool copied, MegaRequestListener* listener = nullptr);
 
+        /**
+         * @brief Gets the public IP address and country code.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_MY_IP.
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getName - Returns the country code.
+         * - MegaRequest::getText - Returns the public IP address.
+         *
+         * @param listener MegaRequestListener to track this request.
+         */
+        void getMyIp(MegaRequestListener* listener = nullptr);
+
     protected:
         MegaApiImpl *pImpl = nullptr;
         friend class MegaApiImpl;
@@ -24155,8 +24219,11 @@ public:
     virtual int getProLevel();
 
     /**
-     * @brief Get the expiration time for the current PRO plan
-     * @return Expiration time for the current PRO plan (in seconds since the Epoch)
+     * @brief Get the expiration time of the latest PRO plan
+     *
+     * The expiration time could be higher than the expiration time of the active PRO plan
+     *
+     * @return Expiration time for the latest PRO plan (in seconds since the Epoch)
      */
     virtual int64_t getProExpiration();
 

@@ -157,7 +157,7 @@ public:
     virtual bool procresult(Result, JSON&) = 0;
 
     // json for the command is usually pre-generated but can be calculated just before sending, by overriding this function
-    virtual const char* getJSON(MegaClient* client);
+    virtual const char* getJSON(MegaClient* clientOfRequest);
 
     Command();
     virtual ~Command();
@@ -165,7 +165,7 @@ public:
     bool checkError(Error &errorDetails, JSON &json);
 
     void addToNodePendingCommands(Node* n);
-    void removeFromNodePendingCommands(NodeHandle h, MegaClient* client);
+    void removeFromNodePendingCommands(NodeHandle h);
 
 #ifdef ENABLE_CHAT
     // create json structure for scheduled meetings (mcsmp command)
@@ -366,7 +366,7 @@ public:
     CommandRemoveContact(MegaClient*, const char*, visibility_t, Completion completion = nullptr);
 
 private:
-    void doComplete(error result);
+    void doComplete(error e);
 
     Completion mCompletion;
 };
@@ -487,7 +487,7 @@ class MEGA_API CommandFetchNodes : public Command
 {
     bool mLoadSyncs = false;
 
-    const char* getJSON(MegaClient* client) override;
+    const char* getJSON(MegaClient* clientOfRequest) override;
 
 public:
     bool procresult(Result, JSON&) override;
@@ -590,7 +590,8 @@ public:
 class MEGA_API CommandLogout : public Command
 {
     bool incrementedCount = false;
-    const char* getJSON(MegaClient* client) override;
+    const char* getJSON(MegaClient* clientOfRequest) override;
+
 public:
     using Completion = std::function<void(error)>;
 
@@ -662,7 +663,7 @@ public:
     void cancel() override;
     bool procresult(Result, JSON&) override;
 
-    CommandPutFile(MegaClient *client, TransferSlot*, int);
+    CommandPutFile(MegaClient* client, TransferSlot*);
 };
 
 class MEGA_API CommandGetPutUrl : public Command
@@ -673,7 +674,7 @@ class MEGA_API CommandGetPutUrl : public Command
 public:
     bool procresult(Result, JSON&) override;
 
-    CommandGetPutUrl(m_off_t size, int putmbpscap, bool forceSSL, bool getIP, Cb completion);
+    CommandGetPutUrl(m_off_t size, bool forceSSL, bool getIP, Cb completion);
 };
 
 
@@ -750,7 +751,7 @@ private:
     error generationError;
     bool mCanChangeVault;
 
-    const char* getJSON(MegaClient* client) override;
+    const char* getJSON(MegaClient* clientOfRequest) override;
 
     Completion completion;
 
@@ -848,7 +849,7 @@ public:
     CommandSetPendingContact(MegaClient*, const char*, opcactions_t, const char* = NULL, const char* = NULL, handle = UNDEF, Completion completion = nullptr);
 
 private:
-    void doComplete(handle handle, error result, opcactions_t actions);
+    void doComplete(handle handle, error e, opcactions_t actions);
 
     Completion mCompletion;
 };
@@ -865,7 +866,7 @@ public:
     CommandUpdatePendingContact(MegaClient*, handle, ipcactions_t, Completion completion = nullptr);
 
 private:
-    void doComplete(error result, ipcactions_t actions);
+    void doComplete(error e, ipcactions_t actions);
 
     Completion mCompletion;
 };
@@ -2251,6 +2252,18 @@ private:
     }
 
     Completion mCompletion;
+};
+
+class MEGA_API CommandGetMyIP: public Command
+{
+public:
+    using Cb =
+        std::function<void(const Error& /*e*/, string&& /*countryCode*/, string&& /*ipAddress*/)>;
+    CommandGetMyIP(MegaClient*, Cb&& completion = nullptr);
+    bool procresult(Result, JSON&) override;
+
+private:
+    Cb mCompletion;
 };
 
 } // namespace

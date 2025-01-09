@@ -20,13 +20,15 @@
  */
 
 #include "mega/nodemanager.h"
-#include "mega/megaclient.h"
+
 #include "mega/base64.h"
 #include "mega/megaapp.h"
+#include "mega/megaclient.h"
 #include "mega/share.h"
 
-
 namespace mega {
+
+NodeManager::NoKeyLogger NodeManager::mNoKeyLogger{};
 
 bool NodeSearchFilter::isValidNodeType(const nodetype_t nodeType) const
 {
@@ -118,6 +120,17 @@ bool NodeSearchFilter::isDocType(const MimeType_t t)
     }
 }
 
+// Log the first 256 entries and then every 256 entries
+void NodeManager::NoKeyLogger::log(const Node& n) const
+{
+    auto current = mCount.fetch_add(1);
+    if (current <= 256 || (current % 256 == 0))
+    {
+        LOG_debug << "Storing an encrypted node[" << current << "]: " << n.type << " " << n.size
+                  << " " << Base64Str<MegaClient::NODEHANDLE>(n.nodehandle);
+    }
+}
+
 NodeManager::NodeManager(MegaClient& client)
     : mClient(client)
     , mNodesInRam{0}
@@ -147,6 +160,7 @@ void NodeManager::reset_internal()
     assert(mMutex.owns_lock());
     setTable_internal(nullptr);
     cleanNodes_internal();
+    mNullRootNodesReported = false;
 }
 
 bool NodeManager::setrootnode(std::shared_ptr<Node> node)
@@ -333,6 +347,24 @@ bool NodeManager::updateNode_internal(Node *node)
     putNodeInDb(node);
 
     return true;
+}
+
+void NodeManager::reportNullRootNodes(const size_t rootNodesSize)
+{
+    if (mNullRootNodesReported)
+    {
+        return;
+    }
+
+    rootNodesSize >= rootnodes.MIN_NUM_ROOT_NODES ?
+        mClient.sendevent(99490, "Null rootnode/s detected", 0) :
+        mClient.sendevent(99491,
+                          "Null rootnode/s detected and wrong number of root nodes retrieved",
+                          0);
+    LOG_err << "getNodeCount_internal: Null rootnode/s detected. Number of root nodes: "
+            << rootNodesSize;
+    mNullRootNodesReported = true;
+    assert(false);
 }
 
 std::shared_ptr<Node> NodeManager::getNodeByHandle(NodeHandle handle)
@@ -599,10 +631,17 @@ uint64_t NodeManager::getNodeCount_internal()
     uint64_t count = 0;
     sharedNode_vector roots = getRootNodesAndInshares();
 
-    for (auto& node : roots)
+    for (auto& node: roots)
     {
-        NodeCounter nc = node->getCounter();
-        count += nc.files + nc.folders + nc.versions;
+        if (node)
+        {
+            NodeCounter nc = node->getCounter();
+            count += nc.files + nc.folders + nc.versions;
+        }
+        else
+        {
+            reportNullRootNodes(roots.size());
+        }
     }
 
     // add roots to the count if logged into account (and fetchnodes is done <- roots are ready)
@@ -1235,7 +1274,7 @@ size_t NodeManager::getNumberOfChildrenFromNode_internal(NodeHandle parentHandle
         return parentIt->second.mChildren ? parentIt->second.mChildren->size() : 0;
     }
 
-    return mTable->getNumberOfChildren(parentHandle);
+    return static_cast<size_t>(mTable->getNumberOfChildren(parentHandle));
 }
 
 size_t NodeManager::getNumberOfChildrenByType(NodeHandle parentHandle, nodetype_t nodeType)
@@ -1256,7 +1295,7 @@ size_t NodeManager::getNumberOfChildrenByType_internal(NodeHandle parentHandle, 
 
     assert(nodeType == FILENODE || nodeType == FOLDERNODE);
 
-    return mTable->getNumberOfChildrenByType(parentHandle, nodeType);
+    return static_cast<size_t>(mTable->getNumberOfChildrenByType(parentHandle, nodeType));
 }
 
 bool NodeManager::isAncestor(NodeHandle nodehandle, NodeHandle ancestor, CancelToken cancelFlag)
@@ -1428,13 +1467,6 @@ void NodeManager::notifyPurge()
         {
             std::shared_ptr<Node> n = nodesToReport[i];
 
-            if (n->attrstring)
-            {
-                // make this just a warning to avoid auto test failure
-                // this can happen if another client adds a folder in our share and the key for us is not available yet
-                LOG_warn << "NO_KEY node: " << n->type << " " << n->size << " " << toNodeHandle(n->nodehandle) << " " << n->nodekeyUnchecked().size();
-            }
-
             if (n->changed.removed)
             {
                 // remove inbound share
@@ -1534,12 +1566,12 @@ bool NodeManager::loadNodes_internal()
         return false;
     }
 
-    sharedNode_vector rootnodes = getRootNodes_internal();
+    sharedNode_vector allRootNodes = getRootNodes_internal();
     // We can't base in `user.sharing` because it's set yet. We have to get from DB
     sharedNode_vector inshares =
         getNodesWithSharesOrLink_internal(ShareType_t::IN_SHARES); // it includes nested inshares
 
-    for (auto &node : rootnodes)
+    for (const auto& node: allRootNodes)
     {
         getChildren_internal(node.get());
     }
@@ -2063,16 +2095,16 @@ shared_ptr<Node> NodeManager::getNodeFromDataBase(NodeHandle handle)
 sharedNode_vector NodeManager::getRootNodesAndInshares()
 {
     assert(mMutex.owns_lock());
-    sharedNode_vector rootnodes;
+    sharedNode_vector allRootNodes;
 
-    rootnodes = getRootNodes_internal();
+    allRootNodes = getRootNodes_internal();
     if (!mClient.loggedIntoFolder()) // logged into user's account: incoming shared folders
     {
         sharedNode_vector inshares = mClient.getInShares();
-        rootnodes.insert(rootnodes.end(), inshares.begin(), inshares.end());
+        allRootNodes.insert(allRootNodes.end(), inshares.begin(), inshares.end());
     }
 
-    return rootnodes;
+    return allRootNodes;
 }
 
 sharedNode_vector NodeManager::processUnserializedNodes(const vector<pair<NodeHandle, NodeSerialized>>& nodesFromTable, CancelToken cancelFlag)
@@ -2150,13 +2182,12 @@ void NodeManager::putNodeInDb(Node* node) const
     if (node->attrstring)
     {
         // Last attempt to decrypt the node before storing it.
-        LOG_debug << "Trying to store an encrypted node";
         node->applykey();
         node->setattr();
 
         if (node->attrstring)
         {
-            LOG_debug << "Storing an encrypted node.";
+            mNoKeyLogger.log(*node);
         }
     }
 

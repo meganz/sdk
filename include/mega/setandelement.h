@@ -178,8 +178,14 @@ namespace mega {
         // return changes to internal parameters (useful for app notifications)
         unsigned long changes() const { return mChanges.to_ulong(); }
 
-        // return true if internal parameter pointed out by changeType has changed (useful for app notifications)
-        bool hasChanged(uint64_t changeType) const { return validChangeType(changeType, CH_EL_SIZE) ? mChanges[changeType] : false; }
+        // return true if internal parameter pointed out by changeType has changed (useful for app
+        // notifications)
+        bool hasChanged(uint64_t changeType) const
+        {
+            return validChangeType(changeType, CH_EL_SIZE) ?
+                       mChanges[static_cast<size_t>(changeType)] :
+                       false;
+        }
 
         bool serialize(std::string*) const override;
         static std::unique_ptr<SetElement> unserialize(std::string* d);
@@ -294,8 +300,14 @@ namespace mega {
         // return changes to internal parameters (useful for app notifications)
         unsigned long changes() const { return mChanges.to_ulong(); }
 
-        // return true if internal parameter pointed out by changeType has changed (useful for app notifications)
-        bool hasChanged(uint64_t changeType) const { return validChangeType(changeType, CH_SIZE) ? mChanges[changeType] : false; }
+        // return true if internal parameter pointed out by changeType has changed (useful for app
+        // notifications)
+        bool hasChanged(uint64_t changeType) const
+        {
+            return validChangeType(changeType, CH_SIZE) ?
+                       mChanges[static_cast<size_t>(changeType)] :
+                       false;
+        }
 
         bool isExported() const { return mPublicId != UNDEF; }
 

@@ -146,6 +146,14 @@ HEADERS= sdk/include/mega.h \
         sdk/include/mega/user_attribute_manager.h \
         sdk/include/mega/user_attribute_types.h
 
+# impl layer headers
+HEADERS += \
+    sdk/include/impl/share.h
+
+# impl layer sources
+CPP_SOURCES += \
+    sdk/src/impl/share.cpp
+
 # FUSE (Common headers.)
 HEADERS += \
     sdk/include/mega/fuse/common/fuse/common/activity_monitor.h \

@@ -401,22 +401,78 @@ bool GfxProviderFreeImage::readbitmapFfmpeg(const LocalPath& imagePath, int /*si
     packet.data = NULL;
     packet.size = 0;
 
+    // Compute the video's rotation.
+    auto rotation = [&]()
+    {
+        // Retrieve the video's display matrix.
+        auto* matrix = av_stream_get_side_data(videoStream, AV_PKT_DATA_DISPLAYMATRIX, nullptr);
+
+        // No display matrix? No rotation.
+        if (!matrix)
+        {
+            return 0;
+        }
+
+        // Retrieve the video's rotation.
+        return (int)av_display_rotation_get((int32_t*)matrix);
+    }();
+
     int scalingResult;
     int actualNumFrames = 0;
+    int result = 0;
 
     // Read frames until succesfull decodification or reach limit of 220 frames
-    while (actualNumFrames < 220 && av_read_frame(formatContext, &packet) >= 0)
+    while (actualNumFrames < 220 && result != AVERROR_EOF)
     {
+        // Try and read a packet from the file.
+        result = av_read_frame(formatContext, &packet);
+
+        // Couldn't read a packet from the file due to some (hard) error.
+        //
+        // Note that we don't break here if we couldn't read a packet
+        // because we hit the end of the file. This is because in this case,
+        // the packet will be a dummy which we'll feed into the codec below.
+        if (result < 0 && result != AVERROR_EOF)
+        {
+            break;
+        }
+
+        // Make sure any data contained in the packet is released at the end
+        // of this iteration.
         auto avPacketGuard = makeUniqueFrom(&packet, av_packet_unref);
+
+        // We're only interested in video packets.
         if (packet.stream_index == videoStream->index)
         {
-            int ret = avcodec_send_packet(codecContext, &packet);
-            if (ret < 0 && ret != AVERROR(EAGAIN) && ret != AVERROR_EOF)
+            // Feed the packet we retrieved from the file into our codec.
+            //
+            // Note that the packet we feed into the codec will be a dummy
+            // if we hit the end of the file. The reason we still need to
+            // process this dummy packet is that doing so will put the codec
+            // into "drain mode."
+            //
+            // This is necessary because even though we've hit the end of
+            // the file, the codec may still contain frames for us to
+            // process.
+            result = avcodec_send_packet(codecContext, &packet);
+
+            // Encountered a hard error passing the packet to the codec.
+            if (result < 0 && result != AVERROR(EAGAIN) && result != AVERROR_EOF)
             {
                 break;
             }
 
-            while (avcodec_receive_frame(codecContext, videoFrame) >= 0)
+            // Keep extracting decoded frames from the codec for as long as
+            // we can. If we haven't hit the end of the file, this function
+            // will return EAGAIN which means it needs us to feed the codec
+            // more packets. If the function returns EOF, it means that the
+            // codec has been drained and no further decoded frames are
+            // possible.
+            //
+            // Note that this function can only return EOF if the codec had
+            // entered "draining mode." That is, it'll only happen if
+            // av_read_frame above also returned EOF.
+            while ((result = avcodec_receive_frame(codecContext, videoFrame)) >= 0)
             {
                 if (sourcePixelFormat != codecContext->pix_fmt)
                 {
@@ -448,30 +504,45 @@ bool GfxProviderFreeImage::readbitmapFfmpeg(const LocalPath& imagePath, int /*si
                         return false;
                     }
 
-                    //int pitch = imagesize/height;
-                    int pitch = width*3;
+                    int pitch = width * 3;
 
+                    // Assume we can't generate the image from our raw frame.
+                    w = 0;
+                    h = 0;
+
+                    // Try and generate an image from our raw frame.
                     if (!(dib = FreeImage_ConvertFromRawBits((BYTE*)fmemory.data,width,height,
                                                              pitch, 24, FI_RGBA_RED_SHIFT, FI_RGBA_GREEN_MASK,
                                                              FI_RGBA_BLUE_MASK | 0xFFFF, TRUE) ) )
                     {
                         LOG_warn << "Error loading freeimage from memory: " << imagePath;
-                    }
-                    else
-                    {
-                        LOG_verbose << "SUCCESS loading freeimage from memory: "<< imagePath;
+                        return false;
                     }
 
-                    LOG_debug << "Video image ready";
+                    // Invert any rotation if necessary.
+                    if (rotation)
+                    {
+                        if (auto* temp = FreeImage_Rotate(dib, rotation))
+                        {
+                            FreeImage_Unload(dib);
+                            dib = temp;
+                        }
+                        else
+                        {
+                            LOG_warn << "Couldn't remove rotation from image: " << imagePath;
+                        }
+                    }
 
                     w = static_cast<int>(FreeImage_GetWidth(dib));
                     h = static_cast<int>(FreeImage_GetHeight(dib));
+
+                    LOG_debug << "Video image ready";
 
                     return w > 0 && h > 0;
                 }
             }
 
-           actualNumFrames++;
+            actualNumFrames++;
         }
     }
 

@@ -65,7 +65,7 @@ struct MEGA_API File: public FileFingerprint
         MegaClient* client,
         UploadHandle fileAttrMatchHandle,
         const UploadToken& ultoken,
-        const FileNodeKey& filekey,
+        const FileNodeKey& newFileKey,
         putsource_t source,
         NodeHandle ovHandle,
         std::function<void(const Error&,
@@ -114,6 +114,10 @@ struct MEGA_API File: public FileFingerprint
     // previous node, if any
     std::shared_ptr<Node> previousNode;
 
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable: 4201) // nameless struct
+#endif
     struct
     {
         // source handle private?
@@ -131,6 +135,9 @@ struct MEGA_API File: public FileFingerprint
         // remember if the sync is from an inshare
         bool fromInsycShare : 1;
     };
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 
     VersioningOption mVersioningOption = NoVersioning;
 

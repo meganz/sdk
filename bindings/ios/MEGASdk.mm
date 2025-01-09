@@ -2862,12 +2862,6 @@ using namespace mega;
     return self.megaApi->areTransfersPaused((int)direction);
 }
 
-- (void)setUploadLimitWithBpsLimit:(NSInteger)bpsLimit {
-    if (self.megaApi) {
-        self.megaApi->setUploadLimit((int)bpsLimit);
-    }
-}
-
 - (void)requestBackgroundUploadURLWithFileSize:(int64_t)filesize mediaUpload:(MEGABackgroundMediaUpload *)mediaUpload delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->backgroundMediaUploadRequestUploadURL(filesize, mediaUpload.getCPtr, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
@@ -3248,6 +3242,22 @@ using namespace mega;
     MegaStringList *result = self.megaApi->getAllNodeTags(searchString.UTF8String, cancelToken.getCPtr);
     MEGAStringList *tagsStringList = [MEGAStringList.alloc initWithMegaStringList:result cMemoryOwn:YES];
     return tagsStringList.toStringArray;
+}
+
+- (void)addTag:(NSString *)tag toNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi != nil) {
+        self.megaApi->addNodeTag(node.getCPtr, tag.UTF8String, [self createDelegateMEGARequestListener:delegate
+                                                                                        singleListener:YES
+                                                                                             queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
+- (void)removeTag:(NSString *)tag fromNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi != nil) {
+        self.megaApi->removeNodeTag(node.getCPtr, tag.UTF8String, [self createDelegateMEGARequestListener:delegate
+                                                                                           singleListener:YES
+                                                                                                queueType:ListenerQueueTypeCurrent]);
+    }
 }
 
 - (MEGAError *)checkMoveErrorExtendedForNode:(MEGANode *)node target:(MEGANode *)target {
@@ -3984,6 +3994,7 @@ using namespace mega;
     MegaSearchFilter *megaFilter = MegaSearchFilter::createInstance();
 
     megaFilter->byName(filter.term.UTF8String);
+    megaFilter->byDescription(filter.searchDescription.UTF8String);
     megaFilter->byNodeType((int)filter.nodeType);
     megaFilter->byCategory((int)filter.category);
     megaFilter->bySensitivity((int)filter.sensitiveFilter);
@@ -4004,6 +4015,8 @@ using namespace mega;
     if (filter.modificationTimeFrame != nil) {
         megaFilter->byModificationTime(filter.modificationTimeFrame.lowerLimit, filter.modificationTimeFrame.upperLimit);
     }
+
+    megaFilter->useAndForTextQuery(filter.useAndForTextQuery);
 
     return megaFilter;
 }
@@ -4143,6 +4156,12 @@ using namespace mega;
     if (self.megaApi) {
         MegaNode::PasswordNodeData *passwordNodeData = MegaNode::PasswordNodeData::createInstance(newData.password.UTF8String, newData.notes.UTF8String, newData.url.UTF8String, newData.userName.UTF8String);
         self.megaApi->updatePasswordNode(node, passwordNodeData, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    }
+}
+
+- (void)importPasswordsFromFile:(NSString *)filePath fileSource:(ImportPasswordFileSource)fileSource parent:(MEGAHandle)parent delegate:(id<MEGARequestDelegate>)delegate; {
+    if (self.megaApi) {
+        self.megaApi->importPasswordsFromFile(filePath.UTF8String, (int)fileSource, parent, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
     }
 }
 

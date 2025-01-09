@@ -518,8 +518,8 @@ bool SqliteDbAccess::migrateDataToColumns(sqlite3* db, vector<NewColumn>&& cols)
     {
         const char* blob = static_cast<const char*>(sqlite3_column_blob(stmt, 1));
         int blobSize = sqlite3_column_bytes(stmt, 1);
-        handle nh = sqlite3_column_int64(stmt, 0);
-        NodeData nd(blob, blobSize, NodeData::COMPONENT_ATTRS);
+        handle nh = static_cast<handle>(sqlite3_column_int64(stmt, 0));
+        NodeData nd(blob, static_cast<size_t>(blobSize), NodeData::COMPONENT_ATTRS);
 
         std::vector<std::unique_ptr<MigrateType>> migrateElement;
         migrateElement.reserve(cols.size());
@@ -598,7 +598,10 @@ bool SqliteDbAccess::migrateDataToColumns(sqlite3* db, vector<NewColumn>&& cols)
         }
 
         int stepResult;
-        if (sqlite3_bind_int64(stmt, static_cast<int>(cols.size()) + 1, update.first) != SQLITE_OK || // nodehandle
+        if (sqlite3_bind_int64(stmt,
+                               static_cast<int>(cols.size()) + 1,
+                               static_cast<sqlite3_int64>(update.first)) !=
+                SQLITE_OK || // nodehandle
             ((stepResult = sqlite3_step(stmt)) != SQLITE_DONE && stepResult != SQLITE_ROW) ||
             sqlite3_reset(stmt) != SQLITE_OK)
         {
@@ -702,9 +705,10 @@ bool SqliteDbTable::next(uint32_t* index, string* data)
         return false;
     }
 
-    *index = sqlite3_column_int(pStmt, 0);
+    *index = static_cast<uint32_t>(sqlite3_column_int(pStmt, 0));
 
-    data->assign((char*)sqlite3_column_blob(pStmt, 1), sqlite3_column_bytes(pStmt, 1));
+    data->assign(static_cast<const char*>(sqlite3_column_blob(pStmt, 1)),
+                 static_cast<size_t>(sqlite3_column_bytes(pStmt, 1)));
 
     return true;
 }
@@ -723,13 +727,14 @@ bool SqliteDbTable::get(uint32_t index, string* data)
     rc = sqlite3_prepare_v2(db, "SELECT content FROM statecache WHERE id = ?", -1, &stmt, NULL);
     if (rc == SQLITE_OK)
     {
-        rc = sqlite3_bind_int(stmt, 1, index);
+        rc = sqlite3_bind_int(stmt, 1, static_cast<int>(index));
         if (rc == SQLITE_OK)
         {
             rc = sqlite3_step(stmt);
             if (rc == SQLITE_ROW)
             {
-                data->assign((char*)sqlite3_column_blob(stmt, 0), sqlite3_column_bytes(stmt, 0));
+                data->assign(static_cast<const char*>(sqlite3_column_blob(stmt, 0)),
+                             static_cast<size_t>(sqlite3_column_bytes(stmt, 0)));
             }
         }
     }
@@ -762,10 +767,10 @@ bool SqliteDbTable::put(uint32_t index, char* data, unsigned len)
 
     if (sqlResult == SQLITE_OK)
     {
-        sqlResult = sqlite3_bind_int(mPutStmt, 1, index);
+        sqlResult = sqlite3_bind_int(mPutStmt, 1, static_cast<int>(index));
         if (sqlResult == SQLITE_OK)
         {
-            sqlResult = sqlite3_bind_blob(mPutStmt, 2, data, len, SQLITE_STATIC);
+            sqlResult = sqlite3_bind_blob(mPutStmt, 2, data, static_cast<int>(len), SQLITE_STATIC);
             if (sqlResult == SQLITE_OK)
             {
                 sqlResult = sqlite3_step(mPutStmt);
@@ -799,7 +804,7 @@ bool SqliteDbTable::del(uint32_t index)
 
     if (sqlResult == SQLITE_OK)
     {
-        sqlResult = sqlite3_bind_int(mDelStmt, 1, index);
+        sqlResult = sqlite3_bind_int(mDelStmt, 1, static_cast<int>(index));
         if (sqlResult == SQLITE_OK)
         {
             sqlResult = sqlite3_step(mDelStmt); // tipically SQLITE_DONE, but could be SQLITE_ROW if implementation returned removed row count
@@ -992,7 +997,7 @@ bool SqliteAccountState::processSqlQueryNodes(sqlite3_stmt *stmt, std::vector<st
     while ((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
     {
         NodeHandle nodeHandle;
-        nodeHandle.set6byte(sqlite3_column_int64(stmt, 0));
+        nodeHandle.set6byte(static_cast<uint64_t>(sqlite3_column_int64(stmt, 0)));
 
         NodeSerialized node;
 
@@ -1001,7 +1006,8 @@ bool SqliteAccountState::processSqlQueryNodes(sqlite3_stmt *stmt, std::vector<st
         int size = sqlite3_column_bytes(stmt, 1);
         if (data && size)
         {
-            node.mNodeCounter = std::string(static_cast<const char*>(data), size);
+            node.mNodeCounter =
+                std::string(static_cast<const char*>(data), static_cast<size_t>(size));
         }
 
         // blob node
@@ -1009,7 +1015,7 @@ bool SqliteAccountState::processSqlQueryNodes(sqlite3_stmt *stmt, std::vector<st
         size = sqlite3_column_bytes(stmt, 2);
         if (data && size)
         {
-            node.mNode = std::string(static_cast<const char*>(data), size);
+            node.mNode = std::string(static_cast<const char*>(data), static_cast<size_t>(size));
             nodes.insert(nodes.end(), std::make_pair(nodeHandle, std::move(node)));
         }
     }
@@ -1072,7 +1078,10 @@ void SqliteAccountState::updateCounter(NodeHandle nodeHandle, const std::string&
     {
         if ((sqlResult = sqlite3_bind_blob(mStmtUpdateNode, 1, nodeCounterBlob.data(), static_cast<int>(nodeCounterBlob.size()), SQLITE_STATIC)) == SQLITE_OK)
         {
-            if ((sqlResult = sqlite3_bind_int64(mStmtUpdateNode, 2, nodeHandle.as8byte())) == SQLITE_OK)
+            if ((sqlResult = sqlite3_bind_int64(
+                     mStmtUpdateNode,
+                     2,
+                     static_cast<sqlite3_int64>(nodeHandle.as8byte()))) == SQLITE_OK)
             {
                 sqlResult = sqlite3_step(mStmtUpdateNode);
             }
@@ -1104,9 +1113,14 @@ void SqliteAccountState::updateCounterAndFlags(NodeHandle nodeHandle, uint64_t f
     {
         if ((sqlResult = sqlite3_bind_blob(mStmtUpdateNodeAndFlags, 1, nodeCounterBlob.data(), static_cast<int>(nodeCounterBlob.size()), SQLITE_STATIC)) == SQLITE_OK)
         {
-            if ((sqlResult = sqlite3_bind_int64(mStmtUpdateNodeAndFlags, 2, flags)) == SQLITE_OK)
+            if ((sqlResult = sqlite3_bind_int64(mStmtUpdateNodeAndFlags,
+                                                2,
+                                                static_cast<sqlite3_int64>(flags))) == SQLITE_OK)
             {
-                if ((sqlResult = sqlite3_bind_int64(mStmtUpdateNodeAndFlags, 3, nodeHandle.as8byte())) == SQLITE_OK)
+                if ((sqlResult = sqlite3_bind_int64(
+                         mStmtUpdateNodeAndFlags,
+                         3,
+                         static_cast<sqlite3_int64>(nodeHandle.as8byte()))) == SQLITE_OK)
                 {
                     sqlResult = sqlite3_step(mStmtUpdateNodeAndFlags);
                 }
@@ -1270,10 +1284,10 @@ bool SqliteAccountState::put(Node *node)
         node->serialize(&nodeSerialized);
         assert(nodeSerialized.size());
 
-        sqlite3_bind_int64(mStmtPutNode, 1, node->nodehandle);
-        sqlite3_bind_int64(mStmtPutNode, 2, node->parenthandle);
+        sqlite3_bind_int64(mStmtPutNode, 1, static_cast<sqlite3_int64>(node->nodehandle));
+        sqlite3_bind_int64(mStmtPutNode, 2, static_cast<sqlite3_int64>(node->parenthandle));
 
-        std::string name = node->displayname();
+        std::string name = node->displayname(Node::LOG_CONDITION_DISABLE_NO_KEY);
         sqlite3_bind_text(mStmtPutNode, 3, name.c_str(), static_cast<int>(name.length()), SQLITE_STATIC);
 
         string fp;
@@ -1300,7 +1314,7 @@ bool SqliteAccountState::put(Node *node)
         sqlite3_bind_int(mStmtPutNode, 8, fav);
         sqlite3_bind_int64(mStmtPutNode, 9, node->ctime);
         sqlite3_bind_int64(mStmtPutNode, 10, node->mtime);
-        sqlite3_bind_int64(mStmtPutNode, 11, node->getDBFlags());
+        sqlite3_bind_int64(mStmtPutNode, 11, static_cast<sqlite3_int64>(node->getDBFlags()));
         std::string nodeCountersBlob = node->getCounter().serialize();
         sqlite3_bind_blob(mStmtPutNode,
                           12,
@@ -1377,7 +1391,10 @@ bool SqliteAccountState::getNode(NodeHandle nodehandle, NodeSerialized &nodeSeri
 
     if (sqlResult == SQLITE_OK)
     {
-        if ((sqlResult = sqlite3_bind_int64(mStmtGetNode, 1, nodehandle.as8byte())) == SQLITE_OK)
+        if ((sqlResult = sqlite3_bind_int64(mStmtGetNode,
+                                            1,
+                                            static_cast<sqlite3_int64>(nodehandle.as8byte()))) ==
+            SQLITE_OK)
         {
             if((sqlResult = sqlite3_step(mStmtGetNode)) == SQLITE_ROW)
             {
@@ -1389,8 +1406,10 @@ bool SqliteAccountState::getNode(NodeHandle nodehandle, NodeSerialized &nodeSeri
 
                 if (dataNodeCounter && sizeNodeCounter && dataNodeSerialized && sizeNodeSerialized)
                 {
-                    nodeSerialized.mNodeCounter.assign(static_cast<const char*>(dataNodeCounter), sizeNodeCounter);
-                    nodeSerialized.mNode.assign(static_cast<const char*>(dataNodeSerialized), sizeNodeSerialized);
+                    nodeSerialized.mNodeCounter.assign(static_cast<const char*>(dataNodeCounter),
+                                                       static_cast<size_t>(sizeNodeCounter));
+                    nodeSerialized.mNode.assign(static_cast<const char*>(dataNodeSerialized),
+                                                static_cast<size_t>(sizeNodeSerialized));
                     success = true;
                 }
             }
@@ -1506,11 +1525,14 @@ uint64_t SqliteAccountState::getNumberOfChildren(NodeHandle parentHandle)
 
     if (sqlResult == SQLITE_OK)
     {
-        if ((sqlResult = sqlite3_bind_int64(mStmtNumChildren, 1, parentHandle.as8byte())) == SQLITE_OK)
+        if ((sqlResult = sqlite3_bind_int64(mStmtNumChildren,
+                                            1,
+                                            static_cast<sqlite3_int64>(parentHandle.as8byte()))) ==
+            SQLITE_OK)
         {
             if ((sqlResult = sqlite3_step(mStmtNumChildren)) == SQLITE_ROW)
             {
-               numChildren = sqlite3_column_int64(mStmtNumChildren, 0);
+                numChildren = static_cast<uint64_t>(sqlite3_column_int64(mStmtNumChildren, 0));
             }
         }
     }
@@ -1845,13 +1867,13 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter,
                 "OR (" + idAncestor2 + " != " + undefStr + " AND nodehandle = " + idAncestor2 + ") "
                 "OR (" + idAncestor3 + " != " + undefStr + " AND nodehandle = " + idAncestor3 + ") "
                 "OR (" + idIncShares + " != " + noShareStr + " AND nodehandle IN "
-                    "(SELECT nodehandle FROM nodes WHERE share = " + idIncShares + ")))";
+                    "(SELECT nodehandle FROM nodes WHERE share & " + idIncShares + " != 0)))";
 
         static const std::string nodesOfShares =
             "nodesOfShares(" + columnsForNodeAndFilters + ") \n"
             "AS (SELECT " + columnsForNodeAndFilters + " \n"
                 "FROM nodes \n"
-                "WHERE " + idIncShares + " != " + noShareStr + " AND share = " + idIncShares + ")";
+                "WHERE " + idIncShares + " != " + noShareStr + " AND share & " + idIncShares + " != 0)";
 
         static const std::string nodesCTE =
             "nodesCTE(" + columnsForNodeAndFilters + ") \n"
@@ -2073,11 +2095,15 @@ bool SqliteAccountState::getFavouritesHandles(NodeHandle node, uint32_t count, s
 
     if (sqlResult == SQLITE_OK)
     {
-        if ((sqlResult = sqlite3_bind_int64(mStmtFavourites, 1, node.as8byte())) == SQLITE_OK)
+        if ((sqlResult = sqlite3_bind_int64(mStmtFavourites,
+                                            1,
+                                            static_cast<sqlite3_int64>(node.as8byte()))) ==
+            SQLITE_OK)
         {
             while ((sqlResult = sqlite3_step(mStmtFavourites)) == SQLITE_ROW && (nodes.size() < count || count == 0))
             {
-                nodes.push_back(NodeHandle().set6byte(sqlite3_column_int64(mStmtFavourites, 0)));
+                nodes.push_back(NodeHandle().set6byte(
+                    static_cast<uint64_t>(sqlite3_column_int64(mStmtFavourites, 0))));
             }
         }
     }
@@ -2110,7 +2136,10 @@ bool SqliteAccountState::childNodeByNameType(NodeHandle parentHandle, const std:
 
     if (sqlResult == SQLITE_OK)
     {
-        if ((sqlResult = sqlite3_bind_int64(mStmtChildNode, 1, parentHandle.as8byte())) == SQLITE_OK)
+        if ((sqlResult = sqlite3_bind_int64(mStmtChildNode,
+                                            1,
+                                            static_cast<sqlite3_int64>(parentHandle.as8byte()))) ==
+            SQLITE_OK)
         {
             if ((sqlResult = sqlite3_bind_text(mStmtChildNode, 2, name.c_str(), static_cast<int>(name.length()), SQLITE_STATIC)) == SQLITE_OK)
             {
@@ -2159,13 +2188,16 @@ bool SqliteAccountState::getNodeSizeTypeAndFlags(NodeHandle node, m_off_t& size,
 
     if (sqlResult == SQLITE_OK)
     {
-        if ((sqlResult = sqlite3_bind_int64(mStmtTypeAndSizeNode, 1, node.as8byte())) == SQLITE_OK)
+        if ((sqlResult = sqlite3_bind_int64(mStmtTypeAndSizeNode,
+                                            1,
+                                            static_cast<sqlite3_int64>(node.as8byte()))) ==
+            SQLITE_OK)
         {
             if ((sqlResult = sqlite3_step(mStmtTypeAndSizeNode)) == SQLITE_ROW)
             {
                nodeType = (nodetype_t)sqlite3_column_int(mStmtTypeAndSizeNode, 0);
                size = sqlite3_column_int64(mStmtTypeAndSizeNode, 1);
-               oldFlags = sqlite3_column_int64(mStmtTypeAndSizeNode, 2);
+               oldFlags = static_cast<uint64_t>(sqlite3_column_int64(mStmtTypeAndSizeNode, 2));
             }
         }
     }
@@ -2207,9 +2239,15 @@ bool SqliteAccountState::isAncestor(NodeHandle node, NodeHandle ancestor, Cancel
 
     if (sqlResult == SQLITE_OK)
     {
-        if ((sqlResult = sqlite3_bind_int64(mStmtIsAncestor, 1, node.as8byte())) == SQLITE_OK)
+        if ((sqlResult = sqlite3_bind_int64(mStmtIsAncestor,
+                                            1,
+                                            static_cast<sqlite3_int64>(node.as8byte()))) ==
+            SQLITE_OK)
         {
-            if ((sqlResult = sqlite3_bind_int64(mStmtIsAncestor, 2, ancestor.as8byte())) == SQLITE_OK)
+            if ((sqlResult = sqlite3_bind_int64(mStmtIsAncestor,
+                                                2,
+                                                static_cast<sqlite3_int64>(ancestor.as8byte()))) ==
+                SQLITE_OK)
             {
                 if ((sqlResult = sqlite3_step(mStmtIsAncestor)) == SQLITE_ROW)
                 {
@@ -2246,7 +2284,7 @@ uint64_t SqliteAccountState::getNumberOfNodes()
     {
         if ((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
         {
-            count = sqlite3_column_int64(stmt, 0);
+            count = static_cast<uint64_t>(sqlite3_column_int64(stmt, 0));
         }
     }
 
@@ -2276,13 +2314,16 @@ uint64_t SqliteAccountState::getNumberOfChildrenByType(NodeHandle parentHandle, 
 
     if (sqlResult == SQLITE_OK)
     {
-        if ((sqlResult = sqlite3_bind_int64(mStmtNumChild, 1, parentHandle.as8byte())) == SQLITE_OK)
+        if ((sqlResult = sqlite3_bind_int64(mStmtNumChild,
+                                            1,
+                                            static_cast<sqlite3_int64>(parentHandle.as8byte()))) ==
+            SQLITE_OK)
         {
             if ((sqlResult = sqlite3_bind_int(mStmtNumChild, 2, nodeType)) == SQLITE_OK)
             {
                 if ((sqlResult = sqlite3_step(mStmtNumChild)) == SQLITE_ROW)
                 {
-                    count = sqlite3_column_int64(mStmtNumChild, 0);
+                    count = static_cast<uint64_t>(sqlite3_column_int64(mStmtNumChild, 0));
                 }
             }
         }

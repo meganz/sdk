@@ -512,8 +512,8 @@ bool TextChat::serialize(string *d) const
             handle uh = it->first;
             d->append((char*)&uh, sizeof uh);
 
-            privilege_t priv = it->second;
-            d->append((char*)&priv, sizeof priv);
+            privilege_t privilege = it->second;
+            d->append((char*)&privilege, sizeof(privilege));
 
             it++;
         }
@@ -659,10 +659,10 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
             handle uh = MemAccess::get<handle>(ptr);
             ptr += sizeof uh;
 
-            privilege_t priv = MemAccess::get<privilege_t>(ptr);
-            ptr += sizeof priv;
+            privilege_t peerPrivilege = MemAccess::get<privilege_t>(ptr);
+            ptr += sizeof(peerPrivilege);
 
-            userpriv->push_back(userpriv_pair(uh, priv));
+            userpriv->push_back(userpriv_pair(uh, peerPrivilege));
         }
 
         if (priv == PRIV_RM)    // clear peerlist if removed
@@ -1082,11 +1082,11 @@ const vector<std::unique_ptr<ScheduledMeeting>>& TextChat::getUpdatedOcurrences(
     return mUpdatedOcurrences;
 }
 
-void TextChat::setTag(int tag)
+void TextChat::setTag(int newTag)
 {
-    if (this->tag != 0)    // external changes prevail
+    if (tag != 0) // external changes prevail
     {
-        this->tag = tag;
+        tag = newTag;
     }
 }
 
@@ -1155,9 +1155,9 @@ void TextChat::addUpdatedSchedMeetingOccurrence(std::unique_ptr<ScheduledMeeting
     mUpdatedOcurrences.emplace_back(std::move(sm));
 }
 
-const ScheduledMeeting* TextChat::getSchedMeetingById(handle id) const
+const ScheduledMeeting* TextChat::getSchedMeetingById(handle meetingID) const
 {
-    auto it = mScheduledMeetings.find(id);
+    auto it = mScheduledMeetings.find(meetingID);
     if (it != mScheduledMeetings.end())
     {
         return it->second.get();

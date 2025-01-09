@@ -326,7 +326,7 @@ public:
     void setPrivRSA(std::string privRSA);
     std::string getPrivRSA();
     bool promotePendingShares();
-    bool isUnverifiedOutShare(handle nodeHandle, const string& uid);
+    bool isUnverifiedOutShare(handle nodeHandle, const string& uid) const;
     bool isUnverifiedInShare(handle nodeHandle, handle userHandle);
 
     void loadShareKeys();
@@ -691,7 +691,7 @@ public:
     void killallsessions();
 
     // extract public handle and key from a public file/folder link
-    error parsepubliclink(const char *link, handle &ph, byte *key, TypeOfLink type);
+    error parsepubliclink(const char* link, handle& ph, byte* extractedKey, TypeOfLink type);
 
     // open the SC database and get the SCSN from it
     void checkForResumeableSCDatabase();
@@ -700,7 +700,7 @@ public:
     error folderaccess(const char*folderlink, const char* authKey);
 
     // open exported file link (op=0 -> download, op=1 fetch data)
-    void openfilelink(handle ph, const byte *key);
+    void openfilelink(handle ph, const byte* fileKey);
 
     // decrypt password-protected public link
     // the caller takes the ownership of the returned value in decryptedLink parameter
@@ -838,7 +838,16 @@ public:
 
     // enqueue/abort direct read
     void pread(Node*, m_off_t, m_off_t, void*);
-    void pread(handle, SymmCipher* key, int64_t, m_off_t, m_off_t, void*, bool = false,  const char* = NULL, const char* = NULL, const char* = NULL);
+    void pread(handle,
+               SymmCipher* cypher,
+               int64_t,
+               m_off_t,
+               m_off_t,
+               void*,
+               bool = false,
+               const char* = NULL,
+               const char* = NULL,
+               const char* = NULL);
     void preadabort(Node*, m_off_t = -1, m_off_t = -1);
     void preadabort(handle, m_off_t = -1, m_off_t = -1);
 
@@ -879,7 +888,7 @@ public:
     void putFileAttributes(handle h, fatype t, const std::string& encryptedAttributes, int tag);
 
     // attach file attribute to upload or node handle
-    bool putfa(NodeOrUploadHandle, fatype, SymmCipher*, int tag, std::unique_ptr<string>);
+    error putfa(NodeOrUploadHandle, fatype, SymmCipher*, int tag, std::unique_ptr<string>);
 
     // move as many as possible from pendingfa to activefa
     void activatefa();
@@ -913,7 +922,7 @@ public:
     void getua(const char* email_handle, const attr_t at = ATTR_UNKNOWN, const char *ph = NULL, int ctag = -1, CommandGetUA::CompletionErr ce = nullptr, CommandGetUA::CompletionBytes cb = nullptr, CommandGetUA::CompletionTLV ctlv = nullptr);
 
     // retrieve the email address of a user
-    void getUserEmail(const char *uid);
+    void getUserEmail(const char* userID);
 
     // Set email for an user
     void setEmail(User* u, const std::string& email);
@@ -1026,24 +1035,132 @@ public:
     bool userHasRestrictedAccessToNode(const Node& remotenode);
 
     /**
-     * @brief is local path syncable
-     * @param newPath path to check
-     * @param excludeBackupId backupId to exclude in checking (that of the new sync)
-     * @param syncError filled with SyncError with the sync error that makes the node unsyncable
-     * @return API_OK if syncable. (regular) error otherwise
+     * @brief Checks if a local path is suitable for synchronization without conflicting with
+     * existing syncs.
+     *
+     * This method determines whether the provided `newPath` can be used for a new synchronization
+     * task. It ensures that the path does not overlap with any existing active sync configurations,
+     * thereby preventing conflicts arising from nested or overlapping sync directories.
+     *
+     * @param newPath The local path to be checked for sync compatibility.
+     * @param excludeBackupId A backup ID to exclude from the check. This is useful when
+     * updating an existing sync, allowing it to bypass itself during the validation. Pass `UNDEF`
+     * if you don't want to skip any sync during the validation.
+     *
+     * @return A `std::pair` containing:
+     * - `error`: An error code indicating the result of the check.
+     * - `SyncError`: A detailed sync error code providing more context.
+     *
+     * The possible returned error combinations are:
+     *   - `API_OK`:
+     *      + `NO_SYNC_ERROR` if the path is syncable and does not conflict with existing syncs.
+     *   - `API_EARGS`:
+     *      + `LOCAL_PATH_UNAVAILABLE` if the provided `newPath` is empty.
+     *      + `LOCAL_PATH_SYNC_COLLISION` if the path conflicts with an existing sync path.
+     *
+     * @warning
+     * - The function does not verify the existence or accessibility of the `newPath`; it only
+     * checks for path conflicts.
+     * - Symbolic links are not resolved; the check is purely lexical based on the expanded paths.
      */
-    error isLocalPathSyncable(const LocalPath& newPath, handle excludeBackupId = UNDEF, SyncError *syncError = nullptr);
+    std::pair<error, SyncError> isLocalPathSyncable(const LocalPath& newPath,
+                                                    const handle excludeBackupId) const;
 
     /**
-     * @brief check config. Will fill syncError in the SyncConfig in case there is one.
-     * Will fill syncWarning in the SyncConfig in case there is one.
-     * Does not persist the sync configuration.
-     * Does not add the syncConfig.
-     * Reference parameters are filled in while checking syncConfig, for the benefit of addSync() which calls it.
-     * @return And error code if there are problems serious enough with the syncconfig that it should not be added.
-     *         Otherwise, API_OK
+     * @brief Validates if the local path in a SyncConfig is suitable as a synchronization root.
+     *
+     * It performs several validations, including:
+     * - Ensuring the path is not above or below a FUSE mount point.
+     * - Verifying that the filesystem supports synchronization.
+     * - Confirming the path exists, is accessible, and is a directory.
+     * - Checking for conflicts with existing sync configurations to prevent overlapping sync areas.
+     *
+     * @param rootPath The path to validate
+     * @param excludeBackupId A backup ID to exclude from the check done by the
+     * `isLocalPathSyncable` method. This is useful when updating an existing sync, allowing it to
+     * bypass itself during the validation. Pass `UNDEF` if you don't want to skip any sync during
+     * the validation.
+     *
+     * @return A `std::tuple` containing:
+     * - `error`: An error code indicating the result of the check.
+     * - `SyncError`: A detailed sync error code providing more context.
+     * - `SyncWarning`: A sync warning code returned by `FileSystemAccess::issyncsupported`.
+     * - `std::unique_ptr<FileAccess>`: An object representing the opened local folder.
+     * - `bool`: Set to `true` if the local path is valid and it belongs to a network filesystem.
+     *
+     * The possible returned error combinations are:
+     *   - `API_OK`:
+     *      + `NO_SYNC_ERROR` if the path is a valid root for a sync.
+     *   - `API_EARGS`:
+     *      + `NO_SYNC_ERROR` if the given path is not absolute.
+     *      + `LOCAL_PATH_UNAVAILABLE` if the provided `newPath` is empty.
+     *      + `LOCAL_PATH_SYNC_COLLISION` if the path conflicts with an existing sync path.
+     * - `API_EFAILED`:
+     *      + `LOCAL_PATH_MOUNTED` if the path is above or below a FUSE mount point
+     *      + `UNSUPPORTED_FILE_SYSTEM` if the filesystem is unsupported.
+     * - `API_ETEMPUNAVAIL`:
+     *      + `LOCAL_PATH_TEMPORARY_UNAVAILABLE` if the local path is temporarily unavailable.
+     * - `API_ENOENT`:
+     *      + `LOCAL_PATH_UNAVAILABLE` if the local path cannot be accessed.
+     * - `API_EACCESS`:
+     *      + `INVALID_LOCAL_TYPE` if the path is not a directory.
+     *
+     * @note If erro is not API_OK, the third and fourth return values are set to nullptr and false
+     * respectively.
      */
-    error checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder, bool& inshare, bool& isnetwork);
+    std::tuple<error, SyncError, SyncWarning, std::unique_ptr<FileAccess>, bool>
+        isValidLocalSyncRoot(const LocalPath& rootPath, const handle backupIdToExclude) const;
+
+    /**
+     * @brief Validates a SyncConfig and prepares it for synchronization.
+     *
+     * This function performs a series of checks to determine whether the provided `SyncConfig` is
+     * valid and can be used to initiate synchronization. It updates the `syncConfig`'s `mError`,
+     * `mWarning`, and `mEnabled` fields based on the validation results.
+     *
+     * The validation includes:
+     * - Ensuring the remote node exists and is suitable for syncing. This includes checks for
+     *   nested-syncs, which are not allowed.
+     * - Verifying the local path is accessible, is a directory, and is on a supported filesystem.
+     *   Also nested syncs checks are carried out.
+     * - Checking for account-related issues such as over-storage, expiration, or blockage.
+     * - Handling specific conditions for backups, external drives, and periodic scanning modes.
+     *
+     * @param[in,out] syncConfig The `SyncConfig` to validate. May be modified with error or warning
+     * details.
+     * @param[out] rootpath The local path corresponding to the sync root if validation is
+     * successful.
+     * @param[out] openedLocalFolder A unique pointer to a `FileAccess` object representing the
+     * opened local folder.
+     * @param[out] inshare Set to `true` if the remote node is within an inbound shared folder.
+     * @param[out] isnetwork Set to `true` if the local path is on a network filesystem.
+     *
+     * @return
+     * - `API_OK` if the `SyncConfig` is valid and synchronization can proceed.
+     * - An error code otherwise, with details provided in `syncConfig`'s `mError` field.
+     *
+     * Possible error codes include:
+     * - `API_ENOENT`: Remote node does not exist.
+     * - `API_EARGS`: Invalid arguments, such as an invalid scan interval, mismatched drive paths or
+     *   given directory involved in other syncs.
+     * - `API_EEXIST`: If there is an active sync already initiated with the given node, containing
+     *   the node or the given node contains a another sync's root.
+     * - `API_EFAILED`: General failure due to account status or unsupported filesystem.
+     * - `API_EACCESS`: Local path is not a directory or cannot be accessed.
+     * - `API_ETEMPUNAVAIL`: Local path is temporarily unavailable.
+     * - `API_EINTERNAL`: Internal error requiring account reload or restart.
+     *
+     * @note
+     * - The function sets `syncConfig.mEnabled` to `false` if validation fails.
+     * - The `syncConfig.mError` field provides detailed error information.
+     * - Symbolic links and mount points are considered during validation to prevent syncing
+     * unsupported paths.
+     */
+    error checkSyncConfig(SyncConfig& syncConfig,
+                          LocalPath& rootpath,
+                          std::unique_ptr<FileAccess>& openedLocalFolder,
+                          bool& inshare,
+                          bool& isnetwork);
 
     /**
      * @brief add sync. Will fill syncError/syncWarning in the SyncConfig in case there are any.
@@ -1170,13 +1287,10 @@ public:
     void sendchatstats(const char*, int port);
 
     // send chat logs with user's annonymous id
-    void sendchatlogs(const char*, mega::handle userid, mega::handle callid, int port);
+    void sendchatlogs(const char*, mega::handle forUserID, mega::handle callid, int port);
 
     // send a HTTP request
     void httprequest(const char*, int, bool = false, const char* = NULL, int = 1);
-
-    // maximum outbound throughput (per target server)
-    int putmbpscap;
 
     // User-Agent header for HTTP requests
     string useragent;
@@ -1261,10 +1375,10 @@ public:
     userpriv_vector * readuserpriv(JSON* j);
 
     // grant access to a chat peer to one specific node
-    void grantAccessInChat(handle chatid, handle h, const char *uid);
+    void grantAccessInChat(handle chatid, handle h, const char* peer);
 
     // revoke access to a chat peer to one specific node
-    void removeAccessInChat(handle chatid, handle h, const char *uid);
+    void removeAccessInChat(handle chatid, handle h, const char* peer);
 
     // update permissions of a peer in a chat
     void updateChatPermissions(handle chatid, handle uh, int priv);
@@ -2264,7 +2378,7 @@ public:
     PendingContactRequest* findpcr(handle);
 
     // queue public key request for user
-    User *getUserForSharing(const char *uid);
+    User* getUserForSharing(const char* userID);
     void queuepubkeyreq(User*, std::unique_ptr<PubKeyAction>);
     void queuepubkeyreq(const char*, std::unique_ptr<PubKeyAction>);
 
@@ -2319,14 +2433,16 @@ public:
     // hash password
     error pw_key(const char*, byte*) const;
 
-    // returns a pointer to tmptransfercipher setting its key to the one provided
-    // tmptransfercipher key will change: to be used right away: this is not a dedicated SymmCipher for the transfer!
-    SymmCipher *getRecycledTemporaryTransferCipher(const byte *key, int type = 1);
+    // returns a pointer to tmptransfercipher, setting its key to the one provided;
+    // tmptransfercipher key will change to be used right away; this is not a dedicated SymmCipher
+    // for the transfer!
+    SymmCipher* getRecycledTemporaryTransferCipher(const byte* newKey, int type = 1);
 
-    // returns a pointer to tmpnodecipher setting its key to the one provided
-    // tmpnodecipher key will change: to be used right away: this is not a dedicated SymmCipher for the node!
-    SymmCipher *getRecycledTemporaryNodeCipher(const string *key);
-    SymmCipher *getRecycledTemporaryNodeCipher(const byte *key);
+    // returns a pointer to tmpnodecipher, setting its key to the one provided;
+    // tmpnodecipher key will change to be used right away; this is not a dedicated SymmCipher for
+    // the node!
+    SymmCipher* getRecycledTemporaryNodeCipher(const string* newKey);
+    SymmCipher* getRecycledTemporaryNodeCipher(const byte* newKey);
 
     // request a link to recover account
     void getrecoverylink(const char *email, bool hasMasterkey);
@@ -2338,7 +2454,11 @@ public:
     void getprivatekey(const char *code);
 
     // confirm a recovery link to restore the account
-    void confirmrecoverylink(const char *code, const char *email, const char *password, const byte *masterkey = NULL, int accountversion = 1);
+    void confirmrecoverylink(const char* code,
+                             const char* email,
+                             const char* password,
+                             const byte* masterkey = NULL,
+                             int ownAccountVersion = 1);
 
     // request a link to cancel the account
     void getcancellink(const char *email, const char* = NULL);
@@ -2592,7 +2712,7 @@ public:
     void putSet(Set&& s, std::function<void(Error, const Set*)> completion);
 
     // generate "asr" command
-    void removeSet(handle sid, std::function<void(Error)> completion);
+    void removeSet(handle setID, std::function<void(Error)> completion);
 
     // generate "aft" command
     void fetchSetInPreviewMode(std::function<void(Error, Set*, elementsmap_t*)> completion);
@@ -2604,10 +2724,12 @@ public:
     void putSetElement(SetElement&& el, std::function<void(Error, const SetElement*)> completion);
 
     // generate "aerb" command
-    void removeSetElements(handle sid, vector<handle>&& eids, std::function<void(Error, const vector<int64_t>*)> completion);
+    void removeSetElements(handle setID,
+                           vector<handle>&& eids,
+                           std::function<void(Error, const vector<int64_t>*)> completion);
 
     // generate "aer" command
-    void removeSetElement(handle sid, handle eid, std::function<void(Error)> completion);
+    void removeSetElement(handle setID, handle eid, std::function<void(Error)> completion);
 
     // handle "aesp" parameter, part of 'f'/ "fetch nodes" response
     bool procaesp(JSON& j);
@@ -2615,8 +2737,8 @@ public:
     // load Sets and Elements from json
     error readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<handle, elementsmap_t>& newElements);
 
-    // return Set with given sid or nullptr if it was not found
-    const Set* getSet(handle sid) const;
+    // return Set with given setID or nullptr if it was not found
+    const Set* getSet(handle setID) const;
 
     // return all available Sets, indexed by id
     const map<handle, Set>& getSets() const { return mSets; }
@@ -2627,31 +2749,31 @@ public:
     // search for Set with the same id, and update its members
     bool updateSet(Set&& s);
 
-    // delete Set with elemId from local memory; return true if found and deleted
-    bool deleteSet(handle sid);
+    // delete Set with setID from local memory; return true if found and deleted
+    bool deleteSet(handle setID);
 
-    // return Element count for Set sid, or 0 if not found
-    unsigned getSetElementCount(handle sid) const;
+    // return Element count for Set with setID, or 0 if not found
+    unsigned getSetElementCount(handle setID) const;
 
-    // return Element with given eid from Set sid, or nullptr if not found
-    const SetElement* getSetElement(handle sid, handle eid) const;
+    // return Element with given eid from Set with setID, or nullptr if not found
+    const SetElement* getSetElement(handle setID, handle eid) const;
 
     // return all available Elements in a Set, indexed by eid
-    const elementsmap_t* getSetElements(handle sid) const;
+    const elementsmap_t* getSetElements(handle setID) const;
 
     // add new SetElement or replace exisiting one
     const SetElement* addOrUpdateSetElement(SetElement&& el);
 
-    // delete Element with eid from Set with sid in local memory; return true if found and deleted
-    bool deleteSetElement(handle sid, handle eid);
+    // delete Element with eid from Set with setID in local memory; return true if found and deleted
+    bool deleteSetElement(handle setID, handle eid);
 
-    // return true if Set with given sid is exported (has a public link)
-    bool isExportedSet(handle sid) const;
+    // return true if Set with given setID was exported (has a public link)
+    bool isExportedSet(handle setID) const;
 
-    void exportSet(handle sid, bool makePublic, std::function<void(Error)> completion);
+    void exportSet(handle setID, bool makePublic, std::function<void(Error)> completion);
 
     // returns result of the operation and the link created
-    pair<error, string> getPublicSetLink(handle sid) const;
+    pair<error, string> getPublicSetLink(handle setID) const;
 
     // returns error code and public handle for the link provided as a param
     error fetchPublicSet(const char* publicSetLink, std::function<void(Error, Set*, elementsmap_t*)>);
@@ -2674,7 +2796,7 @@ private:
     error readElement(JSON& j, SetElement& el);
     error readAllNodeMetadata(JSON& j, map<handle, SetElement::NodeMetadata>& nodes);
     error readSingleNodeMetadata(JSON& j, SetElement::NodeMetadata& node);
-    bool decryptNodeMetadata(SetElement::NodeMetadata& nodeMeta, const string& key);
+    bool decryptNodeMetadata(SetElement::NodeMetadata& nodeMeta, const string& encryptionKey);
     error readExportedSet(JSON& j, Set& s, pair<bool, m_off_t>& exportRemoved);
     error readSetsPublicHandles(JSON& j, map<handle, Set>& sets);
     error readSetPublicHandle(JSON& j, map<handle, Set>& sets);
@@ -2682,7 +2804,7 @@ private:
     size_t decryptAllSets(map<handle, Set>& newSets, map<handle, elementsmap_t>& newElements, map<handle, SetElement::NodeMetadata>* nodeData);
     error decryptSetData(Set& s);
     error decryptElementData(SetElement& el, const string& setKey);
-    string decryptKey(const string& k, SymmCipher& cipher) const;
+    string decryptKey(const string& encryptedKey, SymmCipher& cipher) const;
     bool decryptAttrs(const string& attrs, const string& decrKey, string_map& output);
     string encryptAttrs(const string_map& attrs, const string& encryptionKey);
 
@@ -2705,7 +2827,7 @@ private:
     bool updatescsetelements();
     void notifypurgesetelements();
     void notifysetelement(SetElement*);
-    void clearsetelementnotify(handle sid);
+    void clearsetelementnotify(handle setID);
     vector<SetElement*> setelementnotify;
     map<handle, elementsmap_t> mSetElements; // indexed by Set id, then Element id
 
@@ -2888,6 +3010,8 @@ public:
      * The function that should receive the user's JSCD user attributes.
      */
     void getJSCData(GetJSCDataCallback callback);
+
+    void getMyIp(CommandGetMyIP::Cb&& completion);
 
     // FUSE client adapter.
     fuse::ClientAdapter mFuseClientAdapter;

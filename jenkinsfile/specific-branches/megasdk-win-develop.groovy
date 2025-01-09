@@ -24,7 +24,7 @@ pipeline {
 
                 sh "echo Building SDK x86"
                 sh "rm -rf build_dir_x86; mkdir build_dir_x86"
-                sh "cmake -DENABLE_SDKLIB_WERROR=OFF -DENABLE_CHAT=ON -DVCPKG_ROOT='${VCPKGPATH}' -DCMAKE_VERBOSE_MAKEFILE=ON -DCMAKE_GENERATOR_PLATFORM=Win32 -S '${WORKSPACE}' -B '${WORKSPACE}'\\\\build_dir_x86\\\\"
+                sh "cmake -DENABLE_CHAT=ON -DVCPKG_ROOT='${VCPKGPATH}' -DCMAKE_VERBOSE_MAKEFILE=ON -DCMAKE_GENERATOR_PLATFORM=Win32 -S '${WORKSPACE}' -B '${WORKSPACE}'\\\\build_dir_x86\\\\"
                 sh "cmake --build '${WORKSPACE}'\\\\build_dir_x86\\\\ --config ${BUILD_TYPE} -j 1"
             }
         }

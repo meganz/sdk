@@ -1,7 +1,7 @@
 pipeline {
     agent { label 'docker' }
 
-    options { 
+    options {
         buildDiscarder(logRotator(numToKeepStr: '25', daysToKeepStr: '30'))
         gitLabConnection('GitLabConnectionJenkins')
     }
@@ -9,7 +9,7 @@ pipeline {
         choice(name: 'ACTION', choices: ['Create_Release', 'Create_Release_Candidate', 'Close_Release', 'Patch_Release'], description: 'Pick an action')
         string(name: 'SLACK_THREAD_ANNOUNCE', defaultValue: '', description: 'Id of thread root message')
         string(name: 'TARGET_APPS', defaultValue: '', description: 'e.g. Android 1.0.1 / iOS 1.2 / MEGAsync 9.9.9 RC1')
-        string(name: 'RELEASE_VERSION', defaultValue: '', description: 'Optionally define a release version for Create Release. It must exist for Patch Release. Default is 1.0.0.')   
+        string(name: 'RELEASE_VERSION', defaultValue: '', description: 'Optionally define a release version for Create Release. It must exist for Patch Release. Default is 1.0.0.')
         string(name: 'TICKETS', defaultValue: '', description: 'Comma separated tickets (patch release or create rc)')
         string(name: 'BRANCH_FOR_MR', defaultValue: '', description: 'Branch for MR (create release candidate)')
         string(name: 'MR_DESCRIPTION', defaultValue: '', description: 'MR Description (create release candidate)')
@@ -19,9 +19,12 @@ pipeline {
         //JIRA_SDK_CREDS = credentials('SDK_JIRA')
         SLACK_TOKEN = credentials('sdk_slack_bot_releases')
         GITLAB_TOKEN = credentials('SDK_releases_gitlab_token')
-        gpg_keygrip = credentials('sdk_gpg_keygrip_release_management')
+        GPG_KEYGRIP = credentials('sdk_gpg_keygrip_release_management')
         gpg_key = credentials('sdk_gpg_key_release_management')
         GITHUB_TOKEN = credentials('sdk_github_token')
+        GITHUB_USER = credentials('sdk_github_username')
+        COMMIT_EMAIL = 'sdkdev+releases@mega.co.nz'
+        COMMIT_NAME = 'SDK Releases'
         project_name = "SDK"
         slack_channel = "sdk"
         slack_channel_dev_requests = "sdk_devs_only"
@@ -29,7 +32,11 @@ pipeline {
         jira_url = "${env.JIRA_BASE_URL}"
         confluence_url = "${env.CONFLUENCE_BASE_URL}"
         confluence_page_id = "3640225"
-        github_push_remote_url = "git@github.com:meganz/sdk.git"
+        github_push_remote_url = "https://${GITHUB_USER}:${GITHUB_TOKEN}@github.com/meganz/sdk.git"
+        gitlab_push_remote_url = "https://gitlab-ci-token:${GITLAB_TOKEN}@${GIT_URL_SDK_FOR_HTTPS_TOKEN}"
+        GNUPGHOME = "${WORKSPACE}/.gnupg"
+        JIRA_TOKEN = credentials('SDK_JIRA_PERSONAL_ACCESS_TOKEN')
+        CONFLUENCE_TOKEN = credentials('SDK_CONFLUENCE_PERSONAL_ACCESS_TOKEN')
     }
 
     stages {
@@ -54,9 +61,19 @@ pipeline {
                             sed -i 's|mr_description = ""|mr_description = "${params.MR_DESCRIPTION}"|' config.toml
                         """
                     }
-                    sh 'cat config.toml'
                 }
-            }            
+                // Configure GPG Agent
+                sh """
+                    mkdir -m 700 $GNUPGHOME
+                    touch $GNUPGHOME/gpg-agent.conf
+                    echo 'allow-preset-passphrase' >> $GNUPGHOME/gpg-agent.conf
+                    echo 'default-cache-ttl 3600' >> $GNUPGHOME/gpg-agent.conf
+                    echo 'max-cache-ttl 3600' >> $GNUPGHOME/gpg-agent.conf
+                """
+                // Configure gitlab
+                sh "git remote remove origin"
+                sh "set +x; git remote add origin ${gitlab_push_remote_url}"
+            }
         }
         stage('Build docker image') {
             steps {
@@ -72,61 +89,50 @@ pipeline {
             }
         }
         stage('Create Release'){
-            when { 
+            when {
                 beforeAgent true
                 expression { params.ACTION == "Create_Release" }
             }
             agent {
                 docker {
-                    image 'meganz/sdk-release-management:${env.BUILD_NUMBER}'
+                    image "meganz/sdk-release-management:${env.BUILD_NUMBER}"
                     reuseNode true
-                    args '-v ${WORKSPACE}:/mega/sdk/'
                 }
             }
             steps {
-                withCredentials([
-                    usernamePassword(credentialsId: 'SDK_JIRA', usernameVariable: 'JIRA_USERNAME', passwordVariable: 'JIRA_PASSWORD'),
-                    usernamePassword(credentialsId: 'SDK_JIRA', usernameVariable: 'CONFLUENCE_USER', passwordVariable: 'CONFLUENCE_PASSWORD')
-                    ]){
-                    dir("automation"){
-                        sh 'cat config.toml'
-                        sh 'printenv'
-                        sh 'gpg --batch --import $gpg_key'                     
-                        sh 'gpg --list-secret-keys'
-                        sh 'python3 ./make_release.py config.toml'
-                    }
+                dir("automation"){
+                    sh 'gpg --batch --import $gpg_key'
+                    sh 'gpg --list-secret-keys'
+                    sh 'set +x; /usr/lib/gnupg2/gpg-preset-passphrase --preset --passphrase $GPG_PASSWORD $GPG_KEYGRIP'
+                    sh """
+                          git config --global user.email "${COMMIT_EMAIL}"
+                          git config --global user.name "${COMMIT_NAME}"
+                    """
+                    sh 'python3 ./make_release.py config.toml'
                 }
             }
         }
         stage ('Create Release Candidate'){
-            when { 
+            when {
                 beforeAgent true
-                expression { params.ACTION == "Create_Release_CANDIDATE" } 
+                expression { params.ACTION == "Create_Release_CANDIDATE" }
             }
             agent {
                 docker {
                     image "meganz/sdk-release-management:${env.BUILD_NUMBER}"
                     reuseNode true
-                    args '-v ${WORKSPACE}:/mega/sdk/'
                 }
             }
             steps {
-                withCredentials([
-                    usernamePassword(credentialsId: 'SDK_JIRA', usernameVariable: 'JIRA_USERNAME', passwordVariable: 'JIRA_PASSWORD'),
-                    usernamePassword(credentialsId: 'SDK_JIRA', usernameVariable: 'CONFLUENCE_USER', passwordVariable: 'CONFLUENCE_PASSWORD')
-                    ]){
-                    dir("automation"){
-                        sh 'cat config.toml'
-                        sh 'printenv'
-                        sh 'gpg --batch --import $gpg_key'                     
-                        sh 'gpg --list-secret-keys'
-                        sh 'python3 ./make_another_rc.py config.toml'
-                    }
+                dir("automation"){
+                    sh 'gpg --batch --import $gpg_key'
+                    sh 'gpg --list-secret-keys'
+                    sh 'python3 ./make_another_rc.py config.toml'
                 }
             }
         }
         stage ('Close Release'){
-            when { 
+            when {
                 beforeAgent true
                 expression { params.ACTION == "Close_Release" }
             }
@@ -134,26 +140,18 @@ pipeline {
                 docker {
                     image "meganz/sdk-release-management:${env.BUILD_NUMBER}"
                     reuseNode true
-                    args '-v ${WORKSPACE}:/mega/sdk/'
                 }
             }
             steps {
-                withCredentials([
-                    usernamePassword(credentialsId: 'SDK_JIRA', usernameVariable: 'JIRA_USERNAME', passwordVariable: 'JIRA_PASSWORD'),
-                    usernamePassword(credentialsId: 'SDK_JIRA', usernameVariable: 'CONFLUENCE_USER', passwordVariable: 'CONFLUENCE_PASSWORD')
-                    ]){
-                    dir("automation"){
-                        sh 'cat config.toml'
-                        sh 'printenv'
-                        sh 'gpg --batch --import $gpg_key'                     
-                        sh 'gpg --list-secret-keys'
-                        sh 'python3 ./close_release.py config.toml'
-                    }
+                dir("automation"){
+                    sh 'gpg --batch --import $gpg_key'
+                    sh 'gpg --list-secret-keys'
+                    sh 'python3 ./close_release.py config.toml'
                 }
             }
         }
         stage ('Patch Release'){
-            when { 
+            when {
                 beforeAgent true
                 expression { params.ACTION == "Patch_Release" }
             }
@@ -161,21 +159,18 @@ pipeline {
                 docker {
                     image "meganz/sdk-release-management:${env.BUILD_NUMBER}"
                     reuseNode true
-                    args '-v ${WORKSPACE}:/mega/sdk/'
                 }
             }
             steps {
-                withCredentials([
-                    usernamePassword(credentialsId: 'SDK_JIRA', usernameVariable: 'JIRA_USERNAME', passwordVariable: 'JIRA_PASSWORD'),
-                    usernamePassword(credentialsId: 'SDK_JIRA', usernameVariable: 'CONFLUENCE_USER', passwordVariable: 'CONFLUENCE_PASSWORD')
-                    ]){
-                    dir("automation"){
-                        sh 'cat config.toml'
-                        sh 'printenv'
-                        sh 'gpg --batch --import $gpg_key'                     
-                        sh 'gpg --list-secret-keys'
-                        sh 'python3 ./patch_release.py config.toml'
-                    }
+                dir("automation"){
+                    sh 'gpg --batch --import $gpg_key'
+                    sh 'gpg --list-secret-keys'
+                    sh 'set +x; /usr/lib/gnupg2/gpg-preset-passphrase --preset --passphrase $GPG_PASSWORD $GPG_KEYGRIP'
+                    sh """
+                          git config --global user.email "${COMMIT_EMAIL}"
+                          git config --global user.name "${COMMIT_NAME}"
+                    """
+                    sh 'python3 ./patch_release.py config.toml'
                 }
             }
         }
