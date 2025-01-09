@@ -206,77 +206,77 @@ bool Node::getExtension(std::string& ext, const string& nodeName)
 
 const std::set<nameid>& documentExtensions()
 {
-    static const std::set<nameid> docs {MAKENAMEID3('a','b','w'), MAKENAMEID3('d','o','c'), MAKENAMEID4('d','o','c','m'),
-                                        MAKENAMEID4('d','o','c','x'), MAKENAMEID3('d','o','t'), MAKENAMEID4('d','o','t','m'),
-                                        MAKENAMEID4('d','o','t','x'), MAKENAMEID3('o','d','t'),
-                                        MAKENAMEID3('s','x','c'), MAKENAMEID3('s','x','d'), MAKENAMEID3('s','x','i'),
-                                        MAKENAMEID4('t','e','x','t'), MAKENAMEID3('t','s','v'), MAKENAMEID3('t','t','l'), MAKENAMEID3('t','x','t'),
-                                        MAKENAMEID3('o','r','g')};
+    static const std::set<nameid> docs {makeNameid("abw"), makeNameid("doc"), makeNameid("docm"),
+                                        makeNameid("docx"), makeNameid("dot"), makeNameid("dotm"),
+                                        makeNameid("dotx"), makeNameid("odt"),
+                                        makeNameid("sxc"), makeNameid("sxd"), makeNameid("sxi"),
+                                        makeNameid("text"), makeNameid("tsv"), makeNameid("ttl"), makeNameid("txt"),
+                                        makeNameid("org")};
     return docs;
 }
 
 const std::set<nameid>& spreadsheetExtensions()
 {
-    static const std::set<nameid> spds {MAKENAMEID3('c','s','v'), MAKENAMEID3('o','d','s'),
-                                        MAKENAMEID3('x','l','s'), MAKENAMEID4('x','l','s','m'), MAKENAMEID4('x','l','s','x')};
+    static const std::set<nameid> spds {makeNameid("csv"), makeNameid("ods"),
+                                        makeNameid("xls"), makeNameid("xlsm"), makeNameid("xlsx")};
     return spds;
 }
 
 const std::set<nameid>& pdfExtensions()
 {
-    static const std::set<nameid> pdfs {MAKENAMEID3('p','d','f')};
+    static const std::set<nameid> pdfs{makeNameid("pdf")};
     return pdfs;
 }
 
 const std::set<nameid>& presentationExtensions()
 {
-    static const std::set<nameid> pres {MAKENAMEID3('o','d','c'), MAKENAMEID3('o','d','p'), MAKENAMEID3('o','t','c'),
-                                        MAKENAMEID3('o','t','p'), MAKENAMEID3('p','o','t'), MAKENAMEID4('p','o','t','x'),
-                                        MAKENAMEID3('p','p','s'), MAKENAMEID4('p','p','s','x'), MAKENAMEID3('p','p','t'),
-                                        MAKENAMEID4('p','p','t','x'), MAKENAMEID4('s','l','d','x')};
+    static const std::set<nameid> pres {makeNameid("odc"), makeNameid("odp"), makeNameid("otc"),
+                                        makeNameid("otp"), makeNameid("pot"), makeNameid("potx"),
+                                        makeNameid("pps"), makeNameid("ppsx"), makeNameid("ppt"),
+                                        makeNameid("pptx"), makeNameid("sldx")};
     return pres;
 }
 
 const std::set<nameid>& archiveExtensions()
 {
-    static const std::set<nameid> acvs {MAKENAMEID2('7','z'), MAKENAMEID3('a','c','e'), MAKENAMEID3('b','z','2'),
-                                        MAKENAMEID2('g','z'), MAKENAMEID3('r','a','r'), MAKENAMEID3('t','a','r'),
-                                        MAKENAMEID3('z','i','p')};
+    static const std::set<nameid> acvs {makeNameid("7z"), makeNameid("ace"), makeNameid("bz2"),
+                                        makeNameid("gz"), makeNameid("rar"), makeNameid("tar"),
+                                        makeNameid("zip")};
     return acvs;
 }
 
 const std::set<nameid>& programExtensions()
 {
-    static const std::set<nameid> pgms {MAKENAMEID3('a','p','k'), MAKENAMEID3('b','a','t'), MAKENAMEID3('c','o','m'),
-                                        MAKENAMEID3('d','e','b'), MAKENAMEID3('e','x','e'), MAKENAMEID3('m','s','i'),
-                                        MAKENAMEID2('s','h')};
+    static const std::set<nameid> pgms {makeNameid("apk"), makeNameid("bat"), makeNameid("com"),
+                                        makeNameid("deb"), makeNameid("exe"), makeNameid("msi"),
+                                        makeNameid("sh")};
     return pgms;
 }
 
 const std::set<nameid>& miscExtensions()
 {
-    static const std::set<nameid> misc {MAKENAMEID3('c','s','v'), MAKENAMEID4('j','s','o','n'), MAKENAMEID3('l','o','g'),
-                                        MAKENAMEID3('o','t','f'), MAKENAMEID3('t','t','f')};
+    static const std::set<nameid> misc {makeNameid("csv"), makeNameid("json"), makeNameid("log"),
+                                        makeNameid("otf"), makeNameid("ttf")};
     return misc;
 }
 
 const std::set<nameid>& audioExtensions()
 {
-    static const std::set<nameid> auds {MAKENAMEID3('a','a','c'), MAKENAMEID3('a','d','p'), MAKENAMEID3('a','i','f'),
-                                        MAKENAMEID4('a','i','f','c'), MAKENAMEID4('a','i','f','f'), MAKENAMEID2('a','u'),
-                                        MAKENAMEID3('c','a','f'), MAKENAMEID3('d','r','a'), MAKENAMEID3('d','t','s'),
-                                        MAKENAMEID5('d','t','s','h','d'), MAKENAMEID3('e','o','l'), MAKENAMEID4('f','l','a','c'),
-                                        MAKENAMEID3('k','a','r'), MAKENAMEID3('l','v','p'), MAKENAMEID3('m','2','a'),
-                                        MAKENAMEID3('m','3','a'), MAKENAMEID3('m','3','u'), MAKENAMEID3('m','4','a'),
-                                        MAKENAMEID3('m','i','d'), MAKENAMEID4('m','i','d','i'), MAKENAMEID3('m','k','a'),
-                                        MAKENAMEID3('m','p','2'), MAKENAMEID4('m','p','2','a'), MAKENAMEID3('m','p','3'),
-                                        MAKENAMEID4('m','p','4','a'), MAKENAMEID4('m','p','g','a'), MAKENAMEID3('o','g','a'),
-                                        MAKENAMEID3('o','g','g'), MAKENAMEID3('p','y','a'), MAKENAMEID2('r','a'),
-                                        MAKENAMEID3('r','a','m'), MAKENAMEID3('r','i','p'), MAKENAMEID3('r','m','i'),
-                                        MAKENAMEID3('r','m','p'), MAKENAMEID3('s','3','m'), MAKENAMEID3('s','i','l'),
-                                        MAKENAMEID3('s','n','d'), MAKENAMEID3('s','p','x'), MAKENAMEID3('u','v','a'),
-                                        MAKENAMEID4('u','v','v','a'), MAKENAMEID3('w','a','v'), MAKENAMEID3('w','a','x'),
-                                        MAKENAMEID4('w','e','b','a'), MAKENAMEID3('w','m','a'), MAKENAMEID2('x','m')};
+    static const std::set<nameid> auds {makeNameid("aac"), makeNameid("adp"), makeNameid("aif"),
+                                        makeNameid("aifc"), makeNameid("aiff"), makeNameid("au"),
+                                        makeNameid("caf"), makeNameid("dra"), makeNameid("dts"),
+                                        makeNameid("dtshd"), makeNameid("eol"), makeNameid("flac"),
+                                        makeNameid("kar"), makeNameid("lvp"), makeNameid("m2a"),
+                                        makeNameid("m3a"), makeNameid("m3u"), makeNameid("m4a"),
+                                        makeNameid("mid"), makeNameid("midi"), makeNameid("mka"),
+                                        makeNameid("mp2"), makeNameid("mp2a"), makeNameid("mp3"),
+                                        makeNameid("mp4a"), makeNameid("mpga"), makeNameid("oga"),
+                                        makeNameid("ogg"), makeNameid("pya"), makeNameid("ra"),
+                                        makeNameid("ram"), makeNameid("rip"), makeNameid("rmi"),
+                                        makeNameid("rmp"), makeNameid("s3m"), makeNameid("sil"),
+                                        makeNameid("snd"), makeNameid("spx"), makeNameid("uva"),
+                                        makeNameid("uvva"), makeNameid("wav"), makeNameid("wax"),
+                                        makeNameid("weba"), makeNameid("wma"), makeNameid("xm")};
     return auds;
 }
 
@@ -289,81 +289,81 @@ const std::set<std::string>& longAudioExtension()
 
 const std::set<nameid>& videoExtensions()
 {
-    static const std::set<nameid> vids {MAKENAMEID3('3','g','2'), MAKENAMEID3('3','g','p'), MAKENAMEID3('a','s','f'),
-                                        MAKENAMEID3('a','s','x'), MAKENAMEID3('a','v','i'), MAKENAMEID3('d','v','b'),
-                                        MAKENAMEID3('f','4','v'), MAKENAMEID3('f','l','i'), MAKENAMEID3('f','l','v'),
-                                        MAKENAMEID3('f','v','t'), MAKENAMEID4('h','2','6','1'), MAKENAMEID4('h','2','6','3'),
-                                        MAKENAMEID4('h','2','6','4'), MAKENAMEID4('j','p','g','m'), MAKENAMEID4('j','p','g','v'),
-                                        MAKENAMEID3('j','p','m'), MAKENAMEID3('m','1','v'), MAKENAMEID3('m','2','v'),
-                                        MAKENAMEID3('m','4','u'), MAKENAMEID3('m','4','v'), MAKENAMEID3('m','j','2'),
-                                        MAKENAMEID4('m','j','p','2'), MAKENAMEID4('m','k','3','d'), MAKENAMEID3('m','k','s'),
-                                        MAKENAMEID3('m','k','v'), MAKENAMEID3('m','n','g'), MAKENAMEID3('m','o','v'),
-                                        MAKENAMEID5('m','o','v','i','e'), MAKENAMEID3('m','p','4'), MAKENAMEID4('m','p','4','v'),
-                                        MAKENAMEID3('m','p','e'), MAKENAMEID4('m','p','e','g'), MAKENAMEID3('m','p','g'),
-                                        MAKENAMEID4('m','p','g','4'), MAKENAMEID3('m','x','u'), MAKENAMEID3('o','g','v'),
-                                        MAKENAMEID3('p','y','v'), MAKENAMEID2('q','t'), MAKENAMEID3('s','m','v'),
-                                        MAKENAMEID3('u','v','h'), MAKENAMEID3('u','v','m'), MAKENAMEID3('u','v','p'),
-                                        MAKENAMEID3('u','v','s'), MAKENAMEID3('u','v','u'), MAKENAMEID3('u','v','v'),
-                                        MAKENAMEID4('u','v','v','h'), MAKENAMEID4('u','v','v','m'), MAKENAMEID4('u','v','v','p'),
-                                        MAKENAMEID4('u','v','v','s'), MAKENAMEID4('u','v','v','u'), MAKENAMEID4('u','v','v','v'),
-                                        MAKENAMEID3('v','i','v'), MAKENAMEID3('v','o','b'), MAKENAMEID4('w','e','b','m'),
-                                        MAKENAMEID2('w','m'), MAKENAMEID3('w','m','v'), MAKENAMEID3('w','m','x'),
-                                        MAKENAMEID3('w','v','x')};
+    static const std::set<nameid> vids {makeNameid("3g2"), makeNameid("3gp"), makeNameid("asf"),
+                                        makeNameid("asx"), makeNameid("avi"), makeNameid("dvb"),
+                                        makeNameid("f4v"), makeNameid("fli"), makeNameid("flv"),
+                                        makeNameid("fvt"), makeNameid("h261"), makeNameid("h263"),
+                                        makeNameid("h264"), makeNameid("jpgm"), makeNameid("jpgv"),
+                                        makeNameid("jpm"), makeNameid("m1v"), makeNameid("m2v"),
+                                        makeNameid("m4u"), makeNameid("m4v"), makeNameid("mj2"),
+                                        makeNameid("mjp2"), makeNameid("mk3d"), makeNameid("mks"),
+                                        makeNameid("mkv"), makeNameid("mng"), makeNameid("mov"),
+                                        makeNameid("movie"), makeNameid("mp4"), makeNameid("mp4v"),
+                                        makeNameid("mpe"), makeNameid("mpeg"), makeNameid("mpg"),
+                                        makeNameid("mpg4"), makeNameid("mxu"), makeNameid("ogv"),
+                                        makeNameid("pyv"), makeNameid("qt"), makeNameid("smv"),
+                                        makeNameid("uvh"), makeNameid("uvm"), makeNameid("uvp"),
+                                        makeNameid("uvs"), makeNameid("uvu"), makeNameid("uvv"),
+                                        makeNameid("uvvh"), makeNameid("uvvm"), makeNameid("uvvp"),
+                                        makeNameid("uvvs"), makeNameid("uvvu"), makeNameid("uvvv"),
+                                        makeNameid("viv"), makeNameid("vob"), makeNameid("webm"),
+                                        makeNameid("wm"), makeNameid("wmv"), makeNameid("wmx"),
+                                        makeNameid("wvx")};
     return vids;
 }
 
 const std::set<nameid>& photoExtensions()
 {
-    static const std::set<nameid> phts {MAKENAMEID3('3','d','s'), MAKENAMEID4('a','v','i','f'), MAKENAMEID3('b','m','p'),
-                                        MAKENAMEID4('b','t','i','f'), MAKENAMEID3('c','g','m'), MAKENAMEID3('c','m','x'),
-                                        MAKENAMEID3('d','j','v'), MAKENAMEID4('d','j','v','u'), MAKENAMEID3('d','w','g'),
-                                        MAKENAMEID3('d','x','f'), MAKENAMEID3('f','b','s'), MAKENAMEID2('f','h'),
-                                        MAKENAMEID3('f','h','4'), MAKENAMEID3('f','h','5'), MAKENAMEID3('f','h','7'),
-                                        MAKENAMEID3('f','h','c'), MAKENAMEID3('f','p','x'), MAKENAMEID3('f','s','t'),
-                                        MAKENAMEID2('g','3'), MAKENAMEID3('g','i','f'), MAKENAMEID4('h','e','i','c'),
-                                        MAKENAMEID4('h','e','i','f'), MAKENAMEID3('i','c','o'), MAKENAMEID3('i','e','f'),
-                                        MAKENAMEID3('j','p','e'), MAKENAMEID4('j','p','e','g'), MAKENAMEID3('j','p','g'),
-                                        MAKENAMEID3('j','x','l'), MAKENAMEID3('k','t','x'), MAKENAMEID3('m','d','i'),
-                                        MAKENAMEID3('m','m','r'), MAKENAMEID3('n','p','x'), MAKENAMEID3('p','b','m'),
-                                        MAKENAMEID3('p','c','t'), MAKENAMEID3('p','c','x'), MAKENAMEID3('p','g','m'),
-                                        MAKENAMEID3('p','i','c'), MAKENAMEID3('p','n','g'), MAKENAMEID3('p','n','m'),
-                                        MAKENAMEID3('p','p','m'),  MAKENAMEID3('p','s','d'), MAKENAMEID3('r','a','s'),
-                                        MAKENAMEID3('r','g','b'),  MAKENAMEID3('r','l','c'), MAKENAMEID3('s','g','i'),
-                                        MAKENAMEID3('s','i','d'), MAKENAMEID3('s','v','g'), MAKENAMEID4('s','v','g','z'),
-                                        MAKENAMEID3('t','g','a'), MAKENAMEID3('t','i','f'), MAKENAMEID4('t','i','f','f'),
-                                        MAKENAMEID3('u','v','g'), MAKENAMEID3('u','v','i'), MAKENAMEID4('u','v','v','g'),
-                                        MAKENAMEID4('u','v','v','i'), MAKENAMEID4('w','b','m','p'), MAKENAMEID3('w','d','p'),
-                                        MAKENAMEID4('w','e','b','p'), MAKENAMEID3('x','b','m'), MAKENAMEID3('x','i','f'),
-                                        MAKENAMEID3('x','p','m'), MAKENAMEID3('x','w','d')};
+    static const std::set<nameid> phts {makeNameid("3ds"), makeNameid("avif"), makeNameid("bmp"),
+                                        makeNameid("btif"), makeNameid("cgm"), makeNameid("cmx"),
+                                        makeNameid("djv"), makeNameid("djvu"), makeNameid("dwg"),
+                                        makeNameid("dxf"), makeNameid("fbs"), makeNameid("fh"),
+                                        makeNameid("fh4"), makeNameid("fh5"), makeNameid("fh7"),
+                                        makeNameid("fhc"), makeNameid("fpx"), makeNameid("fst"),
+                                        makeNameid("g3"), makeNameid("gif"), makeNameid("heic"),
+                                        makeNameid("heif"), makeNameid("ico"), makeNameid("ief"),
+                                        makeNameid("jpe"), makeNameid("jpeg"), makeNameid("jpg"),
+                                        makeNameid("jxl"), makeNameid("ktx"), makeNameid("mdi"),
+                                        makeNameid("mmr"), makeNameid("npx"), makeNameid("pbm"),
+                                        makeNameid("pct"), makeNameid("pcx"), makeNameid("pgm"),
+                                        makeNameid("pic"), makeNameid("png"), makeNameid("pnm"),
+                                        makeNameid("ppm"),  makeNameid("psd"), makeNameid("ras"),
+                                        makeNameid("rgb"),  makeNameid("rlc"), makeNameid("sgi"),
+                                        makeNameid("sid"), makeNameid("svg"), makeNameid("svgz"),
+                                        makeNameid("tga"), makeNameid("tif"), makeNameid("tiff"),
+                                        makeNameid("uvg"), makeNameid("uvi"), makeNameid("uvvg"),
+                                        makeNameid("uvvi"), makeNameid("wbmp"), makeNameid("wdp"),
+                                        makeNameid("webp"), makeNameid("xbm"), makeNameid("xif"),
+                                        makeNameid("xpm"), makeNameid("xwd")};
     return phts;
 }
 
 const std::set<nameid>& photoRawExtensions()
 {
-    static const std::set<nameid> phrs {MAKENAMEID3('3','f','r'), MAKENAMEID3('a','r','i'), MAKENAMEID3('a','r','q'),
-                                        MAKENAMEID3('a','r','w'), MAKENAMEID3('b','a','y'), MAKENAMEID3('b','m','q'),
-                                        MAKENAMEID3('c','a','p'), MAKENAMEID4('c','i','f','f'), MAKENAMEID4('c','i','n','e'),
-                                        MAKENAMEID3('c','r','2'), MAKENAMEID3('c','r','3'), MAKENAMEID3('c','r','w'),
-                                        MAKENAMEID3('c','s','1'), MAKENAMEID3('d','c','2'), MAKENAMEID3('d','c','r'),
-                                        MAKENAMEID3('d','n','g'), MAKENAMEID3('d','r','f'), MAKENAMEID3('d','s','c'),
-                                        MAKENAMEID3('e','i','p'), MAKENAMEID3('e','r','f'), MAKENAMEID3('f','f','f'),
-                                        MAKENAMEID2('i','a'), MAKENAMEID3('i','i','q'), MAKENAMEID3('k','2','5'),
-                                        MAKENAMEID3('k','c','2'), MAKENAMEID3('k','d','c'), MAKENAMEID3('m','d','c'),
-                                        MAKENAMEID3('m','e','f'), MAKENAMEID3('m','o','s'), MAKENAMEID3('m','r','w'),
-                                        MAKENAMEID3('n','e','f'), MAKENAMEID3('n','r','w'), MAKENAMEID3('o','b','m'),
-                                        MAKENAMEID3('o','r','f'), MAKENAMEID3('o','r','i'), MAKENAMEID3('p','e','f'),
-                                        MAKENAMEID3('p','t','x'), MAKENAMEID3('p','x','n'), MAKENAMEID3('q','t','k'),
-                                        MAKENAMEID3('r','a','f'), MAKENAMEID3('r','a','w'), MAKENAMEID3('r','d','c'),
-                                        MAKENAMEID3('r','w','2'), MAKENAMEID3('r','w','l'), MAKENAMEID3('r','w','z'),
-                                        MAKENAMEID3('s','r','2'), MAKENAMEID3('s','r','f'), MAKENAMEID3('s','r','w'),
-                                        MAKENAMEID3('s','t','i'), MAKENAMEID3('x','3','f')};
+    static const std::set<nameid> phrs {makeNameid("3fr"), makeNameid("ari"), makeNameid("arq"),
+                                        makeNameid("arw"), makeNameid("bay"), makeNameid("bmq"),
+                                        makeNameid("cap"), makeNameid("ciff"), makeNameid("cine"),
+                                        makeNameid("cr2"), makeNameid("cr3"), makeNameid("crw"),
+                                        makeNameid("cs1"), makeNameid("dc2"), makeNameid("dcr"),
+                                        makeNameid("dng"), makeNameid("drf"), makeNameid("dsc"),
+                                        makeNameid("eip"), makeNameid("erf"), makeNameid("fff"),
+                                        makeNameid("ia"), makeNameid("iiq"), makeNameid("k25"),
+                                        makeNameid("kc2"), makeNameid("kdc"), makeNameid("mdc"),
+                                        makeNameid("mef"), makeNameid("mos"), makeNameid("mrw"),
+                                        makeNameid("nef"), makeNameid("nrw"), makeNameid("obm"),
+                                        makeNameid("orf"), makeNameid("ori"), makeNameid("pef"),
+                                        makeNameid("ptx"), makeNameid("pxn"), makeNameid("qtk"),
+                                        makeNameid("raf"), makeNameid("raw"), makeNameid("rdc"),
+                                        makeNameid("rw2"), makeNameid("rwl"), makeNameid("rwz"),
+                                        makeNameid("sr2"), makeNameid("srf"), makeNameid("srw"),
+                                        makeNameid("sti"), makeNameid("x3f")};
     return phrs;
 }
 
 const std::set<nameid>& photoImageDefExtension()
 {
-    static const std::set<nameid> phis {MAKENAMEID3('b','m','p'), MAKENAMEID3('g','i','f'), MAKENAMEID3('j','p','g'),
-                                        MAKENAMEID4('j','p','e','g'), MAKENAMEID3('p','n','g')};
+    static const std::set<nameid> phis {makeNameid("bmp"), makeNameid("gif"), makeNameid("jpg"),
+                                        makeNameid("jpeg"), makeNameid("png")};
     return phis;
 }
 
@@ -825,7 +825,7 @@ void Node::setattr()
 
 nameid Node::sdsId()
 {
-    constexpr nameid nid = MAKENAMEID3('s', 'd', 's');
+    constexpr nameid nid = makeNameid("sds");
     return nid;
 }
 
