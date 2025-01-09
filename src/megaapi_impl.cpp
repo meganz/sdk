@@ -27229,8 +27229,8 @@ bool MegaApiImpl::isPasswordNodeFolder(MegaHandle h) const
         return false;
 
     SdkMutexGuard g{sdkMutex};
-    auto n = client->nodebyhandle(h);
-    return n ? n->isPasswordNodeFolder() : false;
+    const auto n = client->nodebyhandle(h);
+    return n && n->isPasswordNodeFolder();
 }
 
 void MegaApiImpl::createPasswordManagerBase(MegaRequestPrivate* request)
