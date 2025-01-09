@@ -3676,7 +3676,7 @@ void SdkTest::cancelSchedMeetings()
             const auto schedList = c.second->getScheduledMeetingList();
             for (unsigned long j = 0; j < schedList->size(); ++j)
             {
-                if (const MegaScheduledMeeting* aux = schedList->at(0); aux && !aux->cancelled())
+                if (const MegaScheduledMeeting* aux = schedList->at(j); aux && !aux->cancelled())
                 {
                     std::unique_ptr<MegaScheduledMeeting> sm(
                         MegaScheduledMeeting::createInstance(aux->chatid(),
