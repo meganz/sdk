@@ -37,7 +37,6 @@ set(SDKLIB_HEADERS
     include/mega/serialize64.h
     include/mega/nodemanager.h
     include/mega/setandelement.h
-    include/mega/mega_ccronexpr.h
     include/mega/testhooks.h
     include/mega/share.h
     include/mega/mega_dict-src.h
@@ -113,7 +112,6 @@ set(SDKLIB_SOURCES
     src/json.cpp
     src/logging.cpp
     src/mediafileattribute.cpp
-    src/mega_ccronexpr.cpp
     src/mega_http_parser.cpp
     src/mega_utf8proc.cpp
     src/mega_zxcvbn.cpp
@@ -319,7 +317,7 @@ if (WIN32)
         PUBLIC # TODO: Private for SDK core
             HAVE_CONFIG_H # To include the config.h file in Windows builds
         PRIVATE
-            _CRT_SECURE_NO_WARNINGS # warning in mega_ccronexpr
+            _CRT_SECURE_NO_WARNINGS # warning in ccronexpr
             $<$<BOOL:${USE_CPPTHREAD}>:USE_CPPTHREAD>
             UNICODE
             # Disable warning C4996: 'inet_ntoa': Use inet_ntop() or InetNtop() instead or define
@@ -416,7 +414,6 @@ if(ENABLE_SDKLIB_WERROR)
     endif()
     if(APPLE)
         set_source_files_properties(
-            src/mega_ccronexpr.cpp
             src/mega_http_parser.cpp
             src/mega_utf8proc.cpp
             src/mega_zxcvbn.cpp
@@ -447,34 +444,3 @@ configure_file(
     cmake/modules/sdklib.pc.in
     ${CMAKE_CURRENT_BINARY_DIR}/sdklib.pc @ONLY
     )
-
-## Installation ##
-if(SDKLIB_STANDALONE)
-
-    message(STATUS "Current installation path for SDKlib files: ${CMAKE_INSTALL_PREFIX}")
-
-    # Install library: Lib, export targets, pub headers.
-    install(TARGETS SDKlib
-        EXPORT "sdklibTargets"
-        PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-        INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-        )
-
-    # Install export file
-    install(EXPORT "sdklibTargets"
-        FILE "sdklibTargets.cmake"
-        NAMESPACE MEGA::
-        DESTINATION cmake
-        )
-
-    # Install config files
-    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/sdklibConfig.cmake DESTINATION cmake)
-    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/sdklib.pc DESTINATION pkgconfig)
-    install(FILES ${SDKLIB_PUB_HEADERS} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-
-    # Export targets to be used from the build directory.
-    export(EXPORT "sdklibTargets"
-        FILE "${CMAKE_CURRENT_BINARY_DIR}/cmake/sdklibTargets.cmake"
-        NAMESPACE MEGA::
-        )
-endif()

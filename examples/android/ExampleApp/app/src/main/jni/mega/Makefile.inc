@@ -61,7 +61,6 @@ CPP_SOURCES= sdk/src/attrmap.cpp \
     sdk/src/mega_zxcvbn.cpp \
     sdk/src/mediafileattribute.cpp \
     sdk/src/mega_evt_tls.cpp \
-    sdk/src/mega_ccronexpr.cpp\
     sdk/src/raid.cpp \
     sdk/src/raidproxy.cpp \
     sdk/src/testhooks.cpp \
@@ -274,6 +273,14 @@ CPP_SOURCES += \
     sdk/src/fuse/common/task_queue.cpp \
     sdk/src/fuse/common/transaction.cpp \
     sdk/src/fuse/common/utility.cpp
+
+# third party layer headers
+HEADERS += \
+    sdk/third_party/ccronexpr/ccronexpr.h
+
+# third party layer sources
+CPP_SOURCES += \
+    sdk/third_party/ccronexpr/ccronexpr.cpp
 
 # FUSE (Dummy headers.)
 HEADERS += \

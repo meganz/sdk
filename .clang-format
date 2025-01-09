@@ -89,7 +89,7 @@ IncludeCategories:
     Priority: 3
     CaseSensitive: true
   # 3rd-party libraries
-  - Regex: '<(.+/|Q.+)'
+  - Regex: '<(.+/|Q.+|ccronexpr.+)'
     Priority: 2
   # Everything else
   - Regex: '.*'

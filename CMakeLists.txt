@@ -178,3 +178,4 @@ endif()
 ## Load FUSE support.
 include(src/fuse/CMakeLists.txt)
 
+add_subdirectory(third_party)
