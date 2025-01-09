@@ -23,6 +23,8 @@ pipeline {
         gpg_key = credentials('sdk_gpg_key_release_management')
         GITHUB_TOKEN = credentials('sdk_github_token')
         GITHUB_USER = credentials('sdk_github_username')
+        COMMIT_EMAIL = 'sdkdev+releases@mega.co.nz'
+        COMMIT_NAME = 'SDK Releases'
         project_name = "SDK"
         slack_channel = "sdk"
         slack_channel_dev_requests = "sdk_devs_only"
@@ -31,6 +33,7 @@ pipeline {
         confluence_url = "${env.CONFLUENCE_BASE_URL}"
         confluence_page_id = "3640225"
         github_push_remote_url = "https://${GITHUB_USER}:${GITHUB_TOKEN}@github.com/meganz/sdk.git"
+        gitlab_push_remote_url = "https://gitlab-ci-token:${GITLAB_TOKEN}@${GIT_URL_SDK_FOR_HTTPS_TOKEN}"
         GNUPGHOME = "${WORKSPACE}/.gnupg"
         JIRA_TOKEN = credentials('SDK_JIRA_PERSONAL_ACCESS_TOKEN')
         CONFLUENCE_TOKEN = credentials('SDK_CONFLUENCE_PERSONAL_ACCESS_TOKEN')
@@ -59,6 +62,17 @@ pipeline {
                         """
                     }
                 }
+                // Configure GPG Agent
+                sh """
+                    mkdir -m 700 $GNUPGHOME
+                    touch $GNUPGHOME/gpg-agent.conf
+                    echo 'allow-preset-passphrase' >> $GNUPGHOME/gpg-agent.conf
+                    echo 'default-cache-ttl 3600' >> $GNUPGHOME/gpg-agent.conf
+                    echo 'max-cache-ttl 3600' >> $GNUPGHOME/gpg-agent.conf
+                """
+                // Configure gitlab
+                sh "git remote remove origin"
+                sh "set +x; git remote add origin ${gitlab_push_remote_url}"
             }
         }
         stage('Build docker image') {
@@ -89,6 +103,11 @@ pipeline {
                 dir("automation"){
                     sh 'gpg --batch --import $gpg_key'
                     sh 'gpg --list-secret-keys'
+                    sh 'set +x; /usr/lib/gnupg2/gpg-preset-passphrase --preset --passphrase $GPG_PASSWORD $GPG_KEYGRIP'
+                    sh """
+                          git config --global user.email "${COMMIT_EMAIL}"
+                          git config --global user.name "${COMMIT_NAME}"
+                    """
                     sh 'python3 ./make_release.py config.toml'
                 }
             }
@@ -146,6 +165,11 @@ pipeline {
                 dir("automation"){
                     sh 'gpg --batch --import $gpg_key'
                     sh 'gpg --list-secret-keys'
+                    sh 'set +x; /usr/lib/gnupg2/gpg-preset-passphrase --preset --passphrase $GPG_PASSWORD $GPG_KEYGRIP'
+                    sh """
+                          git config --global user.email "${COMMIT_EMAIL}"
+                          git config --global user.name "${COMMIT_NAME}"
+                    """
                     sh 'python3 ./patch_release.py config.toml'
                 }
             }
