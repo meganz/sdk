@@ -12695,7 +12695,8 @@ class MegaApi
          * ancestor, or if the node is the Password Manager Base folder itself.
          *
          * @param node MegaHandle of the node to check if it is a Password Node Folder
-         * @return true if this node is a Password Node Folder
+         * @return true if this node is a Password Node Folder, false otherwise.
+         * In case node doesn't exists this method will also returns false.
          */
         virtual bool isPasswordNodeFolder(MegaHandle node) const;
 
