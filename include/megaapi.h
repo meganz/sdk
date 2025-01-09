@@ -17566,20 +17566,31 @@ class MegaApi
          */
         unsigned long long getNumNodesAtCacheLRU() const;
 
-        enum { ORDER_NONE = 0, ORDER_DEFAULT_ASC, ORDER_DEFAULT_DESC,
-            ORDER_SIZE_ASC, ORDER_SIZE_DESC,
-            ORDER_CREATION_ASC, ORDER_CREATION_DESC,
-            ORDER_MODIFICATION_ASC, ORDER_MODIFICATION_DESC,
-            /*deprecated*/ ORDER_ALPHABETICAL_ASC, /*deprecated*/ ORDER_ALPHABETICAL_DESC,
-            /*deprecated*/ ORDER_PHOTO_ASC, /*deprecated*/ ORDER_PHOTO_DESC,
-            /*deprecated*/ ORDER_VIDEO_ASC, /*deprecated*/ ORDER_VIDEO_DESC,
-            ORDER_LINK_CREATION_ASC, ORDER_LINK_CREATION_DESC,
-            ORDER_LABEL_ASC,
-            ORDER_LABEL_DESC,
-            ORDER_FAV_ASC,
-            ORDER_FAV_DESC,
-            ORDER_SHARE_CREATION_ASC,
-            ORDER_SHARE_CREATION_DESC,
+        enum
+        {
+            ORDER_NONE = 0,
+            ORDER_DEFAULT_ASC = 1,
+            ORDER_DEFAULT_DESC = 2,
+            ORDER_SIZE_ASC = 3,
+            ORDER_SIZE_DESC = 4,
+            ORDER_CREATION_ASC = 5,
+            ORDER_CREATION_DESC = 6,
+            ORDER_MODIFICATION_ASC = 7,
+            ORDER_MODIFICATION_DESC = 8,
+            // ORDER_ALPHABETICAL_ASC = 9, (obsolete)
+            // ORDER_ALPHABETICAL_DESC = 10, (obsolete)
+            // ORDER_PHOTO_ASC = 11, (obsolete)
+            // ORDER_PHOTO_DESC = 12, (obsolete)
+            // ORDER_VIDEO_ASC = 13, (obsolete)
+            // ORDER_VIDEO_DESC = 14, (obsolete)
+            ORDER_LINK_CREATION_ASC = 15,
+            ORDER_LINK_CREATION_DESC = 16,
+            ORDER_LABEL_ASC = 17,
+            ORDER_LABEL_DESC = 18,
+            ORDER_FAV_ASC = 19,
+            ORDER_FAV_DESC = 20,
+            ORDER_SHARE_CREATION_ASC = 21,
+            ORDER_SHARE_CREATION_DESC = 22,
         };
 
         enum { FILE_TYPE_DEFAULT = 0, // FILE_TYPE_UNKNOWN already exists at WinBase.h
@@ -17651,8 +17662,8 @@ class MegaApi
          *
          * You take the ownership of the returned value
          *
-         * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
-         * to MegaCancelToken::setCancelFlag(true).
+         * This function allows to cancel the processing at any time by passing a MegaCancelToken
+         * and calling to MegaCancelToken::setCancelFlag(true).
          *
          * @param parent Parent node
          * @param order Order for the returned list
@@ -17687,24 +17698,6 @@ class MegaApi
          *
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
          * Sort by modification time of the original file, older modification times last
-         *
-         * - deprecated: MegaApi::ORDER_ALPHABETICAL_ASC = 9
-         * Same behavior than MegaApi::ORDER_DEFAULT_ASC
-         *
-         * - deprecated: MegaApi::ORDER_ALPHABETICAL_DESC = 10
-         * Same behavior than MegaApi::ORDER_DEFAULT_DESC
-         *
-         * - deprecated: MegaApi::ORDER_PHOTO_ASC = 11
-         * Sort with photos first, then by date ascending
-         *
-         * - deprecated: MegaApi::ORDER_PHOTO_DESC = 12
-         * Sort with photos first, then by date descending
-         *
-         * - deprecated: MegaApi::ORDER_VIDEO_ASC = 13
-         * Sort with videos first, then by date ascending
-         *
-         * - deprecated: MegaApi::ORDER_VIDEO_DESC = 14
-         * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
          * Sort by color label, nodes with colors first
@@ -17831,24 +17824,6 @@ class MegaApi
          *
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
          * Sort by modification time of the original file, older modification times last
-         *
-         * - deprecated: MegaApi::ORDER_ALPHABETICAL_ASC = 9
-         * Same behavior than MegaApi::ORDER_DEFAULT_ASC
-         *
-         * - deprecated: MegaApi::ORDER_ALPHABETICAL_DESC = 10
-         * Same behavior than MegaApi::ORDER_DEFAULT_DESC
-         *
-         * - deprecated: MegaApi::ORDER_PHOTO_ASC = 11
-         * Sort with photos first, then by date ascending
-         *
-         * - deprecated: MegaApi::ORDER_PHOTO_DESC = 12
-         * Sort with photos first, then by date descending
-         *
-         * - deprecated: MegaApi::ORDER_VIDEO_ASC = 13
-         * Sort with videos first, then by date ascending
-         *
-         * - deprecated: MegaApi::ORDER_VIDEO_DESC = 14
-         * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
          * Sort by color label, nodes with colors first

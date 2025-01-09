@@ -7557,56 +7557,6 @@ Node* makenode(MegaClient& mc, NodeHandle parent, ::mega::nodetype_t type, m_off
 
 } // anonymous
 
-TEST_F(SyncTest, NodeSorting_forPhotosAndVideos)
-{
-    fs::path localtestroot = makeNewTestRoot();
-
-    // Don't use ClientManager or running PutnodesForMultipleFolders after this breaks
-
-    StandardClient standardclient(localtestroot, "sortOrderTests");
-    auto& client = standardclient.client;
-    handle owner = 99999;
-
-    ::mega::byte key[] = { 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04 };
-
-    // first 3 are root nodes:
-    auto cloudroot = makenode(client, NodeHandle(), ROOTNODE, -1, owner, makefa("root", 1, 1), key);
-    makenode(client, NodeHandle(), VAULTNODE, -1, owner, makefa("inbox", 1, 1), key);
-    makenode(client, NodeHandle(), RUBBISHNODE, -1, owner, makefa("bin", 1, 1), key);
-
-    // now some files to sort
-    auto photo1 = shared_ptr<Node>(makenode(client, cloudroot->nodeHandle(), FILENODE, 9999, owner, makefa("abc.jpg", 1, 1570673890), key));
-    auto photo2 = shared_ptr<Node>(makenode(client, cloudroot->nodeHandle(), FILENODE, 9999, owner, makefa("cba.png", 1, 1570673891), key));
-    auto video1 = shared_ptr<Node>(makenode(client, cloudroot->nodeHandle(), FILENODE, 9999, owner, makefa("xyz.mov", 1, 1570673892), key));
-    auto video2 = shared_ptr<Node>(makenode(client, cloudroot->nodeHandle(), FILENODE, 9999, owner, makefa("zyx.mp4", 1, 1570673893), key));
-    auto otherfile = shared_ptr<Node>(makenode(client, cloudroot->nodeHandle(), FILENODE, 9999, owner, makefa("ASDF.fsda", 1, 1570673894), key));
-    auto otherfolder = shared_ptr<Node>(makenode(client, cloudroot->nodeHandle(), FOLDERNODE, -1, owner, makefa("myfolder", 1, 1570673895), key));
-
-    sharedNode_vector v{ photo1, photo2, video1, video2, otherfolder, otherfile };
-    for (auto n : v) n->setkey(key);
-
-    /*deprecated*/
-    MegaApiImpl::sortByComparatorFunction(v, MegaApi::ORDER_PHOTO_ASC, client);
-    sharedNode_vector v2{ photo1, photo2, video1, video2, otherfolder, otherfile };
-    ASSERT_EQ(v, v2);
-
-    /*deprecated*/
-    MegaApiImpl::sortByComparatorFunction(v, MegaApi::ORDER_PHOTO_DESC, client);
-    sharedNode_vector v3{ photo2, photo1, video2, video1, otherfolder, otherfile };
-    ASSERT_EQ(v, v3);
-
-    /*deprecated*/
-    MegaApiImpl::sortByComparatorFunction(v, MegaApi::ORDER_VIDEO_ASC, client);
-    sharedNode_vector v4{ video1, video2, photo1, photo2, otherfolder, otherfile };
-    ASSERT_EQ(v, v4);
-
-    /*deprecated*/
-    MegaApiImpl::sortByComparatorFunction(v, MegaApi::ORDER_VIDEO_DESC, client);
-    sharedNode_vector v5{ video2, video1, photo2, photo1, otherfolder, otherfile };
-    ASSERT_EQ(v, v5);
-}
-
-
 TEST_F(SyncTest, PutnodesForMultipleFolders)
 {
     fs::path localtestroot = makeNewTestRoot();

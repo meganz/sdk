@@ -17611,7 +17611,7 @@ bool MegaApiImpl::isFilesystemAvailable()
     return client->nodeByHandle(client->mNodeManager.getRootNodeFiles()) != NULL;
 }
 
-std::function<bool (Node*, Node*)> MegaApiImpl::getComparatorFunction(int order, MegaClient& mc)
+std::function<bool(Node*, Node*)> MegaApiImpl::getComparatorFunction(int order, MegaClient&)
 {
     switch (order)
     {
@@ -17623,15 +17623,11 @@ std::function<bool (Node*, Node*)> MegaApiImpl::getComparatorFunction(int order,
         case MegaApi::ORDER_CREATION_ASC: return MegaApiImpl::nodeComparatorCreationASC;
         case MegaApi::ORDER_CREATION_DESC: return MegaApiImpl::nodeComparatorCreationDESC;
         case MegaApi::ORDER_MODIFICATION_ASC: return MegaApiImpl::nodeComparatorModificationASC;
-        case MegaApi::ORDER_MODIFICATION_DESC: return MegaApiImpl::nodeComparatorModificationDESC;
-        case MegaApi::ORDER_ALPHABETICAL_ASC: return MegaApiImpl::nodeComparatorDefaultASC;
-        case MegaApi::ORDER_ALPHABETICAL_DESC: return MegaApiImpl::nodeComparatorDefaultDESC;
+        case MegaApi::ORDER_MODIFICATION_DESC:
+            return MegaApiImpl::nodeComparatorModificationDESC;
         case MegaApi::ORDER_LINK_CREATION_ASC: return MegaApiImpl::nodeComparatorPublicLinkCreationASC;
-        case MegaApi::ORDER_LINK_CREATION_DESC: return MegaApiImpl::nodeComparatorPublicLinkCreationDESC;
-        case /*deprecated*/ MegaApi::ORDER_PHOTO_ASC: return [&mc](Node* i, Node*j) { return MegaApiImpl::nodeComparatorPhotoASC(i, j, mc); };
-        case /*deprecated*/ MegaApi::ORDER_PHOTO_DESC: return [&mc](Node* i, Node*j) { return MegaApiImpl::nodeComparatorPhotoDESC(i, j, mc); };
-        case /*deprecated*/ MegaApi::ORDER_VIDEO_ASC: return [&mc](Node* i, Node*j) { return MegaApiImpl::nodeComparatorVideoASC(i, j, mc); };
-        case /*deprecated*/ MegaApi::ORDER_VIDEO_DESC: return [&mc](Node* i, Node*j) { return MegaApiImpl::nodeComparatorVideoDESC(i, j, mc); };
+        case MegaApi::ORDER_LINK_CREATION_DESC:
+            return MegaApiImpl::nodeComparatorPublicLinkCreationDESC;
         case MegaApi::ORDER_LABEL_ASC: return MegaApiImpl::nodeComparatorLabelASC;
         case MegaApi::ORDER_LABEL_DESC: return MegaApiImpl::nodeComparatorLabelDESC;
         case MegaApi::ORDER_FAV_ASC: return MegaApiImpl::nodeComparatorFavASC;
@@ -18034,90 +18030,6 @@ int MegaApiImpl::typeComparator(Node *i, Node *j)
         return 1;
     }
     return -1;
-}
-
-/*deprecated*/
-bool MegaApiImpl::nodeComparatorPhotoASC(Node *i, Node *j, MegaClient& mc)
-{
-    bool i_photo = false, i_video = false, j_photo = false, j_video = false;
-    bool i_media = mc.nodeIsMedia(i, &i_photo, &i_video);
-    bool j_media = mc.nodeIsMedia(j, &j_photo, &j_video);
-
-    if (i_media != j_media)
-    {
-        return i_media;  // media go first
-    }
-
-    if (i_photo != j_photo)
-    {
-        return i_photo; // photos before videos
-    }
-
-    // within photos or videos or non-media, order by date
-    return nodeComparatorModificationASC(i, j);
-}
-
-/*deprecated*/
-bool MegaApiImpl::nodeComparatorPhotoDESC(Node *i, Node *j, MegaClient& mc)
-{
-    bool i_photo = false, i_video = false, j_photo = false, j_video = false;
-    bool i_media = mc.nodeIsMedia(i, &i_photo, &i_video);
-    bool j_media = mc.nodeIsMedia(j, &j_photo, &j_video);
-
-    if (i_media != j_media)
-    {
-        return i_media;  // media go first
-    }
-
-    if (i_photo != j_photo)
-    {
-        return i_photo; // photos before videos
-    }
-
-    // within photos or videos or non-media, order by date
-    return nodeComparatorModificationDESC(i, j);
-}
-
-/*deprecated*/
-bool MegaApiImpl::nodeComparatorVideoASC(Node *i, Node *j, MegaClient& mc)
-{
-    bool i_photo = false, i_video = false, j_photo = false, j_video = false;
-    bool i_media = mc.nodeIsMedia(i, &i_photo, &i_video);
-    bool j_media = mc.nodeIsMedia(j, &j_photo, &j_video);
-
-    if (i_media != j_media)
-    {
-        return i_media;  // media go first
-    }
-
-    if (i_video != j_video)
-    {
-        return i_video; // videos before photos
-    }
-
-    // within photos or videos or non-media, order by date
-    return nodeComparatorModificationASC(i, j);
-}
-
-/*deprecated*/
-bool MegaApiImpl::nodeComparatorVideoDESC(Node *i, Node *j, MegaClient& mc)
-{
-    bool i_photo = false, i_video = false, j_photo = false, j_video = false;
-    bool i_media = mc.nodeIsMedia(i, &i_photo, &i_video);
-    bool j_media = mc.nodeIsMedia(j, &j_photo, &j_video);
-
-    if (i_media != j_media)
-    {
-        return i_media;  // media go first
-    }
-
-    if (i_video != j_video)
-    {
-        return i_video; // videos before photos
-    }
-
-    // within photos or videos or non-media, order by date
-    return nodeComparatorModificationDESC(i, j);
 }
 
 int MegaApiImpl::getNumChildren(MegaNode* p)
