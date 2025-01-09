@@ -12327,94 +12327,94 @@ bool MegaApiImpl::getLanguageCode(const char *languageCode, string *code)
         switch (id)
         {
             // Regular language codes
-            case MAKENAMEID2('a', 'r'):
-            case MAKENAMEID2('b', 'g'):
-            case MAKENAMEID2('d', 'e'):
-            case MAKENAMEID2('e', 'n'):
-            case MAKENAMEID2('e', 's'):
-            case MAKENAMEID2('f', 'a'):
-            case MAKENAMEID2('f', 'i'):
-            case MAKENAMEID2('f', 'r'):
-            case MAKENAMEID2('h', 'e'):
-            case MAKENAMEID2('h', 'u'):
-            case MAKENAMEID2('i', 'd'):
-            case MAKENAMEID2('i', 't'):
-            case MAKENAMEID2('n', 'l'):
-            case MAKENAMEID2('p', 'l'):
-            case MAKENAMEID2('r', 'o'):
-            case MAKENAMEID2('r', 'u'):
-            case MAKENAMEID2('s', 'k'):
-            case MAKENAMEID2('s', 'l'):
-            case MAKENAMEID2('s', 'r'):
-            case MAKENAMEID2('t', 'h'):
-            case MAKENAMEID2('t', 'l'):
-            case MAKENAMEID2('t', 'r'):
-            case MAKENAMEID2('u', 'k'):
-            case MAKENAMEID2('v', 'i'):
+            case makeNameid("ar"):
+            case makeNameid("bg"):
+            case makeNameid("de"):
+            case makeNameid("en"):
+            case makeNameid("es"):
+            case makeNameid("fa"):
+            case makeNameid("fi"):
+            case makeNameid("fr"):
+            case makeNameid("he"):
+            case makeNameid("hu"):
+            case makeNameid("id"):
+            case makeNameid("it"):
+            case makeNameid("nl"):
+            case makeNameid("pl"):
+            case makeNameid("ro"):
+            case makeNameid("ru"):
+            case makeNameid("sk"):
+            case makeNameid("sl"):
+            case makeNameid("sr"):
+            case makeNameid("th"):
+            case makeNameid("tl"):
+            case makeNameid("tr"):
+            case makeNameid("uk"):
+            case makeNameid("vi"):
 
             // Not used on apps
-            case MAKENAMEID2('c', 'z'):
-            case MAKENAMEID2('j', 'p'):
-            case MAKENAMEID2('k', 'r'):
-            case MAKENAMEID2('b', 'r'):
-            case MAKENAMEID2('s', 'e'):
-            case MAKENAMEID2('c', 'n'):
-            case MAKENAMEID2('c', 't'):
+            case makeNameid("cz"):
+            case makeNameid("jp"):
+            case makeNameid("kr"):
+            case makeNameid("br"):
+            case makeNameid("se"):
+            case makeNameid("cn"):
+            case makeNameid("ct"):
                 *code = s;
                 break;
 
             // Conversions
-            case MAKENAMEID2('c', 's'):
+            case makeNameid("cs"):
                 *code = "cz";
                 break;
 
-            case MAKENAMEID2('j', 'a'):
+            case makeNameid("ja"):
                 *code = "jp";
                 break;
 
-            case MAKENAMEID2('k', 'o'):
+            case makeNameid("ko"):
                 *code = "kr";
                 break;
 
-            case MAKENAMEID2('p', 't'):
-            case MAKENAMEID5('p', 't', '_', 'b', 'r'):
-            case MAKENAMEID5('p', 't', '-', 'b', 'r'):
-            case MAKENAMEID5('p', 't', '_', 'p', 't'):
-            case MAKENAMEID5('p', 't', '-', 'p', 't'):
+            case makeNameid("pt"):
+            case makeNameid("pt_br"):
+            case makeNameid("pt-br"):
+            case makeNameid("pt_pt"):
+            case makeNameid("pt-pt"):
                 *code = "br";
                 break;
 
-            case MAKENAMEID2('s', 'v'):
+            case makeNameid("sv"):
                 *code = "se";
                 break;
 
-            case MAKENAMEID2('z', 'h'):
-            case MAKENAMEID5('z', 'h', '_', 'c', 'n'):
-            case MAKENAMEID5('z', 'h', '-', 'c', 'n'):
-            case MAKENAMEID7('z', 'h', '_', 'h', 'a', 'n', 's'):
-            case MAKENAMEID7('z', 'h', '-', 'h', 'a', 'n', 's'):
+            case makeNameid("zh"):
+            case makeNameid("zh_cn"):
+            case makeNameid("zh-cn"):
+            case makeNameid("zh_hans"):
+            case makeNameid("zh-hans"):
                 *code = "cn";
                 break;
 
-            case MAKENAMEID5('z', 'h', '_', 't', 'w'):
-            case MAKENAMEID5('z', 'h', '-', 't', 'w'):
-            case MAKENAMEID7('z', 'h', '_', 'h', 'a', 'n', 't'):
-            case MAKENAMEID7('z', 'h', '-', 'h', 'a', 'n', 't'):
+            case makeNameid("zh_tw"):
+            case makeNameid("zh-tw"):
+            case makeNameid("zh_hant"):
+            case makeNameid("zh-hant"):
                 *code = "ct";
                 break;
 
-            case MAKENAMEID2('i', 'n'):
+            case makeNameid("in"):
                 *code = "id";
                 break;
 
-            case MAKENAMEID2('i', 'w'):
+            case makeNameid("iw"):
                 *code = "he";
                 break;
 
             // Not supported in the web
-            case MAKENAMEID2('e', 'e'):
-            case MAKENAMEID2('h', 'r'):
-            case MAKENAMEID2('k', 'a'):
+            case makeNameid("ee"):
+            case makeNameid("hr"):
+            case makeNameid("ka"):
                 break;
 
             default:
