@@ -416,7 +416,7 @@ void SdkTest::Cleanup()
     deleteFile(AVATARDST);
 
 #ifdef ENABLE_CHAT
-    delSchedMeetings();
+    cancelSchedMeetings();
 #endif
 
 #ifdef ENABLE_SYNC
@@ -1918,48 +1918,6 @@ void SdkTest::updateScheduledMeeting(const unsigned apiIndex, MegaHandle& chatid
 
     std::unique_ptr<RequestTracker>tracker (new RequestTracker(megaApi[apiIndex].get()));
     megaApi[apiIndex]->createOrUpdateScheduledMeeting(sm.get(), nullptr/*chatTitle*/, tracker.get());
-    tracker->waitForResult();
-}
-
-void SdkTest::deleteScheduledMeeting(unsigned apiIndex, MegaHandle& chatid)
-{
-    const auto isValidChat = [](const MegaTextChat* chat) -> bool
-    {
-        if (!chat) { return false; }
-
-        return chat->isGroup()
-            && chat->getOwnPrivilege() == MegaTextChatPeerList::PRIV_MODERATOR
-            && chat->getScheduledMeetingList()
-            && chat->getScheduledMeetingList()->size();
-    };
-
-    const MegaTextChat* chat = nullptr;
-    auto it = mApi[apiIndex].chats.find(chatid);
-    if (chatid == UNDEF
-        || it == mApi[apiIndex].chats.end()
-        || !isValidChat(it->second.get()))
-    {
-        for (auto &auxit: mApi[apiIndex].chats)
-        {
-            if (isValidChat(auxit.second.get()))
-            {
-                chat = auxit.second.get();
-                break;
-            }
-        }
-    }
-    else
-    {
-        chat = it->second.get();
-    }
-
-    ASSERT_NE(chat, nullptr) << "Invalid chat";
-    const auto schedList = chat->getScheduledMeetingList();
-    ASSERT_TRUE(schedList && schedList->size()) << "Chat doesn't have scheduled meetings";
-    const MegaScheduledMeeting* aux = chat->getScheduledMeetingList()->at(0);
-    ASSERT_NE(aux, nullptr) << "Invalid scheduled meetings";
-    std::unique_ptr<RequestTracker>tracker (new RequestTracker(megaApi[apiIndex].get()));
-    megaApi[apiIndex]->removeScheduledMeeting(aux->chatid(), aux->schedId(), tracker.get());
     tracker->waitForResult();
 }
 #endif
@@ -3694,37 +3652,61 @@ bool SdkTest::checkAlert(int apiIndex, const string& title, const string& path)
 }
 
 #ifdef ENABLE_CHAT
-void SdkTest::delSchedMeetings()
+void SdkTest::cancelSchedMeetings()
 {
-    std::vector<std::unique_ptr<RequestTracker>> delSchedTrackers;
+    std::vector<std::unique_ptr<RequestTracker>> smTrackers;
     for (size_t i = 0; i < mApi.size(); ++i)
     {
-        for (const auto& it: mApi[i].chats)
+        for (const auto& c: mApi[i].chats)
         {
-            if (!it.second->getScheduledMeetingList()
-                || !it.second->getScheduledMeetingList()->size())
+            if (!c.second->getScheduledMeetingList() ||
+                !c.second->getScheduledMeetingList()->size())
             {
                 continue;
             }
 
-            if (it.second->getOwnPrivilege() != MegaTextChatPeerList::PRIV_MODERATOR)
+            if (c.second->getOwnPrivilege() != MegaTextChatPeerList::PRIV_MODERATOR)
             {
-                LOG_info << "Could not remove scheduled meetings for chat (due to insufficient permissions)"
-                         << Base64Str<MegaClient::CHATHANDLE>(it.second->getHandle());
+                LOG_info << "Could not cancel scheduled meetings for chat (due to insufficient "
+                            "permissions)"
+                         << Base64Str<MegaClient::CHATHANDLE>(c.second->getHandle());
                 continue;
             }
 
-            const auto schedList = it.second->getScheduledMeetingList();
+            const auto schedList = c.second->getScheduledMeetingList();
             for (unsigned long j = 0; j < schedList->size(); ++j)
             {
-                delSchedTrackers.push_back(std::unique_ptr<RequestTracker>(new RequestTracker(megaApi[i].get())));
-                megaApi[i]->removeScheduledMeeting(it.second->getHandle(), schedList->at(j)->schedId(), delSchedTrackers.back().get());
+                if (const MegaScheduledMeeting* aux = schedList->at(0); aux && !aux->cancelled())
+                {
+                    std::unique_ptr<MegaScheduledMeeting> sm(
+                        MegaScheduledMeeting::createInstance(aux->chatid(),
+                                                             aux->schedId(),
+                                                             aux->parentSchedId(),
+                                                             aux->organizerUserid(),
+                                                             true /*cancelled*/,
+                                                             aux->timezone(),
+                                                             aux->startDateTime(),
+                                                             aux->endDateTime(),
+                                                             aux->title(),
+                                                             aux->description(),
+                                                             aux->attributes(),
+                                                             MEGA_INVALID_TIMESTAMP /*overrides*/,
+                                                             aux->flags(),
+                                                             aux->rules()));
+
+                    smTrackers.push_back(
+                        std::unique_ptr<RequestTracker>(new RequestTracker(megaApi[i].get())));
+                    megaApi[i]->createOrUpdateScheduledMeeting(sm.get(),
+                                                               c.second->getTitle(),
+                                                               smTrackers.back().get());
+                }
             }
         }
     }
 
     // wait for requests to complete:
-    for (auto& d : delSchedTrackers) d->waitForResult();
+    for (auto& d: smTrackers)
+        d->waitForResult();
 }
 #endif
 
@@ -14258,7 +14240,6 @@ TEST_F(SdkTest, SdkTestSetsAndElementsSetTypes)
  *      DeletedShare
  *      ContactChange  --  contact deleted
  *      NewScheduledMeeting
- *      DeletedScheduledMeeting
  *      UpdatedScheduledMeeting
  *
  * Not generated:
@@ -14538,33 +14519,8 @@ TEST_F(SdkTest, SdkUserAlerts)
     }
     ASSERT_EQ(count, 1) << "UpdateScheduledMeeting";
     ASSERT_EQ(A1dtls.chatid, chatid) << "Scheduled meeting could not be updated, unexpected chatid";
-    ASSERT_NE(A1dtls.schedId, UNDEF) << "Scheduled meeting could not be updated, invalid scheduled meeting id";
-    bkpAlerts.emplace_back(a->copy());
-
-    // DeleteScheduledMeeting
-    //--------------------------------------------
-    // reset User Alerts for B1
-    B1dtls.userAlertsUpdated = false;
-    B1dtls.userAlertList.reset();
-    A1dtls.schedId = UNDEF;
-    A1dtls.requestFlags[MegaRequest::TYPE_DEL_SCHEDULED_MEETING] = false;
-    deleteScheduledMeeting(0, chatid);
-    ASSERT_NE(chatid, UNDEF) << "Invalid chat";
-    waitForResponse(&A1dtls.requestFlags[MegaRequest::TYPE_DEL_SCHEDULED_MEETING], maxTimeout);
-
-    ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
-        << "Alert about scheduled meeting removal not received by B1 after " << maxTimeout << " seconds";
-    ASSERT_NE(B1dtls.userAlertList, nullptr) << "Scheduled meeting removed";
-
-    count = 0;
-    for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
-    {
-        a = B1dtls.userAlertList->get(i);
-        if (a->isRemoved()) continue;
-        count++;
-    }
-    ASSERT_EQ(count, 1) << "DeleteScheduledMeeting";
-    ASSERT_NE(A1dtls.schedId, UNDEF) << "Scheduled meeting could not be updated, invalid scheduled meeting id";  // Should this mention "deleted" rather than "updated"?
+    ASSERT_NE(A1dtls.schedId, UNDEF)
+        << "Scheduled meeting could not be updated, invalid scheduled meeting id";
     bkpAlerts.emplace_back(a->copy());
 #endif
 
