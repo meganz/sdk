@@ -2775,7 +2775,7 @@ public:
                     done = true;
                     break;
 
-                case 'g':
+                case makeNameid("g"):
                     if (json.enterarray())   // now that we are requesting v2, the reply will be an array of 6 URLs for a raid download, or a single URL for the original direct download
                     {
                         for (;;)
@@ -9765,19 +9765,19 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
         {
             JSON::unescape(t);
 
-            if (name == 'n')
+            if (name == makeNameid("n"))
             {
                 LocalPath::utf8_normalize(t);
             }
         }
 
-        attr_map::iterator it = attrs.map.find('n');
+        attr_map::iterator it = attrs.map.find(makeNameid("n"));
         if (it != attrs.map.end())
         {
             std::shared_ptr<Node> ovn = client->childnodebyname(n.get(), it->second.c_str(), true);
             if (ovn)
             {
-                attr_map::iterator it2 = attrs.map.find('c');
+                attr_map::iterator it2 = attrs.map.find(makeNameid("c"));
                 if (it2 != attrs.map.end())
                 {
                     FileFingerprint ffp;

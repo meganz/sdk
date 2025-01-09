@@ -12009,7 +12009,7 @@ bool SyncConfigIOContext::deserialize(const LocalPath& dbPath,
 bool SyncConfigIOContext::deserialize(SyncConfigVector& configs,
                                       JSON& reader, bool isExternal) const
 {
-    const auto TYPE_SYNCS = MAKENAMEID2('s', 'y');
+    const auto TYPE_SYNCS = makeNameid("sy");
 
     if (!reader.enterobject())
     {
@@ -12398,22 +12398,22 @@ bool SyncConfigIOContext::decrypt(const string& in, string& out)
 
 bool SyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader, bool isExternal) const
 {
-    const auto TYPE_BACKUP_ID       = MAKENAMEID2('i', 'd');
-    const auto TYPE_BACKUP_STATE    = MAKENAMEID2('b', 's');
-    const auto TYPE_CHANGE_METHOD   = MAKENAMEID2('c', 'm');
-    const auto TYPE_ENABLED         = MAKENAMEID2('e', 'n');
-    const auto TYPE_FILESYSTEM_FP   = MAKENAMEID2('f', 'p');
-    const auto TYPE_FILESYSTEM_FU   = MAKENAMEID2('f', 'u');
-    const auto TYPE_ROOT_FSID       = MAKENAMEID2('r', 'f');
-    const auto TYPE_LAST_ERROR      = MAKENAMEID2('l', 'e');
-    const auto TYPE_LAST_WARNING    = MAKENAMEID2('l', 'w');
-    const auto TYPE_NAME            = MAKENAMEID1('n');
-    const auto TYPE_SCAN_INTERVAL   = MAKENAMEID2('s', 'i');
-    const auto TYPE_SOURCE_PATH     = MAKENAMEID2('s', 'p');
-    const auto TYPE_SYNC_TYPE       = MAKENAMEID2('s', 't');
-    const auto TYPE_TARGET_HANDLE   = MAKENAMEID2('t', 'h');
-    const auto TYPE_TARGET_PATH     = MAKENAMEID2('t', 'p');
-    const auto TYPE_LEGACY_INELIGIB = MAKENAMEID2('l', 'i');
+    const auto TYPE_BACKUP_ID       = makeNameid("id");
+    const auto TYPE_BACKUP_STATE    = makeNameid("bs");
+    const auto TYPE_CHANGE_METHOD   = makeNameid("cm");
+    const auto TYPE_ENABLED         = makeNameid("en");
+    const auto TYPE_FILESYSTEM_FP   = makeNameid("fp");
+    const auto TYPE_FILESYSTEM_FU   = makeNameid("fu");
+    const auto TYPE_ROOT_FSID       = makeNameid("rf");
+    const auto TYPE_LAST_ERROR      = makeNameid("le");
+    const auto TYPE_LAST_WARNING    = makeNameid("lw");
+    const auto TYPE_NAME            = makeNameid("n");
+    const auto TYPE_SCAN_INTERVAL   = makeNameid("si");
+    const auto TYPE_SOURCE_PATH     = makeNameid("sp");
+    const auto TYPE_SYNC_TYPE       = makeNameid("st");
+    const auto TYPE_TARGET_HANDLE   = makeNameid("th");
+    const auto TYPE_TARGET_PATH     = makeNameid("tp");
+    const auto TYPE_LEGACY_INELIGIB = makeNameid("li");
 
     // Temporary storage.
     std::uint64_t fsFingerprint = 0;

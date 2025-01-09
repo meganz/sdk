@@ -102,10 +102,10 @@ bool UserAlertRaw::gethandletypearray(nameid nid, vector<handletype>& v) const
                 {
                     switch (j.getnameid())
                     {
-                    case 'h':
+                    case makeNameid("h"):
                         ht.h = j.gethandle(MegaClient::NODEHANDLE);
                         break;
-                    case 't':
+                    case makeNameid("t"):
                         ht.t = int(j.getint());
                         break;
                     case EOO:
@@ -174,7 +174,7 @@ UserAlert::Base::Base(UserAlertRaw& un, unsigned int cid)
 {
     id = cid;
     type = un.t;
-    m_time_t timeDelta = un.getint64(MAKENAMEID2('t', 'd'), 0);
+    m_time_t timeDelta = un.getint64(makeNameid("td"), 0);
     pst.timestamp = m_time() - timeDelta;
     pst.userHandle = un.gethandle(name_id::u, MegaClient::USERHANDLE, UNDEF);
     pst.userEmail = un.getstring('m', "");
@@ -265,8 +265,8 @@ UserAlert::IncomingPendingContact::IncomingPendingContact(UserAlertRaw& un, unsi
     mPcrHandle = un.gethandle('p', MegaClient::PCRHANDLE, UNDEF);
     pst.userHandle = mPcrHandle;    // for backwards compatibility, due to legacy bug
 
-    m_time_t dts = un.getint64(MAKENAMEID3('d', 't', 's'), 0);
-    m_time_t rts = un.getint64(MAKENAMEID3('r', 't', 's'), 0);
+    m_time_t dts = un.getint64(makeNameid("dts"), 0);
+    m_time_t rts = un.getint64(makeNameid("rts"), 0);
     initTs(dts, rts);
 }
 
@@ -1179,7 +1179,7 @@ UserAlert::Payment* UserAlert::Payment::unserialize(string* d, unsigned id, name
 UserAlert::PaymentReminder::PaymentReminder(UserAlertRaw& un, unsigned int id)
     : Base(un, id)
 {
-    expiryTime = un.getint64(MAKENAMEID2('t', 's'), ts());
+    expiryTime = un.getint64(makeNameid("ts"), ts());
 }
 
 UserAlert::PaymentReminder::PaymentReminder(m_time_t expiryts, unsigned int id):
@@ -1244,7 +1244,7 @@ UserAlert::PaymentReminder* UserAlert::PaymentReminder::unserialize(string* d, u
 UserAlert::Takedown::Takedown(UserAlertRaw& un, unsigned int id)
     : Base(un, id)
 {
-    int n = un.getint(MAKENAMEID4('d', 'o', 'w', 'n'), -1);
+    int n = un.getint(makeNameid("down"), -1);
     isTakedown = n == 1;
     isReinstate = n == 0;
     nodeHandle = un.gethandle('h', MegaClient::NODEHANDLE, UNDEF);
@@ -1352,7 +1352,7 @@ UserAlert::Takedown* UserAlert::Takedown::unserialize(string* d, unsigned id)
 UserAlert::NewScheduledMeeting::NewScheduledMeeting(UserAlertRaw& un, unsigned int id)
     : Base(un, id)
 {
-    mChatid = un.gethandle(MAKENAMEID3('c', 'i', 'd'), MegaClient::CHATHANDLE, UNDEF);
+    mChatid = un.gethandle(makeNameid("cid"), MegaClient::CHATHANDLE, UNDEF);
     if (mChatid == UNDEF)
     {
         assert(false);
@@ -1360,7 +1360,7 @@ UserAlert::NewScheduledMeeting::NewScheduledMeeting(UserAlertRaw& un, unsigned i
         return;
     }
 
-    mSchedMeetingHandle = un.gethandle(MAKENAMEID2('i', 'd'), MegaClient::CHATHANDLE, UNDEF);
+    mSchedMeetingHandle = un.gethandle(makeNameid("id"), MegaClient::CHATHANDLE, UNDEF);
     if (mSchedMeetingHandle == UNDEF)
     {
         assert(false);
@@ -1369,10 +1369,10 @@ UserAlert::NewScheduledMeeting::NewScheduledMeeting(UserAlertRaw& un, unsigned i
     }
 
     // optional param parent scheduled meeting id (just for child scheduled meetings)
-    mParentSchedId = un.gethandle(MAKENAMEID1('p'), MegaClient::USERHANDLE, UNDEF);
+    mParentSchedId = un.gethandle(makeNameid("p"), MegaClient::USERHANDLE, UNDEF);
 
     // optional param start date time (just for child scheduled meetings)
-    mStartDateTime = un.getint64(MAKENAMEID1('o'), mega_invalid_timestamp);
+    mStartDateTime = un.getint64(makeNameid("o"), mega_invalid_timestamp);
 }
 
 void UserAlert::NewScheduledMeeting::text(string& header, string& title, MegaClient* mc)
@@ -1479,8 +1479,8 @@ UserAlert::NewScheduledMeeting* UserAlert::NewScheduledMeeting::unserialize(stri
 UserAlert::DeletedScheduledMeeting::DeletedScheduledMeeting(UserAlertRaw& un, unsigned int id)
     : Base(un, id)
 {
-    mChatid = un.gethandle(MAKENAMEID3('c', 'i', 'd'), MegaClient::CHATHANDLE, UNDEF);
-    mSchedMeetingHandle = un.gethandle(MAKENAMEID2('i', 'd'), MegaClient::CHATHANDLE, UNDEF);
+    mChatid = un.gethandle(makeNameid("cid"), MegaClient::CHATHANDLE, UNDEF);
+    mSchedMeetingHandle = un.gethandle(makeNameid("id"), MegaClient::CHATHANDLE, UNDEF);
     if (mChatid == UNDEF)
     {
         assert(false);
@@ -1548,8 +1548,8 @@ UserAlert::DeletedScheduledMeeting* UserAlert::DeletedScheduledMeeting::unserial
 UserAlert::UpdatedScheduledMeeting::UpdatedScheduledMeeting(UserAlertRaw& un, unsigned int id)
     : Base(un, id)
 {
-    mChatid = un.gethandle(MAKENAMEID3('c', 'i', 'd'), MegaClient::CHATHANDLE, UNDEF);
-    mSchedMeetingHandle = un.gethandle(MAKENAMEID2('i', 'd'), MegaClient::CHATHANDLE, UNDEF);
+    mChatid = un.gethandle(makeNameid("cid"), MegaClient::CHATHANDLE, UNDEF);
+    mSchedMeetingHandle = un.gethandle(makeNameid("id"), MegaClient::CHATHANDLE, UNDEF);
     if (mChatid == UNDEF)
     {
         assert(false);
@@ -1564,7 +1564,7 @@ UserAlert::UpdatedScheduledMeeting::UpdatedScheduledMeeting(UserAlertRaw& un, un
         return;
     }
 
-    JSON auxJson = un.field(MAKENAMEID2('c', 's'));
+    JSON auxJson = un.field(makeNameid("cs"));
     if (auxJson.pos)
     {
         if (auxJson.enterobject())
@@ -1585,10 +1585,10 @@ UserAlert::UpdatedScheduledMeeting::UpdatedScheduledMeeting(UserAlertRaw& un, un
     }
 
     // optional param parent scheduled meeting id (just for child scheduled meetings)
-    mParentSchedId = un.gethandle(MAKENAMEID1('p'), MegaClient::USERHANDLE, UNDEF);
+    mParentSchedId = un.gethandle(makeNameid("p"), MegaClient::USERHANDLE, UNDEF);
 
     // optional param start date time (just for child scheduled meetings)
-    mStartDateTime = un.getint64(MAKENAMEID1('o'), mega_invalid_timestamp);
+    mStartDateTime = un.getint64(makeNameid("o"), mega_invalid_timestamp);
 }
 
 void UserAlert::UpdatedScheduledMeeting::text(string& header, string& title, MegaClient* mc)
@@ -1954,7 +1954,7 @@ void UserAlerts::add(UserAlertRaw& un)
 #ifdef ENABLE_CHAT
     case name_id::mcsmp:
     {
-        if (!un.has(MAKENAMEID2('c', 's'))) // if cs is not present, is a new scheduled meeting
+        if (!un.has(makeNameid("cs"))) // if cs is not present, is a new scheduled meeting
         {
             unb = new NewScheduledMeeting(un, nextId());
         }
@@ -2569,10 +2569,10 @@ bool UserAlerts::procsc_useralert(JSON& jsonsc)
                             case name_id::u:
                                 ul.u = jsonsc.gethandle(MegaClient::USERHANDLE);
                                 break;
-                            case 'm':
+                            case makeNameid("m"):
                                 jsonsc.storeobject(&ul.m);
                                 break;
-                            case MAKENAMEID2('m', '2'):
+                            case makeNameid("m2"):
                                 if (jsonsc.enterarray())
                                 {
                                     for (;;)
@@ -2590,7 +2590,7 @@ bool UserAlerts::procsc_useralert(JSON& jsonsc)
                                     jsonsc.leavearray();
                                 }
                                 break;
-                            case 'n':
+                            case makeNameid("n"):
                                 jsonsc.storeobject(&ul.n);
                                 break;
                             case EOO:
@@ -2612,15 +2612,15 @@ bool UserAlerts::procsc_useralert(JSON& jsonsc)
             }
             break;
 
-        case MAKENAMEID3('l', 's', 'n'):
+        case makeNameid("lsn"):
             lsn = jsonsc.gethandle(8);
             break;
 
-        case MAKENAMEID3('f', 's', 'n'):
+        case makeNameid("fsn"):
             fsn = jsonsc.gethandle(8);
             break;
 
-        case MAKENAMEID3('l', 't', 'd'):   // last notifcation seen time delta (or 0)
+        case makeNameid("ltd"): // last notifcation seen time delta (or 0)
             lastTimeDelta = jsonsc.getint();
             break;
 
@@ -2665,7 +2665,7 @@ bool UserAlerts::procsc_useralert(JSON& jsonsc)
                             switch (nid)
                             {
 
-                            case 't':
+                            case makeNameid("t"):
                                 un.t = jsonsc.getnameid();
                                 break;
 
