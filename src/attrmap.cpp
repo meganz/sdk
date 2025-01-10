@@ -76,40 +76,7 @@ nameid AttrMap::string2nameid(const char* n)
         return 0;
     }
 
-    size_t len = strlen(n);
-    if (len > 8)
-    {
-        return 0;
-    }
-
-    uint64_t a[8] = {0};
-    for (size_t i = 0; i < len; ++i)
-    {
-        a[i] = static_cast<uint64_t>(n[i]);
-    }
-
-    switch (len)
-    {
-        case 1:
-            return static_cast<nameid>(*a);
-        case 2:
-            return MAKENAMEID2(a[0], a[1]);
-        case 3:
-            return MAKENAMEID3(a[0], a[1], a[2]);
-        case 4:
-            return MAKENAMEID4(a[0], a[1], a[2], a[3]);
-        case 5:
-            return MAKENAMEID5(a[0], a[1], a[2], a[3], a[4]);
-        case 6:
-            return MAKENAMEID6(a[0], a[1], a[2], a[3], a[4], a[5]);
-        case 7:
-            return MAKENAMEID7(a[0], a[1], a[2], a[3], a[4], a[5], a[6]);
-        case 8:
-            return MAKENAMEID8(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]);
-        default:
-            break;
-    }
-    return 0;
+    return makeNameid(n);
 }
 
 // generate binary serialize of attr_map name-value pairs

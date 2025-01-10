@@ -1295,7 +1295,7 @@ bool SqliteAccountState::put(Node *node)
         sqlite3_bind_blob(mStmtPutNode, 4, fp.data(), static_cast<int>(fp.size()), SQLITE_STATIC);
 
         std::string origFingerprint;
-        attr_map::const_iterator attrIt = node->attrs.map.find(MAKENAMEID2('c', '0'));
+        attr_map::const_iterator attrIt = node->attrs.map.find(makeNameid("c0"));
         if (attrIt != node->attrs.map.end())
         {
            origFingerprint = attrIt->second;

@@ -90,14 +90,14 @@ bool Command::checkError(Error& errorDetails, JSON& json)
             {
                 switch (json.getnameid())
                 {
-                    case MAKENAMEID3('e', 'r', 'r'):
+                    case makeNameid("err"):
                         errorDetails.setErrorCode(static_cast<error>(json.getint()));
                         errorDetected = true;
                         break;
-                    case 'u':
+                    case makeNameid("u"):
                         errorDetails.setUserStatus(json.getint());
                         break;
-                    case 'l':
+                    case makeNameid("l"):
                         errorDetails.setLinkStatus(json.getint());
                         break;
                     case EOO:
