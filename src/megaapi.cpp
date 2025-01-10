@@ -4022,36 +4022,6 @@ MegaUser *MegaApi::getUserFromInShare(MegaNode *node, bool recurse)
     return pImpl->getUserFromInShare(node, recurse);
 }
 
-bool MegaApi::isShared(MegaNode *node)
-{
-    if (!node)
-    {
-        return false;
-    }
-
-    return node->isShared();
-}
-
-bool MegaApi::isOutShare(MegaNode *node)
-{
-    if (!node)
-    {
-        return false;
-    }
-
-    return node->isOutShare();
-}
-
-bool MegaApi::isInShare(MegaNode *node)
-{
-    if (!node)
-    {
-        return false;
-    }
-
-    return node->isInShare();
-}
-
 bool MegaApi::isPendingShare(MegaNode *node)
 {
     return pImpl->isPendingShare(node);

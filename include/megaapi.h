@@ -18228,46 +18228,6 @@ class MegaApi
         MegaUser *getUserFromInShare(MegaNode *node, bool recurse = false);
 
         /**
-          * @brief Check if a MegaNode is being shared by/with your own user
-          *
-          * For nodes that are being shared, you can get a list of MegaShare
-          * objects using MegaApi::getOutShares, or a list of MegaNode objects
-          * using MegaApi::getInShares
-          *
-          * @param node Node to check
-          * @return true is the MegaNode is being shared, otherwise false
-          * @deprecated This function is intended for debugging and internal purposes and will be probably removed in future updates.
-          * Use MegaNode::isShared instead
-         */
-         bool isShared(MegaNode *node);
-
-         /**
-          * @brief Check if a MegaNode is being shared with other users
-          *
-          * For nodes that are being shared, you can get a list of MegaShare
-          * objects using MegaApi::getOutShares
-          *
-          * @param node Node to check
-          * @return true is the MegaNode is being shared, otherwise false
-          * @deprecated This function is intended for debugging and internal purposes and will be probably removed in future updates.
-          * Use MegaNode::isOutShare instead
-          */
-         bool isOutShare(MegaNode *node);
-
-         /**
-          * @brief Check if a MegaNode belong to another User, but it is shared with you
-          *
-          * For nodes that are being shared, you can get a list of MegaNode
-          * objects using MegaApi::getInShares
-          *
-          * @param node Node to check
-          * @return true is the MegaNode is being shared, otherwise false
-          * @deprecated This function is intended for debugging and internal purposes and will be probably removed in future updates.
-          * Use MegaNode::isInShare instead
-          */
-         bool isInShare(MegaNode *node);
-
-        /**
          * @brief Check if a MegaNode is pending to be shared with another User. This situation
          * happens when a node is to be shared with a User which is not a contact yet.
          *
