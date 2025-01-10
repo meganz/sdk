@@ -37,7 +37,7 @@ clean:
 
 install: build
 	dh_auto_install --destdir=debian/megasdk -- INSTALL_ROOT=$(CURDIR)/debian/megasdk
-	dh_install install_dir/* /
+#	dh_install install_dir/* /
 	
 # Build architecture-independent files here.
 binary-indep: build install

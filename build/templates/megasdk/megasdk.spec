@@ -126,12 +126,7 @@ pwd
 
 
 %files
-/cmake/sdklibConfig.cmake
-/cmake/sdklibTargets-relwithdebinfo.cmake
-/cmake/sdklibTargets.cmake
-/include/megaapi.h
-/lib64/libSDKlib.a
-/pkgconfig/sdklib.pc
+
 
 %defattr(-,root,root)
 
