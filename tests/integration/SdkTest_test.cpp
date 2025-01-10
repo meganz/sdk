@@ -12174,27 +12174,23 @@ TEST_F(SdkTest, SdkTestAudioFileThumbnail)
     LOG_info << "___TEST Audio File Thumbnail___";
 
     static const std::string AUDIO_FILENAME = "test_cover_png.mp3";
-
-    LocalPath mp3LP;
-
-    mp3LP = LocalPath::fromAbsolutePath(sdk_test::getTestDataDir().string());
-    mp3LP.appendWithSeparator(LocalPath::fromRelativePath(AUDIO_FILENAME), false);
-
-    const std::string& mp3 = mp3LP.toPath(false);
-
-    ASSERT_TRUE(fileexists(mp3)) << mp3 << " file does not exist";
+    ASSERT_TRUE(getFileFromArtifactory("test-data/" + AUDIO_FILENAME, AUDIO_FILENAME));
 
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest());
 
     std::unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
-    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, nullptr, mp3.c_str(),
-                                                       rootnode.get(),
-                                                       nullptr /*fileName*/,
-                                                       ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                                                       nullptr /*appData*/,
-                                                       false   /*isSourceTemporary*/,
-                                                       false   /*startFirst*/,
-                                                       nullptr /*cancelToken*/)) << "Cannot upload test file " << mp3;
+    ASSERT_EQ(MegaError::API_OK,
+              doStartUpload(0,
+                            nullptr,
+                            AUDIO_FILENAME.c_str(),
+                            rootnode.get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << "Cannot upload test file " << AUDIO_FILENAME;
     std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByPath(AUDIO_FILENAME.c_str(), rootnode.get()));
     ASSERT_TRUE(node->hasPreview() && node->hasThumbnail());
 }
