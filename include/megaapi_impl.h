@@ -4044,8 +4044,8 @@ public:
                                            unsigned maxnodes,
                                            bool* optExcludeSensitives,
                                            MegaRequestListener* listener = NULL);
+
     public:
-        MegaRecentActionBucketList* getRecentActions(unsigned days = 90, unsigned maxnodes = 500);
         void getRecentActionsAsync(unsigned days,
                                    unsigned maxnodes,
                                    MegaRequestListener* listener = NULL);

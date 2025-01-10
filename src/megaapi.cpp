@@ -4072,16 +4072,6 @@ int MegaApi::getAccess(MegaNode* megaNode)
     return pImpl->getAccess(megaNode);
 }
 
-MegaRecentActionBucketList* MegaApi::getRecentActions(unsigned days, unsigned maxnodes)
-{
-    return pImpl->getRecentActions(days, maxnodes);
-}
-
-MegaRecentActionBucketList* MegaApi::getRecentActions()
-{
-    return pImpl->getRecentActions();
-}
-
 void MegaApi::getRecentActionsAsync(unsigned days, unsigned maxnodes, MegaRequestListener *listener)
 {
     pImpl->getRecentActionsAsync(days, maxnodes, listener);

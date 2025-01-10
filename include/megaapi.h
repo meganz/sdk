@@ -18849,44 +18849,6 @@ class MegaApi
         MegaNodeList* search(const MegaSearchFilter* filter, int order = ORDER_NONE, MegaCancelToken* cancelToken = nullptr, const MegaSearchPage* searchPage = nullptr);
 
         /**
-         * @brief Return a list of buckets, each bucket containing a list of recently added/modified
-         * nodes
-         *
-         * Each bucket contains files that were added/modified in a set, by a single user.
-         *
-         * Note: Nodes sensitives are NOT excluded by default. Nodes are considered
-         * sensitive if they have that property set, or one of their ancestors has it.
-         *
-         * @deprecated use getRecentActionsAsync
-         *
-         * @param days Age of actions since added/modified nodes will be considered (in days)
-         * @param maxnodes Maximum amount of nodes to be considered
-         *
-         * @return List of buckets containing nodes that were added/modifed as a set
-         */
-        MegaRecentActionBucketList* getRecentActions(unsigned days, unsigned maxnodes);
-
-        /**
-         * @brief Return a list of buckets, each bucket containing a list of recently added/modified
-         * nodes
-         *
-         * Each bucket contains files that were added/modified in a set, by a single user.
-         *
-         * This function uses the default parameters for the MEGA apps, which consider (currently)
-         * interactions during the last 30 days and max 500 nodes.
-         *
-         * You take the ownership of the returned value.
-         *
-         * Note: Nodes sensitives are NOT excluded by default. Nodes are considered
-         * sensitive if they have that property set, or one of their ancestors has it.
-         *
-         * @deprecated use getRecentActionsAsync
-         *
-         * @return List of buckets containing nodes that were added/modifed as a set
-         */
-        MegaRecentActionBucketList* getRecentActions();
-
-        /**
          * @brief Get a list of buckets, each bucket containing a list of recently added/modified
          * nodes
          *

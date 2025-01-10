@@ -12066,14 +12066,6 @@ int MegaApiImpl::getAccess(MegaNode* megaNode)
     }
 }
 
-MegaRecentActionBucketList* MegaApiImpl::getRecentActions(unsigned days, unsigned maxnodes)
-{
-    SdkMutexGuard g(sdkMutex);
-    m_time_t since = m_time() - days * 86400;
-    recentactions_vector v = client->getRecentActions(maxnodes, since);
-    return new MegaRecentActionBucketListPrivate(v, client);
-}
-
 bool MegaApiImpl::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, bool recursive)
 {
     if (!n)
