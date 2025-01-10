@@ -18672,11 +18672,6 @@ class MegaApi
         MegaNode *getVaultNode();
 
         /**
-         * @deprecated Renamed to getVaultNode(). Should be replaced in external bindings before being removed here.
-         */
-        MegaNode* getInboxNode();
-
-        /**
          * @brief Returns the rubbish node of the account
          *
          * You take the ownership of the returned value
@@ -18721,11 +18716,6 @@ class MegaApi
          * @return True if the node is in the Vault
          */
         bool isInVault(MegaNode *node);
-
-        /**
-         * @deprecated Renamed to isInVault(). Should be replaced in external bindings before being removed here.
-         */
-        bool isInInbox(MegaNode* node) { return isInVault(node); }
 
         /**
          * @brief Set default permissions for new files
