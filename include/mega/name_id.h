@@ -2,6 +2,7 @@
 #define MEGA_NAME_ID_H
 
 #include <cassert>
+#include <cstdint>
 #include <string_view>
 
 namespace mega
