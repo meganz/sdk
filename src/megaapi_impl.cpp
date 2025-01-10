@@ -12795,13 +12795,6 @@ char *MegaApiImpl::getFingerprint(const char *filePath)
     return MegaApi::strdup(result.c_str());
 }
 
-char *MegaApiImpl::getFingerprint(MegaNode *n)
-{
-    if(!n) return NULL;
-
-    return MegaApi::strdup(n->getFingerprint());
-}
-
 void MegaApiImpl::transfer_failed(Transfer* t, const Error& e, dstime timeleft)
 {
     for (file_list::iterator it = t->files.begin(); it != t->files.end(); it++)

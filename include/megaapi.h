@@ -18447,19 +18447,6 @@ class MegaApi
         char* getFingerprint(const char *filePath);
 
         /**
-         * @brief Get a Base64-encoded fingerprint for a node
-         *
-         * If the node doesn't exist or doesn't have a fingerprint, this function returns NULL
-         *
-         * You take the ownership of the returned value
-         *
-         * @param node Node for which we want to get the fingerprint
-         * @return Base64-encoded fingerprint for the file
-         * @deprecated Use MegaNode::getFingerprint instead of this function
-         */
-        char *getFingerprint(MegaNode *node);
-
-        /**
          * @brief Get a Base64-encoded fingerprint from an input stream and a modification time
          *
          * If the input stream is NULL, has a negative size or can't be read, this function returns NULL

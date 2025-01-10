@@ -4006,8 +4006,7 @@ public:
         static void removeRecursively(const char *path);
 
         //Fingerprint
-        char *getFingerprint(const char *filePath);
-        char *getFingerprint(MegaNode *node);
+        char* getFingerprint(const char* filePath);
         char *getFingerprint(MegaInputStream *inputStream, int64_t mtime);
         MegaNode *getNodeByFingerprint(const char* fingerprint);
         MegaNodeList *getNodesByFingerprint(const char* fingerprint);

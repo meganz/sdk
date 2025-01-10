@@ -4295,11 +4295,6 @@ char *MegaApi::getFingerprint(const char *filePath)
     return pImpl->getFingerprint(filePath);
 }
 
-char *MegaApi::getFingerprint(MegaNode *node)
-{
-    return pImpl->getFingerprint(node);
-}
-
 char *MegaApi::getFingerprint(MegaInputStream *inputStream, int64_t mtime)
 {
     return pImpl->getFingerprint(inputStream, mtime);

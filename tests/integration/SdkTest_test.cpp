@@ -3157,8 +3157,8 @@ TEST_F(SdkTest, SdkTestTransfers)
 
     // --- Get node by fingerprint (needs to be a file, not a folder) ---
 
-    std::unique_ptr<char[]> fingerprint{megaApi[0]->getFingerprint(n1.get())};
-    MegaNode *n2 = megaApi[0]->getNodeByFingerprint(fingerprint.get());
+    const char* fingerprint = n1->getFingerprint();
+    MegaNode* n2 = megaApi[0]->getNodeByFingerprint(fingerprint);
 
     null_pointer = (n2 == NULL);
     EXPECT_FALSE(null_pointer) << "Node by fingerprint not found";
