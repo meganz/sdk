@@ -97,7 +97,7 @@ TEST_F(SdkTestIsolatedGfx, GfxProcessingContinueSuccessfullyAfterCrash)
     ASSERT_TRUE(api->createPreview(GOOD_IMAGE, GOOD_PREVIEW)) << "create preview should succeed";
 
     // 4. Create thumbnail of a not valid image
-    sdk_test::copyFileFromTestData(std::string(INVALID_IMAGE));
+    ASSERT_TRUE(getFileFromArtifactory(std::string{"test-data/"} + INVALID_IMAGE, INVALID_IMAGE));
     ASSERT_FALSE(api->createThumbnail(INVALID_IMAGE, INVALID_THUMBNAIL)) << "create invalid image's thumbnail should fail";
 
     LOG_info << "___TEST GfxProcessingContinueSuccessfullyAfterCrash end___";
