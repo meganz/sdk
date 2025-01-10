@@ -73,7 +73,7 @@ TEST_F(SdkTestIsolatedGfx, GfxProcessingContinueSuccessfullyAfterCrash)
     MegaApi* api = megaApi[0].get();
 
     // 1. Create a thumbnail successfully
-    sdk_test::copyFileFromTestData(GOOD_IMAGE);
+    ASSERT_TRUE(getFileFromArtifactory(std::string{"test-data/"} + GOOD_IMAGE, GOOD_IMAGE));
     ASSERT_TRUE(api->createThumbnail(GOOD_IMAGE, GOOD_THUMBNAIL)) << "create thumbnail should succeed";
 
     // 2. Create thumbnail and preview of a image which result in a crash

@@ -50,10 +50,10 @@ static const string APP_KEY     = "8QxzVRxD";
 static const string PUBLICFILE  = "file.txt";
 static const string UPFILE      = "file1.txt";
 static const string DOWNFILE    = "file2.txt";
-static const string EMPTYFILE   = "empty-file.txt";
-static const string AVATARSRC   = "logo.png";
-static const string AVATARDST   = "deleteme.png";
+static const string EMPTYFILE = "empty-file.txt";
 static const string IMAGEFILE   = "logo.png";
+static const string& AVATARSRC = IMAGEFILE;
+static const string AVATARDST = "deleteme.png";
 static const string IMAGEFILE_C = "logo.encrypted.png";
 static const string THUMBNAIL   = "logo_thumbnail.png";
 static const string PREVIEW     = "logo_preview.png";
@@ -3309,7 +3309,7 @@ TEST_F(SdkTest, SdkTestContacts)
     LOG_info << "___TEST Contacts___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
 
-    sdk_test::copyFileFromTestData(AVATARSRC);
+    ASSERT_TRUE(getFileFromArtifactory("test-data/" + AVATARSRC, AVATARSRC));
 
     // --- Check my email and the email of the contact ---
 
@@ -8148,7 +8148,7 @@ TEST_F(SdkTest, SdkHttpReqCommandPutFATest)
 {
     LOG_info << "___TEST SdkHttpReqCommandPutFATest___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-    sdk_test::copyFileFromTestData(IMAGEFILE);
+    ASSERT_TRUE(getFileFromArtifactory("test-data/" + IMAGEFILE, IMAGEFILE));
 
     // SCENARIO 1: Upload image file and check thumbnail and preview
     std::unique_ptr<MegaNode> rootnode(megaApi[0]->getRootNode());
@@ -8195,7 +8195,7 @@ TEST_F(SdkTest, SdkMediaImageUploadTest)
 {
     LOG_info << "___TEST MediaUploadRequestURL___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-    sdk_test::copyFileFromTestData(IMAGEFILE);
+    ASSERT_TRUE(getFileFromArtifactory("test-data/" + IMAGEFILE, IMAGEFILE));
 
     unsigned int apiIndex = 0;
     int64_t fileSize = 1304;
@@ -8591,7 +8591,7 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     LOG_info << "___TEST SDKSensitive___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
 
-    sdk_test::copyFileFromTestData(IMAGEFILE);
+    ASSERT_TRUE(getFileFromArtifactory("test-data/" + IMAGEFILE, IMAGEFILE));
 
     unique_ptr<MegaNode> rootnodeA(megaApi[0]->getRootNode());
 
@@ -11649,7 +11649,7 @@ TEST_F(SdkTest, SyncImage)
     WaitMillisec(waitForSyncsMs);
 
     LOG_verbose << "SyncImage :  Adding the image file and checking if it is synced: " << filePath.u8string();
-    sdk_test::copyFileFromTestData(fileNameStr, filePath.u8string());
+    ASSERT_TRUE(getFileFromArtifactory("test-data/" + fileNameStr, filePath));
     auto remoteFile = "/" + string(remoteBaseNode->getName()) + "/" + fileNameStr;
     std::unique_ptr<MegaNode> remoteNode;
     WaitFor([this, &remoteNode, &remoteFile]() -> bool
@@ -17029,8 +17029,8 @@ public:
         ASSERT_THAT(mUser, ::testing::NotNull());
 
         // Set avatar
-        const auto srcAvatarPath{sdk_test::getTestDataDir()/AVATARSRC};
-        ASSERT_EQ(API_OK, synchronousSetAvatar(mApiIndex, srcAvatarPath.string().c_str()));
+        ASSERT_TRUE(getFileFromArtifactory("test-data/" + AVATARSRC, AVATARSRC));
+        ASSERT_EQ(API_OK, synchronousSetAvatar(mApiIndex, AVATARSRC.c_str()));
     }
 
     void TearDown() override
@@ -17415,7 +17415,7 @@ TEST_F(SdkTest, CreateNodeTreeWithOneFile)
     const unsigned int apiIndex{0};
 
     // File upload
-    sdk_test::copyFileFromTestData(IMAGEFILE);
+    ASSERT_TRUE(getFileFromArtifactory("test-data/" + IMAGEFILE, IMAGEFILE));
     const auto fileSize{getFilesize(IMAGEFILE)};
 
     std::string fingerprint;
@@ -17591,7 +17591,7 @@ TEST_F(SdkTest, CreateNodeTreeWithMultipleLevelsOfDirectoriesAndOneFileAtTheEnd)
     ASSERT_THAT(parentNode, ::testing::NotNull());
 
     // File upload
-    sdk_test::copyFileFromTestData(IMAGEFILE);
+    ASSERT_TRUE(getFileFromArtifactory("test-data/" + IMAGEFILE, IMAGEFILE));
     const auto fileSize{getFilesize(IMAGEFILE)};
 
     std::string fingerprint;
