@@ -18623,23 +18623,6 @@ class MegaApi
         /**
          * @brief Check if a node can be moved to a target node
          *
-         * @deprecated Use checkMoveErrorExtended
-         *
-         * @param node Node to check
-         * @param target Target for the move operation
-         * @return MegaError object with the result:
-         * Valid values for the error code are:
-         * - MegaError::API_OK - The node can be moved to the target
-         * - MegaError::API_EACCESS - The node can't be moved because of permissions problems
-         * - MegaError::API_ECIRCULAR - The node can't be moved because that would create a circular linkage
-         * - MegaError::API_ENOENT - The node or the target doesn't exist in the account
-         * - MegaError::API_EARGS - Invalid parameters
-         */
-        MegaError checkMove(MegaNode* node, MegaNode* target);
-
-        /**
-         * @brief Check if a node can be moved to a target node
-         *
          * You take the ownership of the returned value
          *
          * @param node Node to check

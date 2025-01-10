@@ -17571,12 +17571,6 @@ MegaError *MegaApiImpl::checkAccessErrorExtended(MegaNode *megaNode, int level)
     return client->checkaccess(node.get(), a) ? new MegaErrorPrivate(API_OK) : new MegaErrorPrivate(API_EACCESS);
 }
 
-MegaError MegaApiImpl::checkMove(MegaNode* megaNode, MegaNode* targetNode)
-{
-    std::unique_ptr<MegaError> megaError(checkMoveErrorExtended(megaNode, targetNode));
-    return megaError->getErrorCode();
-}
-
 MegaError *MegaApiImpl::checkMoveErrorExtended(MegaNode *megaNode, MegaNode *targetNode)
 {
     if(!megaNode || !targetNode) return new MegaErrorPrivate(API_EARGS);
