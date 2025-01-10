@@ -561,6 +561,8 @@ enum SyncWarning {
     LOCAL_IS_HGFS = 2,                      // Found HGFS (not a failure per se)
 };
 
+// Joins an error code (`error`) with more detailed error/warning codes specific for Syncs
+using SyncErrorInfo = std::tuple<error, SyncError, SyncWarning>;
 
 typedef enum { SYNCDEL_NONE, SYNCDEL_DELETED, SYNCDEL_INFLIGHT, SYNCDEL_BIN,
                SYNCDEL_DEBRIS, SYNCDEL_DEBRISDAY, SYNCDEL_FAILED } syncdel_t;
