@@ -21,6 +21,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URLConnection;
+import java.util.Objects;
 
 public class AndroidGfxProcessor extends MegaGfxProcessor {
     Rect size;
@@ -58,28 +59,37 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
         Rect rect = new Rect();
 
         if(isVideoFile(path)){
-            try {
+            MediaMetadataRetriever retriever = new MediaMetadataRetriever();
 
-                MediaMetadataRetriever retriever = new MediaMetadataRetriever();
+            try {
                 setMediaMetadataRetrieverDataSource(retriever, path);
-                retriever.setDataSource(path);
                 int width;
                 int height;
-                int interchangeOrientation = Integer.valueOf(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION));
+                int interchangeOrientation = Integer.parseInt(Objects.requireNonNull(
+                    retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)));
                 if (interchangeOrientation == 90 || interchangeOrientation == 270) {
-                    width = Integer.valueOf(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT));
-                    height = Integer.valueOf(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH));
+                    width = Integer.parseInt(Objects.requireNonNull(retriever.extractMetadata(
+                        MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)));
+                    height = Integer.parseInt(Objects.requireNonNull(retriever.extractMetadata(
+                        MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)));
                 }
                 else {
-                    width = Integer.valueOf(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH));
-                    height = Integer.valueOf(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT));
+                    width = Integer.parseInt(Objects.requireNonNull(retriever.extractMetadata(
+                        MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)));
+                    height = Integer.parseInt(Objects.requireNonNull(retriever.extractMetadata(
+                        MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)));
                 }
-                retriever.release();
 
                 rect.right = width;
                 rect.bottom = height;
             } catch (Exception e) {
                 System.out.println("Error in getImageDimensions for video: " + e);
+            } finally {
+                try {
+                    retriever.release();
+                } catch (IOException e) {
+                    System.out.println("Error releasing MediaMetadataRetriever for video: " + e);
+                }
             }
         }
         else{
@@ -124,7 +134,7 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
         Uri uri = Uri.parse(path);
         String scheme = uri == null ? null : uri.getScheme();
         if (scheme != null && scheme.equals("content")) {
-            retriever.setDataSource(context, Uri.parse(path));
+            retriever.setDataSource(context, uri);
         } else {
             retriever.setDataSource(path);
         }
