@@ -25893,27 +25893,6 @@ unsigned long long MegaApiImpl::getNumNodesAtCacheLRU() const
     return client->mNodeManager.getNumNodesAtCacheLRU();
 }
 
-void MegaApiImpl::update()
-{
-#ifdef ENABLE_SYNC
-    SdkMutexGuard g(sdkMutex);
-
-    LOG_debug << "PendingCS? " << (client->pendingcs != NULL);
-    LOG_debug << "PendingFA? " << client->activefa.size() << " active, " << client->queuedfa.size() << " queued";
-    LOG_debug << "FLAGS:"
-              << " " << client->fileAttributesUploading.size()
-              << " " << client->fetchingnodes
-              << " " << client->xferpaused[0] << " " << client->xferpaused[1]
-              << " " << client->multi_transfers[0].size() << " " << client->multi_transfers[1].size()
-              << " " << client->statecurrent
-              << " " << client->syncdebrisadding
-              << " " << client->umindex.size() << " " << client->uhindex.size();
-    LOG_debug << "UL speed: " << httpio->uploadSpeed << "  DL speed: " << httpio->downloadSpeed;
-#endif
-
-    waiter->notify();
-}
-
 bool MegaApiImpl::isSyncStalled()
 {
     // no need to lock sdkMutex for these simple flags

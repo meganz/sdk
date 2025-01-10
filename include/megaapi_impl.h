@@ -3945,7 +3945,6 @@ class MegaApiImpl : public MegaApp
         MegaScheduledCopy *getScheduledCopyByNode(MegaNode *node);
         MegaScheduledCopy *getScheduledCopyByPath(const char * localPath);
 
-        void update();
         int isWaiting();
         bool isSyncStalled();
         bool isSyncStalledChanged() override;

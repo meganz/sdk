@@ -4580,11 +4580,6 @@ unsigned long long MegaApi::getNumNodesAtCacheLRU() const
     return pImpl->getNumNodesAtCacheLRU();
 }
 
-void MegaApi::update()
-{
-   pImpl->update();
-}
-
 int MegaApi::isWaiting()
 {
     return pImpl->isWaiting();

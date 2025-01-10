@@ -17473,13 +17473,6 @@ class MegaApi
         MegaScheduledCopy *getScheduledCopyByPath(const char *localPath);
 
         /**
-         * @brief Force a loop of the SDK thread
-         * @deprecated This function is only here for debugging purposes. It will probably
-         * be removed in future updates
-         */
-        void update();
-
-        /**
          * @brief Check if the SDK is waiting to complete a request and get the reason
          * @return State of SDK.
          *
