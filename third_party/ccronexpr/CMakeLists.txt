@@ -8,7 +8,7 @@ target_include_directories(ccronexpr SYSTEM
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-if(ENABLE_JAVA_BINDINGS OR ENABLE_PYTHON_BINDINGS OR ENABLE_PHP_BINDINGS)
+if(ENABLE_JAVA_BINDINGS)
     set_target_properties(ccronexpr PROPERTIES
         POSITION_INDEPENDENT_CODE ON
     )
