@@ -4021,8 +4021,7 @@ public:
         char *getCRC(MegaNode *node);
         MegaNode* getNodeByCRC(const char *crc, MegaNode* parent);
 
-        //Permissions
-        MegaError checkAccess(MegaNode* node, int level);
+        // Permissions
         MegaError* checkAccessErrorExtended(MegaNode* node, int level);
         MegaError checkMove(MegaNode* node, MegaNode* target);
         MegaError* checkMoveErrorExtended(MegaNode* node, MegaNode* target);

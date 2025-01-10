@@ -4085,7 +4085,8 @@ void SdkTestShares::getInshare(MegaHandle hfolder)
     ASSERT_STREQ("sharedfolder", thisInshareNode->getName())
         << "Wrong folder name of incoming share";
     ASSERT_EQ(API_OK,
-              mShareeApi->checkAccess(thisInshareNode, MegaShare::ACCESS_FULL).getErrorCode())
+              mShareeApi->checkAccessErrorExtended(thisInshareNode, MegaShare::ACCESS_FULL)
+                  ->getErrorCode())
         << "Wrong access level of incoming share";
     ASSERT_TRUE(thisInshareNode->isInShare()) << "Wrong sharing information at incoming share";
     ASSERT_TRUE(thisInshareNode->isShared()) << "Wrong sharing information at incoming share";
@@ -4419,7 +4420,9 @@ TEST_F(SdkTest, SdkTestShares2)
 
     ASSERT_EQ(hfolder1, n->getHandle()) << "Wrong node handle of incoming share";
     ASSERT_STREQ(foldername1, n->getName()) << "Wrong folder name of incoming share";
-    ASSERT_EQ(MegaError::API_OK, megaApi[1]->checkAccess(n, MegaShare::ACCESS_FULL).getErrorCode()) << "Wrong access level of incoming share";
+    ASSERT_EQ(MegaError::API_OK,
+              megaApi[1]->checkAccessErrorExtended(n, MegaShare::ACCESS_FULL)->getErrorCode())
+        << "Wrong access level of incoming share";
     ASSERT_TRUE(n->isInShare()) << "Wrong sharing information at incoming share";
     ASSERT_TRUE(n->isShared()) << "Wrong sharing information at incoming share";
 
@@ -4781,7 +4784,9 @@ TEST_F(SdkTest, SdkTestShares)
 
     ASSERT_EQ(hfolder1, n->getHandle()) << "Wrong node handle of incoming share";
     ASSERT_STREQ(foldername1, n->getName()) << "Wrong folder name of incoming share";
-    ASSERT_EQ(API_OK, megaApi[1]->checkAccess(n, MegaShare::ACCESS_FULL).getErrorCode()) << "Wrong access level of incoming share";
+    ASSERT_EQ(API_OK,
+              megaApi[1]->checkAccessErrorExtended(n, MegaShare::ACCESS_FULL)->getErrorCode())
+        << "Wrong access level of incoming share";
     ASSERT_TRUE(n->isInShare()) << "Wrong sharing information at incoming share";
     ASSERT_TRUE(n->isShared()) << "Wrong sharing information at incoming share";
 
@@ -5058,7 +5063,9 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(1, nl->size()) << "Incoming share not received in auxiliar account";
     n = nl->get(0);
 
-    ASSERT_EQ(API_OK, megaApi[1]->checkAccess(n, MegaShare::ACCESS_READWRITE).getErrorCode()) << "Wrong access level of incoming share";
+    ASSERT_EQ(API_OK,
+              megaApi[1]->checkAccessErrorExtended(n, MegaShare::ACCESS_READWRITE)->getErrorCode())
+        << "Wrong access level of incoming share";
 
     // --- Sharee leaves the inshare ---
     // Testing APs caused by actions done in the sharee account.

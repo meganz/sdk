@@ -18601,28 +18601,6 @@ class MegaApi
         /**
          * @brief Check if a node has an access level
          *
-         * @deprecated Use checkAccessErrorExtended
-         *
-         * @param node Node to check
-         * @param level Access level to check
-         * Valid values for this parameter are:
-         * - MegaShare::ACCESS_OWNER
-         * - MegaShare::ACCESS_FULL
-         * - MegaShare::ACCESS_READWRITE
-         * - MegaShare::ACCESS_READ
-         *
-         * @return MegaError object with the result.
-         * Valid values for the error code are:
-         * - MegaError::API_OK - The node has the required access level
-         * - MegaError::API_EACCESS - The node doesn't have the required access level
-         * - MegaError::API_ENOENT - The node doesn't exist in the account
-         * - MegaError::API_EARGS - Invalid parameters
-         */
-        MegaError checkAccess(MegaNode* node, int level);
-
-        /**
-         * @brief Check if a node has an access level
-         *
          * You take the ownership of the returned value
          *
          * @param node Node to check

@@ -4400,11 +4400,6 @@ bool MegaApi::removeGlobalListener(MegaGlobalListener* listener)
     return pImpl->removeGlobalListener(listener);
 }
 
-MegaError MegaApi::checkAccess(MegaNode* megaNode, int level)
-{
-    return pImpl->checkAccess(megaNode, level);
-}
-
 MegaError *MegaApi::checkAccessErrorExtended(MegaNode *node, int level)
 {
     return pImpl->checkAccessErrorExtended(node, level);

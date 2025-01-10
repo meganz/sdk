@@ -17536,12 +17536,6 @@ void MegaApiImpl::processTransferRemoved(Transfer *tr, MegaTransferPrivate *tran
     fireOnTransferFinish(transfer, std::make_unique<MegaErrorPrivate>(e));
 }
 
-MegaError MegaApiImpl::checkAccess(MegaNode* megaNode, int level)
-{
-    std::unique_ptr<MegaError> megaError(checkAccessErrorExtended(megaNode, level));
-    return megaError->getErrorCode();
-}
-
 MegaError *MegaApiImpl::checkAccessErrorExtended(MegaNode *megaNode, int level)
 {
     if(!megaNode || level < MegaShare::ACCESS_UNKNOWN || level > MegaShare::ACCESS_OWNER)
