@@ -410,8 +410,6 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
         return "Your plan has expired";
     case FOREIGN_TARGET_OVERSTORAGE:
         return "Foreign target storage quota reached";
-    case REMOTE_PATH_HAS_CHANGED:
-        return "Remote path has changed";
     case REMOTE_NODE_MOVED_TO_RUBBISH:
         return "Remote node moved to Rubbish Bin";
     case SHARE_NON_FULL_ACCESS:
