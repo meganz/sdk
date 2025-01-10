@@ -48,6 +48,119 @@ extern "C" {
 }
 #endif
 
+namespace
+{
+
+// Rescale the image and convert it to standard FIT_BITMAP so that it can be saved in JPEG or PNG.
+// @ return nullptr if it fails, otherwise the pointer to the new rescaled image
+FIBITMAP* rescale(FIBITMAP* dib, int width, int height)
+{
+    const FREE_IMAGE_TYPE image_type = FreeImage_GetImageType(dib);
+
+    auto thumbnail = [image_type, dib, width, height]() -> FIBITMAP*
+    {
+        switch (image_type)
+        {
+            case FIT_BITMAP:
+            case FIT_UINT16:
+            case FIT_RGB16:
+            case FIT_RGBA16:
+            case FIT_FLOAT:
+            case FIT_RGBF:
+            case FIT_RGBAF:
+                return FreeImage_Rescale(dib, width, height, FILTER_BILINEAR);
+            default:
+                // Other types are not supported by freeimage
+                return nullptr;
+        }
+    }();
+
+    if (!thumbnail || image_type == FIT_BITMAP)
+        return thumbnail;
+
+    // Convert these non standard bitmap to a standard bitmap FIT_BITMAP
+    auto standardBitmap = [image_type, thumbnail]() -> FIBITMAP*
+    {
+        FIBITMAP* bitmap = nullptr;
+        switch (image_type)
+        {
+            case FIT_UINT16:
+                bitmap = FreeImage_ConvertTo8Bits(thumbnail);
+                break;
+            case FIT_RGB16:
+                bitmap = FreeImage_ConvertTo24Bits(thumbnail);
+                break;
+            case FIT_RGBA16:
+                bitmap = FreeImage_ConvertTo32Bits(thumbnail);
+                break;
+            case FIT_FLOAT:
+                bitmap = FreeImage_ConvertToStandardType(thumbnail, TRUE);
+                break;
+            case FIT_RGBF:
+                bitmap = FreeImage_ToneMapping(thumbnail, FITMO_DRAGO03);
+                break;
+            case FIT_RGBAF:
+            {
+                // no way to keep the transparency yet ...
+                FIBITMAP* rgbf = FreeImage_ConvertToRGBF(thumbnail);
+                bitmap = FreeImage_ToneMapping(rgbf, FITMO_DRAGO03);
+                FreeImage_Unload(rgbf);
+                break;
+            }
+            default:
+                // Nothing
+                break;
+        };
+        return bitmap;
+    }();
+
+    // Free original thumbnail
+    FreeImage_Unload(thumbnail);
+
+    return standardBitmap;
+}
+
+// Save the standard bitmap image to PNG if it has transparency, otherwise to JPEG for smaller size
+std::string saveToMemory(FIBITMAP* dib)
+{
+    if (!dib)
+    {
+        return {};
+    }
+
+    assert(FreeImage_GetImageType(dib) == FIT_BITMAP);
+
+    auto hmem = ::mega::makeUniqueFrom(FreeImage_OpenMemory(),
+                                       [](FIMEMORY* p)
+                                       {
+                                           FreeImage_CloseMemory(p);
+                                       });
+    if (!hmem)
+    {
+        return {};
+    }
+
+    auto [format, flag] = [dib]() -> std::pair<FREE_IMAGE_FORMAT, int>
+    {
+        if (FreeImage_IsTransparent(dib))
+            return {FIF_PNG, PNG_DEFAULT};
+        else
+            return {FIF_JPEG, JPEG_BASELINE | JPEG_OPTIMIZE | 85};
+    }();
+
+    if (!FreeImage_SaveToMemory(format, dib, hmem.get(), flag))
+    {
+        return {};
+    }
+
+    BYTE* tdata;
+    DWORD tlen;
+    FreeImage_AcquireMemory(hmem.get(), &tdata, &tlen);
+    return std::string{reinterpret_cast<char*>(tdata), tlen};
+}
+
+}
+
 namespace mega {
 
 #if defined(HAVE_FFMPEG) || defined(HAVE_PDFIUM)
@@ -688,10 +801,8 @@ bool GfxProviderFreeImage::readbitmap(const LocalPath& localname, int size)
     return true;
 }
 
-bool GfxProviderFreeImage::resizebitmap(int rw, int rh, string* jpegout)
+bool GfxProviderFreeImage::resizebitmap(int rw, int rh, string* imageOut)
 {
-    FIBITMAP* tdib;
-    FIMEMORY* hmem;
     int px, py;
 
     if (!w || !h) return false;
@@ -702,51 +813,29 @@ bool GfxProviderFreeImage::resizebitmap(int rw, int rh, string* jpegout)
 
     if (!w || !h) return false;
 
-    jpegout->clear();
+    imageOut->clear();
 
-    tdib = FreeImage_Rescale(dib, w, h, FILTER_BILINEAR);
-    if (tdib)
+    // Rescale
+    FIBITMAP* tdib = rescale(dib, w, h);
+    if (!tdib)
     {
-        FreeImage_Unload(dib);
-
-        dib = tdib;
-
-        tdib = FreeImage_Copy(dib, px, py, px + rw, py + rh);
-        if (tdib)
-        {
-            FreeImage_Unload(dib);
-
-            dib = tdib;
-
-            WORD bpp = (WORD)FreeImage_GetBPP(dib);
-            if (bpp != 24) {
-                if ((tdib = FreeImage_ConvertTo24Bits(dib)) == NULL) {
-                    FreeImage_Unload(dib);
-                    dib = tdib;
-                    return 0;
-                }
-                FreeImage_Unload(dib);
-                dib = tdib;
-            }
-
-            hmem = FreeImage_OpenMemory();
-            if (hmem)
-            {
-                if (FreeImage_SaveToMemory(FIF_JPEG, dib, hmem, JPEG_BASELINE | JPEG_OPTIMIZE | 85))
-                {
-                    BYTE* tdata;
-                    DWORD tlen;
-
-                    FreeImage_AcquireMemory(hmem, &tdata, &tlen);
-                    jpegout->assign((char*)tdata, tlen);
-                }
-
-                FreeImage_CloseMemory(hmem);
-            }
-        }
+        return false;
     }
+    FreeImage_Unload(dib);
+    dib = tdib;
 
-    return !jpegout->empty();
+    // copy part
+    if (!(tdib = FreeImage_Copy(dib, px, py, px + rw, py + rh)))
+    {
+        return false;
+    }
+    FreeImage_Unload(dib);
+    dib = tdib;
+
+    // save in jpeg or png if it has transparency
+    *imageOut = saveToMemory(dib);
+
+    return !imageOut->empty();
 }
 
 void GfxProviderFreeImage::freebitmap()

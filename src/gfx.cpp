@@ -269,7 +269,6 @@ std::vector<std::string> IGfxLocalProvider::generateImages(const LocalPath& loca
     {
         for (unsigned int i = 0; i < dimensions.size(); ++i)
         {
-            string jpeg;
             int targetWidth = dimensions[i].w(), targetHeight = dimensions[i].h();
             if (width() < targetWidth && height() < targetHeight)
             {
@@ -278,6 +277,7 @@ std::vector<std::string> IGfxLocalProvider::generateImages(const LocalPath& loca
                 targetHeight = height();
             }
             // LOG_verbose << "resizebitmap w/h: " << targetWidth << "/" << targetHeight;
+            string jpeg;
             if (resizebitmap(targetWidth, targetHeight, &jpeg))
             {
                 images[i] = std::move(jpeg);
