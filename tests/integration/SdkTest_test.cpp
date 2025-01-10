@@ -10083,8 +10083,7 @@ TEST_F(SdkTest, EscapesReservedCharacters)
     }
 
     // Escape input string.
-    unique_ptr<char[]> output(
-      megaApi[0]->escapeFsIncompatible(input.c_str()));
+    unique_ptr<char[]> output(megaApi[0]->escapeFsIncompatible(input.c_str(), nullptr));
 
     // Was the string escaped as expected?
     ASSERT_NE(output.get(), nullptr);
@@ -10154,14 +10153,12 @@ TEST_F(SdkTest, UnescapesReservedCharacters)
     string input_unescaped = "\\/:?\"<>|*Z!";
 
     // Escape input string.
-    unique_ptr<char[]> escaped(
-      megaApi[0]->escapeFsIncompatible(input.c_str()));
+    unique_ptr<char[]> escaped(megaApi[0]->escapeFsIncompatible(input.c_str(), nullptr));
 
     ASSERT_NE(escaped.get(), nullptr);
 
     // Unescape the escaped string.
-    unique_ptr<char[]> unescaped(
-      megaApi[0]->unescapeFsIncompatible(escaped.get()));
+    unique_ptr<char[]> unescaped(megaApi[0]->unescapeFsIncompatible(escaped.get(), nullptr));
 
     // Was the string unescaped as expected?  (round trip causes %5a to be unescaped now)
     ASSERT_NE(unescaped.get(), nullptr);

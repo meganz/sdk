@@ -5458,19 +5458,9 @@ void MegaApi::utf8ToUtf16(const char* utf8data, string* utf16string)
 
 #endif
 
-char *MegaApi::escapeFsIncompatible(const char *filename)
-{
-    return pImpl->escapeFsIncompatible(filename, NULL);
-}
-
 char *MegaApi::escapeFsIncompatible(const char *filename, const char *dstPath)
 {
     return pImpl->escapeFsIncompatible(filename, dstPath);
-}
-
-char *MegaApi::unescapeFsIncompatible(const char *name)
-{
-    return pImpl->unescapeFsIncompatible(name, NULL);
 }
 
 char *MegaApi::unescapeFsIncompatible(const char *name, const char *localPath)
