@@ -27474,8 +27474,8 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
 
         handle tmpNodeHandle{1};
         handle tmpParentNodeHandle{UNDEF};
-        MegaNodeTree* nodeTree = request->getMegaNodeTree()->copy();
-        for (auto tmpNodeTree{dynamic_cast<MegaNodeTreePrivate*>(nodeTree)}; tmpNodeTree;
+        std::unique_ptr<MegaNodeTree> nodeTree(request->getMegaNodeTree()->copy());
+        for (auto tmpNodeTree{dynamic_cast<MegaNodeTreePrivate*>(nodeTree.get())}; tmpNodeTree;
              tmpNodeTree = dynamic_cast<MegaNodeTreePrivate*>(tmpNodeTree->getNodeTreeChild()))
         {
             if ((tmpNodeTree->getNodeTreeChild() && tmpNodeTree->getCompleteUploadData()) ||
@@ -27506,7 +27506,7 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
                         assert(!treeToCopy.empty()); // never empty because other error should have been reported in that case
                         tmpNodeTree->setNodeHandle(treeToCopy[0].ovhandle.as8byte());
                         request->setNodeHandle(tmpNodeTree->getNodeHandle());
-                        request->setMegaNodeTree(nodeTree);
+                        request->setMegaNodeTree(nodeTree.release());
                         fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
                         return API_OK;
                     }
@@ -27549,7 +27549,7 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
                         {
                             tmpNodeTree->setNodeHandle(ovn->nodeHandle().as8byte());
                             request->setNodeHandle(tmpNodeTree->getNodeHandle());
-                            request->setMegaNodeTree(nodeTree);
+                            request->setMegaNodeTree(nodeTree.release());
                             fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
                             return API_OK;
                         }
@@ -27618,12 +27618,13 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
             }
         }
 
-        auto result{[this, request, nodeTree](const Error& error,
-                                              targettype_t,
-                                              vector<NewNode>& newNodes,
-                                              bool,
-                                              int,
-                                              const map<string, string>& fileHandles)
+        auto result{[this, request, nodeTree = nodeTree.release()](
+                        const Error& error,
+                        targettype_t,
+                        vector<NewNode>& newNodes,
+                        bool,
+                        int,
+                        const map<string, string>& fileHandles)
                     {
                         size_t i{};
                         auto tmpNodeTree{dynamic_cast<MegaNodeTreePrivate*>(nodeTree)};
