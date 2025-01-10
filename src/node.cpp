@@ -1441,9 +1441,9 @@ bool Node::isPasswordNodeFolder() const
 {
     assert(client);
     const auto nhBase = client->getPasswordManagerBase();
-    return ((type == FOLDERNODE) && (nodeHandle() == nhBase || isAncestor(nhBase))) && !isPasswordNode();
+    return ((type == FOLDERNODE) && (nodeHandle() == nhBase || isAncestor(nhBase))) &&
+           !isPasswordNode();
 }
-
 
 bool NodeData::readComponents()
 {
