@@ -11018,7 +11018,6 @@ MegaClient::ClientType getClientTypeFromArgs(const std::string& clientType)
 
 int main(int argc, char* argv[])
 {
-    std::system("reset");
 #if defined(_WIN32) && defined(_DEBUG)
     _CrtSetBreakAlloc(124);  // set this to an allocation number to hunt leaks.  Prior to 124 and prior are from globals/statics so won't be detected by this
 #endif
@@ -11165,7 +11164,6 @@ int main(int argc, char* argv[])
     _CrtDumpMemoryLeaks();
 #endif
 }
-
 
 void DemoAppFolder::login_result(error e)
 {
