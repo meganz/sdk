@@ -2358,9 +2358,6 @@ fsfp_t FileSystemAccess::fsFingerprint(const LocalPath& path) const
             return fsfp_t(fingerprint, std::move(uuid));
     }
 
-    LOG_warn << "Falling back to legacy filesystem fingerprint: "
-             << path;
-
     // Couldn't determine filesystem UUID.
     return fsfp_t(fingerprint, std::string());
 }
