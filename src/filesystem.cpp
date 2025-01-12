@@ -232,12 +232,12 @@ fsfp_t::fsfp_t(std::uint64_t fingerprint,
 
 fsfp_t::operator bool() const
 {
-    return mFingerprint != 0;
+    return mFingerprint != 0 || !mUUID.empty();
 }
 
 bool fsfp_t::operator!() const
 {
-    return mFingerprint == 0;
+    return !operator bool();
 }
 
 bool fsfp_t::operator==(const fsfp_t& rhs) const
