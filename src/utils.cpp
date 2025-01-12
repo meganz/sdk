@@ -3381,7 +3381,9 @@ int naturalsorting_compare(const char* i, const char* j)
                 return number_i > number_j ? 1 : -1;
             }
 
-            if (auto difference = strncmp(m, n, std::min(i - m, j - n)); difference)
+            auto length = static_cast<std::size_t>(std::min(i - m, j - n));
+
+            if ((difference = strncmp(m, n, length)))
             {
                 return difference;
             }
