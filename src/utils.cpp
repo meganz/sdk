@@ -3337,6 +3337,9 @@ int naturalsorting_compare(const char* i, const char* j)
         }
         else // we are comparing numbers on both strings
         {
+            auto m = i;
+            auto n = j;
+
             uint64_t number_i = 0;
             unsigned int i_overflow_count = 0;
             while (*i && is_digit(static_cast<unsigned int>(*i)))
@@ -3376,6 +3379,11 @@ int naturalsorting_compare(const char* i, const char* j)
             if (number_i != number_j)
             {
                 return number_i > number_j ? 1 : -1;
+            }
+
+            if (auto difference = strncmp(m, n, std::min(i - m, j - n)); difference)
+            {
+                return difference;
             }
 
             stringMode = true;

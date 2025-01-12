@@ -1603,6 +1603,21 @@ TEST(LikeCompare, CombinedMatch)
     ASSERT_FALSE(likeCompare("HÉ?l*e\\*", "heLloé"));
 }
 
+TEST(NaturalSorting, Numbers)
+{
+    static const std::vector<std::string> input =
+        {"123", "0123", "00123", "234", "0234", "00234"}; // input
+
+    static const std::vector<std::string> expected =
+        {"00123", "0123", "123", "00234", "0234", "234"}; // expected
+
+    std::vector<std::string> computed = input;
+
+    std::sort(computed.begin(), computed.end(), NaturalSortingComparator());
+
+    EXPECT_EQ(computed, expected);
+}
+
 class CreateIdFromName: public testing::TestWithParam<uint64_t>
 {
 public:
