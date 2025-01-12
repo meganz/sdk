@@ -235,11 +235,6 @@ fsfp_t::operator bool() const
     return mFingerprint != 0 || !mUUID.empty();
 }
 
-bool fsfp_t::operator!() const
-{
-    return !operator bool();
-}
-
 bool fsfp_t::operator==(const fsfp_t& rhs) const
 {
     return mFingerprint == rhs.mFingerprint
@@ -250,11 +245,6 @@ bool fsfp_t::operator<(const fsfp_t& rhs) const
 {
     return std::tie(mFingerprint, mUUID)
            < std::tie(rhs.mFingerprint, rhs.mUUID);
-}
-
-bool fsfp_t::operator!=(const fsfp_t& rhs) const
-{
-    return !operator==(rhs);
 }
 
 bool fsfp_t::equivalent(const fsfp_t& rhs) const
