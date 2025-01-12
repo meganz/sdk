@@ -265,7 +265,7 @@ fsfp_t FileSystemAccess::fsFingerprint(const LocalPath& path) const
 
     // Couldn't determine UUID.
     if (!uuid.second)
-        return fsfp_t();
+        LOG_warn << "Falling back to legacay filesystem fingerprint: " << path;
 
     // Return fingerprint to caller.
     return fsfp_t(device.second, std::move(uuid.first));
