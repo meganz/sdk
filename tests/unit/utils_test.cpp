@@ -905,7 +905,7 @@ TEST(Utils, natural_sorting)
     ASSERT_GT(naturalsorting_compare("100", "20"), 0);
 
     // Comparison between numbers containing zeros at the beginning
-    ASSERT_EQ(naturalsorting_compare("00123", "123"), 0);
+    ASSERT_LT(naturalsorting_compare("00123", "123"), 0);
     ASSERT_LT(naturalsorting_compare("00123", "124"), 0);
     ASSERT_GT(naturalsorting_compare("0124", "00123"), 0);
 }
