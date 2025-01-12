@@ -1716,6 +1716,23 @@ auto SqliteAccountState::getNodeTagsBelow(CancelToken cancelToken,
     // Statement needs to be instantiated.
     if (!mStmtNodeTagsBelow)
     {
+        // This query retrieves all the tags below some particular node or
+        // below all root nodes in the user's account by performing a
+        // breadth-first traversal from those nodes.
+        //
+        // The way the query works is basically by populating a virtual
+        // table repeatedly. For instance, in the first step, we ask which
+        // nodes are below a particular node. That'll produce a result set
+        // containing that node's direct children.
+        //
+        // The engine then performs the same query on that exact result set
+        // which will produce a result set containing the descendants of
+        // those children.
+        //
+        // The process repeats until there are no more directories to
+        // traverse into.
+        //
+        // Note that this query does not descend down file version chains.
         auto query = "with recursive tags (nodehandle, tags, type) as ( "
                      "select n.nodehandle "
                      "     , n.tags "
