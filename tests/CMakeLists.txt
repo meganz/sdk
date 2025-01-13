@@ -5,10 +5,12 @@ add_library(MEGA::test_tools ALIAS test_tools)
 target_sources(test_tools
     PRIVATE
     gtest_common.h
+    sdk_test_data_provider.h
     sdk_test_utils.h
     stdfs.h
 
     gtest_common.cpp
+    sdk_test_data_provider.cpp
     sdk_test_utils.cpp
 )
 
