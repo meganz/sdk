@@ -111,8 +111,10 @@ TEST(NodesMatchedByFSIDTest, SourceNodeFsidReused)
  */
 TEST(NodesMatchedByFSIDTest, DifferentFilesystemsFingerprints)
 {
-    const auto sourceNodeAttributes{genMatchAttributes(FILENODE, fsfp_t{1, "UUID"})};
-    const auto targetNodeAttributes{genMatchAttributes(FILENODE, fsfp_t{2, "UUID2"})};
+    const fsfp_t fsfp1{1, "UUID"};
+    const fsfp_t fsfp2{2, "UUID2"};
+    const auto sourceNodeAttributes{genMatchAttributes(FILENODE, fsfp1)};
+    const auto targetNodeAttributes{genMatchAttributes(FILENODE, fsfp2)};
 
     ASSERT_EQ(areNodesMatchedByFsidEquivalent(sourceNodeAttributes,
                                               targetNodeAttributes,
@@ -142,8 +144,9 @@ TEST(NodesMatchedByFSIDTest, DifferentOwners)
     constexpr handle sourceOwner = 1;
     constexpr handle targetOwner = 2;
 
-    const auto sourceNodeAttributes{genMatchAttributes(FILENODE, {1, "UUID"}, sourceOwner)};
-    const auto targetNodeAttributes{genMatchAttributes(FILENODE, {1, "UUID"}, targetOwner)};
+    const fsfp_t fsfp1{1, "UUID"};
+    const auto sourceNodeAttributes{genMatchAttributes(FILENODE, fsfp1, sourceOwner)};
+    const auto targetNodeAttributes{genMatchAttributes(FILENODE, fsfp1, targetOwner)};
 
     ASSERT_EQ(areNodesMatchedByFsidEquivalent(sourceNodeAttributes,
                                               targetNodeAttributes,
@@ -187,10 +190,11 @@ TEST(NodesMatchedByFSIDTest, DifferentFingerprintDueToMtime)
     const auto sourceFp = genLightFingerprint();
     const auto targetFp = genLightFingerprint(SIMPLE_MTIME + 30, SIMPLE_SIZE);
 
+    const fsfp_t fsfp1{1, "UUID"};
     const auto sourceNodeAttributes{
-        genMatchAttributes(FILENODE, fsfp_t{1, "UUID"}, COMMON_USER_OWNER, sourceFp)};
+        genMatchAttributes(FILENODE, fsfp1, COMMON_USER_OWNER, sourceFp)};
     const auto targetNodeAttributes{
-        genMatchAttributes(FILENODE, fsfp_t{1, "UUID"}, COMMON_USER_OWNER, targetFp)};
+        genMatchAttributes(FILENODE, fsfp1, COMMON_USER_OWNER, targetFp)};
 
     ASSERT_EQ(areNodesMatchedByFsidEquivalent(sourceNodeAttributes,
                                               targetNodeAttributes,
@@ -206,10 +210,11 @@ TEST(NodesMatchedByFSIDTest, DifferentFingerprintDueToSize)
     const auto sourceFp = genLightFingerprint();
     const auto targetFp = genLightFingerprint(SIMPLE_MTIME, SIMPLE_SIZE + 1);
 
+    const fsfp_t fsfp1{1, "UUID"};
     const auto sourceNodeAttributes{
-        genMatchAttributes(FILENODE, fsfp_t{1, "UUID"}, COMMON_USER_OWNER, sourceFp)};
+        genMatchAttributes(FILENODE, fsfp1, COMMON_USER_OWNER, sourceFp)};
     const auto targetNodeAttributes{
-        genMatchAttributes(FILENODE, fsfp_t{1, "UUID"}, COMMON_USER_OWNER, targetFp)};
+        genMatchAttributes(FILENODE, fsfp1, COMMON_USER_OWNER, targetFp)};
 
     ASSERT_EQ(areNodesMatchedByFsidEquivalent(sourceNodeAttributes,
                                               targetNodeAttributes,
