@@ -252,6 +252,7 @@ struct SyncUpload_inClient : SyncTransfer_inClient, std::enable_shared_from_this
 
     void prepare(FileSystemAccess&) override;
     void completed(Transfer*, putsource_t) override;
+    void updateFingerprint(const FileFingerprint& newFingerprint);
 
     bool putnodesStarted = false;
 
@@ -259,6 +260,7 @@ struct SyncUpload_inClient : SyncTransfer_inClient, std::enable_shared_from_this
     NodeHandle putnodesResultHandle;
     bool putnodesFailed = false;
 
+    std::atomic<bool> wasStarted{false};
     std::atomic<bool> wasPutnodesCompleted{false};
 
     handle sourceFsid = UNDEF;
@@ -271,6 +273,65 @@ struct SyncUpload_inClient : SyncTransfer_inClient, std::enable_shared_from_this
 
     void sendPutnodesOfUpload(MegaClient* client, NodeHandle ovHandle);
     void sendPutnodesToCloneNode(MegaClient* client, NodeHandle ovHandle, Node* nodeToClone);
+};
+
+/**
+ * @struct DelayedSyncUpload
+ * @brief Represents an upload task that is delayed for throttling purposes.
+ *
+ * This struct encapsulates the details of an upload task that is queued for later
+ * processing due to throttling conditions. It holds the necessary data to identify
+ * and manage the delayed upload.
+ */
+struct DelayedSyncUpload
+{
+    /**
+     * @brief Weak pointer to the upload client responsible for this task.
+     *
+     * This prevents holding a strong reference to the upload, allowing it to be safely
+     * cleaned up if no longer valid before the task is processed.
+     */
+    std::weak_ptr<SyncUpload_inClient> mWeakUpload;
+
+    /**
+     * @brief Versioning option for the upload task.
+     *
+     * Specifies whether versioning should be applied to the file during the upload process.
+     */
+    VersioningOption mVersioningOption;
+
+    /**
+     * @brief Flag indicating if this upload should be queued first.
+     *
+     * If true, this upload will be prioritized over other tasks in the queue.
+     */
+    bool mQueueFirst;
+
+    /**
+     * @brief Node handle representing a shortcut for the upload.
+     *
+     * Provides additional metadata or context for the upload task, such as linking
+     * it to a specific node in the file hierarchy.
+     */
+    NodeHandle mOvHandleIfShortcut;
+
+    /**
+     * @brief Constructs a DelayedUpload instance.
+     *
+     * @param upload Shared pointer to the upload client responsible for this task.
+     * @param vo Versioning option for the upload.
+     * @param queueFirst Flag indicating if this upload should be queued first.
+     * @param ovHandleIfShortcut Node handle representing a shortcut for the upload.
+     */
+    DelayedSyncUpload(std::shared_ptr<SyncUpload_inClient> upload,
+                      const VersioningOption vo,
+                      const bool queueFirst,
+                      const NodeHandle ovHandleIfShortcut):
+        mWeakUpload(std::move(upload)),
+        mVersioningOption(vo),
+        mQueueFirst(queueFirst),
+        mOvHandleIfShortcut(ovHandleIfShortcut)
+    {}
 };
 
 } // namespace

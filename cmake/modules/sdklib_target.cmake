@@ -59,6 +59,7 @@ set(SDKLIB_HEADERS
     include/mega/sync.h
     include/mega/syncfilter.h
     include/mega/syncinternals.h
+    include/mega/syncinternals_logging.h
     include/mega/heartbeats.h
     include/mega/utils.h
     include/mega/account.h

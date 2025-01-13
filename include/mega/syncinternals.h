@@ -9,11 +9,16 @@
 #ifdef ENABLE_SYNC
 
 #include "node.h"
+#include "sync.h"
 
 #include <optional>
 
 namespace mega
 {
+
+/***************************\
+*  FIND LOCAL NODE BY FSID  *
+\***************************/
 
 /**
  * @brief Represents the result of a file system ID (FSID) node match operation.
@@ -415,6 +420,288 @@ fsid_localnode_map::const_iterator
  */
 std::pair<bool, LocalNode*> findLocalNodeByFsid(const fsid_localnode_map& fsidLocalnodeMap,
                                                 FindLocalNodeByFSIDPredicate&& predicate);
+
+/********************************\
+*  FIND NODE CANDIDATE TO CLONE  *
+\********************************/
+
+/**
+ * @struct FindCloneNodeCandidatePredicate
+ * @brief Predicate for identifying a suitable node candidate to be cloned.
+ *
+ * This struct encapsulates the logic required to determine if a Node in the cloud
+ * matches the content and extension of a local file being uploaded. It is used in
+ * conjunction with std::find_if to search for clone candidates in a collection of
+ * nodes.
+ *
+ * @see findCloneNodeCandidate_if
+ */
+struct FindCloneNodeCandidatePredicate
+{
+    /**
+     * @brief Reference to the MegaClient managing the synchronization process.
+     */
+    MegaClient& mClient;
+
+    /**
+     * @brief Const reference to the shared pointer to the upload task being processed.
+     */
+    const std::shared_ptr<SyncUpload_inClient>& mUpload;
+
+    /**
+     * @brief The file extension of the local file being uploaded.
+     */
+    const std::string& mLocalExtension;
+
+    /**
+     * @brief Function for extracting the file extension from a Node.
+     *
+     * This function is used to retrieve the extension of cloud nodes being evaluated
+     * as potential clone candidates.
+     */
+    std::function<std::string(const Node& node)> mExtractExtensionFromNode;
+
+    /**
+     * @brief Flag indicating if a candidate node with a zero key was found.
+     *
+     * If true, the predicate encountered a candidate node that matches the local file
+     * but has an invalid key, which can be used to prevent it from being cloned.
+     */
+    bool mFoundCandidateHasZeroKey{false};
+
+    /**
+     * @brief Constructs a FindCloneNodeCandidatePredicate instance.
+     *
+     * @param client Reference to the MegaClient managing synchronization.
+     * @param upload Const ref to the shared pointer to the upload task being processed.
+     * @param localExtension File extension of the local file being uploaded.
+     * @param extractExtensionFromNode Function to extract the file extension from a `Node`.
+     */
+    FindCloneNodeCandidatePredicate(
+        MegaClient& client,
+        const std::shared_ptr<SyncUpload_inClient>& upload,
+        const std::string& localExtension,
+        std::function<std::string(const Node& node)>&& extractExtensionFromNode):
+        mClient(client),
+        mUpload(upload),
+        mLocalExtension(localExtension),
+        mExtractExtensionFromNode(std::move(extractExtensionFromNode))
+    {}
+
+    /**
+     * @brief Evaluates if the provided Node is a suitable clone candidate.
+     *
+     * Checks if the node matches the local file in terms of content and extension.
+     * If a match is found but the node has a zero key, it returns true but it logs a warning
+     * and updates the mFoundCandidateHasZeroKey flag accordingly.
+     *
+     * @param node The cloud node to evaluate.
+     * @return True if a match is found, otherwise false.
+     */
+    bool operator()(const Node& node);
+};
+
+/**
+ * @brief Searches for a suitable clone node in the provided candidates using a predicate.
+ *
+ * This function iterates through a collection of potential nodes and evaluates each
+ * using the provided predicate. It returns an iterator to the first node that satisfies
+ * the predicate or the end iterator if no match is found.
+ *
+ * @param candidates A sharedNode_vector of candidate nodes.
+ * @param predicate The predicate used to evaluate each candidate node.
+ * @return Iterator to the first node that satisfies the predicate, or the end iterator.
+ *
+ * @see FindCloneNodeCandidatePredicate
+ */
+sharedNode_vector::const_iterator
+    findCloneNodeCandidate_if(const sharedNode_vector& candidates,
+                              FindCloneNodeCandidatePredicate& predicate);
+
+/**
+ * @brief Finds a suitable node that can be cloned rather than triggering a new upload.
+ *
+ * This method prepares the local file extension and constructs a predicate to evaluate
+ * candidate nodes based on their content and extension. It returns a pointer to a valid
+ * clone node if found, or nullptr if no suitable node exists.
+ *
+ * A valid node to be cloned is a matched node that also has a valid key (no zero-key issue).
+ *
+ * @param mc Reference to the MegaClient managing the synchronization.
+ * @param upload Shared pointer to the upload task being processed.
+ * @return Pointer to a valid clone node if found, or nullptr otherwise.
+ *
+ * @see findCloneNodeCandidate_if
+ * @see FindCloneNodeCandidatePredicate
+ */
+Node* findCloneNodeCandidate(MegaClient& mc, const std::shared_ptr<SyncUpload_inClient>& upload);
+
+/****************\
+*  SYNC UPLOADS  *
+\****************/
+
+/**
+ * @brief Manages the upload process for a file, with support for node cloning.
+ *
+ * This method attempts to find a clone node that matches the local file's content and
+ * extension. If a valid node is found, it uses the node for cloning. Otherwise, it
+ * proceeds with a normal upload process.
+ *
+ * @param mc Reference to the MegaClient.
+ * @param committer Reference to the transfer database committer.
+ * @param upload Const ref to the shared pointer to the SyncUpload to be processed.
+ * @param vo Versioning option for the upload.
+ * @param queueFirst Flag indicating if this upload should be prioritized.
+ * @param ovHandleIfShortcut Node handle representing a shortcut for the upload.
+ */
+void clientUpload(MegaClient& mc,
+                  TransferDbCommitter& committer,
+                  const shared_ptr<SyncUpload_inClient>& upload,
+                  const VersioningOption vo,
+                  const bool queueFirst,
+                  const NodeHandle ovHandleIfShortcut);
+
+/**
+ * @class UploadThrottlingManager
+ * @brief Manages throttling and delayed processing of uploads in the Syncs subsystem.
+ *
+ * All the members and methods are meant to be called within the sync thread.
+ *
+ * The UploadThrottlingManager handles the queuing, delaying, and processing of file uploads.
+ * It adjusts the throttle update rate dynamically based on queue size, allowing for
+ * efficient upload handling without overloading system resources. Configuration
+ * options allow users to tune the behavior as per their requirements.
+ */
+struct Syncs; // Forward declaration.
+
+class UploadThrottlingManager
+{
+    // Limits
+    static constexpr unsigned MIN_PROCESS_INTERVAL_SECONDS{
+        60}; // Minimum allowed interval for processing delayed uploads.
+    static constexpr unsigned TIMEOUT_TO_RESET_UPLOAD_COUNTERS_SECONDS{
+        86400}; // Timeout (in seconds) to reset upload counters due to inactivity.
+
+    // Default values
+    static constexpr unsigned DEFAULT_PROCESS_INTERVAL_SECONDS{
+        180}; // Default interval (in seconds) for processing delayed uploads.
+    static constexpr unsigned DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE{
+        2}; // Default maximum uploads allowed before throttling.
+
+    // Members
+    Syncs& mSyncs; // Reference to the Syncs object managing synchronization.
+    std::queue<DelayedSyncUpload> mDelayedQueue; // Queue of delayed uploads to be processed.
+    std::chrono::steady_clock::time_point mLastProcessedTime{
+        std::chrono::steady_clock::now()}; // Timestamp of the last processed upload.
+    std::chrono::seconds mUploadCounterInactivityExpirationTime{
+        TIMEOUT_TO_RESET_UPLOAD_COUNTERS_SECONDS}; // Timeout for resetting upload counters due to
+                                                   // inactivity.
+
+    // Configurable members
+    std::chrono::seconds mThrottleUpdateRate{
+        DEFAULT_PROCESS_INTERVAL_SECONDS}; // Configurable interval for processing uploads.
+    unsigned mMaxUploadsBeforeThrottle{
+        DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE}; // Maximum uploads allowed before throttling.
+
+public:
+    /**
+     * @brief Constructs a ThrottlingManager.
+     * @param syncs Reference to the Syncs object managing synchronization.
+     */
+    explicit UploadThrottlingManager(Syncs& syncs):
+        mSyncs(syncs)
+    {}
+
+    /**
+     * @brief Adds an upload to the delayed queue.
+     * @param delayedUpload The upload to be added to the queue.
+     *
+     * @see LocalNode::queueClientUpload()
+     */
+    void addToDelayedQueue(DelayedSyncUpload&& delayedUpload);
+
+    /**
+     * @brief Checks if the next delayed upload in the queue should be processed.
+     *
+     * Calculates a dynamic update rate taking into account:
+     *    1. mDelayedQueue size.
+     *    2. mThrottleUpdateRate (reference value).
+     *    3. MIN_PROCESS_INTERVAL_SECONDS.
+     * The dynamic rate is the max between the MIN_PROCESS_INTERVAL_SECONDS and the result of
+     * mThrottleUpdateRate / sqrt(mDelayedQueue.size())
+     *
+     * @return True if the next upload should be processed, otherwise false.
+     */
+    bool checkProcessDelayedUploads() const;
+
+    /**
+     * @brief Processes the delayed upload queue.
+     *
+     * Processes the next delayed upload in the queue, ensuring that throttling conditions
+     * are met before initiating uploads.
+     *
+     * If the next delayed upload is not valid (DelayedSyncUpload::weakUpload is not valid), it will
+     * be skipped and the next delayed upload in the queue, if any, will be the one to be processed.
+     *
+     * @see checkProcessDelayedUploads()
+     * @see queueClientDelayedUpload()
+     * @see queueClient()
+     */
+    void processDelayedUploads();
+
+    /**
+     * @brief Queues a former delayed upload for processing in the client.
+     *
+     * The DelayedSyncUpload::weakUpload weak_ptr is checked.
+     * If it is still valid (the underlying SyncUpload_inClient shared_ptr is valid) the upload will
+     * be sent to the client to start the transfer. The SyncUpload_inClient shared_ptr belongs on
+     * the LocalNode. Either if the LocalNode resets it or the LocalNode is destroyed, the
+     * weakUpload won't be valid and the task will be skipped.
+     *
+     * @param delayedUpload The upload to be queued for processing.
+     * @return True if the upload was successfully queued, otherwise false.
+     */
+    bool queueClientDelayedUpload(DelayedSyncUpload&& delayedUpload);
+
+    // Setters
+
+    /**
+     * @brief Sets the throttle update rate in seconds.
+     * @param intervalSeconds The interval in seconds. It cannot be below
+     * MIN_PROCESS_INTERVAL_SECONDS.
+     */
+    void setThrottleUpdateRate(const unsigned intervalSeconds)
+    {
+        setThrottleUpdateRate(std::chrono::seconds(intervalSeconds));
+    }
+
+    /**
+     * @brief Sets the throttle update rate as a duration.
+     * @param interval The interval as a std::chrono::seconds object.
+     */
+    void setThrottleUpdateRate(const std::chrono::seconds interval);
+
+    /**
+     * @brief Sets the maximum uploads allowed before throttling.
+     * @param maxUploadsBeforeThrottle The maximum number of uploads that will be uploaded
+     * unthrottled. It cannot be below DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE.
+     */
+    void setMaxUploadsBeforeThrottle(const unsigned maxUploadsBeforeThrottle);
+
+    // Getters
+
+    /**
+     * @brief Gets the upload counter inactivity expiration time.
+     * @return The expiration time as a std::chrono::seconds object.
+     */
+    std::chrono::seconds uploadCounterInactivityExpirationTime() const;
+
+    /**
+     * @brief Gets the maximum uploads allowed before throttling.
+     * @return The maximum number of uploads.
+     */
+    unsigned maxUploadsBeforeThrottle() const;
+};
 
 } // namespace mega
 

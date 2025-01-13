@@ -104,6 +104,7 @@ HEADERS= sdk/include/mega.h \
         sdk/include/mega/sharenodekeys.h \
         sdk/include/mega/sync.h \
         sdk/include/mega/syncinternals.h \
+        sdk/include/mega/syncinternals_logging.h \
         sdk/include/mega/transfer.h \
         sdk/include/mega/transferslot.h \
         sdk/include/mega/transferstats.h \

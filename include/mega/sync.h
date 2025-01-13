@@ -1362,6 +1362,10 @@ struct SyncSensitiveData
     std::string stateCacheKey;
 }; // SyncSensitiveData
 
+// Forward declarations
+struct NodeMatchByFSIDAttributes;
+class UploadThrottlingManager;
+
 struct Syncs
 {
     void injectSyncSensitiveData(SyncSensitiveData data);
@@ -1758,8 +1762,6 @@ public:
     std::chrono::steady_clock::time_point lastSyncStallsCount{std::chrono::steady_clock::now()};
     static const std::chrono::milliseconds MIN_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT;
     static const std::chrono::milliseconds MAX_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT;
-    static const std::chrono::milliseconds MIN_DELAY_BETWEEN_SYNC_VERBOSE_TIMED; // 5 secs
-    static const std::chrono::milliseconds TIME_WINDOW_FOR_SYNC_VERBOSE_TIMED; // 1 sec
 
     // Lock-free count of syncs currently active.
     std::atomic<unsigned> mNumSyncsActive{0u};
@@ -2075,6 +2077,13 @@ private:
     std::atomic<bool> mUploadsPaused {false};
     std::atomic<bool> mTransferPauseFlagsChanged {false};
 
+    /**
+     * @brief Unique pointer to UploadThrottlingManager, in charge of everything related to upload
+     * throttling.
+     * @see UploadThrottlingManager.
+     */
+    std::unique_ptr<UploadThrottlingManager> mThrottlingManager;
+
     // Responsible for tracking when to send sync/backup heartbeats
     unique_ptr<BackupMonitor> mHeartBeatMonitor;
 
@@ -2176,6 +2185,25 @@ public:
         // Let the caller know if any syncs match our predicate.
         return notifier.get_future().get();
     }
+
+    /**
+     * @brief Public getter for mThrottlingManager.
+     * @return A const reference to mThrottlingManager.
+     */
+    const UploadThrottlingManager& throttlingManager() const
+    {
+        assert(onSyncThread());
+        assert(mThrottlingManager);
+        return *mThrottlingManager;
+    }
+
+    /**
+     * @brief Adds an upload to the delayed queue.
+     * @param delayedUpload The upload to be added to the queue.
+     *
+     * @see UploadThrottlingManager::addToDelayedQueue()
+     */
+    void addToDelayedQueue(DelayedSyncUpload&& delayedUpload);
 };
 
 class OverlayIconCachedPaths

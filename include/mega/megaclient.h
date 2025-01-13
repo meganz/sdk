@@ -2179,9 +2179,13 @@ public:
 
     // functions for determining whether we can clone a node instead of upload
     // or whether two files are the same so we can just upload/download the data once
-    bool treatAsIfFileDataEqual(const FileFingerprint& nodeFingerprint, const LocalPath& file2, const string& filenameExtensionLowercaseNoDot);
-    bool treatAsIfFileDataEqual(const FileFingerprint& fp1, const string& filenameExtensionLowercaseNoDot1,
-                                const FileFingerprint& fp2, const string& filenameExtensionLowercaseNoDot2);
+    bool treatAsIfFileDataEqual(const FileFingerprint& nodeFingerprint,
+                                const LocalPath& file2,
+                                const std::string& filenameExtensionLowercaseNoDot) const;
+    bool treatAsIfFileDataEqual(const FileFingerprint& fp1,
+                                const std::string& filenameExtensionLowercaseNoDot1,
+                                const FileFingerprint& fp2,
+                                const std::string& filenameExtensionLowercaseNoDot2) const;
 
 #ifdef ENABLE_SYNC
 

@@ -812,6 +812,24 @@ void SyncUpload_inClient::prepare(FileSystemAccess&)
     //todo: localNode.treestate(TREESTATE_SYNCING);
 }
 
+void SyncUpload_inClient::updateFingerprint(const FileFingerprint& newFingerprint)
+{
+    if (wasStarted)
+    {
+        assert(false && "Trying to update fingerprint with the upload alredy started");
+        return;
+    }
+
+    if (size != newFingerprint.size)
+    {
+        // Reset transfer tracking values
+        syncThreadSafeState->transferBegin(PUT, size);
+        syncThreadSafeState->transferBegin(PUT, size);
+    }
+
+    FileFingerprint::operator=(newFingerprint);
+}
+
 SyncDownload_inClient::SyncDownload_inClient(CloudNode& n, const LocalPath& clocalname, bool fromInshare,
         shared_ptr<SyncThreadsafeState> stss, const FileFingerprint& overwriteFF)
 {

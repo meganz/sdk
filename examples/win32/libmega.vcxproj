@@ -249,6 +249,7 @@
     <ClInclude Include="..\..\include\mega\db\sqlite.h" />
     <ClInclude Include="..\..\include\mega\sync.h" />
     <ClInclude Include="..\..\include\mega\syncinternals.h" />
+    <ClInclude Include="..\..\include\mega\syncinternals_logging.h" />
     <ClInclude Include="..\..\include\mega\heartbeats.h" />
     <ClInclude Include="..\..\include\mega\thread.h" />
     <ClInclude Include="..\..\include\mega\transfer.h" />

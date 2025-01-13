@@ -3129,53 +3129,65 @@ void LocalNode::updateMoveInvolvement()
     }
 }
 
-void LocalNode::queueClientUpload(shared_ptr<SyncUpload_inClient> upload, VersioningOption vo, bool queueFirst, NodeHandle ovHandleIfShortcut)
+void LocalNode::UploadThrottling::bypassThrottlingNextTime(const unsigned maxUploadsBeforeThrottle)
+{
+    if (mUploadCounter >= maxUploadsBeforeThrottle)
+    {
+        mBypassThrottlingNextTime = true;
+    }
+}
+
+bool LocalNode::UploadThrottling::checkUploadThrottling(
+    const unsigned maxUploadsBeforeThrottle,
+    const std::chrono::seconds uploadCounterInactivityExpirationTime)
+{
+    if (mBypassThrottlingNextTime)
+    {
+        mBypassThrottlingNextTime = false;
+        return false;
+    }
+
+    if (const auto timeSinceLastUploadCounterProcess =
+            mUploadCounterLastTime - std::chrono::steady_clock::now();
+        timeSinceLastUploadCounterProcess >= uploadCounterInactivityExpirationTime)
+    {
+        // Reset the upload counter if enough time has lapsed since last time.
+        mUploadCounter = 0;
+        mUploadCounterLastTime = std::chrono::steady_clock::now();
+        return false;
+    }
+
+    if (mUploadCounter < maxUploadsBeforeThrottle)
+        return false;
+
+    return true;
+}
+
+bool LocalNode::queueClientUpload(shared_ptr<SyncUpload_inClient> upload,
+                                  const VersioningOption vo,
+                                  const bool queueFirst,
+                                  const NodeHandle ovHandleIfShortcut)
 {
     resetTransfer(upload);
 
-    sync->syncs.queueClient([upload, vo, queueFirst, ovHandleIfShortcut](MegaClient& mc, TransferDbCommitter& committer)
+    if (mUploadThrottling.checkUploadThrottling(
+            sync->syncs.throttlingManager().maxUploadsBeforeThrottle(),
+            sync->syncs.throttlingManager().uploadCounterInactivityExpirationTime()))
+    {
+        sync->syncs.addToDelayedQueue(
+            DelayedSyncUpload(std::move(upload), vo, queueFirst, ovHandleIfShortcut));
+        return false;
+    }
+
+    sync->syncs.queueClient(
+        [syncUpload = std::move(upload), vo, queueFirst, ovHandleIfShortcut](
+            MegaClient& mc,
+            TransferDbCommitter& committer)
         {
-            // Can we do it by Node clone if there is a matching file already in the cloud?
-            Node* cloneNode = nullptr;
-            sharedNode_vector v = mc.mNodeManager.getNodesByFingerprint(*upload);
-            for (auto& n: v)
-            {
-                string ext1, ext2;
-                mc.fsaccess->getextension(upload->getLocalname(), ext1);
-                n->getExtension(ext2, n->displayname());
-                if (!ext1.empty() && ext1[0] == '.') ext1.erase(0, 1);
-                if (!ext2.empty() && ext2[0] == '.') ext2.erase(0, 1);
-
-                if (mc.treatAsIfFileDataEqual(*n, ext1, *upload, ext2))
-                {
-                    cloneNode = n.get();
-                    if (cloneNode->hasZeroKey())
-                    {
-                        LOG_warn << "Clone node key is a zero key!! Avoid cloning node to generate a new key [cloneNode path = '" << cloneNode->displaypath() << "', sourceLocalname = '" << upload->sourceLocalname << "']";
-                        mc.sendevent(99486, "Node has a zerokey");
-                        cloneNode = nullptr;
-                    }
-                    break;
-                }
-            }
-
-            if (cloneNode)
-            {
-                LOG_debug << "Cloning node rather than sync uploading: " << cloneNode->displaypath() << " for " << upload->sourceLocalname;
-                // completion function is supplied to putNodes command
-                upload->sendPutnodesToCloneNode(&mc, ovHandleIfShortcut, cloneNode);
-                upload->putnodesStarted = true;
-                upload->wasCompleted = true;
-            }
-            else
-            {
-                // upload will get called back on either completed() or termainted()
-                upload->tag = mc.nextreqtag();
-                upload->selfKeepAlive = upload;
-                mc.startxfer(PUT, upload.get(), committer, false, queueFirst, false, vo, nullptr, upload->tag);
-            }
+            clientUpload(mc, committer, syncUpload, vo, queueFirst, ovHandleIfShortcut);
         });
 
+    return true;
 }
 
 void LocalNode::queueClientDownload(shared_ptr<SyncDownload_inClient> download, bool queueFirst)
@@ -3224,6 +3236,31 @@ void LocalNode::updateTransferLocalname()
     }
 }
 
+bool LocalNode::UploadThrottling::handleAbortUpload(SyncUpload_inClient& upload,
+                                                    const FileFingerprint& fingerprint,
+                                                    const unsigned maxUploadsBeforeThrottle,
+                                                    const LocalPath& transferPath)
+{
+    // 1. Upload cannot be aborted.
+    if (upload.putnodesStarted)
+        return false;
+
+    if (!upload.wasStarted)
+    {
+        assert(!upload.wasTerminated);
+        LOG_verbose << "Updating fingerprint of queued upload " << transferPath;
+        upload.updateFingerprint(fingerprint);
+        return false;
+    }
+
+    // 2. Upload must be aborted.
+
+    // If the upload is going to be aborted either due to a change while it was inflight or after a
+    // failure, and the file was being throttled, let it start immediately next time.
+    bypassThrottlingNextTime(maxUploadsBeforeThrottle);
+    return true;
+}
+
 bool LocalNode::transferResetUnlessMatched(direction_t dir, const FileFingerprint& fingerprint)
 {
     if (!transferSP) return true;
@@ -3234,23 +3271,45 @@ bool LocalNode::transferResetUnlessMatched(direction_t dir, const FileFingerprin
       dir != (uploadPtr ? PUT : GET)
       || transferSP->fingerprint() != fingerprint;
 
+    // A blocked file causes transfer termination. Avoid retrying the transfer unless unmatched: the
+    // node could have been replaced remotely (new version).
+    auto transferTerminatedAndIsRetryable = transferSP->wasTerminated &&
+                                            transferSP->mError != API_EKEY &&
+                                            transferSP->mError != API_EBLOCKED;
+
     // todo: should we be more accurate than just fingerprint?
-    if (different || (transferSP->wasTerminated && transferSP->mError != API_EKEY
-                                                && transferSP->mError != API_EBLOCKED)) // A blocked file causes transfer termination. Avoid retrying the transfer unless unmatched: the node could have been replaced remotely (new version)
+    if (different || transferTerminatedAndIsRetryable)
     {
-        if (uploadPtr && uploadPtr->putnodesStarted)
+        const bool transferDirectionNeedsToChange = dir != (uploadPtr ? PUT : GET);
+
+        if (uploadPtr && !transferDirectionNeedsToChange &&
+            !mUploadThrottling.handleAbortUpload(
+                *uploadPtr,
+                fingerprint,
+                sync->syncs.throttlingManager().maxUploadsBeforeThrottle(),
+                transferSP->getLocalname()))
         {
-            return false;
+            // If the upload must not be cancelled we return from the function.
+            // This method expects to return false if putnodes was started at this point, to
+            // reevaluate the row (trigger a new upload).
+            return !uploadPtr->putnodesStarted;
         }
 
-        LOG_debug << sync->syncname << "Cancelling superceded transfer of " << transferSP->getLocalname();
-        if (dir != (uploadPtr ? PUT : GET))
+        LOG_debug << sync->syncname << "Cancelling superceded transfer of "
+                  << transferSP->getLocalname();
+        if (transferDirectionNeedsToChange)
         {
             LOG_debug << sync->syncname << "Because transfer direction needs to change";
         }
+        else if (transferSP->wasTerminated)
+        {
+            LOG_debug << sync->syncname << "Due to being terminated after failing";
+        }
         else
         {
-            LOG_debug << sync->syncname << "Due to fingerprint change, was:" << transferSP->fingerprintDebugString() << " now:" << fingerprint.fingerprintDebugString();
+            LOG_debug << sync->syncname
+                      << "Due to fingerprint change, was:" << transferSP->fingerprintDebugString()
+                      << " now:" << fingerprint.fingerprintDebugString();
         }
         resetTransfer(nullptr);
     }

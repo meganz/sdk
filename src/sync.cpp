@@ -32,6 +32,7 @@
 #include "mega/megaclient.h"
 #include "mega/scoped_helpers.h"
 #include "mega/sync.h"
+#include "mega/syncinternals_logging.h"
 #include "mega/transfer.h"
 
 namespace mega {
@@ -44,14 +45,10 @@ const dstime Sync::RECENT_VERSION_INTERVAL_SECS = 10800;
 
 const unsigned Sync::MAX_CLOUD_DEPTH = 64;
 
-const std::chrono::milliseconds Syncs::MIN_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT{100}; // 100 ms
-const std::chrono::milliseconds Syncs::MAX_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT{10000}; // 10 secs
-const std::chrono::milliseconds Syncs::MIN_DELAY_BETWEEN_SYNC_VERBOSE_TIMED{20000}; // 20 secs
-const std::chrono::milliseconds Syncs::TIME_WINDOW_FOR_SYNC_VERBOSE_TIMED{1000}; // 1 sec
-
-#define SYNC_verbose if (syncs.mDetailedSyncLogging) LOG_verbose
-#define SYNC_verbose_timed if (syncs.mDetailedSyncLogging) SYNCS_verbose_timed
-#define SYNCS_verbose_timed LOG_verbose_timed(Syncs::MIN_DELAY_BETWEEN_SYNC_VERBOSE_TIMED, Syncs::TIME_WINDOW_FOR_SYNC_VERBOSE_TIMED)
+const std::chrono::milliseconds Syncs::MIN_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT{
+    100}; // 100 ms
+const std::chrono::milliseconds Syncs::MAX_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT{
+    10000}; // 10 secs
 
 bool PerSyncStats::operator==(const PerSyncStats& other)
 {
@@ -2885,7 +2882,11 @@ bool Sync::processCompletedUploadFromHere(SyncRow& row,
     {
         assert(upload->putnodesFailed);
 
-        SYNC_verbose << syncname << "Upload from here failed, reset for reevaluation" << logTriplet(row, fullPath);
+        SYNC_verbose << syncname << "Upload from here failed, reset for reevaluation"
+                     << logTriplet(row, fullPath);
+
+        row.syncNode->bypassThrottlingNextTime(
+            syncs.mThrottlingManager->maxUploadsBeforeThrottle());
     }
     else
     {
@@ -2928,7 +2929,11 @@ bool Sync::processCompletedUploadFromHere(SyncRow& row,
         // connect up the original cloud-sync-fs triplet, so that we can detect any
         // further moves that happened in the meantime.
 
-        SYNC_verbose << syncname << "Upload from here completed, considering this file synced to original: " << toHandle(upload->sourceFsid) << logTriplet(row, fullPath);
+        [[maybe_unused]] auto updatedCounter = row.syncNode->increaseUploadCounter();
+        SYNC_verbose << syncname
+                     << "Upload from here completed, considering this file synced to original: "
+                     << toHandle(upload->sourceFsid) << " [Num uploads: " << updatedCounter << "]"
+                     << logTriplet(row, fullPath);
         row.syncNode->setSyncedFsid(upload->sourceFsid, syncs.localnodeBySyncedFsid, row.syncNode->localname, row.syncNode->cloneShortname());
         row.syncNode->syncedFingerprint = *upload;
         row.syncNode->setSyncedNodeHandle(upload->putnodesResultHandle);
@@ -4540,17 +4545,22 @@ void UnifiedSync::changedConfigState(bool save, bool notifyApp)
     }
 }
 
-Syncs::Syncs(MegaClient& mc)
-  : waiter(new WAIT_CLASS)
-  , mClient(mc)
-  , fsaccess(std::make_unique<FSACCESS_CLASS>())
-  , mSyncFlags(new SyncFlags)
-  , mScanService(new ScanService())
+Syncs::Syncs(MegaClient& mc):
+    waiter(new WAIT_CLASS),
+    mClient(mc),
+    fsaccess(std::make_unique<FSACCESS_CLASS>()),
+    mSyncFlags(new SyncFlags),
+    mScanService(new ScanService()),
+    mThrottlingManager(std::make_unique<UploadThrottlingManager>(*this))
 {
     fsaccess->initFilesystemNotificationSystem();
 
     mHeartBeatMonitor.reset(new BackupMonitor(*this));
-    syncThread = std::thread([this]() { syncLoop(); });
+    syncThread = std::thread(
+        [this]()
+        {
+            syncLoop();
+        });
 }
 
 Syncs::~Syncs()
@@ -10239,10 +10249,25 @@ bool Sync::resolve_upsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, 
                     row.fsNode->fsid, row.fsNode->localname, inshare);
 
                 NodeHandle displaceHandle = row.cloudNode ? row.cloudNode->handle : NodeHandle();
-                row.syncNode->queueClientUpload(upload, UseLocalVersioningFlag, nodeName == ".megaignore", displaceHandle);  // we'll take care of versioning ourselves ( we take over the putnodes step below)
+                bool uploadSentToClientQueue = row.syncNode->queueClientUpload(
+                    upload,
+                    UseLocalVersioningFlag,
+                    nodeName == ".megaignore",
+                    displaceHandle); // we'll take care of versioning ourselves ( we take over the
+                                     // putnodes step below)
 
-                LOG_debug << syncname << "Sync - sending file " << fullPath.localPath;
-
+                if (uploadSentToClientQueue)
+                {
+                    LOG_debug << syncname << "Sync - sending file " << fullPath.localPath;
+                }
+                else
+                {
+                    LOG_debug << syncname
+                              << "[UploadThrottle] Sync - file exceeded the limit of uploads "
+                                 "without throttling ("
+                              << syncs.throttlingManager().maxUploadsBeforeThrottle() << ")"
+                              << ". Added to delayed queue: " << fullPath.localPath;
+                }
             }
             else
             {
@@ -10327,9 +10352,27 @@ bool Sync::resolve_upsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, 
             if (syncs.deferPutnodeCompletion(fullPath.localPath))
                 return false;
 
-            SYNC_verbose << syncname << "Putnodes complete. Detaching upload in resolve_upsync." << logTriplet(row, fullPath);
-            row.syncNode->resetTransfer(nullptr);
+            assert(!existingUpload->putnodesFailed ||
+                   existingUpload->putnodesResultHandle.isUndef());
+            if (existingUpload->putnodesFailed)
+            {
+                SYNC_verbose << syncname
+                             << "Upload from here failed, reset for reevaluation in resolve_upsync."
+                             << logTriplet(row, fullPath);
 
+                row.syncNode->bypassThrottlingNextTime(
+                    syncs.mThrottlingManager->maxUploadsBeforeThrottle());
+            }
+            else
+            {
+                [[maybe_unused]] auto updatedCounter = row.syncNode->increaseUploadCounter();
+                SYNC_verbose
+                    << syncname
+                    << "Putnodes complete. Detaching upload in resolve_upsync. [Num uploads: "
+                    << updatedCounter << "]" << logTriplet(row, fullPath);
+            }
+
+            row.syncNode->resetTransfer(nullptr);
             return false; // revisit in case of further changes
         }
         else if (existingUpload->putnodesStarted)
@@ -10340,7 +10383,17 @@ bool Sync::resolve_upsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, 
         {
             if (!pflsc.alreadyUploadingCount)
             {
-                SYNC_verbose << syncname << "Upload already in progress" << logTriplet(row, fullPath);
+                if (existingUpload->wasStarted)
+                {
+                    SYNC_verbose << syncname << "Upload already in progress"
+                                 << logTriplet(row, fullPath);
+                }
+                else
+                {
+                    SYNC_verbose_timed << syncname
+                                       << "Upload already waiting in the throttling queue"
+                                       << logTriplet(row, fullPath);
+                }
             }
             pflsc.alreadyUploadingCount += 1;
         }
@@ -13052,6 +13105,8 @@ void Syncs::syncLoop()
             ++completedPassCount;
         }
 
+        mThrottlingManager->processDelayedUploads();
+
         lastLoopEarlyExit = earlyExit;
     }
 }
@@ -13815,6 +13870,12 @@ bool Sync::PerFolderLogSummaryCounts::report(string& s)
         s += " alreadyDownloading:" + std::to_string(alreadyDownloadingCount);
     }
     return !s.empty();
+}
+
+void Syncs::addToDelayedQueue(DelayedSyncUpload&& delayedUpload)
+{
+    assert(onSyncThread());
+    mThrottlingManager->addToDelayedQueue(std::move(delayedUpload));
 }
 
 } // namespace

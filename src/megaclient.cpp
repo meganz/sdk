@@ -18167,7 +18167,9 @@ bool MegaClient::nodeIsOtherType(const Node* n) const
     return n->isIncludedForMimetype(MimeType_t::MIME_TYPE_OTHERS);
 }
 
-bool MegaClient::treatAsIfFileDataEqual(const FileFingerprint& node1, const LocalPath& file2, const string& filenameExtensionLowercaseNoDot)
+bool MegaClient::treatAsIfFileDataEqual(const FileFingerprint& node1,
+                                        const LocalPath& file2,
+                                        const std::string& filenameExtensionLowercaseNoDot) const
 {
     // if equal, upload or download could be skipped
     if (filenameExtensionLowercaseNoDot.empty()) return false;
@@ -18192,8 +18194,10 @@ bool MegaClient::treatAsIfFileDataEqual(const FileFingerprint& node1, const Loca
     return false;
 }
 
-bool MegaClient::treatAsIfFileDataEqual(const FileFingerprint& fp1, const string& filenameExtensionLowercaseNoDot1,
-                                        const FileFingerprint& fp2, const string& filenameExtensionLowercaseNoDot2)
+bool MegaClient::treatAsIfFileDataEqual(const FileFingerprint& fp1,
+                                        const std::string& filenameExtensionLowercaseNoDot1,
+                                        const FileFingerprint& fp2,
+                                        const std::string& filenameExtensionLowercaseNoDot2) const
 {
     // if equal, upload or download could be skipped or combined
     assert(filenameExtensionLowercaseNoDot1.empty() || filenameExtensionLowercaseNoDot1[0] != '.');
