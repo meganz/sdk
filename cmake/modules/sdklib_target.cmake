@@ -58,6 +58,7 @@ set(SDKLIB_HEADERS
     include/mega/file.h
     include/mega/sync.h
     include/mega/syncfilter.h
+    include/mega/syncinternals.h
     include/mega/heartbeats.h
     include/mega/utils.h
     include/mega/account.h
@@ -131,6 +132,7 @@ set(SDKLIB_SOURCES
     src/sharenodekeys.cpp
     src/sync.cpp
     src/syncfilter.cpp
+    src/syncinternals.cpp
     src/heartbeats.cpp
     src/testhooks.cpp
     src/transfer.cpp

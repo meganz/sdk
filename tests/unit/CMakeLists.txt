@@ -25,6 +25,7 @@ target_sources(test_unit
     Logging_test.cpp
     MediaProperties_test.cpp
     MegaApi_test.cpp
+    NodesMatchedByFsid_test.cpp
     name_collision_test.cpp
     PayCrypter_test.cpp
     PendingContactRequest_test.cpp
