@@ -4375,7 +4375,7 @@ void Syncs::changeSyncLocalRoot(const handle backupId,
                                         std::move(newPath),
                                         std::move(completionForClientWrapped));
         },
-        "changeSyncRemoteRoot");
+        "changeSyncLocalRoot");
 }
 
 void Syncs::changeSyncLocalRootInThread(const handle backupId,
