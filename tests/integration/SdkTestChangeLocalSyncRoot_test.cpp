@@ -174,7 +174,7 @@ public:
         mockListener.setErrorExpectations(API_OK);
         const auto rootPath = newRootPath.u8string();
         megaApi[0]->changeSyncLocalRoot(getBackupId(), rootPath.c_str(), &mockListener);
-        EXPECT_TRUE(mockListener.waitForFinishOrTimeout(MAX_TIMEOUT));
+        ASSERT_TRUE(mockListener.waitForFinishOrTimeout(MAX_TIMEOUT));
     }
 
     /**
