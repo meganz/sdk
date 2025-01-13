@@ -258,8 +258,6 @@ public:
 
 protected:
     handle mBackupId{UNDEF};
-
-private:
     LocalTempDir mTempLocalDir{getLocalTmpDir()};
 };
 
@@ -634,7 +632,12 @@ TEST_F(SdkTestSyncLocalRootChange, OKSyncRunningMoveRootAndReassing)
  * 7. Enable the sync. It should work now.
  * 8. Validate final state (empty, local has preference).
  */
+#ifdef __APPLE__
+// Disabled due to SDK-4472
+TEST_F(SdkTestSyncLocalRootChange, DISABLED_SymLinkAsRootChangeWhereItPointsTo)
+#else
 TEST_F(SdkTestSyncLocalRootChange, SymLinkAsRootChangeWhereItPointsTo)
+#endif
 {
     static const std::string logPre{
         "SdkTestSyncLocalRootChange.SymLinkAsRootChangeWhereItPointsTo : "};
@@ -710,7 +713,12 @@ TEST_F(SdkTestSyncLocalRootChange, SymLinkAsRootChangeWhereItPointsTo)
  * 6. Enable the sync. It should work now.
  * 7. Validate final state (empty, local has preference).
  */
+#ifdef __APPLE__
+// Disabled due to SDK-4472
+TEST_F(SdkTestSyncLocalRootChange, DISABLED_ChangeRootToSameNameDifferentFsid)
+#else
 TEST_F(SdkTestSyncLocalRootChange, ChangeRootToSameNameDifferentFsid)
+#endif
 {
     static const std::string logPre{
         "SdkTestSyncLocalRootChange.ChangeRootToSameNameDifferentFsid : "};
@@ -723,11 +731,15 @@ TEST_F(SdkTestSyncLocalRootChange, ChangeRootToSameNameDifferentFsid)
     LOG_verbose << logPre << "Renaming local root";
     const auto originalRoot = getLocalTmpDir();
     const auto newRoot = getLocalTmpDir().parent_path() / "TestChangeRootToSameNameDifferentFsid";
-    ASSERT_NO_FATAL_FAILURE(moveLocalTmpDir(newRoot));
-    const MrProper undoMove{[this]()
-                            {
-                                moveLocalTmpDir(getLocalTmpDir());
-                            }};
+    // On windows we need to wait until the filesystem notify thread stops once the sync is
+    // suspended. That's why we need multiple attempts to move the directory
+    ASSERT_TRUE(sdk_test::waitFor(
+        [this, &newRoot]() -> bool
+        {
+            return mTempLocalDir.move(newRoot);
+        },
+        MAX_TIMEOUT))
+        << "Error moving root directory";
 
     LOG_verbose << logPre << "Try to resume the sync in the same path but different dir";
     const LocalTempDir tmpNewRootSameName{originalRoot};
@@ -747,6 +759,11 @@ TEST_F(SdkTestSyncLocalRootChange, ChangeRootToSameNameDifferentFsid)
     ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocal());
     EXPECT_THAT(getLocalFirstChildrenNames_if(tmpNewRootSameName.getPath()),
                 testing::UnorderedElementsAre(".megaignore"));
+
+    LOG_verbose << logPre << "Stopping the sync and moving tmp dir to its original path";
+    ASSERT_TRUE(sdk_test::suspendSync(megaApi[0].get(), getBackupId()))
+        << "Error suspending the sync";
+    ASSERT_EQ(getSyncRunState(), std::optional{MegaSync::RUNSTATE_SUSPENDED});
 }
 
 /**
