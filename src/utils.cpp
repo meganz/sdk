@@ -3371,6 +3371,7 @@ int naturalsorting_compare(const char* i, const char* j)
             }
 
             int difference = static_cast<int>(i_overflow_count - j_overflow_count);
+
             if (difference)
             {
                 return difference;
@@ -3386,6 +3387,15 @@ int naturalsorting_compare(const char* i, const char* j)
             if ((difference = strncmp(m, n, length)))
             {
                 return difference;
+            }
+
+            auto relation = (i - m) - (j - n);
+
+            relation = std::clamp<decltype(relation)>(relation, -1, 1);
+
+            if (relation)
+            {
+                return static_cast<int>(relation);
             }
 
             stringMode = true;
