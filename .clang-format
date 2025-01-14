@@ -123,7 +123,7 @@ NamespaceIndentation: None
 #ObjCSpaceAfterProperty:
 #ObjCSpaceBeforeProtocolList:
 
-PPIndentWidth: 0
+PPIndentWidth: -1
 PackConstructorInitializers: Never
 #PenaltyBreakAssignment:
 #PenaltyBreakBeforeFirstCallParameter:
