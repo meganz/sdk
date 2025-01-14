@@ -239,4 +239,38 @@ void ensureAccountDeviceName(MegaApi* megaApi)
     megaApi->setUserAttribute(MegaApi::USER_ATTR_DEVICE_NAMES, devices.get(), &rl);
     ASSERT_TRUE(rl.waitForFinishOrTimeout(MAX_TIMEOUT));
 }
+
+std::unique_ptr<MegaNode> uploadFile(MegaApi* megaApi,
+                                     const std::filesystem::path& localPath,
+                                     MegaNode* parentNode)
+{
+    testing::NiceMock<MockMegaTransferListener> mtl{};
+    handle nodeHandle = UNDEF;
+    EXPECT_CALL(mtl, onTransferFinish)
+        .WillOnce(
+            [&mtl, &nodeHandle](MegaApi*, MegaTransfer* transfer, MegaError* error)
+            {
+                nodeHandle = transfer->getNodeHandle();
+                mtl.markAsFinished(error->getErrorCode() == API_OK);
+            });
+    megaApi->startUpload(localPath.u8string().c_str(),
+                         parentNode ? parentNode :
+                                      std::unique_ptr<MegaNode>{megaApi->getRootNode()}.get(),
+                         nullptr /*fileName*/,
+                         MegaApi::INVALID_CUSTOM_MOD_TIME,
+                         nullptr /*appData*/,
+                         false /*isSourceTemporary*/,
+                         false /*startFirst*/,
+                         nullptr /*cancelToken*/,
+                         &mtl);
+    EXPECT_TRUE(mtl.waitForFinishOrTimeout(MAX_TIMEOUT)) << "Error uploading file: " << localPath;
+    if (nodeHandle == UNDEF)
+        return nullptr;
+    return std::unique_ptr<MegaNode>(megaApi->getNodeByHandle(nodeHandle));
+}
+
+std::unique_ptr<MegaNode> uploadFile(MegaApi* megaApi, LocalTempFile&& file, MegaNode* parentNode)
+{
+    return uploadFile(megaApi, file.getPath(), parentNode);
+}
 }
