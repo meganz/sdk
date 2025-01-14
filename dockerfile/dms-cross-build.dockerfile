@@ -69,6 +69,7 @@ CMD ["sh", "-c", "\
     cmake -B buildDMS -S sdk \
         -DVCPKG_ROOT=/mega/vcpkg \
         -DCMAKE_BUILD_TYPE=Debug \
+        -DENABLE_SDKLIB_WERROR=OFF \
         -DENABLE_SDKLIB_EXAMPLES=OFF \
         -DENABLE_SDKLIB_TESTS=OFF \
         -DVCPKG_CHAINLOAD_TOOLCHAIN_FILE=/mega/${PLATFORM}.toolchain.cmake \
