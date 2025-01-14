@@ -905,6 +905,8 @@ TEST(Utils, natural_sorting)
     ASSERT_GT(naturalsorting_compare("100", "20"), 0);
 
     // Comparison between numbers containing zeros at the beginning
+    ASSERT_LT(naturalsorting_compare("0", "00"), 0);
+    ASSERT_LT(naturalsorting_compare("00", "000"), 0);
     ASSERT_LT(naturalsorting_compare("00123", "123"), 0);
     ASSERT_LT(naturalsorting_compare("00123", "124"), 0);
     ASSERT_GT(naturalsorting_compare("0124", "00123"), 0);
@@ -1606,10 +1608,10 @@ TEST(LikeCompare, CombinedMatch)
 TEST(NaturalSorting, Numbers)
 {
     static const std::vector<std::string> input =
-        {"123", "0123", "00123", "234", "0234", "00234"}; // input
+        {"123", "0123", "00123", "234", "0234", "00234", "00", "0", "000"}; // input
 
     static const std::vector<std::string> expected =
-        {"00123", "0123", "123", "00234", "0234", "234"}; // expected
+        {"0", "00", "000", "00123", "0123", "123", "00234", "0234", "234"}; // expected
 
     std::vector<std::string> computed = input;
 
