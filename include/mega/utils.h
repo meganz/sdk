@@ -349,6 +349,12 @@ public:
     static string toLowerUtf8(const string& text);
 
     // Platform-independent case-insensitive comparison.
+    static int icasecmp(const std::string& lhs, const std::string& rhs);
+    static int icasecmp(const char* lhs, const char* rhs);
+
+    static int icasecmp(const std::wstring& lhs, const std::wstring& rhs);
+    static int icasecmp(const wchar_t* lhs, const wchar_t* rhs);
+
     static int icasecmp(const std::string& lhs,
                         const std::string& rhs,
                         const size_t length);
