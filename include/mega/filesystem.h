@@ -90,7 +90,10 @@ public:
 
     operator bool() const;
 
-    bool operator!() const;
+    bool operator!() const
+    {
+        return !operator bool();
+    }
 
     fsfp_t& operator=(const fsfp_t& rhs) = default;
 
@@ -100,7 +103,10 @@ public:
 
     bool operator<(const fsfp_t& rhs) const;
 
-    bool operator!=(const fsfp_t& rhs) const;
+    bool operator!=(const fsfp_t& rhs) const
+    {
+        return !operator==(rhs);
+    }
 
     bool equivalent(const fsfp_t& rhs) const;
 
