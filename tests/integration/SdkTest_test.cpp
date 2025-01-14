@@ -620,14 +620,14 @@ void SdkTest::Cleanup()
             std::unique_ptr<MegaContactRequestList> crl{megaApi[nApi]->getOutgoingContactRequests()};
             for (int i = 0; i < crl->size(); i++)
             {
-                MegaContactRequest *cr = crl->get(i);
+                const MegaContactRequest* cr = crl->get(i);
                 synchronousInviteContact(nApi, cr->getTargetEmail(), "Test cleanup removing outgoing contact request", MegaContactRequest::INVITE_ACTION_DELETE);
             }
 
             crl.reset(megaApi[nApi]->getIncomingContactRequests());
             for (int i = 0; i < crl->size(); i++)
             {
-                MegaContactRequest *cr = crl->get(i);
+                const MegaContactRequest* cr = crl->get(i);
                 synchronousReplyContactRequest(nApi, cr, MegaContactRequest::REPLY_ACTION_DENY);
             }
 
