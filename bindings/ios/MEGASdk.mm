@@ -918,18 +918,6 @@ using namespace mega;
     }
 }
 
-- (void)createAccountWithEmail:(NSString *)email password:(NSString *)password firstname:(NSString *)firstname lastname:(NSString *)lastname lastPublicHandle:(uint64_t)lastPublicHandle lastPublicHandleType:(AffiliateType)lastPublicHandleType lastAccessTimestamp:(uint64_t)lastAccessTimestamp {
-    if (self.megaApi) {
-        self.megaApi->createAccount(email.UTF8String, password.UTF8String, firstname.UTF8String, lastname.UTF8String, lastPublicHandle, (int)lastPublicHandleType, lastAccessTimestamp);
-    }
-}
-
-- (void)createAccountWithEmail:(NSString *)email password:(NSString *)password firstname:(NSString *)firstname lastname:(NSString *)lastname lastPublicHandle:(uint64_t)lastPublicHandle lastPublicHandleType:(AffiliateType)lastPublicHandleType lastAccessTimestamp:(uint64_t)lastAccessTimestamp delegate:(id<MEGARequestDelegate>)delegate {
-    if (self.megaApi) {
-        self.megaApi->createAccount(email.UTF8String, password.UTF8String, firstname.UTF8String, lastname.UTF8String, lastPublicHandle, (int)lastPublicHandleType, lastAccessTimestamp, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
-    }
-}
-
 - (void)resumeCreateAccountWithSessionId:(NSString *)sessionId delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->resumeCreateAccount(sessionId.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
@@ -2150,18 +2138,6 @@ using namespace mega;
     }
 }
 
-- (void)getPaymentIdForProductHandle:(uint64_t)productHandle lastPublicHandle:(uint64_t)lastPublicHandle lastPublicHandleType:(AffiliateType)lastPublicHandleType lastAccessTimestamp:(uint64_t)lastAccessTimestamp delegate:(id<MEGARequestDelegate>)delegate {
-    if (self.megaApi) {
-        self.megaApi->getPaymentId(productHandle, lastPublicHandle, (int)lastPublicHandleType, lastAccessTimestamp, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
-    }
-}
-
-- (void)getPaymentIdForProductHandle:(uint64_t)productHandle lastPublicHandle:(uint64_t)lastPublicHandle lastPublicHandleType:(AffiliateType)lastPublicHandleType lastAccessTimestamp:(uint64_t)lastAccessTimestamp {
-    if (self.megaApi) {
-        self.megaApi->getPaymentId(productHandle, lastPublicHandle, (int)lastPublicHandleType, lastAccessTimestamp);
-    }
-}
-
 - (void)submitPurchase:(MEGAPaymentMethod)gateway receipt:(NSString *)receipt delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->submitPurchaseReceipt((int)gateway, receipt.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
@@ -2171,30 +2147,6 @@ using namespace mega;
 - (void)submitPurchase:(MEGAPaymentMethod)gateway receipt:(NSString *)receipt {
     if (self.megaApi) {
         self.megaApi->submitPurchaseReceipt((int)gateway, receipt.UTF8String);
-    }
-}
-
-- (void)submitPurchase:(MEGAPaymentMethod)gateway receipt:(NSString *)receipt lastPublicHandle:(uint64_t)lastPublicHandle delegate:(id<MEGARequestDelegate>)delegate {
-    if (self.megaApi) {
-        self.megaApi->submitPurchaseReceipt((int)gateway, receipt.UTF8String, lastPublicHandle, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
-    }
-}
-
-- (void)submitPurchase:(MEGAPaymentMethod)gateway receipt:(NSString *)receipt lastPublicHandle:(uint64_t)lastPublicHandle {
-    if (self.megaApi) {
-        self.megaApi->submitPurchaseReceipt((int)gateway, receipt.UTF8String, lastPublicHandle);
-    }
-}
-
-- (void)submitPurchase:(MEGAPaymentMethod)gateway receipt:(NSString *)receipt lastPublicHandle:(uint64_t)lastPublicHandle lastPublicHandleType:(AffiliateType)lastPublicHandleType lastAccessTimestamp:(uint64_t)lastAccessTimestamp delegate:(id<MEGARequestDelegate>)delegate {
-    if (self.megaApi) {
-        self.megaApi->submitPurchaseReceipt((int)gateway, receipt.UTF8String, lastPublicHandle, (int)lastPublicHandleType, lastAccessTimestamp, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
-    }
-}
-
-- (void)submitPurchase:(MEGAPaymentMethod)gateway receipt:(NSString *)receipt lastPublicHandle:(uint64_t)lastPublicHandle lastPublicHandleType:(AffiliateType)lastPublicHandleType lastAccessTimestamp:(uint64_t)lastAccessTimestamp {
-    if (self.megaApi) {
-        self.megaApi->submitPurchaseReceipt((int)gateway, receipt.UTF8String, lastPublicHandle, (int)lastPublicHandleType, lastAccessTimestamp);
     }
 }
 
