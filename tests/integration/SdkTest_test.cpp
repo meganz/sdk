@@ -10325,7 +10325,8 @@ TEST_F(SdkTest, FetchAds)
     tr = asyncQueryAds(0, MegaApi::ADS_DEFAULT, INVALID_HANDLE);
     ASSERT_EQ(API_OK, tr->waitForResult()) << "Query Ads request failed when it wasn't expected";
     const int showAd = tr->request->getNumDetails();
-
+    LOG_debug << "Account 0 " << megaApi[0]->getMyUserHandle() << " (" << megaApi[0]->getMyEmail()
+              << ") Show Ads (QueryAds, 0- Should show Ads, 1-Should not show ads): " << showAd;
     if (showAd == 0)
     {
         // Show Ads
@@ -10357,7 +10358,8 @@ TEST_F(SdkTest, FetchAds)
     LOG_debug << "Account 0 " << megaApi[0]->getMyUserHandle() << " (" << megaApi[0]->getMyEmail()
               << ") ab_adse: " << ab_adse->getGroup() << " ab_adsi: " << ab_adsi->getGroup();
     const bool isUserAllowedToFetchAds = ab_adse->getGroup() > 0u || ab_adsi->getGroup() > 0u;
-    if (isUserAllowedToFetchAds)
+    // Check if ads are enable for the account by default or through AB test/feature flags.
+    if (isUserAllowedToFetchAds || (showAd == 0))
     {
         ASSERT_EQ(API_OK, tr->waitForResult())
             << "Fetch Ads request failed when it wasn't expected";
