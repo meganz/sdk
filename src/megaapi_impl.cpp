@@ -32446,9 +32446,16 @@ char *MegaTCPServer::getLink(MegaNode *node, string protocol)
         if (node->isForeign())
         {
             oss << "!" << node->getSize();
-            string *publicAuth = node->getPublicAuth();
-            string *privAuth = node->getPrivateAuth();
-            const char *chatAuth = node->getChatAuth();
+            auto nodePrivate{dynamic_cast<MegaNodePrivate*>(node)};
+            if (!nodePrivate)
+            {
+                LOG_err << "Critical error: Unexpected MegaNode extension received";
+                assert(false);
+                return nullptr;
+            }
+            string* publicAuth = nodePrivate->getPublicAuth();
+            string* privAuth = nodePrivate->getPrivateAuth();
+            const char* chatAuth = nodePrivate->getChatAuth();
             if (privAuth->size())
             {
                 oss << "!f" << *privAuth;
