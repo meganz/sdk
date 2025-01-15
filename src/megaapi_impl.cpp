@@ -35047,7 +35047,7 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx)
         uv_write_t *req = new uv_write_t();
         req->data = httpctx;
 
-        if (int err = uv_write(req, (uv_stream_t*)&httpctx->tcphandle, &resbuf, 1, onWriteFinished))
+        if (uv_write(req, (uv_stream_t*)&httpctx->tcphandle, &resbuf, 1, onWriteFinished))
         {
             delete req;
             httpctx->finished = true;
