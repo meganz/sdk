@@ -168,28 +168,40 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
         int height;
 
         if (isVideoFile(path)) {
+            Uri uri = Uri.parse(path);
+            String scheme = uri == null ? null : uri.getScheme();
+            boolean isContentUri = scheme != null && scheme.equals("content");
 
             Bitmap bmThumbnail = null;
+            Cursor cursor = null;
 
-            try{
-                bmThumbnail = ThumbnailUtils.createVideoThumbnail(path, MediaStore.Video.Thumbnails.FULL_SCREEN_KIND);
-                if(context != null && bmThumbnail == null) {
+            if (!isContentUri) {
+                try {
+                    bmThumbnail = ThumbnailUtils.createVideoThumbnail(
+                        path, MediaStore.Video.Thumbnails.FULL_SCREEN_KIND);
+                    if (context != null && bmThumbnail == null) {
 
-                    String SELECTION = MediaStore.MediaColumns.DATA + "=?";
-                    String[] PROJECTION = {BaseColumns._ID};
+                        String SELECTION = MediaStore.MediaColumns.DATA + "=?";
+                        String[] PROJECTION = {BaseColumns._ID};
 
-                    Uri uri = MediaStore.Video.Media.EXTERNAL_CONTENT_URI;
-                    String[] selectionArgs = {path};
-                    ContentResolver cr = context.getContentResolver();
-                    Cursor cursor = cr.query(uri, PROJECTION, SELECTION, selectionArgs, null);
-                    if (cursor.moveToFirst()) {
-                        long videoId = cursor.getLong(0);
-                        bmThumbnail = MediaStore.Video.Thumbnails.getThumbnail(cr, videoId, MediaStore.Video.Thumbnails.FULL_SCREEN_KIND, null);
+                        uri = MediaStore.Video.Media.EXTERNAL_CONTENT_URI;
+                        String[] selectionArgs = {path};
+                        ContentResolver cr = context.getContentResolver();
+                        cursor = cr.query(uri, PROJECTION, SELECTION, selectionArgs, null);
+                        if (cursor != null && cursor.moveToFirst()) {
+                            long videoId = cursor.getLong(0);
+                            bmThumbnail = MediaStore.Video.Thumbnails.getThumbnail(
+                                cr, videoId, MediaStore.Video.Thumbnails.FULL_SCREEN_KIND, null);
+                        }
                     }
-                    cursor.close();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                } finally {
+                    if (cursor != null) {
+                        cursor.close();
+                    }
                 }
             }
-            catch(Exception e){}
 
             if(bmThumbnail==null){
 
@@ -197,17 +209,18 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
                 try{
                     setMediaMetadataRetrieverDataSource(retriever, path);
                     bmThumbnail = retriever.getFrameAtTime();
-                }
-                catch(Exception e1){
-                }
-                finally {
+                } catch (Exception e1) {
+                    e1.printStackTrace();
+                } finally {
                     try {
                         retriever.release();
-                    } catch (Exception ex) {}
+                    } catch (Exception ex) {
+                        ex.printStackTrace();
+                    }
                 }
             }
 
-            if(bmThumbnail==null){
+            if (!isContentUri && bmThumbnail == null) {
                 try{
                     bmThumbnail = ThumbnailUtils.createVideoThumbnail(path, MediaStore.Video.Thumbnails.MINI_KIND);
                     if(context != null && bmThumbnail == null) {
@@ -215,18 +228,22 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
                         String SELECTION = MediaStore.MediaColumns.DATA + "=?";
                         String[] PROJECTION = {BaseColumns._ID};
 
-                        Uri uri = MediaStore.Video.Media.EXTERNAL_CONTENT_URI;
+                        uri = MediaStore.Video.Media.EXTERNAL_CONTENT_URI;
                         String[] selectionArgs = {path};
                         ContentResolver cr = context.getContentResolver();
-                        Cursor cursor = cr.query(uri, PROJECTION, SELECTION, selectionArgs, null);
-                        if (cursor.moveToFirst()) {
+                        cursor = cr.query(uri, PROJECTION, SELECTION, selectionArgs, null);
+                        if (cursor != null && cursor.moveToFirst()) {
                             long videoId = cursor.getLong(0);
                             bmThumbnail = MediaStore.Video.Thumbnails.getThumbnail(cr, videoId, MediaStore.Video.Thumbnails.MINI_KIND, null);
                         }
+                    }
+                } catch (Exception e2) {
+                    e2.printStackTrace();
+                } finally {
+                    if (cursor != null) {
                         cursor.close();
                     }
                 }
-                catch (Exception e2){}
             }
 
             try {
@@ -344,15 +361,10 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
         if (bitmap == null)
             return false;
 
-        FileOutputStream stream;
-        try {
-            stream = new FileOutputStream(file);
-            if (!bitmap.compress(Bitmap.CompressFormat.JPEG, 85, stream))
-                return false;
-
-            stream.close();
-            return true;
+        try (FileOutputStream stream = new FileOutputStream(file)) {
+            return bitmap.compress(Bitmap.CompressFormat.JPEG, 85, stream);
         } catch (Exception e) {
+            e.printStackTrace();
         }
         return false;
     }
