@@ -78,7 +78,7 @@ CMD ["sh", "-c", "\
     su - me -w 'ANDROID_NDK_HOME,PATH,JAVA_HOME,VCPKG_TRIPLET,ANDROID_ARCH' -c ' \
     cmake -B buildAndroid -S sdk \
         -DVCPKG_ROOT=/mega/vcpkg \
-        -DCMAKE_BUILD_TYPE=Debug \
+        -DCMAKE_BUILD_TYPE=RelWithDebInfo \
         -DVCPKG_TARGET_TRIPLET=${VCPKG_TRIPLET} \
         -DCMAKE_SYSTEM_NAME=Android \
         -DCMAKE_ANDROID_API=26 \
