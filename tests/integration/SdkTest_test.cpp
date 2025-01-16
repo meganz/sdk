@@ -20939,3 +20939,68 @@ TEST_F(SdkTestNodeGpsCoordinates, SetUnshareableNodeCoordinatesWithNodeHandle)
     ASSERT_TRUE(veryclose(node->getLatitude(), mGpsCoordinates.latitude));
     ASSERT_TRUE(veryclose(node->getLongitude(), mGpsCoordinates.longitude));
 }
+
+TEST_F(SdkTest, EstablishContactRelationship)
+{
+    // Convenience.
+    using testing::AnyOf;
+
+    // We need at least two clients to work with.
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+
+    // Convenience.
+    auto& client0 = *megaApi[0];
+    auto& client1 = *megaApi[1];
+
+    // Make sure the clients aren't already friends.
+    ASSERT_THAT(removeContact(client0, client1), AnyOf(API_ENOENT, API_OK));
+
+    // Try and send a contact invitation.
+    auto [invitation, invitationSent] = sendInvitationTo(client0, client1);
+
+    // Make sure the invitation was received.
+    ASSERT_EQ(invitationSent, API_OK);
+
+    // Try and accept the invitation.
+    ASSERT_EQ(acceptInvitation(client1, *invitation), API_OK);
+}
+
+TEST_F(SdkTest, EstablishContactRelationshipAutomatically)
+{
+    // Convenience.
+    using testing::AnyOf;
+
+    // We need at least two clients to work with.
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+
+    // Convenience.
+    auto& client0 = *megaApi[0];
+    auto& client1 = *megaApi[1];
+
+    // Make sure the clients aren't already friends.
+    ASSERT_THAT(removeContact(client0, client1), AnyOf(API_ENOENT, API_OK));
+
+    // Try and send an invitation from client0 to client1.
+    auto [invitation0, invitation0Sent] = sendInvitationTo(client0, client1);
+
+    // Make sure that invitation was sent.
+    ASSERT_EQ(invitation0Sent, API_OK);
+
+    // Try and send an invitation from client1 to client1.
+    auto [invitation1, invitation1Sent] = sendInvitationTo(client1, client0);
+
+    // Make sure that invitation was sent, too.
+    ASSERT_EQ(invitation1Sent, API_OK);
+
+    // Convenience.
+    const std::string email0 = client0.getMyEmail();
+    const std::string email1 = client1.getMyEmail();
+
+    // Wait until both clients are friends.
+    ASSERT_TRUE(WaitFor(
+        [&]()
+        {
+            return hasContact(client0, email1) && hasContact(client1, email0);
+        },
+        defaultTimeoutMs));
+}
