@@ -3732,7 +3732,7 @@ void MegaTransferPrivate::setPath(const char* newPath)
     if (LocalPath::isURIPath(path))
     {
         localPath = LocalPath::fromAbsolutePath(path);
-        std::string name = localPath.leafName().rawValue().c_str();
+        std::string name = localPath.leafName().platformEncoded();
         if (name.size())
         {
             setFileName(name.c_str());

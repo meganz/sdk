@@ -274,7 +274,7 @@ public:
     bool isURI() const
     {
         bool ret = mPathType == PathType::URI_PATH;
-        assert(ret == LocalPath::isURIPath(localpath));
+        assert(ret == LocalPath::isURIPath(platformEncoded()));
         return ret;
     };
 
