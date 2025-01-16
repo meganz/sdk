@@ -4757,6 +4757,118 @@ static void exec_thumbnail(autocomplete::ACState& state)
 
 MegaCLILogger gLogger;
 
+void exec_tag_add_remove(autocomplete::ACState& state)
+{
+    // Convenience.
+    using TagCommandCallback = CommandSetAttr::Completion;
+
+    using TagCommand =
+        error (MegaClient::*)(std::shared_ptr<Node>, const std::string&, TagCommandCallback&&);
+
+    // Assume we're adding a new tag.
+    TagCommand command = &MegaClient::addTagToNode;
+
+    // We're actually removing an existing tag.
+    if (state.words[1].s == "remove")
+        command = &MegaClient::removeTagFromNode;
+
+    // Called when the tag's been added or removed.
+    auto callback = [command = state.words[1].s](NodeHandle, Error result)
+    {
+        conlock(std::cout) << "Tag " << command << " result: " << result << std::endl;
+    }; // callback
+
+    // Locate the node specified by the user.
+    auto node = nodebypath(state.words[2].s.c_str());
+
+    // Couldn't find the node.
+    if (!node)
+        return callback(NodeHandle(), API_ENOENT);
+
+    // Try and add (or remove) the specified tag.
+    auto result =
+        (client->*command)(std::move(node), state.words[3].s, TagCommandCallback(callback));
+
+    // Client eagerly detected an error.
+    if (result != API_OK)
+        callback(NodeHandle(), result);
+}
+
+template<typename T>
+static void listTags(const T& tags)
+{
+    auto iterator = std::ostream_iterator<std::string>(std::cout, "\n");
+
+    std::copy(tags.begin(), tags.end(), iterator);
+}
+
+void exec_tag_list_all(autocomplete::ACState&)
+{
+    // Retrieve all tags in this account.
+    auto tags = client->getNodeTagsBelow(NodeHandle());
+
+    // No tags.
+    if (!tags)
+        return;
+
+    // Convenience.
+    using NaturalStringMultiSet = std::multiset<std::string, NaturalSortingComparator>;
+
+    // List tags in natural order.
+    listTags(NaturalStringMultiSet(tags->begin(), tags->end()));
+}
+
+void exec_tag_list_at(autocomplete::ACState& state)
+{
+    // Locate the node specified by the user.
+    auto node = nodebypath(state.words[3].s.c_str());
+
+    // Couldn't find the specified node.
+    if (!node)
+    {
+        conlock(std::cout) << "Couldn't find a node at " << state.words[3].s << std::endl;
+        return;
+    }
+
+    // List the node's tags.
+    listTags(client->getNodeTags(std::move(node)));
+}
+
+void exec_tag_list_below(autocomplete::ACState& state)
+{
+    // Assume the user wants to list all tags below the roots.
+    NodeHandle handle;
+
+    // User wants to list all tags below a particular node.
+    if (state.words.size() > 2)
+    {
+        // Try and locate the node speciifed by the user.
+        auto node = nodebypath(state.words[3].s.c_str());
+
+        // Couldn't find the specified node.
+        if (!node)
+        {
+            conlock(std::cout) << "Couldn't find a node at " << state.words[3].s << std::endl;
+            return;
+        }
+
+        // Capture the node's handle.
+        handle = node->nodeHandle();
+    }
+
+    // Retrieve tags.
+    auto tags = client->getNodeTagsBelow(handle);
+
+    // No tags.
+    if (!tags)
+        return;
+
+    using NaturalStringMultiSet = std::multiset<std::string, NaturalSortingComparator>;
+
+    // List tags in natural order.
+    listTags(NaturalStringMultiSet(tags->begin(), tags->end()));
+}
+
 autocomplete::ACN autocompleteSyntax()
 {
     using namespace autocomplete;
@@ -5282,6 +5394,24 @@ autocomplete::ACN autocompleteSyntax()
            sequence(text("thumbnail"), localFSFile("destinationPath"), localFSFile("sourcePath")));
 
     p->Add(exec_getmyip, text("getmyip"));
+
+    p->Add(exec_tag_add_remove,
+           sequence(text("tag"),
+                    either(text("add"), text("remove")),
+                    remoteFSPath(client, &cwd, "node-path"),
+                    param("tag")));
+
+    p->Add(exec_tag_list_all, sequence(text("tag"), text("list"), text("all")));
+
+    p->Add(
+        exec_tag_list_at,
+        sequence(text("tag"), text("list"), text("at"), remoteFSPath(client, &cwd, "node-path")));
+
+    p->Add(exec_tag_list_below,
+           sequence(text("tag"),
+                    text("list"),
+                    text("below"),
+                    opt(remoteFSPath(client, &cwd, "node-path"))));
 
     return autocompleteTemplate = std::move(p);
 }
@@ -11034,7 +11164,6 @@ int main(int argc, char* argv[])
     _CrtDumpMemoryLeaks();
 #endif
 }
-
 
 void DemoAppFolder::login_result(error e)
 {

@@ -8929,6 +8929,49 @@ error MegaClient::addTagToNode(std::shared_ptr<Node> node,
     return API_OK;
 }
 
+std::vector<std::string> MegaClient::getNodeTags(const std::string& delimitedTags)
+{
+    // Translate list of delimited tags into a vector.
+    auto tags = splitString<std::vector<std::string>>(delimitedTags, TAG_DELIMITER);
+
+    // Make sure tags are in ascending natural order.
+    std::sort(tags.begin(), tags.end(), NaturalSortingComparator());
+
+    // Return tags to caller.
+    return tags;
+}
+
+std::vector<std::string> MegaClient::getNodeTags(std::shared_ptr<Node> node)
+{
+    // No node? No tags.
+    if (!node)
+        return {};
+
+    // Get our hands on the node's delimited list of tags.
+    auto delimitedTags = node->attrs.getString(NODE_ATTRIBUTE_TAGS);
+
+    // Node's list of delimited tags is empty or missing.
+    if (!delimitedTags || delimitedTags->empty())
+        return {};
+
+    // Translate delimited list of tags into a vector.
+    return getNodeTags(*delimitedTags);
+}
+
+auto MegaClient::getNodeTagsBelow(CancelToken cancelToken,
+                                  NodeHandle handle,
+                                  const std::string& pattern)
+    -> std::optional<std::set<std::string>>
+{
+    return mNodeManager.getNodeTagsBelow(std::move(cancelToken), handle, pattern);
+}
+
+auto MegaClient::getNodeTagsBelow(NodeHandle handle, const std::string& pattern)
+    -> std::optional<std::set<std::string>>
+{
+    return getNodeTagsBelow(CancelToken(), handle, pattern);
+}
+
 error MegaClient::removeTagFromNode(std::shared_ptr<Node> node,
                                     const string& tag,
                                     CommandSetAttr::Completion&& c)

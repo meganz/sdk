@@ -14341,7 +14341,7 @@ class MegaApi
         /**
          * @brief Retrieve all unique node tags present across all nodes in the account
          *
-         * @note If the searchString contains invalid characters, such as ',', an empty list will be
+         * @note If the pattern contains invalid characters, such as ',', an empty list will be
          * returned.
          *
          * @note This function allows to cancel the processing at any time by passing a
@@ -14349,14 +14349,62 @@ class MegaApi
          *
          * You take ownership of the returned value.
          *
-         * @param searchString Optional parameter to filter the tags based on a specific search
+         * @param pattern Optional parameter to filter the tags based on a specific search
          * string. If set to nullptr, all node tags will be retrieved.
+         *
          * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
          *
          * @return All the unique node tags that match the search criteria.
          */
-        MegaStringList* getAllNodeTags(const char* searchString = nullptr,
+        MegaStringList* getAllNodeTags(const char* pattern = nullptr,
                                        MegaCancelToken* cancelToken = nullptr);
+
+        /**
+         * @brief
+         * Retrieve all unique node tags present at or below the specified node.
+         *
+         * @param node
+         * The node we want to search for tags below.
+         *
+         * @param pattern
+         * An optional pattern to be used to filter which tags we retrieve.
+         *
+         * All tags will be retrieved if no pattern is specified.
+         *
+         * @param cancelToken
+         * A token that can be used to cancel the query.
+         *
+         * @return
+         * A string list containing all unique tags found at or below node.
+         */
+        MegaStringList* getAllNodeTagsBelow(const MegaNode* node,
+                                            const char* pattern = nullptr,
+                                            MegaCancelToken* cancelToken = nullptr);
+
+        /**
+         * @brief
+         * Retrieve all unique node tags present at or below the specified node.
+         *
+         * @param handle
+         * A handle specifying the node we want to search for tags below.
+         *
+         * When UNDEF, we will search for tags below each of this account's
+         * root nodes.
+         *
+         * @param pattern
+         * An optional pattern to be used to filter which tags we retrieve.
+         *
+         * All tags will be retrieved if no pattern is specified.
+         *
+         * @param cancelToken
+         * A token that can be used to cancel the query.
+         *
+         * @return
+         * A string list containing all unique tags found at or below node.
+         */
+        MegaStringList* getAllNodeTagsBelow(MegaHandle handle,
+                                            const char* pattern = nullptr,
+                                            MegaCancelToken* cancelToken = nullptr);
 
         /**
          * @brief Generate a public link of a file/folder in MEGA

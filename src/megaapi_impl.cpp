@@ -909,18 +909,10 @@ const char* MegaNodePrivate::getDescription()
 
 MegaStringList* MegaNodePrivate::getTags()
 {
-    const char* str = getOfficialAttr(MegaClient::NODE_ATTRIBUTE_TAGS);
-    std::string tags = str ? str : "";
-    const auto tokens = splitString<std::multiset<std::string, NaturalSortingComparator>>(
-        tags,
-        MegaClient::TAG_DELIMITER);
-    MegaStringListPrivate* stringList = new MegaStringListPrivate();
-    for (const auto& token: tokens)
-    {
-        stringList->add(token.c_str());
-    }
+    if (auto delimitedTags = getOfficialAttr(MegaClient::NODE_ATTRIBUTE_TAGS))
+        return new MegaStringListPrivate(MegaClient::getNodeTags(delimitedTags));
 
-    return stringList;
+    return new MegaStringListPrivate();
 }
 
 int64_t MegaNodePrivate::getSize()
@@ -8600,18 +8592,31 @@ void MegaApiImpl::updateNodeTag(MegaNode* node, const char* newTag, const char* 
     CRUDNodeTagOperation(node, MegaApi::TAG_NODE_UPDATE, newTag, oldTag, listener);
 }
 
-MegaStringList* MegaApiImpl::getAllNodeTags(const char* searchString, CancelToken cancelToken)
+MegaStringList* MegaApiImpl::getAllNodeTagsBelow(MegaHandle handle,
+                                                 const std::string& pattern,
+                                                 CancelToken cancelToken)
 {
-    SdkMutexGuard g(sdkMutex);
-    std::set<std::string> allDifferentTags =
-        client->mNodeManager.getAllNodeTags(searchString, cancelToken);
-    std::vector<std::string> result(allDifferentTags.begin(), allDifferentTags.end());
-    const auto compF = [](const std::string& a, const std::string& b) -> bool
-    {
-        return naturalsorting_compare(a.c_str(), b.c_str()) < 0;
-    };
-    std::sort(std::begin(result), std::end(result), compF);
-    return new MegaStringListPrivate(std::move(result));
+    // Try and retrieve all tags below this account's root nodes.
+    auto tags = ([&]() {
+        // Make sure we have exclusive access to the client.
+        SdkMutexGuard guard(sdkMutex);
+
+        // Ask the client for the list of tags.
+        return client->getNodeTagsBelow(std::move(cancelToken),
+                                        NodeHandle().set6byte(handle),
+                                        pattern);
+    })();
+
+    // Couldn't get a list of tags.
+    if (!tags)
+        return new MegaStringListPrivate();
+
+    // Make sure the tags are in sorted order.
+    std::vector<std::string> sorted(tags->begin(), tags->end());
+    std::sort(sorted.begin(), sorted.end(), NaturalSortingComparator());
+
+    // Return sorted list of tags to the caller.
+    return new MegaStringListPrivate(std::move(sorted));
 }
 
 void MegaApiImpl::exportNode(MegaNode *node, int64_t expireTime, bool writable, bool megaHosted, MegaRequestListener *listener)

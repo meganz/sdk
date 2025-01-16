@@ -300,7 +300,28 @@ public:
 
     sharedNode_vector searchNodes(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page);
 
-    std::set<std::string> getAllNodeTags(const char* searchString, CancelToken cancelFlag);
+    /*
+     * @brief
+     * Get all node tags below a specified node.
+     *
+     * @param cancelToken
+     * A token that can be used to terminate the query's execution prematurely.
+     *
+     * @param handle
+     * A handle specifying which node we want to list tags below.
+     *
+     * If undefined, the query will list tags below all root nodes.
+     *
+     * @param pattern
+     * An optional pattern that can be used to filter which tags we list.
+     *
+     * @returns
+     * std::nullopt on failure.
+     * std::set<std::string> on success.
+     */
+    auto getNodeTagsBelow(CancelToken cancelToken,
+                          NodeHandle handle,
+                          const std::string& pattern = {}) -> std::optional<std::set<std::string>>;
 
     sharedNode_vector getNodesByFingerprint(FileFingerprint& fingerprint);
     sharedNode_vector getNodesByOrigFingerprint(const std::string& fingerprint, Node *parent);
@@ -546,8 +567,6 @@ private:
     sharedNode_vector processUnserializedNodes(const std::vector<std::pair<NodeHandle, NodeSerialized>>& nodesFromTable, CancelToken cancelFlag);
     sharedNode_vector getChildren_internal(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page);
     sharedNode_vector getRecentNodes_internal(const NodeSearchPage& page, m_time_t since);
-
-    std::set<std::string> getAllNodeTags_internal(const char* searchString, CancelToken cancelFlag);
 
     // node temporary in memory, which will be removed upon write to DB
     std::shared_ptr<Node> mNodeToWriteInDb;

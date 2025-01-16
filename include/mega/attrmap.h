@@ -25,6 +25,9 @@
 #include "name_id.h"
 #include "utils.h"
 
+#include <optional>
+#include <string_view>
+
 namespace mega {
 
 // maps attribute names to attribute values
@@ -53,6 +56,8 @@ struct MEGA_API AttrMap
     attr_map map;
 
     bool getBool(const char* name) const;
+
+    std::optional<std::string> getString(std::string_view name) const;
 
     // compute rough storage size
     unsigned storagesize(int) const;

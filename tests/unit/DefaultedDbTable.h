@@ -91,10 +91,11 @@ public:
         return false;
         //throw NotImplemented(__func__);
     }
-    bool getAllNodeTags(const std::string&, std::set<std::string>&, mega::CancelToken) override
+
+    auto getNodeTagsBelow(mega::CancelToken, mega::NodeHandle, const std::string&)
+        -> std::optional<std::set<std::string>> override
     {
-        return false;
-        // throw NotImplemented(__func__);
+        return std::nullopt;
     }
 
     bool getRecentNodes(const mega::NodeSearchPage&,

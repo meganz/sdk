@@ -135,18 +135,32 @@ public:
     virtual bool searchNodes(const NodeSearchFilter& filter, int order, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag, const NodeSearchPage& page) = 0;
 
     /**
-     * @brief Retrieves all the different tags for all the nodes stored in the db and inserts them
-     * into the tags parameter.
+     * @brief
+     * Returns a set of all distinct tags below a set of specified parents.
      *
-     * @param searchString If not empty, only tags containing it will be returned. It can contain
-     * wild cards (*).
-     * @param tags Output parameter to store the tags.
-     * @param cancelFlag to cancel the processing at any time
-     * @return true if no errors were encountered, false otherwise.
+     * @param cancelToken
+     * A cancel token that can be used to abort the query.
+     *
+     * @param handle
+     * Handle specifing the node we should search for tags below.
+     *
+     * @param pattern
+     * A search pattern that can used to filter which tags are returned.
+     *
+     * An empty pattern specifies that there are no constraints as to what
+     * tags should be returned.
+     *
+     * A non-empty pattern specifies that only the tags matching that
+     * pattern should be returned. Wildcards are accepted.
+     *
+     * @return
+     * A set of tags if successful.
+     * nullopt if unsuccessful.
      */
-    virtual bool getAllNodeTags(const std::string& searchString,
-                                std::set<std::string>& tags,
-                                CancelToken cancelFlag) = 0;
+    virtual auto getNodeTagsBelow(CancelToken cancelToken,
+                                  NodeHandle handle,
+                                  const std::string& pattern)
+        -> std::optional<std::set<std::string>> = 0;
 
     virtual bool getRecentNodes(const NodeSearchPage& page,
                                 m_time_t since,
