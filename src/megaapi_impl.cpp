@@ -3732,25 +3732,27 @@ void MegaTransferPrivate::setPath(const char* newPath)
     if (LocalPath::isURIPath(path))
     {
         localPath = LocalPath::fromAbsolutePath(path);
+        std::string name = localPath.leafName().rawValue().c_str();
+        if (name.size())
+        {
+            setFileName(name.c_str());
+            return;
+        }
     }
     else
     {
-        localPath = LocalPath::fromPlatformEncodedRelative(path);
-    }
-
-    std::string name = localPath.leafName().rawValue().c_str();
-    if (name.size())
-    {
-        setFileName(name.c_str());
-        std::string stringPath = path;
-        size_t pos = stringPath.rfind(name);
-        if (pos != std::string::npos)
+        for (int i = int(strlen(newPath) - 1); i >= 0; i--)
         {
-            stringPath.erase(pos, name.length());
+            if (newPath[i] == LocalPath::localPathSeparator_utf8)
+            {
+                setFileName(&(newPath[i + 1]));
+                char* parentFolderPath = MegaApi::strdup(newPath);
+                parentFolderPath[i + 1] = '\0';
+                setParentPath(parentFolderPath);
+                delete[] parentFolderPath;
+                return;
+            }
         }
-
-        setParentPath(stringPath.c_str());
-        return;
     }
 
     setFileName(newPath);
@@ -30133,7 +30135,7 @@ MegaFolderUploadController::scanFolder_result MegaFolderUploadController::scanFo
         auto restoreLen = makeScopedSizeRestorer(localPath);
         if (!childPath.isURI())
         {
-            childPath.appendWithSeparator(childPath, false);
+            childPath.appendWithSeparator(localname, false);
         }
 
         if (dirEntryType == FILENODE)
