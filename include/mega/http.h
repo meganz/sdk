@@ -49,9 +49,9 @@
 namespace mega {
 
 #ifdef _WIN32
-    const char* mega_inet_ntop(int af, const void* src, char* dst, int cnt);
+const char* mega_inet_ntop(int af, const void* src, char* dst, int cnt);
 #else
-    #define mega_inet_ntop inet_ntop
+#define mega_inet_ntop inet_ntop
 #endif
 
 // SSL public key pinning - active key
