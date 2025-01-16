@@ -28,33 +28,48 @@
 
 namespace mega
 {
-
+class AndroidFileWrapperRepository;
 class AndroidFileWrapper
 {
 public:
-    AndroidFileWrapper(const std::string& path);
     ~AndroidFileWrapper();
+    AndroidFileWrapper() = delete;
     AndroidFileWrapper(const AndroidFileWrapper&) = delete;
     AndroidFileWrapper& operator=(const AndroidFileWrapper&) = delete;
-    AndroidFileWrapper(AndroidFileWrapper&& other) noexcept;
-    AndroidFileWrapper& operator=(AndroidFileWrapper&& other) noexcept;
+    AndroidFileWrapper(AndroidFileWrapper&& other) = delete;
+    AndroidFileWrapper& operator=(AndroidFileWrapper&& other) = delete;
     bool exists();
     int getFileDescriptor(bool write);
     void close();
     std::string getName();
-    std::vector<AndroidFileWrapper> getChildren();
+    std::vector<std::shared_ptr<AndroidFileWrapper>> getChildren();
     bool isFolder();
     std::string getPath();
+    bool isURI();
 
 private:
+    AndroidFileWrapper(const std::string& path);
     jobject mAndroidFileObject{nullptr};
     std::string mPath;
-    int mFd{-1};
+    std::optional<std::string> mName;
+    std::optional<bool> mIsFolder;
+    std::optional<bool> mIsURI;
     static constexpr char GET_ANDROID_FILE[] = "getFromUri";
     static constexpr char GET_FILE_DESCRIPTOR[] = "getFileDescriptor";
     static constexpr char IS_FOLDER[] = "isFolder";
     static constexpr char GET_NAME[] = "getName";
     static constexpr char GET_CHILDREN_URIS[] = "getChildrenUris";
+
+    friend class AndroidFileWrapperRepository;
+};
+
+class AndroidFileWrapperRepository
+{
+public:
+    static std::shared_ptr<AndroidFileWrapper> getAndroidFileWrapper(const std::string& path);
+
+private:
+    static std::map<std::string, std::shared_ptr<AndroidFileWrapper>> mRepository;
 };
 
 class MEGA_API AndroidPlatformURIHelper: public PlatformURIHelper
@@ -105,7 +120,7 @@ public:
     AndroidFileAccess(Waiter* w, int defaultfilepermissions = 0600, bool followSymLinks = true);
     virtual ~AndroidFileAccess();
 
-    std::unique_ptr<AndroidFileWrapper> stealFileWrapper();
+    std::shared_ptr<AndroidFileWrapper> stealFileWrapper();
 
 protected:
     // system-specific raw read/open/close to be provided by platform implementation.   fopen /
@@ -115,7 +130,7 @@ protected:
     bool sysopen(bool async, FSLogging) override;
     void sysclose() override;
 
-    std::unique_ptr<AndroidFileWrapper> mFileWrapper;
+    std::shared_ptr<AndroidFileWrapper> mFileWrapper;
     int fd{-1};
     int mDefaultFilePermissions{0600};
     bool mFollowSymLinks{true};
@@ -128,8 +143,8 @@ public:
     bool dnext(LocalPath& path, LocalPath& name, bool followsymlinks, nodetype_t* type) override;
 
 private:
-    std::unique_ptr<AndroidFileWrapper> mFileWrapper;
-    std::vector<AndroidFileWrapper> mChildren;
+    std::shared_ptr<AndroidFileWrapper> mFileWrapper;
+    std::vector<std::shared_ptr<AndroidFileWrapper>> mChildren;
     size_t mIndex{0};
 };
 }

@@ -32,6 +32,8 @@ namespace mega
 
 AndroidPlatformURIHelper AndroidPlatformURIHelper::mPlatformHelper;
 int AndroidPlatformURIHelper::mNumInstances = 0;
+std::map<std::string, std::shared_ptr<AndroidFileWrapper>>
+    AndroidFileWrapperRepository::mRepository;
 
 AndroidFileWrapper::AndroidFileWrapper(const std::string& path):
     mPath(path)
@@ -70,53 +72,12 @@ AndroidFileWrapper::AndroidFileWrapper(const std::string& path):
 
 AndroidFileWrapper::~AndroidFileWrapper()
 {
-    if (mFd != -1)
-    {
-        ::close(mFd);
-    }
-
     if (mAndroidFileObject)
     {
         JNIEnv* env = nullptr;
         MEGAjvm->AttachCurrentThread(&env, NULL);
         env->DeleteGlobalRef(mAndroidFileObject);
     }
-}
-
-AndroidFileWrapper::AndroidFileWrapper(AndroidFileWrapper&& other) noexcept:
-    mAndroidFileObject(other.mAndroidFileObject),
-    mPath(std::move(other.mPath)),
-    mFd(other.mFd)
-{
-    other.mAndroidFileObject = nullptr;
-    other.mFd = -1;
-}
-
-AndroidFileWrapper& AndroidFileWrapper::operator=(AndroidFileWrapper&& other) noexcept
-{
-    if (this == &other)
-        return *this;
-
-    JNIEnv* env = nullptr;
-    MEGAjvm->AttachCurrentThread(&env, NULL);
-
-    if (mAndroidFileObject)
-    {
-        env->DeleteGlobalRef(mAndroidFileObject);
-    }
-
-    if (mFd != -1)
-    {
-        ::close(mFd);
-    }
-
-    mPath = std::move(other.mPath);
-    mAndroidFileObject = other.mAndroidFileObject;
-    mFd = other.mFd;
-    other.mAndroidFileObject = nullptr;
-    other.mFd = -1;
-
-    return *this;
 }
 
 int AndroidFileWrapper::getFileDescriptor(bool write)
@@ -126,37 +87,29 @@ int AndroidFileWrapper::getFileDescriptor(bool write)
         return -1;
     }
 
-    if (mFd == -1)
-    {
-        JNIEnv* env = nullptr;
-        MEGAjvm->AttachCurrentThread(&env, NULL);
+    JNIEnv* env = nullptr;
+    MEGAjvm->AttachCurrentThread(&env, NULL);
 
-        jmethodID methodID =
-            env->GetMethodID(fileWrapper, "getFileDescriptor", "(Z)Ljava/lang/Integer;");
-        if (methodID == nullptr)
+    jmethodID methodID =
+        env->GetMethodID(fileWrapper, "getFileDescriptor", "(Z)Ljava/lang/Integer;");
+    if (methodID == nullptr)
+    {
+        env->ExceptionDescribe();
+        env->ExceptionClear();
+        LOG_err << "Error: AndroidFileWrapper::getFileDescriptor";
+        return -1;
+    }
+
+    jobject fileDescriptorObj = env->CallObjectMethod(mAndroidFileObject, methodID, write);
+    if (fileDescriptorObj)
+    {
+        jmethodID intValueMethod = env->GetMethodID(integerClass, "intValue", "()I");
+        if (!intValueMethod)
         {
-            env->ExceptionDescribe();
-            env->ExceptionClear();
-            LOG_err << "Error: AndroidFileWrapper::getFileDescriptor";
             return -1;
         }
 
-        jobject fileDescriptorObj = env->CallObjectMethod(mAndroidFileObject, methodID, write);
-        if (fileDescriptorObj)
-        {
-            jmethodID intValueMethod = env->GetMethodID(integerClass, "intValue", "()I");
-            if (!intValueMethod)
-            {
-                return -1;
-            }
-
-            mFd = env->CallIntMethod(fileDescriptorObj, intValueMethod);
-        }
-    }
-
-    if (mFd != -1)
-    {
-        return dup(mFd);
+        return env->CallIntMethod(fileDescriptorObj, intValueMethod);
     }
 
     return -1;
@@ -169,6 +122,11 @@ bool AndroidFileWrapper::isFolder()
         return false;
     }
 
+    if (mIsFolder.has_value())
+    {
+        return mIsFolder.value();
+    }
+
     JNIEnv* env = nullptr;
     MEGAjvm->AttachCurrentThread(&env, NULL);
     jmethodID methodID = env->GetMethodID(fileWrapper, IS_FOLDER, "()Z");
@@ -179,7 +137,9 @@ bool AndroidFileWrapper::isFolder()
         LOG_err << "Error: AndroidFileWrapper::isFolder";
         return false;
     }
-    return env->CallBooleanMethod(mAndroidFileObject, methodID);
+
+    mIsFolder = env->CallBooleanMethod(mAndroidFileObject, methodID);
+    return mIsFolder.value();
 }
 
 string AndroidFileWrapper::getPath()
@@ -187,11 +147,40 @@ string AndroidFileWrapper::getPath()
     return mPath;
 }
 
+bool AndroidFileWrapper::isURI()
+{
+    if (mIsURI.has_value())
+    {
+        return mIsURI.value();
+    }
+
+    constexpr char IS_PATH[] = "isPath";
+    JNIEnv* env = nullptr;
+    MEGAjvm->AttachCurrentThread(&env, NULL);
+    jmethodID methodID = env->GetStaticMethodID(fileWrapper, IS_PATH, "(Ljava/lang/String;)Z");
+    if (methodID == nullptr)
+    {
+        env->ExceptionDescribe();
+        env->ExceptionClear();
+
+        LOG_err << "Critical error AndroidPlatformHelper::isURI";
+        return false;
+    }
+
+    mIsURI = !env->CallStaticBooleanMethod(fileWrapper, methodID, env->NewStringUTF(mPath.c_str()));
+    return mIsURI.value();
+}
+
 std::string AndroidFileWrapper::getName()
 {
     if (!exists())
     {
         return std::string();
+    }
+
+    if (mName.has_value())
+    {
+        return mName.value();
     }
 
     JNIEnv* env = nullptr;
@@ -208,16 +197,16 @@ std::string AndroidFileWrapper::getName()
     jstring name = (jstring)env->CallObjectMethod(mAndroidFileObject, methodID);
 
     const char* nameStr = env->GetStringUTFChars(name, nullptr);
-    std::string auxName(nameStr);
+    mName = nameStr;
     env->ReleaseStringUTFChars(name, nameStr);
-    return auxName;
+    return mName.value();
 }
 
-std::vector<AndroidFileWrapper> AndroidFileWrapper::getChildren()
+std::vector<std::shared_ptr<AndroidFileWrapper>> AndroidFileWrapper::getChildren()
 {
     if (!exists())
     {
-        return std::vector<AndroidFileWrapper>();
+        return std::vector<std::shared_ptr<AndroidFileWrapper>>();
     }
 
     JNIEnv* env = nullptr;
@@ -228,7 +217,7 @@ std::vector<AndroidFileWrapper> AndroidFileWrapper::getChildren()
         env->ExceptionDescribe();
         env->ExceptionClear();
         LOG_err << "Error: AndroidFileWrapper::getchildren";
-        return std::vector<AndroidFileWrapper>();
+        return std::vector<std::shared_ptr<AndroidFileWrapper>>();
     }
 
     jobject childrenUris = env->CallObjectMethod(mAndroidFileObject, methodID);
@@ -237,13 +226,13 @@ std::vector<AndroidFileWrapper> AndroidFileWrapper::getChildren()
     jmethodID getMethod = env->GetMethodID(listClass, "get", "(I)Ljava/lang/Object;");
     jint size = env->CallIntMethod(childrenUris, sizeMethod);
 
-    std::vector<AndroidFileWrapper> children;
+    std::vector<std::shared_ptr<AndroidFileWrapper>> children;
     children.reserve(size);
     for (jint i = 0; i < size; ++i)
     {
         jstring element = (jstring)env->CallObjectMethod(childrenUris, getMethod, i);
         const char* elementStr = env->GetStringUTFChars(element, nullptr);
-        children.emplace_back(elementStr);
+        children.push_back(AndroidFileWrapperRepository::getAndroidFileWrapper(elementStr));
         env->ReleaseStringUTFChars(element, elementStr);
         env->DeleteLocalRef(element);
     }
@@ -266,32 +255,39 @@ AndroidPlatformURIHelper::AndroidPlatformURIHelper()
     mNumInstances++;
 }
 
-bool AndroidPlatformURIHelper::isURI(const std::string& path)
+std::shared_ptr<AndroidFileWrapper>
+    AndroidFileWrapperRepository::getAndroidFileWrapper(const std::string& path)
 {
-    constexpr char IS_PATH[] = "isPath";
-    JNIEnv* env = nullptr;
-    MEGAjvm->AttachCurrentThread(&env, NULL);
-    jmethodID methodID =
-        env->GetStaticMethodID(fileWrapperProvider, IS_PATH, "(Ljava/lang/String;)Z");
-
-    if (methodID == nullptr)
+    auto it = mRepository.find(path);
+    if (it != mRepository.end())
     {
-        env->ExceptionDescribe();
-        env->ExceptionClear();
-
-        LOG_err << "Critical error AndroidPlatformHelper::isURI";
-        return false;
+        return it->second;
     }
 
-    return !env->CallStaticBooleanMethod(fileWrapper, methodID, env->NewStringUTF(path.c_str()));
+    std::shared_ptr<AndroidFileWrapper> element{new AndroidFileWrapper(path)};
+    mRepository[path] = element;
+    return element;
+}
+
+bool AndroidPlatformURIHelper::isURI(const std::string& path)
+{
+    std::shared_ptr<AndroidFileWrapper> fileWrapper =
+        AndroidFileWrapperRepository::getAndroidFileWrapper(path);
+    if (fileWrapper->exists())
+    {
+        return fileWrapper->isURI();
+    }
+
+    return false;
 }
 
 std::string AndroidPlatformURIHelper::getName(const std::string& path)
 {
-    AndroidFileWrapper fileWrapper(path);
-    if (fileWrapper.exists())
+    std::shared_ptr<AndroidFileWrapper> fileWrapper =
+        AndroidFileWrapperRepository::getAndroidFileWrapper(path);
+    if (fileWrapper->exists())
     {
-        return fileWrapper.getName();
+        return fileWrapper->getName();
     }
 
     return std::string();
@@ -311,7 +307,7 @@ bool AndroidFileAccess::fopen(const LocalPath& f,
     std::string fstr = f.rawValue();
     assert(!mFileWrapper);
 
-    mFileWrapper = std::make_unique<AndroidFileWrapper>(fstr);
+    mFileWrapper = AndroidFileWrapperRepository::getAndroidFileWrapper(fstr);
 
     if (!mFileWrapper->exists())
     {
@@ -426,10 +422,10 @@ AndroidFileAccess::AndroidFileAccess(Waiter* w, int defaultfilepermissions, bool
 
 AndroidFileAccess::~AndroidFileAccess() {}
 
-std::unique_ptr<AndroidFileWrapper> AndroidFileAccess::stealFileWrapper()
+std::shared_ptr<AndroidFileWrapper> AndroidFileAccess::stealFileWrapper()
 {
     sysclose();
-    return std::move(mFileWrapper);
+    return mFileWrapper;
 }
 
 bool AndroidFileAccess::sysread(byte* dst, unsigned len, m_off_t pos)
@@ -443,7 +439,8 @@ bool AndroidFileAccess::sysstat(m_time_t* mtime, m_off_t* size, FSLogging)
 {
     if (!mFileWrapper)
     {
-        mFileWrapper = std::make_unique<AndroidFileWrapper>(nonblocking_localname.rawValue());
+        mFileWrapper =
+            AndroidFileWrapperRepository::getAndroidFileWrapper(nonblocking_localname.rawValue());
     }
     else
     {
@@ -523,7 +520,8 @@ bool AndroidFileAccess::sysopen(bool, FSLogging)
 
     assert(mFollowSymLinks);
 
-    mFileWrapper = std::make_unique<AndroidFileWrapper>(nonblocking_localname.rawValue());
+    mFileWrapper = AndroidFileWrapperRepository::getAndroidFileWrapper(
+        nonblocking_localname.platformEncoded());
 
     if (!mFileWrapper->exists())
     {
@@ -563,7 +561,7 @@ bool AndroidDirAccess::dopen(LocalPath* path, FileAccess* f, bool doglob)
         std::string fstr = path->rawValue();
         assert(!mFileWrapper);
 
-        mFileWrapper = std::make_unique<AndroidFileWrapper>(fstr);
+        mFileWrapper = AndroidFileWrapperRepository::getAndroidFileWrapper(fstr);
     }
 
     if (!mFileWrapper->exists())
@@ -586,16 +584,16 @@ bool AndroidDirAccess::dnext(LocalPath& path,
         return false;
     }
 
-    AndroidFileWrapper& next = mChildren[mIndex];
-    path = std::move(LocalPath::fromPlatformEncodedAbsolute(next.getPath()));
-    name = std::move(LocalPath::fromPlatformEncodedRelative(next.getName()));
+    auto& next = mChildren[mIndex];
+    assert(next.get());
+    path = std::move(LocalPath::fromPlatformEncodedAbsolute(next->getPath()));
+    name = std::move(LocalPath::fromPlatformEncodedRelative(next->getName()));
     if (type)
     {
-        *type = next.isFolder() ? FOLDERNODE : FILENODE;
+        *type = next->isFolder() ? FOLDERNODE : FILENODE;
     }
 
     mIndex++;
-
     return true;
 }
 
