@@ -19903,3 +19903,167 @@ TEST_F(SdkTest, FailsWhenThumbnailIsTooLarge)
     // This should fail as thumbnails must be < 16MiB.
     ASSERT_EQ(setThumbnail(client, node.get(), "content"), API_EARGS);
 }
+
+Error SdkTest::acceptInvitation(MegaApi& client, const MegaContactRequest& invitation)
+{
+    // So we can wait for the invitation to be accepted.
+    RequestTracker tracker(&client);
+
+    // Tell the client to accept the invitation.
+    client.replyContactRequest(&invitation, MegaContactRequest::REPLY_ACTION_ACCEPT, &tracker);
+
+    // Couldn't accept the invitation.
+    if (auto result = tracker.waitForResult(); result != API_OK)
+    {
+        return result;
+    }
+
+    // Convenience.
+    const std::string sender = invitation.getSourceEmail();
+
+    // Wait for the new contact to be added.
+    auto added = WaitFor(
+        [&]()
+        {
+            return hasContact(client, sender) != nullptr;
+        },
+        defaultTimeoutMs);
+
+    // Let the caller know whether the invitation was accepted.
+    return added ? API_OK : LOCAL_ETIMEOUT;
+}
+
+auto SdkTest::hasContact(MegaApi& client, const std::string& email) -> std::unique_ptr<MegaUser>
+{
+    // Convenience.
+    constexpr auto VISIBLE = MegaUser::VISIBILITY_VISIBLE;
+
+    // Check if email is a contact.
+    auto contact = makeUniqueFrom(client.getContact(email.c_str()));
+
+    // email's an active contact.
+    if (contact && contact->getVisibility() == VISIBLE)
+    {
+        return contact;
+    }
+
+    // email's not an active contact.
+    return nullptr;
+}
+
+auto SdkTest::hasReceivedInvitationFrom(MegaApi& client, const std::string& email)
+    -> std::unique_ptr<MegaContactRequest>
+{
+    // True if an invitation is an incoming invitation from email.
+    auto sentFrom = [&email](const auto& invitation)
+    {
+        return !invitation.isOutgoing() &&
+               Utils::icasecmp(invitation.getSourceEmail(), email.c_str()) == 0;
+    }; // sentFrom
+
+    // Try and find an incoming invitation from email.
+    return findInvitation(client, &MegaApi::getIncomingContactRequests, std::move(sentFrom));
+}
+
+auto SdkTest::hasSentInvitationTo(MegaApi& client, const std::string& email)
+    -> std::unique_ptr<MegaContactRequest>
+{
+    // True if an invitation is an incoming invitation from email.
+    auto sentTo = [&email](const auto& invitation)
+    {
+        return invitation.isOutgoing() &&
+               Utils::icasecmp(invitation.getTargetEmail(), email.c_str()) == 0;
+    }; // sentFrom
+
+    // Try and find an outgoing invitation to email.
+    return findInvitation(client, &MegaApi::getOutgoingContactRequests, std::move(sentTo));
+}
+
+Error SdkTest::removeContact(MegaApi& client, const std::string& email)
+{
+    // Do we even know this contact?
+    auto contact = hasContact(client, email);
+
+    // Don't know the contact.
+    if (!contact || contact->getVisibility() == MegaUser::VISIBILITY_HIDDEN)
+    {
+        return API_ENOENT;
+    }
+
+    RequestTracker tracker(&client);
+
+    // Try and remove the contact.
+    client.removeContact(contact.get(), &tracker);
+
+    // Let the caller know if the contact was removed.
+    return tracker.waitForResult();
+}
+
+Error SdkTest::removeContact(MegaApi& client0, MegaApi& client1)
+{
+    // Try and break the contact relationship.
+    auto result = removeContact(client0, client1.getMyEmail());
+
+    // Couldn't break the contact relationship.
+    if (result != API_OK)
+    {
+        return result;
+    }
+
+    // Wait for the contacts to be purged.
+    auto purged = WaitFor(
+        [&]()
+        {
+            return !hasContact(client0, client1.getMyEmail()) &&
+                   !hasContact(client1, client0.getMyEmail());
+        },
+        defaultTimeoutMs);
+
+    // Let the caller know if the relationship was broken.
+    return purged ? API_OK : LOCAL_ETIMEOUT;
+}
+
+Error SdkTest::sendInvitationTo(MegaApi& client, const std::string& email)
+{
+    // So we can wait for our request to complete.
+    RequestTracker tracker(&client);
+
+    // Ask the client to send the user an invitation.
+    client.inviteContact(email.c_str(), "", MegaContactRequest::INVITE_ACTION_ADD, &tracker);
+
+    // Let caller know whether the invitation was sent.
+    return tracker.waitForResult();
+}
+
+auto SdkTest::sendInvitationTo(MegaApi& client0, MegaApi& client1) -> SendInvitationToResult
+{
+    // Convenience.
+    const std::string email0 = client0.getMyEmail();
+    const std::string email1 = client1.getMyEmail();
+
+    // Couldn't send an invitation to client1.
+    if (auto result = sendInvitationTo(client0, email1); result != API_OK)
+    {
+        return std::make_pair(nullptr, result);
+    }
+
+    std::unique_ptr<MegaContactRequest> invitation;
+
+    // Wait for both clients to recieve the invitation.
+    WaitFor(
+        [&]()
+        {
+            return hasSentInvitationTo(client0, email1) &&
+                   (invitation = hasReceivedInvitationFrom(client1, email0));
+        },
+        defaultTimeoutMs);
+
+    // Invitation was never received.
+    if (!invitation)
+    {
+        return std::make_pair(nullptr, LOCAL_ETIMEOUT);
+    }
+
+    // Invitation was received.
+    return std::make_pair(std::move(invitation), API_OK);
+}
