@@ -3337,6 +3337,9 @@ int naturalsorting_compare(const char* i, const char* j)
         }
         else // we are comparing numbers on both strings
         {
+            auto m = i;
+            auto n = j;
+
             uint64_t number_i = 0;
             unsigned int i_overflow_count = 0;
             while (*i && is_digit(static_cast<unsigned int>(*i)))
@@ -3368,6 +3371,7 @@ int naturalsorting_compare(const char* i, const char* j)
             }
 
             int difference = static_cast<int>(i_overflow_count - j_overflow_count);
+
             if (difference)
             {
                 return difference;
@@ -3376,6 +3380,22 @@ int naturalsorting_compare(const char* i, const char* j)
             if (number_i != number_j)
             {
                 return number_i > number_j ? 1 : -1;
+            }
+
+            auto length = static_cast<std::size_t>(std::min(i - m, j - n));
+
+            if ((difference = strncmp(m, n, length)))
+            {
+                return difference;
+            }
+
+            auto relation = (i - m) - (j - n);
+
+            relation = std::clamp<decltype(relation)>(relation, -1, 1);
+
+            if (relation)
+            {
+                return static_cast<int>(relation);
             }
 
             stringMode = true;
