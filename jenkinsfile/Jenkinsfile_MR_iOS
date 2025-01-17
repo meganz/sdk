@@ -196,11 +196,16 @@ pipeline {
                                 sh "bundle exec fastlane build_simulator"
                         }
                     }
+                    post {
+                        always {
+                            sh "tar czvf buildlog.tar.gz buildlog/ || true"
+                            archiveArtifacts artifacts: 'buildlog.tar.gz', allowEmptyArchive: true, onlyIfSuccessful: false
+                        }
+                    }
                 }
             }
             post{
                 always {
-                    archiveArtifacts artifacts: 'buildlog/*', allowEmptyArchive: true, onlyIfSuccessful: false
                     deleteDir()
                 }
                 failure {
