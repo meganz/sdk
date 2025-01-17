@@ -14496,7 +14496,7 @@ void MegaApiImpl::putnodes_result(const Error& inputErr,
                        std::back_inserter(nodeHandles),
                        [](const NewNode& newNode)
                        {
-                           assert(newNode.mAddedHandle != UNDEF);
+                           assert(e != API_OK || newNode.mAddedHandle != UNDEF);
                            return newNode.mAddedHandle;
                        });
         request->setMegaHandleList(nodeHandles);
