@@ -8776,6 +8776,8 @@ typedef NS_ENUM(NSInteger, ImportPasswordFileSource) {
  */
 + (nullable NSString *)mimeTypeByExtension:(NSString *)extension;
 
+#ifdef ENABLE_CHAT
+
 /**
  * @brief Register a device token for iOS push notifications
  *
@@ -8831,6 +8833,8 @@ typedef NS_ENUM(NSInteger, ImportPasswordFileSource) {
  * @param deviceToken NSString representing the device token to be registered.
  */
 - (void)registeriOSVoIPdeviceToken:(NSString *)deviceToken;
+
+#endif
 
 /**
  * @brief Get the MEGA Achievements of the account logged in
