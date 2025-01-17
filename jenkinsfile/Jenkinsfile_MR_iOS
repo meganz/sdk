@@ -42,6 +42,7 @@ pipeline {
     options {
         buildDiscarder(logRotator(numToKeepStr: '135', daysToKeepStr: '21'))
         gitLabConnection('GitLabConnectionJenkins')
+        ansiColor('xterm')
     }
 
     parameters {
@@ -193,6 +194,12 @@ pipeline {
                         withCredentials([gitUsernamePassword(credentialsId: 'jenkins_sdk_token_with_user', gitToolName: 'Default')]) {
                                 sh "bundle exec fastlane update_plugins"
                                 sh "bundle exec fastlane build_simulator"
+                        }
+                    }
+                    post {
+                        always {
+                            sh "tar czvf buildlog.tar.gz buildlog/ || true"
+                            archiveArtifacts artifacts: 'buildlog.tar.gz', allowEmptyArchive: true, onlyIfSuccessful: false
                         }
                     }
                 }
