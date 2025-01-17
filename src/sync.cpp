@@ -1141,9 +1141,6 @@ SyncError UnifiedSync::changeConfigLocalRoot(const LocalPath& newPath)
         return UNKNOWN_ERROR;
     }
 
-    if (mConfig.mLocalPath == newPath)
-        return NO_SYNC_ERROR;
-
     if (!mConfig.isGoodPathForExternalBackup(newPath))
         return BACKUP_SOURCE_NOT_BELOW_DRIVE;
 
@@ -1179,6 +1176,10 @@ SyncError UnifiedSync::changeConfigLocalRoot(const LocalPath& newPath)
         LOG_err << "Could not open sync root folder, could not get its fsid: " << newPath;
         return UNABLE_TO_RETRIEVE_ROOT_FSID;
     }
+
+    // Shortcut, no need to rename the database file
+    if (mConfig.mLocalPath == newPath && mConfig.mLocalPathFsid == fas->fsid)
+        return NO_SYNC_ERROR;
 
     const auto oldConfig = mConfig;
     mConfig.mLocalPath = newPath;
@@ -4377,7 +4378,7 @@ void Syncs::changeSyncLocalRoot(const handle backupId,
                                         std::move(newPath),
                                         std::move(completionForClientWrapped));
         },
-        "changeSyncRemoteRoot");
+        "changeSyncLocalRoot");
 }
 
 void Syncs::changeSyncLocalRootInThread(const handle backupId,

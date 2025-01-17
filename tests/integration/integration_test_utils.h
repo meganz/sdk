@@ -10,6 +10,7 @@
 #ifndef INCLUDE_INTEGRATION_INTEGRATION_TEST_UTILS_H_
 #define INCLUDE_INTEGRATION_INTEGRATION_TEST_UTILS_H_
 
+#include "gmock/gmock.h"
 #include "mega/types.h"
 #include "megaapi.h"
 
@@ -144,6 +145,17 @@ void getDeviceNames(::mega::MegaApi* megaApi, std::unique_ptr<::mega::MegaString
  * If there are no devices, a new one is created with the name "Jenkins " + timestamp
  */
 void ensureAccountDeviceName(::mega::MegaApi* megaApi);
+
+/**
+ * @brief Returns true if value matches the given matcher and also executes EXPECT_THAT
+ */
+template<typename T, typename MatcherT>
+bool checkAndExpectThat(const T& value, const MatcherT& matcher)
+{
+    bool matched = ::testing::Value(value, matcher);
+    EXPECT_THAT(value, matcher);
+    return matched;
+}
 }
 
 #endif // INCLUDE_INTEGRATION_INTEGRATION_TEST_UTILS_H_

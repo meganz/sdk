@@ -174,7 +174,7 @@ public:
         mockListener.setErrorExpectations(API_OK);
         const auto rootPath = newRootPath.u8string();
         megaApi[0]->changeSyncLocalRoot(getBackupId(), rootPath.c_str(), &mockListener);
-        EXPECT_TRUE(mockListener.waitForFinishOrTimeout(MAX_TIMEOUT));
+        ASSERT_TRUE(mockListener.waitForFinishOrTimeout(MAX_TIMEOUT));
     }
 
     /**
@@ -258,8 +258,6 @@ public:
 
 protected:
     handle mBackupId{UNDEF};
-
-private:
     LocalTempDir mTempLocalDir{getLocalTmpDir()};
 };
 
@@ -615,6 +613,158 @@ TEST_F(SdkTestSyncLocalRootChange, OKSyncRunningMoveRootAndReassing)
     moveLocalTmpDir(getLocalTmpDir());
 }
 #endif
+
+/**
+ * @brief SdkTestSyncLocalRootChange.SymLinkAsRootChangeWhereItPointsTo:
+ *
+ * Use case: we have a sync that uses a symlink as local root and that symlink changes where it is
+ * pointing to. That should invalidate the sync and with the MegaApi::changeSyncLocalRoot we should
+ * be able to solve the issue.
+ *
+ * 1. Create the sync with a symlink as root. symlink pointing to -> "originalRoot" that has some
+ *    files inside.
+ * 2. Suspend the sync (we need this to run the test on windows)
+ * 3. Create a new empty directory
+ * 4. Move the symlink to point to the new directory. symlink pointing to -> "tempEmtpyTestDir"
+ * 5. Try to resume the Sync. An error (MISMATCH_OF_ROOT_FSID) is expected.
+ * 6. Change the root to "./symlink". Although it is the same path stored in the sync, it points to
+ *    a different directory so this should fix the issue.
+ * 7. Enable the sync. It should work now.
+ * 8. Validate final state (empty, local has preference).
+ */
+#ifdef __APPLE__
+// Disabled due to SDK-4472
+TEST_F(SdkTestSyncLocalRootChange, DISABLED_SymLinkAsRootChangeWhereItPointsTo)
+#else
+TEST_F(SdkTestSyncLocalRootChange, SymLinkAsRootChangeWhereItPointsTo)
+#endif
+{
+    static const std::string logPre{
+        "SdkTestSyncLocalRootChange.SymLinkAsRootChangeWhereItPointsTo : "};
+
+    // We need to remove the original sync because we cannot create a new one pointing to a symlink
+    // that points to the root of an existing sync
+    LOG_verbose << logPre << "Removing the original sync";
+    ASSERT_NO_FATAL_FAILURE(removeSync(megaApi[0].get(), mBackupId));
+
+    LOG_verbose << logPre << "Creating a symlink to the original root";
+    std::filesystem::path linkName{"./symLinkToOriginal"};
+    const MrProper defer{[&linkName]()
+                         {
+                             std::filesystem::remove(linkName);
+                         }};
+    std::filesystem::create_directory_symlink(getLocalTmpDir(), linkName);
+
+    LOG_verbose << logPre << "Creating a new sync with the symlink as root";
+    mBackupId =
+        syncFolder(megaApi[0].get(), linkName.u8string(), getNodeByPath("dir1/")->getHandle());
+    ASSERT_NE(mBackupId, UNDEF) << "API Error adding a new sync";
+
+    LOG_verbose << logPre << "Waiting for cloud/local content to match and local nodes are created";
+    ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocal());
+    static constexpr auto WAIT_TIME_TO_CREATE_LOCAL_NODES{20s};
+    std::this_thread::sleep_for(WAIT_TIME_TO_CREATE_LOCAL_NODES);
+    ASSERT_EQ(getSyncRunState(), std::optional{MegaSync::RUNSTATE_RUNNING});
+
+    LOG_verbose << logPre << "Suspending the sync";
+    ASSERT_TRUE(sdk_test::suspendSync(megaApi[0].get(), getBackupId()))
+        << "Error suspending the sync";
+    ASSERT_EQ(getSyncRunState(), std::optional{MegaSync::RUNSTATE_SUSPENDED});
+
+    LOG_verbose << logPre << "Creating an empty dir and moving the symlink to point to it";
+    static const std::string tmpEmptyDirName{"./tempEmtpyTestDir"};
+    const LocalTempDir tmp{tmpEmptyDirName};
+    std::filesystem::remove(linkName);
+    std::filesystem::create_directory_symlink(tmp.getPath(), linkName);
+
+    LOG_verbose << logPre << "Trying to resume the sync expecting an error (MISMATCH_OF_ROOT_FSID)";
+    NiceMock<MockRequestListener> reqListener;
+    reqListener.setErrorExpectations(API_EFAILED, MISMATCH_OF_ROOT_FSID);
+    megaApi[0]->setSyncRunState(getBackupId(),
+                                MegaSync::SyncRunningState::RUNSTATE_RUNNING,
+                                &reqListener);
+    ASSERT_TRUE(reqListener.waitForFinishOrTimeout(MAX_TIMEOUT));
+    ASSERT_EQ(getSyncRunState(), std::optional{MegaSync::RUNSTATE_SUSPENDED});
+
+    LOG_verbose << logPre << "Change local root to the symlink again";
+    ASSERT_NO_FATAL_FAILURE(changeLocalSyncRootNoErrors(linkName));
+
+    LOG_verbose << logPre << "We should be able to resume the sync now";
+    ASSERT_TRUE(sdk_test::resumeSync(megaApi[0].get(), getBackupId())) << "Error resuming the sync";
+
+    LOG_verbose << logPre << "Waiting for local to match cloud";
+    ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocal());
+    EXPECT_THAT(getLocalFirstChildrenNames_if(tmp.getPath()),
+                testing::UnorderedElementsAre(".megaignore"));
+}
+
+/**
+ * @brief SdkTestSyncLocalRootChange.ChangeRootToSameNameDifferentFsid:
+ *
+ * Use case: The path used as local root sill exists but it is a different directory (different
+ * fsid). The MegaApi::changeSyncLocalRoot method allows to refresh internally the fsid of the local
+ * root.
+ *
+ * 1. Suspend the sync (we need this to run the test on windows)
+ * 2. Rename the original root to "TestChangeRoot"
+ * 3. Create a new empty dir in the same path as the original root
+ * 4. Try to resume the Sync. An error (MISMATCH_OF_ROOT_FSID) is expected.
+ * 5. Change the root to "originalPath". This should fix the mismatch fsid issue
+ * 6. Enable the sync. It should work now.
+ * 7. Validate final state (empty, local has preference).
+ */
+#ifdef __APPLE__
+// Disabled due to SDK-4472
+TEST_F(SdkTestSyncLocalRootChange, DISABLED_ChangeRootToSameNameDifferentFsid)
+#else
+TEST_F(SdkTestSyncLocalRootChange, ChangeRootToSameNameDifferentFsid)
+#endif
+{
+    static const std::string logPre{
+        "SdkTestSyncLocalRootChange.ChangeRootToSameNameDifferentFsid : "};
+
+    ASSERT_EQ(getSyncRunState(), std::optional{MegaSync::RUNSTATE_RUNNING});
+    ASSERT_TRUE(sdk_test::suspendSync(megaApi[0].get(), getBackupId()))
+        << "Error suspending the sync";
+    ASSERT_EQ(getSyncRunState(), std::optional{MegaSync::RUNSTATE_SUSPENDED});
+
+    LOG_verbose << logPre << "Renaming local root";
+    const auto originalRoot = getLocalTmpDir();
+    const auto newRoot = getLocalTmpDir().parent_path() / "TestChangeRootToSameNameDifferentFsid";
+    // On windows we need to wait until the filesystem notify thread stops once the sync is
+    // suspended. That's why we need multiple attempts to move the directory
+    ASSERT_TRUE(sdk_test::waitFor(
+        [this, &newRoot]() -> bool
+        {
+            return mTempLocalDir.move(newRoot);
+        },
+        MAX_TIMEOUT))
+        << "Error moving root directory";
+
+    LOG_verbose << logPre << "Try to resume the sync in the same path but different dir";
+    const LocalTempDir tmpNewRootSameName{originalRoot};
+    NiceMock<MockRequestListener> reqListener;
+    reqListener.setErrorExpectations(API_EFAILED, MISMATCH_OF_ROOT_FSID);
+    megaApi[0]->setSyncRunState(getBackupId(),
+                                MegaSync::SyncRunningState::RUNSTATE_RUNNING,
+                                &reqListener);
+    ASSERT_TRUE(reqListener.waitForFinishOrTimeout(MAX_TIMEOUT));
+    ASSERT_EQ(getSyncRunState(), std::optional{MegaSync::RUNSTATE_SUSPENDED});
+
+    LOG_verbose << logPre << "Change the root to the same path and try to resume again";
+    ASSERT_NO_FATAL_FAILURE(changeLocalSyncRootNoErrors(originalRoot));
+    ASSERT_TRUE(sdk_test::resumeSync(megaApi[0].get(), getBackupId())) << "Error resuming the sync";
+
+    LOG_verbose << logPre << "Waiting for local to match cloud";
+    ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocal());
+    EXPECT_THAT(getLocalFirstChildrenNames_if(tmpNewRootSameName.getPath()),
+                testing::UnorderedElementsAre(".megaignore"));
+
+    LOG_verbose << logPre << "Stopping the sync and moving tmp dir to its original path";
+    ASSERT_TRUE(sdk_test::suspendSync(megaApi[0].get(), getBackupId()))
+        << "Error suspending the sync";
+    ASSERT_EQ(getSyncRunState(), std::optional{MegaSync::RUNSTATE_SUSPENDED});
+}
 
 /**
  * @brief SdkTestSyncLocalRootChange.OKChangRootToASymLink: Change root to a symlink to an empty

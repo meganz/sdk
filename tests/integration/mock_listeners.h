@@ -6,6 +6,7 @@
 #ifndef INCLUDE_INTEGRATION_MOCK_LISTENERS_H_
 #define INCLUDE_INTEGRATION_MOCK_LISTENERS_H_
 
+#include "integration/integration_test_utils.h"
 #include "megaapi.h"
 
 #include <gmock/gmock.h>
@@ -38,23 +39,24 @@ public:
      * @brief Waits for the promise to finish for the given amount of time.
      *
      * @param duration The time to wait. You can use std::chrono literals such as 3min
-     * @return true if the promise finishes within the given duration, false otherwise.
+     * @return true if the promise finishes successfully (see `markAsFinished`) within the given
+     * duration, false otherwise.
      */
     template<typename Rep, typename Period>
     bool waitForFinishOrTimeout(const std::chrono::duration<Rep, Period>& duration)
     {
         auto status = finishedFuture.wait_for(duration);
-        return status == std::future_status::ready;
+        return status == std::future_status::ready && finishedFuture.get();
     }
 
-    void markAsFinished()
+    void markAsFinished(const bool succeeded = true)
     {
-        finishedPromise.set_value();
+        finishedPromise.set_value(succeeded);
     }
 
 private:
-    std::promise<void> finishedPromise;
-    std::future<void> finishedFuture;
+    std::promise<bool> finishedPromise;
+    std::future<bool> finishedFuture;
 };
 
 /**
@@ -105,16 +107,23 @@ public:
                               const testing::Matcher<int> syncErrorMatcher = testing::_,
                               const testing::Matcher<int> reqTypeMatcher = testing::_)
     {
+        // We override the default
         using namespace testing;
-
-        const auto& expectedReqType =
-            Pointee(Property(&::mega::MegaRequest::getType, reqTypeMatcher));
-        const auto expectedErr =
-            Pointee(Property(&::mega::MegaError::getErrorCode, reqErrorMatcher));
-        const auto expectedSyncErr =
-            Pointee(Property(&::mega::MegaError::getSyncError, syncErrorMatcher));
-        EXPECT_CALL(*this,
-                    onRequestFinish(_, expectedReqType, AllOf(expectedErr, expectedSyncErr)));
+        EXPECT_CALL(*this, onRequestFinish)
+            .Times(1)
+            .WillOnce(
+                [reqErrorMatcher, syncErrorMatcher, reqTypeMatcher, this](::mega::MegaApi*,
+                                                                          ::mega::MegaRequest* req,
+                                                                          ::mega::MegaError* err)
+                {
+                    const bool matchesType =
+                        sdk_test::checkAndExpectThat(req->getType(), reqTypeMatcher);
+                    const bool matchesError =
+                        sdk_test::checkAndExpectThat(err->getErrorCode(), reqErrorMatcher);
+                    const bool matchesSyncError =
+                        sdk_test::checkAndExpectThat(err->getSyncError(), syncErrorMatcher);
+                    markAsFinished(matchesType && matchesError && matchesSyncError);
+                });
     }
 
 private:
