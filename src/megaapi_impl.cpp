@@ -27328,6 +27328,28 @@ void MegaApiImpl::updatePasswordNode(MegaHandle h, const MegaNode::PasswordNodeD
     waiter->notify();
 }
 
+/**
+ * @brief Helper function specifically introduced to guarantee equivalence between internal and
+ * public enums. If a new entry is added on PasswordEntryError this will trigger a compilation
+ * warning.
+ */
+static constexpr int toPublicErrorCode(const PasswordEntryError e)
+{
+    switch (e)
+    {
+        case PasswordEntryError::OK:
+            return 0;
+        case PasswordEntryError::PARSE_ERROR:
+            return MegaApi::IMPORTED_PASSWORD_ERROR_PARSER;
+        case PasswordEntryError::MISSING_PASSWORD:
+            return MegaApi::IMPORTED_PASSWORD_ERROR_MISSINGPASSWORD;
+        case PasswordEntryError::MISSING_NAME:
+            return MegaApi::IMPORTED_PASSWORD_ERROR_MISSINGNAME;
+    }
+    assert(false);
+    return -1; // We should never get here
+}
+
 void MegaApiImpl::importPasswordsFromFile(const char* filePath,
                                           const int fileSource,
                                           MegaHandle parent,
@@ -27403,7 +27425,7 @@ void MegaApiImpl::importPasswordsFromFile(const char* filePath,
                       badEntries.end(),
                       [&stringIntegerMap](const std::pair<std::string, PasswordEntryError>& arg)
                       {
-                          stringIntegerMap.set(arg.first, static_cast<int64_t>(arg.second));
+                          stringIntegerMap.set(arg.first, toPublicErrorCode(arg.second));
                       });
 
         request->setMegaStringIntegerMap(&stringIntegerMap);

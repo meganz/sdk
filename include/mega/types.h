@@ -283,6 +283,7 @@ enum class PasswordEntryError : uint8_t
     OK = 0,
     PARSE_ERROR,
     MISSING_PASSWORD,
+    MISSING_NAME,
 };
 
 // node/user handles are 8-11 base64 characters, case sensitive, and thus fit

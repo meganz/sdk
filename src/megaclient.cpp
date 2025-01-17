@@ -21303,6 +21303,11 @@ std::pair<MegaClient::BadPasswordData, MegaClient::ValidPasswordData>
             bad[std::move(entry.mOriginalContent)] = PasswordEntryError::PARSE_ERROR;
             continue;
         }
+        if (entry.mName.empty())
+        {
+            bad[std::move(entry.mOriginalContent)] = PasswordEntryError::MISSING_NAME;
+            continue;
+        }
 
         auto attrMap = std::make_unique<AttrMap>();
         auto addField = [&attrMap](std::string&& field, const char* const fieldKey)
