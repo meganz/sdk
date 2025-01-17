@@ -14490,16 +14490,19 @@ void MegaApiImpl::putnodes_result(const Error& inputErr,
 
     if (request->getType() == MegaRequest::TYPE_IMPORT_PASSWORDS_FROM_FILE)
     {
-        std::vector<handle> nodeHandles;
-        std::transform(nn.begin(),
-                       nn.end(),
-                       std::back_inserter(nodeHandles),
-                       [](const NewNode& newNode)
-                       {
-                           assert(e != API_OK || newNode.mAddedHandle != UNDEF);
-                           return newNode.mAddedHandle;
-                       });
-        request->setMegaHandleList(nodeHandles);
+        if (e == API_OK)
+        {
+            std::vector<handle> nodeHandles;
+            std::transform(nn.begin(),
+                           nn.end(),
+                           std::back_inserter(nodeHandles),
+                           [](const NewNode& newNode)
+                           {
+                               assert(newNode.mAddedHandle != UNDEF);
+                               return newNode.mAddedHandle;
+                           });
+            request->setMegaHandleList(nodeHandles);
+        }
         fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
         return;
     }
