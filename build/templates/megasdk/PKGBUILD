@@ -62,7 +62,7 @@ build() {
 	fi
 
 	cmake --version
-	cmake ${vcpkg_root} -DCMAKE_VERBOSE_MAKEFILE=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo -S "${megasrcdir}" -B "${megabuilddir}"
+	cmake ${vcpkg_root} -DCMAKE_VERBOSE_MAKEFILE=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo -DENABLE_QT_BINDINGS=ON -DENABLE_LOG_PERFORMANCE=ON -DUSE_LIBUV=ON -S "${megasrcdir}" -B "${megabuilddir}"
 	cmake --build "${megabuilddir}" ${BUILD_PARALLEL_JOBS}
 
 
