@@ -32,8 +32,8 @@ namespace mega
 
 AndroidPlatformURIHelper AndroidPlatformURIHelper::mPlatformHelper;
 int AndroidPlatformURIHelper::mNumInstances = 0;
-std::map<std::string, std::shared_ptr<AndroidFileWrapper>>
-    AndroidFileWrapperRepository::mRepository;
+LRUCache<std::string, std::shared_ptr<AndroidFileWrapper>>
+    AndroidFileWrapperRepository::mRepository(100);
 
 AndroidFileWrapper::AndroidFileWrapper(const std::string& path):
     mPath(path)
@@ -258,15 +258,15 @@ AndroidPlatformURIHelper::AndroidPlatformURIHelper()
 std::shared_ptr<AndroidFileWrapper>
     AndroidFileWrapperRepository::getAndroidFileWrapper(const std::string& path)
 {
-    auto it = mRepository.find(path);
-    if (it != mRepository.end())
+    auto androidFileWrapper = mRepository.get(path);
+    if (androidFileWrapper.has_value())
     {
-        return it->second;
+        return androidFileWrapper.value();
     }
 
-    std::shared_ptr<AndroidFileWrapper> element{new AndroidFileWrapper(path)};
-    mRepository[path] = element;
-    return element;
+    std::shared_ptr<AndroidFileWrapper> androidFileWrapperNew{new AndroidFileWrapper(path)};
+    mRepository.put(path, androidFileWrapperNew);
+    return androidFileWrapperNew;
 }
 
 bool AndroidPlatformURIHelper::isURI(const std::string& path)
@@ -490,6 +490,7 @@ bool AndroidFileAccess::sysstat(m_time_t* mtime, m_off_t* size, FSLogging)
         if (opened)
         {
             close(fd);
+            fd = -1;
         }
         return false;
     }

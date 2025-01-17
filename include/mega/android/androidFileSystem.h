@@ -23,6 +23,7 @@
 #define ANDROIDFILESYSTEM_H
 
 #include <mega/filesystem.h>
+#include <mega/types.h>
 
 #include <jni.h>
 
@@ -69,7 +70,7 @@ public:
     static std::shared_ptr<AndroidFileWrapper> getAndroidFileWrapper(const std::string& path);
 
 private:
-    static std::map<std::string, std::shared_ptr<AndroidFileWrapper>> mRepository;
+    static LRUCache<std::string, std::shared_ptr<AndroidFileWrapper>> mRepository;
 };
 
 class MEGA_API AndroidPlatformURIHelper: public PlatformURIHelper
