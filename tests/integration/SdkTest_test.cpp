@@ -50,10 +50,10 @@ static const string APP_KEY     = "8QxzVRxD";
 static const string PUBLICFILE  = "file.txt";
 static const string UPFILE      = "file1.txt";
 static const string DOWNFILE    = "file2.txt";
-static const string EMPTYFILE   = "empty-file.txt";
-static const string AVATARSRC   = "logo.png";
-static const string AVATARDST   = "deleteme.png";
+static const string EMPTYFILE = "empty-file.txt";
 static const string IMAGEFILE   = "logo.png";
+static const string& AVATARSRC = IMAGEFILE;
+static const string AVATARDST = "deleteme.png";
 static const string IMAGEFILE_C = "logo.encrypted.png";
 static const string THUMBNAIL   = "logo_thumbnail.png";
 static const string PREVIEW     = "logo_preview.png";
@@ -217,26 +217,6 @@ namespace
         }
         fs << name;
         return true;
-    }
-
-    // cURL Callback function to write downloaded data to a stream
-    // See https://curl.se/libcurl/c/CURLOPT_WRITEFUNCTION.html
-    // See https://github.com/curl/curl/pull/9874 returning CURL_WRITEFUNC_ERROR
-    //     is better than 0 on errors.
-    size_t writeData(void *ptr, size_t size, size_t nmemb, std::ofstream *stream)
-    {
-        if (stream->write((char*)ptr, static_cast<std::streamsize>(size * nmemb)))
-        {
-            return size * nmemb;
-        }
-        else
-        {
-            #ifdef CURL_WRITEFUNC_ERROR
-                return CURL_WRITEFUNC_ERROR;
-            #else
-                return 0;
-            #endif
-        }
     }
 
     //
@@ -2198,61 +2178,6 @@ void SdkTest::synchronousMediaUploadIncomplete(unsigned int apiIndex,
                                                         FILENODEKEYLENGTH);
 }
 
-bool SdkTest::getFileFromURL(const std::string& url, const fs::path& dstPath)
-{
-    auto curlCleaner = [](CURL* curl) {
-        curl_easy_cleanup(curl);
-    };
-
-    // Initialize libcurl
-    std::unique_ptr<CURL, decltype(curlCleaner)> curl{curl_easy_init(), curlCleaner};
-    if (!curl)
-    {
-        LOG_err << "Failed to initialize libcurl";
-        return false;
-    }
-
-    // Open file to save downloaded data
-    std::ofstream ofs(dstPath, std::ios::binary | std::ios::out);
-    if (!ofs) {
-        LOG_err << "Error opening file for writing:" << dstPath.u8string();
-        return false;
-    }
-
-    // Download
-    curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());
-    curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, writeData);
-    curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, &ofs);
-    CURLcode res = curl_easy_perform(curl.get());
-    if (res != CURLE_OK) {
-        LOG_err <<  "curl_easy_perform() failed: " << curl_easy_strerror(res);
-        return false;
-    }
-
-    // Close file
-    ofs.close();
-    if (!ofs)
-    {
-        LOG_verbose << "Error closing file:" << dstPath.u8string();
-        return false;
-    }
-
-    LOG_verbose << "File " << dstPath.u8string() << " downloaded successfully";
-    return true;
-}
-
-bool SdkTest::getFileFromArtifactory(const std::string& relativeUrl, const fs::path& dstPath)
-{
-    static const std::string baseUrl{"https://artifactory.developers.mega.co.nz:443/artifactory/sdk"};
-
-    // Join base URL and relatvie URL
-    bool startedWithBackSlash = !relativeUrl.empty() && relativeUrl[0] == '/';
-    std::string seperator = startedWithBackSlash ? "" : "/";
-    const auto absoluateUrl = baseUrl + seperator + relativeUrl;
-
-    return getFileFromURL(absoluateUrl, dstPath);
-}
-
 ///////////////////////////__ Tests using SdkTest __//////////////////////////////////
 /**
  * @brief TEST_F SdkTestCreateEphmeralPlusPlusAccount
@@ -3309,7 +3234,7 @@ TEST_F(SdkTest, SdkTestContacts)
     LOG_info << "___TEST Contacts___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
 
-    sdk_test::copyFileFromTestData(AVATARSRC);
+    ASSERT_TRUE(getFileFromArtifactory("test-data/" + AVATARSRC, AVATARSRC));
 
     // --- Check my email and the email of the contact ---
 
@@ -8148,7 +8073,7 @@ TEST_F(SdkTest, SdkHttpReqCommandPutFATest)
 {
     LOG_info << "___TEST SdkHttpReqCommandPutFATest___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-    sdk_test::copyFileFromTestData(IMAGEFILE);
+    ASSERT_TRUE(getFileFromArtifactory("test-data/" + IMAGEFILE, IMAGEFILE));
 
     // SCENARIO 1: Upload image file and check thumbnail and preview
     std::unique_ptr<MegaNode> rootnode(megaApi[0]->getRootNode());
@@ -8195,7 +8120,7 @@ TEST_F(SdkTest, SdkMediaImageUploadTest)
 {
     LOG_info << "___TEST MediaUploadRequestURL___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-    sdk_test::copyFileFromTestData(IMAGEFILE);
+    ASSERT_TRUE(getFileFromArtifactory("test-data/" + IMAGEFILE, IMAGEFILE));
 
     unsigned int apiIndex = 0;
     int64_t fileSize = 1304;
@@ -8591,7 +8516,7 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     LOG_info << "___TEST SDKSensitive___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
 
-    sdk_test::copyFileFromTestData(IMAGEFILE);
+    ASSERT_TRUE(getFileFromArtifactory("test-data/" + IMAGEFILE, IMAGEFILE));
 
     unique_ptr<MegaNode> rootnodeA(megaApi[0]->getRootNode());
 
@@ -11649,7 +11574,7 @@ TEST_F(SdkTest, SyncImage)
     WaitMillisec(waitForSyncsMs);
 
     LOG_verbose << "SyncImage :  Adding the image file and checking if it is synced: " << filePath.u8string();
-    sdk_test::copyFileFromTestData(fileNameStr, filePath.u8string());
+    ASSERT_TRUE(getFileFromArtifactory("test-data/" + fileNameStr, filePath));
     auto remoteFile = "/" + string(remoteBaseNode->getName()) + "/" + fileNameStr;
     std::unique_ptr<MegaNode> remoteNode;
     WaitFor([this, &remoteNode, &remoteFile]() -> bool
@@ -12174,27 +12099,23 @@ TEST_F(SdkTest, SdkTestAudioFileThumbnail)
     LOG_info << "___TEST Audio File Thumbnail___";
 
     static const std::string AUDIO_FILENAME = "test_cover_png.mp3";
-
-    LocalPath mp3LP;
-
-    mp3LP = LocalPath::fromAbsolutePath(sdk_test::getTestDataDir().string());
-    mp3LP.appendWithSeparator(LocalPath::fromRelativePath(AUDIO_FILENAME), false);
-
-    const std::string& mp3 = mp3LP.toPath(false);
-
-    ASSERT_TRUE(fileexists(mp3)) << mp3 << " file does not exist";
+    ASSERT_TRUE(getFileFromArtifactory("test-data/" + AUDIO_FILENAME, AUDIO_FILENAME));
 
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest());
 
     std::unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
-    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, nullptr, mp3.c_str(),
-                                                       rootnode.get(),
-                                                       nullptr /*fileName*/,
-                                                       ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                                                       nullptr /*appData*/,
-                                                       false   /*isSourceTemporary*/,
-                                                       false   /*startFirst*/,
-                                                       nullptr /*cancelToken*/)) << "Cannot upload test file " << mp3;
+    ASSERT_EQ(MegaError::API_OK,
+              doStartUpload(0,
+                            nullptr,
+                            AUDIO_FILENAME.c_str(),
+                            rootnode.get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << "Cannot upload test file " << AUDIO_FILENAME;
     std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByPath(AUDIO_FILENAME.c_str(), rootnode.get()));
     ASSERT_TRUE(node->hasPreview() && node->hasThumbnail());
 }
@@ -17029,8 +16950,8 @@ public:
         ASSERT_THAT(mUser, ::testing::NotNull());
 
         // Set avatar
-        const auto srcAvatarPath{sdk_test::getTestDataDir()/AVATARSRC};
-        ASSERT_EQ(API_OK, synchronousSetAvatar(mApiIndex, srcAvatarPath.string().c_str()));
+        ASSERT_TRUE(getFileFromArtifactory("test-data/" + AVATARSRC, AVATARSRC));
+        ASSERT_EQ(API_OK, synchronousSetAvatar(mApiIndex, AVATARSRC.c_str()));
     }
 
     void TearDown() override
@@ -17415,7 +17336,7 @@ TEST_F(SdkTest, CreateNodeTreeWithOneFile)
     const unsigned int apiIndex{0};
 
     // File upload
-    sdk_test::copyFileFromTestData(IMAGEFILE);
+    ASSERT_TRUE(getFileFromArtifactory("test-data/" + IMAGEFILE, IMAGEFILE));
     const auto fileSize{getFilesize(IMAGEFILE)};
 
     std::string fingerprint;
@@ -17591,7 +17512,7 @@ TEST_F(SdkTest, CreateNodeTreeWithMultipleLevelsOfDirectoriesAndOneFileAtTheEnd)
     ASSERT_THAT(parentNode, ::testing::NotNull());
 
     // File upload
-    sdk_test::copyFileFromTestData(IMAGEFILE);
+    ASSERT_TRUE(getFileFromArtifactory("test-data/" + IMAGEFILE, IMAGEFILE));
     const auto fileSize{getFilesize(IMAGEFILE)};
 
     std::string fingerprint;
