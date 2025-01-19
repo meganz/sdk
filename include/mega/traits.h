@@ -1,5 +1,8 @@
 #pragma once
 
+// For std::size_t.
+#include <cstddef>
+
 namespace mega
 {
 
