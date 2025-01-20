@@ -697,7 +697,9 @@ public:
     void checkForResumeableSCDatabase();
 
     // set folder link: node, key. authKey is the authentication key to be able to write into the folder
-    error folderaccess(const char*folderlink, const char* authKey);
+    error folderaccess(const char* folderlink,
+                       const char* authKey,
+                       const bool tryToResumeFolderLinkFromCache = false);
 
     // open exported file link (op=0 -> download, op=1 fetch data)
     void openfilelink(handle ph, const byte* fileKey);

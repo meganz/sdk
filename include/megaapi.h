@@ -11255,6 +11255,34 @@ class MegaApi
         void loginToFolder(const char* megaFolderLink, const char *authKey, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Log in to a public folder using a folder link
+         *
+         * After a successful login, you should call MegaApi::fetchNodes to get filesystem and
+         * start working with the folder.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_LOGIN.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getEmail - Retuns the string "FOLDER"
+         * - MegaRequest::getLink - Returns the public link to the folder
+         * - MegaRequest::getPassword - Returns the auth link used for writting
+         * - MegaRequest::getFlag - Returns True if it will attempt to restore the folder link from
+         * the cache, or False if it will fetch the nodes instead.
+         *
+         * If the provided authKey is not valid, onRequestFinish will
+         * be called with the error code MegaError::API_EACCESS.
+         *
+         * @param megaFolderLink Public link to a folder in MEGA
+         * @param authKey Authentication key to write into the folder link
+         * @param tryToResumeFolderLinkFromCache If True and the folder link exists in the cache,
+         * attempt to restore it; otherwise, fetch the nodes.
+         * @param listener MegaRequestListener to track this request
+         */
+        void loginToFolder(const char* megaFolderLink,
+                           const char* authKey,
+                           bool tryToResumeFolderLinkFromCache,
+                           MegaRequestListener* listener = nullptr);
+
+        /**
          * @brief Log in to a MEGA account using a session key
          *
          * The associated request type with this request is MegaRequest::TYPE_LOGIN.

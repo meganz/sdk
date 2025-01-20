@@ -2695,14 +2695,22 @@ void MegaApi::share(MegaNode *node, const char* email, int access, MegaRequestLi
     pImpl->share(node, email, access, listener);
 }
 
-void MegaApi::loginToFolder(const char* megaFolderLink, const char* authKey, MegaRequestListener *listener)
+void MegaApi::loginToFolder(const char* megaFolderLink, MegaRequestListener* listener)
 {
-    pImpl->loginToFolder(megaFolderLink, authKey, listener);
+    pImpl->loginToFolder(megaFolderLink, nullptr, false, listener);
 }
 
-void MegaApi::loginToFolder(const char* megaFolderLink, MegaRequestListener *listener)
+void MegaApi::loginToFolder(const char* megaFolderLink, const char* authKey, MegaRequestListener *listener)
 {
-    pImpl->loginToFolder(megaFolderLink, nullptr, listener);
+    pImpl->loginToFolder(megaFolderLink, authKey, false, listener);
+}
+
+void MegaApi::loginToFolder(const char* megaFolderLink,
+                            const char* authKey,
+                            const bool tryToResumeFolderLinkFromCache,
+                            MegaRequestListener* listener)
+{
+    pImpl->loginToFolder(megaFolderLink, authKey, tryToResumeFolderLinkFromCache, listener);
 }
 
 void MegaApi::importFileLink(const char* megaFileLink, MegaNode *parent, MegaRequestListener *listener)

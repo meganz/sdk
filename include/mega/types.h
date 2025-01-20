@@ -988,6 +988,7 @@ public:
         STATUS_BLOCKED = 3,
         STATUS_PRO_LEVEL = 4,
         STATUS_FEATURE_LEVEL = 5,
+        STATUS_ROOT_FOLDER_LINK_HANDLE = 6,
     };
 
     CacheableStatus(Type type, int64_t value);

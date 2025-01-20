@@ -19760,3 +19760,69 @@ auto SdkTest::sendInvitationTo(MegaApi& client0, MegaApi& client1) -> SendInvita
     // Invitation was received.
     return std::make_pair(std::move(invitation), API_OK);
 }
+
+/**
+ * @brief TEST_F TestPublicFolderLinkLogin
+ *
+ * Test setup:
+ *  - Create a folder (Sharee user)
+ *  - Create a public link for that folder (Sharee user)
+ *
+ * Test steps:
+ *  - Login using the folder link (Guest user)
+ *  - Expect fetch to be done with MODE_API
+ *  - Do local logout (Guest user)
+ *  - Login again using the folder link and tryToResumeFolderLinkFromCache as true(Guest user)
+ *  - Expect fetch to be done with MODE_DB
+ *  - Do local logout (Guest user)
+ *  - Login again using the folder link and tryToResumeFolderLinkFromCache as false (Guest user)
+ *  - Expect fetch to be done with MODE_API
+ *
+ */
+TEST_F(SdkTestShares, TestPublicFolderLinkLogin)
+{
+    // Test setup
+    ASSERT_NO_FATAL_FAILURE(createNodeTrees());
+
+    const MegaHandle hfolder = getHandle("/sharedfolder");
+    ASSERT_EQ(API_OK, synchronousGetSpecificAccountDetails(mSharerIndex, true, true, true))
+        << "Cannot get account details";
+    std::string nodeLink;
+    ASSERT_NO_FATAL_FAILURE(createOnePublicLink(hfolder, nodeLink));
+
+    // Test steps
+    bool tryToResumeFolderLinkFromCache = false;
+    auto loginFolderTracker = asyncRequestLoginToFolder(mGuestIndex,
+                                                        nodeLink.c_str(),
+                                                        nullptr,
+                                                        tryToResumeFolderLinkFromCache);
+    ASSERT_EQ(loginFolderTracker->waitForResult(), API_OK)
+        << "Failed to login to folder " << nodeLink;
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(mGuestIndex));
+    EXPECT_EQ(megaApi[mGuestIndex]->getClient()->fnstats.mode, FetchNodesStats::MODE_API);
+    ASSERT_NO_FATAL_FAILURE(locallogout(mGuestIndex));
+
+    tryToResumeFolderLinkFromCache = true;
+    loginFolderTracker = asyncRequestLoginToFolder(mGuestIndex,
+                                                   nodeLink.c_str(),
+                                                   nullptr,
+                                                   tryToResumeFolderLinkFromCache);
+    ASSERT_EQ(loginFolderTracker->waitForResult(), API_OK)
+        << "Failed to login to folder " << nodeLink;
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(mGuestIndex));
+    EXPECT_EQ(megaApi[mGuestIndex]->getClient()->fnstats.mode, FetchNodesStats::MODE_DB);
+    ASSERT_NO_FATAL_FAILURE(locallogout(mGuestIndex));
+
+    tryToResumeFolderLinkFromCache = false;
+    loginFolderTracker = asyncRequestLoginToFolder(mGuestIndex,
+                                                   nodeLink.c_str(),
+                                                   nullptr,
+                                                   tryToResumeFolderLinkFromCache);
+    ASSERT_EQ(loginFolderTracker->waitForResult(), API_OK)
+        << "Failed to login to folder " << nodeLink;
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(mGuestIndex));
+    EXPECT_EQ(megaApi[mGuestIndex]->getClient()->fnstats.mode, FetchNodesStats::MODE_API);
+
+    // Cleanup
+    ASSERT_NO_FATAL_FAILURE(logout(mGuestIndex, false, 20));
+}

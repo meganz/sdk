@@ -6893,7 +6893,7 @@ void exec_mfae(autocomplete::ACState&)
 
 void exec_login(autocomplete::ACState& s)
 {
-    //bool fresh = s.extractflag("-fresh");
+    bool fresh = s.extractflag("-fresh");
     if (client->loggedin() == NOTLOGGEDIN)
     {
         if (s.words.size() > 1)
@@ -6930,7 +6930,15 @@ void exec_login(autocomplete::ACState& s)
                 if ((ptr = strchr(s.words[1].s.c_str(), '#')))  // folder link indicator
                 {
                     const char *authKey = s.words.size() == 3 ? s.words[2].s.c_str() : nullptr;
-                    return client->app->login_result(client->folderaccess(s.words[1].s.c_str(), authKey));
+                    bool tryToResumeFolderLinkFromCache = true;
+                    if (fresh)
+                    {
+                        tryToResumeFolderLinkFromCache = false;
+                    }
+                    return client->app->login_result(
+                        client->folderaccess(s.words[1].s.c_str(),
+                                             authKey,
+                                             tryToResumeFolderLinkFromCache));
                 }
                 else
                 {
