@@ -46,10 +46,10 @@ AndroidFileWrapper::AndroidFileWrapper(const std::string& path):
 
     JNIEnv* env = nullptr;
     MEGAjvm->AttachCurrentThread(&env, NULL);
-    jmethodID getAndroidFileMethod =
-        env->GetStaticMethodID(fileWrapper,
-                               GET_ANDROID_FILE,
-                               "(Ljava/lang/String;)Lmega/privacy/android/app/utils/FileWrapper;");
+    jmethodID getAndroidFileMethod = env->GetStaticMethodID(
+        fileWrapper,
+        GET_ANDROID_FILE,
+        "(Ljava/lang/String;)Lmega/privacy/android/data/filewrapper/FileWrapper;");
 
     if (getAndroidFileMethod == nullptr)
     {

@@ -114,7 +114,7 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
     }
 #endif
 
-    jclass localfileWrapper = jenv->FindClass("mega/privacy/android/app/utils/FileWrapper");
+    jclass localfileWrapper = jenv->FindClass("mega/privacy/android/data/filewrapper/FileWrapper");
     fileWrapper = (jclass)jenv->NewGlobalRef(localfileWrapper);
     if (!fileWrapper)
     {
