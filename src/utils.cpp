@@ -2919,6 +2919,23 @@ string connDirectionToStr(mega::direction_t directionType)
     }
 }
 
+std::string_view toString(const PasswordEntryError err)
+{
+    switch (err)
+    {
+        case PasswordEntryError::OK:
+            return "Ok";
+        case PasswordEntryError::PARSE_ERROR:
+            return "Parse error";
+        case PasswordEntryError::MISSING_PASSWORD:
+            return "Missing password";
+        case PasswordEntryError::MISSING_NAME:
+            return "Missing name";
+    }
+    assert(false);
+    return "Unknown error";
+}
+
 const char* toString(retryreason_t reason)
 {
     switch (reason)

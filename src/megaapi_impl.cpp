@@ -27365,61 +27365,17 @@ void MegaApiImpl::importPasswordsFromFile(const char* filePath,
     request->performRequest = [this, request]() -> error
     {
         using namespace pwm::import;
-        NodeHandle parentHandle = NodeHandle{}.set6byte(request->getParentHandle());
+        const NodeHandle parentHandle = NodeHandle{}.set6byte(request->getParentHandle());
         if (parentHandle.isUndef() || !request->getFile() ||
             request->getParamType() != MegaApi::IMPORT_PASSWORD_SOURCE_GOOGLE)
         {
             LOG_err << "Import password: invalid parameters";
             return API_EARGS;
         }
-
-        std::string filePath{request->getFile()};
-        auto source = static_cast<FileSource>(request->getParamType());
-        std::shared_ptr<Node> parent = client->nodeByHandle(parentHandle);
-        if (!parent || !parent->isPasswordNodeFolder())
-        {
-            LOG_err << "Import password: parent node doesn't exist";
-            return API_EARGS;
-        }
-
-        PassFileParseResult parserResult = readPasswordImportFile(filePath, source);
-        switch (parserResult.mErrCode)
-        {
-            case PassFileParseResult::ErrCode::OK:
-                break;
-            case PassFileParseResult::ErrCode::MISSING_COLUMN:
-            case PassFileParseResult::ErrCode::NO_VALID_ENTRIES:
-                LOG_err << "Import password: invalid file format";
-                return API_EARGS;
-            case PassFileParseResult::ErrCode::FILE_NOT_FOUND:
-            case PassFileParseResult::ErrCode::CANT_OPEN_FILE:
-                LOG_err << "Import password: file can't be opened or doesn't exist";
-                return API_EREAD;
-            case PassFileParseResult::ErrCode::INVALID_HEADER:
-                LOG_err << "Import password: Invalid header";
-                return API_EACCESS;
-        }
-
-        sharedNode_list children = client->getChildren(parent.get());
-        std::vector<std::string> childrenNames;
-        std::transform(children.begin(),
-                       children.end(),
-                       std::back_inserter(childrenNames),
-                       [](const std::shared_ptr<Node>& child) -> std::string
-                       {
-                           return child->displayname();
-                       });
-        ncoll::NameCollisionSolver solver{std::move(childrenNames)};
-
-        const auto [badEntries, goodEntries] =
-            MegaClient::validatePasswordEntries(std::move(parserResult.mResults), solver);
-
-        if (goodEntries.empty())
-        {
-            LOG_err << "Import password: none entry is valid";
-            return API_EARGS;
-        }
-
+        const std::string filePath{request->getFile()};
+        const auto source = static_cast<FileSource>(request->getParamType());
+        const auto [error, badEntries] =
+            client->importPasswordsFromFile(filePath, source, parentHandle, request->getTag());
         MegaStringIntegerMapPrivate stringIntegerMap;
         std::for_each(badEntries.begin(),
                       badEntries.end(),
@@ -27429,8 +27385,7 @@ void MegaApiImpl::importPasswordsFromFile(const char* filePath,
                       });
 
         request->setMegaStringIntegerMap(&stringIntegerMap);
-
-        return client->createPasswordNodes(std::move(goodEntries), parent, request->getTag());
+        return error;
     };
 
     requestQueue.push(request);
