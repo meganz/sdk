@@ -70,7 +70,11 @@ protected:
             ASSERT_FALSE(HasFatalFailure());
             ASSERT_THAT(ec, testing::AnyOf(API_OK, API_ENOENT));
             originalValue = std::move(v);
-            removeAttribute = ec == API_ENOENT;
+            // Check if private encrypted attribute was set to blank. Caller should pass the value
+            // which represents blank value for such attributes As an example - for Camera folder
+            // and Chat folder one can pass UNDEF as third alternative parameter.
+            removeAttribute = (ec == API_ENOENT) ||
+                              (alternatives.size() == 3 && originalValue == alternatives[2]);
         }
 
         ASSERT_GE(alternatives.size(), 2u);
@@ -754,7 +758,7 @@ TEST_F(SdkTestUserAttribute, CameraUploadsFolder)
         {
             api->setCameraUploadsFolder(newValue, &tracker);
         },
-        {folderTracker1.getNodeHandle(), folderTracker2.getNodeHandle()}));
+        {folderTracker1.getNodeHandle(), folderTracker2.getNodeHandle(), UNDEF}));
 }
 
 /**
@@ -791,7 +795,7 @@ TEST_F(SdkTestUserAttribute, MyChatFilesFolder)
         {
             api->setMyChatFilesFolder(newValue, &tracker);
         },
-        {folderTracker1.getNodeHandle(), folderTracker2.getNodeHandle()}));
+        {folderTracker1.getNodeHandle(), folderTracker2.getNodeHandle(), UNDEF}));
 }
 
 /**
