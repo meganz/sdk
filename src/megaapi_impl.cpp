@@ -30177,6 +30177,8 @@ MegaFolderUploadController::scanFolder_result MegaFolderUploadController::scanFo
 
             foldercount += 1;
         }
+
+        childPath = localPath;
     }
     recursive--;
     return scanFolder_succeeded;

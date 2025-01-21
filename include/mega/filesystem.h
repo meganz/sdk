@@ -269,14 +269,12 @@ public:
     bool isAbsolute() const
     {
         return mPathType == PathType::ABSOLUTE_PATH;
-    };
+    }
 
     bool isURI() const
     {
-        bool ret = mPathType == PathType::URI_PATH;
-        assert(ret == LocalPath::isURIPath(localpath));
-        return ret;
-    };
+        return mPathType == PathType::URI_PATH;
+    }
 
     // UTF-8 normalization
     static void utf8_normalize(string *);

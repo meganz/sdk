@@ -718,7 +718,7 @@ bool LocalPath::invariant() const
     // and that's how it worked before we added the "absolute" feature to LocalPath.
     // As a result of that though, there's nothing to adjust or check here for iOS.
 #elif WIN32
-    if (isAbsolute)
+    if (isAbsolute())
     {
         // if it starts with \\ then it's absolute, either by us or provided
         if (localpath.size() >= 2 && localpath[0] == '\\' && localpath[1] == '\\') return true;
@@ -1496,7 +1496,7 @@ LocalPath LocalPath::leafName() const
     }
     else
     {
-        result = fromRelativePath(URIHandler::getName(localpath));
+        result = fromRelativePath(URIHandler::getName(toPath(false)));
     }
 
     return result;
@@ -1761,7 +1761,6 @@ LocalPath LocalPath::insertFilenameSuffix(const std::string& suffix) const
 
 string LocalPath::toPath(bool normalize) const
 {
-    assert(!isURI());
     assert(invariant());
     string path;
     local2path(&localpath, &path, normalize);

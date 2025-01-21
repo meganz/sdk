@@ -115,22 +115,24 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 #endif
 
     jclass localfileWrapper = jenv->FindClass("mega/privacy/android/data/filewrapper/FileWrapper");
-    fileWrapper = (jclass)jenv->NewGlobalRef(localfileWrapper);
-    if (!fileWrapper)
+    if (!localfileWrapper)
     {
         jenv->ExceptionDescribe();
         jenv->ExceptionClear();
     }
+
+    fileWrapper = (jclass)jenv->NewGlobalRef(localfileWrapper);
+    jenv->DeleteLocalRef(localfileWrapper);
 
     jclass localIntegerClass = jenv->FindClass("java/lang/Integer");
-    integerClass = (jclass)jenv->NewGlobalRef(localIntegerClass);
-    if (!integerClass)
+    if (!localIntegerClass)
     {
         jenv->ExceptionDescribe();
         jenv->ExceptionClear();
     }
 
-    jenv->DeleteLocalRef(localfileWrapper);
+    integerClass = (jclass)jenv->NewGlobalRef(localIntegerClass);
+    jenv->DeleteLocalRef(localIntegerClass);
 
 
 #if (defined(ANDROID) || defined(__ANDROID__)) && ARES_VERSION >= 0x010F00

@@ -134,7 +134,6 @@ protected:
     std::shared_ptr<AndroidFileWrapper> mFileWrapper;
     int fd{-1};
     int mDefaultFilePermissions{0600};
-    bool mFollowSymLinks{true};
 };
 
 class MEGA_API AndroidDirAccess: public DirAccess

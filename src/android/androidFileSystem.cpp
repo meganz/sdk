@@ -44,7 +44,7 @@ AndroidFileWrapper::AndroidFileWrapper(const std::string& path):
         return;
     }
 
-    JNIEnv* env = nullptr;
+    JNIEnv* env{nullptr};
     MEGAjvm->AttachCurrentThread(&env, NULL);
     jmethodID getAndroidFileMethod = env->GetStaticMethodID(
         fileWrapper,
@@ -74,7 +74,7 @@ AndroidFileWrapper::~AndroidFileWrapper()
 {
     if (mAndroidFileObject)
     {
-        JNIEnv* env = nullptr;
+        JNIEnv* env{nullptr};
         MEGAjvm->AttachCurrentThread(&env, NULL);
         env->DeleteGlobalRef(mAndroidFileObject);
     }
@@ -87,7 +87,7 @@ int AndroidFileWrapper::getFileDescriptor(bool write)
         return -1;
     }
 
-    JNIEnv* env = nullptr;
+    JNIEnv* env{nullptr};
     MEGAjvm->AttachCurrentThread(&env, NULL);
 
     jmethodID methodID =
@@ -101,7 +101,7 @@ int AndroidFileWrapper::getFileDescriptor(bool write)
     }
 
     jobject fileDescriptorObj = env->CallObjectMethod(mAndroidFileObject, methodID, write);
-    if (fileDescriptorObj)
+    if (fileDescriptorObj && integerClass)
     {
         jmethodID intValueMethod = env->GetMethodID(integerClass, "intValue", "()I");
         if (!intValueMethod)
@@ -127,7 +127,7 @@ bool AndroidFileWrapper::isFolder()
         return mIsFolder.value();
     }
 
-    JNIEnv* env = nullptr;
+    JNIEnv* env{nullptr};
     MEGAjvm->AttachCurrentThread(&env, NULL);
     jmethodID methodID = env->GetMethodID(fileWrapper, IS_FOLDER, "()Z");
     if (methodID == nullptr)
@@ -155,7 +155,7 @@ bool AndroidFileWrapper::isURI()
     }
 
     constexpr char IS_PATH[] = "isPath";
-    JNIEnv* env = nullptr;
+    JNIEnv* env{nullptr};
     MEGAjvm->AttachCurrentThread(&env, NULL);
     jmethodID methodID = env->GetStaticMethodID(fileWrapper, IS_PATH, "(Ljava/lang/String;)Z");
     if (methodID == nullptr)
@@ -183,7 +183,7 @@ std::string AndroidFileWrapper::getName()
         return mName.value();
     }
 
-    JNIEnv* env = nullptr;
+    JNIEnv* env{nullptr};
     MEGAjvm->AttachCurrentThread(&env, NULL);
     jmethodID methodID = env->GetMethodID(fileWrapper, GET_NAME, "()Ljava/lang/String;");
     if (methodID == nullptr)
@@ -209,7 +209,7 @@ std::vector<std::shared_ptr<AndroidFileWrapper>> AndroidFileWrapper::getChildren
         return std::vector<std::shared_ptr<AndroidFileWrapper>>();
     }
 
-    JNIEnv* env = nullptr;
+    JNIEnv* env{nullptr};
     MEGAjvm->AttachCurrentThread(&env, NULL);
     jmethodID methodID = env->GetMethodID(fileWrapper, GET_CHILDREN_URIS, "()Ljava/util/List;");
     if (methodID == nullptr)
@@ -245,16 +245,6 @@ bool AndroidFileWrapper::exists()
     return mAndroidFileObject != nullptr;
 }
 
-AndroidPlatformURIHelper::AndroidPlatformURIHelper()
-{
-    if (mNumInstances == 0)
-    {
-        URIHandler::setPlatformHelper(this);
-    }
-
-    mNumInstances++;
-}
-
 std::shared_ptr<AndroidFileWrapper>
     AndroidFileWrapperRepository::getAndroidFileWrapper(const std::string& path)
 {
@@ -267,6 +257,16 @@ std::shared_ptr<AndroidFileWrapper>
     std::shared_ptr<AndroidFileWrapper> androidFileWrapperNew{new AndroidFileWrapper(path)};
     mRepository.put(path, androidFileWrapperNew);
     return androidFileWrapperNew;
+}
+
+AndroidPlatformURIHelper::AndroidPlatformURIHelper()
+{
+    if (mNumInstances == 0)
+    {
+        URIHandler::setPlatformHelper(this);
+    }
+
+    mNumInstances++;
 }
 
 bool AndroidPlatformURIHelper::isURI(const std::string& path)
@@ -335,11 +335,10 @@ bool AndroidFileAccess::fopen(const LocalPath& f,
         return false;
     }
 
-    mIsSymLink = S_ISLNK(statbuf.st_mode);
-
-    if (mIsSymLink && mFollowSymLinks)
+    if (S_ISLNK(statbuf.st_mode))
     {
-        // TODO stat from symbolic link
+        LOG_err << "Sym links aren't supported in Android";
+        return -1;
     }
 
     type = S_ISDIR(statbuf.st_mode) ? FOLDERNODE : FILENODE;
@@ -414,10 +413,9 @@ void AndroidFileAccess::updatelocalname(const LocalPath& name, bool force)
     }
 }
 
-AndroidFileAccess::AndroidFileAccess(Waiter* w, int defaultfilepermissions, bool followSymLinks):
+AndroidFileAccess::AndroidFileAccess(Waiter* w, int defaultfilepermissions, bool):
     FileAccess(waiter),
-    mDefaultFilePermissions(defaultfilepermissions),
-    mFollowSymLinks(followSymLinks)
+    mDefaultFilePermissions(defaultfilepermissions)
 {}
 
 AndroidFileAccess::~AndroidFileAccess() {}
@@ -473,12 +471,12 @@ bool AndroidFileAccess::sysstat(m_time_t* mtime, m_off_t* size, FSLogging)
         return false;
     }
 
-    mIsSymLink = S_ISLNK(statbuf.st_mode);
-
-    if (mIsSymLink && mFollowSymLinks)
+    if (S_ISLNK(statbuf.st_mode))
     {
-        // TODO stat from symbolic link
+        LOG_err << "Sym links aren't supported in Android";
+        return false;
     }
+
     retry = false;
 
     type = TYPE_UNKNOWN;
@@ -526,6 +524,7 @@ bool AndroidFileAccess::sysopen(bool, FSLogging)
 
     if (!mFileWrapper->exists())
     {
+        errorcode = ENOENT;
         return false;
     }
 
@@ -533,7 +532,7 @@ bool AndroidFileAccess::sysopen(bool, FSLogging)
     if (fd < 0)
     {
         LOG_err << "Error getting file descriptor";
-        errorcode = fd == -2 ? EACCES : ENOENT;
+        errorcode = EACCES;
     }
 
     return fd >= 0;
@@ -579,7 +578,6 @@ bool AndroidDirAccess::dnext(LocalPath& path,
                              bool followsymlinks,
                              nodetype_t* type)
 {
-    // TODO handle symLinks
     if (mChildren.size() <= mIndex)
     {
         return false;
