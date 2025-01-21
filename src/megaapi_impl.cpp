@@ -28480,7 +28480,7 @@ char *MegaAccountDetailsPrivate::getSubscriptionMethod()
         return MegaApi::strdup(details.subscriptions.front().paymentMethod.c_str());
     }
 
-    return new char{'\0'};
+    return new char[1]{'\0'};
 }
 
 int MegaAccountDetailsPrivate::getSubscriptionMethodId()
@@ -28502,7 +28502,7 @@ char *MegaAccountDetailsPrivate::getSubscriptionCycle()
         return MegaApi::strdup(details.subscriptions.front().cycle.c_str());
     }
 
-    return new char{'\0'};
+    return new char[1]{'\0'};
 }
 
 long long MegaAccountDetailsPrivate::getStorageMax()
