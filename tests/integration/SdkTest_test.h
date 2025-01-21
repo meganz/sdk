@@ -1058,6 +1058,27 @@ public:
 
     /* MegaVpnCredentials END */
 
+    auto getAccountLevel(MegaApi& api) -> std::tuple<int, int, int>;
+
+    auto getAccountDetails(MegaApi& api) -> std::tuple<std::unique_ptr<MegaAccountDetails>, int>;
+
+    auto getPricing(MegaApi& api) -> std::tuple<std::unique_ptr<MegaPricing>, int>;
+
+    auto makeScopedAccountLevelRestorer(MegaApi& api);
+
+    template<typename... requestArgs>
+    int setAccountLevel(MegaApi& api, requestArgs... args)
+    {
+        // So we can wait for the client's result.
+        RequestTracker tracker(&api);
+
+        // Try and set the user's account level.
+        api.sendSetAccountLevelDevCommand(args..., &tracker);
+
+        // Return client's result to caller.
+        return tracker.waitForResult();
+    }
+
     template<typename... Arguments>
     int setThumbnail(MegaApi& client, Arguments... arguments)
     {

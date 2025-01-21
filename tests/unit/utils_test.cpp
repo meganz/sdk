@@ -1195,20 +1195,24 @@ TEST_F(SprintfTest, nulTerminateWhenBufferFull)
     ASSERT_EQ(buf[2], '\0');
 }
 
-TEST_F(SprintfTest, Multiple) {
+TEST_F(SprintfTest, Multiple)
+{
+    std::string buffer(7, '\x0');
 
-    char ebuf[7];
-    snprintf(ebuf, sizeof ebuf, "%s", "1234");
-    // technique developed to used snprintf()
-    char* ptr = strchr(ebuf, 0);
-    snprintf(ptr, sizeof ebuf - static_cast<size_t>(ptr - ebuf), "%s", "ABCDEFGH");
-    ASSERT_EQ(ebuf[0], '1');
-    ASSERT_EQ(ebuf[1], '2');
-    ASSERT_EQ(ebuf[2], '3');
-    ASSERT_EQ(ebuf[3], '4');
-    ASSERT_EQ(ebuf[4], 'A');
-    ASSERT_EQ(ebuf[5], 'B');
-    ASSERT_EQ(ebuf[6], '\0');
+    std::string aToH("ABCDEFGH");
+    std::string countToFour("1234");
+
+    snprintf(buffer.data(), buffer.size(), "%s", countToFour.data());
+
+    snprintf(&buffer[countToFour.size()], buffer.size() - countToFour.size(), "%s", aToH.data());
+
+    ASSERT_EQ(buffer[0], '1');
+    ASSERT_EQ(buffer[1], '2');
+    ASSERT_EQ(buffer[2], '3');
+    ASSERT_EQ(buffer[3], '4');
+    ASSERT_EQ(buffer[4], 'A');
+    ASSERT_EQ(buffer[5], 'B');
+    ASSERT_EQ(buffer[6], '\0');
 }
 
 TEST_F(SprintfTest, ResizeAndPrint) {

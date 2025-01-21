@@ -11464,6 +11464,35 @@ class MegaApi
         void sendBusinessStatusDevCommand(int businessStatus, const char *email = nullptr, MegaRequestListener *listener = nullptr);
 
         /**
+         * @brief Send dev API command, set account status (for testing purposes)
+         *
+         * Modifies the status of a user's account.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SEND_DEV_COMMAND.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getName - Returns the API dev command ("sal")
+         * - MegaRequest::getEmail - Returns the target email account, or NULL if target is the
+         * logged-in account
+         * - MegaRequest::getNumDetails - Returns the account level.
+         * - MegaRequest::getTotalBytes - Returns the quota length in months.
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         *  - EACCESS if the calling account is not allowed to perform this method (not a mega email
+         * account, not the right IP, etc).
+         *  - EARGS if the subcommand is not present or is invalid.
+         *
+         * @param accountLevel Desired account level.
+         * @param quotaLengthInMonths Length of quota in months.
+         * @param email Optional email of the target email's account. If null, it will use the
+         * logged-in account
+         * @param listener MegaRequestListener to track this request
+         */
+        void sendSetAccountLevelDevCommand(int accountLevel,
+                                           int quotaLengthInMonths,
+                                           const char* email = nullptr,
+                                           MegaRequestListener* listener = nullptr);
+
+        /**
          * @brief Send dev API command, Set user status for own accounts (for testing purposes)
          *
          * Sets the status of a user.

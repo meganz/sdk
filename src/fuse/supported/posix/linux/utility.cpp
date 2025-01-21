@@ -84,8 +84,7 @@ bool abort(const std::string& path)
 PathVector filesystems(FilesystemPredicate predicate)
 {
     // Convenience.
-    using FileDeleter = decltype(&std::fclose);
-    using FilePtr     = std::unique_ptr<FILE, FileDeleter>;
+    using FilePtr = std::unique_ptr<FILE, int (*)(FILE*)>;
 
     // Where should we search for a suitable mtab?
     static const std::vector<std::string> paths = {

@@ -3869,6 +3869,8 @@ bool CommandDelUA::procresult(Result r, JSON& json)
     return true;
 }
 
+#endif // #ifdef DEBUG
+
 CommandSendDevCommand::CommandSendDevCommand(MegaClient* client,
                                              const char* command,
                                              const char* email,
@@ -3904,6 +3906,15 @@ CommandSendDevCommand::CommandSendDevCommand(MegaClient* client,
         if (cp) arg("c", cp);
         arg("g", us);
     }
+    else if (strcmp(command, "sal") == 0)
+    {
+        // Account level.
+        arg("al", us);
+
+        // Quota length in months.
+        arg("m", q);
+    }
+
     tag = client->reqtag;
 }
 
@@ -3912,8 +3923,6 @@ bool CommandSendDevCommand::procresult(Result r, JSON&)
     client->app->senddevcommand_result(r.errorOrOK());
     return r.wasErrorOrOK();
 }
-
-#endif  // #ifdef DEBUG
 
 CommandGetUserEmail::CommandGetUserEmail(MegaClient *client, const char *uid)
 {

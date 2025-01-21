@@ -2393,6 +2393,14 @@ void MegaApi::sendBusinessStatusDevCommand(int businessStatus, const char *email
     pImpl->sendDevCommand("bs", email, 0, businessStatus, 0, listener);
 }
 
+void MegaApi::sendSetAccountLevelDevCommand(int accountLevel,
+                                            int quotaLengthInMonths,
+                                            const char* email,
+                                            MegaRequestListener* listener)
+{
+    pImpl->sendDevCommand("sal", email, quotaLengthInMonths, 0, accountLevel, listener);
+}
+
 void MegaApi::sendUserStatusDevCommand(int userStatus, const char *email, MegaRequestListener *listener)
 {
     pImpl->sendDevCommand("us", email, 0, 0, userStatus, listener);

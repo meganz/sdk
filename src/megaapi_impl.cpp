@@ -16091,6 +16091,7 @@ void MegaApiImpl::delua_result(error e)
 
     fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
 }
+#endif
 
 void MegaApiImpl::senddevcommand_result(int value)
 {
@@ -16108,7 +16109,6 @@ void MegaApiImpl::senddevcommand_result(int value)
 
     fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
 }
-#endif
 
 void MegaApiImpl::getuseremail_result(string *email, error e)
 {
@@ -23764,19 +23764,20 @@ void MegaApiImpl::sendDevCommand(const char* command, const char* email, long lo
                 return API_EARGS;
             }
 
-    #ifdef DEBUG
             const char* email = request->getEmail();
             long long q = request->getTotalBytes();
             int bs = request->getAccess();
             int us = request->getNumDetails();
 
+            bool isSalSubcmd = !strcmp(command, "sal");
             bool isOdqSubcmd = !strcmp(command, "aodq");
             bool isTqSubcmd = !strcmp(command, "tq");
             bool isBsSubcmd = !strcmp(command, "bs");
             bool isUsSubcmd = !strcmp(command, "us");
             bool isFrSubcmd = !strcmp(command, "fr");   // force reload via -6 on sc channel
 
-            if (!isOdqSubcmd && !isTqSubcmd && !isBsSubcmd && !isUsSubcmd && !isFrSubcmd)
+            if (!isOdqSubcmd && !isTqSubcmd && !isBsSubcmd && !isUsSubcmd && !isFrSubcmd &&
+                !isSalSubcmd)
             {
                 return API_EARGS;
             }
@@ -23804,11 +23805,7 @@ void MegaApiImpl::sendDevCommand(const char* command, const char* email, long lo
             }
             client->senddevcommand(command, email, q, bs, us);
             return API_OK;
-    #else
-            return API_EACCESS;
-    #endif
         };
-
 
     requestQueue.push(request);
     waiter->notify();
