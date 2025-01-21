@@ -161,7 +161,7 @@ pipeline {
                     message = """
                         *Android* <${BUILD_URL}|Build result>: '${messageStatus}'.
                         SDK branch: `${SDK_BRANCH}`
-                        SDK_commit: `${sdk_commit}`
+                        SDK commit: `${sdk_commit}`
                     """.stripIndent()
                     
                     if (failedTargets.size() > 0) {

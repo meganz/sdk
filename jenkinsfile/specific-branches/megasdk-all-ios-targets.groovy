@@ -63,7 +63,7 @@ pipeline {
                     message = """
                         *iOS* <${BUILD_URL}|Build result>: '${messageStatus}'.
                         SDK branch: `${SDK_BRANCH}`
-                        SDK_commit: `${sdk_commit}`
+                        SDK commit: `${sdk_commit}`
                     """.stripIndent()
                     
                     withCredentials([string(credentialsId: 'slack_webhook_sdk_report', variable: 'SLACK_WEBHOOK_URL')]) {
