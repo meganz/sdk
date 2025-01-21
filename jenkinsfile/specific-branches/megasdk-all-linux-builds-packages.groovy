@@ -223,6 +223,7 @@ pipeline {
                     }
                 }
             }
+            deleteDir()
         }
     }
 }
