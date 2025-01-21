@@ -3129,40 +3129,6 @@ void LocalNode::updateMoveInvolvement()
     }
 }
 
-void LocalNode::UploadThrottling::bypassThrottlingNextTime(const unsigned maxUploadsBeforeThrottle)
-{
-    if (mUploadCounter >= maxUploadsBeforeThrottle)
-    {
-        mBypassThrottlingNextTime = true;
-    }
-}
-
-bool LocalNode::UploadThrottling::checkUploadThrottling(
-    const unsigned maxUploadsBeforeThrottle,
-    const std::chrono::seconds uploadCounterInactivityExpirationTime)
-{
-    if (mBypassThrottlingNextTime)
-    {
-        mBypassThrottlingNextTime = false;
-        return false;
-    }
-
-    if (const auto timeSinceLastUploadCounterProcess =
-            mUploadCounterLastTime - std::chrono::steady_clock::now();
-        timeSinceLastUploadCounterProcess >= uploadCounterInactivityExpirationTime)
-    {
-        // Reset the upload counter if enough time has lapsed since last time.
-        mUploadCounter = 0;
-        mUploadCounterLastTime = std::chrono::steady_clock::now();
-        return false;
-    }
-
-    if (mUploadCounter < maxUploadsBeforeThrottle)
-        return false;
-
-    return true;
-}
-
 bool LocalNode::queueClientUpload(shared_ptr<SyncUpload_inClient> upload,
                                   const VersioningOption vo,
                                   const bool queueFirst,
@@ -3234,31 +3200,6 @@ void LocalNode::updateTransferLocalname()
     {
         transferSP->setLocalname(getLocalPath());
     }
-}
-
-bool LocalNode::UploadThrottling::handleAbortUpload(SyncUpload_inClient& upload,
-                                                    const FileFingerprint& fingerprint,
-                                                    const unsigned maxUploadsBeforeThrottle,
-                                                    const LocalPath& transferPath)
-{
-    // 1. Upload cannot be aborted.
-    if (upload.putnodesStarted)
-        return false;
-
-    if (!upload.wasStarted)
-    {
-        assert(!upload.wasTerminated);
-        LOG_verbose << "Updating fingerprint of queued upload " << transferPath;
-        upload.updateFingerprint(fingerprint);
-        return false;
-    }
-
-    // 2. Upload must be aborted.
-
-    // If the upload is going to be aborted either due to a change while it was inflight or after a
-    // failure, and the file was being throttled, let it start immediately next time.
-    bypassThrottlingNextTime(maxUploadsBeforeThrottle);
-    return true;
 }
 
 bool LocalNode::transferResetUnlessMatched(direction_t dir, const FileFingerprint& fingerprint)

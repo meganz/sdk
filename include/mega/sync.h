@@ -32,7 +32,8 @@
 
 #ifdef ENABLE_SYNC
 #include "node.h"
-#include "syncinternals.h"
+#include "syncinternals/syncinternals.h"
+#include "syncinternals/synciuploadthrottlingmanager.h"
 
 namespace mega {
 

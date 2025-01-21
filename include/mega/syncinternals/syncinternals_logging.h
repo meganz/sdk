@@ -8,7 +8,7 @@
 
 #ifdef ENABLE_SYNC
 
-#include "logging.h"
+#include "mega/logging.h"
 
 #include <chrono>
 

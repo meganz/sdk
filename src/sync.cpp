@@ -32,7 +32,8 @@
 #include "mega/megaclient.h"
 #include "mega/scoped_helpers.h"
 #include "mega/sync.h"
-#include "mega/syncinternals_logging.h"
+#include "mega/syncinternals/syncinternals_logging.h"
+#include "mega/syncinternals/syncuploadthrottlingmanager.h"
 #include "mega/transfer.h"
 
 namespace mega {
