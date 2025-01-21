@@ -17073,6 +17073,42 @@ void MegaClient::changeSyncRoot(const handle backupId,
     syncs.changeSyncRemoteRoot(backupId, std::move(newRootNode), std::move(completion));
 }
 
+void MegaClient::setSyncUploadThrottleValues(
+    std::optional<const unsigned> updateRateInSeconds,
+    std::optional<const unsigned> maxUploadsBeforeThrottle,
+    std::function<void(const error, const error)>&& completion)
+{
+    syncs.setThrottleValues(updateRateInSeconds, maxUploadsBeforeThrottle, std::move(completion));
+}
+
+void MegaClient::getSyncUploadThrottleValues(
+    std::function<void(const unsigned, const unsigned)>&& completion)
+{
+    syncs.getThrottleValues(std::move(completion));
+}
+
+void MegaClient::getSyncUploadThrottleValuesLimits(
+    std::function<void(const unsigned, const unsigned, const unsigned, const unsigned)>&&
+        completion)
+{
+    auto completionForClient =
+        [completion = std::move(completion)](const ThrottleValueLimits throttleValueLimits)
+    {
+        completion(throttleValueLimits.throttleUpdateRateLowerLimit,
+                   throttleValueLimits.throttleUpdateRateUpperLimit,
+                   throttleValueLimits.maxUploadsBeforeThrottleLowerLimit,
+                   throttleValueLimits.maxUploadsBeforeThrottleUpperLimit);
+    };
+    syncs.getThrottleValuesLimits(std::move(completionForClient));
+}
+
+void MegaClient::setSyncUploadThrottlingManager(
+    std::shared_ptr<IUploadThrottlingManager> uploadThrottlingManager,
+    std::function<void(const error)>&& completion)
+{
+    syncs.setThrottlingManager(std::move(uploadThrottlingManager), std::move(completion));
+}
+
 void MegaClient::addsync(SyncConfig&& config, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath)
 {
     assert(completion);

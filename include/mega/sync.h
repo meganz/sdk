@@ -2078,11 +2078,11 @@ private:
     std::atomic<bool> mTransferPauseFlagsChanged {false};
 
     /**
-     * @brief Unique pointer to UploadThrottlingManager, in charge of everything related to upload
+     * @brief Shared pointer to IUploadThrottlingManager, in charge of everything related to upload
      * throttling.
-     * @see UploadThrottlingManager.
+     * @see IUploadThrottlingManager.
      */
-    std::unique_ptr<UploadThrottlingManager> mThrottlingManager;
+    std::shared_ptr<IUploadThrottlingManager> mThrottlingManager;
 
     // Responsible for tracking when to send sync/backup heartbeats
     unique_ptr<BackupMonitor> mHeartBeatMonitor;
@@ -2186,24 +2186,182 @@ public:
         return notifier.get_future().get();
     }
 
-    /**
-     * @brief Public getter for mThrottlingManager.
-     * @return A const reference to mThrottlingManager.
-     */
-    const UploadThrottlingManager& throttlingManager() const
-    {
-        assert(onSyncThread());
-        assert(mThrottlingManager);
-        return *mThrottlingManager;
-    }
+    // Syncs Upload Throttling
 
     /**
-     * @brief Adds an upload to the delayed queue.
-     * @param delayedUpload The upload to be added to the queue.
+     * @brief Process the delayed uploads.
      *
-     * @see UploadThrottlingManager::addToDelayedQueue()
+     * Process the delayed uploads and, after the throttling time, it enqueues the first delayed
+     * upload to be processed the client.
+     *
+     * @see IUploadThrottlingManager::processDelayedUploads()
+     * @see queueClient()
      */
-    void addToDelayedQueue(DelayedSyncUpload&& delayedUpload);
+    void processDelayedUploads();
+
+    /**
+     * @brief Adds a delayed upload to be throttled.
+     * @param delayedUpload The upload to be throttled and processed.
+     *
+     * @see IUploadThrottlingManager::addToDelayedUploads()
+     */
+    void addToDelayedUploads(DelayedSyncUpload&& delayedUpload);
+
+    /**
+     * @brief Gets the upload counter inactivity expiration time.
+     * @return The expiration time as a std::chrono::seconds object.
+     *
+     * @see IUploadThrottlingManager::uploadCounterInactivityExpirationTime()
+     */
+    std::chrono::seconds uploadCounterInactivityExpirationTime() const;
+
+    /**
+     * @brief Gets the throttle update rate for uploads in seconds.
+     * @return The throttle update rate in seconds.
+     *
+     * @see IUploadThrottlingManager::throttleUpdateRate()
+     */
+    unsigned throttleUpdateRate() const;
+
+    /**
+     * @brief Gets the maximum uploads allowed before throttling.
+     * @return The maximum number of uploads.
+     *
+     * @see IUploadThrottlingManager::maxUploadsBeforeThrottle()
+     */
+    unsigned maxUploadsBeforeThrottle() const;
+
+    /**
+     * @brief Sets the upload throttling configurable values.
+     *
+     * Method to be executed out of the sync thread.
+     *
+     * Sets throttleUpdateRate and maxUploadsBeforeThrottle values.
+     *
+     * @param updateRateInSeconds Optional param to change the update rate in seconds.
+     * @param maxUploadsBeforeThrottle Optional param to change the max number of uploads before
+     * throttle.
+     * @param completionForClient The completion function to be called after the operations
+     * finishes. First error corresponds to setting updateRateInSeconds and second error corresponds
+     * to setting maxUploadsBeforeThrottle.
+     * - API_OK: Value was updated correctly.
+     * - API_EARGS: Value was below or above throttle value limits.
+     * - API_ENOENT: Optional value was empty.
+     */
+    void setThrottleValues(std::optional<const unsigned> updateRateInSeconds,
+                           std::optional<const unsigned> maxUploadsBeforeThrottle,
+                           std::function<void(const error /* errorSetThrottleUpdateRate */,
+                                              const error /* errorSetMaxUploadsBeforeThrottle */)>&&
+                               completionForClient);
+
+    /**
+     * @brief Sets the upload throttling configurable values.
+     *
+     * Method to be executed on the sync thread.
+     *
+     * Sets throttleUpdateRate and maxUploadsBeforeThrottle values.
+     *
+     * @param updateRateInSeconds Optional param to change the update rate in seconds.
+     * @param maxUploadsBeforeThrottle Optional param to change the max number of uploads before
+     * throttle.
+     * @param completionForClient The completion function to be called after the operations
+     * finishes. First error corresponds to setting updateRateInSeconds and second error corresponds
+     * to setting maxUploadsBeforeThrottle.
+     * - API_OK: Value was updated correctly.
+     * - API_EARGS: Value was below or above throttle value limits.
+     * - API_ENOENT: Optional value was empty.
+     * @return True if both values were updated, otherwise false.
+     */
+    bool setThrottleValuesInThread(
+        std::optional<const unsigned> updateRateInSeconds,
+        std::optional<const unsigned> maxUploadsBeforeThrottle,
+        std::function<void(const error /* errorSetThrottleUpdateRate */,
+                           const error /* errorSetMaxUploadsBeforeThrottle */)>&& completion =
+            nullptr);
+
+    /**
+     * @brief Gets the upload throttling configurable values.
+     *
+     * Method to be executed out of the sync thread.
+     *
+     * Gets throttleUpdateRate and maxUploadsBeforeThrottle values.
+     *
+     * @param completionForClient The completion function to be called after the operations
+     * finishes.
+     */
+    void getThrottleValues(
+        std::function<void(const unsigned /* updateRateInSeconds */,
+                           const unsigned /* maxUploadsBeforeThrottle */)>&& completionForClient);
+
+    /**
+     * @brief Gets the upload throttling configurable values.
+     *
+     * Method to be executed on the sync thread.
+     *
+     * Gets throttleUpdateRate and maxUploadsBeforeThrottle values.
+     *
+     * @param completion Optional completion function to be called after the operations finishes.
+     * @return a pair with throttleUpdateRate, maxUploadsBeforeThrottle.
+     */
+    std::pair<unsigned, unsigned> getThrottleValuesInThread(
+        std::function<void(const unsigned /* throttleUpdateRate */,
+                           const unsigned /* maxUploadsBeforeThrottle */)>&& completion = nullptr);
+
+    /**
+     * @brief Gets the lower/upper limits for the upload throttling configurable values.
+     *
+     * Method to be executed out of the sync thread.
+     *
+     * @param completionForClient The completion function to be called after the operations
+     * finishes.
+     */
+    void getThrottleValuesLimits(
+        std::function<void(const ThrottleValueLimits)>&& completionForClient);
+
+    /**
+     * @brief Gets the lower/upper limits for the upload throttling configurable values.
+     *
+     * Method to be executed on the sync thread.
+     *
+     * @param completion Optional completion function to be called after the operations finishes.
+     * @return ThrottleValueLimits struct containing the throttleUpdateRate and
+     * maxUploadsBeforeThrottle lower and upper limits.
+     */
+    ThrottleValueLimits getThrottleValuesLimitsInThread(
+        std::function<void(const ThrottleValueLimits)>&& completion = nullptr);
+
+    /**
+     * @brief Sets the throttling manager object.
+     *
+     * Syncs object gets ownership of the IUploadThrottlingManager pointer.
+     *
+     * Method to be executed out of the sync thread.
+     *
+     * @param uploadThrottlingManager A valid shared_ptr to IUploadThrottlingManager.
+     * @param completionForClient The completion function to be called after the operations
+     * finishes.
+     * - API_OK: New IUploadThrottlingManager was set correctly.
+     * - API_EARGS: uploadThrottlingManager is not a valid pointer.
+     */
+    void setThrottlingManager(std::shared_ptr<IUploadThrottlingManager> uploadThrottlingManager,
+                              std::function<void(const error)>&& completionForClient);
+
+    /**
+     * @brief Sets the throttling manager object.
+     *
+     * Syncs object gets ownership of the IUploadThrottlingManager pointer.
+     *
+     * Method to be executed on the sync thread.
+     *
+     * @param uploadThrottlingManager A valid shared_ptr to IUploadThrottlingManager.
+     * @param completion The completion function to be called after the operations finishes.
+     * - API_OK: New IUploadThrottlingManager was set correctly.
+     * - API_EARGS: uploadThrottlingManager is not a valid pointer.
+     * @return True if the IUploadThrottlingManager was set correctly, false otherwise.
+     */
+    bool setThrottlingManagerInThread(
+        std::shared_ptr<IUploadThrottlingManager> uploadThrottlingManager,
+        std::function<void(const error)>&& completion = nullptr);
 };
 
 class OverlayIconCachedPaths

@@ -3171,10 +3171,10 @@ bool LocalNode::queueClientUpload(shared_ptr<SyncUpload_inClient> upload,
     resetTransfer(upload);
 
     if (mUploadThrottling.checkUploadThrottling(
-            sync->syncs.throttlingManager().maxUploadsBeforeThrottle(),
-            sync->syncs.throttlingManager().uploadCounterInactivityExpirationTime()))
+            sync->syncs.maxUploadsBeforeThrottle(),
+            sync->syncs.uploadCounterInactivityExpirationTime()))
     {
-        sync->syncs.addToDelayedQueue(
+        sync->syncs.addToDelayedUploads(
             DelayedSyncUpload(std::move(upload), vo, queueFirst, ovHandleIfShortcut));
         return false;
     }
@@ -3283,11 +3283,10 @@ bool LocalNode::transferResetUnlessMatched(direction_t dir, const FileFingerprin
         const bool transferDirectionNeedsToChange = dir != (uploadPtr ? PUT : GET);
 
         if (uploadPtr && !transferDirectionNeedsToChange &&
-            !mUploadThrottling.handleAbortUpload(
-                *uploadPtr,
-                fingerprint,
-                sync->syncs.throttlingManager().maxUploadsBeforeThrottle(),
-                transferSP->getLocalname()))
+            !mUploadThrottling.handleAbortUpload(*uploadPtr,
+                                                 fingerprint,
+                                                 sync->syncs.maxUploadsBeforeThrottle(),
+                                                 transferSP->getLocalname()))
         {
             // If the upload must not be cancelled we return from the function.
             // This method expects to return false if putnodes was started at this point, to

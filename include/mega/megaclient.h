@@ -50,6 +50,8 @@
 #include <mega/fuse/common/client_adapter.h>
 #include <mega/fuse/common/service.h>
 
+#include <optional>
+
 namespace mega {
 
 class Logger;
@@ -1258,6 +1260,57 @@ public:
                         const handle newRemoteRootNodeHandle,
                         const char* const newLocalRootPath,
                         std::function<void(error, SyncError)>&& completion);
+
+    /**
+     * @brief Sets the upload throttling configurable values.
+     *
+     * @param updateRateInSeconds Optional param to change the update rate in seconds.
+     * @param maxUploadsBeforeThrottle Optional param to change the max number of uploads before
+     * throttle.
+     * @param completion The completion function to be called after the operations
+     * finishes.
+     */
+    void setSyncUploadThrottleValues(
+        std::optional<const unsigned> updateRateInSeconds,
+        std::optional<const unsigned> maxUploadsBeforeThrottle,
+        std::function<void(const error /* errorSetUpdateRateInSeconds */,
+                           const error /* errorSetMaxUploadsBeforeThrottle */)>&& completion);
+
+    /**
+     * @brief Gets the upload throttling configurable values.
+     *
+     * @param completion The completion function to be called after the operations
+     * finishes.
+     */
+    void getSyncUploadThrottleValues(
+        std::function<void(const unsigned /* updateRateInSeconds */,
+                           const unsigned /* maxUploadsBeforeThrottle */)>&& completion);
+
+    /**
+     * @brief Gets the lower and upper upload throttling configurable values.
+     *
+     * @param completion The completion function to be called after the operations
+     * finishes.
+     */
+    void getSyncUploadThrottleValuesLimits(
+        std::function<void(const unsigned updateRateInSecondsLowerLimit,
+                           const unsigned updateRateInSecondsUpperLimit,
+                           const unsigned maxUploadsBeforeThrottleLowerLimit,
+                           const unsigned maxUploadsBeforeThrottleUpperLimit)>&& completion);
+
+    /**
+     * @brief Sets the IUploadThrottlingManager for Syncs.
+     *
+     * The Syncs object already constructs a IUploadThrottlingManager type object by default.
+     * However, this method allows to change the object if needed.
+     *
+     * @param uploadThrottlingManager The shared_ptr to the IUploadThrottlingManager type object.
+     * @param completion The completion function to be called after the operations
+     * finishes.
+     */
+    void setSyncUploadThrottlingManager(
+        std::shared_ptr<IUploadThrottlingManager> uploadThrottlingManager,
+        std::function<void(const error)>&& completion);
 
 public:
 

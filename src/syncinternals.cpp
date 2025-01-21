@@ -8,6 +8,7 @@
 #include "mega/syncinternals.h"
 
 #include "mega/megaclient.h"
+#include "mega/sync.h"
 #include "mega/syncinternals_logging.h"
 
 #include <memory>
@@ -280,60 +281,42 @@ void clientUpload(MegaClient& mc,
     mc.startxfer(PUT, upload.get(), committer, false, queueFirst, false, vo, nullptr, upload->tag);
 }
 
-void UploadThrottlingManager::addToDelayedQueue(DelayedSyncUpload&& delayedUpload)
-{
-    assert(mSyncs.onSyncThread());
-    mDelayedQueue.emplace(std::move(delayedUpload));
-}
+// UploadThrottlingManager
 
-void UploadThrottlingManager::setThrottleUpdateRate(const std::chrono::seconds interval)
+bool UploadThrottlingManager::setThrottleUpdateRate(const std::chrono::seconds interval)
 {
-    assert(mSyncs.onSyncThread());
-
-    if (interval < std::chrono::seconds(MIN_PROCESS_INTERVAL_SECONDS) ||
-        interval >= std::chrono::seconds(TIMEOUT_TO_RESET_UPLOAD_COUNTERS_SECONDS))
+    if (interval < std::chrono::seconds(THROTTLE_UPDATE_RATE_LOWER_LIMIT) ||
+        interval > std::chrono::seconds(THROTTLE_UPDATE_RATE_UPPER_LIMIT))
     {
         LOG_warn << "[UploadThrottle] Invalid throttle update rate (" << interval.count()
-                 << " secs). Must be >= " << MIN_PROCESS_INTERVAL_SECONDS << " and < "
-                 << TIMEOUT_TO_RESET_UPLOAD_COUNTERS_SECONDS << " seconds";
-        return;
+                 << " secs). Must be >= " << THROTTLE_UPDATE_RATE_LOWER_LIMIT
+                 << " and <= " << THROTTLE_UPDATE_RATE_UPPER_LIMIT << " seconds";
+        return false;
     }
 
     LOG_debug << "[UploadThrottle] Throttle update rate set to " << interval.count() << " secs";
     mThrottleUpdateRate = interval;
+    return true;
 }
 
-void UploadThrottlingManager::setMaxUploadsBeforeThrottle(const unsigned maxUploadsBeforeThrottle)
+bool UploadThrottlingManager::setMaxUploadsBeforeThrottle(const unsigned maxUploadsBeforeThrottle)
 {
-    assert(mSyncs.onSyncThread());
-
-    if (maxUploadsBeforeThrottle < DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE)
+    if (maxUploadsBeforeThrottle < MAX_UPLOADS_BEFORE_THROTTLE_LOWER_LIMIT ||
+        maxUploadsBeforeThrottle > MAX_UPLOADS_BEFORE_THROTTLE_UPPER_LIMIT)
     {
         LOG_warn << "[UploadThrottle] Invalid max uploads value (" << maxUploadsBeforeThrottle
-                 << "). Must be >= " << DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE;
-        return;
+                 << "). Must be >= " << MAX_UPLOADS_BEFORE_THROTTLE_LOWER_LIMIT
+                 << " and <= " << MAX_UPLOADS_BEFORE_THROTTLE_UPPER_LIMIT;
+        return false;
     }
 
     LOG_debug << "[UploadThrottle] Num uploads before throttle set to " << maxUploadsBeforeThrottle;
     mMaxUploadsBeforeThrottle = maxUploadsBeforeThrottle;
-}
-
-std::chrono::seconds UploadThrottlingManager::uploadCounterInactivityExpirationTime() const
-{
-    assert(mSyncs.onSyncThread());
-    return mUploadCounterInactivityExpirationTime;
-}
-
-unsigned UploadThrottlingManager::maxUploadsBeforeThrottle() const
-{
-    assert(mSyncs.onSyncThread());
-    return mMaxUploadsBeforeThrottle;
+    return true;
 }
 
 bool UploadThrottlingManager::checkProcessDelayedUploads() const
 {
-    assert(mSyncs.onSyncThread());
-
     if (mDelayedQueue.empty())
     {
         return false;
@@ -341,7 +324,7 @@ bool UploadThrottlingManager::checkProcessDelayedUploads() const
 
     // Calculate adjusted interval
     const auto adjustedThrottleUpdateRate =
-        std::max(std::chrono::seconds(MIN_PROCESS_INTERVAL_SECONDS),
+        std::max(std::chrono::seconds(THROTTLE_UPDATE_RATE_LOWER_LIMIT),
                  std::chrono::duration_cast<std::chrono::seconds>(
                      mThrottleUpdateRate / std::sqrt(static_cast<double>(mDelayedQueue.size()))));
 
@@ -360,10 +343,12 @@ bool UploadThrottlingManager::checkProcessDelayedUploads() const
     return true;
 }
 
-void UploadThrottlingManager::processDelayedUploads()
+void UploadThrottlingManager::processDelayedUploads(
+    std::function<void(std::weak_ptr<SyncUpload_inClient>&& upload,
+                       const VersioningOption vo,
+                       const bool queueFirst,
+                       const NodeHandle ovHandleIfShortcut)>&& completion)
 {
-    assert(mSyncs.onSyncThread());
-
     if (!checkProcessDelayedUploads())
     {
         return;
@@ -372,56 +357,26 @@ void UploadThrottlingManager::processDelayedUploads()
     LOG_verbose << "[UploadThrottle] Processing delayed uploads. Queue size: "
                 << mDelayedQueue.size();
 
-    bool taskQueued{false};
-    while (!mDelayedQueue.empty() && !taskQueued)
+    bool delayedUploadProcessed{false};
+    do
     {
         DelayedSyncUpload delayedUpload = std::move(mDelayedQueue.front());
         mDelayedQueue.pop();
 
-        if (queueClientDelayedUpload(std::move(delayedUpload)))
+        if (!delayedUpload.mWeakUpload.lock())
         {
-            taskQueued = true;
-            mLastProcessedTime = std::chrono::steady_clock::now();
+            LOG_warn << "[UploadThrottle] Upload is no longer valid. Skipping this task";
+            continue;
         }
+
+        delayedUploadProcessed = true;
+        resetLastProcessedTime();
+        completion(std::move(delayedUpload.mWeakUpload),
+                   delayedUpload.mVersioningOption,
+                   delayedUpload.mQueueFirst,
+                   delayedUpload.mOvHandleIfShortcut);
     }
-}
-
-bool UploadThrottlingManager::queueClientDelayedUpload(DelayedSyncUpload&& delayedUpload)
-{
-    if (!delayedUpload.mWeakUpload.lock())
-    {
-        LOG_warn << "[UploadThrottle] Upload is no longer valid. Skipping this task";
-        return false;
-    }
-
-    mSyncs.queueClient(
-        [delayedUpload = std::move(delayedUpload)](MegaClient& mc, TransferDbCommitter& committer)
-        {
-            if (auto upload = delayedUpload.mWeakUpload.lock()) // Check again if upload is valid
-            {
-                LOG_debug << "[UploadThrottle] Sync - Sending delayed file "
-                          << upload->getLocalname();
-                clientUpload(mc,
-                             committer,
-                             upload,
-                             delayedUpload.mVersioningOption,
-                             delayedUpload.mQueueFirst,
-                             delayedUpload.mOvHandleIfShortcut);
-            }
-            else
-            {
-                LOG_warn << "[UploadThrottle] Upload no longer valid inside queueClient";
-            }
-        });
-
-    // We return true as the shared_ptr was valid when the we were going to add the task to the
-    // client queue. Of course, it is theoretically possible that, right before returning this
-    // 'true' value, the shared_ptr has already become invalid, even when we have just called
-    // "queueClient()" without executing the lambda yet. But that doesn't matter: the important
-    // check is the one inside the lambda. The pre-check before calling queueClient() is meant only
-    // to avoid enqueueing the task when we know that the shared_ptr is not even valid at this
-    // point.
-    return true;
+    while (!mDelayedQueue.empty() && !delayedUploadProcessed);
 }
 
 } // namespace mega

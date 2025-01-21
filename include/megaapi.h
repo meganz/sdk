@@ -4620,7 +4620,10 @@ class MegaRequest
             TYPE_ANSWER_SURVEY = 199,
             TYPE_CHANGE_SYNC_ROOT = 200,
             TYPE_GET_MY_IP = 201,
-            TOTAL_OF_REQUEST_TYPES = 202,
+            TYPE_SET_SYNC_UPLOAD_THROTTLE_VALUES = 202,
+            TYPE_GET_SYNC_UPLOAD_THROTTLE_VALUES = 203,
+            TYPE_GET_SYNC_UPLOAD_THROTTLE_LIMITS = 204,
+            TOTAL_OF_REQUEST_TYPES = 205,
         };
 
         virtual ~MegaRequest();
@@ -17606,6 +17609,91 @@ class MegaApi
         void changeSyncLocalRoot(const MegaHandle syncBackupId,
                                  const char* newLocalSyncRootPath,
                                  MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Set the throttle update rate for sync-uploads.
+         *
+         * The associated request type with this request is
+         * MegaRequest::TYPE_SET_SYNC_UPLOAD_THROTTLE_VALUES
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNumber - Returns the throttle update rate in seconds.
+         * MegaError:
+         * - MegaError::API_OK if the update rate was updated correctly.
+         * - MegaError::API_EARGS if the update rate is below the minimum or above the maximum.
+         *
+         * @param updateRateInSeconds The update rate for the throttling queue in seconds.
+         * @param listener A MegaRequestListener to track this request.
+         */
+        void setSyncThrottleUpdateRate(const unsigned updateRateInSeconds,
+                                       MegaRequestListener* listener);
+
+        /**
+         * @brief Set the max number of sync uploads per file before applying throttling logic.
+         *
+         * The associated request type with this request is
+         * MegaRequest::TYPE_SET_SYNC_UPLOAD_THROTTLE_VALUES
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getTotalBytes - Returns the max number of uploads before throttle.
+         * MegaError:
+         * - MegaError::API_OK if the new max number of uploads before throttle was set correctly.
+         * - MegaError::API_EARGS if the max uploads before throttle value is below the minimum or
+         * above the maximum.
+         *
+         * @param maxUploadsBeforeThrottle The number of uploads that are allowed to go unthrottled.
+         * @param listener A MegaRequestListener to track this request.
+         */
+        void setSyncMaxUploadsBeforeThrottle(const unsigned maxUploadsBeforeThrottle,
+                                             MegaRequestListener* listener);
+
+        /**
+         * @brief Get the configurable throttle values for sync-uploads.
+         *
+         * The associated request type with this request is
+         * MegaRequest::TYPE_GET_SYNC_UPLOAD_THROTTLE_VALUES
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNumber - Returns the throttle update rate in seconds.
+         * - MegaRequest::getTotalBytes - Returns the max number of uploads before throttle.
+         *
+         * @param listener A MegaRequestListener to track this request.
+         */
+        void getSyncUploadThrottleValues(MegaRequestListener* listener);
+
+        /**
+         * @brief Get the lower limits of configurable throttle for sync-uploads.
+         *
+         * The associated request type with this request is
+         * MegaRequest::TYPE_GET_SYNC_UPLOAD_THROTTLE_LIMITS
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNumber - Returns the minimum allowed for throttle update rate in
+         * seconds.
+         * - MegaRequest::getTotalBytes - Returns the minimum allowed for max number of uploads
+         * before throttle.
+         * - MegaRequest::getFlag - Returns false (this is set to false/0 for lower limits).
+         *
+         * @param listener A MegaRequestListener to track this request.
+         */
+        void getSyncUploadThrottleLowerLimits(MegaRequestListener* listener);
+
+        /**
+         * @brief Get the upper limits of configurable throttle values for sync-uploads.
+         *
+         * The associated request type with this request is
+         * MegaRequest::TYPE_GET_SYNC_UPLOAD_THROTTLE_LIMITS
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNumber - Returns the maximum allowed for throttle update rate in
+         * seconds.
+         * - MegaRequest::getTotalBytes - Returns the maximum allowed for max number of uploads
+         * before throttle.
+         * - MegaRequest::getFlag - Returns true (this is set to true/1 for upper limits).
+         *
+         * @param listener A MegaRequestListener to track this request.
+         */
+        void getSyncUploadThrottleUpperLimits(MegaRequestListener* listener);
 
 #endif // ENABLE_SYNC
 

@@ -3928,6 +3928,35 @@ void MegaApi::changeSyncLocalRoot(const MegaHandle syncBackupId,
     pImpl->changeSyncLocalRoot(syncBackupId, newLocalSyncRootPath, listener);
 }
 
+void MegaApi::setSyncThrottleUpdateRate(const unsigned updateRateInSeconds,
+                                        MegaRequestListener* listener)
+{
+    pImpl->setSyncThrottleUpdateRate(updateRateInSeconds, listener);
+}
+
+void MegaApi::setSyncMaxUploadsBeforeThrottle(const unsigned maxUploadsBeforeThrottle,
+                                              MegaRequestListener* listener)
+{
+    pImpl->setSyncMaxUploadsBeforeThrottle(maxUploadsBeforeThrottle, listener);
+}
+
+void MegaApi::getSyncUploadThrottleValues(MegaRequestListener* listener)
+{
+    pImpl->getSyncUploadThrottleValues(listener);
+}
+
+void MegaApi::getSyncUploadThrottleLowerLimits(MegaRequestListener* listener)
+{
+    const bool upperLimits = false;
+    pImpl->getSyncUploadThrottleLimits(upperLimits, listener);
+}
+
+void MegaApi::getSyncUploadThrottleUpperLimits(MegaRequestListener* listener)
+{
+    const bool upperLimits = true;
+    pImpl->getSyncUploadThrottleLimits(upperLimits, listener);
+}
+
 MegaSync *MegaApi::getSyncByBackupId(MegaHandle backupId)
 {
     return pImpl->getSyncByBackupId(backupId);
