@@ -25,6 +25,10 @@ BuildRequires: hicolor-icon-theme, zip, unzip, nasm, cmake, perl
     %else
         BuildRequires: pkg-config
     %endif
+    %if 0%{?suse_version} > 1400
+        BuildRequires: libqt5-qtbase-devel, libqt5-linguist-devel, libqt5-qtsvg-devel, libqt5-qtx11extras-devel, libqt5-qtdeclarative-devel
+        Requires: libQt5Core5 libqt5-qtquickcontrols libqt5-qtquickcontrols2
+    %endif
 %endif
 %if 0%{?fedora}
     BuildRequires: pkgconf-pkg-config
@@ -49,6 +53,10 @@ BuildRequires: hicolor-icon-theme, zip, unzip, nasm, cmake, perl
     # allowing for rpaths (taken as invalid, as if they were not absolute paths when they are)
     %if 0%{?fedora_version} >= 35
         %define __brp_check_rpaths QA_RPATHS=0x0002 /usr/lib/rpm/check-rpaths
+    %endif
+    %if 0%{?fedora_version} >= 36
+        BuildRequires: qt5-qtbase-devel qt5-qttools-devel, qt5-qtsvg-devel, qt5-qtx11extras-devel, qt5-qtdeclarative-devel
+        Requires: qt5-qtbase >= 5.6, qt5-qtsvg, qt5-qtdeclarative, qqc2-desktop-style, qt5-qtquickcontrols, qt5-qtquickcontrols2
     %endif
 %endif
 

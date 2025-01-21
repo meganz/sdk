@@ -102,6 +102,9 @@ mkdir $megasdk_NAME/tools
 ln -s $BASEPATH/tools/gfxworker $megasdk_NAME/tools/
 ln -s $BASEPATH/cmake $megasdk_NAME/
 
+mkdir $megasdk_NAME/bindings
+ln -s $BASEPATH/bindings/qt $megasdk_NAME/bindings/
+
 tar czfh $megasdk_NAME.tar.gz --exclude-vcs $megasdk_NAME
 rm -rf $megasdk_NAME
 
