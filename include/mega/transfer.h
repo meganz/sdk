@@ -306,6 +306,13 @@ public:
         UN_DEFINITIVE_ERR = 2, // CONNECTION CANNOT BE USED ANYMORE
     };
 
+    enum connReplacementReason
+    {
+        CONN_SPEED_LOW_PERFORMANCE = 0, // CONN SPEED PERF IS NOT AS GOOD AS THE REST
+        CONN_SPEED_UNDER_THRESHOLD = 1, // CONN SPEED IS UNDER MIN THRESHOLD
+        TRANSFER_MEAN_SPEED_UNDER_THRESHOLD = 2, // TRANSFER MEAN SPEED IS UNDER MIN THESHOLD
+    };
+
     /**
      * @brief Returns an unusedReason given a HTTP status code.
      *
@@ -462,11 +469,20 @@ public:
     static constexpr unsigned DEFAULT_MIN_COMPARABLE_THROUGHPUT = MAX_DELIVERY_CHUNK;
 
     /**
-    *   @brief Max times a DirectReadSlot is allowed to detect a slower connection and switch it to the unused one.
-    *
-    *   @see DirectReadSlot::searchAndDisconnectSlowestConnection()
-    */
-    static constexpr unsigned MAX_SLOW_CONNECTION_SWITCHES = 10;
+     *   @brief Max times a DirectReadSlot is allowed to detect a slow connection respect the others
+     * and switch it to the unused one.
+     *
+     *   @see DirectReadSlot::searchAndDisconnectSlowestConnection()
+     */
+    static constexpr unsigned MAX_PERF_CONNECTION_SWITCHES = 6;
+
+    /**
+     *   @brief Max times a DirectReadSlot is allowed to detect a slower connection than min
+     * threshold and switch it to the unused one.
+     *
+     *   @see DirectReadSlot::searchAndDisconnectSlowestConnection()
+     */
+    static constexpr unsigned MAX_SLOW_CONNECTION_SWITCHES = 6;
 
     /**
      *   @brief Max times we can detect same raided part (connection) as slow before retrying entire
@@ -474,7 +490,7 @@ public:
      *
      *   @see DirectReadSlot::searchAndDisconnectSlowestConnection()
      */
-    static constexpr unsigned MAX_SLOW_CONNECTION_DETECTED = 10;
+    static constexpr unsigned MAX_SLOW_CONNECTION_DETECTED = 6;
 
     /**
     *   @brief Requests are sent in batch, and no connection is allowed to request the next chunk until the other connections have finished fetching their current one.
@@ -528,6 +544,19 @@ public:
      * @param timeleft The time after which the transfer is retried
      */
     void retryEntireTransfer(const Error& e, dstime timeleft = 0);
+
+    /**
+     * @brief Identifies slow connections under minimum threshold and determines the slowest one.
+     *
+     * This function iterates through all active and completed connections, checks
+     * their throughput against a minimum threshold, and identifies those that are
+     * considered too slow. Additionally, it determines the slowest one among them.
+     *
+     * @return A pair containing:
+     *         - A set of indices representing connections that are too slow.
+     *         - The index of the slowest connection (or invalid index if no slow conns exist).
+     */
+    std::pair<std::set<size_t>, size_t> searchSlowConnsUnderThreshold();
 
     /**
      * @brief Detects and manages slow-performing RAIDED parts in a streaming transfer.
@@ -653,15 +682,15 @@ public:
      *
      * @return `true` if the unused connection can currently be reused, `false` otherwise.
      */
-    bool canReuseUnusedConnection();
+    bool isUnusedConnectionFailed();
 
     /**
-     * @brief Replace unused connection by connectionNum
+     * @brief Replace connectionNum by unused connection
      * @param connectionNum The connection number
-     * @return a pair of booleans, where first represents if connection could be replaced at
-     * DirectReadBufferManager level, and second one if new "usable" connection could be reset fine
+     * @return true if connection could be replaced, otherwise false
      */
-    std::pair<bool, bool> replaceUnusedConnection(size_t connectionNum);
+    bool replaceConnectionByUnused(const size_t connectionNum,
+                                   const UnusedConn::connReplacementReason reason);
 
     /**
      * @brief Identifies the slowest and fastest connections (ignoring unused connection)
@@ -860,19 +889,29 @@ private:
     std::chrono::steady_clock::time_point mSlotStartTime;
 
     /**
-    *   @brief Unused connection due to slowness.
-    *
-    *   This value is used for detecting the slowest start connection and further search and disconnect new slowest connections.
-    *   It must be synchronized with RaidBufferManager value, which is the one to be cached (so we keep it if reseting the DirectReadSlot).
-    */
+     *   @brief Unused connection due to slowness.
+     *
+     *   This value is used for detecting the slowest start connection and further search and
+     * disconnect new slowest connections. It must be synchronized with RaidBufferManager value,
+     * which is the one to be cached (so we keep it if reseting the DirectReadSlot).
+     */
     UnusedConn mUnusedConn;
 
     /**
-    *   @brief Current total switches done, i.e.: the slowest connection being switched with the unused connection.
-    *
-    *   @see DirectReadSlot::MAX_SLOW_CONNECTION_SWITCHES
-    */
-    unsigned mNumSlowConnectionsSwitches;
+     *   @brief Current total of switches (due performance) done, i.e.: the slowest connection being
+     * switched with the unused connection.
+     *
+     *   @see DirectReadSlot::MAX_PERF_CONNECTION_SWITCHES
+     */
+    unsigned mNumPerformanceConnectionsSwitches;
+
+    /**
+     *   @brief Current total switches (due to slow conn/s) done, i.e.: the slowest connection being
+     * switched with the unused connection.
+     *
+     *   @see DirectReadSlot::MAX_SLOW_CONNECTION_SWITCHES
+     */
+    unsigned mNumSlowSpeedSwitches;
 
     /**
      * @brief maps connection id (raided part id) to number of slow speed detections
@@ -957,9 +996,32 @@ private:
      * @return `true` if the maximum number of slow connection switches has been reached or
      * exceeded, `false` otherwise.
      */
-    bool maxSlowConnsSwitchesReached() const
+    bool maxUnusedConnSwitchesReached(const UnusedConn::connReplacementReason reason) const
     {
-        return mNumSlowConnectionsSwitches >= DirectReadSlot::MAX_SLOW_CONNECTION_SWITCHES;
+        switch (reason)
+        {
+            case UnusedConn::CONN_SPEED_LOW_PERFORMANCE:
+                return mNumPerformanceConnectionsSwitches >
+                       DirectReadSlot::MAX_PERF_CONNECTION_SWITCHES;
+            case UnusedConn::CONN_SPEED_UNDER_THRESHOLD:
+            case UnusedConn::TRANSFER_MEAN_SPEED_UNDER_THRESHOLD:
+                return mNumSlowSpeedSwitches > DirectReadSlot::MAX_SLOW_CONNECTION_SWITCHES;
+        }
+        assert(false);
+        return false;
+    }
+
+    void increaseUnusedConnSwitches(const UnusedConn::connReplacementReason reason)
+    {
+        switch (reason)
+        {
+            case UnusedConn::CONN_SPEED_LOW_PERFORMANCE:
+                ++mNumPerformanceConnectionsSwitches;
+            case UnusedConn::CONN_SPEED_UNDER_THRESHOLD:
+            case UnusedConn::TRANSFER_MEAN_SPEED_UNDER_THRESHOLD:
+                ++mNumSlowSpeedSwitches;
+        }
+        assert(false);
     }
 
     /**
