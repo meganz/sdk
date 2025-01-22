@@ -39,6 +39,8 @@
 #endif
 
 #ifdef __ANDROID__
+#include <mega/android/androidFileSystem.h>
+
 #include <jni.h>
 extern JavaVM *MEGAjvm;
 #endif
@@ -187,7 +189,7 @@ auto LocalPath::asPlatformEncoded(bool) const -> string_type
 }
 bool LocalPath::isRootPath() const
 {
-    if (isFromRoot)
+    if (isAbsolute())
         return localpath.size() == 1 && localpath.back() == '/';
 
     return false;
@@ -2408,12 +2410,21 @@ bool PosixFileSystemAccess::hardLink(const LocalPath& source, const LocalPath& t
 
 std::unique_ptr<FileAccess> PosixFileSystemAccess::newfileaccess(bool followSymLinks)
 {
+#ifndef __ANDROID__
     return std::unique_ptr<FileAccess>{new PosixFileAccess{waiter, defaultfilepermissions, followSymLinks}};
+#else
+    return std::unique_ptr<FileAccess>{
+        new AndroidFileAccess{waiter, defaultfilepermissions, followSymLinks}};
+#endif
 }
 
 unique_ptr<DirAccess>  PosixFileSystemAccess::newdiraccess()
 {
+#ifndef __ANDROID__
     return unique_ptr<DirAccess>(new PosixDirAccess());
+#else
+    return unique_ptr<DirAccess>(new AndroidDirAccess());
+#endif
 }
 
 #ifdef __linux__

@@ -1,12 +1,5 @@
 package nz.mega.sdk;
 
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.net.URLConnection;
-
 import android.content.ContentResolver;
 import android.content.Context;
 import android.database.Cursor;
@@ -20,8 +13,15 @@ import android.media.ThumbnailUtils;
 import android.net.Uri;
 import android.provider.BaseColumns;
 import android.provider.MediaStore;
-
 import androidx.exifinterface.media.ExifInterface;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URLConnection;
+import java.util.Objects;
 
 public class AndroidGfxProcessor extends MegaGfxProcessor {
     Rect size;
@@ -45,9 +45,12 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
     public static boolean isVideoFile(String path) {
         try {
             String mimeType = URLConnection.guessContentTypeFromName(path);
+            if (mimeType == null) {
+                Uri uri = Uri.parse(path);
+                mimeType = context.getContentResolver().getType(uri);
+            }
             return mimeType != null && mimeType.startsWith("video");
-        }
-        catch(Exception e){
+        } catch (Exception e) {
             return false;
         }
     }
@@ -56,33 +59,45 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
         Rect rect = new Rect();
 
         if(isVideoFile(path)){
-            try {
+            MediaMetadataRetriever retriever = new MediaMetadataRetriever();
 
-                MediaMetadataRetriever retriever = new MediaMetadataRetriever();
-                retriever.setDataSource(path);
+            try {
+                setMediaMetadataRetrieverDataSource(retriever, path);
                 int width;
                 int height;
-                int interchangeOrientation = Integer.valueOf(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION));
+                int interchangeOrientation = Integer.parseInt(Objects.requireNonNull(
+                    retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)));
                 if (interchangeOrientation == 90 || interchangeOrientation == 270) {
-                    width = Integer.valueOf(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT));
-                    height = Integer.valueOf(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH));
+                    width = Integer.parseInt(Objects.requireNonNull(retriever.extractMetadata(
+                        MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)));
+                    height = Integer.parseInt(Objects.requireNonNull(retriever.extractMetadata(
+                        MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)));
                 }
                 else {
-                    width = Integer.valueOf(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH));
-                    height = Integer.valueOf(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT));
+                    width = Integer.parseInt(Objects.requireNonNull(retriever.extractMetadata(
+                        MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)));
+                    height = Integer.parseInt(Objects.requireNonNull(retriever.extractMetadata(
+                        MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)));
                 }
-                retriever.release();
 
                 rect.right = width;
                 rect.bottom = height;
             } catch (Exception e) {
+                System.out.println("Error in getImageDimensions for video: " + e);
+            } finally {
+                try {
+                    retriever.release();
+                } catch (IOException e) {
+                    System.out.println("Error releasing MediaMetadataRetriever for video: " + e);
+                }
             }
         }
         else{
             try {
                 BitmapFactory.Options options = new BitmapFactory.Options();
                 options.inJustDecodeBounds = true;
-                BitmapFactory.decodeStream(new FileInputStream(path), null, options);
+                InputStream inputStream = getInputStreamFromPath(path);
+                BitmapFactory.decodeStream(inputStream, null, options);
 
                 if ((options.outWidth > 0) && (options.outHeight > 0)) {
                     if ((orientation < 5) || (orientation > 8)) {
@@ -98,6 +113,31 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
         }
 
         return rect;
+    }
+
+    private static InputStream getInputStreamFromPath(String path) {
+        try {
+            Uri uri = Uri.parse(path);
+            String scheme = uri == null ? null : uri.getScheme();
+            if (scheme != null && scheme.equals("content")) {
+                return context.getContentResolver().openInputStream(uri);
+            } else {
+                return new FileInputStream(path);
+            }
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static void setMediaMetadataRetrieverDataSource(MediaMetadataRetriever retriever,
+                                                            String path) {
+        Uri uri = Uri.parse(path);
+        String scheme = uri == null ? null : uri.getScheme();
+        if (scheme != null && scheme.equals("content")) {
+            retriever.setDataSource(context, uri);
+        } else {
+            retriever.setDataSource(path);
+        }
     }
 
     public boolean readBitmap(String path) {
@@ -128,46 +168,59 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
         int height;
 
         if (isVideoFile(path)) {
+            Uri uri = Uri.parse(path);
+            String scheme = uri == null ? null : uri.getScheme();
+            boolean isContentUri = scheme != null && scheme.equals("content");
 
             Bitmap bmThumbnail = null;
+            Cursor cursor = null;
 
-            try{
-                bmThumbnail = ThumbnailUtils.createVideoThumbnail(path, MediaStore.Video.Thumbnails.FULL_SCREEN_KIND);
-                if(context != null && bmThumbnail == null) {
+            if (!isContentUri) {
+                try {
+                    bmThumbnail = ThumbnailUtils.createVideoThumbnail(
+                        path, MediaStore.Video.Thumbnails.FULL_SCREEN_KIND);
+                    if (context != null && bmThumbnail == null) {
 
-                    String SELECTION = MediaStore.MediaColumns.DATA + "=?";
-                    String[] PROJECTION = {BaseColumns._ID};
+                        String SELECTION = MediaStore.MediaColumns.DATA + "=?";
+                        String[] PROJECTION = {BaseColumns._ID};
 
-                    Uri uri = MediaStore.Video.Media.EXTERNAL_CONTENT_URI;
-                    String[] selectionArgs = {path};
-                    ContentResolver cr = context.getContentResolver();
-                    Cursor cursor = cr.query(uri, PROJECTION, SELECTION, selectionArgs, null);
-                    if (cursor.moveToFirst()) {
-                        long videoId = cursor.getLong(0);
-                        bmThumbnail = MediaStore.Video.Thumbnails.getThumbnail(cr, videoId, MediaStore.Video.Thumbnails.FULL_SCREEN_KIND, null);
+                        uri = MediaStore.Video.Media.EXTERNAL_CONTENT_URI;
+                        String[] selectionArgs = {path};
+                        ContentResolver cr = context.getContentResolver();
+                        cursor = cr.query(uri, PROJECTION, SELECTION, selectionArgs, null);
+                        if (cursor != null && cursor.moveToFirst()) {
+                            long videoId = cursor.getLong(0);
+                            bmThumbnail = MediaStore.Video.Thumbnails.getThumbnail(
+                                cr, videoId, MediaStore.Video.Thumbnails.FULL_SCREEN_KIND, null);
+                        }
                     }
-                    cursor.close();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                } finally {
+                    if (cursor != null) {
+                        cursor.close();
+                    }
                 }
             }
-            catch(Exception e){}
 
             if(bmThumbnail==null){
 
                 MediaMetadataRetriever retriever = new MediaMetadataRetriever();
                 try{
-                    retriever.setDataSource(path);
+                    setMediaMetadataRetrieverDataSource(retriever, path);
                     bmThumbnail = retriever.getFrameAtTime();
-                }
-                catch(Exception e1){
-                }
-                finally {
+                } catch (Exception e1) {
+                    e1.printStackTrace();
+                } finally {
                     try {
                         retriever.release();
-                    } catch (Exception ex) {}
+                    } catch (Exception ex) {
+                        ex.printStackTrace();
+                    }
                 }
             }
 
-            if(bmThumbnail==null){
+            if (!isContentUri && bmThumbnail == null) {
                 try{
                     bmThumbnail = ThumbnailUtils.createVideoThumbnail(path, MediaStore.Video.Thumbnails.MINI_KIND);
                     if(context != null && bmThumbnail == null) {
@@ -175,18 +228,22 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
                         String SELECTION = MediaStore.MediaColumns.DATA + "=?";
                         String[] PROJECTION = {BaseColumns._ID};
 
-                        Uri uri = MediaStore.Video.Media.EXTERNAL_CONTENT_URI;
+                        uri = MediaStore.Video.Media.EXTERNAL_CONTENT_URI;
                         String[] selectionArgs = {path};
                         ContentResolver cr = context.getContentResolver();
-                        Cursor cursor = cr.query(uri, PROJECTION, SELECTION, selectionArgs, null);
-                        if (cursor.moveToFirst()) {
+                        cursor = cr.query(uri, PROJECTION, SELECTION, selectionArgs, null);
+                        if (cursor != null && cursor.moveToFirst()) {
                             long videoId = cursor.getLong(0);
                             bmThumbnail = MediaStore.Video.Thumbnails.getThumbnail(cr, videoId, MediaStore.Video.Thumbnails.MINI_KIND, null);
                         }
+                    }
+                } catch (Exception e2) {
+                    e2.printStackTrace();
+                } finally {
+                    if (cursor != null) {
                         cursor.close();
                     }
                 }
-                catch (Exception e2){}
             }
 
             try {
@@ -213,7 +270,8 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
                 BitmapFactory.Options options = new BitmapFactory.Options();
                 options.inJustDecodeBounds = false;
                 options.inSampleSize = scale;
-                Bitmap tmp = BitmapFactory.decodeStream(new FileInputStream(path), null, options);
+                InputStream inputStream = getInputStreamFromPath(path);
+                Bitmap tmp = BitmapFactory.decodeStream(inputStream, null, options);
                 tmp = fixExifOrientation(tmp, orientation);
                 return Bitmap.createScaledBitmap(tmp, w, h, true);
             } catch (Exception e) {
@@ -303,15 +361,10 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
         if (bitmap == null)
             return false;
 
-        FileOutputStream stream;
-        try {
-            stream = new FileOutputStream(file);
-            if (!bitmap.compress(Bitmap.CompressFormat.JPEG, 85, stream))
-                return false;
-
-            stream.close();
-            return true;
+        try (FileOutputStream stream = new FileOutputStream(file)) {
+            return bitmap.compress(Bitmap.CompressFormat.JPEG, 85, stream);
         } catch (Exception e) {
+            e.printStackTrace();
         }
         return false;
     }
