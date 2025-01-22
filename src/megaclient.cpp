@@ -6315,6 +6315,7 @@ void MegaClient::CacheableStatusMap::loadCachedStatus(CacheableStatus::Type type
         case CacheableStatus::Type::STATUS_STORAGE:
         {
             mClient->ststatus = static_cast<storagestatus_t>(value);
+            mClient->app->notify_storage(mClient->ststatus);
             break;
         }
         case CacheableStatus::Type::STATUS_BUSINESS:
