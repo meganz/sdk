@@ -175,14 +175,14 @@ class MEGA_API PlatformURIHelper
 {
 public:
     virtual ~PlatformURIHelper(){};
-    // Returns if string is an URI
+    // Returns true if string is an URI
     virtual bool isURI(const std::string& path) = 0;
     // Returns the name of file/directory pointed by the URI
     virtual std::string getName(const std::string& path) = 0;
 };
 
 /**
- * @brief Provides an interface handle URIs as an identifier for files and directories.
+ * @brief Provides an interface to handle URIs as an identifier for files and directories.
  *
  * The URIHandler class offers static methods to detect if a given string is a URI and to extract a
  * name from that URI. This functionality should be implemented by a platform specific
