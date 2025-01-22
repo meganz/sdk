@@ -913,6 +913,7 @@ TEST(Utils, NaturalSortingAscii)
     ASSERT_LT(naturalsorting_compare("0", "00"), 0);
     ASSERT_LT(naturalsorting_compare("00", "000"), 0);
     ASSERT_LT(naturalsorting_compare("00123", "123"), 0);
+    ASSERT_LT(naturalsorting_compare("a0", "a00"), 0);
     ASSERT_LT(naturalsorting_compare("00123", "124"), 0);
     ASSERT_GT(naturalsorting_compare("0124", "00123"), 0);
 }

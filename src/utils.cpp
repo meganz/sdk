@@ -3654,23 +3654,32 @@ static icu::Collator* createCollator()
 
 int naturalsorting_compare(const char* i, const char* j)
 {
+    static_assert(UCOL_EQUAL == 0 && UCOL_GREATER == 1 && UCOL_LESS == -1,
+                  "UCollationResult not expected");
+
     // Thread local for multithread safety and performance
     const static thread_local std::unique_ptr<icu::Collator> collator{createCollator()};
     if (!collator)
     {
+        assert(false && "No collator");
         // Fallback
         return strcmp(i, j);
     }
 
     UErrorCode ec{U_ZERO_ERROR};
-    const auto result = collator->compareUTF8(icu::StringPiece{i}, icu::StringPiece{j}, ec);
+    auto iStr = icu::StringPiece{i};
+    auto jStr = icu::StringPiece{j};
+    auto result = static_cast<int>(collator->compareUTF8(iStr, jStr, ec));
     if (U_FAILURE(ec))
     {
+        assert(false && "compareUTF8 error");
         // Fallback
         return strcmp(i, j);
     }
-    assert(UCOL_EQUAL == 0 && UCOL_GREATER == 1 && UCOL_LESS == -1);
-    return result;
+
+    // Additionally, StringPiece::compare two strings if they are numeric natural equal for
+    // cases: 0, 00, 01, 001, a0, a00, 0a00, 00a0.
+    return result != 0 ? result : iStr.compare(jStr);
 }
 
 std::string ensureAsteriskSurround(std::string str)
