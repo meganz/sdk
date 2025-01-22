@@ -244,7 +244,7 @@ std::unique_ptr<MegaNode> uploadFile(MegaApi* megaApi,
                                      const std::filesystem::path& localPath,
                                      MegaNode* parentNode)
 {
-    testing::NiceMock<MockMegaTransferListener> mtl{};
+    testing::NiceMock<MockMegaTransferListener> mtl{megaApi};
     handle nodeHandle = UNDEF;
     EXPECT_CALL(mtl, onTransferFinish)
         .WillOnce(

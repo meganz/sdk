@@ -175,7 +175,7 @@ private:
     {
         const auto logPre{getLogPrefix()};
         LOG_debug << logPre << "Starting the transfer";
-        testing::NiceMock<MockMegaTransferListener> mtl{};
+        testing::NiceMock<MockMegaTransferListener> mtl{megaApi[0].get()};
         std::chrono::steady_clock::time_point startTime;
         EXPECT_CALL(mtl, onTransferStart)
             .WillOnce(

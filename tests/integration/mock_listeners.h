@@ -170,11 +170,18 @@ public:
 class MockMegaTransferListener: public ::mega::MegaTransferListener, public SynchronizationHelper
 {
 public:
-    MockMegaTransferListener()
+    MockMegaTransferListener(::mega::MegaApi* megaApi = nullptr):
+        mMegaApi{megaApi}
     {
         ON_CALL(*this, onTransferFinish)
             .WillByDefault(
                 ::testing::Invoke(this, &MockMegaTransferListener::defaultOnTransferFinish));
+    }
+
+    ~MockMegaTransferListener()
+    {
+        if (mMegaApi)
+            mMegaApi->removeTransferListener(this);
     }
 
     MOCK_METHOD(void,
@@ -210,6 +217,8 @@ public:
                 (override));
 
 private:
+    ::mega::MegaApi* mMegaApi;
+
     void defaultOnTransferFinish(::mega::MegaApi*, ::mega::MegaTransfer*, ::mega::MegaError* err)
     {
         markAsFinished(err->getErrorCode() == mega::API_OK);
