@@ -354,7 +354,7 @@ public:
         ASSERT_TRUE(newRootHandleOpt);
 
         // Expectations on the request listener
-        NiceMock<MockRequestListener> mockReqListener;
+        NiceMock<MockRequestListener> mockReqListener{megaApi[0].get()};
         mockReqListener.setErrorExpectations(API_OK, _, MegaRequest::TYPE_CHANGE_SYNC_ROOT);
 
         // Code execution
@@ -456,7 +456,7 @@ TEST_F(SdkTestSyncNodeOperations, ChangeSyncRemoteRootErrors)
 
     {
         LOG_verbose << logPre << "Giving undef backupId and undef remote handle";
-        NiceMock<MockRequestListener> mockListener;
+        NiceMock<MockRequestListener> mockListener{megaApi[0].get()};
         mockListener.setErrorExpectations(API_EARGS, _);
         megaApi[0]->changeSyncRemoteRoot(UNDEF, UNDEF, &mockListener);
         EXPECT_TRUE(mockListener.waitForFinishOrTimeout(MAX_TIMEOUT));
@@ -468,7 +468,7 @@ TEST_F(SdkTestSyncNodeOperations, ChangeSyncRemoteRootErrors)
 
     {
         LOG_verbose << logPre << "Giving undef backupId and good remote handle";
-        NiceMock<MockRequestListener> mockListener;
+        NiceMock<MockRequestListener> mockListener{megaApi[0].get()};
         mockListener.setErrorExpectations(API_EARGS, _);
         megaApi[0]->changeSyncRemoteRoot(UNDEF, newRootHandle, &mockListener);
         EXPECT_TRUE(mockListener.waitForFinishOrTimeout(MAX_TIMEOUT));
@@ -476,7 +476,7 @@ TEST_F(SdkTestSyncNodeOperations, ChangeSyncRemoteRootErrors)
 
     {
         LOG_verbose << logPre << "Giving non existent backupId and good remote handle";
-        NiceMock<MockRequestListener> mockListener;
+        NiceMock<MockRequestListener> mockListener{megaApi[0].get()};
         mockListener.setErrorExpectations(API_EARGS, UNKNOWN_ERROR);
         megaApi[0]->changeSyncRemoteRoot(newRootHandle, newRootHandle, &mockListener);
         EXPECT_TRUE(mockListener.waitForFinishOrTimeout(MAX_TIMEOUT));
@@ -484,7 +484,7 @@ TEST_F(SdkTestSyncNodeOperations, ChangeSyncRemoteRootErrors)
 
     {
         LOG_verbose << logPre << "Giving good backupId and a handle to a file node";
-        NiceMock<MockRequestListener> mockListener;
+        NiceMock<MockRequestListener> mockListener{megaApi[0].get()};
         mockListener.setErrorExpectations(API_EACCESS, INVALID_REMOTE_TYPE);
         const auto fileHandle = getNodeHandleByPath("dir1/testFile");
         ASSERT_TRUE(fileHandle);
@@ -494,7 +494,7 @@ TEST_F(SdkTestSyncNodeOperations, ChangeSyncRemoteRootErrors)
 
     {
         LOG_verbose << logPre << "Giving good backupId and handle to already synced root";
-        NiceMock<MockRequestListener> mockListener;
+        NiceMock<MockRequestListener> mockListener{megaApi[0].get()};
         mockListener.setErrorExpectations(API_EEXIST, ACTIVE_SYNC_SAME_PATH);
         const auto dir1Handle = getNodeHandleByPath("dir1");
         ASSERT_TRUE(dir1Handle);
@@ -535,7 +535,7 @@ TEST_F(SdkTestSyncNodeOperations, ChangeSyncRemoteRootErrorOnBackup)
     ASSERT_TRUE(backup) << "Unable to get the backup in RUNNING state";
 
     LOG_verbose << logPre << "Trying to change the remote root of a backup sync";
-    NiceMock<MockRequestListener> mockListener;
+    NiceMock<MockRequestListener> mockListener{megaApi[0].get()};
     mockListener.setErrorExpectations(API_EARGS, UNKNOWN_ERROR);
     const auto dir1Handle = getNodeHandleByPath("dir2");
     ASSERT_TRUE(dir1Handle);

@@ -170,7 +170,7 @@ public:
      */
     void changeLocalSyncRootNoErrors(const std::filesystem::path& newRootPath) const
     {
-        NiceMock<MockRequestListener> mockListener;
+        NiceMock<MockRequestListener> mockListener{megaApi[0].get()};
         mockListener.setErrorExpectations(API_OK);
         const auto rootPath = newRootPath.u8string();
         megaApi[0]->changeSyncLocalRoot(getBackupId(), rootPath.c_str(), &mockListener);
@@ -270,7 +270,7 @@ TEST_F(SdkTestSyncLocalRootChange, ArgumentErrors)
 
     {
         LOG_verbose << logPre << "Giving undef backupId and undef remote handle";
-        NiceMock<MockRequestListener> mockListener;
+        NiceMock<MockRequestListener> mockListener{megaApi[0].get()};
         mockListener.setErrorExpectations(API_EARGS, NO_SYNC_ERROR);
         megaApi[0]->changeSyncLocalRoot(UNDEF, nullptr, &mockListener);
         EXPECT_TRUE(mockListener.waitForFinishOrTimeout(MAX_TIMEOUT));
@@ -282,7 +282,7 @@ TEST_F(SdkTestSyncLocalRootChange, ArgumentErrors)
 
     {
         LOG_verbose << logPre << "Giving undef backupId and good new root path";
-        NiceMock<MockRequestListener> mockListener;
+        NiceMock<MockRequestListener> mockListener{megaApi[0].get()};
         mockListener.setErrorExpectations(API_EARGS, _);
         megaApi[0]->changeSyncLocalRoot(UNDEF, newRootAbsPath.c_str(), &mockListener);
         EXPECT_TRUE(mockListener.waitForFinishOrTimeout(MAX_TIMEOUT));
@@ -290,7 +290,7 @@ TEST_F(SdkTestSyncLocalRootChange, ArgumentErrors)
 
     {
         LOG_verbose << logPre << "Giving non existent backupId and good remote handle";
-        NiceMock<MockRequestListener> mockListener;
+        NiceMock<MockRequestListener> mockListener{megaApi[0].get()};
         mockListener.setErrorExpectations(API_EARGS, UNKNOWN_ERROR);
         megaApi[0]->changeSyncLocalRoot(*getNodeHandleByPath("dir1"),
                                         newRootAbsPath.c_str(),
@@ -300,7 +300,7 @@ TEST_F(SdkTestSyncLocalRootChange, ArgumentErrors)
 
     {
         LOG_verbose << logPre << "Giving good backupId and a path to a file";
-        NiceMock<MockRequestListener> mockListener;
+        NiceMock<MockRequestListener> mockListener{megaApi[0].get()};
         mockListener.setErrorExpectations(API_EACCESS, INVALID_LOCAL_TYPE);
         const auto filePath = std::filesystem::absolute(getLocalTmpDir() / "testFile").u8string();
         megaApi[0]->changeSyncLocalRoot(getBackupId(), filePath.c_str(), &mockListener);
@@ -309,7 +309,7 @@ TEST_F(SdkTestSyncLocalRootChange, ArgumentErrors)
 
     {
         LOG_verbose << logPre << "Giving good backupId and a path to non existent dir";
-        NiceMock<MockRequestListener> mockListener;
+        NiceMock<MockRequestListener> mockListener{megaApi[0].get()};
         mockListener.setErrorExpectations(API_ENOENT, LOCAL_PATH_UNAVAILABLE);
         const auto nonExsitsPath = std::filesystem::absolute("./NoExistsDir/").u8string();
         megaApi[0]->changeSyncLocalRoot(getBackupId(), nonExsitsPath.c_str(), &mockListener);
@@ -318,7 +318,7 @@ TEST_F(SdkTestSyncLocalRootChange, ArgumentErrors)
 
     {
         LOG_verbose << logPre << "Giving good backupId and path to the already synced root";
-        NiceMock<MockRequestListener> mockListener;
+        NiceMock<MockRequestListener> mockListener{megaApi[0].get()};
         mockListener.setErrorExpectations(API_EARGS, LOCAL_PATH_SYNC_COLLISION);
         const auto rootPath = std::filesystem::absolute(getLocalTmpDir()).u8string();
         megaApi[0]->changeSyncLocalRoot(getBackupId(), rootPath.c_str(), &mockListener);
@@ -347,7 +347,7 @@ TEST_F(SdkTestSyncLocalRootChange, ErrorNestedSyncs)
 
     {
         LOG_verbose << logPre << "Moving local root to another sync root";
-        NiceMock<MockRequestListener> mockListener;
+        NiceMock<MockRequestListener> mockListener{megaApi[0].get()};
         mockListener.setErrorExpectations(API_EARGS, LOCAL_PATH_SYNC_COLLISION);
         const auto rootPath = tmpDir.getPath().u8string();
         megaApi[0]->changeSyncLocalRoot(getBackupId(), rootPath.c_str(), &mockListener);
@@ -356,7 +356,7 @@ TEST_F(SdkTestSyncLocalRootChange, ErrorNestedSyncs)
 
     {
         LOG_verbose << logPre << "Moving local root to a subdir inside another sync";
-        NiceMock<MockRequestListener> mockListener;
+        NiceMock<MockRequestListener> mockListener{megaApi[0].get()};
         mockListener.setErrorExpectations(API_EARGS, LOCAL_PATH_SYNC_COLLISION);
         const auto rootPath = tmpSubDir.getPath().u8string();
         megaApi[0]->changeSyncLocalRoot(getBackupId(), rootPath.c_str(), &mockListener);
@@ -386,7 +386,7 @@ TEST_F(SdkTestSyncLocalRootChange, ErrorNestedSyncSymLink)
         LOG_verbose << logPre << "Changing the root to a symlink pointing to the original root";
         std::filesystem::path linkName{"./symLinkToOriginal"};
         std::filesystem::create_directory_symlink(getLocalTmpDir(), linkName);
-        NiceMock<MockRequestListener> mockListener;
+        NiceMock<MockRequestListener> mockListener{megaApi[0].get()};
         mockListener.setErrorExpectations(API_EARGS, LOCAL_PATH_SYNC_COLLISION);
         const auto rootPath = linkName.u8string();
         megaApi[0]->changeSyncLocalRoot(getBackupId(), rootPath.c_str(), &mockListener);
@@ -399,7 +399,7 @@ TEST_F(SdkTestSyncLocalRootChange, ErrorNestedSyncSymLink)
                     << "Changing the root to a symlink pointing to the root of another sync";
         std::filesystem::path linkName{"./symLinkToSecondSync"};
         std::filesystem::create_directory_symlink(tmpDir.getPath(), linkName);
-        NiceMock<MockRequestListener> mockListener;
+        NiceMock<MockRequestListener> mockListener{megaApi[0].get()};
         mockListener.setErrorExpectations(API_EARGS, LOCAL_PATH_SYNC_COLLISION);
         const auto rootPath = linkName.u8string();
         megaApi[0]->changeSyncLocalRoot(getBackupId(), rootPath.c_str(), &mockListener);
@@ -678,7 +678,7 @@ TEST_F(SdkTestSyncLocalRootChange, SymLinkAsRootChangeWhereItPointsTo)
     std::filesystem::create_directory_symlink(tmp.getPath(), linkName);
 
     LOG_verbose << logPre << "Trying to resume the sync expecting an error (MISMATCH_OF_ROOT_FSID)";
-    NiceMock<MockRequestListener> reqListener;
+    NiceMock<MockRequestListener> reqListener{megaApi[0].get()};
     reqListener.setErrorExpectations(API_EFAILED, MISMATCH_OF_ROOT_FSID);
     megaApi[0]->setSyncRunState(getBackupId(),
                                 MegaSync::SyncRunningState::RUNSTATE_RUNNING,
@@ -743,7 +743,7 @@ TEST_F(SdkTestSyncLocalRootChange, ChangeRootToSameNameDifferentFsid)
 
     LOG_verbose << logPre << "Try to resume the sync in the same path but different dir";
     const LocalTempDir tmpNewRootSameName{originalRoot};
-    NiceMock<MockRequestListener> reqListener;
+    NiceMock<MockRequestListener> reqListener{megaApi[0].get()};
     reqListener.setErrorExpectations(API_EFAILED, MISMATCH_OF_ROOT_FSID);
     megaApi[0]->setSyncRunState(getBackupId(),
                                 MegaSync::SyncRunningState::RUNSTATE_RUNNING,

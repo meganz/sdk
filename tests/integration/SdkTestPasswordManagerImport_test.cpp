@@ -62,7 +62,7 @@ public:
      */
     ImportPassFileResult importPasswordsFromFile(const fs::path& filePath) const
     {
-        testing::NiceMock<MockRequestListener> rl;
+        testing::NiceMock<MockRequestListener> rl{megaApi[0].get()};
         ImportPassFileResult result{API_ETEMPUNAVAIL};
         EXPECT_CALL(rl, onRequestFinish)
             .WillOnce(
@@ -114,7 +114,7 @@ private:
 
     void initPasswordManagerBase()
     {
-        testing::NiceMock<MockRequestListener> rl;
+        testing::NiceMock<MockRequestListener> rl{megaApi[0].get()};
         handle baseHandle{UNDEF};
         EXPECT_CALL(rl, onRequestFinish)
             .WillOnce(
