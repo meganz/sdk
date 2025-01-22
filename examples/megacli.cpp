@@ -4945,6 +4945,10 @@ autocomplete::ACN autocompleteSyntax()
            sequence(text("nodedescription"),
                     remoteFSPath(client, &cwd),
                     opt(either(flag("-remove"), sequence(flag("-set"), param("description"))))));
+    p->Add(exec_nodelabel,
+           sequence(text("nodelabel"),
+                    remoteFSPath(client, &cwd),
+                    opt(either(flag("-remove"), sequence(flag("-set"), param("label"))))));
     p->Add(exec_nodesensitive,
            sequence(text("nodesensitive"), remoteFSPath(client, &cwd), opt(flag("-remove"))));
     p->Add(exec_nodeTag,
@@ -13473,6 +13477,58 @@ void exec_nodedescription(autocomplete::ACState& s)
     else
     {
         cout << "Description not set\n";
+    }
+}
+
+void exec_nodelabel(autocomplete::ACState& s)
+{
+    std::shared_ptr<Node> n = nodebypath(s.words[1].s.c_str());
+    if (!n)
+    {
+        cout << s.words[1].s << ": No such file or directory" << endl;
+        return;
+    }
+
+    const bool removeLabel = s.extractflag("-remove");
+    const bool setLabel = s.extractflag("-set");
+    const auto labelNameId = AttrMap::string2nameid(MegaClient::NODE_ATTR_LABEL);
+
+    auto modifyLabel = [labelNameId](const std::string& label, std::shared_ptr<Node> n)
+    {
+        AttrMap attrMap;
+        attrMap.map[labelNameId] = label;
+        error e = client->setattr(
+            n,
+            std::move(attrMap.map),
+            [](NodeHandle h, Error e)
+            {
+                if (e == API_OK)
+                    cout << "Label modified correctly" << endl;
+                else
+                    cout << "Error modifying label: " << e << "  Node: " << h << endl;
+            },
+            false);
+        if (e != API_OK)
+        {
+            cout << "Error modifying label: " << e << endl;
+        }
+    };
+
+    if (removeLabel)
+    {
+        modifyLabel("", n);
+    }
+    else if (setLabel)
+    {
+        modifyLabel(s.words[2].s, n);
+    }
+    else if (auto it = n->attrs.map.find(labelNameId); it != n->attrs.map.end())
+    {
+        cout << "Label: " << it->second << endl;
+    }
+    else
+    {
+        cout << "Label not set\n";
     }
 }
 
