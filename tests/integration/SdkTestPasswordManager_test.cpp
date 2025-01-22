@@ -401,6 +401,7 @@ TEST_F(SdkTestPasswordManager, SdkTestImportPasswordFails)
 name,https://foo.com/,username,password,note
 name2,https://foo.com/,username,,note
 name3,username,password,note
+,https://foo.com/,username,password,note
 )"};
 
         const std::string fname = "test.csv";
@@ -424,23 +425,14 @@ name3,username,password,note
 
         MegaStringIntegerMap* stringIntegerList = rt.request->getMegaStringIntegerMap();
         ASSERT_TRUE(stringIntegerList);
-        ASSERT_EQ(stringIntegerList->size(), 2);
-
-        std::unique_ptr<MegaStringList> keys{stringIntegerList->getKeys()};
-        ASSERT_TRUE(keys);
-
-        for (int i = 0; i < keys->size(); ++i)
-        {
-            ASSERT_TRUE(keys->get(i));
-            std::string key{keys->get(i)};
-            std::unique_ptr<MegaIntegerList> badEntries{stringIntegerList->get(key.c_str())};
-            ASSERT_TRUE(badEntries);
-            ASSERT_EQ(badEntries->size(), 1);
-            std::vector<int64_t> errors{MegaApi::IMPORTED_PASSWORD_ERROR_PARSER,
-                                        MegaApi::IMPORTED_PASSWORD_ERROR_MISSINGPASSWORD};
-            ASSERT_THAT(errors, testing::Contains(badEntries->get(0)));
-
-            ASSERT_NE(fileContents.find(key), std::string::npos);
-        }
+        const auto badEntries = stringIntegerMapToMap(*stringIntegerList);
+        ASSERT_EQ(badEntries,
+                  (std::map<std::string, int64_t>{
+                      {"name2,https://foo.com/,username,,note",
+                       MegaApi::IMPORTED_PASSWORD_ERROR_MISSINGPASSWORD},
+                      {"name3,username,password,note", MegaApi::IMPORTED_PASSWORD_ERROR_PARSER},
+                      {",https://foo.com/,username,password,note",
+                       MegaApi::IMPORTED_PASSWORD_ERROR_MISSINGNAME},
+                  }));
     }
 }

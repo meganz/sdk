@@ -70,6 +70,7 @@ namespace mega {
 #include <memory>
 #include <mutex>
 #include <string>
+#include <string_view>
 #include <thread>
 
 namespace mega {
@@ -283,7 +284,13 @@ enum class PasswordEntryError : uint8_t
     OK = 0,
     PARSE_ERROR,
     MISSING_PASSWORD,
+    MISSING_NAME,
 };
+
+/**
+ * @brief Get a string representation from a PasswordEntryError
+ */
+std::string_view toString(const PasswordEntryError err);
 
 // node/user handles are 8-11 base64 characters, case sensitive, and thus fit
 // in a 64-bit int

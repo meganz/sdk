@@ -21280,6 +21280,65 @@ error MegaClient::createPasswordNodes(const std::map<std::string, std::unique_pt
     return API_OK;
 }
 
+static std::vector<std::string> getNodesNames(const sharedNode_list& nodes)
+{
+    std::vector<std::string> nodesNames;
+    std::for_each(nodes.begin(),
+                  nodes.end(),
+                  [&nodesNames](const auto& node)
+                  {
+                      if (!node)
+                      {
+                          assert(false && "null nodes are not expected here");
+                          return;
+                      }
+                      nodesNames.emplace_back(node->displayname());
+                  });
+    return nodesNames;
+}
+
+std::pair<error, MegaClient::BadPasswordData>
+    MegaClient::importPasswordsFromFile(const std::string& filePath,
+                                        const pwm::import::FileSource source,
+                                        const NodeHandle parentHandle,
+                                        const int rTag)
+{
+    using namespace pwm::import;
+    const auto logReturnErr = [](const error err,
+                                 const char* errMsg) -> std::pair<error, BadPasswordData>
+    {
+        LOG_err << "importPasswordsFromFile: " << errMsg;
+        return {err, {}};
+    };
+    std::shared_ptr<Node> parent = nodeByHandle(parentHandle);
+    if (!parent || !parent->isPasswordNodeFolder())
+        return logReturnErr(API_EARGS, "parent node doesn't exist");
+
+    PassFileParseResult parserResult = readPasswordImportFile(filePath, source);
+    switch (parserResult.mErrCode)
+    {
+        case PassFileParseResult::ErrCode::OK:
+            break;
+        case PassFileParseResult::ErrCode::MISSING_COLUMN:
+        case PassFileParseResult::ErrCode::NO_VALID_ENTRIES:
+            return logReturnErr(API_EARGS, "invalid file format");
+        case PassFileParseResult::ErrCode::FILE_NOT_FOUND:
+        case PassFileParseResult::ErrCode::CANT_OPEN_FILE:
+            return logReturnErr(API_EREAD, "file can't be opened or doesn't exist");
+        case PassFileParseResult::ErrCode::INVALID_HEADER:
+            return logReturnErr(API_EACCESS, "invalid header");
+    }
+
+    ncoll::NameCollisionSolver collisionSolver{getNodesNames(getChildren(parent.get()))};
+    const auto [badEntries, goodEntries] =
+        MegaClient::validatePasswordEntries(std::move(parserResult.mResults), collisionSolver);
+
+    if (goodEntries.empty())
+        return logReturnErr(API_EARGS, "none entry is valid");
+
+    return {createPasswordNodes(std::move(goodEntries), parent, rTag), badEntries};
+}
+
 PasswordEntryError MegaClient::validatePasswordData(const AttrMap& data)
 {
     if (const bool pwdPresent = (data.map.contains(AttrMap::string2nameid(PWM_ATTR_PASSWORD_PWD)));
@@ -21302,6 +21361,11 @@ std::pair<MegaClient::BadPasswordData, MegaClient::ValidPasswordData>
         if (entry.mErrCode != pwm::import::PassEntryParseResult::ErrCode::OK)
         {
             bad[std::move(entry.mOriginalContent)] = PasswordEntryError::PARSE_ERROR;
+            continue;
+        }
+        if (entry.mName.empty())
+        {
+            bad[std::move(entry.mOriginalContent)] = PasswordEntryError::MISSING_NAME;
             continue;
         }
 

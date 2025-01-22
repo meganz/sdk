@@ -13401,40 +13401,21 @@ void exec_importpasswordsfromgooglefile(autocomplete::ACState& s)
         return;
     }
 
-    std::shared_ptr<Node> parent = client->mNodeManager.getNodeByHandle(parentHandle);
-    if (!parent || !parent->isPasswordNodeFolder())
-    {
-        cout << "Invalid parent" << endl;
-        return;
-    }
-
     using namespace pwm::import;
-    PassFileParseResult parserResult =
-        readPasswordImportFile(localname.platformEncoded(), FileSource::GOOGLE_PASSWORD);
-    if (parserResult.mErrCode != PassFileParseResult::ErrCode::OK)
-    {
-        cout << "Error importing file: " << parserResult.mErrMsg << endl;
-        return;
-    }
+    const auto [err, badEntries] = client->importPasswordsFromFile(localname.platformEncoded(),
+                                                                   FileSource::GOOGLE_PASSWORD,
+                                                                   parentHandle,
+                                                                   0);
+    if (err != API_OK)
+        cout << "Error importing file. Code " << err;
 
-    sharedNode_list children = client->getChildren(parent.get());
-    std::vector<std::string> childrenNames;
-    std::transform(children.begin(),
-                   children.end(),
-                   std::back_inserter(childrenNames),
-                   [](const std::shared_ptr<Node>& child) -> std::string
-                   {
-                       return child->displayname();
-                   });
-    ncoll::NameCollisionSolver solver{std::move(childrenNames)};
-
-    const auto [badEntries, goodEntries] =
-        MegaClient::validatePasswordEntries(std::move(parserResult.mResults), solver);
-
-    std::cout << "Imported passwords: " << goodEntries.size()
-              << "  Row with Error: " << badEntries.size() << endl;
-
-    client->createPasswordNodes(std::move(goodEntries), parent, 0);
+    std::for_each(begin(badEntries),
+                  end(badEntries),
+                  [](const auto& badEntry)
+                  {
+                      cout << "Error (" << toString(badEntry.second)
+                           << " ) importing line: " << badEntry.first;
+                  });
 
     if (!client->isClientType(MegaClient::ClientType::PASSWORD_MANAGER))
     {

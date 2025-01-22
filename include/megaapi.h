@@ -10448,6 +10448,7 @@ class MegaApi
         {
             IMPORTED_PASSWORD_ERROR_PARSER = 1,
             IMPORTED_PASSWORD_ERROR_MISSINGPASSWORD = 2,
+            IMPORTED_PASSWORD_ERROR_MISSINGNAME = 3,
         };
 
         enum
@@ -12793,6 +12794,7 @@ class MegaApi
          *    Possible error codes are:
          *       IMPORTED_PASSWORD_ERROR_PARSER = 1
          *       IMPORTED_PASSWORD_ERROR_MISSINGPASSWORD = 2
+         *       IMPORTED_PASSWORD_ERROR_MISSINGNAME = 3
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_EARGS:

@@ -43,6 +43,20 @@ std::vector<std::string> stringListToVector(const MegaStringList& l)
     return result;
 }
 
+std::map<std::string, int64_t> stringIntegerMapToMap(const MegaStringIntegerMap& m)
+{
+    std::map<std::string, int64_t> result;
+    std::unique_ptr<MegaStringList> keys{m.getKeys()};
+    if (!keys)
+        return {};
+    for (int i = 0; i < keys->size(); ++i)
+    {
+        const auto& key = keys->get(i);
+        result[key] = m.get(key)->get(0);
+    }
+    return result;
+}
+
 std::vector<std::vector<std::string>> bucketsToVector(const MegaRecentActionBucketList& buckets)
 {
     std::vector<std::vector<std::string>> result;

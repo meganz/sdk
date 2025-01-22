@@ -2956,6 +2956,33 @@ public:
                               int rTag);
 
     /**
+     * @brief Import password nodes from a file
+     *
+     * @param filePath Path to the file with the entries to import
+     * @param source Specifies the source of the input file (e.g. `FileSource::GOOGLE_PASSWORD`)
+     * @param parentHandle The handle of the parent node that will contain the imported entries
+     * @param rTag tag parameter for putnodes call
+     * @return std::pair with
+     * - error: An error code indicating that the whole import operation failed.
+     *   + API_EARGS:
+     *      * The given parent handle doesn't map to a node
+     *      * Invalid file format for the given source
+     *      * No valid entries in the file
+     *   + API_EREAD:
+     *      * The input file cannot be opened
+     *   + API_EACCESS:
+     *      * Problem loading the file once opened, e.g. invalid header
+     *   + Errors returned by `MegaClient::createPasswordNodes`
+     * - BadPasswordData: A vector of pairs<string, PasswordEntryError> with the lines that were not
+     *   successfully parsed (first) and an error code (second) to specify the reason.
+     */
+    std::pair<error, MegaClient::BadPasswordData>
+        importPasswordsFromFile(const std::string& filePath,
+                                const pwm::import::FileSource source,
+                                const NodeHandle parentHandle,
+                                const int rTag);
+
+    /**
      * @brief Ensures the given data can be used to create a new password node.
      *
      * For instance, the password field is mandatory and must be present.

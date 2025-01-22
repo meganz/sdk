@@ -14,18 +14,20 @@ TEST(PWMImportValidator, NormalExecutionNoConflicts)
 {
     NameCollisionSolver solver{};
     std::vector<PassEntryParseResult> entries{
-        {{},                                                   "pas,test",           "passName",   "test.com", "uName",  "pass",  {}       },
-        {{},                                                   "pas,foo",            "passName2",  "foo.com",  "uName2", "pass2", "Notes 1"},
-        {PassEntryParseResult::ErrCode::INVALID_NUM_OF_COLUMN, "i,num,of",           {},           {},         {},       {},      {}       },
-        {{},                                                   "noPassword,foo.com", "noPassword", "foo.com",  "name",   "",      "Notes 1"},
+        {{}, "pas,test", "passName", "test.com", "uName", "pass", {}},
+        {{}, "pas,foo", "passName2", "foo.com", "uName2", "pass2", "Notes 1"},
+        {PassEntryParseResult::ErrCode::INVALID_NUM_OF_COLUMN, "i,num,of", {}, {}, {}, {}, {}},
+        {{}, "noPassword,foo.com", "noPassword", "foo.com", "name", "", "Notes 1"},
+        {{}, "pas,bar", "", "foo.com", "NoPasName", "pass2", "Notes 1"},
     };
 
     auto [bad, good] = MegaClient::validatePasswordEntries(std::move(entries), solver);
 
     // Check bad
-    ASSERT_EQ(bad.size(), 2);
+    ASSERT_EQ(bad.size(), 3);
     ASSERT_THAT(bad, Contains(Pair("i,num,of", PasswordEntryError::PARSE_ERROR)));
     ASSERT_THAT(bad, Contains(Pair("noPassword,foo.com", PasswordEntryError::MISSING_PASSWORD)));
+    ASSERT_THAT(bad, Contains(Pair("pas,bar", PasswordEntryError::MISSING_NAME)));
 
     // Check good
     ASSERT_EQ(good.size(), 2);
