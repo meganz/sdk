@@ -13397,24 +13397,27 @@ void exec_importpasswordsfromgooglefile(autocomplete::ACState& s)
 
     if (parentHandle.isUndef())
     {
-        cout << "Parent handle is undef" << endl;
+        std::cout << "Parent handle is undef\n";
         return;
     }
 
     using namespace pwm::import;
-    const auto [err, badEntries] = client->importPasswordsFromFile(localname.platformEncoded(),
-                                                                   FileSource::GOOGLE_PASSWORD,
-                                                                   parentHandle,
-                                                                   0);
+    const auto [err, badEntries, nGoodEntries] =
+        client->importPasswordsFromFile(localname.platformEncoded(),
+                                        FileSource::GOOGLE_PASSWORD,
+                                        parentHandle,
+                                        0);
     if (err != API_OK)
-        cout << "Error importing file. Code " << err;
+        std::cout << "Error importing file. Code " << err << "\n";
+    else
+        std::cout << "Successfully imported " << nGoodEntries << " entries\n";
 
     std::for_each(begin(badEntries),
                   end(badEntries),
                   [](const auto& badEntry)
                   {
-                      cout << "Error (" << toString(badEntry.second)
-                           << " ) importing line: " << badEntry.first;
+                      std::cout << "Error (" << toString(badEntry.second)
+                                << " ) importing line: " << badEntry.first;
                   });
 
     if (!client->isClientType(MegaClient::ClientType::PASSWORD_MANAGER))

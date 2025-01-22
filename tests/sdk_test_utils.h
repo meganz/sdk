@@ -65,6 +65,11 @@ public:
     LocalTempFile(LocalTempFile&&) noexcept = default;
     LocalTempFile& operator=(LocalTempFile&&) noexcept = default;
 
+    const fs::path& getPath() const
+    {
+        return mFilePath;
+    }
+
 private:
     fs::path mFilePath;
 };
