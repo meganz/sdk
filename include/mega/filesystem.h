@@ -165,18 +165,36 @@ struct MEGA_API FSNode;
 
 extern CodeCounter::ScopeStats g_compareUtfTimings;
 
+/**
+ * @brief Abstract base class providing platform-dependent URI handling
+ *
+ * Each platform should implement this interface to determine whether a given string
+ * is recognized as a URI and to retrieve a representative name from that URI.
+ */
 class MEGA_API PlatformURIHelper
 {
 public:
     virtual ~PlatformURIHelper(){};
+    // Returns if string is an URI
     virtual bool isURI(const std::string& path) = 0;
+    // Returns the name of file/directory pointed by the URI
     virtual std::string getName(const std::string& path) = 0;
 };
 
+/**
+ * @brief Provides an interface handle URIs as an identifier for files and directories.
+ *
+ * The URIHandler class offers static methods to detect if a given string is a URI and to extract a
+ * name from that URI. This functionality should be implemented by a platform specific
+ * implementation PlatformURIHelper
+ */
 class MEGA_API URIHandler
 {
 public:
+    // Check if a path is recognized as a URI
     static bool isURI(const std::string& path);
+
+    // Retrieve the name for a given path or URI
     static std::string getName(const std::string& path);
 
     // platformHelper should be kept alive during all program execution and ownership isn't taken

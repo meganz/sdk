@@ -1582,8 +1582,8 @@ void LocalPath::appendWithSeparator(const LocalPath& additionalPath, bool separa
     assert(!isURI());
 
 #ifdef USE_IOS
-    bool originallyUsesAppBasePath = isFromRoot &&
-        (localpath.empty() || localpath.front() != localPathSeparator);
+    bool originallyUsesAppBasePath =
+        isAbsolute() && (localpath.empty() || localpath.front() != localPathSeparator);
 #endif
 
     assert(!additionalPath.isAbsolute());
@@ -1613,7 +1613,7 @@ void LocalPath::appendWithSeparator(const LocalPath& additionalPath, bool separa
 
 void LocalPath::prependWithSeparator(const LocalPath& additionalPath)
 {
-    assert(!isAbsolute() && mPathType != PathType::URI_PATH);
+    assert(!isAbsolute() && !isURI());
     assert(invariant());
     // no additional separator if there is already one after
     if (!localpath.empty() && localpath[0] != localPathSeparator)
@@ -1631,7 +1631,7 @@ void LocalPath::prependWithSeparator(const LocalPath& additionalPath)
 
 LocalPath LocalPath::prependNewWithSeparator(const LocalPath& additionalPath) const
 {
-    assert(!isAbsolute() && mPathType != PathType::URI_PATH);
+    assert(!isAbsolute() && !isURI());
     LocalPath lp = *this;
     lp.prependWithSeparator(additionalPath);
     assert(lp.invariant());

@@ -1,22 +1,6 @@
 /**
  * @file mega/android/androidFileSystem.h
  * @brief Android filesystem/directory access
- *
- * (c) 2013-2024 by Mega Limited, Auckland, New Zealand
- *
- * This file is part of the MEGA SDK - Client Access Engine.
- *
- * Applications using the MEGA API must present a valid application key
- * and comply with the the rules set forth in the Terms of Service.
- *
- * The MEGA SDK is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- *
- * @copyright Simplified (2-clause) BSD License.
- *
- * You should have received a copy of the license along with this
- * program.
  */
 
 #ifndef ANDROIDFILESYSTEM_H
@@ -26,10 +10,20 @@
 #include <mega/types.h>
 
 #include <jni.h>
+#include <mutex>
 
 namespace mega
 {
-class AndroidFileWrapperRepository;
+/*
+ * @brief Encapsulates a Java object to provide file and directory functionalities on Android
+ *
+ * This class minimizes JNI calls by maintaining its instances in an LRU cache.
+ * Rather than creating a new JNI object for every operation, previously created
+ * instances are reused, reducing the number of JNI calls required.
+ *
+ * To get an instance of this class, getAndroidFileWrapper should be called
+ * Pay attention, constructor is private
+ */
 class AndroidFileWrapper
 {
 public:
@@ -48,6 +42,8 @@ public:
     std::string getPath();
     bool isURI();
 
+    static std::shared_ptr<AndroidFileWrapper> getAndroidFileWrapper(const std::string& path);
+
 private:
     AndroidFileWrapper(const std::string& path);
     jobject mAndroidFileObject{nullptr};
@@ -61,18 +57,13 @@ private:
     static constexpr char GET_NAME[] = "getName";
     static constexpr char GET_CHILDREN_URIS[] = "getChildrenUris";
 
-    friend class AndroidFileWrapperRepository;
-};
-
-class AndroidFileWrapperRepository
-{
-public:
-    static std::shared_ptr<AndroidFileWrapper> getAndroidFileWrapper(const std::string& path);
-
-private:
     static LRUCache<std::string, std::shared_ptr<AndroidFileWrapper>> mRepository;
+    static std::mutex mMutex;
 };
 
+/**
+ * @brief Android implementation to handle URIs
+ */
 class MEGA_API AndroidPlatformURIHelper: public PlatformURIHelper
 {
 public:
@@ -80,21 +71,29 @@ public:
     std::string getName(const std::string& path) override;
 
 private:
+    /**
+     * @brief Private default constructor to enforce controlled instantiation.
+     *
+     * The static instance mPlatformHelper is used instead of creating multiple objects.
+     */
     AndroidPlatformURIHelper();
 
     ~AndroidPlatformURIHelper() override {}
 
     static AndroidPlatformURIHelper mPlatformHelper;
-    static int mNumInstances;
 };
 
+/**
+ * @brief Implement FileAcces functionality for Android
+ *
+ * For access to file from Android, required data (file descriptor,
+ * name, is folder) are obtained with a JNI call to Android layer
+ * Other required data, as size or creation time, are obtained
+ * with the file descriptor
+ */
 class MEGA_API AndroidFileAccess: public FileAccess
 {
 public:
-    // blocking mode: open for reading, writing or reading and writing.
-    // This one really does open the file, and openf(), closef() will have no effect
-    // If iteratingDir is supplied, this fopen() call must be for the directory entry being iterated
-    // by dopen()/dnext()
     bool fopen(const LocalPath&,
                bool read,
                bool write,
@@ -104,16 +103,12 @@ public:
                bool skipcasecheck = false,
                LocalPath* actualLeafNameIfDifferent = nullptr) override;
 
-    // Close an already open file.
     void fclose() override;
 
-    // absolute position write
     bool fwrite(const byte*, unsigned, m_off_t) override;
 
-    // Stat an already open file.
     bool fstat(m_time_t& modified, m_off_t& size) override;
 
-    // Truncate a file.
     bool ftruncate(m_off_t size = 0) override;
 
     void updatelocalname(const LocalPath& name, bool force) override;
@@ -124,8 +119,6 @@ public:
     std::shared_ptr<AndroidFileWrapper> stealFileWrapper();
 
 protected:
-    // system-specific raw read/open/close to be provided by platform implementation.   fopen /
-    // openf / fread etc are implemented by calling these.
     bool sysread(byte*, unsigned, m_off_t) override;
     bool sysstat(m_time_t*, m_off_t*, FSLogging) override;
     bool sysopen(bool async, FSLogging) override;
@@ -136,6 +129,12 @@ protected:
     int mDefaultFilePermissions{0600};
 };
 
+/**
+ * @brief Implement DirAccess functionality for Android
+ *
+ * For access to directory from Android, required data
+ * (list of children) are obtained with a JNI call to Android layer
+ */
 class MEGA_API AndroidDirAccess: public DirAccess
 {
 public:

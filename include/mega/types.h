@@ -1537,8 +1537,7 @@ public:
      */
     void put(const Key& key, const Value& value)
     {
-        auto it = mMap.find(key);
-        if (it != mMap.end())
+        if (auto it = mMap.find(key); it != mMap.end())
         {
             // Update value
             it->second->second = value;
@@ -1549,6 +1548,9 @@ public:
         // Remove las element
         if (mList.size() == mCapacity)
         {
+            if (mCapacity == 0)
+                return;
+
             auto last = mList.end();
             --last; // point to the last element
             mMap.erase(last->first);
@@ -1570,7 +1572,7 @@ public:
      */
     std::optional<Value> get(const Key& key)
     {
-        auto it = mMap.find(key);
+        const auto it = mMap.find(key);
         if (it == mMap.end())
         {
             return std::nullopt;
@@ -1598,7 +1600,7 @@ private:
     // to the element in the list. This allows O(1) average-time lookups.
     std::unordered_map<Key, typename std::list<std::pair<Key, Value>>::iterator> mMap;
 
-    std::size_t mCapacity{0};
+    std::size_t mCapacity{1};
 };
 
 #endif

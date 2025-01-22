@@ -1,24 +1,3 @@
-/**
- * @file mega/android/androidFileSystem.cpp
- * @brief Android filesystem/directory access
- *
- * (c) 2013-2024 by Mega Limited, Auckland, New Zealand
- *
- * This file is part of the MEGA SDK - Client Access Engine.
- *
- * Applications using the MEGA API must present a valid application key
- * and comply with the the rules set forth in the Terms of Service.
- *
- * The MEGA SDK is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- *
- * @copyright Simplified (2-clause) BSD License.
- *
- * You should have received a copy of the license along with this
- * program.
- */
-
 #include <mega/android/androidFileSystem.h>
 #include <mega/filesystem.h>
 #include <mega/logging.h>
@@ -31,9 +10,9 @@ namespace mega
 {
 
 AndroidPlatformURIHelper AndroidPlatformURIHelper::mPlatformHelper;
-int AndroidPlatformURIHelper::mNumInstances = 0;
-LRUCache<std::string, std::shared_ptr<AndroidFileWrapper>>
-    AndroidFileWrapperRepository::mRepository(100);
+LRUCache<std::string, std::shared_ptr<AndroidFileWrapper>> AndroidFileWrapper::mRepository(100);
+
+std::mutex AndroidFileWrapper::mMutex;
 
 AndroidFileWrapper::AndroidFileWrapper(const std::string& path):
     mPath(path)
@@ -194,7 +173,7 @@ std::string AndroidFileWrapper::getName()
         return "";
     }
 
-    jstring name = (jstring)env->CallObjectMethod(mAndroidFileObject, methodID);
+    jstring name = static_cast<jstring>(env->CallObjectMethod(mAndroidFileObject, methodID));
 
     const char* nameStr = env->GetStringUTFChars(name, nullptr);
     mName = nameStr;
@@ -206,7 +185,7 @@ std::vector<std::shared_ptr<AndroidFileWrapper>> AndroidFileWrapper::getChildren
 {
     if (!exists())
     {
-        return std::vector<std::shared_ptr<AndroidFileWrapper>>();
+        return {};
     }
 
     JNIEnv* env{nullptr};
@@ -217,7 +196,7 @@ std::vector<std::shared_ptr<AndroidFileWrapper>> AndroidFileWrapper::getChildren
         env->ExceptionDescribe();
         env->ExceptionClear();
         LOG_err << "Error: AndroidFileWrapper::getchildren";
-        return std::vector<std::shared_ptr<AndroidFileWrapper>>();
+        return {};
     }
 
     jobject childrenUris = env->CallObjectMethod(mAndroidFileObject, methodID);
@@ -232,7 +211,7 @@ std::vector<std::shared_ptr<AndroidFileWrapper>> AndroidFileWrapper::getChildren
     {
         jstring element = (jstring)env->CallObjectMethod(childrenUris, getMethod, i);
         const char* elementStr = env->GetStringUTFChars(element, nullptr);
-        children.push_back(AndroidFileWrapperRepository::getAndroidFileWrapper(elementStr));
+        children.push_back(AndroidFileWrapper::getAndroidFileWrapper(elementStr));
         env->ReleaseStringUTFChars(element, elementStr);
         env->DeleteLocalRef(element);
     }
@@ -246,8 +225,9 @@ bool AndroidFileWrapper::exists()
 }
 
 std::shared_ptr<AndroidFileWrapper>
-    AndroidFileWrapperRepository::getAndroidFileWrapper(const std::string& path)
+    AndroidFileWrapper::getAndroidFileWrapper(const std::string& path)
 {
+    std::lock_guard<std::mutex> g(mMutex);
     auto androidFileWrapper = mRepository.get(path);
     if (androidFileWrapper.has_value())
     {
@@ -261,18 +241,13 @@ std::shared_ptr<AndroidFileWrapper>
 
 AndroidPlatformURIHelper::AndroidPlatformURIHelper()
 {
-    if (mNumInstances == 0)
-    {
-        URIHandler::setPlatformHelper(this);
-    }
-
-    mNumInstances++;
+    URIHandler::setPlatformHelper(this);
 }
 
 bool AndroidPlatformURIHelper::isURI(const std::string& path)
 {
     std::shared_ptr<AndroidFileWrapper> fileWrapper =
-        AndroidFileWrapperRepository::getAndroidFileWrapper(path);
+        AndroidFileWrapper::getAndroidFileWrapper(path);
     if (fileWrapper->exists())
     {
         return fileWrapper->isURI();
@@ -284,7 +259,7 @@ bool AndroidPlatformURIHelper::isURI(const std::string& path)
 std::string AndroidPlatformURIHelper::getName(const std::string& path)
 {
     std::shared_ptr<AndroidFileWrapper> fileWrapper =
-        AndroidFileWrapperRepository::getAndroidFileWrapper(path);
+        AndroidFileWrapper::getAndroidFileWrapper(path);
     if (fileWrapper->exists())
     {
         return fileWrapper->getName();
@@ -307,7 +282,7 @@ bool AndroidFileAccess::fopen(const LocalPath& f,
     std::string fstr = f.rawValue();
     assert(!mFileWrapper);
 
-    mFileWrapper = AndroidFileWrapperRepository::getAndroidFileWrapper(fstr);
+    mFileWrapper = AndroidFileWrapper::getAndroidFileWrapper(fstr);
 
     if (!mFileWrapper->exists())
     {
@@ -344,7 +319,7 @@ bool AndroidFileAccess::fopen(const LocalPath& f,
     type = S_ISDIR(statbuf.st_mode) ? FOLDERNODE : FILENODE;
     size = (type == FILENODE || mIsSymLink) ? statbuf.st_size : 0;
     mtime = statbuf.st_mtime;
-    fsid = (handle)statbuf.st_ino;
+    fsid = static_cast<handle>(statbuf.st_ino);
     fsidvalid = true;
 
     FileSystemAccess::captimestamp(&mtime);
@@ -414,7 +389,7 @@ void AndroidFileAccess::updatelocalname(const LocalPath& name, bool force)
 }
 
 AndroidFileAccess::AndroidFileAccess(Waiter* w, int defaultfilepermissions, bool):
-    FileAccess(waiter),
+    FileAccess(w),
     mDefaultFilePermissions(defaultfilepermissions)
 {}
 
@@ -423,7 +398,7 @@ AndroidFileAccess::~AndroidFileAccess() {}
 std::shared_ptr<AndroidFileWrapper> AndroidFileAccess::stealFileWrapper()
 {
     sysclose();
-    return mFileWrapper;
+    return std::exchange(mFileWrapper, nullptr);
 }
 
 bool AndroidFileAccess::sysread(byte* dst, unsigned len, m_off_t pos)
@@ -437,8 +412,7 @@ bool AndroidFileAccess::sysstat(m_time_t* mtime, m_off_t* size, FSLogging)
 {
     if (!mFileWrapper)
     {
-        mFileWrapper =
-            AndroidFileWrapperRepository::getAndroidFileWrapper(nonblocking_localname.rawValue());
+        mFileWrapper = AndroidFileWrapper::getAndroidFileWrapper(nonblocking_localname.rawValue());
     }
     else
     {
@@ -517,10 +491,8 @@ bool AndroidFileAccess::sysopen(bool, FSLogging)
         sysclose();
     }
 
-    assert(mFollowSymLinks);
-
-    mFileWrapper = AndroidFileWrapperRepository::getAndroidFileWrapper(
-        nonblocking_localname.platformEncoded());
+    mFileWrapper =
+        AndroidFileWrapper::getAndroidFileWrapper(nonblocking_localname.platformEncoded());
 
     if (!mFileWrapper->exists())
     {
@@ -548,7 +520,7 @@ void AndroidFileAccess::sysclose()
     }
 }
 
-bool AndroidDirAccess::dopen(LocalPath* path, FileAccess* f, bool doglob)
+bool AndroidDirAccess::dopen(LocalPath* path, FileAccess* f, bool)
 {
     mIndex = 0;
     if (f)
@@ -561,7 +533,7 @@ bool AndroidDirAccess::dopen(LocalPath* path, FileAccess* f, bool doglob)
         std::string fstr = path->rawValue();
         assert(!mFileWrapper);
 
-        mFileWrapper = AndroidFileWrapperRepository::getAndroidFileWrapper(fstr);
+        mFileWrapper = AndroidFileWrapper::getAndroidFileWrapper(fstr);
     }
 
     if (!mFileWrapper->exists())
@@ -585,8 +557,8 @@ bool AndroidDirAccess::dnext(LocalPath& path,
 
     auto& next = mChildren[mIndex];
     assert(next.get());
-    path = std::move(LocalPath::fromPlatformEncodedAbsolute(next->getPath()));
-    name = std::move(LocalPath::fromPlatformEncodedRelative(next->getName()));
+    path = LocalPath::fromPlatformEncodedAbsolute(next->getPath());
+    name = LocalPath::fromPlatformEncodedRelative(next->getName());
     if (type)
     {
         *type = next->isFolder() ? FOLDERNODE : FILENODE;
