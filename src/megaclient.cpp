@@ -6315,7 +6315,13 @@ void MegaClient::CacheableStatusMap::loadCachedStatus(CacheableStatus::Type type
         case CacheableStatus::Type::STATUS_STORAGE:
         {
             mClient->ststatus = static_cast<storagestatus_t>(value);
-            mClient->app->notify_storage(mClient->ststatus);
+
+            // Notify the storage status if over quota
+            if ((STORAGE_RED == mClient->ststatus) || (STORAGE_PAYWALL == mClient->ststatus))
+            {
+                mClient->app->notify_storage(mClient->ststatus);
+            }
+
             break;
         }
         case CacheableStatus::Type::STATUS_BUSINESS:
