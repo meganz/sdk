@@ -629,7 +629,7 @@ protected:
     void testRecents(const std::string& title, bool useSensitiveExclusion);
 
 #ifdef ENABLE_CHAT
-    void delSchedMeetings();
+    void cancelSchedMeetings();
 #endif
 
     void syncTestEnsureMyBackupsRemoteFolderExists(unsigned apiIdx);
@@ -951,7 +951,6 @@ public:
 #ifdef ENABLE_CHAT
     void createChatScheduledMeeting(const unsigned apiIndex, MegaHandle& chatid);
     void updateScheduledMeeting(const unsigned apiIndex, MegaHandle& chatid);
-    void deleteScheduledMeeting(unsigned apiIndex, MegaHandle& chatid);
 #endif
 
     string createPublicLink(unsigned apiIndex, MegaNode *n, m_time_t expireDate, int timeout, bool isFreeAccount, bool writable = false, bool megaHosted = false);

@@ -21024,7 +21024,12 @@ class MegaApi
          * @param chatid MegaHandle that identifies a chat room
          * @param schedId MegaHandle that identifies a scheduled meeting
          * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated This function is deprecated. Please don't use it in new code.
+         * Use createOrUpdateScheduledMeeting and set cancelled flag `True` at MegaScheduledMeeting.
+         * Note: You can use MegaScheduledMeeting::createInstance with cancelled param `True
          */
+        MEGA_DEPRECATED
         void removeScheduledMeeting(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener = NULL);
 
         /**
