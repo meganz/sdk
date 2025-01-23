@@ -1114,6 +1114,14 @@ public:
      */
     Error acceptInvitation(MegaApi& client, const MegaContactRequest& invitation);
 
+    /*
+     * Establish a friendship between two clients.
+     *
+     * @return
+     * API_OK if the friendship could be established.
+     */
+    Error befriend(MegaApi& client0, MegaApi& client1);
+
     /**
      * Search a list of invitations for an invitation satisfying some predicate.
      *

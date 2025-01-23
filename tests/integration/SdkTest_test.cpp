@@ -19933,6 +19933,23 @@ Error SdkTest::acceptInvitation(MegaApi& client, const MegaContactRequest& invit
     return added ? API_OK : LOCAL_ETIMEOUT;
 }
 
+Error SdkTest::befriend(MegaApi& client0, MegaApi& client1)
+{
+    // Users are already friends.
+    if (hasContact(client0, client1.getMyEmail()))
+        return API_OK;
+
+    // Send user1 an invitation.
+    auto [invitation, invitationSent] = sendInvitationTo(client0, client1);
+
+    // Couldn't send the invitation.
+    if (invitationSent != API_OK)
+        return invitationSent;
+
+    // Accept user0's invitation.
+    return acceptInvitation(client1, *invitation);
+}
+
 auto SdkTest::hasContact(MegaApi& client, const std::string& email) -> std::unique_ptr<MegaUser>
 {
     // Convenience.
