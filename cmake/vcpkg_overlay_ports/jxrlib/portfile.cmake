@@ -10,7 +10,6 @@ vcpkg_from_github(
         guiddef.patch
         fix-mingw.patch
         tmpnam.patch
-        warnings.patch
 )
 
 file(COPY "${CMAKE_CURRENT_LIST_DIR}/CMakeLists.txt" DESTINATION "${SOURCE_PATH}")
