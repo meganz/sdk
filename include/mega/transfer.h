@@ -999,9 +999,11 @@ private:
                 {
                     mSlowDetetionBackoff = std::chrono::steady_clock::now();
                 }
+                break;
             case UnusedConn::CONN_SPEED_UNDER_THRESHOLD:
             case UnusedConn::TRANSFER_MEAN_SPEED_UNDER_THRESHOLD:
                 ++mNumSlowSpeedSwitches;
+                break;
         }
         assert(false);
     }
