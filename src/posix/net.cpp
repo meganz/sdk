@@ -2946,7 +2946,7 @@ int CurlHttpIO::socket_callback(CURL *, curl_socket_t s, int what, void *userp, 
 // This one was causing us to issue additional c-ares requests, when normal usage already sends those requests
 // CURL doco: When set, this callback function gets called by libcurl when the socket has been created, but before the connect call to allow applications to change specific socket options.The callback's purpose argument identifies the exact purpose for this particular socket:
 
-int CurlHttpIO::sockopt_callback(void *clientp, curl_socket_t, curlsocktype)
+int CurlHttpIO::sockopt_callback([[maybe_unused]] void* clientp, curl_socket_t, curlsocktype)
 {
 #ifdef MEGA_USE_C_ARES
     HttpReq *req = (HttpReq*)clientp;

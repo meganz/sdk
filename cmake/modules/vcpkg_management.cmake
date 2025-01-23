@@ -67,10 +67,6 @@ macro(process_vcpkg_libraries overlays_path)
         list(APPEND VCPKG_MANIFEST_FEATURES "use-pdfium")
     endif()
 
-    if (USE_C_ARES)
-        list(APPEND VCPKG_MANIFEST_FEATURES "use-cares")
-    endif()
-
     if (USE_READLINE)
         list(APPEND VCPKG_MANIFEST_FEATURES "use-readline")
     endif()
