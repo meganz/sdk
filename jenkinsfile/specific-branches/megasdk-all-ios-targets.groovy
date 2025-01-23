@@ -41,14 +41,14 @@ pipeline {
                 BUILD_DIR_X64 = "build_dir_x64"
             }
             steps{
-                //Build SDK for arm64
-                sh "echo Building SDK for iOS arm64"
-                sh "cmake -DVCPKG_TARGET_TRIPLET=arm64-ios -DENABLE_LOG_PERFORMANCE=ON -DUSE_LIBUV=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo -DVCPKG_ROOT=${VCPKGPATH} -DCMAKE_VERBOSE_MAKEFILE=ON -DCMAKE_SYSTEM_NAME=iOS -S ${WORKSPACE} -B ${WORKSPACE}/${BUILD_DIR_ARM64}"
+                //Build SDK for arm64-iphoneos
+                sh "echo \"Building SDK for iOS arm64 (iphoneos SDK)\""
+                sh "cmake -DVCPKG_TARGET_TRIPLET=arm64-ios-mega -DENABLE_LOG_PERFORMANCE=ON -DUSE_LIBUV=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo -DVCPKG_ROOT=${VCPKGPATH} -DCMAKE_VERBOSE_MAKEFILE=ON -DCMAKE_SYSTEM_NAME=iOS -S ${WORKSPACE} -B ${WORKSPACE}/${BUILD_DIR_ARM64}"
                 sh "cmake --build ${WORKSPACE}/${BUILD_DIR_ARM64} -j2"
 
-                //Build SDK for x64
-                sh "echo \"Building SDK iOS x64 (crosscompiling)\""
-                sh "cmake -DVCPKG_TARGET_TRIPLET=x64-ios -DENABLE_LOG_PERFORMANCE=ON -DUSE_LIBUV=ON -DENABLE_SDKLIB_EXAMPLES=OFF -DENABLE_SDKLIB_TESTS=OFF -DENABLE_ISOLATED_GFX=OFF -DCMAKE_BUILD_TYPE=RelWithDebInfo -DVCPKG_ROOT=${VCPKGPATH} -DCMAKE_VERBOSE_MAKEFILE=ON -DCMAKE_SYSTEM_NAME=iOS -S ${WORKSPACE} -B ${WORKSPACE}/${BUILD_DIR_X64}"
+                //Build SDK for x64-iphonesimulator
+                sh "echo \"Building SDK iOS x64 (crosscompiling iphonesimulator SDK)\""
+                sh "cmake -DVCPKG_TARGET_TRIPLET=x64-ios-simulator-mega -DENABLE_LOG_PERFORMANCE=ON -DUSE_LIBUV=ON -DENABLE_ISOLATED_GFX=OFF -DCMAKE_BUILD_TYPE=RelWithDebInfo -DVCPKG_ROOT=${VCPKGPATH} -DCMAKE_VERBOSE_MAKEFILE=ON -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_ARCHITECTURES=x86_64 -DCMAKE_OSX_SYSROOT=iphonesimulator -S ${WORKSPACE} -B ${WORKSPACE}/${BUILD_DIR_X64}"
                 sh "cmake --build ${WORKSPACE}/${BUILD_DIR_X64} -j2"
             }
         }
