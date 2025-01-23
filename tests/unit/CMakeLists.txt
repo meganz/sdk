@@ -34,6 +34,7 @@ target_sources(test_unit
     Share_test.cpp
     Sync_conflict_test.cpp
     Sync_test.cpp
+    SyncUploadThrottling_test.cpp
     TextChat_test.cpp
     Transfer_test.cpp
     Transferstats_test.cpp

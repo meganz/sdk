@@ -31,7 +31,7 @@ bool UploadThrottlingFile::checkUploadThrottling(
     }
 
     if (const auto timeSinceLastUploadCounterProcess =
-            mUploadCounterLastTime - std::chrono::steady_clock::now();
+            std::chrono::steady_clock::now() - mUploadCounterLastTime;
         timeSinceLastUploadCounterProcess >= uploadCounterInactivityExpirationTime)
     {
         // Reset the upload counter if enough time has lapsed since last time.
@@ -40,10 +40,7 @@ bool UploadThrottlingFile::checkUploadThrottling(
         return false;
     }
 
-    if (mUploadCounter < maxUploadsBeforeThrottle)
-        return false;
-
-    return true;
+    return mUploadCounter >= maxUploadsBeforeThrottle;
 }
 
 bool UploadThrottlingFile::handleAbortUpload(SyncUpload_inClient& upload,
@@ -63,8 +60,7 @@ bool UploadThrottlingFile::handleAbortUpload(SyncUpload_inClient& upload,
         return false;
     }
 
-    // 2. Upload must be aborted.
-
+    // 2. Upload must be aborted
     // If the upload is going to be aborted either due to a change while it was inflight or after a
     // failure, and the file was being throttled, let it start immediately next time.
     bypassThrottlingNextTime(maxUploadsBeforeThrottle);

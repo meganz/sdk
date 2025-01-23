@@ -45,6 +45,14 @@ private:
 
 public:
     /**
+     * @brief Gets the mBypassThrottlingNextTime flag.
+     */
+    unsigned willBypassThrottlingNextTime()
+    {
+        return mBypassThrottlingNextTime;
+    }
+
+    /**
      * @brief Increases the upload counter by 1 and returns the updated counter.
      */
     unsigned increaseUploadCounter()

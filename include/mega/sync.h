@@ -483,13 +483,16 @@ public:
 
     // Remember which Nodes we created from upload,
     // until the corresponding LocalNodes are updated.
-    void addExpectedUpload(NodeHandle parentHandle, const string& name, weak_ptr<SyncUpload_inClient>);
-    void removeExpectedUpload(NodeHandle parentHandle, const string& name);
-    shared_ptr<SyncUpload_inClient> isNodeAnExpectedUpload(NodeHandle parentHandle, const string& name);
+    void addExpectedUpload(NodeHandle parentHandle,
+                           const string& name,
+                           weak_ptr<SyncUpload_inClient>);
+    virtual void removeExpectedUpload(NodeHandle parentHandle, const string& name);
+    shared_ptr<SyncUpload_inClient> isNodeAnExpectedUpload(NodeHandle parentHandle,
+                                                           const string& name);
 
-    void transferBegin(direction_t direction, m_off_t numBytes);
-    void transferComplete(direction_t direction, m_off_t numBytes);
-    void transferFailed(direction_t direction, m_off_t numBytes);
+    virtual void transferBegin(direction_t direction, m_off_t numBytes);
+    virtual void transferComplete(direction_t direction, m_off_t numBytes);
+    virtual void transferFailed(direction_t direction, m_off_t numBytes);
 
     // Return a snapshot of this sync's current transfer counts.
     SyncTransferCounts transferCounts() const;
@@ -502,9 +505,23 @@ public:
     LocalPath syncTmpFolder() const;
     void setSyncTmpFolder(const LocalPath&);
 
-    SyncThreadsafeState(handle backupId, MegaClient* client, bool canChangeVault) : mClient(client), mBackupId(backupId), mCanChangeVault(canChangeVault)  {}
-    handle backupId() const { return mBackupId; }
-    MegaClient* client() const { return mClient; }
+    SyncThreadsafeState(handle backupId, MegaClient* client, bool canChangeVault):
+        mClient(client),
+        mBackupId(backupId),
+        mCanChangeVault(canChangeVault)
+    {}
+
+    virtual ~SyncThreadsafeState(){};
+
+    handle backupId() const
+    {
+        return mBackupId;
+    }
+
+    MegaClient* client() const
+    {
+        return mClient;
+    }
 };
 
 class MEGA_API Sync
@@ -1362,10 +1379,6 @@ struct SyncSensitiveData
     // Key necessary to manipulate the sync's state cache.
     std::string stateCacheKey;
 }; // SyncSensitiveData
-
-// Forward declarations
-struct NodeMatchByFSIDAttributes;
-class UploadThrottlingManager;
 
 struct Syncs
 {

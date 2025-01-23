@@ -16,6 +16,10 @@
 namespace mega
 {
 
+/**
+ * @struct ThrottleValueLimits
+ * @brief Struct to contain the configurable values lower and upper limits.
+ */
 struct ThrottleValueLimits
 {
     unsigned throttleUpdateRateLowerLimit;
@@ -33,23 +37,16 @@ struct ThrottleValueLimits
  */
 class IUploadThrottlingManager
 {
-    /**
-     * @brief Checks if the next delayed upload in the queue should be processed.
-     *
-     * @return True if the next upload should be processed, otherwise false.
-     */
-    virtual bool checkProcessDelayedUploads() const = 0;
-
-    /**
-     * @brief Resets last processed time to the current time.
-     */
-    virtual void resetLastProcessedTime() = 0;
-
 public:
     /**
      * @brief IUploadThrottlingManager destructor.
      */
     virtual ~IUploadThrottlingManager() = default;
+
+    /**
+     * @brief Resets last processed time to the current time.
+     */
+    virtual void resetLastProcessedTime() = 0;
 
     /**
      * @brief Adds a delayed upload to be processed.
@@ -63,10 +60,10 @@ public:
      * Calls completion function if there a DelayedUpload was processed.
      */
     virtual void processDelayedUploads(
-        std::function<void(std::weak_ptr<SyncUpload_inClient>&& upload,
-                           const VersioningOption vo,
-                           const bool queueFirst,
-                           const NodeHandle ovHandleIfShortcut)>&& /* completion */) = 0;
+        std::function<void(std::weak_ptr<SyncUpload_inClient>&& /* upload */,
+                           const VersioningOption /* vo */,
+                           const bool /* queueFirst */,
+                           const NodeHandle /* ovHandleIfShortcut */)>&& /* completion */) = 0;
 
     // Setters
 
@@ -113,6 +110,12 @@ public:
      * @return The ThrottleValueLimits struct with lower and upper limits.
      */
     virtual ThrottleValueLimits throttleValueLimits() const = 0;
+
+    /**
+     * @brief Calculate the time since last delayed upload was processed.
+     * @return The time lapsed since last processed upload in seconds.
+     */
+    virtual std::chrono::seconds timeSinceLastProcessedUpload() const = 0;
 };
 
 } // namespace mega

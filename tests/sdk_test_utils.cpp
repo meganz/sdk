@@ -39,32 +39,27 @@ void copyFileFromTestData(fs::path filename, fs::path destination)
     fs::copy_file(source, destination);
 }
 
-void createFile(const fs::path& filePath, const unsigned int fileSizeBytes)
+void createFile(const fs::path& filePath, const size_t fileSizeBytes)
 {
-    std::ofstream outFile(filePath, std::ios::binary);
-    if (!outFile.is_open())
-    {
-        const auto msg = "Can't open the file: " + filePath.string();
-        LOG_err << msg;
-        throw std::runtime_error(msg);
-    }
-    std::vector<char> buffer(fileSizeBytes, 0);
-    outFile.write(buffer.data(), static_cast<std::streamsize>(buffer.size()));
+    writeFileContent<std::size_t>(filePath, std::ios::binary, fileSizeBytes);
 }
 
 void createFile(const fs::path& filePath, const std::string_view contents)
 {
-    std::ofstream outFile(filePath, std::ios::binary);
-    if (!outFile.is_open())
-    {
-        const auto msg = "Can't open the file: " + filePath.string();
-        LOG_err << msg;
-        throw std::runtime_error(msg);
-    }
-    outFile.write(contents.data(), static_cast<std::streamsize>(contents.size()));
+    writeFileContent<std::string_view>(filePath, std::ios::binary, contents);
 }
 
-LocalTempFile::LocalTempFile(const fs::path& _filePath, const unsigned int fileSizeBytes):
+void appendToFile(const fs::path& filePath, const size_t bytesToAppend)
+{
+    writeFileContent<std::size_t>(filePath, std::ios::binary | std::ios::app, bytesToAppend);
+}
+
+void appendToFile(const fs::path& filePath, const std::string_view contents)
+{
+    writeFileContent<std::string_view>(filePath, std::ios::binary | std::ios::app, contents);
+}
+
+LocalTempFile::LocalTempFile(const fs::path& _filePath, const size_t fileSizeBytes):
     mFilePath(_filePath)
 {
     createFile(mFilePath, fileSizeBytes);
@@ -74,6 +69,16 @@ LocalTempFile::LocalTempFile(const fs::path& _filePath, const std::string_view c
     mFilePath(_filePath)
 {
     createFile(mFilePath, contents);
+}
+
+void LocalTempFile::appendData(const size_t bytesToAppend) const
+{
+    appendToFile(mFilePath, bytesToAppend);
+}
+
+void LocalTempFile::appendData(const std::string_view contentsToAppend) const
+{
+    appendToFile(mFilePath, contentsToAppend);
 }
 
 LocalTempFile::~LocalTempFile()

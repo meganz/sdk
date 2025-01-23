@@ -823,8 +823,8 @@ void SyncUpload_inClient::updateFingerprint(const FileFingerprint& newFingerprin
     if (size != newFingerprint.size)
     {
         // Reset transfer tracking values
-        syncThreadSafeState->transferBegin(PUT, size);
-        syncThreadSafeState->transferBegin(PUT, size);
+        syncThreadSafeState->transferFailed(PUT, size);
+        syncThreadSafeState->transferBegin(PUT, newFingerprint.size);
     }
 
     FileFingerprint::operator=(newFingerprint);

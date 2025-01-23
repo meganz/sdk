@@ -1721,8 +1721,8 @@ void MegaApiImpl::setSyncThrottleUpdateRate(const unsigned updateRateInSeconds,
         client->setSyncUploadThrottleValues(
             std::optional<unsigned>(updateRateInSeconds),
             std::nullopt,
-            [this, request](const error /* errorSetMaxUploadsBeforeThrottle */,
-                            const error errorSetUpdateRateInSeconds)
+            [this, request](const error errorSetUpdateRateInSeconds,
+                            const error /* errorSetMaxUploadsBeforeThrottle */)
             {
                 fireOnRequestFinish(
                     request,
@@ -1748,8 +1748,8 @@ void MegaApiImpl::setSyncMaxUploadsBeforeThrottle(const unsigned maxUploadsBefor
         client->setSyncUploadThrottleValues(
             std::nullopt,
             std::optional<unsigned>(maxUploadsBeforeThrottle),
-            [this, request](const error errorSetMaxUploadsBeforeThrottle,
-                            const error /* errorSetUpdateRateInSeconds */)
+            [this, request](const error /* errorSetUpdateRateInSeconds */,
+                            const error errorSetMaxUploadsBeforeThrottle)
             {
                 fireOnRequestFinish(
                     request,

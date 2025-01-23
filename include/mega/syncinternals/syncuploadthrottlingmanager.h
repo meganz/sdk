@@ -55,6 +55,14 @@ public:
                            const bool queueFirst,
                            const NodeHandle ovHandleIfShortcut)>&& completion) override;
 
+    /**
+     * @brief Resets last processed time to the current time.
+     */
+    void resetLastProcessedTime() override
+    {
+        mLastProcessedTime = std::chrono::steady_clock::now();
+    }
+
     // Setters
 
     /**
@@ -122,6 +130,16 @@ public:
                 MAX_UPLOADS_BEFORE_THROTTLE_UPPER_LIMIT};
     }
 
+    /**
+     * @brief Calculate the time since last delayed upload was processed.
+     * @return The time lapsed since mLastProcessedTime in seconds.
+     */
+    std::chrono::seconds timeSinceLastProcessedUpload() const override
+    {
+        return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() -
+                                                                mLastProcessedTime);
+    }
+
 private:
     // Limits
     static constexpr unsigned TIMEOUT_TO_RESET_UPLOAD_COUNTERS_SECONDS{
@@ -169,15 +187,7 @@ private:
      *
      * @return True if the next upload should be processed, otherwise false.
      */
-    bool checkProcessDelayedUploads() const override;
-
-    /**
-     * @brief Resets last processed time to the current time.
-     */
-    void resetLastProcessedTime() override
-    {
-        mLastProcessedTime = std::chrono::steady_clock::now();
-    }
+    bool checkProcessDelayedUploads() const;
 };
 
 } // namespace mega

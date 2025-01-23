@@ -57,14 +57,13 @@ bool UploadThrottlingManager::checkProcessDelayedUploads() const
                  std::chrono::duration_cast<std::chrono::seconds>(
                      mThrottleUpdateRate / std::sqrt(static_cast<double>(mDelayedQueue.size()))));
 
-    if (auto timeSinceLastProcessedUpload = std::chrono::steady_clock::now() - mLastProcessedTime;
-        timeSinceLastProcessedUpload < adjustedThrottleUpdateRate)
+    if (const auto timeSinceLastProcessedUploadInSeconds = timeSinceLastProcessedUpload();
+        timeSinceLastProcessedUploadInSeconds < adjustedThrottleUpdateRate)
     {
         SYNCS_verbose_timed
             << "[UploadThrottle] Waiting to process delayed uploads [processing every "
             << adjustedThrottleUpdateRate.count() << " secs, time lapsed since last process: "
-            << std::chrono::duration_cast<std::chrono::seconds>(timeSinceLastProcessedUpload)
-                   .count()
+            << timeSinceLastProcessedUploadInSeconds.count()
             << " secs, delayed uploads = " << mDelayedQueue.size() << "]";
         return false;
     }

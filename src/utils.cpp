@@ -30,6 +30,7 @@
 
 #include <cctype>
 #include <iomanip>
+#include <numeric>
 
 #if defined(_WIN32) && defined(_MSC_VER)
 #include <sys/timeb.h>

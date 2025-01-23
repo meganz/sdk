@@ -1469,6 +1469,133 @@ struct overloaded: Ts...
 template<class... Ts>
 overloaded(Ts...) -> overloaded<Ts...>;
 
+/**
+ * @brief Represents a range of unsigned integers, providing an iterator-based interface for
+ * iteration.
+ *
+ * The Range class allows to create a range of unsigned integers, which can be used in
+ * for-each loops or other iteration contexts.
+ */
+class Range
+{
+public:
+    /**
+     * @brief Constructs a Range object.
+     * @param start The starting value of the range (inclusive).
+     * @param end The ending value of the range (exclusive).
+     */
+    Range(const unsigned start, const unsigned end):
+        mStart(start),
+        mEnd(end)
+    {}
+
+    /**
+     * @class Iterator
+     * @brief Nested class representing an iterator for the Range.
+     */
+    class Iterator
+    {
+    public:
+        /**
+         * @brief Constructs an Iterator object.
+         * @param current The current value of the iterator.
+         */
+        explicit Iterator(const unsigned current):
+            mCurrent(current)
+        {}
+
+        /**
+         * @brief Dereference operator to access the current value of the iterator.
+         */
+        unsigned operator*() const
+        {
+            return mCurrent;
+        }
+
+        /**
+         * @brief Pre-increment operator to move to the next value in the range.
+         */
+        Iterator& operator++()
+        {
+            ++mCurrent;
+            return *this;
+        }
+
+        /**
+         * @brief Inequality operator to check if two iterators are different.
+         * Iteration ends when the current value equals the other iterator's value.
+         */
+        bool operator!=(const Iterator& other) const
+        {
+            return mCurrent != other.mCurrent;
+        }
+
+    private:
+        unsigned mCurrent; // The current value of the iterator.
+    };
+
+    /**
+     * @brief Returns an iterator pointing to the beginning of the range.
+     */
+    Iterator begin() const
+    {
+        return Iterator(mStart);
+    }
+
+    /**
+     * @brief Returns an iterator pointing to the end of the range.
+     */
+    Iterator end() const
+    {
+        return Iterator(mEnd);
+    }
+
+private:
+    unsigned mStart; // The starting value of the range (inclusive).
+    unsigned mEnd; // The ending value of the range (exclusive).
+};
+
+/**
+ * @brief Generates a Range object from a starting value to an ending value.
+ *
+ * This function provides a convenient way to create a Range without directly constructing it.
+ *
+ * Example:
+ * @code
+ * for (const auto i : range(2, 6)) // Iterates over 2, 3, 4, 5
+ * {
+ *     std::cout << i << "\n";
+ * }
+ * @endcode
+ *
+ * @param start The starting value of the range (inclusive).
+ * @param end The ending value of the range (exclusive).
+ * @return A Range object representing the specified range.
+ */
+inline Range range(const unsigned start, const unsigned end)
+{
+    return Range(start, end);
+}
+
+/**
+ * @brief Overload of range() that generates a Range from 0 to the specified ending value.
+ *
+ * Example:
+ * @code
+ * for (const auto i : range(5)) // Iterates over 0, 1, 2, 3, 4
+ * {
+ *     std::cout << i << "\n";
+ * }
+ * @endcode
+ *
+ * @param end The ending value of the range (exclusive).
+ * @return A Range object representing the range from 0 to end.
+ */
+inline Range range(const unsigned end)
+{
+    return Range(0, end);
+}
+
 } // namespace mega
 
 #endif // MEGA_UTILS_H
