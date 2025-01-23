@@ -74,7 +74,7 @@
             "version>=": "3.46.0#1"
         }
     ],
-    "builtin-baseline" : "7476f0d4e77d3333fbb249657df8251c28c4faae",
+    "builtin-baseline" : "d5ec528843d29e3a52d745a64b469f810b2cedbf",
     "overrides": [
         {
             "name" : "libuv",
