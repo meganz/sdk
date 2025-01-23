@@ -1667,14 +1667,6 @@ void DirectReadSlot::retryOnError(const size_t connectionNum, const int httpstat
             return;
         }
 
-        if (auto failedParts = incrementFailedRaidedParts(); failedParts > MAX_FAILED_RAIDED_PARTS)
-        {
-            msg += "max failed raided parts limit reached, we will retry entire transfer";
-            LOG_debug << msg;
-            retryEntireTransfer(API_EREAD);
-            return;
-        }
-
         msg += "we will replace that part by [conn " + std::to_string(mUnusedConn.getNum()) + "]";
         LOG_debug << msg;
         mDr->drbuf.setUnusedRaidConnection(static_cast<unsigned>(connectionNum));
@@ -1686,7 +1678,6 @@ void DirectReadSlot::retryOnError(const size_t connectionNum, const int httpstat
 
 void DirectReadSlot::retryEntireTransfer(const Error& e, dstime timeleft)
 {
-    clearFailedRaidedParts();
     mUnusedConn.clear();
     mDr->drn->retry(e, timeleft);
 }
@@ -2627,7 +2618,6 @@ DirectReadSlot::DirectReadSlot(DirectRead* cdr)
     mNumReqsInflight = 0;
     mWaitForParts = false;
     mMaxChunkSubmitted = 0;
-    clearFailedRaidedParts();
 
     mDrs_it = mDr->drn->client->drss.insert(mDr->drn->client->drss.end(), this);
 

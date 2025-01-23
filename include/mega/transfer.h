@@ -318,10 +318,6 @@ public:
     /**
      * @brief Returns an unusedReason given a HTTP status code.
      *
-     * @note Currently this method never returns UN_DEFINITIVE_ERR UN_DEFINITIVE_ERR is only set
-     * if same connection has failed more than once and failedParts has exceeded
-     * MAX_FAILED_RAIDED_PARTS
-     *
      * @return An unusedReason given a HTTP status code.
      */
     static unusedReason getReasonFromHttpStatus(const int httpstatus)
@@ -518,14 +514,6 @@ public:
     static constexpr m_off_t SLOWEST_TO_FASTEST_THROUGHPUT_RATIO[2] { 4, 5 };
 
     /**
-     * @brief Max times a failed raided part of a DirectRead, is allowed to be replaced by another
-     * one.
-     *
-     * @see DirectReadSlot::retry
-     */
-    static constexpr int MAX_FAILED_RAIDED_PARTS = 1;
-
-    /**
      * @brief Max different failed raided parts of a DirectRead allowed
      *
      * @see DirectReadSlot::retryOnError
@@ -670,10 +658,7 @@ public:
      *
      * This method attempts to retry a DirectRead transfer. If the transfer is non RAIDED,
      * it directly triggers a retry. If it's RAIDED, it replaces that part with unused RAID
-     * connection, and retries only that part.
-     *
-     * @note In case of RAIDED transfer and mFailedRaidedParts has reached or exceeded
-     * MAX_FAILED_RAIDED_PARTS, entire transfer will be retried
+     * connection (if posible), and retries only that part.
      *
      * @param connectionNum The connection number to retry.
      */
@@ -802,30 +787,6 @@ public:
     DirectReadSlot(DirectRead*);
 
     /**
-     * @brief Increments the count of failed raided parts.
-     *
-     * This method increments the counter of failed raided parts, and stores connNum at
-     * mFailedRaidedParts.
-     *
-     * @param connNum The number of connection
-     * @return The updated count of failed raided parts.
-     */
-    std::size_t incrementFailedRaidedParts()
-    {
-        return ++mFailedRaidedPartsCounter;
-    }
-
-    /**
-     * @brief Resets the count of failed raided parts.
-     *
-     * This method sets the counter of failed raided parts to 0.
-     */
-    void clearFailedRaidedParts()
-    {
-        mFailedRaidedPartsCounter = 0;
-    }
-
-    /**
     *   @brief Destroy DirectReadSlot and stop any pendant operation.
     *
     *   Aborts DirectRead operations and remove iterator from MegaClient's DirectRead list.
@@ -868,12 +829,6 @@ private:
     *   @see HttpReq
     */
     std::vector<std::unique_ptr<HttpReq>> mReqs;
-
-    /**
-     * @brief Number of failed raided parts of a DirectRead.
-     * @see DirectReadSlot::retry
-     */
-    size_t mFailedRaidedPartsCounter{};
 
     /**
      *   @brief Pair of <Bytes downloaded> and <Total milliseconds> for throughput calculations.
