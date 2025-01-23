@@ -13255,6 +13255,7 @@ void exec_passwordmanager(autocomplete::ACState& s)
         if (!nParent)
         {
             cout << "Wrong parent handle provided " << toNodeHandle(ph) << "\n";
+            return;
         }
 
         auto name = s.words[3].s.c_str();
