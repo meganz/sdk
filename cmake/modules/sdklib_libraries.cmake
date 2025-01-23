@@ -10,7 +10,7 @@ macro(load_sdklib_libraries)
         if(WIN32)
             target_link_libraries(SDKlib PUBLIC unofficial-sodium::sodium)  # TODO: Private for SDK core
         else()
-            target_link_libraries(SDKlib PRIVATE unofficial-sodium::sodium unofficial-sodium::sodium_config_public)
+            target_link_libraries(SDKlib PRIVATE unofficial-sodium::sodium)
         endif()
 
         find_package(unofficial-sqlite3 REQUIRED)
