@@ -1503,25 +1503,32 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
     auto len = httpctx->len;
     const char* data = httpctx->data;
 
-    LOG_debug << httpctx->req->logname << req->getMethodString() << " target URL: " << getSafeUrl(req->posturl);
+    LOG_debug << httpctx->req->getLogName() << req->getMethodString()
+              << " target URL: " << getSafeUrl(req->posturl);
 
     if (req->binary)
     {
-        LOG_debug << httpctx->req->logname << "[sending " << (data ? len : req->out->size()) << " bytes of raw data]";
+        LOG_debug << httpctx->req->getLogName() << "[sending " << (data ? len : req->out->size())
+                  << " bytes of raw data]";
     }
     else
     {
         if (gLogJSONRequests || req->out->size() < size_t(SimpleLogger::getMaxPayloadLogSize()))
         {
-            LOG_debug << httpctx->req->logname << "Sending " << req->out->size() << ": " << DirectMessage(req->out->c_str(), req->out->size())
+            LOG_debug << httpctx->req->getLogName() << "Sending " << req->out->size() << ": "
+                      << DirectMessage(req->out->c_str(), req->out->size())
                       << " (at ds: " << Waiter::ds << ")";
         }
         else
         {
-            LOG_debug << httpctx->req->logname << "Sending " << req->out->size() << ": "
-                      << DirectMessage(req->out->c_str(), static_cast<size_t>(SimpleLogger::getMaxPayloadLogSize() / 2))
-                      << " [...] "
-                      << DirectMessage(req->out->c_str() + req->out->size() - SimpleLogger::getMaxPayloadLogSize() / 2, static_cast<size_t>(SimpleLogger::getMaxPayloadLogSize() / 2));
+            LOG_debug
+                << httpctx->req->getLogName() << "Sending " << req->out->size() << ": "
+                << DirectMessage(req->out->c_str(),
+                                 static_cast<size_t>(SimpleLogger::getMaxPayloadLogSize() / 2))
+                << " [...] "
+                << DirectMessage(req->out->c_str() + req->out->size() -
+                                     SimpleLogger::getMaxPayloadLogSize() / 2,
+                                 static_cast<size_t>(SimpleLogger::getMaxPayloadLogSize() / 2));
         }
     }
 
@@ -1930,7 +1937,8 @@ int CurlHttpIO::debug_callback(CURL*, curl_infotype type, char* data, size_t siz
 #endif
                         ")";
         }
-        NET_verbose << (debugdata ? static_cast<HttpReq*>(debugdata)->logname : string()) << "cURL: " << data << errnoInfo;
+        NET_verbose << (debugdata ? static_cast<HttpReq*>(debugdata)->getLogName() : string())
+                    << "cURL: " << data << errnoInfo;
     }
 
     return 0;
@@ -2289,31 +2297,33 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                 CURLcode errorCode = msg->data.result;
                 if (errorCode != CURLE_OK && errorCode != CURLE_HTTP_RETURNED_ERROR && errorCode != CURLE_WRITE_ERROR)
                 {
-                    LOG_debug << req->logname << "CURLMSG_DONE with error " << errorCode << ": " << curl_easy_strerror(errorCode);
+                    LOG_debug << req->getLogName() << "CURLMSG_DONE with error " << errorCode
+                              << ": " << curl_easy_strerror(errorCode);
 
-                #if LIBCURL_VERSION_NUM >= 0x072c00 // At least cURL 7.44.0
+#if LIBCURL_VERSION_NUM >= 0x072c00 // At least cURL 7.44.0
                     if (errorCode == CURLE_SSL_PINNEDPUBKEYNOTMATCH)
                     {
                         pkpErrors++;
-                        LOG_warn << req->logname << "Invalid public key?";
+                        LOG_warn << req->getLogName() << "Invalid public key?";
 
                         if (pkpErrors == 3)
                         {
                             pkpErrors = 0;
 
-                            LOG_err << req->logname << "Invalid public key. Possible MITM attack!!";
+                            LOG_err << req->getLogName()
+                                    << "Invalid public key. Possible MITM attack!!";
                             req->sslcheckfailed = true;
 
                             struct curl_certinfo *ci;
                             if (curl_easy_getinfo(msg->easy_handle, CURLINFO_CERTINFO, &ci) == CURLE_OK)
                             {
-                                LOG_warn << req->logname << "Fake SSL certificate data:";
+                                LOG_warn << req->getLogName() << "Fake SSL certificate data:";
                                 for (int i = 0; i < ci->num_of_certs; i++)
                                 {
                                     struct curl_slist *slist = ci->certinfo[i];
                                     while (slist)
                                     {
-                                        LOG_warn << req->logname << i << ": " << slist->data;
+                                        LOG_warn << req->getLogName() << i << ": " << slist->data;
                                         if (i == 0 && !memcmp("Issuer:", slist->data, 7))
                                         {
                                             const char *issuer = NULL;
@@ -2337,7 +2347,8 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
 
                                 if (req->sslfakeissuer.size())
                                 {
-                                    LOG_debug << req->logname << "Fake certificate issuer: " << req->sslfakeissuer;
+                                    LOG_debug << req->getLogName()
+                                              << "Fake certificate issuer: " << req->sslfakeissuer;
                                 }
                             }
                         }
@@ -2353,8 +2364,12 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                 curl_easy_getinfo(msg->easy_handle, CURLINFO_RESPONSE_CODE, &httpstatus);
                 req->httpstatus = int(httpstatus);
 
-                LOG_debug << req->logname << "CURLMSG_DONE with HTTP status: " << req->httpstatus << " from "
-                          << (req->httpiohandle ? (((CurlHttpContext*)req->httpiohandle)->hostname + " - " + ((CurlHttpContext*)req->httpiohandle)->hostip) : "(unknown) ");
+                LOG_debug << req->getLogName()
+                          << "CURLMSG_DONE with HTTP status: " << req->httpstatus << " from "
+                          << (req->httpiohandle ?
+                                  (((CurlHttpContext*)req->httpiohandle)->hostname + " - " +
+                                   ((CurlHttpContext*)req->httpiohandle)->hostip) :
+                                  "(unknown) ");
                 if (req->httpstatus)
                 {
                     if (req->mExpectRedirect && req->isRedirection()) // HTTP 3xx response
@@ -2364,7 +2379,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                         if (url)
                         {
                             req->mRedirectURL = url;
-                            LOG_debug << req->logname << "Redirected to " << req->mRedirectURL;
+                            LOG_debug << req->getLogName() << "Redirected to " << req->mRedirectURL;
                         }
                     }
 
@@ -2375,7 +2390,8 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                         if (curl_easy_getinfo(msg->easy_handle, CURLINFO_PRIMARY_IP, &ip) == CURLE_OK
                               && ip && !strstr(httpctx->hostip.c_str(), ip))
                         {
-                            LOG_err << req->logname << "cURL has changed the original IP! " << httpctx ->hostip << " -> " << ip;
+                            LOG_err << req->getLogName() << "cURL has changed the original IP! "
+                                    << httpctx->hostip << " -> " << ip;
                             req->in = strstr(ip, ":") ? (string("[") + ip + "]") : string(ip);
                         }
                         else
@@ -2387,26 +2403,36 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
 
                     if (req->binary)
                     {
-                        LOG_debug << req->logname << "[received " << (req->buf ? req->bufpos : (int)req->in.size()) << " bytes of raw data]";
+                        LOG_debug << req->getLogName() << "[received "
+                                  << (req->buf ? req->bufpos : (int)req->in.size())
+                                  << " bytes of raw data]";
                     }
                     else if (req->mChunked && static_cast<size_t>(req->bufpos) != req->in.size())
                     {
-                        LOG_debug << req->logname << "[received " << req->bufpos << " bytes of chunked data]";
+                        LOG_debug << req->getLogName() << "[received " << req->bufpos
+                                  << " bytes of chunked data]";
                     }
                     else
                     {
                         if (gLogJSONRequests ||
                             req->in.size() < size_t(SimpleLogger::getMaxPayloadLogSize()))
                         {
-                            LOG_debug << req->logname << "Received " << req->in.size() << ": " << DirectMessage(req->in.c_str(), req->in.size())
+                            LOG_debug << req->getLogName() << "Received " << req->in.size() << ": "
+                                      << DirectMessage(req->in.c_str(), req->in.size())
                                       << " (at ds: " << Waiter::ds << ")";
                         }
                         else
                         {
-                            LOG_debug << req->logname << "Received " << req->in.size() << ": "
-                                      << DirectMessage(req->in.c_str(), static_cast<size_t>(SimpleLogger::getMaxPayloadLogSize() / 2))
-                                      << " [...] "
-                                      << DirectMessage(req->in.c_str() + req->in.size() - SimpleLogger::getMaxPayloadLogSize() / 2, static_cast<size_t>(SimpleLogger::getMaxPayloadLogSize() / 2));
+                            LOG_debug
+                                << req->getLogName() << "Received " << req->in.size() << ": "
+                                << DirectMessage(req->in.c_str(),
+                                                 static_cast<size_t>(
+                                                     SimpleLogger::getMaxPayloadLogSize() / 2))
+                                << " [...] "
+                                << DirectMessage(req->in.c_str() + req->in.size() -
+                                                     SimpleLogger::getMaxPayloadLogSize() / 2,
+                                                 static_cast<size_t>(
+                                                     SimpleLogger::getMaxPayloadLogSize() / 2));
                         }
                     }
                 }
@@ -2426,11 +2452,10 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                 }
                 else
                 {
-                    LOG_warn << req->logname << "REQ_FAILURE."
-                             << " Status: " << req->httpstatus
-                             << " CURLcode: " << errorCode
-                             << "  Content-Length: " << req->contentlength
-                             << "  buffer? " << (req->buf != NULL)
+                    LOG_warn << req->getLogName() << "REQ_FAILURE."
+                             << " Status: " << req->httpstatus << " CURLcode: " << errorCode
+                             << "  Content-Length: " << req->contentlength << "  buffer? "
+                             << (req->buf != NULL)
                              << "  bufferSize: " << (req->buf ? req->bufpos : (int)req->in.size());
                 }
 
@@ -2500,7 +2525,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
 
                             if (dnsEntry.ipv4.size() && !dnsEntry.isIPv4Expired())
                             {
-                                LOG_debug << req->logname << "Retrying using IPv4 from cache";
+                                LOG_debug << req->getLogName() << "Retrying using IPv4 from cache";
                                 httpctx->isIPv6 = false;
                                 httpctx->hostip = dnsEntry.ipv4;
                                 send_request(httpctx);
@@ -2508,7 +2533,8 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                             else
                             {
                                 httpctx->hostip.clear();
-                                LOG_debug << req->logname << "Retrying with the pending DNS response";
+                                LOG_debug << req->getLogName()
+                                          << "Retrying with the pending DNS response";
                             }
                             return true;
                         }
@@ -2587,7 +2613,7 @@ void CurlHttpIO::measureLatency(CURL* easy_handle, HttpReq* req)
             LOG_warn << "Failed to get connect time info: " << curl_easy_strerror(connect_time_res);
         }
 
-        LOG_verbose << "Connect time and start transfer latency for request " << req->logname
+        LOG_verbose << "Connect time and start transfer latency for request " << req->getLogName()
                     << ": " << connect_time << " ms - " << start_transfer_time << " ms";
     }
 }
@@ -2691,7 +2717,7 @@ size_t CurlHttpIO::read_data(void* ptr, size_t size, size_t nmemb, void* source)
 
     memcpy(ptr, buf, nread);
     req->outpos += nread;
-    //LOG_debug << req->logname << "Supplying " << nread << " bytes to cURL to send";
+    // LOG_debug << req->getLogName() << "Supplying " << nread << " bytes to cURL to send";
     return nread;
 }
 
@@ -2711,7 +2737,6 @@ size_t CurlHttpIO::write_data(void* ptr, size_t size, size_t nmemb, void* target
             {
                 if ((httpio->downloadSpeed + ((httpio->partialdata[GET] + len) / static_cast<m_off_t>(SpeedController::SPEED_MEAN_CIRCULAR_BUFFER_SIZE_SECONDS))) > httpio->maxspeed[GET])
                 {
-                    CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
                     httpio->pausedrequests[GET].insert(httpctx->curl);
                     httpio->arerequestspaused[GET] = true;
                     return CURL_WRITEFUNC_PAUSE;
@@ -2739,7 +2764,7 @@ size_t CurlHttpIO::check_header(void* ptr, size_t size, size_t nmemb, void* targ
     size_t len = size * nmemb;
     if (len > 2)
     {
-        NET_verbose << req->logname << "Header: " << string((const char *)ptr, len - 2);
+        NET_verbose << req->getLogName() << "Header: " << string((const char*)ptr, len - 2);
     }
 
     if (len > 5 && !memcmp(ptr, "HTTP/", 5))

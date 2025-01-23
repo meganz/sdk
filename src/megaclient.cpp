@@ -1853,7 +1853,6 @@ MegaClient::MegaClient(MegaApp* a, shared_ptr<Waiter> w, HttpIO* h, DbAccess* d,
 
     xferpaused[PUT] = false;
     xferpaused[GET] = false;
-    putmbpscap = 0;
     mBizGracePeriodTs = 0;
     mBizExpirationTs = 0;
     mBizMode = BIZ_MODE_UNKNOWN;
@@ -2465,7 +2464,8 @@ void MegaClient::exec()
                             if ((!pendingcs->mChunked && *pendingcs->in.c_str() == '[')
                                 || (pendingcs->mChunked && (reqs.chunkedProgress() || *pendingcs->in.c_str() == '[' || pendingcs->in.empty())))
                             {
-                                CodeCounter::ScopeTimer ccst(performanceStats.csSuccessProcessingTime);
+                                CodeCounter::ScopeTimer successProcessingTime(
+                                    performanceStats.csSuccessProcessingTime);
 
                                 if (fetchingnodes && fnstats.timeToFirstByte == NEVER)
                                 {
@@ -2685,7 +2685,7 @@ void MegaClient::exec()
                     abortlockrequest();
                     pendingcs = new HttpReq();
                     pendingcs->protect = true;
-                    pendingcs->logname = clientname + "cs ";
+                    pendingcs->setLogName(clientname + "cs ");
                     pendingcs_serverBusySent = false;
 
                     bool v3;
@@ -2948,7 +2948,7 @@ void MegaClient::exec()
             if (useralerts.begincatchup)
             {
                 pendingscUserAlerts.reset(new HttpReq());
-                pendingscUserAlerts->logname = clientname + "sc50 ";
+                pendingscUserAlerts->setLogName(clientname + "sc50 ");
                 pendingscUserAlerts->protect = true;
                 pendingscUserAlerts->posturl = httpio->APIURL;
                 pendingscUserAlerts->posturl.append("sc");  // notifications/useralerts on sc rather than wsc, no timeout
@@ -2960,7 +2960,7 @@ void MegaClient::exec()
             else
             {
                 pendingsc.reset(new HttpReq());
-                pendingsc->logname = clientname + "sc ";
+                pendingsc->setLogName(clientname + "sc ");
                 if (mPendingCatchUps && !mReceivingCatchUp)
                 {
                     scnotifyurl.clear();
@@ -3067,7 +3067,7 @@ void MegaClient::exec()
                     std::string reqstaturl = mReqStatCS->mRedirectURL;
                     LOG_debug << "Accessing reqstat URL: " << reqstaturl;
                     mReqStatCS.reset(new HttpReq());
-                    mReqStatCS->logname = clientname + "reqstat ";
+                    mReqStatCS->setLogName(clientname + "reqstat ");
                     mReqStatCS->posturl = reqstaturl;
                     mReqStatCS->type = REQ_BINARY;
                     mReqStatCS->binary = true;
@@ -3166,7 +3166,7 @@ void MegaClient::exec()
 
         if (!syncs.clientThreadActions.empty())
         {
-            CodeCounter::ScopeTimer ccst(performanceStats.clientThreadActions);
+            CodeCounter::ScopeTimer clientActionTime(performanceStats.clientThreadActions);
 
             dstime ctr_start = waiter->ds;
             size_t ctr_N = 0;
@@ -3221,7 +3221,7 @@ void MegaClient::exec()
             {
                 LOG_debug << clientname << "Sending lock request";
                 workinglockcs.reset(new HttpReq());
-                workinglockcs->logname = clientname + "accountBusyCheck ";
+                workinglockcs->setLogName(clientname + "accountBusyCheck ");
                 workinglockcs->posturl = httpio->APIURL;
                 workinglockcs->posturl.append("cs?");
                 workinglockcs->posturl.append(getAuthURI());
@@ -3240,7 +3240,7 @@ void MegaClient::exec()
         {
             LOG_debug << clientname << "Sending reqstat request";
             mReqStatCS.reset(new HttpReq());
-            mReqStatCS->logname = clientname + "reqstat ";
+            mReqStatCS->setLogName(clientname + "reqstat ");
             mReqStatCS->mExpectRedirect = true;
             mReqStatCS->posturl = httpio->APIURL;
             mReqStatCS->posturl.append("cs/rs?sid=");
@@ -4206,7 +4206,7 @@ void MegaClient::dispatchTransfers()
                         reqs.add((
                             ts->pendingcmd =
                                 (nexttransfer->type == PUT) ?
-                                    (Command*)new CommandPutFile(this, ts, putmbpscap) :
+                                    (Command*)new CommandPutFile(this, ts) :
                                     new CommandGetFile(
                                         this,
                                         ts->transfer->transferkey.data(),
@@ -4716,7 +4716,6 @@ void MegaClient::locallogout(bool removecaches, [[maybe_unused]] bool keepSyncsC
     bttimers.clear();
     xferpaused[PUT] = false;
     xferpaused[GET] = false;
-    putmbpscap = 0;
     fetchingnodes = false;
     fetchnodestag = 0;
     ststatus = STORAGE_UNKNOWN;
@@ -9508,6 +9507,25 @@ void MegaClient::removeOutSharesFromSubtree(std::shared_ptr<Node> n, int tag)
                 setshare(n, nullptr, ACCESS_UNKNOWN, false, nullptr, tag, [](Error, bool) {});
             }
         }
+    }
+
+    // Remove public link for FILENODE as well
+    if (n->type == FILENODE && n->plink)
+    {
+        exportnode(n,
+                   1,
+                   0,
+                   false,
+                   false,
+                   tag,
+                   [](Error e, handle, handle, string&&)
+                   {
+                       if (e != API_OK)
+                       {
+                           LOG_err
+                               << "Failed to remove public link upon moving file to Rubbish bin";
+                       }
+                   });
     }
 
     for (auto& c : getChildren(n.get()))
@@ -16529,15 +16547,19 @@ void MegaClient::abortreads(handle h, bool p, m_off_t offset, m_off_t count)
     {
         drn = it->second;
 
-        for (dr_list::iterator it = drn->reads.begin(); it != drn->reads.end(); )
+        for (dr_list::iterator itRead = drn->reads.begin(); itRead != drn->reads.end();)
         {
-            if ((offset < 0 || offset == (*it)->offset) && (count < 0 || count == (*it)->count))
+            if ((offset < 0 || offset == (*itRead)->offset) &&
+                (count < 0 || count == (*itRead)->count))
             {
-                app->pread_failure(API_EINCOMPLETE, (*it)->drn->retries, (*it)->appdata, 0);
+                app->pread_failure(API_EINCOMPLETE, (*itRead)->drn->retries, (*itRead)->appdata, 0);
 
-                delete *(it++);
+                delete *(itRead++);
             }
-            else it++;
+            else
+            {
+                itRead++;
+            }
         }
     }
 }
@@ -16851,23 +16873,16 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig,
 
     if (syncConfig.isExternal())
     {
-        // Currently only possible for backup syncs.
         if (!syncConfig.isBackup())
         {
             LOG_warn << "Only Backups can be external";
             return API_EARGS;
         }
-
-        const auto& drivePath = syncConfig.mExternalDrivePath;
-        const auto& sourcePath = syncConfig.mLocalPath;
-
-        // Source must be on the drive.
-        if (!drivePath.isContainingPathOf(sourcePath))
+        if (!syncConfig.isGoodPathForExternalBackup(syncConfig.mLocalPath))
         {
-            LOG_debug << "Drive path inconsistent for sync add";
+            LOG_warn << "Drive path inconsistent for sync local path";
             syncConfig.mEnabled = false;
             syncConfig.mError = BACKUP_SOURCE_NOT_BELOW_DRIVE;
-
             return API_EARGS;
         }
     }
@@ -17658,8 +17673,8 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
             // Note that these multi_cachedtransfers always have an empty Files list, those are not attached when loading from db
             // Only the Transfer's own localpath field tells us the path it was uploading
 
-            auto range = multi_cachedtransfers[d].equal_range(f);
-            for (auto it = range.first; it != range.second; ++it)
+            auto rangeCached = multi_cachedtransfers[d].equal_range(f);
+            for (auto& it = rangeCached.first; it != rangeCached.second; ++it)
             {
                 assert(it->second->files.empty());
                 if (it->second->localfilename.empty()) continue;
@@ -17696,7 +17711,7 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
                 // got suspended (eg by app exit), and we are considering the File of one of the others
                 // than the actual file path that was being uploaded.
 
-                for (auto it = range.first; it != range.second; ++it)
+                for (auto& it = rangeCached.first; it != rangeCached.second; ++it)
                 {
                     assert(it->second->files.empty());
                     if (it->second->localfilename.empty()) continue;

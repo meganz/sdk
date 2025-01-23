@@ -229,7 +229,7 @@ void CacheableWriter::serializestring_u32(const string& field)
 void CacheableWriter::serializecompressedu64(uint64_t field)
 {
     byte buf[sizeof field+1];
-    dest.append((const char*)buf, Serialize64::serialize(buf, field));
+    dest.append((const char*)buf, static_cast<size_t>(Serialize64::serialize(buf, field)));
 }
 
 void CacheableWriter::serializei8(int8_t field)
@@ -321,7 +321,7 @@ CacheableReader::CacheableReader(const string& d)
 void CacheableReader::eraseused(string& d)
 {
     assert(end == d.data() + d.size());
-    d.erase(0, ptr - d.data());
+    d.erase(0, static_cast<size_t>(ptr - d.data()));
 }
 
 bool CacheableReader::unserializecstr(string& s, bool removeNull)
@@ -566,7 +566,13 @@ void chunkmac_map::ctr_encrypt(m_off_t chunkid, SymmCipher *cipher, byte *chunks
 
     // encrypt is always done on whole chunks
     auto& chunk = mMacMap[chunkid];
-    cipher->ctr_crypt(chunkstart, unsigned(chunksize), startpos, ctriv, chunk.mac, true, true);
+    cipher->ctr_crypt(chunkstart,
+                      unsigned(chunksize),
+                      startpos,
+                      static_cast<uint64_t>(ctriv),
+                      chunk.mac,
+                      true,
+                      true);
     chunk.offset = 0;
     chunk.finished = finishesChunk;  // when encrypting for uploads, only set finished after confirmation of the chunk uploading.
 }
@@ -579,7 +585,13 @@ void chunkmac_map::ctr_decrypt(m_off_t chunkid, SymmCipher *cipher, byte *chunks
     assert(startpos + chunksize <= ChunkedHash::chunkceil(chunkid));
     ChunkMAC& chunk = mMacMap[chunkid];
 
-    cipher->ctr_crypt(chunkstart, chunksize, startpos, ctriv, chunk.mac, false, chunk.notStarted());
+    cipher->ctr_crypt(chunkstart,
+                      chunksize,
+                      startpos,
+                      static_cast<uint64_t>(ctriv),
+                      chunk.mac,
+                      false,
+                      chunk.notStarted());
 
     if (finishesChunk)
     {
@@ -952,7 +964,7 @@ bool CacheableReader::unserializeexpansionflags(unsigned char field[8], unsigned
     }
     memcpy(field, ptr, 8);
 
-    for (int i = usedFlagCount;  i < 8; i++ )
+    for (unsigned i = usedFlagCount; i < 8; i++)
     {
         if (field[i])
         {
@@ -1019,7 +1031,8 @@ bool PaddedCBC::encrypt(PrnGen &rng, string* data, SymmCipher* key, string* iv)
 
     // Pad to block size and encrypt.
     data->append("E");
-    data->resize((data->size() + key->BLOCKSIZE - 1) & - key->BLOCKSIZE, 'P');
+    data->resize((data->size() + key->BLOCKSIZE - 1) & ~(static_cast<size_t>(key->BLOCKSIZE) - 1),
+                 'P');
     byte* dd = reinterpret_cast<byte*>(const_cast<char*>(data->data())); // make sure it works for pre-C++17 compilers
     bool encrypted = iv ?
         key->cbc_encrypt(dd, data->size(), reinterpret_cast<const byte*>(iv->data())) :
@@ -1245,8 +1258,8 @@ bool PayCrypter::rsaEncryptKeys(const string *cleartext, const byte *pubkdata, i
 
     //Prepare the message to encrypt (2-byte header + clear text)
     string keyString;
-    keyString.append(1, (byte)(cleartext->size() >> 8));
-    keyString.append(1, (byte)(cleartext->size()));
+    keyString.append(1, static_cast<char>(cleartext->size() >> 8));
+    keyString.append(1, static_cast<char>(cleartext->size()));
     keyString.append(*cleartext);
 
     //Save the length of the valid message
@@ -1262,13 +1275,13 @@ bool PayCrypter::rsaEncryptKeys(const string *cleartext, const byte *pubkdata, i
     }
 
     //RSA encryption
-    result->resize(pubkdatalen);
+    result->resize(static_cast<size_t>(pubkdatalen));
     result->resize(asym.rawencrypt((byte *)keyString.data(), keyString.size(), (byte *)result->data(), result->size()));
 
     //Complete the result (2-byte header + RSA result)
     size_t reslen = result->size();
-    result->insert(0, 1, (byte)(reslen >> 8));
-    result->insert(1, 1, (byte)(reslen));
+    result->insert(0, 1, static_cast<char>(reslen >> 8));
+    result->insert(1, 1, static_cast<char>(reslen));
     return true;
 }
 
@@ -1330,7 +1343,7 @@ string  Utils::toUpperUtf8(const string& text)
 
         char buff[8];
         auto charLen = utf8proc_encode_char(c, (utf8proc_uint8_t *)buff);
-        result.append(buff, charLen);
+        result.append(buff, static_cast<size_t>(charLen));
     }
 
     return result;
@@ -1358,7 +1371,7 @@ string  Utils::toLowerUtf8(const string& text)
 
         char buff[8];
         auto charLen = utf8proc_encode_char(c, (utf8proc_uint8_t *)buff);
-        result.append(buff, charLen);
+        result.append(buff, static_cast<size_t>(charLen));
     }
 
     return result;
@@ -1432,7 +1445,7 @@ std::string Utils::stringToHex(const std::string &input)
     output.reserve(2 * len);
     for (size_t i = 0; i < len; ++i)
     {
-        const unsigned char c = input[i];
+        const unsigned char c = static_cast<unsigned char>(input[i]);
         output.push_back(lut[c >> 4]);
         output.push_back(lut[c & 15]);
     }
@@ -1768,7 +1781,7 @@ extern time_t stringToTimestamp(string stime, date_time_format_t format)
     struct tm dt;
     memset(&dt, 0, sizeof(struct tm));
 #ifdef _WIN32
-    for (int i = 0; i < stime.size(); i++)
+    for (size_t i = 0; i < stime.size(); i++)
     {
         if ( (stime.at(i) < '0') || (stime.at(i) > '9') )
         {
@@ -2305,7 +2318,7 @@ void MegaClientAsyncQueue::push(std::function<void(SymmCipher&)> f, bool discard
 MegaClientAsyncQueue::MegaClientAsyncQueue(Waiter& w, unsigned threadCount)
     : mWaiter(w)
 {
-    for (int i = threadCount; i--; )
+    for (unsigned i = threadCount; i--;)
     {
         try
         {
@@ -2450,7 +2463,7 @@ bool readLines(const std::string& input, string_vector& destination)
         while (delim < end && *delim != '\r' && *delim != '\n')
         {
             ++delim;
-            whitespace += is_space(*whitespace);
+            whitespace += is_space(static_cast<unsigned int>(*whitespace));
         }
 
         if (delim != whitespace)
@@ -2610,7 +2623,7 @@ handle generateDriveId(PrnGen& rng)
     handle driveId;
 
     rng.genblock((byte *)&driveId, sizeof(driveId));
-    driveId |= m_time(nullptr);
+    driveId |= static_cast<handle>(m_time(nullptr));
 
     return driveId;
 }
@@ -2826,7 +2839,8 @@ double SyncTransferCounts::progress(m_off_t inflightProgress) const
     if (!pending)
         return 1.0; // 100%
 
-    auto completed = mDownloads.mCompletedBytes + mUploads.mCompletedBytes + inflightProgress;
+    auto completed = mDownloads.mCompletedBytes + mUploads.mCompletedBytes +
+                     static_cast<uint64_t>(inflightProgress);
     auto progress = static_cast<double>(completed) / static_cast<double>(pending);
 
     return std::min(1.0, progress);
@@ -3187,7 +3201,7 @@ unsigned long getCurrentPid()
 #ifdef WIN32
     return GetCurrentProcessId();
 #else
-    return getpid();
+    return static_cast<unsigned long>(getpid());
 #endif
 }
 
@@ -3250,7 +3264,7 @@ SplitResult split(const char* begin, const char* end, char delimiter)
 
     // Assume string doesn't contain the delimiter.
     result.first.first   = begin;
-    result.first.second  = end - begin;
+    result.first.second = static_cast<size_t>(end - begin);
     result.second.first  = nullptr;
     result.second.second = 0;
 
@@ -3261,9 +3275,9 @@ SplitResult split(const char* begin, const char* end, char delimiter)
     if (current != end)
     {
         // Tweak result as necessary.
-        result.first.second  = current - begin;
+        result.first.second = static_cast<size_t>(current - begin);
         result.second.first  = current;
-        result.second.second = end - current;
+        result.second.second = static_cast<size_t>(end - current);
     }
 
     // Return result to caller.
@@ -3325,9 +3339,9 @@ int naturalsorting_compare(const char* i, const char* j)
         {
             uint64_t number_i = 0;
             unsigned int i_overflow_count = 0;
-            while (*i && is_digit(*i))
+            while (*i && is_digit(static_cast<unsigned int>(*i)))
             {
-                number_i = number_i * 10 + (*i - 48); // '0' ASCII code is 48
+                number_i = number_i * 10 + static_cast<uint64_t>(*i - 48); // '0' ASCII code is 48
                 ++i;
 
                 // check the number won't overflow upon addition of next char
@@ -3340,9 +3354,9 @@ int naturalsorting_compare(const char* i, const char* j)
 
             uint64_t number_j = 0;
             unsigned int j_overflow_count = 0;
-            while (*j && is_digit(*j))
+            while (*j && is_digit(static_cast<unsigned int>(*j)))
             {
-                number_j = number_j * 10 + (*j - 48);
+                number_j = number_j * 10 + static_cast<uint64_t>(*j - 48);
                 ++j;
 
                 // check the number won't overflow upon addition of next char
@@ -3353,7 +3367,7 @@ int naturalsorting_compare(const char* i, const char* j)
                 }
             }
 
-            int difference = i_overflow_count - j_overflow_count;
+            int difference = static_cast<int>(i_overflow_count - j_overflow_count);
             if (difference)
             {
                 return difference;

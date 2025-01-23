@@ -3498,10 +3498,7 @@ bool MegaApi::areTransfersPaused(int direction)
 }
 
 //-1 -> AUTO, 0 -> NONE, >0 -> b/s
-void MegaApi::setUploadLimit(int bpslimit)
-{
-    pImpl->setUploadLimit(bpslimit);
-}
+void MegaApi::setUploadLimit(int /*bpslimit*/) {}
 
 void MegaApi::setMaxConnections(int direction, int connections, MegaRequestListener *listener)
 {
@@ -6737,7 +6734,7 @@ size_t MegaSyncStallList::getHash() const
     {
         hash = hashCombine(hash, get(i)->getHash());
     }
-    return hash;
+    return static_cast<size_t>(hash);
 }
 
 const MegaSyncStall* MegaSyncStallList::get(size_t /*i*/) const
@@ -6763,7 +6760,7 @@ size_t MegaSyncStallMap::getHash() const
     {
         hash = hashCombine(hash, get(keys->get(i))->getHash());
     }
-    return hash;
+    return static_cast<size_t>(hash);
 }
 
 const MegaSyncStallList* MegaSyncStallMap::get(const MegaHandle) const

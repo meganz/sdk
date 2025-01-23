@@ -41,10 +41,7 @@ release = ReleaseProcess(
 )
 
 # prerequisites for making a release
-release.setup_project_management(
-    args["jira_url"],
-    os.environ["JIRA_TOKEN"]
-)
+release.setup_project_management(args["jira_url"], os.environ["JIRA_TOKEN"])
 release.set_release_version_to_make(args["release_version"])
 
 slack_token = os.environ.get("SLACK_TOKEN", "")
@@ -79,10 +76,7 @@ release.open_mr_for_release_branch(args["public_branch"])
 
 
 # STEP 7: Rename previous NextRelease version; create new NextRelease version
-release.manage_versions(
-    args["jira_url"],
-    args["target_apps"],
-)
+release.manage_versions(args["target_apps"])
 
 
 # STEP 8: Post release notes to Slack

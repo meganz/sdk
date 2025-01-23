@@ -568,8 +568,8 @@ MediaProperties MediaProperties::decodeMediaPropertiesAttributes(const std::stri
 
         if (!(r.shortformat = v[7]))
         {
-            int ppo = Node::hasfileattribute(&attrs, fa_mediaext);
-            int pos = ppo - 1;
+            ppo = Node::hasfileattribute(&attrs, fa_mediaext);
+            pos = ppo - 1;
             if (ppo && pos + 3 + 11 <= (int)attrs.size())
             {
                 Base64::atob(attrs.substr(static_cast<size_t>(pos + 3), 11), binary);

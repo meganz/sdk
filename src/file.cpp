@@ -620,6 +620,12 @@ void SyncUpload_inClient::sendPutnodesOfUpload(MegaClient* client, NodeHandle ov
     // since we are now sending putnodes, no need to remember puts to inform the client on abandonment
     syncThreadSafeState->client()->transferBackstop.forget(tag);
 
+    if (sourceLocalname.toPath(false) == ".gitignore")
+    {
+        ovHandle.isUndef() ? client->sendevent(99493, "New .gitignore file synced up") :
+                             client->sendevent(99494, "Existing .gitignore file modified");
+    }
+
     File::sendPutnodesOfUpload(
         client,
         uploadHandle,
@@ -675,6 +681,12 @@ void SyncUpload_inClient::sendPutnodesToCloneNode(MegaClient* client, NodeHandle
 {
     // Always called from the client thread
     weak_ptr<SyncThreadsafeState> stts = syncThreadSafeState;
+
+    if (sourceLocalname.toPath(false) == ".gitignore")
+    {
+        ovHandle.isUndef() ? client->sendevent(99493, "New .gitignore file synced up") :
+                             client->sendevent(99494, "Existing .gitignore file modified");
+    }
 
     // So we know whether it's safe to update putnodesCompleted.
     weak_ptr<SyncUpload_inClient> self = shared_from_this();

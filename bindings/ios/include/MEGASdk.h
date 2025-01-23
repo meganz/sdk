@@ -300,6 +300,10 @@ typedef NS_ENUM(NSInteger, MEGAClientType) {
     MEGAClientTypePasswordManager = 2  // Password Manager
 };
 
+typedef NS_ENUM(NSInteger, ImportPasswordFileSource) {
+    ImportPasswordSourceGoogle = 0, // Google Password Manager
+};
+
 /**
  * @brief Allows to control a MEGA account or a public folder.
  *
@@ -7472,17 +7476,6 @@ typedef NS_ENUM(NSInteger, MEGAClientType) {
 - (BOOL)areTransferPausedForDirection:(NSInteger)direction;
 
 /**
- * @brief Set the upload speed limit.
- *
- * The limit will be applied on the server side when starting a transfer. Thus the limit won't be
- * applied for already started uploads and it's applied per storage server.
- *
- * @param bpsLimit -1 to automatically select the limit, 0 for no limit, otherwise the speed limit
- * in bytes per second.
- */
-- (void)setUploadLimitWithBpsLimit:(NSInteger)bpsLimit;
-
-/**
  * @brief Request the URL suitable for uploading a media file.
  *
  * This function requests the URL needed for uploading the file. The URL will need the urlSuffix
@@ -8207,6 +8200,55 @@ typedef NS_ENUM(NSInteger, MEGAClientType) {
  * @return All the unique node tags that match the search criteria.
  */
 - (nullable NSArray<NSString *> *)nodeTagsForSearchString:(nullable NSString *)searchString cancelToken:(MEGACancelToken *)cancelToken;
+
+/**
+ * @brief Add new tag stored as node attribute
+ *
+ * The associated request type with this request is MEGARequestTypeNodeTag
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node that received the tag
+ * - [MEGARequest paramType] - Returns operation type (0 - Add tag, 1 - Remove tag, 2 - Update tag)
+ * - [MEGARequest getText] - Returns tag
+ *
+ * ',' is an invalid character to be used in a tag. If it is contained in the tag,
+ * onRequestFinish will be called with the error code MEGAErrorTypeApiEArgs.
+ *
+ * If the length of all tags is higher than 3000 onRequestFinish will be called with
+ * the error code MEGAErrorTypeApiEArgs
+ *
+ * If tag already exists, onRequestFinish will be called with the error code MEGAErrorTypeApiEExist
+ *
+ * If number of tags exceed the maximum number of tags (10),
+ * onRequestFinish will be called with the error code MEGAErrorTypeApiETooMany
+ *
+ * If the MEGA account is a business account and its status is expired, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEBusinessPastDue.
+ *
+ * @param tag New tag
+ * @param node Node that will receive the information.
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)addTag:(NSString *)tag toNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Remove a tag stored as a node attribute
+ *
+ * The associated request type with this request is MEGARequestTypeNodeTag
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node that received the tag
+ * - [MEGARequest paramType] - Returns operation type (0 - Add tag, 1 - Remove tag, 2 - Update tag)
+ * - [MEGARequest getText] - Returns tag
+ *
+ * If tag doesn't exist, onRequestFinish will be called with the error code MEGAErrorTypeApiENoent
+ *
+ * If the MEGA account is a business account and its status is expired, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEBusinessPastDue.
+ *
+ * @param tag Tag to be removed
+ * @param node Node that will receive the information.
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)removeTag:(NSString *)tag fromNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Search nodes with applied filter recursively.
@@ -10142,6 +10184,47 @@ typedef NS_ENUM(NSInteger, MEGAClientType) {
  * @param delegate MEGARequestDelegate to track this request
  */
 - (void)updatePasswordNodeWithHandle:(MEGAHandle)node newData:(PasswordNodeData *)newData delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Import passwords from a file into your Password Manager tree
+ *
+ * The associated request type with this request is
+ * MEGARequestTypeImportPasswordsFromFile. Valid data in the MEGARequest object
+ * received on callbacks:
+ * - [MEGARequest getFile] - Path of the file provided as an argument.
+ * - [MEGARequest getParamType] - Source of the file provided as an argument (see
+ * fileSource documentation).
+ * - [MEGARequest getParentHandle] - Handle of the parent provided as an argument.
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest getMegaHandleList] - A list with all the handles for all the new imported
+ * Password Nodes.
+ * - [MEGARequest getMegaStringIntegerMap] - A map with problematic content as key and error
+ * code as value
+ *    Possible error codes are:
+ *       IMPORTED_PASSWORD_ERROR_PARSER = 1
+ *       IMPORTED_PASSWORD_ERROR_MISSINGPASSWORD = 2
+ *
+ * On the onRequestFinish error, the error code associated to the MegaError can be:
+ * - MEGAErrorTypeApiEArgs:
+ *     + Invalid parent (parent doesn't exist or isn't password node)
+ *     + Invalid fileSource
+ *     + NULL at filePath
+ *     + File with wrong format
+ * - MEGAErrorTypeApiERead:
+ *     + File can't be opened
+ * - MEGAErrorTypeApiEAccess
+ *     + File is empty
+ *
+ * @param filePath Path to the file containing the passwords to import.
+ * @param fileSource Type for the source from where the file was exported.
+ * Valid values are:
+ *  - ImportPasswordSourceGoogle = 0
+ * @param parent Parent handle for node that will contain new nodes as children.
+ * @param delegate MEGARequestDelegate to track this request.
+ */
+- (void)importPasswordsFromFile:(NSString *)filePath fileSource:(ImportPasswordFileSource)fileSource parent:(MEGAHandle)parent delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Generate a new pseudo-randomly characters-based password

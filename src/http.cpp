@@ -340,68 +340,41 @@ m_off_t HttpIO::getmaxuploadspeed()
     return 0;
 }
 
-void HttpReq::post(MegaClient* client, const char* data, unsigned len)
+void HttpReq::prepareMethod(HttpIO* clientHttpIo, const httpmethod_t reqMethod)
 {
     if (httpio)
     {
-        LOG_warn << "Ensuring that the request is finished before sending it again";
+        LOG_warn << logname << "Ensuring that the request is finished before sending it again";
         httpio->cancel(this);
         init();
     }
 
-    httpio = client->httpio;
+    httpio = clientHttpIo;
     bufpos = 0;
     outpos = 0;
     notifiedbufpos = 0;
     inpurge = 0;
-    method = METHOD_POST;
+    method = reqMethod;
     contentlength = -1;
     lastdata = Waiter::ds;
+}
 
+void HttpReq::post(MegaClient* client, const char* data, unsigned len)
+{
+    prepareMethod(client->httpio, METHOD_POST);
     DEBUG_TEST_HOOK_HTTPREQ_POST(this)
-
     httpio->post(this, data, len);
 }
 
 void HttpReq::get(MegaClient *client)
 {
-    if (httpio)
-    {
-        LOG_warn << "Ensuring that the request is finished before sending it again";
-        httpio->cancel(this);
-        init();
-    }
-
-    httpio = client->httpio;
-    bufpos = 0;
-    outpos = 0;
-    notifiedbufpos = 0;
-    inpurge = 0;
-    method = METHOD_GET;
-    contentlength = -1;
-    lastdata = Waiter::ds;
-
+    prepareMethod(client->httpio, METHOD_GET);
     httpio->post(this);
 }
 
 void HttpReq::dns(MegaClient *client)
 {
-    if (httpio)
-    {
-        LOG_warn << "Ensuring that the request is finished before sending it again";
-        httpio->cancel(this);
-        init();
-    }
-
-    httpio = client->httpio;
-    bufpos = 0;
-    outpos = 0;
-    notifiedbufpos = 0;
-    inpurge = 0;
-    method = METHOD_NONE;
-    contentlength = -1;
-    lastdata = Waiter::ds;
-
+    prepareMethod(client->httpio, METHOD_NONE);
     httpio->post(this);
 }
 
@@ -415,9 +388,13 @@ void HttpReq::disconnect()
     }
 }
 
-HttpReq::HttpReq(bool b)
+std::atomic_uint32_t HttpReq::nextReqId{0u};
+
+HttpReq::HttpReq(bool b):
+    reqId{nextReqId++},
+    logname{"(Req#" + std::to_string(reqId) + ") "}
 {
-    LOG_verbose << "[HttpReq::HttpReq] CONSTRUCTOR CALL [this = " << this << "]";
+    LOG_verbose << logname << "[HttpReq::HttpReq] CONSTRUCTOR CALL [this = " << this << "]";
     binary = b;
     status = REQ_READY;
     buf = NULL;
@@ -437,7 +414,7 @@ HttpReq::HttpReq(bool b)
 
 HttpReq::~HttpReq()
 {
-    LOG_verbose << "[HttpReq::~HttpReq] DESTRUCTOR CALL [this = " << this << "]";
+    LOG_verbose << logname << "[HttpReq::~HttpReq] DESTRUCTOR CALL [this = " << this << "]";
     if (httpio)
     {
         httpio->cancel(this);

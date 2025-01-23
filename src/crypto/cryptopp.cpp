@@ -560,7 +560,7 @@ bool SymmCipher::gcm_decrypt(const byte* data,
             LOG_err << "Failed AES-GCM decryption with additional authenticated data: output size mismatch";
             return false;
         }
-        df.Get((byte*)result, maxRetrievable);
+        df.Get((byte*)result, static_cast<size_t>(maxRetrievable));
     }
     catch (CryptoPP::Exception const &e)
     {

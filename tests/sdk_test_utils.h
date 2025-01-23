@@ -37,6 +37,16 @@ void setTestDataDir(const fs::path& dataDir);
 void copyFileFromTestData(fs::path filename, fs::path destination = ".");
 
 /**
+ * @brief Creates a file of a given size. It throws if the file cannot be opened
+ */
+void createFile(const fs::path& filePath, const unsigned int fileSizeBytes);
+
+/**
+ * @brief Creates a file with the given contents. It throws if the file cannot be opened
+ */
+void createFile(const fs::path& filePath, const std::string_view contents);
+
+/**
  * @class LocalTempFile
  * @brief Helper class to apply RAII when creating a file locally
  */

@@ -500,6 +500,48 @@ TEST(CacheLRU, searchNode) // processUnserializedNodes
                                              mega::CancelToken(),
                                              mega::NodeSearchPage{0, 0});
     ASSERT_EQ(nodes.size(), 1);
+
+    // Search a not out shared folder by out share
+    searchFilter.byAncestors({mega::UNDEF, mega::UNDEF, mega::UNDEF});
+    searchFilter.byName("");
+    searchFilter.setIncludedShares(mega::OUT_SHARES);
+    nodes = client->mNodeManager.searchNodes(searchFilter,
+                                             0 /*order None*/,
+                                             mega::CancelToken(),
+                                             mega::NodeSearchPage{0, 0});
+    ASSERT_EQ(nodes.size(), 0);
+
+    // Set the folder as public link
+    folder.plink.reset(new mega::PublicLink{0x1, 0x1, 0x1, false});
+    client->mNodeManager.saveNodeInDb(&folder);
+    // Search
+    searchFilter.setIncludedShares(mega::LINK);
+    nodes = client->mNodeManager.searchNodes(searchFilter,
+                                             0 /*order None*/,
+                                             mega::CancelToken(),
+                                             mega::NodeSearchPage{0, 0});
+    ASSERT_EQ(nodes.size(), 16);
+
+    // Set the folder as out shared as well
+    mega::User user{"name@name.com"};
+    folder.outshares.reset(new mega::share_map{});
+    folder.outshares->emplace(0x1ull, std::make_unique<mega::Share>(&user, mega::FULL, 0x1));
+    client->mNodeManager.saveNodeInDb(&folder);
+    // Search by public link
+    searchFilter.setIncludedShares(mega::LINK);
+    nodes = client->mNodeManager.searchNodes(searchFilter,
+                                             0 /*order None*/,
+                                             mega::CancelToken(),
+                                             mega::NodeSearchPage{0, 0});
+    ASSERT_EQ(nodes.size(), 16);
+
+    // Search out shares with name
+    searchFilter.byName(names.back());
+    searchFilter.setIncludedShares(mega::OUT_SHARES);
+    nodes = client->mNodeManager.searchNodes(searchFilter,
+                                             0 /*order None*/,
+                                             mega::CancelToken(),
+                                             mega::NodeSearchPage{0, 0});
     ASSERT_EQ(nodes.size(), 1);
 }
 

@@ -75,9 +75,9 @@ public:
     }
 
     /**
-     * @brief Waits until all direct successors from both remote and local roots of the sync matches
+     * @brief Waits until all direct successors from both remote and local roots of the sync match.
      *
-     * Asserts false if a timeout is overpassed.
+     * Asserts false if a timeout is exceeded.
      */
     void waitForSyncToMatchCloudAndLocal() const
     {
@@ -256,9 +256,11 @@ public:
         ASSERT_TRUE(mTempLocalDir.move(newLocation)) << "Error moving local tmp dir";
     }
 
+protected:
+    handle mBackupId{UNDEF};
+
 private:
     LocalTempDir mTempLocalDir{getLocalTmpDir()};
-    handle mBackupId{UNDEF};
 };
 
 /**
@@ -645,4 +647,172 @@ TEST_F(SdkTestSyncLocalRootChange, OKChangRootToASymLink)
                 testing::UnorderedElementsAre(".megaignore"));
 }
 
+class SdkTestBackupSyncLocalRootChange: public SdkTestSyncLocalRootChange
+{
+public:
+    void SetUp() override
+    {
+        SdkTestNodesSetUp::SetUp();
+        createAuxFiles();
+        mBackupId = backupFolder(megaApi[0].get(), getLocalTmpDir().u8string(), "myBackup");
+        ASSERT_NE(mBackupId, UNDEF) << "API Error adding a new backup sync";
+        ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocal());
+    }
+
+    /**
+     * @brief We don't need nodes on the cloud for backups
+     */
+    const std::vector<NodeInfo>& getElements() const override
+    {
+        static const std::vector<NodeInfo> ELEMENTS{};
+        return ELEMENTS;
+    }
+
+    void createAuxFiles()
+    {
+        auxFiles.emplace_back(getLocalTmpDir() / "testFile", 1);
+        auxFiles.emplace_back(getLocalTmpDir() / "testCommonFile", 0);
+        auxFiles.emplace_back(getLocalTmpDir() / "testFile1", 0);
+    }
+
+    enum class StopAction
+    {
+        disable,
+        pause
+    };
+
+    /**
+     * @brief Disables or pauses the current backup, then changes the local root to a new directory
+     * with similar contents. The backup is resumed and the final state is validated.
+     *
+     * @param action Specifies how the backup has to be stopped
+     */
+    void changeRootToSimilarWhileStop(const StopAction action)
+    {
+        const auto* testInfo = ::testing::UnitTest::GetInstance()->current_test_info();
+        const std::string suiteName = testInfo->test_suite_name();
+        const std::string testName = testInfo->name();
+        const std::string logPrefix = suiteName + "." + testName + " : ";
+
+        LOG_verbose << logPrefix << "Preparing new root with similar contents";
+        const LocalTempDir tmpDir{"./auxTmp" + testName};
+        prepareSimilarRoot(tmpDir.getPath());
+
+        MegaSync::SyncRunningState expectedRunState;
+        switch (action)
+        {
+            case StopAction::pause:
+            {
+                LOG_verbose << logPrefix << "Suspending the backup sync";
+                ASSERT_TRUE(sdk_test::suspendSync(megaApi[0].get(), getBackupId()))
+                    << "Error suspending the sync";
+                expectedRunState = MegaSync::RUNSTATE_SUSPENDED;
+                break;
+            }
+            case StopAction::disable:
+            {
+                LOG_verbose << logPrefix << "Disable the backup sync";
+                ASSERT_TRUE(sdk_test::disableSync(megaApi[0].get(), getBackupId()))
+                    << "Error disabling the sync";
+                expectedRunState = MegaSync::RUNSTATE_DISABLED;
+                break;
+            }
+        }
+        ASSERT_EQ(getSyncRunState(), std::optional{expectedRunState});
+
+        LOG_verbose << logPrefix << "Changing the root";
+        ASSERT_NO_FATAL_FAILURE(changeLocalSyncRootNoErrors(tmpDir.getPath()));
+        ASSERT_EQ(getSyncRunState(), std::optional{expectedRunState});
+
+        LOG_verbose << logPrefix << "Resuming the backup sync";
+        ASSERT_TRUE(sdk_test::resumeSync(megaApi[0].get(), getBackupId()))
+            << "Error resuming the sync";
+        ASSERT_EQ(getSyncRunState(), std::optional{MegaSync::RUNSTATE_RUNNING});
+
+        ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocal());
+
+        LOG_verbose << logPrefix << "Validating expectations";
+        ASSERT_NO_FATAL_FAILURE(checkCurrentLocalMatchesSimilar());
+    }
+
+private:
+    std::vector<LocalTempFile> auxFiles;
+};
+
+/**
+ * @brief Change the root of the backup to an empty local dir.
+ * Expectations -> final state = empty
+ * The name of the backup and the remote root node do not change
+ */
+TEST_F(SdkTestBackupSyncLocalRootChange, OKChangeRootToEmpty)
+{
+    static const std::string logPre{"SdkTestBackupSyncLocalRootChange.OKChangeRootToEmpty : "};
+
+    ASSERT_EQ(getSyncRunState(), std::optional{MegaSync::RUNSTATE_RUNNING});
+
+    LOG_verbose << logPre << "Moving local root to an empty new root";
+    const LocalTempDir tmpDir{"./auxTmpDirOKChangeRootToEmpty/"};
+    ASSERT_NO_FATAL_FAILURE(changeLocalSyncRootNoErrors(tmpDir.getPath()));
+    ASSERT_EQ(getSyncRunState(), std::optional{MegaSync::RUNSTATE_RUNNING});
+
+    LOG_verbose << logPre << "Waiting for local to match cloud";
+    ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocal());
+
+    LOG_verbose << logPre << "Validating expectations: Empty dir (local has preference)";
+    EXPECT_THAT(getLocalFirstChildrenNames_if(tmpDir.getPath()),
+                testing::UnorderedElementsAre(".megaignore"));
+
+    const auto backup = getSync();
+    ASSERT_TRUE(backup);
+    EXPECT_STREQ(backup->getName(), "myBackup");
+    EXPECT_THAT(backup->getLastKnownMegaFolder(), EndsWith("myBackup"));
+}
+
+/**
+ * @brief SdkTestBackupSyncLocalRootChange.OKBackupRunningToSimilarRoot: Change the root of a
+ * running backup sync to a directory that contains different files:
+ * - One exactly the same as in the previous root
+ * - One different
+ * - One with same name and different contents
+ * - It misses one that was in previous root
+ *
+ * The final state prioritize the new local root
+ */
+TEST_F(SdkTestBackupSyncLocalRootChange, OKBackupRunningToSimilarRoot)
+{
+    static const std::string logPre{
+        "SdkTestBackupSyncLocalRootChange.OKBackupRunningToSimilarRoot : "};
+
+    LOG_verbose << logPre << "Preparing new root with similar contents";
+    const LocalTempDir tmpDir{"./auxTmpOKBackupRunningToSimilarRoot/"};
+    prepareSimilarRoot(tmpDir.getPath());
+
+    LOG_verbose << logPre << "Changing the root";
+    ASSERT_NO_FATAL_FAILURE(changeLocalSyncRootNoErrors(tmpDir.getPath()));
+    ASSERT_EQ(getSyncRunState(), std::optional{MegaSync::RUNSTATE_RUNNING});
+    ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocal());
+
+    LOG_verbose << logPre << "Validating expectations";
+    ASSERT_NO_FATAL_FAILURE(checkCurrentLocalMatchesSimilar());
+}
+
+/**
+ * @brief SdkTestBackupSyncLocalRootChange.OKBackupSuspendedToSimilarRoot: Same as
+ * OKBackupRunningToSimilarRoot but changing the root while the backup is suspended, then it is
+ * resumed and waits to validate expectations.
+ */
+TEST_F(SdkTestBackupSyncLocalRootChange, OKBackupSuspendedToSimilarRoot)
+{
+    ASSERT_NO_FATAL_FAILURE(changeRootToSimilarWhileStop(StopAction::pause));
+}
+
+/**
+ * @brief SdkTestBackupSyncLocalRootChange.OKBackupDisabledToSimilarRoot: Same as
+ * OKBackupRunningToSimilarRoot but changing the root while the backup is disabled, then it is
+ * enabled and waits to validate expectations.
+ */
+TEST_F(SdkTestBackupSyncLocalRootChange, OKBackupDisabledToSimilarRoot)
+{
+    ASSERT_NO_FATAL_FAILURE(changeRootToSimilarWhileStop(StopAction::disable));
+}
 #endif // ENABLE_SYNC

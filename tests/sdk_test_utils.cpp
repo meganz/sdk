@@ -39,13 +39,12 @@ void copyFileFromTestData(fs::path filename, fs::path destination)
     fs::copy_file(source, destination);
 }
 
-LocalTempFile::LocalTempFile(const fs::path& _filePath, const unsigned int fileSizeBytes):
-    mFilePath(_filePath)
+void createFile(const fs::path& filePath, const unsigned int fileSizeBytes)
 {
-    std::ofstream outFile(mFilePath, std::ios::binary);
+    std::ofstream outFile(filePath, std::ios::binary);
     if (!outFile.is_open())
     {
-        const auto msg = "Can't open the file: " + _filePath.string();
+        const auto msg = "Can't open the file: " + filePath.string();
         LOG_err << msg;
         throw std::runtime_error(msg);
     }
@@ -53,17 +52,28 @@ LocalTempFile::LocalTempFile(const fs::path& _filePath, const unsigned int fileS
     outFile.write(buffer.data(), static_cast<std::streamsize>(buffer.size()));
 }
 
-LocalTempFile::LocalTempFile(const fs::path& _filePath, const std::string_view contents):
-    mFilePath(_filePath)
+void createFile(const fs::path& filePath, const std::string_view contents)
 {
-    std::ofstream outFile(mFilePath, std::ios::binary);
+    std::ofstream outFile(filePath, std::ios::binary);
     if (!outFile.is_open())
     {
-        const auto msg = "Can't open the file: " + _filePath.string();
+        const auto msg = "Can't open the file: " + filePath.string();
         LOG_err << msg;
         throw std::runtime_error(msg);
     }
     outFile.write(contents.data(), static_cast<std::streamsize>(contents.size()));
+}
+
+LocalTempFile::LocalTempFile(const fs::path& _filePath, const unsigned int fileSizeBytes):
+    mFilePath(_filePath)
+{
+    createFile(mFilePath, fileSizeBytes);
+}
+
+LocalTempFile::LocalTempFile(const fs::path& _filePath, const std::string_view contents):
+    mFilePath(_filePath)
+{
+    createFile(mFilePath, contents);
 }
 
 LocalTempFile::~LocalTempFile()

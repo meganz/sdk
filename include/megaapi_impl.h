@@ -3466,7 +3466,6 @@ class MegaApiImpl : public MegaApp
         void moveTransferToLast(int transferTag, MegaRequestListener *listener = NULL);
         void moveTransferBefore(int transferTag, int prevTransferTag, MegaRequestListener *listener = NULL);
         bool areTransfersPaused(int direction);
-        void setUploadLimit(int bpslimit);
         void setMaxConnections(int direction, int connections, MegaRequestListener* listener = NULL);
         void setDownloadMethod(int method);
         void setUploadMethod(int method);
@@ -4706,7 +4705,7 @@ public:
 class StreamingBuffer
 {
 public:
-    StreamingBuffer();
+    StreamingBuffer(const std::string& logName = {});
     ~StreamingBuffer();
     // Allocate buffer and reset class members
     void init(size_t newCapacity);
@@ -4741,6 +4740,11 @@ public:
     // Get the actual buffer state for debugging purposes
     std::string bufferStatus() const;
 
+    const std::string& getLogName() const
+    {
+        return logname;
+    }
+
     static const unsigned int MAX_BUFFER_SIZE = 2097152;
     static const unsigned int MAX_OUTPUT_SIZE = MAX_BUFFER_SIZE / 10;
 
@@ -4749,6 +4753,8 @@ private:
     m_off_t partialDuration(m_off_t partialSize) const;
     // Recalculate maxBufferSize and maxOutputSize taking into accout the byteRate (for media files) and DirectReadSlot read chunk size.
     void calcMaxBufferAndMaxOutputSize();
+
+    std::string logname{};
 
 protected:
     // Circular buffer to store data to feed the consumer
@@ -4936,6 +4942,10 @@ class MegaTCServer;
 class MegaHTTPServer;
 class MegaHTTPContext : public MegaTCPContext
 {
+private:
+    static std::atomic_uint32_t nextId;
+    const uint32_t contextId;
+    std::string logname;
 
 public:
     MegaHTTPContext();
@@ -4991,6 +5001,11 @@ public:
         onTransferData(MegaApi*, MegaTransfer* httpTransfer, char* buffer, size_t dataSize);
     virtual void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e);
     virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e);
+
+    const std::string& getLogName() const
+    {
+        return logname;
+    }
 };
 
 class MegaHTTPServer: public MegaTCPServer
@@ -5794,10 +5809,10 @@ struct hash<::mega::LocalPath>
 {
     std::size_t operator()(const ::mega::LocalPath& lp) const noexcept
     {
-        std::size_t seed = 0;
+        uint64_t seed = 0;
         seed = ::mega::hashCombine(seed, std::hash<std::string>{}(lp.toPath(false)));
         seed = ::mega::hashCombine(seed, std::hash<bool>{}(lp.isAbsolute()));
-        return seed;
+        return static_cast<size_t>(seed);
     }
 };
 
@@ -5806,10 +5821,10 @@ struct hash<::mega::NameConflict::NameHandle>
 {
     std::size_t operator()(const ::mega::NameConflict::NameHandle& nh) const noexcept
     {
-        std::size_t seed = 0;
+        uint64_t seed = 0;
         seed = ::mega::hashCombine(seed, std::hash<std::string>{}(nh.name));
         seed = ::mega::hashCombine(seed, std::hash<::mega::NodeHandle>{}(nh.handle));
-        return seed;
+        return static_cast<size_t>(seed);
     }
 };
 
@@ -5818,7 +5833,7 @@ struct hash<::mega::NameConflict>
 {
     std::size_t operator()(const ::mega::NameConflict& nc) const noexcept
     {
-        std::size_t seed = 0;
+        uint64_t seed = 0;
         const std::hash<::mega::LocalPath> lpHashGet{};
         const std::hash<::mega::NameConflict::NameHandle> nhHashGet{};
 
@@ -5836,7 +5851,7 @@ struct hash<::mega::NameConflict>
                       {
                           seed = ::mega::hashCombine(seed, lpHashGet(lp));
                       });
-        return seed;
+        return static_cast<size_t>(seed);
     }
 };
 
@@ -5846,11 +5861,11 @@ struct hash<::mega::SyncStallEntry::StallCloudPath>
 {
     std::size_t operator()(const ::mega::SyncStallEntry::StallCloudPath& scp) const noexcept
     {
-        std::size_t seed = 0;
+        uint64_t seed = 0;
         seed = ::mega::hashCombine(seed, std::hash<int>{}(static_cast<int>(scp.problem)));
         seed = ::mega::hashCombine(seed, std::hash<std::string>{}(scp.cloudPath));
         seed = ::mega::hashCombine(seed, std::hash<::mega::NodeHandle>{}(scp.cloudHandle));
-        return seed;
+        return static_cast<size_t>(seed);
     }
 };
 
@@ -5859,10 +5874,10 @@ struct hash<::mega::SyncStallEntry::StallLocalPath>
 {
     std::size_t operator()(const ::mega::SyncStallEntry::StallLocalPath& slp) const noexcept
     {
-        std::size_t seed = 0;
+        uint64_t seed = 0;
         seed = ::mega::hashCombine(seed, std::hash<int>{}(static_cast<int>(slp.problem)));
         seed = ::mega::hashCombine(seed, std::hash<::mega::LocalPath>{}(slp.localPath));
-        return seed;
+        return static_cast<size_t>(seed);
     }
 };
 
@@ -5872,7 +5887,7 @@ struct hash<::mega::SyncStallEntry>
     std::size_t operator()(const ::mega::SyncStallEntry& sse) const noexcept
     {
         using ::mega::SyncStallEntry;
-        std::size_t seed = 0;
+        uint64_t seed = 0;
         seed = ::mega::hashCombine(seed, std::hash<int>{}(static_cast<int>(sse.reason)));
         seed = ::mega::hashCombine(seed, std::hash<bool>{}(sse.alertUserImmediately));
         seed = ::mega::hashCombine(seed, std::hash<bool>{}(sse.detectionSideIsMEGA));
@@ -5884,7 +5899,7 @@ struct hash<::mega::SyncStallEntry>
         const std::hash<SyncStallEntry::StallLocalPath> lpHashGet{};
         seed = ::mega::hashCombine(seed, lpHashGet(sse.localPath1));
         seed = ::mega::hashCombine(seed, lpHashGet(sse.localPath2));
-        return seed;
+        return static_cast<size_t>(seed);
     }
 };
 

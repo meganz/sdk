@@ -55,7 +55,9 @@ typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
     MEGANodeChangeTypeNew            = 0x400,
     MEGANodeChangeTypeName           = 0x800,
     MEGANodeChangeTypeFavourite      = 0x1000,
-    MEGANodeChangeTypeSensitive      = 0x4000
+    MEGANodeChangeTypeSensitive      = 0x4000,
+    MEGANodeChangeTypeDescription    = 0x10000,
+    MEGANodeChangeTypeTags           = 0x20000
 };
 
 typedef NS_ENUM (NSInteger, MEGANodeFormatType) {
