@@ -1746,8 +1746,7 @@ std::pair<bool, bool> DirectReadSlot::detectAndManageLowRaidedParts()
         canReplaceByUnused)
     {
         assert(slowestConnectionIndex != mReqs.size());
-        assert(replaceConnectionByUnused(slowestConnectionIndex,
-                                         UnusedConn::CONN_SPEED_UNDER_THRESHOLD));
+        replaceConnectionByUnused(slowestConnectionIndex, UnusedConn::CONN_SPEED_UNDER_THRESHOLD);
         return {true /*slowConnsDetected*/, false /*entireTransferRetried*/};
     }
 
@@ -1826,8 +1825,8 @@ void DirectReadSlot::onLowSpeedRaidedTransfer()
     }
     else
     {
-        assert(replaceConnectionByUnused(slowestConnectionIndex,
-                                         UnusedConn::TRANSFER_MEAN_SPEED_UNDER_THRESHOLD));
+        replaceConnectionByUnused(slowestConnectionIndex,
+                                  UnusedConn::TRANSFER_MEAN_SPEED_UNDER_THRESHOLD);
     }
 }
 
@@ -1875,7 +1874,7 @@ bool DirectReadSlot::replaceConnectionByUnused(const size_t connectionNum,
     }
 
     increaseUnusedConnSwitches(reason);
-    assert(mDr->drbuf.setUnusedRaidConnection(static_cast<unsigned>(connectionNum)));
+    mDr->drbuf.setUnusedRaidConnection(static_cast<unsigned>(connectionNum));
     if (mUnusedConn.getNum() != mReqs.size())
     {
         resetConnection(mUnusedConn.getNum());
@@ -1887,7 +1886,7 @@ bool DirectReadSlot::replaceConnectionByUnused(const size_t connectionNum,
                 << "]"
                 << " [this = " << this << "]";
 
-    assert(resetConnection(mUnusedConn.getNum()));
+    resetConnection(mUnusedConn.getNum());
     return true;
 }
 
