@@ -1581,7 +1581,7 @@ unsigned DirectReadSlot::getMinSpeedPerConnBytesPerSec() const
 {
     const bool isRaid = mDr->drbuf.isRaid();
     const unsigned numParts = isRaid ? EFFECTIVE_RAIDPARTS : 1;
-    const int minstrate = mDr->drn->client->minstreamingrate;
+    const int minstrate = mDr->drn->client->minstreamingrate; // (0 == no limit, -1 == use default)
 
     if (minstrate < 0)
     {
@@ -1589,7 +1589,7 @@ unsigned DirectReadSlot::getMinSpeedPerConnBytesPerSec() const
     }
     else if (minstrate == 0)
     {
-        return 0; // No limit
+        return 0;
     }
     else if (static_cast<unsigned>(minstrate) < numParts)
     {
@@ -2130,21 +2130,17 @@ bool DirectReadSlot::doio()
 {
     bool isRaid = mDr->drbuf.isRaid();
     unsigned minSpeedPerConnBytesPerSec = getMinSpeedPerConnBytesPerSec();
-    if (!minSpeedPerConnBytesPerSec) // no limit
+    if (!minSpeedPerConnBytesPerSec)
     {
-        minSpeedPerConnBytesPerSec = 1;
+        minSpeedPerConnBytesPerSec = 1; // No limit (1 B/s)
     }
 
     if (isRaid)
     {
-        if (minSpeedPerConnBytesPerSec == 1) // minstreamingrate < EFFECTIVE_RAIDPARTS
-        {
-            minSpeedPerConnBytesPerSec = 0;
-        }
-
+        // round up to a RAIDSECTOR divisible value
         minSpeedPerConnBytesPerSec = (minSpeedPerConnBytesPerSec + RAIDSECTOR - 1) &
                                      ~(static_cast<unsigned>(RAIDSECTOR) - 1);
-    } // round up to a RAIDSECTOR divisible value
+    }
 
     for (unsigned int connectionNum = static_cast<unsigned int>(mReqs.size()); connectionNum--;)
     {
