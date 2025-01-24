@@ -7,6 +7,7 @@
 #define ANDROIDFILESYSTEM_H
 
 #include <mega/filesystem.h>
+#include <mega/posix/megafs.h>
 #include <mega/types.h>
 
 #include <jni.h>
@@ -145,6 +146,8 @@ private:
     std::shared_ptr<AndroidFileWrapper> mFileWrapper;
     std::vector<std::shared_ptr<AndroidFileWrapper>> mChildren;
     size_t mIndex{0};
+
+    std::unique_ptr<PosixDirAccess> mGlobbing;
 };
 }
 

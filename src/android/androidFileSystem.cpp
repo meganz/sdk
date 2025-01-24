@@ -520,8 +520,20 @@ void AndroidFileAccess::sysclose()
     }
 }
 
-bool AndroidDirAccess::dopen(LocalPath* path, FileAccess* f, bool)
+bool AndroidDirAccess::dopen(LocalPath* path, FileAccess* f, bool doglob)
 {
+    if (doglob)
+    {
+        if (path->isURI())
+        {
+            return false;
+        }
+
+        mGlobbing = std::make_unique<PosixDirAccess>();
+        return mGlobbing->dopen(path, f, doglob);
+    }
+
+    mGlobbing.reset();
     mIndex = 0;
     if (f)
     {
@@ -550,6 +562,11 @@ bool AndroidDirAccess::dnext(LocalPath& path,
                              bool followsymlinks,
                              nodetype_t* type)
 {
+    if (mGlobbing)
+    {
+        return mGlobbing->dnext(path, name, followsymlinks, type);
+    }
+
     if (mChildren.size() <= mIndex)
     {
         return false;
