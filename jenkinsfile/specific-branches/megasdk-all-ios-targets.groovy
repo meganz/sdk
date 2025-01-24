@@ -38,7 +38,8 @@ pipeline {
                 PATH = "/usr/local/bin:${env.PATH}"
                 VCPKGPATH = "${env.HOME}/jenkins/vcpkg"
                 BUILD_DIR_ARM64 = "build_dir_arm64"
-                BUILD_DIR_X64 = "build_dir_x64"
+                BUILD_DIR_ARM64_SIM = "build_dir_arm64_sim"
+                BUILD_DIR_X64_SIM = "build_dir_x64_sim"
             }
             steps{
                 //Build SDK for arm64-iphoneos
@@ -46,10 +47,15 @@ pipeline {
                 sh "cmake -DVCPKG_TARGET_TRIPLET=arm64-ios-mega -DENABLE_LOG_PERFORMANCE=ON -DUSE_LIBUV=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo -DVCPKG_ROOT=${VCPKGPATH} -DCMAKE_VERBOSE_MAKEFILE=ON -DCMAKE_SYSTEM_NAME=iOS -S ${WORKSPACE} -B ${WORKSPACE}/${BUILD_DIR_ARM64}"
                 sh "cmake --build ${WORKSPACE}/${BUILD_DIR_ARM64} -j2"
 
+                //Build SDK for arm64-iphonesimulator
+                sh "echo \"Building SDK for iOS arm64 (iphonesimulator SDK)\""
+                sh "cmake -DVCPKG_TARGET_TRIPLET=arm64-ios-simulator-mega -DENABLE_LOG_PERFORMANCE=ON -DUSE_LIBUV=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo -DVCPKG_ROOT=${VCPKGPATH} -DCMAKE_VERBOSE_MAKEFILE=ON -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_SYSROOT=iphonesimulator -S ${WORKSPACE} -B ${WORKSPACE}/${BUILD_DIR_ARM64_SIM}"
+                sh "cmake --build ${WORKSPACE}/${BUILD_DIR_ARM64_SIM} -j2"
+
                 //Build SDK for x64-iphonesimulator
                 sh "echo \"Building SDK iOS x64 (crosscompiling iphonesimulator SDK)\""
-                sh "cmake -DVCPKG_TARGET_TRIPLET=x64-ios-simulator-mega -DENABLE_LOG_PERFORMANCE=ON -DUSE_LIBUV=ON -DENABLE_ISOLATED_GFX=OFF -DCMAKE_BUILD_TYPE=RelWithDebInfo -DVCPKG_ROOT=${VCPKGPATH} -DCMAKE_VERBOSE_MAKEFILE=ON -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_ARCHITECTURES=x86_64 -DCMAKE_OSX_SYSROOT=iphonesimulator -S ${WORKSPACE} -B ${WORKSPACE}/${BUILD_DIR_X64}"
-                sh "cmake --build ${WORKSPACE}/${BUILD_DIR_X64} -j2"
+                sh "cmake -DVCPKG_TARGET_TRIPLET=x64-ios-simulator-mega -DENABLE_LOG_PERFORMANCE=ON -DUSE_LIBUV=ON -DENABLE_ISOLATED_GFX=OFF -DCMAKE_BUILD_TYPE=RelWithDebInfo -DVCPKG_ROOT=${VCPKGPATH} -DCMAKE_VERBOSE_MAKEFILE=ON -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_ARCHITECTURES=x86_64 -DCMAKE_OSX_SYSROOT=iphonesimulator -S ${WORKSPACE} -B ${WORKSPACE}/${BUILD_DIR_X64_SIM}"
+                sh "cmake --build ${WORKSPACE}/${BUILD_DIR_X64_SIM} -j2"
             }
         }
     }
