@@ -1658,7 +1658,7 @@ void DirectReadSlot::retryOnError(const size_t connectionNum, const int httpstat
             return;
         }
 
-        if (mUnusedConn.isErrReason())
+        if (isUnusedConnectionFailed())
         {
             msg += "we cannot replace failed part by unused one, as it's also failed. Retry "
                    "entire transfer";
@@ -1741,7 +1741,7 @@ std::pair<bool, bool> DirectReadSlot::detectAndManageLowRaidedParts()
     }
 
     if (auto canReplaceByUnused =
-            !mUnusedConn.isErrReason() &&
+            !isUnusedConnectionFailed() &&
             !maxUnusedConnSwitchesReached(UnusedConn::CONN_SPEED_UNDER_THRESHOLD);
         canReplaceByUnused)
     {
@@ -1781,7 +1781,7 @@ void DirectReadSlot::onLowSpeedRaidedTransfer()
         return;
     }
 
-    if (mUnusedConn.isErrReason() ||
+    if (isUnusedConnectionFailed() ||
         maxUnusedConnSwitchesReached(UnusedConn::TRANSFER_MEAN_SPEED_UNDER_THRESHOLD))
     {
         // A raided part has been detected too slow and it cannot be replaced by unused one => Retry
@@ -1860,7 +1860,7 @@ bool DirectReadSlot::exitDueReqsOnFlight() const
 
 bool DirectReadSlot::isUnusedConnectionFailed()
 {
-    return !mUnusedConn.isErrReason();
+    return mUnusedConn.isErrReason();
 }
 
 bool DirectReadSlot::replaceConnectionByUnused(const size_t connectionNum,
@@ -1980,7 +1980,7 @@ bool DirectReadSlot::searchAndDisconnectSlowestConnection(const size_t connectio
 {
     // If mUnusedConn has failed due an error, we won't consider it valid for replacement
     assert(connectionNum < mReqs.size());
-    if (!mDr->drbuf.isRaid() || !isUnusedConnectionFailed() || exitDueReqsOnFlight() ||
+    if (!mDr->drbuf.isRaid() || isUnusedConnectionFailed() || exitDueReqsOnFlight() ||
         !mReqs[connectionNum] || (connectionNum == mUnusedConn.getNum()) ||
         !isMinComparableThroughputForThisConnection(connectionNum))
     {

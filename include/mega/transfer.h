@@ -672,9 +672,9 @@ public:
     bool exitDueReqsOnFlight() const;
 
     /**
-     * @brief Determines if the unused connection can currently be reused.
+     * @brief Determines if the unused connection cannot be reused anymore.
      *
-     * @return `true` if the unused connection can currently be reused, `false` otherwise.
+     * @return `true` if the unused connection can not be reused anymore, `false` otherwise.
      */
     bool isUnusedConnectionFailed();
 
