@@ -5,10 +5,6 @@
 #define ENABLE_CHAT
 #include "megaapi.h"
 
-#if defined(__ANDROID__)
-#include <ares.h>
-#endif
-
 #ifdef ENABLE_WEBRTC
 #include "webrtc/modules/utility/include/jvm_android.h"
 #include "webrtc/rtc_base/logging.h"
