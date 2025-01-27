@@ -13909,10 +13909,10 @@ void Syncs::processDelayedUploads()
 
     // Process the delayed uploads.
     mThrottlingManager->processDelayedUploads(
-        [this, queueClientWeakUpload](std::weak_ptr<SyncUpload_inClient>&& weakUpload,
-                                      const VersioningOption vo,
-                                      const bool queueFirst,
-                                      const NodeHandle ovHandleIfShortcut)
+        [&queueClientWeakUpload](std::weak_ptr<SyncUpload_inClient>&& weakUpload,
+                                 const VersioningOption vo,
+                                 const bool queueFirst,
+                                 const NodeHandle ovHandleIfShortcut)
         {
             if (!weakUpload.lock())
             {
