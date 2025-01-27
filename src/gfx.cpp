@@ -53,7 +53,8 @@ bool GfxProc::isgfx(const LocalPath& localfilename)
 {
     const char* supported = nullptr;
 
-    if (!(supported = mGfxProvider->supportedformats()))
+    supported = mGfxProvider->supportedformats();
+    if (!supported)
     {
         // We don't have supported formats, so the build was without FREEIMAGE or other graphics processing libraries
         // Therefore we cannot graphics process any file, so return false so that we don't try.
@@ -74,7 +75,8 @@ bool GfxProc::isgfx(const LocalPath& localfilename)
         const char* ptr;
 
         // FIXME: use hash
-        if ((ptr = strstr(supported, ext.c_str())) && ptr[ext.size()] == '.')
+        ptr = strstr(supported, ext.c_str());
+        if (ptr && ptr[ext.size()] == '.')
         {
             return true;
         }
@@ -87,7 +89,8 @@ bool GfxProc::isvideo(const LocalPath& localfilename)
 {
     const char* supported = nullptr;
 
-    if (!(supported = mGfxProvider->supportedvideoformats()))
+    supported = mGfxProvider->supportedvideoformats();
+    if (!supported)
     {
         return false;
     }
@@ -106,7 +109,8 @@ bool GfxProc::isvideo(const LocalPath& localfilename)
         const char* ptr;
 
         // FIXME: use hash
-        if ((ptr = strstr(supported, ext.c_str())) && ptr[ext.size()] == '.')
+        ptr = strstr(supported, ext.c_str());
+        if (ptr && ptr[ext.size()] == '.')
         {
             return true;
         }
@@ -141,7 +145,8 @@ void GfxProc::loop()
     {
         waiter.init(NEVER);
         waiter.wait();
-        while ((job = requests.pop()))
+        job = requests.pop();
+        while (job)
         {
             if (finished)
             {
@@ -160,21 +165,26 @@ void GfxProc::loop()
 
             responses.push(job);
             client->waiter->notify();
+            job = requests.pop();
         }
     }
 
-    while ((job = requests.pop()))
+    job = requests.pop();
+    while (job)
     {
         delete job;
+        job = requests.pop();
     }
 
-    while ((job = responses.pop()))
+    job = responses.pop();
+    while (job)
     {
         for (unsigned i = 0; i < job->imagetypes.size(); i++)
         {
             delete job->images[i];
         }
         delete job;
+        job = responses.pop();
     }
 }
 
@@ -187,7 +197,8 @@ int GfxProc::checkevents(Waiter *)
 
     GfxJob *job = NULL;
     bool needexec = false;
-    while ((job = responses.pop()))
+    job = responses.pop();
+    while (job)
     {
         for (unsigned i = 0; i < job->images.size(); i++)
         {
@@ -237,6 +248,7 @@ int GfxProc::checkevents(Waiter *)
             needexec = true;
         }
         delete job;
+        job = responses.pop();
     }
 
     return needexec ? Waiter::NEEDEXEC : 0;

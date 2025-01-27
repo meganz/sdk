@@ -793,34 +793,49 @@ void Node::setattr()
     byte* buf;
     SymmCipher* cipher;
 
-    if (attrstring && (cipher = nodecipher()) && (buf = decryptattr(cipher, attrstring->c_str(), attrstring->size())))
+    if (!attrstring)
     {
-        AttrMap oldAttrs(attrs);
-        attrs.map.clear();
-        attrs.fromjson(reinterpret_cast<char*>(buf) + 5);
-
-        auto it = attrs.map.find('n');
-        if (it != std::end(attrs.map)) LocalPath::utf8_normalize(&it->second);
-
-        changed.name = attrs.hasDifferentValue('n', oldAttrs.map);
-        changed.favourite = attrs.hasDifferentValue(AttrMap::string2nameid("fav"), oldAttrs.map);
-        changed.sensitive = attrs.hasDifferentValue(AttrMap::string2nameid("sen"), oldAttrs.map);
-
-        const auto pwdNameid = AttrMap::string2nameid(MegaClient::NODE_ATTR_PASSWORD_MANAGER);
-        changed.pwd = attrs.hasDifferentValue(pwdNameid, oldAttrs.map);
-
-        const auto descriptionNameid = AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_DESCRIPTION);
-        changed.description = attrs.hasDifferentValue(descriptionNameid, oldAttrs.map);
-
-        const auto tagsNameid = AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_TAGS);
-        changed.tags = attrs.hasDifferentValue(tagsNameid, oldAttrs.map);
-
-        setfingerprint();
-
-        delete[] buf;
-
-        attrstring.reset();
+        return;
     }
+
+    cipher = nodecipher();
+    if (!cipher)
+    {
+        return;
+    }
+
+    buf = decryptattr(cipher, attrstring->c_str(), attrstring->size());
+    if (!buf)
+    {
+        return;
+    }
+
+    AttrMap oldAttrs(attrs);
+    attrs.map.clear();
+    attrs.fromjson(reinterpret_cast<char*>(buf) + 5);
+
+    auto it = attrs.map.find('n');
+    if (it != std::end(attrs.map))
+        LocalPath::utf8_normalize(&it->second);
+
+    changed.name = attrs.hasDifferentValue('n', oldAttrs.map);
+    changed.favourite = attrs.hasDifferentValue(AttrMap::string2nameid("fav"), oldAttrs.map);
+    changed.sensitive = attrs.hasDifferentValue(AttrMap::string2nameid("sen"), oldAttrs.map);
+
+    const auto pwdNameid = AttrMap::string2nameid(MegaClient::NODE_ATTR_PASSWORD_MANAGER);
+    changed.pwd = attrs.hasDifferentValue(pwdNameid, oldAttrs.map);
+
+    const auto descriptionNameid = AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_DESCRIPTION);
+    changed.description = attrs.hasDifferentValue(descriptionNameid, oldAttrs.map);
+
+    const auto tagsNameid = AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_TAGS);
+    changed.tags = attrs.hasDifferentValue(tagsNameid, oldAttrs.map);
+
+    setfingerprint();
+
+    delete[] buf;
+
+    attrstring.reset();
 }
 
 nameid Node::sdsId()

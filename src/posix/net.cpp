@@ -165,7 +165,8 @@ void CurlHttpIO::locking_function(int mode, int lockNumber, const char *, int)
     {
         // we still have to be careful about multiple threads getting to this point simultaneously
         lock_init_mutex.lock();
-        if (!(mutex = sslMutexes[lockNumber]))
+        mutex = sslMutexes[lockNumber];
+        if (!mutex)
         {
             mutex = sslMutexes[lockNumber] = new std::recursive_mutex;
         }
@@ -1573,7 +1574,8 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
 #endif
 
     CURL* curl;
-    if ((curl = curl_easy_init()))
+    curl = curl_easy_init();
+    if (curl)
     {
         switch (req->method)
         {
@@ -1963,8 +1965,9 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     req->httpiohandle = (void*)httpctx;
 
     bool validrequest = true;
+    validrequest = crackurl(&req->posturl, &httpctx->scheme, &httpctx->hostname, &httpctx->port);
     if ((proxyurl.size() && !proxyhost.size()) // malformed proxy string
-            || !(validrequest = crackurl(&req->posturl, &httpctx->scheme, &httpctx->hostname, &httpctx->port))) // invalid request
+        || !validrequest) // invalid request
     {
         if (validrequest)
         {
@@ -2283,7 +2286,8 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
     CURLMsg* msg;
     bool result;
 
-    while ((msg = curl_multi_info_read(curlmhandle, &dummy)))
+    msg = curl_multi_info_read(curlmhandle, &dummy);
+    while (msg)
     {
         HttpReq* req = NULL;
         if (curl_easy_getinfo(msg->easy_handle, CURLINFO_PRIVATE, (char**)&req) == CURLE_OK && req)
@@ -2327,13 +2331,18 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                                         if (i == 0 && !memcmp("Issuer:", slist->data, 7))
                                         {
                                             const char *issuer = NULL;
-                                            if ((issuer = strstr(slist->data, "CN = ")))
+                                            issuer = strstr(slist->data, "CN = ");
+                                            if (issuer)
                                             {
                                                 issuer += 5;
                                             }
-                                            else if ((issuer = strstr(slist->data, "CN=")))
+                                            else
                                             {
-                                                issuer += 3;
+                                                issuer = strstr(slist->data, "CN=");
+                                                if (issuer)
+                                                {
+                                                    issuer += 3;
+                                                }
                                             }
 
                                             if (issuer)
@@ -2572,6 +2581,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                 }
             }
         }
+        msg = curl_multi_info_read(curlmhandle, &dummy);
     }
 
     result = statechange;

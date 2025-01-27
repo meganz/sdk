@@ -241,7 +241,10 @@ bool UserAttributeManager::unserializeAttributes(const char*& from,
     {
         // ignore user attributes in this format
         AttrMap attrmap;
-        if ((from >= upTo) || !(from = attrmap.unserialize(from, upTo)))
+        if (from >= upTo)
+            return false;
+        from = attrmap.unserialize(from, upTo);
+        if (!from)
             return false;
     }
 
