@@ -13881,7 +13881,7 @@ void Syncs::processDelayedUploads()
 {
     assertThrottlingManagerIsValid();
 
-    // Define the callable to send a upload to be processed in the client queue.
+    // Define the callable to send an upload to be processed in the client queue.
     // Note: this callable is tight to processDelayedUploads() and refactoring it to an independent
     // method would add unnecessary indirection.
     const auto queueClientWeakUpload = [this](std::weak_ptr<SyncUpload_inClient> weakUpload,
@@ -13889,6 +13889,12 @@ void Syncs::processDelayedUploads()
                                               const bool queueFirst,
                                               const NodeHandle ovHandleIfShortcut)
     {
+        if (!weakUpload.lock())
+        {
+            LOG_warn << "[UploadThrottle] Upload is no longer valid";
+            return;
+        }
+
         queueClient(
             [weakUpload = std::move(weakUpload), vo, queueFirst, ovHandleIfShortcut](
                 MegaClient& mc,
@@ -13908,20 +13914,7 @@ void Syncs::processDelayedUploads()
     };
 
     // Process the delayed uploads.
-    mThrottlingManager->processDelayedUploads(
-        [&queueClientWeakUpload](std::weak_ptr<SyncUpload_inClient>&& weakUpload,
-                                 const VersioningOption vo,
-                                 const bool queueFirst,
-                                 const NodeHandle ovHandleIfShortcut)
-        {
-            if (!weakUpload.lock())
-            {
-                LOG_warn << "[UploadThrottle] Upload is no longer valid";
-                return;
-            }
-
-            queueClientWeakUpload(std::move(weakUpload), vo, queueFirst, ovHandleIfShortcut);
-        });
+    mThrottlingManager->processDelayedUploads(queueClientWeakUpload);
 }
 
 void Syncs::addToDelayedUploads(DelayedSyncUpload&& delayedUpload)
