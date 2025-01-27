@@ -424,7 +424,7 @@ public:
     void doUnthrottledUploads(std::shared_ptr<LocalTempFile>& tempFile,
                               const std::string_view newFileName,
                               const fs::path& newFilePath,
-                              MegaHandle dirHandle,
+                              const MegaHandle dirHandle,
                               const unsigned maxUploadsBeforeThrottle)
     {
         // Wait for the created file to be uploaded. This upload must be unthrottled.
