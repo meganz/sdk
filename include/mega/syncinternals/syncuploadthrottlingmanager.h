@@ -19,16 +19,14 @@ namespace mega
  *
  * The UploadThrottlingManager handles the queuing and processing of delayed uploads,
  * including the throttling time and the max number of uploads allowed for a file before throttle.
- * It adjusts the throttle update rate dynamically based on queue size, allowing for
- * efficient upload handling without overloading system resources. Configuration
- * options allow users to tune the behavior as per their requirements.
+ *
+ * @see IUploadThrottlingManager
  */
 class UploadThrottlingManager: public IUploadThrottlingManager
 {
 public:
     /**
      * @brief Adds a delayed upload to the delayed queue.
-     * @param delayedUpload The upload to be added to the delayed queue.
      */
     void addToDelayedUploads(DelayedSyncUpload&& delayedUpload) override
     {
@@ -45,7 +43,7 @@ public:
      * be skipped and the next delayed upload in the queue, if any, will be the one to be processed.
      *
      * If a valid delayed upload is processed, it will be passed to the completion function for
-     * futher processing (ex: enqueue the upload to the client)
+     * futher processing (ex: enqueue the upload to the client).
      *
      * @see checkProcessDelayedUploads()
      */
@@ -77,7 +75,8 @@ public:
 
     /**
      * @brief Sets the throttle update rate as a duration.
-     * @param interval The interval as a std::chrono::seconds object.
+     * @param interval The interval in seconds with same restrictions as the overloaded
+     * setThrottleUpdateRate().
      */
     bool setThrottleUpdateRate(const std::chrono::seconds interval) override;
 
@@ -93,7 +92,6 @@ public:
 
     /**
      * @brief Gets the upload counter inactivity expiration time.
-     * @return The expiration time as a std::chrono::seconds object.
      */
     std::chrono::seconds uploadCounterInactivityExpirationTime() const override
     {
@@ -102,7 +100,6 @@ public:
 
     /**
      * @brief Gets the throttle update rate for uploads in seconds.
-     * @return The throttle update rate in seconds.
      */
     unsigned throttleUpdateRate() const override
     {
@@ -111,7 +108,6 @@ public:
 
     /**
      * @brief Gets the maximum uploads allowed before throttling.
-     * @return The maximum number of uploads.
      */
     unsigned maxUploadsBeforeThrottle() const override
     {
@@ -120,7 +116,6 @@ public:
 
     /**
      * @brief Gets the lower and upper limits for throttling values.
-     * @return The ThrottleValueLimits struct with lower and upper limits.
      */
     ThrottleValueLimits throttleValueLimits() const override
     {
@@ -131,8 +126,7 @@ public:
     }
 
     /**
-     * @brief Calculate the time since last delayed upload was processed.
-     * @return The time lapsed since mLastProcessedTime in seconds.
+     * @brief Calculates the time since the last delayed upload was processed.
      */
     std::chrono::seconds timeSinceLastProcessedUpload() const override
     {

@@ -280,8 +280,7 @@ struct SyncUpload_inClient : SyncTransfer_inClient, std::enable_shared_from_this
  * @brief Represents an upload task that is delayed for throttling purposes.
  *
  * This struct encapsulates the details of an upload task that is queued for later
- * processing due to throttling conditions. It holds the necessary data to identify
- * and manage the delayed upload.
+ * processing due to throttling conditions.
  */
 struct DelayedSyncUpload
 {
@@ -295,23 +294,16 @@ struct DelayedSyncUpload
 
     /**
      * @brief Versioning option for the upload task.
-     *
-     * Specifies whether versioning should be applied to the file during the upload process.
      */
     VersioningOption mVersioningOption;
 
     /**
-     * @brief Flag indicating if this upload should be queued first.
-     *
-     * If true, this upload will be prioritized over other tasks in the queue.
+     * @brief Flag indicating if this upload should be queued first in the client.
      */
     bool mQueueFirst;
 
     /**
      * @brief Node handle representing a shortcut for the upload.
-     *
-     * Provides additional metadata or context for the upload task, such as linking
-     * it to a specific node in the file hierarchy.
      */
     NodeHandle mOvHandleIfShortcut;
 

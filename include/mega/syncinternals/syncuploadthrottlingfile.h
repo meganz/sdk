@@ -62,8 +62,8 @@ public:
 
     /**
      * @brief Increases the upload counter by 1.
-     * Also checks if the upload counter is going to reach the max for its type. In that case, the
-     * upload counter is reset.
+     * Also checks if the upload counter is going to reach the max for its type.
+     * In that case the upload counter is reset.
      */
     void increaseUploadCounter();
 
@@ -79,10 +79,9 @@ public:
      *   - The number of uploads exceeds the configured maximum before throttling. Otherwise it
      * returns false.
      *
-     * @param maxUploadsBeforeThrottle Maximum uploads allowed before throttling.
      * @param uploadCounterInactivityExpirationTime Timeout for resetting the upload counter.
      *
-     * @return True if throttling is applied, otherwise false.
+     * @return True if throttling must be applied, otherwise false.
      */
     bool checkUploadThrottling(const unsigned maxUploadsBeforeThrottle,
                                const std::chrono::seconds uploadCounterInactivityExpirationTime);
@@ -99,11 +98,6 @@ public:
      * Additionally, bypassThrottlingNextTime() is called in case that the upload must be
      * aborted.
      *
-     * @param SyncUpload_inClient Reference to the sync upload.
-     * @param maxUploadsBeforeThrottle Maximum number of allowed uploads before the next upload
-     * must be throttled.
-     * @param transferPath Path of the upload being evaluated.
-     *
      * @return True if the upload should be aborted, otherwise false.
      */
     bool handleAbortUpload(SyncUpload_inClient& upload,
@@ -116,11 +110,9 @@ public:
      *
      * The upload counter is not increased if the upload is not completed. However, the counter
      * could be greater than maxUploadsBeforeThrottle already, and the current upload has been
-     * cancelled due to a fingerprint change or failure. In that case, this method should be
-     * called to set the flag to true and bypass the throttling logic upon the upload restart.
-     *
-     * @param maxUploadsBeforeThrottle Maximum number of allowed uploads before the next upload
-     * must be throttled.
+     * cancelled due to a fingerprint change or failure.
+     * In that case, this method should be called to set the flag to true and bypass the throttling
+     * logic upon the upload restart.
      */
     void bypassThrottlingNextTime(const unsigned maxUploadsBeforeThrottle);
 };

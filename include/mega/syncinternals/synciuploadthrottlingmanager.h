@@ -32,7 +32,7 @@ struct ThrottleValueLimits
  * @class IUploadThrottlingManager
  * @brief Interface for the manager in charge of throttling and delayed processing of uploads.
  *
- * The IUploadThrottlingManager is meant to handle the queuing and processing of delayed uploads,
+ * The IUploadThrottlingManager is meant to handle the collecting and processing of delayed uploads,
  * including the throttling time and the max number of uploads allowed for a file before throttle.
  */
 class IUploadThrottlingManager
@@ -45,14 +45,13 @@ public:
 
     /**
      * @brief Adds a delayed upload to be processed.
-     * @param The upload to be throttled and processed.
      */
     virtual void addToDelayedUploads(DelayedSyncUpload&& /* delayedUpload */) = 0;
 
     /**
      * @brief Processes the delayed uploads.
      *
-     * Calls completion function if there a DelayedUpload was processed.
+     * Calls completion function to be called if a DelayedUpload was processed.
      */
     virtual void processDelayedUploads(
         std::function<void(std::weak_ptr<SyncUpload_inClient>&& /* upload */,
@@ -64,19 +63,16 @@ public:
 
     /**
      * @brief Sets the throttle update rate in seconds.
-     * @param The throttle update rate in seconds.
      */
     virtual bool setThrottleUpdateRate(const unsigned /* intervalSeconds */) = 0;
 
     /**
      * @brief Sets the throttle update rate as a duration.
-     * @param The interval as a std::chrono::seconds object.
      */
     virtual bool setThrottleUpdateRate(const std::chrono::seconds /* interval */) = 0;
 
     /**
      * @brief Sets the maximum uploads allowed before throttling.
-     * @param The maximum number of uploads that will be uploaded unthrottled.
      */
     virtual bool setMaxUploadsBeforeThrottle(const unsigned /* maxUploadsBeforeThrottle */) = 0;
 
@@ -84,31 +80,26 @@ public:
 
     /**
      * @brief Gets the upload counter inactivity expiration time.
-     * @return The expiration time as a std::chrono::seconds object.
      */
     virtual std::chrono::seconds uploadCounterInactivityExpirationTime() const = 0;
 
     /**
      * @brief Gets the throttle update rate for uploads in seconds.
-     * @return The throttle update rate in seconds.
      */
     virtual unsigned throttleUpdateRate() const = 0;
 
     /**
      * @brief Gets the maximum uploads allowed before throttling.
-     * @return The maximum number of uploads.
      */
     virtual unsigned maxUploadsBeforeThrottle() const = 0;
 
     /**
      * @brief Gets the lower and upper limits for throttling values.
-     * @return The ThrottleValueLimits struct with lower and upper limits.
      */
     virtual ThrottleValueLimits throttleValueLimits() const = 0;
 
     /**
-     * @brief Calculate the time since last delayed upload was processed.
-     * @return The time lapsed since last processed upload in seconds.
+     * @brief Calculates the time since last delayed upload was processed.
      */
     virtual std::chrono::seconds timeSinceLastProcessedUpload() const = 0;
 };
