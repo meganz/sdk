@@ -139,10 +139,14 @@ TEST(UploadThrottlingFileTest, CheckUploadThrottlingResetsCounterAfterInactivity
 {
     UploadThrottlingFile throttlingFile;
     increaseUploadCounter(throttlingFile, DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE);
-    std::this_thread::sleep_for(std::chrono::seconds(3)); // Simulate delay
+
+    const auto uploadCounterInactivityExpirationTime = std::chrono::seconds(2);
+    std::this_thread::sleep_for(
+        uploadCounterInactivityExpirationTime +
+        std::chrono::seconds(1)); // Wait enough time to exceed the inactivity expiration time.
 
     ASSERT_FALSE(throttlingFile.checkUploadThrottling(DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE,
-                                                      std::chrono::seconds(2)));
+                                                      uploadCounterInactivityExpirationTime));
 }
 
 /**
