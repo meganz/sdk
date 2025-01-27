@@ -9377,16 +9377,18 @@ public class MegaApiJava {
     }
 
     /**
-     * Returns the inbox node of the account.
+     * Returns the Vault node of the account
      * <p>
-     * If you haven't successfully called MegaApiJava.fetchNodes() before,
-     * this function returns null.
+     * You take the ownership of the returned value
+     * <p>
+     * If you haven't successfully called MegaApi::fetchNodes before,
+     * this function returns NULL
      *
-     * @return Inbox node of the account.
+     * @return Vault node of the account
      */
     @Nullable
-    public MegaNode getInboxNode() {
-        return megaApi.getInboxNode();
+    public MegaNode getVaultNode() {
+        return megaApi.getVaultNode();
     }
 
     /**
@@ -9423,13 +9425,13 @@ public class MegaApiJava {
     }
 
     /**
-     * Check if a node is in the Inbox tree
+     * Check if a node is in the Vault tree
      *
      * @param node Node to check
-     * @return True if the node is in the Inbox
+     * @return True if the node is in the Vault
      */
-    public boolean isInInbox(MegaNode node) {
-        return megaApi.isInInbox(node);
+    public boolean isInVault(MegaNode node) {
+        return megaApi.isInVault(node);
     }
 
     /**
