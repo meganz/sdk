@@ -145,7 +145,8 @@ void setupMockListenerExpectations(MockTransferListener& mockListener,
     const auto isBelowDir = Pointee(Property(&MegaTransfer::getParentHandle, parentNodeHandle));
     const auto isOkError = Pointee(Property(&MegaError::getErrorCode, API_OK));
 
-    EXPECT_CALL(mockListener, onTransferStart).Times(AtMost(otherConcurrentCalls));
+    EXPECT_CALL(mockListener, onTransferStart)
+        .Times(AtMost(static_cast<int>(otherConcurrentCalls)));
     EXPECT_CALL(mockListener, onTransferStart(_, AllOf(isMyFile, isUpload, isBelowDir)))
         .WillOnce(
             [&uploadStarted]
@@ -153,7 +154,8 @@ void setupMockListenerExpectations(MockTransferListener& mockListener,
                 uploadStarted.set_value();
             });
 
-    EXPECT_CALL(mockListener, onTransferFinish).Times(AtMost(otherConcurrentCalls));
+    EXPECT_CALL(mockListener, onTransferFinish)
+        .Times(AtMost(static_cast<int>(otherConcurrentCalls)));
     EXPECT_CALL(mockListener, onTransferFinish(_, AllOf(isMyFile, isUpload, isBelowDir), isOkError))
         .WillOnce(
             [&uploadFinished]
