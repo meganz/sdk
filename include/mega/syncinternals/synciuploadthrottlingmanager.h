@@ -44,11 +44,6 @@ public:
     virtual ~IUploadThrottlingManager() = default;
 
     /**
-     * @brief Resets last processed time to the current time.
-     */
-    virtual void resetLastProcessedTime() = 0;
-
-    /**
      * @brief Adds a delayed upload to be processed.
      * @param The upload to be throttled and processed.
      */

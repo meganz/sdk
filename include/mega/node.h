@@ -1192,13 +1192,23 @@ public:
     }
 
     /**
-     * @brief Increases the upload counter by 1 and returns the updated counter.
+     * @brief Increases the upload counter by 1.
      *
      * @see UploadThrottlingFile
      */
-    unsigned increaseUploadCounter()
+    void increaseUploadCounter()
     {
-        return mUploadThrottling.increaseUploadCounter();
+        mUploadThrottling.increaseUploadCounter();
+    }
+
+    /**
+     * @brief Gets the upload counter.
+     *
+     * @see UploadThrottlingFile
+     */
+    unsigned uploadCounter() const
+    {
+        return mUploadThrottling.uploadCounter();
     }
 };
 

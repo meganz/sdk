@@ -58,7 +58,7 @@ public:
     /**
      * @brief Resets last processed time to the current time.
      */
-    void resetLastProcessedTime() override
+    void resetLastProcessedTime()
     {
         mLastProcessedTime = std::chrono::steady_clock::now();
     }

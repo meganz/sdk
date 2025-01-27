@@ -1709,9 +1709,9 @@ void MegaApiImpl::changeSyncLocalRoot(const MegaHandle syncBackupId,
 }
 
 void MegaApiImpl::setSyncThrottleUpdateRate(const unsigned updateRateInSeconds,
-                                            MegaRequestListener* listener)
+                                            MegaRequestListener* const listener)
 {
-    MegaRequestPrivate* request =
+    MegaRequestPrivate* const request =
         new MegaRequestPrivate(MegaRequest::TYPE_SET_SYNC_UPLOAD_THROTTLE_VALUES, listener);
 
     request->setNumber(updateRateInSeconds);
@@ -1736,9 +1736,9 @@ void MegaApiImpl::setSyncThrottleUpdateRate(const unsigned updateRateInSeconds,
 }
 
 void MegaApiImpl::setSyncMaxUploadsBeforeThrottle(const unsigned maxUploadsBeforeThrottle,
-                                                  MegaRequestListener* listener)
+                                                  MegaRequestListener* const listener)
 {
-    MegaRequestPrivate* request =
+    MegaRequestPrivate* const request =
         new MegaRequestPrivate(MegaRequest::TYPE_SET_SYNC_UPLOAD_THROTTLE_VALUES, listener);
 
     request->setTotalBytes(maxUploadsBeforeThrottle);
@@ -1762,9 +1762,9 @@ void MegaApiImpl::setSyncMaxUploadsBeforeThrottle(const unsigned maxUploadsBefor
     waiter->notify();
 }
 
-void MegaApiImpl::getSyncUploadThrottleValues(MegaRequestListener* listener)
+void MegaApiImpl::getSyncUploadThrottleValues(MegaRequestListener* const listener)
 {
-    MegaRequestPrivate* request =
+    MegaRequestPrivate* const request =
         new MegaRequestPrivate(MegaRequest::TYPE_GET_SYNC_UPLOAD_THROTTLE_VALUES, listener);
 
     request->performRequest = [this, request]()
@@ -1784,9 +1784,10 @@ void MegaApiImpl::getSyncUploadThrottleValues(MegaRequestListener* listener)
     waiter->notify();
 }
 
-void MegaApiImpl::getSyncUploadThrottleLimits(const bool upperLimits, MegaRequestListener* listener)
+void MegaApiImpl::getSyncUploadThrottleLimits(const bool upperLimits,
+                                              MegaRequestListener* const listener)
 {
-    MegaRequestPrivate* request =
+    MegaRequestPrivate* const request =
         new MegaRequestPrivate(MegaRequest::TYPE_GET_SYNC_UPLOAD_THROTTLE_LIMITS, listener);
 
     request->setFlag(upperLimits);

@@ -3929,29 +3929,29 @@ void MegaApi::changeSyncLocalRoot(const MegaHandle syncBackupId,
 }
 
 void MegaApi::setSyncThrottleUpdateRate(const unsigned updateRateInSeconds,
-                                        MegaRequestListener* listener)
+                                        MegaRequestListener* const listener)
 {
     pImpl->setSyncThrottleUpdateRate(updateRateInSeconds, listener);
 }
 
 void MegaApi::setSyncMaxUploadsBeforeThrottle(const unsigned maxUploadsBeforeThrottle,
-                                              MegaRequestListener* listener)
+                                              MegaRequestListener* const listener)
 {
     pImpl->setSyncMaxUploadsBeforeThrottle(maxUploadsBeforeThrottle, listener);
 }
 
-void MegaApi::getSyncUploadThrottleValues(MegaRequestListener* listener)
+void MegaApi::getSyncUploadThrottleValues(MegaRequestListener* const listener)
 {
     pImpl->getSyncUploadThrottleValues(listener);
 }
 
-void MegaApi::getSyncUploadThrottleLowerLimits(MegaRequestListener* listener)
+void MegaApi::getSyncUploadThrottleLowerLimits(MegaRequestListener* const listener)
 {
     const bool upperLimits = false;
     pImpl->getSyncUploadThrottleLimits(upperLimits, listener);
 }
 
-void MegaApi::getSyncUploadThrottleUpperLimits(MegaRequestListener* listener)
+void MegaApi::getSyncUploadThrottleUpperLimits(MegaRequestListener* const listener)
 {
     const bool upperLimits = true;
     pImpl->getSyncUploadThrottleLimits(upperLimits, listener);

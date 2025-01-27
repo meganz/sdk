@@ -17091,7 +17091,7 @@ void MegaClient::getSyncUploadThrottleValuesLimits(
     std::function<void(const unsigned, const unsigned, const unsigned, const unsigned)>&&
         completion)
 {
-    auto completionForClient =
+    const auto completionForClient =
         [completion = std::move(completion)](const ThrottleValueLimits throttleValueLimits)
     {
         completion(throttleValueLimits.throttleUpdateRateLowerLimit,

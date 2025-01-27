@@ -2203,10 +2203,11 @@ public:
     // Syncs Upload Throttling
 
     /**
-     * @brief Process the delayed uploads.
+     * @brief Processes the delayed uploads.
+     * Expected to be called on the sync thread.
      *
-     * Process the delayed uploads and, after the throttling time, it enqueues the first delayed
-     * upload to be processed the client.
+     * When a delayed upload is processed after the required throttling time, it is enqueued as a
+     * regular upload to be processed in the client.
      *
      * @see IUploadThrottlingManager::processDelayedUploads()
      * @see queueClient()
@@ -2214,8 +2215,8 @@ public:
     void processDelayedUploads();
 
     /**
-     * @brief Adds a delayed upload to be throttled.
-     * @param delayedUpload The upload to be throttled and processed.
+     * @brief Adds a upload to be processed by the throttling logic.
+     * Expected to be called on the sync thread.
      *
      * @see IUploadThrottlingManager::addToDelayedUploads()
      */
@@ -2223,7 +2224,7 @@ public:
 
     /**
      * @brief Gets the upload counter inactivity expiration time.
-     * @return The expiration time as a std::chrono::seconds object.
+     * Expected to be called on the sync thread.
      *
      * @see IUploadThrottlingManager::uploadCounterInactivityExpirationTime()
      */
@@ -2231,7 +2232,7 @@ public:
 
     /**
      * @brief Gets the throttle update rate for uploads in seconds.
-     * @return The throttle update rate in seconds.
+     * Expected to be called on the sync thread.
      *
      * @see IUploadThrottlingManager::throttleUpdateRate()
      */
@@ -2239,28 +2240,15 @@ public:
 
     /**
      * @brief Gets the maximum uploads allowed before throttling.
-     * @return The maximum number of uploads.
+     * Expected to be called on the sync thread.
      *
      * @see IUploadThrottlingManager::maxUploadsBeforeThrottle()
      */
     unsigned maxUploadsBeforeThrottle() const;
 
     /**
-     * @brief Sets the upload throttling configurable values.
-     *
+     * @brief Enqueues setThrottleValuesInThread() to be later called within the sync thread.
      * Method to be executed out of the sync thread.
-     *
-     * Sets throttleUpdateRate and maxUploadsBeforeThrottle values.
-     *
-     * @param updateRateInSeconds Optional param to change the update rate in seconds.
-     * @param maxUploadsBeforeThrottle Optional param to change the max number of uploads before
-     * throttle.
-     * @param completionForClient The completion function to be called after the operations
-     * finishes. First error corresponds to setting updateRateInSeconds and second error corresponds
-     * to setting maxUploadsBeforeThrottle.
-     * - API_OK: Value was updated correctly.
-     * - API_EARGS: Value was below or above throttle value limits.
-     * - API_ENOENT: Optional value was empty.
      */
     void setThrottleValues(std::optional<const unsigned> updateRateInSeconds,
                            std::optional<const unsigned> maxUploadsBeforeThrottle,
@@ -2269,22 +2257,20 @@ public:
                                completionForClient);
 
     /**
-     * @brief Sets the upload throttling configurable values.
+     * @brief Sets the upload throttling configurable values: throttleUpdateRate and
+     * maxUploadsBeforeThrottle.
      *
-     * Method to be executed on the sync thread.
+     * Method to be executed oon the sync thread.
      *
-     * Sets throttleUpdateRate and maxUploadsBeforeThrottle values.
-     *
-     * @param updateRateInSeconds Optional param to change the update rate in seconds.
-     * @param maxUploadsBeforeThrottle Optional param to change the max number of uploads before
-     * throttle.
      * @param completionForClient The completion function to be called after the operations
      * finishes. First error corresponds to setting updateRateInSeconds and second error corresponds
      * to setting maxUploadsBeforeThrottle.
+     * Error values:
      * - API_OK: Value was updated correctly.
      * - API_EARGS: Value was below or above throttle value limits.
      * - API_ENOENT: Optional value was empty.
-     * @return True if both values were updated, otherwise false.
+     * @return True if values were updated (excluding the empty optional ones), otherwise false
+     * (including if both optional values were empty).
      */
     bool setThrottleValuesInThread(
         std::optional<const unsigned> updateRateInSeconds,
@@ -2294,40 +2280,31 @@ public:
             nullptr);
 
     /**
-     * @brief Gets the upload throttling configurable values.
-     *
+     * @brief Enqueues getThrottleValuesInThread() to be later called within the sync thread.
      * Method to be executed out of the sync thread.
-     *
-     * Gets throttleUpdateRate and maxUploadsBeforeThrottle values.
-     *
-     * @param completionForClient The completion function to be called after the operations
-     * finishes.
      */
     void getThrottleValues(
         std::function<void(const unsigned /* updateRateInSeconds */,
                            const unsigned /* maxUploadsBeforeThrottle */)>&& completionForClient);
 
     /**
-     * @brief Gets the upload throttling configurable values.
+     * @brief Gets the upload throttling configurable values: throttleUpdateRate and
+     * maxUploadsBeforeThrottle.
      *
      * Method to be executed on the sync thread.
      *
-     * Gets throttleUpdateRate and maxUploadsBeforeThrottle values.
-     *
-     * @param completion Optional completion function to be called after the operations finishes.
+     * @param completionForClient The completion function to be called after the operations
+     * finishes.
      * @return a pair with throttleUpdateRate, maxUploadsBeforeThrottle.
      */
     std::pair<unsigned, unsigned> getThrottleValuesInThread(
         std::function<void(const unsigned /* throttleUpdateRate */,
-                           const unsigned /* maxUploadsBeforeThrottle */)>&& completion = nullptr);
+                           const unsigned /* maxUploadsBeforeThrottle */)>&& completion =
+            nullptr) const;
 
     /**
-     * @brief Gets the lower/upper limits for the upload throttling configurable values.
-     *
+     * @brief Enqueues getThrottleValuesLimitsInThread() to be later called within the sync thread.
      * Method to be executed out of the sync thread.
-     *
-     * @param completionForClient The completion function to be called after the operations
-     * finishes.
      */
     void getThrottleValuesLimits(
         std::function<void(const ThrottleValueLimits)>&& completionForClient);
@@ -2335,27 +2312,19 @@ public:
     /**
      * @brief Gets the lower/upper limits for the upload throttling configurable values.
      *
-     * Method to be executed on the sync thread.
+     * Method to be executed on sync thread.
      *
-     * @param completion Optional completion function to be called after the operations finishes.
+     * @param completionForClient The completion function to be called after the operations
+     * finishes.
      * @return ThrottleValueLimits struct containing the throttleUpdateRate and
      * maxUploadsBeforeThrottle lower and upper limits.
      */
     ThrottleValueLimits getThrottleValuesLimitsInThread(
-        std::function<void(const ThrottleValueLimits)>&& completion = nullptr);
+        std::function<void(const ThrottleValueLimits)>&& completion = nullptr) const;
 
     /**
-     * @brief Sets the throttling manager object.
-     *
-     * Syncs object gets ownership of the IUploadThrottlingManager pointer.
-     *
+     * @brief Enqueues setThrottlingManagerInThread() to be later called within the sync thread.
      * Method to be executed out of the sync thread.
-     *
-     * @param uploadThrottlingManager A valid shared_ptr to IUploadThrottlingManager.
-     * @param completionForClient The completion function to be called after the operations
-     * finishes.
-     * - API_OK: New IUploadThrottlingManager was set correctly.
-     * - API_EARGS: uploadThrottlingManager is not a valid pointer.
      */
     void setThrottlingManager(std::shared_ptr<IUploadThrottlingManager> uploadThrottlingManager,
                               std::function<void(const error)>&& completionForClient);
@@ -2363,12 +2332,12 @@ public:
     /**
      * @brief Sets the throttling manager object.
      *
-     * Syncs object gets ownership of the IUploadThrottlingManager pointer.
-     *
      * Method to be executed on the sync thread.
      *
      * @param uploadThrottlingManager A valid shared_ptr to IUploadThrottlingManager.
-     * @param completion The completion function to be called after the operations finishes.
+     * @param completionForClient The completion function to be called after the operations
+     * finishes.
+     * Error values:
      * - API_OK: New IUploadThrottlingManager was set correctly.
      * - API_EARGS: uploadThrottlingManager is not a valid pointer.
      * @return True if the IUploadThrottlingManager was set correctly, false otherwise.
@@ -2376,6 +2345,18 @@ public:
     bool setThrottlingManagerInThread(
         std::shared_ptr<IUploadThrottlingManager> uploadThrottlingManager,
         std::function<void(const error)>&& completion = nullptr);
+
+private:
+    /**
+     * @brief Checks the throttling manager validity.
+     *
+     * The throttling manager is always expected to be valid since the constructor.
+     * The method writes a log error and also performs an assert in case of the throttling manager
+     * being nullptr.
+     *
+     * This method is expected to be called on the sync thread. It also asserts that.
+     */
+    void assertThrottlingManagerIsValid() const;
 };
 
 class OverlayIconCachedPaths

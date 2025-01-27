@@ -45,22 +45,27 @@ private:
 
 public:
     /**
+     * @brief Gets the mUploadCounter.
+     */
+    unsigned uploadCounter() const
+    {
+        return mUploadCounter;
+    }
+
+    /**
      * @brief Gets the mBypassThrottlingNextTime flag.
      */
-    unsigned willBypassThrottlingNextTime()
+    unsigned willBypassThrottlingNextTime() const
     {
         return mBypassThrottlingNextTime;
     }
 
     /**
-     * @brief Increases the upload counter by 1 and returns the updated counter.
+     * @brief Increases the upload counter by 1.
+     * Also checks if the upload counter is going to reach the max for its type. In that case, the
+     * upload counter is reset.
      */
-    unsigned increaseUploadCounter()
-    {
-        ++mUploadCounter;
-        mUploadCounterLastTime = std::chrono::steady_clock::now();
-        return mUploadCounter;
-    }
+    void increaseUploadCounter();
 
     /**
      * @brief Checks throttling control logic for uploads.
@@ -76,6 +81,7 @@ public:
      *
      * @param maxUploadsBeforeThrottle Maximum uploads allowed before throttling.
      * @param uploadCounterInactivityExpirationTime Timeout for resetting the upload counter.
+     *
      * @return True if throttling is applied, otherwise false.
      */
     bool checkUploadThrottling(const unsigned maxUploadsBeforeThrottle,
@@ -97,6 +103,7 @@ public:
      * @param maxUploadsBeforeThrottle Maximum number of allowed uploads before the next upload
      * must be throttled.
      * @param transferPath Path of the upload being evaluated.
+     *
      * @return True if the upload should be aborted, otherwise false.
      */
     bool handleAbortUpload(SyncUpload_inClient& upload,

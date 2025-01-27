@@ -2929,10 +2929,11 @@ bool Sync::processCompletedUploadFromHere(SyncRow& row,
         // connect up the original cloud-sync-fs triplet, so that we can detect any
         // further moves that happened in the meantime.
 
-        [[maybe_unused]] auto updatedCounter = row.syncNode->increaseUploadCounter();
+        row.syncNode->increaseUploadCounter();
         SYNC_verbose << syncname
                      << "Upload from here completed, considering this file synced to original: "
-                     << toHandle(upload->sourceFsid) << " [Num uploads: " << updatedCounter << "]"
+                     << toHandle(upload->sourceFsid)
+                     << " [Num uploads: " << row.syncNode->uploadCounter() << "]"
                      << logTriplet(row, fullPath);
         row.syncNode->setSyncedFsid(upload->sourceFsid, syncs.localnodeBySyncedFsid, row.syncNode->localname, row.syncNode->cloneShortname());
         row.syncNode->syncedFingerprint = *upload;
@@ -4553,6 +4554,8 @@ Syncs::Syncs(MegaClient& mc):
     mScanService(new ScanService()),
     mThrottlingManager(std::make_shared<UploadThrottlingManager>())
 {
+    assert(mThrottlingManager && "Throttling manager should be valid in the Syncs constructor!");
+
     fsaccess->initFilesystemNotificationSystem();
 
     mHeartBeatMonitor.reset(new BackupMonitor(*this));
@@ -10364,11 +10367,11 @@ bool Sync::resolve_upsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, 
             }
             else
             {
-                [[maybe_unused]] auto updatedCounter = row.syncNode->increaseUploadCounter();
+                row.syncNode->increaseUploadCounter();
                 SYNC_verbose
                     << syncname
                     << "Putnodes complete. Detaching upload in resolve_upsync. [Num uploads: "
-                    << updatedCounter << "]" << logTriplet(row, fullPath);
+                    << row.syncNode->uploadCounter() << "]" << logTriplet(row, fullPath);
             }
 
             row.syncNode->resetTransfer(nullptr);
@@ -13876,13 +13879,40 @@ bool Sync::PerFolderLogSummaryCounts::report(string& s)
 
 void Syncs::processDelayedUploads()
 {
-    assert(onSyncThread());
+    assertThrottlingManagerIsValid();
 
+    // Define the callable to send a upload to be processed in the client queue.
+    // Note: this callable is tight to processDelayedUploads() and refactoring it to an independent
+    // method would add unnecessary indirection.
+    const auto queueClientWeakUpload = [this](std::weak_ptr<SyncUpload_inClient> weakUpload,
+                                              const VersioningOption vo,
+                                              const bool queueFirst,
+                                              const NodeHandle ovHandleIfShortcut)
+    {
+        queueClient(
+            [weakUpload = std::move(weakUpload), vo, queueFirst, ovHandleIfShortcut](
+                MegaClient& mc,
+                TransferDbCommitter& committer)
+            {
+                if (auto upload = weakUpload.lock()) // Check again if upload is valid
+                {
+                    LOG_debug << "[UploadThrottle] Sync - Sending delayed file "
+                              << upload->getLocalname();
+                    clientUpload(mc, committer, upload, vo, queueFirst, ovHandleIfShortcut);
+                }
+                else
+                {
+                    LOG_warn << "[UploadThrottle] Upload no longer valid inside queueClient";
+                }
+            });
+    };
+
+    // Process the delayed uploads.
     mThrottlingManager->processDelayedUploads(
-        [this](std::weak_ptr<SyncUpload_inClient>&& weakUpload,
-               const VersioningOption vo,
-               const bool queueFirst,
-               const NodeHandle ovHandleIfShortcut)
+        [this, queueClientWeakUpload](std::weak_ptr<SyncUpload_inClient>&& weakUpload,
+                                      const VersioningOption vo,
+                                      const bool queueFirst,
+                                      const NodeHandle ovHandleIfShortcut)
         {
             if (!weakUpload.lock())
             {
@@ -13890,46 +13920,31 @@ void Syncs::processDelayedUploads()
                 return;
             }
 
-            queueClient(
-                [weakUpload = std::move(weakUpload), vo, queueFirst, ovHandleIfShortcut](
-                    MegaClient& mc,
-                    TransferDbCommitter& committer)
-                {
-                    if (auto upload = weakUpload.lock()) // Check again if upload is valid
-                    {
-                        LOG_debug << "[UploadThrottle] Sync - Sending delayed file "
-                                  << upload->getLocalname();
-                        clientUpload(mc, committer, upload, vo, queueFirst, ovHandleIfShortcut);
-                    }
-                    else
-                    {
-                        LOG_warn << "[UploadThrottle] Upload no longer valid inside queueClient";
-                    }
-                });
+            queueClientWeakUpload(std::move(weakUpload), vo, queueFirst, ovHandleIfShortcut);
         });
 }
 
 void Syncs::addToDelayedUploads(DelayedSyncUpload&& delayedUpload)
 {
-    assert(onSyncThread());
+    assertThrottlingManagerIsValid();
     mThrottlingManager->addToDelayedUploads(std::move(delayedUpload));
 }
 
 std::chrono::seconds Syncs::uploadCounterInactivityExpirationTime() const
 {
-    assert(onSyncThread());
+    assertThrottlingManagerIsValid();
     return mThrottlingManager->uploadCounterInactivityExpirationTime();
 }
 
 unsigned Syncs::throttleUpdateRate() const
 {
-    assert(onSyncThread());
+    assertThrottlingManagerIsValid();
     return mThrottlingManager->throttleUpdateRate();
 }
 
 unsigned Syncs::maxUploadsBeforeThrottle() const
 {
-    assert(onSyncThread());
+    assertThrottlingManagerIsValid();
     return mThrottlingManager->maxUploadsBeforeThrottle();
 }
 
@@ -13939,7 +13954,6 @@ void Syncs::setThrottleValues(std::optional<const unsigned> updateRateInSeconds,
 {
     assert(!onSyncThread());
 
-    // We need to change to the syncs thread as the throttling manager is one-threaded.
     queueSync(
         [this,
          updateRateInSeconds,
@@ -13954,34 +13968,42 @@ void Syncs::setThrottleValues(std::optional<const unsigned> updateRateInSeconds,
         "setThrottleValues");
 }
 
+// Helper method for Syncs::setThrottleValuesInThread()
+template<typename T, typename SetterFunc>
+static error processThrottleValue(const std::optional<const T>& value, SetterFunc setter)
+{
+    if (!value.has_value())
+        return API_ENOENT;
+
+    return setter(*value) ? API_OK : API_EARGS;
+}
+
 bool Syncs::setThrottleValuesInThread(std::optional<const unsigned> updateRateInSeconds,
                                       std::optional<const unsigned> maxUploadsBeforeThrottle,
                                       std::function<void(const error, const error)>&& completion)
 {
-    assert(onSyncThread());
+    assertThrottlingManagerIsValid();
 
-    error errorSetUpdateRateInSeconds, errorSetMaxUploadsBeforeThrottle;
+    // Process the values.
+    const auto errorSetUpdateRateInSeconds = processThrottleValue(
+        updateRateInSeconds,
+        [&throttlingManager = std::as_const(mThrottlingManager)](const unsigned value)
+        {
+            return throttlingManager->setThrottleUpdateRate(value);
+        });
 
-    if (updateRateInSeconds.has_value())
-    {
-        errorSetUpdateRateInSeconds =
-            mThrottlingManager->setThrottleUpdateRate(*updateRateInSeconds) ? API_OK : API_EARGS;
-    }
-    else
-        errorSetUpdateRateInSeconds = API_ENOENT;
+    const auto errorSetMaxUploadsBeforeThrottle = processThrottleValue(
+        maxUploadsBeforeThrottle,
+        [&throttlingManager = std::as_const(mThrottlingManager)](const unsigned value)
+        {
+            return throttlingManager->setMaxUploadsBeforeThrottle(value);
+        });
 
-    if (maxUploadsBeforeThrottle.has_value())
-    {
-        errorSetMaxUploadsBeforeThrottle =
-            mThrottlingManager->setMaxUploadsBeforeThrottle(*maxUploadsBeforeThrottle) ? API_OK :
-                                                                                         API_EARGS;
-    }
-    else
-        errorSetMaxUploadsBeforeThrottle = API_ENOENT;
-
+    // Invoke the completion callback if provided.
     if (completion)
         completion(errorSetUpdateRateInSeconds, errorSetMaxUploadsBeforeThrottle);
 
+    // Return true if no invalid argument errors occurred.
     return errorSetUpdateRateInSeconds != API_EARGS &&
            errorSetMaxUploadsBeforeThrottle != API_EARGS;
 }
@@ -13991,7 +14013,6 @@ void Syncs::getThrottleValues(
 {
     assert(!onSyncThread());
 
-    // We need to change to the syncs thread as the throttling manager is one-threaded.
     queueSync(
         [this,
          completionForClientWrapped =
@@ -14003,9 +14024,9 @@ void Syncs::getThrottleValues(
 }
 
 std::pair<unsigned, unsigned> Syncs::getThrottleValuesInThread(
-    std::function<void(const unsigned, const unsigned)>&& completion)
+    std::function<void(const unsigned, const unsigned)>&& completion) const
 {
-    assert(onSyncThread());
+    assertThrottlingManagerIsValid();
 
     const auto updateRateInSecondsLimit = mThrottlingManager->throttleUpdateRate();
     const auto maxUploadsBeforeThrottleLimit = mThrottlingManager->maxUploadsBeforeThrottle();
@@ -14013,7 +14034,7 @@ std::pair<unsigned, unsigned> Syncs::getThrottleValuesInThread(
     if (completion)
         completion(updateRateInSecondsLimit, maxUploadsBeforeThrottleLimit);
 
-    return std::make_pair(updateRateInSecondsLimit, maxUploadsBeforeThrottleLimit);
+    return {updateRateInSecondsLimit, maxUploadsBeforeThrottleLimit};
 }
 
 void Syncs::getThrottleValuesLimits(
@@ -14021,7 +14042,6 @@ void Syncs::getThrottleValuesLimits(
 {
     assert(!onSyncThread());
 
-    // We need to change to the syncs thread as the throttling manager is one-threaded.
     queueSync(
         [this,
          completionForClientWrapped =
@@ -14033,9 +14053,9 @@ void Syncs::getThrottleValuesLimits(
 }
 
 ThrottleValueLimits Syncs::getThrottleValuesLimitsInThread(
-    std::function<void(const ThrottleValueLimits)>&& completion)
+    std::function<void(const ThrottleValueLimits)>&& completion) const
 {
-    assert(onSyncThread());
+    assertThrottlingManagerIsValid();
 
     const auto throttleValueLimits = mThrottlingManager->throttleValueLimits();
 
@@ -14050,7 +14070,6 @@ void Syncs::setThrottlingManager(std::shared_ptr<IUploadThrottlingManager> uploa
 {
     assert(!onSyncThread());
 
-    // We need to change to the syncs thread as the throttling manager is one-threaded.
     queueSync(
         [this,
          uploadThrottlingManager = std::move(uploadThrottlingManager),
@@ -14084,6 +14103,18 @@ bool Syncs::setThrottlingManagerInThread(
         completion(API_OK);
 
     return true;
+}
+
+void Syncs::assertThrottlingManagerIsValid() const
+{
+    assert(onSyncThread());
+
+    if (mThrottlingManager)
+        return;
+
+    LOG_err << "Syncs upload throttling manager is not valid and it should! It is expected to be "
+               "initialized from Syncs constructor";
+    assert(false && "Syncs upload throttling manager should always be valid!!!");
 }
 
 } // namespace

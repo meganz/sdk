@@ -12,12 +12,19 @@
 namespace mega
 {
 
-void UploadThrottlingFile::bypassThrottlingNextTime(const unsigned maxUploadsBeforeThrottle)
+void UploadThrottlingFile::increaseUploadCounter()
 {
-    if (mUploadCounter >= maxUploadsBeforeThrottle)
+    mUploadCounterLastTime = std::chrono::steady_clock::now();
+    if (mUploadCounter + 1 == std::numeric_limits<unsigned>::max())
     {
-        mBypassThrottlingNextTime = true;
+        // Reset to 0 when max is about to be reached
+        LOG_err << "[UploadThrottlingFile::increaseUploadCounter] The upload counter ("
+                << mUploadCounter << ") is about to reach the max allowed. Value will be reset";
+        assert(false && "[UploadThrottlingFile::increaseUploadCounter] Upload counter is about "
+                        "to reach the max allowed!");
+        mUploadCounter = 0;
     }
+    ++mUploadCounter;
 }
 
 bool UploadThrottlingFile::checkUploadThrottling(
@@ -65,6 +72,14 @@ bool UploadThrottlingFile::handleAbortUpload(SyncUpload_inClient& upload,
     // failure, and the file was being throttled, let it start immediately next time.
     bypassThrottlingNextTime(maxUploadsBeforeThrottle);
     return true;
+}
+
+void UploadThrottlingFile::bypassThrottlingNextTime(const unsigned maxUploadsBeforeThrottle)
+{
+    if (mUploadCounter >= maxUploadsBeforeThrottle)
+    {
+        mBypassThrottlingNextTime = true;
+    }
 }
 
 } // namespace mega

@@ -17626,7 +17626,7 @@ class MegaApi
          * @param listener A MegaRequestListener to track this request.
          */
         void setSyncThrottleUpdateRate(const unsigned updateRateInSeconds,
-                                       MegaRequestListener* listener);
+                                       MegaRequestListener* const listener);
 
         /**
          * @brief Set the max number of sync uploads per file before applying throttling logic.
@@ -17645,7 +17645,7 @@ class MegaApi
          * @param listener A MegaRequestListener to track this request.
          */
         void setSyncMaxUploadsBeforeThrottle(const unsigned maxUploadsBeforeThrottle,
-                                             MegaRequestListener* listener);
+                                             MegaRequestListener* const listener);
 
         /**
          * @brief Get the configurable throttle values for sync-uploads.
@@ -17659,7 +17659,7 @@ class MegaApi
          *
          * @param listener A MegaRequestListener to track this request.
          */
-        void getSyncUploadThrottleValues(MegaRequestListener* listener);
+        void getSyncUploadThrottleValues(MegaRequestListener* const listener);
 
         /**
          * @brief Get the lower limits of configurable throttle for sync-uploads.
@@ -17676,7 +17676,7 @@ class MegaApi
          *
          * @param listener A MegaRequestListener to track this request.
          */
-        void getSyncUploadThrottleLowerLimits(MegaRequestListener* listener);
+        void getSyncUploadThrottleLowerLimits(MegaRequestListener* const listener);
 
         /**
          * @brief Get the upper limits of configurable throttle values for sync-uploads.
@@ -17693,7 +17693,7 @@ class MegaApi
          *
          * @param listener A MegaRequestListener to track this request.
          */
-        void getSyncUploadThrottleUpperLimits(MegaRequestListener* listener);
+        void getSyncUploadThrottleUpperLimits(MegaRequestListener* const listener);
 
 #endif // ENABLE_SYNC
 

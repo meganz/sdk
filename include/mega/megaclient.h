@@ -1293,10 +1293,10 @@ public:
      * finishes.
      */
     void getSyncUploadThrottleValuesLimits(
-        std::function<void(const unsigned updateRateInSecondsLowerLimit,
-                           const unsigned updateRateInSecondsUpperLimit,
-                           const unsigned maxUploadsBeforeThrottleLowerLimit,
-                           const unsigned maxUploadsBeforeThrottleUpperLimit)>&& completion);
+        std::function<void(const unsigned /* updateRateInSecondsLowerLimit */,
+                           const unsigned /* updateRateInSecondsUpperLimit */,
+                           const unsigned /* maxUploadsBeforeThrottleLowerLimit */,
+                           const unsigned /* maxUploadsBeforeThrottleUpperLimit */)>&& completion);
 
     /**
      * @brief Sets the IUploadThrottlingManager for Syncs.

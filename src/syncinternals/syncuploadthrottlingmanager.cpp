@@ -9,17 +9,28 @@
 
 #include "mega/syncinternals/syncinternals_logging.h"
 
+#include <algorithm>
+
 namespace mega
 {
 
+template<typename T>
+static bool valueIsOutOfRange(const T& value, const T& lower, const T& upper)
+{
+    if (value == std::clamp(value, lower, upper))
+        return false;
+
+    LOG_warn << "[UploadThrottle::valueIsOutOfRange] Value out of range (" << value
+             << "). Must be >= " << lower << " and <= " << upper;
+    return true;
+}
+
 bool UploadThrottlingManager::setThrottleUpdateRate(const std::chrono::seconds interval)
 {
-    if (interval < std::chrono::seconds(THROTTLE_UPDATE_RATE_LOWER_LIMIT) ||
-        interval > std::chrono::seconds(THROTTLE_UPDATE_RATE_UPPER_LIMIT))
+    if (valueIsOutOfRange(static_cast<unsigned>(interval.count()),
+                          THROTTLE_UPDATE_RATE_LOWER_LIMIT,
+                          THROTTLE_UPDATE_RATE_UPPER_LIMIT))
     {
-        LOG_warn << "[UploadThrottle] Invalid throttle update rate (" << interval.count()
-                 << " secs). Must be >= " << THROTTLE_UPDATE_RATE_LOWER_LIMIT
-                 << " and <= " << THROTTLE_UPDATE_RATE_UPPER_LIMIT << " seconds";
         return false;
     }
 
@@ -30,12 +41,10 @@ bool UploadThrottlingManager::setThrottleUpdateRate(const std::chrono::seconds i
 
 bool UploadThrottlingManager::setMaxUploadsBeforeThrottle(const unsigned maxUploadsBeforeThrottle)
 {
-    if (maxUploadsBeforeThrottle < MAX_UPLOADS_BEFORE_THROTTLE_LOWER_LIMIT ||
-        maxUploadsBeforeThrottle > MAX_UPLOADS_BEFORE_THROTTLE_UPPER_LIMIT)
+    if (valueIsOutOfRange(maxUploadsBeforeThrottle,
+                          MAX_UPLOADS_BEFORE_THROTTLE_LOWER_LIMIT,
+                          MAX_UPLOADS_BEFORE_THROTTLE_UPPER_LIMIT))
     {
-        LOG_warn << "[UploadThrottle] Invalid max uploads value (" << maxUploadsBeforeThrottle
-                 << "). Must be >= " << MAX_UPLOADS_BEFORE_THROTTLE_LOWER_LIMIT
-                 << " and <= " << MAX_UPLOADS_BEFORE_THROTTLE_UPPER_LIMIT;
         return false;
     }
 
@@ -52,17 +61,17 @@ bool UploadThrottlingManager::checkProcessDelayedUploads() const
     }
 
     // Calculate adjusted interval
-    const auto adjustedThrottleUpdateRate =
-        std::max(std::chrono::seconds(THROTTLE_UPDATE_RATE_LOWER_LIMIT),
-                 std::chrono::duration_cast<std::chrono::seconds>(
-                     mThrottleUpdateRate / std::sqrt(static_cast<double>(mDelayedQueue.size()))));
+    const auto adjustedThrottleUpdateRate = std::chrono::duration_cast<std::chrono::seconds>(
+        mThrottleUpdateRate / std::sqrt(static_cast<double>(mDelayedQueue.size())));
+    const auto throttleUpdateRate = std::max(std::chrono::seconds(THROTTLE_UPDATE_RATE_LOWER_LIMIT),
+                                             adjustedThrottleUpdateRate);
 
     if (const auto timeSinceLastProcessedUploadInSeconds = timeSinceLastProcessedUpload();
-        timeSinceLastProcessedUploadInSeconds < adjustedThrottleUpdateRate)
+        timeSinceLastProcessedUploadInSeconds < throttleUpdateRate)
     {
         SYNCS_verbose_timed
             << "[UploadThrottle] Waiting to process delayed uploads [processing every "
-            << adjustedThrottleUpdateRate.count() << " secs, time lapsed since last process: "
+            << throttleUpdateRate.count() << " secs, time lapsed since last process: "
             << timeSinceLastProcessedUploadInSeconds.count()
             << " secs, delayed uploads = " << mDelayedQueue.size() << "]";
         return false;
