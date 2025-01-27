@@ -10251,8 +10251,9 @@ bool Sync::resolve_upsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, 
                     fullPath.localPath, nodeName, row.fsNode->fingerprint, threadSafeState,
                     row.fsNode->fsid, row.fsNode->localname, inshare);
 
-                NodeHandle displaceHandle = row.cloudNode ? row.cloudNode->handle : NodeHandle();
-                bool uploadSentToClientQueue = row.syncNode->queueClientUpload(
+                const NodeHandle displaceHandle =
+                    row.cloudNode ? row.cloudNode->handle : NodeHandle();
+                const bool uploadSentToClientQueue = row.syncNode->queueClientUpload(
                     upload,
                     UseLocalVersioningFlag,
                     nodeName == ".megaignore",
