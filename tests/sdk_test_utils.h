@@ -25,19 +25,19 @@ namespace sdk_test
  *             If T = std::string_view or std::string, we write those bytes.
  */
 template<typename T>
-void writeFileContent(const fs::path& filePath, std::ios::openmode openMode, T data)
+void writeFileContent(const fs::path& filePath, const std::ios::openmode openMode, const T& data)
 {
     std::ofstream outFile(filePath, openMode);
     if (!outFile.is_open())
     {
-        auto msg = "Cannot open file: " + filePath.string();
+        const auto msg = "Cannot open file: " + filePath.string();
         throw std::runtime_error(msg);
     }
 
     if constexpr (std::is_same_v<T, std::size_t>)
     {
         // data is a byte count -> write that many zeros
-        std::vector<char> buffer(data, 0);
+        const std::vector<char> buffer(data, 0);
         outFile.write(buffer.data(), static_cast<std::streamsize>(buffer.size()));
     }
     else if constexpr (std::is_same_v<T, std::string_view> || std::is_same_v<T, std::string>)
