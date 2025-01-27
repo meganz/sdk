@@ -1475,84 +1475,59 @@ overloaded(Ts...) -> overloaded<Ts...>;
  *
  * The Range class allows to create a range of unsigned integers, which can be used in
  * for-each loops or other iteration contexts.
+ *
+ * The range is of type [start, end), i.e., "start" is inclusive, "end" is exclusive.
  */
 class Range
 {
 public:
-    /**
-     * @brief Constructs a Range object.
-     * @param start The starting value of the range (inclusive).
-     * @param end The ending value of the range (exclusive).
-     */
     Range(const unsigned start, const unsigned end):
         mStart(start),
         mEnd(end)
-    {}
+    {
+        assert(end > start);
+    }
 
-    /**
-     * @class Iterator
-     * @brief Nested class representing an iterator for the Range.
-     */
     class Iterator
     {
     public:
-        /**
-         * @brief Constructs an Iterator object.
-         * @param current The current value of the iterator.
-         */
         explicit Iterator(const unsigned current):
             mCurrent(current)
         {}
 
-        /**
-         * @brief Dereference operator to access the current value of the iterator.
-         */
         unsigned operator*() const
         {
             return mCurrent;
         }
 
-        /**
-         * @brief Pre-increment operator to move to the next value in the range.
-         */
         Iterator& operator++()
         {
             ++mCurrent;
             return *this;
         }
 
-        /**
-         * @brief Inequality operator to check if two iterators are different.
-         * Iteration ends when the current value equals the other iterator's value.
-         */
         bool operator!=(const Iterator& other) const
         {
             return mCurrent != other.mCurrent;
         }
 
     private:
-        unsigned mCurrent; // The current value of the iterator.
+        unsigned mCurrent;
     };
 
-    /**
-     * @brief Returns an iterator pointing to the beginning of the range.
-     */
     Iterator begin() const
     {
         return Iterator(mStart);
     }
 
-    /**
-     * @brief Returns an iterator pointing to the end of the range.
-     */
     Iterator end() const
     {
         return Iterator(mEnd);
     }
 
 private:
-    unsigned mStart; // The starting value of the range (inclusive).
-    unsigned mEnd; // The ending value of the range (exclusive).
+    unsigned mStart;
+    unsigned mEnd;
 };
 
 /**
@@ -1574,6 +1549,7 @@ private:
  */
 inline Range range(const unsigned start, const unsigned end)
 {
+    assert(end > start);
     return Range(start, end);
 }
 
@@ -1593,7 +1569,7 @@ inline Range range(const unsigned start, const unsigned end)
  */
 inline Range range(const unsigned end)
 {
-    return Range(0, end);
+    return range(0, end);
 }
 
 } // namespace mega

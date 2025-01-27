@@ -46,10 +46,9 @@ const dstime Sync::RECENT_VERSION_INTERVAL_SECS = 10800;
 
 const unsigned Sync::MAX_CLOUD_DEPTH = 64;
 
-const std::chrono::milliseconds Syncs::MIN_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT{
-    100}; // 100 ms
-const std::chrono::milliseconds Syncs::MAX_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT{
-    10000}; // 10 secs
+using namespace std::chrono_literals;
+const std::chrono::milliseconds Syncs::MIN_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT{100ms};
+const std::chrono::milliseconds Syncs::MAX_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT{10s};
 
 bool PerSyncStats::operator==(const PerSyncStats& other)
 {
@@ -13882,13 +13881,10 @@ void Syncs::processDelayedUploads()
 {
     assertThrottlingManagerIsValid();
 
-    // Define the callable to send an upload to be processed in the client queue.
-    // Note: this callable is tight to processDelayedUploads() and refactoring it to an independent
-    // method would add unnecessary indirection.
-    const auto queueClientWeakUpload = [this](std::weak_ptr<SyncUpload_inClient> weakUpload,
-                                              const VersioningOption vo,
-                                              const bool queueFirst,
-                                              const NodeHandle ovHandleIfShortcut)
+    const auto queueUploadToClient = [this](std::weak_ptr<SyncUpload_inClient> weakUpload,
+                                            const VersioningOption vo,
+                                            const bool queueFirst,
+                                            const NodeHandle ovHandleIfShortcut)
     {
         if (!weakUpload.lock())
         {
@@ -13914,8 +13910,7 @@ void Syncs::processDelayedUploads()
             });
     };
 
-    // Process the delayed uploads.
-    mThrottlingManager->processDelayedUploads(queueClientWeakUpload);
+    mThrottlingManager->processDelayedUploads(queueUploadToClient);
 }
 
 void Syncs::addToDelayedUploads(DelayedSyncUpload&& delayedUpload)

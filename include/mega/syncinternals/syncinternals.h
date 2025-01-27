@@ -549,10 +549,7 @@ Node* findCloneNodeCandidate(MegaClient& mc, const std::shared_ptr<SyncUpload_in
  *
  * @param mc Reference to the MegaClient.
  * @param committer Reference to the transfer database committer.
- * @param upload Const ref to the shared pointer to the SyncUpload to be processed.
- * @param vo Versioning option for the upload.
- * @param queueFirst Flag indicating if this upload should be prioritized.
- * @param ovHandleIfShortcut Node handle representing a shortcut for the upload.
+ * For the other params, see LocalNode::queueClientUpload()
  */
 void clientUpload(MegaClient& mc,
                   TransferDbCommitter& committer,

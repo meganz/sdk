@@ -2215,40 +2215,32 @@ public:
     void processDelayedUploads();
 
     /**
-     * @brief Adds a upload to be processed by the throttling logic.
-     * Expected to be called on the sync thread.
-     *
      * @see IUploadThrottlingManager::addToDelayedUploads()
+     * Expected to be called on the sync thread.
      */
     void addToDelayedUploads(DelayedSyncUpload&& delayedUpload);
 
     /**
-     * @brief Gets the upload counter inactivity expiration time.
-     * Expected to be called on the sync thread.
-     *
      * @see IUploadThrottlingManager::uploadCounterInactivityExpirationTime()
+     * Expected to be called on the sync thread.
      */
     std::chrono::seconds uploadCounterInactivityExpirationTime() const;
 
     /**
-     * @brief Gets the throttle update rate for uploads in seconds.
-     * Expected to be called on the sync thread.
-     *
      * @see IUploadThrottlingManager::throttleUpdateRate()
+     * Expected to be called on the sync thread.
      */
     unsigned throttleUpdateRate() const;
 
     /**
-     * @brief Gets the maximum uploads allowed before throttling.
-     * Expected to be called on the sync thread.
-     *
      * @see IUploadThrottlingManager::maxUploadsBeforeThrottle()
+     * Expected to be called on the sync thread.
      */
     unsigned maxUploadsBeforeThrottle() const;
 
     /**
      * @brief Enqueues setThrottleValuesInThread() to be later called within the sync thread.
-     * Method to be executed out of the sync thread.
+     * Method to be executed from the MegaClient thread.
      */
     void setThrottleValues(std::optional<const unsigned> updateRateInSeconds,
                            std::optional<const unsigned> maxUploadsBeforeThrottle,
@@ -2281,7 +2273,7 @@ public:
 
     /**
      * @brief Enqueues getThrottleValuesInThread() to be later called within the sync thread.
-     * Method to be executed out of the sync thread.
+     * Method to be executed from the MegaClient thread.
      */
     void getThrottleValues(
         std::function<void(const unsigned /* updateRateInSeconds */,
@@ -2304,7 +2296,7 @@ public:
 
     /**
      * @brief Enqueues getThrottleValuesLimitsInThread() to be later called within the sync thread.
-     * Method to be executed out of the sync thread.
+     * Method to be executed from the MegaClient thread.
      */
     void getThrottleValuesLimits(
         std::function<void(const ThrottleValueLimits)>&& completionForClient);
@@ -2324,7 +2316,7 @@ public:
 
     /**
      * @brief Enqueues setThrottlingManagerInThread() to be later called within the sync thread.
-     * Method to be executed out of the sync thread.
+     * Method to be executed from the MegaClient thread.
      */
     void setThrottlingManager(std::shared_ptr<IUploadThrottlingManager> uploadThrottlingManager,
                               std::function<void(const error)>&& completionForClient);

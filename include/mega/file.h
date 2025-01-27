@@ -310,10 +310,8 @@ struct DelayedSyncUpload
     /**
      * @brief Constructs a DelayedUpload instance.
      *
-     * @param upload Shared pointer to the upload client responsible for this task.
-     * @param vo Versioning option for the upload.
-     * @param queueFirst Flag indicating if this upload should be queued first.
-     * @param ovHandleIfShortcut Node handle representing a shortcut for the upload.
+     * @param upload Shared pointer to the upload owned by the LocalNode.
+     * For the other params, see LocalNode::queueClientUpload()
      */
     DelayedSyncUpload(std::shared_ptr<SyncUpload_inClient> upload,
                       const VersioningOption vo,

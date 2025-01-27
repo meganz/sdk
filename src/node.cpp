@@ -3202,57 +3202,45 @@ void LocalNode::updateTransferLocalname()
     }
 }
 
-bool LocalNode::transferResetUnlessMatched(direction_t dir, const FileFingerprint& fingerprint)
+bool LocalNode::transferResetUnlessMatched(const direction_t dir,
+                                           const FileFingerprint& fingerprint)
 {
-    if (!transferSP) return true;
+    if (!transferSP)
+        return true;
 
-    auto uploadPtr = dynamic_cast<SyncUpload_inClient*>(transferSP.get());
+    const auto uploadPtr = dynamic_cast<SyncUpload_inClient*>(transferSP.get());
 
-    auto different =
-      dir != (uploadPtr ? PUT : GET)
-      || transferSP->fingerprint() != fingerprint;
+    const auto different =
+        dir != (uploadPtr ? PUT : GET) || transferSP->fingerprint() != fingerprint;
 
-    // A blocked file causes transfer termination. Avoid retrying the transfer unless unmatched: the
-    // node could have been replaced remotely (new version).
-    auto transferTerminatedAndIsRetryable = transferSP->wasTerminated &&
-                                            transferSP->mError != API_EKEY &&
-                                            transferSP->mError != API_EBLOCKED;
+    const auto transferTerminatedAndIsRetryable = transferSP->wasTerminated &&
+                                                  transferSP->mError != API_EKEY &&
+                                                  transferSP->mError != API_EBLOCKED;
 
-    // todo: should we be more accurate than just fingerprint?
-    if (different || transferTerminatedAndIsRetryable)
+    if (!different && !transferTerminatedAndIsRetryable)
+        return true;
+
+    const bool transferDirectionNeedsToChange = dir != (uploadPtr ? PUT : GET);
+
+    if (uploadPtr && !transferDirectionNeedsToChange &&
+        !mUploadThrottling.handleAbortUpload(*uploadPtr,
+                                             fingerprint,
+                                             sync->syncs.maxUploadsBeforeThrottle(),
+                                             transferSP->getLocalname()))
     {
-        const bool transferDirectionNeedsToChange = dir != (uploadPtr ? PUT : GET);
-
-        if (uploadPtr && !transferDirectionNeedsToChange &&
-            !mUploadThrottling.handleAbortUpload(*uploadPtr,
-                                                 fingerprint,
-                                                 sync->syncs.maxUploadsBeforeThrottle(),
-                                                 transferSP->getLocalname()))
-        {
-            // If the upload must not be cancelled we return from the function.
-            // This method expects to return false if putnodes was started at this point, to
-            // reevaluate the row (trigger a new upload).
-            return !uploadPtr->putnodesStarted;
-        }
-
-        LOG_debug << sync->syncname << "Cancelling superceded transfer of "
-                  << transferSP->getLocalname();
-        if (transferDirectionNeedsToChange)
-        {
-            LOG_debug << sync->syncname << "Because transfer direction needs to change";
-        }
-        else if (transferSP->wasTerminated)
-        {
-            LOG_debug << sync->syncname << "Due to being terminated after failing";
-        }
-        else
-        {
-            LOG_debug << sync->syncname
-                      << "Due to fingerprint change, was:" << transferSP->fingerprintDebugString()
-                      << " now:" << fingerprint.fingerprintDebugString();
-        }
-        resetTransfer(nullptr);
+        return !uploadPtr->putnodesStarted;
     }
+
+    LOG_debug << sync->syncname << "Cancelling superceded transfer of "
+              << transferSP->getLocalname() << ". Reason: "
+              << (transferDirectionNeedsToChange ?
+                      "Transfer direction needs to change." :
+                      (transferSP->wasTerminated ?
+                           "Terminated after failing." :
+                           "Fingerprint change. Was: " + transferSP->fingerprintDebugString() +
+                               ", now: " + fingerprint.fingerprintDebugString()));
+
+    resetTransfer(nullptr);
     return true;
 }
 
